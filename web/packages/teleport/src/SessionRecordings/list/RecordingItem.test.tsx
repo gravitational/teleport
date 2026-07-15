@@ -17,11 +17,17 @@
  */
 
 import { format } from 'date-fns';
-import { setupServer } from 'msw/node';
 import { act } from 'react';
 import { MemoryRouter } from 'react-router';
 
-import { render, screen, testQueryClient, tick } from 'design/utils/testing';
+import {
+  enableMswServer,
+  render,
+  screen,
+  server,
+  testQueryClient,
+  tick,
+} from 'design/utils/testing';
 
 import cfg from 'teleport/config';
 import { ContextProvider } from 'teleport/index';
@@ -31,6 +37,8 @@ import type { Recording } from 'teleport/services/recordings';
 import { getThumbnail, MOCK_THUMBNAIL, thumbnailError } from './mock';
 import { RecordingItem, type RecordingItemProps } from './RecordingItem';
 import { Density, ViewMode } from './ViewSwitcher';
+
+enableMswServer();
 
 const mockRecording: Recording = {
   sid: 'test-session',
@@ -50,6 +58,7 @@ async function setupTest({
   viewMode = ViewMode.List,
   density = Density.Comfortable,
   actionComponent,
+  badgeComponent,
 }: Partial<RecordingItemProps>) {
   const ctx = createTeleportContext();
 
@@ -58,6 +67,7 @@ async function setupTest({
       <ContextProvider ctx={ctx}>
         <RecordingItem
           actionComponent={actionComponent}
+          badgeComponent={badgeComponent}
           recording={recording}
           viewMode={viewMode}
           density={density}
@@ -73,20 +83,13 @@ async function setupTest({
   return view;
 }
 
-const server = setupServer();
-
-beforeAll(() => server.listen());
-
 beforeEach(() => {
   server.use(getThumbnail(MOCK_THUMBNAIL));
 });
 
-afterEach(async () => {
-  server.resetHandlers();
+afterEach(() => {
   testQueryClient.clear();
 });
-
-afterAll(() => server.close());
 
 test('renders recording item with basic information', async () => {
   await setupTest({});
@@ -122,6 +125,18 @@ test('renders with comfortable density', async () => {
 
   expect(screen.getByTestId('recording-item')).toBeInTheDocument();
   expect(screen.getByText('SSH Session')).toBeInTheDocument();
+});
+
+test('renders the badge component with the recording details', async () => {
+  await setupTest({
+    badgeComponent: ({ sessionId }) => (
+      <div data-testid="badge-component">{sessionId}</div>
+    ),
+  });
+
+  expect(screen.getByTestId('badge-component')).toHaveTextContent(
+    'test-session'
+  );
 });
 
 test('renders SSH recording type correctly', async () => {

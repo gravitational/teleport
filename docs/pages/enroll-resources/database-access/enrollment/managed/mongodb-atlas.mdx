@@ -7,6 +7,7 @@ tags:
  - how-to
  - zero-trust
  - infrastructure-identity
+page_type: how-to
 ---
 
 (!docs/pages/includes/database-access/db-introduction.mdx dbType="MongoDB Atlas" dbConfigure="with either mutual TLS or AWS IAM authentication"!)
@@ -106,7 +107,7 @@ db_service:
 
 (!docs/pages/includes/start-teleport.mdx service="the Teleport Database Service"!)
 
-See the full [YAML reference](../../reference/configuration.mdx) for details.
+See the full [config reference](../../../../reference/deployment/config.mdx) for details.
 
 </TabItem>
 </Tabs>
@@ -192,32 +193,40 @@ You must provide the Teleport Database Service access to AWS credentials.
 
 ### Create a MongoDB IAM role
 
-Navigate to the [AWS IAM console](https://console.aws.amazon.com/iam/). In the
-navigation pane, choose **Roles** and then choose **Create role**. Next, select
-the "Custom trust policy" type. Edit the trust policy to allow the Teleport
-Database service IAM role to assume this role so that the Teleport can fetch the
-necessary credentials to authenticate to MongoDB:
+1. Navigate to the [AWS IAM console](https://console.aws.amazon.com/iam/). 
 
-```json
-{
-    "Version": "2012-10-17",
-    "Statement": [
-        {
-            "Sid": "Statement1",
-            "Effect": "Allow",
-            "Principal": {
-                "AWS": "arn:aws:iam::111111111111:role/teleport-database-access",
-                "Service": "ec2.amazonaws.com"
-            },
-            "Action": "sts:AssumeRole"
-        }
-    ]
-}
-```
+1. In the navigation pane, choose **Roles** and then choose **Create role**.
+   
+1. Select the "Custom trust policy" type. 
 
-Your role won’t require any permission, so you can leave it empty on the
-**Add Permissions** step. Then, choose a name for it and create it. In this
-guide, we will the name `teleport-access`.
+1. Edit the trust policy to allow the Teleport Database Service IAM role to
+   assume this role so that the Teleport Database Service can fetch the
+   necessary credentials to authenticate to MongoDB. Assign 
+   <Var name="arn:aws:iam::111111111111:role/teleport-database-access" /> to the
+   ARN of the role used by the Teleport Database Service.
+
+   ```json
+   {
+       "Version": "2012-10-17",
+       "Statement": [
+           {
+               "Sid": "Statement1",
+               "Effect": "Allow",
+               "Principal": {
+                   "AWS": "<Var name="arn:aws:iam::111111111111:role/teleport-database-access" />",
+                   "Service": "ec2.amazonaws.com"
+               },
+               "Action": "sts:AssumeRole"
+           }
+       ]
+   }
+   ```
+
+   Your role won’t require any permission, so you can leave it empty on the
+   **Add Permissions** step.
+
+1. Choose a name for it and create it. In this guide, we will use the name
+   `teleport-access`.
 
 ### Create a MongoDB User
 
@@ -270,6 +279,8 @@ To retrieve credentials for a database and connect to it:
 ```code
 $ tsh db connect --db-user=alice --db-name dev mongodb-atlas
 ```
+
+(!docs/pages/includes/database-access/proxy-db-tunnel.mdx db="mongodb-atlas" dbArgs="--db-user=alice --db-name=dev"!)
 </TabItem>
 <TabItem label="AWS IAM authentication">
 To retrieve credentials for a database and connect to it, you must provide the

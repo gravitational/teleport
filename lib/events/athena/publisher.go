@@ -22,15 +22,17 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"log/slog"
 	"net/http"
 	"path"
+	"strconv"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsratelimit "github.com/aws/aws-sdk-go-v2/aws/ratelimit"
 	awsretry "github.com/aws/aws-sdk-go-v2/aws/retry"
 	awshttp "github.com/aws/aws-sdk-go-v2/aws/transport/http"
-	s3manager "github.com/aws/aws-sdk-go-v2/feature/s3/manager"
+	"github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/sns"
 	snstypes "github.com/aws/aws-sdk-go-v2/service/sns/types"
@@ -51,10 +53,10 @@ const (
 	payloadTypeRawProtoEvent = "raw_proto_event"
 	payloadTypeS3Based       = "s3_event"
 
-	// maxDirectMessageSize defines maximum size of SNS/SQS message. AWS allows
+	// maxSNSDirectMessageSize defines maximum size of SNS message. AWS allows
 	// 256KB however it counts also headers. We round it to 250KB, just to be
 	// sure.
-	maxDirectMessageSize = 250 * 1024
+	maxSNSDirectMessageSize = 250 * 1024
 )
 
 // maxS3BasedSize defines some resonable threshold for S3 based messages
@@ -146,26 +148,69 @@ func SQSPublisherFunc(queueURL string, sqsClient *sqs.Client) messagePublisherFu
 }
 
 type s3uploader interface {
-	Upload(ctx context.Context, input *s3.PutObjectInput, opts ...func(*s3manager.Uploader)) (*s3manager.UploadOutput, error)
+	UploadObject(ctx context.Context, input *transfermanager.UploadObjectInput, opts ...func(*transfermanager.Options)) (*transfermanager.UploadObjectOutput, error)
 }
 
 type PublisherConfig struct {
-	MessagePublisher messagePublisher
-	Uploader         s3uploader
-	PayloadBucket    string
-	PayloadPrefix    string
+	MessagePublisher     messagePublisher
+	Uploader             s3uploader
+	PayloadBucket        string
+	PayloadPrefix        string
+	MaxDirectMessageSize int
 }
 
 // NewPublisher returns new instance of publisher.
 func NewPublisher(cfg PublisherConfig) *publisher {
+	if cfg.MaxDirectMessageSize <= 0 {
+		cfg.MaxDirectMessageSize = maxSNSDirectMessageSize
+	}
 	return &publisher{
 		PublisherConfig: cfg,
 	}
 }
 
+// sqsGetQueueAttributer is the subset of the SQS API used by sqsMaxDirectMessageSize.
+type sqsGetQueueAttributer interface {
+	GetQueueAttributes(ctx context.Context, params *sqs.GetQueueAttributesInput, optFns ...func(*sqs.Options)) (*sqs.GetQueueAttributesOutput, error)
+}
+
+// sqsMaxDirectMessageSize queries the queue's MaximumMessageSize attribute and
+// returns a safe direct-send limit (attribute value minus sqsMessageAttributeOverhead).
+// Falls back to maxSNSDirectMessageSize and logs a warning if the attribute
+// cannot be retrieved or parsed.
+func sqsMaxDirectMessageSize(ctx context.Context, client sqsGetQueueAttributer, queueURL string, logger *slog.Logger) int {
+	// sqsMessageAttributeOverhead is the amount subtracted from a queue's
+	// MaximumMessageSize when deriving the usable direct-send limit, to leave
+	// room for SQS message attributes.
+	const sqsMessageAttributeOverhead = 10 * 1024
+
+	reqCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	attrs, err := client.GetQueueAttributes(reqCtx, &sqs.GetQueueAttributesInput{
+		QueueUrl:       &queueURL,
+		AttributeNames: []sqstypes.QueueAttributeName{sqstypes.QueueAttributeNameMaximumMessageSize},
+	})
+	if err != nil {
+		logger.WarnContext(ctx, "Failed to query SQS MaximumMessageSize, using conservative SNS limit as fallback", "error", err)
+		return maxSNSDirectMessageSize
+	}
+	raw, ok := attrs.Attributes[string(sqstypes.QueueAttributeNameMaximumMessageSize)]
+	if !ok {
+		logger.WarnContext(ctx, "SQS queue did not return MaximumMessageSize, using conservative SNS limit as fallback")
+		return maxSNSDirectMessageSize
+	}
+	v, err := strconv.Atoi(raw)
+	if err != nil || v <= sqsMessageAttributeOverhead {
+		logger.WarnContext(ctx, "SQS MaximumMessageSize value is invalid, using conservative SNS limit as fallback", "value", raw)
+		return maxSNSDirectMessageSize
+	}
+	return v - sqsMessageAttributeOverhead
+}
+
 // newPublisherFromAthenaConfig returns new instance of publisher from athena
 // config.
-func newPublisherFromAthenaConfig(cfg Config) *publisher {
+func newPublisherFromAthenaConfig(ctx context.Context, cfg Config) *publisher {
 	r := awsretry.NewStandard(func(so *awsretry.StandardOptions) {
 		so.MaxAttempts = 20
 		so.MaxBackoff = 1 * time.Minute
@@ -181,27 +226,32 @@ func newPublisherFromAthenaConfig(cfg Config) *publisher {
 		t.MaxIdleConnsPerHost = defaults.HTTPMaxIdleConnsPerHost
 	})
 	var messagePublisher messagePublisherFunc
+	var maxDirectMessageSize int
 	if cfg.TopicARN == topicARNBypass {
-		messagePublisher = SQSPublisherFunc(cfg.QueueURL, sqs.NewFromConfig(*cfg.PublisherConsumerAWSConfig, func(o *sqs.Options) {
+		sqsClient := sqs.NewFromConfig(*cfg.PublisherConsumerAWSConfig, func(o *sqs.Options) {
 			o.Retryer = r
 			o.HTTPClient = hc
 			o.TracerProvider = smithyoteltracing.Adapt(otel.GetTracerProvider())
-		}))
+		})
+		messagePublisher = SQSPublisherFunc(cfg.QueueURL, sqsClient)
+		maxDirectMessageSize = sqsMaxDirectMessageSize(ctx, sqsClient, cfg.QueueURL, cfg.Logger)
 	} else {
 		messagePublisher = SNSPublisherFunc(cfg.TopicARN, sns.NewFromConfig(*cfg.PublisherConsumerAWSConfig, func(o *sns.Options) {
 			o.Retryer = r
 			o.HTTPClient = hc
 			o.TracerProvider = smithyoteltracing.Adapt(otel.GetTracerProvider())
 		}))
+		maxDirectMessageSize = maxSNSDirectMessageSize // SNS allows messages up to 256KB, but we use a smaller limit to be safe
 	}
 
 	return NewPublisher(PublisherConfig{
 		MessagePublisher: messagePublisher,
-		Uploader: s3manager.NewUploader(s3.NewFromConfig(*cfg.PublisherConsumerAWSConfig, func(o *s3.Options) {
+		Uploader: transfermanager.New(s3.NewFromConfig(*cfg.PublisherConsumerAWSConfig, func(o *s3.Options) {
 			o.TracerProvider = smithyoteltracing.Adapt(otel.GetTracerProvider())
 		})),
-		PayloadBucket: cfg.largeEventsBucket,
-		PayloadPrefix: cfg.largeEventsPrefix,
+		PayloadBucket:        cfg.largeEventsBucket,
+		PayloadPrefix:        cfg.largeEventsPrefix,
+		MaxDirectMessageSize: maxDirectMessageSize,
 	})
 }
 
@@ -248,7 +298,7 @@ func (p *publisher) EmitAuditEvent(ctx context.Context, in apievents.AuditEvent)
 	}
 
 	base64Len := base64.StdEncoding.EncodedLen(len(marshaledProto))
-	if base64Len > maxDirectMessageSize {
+	if base64Len > p.MaxDirectMessageSize {
 		if base64Len > maxS3BasedSize {
 			return trace.BadParameter("message too large to publish, size %d", base64Len)
 		}
@@ -261,7 +311,7 @@ func (p *publisher) EmitAuditEvent(ctx context.Context, in apievents.AuditEvent)
 
 func (p *publisher) emitViaS3(ctx context.Context, uid string, marshaledEvent []byte) error {
 	path := path.Join(p.PayloadPrefix, uid)
-	out, err := p.Uploader.Upload(ctx, &s3.PutObjectInput{
+	out, err := p.Uploader.UploadObject(ctx, &transfermanager.UploadObjectInput{
 		Bucket: &p.PayloadBucket,
 		Key:    &path,
 		Body:   bytes.NewBuffer(marshaledEvent),

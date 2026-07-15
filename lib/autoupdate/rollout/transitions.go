@@ -65,7 +65,7 @@ func TriggerGroups(rollout *autoupdatev1pb.AutoUpdateAgentRollout, reports []*au
 	}
 
 	// filter out expired reports
-	validReports := make([]*autoupdatev1pb.AutoUpdateAgentReport, len(reports))
+	validReports := make([]*autoupdatev1pb.AutoUpdateAgentReport, 0, len(reports))
 	for _, report := range reports {
 		if now.Sub(report.GetSpec().GetTimestamp().AsTime()) <= constants.AutoUpdateAgentReportPeriod {
 			validReports = append(validReports, report)
@@ -132,9 +132,9 @@ func TriggerGroups(rollout *autoupdatev1pb.AutoUpdateAgentRollout, reports []*au
 		}
 
 		setGroupState(group, desiredState, updateReasonManualTrigger, now)
-		group.UpToDateCount = uint64(upToDateCount)
-		group.InitialCount = uint64(initialCount)
-		group.PresentCount = uint64(initialCount)
+		group.SetUpToDateCount(uint64(upToDateCount))
+		group.SetInitialCount(uint64(initialCount))
+		group.SetPresentCount(uint64(initialCount))
 	}
 
 	return nil

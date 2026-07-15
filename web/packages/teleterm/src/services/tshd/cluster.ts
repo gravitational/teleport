@@ -16,8 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import * as whatwg from 'whatwg-url';
-
 import { TrustedDeviceRequirement } from 'gen-proto-ts/teleport/legacy/types/trusted_device_requirement_pb';
 import {
   Cluster,
@@ -41,35 +39,20 @@ import {
  * browser against a host that we got from a Go service.
  */
 export function proxyHostToBrowserProxyHost(proxyHost: string) {
-  let whatwgURL: whatwg.URL;
+  let parsedURL: URL;
 
   try {
-    whatwgURL = new whatwg.URL(`https://${proxyHost}`);
+    parsedURL = new URL(`https://${proxyHost}`);
   } catch (error) {
-    if (error instanceof TypeError) {
-      throw new Error(`Invalid proxy host ${proxyHost}`, { cause: error });
-    }
-    throw error;
+    throw new Error(`Invalid proxy host ${proxyHost}`, { cause: error });
   }
 
   // Catches cases where proxyHost itself includes a "https://" prefix.
-  if (whatwgURL.pathname !== '/') {
+  if (parsedURL.pathname !== '/') {
     throw new Error(`Invalid proxy host ${proxyHost}`);
   }
 
-  return whatwgURL.host;
-}
-
-export function proxyHostname(proxyHost: string) {
-  let whatwgURL: whatwg.URL;
-
-  try {
-    whatwgURL = new whatwg.URL(`https://${proxyHost}`);
-  } catch {
-    return proxyHost;
-  }
-
-  return whatwgURL.hostname;
+  return parsedURL.host;
 }
 
 /**

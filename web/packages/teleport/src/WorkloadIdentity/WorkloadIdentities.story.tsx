@@ -18,8 +18,7 @@
 
 import { Meta, StoryObj } from '@storybook/react-vite';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { createMemoryHistory } from 'history';
-import { MemoryRouter, Route, Router } from 'react-router';
+import { Route, Routes } from 'react-router';
 
 import cfg from 'teleport/config';
 import { createTeleportContext } from 'teleport/mocks/contexts';
@@ -136,10 +135,6 @@ const queryClient = new QueryClient({
 function Wrapper(props?: { hasListPermission?: boolean }) {
   const { hasListPermission = true } = props ?? {};
 
-  const history = createMemoryHistory({
-    initialEntries: [cfg.routes.workloadIdentities],
-  });
-
   const customAcl = makeAcl({
     workloadIdentity: {
       ...defaultAccess,
@@ -153,15 +148,17 @@ function Wrapper(props?: { hasListPermission?: boolean }) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter>
-        <TeleportProviderBasic teleportCtx={ctx}>
-          <Router history={history}>
-            <Route path={cfg.routes.workloadIdentities}>
-              <WorkloadIdentities />
-            </Route>
-          </Router>
-        </TeleportProviderBasic>
-      </MemoryRouter>
+      <TeleportProviderBasic
+        teleportCtx={ctx}
+        initialEntries={[cfg.routes.workloadIdentities]}
+      >
+        <Routes>
+          <Route
+            path={cfg.routes.workloadIdentities}
+            element={<WorkloadIdentities />}
+          />
+        </Routes>
+      </TeleportProviderBasic>
     </QueryClientProvider>
   );
 }

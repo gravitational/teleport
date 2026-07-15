@@ -35,7 +35,7 @@ import (
 
 const (
 	integrationName = "test-integration1"
-	awsRegion       = " eu-central-1"
+	awsRegion       = "eu-central-1"
 	testUser        = "test-user"
 )
 

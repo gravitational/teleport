@@ -6,6 +6,7 @@ tags:
  - how-to
  - zero-trust
  - infrastructure-identity
+page_type: how-to
 ---
 
 (!docs/pages/includes/database-access/self-hosted-introduction.mdx dbType="Elasticsearch"!)
@@ -22,7 +23,7 @@ tags:
 
 - A host where you will run the Teleport Database Service.
 
-  See [Installation](../../../../installation/installation.mdx) for details.
+  See [Installation](../../../../installation/single-machine/single-machine.mdx) for details.
 
 - Optional: a certificate authority that issues certificates for
   your self-hosted database.
@@ -143,7 +144,7 @@ Log into your Teleport cluster and see available databases:
   </TabItem>
   <TabItem label="Teleport Cloud">
     ```code
-    $ tsh login --proxy=mytennant.teleport.sh --user=alice
+    $ tsh login --proxy=mytenant.teleport.sh --user=alice
     $ tsh db ls
     Name                        Description Allowed Users Labels  Connect
     --------------------------- ----------- ------------- ------- ------------------------

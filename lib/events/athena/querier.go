@@ -37,7 +37,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/aws/smithy-go/tracing/smithyoteltracing"
-	"github.com/dustin/go-humanize"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -209,7 +208,7 @@ func (q *querier) SearchEvents(ctx context.Context, req events.SearchEventsReque
 			limit:     req.Limit,
 			order:     req.Order,
 			startKey:  startKeyset,
-			filter:    searchEventsFilter{eventTypes: req.EventTypes},
+			filter:    searchEventsFilter{eventTypes: req.EventTypes, search: req.Search},
 			sessionID: "",
 		})
 		return events, keyset, trace.Wrap(err)
@@ -221,7 +220,7 @@ func (q *querier) SearchEvents(ctx context.Context, req events.SearchEventsReque
 		limit:     req.Limit,
 		order:     req.Order,
 		startKey:  startKeyset,
-		filter:    searchEventsFilter{eventTypes: req.EventTypes},
+		filter:    searchEventsFilter{eventTypes: req.EventTypes, search: req.Search},
 		sessionID: "",
 	})
 	return events, keyset, trace.Wrap(err)
@@ -230,12 +229,12 @@ func (q *querier) SearchEvents(ctx context.Context, req events.SearchEventsReque
 // ExportUnstructuredEvents exports events from a given event chunk returned by GetEventExportChunks. This API prioritizes
 // performance over ordering and filtering, and is intended for bulk export of events.
 func (q *querier) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.ExportUnstructuredEventsRequest) stream.Stream[*auditlogpb.ExportEventUnstructured] {
-	startTime := req.Date.AsTime()
+	startTime := req.GetDate().AsTime()
 	if startTime.IsZero() {
 		return stream.Fail[*auditlogpb.ExportEventUnstructured](trace.BadParameter("missing required parameter 'date'"))
 	}
 
-	if req.Chunk == "" {
+	if req.GetChunk() == "" {
 		return stream.Fail[*auditlogpb.ExportEventUnstructured](trace.BadParameter("missing required parameter 'chunk'"))
 	}
 
@@ -243,13 +242,13 @@ func (q *querier) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.
 
 	var cursor athenaExportCursor
 
-	if req.Cursor != "" {
-		if err := cursor.Decode(req.Cursor); err != nil {
+	if req.GetCursor() != "" {
+		if err := cursor.Decode(req.GetCursor()); err != nil {
 			return stream.Fail[*auditlogpb.ExportEventUnstructured](trace.Wrap(err))
 		}
 	}
 
-	evts := q.streamEventsFromChunk(ctx, date, req.Chunk)
+	evts := q.streamEventsFromChunk(ctx, date, req.GetChunk())
 
 	evts = stream.Skip(evts, int(cursor.pos))
 
@@ -260,7 +259,7 @@ func (q *querier) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.
 			q.logger.WarnContext(ctx, "skipping export of audit event due to failed decoding",
 				"error", err,
 				"date", date,
-				"chunk", req.Chunk,
+				"chunk", req.GetChunk(),
 				"pos", cursor.pos,
 			)
 			return nil, false
@@ -271,17 +270,17 @@ func (q *querier) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.
 			q.logger.WarnContext(ctx, "skipping export of audit event due to failed conversion to unstructured event",
 				"error", err,
 				"date", date,
-				"chunk", req.Chunk,
+				"chunk", req.GetChunk(),
 				"pos", cursor.pos,
 			)
 
 			return nil, false
 		}
 
-		return &auditlogpb.ExportEventUnstructured{
+		return auditlogpb.ExportEventUnstructured_builder{
 			Event:  unstructuredEvent,
 			Cursor: cursor.Encode(),
-		}, true
+		}.Build(), true
 	})
 }
 
@@ -313,7 +312,7 @@ func (c *athenaExportCursor) Decode(key string) error {
 // GetEventExportChunks returns a stream of event chunks that can be exported via ExportUnstructuredEvents. The returned
 // list isn't ordered and polling for new chunks requires re-consuming the entire stream from the beginning.
 func (q *querier) GetEventExportChunks(ctx context.Context, req *auditlogpb.GetEventExportChunksRequest) stream.Stream[*auditlogpb.EventExportChunk] {
-	dt := req.Date.AsTime()
+	dt := req.GetDate().AsTime()
 	if dt.IsZero() {
 		return stream.Fail[*auditlogpb.EventExportChunk](trace.BadParameter("missing required parameter 'date'"))
 	}
@@ -379,9 +378,9 @@ func (q *querier) GetEventExportChunks(ctx context.Context, req *auditlogpb.GetE
 				continue
 			}
 
-			chunks = append(chunks, &auditlogpb.EventExportChunk{
+			chunks = append(chunks, auditlogpb.EventExportChunk_builder{
 				Chunk: chunkID,
-			})
+			}.Build())
 		}
 
 		return chunks, nil
@@ -663,6 +662,7 @@ func (q *querier) searchEvents(ctx context.Context, req searchEventsRequest) ([]
 
 type searchEventsFilter struct {
 	eventTypes []string
+	search     string
 	condition  utils.FieldsCondition
 }
 
@@ -674,7 +674,8 @@ type queryBuilder struct {
 // withTicks wraps string with ticks.
 // string params in athena need to be wrapped by "ticks".
 func withTicks(in string) string {
-	return fmt.Sprintf("'%s'", in)
+	escaped := strings.ReplaceAll(in, "'", "''")
+	return fmt.Sprintf("'%s'", escaped)
 }
 
 func sliceWithTicks(ss []string) []string {
@@ -739,6 +740,12 @@ func prepareQuery(params searchParams) (query string, execParams []string, err e
 		qb.Append(eventsTypesInQuery,
 			sliceWithTicks(params.filter.eventTypes)...,
 		)
+	}
+
+	if params.filter.search != "" {
+		for term := range strings.FieldsSeq(strings.ToLower(params.filter.search)) {
+			qb.Append(" AND strpos(lower(event_data), ?) > 0", withTicks(term))
+		}
 	}
 
 	if params.order == types.EventOrderAscending {
@@ -983,41 +990,24 @@ func (rb *responseBuilder) appendUntilSizeLimit(resultResp *athena.GetQueryResul
 			if err != nil {
 				return false, trace.Wrap(err, "failed to marshal event, %s", eventData)
 			}
-			if len(marshalledEvent)+rb.totalSize <= events.MaxEventBytesInResponse {
-				events.MetricQueriedTrimmedEvents.Inc()
-				// Exact rb.totalSize doesn't really matter since the response is
-				// already size limited.
-				rb.totalSize += events.MaxEventBytesInResponse
-				rb.output = append(rb.output, fields)
-				return true, nil
-			}
 
-			// Failed to trim the event to size. The only options are to return
-			// a response with 0 events, skip this event, or return an error.
-			//
-			// Silently skipping events is a terrible option, it's better for
-			// the client to get an error.
-			//
-			// Returning 0 events amounts to either skipping the event or
-			// getting the client stuck in a paging loop depending on what would
-			// be returned for the next page token.
-			//
-			// Returning a descriptive error should at least give the client a
-			// hint as to what has gone wrong so that an attempt can be made to
-			// fix it.
-			//
-			// If this condition is reached it should be considered a bug, any
-			// event that can possibly exceed the maximum size should implement
-			// TrimToMaxSize (until we can one day implement an API for storing
-			// and retrieving large events).
-			rb.logger.ErrorContext(context.Background(), "Failed to query event exceeding maximum response size.",
-				"event_type", fields.GetType(),
-				"event_id", fields.GetID(),
-				"event_size", len(eventData),
-			)
-			return true, trace.Errorf(
-				"%s event %s is %s and cannot be returned because it exceeds the maximum response size of %s",
-				fields.GetType(), fields.GetID(), humanize.IBytes(uint64(len(eventData))), humanize.IBytes(events.MaxEventBytesInResponse))
+			if len(marshalledEvent)+rb.totalSize > events.MaxEventBytesInResponse {
+				// Failed to trim the event to size.
+				// Even if we fail to trim the event, we still try to return the oversized event.
+				rb.logger.WarnContext(context.Background(), "Failed to query event exceeding maximum response size.",
+					"event_type", fields.GetType(),
+					"event_id", fields.GetID(),
+					"event_size", len(eventData),
+					"event_size_after_trim", len(marshalledEvent),
+				)
+			}
+			events.MetricQueriedTrimmedEvents.Inc()
+
+			// Exact rb.totalSize doesn't really matter since the response is
+			// already size limited.
+			rb.totalSize += events.MaxEventBytesInResponse
+			rb.output = append(rb.output, fields)
+			return true, nil
 		}
 		rb.totalSize += len(eventData)
 		rb.output = append(rb.output, fields)
@@ -1030,7 +1020,8 @@ func (rb *responseBuilder) appendUntilSizeLimit(resultResp *athena.GetQueryResul
 // to the maximum size, which may result in loss of data.
 // Trimming requires unmarshalling the event to audit.Event and then
 // calling TrimToMaxSize on it.
-// This is not an efficient operation, but it is executed once per page,
+// This is not an efficient operation, but it is executed at most once per page,
+// and only when a single event exceeds the limit,
 // so it should not be a problem in practice.
 func trimToMaxSize(fields events.EventFields) (events.EventFields, error) {
 	event, err := events.FromEventFields(fields)

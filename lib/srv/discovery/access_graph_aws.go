@@ -107,6 +107,9 @@ func (s *Server) reconcileAccessGraph(
 		s.updateDiscoveryConfigStatus(discoveryConfigName)
 	}
 
+	s.Log.InfoContext(ctx, "Access graph AWS discovery iteration started")
+	defer s.Log.InfoContext(ctx, "Access graph AWS discovery iteration finished")
+
 	resultsC := make(chan fetcherResult, len(allFetchers))
 	// Use a channel to limit the number of concurrent fetchers.
 	tokens := make(chan struct{}, 3)
@@ -144,8 +147,8 @@ func (s *Server) reconcileAccessGraph(
 			continue
 		}
 		for _, cluster := range result.EKSClusters {
-			clusterTags := make(map[string]string, len(cluster.Tags))
-			for _, tag := range cluster.Tags {
+			clusterTags := make(map[string]string, len(cluster.GetTags()))
+			for _, tag := range cluster.GetTags() {
 				clusterTags[tag.GetKey()] = tag.GetValue().GetValue()
 			}
 			match, _, _ := services.MatchLabels(fetcher.EKSAuditLogs.Tags, clusterTags)
@@ -243,16 +246,14 @@ func pushUpsertInBatches(
 	client accessgraphv1alpha.AccessGraphService_AWSEventsStreamClient,
 	upsert *accessgraphv1alpha.AWSResourceList,
 ) error {
-	for i := 0; i < len(upsert.Resources); i += batchSize {
-		end := min(i+batchSize, len(upsert.Resources))
+	for i := 0; i < len(upsert.GetResources()); i += batchSize {
+		end := min(i+batchSize, len(upsert.GetResources()))
 		err := client.Send(
-			&accessgraphv1alpha.AWSEventsStreamRequest{
-				Operation: &accessgraphv1alpha.AWSEventsStreamRequest_Upsert{
-					Upsert: &accessgraphv1alpha.AWSResourceList{
-						Resources: upsert.Resources[i:end],
-					},
-				},
-			},
+			accessgraphv1alpha.AWSEventsStreamRequest_builder{
+				Upsert: accessgraphv1alpha.AWSResourceList_builder{
+					Resources: upsert.GetResources()[i:end],
+				}.Build(),
+			}.Build(),
 		)
 		if err != nil {
 			return trace.Wrap(err)
@@ -265,16 +266,14 @@ func pushDeleteInBatches(
 	client accessgraphv1alpha.AccessGraphService_AWSEventsStreamClient,
 	toDel *accessgraphv1alpha.AWSResourceList,
 ) error {
-	for i := 0; i < len(toDel.Resources); i += batchSize {
-		end := min(i+batchSize, len(toDel.Resources))
+	for i := 0; i < len(toDel.GetResources()); i += batchSize {
+		end := min(i+batchSize, len(toDel.GetResources()))
 		err := client.Send(
-			&accessgraphv1alpha.AWSEventsStreamRequest{
-				Operation: &accessgraphv1alpha.AWSEventsStreamRequest_Delete{
-					Delete: &accessgraphv1alpha.AWSResourceList{
-						Resources: toDel.Resources[i:end],
-					},
-				},
-			},
+			accessgraphv1alpha.AWSEventsStreamRequest_builder{
+				Delete: accessgraphv1alpha.AWSResourceList_builder{
+					Resources: toDel.GetResources()[i:end],
+				}.Build(),
+			}.Build(),
 		)
 		if err != nil {
 			return trace.Wrap(err)
@@ -297,9 +296,9 @@ func push(
 		return trace.Wrap(err)
 	}
 	err = client.Send(
-		&accessgraphv1alpha.AWSEventsStreamRequest{
-			Operation: &accessgraphv1alpha.AWSEventsStreamRequest_Sync{},
-		},
+		accessgraphv1alpha.AWSEventsStreamRequest_builder{
+			Sync: &accessgraphv1alpha.AWSSyncOperation{},
+		}.Build(),
 	)
 	return trace.Wrap(err)
 }
@@ -433,14 +432,12 @@ func (s *Server) initializeAndWatchAccessGraph(ctx context.Context, reloadCh <-c
 	// Start a goroutine to watch the access graph service connection state.
 	// If the connection is closed, cancel the context to stop the event watcher
 	// before it tries to send any events to the access graph service.
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		defer cancel()
 		if !accessGraphConn.WaitForStateChange(ctx, connectivity.Ready) {
 			s.Log.InfoContext(ctx, "Access graph service connection was closed")
 		}
-	}()
+	})
 
 	// Configure the poll interval
 	tickerInterval := defaultPollInterval
@@ -457,9 +454,11 @@ func (s *Server) initializeAndWatchAccessGraph(ctx context.Context, reloadCh <-c
 	s.Log.InfoContext(ctx, "Access graph service poll interval", "poll_interval", tickerInterval)
 
 	// Start the EKS audit log watcher that keeps track of the EKS audit log
-	// fetchers and updates them when Reconcile is called.
+	// fetchers and updates them when Reconcile is called. Use the WaitGroup
+	// to ensure this function does not return until all the log fetchers
+	// spawned from the watcher have completed.
 	eksAuditLogWatcher := newEKSAuditLogWatcher(client, s.Log)
-	go eksAuditLogWatcher.Run(ctx)
+	wg.Go(func() { eksAuditLogWatcher.Run(ctx) })
 
 	currentTAGResources := &aws_sync.Resources{}
 	timer := time.NewTimer(tickerInterval)
@@ -534,7 +533,7 @@ func (s *Server) initTAGAWSWatchers(ctx context.Context, cfg *Config) error {
 				// We will wait for the config to change and re-evaluate the fetchers
 				// before starting the sync.
 				if len(allFetchers) == 0 {
-					s.Log.DebugContext(ctx, "No AWS sync fetchers without CloudTrail configured. Access graph sync without CloudTrail will will not be enabled.")
+					s.Log.DebugContext(ctx, "No AWS sync fetchers without CloudTrail configured. Access graph sync without CloudTrail will not be enabled.")
 					select {
 					case <-ctx.Done():
 						return
@@ -717,11 +716,9 @@ func (s *Server) startCloudtrailPoller(ctx context.Context, reloadCh <-chan stru
 		return trace.Wrap(err)
 	}
 	err = stream.Send(
-		&accessgraphv1alpha.AWSCloudTrailStreamRequest{
-			Action: &accessgraphv1alpha.AWSCloudTrailStreamRequest_Config{
-				Config: &accessgraphv1alpha.AWSCloudTrailConfig{},
-			},
-		},
+		accessgraphv1alpha.AWSCloudTrailStreamRequest_builder{
+			Config: &accessgraphv1alpha.AWSCloudTrailConfig{},
+		}.Build(),
 	)
 	if err != nil {
 		err = consumeTillErr(stream)
@@ -800,9 +797,9 @@ func (s *Server) startCloudtrailPoller(ctx context.Context, reloadCh <-chan stru
 			}
 			return matchersMap
 		},
-		// Compare allows custom comparators without having to implement IsEqual.
-		// Defaults to `CompareResources[T]` if not specified.
-		CompareResources: services.CompareResources[*types.AccessGraphAWSSync],
+		CompareResources: func(aga1, aga2 *types.AccessGraphAWSSync) int {
+			return services.EqualFromBool(aga1.IsEqual(aga2))
+		},
 		OnCreate: func(_ context.Context, disc *types.AccessGraphAWSSync) error {
 			spawnMatcher(ctx, disc)
 			return nil
@@ -841,14 +838,12 @@ func (s *Server) startCloudtrailPoller(ctx context.Context, reloadCh <-chan stru
 			continue
 		case file := <-filePayload:
 			err := stream.Send(
-				&accessgraphv1alpha.AWSCloudTrailStreamRequest{
-					Action: &accessgraphv1alpha.AWSCloudTrailStreamRequest_EventsFile{
-						EventsFile: &accessgraphv1alpha.AWSCloudTrailEventsFile{
-							Payload:      file.payload,
-							AwsAccountId: file.accountID,
-						},
-					},
-				},
+				accessgraphv1alpha.AWSCloudTrailStreamRequest_builder{
+					EventsFile: accessgraphv1alpha.AWSCloudTrailEventsFile_builder{
+						Payload:      file.payload,
+						AwsAccountId: file.accountID,
+					}.Build(),
+				}.Build(),
 			)
 			if err != nil {
 				err = consumeTillErr(stream)

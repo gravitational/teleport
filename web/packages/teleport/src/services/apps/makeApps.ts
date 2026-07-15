@@ -37,9 +37,10 @@ function getLaunchUrl({
   publicAddr: string;
 }) {
   if (useAnyProxyPublicAddr) {
-    return cfg.getAppLauncherRoute({
-      fqdn,
-    });
+    if (!fqdn) {
+      return '';
+    }
+    return cfg.getAppLauncherRoute({ fqdn });
   }
 
   if (publicAddr && clusterId && fqdn) {
@@ -68,6 +69,7 @@ export default function makeApp(json: any): App {
     subKind,
     samlAppLaunchUrls,
     mcp,
+    supportedFeatureIds,
   } = json;
 
   const launchUrl = getLaunchUrl({
@@ -104,7 +106,7 @@ export default function makeApp(json: any): App {
     }
   }
 
-  if (useAnyProxyPublicAddr) {
+  if (useAnyProxyPublicAddr && fqdn) {
     addrWithProtocol = `https://${fqdn}`;
   }
   let samlAppSsoUrl = '';
@@ -157,5 +159,6 @@ export default function makeApp(json: any): App {
     samlAppLaunchUrls,
     mcp,
     cloudInstance,
+    supportedFeatureIds,
   };
 }

@@ -1,3 +1,4 @@
+import '@testing-library/jest-dom';
 /**
  * Teleport
  * Copyright (C) 2024  Gravitational, Inc.
@@ -17,10 +18,8 @@
  */
 import { screen } from '@testing-library/react';
 
-import '@testing-library/jest-dom';
-import 'jest-canvas-mock';
-
 import { act, render } from 'design/utils/testing';
+import { ToastNotificationProvider } from 'shared/components/ToastNotification';
 
 import { ContextProvider } from 'teleport';
 import { TestLayout } from 'teleport/Console/Console.story';
@@ -59,9 +58,11 @@ describe('DocumentKubeExec', () => {
 
     render(
       <ContextProvider ctx={ctx}>
-        <TestLayout ctx={consoleCtx}>
-          <DocumentKubeExec doc={baseDoc} visible={true} />
-        </TestLayout>
+        <ToastNotificationProvider>
+          <TestLayout ctx={consoleCtx}>
+            <DocumentKubeExec doc={baseDoc} visible={true} />
+          </TestLayout>
+        </ToastNotificationProvider>
       </ContextProvider>
     );
   };

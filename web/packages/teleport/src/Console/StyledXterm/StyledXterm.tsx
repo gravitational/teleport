@@ -16,11 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import '@xterm/xterm/css/xterm.css';
 import styled from 'styled-components';
 
 import { Box } from 'design';
-
-import '@xterm/xterm/css/xterm.css';
 
 const StyledXterm = styled(Box)(
   () => `

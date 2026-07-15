@@ -53,8 +53,8 @@ ORA-28860: Fatal SSL error
 
 To identify the root cause, follow the debugging steps in the sections below. The output of the following `openssl` command can help diagnose many common TLS issues. Capture the output and use it as you follow the debugging steps.
 
-```
-> openssl s_client -connect oracle.example.com:2484 -showcerts
+```code
+$ openssl s_client -connect db.example.com:2484 -showcerts
 ```
 
 #### Wrong server certificate
@@ -76,7 +76,7 @@ Compare the `issuer` in the server certificate with the `issuer` of the Teleport
 # openssl s_client output:
 ...
 Server certificate
-subject=CN=oracle.example.com
+subject=CN=db.example.com
 issuer=O=teleport.example.com, CN=teleport.example.com, serialNumber=200129862304303044762346177566738813560
 ...
 ```
@@ -92,7 +92,7 @@ The "User Certificates" section of the output should contain the server's certif
 
 ```
 User Certificates:
-Subject:        CN=oracle.example.com
+Subject:        CN=db.example.com
 Issuer:         SERIALNUMBER=200129862304303044762346177566738813560,CN=teleport.example.com,O=teleport.example.com
 Serial Number:  ...
 ```

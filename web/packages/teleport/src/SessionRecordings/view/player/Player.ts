@@ -58,7 +58,7 @@ export abstract class Player<
   // Event hooks for subclasses to optionally implement.
   onPlay(): void {}
   onPause(): void {}
-  // eslint-disable-next-line unused-imports/no-unused-vars
+  // eslint-disable-next-line no-unused-vars
   onSeek(time: number): void {}
   onStop(): void {}
 }

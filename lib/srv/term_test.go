@@ -20,6 +20,7 @@ package srv
 
 import (
 	"context"
+	"io"
 	"os"
 	"os/exec"
 	"os/user"
@@ -57,7 +58,7 @@ func TestGetOwner(t *testing.T) {
 			},
 			outUID:  1000,
 			outGID:  5,
-			outMode: 0600,
+			outMode: 0o600,
 		},
 		// Group "tty" does not exist.
 		{
@@ -72,7 +73,7 @@ func TestGetOwner(t *testing.T) {
 			},
 			outUID:  1000,
 			outGID:  1000,
-			outMode: 0620,
+			outMode: 0o620,
 		},
 	}
 
@@ -108,23 +109,19 @@ func TestTerminal_KillUnderlyingShell(t *testing.T) {
 	ctx := context.Background()
 
 	// Run sh
-	err = term.Run(ctx)
+	err = term.Run(ctx, io.Discard)
 	require.NoError(t, err)
 
 	errors := make(chan error)
 	go func() {
 		// Call wait to avoid creating zombie process.
 		// Ignore exit code as we're checking term.cmd.ProcessState already
-		_, err := term.Wait()
-
-		errors <- err
+		errors <- term.Wait().Error
 	}()
 
-	// Wait for the child process to indicate its completed initialization.
-	require.NoError(t, scx.execRequest.WaitForChild(ctx))
-
 	// Continue execution
-	scx.execRequest.Continue()
+	err = term.cmd.Continue()
+	require.NoError(t, err)
 
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	t.Cleanup(cancel)

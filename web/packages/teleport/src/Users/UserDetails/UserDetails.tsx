@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import styled from 'styled-components';
 
 import { Box, Button, Flex, Label, Text } from 'design';
@@ -28,6 +28,7 @@ import {
   InfoParagraph,
   InfoTitle,
 } from 'shared/components/SlidingSidePanel/InfoGuide';
+import { UserDisplayName } from 'shared/components/UserDisplayName';
 
 import cfg from 'teleport/config';
 import { useResourceLock } from 'teleport/lib/locks/useResourceLock';
@@ -86,9 +87,19 @@ export function UserDetails({
             </UserDetailField>
             <UserDetailField>
               <Text fontWeight="medium">Auth Type</Text>
-              <Text color="text.muted" style={{ textTransform: 'capitalize' }}>
-                {renderAuthType(user).text}
-              </Text>
+              <Flex alignItems="center" gap={2}>
+                <ResourceIcon
+                  name={renderAuthType(user).icon}
+                  width="16px"
+                  height="16px"
+                />
+                <Text
+                  color="text.muted"
+                  style={{ textTransform: 'capitalize' }}
+                >
+                  {renderAuthType(user).text}
+                </Text>
+              </Flex>
             </UserDetailField>
             <UserDetailField>
               <Text fontWeight="medium">Status</Text>
@@ -196,8 +207,6 @@ export function UserDetailsTitle({
   onDelete,
   panelWidth = 480,
 }: UserDetailsTitleProps) {
-  const { text: authType, icon } = renderAuthType(user);
-
   // needed to fill InfoGuidePanel for UserDetailsActions
   const containerWidth = panelWidth - 80;
   const userIconSize = 48;
@@ -215,21 +224,12 @@ export function UserDetailsTitle({
           <Icons.User size={userIconSize} />
         )}
         <Box maxWidth={containerWidth - 96}>
-          <Text fontSize={3} fontWeight="bold" title={user.name}>
-            {user.name}
-          </Text>
-          <Flex alignItems="center" gap={2}>
-            <ResourceIcon name={icon} width="16px" height="16px" />
-            <Text
-              fontSize={2}
-              color="text.muted"
-              fontWeight="normal"
-              style={{ textTransform: 'capitalize' }}
-            >
-              {authType}
-              {user.isBot ? ' (Bot)' : ''}
-            </Text>
-          </Flex>
+          <UserDisplayName
+            username={user.name}
+            primaryText={user.displayPrimary}
+            secondaryText={user.displaySecondary}
+            layout="stacked"
+          />
         </Box>
       </Flex>
       <UserDetailsActions

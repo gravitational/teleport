@@ -56,7 +56,7 @@ $ az login --allow-no-subscriptions
 
 ## Step 2/3. Configure and apply
 
-The example Terraform module provides Entra ID configuration options are based on the 
+The example Terraform module provides Entra ID configuration options that are based on the 
 Microsoft Graph API authentication method you wish to configure for the Teleport Entra ID integration. 
 
 Teleport supports two types of Microsoft Graph API authentication methods:
@@ -179,7 +179,7 @@ $ terraform apply
 </Tabs>
 
 Once the changes are applied, the Terraform module will produce an application client ID and 
-Entra ID tenant ID values as an output. You will need these values in the next step.
+the Entra ID tenant ID values as an output. You will need these values in the next step.
 
 Entra ID is now configured with the required attributes needed for the Teleport Entra ID integration.
 
@@ -219,7 +219,7 @@ $ tctl plugins install entraid \
 in Teleport based on the groups imported from the Entra ID.
 - `--no-access-graph` flag specifies Identity Security integration is to be skipped.
 - `--use-system-credentials` flag specifies to use system credential configured using Managed Identity. Use this flag only 
-if you with to set up system credential based authentication.
+if you wish to set up system credential based authentication.
 - `--manual-setup` flag specifies a manual Entra ID configuration is selected by the user.
 
 `tctl` will then prompt for an Entra ID tenant ID and an application client ID of the enterprise 

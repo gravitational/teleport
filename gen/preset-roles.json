@@ -651,6 +651,14 @@
           },
           {
             "resources": [
+              "mobile_device"
+            ],
+            "verbs": [
+              "create_enroll_token"
+            ]
+          },
+          {
+            "resources": [
               "db_service"
             ],
             "verbs": [
@@ -1179,6 +1187,30 @@
           },
           {
             "resources": [
+              "classifier"
+            ],
+            "verbs": [
+              "list",
+              "create",
+              "read",
+              "update",
+              "delete"
+            ]
+          },
+          {
+            "resources": [
+              "retrieval_model"
+            ],
+            "verbs": [
+              "list",
+              "create",
+              "read",
+              "update",
+              "delete"
+            ]
+          },
+          {
+            "resources": [
               "client_ip_restriction"
             ],
             "verbs": [
@@ -1228,6 +1260,42 @@
           {
             "resources": [
               "app_auth_config"
+            ],
+            "verbs": [
+              "list",
+              "create",
+              "read",
+              "update",
+              "delete"
+            ]
+          },
+          {
+            "resources": [
+              "workload_cluster"
+            ],
+            "verbs": [
+              "list",
+              "create",
+              "read",
+              "update",
+              "delete"
+            ]
+          },
+          {
+            "resources": [
+              "recording_encryption"
+            ],
+            "verbs": [
+              "list",
+              "create",
+              "read",
+              "update",
+              "delete"
+            ]
+          },
+          {
+            "resources": [
+              "beams_config"
             ],
             "verbs": [
               "list",

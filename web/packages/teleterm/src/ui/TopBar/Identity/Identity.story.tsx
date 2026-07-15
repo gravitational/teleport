@@ -40,7 +40,26 @@ interface StoryProps {
   activeClusterExpired: boolean;
   deviceTrust: 'enrolled' | 'required-not-enrolled' | 'not-enrolled';
   showProfileErrors: boolean;
+  roles: string[];
 }
+
+function withUuidSuffix(roles: string[]): string[] {
+  return roles.map(role => `${role}-${crypto.randomUUID().split('-').at(0)}`);
+}
+
+const baseRoles = [
+  'circle-mark-app-access',
+  'grafana-lite-app-access',
+  'grafana-gold-app-access',
+  'release-lion-app-access',
+  'release-fox-app-access',
+  'sales-center-lorem-app-access',
+  'sales-center-ipsum-db-access',
+  'sales-center-shop-app-access',
+  'sales-center-floor-db-access',
+];
+
+const roles = withUuidSuffix(baseRoles);
 
 const meta: Meta<StoryProps> = {
   title: 'Teleterm/Identity',
@@ -69,6 +88,7 @@ const meta: Meta<StoryProps> = {
     const hasClusterWithLoggedInUser =
       props.activeCluster && (hasOrange || hasViolet);
     if (hasClusterWithLoggedInUser) {
+      clusters[0].connected = true;
       clusters[0].loggedInUser = makeLoggedInUser({
         ...clusters[0].loggedInUser,
         validUntil: Timestamp.fromDate(
@@ -76,6 +96,7 @@ const meta: Meta<StoryProps> = {
             ? new Date()
             : new Date(Date.now() + 24 * 60 * 60 * 1000)
         ),
+        roles: props.roles || clusters[0].loggedInUser.roles,
         isDeviceTrusted: props.deviceTrust === 'enrolled',
         trustedDeviceRequirement:
           props.deviceTrust === 'required-not-enrolled'
@@ -130,17 +151,7 @@ const clusterOrange = makeRootCluster({
   name: 'orange-psv-eindhoven-eredivisie-production-lorem-ipsum',
   loggedInUser: makeLoggedInUser({
     name: 'ruud-van-nistelrooy-van-der-sar',
-    roles: [
-      'circle-mark-app-access',
-      'grafana-lite-app-access',
-      'grafana-gold-app-access',
-      'release-lion-app-access',
-      'release-fox-app-access',
-      'sales-center-lorem-app-access',
-      'sales-center-ipsum-db-access',
-      'sales-center-shop-app-access',
-      'sales-center-floor-db-access',
-    ],
+    roles,
   }),
   uri: '/clusters/orange',
 });
@@ -155,6 +166,7 @@ const clusterViolet = makeRootCluster({
 const clusterGreen = makeRootCluster({
   name: 'green',
   loggedInUser: undefined,
+  connected: false,
   uri: '/clusters/green',
 });
 
@@ -173,9 +185,9 @@ const OpenIdentityPopover = (props: {
   props.clusters.forEach(c => {
     ctx.addRootCluster(c);
   });
-  ctx.workspacesService.addWorkspace(clusterGreen.uri);
-  ctx.workspacesService.addWorkspace(clusterViolet.uri);
-  ctx.workspacesService.addWorkspace(clusterOrange.uri);
+  ctx.workspacesService.addWorkspace(clusterGreen);
+  ctx.workspacesService.addWorkspace(clusterViolet);
+  ctx.workspacesService.addWorkspace(clusterOrange);
   ctx.workspacesService.setState(draftState => {
     draftState.rootClusterUri = props.activeClusterUri;
     draftState.workspaces[clusterGreen.uri].color = 'green';
@@ -227,6 +239,13 @@ export const OneClusterWithNoActiveCluster: StoryObj<StoryProps> = {
 export const OneClusterWithActiveCluster: StoryObj<StoryProps> = {
   args: {
     clusters: ['violet'],
+  },
+};
+
+export const ManyRoles: StoryObj<StoryProps> = {
+  args: {
+    clusters: ['violet'],
+    roles: Array.from({ length: 30 }, () => withUuidSuffix(baseRoles)).flat(),
   },
 };
 

@@ -7,7 +7,12 @@ tags:
  - zero-trust
  - infrastructure-identity
  - google-cloud
+page_type: how-to
 ---
+
+In this guide, you will configure your Teleport cluster to assign labels to
+Teleport Agents running on Google Compute Engine based on their Google Cloud
+tags.
 
 When running on an Google Compute Engine instance, Teleport will automatically detect and import GCP
 [tags](https://cloud.google.com/resource-manager/docs/tags/tags-overview) (key-value pairs that are
@@ -41,7 +46,7 @@ fakehost.example.com 127.0.0.1:3022 gcp/label/testing=yes,gcp/tag/environment=st
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 - One Teleport Agent running on a GCP Compute instance. See
-  [our guides](../agents/agents.mdx) for how to set up Teleport Agents.
+  [our guides](../../installation/agents/agents.mdx) for how to set up Teleport Agents.
 
 ## Configure service account on instances with Teleport nodes
 

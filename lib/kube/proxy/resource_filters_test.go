@@ -27,8 +27,8 @@ import (
 	"path/filepath"
 	"slices"
 	"testing"
-	"text/template"
 
+	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
@@ -186,7 +186,7 @@ func Test_filterBuffer(t *testing.T) {
 					},
 					verb: types.KubeVerbList,
 				}
-				err = filterBuffer(newResourceFilterer(mr, &globalKubeCodecs, allowedResources, nil, logtest.NewLogger()), buf)
+				err = filterBuffer(newResourceFilterer(mr, &globalKubeCodecs, newMatcher(mr, allowedResources, nil, logtest.NewLogger()), logtest.NewLogger()), buf)
 				require.NoError(t, err)
 
 				// Decompress the buffer to compare the result.

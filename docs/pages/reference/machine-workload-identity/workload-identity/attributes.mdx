@@ -6,6 +6,7 @@ tags:
  - reference
  - mwi
  - infrastructure-identity
+page_type: reference
 ---
 
 Attributes are features of an identity which you can use with the
@@ -15,6 +16,9 @@ and template values.
 These attributes come from a variety of sources, such as workload attestations
 performed by `tbot` or the attestation performed by the control plane when
 `tbot` joins.
+
+This page lists the attributes that Workload Identity supports, categorized by
+source.
 
 ## Join attributes
 
@@ -62,9 +66,9 @@ method.
 
 ### `join.bitbucket`
 
-These attributes are present if the Bot joined using the BitBucket join method.
+These attributes are present if the Bot joined using the Bitbucket join method.
 
-They are mapped from the JWT issued by BitBucket, for which further
+They are mapped from the JWT issued by Bitbucket, for which further
 documentation is available at https://support.atlassian.com/bitbucket-cloud/docs/integrate-pipelines-with-resource-servers-using-oidc/
 
 | Field                                        | Description                                                             |
@@ -129,6 +133,8 @@ available at https://docs.github.com/en/actions/security-for-github-actions/secu
 | `join.github.event_name`       | The name of the event that triggered the workflow run..                      |
 | `join.github.sha`              | The SHA of the commit that triggered the workflow run.                       |
 | `join.github.run_id`           | The ID of this GitHub actions workflow run.                                  |
+| `join.github.enterprise`       | The name of the enterprise that the repository belongs to, if any.           |
+| `join.github.enterprise_id`    | The ID of the enterprise that the repository belongs to, if any.             |
 
 ### `join.gitlab`
 

@@ -66,12 +66,14 @@ func TestTeleportProcessIntegrationsOnly(t *testing.T) {
 					Auth: servicecfg.AuthConfig{
 						Enabled: tt.inputAuthEnabled,
 					},
+					Modules: &modulestest.Modules{
+						TestBuildType: modules.BuildEnterprise,
+						TestFeatures: modules.Features{
+							Cloud: tt.inputFeatureCloud,
+						},
+					},
 				},
 			}
-
-			modulestest.SetTestModules(t, modulestest.Modules{TestFeatures: modules.Features{
-				Cloud: tt.inputFeatureCloud,
-			}})
 
 			require.Equal(t, tt.integrationOnly, p.integrationOnlyCredentials())
 		})
@@ -109,11 +111,11 @@ func TestTeleportProcess_initDiscoveryService(t *testing.T) {
 			cfg: servicecfg.AccessGraphConfig{
 				Enabled: false,
 			},
-			rsp: &clusterconfigpb.AccessGraphConfig{
+			rsp: clusterconfigpb.AccessGraphConfig_builder{
 				Enabled:  true,
 				Address:  "localhost:5000",
 				Insecure: true,
-			},
+			}.Build(),
 			err: nil,
 			want: discovery.AccessGraphConfig{
 				Enabled:  true,

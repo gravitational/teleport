@@ -147,7 +147,7 @@ var regions = sync.OnceValue(func() map[string]Region {
 		},
 		"eusc-de-east-1": {
 			Name:        "eusc-de-east-1",
-			Description: "EU (Germany)",
+			Description: "AWS European Sovereign Cloud (Germany)",
 		},
 		"il-central-1": {
 			Name:        "il-central-1",

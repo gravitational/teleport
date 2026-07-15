@@ -29,9 +29,12 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	proxyclient "github.com/gravitational/teleport/api/client/proxy"
+	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	vnetv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1"
+	clientssh "github.com/gravitational/teleport/lib/client/ssh"
 	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/vnet/dns"
 )
 
 // sshProvider provides methods necessary for VNet SSH access.
@@ -115,7 +118,7 @@ func (p *sshProvider) dialViaProxy(
 		InsecureSkipVerify:      dialOpts.GetInsecureSkipVerify(),
 		// This empty SSH client config should never be used, we dial to the
 		// proxy over TLS only.
-		SSHConfig: &ssh.ClientConfig{},
+		SSHConfig: apissh.ClientConfig{},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "building proxy client")
@@ -151,10 +154,10 @@ func (p *sshProvider) userTLSConfig(
 	signer := &rpcSigner{
 		pub: parsedCert.PublicKey,
 		sendRequest: func(req *vnetv1.SignRequest) ([]byte, error) {
-			return p.cfg.clt.SignForUserTLS(ctx, &vnetv1.SignForUserTLSRequest{
+			return p.cfg.clt.SignForUserTLS(ctx, vnetv1.SignForUserTLSRequest_builder{
 				Profile: profile,
 				Sign:    req,
-			})
+			}.Build())
 		},
 	}
 	tlsCert := tls.Certificate{
@@ -178,24 +181,25 @@ func (p *sshProvider) sessionSSHConfig(
 	target dialTarget,
 	user string,
 	agent *sshAgent,
-) (*ssh.ClientConfig, error) {
+	mode vnetv1.SessionSSHConfigCredentialMode,
+) (apissh.ClientConfig, error) {
 	// TODO(nklaassen): cache session SSH configs so we don't have to regenerate
 	// every time.
-	resp, err := p.cfg.clt.SessionSSHConfig(ctx, target, user)
+	resp, err := p.cfg.clt.SessionSSHConfig(ctx, target, user, mode)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return apissh.ClientConfig{}, trace.Wrap(err)
 	}
 	sshPub, err := ssh.ParsePublicKey(resp.GetCert())
 	if err != nil {
-		return nil, trace.Wrap(err, "parsing session SSH cert")
+		return apissh.ClientConfig{}, trace.Wrap(err, "parsing session SSH cert")
 	}
 	sshCert, ok := sshPub.(*ssh.Certificate)
 	if !ok {
-		return nil, trace.BadParameter("expected ssh.Certificate, got %T", sshCert)
+		return apissh.ClientConfig{}, trace.BadParameter("expected ssh.Certificate, got %T", sshCert)
 	}
 	cryptoPub, ok := sshCert.Key.(ssh.CryptoPublicKey)
 	if !ok {
-		return nil, trace.BadParameter("expected SSH key to implement CryptoPublicKey, got %T", sshCert.Key)
+		return apissh.ClientConfig{}, trace.BadParameter("expected SSH key to implement CryptoPublicKey, got %T", sshCert.Key)
 	}
 	sessionID := resp.GetSessionId()
 	signer := &rpcSigner{
@@ -206,28 +210,47 @@ func (p *sshProvider) sessionSSHConfig(
 	}
 	sshSigner, err := ssh.NewSignerFromSigner(signer)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return apissh.ClientConfig{}, trace.Wrap(err)
 	}
 	certSigner, err := ssh.NewCertSigner(sshCert, sshSigner)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return apissh.ClientConfig{}, trace.Wrap(err)
 	}
 	// Add the session SSH key to the SSH agent in case proxy recording mode is
 	// enabled. Adding it to the agent here before returning an
 	// ssh.ClientConfig guarantees the key is added to the agent before the
 	// agent could be used.
 	if err := agent.setSessionKey(certSigner); err != nil {
-		return nil, trace.Wrap(err)
+		return apissh.ClientConfig{}, trace.Wrap(err)
 	}
 	hostKeyCallback, err := buildHostKeyCallback(resp.GetTrustedCas(), p.cfg.clock)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return apissh.ClientConfig{}, trace.Wrap(err)
 	}
-	return &ssh.ClientConfig{
-		Auth:            []ssh.AuthMethod{ssh.PublicKeys(certSigner)},
+
+	config := apissh.ClientConfig{
+		PublicKeyAuth: apissh.PublicKeyAuthConfig{
+			Signers: func() ([]ssh.Signer, error) {
+				return []ssh.Signer{certSigner}, nil
+			},
+		},
 		User:            user,
 		HostKeyCallback: hostKeyCallback,
-	}, nil
+	}
+
+	// If credential mode is direct, set AuthCallback so the client can perform in-band MFA if necessary.
+	if mode == vnetv1.SessionSSHConfigCredentialMode_SESSION_SSH_CONFIG_CREDENTIAL_MODE_DIRECT {
+		config.AuthCallback = clientssh.AuthCallback(
+			ctx,
+			clientssh.AuthCallbackConfig{
+				MFAPerformer: func(ctx context.Context, sessionID []byte) (string, error) {
+					return p.cfg.clt.PerformSessionMFACeremony(ctx, target.profile, target.leafCluster, sessionID)
+				},
+			},
+		)
+	}
+
+	return config, nil
 }
 
 func buildHostKeyCallback(trustedCAs [][]byte, clock clockwork.Clock) (ssh.HostKeyCallback, error) {
@@ -262,7 +285,7 @@ func computeDialTarget(matchedCluster *vnetv1.MatchedCluster, fqdn string) dialT
 	// matchedCluster.LeafCluster will be set if the host was in a leaf
 	// cluster, else it will be unset and the target cluster is the root.
 	targetCluster := cmp.Or(matchedCluster.GetLeafCluster(), matchedCluster.GetRootCluster())
-	targetHost := strings.TrimSuffix(fqdn, "."+fullyQualify(targetCluster))
+	targetHost := strings.TrimSuffix(fqdn, "."+dns.FullyQualify(targetCluster))
 	return dialTarget{
 		fqdn:        fqdn,
 		profile:     matchedCluster.GetProfile(),

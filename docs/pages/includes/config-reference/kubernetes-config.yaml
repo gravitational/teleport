@@ -38,8 +38,8 @@ kubernetes_service:
     # Optional Dynamic Labels
     commands:
     - name: "os"
-       command: ["/usr/bin/uname"]
-       period: "5s"
+      command: ["/usr/bin/uname"]
+      period: "5s"
     # Get cluster name on GKE.
     - name: cluster-name
       command: 

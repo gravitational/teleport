@@ -41,6 +41,7 @@ type TeleportBotV1 struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata"`
 
+	Scope  string             `json:"scope,omitempty"`
 	Spec   *TeleportBotV1Spec `json:"spec,omitempty"`
 	Status teleportcr.Status  `json:"status"`
 }
@@ -61,16 +62,17 @@ type TeleportBotV1List struct {
 // [machineidv1.Bot] and implements the necessary interface methods used
 // by the TeleportResourceReconciler.
 func (l *TeleportBotV1) ToTeleport() *machineidv1.Bot {
-	resource := &machineidv1.Bot{
+	resource := machineidv1.Bot_builder{
 		Kind:    types.KindBot,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name:        l.Name,
 			Description: l.Annotations[teleportcr.DescriptionKey],
 			Labels:      l.Labels,
-		},
-		Spec: (*machineidv1.BotSpec)(l.Spec),
-	}
+		}.Build(),
+		Spec:  (*machineidv1.BotSpec)(l.Spec),
+		Scope: l.Scope,
+	}.Build()
 	return resource
 }
 

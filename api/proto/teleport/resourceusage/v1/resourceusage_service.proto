@@ -18,7 +18,6 @@ package teleport.resourceusage.v1;
 
 import "teleport/resourceusage/v1/access_requests.proto";
 import "teleport/resourceusage/v1/account_usage_type.proto";
-import "teleport/resourceusage/v1/device_trust.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/resourceusage/v1;resourceusagev1";
 
@@ -33,13 +32,13 @@ message GetUsageRequest {}
 
 // GetUsageResponse is the response for GetUsage.
 message GetUsageResponse {
+  reserved 3; // Device Trust usage is no longer limited for Enterprise/Cloud
+  reserved "devices_usage";
+
   AccessRequestsUsage access_requests = 1;
 
   // Usage type of the underlying account.
   // UNLIMITED accounts have no usage limits, therefore any numbers should be
   // disconsidered for those accounts.
   AccountUsageType account_usage_type = 2;
-
-  // DevicesUsage contains limits for trusted devices / Device Trust.
-  DevicesUsage devices_usage = 3;
 }

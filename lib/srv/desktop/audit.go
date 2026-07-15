@@ -19,18 +19,26 @@
 package desktop
 
 import (
+	"cmp"
 	"context"
+	"log/slog"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
+	"github.com/gravitational/teleport/api/constants"
+	tdpbv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/desktop/v1"
+	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
+	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/legacy"
+	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/tdpb"
 	"github.com/gravitational/teleport/lib/tlsca"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // desktopSessionAuditor is used to build session-related events
@@ -38,11 +46,12 @@ import (
 type desktopSessionAuditor struct {
 	clock clockwork.Clock
 
-	sessionID   string
-	identity    *tlsca.Identity
-	windowsUser string
-	desktop     types.WindowsDesktop
-	enableNLA   bool
+	sessionID      string
+	identity       *tlsca.Identity
+	targetUser     string
+	windowsDesktop types.WindowsDesktop
+	linuxDesktop   *linuxdesktopv1.LinuxDesktop
+	enableNLA      bool
 
 	startTime          time.Time
 	clusterName        string
@@ -50,6 +59,8 @@ type desktopSessionAuditor struct {
 
 	compactor  auditCompactor
 	auditCache sharedDirectoryAuditCache
+
+	caOverrideDetails *events.CAOverrideCertificateDetails
 }
 
 func (d *desktopSessionAuditor) getSessionMetadata() events.SessionMetadata {
@@ -63,7 +74,7 @@ func (d *desktopSessionAuditor) getSessionMetadata() events.SessionMetadata {
 func (d *desktopSessionAuditor) getConnectionMetadata() events.ConnectionMetadata {
 	return events.ConnectionMetadata{
 		LocalAddr:  d.identity.LoginIP,
-		RemoteAddr: d.desktop.GetAddr(),
+		RemoteAddr: d.getAddr(),
 		Protocol:   libevents.EventProtocolTDP,
 	}
 }
@@ -79,8 +90,8 @@ func (s *WindowsService) newSessionAuditor(
 
 		sessionID:          sessionID,
 		identity:           identity,
-		windowsUser:        windowsUser,
-		desktop:            desktop,
+		targetUser:         windowsUser,
+		windowsDesktop:     desktop,
 		enableNLA:          s.enableNLA,
 		startTime:          s.cfg.Clock.Now().UTC().Round(time.Millisecond),
 		clusterName:        s.clusterName,
@@ -90,9 +101,52 @@ func (s *WindowsService) newSessionAuditor(
 	}
 }
 
-func (d *desktopSessionAuditor) makeSessionStart(err error) *events.WindowsDesktopSessionStart {
+func (s *LinuxService) newSessionAuditor(
+	sessionID string,
+	identity *tlsca.Identity,
+	linuxUser string,
+	desktop *linuxdesktopv1.LinuxDesktop,
+) *desktopSessionAuditor {
+	return &desktopSessionAuditor{
+		clock: s.cfg.Clock,
+
+		sessionID:          sessionID,
+		identity:           identity,
+		targetUser:         linuxUser,
+		linuxDesktop:       desktop,
+		startTime:          s.cfg.Clock.Now().UTC().Round(time.Millisecond),
+		clusterName:        s.clusterName,
+		desktopServiceUUID: s.cfg.Heartbeat.HostUUID,
+		compactor:          newAuditCompactor(3*time.Second, 10*time.Second, s.emit),
+		auditCache:         newSharedDirectoryAuditCache(),
+	}
+}
+
+func (d *desktopSessionAuditor) teardown(ctx context.Context) {
+	d.compactor.flush(ctx)
+}
+
+func (d *desktopSessionAuditor) getAddr() string {
+	if d.windowsDesktop != nil {
+		return d.windowsDesktop.GetAddr()
+	} else if d.linuxDesktop != nil {
+		return d.linuxDesktop.GetSpec().GetHostname()
+	}
+	return ""
+}
+
+func (d *desktopSessionAuditor) getName() string {
+	if d.windowsDesktop != nil {
+		return d.windowsDesktop.GetName()
+	} else if d.linuxDesktop != nil {
+		return d.linuxDesktop.GetSpec().GetHostname()
+	}
+	return ""
+}
+
+func (d *desktopSessionAuditor) makeWindowsSessionStart(err error) *events.WindowsDesktopSessionStart {
 	userMetadata := d.identity.GetUserMetadata()
-	userMetadata.Login = d.windowsUser
+	userMetadata.Login = d.targetUser
 
 	event := &events.WindowsDesktopSessionStart{
 		Metadata: events.Metadata{
@@ -107,12 +161,13 @@ func (d *desktopSessionAuditor) makeSessionStart(err error) *events.WindowsDeskt
 		ConnectionMetadata:    d.getConnectionMetadata(),
 		Status:                events.Status{Success: err == nil},
 		WindowsDesktopService: d.desktopServiceUUID,
-		DesktopName:           d.desktop.GetName(),
-		DesktopAddr:           d.desktop.GetAddr(),
-		Domain:                d.desktop.GetDomain(),
-		WindowsUser:           d.windowsUser,
-		DesktopLabels:         d.desktop.GetAllLabels(),
-		NLA:                   d.enableNLA && !d.desktop.NonAD(),
+		DesktopName:           d.getName(),
+		DesktopAddr:           d.getAddr(),
+		Domain:                d.windowsDesktop.GetDomain(),
+		WindowsUser:           d.targetUser,
+		DesktopLabels:         d.windowsDesktop.GetAllLabels(),
+		NLA:                   d.enableNLA && !d.windowsDesktop.NonAD(),
+		CAOverride:            d.caOverrideDetails,
 	}
 
 	if err != nil {
@@ -124,13 +179,9 @@ func (d *desktopSessionAuditor) makeSessionStart(err error) *events.WindowsDeskt
 	return event
 }
 
-func (d *desktopSessionAuditor) teardown(ctx context.Context) {
-	d.compactor.flush(ctx)
-}
-
-func (d *desktopSessionAuditor) makeSessionEnd(recorded bool) *events.WindowsDesktopSessionEnd {
+func (d *desktopSessionAuditor) makeWindowsSessionEnd(recorded bool) *events.WindowsDesktopSessionEnd {
 	userMetadata := d.identity.GetUserMetadata()
-	userMetadata.Login = d.windowsUser
+	userMetadata.Login = d.targetUser
 
 	return &events.WindowsDesktopSessionEnd{
 		Metadata: events.Metadata{
@@ -142,14 +193,77 @@ func (d *desktopSessionAuditor) makeSessionEnd(recorded bool) *events.WindowsDes
 		SessionMetadata:       d.getSessionMetadata(),
 		ConnectionMetadata:    d.getConnectionMetadata(),
 		WindowsDesktopService: d.desktopServiceUUID,
-		DesktopAddr:           d.desktop.GetAddr(),
-		Domain:                d.desktop.GetDomain(),
-		WindowsUser:           d.windowsUser,
-		DesktopLabels:         d.desktop.GetAllLabels(),
+		DesktopAddr:           d.getAddr(),
+		Domain:                d.windowsDesktop.GetDomain(),
+		WindowsUser:           d.targetUser,
+		DesktopLabels:         d.windowsDesktop.GetAllLabels(),
 		StartTime:             d.startTime,
 		EndTime:               d.clock.Now().UTC(),
-		DesktopName:           d.desktop.GetName(),
+		DesktopName:           d.getName(),
 		Recorded:              recorded,
+
+		// There can only be 1 participant, desktop sessions are not join-able.
+		Participants: []string{
+			services.UsernameForCluster(
+				services.UsernameForClusterConfig{
+					User:              d.identity.Username,
+					OriginClusterName: d.identity.OriginClusterName,
+					LocalClusterName:  d.clusterName,
+				},
+			)},
+	}
+}
+
+func (d *desktopSessionAuditor) makeLinuxSessionStart(err error) *events.LinuxDesktopSessionStart {
+	userMetadata := d.identity.GetUserMetadata()
+	userMetadata.Login = d.targetUser
+
+	event := &events.LinuxDesktopSessionStart{
+		Metadata: events.Metadata{
+			Type:        libevents.LinuxDesktopSessionStartEvent,
+			Code:        libevents.LinuxDesktopSessionStartCode,
+			ClusterName: d.clusterName,
+			Time:        d.startTime,
+		},
+		UserMetadata:       userMetadata,
+		SessionMetadata:    d.getSessionMetadata(),
+		ConnectionMetadata: d.getConnectionMetadata(),
+		Status:             events.Status{Success: err == nil},
+		DesktopName:        d.getName(),
+		DesktopAddr:        d.getAddr(),
+		LinuxUser:          d.targetUser,
+		DesktopLabels:      d.linuxDesktop.GetMetadata().GetLabels(),
+	}
+
+	if err != nil {
+		event.Code = libevents.LinuxDesktopSessionStartFailureCode
+		event.Error = trace.Unwrap(err).Error()
+		event.UserMessage = err.Error()
+	}
+
+	return event
+}
+
+func (d *desktopSessionAuditor) makeLinuxSessionEnd(recorded bool) *events.LinuxDesktopSessionEnd {
+	userMetadata := d.identity.GetUserMetadata()
+	userMetadata.Login = d.targetUser
+
+	return &events.LinuxDesktopSessionEnd{
+		Metadata: events.Metadata{
+			Type:        libevents.LinuxDesktopSessionEndEvent,
+			Code:        libevents.LinuxDesktopSessionEndCode,
+			ClusterName: d.clusterName,
+		},
+		UserMetadata:       userMetadata,
+		SessionMetadata:    d.getSessionMetadata(),
+		ConnectionMetadata: d.getConnectionMetadata(),
+		DesktopAddr:        d.getAddr(),
+		LinuxUser:          d.targetUser,
+		DesktopLabels:      d.linuxDesktop.GetMetadata().GetLabels(),
+		StartTime:          d.startTime,
+		EndTime:            d.clock.Now().UTC(),
+		DesktopName:        d.getName(),
+		Recorded:           recorded,
 
 		// There can only be 1 participant, desktop sessions are not join-able.
 		Participants: []string{
@@ -174,9 +288,9 @@ func (d *desktopSessionAuditor) makeClipboardSend(length int32) *events.DesktopC
 		UserMetadata:       d.identity.GetUserMetadata(),
 		SessionMetadata:    d.getSessionMetadata(),
 		ConnectionMetadata: d.getConnectionMetadata(),
-		DesktopAddr:        d.desktop.GetAddr(),
+		DesktopAddr:        d.getAddr(),
 		Length:             length,
-		DesktopName:        d.desktop.GetName(),
+		DesktopName:        d.getName(),
 	}
 }
 
@@ -191,9 +305,9 @@ func (d *desktopSessionAuditor) makeClipboardReceive(length int32) *events.Deskt
 		UserMetadata:       d.identity.GetUserMetadata(),
 		SessionMetadata:    d.getSessionMetadata(),
 		ConnectionMetadata: d.getConnectionMetadata(),
-		DesktopAddr:        d.desktop.GetAddr(),
+		DesktopAddr:        d.getAddr(),
 		Length:             length,
-		DesktopName:        d.desktop.GetName(),
+		DesktopName:        d.getName(),
 	}
 }
 
@@ -201,8 +315,8 @@ func (d *desktopSessionAuditor) makeClipboardReceive(length int32) *events.Deskt
 // In the happy path, no event is emitted here, but details from the announcement
 // are cached for future audit events. An event is returned only if there was
 // an error.
-func (d *desktopSessionAuditor) onSharedDirectoryAnnounce(m tdp.SharedDirectoryAnnounce) *events.DesktopSharedDirectoryStart {
-	err := d.auditCache.SetName(directoryID(m.DirectoryID), directoryName(m.Name))
+func (d *desktopSessionAuditor) onSharedDirectoryAnnounce(m *tdpb.SharedDirectoryAnnounce) *events.DesktopSharedDirectoryStart {
+	err := d.auditCache.NewDirectory(directoryID(m.DirectoryId), directoryName(m.Name))
 	if err == nil {
 		// no work to do yet, but data is cached for future events
 		return nil
@@ -226,23 +340,28 @@ func (d *desktopSessionAuditor) onSharedDirectoryAnnounce(m tdp.SharedDirectoryA
 			Error:       errMsg,
 			UserMessage: "Teleport failed the request and terminated the session as a security precaution",
 		},
-		DesktopAddr:   d.desktop.GetAddr(),
+		DesktopAddr:   d.getAddr(),
 		DirectoryName: m.Name,
-		DirectoryID:   m.DirectoryID,
-		DesktopName:   d.desktop.GetName(),
+		DirectoryID:   m.DirectoryId,
+		DesktopName:   d.getName(),
 	}
 }
 
+// onSharedDirectoryRemove handles a shared directory removal message.
+func (d *desktopSessionAuditor) onSharedDirectoryRemove(m *tdpb.SharedDirectoryRemove) {
+	d.auditCache.RemoveDirectory(directoryID(m.DirectoryId))
+}
+
 // makeSharedDirectoryStart creates a DesktopSharedDirectoryStart event.
-func (d *desktopSessionAuditor) makeSharedDirectoryStart(m tdp.SharedDirectoryAcknowledge) *events.DesktopSharedDirectoryStart {
+func (d *desktopSessionAuditor) makeSharedDirectoryStart(m *tdpb.SharedDirectoryAcknowledge) *events.DesktopSharedDirectoryStart {
 	code := libevents.DesktopSharedDirectoryStartCode
-	name, ok := d.auditCache.GetName(directoryID(m.DirectoryID))
+	name, ok := d.auditCache.GetName(directoryID(m.DirectoryId))
 	if !ok {
 		code = libevents.DesktopSharedDirectoryStartFailureCode
 		name = "unknown"
 	}
 
-	if m.ErrCode != tdp.ErrCodeNil {
+	if m.ErrorCode != legacy.ErrCodeNil {
 		code = libevents.DesktopSharedDirectoryStartFailureCode
 	}
 
@@ -256,11 +375,11 @@ func (d *desktopSessionAuditor) makeSharedDirectoryStart(m tdp.SharedDirectoryAc
 		UserMetadata:       d.identity.GetUserMetadata(),
 		SessionMetadata:    d.getSessionMetadata(),
 		ConnectionMetadata: d.getConnectionMetadata(),
-		Status:             statusFromErrCode(m.ErrCode),
-		DesktopAddr:        d.desktop.GetAddr(),
+		Status:             statusFromErrCode(m.ErrorCode),
+		DesktopAddr:        d.getAddr(),
 		DirectoryName:      string(name),
-		DirectoryID:        m.DirectoryID,
-		DesktopName:        d.desktop.GetName(),
+		DirectoryID:        m.DirectoryId,
+		DesktopName:        d.getName(),
 	}
 }
 
@@ -268,15 +387,14 @@ func (d *desktopSessionAuditor) makeSharedDirectoryStart(m tdp.SharedDirectoryAc
 // In the happy path, no event is emitted here, but details from the operation
 // are cached for future audit events. An event is returned only if there was
 // an error.
-func (d *desktopSessionAuditor) onSharedDirectoryReadRequest(m tdp.SharedDirectoryReadRequest) *events.DesktopSharedDirectoryRead {
-	did := directoryID(m.DirectoryID)
-	path := m.Path
-	offset := m.Offset
+func (d *desktopSessionAuditor) onSharedDirectoryReadRequest(completion completionID, directory directoryID, m *tdpbv1.SharedDirectoryRequest_Read) *events.DesktopSharedDirectoryRead {
+	did := directory
+	path := m.GetPath()
+	offset := m.GetOffset()
 
-	err := d.auditCache.SetReadRequestInfo(completionID(m.CompletionID), readRequestInfo{
-		directoryID: did,
-		path:        path,
-		offset:      offset,
+	err := d.auditCache.SetReadRequestInfo(directory, completion, readRequestInfo{
+		path:   path,
+		offset: offset,
 	})
 	if err == nil {
 		// no work to do yet, but data is cached for future events
@@ -303,46 +421,36 @@ func (d *desktopSessionAuditor) onSharedDirectoryReadRequest(m tdp.SharedDirecto
 			Error:       err.Error(),
 			UserMessage: "Teleport failed the request and terminated the session as a security precaution",
 		},
-		DesktopAddr:   d.desktop.GetAddr(),
+		DesktopAddr:   d.getAddr(),
 		DirectoryName: string(name),
 		DirectoryID:   uint32(did),
 		Path:          path,
-		Length:        m.Length,
+		Length:        m.GetLength(),
 		Offset:        offset,
-		DesktopName:   d.desktop.GetName(),
+		DesktopName:   d.getName(),
 	}
 }
 
 // makeSharedDirectoryReadResponse creates a DesktopSharedDirectoryRead audit event.
-func (d *desktopSessionAuditor) makeSharedDirectoryReadResponse(m tdp.SharedDirectoryReadResponse) *events.DesktopSharedDirectoryRead {
-	var did directoryID
-	var name directoryName
-
+func (d *desktopSessionAuditor) makeSharedDirectoryReadResponse(did directoryID, completion completionID, errorCode uint32, m *tdpbv1.SharedDirectoryResponse_Read) *events.DesktopSharedDirectoryRead {
 	var path string
 	var offset uint64
 
 	code := libevents.DesktopSharedDirectoryReadCode
 
 	// Gather info from the audit cache
-	info, ok := d.auditCache.TakeReadRequestInfo(completionID(m.CompletionID))
+	info, name, ok := d.auditCache.TakeReadRequestInfo(did, completion)
+	name = cmp.Or(name, "unknown")
 	if ok {
-		did = info.directoryID
-		// Only search for the directory name if we retrieved the directory ID from the audit cache.
-		name, ok = d.auditCache.GetName(did)
-		if !ok {
-			code = libevents.DesktopSharedDirectoryReadFailureCode
-			name = "unknown"
-		}
 		path = info.path
 		offset = info.offset
 	} else {
 		code = libevents.DesktopSharedDirectoryReadFailureCode
 		path = "unknown"
-		name = "unknown"
 	}
 
-	if m.ErrCode != tdp.ErrCodeNil {
-		code = libevents.DesktopSharedDirectoryWriteFailureCode
+	if errorCode != legacy.ErrCodeNil {
+		code = libevents.DesktopSharedDirectoryReadFailureCode
 	}
 
 	return &events.DesktopSharedDirectoryRead{
@@ -355,14 +463,14 @@ func (d *desktopSessionAuditor) makeSharedDirectoryReadResponse(m tdp.SharedDire
 		UserMetadata:       d.identity.GetUserMetadata(),
 		SessionMetadata:    d.getSessionMetadata(),
 		ConnectionMetadata: d.getConnectionMetadata(),
-		Status:             statusFromErrCode(m.ErrCode),
-		DesktopAddr:        d.desktop.GetAddr(),
+		Status:             statusFromErrCode(errorCode),
+		DesktopAddr:        d.getAddr(),
 		DirectoryName:      string(name),
 		DirectoryID:        uint32(did),
 		Path:               path,
-		Length:             m.ReadDataLength,
+		Length:             uint32(len(m.GetData())),
 		Offset:             offset,
-		DesktopName:        d.desktop.GetName(),
+		DesktopName:        d.getName(),
 	}
 }
 
@@ -370,17 +478,17 @@ func (d *desktopSessionAuditor) makeSharedDirectoryReadResponse(m tdp.SharedDire
 // In the happy path, no event is emitted here, but details from the operation
 // are cached for future audit events. An event is returned only if there was
 // an error.
-func (d *desktopSessionAuditor) onSharedDirectoryWriteRequest(m tdp.SharedDirectoryWriteRequest) *events.DesktopSharedDirectoryWrite {
-	did := directoryID(m.DirectoryID)
-	path := m.Path
-	offset := m.Offset
+func (d *desktopSessionAuditor) onSharedDirectoryWriteRequest(completion completionID, directory directoryID, m *tdpbv1.SharedDirectoryRequest_Write) *events.DesktopSharedDirectoryWrite {
+	did := directory
+	path := m.GetPath()
+	offset := m.GetOffset()
 
 	err := d.auditCache.SetWriteRequestInfo(
-		completionID(m.CompletionID),
+		directory,
+		completion,
 		writeRequestInfo{
-			directoryID: did,
-			path:        path,
-			offset:      offset,
+			path:   path,
+			offset: offset,
 		})
 	if err == nil {
 		// no work to do yet, but data is cached for future events
@@ -407,19 +515,18 @@ func (d *desktopSessionAuditor) onSharedDirectoryWriteRequest(m tdp.SharedDirect
 			Error:       err.Error(),
 			UserMessage: "Teleport failed the request and terminated the session as a security precaution",
 		},
-		DesktopName:   d.desktop.GetName(),
-		DesktopAddr:   d.desktop.GetAddr(),
+		DesktopName:   d.getName(),
+		DesktopAddr:   d.getAddr(),
 		DirectoryName: string(name),
 		DirectoryID:   uint32(did),
 		Path:          path,
-		Length:        m.WriteDataLength,
+		Length:        uint32(len(m.GetData())),
 		Offset:        offset,
 	}
 }
 
 // makeSharedDirectoryWriteResponse creates a DesktopSharedDirectoryWrite audit event.
-func (d *desktopSessionAuditor) makeSharedDirectoryWriteResponse(m tdp.SharedDirectoryWriteResponse) *events.DesktopSharedDirectoryWrite {
-	var did directoryID
+func (d *desktopSessionAuditor) makeSharedDirectoryWriteResponse(did directoryID, completion completionID, errorCode uint32, m *tdpbv1.SharedDirectoryResponse_Write) *events.DesktopSharedDirectoryWrite {
 	var name directoryName
 
 	var path string
@@ -427,24 +534,17 @@ func (d *desktopSessionAuditor) makeSharedDirectoryWriteResponse(m tdp.SharedDir
 
 	code := libevents.DesktopSharedDirectoryWriteCode
 	// Gather info from the audit cache
-	info, ok := d.auditCache.TakeWriteRequestInfo(completionID(m.CompletionID))
+	info, name, ok := d.auditCache.TakeWriteRequestInfo(did, completion)
+	name = cmp.Or(name, "unknown")
 	if ok {
-		did = info.directoryID
-		// Only search for the directory name if we retrieved the directoryID from the audit cache.
-		name, ok = d.auditCache.GetName(did)
-		if !ok {
-			code = libevents.DesktopSharedDirectoryWriteFailureCode
-			name = "unknown"
-		}
 		path = info.path
 		offset = info.offset
 	} else {
 		code = libevents.DesktopSharedDirectoryWriteFailureCode
 		path = "unknown"
-		name = "unknown"
 	}
 
-	if m.ErrCode != tdp.ErrCodeNil {
+	if errorCode != legacy.ErrCodeNil {
 		code = libevents.DesktopSharedDirectoryWriteFailureCode
 	}
 
@@ -458,31 +558,47 @@ func (d *desktopSessionAuditor) makeSharedDirectoryWriteResponse(m tdp.SharedDir
 		UserMetadata:       d.identity.GetUserMetadata(),
 		SessionMetadata:    d.getSessionMetadata(),
 		ConnectionMetadata: d.getConnectionMetadata(),
-		Status:             statusFromErrCode(m.ErrCode),
-		DesktopAddr:        d.desktop.GetAddr(),
+		Status:             statusFromErrCode(errorCode),
+		DesktopAddr:        d.getAddr(),
 		DirectoryName:      string(name),
 		DirectoryID:        uint32(did),
 		Path:               path,
-		Length:             m.BytesWritten,
+		Length:             m.GetBytesWritten(),
 		Offset:             offset,
-		DesktopName:        d.desktop.GetName(),
+		DesktopName:        d.getName(),
+	}
+}
+
+func emit(ctx context.Context, emitter events.Emitter, logger *slog.Logger, event events.AuditEvent) {
+	if err := emitter.EmitAuditEvent(ctx, event); err != nil {
+		logger.ErrorContext(ctx, "Failed to emit audit event", "kind", event.GetType())
 	}
 }
 
 func (s *WindowsService) emit(ctx context.Context, event events.AuditEvent) {
-	if err := s.cfg.Emitter.EmitAuditEvent(ctx, event); err != nil {
-		s.cfg.Logger.ErrorContext(ctx, "Failed to emit audit event", "kind", event.GetType())
+	emit(ctx, s.cfg.Emitter, s.cfg.Logger, event)
+}
+
+func (s *LinuxService) emit(ctx context.Context, event events.AuditEvent) {
+	emit(ctx, s.cfg.Emitter, s.cfg.Logger, event)
+}
+
+func record(ctx context.Context, logger *slog.Logger, recorder libevents.SessionPreparerRecorder, event events.AuditEvent) {
+	if err := libevents.SetupAndRecordEvent(ctx, recorder, event); err != nil {
+		logger.ErrorContext(ctx, "Failed to record session event", "kind", event.GetType())
 	}
 }
 
 func (s *WindowsService) record(ctx context.Context, recorder libevents.SessionPreparerRecorder, event events.AuditEvent) {
-	if err := libevents.SetupAndRecordEvent(ctx, recorder, event); err != nil {
-		s.cfg.Logger.ErrorContext(ctx, "Failed to record session event", "kind", event.GetType())
-	}
+	record(ctx, s.cfg.Logger, recorder, event)
+}
+
+func (s *LinuxService) record(ctx context.Context, recorder libevents.SessionPreparerRecorder, event events.AuditEvent) {
+	record(ctx, s.cfg.Logger, recorder, event)
 }
 
 func statusFromErrCode(errCode uint32) events.Status {
-	success := errCode == tdp.ErrCodeNil
+	success := errCode == legacy.ErrCodeNil
 
 	// early return for most common case
 	if success {
@@ -493,11 +609,11 @@ func statusFromErrCode(errCode uint32) events.Status {
 
 	msg := unknownErrStatusMsg
 	switch errCode {
-	case tdp.ErrCodeFailed:
+	case legacy.ErrCodeFailed:
 		msg = failedStatusMessage
-	case tdp.ErrCodeDoesNotExist:
+	case legacy.ErrCodeDoesNotExist:
 		msg = doesNotExistStatusMessage
-	case tdp.ErrCodeAlreadyExists:
+	case legacy.ErrCodeAlreadyExists:
 		msg = alreadyExistsStatusMessage
 	}
 
@@ -514,3 +630,129 @@ const (
 	alreadyExistsStatusMessage = "item already exists"
 	unknownErrStatusMsg        = "unknown error"
 )
+
+type emitter interface {
+	emit(ctx context.Context, event events.AuditEvent)
+}
+
+func recordEvent(ctx context.Context, clock clockwork.Clock, logger *slog.Logger, delay int64, m tdp.Message, recorder libevents.SessionPreparerRecorder) {
+	data, err := m.Encode()
+	if err != nil {
+		logger.ErrorContext(ctx, "could not record message due to encoding error", "error", err, "type", logutils.TypeAttr(m))
+		return
+	}
+	e := &events.DesktopRecording{
+		Metadata: events.Metadata{
+			Type: libevents.DesktopRecordingEvent,
+			Time: clock.Now().UTC().Round(time.Millisecond),
+		},
+		TDPBMessage:       data,
+		DelayMilliseconds: delay,
+	}
+
+	if len(data) > constants.MaxProtoMessageSizeBytes {
+		// Technically a PNG frame is unbounded and could be too big for a single protobuf.
+		// In practice though, Windows limits RDP bitmaps to 64x64 pixels, and we compress
+		// the PNGs before they get here, so most PNG frames are under 500 bytes. The largest
+		// ones are around 2000 bytes. Anything approaching the limit of a single protobuf
+		// is likely some sort of DoS attempt and not legitimate RDP traffic, so we don't log it.
+		logger.WarnContext(ctx, "refusing to record message", "len", len(data), "type", logutils.TypeAttr(m))
+	} else {
+		if err := libevents.SetupAndRecordEvent(ctx, recorder, e); err != nil {
+			logger.WarnContext(ctx, "could not record desktop recording event", "error", err)
+		}
+	}
+}
+
+func makeTDPSendAuditor(
+	ctx context.Context,
+	s emitter,
+	clock clockwork.Clock,
+	logger *slog.Logger,
+	recorder libevents.SessionPreparerRecorder,
+	delay func() int64,
+	audit *desktopSessionAuditor,
+) func(m tdp.Message) error {
+	return func(msg tdp.Message) error {
+		switch m := msg.(type) {
+		case *tdpb.ServerHello, *tdpb.FastPathPDU, *tdpb.PNGFrame, *tdpb.Alert:
+			recordEvent(ctx, clock, logger, delay(), m, recorder)
+		case *tdpb.ClipboardData:
+			// the TDP send handler emits a clipboard receive event, because we
+			// received clipboard data from the remote desktop and are sending
+			// it on the TDP connection
+			rxEvent := audit.makeClipboardReceive(int32(len(m.Data)))
+			s.emit(ctx, rxEvent)
+		case *tdpb.SharedDirectoryAcknowledge:
+			s.emit(ctx, audit.makeSharedDirectoryStart(m))
+		case *tdpb.SharedDirectoryRequest:
+			switch req := m.Operation.(type) {
+			case *tdpbv1.SharedDirectoryRequest_Write_:
+				errorEvent := audit.onSharedDirectoryWriteRequest(completionID(m.CompletionId), directoryID(m.DirectoryId), req.Write)
+				if errorEvent != nil {
+					// if we can't audit due to a full cache, abort the connection
+					// as a security measure
+					err := trace.LimitExceeded("error when terminating session for audit cache maximum size violation")
+					s.emit(ctx, errorEvent)
+					return err
+				}
+			case *tdpbv1.SharedDirectoryRequest_Read_:
+				errorEvent := audit.onSharedDirectoryReadRequest(completionID(m.CompletionId), directoryID(m.DirectoryId), req.Read)
+				if errorEvent != nil {
+					// if we can't audit due to a full cache, abort the connection
+					// as a security measure
+					err := trace.LimitExceeded("error when terminating session for audit cache maximum size violation")
+					s.emit(ctx, errorEvent)
+					return err
+				}
+			}
+		}
+		return nil
+	}
+}
+
+func makeTDPReceiveAuditor(
+	ctx context.Context,
+	s emitter,
+	clock clockwork.Clock,
+	logger *slog.Logger,
+	recorder libevents.SessionPreparerRecorder,
+	delay func() int64,
+	audit *desktopSessionAuditor,
+) func(m tdp.Message) error {
+	return func(m tdp.Message) error {
+		switch msg := m.(type) {
+		case *tdpb.ClientScreenSpec, *tdpb.MouseButton, *tdpb.MouseMove:
+			recordEvent(ctx, clock, logger, delay(), m, recorder)
+		case *tdpb.ClipboardData:
+			// the TDP receive handler emits a clipboard send event, because we
+			// received clipboard data from the user (over TDP) and are sending
+			// it to the remote desktop
+			sendEvent := audit.makeClipboardSend(int32(len(msg.Data)))
+			s.emit(ctx, sendEvent)
+		case *tdpb.SharedDirectoryAnnounce:
+			errorEvent := audit.onSharedDirectoryAnnounce(m.(*tdpb.SharedDirectoryAnnounce))
+			if errorEvent != nil {
+				// if we can't audit due to a full cache, abort the connection
+				// as a security measure
+				err := trace.LimitExceeded("error when terminating session for audit cache maximum size violation")
+				s.emit(ctx, errorEvent)
+				return err
+			}
+		case *tdpb.SharedDirectoryRemove:
+			// This doesn't yield an audit event for removal. It just cleans up
+			// the directory entry from the audit cache.
+			audit.onSharedDirectoryRemove(msg)
+		case *tdpb.SharedDirectoryResponse:
+			// shared directory audit events can be noisy, so we use a compactor
+			// to retain and delay them in an attempt to coalesce contiguous events
+			switch op := msg.Operation.(type) {
+			case *tdpbv1.SharedDirectoryResponse_Read_:
+				audit.compactor.handleRead(ctx, audit.makeSharedDirectoryReadResponse(directoryID(msg.DirectoryId), completionID(msg.CompletionId), msg.ErrorCode, op.Read))
+			case *tdpbv1.SharedDirectoryResponse_Write_:
+				audit.compactor.handleWrite(ctx, audit.makeSharedDirectoryWriteResponse(directoryID(msg.DirectoryId), completionID(msg.CompletionId), msg.ErrorCode, op.Write))
+			}
+		}
+		return nil
+	}
+}

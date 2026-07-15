@@ -26,6 +26,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/utils/testutils/structfill"
 )
@@ -262,7 +263,7 @@ func TestSelectNextReviewDate(t *testing.T) {
 	}{
 		{
 			name:              "one month, first day",
-			accessListTypes:   []Type{Default, DeprecatedDynamic},
+			accessListTypes:   []Type{Default, DeprecatedDynamic, SCIM},
 			frequency:         OneMonth,
 			dayOfMonth:        FirstDayOfMonth,
 			currentReviewDate: time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
@@ -271,7 +272,7 @@ func TestSelectNextReviewDate(t *testing.T) {
 		},
 		{
 			name:              "one month, fifteenth day",
-			accessListTypes:   []Type{Default, DeprecatedDynamic},
+			accessListTypes:   []Type{Default, DeprecatedDynamic, SCIM},
 			frequency:         OneMonth,
 			dayOfMonth:        FifteenthDayOfMonth,
 			currentReviewDate: time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
@@ -280,7 +281,7 @@ func TestSelectNextReviewDate(t *testing.T) {
 		},
 		{
 			name:              "one month, last day",
-			accessListTypes:   []Type{Default, DeprecatedDynamic},
+			accessListTypes:   []Type{Default, DeprecatedDynamic, SCIM},
 			frequency:         OneMonth,
 			dayOfMonth:        LastDayOfMonth,
 			currentReviewDate: time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
@@ -289,7 +290,7 @@ func TestSelectNextReviewDate(t *testing.T) {
 		},
 		{
 			name:              "six months, last day",
-			accessListTypes:   []Type{Default, DeprecatedDynamic},
+			accessListTypes:   []Type{Default, DeprecatedDynamic, SCIM},
 			frequency:         SixMonths,
 			dayOfMonth:        LastDayOfMonth,
 			currentReviewDate: time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
@@ -298,7 +299,7 @@ func TestSelectNextReviewDate(t *testing.T) {
 		},
 		{
 			name:              "six months, last day",
-			accessListTypes:   []Type{Static, SCIM, "__test_unknown__"},
+			accessListTypes:   []Type{Static, "__test_unknown__"},
 			frequency:         SixMonths,
 			dayOfMonth:        LastDayOfMonth,
 			currentReviewDate: time.Time{},
@@ -307,7 +308,7 @@ func TestSelectNextReviewDate(t *testing.T) {
 		},
 		{
 			name:              "six months, last day",
-			accessListTypes:   []Type{Static, SCIM, "__test_unknown__"},
+			accessListTypes:   []Type{Static, "__test_unknown__"},
 			frequency:         SixMonths,
 			dayOfMonth:        LastDayOfMonth,
 			currentReviewDate: time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
@@ -524,6 +525,9 @@ func TestEqualIgnoreEphemeralFields(t *testing.T) {
 		al2 := createAccessList("test1")
 		al2.Status.OwnerOf = []string{"different", "lists"}
 		al2.Status.MemberOf = []string{"other", "lists"}
+		al2.Status.OwnerDisplays = map[string]types.UserDisplay{
+			"owner1": {Primary: "Owner Name", Secondary: "owner@example.com"},
+		}
 
 		result := EqualAccessLists(al1, al2, WithIgnoreEphemeralFields())
 		require.True(t, result)
@@ -623,5 +627,518 @@ func TestEqualIgnoreEphemeralFields(t *testing.T) {
 
 		require.False(t, EqualAccessLists(al1, al2, WithIgnoreEphemeralFields()))
 		require.False(t, EqualAccessLists(al2, al1, WithIgnoreEphemeralFields()))
+	})
+}
+
+func TestEqualIgnoreOktaUserManagedFields(t *testing.T) {
+	t.Parallel()
+
+	baseTime := time.Now()
+	createAccessList := func(name string) *AccessList {
+		al, err := NewAccessList(
+			header.Metadata{
+				Name:     name,
+				Revision: "rev1",
+			},
+			Spec{
+				Title:       "Test Access List",
+				Description: "Test description",
+				Owners: []Owner{
+					{
+						Name:             "owner1",
+						Description:      "First owner",
+						IneligibleStatus: "ineligible-reason",
+						MembershipKind:   MembershipKindUser,
+					},
+					{
+						Name:             "owner2",
+						Description:      "Second owner",
+						IneligibleStatus: "another-reason",
+						MembershipKind:   MembershipKindUser,
+					},
+				},
+				Audit: Audit{
+					NextAuditDate: baseTime,
+					Recurrence: Recurrence{
+						Frequency:  SixMonths,
+						DayOfMonth: FirstDayOfMonth,
+					},
+					Notifications: Notifications{
+						Start: 14 * 24 * time.Hour,
+					},
+				},
+				MembershipRequires: Requires{
+					Roles:  []string{"role1"},
+					Traits: map[string][]string{"trait1": {"value1"}},
+				},
+				OwnershipRequires: Requires{
+					Roles:  []string{"owner-role"},
+					Traits: map[string][]string{"owner-trait": {"owner-value"}},
+				},
+				Grants: Grants{
+					Roles:  []string{"granted-role"},
+					Traits: map[string][]string{"granted-trait": {"granted-value"}},
+				},
+				OwnerGrants: Grants{
+					Roles:  []string{"owner-granted-role"},
+					Traits: map[string][]string{"owner-granted-trait": {"owner-granted-value"}},
+				},
+			},
+		)
+		require.NoError(t, err)
+
+		al.Status = Status{
+			OwnerOf:  []string{"list1", "list2"},
+			MemberOf: []string{"list3", "list4"},
+		}
+
+		return al
+	}
+
+	t.Run("identical access lists are equal", func(t *testing.T) {
+		al1 := createAccessList("test1")
+		al2 := createAccessList("test1")
+
+		require.True(t, EqualAccessLists(al1, al2, WithIgnoreOktaUserManagedFields()))
+	})
+
+	t.Run("default behavior does not mutate originals", func(t *testing.T) {
+		al1 := createAccessList("test1")
+		al2 := createAccessList("test1")
+
+		originalOwners := al1.Spec.Owners
+		originalMembershipRequires := al1.Spec.MembershipRequires
+		originalOwnershipRequires := al1.Spec.OwnershipRequires
+		originalAudit := al1.Spec.Audit
+		originalRevision := al1.Metadata.Revision
+
+		EqualAccessLists(al1, al2, WithIgnoreOktaUserManagedFields())
+
+		require.Equal(t, originalOwners, al1.Spec.Owners)
+		require.Equal(t, originalMembershipRequires, al1.Spec.MembershipRequires)
+		require.Equal(t, originalOwnershipRequires, al1.Spec.OwnershipRequires)
+		require.Equal(t, originalAudit, al1.Spec.Audit)
+		require.Equal(t, originalRevision, al1.Metadata.Revision)
+	})
+
+	t.Run("WithSkipClone mutates originals", func(t *testing.T) {
+		al1 := createAccessList("test1")
+		al2 := createAccessList("test1")
+
+		EqualAccessLists(al1, al2, WithSkipClone(), WithIgnoreOktaUserManagedFields())
+
+		require.Nil(t, al1.Spec.Owners)
+		require.Equal(t, Requires{}, al1.Spec.MembershipRequires)
+		require.Equal(t, Requires{}, al1.Spec.OwnershipRequires)
+		require.Equal(t, Audit{}, al1.Spec.Audit)
+		require.Empty(t, al1.Metadata.Revision)
+	})
+
+	t.Run("ephemeral fields are also ignored", func(t *testing.T) {
+		al1 := createAccessList("test1")
+		al2 := createAccessList("test1")
+		al2.Metadata.Revision = "different-revision"
+		al2.Status.OwnerOf = []string{"different", "lists"}
+		al2.Spec.Owners[0].IneligibleStatus = "completely-different-reason"
+
+		require.True(t, EqualAccessLists(al1, al2, WithIgnoreOktaUserManagedFields()))
+	})
+
+	t.Run("different owners are ignored", func(t *testing.T) {
+		al1 := createAccessList("test1")
+		al2 := createAccessList("test1")
+		al2.Spec.Owners = []Owner{
+			{
+				Name:           "completely-different-owner",
+				Description:    "Replaced owner",
+				MembershipKind: MembershipKindUser,
+			},
+		}
+
+		require.True(t, EqualAccessLists(al1, al2, WithIgnoreOktaUserManagedFields()))
+	})
+
+	t.Run("different membership requires are ignored", func(t *testing.T) {
+		al1 := createAccessList("test1")
+		al2 := createAccessList("test1")
+		al2.Spec.MembershipRequires = Requires{
+			Roles:  []string{"different-role"},
+			Traits: map[string][]string{"different-trait": {"different-value"}},
+		}
+
+		require.True(t, EqualAccessLists(al1, al2, WithIgnoreOktaUserManagedFields()))
+	})
+
+	t.Run("different ownership requires are ignored", func(t *testing.T) {
+		al1 := createAccessList("test1")
+		al2 := createAccessList("test1")
+		al2.Spec.OwnershipRequires = Requires{
+			Roles:  []string{"different-owner-role"},
+			Traits: map[string][]string{"different-owner-trait": {"different-owner-value"}},
+		}
+
+		require.True(t, EqualAccessLists(al1, al2, WithIgnoreOktaUserManagedFields()))
+	})
+
+	t.Run("different audit settings are ignored", func(t *testing.T) {
+		al1 := createAccessList("test1")
+		al2 := createAccessList("test1")
+		al2.Spec.Audit = Audit{
+			NextAuditDate: baseTime.Add(24 * time.Hour),
+			Recurrence: Recurrence{
+				Frequency:  OneMonth,
+				DayOfMonth: FifteenthDayOfMonth,
+			},
+			Notifications: Notifications{
+				Start: 7 * 24 * time.Hour,
+			},
+		}
+
+		require.True(t, EqualAccessLists(al1, al2, WithIgnoreOktaUserManagedFields()))
+	})
+
+	t.Run("all ignored fields different at once", func(t *testing.T) {
+		al1 := createAccessList("test1")
+		al2 := createAccessList("test1")
+
+		al2.Metadata.Revision = "rev999"
+		al2.Status.OwnerOf = []string{"completely", "different", "lists"}
+		al2.Spec.Owners = nil
+		al2.Spec.MembershipRequires = Requires{Roles: []string{"new-role"}}
+		al2.Spec.OwnershipRequires = Requires{Roles: []string{"new-owner-role"}}
+		al2.Spec.Audit = Audit{}
+
+		require.True(t, EqualAccessLists(al1, al2, WithIgnoreOktaUserManagedFields()))
+	})
+
+	t.Run("different name causes inequality", func(t *testing.T) {
+		al1 := createAccessList("test1")
+		al2 := createAccessList("test2")
+
+		require.False(t, EqualAccessLists(al1, al2, WithIgnoreOktaUserManagedFields()))
+	})
+
+	t.Run("different title causes inequality", func(t *testing.T) {
+		al1 := createAccessList("test1")
+		al2 := createAccessList("test1")
+		al2.Spec.Title = "Different Title"
+
+		require.False(t, EqualAccessLists(al1, al2, WithIgnoreOktaUserManagedFields()))
+	})
+
+	t.Run("different description causes inequality", func(t *testing.T) {
+		al1 := createAccessList("test1")
+		al2 := createAccessList("test1")
+		al2.Spec.Description = "Different description"
+
+		require.False(t, EqualAccessLists(al1, al2, WithIgnoreOktaUserManagedFields()))
+	})
+
+	t.Run("different grants cause inequality", func(t *testing.T) {
+		al1 := createAccessList("test1")
+		al2 := createAccessList("test1")
+		al2.Spec.Grants.Roles = []string{"different-role"}
+
+		require.False(t, EqualAccessLists(al1, al2, WithIgnoreOktaUserManagedFields()))
+	})
+
+	t.Run("different owner grants cause inequality", func(t *testing.T) {
+		al1 := createAccessList("test1")
+		al2 := createAccessList("test1")
+		al2.Spec.OwnerGrants.Roles = []string{"different-owner-granted-role"}
+
+		require.False(t, EqualAccessLists(al1, al2, WithIgnoreOktaUserManagedFields()))
+	})
+
+	t.Run("one nil access list", func(t *testing.T) {
+		al1 := createAccessList("test1")
+		var al2 *AccessList
+
+		require.False(t, EqualAccessLists(al1, al2, WithIgnoreOktaUserManagedFields()))
+		require.False(t, EqualAccessLists(al2, al1, WithIgnoreOktaUserManagedFields()))
+	})
+}
+
+func TestEqualWithCanonicalFields(t *testing.T) {
+	t.Parallel()
+
+	baseSpec := Spec{
+		Title: "Test Access List",
+	}
+
+	newAL := func(t *testing.T, name string, spec Spec) *AccessList {
+		al, err := NewAccessList(header.Metadata{Name: name}, spec)
+		require.NoError(t, err)
+		return al
+	}
+
+	tests := []struct {
+		name               string
+		setup              func(spec1, spec2 *Spec)
+		wantCanonicalEqual bool
+	}{
+		{
+			name: "Reordered Grants.Roles equal with WithCanonicalFields()",
+			setup: func(spec1, spec2 *Spec) {
+				spec1.Grants.Roles = []string{"role-b", "role-a"}
+				spec2.Grants.Roles = []string{"role-a", "role-b"}
+			},
+			wantCanonicalEqual: true,
+		},
+		{
+			name: "Reordered OwnerGrants.Roles equal with WithCanonicalFields()",
+			setup: func(spec1, spec2 *Spec) {
+				spec1.OwnerGrants.Roles = []string{"role-b", "role-a"}
+				spec2.OwnerGrants.Roles = []string{"role-a", "role-b"}
+			},
+			wantCanonicalEqual: true,
+		},
+		{
+			name: "Reordered MembershipRequires.Roles equal",
+			setup: func(spec1, spec2 *Spec) {
+				spec1.MembershipRequires.Roles = []string{"role-b", "role-a"}
+				spec2.MembershipRequires.Roles = []string{"role-a", "role-b"}
+			},
+			wantCanonicalEqual: true,
+		},
+		{
+			name: "Reordered OwnershipRequires.Roles equal",
+			setup: func(spec1, spec2 *Spec) {
+				spec1.OwnershipRequires.Roles = []string{"role-b", "role-a"}
+				spec2.OwnershipRequires.Roles = []string{"role-a", "role-b"}
+			},
+			wantCanonicalEqual: true,
+		},
+		{
+			name: "Duplicates compare equal to unique sets",
+			setup: func(spec1, spec2 *Spec) {
+				spec1.Grants.Roles = []string{"role-a", "role-b", "role-a"}
+				spec2.Grants.Roles = []string{"role-a", "role-b"}
+			},
+			wantCanonicalEqual: true,
+		},
+		{
+			name: "Trait value order/dups compare equal",
+			setup: func(spec1, spec2 *Spec) {
+				spec1.Grants.Traits = map[string][]string{
+					"trait1": {"value-b", "value-a", "value-b"},
+				}
+				spec2.Grants.Traits = map[string][]string{
+					"trait1": {"value-a", "value-b"},
+				}
+			},
+			wantCanonicalEqual: true,
+		},
+		{
+			name: "Reordered and duplicate ScopedRoles compare equal",
+			setup: func(spec1, spec2 *Spec) {
+				spec1.Grants.ScopedRoles = []ScopedRoleGrant{
+					{Role: "scoped2", Scope: "scopeB"},
+					{Role: "scoped1", Scope: "scopeA"},
+					{Role: "scoped2", Scope: "scopeB"},
+				}
+				spec2.Grants.ScopedRoles = []ScopedRoleGrant{
+					{Role: "scoped1", Scope: "scopeA"},
+					{Role: "scoped2", Scope: "scopeB"},
+				}
+			},
+			wantCanonicalEqual: true,
+		},
+		{
+			name: "Different values still compare unequal",
+			setup: func(spec1, spec2 *Spec) {
+				spec1.Grants.Roles = []string{"role-a", "role-b"}
+				spec2.Grants.Roles = []string{"role-a", "role-c"}
+			},
+		},
+		{
+			name: "Different trait values still compare unequal",
+			setup: func(spec1, spec2 *Spec) {
+				spec1.Grants.Traits = map[string][]string{
+					"trait1": {"value-a", "value-b"},
+				}
+				spec2.Grants.Traits = map[string][]string{
+					"trait1": {"value-a", "value-c"},
+				}
+			},
+		},
+		{
+			name: "Different ScopedRoles still compare unequal",
+			setup: func(spec1, spec2 *Spec) {
+				spec1.Grants.ScopedRoles = []ScopedRoleGrant{
+					{Role: "scoped1", Scope: "scopeA"},
+					{Role: "scoped2", Scope: "scopeB"},
+				}
+				spec2.Grants.ScopedRoles = []ScopedRoleGrant{
+					{Role: "scoped1", Scope: "scopeA"},
+					{Role: "scoped2", Scope: "scopeC"},
+				}
+			},
+		},
+		{
+			name: "Empty lists compare equal to nil lists",
+			setup: func(spec1, spec2 *Spec) {
+				spec1.Owners = []Owner{}
+				spec2.Owners = nil
+
+				spec1.Grants.Roles = []string{}
+				spec2.Grants.Roles = nil
+				spec1.Grants.Traits = map[string][]string{}
+				spec2.Grants.Traits = nil
+				spec1.Grants.ScopedRoles = []ScopedRoleGrant{}
+				spec2.Grants.ScopedRoles = nil
+
+				spec1.OwnerGrants.Roles = []string{}
+				spec2.OwnerGrants.Roles = nil
+				spec1.OwnerGrants.Traits = map[string][]string{}
+				spec2.OwnerGrants.Traits = nil
+				spec1.OwnerGrants.ScopedRoles = []ScopedRoleGrant{}
+				spec2.OwnerGrants.ScopedRoles = nil
+
+				spec1.MembershipRequires.Roles = []string{}
+				spec2.MembershipRequires.Roles = nil
+				spec1.MembershipRequires.Traits = map[string][]string{}
+				spec2.MembershipRequires.Traits = nil
+
+				spec1.OwnershipRequires.Roles = []string{}
+				spec2.OwnershipRequires.Roles = nil
+				spec1.OwnershipRequires.Traits = map[string][]string{}
+				spec2.OwnershipRequires.Traits = nil
+			},
+			wantCanonicalEqual: true,
+		},
+		{
+			name: "Reordered owners equal",
+			setup: func(spec1, spec2 *Spec) {
+				spec1.Owners = []Owner{
+					{Name: "owner-b", MembershipKind: MembershipKindUser, Description: "b"},
+					{Name: "owner-a", MembershipKind: MembershipKindUser, Description: "a"},
+				}
+				spec2.Owners = []Owner{
+					{Name: "owner-a", MembershipKind: MembershipKindUser, Description: "a"},
+					{Name: "owner-b", MembershipKind: MembershipKindUser, Description: "b"},
+				}
+			},
+			wantCanonicalEqual: true,
+		},
+		{
+			name: "Duplicate owners compare equal to unique owners",
+			setup: func(spec1, spec2 *Spec) {
+				owner := Owner{Name: "owner-a", MembershipKind: MembershipKindUser, Description: "a"}
+				spec1.Owners = []Owner{owner, owner}
+				spec2.Owners = []Owner{owner}
+			},
+			wantCanonicalEqual: true,
+		},
+		{
+			name: "Different owner name still compares unequal",
+			setup: func(spec1, spec2 *Spec) {
+				spec1.Owners = []Owner{{Name: "owner-a", MembershipKind: MembershipKindUser}}
+				spec2.Owners = []Owner{{Name: "owner-b", MembershipKind: MembershipKindUser}}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			spec1 := baseSpec
+			spec2 := baseSpec
+			tt.setup(&spec1, &spec2)
+
+			al1 := newAL(t, "test", spec1)
+			al2 := newAL(t, "test", spec2)
+
+			require.Equal(t, tt.wantCanonicalEqual, EqualAccessLists(al1, al2, WithCanonicalFields()))
+		})
+	}
+
+	t.Run("default behavior does not mutate originals", func(t *testing.T) {
+		spec1 := baseSpec
+		spec1.Grants = Grants{
+			Roles: []string{"role-b", "role-a"},
+			Traits: map[string][]string{
+				"trait1": {"value-b", "value-a"},
+				"trait2": {"value-a", "value-b"},
+			},
+			ScopedRoles: []ScopedRoleGrant{
+				{Role: "scoped2", Scope: "scopeB"},
+				{Role: "scoped1", Scope: "scopeA"},
+			},
+		}
+		spec1.OwnerGrants = Grants{
+			Roles: []string{"role-b", "role-a"},
+			Traits: map[string][]string{
+				"trait1": {"value-b", "value-a"},
+				"trait2": {"value-a", "value-b"},
+			},
+			ScopedRoles: []ScopedRoleGrant{
+				{Role: "scoped2", Scope: "scopeB"},
+				{Role: "scoped1", Scope: "scopeA"},
+			},
+		}
+		spec1.MembershipRequires = Requires{
+			Roles: []string{"role-b", "role-a"},
+			Traits: map[string][]string{
+				"trait1": {"value-b", "value-a"},
+				"trait2": {"value-a", "value-b"},
+			},
+		}
+		spec1.OwnershipRequires = Requires{
+			Roles: []string{"role-b", "role-a"},
+			Traits: map[string][]string{
+				"trait1": {"value-b", "value-a"},
+				"trait2": {"value-a", "value-b"},
+			},
+		}
+
+		spec2 := baseSpec
+		spec2.Grants = Grants{
+			Roles: []string{"role-a", "role-b"},
+			Traits: map[string][]string{
+				"trait1": {"value-a", "value-b"},
+				"trait2": {"value-b", "value-a"},
+			},
+			ScopedRoles: []ScopedRoleGrant{
+				{Role: "scoped1", Scope: "scopeA"},
+				{Role: "scoped2", Scope: "scopeB"},
+			},
+		}
+		spec2.OwnerGrants = Grants{
+			Roles: []string{"role-a", "role-b"},
+			Traits: map[string][]string{
+				"trait1": {"value-a", "value-b"},
+				"trait2": {"value-b", "value-a"},
+			},
+			ScopedRoles: []ScopedRoleGrant{
+				{Role: "scoped1", Scope: "scopeA"},
+				{Role: "scoped2", Scope: "scopeB"},
+			},
+		}
+		spec2.MembershipRequires = Requires{
+			Roles: []string{"role-a", "role-b"},
+			Traits: map[string][]string{
+				"trait1": {"value-a", "value-b"},
+				"trait2": {"value-b", "value-a"},
+			},
+		}
+		spec2.OwnershipRequires = Requires{
+			Roles: []string{"role-a", "role-b"},
+			Traits: map[string][]string{
+				"trait1": {"value-a", "value-b"},
+				"trait2": {"value-b", "value-a"},
+			},
+		}
+
+		al1Original := newAL(t, "test", spec1)
+		al2Original := newAL(t, "test", spec2)
+
+		al1Clone := al1Original.Clone()
+		al2Clone := al2Original.Clone()
+
+		eq := EqualAccessLists(al1Clone, al2Clone, WithCanonicalFields())
+		require.True(t, eq)
+
+		require.Equal(t, al1Clone, al1Original)
+		require.Equal(t, al2Clone, al2Original)
 	})
 }

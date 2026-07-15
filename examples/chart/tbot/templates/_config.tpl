@@ -4,9 +4,6 @@
 {{ if not .Values.clusterName }}
   {{- $_ := required "`clusterName` must be provided" "" }}
 {{ end }}
-{{ if not .Values.token }}
-  {{- $_ := required "`token` must be provided" "" }}
-{{ end }}
 {{ if (and .Values.teleportAuthAddress .Values.teleportProxyAddress) }}
   {{- $_ := required "`teleportAuthAddress` and `teleportProxyAddress` are mutually exclusive" "" }}
 {{ end }}
@@ -20,7 +17,7 @@ auth_server: {{ .Values.teleportAuthAddress }}
 {{- end }}
 onboarding:
   join_method: {{ .Values.joinMethod }}
-  token: {{ .Values.token }}
+  token: {{ include "tbot.tokenName" . }}
 {{- if eq .Values.persistence "disabled" }}
 storage:
   type: memory

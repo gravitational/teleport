@@ -19,12 +19,15 @@
 import { makeSuccessAttempt } from 'shared/hooks/useAsync';
 
 import {
+  makeLabelsList,
   makeRetryableError,
   makeRootCluster,
+  makeServer,
 } from 'teleterm/services/tshd/testHelpers';
+import { makeResourceResult } from 'teleterm/ui/Search/testHelpers';
 import { ResourceSearchError } from 'teleterm/ui/services/resources';
 
-import { getActionPickerStatus } from './ActionPicker';
+import { getActionPickerStatus, getVisibleMatches } from './ActionPicker';
 
 describe('getActionPickerStatus', () => {
   describe('some-input search mode', () => {
@@ -201,5 +204,102 @@ describe('getActionPickerStatus', () => {
         searchMode.kind === 'preview' && searchMode;
       expect(nonRetryableResourceSearchErrors).toEqual([nonRetryableError]);
     });
+  });
+});
+
+describe('getVisibleMatches', () => {
+  it('excludes secondary field and label matches for terms already matched in the main field', () => {
+    const searchResult = makeResourceResult({
+      kind: 'server',
+      resource: makeServer({
+        labels: makeLabelsList({ env: 'teleport', team: 'platform' }),
+      }),
+      resourceMatches: [
+        { field: 'hostname', searchTerm: 'teleport' },
+        { field: 'addr', searchTerm: 'teleport' },
+        { field: 'name', searchTerm: 'platform' },
+      ],
+      labelMatches: [
+        {
+          kind: 'label-name',
+          labelName: 'env',
+          searchTerm: 'teleport',
+          score: 2,
+        },
+        {
+          kind: 'label-name',
+          labelName: 'team',
+          searchTerm: 'platform',
+          score: 3,
+        },
+      ],
+    });
+
+    const visibleMatches = getVisibleMatches(searchResult, 'hostname');
+
+    // Not visible because `addr` only matched a term already matched in `hostname` (main field).
+    expect(visibleMatches.hasMatchOnField('addr')).toBe(false);
+    // Visible because `name` matched a different term than the one matched in `hostname`.
+    expect(visibleMatches.hasMatchOnField('name')).toBe(true);
+    // Only non-main-field term label matches remain.
+    expect(visibleMatches.labels.matches).toEqual([
+      {
+        kind: 'label-name',
+        labelName: 'team',
+        searchTerm: 'platform',
+        score: 3,
+      },
+    ]);
+    expect(visibleMatches.labels.list).toEqual([
+      { name: 'team', value: 'platform' },
+    ]);
+  });
+
+  it('sorts visible labels by accumulated score in descending order', () => {
+    const searchResult = makeResourceResult({
+      kind: 'server',
+      resource: makeServer({
+        labels: makeLabelsList({
+          low: 'one',
+          high: 'two',
+          medium: 'three',
+        }),
+      }),
+      labelMatches: [
+        {
+          kind: 'label-name',
+          labelName: 'medium',
+          searchTerm: 'm1',
+          score: 2,
+        },
+        {
+          kind: 'label-value',
+          labelName: 'high',
+          searchTerm: 'h1',
+          score: 3,
+        },
+        {
+          kind: 'label-name',
+          labelName: 'high',
+          searchTerm: 'h2',
+          score: 2,
+        },
+        {
+          kind: 'label-name',
+          labelName: 'low',
+          searchTerm: 'l1',
+          score: 1,
+        },
+      ],
+    });
+
+    const visibleMatches = getVisibleMatches(searchResult, 'hostname');
+
+    expect(visibleMatches.labels.list.map(label => label.name)).toEqual([
+      'high',
+      'medium',
+      'low',
+    ]);
+    expect(visibleMatches.labels.matches).toHaveLength(4);
   });
 });

@@ -6,10 +6,15 @@ tags:
  - conceptual
  - zero-trust
  - infrastructure-identity
+page_type: conceptual
 ---
 
 Teleport can be configured to discover databases automatically and register
 them with your Teleport cluster.
+
+This page describes the architecture of database discovery and the options you
+can use to configure database discovery on the Teleport Discovery Service and
+Teleport Database Service.
 
 ## Supported clouds
 
@@ -95,7 +100,7 @@ discovery_service:
       # 'elasticache' - Amazon ElastiCache Redis and Valkey databases.
       # 'elasticache-serverless' - Amazon ElastiCache Serverless Redis or Valkey databases.
       # 'memorydb' - Amazon MemoryDB Redis databases.
-      # 'opensearch' - Amazon OpenSearch Redis databases.
+      # 'opensearch' - Amazon OpenSearch databases.
       # 'docdb' - Amazon DocumentDB databases.
     - types: ["rds"]
       # AWS regions to search for resources from

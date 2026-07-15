@@ -29,7 +29,7 @@ spec:
 apiVersion: resources.teleport.dev/v2
 kind: TeleportProvisionToken
 metadata:
-  name: {{ include "event-handler.crd.tokenName" . }}
+  name: {{ include "event-handler.tbot.tokenName" . }}
   namespace: {{ include "event-handler.crd.namespace" . }}
   labels:
     {{- include "event-handler.labels" . | nindent 4 }}

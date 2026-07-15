@@ -16,11 +16,24 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { fireEvent, render, screen, theme } from 'design/utils/testing';
+import {
+  enableMswServer,
+  fireEvent,
+  render,
+  screen,
+  server,
+} from 'design/utils/testing';
 
 import { userEventService } from 'teleport/services/userEvent';
+import { userEventCaptureSuccess } from 'teleport/test/helpers/userEvents';
 
 import { StandardBanner } from './StandardBanner';
+
+enableMswServer();
+
+beforeEach(() => {
+  server.use(userEventCaptureSuccess());
+});
 
 describe('StandardBanner', () => {
   it('displays the supplied message', () => {
@@ -37,7 +50,7 @@ describe('StandardBanner', () => {
   });
 
   it('renders an info banner', () => {
-    const { container } = render(
+    render(
       <StandardBanner
         message="I am steve banner"
         severity="info"
@@ -46,13 +59,10 @@ describe('StandardBanner', () => {
       />
     );
     expect(screen.getByRole('graphics-symbol')).toHaveClass('icon-info');
-    expect(container.firstChild).toHaveStyle({
-      backgroundColor: theme.colors.interactive.tonal.informational[2],
-    });
   });
 
   it('renders a warning banner', () => {
-    const { container } = render(
+    render(
       <StandardBanner
         message="I am steve banner"
         severity="warning"
@@ -61,13 +71,10 @@ describe('StandardBanner', () => {
       />
     );
     expect(screen.getByRole('graphics-symbol')).toHaveClass('icon-warning');
-    expect(container.firstChild).toHaveStyle({
-      backgroundColor: theme.colors.interactive.tonal.alert[2],
-    });
   });
 
   it('renders a danger banner', () => {
-    const { container } = render(
+    render(
       <StandardBanner
         message="I am steve banner"
         severity="danger"
@@ -78,9 +85,6 @@ describe('StandardBanner', () => {
     expect(screen.getByRole('graphics-symbol')).toHaveClass(
       'icon-warningcircle'
     );
-    expect(container.firstChild).toHaveStyle({
-      backgroundColor: theme.colors.interactive.tonal.danger[2],
-    });
   });
 
   it('calls onDismiss when the X is clicked', () => {

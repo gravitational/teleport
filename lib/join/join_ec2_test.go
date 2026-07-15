@@ -30,11 +30,16 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/defaults"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/join/ec2join"
 	"github.com/gravitational/teleport/lib/join/joinclient"
+	"github.com/gravitational/teleport/lib/join/jointest"
+	"github.com/gravitational/teleport/lib/scopes"
+	"github.com/gravitational/teleport/lib/scopes/joining"
 )
 
 type ec2Instance struct {
@@ -448,8 +453,9 @@ func TestJoinEC2(t *testing.T) {
 
 			testServer, err := authtest.NewTestServer(authtest.ServerConfig{
 				Auth: authtest.AuthServerConfig{
-					Dir:   t.TempDir(),
-					Clock: tc.clock,
+					Dir:            t.TempDir(),
+					Clock:          tc.clock,
+					ScopesFeatures: scopes.Features{Enabled: true},
 				},
 			})
 			require.NoError(t, err)
@@ -477,6 +483,29 @@ func TestJoinEC2(t *testing.T) {
 
 			err = testServer.Auth().UpsertToken(t.Context(), token)
 			require.NoError(t, err)
+
+			scopedToken, err := jointest.ScopedTokenFromProvisionTokenSpec(tc.tokenSpec, joiningv1.ScopedToken_builder{
+				Scope: "/test",
+				Metadata: headerv1.Metadata_builder{
+					Name: "scoped_" + token.GetName(),
+				}.Build(),
+				Spec: joiningv1.ScopedTokenSpec_builder{
+					AssignedScope: "/test/one",
+					UsageMode:     string(joining.TokenUsageModeUnlimited),
+				}.Build(),
+			}.Build())
+			require.NoError(t, err)
+
+			_, err = testServer.Auth().CreateScopedToken(t.Context(), joiningv1.CreateScopedTokenRequest_builder{
+				Token: scopedToken,
+			}.Build())
+			require.NoError(t, err)
+			t.Cleanup(func() {
+				_, err := testServer.Auth().DeleteScopedToken(t.Context(), joiningv1.DeleteScopedTokenRequest_builder{
+					Name: scopedToken.GetMetadata().GetName(),
+				}.Build())
+				require.NoError(t, err)
+			})
 
 			testServer.Auth().SetEC2ClientForEC2JoinMethod(tc.ec2Client)
 
@@ -516,6 +545,26 @@ func TestJoinEC2(t *testing.T) {
 				})
 				tc.expectError(t, err)
 			})
+			t.Run("scoped", func(t *testing.T) {
+				if tc.requestHostID == badInstanceID {
+					// New join method does not allow the client to request a
+					// specific host ID, so the join would pass and fail the
+					// error assertion.
+					t.Skip()
+				}
+				_, err = joinclient.Join(t.Context(), joinclient.JoinParams{
+					Token: scopedToken.GetMetadata().GetName(),
+					ID: state.IdentityID{
+						Role:     types.RoleInstance,
+						NodeName: "testnode",
+					},
+					AuthClient: nopClient,
+					GetInstanceIdentityDocumentFunc: func(_ context.Context) ([]byte, error) {
+						return tc.document, nil
+					},
+				})
+				tc.expectError(t, err)
+			})
 
 			err = testServer.Auth().DeleteToken(t.Context(), token.GetName())
 			require.NoError(t, err)
@@ -527,8 +576,9 @@ func TestJoinEC2(t *testing.T) {
 func TestHostUniqueCheck(t *testing.T) {
 	testServer, err := authtest.NewTestServer(authtest.ServerConfig{
 		Auth: authtest.AuthServerConfig{
-			Dir:   t.TempDir(),
-			Clock: clockwork.NewFakeClockAt(instance1.pendingTime),
+			Dir:            t.TempDir(),
+			Clock:          clockwork.NewFakeClockAt(instance1.pendingTime),
+			ScopesFeatures: scopes.Features{Enabled: true},
 		},
 	})
 	require.NoError(t, err)
@@ -595,11 +645,11 @@ func TestHostUniqueCheck(t *testing.T) {
 						Namespace: defaults.Namespace,
 					},
 				}
-				err := a.UpsertProxy(context.Background(), proxy)
+				_, err := a.UpsertProxyServer(context.Background(), proxy)
 				require.NoError(t, err)
 			},
 			deleter: func(t *testing.T, hostID string) {
-				require.NoError(t, a.DeleteProxy(t.Context(), hostID))
+				require.NoError(t, a.DeleteProxyServer(t.Context(), hostID))
 			},
 		},
 		{

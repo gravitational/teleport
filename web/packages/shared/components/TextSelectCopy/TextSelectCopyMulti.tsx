@@ -53,6 +53,7 @@ export function TextSelectCopyMulti({
 
   return (
     <Box
+      width="100%"
       bg="bgTerminal"
       pl={3}
       pt={2}

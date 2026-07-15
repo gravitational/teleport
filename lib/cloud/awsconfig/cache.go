@@ -24,6 +24,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/gravitational/trace"
 
+	apiutilsaws "github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -80,6 +81,11 @@ func (c *Cache) withDefaultOptions(optFns []OptionsFn) []OptionsFn {
 
 // GetConfig returns an [aws.Config] for the given region and options.
 func (c *Cache) GetConfig(ctx context.Context, region string, optFns ...OptionsFn) (aws.Config, error) {
+	if region != "" {
+		if err := apiutilsaws.IsValidRegion(region); err != nil {
+			return aws.Config{}, trace.Wrap(err)
+		}
+	}
 	opts, err := buildOptions(c.withDefaultOptions(optFns)...)
 	if err != nil {
 		return aws.Config{}, trace.Wrap(err)

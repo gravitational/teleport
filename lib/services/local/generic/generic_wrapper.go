@@ -76,6 +76,13 @@ func (s *ServiceWrapper[T]) WithPrefix(parts ...string) *ServiceWrapper[T] {
 	return &ServiceWrapper[T]{service: s.service.WithPrefix(parts...)}
 }
 
+// WithNameKeyFunc creates a service copy with a distinct NameKeyFunc.
+func (s *ServiceWrapper[T]) WithNameKeyFunc(f func() backend.Key) *ServiceWrapper[T] {
+	return &ServiceWrapper[T]{
+		service: s.service.WithNameKeyFunc(f),
+	}
+}
+
 // UpsertResource upserts a resource.
 func (s *ServiceWrapper[T]) UpsertResource(ctx context.Context, resource T) (T, error) {
 	adapter, err := s.service.UpsertResource(ctx, newResourceMetadataAdapter(resource))
@@ -124,6 +131,14 @@ func (s *ServiceWrapper[T]) DeleteAllResources(ctx context.Context) error {
 	return trace.Wrap(s.service.backend.DeleteRange(ctx, startKey, backend.RangeEnd(startKey)))
 }
 
+// ConditionalDeleteResource conditionally deletes the resource based on its
+// revision.
+// Returns a trace.CompareFailedError if the item is not found or the revision
+// is incorrect.
+func (s *ServiceWrapper[T]) ConditionalDeleteResource(ctx context.Context, name, revision string) error {
+	return trace.Wrap(s.service.ConditionalDeleteResource(ctx, name, revision))
+}
+
 // ListResources returns a paginated list of resources.
 func (s *ServiceWrapper[T]) ListResources(ctx context.Context, pageSize int, pageToken string) ([]T, string, error) {
 	adapters, nextToken, err := s.service.ListResources(ctx, pageSize, pageToken)
@@ -151,8 +166,10 @@ func (s *ServiceWrapper[T]) ListResourcesWithFilter(ctx context.Context, pageSiz
 	return out, nextToken, trace.Wrap(err)
 }
 
-// Resources returns a stream of resources within the range [startKey, endKey].
-// If both keys are empty, then the entire range is returned.
+// Resources returns a stream of resources within the range [startKey, endKey).
+// If endKey is empty, iteration continues to the end of the prefix range.
+//
+// This method may be used to implement RangeFoo.
 func (s *ServiceWrapper[T]) Resources(ctx context.Context, startKey, endKey string) iter.Seq2[T, error] {
 	return func(yield func(T, error) bool) {
 		for adapter, err := range s.service.Resources(ctx, startKey, endKey) {
@@ -167,4 +184,14 @@ func (s *ServiceWrapper[T]) Resources(ctx context.Context, startKey, endKey stri
 			}
 		}
 	}
+}
+
+// MakeBackendItem returns a backend.Item for the given resource.
+func (s *ServiceWrapper[T]) MakeBackendItem(resource T) (backend.Item, error) {
+	return s.service.MakeBackendItem(newResourceMetadataAdapter(resource))
+}
+
+// BackendKey returns a backend.Key for the resource with the given name.
+func (s *ServiceWrapper[T]) BackendKey(name string) backend.Key {
+	return s.service.resourceKey(name)
 }

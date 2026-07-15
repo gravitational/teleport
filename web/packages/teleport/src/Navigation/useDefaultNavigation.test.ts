@@ -17,22 +17,20 @@
  */
 
 import { act, renderHook } from '@testing-library/react';
-import { useHistory } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 
 import { NavigationSection, NavigationSubsection } from './Navigation';
 import { useDefaultNavigation } from './useDefaultNavigation';
 
-jest.mock('react-router-dom', () => ({
-  useHistory: jest.fn(),
+jest.mock('react-router', () => ({
+  useNavigate: jest.fn(),
 }));
 
-const pushMock = jest.fn();
+const navigateMock = jest.fn();
 
 describe('useDefaultNavigation', () => {
   beforeEach(() => {
-    (useHistory as jest.Mock).mockReturnValue({
-      push: pushMock,
-    });
+    (useNavigate as jest.Mock).mockReturnValue(navigateMock);
   });
 
   it('returns an onClick function that calls the first section onclick and navigates to its route', () => {
@@ -64,6 +62,6 @@ describe('useDefaultNavigation', () => {
     });
 
     expect(sectionOnclickMock).toHaveBeenCalled();
-    expect(pushMock).toHaveBeenCalledWith(testRoute);
+    expect(navigateMock).toHaveBeenCalledWith(testRoute);
   });
 });

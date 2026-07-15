@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { AutoUserProvisioning } from 'gen-proto-ts/teleport/lib/teleterm/v1/database_pb';
+
 import { GatewayProtocol } from 'teleterm/services/tshd/gateway';
 import { IAppContext } from 'teleterm/ui/types';
 import { DatabaseUri, routing } from 'teleterm/ui/uri';
@@ -30,6 +32,7 @@ export async function connectToDatabase(
     protocol: string;
     dbUser: string;
     gcpProjectId?: string;
+    autoUserProvisioning: AutoUserProvisioning | undefined;
   },
   telemetry: {
     origin: DocumentOrigin;
@@ -50,6 +53,7 @@ export async function connectToDatabase(
       target.gcpProjectId
     ),
     origin: telemetry.origin,
+    autoUserProvisioning: target.autoUserProvisioning,
   });
 
   const connectionToReuse = ctx.connectionTracker.findConnectionByDocument(doc);
@@ -59,7 +63,11 @@ export async function connectToDatabase(
       origin: telemetry.origin,
     });
   } else {
-    await ctx.workspacesService.setActiveWorkspace(rootClusterUri);
+    const { isAtDesiredWorkspace } =
+      await ctx.workspacesService.setActiveWorkspace(rootClusterUri);
+    if (!isAtDesiredWorkspace) {
+      return;
+    }
     documentsService.add(doc);
     documentsService.open(doc.uri);
   }

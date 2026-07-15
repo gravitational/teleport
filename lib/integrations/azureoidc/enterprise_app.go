@@ -27,6 +27,7 @@ import (
 
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/msgraph"
+	"github.com/gravitational/teleport/lib/msgraph/models"
 )
 
 // nonGalleryAppTemplateID is a constant for the special application template ID in Microsoft Graph,
@@ -97,7 +98,7 @@ func SetupEnterpriseApp(ctx context.Context, proxyPublicAddr string, authConnect
 		r.Reset()
 		var err error
 
-		assignment := &msgraph.AppRoleAssignment{}
+		assignment := &models.AppRoleAssignment{}
 		assignment.PrincipalID = &spID
 		assignment.ResourceID = &msGraphResourceID
 		assignment.AppRoleID = &appRoleID
@@ -142,7 +143,7 @@ func SetupEnterpriseApp(ctx context.Context, proxyPublicAddr string, authConnect
 
 // createFederatedAuthCredential creates a new federated (OIDC) auth credential for the given Entra application.
 func createFederatedAuthCredential(ctx context.Context, graphClient *msgraph.Client, appObjectID string, proxyPublicAddr string) error {
-	credential := &msgraph.FederatedIdentityCredential{}
+	credential := &models.FederatedIdentityCredential{}
 	name := "teleport-oidc"
 	audiences := []string{azureDefaultJWTAudience}
 	subject := azureSubject

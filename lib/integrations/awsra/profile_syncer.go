@@ -27,7 +27,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/aws/arn"
-	"github.com/aws/aws-sdk-go-v2/config"
+	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/rolesanywhere"
 	"github.com/google/uuid"
@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
+	config "github.com/gravitational/teleport/lib/cloud/aws/config"
 	"github.com/gravitational/teleport/lib/integrations/awsra/createsession"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -386,8 +387,8 @@ func buildAWSRolesAnywhereClientForIntegration(ctx context.Context, params AWSRo
 
 	awsConfig, err := config.LoadDefaultConfig(
 		ctx,
-		config.WithRegion(region),
-		config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(resp.AccessKeyID, resp.SecretAccessKey, resp.SessionToken)),
+		awsconfig.WithRegion(region),
+		awsconfig.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(resp.AccessKeyID, resp.SecretAccessKey, resp.SessionToken)),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -445,6 +446,10 @@ func syncProfileForIntegration(ctx context.Context, params AWSRolesAnywhereProfi
 	profileNameFilters := integration.GetAWSRolesAnywhereIntegrationSpec().ProfileSyncConfig.ProfileNameFilters
 	profileUsedForProfileSync := integration.GetAWSRolesAnywhereIntegrationSpec().ProfileSyncConfig.ProfileARN
 
+	// Declared outside the page loop so collisions are detected
+	// across pages, not just within one.
+	seenAppNames := map[string]string{}
+
 	var nextPage *string
 	for {
 		listReq := listRolesAnywhereProfilesRequest{
@@ -462,17 +467,17 @@ func syncProfileForIntegration(ctx context.Context, params AWSRolesAnywhereProfi
 			err := processProfile(ctx, processProfileRequest{
 				Params:          params,
 				Profile:         profile,
-				RAClient:        raClient,
 				Integration:     integration,
 				ProxyPublicAddr: proxyPublicAddr,
+				SeenAppNames:    seenAppNames,
 			})
 			if err != nil {
 				if errors.Is(err, errDisabledProfile) {
-					logger.DebugContext(ctx, "Skipping profile", "profile_name", profile.Name, "error", err.Error())
+					logger.DebugContext(ctx, "Skipping profile", "profile_name", profile.GetName(), "error", err.Error())
 					continue
 				}
 
-				logger.WarnContext(ctx, "Failed to process profile", "profile_name", profile.Name, "error", err)
+				logger.WarnContext(ctx, "Failed to process profile", "profile_name", profile.GetName(), "error", err)
 				ret.profileErrors = append(ret.profileErrors, err)
 				continue
 			}
@@ -496,38 +501,87 @@ var (
 type processProfileRequest struct {
 	Params          AWSRolesAnywhereProfileSyncerParams
 	Profile         *integrationv1.RolesAnywhereProfile
-	RAClient        RolesAnywhereClient
 	Integration     types.Integration
 	ProxyPublicAddr string
+	// SeenAppNames maps sanitized app name -> raw profile name.
+	// Two profile names can sanitize to the same app name (e.g.
+	// "prod_ops" and "prod-ops"); the second must error rather than
+	// silently overwrite the first.
+	SeenAppNames map[string]string
 }
 
 func processProfile(ctx context.Context, req processProfileRequest) error {
-	if !req.Profile.Enabled {
+	if !req.Profile.GetEnabled() {
 		return errDisabledProfile
 	}
 
 	appServer, err := convertProfile(req.Params, req.Profile, req.Integration.GetName(), req.ProxyPublicAddr)
 	if err != nil {
-		return trace.BadParameter("failed to convert Profile to AppServer: %v", err)
+		return trace.Wrap(err, "failed to convert Profile to AppServer")
+	}
+
+	appName := appServer.GetApp().GetName()
+	if existing, ok := req.SeenAppNames[appName]; ok {
+		return trace.BadParameter(
+			"app name %q for profile %q conflicts with profile %q which was upserted first. Rename either profile or set the %q tag on one of them to a unique value.",
+			appName, req.Profile.GetName(), existing, types.AWSRolesAnywhereProfileNameOverrideLabel)
 	}
 
 	if _, err := req.Params.AppServerUpserter.UpsertApplicationServer(ctx, appServer); err != nil {
-		return trace.BadParameter("failed to upsert application server from Profile: %v", err)
+		return trace.Wrap(err, "failed to upsert application server from profile %q", req.Profile.GetName())
 	}
 
+	req.SeenAppNames[appName] = req.Profile.GetName()
 	return nil
 }
 
+// awsConsoleURLForARN returns the AWS management console URL appropriate for
+// the partition and region encoded in the given ARN. For GovCloud, it returns
+// a region-scoped URL (e.g. https://us-gov-west-1.console.amazonaws-us-gov.com)
+// so that downstream code can derive the correct region-scoped federation
+// endpoint required by GovCloud.
+func awsConsoleURLForARN(parsedARN arn.ARN) string {
+	switch parsedARN.Partition {
+	case "aws-us-gov":
+		return constants.AWSUSGovConsoleURL
+	case "aws-cn":
+		return constants.AWSCNConsoleURL
+	default:
+		return constants.AWSConsoleURL
+	}
+}
+
+// sanitizeProfileName rewrites a raw AWS profile name to satisfy
+// DNS-1123 subdomain: lowercase, hyphen-substitute invalid chars,
+// and trim hyphens from each label. Runs of hyphens are kept;
+// DNS-1123 allows them and preserving them avoids extra collisions.
+// AWS IAM Roles Anywhere profile names allow `[ a-zA-Z0-9-_]*`, so
+// after lowercasing the only DNS-1123-invalid chars are space and
+// underscore.
+func sanitizeProfileName(name string) string {
+	name = strings.ToLower(name)
+	name = strings.ReplaceAll(name, " ", "-")
+	name = strings.ReplaceAll(name, "_", "-")
+	parts := strings.Split(name, ".")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if p = strings.Trim(p, "-"); p != "" {
+			out = append(out, p)
+		}
+	}
+	return strings.Join(out, ".")
+}
+
 func convertProfile(params AWSRolesAnywhereProfileSyncerParams, profile *integrationv1.RolesAnywhereProfile, integrationName string, proxyPublicAddr string) (types.AppServer, error) {
-	parsedProfileARN, err := arn.Parse(profile.Arn)
+	parsedProfileARN, err := arn.Parse(profile.GetArn())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	applicationName := profile.Name + "-" + integrationName
+	applicationName := profile.GetName()
 
-	labels := make(map[string]string, len(profile.Tags))
-	for tagKey, tagValue := range profile.Tags {
+	labels := make(map[string]string, len(profile.GetTags()))
+	for tagKey, tagValue := range profile.GetTags() {
 		labels["aws/"+tagKey] = tagValue
 
 		if tagKey == types.AWSRolesAnywhereProfileNameOverrideLabel {
@@ -535,12 +589,25 @@ func convertProfile(params AWSRolesAnywhereProfileSyncerParams, profile *integra
 		}
 	}
 
-	appURL := utils.DefaultAppPublicAddr(strings.ToLower(applicationName), proxyPublicAddr)
+	// Sanitize the user-supplied portion first so all-invalid inputs
+	// (e.g. "___") error out instead of silently collapsing to the
+	// integration name and colliding with sibling profiles.
+	applicationName = sanitizeProfileName(applicationName)
+	if applicationName == "" {
+		return nil, trace.BadParameter(
+			"profile %q has no DNS-safe characters in its name; set the %q tag to override",
+			profile.GetName(), types.AWSRolesAnywhereProfileNameOverrideLabel)
+	}
+	// Append the integration suffix so a tagger with iam:TagResource
+	// on one profile cannot pick a name that collides with another
+	// integration or a static-config app.
+	applicationName = applicationName + "-" + integrationName
+	appURL := utils.DefaultAppPublicAddr(applicationName, proxyPublicAddr)
 
 	labels[types.AWSAccountIDLabel] = parsedProfileARN.AccountID
 	labels[constants.AWSAccountIDLabel] = parsedProfileARN.AccountID
 	labels[types.IntegrationLabel] = integrationName
-	labels[types.AWSRolesAnywhereProfileARNLabel] = profile.Arn
+	labels[types.AWSRolesAnywhereProfileARNLabel] = profile.GetArn()
 
 	// TODO(marco): add origin label in v19: teleport.dev/origin: integration_awsrolesanywhere
 	// types.Metadata.CheckAndSetDefaults in v17 returns an error if the origin label is set to AWS Roles Anywhere.
@@ -560,13 +627,13 @@ func convertProfile(params AWSRolesAnywhereProfileSyncerParams, profile *integra
 				Labels: labels,
 			},
 			Spec: types.AppSpecV3{
-				URI:         constants.AWSConsoleURL,
+				URI:         awsConsoleURLForARN(parsedProfileARN),
 				Integration: integrationName,
 				PublicAddr:  appURL,
 				AWS: &types.AppAWS{
 					RolesAnywhereProfile: &types.AppAWSRolesAnywhereProfile{
-						ProfileARN:            profile.Arn,
-						AcceptRoleSessionName: profile.AcceptRoleSessionName,
+						ProfileARN:            profile.GetArn(),
+						AcceptRoleSessionName: profile.GetAcceptRoleSessionName(),
 					},
 				},
 			},

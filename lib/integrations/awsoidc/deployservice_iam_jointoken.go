@@ -186,14 +186,14 @@ func updateTokenIAMJoin(ctx context.Context, req upsertIAMJoinTokenRequest, rule
 	uniqueRoles := utils.Deduplicate(allRoles)
 	existingToken.SetRoles(uniqueRoles)
 
-	for _, rule := range existingToken.GetAllowRules() {
+	for _, rule := range existingToken.GetAWSAllowRules() {
 		if rule.AWSAccount == req.accountID && rule.AWSARN == req.awsARN {
 
 			return nil, trace.AlreadyExists("rule already exists")
 		}
 	}
 
-	existingToken.SetAllowRules(append(existingToken.GetAllowRules(), rule))
+	existingToken.SetAllowRules(append(existingToken.GetAWSAllowRules(), rule))
 
 	return existingToken, nil
 }

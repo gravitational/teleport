@@ -1,7 +1,6 @@
 include ../../build.assets/images.mk
 
 VERSION ?= $(shell go run ../hack/get-version/get-version.go)
-GO_VERSION=1.21.9
 
 GITTAG=v$(VERSION)
 
@@ -14,6 +13,7 @@ GENTERRAFORMPATH := $(shell go env GOPATH)/bin
 
 BUILDDIR ?= build
 BINARY = $(BUILDDIR)/teleport-event-handler
+TEST_LOG_DIR ?= ${abspath ./test-logs}
 
 GITREF ?= $(shell git describe --dirty --long --tags --match '$(VERSION)')
 ADDFLAGS ?=
@@ -94,9 +94,13 @@ docker-publish: ## Publishes a docker image from the private ECR registry to the
 install: build
 	go install
 
+$(TEST_LOG_DIR):
+	mkdir $(TEST_LOG_DIR)
+
+
 .PHONY: test
-test:
-	gotestsum --junitfile unit-tests-event-handler.xml --jsonfile unit-tests-event-handler.json
+test: | $(TEST_LOG_DIR)
+	gotestsum --junitfile $(TEST_LOG_DIR)/unit-tests-event-handler.xml --jsonfile $(TEST_LOG_DIR)/unit-tests-event-handler.json
 
 .PHONY: configure
 configure: build

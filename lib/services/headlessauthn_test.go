@@ -77,7 +77,7 @@ func TestValidateHeadlessAuthentication(t *testing.T) {
 				// use a random UUID instead of the uuid.NewHash of the public key used above.
 				ha.SetName(uuid.NewString())
 			}),
-			wantErr: "headless authentication authentication resource name must be derived from public key",
+			wantErr: "headless authentication resource name must be derived from public key",
 		}, {
 			name: "NOK expires missing",
 			ha: newHA(func(ha *types.HeadlessAuthentication) {

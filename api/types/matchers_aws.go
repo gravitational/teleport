@@ -150,7 +150,7 @@ func (m *AWSMatcher) CheckAndSetDefaults() error {
 	}
 
 	if len(m.Regions) == 0 {
-		return trace.BadParameter("discovery service requires at least one region, for EC2 you can also set the region to %q to iterate over all regions (requires account:ListRegions IAM permission)", Wildcard)
+		return trace.BadParameter("discovery service requires at least one region, for EC2 and EKS you can also set the region to %q to iterate over all regions (requires account:ListRegions IAM permission)", Wildcard)
 	}
 
 	for _, region := range m.Regions {
@@ -198,6 +198,16 @@ func (m *AWSMatcher) CheckAndSetDefaults() error {
 		m.Tags = map[string]apiutils.Strings{Wildcard: {Wildcard}}
 	}
 
+	if slices.Contains(m.Types, AWSMatcherEC2) {
+		if err := m.checkAndSetDefaultsEC2(); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	return nil
+}
+
+func (m *AWSMatcher) checkAndSetDefaultsEC2() error {
 	if m.Params == nil {
 		m.Params = &InstallerParams{
 			InstallTeleport: true,
@@ -222,7 +232,7 @@ func (m *AWSMatcher) CheckAndSetDefaults() error {
 		return trace.BadParameter("invalid enroll mode %s", m.Params.EnrollMode.String())
 	}
 
-	if slices.Contains(m.Types, AWSMatcherEC2) && m.Params.EnrollMode == InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_EICE {
+	if m.Params.EnrollMode == InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_EICE {
 		if eiceEnabled, _ := strconv.ParseBool(os.Getenv(constants.UnstableEnableEICEEnvVar)); !eiceEnabled {
 			return trace.BadParameter(constants.EICEDisabledMessage)
 		}
@@ -276,6 +286,7 @@ func (m *AWSMatcher) CheckAndSetDefaults() error {
 			m.SSM.DocumentName = AWSInstallerDocument
 		}
 	}
+
 	return nil
 }
 

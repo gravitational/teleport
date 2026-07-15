@@ -24,11 +24,12 @@ import {
   ButtonWarning,
   ButtonWarningBorder,
 } from 'design/Button/Button';
-import { Dialog } from 'design/Dialog/Dialog';
-import DialogContent from 'design/Dialog/DialogContent';
-import DialogFooter from 'design/Dialog/DialogFooter';
-import DialogHeader from 'design/Dialog/DialogHeader';
-import DialogTitle from 'design/Dialog/DialogTitle';
+import Dialog, {
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from 'design/Dialog';
 import Flex from 'design/Flex';
 import { P } from 'design/Text/Text';
 import { wait } from 'shared/utils/wait';

@@ -48,24 +48,28 @@ export function HeadlessRequest() {
   });
 
   useEffect(() => {
-    const setIpAddress = (response: { clientIpAddress: string }) => {
-      setState({
-        ...state,
-        status: 'loaded',
-        ipAddress: response.clientIpAddress,
-      });
-    };
+    const abortController = new AbortController();
 
     auth
-      .headlessSsoGet(requestId)
-      .then(setIpAddress)
-      .catch(e => {
+      .headlessSsoGet(requestId, abortController.signal)
+      .then(response => {
         setState({
           ...state,
-          status: 'error',
-          errorText: e.toString(),
+          status: 'loaded',
+          ipAddress: response.clientIpAddress,
         });
+      })
+      .catch(e => {
+        if (!abortController.signal.aborted) {
+          setState({
+            ...state,
+            status: 'error',
+            errorText: e.toString(),
+          });
+        }
       });
+
+    return () => abortController.abort();
   }, [requestId]);
 
   const setSuccess = () => {

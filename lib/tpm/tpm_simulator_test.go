@@ -150,7 +150,7 @@ func TestWithSimulator(t *testing.T) {
 		}, att.Data))
 
 		t.Run("Success", func(t *testing.T) {
-			validated, err := tpm.Validate(ctx, log, tpm.ValidateParams{
+			validated, err := tpm.Validate(ctx, tpm.ValidateParams{
 				EKKey:        att.Data.EKPub,
 				AttestParams: att.AttestParams,
 				Solve:        att.Solve,
@@ -162,7 +162,7 @@ func TestWithSimulator(t *testing.T) {
 			}, validated))
 		})
 		t.Run("Failure due to missing EKCert", func(t *testing.T) {
-			_, err = tpm.Validate(ctx, log, tpm.ValidateParams{
+			_, err = tpm.Validate(ctx, tpm.ValidateParams{
 				EKKey:        att.Data.EKPub,
 				AttestParams: att.AttestParams,
 				Solve:        att.Solve,
@@ -201,7 +201,7 @@ func TestWithSimulator(t *testing.T) {
 		}, att.Data))
 
 		t.Run("Success without CAs", func(t *testing.T) {
-			validated, err := tpm.Validate(ctx, log, tpm.ValidateParams{
+			validated, err := tpm.Validate(ctx, tpm.ValidateParams{
 				EKKey:        att.Data.EKPub,
 				EKCert:       att.Data.EKCert.Raw,
 				AttestParams: att.AttestParams,
@@ -215,7 +215,7 @@ func TestWithSimulator(t *testing.T) {
 			}, validated))
 		})
 		t.Run("Success with CAs", func(t *testing.T) {
-			validated, err := tpm.Validate(ctx, log, tpm.ValidateParams{
+			validated, err := tpm.Validate(ctx, tpm.ValidateParams{
 				EKKey:        att.Data.EKPub,
 				EKCert:       att.Data.EKCert.Raw,
 				AttestParams: att.AttestParams,
@@ -230,7 +230,7 @@ func TestWithSimulator(t *testing.T) {
 			}, validated))
 		})
 		t.Run("Failure with wrong CA", func(t *testing.T) {
-			_, err := tpm.Validate(ctx, log, tpm.ValidateParams{
+			_, err := tpm.Validate(ctx, tpm.ValidateParams{
 				EKKey:        att.Data.EKPub,
 				EKCert:       att.Data.EKCert.Raw,
 				AttestParams: att.AttestParams,

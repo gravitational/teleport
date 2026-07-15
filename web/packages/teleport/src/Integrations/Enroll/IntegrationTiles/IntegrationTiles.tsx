@@ -16,85 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Link } from 'react-router-dom';
-
-import { Flex, Text } from 'design';
-import { ResourceIconName } from 'design/ResourceIcon';
-
 import {
   BadgeTitle,
   ToolTipNoPermBadge,
 } from 'teleport/components/ToolTipNoPermBadge';
-import cfg from 'teleport/config';
-import { IntegrationKind } from 'teleport/services/integrations';
-
-import { IntegrationIcon, IntegrationTile } from '../common';
-import { installableIntegrations, IntegrationTileSpec } from './integrations';
-
-// TODO(alexhemard): delete in a follow up PR
-export function IntegrationTiles({
-  hasIntegrationAccess = true,
-  hasExternalAuditStorage = true,
-}: {
-  hasIntegrationAccess?: boolean;
-  hasExternalAuditStorage?: boolean;
-}) {
-  return installableIntegrations().map(i => (
-    <IntegrationTileWithSpec
-      key={i.kind}
-      spec={i}
-      hasIntegrationAccess={hasIntegrationAccess}
-      hasExternalAuditStorage={hasExternalAuditStorage}
-    />
-  ));
-}
-
-export function IntegrationTileWithSpec({
-  spec,
-  hasIntegrationAccess = true,
-  hasExternalAuditStorage = true,
-}: {
-  spec: IntegrationTileSpec;
-  hasIntegrationAccess?: boolean;
-  hasExternalAuditStorage?: boolean;
-}) {
-  if (spec.kind === IntegrationKind.ExternalAuditStorage) {
-    const externalAuditStorageEnabled =
-      cfg.entitlements.ExternalAuditStorage.enabled;
-    return (
-      <IntegrationTile
-        disabled={!hasExternalAuditStorage || !externalAuditStorageEnabled}
-        as={hasExternalAuditStorage ? Link : null}
-        to={
-          hasExternalAuditStorage
-            ? cfg.getIntegrationEnrollRoute(spec.kind)
-            : null
-        }
-        data-testid="tile-external-audit-storage"
-      >
-        <Flex flexBasis={100}>
-          <IntegrationIcon name={spec.icon} />
-        </Flex>
-        <Flex>
-          <Text>{spec.name}</Text>
-        </Flex>
-        {renderExternalAuditStorageBadge(
-          hasExternalAuditStorage,
-          externalAuditStorageEnabled
-        )}
-      </IntegrationTile>
-    );
-  }
-
-  return (
-    <GenericIntegrationTile
-      kind={spec.kind}
-      hasAccess={hasIntegrationAccess}
-      name={spec.name}
-      icon={spec.icon}
-    />
-  );
-}
 
 export function renderExternalAuditStorageBadge(
   hasExternalAuditStorageAccess: boolean,
@@ -132,33 +57,4 @@ export function GenericNoPermBadge({
       </ToolTipNoPermBadge>
     );
   }
-}
-
-export function GenericIntegrationTile({
-  kind,
-  hasAccess,
-  name,
-  icon,
-}: {
-  kind: IntegrationKind;
-  hasAccess: boolean;
-  name: string;
-  icon: ResourceIconName;
-}) {
-  return (
-    <IntegrationTile
-      disabled={!hasAccess}
-      as={hasAccess ? Link : null}
-      to={hasAccess ? cfg.getIntegrationEnrollRoute(kind) : null}
-      data-testid={`tile-${kind}`}
-    >
-      <Flex flexBasis={100}>
-        <IntegrationIcon name={icon} size={80} />
-      </Flex>
-      <Flex>
-        <Text>{name}</Text>
-      </Flex>
-      <GenericNoPermBadge noAccess={!hasAccess} />
-    </IntegrationTile>
-  );
 }

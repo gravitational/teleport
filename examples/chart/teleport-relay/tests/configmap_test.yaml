@@ -10,11 +10,12 @@ tests:
       - hasDocuments:
           count: 1
       - containsDocument:
+          any: true
           kind: ConfigMap
           apiVersion: v1
           name: RELEASE-NAME-teleport-relay
       - isNotNull:
-          path: data.teleport\.yaml
+          path: data["teleport.yaml"]
   - it: includes extraLabels and annotations
     values:
       - ../.lint/simple.yaml
@@ -86,10 +87,10 @@ tests:
       - ../.lint/simple.yaml
     asserts:
       - matchSnapshot:
-          path: data.teleport\.yaml
+          path: data["teleport.yaml"]
   - it: teleport.yaml matches the snapshot (exercise-configmap)
     values:
       - ../.lint/exercise-configmap.yaml
     asserts:
       - matchSnapshot:
-          path: data.teleport\.yaml
+          path: data["teleport.yaml"]

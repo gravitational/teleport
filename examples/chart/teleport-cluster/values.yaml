@@ -126,7 +126,7 @@ authentication:
 
   # Controls the locking mode: in case of network split should Teleport guarantee availability or integrity ?
   # Possible values are "best_effort" and "strict". When not defined, Teleport defaults to "best_effort".
-  # See https://goteleport.com/docs/access-controls/guides/locking/#next-steps-locking-modes.
+  # See https://goteleport.com/docs/identity-governance/locking/#next-steps-locking-modes.
   lockingMode: ""
 
   # DEPRECATED: Second factor requirements for users of the Teleport cluster.
@@ -299,7 +299,7 @@ operator:
 # If true, create & use Pod Security Policy resources
 # https://kubernetes.io/docs/concepts/policy/pod-security-policy/
 # WARNING: the PSP won't be deployed for Kubernetes 1.23 and higher.
-# Please read https://goteleport.com/docs/deploy-a-cluster/helm-deployments/migration-kubernetes-1-25-psp/
+# Please read https://goteleport.com/docs/installation/self-hosted/helm-deployments/migration-kubernetes-1-25-psp/
 podSecurityPolicy:
   enabled: true
 
@@ -442,7 +442,7 @@ aws:
 
   # accessMonitoring configures the Access Monitoring feature of the Auth Service.
   # Using this features requires setting up specific AWS infrastructure as described
-  # in https://goteleport.com/docs/access-controls/access-monitoring/#configuration
+  # in https://goteleport.com/docs/identity-governance/access-monitoring/#configuration
   # The Terraform example code will output the chart values for this section.
   accessMonitoring:
     enabled: false
@@ -585,6 +585,11 @@ tls:
   # Useful for building trust when using intermediate certificate authorities.
   # This will automatically set the SSL_CERT_FILE environment variable to trust the CA.
   # Create the secret with `kubectl create secret generic --from-file=ca.pem=/path/to/root-ca.pem
+  #
+  # DANGER: The Teleport distroless container trusts by default CAs from the `ca-certificates` package (Mozilla PKI).
+  # When `existingCASecretName` is set, Teleport only trusts the CA bundle from the secret.
+  # If you need Teleport to interact with other systems (e.g. AWS, GitHub, ...), the secret must contain their CA.
+  # Else, Teleport will fail to establish TLS connections with external services.
   existingCASecretName: ""
   # (optional) Name of an existing key in the CA secret which will be used as a trusted CA bundle file.
   existingCASecretKeyName: "ca.pem"

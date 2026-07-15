@@ -21,6 +21,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gogo/protobuf/types"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
@@ -279,6 +280,27 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 			wantErr: false,
 		},
 		{
+			desc: "iam method with aws_organization_id and organizational unit matchers",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: "iam",
+					Allow: []*TokenRule{
+						{
+							AWSOrganizationID: "o-123abcd",
+							AWSOrganizationalUnits: &AWSOrganizationUnitsMatcher{
+								Include: []string{"*"},
+							},
+						},
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
 			desc: "github valid",
 			token: &ProvisionTokenV2{
 				Metadata: Metadata{
@@ -291,6 +313,44 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 						Allow: []*ProvisionTokenSpecV2GitHub_Rule{
 							{
 								Sub: "foo",
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			desc: "github valid enterprise only",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodGitHub,
+					GitHub: &ProvisionTokenSpecV2GitHub{
+						Allow: []*ProvisionTokenSpecV2GitHub_Rule{
+							{
+								Enterprise: "my-enterprise",
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			desc: "github valid enterprise_id only",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodGitHub,
+					GitHub: &ProvisionTokenSpecV2GitHub{
+						Allow: []*ProvisionTokenSpecV2GitHub_Rule{
+							{
+								EnterpriseID: "123456",
 							},
 						},
 					},
@@ -581,6 +641,26 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 			wantErr: true,
 		},
 		{
+			desc: "kubernetes: too many parts in service account name",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodKubernetes,
+					Kubernetes: &ProvisionTokenSpecV2Kubernetes{
+						Allow: []*ProvisionTokenSpecV2Kubernetes_Rule{
+							{
+								ServiceAccount: "too:many:parts",
+							},
+						},
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
 			desc: "kubernetes: allow rule blank",
 			token: &ProvisionTokenV2{
 				Metadata: Metadata{
@@ -592,6 +672,87 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 					Kubernetes: &ProvisionTokenSpecV2Kubernetes{
 						Allow: []*ProvisionTokenSpecV2Kubernetes_Rule{
 							{},
+						},
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			desc: "kubernetes: valid service_account_name and service_account_namespace",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodKubernetes,
+					Kubernetes: &ProvisionTokenSpecV2Kubernetes{
+						Allow: []*ProvisionTokenSpecV2Kubernetes_Rule{
+							{
+								ServiceAccountName:      "my-sa",
+								ServiceAccountNamespace: "my-ns",
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			desc: "kubernetes: valid service_account, service_account_name, and service_account_namespace",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodKubernetes,
+					Kubernetes: &ProvisionTokenSpecV2Kubernetes{
+						Allow: []*ProvisionTokenSpecV2Kubernetes_Rule{
+							{
+								ServiceAccount:          "my-ns:my-sa",
+								ServiceAccountName:      "my-sa",
+								ServiceAccountNamespace: "my-ns",
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			desc: "kubernetes: service_account_name without service_account_namespace",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodKubernetes,
+					Kubernetes: &ProvisionTokenSpecV2Kubernetes{
+						Allow: []*ProvisionTokenSpecV2Kubernetes_Rule{
+							{
+								ServiceAccountName: "my-sa",
+							},
+						},
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			desc: "kubernetes: service_account_namespace without service_account_name",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodKubernetes,
+					Kubernetes: &ProvisionTokenSpecV2Kubernetes{
+						Allow: []*ProvisionTokenSpecV2Kubernetes_Rule{
+							{
+								ServiceAccountNamespace: "my-ns",
+							},
 						},
 					},
 				},
@@ -1370,6 +1531,64 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 			wantErr: true,
 		},
 		{
+			desc: "azure success with subscription",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodAzure,
+					Azure: &ProvisionTokenSpecV2Azure{
+						Allow: []*ProvisionTokenSpecV2Azure_Rule{
+							{
+								Subscription: "00000000-0000-0000-0000-000000000001",
+							},
+						},
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			desc: "azure success with tenant only",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodAzure,
+					Azure: &ProvisionTokenSpecV2Azure{
+						Allow: []*ProvisionTokenSpecV2Azure_Rule{
+							{
+								Tenant: "00000000-0000-0000-0000-000000000002",
+							},
+						},
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			desc: "azure missing subscription and tenant",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodAzure,
+					Azure: &ProvisionTokenSpecV2Azure{
+						Allow: []*ProvisionTokenSpecV2Azure_Rule{
+							{},
+						},
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
 			desc: "azure devops success",
 			token: &ProvisionTokenV2{
 				Metadata: Metadata{
@@ -1685,6 +1904,140 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 				},
 			},
 			wantErr: true,
+		},
+		{
+			desc: "generic oidc success",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodGenericOIDC,
+					GenericOIDC: &ProvisionTokenSpecV2GenericOIDC{
+						Issuer:                  "https://example.teleport.sh",
+						InsecureAllowHTTPIssuer: false,
+						Audience:                "example.teleport.sh",
+						StaticJWKS:              "asdf",
+						TLSCA:                   "zxcv",
+						MustMatchFields: NewStructFromGogoValues(map[string]*types.Value{
+							"foo": {
+								Kind: &types.Value_StringValue{
+									StringValue: "bar",
+								},
+							},
+						}),
+						AllowAny: []*ProvisionTokenSpecV2GenericOIDC_Rule{
+							{
+								Expression: "claims.foo == \"bar\"",
+							},
+							{
+								Conditions: []*ProvisionTokenSpecV2GenericOIDC_Condition{
+									{
+										Attribute: "foo",
+										Eq:        &ProvisionTokenSpecV2GenericOIDC_ConditionEq{Value: "bar"},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			desc: "generic oidc failure with no rules",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodGenericOIDC,
+					GenericOIDC: &ProvisionTokenSpecV2GenericOIDC{
+						Issuer:                  "https://example.teleport.sh",
+						InsecureAllowHTTPIssuer: false,
+						Audience:                "example.teleport.sh",
+						StaticJWKS:              "asdf",
+						TLSCA:                   "zxcv",
+						MustMatchFields:         NewStructFromGogoValues(map[string]*types.Value{}),
+						AllowAny:                []*ProvisionTokenSpecV2GenericOIDC_Rule{},
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			desc: "generic oidc failure with invalid issuer",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodGenericOIDC,
+					GenericOIDC: &ProvisionTokenSpecV2GenericOIDC{
+						Issuer:                  "invalid",
+						InsecureAllowHTTPIssuer: false,
+						Audience:                "example.teleport.sh",
+						StaticJWKS:              "asdf",
+						TLSCA:                   "zxcv",
+						MustMatchFields:         NewStructFromGogoValues(map[string]*types.Value{}),
+						AllowAny: []*ProvisionTokenSpecV2GenericOIDC_Rule{
+							{Expression: "claims.foo == \"bar\""},
+						},
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			desc: "generic oidc failure with http issuer without opt-in",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodGenericOIDC,
+					GenericOIDC: &ProvisionTokenSpecV2GenericOIDC{
+						Issuer:                  "http://invalid.com",
+						InsecureAllowHTTPIssuer: false,
+						Audience:                "example.teleport.sh",
+						StaticJWKS:              "asdf",
+						TLSCA:                   "zxcv",
+						MustMatchFields:         NewStructFromGogoValues(map[string]*types.Value{}),
+						AllowAny: []*ProvisionTokenSpecV2GenericOIDC_Rule{
+							{Expression: "claims.foo == \"bar\""},
+						},
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			desc: "generic oidc success with http issuer with opt-in",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodGenericOIDC,
+					GenericOIDC: &ProvisionTokenSpecV2GenericOIDC{
+						Issuer:                  "http://invalid.com",
+						InsecureAllowHTTPIssuer: true,
+						Audience:                "example.teleport.sh",
+						StaticJWKS:              "asdf",
+						TLSCA:                   "zxcv",
+						MustMatchFields:         NewStructFromGogoValues(map[string]*types.Value{}),
+						AllowAny: []*ProvisionTokenSpecV2GenericOIDC_Rule{
+							{Expression: "claims.foo == \"bar\""},
+						},
+					},
+				},
+			},
+			wantErr: false,
 		},
 	}
 

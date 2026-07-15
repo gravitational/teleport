@@ -36,6 +36,9 @@ cpu: Intel(R) Xeon(R) CPU @ 2.80GHz
 BenchmarkStore-4               3         480249642 ns/op
 */
 func BenchmarkStore(b *testing.B) {
+	if testing.Short() {
+		b.Skip("skipping heavy benchmark")
+	}
 	const insertions = 100_000
 	const uniqueServers = 10_000
 	const readMod = 100
@@ -56,9 +59,9 @@ func BenchmarkStore(b *testing.B) {
 				defer wg.Done()
 				serverID := fmt.Sprintf("server-%d", sn%uniqueServers)
 				handle := &upstreamHandle{
-					hello: &proto.UpstreamInventoryHello{
+					hello: proto.UpstreamInventoryHello_builder{
 						ServerID: serverID,
-					},
+					}.Build(),
 				}
 				store.Insert(handle)
 				_, ok := store.Get(serverID)
@@ -74,7 +77,7 @@ func BenchmarkStore(b *testing.B) {
 						defer wg.Done()
 						var foundServer bool
 						store.UniqueHandles(func(h UpstreamHandle) {
-							if h.Hello().ServerID == serverID {
+							if h.Hello().GetServerID() == serverID {
 								foundServer = true
 							}
 						})
@@ -116,9 +119,9 @@ func TestStoreAccess(t *testing.T) {
 	for i := range 1_000 {
 		serverID := fmt.Sprintf("server-%d", i%100)
 		handle := &upstreamHandle{
-			hello: &proto.UpstreamInventoryHello{
+			hello: proto.UpstreamInventoryHello_builder{
 				ServerID: serverID,
-			},
+			}.Build(),
 		}
 		store.Insert(handle)
 		handles[handle] = 0
@@ -126,7 +129,7 @@ func TestStoreAccess(t *testing.T) {
 
 	// ensure that all server IDs yield a handle
 	for h := range handles {
-		_, ok := store.Get(h.Hello().ServerID)
+		_, ok := store.Get(h.Hello().GetServerID())
 		require.True(t, ok)
 	}
 
@@ -175,9 +178,9 @@ func TestAllHandles(t *testing.T) {
 	for i := range 1_000 {
 		serverID := fmt.Sprintf("server-%d", i%100)
 		handle := &upstreamHandle{
-			hello: &proto.UpstreamInventoryHello{
+			hello: proto.UpstreamInventoryHello_builder{
 				ServerID: serverID,
-			},
+			}.Build(),
 		}
 		store.Insert(handle)
 		handles[handle] = 0

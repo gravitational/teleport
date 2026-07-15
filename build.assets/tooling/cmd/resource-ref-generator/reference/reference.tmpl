@@ -11,7 +11,7 @@ sidebar_label: {{ .Resource.SectionName }}
 **Kind**: `{{ .Resource.Kind }}`<br/>
 **Version**: `{{ .Resource.Version }}`
 
-{{ .Resource.Description }}
+{{ or .Introduction .Resource.Description }}
 
 {{- if gt (len .Resource.ResourceExample) 0 }}
 

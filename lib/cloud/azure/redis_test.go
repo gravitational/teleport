@@ -19,7 +19,6 @@
 package azure
 
 import (
-	"context"
 	"fmt"
 	"testing"
 
@@ -57,7 +56,7 @@ func TestRedisClient(t *testing.T) {
 				t.Parallel()
 
 				c := NewRedisClientByAPI(test.mockAPI)
-				token, err := c.GetToken(context.TODO(), "/subscriptions/sub-id/resourceGroups/group-name/providers/Microsoft.Cache/Redis/example-teleport")
+				token, err := c.GetToken(t.Context(), "/subscriptions/sub-id/resourceGroups/group-name/providers/Microsoft.Cache/Redis/example-teleport")
 				if test.expectError {
 					require.Error(t, err)
 				} else {
@@ -84,7 +83,7 @@ func TestRedisClient(t *testing.T) {
 			expectServers := []string{"redis-prod-1", "redis-prod-2", "redis-dev"}
 
 			c := NewRedisClientByAPI(mockAPI)
-			resources, err := c.ListAll(context.TODO())
+			resources, err := c.ListAll(t.Context())
 			require.NoError(t, err)
 			requireRedisServers(t, expectServers, resources)
 		})
@@ -94,7 +93,7 @@ func TestRedisClient(t *testing.T) {
 			expectServers := []string{"redis-prod-1", "redis-prod-2"}
 
 			c := NewRedisClientByAPI(mockAPI)
-			resources, err := c.ListWithinGroup(context.TODO(), "group-prod")
+			resources, err := c.ListWithinGroup(t.Context(), "group-prod")
 			require.NoError(t, err)
 			requireRedisServers(t, expectServers, resources)
 		})

@@ -28,32 +28,6 @@ import (
 	"github.com/gravitational/teleport/lib/ui"
 )
 
-// ListDatabaseUsers is used to list database user suggestions when the user is attempting to
-// establish a connection to a database through Teleterm.
-//
-// The list is based on whatever we can deduce from the role set, so it's similar to the behavior of
-// `tsh db ls -v`, with the exception that Teleterm is interested only in the allowed usernames.
-func (s *Handler) ListDatabaseUsers(ctx context.Context, req *api.ListDatabaseUsersRequest) (*api.ListDatabaseUsersResponse, error) {
-	cluster, _, err := s.DaemonService.ResolveCluster(req.DbUri)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	proxyClient, err := s.DaemonService.GetCachedClient(ctx, cluster.URI)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	dbUsers, err := cluster.GetAllowedDatabaseUsers(ctx, proxyClient.CurrentCluster(), req.DbUri)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &api.ListDatabaseUsersResponse{
-		Users: dbUsers,
-	}, nil
-}
-
 // ListDatabaseServers returns a paginated list of database servers (resource kind "db_server").
 func (s *Handler) ListDatabaseServers(ctx context.Context, req *api.ListDatabaseServersRequest) (*api.ListDatabaseServersResponse, error) {
 	resp, err := s.DaemonService.ListDatabaseServers(ctx, req)
@@ -61,12 +35,12 @@ func (s *Handler) ListDatabaseServers(ctx context.Context, req *api.ListDatabase
 		return nil, trace.Wrap(err)
 	}
 
-	response := &api.ListDatabaseServersResponse{
+	response := api.ListDatabaseServersResponse_builder{
 		NextKey: resp.NextKey,
-	}
+	}.Build()
 
 	for _, server := range resp.Servers {
-		response.Resources = append(response.Resources, newAPIDatabaseServer(server))
+		response.SetResources(append(response.GetResources(), newAPIDatabaseServer(server)))
 	}
 	return response, nil
 }
@@ -77,31 +51,41 @@ func newAPIDatabase(db clusters.Database) *api.Database {
 	// ignore potential (and unlikely) errors
 	gcpProjectID, _ := db.GetGCPProjectID()
 
-	return &api.Database{
+	var autoUserProvisioning *api.AutoUserProvisioning
+	if db.AutoUserProvisioning != nil {
+		autoUserProvisioning = api.AutoUserProvisioning_builder{
+			DatabaseRoles: db.AutoUserProvisioning.DatabaseRoles,
+		}.Build()
+	}
+
+	return api.Database_builder{
 		Uri:      db.URI.String(),
 		Name:     db.GetName(),
 		Desc:     db.GetDescription(),
 		Protocol: db.GetProtocol(),
 		Type:     db.GetType(),
 		Labels:   apiLabels,
-		TargetHealth: &api.TargetHealth{
+		TargetHealth: api.TargetHealth_builder{
 			Status:  db.TargetHealth.Status,
 			Error:   db.TargetHealth.TransitionError,
 			Message: db.TargetHealth.Message,
-		},
-		GcpProjectId: gcpProjectID,
-	}
+		}.Build(),
+		GcpProjectId:         gcpProjectID,
+		DatabaseUsers:        db.DatabaseUsers,
+		WildcardUserAllowed:  db.WildcardUserAllowed,
+		AutoUserProvisioning: autoUserProvisioning,
+	}.Build()
 }
 
 func newAPIDatabaseServer(dbServer clusters.DatabaseServer) *api.DatabaseServer {
-	return &api.DatabaseServer{
+	return api.DatabaseServer_builder{
 		Uri:      dbServer.URI.String(),
 		Hostname: dbServer.GetHostname(),
 		HostId:   dbServer.GetHostID(),
-		TargetHealth: &api.TargetHealth{
+		TargetHealth: api.TargetHealth_builder{
 			Status:  dbServer.GetTargetHealth().Status,
 			Error:   dbServer.GetTargetHealth().TransitionError,
 			Message: dbServer.GetTargetHealth().Message,
-		},
-	}
+		}.Build(),
+	}.Build()
 }

@@ -88,7 +88,7 @@ func (c *Cache) GetLock(ctx context.Context, name string) (types.Lock, error) {
 			return lock, trace.Wrap(err)
 		},
 	}
-	out, err := getter.get(ctx, types.MetaNameAutoUpdateConfig)
+	out, err := getter.get(ctx, name)
 	if trace.IsNotFound(err) && !upstreamRead {
 		// fallback is sane because method is never used
 		// in construction of derivative caches.

@@ -234,6 +234,8 @@ func NewManager(ctx context.Context, cfg *servicecfg.KeystoreConfig, opts *Optio
 	if err := metrics.RegisterPrometheusCollectors(
 		signCounter,
 		signErrorCounter,
+		decryptCounter,
+		decryptErrorCounter,
 		createCounter,
 		createErrorCounter,
 	); err != nil {
@@ -274,13 +276,25 @@ func NewManager(ctx context.Context, cfg *servicecfg.KeystoreConfig, opts *Optio
 		usableBackends = []backend{awsBackend, softwareBackend}
 	}
 
-	return &Manager{
+	m := &Manager{
 		backendForNewKeys:  backendForNewKeys,
 		usableBackends:     usableBackends,
 		currentSuiteGetter: cryptosuites.GetCurrentSuiteFromAuthPreference(opts.AuthPreferenceGetter),
 		logger:             opts.Logger,
 		clock:              opts.Clock,
-	}, nil
+	}
+
+	// Initialize metrics to zero so they exist in Prometheus from startup.
+	for _, b := range usableBackends {
+		for _, keyType := range []string{keyTypeTLS, keyTypeSSH, keyTypeJWT} {
+			signCounter.WithLabelValues(keyType, b.name())
+			signErrorCounter.WithLabelValues(keyType, b.name())
+		}
+		decryptCounter.WithLabelValues(keyTypeEncryption, b.name())
+		decryptErrorCounter.WithLabelValues(keyTypeEncryption, b.name())
+	}
+
+	return m, nil
 }
 
 type cryptoCountSigner struct {

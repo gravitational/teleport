@@ -17,10 +17,16 @@
  */
 
 import { useTheme } from 'styled-components';
+import styled from 'styled-components';
 
 import { Flex, Text, TopNav } from 'design';
 import { Clipboard, FolderShared } from 'design/Icon';
 import { HoverTooltip } from 'design/Tooltip';
+import {
+  DirectoryItem,
+  SharedDirectoryList,
+} from 'shared/components/DesktopSession/DirectoryList';
+import { SessionSettings } from 'shared/components/DesktopSession/SessionSettings';
 import { LatencyDiagnostic } from 'shared/components/LatencyDiagnostic';
 import type { ToastNotificationItem } from 'shared/components/ToastNotification';
 
@@ -34,15 +40,27 @@ export default function TopBar(props: Props) {
     clipboardSharingMessage,
     onDisconnect,
     canShareDirectory,
-    isSharingDirectory,
-    onShareDirectory,
+    onAddSharedDirectory,
     onCtrlAltDel,
     alerts,
+    sharedDirectories,
     onRemoveAlert,
     isConnected,
     latency,
+    hiDpiEnabled,
+    onToggleHiDpi,
+    screenIsHiDpi,
+    hiDpiSupported,
+    maxSharedDirectories,
+    directorySharingMessage,
+    multidirectorySharingSupported,
   } = props;
   const theme = useTheme();
+
+  const maxDirectoriesReached = multidirectorySharingSupported
+    ? sharedDirectories.length >= maxSharedDirectories
+    : sharedDirectories.length > 0;
+  const isSharingDirectory = sharedDirectories.length > 0;
 
   const primaryOnTrue = (b: boolean): any => {
     return {
@@ -63,23 +81,47 @@ export default function TopBar(props: Props) {
       {isConnected && (
         <Flex gap={3} alignItems="center">
           {latency && <LatencyDiagnostic latency={latency} />}
-          <HoverTooltip
-            tipContent={directorySharingToolTip(
-              canShareDirectory,
-              isSharingDirectory
-            )}
-            placement="bottom"
-          >
-            <FolderShared style={primaryOnTrue(isSharingDirectory)} />
-          </HoverTooltip>
+
+          {/*// TODO(rhammonds): Remove in v20
+            // WDS v19 and on should support multi-directory sharing by default */}
+          {multidirectorySharingSupported ? (
+            <SharedDirectoryList
+              sharedDirectories={sharedDirectories}
+              onAddSharedDirectory={onAddSharedDirectory}
+              canShareDirectories={canShareDirectory}
+              maxSharedDirectories={maxSharedDirectories}
+              directorySharingMessage={directorySharingMessage}
+            />
+          ) : (
+            <HoverTooltip
+              tipContent={directorySharingToolTip(
+                canShareDirectory,
+                isSharingDirectory
+              )}
+              placement="bottom"
+            >
+              <FolderShared style={primaryOnTrue(isSharingDirectory)} />
+            </HoverTooltip>
+          )}
+
           <HoverTooltip tipContent={clipboardSharingMessage} placement="bottom">
             <Clipboard style={primaryOnTrue(isSharingClipboard)} />
           </HoverTooltip>
-          <AlertDropdown alerts={alerts} onRemoveAlert={onRemoveAlert} />
+          {!!alerts?.length && (
+            <AlertDropdown alerts={alerts} onRemoveAlert={onRemoveAlert} />
+          )}
+          <Divider />
+          <SessionSettings
+            hiDpiEnabled={hiDpiEnabled}
+            onToggleHiDpi={onToggleHiDpi}
+            screenIsHiDpi={screenIsHiDpi}
+            hiDpiSupported={hiDpiSupported}
+          />
+          {/* TODO(rhammonds): Remove sharing from the action menu in v20 */}
           <ActionMenu
+            showShareDirectory={canShareDirectory && !maxDirectoriesReached}
+            onShareDirectory={onAddSharedDirectory}
             onDisconnect={onDisconnect}
-            showShareDirectory={canShareDirectory && !isSharingDirectory}
-            onShareDirectory={onShareDirectory}
             onCtrlAltDel={onCtrlAltDel}
           />
         </Flex>
@@ -106,15 +148,29 @@ type Props = {
   isSharingClipboard: boolean;
   clipboardSharingMessage: string;
   canShareDirectory: boolean;
-  isSharingDirectory: boolean;
   onDisconnect: VoidFunction;
-  onShareDirectory: VoidFunction;
+  onAddSharedDirectory: VoidFunction;
   onCtrlAltDel: VoidFunction;
   alerts: ToastNotificationItem[];
+  sharedDirectories: DirectoryItem[];
   isConnected: boolean;
+  hiDpiEnabled: boolean;
+  onToggleHiDpi: VoidFunction;
+  screenIsHiDpi: boolean;
+  hiDpiSupported: boolean;
   onRemoveAlert(id: string): void;
   latency: {
     client: number;
     server: number;
   };
+  maxSharedDirectories: number;
+  directorySharingMessage: string;
+  multidirectorySharingSupported: boolean;
 };
+
+const Divider = styled.div`
+  width: 1px;
+  height: 24px;
+  background-color: ${p => p.theme.colors.interactive.tonal.neutral[2]};
+  margin-right: -${p => p.theme.space[1]}px; // avoid large visual gap between divider and next icon
+`;

@@ -7,12 +7,13 @@ tags:
  - zero-trust
  - infrastructure-identity
  - aws
+page_type: how-to
 ---
 
 Teleport can be configured to discover AWS-hosted databases automatically and
 register them with your Teleport cluster.
 
-In this guide, we will show you how to set-up AWS database auto-discovery.
+In this guide, you will set up AWS database auto-discovery.
 
 ## How it works
 
@@ -221,7 +222,7 @@ will depend on your specific networking setup.
 
 ### Create a Teleport config file
 
-Create a `teleport.yaml` config file on the host that will run the Discovery
+Create a `teleport.yaml` config file on the host that will run the Database
 Service:
 
 ```yaml
@@ -312,6 +313,6 @@ for information about database user provisioning and configuration.
 
 ## Troubleshooting
 
-(!docs/pages/includes/discovery/discovery-service-troubleshooting.mdx resourceKind="database" tctlResource="db" !)
+(!docs/pages/includes/discovery/discovery-service-troubleshooting.mdx resourceKind="database" tctlResource="db" cloud="AWS"!)
 
 (!docs/pages/includes/discovery/database-service-troubleshooting.mdx!)

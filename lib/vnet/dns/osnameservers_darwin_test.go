@@ -20,6 +20,7 @@ package dns
 
 import (
 	"context"
+	"log/slog"
 	"net"
 	"testing"
 
@@ -39,9 +40,9 @@ func TestOSUpstreamNameservers(t *testing.T) {
 	t.Cleanup(cancel)
 
 	resolver := &stubResolver{}
-	upstreams, err := NewOSUpstreamNameserverSource()
+	upstreams, err := NewOSUpstreamNameserverSource(slog.Default())
 	require.NoError(t, err)
-	server, err := NewServer(resolver, upstreams)
+	server, err := NewServer(resolver, upstreams, slog.Default())
 	require.NoError(t, err)
 
 	conn, err := net.ListenUDP("udp", udpLocalhost)

@@ -47,8 +47,9 @@ import (
 )
 
 func TestRemoteClusterStatus(t *testing.T) {
-	ctx := context.Background()
-	a := newTestAuthServer(ctx, t)
+	t.Parallel()
+	ctx := t.Context()
+	a := newTestAuthServer(ctx, t, modulestest.OSSModules())
 
 	rc, err := types.NewRemoteCluster("rc")
 	require.NoError(t, err)
@@ -75,7 +76,7 @@ func TestRemoteClusterStatus(t *testing.T) {
 		Type:          types.ProxyTunnel,
 	})
 	require.NoError(t, err)
-	require.NoError(t, a.UpsertTunnelConnection(tc1))
+	require.NoError(t, a.UpsertTunnelConnection(ctx, tc1))
 
 	lastHeartbeat = lastHeartbeat.Add(time.Minute)
 	tc2, err := types.NewTunnelConnection("conn-2", types.TunnelConnectionSpecV2{
@@ -85,7 +86,7 @@ func TestRemoteClusterStatus(t *testing.T) {
 		Type:          types.ProxyTunnel,
 	})
 	require.NoError(t, err)
-	require.NoError(t, a.UpsertTunnelConnection(tc2))
+	require.NoError(t, a.UpsertTunnelConnection(ctx, tc2))
 
 	a.RefreshRemoteClusters(ctx)
 
@@ -98,7 +99,7 @@ func TestRemoteClusterStatus(t *testing.T) {
 	require.Empty(t, cmp.Diff(rc, gotRC, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	// Delete the latest connection.
-	require.NoError(t, a.DeleteTunnelConnection(tc2.GetClusterName(), tc2.GetName()))
+	require.NoError(t, a.DeleteTunnelConnection(ctx, tc2.GetClusterName(), tc2.GetName()))
 
 	a.RefreshRemoteClusters(ctx)
 
@@ -111,7 +112,7 @@ func TestRemoteClusterStatus(t *testing.T) {
 	require.Empty(t, cmp.Diff(rc, gotRC, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	// Delete the remaining connection
-	require.NoError(t, a.DeleteTunnelConnection(tc1.GetClusterName(), tc1.GetName()))
+	require.NoError(t, a.DeleteTunnelConnection(ctx, tc1.GetClusterName(), tc1.GetName()))
 
 	a.RefreshRemoteClusters(ctx)
 
@@ -124,7 +125,8 @@ func TestRemoteClusterStatus(t *testing.T) {
 }
 
 func TestRefreshRemoteClusters(t *testing.T) {
-	ctx := context.Background()
+	t.Parallel()
+	ctx := t.Context()
 
 	tests := []struct {
 		name               string
@@ -162,9 +164,7 @@ func TestRefreshRemoteClusters(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			require.LessOrEqual(t, tt.clustersNeedUpdate, tt.clustersTotal)
 
-			a := newTestAuthServer(ctx, t)
-			a.SetRemoteClusterRefreshLimit(10)
-			a.RemoteClusterRefreshBuckets(5)
+			a := newTestAuthServer(ctx, t, modulestest.OSSModules())
 
 			allClusters := make(map[string]types.RemoteCluster)
 			for i := range tt.clustersTotal {
@@ -184,7 +184,7 @@ func TestRefreshRemoteClusters(t *testing.T) {
 						Type:          types.ProxyTunnel,
 					})
 					require.NoError(t, err)
-					require.NoError(t, a.UpsertTunnelConnection(tc))
+					require.NoError(t, a.UpsertTunnelConnection(ctx, tc))
 				}
 			}
 
@@ -207,13 +207,16 @@ func TestRefreshRemoteClusters(t *testing.T) {
 }
 
 func TestValidateTrustedCluster(t *testing.T) {
+	t.Parallel()
 	const localClusterName = "localcluster"
 	const validToken = "validtoken"
-	ctx := context.Background()
+	ctx := t.Context()
 
+	testModules := modulestest.OSSModules()
 	testAuth, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		ClusterName: localClusterName,
 		Dir:         t.TempDir(),
+		Modules:     testModules,
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, testAuth.Close()) })
@@ -340,7 +343,7 @@ func TestValidateTrustedCluster(t *testing.T) {
 				DomainName: localClusterName,
 			}, false)
 			require.NoError(t, err)
-			require.True(t, services.CertAuthoritiesEquivalent(localCA, returnedCA))
+			require.True(t, localCA.IsEqual(returnedCA))
 		}
 
 		rcs, err := a.GetRemoteClusters(ctx)
@@ -404,9 +407,7 @@ func TestValidateTrustedCluster(t *testing.T) {
 	})
 
 	t.Run("Cloud prohibits adding leaf clusters", func(t *testing.T) {
-		modulestest.SetTestModules(t, modulestest.Modules{
-			TestFeatures: modules.Features{Cloud: true},
-		})
+		testModules.TestFeatures = modules.Features{Cloud: true}
 
 		req := &authclient.ValidateTrustedClusterRequest{
 			Token: "invalidtoken",
@@ -435,14 +436,11 @@ func TestValidateTrustedCluster(t *testing.T) {
 	})
 }
 
-func newTestAuthServer(ctx context.Context, t *testing.T, name ...string) *auth.Server {
+func newTestAuthServer(ctx context.Context, t *testing.T, m *modulestest.Modules) *auth.Server {
 	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
 
 	clusterName := "me.localhost"
-	if len(name) != 0 {
-		clusterName = name[0]
-	}
 	// Create a cluster with minimal viable config.
 	clusterNameRes, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
 		ClusterName: clusterName,
@@ -453,12 +451,15 @@ func newTestAuthServer(ctx context.Context, t *testing.T, name ...string) *auth.
 	require.NoError(t, err)
 
 	authConfig := &auth.InitConfig{
-		ClusterName:            clusterNameRes,
-		Backend:                bk,
-		VersionStorage:         authtest.NewFakeTeleportVersion(),
-		Authority:              keygen,
-		SkipPeriodicOperations: true,
-		HostUUID:               uuid.NewString(),
+		ClusterName:                 clusterNameRes,
+		Backend:                     bk,
+		Modules:                     m,
+		VersionStorage:              authtest.NewFakeTeleportVersion(),
+		Authority:                   keygen,
+		SkipPeriodicOperations:      true,
+		HostUUID:                    uuid.NewString(),
+		RemoteClusterRefreshLimit:   10,
+		RemoteClusterRefreshBuckets: 5,
 	}
 	a, err := auth.NewServer(authConfig)
 	require.NoError(t, err)
@@ -479,6 +480,7 @@ func newTestAuthServer(ctx context.Context, t *testing.T, name ...string) *auth.
 }
 
 func TestUpsertTrustedCluster(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	testAuth, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		ClusterName: "localcluster",
@@ -620,6 +622,7 @@ func TestUpsertTrustedCluster(t *testing.T) {
 }
 
 func TestUpdateTrustedCluster(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	testAuth, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		ClusterName: "localcluster",

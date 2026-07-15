@@ -59,18 +59,20 @@ func LocalRegister(id state.IdentityID, authServer *Server, additionalPrincipals
 		remoteAddr = defaults.Localhost
 	}
 	certs, err := authServer.GenerateHostCerts(context.Background(),
-		&proto.HostCertsRequest{
-			HostID:               id.HostUUID,
-			NodeName:             id.NodeName,
-			Role:                 id.Role,
-			AdditionalPrincipals: additionalPrincipals,
-			RemoteAddr:           remoteAddr,
-			DNSNames:             dnsNames,
-			NoCache:              true,
-			PublicSSHKey:         ssh.MarshalAuthorizedKey(sshPub),
-			PublicTLSKey:         tlsPub,
-			SystemRoles:          systemRoles,
-		}, "")
+		HostCertsParams{
+			Req: &proto.HostCertsRequest{
+				HostID:               id.HostUUID,
+				NodeName:             id.NodeName,
+				Role:                 id.Role,
+				AdditionalPrincipals: additionalPrincipals,
+				RemoteAddr:           remoteAddr,
+				DNSNames:             dnsNames,
+				NoCache:              true,
+				PublicSSHKey:         ssh.MarshalAuthorizedKey(sshPub),
+				PublicTLSKey:         tlsPub,
+				SystemRoles:          systemRoles,
+			},
+		})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

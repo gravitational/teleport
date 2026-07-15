@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/itertools/stream"
+	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/ui"
@@ -376,7 +377,7 @@ func (h *Handler) createTokenForDiscoveryHandle(w http.ResponseWriter, r *http.R
 
 		if err == nil {
 			// check if the token found has the right rules
-			if t.GetJoinMethod() != types.JoinMethodIAM || !isSameRuleSet(req.Allow, t.GetAllowRules()) {
+			if t.GetJoinMethod() != types.JoinMethodIAM || !isSameRuleSet(req.Allow, t.GetAWSAllowRules()) {
 				return nil, trace.BadParameter("failed to create token: token with name %q already exists and does not have the expected allow rules", tokenName)
 			}
 
@@ -645,9 +646,14 @@ func (h *Handler) getJoinScript(ctx context.Context, settings scriptSettings) (s
 		return "", trace.Wrap(err, "Building install script options")
 	}
 
+	tokenName := token.GetName()
+	if secret, ok := token.GetSecret(); ok {
+		tokenName = joining.EncodeScopedToken(tokenName, secret)
+	}
+
 	nodeInstallOpts := scripts.InstallNodeScriptOptions{
 		InstallOptions: installOpts,
-		Token:          token.GetName(),
+		Token:          tokenName,
 		CAPins:         caPins,
 		// We are using the joinMethod from the script settings instead of the one from the token
 		// to reproduce the previous script behavior. I'm also afraid that using the
@@ -713,7 +719,11 @@ func generateAzureTokenName(rules []*types.ProvisionTokenSpecV2Azure_Rule) (stri
 
 	h := fnv.New32a()
 	for _, r := range orderedRules {
-		_, err := h.Write([]byte(r.Subscription))
+		hashInput := r.Subscription
+		if r.Tenant != "" {
+			hashInput += "tenant:" + r.Tenant
+		}
+		_, err := h.Write([]byte(hashInput))
 		if err != nil {
 			return "", trace.Wrap(err)
 		}
@@ -736,9 +746,12 @@ func sortRules(rules []*types.TokenRule) {
 	})
 }
 
-// sortAzureRules sorts a slice of Azure rules based on their subscription.
+// sortAzureRules sorts a slice of Azure rules based on their subscription and tenant.
 func sortAzureRules(rules []*types.ProvisionTokenSpecV2Azure_Rule) {
 	sort.Slice(rules, func(i, j int) bool {
+		if rules[i].Tenant != rules[j].Tenant {
+			return rules[i].Tenant < rules[j].Tenant
+		}
 		return rules[i].Subscription < rules[j].Subscription
 	})
 }

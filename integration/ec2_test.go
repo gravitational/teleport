@@ -26,7 +26,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/feature/ec2/imds"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gravitational/trace"
@@ -41,9 +40,9 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/integration/helpers"
-	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
+	"github.com/gravitational/teleport/lib/cloud/aws/config"
 	cloudimds "github.com/gravitational/teleport/lib/cloud/imds"
 	cloudaws "github.com/gravitational/teleport/lib/cloud/imds/aws"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -280,10 +279,6 @@ func TestIAMNodeJoin(t *testing.T) {
 		require.NoError(t, err)
 		require.NotEmpty(t, proxies)
 	}, 10*time.Second, 50*time.Millisecond, "waiting for proxy to join cluster")
-	// InsecureDevMode needed for node to trust proxy
-	wasInsecureDevMode := lib.IsInsecureDevMode()
-	t.Cleanup(func() { lib.SetInsecureDevMode(wasInsecureDevMode) })
-	lib.SetInsecureDevMode(true)
 
 	// sanity check there are no nodes to start with
 	nodes, err := authServer.GetNodes(ctx, apidefaults.Namespace)
@@ -294,6 +289,7 @@ func TestIAMNodeJoin(t *testing.T) {
 	// connecting to the proxy
 	nodeConfig := newNodeConfig(t, tokenName, types.JoinMethodIAM)
 	nodeConfig.ProxyServer = proxyConfig.Proxy.WebAddr
+	nodeConfig.InsecureMode = true
 	nodeSvc, err := service.NewTeleport(nodeConfig)
 	require.NoError(t, err)
 	require.NoError(t, nodeSvc.Start())

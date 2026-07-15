@@ -116,7 +116,7 @@ func runWindowsAdminProcess(ctx context.Context, cfg *windowsAdminProcessConfig)
 		return trace.Wrap(err, "reporting network stack info to client application")
 	}
 
-	osConfigProvider, err := newOSConfigProvider(osConfigProviderConfig{
+	osConfigProvider, err := newOSConfigProvider(ctx, osConfigProviderConfig{
 		clt:           clt,
 		tunName:       tunName,
 		ipv6Prefix:    networkStackConfig.ipv6Prefix.String(),
@@ -126,7 +126,7 @@ func runWindowsAdminProcess(ctx context.Context, cfg *windowsAdminProcessConfig)
 	if err != nil {
 		return trace.Wrap(err, "creating OS config provider")
 	}
-	osConfigurator := newOSConfigurator(osConfigProvider)
+	osConfigurator := newOSConfigurator(osConfigProvider, nil)
 
 	g, ctx := errgroup.WithContext(ctx)
 	g.Go(func() error {
@@ -210,6 +210,8 @@ func compareFiles(p1, p2 string) error {
 		return trace.Wrap(err)
 	}
 	if !bytes.Equal(h1, h2) {
+		// Used by lib/teleterm/vnet.(*Service).CheckInstallTimeRequirements:
+		// trace.CompareFailed => WINDOWS_SERVICE_STATUS_VERSION_MISMATCH.
 		return trace.CompareFailed("files %s and %s are not equal", p1, p2)
 	}
 	return nil

@@ -62,8 +62,12 @@ func init() {
 
 // processState tracks the state of the Teleport process.
 type processState struct {
-	mu     sync.Mutex
-	states map[string]*componentState
+	mu        sync.Mutex
+	states    map[string]*componentState
+	callbacks []func(healthy bool)
+	// lastState stores the last state sent to callbacks. this is used to determine
+	// whether the next state change should be sent to callbacks.
+	lastState componentStateEnum
 }
 
 type componentState struct {
@@ -90,6 +94,7 @@ func (f *processState) update(now time.Time, event, component string) updateResu
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	defer f.updateGauge()
+	defer f.updateCallbacksLocked()
 
 	s, ok := f.states[component]
 	if !ok {
@@ -173,6 +178,24 @@ func (f *processState) getState() componentStateEnum {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.getStateLocked()
+}
+
+func (f *processState) registerCallback(fn func(healthy bool)) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.callbacks = append(f.callbacks, fn)
+	fn(f.getStateLocked() == stateOK)
+}
+
+func (f *processState) updateCallbacksLocked() {
+	state := f.getStateLocked()
+	if state == f.lastState {
+		return
+	}
+	for _, fn := range f.callbacks {
+		fn(state == stateOK)
+	}
+	f.lastState = state
 }
 
 func (f *processState) handleReadiness(w http.ResponseWriter, r *http.Request) {

@@ -30,13 +30,14 @@ import (
 
 	"github.com/gravitational/teleport"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
+	"github.com/gravitational/teleport/session/sftputils"
 )
 
 // RemoteFS provides API for accessing the files on
 // the local file system
 type RemoteFS struct {
 	*sftp.Client
-	session io.Closer
+	session *tracessh.Session
 }
 
 // NewRemoteFilesystem creates a new FileSystem over SFTP.
@@ -99,6 +100,13 @@ func OpenRemoteFilesystem(ctx context.Context, sshClient *tracessh.Client, moder
 		sftp.UseConcurrentWrites(true),
 	)
 	if err != nil {
+		// After the subsystem request succeeds, the sftp server subprocess may still
+		// fail to initialize, resulting in an EOF error here. Check the stderr from
+		// the subsystem for a more actionable error.
+		var sb strings.Builder
+		if n, _ := io.Copy(&sb, pe); n > 0 {
+			return nil, trace.Errorf("%s", sb.String())
+		}
 		return nil, trace.Wrap(err)
 	}
 	return &RemoteFS{
@@ -129,15 +137,15 @@ func (r *RemoteFS) ReadDir(path string) ([]os.FileInfo, error) {
 	return fileInfos, nil
 }
 
-func (r *RemoteFS) Open(path string) (File, error) {
+func (r *RemoteFS) Open(path string) (sftputils.File, error) {
 	return r.OpenFile(path, os.O_RDONLY)
 }
 
-func (r *RemoteFS) Create(path string, _ int64) (File, error) {
+func (r *RemoteFS) Create(path string, _ int64) (sftputils.File, error) {
 	return r.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC)
 }
 
-func (r *RemoteFS) OpenFile(path string, flags int) (File, error) {
+func (r *RemoteFS) OpenFile(path string, flags int) (sftputils.File, error) {
 	return r.Client.OpenFile(path, flags)
 }
 
@@ -154,5 +162,6 @@ func (r *RemoteFS) Close() error {
 	if r.session != nil {
 		sessionErr = r.session.Close()
 	}
+
 	return trace.NewAggregate(sessionErr, r.Client.Close())
 }

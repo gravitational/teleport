@@ -30,7 +30,7 @@ import (
 	"strings"
 
 	"github.com/alecthomas/kingpin/v2"
-	"github.com/fatih/color"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/google/safetext/shsprintf"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -46,8 +46,8 @@ import (
 )
 
 var (
-	bold    = color.New(color.Bold).SprintFunc()
-	boldRed = color.New(color.Bold, color.FgRed).SprintFunc()
+	bold    = lipgloss.NewStyle().Bold(true).Render
+	boldRed = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("9")).Render
 
 	step1Template = bold("Step 1: Run the Setup Script") + `
 
@@ -114,7 +114,7 @@ func (p *PluginsCommand) initInstallEntra(parent *kingpin.CmdClause) {
 		Flag("use-system-credentials", "Uses system credentials instead of OIDC.").
 		BoolVar(&p.install.entraID.useSystemCredentials)
 
-	cmd.Flag("default-owner", "List of Teleport users that are default owners for the imported access lists. Multiple flags allowed.").
+	cmd.Flag("default-owner", "List of Teleport users that are default owners for the imported Access Lists. Multiple flags allowed.").
 		Required().
 		StringsVar(&p.install.entraID.defaultOwners)
 
@@ -363,7 +363,7 @@ func (p *PluginsCommand) InstallEntra(ctx context.Context, args pluginServices) 
 		return trace.Wrap(err, "failed to read Access List owners source")
 	}
 
-	req := &pluginspb.CreatePluginRequest{
+	req := pluginspb.CreatePluginRequest_builder{
 		Plugin: &types.PluginV1{
 			Metadata: types.Metadata{
 				Name: inputs.name,
@@ -388,7 +388,7 @@ func (p *PluginsCommand) InstallEntra(ctx context.Context, args pluginServices) 
 				},
 			},
 		},
-	}
+	}.Build()
 
 	_, err = args.plugins.CreatePlugin(ctx, req)
 	if err != nil {
@@ -397,17 +397,17 @@ func (p *PluginsCommand) InstallEntra(ctx context.Context, args pluginServices) 
 		}
 		plugin := req.GetPlugin()
 		{
-			oldPlugin, err := args.plugins.GetPlugin(ctx, &pluginspb.GetPluginRequest{
+			oldPlugin, err := args.plugins.GetPlugin(ctx, pluginspb.GetPluginRequest_builder{
 				Name: inputs.name,
-			})
+			}.Build())
 			if err != nil {
 				return trace.Wrap(err)
 			}
 			plugin.Metadata.Revision = oldPlugin.GetMetadata().Revision
 		}
-		if _, err = args.plugins.UpdatePlugin(ctx, &pluginspb.UpdatePluginRequest{
+		if _, err = args.plugins.UpdatePlugin(ctx, pluginspb.UpdatePluginRequest_builder{
 			Plugin: plugin,
-		}); err != nil {
+		}.Build()); err != nil {
 			return trace.Wrap(err)
 		}
 	}

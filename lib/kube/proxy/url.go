@@ -29,6 +29,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
+	utilnet "k8s.io/apimachinery/pkg/util/net"
 
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -41,6 +42,10 @@ type metaResource struct {
 	requestedResource  apiResource         // User input, based on URL.
 	verb               string              // Verb of the user request.
 	isList             bool
+	// unsupportedResource is set when the requested kind is unknown to a healthy
+	// discovery cache and so can't be matched against kubernetes_resources rules.
+	// The forwarder denies such requests instead of forwarding them unenforced.
+	unsupportedResource bool
 }
 
 func (mr *metaResource) isClusterWideResource() bool {
@@ -61,6 +66,29 @@ func (mr *metaResource) rbacResource() *types.KubernetesResource {
 		Verbs:     []string{mr.verb},
 		APIGroup:  mr.requestedResource.apiGroup,
 	}
+}
+
+// ephemeralContainersResourceKind is the pods subresource used to add an
+// ephemeral container to a running pod (the endpoint `kubectl debug` targets).
+const ephemeralContainersResourceKind = "pods/ephemeralcontainers"
+
+// requiredRBACResources returns the set of Kubernetes resources the caller must be granted to perform this request.
+// Most requests need a single (resource, verb) tuple, the one returned by rbacResource.
+// Adding an ephemeral container runs code in the target pod the same way exec does,
+// and the request also mutates the pod object (it is a patch/update),
+// so it requires both the exec verb and the mutation verb the HTTP method maps to.
+// Returning both keeps either verb on its own from being enough to add an ephemeral container.
+func (mr *metaResource) requiredRBACResources() []types.KubernetesResource {
+	base := mr.rbacResource()
+	if base == nil {
+		return nil
+	}
+	if mr.requestedResource.resourceKind != ephemeralContainersResourceKind {
+		return []types.KubernetesResource{*base}
+	}
+	execResource := *base
+	execResource.Verbs = []string{types.KubeVerbExec}
+	return []types.KubernetesResource{*base, execResource}
 }
 
 // apiResource represents the resource requested by the user.
@@ -171,14 +199,30 @@ func parseResourcePath(p string) apiResource {
 			kind := append([]string{parts[2]}, parts[4:]...)
 			r.resourceKind = strings.Join(kind, "/")
 			r.resourceName = parts[3]
+			if len(parts) > 4 && parts[4] == "proxy" {
+				r.resourceName = stripProxyNamePortScheme(r.resourceName)
+			}
 		} else {
 			// e.g. /api/v1/nodes/{name}/proxy/{path}
 			kind := append([]string{parts[0]}, parts[2:]...)
 			r.resourceKind = strings.Join(kind, "/")
 			r.resourceName = parts[1]
+			if len(parts) > 2 && parts[2] == "proxy" {
+				r.resourceName = stripProxyNamePortScheme(r.resourceName)
+			}
 		}
 	}
 	return r
+}
+
+// stripProxyNamePortScheme extracts the bare resource name from the [scheme:]name[:port] segment that
+// the Kubernetes API server accepts on pods/{name}/proxy, services/{name}/proxy, and nodes/{name}/proxy.
+func stripProxyNamePortScheme(segment string) string {
+	_, name, _, valid := utilnet.SplitSchemeNamePort(segment)
+	if !valid {
+		return segment
+	}
+	return name
 }
 
 func (r apiResource) populateEvent(e *apievents.KubeRequest) {
@@ -226,15 +270,24 @@ func getResourceFromRequest(req *http.Request, kubeDetails *kubeDetails) (metaRe
 		return out, nil
 	}
 
-	codecFactory, rbacSupportedTypes, err := kubeDetails.getClusterSupportedResources()
-	if err != nil {
+	// Surface an offline-cluster error before doing any work.
+	if _, _, err := kubeDetails.getClusterSupportedResources(); err != nil {
 		return out, trace.Wrap(err)
 	}
 
-	resource, ok := rbacSupportedTypes.getResource(apiResource.apiGroup, apiResource.resourceKind)
-	if !ok {
-		// TODO(@creack): Change this behavior, unsupported resource should be rejected.
-		// If the resource is not supported, return nil.
+	// Discovery / health endpoints (e.g. /api, /apis/<group>/<version>) carry no
+	// concrete resource kind and aren't subject to kubernetes_resources rules;
+	// let them through so clients can complete API discovery.
+	if apiResource.resourceKind == "" {
+		return out, nil
+	}
+
+	resource, found := kubeDetails.resolveResource(apiResource.apiGroup, apiResource.apiGroupVersion, apiResource.resourceKind)
+	if !found {
+		// Still unknown after a targeted discovery: the kind isn't served by the
+		// cluster. Flag it so the forwarder denies the request rather than
+		// forwarding it with kubernetes_resources rules unenforced.
+		out.unsupportedResource = true
 		return out, nil
 	}
 	out.resourceDefinition = &resource
@@ -248,6 +301,12 @@ func getResourceFromRequest(req *http.Request, kubeDetails *kubeDetails) (metaRe
 
 	if apiResource.resourceName == "" && out.verb == types.KubeVerbCreate {
 		// If the request is a create request, extract the resource name from the request body.
+		// Re-read the codecs: resolveResource above may have just discovered this CRD and
+		// rebuilt them, so decode against a scheme that knows the new kind.
+		codecFactory, _, err := kubeDetails.getClusterSupportedResources()
+		if err != nil {
+			return out, trace.Wrap(err)
+		}
 		resourceName, err := extractResourceNameFromPostRequest(req, codecFactory, kubeDetails.getObjectGVK(apiResource))
 		if err != nil {
 			return out, trace.Wrap(err)
@@ -263,7 +322,6 @@ func getResourceFromRequest(req *http.Request, kubeDetails *kubeDetails) (metaRe
 // It reads the full body - required because data can be proto encoded -
 // and decodes it into a Kubernetes object. It then extracts the resource name
 // from the object.
-// The body is then reset to the original request body using a new buffer.
 func extractResourceNameFromPostRequest(
 	req *http.Request,
 	codecs *serializer.CodecFactory,
@@ -289,9 +347,20 @@ func extractResourceNameFromPostRequest(
 	if err := req.Body.Close(); err != nil {
 		return "", trace.Wrap(err)
 	}
-	req.Body = io.NopCloser(newBody)
+
+	// The body is replaced with a replayable reader, and [http.Request.GetBody] is
+	// set so the upstream transport can retry the request after a GOAWAY without
+	// failing on the unrewindable network-side body.
+	// See https://github.com/gravitational/teleport/issues/65611
+	bodyBytes := newBody.Bytes()
+	req.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+	req.GetBody = func() (io.ReadCloser, error) {
+		return io.NopCloser(bytes.NewReader(bodyBytes)), nil
+	}
+	req.ContentLength = int64(len(bodyBytes))
+
 	// decode memory rw body.
-	obj, err := decodeAndSetGVK(decoder, newBody.Bytes(), defaults)
+	obj, err := decodeAndSetGVK(decoder, bodyBytes, defaults)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -310,6 +379,22 @@ func getResourceFromAPIResource(resourceKind string) string {
 		return resourceKind[:idx]
 	}
 	return resourceKind
+}
+
+// splitResourceSubresource splits a resourceKind into its base resource and
+// the first subresource segment. The trailing path (if any) is discarded.
+// Examples:
+//
+//	"pods"                -> "pods", ""
+//	"pods/exec"           -> "pods", "exec"
+//	"pods/proxy/8080"     -> "pods", "proxy"
+//	"nodes/proxy/foo/bar" -> "nodes", "proxy"
+func splitResourceSubresource(resourceKind string) (base, sub string) {
+	parts := strings.SplitN(resourceKind, "/", 3)
+	if len(parts) < 2 {
+		return resourceKind, ""
+	}
+	return parts[0], parts[1]
 }
 
 // isKubeWatchRequest returns true if the request is a watch request.
@@ -333,6 +418,12 @@ func (r apiResource) getVerb(req *http.Request) string {
 	case "pods/portforward":
 		verb = types.KubeVerbPortForward
 	default:
+		if base, sub := splitResourceSubresource(r.resourceKind); sub == "proxy" {
+			switch base {
+			case "pods", "services", "nodes":
+				return types.KubeVerbProxy
+			}
+		}
 		switch req.Method {
 		case http.MethodPost:
 			verb = types.KubeVerbCreate

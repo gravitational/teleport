@@ -16,9 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import 'jest-canvas-mock';
-
-import { darkTheme } from 'design/theme';
+import { theme } from 'design/utils/testing';
 
 import { SessionRecordingThumbnail } from 'teleport/services/recordings';
 import type { TimelineRenderContext } from 'teleport/SessionRecordings/view/Timeline/renderers/TimelineCanvasRenderer';
@@ -101,7 +99,7 @@ async function createRenderer(
 
   const renderer = new FramesRenderer(
     ctx,
-    darkTheme,
+    theme,
     duration,
     frames,
     initialHeight,

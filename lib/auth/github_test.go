@@ -62,7 +62,7 @@ type githubContext struct {
 	c           *clockwork.FakeClock
 }
 
-func setupGithubContext(ctx context.Context, t *testing.T) *githubContext {
+func setupGithubContext(t *testing.T) *githubContext {
 	var tt githubContext
 	t.Cleanup(func() { tt.Close() })
 
@@ -70,7 +70,7 @@ func setupGithubContext(ctx context.Context, t *testing.T) *githubContext {
 
 	var err error
 	tt.b, err = memory.New(memory.Config{
-		Context: context.Background(),
+		Context: t.Context(),
 		Clock:   tt.c,
 	})
 	require.NoError(t, err)
@@ -93,6 +93,7 @@ func setupGithubContext(ctx context.Context, t *testing.T) *githubContext {
 		Authority:              keygen,
 		SkipPeriodicOperations: true,
 		HostUUID:               uuid.NewString(),
+		Modules:                modulestest.OSSModules(),
 	}
 	tt.a, err = auth.NewServer(authConfig)
 	require.NoError(t, err)
@@ -110,6 +111,7 @@ func (tt *githubContext) Close() error {
 }
 
 func TestPopulateClaims(t *testing.T) {
+	t.Parallel()
 	client := &testGithubAPIClient{}
 	user, err := client.getUser()
 	require.NoError(t, err)
@@ -130,8 +132,9 @@ func TestPopulateClaims(t *testing.T) {
 }
 
 func TestCreateGithubUser(t *testing.T) {
-	ctx := context.Background()
-	tt := setupGithubContext(ctx, t)
+	t.Parallel()
+	ctx := t.Context()
+	tt := setupGithubContext(t)
 
 	// Dry-run creation of Github user.
 	user, err := tt.a.CreateGithubUser(ctx, &auth.CreateUserParams{
@@ -193,9 +196,10 @@ func (c *testGithubAPIClient) getTeams() ([]auth.GithubTeamResponse, error) {
 }
 
 func TestValidateGithubAuthCallbackEventsEmitted(t *testing.T) {
+	t.Parallel()
 	clientAddr := &net.TCPAddr{IP: net.IPv4(10, 255, 0, 0)}
 	ctx := authz.ContextWithClientSrcAddr(context.Background(), clientAddr)
-	tt := setupGithubContext(ctx, t)
+	tt := setupGithubContext(t)
 	logger := logtest.NewLogger()
 
 	resp := &authclient.GithubAuthResponse{
@@ -292,6 +296,7 @@ func (m *mockedGithubManager) ValidateGithubAuthRedirect(ctx context.Context, di
 }
 
 func TestCalculateGithubUserNoTeams(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	a := &auth.Server{}
 	connector, err := types.NewGithubConnector("github", types.GithubConnectorSpecV3{
@@ -321,6 +326,7 @@ func TestCalculateGithubUserNoTeams(t *testing.T) {
 // Test that calculateGithubUser calls the login rule evaluator, evaluated
 // traits end up in the user params, and traits are evaluated exactly once.
 func TestCalculateGithubUserWithLoginRules(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	// Create a test role so that FetchRoles can succeed.
@@ -462,7 +468,7 @@ func TestCheckGithubOrgSSOSupport(t *testing.T) {
 	tests := []struct {
 		testName             string
 		connector            types.GithubConnector
-		isEnterprise         bool
+		buildType            string
 		requestShouldSucceed bool
 		httpStatusCode       int
 		reuseCache           bool
@@ -471,7 +477,7 @@ func TestCheckGithubOrgSSOSupport(t *testing.T) {
 		{
 			testName:             "OSS HTTP connection failure",
 			connector:            ssoOrg,
-			isEnterprise:         false,
+			buildType:            modules.BuildOSS,
 			requestShouldSucceed: false,
 			reuseCache:           false,
 			errFunc:              trace.IsConnectionProblem,
@@ -479,7 +485,7 @@ func TestCheckGithubOrgSSOSupport(t *testing.T) {
 		{
 			testName:             "Enterprise skips HTTP check",
 			connector:            ssoOrg,
-			isEnterprise:         true,
+			buildType:            modules.BuildEnterprise,
 			requestShouldSucceed: false,
 			reuseCache:           false,
 			errFunc:              nil,
@@ -487,7 +493,7 @@ func TestCheckGithubOrgSSOSupport(t *testing.T) {
 		{
 			testName:             "OSS has SSO",
 			connector:            ssoOrg,
-			isEnterprise:         false,
+			buildType:            modules.BuildOSS,
 			requestShouldSucceed: true,
 			httpStatusCode:       http.StatusOK,
 			reuseCache:           false,
@@ -496,7 +502,7 @@ func TestCheckGithubOrgSSOSupport(t *testing.T) {
 		{
 			testName:             "OSS has SSO with cache",
 			connector:            ssoOrg,
-			isEnterprise:         false,
+			buildType:            modules.BuildOSS,
 			requestShouldSucceed: false,
 			reuseCache:           true,
 			errFunc:              trace.IsAccessDenied,
@@ -504,7 +510,7 @@ func TestCheckGithubOrgSSOSupport(t *testing.T) {
 		{
 			testName:             "OSS doesn't have SSO",
 			connector:            noSSOOrg,
-			isEnterprise:         false,
+			buildType:            modules.BuildOSS,
 			requestShouldSucceed: true,
 			httpStatusCode:       404,
 			reuseCache:           true,
@@ -513,7 +519,7 @@ func TestCheckGithubOrgSSOSupport(t *testing.T) {
 		{
 			testName:             "OSS doesn't have SSO with cache",
 			connector:            noSSOOrg,
-			isEnterprise:         false,
+			buildType:            modules.BuildOSS,
 			requestShouldSucceed: false,
 			reuseCache:           true,
 			errFunc:              nil,
@@ -521,19 +527,13 @@ func TestCheckGithubOrgSSOSupport(t *testing.T) {
 	}
 
 	var orgCache *utils.FnCache
-	ctx := context.Background()
+	ctx := t.Context()
 
 	for _, tt := range tests {
 		t.Run(tt.testName, func(t *testing.T) {
 			client := mockHTTPRequester{
 				succeed:    tt.requestShouldSucceed,
 				statusCode: tt.httpStatusCode,
-			}
-
-			if tt.isEnterprise {
-				modulestest.SetTestModules(t, modulestest.Modules{
-					TestBuildType: modules.BuildEnterprise,
-				})
 			}
 
 			if !tt.reuseCache {
@@ -543,7 +543,7 @@ func TestCheckGithubOrgSSOSupport(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			err := auth.CheckGithubOrgSSOSupport(ctx, tt.connector, nil, orgCache, client)
+			err := auth.CheckGithubOrgSSOSupport(ctx, tt.connector, nil, tt.buildType, orgCache, client)
 			if tt.errFunc == nil {
 				require.NoError(t, err)
 			} else {
@@ -555,6 +555,7 @@ func TestCheckGithubOrgSSOSupport(t *testing.T) {
 }
 
 func TestGithubURLFormat(t *testing.T) {
+	t.Parallel()
 	tts := []struct {
 		host   string
 		path   string
@@ -583,6 +584,7 @@ func TestGithubURLFormat(t *testing.T) {
 }
 
 func TestBuildAPIEndpoint(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		input    string

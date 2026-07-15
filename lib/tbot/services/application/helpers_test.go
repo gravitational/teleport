@@ -20,7 +20,6 @@ package application
 
 import (
 	"bytes"
-	"context"
 	"log/slog"
 	"net"
 	"os"
@@ -81,12 +80,16 @@ func testYAML[T any](t *testing.T, tests []testYAMLCase[T]) {
 }
 
 type checkAndSetDefaulter interface {
-	CheckAndSetDefaults() error
+	CheckAndSetDefaults(scoped bool) error
 }
 
 type testCheckAndSetDefaultsCase[T checkAndSetDefaulter] struct {
 	name string
 	in   func() T
+
+	// scoped indicates that CheckAndSetDefaults should be called with
+	// scoped set to true.
+	scoped bool
 
 	// want specifies the desired state of the checkAndSetDefaulter after
 	// check and set defaults has been run. If want is nil, the Output is
@@ -101,7 +104,7 @@ func testCheckAndSetDefaults[T checkAndSetDefaulter](t *testing.T, tests []testC
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := tt.in()
-			err := got.CheckAndSetDefaults()
+			err := got.CheckAndSetDefaults(tt.scoped)
 			if tt.wantErr != "" {
 				require.ErrorContains(t, err, tt.wantErr)
 				return
@@ -119,21 +122,21 @@ func testCheckAndSetDefaults[T checkAndSetDefaulter](t *testing.T, tests []testC
 
 // makeBot creates a server-side bot and returns joining parameters.
 func makeBot(t *testing.T, client *authclient.Client, name string, roles ...string) (*onboarding.Config, *machineidv1pb.Bot) {
-	ctx := context.TODO()
+	ctx := t.Context()
 	t.Helper()
 
-	b, err := client.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
-		Bot: &machineidv1pb.Bot{
+	b, err := client.BotServiceClient().CreateBot(ctx, machineidv1pb.CreateBotRequest_builder{
+		Bot: machineidv1pb.Bot_builder{
 			Kind:    types.KindBot,
 			Version: types.V1,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: name,
-			},
-			Spec: &machineidv1pb.BotSpec{
+			}.Build(),
+			Spec: machineidv1pb.BotSpec_builder{
 				Roles: roles,
-			},
-		},
-	})
+			}.Build(),
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 
 	tokenName, err := utils.CryptoRandomHex(defaults.TokenLenBytes)
@@ -143,7 +146,7 @@ func makeBot(t *testing.T, client *authclient.Client, name string, roles ...stri
 		time.Now().Add(10*time.Minute),
 		types.ProvisionTokenSpecV2{
 			Roles:   []types.SystemRole{types.RoleBot},
-			BotName: b.Metadata.Name,
+			BotName: b.GetMetadata().GetName(),
 		})
 	require.NoError(t, err)
 	err = client.CreateToken(ctx, tok)

@@ -329,6 +329,7 @@ func (f fakeUserGetter) GetUser(context.Context, tls.ConnectionState) (authz.Ide
 }
 
 func TestTransportCredentialsDisconnection(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name   string
 		expiry time.Duration

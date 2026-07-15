@@ -184,6 +184,10 @@ func (r resourceTeleportAutoUpdateVersion) Read(ctx context.Context, req tfsdk.R
 	}
 
 	autoUpdateVersionI, err := r.p.Client.GetAutoUpdateVersion(ctx)
+	if trace.IsNotFound(err) {
+		resp.State.RemoveResource(ctx)
+		return
+	}
 	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading AutoUpdateVersion", trace.Wrap(err), "autoupdate_version"))
 		return
@@ -222,6 +226,13 @@ func (r resourceTeleportAutoUpdateVersion) Update(ctx context.Context, req tfsdk
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
+	}
+	autoUpdateVersion.Kind = apitypes.KindAutoUpdateVersion
+	if autoUpdateVersion.GetMetadata() == nil {
+		autoUpdateVersion.Metadata = &headerv1.Metadata{}
+	}
+	if autoUpdateVersion.GetMetadata().GetName() == "" {
+		autoUpdateVersion.Metadata.Name = apitypes.MetaNameAutoUpdateVersion
 	}
 
 	autoUpdateVersionBefore, err := r.p.Client.GetAutoUpdateVersion(ctx)
@@ -275,6 +286,11 @@ func (r resourceTeleportAutoUpdateVersion) Update(ctx context.Context, req tfsdk
 	}
 
 	autoUpdateVersion = autoUpdateVersionI
+	diags = schemav1.CopyAutoUpdateVersionToTerraform(ctx, autoUpdateVersion, &plan)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)

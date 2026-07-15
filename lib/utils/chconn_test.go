@@ -28,6 +28,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
+	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 )
@@ -45,13 +46,19 @@ func TestChConn(t *testing.T) {
 
 	go startSSHServer(t, listener, sshConnCh)
 
-	client, err := ssh.Dial("tcp", listener.Addr().String(), &ssh.ClientConfig{
+	client, err := apissh.Dial(t.Context(), "tcp", listener.Addr().String(), apissh.ClientConfig{
+		User: "alice",
+		PublicKeyAuth: apissh.PublicKeyAuthConfig{
+			Signers: func() ([]ssh.Signer, error) {
+				return []ssh.Signer{mockSigner{}}, nil
+			},
+		},
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 		Timeout:         time.Second,
 	})
 	require.NoError(t, err)
 
-	_, _, err = client.OpenChannel("test", []byte("hello ssh"))
+	_, _, err = client.OpenChannel(t.Context(), "test", []byte("hello ssh"))
 	require.NoError(t, err)
 
 	select {
@@ -113,4 +120,8 @@ func startSSHServer(t *testing.T, listener net.Listener, sshConnCh chan<- sshCon
 			}
 		}
 	}()
+}
+
+type mockSigner struct {
+	ssh.Signer
 }

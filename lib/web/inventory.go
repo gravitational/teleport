@@ -89,13 +89,20 @@ func (h *Handler) clusterUnifiedInstancesGet(w http.ResponseWriter, r *http.Requ
 		}
 	}
 
-	filter := &inventoryv1.ListUnifiedInstancesFilter{
+	// We don't use splitQuery for parsing upgraders since it should be possible to filter for upgrader "" (none),
+	// and splitQuery would remove it.
+	var upgraders []string
+	if upgradersParam := values.Get("upgraders"); upgradersParam != "" {
+		upgraders = strings.Split(upgradersParam, ",")
+	}
+
+	filter := inventoryv1.ListUnifiedInstancesFilter_builder{
 		Search:              values.Get("search"),
 		PredicateExpression: values.Get("query"),
 		Services:            splitQuery(values.Get("services")),
-		Upgraders:           splitQuery(values.Get("upgraders")),
+		Upgraders:           upgraders,
 		UpdaterGroups:       splitQuery(values.Get("updaterGroups")),
-	}
+	}.Build()
 
 	var hasInstance, hasBotInstance bool
 	for t := range strings.SplitSeq(values.Get("types"), ",") {
@@ -111,30 +118,30 @@ func (h *Handler) clusterUnifiedInstancesGet(w http.ResponseWriter, r *http.Requ
 		}
 	}
 	if hasInstance {
-		filter.InstanceTypes = append(filter.InstanceTypes, inventoryv1.InstanceType_INSTANCE_TYPE_INSTANCE)
+		filter.SetInstanceTypes(append(filter.GetInstanceTypes(), inventoryv1.InstanceType_INSTANCE_TYPE_INSTANCE))
 	}
 	if hasBotInstance {
-		filter.InstanceTypes = append(filter.InstanceTypes, inventoryv1.InstanceType_INSTANCE_TYPE_BOT_INSTANCE)
+		filter.SetInstanceTypes(append(filter.GetInstanceTypes(), inventoryv1.InstanceType_INSTANCE_TYPE_BOT_INSTANCE))
 	}
 
-	resp, err := clt.ListUnifiedInstances(r.Context(), &inventoryv1.ListUnifiedInstancesRequest{
+	resp, err := clt.ListUnifiedInstances(r.Context(), inventoryv1.ListUnifiedInstancesRequest_builder{
 		PageSize:  limit,
 		PageToken: startKey,
 		Sort:      sort,
 		Order:     order,
 		Filter:    filter,
-	})
+	}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	uiInstances := make([]ui.UnifiedInstance, 0, len(resp.Items))
-	for _, item := range resp.Items {
+	uiInstances := make([]ui.UnifiedInstance, 0, len(resp.GetItems()))
+	for _, item := range resp.GetItems() {
 		uiInstances = append(uiInstances, ui.MakeUnifiedInstance(item))
 	}
 
 	return &listUnifiedInstancesResponse{
 		Instances: uiInstances,
-		StartKey:  resp.NextPageToken,
+		StartKey:  resp.GetNextPageToken(),
 	}, nil
 }

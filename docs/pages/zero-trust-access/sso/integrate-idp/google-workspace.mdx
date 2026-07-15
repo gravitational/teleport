@@ -10,12 +10,14 @@ tags:
  - privileged-access
  - google-cloud
 enterprise: Enterprise SSO
+page_type: how-to
 ---
 
-This guide explains how to configure [Google Workspace](https://workspace.google.com/)
-to be a single sign-on (SSO) provider that issues Teleport credentials to specific
-groups of users. When you use Google Workspace in combination with Teleport role-based 
-access control (RBAC), you can define policies like the following:
+In this guide, you will configure [Google
+Workspace](https://workspace.google.com/) to be a single sign-on (SSO) provider
+that issues Teleport credentials to specific groups of users. When you use
+Google Workspace in combination with Teleport role-based access control (RBAC),
+you can define policies like the following:
 
 - Only members of the "DBA" Google group can connect to PostgreSQL databases.
 - Developers must never use SSH to access production servers.
@@ -369,11 +371,12 @@ spec:
   - claim: groups
     roles:
     - auditor
-    value: auditor@example.com
+    - editor
+    value: admins@example.com
   - claim: groups
     roles:
     - access
-    value: teleport-developers@example.com
+    value: devs@example.com
   client_id: <CLIENT-ID>
   client_secret: <CLIENT-SECRET>
   display: Google
@@ -429,11 +432,11 @@ spec:
   - claim: groups
     roles:
     - auditor
-    value: auditor@example.com
+    value: admins@example.com
   - claim: groups
     roles:
     - access
-    value: teleport-developers@example.com
+    value: devs@example.com
   client_id: <CLIENT-ID>
   client_secret: <CLIENT-SECRET>
   display: Google
@@ -513,7 +516,7 @@ automatically in a browser.
 
 ## Troubleshooting
 
-(!docs/pages/includes/sso/loginerrortroubleshooting.mdx!)
+(!docs/pages/includes/sso/oidc-login-troubleshooting.mdx!)
 
 ## Further reading
 

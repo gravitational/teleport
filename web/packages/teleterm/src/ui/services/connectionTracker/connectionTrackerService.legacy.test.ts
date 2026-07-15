@@ -17,6 +17,7 @@
  */
 
 import Logger, { NullService } from 'teleterm/logger';
+import { makeWorkspace } from 'teleterm/ui/services/workspacesService/testHelpers';
 
 import { ClustersService } from '../clusters';
 import { StatePersistenceService } from '../statePersistence';
@@ -76,6 +77,7 @@ it('removeItemsBelongingToRootCluster removes connections', () => {
       targetUser: 'alice',
       targetName: 'test',
       targetSubresourceName: 'pg',
+      autoUserProvisioning: undefined,
     },
     {
       kind: 'connection.kube',
@@ -115,6 +117,7 @@ it('updates the port of a gateway connection when the underlying doc gets update
     port: '12345',
     origin: 'resource_table',
     status: '',
+    autoUserProvisioning: undefined,
   };
 
   const { connectionTrackerService, workspacesService } =
@@ -251,7 +254,7 @@ function getTestSetupWithMockedDocuments(documents: Document[]) {
 
   // Insert the documents.
   workspacesService.setState(draftState => {
-    draftState.workspaces['/clusters/localhost'] = {
+    draftState.workspaces['/clusters/localhost'] = makeWorkspace({
       color: 'purple',
       accessRequests: {
         pending: getEmptyPendingAccessRequest(),
@@ -260,7 +263,7 @@ function getTestSetupWithMockedDocuments(documents: Document[]) {
       localClusterUri: '/clusters/localhost',
       location: documents[0]?.uri,
       documents: documents,
-    };
+    });
   });
 
   return { workspacesService, connectionTrackerService };

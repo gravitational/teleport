@@ -270,6 +270,7 @@ func (t LockTarget) IsEmpty() bool {
 		t.Login == "" &&
 		t.MFADevice == "" &&
 		t.WindowsDesktop == "" &&
+		t.LinuxDesktop == "" &&
 		t.AccessRequest == "" &&
 		t.Device == "" &&
 		t.ServerID == "" &&
@@ -288,6 +289,7 @@ func (t LockTarget) Match(lock Lock) bool {
 		(t.Login == "" || lockTarget.Login == t.Login) &&
 		(t.MFADevice == "" || lockTarget.MFADevice == t.MFADevice) &&
 		(t.WindowsDesktop == "" || lockTarget.WindowsDesktop == t.WindowsDesktop) &&
+		(t.LinuxDesktop == "" || lockTarget.LinuxDesktop == t.LinuxDesktop) &&
 		(t.AccessRequest == "" || lockTarget.AccessRequest == t.AccessRequest) &&
 		(t.Device == "" || lockTarget.Device == t.Device) &&
 		(t.ServerID == "" || lockTarget.ServerID == t.ServerID) &&
@@ -307,6 +309,7 @@ func (t LockTarget) Equals(t2 LockTarget) bool {
 		t.Login == t2.Login &&
 		t.MFADevice == t2.MFADevice &&
 		t.WindowsDesktop == t2.WindowsDesktop &&
+		t.LinuxDesktop == t2.LinuxDesktop &&
 		t.AccessRequest == t2.AccessRequest &&
 		t.Device == t2.Device &&
 		t.ServerID == t2.ServerID &&

@@ -1,0 +1,12 @@
+resource "teleport_role" "example-role" {
+  sub_kind = "some-subkind"
+
+  spec = {
+    allow = {
+      kubernetes_groups = ["system:masters"]
+      request = {
+        suggested_reviewers = ["reviewer1", "reviewer2"]
+      }
+    }
+  }
+}

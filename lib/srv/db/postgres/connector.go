@@ -30,9 +30,9 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/jackc/pgconn"
-	"github.com/jackc/pgproto3/v2"
-	"github.com/jackc/pgx/v4"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgproto3"
 
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -295,8 +295,9 @@ func (c *connector) sendCancelRequest(ctx context.Context, cancelReq *pgproto3.C
 		}
 	}
 
-	frontend := pgproto3.NewFrontend(pgproto3.NewChunkReader(tlsConn), tlsConn)
-	if err = frontend.Send(cancelReq); err != nil {
+	frontend := pgproto3.NewFrontend(tlsConn, tlsConn)
+	frontend.Send(cancelReq)
+	if err = frontend.Flush(); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -313,8 +314,9 @@ func (c *connector) sendCancelRequest(ctx context.Context, cancelReq *pgproto3.C
 // startPGWireTLS is a helper func that upgrades upstream connection to TLS.
 // copied from github.com/jackc/pgconn.startTLS.
 func startPGWireTLS(conn net.Conn, tlsConfig *tls.Config) (*tls.Conn, error) {
-	frontend := pgproto3.NewFrontend(pgproto3.NewChunkReader(conn), conn)
-	if err := frontend.Send(&pgproto3.SSLRequest{}); err != nil {
+	frontend := pgproto3.NewFrontend(conn, conn)
+	frontend.Send(&pgproto3.SSLRequest{})
+	if err := frontend.Flush(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	response := make([]byte, 1)

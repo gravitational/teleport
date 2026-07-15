@@ -21,8 +21,8 @@ package common
 import (
 	"context"
 	"os"
-	"text/template"
 
+	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 
@@ -34,8 +34,10 @@ import (
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/parse"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
+	"github.com/gravitational/teleport/tool/tctl/common/resources"
 )
 
 // KubeCommand implements "tctl kube" group of commands.
@@ -90,7 +92,7 @@ func (c *KubeCommand) TryRun(ctx context.Context, cmd string, clientFunc commonc
 // ListKube prints the list of kube clusters that have recently sent heartbeats
 // to the cluster.
 func (c *KubeCommand) ListKube(ctx context.Context, clt *authclient.Client) error {
-	labels, err := libclient.ParseLabelSpec(c.labels)
+	labels, err := parse.LabelSelectorSpec(c.labels)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -108,14 +110,14 @@ func (c *KubeCommand) ListKube(ctx context.Context, clt *authclient.Client) erro
 		return trace.Wrap(err)
 	}
 
-	coll := &kubeServerCollection{servers: kubes}
+	coll := resources.NewKubeServerCollection(kubes)
 	switch c.format {
 	case teleport.Text:
 		return trace.Wrap(coll.WriteText(os.Stdout, c.verbose))
 	case teleport.JSON:
-		return trace.Wrap(coll.writeJSON(os.Stdout))
+		return trace.Wrap(writeJSON(coll, os.Stdout))
 	case teleport.YAML:
-		return trace.Wrap(coll.writeYAML(os.Stdout))
+		return trace.Wrap(writeYAML(coll, os.Stdout))
 	default:
 		return trace.BadParameter("unknown format %q", c.format)
 	}

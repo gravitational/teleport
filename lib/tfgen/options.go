@@ -63,17 +63,52 @@ func WithResourceName(name string) GenerateOpt {
 	return func(o *generateOpts) { o.resourceName = name }
 }
 
+// WithResourceBlockComment adds a comment before the resource block.
+func WithResourceBlockComment(comment string) GenerateOpt {
+	return func(o *generateOpts) { o.resourceBlockComment = comment }
+}
+
+// WithDependsOn adds a terraform depends_on meta-argument to the generated
+// resource block. The value should be a reference to another Terraform resource
+// in the form "resource_type.resource_name".
+// E.g. "teleport_access_list.acl-UID1234" means the generated resource will
+// wait for "teleport_access_list.acl-UID1234" to be created first.
+//
+// May be called multiple times to add multiple references.
+func WithDependsOn(reference string) GenerateOpt {
+	return func(o *generateOpts) { o.dependsOn = append(o.dependsOn, reference) }
+}
+
+// WithOmitField omits the given field from the generated output.
+//
+// "name" is the dot-syntax path to the field to omit e.g.:
+//   - `spec.ineligible_status`
+//   - `header.metadata.description`
+//
+// Can omit fields from every item in a list e.g.:
+//   - `spec.owners.description`: omits "description" field per owner
+//
+// Can omit fields in nested lists e.g.:
+//   - `spec.mappings.match.group_ids`: omits "group_ids" field per match per mappings
+func WithOmitField(name string) GenerateOpt {
+	return func(o *generateOpts) { o.fieldsToOmit[name] = true }
+}
+
 type generateOpts struct {
-	resourceType string
-	resourceName string
+	resourceType         string
+	resourceName         string
+	resourceBlockComment string
+	dependsOn            []string
 
 	fieldTransforms map[string]Transform
 	fieldComments   map[string]string
+	fieldsToOmit    map[string]bool
 }
 
 func newGenerateOpts() *generateOpts {
 	return &generateOpts{
 		fieldTransforms: make(map[string]Transform),
 		fieldComments:   make(map[string]string),
+		fieldsToOmit:    make(map[string]bool),
 	}
 }

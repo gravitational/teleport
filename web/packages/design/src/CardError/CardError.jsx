@@ -121,3 +121,10 @@ export const LogoutFailed = ({ message, loginUrl }) => (
 const HyperLink = styled.a`
   color: ${({ theme }) => theme.colors.buttons.link.default};
 `;
+
+export const BadRequest = ({ message, ...rest }) => (
+  <CardError {...rest}>
+    <Header>400 Bad Request</Header>
+    <Content message={message} />
+  </CardError>
+);

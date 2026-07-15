@@ -640,7 +640,7 @@ func (a *App) updatePluginData(ctx context.Context, reqID string, data PluginDat
 
 // getResourceNames returns the names of the requested resources.
 func (a *App) getResourceNames(ctx context.Context, req types.AccessRequest) ([]string, error) {
-	resourceNames := make([]string, 0, len(req.GetRequestedResourceIDs()))
+	resourceNames := make([]string, 0, len(req.GetAllRequestedResourceIDs()))
 	resourcesByCluster := accessrequest.GetResourceIDsByCluster(req)
 
 	for cluster, resources := range resourcesByCluster {

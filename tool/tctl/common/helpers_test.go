@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/cloud/imds"
 	"github.com/gravitational/teleport/lib/config"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -83,7 +84,7 @@ func runCommand(t require.TestingT, client *authclient.Client, cmd cliCommand, a
 	return err
 }
 
-func runResourceCommand(t *testing.T, client *authclient.Client, args []string) (*bytes.Buffer, error) {
+func runResourceCommand(t require.TestingT, client *authclient.Client, args []string) (*bytes.Buffer, error) {
 	var stdoutBuff bytes.Buffer
 	command := &ResourceCommand{
 		Stdout: &stdoutBuff,
@@ -101,6 +102,15 @@ func runEditCommand(t *testing.T, client *authclient.Client, args []string, opts
 	command := &EditCommand{
 		Editor: o.Editor,
 	}
+	return &stdoutBuff, runCommand(t, client, command, args)
+}
+
+func runRequestCommand(t *testing.T, client *authclient.Client, args []string) (*bytes.Buffer, error) {
+	var stdoutBuff bytes.Buffer
+	command := &AccessRequestCommand{
+		stdout: &stdoutBuff,
+	}
+	args = append([]string{"requests"}, args...)
 	return &stdoutBuff, runCommand(t, client, command, args)
 }
 
@@ -260,7 +270,9 @@ type testServerOptions struct {
 	fileConfig      *config.FileConfig
 	fileDescriptors []*servicecfg.FileDescriptor
 	fakeClock       *clockwork.FakeClock
+	scopesFeatures  scopes.Features
 	enableCache     bool
+	enableProxy     bool
 }
 
 type testServerOptionFunc func(options *testServerOptions)
@@ -283,9 +295,21 @@ func withFakeClock(fakeClock *clockwork.FakeClock) testServerOptionFunc {
 	}
 }
 
+func withScopesFeatures(features scopes.Features) testServerOptionFunc {
+	return func(options *testServerOptions) {
+		options.scopesFeatures = features
+	}
+}
+
 func withEnableCache(enableCache bool) testServerOptionFunc {
 	return func(options *testServerOptions) {
 		options.enableCache = enableCache
+	}
+}
+
+func withEnableProxy() testServerOptionFunc {
+	return func(options *testServerOptions) {
+		options.enableProxy = true
 	}
 }
 
@@ -298,6 +322,7 @@ func makeAndRunTestAuthServer(t *testing.T, opts ...testServerOptionFunc) (auth 
 	var err error
 	cfg := servicecfg.MakeDefaultConfig()
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+	cfg.ScopesFeatures = options.scopesFeatures
 	cfg.FileDescriptors = options.fileDescriptors
 	if options.fileConfig != nil {
 		err = config.ApplyFileConfig(options.fileConfig, cfg)
@@ -305,6 +330,9 @@ func makeAndRunTestAuthServer(t *testing.T, opts ...testServerOptionFunc) (auth 
 	}
 
 	cfg.CachePolicy.Enabled = options.enableCache
+	if options.enableProxy {
+		cfg.Proxy.Enabled = true
+	}
 	cfg.Proxy.DisableWebInterface = true
 	cfg.InstanceMetadataClient = imds.NewDisabledIMDSClient()
 	if options.fakeClock != nil {

@@ -31,22 +31,20 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
-	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
-// DatabaseServersGetter is an interface for retrieving information about
-// database proxy servers within a specific namespace.
-type DatabaseServersGetter interface {
-	// GetDatabaseServers returns all registered database proxy servers.
-	GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error)
+// DatabaseServerWatcher defines an interface for watching database servers in a cluster.
+type DatabaseServerWatcher interface {
+	// CurrentResourcesWithFilter returns the current list of database servers in the cluster that match the provided filter function.
+	CurrentResourcesWithFilter(ctx context.Context, filter func(readonly.DatabaseServer) bool) ([]types.DatabaseServer, error)
 }
 
 // GetDatabaseServersParams contains the parameters required to retrieve
@@ -55,30 +53,24 @@ type GetDatabaseServersParams struct {
 	Logger *slog.Logger
 	// ClusterName is the cluster name to which the database belongs.
 	ClusterName string
-	// DatabaseServersGetter used to fetch the list of database servers.
-	DatabaseServersGetter DatabaseServersGetter
+	// Watcher is used to retrieve database servers registered in the cluster.
+	Watcher DatabaseServerWatcher
 	// Identity contains the identity information.
 	Identity tlsca.Identity
 }
 
 // GetDatabaseServers returns a list of database servers in a cluster that match
-// the routing information from the provided identity.
+// the routing information from the provided identity. It uses the cluster's
+// DatabaseServerWatcher for fast in-memory lookup.
 func GetDatabaseServers(ctx context.Context, params GetDatabaseServersParams) ([]types.DatabaseServer, error) {
-	servers, err := params.DatabaseServersGetter.GetDatabaseServers(ctx, apidefaults.Namespace)
+	result, err := params.Watcher.CurrentResourcesWithFilter(ctx, func(ds readonly.DatabaseServer) bool {
+		return ds.GetDatabaseName() == params.Identity.RouteToDatabase.ServiceName
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// Find out which database servers proxy the database a user is
-	// connecting to using routing information from identity.
-	var result []types.DatabaseServer
-	for _, server := range servers {
-		if server.GetDatabase().GetName() == params.Identity.RouteToDatabase.ServiceName {
-			result = append(result, server)
-		}
-	}
-
-	params.Logger.DebugContext(ctx, "Available database servers",
+	params.Logger.DebugContext(ctx, "Retrieved database servers from watcher",
 		"cluster", params.ClusterName,
 		"servers", logutils.StringerSliceAttr(result),
 	)

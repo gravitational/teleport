@@ -23,7 +23,7 @@ Replace `https://console.aws.amazon.com` with
 ### Install and start Teleport
 
 Install Teleport on the host where you will run the Teleport Application
-Service. See our [Installation](../../installation/installation.mdx) page for options
+Service. See our [Installation](../../installation/single-machine/single-machine.mdx) page for options
 besides Linux servers.
 
 (!docs/pages/includes/install-linux.mdx!)
@@ -49,7 +49,7 @@ app_service:
   enabled: true
   apps:
   - name: aws
-    uri: https://console.aws.amazon.com/home/home
+    uri: https://console.aws.amazon.com/console/home
 ```
 
 (!docs/pages/includes/aws-credentials.mdx service="the Teleport Application Service"!)

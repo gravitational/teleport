@@ -219,6 +219,7 @@ func (r resourceTeleportAppAuthConfig) Update(ctx context.Context, req tfsdk.Upd
 	}
 	appauthconfigResource := appauthconfig
 
+	appauthconfigResource.Kind = apitypes.KindAppAuthConfig
 
 	
 	name := appauthconfigResource.Metadata.Name

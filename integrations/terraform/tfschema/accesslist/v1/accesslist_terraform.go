@@ -1,5 +1,5 @@
 /*
-Copyright 2015-2022 Gravitational, Inc.
+Copyright 2015-2026 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -120,6 +120,11 @@ func GenSchemaAccessList(ctx context.Context) (github_com_hashicorp_terraform_pl
 			Required:      false,
 			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
+		"scope": {
+			Description: "scope is the scope of the Access List.",
+			Optional:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
 		"spec": {
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 				"audit": {
@@ -166,9 +171,25 @@ func GenSchemaAccessList(ctx context.Context) (github_com_hashicorp_terraform_pl
 				"grants": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 						"roles": {
-							Description: "roles are the roles that are granted to users who are members of the Access List.",
+							Description: "roles are the names of roles to be granted to users.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"scoped_roles": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"role": {
+									Description: "role is scope-qualified name of the scoped role to be granted.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"scope": {
+									Description: "scope is the scope the role will be granted at. It must be an assignable scope of the role.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+							}),
+							Description: "scoped_roles are scoped roles to be granted to users.",
+							Optional:    true,
 						},
 						"traits": {
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
@@ -183,7 +204,7 @@ func GenSchemaAccessList(ctx context.Context) (github_com_hashicorp_terraform_pl
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 								},
 							}),
-							Description: "traits are the traits that are granted to users who are members of the Access List.",
+							Description: "traits are the traits to be granted to users.",
 							Optional:    true,
 						},
 					}),
@@ -220,9 +241,25 @@ func GenSchemaAccessList(ctx context.Context) (github_com_hashicorp_terraform_pl
 				"owner_grants": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 						"roles": {
-							Description: "roles are the roles that are granted to users who are members of the Access List.",
+							Description: "roles are the names of roles to be granted to users.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+						},
+						"scoped_roles": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"role": {
+									Description: "role is scope-qualified name of the scoped role to be granted.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"scope": {
+									Description: "scope is the scope the role will be granted at. It must be an assignable scope of the role.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+							}),
+							Description: "scoped_roles are scoped roles to be granted to users.",
+							Optional:    true,
 						},
 						"traits": {
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
@@ -237,7 +274,7 @@ func GenSchemaAccessList(ctx context.Context) (github_com_hashicorp_terraform_pl
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 								},
 							}),
-							Description: "traits are the traits that are granted to users who are members of the Access List.",
+							Description: "traits are the traits to be granted to users.",
 							Optional:    true,
 						},
 					}),
@@ -252,12 +289,12 @@ func GenSchemaAccessList(ctx context.Context) (github_com_hashicorp_terraform_pl
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 						"membership_kind": {
-							Description: "membership_kind describes the type of membership, either `MEMBERSHIP_KIND_USER` or `MEMBERSHIP_KIND_LIST`.",
+							Description: "membership_kind describes the type of membership, either `MEMBERSHIP_KIND_USER` or `MEMBERSHIP_KIND_LIST` or `MEMBERSHIP_KIND_SCOPED_LIST`.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
 						},
 						"name": {
-							Description: "name is the username of the owner.",
+							Description: "name is the name of the owner, depending on MembershipKind: MEMBERSHIP_KIND_USER: the username of the owner. MEMBERSHIP_KIND_LIST: the name of the owner Access List. MEMBERSHIP_KIND_SCOPED_LIST: the scope-qualified name of the owner Access List.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
@@ -385,6 +422,11 @@ func GenSchemaMember(ctx context.Context) (github_com_hashicorp_terraform_plugin
 			Required:      false,
 			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
+		"scope": {
+			Description: "scope is the scope of the Access List member, it must be equal to the scope of the parent Access List.",
+			Optional:    true,
+			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+		},
 		"spec": {
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 				"access_list": {
@@ -411,14 +453,14 @@ func GenSchemaMember(ctx context.Context) (github_com_hashicorp_terraform_plugin
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 				}),
 				"membership_kind": {
-					Description:   "membership_kind describes the type of membership, either `MEMBERSHIP_KIND_USER` or `MEMBERSHIP_KIND_LIST`.",
+					Description:   "membership_kind describes the type of membership, either `MEMBERSHIP_KIND_USER` or `MEMBERSHIP_KIND_LIST` or `MEMBERSHIP_KIND_SCOPED_LIST`.",
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.RequiresReplace()},
 					Required:      true,
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
 				},
 				"name": {
 					Computed:      true,
-					Description:   "name is the name of the member of the Access List.",
+					Description:   "name is the name of the member of the Access List, depending on MembershipKind: MEMBERSHIP_KIND_USER: the username of the member. MEMBERSHIP_KIND_LIST: the name of the member Access List. MEMBERSHIP_KIND_SCOPED_LIST: the scope-qualified name of the member scope Access List.",
 					Optional:      true,
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
@@ -1190,6 +1232,69 @@ func CopyAccessListFromTerraform(_ context.Context, tf github_com_hashicorp_terr
 											}
 										}
 									}
+									{
+										a, ok := tf.Attrs["scoped_roles"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"AccessList.spec.grants.scoped_roles"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.List)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"AccessList.spec.grants.scoped_roles", "github.com/hashicorp/terraform-plugin-framework/types.List"})
+											} else {
+												obj.ScopedRoles = make([]*github_com_gravitational_teleport_api_gen_proto_go_teleport_accesslist_v1.ScopedRoleGrant, len(v.Elems))
+												if !v.Null && !v.Unknown {
+													for k, a := range v.Elems {
+														v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+														if !ok {
+															diags.Append(attrReadConversionFailureDiag{"AccessList.spec.grants.scoped_roles", "github_com_hashicorp_terraform_plugin_framework_types.Object"})
+														} else {
+															var t *github_com_gravitational_teleport_api_gen_proto_go_teleport_accesslist_v1.ScopedRoleGrant
+															if !v.Null && !v.Unknown {
+																tf := v
+																t = &github_com_gravitational_teleport_api_gen_proto_go_teleport_accesslist_v1.ScopedRoleGrant{}
+																obj := t
+																{
+																	a, ok := tf.Attrs["role"]
+																	if !ok {
+																		diags.Append(attrReadMissingDiag{"AccessList.spec.grants.scoped_roles.role"})
+																	} else {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"AccessList.spec.grants.scoped_roles.role", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		} else {
+																			var t string
+																			if !v.Null && !v.Unknown {
+																				t = string(v.Value)
+																			}
+																			obj.Role = t
+																		}
+																	}
+																}
+																{
+																	a, ok := tf.Attrs["scope"]
+																	if !ok {
+																		diags.Append(attrReadMissingDiag{"AccessList.spec.grants.scoped_roles.scope"})
+																	} else {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"AccessList.spec.grants.scoped_roles.scope", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		} else {
+																			var t string
+																			if !v.Null && !v.Unknown {
+																				t = string(v.Value)
+																			}
+																			obj.Scope = t
+																		}
+																	}
+																}
+															}
+															obj.ScopedRoles[k] = t
+														}
+													}
+												}
+											}
+										}
+									}
 								}
 							}
 						}
@@ -1325,6 +1430,69 @@ func CopyAccessListFromTerraform(_ context.Context, tf github_com_hashicorp_terr
 											}
 										}
 									}
+									{
+										a, ok := tf.Attrs["scoped_roles"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"AccessList.spec.owner_grants.scoped_roles"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.List)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"AccessList.spec.owner_grants.scoped_roles", "github.com/hashicorp/terraform-plugin-framework/types.List"})
+											} else {
+												obj.ScopedRoles = make([]*github_com_gravitational_teleport_api_gen_proto_go_teleport_accesslist_v1.ScopedRoleGrant, len(v.Elems))
+												if !v.Null && !v.Unknown {
+													for k, a := range v.Elems {
+														v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+														if !ok {
+															diags.Append(attrReadConversionFailureDiag{"AccessList.spec.owner_grants.scoped_roles", "github_com_hashicorp_terraform_plugin_framework_types.Object"})
+														} else {
+															var t *github_com_gravitational_teleport_api_gen_proto_go_teleport_accesslist_v1.ScopedRoleGrant
+															if !v.Null && !v.Unknown {
+																tf := v
+																t = &github_com_gravitational_teleport_api_gen_proto_go_teleport_accesslist_v1.ScopedRoleGrant{}
+																obj := t
+																{
+																	a, ok := tf.Attrs["role"]
+																	if !ok {
+																		diags.Append(attrReadMissingDiag{"AccessList.spec.owner_grants.scoped_roles.role"})
+																	} else {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"AccessList.spec.owner_grants.scoped_roles.role", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		} else {
+																			var t string
+																			if !v.Null && !v.Unknown {
+																				t = string(v.Value)
+																			}
+																			obj.Role = t
+																		}
+																	}
+																}
+																{
+																	a, ok := tf.Attrs["scope"]
+																	if !ok {
+																		diags.Append(attrReadMissingDiag{"AccessList.spec.owner_grants.scoped_roles.scope"})
+																	} else {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"AccessList.spec.owner_grants.scoped_roles.scope", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		} else {
+																			var t string
+																			if !v.Null && !v.Unknown {
+																				t = string(v.Value)
+																			}
+																			obj.Scope = t
+																		}
+																	}
+																}
+															}
+															obj.ScopedRoles[k] = t
+														}
+													}
+												}
+											}
+										}
+									}
 								}
 							}
 						}
@@ -1347,6 +1515,23 @@ func CopyAccessListFromTerraform(_ context.Context, tf github_com_hashicorp_terr
 						}
 					}
 				}
+			}
+		}
+	}
+	{
+		a, ok := tf.Attrs["scope"]
+		if !ok {
+			diags.Append(attrReadMissingDiag{"AccessList.scope"})
+		} else {
+			v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+			if !ok {
+				diags.Append(attrReadConversionFailureDiag{"AccessList.scope", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+			} else {
+				var t string
+				if !v.Null && !v.Unknown {
+					t = string(v.Value)
+				}
+				obj.Scope = t
 			}
 		}
 	}
@@ -2616,6 +2801,108 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 											}
 										}
 									}
+									{
+										a, ok := tf.AttrTypes["scoped_roles"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"AccessList.spec.grants.scoped_roles"})
+										} else {
+											o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
+											if !ok {
+												diags.Append(attrWriteConversionFailureDiag{"AccessList.spec.grants.scoped_roles", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
+											} else {
+												c, ok := tf.Attrs["scoped_roles"].(github_com_hashicorp_terraform_plugin_framework_types.List)
+												if !ok {
+													c = github_com_hashicorp_terraform_plugin_framework_types.List{
+
+														ElemType: o.ElemType,
+														Elems:    make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.ScopedRoles)),
+														Null:     true,
+													}
+												} else {
+													if c.Elems == nil {
+														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.ScopedRoles))
+													}
+												}
+												if obj.ScopedRoles != nil {
+													o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+													if len(obj.ScopedRoles) != len(c.Elems) {
+														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.ScopedRoles))
+													}
+													for k, a := range obj.ScopedRoles {
+														v, ok := tf.Attrs["scoped_roles"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+														if !ok {
+															v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+																AttrTypes: o.AttrTypes,
+																Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+															}
+														} else {
+															if v.Attrs == nil {
+																v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+															}
+														}
+														if a == nil {
+															v.Null = true
+														} else {
+															obj := a
+															tf := &v
+															{
+																t, ok := tf.AttrTypes["role"]
+																if !ok {
+																	diags.Append(attrWriteMissingDiag{"AccessList.spec.grants.scoped_roles.role"})
+																} else {
+																	v, ok := tf.Attrs["role"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																	if !ok {
+																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																		if err != nil {
+																			diags.Append(attrWriteGeneralError{"AccessList.spec.grants.scoped_roles.role", err})
+																		}
+																		v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrWriteConversionFailureDiag{"AccessList.spec.grants.scoped_roles.role", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		}
+																		v.Null = string(obj.Role) == ""
+																	}
+																	v.Value = string(obj.Role)
+																	v.Unknown = false
+																	tf.Attrs["role"] = v
+																}
+															}
+															{
+																t, ok := tf.AttrTypes["scope"]
+																if !ok {
+																	diags.Append(attrWriteMissingDiag{"AccessList.spec.grants.scoped_roles.scope"})
+																} else {
+																	v, ok := tf.Attrs["scope"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																	if !ok {
+																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																		if err != nil {
+																			diags.Append(attrWriteGeneralError{"AccessList.spec.grants.scoped_roles.scope", err})
+																		}
+																		v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrWriteConversionFailureDiag{"AccessList.spec.grants.scoped_roles.scope", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		}
+																		v.Null = string(obj.Scope) == ""
+																	}
+																	v.Value = string(obj.Scope)
+																	v.Unknown = false
+																	tf.Attrs["scope"] = v
+																}
+															}
+														}
+														v.Unknown = false
+														c.Elems[k] = v
+													}
+													if len(obj.ScopedRoles) > 0 {
+														c.Null = false
+													}
+												}
+												c.Unknown = false
+												tf.Attrs["scoped_roles"] = c
+											}
+										}
+									}
 								}
 								v.Unknown = false
 								tf.Attrs["grants"] = v
@@ -2856,6 +3143,108 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 											}
 										}
 									}
+									{
+										a, ok := tf.AttrTypes["scoped_roles"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"AccessList.spec.owner_grants.scoped_roles"})
+										} else {
+											o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
+											if !ok {
+												diags.Append(attrWriteConversionFailureDiag{"AccessList.spec.owner_grants.scoped_roles", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
+											} else {
+												c, ok := tf.Attrs["scoped_roles"].(github_com_hashicorp_terraform_plugin_framework_types.List)
+												if !ok {
+													c = github_com_hashicorp_terraform_plugin_framework_types.List{
+
+														ElemType: o.ElemType,
+														Elems:    make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.ScopedRoles)),
+														Null:     true,
+													}
+												} else {
+													if c.Elems == nil {
+														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.ScopedRoles))
+													}
+												}
+												if obj.ScopedRoles != nil {
+													o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+													if len(obj.ScopedRoles) != len(c.Elems) {
+														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.ScopedRoles))
+													}
+													for k, a := range obj.ScopedRoles {
+														v, ok := tf.Attrs["scoped_roles"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+														if !ok {
+															v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+																AttrTypes: o.AttrTypes,
+																Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+															}
+														} else {
+															if v.Attrs == nil {
+																v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+															}
+														}
+														if a == nil {
+															v.Null = true
+														} else {
+															obj := a
+															tf := &v
+															{
+																t, ok := tf.AttrTypes["role"]
+																if !ok {
+																	diags.Append(attrWriteMissingDiag{"AccessList.spec.owner_grants.scoped_roles.role"})
+																} else {
+																	v, ok := tf.Attrs["role"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																	if !ok {
+																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																		if err != nil {
+																			diags.Append(attrWriteGeneralError{"AccessList.spec.owner_grants.scoped_roles.role", err})
+																		}
+																		v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrWriteConversionFailureDiag{"AccessList.spec.owner_grants.scoped_roles.role", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		}
+																		v.Null = string(obj.Role) == ""
+																	}
+																	v.Value = string(obj.Role)
+																	v.Unknown = false
+																	tf.Attrs["role"] = v
+																}
+															}
+															{
+																t, ok := tf.AttrTypes["scope"]
+																if !ok {
+																	diags.Append(attrWriteMissingDiag{"AccessList.spec.owner_grants.scoped_roles.scope"})
+																} else {
+																	v, ok := tf.Attrs["scope"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																	if !ok {
+																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																		if err != nil {
+																			diags.Append(attrWriteGeneralError{"AccessList.spec.owner_grants.scoped_roles.scope", err})
+																		}
+																		v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrWriteConversionFailureDiag{"AccessList.spec.owner_grants.scoped_roles.scope", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		}
+																		v.Null = string(obj.Scope) == ""
+																	}
+																	v.Value = string(obj.Scope)
+																	v.Unknown = false
+																	tf.Attrs["scope"] = v
+																}
+															}
+														}
+														v.Unknown = false
+														c.Elems[k] = v
+													}
+													if len(obj.ScopedRoles) > 0 {
+														c.Null = false
+													}
+												}
+												c.Unknown = false
+												tf.Attrs["scoped_roles"] = c
+											}
+										}
+									}
 								}
 								v.Unknown = false
 								tf.Attrs["owner_grants"] = v
@@ -2888,6 +3277,28 @@ func CopyAccessListToTerraform(ctx context.Context, obj *github_com_gravitationa
 				v.Unknown = false
 				tf.Attrs["spec"] = v
 			}
+		}
+	}
+	{
+		t, ok := tf.AttrTypes["scope"]
+		if !ok {
+			diags.Append(attrWriteMissingDiag{"AccessList.scope"})
+		} else {
+			v, ok := tf.Attrs["scope"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+			if !ok {
+				i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+				if err != nil {
+					diags.Append(attrWriteGeneralError{"AccessList.scope", err})
+				}
+				v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+				if !ok {
+					diags.Append(attrWriteConversionFailureDiag{"AccessList.scope", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+				}
+				v.Null = string(obj.Scope) == ""
+			}
+			v.Value = string(obj.Scope)
+			v.Unknown = false
+			tf.Attrs["scope"] = v
 		}
 	}
 	return diags
@@ -3199,6 +3610,23 @@ func CopyMemberFromTerraform(_ context.Context, tf github_com_hashicorp_terrafor
 						}
 					}
 				}
+			}
+		}
+	}
+	{
+		a, ok := tf.Attrs["scope"]
+		if !ok {
+			diags.Append(attrReadMissingDiag{"Member.scope"})
+		} else {
+			v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+			if !ok {
+				diags.Append(attrReadConversionFailureDiag{"Member.scope", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+			} else {
+				var t string
+				if !v.Null && !v.Unknown {
+					t = string(v.Value)
+				}
+				obj.Scope = t
 			}
 		}
 	}
@@ -3648,6 +4076,28 @@ func CopyMemberToTerraform(ctx context.Context, obj *github_com_gravitational_te
 				v.Unknown = false
 				tf.Attrs["spec"] = v
 			}
+		}
+	}
+	{
+		t, ok := tf.AttrTypes["scope"]
+		if !ok {
+			diags.Append(attrWriteMissingDiag{"Member.scope"})
+		} else {
+			v, ok := tf.Attrs["scope"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+			if !ok {
+				i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+				if err != nil {
+					diags.Append(attrWriteGeneralError{"Member.scope", err})
+				}
+				v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+				if !ok {
+					diags.Append(attrWriteConversionFailureDiag{"Member.scope", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+				}
+				v.Null = string(obj.Scope) == ""
+			}
+			v.Value = string(obj.Scope)
+			v.Unknown = false
+			tf.Attrs["scope"] = v
 		}
 	}
 	return diags

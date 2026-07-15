@@ -6,9 +6,11 @@ tags:
  - how-to
  - zero-trust
  - infrastructure-identity
+page_type: troubleshooting
 ---
 
-This page describes common issues with Kubernetes and how to resolve them.
+This page describes common issues with Kubernetes and how to work around or
+resolve them.
 
 ## An agent failed to join a cluster due to "no authorities for hostname"
 
@@ -125,7 +127,7 @@ another group is used instead.
 
 Per the description above, the solution is to configure a different group for
 impersonation in Teleport. This can be done by setting the role's
-`kubernetes_group` parameter to a Group that the Autopilot cluster allows to
+`kubernetes_groups` parameter to a Group that the Autopilot cluster allows to
 impersonate.
 
 The `teleport-kube-agent` chart configures a Kubernetes Group with the same access
@@ -180,7 +182,7 @@ joinParams:
   method: "token"
   tokenName: "${TOKEN}"
 kubeClusterName: "${CLUSTER}"
-tags:
+labels:
   "type" : "autopilot"
 EOF
 # Install the helm chart with the values.yaml setting
@@ -192,7 +194,7 @@ $ helm install teleport-agent teleport/teleport-kube-agent \
 ```
 
 Make sure that the Teleport Agent pod is running. You should see one Teleport
-agent pod pod with a single ready container:
+agent pod with a single ready container:
 
 ```code
 $ kubectl -n teleport-agent get pods

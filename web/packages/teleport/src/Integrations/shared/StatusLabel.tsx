@@ -16,31 +16,26 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ComponentType } from 'react';
+import React from 'react';
 import styled from 'styled-components';
 
 import { Box, Flex, Text } from 'design';
+import { Wrench } from 'design/Icon';
 import {
-  CircleCheck,
-  CircleCross,
-  Question,
-  Warning,
-  Wrench,
-} from 'design/Icon';
-import { IconSize } from 'design/Icon/Icon';
-import {
-  DangerOutlined,
-  SecondaryOutlined,
-  WarningOutlined,
-} from 'design/Label/Label';
+  Status as StatusBadge,
+  StatusKind,
+  StatusVariant,
+} from 'design/Status';
 import { HoverTooltip } from 'design/Tooltip';
 import { pluralize } from 'shared/utils/text';
 
 import {
+  INTEGRATION_DISCOVERY_SCAN_INTERVAL_MS,
   IntegrationStatusCode,
   IntegrationWithSummary,
 } from 'teleport/services/integrations';
 
+import { getAwsIcErrorMessage } from '../helpers';
 import { IntegrationLike } from '../IntegrationList';
 import { Status } from '../types';
 
@@ -73,8 +68,20 @@ export const SummaryStatusLabel = ({
   summary: IntegrationWithSummary;
 }) => {
   const hasIssues = summary.unresolvedUserTasks > 0;
-  const { status, label } = hasIssues ? ISSUES() : HEALTHY;
-  return <DefaultFlex>{statusLabel(status, label)}</DefaultFlex>;
+  const isSyncing = isSummarySyncing(summary);
+  const { status, label } = isSyncing
+    ? SCANNING()
+    : hasIssues
+      ? ISSUES()
+      : HEALTHY;
+  return (
+    <DefaultFlex alignItems="center" gap={2} flexWrap="wrap">
+      {statusLabel(status, label)}
+      {isSyncing && (
+        <StatusNote typography="body3">(scanning in progress)</StatusNote>
+      )}
+    </DefaultFlex>
+  );
 };
 
 const PointerFlex = styled(Flex)`
@@ -82,6 +89,12 @@ const PointerFlex = styled(Flex)`
 `;
 const DefaultFlex = styled(Flex)`
   cursor: default;
+`;
+
+const StatusNote = styled(Text)`
+  display: flex;
+  align-items: center;
+  line-height: 1;
 `;
 
 const HEALTHY = {
@@ -111,6 +124,12 @@ const UNKNOWN = (tooltip: string) => ({
 const ISSUES = (tooltip?: string) => ({
   status: Status.Issues,
   label: 'Issues',
+  tooltip,
+});
+
+const SCANNING = (tooltip?: string) => ({
+  status: Status.Scanning,
+  label: 'Scanning',
   tooltip,
 });
 
@@ -146,10 +165,15 @@ export function getStatus(item: IntegrationLike): {
       return ISSUES(
         'The Slack integration must be invited to the default channel in order to receive access request notifications.'
       );
-    case IntegrationStatusCode.Unauthorized:
+    case IntegrationStatusCode.Unauthorized: {
+      const awsIcErrorMessage = getAwsIcErrorMessage(item);
+      if (awsIcErrorMessage) {
+        return FAILED(awsIcErrorMessage);
+      }
       return FAILED(
         'Integration was denied access. This could be a result of revoked authorization on the 3rd party provider. Try removing and re-connecting the integration.'
       );
+    }
     case IntegrationStatusCode.OktaConfigError:
       return FAILED(
         `There was an error with the integration's configuration.${item.status?.errorMessage ? ` ${item.status.errorMessage}` : ''}`
@@ -164,41 +188,86 @@ export function getStatus(item: IntegrationLike): {
 const StatusUI: Record<
   Status,
   {
-    Icon: ComponentType<{ size?: IconSize }>;
-    Label: ComponentType<{ children: React.ReactNode }>;
+    kind: StatusKind;
+    variant: StatusVariant;
+    icon?: React.ComponentType<any>;
   }
 > = {
   [Status.Healthy]: {
-    Icon: CircleCheck,
-    Label: SecondaryOutlined,
+    kind: 'success',
+    variant: 'border',
   },
   [Status.Draft]: {
-    Icon: Wrench,
-    Label: SecondaryOutlined,
+    kind: 'neutral',
+    variant: 'filled-tonal',
+    icon: Wrench,
   },
   [Status.Unknown]: {
-    Icon: Question,
-    Label: SecondaryOutlined,
+    kind: 'neutral',
+    variant: 'filled-tonal',
   },
   [Status.Failed]: {
-    Icon: CircleCross,
-    Label: DangerOutlined,
+    kind: 'danger',
+    variant: 'filled-tonal',
   },
   [Status.Issues]: {
-    Icon: Warning,
-    Label: WarningOutlined,
+    kind: 'warning',
+    variant: 'filled-tonal',
+  },
+  [Status.Scanning]: {
+    kind: 'info',
+    variant: 'filled-tonal',
   },
 };
 
 const statusLabel = (status: Status, label: string) => {
-  const { Icon, Label } = StatusUI[status];
+  const { kind, variant, icon } = StatusUI[status];
 
   return (
-    <Label aria-label="status">
-      <Flex alignItems="center" gap={1}>
-        <Icon size="small" />
-        {label}
-      </Flex>
-    </Label>
+    <StatusBadge kind={kind} variant={variant} icon={icon} aria-label="status">
+      {label}
+    </StatusBadge>
   );
 };
+
+export function latestSyncDate(
+  summary: IntegrationWithSummary
+): Date | undefined {
+  const lastSyncTimestamps = [
+    summary.awsec2?.discoverLastSync,
+    summary.awsrds?.discoverLastSync,
+    summary.awseks?.discoverLastSync,
+    summary.azurevm?.discoverLastSync,
+    summary.rolesAnywhereProfileSync?.syncEndTime,
+  ].map(toTimestamp);
+
+  const lastSync = Math.max(...lastSyncTimestamps);
+
+  return lastSync ? new Date(lastSync) : undefined;
+}
+
+function isSummarySyncing(summary: IntegrationWithSummary): boolean {
+  const lastScanDate = latestSyncDate(summary);
+  return (
+    !lastScanDate ||
+    Date.now() >=
+      lastScanDate.getTime() + INTEGRATION_DISCOVERY_SCAN_INTERVAL_MS
+  );
+}
+
+export function toTimestamp(value: unknown): number {
+  if (!value) {
+    return 0;
+  }
+  if (value instanceof Date) {
+    return value.getTime();
+  }
+  if (typeof value === 'number') {
+    return value;
+  }
+  if (typeof value === 'string') {
+    const parsed = Date.parse(value);
+    return Number.isNaN(parsed) ? 0 : parsed;
+  }
+  return 0;
+}

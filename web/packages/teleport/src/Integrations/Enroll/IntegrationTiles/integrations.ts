@@ -66,6 +66,33 @@ const integrations: IntegrationTileSpec[] = [
     name: 'AWS IAM Roles Anywhere',
     tags: ['resourceaccess'],
   },
+  {
+    type: 'integration',
+    kind: IntegrationKind.AwsCloud,
+    icon: 'aws',
+    name: 'AWS Discovery with Terraform',
+    description:
+      'Use Terraform to connect your AWS account to Teleport and automatically discover resources.',
+    tags: ['terraform', 'resourceaccess'],
+  },
+  {
+    type: 'integration',
+    kind: IntegrationKind.AzureCloud,
+    icon: 'azure',
+    name: 'Azure Discovery with Terraform',
+    description:
+      'Use Terraform to connect your Azure account to Teleport and automatically discover resources.',
+    tags: ['terraform', 'resourceaccess'],
+  },
+  {
+    type: 'integration',
+    kind: IntegrationKind.GoogleCloud,
+    icon: 'google',
+    name: 'Google Cloud Discovery with Terraform',
+    description:
+      'Use Terraform to connect your Google Cloud account to Teleport and automatically discover resources.',
+    tags: ['terraform', 'resourceaccess'],
+  },
 ];
 
 export function installableIntegrations() {
@@ -76,6 +103,18 @@ export function installableIntegrations() {
     if (i.kind === IntegrationKind.ExternalAuditStorage && isOnpremEnterprise) {
       return false;
     }
+
+    // IaC integrations are built against Cloud environments -- expecting
+    // a discovery service to be running and a public proxy for OIDC.
+    // This check will be removed when the flow is polished for self-hosted.
+    const requiresCloudEnvironment =
+      i.kind === IntegrationKind.AwsCloud ||
+      i.kind === IntegrationKind.AzureCloud ||
+      i.kind === IntegrationKind.GoogleCloud;
+    if (requiresCloudEnvironment && !cfg.isCloud) {
+      return false;
+    }
+
     return true;
   });
 }

@@ -112,7 +112,7 @@ const (
 	appSessionUserIndex appSessionIndex = "user"
 )
 
-func newAppSessionCollection(upstream services.AppSession, w types.WatchKind) (*collection[types.WebSession, appSessionIndex], error) {
+func newAppSessionCollection(upstream services.AppSessionReader, w types.WatchKind) (*collection[types.WebSession, appSessionIndex], error) {
 	if upstream == nil {
 		return nil, trace.BadParameter("missing parameter AppSession")
 	}

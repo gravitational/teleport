@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
@@ -75,12 +76,12 @@ func TestRemoteConnCleanup(t *testing.T) {
 
 	// set up the cluster
 	srv := &server{
-		ctx:              ctx,
-		Config:           Config{Clock: clock},
-		localAuthClient:  &mockLocalClusterClient{},
-		logger:           logtest.NewLogger(),
-		offlineThreshold: time.Second,
-		proxyWatcher:     watcher,
+		ctx:                     ctx,
+		Config:                  Config{Clock: clock},
+		localAuthClient:         &mockLocalClusterClient{},
+		logger:                  logtest.NewLogger(),
+		offlineThreshold:        time.Second,
+		proxyDiscoveryPublisher: newProxyDiscoveryPublisher(ctx, watcher, logtest.NewLogger()),
 	}
 
 	cluster, err := newLocalCluster(srv, "clustername", nil,
@@ -147,11 +148,26 @@ func TestRemoteConnCleanup(t *testing.T) {
 
 func TestLocalClusterOverlap(t *testing.T) {
 	t.Parallel()
+	ctx := t.Context()
+	clock := clockwork.NewFakeClock()
+	clt := &mockLocalClusterClient{}
+	watcher, err := services.NewProxyWatcher(ctx, services.ProxyWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: "test",
+			Logger:    logtest.NewLogger(),
+			Clock:     clock,
+			Client:    clt,
+		},
+		ProxyGetter: clt,
+		ProxiesC:    make(chan []types.Server, 2),
+	})
+	require.NoError(t, err)
 
 	srv := &server{
-		Config:          Config{Clock: clockwork.NewFakeClock()},
-		ctx:             context.Background(),
-		localAuthClient: &mockLocalClusterClient{},
+		Config:                  Config{Clock: clockwork.NewFakeClock()},
+		ctx:                     context.Background(),
+		localAuthClient:         &mockLocalClusterClient{},
+		proxyDiscoveryPublisher: newProxyDiscoveryPublisher(ctx, watcher, logtest.NewLogger()),
 	}
 
 	cluster, err := newLocalCluster(srv, "clustername", nil,
@@ -270,18 +286,26 @@ func TestProxyResync(t *testing.T) {
 
 	// set up the cluster
 	srv := &server{
-		ctx:              ctx,
-		Config:           Config{Clock: clock},
-		localAuthClient:  &mockLocalClusterClient{},
-		logger:           logtest.NewLogger(),
-		offlineThreshold: 24 * time.Hour,
-		proxyWatcher:     watcher,
+		ctx:                     ctx,
+		Config:                  Config{Clock: clock},
+		localAuthClient:         &mockLocalClusterClient{},
+		logger:                  logtest.NewLogger(),
+		offlineThreshold:        24 * time.Hour,
+		proxyDiscoveryPublisher: newProxyDiscoveryPublisher(ctx, watcher, logtest.NewLogger()),
 	}
 	cluster, err := newLocalCluster(srv, "clustername", nil,
 		withProxySyncInterval(time.Second),
 		withPeriodicFunctionInterval(24*time.Hour),
 	)
 	require.NoError(t, err)
+
+	// Since the proxy discovery publisher is async, we need to wait until it has published the initial snapshot before
+	// we can validate periodic resync behavior. If we don't wait, the test can be flaky because the periodic resync
+	// could happen before the initial snapshot is published, which would cause the test to fail since it expects a
+	// snapshot with the expected proxies to be published on each resync. This directly reads from
+	// proxyDiscoveryPublisher instead of through the cluster machinery since the cluster machinery is what we're trying
+	// to test and we want to avoid any potential bugs in it that could cause the test to be flaky.
+	ensureSnapshotContainsExpectedProxies(t, srv.proxyDiscoveryPublisher, proxy1, proxy2)
 
 	// create the ssh machinery to mock an agent
 	discoveryCh := make(chan *discoveryRequest)
@@ -338,6 +362,37 @@ func TestProxyResync(t *testing.T) {
 			t.Fatal("timed out waiting for discovery request")
 		}
 	}
+}
+
+func ensureSnapshotContainsExpectedProxies(t *testing.T, publisher *proxyDiscoveryPublisher, expected ...types.Server) {
+	t.Helper()
+
+	// Use a fresh subscriber to block until the publisher has an initial snapshot.
+	subscriber := publisher.Subscribe()
+
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+
+	select {
+	case <-ctx.Done():
+		t.Fatal("timed out waiting for proxy discovery snapshot")
+
+	case <-subscriber.Wait():
+	}
+
+	gotProxies := subscriber.GetAll()
+
+	gotProxyNames := make([]string, len(gotProxies))
+	for i, proxy := range gotProxies {
+		gotProxyNames[i] = proxy.Metadata.Name
+	}
+
+	expectedProxyNames := make([]string, len(expected))
+	for i, proxy := range expected {
+		expectedProxyNames[i] = proxy.GetName()
+	}
+
+	require.ElementsMatch(t, expectedProxyNames, gotProxyNames)
 }
 
 type mockLocalClusterClient struct {
@@ -458,4 +513,60 @@ func (c *mockedSSHChannel) SendRequest(name string, wantReply bool, payload []by
 
 func (*mockedSSHChannel) Close() error {
 	return nil
+}
+
+func TestLocalClusterRemoveScopedConns(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	clock := clockwork.NewFakeClock()
+	clt := &mockLocalClusterClient{}
+	watcher, err := services.NewProxyWatcher(ctx, services.ProxyWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: "test",
+			Logger:    logtest.NewLogger(),
+			Clock:     clock,
+			Client:    clt,
+		},
+		ProxyGetter: clt,
+		ProxiesC:    make(chan []types.Server, 2),
+	})
+	require.NoError(t, err)
+	require.NoError(t, watcher.WaitInitialization())
+
+	srv := &server{
+		ctx:                     ctx,
+		Config:                  Config{Clock: clock},
+		localAuthClient:         clt,
+		logger:                  logtest.NewLogger(),
+		offlineThreshold:        time.Second,
+		proxyDiscoveryPublisher: newProxyDiscoveryPublisher(ctx, watcher, logtest.NewLogger()),
+	}
+	t.Cleanup(srv.proxyDiscoveryPublisher.Close)
+
+	cluster, err := newLocalCluster(srv, "clustername", nil,
+		withPeriodicFunctionInterval(time.Hour),
+		withProxySyncInterval(time.Hour),
+	)
+	require.NoError(t, err)
+
+	nodeID := uuid.NewString()
+	const (
+		scope    = "my-scope"
+		connType = types.NodeTunnel
+	)
+
+	conn, err := cluster.addConn(nodeID, scope, connType, &mockRemoteConnConn{}, nil)
+	require.NoError(t, err)
+
+	key := connKey{
+		uuid:     nodeID,
+		connType: connType,
+		scope:    scopes.NormalizeForEquality(scope),
+	}
+	require.Len(t, cluster.remoteConns[key], 1)
+
+	cluster.removeRemoteConn(conn)
+
+	require.Empty(t, cluster.remoteConns[key])
+	require.NotContains(t, cluster.remoteConns, key)
 }

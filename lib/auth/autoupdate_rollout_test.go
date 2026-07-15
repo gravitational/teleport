@@ -42,6 +42,7 @@ import (
 )
 
 func TestSampleAgentsFromGroup(t *testing.T) {
+	t.Parallel()
 	clock := clockwork.NewFakeClock()
 	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
@@ -74,7 +75,7 @@ func TestSampleAgentsFromGroup(t *testing.T) {
 	for range testNodeCount {
 		updaterID := uuid.New()
 		stream := newFakeControlStream()
-		controller.RegisterControlStream(stream, &proto.UpstreamInventoryHello{
+		controller.RegisterControlStream(stream, proto.UpstreamInventoryHello_builder{
 			Services:         types.SystemRoles{types.RoleNode}.StringSlice(),
 			Version:          "1.2.3",
 			ServerID:         uuid.NewString(),
@@ -84,7 +85,7 @@ func TestSampleAgentsFromGroup(t *testing.T) {
 				UpdaterStatus: types.UpdaterStatus_UPDATER_STATUS_OK,
 				UpdateGroup:   testGroupName,
 			},
-		})
+		}.Build())
 		t.Cleanup(stream.close)
 	}
 
@@ -100,7 +101,7 @@ func TestSampleAgentsFromGroup(t *testing.T) {
 	// Test execution: check that there were no duplicates in the samples
 	canarySet := make(map[string]*autoupdatev1pb.Canary)
 	for _, canary := range canaries {
-		canarySet[canary.UpdaterId] = canary
+		canarySet[canary.GetUpdaterId()] = canary
 	}
 	require.Len(t, canarySet, sampleSize, "some canary got duplicated")
 
@@ -109,14 +110,14 @@ func TestSampleAgentsFromGroup(t *testing.T) {
 	require.Len(t, canaries2, sampleSize)
 	canarySet = make(map[string]*autoupdatev1pb.Canary)
 	for _, canary := range canaries2 {
-		canarySet[canary.UpdaterId] = canary
+		canarySet[canary.GetUpdaterId()] = canary
 	}
 	require.Len(t, canarySet, sampleSize, "some canary got duplicated")
 
 	// Text execution: check that the random looks sane
 	var conflicts int
 	for i := range sampleSize {
-		if canaries[i].UpdaterId == canaries2[i].UpdaterId {
+		if canaries[i].GetUpdaterId() == canaries2[i].GetUpdaterId() {
 			conflicts++
 		}
 	}
@@ -130,7 +131,7 @@ func TestSampleAgentsFromGroup(t *testing.T) {
 	require.Len(t, canariesCatchAll, sampleSize)
 	canarySet = make(map[string]*autoupdatev1pb.Canary)
 	for _, canary := range canariesCatchAll {
-		canarySet[canary.UpdaterId] = canary
+		canarySet[canary.GetUpdaterId()] = canary
 	}
 	require.Len(t, canarySet, sampleSize, "some canary got duplicated")
 
@@ -140,12 +141,13 @@ func TestSampleAgentsFromGroup(t *testing.T) {
 	require.Len(t, canariesCatchAll, sampleSize)
 	canarySet = make(map[string]*autoupdatev1pb.Canary)
 	for _, canary := range canariesCatchAll {
-		canarySet[canary.UpdaterId] = canary
+		canarySet[canary.GetUpdaterId()] = canary
 	}
 	require.Len(t, canarySet, sampleSize, "some canary got duplicated")
 }
 
 func TestLookupAgentInInventory(t *testing.T) {
+	t.Parallel()
 	clock := clockwork.NewFakeClock()
 	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
@@ -179,7 +181,7 @@ func TestLookupAgentInInventory(t *testing.T) {
 		updaterID := uuid.New()
 		hellos := make([]*proto.UpstreamInventoryHello, i+1)
 		for j := range i + 1 {
-			hello := &proto.UpstreamInventoryHello{
+			hello := proto.UpstreamInventoryHello_builder{
 				Services:         types.SystemRoles{types.RoleNode}.StringSlice(),
 				Version:          fmt.Sprintf("1.2.%d", j),
 				ServerID:         hostID,
@@ -189,7 +191,7 @@ func TestLookupAgentInInventory(t *testing.T) {
 					UpdaterStatus: types.UpdaterStatus_UPDATER_STATUS_OK,
 					UpdateGroup:   testGroupName,
 				},
-			}
+			}.Build()
 			hellos[j] = hello
 
 			stream := newFakeControlStream()
@@ -205,7 +207,7 @@ func TestLookupAgentInInventory(t *testing.T) {
 	// and content matches.
 
 	opts := cmp.Options{
-		cmpopts.SortSlices(func(a, b *proto.UpstreamInventoryHello) bool { return a.Version > b.Version }),
+		cmpopts.SortSlices(func(a, b *proto.UpstreamInventoryHello) bool { return a.GetVersion() > b.GetVersion() }),
 		protocmp.Transform(),
 	}
 	for hostID, handles := range hosts {
@@ -221,12 +223,13 @@ type fakeHandle struct {
 }
 
 func (f *fakeHandle) Hello() *proto.UpstreamInventoryHello {
-	return &proto.UpstreamInventoryHello{
+	return proto.UpstreamInventoryHello_builder{
 		Hostname: fmt.Sprintf("hostname-%d", f.id),
-	}
+	}.Build()
 }
 
 func TestHandlerSampler(t *testing.T) {
+	t.Parallel()
 	filterOK := func(handle inventory.UpstreamHandle) bool {
 		return true
 	}
@@ -287,7 +290,7 @@ func TestHandlerSampler(t *testing.T) {
 				require.Len(t, reservoir, 5)
 				for i, h := range reservoir {
 					expectedHostname := fmt.Sprintf("hostname-%d", i)
-					require.Equal(t, expectedHostname, h.Hello().Hostname)
+					require.Equal(t, expectedHostname, h.Hello().GetHostname())
 				}
 			},
 		},

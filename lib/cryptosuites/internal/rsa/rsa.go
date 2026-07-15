@@ -84,6 +84,7 @@ func precomputeKeys() {
 			log.ErrorContext(context.Background(), "Failed to precompute key pair, retrying (this might be a bug).",
 				slog.Any("error", err), slog.Duration("backoff", backoff))
 			time.Sleep(backoff)
+			continue
 		}
 
 		PrecomputedKeys <- rsaPrivateKey

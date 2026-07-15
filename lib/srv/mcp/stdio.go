@@ -34,8 +34,8 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/mark3labs/mcp-go/mcp"
 
-	hostutils "github.com/gravitational/teleport/lib/utils/host"
 	"github.com/gravitational/teleport/lib/utils/mcputils"
+	hostutils "github.com/gravitational/teleport/session/host"
 )
 
 // handleAuthErrStdio starts a stdio message reader and replies with the auth

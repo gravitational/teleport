@@ -24,6 +24,7 @@ import (
 	"log/slog"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/gravitational/trace"
 
@@ -50,6 +51,7 @@ var SupportedJoinMethods = []string{
 	string(types.JoinMethodOracle),
 	string(types.JoinMethodBoundKeypair),
 	string(types.JoinMethodEnv0),
+	string(types.JoinMethodGenericOIDC),
 }
 
 const (
@@ -189,6 +191,31 @@ func (c *BoundKeypairOnboardingConfig) StaticPrivateKeyBytes() ([]byte, error) {
 	return nil, nil
 }
 
+// KubernetesOnboardingConfig holds configuration relevant to the `kubernetes` join method.
+type KubernetesOnboardingConfig struct {
+	// TokenPath is the optional path that tbot uses to lookup the Kubernetes service account token used to join.
+	// When unset, the join client will try the `KUBERNETES_TOKEN_PATH` env var, else it will use the standard location:
+	// "/var/run/secrets/kubernetes.io/serviceaccount/token".
+	TokenPath string `yaml:"token_path,omitempty"`
+}
+
+// GenericOIDCOnboardingConfig contains configuration relevant to the
+// `generic_oidc` join method.
+type GenericOIDCOnboardingConfig struct {
+	// Env is the name of the environment variable containing a JWT. Cannot be
+	// set if `command` is set.
+	Env string `yaml:"env,omitempty"`
+
+	// Command is the command to run and its arguments. The executable is the
+	// first element, followed by optional arguments. Cannot be set if `env` is
+	// set.
+	Command []string `yaml:"command,omitempty"`
+
+	// Timeout is the maximum amount of time to wait for this command to
+	// complete before giving up, after which the join attempt fails.
+	Timeout time.Duration `yaml:"timeout,omitempty"`
+}
+
 // Config contains values relevant to how the bot authenticates with
 // and joins the Teleport cluster.
 type Config struct {
@@ -219,8 +246,15 @@ type Config struct {
 	// Gitlab holds configuration relevant to the `gitlab` join method.
 	Gitlab GitlabOnboardingConfig `yaml:"gitlab,omitempty"`
 
-	// BoundKeypair holds configuration relevant to the `bound_keypair` join method
+	// BoundKeypair holds configuration relevant to the `bound_keypair` join method.
 	BoundKeypair BoundKeypairOnboardingConfig `yaml:"bound_keypair,omitempty"`
+
+	// Kubernetes holds the configuration relevant to the `kubernetes` join method.
+	Kubernetes KubernetesOnboardingConfig `yaml:"kubernetes,omitempty"`
+
+	// GenericOIDC contains configuration relevant to the `generic_oidc` join
+	// method.
+	GenericOIDC GenericOIDCOnboardingConfig `yaml:"generic_oidc,omitempty"`
 }
 
 // HasToken gives the ability to check if there has been a token value stored

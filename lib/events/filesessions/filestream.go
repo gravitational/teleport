@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
@@ -72,9 +73,9 @@ func GetOpenFileFunc() utils.OpenFileWithFlagsFunc {
 
 const (
 	// minUploadBytes is the minimum part file size required to trigger its upload.
-	minUploadBytes = events.MaxProtoMessageSizeBytes * 2
+	minUploadBytes = constants.MaxProtoMessageSizeBytes * 2
 	// reservationSize is the size new reservations will preallocate.
-	reservationSize = minUploadBytes + events.MaxProtoMessageSizeBytes
+	reservationSize = minUploadBytes + constants.MaxProtoMessageSizeBytes
 )
 
 type StreamerConfig struct {

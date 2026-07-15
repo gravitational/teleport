@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/itertools/stream"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
@@ -108,13 +109,13 @@ func (h *Handler) listRequestableRolesHandle(w http.ResponseWriter, r *http.Requ
 		return nil, trace.Wrap(err)
 	}
 
-	rolesReq := &proto.ListRequestableRolesRequest{
+	rolesReq := proto.ListRequestableRolesRequest_builder{
 		PageSize:  limit,
 		PageToken: values.Get("startKey"),
-		Filter: &proto.ListRequestableRolesRequest_Filter{
+		Filter: proto.ListRequestableRolesRequest_Filter_builder{
 			SearchKeywords: client.ParseSearchKeywords(values.Get("search"), ' '),
-		},
-	}
+		}.Build(),
+	}.Build()
 
 	resp, err := clt.ListRequestableRoles(r.Context(), rolesReq)
 	if err != nil {
@@ -122,8 +123,8 @@ func (h *Handler) listRequestableRolesHandle(w http.ResponseWriter, r *http.Requ
 	}
 
 	return &listResourcesWithoutCountGetResponse{
-		Items:    ui.RequestableRolesFromProto(resp.Roles),
-		StartKey: resp.NextPageToken,
+		Items:    ui.RequestableRolesFromProto(resp.GetRoles()),
+		StartKey: resp.GetNextPageToken(),
 	}, nil
 }
 
@@ -182,7 +183,7 @@ func (h *Handler) updateRoleHandle(w http.ResponseWriter, r *http.Request, param
 // should have the same security implications as the Teleport version exposed
 // via the public ping endpoint.
 func (h *Handler) getPresetRoles(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
-	presets := auth.GetPresetRoles()
+	presets := auth.GetPresetRoles(modules.GetModules().BuildType())
 	return ui.NewRoles(presets, false /* without role object */)
 }
 
@@ -273,10 +274,10 @@ func getGithubConnectors(ctx context.Context, clt resourcesAPIGetter) ([]ui.Reso
 	// TODO(okraport): DELETE IN v21.0.0, replace with regular collect.
 	connectors, err := clientutils.CollectWithFallback(ctx,
 		func(ctx context.Context, limit int, start string) ([]types.GithubConnector, string, error) {
-			return clt.ListGithubConnectors(ctx, limit, start, true)
+			return clt.ListGithubConnectors(ctx, limit, start, false)
 		},
 		func(ctx context.Context) ([]types.GithubConnector, error) {
-			return clt.GetGithubConnectors(ctx, true)
+			return clt.GetGithubConnectors(ctx, false)
 		},
 	)
 	if err != nil {
@@ -647,7 +648,7 @@ func newKubeListRequest(values url.Values, site, resourceKind string) (*kubeprot
 	sortBy := types.GetSortByFromString(values.Get("sort"))
 
 	startKey := values.Get("startKey")
-	req := &kubeproto.ListKubernetesResourcesRequest{
+	req := kubeproto.ListKubernetesResourcesRequest_builder{
 		ResourceType:        resourceKind,
 		Limit:               limit,
 		StartKey:            startKey,
@@ -658,7 +659,7 @@ func newKubeListRequest(values url.Values, site, resourceKind string) (*kubeprot
 		TeleportCluster:     site,
 		KubernetesCluster:   values.Get("kubeCluster"),
 		KubernetesNamespace: values.Get("kubeNamespace"),
-	}
+	}.Build()
 	return req, nil
 }
 

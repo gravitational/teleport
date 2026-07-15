@@ -29,6 +29,55 @@ import (
 	"github.com/gravitational/trace"
 )
 
+const (
+	// MaxAlertMessageLength is somewhat arbitrary, as it is only sent *to*
+	// the browser (Teleport never receives this message, so won't be decoding it)
+	MaxAlertMessageLength = 10240
+
+	// MaxPathLength is somewhat arbitrary because we weren't able to determine
+	// a precise value to set it to: https://github.com/gravitational/teleport/issues/14950#issuecomment-1341632465
+	// The limit is kept as an additional defense-in-depth measure.
+	MaxPathLength = 10240
+
+	MaxClipboardDataLength = 1024 * 1024 // 1MB
+	MaxFileReadWriteLength = 1024 * 1024 // 1MB
+)
+
+var (
+	ClipDataMaxLenErr      = trace.LimitExceeded("clipboard sync failed: clipboard data exceeded maximum length")
+	StringMaxLenErr        = trace.LimitExceeded("TDP string length exceeds allowable limit")
+	FileReadWriteMaxLenErr = trace.LimitExceeded("TDP file read or write message exceeds maximum size limit")
+	MFADataMaxLenErr       = trace.LimitExceeded("MFA challenge data exceeds maximum length")
+)
+
+// IsNonFatalErr returns whether or not an error arising from
+// the tdp package should be interpreted as fatal or non-fatal
+// for an ongoing TDP connection.
+func IsNonFatalErr(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	return errors.Is(err, ClipDataMaxLenErr) ||
+		errors.Is(err, StringMaxLenErr) ||
+		errors.Is(err, FileReadWriteMaxLenErr) ||
+		errors.Is(err, MFADataMaxLenErr)
+}
+
+// IsFatalErr returns the inverse of IsNonFatalErr
+// (except for if err == nil, for which both functions return false)
+func IsFatalErr(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	return !IsNonFatalErr(err)
+}
+
+type Message interface {
+	Encode() ([]byte, error)
+}
+
 type MessageReader interface {
 	ReadMessage() (Message, error)
 }
@@ -51,33 +100,44 @@ type MessageReadWriteCloser interface {
 // It converts between a stream of bytes (io.ReadWriter) and a stream of
 // Teleport Desktop Protocol (TDP) messages.
 type Conn struct {
-	rwc       io.ReadWriteCloser
-	writeMu   sync.Mutex
-	bufr      *bufio.Reader
-	closeOnce sync.Once
-
-	// OnSend is an optional callback that is invoked when a TDP message
-	// is sent on the wire. It is passed both the raw bytes and the encoded
-	// message.
-	OnSend func(m Message, b []byte)
-
-	// OnRecv is an optional callback that is invoked when a TDP message
-	// is received on the wire.
-	OnRecv func(m Message)
-
+	rwc              io.ReadWriteCloser
+	writeMu          sync.Mutex
+	bufr             *bufio.Reader
+	decode           Decoder
+	closeOnce        sync.Once
+	constructWarning WarningConstructor
 	// localAddr and remoteAddr will be set if rw is
 	// a conn that provides these fields
 	localAddr  net.Addr
 	remoteAddr net.Addr
 }
 
+type ByteReader interface {
+	io.Reader
+	io.ByteReader
+}
+
+// Decoder is a function that decodes incoming data
+// into a Message.
+type Decoder func(ByteReader) (Message, error)
+
+// DecoderAdapter adapts a Decoder that works with a standard io.Reader
+func DecoderAdapter(f func(io.Reader) (Message, error)) Decoder {
+	return func(br ByteReader) (Message, error) {
+		return f(br)
+	}
+}
+
 // NewConn creates a new Conn on top of a ReadWriter, for example a TCP
 // connection. If the provided ReadWriter also implements srv.TrackingConn,
 // then its LocalAddr() and RemoteAddr() will apply to this Conn.
-func NewConn(rwc io.ReadWriteCloser) *Conn {
+func NewConn(rwc io.ReadWriteCloser, decoder Decoder, wc WarningConstructor) *Conn {
+	br := bufio.NewReader(rwc)
 	c := &Conn{
-		rwc:  rwc,
-		bufr: bufio.NewReader(rwc),
+		rwc:              rwc,
+		bufr:             br,
+		decode:           decoder,
+		constructWarning: wc,
 	}
 
 	if tc, ok := rwc.(srvTrackingConn); ok {
@@ -107,9 +167,8 @@ func (c *Conn) Close() error {
 	return err
 }
 
-// NextMessageType peaks at the next incoming message without
-// consuming it.
-func (c *Conn) NextMessageType() (MessageType, error) {
+// PeekNextByte peeks at the next byte without consuming it.
+func (c *Conn) PeekNextByte() (byte, error) {
 	b, err := c.bufr.ReadByte()
 	if err != nil {
 		return 0, trace.Wrap(err)
@@ -117,16 +176,31 @@ func (c *Conn) NextMessageType() (MessageType, error) {
 	if err := c.bufr.UnreadByte(); err != nil {
 		return 0, trace.Wrap(err)
 	}
-	return MessageType(b), nil
+	return b, nil
+}
+
+// WarningConstructor is a function that constructs a TDP or TDPB
+// alert message with warning severity to be sent to the client.
+type WarningConstructor func(string) Message
+
+func (c *Conn) sendWarning(warning string) error {
+	return c.WriteMessage(c.constructWarning(warning))
 }
 
 // ReadMessage reads the next incoming message from the connection.
 func (c *Conn) ReadMessage() (Message, error) {
-	m, err := decode(c.bufr)
-	if c.OnRecv != nil {
-		c.OnRecv(m)
+	for {
+		m, err := c.decode(c.bufr)
+		if err != nil && IsNonFatalErr(err) {
+			if warnError := c.sendWarning(err.Error()); warnError != nil {
+				return nil, trace.Wrap(warnError, "error sending alert message in response to decode error: %v", err)
+			}
+			// Warning sent. Try reading the next message
+			continue
+		}
+		// err may still be non-nil
+		return m, trace.Wrap(err)
 	}
-	return m, trace.Wrap(err)
 }
 
 // WriteMessage sends a message to the connection.
@@ -140,31 +214,7 @@ func (c *Conn) WriteMessage(m Message) error {
 	_, err = c.rwc.Write(buf)
 	c.writeMu.Unlock()
 
-	if c.OnSend != nil {
-		c.OnSend(m, buf)
-	}
 	return trace.Wrap(err)
-}
-
-// ReadClientScreenSpec reads the next message from the connection, expecting
-// it to be a ClientScreenSpec. If it is not, an error is returned.
-func (c *Conn) ReadClientScreenSpec() (*ClientScreenSpec, error) {
-	m, err := c.ReadMessage()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	spec, ok := m.(ClientScreenSpec)
-	if !ok {
-		return nil, trace.BadParameter("expected ClientScreenSpec, got %T", m)
-	}
-
-	return &spec, nil
-}
-
-// SendNotification is a convenience function for sending a Notification message.
-func (c *Conn) SendNotification(message string, severity Severity) error {
-	return c.WriteMessage(Alert{Message: message, Severity: severity})
 }
 
 // LocalAddr returns local address
@@ -175,30 +225,6 @@ func (c *Conn) LocalAddr() net.Addr {
 // RemoteAddr returns remote address
 func (c *Conn) RemoteAddr() net.Addr {
 	return c.remoteAddr
-}
-
-// IsNonFatalErr returns whether or not an error arising from
-// the tdp package should be interpreted as fatal or non-fatal
-// for an ongoing TDP connection.
-func IsNonFatalErr(err error) bool {
-	if err == nil {
-		return false
-	}
-
-	return errors.Is(err, clipDataMaxLenErr) ||
-		errors.Is(err, stringMaxLenErr) ||
-		errors.Is(err, fileReadWriteMaxLenErr) ||
-		errors.Is(err, mfaDataMaxLenErr)
-}
-
-// IsFatalErr returns the inverse of IsNonFatalErr
-// (except for if err == nil, for which both functions return false)
-func IsFatalErr(err error) bool {
-	if err == nil {
-		return false
-	}
-
-	return !IsNonFatalErr(err)
 }
 
 // Interceptor intercepts messages. It should return
@@ -359,4 +385,14 @@ func (c *ConnProxy) Run() error {
 	})
 	wg.Wait()
 	return trace.NewAggregate(clientToServerErr, serverToClientErr)
+}
+
+// EncodeTo calls 'Encode' on the given message and writes it to 'w'.
+func EncodeTo(w io.Writer, msg Message) error {
+	data, err := msg.Encode()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = w.Write(data)
+	return trace.Wrap(err)
 }

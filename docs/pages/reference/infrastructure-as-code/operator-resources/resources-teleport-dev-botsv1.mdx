@@ -23,15 +23,16 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |apiVersion|string|APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources|
 |kind|string|Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds|
 |metadata|object||
+|scope|string|The scope of the Bot. If unset, the Bot is unscoped (classic behavior) and if set, the Bot is scoped. When the Bot is scoped, the `spec.roles`, `spec.traits` and `spec.max_session_ttl` fields must not be set.|
 |spec|[object](#spec)|Bot resource definition v1 from Teleport|
 
 ### spec
 
 |Field|Type|Description|
 |---|---|---|
-|max_session_ttl|string|The max session TTL value for the bot's internal role. Unless specified, bots may not request a value beyond the default maximum TTL of 12 hours. This value may not be larger than 7 days (168 hours).|
-|roles|[]string|The roles that the bot should be able to impersonate.|
-|traits|[][object](#spectraits-items)|The traits that will be associated with the bot for the purposes of role templating.  Where multiple specified with the same name, these will be merged by the server.|
+|max_session_ttl|string|The max session TTL value for the bot's internal role. Unless specified, bots may not request a value beyond the default maximum TTL of 12 hours. This value may not be larger than 7 days (168 hours).  Cannot be set for a scoped Bot.|
+|roles|[]string|The roles that the bot should be able to impersonate.  Cannot be set for a scoped Bot.|
+|traits|[][object](#spectraits-items)|The traits that will be associated with the bot for the purposes of role templating.  Where multiple specified with the same name, these will be merged by the server.  Cannot be set for a scoped Bot.|
 
 ### spec.traits items
 

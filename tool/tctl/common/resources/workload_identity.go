@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/itertools/stream"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -50,7 +51,7 @@ func (c *workloadIdentityCollection) WriteText(w io.Writer, verbose bool) error 
 	var rows [][]string
 	for _, item := range c.items {
 		rows = append(rows, []string{
-			item.Metadata.Name,
+			scopes.QualifiedName{Scope: item.GetScope(), Name: item.GetMetadata().GetName()}.String(),
 			item.GetSpec().GetSpiffe().GetId(),
 		})
 	}
@@ -83,9 +84,9 @@ func getWorkloadIdentity(
 	c := client.WorkloadIdentityResourceServiceClient()
 
 	if ref.Name != "" {
-		resource, err := c.GetWorkloadIdentity(ctx, &workloadidentityv1pb.GetWorkloadIdentityRequest{
+		resource, err := c.GetWorkloadIdentity(ctx, workloadidentityv1pb.GetWorkloadIdentityRequest_builder{
 			Name: ref.Name,
-		})
+		}.Build())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -93,10 +94,10 @@ func getWorkloadIdentity(
 	}
 
 	resources, err := stream.Collect(clientutils.Resources(ctx, func(ctx context.Context, limit int, pageToken string) ([]*workloadidentityv1pb.WorkloadIdentity, string, error) {
-		resp, err := client.WorkloadIdentityResourceServiceClient().ListWorkloadIdentities(ctx, &workloadidentityv1pb.ListWorkloadIdentitiesRequest{
+		resp, err := client.WorkloadIdentityResourceServiceClient().ListWorkloadIdentities(ctx, workloadidentityv1pb.ListWorkloadIdentitiesRequest_builder{
 			PageSize:  int32(limit),
 			PageToken: pageToken,
-		})
+		}.Build())
 
 		return resp.GetWorkloadIdentities(), resp.GetNextPageToken(), trace.Wrap(err)
 	}))
@@ -105,6 +106,73 @@ func getWorkloadIdentity(
 	}
 
 	return &workloadIdentityCollection{items: resources}, nil
+}
+
+// workloadIdentityScopedHandler returns a [ScopedHandler] for workload identities
+// that are registered with a scope. Workload identities support both classic
+// (unscoped) and scope-qualified access, so this is registered alongside the
+// classic handler in ScopedHandlers().
+func workloadIdentityScopedHandler() ScopedHandler {
+	return ScopedHandler{
+		getHandler:    getWorkloadIdentityScoped,
+		deleteHandler: deleteWorkloadIdentityScoped,
+		description:   "Configures the issuance of SPIFFE SVIDs to workloads.",
+	}
+}
+
+func getWorkloadIdentityScoped(
+	ctx context.Context,
+	client *authclient.Client,
+	subKind string,
+	sqn *scopes.QualifiedName,
+	opts GetOpts,
+) (Collection, error) {
+	if subKind != "" {
+		return nil, rejectSubKind(types.KindWorkloadIdentity, subKind)
+	}
+	if sqn == nil {
+		// No SQN was provided, so this is a list-all. The classic handler
+		// normally serves list-all (workload_identity is registered in both
+		// maps), but fall back to it here for safety.
+		return getWorkloadIdentity(ctx, client, services.Ref{Kind: types.KindWorkloadIdentity}, opts)
+	}
+
+	// The scope travels in the request: the server matches it against the stored
+	// resource's scope and returns a not-found error when they differ, so no
+	// client-side scope comparison is needed.
+	c := client.WorkloadIdentityResourceServiceClient()
+	resource, err := c.GetWorkloadIdentity(ctx, workloadidentityv1pb.GetWorkloadIdentityRequest_builder{
+		Name:  sqn.Name,
+		Scope: sqn.Scope,
+	}.Build())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &workloadIdentityCollection{items: []*workloadidentityv1pb.WorkloadIdentity{resource}}, nil
+}
+
+func deleteWorkloadIdentityScoped(
+	ctx context.Context,
+	client *authclient.Client,
+	subKind string,
+	sqn scopes.QualifiedName,
+) error {
+	if subKind != "" {
+		return rejectSubKind(types.KindWorkloadIdentity, subKind)
+	}
+
+	// The caller declares the scope it is addressing; the server authorizes
+	// against it directly.
+	c := client.WorkloadIdentityResourceServiceClient()
+	_, err := c.DeleteWorkloadIdentity(ctx, workloadidentityv1pb.DeleteWorkloadIdentityRequest_builder{
+		Name:  sqn.Name,
+		Scope: sqn.Scope,
+	}.Build())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("Workload Identity %q has been deleted\n", sqn.String())
+	return nil
 }
 
 func createWorkloadIdentity(
@@ -120,15 +188,15 @@ func createWorkloadIdentity(
 
 	c := client.WorkloadIdentityResourceServiceClient()
 	if opts.Force {
-		if _, err := c.UpsertWorkloadIdentity(ctx, &workloadidentityv1pb.UpsertWorkloadIdentityRequest{
+		if _, err := c.UpsertWorkloadIdentity(ctx, workloadidentityv1pb.UpsertWorkloadIdentityRequest_builder{
 			WorkloadIdentity: in,
-		}); err != nil {
+		}.Build()); err != nil {
 			return trace.Wrap(err)
 		}
 	} else {
-		if _, err := c.CreateWorkloadIdentity(ctx, &workloadidentityv1pb.CreateWorkloadIdentityRequest{
+		if _, err := c.CreateWorkloadIdentity(ctx, workloadidentityv1pb.CreateWorkloadIdentityRequest_builder{
 			WorkloadIdentity: in,
-		}); err != nil {
+		}.Build()); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -144,9 +212,9 @@ func deleteWorkloadIdentity(
 	ref services.Ref,
 ) error {
 	c := client.WorkloadIdentityResourceServiceClient()
-	_, err := c.DeleteWorkloadIdentity(ctx, &workloadidentityv1pb.DeleteWorkloadIdentityRequest{
+	_, err := c.DeleteWorkloadIdentity(ctx, workloadidentityv1pb.DeleteWorkloadIdentityRequest_builder{
 		Name: ref.Name,
-	})
+	}.Build())
 	if err != nil {
 		return trace.Wrap(err)
 	}

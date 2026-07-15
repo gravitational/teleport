@@ -75,6 +75,8 @@ export function ConnectGitHub(props: FlowStepProps) {
 
   const refTypeValue: RefTypeOption =
     refTypeOptions.find(o => o.value === state.refType) ?? refTypeOptions[0];
+  const refPlaceholder =
+    refTypeValue.value === 'tag' ? 'refs/tags/release-v1' : 'refs/heads/main';
 
   const hasGHEHost = !!state.info?.host && state.info.host !== GITHUB_HOST;
 
@@ -120,7 +122,7 @@ export function ConnectGitHub(props: FlowStepProps) {
                 }
                 disabled={state.isBranchDisabled}
                 label="Branch"
-                placeholder="refs/heads/main"
+                placeholder="main"
                 value={state.branch}
                 onChange={e => {
                   dispatch({
@@ -146,10 +148,16 @@ export function ConnectGitHub(props: FlowStepProps) {
                 }
                 size="small"
               />
-              <Text mb={3}>
-                Specifying a branch is recommended to prevent workflows running
-                from any branch to access your Teleport resources.
-              </Text>
+              {state.allowAnyBranch && (
+                <Info
+                  mt={3}
+                  mb={3}
+                  alignItems="flex-start"
+                  details="Specifying a branch is recommended to prevent workflows running from unintended branches (such as PR branches) from accessing your Teleport resources."
+                >
+                  Recommended restriction
+                </Info>
+              )}
 
               {/* TODO(nicholasmarais1158): Make SectionBox a component instead of reusing it from Roles */}
               <SectionBox
@@ -172,6 +180,10 @@ export function ConnectGitHub(props: FlowStepProps) {
                   );
                 }}
               >
+                <Text mb={3}>
+                  Use the options below to further restrict which workflows can
+                  access your Teleport resources.
+                </Text>
                 <FieldInput
                   label="Workflow"
                   placeholder="my-workflow"
@@ -210,7 +222,7 @@ export function ConnectGitHub(props: FlowStepProps) {
                   <FieldInput
                     flex={1}
                     label={'Git Ref'}
-                    placeholder="refs/heads/main"
+                    placeholder={refPlaceholder}
                     value={state.ref}
                     onChange={e => {
                       dispatch({
@@ -333,6 +345,7 @@ export function ConnectGitHub(props: FlowStepProps) {
       <CodeContainer>
         <CodePanel
           trackingStep={IntegrationEnrollStep.MWIGHAK8SConnectGitHub}
+          inProgress
         />
       </CodeContainer>
     </Container>

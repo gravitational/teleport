@@ -16,13 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { setupServer } from 'msw/node';
 import { MemoryRouter } from 'react-router';
 
 import {
+  enableMswServer,
   fireEvent,
   render,
   screen,
+  server,
   testQueryClient,
   userEvent,
   waitFor,
@@ -39,6 +40,8 @@ import { successGetUsersV2 } from 'teleport/test/helpers/users';
 import { Users } from './Users';
 import { State } from './useUsers';
 
+enableMswServer();
+
 const defaultAcl: Access = {
   read: true,
   edit: true,
@@ -47,15 +50,9 @@ const defaultAcl: Access = {
   create: true,
 };
 
-const server = setupServer();
-
-beforeEach(() => server.listen());
 afterEach(() => {
-  server.resetHandlers();
-
   return testQueryClient.resetQueries();
 });
-afterAll(() => server.close());
 
 describe('invite collaborators integration', () => {
   const ctx = createTeleportContext();
@@ -148,7 +145,9 @@ describe('invite collaborators integration', () => {
         </InfoGuidePanelProvider>
       </MemoryRouter>
     );
-    expect(screen.getByTestId('invite-collaborators')).toBeInTheDocument();
+    expect(
+      await screen.findByTestId('invite-collaborators')
+    ).toBeInTheDocument();
   });
 });
 
@@ -310,7 +309,7 @@ describe('permission handling', () => {
 
     await screen.findByPlaceholderText('Search...');
 
-    expect(screen.getByTestId('create_new_users_button')).toBeDisabled();
+    expect(await screen.findByTestId('create_new_users_button')).toBeDisabled();
   });
 
   test('edit and reset options not available in the menu', async () => {
@@ -333,7 +332,9 @@ describe('permission handling', () => {
 
     await screen.findByPlaceholderText('Search...');
 
-    const optionsButton = screen.getByRole('button', { name: /options/i });
+    const optionsButton = await screen.findByRole('button', {
+      name: /options/i,
+    });
     fireEvent.click(optionsButton);
     const menuItems = screen.queryAllByRole('menuitem');
     expect(menuItems).toHaveLength(1);
@@ -365,7 +366,7 @@ describe('permission handling', () => {
 
     await screen.findByPlaceholderText('Search...');
 
-    expect(screen.getByText('tester')).toBeInTheDocument();
+    expect(await screen.findByText('tester')).toBeInTheDocument();
     const optionsButton = screen.getByRole('button', { name: /options/i });
     fireEvent.click(optionsButton);
     const menuItems = screen.queryAllByRole('menuitem');
@@ -404,7 +405,7 @@ describe('permission handling', () => {
 
     await screen.findByPlaceholderText('Search...');
 
-    expect(screen.getByText('tester')).toBeInTheDocument();
+    expect(await screen.findByText('tester')).toBeInTheDocument();
     const optionsButton = screen.getByRole('button', { name: /options/i });
     fireEvent.click(optionsButton);
     const menuItems = screen.queryAllByRole('menuitem');
@@ -443,7 +444,7 @@ describe('permission handling', () => {
     );
 
     await screen.findByPlaceholderText('Search...');
-    const userRow = screen.getByText('tester');
+    const userRow = await screen.findByText('tester');
     expect(userRow).toBeInTheDocument();
     expect(screen.queryByTestId('user-details-panel')).not.toBeInTheDocument();
 

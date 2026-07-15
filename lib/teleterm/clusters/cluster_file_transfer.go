@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils/sftp"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/sftputils"
 )
 
 type FileTransferProgressSender = func(progress *api.FileTransferProgress) error
@@ -50,7 +51,7 @@ func (c *Cluster) TransferFile(ctx context.Context, clt *client.ClusterClient, r
 			nodeClient, err := c.clusterClient.ConnectToNode(ctx, clt, client.NodeDetails{
 				Addr:    addr,
 				Cluster: c.Name,
-			}, request.Login)
+			}, request.GetLogin())
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -81,7 +82,7 @@ func (c *Cluster) TransferFile(ctx context.Context, clt *client.ClusterClient, r
 
 	err := AddMetadataToRetryableError(ctx, func() error {
 		err := c.clusterClient.TransferFiles(ctx, sftpReq)
-		if errors.As(err, new(*sftp.NonRecursiveDirectoryTransferError)) {
+		if errors.As(err, new(*sftputils.NonRecursiveDirectoryTransferError)) {
 			return trace.Errorf("transferring directories through Teleport Connect is not supported at the moment, please use tsh scp -r")
 		}
 		return trace.Wrap(err)
@@ -121,10 +122,10 @@ func (p *fileTransferProgress) maybeUpdateProgress(bytes []byte) (int, error) {
 	defer p.lock.Unlock()
 
 	p.sentSize += int64(bytesLength)
-	percentage := uint32(p.sentSize * 100 / p.fileSize)
+	percentage := calculatePercentage(p.sentSize, p.fileSize)
 
 	if p.shouldSendProgress(percentage) {
-		err := p.sendProgress(&api.FileTransferProgress{Percentage: percentage})
+		err := p.sendProgress(api.FileTransferProgress_builder{Percentage: percentage}.Build())
 		if err != nil {
 			return bytesLength, trace.Wrap(err)
 		}
@@ -133,6 +134,13 @@ func (p *fileTransferProgress) maybeUpdateProgress(bytes []byte) (int, error) {
 	}
 
 	return bytesLength, nil
+}
+
+func calculatePercentage(part, total int64) uint32 {
+	if total <= 0 {
+		return 100
+	}
+	return uint32(part * 100 / total)
 }
 
 func (p *fileTransferProgress) shouldSendProgress(percentage uint32) bool {

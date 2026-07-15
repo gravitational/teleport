@@ -33,6 +33,7 @@ import "accessgraph/v1alpha/resources.proto";
 import "google/protobuf/empty.proto";
 import "google/protobuf/struct.proto";
 import "google/protobuf/timestamp.proto";
+import "prehog/v1alpha/teleport.proto";
 import "teleport/auditlog/v1/auditlog.proto";
 
 option go_package = "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha;accessgraphv1alpha";
@@ -309,6 +310,9 @@ message EventsStreamV2Response {
   oneof action {
     // event is a audit event that should be logged by Teleport.
     AuditEvent event = 1;
+    // usage_event is a usage event to be submitted to the auth server, as an analog of
+    // AuthService.SubmitUsageEvent.
+    UsageEvent usage_event = 2;
   }
 }
 
@@ -317,6 +321,16 @@ message AuditEvent {
   oneof event {
     // access_path_changed is an event that should be logged when the access path changes.
     AccessPathChanged access_path_changed = 1;
+  }
+}
+
+// UsageEvent is a usage event that access graph can submit to teleport
+message UsageEvent {
+  oneof event {
+    // graph_size provides the size of a provider's graph
+    prehog.v1alpha.IdentitySecurityGraphSizeEvent graph_size = 1;
+    // audit_logs_ingested provides a count of new audit logs ingested by a provider.
+    prehog.v1alpha.IdentitySecurityAuditLogsIngestedEvent audit_logs_ingested = 2;
   }
 }
 

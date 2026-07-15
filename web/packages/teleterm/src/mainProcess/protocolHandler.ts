@@ -75,27 +75,19 @@ function disableUnusedProtocols() {
 
 /**
  * Registers the 'http://' protocol handler.
- * Adds cross-origin headers to the document response to enable features requiring
- * cross-origin isolation.
  */
 function handleHttpProtocol(): void {
   protocol.handle('http', async request => {
-    const response = await net.fetch(request, {
+    return await net.fetch(request, {
       // Must be true to prevent the handler from calling itself and entering an infinite loop.
       bypassCustomProtocolHandlers: true,
     });
-    if (request.url === DEV_APP_WINDOW_URL) {
-      setCrossOriginIsolationHeaders(response.headers);
-    }
-    return response;
   });
 }
 
 /**
  * Registers the 'app-file://' protocol handler.
- * Serves application files from the build directory and adds
- * cross-origin header to the document response, enabling features that
- * require cross-origin isolation.
+ * Serves application files from the build directory.
  */
 function handleAppFileProtocol(): void {
   const appPath = app.getAppPath();
@@ -129,25 +121,12 @@ function handleAppFileProtocol(): void {
     // Use net.fetch to serve local files.
     // It automatically determines and sets the correct Content-Type (MIME) header,
     // unlike fs.readFile.
-    const response = await net.fetch(pathToFileURL(realPath).toString(), {
+    return await net.fetch(pathToFileURL(realPath).toString(), {
       // 'file' protocol was disabled in disableUnusedProtocols.
       // We can bypass it because we performed the path traversal checks.
       bypassCustomProtocolHandlers: true,
     });
-    if (request.url === PACKAGED_APP_WINDOW_URL) {
-      setCrossOriginIsolationHeaders(response.headers);
-    }
-    return response;
   });
-}
-
-/**
- * To use features like SharedArrayBuffer, the document must be in a secure context
- * and cross-origin isolated.
- */
-function setCrossOriginIsolationHeaders(headers: Headers): void {
-  headers.set('Cross-Origin-Opener-Policy', 'same-origin');
-  headers.set('Cross-Origin-Embedder-Policy', 'require-corp');
 }
 
 /**
@@ -170,8 +149,7 @@ export function registerAppFileProtocol(): void {
 /**
  * Configures protocol handling:
  * - Disables unused web protocols.
- * - Registers handlers for `app-file://` and `http://` (for Vite dev server)
- * to enforce cross-origin isolation, enabling features like `SharedArrayBuffer`.
+ * - Registers handlers for `app-file://` and `http://` (for Vite dev server).
  */
 export function setUpProtocolHandlers(dev: boolean): void {
   disableUnusedProtocols();

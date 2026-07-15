@@ -117,15 +117,18 @@ func TestValidateRoles(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
-			connector, err := types.NewSAMLConnector("test_connector", types.SAMLConnectorSpecV2{
-				AssertionConsumerService: "http://localhost:65535/acs", // not called
-				Issuer:                   "test",
-				SSO:                      "https://localhost:65535/sso", // not called
-				AttributesToRoles: []types.AttributeMapping{
-					// not used. can be any name, value but role must exist
-					{Name: "groups", Value: "admin", Roles: tc.roles},
+			connector, err := types.NewSAMLConnector(
+				"test_connector",
+				types.SAMLConnectorSpecV2{
+					AssertionConsumerService: "http://localhost:65535/acs", // not called
+					Issuer:                   "test",
+					SSO:                      "https://localhost:65535/sso", // not called
+					AttributesToRoles: []types.AttributeMapping{
+						// not used. can be any name, value but role must exist
+						{Name: "groups", Value: "admin", Roles: tc.roles},
+					},
 				},
-			})
+			)
 			require.NoError(t, err)
 
 			err = ValidateSAMLConnector(connector, validRoles)
@@ -142,6 +145,10 @@ func (m mockSAMLGetter) GetSAMLConnector(_ context.Context, id string, withSecre
 		return nil, trace.NotFound("%s not found", id)
 	}
 	return connector, nil
+}
+
+func (m mockSAMLGetter) GetSAMLConnectorWithValidationOptions(ctx context.Context, id string, withSecrets bool, _ ...types.SAMLConnectorValidationOption) (types.SAMLConnector, error) {
+	return m.GetSAMLConnector(ctx, id, withSecrets)
 }
 
 func TestFillSAMLSigningKeyFromExisting(t *testing.T) {
@@ -234,7 +241,110 @@ func TestFillSAMLSigningKeyFromExisting(t *testing.T) {
 				Spec: tc.connectorSpec,
 			}
 
-			err := FillSAMLSigningKeyFromExisting(ctx, connector, existingConnectors)
+			err := FillSAMLSecretFieldsFromExistingConnector(ctx, connector, existingConnectors)
+			tc.assertErr(t, err)
+			if tc.assertResult != nil {
+				tc.assertResult(t, connector)
+			}
+		})
+	}
+}
+
+func TestFillSAMLOAuthClientSecretFromExisting(t *testing.T) {
+	t.Parallel()
+
+	existingOAuthCreds := &types.OAuthClientCredentials{
+		ClientId:     "test-client-id",
+		ClientSecret: "test-client-secret",
+	}
+
+	existingConnectorName := "existing"
+	existingConnectorNoCredsName := "existing-no-creds"
+	existingConnectors := mockSAMLGetter{
+		existingConnectorName: &types.SAMLConnectorV2{
+			Spec: types.SAMLConnectorSpecV2{
+				Credentials: &types.SAMLConnectorCredentials{Oauth: existingOAuthCreds},
+			},
+		},
+		existingConnectorNoCredsName: &types.SAMLConnectorV2{
+			Spec: types.SAMLConnectorSpecV2{},
+		},
+	}
+
+	testCases := []struct {
+		name          string
+		connectorName string
+		connectorSpec types.SAMLConnectorSpecV2
+		assertErr     require.ErrorAssertionFunc
+		assertResult  require.ValueAssertionFunc
+	}{
+		{
+			name:          "existing connector with matching ClientId",
+			connectorName: existingConnectorName,
+			connectorSpec: types.SAMLConnectorSpecV2{
+				Credentials: &types.SAMLConnectorCredentials{Oauth: &types.OAuthClientCredentials{
+					ClientId:     "test-client-id",
+					ClientSecret: "",
+				}},
+			},
+			assertErr: require.NoError,
+			assertResult: func(t require.TestingT, value any, args ...any) {
+				require.Implements(t, (*types.SAMLConnector)(nil), value)
+				connector := value.(types.SAMLConnector)
+				oauthCreds := connector.GetOAuthClientCredentials()
+				require.Equal(t, existingOAuthCreds, oauthCreds)
+			},
+		},
+		{
+			name:          "connector not found",
+			connectorName: "non-existing",
+			connectorSpec: types.SAMLConnectorSpecV2{
+				Credentials: &types.SAMLConnectorCredentials{Oauth: &types.OAuthClientCredentials{
+					ClientId:     "test-client-id",
+					ClientSecret: "",
+				}},
+			},
+			assertErr: require.Error,
+		},
+		{
+			name:          "incoming connector has no OAuth credentials",
+			connectorName: existingConnectorName,
+			connectorSpec: types.SAMLConnectorSpecV2{},
+			assertErr:     require.NoError,
+		},
+		{
+			name:          "existing connector has no OAuth credentials",
+			connectorName: existingConnectorNoCredsName,
+			connectorSpec: types.SAMLConnectorSpecV2{
+				Credentials: &types.SAMLConnectorCredentials{Oauth: &types.OAuthClientCredentials{
+					ClientId:     "another-client-id",
+					ClientSecret: "",
+				}},
+			},
+			assertErr: require.Error,
+		},
+		{
+			name:          "existing connector OAuth ClientId doesn't match",
+			connectorName: existingConnectorName,
+			connectorSpec: types.SAMLConnectorSpecV2{
+				Credentials: &types.SAMLConnectorCredentials{Oauth: &types.OAuthClientCredentials{
+					ClientId:     "another-client-id",
+					ClientSecret: "",
+				}},
+			},
+			assertErr: require.Error,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := t.Context()
+			connector := &types.SAMLConnectorV2{
+				Metadata: types.Metadata{Name: tc.connectorName},
+				Spec:     tc.connectorSpec,
+			}
+
+			err := FillSAMLSecretFieldsFromExistingConnector(ctx, connector, existingConnectors)
 			tc.assertErr(t, err)
 			if tc.assertResult != nil {
 				tc.assertResult(t, connector)

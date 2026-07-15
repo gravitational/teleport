@@ -46,9 +46,9 @@ RUN git clone --depth=1 https://github.com/PJK/libcbor.git -b v0.11.0 && \
 
 # Install openssl.
 # install_sw install only binaries, skips docs.
-RUN git clone --depth=1 https://github.com/openssl/openssl.git -b openssl-3.0.16 && \
+RUN git clone --depth=1 https://github.com/openssl/openssl.git -b openssl-3.0.19 && \
     cd openssl && \
-    [ "$(git rev-parse HEAD)" = 'fa1e5dfb142bb1c26c3c38a10aafa7a095df52e5' ] && \
+    [ "$(git rev-parse HEAD)" = 'a22063cd69a077cc68bb4c10e9f351f75899b194' ] && \
     ./config --release -fPIC --libdir=/usr/local/lib && \
     make -j"$(nproc)" && \
     make install_sw
@@ -146,6 +146,8 @@ RUN apt-get -y update && \
         tree \
         unzip \
         xauth \
+        xclip \
+        xvfb \
         zip \
         zlib1g-dev \
         && \
@@ -241,7 +243,7 @@ ENV GOPATH="/go" \
 # Install PAM module and policies for testing.
 COPY pam/ /opt/pam_teleport/
 RUN make -C /opt/pam_teleport install
-ENV SOFTHSM2_PATH "/usr/lib/softhsm/libsofthsm2.so"
+ENV SOFTHSM2_PATH="/usr/lib/softhsm/libsofthsm2.so"
 
 # Install bats.
 RUN git clone --depth=1 https://github.com/bats-core/bats-core.git -b v1.2.1 && \
@@ -262,14 +264,20 @@ RUN mkdir -p helm-tarball && \
     curl -fsSL https://get.helm.sh/helm-v3.12.2-$(go env GOOS)-$(go env GOARCH).tar.gz | tar -C helm-tarball -xz && \
     cp helm-tarball/$(go env GOOS)-$(go env GOARCH)/helm /bin/ && \
     rm -r helm-tarball*
-# TODO(hugoShaka): remove this backward compatible hack with teleportv13 buildbox
-RUN helm plugin install https://github.com/quintush/helm-unittest --version 0.2.11 && \
-    mkdir -p /home/ci/.local/share/helm && \
-    cp -r /root/.local/share/helm/plugins /home/ci/.local/share/helm/plugins-new && \
-    chown -R ci /home/ci/.local/share/helm && \
-    helm plugin uninstall unittest && \
-    HELM_PLUGINS=/home/ci/.local/share/helm/plugins-new helm plugin list
-RUN helm plugin install https://github.com/vbehar/helm3-unittest && \
+COPY helm-unittest.version /tmp/helm-unittest.version
+# Install the helm-unittest plugin for the ci user. Both consumers --
+# `make test-helm` (via build.assets/Makefile) and the unit-tests-helm GitHub
+# workflow -- set HELM_PLUGINS=/home/ci/.local/share/helm/plugins.
+#
+# The workflow intentionally re-checks this same path and may reinstall the
+# pinned plugin version at runtime. Without that, plugin upgrades that involve
+# breaking changes are impossible -- upgrading the buildbox first fails because
+# our unittests would break with the new plugin version, but upgrading the
+# unittests first fails because the buildbox doesn't yet have the new version.
+# The workflow must therefore ensure the expected version. Installing it here
+# too means the workflow can short-circuit the download once the buildbox is
+# updated and republished.
+RUN helm plugin install https://github.com/helm-unittest/helm-unittest --version "$(cat /tmp/helm-unittest.version)" && \
     mkdir -p /home/ci/.local/share/helm && \
     cp -r /root/.local/share/helm/plugins /home/ci/.local/share/helm && \
     chown -R ci /home/ci/.local/share/helm && \

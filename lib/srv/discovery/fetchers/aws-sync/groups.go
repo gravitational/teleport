@@ -56,17 +56,17 @@ func (a *Fetcher) pollAWSGroups(ctx context.Context, result *Resources, collectE
 				groupInlinePolicies, err := a.fetchGroupInlinePolicies(ctx, group)
 				if err != nil {
 					groupInlinePolicies = sliceFilter(existing.GroupInlinePolicies, func(inline *accessgraphv1alpha.AWSGroupInlinePolicyV1) bool {
-						return inline.Group.Name == group.Name && inline.Group.AccountId == group.AccountId
+						return inline.GetGroup().GetName() == group.GetName() && inline.GetGroup().GetAccountId() == group.GetAccountId()
 					})
-					collectErr(trace.Wrap(err, "failed to fetch group %q inline policies", group.Name))
+					collectErr(trace.Wrap(err, "failed to fetch group %q inline policies", group.GetName()))
 				}
 
 				groupAttachedPolicies, err := a.fetchGroupAttachedPolicies(ctx, group)
 				if err != nil {
 					groupAttachedPolicies = sliceFilterPickFirst(existing.GroupAttachedPolicies, func(inline *accessgraphv1alpha.AWSGroupAttachedPolicies) bool {
-						return inline.Group.Name == group.Name && inline.Group.AccountId == group.AccountId
+						return inline.GetGroup().GetName() == group.GetName() && inline.GetGroup().GetAccountId() == group.GetAccountId()
 					})
-					collectErr(trace.Wrap(err, "failed to fetch group %q attached policies", group.Name))
+					collectErr(trace.Wrap(err, "failed to fetch group %q attached policies", group.GetName()))
 				}
 
 				groupsMu.Lock()
@@ -123,14 +123,14 @@ func (a *Fetcher) fetchGroups(ctx context.Context) ([]*accessgraphv1alpha.AWSGro
 
 // awsGroupToProtoGroup converts an AWS IAM group to a proto group.
 func awsGroupToProtoGroup(group iamtypes.Group, accountID string) *accessgraphv1alpha.AWSGroupV1 {
-	return &accessgraphv1alpha.AWSGroupV1{
+	return accessgraphv1alpha.AWSGroupV1_builder{
 		Name:      aws.ToString(group.GroupName),
 		Arn:       aws.ToString(group.Arn),
 		Path:      aws.ToString(group.Path),
 		GroupId:   aws.ToString(group.GroupId),
 		CreatedAt: awsTimeToProtoTime(group.CreateDate),
 		AccountId: accountID,
-	}
+	}.Build()
 }
 
 // fetchGroupInlinePolicies fetches inline policies for a group and returns them
@@ -150,7 +150,7 @@ func (a *Fetcher) fetchGroupInlinePolicies(ctx context.Context, group *accessgra
 	pager := iam.NewListGroupPoliciesPaginator(
 		iamClient,
 		&iam.ListGroupPoliciesInput{
-			GroupName: aws.String(group.Name),
+			GroupName: aws.String(group.GetName()),
 			MaxItems:  aws.Int32(pageSize),
 		},
 		func(opts *iam.ListGroupPoliciesPaginatorOptions) {
@@ -170,11 +170,11 @@ func (a *Fetcher) fetchGroupInlinePolicies(ctx context.Context, group *accessgra
 		}
 		for _, policyName := range page.PolicyNames {
 			policy, err := iamClient.GetGroupPolicy(ctx, &iam.GetGroupPolicyInput{
-				GroupName:  aws.String(group.Name),
+				GroupName:  aws.String(group.GetName()),
 				PolicyName: aws.String(policyName),
 			})
 			if err != nil {
-				errCollect(trace.Wrap(err, "failed to fetch group %q inline policy %q", group.Name, policyName))
+				errCollect(trace.Wrap(err, "failed to fetch group %q inline policy %q", group.GetName(), policyName))
 				continue
 			}
 			policies = append(policies, awsGroupPolicyToProtoGroupPolicy(policy, a.AccountID, group))
@@ -184,12 +184,12 @@ func (a *Fetcher) fetchGroupInlinePolicies(ctx context.Context, group *accessgra
 }
 
 func awsGroupPolicyToProtoGroupPolicy(policy *iam.GetGroupPolicyOutput, accountID string, group *accessgraphv1alpha.AWSGroupV1) *accessgraphv1alpha.AWSGroupInlinePolicyV1 {
-	return &accessgraphv1alpha.AWSGroupInlinePolicyV1{
+	return accessgraphv1alpha.AWSGroupInlinePolicyV1_builder{
 		PolicyName:     aws.ToString(policy.PolicyName),
 		PolicyDocument: []byte(aws.ToString(policy.PolicyDocument)),
 		Group:          group,
 		AccountId:      accountID,
-	}
+	}.Build()
 }
 
 // fetchGroupAttachedPolicies fetches attached policies for a group.
@@ -206,7 +206,7 @@ func (a *Fetcher) fetchGroupAttachedPolicies(ctx context.Context, group *accessg
 	pager := iam.NewListAttachedGroupPoliciesPaginator(
 		iamClient,
 		&iam.ListAttachedGroupPoliciesInput{
-			GroupName: aws.String(group.Name),
+			GroupName: aws.String(group.GetName()),
 			MaxItems:  aws.Int32(pageSize),
 		},
 		func(opts *iam.ListAttachedGroupPoliciesPaginatorOptions) {
@@ -214,23 +214,23 @@ func (a *Fetcher) fetchGroupAttachedPolicies(ctx context.Context, group *accessg
 		},
 	)
 
-	rsp := &accessgraphv1alpha.AWSGroupAttachedPolicies{
+	rsp := accessgraphv1alpha.AWSGroupAttachedPolicies_builder{
 		Group:     group,
 		AccountId: a.AccountID,
-	}
+	}.Build()
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			return rsp, trace.Wrap(err)
 		}
 		for _, policy := range page.AttachedPolicies {
-			rsp.Policies = append(
-				rsp.Policies,
-				&accessgraphv1alpha.AttachedPolicyV1{
+			rsp.SetPolicies(append(
+				rsp.GetPolicies(),
+				accessgraphv1alpha.AttachedPolicyV1_builder{
 					Arn:        aws.ToString(policy.PolicyArn),
 					PolicyName: aws.ToString(policy.PolicyName),
-				},
-			)
+				}.Build(),
+			))
 		}
 	}
 	return rsp, trace.Wrap(err)

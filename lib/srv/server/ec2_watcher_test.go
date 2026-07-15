@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"testing"
+	"testing/synctest"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/account"
@@ -40,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	liborganizations "github.com/gravitational/teleport/lib/utils/aws/organizations"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 type mockEC2Client struct {
@@ -57,6 +59,7 @@ func (m *mockEC2Client) DescribeInstances(ctx context.Context, input *ec2.Descri
 		}
 		output.Reservations = append(output.Reservations, ec2types.Reservation{
 			Instances: instances,
+			OwnerId:   res.OwnerId,
 		})
 	}
 	return &output, nil
@@ -427,7 +430,7 @@ func TestEC2Watcher(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	watcher := NewWatcher[*EC2Instances](t.Context())
+	watcher := NewWatcher[*EC2Instances](t.Context(), logtest.NewLogger())
 	watcher.SetFetchers(noDiscoveryConfig, fetchers)
 
 	go watcher.Run()
@@ -483,6 +486,150 @@ func TestEC2Watcher(t *testing.T) {
 		require.Fail(t, "unexpected instance: %v", inst)
 	default:
 	}
+}
+
+func TestEC2WatcherMergesReservationInstances(t *testing.T) {
+	matchers := []types.AWSMatcher{{
+		Params: &types.InstallerParams{
+			InstallTeleport: true,
+		},
+		Types:   []string{"ec2"},
+		Regions: []string{"us-west-2"},
+		Tags:    map[string]utils.Strings{"teleport": {"yes"}},
+		SSM:     &types.AWSSSM{},
+	}}
+
+	present := ec2types.Instance{
+		InstanceId: aws.String("instance-present"),
+		Tags: []ec2types.Tag{
+			{
+				Key:   aws.String("Name"),
+				Value: aws.String("Present"),
+			},
+			{
+				Key:   aws.String("teleport"),
+				Value: aws.String("yes"),
+			},
+		},
+		State: &ec2types.InstanceState{
+			Name: ec2types.InstanceStateNameRunning,
+		},
+	}
+	presentOther := ec2types.Instance{
+		InstanceId: aws.String("instance-present-2"),
+		Tags: []ec2types.Tag{
+			{
+				Key:   aws.String("Name"),
+				Value: aws.String("PresentOther"),
+			},
+			{
+				Key:   aws.String("teleport"),
+				Value: aws.String("yes"),
+			},
+		},
+		State: &ec2types.InstanceState{
+			Name: ec2types.InstanceStateNameRunning,
+		},
+	}
+
+	const noDiscoveryConfig = ""
+
+	t.Run("same account id in multiple reservations are merged", func(t *testing.T) {
+		ec2DescribeInstancesOneOwnerReservation := ec2.DescribeInstancesOutput{
+			Reservations: []ec2types.Reservation{
+				{Instances: []ec2types.Instance{present}, OwnerId: aws.String("123456789012")},
+				{Instances: []ec2types.Instance{presentOther}, OwnerId: aws.String("123456789012")},
+			},
+		}
+
+		ec2ClientGetter := func(ctx context.Context, region string, opts ...awsconfig.OptionsFn) (ec2.DescribeInstancesAPIClient, error) {
+			return &mockEC2Client{
+				output: &ec2DescribeInstancesOneOwnerReservation,
+			}, nil
+		}
+
+		fetchers, err := MatchersToEC2InstanceFetchers(t.Context(), MatcherToEC2FetcherParams{
+			Matchers: matchers,
+			PublicProxyAddrGetter: func(ctx context.Context) (string, error) {
+				return "proxy.example.com:3080", nil
+			},
+			EC2ClientGetter:     ec2ClientGetter,
+			DiscoveryConfigName: noDiscoveryConfig,
+		})
+		require.NoError(t, err)
+
+		watcher := NewWatcher[*EC2Instances](t.Context(), logtest.NewLogger())
+		watcher.SetFetchers(noDiscoveryConfig, fetchers)
+
+		go watcher.Run()
+
+		expectedInstances := &EC2Instances{
+			Region:     "us-west-2",
+			Instances:  []EC2Instance{toEC2Instance(present), toEC2Instance(presentOther)},
+			Parameters: map[string]string{"token": "", "scriptName": ""},
+			AccountID:  "123456789012",
+		}
+
+		select {
+		case result := <-watcher.InstancesC:
+			require.Equal(t, expectedInstances, result)
+		case <-t.Context().Done():
+			require.Fail(t, "context canceled")
+		}
+	})
+
+	t.Run("if owner is not the same, they are not merged", func(t *testing.T) {
+		ec2DescribeInstancesOneInstancePerReservation := ec2.DescribeInstancesOutput{
+			Reservations: []ec2types.Reservation{
+				{Instances: []ec2types.Instance{present}, OwnerId: aws.String("123456789012")},
+				{Instances: []ec2types.Instance{presentOther}, OwnerId: aws.String("210987654321")},
+			},
+		}
+
+		ec2ClientGetter := func(ctx context.Context, region string, opts ...awsconfig.OptionsFn) (ec2.DescribeInstancesAPIClient, error) {
+			return &mockEC2Client{
+				output: &ec2DescribeInstancesOneInstancePerReservation,
+			}, nil
+		}
+
+		fetchers, err := MatchersToEC2InstanceFetchers(t.Context(), MatcherToEC2FetcherParams{
+			Matchers: matchers,
+			PublicProxyAddrGetter: func(ctx context.Context) (string, error) {
+				return "proxy.example.com:3080", nil
+			},
+			EC2ClientGetter:     ec2ClientGetter,
+			DiscoveryConfigName: noDiscoveryConfig,
+		})
+		require.NoError(t, err)
+
+		var gotInstances []*EC2Instances
+
+		synctest.Test(t, func(t *testing.T) {
+			watcher := NewWatcher(t.Context(), logtest.NewLogger(), WithPerInstanceHookFn(func(groups []*EC2Instances) {
+				gotInstances = append(gotInstances, groups...)
+			}))
+			watcher.SetFetchers(noDiscoveryConfig, fetchers)
+			go watcher.Run()
+			synctest.Wait()
+		})
+
+		expectedInstances := []*EC2Instances{
+			{
+				Region:     "us-west-2",
+				Instances:  []EC2Instance{toEC2Instance(present)},
+				Parameters: map[string]string{"token": "", "scriptName": ""},
+				AccountID:  "123456789012",
+			},
+			{
+				Region:     "us-west-2",
+				Instances:  []EC2Instance{toEC2Instance(presentOther)},
+				Parameters: map[string]string{"token": "", "scriptName": ""},
+				AccountID:  "210987654321",
+			},
+		}
+
+		require.ElementsMatch(t, expectedInstances, gotInstances)
+	})
 }
 
 func TestEC2WatcherWithMultipleAccounts(t *testing.T) {
@@ -597,7 +744,7 @@ func TestEC2WatcherWithMultipleAccounts(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	watcher := NewWatcher[*EC2Instances](t.Context())
+	watcher := NewWatcher[*EC2Instances](t.Context(), logtest.NewLogger())
 	watcher.SetFetchers("", fetchers)
 
 	go watcher.Run()
@@ -882,7 +1029,7 @@ func TestSSMRunCommandParameters(t *testing.T) {
 			},
 			errCheck: require.NoError,
 			expectedParams: map[string]string{
-				"commands": "curl -s -L https://proxy.example.com/v1/webapi/scripts/installer/default-installer | bash -s my-token",
+				"commands": installerScriptChecksFor("proxy.example.com") + `bash -c "set -o pipefail; curl --silent --show-error --location https://proxy.example.com/v1/webapi/scripts/installer/default-installer | bash -s my-token"`,
 			},
 		},
 		{
@@ -905,7 +1052,7 @@ func TestSSMRunCommandParameters(t *testing.T) {
 			},
 			errCheck: require.NoError,
 			expectedParams: map[string]string{
-				"commands": "export TELEPORT_INSTALL_SUFFIX=cluster-green; curl -s -L https://proxy.example.com/v1/webapi/scripts/installer/default-installer | bash -s my-token",
+				"commands": `export TELEPORT_INSTALL_SUFFIX=cluster-green; ` + installerScriptChecksFor("proxy.example.com") + `bash -c "set -o pipefail; curl --silent --show-error --location https://proxy.example.com/v1/webapi/scripts/installer/default-installer | bash -s my-token"`,
 			},
 		},
 		{

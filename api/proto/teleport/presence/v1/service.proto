@@ -50,8 +50,13 @@ service PresenceService {
 
   // ListAuthServers returns a page of Auth servers.
   rpc ListAuthServers(ListAuthServersRequest) returns (ListAuthServersResponse);
+
   // ListProxyServers returns a page of Proxy servers.
   rpc ListProxyServers(ListProxyServersRequest) returns (ListProxyServersResponse);
+  // UpsertProxyServer upserts a Proxy server heartbeat.
+  rpc UpsertProxyServer(UpsertProxyServerRequest) returns (UpsertProxyServerResponse);
+  // DeleteProxyServer removes an existing Proxy server heartbeat by name.
+  rpc DeleteProxyServer(DeleteProxyServerRequest) returns (DeleteProxyServerResponse);
 }
 
 // Request for GetRemoteCluster
@@ -202,3 +207,24 @@ message ListProxyServersResponse {
   // more results in the list.
   string next_page_token = 2;
 }
+
+// Request message for the PresenceService.UpsertProxyServer rpc.
+message UpsertProxyServerRequest {
+  // Server is the Proxy server heartbeat to upsert.
+  types.ServerV2 server = 1;
+}
+
+// Response message for the PresenceService.UpsertProxyServer rpc.
+message UpsertProxyServerResponse {
+  // Server is the upserted Proxy server.
+  types.ServerV2 server = 1;
+}
+
+// Request message for the PresenceService.DeleteProxyServer rpc.
+message DeleteProxyServerRequest {
+  // Name is the name (host UUID) of the Proxy server to delete.
+  string name = 1;
+}
+
+// Response message for the PresenceService.DeleteProxyServer rpc.
+message DeleteProxyServerResponse {}

@@ -20,6 +20,7 @@ package filesessions
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
@@ -515,7 +516,7 @@ func TestMinimumUpload(t *testing.T) {
 	// constrains the maximum size to 133% of the minimum. At small values, this is especially
 	// imprecise, so we give a full 200% of the minimum as overhead.
 	//
-	// Usually, we use 128KB for file parts and 5KB for final upload parts.
+	// Usually, we use 128KB for file parts and 5MB for final upload parts.
 	minFileBytes := 8192
 	maxFileBytes := 2 * minFileBytes
 	minUploadBytes := 33768
@@ -620,7 +621,7 @@ func TestMinimumUpload(t *testing.T) {
 	require.LessOrEqual(t, len(partFiles)/minFactor, len(uploadParts), "expected there to be 1 final upload part for every 4 transient file parts, but got %v and %v respectively", len(uploadParts), len(partFiles))
 }
 
-func TestUploadEncryptedRecording(t *testing.T) {
+func TestUploadEncryptedRecordingSizes(t *testing.T) {
 	for _, tc := range []struct {
 		name        string
 		minFileSize int
@@ -635,40 +636,41 @@ func TestUploadEncryptedRecording(t *testing.T) {
 	}{
 		{
 			name:                "target size larger than max encrypted upload size",
-			minFileSize:         8192,
-			encryptedTargetSize: 8192 * 4 * 2,
-			encryptedMaxSize:    8192 * 4,
+			minFileSize:         8196,
+			encryptedTargetSize: 8196 * 4 * 2,
+			encryptedMaxSize:    8196 * 4,
 		}, {
 			name:                "target size equals max encrypted upload size",
-			minFileSize:         8192,
-			encryptedTargetSize: 8192 * 4,
-			encryptedMaxSize:    8192 * 4,
+			minFileSize:         8196,
+			encryptedTargetSize: 8196 * 4,
+			encryptedMaxSize:    8196 * 4,
 		}, {
 			name:                "target size smaller than max encrypted upload size",
-			minFileSize:         8192,
-			encryptedTargetSize: 8192 * 4,
-			encryptedMaxSize:    8192 * 4 * 2,
+			minFileSize:         8196,
+			encryptedTargetSize: 8196 * 4,
+			encryptedMaxSize:    8196 * 4 * 2,
 		}, {
 			name:                "target size larger than min upload size",
-			minFileSize:         8192,
-			encryptedTargetSize: 8192 * 4 * 2,
-			minUploadBytes:      8192 * 4,
+			minFileSize:         8196,
+			encryptedTargetSize: 8196 * 4 * 2,
+			minUploadBytes:      8196 * 4,
 		}, {
 			name: "target size equals min upload size",
 			// this test becomes flaky at lower sizes
-			minFileSize:         8192,
-			encryptedTargetSize: 8192 * 4,
-			minUploadBytes:      8192 * 4,
+			minFileSize:         8196,
+			encryptedTargetSize: 8196 * 4,
+			minUploadBytes:      8196 * 4,
 		}, {
 			name: "target size smaller than min upload size",
 			// this test becomes flaky at lower sizes
-			minFileSize:         8192,
-			encryptedTargetSize: 8192 * 4,
-			minUploadBytes:      8192 * 4 * 2,
+			minFileSize:         8196,
+			encryptedTargetSize: 8196 * 4,
+			minUploadBytes:      8196 * 4 * 2,
 		}, {
 			name:                     "min file size larger than max encrypted size",
-			minFileSize:              8192 * 4,
-			encryptedMaxSize:         8192,
+			minFileSize:              8196 * 4,
+			minUploadBytes:           8196 * 4,
+			encryptedMaxSize:         8196,
 			expectEncryptedUploadErr: true,
 		},
 	} {
@@ -792,7 +794,7 @@ func TestUploadEncryptedRecording(t *testing.T) {
 					t.Fatalf("Unexpected upload event")
 				}
 				require.Error(t, event.Error)
-				require.True(t, isSessionError(event.Error))
+				require.True(t, isSessionError(event.Error), event.Error)
 				return
 			case <-ctx.Done():
 				t.Fatalf("Timeout waiting for async upload, try `go test -v` to get more logs for details")
@@ -910,6 +912,105 @@ func TestUploadCorruptEncryptedRecording(t *testing.T) {
 	})
 }
 
+// TestUploadEncryptedRecordingOverhead ensures that the encrypted recording uploader assumes some amount of potential
+// overhead when generating upload parts in order to guard against accidentally exceeding the max upload size.
+func TestUploadEncryptedRecordingOverhead(t *testing.T) {
+	// number of events to generate per session
+	eventsCount := 3096
+	events := eventstest.GenerateTestSession(eventstest.SessionParams{PrintEvents: int64(eventsCount)})
+
+	// captures the total upload size of encrypted session events
+	var totalUploadSize int
+
+	// common config shared between test cases
+	uploadCfg := uploaderPackConfig{
+		minimumUploadBytes:              512,
+		minimumFileUploadBytes:          512,
+		encryptedRecordingUploadMinSize: 512,
+		encrypter:                       &fakeEncryptedIO{},
+	}
+
+	for _, tc := range []struct {
+		name          string
+		cfgFn         func(uploaderPackConfig) uploaderPackConfig
+		expectedParts int
+		expectErrMsg  string
+	}{
+		// it's important that the unbound uploader test runs first because it captures the total expected upload size
+		// used in the bound uploader tests
+		{
+			name:          "unbound uploader",
+			expectedParts: 1,
+		},
+		{
+			name: "bound uploader without enough overhead",
+			cfgFn: func(cfg uploaderPackConfig) uploaderPackConfig {
+				// Adding half the overhead to the total expected upload size should cause two upload parts to be
+				// generated in order to prevent the possibility of exceeding the max upload size.
+				cfg.encryptedRecordingUploadMaxSize = totalUploadSize + uploadOverheadAllowance/2
+				return cfg
+			},
+			expectedParts: 2,
+		},
+		{
+			name: "bound uploader with enough overhead",
+			cfgFn: func(cfg uploaderPackConfig) uploaderPackConfig {
+				// Adding the overhead to the total expected upload size should cause 1 upload part to be generated
+				// since the max upload size allows for enough additional overhead.
+				cfg.encryptedRecordingUploadMaxSize = totalUploadSize + uploadOverheadAllowance
+				return cfg
+			},
+			expectedParts: 1,
+		},
+		{
+			name: "bound uploader that can't support a single upload part",
+			cfgFn: func(cfg uploaderPackConfig) uploaderPackConfig {
+				// Adding half the overhead to the minimum size of a single upload part should cause an error because
+				// we can't reliably upload at least one part.
+				cfg.encryptedRecordingUploadMaxSize = cfg.encryptedRecordingUploadMinSize + uploadOverheadAllowance/2
+				return cfg
+			},
+			expectErrMsg: "Increase max gRPC message size using TELEPORT_UNSTABLE_GRPC_RECV_SIZE",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				ctx := t.Context()
+				cfg := uploadCfg
+				if tc.cfgFn != nil {
+					cfg = tc.cfgFn(cfg)
+				}
+
+				p := newUploaderPack(ctx, t, cfg)
+				p.emitEvents(ctx, t, events)
+
+				_, err := p.uploader.Scan(ctx)
+				if tc.expectErrMsg != "" {
+					require.Error(t, err)
+					require.Contains(t, err.Error(), tc.expectErrMsg)
+				} else {
+					require.NoError(t, err)
+				}
+				synctest.Wait()
+
+				uploads, err := p.memUploader.ListUploads(ctx)
+				require.NoError(t, err)
+
+				for _, upload := range uploads {
+					parts, err := p.memUploader.GetParts(upload.ID)
+					require.NoError(t, err)
+					t.Logf("%s: %d", tc.name, len(parts))
+					require.Len(t, parts, tc.expectedParts)
+					// capture total size for use in the bound uploader tests
+					if tc.name == "unbound uploader" {
+						totalUploadSize = len(parts[0])
+					}
+				}
+			})
+		})
+	}
+}
+
 type uploaderPackConfig struct {
 	minimumFileUploadBytes             int64
 	minimumUploadBytes                 int64
@@ -918,6 +1019,7 @@ type uploaderPackConfig struct {
 	wrapEncryptedUploader              wrapEncryptedUploaderFn
 	encryptedRecordingUploadTargetSize int
 	encryptedRecordingUploadMaxSize    int
+	encryptedRecordingUploadMinSize    int
 	clock                              clockwork.Clock
 	concurrentUploads                  int
 }
@@ -996,6 +1098,7 @@ func newUploaderPack(ctx context.Context, t *testing.T, cfg uploaderPackConfig) 
 		EncryptedRecordingUploader:         pack.memUploader,
 		EncryptedRecordingUploadTargetSize: cfg.encryptedRecordingUploadTargetSize,
 		EncryptedRecordingUploadMaxSize:    cfg.encryptedRecordingUploadMaxSize,
+		EncryptedRecordingUploadMinSize:    cmp.Or(cfg.encryptedRecordingUploadMinSize, 512),
 		ConcurrentUploads:                  cfg.concurrentUploads,
 	}
 	if cfg.wrapEncryptedUploader != nil {

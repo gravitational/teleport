@@ -1,0 +1,224 @@
+---
+title: TLS Routing Migration
+description: How to upgrade an existing Teleport cluster to single-port TLS routing mode.
+tags:
+ - how-to
+ - platform-wide
+---
+
+{/* lint disable page-structure remark-lint */}
+
+In TLS routing mode, all Teleport client connections are wrapped in TLS and
+multiplexed on one Teleport Proxy Service port.
+
+TLS routing has multiple benefits compared to the deployment where each protocol
+is served on a separate port:
+
+- Simpler network policy configurations since all clients connect to Teleport
+  proxy over a single port.
+- Communication between any client and Teleport proxy is authenticated by
+  mutual TLS.
+- Users are able to tunnel protocols that may normally be blocked on the
+  internal network like SSH.
+
+Upgrading Teleport will not enable TLS routing by default and the cluster will
+keep working in backwards-compatibility mode. Follow this guide to migrate your
+Teleport installation to TLS routing.
+
+Teleport Enterprise Cloud manages the Proxy Service's networking configuration
+for you. Get started with a [free
+trial](https://goteleport.com/signup?t_source=docs) of Teleport Enterprise
+Cloud.
+
+## Prerequisites
+
+If you use Teleport Cloud, see which ports and networking settings the Proxy
+Service is configured to use in your Teleport Cloud tenant. Run the following
+command, replacing `mytenant.teleport.sh` with your tenant address:
+
+```code
+$ curl https://mytenant.teleport.sh/webapi/ping | jq '.proxy'
+```
+
+This guide includes instructions for OpenSSH servers in addition to Teleport
+Agent instances. In particular, Step 6 assumes that you have followed [Using
+Teleport with OpenSSH in Agentless
+Mode](../../enroll-resources/server-access/openssh/openssh-agentless.mdx). If
+you have not enrolled OpenSSH servers with your cluster, you can skip Step 5.
+
+This guide also assumes that you have an up-to-date Teleport cluster. Follow the
+standard [upgrade procedure](../../upgrading/upgrading.mdx). Make sure to
+upgrade both root and leaf clusters as well as your `tsh` client.
+
+## Step 1/6. Enable proxy multiplexing
+
+Update your root cluster Auth Service's configuration to set proxy listener mode
+to "multiplex":
+
+```yaml
+auth_service:
+  proxy_listener_mode: multiplex
+```
+
+This setting will indicate to the clients (such as `tsh` or reverse tunnel
+agents) that they should connect to the web proxy port using TLS routing.
+
+<Admonition type="note" title="Compatibility">
+  Turning multiplexing on will not affect existing connections of trusted
+  clusters, reverse tunnel agents and tsh/ssh clients. As long as the legacy
+  listeners are enabled (see [step 7](#step-66-disable-legacy-listeners) below),
+  all clients will keep connecting in the backwards compatibility mode until
+  restarted or relogged in/reconfigured in case of tsh/ssh as described below.
+</Admonition>
+
+Restart your Auth Service instances. For example, if you have deployed the Auth
+Service by installing the `teleport-cluster` Helm chart, run the following
+command to restart all instances. This command assumes that the Auth Service is
+in the `teleport` namespace:
+
+```code
+$ kubectl rollout restart deployment/teleport-cluster-auth -n teleport
+```
+
+If you are running your Teleport Auth Service instances on Linux servers, reload
+the Teleport configuration on each one:
+
+```code
+$ sudo systemctl reload teleport
+```
+
+## Step 2/6. Reconnect trusted clusters
+
+If you're already multiplexing trusted cluster connections on the web proxy port
+(i.e. `web_listen_addr` and `tunnel_listen_addr` have the same port in your
+proxy configuration), you can skip this step.
+
+Otherwise, update your trusted clusters to point both `web_proxy_addr` and
+`tunnel_addr` to the root cluster's Proxy Service address and recreate them.
+
+For example, if you have a trusted cluster called `root`, run the following
+command to edit the resource:
+
+```code
+$ tctl edit trusted_cluster/root
+```
+
+Ensure that `web_proxy_addr` and `tunnel_addr` point to HTTPS addresses, as
+shown below:
+
+```yaml
+kind: trusted_cluster
+version: v2
+metadata:
+   name: "root"
+spec:
+   enabled: true
+   web_proxy_addr: root.example.com:443
+   tunnel_addr: root.example.com:443
+   ...
+```
+
+Save the file and close the editor to apply your changes.
+
+## Step 3/6. Reconnect Teleport Agents
+
+Restart all Teleport Agent services that connect to the cluster's Proxy Service
+over reverse tunnels, such as the SSH Service, Database Service, and Kubernetes
+Service.
+
+For example, if you have deployed a Teleport Agent by installing the
+`teleport-kube-agent` Helm chart, run the following command to restart all
+Teleport Agent instances:
+
+```code
+$ kubectl rollout restart statefulset/teleport-kube-agent -n teleport-agent
+```
+
+If you are running your Teleport Agent instances on Linux servers, reload the
+Teleport configuration on each one:
+
+```code
+$ sudo systemctl reload teleport
+```
+
+This will make Teleport Agent instances reconnect to the cluster in TLS routing
+mode.
+
+## Step 4/6. Re-authenticate to Teleport
+
+Re-authenticate to your Teleport cluster with `tsh` to make sure `tsh` starts
+using TLS routing mode:
+
+```code
+$ tsh logout
+$ tsh login
+```
+
+## Step 5/6. Update OpenSSH config
+
+If you're using OpenSSH client `ssh` with the config generated by `tsh config`
+to connect to nodes within your Teleport cluster, you need to regenerate the
+config. Run the following command so it generates an SSH config compatible with
+your new SSH routing setup:
+
+```code
+$ tsh config > ssh_config_teleport
+```
+
+## Step 6/6. Disable legacy listeners
+
+At this point, all root cluster's clients connect to its web proxy port in TLS
+routing mode. The final step is to instruct the Teleport Proxy Service not to
+create legacy listeners for SSH, reverse tunnels, Kubernetes and database
+clients by default.
+
+Add `version: v2` to the configuration file on each Proxy Service instance and
+remove all listen addresses except for `web_listen_addr`.
+
+In the Proxy Service configuration file, `web_listen_addr` should look like
+this:
+
+```yaml
+version: v2
+proxy_service:
+  enabled: true
+  web_listen_addr: 0.0.0.0:443
+  ...
+```
+
+Config version `v2` will prevent other listeners from being created unless
+they are explicitly set in the Proxy Service configuration.
+
+Once you have updated the Proxy Service configuration file, restart Teleport
+Proxy Service instances.
+
+For example, if you have deployed the Teleport Proxy Service by installing the
+`teleport-cluster` Helm chart, run the following command. This command assumes
+that the Proxy Service is in the `teleport` namespace:
+
+```code
+$ kubectl rollout restart deployment/teleport-cluster-proxy -n teleport
+```
+
+If you are running your Teleport Proxy Service instances on Linux servers,
+reload the Teleport configuration on each one:
+
+```code
+$ sudo systemctl reload teleport
+```
+
+## Rollback
+
+To go back to the legacy separate listeners mode, perform the following steps:
+
+1. Set `version: v1` in the proxy configuration and restart the proxy to make
+   it create legacy listeners.
+1. Set `proxy_listener_mode: separate` in the Auth Service configuration to make
+   clients connect to the legacy listeners.
+1. Reconnect all clients (trusted clusters, reverse tunnel agents, `tsh`) as
+   described above.
+1. If using OpenSSH client, regenerate SSH config using `tsh config` command.
+
+## Next steps
+
+- Learn how TLS routing [works](../../reference/architecture/tls-routing.mdx).

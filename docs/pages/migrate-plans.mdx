@@ -4,9 +4,10 @@ description: Explains how to migrate between Teleport Enterprise (Self-Hosted), 
 tags:
  - how-to
  - platform-wide
+page_type: how-to
 ---
 
-This guide explains how to migrate from Teleport Community Edition, Teleport
+In this guide, you will migrate from Teleport Community Edition, Teleport
 Enterprise (Self-Hosted) and Teleport Enterprise (Cloud) to another Teleport
 plan. 
 
@@ -14,7 +15,7 @@ We recommend that you try out a Teleport [demo
 cluster](./get-started/deploy-community.mdx) with Teleport Community Edition,
 migrate to [Teleport Enterprise (Cloud)](./get-started/deploy-cloud.mdx) to roll out
 Teleport across your organization, and deploy a
-[self-hosted](zero-trust-access/deploy-a-cluster/deploy-a-cluster.mdx) Teleport Enterprise cluster
+[self-hosted](installation/self-hosted/self-hosted.mdx) Teleport Enterprise cluster
 if you have security and compliance requirements that Teleport Enterprise
 (Cloud) cannot address.  
 
@@ -46,9 +47,9 @@ migrating from Teleport Enterprise to Teleport Community Edition.
 - An existing Teleport cluster.
 - The `tsh` and `tctl` client tools. This guide assumes that you are using
   `tctl` to manage dynamic resources, but it is also possible to use [Teleport
-  Terraform provider](zero-trust-access/infrastructure-as-code/terraform-provider/terraform-provider.mdx) and
+  Terraform provider](configuration/terraform-provider/terraform-provider.mdx) and
   [Kubernetes
-  operator](zero-trust-access/infrastructure-as-code/teleport-operator/teleport-operator-standalone.mdx), in
+  operator](configuration/teleport-operator/teleport-operator-standalone.mdx), in
   addition to custom scripts that use the [Teleport API](zero-trust-access/api/api.mdx)
   to manage the Teleport Auth Service backend.
 - If you are migrating to Teleport Enterprise (Cloud), you must not have an
@@ -71,8 +72,8 @@ migrating from Teleport Enterprise to Teleport Community Edition.
 
 1. If you are migrating to a self-hosted Teleport Enterprise account, plan and
    execute the deployment with the help of your Account Management team. To
-   assist with this, read the the documentation on [Self-Hosting
-   Teleport](zero-trust-access/deploy-a-cluster/deploy-a-cluster.mdx).
+   assist with this, read the documentation on [Self-Hosting
+   Teleport](installation/self-hosted/self-hosted.mdx).
 
 1. Ensure you are running Teleport Enterprise agents with versions that are
    the same major or just one major version lower than the new Teleport
@@ -170,7 +171,7 @@ To achieve this:
    # Use the --auth flag instead of --user to log in with Single Sign-On.
    $ tsh login --proxy=example.teleport.sh --user=admin@example.com
    $ tctl create -f roles.yaml
-   $ tctl create -f user.yaml
+   $ tctl create -f users.yaml
    ```
 
 <Admonition type="tip">
@@ -402,4 +403,4 @@ documentation on [signing up for a cloud-hosted Teleport Enterprise
 account](./get-started/deploy-cloud.mdx).
 
 Read the documentation on [Self-Hosting Teleport
-Enterprise](zero-trust-access/deploy-a-cluster/deploy-a-cluster.mdx).
+Enterprise](installation/self-hosted/self-hosted.mdx).

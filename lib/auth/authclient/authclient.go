@@ -27,11 +27,11 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport/api/breaker"
 	apiclient "github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -40,7 +40,7 @@ type Config struct {
 	// TLS holds credentials for mTLS.
 	TLS *tls.Config
 	// SSH is client SSH config.
-	SSH *ssh.ClientConfig
+	SSH ssh.ClientConfig
 	// AuthServers is a list of possible auth or proxy server addresses.
 	AuthServers []utils.NetAddr
 	// Log sets the logger for the client to use.
@@ -70,7 +70,7 @@ func Connect(ctx context.Context, cfg *Config) (*Client, error) {
 
 	// If it fails, we now want to try tunneling to the auth server through a
 	// proxy, we can only do this with SSH credentials.
-	if cfg.SSH == nil {
+	if cfg.SSH.IsEmpty() {
 		return nil, trace.Wrap(directErr)
 	}
 	proxyTunnelClient, err := connectViaProxyTunnel(ctx, cfg)

@@ -94,6 +94,8 @@ func TestReflectLegacy(t *testing.T) {
 										attribute("actor", stringVal("")),
 										attribute("ref", stringVal("")),
 										attribute("ref_type", stringVal("")),
+										attribute("enterprise", stringVal("")),
+										attribute("enterprise_id", stringVal("")),
 									),
 								),
 							),

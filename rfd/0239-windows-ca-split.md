@@ -1,6 +1,6 @@
 ---
 authors: Alan Parra (alan.parra@goteleport.com)
-state: draft
+state: implemented
 ---
 
 # RFD 0239 - Windows CA split
@@ -114,6 +114,23 @@ agents use the Windows CA.
 
 [GenerateWindowsDesktopCert]: https://github.com/gravitational/teleport/blob/269f876060350f785f45ca87f1653d30cb5fbcbe/api/proto/teleport/legacy/client/proto/authservice.proto#L3657-L3659
 
+### Client compatibility check
+
+Incompatible tctl versions are detected per [User-Agent][tctl-ua] plus
+[version][tctl-version] and stopped from querying the User CA, due to the
+inherent ambiguity of such requests. (Ie, does it want the Windows CA instead?)
+
+This stops commands such as `tctl auth export --type=windows` from exporting the
+wrong CA.
+
+The check is only applied to [GetCertAuthority][] requests and is itself less
+than perfect, but is considered sufficient (and better than a more severe
+breakage, such as a MinClientVersion increase).
+
+[tctl-ua]: https://github.com/gravitational/teleport/blob/306b50a648f2245d3a35e603cb7a9eb684bbaa59/api/metadata/metadata.go#L126
+[tctl-version]: https://github.com/gravitational/teleport/blob/306b50a648f2245d3a35e603cb7a9eb684bbaa59/api/metadata/metadata.go#L100
+[GetCertAuthority]: https://github.com/gravitational/teleport/blob/306b50a648f2245d3a35e603cb7a9eb684bbaa59/api/proto/teleport/trust/v1/trust_service.proto#L29
+
 ### Trust architecture
 
 **Connect, tbot and tsh**
@@ -164,23 +181,17 @@ for at least a full release cycle.
 
 ## Backward compatibility
 
-Client-side tools that equate `"windows"` to `UserCA` will request the User CA
-directly to APIs (instead of the now-correct Windows CA). That is harmless
-before a rotation, but incorrect behavior as soon as rotation happens. The
-mitigation is to increase the [MinClientVersion][] to match the earliest feature
-release (ie, (N-1).x.0), accompanied by the appropriate release note warnings
-and documentation.
+Agent and client compatibility are discussed in their respective design
+sections.
 
-Rollbacks to versions prior to the split suffer a similar problem: the system
-will revert to using the User CA for Windows Desktop Access. Harmless without a
-rotation, but may break downstream trust if a rotation happened. The mitigation
-is that downstream systems should retain trust to the User CA certificate for a
-safety period, after which a downgrade becomes unlikely.
+Rollbacks to versions prior to the split have the system revert to using the
+User CA for Windows Desktop Access. That is harmless without a rotation, but may
+break downstream trust if a rotation happened. The mitigation is that downstream
+systems should retain trust to the User CA certificate for a safety period,
+after which a downgrade becomes unlikely.
 
 In the case of a rollback the split Windows CA remains in the backend,
 effectively dormant until a following upgrade makes use of it again.
-
-[MinClientVersion]: https://github.com/gravitational/teleport/blob/30b4bdcfe6b18d6c9c6075b393c0528d9c1082f1/version.go#L39
 
 ## Test Plan
 
@@ -204,12 +215,19 @@ CA rotation.
   - [ ] OLD windows_desktop_service works with NEW Auth
         (after rotation, still mints with UserCA).
 - [ ] Desktop Access works as expected
+  - [ ] AD-based
+  - [ ] static hosts
+- [ ] CRL publishing reacts to CA rotations, publishes the WindowsCA
+- [ ] `teleport start --bootstrap` can create a WindowsCA
 - [ ] tctl commands work as expected
   - [ ] `tctl status`
   - [ ] `tctl auth export`
   - [ ] `tctl auth sign`
-  - [ ] `tctl auth rotate`
+  - [ ] `tctl auth rotate` (interactive)
+  - [ ] `tctl auth rotate` (non-interactive)
   - [ ] `tctl auth crl`
 - [ ] /webapi/auth/export endpoint
 - [ ] Test plan executed against software keys
+  - [ ] Tested full CA rotation
 - [ ] Test plan executed against Cloud/HSM-backed keys
+  - [ ] Tested full CA rotation

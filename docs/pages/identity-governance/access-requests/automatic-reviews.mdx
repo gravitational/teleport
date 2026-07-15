@@ -36,10 +36,15 @@ requests access to the `access` role.
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx edition="Teleport Enterprise (v18.2.8 or higher)"!)
 
-- This feature requires Teleport Identity Governance.
-- This guide requires at least one labeled SSH server.
-- If you're following along with the Terraform steps, first setup the
-[Teleport Terraform Provider](../../reference/infrastructure-as-code/terraform-provider/terraform-provider.mdx)
+- Permissions to list, create, read, update, and delete `access_monitoring_rule`
+  resources. These permissions are in the preset `editor` role.
+- For this guide, at least one Teleport-protected SSH server with a label.
+  [Get started](../../enroll-resources/server-access/getting-started.mdx)
+  enrolling SSH servers.
+
+If you're following along with the Terraform steps, first set up the [Teleport
+Terraform
+Provider](../../reference/infrastructure-as-code/terraform-provider/terraform-provider.mdx).
 
 ## Step 1/3. Create a requester role and user
 

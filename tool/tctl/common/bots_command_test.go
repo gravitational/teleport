@@ -19,6 +19,7 @@
 package common
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"slices"
@@ -30,6 +31,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/fieldmaskpb"
@@ -44,11 +46,161 @@ import (
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/config"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/tbot/config/joinuri"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/lib/utils/testutils/golden"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
+
+func useStaticTemplateData(t *testing.T) func(map[string]any) {
+	return func(data map[string]any) {
+		if v, ok := data["join_uri"]; ok {
+			u, err := joinuri.Parse(v.(string))
+			require.NoError(t, err)
+			u.Address = "localhost:443"
+
+			data["join_uri"] = u.String()
+		}
+
+		if _, ok := data["addr"]; ok {
+			data["addr"] = "localhost:443"
+		}
+
+		// Not worth the plumbing to ensure the table remains consistent, ugh.
+		if _, ok := data["param_table"]; ok {
+			data["param_table"] = "  Fake: Table\n"
+		}
+	}
+}
+
+func TestAddBot(t *testing.T) {
+	t.Parallel()
+
+	process, err := testenv.NewTeleportProcess(t.TempDir(), testenv.WithLogger(logtest.NewLogger()))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
+	rootClient, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = rootClient.Close() })
+
+	buf := &bytes.Buffer{}
+	require.NoError(t, (&BotsCommand{
+		stdout:                 buf,
+		format:                 teleport.Text,
+		botName:                "test",
+		botRoles:               "access",
+		registrationSecret:     "static-registration-secret",
+		testStaticToken:        "static-example-1234",
+		testMutateTemplateData: useStaticTemplateData(t),
+	}).AddBot(t.Context(), rootClient))
+
+	if golden.ShouldSet() {
+		golden.Set(t, buf.Bytes())
+	}
+
+	require.Equal(t, string(golden.Get(t)), buf.String())
+}
+
+func TestAddBotLegacy(t *testing.T) {
+	t.Parallel()
+
+	process, err := testenv.NewTeleportProcess(t.TempDir(), testenv.WithLogger(logtest.NewLogger()))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
+	rootClient, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = rootClient.Close() })
+
+	buf := &bytes.Buffer{}
+	require.NoError(t, (&BotsCommand{
+		stdout:                 buf,
+		format:                 teleport.Text,
+		botName:                "test",
+		botRoles:               "access",
+		legacy:                 true,
+		testStaticToken:        "static-example-1234",
+		testMutateTemplateData: useStaticTemplateData(t),
+	}).AddBot(t.Context(), rootClient))
+
+	if golden.ShouldSet() {
+		golden.Set(t, buf.Bytes())
+	}
+
+	require.Equal(t, string(golden.Get(t)), buf.String())
+}
+
+func TestAddBotJSON(t *testing.T) {
+	t.Parallel()
+
+	process, err := testenv.NewTeleportProcess(t.TempDir(), testenv.WithLogger(logtest.NewLogger()))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
+	rootClient, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = rootClient.Close() })
+
+	// Generate a public key to test pregenerated keys
+	key, err := cryptosuites.GenerateKey(
+		t.Context(),
+		cryptosuites.StaticAlgorithmSuite(types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1),
+		cryptosuites.BoundKeypairJoining,
+	)
+	require.NoError(t, err)
+
+	sshPubKey, err := ssh.NewPublicKey(key.Public())
+	require.NoError(t, err)
+
+	publicKeyBytes := ssh.MarshalAuthorizedKey(sshPubKey)
+	publicKeyString := strings.TrimSpace(string(publicKeyBytes))
+
+	buf := &bytes.Buffer{}
+	require.NoError(t, (&BotsCommand{
+		stdout:           buf,
+		format:           teleport.JSON,
+		botName:          "test",
+		botRoles:         "access",
+		recoveryLimit:    12,
+		initialPublicKey: publicKeyString,
+		testStaticToken:  "static-example-1234",
+	}).AddBot(t.Context(), rootClient))
+
+	// Validate the response
+	response := botJSONResponse{}
+	require.NoError(t, json.Unmarshal(buf.Bytes(), &response))
+
+	require.Empty(t, response.RegistrationSecret)
+
+	uri, err := joinuri.Parse(response.JoinURI)
+	require.NoError(t, err)
+
+	require.Equal(t, types.JoinMethodBoundKeypair, uri.JoinMethod)
+	require.Empty(t, uri.JoinMethodParameter)
+
+	// Fetch the token and make sure it's sane
+	token, err := rootClient.GetToken(t.Context(), response.TokenID)
+	require.NoError(t, err)
+
+	ptv2, ok := token.(*types.ProvisionTokenV2)
+	require.True(t, ok)
+
+	require.EqualValues(t, 12, ptv2.Spec.BoundKeypair.Recovery.Limit)
+	// Note: soft string comparison against a public key, but it should just use our value
+	require.Equal(t, publicKeyString, ptv2.Spec.BoundKeypair.Onboarding.InitialPublicKey)
+	require.Empty(t, ptv2.Status.BoundKeypair.RegistrationSecret)
+}
 
 func TestUpdateBotLogins(t *testing.T) {
 	tests := []struct {
@@ -66,7 +218,7 @@ func TestUpdateBotLogins(t *testing.T) {
 			assert: func(t *testing.T, bot *machineidv1pb.Bot, mask *fieldmaskpb.FieldMask, err error) {
 				require.NoError(t, err)
 				require.ElementsMatch(t, mask.Paths, []string{"spec.traits"})
-				require.ElementsMatch(t, bot.Spec.Traits[0].Values, splitEntries("a,b,c,d,e"))
+				require.ElementsMatch(t, bot.GetSpec().GetTraits()[0].GetValues(), splitEntries("a,b,c,d,e"))
 			},
 		},
 		{
@@ -77,7 +229,7 @@ func TestUpdateBotLogins(t *testing.T) {
 			assert: func(t *testing.T, bot *machineidv1pb.Bot, mask *fieldmaskpb.FieldMask, err error) {
 				require.NoError(t, err)
 				require.Empty(t, mask.Paths)
-				require.ElementsMatch(t, bot.Spec.Traits[0].Values, splitEntries("a,b,c,d,e"))
+				require.ElementsMatch(t, bot.GetSpec().GetTraits()[0].GetValues(), splitEntries("a,b,c,d,e"))
 			},
 		},
 		{
@@ -86,7 +238,7 @@ func TestUpdateBotLogins(t *testing.T) {
 			assert: func(t *testing.T, bot *machineidv1pb.Bot, mask *fieldmaskpb.FieldMask, err error) {
 				require.NoError(t, err)
 				require.ElementsMatch(t, mask.Paths, []string{"spec.traits"})
-				require.ElementsMatch(t, bot.Spec.Traits[0].Values, splitEntries("a,b,c"))
+				require.ElementsMatch(t, bot.GetSpec().GetTraits()[0].GetValues(), splitEntries("a,b,c"))
 			},
 		},
 		{
@@ -96,7 +248,7 @@ func TestUpdateBotLogins(t *testing.T) {
 			assert: func(t *testing.T, bot *machineidv1pb.Bot, mask *fieldmaskpb.FieldMask, err error) {
 				require.NoError(t, err)
 				require.ElementsMatch(t, mask.Paths, []string{"spec.traits"})
-				require.ElementsMatch(t, bot.Spec.Traits[0].Values, splitEntries("a,b,c"))
+				require.ElementsMatch(t, bot.GetSpec().GetTraits()[0].GetValues(), splitEntries("a,b,c"))
 			},
 		},
 	}
@@ -108,23 +260,23 @@ func TestUpdateBotLogins(t *testing.T) {
 		t.Run(tt.desc, func(t *testing.T) {
 			traits := []*machineidv1pb.Trait{}
 			if len(tt.initialLogins) > 0 {
-				traits = append(traits, &machineidv1pb.Trait{
+				traits = append(traits, machineidv1pb.Trait_builder{
 					Name:   constants.TraitLogins,
 					Values: tt.initialLogins,
-				})
+				}.Build())
 			}
 
-			bot := &machineidv1pb.Bot{
+			bot := machineidv1pb.Bot_builder{
 				Kind:    types.KindBot,
 				Version: types.V1,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: botName,
-				},
-				Spec: &machineidv1pb.BotSpec{
+				}.Build(),
+				Spec: machineidv1pb.BotSpec_builder{
 					Roles:  []string{},
 					Traits: traits,
-				},
-			}
+				}.Build(),
+			}.Build()
 
 			fieldMask, err := fieldmaskpb.New(&machineidv1pb.Bot{})
 			require.NoError(t, err)
@@ -173,7 +325,7 @@ func TestUpdateBotRoles(t *testing.T) {
 			assert: func(t *testing.T, bot *machineidv1pb.Bot, mask *fieldmaskpb.FieldMask, err error) {
 				require.NoError(t, err)
 				require.ElementsMatch(t, mask.Paths, []string{"spec.roles"})
-				require.ElementsMatch(t, bot.Spec.Roles, splitEntries("a,b,c,d,e"))
+				require.ElementsMatch(t, bot.GetSpec().GetRoles(), splitEntries("a,b,c,d,e"))
 			},
 		},
 		{
@@ -185,7 +337,7 @@ func TestUpdateBotRoles(t *testing.T) {
 			assert: func(t *testing.T, bot *machineidv1pb.Bot, mask *fieldmaskpb.FieldMask, err error) {
 				require.NoError(t, err)
 				require.Empty(t, mask.Paths)
-				require.ElementsMatch(t, bot.Spec.Roles, splitEntries("a,b,c,d,e"))
+				require.ElementsMatch(t, bot.GetSpec().GetRoles(), splitEntries("a,b,c,d,e"))
 			},
 		},
 		{
@@ -196,7 +348,7 @@ func TestUpdateBotRoles(t *testing.T) {
 			assert: func(t *testing.T, bot *machineidv1pb.Bot, mask *fieldmaskpb.FieldMask, err error) {
 				require.NoError(t, err)
 				require.ElementsMatch(t, mask.Paths, []string{"spec.roles"})
-				require.ElementsMatch(t, bot.Spec.Roles, splitEntries("a,b,c"))
+				require.ElementsMatch(t, bot.GetSpec().GetRoles(), splitEntries("a,b,c"))
 			},
 		},
 		{
@@ -207,7 +359,7 @@ func TestUpdateBotRoles(t *testing.T) {
 			assert: func(t *testing.T, bot *machineidv1pb.Bot, mask *fieldmaskpb.FieldMask, err error) {
 				require.True(t, trace.IsNotFound(err))
 				require.Empty(t, mask.Paths)
-				require.ElementsMatch(t, bot.Spec.Roles, splitEntries("a,b,c"))
+				require.ElementsMatch(t, bot.GetSpec().GetRoles(), splitEntries("a,b,c"))
 			},
 		},
 	}
@@ -221,16 +373,16 @@ func TestUpdateBotRoles(t *testing.T) {
 				roles: tt.knownRoles,
 			}
 
-			bot := &machineidv1pb.Bot{
+			bot := machineidv1pb.Bot_builder{
 				Kind:    types.KindBot,
 				Version: types.V1,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: botName,
-				},
-				Spec: &machineidv1pb.BotSpec{
+				}.Build(),
+				Spec: machineidv1pb.BotSpec_builder{
 					Roles: tt.initialRoles,
-				},
-			}
+				}.Build(),
+			}.Build()
 
 			fieldMask, err := fieldmaskpb.New(&machineidv1pb.Bot{})
 			require.NoError(t, err)
@@ -259,8 +411,16 @@ func TestAddAndListBotInstancesJSON(t *testing.T) {
 				ListenAddress: dynAddr.AuthAddr,
 			},
 		},
+		Proxy: config.Proxy{
+			Service: config.Service{
+				EnabledFlag:   "true",
+				ListenAddress: dynAddr.ProxySSHAddr,
+			},
+			WebAddr: dynAddr.WebAddr,
+			TunAddr: dynAddr.TunnelAddr,
+		},
 	}
-	process := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
+	process := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors), withEnableProxy())
 	ctx := context.Background()
 	client, err := testenv.NewDefaultAuthClient(process)
 	require.NoError(t, err)
@@ -274,16 +434,16 @@ func TestAddAndListBotInstancesJSON(t *testing.T) {
 	require.Empty(t, tokens)
 
 	// Create an initial bot
-	bot, err := client.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
-		Bot: &machineidv1pb.Bot{
+	bot, err := client.BotServiceClient().CreateBot(ctx, machineidv1pb.CreateBotRequest_builder{
+		Bot: machineidv1pb.Bot_builder{
 			Kind:    types.KindBot,
 			Version: types.V1,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: "test",
-			},
+			}.Build(),
 			Spec: &machineidv1pb.BotSpec{},
-		},
-	})
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 
 	// Attempt to add a new instance and ensure a new token was created.
@@ -291,15 +451,22 @@ func TestAddAndListBotInstancesJSON(t *testing.T) {
 	cmd := BotsCommand{
 		stdout:  &buf,
 		format:  teleport.JSON,
-		botName: bot.Metadata.Name,
+		botName: bot.GetMetadata().GetName(),
 	}
 	require.NoError(t, cmd.AddBotInstance(ctx, client))
 
 	response := botJSONResponse{}
 	require.NoError(t, json.Unmarshal([]byte(buf.String()), &response))
 
-	_, err = client.GetToken(ctx, response.TokenID)
+	token, err := client.GetToken(ctx, response.TokenID)
 	require.NoError(t, err)
+
+	// Make sure these are being created with the intended defaults
+	require.Equal(t, types.JoinMethodBoundKeypair, token.GetJoinMethod())
+	uri, err := joinuri.Parse(response.JoinURI)
+	require.NoError(t, err)
+	require.Equal(t, types.JoinMethodBoundKeypair, uri.JoinMethod)
+	require.True(t, token.Expiry().IsZero(), "bound keypair token must not expire")
 
 	// Run the command again to ensure multiple distinct tokens can be created.
 	buf.Reset()
@@ -307,30 +474,45 @@ func TestAddAndListBotInstancesJSON(t *testing.T) {
 
 	response2 := botJSONResponse{}
 	require.NoError(t, json.Unmarshal([]byte(buf.String()), &response2))
-
 	require.NotEqual(t, response.TokenID, response2.TokenID)
 
 	_, err = client.GetToken(ctx, response2.TokenID)
 	require.NoError(t, err)
 
+	// Try once more, but with legacy mode
 	buf.Reset()
+	cmd.legacy = true
+	require.NoError(t, cmd.AddBotInstance(ctx, client))
+
+	response3 := botJSONResponse{}
+	require.NoError(t, json.Unmarshal([]byte(buf.String()), &response3))
+
+	token, err = client.GetToken(ctx, response3.TokenID)
+	require.NoError(t, err)
+	require.Equal(t, types.JoinMethodToken, token.GetJoinMethod())
+
+	// We should still include the URI in legacy mode
+	uri, err = joinuri.Parse(response3.JoinURI)
+	require.NoError(t, err)
+	require.Equal(t, types.JoinMethodToken, uri.JoinMethod)
+	require.False(t, token.Expiry().IsZero(), "traditional token must expire")
 }
 
 func TestAggregateServiceHealth(t *testing.T) {
 	t.Parallel()
 
-	healthy := machineidv1pb.BotInstanceServiceHealth{
+	healthy := machineidv1pb.BotInstanceServiceHealth_builder{
 		Status: machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_HEALTHY,
-	}
-	unhealthy := machineidv1pb.BotInstanceServiceHealth{
+	}.Build()
+	unhealthy := machineidv1pb.BotInstanceServiceHealth_builder{
 		Status: machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_UNHEALTHY,
-	}
-	initializing := machineidv1pb.BotInstanceServiceHealth{
+	}.Build()
+	initializing := machineidv1pb.BotInstanceServiceHealth_builder{
 		Status: machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_INITIALIZING,
-	}
-	unknown := machineidv1pb.BotInstanceServiceHealth{
+	}.Build()
+	unknown := machineidv1pb.BotInstanceServiceHealth_builder{
 		Status: machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_UNSPECIFIED,
-	}
+	}.Build()
 
 	tcs := []struct {
 		name      string
@@ -351,73 +533,50 @@ func TestAggregateServiceHealth(t *testing.T) {
 			status:    0,
 		},
 		{
-			name: "one item - healthy",
-			services: []*machineidv1pb.BotInstanceServiceHealth{
-				&healthy,
-			},
+			name:      "one item - healthy",
+			services:  []*machineidv1pb.BotInstanceServiceHealth{healthy},
 			hasStatus: true,
 			status:    machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_HEALTHY,
 		},
 		{
-			name: "one item - unhealthy",
-			services: []*machineidv1pb.BotInstanceServiceHealth{
-				&unhealthy,
-			},
+			name:      "one item - unhealthy",
+			services:  []*machineidv1pb.BotInstanceServiceHealth{unhealthy},
 			hasStatus: true,
 			status:    machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_UNHEALTHY,
 		},
 		{
-			name: "one item - initializing",
-			services: []*machineidv1pb.BotInstanceServiceHealth{
-				&initializing,
-			},
+			name:      "one item - initializing",
+			services:  []*machineidv1pb.BotInstanceServiceHealth{initializing},
 			hasStatus: true,
 			status:    machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_INITIALIZING,
 		},
 		{
-			name: "one item - unknown",
-			services: []*machineidv1pb.BotInstanceServiceHealth{
-				&unknown,
-			},
+			name:      "one item - unknown",
+			services:  []*machineidv1pb.BotInstanceServiceHealth{unknown},
 			hasStatus: true,
 			status:    machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_UNSPECIFIED,
 		},
 		{
-			name: "multiple items - healthy",
-			services: []*machineidv1pb.BotInstanceServiceHealth{
-				&healthy,
-				&healthy,
-			},
+			name:      "multiple items - healthy",
+			services:  []*machineidv1pb.BotInstanceServiceHealth{healthy, healthy},
 			hasStatus: true,
 			status:    machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_HEALTHY,
 		},
 		{
-			name: "multiple items - unhealthy",
-			services: []*machineidv1pb.BotInstanceServiceHealth{
-				&unhealthy,
-				&healthy,
-				&initializing,
-				&unknown,
-			},
+			name:      "multiple items - unhealthy",
+			services:  []*machineidv1pb.BotInstanceServiceHealth{unhealthy, healthy, initializing, unknown},
 			hasStatus: true,
 			status:    machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_UNHEALTHY,
 		},
 		{
-			name: "multiple items - unknown",
-			services: []*machineidv1pb.BotInstanceServiceHealth{
-				&healthy,
-				&initializing,
-				&unknown,
-			},
+			name:      "multiple items - unknown",
+			services:  []*machineidv1pb.BotInstanceServiceHealth{healthy, initializing, unknown},
 			hasStatus: true,
 			status:    machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_UNSPECIFIED,
 		},
 		{
-			name: "multiple items - initializing",
-			services: []*machineidv1pb.BotInstanceServiceHealth{
-				&healthy,
-				&initializing,
-			},
+			name:      "multiple items - initializing",
+			services:  []*machineidv1pb.BotInstanceServiceHealth{healthy, initializing},
 			hasStatus: true,
 			status:    machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_INITIALIZING,
 		},
@@ -455,13 +614,13 @@ func TestListBotInstances(t *testing.T) {
 
 	instance0 := createBotInstance(t, ctx, process)
 	instance1 := createBotInstance(t, ctx, process, func(instance *machineidv1pb.BotInstance) {
-		instance.Status.InitialHeartbeat.Hostname = "test-hostname-3"
-		instance.Status.InitialHeartbeat.Version = "19.0.1"
+		instance.GetStatus().GetInitialHeartbeat().SetHostname("test-hostname-3")
+		instance.GetStatus().GetInitialHeartbeat().SetVersion("19.0.1")
 	})
 	instance2 := createBotInstance(t, ctx, process, func(instance *machineidv1pb.BotInstance) {
-		instance.Spec.BotName = "test-bot-2"
-		instance.Status.InitialHeartbeat.Hostname = "test-hostname-2"
-		instance.Status.InitialHeartbeat.Version = "18.1.0"
+		instance.GetSpec().SetBotName("test-bot-2")
+		instance.GetStatus().GetInitialHeartbeat().SetHostname("test-hostname-2")
+		instance.GetStatus().GetInitialHeartbeat().SetVersion("18.1.0")
 	})
 
 	// Give the auth cache a chance to catch-up
@@ -585,27 +744,27 @@ func assertContainsInstance(t *testing.T, res []*machineidv1pb.BotInstance, inst
 }
 
 func createBotInstance(t *testing.T, ctx context.Context, process *service.TeleportProcess, options ...func(instance *machineidv1pb.BotInstance)) (result *machineidv1pb.BotInstance) {
-	heartbeat := &machineidv1pb.BotInstanceStatusHeartbeat{
+	heartbeat := machineidv1pb.BotInstanceStatusHeartbeat_builder{
 		RecordedAt: timestamppb.New(time.Now()),
 		IsStartup:  true,
 		Version:    "19.0.0",
 		Hostname:   "test-hostname-1",
 		Uptime:     durationpb.New(1 * time.Hour),
 		Os:         "linux",
-	}
+	}.Build()
 
-	base := &machineidv1pb.BotInstance{
-		Spec: &machineidv1pb.BotInstanceSpec{
+	base := machineidv1pb.BotInstance_builder{
+		Spec: machineidv1pb.BotInstanceSpec_builder{
 			BotName:    "test-bot-1",
 			InstanceId: uuid.New().String(),
-		},
-		Status: &machineidv1pb.BotInstanceStatus{
+		}.Build(),
+		Status: machineidv1pb.BotInstanceStatus_builder{
 			InitialHeartbeat: heartbeat,
 			LatestHeartbeats: []*machineidv1pb.BotInstanceStatusHeartbeat{
 				heartbeat,
 			},
-		},
-	}
+		}.Build(),
+	}.Build()
 
 	for _, fn := range options {
 		fn(base)

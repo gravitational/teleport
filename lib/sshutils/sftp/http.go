@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/teleport/session/sftputils"
 )
 
 const (
@@ -71,7 +72,7 @@ func (h *httpFS) ReadDir(_ string) ([]fs.FileInfo, error) {
 	return nil, errDirsNotSupported
 }
 
-func (h *httpFS) Open(path string) (File, error) {
+func (h *httpFS) Open(path string) (sftputils.File, error) {
 	if h.reader == nil {
 		return nil, trace.BadParameter("missing reader")
 	}
@@ -85,7 +86,7 @@ func (h *httpFS) Open(path string) (File, error) {
 	}, nil
 }
 
-func (h *httpFS) Create(p string, size int64) (File, error) {
+func (h *httpFS) Create(p string, size int64) (sftputils.File, error) {
 	filename := path.Base(p)
 	contentLength := strconv.FormatInt(size, 10)
 	header := h.writer.Header()
@@ -106,7 +107,7 @@ func (h *httpFS) Create(p string, size int64) (File, error) {
 	}, nil
 }
 
-func (h *httpFS) OpenFile(p string, flags int) (File, error) {
+func (h *httpFS) OpenFile(p string, flags int) (sftputils.File, error) {
 	switch flags & 3 {
 	case os.O_RDWR:
 		return nil, trace.BadParameter("read-write files not supported for http")

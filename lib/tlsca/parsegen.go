@@ -38,12 +38,33 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// ClusterName returns cluster name from organization
-func ClusterName(subject pkix.Name) (string, error) {
-	if len(subject.Organization) == 0 {
-		return "", trace.BadParameter("missing subject organization")
+// ClusterName returns cluster name from a Teleport CA name (Issuer or Subject).
+func ClusterName(name pkix.Name) (string, error) {
+	// Cluster name in custom OID.
+	for _, atv := range name.Names {
+		if atv.Type.Equal(CAClusterNameExtensionOID) {
+			var ok bool
+			clusterName, ok := atv.Value.(string)
+			switch {
+			case !ok:
+				return "", trace.BadParameter("OID %s has value of unexpected type %T", atv.Type, atv.Value)
+			case clusterName == "":
+				return "", trace.BadParameter("OID %s has empty value", atv.Type)
+			default:
+				return clusterName, nil
+			}
+		}
 	}
-	return subject.Organization[0], nil
+
+	// Cluster name in "O=".
+	if len(name.Organization) == 0 {
+		return "", trace.BadParameter("missing cluster name")
+	}
+	clusterName := name.Organization[0]
+	if clusterName == "" {
+		return "", trace.BadParameter("empty organization value")
+	}
+	return clusterName, nil
 }
 
 // GenerateSelfSignedCAWithSigner generates self-signed certificate authority used for internal inter-node communications
@@ -64,8 +85,16 @@ type GenerateCAConfig struct {
 	Entity      pkix.Name
 	DNSNames    []string
 	IPAddresses []net.IP
-	TTL         time.Duration
-	Clock       clockwork.Clock
+
+	// TTL and Clock are used to create the NotBefore and NotAfter timestamps.
+	// TTL is an offset from the NotBefore.
+	// Optional if NotBefore/NotAfter are supplied.
+	TTL   time.Duration
+	Clock clockwork.Clock
+
+	// NotBefore and NotAfter are the certificate timestamps.
+	// Optional. If unset then TTL and Clock are used.
+	NotBefore, NotAfter time.Time
 }
 
 // setDefaults imposes defaults on this configuration
@@ -80,8 +109,15 @@ func (r *GenerateCAConfig) setDefaults() {
 // Returns PEM-encoded private key/certificate payloads upon success
 func GenerateSelfSignedCAWithConfig(config GenerateCAConfig) (certPEM []byte, err error) {
 	config.setDefaults()
-	notBefore := config.Clock.Now()
-	notAfter := notBefore.Add(config.TTL)
+
+	notBefore := config.NotBefore
+	if notBefore.IsZero() {
+		notBefore = config.Clock.Now()
+	}
+	notAfter := config.NotAfter
+	if notAfter.IsZero() {
+		notAfter = notBefore.Add(config.TTL)
+	}
 
 	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
 	serialNumber, err := rand.Int(rand.Reader, serialNumberLimit)
@@ -124,6 +160,9 @@ func GenerateSelfSignedCAWithConfig(config GenerateCAConfig) (certPEM []byte, er
 }
 
 // GenerateSelfSignedCA generates self-signed certificate authority used for tests.
+//
+// Prefer tlscatest.GenerateSelfSignedCA, which operates on a higher level of
+// abstraction and always creates a valid-looking CA certificate.
 func GenerateSelfSignedCA(entity pkix.Name, dnsNames []string, ttl time.Duration) ([]byte, []byte, error) {
 	signer, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 	if err != nil {

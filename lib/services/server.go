@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/trace"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -76,6 +77,11 @@ func CompareServers(a, b types.Resource) int {
 			return compareWindowsDesktopServices(winA, winB)
 		}
 	}
+	if linA, ok := a.(types.Resource153UnwrapperT[*linuxdesktopv1.LinuxDesktop]); ok {
+		if linB, ok := b.(types.Resource153UnwrapperT[*linuxdesktopv1.LinuxDesktop]); ok {
+			return CompareLinuxDesktop(linA.UnwrapT(), linB.UnwrapT())
+		}
+	}
 	return Different
 }
 
@@ -109,6 +115,7 @@ func compareServers(a, b types.Server) int {
 	if a.GetUseTunnel() != b.GetUseTunnel() {
 		return Different
 	}
+
 	if !maps.Equal(a.GetStaticLabels(), b.GetStaticLabels()) {
 		return Different
 	}
@@ -120,6 +127,11 @@ func compareServers(a, b types.Server) int {
 	}) {
 		return Different
 	}
+
+	if !maps.Equal(a.GetImmutableLabels(), b.GetImmutableLabels()) {
+		return Different
+	}
+
 	if a.GetTeleportVersion() != b.GetTeleportVersion() {
 		return Different
 	}
@@ -153,6 +165,11 @@ func compareServers(a, b types.Server) int {
 	if a.GetScope() != b.GetScope() {
 		return Different
 	}
+
+	if !maps.Equal(a.GetAllLabels(), b.GetAllLabels()) {
+		return Different
+	}
+
 	// OnlyTimestampsDifferent check must be after all Different checks.
 	if !a.Expiry().Equal(b.Expiry()) {
 		return OnlyTimestampsDifferent
@@ -192,6 +209,9 @@ func compareApplicationServers(a, b types.AppServer) int {
 	if a.GetScope() != b.GetScope() {
 		return Different
 	}
+	if !maps.Equal(a.GetAllLabels(), b.GetAllLabels()) {
+		return Different
+	}
 	// OnlyTimestampsDifferent check must be after all Different checks.
 	if !a.Expiry().Equal(b.Expiry()) {
 		return OnlyTimestampsDifferent
@@ -219,6 +239,10 @@ func compareDatabaseServices(a, b types.DatabaseService) int {
 		}) {
 		return Different
 	}
+	if !maps.Equal(a.GetAllLabels(), b.GetAllLabels()) {
+		return Different
+	}
+	// OnlyTimestampsDifferent check must be after all Different checks.
 	if !a.Expiry().Equal(b.Expiry()) {
 		return OnlyTimestampsDifferent
 	}
@@ -255,6 +279,9 @@ func compareKubernetesServers(a, b types.KubeServer) int {
 		return Different
 	}
 	if a.GetScope() != b.GetScope() {
+		return Different
+	}
+	if !maps.Equal(a.GetAllLabels(), b.GetAllLabels()) {
 		return Different
 	}
 	// OnlyTimestampsDifferent check must be after all Different checks.
@@ -296,6 +323,9 @@ func compareDatabaseServers(a, b types.DatabaseServer) int {
 	if a.GetScope() != b.GetScope() {
 		return Different
 	}
+	if !maps.Equal(a.GetAllLabels(), b.GetAllLabels()) {
+		return Different
+	}
 	// OnlyTimestampsDifferent check must be after all Different checks.
 	if !a.Expiry().Equal(b.Expiry()) {
 		return OnlyTimestampsDifferent
@@ -325,8 +355,40 @@ func compareWindowsDesktopServices(a, b types.WindowsDesktopService) int {
 	if !slices.Equal(a.GetRelayIDs(), b.GetRelayIDs()) {
 		return Different
 	}
+	if !maps.Equal(a.GetAllLabels(), b.GetAllLabels()) {
+		return Different
+	}
 	// OnlyTimestampsDifferent check must be after all Different checks.
 	if !a.Expiry().Equal(b.Expiry()) {
+		return OnlyTimestampsDifferent
+	}
+	return Equal
+}
+
+func CompareLinuxDesktop(a, b *linuxdesktopv1.LinuxDesktop) int {
+	if a.GetKind() != b.GetKind() {
+		return Different
+	}
+	if a.GetSubKind() != b.GetSubKind() {
+		return Different
+	}
+	if a.GetMetadata().GetName() != b.GetMetadata().GetName() {
+		return Different
+	}
+	if a.GetSpec().GetAddr() != b.GetSpec().GetAddr() {
+		return Different
+	}
+	if a.GetSpec().GetHostname() != b.GetSpec().GetHostname() {
+		return Different
+	}
+	if !slices.Equal(a.GetSpec().GetProxyIds(), b.GetSpec().GetProxyIds()) {
+		return Different
+	}
+	if !maps.Equal(a.GetMetadata().GetLabels(), b.GetMetadata().GetLabels()) {
+		return Different
+	}
+	// OnlyTimestampsDifferent check must be after all Different checks.
+	if !a.GetMetadata().GetExpires().AsTime().Equal(b.GetMetadata().GetExpires().AsTime()) {
 		return OnlyTimestampsDifferent
 	}
 	return Equal

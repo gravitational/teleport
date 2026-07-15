@@ -22,11 +22,12 @@ package bpf
 
 import (
 	"context"
+	"errors"
 	"io"
-	"runtime"
 	"sync"
 
 	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/btf"
 	"github.com/cilium/ebpf/link"
 	"github.com/cilium/ebpf/ringbuf"
 	"github.com/cilium/ebpf/rlimit"
@@ -35,6 +36,11 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/observability/metrics"
+)
+
+const (
+	doFilpOpenName = "do_filp_open"
+	doFileOpenName = "do_file_open"
 )
 
 var lostDiskEvents = prometheus.NewCounter(
@@ -47,13 +53,15 @@ var lostDiskEvents = prometheus.NewCounter(
 type open struct {
 	objs diskObjects
 
-	eventBuf chan []byte
-	toClose  []io.Closer
-
-	closed bool
-	mtx    sync.Mutex
-
+	bpfEvents   chan []byte
 	lostCounter *Counter
+	toClose     []io.Closer
+
+	closed   bool
+	flushBuf func() error
+
+	mtx sync.Mutex
+	wg  sync.WaitGroup
 }
 
 // startOpen will compile, load, start, and pull events off the perf buffer
@@ -70,9 +78,28 @@ func startOpen(bufferSize int) (*open, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	// The disk eBPF program hooks do_file_open by default, which was
+	// renamed from do_filp_open in 7.0. Check if do_file_open is available
+	// and use do_filp_open otherwise; don't rely on the kernel version.
+	attachTarget, err := findOpenAttachTarget()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	var objs diskObjects
-	if err := loadDiskObjects(&objs, nil); err != nil {
-		return nil, trace.Wrap(err, "loading disk objects: %v", err)
+	spec, err := loadDisk()
+	if err != nil {
+		return nil, trace.Wrap(err, "reading disk objects")
+	}
+
+	p, ok := spec.Programs["do_file_open_exit"]
+	if !ok {
+		return nil, trace.NotFound("do_file_open_exit not found in disk objects")
+	}
+	p.AttachTo = attachTarget
+
+	if err := spec.LoadAndAssign(&objs, nil); err != nil {
+		return nil, trace.Wrap(err, "loading disk objects")
 	}
 
 	lostCtr, err := NewCounter(objs.LostCounter, objs.LostDoorbell, lostDiskEvents)
@@ -80,61 +107,29 @@ func startOpen(bufferSize int) (*open, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	trs := []struct {
-		name string
-		prog *ebpf.Program
+	var toClose []io.Closer
+	tps := []struct {
+		prog       *ebpf.Program
+		attachType ebpf.AttachType
 	}{
 		{
-			name: "sys_enter_openat",
-			prog: objs.TracepointSyscallsSysEnterOpenat,
+			prog:       objs.SecurityFileOpen,
+			attachType: ebpf.AttachTraceFEntry,
 		},
 		{
-			name: "sys_exit_openat",
-			prog: objs.TracepointSyscallsSysExitOpenat,
-		},
-		{
-			name: "sys_enter_openat2",
-			prog: objs.TracepointSyscallsSysEnterOpenat2,
-		},
-		{
-			name: "sys_exit_openat2",
-			prog: objs.TracepointSyscallsSysExitOpenat2,
+			prog:       objs.DoFileOpenExit,
+			attachType: ebpf.AttachTraceFExit,
 		},
 	}
-
-	if runtime.GOARCH != "arm64" {
-		// creat and open are not implemented on arm64.
-		trs = append(trs, []struct {
-			name string
-			prog *ebpf.Program
-		}{
-			{
-				name: "sys_enter_creat",
-				prog: objs.TracepointSyscallsSysEnterCreat,
-			},
-			{
-				name: "sys_exit_creat",
-				prog: objs.TracepointSyscallsSysExitCreat,
-			},
-			{
-				name: "sys_enter_open",
-				prog: objs.TracepointSyscallsSysEnterOpen,
-			},
-			{
-				name: "sys_exit_open",
-				prog: objs.TracepointSyscallsSysExitOpen,
-			},
-		}...)
-	}
-
-	toClose := make([]io.Closer, 0, len(trs))
-	for _, tr := range trs {
-		tp, err := link.Tracepoint("syscalls", tr.name, tr.prog, nil)
+	for _, tp := range tps {
+		lk, err := link.AttachTracing(link.TracingOptions{
+			Program:    tp.prog,
+			AttachType: tp.attachType,
+		})
 		if err != nil {
-			return nil, trace.Wrap(err, "linking %q tracepoint: %v", tr.name, err)
+			return nil, trace.Wrap(err)
 		}
-
-		toClose = append(toClose, tp)
+		toClose = append(toClose, lk)
 	}
 
 	eventBuf, err := ringbuf.NewReader(objs.OpenEvents)
@@ -142,18 +137,41 @@ func startOpen(bufferSize int) (*open, error) {
 		return nil, trace.Wrap(err, "creating ring buffer reader: %v", err)
 	}
 
-	bpfEvents := make(chan []byte, bufferSize)
-	go sendEvents(bpfEvents, eventBuf)
-
-	return &open{
+	o := &open{
 		objs:        objs,
-		eventBuf:    bpfEvents,
-		toClose:     toClose,
 		lostCounter: lostCtr,
-	}, nil
+		toClose:     toClose,
+		flushBuf:    eventBuf.Flush,
+	}
+
+	o.bpfEvents = make(chan []byte, bufferSize)
+	o.wg.Go(func() { sendEvents("disk", o.bpfEvents, eventBuf) })
+
+	return o, nil
 }
 
-func (o *open) startSession(cgroupID uint64) error {
+func findOpenAttachTarget() (string, error) {
+	kspec, err := btf.LoadKernelSpec()
+	if err != nil {
+		return "", trace.Wrap(err, "loading kernel BTF spec")
+	}
+
+	for _, target := range []string{doFileOpenName, doFilpOpenName} {
+		var fn *btf.Func
+		if err := kspec.TypeByName(target, &fn); err != nil {
+			if errors.Is(err, btf.ErrNotFound) {
+				continue
+			}
+			return "", trace.Wrap(err, "finding %s", target)
+		}
+
+		return target, nil
+	}
+
+	return "", trace.NotFound("do_file_open and do_filp_open not found in kernel BTF spec")
+}
+
+func (o *open) startSession(auditSessionID uint32) error {
 	o.mtx.Lock()
 	defer o.mtx.Unlock()
 
@@ -161,22 +179,22 @@ func (o *open) startSession(cgroupID uint64) error {
 		return trace.BadParameter("open session already closed")
 	}
 
-	if err := o.objs.MonitoredCgroups.Put(cgroupID, int64(0)); err != nil {
+	if err := o.objs.MonitoredSessionids.Put(auditSessionID, uint8(0)); err != nil {
 		return trace.Wrap(err)
 	}
 
 	return nil
 }
 
-func (o *open) endSession(cgroupID uint64) error {
+func (o *open) endSession(auditSessionID uint32) error {
 	o.mtx.Lock()
 	defer o.mtx.Unlock()
 
 	if o.closed {
-		return nil // Ignore. If the session is closed, the cgroup is no longer monitored.
+		return nil
 	}
 
-	if err := o.objs.MonitoredCgroups.Delete(&cgroupID); err != nil {
+	if err := o.objs.MonitoredSessionids.Delete(&auditSessionID); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -187,13 +205,19 @@ func (o *open) endSession(cgroupID uint64) error {
 // program. The ring buffer is closed as part of the module being closed.
 func (o *open) close() {
 	o.mtx.Lock()
-	defer o.mtx.Unlock()
 
 	if o.closed {
+		o.mtx.Unlock()
 		return
 	}
 
 	o.closed = true
+
+	if err := o.flushBuf(); err != nil {
+		logger.WarnContext(context.Background(), "failed to flush disk ring buffer", "error", err)
+	} else {
+		logger.DebugContext(context.Background(), "Flushed disk ring buffer, waiting for pending events to be processed")
+	}
 
 	for _, toClose := range o.toClose {
 		if err := toClose.Close(); err != nil {
@@ -209,10 +233,15 @@ func (o *open) close() {
 		logger.WarnContext(context.Background(), "failed to close disk lost counter", "error", err)
 	}
 
+	// Unlock before waiting for the goroutines to finish to avoid
+	// startSession/endSession blocking for potentially a long time.
+	o.mtx.Unlock()
+	o.wg.Wait()
+
 	logger.DebugContext(context.Background(), "Closed disk BPF module")
 }
 
 // events contains raw events off the perf buffer.
 func (o *open) events() <-chan []byte {
-	return o.eventBuf
+	return o.bpfEvents
 }

@@ -19,6 +19,7 @@ package services
 import (
 	"context"
 	"iter"
+	"slices"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -34,12 +35,10 @@ import (
 // Summarizer is a service that provides methods to manage summary inference
 // configuration resources in the backend.
 type Summarizer interface {
+	SummarizerServiceGetter
 	// CreateInferenceModel creates a new session summary inference model in the
 	// backend.
 	CreateInferenceModel(ctx context.Context, model *summarizerv1.InferenceModel) (*summarizerv1.InferenceModel, error)
-	// GetInferenceModel retrieves a session summary inference model from the
-	// backend by name.
-	GetInferenceModel(ctx context.Context, name string) (*summarizerv1.InferenceModel, error)
 	// UpdateInferenceModel updates an existing session summary inference model
 	// in the backend.
 	UpdateInferenceModel(ctx context.Context, model *summarizerv1.InferenceModel) (*summarizerv1.InferenceModel, error)
@@ -49,18 +48,11 @@ type Summarizer interface {
 	// DeleteInferenceModel deletes a session summary inference model from the
 	// backend by name.
 	DeleteInferenceModel(ctx context.Context, name string) error
-	// ListInferenceModels lists session summary inference models in the backend
-	// with pagination support. Returns a slice of models and a next page token.
-	ListInferenceModels(ctx context.Context, size int, pageToken string) ([]*summarizerv1.InferenceModel, string, error)
 
 	// CreateInferenceSecret creates a new session summary inference secret in
 	// the backend. The returned object contains the secret value and should be
 	// handled with care.
 	CreateInferenceSecret(ctx context.Context, secret *summarizerv1.InferenceSecret) (*summarizerv1.InferenceSecret, error)
-	// GetInferenceSecret retrieves a session summary inference secret from the
-	// backend by name. The returned object contains the secret value and should
-	// be handled with care.
-	GetInferenceSecret(ctx context.Context, name string) (*summarizerv1.InferenceSecret, error)
 	// UpdateInferenceSecret updates an existing session summary inference secret
 	// in the backend. The returned object contains the secret value and should
 	// be handled with care.
@@ -73,18 +65,10 @@ type Summarizer interface {
 	// DeleteInferenceSecret deletes a session summary inference secret from the
 	// backend by name.
 	DeleteInferenceSecret(ctx context.Context, name string) error
-	// ListInferenceSecrets lists session summary inference secrets in the
-	// backend with pagination support. Returns a slice of secrets and a next
-	// page token. The returned objects contain the secret values and should be
-	// handled with care.
-	ListInferenceSecrets(ctx context.Context, size int, pageToken string) ([]*summarizerv1.InferenceSecret, string, error)
 
 	// CreateInferencePolicy creates a new session summary inference policy in
 	// the backend.
 	CreateInferencePolicy(ctx context.Context, policy *summarizerv1.InferencePolicy) (*summarizerv1.InferencePolicy, error)
-	// GetInferencePolicy retrieves a session summary inference policy from the
-	// backend by name.
-	GetInferencePolicy(ctx context.Context, name string) (*summarizerv1.InferencePolicy, error)
 	// UpdateInferencePolicy updates an existing session summary inference policy
 	// in the backend.
 	UpdateInferencePolicy(ctx context.Context, policy *summarizerv1.InferencePolicy) (*summarizerv1.InferencePolicy, error)
@@ -94,6 +78,56 @@ type Summarizer interface {
 	// DeleteInferencePolicy deletes a session summary inference policy from the
 	// backend by name.
 	DeleteInferencePolicy(ctx context.Context, name string) error
+
+	// CreateClassifier creates a new session summarization classifier in the
+	// backend.
+	CreateClassifier(ctx context.Context, classifier *summarizerv1.Classifier) (*summarizerv1.Classifier, error)
+	// UpdateClassifier updates an existing session summarization classifier in
+	// the backend.
+	UpdateClassifier(ctx context.Context, classifier *summarizerv1.Classifier) (*summarizerv1.Classifier, error)
+	// UpsertClassifier creates or updates a session summarization classifier
+	// in the backend. If the classifier already exists, it will be updated.
+	UpsertClassifier(ctx context.Context, classifier *summarizerv1.Classifier) (*summarizerv1.Classifier, error)
+	// DeleteClassifier deletes a session summarization classifier from the
+	// backend by name.
+	DeleteClassifier(ctx context.Context, name string) error
+
+	// CreateRetrievalModel creates the search model in the backend.
+	// Only one RetrievalModel can exist per cluster.
+	CreateRetrievalModel(ctx context.Context, model *summarizerv1.RetrievalModel) (*summarizerv1.RetrievalModel, error)
+	// UpdateRetrievalModel updates the existing search model in the backend.
+	UpdateRetrievalModel(ctx context.Context, model *summarizerv1.RetrievalModel) (*summarizerv1.RetrievalModel, error)
+	// UpsertRetrievalModel creates or updates the search model in the backend.
+	// If the model already exists, it will be updated.
+	UpsertRetrievalModel(ctx context.Context, model *summarizerv1.RetrievalModel) (*summarizerv1.RetrievalModel, error)
+	// DeleteRetrievalModel deletes the search model from the backend.
+	// Since only one RetrievalModel can exist per cluster, no name is required.
+	DeleteRetrievalModel(ctx context.Context) error
+}
+
+// SummarizerServiceGetter is the interface that defines the methods required for
+// retrieving objects from the cache.
+type SummarizerServiceGetter interface {
+	// GetInferenceModel retrieves a session summary inference model from the
+	// backend by name.
+	GetInferenceModel(ctx context.Context, name string) (*summarizerv1.InferenceModel, error)
+	// ListInferenceModels lists session summary inference models in the backend
+	// with pagination support. Returns a slice of models and a next page token.
+	ListInferenceModels(ctx context.Context, size int, pageToken string) ([]*summarizerv1.InferenceModel, string, error)
+
+	// GetInferenceSecret retrieves a session summary inference secret from the
+	// backend by name. The returned object contains the secret value and should
+	// be handled with care.
+	GetInferenceSecret(ctx context.Context, name string) (*summarizerv1.InferenceSecret, error)
+	// ListInferenceSecrets lists session summary inference secrets in the
+	// backend with pagination support. Returns a slice of secrets and a next
+	// page token. The returned objects contain the secret values and should be
+	// handled with care.
+	ListInferenceSecrets(ctx context.Context, size int, pageToken string) ([]*summarizerv1.InferenceSecret, string, error)
+
+	// GetInferencePolicy retrieves a session summary inference policy from the
+	// backend by name.
+	GetInferencePolicy(ctx context.Context, name string) (*summarizerv1.InferencePolicy, error)
 	// ListInferencePolicies lists session summary inference policies in the
 	// backend with pagination support. Returns a slice of policies and a next
 	// page token.
@@ -101,6 +135,23 @@ type Summarizer interface {
 	// AllInferencePolicies returns an iterator that retrieves all session
 	// summary inference policies from the backend, without pagination.
 	AllInferencePolicies(ctx context.Context) iter.Seq2[*summarizerv1.InferencePolicy, error]
+
+	// GetClassifier retrieves a session summarization classifier from the
+	// backend by name.
+	GetClassifier(ctx context.Context, name string) (*summarizerv1.Classifier, error)
+	// ListClassifiers lists session summarization classifiers in the backend
+	// with pagination support. Returns a slice of classifiers and a next page
+	// token.
+	ListClassifiers(ctx context.Context, size int, pageToken string) ([]*summarizerv1.Classifier, string, error)
+	// RangeClassifiers returns an iterator that retrieves session summarization
+	// classifiers from the backend, without pagination, starting with the
+	// resource named start and ending before the resource named end. Empty
+	// bounds iterate from the beginning and/or to the end of the collection.
+	RangeClassifiers(ctx context.Context, start, end string) iter.Seq2[*summarizerv1.Classifier, error]
+
+	// GetRetrievalModel retrieves the search model from the backend.
+	// Since only one RetrievalModel can exist per cluster, no name is required.
+	GetRetrievalModel(ctx context.Context) (*summarizerv1.RetrievalModel, error)
 }
 
 // InferencePolicyMatchingContext is a special kind of [RuleContext] that is
@@ -147,6 +198,7 @@ func (ctx *InferencePolicyMatchingContext) GetIdentifier(fields []string) (any, 
 		// returned.
 		for _, dummyResource := range []types.Resource{
 			&types.ServerV2{}, &types.KubernetesClusterV3{}, &types.DatabaseV3{},
+			&types.WindowsDesktopV3{},
 		} {
 			zeroVal, err := predicate.GetFieldByTag(dummyResource, teleport.JSON, fields[1:])
 			if err == nil {
@@ -163,7 +215,7 @@ func (ctx *InferencePolicyMatchingContext) GetIdentifier(fields []string) (any, 
 		// First, try to fetch field value from the session in the context.
 		var session events.AuditEvent = &events.SessionEnd{}
 		switch ctx.Session.(type) {
-		case *events.SessionEnd, *events.DatabaseSessionEnd:
+		case *events.SessionEnd, *events.DatabaseSessionEnd, *events.WindowsDesktopSessionEnd:
 			session = ctx.Session
 		}
 		val, origErr := predicate.GetFieldByTag(session, teleport.JSON, fields[1:])
@@ -208,6 +260,80 @@ func (ctx *InferencePolicyMatchingContext) GetResource() (types.Resource, error)
 func (ctx *InferencePolicyMatchingContext) ExtendWithSessionEnd(sessionEnd events.AuditEvent) {
 	ctx.Session = sessionEnd
 	ctx.Resource = rebuildResourceFromSessionEndEvent(sessionEnd)
+}
+
+// MatchingClassifiers returns the classifiers from the given sequence that
+// apply to a session of the given kind and matching context. Classifiers are
+// matched by session kind and filter expression the same way inference
+// policies are, except that all matching classifiers are returned rather than
+// the first one. The sequence is typically
+// [SummarizerServiceGetter.RangeClassifiers].
+func MatchingClassifiers(
+	classifiers iter.Seq2[*summarizerv1.Classifier, error],
+	sessionKind types.SessionKind,
+	matchingCtx *InferencePolicyMatchingContext,
+) ([]*summarizerv1.Classifier, error) {
+	parser, err := NewWhereParser(matchingCtx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var matched []*summarizerv1.Classifier
+	for c, err := range classifiers {
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if !slices.Contains(c.GetSpec().GetKinds(), string(sessionKind)) {
+			continue
+		}
+
+		if filter := c.GetSpec().GetFilter(); filter != "" {
+			parseResult, err := parser.Parse(filter)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			pred, ok := parseResult.(predicate.BoolPredicate)
+			if !ok {
+				return nil, trace.BadParameter("unsupported type: %T", parseResult)
+			}
+
+			if !pred() {
+				continue
+			}
+		}
+
+		matched = append(matched, c)
+	}
+	return matched, nil
+}
+
+// ValidateClassifier validates a classifier, including checking filter
+// syntax. This function wraps [apisummarizer.ValidateClassifier], as no
+// function in the api/types tree can depend on the lib/services package.
+func ValidateClassifier(c *summarizerv1.Classifier) error {
+	err := apisummarizer.ValidateClassifier(c)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	s := c.GetSpec()
+	if s.GetFilter() != "" {
+		parser, err := NewWhereParser(&InferencePolicyMatchingContext{})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		parseResult, err := parser.Parse(s.GetFilter())
+		if err != nil {
+			return trace.Wrap(err, "spec.filter has to be a valid predicate")
+		}
+		if _, ok := parseResult.(predicate.BoolPredicate); !ok {
+			return trace.BadParameter("spec.filter has to be a boolean expression")
+		}
+	}
+
+	return nil
 }
 
 // ValidateInferencePolicy validates an inference policy, including checking

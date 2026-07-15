@@ -17,6 +17,7 @@
 package client
 
 import (
+	"cmp"
 	"context"
 	"crypto/ecdsa"
 	"crypto/rsa"
@@ -174,7 +175,12 @@ func TestIssueUserCertsWithMFA(t *testing.T) {
 		params                  ReissueParams
 		prompt                  fakePrompt
 		signatureAlgorithmSuite types.SignatureAlgorithmSuite
-		assertion               func(t *testing.T, result *IssueUserCertsWithMFAResult, err error)
+		// clientCluster overrides the ClusterClient's cluster field. Defaults to "test".
+		clientCluster string
+		// wantPromptReason, when non-empty, asserts the PromptReason passed to the
+		// MFA prompt constructor.
+		wantPromptReason string
+		assertion        func(t *testing.T, result *IssueUserCertsWithMFAResult, err error)
 	}{
 		{
 			name:        "ssh no mfa",
@@ -190,9 +196,10 @@ func TestIssueUserCertsWithMFA(t *testing.T) {
 			},
 		},
 		{
-			name:        "ssh mfa success",
-			mfaRequired: proto.MFARequired_MFA_REQUIRED_YES,
-			params:      ReissueParams{NodeName: "test"},
+			name:             "ssh mfa success",
+			mfaRequired:      proto.MFARequired_MFA_REQUIRED_YES,
+			params:           ReissueParams{NodeName: "test"},
+			wantPromptReason: `MFA is required to access node "test"`,
 			assertion: func(t *testing.T, result *IssueUserCertsWithMFAResult, err error) {
 				require.NoError(t, err)
 				require.NotNil(t, result)
@@ -212,6 +219,57 @@ func TestIssueUserCertsWithMFA(t *testing.T) {
 				require.NotNil(t, result)
 				require.Nil(t, result.KeyRing)
 				require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, result.MFARequired)
+			},
+		},
+		{
+			name: "ssh login falls back to host login",
+			params: ReissueParams{
+				NodeName: "test",
+				AuthClient: fakeAuthClient{
+					isMFARequired: func(ctx context.Context, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error) {
+						nodeReq, ok := req.Target.(*proto.IsMFARequiredRequest_Node)
+						require.True(t, ok)
+						require.Equal(t, "default-login", nodeReq.Node.Login)
+						return &proto.IsMFARequiredResponse{MFARequired: proto.MFARequired_MFA_REQUIRED_YES, Required: true}, nil
+					},
+					generateUserCerts: func(ctx context.Context, req proto.UserCertsRequest) (*proto.Certs, error) {
+						require.Equal(t, "default-login", req.SSHLogin)
+						return defaultGenerateUserCerts(ctx, req)
+					},
+				},
+			},
+			assertion: func(t *testing.T, result *IssueUserCertsWithMFAResult, err error) {
+				require.NoError(t, err)
+				require.NotNil(t, result)
+				require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, result.MFARequired)
+				require.NotNil(t, result.KeyRing)
+				require.NotEmpty(t, result.KeyRing.Cert)
+			},
+		},
+		{
+			name: "ssh login override used",
+			params: ReissueParams{
+				NodeName: "test",
+				SSHLogin: "override-login",
+				AuthClient: fakeAuthClient{
+					isMFARequired: func(ctx context.Context, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error) {
+						nodeReq, ok := req.Target.(*proto.IsMFARequiredRequest_Node)
+						require.True(t, ok)
+						require.Equal(t, "override-login", nodeReq.Node.Login)
+						return &proto.IsMFARequiredResponse{MFARequired: proto.MFARequired_MFA_REQUIRED_YES, Required: true}, nil
+					},
+					generateUserCerts: func(ctx context.Context, req proto.UserCertsRequest) (*proto.Certs, error) {
+						require.Equal(t, "override-login", req.SSHLogin)
+						return defaultGenerateUserCerts(ctx, req)
+					},
+				},
+			},
+			assertion: func(t *testing.T, result *IssueUserCertsWithMFAResult, err error) {
+				require.NoError(t, err)
+				require.NotNil(t, result)
+				require.Equal(t, proto.MFARequired_MFA_REQUIRED_YES, result.MFARequired)
+				require.NotNil(t, result.KeyRing)
+				require.NotEmpty(t, result.KeyRing.Cert)
 			},
 		},
 		{
@@ -495,6 +553,28 @@ func TestIssueUserCertsWithMFA(t *testing.T) {
 				require.NotNil(t, result.KeyRing)
 			},
 		},
+		{
+			name:          "session MFA from a leaf cluster mentions the leaf in the prompt reason",
+			mfaRequired:   proto.MFARequired_MFA_REQUIRED_YES,
+			clientCluster: "leaf",
+			params: ReissueParams{
+				NodeName: "test",
+				// In real world RouteToCluster would be "leaf", but this doesn't work
+				// with how the test is currently set up.
+				RouteToCluster: "test",
+				AuthClient: fakeAuthClient{
+					isMFARequired: func(ctx context.Context, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error) {
+						return &proto.IsMFARequiredResponse{MFARequired: proto.MFARequired_MFA_REQUIRED_YES, Required: true}, nil
+					},
+					generateUserCerts: defaultGenerateUserCerts,
+				},
+			},
+			wantPromptReason: `MFA is required to access node "test" from leaf cluster "leaf"`,
+			assertion: func(t *testing.T, result *IssueUserCertsWithMFAResult, err error) {
+				require.NoError(t, err)
+				require.NotNil(t, result)
+			},
+		},
 	}
 
 	for _, test := range tests {
@@ -512,14 +592,18 @@ func TestIssueUserCertsWithMFA(t *testing.T) {
 				suite = types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1
 			}
 
+			var capturedPromptCfg *libmfa.PromptConfig
+			clientCluster := cmp.Or(test.clientCluster, "test")
 			clt := &ClusterClient{
 				tc: &TeleportClient{
 					localAgent: agent,
 					Config: Config{
 						WebProxyAddr: "proxy.example.com",
 						SiteName:     "test",
+						HostLogin:    "default-login",
 						Tracer:       tracing.NoopTracer("test"),
 						MFAPromptConstructor: func(cfg *libmfa.PromptConfig) mfa.Prompt {
+							capturedPromptCfg = cfg
 							return test.prompt
 						},
 						Stderr: io.Discard,
@@ -545,7 +629,7 @@ func TestIssueUserCertsWithMFA(t *testing.T) {
 					generateUserCerts: defaultGenerateUserCerts,
 				},
 				Tracer:  tracing.NoopTracer("test"),
-				cluster: "test",
+				cluster: clientCluster,
 				root:    "test",
 			}
 
@@ -553,6 +637,11 @@ func TestIssueUserCertsWithMFA(t *testing.T) {
 
 			result, err := clt.IssueUserCertsWithMFA(ctx, test.params)
 			test.assertion(t, result, err)
+
+			if test.wantPromptReason != "" {
+				require.NotNil(t, capturedPromptCfg, "MFA prompt constructor was not invoked")
+				require.Equal(t, test.wantPromptReason, capturedPromptCfg.PromptReason)
+			}
 		})
 	}
 }

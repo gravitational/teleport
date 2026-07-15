@@ -219,6 +219,7 @@ func (r resourceTeleportHealthCheckConfig) Update(ctx context.Context, req tfsdk
 	}
 	healthCheckConfigResource := healthCheckConfig
 
+	healthCheckConfigResource.Kind = apitypes.KindHealthCheckConfig
 
 	
 	name := healthCheckConfigResource.Metadata.Name

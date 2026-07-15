@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/recorder"
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
@@ -61,6 +62,9 @@ type sessionChunk struct {
 	closeC chan struct{}
 	// id is the session chunk's uuid, which is used as the id of its session upload.
 	id string
+	// appName is the name of the app this session chunk belongs to, used as
+	// a Prometheus label on the active sessions gauge.
+	appName string
 	// streamCloser closes the session chunk stream.
 	streamCloser utils.WriteContextCloser
 	// audit is the session chunk audit logger.
@@ -94,6 +98,7 @@ type sessionOpt func(context.Context, *sessionChunk, *tlsca.Identity, types.Appl
 func (c *ConnectionsHandler) newSessionChunk(ctx context.Context, identity *tlsca.Identity, app types.Application, startTime time.Time, opts ...sessionOpt) (*sessionChunk, error) {
 	sess := &sessionChunk{
 		id:           uuid.New().String(),
+		appName:      app.GetName(),
 		closeC:       make(chan struct{}),
 		inflightCond: sync.NewCond(&sync.Mutex{}),
 		closeTimeout: sessionChunkCloseTimeout,
@@ -137,6 +142,7 @@ func (c *ConnectionsHandler) newSessionChunk(ctx context.Context, identity *tlsc
 		return nil, trace.Wrap(err)
 	}
 
+	activeSessions.WithLabelValues(sess.appName).Inc()
 	sess.log.DebugContext(ctx, "Created app session chunk", "session_id", sess.id)
 	return sess, nil
 }
@@ -146,7 +152,7 @@ func (c *ConnectionsHandler) newSessionChunk(ctx context.Context, identity *tlsc
 func (c *ConnectionsHandler) withJWTTokenForwarder(ctx context.Context, sess *sessionChunk, identity *tlsca.Identity, app types.Application) error {
 	// TODO(greedy52) consider using a shorter ttl for the token. The chunk is
 	// only 5 minutes anyway.
-	jwt, traits, err := common.GenerateJWTAndTraits(ctx, identity, app, c.cfg.AuthClient, identity.Expires)
+	jwt, rewriteTraits, err := common.GenerateJWTAndTraits(ctx, identity, app, c.cfg.AuthClient, identity.Expires)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -154,13 +160,25 @@ func (c *ConnectionsHandler) withJWTTokenForwarder(ctx context.Context, sess *se
 	// Create a rewriting transport that will be used to forward requests.
 	transport, err := newTransport(c.closeContext,
 		&transportConfig{
-			app:          app,
-			publicPort:   c.proxyPort,
-			cipherSuites: c.cfg.CipherSuites,
-			jwt:          jwt,
-			traits:       traits,
-			log:          c.log,
-			hostID:       c.cfg.HostID,
+			clock:         c.cfg.Clock,
+			app:           app,
+			publicPort:    c.proxyPort,
+			cipherSuites:  c.cfg.CipherSuites,
+			jwt:           jwt,
+			rewriteTraits: rewriteTraits,
+			log:           c.log,
+			hostID:        c.cfg.HostID,
+			insecureMode:  c.cfg.InsecureMode,
+			clusterName:   c.clusterName,
+			accessPoint:   c.cfg.AccessPoint,
+			authClient:    c.cfg.AuthClient,
+			getUserCertFunc: func() ([]byte, error) {
+				userCert, err := authz.UserCertificateFromContext(ctx)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				return userCert.Raw, nil
+			},
 		})
 	if err != nil {
 		return trace.Wrap(err)
@@ -193,6 +211,11 @@ func (c *ConnectionsHandler) withAzureHandler(ctx context.Context, sess *session
 
 func (c *ConnectionsHandler) withGCPHandler(ctx context.Context, sess *sessionChunk, identity *tlsca.Identity, app types.Application) error {
 	sess.handler = c.gcpHandler
+	return nil
+}
+
+func (c *ConnectionsHandler) withLLMHandler(ctx context.Context, sess *sessionChunk, identity *tlsca.Identity, app types.Application) error {
+	sess.handler = c.llmHandler
 	return nil
 }
 
@@ -261,10 +284,12 @@ func (c *ConnectionsHandler) onSessionExpired(ctx context.Context, key, expired 
 
 	// Closing the session stream writer may trigger a flush operation which could
 	// be time-consuming. Launch in another goroutine to prevent interfering with
-	// cache operations.
+	// cache operations. The gauge is decremented after close completes so that
+	// it reflects sessions still holding resources (audit streams, IOPS).
 	c.cacheCloseWg.Add(1)
 	go func() {
 		defer c.cacheCloseWg.Done()
+		defer activeSessions.WithLabelValues(sess.appName).Dec()
 		if err := sess.close(ctx); err != nil {
 			c.log.DebugContext(ctx, "Error closing session", "session_id", sess.id, "error", err)
 		}

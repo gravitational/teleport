@@ -24,11 +24,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/api/types/filters"
-	"github.com/docker/docker/api/types/strslice"
-	docker "github.com/docker/docker/client"
 	"github.com/gravitational/trace"
+	"github.com/moby/moby/api/types/container"
+	docker "github.com/moby/moby/client"
 	"google.golang.org/grpc"
 
 	teleport "github.com/gravitational/teleport/api/client"
@@ -89,11 +87,10 @@ func (t *tokenDemoApp) listRegisteredAppURLs(ctx context.Context) (map[string]ty
 }
 
 func (t *tokenDemoApp) listAppContainerURLs(ctx context.Context, image string) (map[string]struct{}, error) {
-	c, err := t.dockerClient.ContainerList(ctx, container.ListOptions{
-		Filters: filters.NewArgs(filters.KeyValuePair{
-			Key:   "ancestor",
-			Value: image,
-		}),
+	c, err := t.dockerClient.ContainerList(ctx, docker.ContainerListOptions{
+		Filters: map[string]map[string]bool{
+			"ancestor": {image: true},
+		},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -101,7 +98,7 @@ func (t *tokenDemoApp) listAppContainerURLs(ctx context.Context, image string) (
 
 	l := make(map[string]struct{})
 
-	for _, r := range c {
+	for _, r := range c.Items {
 		b, ok := r.NetworkSettings.Networks[networkName]
 		// Not connected to the chosen network, so skip it
 		if !ok {
@@ -109,7 +106,7 @@ func (t *tokenDemoApp) listAppContainerURLs(ctx context.Context, image string) (
 		}
 
 		u, err := url.Parse("http://" + net.JoinHostPort(
-			b.IPAddress,
+			b.IPAddress.String(),
 			managementPort,
 		))
 
@@ -159,32 +156,30 @@ func (t *tokenDemoApp) startApplicationServiceContainer(
 	name := strings.ReplaceAll(u.Hostname(), ".", "-")
 	resp, err := t.dockerClient.ContainerCreate(
 		ctx,
-		&container.Config{
-			Image: teleportImage,
-			Entrypoint: strslice.StrSlice{
-				"/usr/bin/dumb-init",
-				"teleport",
-				"start",
-				"--roles=app",
-				"--auth-server=" + proxyAddr,
-				"--token=" + token,
-				"--app-name=rabbitmq-" + name,
-				"--app-uri=" + u.String(),
+		docker.ContainerCreateOptions{
+			Config: &container.Config{
+				Image: teleportImage,
+				Entrypoint: []string{
+					"/usr/bin/dumb-init",
+					"teleport",
+					"start",
+					"--roles=app",
+					"--auth-server=" + proxyAddr,
+					"--token=" + token,
+					"--app-name=rabbitmq-" + name,
+					"--app-uri=" + u.String(),
+				},
 			},
 		},
-		nil,
-		nil,
-		nil,
-		"",
 	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	err = t.dockerClient.ContainerStart(
+	_, err = t.dockerClient.ContainerStart(
 		ctx,
 		resp.ID,
-		container.StartOptions{},
+		docker.ContainerStartOptions{},
 	)
 	if err != nil {
 		return trace.Wrap(err)
@@ -209,8 +204,8 @@ func (t *tokenDemoApp) pruneAppServiceInstance(ctx context.Context, p types.AppS
 
 	// Don't check errors when removing the container, since it may already
 	// have been removed.
-	t.dockerClient.ContainerStop(ctx, host, container.StopOptions{})
-	t.dockerClient.ContainerRemove(ctx, host, container.RemoveOptions{})
+	t.dockerClient.ContainerStop(ctx, host, docker.ContainerStopOptions{})
+	t.dockerClient.ContainerRemove(ctx, host, docker.ContainerRemoveOptions{})
 
 	fmt.Println("Deleted unnecessary Application Service container:", host)
 	return nil

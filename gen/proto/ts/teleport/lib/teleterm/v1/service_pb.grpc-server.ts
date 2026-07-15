@@ -91,8 +91,6 @@ import { GetAccessRequestsResponse } from "./service_pb";
 import { GetAccessRequestsRequest } from "./service_pb";
 import { ListDatabaseServersResponse } from "./service_pb";
 import { ListDatabaseServersRequest } from "./service_pb";
-import { ListDatabaseUsersResponse } from "./service_pb";
-import { ListDatabaseUsersRequest } from "./service_pb";
 import { StartHeadlessWatcherResponse } from "./service_pb";
 import { StartHeadlessWatcherRequest } from "./service_pb";
 import { ListLeafClustersRequest } from "./service_pb";
@@ -143,12 +141,6 @@ export interface ITerminalService extends grpc.UntypedServiceImplementation {
      * @generated from protobuf rpc: StartHeadlessWatcher(teleport.lib.teleterm.v1.StartHeadlessWatcherRequest) returns (teleport.lib.teleterm.v1.StartHeadlessWatcherResponse);
      */
     startHeadlessWatcher: grpc.handleUnaryCall<StartHeadlessWatcherRequest, StartHeadlessWatcherResponse>;
-    /**
-     * ListDatabaseUsers lists allowed users for the given database based on the role set.
-     *
-     * @generated from protobuf rpc: ListDatabaseUsers(teleport.lib.teleterm.v1.ListDatabaseUsersRequest) returns (teleport.lib.teleterm.v1.ListDatabaseUsersResponse);
-     */
-    listDatabaseUsers: grpc.handleUnaryCall<ListDatabaseUsersRequest, ListDatabaseUsersResponse>;
     /**
      * ListDatabaseServers lists allowed users for the given database based on the role set.
      *
@@ -477,16 +469,6 @@ export const terminalServiceDefinition: grpc.ServiceDefinition<ITerminalService>
         requestDeserialize: bytes => StartHeadlessWatcherRequest.fromBinary(bytes),
         responseSerialize: value => Buffer.from(StartHeadlessWatcherResponse.toBinary(value)),
         requestSerialize: value => Buffer.from(StartHeadlessWatcherRequest.toBinary(value))
-    },
-    listDatabaseUsers: {
-        path: "/teleport.lib.teleterm.v1.TerminalService/ListDatabaseUsers",
-        originalName: "ListDatabaseUsers",
-        requestStream: false,
-        responseStream: false,
-        responseDeserialize: bytes => ListDatabaseUsersResponse.fromBinary(bytes),
-        requestDeserialize: bytes => ListDatabaseUsersRequest.fromBinary(bytes),
-        responseSerialize: value => Buffer.from(ListDatabaseUsersResponse.toBinary(value)),
-        requestSerialize: value => Buffer.from(ListDatabaseUsersRequest.toBinary(value))
     },
     listDatabaseServers: {
         path: "/teleport.lib.teleterm.v1.TerminalService/ListDatabaseServers",

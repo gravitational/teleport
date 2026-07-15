@@ -29,7 +29,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/utils"
 )
 
@@ -184,6 +183,10 @@ func getIndexContentSecurityPolicy(withWasm bool) CSPMap {
 // which is a route to a desktop session that uses WASM.
 var desktopSessionRe = regexp.MustCompile(`^/web/cluster/[^/]+/desktops/[^/]+/[^/]+$`)
 
+// linuxDesktopSessionRe is a regex that matches /web/cluster/:clusterId/linux_desktops/:desktopName/:username
+// which is a route to a Linux desktop session that uses WASM.
+var linuxDesktopSessionRe = regexp.MustCompile(`^/web/cluster/[^/]+/linux_desktops/[^/]+/[^/]+$`)
+
 // regex for the recordings endpoint /web/cluster/:clusterId/session/:sid
 // which is a route to a desktop recording that uses WASM.
 var recordingRe = regexp.MustCompile(`^/web/cluster/[^/]+/session/[^/]+$`)
@@ -194,14 +197,14 @@ var sshSessionRe = regexp.MustCompile(`^/web/cluster/[^/]+/console/node/[^/]+/[^
 
 var indexCSPStringCache *cspCache = newCSPCache()
 
-func getIndexContentSecurityPolicyString(cfg proto.Features, urlPath string) string {
-	// Check for result with this cfg and urlPath in cache
+func getIndexContentSecurityPolicyString(urlPath string) string {
+	// Check for result with this urlPath in cache
 	if cspString, ok := indexCSPStringCache.get(urlPath); ok {
 		return cspString
 	}
 
 	// Nothing found in cache, calculate regex and result
-	withWasm := desktopSessionRe.MatchString(urlPath) || recordingRe.MatchString(urlPath) || sshSessionRe.MatchString(urlPath)
+	withWasm := desktopSessionRe.MatchString(urlPath) || recordingRe.MatchString(urlPath) || sshSessionRe.MatchString(urlPath) || linuxDesktopSessionRe.MatchString(urlPath)
 	cspString := GetContentSecurityPolicyString(
 		getIndexContentSecurityPolicy(withWasm),
 	)
@@ -212,8 +215,8 @@ func getIndexContentSecurityPolicyString(cfg proto.Features, urlPath string) str
 }
 
 // SetIndexContentSecurityPolicy sets the Content-Security-Policy header for main index.html page
-func SetIndexContentSecurityPolicy(h http.Header, cfg proto.Features, urlPath string) {
-	cspString := getIndexContentSecurityPolicyString(cfg, urlPath)
+func SetIndexContentSecurityPolicy(h http.Header, urlPath string) {
+	cspString := getIndexContentSecurityPolicyString(urlPath)
 	h.Set("Content-Security-Policy", cspString)
 }
 

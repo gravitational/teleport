@@ -24,12 +24,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/config"
+	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/redshift"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/cloud/aws/config"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -215,7 +216,7 @@ func connectAsRedshiftClusterAdmin(t *testing.T, ctx context.Context, clusterID 
 func getRedshiftAdminInfo(t *testing.T, ctx context.Context, clusterID string) dbUserLogin {
 	t.Helper()
 	cfg, err := config.LoadDefaultConfig(ctx,
-		config.WithRegion(mustGetEnv(t, awsRegionEnv)),
+		awsconfig.WithRegion(mustGetEnv(t, awsRegionEnv)),
 	)
 	require.NoError(t, err)
 	clt := redshift.NewFromConfig(cfg)

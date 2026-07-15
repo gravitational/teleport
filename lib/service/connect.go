@@ -36,7 +36,6 @@ import (
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
-	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport"
@@ -44,14 +43,15 @@ import (
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/entitlements"
-	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/join"
+	"github.com/gravitational/teleport/lib/auth/join/boundkeypair"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -60,6 +60,7 @@ import (
 	grpcmetrics "github.com/gravitational/teleport/lib/observability/metrics/grpc"
 	"github.com/gravitational/teleport/lib/openssh"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/scopes/joining"
 	servicebreaker "github.com/gravitational/teleport/lib/service/breaker"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
@@ -95,7 +96,10 @@ func (process *TeleportProcess) reconnectToAuthService(role types.SystemRole) (*
 			return connector, nil
 		} else {
 			switch {
-			case errors.As(connectErr, &invalidVersionErr{}):
+			// Version incompatibilities (the client is too new or too old for
+			// the cluster) are fatal. Retrying is pointless until the client is
+			// up or downgraded, so surface the error and stop reconnecting.
+			case isVersionCompatibilityError(connectErr):
 				return nil, trace.Wrap(connectErr)
 			case strings.Contains(connectErr.Error(), auth.TokenExpiredOrNotFound):
 				process.logger.ErrorContext(process.ExitContext(), "Can not join the cluster, the token is expired or not found. Regenerate the token and try again.")
@@ -119,7 +123,7 @@ func (process *TeleportProcess) reconnectToAuthService(role types.SystemRole) (*
 		case t := <-retry.After():
 			process.logger.DebugContext(process.ExitContext(), "Retrying connection to auth server.", "identity", role, "backoff", t.Sub(startedWait))
 			retry.Inc()
-		case <-process.ExitContext().Done():
+		case <-process.GracefulExitContext().Done():
 			process.logger.InfoContext(process.ExitContext(), "Stopping connection attempts, teleport is shutting down.", "identity", role)
 			return nil, ErrTeleportExited
 		}
@@ -133,6 +137,11 @@ type invalidVersionErr struct {
 
 func (i invalidVersionErr) Error() string {
 	return fmt.Sprintf("Teleport instance is too new. This instance is running v%d. The auth server is running v%d and only supports instances on v%d or v%d. To connect anyway pass the --skip-version-check flag.", i.LocalMajorVersion, i.ClusterMajorVersion, i.ClusterMajorVersion, i.ClusterMajorVersion-1)
+}
+
+func isVersionCompatibilityError(err error) bool {
+	return errors.As(err, &invalidVersionErr{}) ||
+		isVersionIncompatible(err)
 }
 
 func (process *TeleportProcess) assertSystemRoles(rolesToAssert []types.SystemRole) (assertionID string, err error) {
@@ -239,6 +248,7 @@ func (process *TeleportProcess) connect(role types.SystemRole, opts ...certOptio
 		} else {
 			identity = newIdentity
 		}
+		process.SetImmutableLabels(identity.ImmutableLabels)
 	}
 
 	rotation := processState.Spec.Rotation
@@ -280,7 +290,7 @@ func (process *TeleportProcess) connect(role types.SystemRole, opts ...certOptio
 		case types.RotationPhaseUpdateClients:
 			// Clients should use updated credentials,
 			// while servers should use old credentials to answer auth requests.
-			newIdentity, err := process.storage.ReadIdentity(state.IdentityReplacement, role)
+			newIdentity, err := process.storage.ReadIdentity(process.GracefulExitContext(), state.IdentityReplacement, role)
 			if err != nil {
 				if !trace.IsNotFound(err) {
 					return nil, trace.Wrap(err)
@@ -385,6 +395,7 @@ func (process *TeleportProcess) healInstanceIdentity(currentIdentity *state.Iden
 		if err != nil {
 			return nil, trace.Wrap(err, "failed to parse new identity")
 		}
+		newIdentity.ImmutableLabels = rejoinResult.ImmutableLabels
 	}
 
 	newSystemRoles := set.New(newIdentity.SystemRoles...)
@@ -417,7 +428,7 @@ func (process *TeleportProcess) healInstanceIdentity(currentIdentity *state.Iden
 		)
 	}
 
-	if err := process.storage.WriteIdentity(state.IdentityCurrent, *newIdentity); err != nil {
+	if err := process.storage.WriteIdentity(process.GracefulExitContext(), state.IdentityCurrent, *newIdentity); err != nil {
 		return nil, trace.Wrap(err, "failed to write new identity to storage")
 	}
 	return newIdentity, nil
@@ -454,7 +465,7 @@ type localReRegister struct {
 
 // GenerateHostCerts allows for generating host certs without providing a scope.
 func (l localReRegister) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequest) (*proto.Certs, error) {
-	return l.Server.GenerateHostCerts(ctx, req, "")
+	return l.Server.GenerateHostCerts(ctx, auth.HostCertsParams{Req: req})
 }
 
 // reRegister receives new identity credentials for proxy, node and auth.
@@ -536,11 +547,11 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 		)
 	}
 
-	if err := process.storage.WriteIdentity(state.IdentityCurrent, *identity); err != nil {
+	if err := process.storage.WriteIdentity(process.GracefulExitContext(), state.IdentityCurrent, *identity); err != nil {
 		process.logger.WarnContext(process.ExitContext(), "Failed to write identity to storage.", "identity", role, "error", err)
 	}
 
-	err = process.storage.WriteState(role, state.StateV2{
+	err = process.storage.WriteState(process.GracefulExitContext(), role, state.StateV2{
 		Spec: state.StateSpecV2{
 			Rotation:            ca.GetRotation(),
 			InitialLocalVersion: teleport.Version,
@@ -558,6 +569,8 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 		if err := process.storage.PersistAssignedHostID(process.GracefulExitContext(), process.Config, identity.ID.HostID()); err != nil {
 			return nil, trace.Wrap(err, "persisting host ID to storage")
 		}
+
+		process.SetImmutableLabels(identity.ImmutableLabels)
 	}
 	process.logger.InfoContext(process.ExitContext(), "The process successfully wrote the credentials and state to the disk.", "identity", role)
 	return connector, nil
@@ -565,7 +578,12 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 
 func (process *TeleportProcess) firstTimeConnectIdentity(role types.SystemRole) (*state.Identity, error) {
 	if localAuth := process.getLocalAuth(); localAuth != nil {
-		return process.firstTimeConnectIdentityLocal(role, localAuth)
+		identity, err := process.firstTimeConnectIdentityLocal(role, localAuth)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return identity, nil
 	}
 	return process.firstTimeConnectIdentityRemote(role)
 }
@@ -623,7 +641,11 @@ func (process *TeleportProcess) firstTimeConnectIdentityRemote(role types.System
 		//
 		// TODO(nklaassen): DELETE IN 20
 		process.Config.Logger.InfoContext(process.GracefulExitContext(), "Instance identity does not include required system role, must re-join with a provision token", "role", role)
-		return process.legacyJoinWithHostUUID(role, instanceIdentity.ID.HostID())
+		identity, err := process.legacyJoinWithHostUUID(role, instanceIdentity.ID.HostID())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return identity, nil
 	}
 	// The instance connector does have the role requested, we can reregister
 	// without going through the join process.
@@ -657,20 +679,24 @@ func (process *TeleportProcess) instanceJoin() (*state.Identity, error) {
 		return nil, trace.Wrap(err)
 	}
 	process.logger.InfoContext(process.ExitContext(), "Joining the cluster with a secure token.")
-	joinResult, err := joinclient.Join(process.GracefulExitContext(), *joinParams)
+	result, err := joinclient.Join(process.GracefulExitContext(), *joinParams)
 	if err != nil {
 		if utils.IsUntrustedCertErr(err) {
 			return nil, trace.WrapWithMessage(err, utils.SelfSignedCertsMsg)
 		}
 		return nil, trace.Wrap(err)
 	}
-	privateKeyPEM, err := keys.MarshalPrivateKey(joinResult.PrivateKey)
+	privateKeyPEM, err := keys.MarshalPrivateKey(result.PrivateKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	identity, err := state.ReadIdentityFromKeyPair(privateKeyPEM, joinResult.Certs)
-	return identity, trace.Wrap(err)
+	identity, err := state.ReadIdentityFromKeyPair(privateKeyPEM, result.Certs)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	identity.ImmutableLabels = result.ImmutableLabels
+	return identity, nil
 }
 
 func (process *TeleportProcess) legacyJoinWithHostUUID(role types.SystemRole, hostUUID string) (*state.Identity, error) {
@@ -700,7 +726,64 @@ func (process *TeleportProcess) legacyJoinWithHostUUID(role types.SystemRole, ho
 		return nil, trace.Wrap(err)
 	}
 	identity, err := state.ReadIdentityFromKeyPair(privateKeyPEM, joinResult.Certs)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	identity.ImmutableLabels = joinResult.ImmutableLabels
 	return identity, trace.Wrap(err)
+}
+
+// initBoundKeypairClientState attempts to initialize or load an existing bound
+// keypair client state. This state could be static or stored in the local
+// process storage.
+func (process *TeleportProcess) initBoundKeypairClientState() (boundkeypair.ClientState, string, error) {
+	cfg := process.Config.JoinParams.BoundKeypair
+
+	staticKey, err := cfg.StaticPrivateKeyBytes()
+	if err != nil {
+		process.logger.WarnContext(
+			process.ExitContext(),
+			"Could not load the configured bound keypair static key, will attempt to fall back to a standard keypair",
+			"error", err,
+		)
+	} else if staticKey != nil {
+		return boundkeypair.NewStaticClientState(staticKey), "", nil
+	}
+
+	adapter := process.boundKeypairStorageAdapter()
+	state, err := boundkeypair.LoadClientState(process.GracefulExitContext(), adapter)
+	if trace.IsNotFound(err) {
+		registrationSecret, err := cfg.RegistrationSecret()
+		if err != nil {
+			process.logger.ErrorContext(
+				process.ExitContext(),
+				"Could not complete bound keypair joining: no local credentials "+
+					"could be loaded and no registration secret was configured",
+				"error", err,
+			)
+
+			return nil, "", trace.Wrap(err, "loading bound keypair registration secret")
+		} else if registrationSecret == "" {
+			return nil, "", trace.BadParameter("no existing bound keypair credentials and no registration secret configured")
+		}
+
+		process.logger.InfoContext(
+			process.ExitContext(),
+			"No existing bound keypair client state found, will attempt to "+
+				"join with configured registration secret",
+		)
+		return boundkeypair.NewEmptyFSClientState(adapter), registrationSecret, nil
+	} else if err != nil {
+		process.logger.ErrorContext(
+			process.ExitContext(),
+			"Could not complete bound keypair joining: no local credentials "+
+				"could be loaded and no registration secret was configured",
+			"error", err,
+		)
+		return nil, "", trace.Wrap(err, "loading bound keypair client state")
+	}
+
+	return state, "", nil
 }
 
 func (process *TeleportProcess) makeJoinParams(
@@ -715,14 +798,16 @@ func (process *TeleportProcess) makeJoinParams(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	tokenSecret, err := process.Config.TokenSecret()
-	if err != nil {
-		return nil, trace.Wrap(err)
+
+	tokenName, tokenSecret := token, ""
+	if name, secret, ok := joining.DecodeScopedToken(token); ok {
+		tokenName = name
+		tokenSecret = secret
 	}
 
 	dataDir := cmp.Or(process.Config.DataDir, defaults.DataDir)
 	joinParams := &joinclient.JoinParams{
-		Token:                token,
+		Token:                tokenName,
 		TokenSecret:          tokenSecret,
 		ID:                   id,
 		AuthServers:          process.Config.AuthServerAddresses(),
@@ -739,11 +824,28 @@ func (process *TeleportProcess) makeJoinParams(
 		// requests before closing
 		CircuitBreakerConfig: breaker.NoopBreakerConfig(),
 		FIPS:                 process.Config.FIPS,
-		Insecure:             lib.IsInsecureDevMode(),
+		Insecure:             process.Config.InsecureMode,
+		OnVersionCallback:    process.enforceVersionPolicy,
 	}
 	if joinParams.JoinMethod == types.JoinMethodAzure {
 		joinParams.AzureParams = joinclient.AzureParams{
 			ClientID: process.Config.JoinParams.Azure.ClientID,
+		}
+	}
+	if joinParams.JoinMethod == types.JoinMethodBoundKeypair {
+		boundKeypairState, regSecret, err := process.initBoundKeypairClientState()
+		if err != nil {
+			return nil, trace.Wrap(err, "initializing bound keypair client state")
+		}
+
+		joinParams.BoundKeypairState = boundKeypairState
+		joinParams.BoundKeypairRegistrationSecret = regSecret
+	}
+	if joinParams.JoinMethod == types.JoinMethodGenericOIDC {
+		joinParams.GenericOIDCParams = join.GenericOIDCParams{
+			EnvVarName: process.Config.JoinParams.GenericOIDC.Env,
+			Command:    process.Config.JoinParams.GenericOIDC.Command,
+			Timeout:    process.Config.JoinParams.GenericOIDC.Timeout,
 		}
 	}
 	return joinParams, nil
@@ -774,7 +876,7 @@ func (process *TeleportProcess) syncOpenSSHRotationState() error {
 		return trace.Wrap(err)
 	}
 
-	id, err := process.storage.ReadIdentity(state.IdentityCurrent, types.RoleNode)
+	id, err := process.storage.ReadIdentity(process.GracefulExitContext(), state.IdentityCurrent, types.RoleNode)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -856,6 +958,14 @@ func registerServer(a *servicecfg.Config, ctx context.Context, conn *Connector, 
 		return trace.Wrap(err)
 	}
 	server.SetSubKind(types.SubKindOpenSSHNode)
+
+	if conn.Scope() != "" {
+		serverV2, ok := server.(*types.ServerV2)
+		if !ok {
+			return trace.BadParameter("expected *types.ServerV2, got %T", server)
+		}
+		serverV2.Scope = conn.Scope()
+	}
 
 	if _, err := conn.Client.UpsertNode(ctx, server); err != nil {
 		return trace.Wrap(err)
@@ -1161,12 +1271,12 @@ func (process *TeleportProcess) rotate(conn *Connector, localState state.StateV2
 	const outOfSync = "%v and cluster rotation state (%v) is out of sync with local (%v). Clear local state and re-register this %v."
 
 	writeStateAndIdentity := func(name string, identity *state.Identity) error {
-		err = storage.WriteIdentity(name, *identity)
+		err = storage.WriteIdentity(process.GracefulExitContext(), name, *identity)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		localState.Spec.Rotation = remote
-		err = storage.WriteState(id.Role, localState)
+		err = storage.WriteState(process.GracefulExitContext(), id.Role, localState)
 		process.rotationCache.Remove(id.Role)
 		if err != nil {
 			return trace.Wrap(err)
@@ -1191,7 +1301,7 @@ func (process *TeleportProcess) rotate(conn *Connector, localState state.StateV2
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
-				err = storage.WriteIdentity(state.IdentityCurrent, *identity)
+				err = storage.WriteIdentity(process.GracefulExitContext(), state.IdentityCurrent, *identity)
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
@@ -1222,7 +1332,7 @@ func (process *TeleportProcess) rotate(conn *Connector, localState state.StateV2
 			conn.serverState.Store(connState)
 			return &rotationStatus{credentialsUpdated: true}, nil
 		default:
-			return nil, trace.BadParameter("unsupported state: %q", localState)
+			return nil, trace.BadParameter("unsupported state: %v", localState)
 		}
 	case types.RotationStateInProgress:
 		switch remote.Phase {
@@ -1237,7 +1347,7 @@ func (process *TeleportProcess) rotate(conn *Connector, localState state.StateV2
 			}
 			// only update local phase, there is no need to reload
 			localState.Spec.Rotation = remote
-			err = storage.WriteState(id.Role, localState)
+			err = storage.WriteState(process.GracefulExitContext(), id.Role, localState)
 			process.rotationCache.Remove(id.Role)
 			if err != nil {
 				return nil, trace.Wrap(err)
@@ -1342,10 +1452,7 @@ func (process *TeleportProcess) getConnector(clientIdentity, serverIdentity *sta
 	}
 
 	// Set cluster features and return successfully with a working connector.
-	// TODO(michellescripts) remove clone & compatibility check in v18
-	cloned := apiutils.CloneProtoMsg(pingResponse.GetServerFeatures())
-	entitlements.BackfillFeatures(cloned)
-	process.setClusterFeatures(cloned)
+	process.setClusterFeatures(pingResponse.GetServerFeatures())
 	process.setAuthSubjectiveAddr(pingResponse.RemoteAddr)
 	process.logger.InfoContext(process.ExitContext(), "features loaded from auth server", "identity", clientIdentity.ID.Role, "features", pingResponse.GetServerFeatures())
 
@@ -1410,7 +1517,7 @@ func (process *TeleportProcess) newClient(connector *Connector) (*authclient.Cli
 		logger.DebugContext(process.ExitContext(), "Attempting to discover reverse tunnel address.")
 		logger.DebugContext(process.ExitContext(), "Attempting to connect to Auth Server through tunnel.")
 
-		tunnelClient, pingResponse, err := process.newClientThroughTunnel(tlsConfig, sshClientConfig, connector.Role(), connector.ClientGetPool)
+		tunnelClient, pingResponse, err := process.newClientThroughProxy(tlsConfig, sshClientConfig, connector.Role(), connector.ClusterName(), connector.ClientGetPool)
 		if err != nil {
 			process.logger.ErrorContext(process.ExitContext(), "Node failed to establish connection to Teleport Proxy. We have tried the following endpoints:")
 			process.logger.ErrorContext(process.ExitContext(), "- connecting to auth server directly", "error", directErr)
@@ -1434,7 +1541,7 @@ func (process *TeleportProcess) newClient(connector *Connector) (*authclient.Cli
 		if !proxyServer.IsEmpty() {
 			logger := process.logger.With("proxy_server", proxyServer.String())
 			logger.DebugContext(process.ExitContext(), "Attempting to connect to Auth Server through tunnel.")
-			tunnelClient, pingResponse, err := process.newClientThroughTunnel(tlsConfig, sshClientConfig, connector.Role(), connector.ClientGetPool)
+			tunnelClient, pingResponse, err := process.newClientThroughProxy(tlsConfig, sshClientConfig, connector.Role(), connector.ClusterName(), connector.ClientGetPool)
 			if err != nil {
 				return nil, nil, trace.Errorf("Failed to connect to Proxy Server through tunnel: %v", err)
 			}
@@ -1466,15 +1573,16 @@ func (process *TeleportProcess) breakerConfigForRole(role types.SystemRole) brea
 	return servicebreaker.InstrumentBreakerForConnector(role, process.Config.CircuitBreakerConfig)
 }
 
-func (process *TeleportProcess) newClientThroughTunnel(tlsConfig *tls.Config, sshConfig *ssh.ClientConfig, role types.SystemRole, getClusterCAs func() (*x509.CertPool, error)) (*authclient.Client, *proto.PingResponse, error) {
-	dialer, err := reversetunnelclient.NewTunnelAuthDialer(reversetunnelclient.TunnelAuthDialerConfig{
+func (process *TeleportProcess) newClientThroughProxy(tlsConfig *tls.Config, sshConfig ssh.ClientConfig, role types.SystemRole, clusterName string, getClusterCAs func() (*x509.CertPool, error)) (*authclient.Client, *proto.PingResponse, error) {
+	dialer, err := reversetunnelclient.NewAuthDialerThroughProxy(reversetunnelclient.AuthDialerThroughProxyConfig{
 		Resolver:              process.resolver,
 		ClientConfig:          sshConfig,
 		Log:                   process.logger,
-		InsecureSkipTLSVerify: lib.IsInsecureDevMode(),
+		InsecureSkipTLSVerify: process.Config.InsecureMode,
 		GetClusterCAs: func(context.Context) (*x509.CertPool, error) {
 			return getClusterCAs()
 		},
+		AllowALPNRouting: true,
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -1487,6 +1595,11 @@ func (process *TeleportProcess) newClientThroughTunnel(tlsConfig *tls.Config, ss
 		},
 		CircuitBreakerConfig: process.breakerConfigForRole(role),
 		DialTimeout:          process.Config.Testing.ClientTimeout,
+		// we are using a dialer that's confirming that we are connecting to an
+		// address that responds to /webapi/find by virtue of using a resolver,
+		// so there's no chance that we're going to get confused if we are
+		// accidentally pointed to an auth as if it was a proxy
+		ALPNSNIAuthDialClusterName: clusterName,
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)

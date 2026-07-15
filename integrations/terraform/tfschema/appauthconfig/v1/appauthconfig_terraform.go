@@ -1,5 +1,5 @@
 /*
-Copyright 2015-2022 Gravitational, Inc.
+Copyright 2015-2026 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -124,11 +124,6 @@ func GenSchemaAppAuthConfig(ctx context.Context) (github_com_hashicorp_terraform
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 						"audience": {
 							Description: "Audience is the expected token audience. It will usually be a OAuth client_id issued for Teleport use.",
-							Optional:    true,
-							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
-						},
-						"authorization_header": {
-							Description: "AuthorizationHeader is the HTTP header name that will contain the token. Defaults to `Authorization`.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
@@ -498,23 +493,6 @@ func CopyAppAuthConfigFromTerraform(_ context.Context, tf github_com_hashicorp_t
 													t = string(v.Value)
 												}
 												obj.UsernameClaim = t
-											}
-										}
-									}
-									{
-										a, ok := tf.Attrs["authorization_header"]
-										if !ok {
-											diags.Append(attrReadMissingDiag{"AppAuthConfig.spec.jwt.authorization_header"})
-										} else {
-											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
-											if !ok {
-												diags.Append(attrReadConversionFailureDiag{"AppAuthConfig.spec.jwt.authorization_header", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-											} else {
-												var t string
-												if !v.Null && !v.Unknown {
-													t = string(v.Value)
-												}
-												obj.AuthorizationHeader = t
 											}
 										}
 									}
@@ -1073,28 +1051,6 @@ func CopyAppAuthConfigToTerraform(ctx context.Context, obj *github_com_gravitati
 											v.Value = string(obj.UsernameClaim)
 											v.Unknown = false
 											tf.Attrs["username_claim"] = v
-										}
-									}
-									{
-										t, ok := tf.AttrTypes["authorization_header"]
-										if !ok {
-											diags.Append(attrWriteMissingDiag{"AppAuthConfig.spec.jwt.authorization_header"})
-										} else {
-											v, ok := tf.Attrs["authorization_header"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-											if !ok {
-												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-												if err != nil {
-													diags.Append(attrWriteGeneralError{"AppAuthConfig.spec.jwt.authorization_header", err})
-												}
-												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-												if !ok {
-													diags.Append(attrWriteConversionFailureDiag{"AppAuthConfig.spec.jwt.authorization_header", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-												}
-												v.Null = string(obj.AuthorizationHeader) == ""
-											}
-											v.Value = string(obj.AuthorizationHeader)
-											v.Unknown = false
-											tf.Attrs["authorization_header"] = v
 										}
 									}
 									{

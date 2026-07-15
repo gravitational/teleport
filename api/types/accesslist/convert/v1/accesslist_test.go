@@ -91,6 +91,55 @@ func TestWithOwnersIneligibleStatusField(t *testing.T) {
 	}))
 }
 
+func TestUserDisplayProtoConversion(t *testing.T) {
+	t.Parallel()
+
+	require.Equal(t, &accesslistv1.UserDisplay{}, ToUserDisplayProto(types.UserDisplay{}))
+	require.Equal(t, types.UserDisplay{}, FromUserDisplayProto(nil))
+	require.Equal(t, types.UserDisplay{}, FromUserDisplayProto(&accesslistv1.UserDisplay{}))
+
+	display := types.UserDisplay{Primary: "Display Name", Secondary: "display@example.com"}
+	require.Equal(t, display, FromUserDisplayProto(ToUserDisplayProto(display)))
+}
+
+func TestUserDisplaysProtoConversion(t *testing.T) {
+	t.Parallel()
+
+	require.Nil(t, FromUserDisplaysProto(nil))
+
+	displays := map[string]*accesslistv1.UserDisplay{
+		"empty":     {},
+		"populated": {Primary: "Display Name", Secondary: "display@example.com"},
+		"missing":   nil,
+	}
+
+	require.Equal(t, map[string]types.UserDisplay{
+		"empty":     {},
+		"populated": {Primary: "Display Name", Secondary: "display@example.com"},
+		"missing":   {},
+	}, FromUserDisplaysProto(displays))
+}
+
+func TestWithOwnerDisplaysField(t *testing.T) {
+	t.Parallel()
+
+	accessList := newAccessList(t, "access-list")
+	accessList.Status.OwnerDisplays = map[string]types.UserDisplay{
+		"test-user1": {Primary: "Test User", Secondary: "test@example.com"},
+		"test-user2": {},
+	}
+	protoAccessList := ToProto(accessList)
+
+	converted, err := FromProto(protoAccessList)
+	require.NoError(t, err)
+	require.Empty(t, converted.Status.OwnerDisplays)
+	require.Equal(t, accessList.Status.MemberCount, converted.Status.MemberCount)
+
+	converted, err = FromProto(protoAccessList, WithOwnerDisplaysField(protoAccessList.GetStatus()))
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(accessList.Status.OwnerDisplays, converted.Status.OwnerDisplays))
+}
+
 func TestRoundtrip(t *testing.T) {
 	t.Parallel()
 
@@ -292,7 +341,11 @@ func newAccessList(t *testing.T, name string) *accesslist.AccessList {
 	require.NoError(t, err)
 
 	accessList.Status = accesslist.Status{
-		MemberCount: &memberCount,
+		MemberCount:    &memberCount,
+		OwnerOf:        []string{"ownerof"},
+		MemberOf:       []string{"memberof"},
+		ScopedOwnerOf:  []string{"scopedownerof"},
+		ScopedMemberOf: []string{"scopedmemberof"},
 	}
 
 	return accessList
@@ -395,7 +448,7 @@ func TestConvAccessList(t *testing.T) {
 		{
 			name: "audit with only Recurrence.DayOfMonth set",
 			input: newAccessList(func(al *accesslistv1.AccessList) {
-				al.Spec.Type = string(accesslist.SCIM)
+				al.Spec.Type = string(accesslist.Static)
 				al.Spec.Audit = &accesslistv1.AccessListAudit{
 					Recurrence: &accesslistv1.Recurrence{
 						DayOfMonth: accesslistv1.ReviewDayOfMonth_REVIEW_DAY_OF_MONTH_LAST,
@@ -411,7 +464,7 @@ func TestConvAccessList(t *testing.T) {
 		{
 			name: "audit with only Recurrence.Frequency and Notifications.Start set",
 			input: newAccessList(func(al *accesslistv1.AccessList) {
-				al.Spec.Type = string(accesslist.SCIM)
+				al.Spec.Type = string(accesslist.Static)
 				al.Spec.Audit = &accesslistv1.AccessListAudit{
 					Recurrence: &accesslistv1.Recurrence{
 						Frequency: accesslistv1.ReviewFrequency_REVIEW_FREQUENCY_ONE_YEAR,
@@ -431,13 +484,13 @@ func TestConvAccessList(t *testing.T) {
 		{
 			name: "static-type",
 			input: newAccessList(func(al *accesslistv1.AccessList) {
-				al.Spec.Type = string(accesslist.SCIM)
+				al.Spec.Type = string(accesslist.Static)
 			}),
 		},
 		{
-			name: "scim-type and zero audit",
+			name: "static-type and zero audit",
 			input: newAccessList(func(al *accesslistv1.AccessList) {
-				al.Spec.Type = string(accesslist.SCIM)
+				al.Spec.Type = string(accesslist.Static)
 				al.Spec.Audit = &accesslistv1.AccessListAudit{
 					NextAuditDate: &timestamppb.Timestamp{},
 					Recurrence: &accesslistv1.Recurrence{
@@ -502,5 +555,5 @@ func Test_convertGrantsToProto_never_nil(t *testing.T) {
 	//
 	// See https://github.com/gravitational/teleport/issues/58948
 	emptyGrants := accesslist.Grants{}
-	require.NotNil(t, convertGrantsToProto(emptyGrants))
+	require.NotNil(t, ConvertGrantsToProto(emptyGrants))
 }

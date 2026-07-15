@@ -24,6 +24,13 @@ import (
 	"github.com/gravitational/trace"
 )
 
+// OktaAssignmentTargetOp is the operation performed on an Okta assignment target.
+type OktaAssignmentTargetOp string
+
+// OktaAssignmentTargetOutcome is the outcome of an operation performed on an Okta
+// assignment target.
+type OktaAssignmentTargetOutcome string
+
 const (
 	// DefaultImplicitRole is implicit role that gets added to all service.RoleSet
 	// objects.
@@ -67,6 +74,9 @@ const (
 	// Github means authentication will happen remotely using a Github connector.
 	Github = "github"
 
+	// BrowserMFA is for CLI flows that delegate MFA to the browser.
+	BrowserMFA = "browser_mfa"
+
 	// HumanDateFormatSeconds is a human readable date formatting with seconds
 	HumanDateFormatSeconds = "Jan 2 2006 15:04:05 UTC"
 
@@ -101,6 +111,9 @@ const (
 	// KeepAliveWindowsDesktopService is the keep alive type for a Windows
 	// desktop service.
 	KeepAliveWindowsDesktopService = "windows_desktop_service"
+
+	// KeepAliveLinuxDesktop is the keep alive type for a Linux desktop.
+	KeepAliveLinuxDesktop = "linux_desktop"
 
 	// KeepAliveKube is the keep alive type for Kubernetes server
 	KeepAliveKube = "kube"
@@ -173,6 +186,18 @@ const (
 
 	// OktaAssignmentTargetUnknown is an unknown target of an Okta assignment.
 	OktaAssignmentTargetUnknown = "unknown"
+
+	// OktaAssignmentTargetOpProvision indicates an Okta assignment target provision operation.
+	OktaAssignmentTargetOpProvision OktaAssignmentTargetOp = "provision"
+	// OktaAssignmentTargetOpCleanup indicates an Okta assignment target cleanup operation.
+	OktaAssignmentTargetOpCleanup OktaAssignmentTargetOp = "cleanup"
+
+	// OktaAssignmentTargetOutcomeSuccessful indicates the Okta assignment target was
+	// processed successfully, including being skipped for any non-failure reason.
+	OktaAssignmentTargetOutcomeSuccessful OktaAssignmentTargetOutcome = "successful"
+	// OktaAssignmentTargetOutcomeFailed indicates the Okta assignment target failed
+	// to be processed successfully.
+	OktaAssignmentTargetOutcomeFailed OktaAssignmentTargetOutcome = "failed"
 )
 
 // LocalConnectors are the system connectors that use local auth.
@@ -295,6 +320,9 @@ const (
 	LockingModeBestEffort = LockingMode("best_effort")
 )
 
+// MaxProtoMessageSizeBytes is maximum protobuf marshaled message size.
+const MaxProtoMessageSizeBytes = 64 * 1024
+
 // DeviceTrustMode is the mode of verification for trusted devices.
 // DeviceTrustMode is always "off" for OSS.
 // Defaults to "optional" for Enterprise.
@@ -335,10 +363,13 @@ const (
 	ALPNSNIAuthProtocol = "teleport-auth@"
 	// ALPNSNIProtocolReverseTunnel is TLS ALPN protocol value used to indicate Proxy reversetunnel protocol.
 	ALPNSNIProtocolReverseTunnel = "teleport-reversetunnel"
+	// ALPNSNIProtocolReverseTunnelV2 is the pseudo ALPN protocol used to
+	// indicate that a TLS-tunneled reverse tunnel connection is initiated by a
+	// client that understands proxy peering (and, as such, can be routed to a
+	// subset of all available proxies).
+	ALPNSNIProtocolReverseTunnelV2 = "teleport-reversetunnelv2"
 	// ALPNSNIProtocolSSH is the TLS ALPN protocol value used to indicate Proxy SSH protocol.
 	ALPNSNIProtocolSSH = "teleport-proxy-ssh"
-	// ALPNSNIProtocolPingSuffix is TLS ALPN suffix used to wrap connections with Ping.
-	ALPNSNIProtocolPingSuffix = "-ping"
 )
 
 const (
@@ -390,6 +421,10 @@ const (
 	// TraitWindowsLogins is the name of the role variable used
 	// to store allowed Windows logins.
 	TraitWindowsLogins = "windows_logins"
+
+	// TraitLinuxDesktopLogins is the name of the role variable used
+	// to store allowed Linux desktop logins.
+	TraitLinuxDesktopLogins = "linux_desktop_logins"
 
 	// TraitKubeGroups is the name the role variable used to store
 	// allowed kubernetes groups
@@ -460,6 +495,12 @@ const (
 	MaxAssumeStartDuration = time.Hour * 24 * 7
 )
 
+// MaxAuthConnectorNameLength is the maximum allowed length of an authentication connector name.
+// The connector name is used as its backend key. This value is selected to be large enough for
+// all real-world use cases, but small enough to not exceed the key length on Teleport's supported
+// backends.
+const MaxAuthConnectorNameLength = 768
+
 const (
 	// MaxHealthCheckInterval is the minimum interval between resource health
 	// checks.
@@ -489,17 +530,11 @@ const (
 	// WebAPIConnUpgradeHeader is the header used to indicate the requested
 	// connection upgrade types in the connection upgrade API.
 	WebAPIConnUpgradeHeader = "Upgrade"
-	// WebAPIConnUpgradeTeleportHeader is a Teleport-specific header used to
-	// indicate the requested connection upgrade types in the connection
-	// upgrade API. This header is sent in addition to "Upgrade" header in case
-	// a load balancer/reverse proxy removes "Upgrade".
-	WebAPIConnUpgradeTeleportHeader = "X-Teleport-Upgrade"
-	// WebAPIConnUpgradeTypeALPN is a connection upgrade type that specifies
-	// the upgraded connection should be handled by the ALPN handler.
+	// WebAPIConnUpgradeTypeALPN is a WebSocket subprotocol identifier for
+	// ALPN connection upgrades.
 	WebAPIConnUpgradeTypeALPN = "alpn"
-	// WebAPIConnUpgradeTypeALPNPing is a connection upgrade type that
-	// specifies the upgraded connection should be handled by the ALPN handler
-	// wrapped with the Ping protocol.
+	// WebAPIConnUpgradeTypeALPNPing is a WebSocket subprotocol identifier for
+	// ALPN connection upgrades with WebSocket ping frames enabled.
 	//
 	// This should be used when the tunneled TLS Routing protocol cannot keep
 	// long-lived connections alive as L7 LB usually ignores TCP keepalives and
@@ -603,4 +638,18 @@ const (
 	UnstableEnableEICEEnvVar = "TELEPORT_UNSTABLE_ENABLE_EICE"
 	// EICEDisabledMessage is the message that gets returned to the user when they try to use this functionality.
 	EICEDisabledMessage = "support for accessing EC2 instances using EC2 Instance Connect Endpoint was removed"
+)
+
+const (
+	// TeleportDropGroup is a default group that users of the teleport automated user
+	// provisioning system get added to when provisioned in INSECURE_DROP mode. This
+	// prevents already existing users from being tampered with or deleted.
+	TeleportDropGroup = "teleport-system"
+	// TeleportKeepGroup is a default group that users of the teleport automated user
+	// provisioning system get added to when provisioned in KEEP mode. This prevents
+	// already existing users from being tampered with or deleted.
+	TeleportKeepGroup = "teleport-keep"
+	// TeleportStaticGroup is a default group that static host users get added to. This
+	// prevents already existing users from being tampered with or deleted.
+	TeleportStaticGroup = "teleport-static"
 )

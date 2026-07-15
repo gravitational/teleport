@@ -19,6 +19,7 @@
 import { Meta } from '@storybook/react-vite';
 
 import DialogConfirmation from 'design/DialogConfirmation';
+import { Logger } from 'design/logger';
 import {
   makeErrorAttempt,
   makeProcessingAttempt,
@@ -33,7 +34,10 @@ import {
 } from 'shared/libs/tdp';
 import { TdpError as RemoteTdpError } from 'shared/libs/tdp/client';
 
-import { DesktopSession, DesktopSessionProps } from './DesktopSession';
+import {
+  DesktopSessionWithSharing,
+  DesktopSessionWithSharingProps,
+} from './DesktopSessionWithSharing';
 
 const meta: Meta = {
   title: 'Shared/DesktopSession',
@@ -55,7 +59,11 @@ const meta: Meta = {
 export default meta;
 
 const fakeClient = () => {
-  const client = new TdpClient(() => null, selectDirectoryInBrowser);
+  const client = new TdpClient(
+    () => null,
+    selectDirectoryInBrowser,
+    new Logger('TDPClient')
+  );
   // Don't try to connect to a websocket.
   client.connect = async options => {
     emitFrame(client, options.screenSpec);
@@ -63,7 +71,7 @@ const fakeClient = () => {
   return client;
 };
 
-const props: DesktopSessionProps = {
+const props: DesktopSessionWithSharingProps = {
   aclAttempt: makeSuccessAttempt({
     clipboardSharingEnabled: true,
     directorySharingEnabled: true,
@@ -76,11 +84,11 @@ const props: DesktopSessionProps = {
 };
 
 export const Processing = () => (
-  <DesktopSession {...props} aclAttempt={makeProcessingAttempt()} />
+  <DesktopSessionWithSharing {...props} aclAttempt={makeProcessingAttempt()} />
 );
 
 export const FetchError = () => (
-  <DesktopSession
+  <DesktopSessionWithSharing
     {...props}
     aclAttempt={makeErrorAttempt(new Error('Network Error'))}
   />
@@ -100,24 +108,24 @@ export const TdpError = () => {
     );
   };
 
-  return <DesktopSession {...props} client={client} />;
+  return <DesktopSessionWithSharing {...props} client={client} />;
 };
 
 export const Connected = () => {
-  return <DesktopSession {...props} />;
+  return <DesktopSessionWithSharing {...props} />;
 };
 
 export const DisconnectedWithNoMessage = () => {
   const client = fakeClient();
   client.connect = async () => {
-    client.emit(TdpClientEvent.TRANSPORT_CLOSE, undefined);
+    client.emit(TdpClientEvent.CONNECTION_CLOSE, undefined);
   };
 
-  return <DesktopSession {...props} client={client} />;
+  return <DesktopSessionWithSharing {...props} client={client} />;
 };
 
 export const MfaPrompt = () => (
-  <DesktopSession
+  <DesktopSessionWithSharing
     {...props}
     customConnectionState={() => {
       return (
@@ -133,11 +141,14 @@ export const MfaPrompt = () => (
 );
 
 export const AnotherSessionActive = () => (
-  <DesktopSession {...props} hasAnotherSession={() => Promise.resolve(true)} />
+  <DesktopSessionWithSharing
+    {...props}
+    hasAnotherSession={() => Promise.resolve(true)}
+  />
 );
 
 export const SharingDisabledRbac = () => (
-  <DesktopSession
+  <DesktopSessionWithSharing
     {...props}
     aclAttempt={makeSuccessAttempt({
       clipboardSharingEnabled: false,
@@ -184,7 +195,7 @@ export const Alerts = () => {
     );
   };
 
-  return <DesktopSession {...props} client={client} />;
+  return <DesktopSessionWithSharing {...props} client={client} />;
 };
 
 function emitFrame(client: TdpClient, spec: ClientScreenSpec) {

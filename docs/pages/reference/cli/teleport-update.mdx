@@ -282,7 +282,7 @@ Unlink the system installation of Teleport from the Teleport package.
 
 This command is used to unlink the system package installation by:
 - Removing symbolic links from `/opt/teleport/system/bin/*` into `/usr/local/bin/`.
-- Removing the Teleport systemd service file from `/ib/systemd/system/teleport.service` (if symlinks are removed).
+- Removing the Teleport systemd service file from `/lib/systemd/system/teleport.service` (if symlinks are removed).
 
 This command is executed automatically when the Teleport package is removed, and should not be manually executed.
 

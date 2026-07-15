@@ -116,49 +116,40 @@ func (l *Handler) Close() error {
 	return nil
 }
 
-// Download reads a session recording from a local directory.
-func (l *Handler) Download(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
-	return trace.Wrap(downloadFile(l.recordingPath(sessionID), writer))
+// StreamSessionRecording reads a session recording from a local directory.
+func (l *Handler) StreamSessionRecording(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
+	return openFile(l.recordingPath(sessionID))
 }
 
-// DownloadSummary reads a session summary from a local directory.
-func (l *Handler) DownloadSummary(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
-	// Happy path: the final summary exists.
-	err := downloadFile(l.summaryPath(sessionID), writer)
-	if trace.IsNotFound(err) {
-		// Final summary doesn't exist, try the pending one.
-		err = downloadFile(l.pendingSummaryPath(sessionID), writer)
-		if trace.IsNotFound(err) {
-			// One more check for the final summary to prevent a race condition where
-			// the final one got created and the pending one got removed between the
-			// two checks above.
-			err = downloadFile(l.summaryPath(sessionID), writer)
+// StreamSessionSummary reads a session summary from a local directory.
+func (l *Handler) StreamSessionSummary(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
+	filePathsToTest := [3]string{
+		l.summaryPath(sessionID),
+		l.pendingSummaryPath(sessionID),
+		// re-check the final summary to prevent
+		// delete temp files between the two checks above
+		l.summaryPath(sessionID),
+	}
+	for _, path := range filePathsToTest {
+		f, err := openFile(path)
+		if err == nil {
+			return f, nil
+		}
+		if !trace.IsNotFound(err) {
+			return nil, trace.Wrap(err)
 		}
 	}
-	return trace.Wrap(err)
+	return nil, trace.NotFound("summary for session %v not found", sessionID)
 }
 
-// DownloadMetadata reads session metadata from a local directory.
-func (l *Handler) DownloadMetadata(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
-	return trace.Wrap(downloadFile(l.metadataPath(sessionID), writer))
+// StreamSessionMetadata reads session metadata from a local directory.
+func (l *Handler) StreamSessionMetadata(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
+	return openFile(l.metadataPath(sessionID))
 }
 
-// DownloadThumbnail reads a session thumbnail from a local directory.
-func (l *Handler) DownloadThumbnail(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error {
-	return trace.Wrap(downloadFile(l.thumbnailPath(sessionID), writer))
-}
-
-func downloadFile(path string, writer events.RandomAccessWriter) error {
-	f, err := os.Open(path)
-	if err != nil {
-		return trace.ConvertSystemError(err)
-	}
-	defer f.Close()
-	_, err = io.Copy(writer, f)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
+// StreamSessionThumbnail reads a session thumbnail from a local directory.
+func (l *Handler) StreamSessionThumbnail(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
+	return openFile(l.thumbnailPath(sessionID))
 }
 
 // Upload writes a session recording to a local directory.
@@ -201,6 +192,14 @@ func (l *Handler) UploadThumbnail(ctx context.Context, sessionID session.ID, rea
 	return uploadFile(l.thumbnailPath(sessionID), reader)
 }
 
+func openFile(path string) (io.ReadCloser, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, trace.ConvertSystemError(err)
+	}
+	return f, nil
+}
+
 type fileUploadConfig struct {
 	overwrite bool
 }
@@ -223,7 +222,7 @@ func uploadFile(path string, reader io.Reader, opts ...fileUploadOption) (string
 	if !cfg.overwrite {
 		flags |= os.O_EXCL
 	}
-	f, err := os.OpenFile(path, flags, 0666)
+	f, err := os.OpenFile(path, flags, 0o666)
 	if err != nil {
 		return "", trace.ConvertSystemError(err)
 	}

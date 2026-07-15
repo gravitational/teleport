@@ -62,20 +62,20 @@ services with your Teleport cluster.
 
 </Admonition>
 
-## Step 1/5. Set up your Go project
+## Step 1/4. Set up your Go project
 
 Download the source code for our minimal API client:
 
 ```code
 $ git clone https://github.com/gravitational/teleport -b branch/v(=teleport.major_version=)
-$ cd examples/service-discovery-api-client
+$ cd teleport/examples/service-discovery-api-client
 ```
 
 For the rest of this guide, we will show you how to set up this API client and
 explore the way it uses Teleport's API to synchronize Teleport Application
 Service instances with an external service discovery solution.
 
-## Step 2/5. Define RBAC resources
+## Step 2/4. Define RBAC resources
 
 Clients that communicate with Teleport's gRPC API assume the identity of a
 Teleport user and role in order to authenticate to the Auth Service, which
@@ -170,7 +170,7 @@ role 'register-apps-impersonator' has been created
 You will now be able to generate signed certificates for the `register-apps`
 role and user.
 
-## Step 3/5. Export an identity for the client application
+## Step 3/4. Export an identity for the client application
 
 Like all Teleport users, `register-apps` needs signed credentials in order to
 connect to your Teleport cluster. You will use the `tctl auth sign` command to
@@ -190,7 +190,74 @@ which establishes a reverse tunnel connection to the Auth Service. The plugin
 uses this reverse tunnel, along with your TLS credentials, to connect to the
 Auth Service's gRPC endpoint.
 
-## Step 4/5. Write the client application
+## Step 4/4. Test your client application
+
+Run the client application to see how Teleport can register and deregister
+resources in your infrastructure to synchronize with your service discovery
+solution.
+
+Make sure you have pulled the Teleport container image so the application can
+create containers based on it:
+
+```code
+$ docker image pull (=teleport.latest_oss_docker_image=)
+```
+
+In your project directory, run the following command:
+
+```code
+$ go run main.go
+Starting the application
+Connected to Teleport
+Connected to the Docker daemon
+```
+
+In a new terminal, run three new RabbitMQ containers:
+
+```code
+$ for i in {1..3}; do docker run -d rabbitmq:3-management; done;
+```
+
+The terminal where you ran the application should show output similar to the
+following:
+
+```text
+Created a new application token for URL: http://172.17.0.4:15672
+Started an Application Service container to proxy URL: http://172.17.0.4:15672
+Created a new application token for URL: http://172.17.0.3:15672
+Started an Application Service container to proxy URL: http://172.17.0.3:15672
+Created a new application token for URL: http://172.17.0.2:15672
+Started an Application Service container to proxy URL: http://172.17.0.2:15672
+```
+
+Verify that the RabbitMQ instances are registered with Teleport:
+
+```code
+$ tsh apps ls
+Application         Description Type Public Address           Labels
+------------------- ----------- ---- ------------------------ -------------------
+rabbitmq-172-17-0-2             HTTP rabbitmq-172-17-0-2.3... teleport.dev/origin
+rabbitmq-172-17-0-3             HTTP rabbitmq-172-17-0-3.3... teleport.dev/origin
+rabbitmq-172-17-0-4             HTTP rabbitmq-172-17-0-4.3... teleport.dev/origin
+```
+
+Next, stop one of your RabbitMQ containers:
+
+```code
+$ docker stop $(docker ps --filter "ancestor=rabbitmq:3-management" -q --last 1)
+```
+
+The terminal where you ran the application should show output similar to the
+following:
+
+```text
+Deleted unnecessary Application Service record: rabbitmq-172-17-0-4
+Deleted unnecessary Application Service container: 63facaa3033a
+```
+
+You should now see two registered applications when you run `tsh apps ls`.
+
+## How the application works
 
 In this step, we will walk you through the example client application.
 
@@ -517,7 +584,7 @@ to join the resource to the cluster dynamically using a method similar to
 <summary>Registering applications dynamically</summary>
 
 To register applications dynamically, rather than start a new Application
-Service instance to proxy an application, use the `*clientClient.CreateApp`
+Service instance to proxy an application, use the `(*client.Client).CreateApp`
 method:
 
 ```go
@@ -886,73 +953,6 @@ manages communication between concurrent routines.
 After we create a ticker, the entrypoint receives from the ticker's channel
 (`k.C`) whenever the `updateInterval` elapses. It blocks until it receives from
 the channel, calling `app.reconcileApps` every interval.
-
-## Step 5/5. Test your client application
-
-Run the client application to see how Teleport can register and deregister
-resources in your infrastructure to synchronize with your service discovery
-solution.
-
-Make sure you have pulled the Teleport container image so the application can
-create containers based on it:
-
-```code
-$ docker image pull (=teleport.latest_oss_docker_image=)
-```
-
-In your project directory, run the following command:
-
-```code
-$ go run main.go
-Starting the application
-Connected to Teleport
-Connected to the Docker daemon
-```
-
-In a new terminal, run three new RabbitMQ containers:
-
-```code
-$ for i in {1..3}; do docker run -d rabbitmq:3-management; done;
-```
-
-The terminal where you ran the application should show output similar to the
-following:
-
-```text
-Created a new application token for URL: http://172.17.0.4:15672
-Started an Application Service container to proxy URL: http://172.17.0.4:15672
-Created a new application token for URL: http://172.17.0.3:15672
-Started an Application Service container to proxy URL: http://172.17.0.3:15672
-Created a new application token for URL: http://172.17.0.2:15672
-Started an Application Service container to proxy URL: http://172.17.0.2:15672
-```
-
-Verify that the RabbitMQ instances are registered with Teleport:
-
-```code
-$ tsh apps ls
-Application         Description Type Public Address           Labels
-------------------- ----------- ---- ------------------------ -------------------
-rabbitmq-172-17-0-2             HTTP rabbitmq-172-17-0-2.3... teleport.dev/origin
-rabbitmq-172-17-0-3             HTTP rabbitmq-172-17-0-3.3... teleport.dev/origin
-rabbitmq-172-17-0-4             HTTP rabbitmq-172-17-0-4.3... teleport.dev/origin
-```
-
-Next, stop one of your RabbitMQ containers:
-
-```code
-$ docker stop $(docker ps --filter "ancestor=rabbitmq:3-management" -q --last 1)
-```
-
-The terminal where you ran the application should show output similar to the
-following:
-
-```text
-Deleted unnecessary Application Service record: rabbitmq-172-17-0-4
-Deleted unnecessary Application Service container: 63facaa3033a
-```
-
-You should now see two registered applications when you run `tsh apps ls`.
 
 ## Next steps
 

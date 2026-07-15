@@ -19,9 +19,7 @@
 package auth
 
 import (
-	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/url"
 	"time"
@@ -30,6 +28,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/julienschmidt/httprouter"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -66,6 +65,19 @@ type APIConfig struct {
 	// OracleHTTPClient (optional) overrides the HTTP client used to make
 	// requests to the Oracle API for the Oracle join method.
 	OracleHTTPClient utils.HTTPDoClient
+	// DisableJoinV1 disables registration of the new join gRPC service.
+	// Intended for tests that need to exercise legacy join fallback paths.
+	DisableJoinV1 bool
+	// CreateAuditStreamInflightLimit, if set, is the maximum amount of allowed
+	// in-flight CreateAuditStream rpc calls. Calls beyond the limit will
+	// immediately return with an error. A non-positive limit means that no
+	// calls will be allowed.
+	CreateAuditStreamInflightLimit *int
+	// ResolveSSHTargetRateLimit, if set, is the (server-wide) rate limit for
+	// the ResolveSSHTarget rpc (i.e. the number of allowed calls per second),
+	// with an allowed burst rate equal to the rate per second (rounded up).
+	// Calls beyond the limit will block and wait for their turn.
+	ResolveSSHTargetRateLimit *float64
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -114,28 +126,28 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.Router.UseRawPath = true
 
 	// Passwords and sessions
-	srv.POST("/:version/users/:user/web/sessions", srv.WithAuth(srv.createWebSession))
+	// TODO(strideynet): move to httpMigratedHandler in v20.0.0
+	srv.POST("/:version/users/:user/web/sessions", srv.WithAuth(srv.extendWebSession))
 	srv.POST("/:version/users/:user/web/authenticate", srv.WithAuth(srv.authenticateWebUser))
 	srv.POST("/:version/users/:user/ssh/authenticate", srv.WithAuth(srv.authenticateSSHUser))
-	srv.GET("/:version/users/:user/web/sessions/:sid", srv.WithAuth(srv.getWebSession))
-	srv.DELETE("/:version/users/:user/web/sessions/:sid", srv.WithAuth(srv.deleteWebSession))
 
 	// Servers and presence heartbeat
-	srv.POST("/:version/namespaces/:namespace/nodes/keepalive", srv.WithAuth(srv.keepAliveNode))
-	srv.POST("/:version/authservers", srv.WithAuth(srv.upsertAuthServer))
 	// TODO(kiosion) DELETE IN 21.0.0
 	srv.GET("/:version/authservers", srv.WithScopedAuth(srv.getAuthServers))
+	// TODO(noah): DELETE IN 20.0.0 - move to httpMigratedHandler
 	srv.POST("/:version/proxies", srv.WithAuth(srv.upsertProxy))
 	// TODO(kiosion) DELETE IN 21.0.0
 	srv.GET("/:version/proxies", srv.WithScopedAuth(srv.getProxies))
-	srv.DELETE("/:version/proxies", srv.WithAuth(srv.deleteAllProxies))
+	// TODO(noah): DELETE IN 20.0.0 - move to httpMigratedHandler
 	srv.DELETE("/:version/proxies/:name", srv.WithAuth(srv.deleteProxy))
+	// TODO(strideynet): move to httpMigratedHandler in v20.0.0
 	srv.POST("/:version/tunnelconnections", srv.WithAuth(srv.upsertTunnelConnection))
+	// TODO(noah): move to httpMigratedHandler in v20.0.0
 	srv.GET("/:version/tunnelconnections/:cluster", srv.WithAuth(srv.getTunnelConnections))
+	// TODO(noah): move to httpMigratedHandler in v20.0.0
 	srv.GET("/:version/tunnelconnections", srv.WithAuth(srv.getAllTunnelConnections))
+	// TODO(strideynet): move to httpMigratedHandler in v20.0.0
 	srv.DELETE("/:version/tunnelconnections/:cluster/:conn", srv.WithAuth(srv.deleteTunnelConnection))
-	srv.DELETE("/:version/tunnelconnections/:cluster", srv.WithAuth(srv.deleteTunnelConnections))
-	srv.DELETE("/:version/tunnelconnections", srv.WithAuth(srv.deleteAllTunnelConnections))
 
 	// trusted clusters
 	// TODO(noah): DELETE IN v21.0.0 - this has been migrated to gRPC from v19.
@@ -151,6 +163,24 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.GET("/:version/namespaces", httpMigratedHandler)
 	srv.GET("/:version/namespaces/:namespace", httpMigratedHandler)
 	srv.GET("/:version/configuration/name", httpMigratedHandler)
+	srv.DELETE("/:version/tunnelconnections/:cluster", httpMigratedHandler)
+	srv.DELETE("/:version/tunnelconnections", httpMigratedHandler)
+	srv.DELETE("/:version/proxies", httpMigratedHandler)
+	srv.GET("/:version/users/:user/web/sessions/:sid", httpMigratedHandler)
+	srv.DELETE("/:version/users/:user/web/sessions/:sid", httpMigratedHandler)
+	srv.POST("/:version/namespaces/:namespace/nodes/keepalive", httpMigratedHandler)
+	srv.POST("/:version/authservers", httpMigratedHandler)
+
+	// Return an explicit "too old" error rather than a 404, so that outdated clients
+	// using the deprecated legacy join endpoint get an actionable message.
+	srv.POST("/:version/tokens/register", httplib.MakeHandler(func(
+		w http.ResponseWriter, r *http.Request, p httprouter.Params,
+	) (any, error) {
+		return nil, trace.AccessDenied(
+			"this client is too old to join the cluster, please upgrade to at least v%d.0.0",
+			teleport.MinClientSemVer().Major,
+		)
+	}))
 
 	if config.PluginRegistry != nil {
 		if err := config.PluginRegistry.RegisterAuthWebHandlers(&srv); err != nil {
@@ -187,9 +217,8 @@ func (s *APIServer) WithAuth(handler HandlerWithAuthFunc) httprouter.Handle {
 		}
 
 		auth := &ServerWithRoles{
-			authServer: s.AuthServer,
+			serverBase: serverBase{authServer: s.AuthServer, alog: s.AuthServer},
 			context:    *authContext,
-			alog:       s.AuthServer,
 		}
 		version := p.ByName("version")
 		if version == "" {
@@ -199,23 +228,19 @@ func (s *APIServer) WithAuth(handler HandlerWithAuthFunc) httprouter.Handle {
 	})
 }
 
-func (s *APIServer) WithScopedAuth(handler HandlerWithAuthFunc) httprouter.Handle {
+// ScopedHandlerWithAuthFunc is an HTTP handler with a scoped auth context.
+type ScopedHandlerWithAuthFunc func(auth *ScopedServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (any, error)
+
+func (s *APIServer) WithScopedAuth(handler ScopedHandlerWithAuthFunc) httprouter.Handle {
 	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
 		// HTTPS server expects auth context to be set by the auth middleware
 		scopedContext, err := s.ScopedAuthorizer.AuthorizeScoped(r.Context())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		authContext, ok := scopedContext.UnscopedContext()
-		if !ok {
-			authContext = &authz.Context{}
-		}
-
-		auth := &ServerWithRoles{
-			authServer:    s.AuthServer,
-			context:       *authContext,
+		auth := &ScopedServerWithRoles{
+			serverBase:    serverBase{authServer: s.AuthServer, alog: s.AuthServer},
 			scopedContext: scopedContext,
-			alog:          s.AuthServer,
 		}
 		version := p.ByName("version")
 		if version == "" {
@@ -230,31 +255,21 @@ type upsertServerRawReq struct {
 	TTL    time.Duration   `json:"ttl"`
 }
 
-// presenceForAPIServer is a subset of [services.Presence].
-type presenceForAPIServer interface {
-	UpsertNode(ctx context.Context, s types.Server) (*types.KeepAlive, error)
-	UpsertAuthServer(ctx context.Context, s types.Server) error
-	UpsertProxy(ctx context.Context, s types.Server) error
-}
-
-// upsertServer is a common utility function
-func (s *APIServer) upsertServer(auth presenceForAPIServer, role types.SystemRole, r *http.Request, p httprouter.Params) (any, error) {
+// upsertProxy registers a proxy server heartbeat sent via the legacy HTTP endpoint.
+//
+// TODO(noah): move to httpMigratedHandler in v20.0.0
+func (s *APIServer) upsertProxy(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (any, error) {
 	var req upsertServerRawReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var kind string
-	switch role {
-	case types.RoleNode:
-		kind = types.KindNode
-	case types.RoleAuth:
-		kind = types.KindAuthServer
-	case types.RoleProxy:
-		kind = types.KindProxy
-	default:
-		return nil, trace.BadParameter("upsertServer with unknown role: %q", role)
-	}
-	server, err := services.UnmarshalServer(req.Server, kind)
+	// UnmarshalServer forces s.Kind = KindProxy, ignoring the Kind in the payload.
+	// This is retained for backwards compatibility: prior to v19, proxy
+	// heartbeats sent the resource with Kind=KindNode over the wire (see
+	// https://github.com/gravitational/teleport/issues/66997). v19+ proxies
+	// send the correct kind; the override remains so older proxies in mixed
+	// clusters continue to work.
+	server, err := services.UnmarshalServer(req.Server, types.KindProxy)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -264,53 +279,16 @@ func (s *APIServer) upsertServer(auth presenceForAPIServer, role types.SystemRol
 	if req.TTL != 0 {
 		server.SetExpiry(s.Now().UTC().Add(req.TTL))
 	}
-	switch role {
-	case types.RoleNode:
-		namespace := p.ByName("namespace")
-		if !types.IsValidNamespace(namespace) {
-			return nil, trace.BadParameter("invalid namespace %q", namespace)
-		}
-		server.SetNamespace(namespace)
-		handle, err := auth.UpsertNode(r.Context(), server)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return handle, nil
-	case types.RoleAuth:
-		if err := auth.UpsertAuthServer(r.Context(), server); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	case types.RoleProxy:
-		if err := auth.UpsertProxy(r.Context(), server); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	default:
-		return nil, trace.BadParameter("unknown server role %q", role)
-	}
-	return message("ok"), nil
-}
-
-// keepAliveNode updates node TTL in the backend
-func (s *APIServer) keepAliveNode(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (any, error) {
-	var handle types.KeepAlive
-	if err := httplib.ReadJSON(r, &handle); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := auth.KeepAliveServer(r.Context(), handle); err != nil {
+	if _, err := auth.UpsertProxyServer(r.Context(), server); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return message("ok"), nil
-}
-
-// upsertProxy is called by remote SSH nodes when they ping back into the auth service
-func (s *APIServer) upsertProxy(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (any, error) {
-	return s.upsertServer(auth, types.RoleProxy, r, p)
 }
 
 // getProxies returns registered proxies
 //
 // TODO(kiosion) DELETE IN 21.0.0
-func (s *APIServer) getProxies(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (any, error) {
+func (s *APIServer) getProxies(auth *ScopedServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (any, error) {
 	//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
 	servers, err := auth.GetProxies()
 	if err != nil {
@@ -319,37 +297,25 @@ func (s *APIServer) getProxies(auth *ServerWithRoles, w http.ResponseWriter, r *
 	return marshalServers(servers, version)
 }
 
-// deleteAllProxies deletes all proxies
-func (s *APIServer) deleteAllProxies(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (any, error) {
-	err := auth.DeleteAllProxies()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return message("ok"), nil
-}
-
 // deleteProxy deletes proxy
+//
+// TODO(noah): move to httpMigratedHandler in v20.0.0
 func (s *APIServer) deleteProxy(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (any, error) {
 	name := p.ByName("name")
 	if name == "" {
 		return nil, trace.BadParameter("missing proxy name")
 	}
-	err := auth.DeleteProxy(r.Context(), name)
+	err := auth.DeleteProxyServer(r.Context(), name)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return message("ok"), nil
 }
 
-// upsertAuthServer is called by remote Auth servers when they ping back into the auth service
-func (s *APIServer) upsertAuthServer(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (any, error) {
-	return s.upsertServer(auth, types.RoleAuth, r, p)
-}
-
 // getAuthServers returns registered auth servers
 //
 // TODO(kiosion) DELETE IN 21.0.0
-func (s *APIServer) getAuthServers(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (any, error) {
+func (s *APIServer) getAuthServers(auth *ScopedServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (any, error) {
 	//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
 	servers, err := auth.GetAuthServers()
 	if err != nil {
@@ -394,47 +360,30 @@ func (s *APIServer) validateTrustedCluster(auth *ServerWithRoles, w http.Respons
 	return validateResponseRaw, nil
 }
 
-func (s *APIServer) deleteWebSession(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (any, error) {
-	user, sessionID := p.ByName("user"), p.ByName("sid")
-	err := auth.WebSessions().Delete(r.Context(), types.DeleteWebSessionRequest{
-		User:      user,
-		SessionID: sessionID,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return message(fmt.Sprintf("session %q for user %q deleted", sessionID, user)), nil
-}
+// TODO(strideynet): move to httpMigratedHandler in v20.0.0
+func (s *APIServer) extendWebSession(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (any, error) {
+	// nb(strideynet): Historically this handler/endpoint provided both
+	// Create and Extend WebSession functionality, and was known as
+	// CreateWebSession. The web session creation functionality was unused for
+	// a long time and hence removed and this handler "renamed".
 
-func (s *APIServer) getWebSession(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (any, error) {
-	user, sid := p.ByName("user"), p.ByName("sid")
-	sess, err := auth.GetWebSessionInfo(r.Context(), user, sid)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return rawMessage(services.MarshalWebSession(sess, services.WithVersion(version)))
-}
-
-func (s *APIServer) createWebSession(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (any, error) {
 	var req authclient.WebSessionReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if req.PrevSessionID != "" {
-		sess, err := auth.ExtendWebSession(r.Context(), req)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return sess, nil
+	// Requires that PrevSessionID is set. Historically, the lack of this field
+	// indicated that the caller wanted to create (rather than extend) a web
+	// session.
+	if req.PrevSessionID == "" {
+		return nil, trace.BadParameter("RPC cannot be used to create new web sessions")
 	}
 
-	sess, err := auth.CreateWebSession(r.Context(), req.User)
+	sess, err := auth.ExtendWebSession(r.Context(), req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	return rawMessage(services.MarshalWebSession(sess, services.WithVersion(version)))
+	return sess, nil
 }
 
 func (s *APIServer) authenticateWebUser(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (any, error) {
@@ -544,7 +493,9 @@ type upsertTunnelConnectionRawReq struct {
 	TunnelConnection json.RawMessage `json:"tunnel_connection"`
 }
 
-// upsertTunnelConnection updates or inserts tunnel connection
+// upsertTunnelConnection updates or inserts tunnel connection.
+//
+// TODO(strideynet): move to httpMigratedHandler in v20.0.0
 func (s *APIServer) upsertTunnelConnection(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (any, error) {
 	var req upsertTunnelConnectionRawReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
@@ -554,15 +505,17 @@ func (s *APIServer) upsertTunnelConnection(auth *ServerWithRoles, w http.Respons
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := auth.UpsertTunnelConnection(conn); err != nil {
+	if err := auth.UpsertTunnelConnection(r.Context(), conn); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return message("ok"), nil
 }
 
-// getTunnelConnections returns a list of tunnel connections from a cluster
+// getTunnelConnections returns a list of tunnel connections from a cluster.
+//
+// TODO(noah): move to httpMigratedHandler in v20.0.0
 func (s *APIServer) getTunnelConnections(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (any, error) {
-	conns, err := auth.GetTunnelConnections(p.ByName("cluster"))
+	conns, err := auth.GetTunnelConnections(r.Context(), p.ByName("cluster"))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -577,9 +530,11 @@ func (s *APIServer) getTunnelConnections(auth *ServerWithRoles, w http.ResponseW
 	return items, nil
 }
 
-// getAllTunnelConnections returns a list of tunnel connections from a cluster
+// getAllTunnelConnections returns a list of tunnel connections from a cluster.
+//
+// TODO(noah): move to httpMigratedHandler in v20.0.0
 func (s *APIServer) getAllTunnelConnections(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (any, error) {
-	conns, err := auth.GetAllTunnelConnections()
+	conns, err := auth.GetAllTunnelConnections(r.Context())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -594,27 +549,11 @@ func (s *APIServer) getAllTunnelConnections(auth *ServerWithRoles, w http.Respon
 	return items, nil
 }
 
-// deleteTunnelConnection deletes tunnel connection by name
+// deleteTunnelConnection deletes tunnel connection by name.
+//
+// TODO(strideynet): move to httpMigratedHandler in v20.0.0
 func (s *APIServer) deleteTunnelConnection(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (any, error) {
-	err := auth.DeleteTunnelConnection(p.ByName("cluster"), p.ByName("conn"))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return message("ok"), nil
-}
-
-// deleteTunnelConnections deletes all tunnel connections for cluster
-func (s *APIServer) deleteTunnelConnections(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (any, error) {
-	err := auth.DeleteTunnelConnections(p.ByName("cluster"))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return message("ok"), nil
-}
-
-// deleteAllTunnelConnections deletes all tunnel connections
-func (s *APIServer) deleteAllTunnelConnections(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (any, error) {
-	err := auth.DeleteAllTunnelConnections()
+	err := auth.DeleteTunnelConnection(r.Context(), p.ByName("cluster"), p.ByName("conn"))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

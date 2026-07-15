@@ -452,7 +452,7 @@ class MockWebSocket
   addEventListener(
     type: string,
     listener: EventListenerOrEventListenerObject,
-    // eslint-disable-next-line unused-imports/no-unused-vars
+    // eslint-disable-next-line no-unused-vars
     options?: boolean | AddEventListenerOptions
   ): void {
     this.on(type as keyof WebSocketEventMap, listener as any);
@@ -466,7 +466,7 @@ class MockWebSocket
   removeEventListener(
     type: string,
     listener: EventListenerOrEventListenerObject,
-    // eslint-disable-next-line unused-imports/no-unused-vars
+    // eslint-disable-next-line no-unused-vars
     options?: boolean | EventListenerOptions
   ): void {
     this.off(type as keyof WebSocketEventMap, listener as any);

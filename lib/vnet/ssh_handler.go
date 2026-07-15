@@ -26,8 +26,9 @@ import (
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 
-	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
+	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/utils/sshutils"
+	vnetv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -161,22 +162,101 @@ func (h *sshHandler) handleTCPConnectorWithTargetConn(
 	return nil
 }
 
+// initiateSSHConn first tries direct credentials. If the SSH handshake fails,
+// it retries with a legacy MFA cert.
 func (h *sshHandler) initiateSSHConn(ctx context.Context, targetConn net.Conn, user string, agent *sshAgent) (*sshConn, error) {
-	target := h.cfg.target
-	clientConfig, err := h.cfg.sshProvider.sessionSSHConfig(ctx, target, user, agent)
+	conn, err := h.initiateSSHConnWithMode(
+		ctx,
+		targetConn,
+		user,
+		agent,
+		vnetv1.SessionSSHConfigCredentialMode_SESSION_SSH_CONFIG_CREDENTIAL_MODE_DIRECT,
+	)
+	if err == nil {
+		return conn, nil
+	}
+
+	// Only continue with fallback if the error was an SSH handshake failure,
+	// which likely indicates an auth failure. If the error was something else,
+	// like a network error, then we shouldn't attempt the fallback since it's
+	// likely to fail with the same error again.
+	if !utils.IsHandshakeFailedError(err) {
+		return nil, trace.Wrap(err)
+	}
+
+	// Close the failed direct connection to prevent a resource leak. It is not
+	// needed anymore since the fallback connection will create a new SSH
+	// connection to the target.
+	if err := targetConn.Close(); err != nil {
+		log.WarnContext(
+			ctx,
+			"Failed to close direct SSH connection after handshake failure",
+			"error", err,
+		)
+	}
+
+	conn, err = h.initiateFallbackSSHConn(ctx, user)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return conn, nil
+}
+
+func (h *sshHandler) initiateFallbackSSHConn(ctx context.Context, user string) (*sshConn, error) {
+	agent := newSSHAgent()
+
+	netConn, err := h.cfg.sshProvider.dial(ctx, h.cfg.target, agent)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer func() {
+		if err != nil {
+			_ = netConn.Close()
+		}
+	}()
+
+	conn, err := h.initiateSSHConnWithMode(
+		ctx,
+		netConn,
+		user,
+		agent,
+		vnetv1.SessionSSHConfigCredentialMode_SESSION_SSH_CONFIG_CREDENTIAL_MODE_MFA_CERT,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return conn, nil
+}
+
+func (h *sshHandler) initiateSSHConnWithMode(
+	ctx context.Context,
+	netConn net.Conn,
+	user string,
+	agent *sshAgent,
+	mode vnetv1.SessionSSHConfigCredentialMode,
+) (*sshConn, error) {
+	config, err := h.cfg.sshProvider.sessionSSHConfig(
+		ctx,
+		h.cfg.target,
+		user,
+		agent,
+		mode,
+	)
 	if err != nil {
 		return nil, trace.Wrap(err, "building SSH client config")
 	}
-	clientConn, clientChans, clientReqs, err := tracessh.NewClientConnWithTimeout(ctx, targetConn, target.addr, clientConfig)
+
+	conn, chans, reqs, err := apissh.NewClientConn(ctx, netConn, h.cfg.target.addr, config)
 	if err != nil {
-		return nil, trace.Wrap(err, "initiating SSH connection to %s@%s", user, target.addr)
+		return nil, trace.Wrap(err, "initiating SSH connection to %s@%s", user, h.cfg.target.addr)
 	}
-	log.DebugContext(ctx, "Initiated SSH connection to target", "root_cluster", target.rootCluster,
-		"leaf_cluster", target.leafCluster, "host", target.addr)
+
 	return &sshConn{
-		conn:  clientConn,
-		chans: clientChans,
-		reqs:  clientReqs,
+		conn:  conn,
+		chans: chans,
+		reqs:  reqs,
 	}, nil
 }
 

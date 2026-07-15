@@ -147,26 +147,36 @@ func NewUpdater(toolsDir, localVersion string, options ...Option) *Updater {
 }
 
 // CheckLocal is run at client tool startup and will only perform local checks.
-// Returns the version needs to be updated and re-executed, by re-execution flag we
-// understand that update and re-execute is required.
-func (u *Updater) CheckLocal(ctx context.Context, profileName string) (resp *UpdateResponse, err error) {
+// Returns the version needs to be updated and re-executed, by re-execution flag
+// we understand that update and re-execute is required. If the tool that should
+// be re-executed is known to be locally available as the most recently launched
+// tool, it is also returned.
+func (u *Updater) CheckLocal(ctx context.Context, profileName string) (resp *UpdateResponse, readyTool *Tool, err error) {
 	// Check if the user has requested a specific version of client tools.
 	requestedVersion := os.Getenv(teleportToolsVersionEnv)
 	switch requestedVersion {
 	// The user has turned off any form of automatic updates.
 	case teleportToolsVersionEnvDisabled:
-		return &UpdateResponse{Version: "", ReExec: false}, nil
+		return &UpdateResponse{Version: "", ReExec: false}, nil, nil
 	// Requested version already the same as client version.
 	case u.localVersion:
-		return &UpdateResponse{Version: u.localVersion, ReExec: false}, nil
+		return &UpdateResponse{Version: u.localVersion, ReExec: false}, nil, nil
 	// No requested version, we continue.
 	case "":
 	// Requested version that is not the local one.
 	default:
 		if _, err := semver.NewVersion(requestedVersion); err != nil {
-			return nil, trace.Wrap(err, "checking that request version is semantic")
+			return nil, nil, trace.Wrap(err, "checking that request version is semantic")
 		}
-		return &UpdateResponse{Version: requestedVersion, ReExec: true}, nil
+		// if a specific version is selected, it's worth to read the local
+		// configuration just in case the tool is already available
+		var readyTool *Tool
+		if ctc, err := GetToolsConfig(u.toolsDir); err != nil {
+			slog.DebugContext(ctx, "Failed to read local configuration", "error", err)
+		} else {
+			readyTool = ctc.SelectVersionIfMostRecent(u.toolsDir, requestedVersion, runtime.GOOS, runtime.GOARCH)
+		}
+		return &UpdateResponse{Version: requestedVersion, ReExec: true}, readyTool, nil
 	}
 
 	// We should acquire and release the lock before checking the version
@@ -174,13 +184,14 @@ func (u *Updater) CheckLocal(ctx context.Context, profileName string) (resp *Upd
 	// check is completed, which can take several seconds.
 	ctc, err := GetToolsConfig(u.toolsDir)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 	if config, ok := ctc.Configs[profileName]; ok {
 		if config.Disabled || config.Version == u.localVersion {
-			return &UpdateResponse{Version: config.Version, ReExec: false}, nil
+			return &UpdateResponse{Version: config.Version, ReExec: false}, nil, nil
 		} else {
-			return &UpdateResponse{Version: config.Version, ReExec: true}, nil
+			readyTool := ctc.SelectVersionIfMostRecent(u.toolsDir, config.Version, runtime.GOOS, runtime.GOARCH)
+			return &UpdateResponse{Version: config.Version, ReExec: true}, readyTool, nil
 		}
 	}
 
@@ -189,10 +200,10 @@ func (u *Updater) CheckLocal(ctx context.Context, profileName string) (resp *Upd
 	// might block execution or a broken version may already exist in the tools' directory.
 	toolsVersion, err := CheckExecutedToolVersion(u.toolsDir)
 	if trace.IsNotFound(err) || errors.Is(err, ErrVersionCheck) || toolsVersion == u.localVersion {
-		return &UpdateResponse{Version: u.localVersion, ReExec: false}, nil
+		return &UpdateResponse{Version: u.localVersion, ReExec: false}, nil, nil
 	}
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
 	if !ctc.HasVersion(u.toolsDir, toolsVersion, runtime.GOOS, runtime.GOARCH) {
@@ -203,7 +214,7 @@ func (u *Updater) CheckLocal(ctx context.Context, profileName string) (resp *Upd
 		}
 	}
 
-	return &UpdateResponse{Version: toolsVersion, ReExec: false}, nil
+	return &UpdateResponse{Version: toolsVersion, ReExec: false}, nil, nil
 }
 
 // CheckRemote first checks the version set by the environment variable. If not set or disabled,
@@ -388,8 +399,10 @@ func (u *Updater) update(ctx context.Context, ctc *ClientToolsConfig, pkg packag
 	return nil
 }
 
-// ToolPath loads full path from config file to specific tool and version.
-func (u *Updater) ToolPath(toolName, toolVersion string) (path string, err error) {
+// SelectTool loads full path from config file to specific tool and version,
+// moving the selected tool to the most used position in the local
+// configuration.
+func (u *Updater) SelectTool(toolName, toolVersion string) (path string, err error) {
 	var tool *Tool
 	if err := UpdateToolsConfig(u.toolsDir, func(ctc *ClientToolsConfig) error {
 		tool = ctc.SelectVersion(u.toolsDir, toolVersion, runtime.GOOS, runtime.GOARCH)
@@ -400,6 +413,13 @@ func (u *Updater) ToolPath(toolName, toolVersion string) (path string, err error
 	if tool == nil {
 		return "", trace.NotFound("tool version %q not found", toolVersion)
 	}
+	return u.toolPath(toolName, tool)
+}
+
+func (u *Updater) toolPath(toolName string, tool *Tool) (string, error) {
+	if tool == nil {
+		return "", trace.NotFound("tool %q not found", toolName)
+	}
 	relPath, ok := tool.PathMap[toolName]
 	if !ok {
 		return "", trace.NotFound("tool %q not found", toolName)
@@ -408,17 +428,35 @@ func (u *Updater) ToolPath(toolName, toolVersion string) (path string, err error
 	return filepath.Join(u.toolsDir, relPath), nil
 }
 
-// Exec re-executes tool command with same arguments and environ variables.
+// Exec re-executes the tool with the given version with same arguments and
+// environ variables.
 func (u *Updater) Exec(ctx context.Context, toolsVersion string, args []string) (int, error) {
 	executablePath, err := os.Executable()
 	if err != nil {
 		return 0, trace.Wrap(err)
 	}
-	path, err := u.ToolPath(filepath.Base(executablePath), toolsVersion)
+	toolPath, err := u.SelectTool(filepath.Base(executablePath), toolsVersion)
 	if err != nil {
 		return 0, trace.Wrap(err)
 	}
+	return u.exec(ctx, executablePath, toolPath, args)
+}
 
+// ExecTool re-executes the given tool with the same arguments and environ as
+// the current process.
+func (u *Updater) ExecTool(ctx context.Context, tool *Tool, args []string) (int, error) {
+	executablePath, err := os.Executable()
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+	toolPath, err := u.toolPath(filepath.Base(executablePath), tool)
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+	return u.exec(ctx, executablePath, toolPath, args)
+}
+
+func (u *Updater) exec(ctx context.Context, executablePath, path string, args []string) (int, error) {
 	env := filterEnvs(os.Environ(), []string{
 		teleportToolsVersionReExecEnv,
 		teleportToolsDirsEnv,

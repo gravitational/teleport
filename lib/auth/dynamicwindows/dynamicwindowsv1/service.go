@@ -131,14 +131,14 @@ func (s *Service) ListDynamicWindowsDesktops(ctx context.Context, request *dynam
 		return nil, trace.Wrap(err)
 	}
 
-	desktops, next, err := s.cache.ListDynamicWindowsDesktops(ctx, int(request.PageSize), request.PageToken)
+	desktops, next, err := s.cache.ListDynamicWindowsDesktops(ctx, int(request.GetPageSize()), request.GetPageToken())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	response := &dynamicwindowspb.ListDynamicWindowsDesktopsResponse{
+	response := dynamicwindowspb.ListDynamicWindowsDesktopsResponse_builder{
 		NextPageToken: next,
-	}
+	}.Build()
 	for _, d := range desktops {
 		if err := checkAccess(auth, d); err != nil {
 			continue
@@ -147,10 +147,25 @@ func (s *Service) ListDynamicWindowsDesktops(ctx context.Context, request *dynam
 		if !ok {
 			return nil, trace.BadParameter("unexpected type %T", d)
 		}
-		response.Desktops = append(response.Desktops, desktop)
+		response.SetDesktops(append(response.GetDesktops(), desktop))
 	}
 
 	return response, nil
+}
+
+// normalizeDesktop checks and sets defaults on the desktop resource. Returns an
+// error if the desktop is nil or invalid.
+func normalizeDesktop(d *types.DynamicWindowsDesktopV1) (*types.DynamicWindowsDesktopV1, error) {
+	if d == nil {
+		return nil, trace.BadParameter("dynamic windows desktop is required")
+	}
+	if d.GetKind() != "" && d.GetKind() != types.KindDynamicWindowsDesktop {
+		return nil, trace.BadParameter("unexpected kind %q", d.GetKind())
+	}
+	if err := d.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return d, nil
 }
 
 // CreateDynamicWindowsDesktop registers a new dynamic Windows desktop.
@@ -165,10 +180,15 @@ func (s *Service) CreateDynamicWindowsDesktop(ctx context.Context, req *dynamicw
 	if err := auth.CheckAccessToKind(types.KindDynamicWindowsDesktop, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := checkAccess(auth, req.GetDesktop()); err != nil {
+	// Validate user-supplied desktop resource before performing the access check.
+	desktop, err := normalizeDesktop(req.GetDesktop())
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	d, err := s.backend.CreateDynamicWindowsDesktop(ctx, types.DynamicWindowsDesktop(req.Desktop))
+	if err := checkAccess(auth, desktop); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	d, err := s.backend.CreateDynamicWindowsDesktop(ctx, desktop)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -197,17 +217,22 @@ func (s *Service) UpdateDynamicWindowsDesktop(ctx context.Context, req *dynamicw
 	if err := auth.CheckAccessToKind(types.KindDynamicWindowsDesktop, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	d, err := s.cache.GetDynamicWindowsDesktop(ctx, req.GetDesktop().GetName())
+	// Validate user-supplied desktop resource before performing the access check.
+	desktop, err := normalizeDesktop(req.GetDesktop())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	d, err := s.cache.GetDynamicWindowsDesktop(ctx, desktop.GetName())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if err := checkAccess(auth, d); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := checkAccess(auth, req.GetDesktop()); err != nil {
+	if err := checkAccess(auth, desktop); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	d, err = s.backend.UpdateDynamicWindowsDesktop(ctx, req.Desktop)
+	d, err = s.backend.UpdateDynamicWindowsDesktop(ctx, desktop)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -232,7 +257,12 @@ func (s *Service) UpsertDynamicWindowsDesktop(ctx context.Context, req *dynamicw
 	if err := auth.CheckAccessToKind(types.KindDynamicWindowsDesktop, types.VerbCreate, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	d, err := s.cache.GetDynamicWindowsDesktop(ctx, req.GetDesktop().GetName())
+	// Validate user-supplied desktop resource before performing the access check.
+	desktop, err := normalizeDesktop(req.GetDesktop())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	d, err := s.cache.GetDynamicWindowsDesktop(ctx, desktop.GetName())
 	if !trace.IsNotFound(err) {
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -241,10 +271,10 @@ func (s *Service) UpsertDynamicWindowsDesktop(ctx context.Context, req *dynamicw
 			return nil, trace.Wrap(err)
 		}
 	}
-	if err := checkAccess(auth, req.GetDesktop()); err != nil {
+	if err := checkAccess(auth, desktop); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	d, err = s.backend.UpsertDynamicWindowsDesktop(ctx, req.Desktop)
+	d, err = s.backend.UpsertDynamicWindowsDesktop(ctx, desktop)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

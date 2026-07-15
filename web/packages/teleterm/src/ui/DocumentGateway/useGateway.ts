@@ -18,22 +18,25 @@
 
 import { useCallback, useEffect } from 'react';
 
+import { Database } from 'gen-proto-ts/teleport/lib/teleterm/v1/database_pb';
 import { Gateway } from 'gen-proto-ts/teleport/lib/teleterm/v1/gateway_pb';
 import { useAsync } from 'shared/hooks/useAsync';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
 import { useStoreSelector } from 'teleterm/ui/hooks/useStoreSelector';
+import { ResourcesService } from 'teleterm/ui/services/resources';
 import {
   DocumentGateway,
   getDocumentGatewayTitle,
 } from 'teleterm/ui/services/workspacesService';
-import { isAppUri, isDatabaseUri } from 'teleterm/ui/uri';
+import { isAppUri, isDatabaseUri, routing } from 'teleterm/ui/uri';
+import * as uri from 'teleterm/ui/uri';
 import { retryWithRelogin } from 'teleterm/ui/utils';
 
 export function useGateway(doc: DocumentGateway) {
   const ctx = useAppContext();
-  const { clustersService, usageService } = ctx;
+  const { clustersService, usageService, resourcesService } = ctx;
   const { documentsService } = useWorkspaceContext();
   // The port to show as default in the input field in case creating a gateway fails.
   // This is typically the case if someone reopens the app and the port of the gateway is already
@@ -54,16 +57,22 @@ export function useGateway(doc: DocumentGateway) {
       async (args: { localPort?: string; targetSubresourceName?: string }) => {
         documentsService.update(doc.uri, { status: 'connecting' });
         let gw: Gateway;
+        let db: Database | undefined;
 
         try {
-          gw = await retryWithRelogin(ctx, doc.targetUri, () =>
-            clustersService.createGateway({
-              targetUri: doc.targetUri,
-              localPort: args.localPort,
-              targetUser: doc.targetUser,
-              targetSubresourceName:
-                args.targetSubresourceName || doc.targetSubresourceName,
-            })
+          [gw, db] = await retryWithRelogin(ctx, doc.targetUri, () =>
+            Promise.all([
+              clustersService.createGateway({
+                targetUri: doc.targetUri,
+                localPort: args.localPort,
+                targetUser: doc.targetUser,
+                targetSubresourceName:
+                  args.targetSubresourceName || doc.targetSubresourceName,
+              }),
+              isDatabaseUri(doc.targetUri)
+                ? findDatabase(resourcesService, doc.targetUri)
+                : Promise.resolve(undefined),
+            ])
           );
         } catch (error) {
           documentsService.update(doc.uri, { status: 'error' });
@@ -88,6 +97,11 @@ export function useGateway(doc: DocumentGateway) {
           draftDoc.status = 'connected';
           // The title might need to be changed if OfflineGateway changed gateway params.
           draftDoc.title = getDocumentGatewayTitle(draftDoc);
+          // Refresh autoUserProvisioning from the latest database state so the
+          // document stays in sync if the admin changes the config between connections.
+          if (db) {
+            draftDoc.autoUserProvisioning = db.autoUserProvisioning;
+          }
         });
         if (isDatabaseUri(doc.targetUri)) {
           usageService.captureProtocolUse({
@@ -106,7 +120,14 @@ export function useGateway(doc: DocumentGateway) {
           });
         }
       },
-      [clustersService, ctx, doc, documentsService, usageService]
+      [
+        clustersService,
+        ctx,
+        doc,
+        documentsService,
+        resourcesService,
+        usageService,
+      ]
     )
   );
 
@@ -162,18 +183,14 @@ export function useGateway(doc: DocumentGateway) {
     )
   );
 
-  useEffect(
-    function createGatewayOnMount() {
-      // Since the user can close DocumentGateway without shutting down the gateway, it's possible
-      // to open DocumentGateway while the gateway is already running. In that scenario, we must
-      // not attempt to create a gateway.
-      if (!gateway && connectAttempt.status === '') {
-        createGateway({ localPort: doc.port });
-      }
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    []
-  );
+  useEffect(function createGatewayOnMount() {
+    // Since the user can close DocumentGateway without shutting down the gateway, it's possible
+    // to open DocumentGateway while the gateway is already running. In that scenario, we must
+    // not attempt to create a gateway.
+    if (!gateway && connectAttempt.status === '') {
+      createGateway({ localPort: doc.port });
+    }
+  }, []);
 
   return {
     gateway,
@@ -188,4 +205,35 @@ export function useGateway(doc: DocumentGateway) {
     changePort,
     changePortAttempt,
   };
+}
+
+async function findDatabase(
+  resourcesService: ResourcesService,
+  targetUri: uri.DatabaseUri
+): Promise<Database | undefined> {
+  const parsed = routing.parseDbUri(targetUri);
+  if (!parsed) {
+    return undefined;
+  }
+  const clusterUri = routing.ensureClusterUri(targetUri);
+  const { resources } = await resourcesService.listUnifiedResources({
+    clusterUri,
+    kinds: ['db'],
+    search: parsed.params.dbId,
+    limit: 1,
+    startKey: '',
+    query: '',
+    sortBy: undefined,
+    searchAsRoles: false,
+    pinnedOnly: false,
+    includeRequestable: false,
+  });
+  if (resources.length !== 1) {
+    return undefined;
+  }
+  const res = resources.at(0);
+  if (res.kind !== 'database') {
+    throw new Error(`Expected database resource, got ${res.kind}`);
+  }
+  return res.resource;
 }

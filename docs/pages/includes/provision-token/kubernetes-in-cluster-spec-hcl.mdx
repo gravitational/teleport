@@ -1,0 +1,29 @@
+```hcl
+resource "teleport_provision_token" "kube-token" {
+  version = "v2"
+  metadata = {
+    name = "kube-token"
+  }
+
+  labels = {
+    // This label is added on the Teleport side by default
+    "teleport.dev/origin" = "dynamic"
+  }
+
+  spec = {
+    // use the minimal set of roles required (e.g. Node, Proxy, App, Kube, DB, WindowsDesktop)
+    roles       = ["App"]
+    join_method = "kubernetes"
+    kubernetes = {
+      # If type is not specified, it defaults to in_cluster
+      type = "in_cluster"
+      allow = [
+        {
+          # Service account names follow the format "namespace:serviceaccountname".
+          service_account = "teleport-agent:teleport-app-service"
+        },
+      ]
+    }
+  }
+}
+```

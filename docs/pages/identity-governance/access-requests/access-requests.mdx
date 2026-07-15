@@ -23,7 +23,7 @@ including:
   receive elevated permissions. This satisfies the FedRAMP AC-3 dual
   authorization control that requires approval of two authorized individuals.
 - **Principle of least privilege:** You can configure Access Requests to give an
-  attacker no permanent admin roles target.  Users receive elevated privileges
+  attacker no permanent admin roles' targets.  Users receive elevated privileges
   for a limited period of time. Request approvers can be configured with limited
   cluster access so they are not high value targets.
 
@@ -73,5 +73,10 @@ requesting a role via the Teleport CLI. Full Access Request functionality,
 including Resource Access Requests managing Access Requests via the Web UI are
 available in Teleport Enterprise.
 
-For information on how to use Just-in-time Access Requests with Teleport Community
-Edition, see [Teleport Community Access Requests](oss-role-requests.mdx).
+For information on how to use Just-in-time Access Requests with Teleport
+Community Edition, see [Teleport Community Access
+Requests](oss-role-requests.mdx). This guide describes CLI workflows that are
+available in all Teleport editions, but are the only available option for
+Teleport Community Edition users. For Teleport Enterprise, we recommend using an
+Access Request plugin so reviewers receive notifications via the communication
+tools your organization already uses.

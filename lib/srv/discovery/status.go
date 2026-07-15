@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport/api/defaults"
@@ -69,7 +70,7 @@ func (s *Server) updateDiscoveryConfigStatus(discoveryConfigNames ...string) {
 		discoveryConfigStatus := discoveryconfig.Status{
 			State:                          discoveryconfigv1.DiscoveryConfigState_DISCOVERY_CONFIG_STATE_SYNCING.String(),
 			LastSyncTime:                   s.clock.Now(),
-			IntegrationDiscoveredResources: make(map[string]*discoveryconfigv1.IntegrationDiscoveredSummary),
+			IntegrationDiscoveredResources: make(map[string]*discoveryconfig.IntegrationDiscoveredSummary),
 		}
 
 		// Merge AWS or Azure Sync (TAG) status
@@ -91,18 +92,9 @@ func (s *Server) updateDiscoveryConfigStatus(discoveryConfigNames ...string) {
 		// Too large error messages will cause failures when clients (which use the default MaxCallRecvMsgSize of 4MB) try to read DiscoveryConfigs.
 		discoveryConfigStatus.ErrorMessage = truncateErrorMessage(discoveryConfigStatus)
 
-		func() {
-			ctx, cancel := context.WithTimeout(s.ctx, 5*time.Second)
-			defer cancel()
-
-			_, err := s.AccessPoint.UpdateDiscoveryConfigStatus(ctx, discoveryConfigName, discoveryConfigStatus)
-			switch {
-			case trace.IsNotImplemented(err):
-				s.Log.WarnContext(ctx, "UpdateDiscoveryConfigStatus method is not implemented in Auth Server. Please upgrade it to a recent version.")
-			case err != nil:
-				s.Log.WarnContext(ctx, "Error updating discovery config status", "discovery_config_name", discoveryConfigName, "error", err)
-			}
-		}()
+		if err := s.newDiscoveryConfigStatusUpdaterFromServer().update(s.ctx, discoveryConfigName, discoveryConfigStatus); err != nil {
+			s.Log.WarnContext(s.ctx, "Failed to update discovery config status", "discovery_config_name", discoveryConfigName, "error", err)
+		}
 	}
 }
 
@@ -252,7 +244,7 @@ func newAWSResourceStatusCollector(resourceType string) awsResourcesStatus {
 type awsResourcesStatus struct {
 	mu sync.RWMutex
 	// awsResourcesResults maps the DiscoveryConfig name and integration to a summary of discovered/enrolled resources.
-	awsResourcesResults map[awsResourceGroup]awsResourceGroupResult
+	awsResourcesResults map[awsResourceGroup]*awsResourceGroupResult
 	resourceType        string
 }
 
@@ -271,16 +263,11 @@ func awsResourceGroupFromLabels(labels map[string]string) awsResourceGroup {
 
 // awsResourceGroupResult stores the result of the aws_sync Matchers for a given DiscoveryConfig.
 type awsResourceGroupResult struct {
-	found    int
-	enrolled int
-	failed   int
-}
-
-func (d *awsResourcesStatus) reset() {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-
-	d.awsResourcesResults = make(map[awsResourceGroup]awsResourceGroupResult)
+	found     int
+	enrolled  int
+	failed    int
+	syncStart *time.Time
+	syncEnd   *time.Time
 }
 
 func (ars *awsResourcesStatus) mergeIntoGlobalStatus(discoveryConfigName string, existingStatus discoveryconfig.Status) discoveryconfig.Status {
@@ -298,14 +285,26 @@ func (ars *awsResourcesStatus) mergeIntoGlobalStatus(discoveryConfigName string,
 		// Update counters specific to AWS resources discovered.
 		existingIntegrationResources, ok := existingStatus.IntegrationDiscoveredResources[group.integration]
 		if !ok {
-			existingIntegrationResources = &discoveryconfigv1.IntegrationDiscoveredSummary{}
+			existingIntegrationResources = &discoveryconfig.IntegrationDiscoveredSummary{}
 		}
 
-		resourcesSummary := &discoveryconfigv1.ResourcesDiscoveredSummary{
-			Found:    uint64(groupResult.found),
-			Enrolled: uint64(groupResult.enrolled),
-			Failed:   uint64(groupResult.failed),
+		var syncEnd *timestamppb.Timestamp
+		if groupResult.syncEnd != nil {
+			syncEnd = timestamppb.New(*groupResult.syncEnd)
 		}
+
+		var syncStart *timestamppb.Timestamp
+		if groupResult.syncStart != nil {
+			syncStart = timestamppb.New(*groupResult.syncStart)
+		}
+
+		resourcesSummary := discoveryconfigv1.ResourcesDiscoveredSummary_builder{
+			Found:     uint64(groupResult.found),
+			Enrolled:  uint64(groupResult.enrolled),
+			Failed:    uint64(groupResult.failed),
+			SyncStart: syncStart,
+			SyncEnd:   syncEnd,
+		}.Build()
 
 		integrationDiscoveredSummaryUpdate(existingIntegrationResources, ars.resourceType, resourcesSummary)
 
@@ -316,45 +315,68 @@ func (ars *awsResourcesStatus) mergeIntoGlobalStatus(discoveryConfigName string,
 }
 
 func (ars *awsResourcesStatus) incrementFailed(g awsResourceGroup, count int) {
-	ars.mu.Lock()
-	defer ars.mu.Unlock()
-	if ars.awsResourcesResults == nil {
-		ars.awsResourcesResults = make(map[awsResourceGroup]awsResourceGroupResult)
-	}
-	groupStats := ars.awsResourcesResults[g]
-	groupStats.failed = groupStats.failed + count
-	ars.awsResourcesResults[g] = groupStats
+	ars.incrementField(g, func(groupStats *awsResourceGroupResult) {
+		groupStats.failed = groupStats.failed + count
+	})
 }
 
-func (ars *awsResourcesStatus) iterationStarted(g awsResourceGroup) {
+func (ars *awsResourcesStatus) iterationStarted(resourceGroups []awsResourceGroup, syncStartTime time.Time) {
 	ars.mu.Lock()
 	defer ars.mu.Unlock()
-	if ars.awsResourcesResults == nil {
-		ars.awsResourcesResults = make(map[awsResourceGroup]awsResourceGroupResult)
+
+	ars.awsResourcesResults = make(map[awsResourceGroup]*awsResourceGroupResult, len(resourceGroups))
+	for _, g := range resourceGroups {
+		ars.awsResourcesResults[g] = &awsResourceGroupResult{
+			syncStart: &syncStartTime,
+		}
 	}
-	ars.awsResourcesResults[g] = awsResourceGroupResult{}
+}
+
+func (ars *awsResourcesStatus) iterationEnded(syncEndTime time.Time) {
+	ars.mu.Lock()
+	defer ars.mu.Unlock()
+
+	for _, g := range ars.awsResourcesResults {
+		g.syncEnd = &syncEndTime
+	}
+}
+
+func (ars *awsResourcesStatus) iterationDiscoveryConfigs() []string {
+	ars.mu.RLock()
+	defer ars.mu.RUnlock()
+
+	uniqueDiscoveryConfigs := make(map[string]struct{})
+	for group := range ars.awsResourcesResults {
+		uniqueDiscoveryConfigs[group.discoveryConfigName] = struct{}{}
+	}
+
+	return slices.Collect(maps.Keys(uniqueDiscoveryConfigs))
 }
 
 func (ars *awsResourcesStatus) incrementFound(g awsResourceGroup, count int) {
+	ars.incrementField(g, func(groupStats *awsResourceGroupResult) {
+		groupStats.found = groupStats.found + count
+	})
+}
+
+func (ars *awsResourcesStatus) incrementField(g awsResourceGroup, f func(groupStats *awsResourceGroupResult)) {
+	if g.discoveryConfigName == "" {
+		return
+	}
+
 	ars.mu.Lock()
 	defer ars.mu.Unlock()
-	if ars.awsResourcesResults == nil {
-		ars.awsResourcesResults = make(map[awsResourceGroup]awsResourceGroupResult)
+	groupStats, ok := ars.awsResourcesResults[g]
+	if !ok {
+		return
 	}
-	groupStats := ars.awsResourcesResults[g]
-	groupStats.found = groupStats.found + count
-	ars.awsResourcesResults[g] = groupStats
+	f(groupStats)
 }
 
 func (ars *awsResourcesStatus) incrementEnrolled(g awsResourceGroup, count int) {
-	ars.mu.Lock()
-	defer ars.mu.Unlock()
-	if ars.awsResourcesResults == nil {
-		ars.awsResourcesResults = make(map[awsResourceGroup]awsResourceGroupResult)
-	}
-	groupStats := ars.awsResourcesResults[g]
-	groupStats.enrolled = groupStats.enrolled + count
-	ars.awsResourcesResults[g] = groupStats
+	ars.incrementField(g, func(groupStats *awsResourceGroupResult) {
+		groupStats.enrolled = groupStats.enrolled + count
+	})
 }
 
 // ReportEC2SSMInstallationResult is called when discovery gets the result of running the installation script in a EC2 instance.
@@ -385,14 +407,14 @@ func (s *Server) ReportEC2SSMInstallationResult(ctx context.Context, result *ser
 			ssmDocument:     result.SSMDocumentName,
 			installerScript: result.InstallerScript,
 		},
-		&usertasksv1.DiscoverEC2Instance{
+		usertasksv1.DiscoverEC2Instance_builder{
 			InvocationUrl:   result.SSMRunEvent.InvocationURL,
 			DiscoveryConfig: result.DiscoveryConfigName,
 			DiscoveryGroup:  s.DiscoveryGroup,
-			SyncTime:        timestamppb.New(result.SSMRunEvent.Time),
+			SyncTime:        timestamppb.New(s.clock.Now()),
 			InstanceId:      result.SSMRunEvent.InstanceID,
 			Name:            result.InstanceName,
-		},
+		}.Build(),
 	)
 
 	return nil
@@ -446,15 +468,15 @@ func (d *awsEC2Tasks) addFailedEnrollment(g awsEC2TaskKey, instance *usertasksv1
 		d.instancesIssues = make(map[awsEC2TaskKey]*usertasksv1.DiscoverEC2)
 	}
 	if _, ok := d.instancesIssues[g]; !ok {
-		d.instancesIssues[g] = &usertasksv1.DiscoverEC2{
+		d.instancesIssues[g] = usertasksv1.DiscoverEC2_builder{
 			Instances:       make(map[string]*usertasksv1.DiscoverEC2Instance),
 			AccountId:       g.accountID,
 			Region:          g.region,
 			SsmDocument:     g.ssmDocument,
 			InstallerScript: g.installerScript,
-		}
+		}.Build()
 	}
-	d.instancesIssues[g].Instances[instance.InstanceId] = instance
+	d.instancesIssues[g].GetInstances()[instance.GetInstanceId()] = instance
 
 	if d.issuesSyncQueue == nil {
 		d.issuesSyncQueue = make(map[awsEC2TaskKey]struct{})
@@ -511,14 +533,14 @@ func (d *awsEKSTasks) addFailedEnrollment(g awsEKSTaskKey, cluster *usertasksv1.
 		d.clusterIssues = make(map[awsEKSTaskKey]*usertasksv1.DiscoverEKS)
 	}
 	if _, ok := d.clusterIssues[g]; !ok {
-		d.clusterIssues[g] = &usertasksv1.DiscoverEKS{
+		d.clusterIssues[g] = usertasksv1.DiscoverEKS_builder{
 			Clusters:        make(map[string]*usertasksv1.DiscoverEKSCluster),
 			AccountId:       g.accountID,
 			Region:          g.region,
 			AppAutoDiscover: g.appAutoDiscover,
-		}
+		}.Build()
 	}
-	d.clusterIssues[g].Clusters[cluster.Name] = cluster
+	d.clusterIssues[g].GetClusters()[cluster.GetName()] = cluster
 
 	if d.issuesSyncQueue == nil {
 		d.issuesSyncQueue = make(map[awsEKSTaskKey]struct{})
@@ -574,13 +596,13 @@ func (d *awsRDSTasks) addFailedEnrollment(g awsRDSTaskKey, database *usertasksv1
 		d.databaseIssues = make(map[awsRDSTaskKey]*usertasksv1.DiscoverRDS)
 	}
 	if _, ok := d.databaseIssues[g]; !ok {
-		d.databaseIssues[g] = &usertasksv1.DiscoverRDS{
+		d.databaseIssues[g] = usertasksv1.DiscoverRDS_builder{
 			Databases: make(map[string]*usertasksv1.DiscoverRDSDatabase),
 			AccountId: g.accountID,
 			Region:    g.region,
-		}
+		}.Build()
 	}
-	d.databaseIssues[g].Databases[database.Name] = database
+	d.databaseIssues[g].GetDatabases()[database.GetName()] = database
 
 	if d.issuesSyncQueue == nil {
 		d.issuesSyncQueue = make(map[awsRDSTaskKey]struct{})
@@ -591,7 +613,7 @@ func (d *awsRDSTasks) addFailedEnrollment(g awsRDSTaskKey, database *usertasksv1
 // acquireSemaphoreForUserTask tries to acquire a semaphore lock for this user task.
 // It returns a func which must be called to release the lock.
 // It also returns a context which is tied to the lease and will be canceled if the lease ends.
-func (s *Server) acquireSemaphoreForUserTask(userTaskName string) (releaseFn func(), ctx context.Context, err error) {
+func (s *taskUpdater) acquireSemaphoreForUserTask(userTaskName string) (releaseFn func(), ctx context.Context, err error) {
 	// Use the deterministic task name as semaphore name.
 	semaphoreName := userTaskName
 	semaphoreExpiration := 10 * time.Second
@@ -608,7 +630,7 @@ func (s *Server) acquireSemaphoreForUserTask(userTaskName string) (releaseFn fun
 					SemaphoreKind: types.KindUserTask,
 					SemaphoreName: semaphoreName,
 					MaxLeases:     1,
-					Holder:        s.Config.ServerID,
+					Holder:        s.ServerID,
 				},
 				Expiry: semaphoreExpiration,
 				Clock:  s.clock,
@@ -644,8 +666,8 @@ func (s *Server) acquireSemaphoreForUserTask(userTaskName string) (releaseFn fun
 // merges them against the ones that exist in the cluster.
 //
 // All of this flow is protected by a lock to ensure there's no race between this and other DiscoveryServices.
-func (s *Server) mergeUpsertDiscoverEC2Task(taskGroup awsEC2TaskKey, failedInstances *usertasksv1.DiscoverEC2) error {
-	if len(failedInstances.Instances) == 0 {
+func (s *taskUpdater) mergeUpsertDiscoverEC2Task(taskGroup awsEC2TaskKey, failedInstances *usertasksv1.DiscoverEC2) error {
+	if len(failedInstances.GetInstances()) == 0 {
 		return nil
 	}
 
@@ -671,7 +693,7 @@ func (s *Server) mergeUpsertDiscoverEC2Task(taskGroup awsEC2TaskKey, failedInsta
 	case err != nil:
 		return trace.Wrap(err)
 	default:
-		mergeExistingInstances(s, currentUserTask.Spec.DiscoverEc2.Instances, failedInstances.Instances)
+		mergeExistingInstances(s, currentUserTask.GetSpec().GetDiscoverEc2().GetInstances(), failedInstances.GetInstances())
 	}
 
 	// If the DiscoveryService is stopped, or the issue does not happen again
@@ -679,13 +701,13 @@ func (s *Server) mergeUpsertDiscoverEC2Task(taskGroup awsEC2TaskKey, failedInsta
 	taskExpiration := s.clock.Now().Add(2 * s.PollInterval)
 
 	task, err := usertasks.NewDiscoverEC2UserTask(
-		&usertasksv1.UserTaskSpec{
+		usertasksv1.UserTaskSpec_builder{
 			Integration: taskGroup.integration,
 			TaskType:    usertasks.TaskTypeDiscoverEC2,
 			IssueType:   taskGroup.issueType,
 			State:       usertasks.TaskStateOpen,
 			DiscoverEc2: failedInstances,
-		},
+		}.Build(),
 		usertasks.WithExpiration(taskExpiration),
 	)
 	if err != nil {
@@ -703,7 +725,7 @@ func (s *Server) upsertTasksForAWSEC2FailedEnrollments() {
 	s.awsEC2Tasks.mu.Lock()
 	defer s.awsEC2Tasks.mu.Unlock()
 	for g := range s.awsEC2Tasks.issuesSyncQueue {
-		if err := s.mergeUpsertDiscoverEC2Task(g, s.awsEC2Tasks.instancesIssues[g]); err != nil {
+		if err := s.taskUpdater().mergeUpsertDiscoverEC2Task(g, s.awsEC2Tasks.instancesIssues[g]); err != nil {
 			s.Log.WarnContext(s.ctx, "Failed to create discover ec2 user task",
 				"integration", g.integration,
 				"issue_type", g.issueType,
@@ -722,7 +744,7 @@ func (s *Server) upsertTasksForAWSEKSFailedEnrollments() {
 	s.awsEKSTasks.mu.Lock()
 	defer s.awsEKSTasks.mu.Unlock()
 	for g := range s.awsEKSTasks.issuesSyncQueue {
-		if err := s.mergeUpsertDiscoverEKSTask(g, s.awsEKSTasks.clusterIssues[g]); err != nil {
+		if err := s.taskUpdater().mergeUpsertDiscoverEKSTask(g, s.awsEKSTasks.clusterIssues[g]); err != nil {
 			s.Log.WarnContext(s.ctx, "Failed to create discover eks user task",
 				"integration", g.integration,
 				"issue_type", g.issueType,
@@ -741,8 +763,8 @@ func (s *Server) upsertTasksForAWSEKSFailedEnrollments() {
 // merges them against the ones that exist in the cluster.
 //
 // All of this flow is protected by a lock to ensure there's no race between this and other DiscoveryServices.
-func (s *Server) mergeUpsertDiscoverEKSTask(taskGroup awsEKSTaskKey, failedClusters *usertasksv1.DiscoverEKS) error {
-	if len(failedClusters.Clusters) == 0 {
+func (s *taskUpdater) mergeUpsertDiscoverEKSTask(taskGroup awsEKSTaskKey, failedClusters *usertasksv1.DiscoverEKS) error {
+	if len(failedClusters.GetClusters()) == 0 {
 		return nil
 	}
 
@@ -767,7 +789,7 @@ func (s *Server) mergeUpsertDiscoverEKSTask(taskGroup awsEKSTaskKey, failedClust
 	case err != nil:
 		return trace.Wrap(err)
 	default:
-		mergeExistingInstances(s, currentUserTask.Spec.DiscoverEks.Clusters, failedClusters.Clusters)
+		mergeExistingInstances(s, currentUserTask.GetSpec().GetDiscoverEks().GetClusters(), failedClusters.GetClusters())
 	}
 
 	// If the DiscoveryService is stopped, or the issue does not happen again
@@ -775,13 +797,13 @@ func (s *Server) mergeUpsertDiscoverEKSTask(taskGroup awsEKSTaskKey, failedClust
 	taskExpiration := s.clock.Now().Add(2 * s.PollInterval)
 
 	task, err := usertasks.NewDiscoverEKSUserTask(
-		&usertasksv1.UserTaskSpec{
+		usertasksv1.UserTaskSpec_builder{
 			Integration: taskGroup.integration,
 			TaskType:    usertasks.TaskTypeDiscoverEKS,
 			IssueType:   taskGroup.issueType,
 			State:       usertasks.TaskStateOpen,
 			DiscoverEks: failedClusters,
-		},
+		}.Build(),
 		usertasks.WithExpiration(taskExpiration),
 	)
 	if err != nil {
@@ -799,7 +821,7 @@ func (s *Server) upsertTasksForAWSRDSFailedEnrollments() {
 	s.awsRDSTasks.mu.Lock()
 	defer s.awsRDSTasks.mu.Unlock()
 	for g := range s.awsRDSTasks.issuesSyncQueue {
-		if err := s.mergeUpsertDiscoverRDSTask(g, s.awsRDSTasks.databaseIssues[g]); err != nil {
+		if err := s.taskUpdater().mergeUpsertDiscoverRDSTask(g, s.awsRDSTasks.databaseIssues[g]); err != nil {
 			s.Log.WarnContext(s.ctx, "Failed to create discover rds user task",
 				"integration", g.integration,
 				"issue_type", g.issueType,
@@ -818,8 +840,8 @@ func (s *Server) upsertTasksForAWSRDSFailedEnrollments() {
 // merges them against the ones that exist in the cluster.
 //
 // All of this flow is protected by a lock to ensure there's no race between this and other DiscoveryServices.
-func (s *Server) mergeUpsertDiscoverRDSTask(taskGroup awsRDSTaskKey, failedDatabases *usertasksv1.DiscoverRDS) error {
-	if len(failedDatabases.Databases) == 0 {
+func (s *taskUpdater) mergeUpsertDiscoverRDSTask(taskGroup awsRDSTaskKey, failedDatabases *usertasksv1.DiscoverRDS) error {
+	if len(failedDatabases.GetDatabases()) == 0 {
 		return nil
 	}
 
@@ -843,7 +865,7 @@ func (s *Server) mergeUpsertDiscoverRDSTask(taskGroup awsRDSTaskKey, failedDatab
 	case err != nil:
 		return trace.Wrap(err)
 	default:
-		mergeExistingInstances(s, currentUserTask.Spec.DiscoverRds.Databases, failedDatabases.Databases)
+		mergeExistingInstances(s, currentUserTask.GetSpec().GetDiscoverRds().GetDatabases(), failedDatabases.GetDatabases())
 	}
 
 	// If the DiscoveryService is stopped, or the issue does not happen again
@@ -851,13 +873,13 @@ func (s *Server) mergeUpsertDiscoverRDSTask(taskGroup awsRDSTaskKey, failedDatab
 	taskExpiration := s.clock.Now().Add(2 * s.PollInterval)
 
 	task, err := usertasks.NewDiscoverRDSUserTask(
-		&usertasksv1.UserTaskSpec{
+		usertasksv1.UserTaskSpec_builder{
 			Integration: taskGroup.integration,
 			TaskType:    usertasks.TaskTypeDiscoverRDS,
 			IssueType:   taskGroup.issueType,
 			State:       usertasks.TaskStateOpen,
 			DiscoverRds: failedDatabases,
-		},
+		}.Build(),
 		usertasks.WithExpiration(taskExpiration),
 	)
 	if err != nil {
@@ -874,7 +896,7 @@ func (s *Server) mergeUpsertDiscoverRDSTask(taskGroup awsRDSTaskKey, failedDatab
 func mergeExistingInstances[Instance interface {
 	GetSyncTime() *timestamppb.Timestamp
 	GetDiscoveryGroup() string
-}](s *Server, oldInstances map[string]Instance, freshInstances map[string]Instance) {
+}](s *taskUpdater, oldInstances map[string]Instance, freshInstances map[string]Instance) {
 	issueExpiration := s.clock.Now().Add(-2 * s.PollInterval)
 
 	for instanceKey, instance := range oldInstances {
@@ -899,77 +921,255 @@ func mergeExistingInstances[Instance interface {
 	}
 }
 
-type statusType int
+// azureVMTaskKey is an Azure VM-specific part of task key.
+type azureVMTaskKey struct {
+	subscriptionID string
+	resourceGroup  string
+	region         string
+}
 
-const (
-	statusFound statusType = iota
-	statusEnrolled
-	statusFailed
-)
+// azureVMTasks contains the Discover Azure VM User Tasks that must be reported to the user.
+type azureVMTasks struct {
+	mu         sync.Mutex
+	taskGroups map[usertasks.TaskGroup]map[azureVMTaskKey]*usertasksv1.DiscoverAzureVM
+}
 
-type fetcherGroupKey struct {
+// addFailedEnrollment adds an enrollment failure of a given VM.
+func (t *azureVMTasks) addFailedEnrollment(tg usertasks.TaskGroup, key azureVMTaskKey, vm *usertasksv1.DiscoverAzureVMInstance) {
+	// Only failures associated with an Integration are reported.
+	if tg.Integration == "" {
+		return
+	}
+	if tg.IssueType == "" {
+		return
+	}
+
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	if t.taskGroups == nil {
+		t.taskGroups = make(map[usertasks.TaskGroup]map[azureVMTaskKey]*usertasksv1.DiscoverAzureVM)
+	}
+
+	tgMap := t.taskGroups[tg]
+	if tgMap == nil {
+		tgMap = make(map[azureVMTaskKey]*usertasksv1.DiscoverAzureVM)
+		t.taskGroups[tg] = tgMap
+	}
+
+	data := tgMap[key]
+	if data == nil {
+		data = usertasksv1.DiscoverAzureVM_builder{
+			Instances:      make(map[string]*usertasksv1.DiscoverAzureVMInstance),
+			SubscriptionId: key.subscriptionID,
+			ResourceGroup:  key.resourceGroup,
+			Region:         key.region,
+		}.Build()
+		tgMap[key] = data
+	}
+
+	data.GetInstances()[vm.GetVmId()] = vm
+}
+
+// upsertAll upserts all collected Azure VM user tasks to the backend.
+func (t *azureVMTasks) upsertAll(s *taskUpdater) {
+	expiryTime := s.clock.Now().Add(2 * s.PollInterval)
+
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	for taskGroup, group := range t.taskGroups {
+		for azureKey, vmData := range group {
+			// skip empty entries
+			if len(vmData.GetInstances()) == 0 {
+				continue
+			}
+
+			log := s.Log.With("issue_type", taskGroup.IssueType,
+				"integration", taskGroup.Integration,
+				"subscription_id", azureKey.subscriptionID,
+				"resource_group", azureKey.resourceGroup,
+				"region", azureKey.region)
+
+			task, err := usertasks.NewDiscoverAzureVMUserTask(taskGroup, expiryTime, vmData)
+			if err != nil {
+				log.WarnContext(s.ctx, "Failed to construct Discovery User Task (this is a bug)", "error", err)
+				continue
+			}
+
+			err = s.mergeUpsertUserTask(task, s.mergeAzure)
+			if err != nil {
+				log.WarnContext(s.ctx, "Failed to upsert Discovery User Task", "error", err)
+				continue
+			}
+		}
+	}
+}
+
+func (s *Server) taskUpdater() *taskUpdater {
+	return &taskUpdater{
+		ctx:            s.ctx,
+		clock:          s.clock,
+		DiscoveryGroup: s.Config.DiscoveryGroup,
+		ServerID:       s.Config.ServerID,
+		AccessPoint:    s.Config.AccessPoint,
+		PollInterval:   s.Config.PollInterval,
+		Log:            s.Config.Log,
+	}
+}
+
+type taskUpdaterAccessPoint interface {
+	types.Semaphores
+	GetUserTask(ctx context.Context, name string) (*usertasksv1.UserTask, error)
+	UpsertUserTask(ctx context.Context, req *usertasksv1.UserTask) (*usertasksv1.UserTask, error)
+}
+
+type taskUpdater struct {
+	ctx   context.Context
+	clock clockwork.Clock
+
+	// subset of Config fields
+	DiscoveryGroup string
+	ServerID       string
+	AccessPoint    taskUpdaterAccessPoint
+	PollInterval   time.Duration
+	Log            *slog.Logger
+}
+
+func (s *taskUpdater) mergeUpsertUserTask(newTask *usertasksv1.UserTask, mergeUserTasks func(oldTask *usertasksv1.UserTaskSpec, newTask *usertasksv1.UserTaskSpec)) error {
+	taskName := newTask.GetMetadata().GetName()
+
+	releaseFn, ctxWithLease, err := s.acquireSemaphoreForUserTask(taskName)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer releaseFn()
+
+	// Fetch the current task because it might have VMs discovered by another group of DiscoveryServices.
+	oldTask, err := s.AccessPoint.GetUserTask(ctxWithLease, taskName)
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+
+	if oldTask != nil && oldTask.HasSpec() {
+		mergeUserTasks(oldTask.GetSpec(), newTask.GetSpec())
+	}
+
+	_, err = s.AccessPoint.UpsertUserTask(ctxWithLease, newTask)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	s.Log.InfoContext(s.ctx, "Upserted user task", "task", taskName, "issue_type", newTask.GetSpec().GetIssueType(), "integration", newTask.GetSpec().GetIntegration())
+
+	return nil
+}
+
+func (s *taskUpdater) mergeAzure(oldSpec *usertasksv1.UserTaskSpec, newSpec *usertasksv1.UserTaskSpec) {
+	if oldSpec == nil || !oldSpec.HasDiscoverAzureVm() {
+		return
+	}
+	if !newSpec.HasDiscoverAzureVm() {
+		newSpec.SetDiscoverAzureVm(&usertasksv1.DiscoverAzureVM{})
+	}
+	if newSpec.GetDiscoverAzureVm().GetInstances() == nil {
+		newSpec.GetDiscoverAzureVm().SetInstances(make(map[string]*usertasksv1.DiscoverAzureVMInstance))
+	}
+	mergeExistingInstances(s, oldSpec.GetDiscoverAzureVm().GetInstances(), newSpec.GetDiscoverAzureVm().GetInstances())
+}
+
+type discoveryGroupStatusKey struct {
 	discoveryConfigName string
 	integration         string
 }
 
-// resourceStatusMap tracks discovery status (found/enrolled/failed counts)
-// per fetcher group key (discovery config + integration combination).
-type resourceStatusMap struct {
+type discoveryGroupStatus struct {
+	found    int
+	enrolled int
+	failed   int
+}
+
+// discoveryStatus tracks discovery status (found/enrolled/failed counts) per
+// discovery group key (discovery config + integration combination).
+type discoveryStatus struct {
 	resourceType string
-	results      map[fetcherGroupKey]map[statusType]int
+	statusesMu   sync.Mutex
+	statuses     map[discoveryGroupStatusKey]*discoveryGroupStatus
+	syncStart    *time.Time
+	syncEnd      *time.Time
 }
 
-func newStatusMap(resourceType string) *resourceStatusMap {
-	return &resourceStatusMap{
+func newStatusMap(resourceType string, syncStart time.Time) *discoveryStatus {
+	return &discoveryStatus{
 		resourceType: resourceType,
-		results:      make(map[fetcherGroupKey]map[statusType]int),
+		statuses:     make(map[discoveryGroupStatusKey]*discoveryGroupStatus),
+		syncStart:    &syncStart,
 	}
 }
 
-func (s *resourceStatusMap) add(key fetcherGroupKey, results map[statusType]int) {
-	if s.results[key] == nil {
-		s.results[key] = make(map[statusType]int)
-	}
-	for k, v := range results {
-		s.results[key][k] += v
+func (s *discoveryStatus) syncEnded(syncEnd time.Time) {
+	s.syncEnd = &syncEnd
+}
+
+func (s *discoveryStatus) add(key discoveryGroupStatusKey) {
+	if status := s.statuses[key]; status == nil {
+		s.statuses[key] = &discoveryGroupStatus{}
 	}
 }
 
-func (s *resourceStatusMap) mergeIntoGlobalStatus(discoveryConfigName string, existingStatus discoveryconfig.Status) discoveryconfig.Status {
+func (s *discoveryStatus) updateConcurrently(key discoveryGroupStatusKey, update discoveryGroupStatus) {
+	s.statusesMu.Lock()
+	defer s.statusesMu.Unlock()
+	status := s.statuses[key]
+	if status == nil {
+		s.statuses[key] = &update
+		return
+	}
+	status.found += update.found
+	status.enrolled += update.enrolled
+	status.failed += update.failed
+}
+
+func (s *discoveryStatus) mergeIntoGlobalStatus(discoveryConfigName string, existingStatus discoveryconfig.Status) discoveryconfig.Status {
 	if s == nil {
 		// nil resourceStatusMap is valid, just empty.
 		return existingStatus
 	}
 
-	for key, results := range s.results {
+	for key, status := range s.statuses {
 		if key.discoveryConfigName != discoveryConfigName {
 			continue
 		}
 
-		if results == nil {
-			continue
-		}
-
 		// Update global discovered resources count.
-		existingStatus.DiscoveredResources = existingStatus.DiscoveredResources + uint64(results[statusFailed])
+		existingStatus.DiscoveredResources += uint64(status.found)
 
 		// Initialize map if needed.
 		if existingStatus.IntegrationDiscoveredResources == nil {
-			existingStatus.IntegrationDiscoveredResources = make(map[string]*discoveryconfigv1.IntegrationDiscoveredSummary)
+			existingStatus.IntegrationDiscoveredResources = make(map[string]*discoveryconfig.IntegrationDiscoveredSummary)
 		}
 
-		// Update counters specific to resources discovered.
-		var summary *discoveryconfigv1.IntegrationDiscoveredSummary
-		summary = existingStatus.IntegrationDiscoveredResources[key.integration]
+		summary := existingStatus.IntegrationDiscoveredResources[key.integration]
 		if summary == nil {
-			summary = &discoveryconfigv1.IntegrationDiscoveredSummary{}
+			summary = &discoveryconfig.IntegrationDiscoveredSummary{}
 		}
 
-		resourcesSummary := &discoveryconfigv1.ResourcesDiscoveredSummary{
-			Found:    uint64(results[statusFound]),
-			Enrolled: uint64(results[statusEnrolled]),
-			Failed:   uint64(results[statusFailed]),
+		var syncStart *timestamppb.Timestamp
+		if s.syncStart != nil {
+			syncStart = timestamppb.New(*s.syncStart)
 		}
+
+		var syncEnd *timestamppb.Timestamp
+		if s.syncEnd != nil {
+			syncEnd = timestamppb.New(*s.syncEnd)
+		}
+
+		resourcesSummary := discoveryconfigv1.ResourcesDiscoveredSummary_builder{
+			Found:     uint64(status.found),
+			Enrolled:  uint64(status.enrolled),
+			Failed:    uint64(status.failed),
+			SyncStart: syncStart,
+			SyncEnd:   syncEnd,
+		}.Build()
 
 		integrationDiscoveredSummaryUpdate(summary, s.resourceType, resourcesSummary)
 
@@ -979,19 +1179,23 @@ func (s *resourceStatusMap) mergeIntoGlobalStatus(discoveryConfigName string, ex
 	return existingStatus
 }
 
-func (s *resourceStatusMap) discoveryConfigs() []string {
+func (s *discoveryStatus) discoveryConfigs() []string {
 	if s == nil {
 		return nil
 	}
 
 	names := map[string]struct{}{}
-	for key := range s.results {
+	for key := range s.statuses {
 		names[key.discoveryConfigName] = struct{}{}
 	}
 	return slices.Collect(maps.Keys(names))
 }
 
-func integrationDiscoveredSummaryUpdate(summary *discoveryconfigv1.IntegrationDiscoveredSummary, resourceType string, resourcesSummary *discoveryconfigv1.ResourcesDiscoveredSummary) {
+func integrationDiscoveredSummaryUpdate(summary *discoveryconfig.IntegrationDiscoveredSummary, resourceType string, resourcesSummary *discoveryconfigv1.ResourcesDiscoveredSummary) {
+	if summary.IntegrationDiscoveredSummary == nil {
+		summary.IntegrationDiscoveredSummary = &discoveryconfigv1.IntegrationDiscoveredSummary{}
+	}
+
 	switch resourceType {
 	case types.AWSMatcherEC2:
 		summary.AwsEc2 = resourcesSummary

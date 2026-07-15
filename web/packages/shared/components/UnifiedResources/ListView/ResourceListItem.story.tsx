@@ -89,6 +89,7 @@ type StoryProps = {
   withCopy: boolean;
   withHoverState: boolean;
   showSelectedResourceIcon: boolean;
+  showSelectedResourceIconForMatchingLabels: boolean;
   labelIconPlacement: 'left' | 'right';
   labelKind: LabelKind;
 };
@@ -111,6 +112,9 @@ const meta: Meta<StoryProps> = {
     showSelectedResourceIcon: {
       control: { type: 'boolean' },
     },
+    showSelectedResourceIconForMatchingLabels: {
+      control: { type: 'boolean' },
+    },
     withLabelIcon: {
       control: { type: 'boolean' },
     },
@@ -131,6 +135,7 @@ const meta: Meta<StoryProps> = {
     withCopy: true,
     withHoverState: true,
     showSelectedResourceIcon: false,
+    showSelectedResourceIconForMatchingLabels: false,
   },
 };
 export default meta;
@@ -173,7 +178,12 @@ export function ListItems(props: StoryProps) {
           onShowStatusInfo={() => null}
           showingStatusInfo={false}
           viewItem={res}
-          showResourceSelectedIcon={props.showSelectedResourceIcon}
+          showResourceSelectedIcon={
+            props.showSelectedResourceIconForMatchingLabels
+              ? labels =>
+                  labels.some(l => l.name === 'env' && l.value === 'prod')
+              : props.showSelectedResourceIcon
+          }
           visibleInputFields={{
             checkbox: props.withCheckbox,
             pin: props.withPin,

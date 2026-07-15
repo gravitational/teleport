@@ -17,6 +17,7 @@
 package forward
 
 import (
+	"context"
 	"errors"
 	"io"
 	"log/slog"
@@ -32,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/srv"
 	sftputils "github.com/gravitational/teleport/lib/sshutils/sftp"
+	sessionsftputils "github.com/gravitational/teleport/session/sftputils"
 )
 
 // SFTPProxy proxies an SFTP session and emits audit events for the handled
@@ -57,19 +59,19 @@ func NewSFTPProxy(
 		logger = slog.With(teleport.ComponentKey, "SFTP")
 	}
 
-	client, err := sftp.NewClient(scx.RemoteClient.Client)
+	const moderatedSessionID = ""
+	remoteFS, err := sftputils.OpenRemoteFilesystem(scx.CancelContext(), scx.RemoteClient, moderatedSessionID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	remoteFS := sftputils.NewRemoteFilesystem(client)
 	wd, err := remoteFS.Getwd()
 	if err != nil {
 		logger.WarnContext(scx.CancelContext(), `Unable to get working directory, defaulting to "/"`)
 	}
 	h := &proxyHandlers{
-		scx:      scx,
-		remoteFS: remoteFS,
-		logger:   logger,
+		auditContext: scx,
+		remoteFS:     remoteFS,
+		logger:       logger,
 	}
 	handlers := sftp.Handlers{
 		FileGet:  h,
@@ -87,20 +89,17 @@ func (p *SFTPProxy) Serve() error {
 	// Run server to completion.
 	serveErr := p.srv.Serve()
 	// After the server has finished, send a summary event.
-	scx := p.handlers.scx
+	auditContext := p.handlers.auditContext
 	summaryEvent := &apievents.SFTPSummary{
 		Metadata: apievents.Metadata{
 			Type: events.SFTPSummaryEvent,
 			Code: events.SFTPSummaryCode,
 			Time: time.Now(),
 		},
-		ServerMetadata:  scx.GetServer().EventMetadata(),
-		SessionMetadata: scx.GetSessionMetadata(),
-		UserMetadata:    scx.Identity.GetUserMetadata(),
-		ConnectionMetadata: apievents.ConnectionMetadata{
-			RemoteAddr: scx.ServerConn.RemoteAddr().String(),
-			LocalAddr:  scx.ServerConn.LocalAddr().String(),
-		},
+		ServerMetadata:     auditContext.ServerMetadata(),
+		SessionMetadata:    auditContext.GetSessionMetadata(),
+		UserMetadata:       auditContext.UserMetadata(),
+		ConnectionMetadata: auditContext.ConnectionMetadata(),
 	}
 
 	for _, f := range p.handlers.files {
@@ -110,8 +109,13 @@ func (p *SFTPProxy) Serve() error {
 			BytesWritten: f.BytesWritten(),
 		})
 	}
-	if err := scx.GetServer().EmitAuditEvent(scx.CancelContext(), summaryEvent); err != nil {
-		p.handlers.logger.WarnContext(scx.CancelContext(), "Failed to emit SFTP summary event", "error", err)
+	if err := auditContext.EmitAuditEvent(auditContext.CancelContext(), summaryEvent); err != nil {
+		p.handlers.logger.WarnContext(auditContext.CancelContext(), "Failed to emit SFTP summary event", "error", err)
+	}
+
+	// Close the backend remote filesystem to propagate session completion gracefully.
+	if err := p.handlers.remoteFS.Close(); err != nil {
+		p.handlers.logger.DebugContext(auditContext.CancelContext(), "Failed to close remote filesystem gracefully", "error", err)
 	}
 
 	return trace.Wrap(serveErr)
@@ -123,17 +127,28 @@ func (p *SFTPProxy) Close() error {
 }
 
 type proxyHandlers struct {
-	scx      *srv.ServerContext
-	remoteFS sftputils.FileSystem
-	logger   *slog.Logger
+	auditContext sftpAuditContext
+	remoteFS     sessionsftputils.FileSystem
+	logger       *slog.Logger
 
 	fileMtx sync.Mutex
-	files   []*sftputils.TrackedFile
+	files   []*sessionsftputils.TrackedFile
+}
+
+type sftpAuditContext interface {
+	EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error
+	CancelContext() context.Context
+	ServerMetadata() apievents.ServerMetadata
+	GetSessionMetadata() apievents.SessionMetadata
+	UserMetadata() apievents.UserMetadata
+	ConnectionMetadata() apievents.ConnectionMetadata
 }
 
 // Fileread handles Open requests for reading files.
 func (h *proxyHandlers) Fileread(req *sftp.Request) (_ io.ReaderAt, err error) {
-	defer h.sendSFTPEvent(req, err)
+	defer func() {
+		h.sendSFTPEvent(req, err)
+	}()
 	if req.Filepath == "" {
 		return nil, os.ErrInvalid
 	}
@@ -149,7 +164,9 @@ func (h *proxyHandlers) Fileread(req *sftp.Request) (_ io.ReaderAt, err error) {
 
 // Filewrite handles Open requests for writing files.
 func (h *proxyHandlers) Filewrite(req *sftp.Request) (_ io.WriterAt, err error) {
-	defer h.sendSFTPEvent(req, err)
+	defer func() {
+		h.sendSFTPEvent(req, err)
+	}()
 	if req.Filepath == "" {
 		return nil, os.ErrInvalid
 	}
@@ -166,21 +183,23 @@ func (h *proxyHandlers) Filewrite(req *sftp.Request) (_ io.WriterAt, err error) 
 // OpenFile handles Open requests for both reading and writing. Required to
 // satisfy [sftp.OpenFileWriter].
 func (h *proxyHandlers) OpenFile(req *sftp.Request) (_ sftp.WriterAtReaderAt, retErr error) {
-	defer h.sendSFTPEvent(req, retErr)
+	defer func() {
+		h.sendSFTPEvent(req, retErr)
+	}()
 
 	if req.Filepath == "" {
 		return nil, os.ErrInvalid
 	}
 
-	f, err := h.remoteFS.OpenFile(req.Filepath, sftputils.ParseFlags(req))
+	f, err := h.remoteFS.OpenFile(req.Filepath, sessionsftputils.ParseFlags(req))
 	if err != nil {
 		return nil, err
 	}
 	return h.trackFile(f), nil
 }
 
-func (h *proxyHandlers) trackFile(f sftputils.File) sftp.WriterAtReaderAt {
-	trackFile := &sftputils.TrackedFile{File: f}
+func (h *proxyHandlers) trackFile(f sessionsftputils.File) sftp.WriterAtReaderAt {
+	trackFile := &sessionsftputils.TrackedFile{File: f}
 	h.fileMtx.Lock()
 	defer h.fileMtx.Unlock()
 	h.files = append(h.files, trackFile)
@@ -194,17 +213,17 @@ func (h *proxyHandlers) Filecmd(req *sftp.Request) (err error) {
 			h.sendSFTPEvent(req, err)
 		}
 	}()
-	return sftputils.HandleFilecmd(req, h.remoteFS)
+	return sessionsftputils.HandleFilecmd(req, h.remoteFS)
 }
 
 // Filelist handles listing info about files.
 func (h *proxyHandlers) Filelist(req *sftp.Request) (_ sftp.ListerAt, err error) {
 	defer func() {
-		if req.Method == sftputils.MethodList {
+		if req.Method == sessionsftputils.MethodList {
 			h.sendSFTPEvent(req, err)
 		}
 	}()
-	lister, err := sftputils.HandleFilelist(req, h.remoteFS)
+	lister, err := sessionsftputils.HandleFilelist(req, h.remoteFS)
 	if err != nil {
 		return nil, err
 	}
@@ -223,21 +242,24 @@ func (h *proxyHandlers) sendSFTPEvent(req *sftp.Request, reqErr error) {
 		h.logger.WarnContext(req.Context(), "Unable to get working directory", "error", err)
 		// Emit event without working directory.
 	}
-	event, err := sftputils.ParseSFTPEvent(req, wd, reqErr)
+	sftpEvent, err := sessionsftputils.ParseSFTPEvent(req, wd, reqErr)
 	if err != nil {
-		h.logger.WarnContext(req.Context(), "Unknown SFTP request", "request", req.Method)
+		h.logger.WarnContext(req.Context(), "Failed to convert SFTP event into an audit log event", "request", req.Method, "error", err)
 		return
-	} else if reqErr != nil {
+	}
+	event, err := sftputils.SFTPEventToProto(sftpEvent)
+	if err != nil {
+		h.logger.WarnContext(req.Context(), "Failed to convert SFTP event into an audit log event", "request", req.Method, "error", err)
+		return
+	}
+	if reqErr != nil {
 		h.logger.DebugContext(req.Context(), "failed handling SFTP request", "request", req.Method, "error", reqErr)
 	}
-	event.ServerMetadata = h.scx.GetServer().EventMetadata()
-	event.SessionMetadata = h.scx.GetSessionMetadata()
-	event.UserMetadata = h.scx.Identity.GetUserMetadata()
-	event.ConnectionMetadata = apievents.ConnectionMetadata{
-		RemoteAddr: h.scx.ServerConn.RemoteAddr().String(),
-		LocalAddr:  h.scx.ServerConn.LocalAddr().String(),
-	}
-	if err := h.scx.GetServer().EmitAuditEvent(req.Context(), event); err != nil {
+	event.ServerMetadata = h.auditContext.ServerMetadata()
+	event.SessionMetadata = h.auditContext.GetSessionMetadata()
+	event.UserMetadata = h.auditContext.UserMetadata()
+	event.ConnectionMetadata = h.auditContext.ConnectionMetadata()
+	if err := h.auditContext.EmitAuditEvent(req.Context(), event); err != nil {
 		h.logger.WarnContext(req.Context(), "Failed to emit SFTP event", "error", err)
 	}
 }

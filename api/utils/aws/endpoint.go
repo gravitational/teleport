@@ -28,9 +28,11 @@ import (
 
 // IsAWSEndpoint returns true if the input URI is an AWS endpoint.
 func IsAWSEndpoint(uri string) bool {
-	// Note that AWSCNEndpointSuffix contains AWSEndpointSuffix so there is no
-	// need to search for AWSCNEndpointSuffix explicitly.
-	return strings.Contains(uri, AWSEndpointSuffix)
+	hostname, err := removeSchemaAndPort(uri)
+	if err != nil {
+		return false
+	}
+	return strings.HasSuffix(hostname, AWSEndpointSuffix) || strings.HasSuffix(hostname, AWSCNEndpointSuffix)
 }
 
 // IsRDSEndpoint returns true if the input URI is an RDS endpoint.
@@ -689,8 +691,7 @@ func ParseMemoryDBEndpoint(endpoint string) (*RedisEndpointInfo, error) {
 // isAWSServiceEndpoint returns true if uri is a valid AWS endpoint and uri
 // contains the provided service name as a subdomain.
 func isAWSServiceEndpoint(uri, serviceName string) bool {
-	return strings.Contains(uri, fmt.Sprintf(".%s.", serviceName)) &&
-		IsAWSEndpoint(uri)
+	return IsAWSEndpoint(uri) && strings.Contains(uri, fmt.Sprintf(".%s.", serviceName))
 }
 
 func removeSchemaAndPort(endpoint string) (string, error) {

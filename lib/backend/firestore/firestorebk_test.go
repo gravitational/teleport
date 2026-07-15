@@ -81,6 +81,7 @@ func firestoreParams() backend.Params {
 	collection := "tp-cluster-data-test"
 	projectID := "tp-testproj"
 	endpoint := ""
+	databaseId := ""
 
 	if c := os.Getenv("TELEPORT_FIRESTORE_TEST_COLLECTION"); c != "" {
 		collection = c
@@ -94,10 +95,15 @@ func firestoreParams() backend.Params {
 		endpoint = e
 	}
 
+	if d := os.Getenv("TELEPORT_FIRESTORE_TEST_DATABASE"); d != "" {
+		databaseId = d
+	}
+
 	return map[string]any{
 		"collection_name":                       collection,
 		"project_id":                            projectID,
 		"endpoint":                              endpoint,
+		"database_id":                           databaseId,
 		"purge_expired_documents_poll_interval": 300 * time.Millisecond,
 	}
 }

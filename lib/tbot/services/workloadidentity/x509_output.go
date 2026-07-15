@@ -56,7 +56,7 @@ func X509OutputServiceBuilder(
 	defaultCredentialLifetime bot.CredentialLifetime,
 ) bot.ServiceBuilder {
 	buildFn := func(deps bot.ServiceDependencies) (bot.Service, error) {
-		if err := cfg.CheckAndSetDefaults(); err != nil {
+		if err := cfg.CheckAndSetDefaults(deps.Scoped); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		svc := &X509OutputService{
@@ -70,6 +70,7 @@ func X509OutputServiceBuilder(
 			crlCache:                  crlCache,
 			log:                       deps.Logger,
 			statusReporter:            deps.GetStatusReporter(),
+			scoped:                    deps.Scoped,
 		}
 		return svc, nil
 	}
@@ -91,6 +92,8 @@ type X509OutputService struct {
 	crlCache          CRLGetter
 	identityGenerator *identity.Generator
 	clientBuilder     *client.Builder
+	// scoped indicates whether the bot is running in scoped mode.
+	scoped bool
 }
 
 // String returns a human-readable description of the service.
@@ -222,6 +225,22 @@ func (s *X509OutputService) Run(ctx context.Context) error {
 	}
 }
 
+// generateIdentity returns the identity facade used to issue SVIDs. In scoped
+// mode this is the bot's internal scoped identity; otherwise it is a role-
+// impersonated identity.
+func (s *X509OutputService) generateIdentity(ctx context.Context) (*identity.Facade, error) {
+	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime)
+	if s.scoped {
+		return s.identityGenerator.GenerateScopedFacade(
+			ctx, effectiveLifetime.TTL, effectiveLifetime.RenewalInterval,
+		)
+	}
+	return s.identityGenerator.GenerateFacade(ctx,
+		identity.WithLifetime(effectiveLifetime.TTL, effectiveLifetime.RenewalInterval),
+		identity.WithLogger(s.log),
+	)
+}
+
 func (s *X509OutputService) requestSVID(
 	ctx context.Context,
 ) (
@@ -235,27 +254,23 @@ func (s *X509OutputService) requestSVID(
 	)
 	defer span.End()
 
-	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime)
-	id, err := s.identityGenerator.GenerateFacade(ctx,
-		identity.WithLifetime(effectiveLifetime.TTL, effectiveLifetime.RenewalInterval),
-		identity.WithLogger(s.log),
-	)
+	id, err := s.generateIdentity(ctx)
 	if err != nil {
 		return nil, nil, trace.Wrap(err, "generating identity")
 	}
 
-	// create a client that uses the impersonated identity, so that when we
-	// fetch information, we can ensure access rights are enforced.
-	impersonatedClient, err := s.clientBuilder.Build(ctx, id)
+	// create a client that uses the issuing identity, so that when we fetch
+	// information, we can ensure access rights are enforced.
+	issuingClient, err := s.clientBuilder.Build(ctx, id)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	defer impersonatedClient.Close()
+	defer issuingClient.Close()
 
 	x509Credentials, privateKey, err := workloadidentity.IssueX509WorkloadIdentity(
 		ctx,
 		s.log,
-		impersonatedClient,
+		issuingClient,
 		s.cfg.Selector,
 		cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime).TTL,
 		nil,
@@ -277,8 +292,8 @@ func (s *X509OutputService) requestSVID(
 			received = append(received,
 				fmt.Sprintf(
 					"%s:%s",
-					cred.WorkloadIdentityName,
-					cred.SpiffeId,
+					cred.GetWorkloadIdentityName(),
+					cred.GetSpiffeId(),
 				),
 			)
 		}
@@ -351,12 +366,28 @@ func (s *X509OutputService) render(
 	}
 
 	if s.cfg.IncludeFederatedTrustBundles {
-		for _, federatedBundle := range bundleSet.Federated {
-			federatedBundleBytes, err := federatedBundle.X509Bundle().Marshal()
+		for _, bundle := range bundleSet.FederatedAndInternalTrustDomains(s.cfg.TrustDomainSelector) {
+			federatedBundleBytes, err := bundle.X509Bundle().Marshal()
 			if err != nil {
-				return trace.Wrap(err, "marshaling federated trust bundle (%s)", federatedBundle.TrustDomain().Name())
+				return trace.Wrap(err, "marshaling trust bundle (%s)", bundle.TrustDomain().Name())
 			}
 			trustBundleBytes = append(trustBundleBytes, federatedBundleBytes...)
+		}
+	} else {
+		for bundle, err := range bundleSet.InternalTrustDomainsBundles(s.cfg.TrustDomainSelector) {
+			if err != nil {
+				// Skip if the bundle is not supported by server.
+				if trace.IsNotImplemented(err) {
+					s.log.InfoContext(ctx, "Internal CA not supported, skipping it", "error", err)
+					continue
+				}
+				return trace.Wrap(err, "unable to add trust domain into the bundle")
+			}
+			trustDomainBundleBytes, err := bundle.X509Bundle().Marshal()
+			if err != nil {
+				return trace.Wrap(err, "marshaling trust bundle (%s)", bundle.TrustDomain().Name())
+			}
+			trustBundleBytes = append(trustBundleBytes, trustDomainBundleBytes...)
 		}
 	}
 

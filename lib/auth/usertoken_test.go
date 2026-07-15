@@ -97,11 +97,13 @@ func TestCreateResetPasswordToken(t *testing.T) {
 
 func TestCreateResetPasswordTokenErrors(t *testing.T) {
 	t.Parallel()
-	srv := newTestTLSServer(t)
+	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, as.Close()) })
 	ctx := context.Background()
 
 	username := "joe@example.com"
-	_, _, err := authtest.CreateUserAndRole(srv.Auth(), username, []string{username}, nil)
+	_, _, err = authtest.CreateUserAndRole(as.AuthServer, username, []string{username}, nil)
 	require.NoError(t, err)
 
 	type testCase struct {
@@ -149,7 +151,7 @@ func TestCreateResetPasswordTokenErrors(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
-			_, err := srv.Auth().CreateResetPasswordToken(ctx, tc.req)
+			_, err := as.AuthServer.CreateResetPasswordToken(ctx, tc.req)
 			require.Error(t, err)
 		})
 	}
@@ -221,7 +223,7 @@ func TestFormatAccountName(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.description, func(t *testing.T) {
-			accountName, err := auth.FormatAccountName(tt.inDebugAuth, "foo", "00000000-0000-0000-0000-000000000000")
+			accountName, err := auth.FormatAccountName(t.Context(), tt.inDebugAuth, "foo", "00000000-0000-0000-0000-000000000000")
 			tt.outError(t, err)
 			require.Equal(t, accountName, tt.outAccountName)
 		})
@@ -230,10 +232,12 @@ func TestFormatAccountName(t *testing.T) {
 
 func TestUserTokenSecretsCreationSettings(t *testing.T) {
 	t.Parallel()
-	srv := newTestTLSServer(t)
+	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, as.Close()) })
 
 	username := "joe@example.com"
-	_, _, err := authtest.CreateUserAndRole(srv.Auth(), username, []string{username}, nil)
+	_, _, err = authtest.CreateUserAndRole(as.AuthServer, username, []string{username}, nil)
 	require.NoError(t, err)
 
 	ctx := context.Background()
@@ -243,16 +247,16 @@ func TestUserTokenSecretsCreationSettings(t *testing.T) {
 		TTL:  time.Hour,
 	}
 
-	token, err := srv.Auth().CreateResetPasswordToken(ctx, req)
+	token, err := as.AuthServer.CreateResetPasswordToken(ctx, req)
 	require.NoError(t, err)
 
-	_, err = srv.Auth().CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
+	_, err = as.AuthServer.CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
 		TokenID:    token.GetName(),
 		DeviceType: proto.DeviceType_DEVICE_TYPE_TOTP,
 	})
 	require.NoError(t, err)
 
-	secrets, err := srv.Auth().GetUserTokenSecrets(ctx, token.GetName())
+	secrets, err := as.AuthServer.GetUserTokenSecrets(ctx, token.GetName())
 	require.NoError(t, err)
 
 	require.NoError(t, err)
@@ -264,11 +268,13 @@ func TestUserTokenSecretsCreationSettings(t *testing.T) {
 
 func TestUserTokenCreationSettings(t *testing.T) {
 	t.Parallel()
-	srv := newTestTLSServer(t)
+	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, as.Close()) })
 	ctx := t.Context()
 
 	username := "joe@example.com"
-	_, _, err := authtest.CreateUserAndRole(srv.Auth(), username, []string{username}, nil)
+	_, _, err = authtest.CreateUserAndRole(as.AuthServer, username, []string{username}, nil)
 	require.NoError(t, err)
 
 	req := authclient.CreateUserTokenRequest{
@@ -277,7 +283,7 @@ func TestUserTokenCreationSettings(t *testing.T) {
 		Type: authclient.UserTokenTypeResetPasswordInvite,
 	}
 
-	token, err := srv.Auth().NewUserToken(ctx, req)
+	token, err := as.AuthServer.NewUserToken(ctx, req)
 	require.NoError(t, err)
 	require.Equal(t, req.Name, token.GetUser())
 	require.Equal(t, req.Type, token.GetSubKind())

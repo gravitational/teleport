@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/trace"
 
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/scopes"
@@ -42,53 +43,67 @@ import (
 // ScopedCommand implements scoped variants of tctl command groups, such as
 // `tctl scoped tokens`.
 type ScopedCommand struct {
-	config *servicecfg.Config
-	tokens *ScopedTokensCommand
 	Stdout io.Writer
 
-	status *kingpin.CmdClause
+	status      scopedStatusCommand
+	tokens      ScopedTokensCommand
+	assignments scopedAssignmentsCommand
 }
 
 // Initialize allows ScopedCommand to plug itself into the CLI parser
-func (c *ScopedCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, config *servicecfg.Config) {
-	c.config = config
-	scoped := app.Command("scoped", "Run a subcommand using scoped auth").Alias("scopes")
+func (c *ScopedCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, _ *servicecfg.Config) {
+	scoped := app.Command("scoped", "Run a subcommand using scoped auth.").Alias("scopes")
 
 	if c.Stdout == nil {
 		c.Stdout = os.Stdout
 	}
 
-	c.tokens = &ScopedTokensCommand{
-		Stdout: c.Stdout,
-	}
-
-	c.tokens.Initialize(scoped, config)
-
-	c.status = scoped.Command("status", "Show the status of scoped resources")
+	c.status.initialize(scoped, c.Stdout)
+	c.tokens.initialize(scoped, c.Stdout)
+	c.assignments.initialize(scoped, c.Stdout)
 }
 
 // TryRun takes the CLI command as an argument (like "scoped tokens") and executes it.
 func (c *ScopedCommand) TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (match bool, err error) {
-	var commandFunc func(ctx context.Context, client *authclient.Client) error
-	switch cmd {
-	case c.status.FullCommand():
-		commandFunc = c.Status
-	default:
-		// may match the token family of commands
-		return c.tokens.TryRun(ctx, cmd, clientFunc)
+	for _, subCmd := range []RunnableCommand{
+		&c.status,
+		&c.tokens,
+		&c.assignments,
+	} {
+		match, err := subCmd.TryRun(ctx, cmd, clientFunc)
+		if match || err != nil {
+			return match, trace.Wrap(err)
+		}
+	}
+	return false, nil
+}
+
+type scopedStatusCommand struct {
+	stdout io.Writer
+	cmd    *kingpin.CmdClause
+}
+
+func (c *scopedStatusCommand) initialize(parent *kingpin.CmdClause, stdout io.Writer) {
+	c.stdout = stdout
+	c.cmd = parent.Command("status", "Show the status of scoped resources.")
+}
+
+func (c *scopedStatusCommand) TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (match bool, err error) {
+	if cmd != c.cmd.FullCommand() {
+		return false, nil
 	}
 
 	client, closeFn, err := clientFunc(ctx)
 	if err != nil {
-		return false, trace.Wrap(err)
+		return true, trace.Wrap(err)
 	}
 	defer closeFn(ctx)
 
-	return true, trace.Wrap(commandFunc(ctx, client))
+	return true, trace.Wrap(c.status(ctx, client))
 }
 
-// Status shows the status of scoped resources.
-func (c *ScopedCommand) Status(ctx context.Context, client *authclient.Client) error {
+// status shows the status of scoped resources.
+func (c *scopedStatusCommand) status(ctx context.Context, client *authclient.Client) error {
 	// TODO(fspmarshall/scopes): move the calculation of counts server-side and based on
 	// scoped access cache. Ideally we want to allow for a paginated view of scope stats
 	// with one item/row per scope.  We should also consider how to optionally include
@@ -104,7 +119,10 @@ func (c *ScopedCommand) Status(ctx context.Context, client *authclient.Client) e
 	// aggregate per scope counts
 	rows := make(map[string]scopeMetricRow)
 
-	for role, err := range scopedutils.RangeScopedRoles(ctx, client.ScopedAccessServiceClient(), &scopedaccessv1.ListScopedRolesRequest{}) {
+	for role, err := range scopedutils.RangeScopedRoles(ctx, client.ScopedAccessServiceClient(), scopedaccessv1.ListScopedRolesRequest_builder{
+		// exhaustive user-facing views use MODE_ALL per RFD 0229i
+		ScopeFilter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_ALL}.Build(),
+	}.Build()) {
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -116,7 +134,10 @@ func (c *ScopedCommand) Status(ctx context.Context, client *authclient.Client) e
 		rows[scope] = row
 	}
 
-	for assignment, err := range scopedutils.RangeScopedRoleAssignments(ctx, client.ScopedAccessServiceClient(), &scopedaccessv1.ListScopedRoleAssignmentsRequest{}) {
+	for assignment, err := range scopedutils.RangeScopedRoleAssignments(ctx, client.ScopedAccessServiceClient(), scopedaccessv1.ListScopedRoleAssignmentsRequest_builder{
+		// exhaustive user-facing views use MODE_ALL per RFD 0229i
+		ScopeFilter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_ALL}.Build(),
+	}.Build()) {
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -140,6 +161,6 @@ func (c *ScopedCommand) Status(ctx context.Context, client *authclient.Client) e
 		})
 	}
 
-	fmt.Fprint(c.Stdout, table.AsBuffer().String())
+	fmt.Fprint(c.stdout, table.AsBuffer().String())
 	return nil
 }

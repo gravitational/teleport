@@ -22,10 +22,11 @@ import { Status } from './types';
 
 const StatusRank: Record<Status, number> = {
   [Status.Draft]: 1,
-  [Status.Healthy]: 2,
-  [Status.Issues]: 3,
-  [Status.Failed]: 4,
-  [Status.Unknown]: 5,
+  [Status.Scanning]: 2,
+  [Status.Healthy]: 3,
+  [Status.Issues]: 4,
+  [Status.Failed]: 5,
+  [Status.Unknown]: 6,
 };
 
 export const sortByStatus = (a, b) => {
@@ -47,6 +48,18 @@ export function filterByIntegrationStatus(
     }
     return true;
   });
+}
+
+export function getAwsIcErrorMessage(
+  item: IntegrationLike
+): string | undefined {
+  if (
+    item.resourceType === 'plugin' &&
+    item.kind === 'aws-identity-center' &&
+    item.status?.errorMessage
+  ) {
+    return item.status.errorMessage;
+  }
 }
 
 export function filterBySearch(

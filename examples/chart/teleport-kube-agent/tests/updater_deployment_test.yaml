@@ -14,6 +14,7 @@ tests:
       - ../.lint/updater.yaml
     asserts:
       - containsDocument:
+          any: true
           kind: Deployment
           apiVersion: apps/v1
           name: RELEASE-NAME-updater
@@ -166,10 +167,10 @@ tests:
       - ../.lint/annotations.yaml
     asserts:
       - equal:
-          path: metadata.annotations.kubernetes\.io/deployment
+          path: metadata.annotations["kubernetes.io/deployment"]
           value: test-annotation
       - equal:
-          path: metadata.annotations.kubernetes\.io/deployment-different
+          path: metadata.annotations["kubernetes.io/deployment-different"]
           value: 3
   - it: sets the pod annotations
     documentIndex: 0
@@ -178,10 +179,10 @@ tests:
       - ../.lint/annotations.yaml
     asserts:
       - equal:
-          path: spec.template.metadata.annotations.kubernetes\.io/pod
+          path: spec.template.metadata.annotations["kubernetes.io/pod"]
           value: test-annotation
       - equal:
-          path: spec.template.metadata.annotations.kubernetes\.io/pod-different
+          path: spec.template.metadata.annotations["kubernetes.io/pod-different"]
           value: 4
   - it: sets the affinity
     documentIndex: 0
@@ -344,11 +345,11 @@ tests:
       - ../.lint/updater.yaml
     set:
       updater:
-        pullCredentials: "amazon"
+        pullCredentials: "aws"
     asserts:
       - contains:
           path: spec.template.spec.containers[0].args
-          content: "--pull-credentials=amazon"
+          content: "--pull-credentials=aws"
 
   - it: sets extraVolumes when specified
     documentIndex: 0
@@ -380,3 +381,26 @@ tests:
             name: docker-config
             mountPath: "/mnt/docker"
             readOnly: true
+
+  - it: sets the pod security context
+    documentIndex: 0
+    values:
+      - ../.lint/updater.yaml
+    set:
+      podSecurityContext:
+        seccompProfile:
+          type: RuntimeDefault
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        runAsNonRoot: true
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext
+          value:
+            seccompProfile:
+              type: RuntimeDefault
+            runAsUser: 65532
+            runAsGroup: 65532
+            fsGroup: 65532
+            runAsNonRoot: true

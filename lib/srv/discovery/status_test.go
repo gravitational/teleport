@@ -19,16 +19,26 @@
 package discovery
 
 import (
+	"context"
 	"maps"
+	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
+	"github.com/gravitational/teleport/api/types/usertasks"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestTruncateErrorMessage(t *testing.T) {
@@ -74,15 +84,9 @@ func (m *mockInstance) GetDiscoveryGroup() string {
 }
 
 func TestMergeExistingInstances(t *testing.T) {
-	clock := clockwork.NewFakeClock()
-	pollInterval := 10 * time.Minute
-	s := &Server{
-		Config: &Config{
-			clock:          clock,
-			PollInterval:   pollInterval,
-			DiscoveryGroup: "group-1",
-		},
-	}
+	s, _ := newTaskUpdater(t)
+	clock := s.clock
+	pollInterval := s.PollInterval
 
 	now := clock.Now()
 	tooOld := now.Add(-3 * pollInterval)
@@ -160,6 +164,370 @@ func TestMergeExistingInstances(t *testing.T) {
 			workingCopy := maps.Clone(tt.freshInstances)
 			mergeExistingInstances(s, tt.oldInstances, workingCopy)
 			require.Equal(t, tt.expected, workingCopy)
+		})
+	}
+}
+
+func TestMergeUpsertUserTask(t *testing.T) {
+	t.Parallel()
+
+	clock := clockwork.NewFakeClock()
+	syncTime := timestamppb.New(clock.Now())
+
+	newTask := func(t *testing.T, tag string) *usertasksv1.UserTask {
+		ut, err := usertasks.NewDiscoverAzureVMUserTask(
+			usertasks.TaskGroup{
+				Integration: "my-int",
+				IssueType:   usertasks.AutoDiscoverAzureVMIssueEnrollmentError,
+			},
+			clock.Now().Add(20*time.Minute),
+			usertasksv1.DiscoverAzureVM_builder{
+				Instances: map[string]*usertasksv1.DiscoverAzureVMInstance{
+					tag: usertasksv1.DiscoverAzureVMInstance_builder{
+						VmId:            tag,
+						DiscoveryConfig: tag,
+						DiscoveryGroup:  tag,
+						SyncTime:        syncTime,
+					}.Build(),
+				},
+				// these feed into task name, in addition to the task group above.
+				SubscriptionId: "sub-123",
+				ResourceGroup:  "rg-123",
+				Region:         "westus",
+			}.Build(),
+		)
+		require.NoError(t, err)
+		return ut
+	}
+
+	tests := []struct {
+		name         string
+		existingTask *usertasksv1.UserTask
+		newTask      *usertasksv1.UserTask
+		mergeCalled  bool
+	}{
+		{
+			name:         "no existing task - merge not called",
+			existingTask: nil,
+			newTask:      newTask(t, "foo"),
+			mergeCalled:  false,
+		},
+		{
+			name:         "existing task with spec - merge is called",
+			existingTask: newTask(t, "bar"),
+			newTask:      newTask(t, "foo"),
+			mergeCalled:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s, ap := newTaskUpdater(t, tt.existingTask)
+
+			mergeCalled := false
+			mergeFunc := func(oldSpec *usertasksv1.UserTaskSpec, newSpec *usertasksv1.UserTaskSpec) {
+				mergeCalled = true
+			}
+
+			require.NoError(t, s.mergeUpsertUserTask(tt.newTask, mergeFunc))
+			require.Equal(t, tt.mergeCalled, mergeCalled, "mergeCalled mismatch")
+
+			// Verify the task was upserted
+			upsertedTask, err := ap.GetUserTask(s.ctx, tt.newTask.GetMetadata().GetName())
+			require.NoError(t, err)
+			require.NotNil(t, upsertedTask)
+			require.Empty(t, cmp.Diff(tt.newTask.GetSpec(), upsertedTask.GetSpec(), protocmp.Transform()))
+		})
+	}
+}
+
+func TestDiscoveryStatusUpdate(t *testing.T) {
+	const (
+		discoveryConfigName = "dc-1"
+		integrationName     = "integration-1"
+	)
+	key := discoveryGroupStatusKey{
+		discoveryConfigName: discoveryConfigName,
+		integration:         integrationName,
+	}
+	statuses := newStatusMap(types.AzureMatcherVM, time.Now())
+	statuses.add(key)
+
+	statuses.updateConcurrently(key, discoveryGroupStatus{
+		found:    4,
+		enrolled: 1,
+		failed:   1,
+	})
+	statuses.updateConcurrently(key, discoveryGroupStatus{
+		found: 1,
+	})
+
+	status := statuses.mergeIntoGlobalStatus(discoveryConfigName, discoveryconfig.Status{})
+	summary := status.IntegrationDiscoveredResources[integrationName].GetAzureVms()
+	require.Equal(t, uint64(5), summary.GetFound())
+	require.Equal(t, uint64(1), summary.GetEnrolled())
+	require.Equal(t, uint64(1), summary.GetFailed())
+}
+
+type mocktaskUpdaterAccessPoint struct {
+	types.Semaphores
+
+	mu sync.Mutex
+
+	tasks map[string]*usertasksv1.UserTask
+}
+
+func (m *mocktaskUpdaterAccessPoint) AcquireSemaphore(ctx context.Context, params types.AcquireSemaphoreRequest) (*types.SemaphoreLease, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	return &types.SemaphoreLease{}, nil
+}
+
+func (m *mocktaskUpdaterAccessPoint) CancelSemaphoreLease(ctx context.Context, lease types.SemaphoreLease) error {
+	return nil
+}
+
+func (m *mocktaskUpdaterAccessPoint) UpsertUserTask(ctx context.Context, req *usertasksv1.UserTask) (*usertasksv1.UserTask, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.tasks[req.GetMetadata().GetName()] = req
+
+	return req, nil
+}
+
+func (m *mocktaskUpdaterAccessPoint) GetUserTask(ctx context.Context, name string) (*usertasksv1.UserTask, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	task, ok := m.tasks[name]
+	if !ok {
+		return nil, trace.NotFound("task %q not found", name)
+	}
+	return task, nil
+}
+
+func newTaskUpdater(t *testing.T, existingTasks ...*usertasksv1.UserTask) (*taskUpdater, *mocktaskUpdaterAccessPoint) {
+	t.Helper()
+
+	clock := clockwork.NewFakeClock()
+
+	ap := &mocktaskUpdaterAccessPoint{
+		tasks: make(map[string]*usertasksv1.UserTask),
+	}
+
+	manager := &taskUpdater{
+		ctx:   t.Context(),
+		clock: clock,
+
+		DiscoveryGroup: "group-1",
+		ServerID:       "discover-server-id",
+		PollInterval:   10 * time.Minute,
+		Log:            logtest.NewLogger(),
+		AccessPoint:    ap,
+	}
+
+	for _, task := range existingTasks {
+		if task == nil {
+			continue
+		}
+		_, err := manager.AccessPoint.UpsertUserTask(manager.ctx, task)
+		require.NoError(t, err)
+	}
+
+	return manager, ap
+}
+
+func TestAzureVMTasks_AddFailedEnrollment(t *testing.T) {
+	t.Parallel()
+
+	var testTaskGroup = usertasks.TaskGroup{Integration: "my-int", IssueType: usertasks.AutoDiscoverAzureVMIssueEnrollmentError}
+	var testTaskGroupAlt = usertasks.TaskGroup{Integration: "my-int", IssueType: usertasks.AutoDiscoverAzureVMIssueVMNotRunning}
+	var testAzureKey = azureVMTaskKey{subscriptionID: "sub-1", resourceGroup: "rg-1", region: "westus"}
+	var testAzureKeyAlt = azureVMTaskKey{subscriptionID: "sub-2", resourceGroup: "rg-2", region: "eastus"}
+
+	syncTime := timestamppb.New(time.Now())
+
+	vm := func(tag string) *usertasksv1.DiscoverAzureVMInstance {
+		return usertasksv1.DiscoverAzureVMInstance_builder{
+			VmId:            tag,
+			DiscoveryConfig: "dc-01",
+			DiscoveryGroup:  "group-1",
+			SyncTime:        syncTime,
+		}.Build()
+	}
+
+	azureData := func(key azureVMTaskKey, instances ...string) *usertasksv1.DiscoverAzureVM {
+		data := usertasksv1.DiscoverAzureVM_builder{
+			SubscriptionId: key.subscriptionID,
+			ResourceGroup:  key.resourceGroup,
+			Region:         key.region,
+			Instances:      make(map[string]*usertasksv1.DiscoverAzureVMInstance),
+		}.Build()
+		for _, instance := range instances {
+			data.GetInstances()[instance] = vm(instance)
+		}
+		return data
+	}
+
+	tests := []struct {
+		name     string
+		mutate   func(tasks *azureVMTasks)
+		expected map[usertasks.TaskGroup]map[azureVMTaskKey]*usertasksv1.DiscoverAzureVM
+	}{
+		{
+			name: "empty integration is ignored",
+			mutate: func(tasks *azureVMTasks) {
+				tasks.addFailedEnrollment(usertasks.TaskGroup{Integration: "", IssueType: "x"}, testAzureKey, vm("foo"))
+			},
+		},
+		{
+			name: "empty issue type is ignored",
+			mutate: func(tasks *azureVMTasks) {
+				tasks.addFailedEnrollment(usertasks.TaskGroup{Integration: "x", IssueType: ""}, testAzureKey, vm("foo"))
+			},
+		},
+		{
+			name: "creates task group and adds VM",
+			mutate: func(tasks *azureVMTasks) {
+				tasks.addFailedEnrollment(testTaskGroup, testAzureKey, vm("foo"))
+			},
+			expected: map[usertasks.TaskGroup]map[azureVMTaskKey]*usertasksv1.DiscoverAzureVM{
+				testTaskGroup: {
+					testAzureKey: azureData(testAzureKey, "foo"),
+				},
+			},
+		},
+		{
+			name: "adds multiple VMs to same key",
+			mutate: func(tasks *azureVMTasks) {
+				tasks.addFailedEnrollment(testTaskGroup, testAzureKey, vm("foo"))
+				tasks.addFailedEnrollment(testTaskGroup, testAzureKey, vm("bar"))
+			},
+			expected: map[usertasks.TaskGroup]map[azureVMTaskKey]*usertasksv1.DiscoverAzureVM{
+				testTaskGroup: {
+					testAzureKey: azureData(testAzureKey, "foo", "bar"),
+				},
+			},
+		},
+		{
+			name: "different issue types create separate groups",
+			mutate: func(tasks *azureVMTasks) {
+				tasks.addFailedEnrollment(testTaskGroup, testAzureKey, vm("foo"))
+				tasks.addFailedEnrollment(testTaskGroupAlt, testAzureKey, vm("bar"))
+			},
+			expected: map[usertasks.TaskGroup]map[azureVMTaskKey]*usertasksv1.DiscoverAzureVM{
+				testTaskGroup: {
+					testAzureKey: azureData(testAzureKey, "foo"),
+				},
+				testTaskGroupAlt: {
+					testAzureKey: azureData(testAzureKey, "bar"),
+				},
+			},
+		},
+		{
+			name: "different azure keys create separate entries",
+			mutate: func(tasks *azureVMTasks) {
+				tasks.addFailedEnrollment(testTaskGroup, testAzureKey, vm("foo"))
+				tasks.addFailedEnrollment(testTaskGroup, testAzureKeyAlt, vm("bar"))
+			},
+			expected: map[usertasks.TaskGroup]map[azureVMTaskKey]*usertasksv1.DiscoverAzureVM{
+				testTaskGroup: {
+					testAzureKey:    azureData(testAzureKey, "foo"),
+					testAzureKeyAlt: azureData(testAzureKeyAlt, "bar"),
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tasks := &azureVMTasks{}
+			tt.mutate(tasks)
+			require.Empty(t, cmp.Diff(tt.expected, tasks.taskGroups, protocmp.Transform()))
+		})
+	}
+}
+
+func TestAzureVMTasks_UpsertAll(t *testing.T) {
+	t.Parallel()
+
+	var testTaskGroup = usertasks.TaskGroup{Integration: "my-int", IssueType: usertasks.AutoDiscoverAzureVMIssueEnrollmentError}
+	var testAzureKey = azureVMTaskKey{subscriptionID: "sub-1", resourceGroup: "rg-1", region: "westus"}
+	var testAzureKeyAlt = azureVMTaskKey{subscriptionID: "sub-2", resourceGroup: "rg-2", region: "eastus"}
+
+	azureData := func(key azureVMTaskKey, instances ...string) *usertasksv1.DiscoverAzureVM {
+		data := usertasksv1.DiscoverAzureVM_builder{
+			SubscriptionId: key.subscriptionID,
+			ResourceGroup:  key.resourceGroup,
+			Region:         key.region,
+			Instances:      make(map[string]*usertasksv1.DiscoverAzureVMInstance),
+		}.Build()
+		for _, instance := range instances {
+			data.GetInstances()[instance] = usertasksv1.DiscoverAzureVMInstance_builder{
+				VmId:            instance,
+				DiscoveryConfig: "dc-01",
+				DiscoveryGroup:  "group-1",
+				SyncTime:        timestamppb.New(time.Now()),
+			}.Build()
+		}
+		return data
+	}
+
+	tests := []struct {
+		name          string
+		tasks         *azureVMTasks
+		existingTasks []*usertasksv1.UserTask
+		expectedTasks int
+	}{
+		{
+			name:          "nil taskGroups does not panic",
+			tasks:         &azureVMTasks{},
+			expectedTasks: 0,
+		},
+		{
+			name: "empty instances are skipped",
+			tasks: &azureVMTasks{
+				taskGroups: map[usertasks.TaskGroup]map[azureVMTaskKey]*usertasksv1.DiscoverAzureVM{
+					testTaskGroup: {testAzureKey: azureData(testAzureKey)},
+				},
+			},
+			expectedTasks: 0,
+		},
+		{
+			name: "upserts single task",
+			tasks: &azureVMTasks{
+				taskGroups: map[usertasks.TaskGroup]map[azureVMTaskKey]*usertasksv1.DiscoverAzureVM{
+					testTaskGroup: {
+						testAzureKey: azureData(testAzureKey, "foo"),
+					},
+				},
+			},
+			expectedTasks: 1,
+		},
+		{
+			name: "upserts multiple tasks for different keys",
+			tasks: &azureVMTasks{
+				taskGroups: map[usertasks.TaskGroup]map[azureVMTaskKey]*usertasksv1.DiscoverAzureVM{
+					testTaskGroup: {
+						testAzureKey:    azureData(testAzureKey, "foo"),
+						testAzureKeyAlt: azureData(testAzureKeyAlt, "bar"),
+					},
+				},
+			},
+			expectedTasks: 2,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s, ap := newTaskUpdater(t, tt.existingTasks...)
+
+			tt.tasks.upsertAll(s)
+
+			tasks := slices.Collect(maps.Values(ap.tasks))
+			require.Len(t, tasks, tt.expectedTasks)
 		})
 	}
 }

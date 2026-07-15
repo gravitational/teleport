@@ -27,6 +27,7 @@ import (
 	"os"
 	"os/user"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -44,10 +45,10 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/bpf"
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshca"
@@ -55,6 +56,8 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/clocki"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/session/pam/pamcfg"
+	"github.com/gravitational/teleport/session/reexec"
 )
 
 func newTestServerContext(t *testing.T, srv Server, sessionJoiningRoleSet services.RoleSet, accessPermit *decisionpb.SSHAccessPermit) *ServerContext {
@@ -104,22 +107,6 @@ func newTestServerContext(t *testing.T, srv Server, sessionJoiningRoleSet servic
 
 	err = scx.SetExecRequest(&localExec{Ctx: scx})
 	require.NoError(t, err)
-
-	scx.cmdr, scx.cmdw, err = os.Pipe()
-	require.NoError(t, err)
-
-	_, scx.logw, err = os.Pipe()
-	require.NoError(t, err)
-
-	scx.contr, scx.contw, err = os.Pipe()
-	require.NoError(t, err)
-
-	scx.readyr, scx.readyw, err = os.Pipe()
-	require.NoError(t, err)
-
-	scx.killShellr, scx.killShellw, err = os.Pipe()
-	require.NoError(t, err)
-	scx.AddCloser(scx.killShellw)
 
 	// TODO (joerger): check the error coming from Close once the logic around
 	// closing open files has been fixed to fail with "close |1: file already closed".
@@ -185,6 +172,7 @@ type mockServer struct {
 	component string
 	clock     clocki.FakeClock
 	bpf       bpf.BPF
+	pamCfg    *pamcfg.PAMConfig
 }
 
 // ID is the unique ID of the server.
@@ -230,8 +218,11 @@ func (m *mockServer) GetDataDir() string {
 }
 
 // GetPAM returns PAM configuration for this server.
-func (m *mockServer) GetPAM() *servicecfg.PAMConfig {
-	return &servicecfg.PAMConfig{Enabled: false}
+func (m *mockServer) GetPAM() *pamcfg.PAMConfig {
+	if m.pamCfg != nil {
+		return m.pamCfg
+	}
+	return new(pamcfg.PAMConfig)
 }
 
 // GetClock returns a clock setup for the server
@@ -340,11 +331,16 @@ func (m *mockServer) GetSELinuxEnabled() bool {
 // ChildLogConfig returns a noop log configuration.
 func (m *mockServer) ChildLogConfig() ChildLogConfig {
 	return ChildLogConfig{
-		ExecLogConfig: ExecLogConfig{
-			Level: &slog.LevelVar{},
+		ExecLogConfig: reexec.ExecLogConfig{
+			Level:  slog.LevelDebug,
+			Format: "json",
 		},
-		Writer: io.Discard,
+		Writer: os.Stdout,
 	}
+}
+
+func (m *mockServer) GetPresenceMaxDuration() time.Duration {
+	return client.DefaultPresenceMaxDuration
 }
 
 // Implementation of ssh.Conn interface.
@@ -393,68 +389,77 @@ func (c *mockSSHConn) Wait() error {
 	return nil
 }
 
+// mockSSHChannel is one side of a mocked ssh channel.
 type mockSSHChannel struct {
-	stdIn  io.ReadCloser
-	stdOut io.WriteCloser
-	stdErr io.ReadWriter
+	reader io.ReadCloser
+	writer io.WriteCloser
 }
 
-func newMockSSHChannel() ssh.Channel {
-	stdIn, stdOut := io.Pipe()
-	return &mockSSHChannel{
-		stdIn:  stdIn,
-		stdOut: stdOut,
-		stdErr: new(bytes.Buffer),
+// newMockSSHChannel creates a mock ssh channel and returns both the client and server side.
+// When the server side is handed to a running session, the client side must be drained
+// so the session's stdout writes don't block on the unread pipe.
+func newMockSSHChannel(t *testing.T) (client *mockSSHChannel, server *mockSSHChannel) {
+	stdinReader, stdinWriter := io.Pipe()
+	stdoutReader, stdoutWriter := io.Pipe()
+
+	client = &mockSSHChannel{
+		reader: stdoutReader,
+		writer: stdinWriter,
 	}
+	t.Cleanup(func() { client.Close() })
+
+	server = &mockSSHChannel{
+		reader: stdinReader,
+		writer: stdoutWriter,
+	}
+	t.Cleanup(func() { server.Close() })
+
+	return client, server
 }
 
-// Read reads up to len(data) bytes from the channel.
+// Read up to len(data) bytes from the channel.
 func (c *mockSSHChannel) Read(data []byte) (int, error) {
-	return c.stdIn.Read(data)
+	return c.reader.Read(data)
 }
 
-// Write writes len(data) bytes to the channel.
+// Write len(data) bytes to the channel.
 func (c *mockSSHChannel) Write(data []byte) (int, error) {
-	return c.stdOut.Write(data)
+	return c.writer.Write(data)
+}
+
+// Drain the reader in a goroutine until it is closed.
+func (c *mockSSHChannel) Drain() {
+	go io.ReadAll(c.reader)
 }
 
 // Close signals end of channel use. No data may be sent after this
 // call.
 func (c *mockSSHChannel) Close() error {
-	return trace.NewAggregate(c.stdIn.Close(), c.stdOut.Close())
+	return trace.NewAggregate(c.reader.Close(), c.writer.Close())
 }
 
 // CloseWrite signals the end of sending in-band
 // data. Requests may still be sent, and the other side may
 // still send data
 func (c *mockSSHChannel) CloseWrite() error {
-	return trace.NewAggregate(c.stdOut.Close())
+	return trace.NewAggregate(c.writer.Close())
 }
 
-// SendRequest sends a channel request.  If wantReply is true,
-// it will wait for a reply and return the result as a
-// boolean, otherwise the return value will be false. Channel
-// requests are out-of-band messages so they may be sent even
-// if the data stream is closed or blocked by flow control.
-// If the channel is closed before a reply is returned, io.EOF
-// is returned.
 func (c *mockSSHChannel) SendRequest(name string, wantReply bool, payload []byte) (bool, error) {
 	return true, nil
 }
 
-// Stderr returns an io.ReadWriter that writes to this channel
-// with the extended data type set to stderr. Stderr may
-// safely be read and written from a different goroutine than
-// Read and Write respectively.
+// Stderr is not modeled by this mock yet. Return a sink so tests that only
+// write stderr do not panic.
 func (c *mockSSHChannel) Stderr() io.ReadWriter {
-	return c.stdErr
+	return new(bytes.Buffer)
 }
 
 type fakeBPF struct {
 	bpf bpf.NOP
 }
 
-func (f fakeBPF) OpenSession(ctx *bpf.SessionContext) (uint64, error) {
+func (f fakeBPF) OpenSession(ctx *bpf.SessionContext) error {
 	return f.bpf.OpenSession(ctx)
 }
 
@@ -468,4 +473,8 @@ func (f fakeBPF) Close(restarting bool) error {
 
 func (f fakeBPF) Enabled() bool {
 	return true
+}
+
+func (f fakeBPF) LostEvents() bpf.EventCount {
+	return bpf.EventCount{}
 }

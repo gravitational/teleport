@@ -139,6 +139,7 @@ func ForAuth(cfg Config) Config {
 	cfg.EnableRelativeExpiry = true
 	cfg.Watches = []types.WatchKind{
 		{Kind: types.KindCertAuthority, LoadSecrets: true},
+		{Kind: types.KindCertAuthorityOverride},
 		{Kind: types.KindClusterName},
 		{Kind: types.KindClusterAuditConfig},
 		{Kind: types.KindClusterNetworkingConfig},
@@ -146,6 +147,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindSessionRecordingConfig},
 		{Kind: types.KindUIConfig},
 		{Kind: types.KindStaticTokens},
+		{Kind: types.KindStaticScopedTokens},
 		{Kind: types.KindToken},
 		{Kind: types.KindUser},
 		{Kind: types.KindRole},
@@ -159,6 +161,8 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindAccessRequest},
 		{Kind: types.KindAppServer},
 		{Kind: types.KindApp},
+		{Kind: types.KindBeam},
+		{Kind: types.KindBeamsConfig},
 		{Kind: types.KindWebSession, SubKind: types.KindSnowflakeSession, LoadSecrets: true},
 		{Kind: types.KindWebSession, SubKind: types.KindAppSession, LoadSecrets: true},
 		{Kind: types.KindWebSession, SubKind: types.KindWebSession, LoadSecrets: true},
@@ -172,6 +176,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindWindowsDesktopService},
 		{Kind: types.KindWindowsDesktop},
 		{Kind: types.KindDynamicWindowsDesktop},
+		{Kind: types.KindLinuxDesktop},
 		{Kind: types.KindKubeServer},
 		{Kind: types.KindInstaller},
 		{Kind: types.KindKubernetesCluster},
@@ -217,6 +222,12 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindBotInstance},
 		{Kind: types.KindRecordingEncryption},
 		{Kind: types.KindAppAuthConfig},
+		{Kind: types.KindInferenceModel},
+		{Kind: types.KindInferencePolicy},
+		{Kind: types.KindInferenceSecret},
+		{Kind: types.KindClassifier},
+		{Kind: types.KindRetrievalModel},
+		{Kind: types.KindValidatedMFAChallenge},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	// We don't want to enable partial health for auth cache because auth uses an event stream
@@ -258,6 +269,7 @@ func ForProxy(cfg Config) Config {
 		{Kind: types.KindWindowsDesktopService},
 		{Kind: types.KindWindowsDesktop},
 		{Kind: types.KindDynamicWindowsDesktop},
+		{Kind: types.KindLinuxDesktop},
 		{Kind: types.KindKubeServer},
 		{Kind: types.KindKubernetesCluster},
 		{Kind: types.KindSAMLIdPServiceProvider},
@@ -313,6 +325,7 @@ func ForRemoteProxy(cfg Config) Config {
 		{Kind: types.KindNode},
 		{Kind: types.KindWindowsDesktop},
 		{Kind: types.KindWindowsDesktopService},
+		{Kind: types.KindLinuxDesktop},
 		{Kind: types.KindProxy},
 		{Kind: types.KindAuthServer},
 		{Kind: types.KindReverseTunnel},
@@ -422,6 +435,7 @@ func ForWindowsDesktop(cfg Config) Config {
 	cfg.target = "windows_desktop"
 	cfg.Watches = []types.WatchKind{
 		{Kind: types.KindCertAuthority, LoadSecrets: false, Filter: makeAllKnownCAsFilter().IntoMap()},
+		{Kind: types.KindCertAuthorityOverride},
 		{Kind: types.KindClusterName},
 		{Kind: types.KindClusterAuditConfig},
 		{Kind: types.KindClusterNetworkingConfig},
@@ -434,6 +448,34 @@ func ForWindowsDesktop(cfg Config) Config {
 		{Kind: types.KindDynamicWindowsDesktop},
 	}
 	cfg.QueueSize = defaults.WindowsDesktopQueueSize
+	return cfg
+}
+
+// ForLinuxDesktop sets up watch configuration for a Linux desktop service.
+func ForLinuxDesktop(cfg Config) Config {
+	var caFilter map[string]string
+	if cfg.ClusterConfig != nil {
+		clusterName, err := cfg.ClusterConfig.GetClusterName(context.TODO())
+		if err == nil {
+			caFilter = types.CertAuthorityFilter{
+				types.HostCA: clusterName.GetClusterName(),
+				types.UserCA: types.Wildcard,
+			}.IntoMap()
+		}
+	}
+	cfg.target = "linux_desktop"
+	cfg.Watches = []types.WatchKind{
+		{Kind: types.KindCertAuthority, LoadSecrets: false, Filter: caFilter},
+		{Kind: types.KindClusterName},
+		{Kind: types.KindClusterAuditConfig},
+		{Kind: types.KindClusterNetworkingConfig},
+		{Kind: types.KindClusterAuthPreference},
+		{Kind: types.KindSessionRecordingConfig},
+		{Kind: types.KindUser},
+		{Kind: types.KindRole},
+		{Kind: types.KindLinuxDesktop},
+	}
+	cfg.QueueSize = defaults.LinuxDesktopQueueSize
 	return cfg
 }
 
@@ -500,7 +542,12 @@ type Cache struct {
 	// when checking the `ok` or `confirmedKinds` fields. Since the write
 	// lock must be held in order to modify the `ok` field, this serves
 	// to ensure that all in-progress reads complete *before* a reset can begin.
-	rw sync.RWMutex
+	//
+	// In test builds with the race detector enabled, it's a read-write mutex
+	// that must be unlocked for reading in the same goroutine that acquired the
+	// read lock. This is currently the case and shouldn't be particularly
+	// restricting in the future.
+	rw rwMutex
 	// ok indicates whether the cache is in a valid state for reads.
 	// If `ok` is `false`, reads are forwarded directly to the backend.
 	ok bool
@@ -656,6 +703,8 @@ type Config struct {
 	Trust services.Trust
 	// ClusterConfig is a cluster configuration service
 	ClusterConfig services.ClusterConfiguration
+	// StaticScopedToken manages the cluster's static scoped tokens.
+	StaticScopedToken services.StaticScopedTokenService
 	// AutoUpdateService is an autoupdate service.
 	AutoUpdateService services.AutoUpdateServiceGetter
 	// Provisioner is a provisioning service
@@ -672,6 +721,10 @@ type Config struct {
 	Restrictions services.Restrictions
 	// Apps is an apps service.
 	Apps services.Applications
+	// Beams is a beam reader service.
+	Beams services.BeamReader
+	// BeamsConfig is a beams config getter service.
+	BeamsConfig services.BeamsConfigGetter
 	// Kubernetes is an kubernetes service.
 	Kubernetes services.Kubernetes
 	// CrownJewels is a CrownJewels service.
@@ -685,15 +738,17 @@ type Config struct {
 	// SnowflakeSession holds Snowflake sessions.
 	SnowflakeSession services.SnowflakeSession
 	// AppSession holds application sessions.
-	AppSession services.AppSession
+	AppSession services.AppSessionReader
 	// WebSession holds regular web sessions.
 	WebSession types.WebSessionInterface
 	// WebToken holds web tokens.
 	WebToken services.WebToken
-	// WindowsDesktops is a windows desktop service.
+	// WindowsDesktops is a Windows desktop service.
 	WindowsDesktops services.WindowsDesktops
 	// DynamicWindowsDesktops is a dynamic Windows desktop service.
 	DynamicWindowsDesktops services.DynamicWindowsDesktops
+	// LinuxDesktops is a Linux desktop service.
+	LinuxDesktops services.LinuxDesktops
 	// SAMLIdPServiceProviders is a SAML IdP service providers service.
 	SAMLIdPServiceProviders services.SAMLIdPServiceProviders
 	// UserGroups is a user groups service.
@@ -791,6 +846,10 @@ type Config struct {
 	Plugin services.Plugins
 	// AppAuthConfig is a app auth config service.
 	AppAuthConfig services.AppAuthConfigReader
+	// Summarizer is a summarizer service.
+	Summarizer services.Summarizer
+	// SubCAService reads CertAuthorityOverride resources.
+	SubCAService services.SubCAServiceGetter
 }
 
 // CheckAndSetDefaults checks parameters and sets default values
@@ -1690,7 +1749,8 @@ func (c *Cache) listResourcesFallback(ctx context.Context, req authproto.ListRes
 }
 
 func (c *Cache) listResources(ctx context.Context, req authproto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
-	_, span := c.Tracer.Start(ctx, "cache/listResources")
+	//nolint:ineffassign,staticcheck // ctx is shadowed so future downstream calls inherit the span.
+	ctx, span := c.Tracer.Start(ctx, "cache/listResources")
 	defer span.End()
 
 	filter, err := services.MatchResourceFilterFromListResourceRequest(&req)

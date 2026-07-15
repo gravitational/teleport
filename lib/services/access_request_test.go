@@ -1283,8 +1283,7 @@ func TestRolesForResourceRequest(t *testing.T) {
 				clusterName: "my-cluster",
 			}
 
-			req, err := types.NewAccessRequestWithResources(
-				"some-id", uls.GetName(), tc.requestRoles, tc.requestResourceIDs)
+			req, err := types.NewAccessRequestWithResources("some-id", uls.GetName(), tc.requestRoles, types.ResourceIDsToResourceAccessIDs(tc.requestResourceIDs))
 			require.NoError(t, err)
 
 			clock := clockwork.NewFakeClock()
@@ -1678,7 +1677,7 @@ func TestPruneMappedSearchAs(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
-			req, err := NewAccessRequestWithResources(user, nil, tc.requestResourceIDs)
+			req, err := NewAccessRequestWithResources(user, nil, types.ResourceIDsToResourceAccessIDs(tc.requestResourceIDs))
 			require.NoError(t, err)
 
 			req.SetLoginHint(tc.loginHint)
@@ -1707,6 +1706,138 @@ func TestPruneMappedSearchAs(t *testing.T) {
 			require.Len(t, req.GetRoleThresholdMapping(), len(req.GetRoles()),
 				"Length of rtm does not match number of roles. rtm: %v roles %v",
 				req.GetRoleThresholdMapping(), req.GetRoles())
+		})
+	}
+}
+
+// TestPruneResourceRequestRoles_WithConstraints tests that resource constraints
+// are enforced during search_as_roles pruning when roles are auto-derived for
+// resource-based access requests.
+func TestPruneResourceRequestRoles_WithConstraints(t *testing.T) {
+	ctx := context.Background()
+	g, user := newFixture(t)
+
+	testCases := []struct {
+		desc        string
+		resources   []types.ResourceAccessID
+		expectRoles []string
+		expectError bool
+	}{
+		{
+			desc: "SSH constraint prunes roles that do not grant the constrained login",
+			resources: []types.ResourceAccessID{
+				{
+					Id: types.ResourceID{
+						ClusterName: g.clusterName,
+						Kind:        types.KindNode,
+						Name:        "admins-node",
+					},
+					Constraints: &types.ResourceConstraints{
+						Details: &types.ResourceConstraints_Ssh{
+							Ssh: &types.SSHResourceConstraints{
+								Logins: []string{"root"},
+							},
+						},
+					},
+				},
+			},
+			// node-access only grants {{internal.logins}} = "responder", not
+			// "root", so it should be pruned. Only node-admins grants "root".
+			expectRoles: []string{"node-admins"},
+		},
+		{
+			desc: "SSH constraint with user login keeps only matching role",
+			resources: []types.ResourceAccessID{
+				{
+					Id: types.ResourceID{
+						ClusterName: g.clusterName,
+						Kind:        types.KindNode,
+						Name:        "admins-node",
+					},
+					Constraints: &types.ResourceConstraints{
+						Details: &types.ResourceConstraints_Ssh{
+							Ssh: &types.SSHResourceConstraints{
+								Logins: []string{"responder"},
+							},
+						},
+					},
+				},
+			},
+			// "responder" is the user's trait-derived login. node-access
+			// grants {{internal.logins}} which resolves to "responder".
+			// node-admins also grants {{internal.logins}} + "root", so it
+			// also matches "responder".
+			expectRoles: []string{"node-access", "node-admins"},
+		},
+		{
+			desc: "SSH constraint with no matching roles errors",
+			resources: []types.ResourceAccessID{
+				{
+					Id: types.ResourceID{
+						ClusterName: g.clusterName,
+						Kind:        types.KindNode,
+						Name:        "admins-node",
+					},
+					Constraints: &types.ResourceConstraints{
+						Details: &types.ResourceConstraints_Ssh{
+							Ssh: &types.SSHResourceConstraints{
+								Logins: []string{"nonexistent-login"},
+							},
+						},
+					},
+				},
+			},
+			expectError: true,
+		},
+		{
+			desc: "mixed: unconstrained resource includes its roles alongside constrained resource",
+			resources: []types.ResourceAccessID{
+				{
+					Id: types.ResourceID{
+						ClusterName: g.clusterName,
+						Kind:        types.KindNode,
+						Name:        "admins-node",
+					},
+					Constraints: &types.ResourceConstraints{
+						Details: &types.ResourceConstraints_Ssh{
+							Ssh: &types.SSHResourceConstraints{
+								Logins: []string{"root"},
+							},
+						},
+					},
+				},
+				{
+					Id: types.ResourceID{
+						ClusterName: g.clusterName,
+						Kind:        types.KindDatabase,
+						Name:        "db",
+					},
+				},
+			},
+			// node-admins for the constrained node (root login), plus
+			// db-admins for the unconstrained database.
+			expectRoles: []string{"node-admins", "db-admins"},
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.desc, func(t *testing.T) {
+			req, err := NewAccessRequestWithResources(user, nil, tc.resources)
+			require.NoError(t, err)
+
+			clock := clockwork.NewFakeClock()
+			identity := tlsca.Identity{
+				Expires: clock.Now().UTC().Add(8 * time.Hour),
+			}
+
+			err = ValidateAccessRequestForUser(ctx, clock, g, req, identity, WithExpandVars(true))
+			if tc.expectError {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+
+			require.ElementsMatch(t, tc.expectRoles, req.GetRoles(),
+				"Pruned roles %v don't match expected roles %v", req.GetRoles(), tc.expectRoles)
 		})
 	}
 }
@@ -1949,7 +2080,7 @@ func TestPruneMappedRoles(t *testing.T) {
 	for _, testCase := range testCases {
 		t.Run(testCase.desc, func(t *testing.T) {
 			clock := clockwork.NewFakeClock()
-			caps, err := PruneMappedSearchAsRoles(ctx, clock, g, userState, localSearchAsRoles, testCase.requestResourceIDs, testCase.loginHint)
+			caps, err := PruneMappedSearchAsRoles(ctx, clock, g, userState, localSearchAsRoles, types.ResourceIDsToResourceAccessIDs(testCase.requestResourceIDs), testCase.loginHint)
 			testCase.errorAssertion(t, err)
 			testCase.capsAssertion(t, caps)
 		})
@@ -2106,7 +2237,7 @@ func TestGetRequestableRoles(t *testing.T) {
 			g.userStates[user].Spec.Roles = []string{tc.userRole}
 			accessCaps, err := CalculateAccessCapabilities(ctx, clockwork.NewFakeClock(), g,
 				tlsca.Identity{
-					AllowedResourceIDs: tc.allowedResourceIDs,
+					AllowedResourceAccessIDs: types.ResourceIDsToResourceAccessIDs(tc.allowedResourceIDs),
 				},
 				types.AccessCapabilitiesRequest{
 					User:                             user,
@@ -2116,6 +2247,242 @@ func TestGetRequestableRoles(t *testing.T) {
 				})
 			require.NoError(t, err)
 			require.ElementsMatch(t, tc.expectedRoles, accessCaps.RequestableRoles)
+		})
+	}
+}
+
+// TestCalculateAccessCapabilities_WithResourceAccessIDs verifies CalculateAccessCapabilities
+// correctly filters roles when ResourceAccessIDs carry constraints.
+func TestCalculateAccessCapabilities_WithResourceAccessIDs(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	clusterName := "my-cluster"
+
+	g := &mockGetter{
+		roles:       make(map[string]types.Role),
+		userStates:  make(map[string]*userloginstate.UserLoginState),
+		nodes:       make(map[string]types.Server),
+		kubeServers: make(map[string]types.KubeServer),
+		dbServers:   make(map[string]types.DatabaseServer),
+		appServers:  make(map[string]types.AppServer),
+		desktops:    make(map[string]types.WindowsDesktop),
+		clusterName: clusterName,
+	}
+
+	// Create node
+	node, err := types.NewServerWithLabels("node-1", types.KindNode, types.ServerSpecV2{}, map[string]string{"env": "prod"})
+	require.NoError(t, err)
+	g.nodes["node-1"] = node
+
+	// Create an AWS console app
+	awsApp, err := types.NewAppV3(types.Metadata{
+		Name:   "awsconsole",
+		Labels: map[string]string{"env": "prod"},
+	}, types.AppSpecV3{
+		URI: "https://console.aws.amazon.com",
+	})
+	require.NoError(t, err)
+	awsAppServer, err := types.NewAppServerV3FromApp(awsApp, "aws-host", "aws-host")
+	require.NoError(t, err)
+	g.appServers[awsApp.GetName()] = awsAppServer
+
+	roleDesc := map[string]types.RoleSpecV6{
+		"requester": {
+			Allow: types.RoleConditions{
+				Request: &types.AccessRequestConditions{
+					SearchAsRoles: []string{
+						"aws-readonly",
+						"aws-admin",
+						"ssh-basic",
+						"ssh-root",
+					},
+				},
+			},
+		},
+		"aws-readonly": {
+			Allow: types.RoleConditions{
+				AppLabels:   types.Labels{"env": {"prod"}},
+				AWSRoleARNs: []string{"arn:aws:iam::111111111111:role/readonly"},
+			},
+		},
+		"aws-admin": {
+			Allow: types.RoleConditions{
+				AppLabels:   types.Labels{"env": {"prod"}},
+				AWSRoleARNs: []string{"arn:aws:iam::111111111111:role/readonly", "arn:aws:iam::111111111111:role/admin"},
+			},
+		},
+		"ssh-basic": {
+			Allow: types.RoleConditions{
+				NodeLabels: types.Labels{"env": {"prod"}},
+				Logins:     []string{"{{internal.logins}}"},
+			},
+		},
+		"ssh-root": {
+			Allow: types.RoleConditions{
+				NodeLabels: types.Labels{"env": {"prod"}},
+				Logins:     []string{"{{internal.logins}}", "root"},
+			},
+		},
+	}
+	for name, spec := range roleDesc {
+		role, err := types.NewRole(name, spec)
+		require.NoError(t, err)
+		g.roles[name] = role
+	}
+
+	user := g.user(t, "requester")
+	g.userStates[user].Spec.Traits = map[string][]string{
+		"logins": {"ubuntu"},
+	}
+
+	tests := []struct {
+		name              string
+		resourceIDs       []types.ResourceID
+		resourceAccessIDs []types.ResourceAccessID
+		expectedRoles     []string
+	}{
+		{
+			name: "unconstrained ResourceIDs only (backwards-compat)",
+			resourceIDs: []types.ResourceID{
+				{ClusterName: clusterName, Kind: types.KindApp, Name: "awsconsole"},
+			},
+			expectedRoles: []string{"aws-readonly", "aws-admin"},
+		},
+		{
+			name: "constrained ResourceAccessIDs filters to matching ARN",
+			resourceAccessIDs: []types.ResourceAccessID{
+				{
+					Id: types.ResourceID{ClusterName: clusterName, Kind: types.KindApp, Name: "awsconsole"},
+					Constraints: &types.ResourceConstraints{
+						Details: &types.ResourceConstraints_AwsConsole{
+							AwsConsole: &types.AWSConsoleResourceConstraints{
+								RoleArns: []string{"arn:aws:iam::111111111111:role/admin"},
+							},
+						},
+					},
+				},
+			},
+			// Only aws-admin has the admin ARN.
+			expectedRoles: []string{"aws-admin"},
+		},
+		{
+			name: "constrained SSH login filters to matching role",
+			resourceAccessIDs: []types.ResourceAccessID{
+				{
+					Id: types.ResourceID{ClusterName: clusterName, Kind: types.KindNode, Name: "node-1"},
+					Constraints: &types.ResourceConstraints{
+						Details: &types.ResourceConstraints_Ssh{
+							Ssh: &types.SSHResourceConstraints{
+								Logins: []string{"root"},
+							},
+						},
+					},
+				},
+			},
+			// ssh-basic only has {{internal.logins}} = "ubuntu", not "root".
+			expectedRoles: []string{"ssh-root"},
+		},
+		{
+			name: "mixed: unconstrained ResourceIDs + constrained ResourceAccessIDs",
+			resourceIDs: []types.ResourceID{
+				{ClusterName: clusterName, Kind: types.KindNode, Name: "node-1"},
+			},
+			resourceAccessIDs: []types.ResourceAccessID{
+				{
+					Id: types.ResourceID{ClusterName: clusterName, Kind: types.KindApp, Name: "awsconsole"},
+					Constraints: &types.ResourceConstraints{
+						Details: &types.ResourceConstraints_AwsConsole{
+							AwsConsole: &types.AWSConsoleResourceConstraints{
+								RoleArns: []string{"arn:aws:iam::111111111111:role/admin"},
+							},
+						},
+					},
+				},
+			},
+			// ssh-basic and ssh-root for the unconstrained node, aws-admin for the constrained app.
+			expectedRoles: []string{"ssh-basic", "ssh-root", "aws-admin"},
+		},
+		{
+			name: "unconstrained ResourceAccessIDs behave like ResourceIDs",
+			resourceAccessIDs: []types.ResourceAccessID{
+				{
+					Id: types.ResourceID{ClusterName: clusterName, Kind: types.KindApp, Name: "awsconsole"},
+				},
+			},
+			expectedRoles: []string{"aws-readonly", "aws-admin"},
+		},
+		{
+			name: "multi-principal constraint: both ARNs from different roles are covered",
+			resourceAccessIDs: []types.ResourceAccessID{
+				{
+					Id: types.ResourceID{ClusterName: clusterName, Kind: types.KindApp, Name: "awsconsole"},
+					Constraints: &types.ResourceConstraints{
+						Details: &types.ResourceConstraints_AwsConsole{
+							AwsConsole: &types.AWSConsoleResourceConstraints{
+								RoleArns: []string{
+									"arn:aws:iam::111111111111:role/readonly",
+									"arn:aws:iam::111111111111:role/admin",
+								},
+							},
+						},
+					},
+				},
+			},
+			// aws-readonly matches "readonly", aws-admin matches both.
+			// The union of suggested roles covers all requested ARNs.
+			expectedRoles: []string{"aws-readonly", "aws-admin"},
+		},
+		{
+			name: "multi-principal constraint: both logins from different roles are covered",
+			resourceAccessIDs: []types.ResourceAccessID{
+				{
+					Id: types.ResourceID{ClusterName: clusterName, Kind: types.KindNode, Name: "node-1"},
+					Constraints: &types.ResourceConstraints{
+						Details: &types.ResourceConstraints_Ssh{
+							Ssh: &types.SSHResourceConstraints{
+								Logins: []string{"ubuntu", "root"},
+							},
+						},
+					},
+				},
+			},
+			// ssh-basic has "ubuntu" only, ssh-root has both. Both match via AnyOf,
+			// and their union covers all requested logins.
+			expectedRoles: []string{"ssh-basic", "ssh-root"},
+		},
+		{
+			name: "backwards-compat: new proxy sends both fields, new auth deduplicates",
+			resourceIDs: []types.ResourceID{
+				{ClusterName: clusterName, Kind: types.KindApp, Name: "awsconsole"},
+			},
+			resourceAccessIDs: []types.ResourceAccessID{
+				{
+					Id: types.ResourceID{ClusterName: clusterName, Kind: types.KindApp, Name: "awsconsole"},
+					Constraints: &types.ResourceConstraints{
+						Details: &types.ResourceConstraints_AwsConsole{
+							AwsConsole: &types.AWSConsoleResourceConstraints{
+								RoleArns: []string{"arn:aws:iam::111111111111:role/admin"},
+							},
+						},
+					},
+				},
+			},
+			// Constrained version wins dedup, results in only aws-admin.
+			expectedRoles: []string{"aws-admin"},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			accessCaps, err := CalculateAccessCapabilities(ctx, clockwork.NewFakeClock(), g,
+				tlsca.Identity{},
+				types.AccessCapabilitiesRequest{
+					User:              user,
+					ResourceIDs:       tc.resourceIDs,
+					ResourceAccessIds: tc.resourceAccessIDs,
+				})
+			require.NoError(t, err)
+			require.ElementsMatch(t, tc.expectedRoles, accessCaps.ApplicableRolesForResources)
 		})
 	}
 }
@@ -2700,7 +3067,7 @@ func TestReasonRequired(t *testing.T) {
 				require.NoError(t, err)
 
 				req, err := types.NewAccessRequestWithResources(
-					"some-id", uls.GetName(), tc.requestRoles, tc.requestResourceIDs)
+					"some-id", uls.GetName(), tc.requestRoles, types.ResourceIDsToResourceAccessIDs(tc.requestResourceIDs))
 				require.NoError(t, err)
 
 				// No reason in the request.
@@ -2805,18 +3172,20 @@ func TestValidateResourceRequestSizeLimits(t *testing.T) {
 	}
 
 	req, err := types.NewAccessRequestWithResources("name", user, nil, /* roles */
-		[]types.ResourceID{
-			{ClusterName: "someCluster", Kind: "node", Name: "resource1"},
-			{ClusterName: "someCluster", Kind: "node", Name: "resource1"}, // a  duplicate
-			{ClusterName: "someCluster", Kind: "node", Name: "resource2"}, // not a duplicate
+		[]types.ResourceAccessID{
+			{Id: types.ResourceID{ClusterName: "someCluster", Kind: "node", Name: "resource1"}},
+			{Id: types.ResourceID{ClusterName: "someCluster", Kind: "node", Name: "resource1"}}, // a  duplicate
+			{Id: types.ResourceID{ClusterName: "someCluster", Kind: "node", Name: "resource2"}}, // not a duplicate
 		})
 	require.NoError(t, err)
 
 	err = ValidateAccessRequestForUser(context.Background(), clock, g, req, identity, WithExpandVars(true))
 	require.NoError(t, err)
 	require.Len(t, req.GetRequestedResourceIDs(), 2)
-	require.Equal(t, "/someCluster/node/resource1", types.ResourceIDToString(req.GetRequestedResourceIDs()[0]))
-	require.Equal(t, "/someCluster/node/resource2", types.ResourceIDToString(req.GetRequestedResourceIDs()[1]))
+	expectedRidStr0 := types.ResourceIDToString(req.GetRequestedResourceIDs()[0])
+	require.Equal(t, "/someCluster/node/resource1", expectedRidStr0)
+	expectedRidStr1 := types.ResourceIDToString(req.GetRequestedResourceIDs()[1])
+	require.Equal(t, "/someCluster/node/resource2", expectedRidStr1)
 
 	var requestedResourceIDs []types.ResourceID
 	for i := range 200 {
@@ -2872,8 +3241,8 @@ func TestValidateAccessRequestClusterNames(t *testing.T) {
 				localCluster:   localCluster,
 				remoteClusters: remoteClusters,
 			}
-			req, err := types.NewAccessRequestWithResources("name", "user", []string{}, []types.ResourceID{
-				{ClusterName: "someCluster"},
+			req, err := types.NewAccessRequestWithResources("name", "user", []string{}, []types.ResourceAccessID{
+				{Id: types.ResourceID{ClusterName: "someCluster"}},
 			})
 			require.NoError(t, err)
 
@@ -3135,6 +3504,62 @@ func TestValidate_RequestedMaxDuration(t *testing.T) {
 			require.Equal(t, now.Add(tt.expectedPendingTTL), req.Expiry())
 		})
 	}
+}
+
+func TestValidateAccessRequest_ExpandsUserNameAnnotations(t *testing.T) {
+	ctx := t.Context()
+	clock := clockwork.NewFakeClock()
+
+	g := &mockGetter{
+		roles:       make(map[string]types.Role),
+		userStates:  make(map[string]*userloginstate.UserLoginState),
+		users:       make(map[string]types.User),
+		nodes:       make(map[string]types.Server),
+		kubeServers: make(map[string]types.KubeServer),
+		dbServers:   make(map[string]types.DatabaseServer),
+		appServers:  make(map[string]types.AppServer),
+		desktops:    make(map[string]types.WindowsDesktop),
+		clusterName: "root",
+	}
+
+	requesterRole, err := types.NewRole("requester", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Request: &types.AccessRequestConditions{
+				Roles: []string{"target"},
+				Annotations: map[string][]string{
+					"owner": {"{{user.metadata.name}}"},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	g.roles[requesterRole.GetName()] = requesterRole
+
+	targetRole, err := types.NewRole("target", types.RoleSpecV6{})
+	require.NoError(t, err)
+	g.roles[targetRole.GetName()] = targetRole
+
+	uls, err := userloginstate.New(header.Metadata{
+		Name: "alice",
+	}, userloginstate.Spec{
+		Roles: []string{requesterRole.GetName()},
+		Traits: trait.Traits{
+			"logins": []string{"alice"},
+		},
+	})
+	require.NoError(t, err)
+	g.userStates[uls.GetName()] = uls
+
+	req, err := types.NewAccessRequest("some-id", uls.GetName(), targetRole.GetName())
+	require.NoError(t, err)
+
+	err = ValidateAccessRequestForUser(ctx, clock, g, req, tlsca.Identity{
+		Expires: clock.Now().UTC().Add(time.Hour),
+	}, WithExpandVars(true))
+	require.NoError(t, err)
+	require.Equal(t, map[string][]string{
+		"owner": {"alice"},
+	}, req.GetSystemAnnotations())
 }
 
 // TestValidate_RequestedPendingTTLAndMaxDuration tests that both requested
@@ -3927,7 +4352,7 @@ func TestValidate_WithAllowRequestKubernetesResources_LegacyRequestFormat(t *tes
 			g := newMockGetter(t, userName, tc.userStaticRoles)
 
 			// Create the access request.
-			req, err := types.NewAccessRequestWithResources("some-id", userName, tc.requestRoles, tc.requestResourceIDs)
+			req, err := types.NewAccessRequestWithResources("some-id", userName, tc.requestRoles, types.ResourceIDsToResourceAccessIDs(tc.requestResourceIDs))
 			require.NoError(t, err)
 
 			// Create the request validator.
@@ -4624,7 +5049,7 @@ func TestValidate_WithAllowRequestKubernetesResource(t *testing.T) {
 			g := newMockGetter(t, userName, tc.userStaticRoles)
 
 			// Create the access request.
-			req, err := types.NewAccessRequestWithResources("some-id", userName, tc.requestRoles, tc.requestResourceIDs)
+			req, err := types.NewAccessRequestWithResources("some-id", userName, tc.requestRoles, types.ResourceIDsToResourceAccessIDs(tc.requestResourceIDs))
 			require.NoError(t, err)
 
 			// Create the request validator.
@@ -4891,7 +5316,7 @@ func TestReasonPrompts(t *testing.T) {
 			require.NoError(t, err)
 
 			req, err := types.NewAccessRequestWithResources(
-				"some-id", uls.GetName(), tc.requestRoles, tc.requestResourceIDs)
+				"some-id", uls.GetName(), tc.requestRoles, types.ResourceIDsToResourceAccessIDs(tc.requestResourceIDs))
 			require.NoError(t, err)
 
 			// perform request validation (necessary in order to initialize internal

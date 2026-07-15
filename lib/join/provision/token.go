@@ -19,6 +19,7 @@ package provision
 import (
 	"time"
 
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
 )
 
@@ -42,16 +43,40 @@ type Token interface {
 	GetRoles() types.SystemRoles
 	// Expiry returns the token's expiration time.
 	Expiry() time.Time
-	// GetBotName returns the BotName field which must be set for joining bots.
-	GetBotName() string
+	// GetBot returns the name and scope of the bot that this token can join.
+	// An empty name indicates that this is not a bot token. An empty scope
+	// refers to an unscoped bot; scoped bot tokens always carry both
+	// components.
+	GetBot() (name, scope string)
 	// GetAssignedScope returns the scope that will be assigned to provisioned resources
 	// provisioned using the wrapped [joiningv1.ScopedToken].
 	GetAssignedScope() string
-	// GetAllowRules returns the list of allow rules.
-	GetAllowRules() []*types.TokenRule
+	// GetScope returns the scope that token exists in.
+	GetScope() string
+	// GetImmutableLabels returns labels that must be applied to resources
+	// provisioned with this token.
+	GetImmutableLabels() *joiningv1.ImmutableLabels
+	// GetAWSAllowRules returns the list of AWS-specific allow rules.
+	GetAWSAllowRules() []*types.TokenRule
 	// GetAWSIIDTTL returns the TTL of EC2 IIDs
 	GetAWSIIDTTL() types.Duration
 	// GetIntegration returns the integration name that provides credentials to validate allow rules.
 	// Currently, this is only used to validate the AWS Organization.
 	GetIntegration() string
+	// GetGCPRules returns the GCP-specific configuration for this token.
+	GetGCPRules() *types.ProvisionTokenSpecV2GCP
+	// GetAzure returns the Azure-specific configuration for this token.
+	GetAzure() *types.ProvisionTokenSpecV2Azure
+	// GetAzureDevops returns the AzureDevops-specific configuration for this token.
+	GetAzureDevops() *types.ProvisionTokenSpecV2AzureDevops
+	// GetOracle returns the Oracle-specific configuration for this token.
+	GetOracle() *types.ProvisionTokenSpecV2Oracle
+	// GetKubernetes returns the Kubernetes-specific configuration for this token.
+	GetKubernetes() *types.ProvisionTokenSpecV2Kubernetes
+	// GetBoundKeypair returns bound keypair specific configuration for this token.
+	GetBoundKeypair() *types.ProvisionTokenSpecV2BoundKeypair
+	// GetBoundKeypairStatus returns bound keypair status for this token.
+	GetBoundKeypairStatus() *types.ProvisionTokenStatusV2BoundKeypair
+	// GetGenericOIDC returns the generic_oidc-specific configuration for this token.
+	GetGenericOIDC() (*types.ProvisionTokenSpecV2GenericOIDC, error)
 }

@@ -18,14 +18,14 @@
 
 import { keepPreviousData, useInfiniteQuery } from '@tanstack/react-query';
 import { useCallback, useMemo } from 'react';
-import { useHistory, useLocation } from 'react-router';
+import { useLocation, useNavigate } from 'react-router';
 import styled from 'styled-components';
 
 import { Alert } from 'design/Alert';
 import Box from 'design/Box';
 import Flex from 'design/Flex/Flex';
 import { MultiselectMenu } from 'shared/components/Controls/MultiselectMenu';
-import { SortMenu } from 'shared/components/Controls/SortMenuV2';
+import { SortMenu } from 'shared/components/Controls/SortMenu';
 import { SearchPanel } from 'shared/components/Search';
 
 import {
@@ -76,7 +76,7 @@ async function fetchInstances(
 }
 
 export function Instances() {
-  const history = useHistory();
+  const navigate = useNavigate();
   const location = useLocation();
   const queryParams = new URLSearchParams(location.search);
   const query = queryParams.get('query') ?? '';
@@ -96,7 +96,7 @@ export function Instances() {
 
   const upgradersParam = queryParams.get('upgraders');
   const selectedUpgraders = (
-    upgradersParam ? upgradersParam.split(',') : []
+    upgradersParam !== null ? upgradersParam.split(',') : []
   ) as UpgraderType[];
 
   const versionFilter = queryParams.get('version_filter') || '';
@@ -207,12 +207,12 @@ export function Instances() {
     (updateFn: (search: URLSearchParams) => void) => {
       const search = new URLSearchParams(location.search);
       updateFn(search);
-      history.push({
+      navigate({
         pathname: location.pathname,
         search: search.toString(),
       });
     },
-    [history, location.pathname, location.search]
+    [navigate, location.pathname, location.search]
   );
 
   const handleQueryChange = useCallback(
@@ -238,12 +238,15 @@ export function Instances() {
       search.set('sort', sortField);
       search.set('sort_dir', sortDir);
 
-      history.replace({
-        pathname: location.pathname,
-        search: search.toString(),
-      });
+      navigate(
+        {
+          pathname: location.pathname,
+          search: search.toString(),
+        },
+        { replace: true }
+      );
     },
-    [history, location.pathname, location.search]
+    [navigate, location.pathname, location.search]
   );
 
   const handleTypesChange = useCallback(
@@ -471,6 +474,7 @@ type ServiceType =
   | 'App'
   | 'Db'
   | 'WindowsDesktop'
+  | 'LinuxDesktop'
   | 'Kube'
   | 'Node'
   | 'Auth'
@@ -490,7 +494,8 @@ const typeOptions: { value: InstanceType; label: string }[] = [
 const serviceOptions: { value: ServiceType; label: string }[] = [
   { value: 'App', label: 'Applications' },
   { value: 'Db', label: 'Databases' },
-  { value: 'WindowsDesktop', label: 'Desktops' },
+  { value: 'LinuxDesktop', label: 'Linux Desktops' },
+  { value: 'WindowsDesktop', label: 'Windows Desktops' },
   { value: 'Kube', label: 'Kubernetes Clusters' },
   { value: 'Node', label: 'SSH Servers' },
   { value: 'Auth', label: 'Auth' },

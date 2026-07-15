@@ -64,7 +64,7 @@ type App struct {
 }
 
 // NewApp will create a new access request application.
-func NewApp(bot MessagingBot) common.App {
+func NewApp() common.App {
 	app := &App{}
 	app.job = lib.NewServiceJob(app.run)
 	return app
@@ -180,7 +180,7 @@ func (a *App) run(ctx context.Context) error {
 }
 
 // onWatcherEvent is called for every cluster Event. It will filter out non-access-request events and
-// call onPendingRequest, onResolvedRequest and on DeletedRequest depending on the event.
+// call onPendingRequest, onResolvedRequest and onDeletedRequest depending on the event.
 func (a *App) onWatcherEvent(ctx context.Context, event types.Event) error {
 	switch event.Resource.GetKind() {
 	case types.KindAccessMonitoringRule:
@@ -261,6 +261,7 @@ func (a *App) onPendingRequest(ctx context.Context, req types.AccessRequest) err
 	reqData := pd.AccessRequestData{
 		User:              req.GetUser(),
 		Roles:             req.GetRoles(),
+		RequestKind:       req.GetRequestKind().String(),
 		RequestReason:     req.GetRequestReason(),
 		SystemAnnotations: req.GetSystemAnnotations(),
 		Resources:         resourceNames,
@@ -476,8 +477,11 @@ func (a *App) updateMessages(ctx context.Context, reqID string, tag pd.Resolutio
 		}
 
 		// If resolution field is not empty then we already resolved the incident before. In this case we just quit.
-		if existing.AccessRequestData.ResolutionTag != pd.Unresolved {
-			return PluginData{}, trace.AlreadyExists("request is already resolved")
+		if existing.ResolutionTag != pd.Unresolved {
+			return PluginData{},
+				trace.WrapWithMessage(trace.AlreadyExists("request is already resolved"),
+					"cannot change the resolution tag of an already resolved request, existing: %s, event: %s",
+					existing.ResolutionTag, tag)
 		}
 
 		// Mark plugin data as resolved.
@@ -491,11 +495,6 @@ func (a *App) updateMessages(ctx context.Context, reqID string, tag pd.Resolutio
 		return nil
 	}
 	if trace.IsAlreadyExists(err) {
-		if tag != pluginData.ResolutionTag {
-			return trace.WrapWithMessage(err,
-				"cannot change the resolution tag of an already resolved request, existing: %s, event: %s",
-				pluginData.ResolutionTag, tag)
-		}
 		log.DebugContext(ctx, "Request is already resolved, ignoring event")
 		return nil
 	}
@@ -580,7 +579,7 @@ func (a *App) getLoginsByRole(ctx context.Context, req types.AccessRequest) (map
 }
 
 func (a *App) getResourceNames(ctx context.Context, req types.AccessRequest) ([]string, error) {
-	resourceNames := make([]string, 0, len(req.GetRequestedResourceIDs()))
+	resourceNames := make([]string, 0, len(req.GetAllRequestedResourceIDs()))
 	resourcesByCluster := accessrequest.GetResourceIDsByCluster(req)
 
 	for cluster, resources := range resourcesByCluster {

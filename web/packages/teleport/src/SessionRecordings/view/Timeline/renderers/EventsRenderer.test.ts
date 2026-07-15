@@ -16,9 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import 'jest-canvas-mock';
-
-import { darkTheme } from 'design/theme';
+import { theme } from 'design/utils/testing';
 
 import {
   SessionRecordingEventType,
@@ -56,7 +54,7 @@ function createRenderer(metadata?: Partial<SessionRecordingMetadata>) {
     ...metadata,
   };
 
-  const renderer = new EventsRenderer(ctx, darkTheme, m.duration, m.events);
+  const renderer = new EventsRenderer(ctx, theme, m.duration, m.events);
 
   return { ctx, renderer };
 }

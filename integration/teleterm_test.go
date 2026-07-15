@@ -52,7 +52,6 @@ import (
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -71,9 +70,13 @@ func TestTeleterm(t *testing.T) {
 		dbhelpers.WithListenerSetupDatabaseTest(helpers.SingleProxyPortSetup),
 		dbhelpers.WithLeafConfig(func(config *servicecfg.Config) {
 			config.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+			config.InsecureMode = true
+			config.Modules = modulestest.EnterpriseModules()
 		}),
 		dbhelpers.WithRootConfig(func(config *servicecfg.Config) {
 			config.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+			config.InsecureMode = true
+			config.Modules = modulestest.EnterpriseModules()
 		}),
 	)
 	pack.WaitForLeaf(t)
@@ -150,13 +153,13 @@ func TestTeleterm(t *testing.T) {
 		testSettingSiteName(t, pack, creds)
 	})
 
-	t.Run("ListDatabaseUsers", func(t *testing.T) {
+	t.Run("ListUnifiedResources returns database users", func(t *testing.T) {
 		// ListDatabaseUsers cannot be run in parallel as it modifies the default roles of users set up
 		// through the test pack.
 		// TODO(ravicious): After some optimizations, those tests could run in parallel. Instead of
 		// modifying existing roles, they could create new users with new roles and then update the role
 		// mapping between the root the leaf cluster through authServer.UpdateUserCARoleMap.
-		testListDatabaseUsers(t, pack)
+		testListDatabaseUsersFromUnifiedResources(t, pack)
 	})
 
 	t.Run("with MFA", func(t *testing.T) {
@@ -329,8 +332,8 @@ func testListRootClustersReturnsLoggedInUser(t *testing.T, pack *dbhelpers.Datab
 	response, err := handler.ListRootClusters(context.Background(), &api.ListClustersRequest{})
 	require.NoError(t, err)
 
-	require.Len(t, response.Clusters, 1)
-	require.Equal(t, pack.Root.User.GetName(), response.Clusters[0].LoggedInUser.Name)
+	require.Len(t, response.GetClusters(), 1)
+	require.Equal(t, pack.Root.User.GetName(), response.GetClusters()[0].GetLoggedInUser().GetName())
 }
 
 func testGetClusterReturnsPropertiesFromAuthServer(t *testing.T, pack *dbhelpers.DatabasePack) {
@@ -415,20 +418,20 @@ func testGetClusterReturnsPropertiesFromAuthServer(t *testing.T, pack *dbhelpers
 	require.NoError(t, err)
 	clusterURI := uri.NewClusterURI(rootClusterName)
 
-	response, err := handler.GetCluster(context.Background(), &api.GetClusterRequest{
+	response, err := handler.GetCluster(context.Background(), api.GetClusterRequest_builder{
 		ClusterUri: clusterURI.String(),
-	})
+	}.Build())
 	require.NoError(t, err)
 
-	require.Equal(t, userName, response.LoggedInUser.Name)
-	require.ElementsMatch(t, []string{requestableRoleName}, response.LoggedInUser.RequestableRoles)
-	require.ElementsMatch(t, []string{suggestedReviewer}, response.LoggedInUser.SuggestedReviewers)
+	require.Equal(t, userName, response.GetLoggedInUser().GetName())
+	require.ElementsMatch(t, []string{requestableRoleName}, response.GetLoggedInUser().GetRequestableRoles())
+	require.ElementsMatch(t, []string{suggestedReviewer}, response.GetLoggedInUser().GetSuggestedReviewers())
 
 	// Verify that cluster ID cache gets updated.
 	clusterIDFromCache, ok := clusterIDCache.Load(clusterURI)
 	require.True(t, ok, "ID for cluster %q was not found in the cache", clusterURI)
 	require.NotEmpty(t, clusterIDFromCache)
-	require.Equal(t, response.AuthClusterId, clusterIDFromCache)
+	require.Equal(t, response.GetAuthClusterId(), clusterIDFromCache)
 }
 
 func testHeadlessWatcher(t *testing.T, pack *dbhelpers.DatabasePack, creds *helpers.UserCreds) {
@@ -555,10 +558,17 @@ func testClientCache(t *testing.T, pack *dbhelpers.DatabasePack, creds *helpers.
 	require.NoError(t, err)
 	require.Equal(t, concurrentCallsForClient[0], secondCallForClient)
 
-	// Let's remove the client from the cache.
-	// The call to GetCachedClient will
-	// connect to proxy and return a new client.
-	err = daemonService.ClearCachedClientsForRoot(cluster.URI)
+	// Reissue user certs by assuming a role with a bogus ID in DropAccessRequests.
+	// This makes the cached client stale.
+	accessRequest := api.AssumeRoleRequest_builder{
+		RootClusterUri: cluster.URI.String(),
+		DropRequestIds: []string{"does-not-matter"},
+	}.Build()
+	err = cluster.AssumeRole(ctx, secondCallForClient, accessRequest)
+	require.NoError(t, err)
+
+	// Clearing stale clients should delete the stale client and force a new one.
+	err = daemonService.ClearStaleCachedClientsForRoot(cluster.URI)
 	require.NoError(t, err)
 	thirdCallForClient, err := daemonService.GetCachedClient(ctx, cluster.URI)
 	require.NoError(t, err)
@@ -606,10 +616,10 @@ func testClearingStaleCachedClients(t *testing.T, pack *dbhelpers.DatabasePack, 
 	require.NoError(t, err)
 	require.Equal(t, firstCallForClient, secondCallForClient)
 	// Reissue user certs by assuming a role with a bogus ID in DropAccessRequests.
-	accessRequest := &api.AssumeRoleRequest{
+	accessRequest := api.AssumeRoleRequest_builder{
 		RootClusterUri: cluster.URI.String(),
 		DropRequestIds: []string{"does-not-matter"},
-	}
+	}.Build()
 	err = cluster.AssumeRole(ctx, firstCallForClient, accessRequest)
 	require.NoError(t, err)
 	// The cert has changed, so after clearing stale clients,
@@ -964,23 +974,21 @@ func testCreateConnectMyComputerRole(t *testing.T, pack *dbhelpers.DatabasePack)
 			// skips the actual login flow and saves valid certs to disk. We already had a regression that
 			// was not caught by this test because the test did not trigger certain code paths because it
 			// was using mustLogin as a shortcut.
-			_, err = handler.AddCluster(ctx, &api.AddClusterRequest{Name: pack.Root.Cluster.Web})
+			_, err = handler.AddCluster(ctx, api.AddClusterRequest_builder{Name: pack.Root.Cluster.Web}.Build())
 			require.NoError(t, err)
-			_, err = handler.Login(ctx, &api.LoginRequest{
+			_, err = handler.Login(ctx, api.LoginRequest_builder{
 				ClusterUri: rootClusterURI,
-				Params: &api.LoginRequest_Local{
-					Local: &api.LoginRequest_LocalParams{User: userName, Password: userPassword},
-				},
-			})
+				Local:      api.LoginRequest_LocalParams_builder{User: userName, Password: userPassword}.Build(),
+			}.Build())
 			require.NoError(t, err)
 
 			// Call CreateConnectMyComputerRole.
-			response, err := handler.CreateConnectMyComputerRole(ctx, &api.CreateConnectMyComputerRoleRequest{
+			response, err := handler.CreateConnectMyComputerRole(ctx, api.CreateConnectMyComputerRoleRequest_builder{
 				RootClusterUri: rootClusterURI,
-			})
+			}.Build())
 			require.NoError(t, err)
 
-			test.assertCertsReloaded(t, response.CertsReloaded, "CertsReloaded is the opposite of the expected value")
+			test.assertCertsReloaded(t, response.GetCertsReloaded(), "CertsReloaded is the opposite of the expected value")
 
 			// Verify that the role exists.
 			role, err := authServer.GetRole(ctx, roleName)
@@ -997,11 +1005,11 @@ func testCreateConnectMyComputerRole(t *testing.T, pack *dbhelpers.DatabasePack)
 			//
 			// GetCluster reads data from the cert. If the certs were not reloaded properly, GetCluster
 			// will not return the role that's just been assigned to the user.
-			clusterDetails, err := handler.GetCluster(ctx, &api.GetClusterRequest{
+			clusterDetails, err := handler.GetCluster(ctx, api.GetClusterRequest_builder{
 				ClusterUri: rootClusterURI,
-			})
+			}.Build())
 			require.NoError(t, err)
-			require.Contains(t, clusterDetails.LoggedInUser.Roles, roleName,
+			require.Contains(t, clusterDetails.GetLoggedInUser().GetRoles(), roleName,
 				"the user certs don't include the freshly added role; the certs might have not been reloaded properly")
 		})
 	}
@@ -1085,9 +1093,9 @@ func testCreateConnectMyComputerToken(t *testing.T, pack *dbhelpers.DatabasePack
 	require.NoError(t, err)
 	rootClusterURI := uri.NewClusterURI(rootClusterName).String()
 	requestCreatedAt := fakeClock.Now()
-	createdTokenResponse, err := handler.CreateConnectMyComputerNodeToken(ctx, &api.CreateConnectMyComputerNodeTokenRequest{
+	createdTokenResponse, err := handler.CreateConnectMyComputerNodeToken(ctx, api.CreateConnectMyComputerNodeTokenRequest_builder{
 		RootClusterUri: rootClusterURI,
-	})
+	}.Build())
 	require.NoError(t, err)
 
 	// Verify that token exists
@@ -1141,9 +1149,9 @@ func testWaitForConnectMyComputerNodeJoin(t *testing.T, pack *dbhelpers.Database
 	waitForNodeJoinErr := make(chan error)
 
 	go func() {
-		_, err := handler.WaitForConnectMyComputerNodeJoin(ctx, &api.WaitForConnectMyComputerNodeJoinRequest{
+		_, err := handler.WaitForConnectMyComputerNodeJoin(ctx, api.WaitForConnectMyComputerNodeJoinRequest_builder{
 			RootClusterUri: uri.NewClusterURI(profileName).String(),
-		})
+		}.Build())
 		waitForNodeJoinErr <- err
 	}()
 
@@ -1246,9 +1254,9 @@ func testDeleteConnectMyComputerNode(t *testing.T, pack *dbhelpers.DatabasePack)
 	require.NoError(t, err)
 
 	// test
-	_, err = handler.DeleteConnectMyComputerNode(ctx, &api.DeleteConnectMyComputerNodeRequest{
+	_, err = handler.DeleteConnectMyComputerNode(ctx, api.DeleteConnectMyComputerNodeRequest_builder{
 		RootClusterUri: uri.NewClusterURI(profileName).String(),
-	})
+	}.Build())
 	require.NoError(t, err)
 
 	// waits for the node to be deleted
@@ -1258,10 +1266,7 @@ func testDeleteConnectMyComputerNode(t *testing.T, pack *dbhelpers.DatabasePack)
 	}, time.Minute, time.Second, "waiting for node to be deleted")
 }
 
-// testListDatabaseUsers adds a unique string under spec.allow.db_users of the role automatically
-// given to a user by [dbhelpers.DatabasePack] and then checks if that string is returned when
-// calling [handler.Handler.ListDatabaseUsers].
-func testListDatabaseUsers(t *testing.T, pack *dbhelpers.DatabasePack) {
+func testListDatabaseUsersFromUnifiedResources(t *testing.T, pack *dbhelpers.DatabasePack) {
 	ctx := context.Background()
 
 	mustAddDBUserToUserRole := func(ctx context.Context, t *testing.T, cluster *helpers.TeleInstance, user, dbUser string) {
@@ -1281,7 +1286,6 @@ func testListDatabaseUsers(t *testing.T, pack *dbhelpers.DatabasePack) {
 			role, err := authServer.GetRole(ctx, roleName)
 			require.NoError(t, err)
 			require.Equal(t, dbUsers, role.GetDatabaseUsers(types.Allow))
-
 		}, 10*time.Second, 100*time.Millisecond)
 	}
 
@@ -1302,11 +1306,6 @@ func testListDatabaseUsers(t *testing.T, pack *dbhelpers.DatabasePack) {
 			require.Equal(t, roles, user.GetRoles())
 		}, 10*time.Second, 100*time.Millisecond)
 	}
-
-	// Allow resource access requests to be created.
-	currentModules := modules.GetModules()
-	t.Cleanup(func() { modules.SetModules(currentModules) })
-	modules.SetModules(&modulestest.Modules{TestBuildType: modules.BuildEnterprise})
 
 	rootClusterName, _, err := net.SplitHostPort(pack.Root.Cluster.Web)
 	require.NoError(t, err)
@@ -1381,11 +1380,13 @@ func testListDatabaseUsers(t *testing.T, pack *dbhelpers.DatabasePack) {
 				mustUpdateUserRoles(ctx, t, pack.Root.Cluster, rootUserName, []string{requesterRole.GetName()})
 			},
 			createAccessRequest: func(ctx context.Context, t *testing.T) string {
-				req, err := services.NewAccessRequestWithResources(rootUserName, []string{rootRoleName}, []types.ResourceID{
-					types.ResourceID{
-						ClusterName: pack.Leaf.Cluster.Secrets.SiteName,
-						Kind:        types.KindDatabase,
-						Name:        pack.Leaf.PostgresService.Name,
+				req, err := services.NewAccessRequestWithResources(rootUserName, []string{rootRoleName}, []types.ResourceAccessID{
+					{
+						Id: types.ResourceID{
+							ClusterName: pack.Leaf.Cluster.Secrets.SiteName,
+							Kind:        types.KindDatabase,
+							Name:        pack.Leaf.PostgresService.Name,
+						},
 					},
 				})
 				require.NoError(t, err)
@@ -1449,21 +1450,31 @@ func testListDatabaseUsers(t *testing.T, pack *dbhelpers.DatabasePack) {
 			require.NoError(t, err)
 
 			if accessRequestID != "" {
-				_, err := handler.AssumeRole(ctx, &api.AssumeRoleRequest{
+				_, err := handler.AssumeRole(ctx, api.AssumeRoleRequest_builder{
 					RootClusterUri:   test.dbURI.GetRootClusterURI().String(),
 					AccessRequestIds: []string{accessRequestID},
-				})
+				}.Build())
 				require.NoError(t, err)
 			}
 
-			res, err := handler.ListDatabaseUsers(ctx, &api.ListDatabaseUsersRequest{
-				DbUri: test.dbURI.String(),
-			})
+			res, err := handler.ListUnifiedResources(ctx, api.ListUnifiedResourcesRequest_builder{
+				ClusterUri: test.dbURI.GetClusterURI().String(),
+				Kinds:      []string{types.KindDatabase},
+			}.Build())
 			require.NoError(t, err)
-			require.Contains(t, res.Users, test.wantDBUser)
+
+			var matchedDatabase *api.Database
+			for _, resource := range res.GetResources() {
+				database := resource.GetDatabase()
+				if database != nil && database.GetUri() == test.dbURI.String() {
+					matchedDatabase = database
+					break
+				}
+			}
+			require.NotNil(t, matchedDatabase, "database %q not found in unified resources response", test.dbURI.String())
+			require.Contains(t, matchedDatabase.GetDatabaseUsers(), test.wantDBUser)
 		})
 	}
-
 }
 
 // mustLogin logs in as the given user by completely skipping the actual login flow and saving valid

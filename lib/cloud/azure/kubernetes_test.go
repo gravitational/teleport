@@ -219,7 +219,7 @@ func Test_AKSClient_ClusterCredentials(t *testing.T) {
 			c := NewAKSClustersClient(tt.fields.api, func(options *azidentity.DefaultAzureCredentialOptions) (GetToken, error) {
 				return azIdentity, nil
 			})
-			got, _, err := c.ClusterCredentials(context.TODO(), tt.args.cfg)
+			got, _, err := c.ClusterCredentials(t.Context(), tt.args.cfg)
 			tt.checkErr(t, err)
 
 			if tt.validateRestConfig != nil {

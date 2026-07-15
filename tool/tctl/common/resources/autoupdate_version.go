@@ -51,7 +51,7 @@ func (c *autoUpdateVersionCollection) WriteText(w io.Writer, verbose bool) error
 	t := asciitable.MakeTable([]string{"Name", "Tools AutoUpdate Version"})
 	t.AddRow([]string{
 		c.version.GetMetadata().GetName(),
-		fmt.Sprintf("%v", c.version.GetSpec().GetTools().TargetVersion),
+		fmt.Sprintf("%v", c.version.GetSpec().GetTools().GetTargetVersion()),
 	})
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
@@ -84,10 +84,10 @@ func createAutoUpdateVersion(ctx context.Context, client *authclient.Client, raw
 	}
 
 	if version.GetMetadata() == nil {
-		version.Metadata = &headerv1.Metadata{}
+		version.SetMetadata(&headerv1.Metadata{})
 	}
 	if version.GetMetadata().GetName() == "" {
-		version.Metadata.Name = types.MetaNameAutoUpdateVersion
+		version.GetMetadata().SetName(types.MetaNameAutoUpdateVersion)
 	}
 
 	if opts.Force {
@@ -110,10 +110,10 @@ func updateAutoUpdateVersion(ctx context.Context, client *authclient.Client, raw
 	}
 
 	if version.GetMetadata() == nil {
-		version.Metadata = &headerv1.Metadata{}
+		version.SetMetadata(&headerv1.Metadata{})
 	}
 	if version.GetMetadata().GetName() == "" {
-		version.Metadata.Name = types.MetaNameAutoUpdateVersion
+		version.GetMetadata().SetName(types.MetaNameAutoUpdateVersion)
 	}
 
 	if _, err := client.UpdateAutoUpdateVersion(ctx, version); err != nil {

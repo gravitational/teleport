@@ -176,7 +176,7 @@ function ConnectForm(props: {
               isDisabled={props.db.autoUsersEnabled}
               helperText={
                 props.db.autoUsersEnabled
-                  ? 'Using auto provisioned user, you cannot change the database user.'
+                  ? 'Using an auto provisioned user, you cannot change the database user.'
                   : null
               }
             />

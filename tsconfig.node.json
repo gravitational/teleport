@@ -8,6 +8,7 @@
     "moduleResolution": "bundler",
     "esModuleInterop": true,
     "skipLibCheck": true,
+    "strict": false,
     "allowSyntheticDefaultImports": true
   },
   "include": [

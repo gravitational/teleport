@@ -412,7 +412,7 @@ func TestSelfSubjectAccessReviewsRBAC(t *testing.T) {
 			)
 
 			rsp, err := client.AuthorizationV1().SelfSubjectAccessReviews().Create(
-				context.TODO(),
+				t.Context(),
 				&authv1.SelfSubjectAccessReview{
 					Spec: authv1.SelfSubjectAccessReviewSpec{
 						ResourceAttributes: &authv1.ResourceAttributes{
@@ -437,7 +437,7 @@ func TestSelfSubjectAccessReviewsRBAC(t *testing.T) {
 func TestSelfSubjectAccessReviewsAllowed(t *testing.T) {
 	t.Parallel()
 
-	_, testCtx := newTestKubeCRDMock(t, testingkubemock.WithTeleportRoleCRD)
+	_, testCtx := newTestKubeCRDMock(t, "", testingkubemock.WithTeleportRoleCRD)
 
 	newTestUserV7 := newTestUserFactory(t, testCtx, "", types.V7)
 	newTestUserV8 := newTestUserFactory(t, testCtx, "", types.V8)
@@ -587,7 +587,7 @@ func TestSelfSubjectAccessReviewsAllowed(t *testing.T) {
 
 			// Call the SelfSubjectAccessReview endpoint.
 			_, err := client.AuthorizationV1().SelfSubjectAccessReviews().Create(
-				context.TODO(),
+				t.Context(),
 				obj,
 				metav1.CreateOptions{},
 			)

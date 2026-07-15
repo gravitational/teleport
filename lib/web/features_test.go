@@ -42,29 +42,27 @@ type mockedFeatureGetter struct {
 	authclient.ClientI
 
 	mu       sync.Mutex
-	features proto.Features
+	features *proto.Features
 }
 
 func (m *mockedFeatureGetter) Ping(ctx context.Context) (proto.PingResponse, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return proto.PingResponse{
-		ServerFeatures: utils.CloneProtoMsg(&m.features),
+		ServerFeatures: utils.CloneProtoMsg(m.features),
 	}, nil
 }
 
 func (m *mockedFeatureGetter) setFeatures(f proto.Features) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.features = f
+	m.features = &f
 }
 
 func TestFeaturesWatcher(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		mockClient := &mockedFeatureGetter{features: proto.Features{
-			Kubernetes:     true,
-			Entitlements:   map[string]*proto.EntitlementInfo{},
-			AccessRequests: &proto.AccessRequestsFeature{},
+		mockClient := &mockedFeatureGetter{features: &proto.Features{
+			Entitlements: map[string]*proto.EntitlementInfo{},
 		}}
 
 		ctx, cancel := context.WithCancel(t.Context())
@@ -73,14 +71,13 @@ func TestFeaturesWatcher(t *testing.T) {
 			cfg: Config{
 				FeatureWatchInterval: 100 * time.Millisecond,
 				ProxyClient:          mockClient,
-				Context:              ctx,
 			},
 			clock:           clockwork.NewRealClock(),
 			clusterFeatures: proto.Features{},
 			logger:          slog.Default().With(teleport.ComponentKey, teleport.ComponentWeb),
 		}
 
-		go handler.startFeatureWatcher()
+		go handler.startFeatureWatcher(ctx)
 		synctest.Wait()
 
 		// before running the watcher, features should match the value passed to the handler
@@ -94,21 +91,15 @@ func TestFeaturesWatcher(t *testing.T) {
 		// after starting the watcher, handler.GetClusterFeatures should return
 		// values matching the client's response
 		features := proto.Features{
-			Kubernetes:     true,
-			Entitlements:   map[string]*proto.EntitlementInfo{},
-			AccessRequests: &proto.AccessRequestsFeature{},
+			Entitlements: map[string]*proto.EntitlementInfo{},
 		}
-		entitlements.BackfillFeatures(&features)
 		expected := utils.CloneProtoMsg(&features)
 		require.Equal(t, *expected, handler.GetClusterFeatures())
 
 		// update values once again and check if the features are properly updated
 		features = proto.Features{
-			Kubernetes:     false,
-			Entitlements:   map[string]*proto.EntitlementInfo{},
-			AccessRequests: &proto.AccessRequestsFeature{},
+			Entitlements: map[string]*proto.EntitlementInfo{},
 		}
-		entitlements.BackfillFeatures(&features)
 		mockClient.setFeatures(features)
 
 		time.Sleep(handler.cfg.FeatureWatchInterval)
@@ -119,7 +110,6 @@ func TestFeaturesWatcher(t *testing.T) {
 
 		// test updating entitlements
 		features = proto.Features{
-			Kubernetes: true,
 			Entitlements: map[string]*proto.EntitlementInfo{
 				string(entitlements.ExternalAuditStorage):   {Enabled: true},
 				string(entitlements.AccessLists):            {Enabled: true},
@@ -127,16 +117,13 @@ func TestFeaturesWatcher(t *testing.T) {
 				string(entitlements.App):                    {Enabled: true},
 				string(entitlements.CloudAuditLogRetention): {Enabled: true},
 			},
-			AccessRequests: &proto.AccessRequestsFeature{},
 		}
-		entitlements.BackfillFeatures(&features)
 		mockClient.setFeatures(features)
 
 		time.Sleep(handler.cfg.FeatureWatchInterval)
 		synctest.Wait()
 
 		expected = &proto.Features{
-			Kubernetes: true,
 			Entitlements: map[string]*proto.EntitlementInfo{
 				string(entitlements.ExternalAuditStorage):   {Enabled: true},
 				string(entitlements.AccessLists):            {Enabled: true},
@@ -144,9 +131,7 @@ func TestFeaturesWatcher(t *testing.T) {
 				string(entitlements.App):                    {Enabled: true},
 				string(entitlements.CloudAuditLogRetention): {Enabled: true},
 			},
-			AccessRequests: &proto.AccessRequestsFeature{},
 		}
-		entitlements.BackfillFeatures(expected)
 		require.Equal(t, *expected, handler.GetClusterFeatures())
 
 		// stop watcher and ensure it stops updating features
@@ -154,17 +139,47 @@ func TestFeaturesWatcher(t *testing.T) {
 		synctest.Wait()
 
 		features = proto.Features{
-			Kubernetes:     !features.Kubernetes,
-			App:            !features.App,
-			DB:             true,
-			Entitlements:   map[string]*proto.EntitlementInfo{},
-			AccessRequests: &proto.AccessRequestsFeature{},
+			Entitlements: map[string]*proto.EntitlementInfo{},
 		}
-		entitlements.BackfillFeatures(&features)
 		mockClient.setFeatures(features)
 		notExpected := utils.CloneProtoMsg(&features)
 
 		// assert the handler never get these last features as the watcher is stopped
 		require.NotEqual(t, *notExpected, handler.GetClusterFeatures())
+	})
+}
+
+func TestFeaturesWatcherDoesNotPanicOnNilFeatures(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		initialFeatures := proto.Features{
+			Entitlements: map[string]*proto.EntitlementInfo{
+				string(entitlements.App): {Enabled: true},
+			},
+		}
+
+		handler := &Handler{
+			cfg: Config{
+				FeatureWatchInterval: time.Nanosecond,
+				ProxyClient: &mockedFeatureGetter{
+					features: nil, // Simulate auth server returning nil features.
+				},
+			},
+			clock:           clockwork.NewRealClock(),
+			clusterFeatures: initialFeatures,
+			logger:          slog.Default().With(teleport.ComponentKey, teleport.ComponentWeb),
+		}
+
+		go handler.startFeatureWatcher(t.Context())
+		synctest.Wait()
+
+		time.Sleep(handler.cfg.FeatureWatchInterval)
+		synctest.Wait()
+
+		require.Equal(
+			t,
+			initialFeatures,
+			handler.clusterFeatures,
+			"Cluster features must remain unchanged when auth server returns nil features",
+		)
 	})
 }

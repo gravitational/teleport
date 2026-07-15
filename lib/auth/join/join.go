@@ -38,11 +38,13 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	joinv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/join/v1"
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/join/boundkeypair"
 	"github.com/gravitational/teleport/lib/auth/join/iam"
 	"github.com/gravitational/teleport/lib/auth/join/oracle"
 	"github.com/gravitational/teleport/lib/auth/state"
@@ -100,34 +102,41 @@ type GitlabParams struct {
 	EnvVarName string
 }
 
-// GetSignerFunc is a function that fetches a keypair from bound keypair client
-// state.
-type GetSignerFunc func(pubKey string) (crypto.Signer, error)
+// GenericOIDCParams has parameters specific to the `generic_oidc` join method.
+type GenericOIDCParams struct {
+	// EnvVarName is the name of an environment variable to extract a JWT.
+	// Mutually exclusive with `Command`.
+	EnvVarName string
 
-// KeygenFunc is a function to generate a new keypair for bound keypair joining.
-// Clients will generally need to store this for future use, so this function
-// should include some mechanism for storage and retrieval.
-type KeygenFunc func(ctx context.Context, getSuite cryptosuites.GetSuiteFunc) (crypto.Signer, error)
+	// Command is the command (and arguments) to run to fetch the JWT. The
+	// stdout must consist exclusively of a valid JWT and it must return with a
+	// 0 exit code. Mutually exclusive with `EnvVarName`.
+	Command []string
 
-// BoundKeypairParams are parameters specific to bound-keypair joining.
-type BoundKeypairParams struct {
-	// RegistrationSecret is a one-time-use joining token for use on first join.
-	// May be unset if a keypair was registered with Auth out of band.
-	RegistrationSecret string
+	// Timeout is the timeout for a command token fetch. If unset, a timeout of
+	// 1 minute is used.
+	Timeout time.Duration
+}
 
-	// PreviousJoinState is the previous join state document provided by Auth
-	// alongside the previous set of certs. If this is initial registration, it
-	// can be empty.
-	PreviousJoinState []byte
+// Validate does basic sanity checks against a GenericOIDCParams.
+func (p *GenericOIDCParams) Validate() error {
+	if p.EnvVarName == "" && len(p.Command) == 0 {
+		return trace.BadParameter("generic_oidc: must set one of `env` or `command`")
+	}
 
-	// GetSigner is a function that fetches a signer from the client keystore.
-	GetSigner GetSignerFunc
+	if p.EnvVarName != "" && len(p.Command) > 0 {
+		return trace.BadParameter("generic_oidc: cannot set both `env` and `command`")
+	}
 
-	// RequestNewKeypair is a callback function used to request a new keypair.
-	// This may be called at initial onboarding when `InitialJoinSecret` is set,
-	// or on any join (including the initial join) if `RotateAfter` is set on
-	// the backing token and its value has elapsed.
-	RequestNewKeypair KeygenFunc
+	return nil
+}
+
+// VersionInfo contains version information advertised by a cluster during join.
+type VersionInfo struct {
+	// ServerVersion is the Teleport version advertised by the cluster.
+	ServerVersion string
+	// MinClientVersion is the minimum client version advertised by the cluster.
+	MinClientVersion string
 }
 
 // RegisterParams specifies parameters
@@ -194,6 +203,10 @@ type RegisterParams struct {
 	// Register method will not attempt to dial, and many other parameters
 	// may be ignored.
 	AuthClient AuthJoinClient
+	// KubernetesTokenPath is the optional path that used to lookup the Kubernetes service account token for joining.
+	// When unset, the join client will try the `KUBERNETES_TOKEN_PATH` env var, else it will use the standard location:
+	// "/var/run/secrets/kubernetes.io/serviceaccount/token".
+	KubernetesTokenPath string
 	// KubernetesReadFileFunc is a function used to read the Kubernetes token
 	// from disk. Used in tests, and set to `os.ReadFile` if unset.
 	KubernetesReadFileFunc func(name string) ([]byte, error)
@@ -203,8 +216,16 @@ type RegisterParams struct {
 	TerraformCloudAudienceTag string
 	// GitlabParams is the parameters specific to the gitlab join method.
 	GitlabParams GitlabParams
-	// BoundKeypairParams contains parameters specific to bound keypair joining.
-	BoundKeypairParams *BoundKeypairParams
+	// GenericOIDCParams contains parameters specific to generic_oidc joining.
+	GenericOIDCParams GenericOIDCParams
+	// BoundKeypairState contains the bound keypair client state, which must
+	// always be present when joining with the bound keypair join method, even
+	// at first join.
+	BoundKeypairState boundkeypair.ClientState
+	// BoundKeypairRegistrationSecret contains an optional registration secret
+	// for bound keypair joining, used to authenticate the first join (and
+	// keypair registration) in lieu of a preregistered public key.
+	BoundKeypairRegistrationSecret string
 	// CreateSignedSTSIdentityRequestFunc overrides the function used to
 	// generate a signed AWs sts:GetCallerIdentity request.
 	CreateSignedSTSIdentityRequestFunc func(ctx context.Context, challenge string, opts ...iam.STSIdentityRequestOption) ([]byte, error)
@@ -216,11 +237,22 @@ type RegisterParams struct {
 	OracleIMDSClient utils.HTTPDoClient
 	// AttestTPM overrides the function used to attest the host TPM for the TPM join method.
 	AttestTPM func(context.Context, *slog.Logger) (*tpm.Attestation, func() error, error)
+	// Log is the logger to use for emitting log messages.
+	// If not specified, this defaults to the global logger.
+	Log *slog.Logger
+	// OnVersionCallback, if non-nil, is invoked during a join after fetching
+	// version information from the cluster. Returning a non-nil error aborts
+	// the join; returning nil allows it to proceed.
+	OnVersionCallback func(ctx context.Context, info VersionInfo) error
 }
 
 func (r *RegisterParams) CheckAndSetDefaults() error {
 	if r.Clock == nil {
 		r.Clock = clockwork.NewRealClock()
+	}
+
+	if r.Log == nil {
+		r.Log = slog.Default()
 	}
 
 	if r.KubernetesReadFileFunc == nil {
@@ -301,6 +333,9 @@ type RegisterResult struct {
 	// BoundKeypair contains additional results from bound keypair registration
 	// attempts. This is only set when bound keypair joining is used.
 	BoundKeypair *BoundKeypairRegisterResult
+	// ImmutableLabels are the immutable labels that have been assigned to
+	// the host by their join token.
+	ImmutableLabels *joiningv1.ImmutableLabels
 }
 
 // Register is used to get signed certificates when a node, proxy, or bot is
@@ -318,6 +353,7 @@ func Register(ctx context.Context, params RegisterParams) (result *RegisterResul
 	if err := params.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	log := params.Log
 	// Read in the token. The token can either be passed in or come from a file
 	// on disk.
 	token, err := utils.TryReadValueAsFile(params.Token)
@@ -365,7 +401,7 @@ func Register(ctx context.Context, params RegisterParams) (result *RegisterResul
 		}
 	case types.JoinMethodKubernetes:
 		if params.IDToken == "" {
-			params.IDToken, err = kubetoken.GetIDToken(os.Getenv, params.KubernetesReadFileFunc)
+			params.IDToken, err = kubetoken.GetIDToken(params.KubernetesTokenPath, os.Getenv, params.KubernetesReadFileFunc)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -406,21 +442,21 @@ func Register(ctx context.Context, params RegisterParams) (result *RegisterResul
 			}
 		}
 	case types.JoinMethodBoundKeypair:
-		if params.BoundKeypairParams == nil {
-			return nil, trace.BadParameter("bound keypair parameters are required")
+		if params.BoundKeypairState == nil {
+			return nil, trace.BadParameter("bound keypair state is required")
 		}
 	}
 
 	// If an explicit AuthClient has been provided, we want to go straight to
 	// using that rather than trying both proxy and auth dialing.
 	if params.AuthClient != nil {
-		slog.InfoContext(ctx, "Attempting registration with existing auth client.")
+		log.InfoContext(ctx, "Attempting registration with existing auth client.")
 		result, err := registerThroughAuthClient(ctx, token, params, params.AuthClient)
 		if err != nil {
-			slog.ErrorContext(ctx, "Registration with existing auth client failed.", "error", err)
+			log.ErrorContext(ctx, "Registration with existing auth client failed.", "error", err)
 			return nil, trace.Wrap(err)
 		}
-		slog.InfoContext(ctx, "Successfully registered with existing auth client.")
+		log.InfoContext(ctx, "Successfully registered with existing auth client.")
 		return result, nil
 	}
 
@@ -435,35 +471,35 @@ func Register(ctx context.Context, params RegisterParams) (result *RegisterResul
 	registerMethods := []registerMethod{registerThroughAuth, registerThroughProxy}
 
 	if !params.ProxyServer.IsEmpty() {
-		slog.DebugContext(ctx, "Registering node to the cluster.", "proxy_server", params.ProxyServer)
+		log.DebugContext(ctx, "Registering node to the cluster.", "proxy_server", params.ProxyServer)
 
 		registerMethods = []registerMethod{registerThroughProxy}
 
 		if proxyServerIsAuth(params.ProxyServer) {
-			slog.DebugContext(ctx, "The specified proxy server appears to be an auth server.")
+			log.DebugContext(ctx, "The specified proxy server appears to be an auth server.")
 		}
 	} else {
-		slog.DebugContext(ctx, "Registering node to the cluster.", "auth_servers", params.AuthServers)
+		log.DebugContext(ctx, "Registering node to the cluster.", "auth_servers", params.AuthServers)
 
 		if params.GetHostCredentials == nil {
-			slog.DebugContext(ctx, "Missing client, it is not possible to register through proxy.")
+			log.DebugContext(ctx, "Missing client, it is not possible to register through proxy.")
 			registerMethods = []registerMethod{registerThroughAuth}
 		} else if LooksLikeProxy(params.AuthServers) {
-			slog.DebugContext(ctx, "The first specified auth server appears to be a proxy.")
+			log.DebugContext(ctx, "The first specified auth server appears to be a proxy.")
 			registerMethods = []registerMethod{registerThroughProxy, registerThroughAuth}
 		}
 	}
 
 	var collectedErrs []error
 	for _, method := range registerMethods {
-		slog.InfoContext(ctx, "Attempting registration.", "method", method.desc)
+		log.InfoContext(ctx, "Attempting registration.", "method", method.desc)
 		result, err := method.call(ctx, token, params)
 		if err != nil {
 			collectedErrs = append(collectedErrs, err)
-			slog.DebugContext(ctx, "Registration failed.", "method", method.desc, "error", err)
+			log.DebugContext(ctx, "Registration failed.", "method", method.desc, "error", err)
 			continue
 		}
-		slog.InfoContext(ctx, "Successfully registered.", "method", method.desc)
+		log.InfoContext(ctx, "Successfully registered.", "method", method.desc)
 		return result, nil
 	}
 	return nil, trace.NewAggregate(collectedErrs...)
@@ -517,7 +553,7 @@ func registerThroughProxy(
 				CipherSuites: params.CipherSuites,
 				Clock:        params.Clock,
 				Insecure:     params.Insecure,
-				Log:          slog.Default(),
+				Log:          params.Log,
 			},
 		)
 		if err != nil {
@@ -652,7 +688,7 @@ func getHostAddresses(params RegisterParams) []string {
 func NewAuthClient(ctx context.Context, params RegisterParams) (*authclient.Client, error) {
 	switch {
 	case params.Insecure:
-		slog.WarnContext(ctx, "Insecure mode enabled. Auth Server cert will not be validated and CAPins and CAPath value will be ignored.")
+		params.Log.WarnContext(ctx, "Insecure mode enabled. Auth Server cert will not be validated and CAPins and CAPath value will be ignored.")
 		return insecureRegisterClient(ctx, params)
 	case len(params.CAPins) != 0:
 		// CAPins takes precedence over CAPath
@@ -677,7 +713,7 @@ func insecureRegisterClient(ctx context.Context, params RegisterParams) (*authcl
 		"attacker can gain privileged network access. To remedy this, use the CA pin " +
 		"value provided when join token was generated to validate the identity of " +
 		"the Auth Server or point to a valid Certificate via the CA Path option."
-	slog.WarnContext(ctx, msg)
+	params.Log.WarnContext(ctx, msg)
 
 	tlsConfig := utils.TLSConfig(params.CipherSuites)
 	tlsConfig.Time = params.Clock.Now
@@ -751,7 +787,7 @@ func pinRegisterClient(
 		}
 
 	}
-	slog.InfoContext(ctx, "Joining remote cluster with CA pin.", "cluster", certs[0].Subject.CommonName)
+	params.Log.InfoContext(ctx, "Joining remote cluster with CA pin.", "cluster", certs[0].Subject.CommonName)
 
 	// Create another client, but this time with the CA provided to validate
 	// that the Auth Server was issued a certificate by the same CA.
@@ -792,7 +828,7 @@ func caPathRegisterClient(ctx context.Context, params RegisterParams) (*authclie
 	// we may wish to consider changing this to return an error - but this is a
 	// breaking change.
 	if trace.IsNotFound(err) {
-		slog.WarnContext(ctx, "Falling back to insecurely joining because a missing or empty CA Path was provided.")
+		params.Log.WarnContext(ctx, "Falling back to insecurely joining because a missing or empty CA Path was provided.")
 		return insecureRegisterClient(ctx, params)
 	}
 
@@ -800,7 +836,7 @@ func caPathRegisterClient(ctx context.Context, params RegisterParams) (*authclie
 	certPool.AddCert(cert)
 	tlsConfig.RootCAs = certPool
 
-	slog.InfoContext(ctx, "Joining remote cluster, validating connection with certificate on disk.", "cluster", cert.Subject.CommonName)
+	params.Log.InfoContext(ctx, "Joining remote cluster, validating connection with certificate on disk.", "cluster", cert.Subject.CommonName)
 
 	client, err := authclient.NewClient(client.Config{
 		Addrs: getHostAddresses(params),
@@ -840,7 +876,7 @@ type joinServiceClient interface {
 func registerUsingTokenRequestForParams(token string, hostKeys *newHostKeys, params RegisterParams) *types.RegisterUsingTokenRequest {
 	return &types.RegisterUsingTokenRequest{
 		Token:                token,
-		HostID:               params.ID.HostUUID,
+		HostID:               params.ID.HostID(),
 		NodeName:             params.ID.NodeName,
 		Role:                 params.ID.Role,
 		AdditionalPrincipals: params.AdditionalPrincipals,
@@ -858,7 +894,8 @@ func registerUsingTokenRequestForParams(token string, hostKeys *newHostKeys, par
 func registerUsingIAMMethod(
 	ctx context.Context, joinServiceClient joinServiceClient, token string, hostKeys *newHostKeys, params RegisterParams,
 ) (*proto.Certs, error) {
-	slog.InfoContext(ctx, "Attempting to register with IAM method using region STS endpoint.", "role", params.ID.Role)
+	log := params.Log
+	log.InfoContext(ctx, "Attempting to register with IAM method using region STS endpoint.", "role", params.ID.Role)
 	// Call RegisterUsingIAMMethod and pass a callback to respond to the challenge with a signed join request.
 	certs, err := joinServiceClient.RegisterUsingIAMMethod(ctx, func(challenge string) (*proto.RegisterUsingIAMMethodRequest, error) {
 		// create the signed sts:GetCallerIdentity request and include the challenge
@@ -876,11 +913,11 @@ func registerUsingIAMMethod(
 		}, nil
 	})
 	if err != nil {
-		slog.InfoContext(ctx, "Failed to register using regional STS endpoint", "role", params.ID.Role, "error", err)
+		log.InfoContext(ctx, "Failed to register using regional STS endpoint", "role", params.ID.Role, "error", err)
 		return nil, trace.Wrap(err, "registering via IAM method streaming RPC")
 	}
 
-	slog.InfoContext(ctx, "Successfully registered with IAM method using regional STS endpoint.", "role", params.ID.Role)
+	log.InfoContext(ctx, "Successfully registered with IAM method using regional STS endpoint.", "role", params.ID.Role)
 	return certs, nil
 }
 
@@ -924,7 +961,7 @@ func registerUsingTPMMethod(
 	hostKeys *newHostKeys,
 	params RegisterParams,
 ) (*proto.Certs, error) {
-	log := slog.Default()
+	log := params.Log
 
 	initReq := &proto.RegisterUsingTPMMethodInitialRequest{
 		JoinRequest: registerUsingTokenRequestForParams(token, hostKeys, params),
@@ -1038,12 +1075,14 @@ func registerUsingBoundKeypairMethod(
 	hostKeys *newHostKeys,
 	params RegisterParams,
 ) (*RegisterResult, error) {
-	bkParams := params.BoundKeypairParams
+	bkState := params.BoundKeypairState
+	log := params.Log
 
+	bkClientParams := bkState.GetClientParams(params.BoundKeypairRegistrationSecret)
 	initReq := &proto.RegisterUsingBoundKeypairInitialRequest{
 		JoinRequest:       registerUsingTokenRequestForParams(token, hostKeys, params),
-		InitialJoinSecret: bkParams.RegistrationSecret,
-		PreviousJoinState: bkParams.PreviousJoinState,
+		InitialJoinSecret: bkClientParams.RegistrationSecret,
+		PreviousJoinState: bkClientParams.PreviousJoinState,
 	}
 
 	regResponse, err := client.RegisterUsingBoundKeypairMethod(
@@ -1052,7 +1091,7 @@ func registerUsingBoundKeypairMethod(
 		func(resp *proto.RegisterUsingBoundKeypairMethodResponse) (*proto.RegisterUsingBoundKeypairMethodRequest, error) {
 			switch kind := resp.GetResponse().(type) {
 			case *proto.RegisterUsingBoundKeypairMethodResponse_Challenge:
-				signer, err := bkParams.GetSigner(kind.Challenge.PublicKey)
+				signer, err := bkState.GetSigner([]byte(kind.Challenge.PublicKey))
 				if err != nil {
 					return nil, trace.Wrap(err, "could not lookup signer for public key %+v", kind.Challenge.PublicKey)
 				}
@@ -1091,13 +1130,9 @@ func registerUsingBoundKeypairMethod(
 					},
 				}, nil
 			case *proto.RegisterUsingBoundKeypairMethodResponse_Rotation:
-				if bkParams.RequestNewKeypair == nil {
-					return nil, trace.BadParameter("RequestNewKeypair is required")
-				}
+				log.InfoContext(ctx, "Server has requested keypair rotation", "suite", kind.Rotation.SignatureAlgorithmSuite)
 
-				slog.InfoContext(ctx, "Server has requested keypair rotation", "suite", kind.Rotation.SignatureAlgorithmSuite)
-
-				newSigner, err := bkParams.RequestNewKeypair(ctx, cryptosuites.StaticAlgorithmSuite(kind.Rotation.SignatureAlgorithmSuite))
+				newSigner, err := bkState.RequestNewKeypair(ctx, cryptosuites.StaticAlgorithmSuite(kind.Rotation.SignatureAlgorithmSuite))
 				if err != nil {
 					return nil, trace.Wrap(err, "requesting new keypair")
 				}
@@ -1121,6 +1156,14 @@ func registerUsingBoundKeypairMethod(
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if err := bkState.UpdateFromRegisterResult([]byte(regResponse.BoundPublicKey), regResponse.JoinState); err != nil {
+		return nil, trace.Wrap(err, "updating bound keypair state after registration")
+	}
+
+	if err := bkState.Store(ctx); err != nil {
+		return nil, trace.Wrap(err, "storing updated bound keypair state")
 	}
 
 	// Implementation note, callers are expected to call

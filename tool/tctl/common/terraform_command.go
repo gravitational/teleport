@@ -92,7 +92,7 @@ type TerraformCommand struct {
 func (c *TerraformCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, cfg *servicecfg.Config) {
 	tfCmd := app.Command("terraform", "Helpers to run the Teleport Terraform Provider.")
 
-	c.envCmd = tfCmd.Command("env", "Obtain certificates and load them into environments variables. This creates a temporary MachineID bot.")
+	c.envCmd = tfCmd.Command("env", "Obtain certificates and load them into environment variables. This creates a temporary MachineID bot.")
 	c.envCmd.Flag(
 		"resource-prefix",
 		fmt.Sprintf("Resource prefix to use when creating the Terraform role and bots. Defaults to [%s]", terraformHelperDefaultResourcePrefix),
@@ -252,22 +252,22 @@ func (c *TerraformCommand) createTransientBotAndToken(ctx context.Context, clien
 	}
 
 	// Create bot
-	bot := &machineidv1pb.Bot{
+	bot := machineidv1pb.Bot_builder{
 		Kind:    types.KindBot,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name:    botName,
 			Expires: timestamppb.New(time.Now().Add(c.botTTL)),
 			Labels:  terraformEnvCommandLabels,
-		},
-		Spec: &machineidv1pb.BotSpec{
+		}.Build(),
+		Spec: machineidv1pb.BotSpec_builder{
 			Roles: []string{roleName},
-		},
-	}
+		}.Build(),
+	}.Build()
 
-	_, err = client.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
+	_, err = client.BotServiceClient().CreateBot(ctx, machineidv1pb.CreateBotRequest_builder{
 		Bot: bot,
-	})
+	}.Build())
 	if err != nil {
 		return "", trace.Wrap(err, "creating bot")
 	}

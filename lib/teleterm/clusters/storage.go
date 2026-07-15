@@ -54,6 +54,8 @@ func (s *Storage) ListRootClusters() ([]*Cluster, error) {
 
 	clusters := make([]*Cluster, 0, len(pfNames))
 	for _, name := range pfNames {
+		// TODO(ravicious): Handle a possible scenario where one of the clusters gets removed between
+		// client.Store.ListProfiles and Storage.fromProfile. See https://github.com/gravitational/teleport/pull/63975
 		cluster, _, err := s.fromProfile(name, "")
 		if cluster == nil {
 			return nil, trace.Wrap(err)

@@ -16,22 +16,31 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { render, screen } from '@testing-library/react';
-import { http, HttpResponse } from 'msw';
-import { setupServer } from 'msw/node';
-import { MemoryRouter } from 'react-router';
-
 import '@testing-library/jest-dom';
-
+import { http, HttpResponse } from 'msw';
+import { MemoryRouter } from 'react-router';
 import { ThemeProvider } from 'styled-components';
 
-import lightTheme from 'design/theme/themes/lightTheme';
+import {
+  enableMswServer,
+  render,
+  screen,
+  server,
+  theme,
+} from 'design/utils/testing';
 import { Theme } from 'gen-proto-ts/teleport/userpreferences/v1/theme_pb';
 
 import cfg from 'teleport/config';
 import { KeysEnum } from 'teleport/services/storageService';
+import { clearCachedPreferences } from 'teleport/services/userPreferences';
 import { UserContextProvider } from 'teleport/User';
 import { useUser } from 'teleport/User/UserContext';
+
+enableMswServer();
+
+beforeEach(() => {
+  clearCachedPreferences();
+});
 
 function ThemeName() {
   const { preferences } = useUser();
@@ -42,22 +51,20 @@ function ThemeName() {
 }
 
 describe('user context - success state', () => {
-  const server = setupServer(
-    http.get(cfg.api.userPreferencesPath, () => {
-      return HttpResponse.json({
-        theme: Theme.LIGHT,
-      });
-    })
-  );
-
-  beforeAll(() => server.listen());
-  beforeEach(() => localStorage.clear());
-  afterEach(() => server.resetHandlers());
-  afterAll(() => server.close());
+  beforeEach(() => {
+    server.use(
+      http.get(cfg.api.userPreferencesPath, () => {
+        return HttpResponse.json({
+          theme: Theme.LIGHT,
+        });
+      })
+    );
+    localStorage.clear();
+  });
 
   it('should render with the settings from the backend', async () => {
     render(
-      <ThemeProvider theme={lightTheme}>
+      <ThemeProvider theme={theme}>
         <MemoryRouter>
           <UserContextProvider>
             <ThemeName />
@@ -66,27 +73,25 @@ describe('user context - success state', () => {
       </ThemeProvider>
     );
 
-    const theme = await screen.findByText(/theme: light/i);
+    const themeText = await screen.findByText(/theme: light/i);
 
-    expect(theme).toBeInTheDocument();
+    expect(themeText).toBeInTheDocument();
   });
 });
 
 describe('user context - error state', () => {
-  const server = setupServer(
-    http.get(cfg.api.userPreferencesPath, () => {
-      return HttpResponse.json(null, { status: 500 });
-    })
-  );
-
-  beforeAll(() => server.listen());
-  beforeEach(() => localStorage.clear());
-  afterEach(() => server.resetHandlers());
-  afterAll(() => server.close());
+  beforeEach(() => {
+    server.use(
+      http.get(cfg.api.userPreferencesPath, () => {
+        return HttpResponse.json(null, { status: 500 });
+      })
+    );
+    localStorage.clear();
+  });
 
   it('should render with the default settings', async () => {
     render(
-      <ThemeProvider theme={lightTheme}>
+      <ThemeProvider theme={theme}>
         <MemoryRouter>
           <UserContextProvider>
             <ThemeName />
@@ -95,9 +100,9 @@ describe('user context - error state', () => {
       </ThemeProvider>
     );
 
-    const theme = await screen.findByText(/theme: light/i);
+    const themeText = await screen.findByText(/theme: light/i);
 
-    expect(theme).toBeInTheDocument();
+    expect(themeText).toBeInTheDocument();
   });
 
   it('should render with the settings from local storage', async () => {
@@ -109,7 +114,7 @@ describe('user context - error state', () => {
     );
 
     render(
-      <ThemeProvider theme={lightTheme}>
+      <ThemeProvider theme={theme}>
         <MemoryRouter>
           <UserContextProvider>
             <ThemeName />
@@ -118,8 +123,8 @@ describe('user context - error state', () => {
       </ThemeProvider>
     );
 
-    const theme = await screen.findByText(/theme: dark/i);
+    const themeText = await screen.findByText(/theme: dark/i);
 
-    expect(theme).toBeInTheDocument();
+    expect(themeText).toBeInTheDocument();
   });
 });

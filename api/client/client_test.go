@@ -18,6 +18,7 @@ package client
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"flag"
 	"fmt"
@@ -26,6 +27,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
@@ -33,9 +35,11 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	clusterconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	recordingencryptionv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1"
@@ -43,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/trail"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/events"
 )
 
 func TestMain(m *testing.M) {
@@ -65,6 +70,78 @@ func (s *pingService) userAgentFromLastCall() string {
 		return userAgent
 	}
 	return ""
+}
+
+func TestDialTimeout(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		desc    string
+		timeout time.Duration
+	}{
+		{
+			desc:    "dial timeout set to valid value",
+			timeout: 500 * time.Millisecond,
+		},
+		{
+			desc:    "defaults prevent infinite timeout",
+			timeout: 0,
+		},
+	}
+
+	for _, tt := range cases {
+		t.Run(tt.desc, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				credentials := []Credentials{LoadTLS(&tls.Config{})}
+
+				// CheckAndSetDefaults may modify the DialTimeout. Create a throwaway config
+				// to get the actual timeout that will be used by the client.
+				timeout := func() time.Duration {
+					cfg := Config{
+						Credentials: credentials,
+						DialTimeout: tt.timeout,
+					}
+
+					require.NoError(t, cfg.CheckAndSetDefaults())
+					return cfg.DialTimeout
+				}()
+
+				// Create a client that will never connect to anything. All dial attempts will sleep
+				// indefinitely.
+				cfg := Config{
+					DialTimeout: tt.timeout,
+					Credentials: credentials,
+					Dialer: ContextDialerFunc(func(ctx context.Context, network, addr string) (net.Conn, error) {
+						select {
+						case <-time.After(24 * time.Hour):
+							return nil, trace.ConnectionProblem(nil, "dial timeout")
+						case <-ctx.Done():
+							return nil, ctx.Err()
+						}
+					}),
+				}
+
+				errChan := make(chan error, 1)
+				go func() {
+					// try to create a client - this will time out after the DialTimeout threshold is exceeded
+					_, err := New(t.Context(), cfg)
+					errChan <- err
+				}()
+
+				// wait for the client creation to be blocked
+				synctest.Wait()
+
+				// advance the clock so that the timeout kicks in
+				time.Sleep(timeout)
+				synctest.Wait()
+
+				// validate the client creation to fail due to the timeout being enforced.
+				err := <-errChan
+				require.Error(t, err)
+				require.ErrorContains(t, err, context.DeadlineExceeded.Error())
+			})
+		})
+	}
 }
 
 func TestNew(t *testing.T) {
@@ -480,6 +557,7 @@ func TestListResources(t *testing.T) {
 	// Create client
 	clt, err := New(ctx, srv.clientCfg())
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, clt.Close()) })
 
 	for name, test := range testCases {
 		t.Run(name, func(t *testing.T) {
@@ -556,6 +634,7 @@ func TestGetResources(t *testing.T) {
 	// Create client
 	clt, err := New(ctx, srv.clientCfg())
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, clt.Close()) })
 
 	t.Run("DatabaseServer", func(t *testing.T) {
 		t.Parallel()
@@ -596,6 +675,7 @@ func TestGetResourcesWithFilters(t *testing.T) {
 	// Create client
 	clt, err := New(ctx, srv.clientCfg())
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, clt.Close()) })
 
 	testCases := map[string]struct {
 		resourceType string
@@ -733,6 +813,7 @@ func TestUploadEncryptedRecording(t *testing.T) {
 
 	clt, err := New(ctx, srv.clientCfg())
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, clt.Close()) })
 
 	sessionID, err := uuid.NewV7()
 	require.NoError(t, err)
@@ -801,6 +882,190 @@ func (s *uploadRecordingService) CompleteUpload(ctx context.Context, req *record
 	return nil, nil
 }
 
+func TestAuditStream(t *testing.T) {
+	t.Parallel()
+	streamer := &mockAuditStreamer{}
+	srv := startMockServer(t, mockServices{auth: streamer})
+	clt, err := New(t.Context(), srv.clientCfg())
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, clt.Close()) })
+
+	stream, err := clt.CreateAuditStream(t.Context(), uuid.NewString())
+	require.NoError(t, err)
+	// Check for initial status.
+	status := <-stream.Status()
+	require.Equal(t, int64(-1), status.LastEventIndex)
+
+	normalEvent := &events.SessionPrint{
+		Metadata: events.Metadata{
+			Index: 1,
+		},
+		DelayMilliseconds: 100,
+		Data:              []byte("test"),
+	}
+	oversizedEvent := &events.DatabaseSessionQuery{
+		Metadata: events.Metadata{
+			Index: 2,
+		},
+		DatabaseQuery: strings.Repeat("ab", constants.MaxProtoMessageSizeBytes),
+	}
+
+	statusDone := make(chan struct{})
+	go func() {
+		// Check for status for each recorded event.
+		defer close(statusDone)
+		status := <-stream.Status()
+		assert.Equal(t, normalEvent.GetIndex(), status.LastEventIndex)
+		status = <-stream.Status()
+		assert.Equal(t, oversizedEvent.GetIndex(), status.LastEventIndex)
+	}()
+
+	require.NoError(t, stream.RecordEvent(t.Context(), preparedSessionEvent{normalEvent}))
+	require.NoError(t, stream.RecordEvent(t.Context(), preparedSessionEvent{oversizedEvent}))
+	<-statusDone
+	require.NoError(t, stream.Complete(t.Context()))
+	require.Len(t, streamer.gotEvents, 2)
+	assert.Equal(t, normalEvent, streamer.gotEvents[0])
+	assert.Equal(t, oversizedEvent.GetIndex(), streamer.gotEvents[1].GetIndex())
+	// Check that oversized event was trimmed.
+	assert.True(t, strings.HasPrefix(oversizedEvent.DatabaseQuery, streamer.gotEvents[1].(*events.DatabaseSessionQuery).DatabaseQuery))
+}
+
+type mockAuditStreamer struct {
+	proto.UnimplementedAuthServiceServer
+	gotEvents []events.AuditEvent
+}
+
+func (m *mockAuditStreamer) CreateAuditStream(srv grpc.BidiStreamingServer[proto.AuditStreamRequest, events.StreamStatus]) error {
+	msg, err := srv.Recv()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	createMsg, ok := msg.Request.(*proto.AuditStreamRequest_CreateStream)
+	if !ok {
+		return trace.BadParameter("expected message to be %T, got %T", createMsg, msg)
+	}
+	uploadID := uuid.NewString()
+	if err := srv.Send(&events.StreamStatus{
+		UploadID:       uploadID,
+		LastEventIndex: -1,
+		LastUploadTime: time.Now(),
+	}); err != nil {
+		return trace.Wrap(err)
+	}
+	for {
+		msg, err = srv.Recv()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		switch msg := msg.Request.(type) {
+		case *proto.AuditStreamRequest_CompleteStream, *proto.AuditStreamRequest_FlushAndCloseStream:
+			return nil
+		case *proto.AuditStreamRequest_Event:
+			event, err := events.FromOneOf(*msg.Event)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			m.gotEvents = append(m.gotEvents, event)
+			if err := srv.Send(&events.StreamStatus{
+				UploadID:       uploadID,
+				LastEventIndex: event.GetIndex(),
+				LastUploadTime: time.Now(),
+			}); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+	}
+}
+
+type preparedSessionEvent struct {
+	event events.AuditEvent
+}
+
+func (p preparedSessionEvent) GetAuditEvent() events.AuditEvent {
+	return p.event
+}
+
+func TestListAccessRequestsIncludesUserDisplays(t *testing.T) {
+	t.Parallel()
+
+	reqA := clientAccessRequest("request-a", "alice")
+	service := &accessRequestListService{
+		pages: []*proto.ListAccessRequestsResponse{
+			{
+				AccessRequests: []*types.AccessRequestV3{reqA},
+				UserDisplays: map[string]*proto.UserDisplay{
+					"alice": {
+						Primary:   "Alice",
+						Secondary: "alice@example.com",
+					},
+					"plain": nil,
+				},
+			},
+		},
+	}
+
+	srv := startMockServer(t, mockServices{auth: service})
+	clt, err := New(t.Context(), srv.clientCfg())
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, clt.Close()) })
+
+	rsp, err := clt.ListAccessRequests(t.Context(), &proto.ListAccessRequestsRequest{
+		Limit: 1,
+	})
+	require.NoError(t, err)
+
+	require.Equal(t, []*types.AccessRequestV3{reqA}, rsp.AccessRequests)
+	require.Equal(t, map[string]*proto.UserDisplay{
+		"alice": {
+			Primary:   "Alice",
+			Secondary: "alice@example.com",
+		},
+		"plain": nil,
+	}, rsp.UserDisplays)
+	require.Equal(t, []string{""}, service.startKeys)
+}
+
+type accessRequestListService struct {
+	proto.UnimplementedAuthServiceServer
+
+	pages          []*proto.ListAccessRequestsResponse
+	startKeys      []string
+	listErr        error
+	compatRequests []*types.AccessRequestV3
+}
+
+func (s *accessRequestListService) ListAccessRequests(ctx context.Context, req *proto.ListAccessRequestsRequest) (*proto.ListAccessRequestsResponse, error) {
+	if s.listErr != nil {
+		return nil, trail.ToGRPC(s.listErr)
+	}
+
+	s.startKeys = append(s.startKeys, req.StartKey)
+	pageIndex := len(s.startKeys) - 1
+	if pageIndex >= len(s.pages) {
+		return nil, trail.ToGRPC(trace.NotFound("page %d not found", pageIndex))
+	}
+	return s.pages[pageIndex], nil
+}
+
+func (s *accessRequestListService) GetAccessRequestsV2(filter *types.AccessRequestFilter, stream proto.AuthService_GetAccessRequestsV2Server) error {
+	for _, req := range s.compatRequests {
+		if err := stream.Send(req); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func clientAccessRequest(name, user string) *types.AccessRequestV3 {
+	return &types.AccessRequestV3{
+		Metadata: types.Metadata{Name: name},
+		Spec: types.AccessRequestSpecV3{
+			User: user,
+		},
+	}
+}
+
 func TestWindowsCAFallback(t *testing.T) {
 	t.Parallel()
 
@@ -839,6 +1104,7 @@ func TestWindowsCAFallback(t *testing.T) {
 
 	c, err := New(ctx, server.clientCfg())
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, c.Close()) })
 
 	id := types.CertAuthID{
 		Type:       types.WindowsCA,

@@ -28,9 +28,9 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"text/template"
 	"time"
 
+	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/gravitational/trace"
 	"github.com/jcmturner/gokrb5/v8/client"
 	"github.com/jcmturner/gokrb5/v8/config"
@@ -222,17 +222,17 @@ func (k *kinitProvider) CreateClient(ctx context.Context, username string) (*cli
 		return nil, trace.Wrap(err)
 	}
 
-	err = os.WriteFile(certPath, certResult.certPEM, 0644)
+	err = os.WriteFile(certPath, certResult.certPEM, 0600)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	err = os.WriteFile(keyPath, certResult.keyPEM, 0644)
+	err = os.WriteFile(keyPath, certResult.keyPEM, 0600)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	err = os.WriteFile(userCAPath, k.buildAnchorsFileContents(certResult.caCert), 0644)
+	err = os.WriteFile(userCAPath, k.buildAnchorsFileContents(certResult.caCert), 0600)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

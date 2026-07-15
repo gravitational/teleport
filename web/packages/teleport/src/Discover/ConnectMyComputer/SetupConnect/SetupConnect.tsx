@@ -17,7 +17,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState, type JSX } from 'react';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 
 import { Alert, Box, Flex, H3, Subtitle3, Text } from 'design';
 import { ButtonSecondary } from 'design/Button';

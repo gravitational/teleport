@@ -44,7 +44,7 @@ func (a *Server) checkSpaceliftJoinRequest(
 	req *types.RegisterUsingTokenRequest,
 	pt types.ProvisionToken,
 ) (*spacelift.IDTokenClaims, error) {
-	claims, err := spacelift.CheckIDToken(ctx, &spacelift.CheckIDTokenParams{
+	claims, err := spacelift.CheckIDToken(ctx, a.modules, &spacelift.CheckIDTokenParams{
 		ProvisionToken: pt,
 		IDToken:        []byte(req.IDToken),
 		Validator:      a.spaceliftIDTokenValidator,

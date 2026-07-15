@@ -121,7 +121,7 @@ func (p *kubeTestPack) testProxyKubeWithExecCmd(t *testing.T) {
 		{
 			name:        "backward compatibility - no exec-cmd",
 			args:        []string{"proxy", "kube", p.rootKubeCluster1, "--insecure", "--exec"},
-			expectedCmd: []string{os.Getenv("SHELL")},
+			expectedCmd: []string{getExecCommand("")},
 		},
 		{
 			name:        "exec-cmd without exec flag",
@@ -138,8 +138,6 @@ func (p *kubeTestPack) testProxyKubeWithExecCmd(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
 			if tt.expectError {
 				err := Run(t.Context(), tt.args)
 				require.Error(t, err)
@@ -203,10 +201,10 @@ func sendRequestToKubeLocalProxy(t *testing.T, config *clientcmdapi.Config, tele
 		CAData:     config.Clusters[contextName].CertificateAuthorityData,
 		CertData:   config.AuthInfos[contextName].ClientCertificateData,
 		KeyData:    config.AuthInfos[contextName].ClientKeyData,
-		ServerName: common.KubeLocalProxySNI(teleportCluster, kubeCluster),
+		ServerName: teleportCluster,
 	}
 	restConfig := &rest.Config{
-		Host:            "https://" + teleportCluster,
+		Host:            "https://" + teleportCluster + common.KubeLocalProxyPathPrefix(teleportCluster, kubeCluster),
 		TLSClientConfig: tlsClientConfig,
 		Proxy:           http.ProxyURL(proxyURL),
 	}

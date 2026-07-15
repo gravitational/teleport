@@ -80,6 +80,10 @@ type Database interface {
 	GetMySQLServerVersion() string
 	// SetMySQLServerVersion sets the runtime MySQL server version.
 	SetMySQLServerVersion(version string)
+	// GetStatusVNetDNSName returns the VNet DNS name from the database status.
+	GetStatusVNetDNSName() string
+	// SetStatusVNetDNSName sets the VNet DNS name in the database status.
+	SetStatusVNetDNSName(name string)
 	// GetAWS returns the database AWS metadata.
 	GetAWS() AWS
 	// SetStatusAWS sets the database AWS metadata in the status field.
@@ -276,7 +280,7 @@ func (d *DatabaseV3) GetLabel(key string) (value string, ok bool) {
 
 // GetAllLabels returns the database combined static and dynamic labels.
 func (d *DatabaseV3) GetAllLabels() map[string]string {
-	return CombineLabels(d.Metadata.Labels, d.Spec.DynamicLabels)
+	return CombineLabels(nil, d.Metadata.Labels, d.Spec.DynamicLabels)
 }
 
 // GetDescription returns the database description.
@@ -397,6 +401,16 @@ func (d *DatabaseV3) GetMySQLServerVersion() string {
 // SetMySQLServerVersion sets the runtime MySQL server version.
 func (d *DatabaseV3) SetMySQLServerVersion(version string) {
 	d.Status.MySQL.ServerVersion = version
+}
+
+// GetStatusVNetDNSName returns the VNet DNS name from the database status.
+func (d *DatabaseV3) GetStatusVNetDNSName() string {
+	return d.Status.VNetDNSName
+}
+
+// SetStatusVNetDNSName sets the VNet DNS name in the database status.
+func (d *DatabaseV3) SetStatusVNetDNSName(name string) {
+	d.Status.VNetDNSName = name
 }
 
 // IsEmpty returns true if AWS metadata is empty.

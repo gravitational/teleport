@@ -115,7 +115,7 @@ describe('opening links to', () => {
     });
 
     expect(result).toEqual({ action: 'deny' });
-    /* eslint-disable jest/no-conditional-expect */
+    /* oxlint-disable jest/no-conditional-expect */
     if (test.allowed) {
       expect(shell.openExternal).toHaveBeenCalledWith(test.url);
       expect(dialog.showErrorBox).not.toHaveBeenCalled();
@@ -126,5 +126,6 @@ describe('opening links to', () => {
         'The domain does not match any of the allowed domains. Check main.log for more details.'
       );
     }
+    /* oxlint-enable jest/no-conditional-expect */
   });
 });

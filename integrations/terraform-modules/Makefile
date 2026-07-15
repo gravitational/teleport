@@ -15,13 +15,21 @@ MODULE_DIRS := $(shell find . -type f -name '*.tf' -exec dirname {} \; 2>/dev/nu
 README_FILES := $(addsuffix /README.md,$(MODULE_DIRS))
 
 .PHONY: docs
-docs: $(README_FILES) ;
+docs: $(README_FILES)
+	./gen/docs.sh "$(VERSION)" $(PUBLISHED_TF_MODULES)
 
 %/README.md: force
 	terraform-docs markdown table --config .terraform-docs.yml $*
 
+.PHONY: test
+test:
+	@for dir in $(PUBLISHED_TF_MODULES); do \
+		terraform -chdir=$$dir init -upgrade && \
+		terraform -chdir=$$dir test || exit 1; \
+	done
+
 .PHONY: check
-check:
+check: clean
 	git ls-files -- . \
 	| xargs pre-commit run --hook-stage=manual --verbose --files
 
@@ -53,10 +61,12 @@ release: build
 
 PLUGIN_TYPE := terraform-module
 # This list controls which modules are actually published.
-PUBLISHED_TF_MODULES := $(subst /,_, \
+# TODO(gavin): publish teleport/container-service/aws after updating the promote-terraform cmd in teleport.e to handle hyphens in module names
+PUBLISHED_TF_MODULES := \
 	teleport/discovery/aws \
-)
-MODULE_TARBALLS:=$(addsuffix .tar.gz, $(PUBLISHED_TF_MODULES))
+	teleport/discovery/azure \
+
+MODULE_TARBALLS:=$(addsuffix .tar.gz, $(subst /,_,$(PUBLISHED_TF_MODULES)))
 BUILD_TARGETS:=$(addprefix $(BUILD_DIR)/$(PLUGIN_TYPE)_, $(MODULE_TARBALLS))
 
 .PHONY: build
@@ -89,3 +99,33 @@ tfclean:
 		-or -name '.terraform.lock.hcl' \
 		-or -name 'terraform.tfstate*' \
 	\) -exec rm -rf {} \+
+
+#
+# update-version updates Terraform source code that depends on the current release version.
+#
+.PHONY: update-version
+update-version:
+	./gen/update-version.sh $(VERSION)
+
+.PHONY: create-module
+create-module:
+ifndef MODULE
+	$(error MODULE is required)
+endif
+ifndef REMOTE_SYSTEM
+	$(error REMOTE_SYSTEM is required)
+endif
+	./gen/module.sh "$(MODULE)" "$(REMOTE_SYSTEM)"
+
+.PHONY: create-example
+create-example:
+ifndef MODULE
+	$(error MODULE is required)
+endif
+ifndef REMOTE_SYSTEM
+	$(error REMOTE_SYSTEM is required)
+endif
+ifndef EXAMPLE
+	$(error EXAMPLE is required)
+endif
+	./gen/example.sh "$(MODULE)" "$(REMOTE_SYSTEM)" "$(EXAMPLE)"

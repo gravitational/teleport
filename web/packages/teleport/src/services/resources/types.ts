@@ -216,7 +216,8 @@ export type KubernetesVerb =
   | 'watch'
   | 'deletecollection'
   | 'exec'
-  | 'portforward';
+  | 'portforward'
+  | 'proxy';
 
 export type Rule = {
   /**
@@ -312,6 +313,7 @@ export enum ResourceKind {
   Lock = 'lock',
   LoginRule = 'login_rule',
   MFADevice = 'mfa_device',
+  MobileDevice = 'mobile_device',
   // Ignoring duplicate: KindNamespace = "namespace"
   NetworkRestrictions = 'network_restrictions',
   Node = 'node',
@@ -361,6 +363,7 @@ export enum ResourceKind {
   WebToken = 'web_token',
   WindowsDesktop = 'windows_desktop',
   WindowsDesktopService = 'windows_desktop_service',
+  WorkloadCluster = 'workload_cluster',
   WorkloadIdentity = 'workload_identity',
 
   // Resources that have no actual data representation, but serve for checking

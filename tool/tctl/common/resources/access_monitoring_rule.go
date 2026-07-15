@@ -51,7 +51,7 @@ func (c *accessMonitoringRuleCollection) WriteText(w io.Writer, verbose bool) er
 	var rows [][]string
 	for _, item := range c.items {
 		labels := common.FormatLabels(item.GetMetadata().GetLabels(), verbose)
-		rows = append(rows, []string{item.Metadata.GetName(), labels})
+		rows = append(rows, []string{item.GetMetadata().GetName(), labels})
 	}
 	headers := []string{"Name", "Labels"}
 	t := asciitable.MakeTable(headers, rows...)

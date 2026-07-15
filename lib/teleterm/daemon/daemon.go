@@ -40,7 +40,6 @@ import (
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/client/clientcache"
 	"github.com/gravitational/teleport/lib/client/sso"
 	dtauthn "github.com/gravitational/teleport/lib/devicetrust/authn"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
@@ -263,6 +262,9 @@ func (s *Service) newDesktopSession(desktopURI uri.ResourceURI, login string) (*
 		defer s.desktopSessionsMu.Unlock()
 
 		delete(s.desktopSessions, key)
+		if err := session.CloseSharedDirectory(); err != nil {
+			s.cfg.Logger.WarnContext(context.Background(), "Failed to close shared directory for desktop session", "error", err)
+		}
 	}
 
 	return session, cleanup, nil
@@ -304,7 +306,7 @@ func (s *Service) ResolveClusterURI(uri uri.ResourceURI) (*clusters.Cluster, *cl
 	// Custom MFAPromptConstructor gets removed during the calls to Login and LoginPasswordless RPCs.
 	// Those RPCs assume that the default CLI prompt is in use.
 	clusterClient.MFAPromptConstructor = s.NewMFAPromptConstructor(cluster.URI)
-	clusterClient.SSOMFACeremonyConstructor = sso.NewConnectMFACeremony
+	clusterClient.MFACeremonyConstructor = sso.NewConnectMFACeremony
 
 	return cluster, clusterClient, nil
 }
@@ -353,7 +355,7 @@ func (s *Service) ClusterLogout(ctx context.Context, uri uri.ResourceURI, remove
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(s.ClearCachedClientsForRoot(uri))
+	return trace.Wrap(s.ClearStaleCachedClientsForRoot(uri))
 }
 
 // CreateGateway creates a gateway to given targetURI
@@ -423,15 +425,13 @@ func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams)
 // reissueGatewayCerts tries to reissue gateway certs. It handles asking the user to relogin and
 // per-session MFA checks.
 func (s *Service) reissueGatewayCerts(ctx context.Context, g gateway.Gateway) (tls.Certificate, error) {
-	reloginReq := &api.ReloginRequest{
+	reloginReq := api.ReloginRequest_builder{
 		RootClusterUri: g.TargetURI().GetRootClusterURI().String(),
-		Reason: &api.ReloginRequest_GatewayCertExpired{
-			GatewayCertExpired: &api.GatewayCertExpired{
-				GatewayUri: g.URI().String(),
-				TargetUri:  g.TargetURI().String(),
-			},
-		},
-	}
+		GatewayCertExpired: api.GatewayCertExpired_builder{
+			GatewayUri: g.URI().String(),
+			TargetUri:  g.TargetURI().String(),
+		}.Build(),
+	}.Build()
 
 	var cert tls.Certificate
 
@@ -460,15 +460,13 @@ func (s *Service) reissueGatewayCerts(ctx context.Context, g gateway.Gateway) (t
 	// example, if you execute `tsh ssh` within Connect after your user cert expires or there are two
 	// gateways that subsequently go through this flow.
 	if err := s.RetryWithRelogin(ctx, reloginReq, reissueGatewayCerts); err != nil {
-		notifyErr := s.NotifyApp(ctx, &api.SendNotificationRequest{
-			Subject: &api.SendNotificationRequest_CannotProxyGatewayConnection{
-				CannotProxyGatewayConnection: &api.CannotProxyGatewayConnection{
-					GatewayUri: g.URI().String(),
-					TargetUri:  g.TargetURI().String(),
-					Error:      err.Error(),
-				},
-			},
-		})
+		notifyErr := s.NotifyApp(ctx, api.SendNotificationRequest_builder{
+			CannotProxyGatewayConnection: api.CannotProxyGatewayConnection_builder{
+				GatewayUri: g.URI().String(),
+				TargetUri:  g.TargetURI().String(),
+				Error:      err.Error(),
+			}.Build(),
+		}.Build())
 		if notifyErr != nil {
 			s.cfg.Logger.ErrorContext(ctx, "Failed to send a notification for an error encountered during gateway cert reissue", "error", notifyErr)
 		}
@@ -662,7 +660,7 @@ func (s *Service) SetGatewayLocalPort(gatewayURI, localPort string) (gateway.Gat
 }
 
 func (s *Service) GetRequestableRoles(ctx context.Context, req *api.GetRequestableRolesRequest) (*api.GetRequestableRolesResponse, error) {
-	cluster, _, err := s.ResolveCluster(req.ClusterUri)
+	cluster, _, err := s.ResolveCluster(req.GetClusterUri())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -677,10 +675,10 @@ func (s *Service) GetRequestableRoles(ctx context.Context, req *api.GetRequestab
 		return nil, trace.Wrap(err)
 	}
 
-	return &api.GetRequestableRolesResponse{
+	return api.GetRequestableRolesResponse_builder{
 		Roles:           response.RequestableRoles,
 		ApplicableRoles: response.ApplicableRolesForResources,
-	}, nil
+	}.Build(), nil
 }
 
 // PromoteAccessRequest promotes an access request to an access list.
@@ -701,7 +699,7 @@ func (s *Service) PromoteAccessRequest(ctx context.Context, rootClusterURI uri.R
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		accessRequest := promoteResponse.AccessRequest
+		accessRequest := promoteResponse.GetAccessRequest()
 		response = &clusters.AccessRequest{
 			URI:           cluster.URI.AppendAccessRequest(accessRequest.GetName()),
 			AccessRequest: accessRequest,
@@ -736,7 +734,7 @@ func (s *Service) GetSuggestedAccessLists(ctx context.Context, rootClusterURI ur
 
 // GetAccessRequests returns all access requests with filtered input
 func (s *Service) GetAccessRequests(ctx context.Context, req *api.GetAccessRequestsRequest) ([]clusters.AccessRequest, error) {
-	cluster, _, err := s.ResolveCluster(req.ClusterUri)
+	cluster, _, err := s.ResolveCluster(req.GetClusterUri())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -756,11 +754,11 @@ func (s *Service) GetAccessRequests(ctx context.Context, req *api.GetAccessReque
 
 // GetAccessRequest returns AccessRequests filtered by ID
 func (s *Service) GetAccessRequest(ctx context.Context, req *api.GetAccessRequestRequest) (*clusters.AccessRequest, error) {
-	if req.AccessRequestId == "" {
+	if req.GetAccessRequestId() == "" {
 		return nil, trace.BadParameter("missing request id")
 	}
 
-	cluster, _, err := s.ResolveCluster(req.ClusterUri)
+	cluster, _, err := s.ResolveCluster(req.GetClusterUri())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -771,7 +769,7 @@ func (s *Service) GetAccessRequest(ctx context.Context, req *api.GetAccessReques
 	}
 
 	response, err := cluster.GetAccessRequest(ctx, proxyClient.CurrentCluster(), types.AccessRequestFilter{
-		ID: req.AccessRequestId,
+		ID: req.GetAccessRequestId(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -782,7 +780,7 @@ func (s *Service) GetAccessRequest(ctx context.Context, req *api.GetAccessReques
 
 // CreateAccessRequest creates an access request
 func (s *Service) CreateAccessRequest(ctx context.Context, req *api.CreateAccessRequestRequest) (*clusters.AccessRequest, error) {
-	cluster, _, err := s.ResolveCluster(req.RootClusterUri)
+	cluster, _, err := s.ResolveCluster(req.GetRootClusterUri())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -801,7 +799,7 @@ func (s *Service) CreateAccessRequest(ctx context.Context, req *api.CreateAccess
 }
 
 func (s *Service) ReviewAccessRequest(ctx context.Context, req *api.ReviewAccessRequestRequest) (*clusters.AccessRequest, error) {
-	cluster, _, err := s.ResolveCluster(req.RootClusterUri)
+	cluster, _, err := s.ResolveCluster(req.GetRootClusterUri())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -820,11 +818,11 @@ func (s *Service) ReviewAccessRequest(ctx context.Context, req *api.ReviewAccess
 }
 
 func (s *Service) DeleteAccessRequest(ctx context.Context, req *api.DeleteAccessRequestRequest) error {
-	if req.AccessRequestId == "" {
+	if req.GetAccessRequestId() == "" {
 		return trace.BadParameter("missing request id")
 	}
 
-	cluster, _, err := s.ResolveCluster(req.RootClusterUri)
+	cluster, _, err := s.ResolveCluster(req.GetRootClusterUri())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -838,7 +836,7 @@ func (s *Service) DeleteAccessRequest(ctx context.Context, req *api.DeleteAccess
 }
 
 func (s *Service) AssumeRole(ctx context.Context, req *api.AssumeRoleRequest) error {
-	cluster, _, err := s.ResolveCluster(req.RootClusterUri)
+	cluster, _, err := s.ResolveCluster(req.GetRootClusterUri())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -875,7 +873,7 @@ func (s *Service) AssumeRole(ctx context.Context, req *api.AssumeRoleRequest) er
 	}
 
 	// We have to reconnect using the updated cert.
-	return trace.Wrap(s.ClearCachedClientsForRoot(cluster.URI))
+	return trace.Wrap(s.ClearStaleCachedClientsForRoot(cluster.URI))
 }
 
 // ListKubernetesResourcesRequest defines a request to retrieve kube resources paginated.
@@ -894,7 +892,7 @@ func (s *Service) ListKubernetesResources(ctx context.Context, clusterURI uri.Re
 			return trace.Wrap(err)
 		}
 
-		req := &kubeproto.ListKubernetesResourcesRequest{
+		req := kubeproto.ListKubernetesResourcesRequest_builder{
 			ResourceType:        req.GetResourceType(),
 			Limit:               req.GetLimit(),
 			StartKey:            req.GetNextKey(),
@@ -904,7 +902,7 @@ func (s *Service) ListKubernetesResources(ctx context.Context, clusterURI uri.Re
 			KubernetesCluster:   req.GetKubernetesCluster(),
 			KubernetesNamespace: req.GetKubernetesNamespace(),
 			TeleportCluster:     tc.SiteName,
-		}
+		}.Build()
 
 		resources, err = apiclient.GetKubernetesResourcesWithFilters(ctx, kubeServiceClient, req)
 		return trace.Wrap(err)
@@ -1036,7 +1034,7 @@ func (s *Service) TransferFile(ctx context.Context, request *api.FileTransferReq
 // teleport.dev/connect-my-computer/owner: <cluster user> and allows logging in to those nodes as
 // the current system user.
 func (s *Service) CreateConnectMyComputerRole(ctx context.Context, req *api.CreateConnectMyComputerRoleRequest) (*api.CreateConnectMyComputerRoleResponse, error) {
-	cluster, _, err := s.ResolveCluster(req.RootClusterUri)
+	cluster, _, err := s.ResolveCluster(req.GetRootClusterUri())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1052,7 +1050,7 @@ func (s *Service) CreateConnectMyComputerRole(ctx context.Context, req *api.Crea
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		response.CertsReloaded = result.CertsReloaded
+		response.SetCertsReloaded(result.CertsReloaded)
 		return nil
 	})
 
@@ -1108,7 +1106,7 @@ func (s *Service) GetConnectMyComputerNodeName(req *api.GetConnectMyComputerNode
 	}
 
 	uuid, err := s.cfg.ConnectMyComputerNodeName.Get(cluster)
-	return &api.GetConnectMyComputerNodeNameResponse{Name: uuid}, trace.Wrap(err)
+	return api.GetConnectMyComputerNodeNameResponse_builder{Name: uuid}.Build(), trace.Wrap(err)
 }
 
 // WaitForConnectMyComputerNodeJoin returns a response only after detecting that a Connect My
@@ -1235,19 +1233,19 @@ func (s *Service) AuthenticateWebDevice(ctx context.Context, rootClusterURI uri.
 	var confirmationToken *devicepb.DeviceConfirmationToken
 	err = clusters.AddMetadataToRetryableError(ctx, func() error {
 		ceremony := dtauthn.NewCeremony()
-		confirmationToken, err = ceremony.RunWeb(ctx, devicesClient, &devicepb.DeviceWebToken{
-			Id:    req.DeviceWebToken.Id,
-			Token: req.DeviceWebToken.Token,
-		})
+		confirmationToken, err = ceremony.RunWeb(ctx, devicesClient, devicepb.DeviceWebToken_builder{
+			Id:    req.GetDeviceWebToken().GetId(),
+			Token: req.GetDeviceWebToken().GetToken(),
+		}.Build())
 		return trace.Wrap(err)
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return &api.AuthenticateWebDeviceResponse{
+	return api.AuthenticateWebDeviceResponse_builder{
 		ConfirmationToken: confirmationToken,
-	}, nil
+	}.Build(), nil
 }
 
 func (s *Service) shouldReuseGateway(targetURI uri.ResourceURI) (gateway.Gateway, bool) {
@@ -1277,18 +1275,11 @@ func (s *Service) GetCachedClient(ctx context.Context, resourceURI uri.ResourceU
 	return clt, trace.Wrap(err)
 }
 
-// ClearCachedClientsForRoot closes and removes clients from the cache
-// for the root cluster and its leaf clusters.
-func (s *Service) ClearCachedClientsForRoot(clusterURI uri.ResourceURI) error {
-	profileName := clusterURI.GetProfileName()
-	return trace.Wrap(s.clientCache.ClearForRoot(profileName))
-}
-
 // ClearStaleCachedClientsForRoot closes and removes clients from the cache
 // for the root cluster and its leaf clusters, if their cert is outdated.
 func (s *Service) ClearStaleCachedClientsForRoot(clusterURI uri.ResourceURI) error {
 	profileName := clusterURI.GetProfileName()
-	err := s.clientCache.ClearForRoot(profileName, clientcache.WithClearingOnlyClientsWithStaleCert())
+	err := s.clientCache.ClearStaleClientsForRoot(profileName)
 	return trace.Wrap(err)
 }
 

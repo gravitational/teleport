@@ -28,6 +28,7 @@ import (
 )
 
 func Test_ssoDiagContext_writeToBackend(t *testing.T) {
+	t.Parallel()
 	diag := &SSODiagContext{
 		AuthKind:  types.KindSAML,
 		RequestID: "123",

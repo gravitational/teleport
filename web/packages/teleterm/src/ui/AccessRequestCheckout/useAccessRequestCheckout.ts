@@ -297,6 +297,7 @@ export default function useAccessRequestCheckout() {
       assumeStartTime: req.start && Timestamp.fromDate(req.start),
       maxDuration: req.maxDuration && Timestamp.fromDate(req.maxDuration),
       requestTtl: req.requestTTL && Timestamp.fromDate(req.requestTTL),
+      resourceAccessIds: [],
     };
 
     // Don't attempt creating anything if there are no resources selected.

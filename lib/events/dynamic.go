@@ -109,6 +109,8 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.Subsystem{}
 	case X11ForwardEvent:
 		e = &events.X11Forward{}
+	case AgentForwardEvent:
+		e = &events.AgentForward{}
 	case PortForwardEvent:
 		e = &events.PortForward{}
 	case PortForwardLocalEvent:
@@ -193,6 +195,16 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.AppSessionRequest{}
 	case AppSessionDynamoDBRequestEvent:
 		e = &events.AppSessionDynamoDBRequest{}
+	case AppSessionLLMRequestSuccessEvent, AppSessionLLMRequestFailureEvent:
+		e = &events.AppSessionLLMRequest{}
+	case AppSessionHTTPRequestEvent:
+		e = &events.AppSessionHTTPRequest{}
+	case AppSessionHTTPRequestBodyChunkEvent:
+		e = &events.AppSessionHTTPRequestBodyChunk{}
+	case AppSessionHTTPResponseEvent:
+		e = &events.AppSessionHTTPResponse{}
+	case AppSessionHTTPResponseBodyChunkEvent:
+		e = &events.AppSessionHTTPResponseBodyChunk{}
 	case AppCreateEvent:
 		e = &events.AppCreate{}
 	case AppUpdateEvent:
@@ -300,6 +312,10 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.WindowsDesktopSessionStart{}
 	case WindowsDesktopSessionEndEvent:
 		e = &events.WindowsDesktopSessionEnd{}
+	case LinuxDesktopSessionStartEvent:
+		e = &events.LinuxDesktopSessionStart{}
+	case LinuxDesktopSessionEndEvent:
+		e = &events.LinuxDesktopSessionEnd{}
 	case DesktopRecordingEvent:
 		e = &events.DesktopRecording{}
 	case DesktopClipboardSendEvent:
@@ -320,10 +336,14 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.SFTP{}
 	case UpgradeWindowStartUpdateEvent:
 		e = &events.UpgradeWindowStartUpdate{}
+	case EnvironmentProfileUpdateEvent:
+		e = &events.EnvironmentProfileUpdate{}
 	case SessionRecordingAccessEvent:
 		e = &events.SessionRecordingAccess{}
 	case SSMRunEvent:
 		e = &events.SSMRun{}
+	case AzureRunEvent:
+		e = &events.AzureRun{}
 	case KubernetesClusterCreateEvent:
 		e = &events.KubernetesClusterCreate{}
 	case KubernetesClusterUpdateEvent:
@@ -601,6 +621,62 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 	case WorkloadClusterDeleteEvent:
 		e = &events.WorkloadClusterDelete{}
 
+	case InferenceModelCreateEvent:
+		e = &events.InferenceModelCreate{}
+	case InferenceModelUpdateEvent:
+		e = &events.InferenceModelUpdate{}
+	case InferenceModelDeleteEvent:
+		e = &events.InferenceModelDelete{}
+
+	case InferenceSecretCreateEvent:
+		e = &events.InferenceSecretCreate{}
+	case InferenceSecretUpdateEvent:
+		e = &events.InferenceSecretUpdate{}
+	case InferenceSecretDeleteEvent:
+		e = &events.InferenceSecretDelete{}
+
+	case InferencePolicyCreateEvent:
+		e = &events.InferencePolicyCreate{}
+	case InferencePolicyUpdateEvent:
+		e = &events.InferencePolicyUpdate{}
+	case InferencePolicyDeleteEvent:
+		e = &events.InferencePolicyDelete{}
+	case RetrievalModelCreateEvent:
+		e = &events.RetrievalModelCreate{}
+	case RetrievalModelUpdateEvent:
+		e = &events.RetrievalModelUpdate{}
+	case RetrievalModelDeleteEvent:
+		e = &events.RetrievalModelDelete{}
+
+	case ClassifierCreateEvent:
+		e = &events.ClassifierCreate{}
+	case ClassifierUpdateEvent:
+		e = &events.ClassifierUpdate{}
+	case ClassifierDeleteEvent:
+		e = &events.ClassifierDelete{}
+
+	case SessionSummarizedEvent:
+		e = &events.SessionSummarized{}
+
+	case CertAuthOverrideCreateEvent,
+		CertAuthOverrideUpdateEvent,
+		CertAuthOverrideUpsertEvent,
+		CertAuthOverrideDeleteEvent:
+		e = &events.CertAuthorityOverrideEvent{}
+	case ScopedTokenCreateEvent:
+		e = &events.ScopedTokenCreate{}
+	case ScopedTokenUpsertEvent:
+		e = &events.ScopedTokenCreate{}
+	case ScopedTokenUpdateEvent:
+		e = &events.ScopedTokenUpdate{}
+	case ScopedTokenDeleteEvent:
+		e = &events.ScopedTokenDelete{}
+	case BeamsConfigCreateEvent:
+		e = &events.BeamsConfigCreate{}
+	case BeamsConfigUpdateEvent:
+		e = &events.BeamsConfigUpdate{}
+	case BeamsConfigDeleteEvent:
+		e = &events.BeamsConfigDelete{}
 	default:
 		slog.ErrorContext(context.Background(), "Attempted to convert dynamic event of unknown type into protobuf event.", "event_type", eventType)
 	}
@@ -697,13 +773,13 @@ func EventFieldsToUnstructured(evt EventFields) (*auditlogpb.EventUnstructured, 
 
 	id := getOrComputeEventID(evt)
 
-	return &auditlogpb.EventUnstructured{
+	return auditlogpb.EventUnstructured_builder{
 		Type:         evt.GetType(),
 		Index:        int64(evt.GetInt(EventIndex)),
 		Time:         timestamppb.New(evt.GetTime(EventTime)),
 		Id:           id,
 		Unstructured: str,
-	}, nil
+	}.Build(), nil
 }
 
 // getOrComputeEventID computes the ID of the event. If the event already has an ID, it is returned.

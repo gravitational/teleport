@@ -19,6 +19,7 @@
 import {
   AddCircle,
   Bots as BotsIcon,
+  CheckCircleDotted,
   CirclePlay,
   ClipboardUser,
   Cluster,
@@ -43,6 +44,7 @@ import {
 import { IntegrationEnroll } from '@gravitational/teleport/src/Integrations/Enroll';
 import cfg, { Cfg } from 'teleport/config';
 import { IaCIntegrationOverview } from 'teleport/Discover/Overview/IaCIntegrationOverview';
+import { IaCIntegrationSettings } from 'teleport/Discover/Overview/IaCIntegrationSettings';
 import { IntegrationStatus } from 'teleport/Integrations/IntegrationStatus';
 import {
   NavigationCategory,
@@ -66,7 +68,9 @@ import { Integrations } from './Integrations';
 import { JoinTokens } from './JoinTokens/JoinTokens';
 import { Locks } from './LocksV2/Locks';
 import { NewLockView } from './LocksV2/NewLock';
+import { ManagedUpdates } from './ManagedUpdates';
 import { RolesContainer as Roles } from './Roles';
+import { LoginScopePicker } from './Scopes';
 import { SessionsContainer as Sessions } from './Sessions';
 import { Support } from './Support';
 import { TrustedClusters } from './TrustedClusters';
@@ -616,7 +620,7 @@ export class FeatureIntegrationEnroll implements TeleportFeature {
 
   route = {
     title: 'Integration',
-    path: cfg.routes.integrationEnroll,
+    path: cfg.routes.integrationEnrollNew,
     exact: false,
     component: IntegrationEnroll,
   };
@@ -639,6 +643,43 @@ export class FeatureIntegrationEnroll implements TeleportFeature {
 
   // getRoute allows child class extending this
   // parent class to refer to this parent's route.
+  getRoute() {
+    return this.route;
+  }
+}
+
+export class FeatureManagedUpdates implements TeleportFeature {
+  category = NavigationCategory.ZeroTrustAccess;
+
+  route = {
+    title: 'Managed Updates',
+    path: cfg.routes.managedUpdates,
+    exact: true,
+    component: ManagedUpdates,
+  };
+
+  hasAccess(flags: FeatureFlags) {
+    const canViewPage =
+      flags.readAutoUpdateConfig ||
+      flags.readAutoUpdateVersion ||
+      flags.readAutoUpdateAgentRollout;
+
+    if (shouldHideFromNavigation(cfg)) {
+      return canViewPage;
+    }
+    return true;
+  }
+
+  navigationItem = {
+    title: NavTitle.ManagedUpdates,
+    icon: CheckCircleDotted,
+    exact: true,
+    getLink() {
+      return cfg.getManagedUpdatesRoute();
+    },
+    searchableTags: ['managed updates', 'updates', 'rollout', 'agents'],
+  };
+
   getRoute() {
     return this.route;
   }
@@ -780,7 +821,7 @@ export class FeatureWorkloadIdentity implements TeleportFeature {
 }
 
 class FeatureDeviceTrust implements TeleportFeature {
-  category = NavigationCategory.IdentityGovernance;
+  category = NavigationCategory.ZeroTrustAccess;
   route = {
     title: 'Trusted Devices',
     path: cfg.routes.deviceTrust,
@@ -827,6 +868,20 @@ export class FeatureIntegrationOverview implements TeleportFeature {
     title: 'Integration Overview',
     path: cfg.routes.integrationOverview,
     component: IaCIntegrationOverview,
+  };
+
+  hasAccess() {
+    return true;
+  }
+}
+
+export class FeatureIntegrationOverviewSettings implements TeleportFeature {
+  parent = FeatureIntegrations;
+
+  route = {
+    title: 'Integration Settings',
+    path: cfg.routes.integrationOverviewSettings,
+    component: IaCIntegrationSettings,
   };
 
   hasAccess() {
@@ -895,6 +950,21 @@ export class FeatureHelpAndSupport implements TeleportFeature {
   };
 }
 
+export class FeatureScopes implements TeleportFeature {
+  route = {
+    title: 'Pick a Scope',
+    path: cfg.routes.scopePicker,
+    exact: true,
+    component: LoginScopePicker,
+  };
+
+  hideNavigation = true;
+
+  hasAccess(): boolean {
+    return cfg.scopesEnabled;
+  }
+}
+
 export function getOSSFeatures(): TeleportFeature[] {
   return [
     // Resources
@@ -914,18 +984,20 @@ export function getOSSFeatures(): TeleportFeature[] {
     new FeatureAddBotsShortcut(),
     new FeatureJoinTokens(),
     new FeatureRoles(),
+    new FeatureDeviceTrust(),
     new FeatureAuthConnectors(),
     new FeatureIntegrations(),
+    new FeatureManagedUpdates(),
     new FeatureClusters(),
     new FeatureTrust(),
     new FeatureIntegrationStatus(),
     new FeatureIntegrationOverview(),
+    new FeatureIntegrationOverviewSettings(),
 
     // - Identity
     new AccessRequests(),
     new FeatureLocks(),
     new FeatureNewLock(),
-    new FeatureDeviceTrust(),
     new FeatureWorkloadIdentity(),
 
     // - Audit
@@ -936,5 +1008,6 @@ export function getOSSFeatures(): TeleportFeature[] {
     // Other
     new FeatureAccount(),
     new FeatureHelpAndSupport(),
+    new FeatureScopes(),
   ];
 }

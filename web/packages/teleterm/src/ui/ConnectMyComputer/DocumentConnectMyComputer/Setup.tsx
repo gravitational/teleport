@@ -24,7 +24,10 @@ import * as Alerts from 'design/Alert';
 import { Attempt, makeEmptyAttempt, useAsync } from 'shared/hooks/useAsync';
 import { wait } from 'shared/utils/wait';
 
-import { isTshdRpcError } from 'teleterm/services/tshd/cloneableClient';
+import {
+  isRpcError,
+  isRpcErrorReloginResolvable,
+} from 'teleterm/services/tshd/cloneableClient';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import {
   AgentProcessError,
@@ -237,8 +240,8 @@ function AgentSetup() {
               certsReloaded = response.certsReloaded;
             } catch (error) {
               if (
-                isTshdRpcError(error, 'PERMISSION_DENIED') &&
-                !error.isResolvableWithRelogin
+                isRpcError(error, 'PERMISSION_DENIED') &&
+                !isRpcErrorReloginResolvable(error)
               ) {
                 throw new Error(
                   `Cannot set up the role: ${error.message}. Contact your administrator for permissions to manage users and roles.`,

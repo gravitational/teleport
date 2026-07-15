@@ -56,10 +56,10 @@ func (rc *ResourceCommand) updateHealthCheckConfig(ctx context.Context, clt *aut
 	return nil
 }
 
-func (rc *ResourceCommand) deleteHealthCheckConfig(ctx context.Context, clt *authclient.Client) error {
-	if err := clt.DeleteHealthCheckConfig(ctx, rc.ref.Name); err != nil {
+func (rc *ResourceCommand) deleteHealthCheckConfig(ctx context.Context, clt *authclient.Client, name string) error {
+	if err := clt.DeleteHealthCheckConfig(ctx, name); err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("health_check_config %q has been deleted\n", rc.ref.Name)
+	fmt.Printf("health_check_config %q has been deleted\n", name)
 	return nil
 }

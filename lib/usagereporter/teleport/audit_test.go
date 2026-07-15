@@ -30,7 +30,7 @@ import (
 )
 
 func TestConvertAuditEvent(t *testing.T) {
-	anonymizer, err := utils.NewHMACAnonymizer("anon-key-or-cluster-id")
+	anonymizer, err := utils.NewHMACAnonymizer(utils.AnonymizationKeyString("anon-key-or-cluster-id"))
 	require.NoError(t, err)
 
 	cases := []struct {
@@ -312,6 +312,52 @@ func TestConvertAuditEvent(t *testing.T) {
 				},
 			},
 		},
+		{
+			desc: "SessionStart on a beam node includes beam metadata",
+			event: &apievents.SessionStart{
+				UserMetadata: apievents.UserMetadata{User: "alice"},
+				ServerMetadata: apievents.ServerMetadata{
+					ServerLabels: map[string]string{types.BeamIDLabel: "beam-uuid-1234"},
+				},
+			},
+			expected: &SessionStartEvent{
+				SessionType: BeamSessionType,
+				UserName:    "alice",
+				Beam: &prehogv1a.SessionStartBeamMetadata{
+					BeamId: "beam-uuid-1234",
+				},
+			},
+			expectedAnonymized: &prehogv1a.SubmitEventRequest{
+				Event: &prehogv1a.SubmitEventRequest_SessionStartV2{
+					SessionStartV2: &prehogv1a.SessionStartEvent{
+						SessionType: BeamSessionType,
+						UserName:    anonymizer.AnonymizeString("alice"),
+						Beam: &prehogv1a.SessionStartBeamMetadata{
+							BeamId: anonymizer.AnonymizeString("beam-uuid-1234"),
+						},
+					},
+				},
+			},
+		},
+		{
+			desc: "SessionStart on a non-beam node omits beam metadata",
+			event: &apievents.SessionStart{
+				UserMetadata:   apievents.UserMetadata{User: "alice"},
+				ServerMetadata: apievents.ServerMetadata{ServerLabels: map[string]string{"env": "prod"}},
+			},
+			expected: &SessionStartEvent{
+				SessionType: string(types.SSHSessionKind),
+				UserName:    "alice",
+			},
+			expectedAnonymized: &prehogv1a.SubmitEventRequest{
+				Event: &prehogv1a.SubmitEventRequest_SessionStartV2{
+					SessionStartV2: &prehogv1a.SessionStartEvent{
+						SessionType: string(types.SSHSessionKind),
+						UserName:    anonymizer.AnonymizeString("alice"),
+					},
+				},
+			},
+		},
 	}
 
 	for _, tt := range cases {
@@ -319,7 +365,7 @@ func TestConvertAuditEvent(t *testing.T) {
 			actual := ConvertAuditEvent(tt.event)
 			assert.Equal(t, tt.expected, actual)
 			actualAnonymized := actual.Anonymize(anonymizer)
-			assert.Equal(t, tt.expectedAnonymized, &actualAnonymized)
+			assert.Equal(t, tt.expectedAnonymized, actualAnonymized)
 		})
 	}
 }

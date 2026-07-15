@@ -27,7 +27,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
+	"github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/stretchr/testify/require"
@@ -70,7 +70,7 @@ func TestNewS3V2FileWriter(t *testing.T) {
 }
 
 type s3ClientMock struct {
-	manager.UploadAPIClient
+	transfermanager.S3APIClient
 
 	putObjectErr error
 

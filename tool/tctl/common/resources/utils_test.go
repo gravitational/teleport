@@ -20,12 +20,14 @@ package resources
 
 import (
 	"maps"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -188,3 +190,42 @@ var (
 		"label3": "val3",
 	}
 )
+
+func BenchmarkPrintMetadataLabels(b *testing.B) {
+	largeLabels := make(map[string]string, 1000)
+	for i := range 1000 {
+		largeLabels[strconv.Itoa(i)] = "foo"
+	}
+
+	testCases := []struct {
+		name      string
+		labels    map[string]string
+		outputLen int
+	}{
+		{
+			name: "no labels",
+		},
+		{
+			name: "one label",
+			labels: map[string]string{
+				"test": "foo",
+			},
+			outputLen: 8,
+		},
+		{
+			name:      "many labels",
+			labels:    largeLabels,
+			outputLen: 7889,
+		},
+	}
+
+	for _, test := range testCases {
+		b.Run(test.name, func(b *testing.B) {
+			for b.Loop() {
+				out := PrintMetadataLabels(test.labels)
+				assert.Len(b, out, test.outputLen)
+				assert.False(b, strings.HasSuffix(out, ","))
+			}
+		})
+	}
+}

@@ -32,42 +32,49 @@ func SSHIdentityToSSHCA(id *decisionpb.SSHIdentity) *sshca.Identity {
 	}
 
 	return &sshca.Identity{
-		ValidAfter:              id.ValidAfter,
-		ValidBefore:             id.ValidBefore,
-		CertType:                id.CertType,
-		ClusterName:             id.ClusterName,
-		SystemRole:              types.SystemRole(id.SystemRole),
-		Username:                id.Username,
-		ScopePin:                id.ScopePin,
-		Impersonator:            id.Impersonator,
-		Principals:              id.Principals,
-		PermitX11Forwarding:     id.PermitX11Forwarding,
-		PermitAgentForwarding:   id.PermitAgentForwarding,
-		PermitPortForwarding:    id.PermitPortForwarding,
-		Roles:                   id.Roles,
-		RouteToCluster:          id.RouteToCluster,
-		Traits:                  traitToWrappers(id.Traits),
-		ActiveRequests:          id.ActiveRequests,
-		MFAVerified:             id.MfaVerified,
-		PreviousIdentityExpires: timestampToGoTime(id.PreviousIdentityExpires),
-		LoginIP:                 id.LoginIp,
-		PinnedIP:                id.PinnedIp,
-		DisallowReissue:         id.DisallowReissue,
-		CertificateExtensions:   certExtensionsFromProto(id.CertificateExtensions),
-		Renewable:               id.Renewable,
-		Generation:              id.Generation,
-		BotName:                 id.BotName,
-		BotInstanceID:           id.BotInstanceId,
-		JoinToken:               id.JoinToken,
-		AllowedResourceIDs:      resourceIDsToTypes(id.AllowedResourceIds),
-		ConnectionDiagnosticID:  id.ConnectionDiagnosticId,
-		PrivateKeyPolicy:        keys.PrivateKeyPolicy(id.PrivateKeyPolicy),
-		DeviceID:                id.DeviceId,
-		DeviceAssetTag:          id.DeviceAssetTag,
-		DeviceCredentialID:      id.DeviceCredentialId,
-		GitHubUserID:            id.GithubUserId,
-		GitHubUsername:          id.GithubUsername,
-		AgentScope:              id.AgentScope,
+		ValidAfter:              id.GetValidAfter(),
+		ValidBefore:             id.GetValidBefore(),
+		CertType:                id.GetCertType(),
+		ClusterName:             id.GetClusterName(),
+		SystemRole:              types.SystemRole(id.GetSystemRole()),
+		Username:                id.GetUsername(),
+		ScopePin:                id.GetScopePin(),
+		Impersonator:            id.GetImpersonator(),
+		Principals:              id.GetPrincipals(),
+		PermitX11Forwarding:     id.GetPermitX11Forwarding(),
+		PermitAgentForwarding:   id.GetPermitAgentForwarding(),
+		PermitPortForwarding:    id.GetPermitPortForwarding(),
+		Roles:                   id.GetRoles(),
+		RouteToCluster:          id.GetRouteToCluster(),
+		Traits:                  traitToWrappers(id.GetTraits()),
+		ActiveRequests:          id.GetActiveRequests(),
+		MFAVerified:             id.GetMfaVerified(),
+		PreviousIdentityExpires: timestampToGoTime(id.GetPreviousIdentityExpires()),
+		LoginIP:                 id.GetLoginIp(),
+		PinnedIP:                id.GetPinnedIp(),
+		DisallowReissue:         id.GetDisallowReissue(),
+		CertificateExtensions:   certExtensionsFromProto(id.GetCertificateExtensions()),
+		Renewable:               id.GetRenewable(),
+		Generation:              id.GetGeneration(),
+		BotName:                 id.GetBotName(),
+		BotInstanceID:           id.GetBotInstanceId(),
+		BotScope:                id.GetBotScope(),
+		JoinToken:               id.GetJoinToken(),
+		//nolint:staticcheck // TODO(kiosion): deprecated, to be removed in v21
+		AllowedResourceIDs:       resourceIDsToTypes(id.GetAllowedResourceIds()),
+		AllowedResourceAccessIDs: resourceAccessIDPointersToValues(id.GetAllowedResourceAccessIds()),
+		ConnectionDiagnosticID:   id.GetConnectionDiagnosticId(),
+		PrivateKeyPolicy:         keys.PrivateKeyPolicy(id.GetPrivateKeyPolicy()),
+		DeviceID:                 id.GetDeviceId(),
+		DeviceAssetTag:           id.GetDeviceAssetTag(),
+		DeviceCredentialID:       id.GetDeviceCredentialId(),
+		GitHubUserID:             id.GetGithubUserId(),
+		GitHubUsername:           id.GetGithubUsername(),
+		AgentScope:               id.GetAgentScope(),
+		ImmutableLabelHash:       id.GetImmutableLabelHash(),
+		DelegationSessionID:      id.GetDelegationSessionId(),
+		BeamID:                   id.GetBeamId(),
+		HeadlessAuthenticationID: id.GetHeadlessAuthenticationId(),
 	}
 }
 
@@ -76,7 +83,7 @@ func SSHIdentityFromSSHCA(id *sshca.Identity) *decisionpb.SSHIdentity {
 		return nil
 	}
 
-	return &decisionpb.SSHIdentity{
+	return decisionpb.SSHIdentity_builder{
 		ValidAfter:              id.ValidAfter,
 		ValidBefore:             id.ValidBefore,
 		CertType:                id.CertType,
@@ -103,17 +110,24 @@ func SSHIdentityFromSSHCA(id *sshca.Identity) *decisionpb.SSHIdentity {
 		Generation:              id.Generation,
 		BotName:                 id.BotName,
 		BotInstanceId:           id.BotInstanceID,
-		AllowedResourceIds:      resourceIDsFromTypes(id.AllowedResourceIDs),
-		ConnectionDiagnosticId:  id.ConnectionDiagnosticID,
-		PrivateKeyPolicy:        string(id.PrivateKeyPolicy),
-		DeviceId:                id.DeviceID,
-		DeviceAssetTag:          id.DeviceAssetTag,
-		DeviceCredentialId:      id.DeviceCredentialID,
-		GithubUserId:            id.GitHubUserID,
-		GithubUsername:          id.GitHubUsername,
-		JoinToken:               id.JoinToken,
-		AgentScope:              id.AgentScope,
-	}
+		BotScope:                id.BotScope,
+		//nolint:staticcheck // TODO(kiosion): deprecated, to be removed in v21
+		AllowedResourceIds:       resourceIDsFromTypes(id.AllowedResourceIDs),
+		AllowedResourceAccessIds: resourceAccessIDValuesToPointers(id.AllowedResourceAccessIDs),
+		ConnectionDiagnosticId:   id.ConnectionDiagnosticID,
+		PrivateKeyPolicy:         string(id.PrivateKeyPolicy),
+		DeviceId:                 id.DeviceID,
+		DeviceAssetTag:           id.DeviceAssetTag,
+		DeviceCredentialId:       id.DeviceCredentialID,
+		GithubUserId:             id.GitHubUserID,
+		GithubUsername:           id.GitHubUsername,
+		JoinToken:                id.JoinToken,
+		AgentScope:               id.AgentScope,
+		ImmutableLabelHash:       id.ImmutableLabelHash,
+		DelegationSessionId:      id.DelegationSessionID,
+		BeamId:                   id.BeamID,
+		HeadlessAuthenticationId: id.HeadlessAuthenticationID,
+	}.Build()
 }
 
 func certExtensionsFromProto(extensions []*decisionpb.CertExtension) []*types.CertExtension {
@@ -123,10 +137,10 @@ func certExtensionsFromProto(extensions []*decisionpb.CertExtension) []*types.Ce
 	out := make([]*types.CertExtension, 0, len(extensions))
 	for _, extension := range extensions {
 		out = append(out, &types.CertExtension{
-			Mode:  types.CertExtensionMode(int32(extension.Mode) - 1), // enum is equivalent but off by 1
-			Type:  types.CertExtensionType(int32(extension.Type) - 1), // enum is equivalent but off by 1
-			Name:  extension.Name,
-			Value: extension.Value,
+			Mode:  types.CertExtensionMode(int32(extension.GetMode()) - 1), // enum is equivalent but off by 1
+			Type:  types.CertExtensionType(int32(extension.GetType()) - 1), // enum is equivalent but off by 1
+			Name:  extension.GetName(),
+			Value: extension.GetValue(),
 		})
 	}
 	return out
@@ -138,12 +152,12 @@ func certExtensionsToProto(extensions []*types.CertExtension) []*decisionpb.Cert
 	}
 	out := make([]*decisionpb.CertExtension, 0, len(extensions))
 	for _, extension := range extensions {
-		out = append(out, &decisionpb.CertExtension{
+		out = append(out, decisionpb.CertExtension_builder{
 			Mode:  decisionpb.CertExtensionMode(int32(extension.Mode) + 1), // enum is equivalent but off by 1
 			Type:  decisionpb.CertExtensionType(int32(extension.Type) + 1), // enum is equivalent but off by 1
 			Name:  extension.Name,
 			Value: extension.Value,
-		})
+		}.Build())
 	}
 	return out
 }

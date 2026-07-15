@@ -159,10 +159,15 @@ func ListKubeClustersWithFilters(ctx context.Context, p client.GetResourcesClien
 	return extractAndSortKubeClusters(kss), nil
 }
 
+type kubeClusterKey struct {
+	name  string
+	scope string
+}
+
 func extractAndSortKubeClusters(kss []types.KubeServer) []types.KubeCluster {
-	uniqueClusters := make(map[string]types.KubeCluster)
+	uniqueClusters := make(map[kubeClusterKey]types.KubeCluster)
 	for _, ks := range kss {
-		uniqueClusters[ks.GetName()] = ks.GetCluster()
+		uniqueClusters[kubeClusterKey{name: ks.GetName(), scope: ks.GetScope()}] = ks.GetCluster()
 	}
 	kubeClusters := make([]types.KubeCluster, 0, len(uniqueClusters))
 	for _, cluster := range uniqueClusters {
@@ -177,38 +182,9 @@ func extractAndSortKubeClusters(kss []types.KubeServer) []types.KubeCluster {
 	return []types.KubeCluster(sorted)
 }
 
-type Pinger interface {
-	Ping(context.Context) (proto.PingResponse, error)
-}
-
 // GetKubeAgentVersion returns a version of the Kube agent appropriate for this Teleport cluster. Used for example when deciding version
 // for enrolling EKS clusters.
-func GetKubeAgentVersion(ctx context.Context, pinger Pinger, clusterFeatures proto.Features, versionGetter version.Getter) (*semver.Version, error) {
-	pingResponse, err := pinger.Ping(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var agentVersion *semver.Version
-
-	// TODO(hugoShaka) remove the conditional check, we always use the cluster version
-	if clusterFeatures.GetAutomaticUpgrades() && clusterFeatures.GetCloud() {
-		defaultVersion, err := versionGetter.GetVersion(ctx)
-		if err == nil {
-			agentVersion = defaultVersion
-		} else if !errors.Is(err, &version.NoNewVersionError{}) {
-			return nil, trace.Wrap(err)
-		}
-	}
-
-	if agentVersion == nil {
-		clusterVersion, err := version.EnsureSemver(pingResponse.ServerVersion)
-		if err != nil {
-			return nil, trace.Wrap(err, "failed to parse cluster version")
-		} else {
-			agentVersion = clusterVersion
-		}
-	}
-
-	return agentVersion, nil
+func GetKubeAgentVersion(ctx context.Context, versionGetter version.Getter) (*semver.Version, error) {
+	v, err := versionGetter.GetVersion(ctx)
+	return v, trace.Wrap(err)
 }

@@ -33,6 +33,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |cloud_metadata|[object](#speccloud_metadata)|CloudMetadata contains info about the cloud instance the server is running on, if any.|
 |github|[object](#specgithub)|GitHub contains info about GitHub proxies where each server represents a GitHub organization.|
 |hostname|string|Hostname is server hostname|
+|immutable_labels|[object](#specimmutable_labels)|The immutable labels assigned to the server when joining. The hash of these labels is expected to match the hash included in the server's certificate.|
 |peer_addr|string|PeerAddr is the address a proxy server is reachable at by its peer proxies.|
 |proxy_ids|[]string|ProxyIDs is a list of proxy IDs this server is expected to be connected to.|
 |public_addrs|[]string|PublicAddrs is a list of public addresses where this server can be reached.|
@@ -65,6 +66,13 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |---|---|---|
 |integration|string|Integration is the integration that is associated with this Server.|
 |organization|string|Organization specifies the name of the organization for the GitHub integration.|
+
+### spec.immutable_labels
+
+|Field|Type|Description|
+|---|---|---|
+|key|string||
+|value|string||
 
 ### spec.rotation
 

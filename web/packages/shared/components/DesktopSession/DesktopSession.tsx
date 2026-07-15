@@ -17,6 +17,7 @@
  */
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { ReactNode } from 'react';
 
 import {
   Alert,
@@ -34,34 +35,42 @@ import {
   CanvasRenderer,
   CanvasRendererRef,
 } from 'shared/components/CanvasRenderer';
+import { DirectoryItem } from 'shared/components/DesktopSession/DirectoryList';
+import { FieldSelect } from 'shared/components/FieldSelect';
 import { Latency } from 'shared/components/LatencyDiagnostic';
+import type { ToastNotificationItem } from 'shared/components/ToastNotification';
+import Validation from 'shared/components/Validation';
 import {
   Attempt,
   makeEmptyAttempt,
   makeSuccessAttempt,
   useAsync,
 } from 'shared/hooks/useAsync';
+import { useLocalStorage } from 'shared/hooks/useLocalStorage';
 import {
   ButtonState,
   ScrollAxis,
   TdpClient,
   useListener,
+  MAX_SHARED_DIRECTORIES,
 } from 'shared/libs/tdp';
 import { TdpError } from 'shared/libs/tdp/client';
 
 import { InputHandler } from './InputHandler';
-import TopBar from './TopBar';
 import useDesktopSession, {
   clipboardSharingMessage,
+  directorySharingMessage,
   directorySharingPossible,
   isSharingClipboard,
-  isSharingDirectory,
 } from './useDesktopSession';
+
+export interface ServerCapabilities {
+  canRemoveSharedDirectories: boolean;
+  canShareMultipleDirectories: boolean;
+}
 
 export interface DesktopSessionProps {
   client: TdpClient;
-  /** Username for display purposes. */
-  username: string;
   /** Desktop name for display purposes. */
   desktop: string;
   aclAttempt: Attempt<{
@@ -82,32 +91,83 @@ export interface DesktopSessionProps {
    * Spec can be found here: https://learn.microsoft.com/en-us/globalization/windows-keyboard-layouts
    */
   keyboardLayout?: number;
+  renderControls(props: DesktopSessionControlsRenderProps): ReactNode;
+}
+
+export interface DesktopSessionControlsRenderProps {
+  canShareDirectory: boolean;
+  isSharingClipboard: boolean;
+  clipboardSharingMessage: string;
+  onCtrlAltDel: VoidFunction;
+  onDisconnect: VoidFunction;
+  alerts: ToastNotificationItem[];
+  onRemoveAlert(id: string): void;
+  isConnected: boolean;
+  latencyStats: Latency;
+  hiDpiEnabled: boolean;
+  onToggleHiDpi: VoidFunction;
+  screenIsHiDpi: boolean;
+  hiDpiSupported: boolean;
+  onAddSharedDirectory: VoidFunction;
+  sharedDirectories: DirectoryItem[];
+  onRemoveSharedDirectory: (id: number) => void;
+  canRemoveSharedDirectory: boolean;
+  maxSharedDirectories: number;
+  directorySharingMessage: string;
+  canShareMultipleDirectories: boolean;
 }
 
 export function DesktopSession({
   client,
-  aclAttempt,
-  username,
   desktop,
+  aclAttempt,
   hasAnotherSession,
   customConnectionState,
   keyboardLayout = 0,
+  renderControls,
   browserSupportsSharing,
 }: DesktopSessionProps) {
   const {
     directorySharingState,
     onClipboardData,
-    sendLocalClipboardToRemote,
+    onTransientUserActivation,
     clipboardSharingState,
-    clearSharing,
-    onShareDirectory,
+    sharedDirectoriesState,
+    addSharedDirectory,
+    removeSharedDirectory,
     alerts,
     onRemoveAlert,
     addAlert,
+    connect,
   } = useDesktopSession(client, aclAttempt, browserSupportsSharing);
-
   const [tdpConnectionStatus, setTdpConnectionStatus] =
     useState<TdpConnectionStatus>({ status: '' });
+  const [hiDpiSettings, setHiDpiSettings] = useLocalStorage<
+    Record<string, boolean>
+  >(
+    'grv_teleport_desktop_hidpi', // manually written here as we cannot import from teleport
+    {}
+  );
+  const isHiDpi = hiDpiSettings[desktop] ?? false;
+  const setIsHiDpi = useCallback(
+    (value: boolean) => {
+      setHiDpiSettings(prev => ({ ...prev, [desktop]: value }));
+    },
+    [desktop, setHiDpiSettings]
+  );
+
+  // Track devicePixelRatio so the HiDPI screen indicator updates
+  // when the window is dragged between displays with different DPRs.
+  const [devicePixelRatio, setDevicePixelRatio] = useState(
+    window.devicePixelRatio
+  );
+  useEffect(() => {
+    const mql = window.matchMedia(`(resolution: ${devicePixelRatio}dppx)`);
+    const onChange = () => setDevicePixelRatio(window.devicePixelRatio);
+    mql.addEventListener('change', onChange);
+    return () => mql.removeEventListener('change', onChange);
+  }, [devicePixelRatio]);
+  const screenIsHiDpi = devicePixelRatio > 1;
 
   const inputHandler = useRef(new InputHandler());
   useEffect(() => {
@@ -143,25 +203,21 @@ export function DesktopSession({
 
   useListener(client.onClipboardData, onClipboardData);
 
-  const handleConnectionClose = useCallback(
-    (error?: Error) => {
-      clearSharing();
-      setTdpConnectionStatus({
-        status: 'disconnected',
-        fromTdpError: error instanceof TdpError,
-        message: error?.message || '',
-      });
-      initialTdpConnectionSucceeded.current = false;
-    },
-    [clearSharing]
-  );
+  const handleConnectionClose = useCallback((error?: Error) => {
+    setTdpConnectionStatus({
+      status: 'disconnected',
+      fromTdpError: error instanceof TdpError,
+      message: error?.message || '',
+    });
+    initialTdpConnectionSucceeded.current = false;
+  }, []);
   useListener(client.onError, handleConnectionClose);
   useListener(client.onTransportClose, handleConnectionClose);
 
   const addWarning = useCallback(
     (warning: string) => {
       addAlert({
-        content: warning,
+        content: { title: 'Warning', description: warning },
         severity: 'warn',
       });
     },
@@ -175,7 +231,7 @@ export function DesktopSession({
     useCallback(
       info => {
         addAlert({
-          content: info,
+          content: { title: 'Notice', description: info },
           severity: 'info',
         });
       },
@@ -225,6 +281,19 @@ export function DesktopSession({
     }, [])
   );
 
+  const [serverCapabilities, setServerCapabilities] = useState<
+    ServerCapabilities | undefined
+  >({ canRemoveSharedDirectories: false, canShareMultipleDirectories: false });
+  useListener(
+    client.onServerCapabilities,
+    useCallback(caps => {
+      setServerCapabilities({
+        canRemoveSharedDirectories: caps.directoryRemoval,
+        canShareMultipleDirectories: caps.multidirectorySharing,
+      });
+    }, [])
+  );
+
   const shouldConnect =
     aclAttempt.status === 'success' &&
     anotherDesktopActiveAttempt.status === 'success' &&
@@ -233,14 +302,32 @@ export function DesktopSession({
     if (!shouldConnect) {
       return;
     }
-    void client.connect({
+
+    connect({
       keyboardLayout,
       screenSpec: canvasRendererRef.current.getSize(),
-    });
+    }).catch(handleConnectionClose);
+
     return () => {
       client.shutdown();
     };
   }, [client, shouldConnect, keyboardLayout]);
+
+  // When the HiDPI toggle changes, send the updated scale to the server.
+  const prevIsHiDpi = useRef(isHiDpi);
+  useEffect(() => {
+    if (prevIsHiDpi.current === isHiDpi) {
+      return;
+    }
+
+    prevIsHiDpi.current = isHiDpi;
+
+    const size = canvasRendererRef.current?.getSize();
+
+    if (size) {
+      client.resize(size);
+    }
+  }, [isHiDpi, client]);
 
   function handleKeyDown(e: React.KeyboardEvent) {
     inputHandler.current.handleInputEvent({
@@ -257,7 +344,7 @@ export function DesktopSession({
       // Opportunistically sync local clipboard to remote while
       // transient user activation is in effect.
       // https://developer.mozilla.org/en-US/docs/Web/API/Clipboard/readText#security
-      sendLocalClipboardToRemote();
+      onTransientUserActivation();
     }
   }
 
@@ -273,14 +360,45 @@ export function DesktopSession({
     inputHandler.current.onFocusOut();
   }
 
-  function handleMouseMove(e: React.MouseEvent) {
+  function scaleEvent(e: React.MouseEvent<HTMLCanvasElement>) {
     const rect = e.currentTarget.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    client.sendMouseMove(x, y);
+    const canvas = e.currentTarget;
+
+    const scale = Math.min(
+      1,
+      rect.width / canvas.width,
+      rect.height / canvas.height
+    );
+
+    const renderedWidth = canvas.width * scale;
+    const renderedHeight = canvas.height * scale;
+
+    // calculate offset from center
+    const offsetX = (rect.width - renderedWidth) / 2;
+    const offsetY = (rect.height - renderedHeight) / 2;
+
+    const x = Math.round((e.clientX - rect.left - offsetX) / scale);
+    const y = Math.round((e.clientY - rect.top - offsetY) / scale);
+
+    const inBounds = x >= 0 && y >= 0 && x < canvas.width && y < canvas.height;
+
+    return { x, y, inBounds };
   }
 
-  function handleMouseDown(e: React.MouseEvent) {
+  function handleMouseMove(e: React.MouseEvent<HTMLCanvasElement>) {
+    const scaled = scaleEvent(e);
+
+    if (scaled.inBounds) {
+      client.sendMouseMove(scaled.x, scaled.y);
+    }
+  }
+
+  function handleMouseDown(e: React.MouseEvent<HTMLCanvasElement>) {
+    const scaled = scaleEvent(e);
+    if (!scaled.inBounds) {
+      return;
+    }
+
     inputHandler.current.handleInputEvent({
       cli: client,
       e: e.nativeEvent,
@@ -290,10 +408,10 @@ export function DesktopSession({
     // Opportunistically sync local clipboard to remote while
     // transient user activation is in effect.
     // https://developer.mozilla.org/en-US/docs/Web/API/Clipboard/readText#security
-    sendLocalClipboardToRemote();
+    onTransientUserActivation();
   }
 
-  function handleMouseUp(e: React.MouseEvent) {
+  function handleMouseUp(e: React.MouseEvent<HTMLCanvasElement>) {
     inputHandler.current.handleInputEvent({
       cli: client,
       e: e.nativeEvent,
@@ -342,6 +460,28 @@ export function DesktopSession({
     customConnectionState?.({ retry: onRetry })
   );
 
+  const controlsProps: DesktopSessionControlsRenderProps = {
+    canShareDirectory: directorySharingPossible(directorySharingState),
+    isSharingClipboard: isSharingClipboard(clipboardSharingState),
+    clipboardSharingMessage: clipboardSharingMessage(clipboardSharingState),
+    onCtrlAltDel: handleCtrlAltDel,
+    onDisconnect: () => client.shutdown(),
+    alerts,
+    onRemoveAlert,
+    isConnected: screenState.state === 'canvas-visible',
+    latencyStats,
+    hiDpiEnabled: isHiDpi,
+    onToggleHiDpi: () => setIsHiDpi(!isHiDpi),
+    screenIsHiDpi,
+    hiDpiSupported: client.hidpiSupported,
+    sharedDirectories: sharedDirectoriesState,
+    onAddSharedDirectory: addSharedDirectory,
+    onRemoveSharedDirectory: removeSharedDirectory,
+    canRemoveSharedDirectory: serverCapabilities.canRemoveSharedDirectories,
+    canShareMultipleDirectories: serverCapabilities.canShareMultipleDirectories,
+    maxSharedDirectories: MAX_SHARED_DIRECTORIES,
+    directorySharingMessage: directorySharingMessage(directorySharingState),
+  };
   return (
     <Flex
       flexDirection="column"
@@ -352,22 +492,7 @@ export function DesktopSession({
         height: 100%;
       `}
     >
-      <TopBar
-        isConnected={screenState.state === 'canvas-visible'}
-        onDisconnect={() => {
-          client.shutdown();
-        }}
-        userHost={`${username} on ${desktop}`}
-        canShareDirectory={directorySharingPossible(directorySharingState)}
-        isSharingDirectory={isSharingDirectory(directorySharingState)}
-        isSharingClipboard={isSharingClipboard(clipboardSharingState)}
-        clipboardSharingMessage={clipboardSharingMessage(clipboardSharingState)}
-        onShareDirectory={onShareDirectory}
-        onCtrlAltDel={handleCtrlAltDel}
-        alerts={alerts}
-        onRemoveAlert={onRemoveAlert}
-        latency={latencyStats}
-      />
+      {renderControls(controlsProps)}
 
       {/* The UI states below (except the loading indicator) take up space.*/}
       {/* They're hidden while the canvas is visible, so when `connect()` reads the screen size, */}
@@ -402,6 +527,7 @@ export function DesktopSession({
         onMouseWheel={handleMouseWheel}
         onContextMenu={handleContextMenu}
         onResize={client.resize}
+        isHiDpi={isHiDpi}
       />
     </Flex>
   );
@@ -428,6 +554,44 @@ function DisconnectedStateContainer(props: {
       </Flex>
       {props.children}
     </Flex>
+  );
+}
+
+export function SessionSelection(props: {
+  desktopName: string;
+  sessions: string[];
+  onConnect: (session: string) => void;
+}) {
+  const options = props.sessions.map(session => ({
+    value: session,
+    label: session,
+  }));
+  const [session, setSession] = useState(options[0]);
+  return (
+    <DisconnectedStateContainer desktopName={props.desktopName}>
+      <Text mb={3}>Select session to start:</Text>
+      <Validation>
+        <FieldSelect
+          value={session}
+          options={options}
+          menuPosition="fixed"
+          isMulti={false}
+          isClearable={false}
+          onChange={setSession}
+        />
+      </Validation>
+      <ButtonPrimary
+        type="submit"
+        width="45%"
+        size="large"
+        onClick={e => {
+          e.preventDefault();
+          props.onConnect(session.value);
+        }}
+      >
+        Connect
+      </ButtonPrimary>
+    </DisconnectedStateContainer>
   );
 }
 

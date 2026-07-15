@@ -7,9 +7,13 @@ tags:
 - conceptual
 - zero-trust
 - infrastructure-identity
+page_type: conceptual
 ---
 
-This documentation provides an overview of Kubernetes cluster health checks with Teleport. Teleport Kubernetes Service instances periodically check the connectivity and permissions of enrolled Kubernetes clusters. 
+With Teleport Kubernetes health checks, Teleport Kubernetes Service instances
+periodically check the connectivity and permissions of enrolled Kubernetes
+clusters. This page describes how Kubernetes health checks work and how you can
+configure them for your cluster.
 
 Kubernetes cluster health checks are available in Teleport version (= kubernetes.health_check_min_version =) and later.
 
@@ -163,7 +167,7 @@ spec:
   # config applies.
   match:
     # disable all labels and expressions for all resources in this config
-    disable: false
+    disabled: false
     # kubernetes_labels matches Kubernetes cluster labels. An empty value is ignored.
     # If kubernetes_labels_expression is also set, then the match result is the logical
     # AND of both.
@@ -211,7 +215,7 @@ metadata:
   name: default-kube
 spec:
   match:
-    disable: true
+    disabled: true
     kubernetes_labels:
     - name: '*'
       values:
@@ -219,7 +223,7 @@ spec:
 version: v1
 ```
 
-Any defined labels, such as `kubernetes_labels`, are ignored when `disable: true`.
+Any defined labels, such as `kubernetes_labels`, are ignored when `disabled: true`.
 
 ## `tctl` health check commands
 

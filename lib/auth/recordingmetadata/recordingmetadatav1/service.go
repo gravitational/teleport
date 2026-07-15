@@ -58,10 +58,10 @@ type Authorizer interface {
 
 // DownloadHandler downloads session recording metadata and thumbnails.
 type DownloadHandler interface {
-	// DownloadMetadata downloads session metadata and writes it to a writer.
-	DownloadMetadata(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error
-	// DownloadThumbnail downloads a session thumbnail and writes it to a writer.
-	DownloadThumbnail(ctx context.Context, sessionID session.ID, writer events.RandomAccessWriter) error
+	// StreamSessionMetadata downloads session metadata and returns a ReadCloser for the content.
+	StreamSessionMetadata(ctx context.Context, sessionID session.ID) (io.ReadCloser, error)
+	// StreamSessionThumbnail downloads a session thumbnail and returns a ReadCloser for the content.
+	StreamSessionThumbnail(ctx context.Context, sessionID session.ID) (io.ReadCloser, error)
 }
 
 // ServiceConfig holds the configuration for the recording metadata service.
@@ -97,17 +97,17 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 // GetThumbnail retrieves the thumbnail for a session recording.
 func (r *Service) GetThumbnail(ctx context.Context, req *pb.GetThumbnailRequest) (*pb.GetThumbnailResponse, error) {
 	// Authorize will have checked the session end event to ensure the user has access to the session recording.
-	if err := r.authorizer.Authorize(ctx, req.SessionId); err != nil {
+	if err := r.authorizer.Authorize(ctx, req.GetSessionId()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	buf := &memBuffer{}
-	err := r.downloadHandler.DownloadThumbnail(ctx, session.ID(req.SessionId), buf)
+	rc, err := r.downloadHandler.StreamSessionThumbnail(ctx, session.ID(req.GetSessionId()))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	defer rc.Close()
 
-	payload, err := r.decryptIfNeeded(ctx, buf.Bytes())
+	payload, err := r.decryptIfNeeded(ctx, rc)
 	if err != nil {
 		return nil, trace.Wrap(err, "decrypting session recording thumbnail")
 	}
@@ -118,24 +118,24 @@ func (r *Service) GetThumbnail(ctx context.Context, req *pb.GetThumbnailRequest)
 		return nil, trace.Wrap(err)
 	}
 
-	return &pb.GetThumbnailResponse{Thumbnail: thumbnail}, nil
+	return pb.GetThumbnailResponse_builder{Thumbnail: thumbnail}.Build(), nil
 }
 
 // GetMetadata retrieves the metadata for a session recording, streaming it back in chunks (one for metadata and one
 // for each frame).
 func (r *Service) GetMetadata(req *pb.GetMetadataRequest, stream grpc.ServerStreamingServer[pb.GetMetadataResponseChunk]) error {
 	// Authorize will have checked the session end event to ensure the user has access to the session recording.
-	if err := r.authorizer.Authorize(stream.Context(), req.SessionId); err != nil {
+	if err := r.authorizer.Authorize(stream.Context(), req.GetSessionId()); err != nil {
 		return trace.Wrap(err)
 	}
 
-	buf := &memBuffer{}
-	err := r.downloadHandler.DownloadMetadata(stream.Context(), session.ID(req.SessionId), buf)
+	rc, err := r.downloadHandler.StreamSessionMetadata(stream.Context(), session.ID(req.GetSessionId()))
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	defer rc.Close()
 
-	payload, err := r.decryptIfNeeded(stream.Context(), buf.Bytes())
+	payload, err := r.decryptIfNeeded(stream.Context(), rc)
 	if err != nil {
 		return trace.Wrap(err, "decrypting session recording thumbnail")
 	}
@@ -148,23 +148,21 @@ func (r *Service) GetMetadata(req *pb.GetMetadataRequest, stream grpc.ServerStre
 				break
 			}
 			r.logger.ErrorContext(stream.Context(), "Failed to read delimited message",
-				"session_id", req.SessionId, "error", err)
+				"session_id", req.GetSessionId(), "error", err)
 			return trace.Wrap(err)
 		}
 
 		// Try to decode as metadata
 		metadata := &pb.SessionRecordingMetadata{}
 		if err := proto.Unmarshal(msgBytes, metadata); err == nil {
-			metadataChunk := &pb.GetMetadataResponseChunk{
-				Chunk: &pb.GetMetadataResponseChunk_Metadata{
-					Metadata: metadata,
-				},
-			}
+			metadataChunk := pb.GetMetadataResponseChunk_builder{
+				Metadata: proto.ValueOrDefault(metadata),
+			}.Build()
 
 			if err := stream.Send(metadataChunk); err != nil {
 				if !errors.Is(err, io.EOF) {
 					r.logger.ErrorContext(stream.Context(), "Failed to send session recording metadata",
-						"session_id", req.SessionId, "error", err)
+						"session_id", req.GetSessionId(), "error", err)
 				}
 				return trace.Wrap(err)
 			}
@@ -175,16 +173,14 @@ func (r *Service) GetMetadata(req *pb.GetMetadataRequest, stream grpc.ServerStre
 		// Try to decode as thumbnail
 		thumbnail := &pb.SessionRecordingThumbnail{}
 		if err := proto.Unmarshal(msgBytes, thumbnail); err == nil {
-			frameChunk := &pb.GetMetadataResponseChunk{
-				Chunk: &pb.GetMetadataResponseChunk_Frame{
-					Frame: thumbnail,
-				},
-			}
+			frameChunk := pb.GetMetadataResponseChunk_builder{
+				Frame: proto.ValueOrDefault(thumbnail),
+			}.Build()
 
 			if err := stream.Send(frameChunk); err != nil {
 				if !errors.Is(err, io.EOF) {
 					r.logger.ErrorContext(stream.Context(), "Failed to send session recording thumbnail",
-						"session_id", req.SessionId, "error", err)
+						"session_id", req.GetSessionId(), "error", err)
 				}
 				return trace.Wrap(err)
 			}
@@ -193,7 +189,7 @@ func (r *Service) GetMetadata(req *pb.GetMetadataRequest, stream grpc.ServerStre
 		}
 
 		r.logger.ErrorContext(stream.Context(), "Failed to parse message as metadata or thumbnail",
-			"session_id", req.SessionId)
+			"session_id", req.GetSessionId())
 
 		return trace.Errorf("unable to parse message as metadata or thumbnail")
 	}
@@ -233,8 +229,12 @@ func readDelimitedMessage(r *bufio.Reader) ([]byte, error) {
 	return msgBytes, nil
 }
 
-// decryptIfNeeded decrypts the data if it is encrypted. If the data is not encrypted, it is returned as-is.
-func (r *Service) decryptIfNeeded(ctx context.Context, data []byte) ([]byte, error) {
-	unencrypted, err := recordingencryption.DecryptBufferIfEncrypted(ctx, data, r.decrypter)
-	return unencrypted, trace.Wrap(err)
+// decryptIfNeeded decrypts the reader if it is encrypted. If the data is not encrypted, it is returned as-is.
+func (r *Service) decryptIfNeeded(ctx context.Context, reader io.ReadCloser) ([]byte, error) {
+	decrypted, err := recordingencryption.DecryptReaderIfEncrypted(ctx, reader, r.decrypter)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to create decrypt reader")
+	}
+	decryptedData, err := io.ReadAll(decrypted)
+	return decryptedData, trace.Wrap(err)
 }

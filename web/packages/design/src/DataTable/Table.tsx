@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { PropsWithChildren, ReactNode, type JSX } from 'react';
+import React, { ReactNode, type JSX } from 'react';
 
 import { Box, Flex, Indicator, P1, Text } from 'design';
 import * as Icons from 'design/Icon';
@@ -50,6 +50,7 @@ export default function Table<T>(props: TableProps<T>) {
     isSearchable,
     fetching,
     className,
+    hideEmptyIcon,
     style,
     serversideProps,
     customSort,
@@ -110,41 +111,46 @@ export default function Table<T>(props: TableProps<T>) {
     ) {
       return <LoadingIndicator colSpan={columns.length} />;
     }
-    data.map((item, rowIdx) => {
-      const TableRow: React.FC<PropsWithChildren> = ({ children }) => (
+    data.forEach((item, rowIdx) => {
+      const customRow = row?.customRow?.(item);
+      const renderAfter = row?.renderAfter?.(item);
+      const rowKey = row?.getKey?.(item) ?? rowIdx;
+
+      const trContent = customRow
+        ? customRow
+        : columns.flatMap((column, columnIdx) => {
+            if (column.isNonRender) {
+              return []; // does not include this column.
+            }
+
+            const $cell = column.render ? (
+              column.render(item)
+            ) : (
+              <TextCell data={column.key ? item[column.key] : undefined} />
+            );
+
+            return (
+              <React.Fragment key={`${rowKey} ${columnIdx}`}>
+                {$cell}
+              </React.Fragment>
+            );
+          });
+
+      rows.push(
         <tr
-          key={rowIdx}
+          key={rowKey}
           onClick={() => row?.onClick?.(item)}
           style={row?.getStyle?.(item)}
         >
-          {children}
+          {trContent}
         </tr>
       );
 
-      const customRow = row?.customRow?.(item);
-      if (customRow) {
-        rows.push(<TableRow key={rowIdx}>{customRow}</TableRow>);
-        return;
+      if (renderAfter) {
+        rows.push(
+          <React.Fragment key={`${rowKey}-after`}>{renderAfter}</React.Fragment>
+        );
       }
-
-      const cells = columns.flatMap((column, columnIdx) => {
-        if (column.isNonRender) {
-          return []; // does not include this column.
-        }
-
-        const $cell = column.render ? (
-          column.render(item)
-        ) : (
-          <TextCell data={column.key ? item[column.key] : undefined} />
-        );
-
-        return (
-          <React.Fragment key={`${rowIdx} ${columnIdx}`}>
-            {$cell}
-          </React.Fragment>
-        );
-      });
-      rows.push(<TableRow key={rowIdx}>{cells}</TableRow>);
     });
 
     if (rows.length) {
@@ -163,6 +169,7 @@ export default function Table<T>(props: TableProps<T>) {
     return (
       <EmptyIndicator
         emptyText={emptyText}
+        hideIcon={hideEmptyIcon}
         emptyHint={emptyHint}
         emptyButton={emptyButton}
         colSpan={columns.length}
@@ -389,7 +396,9 @@ const EmptyIndicator = ({
   emptyHint,
   emptyButton,
   colSpan,
+  hideIcon = false,
 }: {
+  hideIcon?: boolean;
   emptyText: string;
   emptyHint: string | undefined;
   emptyButton: JSX.Element | undefined;
@@ -411,15 +420,18 @@ const EmptyIndicator = ({
             alignItems="flex-start"
             justifyContent="center"
           >
-            <Icons.Database
-              color="text.main"
-              // line-height and height must match line-height of Text below for the icon to be
-              // aligned to the first line of Text if Text spans multiple lines.
-              css={`
-                line-height: 32px;
-                height: 32px;
-              `}
-            />
+            {/* TODO (avatus) allow overriding this icon */}
+            {!hideIcon && (
+              <Icons.Database
+                color="text.main"
+                // line-height and height must match line-height of Text below for the icon to be
+                // aligned to the first line of Text if Text spans multiple lines.
+                css={`
+                  line-height: 32px;
+                  height: 32px;
+                `}
+              />
+            )}
             <Text textAlign="center" typography="h1" m="0" color="text.main">
               {emptyText}
             </Text>

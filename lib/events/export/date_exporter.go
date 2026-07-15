@@ -362,9 +362,9 @@ func (e *DateExporter) fetchAndProcessChunks(ctx context.Context) (int, error) {
 	// and/or how many complete export cycles have been performed.
 	defer e.waitForInflightChunks()
 
-	chunks := e.cfg.Client.GetEventExportChunks(ctx, &auditlogpb.GetEventExportChunksRequest{
+	chunks := e.cfg.Client.GetEventExportChunks(ctx, auditlogpb.GetEventExportChunksRequest_builder{
 		Date: timestamppb.New(e.cfg.Date),
-	})
+	}.Build())
 
 	var newChunks int
 
@@ -372,7 +372,7 @@ func (e *DateExporter) fetchAndProcessChunks(ctx context.Context) (int, error) {
 		// known chunks should be skipped
 		var skip bool
 		e.withLock(func() {
-			if _, ok := e.chunks[chunks.Item().Chunk]; ok {
+			if _, ok := e.chunks[chunks.Item().GetChunk()]; ok {
 				skip = true
 				return
 			}
@@ -385,7 +385,7 @@ func (e *DateExporter) fetchAndProcessChunks(ctx context.Context) (int, error) {
 			continue
 		}
 
-		if ok := e.startProcessingChunk(ctx, chunks.Item().Chunk, "" /* cursor */); !ok {
+		if ok := e.startProcessingChunk(ctx, chunks.Item().GetChunk(), "" /* cursor */); !ok {
 			return newChunks, trace.Wrap(ctx.Err())
 		}
 
@@ -440,11 +440,11 @@ func (e *DateExporter) processChunk(ctx context.Context, chunk string, entry *ch
 Outer:
 	for {
 
-		events := e.cfg.Client.ExportUnstructuredEvents(ctx, &auditlogpb.ExportUnstructuredEventsRequest{
+		events := e.cfg.Client.ExportUnstructuredEvents(ctx, auditlogpb.ExportUnstructuredEventsRequest_builder{
 			Date:   timestamppb.New(e.cfg.Date),
 			Chunk:  chunk,
 			Cursor: entry.getCursor(),
-		})
+		}.Build())
 
 		var err error
 		if e.cfg.Export != nil {
@@ -596,7 +596,7 @@ func (e *DateExporter) exportEvents(ctx context.Context, events stream.Stream[*a
 			return trace.Wrap(err)
 		}
 
-		entry.setCursor(events.Item().Cursor)
+		entry.setCursor(events.Item().GetCursor())
 	}
 	return trace.Wrap(events.Done())
 }

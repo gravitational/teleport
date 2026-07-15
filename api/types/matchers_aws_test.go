@@ -240,18 +240,9 @@ func TestAWSMatcherCheckAndSetDefaults(t *testing.T) {
 				Tags: Labels{
 					"*": []string{"*"},
 				},
-				Params: &InstallerParams{
-					JoinMethod:      "iam",
-					JoinToken:       "aws-discovery-iam-token",
-					InstallTeleport: true,
-					ScriptName:      "default-installer",
-					SSHDConfig:      "/etc/ssh/sshd_config",
-					EnrollMode:      InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT,
-				},
 				AssumeRole: &AssumeRole{
 					ExternalID: "id123",
 				},
-				SSM: &AWSSSM{DocumentName: "TeleportDiscoveryInstaller"},
 			},
 		},
 		{
@@ -445,6 +436,88 @@ func TestAWSMatcherCheckAndSetDefaults(t *testing.T) {
 				},
 			},
 			errCheck: isBadParameterErr,
+		},
+		{
+			name: "eks matcher with integration does not trigger EICE logic",
+			in: &AWSMatcher{
+				Types:       []string{"eks"},
+				Regions:     []string{"us-east-1"},
+				Integration: "my-integration",
+			},
+			errCheck: require.NoError,
+			expected: &AWSMatcher{
+				Types:       []string{"eks"},
+				Regions:     []string{"us-east-1"},
+				Integration: "my-integration",
+				Tags: Labels{
+					"*": []string{"*"},
+				},
+			},
+		},
+		{
+			name: "eks matcher with valid setup_access_for_arn",
+			in: &AWSMatcher{
+				Types:             []string{"eks"},
+				Regions:           []string{"us-east-1"},
+				SetupAccessForARN: "arn:aws:iam::123456789012:role/my-role",
+			},
+			errCheck: require.NoError,
+			expected: &AWSMatcher{
+				Types:             []string{"eks"},
+				Regions:           []string{"us-east-1"},
+				SetupAccessForARN: "arn:aws:iam::123456789012:role/my-role",
+				Tags: Labels{
+					"*": []string{"*"},
+				},
+			},
+		},
+		{
+			name: "ec2 matcher with setup_access_for_arn fails",
+			in: &AWSMatcher{
+				Types:             []string{"ec2"},
+				Regions:           []string{"us-east-1"},
+				SetupAccessForARN: "arn:aws:iam::123456789012:role/my-role",
+			},
+			errCheck: isBadParameterErr,
+		},
+		{
+			name: "eks matcher does not get install params or ssm defaults",
+			in: &AWSMatcher{
+				Types:   []string{"eks"},
+				Regions: []string{"us-east-1"},
+			},
+			errCheck: require.NoError,
+			expected: &AWSMatcher{
+				Types:   []string{"eks"},
+				Regions: []string{"us-east-1"},
+				Tags: Labels{
+					"*": []string{"*"},
+				},
+			},
+		},
+		{
+			name: "mixed ec2 and eks matcher gets install params and ssm defaults",
+			in: &AWSMatcher{
+				Types:   []string{"ec2", "eks"},
+				Regions: []string{"us-east-1"},
+			},
+			errCheck: require.NoError,
+			expected: &AWSMatcher{
+				Types:   []string{"ec2", "eks"},
+				Regions: []string{"us-east-1"},
+				Tags: Labels{
+					"*": []string{"*"},
+				},
+				Params: &InstallerParams{
+					JoinMethod:      "iam",
+					JoinToken:       "aws-discovery-iam-token",
+					InstallTeleport: true,
+					ScriptName:      "default-installer",
+					SSHDConfig:      "/etc/ssh/sshd_config",
+					EnrollMode:      InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT,
+				},
+				SSM: &AWSSSM{DocumentName: "TeleportDiscoveryInstaller"},
+			},
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {

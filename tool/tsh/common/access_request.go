@@ -184,12 +184,9 @@ func printRequest(cf *CLIConf, req types.AccessRequest) error {
 		reviewers = strings.Join(r, ", ")
 	}
 
-	resourcesStr := ""
-	if resources := req.GetRequestedResourceIDs(); len(resources) > 0 {
-		var err error
-		if resourcesStr, err = types.ResourceIDsToString(resources); err != nil {
-			return trace.Wrap(err)
-		}
+	resourcesStr, err := common.FormatResourceAccessIDs(req.GetAllRequestedResourceIDs())
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
 	table := asciitable.MakeHeadlessTable(2)
@@ -210,7 +207,7 @@ func printRequest(cf *CLIConf, req types.AccessRequest) error {
 	}
 	table.AddRow([]string{"Status:", req.GetState().String()})
 
-	_, err := table.AsBuffer().WriteTo(cf.Stdout())
+	_, err = table.AsBuffer().WriteTo(cf.Stdout())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -227,11 +224,11 @@ func printRequest(cf *CLIConf, req types.AccessRequest) error {
 	}
 
 	printReviewBlock := func(title string, revs []types.AccessReview) error {
-		fmt.Fprint(cf.Stdout(), "------------------------------------------------")
+		fmt.Fprintln(cf.Stdout(), "------------------------------------------------")
 		fmt.Fprintf(cf.Stdout(), "%s:\n", title)
 
 		for _, rev := range revs {
-			fmt.Fprint(cf.Stdout(), "  ----------------------------------------------")
+			fmt.Fprintln(cf.Stdout(), "  ----------------------------------------------")
 
 			revReason := "[none]"
 			if rev.Reason != "" {
@@ -363,7 +360,9 @@ func showRequestTable(cf *CLIConf, reqs []types.AccessRequest) error {
 		if now.After(req.GetAccessExpiry()) {
 			continue
 		}
-		resourceIDsString, err := types.ResourceIDsToString(req.GetRequestedResourceIDs())
+		// This table isn't a comprehensive overview of each request; omit constraints on resources for brevity
+		// and only print their stringified ResourceIDs.
+		resourceIDsString, err := types.ResourceIDsToString(types.RiskyExtractResourceIDs(req.GetAllRequestedResourceIDs()))
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -445,10 +444,10 @@ func searchRequestableRoles(cf *CLIConf) error {
 	var allRoles []*proto.ListRequestableRolesResponse_RequestableRole
 	err = tc.WithRootClusterClient(cf.Context, func(clt authclient.ClientI) error {
 		pageFunc := func(ctx context.Context, pageSize int, pageToken string) ([]*proto.ListRequestableRolesResponse_RequestableRole, string, error) {
-			req := &proto.ListRequestableRolesRequest{
+			req := proto.ListRequestableRolesRequest_builder{
 				PageSize:  int32(pageSize),
 				PageToken: pageToken,
-			}
+			}.Build()
 
 			resp, err := clt.ListRequestableRoles(ctx, req)
 			return resp.GetRoles(), resp.GetNextPageToken(), trace.Wrap(err)
@@ -465,8 +464,8 @@ func searchRequestableRoles(cf *CLIConf) error {
 	rows := make([]requestableRoleRow, 0, len(allRoles))
 	for _, r := range allRoles {
 		rows = append(rows, requestableRoleRow{
-			Role:        r.Name,
-			Description: r.Description,
+			Role:        r.GetName(),
+			Description: r.GetDescription(),
 		})
 	}
 
@@ -541,7 +540,7 @@ func searchRequestableResources(cf *CLIConf) error {
 		if cf.kubeAPIGroup != "" {
 			resourceType = resourceType + "." + cf.kubeAPIGroup
 		}
-		req := kubeproto.ListKubernetesResourcesRequest{
+		req := kubeproto.ListKubernetesResourcesRequest_builder{
 			ResourceType:        resourceType,
 			Labels:              tc.Labels,
 			PredicateExpression: cf.PredicateExpression,
@@ -550,9 +549,9 @@ func searchRequestableResources(cf *CLIConf) error {
 			KubernetesCluster:   cf.KubernetesCluster,
 			KubernetesNamespace: cf.kubeNamespace,
 			TeleportCluster:     tc.SiteName,
-		}
+		}.Build()
 
-		resources, err := client.GetKubernetesResourcesWithFilters(cf.Context, proxyGRPCClient, &req)
+		resources, err := client.GetKubernetesResourcesWithFilters(cf.Context, proxyGRPCClient, req)
 		if err != nil {
 			return trace.Wrap(err)
 		}

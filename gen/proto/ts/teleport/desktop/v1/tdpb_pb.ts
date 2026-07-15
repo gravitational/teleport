@@ -4,22 +4,19 @@
 // tslint:disable
 // @ts-nocheck
 //
+// Copyright 2026 Gravitational, Inc.
 //
-// Teleport
-// Copyright (C) 2025  Gravitational, Inc.
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
 //
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
+//      http://www.apache.org/licenses/LICENSE-2.0
 //
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Affero General Public License for more details.
-//
-// You should have received a copy of the GNU Affero General Public License
-// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 //
 import type { BinaryWriteOptions } from "@protobuf-ts/runtime";
 import type { IBinaryWriter } from "@protobuf-ts/runtime";
@@ -65,6 +62,44 @@ export interface ServerHello {
      * @generated from protobuf field: bool clipboard_enabled = 2;
      */
     clipboardEnabled: boolean;
+    /**
+     * @generated from protobuf field: bool directory_remove_supported = 3;
+     */
+    directoryRemoveSupported: boolean;
+    /**
+     * @generated from protobuf field: repeated teleport.desktop.v1.SessionIdentifier sessions = 4;
+     */
+    sessions: SessionIdentifier[];
+    /**
+     * @generated from protobuf field: bool hidpi_supported = 5;
+     */
+    hidpiSupported: boolean;
+    /**
+     * @generated from protobuf field: bool multidirectory_sharing_supported = 6;
+     */
+    multidirectorySharingSupported: boolean;
+}
+/**
+ * Used to identify sessions available to and selected by users
+ *
+ * @generated from protobuf message teleport.desktop.v1.SessionIdentifier
+ */
+export interface SessionIdentifier {
+    /**
+     * @generated from protobuf field: string name = 1;
+     */
+    name: string;
+}
+/**
+ * Sent by client to select one of available sessions
+ *
+ * @generated from protobuf message teleport.desktop.v1.SessionSelection
+ */
+export interface SessionSelection {
+    /**
+     * @generated from protobuf field: teleport.desktop.v1.SessionIdentifier session = 1;
+     */
+    session?: SessionIdentifier;
 }
 /**
  * Defines the boundaries that PNG frame will update.
@@ -150,6 +185,10 @@ export interface ConnectionActivated {
      * @generated from protobuf field: uint32 screen_height = 4;
      */
     screenHeight: number;
+    /**
+     * @generated from protobuf field: uint32 share_id = 5;
+     */
+    shareId: number;
 }
 /**
  * Conveys the current state of keyboard buttons with persistent state.
@@ -236,6 +275,12 @@ export interface ClientScreenSpec {
      * @generated from protobuf field: uint32 height = 2;
      */
     height: number;
+    /**
+     * Display scale factor as a percentage (e.g. 100 for 1x, 200 for 2x).
+     *
+     * @generated from protobuf field: uint32 scale = 3;
+     */
+    scale: number;
 }
 /**
  * Represents an Alert to be displayed by the client.
@@ -263,7 +308,7 @@ export interface MouseWheel {
      */
     axis: MouseWheelAxis;
     /**
-     * @generated from protobuf field: uint32 delta = 2;
+     * @generated from protobuf field: int32 delta = 2;
      */
     delta: number;
 }
@@ -317,6 +362,17 @@ export interface SharedDirectoryAnnounce {
      * @generated from protobuf field: string name = 2;
      */
     name: string;
+}
+/**
+ * Sent by client to remove a previously announced shared directory.
+ *
+ * @generated from protobuf message teleport.desktop.v1.SharedDirectoryRemove
+ */
+export interface SharedDirectoryRemove {
+    /**
+     * @generated from protobuf field: uint32 directory_id = 1;
+     */
+    directoryId: number;
 }
 /**
  * Sent by server to acknowledge a new shared directory.
@@ -516,9 +572,9 @@ export interface SharedDirectoryRequest_Truncate {
      */
     path: string;
     /**
-     * @generated from protobuf field: uint32 end_of_file = 2;
+     * @generated from protobuf field: uint64 size = 3;
      */
-    endOfFile: number;
+    size: bigint;
 }
 /**
  * Shared directory operation responses.
@@ -536,6 +592,10 @@ export interface SharedDirectoryResponse {
      * @generated from protobuf field: uint32 error_code = 2;
      */
     errorCode: number;
+    /**
+     * @generated from protobuf field: uint32 directory_id = 11;
+     */
+    directoryId: number;
     /**
      * @generated from protobuf oneof: operation
      */
@@ -724,6 +784,72 @@ export interface Ping {
     uuid: Uint8Array;
 }
 /**
+ * Sent by the server to request authentication from the client before session establishment.
+ *
+ * @generated from protobuf message teleport.desktop.v1.AuthPrompt
+ */
+export interface AuthPrompt {
+    /**
+     * @generated from protobuf oneof: prompt
+     */
+    prompt: {
+        oneofKind: "mfaPrompt";
+        /**
+         * @generated from protobuf field: teleport.desktop.v1.MFAPrompt mfa_prompt = 1;
+         */
+        mfaPrompt: MFAPrompt;
+    } | {
+        oneofKind: undefined;
+    };
+}
+/**
+ * Indicates MFA is required for the session. The client performs the MFA ceremony and responds with
+ * MFAPromptResponse.
+ *
+ * @generated from protobuf message teleport.desktop.v1.MFAPrompt
+ */
+export interface MFAPrompt {
+}
+/**
+ * Client response to an AuthPrompt containing MFAPrompt.
+ *
+ * @generated from protobuf message teleport.desktop.v1.MFAPromptResponse
+ */
+export interface MFAPromptResponse {
+    /**
+     * @generated from protobuf oneof: response
+     */
+    response: {
+        oneofKind: "reference";
+        /**
+         * @generated from protobuf field: teleport.desktop.v1.MFAPromptResponseReference reference = 1;
+         */
+        reference: MFAPromptResponseReference;
+    } | {
+        oneofKind: undefined;
+    };
+}
+/**
+ * Instructs the server to verify the MFA challenge with the MFA service.
+ *
+ * @generated from protobuf message teleport.desktop.v1.MFAPromptResponseReference
+ */
+export interface MFAPromptResponseReference {
+    /**
+     * The name of the MFA challenge created by the client.
+     *
+     * @generated from protobuf field: string challenge_name = 1;
+     */
+    challengeName: string;
+}
+/**
+ * Sent by the server to indicate the session backend is being established and no additional authentication is required.
+ *
+ * @generated from protobuf message teleport.desktop.v1.SessionEstablishing
+ */
+export interface SessionEstablishing {
+}
+/**
  * Envelope wraps all messages that are allowed to be sent on the wire.
  *
  * @generated from protobuf message teleport.desktop.v1.Envelope
@@ -852,6 +978,36 @@ export interface Envelope {
          * @generated from protobuf field: teleport.desktop.v1.Ping ping = 20;
          */
         ping: Ping;
+    } | {
+        oneofKind: "sharedDirectoryRemove";
+        /**
+         * @generated from protobuf field: teleport.desktop.v1.SharedDirectoryRemove shared_directory_remove = 21;
+         */
+        sharedDirectoryRemove: SharedDirectoryRemove;
+    } | {
+        oneofKind: "sessionSelection";
+        /**
+         * @generated from protobuf field: teleport.desktop.v1.SessionSelection session_selection = 22;
+         */
+        sessionSelection: SessionSelection;
+    } | {
+        oneofKind: "authPrompt";
+        /**
+         * @generated from protobuf field: teleport.desktop.v1.AuthPrompt auth_prompt = 23;
+         */
+        authPrompt: AuthPrompt;
+    } | {
+        oneofKind: "mfaPromptResponse";
+        /**
+         * @generated from protobuf field: teleport.desktop.v1.MFAPromptResponse mfa_prompt_response = 24;
+         */
+        mfaPromptResponse: MFAPromptResponse;
+    } | {
+        oneofKind: "sessionEstablishing";
+        /**
+         * @generated from protobuf field: teleport.desktop.v1.SessionEstablishing session_establishing = 25;
+         */
+        sessionEstablishing: SessionEstablishing;
     } | {
         oneofKind: undefined;
     };
@@ -1007,12 +1163,20 @@ class ServerHello$Type extends MessageType<ServerHello> {
     constructor() {
         super("teleport.desktop.v1.ServerHello", [
             { no: 1, name: "activation_spec", kind: "message", T: () => ConnectionActivated },
-            { no: 2, name: "clipboard_enabled", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
+            { no: 2, name: "clipboard_enabled", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
+            { no: 3, name: "directory_remove_supported", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
+            { no: 4, name: "sessions", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => SessionIdentifier },
+            { no: 5, name: "hidpi_supported", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
+            { no: 6, name: "multidirectory_sharing_supported", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
         ]);
     }
     create(value?: PartialMessage<ServerHello>): ServerHello {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.clipboardEnabled = false;
+        message.directoryRemoveSupported = false;
+        message.sessions = [];
+        message.hidpiSupported = false;
+        message.multidirectorySharingSupported = false;
         if (value !== undefined)
             reflectionMergePartial<ServerHello>(this, message, value);
         return message;
@@ -1027,6 +1191,18 @@ class ServerHello$Type extends MessageType<ServerHello> {
                     break;
                 case /* bool clipboard_enabled */ 2:
                     message.clipboardEnabled = reader.bool();
+                    break;
+                case /* bool directory_remove_supported */ 3:
+                    message.directoryRemoveSupported = reader.bool();
+                    break;
+                case /* repeated teleport.desktop.v1.SessionIdentifier sessions */ 4:
+                    message.sessions.push(SessionIdentifier.internalBinaryRead(reader, reader.uint32(), options));
+                    break;
+                case /* bool hidpi_supported */ 5:
+                    message.hidpiSupported = reader.bool();
+                    break;
+                case /* bool multidirectory_sharing_supported */ 6:
+                    message.multidirectorySharingSupported = reader.bool();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -1046,6 +1222,18 @@ class ServerHello$Type extends MessageType<ServerHello> {
         /* bool clipboard_enabled = 2; */
         if (message.clipboardEnabled !== false)
             writer.tag(2, WireType.Varint).bool(message.clipboardEnabled);
+        /* bool directory_remove_supported = 3; */
+        if (message.directoryRemoveSupported !== false)
+            writer.tag(3, WireType.Varint).bool(message.directoryRemoveSupported);
+        /* repeated teleport.desktop.v1.SessionIdentifier sessions = 4; */
+        for (let i = 0; i < message.sessions.length; i++)
+            SessionIdentifier.internalBinaryWrite(message.sessions[i], writer.tag(4, WireType.LengthDelimited).fork(), options).join();
+        /* bool hidpi_supported = 5; */
+        if (message.hidpiSupported !== false)
+            writer.tag(5, WireType.Varint).bool(message.hidpiSupported);
+        /* bool multidirectory_sharing_supported = 6; */
+        if (message.multidirectorySharingSupported !== false)
+            writer.tag(6, WireType.Varint).bool(message.multidirectorySharingSupported);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -1056,6 +1244,99 @@ class ServerHello$Type extends MessageType<ServerHello> {
  * @generated MessageType for protobuf message teleport.desktop.v1.ServerHello
  */
 export const ServerHello = new ServerHello$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class SessionIdentifier$Type extends MessageType<SessionIdentifier> {
+    constructor() {
+        super("teleport.desktop.v1.SessionIdentifier", [
+            { no: 1, name: "name", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<SessionIdentifier>): SessionIdentifier {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.name = "";
+        if (value !== undefined)
+            reflectionMergePartial<SessionIdentifier>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: SessionIdentifier): SessionIdentifier {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string name */ 1:
+                    message.name = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: SessionIdentifier, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string name = 1; */
+        if (message.name !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.name);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.desktop.v1.SessionIdentifier
+ */
+export const SessionIdentifier = new SessionIdentifier$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class SessionSelection$Type extends MessageType<SessionSelection> {
+    constructor() {
+        super("teleport.desktop.v1.SessionSelection", [
+            { no: 1, name: "session", kind: "message", T: () => SessionIdentifier }
+        ]);
+    }
+    create(value?: PartialMessage<SessionSelection>): SessionSelection {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<SessionSelection>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: SessionSelection): SessionSelection {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* teleport.desktop.v1.SessionIdentifier session */ 1:
+                    message.session = SessionIdentifier.internalBinaryRead(reader, reader.uint32(), options, message.session);
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: SessionSelection, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* teleport.desktop.v1.SessionIdentifier session = 1; */
+        if (message.session)
+            SessionIdentifier.internalBinaryWrite(message.session, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.desktop.v1.SessionSelection
+ */
+export const SessionSelection = new SessionSelection$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class Rectangle$Type extends MessageType<Rectangle> {
     constructor() {
@@ -1282,7 +1563,8 @@ class ConnectionActivated$Type extends MessageType<ConnectionActivated> {
             { no: 1, name: "io_channel_id", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
             { no: 2, name: "user_channel_id", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
             { no: 3, name: "screen_width", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
-            { no: 4, name: "screen_height", kind: "scalar", T: 13 /*ScalarType.UINT32*/ }
+            { no: 4, name: "screen_height", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 5, name: "share_id", kind: "scalar", T: 13 /*ScalarType.UINT32*/ }
         ]);
     }
     create(value?: PartialMessage<ConnectionActivated>): ConnectionActivated {
@@ -1291,6 +1573,7 @@ class ConnectionActivated$Type extends MessageType<ConnectionActivated> {
         message.userChannelId = 0;
         message.screenWidth = 0;
         message.screenHeight = 0;
+        message.shareId = 0;
         if (value !== undefined)
             reflectionMergePartial<ConnectionActivated>(this, message, value);
         return message;
@@ -1311,6 +1594,9 @@ class ConnectionActivated$Type extends MessageType<ConnectionActivated> {
                     break;
                 case /* uint32 screen_height */ 4:
                     message.screenHeight = reader.uint32();
+                    break;
+                case /* uint32 share_id */ 5:
+                    message.shareId = reader.uint32();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -1336,6 +1622,9 @@ class ConnectionActivated$Type extends MessageType<ConnectionActivated> {
         /* uint32 screen_height = 4; */
         if (message.screenHeight !== 0)
             writer.tag(4, WireType.Varint).uint32(message.screenHeight);
+        /* uint32 share_id = 5; */
+        if (message.shareId !== 0)
+            writer.tag(5, WireType.Varint).uint32(message.shareId);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -1587,13 +1876,15 @@ class ClientScreenSpec$Type extends MessageType<ClientScreenSpec> {
     constructor() {
         super("teleport.desktop.v1.ClientScreenSpec", [
             { no: 1, name: "width", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
-            { no: 2, name: "height", kind: "scalar", T: 13 /*ScalarType.UINT32*/ }
+            { no: 2, name: "height", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 3, name: "scale", kind: "scalar", T: 13 /*ScalarType.UINT32*/ }
         ]);
     }
     create(value?: PartialMessage<ClientScreenSpec>): ClientScreenSpec {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.width = 0;
         message.height = 0;
+        message.scale = 0;
         if (value !== undefined)
             reflectionMergePartial<ClientScreenSpec>(this, message, value);
         return message;
@@ -1608,6 +1899,9 @@ class ClientScreenSpec$Type extends MessageType<ClientScreenSpec> {
                     break;
                 case /* uint32 height */ 2:
                     message.height = reader.uint32();
+                    break;
+                case /* uint32 scale */ 3:
+                    message.scale = reader.uint32();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -1627,6 +1921,9 @@ class ClientScreenSpec$Type extends MessageType<ClientScreenSpec> {
         /* uint32 height = 2; */
         if (message.height !== 0)
             writer.tag(2, WireType.Varint).uint32(message.height);
+        /* uint32 scale = 3; */
+        if (message.scale !== 0)
+            writer.tag(3, WireType.Varint).uint32(message.scale);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -1697,7 +1994,7 @@ class MouseWheel$Type extends MessageType<MouseWheel> {
     constructor() {
         super("teleport.desktop.v1.MouseWheel", [
             { no: 1, name: "axis", kind: "enum", T: () => ["teleport.desktop.v1.MouseWheelAxis", MouseWheelAxis, "MOUSE_WHEEL_AXIS_"] },
-            { no: 2, name: "delta", kind: "scalar", T: 13 /*ScalarType.UINT32*/ }
+            { no: 2, name: "delta", kind: "scalar", T: 5 /*ScalarType.INT32*/ }
         ]);
     }
     create(value?: PartialMessage<MouseWheel>): MouseWheel {
@@ -1716,8 +2013,8 @@ class MouseWheel$Type extends MessageType<MouseWheel> {
                 case /* teleport.desktop.v1.MouseWheelAxis axis */ 1:
                     message.axis = reader.int32();
                     break;
-                case /* uint32 delta */ 2:
-                    message.delta = reader.uint32();
+                case /* int32 delta */ 2:
+                    message.delta = reader.int32();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -1734,9 +2031,9 @@ class MouseWheel$Type extends MessageType<MouseWheel> {
         /* teleport.desktop.v1.MouseWheelAxis axis = 1; */
         if (message.axis !== 0)
             writer.tag(1, WireType.Varint).int32(message.axis);
-        /* uint32 delta = 2; */
+        /* int32 delta = 2; */
         if (message.delta !== 0)
-            writer.tag(2, WireType.Varint).uint32(message.delta);
+            writer.tag(2, WireType.Varint).int32(message.delta);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -1918,6 +2215,53 @@ class SharedDirectoryAnnounce$Type extends MessageType<SharedDirectoryAnnounce> 
  * @generated MessageType for protobuf message teleport.desktop.v1.SharedDirectoryAnnounce
  */
 export const SharedDirectoryAnnounce = new SharedDirectoryAnnounce$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class SharedDirectoryRemove$Type extends MessageType<SharedDirectoryRemove> {
+    constructor() {
+        super("teleport.desktop.v1.SharedDirectoryRemove", [
+            { no: 1, name: "directory_id", kind: "scalar", T: 13 /*ScalarType.UINT32*/ }
+        ]);
+    }
+    create(value?: PartialMessage<SharedDirectoryRemove>): SharedDirectoryRemove {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.directoryId = 0;
+        if (value !== undefined)
+            reflectionMergePartial<SharedDirectoryRemove>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: SharedDirectoryRemove): SharedDirectoryRemove {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* uint32 directory_id */ 1:
+                    message.directoryId = reader.uint32();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: SharedDirectoryRemove, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* uint32 directory_id = 1; */
+        if (message.directoryId !== 0)
+            writer.tag(1, WireType.Varint).uint32(message.directoryId);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.desktop.v1.SharedDirectoryRemove
+ */
+export const SharedDirectoryRemove = new SharedDirectoryRemove$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class SharedDirectoryAcknowledge$Type extends MessageType<SharedDirectoryAcknowledge> {
     constructor() {
@@ -2491,13 +2835,13 @@ class SharedDirectoryRequest_Truncate$Type extends MessageType<SharedDirectoryRe
     constructor() {
         super("teleport.desktop.v1.SharedDirectoryRequest.Truncate", [
             { no: 1, name: "path", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 2, name: "end_of_file", kind: "scalar", T: 13 /*ScalarType.UINT32*/ }
+            { no: 3, name: "size", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ }
         ]);
     }
     create(value?: PartialMessage<SharedDirectoryRequest_Truncate>): SharedDirectoryRequest_Truncate {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.path = "";
-        message.endOfFile = 0;
+        message.size = 0n;
         if (value !== undefined)
             reflectionMergePartial<SharedDirectoryRequest_Truncate>(this, message, value);
         return message;
@@ -2510,8 +2854,8 @@ class SharedDirectoryRequest_Truncate$Type extends MessageType<SharedDirectoryRe
                 case /* string path */ 1:
                     message.path = reader.string();
                     break;
-                case /* uint32 end_of_file */ 2:
-                    message.endOfFile = reader.uint32();
+                case /* uint64 size */ 3:
+                    message.size = reader.uint64().toBigInt();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -2528,9 +2872,9 @@ class SharedDirectoryRequest_Truncate$Type extends MessageType<SharedDirectoryRe
         /* string path = 1; */
         if (message.path !== "")
             writer.tag(1, WireType.LengthDelimited).string(message.path);
-        /* uint32 end_of_file = 2; */
-        if (message.endOfFile !== 0)
-            writer.tag(2, WireType.Varint).uint32(message.endOfFile);
+        /* uint64 size = 3; */
+        if (message.size !== 0n)
+            writer.tag(3, WireType.Varint).uint64(message.size);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -2547,6 +2891,7 @@ class SharedDirectoryResponse$Type extends MessageType<SharedDirectoryResponse> 
         super("teleport.desktop.v1.SharedDirectoryResponse", [
             { no: 1, name: "completion_id", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
             { no: 2, name: "error_code", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 11, name: "directory_id", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
             { no: 3, name: "info", kind: "message", oneof: "operation", T: () => SharedDirectoryResponse_Info },
             { no: 4, name: "create", kind: "message", oneof: "operation", T: () => SharedDirectoryResponse_Create },
             { no: 5, name: "delete", kind: "message", oneof: "operation", T: () => SharedDirectoryResponse_Delete },
@@ -2561,6 +2906,7 @@ class SharedDirectoryResponse$Type extends MessageType<SharedDirectoryResponse> 
         const message = globalThis.Object.create((this.messagePrototype!));
         message.completionId = 0;
         message.errorCode = 0;
+        message.directoryId = 0;
         message.operation = { oneofKind: undefined };
         if (value !== undefined)
             reflectionMergePartial<SharedDirectoryResponse>(this, message, value);
@@ -2576,6 +2922,9 @@ class SharedDirectoryResponse$Type extends MessageType<SharedDirectoryResponse> 
                     break;
                 case /* uint32 error_code */ 2:
                     message.errorCode = reader.uint32();
+                    break;
+                case /* uint32 directory_id */ 11:
+                    message.directoryId = reader.uint32();
                     break;
                 case /* teleport.desktop.v1.SharedDirectoryResponse.Info info */ 3:
                     message.operation = {
@@ -2643,6 +2992,9 @@ class SharedDirectoryResponse$Type extends MessageType<SharedDirectoryResponse> 
         /* uint32 error_code = 2; */
         if (message.errorCode !== 0)
             writer.tag(2, WireType.Varint).uint32(message.errorCode);
+        /* uint32 directory_id = 11; */
+        if (message.directoryId !== 0)
+            writer.tag(11, WireType.Varint).uint32(message.directoryId);
         /* teleport.desktop.v1.SharedDirectoryResponse.Info info = 3; */
         if (message.operation.oneofKind === "info")
             SharedDirectoryResponse_Info.internalBinaryWrite(message.operation.info, writer.tag(3, WireType.LengthDelimited).fork(), options).join();
@@ -3167,6 +3519,203 @@ class Ping$Type extends MessageType<Ping> {
  */
 export const Ping = new Ping$Type();
 // @generated message type with reflection information, may provide speed optimized methods
+class AuthPrompt$Type extends MessageType<AuthPrompt> {
+    constructor() {
+        super("teleport.desktop.v1.AuthPrompt", [
+            { no: 1, name: "mfa_prompt", kind: "message", oneof: "prompt", T: () => MFAPrompt }
+        ]);
+    }
+    create(value?: PartialMessage<AuthPrompt>): AuthPrompt {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.prompt = { oneofKind: undefined };
+        if (value !== undefined)
+            reflectionMergePartial<AuthPrompt>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: AuthPrompt): AuthPrompt {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* teleport.desktop.v1.MFAPrompt mfa_prompt */ 1:
+                    message.prompt = {
+                        oneofKind: "mfaPrompt",
+                        mfaPrompt: MFAPrompt.internalBinaryRead(reader, reader.uint32(), options, (message.prompt as any).mfaPrompt)
+                    };
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: AuthPrompt, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* teleport.desktop.v1.MFAPrompt mfa_prompt = 1; */
+        if (message.prompt.oneofKind === "mfaPrompt")
+            MFAPrompt.internalBinaryWrite(message.prompt.mfaPrompt, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.desktop.v1.AuthPrompt
+ */
+export const AuthPrompt = new AuthPrompt$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class MFAPrompt$Type extends MessageType<MFAPrompt> {
+    constructor() {
+        super("teleport.desktop.v1.MFAPrompt", []);
+    }
+    create(value?: PartialMessage<MFAPrompt>): MFAPrompt {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<MFAPrompt>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: MFAPrompt): MFAPrompt {
+        return target ?? this.create();
+    }
+    internalBinaryWrite(message: MFAPrompt, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.desktop.v1.MFAPrompt
+ */
+export const MFAPrompt = new MFAPrompt$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class MFAPromptResponse$Type extends MessageType<MFAPromptResponse> {
+    constructor() {
+        super("teleport.desktop.v1.MFAPromptResponse", [
+            { no: 1, name: "reference", kind: "message", oneof: "response", T: () => MFAPromptResponseReference }
+        ]);
+    }
+    create(value?: PartialMessage<MFAPromptResponse>): MFAPromptResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.response = { oneofKind: undefined };
+        if (value !== undefined)
+            reflectionMergePartial<MFAPromptResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: MFAPromptResponse): MFAPromptResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* teleport.desktop.v1.MFAPromptResponseReference reference */ 1:
+                    message.response = {
+                        oneofKind: "reference",
+                        reference: MFAPromptResponseReference.internalBinaryRead(reader, reader.uint32(), options, (message.response as any).reference)
+                    };
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: MFAPromptResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* teleport.desktop.v1.MFAPromptResponseReference reference = 1; */
+        if (message.response.oneofKind === "reference")
+            MFAPromptResponseReference.internalBinaryWrite(message.response.reference, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.desktop.v1.MFAPromptResponse
+ */
+export const MFAPromptResponse = new MFAPromptResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class MFAPromptResponseReference$Type extends MessageType<MFAPromptResponseReference> {
+    constructor() {
+        super("teleport.desktop.v1.MFAPromptResponseReference", [
+            { no: 1, name: "challenge_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<MFAPromptResponseReference>): MFAPromptResponseReference {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.challengeName = "";
+        if (value !== undefined)
+            reflectionMergePartial<MFAPromptResponseReference>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: MFAPromptResponseReference): MFAPromptResponseReference {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string challenge_name */ 1:
+                    message.challengeName = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: MFAPromptResponseReference, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string challenge_name = 1; */
+        if (message.challengeName !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.challengeName);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.desktop.v1.MFAPromptResponseReference
+ */
+export const MFAPromptResponseReference = new MFAPromptResponseReference$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class SessionEstablishing$Type extends MessageType<SessionEstablishing> {
+    constructor() {
+        super("teleport.desktop.v1.SessionEstablishing", []);
+    }
+    create(value?: PartialMessage<SessionEstablishing>): SessionEstablishing {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<SessionEstablishing>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: SessionEstablishing): SessionEstablishing {
+        return target ?? this.create();
+    }
+    internalBinaryWrite(message: SessionEstablishing, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.desktop.v1.SessionEstablishing
+ */
+export const SessionEstablishing = new SessionEstablishing$Type();
+// @generated message type with reflection information, may provide speed optimized methods
 class Envelope$Type extends MessageType<Envelope> {
     constructor() {
         super("teleport.desktop.v1.Envelope", [
@@ -3189,7 +3738,12 @@ class Envelope$Type extends MessageType<Envelope> {
             { no: 17, name: "shared_directory_request", kind: "message", oneof: "payload", T: () => SharedDirectoryRequest },
             { no: 18, name: "shared_directory_response", kind: "message", oneof: "payload", T: () => SharedDirectoryResponse },
             { no: 19, name: "latency_stats", kind: "message", oneof: "payload", T: () => LatencyStats },
-            { no: 20, name: "ping", kind: "message", oneof: "payload", T: () => Ping }
+            { no: 20, name: "ping", kind: "message", oneof: "payload", T: () => Ping },
+            { no: 21, name: "shared_directory_remove", kind: "message", oneof: "payload", T: () => SharedDirectoryRemove },
+            { no: 22, name: "session_selection", kind: "message", oneof: "payload", T: () => SessionSelection },
+            { no: 23, name: "auth_prompt", kind: "message", oneof: "payload", T: () => AuthPrompt },
+            { no: 24, name: "mfa_prompt_response", kind: "message", oneof: "payload", T: () => MFAPromptResponse },
+            { no: 25, name: "session_establishing", kind: "message", oneof: "payload", T: () => SessionEstablishing }
         ]);
     }
     create(value?: PartialMessage<Envelope>): Envelope {
@@ -3324,6 +3878,36 @@ class Envelope$Type extends MessageType<Envelope> {
                         ping: Ping.internalBinaryRead(reader, reader.uint32(), options, (message.payload as any).ping)
                     };
                     break;
+                case /* teleport.desktop.v1.SharedDirectoryRemove shared_directory_remove */ 21:
+                    message.payload = {
+                        oneofKind: "sharedDirectoryRemove",
+                        sharedDirectoryRemove: SharedDirectoryRemove.internalBinaryRead(reader, reader.uint32(), options, (message.payload as any).sharedDirectoryRemove)
+                    };
+                    break;
+                case /* teleport.desktop.v1.SessionSelection session_selection */ 22:
+                    message.payload = {
+                        oneofKind: "sessionSelection",
+                        sessionSelection: SessionSelection.internalBinaryRead(reader, reader.uint32(), options, (message.payload as any).sessionSelection)
+                    };
+                    break;
+                case /* teleport.desktop.v1.AuthPrompt auth_prompt */ 23:
+                    message.payload = {
+                        oneofKind: "authPrompt",
+                        authPrompt: AuthPrompt.internalBinaryRead(reader, reader.uint32(), options, (message.payload as any).authPrompt)
+                    };
+                    break;
+                case /* teleport.desktop.v1.MFAPromptResponse mfa_prompt_response */ 24:
+                    message.payload = {
+                        oneofKind: "mfaPromptResponse",
+                        mfaPromptResponse: MFAPromptResponse.internalBinaryRead(reader, reader.uint32(), options, (message.payload as any).mfaPromptResponse)
+                    };
+                    break;
+                case /* teleport.desktop.v1.SessionEstablishing session_establishing */ 25:
+                    message.payload = {
+                        oneofKind: "sessionEstablishing",
+                        sessionEstablishing: SessionEstablishing.internalBinaryRead(reader, reader.uint32(), options, (message.payload as any).sessionEstablishing)
+                    };
+                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -3396,6 +3980,21 @@ class Envelope$Type extends MessageType<Envelope> {
         /* teleport.desktop.v1.Ping ping = 20; */
         if (message.payload.oneofKind === "ping")
             Ping.internalBinaryWrite(message.payload.ping, writer.tag(20, WireType.LengthDelimited).fork(), options).join();
+        /* teleport.desktop.v1.SharedDirectoryRemove shared_directory_remove = 21; */
+        if (message.payload.oneofKind === "sharedDirectoryRemove")
+            SharedDirectoryRemove.internalBinaryWrite(message.payload.sharedDirectoryRemove, writer.tag(21, WireType.LengthDelimited).fork(), options).join();
+        /* teleport.desktop.v1.SessionSelection session_selection = 22; */
+        if (message.payload.oneofKind === "sessionSelection")
+            SessionSelection.internalBinaryWrite(message.payload.sessionSelection, writer.tag(22, WireType.LengthDelimited).fork(), options).join();
+        /* teleport.desktop.v1.AuthPrompt auth_prompt = 23; */
+        if (message.payload.oneofKind === "authPrompt")
+            AuthPrompt.internalBinaryWrite(message.payload.authPrompt, writer.tag(23, WireType.LengthDelimited).fork(), options).join();
+        /* teleport.desktop.v1.MFAPromptResponse mfa_prompt_response = 24; */
+        if (message.payload.oneofKind === "mfaPromptResponse")
+            MFAPromptResponse.internalBinaryWrite(message.payload.mfaPromptResponse, writer.tag(24, WireType.LengthDelimited).fork(), options).join();
+        /* teleport.desktop.v1.SessionEstablishing session_establishing = 25; */
+        if (message.payload.oneofKind === "sessionEstablishing")
+            SessionEstablishing.internalBinaryWrite(message.payload.sessionEstablishing, writer.tag(25, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

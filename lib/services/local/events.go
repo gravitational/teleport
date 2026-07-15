@@ -87,6 +87,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newProvisionTokenParser()
 		case types.KindStaticTokens:
 			parser = newStaticTokensParser()
+		case types.KindStaticScopedTokens:
+			parser = newStaticScopedTokenParser()
 		case types.KindClusterAuditConfig:
 			parser = newClusterAuditConfigParser()
 		case types.KindClusterNetworkingConfig:
@@ -140,6 +142,10 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = p
 		case types.KindAppServer:
 			parser = newAppServerV3Parser()
+		case types.KindBeam:
+			parser = newBeamParser()
+		case types.KindBeamsConfig:
+			parser = newBeamsConfigParser()
 		case types.KindWebSession:
 			switch kind.SubKind {
 			case types.KindSnowflakeSession:
@@ -180,6 +186,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newWindowsDesktopsParser()
 		case types.KindDynamicWindowsDesktop:
 			parser = newDynamicWindowsDesktopsParser()
+		case types.KindLinuxDesktop:
+			parser = newLinuxDesktopsParser()
 		case types.KindInstaller:
 			parser = newInstallerParser()
 		case types.KindKubernetesCluster:
@@ -188,6 +196,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newCrownJewelParser()
 		case types.KindPlugin:
 			parser = newPluginParser(kind.LoadSecrets)
+		case types.KindSAMLConnector:
+			parser = newSAMLConnectorParser(kind.LoadSecrets)
 		case types.KindSAMLIdPServiceProvider:
 			parser = newSAMLIDPServiceProviderParser()
 		case types.KindUserGroup:
@@ -277,6 +287,20 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newScopedTokenParser()
 		case types.KindAppAuthConfig:
 			parser = newAppAuthConfigParser()
+		case types.KindInferenceModel:
+			parser = newInferenceModelParser()
+		case types.KindInferencePolicy:
+			parser = newInferencePolicyParser()
+		case types.KindInferenceSecret:
+			parser = newInferenceSecretParser()
+		case types.KindClassifier:
+			parser = newClassifierParser()
+		case types.KindRetrievalModel:
+			parser = newRetrievalModelParser()
+		case types.KindCertAuthorityOverride:
+			parser = newCertAuthorityOverrideParser()
+		case types.KindValidatedMFAChallenge:
+			parser = newValidatedMFAChallengeParser(kind.Filter)
 		default:
 			if watch.AllowPartialSuccess {
 				continue
@@ -1054,6 +1078,9 @@ func (p *roleParser) parse(event backend.Event) (types.Resource, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		if err := services.ValidateRole(resource); err != nil {
+			slog.WarnContext(context.Background(), "Role has invalid expressions", "role", resource.GetName(), "error", err)
+		}
 		return resource, nil
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
@@ -1107,12 +1134,30 @@ type scopedRoleAssignmentParser struct {
 func (p *scopedRoleAssignmentParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		name := strings.TrimPrefix(event.Item.Key.TrimPrefix(scopedRoleAssignmentWatchPrefix()).String(), backend.SeparatorString)
-		if name == "" || strings.Contains(name, "/") {
+		components := event.Item.Key.TrimPrefix(scopedRoleAssignmentWatchPrefix()).Components()
+		name := ""
+		subKind := ""
+		switch len(components) {
+		case 1:
+			name = components[0]
+		case 2:
+			name = components[0]
+			subKind = components[1]
+		default:
 			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
 		}
+		if name == "" {
+			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+		}
+		if subKind == scopedaccess.SubKindMaterialized {
+			// Materialized assignments are filtered out from backend events in
+			// case a future version persists materialized assignments to the
+			// backend.
+			return nil, nil
+		}
 		return &types.ResourceHeader{
-			Kind: scopedaccess.KindScopedRoleAssignment,
+			Kind:    scopedaccess.KindScopedRoleAssignment,
+			SubKind: subKind,
 			Metadata: types.Metadata{
 				Name: name,
 			},
@@ -1121,6 +1166,12 @@ func (p *scopedRoleAssignmentParser) parse(event backend.Event) (types.Resource,
 		assignment, err := scopedRoleAssignmentFromItem(&event.Item)
 		if err != nil {
 			return nil, trace.Wrap(err)
+		}
+		if assignment.GetSubKind() == scopedaccess.SubKindMaterialized {
+			// Materialized assignments are filtered out from backend events in
+			// case a future version persists materialized assignments to the
+			// backend.
+			return nil, nil
 		}
 		return types.Resource153ToLegacy(assignment), nil
 	default:
@@ -2136,6 +2187,46 @@ func (p *windowsDesktopsParser) parse(event backend.Event) (types.Resource, erro
 	}
 }
 
+func newLinuxDesktopsParser() *linuxDesktopParser {
+	return &linuxDesktopParser{
+		baseParser: newBaseParser(backend.NewKey(linuxDesktopKey)),
+	}
+}
+
+type linuxDesktopParser struct {
+	baseParser
+}
+
+func (p *linuxDesktopParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		name := event.Item.Key.TrimPrefix(backend.NewKey(linuxDesktopKey)).String()
+		if name == "" {
+			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+		}
+
+		return &types.ResourceHeader{
+			Kind:    types.KindLinuxDesktop,
+			Version: types.V1,
+			Metadata: types.Metadata{
+				Name:      strings.TrimPrefix(name, backend.SeparatorString),
+				Namespace: apidefaults.Namespace,
+			},
+		}, nil
+	case types.OpPut:
+		r, err := services.UnmarshalLinuxDesktop(event.Item.Value,
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.ProtoResource153ToLegacy(r), nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
 type installerParser struct {
 	baseParser
 }
@@ -2795,7 +2886,7 @@ func (p *kubeWaitingContainerParser) parse(event backend.Event) (types.Resource,
 
 		resource, err := kubewaitingcontainer.NewKubeWaitingContainer(
 			parts[5],
-			&kubewaitingcontainerpb.KubernetesWaitingContainerSpec{
+			kubewaitingcontainerpb.KubernetesWaitingContainerSpec_builder{
 				Username:      parts[1],
 				Cluster:       parts[2],
 				Namespace:     parts[3],
@@ -2803,7 +2894,7 @@ func (p *kubeWaitingContainerParser) parse(event backend.Event) (types.Resource,
 				ContainerName: parts[5],
 				Patch:         []byte("{}"),                       // default to empty patch. It doesn't matter for delete ops.
 				PatchType:     kubewaitingcontainer.JSONPatchType, // default to JSON patch. It doesn't matter for delete ops.
-			},
+			}.Build(),
 		)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -2882,16 +2973,16 @@ func (p *userNotificationParser) parse(event backend.Event) (types.Resource, err
 			return nil, trace.BadParameter("malformed key for %s event: %s", types.KindNotification, event.Item.Key)
 		}
 
-		notification := &notificationsv1.Notification{
+		notification := notificationsv1.Notification_builder{
 			Kind:    types.KindNotification,
 			Version: types.V1,
-			Spec: &notificationsv1.NotificationSpec{
+			Spec: notificationsv1.NotificationSpec_builder{
 				Username: parts[2],
-			},
-			Metadata: &headerv1.Metadata{
+			}.Build(),
+			Metadata: headerv1.Metadata_builder{
 				Name: parts[3],
-			},
-		}
+			}.Build(),
+		}.Build()
 
 		return types.Resource153ToLegacy(notification), nil
 	case types.OpPut:
@@ -2926,18 +3017,18 @@ func (p *globalNotificationParser) parse(event backend.Event) (types.Resource, e
 			return nil, trace.BadParameter("malformed key for %s event: %s", types.KindGlobalNotification, event.Item.Key)
 		}
 
-		globalNotification := &notificationsv1.GlobalNotification{
+		globalNotification := notificationsv1.GlobalNotification_builder{
 			Kind:    types.KindGlobalNotification,
 			Version: types.V1,
-			Spec: &notificationsv1.GlobalNotificationSpec{
-				Notification: &notificationsv1.Notification{
+			Spec: notificationsv1.GlobalNotificationSpec_builder{
+				Notification: notificationsv1.Notification_builder{
 					Spec: &notificationsv1.NotificationSpec{},
-				},
-			},
-			Metadata: &headerv1.Metadata{
+				}.Build(),
+			}.Build(),
+			Metadata: headerv1.Metadata_builder{
 				Name: parts[2],
-			},
-		}
+			}.Build(),
+		}.Build()
 
 		return types.Resource153ToLegacy(globalNotification), nil
 	case types.OpPut:
@@ -2972,17 +3063,17 @@ func (p *botInstanceParser) parse(event backend.Event) (types.Resource, error) {
 			return nil, trace.BadParameter("malformed key for %s event: %s", types.KindBotInstance, event.Item.Key)
 		}
 
-		botInstance := &machineidv1.BotInstance{
+		botInstance := machineidv1.BotInstance_builder{
 			Kind:    types.KindBotInstance,
 			Version: types.V1,
-			Spec: &machineidv1.BotInstanceSpec{
+			Spec: machineidv1.BotInstanceSpec_builder{
 				BotName:    parts[1],
 				InstanceId: parts[2],
-			},
-			Metadata: &headerv1.Metadata{
+			}.Build(),
+			Metadata: headerv1.Metadata_builder{
 				Name: parts[2],
-			},
-		}
+			}.Build(),
+		}.Build()
 
 		return types.Resource153ToLegacy(botInstance), nil
 	case types.OpPut:
@@ -3176,16 +3267,16 @@ func (p *accessGraphSecretPrivateKeyParser) parse(event backend.Event) (types.Re
 		}
 		deviceID := key.Components()[0]
 
-		privateKey := &accessgraphsecretsv1pb.PrivateKey{
+		privateKey := accessgraphsecretsv1pb.PrivateKey_builder{
 			Kind:    types.KindAccessGraphSecretPrivateKey,
 			Version: types.V1,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: strings.TrimPrefix(key.TrimPrefix(backend.NewKey(deviceID)).String(), backend.SeparatorString),
-			},
-			Spec: &accessgraphsecretsv1pb.PrivateKeySpec{
+			}.Build(),
+			Spec: accessgraphsecretsv1pb.PrivateKeySpec_builder{
 				DeviceId: deviceID,
-			},
-		}
+			}.Build(),
+		}.Build()
 
 		return types.Resource153ToLegacy(privateKey), nil
 	case types.OpPut:
@@ -3221,16 +3312,16 @@ func (p *accessGraphSecretAuthorizedKeyParser) parse(event backend.Event) (types
 		}
 		hostID := key.Components()[0]
 
-		authorizedKey := &accessgraphsecretsv1pb.AuthorizedKey{
+		authorizedKey := accessgraphsecretsv1pb.AuthorizedKey_builder{
 			Kind:    types.KindAccessGraphSecretAuthorizedKey,
 			Version: types.V1,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: strings.TrimPrefix(key.TrimPrefix(backend.NewKey(hostID)).String(), backend.SeparatorString),
-			},
-			Spec: &accessgraphsecretsv1pb.AuthorizedKeySpec{
+			}.Build(),
+			Spec: accessgraphsecretsv1pb.AuthorizedKeySpec_builder{
 				HostId: hostID,
-			},
-		}
+			}.Build(),
+		}.Build()
 
 		return types.Resource153ToLegacy(authorizedKey), nil
 	case types.OpPut:
@@ -3325,16 +3416,16 @@ func (p *provisioningStateParser) parse(event backend.Event) (types.Resource, er
 		downstreamID := keyComponents[0]
 		resourceID := keyComponents[1]
 
-		pseudoState := &provisioningv1.PrincipalState{
+		pseudoState := provisioningv1.PrincipalState_builder{
 			Kind:    types.KindProvisioningPrincipalState,
 			Version: types.V1,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: resourceID,
-			},
-			Spec: &provisioningv1.PrincipalStateSpec{
+			}.Build(),
+			Spec: provisioningv1.PrincipalStateSpec_builder{
 				DownstreamId: downstreamID,
-			},
-		}
+			}.Build(),
+		}.Build()
 		return types.Resource153ToLegacy(pseudoState), nil
 
 	case types.OpPut:

@@ -17,6 +17,8 @@
 package awsconfigfile
 
 import (
+	"bytes"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -26,7 +28,8 @@ import (
 )
 
 const (
-	ownershipComment = "Do not edit. Section managed by Teleport."
+	ownershipComment    = "Do not edit. Section managed by Teleport."
+	ssoOwnershipComment = "Do not edit. Section managed by Teleport (AWS Identity Center integration)."
 )
 
 // AWSConfigFilePath returns the path to the AWS configuration file.
@@ -42,6 +45,147 @@ func AWSConfigFilePath() (string, error) {
 	}
 
 	return filepath.Join(homedir, ".aws", "config"), nil
+}
+
+// SSOSession represents an AWS SSO session configuration.
+type SSOSession struct {
+	// Name is the session name.
+	Name string
+	// StartURL is the SSO start URL.
+	StartURL string
+	// Region is the SSO region.
+	Region string
+}
+
+// SSOProfile represents an AWS Identity Center profile configuration.
+type SSOProfile struct {
+	// Name is the profile name.
+	Name string
+	// Session is the name of the SSO session.
+	Session string
+	// AccountID is the AWS account ID.
+	AccountID string
+	// RoleName is the name of the IAM role.
+	RoleName string
+	// Account is the AWS account name or alias.
+	Account string
+}
+
+// WriteSSOConfig writes multiple SSO profiles and sessions to the AWS configuration file in a single pass,
+// and prunes any stale Teleport-managed SSO sections.
+func WriteSSOConfig(configFilePath string, profiles []SSOProfile, sessions []SSOSession) error {
+	return writeSSOConfig(configFilePath, profiles, sessions, nil)
+}
+
+// PrintSSOConfig simulates writing multiple SSO profiles and sessions by printing the result to the provided writer,
+// without modifying the AWS configuration file on disk.
+func PrintSSOConfig(configFilePath string, profiles []SSOProfile, sessions []SSOSession, out io.Writer) error {
+	return writeSSOConfig(configFilePath, profiles, sessions, out)
+}
+
+func writeSSOConfig(configFilePath string, profiles []SSOProfile, sessions []SSOSession, out io.Writer) error {
+	iniFile, err := ini.LoadSources(ini.LoadOptions{
+		AllowNestedValues: true,
+		Loose:             true,
+	}, configFilePath)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	keepProfiles := make(map[string]struct{})
+	keepSessions := make(map[string]struct{})
+
+	// Add/Update sessions.
+	for _, s := range sessions {
+		sectionName := "sso-session " + s.Name
+		keepSessions[sectionName] = struct{}{}
+
+		section, err := getOrCreateManagedSection(iniFile, sectionName, ssoOwnershipComment)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		section.Comment = ssoOwnershipComment
+		if _, err := section.NewKey("sso_start_url", s.StartURL); err != nil {
+			return trace.Wrap(err)
+		}
+		if _, err := section.NewKey("sso_region", s.Region); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	// Add/Update profiles.
+	for _, p := range profiles {
+		sectionName := "profile " + p.Name
+		keepProfiles[sectionName] = struct{}{}
+
+		section, err := getOrCreateManagedSection(iniFile, sectionName, ssoOwnershipComment)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if section.HasKey("credential_process") {
+			return trace.BadParameter("%s: section %q contains 'credential_process' and cannot be converted to an SSO profile, remove the section and try again", configFilePath, section.Name())
+		}
+
+		section.Comment = ssoOwnershipComment
+		if _, err := section.NewKey("sso_session", p.Session); err != nil {
+			return trace.Wrap(err)
+		}
+		if _, err := section.NewKey("sso_account_id", p.AccountID); err != nil {
+			return trace.Wrap(err)
+		}
+		if _, err := section.NewKey("sso_role_name", p.RoleName); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	// Prune stale sections.
+	for _, section := range iniFile.Sections() {
+		if !strings.Contains(section.Comment, ssoOwnershipComment) {
+			continue
+		}
+
+		name := section.Name()
+		shouldDelete := false
+		switch {
+		case strings.HasPrefix(name, "profile "):
+			if _, ok := keepProfiles[name]; !ok {
+				shouldDelete = true
+			}
+		case strings.HasPrefix(name, "sso-session "):
+			if _, ok := keepSessions[name]; !ok {
+				shouldDelete = true
+			}
+		}
+
+		if shouldDelete {
+			iniFile.DeleteSection(name)
+		}
+	}
+
+	if out != nil {
+		_, err := iniFile.WriteTo(out)
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(writeINIFile(iniFile, configFilePath))
+}
+
+func getOrCreateManagedSection(iniFile *ini.File, sectionName, expectedComment string) (*ini.Section, error) {
+	if iniFile.HasSection(sectionName) {
+		section := iniFile.Section(sectionName)
+		if !strings.Contains(section.Comment, expectedComment) {
+			return nil, trace.BadParameter("section %q is not managed by Teleport, remove the section and try again", sectionName)
+		}
+		return section, nil
+	}
+
+	section, err := iniFile.NewSection(sectionName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return section, nil
 }
 
 // SetDefaultProfileCredentialProcess sets the credential_process for the default profile.
@@ -61,7 +205,7 @@ func UpsertProfileCredentialProcess(configFilePath, profileName, credentialProce
 func addCredentialProcessToSection(configFilePath, sectionName, credentialProcessCommand string) error {
 	iniFile, err := ini.LoadSources(ini.LoadOptions{
 		AllowNestedValues: true, // Allow AWS-like nested values. Docs: http://docs.aws.amazon.com/cli/latest/topic/config-vars.html#nested-values
-		Loose:             true, // Allow non-existing files. ini.SaveTo will create the file if it does not exist.
+		Loose:             true, // Allow non-existing files. writeConfigFile will create the file if it does not exist.
 	}, configFilePath)
 	if err != nil {
 		return trace.Wrap(err)
@@ -94,12 +238,28 @@ func addCredentialProcessToSection(configFilePath, sectionName, credentialProces
 		return trace.BadParameter("%s: section %q contains other keys, remove the section and try again", configFilePath, sectionName)
 	}
 
-	// Create the directory if it does not exist, otherwise ini.SaveTo will fail.
-	if err := os.MkdirAll(filepath.Dir(configFilePath), 0o755); err != nil {
+	return trace.Wrap(writeINIFile(iniFile, configFilePath))
+}
+
+// writeINIFile writes the given ini file path with u+rw permissions.
+func writeINIFile(iniFile *ini.File, iniFilePath string) error {
+	// Serialize content first; no point in creating output directories for
+	// a file that will never exist
+	var content bytes.Buffer
+	if _, err := iniFile.WriteTo(&content); err != nil {
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(iniFile.SaveTo(configFilePath))
+	// Create the destination directory if it does not exist, os.WriteFile will
+	// fail if the target directory doesn't exist
+	if err := os.MkdirAll(filepath.Dir(iniFilePath), 0o700); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// We're avoiding [*ini.File.SaveTo] here because SaveTo creates the file as
+	// globally read+write (i.e. with FileMode 0o666), and we want tighter
+	// permissions (user-only rw) on it.
+	return trace.Wrap(os.WriteFile(iniFilePath, content.Bytes(), 0o600))
 }
 
 // RemoveTeleportManagedProfile removes the credential_process key on sections that have a specific section comment.
@@ -137,7 +297,7 @@ func RemoveTeleportManagedProfile(configFilePath, profile string) error {
 		return nil
 	}
 
-	return trace.Wrap(iniFile.SaveTo(configFilePath))
+	return trace.Wrap(writeINIFile(iniFile, configFilePath))
 }
 
 // RemoveAllTeleportManagedProfiles removes all the profiles managed by Teleport.
@@ -168,5 +328,5 @@ func RemoveAllTeleportManagedProfiles(configFilePath string) error {
 		return nil
 	}
 
-	return trace.Wrap(iniFile.SaveTo(configFilePath))
+	return trace.Wrap(writeINIFile(iniFile, configFilePath))
 }

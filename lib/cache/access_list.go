@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/accesslists"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils/sortcache"
@@ -283,6 +284,10 @@ func (c *Cache) ListAccessListMembers(ctx context.Context, accessListName string
 		return out, next, trace.Wrap(err)
 	}
 
+	return listAccessListMembers(rg.store, accessListName, pageSize, pageToken)
+}
+
+func listAccessListMembers(store *store[*accesslist.AccessListMember, accessListMemberIndex], accessListName string, pageSize int, pageToken string) ([]*accesslist.AccessListMember, string, error) {
 	// The ending "/" is very important here, otherwise we can start listing members of access
 	// lists which names are prefixed with this access list name. E.g. we'd list members of
 	// "dev-suffix" for list "dev".
@@ -295,7 +300,7 @@ func (c *Cache) ListAccessListMembers(ctx context.Context, accessListName string
 	}
 
 	var out []*accesslist.AccessListMember
-	for member := range rg.store.resources(accessListMemberNameIndex, current, end) {
+	for member := range store.resources(accessListMemberNameIndex, current, end) {
 		if len(out) == pageSize {
 			return out, member.GetName(), nil
 		}
@@ -303,7 +308,7 @@ func (c *Cache) ListAccessListMembers(ctx context.Context, accessListName string
 		out = append(out, member.Clone())
 	}
 
-	return out, "", trace.Wrap(err)
+	return out, "", nil
 }
 
 // ListAllAccessListMembers returns a paginated list of all access list members for all access lists.
@@ -346,6 +351,38 @@ func (c *Cache) GetAccessListMember(ctx context.Context, accessList string, memb
 		return nil, trace.Wrap(err)
 	}
 	return member.Clone(), nil
+}
+
+type accessListMembersListerStore struct {
+	store *store[*accesslist.AccessListMember, accessListMemberIndex]
+}
+
+// ListAccessListMembers implements [accesslists.AccessListMembersLister].
+func (l accessListMembersListerStore) ListAccessListMembers(ctx context.Context, accessListName string, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error) {
+	return listAccessListMembers(l.store, accessListName, pageSize, pageToken)
+}
+
+// GetAccessListOwners returns the owners of the specified access list, including those inherited.
+func (c *Cache) GetAccessListOwners(ctx context.Context, accessListName string) ([]*accesslist.Owner, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetAccessListOwners")
+	defer span.End()
+
+	accessList, err := c.GetAccessList(ctx, accessListName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	rg, err := acquireReadGuard(c, c.collections.accessListMembers)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+
+	if !rg.ReadCache() {
+		return accesslists.GetOwnersFor(ctx, accessList, c.Config.AccessLists)
+	}
+
+	return accesslists.GetOwnersFor(ctx, accessList, accessListMembersListerStore{store: rg.store})
 }
 
 type accessListReviewIndex string
@@ -407,10 +444,10 @@ func (c *Cache) ListAccessListReviews(ctx context.Context, accessList string, pa
 		},
 	}
 
-	start := accessList
-	end := sortcache.NextKey(accessList + "/")
+	start := accessList + "/"
+	end := sortcache.NextKey(start)
 	if pageToken != "" {
-		start += "/" + pageToken
+		start += pageToken
 	}
 
 	out, next, err := lister.listRange(ctx, pageSize, start, end)

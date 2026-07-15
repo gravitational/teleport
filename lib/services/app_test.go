@@ -19,23 +19,47 @@
 package services
 
 import (
+	"bytes"
 	"context"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"slices"
+	"strings"
 	"testing"
+	"time"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/cryptosuites"
+	scopedapp "github.com/gravitational/teleport/lib/scopes/app"
+	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/tlscatest"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestValidateApp(t *testing.T) {
+	// A scoped app's public_addr must be the derived "<hash(name,scope)>.<proxy>"
+	// address; any other value is rejected. The proxy suffix is not checked
+	// (label-only), and a scoped app skips the proxy-collision check entirely.
+	const scopedScope = "/staging/west"
+	scopedApp := func(name, scope, publicAddr string) types.Application {
+		app, err := types.NewAppV3(types.Metadata{Name: name}, types.AppSpecV3{
+			URI:        "http://localhost:3000",
+			PublicAddr: publicAddr,
+		}, scope)
+		require.NoError(t, err)
+		return app
+	}
+	scopedDerived := scopedapp.ScopedAppPublicAddr(scopedScope, "grafana", "proxy.example.com")
+	// Derived for a different scope, so it does not match scopedScope.
+	wrongScopeDerived := scopedapp.ScopedAppPublicAddr("/prod", "grafana", "proxy.example.com")
+
 	tests := []struct {
 		name       string
 		app        types.Application
@@ -71,34 +95,64 @@ func TestValidateApp(t *testing.T) {
 			wantErr:    "conflicts with the Teleport Proxy public address",
 		},
 		{
-			name: "public addr with trailing dot matches proxy host",
+			name: "public addr with trailing dot is rejected, with colliding proxy",
 			app: func() types.Application {
 				app, err := types.NewAppV3(types.Metadata{Name: "app"}, types.AppSpecV3{URI: "http://localhost:8080", PublicAddr: "web.example.com."})
 				require.NoError(t, err)
 				return app
 			}(),
 			proxyAddrs: []string{"web.example.com:443"},
-			wantErr:    "conflicts with the Teleport Proxy public address",
+			wantErr:    "must be a valid DNS name",
 		},
 		{
-			name: "public addr with multiple trailing dots matches proxy host",
+			name: "public addr with trailing dot is rejected, no proxy",
+			app: func() types.Application {
+				app, err := types.NewAppV3(types.Metadata{Name: "app"}, types.AppSpecV3{URI: "http://localhost:8080", PublicAddr: "web.example.com."})
+				require.NoError(t, err)
+				return app
+			}(),
+			proxyAddrs: []string{},
+			wantErr:    "must be a valid DNS name",
+		},
+		{
+			name: "public addr with multiple trailing dots is rejected, with colliding proxy",
 			app: func() types.Application {
 				app, err := types.NewAppV3(types.Metadata{Name: "app"}, types.AppSpecV3{URI: "http://localhost:8080", PublicAddr: "web.example.com..."})
 				require.NoError(t, err)
 				return app
 			}(),
 			proxyAddrs: []string{"web.example.com:443"},
-			wantErr:    "conflicts with the Teleport Proxy public address",
+			wantErr:    "must be a valid DNS name",
 		},
 		{
-			name: "public addr with mixed casing matches proxy host",
+			name: "public addr with multiple trailing dots is rejected, no proxy",
+			app: func() types.Application {
+				app, err := types.NewAppV3(types.Metadata{Name: "app"}, types.AppSpecV3{URI: "http://localhost:8080", PublicAddr: "web.example.com..."})
+				require.NoError(t, err)
+				return app
+			}(),
+			proxyAddrs: []string{},
+			wantErr:    "must be a valid DNS name",
+		},
+		{
+			name: "public addr with mixed casing is rejected, with colliding proxy",
 			app: func() types.Application {
 				app, err := types.NewAppV3(types.Metadata{Name: "app"}, types.AppSpecV3{URI: "http://localhost:8080", PublicAddr: "WeB.ExAmPle.CoM"})
 				require.NoError(t, err)
 				return app
 			}(),
 			proxyAddrs: []string{"web.example.com:443"},
-			wantErr:    "conflicts with the Teleport Proxy public address",
+			wantErr:    "must be a valid DNS name",
+		},
+		{
+			name: "public addr with mixed casing is rejected, no proxy",
+			app: func() types.Application {
+				app, err := types.NewAppV3(types.Metadata{Name: "app"}, types.AppSpecV3{URI: "http://localhost:8080", PublicAddr: "WeB.ExAmPle.CoM"})
+				require.NoError(t, err)
+				return app
+			}(),
+			proxyAddrs: []string{},
+			wantErr:    "must be a valid DNS name",
 		},
 		{
 			name: "multiple proxy addrs, one matches",
@@ -111,42 +165,33 @@ func TestValidateApp(t *testing.T) {
 			wantErr:    "conflicts with the Teleport Proxy public address",
 		},
 		{
-			name: "public addr with IDN matches proxy host",
+			name: "public addr IDN Unicode is rejected, with colliding proxy",
 			app: func() types.Application {
 				app, err := types.NewAppV3(types.Metadata{Name: "app"}, types.AppSpecV3{URI: "http://localhost:8080", PublicAddr: "例.cn"})
 				require.NoError(t, err)
 				return app
 			}(),
 			proxyAddrs: []string{"xn--fsq.cn:443"},
-			wantErr:    "conflicts with the Teleport Proxy public address",
+			wantErr:    "must be a valid DNS name",
 		},
 		{
-			name: "public addr with IDN does not conflict with non-IDN proxy host",
+			name: "public addr IDN Unicode is rejected, no proxy",
 			app: func() types.Application {
-				app, err := types.NewAppV3(types.Metadata{Name: "app"}, types.AppSpecV3{URI: "http://localhost:8080", PublicAddr: "münchen.de"})
+				app, err := types.NewAppV3(types.Metadata{Name: "app"}, types.AppSpecV3{URI: "http://localhost:8080", PublicAddr: "例.cn"})
 				require.NoError(t, err)
 				return app
 			}(),
-			proxyAddrs: []string{"example.com:443"},
+			proxyAddrs: []string{},
+			wantErr:    "must be a valid DNS name",
 		},
 		{
-			name: "IDN with mixed case matches proxy host",
+			name: "punycode IDN matches proxy host",
 			app: func() types.Application {
-				app, err := types.NewAppV3(types.Metadata{Name: "app"}, types.AppSpecV3{URI: "http://localhost:8080", PublicAddr: "MünchEn.de"})
+				app, err := types.NewAppV3(types.Metadata{Name: "app"}, types.AppSpecV3{URI: "http://localhost:8080", PublicAddr: "xn--fsq.cn"})
 				require.NoError(t, err)
 				return app
 			}(),
-			proxyAddrs: []string{"münchen.de:443"},
-			wantErr:    "conflicts with the Teleport Proxy public address",
-		},
-		{
-			name: "IDN with subdomains matches proxy host",
-			app: func() types.Application {
-				app, err := types.NewAppV3(types.Metadata{Name: "app"}, types.AppSpecV3{URI: "http://localhost:8080", PublicAddr: "sub.münchen.de"})
-				require.NoError(t, err)
-				return app
-			}(),
-			proxyAddrs: []string{"sub.xn--mnchen-3ya.de:443"},
+			proxyAddrs: []string{"xn--fsq.cn:443"},
 			wantErr:    "conflicts with the Teleport Proxy public address",
 		},
 		{
@@ -168,6 +213,63 @@ func TestValidateApp(t *testing.T) {
 			proxyAddrs: []string{"example.com:443", "example.com:80"},
 			wantErr:    "conflicts with the Teleport Proxy public address",
 		},
+		{
+			name: "valid aws region",
+			app: func() types.Application {
+				app, err := types.NewAppV3(types.Metadata{Name: "app"}, types.AppSpecV3{
+					AWS: &types.AppAWS{
+						Region: "us-west-2",
+					},
+					LLM: &types.LLM{
+						Format:   types.LLMFormatAnthropic,
+						Provider: types.LLMProviderAWSBedrock,
+					},
+				})
+				require.NoError(t, err)
+				return app
+			}(),
+		},
+		{
+			name: "invalid aws region",
+			app: func() types.Application {
+				app, err := types.NewAppV3(types.Metadata{Name: "app"}, types.AppSpecV3{
+					AWS: &types.AppAWS{
+						Region: "random",
+					},
+					LLM: &types.LLM{
+						Format:   types.LLMFormatAnthropic,
+						Provider: types.LLMProviderAWSBedrock,
+					},
+				})
+				require.NoError(t, err)
+				return app
+			}(),
+			wantErr: "invalid AWS region",
+		},
+		// Scoped apps: public_addr must be the derived address for (name, scope).
+		{
+			name: "correct derived public_addr accepted",
+			app:  scopedApp("grafana", scopedScope, scopedDerived),
+		},
+		{
+			name: "public_addr with different proxy suffix accepted",
+			app:  scopedApp("grafana", scopedScope, scopedapp.ScopedAppPublicAddr(scopedScope, "grafana", "other.example.com")),
+		},
+		{
+			name:    "empty public_addr rejected",
+			app:     scopedApp("grafana", scopedScope, ""),
+			wantErr: `scoped app "grafana" public address "" does not match its derived address for scope "/staging/west"`,
+		},
+		{
+			name:    "wrong scope's derived address rejected",
+			app:     scopedApp("grafana", scopedScope, wrongScopeDerived),
+			wantErr: `scoped app "grafana" public address "` + wrongScopeDerived + `" does not match its derived address for scope "/staging/west"`,
+		},
+		{
+			name:    "non-derived public_addr rejected",
+			app:     scopedApp("grafana", scopedScope, "grafana.proxy.example.com"),
+			wantErr: `scoped app "grafana" public address "grafana.proxy.example.com" does not match its derived address for scope "/staging/west"`,
+		},
 	}
 
 	for _, tt := range tests {
@@ -178,6 +280,333 @@ func TestValidateApp(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 			}
+		})
+	}
+}
+
+func makeServer(t *testing.T, outerName, innerName, serverScope, appScope, publicAddr string) types.AppServer {
+	t.Helper()
+	app, err := types.NewAppV3(types.Metadata{Name: innerName}, types.AppSpecV3{URI: "http://localhost:8080", PublicAddr: publicAddr}, appScope)
+	require.NoError(t, err)
+	srv, err := types.NewAppServerV3FromApp(app, "localhost", "host-id")
+	require.NoError(t, err)
+	srv.Metadata.Name = outerName
+	srv.Scope = serverScope
+
+	return srv
+}
+
+func TestValidateAppServer(t *testing.T) {
+	proxyGetter := &mockProxyGetter{addrs: []string{"proxy.example.com:443"}}
+
+	// A scoped app server's embedded app must carry the derived public_addr for
+	// the server's scope; the proxy suffix is not checked (label-only).
+	derivedProd := scopedapp.ScopedAppPublicAddr("/prod", "my-app", "proxy.example.com")
+
+	tests := []struct {
+		name          string
+		srvName       string
+		appName       string
+		srvScope      string
+		appScope      string
+		appPublicAddr string
+		wantErr       string
+	}{
+		// Name validation.
+		{
+			name:    "valid outer and inner",
+			srvName: "myapp",
+			appName: "myapp",
+		},
+		{
+			name:    "mixed-case outer rejected",
+			srvName: "MyApp",
+			appName: "myapp",
+			wantErr: `app server name "MyApp" must be a valid DNS name (lowercase alphanumeric, '-', '_', or '.', must start and end with alphanumeric, max 253 chars): a lowercase RFC 1123 subdomain must consist of lower case alphanumeric characters, '_', '-' or '.', and must start and end with an alphanumeric character (e.g. 'example.com', regex used for validation is '_?[a-z0-9]([-_a-z0-9]*[a-z0-9])?(\._?[a-z0-9]([-_a-z0-9]*[a-z0-9])?)*')`,
+		},
+		{
+			name:    "underscore in outer accepted",
+			srvName: "ok_name",
+			appName: "good-name"},
+		{
+			name:    "mixed-case inner rejected",
+			srvName: "myapp",
+			appName: "MyApp",
+			wantErr: `application name "MyApp" must be a valid DNS name (lowercase alphanumeric, '-', '_', or '.', must start and end with alphanumeric, max 253 chars): https://goteleport.com/docs/enroll-resources/application-access/guides/connecting-apps/#application-name`,
+		},
+		// Scope validation: the embedded app scope must equal the server scope.
+		{
+			name:          "equal scope accepted",
+			srvName:       "my-srv",
+			appName:       "my-app",
+			srvScope:      "/prod",
+			appScope:      "/prod",
+			appPublicAddr: derivedProd,
+		},
+		{
+			name:    "unscoped server and app accepted",
+			srvName: "my-srv",
+			appName: "my-app",
+		},
+		{
+			name:     "different scopes rejected",
+			srvName:  "my-srv",
+			appName:  "my-app",
+			srvScope: "/prod/web",
+			appScope: "/prod",
+			wantErr:  `app server "my-srv" scope "/prod/web" does not match its embedded app scope "/prod"`,
+		},
+		{
+			name:     "empty embedded app scope under scoped server rejected",
+			srvName:  "my-srv",
+			appName:  "my-app",
+			srvScope: "/prod",
+			appScope: "",
+			wantErr:  `app server "my-srv" scope "/prod" does not match its embedded app scope ""`,
+		},
+		{
+			name:     "scoped app under unscoped server rejected",
+			srvName:  "my-srv",
+			appName:  "my-app",
+			srvScope: "",
+			appScope: "/prod",
+			wantErr:  `app server "my-srv" scope "" does not match its embedded app scope "/prod"`,
+		},
+		{
+			name:          "scoped non-derived public_addr rejected",
+			srvName:       "my-srv",
+			appName:       "my-app",
+			srvScope:      "/prod",
+			appScope:      "/prod",
+			appPublicAddr: "my-app.proxy.example.com",
+			wantErr:       `scoped app "my-app" public address "my-app.proxy.example.com" does not match its derived address for scope "/prod"`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidateAppServer(makeServer(t, tt.srvName, tt.appName, tt.srvScope, tt.appScope, tt.appPublicAddr), proxyGetter)
+			if tt.wantErr != "" {
+				require.EqualError(t, err, tt.wantErr)
+				require.True(t, trace.IsBadParameter(err), "want BadParameter, got %v", err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+
+	t.Run("nil server rejected", func(t *testing.T) {
+		require.EqualError(t, ValidateAppServer(nil, proxyGetter), "nil app server")
+	})
+}
+
+func TestValidateAppName(t *testing.T) {
+	proxyGetter := &mockProxyGetter{addrs: []string{"proxy.example.com:443"}}
+
+	t.Run("nil app rejected", func(t *testing.T) {
+		err := ValidateApp(nil, proxyGetter)
+		require.ErrorContains(t, err, "nil application")
+	})
+
+	t.Run("required_apps mixed case rejected", func(t *testing.T) {
+		app, err := types.NewAppV3(types.Metadata{Name: "main"}, types.AppSpecV3{
+			URI:              "http://localhost:8080",
+			RequiredAppNames: []string{"MixedCase"},
+		})
+		require.NoError(t, err)
+		err = ValidateApp(app, proxyGetter)
+		require.ErrorContains(t, err, `references required_apps entry "MixedCase"`)
+	})
+
+	t.Run("required_apps valid entries accepted", func(t *testing.T) {
+		app, err := types.NewAppV3(types.Metadata{Name: "main"}, types.AppSpecV3{
+			URI:              "http://localhost:8080",
+			RequiredAppNames: []string{"other-app", "another.app"},
+		})
+		require.NoError(t, err)
+		require.NoError(t, ValidateApp(app, proxyGetter))
+	})
+
+	makeApp := func(t *testing.T, name string) types.Application {
+		t.Helper()
+		app, err := types.NewAppV3(types.Metadata{Name: name}, types.AppSpecV3{URI: "http://localhost:8080"})
+		require.NoError(t, err)
+		return app
+	}
+
+	tests := []struct {
+		name    string
+		appName string
+		wantErr string
+	}{
+		{name: "valid lowercase", appName: "myapp"},
+		{name: "valid with hyphen", appName: "my-app"},
+		{name: "valid leading digit", appName: "1stapp"},
+		{name: "valid all digits", appName: "123"},
+		{name: "valid dotted name", appName: "env.prod"},
+		{name: "reject uppercase", appName: "MyApp", wantErr: "must be a valid DNS name"},
+		{name: "accept underscore", appName: "my_app"},
+		{name: "reject trailing hyphen", appName: "foo-", wantErr: "must be a valid DNS name"},
+		{name: "accept 63-char label", appName: strings.Repeat("a", 63)},
+		{name: "reject too long", appName: strings.Repeat("a", 254), wantErr: "must be a valid DNS name"},
+		{name: "accept single char", appName: "a"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			app := makeApp(t, tt.appName)
+			err := ValidateApp(app, proxyGetter)
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
+			} else {
+				require.NoError(t, err)
+			}
+			// ValidateApp must not rewrite GetName; UpdateApp would
+			// retarget the wrong record.
+			require.Equal(t, tt.appName, app.GetName())
+		})
+	}
+}
+
+func TestValidateAppPublicAddr(t *testing.T) {
+	proxyGetter := &mockProxyGetter{addrs: []string{"proxy.example.com:443"}}
+
+	makeApp := func(t *testing.T, publicAddr string) types.Application {
+		t.Helper()
+		app, err := types.NewAppV3(types.Metadata{Name: "app"}, types.AppSpecV3{URI: "http://localhost:8080", PublicAddr: publicAddr})
+		require.NoError(t, err)
+		return app
+	}
+
+	tests := []struct {
+		name    string
+		addr    string
+		wantErr string
+	}{
+		{name: "bare hostname", addr: "app.example.com"},
+		{name: "reject mixed case", addr: "MyApp.example.com", wantErr: "must be a valid DNS name"},
+		{name: "reject all-upper", addr: "APP.EXAMPLE.COM", wantErr: "must be a valid DNS name"},
+		{name: "reject scheme http", addr: "http://foo.bar", wantErr: "must be a valid DNS name"},
+		{name: "reject scheme https with port", addr: "https://foo.bar:443", wantErr: "must be a valid DNS name"},
+		{name: "reject port", addr: "foo.bar:443", wantErr: "must be a valid DNS name"},
+		{name: "reject IPv4", addr: "192.168.1.1", wantErr: "must not be an IP address"},
+		{name: "reject bare IPv6", addr: "::1", wantErr: "must not be an IP address"},
+		{name: "reject bracketed IPv6", addr: "[::1]", wantErr: "must be a valid DNS name"},
+		{name: "reject bracketed IPv6 with port", addr: "[::1]:443", wantErr: "must be a valid DNS name"},
+		{name: "reject mailto opaque", addr: "mailto:victim@example.com", wantErr: "must be a valid DNS name"},
+		{name: "reject path", addr: "app.example.com/path", wantErr: "must be a valid DNS name"},
+		{name: "reject query", addr: "app.example.com?x=y", wantErr: "must be a valid DNS name"},
+		{name: "reject fragment", addr: "app.example.com#frag", wantErr: "must be a valid DNS name"},
+		{name: "reject userinfo", addr: "user@app.example.com", wantErr: "must be a valid DNS name"},
+		{name: "reject single trailing dot", addr: "app.example.com.", wantErr: "must be a valid DNS name"},
+		{name: "reject double trailing dot", addr: "app.example.com..", wantErr: "must be a valid DNS name"},
+		{name: "reject only dots", addr: "...", wantErr: "must be a valid DNS name"},
+		{name: "reject IDN unicode", addr: "münchen.de", wantErr: "must be a valid DNS name"},
+		{name: "accept punycode", addr: "xn--mnchen-3ya.de"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			app := makeApp(t, tt.addr)
+			err := ValidateApp(app, proxyGetter)
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestNormalizeAppServerForHeartbeat(t *testing.T) {
+	makeServer := func(t *testing.T, outerName, innerName string) *types.AppServerV3 {
+		t.Helper()
+		app, err := types.NewAppV3(types.Metadata{Name: innerName}, types.AppSpecV3{
+			URI: "http://localhost:8080",
+		})
+		require.NoError(t, err)
+		srv, err := types.NewAppServerV3FromApp(app, "localhost", "host-id")
+		require.NoError(t, err)
+		srv.Metadata.Name = outerName
+		return srv
+	}
+
+	tests := []struct {
+		name          string
+		outerName     string
+		innerName     string
+		wantOuterName string
+		wantInnerName string
+	}{
+		{
+			name:          "both lowercase unchanged",
+			outerName:     "myapp",
+			innerName:     "myapp",
+			wantOuterName: "myapp",
+			wantInnerName: "myapp",
+		},
+		{
+			name:          "both mixed-case lowercased together",
+			outerName:     "MyApp",
+			innerName:     "MyApp",
+			wantOuterName: "myapp",
+			wantInnerName: "myapp",
+		},
+		{
+			name:          "outer mixed-case inner lowercase",
+			outerName:     "MyApp",
+			innerName:     "myapp",
+			wantOuterName: "myapp",
+			wantInnerName: "myapp",
+		},
+		{
+			name:          "true mismatch left unchanged",
+			outerName:     "different",
+			innerName:     "myapp",
+			wantOuterName: "different",
+			wantInnerName: "myapp",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srv := makeServer(t, tt.outerName, tt.innerName)
+			NormalizeAppServerForHeartbeat(srv)
+			require.Equal(t, tt.wantOuterName, srv.GetName())
+			require.Equal(t, tt.wantInnerName, srv.GetApp().GetName())
+		})
+	}
+
+	t.Run("required_apps lowercased", func(t *testing.T) {
+		app, err := types.NewAppV3(types.Metadata{Name: "main"}, types.AppSpecV3{
+			URI:              "http://localhost:8080",
+			RequiredAppNames: []string{"MixedCase", "Other.App"},
+		})
+		require.NoError(t, err)
+		srv, err := types.NewAppServerV3FromApp(app, "localhost", "host-id")
+		require.NoError(t, err)
+		NormalizeAppServerForHeartbeat(srv)
+		require.Equal(t, []string{"mixedcase", "other.app"}, srv.GetApp().GetRequiredAppNames())
+	})
+}
+
+func TestNormalizeHeartbeatPublicAddr(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{name: "empty unchanged", input: "", want: ""},
+		{name: "bare hostname unchanged", input: "app.example.com", want: "app.example.com"},
+		{name: "scheme and path stripped", input: "https://app.example.com/start", want: "app.example.com"},
+		{name: "scheme path and port stripped", input: "https://app.example.com:443/path", want: "app.example.com"},
+		{name: "trailing port stripped", input: "app.example.com:443", want: "app.example.com"},
+		{name: "mixed case lowercased", input: "MyApp.Example.Com", want: "myapp.example.com"},
+		{name: "mixed case with scheme lowercased", input: "https://MyApp.Example.Com/start", want: "myapp.example.com"},
+		{name: "mixed case with port lowercased", input: "MyApp.Example.Com:443", want: "myapp.example.com"},
+		{name: "bare IPv6 returned as-is", input: "::1", want: "::1"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, normalizeHeartbeatPublicAddr(tt.input))
 		})
 	}
 }
@@ -229,6 +658,12 @@ func TestApplicationUnmarshal(t *testing.T) {
 		Labels:      map[string]string{"env": "dev"},
 	}, types.AppSpecV3{
 		URI: "http://localhost:8080",
+		TLS: &types.AppTLS{
+			Mode:           types.AppTLSModeVerifyFull,
+			ServerName:     "localhost",
+			ServerSpiffeId: "spiffe://mycluster/svc/localhost",
+			ClientCertMode: types.AppClientCertModeManaged,
+		},
 	})
 	require.NoError(t, err)
 	data, err := utils.ToJSON([]byte(appYAML))
@@ -245,7 +680,13 @@ func TestApplicationMarshal(t *testing.T) {
 		Description: "Test description",
 		Labels:      map[string]string{"env": "dev"},
 	}, types.AppSpecV3{
-		URI: "http://localhost:8080",
+		URI: "https://localhost:8080",
+		TLS: &types.AppTLS{
+			Mode:           types.AppTLSModeVerifyFull,
+			ServerName:     "localhost",
+			ServerSpiffeId: "spiffe://mycluster/svc/localhost",
+			ClientCertMode: types.AppClientCertModeManaged,
+		},
 	})
 	require.NoError(t, err)
 	data, err := MarshalApp(expected)
@@ -263,7 +704,12 @@ metadata:
   labels:
     env: dev
 spec:
-  uri: "http://localhost:8080"`
+  uri: "http://localhost:8080"
+  tls:
+    mode: verify-full
+    server_name: localhost
+    server_spiffe_id: spiffe://mycluster/svc/localhost
+    client_cert_mode: managed`
 
 func TestGetAppName(t *testing.T) {
 	tests := []struct {
@@ -316,6 +762,19 @@ func TestGetAppName(t *testing.T) {
 			portName:    "http",
 			annotation:  "overridden*name",
 			wantErr:     "s",
+		},
+		{
+			serviceName: "service4",
+			namespace:   "ns4",
+			clusterName: "cluster4",
+			annotation:  "1stapp",
+			expected:    "1stapp",
+		},
+		{
+			serviceName: "service5",
+			namespace:   "ns5",
+			clusterName: "MyGroup",
+			expected:    "service5-ns5-mygroup",
 		},
 	}
 
@@ -577,10 +1036,10 @@ func TestRewriteHeadersAndApplyValueTraits(t *testing.T) {
 		// Missing traits should log a debug message that this rewrite is skipped.
 		{Name: "x-bad-rewrite", Value: "{{external.bad_rewrite}}"},
 	}
-	traits := map[string][]string{
+	rewriteTraits := map[string][]string{
 		"rewrite": {"value1", "value2"},
 	}
-	RewriteHeadersAndApplyValueTraits(r, slices.Values(rewrites), traits, slog.Default())
+	RewriteHeadersAndApplyValueTraits(r, slices.Values(rewrites), rewriteTraits, slog.Default())
 
 	assert.Equal(t, "1.2.3.4", r.Host)
 	wantHeaders := make(http.Header)
@@ -588,4 +1047,239 @@ func TestRewriteHeadersAndApplyValueTraits(t *testing.T) {
 	wantHeaders.Add("x-rewrite", "value2")
 	wantHeaders.Add("x-no-rewrite", "no-rewrite")
 	assert.Equal(t, wantHeaders, r.Header)
+}
+
+func TestValidateAppTLS(t *testing.T) {
+	for name, tc := range map[string]struct {
+		uri          string
+		tls          *types.AppTLS
+		insecureSkip bool
+		expectErr    require.ErrorAssertionFunc
+	}{
+		"full valid configuration": {
+			tls: &types.AppTLS{
+				Mode:           types.AppTLSModeVerifyFull,
+				ServerName:     "example.com",
+				ServerSpiffeId: "spiffe://mycluster/svc/example",
+				AllowedCas:     []string{types.AppTLSInternalCAWorkloadIdentity},
+				ClientCertMode: types.AppClientCertModeManaged,
+			},
+			expectErr: require.NoError,
+		},
+		"mcp https valid configuration": {
+			uri: "mcp+https://localhost",
+			tls: &types.AppTLS{
+				Mode:           types.AppTLSModeVerifyFull,
+				ServerSpiffeId: "spiffe://mycluster/svc/mcp",
+				ClientCertMode: types.AppClientCertModeManaged,
+			},
+			expectErr: require.NoError,
+		},
+		"minimal": {
+			tls: &types.AppTLS{
+				Mode: types.AppTLSModeVerifyServerName,
+			},
+			expectErr: require.NoError,
+		},
+		"insecure with client cert mode": {
+			tls: &types.AppTLS{
+				Mode:           types.AppTLSModeInsecure,
+				ClientCertMode: types.AppClientCertModeManaged,
+			},
+			expectErr: require.Error,
+		},
+		"conflicting insecure skip verify and tls mode": {
+			tls: &types.AppTLS{
+				Mode: types.AppTLSModeVerifyServerName,
+			},
+			insecureSkip: true,
+			expectErr:    require.Error,
+		},
+		"incomplete server spiffe id": {
+			tls: &types.AppTLS{
+				Mode:           types.AppTLSModeVerifySpiffeID,
+				ServerSpiffeId: "/svc/example",
+			},
+			expectErr: require.Error,
+		},
+		"verify spiffe id mode and with server name": {
+			tls: &types.AppTLS{
+				Mode:           types.AppTLSModeVerifySpiffeID,
+				ServerName:     "example.com",
+				ServerSpiffeId: "spiffe://mycluster/svc/example",
+			},
+			expectErr: require.Error,
+		},
+		"invalid mode": {
+			tls: &types.AppTLS{
+				Mode: "invalid",
+			},
+			expectErr: require.Error,
+		},
+		"invalid allowed CA": {
+			tls: &types.AppTLS{
+				Mode:       types.AppTLSModeVerifyFull,
+				AllowedCas: []string{"workload_identity", "malformed cert"},
+			},
+			expectErr: require.Error,
+		},
+		"server name with insecure mode": {
+			tls: &types.AppTLS{
+				Mode:       types.AppTLSModeInsecure,
+				ServerName: "example.com",
+			},
+			expectErr: require.Error,
+		},
+		"server spiffe id with insecure mode": {
+			tls: &types.AppTLS{
+				Mode:           types.AppTLSModeInsecure,
+				ServerSpiffeId: "spiffe://mycluster/svc/example",
+			},
+			expectErr: require.Error,
+		},
+		"verify spiffe missing server spiffe": {
+			tls: &types.AppTLS{
+				Mode: types.AppTLSModeVerifySpiffeID,
+			},
+			expectErr: require.Error,
+		},
+		"verify spiffe missing server spiffe trust domain": {
+			tls: &types.AppTLS{
+				Mode:           types.AppTLSModeVerifySpiffeID,
+				ServerSpiffeId: "spiffe:///svc/example",
+			},
+			expectErr: require.Error,
+		},
+		"invalid client cert mode value": {
+			tls: &types.AppTLS{
+				Mode:           types.AppTLSModeVerifyServerName,
+				ClientCertMode: "foo",
+			},
+			expectErr: require.Error,
+		},
+		"client cert mode with insecure": {
+			tls: &types.AppTLS{
+				Mode:           types.AppTLSModeInsecure,
+				ClientCertMode: types.AppClientCertModeManaged,
+			},
+			expectErr: require.Error,
+		},
+		"insecure skip verify compatible with mode insecure": {
+			tls:          &types.AppTLS{Mode: types.AppTLSModeInsecure},
+			insecureSkip: true,
+			expectErr:    require.NoError,
+		},
+		"insecure skip verify with empty mode defaults to insecure": {
+			tls:          &types.AppTLS{},
+			insecureSkip: true,
+			expectErr:    require.NoError,
+		},
+		"allowed cas with only internal alias": {
+			tls: &types.AppTLS{
+				Mode:       types.AppTLSModeVerifyServerName,
+				AllowedCas: []string{types.AppTLSInternalCAWorkloadIdentity},
+			},
+			expectErr: require.NoError,
+		},
+		"allowed cas with empty string entry": {
+			tls: &types.AppTLS{
+				Mode:       types.AppTLSModeVerifyServerName,
+				AllowedCas: []string{""},
+			},
+			expectErr: require.Error,
+		},
+		"insecure mode with allowed cas": {
+			tls: &types.AppTLS{
+				Mode:       types.AppTLSModeInsecure,
+				AllowedCas: []string{types.AppTLSInternalCAWorkloadIdentity},
+			},
+			expectErr: require.Error,
+		},
+		"cloud app with tls block": {
+			uri: "cloud://aws",
+			tls: &types.AppTLS{
+				Mode: types.AppTLSModeInsecure,
+			},
+			expectErr: require.Error,
+		},
+		"unsupported protocol with tls block": {
+			uri: "http://localhost",
+			tls: &types.AppTLS{
+				Mode: types.AppTLSModeInsecure,
+			},
+			expectErr: require.Error,
+		},
+		"unsupported protocol with empty tls config": {
+			uri:       "http://localhost",
+			tls:       &types.AppTLS{},
+			expectErr: require.Error,
+		},
+		"empty": {
+			tls:       &types.AppTLS{},
+			expectErr: require.NoError,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			uri := tc.uri
+			if uri == "" {
+				uri = "https://localhost"
+			}
+
+			app, err := types.NewAppV3(types.Metadata{Name: "myapp"}, types.AppSpecV3{
+				URI:                uri,
+				InsecureSkipVerify: tc.insecureSkip,
+				TLS:                tc.tls,
+			})
+			require.NoError(t, err)
+			tc.expectErr(t, validateAppTLS(app))
+		})
+	}
+}
+
+func TestValidateAppAllowedCAsContents(t *testing.T) {
+	caKeyPEM, caCertPEM, err := tlscatest.GenerateSelfSignedCA(tlscatest.GenerateCAConfig{ClusterName: "example.com"})
+	require.NoError(t, err)
+
+	identity := &tlsca.Identity{Username: "test-user"}
+	subj, err := identity.Subject()
+	require.NoError(t, err)
+
+	privateKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+
+	ca, err := tlsca.FromKeys(caCertPEM, caKeyPEM)
+	require.NoError(t, err)
+	tlsCert, err := ca.GenerateCertificate(tlsca.CertificateRequest{
+		PublicKey: privateKey.Public(),
+		Subject:   subj,
+		NotAfter:  time.Now().Add(time.Hour),
+		DNSNames:  []string{"localhost", "*.localhost"},
+	})
+	require.NoError(t, err)
+
+	for name, tc := range map[string]struct {
+		contents  []byte
+		expectErr require.ErrorAssertionFunc
+	}{
+		"single valid ca": {
+			contents:  caCertPEM,
+			expectErr: require.NoError,
+		},
+		"only single ca allowed": {
+			contents:  bytes.Join([][]byte{caCertPEM, caCertPEM}, []byte("\n")),
+			expectErr: require.Error,
+		},
+		"no CA certificate": {
+			contents:  bytes.Join([][]byte{caCertPEM, tlsCert}, []byte("\n")),
+			expectErr: require.Error,
+		},
+		"no certificate contents": {
+			contents:  []byte("hello"),
+			expectErr: require.Error,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			tc.expectErr(t, isValidCACertificatePEM(string(tc.contents)))
+		})
+	}
 }

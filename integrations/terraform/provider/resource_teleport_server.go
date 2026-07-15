@@ -230,6 +230,7 @@ func (r resourceTeleportServer) Update(ctx context.Context, req tfsdk.UpdateReso
 	}
 	serverResource := server
 
+	serverResource.Kind = apitypes.KindNode
 
 	if err := serverResource.CheckAndSetDefaults(); err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error updating Server", err, "node"))

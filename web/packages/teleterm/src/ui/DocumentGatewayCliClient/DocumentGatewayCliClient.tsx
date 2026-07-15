@@ -98,7 +98,6 @@ const WaitingForGateway = (props: {
     return () => {
       clearTimeout(timeoutId);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const openConnection = () => {
@@ -111,6 +110,7 @@ const WaitingForGateway = (props: {
         dbUser: doc.targetUser,
         // We don't pass gcpProjectId as target so the target user will not be adjusted,
         // but it doesn't matter because it was already adjusted when this doc was created.
+        autoUserProvisioning: undefined,
       },
       { origin: 'reopened_session' }
     );

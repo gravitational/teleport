@@ -54,7 +54,8 @@ type AppServer interface {
 	String() string
 	// Copy returns a copy of this app server object.
 	Copy() AppServer
-
+	// IsEqual determines if two servers are equivalent to one another.
+	IsEqual(AppServer) bool
 	// CloneResource returns a copy of the AppServer as a ResourceWithLabels
 	CloneResource() ResourceWithLabels
 	// GetApp returns the app this app server proxies.
@@ -80,11 +81,22 @@ type AppServer interface {
 }
 
 // NewAppServerV3 creates a new app server instance.
-func NewAppServerV3(meta Metadata, spec AppServerSpecV3) (*AppServerV3, error) {
+// TODO(williamo/scopes): scope is variadic only so existing
+// callers compile unchanged during the scope migration.
+func NewAppServerV3(meta Metadata, spec AppServerSpecV3, scope ...string) (*AppServerV3, error) {
 	s := &AppServerV3{
 		Metadata: meta,
 		Spec:     spec,
 	}
+
+	switch len(scope) {
+	case 0: // unscoped
+	case 1:
+		s.Scope = scope[0]
+	default:
+		return nil, trace.BadParameter("expected at most 1 scope, got %d", len(scope))
+	}
+
 	if err := s.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -99,7 +111,7 @@ func NewAppServerV3FromApp(app *AppV3, hostname, hostID string) (*AppServerV3, e
 		Hostname: hostname,
 		HostID:   hostID,
 		App:      app,
-	})
+	}, app.GetScope())
 }
 
 // NewAppServerForAWSOIDCIntegration creates a new AppServer that will be used to grant AWS App Access
@@ -119,6 +131,15 @@ func NewAppServerForAWSOIDCIntegration(integrationName, hostID, publicAddr strin
 			PublicAddr:  publicAddr,
 		}},
 	})
+}
+
+func (s *AppServerV3) IsEqual(other AppServer) bool {
+	otherv3, ok := other.(*AppServerV3)
+	if !ok {
+		return false
+	}
+
+	return deriveTeleportEqualAppServerV3(s, otherv3)
 }
 
 // GetComponentFeatures returns the ComponentFeatures supported by this AppServer.
@@ -349,7 +370,7 @@ func (s *AppServerV3) GetAllLabels() map[string]string {
 		dynamicLabels = s.Spec.App.Spec.DynamicLabels
 	}
 
-	return CombineLabels(staticLabels, dynamicLabels)
+	return CombineLabels(nil, staticLabels, dynamicLabels)
 }
 
 // GetStaticLabels returns the app server static labels.

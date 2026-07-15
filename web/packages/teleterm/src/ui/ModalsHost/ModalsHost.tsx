@@ -206,6 +206,7 @@ function renderDialog({
           }}
           // This function needs to be stable between renders.
           onSsoContinue={dialog.onSsoContinue}
+          onBrowserMfaContinue={dialog.onBrowserMfaContinue}
           onCancel={() => {
             handleClose();
             dialog.onCancel();

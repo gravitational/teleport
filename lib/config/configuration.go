@@ -47,6 +47,7 @@ import (
 
 	"github.com/go-ldap/ldap/v3"
 	"github.com/gravitational/trace"
+	"golang.org/x/net/idna"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport"
@@ -54,17 +55,14 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	gcputils "github.com/gravitational/teleport/api/utils/gcp"
-	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
-	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/integrations/externalauditstorage/easconfig"
 	"github.com/gravitational/teleport/lib/integrations/samlidp/samlidpconfig"
 	"github.com/gravitational/teleport/lib/limiter"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -72,6 +70,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	awsregion "github.com/gravitational/teleport/lib/utils/aws/region"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/lib/utils/parse"
 	libslices "github.com/gravitational/teleport/lib/utils/slices"
 )
 
@@ -84,8 +83,6 @@ type CommandLineFlags struct {
 	AuthServerAddr []string
 	// --token flag
 	AuthToken string
-	// --token-secret flag
-	TokenSecret string
 	// --join-method flag
 	JoinMethod string
 	// CAPins are the SKPI hashes of the CAs used to verify the Auth Server.
@@ -266,6 +263,10 @@ type CommandLineFlags struct {
 	// IntegrationConfAWSRATrustAnchorArguments contains the arguments of
 	// `teleport integration configure awsra-trust-anchor` command
 	IntegrationConfAWSRATrustAnchorArguments IntegrationConfAWSRATrustAnchor
+
+	// IntegrationConfSessionSummariesBedrockArguments contains the arguments of
+	// `teleport integration configure session-summaries bedrock` command
+	IntegrationConfSessionSummariesBedrockArguments IntegrationConfSessionSummariesBedrock
 
 	// LogLevel is the new application's log level.
 	LogLevel string
@@ -460,6 +461,20 @@ type IntegrationConfListDatabasesIAM struct {
 	Region string
 	// Role is the AWS Role associated with the Integration
 	Role string
+	// AccountID is the AWS account ID.
+	AccountID string
+	// AutoConfirm skips user confirmation of the operation plan if true.
+	AutoConfirm bool
+}
+
+// IntegrationConfSessionSummariesBedrock contains the arguments of
+// `teleport integration configure session-summaries bedrock` command
+type IntegrationConfSessionSummariesBedrock struct {
+	// Role is the AWS Role associated with the Integration
+	Role string
+	// Resource is the AWS Bedrock resource to grant access to.
+	// Can be a full ARN or a model ID (e.g., 'anthropic.claude-v2' or '*' for all models).
+	Resource string
 	// AccountID is the AWS account ID.
 	AccountID string
 	// AutoConfirm skips user confirmation of the operation plan if true.
@@ -700,6 +715,8 @@ func ApplyFileConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		&cfg.Databases.Limiter,
 		&cfg.Kube.Limiter,
 		&cfg.WindowsDesktop.ConnLimiter,
+		&cfg.Apps.Limiter,
+		&cfg.LinuxDesktop.ConnLimiter,
 	}
 	for _, l := range limiters {
 		if fc.Limits.MaxConnections > 0 {
@@ -757,6 +774,11 @@ func ApplyFileConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	}
 	if fc.WindowsDesktop.Enabled() {
 		if err := applyWindowsDesktopConfig(fc, cfg); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	if fc.LinuxDesktop.Enabled() {
+		if err := applyLinuxDesktopConfig(fc, cfg); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -933,6 +955,12 @@ func applyAuthConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			return trace.Wrap(err)
 		}
 	}
+	if fc.Auth.StaticScopedTokens != nil {
+		cfg.Auth.StaticScopedTokens, err = fc.Auth.StaticScopedTokens.Parse()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
 	// read in and set authentication preferences
 	if fc.Auth.Authentication != nil {
 		cfg.Auth.Preference, err = fc.Auth.Authentication.Parse()
@@ -1065,6 +1093,7 @@ func applyKeyStoreConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	if fc.Auth.CAKeyParams.AWSKMS != nil {
 		return trace.Wrap(applyAWSKMSConfig(fc.Auth.CAKeyParams.AWSKMS, cfg))
 	}
+	cfg.Auth.KeyStore.HealthCheck = fc.Auth.CAKeyParams.HealthCheck
 	return nil
 }
 
@@ -1606,13 +1635,18 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			}
 		}
 
+		var ssm *types.AWSSSM
+		if matcher.SSM.DocumentName != "" {
+			ssm = &types.AWSSSM{DocumentName: matcher.SSM.DocumentName}
+		}
+
 		serviceMatcher := types.AWSMatcher{
 			Types:             matcher.Types,
 			Regions:           matcher.Regions,
 			AssumeRole:        assumeRole,
 			Tags:              matcher.Tags,
 			Params:            installParams,
-			SSM:               &types.AWSSSM{DocumentName: matcher.SSM.DocumentName},
+			SSM:               ssm,
 			Integration:       matcher.Integration,
 			KubeAppDiscovery:  matcher.KubeAppDiscovery,
 			SetupAccessForARN: matcher.SetupAccessForARN,
@@ -2017,6 +2051,16 @@ func applyAppsConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	// Apps are enabled.
 	cfg.Apps.Enabled = true
 
+	// Log when proxy_service is enabled in the same config but has no
+	// public_addr. The proxy falls back to the cluster name for the
+	// auth redirect. Per-app public_addr controls the app's FQDN but
+	// does not replace this.
+	if fc.Proxy.Enabled() && len(fc.Proxy.PublicAddr) == 0 {
+		slog.InfoContext(context.Background(),
+			"proxy_service.public_addr not set; using cluster name for app auth redirects",
+			"nodename", cfg.Hostname)
+	}
+
 	// Enable debugging application if requested.
 	cfg.Apps.DebugApp = fc.Apps.DebugApp
 
@@ -2094,6 +2138,7 @@ func applyAppsConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		if application.AWS != nil {
 			app.AWS = &servicecfg.AppAWS{
 				ExternalID: application.AWS.ExternalID,
+				Region:     application.AWS.Region,
 			}
 		}
 
@@ -2115,13 +2160,140 @@ func applyAppsConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			}
 		}
 
+		if application.LLM != nil {
+			app.LLM = &types.LLM{
+				Format:        application.LLM.Format,
+				Provider:      application.LLM.Provider,
+				FallbackModel: application.LLM.FallbackModel,
+			}
+			app.LLM.Models = make([]*types.LLM_Model, 0, len(application.LLM.Models))
+			for _, model := range application.LLM.Models {
+				app.LLM.Models = append(app.LLM.Models, &types.LLM_Model{
+					Name:         model.Name,
+					ProviderName: model.ProviderName,
+				})
+			}
+		}
+
+		if application.TLS != nil {
+			app.TLS = &types.AppTLS{
+				Mode:           application.TLS.Mode,
+				ServerName:     application.TLS.ServerName,
+				ServerSpiffeId: application.TLS.ServerSpiffeId,
+				AllowedCas:     application.TLS.AllowedCas,
+				ClientCertMode: application.TLS.ClientCertMode,
+			}
+			for _, caCertPath := range application.TLS.AllowedCasFiles {
+				caCertContents, err := os.ReadFile(caCertPath)
+				if err != nil {
+					return trace.ConvertSystemError(err)
+				}
+				app.TLS.AllowedCas = append(app.TLS.AllowedCas, string(caCertContents))
+			}
+		}
+
 		if err := app.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
 		cfg.Apps.Apps = append(cfg.Apps.Apps, app)
 	}
 
+	// Reject literal duplicates: at registration two entries with the
+	// same name would write to the same backend key (host_id + name)
+	// and the second would silently overwrite the first.
+	seenNames := make(map[string]struct{}, len(cfg.Apps.Apps))
+	for _, app := range cfg.Apps.Apps {
+		if _, ok := seenNames[app.Name]; ok {
+			return trace.BadParameter("duplicate application name %q in static config", app.Name)
+		}
+		seenNames[app.Name] = struct{}{}
+	}
+
+	// Reject apps with the same effective routing FQDN; otherwise
+	// duplicates route non-deterministically. Mirror FindPublicAddr's
+	// fallback: use the proxy public_addr host as-is (IPs included),
+	// fall back to cluster_name when unset.
+	seenProxyHosts := map[string]struct{}{}
+	proxyHosts := make([]string, 0, len(cfg.Proxy.PublicAddrs))
+	clusterNameFallback := ""
+	if fc.Proxy.Enabled() {
+		for _, addr := range cfg.Proxy.PublicAddrs {
+			host, err := normalizeFQDN(addr.Host())
+			if err != nil {
+				// A malformed proxy public_addr that no app
+				// depends on should not block app_service startup.
+				slog.WarnContext(context.Background(), "skipping malformed proxy public_addr in app FQDN dedupe",
+					"proxy_public_addr", addr.String(),
+					"error", err,
+				)
+				continue
+			}
+			if host == "" {
+				continue
+			}
+			if _, ok := seenProxyHosts[host]; ok {
+				continue
+			}
+			seenProxyHosts[host] = struct{}{}
+			proxyHosts = append(proxyHosts, host)
+		}
+		if cfg.Auth.ClusterName != nil {
+			host, err := normalizeFQDN(cfg.Auth.ClusterName.GetClusterName())
+			if err != nil {
+				// A malformed cluster_name that no app falls back
+				// to should not block app_service startup.
+				slog.WarnContext(context.Background(), "skipping malformed cluster_name in app FQDN dedupe",
+					"cluster_name", cfg.Auth.ClusterName.GetClusterName(),
+					"error", err,
+				)
+			} else {
+				clusterNameFallback = host
+			}
+		}
+	}
+	// CheckAndSetDefaults validates app.Name and app.PublicAddr as
+	// DNS-1123 forms, so they are already lowercase ASCII without a
+	// trailing dot; only proxy public_addr and cluster_name need
+	// normalizeFQDN.
+	seenFQDNs := map[string]string{}
+	for _, app := range cfg.Apps.Apps {
+		// Dedupe per-app: one app contributing both public_addr and
+		// <name>.<proxy> is not a self-conflict.
+		appFQDNs := map[string]struct{}{}
+		if app.PublicAddr != "" {
+			appFQDNs[app.PublicAddr] = struct{}{}
+		}
+		if app.PublicAddr == "" || app.UseAnyProxyPublicAddr {
+			switch {
+			case len(proxyHosts) > 0:
+				for _, host := range proxyHosts {
+					appFQDNs[utils.DefaultAppFQDN(app.Name, host, "")] = struct{}{}
+				}
+			case clusterNameFallback != "":
+				appFQDNs[utils.DefaultAppFQDN(app.Name, "", clusterNameFallback)] = struct{}{}
+			}
+		}
+		// Map order is random; sort for a stable error message.
+		for _, fqdn := range slices.Sorted(maps.Keys(appFQDNs)) {
+			if seenAppName, ok := seenFQDNs[fqdn]; ok {
+				return trace.BadParameter("apps %q and %q route to the same FQDN %q in static config", seenAppName, app.Name, fqdn)
+			}
+			seenFQDNs[fqdn] = app.Name
+		}
+	}
+
 	return nil
+}
+
+// normalizeFQDN returns host as ASCII, lowercase, with any trailing
+// dot stripped, so IDN, case, and trailing-dot variants collapse to
+// one dedupe key.
+func normalizeFQDN(host string) (string, error) {
+	asciiHost, err := idna.ToASCII(strings.TrimRight(host, "."))
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return strings.ToLower(asciiHost), nil
 }
 
 // applyMetricsConfig applies file configuration for the "metrics_service" section.
@@ -2209,20 +2381,13 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		cfg.WindowsDesktop.ListenAddr = *listenAddr
 	}
 
-	for _, attributeName := range fc.WindowsDesktop.Discovery.LabelAttributes {
-		if !types.IsValidLabelKey(attributeName) {
-			return trace.BadParameter("WindowsDesktopService specifies label_attribute %q which is not a valid label key", attributeName)
-		}
-	}
-
-	for _, filter := range fc.WindowsDesktop.Discovery.Filters {
-		if _, err := ldap.CompileFilter(filter); err != nil {
-			return trace.BadParameter("WindowsDesktopService specifies invalid LDAP filter %q", filter)
-		}
-	}
-
 	if fc.WindowsDesktop.Discovery.BaseDN != "" && len(fc.WindowsDesktop.DiscoveryConfigs) > 0 {
 		return trace.BadParameter("WindowsDesktopService specifies both discovery and discovery_configs: move the discovery section to discovery_configs to continue")
+	}
+
+	// append the old (singular) discovery config to the new format that supports multiple configs
+	if fc.WindowsDesktop.Discovery.BaseDN != "" {
+		fc.WindowsDesktop.DiscoveryConfigs = append(fc.WindowsDesktop.DiscoveryConfigs, fc.WindowsDesktop.Discovery)
 	}
 
 	for _, discoveryConfig := range fc.WindowsDesktop.DiscoveryConfigs {
@@ -2241,14 +2406,16 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 				return trace.BadParameter("WindowsDesktopService specifies label_attribute %q which is not a valid label key", attributeName)
 			}
 		}
+		switch mode := discoveryConfig.LabelAttributeMode; mode {
+		case servicecfg.LabelAttributeModeJoin:
+		case servicecfg.LabelAttributeModeFirst, "":
+		default:
+			return trace.BadParameter("WindowsDesktopService specifies invalid label_attribute_mode %q", mode)
+		}
+
 		if p := discoveryConfig.RDPPort; p < 0 || p > 65535 {
 			return trace.BadParameter("WindowsDesktopService specifies invalid RDP port %d", p)
 		}
-	}
-
-	// append the old (singular) discovery config to the new format that supports multiple configs
-	if fc.WindowsDesktop.Discovery.BaseDN != "" {
-		fc.WindowsDesktop.DiscoveryConfigs = append(fc.WindowsDesktop.DiscoveryConfigs, fc.WindowsDesktop.Discovery)
 	}
 
 	cfg.WindowsDesktop.Discovery = make([]servicecfg.LDAPDiscoveryConfig, 0, len(fc.WindowsDesktop.DiscoveryConfigs))
@@ -2258,11 +2425,13 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		}
 		cfg.WindowsDesktop.Discovery = append(cfg.WindowsDesktop.Discovery,
 			servicecfg.LDAPDiscoveryConfig{
-				BaseDN:          dc.BaseDN,
-				Filters:         dc.Filters,
-				Labels:          dc.Labels,
-				LabelAttributes: dc.LabelAttributes,
-				RDPPort:         cmp.Or(dc.RDPPort, int(defaults.RDPListenPort)),
+				BaseDN:                      dc.BaseDN,
+				Filters:                     dc.Filters,
+				Labels:                      dc.Labels,
+				LabelAttributes:             dc.LabelAttributes,
+				LabelAttributeMode:          cmp.Or(dc.LabelAttributeMode, string(servicecfg.LabelAttributeModeFirst)),
+				LabelAttributeJoinSeparator: dc.LabelAttributeJoinSeparator,
+				RDPPort:                     cmp.Or(dc.RDPPort, int(defaults.RDPListenPort)),
 			},
 		)
 	}
@@ -2293,28 +2462,33 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if fc.WindowsDesktop.LDAP.DEREncodedCAFile != "" && fc.WindowsDesktop.LDAP.PEMEncodedCACert != "" {
+	if fc.WindowsDesktop.LDAP.DEREncodedCAFile != "" && fc.WindowsDesktop.LDAP.PEMEncodedCACerts != "" {
 		return trace.BadParameter("WindowsDesktopService can not use both der_ca_file and ldap_ca_cert")
 	}
 
-	var cert *x509.Certificate
+	var certs []*x509.Certificate
 	if fc.WindowsDesktop.LDAP.DEREncodedCAFile != "" {
 		rawCert, err := os.ReadFile(fc.WindowsDesktop.LDAP.DEREncodedCAFile)
 		if err != nil {
 			return trace.WrapWithMessage(err, "loading the LDAP CA from file %v", fc.WindowsDesktop.LDAP.DEREncodedCAFile)
 		}
 
-		cert, err = x509.ParseCertificate(rawCert)
+		derCert, err := x509.ParseCertificate(rawCert)
 		if err != nil {
 			return trace.WrapWithMessage(err, "parsing the LDAP root CA file %v", fc.WindowsDesktop.LDAP.DEREncodedCAFile)
 		}
+		certs = []*x509.Certificate{derCert}
 	}
 
-	if fc.WindowsDesktop.LDAP.PEMEncodedCACert != "" {
-		cert, err = tlsca.ParseCertificatePEM([]byte(fc.WindowsDesktop.LDAP.PEMEncodedCACert))
+	if fc.WindowsDesktop.LDAP.PEMEncodedCACerts != "" {
+		pemCerts, err := tlsca.ParseCertificatePEMs([]byte(fc.WindowsDesktop.LDAP.PEMEncodedCACerts))
 		if err != nil {
-			return trace.WrapWithMessage(err, "parsing the LDAP root CA PEM cert")
+			return trace.WrapWithMessage(err, "parsing the LDAP root CA PEM cert(s)")
 		}
+		if len(pemCerts) == 0 {
+			return trace.BadParameter("ldap_ca_cert is set, but no certificates were parsed")
+		}
+		certs = pemCerts
 	}
 
 	locateServer := servicecfg.LocateServer{
@@ -2329,7 +2503,7 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		Domain:             fc.WindowsDesktop.LDAP.Domain,
 		InsecureSkipVerify: fc.WindowsDesktop.LDAP.InsecureSkipVerify,
 		ServerName:         fc.WindowsDesktop.LDAP.ServerName,
-		CA:                 cert,
+		CAs:                certs,
 		LocateServer:       locateServer,
 	}
 
@@ -2370,6 +2544,35 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	if fc.WindowsDesktop.Labels != nil {
 		cfg.WindowsDesktop.Labels = maps.Clone(fc.WindowsDesktop.Labels)
 	}
+
+	return nil
+}
+
+// applyLinuxDesktopConfig applies file configuration for the "linux_desktop_service" section.
+func applyLinuxDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
+	cfg.LinuxDesktop.Enabled = true
+
+	if fc.LinuxDesktop.Labels != nil {
+		cfg.LinuxDesktop.Labels = maps.Clone(fc.LinuxDesktop.Labels)
+	}
+
+	if fc.LinuxDesktop.XSessions.Included != "" {
+		r, err := regexp.Compile(fc.LinuxDesktop.XSessions.Included)
+		if err != nil {
+			return trace.BadParameter("invalid pattern for included sessions: %s", fc.LinuxDesktop.XSessions.Included)
+		}
+		cfg.LinuxDesktop.IncludedSessions = r
+	}
+
+	if fc.LinuxDesktop.XSessions.Excluded != "" {
+		r, err := regexp.Compile(fc.LinuxDesktop.XSessions.Excluded)
+		if err != nil {
+			return trace.BadParameter("invalid pattern for excluded sessions: %s", fc.LinuxDesktop.XSessions.Excluded)
+		}
+		cfg.LinuxDesktop.ExcludedSessions = r
+	}
+
+	cfg.LinuxDesktop.SessionWrapper = fc.LinuxDesktop.SessionWrapper
 
 	return nil
 }
@@ -2468,9 +2671,6 @@ func applyConfigVersion(fc *FileConfig, cfg *servicecfg.Config) {
 // Configure merges command line arguments with what's in a configuration file
 // with CLI commands taking precedence
 func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags bool) error {
-	// pass the value of --insecure flag to the runtime
-	lib.SetInsecureDevMode(clf.InsecureMode)
-
 	// load /etc/teleport.yaml and apply its values:
 	fileConf, err := ReadConfigFile(clf.ConfigFile)
 	if err != nil {
@@ -2597,7 +2797,7 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 		var sessionTags map[string]string
 		if clf.DatabaseAWSSessionTags != "" {
 			var err error
-			sessionTags, err = client.ParseLabelSpec(clf.DatabaseAWSSessionTags)
+			sessionTags, err = parse.LabelSelectorSpec(clf.DatabaseAWSSessionTags)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -2705,7 +2905,7 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 				return trace.BadParameter("non-FIPS compliant proxy settings: \"proxy_checks_host_keys\" must be true")
 			}
 
-			if err := services.ValidateSessionRecordingConfig(cfg.Auth.SessionRecordingConfig, clf.FIPS, modules.GetModules().Features().Cloud); err != nil {
+			if err := services.ValidateSessionRecordingConfig(cfg.Auth.SessionRecordingConfig, clf.FIPS, cfg.Modules.Features().Cloud); err != nil {
 				return trace.Wrap(err)
 			}
 		}
@@ -2719,7 +2919,7 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 		if err := cfg.Auth.Preference.CheckSignatureAlgorithmSuite(types.SignatureAlgorithmSuiteParams{
 			FIPS:          clf.FIPS,
 			UsingHSMOrKMS: cfg.Auth.KeyStore != servicecfg.KeystoreConfig{},
-			Cloud:         modules.GetModules().Features().Cloud,
+			Cloud:         cfg.Modules.Features().Cloud,
 		}); err != nil {
 			return trace.Wrap(err)
 		}
@@ -2795,11 +2995,6 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 	if clf.AuthToken != "" {
 		// store the value of the --token flag:
 		cfg.SetToken(clf.AuthToken)
-	}
-
-	if clf.TokenSecret != "" {
-		// store the value of the --token-secret flag:
-		cfg.SetTokenSecret(clf.TokenSecret)
 	}
 
 	// Apply flags used for the node to validate the Auth Server.
@@ -2883,28 +3078,30 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 		cfg.Auth.AgentRolloutControllerSyncPeriod = period
 	}
 
+	// pass the value of --insecure flag to the runtime
+	if clf.InsecureMode {
+		cfg.InsecureMode = true
+	}
+
 	return nil
 }
 
 // ConfigureOpenSSH initializes a config from the commandline flags passed
 func ConfigureOpenSSH(clf *CommandLineFlags, cfg *servicecfg.Config) error {
-	// pass the value of --insecure flag to the runtime
-	lib.SetInsecureDevMode(clf.InsecureMode)
-
 	// Apply command line --debug flag to override logger severity.
+	level := slog.LevelError
 	if clf.Debug {
 		cfg.SetLogLevel(slog.LevelDebug)
+		level = slog.LevelDebug
 		cfg.Debug = clf.Debug
 	}
+
+	// Ensure that the logging level is respected by the logger.
+	utils.InitLogger(utils.LoggingForDaemon, level)
 
 	if clf.AuthToken != "" {
 		// store the value of the --token flag:
 		cfg.SetToken(clf.AuthToken)
-	}
-
-	if clf.TokenSecret != "" {
-		// store the value of the --token-secret flag:
-		cfg.SetTokenSecret(clf.TokenSecret)
 	}
 
 	// apply --skip-version-check flag.
@@ -2937,7 +3134,7 @@ func ConfigureOpenSSH(clf *CommandLineFlags, cfg *servicecfg.Config) error {
 		}
 		cfg.OpenSSH.AdditionalPrincipals = append(cfg.OpenSSH.AdditionalPrincipals, principal)
 	}
-	cfg.OpenSSH.Labels, err = client.ParseLabelSpec(clf.Labels)
+	cfg.OpenSSH.Labels, err = parse.LabelSelectorSpec(clf.Labels)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2949,6 +3146,10 @@ func ConfigureOpenSSH(clf *CommandLineFlags, cfg *servicecfg.Config) error {
 	cfg.SetAuthServerAddresses(nil)
 	cfg.ProxyServer = *proxyServer
 
+	// pass the value of --insecure flag to the runtime
+	if clf.InsecureMode {
+		cfg.InsecureMode = true
+	}
 	return nil
 }
 
@@ -2956,7 +3157,7 @@ func ConfigureOpenSSH(clf *CommandLineFlags, cfg *servicecfg.Config) error {
 // dynamic labels.
 func parseLabels(spec string) (map[string]string, services.CommandLabels, error) {
 	// Base syntax parsing, the spec must be in the form of 'key=value,more="better"'.
-	lmap, err := client.ParseLabelSpec(spec)
+	lmap, err := parse.LabelSelectorSpec(spec)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -3076,6 +3277,7 @@ func validateRoles(roles string) error {
 			defaults.RoleApp,
 			defaults.RoleDatabase,
 			defaults.RoleWindowsDesktop,
+			defaults.RoleLinuxDesktop,
 			defaults.RoleDiscovery:
 		default:
 			return trace.Errorf("unknown role: '%s'", role)
@@ -3091,8 +3293,12 @@ func splitRoles(roles string) []string {
 
 // applyTokenConfig applies the auth_token and join_params to the config
 func applyTokenConfig(fc *FileConfig, cfg *servicecfg.Config) error {
+	// Determine if JoinParams is set to something beyond its zero value using
+	// a go-derive generated helper.
+	joinParamsSet := !fc.JoinParams.IsEqual(&JoinParams{})
+
 	if fc.AuthToken != "" {
-		if fc.JoinParams != (JoinParams{}) {
+		if joinParamsSet {
 			return trace.BadParameter("only one of auth_token or join_params should be set")
 		}
 
@@ -3102,9 +3308,8 @@ func applyTokenConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		return nil
 	}
 
-	if fc.JoinParams != (JoinParams{}) {
+	if joinParamsSet {
 		cfg.SetToken(fc.JoinParams.TokenName)
-		cfg.SetTokenSecret(fc.JoinParams.TokenSecret)
 
 		if err := types.ValidateJoinMethod(fc.JoinParams.Method); err != nil {
 			return trace.Wrap(err)
@@ -3116,6 +3321,26 @@ func applyTokenConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			cfg.JoinParams = servicecfg.JoinParams{
 				Azure: servicecfg.AzureJoinParams{
 					ClientID: fc.JoinParams.Azure.ClientID,
+				},
+			}
+		}
+
+		if fc.JoinParams.BoundKeypair != (BoundKeypairParams{}) {
+			cfg.JoinParams = servicecfg.JoinParams{
+				BoundKeypair: servicecfg.BoundKeypairParams{
+					RegistrationSecretValue: fc.JoinParams.BoundKeypair.RegistrationSecretValue,
+					RegistrationSecretPath:  fc.JoinParams.BoundKeypair.RegistrationSecretPath,
+					StaticPrivateKeyPath:    fc.JoinParams.BoundKeypair.StaticPrivateKeyPath,
+				},
+			}
+		}
+
+		if fc.JoinParams.GenericOIDC.IsSet() {
+			cfg.JoinParams = servicecfg.JoinParams{
+				GenericOIDC: servicecfg.GenericOIDCParams{
+					Env:     fc.JoinParams.GenericOIDC.Env,
+					Command: fc.JoinParams.GenericOIDC.Command,
+					Timeout: fc.JoinParams.GenericOIDC.Timeout,
 				},
 			}
 		}

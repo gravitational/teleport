@@ -16,28 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import {
-  darkTheme as designDarkTheme,
-  lightTheme as designLightTheme,
-} from 'design/theme';
-import { fonts } from 'design/theme/fonts';
-
-const sansSerif = 'system-ui';
-
-export const darkTheme = {
-  ...designDarkTheme,
-  font: sansSerif,
-  fonts: {
-    sansSerif,
-    mono: fonts.mono,
-  },
-};
-
-export const lightTheme = {
-  ...designLightTheme,
-  font: sansSerif,
-  fonts: {
-    sansSerif,
-    mono: fonts.mono,
-  },
-};
+// In the past, Connect used to have different set of fonts compared to the default design theme.
+// Nowadays it uses the same exact theme, but the existing exports are kept in case we ever need to
+// introduce changes to Connect's theme again.
+export { darkTheme, lightTheme } from 'design/theme';

@@ -19,11 +19,13 @@
 import styled from 'styled-components';
 
 import { Cell } from 'design/DataTable';
+import Flex from 'design/Flex';
 import * as Icons from 'design/Icon';
+import Text from 'design/Text/Text';
 
 import { Event, EventCode, eventCodes } from 'teleport/services/audit';
 
-const EventIconMap: Record<EventCode, any> = {
+export const EventIconMap: Record<EventCode, any> = {
   [eventCodes.AUTH_ATTEMPT_FAILURE]: Icons.Info,
   [eventCodes.EXEC_FAILURE]: Icons.Cli,
   [eventCodes.EXEC]: Icons.Cli,
@@ -71,7 +73,12 @@ const EventIconMap: Record<EventCode, any> = {
   [eventCodes.SFTP_DISALLOWED]: Icons.FolderPlus,
   [eventCodes.APP_SESSION_CHUNK]: Icons.Info,
   [eventCodes.APP_SESSION_START]: Icons.Info,
+  [eventCodes.APP_SESSION_START_FAILURE]: Icons.Warning,
   [eventCodes.APP_SESSION_END]: Icons.Info,
+  [eventCodes.APP_SESSION_HTTP_REQUEST]: Icons.Info,
+  [eventCodes.APP_SESSION_HTTP_REQUEST_BODY_CHUNK]: Icons.Info,
+  [eventCodes.APP_SESSION_HTTP_RESPONSE]: Icons.Info,
+  [eventCodes.APP_SESSION_HTTP_RESPONSE_BODY_CHUNK]: Icons.Info,
   [eventCodes.APP_SESSION_DYNAMODB_REQUEST]: Icons.Database,
   [eventCodes.APP_CREATED]: Icons.Code,
   [eventCodes.APP_UPDATED]: Icons.Code,
@@ -178,6 +185,9 @@ const EventIconMap: Record<EventCode, any> = {
   [eventCodes.DESKTOP_SESSION_STARTED]: Icons.Desktop,
   [eventCodes.DESKTOP_SESSION_STARTED_FAILED]: Icons.Desktop,
   [eventCodes.DESKTOP_SESSION_ENDED]: Icons.Desktop,
+  [eventCodes.LINUX_DESKTOP_SESSION_STARTED]: Icons.Desktop,
+  [eventCodes.LINUX_DESKTOP_SESSION_STARTED_FAILED]: Icons.Desktop,
+  [eventCodes.LINUX_DESKTOP_SESSION_ENDED]: Icons.Desktop,
   [eventCodes.DESKTOP_CLIPBOARD_SEND]: Icons.Clipboard,
   [eventCodes.DESKTOP_CLIPBOARD_RECEIVE]: Icons.Clipboard,
   [eventCodes.DESKTOP_SHARED_DIRECTORY_START]: Icons.FolderShared,
@@ -216,15 +226,23 @@ const EventIconMap: Record<EventCode, any> = {
   [eventCodes.PRIVILEGE_TOKEN_CREATED]: Icons.Info,
   [eventCodes.X11_FORWARD]: Icons.Info,
   [eventCodes.X11_FORWARD_FAILURE]: Icons.Info,
+  [eventCodes.AGENT_FORWARD]: Icons.Info,
+  [eventCodes.AGENT_FORWARD_FAILURE]: Icons.Info,
   [eventCodes.CERTIFICATE_CREATED]: Icons.Keypair,
   [eventCodes.UPGRADE_WINDOW_UPDATED]: Icons.Info,
+  [eventCodes.ENVIRONMENT_PROFILE_UPDATED]: Icons.Info,
+  [eventCodes.ACCESS_GRAPH_SETTINGS_UPDATE]: Icons.Info,
   [eventCodes.SESSION_RECORDING_ACCESS]: Icons.Info,
   [eventCodes.SSMRUN_SUCCESS]: Icons.Info,
-  [eventCodes.SSMRUN_FAIL]: Icons.Info,
+  [eventCodes.SSMRUN_FAIL]: Icons.Warning,
+  [eventCodes.AZURERUN_SUCCESS]: Icons.Info,
+  [eventCodes.AZURERUN_FAIL]: Icons.Warning,
   [eventCodes.BOT_JOIN]: Icons.Info,
   [eventCodes.BOT_JOIN_FAILURE]: Icons.Warning,
+  [eventCodes.BOT_JOIN_LIMIT]: Icons.Warning,
   [eventCodes.INSTANCE_JOIN]: Icons.Info,
   [eventCodes.INSTANCE_JOIN_FAILURE]: Icons.Warning,
+  [eventCodes.INSTANCE_JOIN_LIMIT]: Icons.Warning,
   [eventCodes.LOGIN_RULE_CREATE]: Icons.Info,
   [eventCodes.LOGIN_RULE_DELETE]: Icons.Info,
   [eventCodes.SAML_IDP_AUTH_ATTEMPT]: Icons.Info,
@@ -349,15 +367,53 @@ const EventIconMap: Record<EventCode, any> = {
   [eventCodes.VNET_CONFIG_UPDATE]: Icons.Info,
   [eventCodes.VNET_CONFIG_DELETE]: Icons.Info,
   [eventCodes.WORKLOAD_CLUSTER_CREATE]: Icons.Info,
+  [eventCodes.WORKLOAD_CLUSTER_CREATE_FAILURE]: Icons.Warning,
   [eventCodes.WORKLOAD_CLUSTER_UPDATE]: Icons.Info,
+  [eventCodes.WORKLOAD_CLUSTER_UPDATE_FAILURE]: Icons.Warning,
   [eventCodes.WORKLOAD_CLUSTER_DELETE]: Icons.Info,
+  [eventCodes.WORKLOAD_CLUSTER_DELETE_FAILURE]: Icons.Warning,
+  [eventCodes.INFERENCE_MODEL_CREATE]: Icons.Info,
+  [eventCodes.INFERENCE_MODEL_UPDATE]: Icons.Info,
+  [eventCodes.INFERENCE_MODEL_DELETE]: Icons.Info,
+  [eventCodes.INFERENCE_SECRET_CREATE]: Icons.Info,
+  [eventCodes.INFERENCE_SECRET_UPDATE]: Icons.Info,
+  [eventCodes.INFERENCE_SECRET_DELETE]: Icons.Info,
+  [eventCodes.INFERENCE_POLICY_CREATE]: Icons.Info,
+  [eventCodes.INFERENCE_POLICY_UPDATE]: Icons.Info,
+  [eventCodes.INFERENCE_POLICY_DELETE]: Icons.Info,
+  [eventCodes.RETRIEVAL_MODEL_CREATE]: Icons.Info,
+  [eventCodes.RETRIEVAL_MODEL_UPDATE]: Icons.Info,
+  [eventCodes.RETRIEVAL_MODEL_DELETE]: Icons.Info,
+  [eventCodes.CLASSIFIER_CREATE]: Icons.Info,
+  [eventCodes.CLASSIFIER_CREATE_FAILURE]: Icons.Warning,
+  [eventCodes.CLASSIFIER_UPDATE]: Icons.Info,
+  [eventCodes.CLASSIFIER_UPDATE_FAILURE]: Icons.Warning,
+  [eventCodes.CLASSIFIER_DELETE]: Icons.Info,
+  [eventCodes.CLASSIFIER_DELETE_FAILURE]: Icons.Warning,
+  [eventCodes.SESSION_SUMMARIZED]: Icons.Info,
+  [eventCodes.SESSION_SUMMARIZED_FAILURE]: Icons.Warning,
+  [eventCodes.CERT_AUTH_OVERRIDE_CREATE]: Icons.Info,
+  [eventCodes.CERT_AUTH_OVERRIDE_UPDATE]: Icons.Info,
+  [eventCodes.CERT_AUTH_OVERRIDE_UPSERT]: Icons.Info,
+  [eventCodes.CERT_AUTH_OVERRIDE_DELETE]: Icons.Info,
+  [eventCodes.BEAMS_CONFIG_CREATE]: Icons.Info,
+  [eventCodes.BEAMS_CONFIG_UPDATE]: Icons.Info,
+  [eventCodes.BEAMS_CONFIG_DELETE]: Icons.Info,
+  [eventCodes.SCOPED_TOKEN_CREATE]: Icons.Info,
+  [eventCodes.SCOPED_TOKEN_UPSERT]: Icons.Info,
+  [eventCodes.SCOPED_TOKEN_UPDATE]: Icons.Info,
+  [eventCodes.SCOPED_TOKEN_DELETE]: Icons.Info,
+  [eventCodes.SCOPED_TOKEN_CREATE_FAILURE]: Icons.Warning,
+  [eventCodes.SCOPED_TOKEN_UPSERT_FAILURE]: Icons.Warning,
+  [eventCodes.SCOPED_TOKEN_UPDATE_FAILURE]: Icons.Warning,
+  [eventCodes.SCOPED_TOKEN_DELETE_FAILURE]: Icons.Warning,
 };
 
 export default function renderTypeCell(event: Event) {
   const Icon = EventIconMap[event.code] || Icons.ListThin;
 
   const iconProps = {
-    p: 1,
+    p: 2,
     mr: 3,
   };
 
@@ -365,7 +421,19 @@ export default function renderTypeCell(event: Event) {
     <Cell style={{ verticalAlign: 'inherit' }}>
       <StyledEventType>
         <Icon {...iconProps} size="medium" />
-        {event.codeDesc}
+        <Flex
+          gap={0}
+          flexDirection="column"
+          minHeight={64}
+          justifyContent="center"
+        >
+          <Text typography="body2" fontWeight={500} mb={0}>
+            {event.raw.event}
+          </Text>
+          <Text typography="body2" color="text.muted">
+            {event.codeDesc}
+          </Text>
+        </Flex>
       </StyledEventType>
     </Cell>
   );

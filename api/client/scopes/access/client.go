@@ -53,6 +53,11 @@ func (c *Client) UpdateScopedRole(ctx context.Context, req *scopedaccessv1.Updat
 	return c.grpcClient.UpdateScopedRole(ctx, req)
 }
 
+// UpsertScopedRole creates or updates a scoped role.
+func (c *Client) UpsertScopedRole(ctx context.Context, req *scopedaccessv1.UpsertScopedRoleRequest) (*scopedaccessv1.UpsertScopedRoleResponse, error) {
+	return c.grpcClient.UpsertScopedRole(ctx, req)
+}
+
 // DeleteScopedRole deletes a scoped role.
 func (c *Client) DeleteScopedRole(ctx context.Context, req *scopedaccessv1.DeleteScopedRoleRequest) (*scopedaccessv1.DeleteScopedRoleResponse, error) {
 	return c.grpcClient.DeleteScopedRole(ctx, req)
@@ -71,6 +76,16 @@ func (c *Client) ListScopedRoleAssignments(ctx context.Context, req *scopedacces
 // CreateScopedRoleAssignment creates a new scoped role assignment.
 func (c *Client) CreateScopedRoleAssignment(ctx context.Context, req *scopedaccessv1.CreateScopedRoleAssignmentRequest) (*scopedaccessv1.CreateScopedRoleAssignmentResponse, error) {
 	return c.grpcClient.CreateScopedRoleAssignment(ctx, req)
+}
+
+// UpdateScopedRoleAssignment updates an existing scoped role assignment.
+func (c *Client) UpdateScopedRoleAssignment(ctx context.Context, req *scopedaccessv1.UpdateScopedRoleAssignmentRequest) (*scopedaccessv1.UpdateScopedRoleAssignmentResponse, error) {
+	return c.grpcClient.UpdateScopedRoleAssignment(ctx, req)
+}
+
+// UpsertScopedRoleAssignment creates or updates a scoped role assignment.
+func (c *Client) UpsertScopedRoleAssignment(ctx context.Context, req *scopedaccessv1.UpsertScopedRoleAssignmentRequest) (*scopedaccessv1.UpsertScopedRoleAssignmentResponse, error) {
+	return c.grpcClient.UpsertScopedRoleAssignment(ctx, req)
 }
 
 // DeleteScopedRoleAssignment deletes a scoped role assignment.

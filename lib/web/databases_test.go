@@ -303,7 +303,7 @@ func TestHandleDatabasesGetIAMPolicy(t *testing.T) {
 
 	// Add database servers for above databases.
 	for _, db := range []*types.DatabaseV3{redshift, elasticache, selfHosted} {
-		_, err = env.server.Auth().UpsertDatabaseServer(context.TODO(), mustCreateDatabaseServer(t, db))
+		_, err = env.server.Auth().UpsertDatabaseServer(t.Context(), mustCreateDatabaseServer(t, db))
 		require.NoError(t, err)
 	}
 
@@ -345,7 +345,7 @@ func TestHandleDatabasesGetIAMPolicy(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.inputDatabaseName, func(t *testing.T) {
-			resp, err := pack.clt.Get(context.TODO(), pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "databases", test.inputDatabaseName, "iam", "policy"), nil)
+			resp, err := pack.clt.Get(t.Context(), pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "databases", test.inputDatabaseName, "iam", "policy"), nil)
 			test.verifyResponse(t, resp, err)
 		})
 	}
@@ -637,7 +637,7 @@ func TestConnectDatabaseInteractiveSession(t *testing.T) {
 			}
 			return nil
 		},
-		trustXForwardedFor: true,
+		middleware: NewXForwardedForMiddleware,
 	})
 	s.webHandler.handler.cfg.PublicProxyAddr = s.webHandler.handler.cfg.ProxyWebAddr.String()
 
@@ -663,15 +663,24 @@ func TestConnectDatabaseInteractiveSession(t *testing.T) {
 	_, err = s.server.Auth().UpsertDatabaseServer(ctx, mustCreateDatabaseServer(t, selfHosted))
 	require.NoError(t, err)
 	tests := []struct {
-		desc    string
-		replErr error
+		desc                     string
+		databaseServiceName      string
+		replErr                  error
+		expectRequestErrContains string
 	}{
 		{
-			desc: "success",
+			desc:                "success",
+			databaseServiceName: databaseName,
 		},
 		{
-			desc:    "errors are sent to the user",
-			replErr: trace.Errorf("database connection interrupted by unexpected llama crossing"),
+			desc:                "errors are sent to the user",
+			databaseServiceName: databaseName,
+			replErr:             trace.Errorf("database connection interrupted by unexpected llama crossing"),
+		},
+		{
+			desc:                     "invalid service name",
+			databaseServiceName:      "invalid service name",
+			expectRequestErrContains: "does not match regex",
 		},
 	}
 	for _, test := range tests {
@@ -715,7 +724,7 @@ func TestConnectDatabaseInteractiveSession(t *testing.T) {
 
 			req := DatabaseSessionRequest{
 				Protocol:      databaseProtocol,
-				ServiceName:   databaseName,
+				ServiceName:   test.databaseServiceName,
 				DatabaseName:  "postgres",
 				DatabaseUser:  "postgres",
 				DatabaseRoles: []string{"reader"},
@@ -729,6 +738,16 @@ func TestConnectDatabaseInteractiveSession(t *testing.T) {
 			})
 			require.NoError(t, err)
 			require.NoError(t, ws.WriteMessage(websocket.BinaryMessage, reqWebSocketMessage))
+
+			if test.expectRequestErrContains != "" {
+				_, raw, err := ws.ReadMessage()
+				require.NoError(t, err)
+
+				var env terminal.Envelope
+				require.NoError(t, proto.Unmarshal(raw, &env))
+				require.Contains(t, env.Payload, test.expectRequestErrContains)
+				return
+			}
 
 			performMFACeremonyWS(t, ws, pack)
 

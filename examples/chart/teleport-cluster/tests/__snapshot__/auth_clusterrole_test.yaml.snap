@@ -8,28 +8,28 @@ adds operator permissions to ClusterRole:
         app.kubernetes.io/instance: RELEASE-NAME
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: teleport-cluster
-        app.kubernetes.io/version: 19.0.0-dev
-        helm.sh/chart: teleport-cluster-19.0.0-dev
+        app.kubernetes.io/version: 19.0.0-prealpha.2
+        helm.sh/chart: teleport-cluster-19.0.0-prealpha.2
         teleport.dev/majorVersion: "19"
       name: RELEASE-NAME
     rules:
-    - apiGroups:
-      - ""
-      resources:
-      - users
-      - groups
-      - serviceaccounts
-      verbs:
-      - impersonate
-    - apiGroups:
-      - ""
-      resources:
-      - pods
-      verbs:
-      - get
-    - apiGroups:
-      - authorization.k8s.io
-      resources:
-      - selfsubjectaccessreviews
-      verbs:
-      - create
+      - apiGroups:
+          - ""
+        resources:
+          - users
+          - groups
+          - serviceaccounts
+        verbs:
+          - impersonate
+      - apiGroups:
+          - ""
+        resources:
+          - pods
+        verbs:
+          - get
+      - apiGroups:
+          - authorization.k8s.io
+        resources:
+          - selfsubjectaccessreviews
+        verbs:
+          - create

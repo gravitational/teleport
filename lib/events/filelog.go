@@ -716,18 +716,7 @@ func (l *FileLog) findInFile(path string, filter searchEventsFilter) ([]EventFie
 		}
 		// Check if search filter matches.
 		if accepted && filter.search != "" {
-			eventJSON := strings.ToLower(string(scanner.Bytes()))
-			searchTerms := strings.Fields(strings.ToLower(filter.search))
-
-			matchedAll := true
-			for _, term := range searchTerms {
-				if !strings.Contains(eventJSON, term) {
-					matchedAll = false
-					break
-				}
-			}
-
-			accepted = matchedAll
+			accepted = MatchSearch(filter.search, string(scanner.Bytes()))
 		}
 
 		if accepted {
@@ -780,6 +769,24 @@ func (f ByTimeAndIndex) Less(i, j int) bool {
 
 func (f ByTimeAndIndex) Swap(i, j int) {
 	f[i], f[j] = f[j], f[i]
+}
+
+// MatchSearch returns true if all whitespace-delimited search terms are present
+// in text, using case-insensitive substring matching.
+func MatchSearch(search, text string) bool {
+	terms := strings.Fields(strings.ToLower(search))
+	if len(terms) == 0 {
+		return true
+	}
+
+	text = strings.ToLower(text)
+	for _, term := range terms {
+		if !strings.Contains(text, term) {
+			return false
+		}
+	}
+
+	return true
 }
 
 // getTime converts json time to string

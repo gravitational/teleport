@@ -91,7 +91,7 @@ func TestGetConfigIntegration(t *testing.T) {
 
 func testGetConfigIntegration(t *testing.T, provider Provider) {
 	dummyIntegration := "integration-test"
-	dummyRegion := "test-region-123"
+	dummyRegion := "us-region-1"
 
 	awsOIDCIntegration, err := types.NewIntegrationAWSOIDC(
 		types.Metadata{Name: "integration-test"},
@@ -112,6 +112,12 @@ func testGetConfigIntegration(t *testing.T, provider Provider) {
 	stsClt := func(cfg aws.Config) STSClient {
 		return &mockAssumeRoleAPIClient{}
 	}
+
+	t.Run("with an invalid region must return bad parameter error", func(t *testing.T) {
+		_, err := provider.GetConfig(t.Context(), "test-region-1", WithCredentialsMaybeIntegration(IntegrationMetadata{Name: dummyIntegration}))
+		require.True(t, trace.IsBadParameter(err), "unexpected error: %v", err)
+		require.ErrorContains(t, err, "region \"test-region-1\" is invalid")
+	})
 
 	t.Run("without an integration client, must return missing integration getter error", func(t *testing.T) {
 		ctx := context.Background()
@@ -319,12 +325,12 @@ func (f *mockRolesAnywhereClient) GetIntegration(ctx context.Context, name strin
 }
 
 func (m *mockRolesAnywhereClient) GenerateAWSRACredentials(ctx context.Context, req *integrationpb.GenerateAWSRACredentialsRequest) (*integrationpb.GenerateAWSRACredentialsResponse, error) {
-	return &integrationpb.GenerateAWSRACredentialsResponse{
+	return integrationpb.GenerateAWSRACredentialsResponse_builder{
 		Expiration:      timestamppb.New(time.Now().Add(1 * time.Hour)),
 		AccessKeyId:     "mock-access-key-id",
 		SecretAccessKey: "mock-secret-access-key",
 		SessionToken:    "mock-session-token",
-	}, nil
+	}.Build(), nil
 }
 
 func TestNewCacheKey(t *testing.T) {

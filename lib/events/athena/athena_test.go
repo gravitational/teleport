@@ -30,8 +30,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
-	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
@@ -339,7 +338,7 @@ func TestPublisherConsumer(t *testing.T) {
 			ID:   uuid.NewString(),
 			Time: time.Now().UTC(),
 			Type: events.AppCreateEvent,
-			Code: strings.Repeat("d", 2*maxDirectMessageSize),
+			Code: strings.Repeat("d", 2*maxSNSDirectMessageSize),
 		},
 		AppMetadata: apievents.AppMetadata{
 			AppName: "app-large",
@@ -420,12 +419,10 @@ func TestPublisherConsumer(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			fS3 := newFakeS3manager()
 			fq := newFakeQueue()
-			p := &publisher{
-				PublisherConfig: PublisherConfig{
-					MessagePublisher: fq,
-					Uploader:         fS3,
-				},
-			}
+			p := NewPublisher(PublisherConfig{
+				MessagePublisher: fq,
+				Uploader:         fS3,
+			})
 			cfg := validCollectCfgForTests(t)
 			cfg.sqsReceiver = fq
 			cfg.payloadDownloader = fS3
@@ -484,24 +481,25 @@ func newFakeS3manager() *fakeS3manager {
 	}
 }
 
-func (f *fakeS3manager) Upload(ctx context.Context, input *s3.PutObjectInput, opts ...func(*manager.Uploader)) (*manager.UploadOutput, error) {
+func (f *fakeS3manager) UploadObject(ctx context.Context, input *transfermanager.UploadObjectInput, opts ...func(*transfermanager.Options)) (*transfermanager.UploadObjectOutput, error) {
 	data, err := io.ReadAll(input.Body)
 	if err != nil {
 		return nil, err
 	}
 	f.objects[*input.Key] = data
 	f.uploadCount++
-	return &manager.UploadOutput{Key: input.Key}, nil
+	return &transfermanager.UploadObjectOutput{Key: input.Key}, nil
 }
 
-func (f *fakeS3manager) Download(ctx context.Context, w io.WriterAt, input *s3.GetObjectInput, options ...func(*manager.Downloader)) (int64, error) {
+func (f *fakeS3manager) DownloadObject(ctx context.Context, input *transfermanager.DownloadObjectInput, opts ...func(*transfermanager.Options)) (*transfermanager.DownloadObjectOutput, error) {
 	data, ok := f.objects[*input.Key]
 	if !ok {
-		return 0, errors.New("object not found")
+		return nil, errors.New("object not found")
 	}
-	n, err := w.WriteAt(data, 0)
+	n, err := input.WriterAt.WriteAt(data, 0)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
-	return int64(n), nil
+	contentLength := int64(n)
+	return &transfermanager.DownloadObjectOutput{ContentLength: &contentLength}, nil
 }

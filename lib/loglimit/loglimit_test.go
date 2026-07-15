@@ -20,7 +20,6 @@ package loglimit
 
 import (
 	"bytes"
-	"context"
 	"log/slog"
 	"testing"
 	"time"
@@ -29,6 +28,39 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestSweepCleansUpStaleEntries(t *testing.T) {
+	t.Parallel()
+
+	clock := clockwork.NewFakeClock()
+
+	var sink bytes.Buffer
+	logLimiter, err := New(Config{
+		MessageSubstrings: []string{"A", "B"},
+		Clock:             clock,
+		Handler:           slog.NewTextHandler(&sink, &slog.HandlerOptions{}),
+	})
+	require.NoError(t, err)
+
+	logger := slog.New(logLimiter)
+
+	logger.InfoContext(t.Context(), "A log 1")
+	require.Len(t, logLimiter.windows, 1)
+
+	// Simulate frequent calls that occur between the entry going stale
+	// and the sweep interval being reached.
+	//
+	// Advance in small increments, logging a deduplicated "B" message
+	// each time. After enough time has passed the "A" entry is stale
+	// and the sweep is overdue.
+	for elapsed := time.Duration(0); elapsed < staleDuration+sweepInterval; elapsed += timeWindow {
+		clock.Advance(timeWindow)
+		logger.InfoContext(t.Context(), "B log")
+	}
+
+	require.Len(t, logLimiter.windows, 1, "stale entry for A should have been swept")
+	require.Contains(t, logLimiter.windows, "B", "only the fresh B entry should remain")
+}
 
 func TestLogLimiter(t *testing.T) {
 	t.Parallel()
@@ -121,7 +153,6 @@ msg="C log 1"
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
 			clock := clockwork.NewFakeClock()
-			ctx := context.Background()
 
 			var sink bytes.Buffer
 			logLimiter, err := New(Config{
@@ -146,7 +177,7 @@ msg="C log 1"
 			// Send first batch of logs to log limiter.
 			for _, message := range tc.logsFirstBatch {
 				//nolint:sloglint // the messages are statically defined in the tests but the linter doesn't know that
-				logger.InfoContext(ctx, message)
+				logger.InfoContext(t.Context(), message)
 			}
 
 			// Move the clock forward to mark entries as stale
@@ -161,7 +192,7 @@ msg="C log 1"
 			// Send second batch of logs to log limiter.
 			for _, message := range tc.logsSecondsBatch {
 				//nolint:sloglint // the messages are statically defined in the tests but the linter doesn't know that
-				logger.InfoContext(ctx, message)
+				logger.InfoContext(t.Context(), message)
 			}
 
 			// Move the clock forward to mark entries as stale

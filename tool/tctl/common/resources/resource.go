@@ -33,12 +33,15 @@ import (
 // to the Handler format.
 func Handlers() map[string]Handler {
 	// When adding resources, please keep the map alphabetically ordered.
+	// Note: scoped_role, scoped_role_assignment, and scoped_token are registered in
+	// ScopedHandlers() rather than here because they require scope-qualified names.
 	return map[string]Handler{
 		types.KindAccessGraphSettings:                accessGraphSettingsHandler(),
 		types.KindAccessList:                         accessListHandler(),
 		types.KindAccessMonitoringRule:               accessMonitoringRuleHandler(),
 		types.KindAccessRequest:                      accessRequestHandler(),
 		types.KindApp:                                appHandler(),
+		types.KindAppAuthConfig:                      appAuthConfigHandler(),
 		types.KindAppServer:                          appServerHandler(),
 		types.KindAuditQuery:                         auditQueryHandler(),
 		types.KindAuthServer:                         authHandler(),
@@ -50,6 +53,9 @@ func Handlers() map[string]Handler {
 		types.KindBot:                                botHandler(),
 		types.KindBotInstance:                        botInstanceHandler(),
 		types.KindCertAuthority:                      certAuthorityHandler(),
+		types.KindCertAuthorityOverride:              certAuthorityOverrideHandler(),
+		types.KindClassifier:                         classifierHandler(),
+		types.KindClientIPRestriction:                clientIPRestrictionHandler(),
 		types.KindClusterAuthPreference:              authPreferenceHandler(),
 		types.KindClusterMaintenanceConfig:           clusterMaintenanceConfigHandler(),
 		types.KindClusterNetworkingConfig:            networkingConfigHandler(),
@@ -59,34 +65,43 @@ func Handlers() map[string]Handler {
 		types.KindDatabaseObjectImportRule:           databaseObjectImportRuleHandler(),
 		types.KindDiscoveryConfig:                    discoveryConfigHandler(),
 		types.KindDynamicWindowsDesktop:              dynamicWindowsDesktopHandler(),
-		types.KindGithubConnector:                    githubConnectorHandler(),
+		types.KindExternalAuditStorage:               externalAuditStorageHandler(),
 		types.KindGitServer:                          gitServerHandler(),
+		types.KindGithubConnector:                    githubConnectorHandler(),
 		types.KindInferenceModel:                     inferenceModelHandler(),
+		types.KindInferencePolicy:                    inferencePolicyHandler(),
 		types.KindInferenceSecret:                    inferenceSecretHandler(),
 		types.KindInstaller:                          installerHandler(),
+		types.KindKubeServer:                         kubeServerHandler(),
+		types.KindKubernetesCluster:                  kubeClusterHandler(),
+		types.KindLinuxDesktop:                       linuxDesktopHandler(),
 		types.KindLock:                               lockHandler(),
+		types.KindLoginRule:                          loginRuleHandler(),
 		types.KindNode:                               serverHandler(),
 		types.KindOIDCConnector:                      oidcConnectorHandler(),
 		types.KindProxy:                              proxyHandler(),
 		types.KindRelayServer:                        relayServerHandler(),
+		types.KindRetrievalModel:                     retrievalModelHandler(),
 		types.KindRole:                               roleHandler(),
 		types.KindSAMLConnector:                      samlConnectorHandler(),
 		types.KindSAMLIdPServiceProvider:             samlIdPServiceProviderHandler(),
+		types.KindSPIFFEFederation:                   spiffeFederationHandler(),
 		types.KindServerInfo:                         serverInfoHandler(),
 		types.KindSessionRecordingConfig:             sessionRecordingConfigHandler(),
 		types.KindSigstorePolicy:                     sigstorePolicyHandler(),
-		types.KindSPIFFEFederation:                   spiffeFederationHandler(),
 		types.KindStaticHostUser:                     staticHostUserHandler(),
 		types.KindToken:                              tokenHandler(),
+		types.KindTrustedCluster:                     trustedClusterHandler(),
 		types.KindUIConfig:                           uiConfigHandler(),
 		types.KindUser:                               userHandler(),
 		types.KindUserTask:                           userTasksHandler(),
+		types.KindVnetConfig:                         vnetConfigHandler(),
 		types.KindWindowsDesktop:                     windowsDesktopHandler(),
 		types.KindWindowsDesktopService:              windowsDesktopServiceHandler(),
+		types.KindWorkloadCluster:                    workloadClusterHandler(),
 		types.KindWorkloadIdentity:                   workloadIdentityHandler(),
 		types.KindWorkloadIdentityX509IssuerOverride: workloadIdentityX509IssuerOverrideHandler(),
 		types.KindWorkloadIdentityX509Revocation:     workloadIdentityX509RevocationHandler(),
-		types.KindAppAuthConfig:                      appAuthConfigHandler(),
 	}
 }
 
@@ -96,13 +111,28 @@ func Handlers() map[string]Handler {
 // Some resources might not implement all functions (e.g. some resources are
 // read-only, they cannot be created).
 type Handler struct {
-	getHandler    func(context.Context, *authclient.Client, services.Ref, GetOpts) (Collection, error)
+	// getHandler powers "tctl get {kind}" and its variants "{kind}/{name}" and
+	// "{kind}/{subkind}/{name}".
+	// Make sure to inspect the services.Ref and implement as many modes as
+	// appropriate (typically, List and Get).
+	getHandler func(context.Context, *authclient.Client, services.Ref, GetOpts) (Collection, error)
+	// createHandler powers "tctl create", "tctl create -f" and "tctl edit"
+	// (fallback from a nil updateHandler).
 	createHandler func(context.Context, *authclient.Client, services.UnknownResource, CreateOpts) error
+	// updateHandler powers "tctl edit".
 	updateHandler func(context.Context, *authclient.Client, services.UnknownResource, CreateOpts) error
+	// deleteHandler powers "tctl rm".
 	deleteHandler func(context.Context, *authclient.Client, services.Ref) error
-	singleton     bool
-	mfaRequired   bool
-	description   string
+	// singleton informs tctl whether the resource is a single instance, instead
+	// of a collection of resources.
+	// Examples of singleton resources include cluster_auth_preference and
+	// session_recording_config.
+	singleton bool
+	// mfaRequired informs "tctl get" whether the resource is read sensitive
+	// (exposes secrets or otherwise requires admin MFA protection).
+	mfaRequired bool
+	// description is a resource description used by "tctl list-kinds".
+	description string
 }
 
 // GetOpts contains the possible options when getting a resource.
@@ -150,7 +180,7 @@ func (r *Handler) Update(ctx context.Context, clt *authclient.Client, raw servic
 // in Teleport.
 func (r *Handler) Delete(ctx context.Context, clt *authclient.Client, ref services.Ref) error {
 	if r.deleteHandler == nil {
-		return trace.NotImplemented("resource does not support 'tctl delete'")
+		return trace.NotImplemented("resource does not support 'tctl rm'")
 	}
 	if ref.Name == "" && !r.singleton {
 		return trace.BadParameter("provide a full resource name to delete, for example:\n$ tctl rm cluster/east\n")

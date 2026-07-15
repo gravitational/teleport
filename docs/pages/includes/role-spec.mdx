@@ -28,6 +28,11 @@ spec:
     # ssh_file_copy controls whether file copying (SCP/SFTP) is allowed.
     # Defaults to true.
     ssh_file_copy: false
+    # web_terminal_clipboard_mode controls whether users can copy text from
+    # an SSH session to the clipboard in the Web UI terminal. Options are 'unrestricted'
+    # (the default) and 'no-copy'. If any of the user's roles is set to 'no-copy',
+    # copying is disabled.
+    web_terminal_clipboard_mode: no-copy
     # client_idle_timeout determines if SSH sessions to cluster nodes are
     # forcefully terminated after no activity from a client (idle client).
     # it overrides the global cluster setting. examples: '30m', '1h' or '1h30m'
@@ -197,7 +202,7 @@ spec:
     kubernetes_labels:
       # A user can only access prod environments
       'env': 'prod'
-      # User can access any region in us-west, e.g us-west-1, us-west-2
+      # User can access any region in us-west, e.g. us-west-1, us-west-2
       'region': 'us-west-*'
       # Regular expressions start with ^ and end with $.
       # Teleport uses Go's regular expression syntax:
@@ -270,20 +275,20 @@ spec:
     - match:
         object_kind: table
       permissions:
-	    - SELECT
-	    - INSERT
-	    - UPDATE
-	    - DELETE
-	    - TRUNCATE
-	    - REFERENCES
-	    - TRIGGER
+        - SELECT
+        - INSERT
+        - UPDATE
+        - DELETE
+        - TRUNCATE
+        - REFERENCES
+        - TRIGGER
 
     # app_labels: a user with this role will be allowed to connect to
     # applications with labels matching below.
     app_labels:
       # A user can only access prod environments
       'env': 'prod'
-      # User can access any region in us-west, e.g us-west-1, us-west-2
+      # User can access any region in us-west, e.g. us-west-1, us-west-2
       'region': 'us-west-*'
       # Regular expressions start with ^ and end with $.
       # Teleport uses Go's regular expression syntax:
@@ -312,6 +317,13 @@ spec:
       'env': 'prod'
       'team': '{{external.team}}'
 
+    # beam_labels: a user with this role will be allowed to manage Beam
+    # resources with labels matching below.
+    #
+    # Supports role templating with traits.
+    beam_labels:
+      'teleport.internal/beam/owner': 'user@example.com'
+
     # node_labels_expression has the same purpose as node_labels but
     # supports predicate expressions to configure custom logic.
     # A user with this role will be allowed to access nodes if they are in the
@@ -331,6 +343,7 @@ spec:
     windows_desktop_labels_expression: 'labels["env"] == "staging"'
     group_labels_expression: 'labels["env"] == "staging"'
     workload_identity_labels_expression: 'labels["env"] == "staging"'
+    beam_labels_expression: 'labels["env"] == "staging"'
 
     # aws_role_arns allows a user with this role to assume AWS roles when
     # accessing AWS console using UI or AWS API using CLI
@@ -368,8 +381,11 @@ spec:
       # the reviewer can preview details about resources accessible by any roles
       # listed in preview_as_roles when reviewing Resource Access Requests
       preview_as_roles: ['dbadmin']
+      # the reviewer can submit reviews on behalf of other users;
+      # only to be used by Access Request plugins (eg. Slack plugin)
+      submit_for_users: ['*']
 
-    # request allows a user user request roles matching
+    # request allows a user to request roles matching
     # expressions below
     request:
       # the 'roles' list can be a mixture of literals and wildcard matchers
@@ -443,7 +459,7 @@ spec:
       - name: Auditor oversight
         # Specifies an RBAC predicate that is used to define
         # which users count against the required user count of the policy.
-        filter: 'contains(user.spec.roles, 'auditor')'
+        filter: 'contains(user.spec.roles, "auditor")'
         # The different session kinds this policy applies to.
         kinds: ['k8s', 'ssh']
         # A list of session participant modes that a participant must have
@@ -462,7 +478,7 @@ spec:
       # identifier in logs and for organisation/categorisation.
       - name: Auditor oversight
         # Allows one to join sessions created by other users with these roles
-        roles : ['prod-access']
+        roles: ['prod-access']
         # The different session kinds this policy applies to.
         kinds: ['k8s', 'ssh']
         # The list of session participant modes the role may join the session as.

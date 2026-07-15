@@ -50,7 +50,7 @@ export function useRoles(ctx: TeleportContext) {
   };
 }
 
-async function toYaml(role: Partial<RoleWithYaml>): Promise<string> {
+export async function toYaml(role: Partial<RoleWithYaml>): Promise<string> {
   return (
     role.yaml ||
     (await yamlService.stringify(YamlSupportedResourceKind.Role, {

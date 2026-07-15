@@ -75,6 +75,7 @@ func (s *Server) handleIAMJoin(
 	// Verify the sts:GetCallerIdentity request, send it to AWS, and make sure
 	// the verified identity matches allow rules in the provision token.
 	verifiedIdentity, err := iamjoin.CheckIAMRequest(stream.Context(), &iamjoin.CheckIAMRequestParams{
+		Logger:                   s.cfg.Logger,
 		Challenge:                challenge,
 		ProvisionToken:           token,
 		STSIdentityRequest:       solution.STSIdentityRequest,
@@ -102,9 +103,9 @@ func (s *Server) handleIAMJoin(
 		&iamInit.ClientParams,
 		token,
 		verifiedIdentity,
-		&workloadidentityv1pb.JoinAttrs{
+		workloadidentityv1pb.JoinAttrs_builder{
 			Iam: verifiedIdentity.JoinAttrs(),
-		},
+		}.Build(),
 	)
 	return result, trace.Wrap(err)
 }

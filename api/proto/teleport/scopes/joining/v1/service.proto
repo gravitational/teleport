@@ -32,17 +32,26 @@ service ScopedJoiningService {
   // CreateScopedToken creates a new scoped token.
   rpc CreateScopedToken(CreateScopedTokenRequest) returns (CreateScopedTokenResponse);
 
-  // UpdateScopedToken updates a scoped token.
-  rpc UpdateScopedToken(UpdateScopedTokenRequest) returns (UpdateScopedTokenResponse);
+  // UpsertScopedToken upserts a scoped token.
+  rpc UpsertScopedToken(UpsertScopedTokenRequest) returns (UpsertScopedTokenResponse);
 
   // DeleteScopedToken deletes a scoped token.
   rpc DeleteScopedToken(DeleteScopedTokenRequest) returns (DeleteScopedTokenResponse);
+
+  // UpdateScopedToken updates a scoped token.
+  rpc UpdateScopedToken(UpdateScopedTokenRequest) returns (UpdateScopedTokenResponse);
 }
 
 // GetScopedTokenRequest is the request to get a scoped token.
 message GetScopedTokenRequest {
   // Name is the name of the scoped token.
   string name = 1;
+
+  // If true, include the token secret in the response.
+  bool with_secret = 2;
+
+  // The scope which the token exists in.
+  string scope = 3;
 }
 
 // GetScopedTokenResponse is the response to get a scoped token.
@@ -53,11 +62,8 @@ message GetScopedTokenResponse {
 
 // ListScopedTokensRequest is the request to list scoped tokens.
 message ListScopedTokensRequest {
-  // Filter tokens by their resource scope.
-  teleport.scopes.v1.Filter resource_scope = 1;
-
-  // Filter tokens by their assigned scope.
-  teleport.scopes.v1.Filter assigned_scope = 2;
+  reserved 1, 2;
+  reserved "resource_scope", "assigned_scope";
 
   // The pagination cursor.
   string cursor = 3;
@@ -70,6 +76,18 @@ message ListScopedTokensRequest {
 
   // Filter tokens that match all provided labels.
   map<string, string> labels = 6;
+
+  // If true, include the token secrets in the response.
+  bool with_secrets = 7;
+
+  // ScopeFilter is the primary scope filter. Filtering is performed against the scope of the
+  // resource itself. Defaults to one of EXACT or UNSCOPED depending on wether the caller is
+  // a scoped or unscoped identity. Exhaustive user-facing views (e.g. `tctl get`) should
+  // specify mode ALL.
+  teleport.scopes.v1.Filter scope_filter = 8;
+
+  // AssignedScopeFilter filters tokens by their assigned scope if specified.
+  teleport.scopes.v1.Filter assigned_scope_filter = 9;
 }
 
 // ListScopedTokensResponse is the response to list scoped tokens.
@@ -93,6 +111,33 @@ message CreateScopedTokenResponse {
   ScopedToken token = 1;
 }
 
+// UpsertScopedTokenRequest is the request to upsert a scoped token.
+message UpsertScopedTokenRequest {
+  // Token is the scoped token to upsert.
+  ScopedToken token = 1;
+}
+
+// UpsertScopedTokenResponse is the response to upsert a scoped token.
+message UpsertScopedTokenResponse {
+  // Token is the post-upsert scoped token.
+  ScopedToken token = 1;
+}
+
+// DeleteScopedTokenRequest is the request to delete a scoped token.
+message DeleteScopedTokenRequest {
+  // Name is the name of the scoped token to delete.
+  string name = 1;
+
+  // Revision asserts the revision of the scoped token to delete (optional).
+  string revision = 2;
+
+  // The scope which the token exists in.
+  string scope = 3;
+}
+
+// DeleteScopedTokenResponse is the response to delete a scoped token.
+message DeleteScopedTokenResponse {}
+
 // UpdateScopedTokenRequest is the request to update a scoped token.
 message UpdateScopedTokenRequest {
   // Token is the scoped token to update.
@@ -104,15 +149,3 @@ message UpdateScopedTokenResponse {
   // Token is the post-update scoped token.
   ScopedToken token = 1;
 }
-
-// DeleteScopedTokenRequest is the request to delete a scoped token.
-message DeleteScopedTokenRequest {
-  // Name is the name of the scoped token to delete.
-  string name = 1;
-
-  // Revision asserts the revision of the scoped token to delete (optional).
-  string revision = 2;
-}
-
-// DeleteScopedTokenResponse is the response to delete a scoped token.
-message DeleteScopedTokenResponse {}

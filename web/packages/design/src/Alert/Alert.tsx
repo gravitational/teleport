@@ -17,7 +17,7 @@
  */
 
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import styled, { useTheme } from 'styled-components';
 import { color, ColorProps, style } from 'styled-system';
 
@@ -47,7 +47,8 @@ export type AlertKind =
   | 'success'
   | 'outline-danger'
   | 'outline-info'
-  | 'outline-warn';
+  | 'outline-warn'
+  | 'cta';
 
 const alertBorder = (
   props: ThemedAlertProps
@@ -77,6 +78,11 @@ const alertBorder = (
       return {
         border: theme.borders[1],
         borderColor: theme.colors.text.disabled,
+      };
+    case 'cta':
+      return {
+        border: theme.borders[2],
+        borderColor: theme.colors.interactive.solid.primary.default,
       };
   }
 };
@@ -108,6 +114,10 @@ const backgroundColor = (
     case 'neutral':
       return {
         background: theme.colors.interactive.tonal.neutral[0],
+      };
+    case 'cta':
+      return {
+        background: 'inherit',
       };
   }
 };
@@ -146,6 +156,11 @@ export interface Action {
    * a link that takes you to a different route within the app
    */
   linkTo?: string;
+  /**
+   * Adds persistent client side routing state to the next location
+   * defined by field "linkTo".
+   */
+  linkState?: any;
   onClick?: (event: React.MouseEvent) => void;
 }
 
@@ -327,6 +342,12 @@ const iconContainerStyles = ({
         background: theme.colors.interactive.tonal.neutral[0],
         padding: `${theme.space[2]}px`,
       };
+    case 'cta':
+      return {
+        color: theme.colors.text.primaryInverse,
+        background: theme.colors.interactive.solid.primary.default,
+        padding: `${theme.space[2]}px`,
+      };
   }
 };
 
@@ -353,7 +374,7 @@ const IconContainer = styled.div<{ kind: AlertKind; wrapContents?: boolean }>`
 const primaryButtonProps = (
   kind: AlertKind | BannerKind
 ): { fill: ButtonFill; intent: ButtonIntent } => {
-  return kind === 'neutral'
+  return kind === 'neutral' || kind === 'cta'
     ? { fill: 'filled', intent: 'primary' }
     : { fill: 'border', intent: 'neutral' };
 };
@@ -404,7 +425,7 @@ const ActionButtons = ({
 
 /** Renders either a regular or a link button, depending on the action. */
 export const ActionButton = ({
-  action: { href, content, onClick, linkTo },
+  action: { href, content, onClick, linkTo, linkState },
   fill,
   intent,
   inputAlignment = false,
@@ -440,7 +461,7 @@ export const ActionButton = ({
 
   if (linkTo) {
     return (
-      <Button {...sharedProps} as={Link} to={linkTo}>
+      <Button {...sharedProps} as={Link} to={linkTo} state={linkState}>
         {content}
       </Button>
     );
@@ -585,6 +606,7 @@ const iconKind = (kind: AlertKind | BannerKind): StatusKind => {
     case 'outline-info':
       return 'info';
     case 'primary':
+    case 'cta':
       return 'neutral';
     default:
       return kind;

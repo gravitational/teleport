@@ -16,6 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import '@testing-library/jest-dom';
+import {
+  createThemeSystem,
+  TELEPORT_THEME,
+  ThemeProvider as NewThemeProvider,
+} from '@gravitational/design-system';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import {
   act,
   fireEvent,
@@ -27,18 +34,17 @@ import {
   waitForElementToBeRemoved,
   within,
 } from '@testing-library/react';
+import 'jest-styled-components';
 import userEvent from '@testing-library/user-event';
+import { HttpResponse, JsonBodyType } from 'msw';
+import { setupServer } from 'msw/node';
 import { PropsWithChildren, ReactNode } from 'react';
-import { MemoryRouter as Router } from 'react-router-dom';
+import { MemoryRouter, useLocation } from 'react-router';
 
-import { darkTheme } from 'design/theme';
+import { darkTheme, resolveTheme } from 'design/theme';
 import { ConfiguredThemeProvider } from 'design/ThemeProvider';
 
-import '@testing-library/jest-dom';
-import 'jest-styled-components';
-
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { HttpResponse, JsonBodyType } from 'msw';
+const testThemeSystem = createThemeSystem(TELEPORT_THEME.config);
 
 export const testQueryClient = new QueryClient({
   defaultOptions: {
@@ -48,12 +54,16 @@ export const testQueryClient = new QueryClient({
   },
 });
 
+const legacyTheme = resolveTheme(darkTheme);
+
 export function Providers({ children }: { children: ReactNode }) {
   return (
     <QueryClientProvider client={testQueryClient}>
-      <ConfiguredThemeProvider theme={darkTheme}>
-        {children}
-      </ConfiguredThemeProvider>
+      <NewThemeProvider system={testThemeSystem} forcedTheme="dark">
+        <ConfiguredThemeProvider theme={legacyTheme}>
+          {children}
+        </ConfiguredThemeProvider>
+      </NewThemeProvider>
     </QueryClientProvider>
   );
 }
@@ -83,6 +93,32 @@ type RenderOptions = {
   wrapper?: React.FC<PropsWithChildren>;
   container?: HTMLElement;
 };
+
+type CurrentPathProps = {
+  testId?: string;
+};
+
+export function CurrentPath({ testId = 'current-path' }: CurrentPathProps) {
+  const location = useLocation();
+  return <span data-testid={testId}>{location.pathname}</span>;
+}
+
+type CurrentLocationProps = {
+  testId?: string;
+};
+
+export function CurrentLocation({
+  testId = 'location-display',
+}: CurrentLocationProps) {
+  const location = useLocation();
+  return (
+    <span data-testid={testId}>
+      {location.pathname}
+      {location.search}
+      {location.hash}
+    </span>
+  );
+}
 
 /**
  * createDeferredResponse is a utility function to create a deferred response
@@ -132,17 +168,34 @@ export function createDeferredResponse<T extends JsonBodyType>(data: T) {
   };
 }
 
+export const server = setupServer();
+
+/**
+ * Registers MSW lifecycle hooks for the current test suite. Call this at the
+ * top level of every test file that uses `server.use()`.
+ *
+ * This is intentionally opt-in rather than global (via setupTests.ts) to
+ * avoid the overhead of patching fetch/XHR in the hundreds of test suites
+ * that don't use MSW.
+ */
+export function enableMswServer() {
+  beforeAll(() => server.listen());
+  afterEach(() => server.resetHandlers());
+  afterAll(() => server.close());
+}
+
 export {
   act,
   screen,
   fireEvent,
-  darkTheme as theme,
+  legacyTheme as theme,
+  testThemeSystem,
   tick,
   render,
   prettyDOM,
   waitFor,
   getByTestId,
-  Router,
+  MemoryRouter as Router,
   userEvent,
   waitForElementToBeRemoved,
   within,

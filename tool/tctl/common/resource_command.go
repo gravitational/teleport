@@ -41,30 +41,23 @@ import (
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
-	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
-	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
-	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/trail"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/externalauditstorage"
 	"github.com/gravitational/teleport/api/types/secreports"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/devicetrust"
 	"github.com/gravitational/teleport/lib/itertools/stream"
-	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
-	scopedutils "github.com/gravitational/teleport/lib/scopes/utils"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/parse"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
-	"github.com/gravitational/teleport/tool/tctl/common/loginrule"
 	"github.com/gravitational/teleport/tool/tctl/common/resources"
 )
 
@@ -75,8 +68,8 @@ type ResourceCreateHandler func(context.Context, *authclient.Client, services.Un
 // Teleport resources
 type ResourceCommand struct {
 	config      *servicecfg.Config
-	ref         services.Ref
-	refs        services.Refs
+	ref         string
+	id          string
 	format      string
 	namespace   string
 	withSecrets bool
@@ -118,31 +111,19 @@ Same as above, but using JSON output:
 // Initialize allows ResourceCommand to plug itself into the CLI parser
 func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, config *servicecfg.Config) {
 	rc.CreateHandlers = map[string]ResourceCreateHandler{
-		types.KindTrustedCluster:              rc.createTrustedCluster,
-		types.KindExternalAuditStorage:        rc.createExternalAuditStorage,
-		types.KindNetworkRestrictions:         rc.createNetworkRestrictions,
-		types.KindKubernetesCluster:           rc.createKubeCluster,
-		types.KindLoginRule:                   rc.createLoginRule,
-		types.KindDevice:                      rc.createDevice,
-		types.KindOktaImportRule:              rc.createOktaImportRule,
-		types.KindIntegration:                 rc.createIntegration,
-		types.KindSecurityReport:              rc.createSecurityReport,
-		types.KindCrownJewel:                  rc.createCrownJewel,
-		types.KindVnetConfig:                  rc.createVnetConfig,
-		types.KindPlugin:                      rc.createPlugin,
-		types.KindHealthCheckConfig:           rc.createHealthCheckConfig,
-		scopedaccess.KindScopedRole:           rc.createScopedRole,
-		scopedaccess.KindScopedRoleAssignment: rc.createScopedRoleAssignment,
-		types.KindInferencePolicy:             rc.createInferencePolicy,
+		types.KindNetworkRestrictions: rc.createNetworkRestrictions,
+		types.KindDevice:              rc.createDevice,
+		types.KindOktaImportRule:      rc.createOktaImportRule,
+		types.KindIntegration:         rc.createIntegration,
+		types.KindSecurityReport:      rc.createSecurityReport,
+		types.KindCrownJewel:          rc.createCrownJewel,
+		types.KindPlugin:              rc.createPlugin,
+		types.KindHealthCheckConfig:   rc.createHealthCheckConfig,
 	}
 	rc.UpdateHandlers = map[string]ResourceCreateHandler{
-		types.KindCrownJewel:                  rc.updateCrownJewel,
-		types.KindVnetConfig:                  rc.updateVnetConfig,
-		types.KindPlugin:                      rc.updatePlugin,
-		types.KindHealthCheckConfig:           rc.updateHealthCheckConfig,
-		scopedaccess.KindScopedRole:           rc.updateScopedRole,
-		scopedaccess.KindScopedRoleAssignment: rc.updateScopedRoleAssignment,
-		types.KindInferencePolicy:             rc.updateInferencePolicy,
+		types.KindCrownJewel:        rc.updateCrownJewel,
+		types.KindPlugin:            rc.updatePlugin,
+		types.KindHealthCheckConfig: rc.updateHealthCheckConfig,
 	}
 	rc.config = config
 
@@ -157,7 +138,8 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 	<resource name>  Resource name to update
 
 	Example:
-	$ tctl update rc/remote`).SetValue(&rc.ref)
+	$ tctl update rc/remote`).StringVar(&rc.ref)
+	rc.updateCmd.Arg("id", `Resource identifier: scope-qualified name (e.g. "/staging/west::myrole") or bare name for unscoped kinds`).StringVar(&rc.id)
 	rc.updateCmd.Flag("set-labels", "Set labels").StringVar(&rc.labels)
 	rc.updateCmd.Flag("set-ttl", "Set TTL").StringVar(&rc.ttl)
 
@@ -168,10 +150,12 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 
 	Examples:
 	$ tctl rm role/devs
-	$ tctl rm cluster/main`).SetValue(&rc.ref)
+	$ tctl rm cluster/main`).StringVar(&rc.ref)
+	rc.deleteCmd.Arg("id", `Resource identifier: scope-qualified name (e.g. "/staging/west::myrole") or bare name for unscoped kinds`).StringVar(&rc.id)
 
 	rc.getCmd = app.Command("get", "Print a YAML declaration of various Teleport resources.")
-	rc.getCmd.Arg("resources", "Resource spec: 'type/[name][,...]' or 'all'").Required().SetValue(&rc.refs)
+	rc.getCmd.Arg("resources", "Resource spec: 'type/[name][,...]' or 'all'").Required().StringVar(&rc.ref)
+	rc.getCmd.Arg("id", `Resource identifier: scope-qualified name (e.g. "/staging/west::myrole") or bare name for unscoped kinds`).StringVar(&rc.id)
 	rc.getCmd.Flag("format", "Output format: 'yaml', 'json' or 'text'").Default(teleport.YAML).StringVar(&rc.format)
 	rc.getCmd.Flag("namespace", "Namespace of the resources").Hidden().Default(apidefaults.Namespace).StringVar(&rc.namespace)
 	rc.getCmd.Flag("with-secrets", "Include secrets in resources like certificate authorities or OIDC connectors").Default("false").BoolVar(&rc.withSecrets)
@@ -181,6 +165,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 
 	rc.listKindsCmd = app.Command("list-kinds", "Lists all resource kinds supported by this tctl version.").Alias("api-resources")
 	rc.listKindsCmd.Flag("wide", "Do not truncate the Description column, even if it exceeds terminal width").BoolVar(&rc.verbose)
+	rc.listKindsCmd.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&rc.format, teleport.Text, teleport.JSON, teleport.YAML)
 
 	if rc.Stdout == nil {
 		rc.Stdout = os.Stdout
@@ -226,12 +211,6 @@ func (rc *ResourceCommand) IsDeleteSubcommand(cmd string) bool {
 	return cmd == rc.deleteCmd.FullCommand()
 }
 
-// GetRef returns the reference (basically type/name pair) of the resource
-// the command is operating on
-func (rc *ResourceCommand) GetRef() services.Ref {
-	return rc.ref
-}
-
 // Get prints one or many resources of a certain type
 func (rc *ResourceCommand) Get(ctx context.Context, client *authclient.Client) error {
 	// Some resources require MFA to list with secrets. Check if we are trying to
@@ -242,64 +221,115 @@ func (rc *ResourceCommand) Get(ctx context.Context, client *authclient.Client) e
 			mfaKinds = append(mfaKinds, kind)
 		}
 	}
-	mfaRequired := rc.withSecrets && slices.ContainsFunc(rc.refs, func(r services.Ref) bool {
-		return slices.Contains(mfaKinds, r.Kind)
-	})
-
-	// Check if MFA has already been provided.
-	if _, err := mfa.MFAResponseFromContext(ctx); err == nil {
-		mfaRequired = false
+	for kind, handler := range resources.ScopedHandlers() {
+		if handler.MFARequired() {
+			mfaKinds = append(mfaKinds, kind)
+		}
 	}
 
-	if mfaRequired {
+	// performMFAIfNeeded runs the MFA ceremony when required is true and MFA
+	// has not already been provided. It updates ctx in-place on success.
+	performMFAIfNeeded := func(required bool) error {
+		if !required {
+			return nil
+		}
+		if _, err := mfa.MFAResponseFromContext(ctx); err == nil {
+			return nil // already provided
+		}
 		mfaResponse, err := mfa.PerformAdminActionMFACeremony(ctx, client.PerformMFACeremony, true /*allowReuse*/)
 		if err == nil {
 			ctx = mfa.ContextWithMFAResponse(ctx, mfaResponse)
 		} else if !errors.Is(err, &mfa.ErrMFANotRequired) && !errors.Is(err, &mfa.ErrMFANotSupported) {
 			return trace.Wrap(err)
 		}
+		return nil
 	}
 
-	if rc.refs.IsAll() {
-		return rc.GetAll(ctx, client)
+	// writeCollection writes a collection to rc.Stdout in the requested format.
+	// Note that only YAML is officially supported; text and JSON are experimental.
+	writeCollection := func(coll resources.Collection) error {
+		switch rc.format {
+		case teleport.Text:
+			return coll.WriteText(rc.Stdout, rc.verbose)
+		case teleport.YAML:
+			return writeYAML(coll, rc.Stdout)
+		case teleport.JSON:
+			return writeJSON(coll, rc.Stdout)
+		}
+		return trace.BadParameter("unsupported format")
 	}
-	if len(rc.refs) != 1 {
-		return rc.GetMany(ctx, client)
+
+	// When a second positional arg (id) is present, short-circuit to the
+	// single-resource/scoped-resource path (note: this path relies on ScopedRef,
+	// but the underlying logic supports lookup of scoped and unscoped resources).
+	if rc.id != "" {
+		sr, err := ParseScopedRef(rc.ref, rc.id)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		withSecrets := rc.withSecrets
+		if err := performMFAIfNeeded(withSecrets && slices.Contains(mfaKinds, sr.Kind)); err != nil {
+			return trace.Wrap(err)
+		}
+		collection, err := rc.getCollectionByScopedRef(ctx, client, sr, resources.GetOpts{WithSecrets: withSecrets})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		return writeCollection(collection)
 	}
-	rc.ref = rc.refs[0]
-	collection, err := rc.getCollection(ctx, client)
+
+	// No id: parse the full ref string, which may be "all", a comma-separated
+	// list, or a single kind[/subkind[/name]].
+	refs, err := services.ParseRefs(rc.ref)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	// Note that only YAML is officially supported. Support for text and JSON
-	// is experimental.
-	switch rc.format {
-	case teleport.Text:
-		return collection.WriteText(rc.Stdout, rc.verbose)
-	case teleport.YAML:
-		return writeYAML(collection, rc.Stdout)
-	case teleport.JSON:
-		return writeJSON(collection, rc.Stdout)
+	withSecrets := rc.withSecrets || slices.ContainsFunc(refs, func(r services.Ref) bool {
+		return r.Kind == types.KindToken // tokens cannot be retrieved without secrets
+	})
+	mfaRequired := withSecrets && slices.ContainsFunc(refs, func(r services.Ref) bool {
+		return slices.Contains(mfaKinds, r.Kind)
+	})
+	if err := performMFAIfNeeded(mfaRequired); err != nil {
+		return trace.Wrap(err)
 	}
-	return trace.BadParameter("unsupported format")
+
+	if refs.IsAll() {
+		return rc.GetAll(ctx, client)
+	}
+	if len(refs) != 1 {
+		return rc.getMany(ctx, client, false, refs)
+	}
+	collection, err := rc.getCollectionByRef(ctx, client, refs[0], resources.GetOpts{WithSecrets: withSecrets})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return writeCollection(collection)
 }
 
-func (rc *ResourceCommand) GetMany(ctx context.Context, client *authclient.Client) error {
+func (rc *ResourceCommand) getMany(
+	ctx context.Context,
+	client *authclient.Client,
+	skipNotSupported bool,
+	refs services.Refs,
+) error {
 	if rc.format != teleport.YAML {
 		return trace.BadParameter("mixed resource types only support YAML formatting")
 	}
 
-	var resources []types.Resource
-	for _, ref := range rc.refs {
-		rc.ref = ref
-		collection, err := rc.getCollection(ctx, client)
+	opts := resources.GetOpts{WithSecrets: rc.withSecrets}
+	var allResources []types.Resource
+	for _, ref := range refs {
+		collection, err := rc.getCollectionByRef(ctx, client, ref, opts)
+		if skipNotSupported && errors.As(err, new(*errNotSupported)) {
+			continue
+		}
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		resources = append(resources, collection.Resources()...)
+		allResources = append(allResources, collection.Resources()...)
 	}
-	if err := utils.WriteYAML(rc.Stdout, resources); err != nil {
+	if err := utils.WriteYAML(rc.Stdout, allResources); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -308,15 +338,16 @@ func (rc *ResourceCommand) GetMany(ctx context.Context, client *authclient.Clien
 func (rc *ResourceCommand) GetAll(ctx context.Context, client *authclient.Client) error {
 	rc.withSecrets = true
 	allKinds := services.GetResourceMarshalerKinds()
-	allRefs := make([]services.Ref, 0, len(allKinds))
+	allRefs := make(services.Refs, 0, len(allKinds))
 	for _, kind := range allKinds {
-		ref := services.Ref{
-			Kind: kind,
-		}
-		allRefs = append(allRefs, ref)
+		allRefs = append(allRefs, services.Ref{Kind: kind})
 	}
-	rc.refs = services.Refs(allRefs)
-	return rc.GetMany(ctx, client)
+
+	// This lets OSS query Enterprise-only kinds without failing when the
+	// corresponding RPCs return "NotImplemented".
+	const skipNotSupported = true
+
+	return rc.getMany(ctx, client, skipNotSupported, allRefs)
 }
 
 // Create updates or inserts one or many resources
@@ -364,14 +395,15 @@ func (rc *ResourceCommand) Create(ctx context.Context, client *authclient.Client
 
 		count++
 
+		opts := resources.CreateOpts{
+			Force:   rc.force,
+			Confirm: rc.confirm,
+		}
+
 		// Try looking for a resource handler
 		if resourceHandler, found := resources.Handlers()[raw.Kind]; found {
 			// only return in case of error, to create multiple resources
 			// in case if yaml spec is a list
-			opts := resources.CreateOpts{
-				Force:   rc.force,
-				Confirm: rc.confirm,
-			}
 			if err := resourceHandler.Create(ctx, client, raw, opts); err != nil {
 				if trace.IsAlreadyExists(err) {
 					return trace.Wrap(err, "use -f or --force flag to overwrite")
@@ -384,6 +416,21 @@ func (rc *ResourceCommand) Create(ctx context.Context, client *authclient.Client
 			// continue to next resource
 			continue
 		}
+
+		// Try looking for a scoped resource handler
+		if scopedHandler, found := resources.ScopedHandlers()[raw.Kind]; found {
+			if err := scopedHandler.Create(ctx, client, raw, opts); err != nil {
+				if trace.IsAlreadyExists(err) {
+					return trace.Wrap(err, "use -f or --force flag to overwrite")
+				}
+				if trace.IsNotImplemented(err) {
+					return trace.BadParameter("creating resources of type %q is not supported", raw.Kind)
+				}
+				return trace.Wrap(err)
+			}
+			continue
+		}
+
 		// Else fallback to the legacy logic
 
 		// locate the creator function for a given resource kind:
@@ -402,61 +449,6 @@ func (rc *ResourceCommand) Create(ctx context.Context, client *authclient.Client
 	}
 }
 
-// createTrustedCluster implements `tctl create cluster.yaml` command
-func (rc *ResourceCommand) createTrustedCluster(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	tc, err := services.UnmarshalTrustedCluster(raw.Raw, services.DisallowUnknown())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// check if such cluster already exists:
-	name := tc.GetName()
-	_, err = client.GetTrustedCluster(ctx, name)
-	if err != nil && !trace.IsNotFound(err) {
-		return trace.Wrap(err)
-	}
-
-	exists := (err == nil)
-	if !rc.force && exists {
-		return trace.AlreadyExists("trusted cluster %q already exists", name)
-	}
-
-	//nolint:staticcheck // SA1019. UpsertTrustedCluster is deprecated but will
-	// continue being supported for tctl clients.
-	// TODO(bernardjkim) consider using UpsertTrustedClusterV2 in VX.0.0
-	out, err := client.UpsertTrustedCluster(ctx, tc)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if out.GetName() != tc.GetName() {
-		fmt.Printf("WARNING: trusted cluster resource %q has been renamed to match root cluster name %q. this will become an error in future teleport versions, please update your configuration to use the correct name.\n", name, out.GetName())
-	}
-	fmt.Printf("trusted cluster %q has been %v\n", out.GetName(), UpsertVerb(exists, rc.force))
-	return nil
-}
-
-// createExternalAuditStorage implements `tctl create external_audit_storage` command.
-func (rc *ResourceCommand) createExternalAuditStorage(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	draft, err := services.UnmarshalExternalAuditStorage(raw.Raw, services.DisallowUnknown())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	externalAuditClient := client.ExternalAuditStorageClient()
-	if rc.force {
-		if _, err := externalAuditClient.UpsertDraftExternalAuditStorage(ctx, draft); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("External Audit Storage configuration has been updated\n")
-	} else {
-		if _, err := externalAuditClient.CreateDraftExternalAuditStorage(ctx, draft); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("External Audit Storage configuration has been created\n")
-	}
-	return nil
-}
-
 // createNetworkRestrictions implements `tctl create net_restrict.yaml` command.
 func (rc *ResourceCommand) createNetworkRestrictions(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	newNetRestricts, err := services.UnmarshalNetworkRestrictions(raw.Raw, services.DisallowUnknown())
@@ -468,28 +460,6 @@ func (rc *ResourceCommand) createNetworkRestrictions(ctx context.Context, client
 		return trace.Wrap(err)
 	}
 	fmt.Printf("network restrictions have been updated\n")
-	return nil
-}
-
-func (rc *ResourceCommand) createKubeCluster(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	cluster, err := services.UnmarshalKubeCluster(raw.Raw, services.DisallowUnknown())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if err := client.CreateKubernetesCluster(ctx, cluster); err != nil {
-		if trace.IsAlreadyExists(err) {
-			if !rc.force {
-				return trace.AlreadyExists("Kubernetes cluster %q already exists", cluster.GetName())
-			}
-			if err := client.UpdateKubernetesCluster(ctx, cluster); err != nil {
-				return trace.Wrap(err)
-			}
-			fmt.Printf("Kubernetes cluster %q has been updated\n", cluster.GetName())
-			return nil
-		}
-		return trace.Wrap(err)
-	}
-	fmt.Printf("Kubernetes cluster %q has been created\n", cluster.GetName())
 	return nil
 }
 
@@ -515,82 +485,6 @@ func (rc *ResourceCommand) createCrownJewel(ctx context.Context, client *authcli
 	return nil
 }
 
-func (rc *ResourceCommand) createScopedRole(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	if rc.IsForced() {
-		return trace.BadParameter("scoped role creation does not support --force")
-	}
-
-	r, err := services.UnmarshalProtoResource[*scopedaccessv1.ScopedRole](raw.Raw, services.DisallowUnknown())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if _, err := client.ScopedAccessServiceClient().CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
-		Role: r,
-	}); err != nil {
-		return trace.Wrap(err)
-	}
-
-	fmt.Fprintf(
-		rc.Stdout,
-		scopedaccess.KindScopedRole+" %q has been created\n",
-		r.GetMetadata().GetName(),
-	)
-
-	return nil
-}
-
-func (rc *ResourceCommand) updateScopedRole(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	r, err := services.UnmarshalProtoResource[*scopedaccessv1.ScopedRole](raw.Raw, services.DisallowUnknown())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if _, err = client.ScopedAccessServiceClient().UpdateScopedRole(ctx, &scopedaccessv1.UpdateScopedRoleRequest{
-		Role: r,
-	}); err != nil {
-		return trace.Wrap(err)
-	}
-
-	fmt.Fprintf(
-		rc.Stdout,
-		scopedaccess.KindScopedRole+" %q has been updated\n",
-		r.GetMetadata().GetName(),
-	)
-
-	return nil
-}
-
-func (rc *ResourceCommand) createScopedRoleAssignment(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	if rc.IsForced() {
-		return trace.BadParameter("scoped role assignment creation does not support --force")
-	}
-
-	r, err := services.UnmarshalProtoResource[*scopedaccessv1.ScopedRoleAssignment](raw.Raw, services.DisallowUnknown())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	rsp, err := client.ScopedAccessServiceClient().CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
-		Assignment: r,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	fmt.Fprintf(
-		rc.Stdout,
-		scopedaccess.KindScopedRoleAssignment+" %q has been created\n",
-		rsp.GetAssignment().GetMetadata().GetName(), // must extract from rsp since assignment names are generated server-side
-	)
-
-	return nil
-}
-
-func (rc *ResourceCommand) updateScopedRoleAssignment(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	return trace.NotImplemented("scoped_role_assignment resources do not support updates")
-}
-
 func (rc *ResourceCommand) updateCrownJewel(ctx context.Context, client *authclient.Client, resource services.UnknownResource) error {
 	in, err := services.UnmarshalCrownJewel(resource.Raw, services.DisallowUnknown())
 	if err != nil {
@@ -600,33 +494,6 @@ func (rc *ResourceCommand) updateCrownJewel(ctx context.Context, client *authcli
 		return trace.Wrap(err)
 	}
 	fmt.Printf("crown jewel %q has been updated\n", in.GetMetadata().GetName())
-	return nil
-}
-
-func (rc *ResourceCommand) createLoginRule(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	rule, err := loginrule.UnmarshalLoginRule(raw.Raw)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	loginRuleClient := client.LoginRuleClient()
-	if rc.IsForced() {
-		_, err := loginRuleClient.UpsertLoginRule(ctx, &loginrulepb.UpsertLoginRuleRequest{
-			LoginRule: rule,
-		})
-		if err != nil {
-			return trail.FromGRPC(err)
-		}
-	} else {
-		_, err = loginRuleClient.CreateLoginRule(ctx, &loginrulepb.CreateLoginRuleRequest{
-			LoginRule: rule,
-		})
-		if err != nil {
-			return trail.FromGRPC(err)
-		}
-	}
-	verb := UpsertVerb(false /* we don't know if it existed before */, rc.IsForced() /* force update */)
-	fmt.Printf("login_rule %q has been %s\n", rule.GetMetadata().GetName(), verb)
 	return nil
 }
 
@@ -641,16 +508,16 @@ func (rc *ResourceCommand) createDevice(ctx context.Context, client *authclient.
 	}
 
 	if rc.IsForced() {
-		_, err = client.DevicesClient().UpsertDevice(ctx, &devicepb.UpsertDeviceRequest{
+		_, err = client.DevicesClient().UpsertDevice(ctx, devicepb.UpsertDeviceRequest_builder{
 			Device:           dev,
 			CreateAsResource: true,
-		})
+		}.Build())
 		// err checked below
 	} else {
-		_, err = client.DevicesClient().CreateDevice(ctx, &devicepb.CreateDeviceRequest{
+		_, err = client.DevicesClient().CreateDevice(ctx, devicepb.CreateDeviceRequest_builder{
 			Device:           dev,
 			CreateAsResource: true,
-		})
+		}.Build())
 		// err checked below
 	}
 	if err != nil {
@@ -663,8 +530,8 @@ func (rc *ResourceCommand) createDevice(ctx context.Context, client *authclient.
 	}
 
 	fmt.Printf("Device %v/%v %v\n",
-		dev.AssetTag,
-		devicetrust.FriendlyOSType(dev.OsType),
+		dev.GetAssetTag(),
+		devicetrust.FriendlyOSType(dev.GetOsType()),
 		verb,
 	)
 	return nil
@@ -747,29 +614,61 @@ func (rc *ResourceCommand) createIntegration(ctx context.Context, client *authcl
 
 // Delete deletes resource by name
 func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client) (err error) {
+	sr, err := ParseScopedRef(rc.ref, rc.id)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	// Connectors are a special case. As it's the only meta-resource we have,
 	// it's easier to special-case it here instead of adding a case in the
 	// generic [resources.Handler].
-	if rc.ref.Kind == types.KindConnectors {
+	if sr.Kind == types.KindConnectors {
 		return trace.BadParameter(
 			"Deleting connector resources requires using an explicit connector type. Please try again with the appropriate type: %s",
 			[]string{
-				types.KindGithubConnector + "/" + rc.ref.Name,
-				types.KindOIDCConnector + "/" + rc.ref.Name,
-				types.KindSAMLConnector + "/" + rc.ref.Name,
+				types.KindGithubConnector + "/" + sr.Name,
+				types.KindOIDCConnector + "/" + sr.Name,
+				types.KindSAMLConnector + "/" + sr.Name,
 			},
 		)
 	}
 
+	if sr.Scope != "" {
+		handler, found := resources.ScopedHandlers()[sr.Kind]
+		if !found {
+			return trace.BadParameter("resource type %q does not support scope-qualified names", sr.Kind)
+		}
+		return trace.Wrap(handler.Delete(ctx, client, sr.SubKind, sr.SQN()))
+	}
+
+	// if scope was not set, we're about to interact with a bunch of functions that expect
+	// an explicitly unscoped ref.
+	ref := sr.Ref()
+
 	// Try looking for a resource handler
-	if resourceHandler, found := resources.Handlers()[rc.ref.Kind]; found {
-		if err := resourceHandler.Delete(ctx, client, rc.ref); err != nil {
+	if resourceHandler, found := resources.Handlers()[ref.Kind]; found {
+		if err := resourceHandler.Delete(ctx, client, ref); err != nil {
 			if trace.IsNotImplemented(err) {
-				return trace.BadParameter("deleting resources of type %q is not supported", rc.ref.Kind)
+				return trace.BadParameter("deleting resources of type %q is not supported", ref.Kind)
 			}
-			return trace.Wrap(err, "error deleting resource %q of type %q", rc.ref.Name, rc.ref.Kind)
+			return trace.Wrap(err, "error deleting resource %q of type %q", ref.Name, ref.Kind)
 		}
 		return nil
+	}
+
+	// check if this kind has a scoped handler. note that we check this *after* checking for an unscoped handler. resource
+	// kinds can be "double registered" as both a scoped and unscoped handler if/when we want to support a mix of scoped and
+	// unscoped interaction with the resource, so a missing scope isn't necessarily an error until we confirm that there
+	// isn't a suitable unscoped handler.
+	if _, found := resources.ScopedHandlers()[ref.Kind]; found {
+		kindSpec := ref.Kind
+		if ref.SubKind != "" {
+			kindSpec = ref.Kind + "/" + ref.SubKind
+		}
+		if sr.Name != "" {
+			return trace.BadParameter("resource type %q requires a scope-qualified name: tctl rm %s <scope>::%s", ref.Kind, kindSpec, sr.Name)
+		}
+		return trace.BadParameter("use 'tctl rm %s <scope>::<name>' to delete a %s", kindSpec, ref.Kind)
 	}
 
 	// Else fallback to the legacy logic
@@ -779,61 +678,44 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 		types.KindUIConfig,
 		types.KindNetworkRestrictions,
 	}
-	if !slices.Contains(singletonResources, rc.ref.Kind) && (rc.ref.Kind == "" || rc.ref.Name == "") {
+	if !slices.Contains(singletonResources, ref.Kind) && (ref.Kind == "" || ref.Name == "") {
 		return trace.BadParameter("provide a full resource name to delete, for example:\n$ tctl rm cluster/east\n")
 	}
 
-	switch rc.ref.Kind {
+	switch ref.Kind {
 	case types.KindReverseTunnel:
-		if err := client.DeleteReverseTunnel(ctx, rc.ref.Name); err != nil {
+		if err := client.DeleteReverseTunnel(ctx, ref.Name); err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Printf("reverse tunnel %v has been deleted\n", rc.ref.Name)
-	case types.KindTrustedCluster:
-		if err = client.DeleteTrustedCluster(ctx, rc.ref.Name); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("trusted cluster %q has been deleted\n", rc.ref.Name)
+		fmt.Printf("reverse tunnel %v has been deleted\n", ref.Name)
 	case types.KindRemoteCluster:
-		if err = client.DeleteRemoteCluster(ctx, rc.ref.Name); err != nil {
+		if err = client.DeleteRemoteCluster(ctx, ref.Name); err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Printf("remote cluster %q has been deleted\n", rc.ref.Name)
+		fmt.Printf("remote cluster %q has been deleted\n", ref.Name)
 	case types.KindSemaphore:
-		if rc.ref.SubKind == "" || rc.ref.Name == "" {
+		if ref.SubKind == "" || ref.Name == "" {
 			return trace.BadParameter(
 				"full semaphore path must be specified (e.g. '%s/%s/alice@example.com')",
 				types.KindSemaphore, types.SemaphoreKindConnection,
 			)
 		}
 		err := client.DeleteSemaphore(ctx, types.SemaphoreFilter{
-			SemaphoreKind: rc.ref.SubKind,
-			SemaphoreName: rc.ref.Name,
+			SemaphoreKind: ref.SubKind,
+			SemaphoreName: ref.Name,
 		})
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Printf("semaphore '%s/%s' has been deleted\n", rc.ref.SubKind, rc.ref.Name)
-	case types.KindExternalAuditStorage:
-		if rc.ref.Name == types.MetaNameExternalAuditStorageCluster {
-			if err := client.ExternalAuditStorageClient().DisableClusterExternalAuditStorage(ctx); err != nil {
-				return trace.Wrap(err)
-			}
-			fmt.Printf("cluster External Audit Storage configuration has been disabled\n")
-		} else {
-			if err := client.ExternalAuditStorageClient().DeleteDraftExternalAuditStorage(ctx); err != nil {
-				return trace.Wrap(err)
-			}
-			fmt.Printf("draft External Audit Storage configuration has been deleted\n")
-		}
+		fmt.Printf("semaphore '%s/%s' has been deleted\n", ref.SubKind, ref.Name)
 	case types.KindDatabaseServer:
 		servers, err := client.GetDatabaseServers(ctx, apidefaults.Namespace)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		resDesc := "database server"
-		servers = resources.FilterByNameOrDiscoveredName(servers, rc.ref.Name)
-		name, err := resources.GetOneResourceNameToDelete(servers, rc.ref, resDesc)
+		servers = resources.FilterByNameOrDiscoveredName(servers, ref.Name)
+		name, err := resources.GetOneResourceNameToDelete(servers, ref, resDesc)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -849,121 +731,54 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err)
 		}
 		fmt.Printf("network restrictions have been reset to defaults (allow all)\n")
-	case types.KindKubernetesCluster:
-		// TODO(okraport) DELETE IN v21.0.0, replace with regular Collect
-		clusters, err := clientutils.CollectWithFallback(ctx, client.ListKubernetesClusters, client.GetKubernetesClusters)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		resDesc := "Kubernetes cluster"
-		clusters = resources.FilterByNameOrDiscoveredName(clusters, rc.ref.Name)
-		name, err := resources.GetOneResourceNameToDelete(clusters, rc.ref, resDesc)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if err := client.DeleteKubernetesCluster(ctx, name); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("%s %q has been deleted\n", resDesc, name)
 	case types.KindCrownJewel:
-		if err := client.CrownJewelsClient().DeleteCrownJewel(ctx, rc.ref.Name); err != nil {
+		if err := client.CrownJewelsClient().DeleteCrownJewel(ctx, ref.Name); err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Printf("crown_jewel %q has been deleted\n", rc.ref.Name)
-	case types.KindKubeServer:
-		servers, err := client.GetKubernetesServers(ctx)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		resDesc := "Kubernetes server"
-		servers = resources.FilterByNameOrDiscoveredName(servers, rc.ref.Name)
-		name, err := resources.GetOneResourceNameToDelete(servers, rc.ref, resDesc)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		for _, s := range servers {
-			err := client.DeleteKubernetesServer(ctx, s.GetHostID(), name)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-		}
-		fmt.Printf("%s %q has been deleted\n", resDesc, name)
-	case types.KindLoginRule:
-		loginRuleClient := client.LoginRuleClient()
-		_, err := loginRuleClient.DeleteLoginRule(ctx, &loginrulepb.DeleteLoginRuleRequest{
-			Name: rc.ref.Name,
-		})
-		if err != nil {
-			return trail.FromGRPC(err)
-		}
-		fmt.Printf("login rule %q has been deleted\n", rc.ref.Name)
+		fmt.Printf("crown_jewel %q has been deleted\n", ref.Name)
 	case types.KindDevice:
 		remote := client.DevicesClient()
-		device, err := findDeviceByIDOrTag(ctx, remote, rc.ref.Name)
+		device, err := findDeviceByIDOrTag(ctx, remote, ref.Name)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
-		if _, err := remote.DeleteDevice(ctx, &devicepb.DeleteDeviceRequest{
-			DeviceId: device[0].Id,
-		}); err != nil {
+		if _, err := remote.DeleteDevice(ctx, devicepb.DeleteDeviceRequest_builder{
+			DeviceId: device[0].GetId(),
+		}.Build()); err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Printf("Device %q removed\n", rc.ref.Name)
+		fmt.Printf("Device %q removed\n", ref.Name)
 
 	case types.KindIntegration:
-		if err := client.DeleteIntegration(ctx, rc.ref.Name); err != nil {
+		if err := client.DeleteIntegration(ctx, ref.Name); err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Printf("Integration %q removed\n", rc.ref.Name)
+		fmt.Printf("Integration %q removed\n", ref.Name)
 	case types.KindOktaAssignment:
-		if err := client.OktaClient().DeleteOktaAssignment(ctx, rc.ref.Name); err != nil {
+		if err := client.OktaClient().DeleteOktaAssignment(ctx, ref.Name); err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Printf("Okta assignment %q has been deleted\n", rc.ref.Name)
+		fmt.Printf("Okta assignment %q has been deleted\n", ref.Name)
 	case types.KindOktaImportRule:
-		if err := client.OktaClient().DeleteOktaImportRule(ctx, rc.ref.Name); err != nil {
+		if err := client.OktaClient().DeleteOktaImportRule(ctx, ref.Name); err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Printf("Okta import rule %q has been deleted\n", rc.ref.Name)
+		fmt.Printf("Okta import rule %q has been deleted\n", ref.Name)
 	case types.KindUserGroup:
-		if err := client.DeleteUserGroup(ctx, rc.ref.Name); err != nil {
+		if err := client.DeleteUserGroup(ctx, ref.Name); err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Printf("User group %q has been deleted\n", rc.ref.Name)
+		fmt.Printf("User group %q has been deleted\n", ref.Name)
 	case types.KindSecurityReport:
-		if err := client.SecReportsClient().DeleteSecurityReport(ctx, rc.ref.Name); err != nil {
+		if err := client.SecReportsClient().DeleteSecurityReport(ctx, ref.Name); err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Printf("Security report %q has been deleted\n", rc.ref.Name)
-	case scopedaccess.KindScopedRole:
-		if _, err := client.ScopedAccessServiceClient().DeleteScopedRole(ctx, &scopedaccessv1.DeleteScopedRoleRequest{
-			Name: rc.ref.Name,
-		}); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Fprintf(
-			rc.Stdout,
-			scopedaccess.KindScopedRole+" %q has been deleted\n",
-			rc.ref.Name,
-		)
-	case scopedaccess.KindScopedRoleAssignment:
-		if _, err := client.ScopedAccessServiceClient().DeleteScopedRoleAssignment(ctx, &scopedaccessv1.DeleteScopedRoleAssignmentRequest{
-			Name: rc.ref.Name,
-		}); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Fprintf(
-			rc.Stdout,
-			scopedaccess.KindScopedRoleAssignment+" %q has been deleted\n",
-			rc.ref.Name,
-		)
+		fmt.Printf("Security report %q has been deleted\n", ref.Name)
 	case types.KindHealthCheckConfig:
-		return trace.Wrap(rc.deleteHealthCheckConfig(ctx, client))
-	case types.KindInferencePolicy:
-		return trace.Wrap(rc.deleteInferencePolicy(ctx, client))
+		return trace.Wrap(rc.deleteHealthCheckConfig(ctx, client, ref.Name))
 	default:
-		return trace.BadParameter("deleting resources of type %q is not supported", rc.ref.Kind)
+		return trace.BadParameter("deleting resources of type %q is not supported", ref.Kind)
 	}
 	return nil
 }
@@ -974,14 +789,20 @@ func resetNetworkRestrictions(ctx context.Context, client *authclient.Client) er
 
 // UpdateFields updates select resource fields: expiry and labels
 func (rc *ResourceCommand) UpdateFields(ctx context.Context, clt *authclient.Client) error {
-	if rc.ref.Kind == "" || rc.ref.Name == "" {
+	sr, err := ParseScopedRef(rc.ref, rc.id)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if sr.Kind == "" || sr.Name == "" {
 		return trace.BadParameter("provide a full resource name to update, for example:\n$ tctl update rc/remote --set-labels=env=prod\n")
 	}
+	if sr.Scope != "" {
+		return trace.BadParameter("resource type %q does not support scope-qualified names", sr.Kind)
+	}
 
-	var err error
 	var labels map[string]string
 	if rc.labels != "" {
-		labels, err = client.ParseLabelSpec(rc.labels)
+		labels, err = parse.LabelSelectorSpec(rc.labels)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1000,9 +821,9 @@ func (rc *ResourceCommand) UpdateFields(ctx context.Context, clt *authclient.Cli
 		return trace.BadParameter("use at least one of --set-labels or --set-ttl")
 	}
 
-	switch rc.ref.Kind {
+	switch sr.Kind {
 	case types.KindRemoteCluster:
-		cluster, err := clt.GetRemoteCluster(ctx, rc.ref.Name)
+		cluster, err := clt.GetRemoteCluster(ctx, sr.Name)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1017,9 +838,9 @@ func (rc *ResourceCommand) UpdateFields(ctx context.Context, clt *authclient.Cli
 		if _, err = clt.UpdateRemoteCluster(ctx, cluster); err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Printf("cluster %v has been updated\n", rc.ref.Name)
+		fmt.Printf("cluster %v has been updated\n", sr.Name)
 	default:
-		return trace.BadParameter("updating resources of type %q is not supported, supported are: %q", rc.ref.Kind, types.KindRemoteCluster)
+		return trace.BadParameter("updating resources of type %q is not supported, supported are: %q", sr.Kind, types.KindRemoteCluster)
 	}
 	return nil
 }
@@ -1029,28 +850,83 @@ func (rc *ResourceCommand) IsForced() bool {
 	return rc.force
 }
 
-// getCollection lists all resources of a given type
-func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient.Client) (resources.Collection, error) {
-	if rc.ref.Kind == "" {
+func (rc *ResourceCommand) getCollectionByScopedRef(ctx context.Context, client *authclient.Client, sr ScopedRef, opts resources.GetOpts) (resources.Collection, error) {
+	if sr.Scope != "" {
+		handler, found := resources.ScopedHandlers()[sr.Kind]
+		if !found {
+			return nil, trace.BadParameter("resource type %q does not support scope-qualified names", sr.Kind)
+		}
+		sqn := sr.SQN()
+		return handler.Get(ctx, client, sr.SubKind, &sqn, opts)
+	}
+
+	// get was invoked without a scope being specified. this is valid for unscoped types, or when doing a list operation
+	// for a scoped type. some types are registered as both scoped and unscoped. therefore we specifically want to
+	// reject attempts to invoke a single-resource get at this point only if it targets a type that *does* have a scoped
+	// handler and *does not* have an unscoped handler.
+	if sr.Name != "" {
+		_, classicFound := resources.Handlers()[sr.Kind]
+		_, scopedFound := resources.ScopedHandlers()[sr.Kind]
+		if !classicFound && scopedFound {
+			kindSpec := sr.Kind
+			if sr.SubKind != "" {
+				kindSpec = fmt.Sprintf("%s/%s", sr.Kind, sr.SubKind)
+			}
+			return nil, trace.BadParameter(
+				"resource type %q requires a scope-qualified name, e.g.:\n  tctl get %s <scope>::%s",
+				kindSpec, kindSpec, sr.Name,
+			)
+		}
+	}
+
+	// fallthrough to the general getCollectionByRef logic. getCollectionByRef handles unscoped types, but it also handles
+	// invocations for scoped list operations.
+	return rc.getCollectionByRef(ctx, client, sr.Ref(), opts)
+}
+
+func (rc *ResourceCommand) getCollectionByRef(ctx context.Context, client *authclient.Client, ref services.Ref, opts resources.GetOpts) (resources.Collection, error) {
+	if ref.Kind == "" {
 		return nil, trace.BadParameter("specify resource to list, e.g. 'tctl get roles'")
 	}
 
-	// Looking if the resource has been converted to the handler format.
-	if handler, found := resources.Handlers()[rc.ref.Kind]; found {
-		coll, err := handler.Get(ctx, client, rc.ref, resources.GetOpts{WithSecrets: rc.withSecrets})
+	if handler, found := resources.Handlers()[ref.Kind]; found {
+		coll, err := handler.Get(ctx, client, ref, opts)
 		if err != nil {
 			if trace.IsNotImplemented(err) {
-				return nil, trace.BadParameter("getting %q is not supported", rc.ref.String())
+				return nil, &errNotSupported{trace.BadParameter("getting %q is not supported", ref.String())}
 			}
-			return nil, trace.Wrap(err, "getting resource %q of type %q", rc.ref.Name, rc.ref.Kind)
+			return nil, trace.Wrap(err, "getting resource %q of type %q", ref.Name, ref.Kind)
 		}
 		return coll, nil
 	}
+
+	// Scoped handler path: list-all only. Single-resource lookup for purely-scoped
+	// kinds requires a scope-qualified name, handled by getCollectionByScopedRef.
+	if handler, found := resources.ScopedHandlers()[ref.Kind]; found {
+		if ref.Name != "" {
+			kindSpec := ref.Kind
+			if ref.SubKind != "" {
+				kindSpec = fmt.Sprintf("%s/%s", ref.Kind, ref.SubKind)
+			}
+			return nil, trace.BadParameter(
+				"resource type %q requires a scope-qualified name, e.g.:\n  tctl get %s <scope>::%s\nuse 'tctl get %s' to list all resources of this type",
+				kindSpec, kindSpec, ref.Name, ref.Kind,
+			)
+		}
+		if ref.SubKind != "" {
+			// technically our current CLI syntax does not support specifying a sub-kind without specifying
+			// a name so this should currently be unreachable, but its a good defensive check since hander.Get
+			// will likely not know how to handle sub-kind listing if future changes make it possible to express.
+			return nil, trace.BadParameter("listing resources by sub-kind is not supported, use 'tctl get %s' to list all resources of this kind", ref.Kind)
+		}
+		return handler.Get(ctx, client, "", nil, opts)
+	}
+
 	// The resource hasn't been migrated yet, falling back to the old logic.
 
-	switch rc.ref.Kind {
+	switch ref.Kind {
 	case types.KindReverseTunnel:
-		if rc.ref.Name != "" {
+		if ref.Name != "" {
 			return nil, trace.BadParameter("reverse tunnel cannot be searched by name")
 		}
 
@@ -1060,42 +936,23 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		}
 
 		return &reverseTunnelCollection{tunnels: tunnels}, nil
-	case types.KindTrustedCluster:
-		if rc.ref.Name == "" {
-			// TODO(okraport): DELETE IN v21.0.0, replace with regular Collect
-			trustedClusters, err := clientutils.CollectWithFallback(
-				ctx,
-				client.ListTrustedClusters,
-				client.GetTrustedClusters,
-			)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			return &trustedClusterCollection{trustedClusters: trustedClusters}, nil
-		}
-		trustedCluster, err := client.GetTrustedCluster(ctx, rc.ref.Name)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &trustedClusterCollection{trustedClusters: []types.TrustedCluster{trustedCluster}}, nil
 	case types.KindRemoteCluster:
-		if rc.ref.Name == "" {
+		if ref.Name == "" {
 			remoteClusters, err := client.GetRemoteClusters(ctx)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
 			return &remoteClusterCollection{remoteClusters: remoteClusters}, nil
 		}
-		remoteCluster, err := client.GetRemoteCluster(ctx, rc.ref.Name)
+		remoteCluster, err := client.GetRemoteCluster(ctx, ref.Name)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		return &remoteClusterCollection{remoteClusters: []types.RemoteCluster{remoteCluster}}, nil
 	case types.KindSemaphore:
 		filter := types.SemaphoreFilter{
-			SemaphoreKind: rc.ref.SubKind,
-			SemaphoreName: rc.ref.Name,
+			SemaphoreKind: ref.SubKind,
+			SemaphoreName: ref.Name,
 		}
 		sems, err := clientutils.CollectWithFallback(ctx,
 			func(ctx context.Context, pageSize int, pageToken string) ([]types.Semaphore, string, error) {
@@ -1116,52 +973,21 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if rc.ref.Name == "" {
+		if ref.Name == "" {
 			return &databaseServerCollection{servers: servers}, nil
 		}
 
-		servers = resources.FilterByNameOrDiscoveredName(servers, rc.ref.Name)
+		servers = resources.FilterByNameOrDiscoveredName(servers, ref.Name)
 		if len(servers) == 0 {
-			return nil, trace.NotFound("database server %q not found", rc.ref.Name)
+			return nil, trace.NotFound("database server %q not found", ref.Name)
 		}
 		return &databaseServerCollection{servers: servers}, nil
-	case types.KindKubeServer:
-		servers, err := client.GetKubernetesServers(ctx)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if rc.ref.Name == "" {
-			return &kubeServerCollection{servers: servers}, nil
-		}
-		altNameFn := func(r types.KubeServer) string {
-			return r.GetHostname()
-		}
-		servers = resources.FilterByNameOrDiscoveredName(servers, rc.ref.Name, altNameFn)
-		if len(servers) == 0 {
-			return nil, trace.NotFound("Kubernetes server %q not found", rc.ref.Name)
-		}
-		return &kubeServerCollection{servers: servers}, nil
-
 	case types.KindNetworkRestrictions:
 		nr, err := client.GetNetworkRestrictions(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		return &netRestrictionsCollection{nr}, nil
-	case types.KindKubernetesCluster:
-		// TODO(okraport) DELETE IN v21.0.0, replace with regular Collect
-		clusters, err := clientutils.CollectWithFallback(ctx, client.ListKubernetesClusters, client.GetKubernetesClusters)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if rc.ref.Name == "" {
-			return &kubeClusterCollection{clusters: clusters}, nil
-		}
-		clusters = resources.FilterByNameOrDiscoveredName(clusters, rc.ref.Name)
-		if len(clusters) == 0 {
-			return nil, trace.NotFound("Kubernetes cluster %q not found", rc.ref.Name)
-		}
-		return &kubeClusterCollection{clusters: clusters}, nil
 	case types.KindCrownJewel:
 		jewels, err := stream.Collect(clientutils.Resources(ctx, func(ctx context.Context, limit int, startKey string) ([]*crownjewelv1.CrownJewel, string, error) {
 			return client.CrownJewelsClient().ListCrownJewels(ctx, int64(limit), startKey)
@@ -1173,12 +999,12 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		return &crownJewelCollection{items: jewels}, nil
 	case types.KindToken:
 	case types.KindDatabaseService:
-		resourceName := rc.ref.Name
+		resourceName := ref.Name
 		listReq := proto.ListResourcesRequest{
 			ResourceType: types.KindDatabaseService,
 		}
 		if resourceName != "" {
-			listReq.PredicateExpression = fmt.Sprintf(`name == "%s"`, resourceName)
+			listReq.PredicateExpression = fmt.Sprintf(`name == %q`, resourceName)
 		}
 
 		getResp, err := apiclient.GetResourcesWithFilters(ctx, client, listReq)
@@ -1196,42 +1022,22 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		}
 
 		return &databaseServiceCollection{databaseServices: databaseServices}, nil
-	case types.KindLoginRule:
-		loginRuleClient := client.LoginRuleClient()
-		if rc.ref.Name == "" {
-			rules, err := stream.Collect(clientutils.Resources(ctx, func(ctx context.Context, limit int, token string) ([]*loginrulepb.LoginRule, string, error) {
-				resp, err := loginRuleClient.ListLoginRules(ctx, &loginrulepb.ListLoginRulesRequest{
-					PageSize:  int32(limit),
-					PageToken: token,
-				})
-				return resp.GetLoginRules(), resp.GetNextPageToken(), trace.Wrap(err)
-			}))
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			return &loginRuleCollection{rules}, trace.Wrap(err)
-		}
-		rule, err := loginRuleClient.GetLoginRule(ctx, &loginrulepb.GetLoginRuleRequest{
-			Name: rc.ref.Name,
-		})
-		return &loginRuleCollection{[]*loginrulepb.LoginRule{rule}}, trail.FromGRPC(err)
 	case types.KindDevice:
 		remote := client.DevicesClient()
-		if rc.ref.Name != "" {
-			resp, err := remote.FindDevices(ctx, &devicepb.FindDevicesRequest{
-				IdOrTag: rc.ref.Name,
-			})
+		if ref.Name != "" {
+			resp, err := remote.FindDevices(ctx, devicepb.FindDevicesRequest_builder{
+				IdOrTag: ref.Name,
+			}.Build())
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
 
-			return &deviceCollection{resp.Devices}, nil
+			return &deviceCollection{resp.GetDevices()}, nil
 		}
 
-		req := &devicepb.ListDevicesRequest{
+		req := devicepb.ListDevicesRequest_builder{
 			View: devicepb.DeviceView_DEVICE_VIEW_RESOURCE,
-		}
+		}.Build()
 		var devs []*devicepb.Device
 		for {
 			resp, err := remote.ListDevices(ctx, req)
@@ -1239,29 +1045,29 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 				return nil, trace.Wrap(err)
 			}
 
-			devs = append(devs, resp.Devices...)
+			devs = append(devs, resp.GetDevices()...)
 
-			if resp.NextPageToken == "" {
+			if resp.GetNextPageToken() == "" {
 				break
 			}
-			req.PageToken = resp.NextPageToken
+			req.SetPageToken(resp.GetNextPageToken())
 		}
 
 		sort.Slice(devs, func(i, j int) bool {
 			d1 := devs[i]
 			d2 := devs[j]
 
-			if d1.AssetTag == d2.AssetTag {
-				return d1.OsType < d2.OsType
+			if d1.GetAssetTag() == d2.GetAssetTag() {
+				return d1.GetOsType() < d2.GetOsType()
 			}
 
-			return d1.AssetTag < d2.AssetTag
+			return d1.GetAssetTag() < d2.GetAssetTag()
 		})
 
 		return &deviceCollection{devices: devs}, nil
 	case types.KindOktaImportRule:
-		if rc.ref.Name != "" {
-			importRule, err := client.OktaClient().GetOktaImportRule(ctx, rc.ref.Name)
+		if ref.Name != "" {
+			importRule, err := client.OktaClient().GetOktaImportRule(ctx, ref.Name)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -1275,8 +1081,8 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 
 		return &oktaImportRuleCollection{importRules: resources}, nil
 	case types.KindOktaAssignment:
-		if rc.ref.Name != "" {
-			assignment, err := client.OktaClient().GetOktaAssignment(ctx, rc.ref.Name)
+		if ref.Name != "" {
+			assignment, err := client.OktaClient().GetOktaAssignment(ctx, ref.Name)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -1290,8 +1096,8 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 
 		return &oktaAssignmentCollection{assignments: resources}, nil
 	case types.KindUserGroup:
-		if rc.ref.Name != "" {
-			userGroup, err := client.GetUserGroup(ctx, rc.ref.Name)
+		if ref.Name != "" {
+			userGroup, err := client.GetUserGroup(ctx, ref.Name)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -1304,46 +1110,9 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		}
 
 		return &userGroupCollection{userGroups: resources}, nil
-	case types.KindExternalAuditStorage:
-		out := []*externalauditstorage.ExternalAuditStorage{}
-		name := rc.ref.Name
-		switch name {
-		case "":
-			cluster, err := client.ExternalAuditStorageClient().GetClusterExternalAuditStorage(ctx)
-			if err != nil {
-				if !trace.IsNotFound(err) {
-					return nil, trace.Wrap(err)
-				}
-			} else {
-				out = append(out, cluster)
-			}
-			draft, err := client.ExternalAuditStorageClient().GetDraftExternalAuditStorage(ctx)
-			if err != nil {
-				if !trace.IsNotFound(err) {
-					return nil, trace.Wrap(err)
-				}
-			} else {
-				out = append(out, draft)
-			}
-			return &externalAuditStorageCollection{externalAuditStorages: out}, nil
-		case types.MetaNameExternalAuditStorageCluster:
-			cluster, err := client.ExternalAuditStorageClient().GetClusterExternalAuditStorage(ctx)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return &externalAuditStorageCollection{externalAuditStorages: []*externalauditstorage.ExternalAuditStorage{cluster}}, nil
-		case types.MetaNameExternalAuditStorageDraft:
-			draft, err := client.ExternalAuditStorageClient().GetDraftExternalAuditStorage(ctx)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return &externalAuditStorageCollection{externalAuditStorages: []*externalauditstorage.ExternalAuditStorage{draft}}, nil
-		default:
-			return nil, trace.BadParameter("unsupported resource name for external_audit_storage, valid for get are: '', %q, %q", types.MetaNameExternalAuditStorageDraft, types.MetaNameExternalAuditStorageCluster)
-		}
 	case types.KindIntegration:
-		if rc.ref.Name != "" {
-			ig, err := client.GetIntegration(ctx, rc.ref.Name)
+		if ref.Name != "" {
+			ig, err := client.GetIntegration(ctx, ref.Name)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -1357,9 +1126,9 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 
 		return &integrationCollection{integrations: resources}, nil
 	case types.KindSecurityReport:
-		if rc.ref.Name != "" {
+		if ref.Name != "" {
 
-			resource, err := client.SecReportsClient().GetSecurityReport(ctx, rc.ref.Name)
+			resource, err := client.SecReportsClient().GetSecurityReport(ctx, ref.Name)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -1370,15 +1139,9 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			return nil, trace.Wrap(err)
 		}
 		return &securityReportCollection{items: resources}, nil
-	case types.KindVnetConfig:
-		vnetConfig, err := client.VnetConfigServiceClient().GetVnetConfig(ctx, &vnet.GetVnetConfigRequest{})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &vnetConfigCollection{vnetConfig: vnetConfig}, nil
 	case types.KindPlugin:
-		if rc.ref.Name != "" {
-			plugin, err := client.PluginsClient().GetPlugin(ctx, &pluginsv1.GetPluginRequest{Name: rc.ref.Name})
+		if ref.Name != "" {
+			plugin, err := client.PluginsClient().GetPlugin(ctx, pluginsv1.GetPluginRequest_builder{Name: ref.Name}.Build())
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -1387,27 +1150,27 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		var plugins []types.Plugin
 		startKey := ""
 		for {
-			resp, err := client.PluginsClient().ListPlugins(ctx, &pluginsv1.ListPluginsRequest{
+			resp, err := client.PluginsClient().ListPlugins(ctx, pluginsv1.ListPluginsRequest_builder{
 				PageSize:    100,
 				StartKey:    startKey,
 				WithSecrets: rc.withSecrets,
-			})
+			}.Build())
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			for _, v := range resp.Plugins {
+			for _, v := range resp.GetPlugins() {
 				plugins = append(plugins, v)
 			}
-			if resp.NextKey == "" {
+			if resp.GetNextKey() == "" {
 				break
 			}
-			startKey = resp.NextKey
+			startKey = resp.GetNextKey()
 		}
 		return &pluginCollection{plugins: plugins}, nil
 
 	case types.KindHealthCheckConfig:
-		if rc.ref.Name != "" {
-			cfg, err := client.GetHealthCheckConfig(ctx, rc.ref.Name)
+		if ref.Name != "" {
+			cfg, err := client.GetHealthCheckConfig(ctx, ref.Name)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -1422,45 +1185,22 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		}
 
 		return &healthCheckConfigCollection{items: items}, nil
-	case scopedaccess.KindScopedRole:
-		if rc.ref.Name != "" {
-			rsp, err := client.ScopedAccessServiceClient().GetScopedRole(ctx, &scopedaccessv1.GetScopedRoleRequest{
-				Name: rc.ref.Name,
-			})
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			return &scopedRoleCollection{items: []*scopedaccessv1.ScopedRole{rsp.Role}}, nil
-		}
-
-		items, err := stream.Collect(scopedutils.RangeScopedRoles(ctx, client.ScopedAccessServiceClient(), &scopedaccessv1.ListScopedRolesRequest{}))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &scopedRoleCollection{items: items}, nil
-	case scopedaccess.KindScopedRoleAssignment:
-		if rc.ref.Name != "" {
-			rsp, err := client.ScopedAccessServiceClient().GetScopedRoleAssignment(ctx, &scopedaccessv1.GetScopedRoleAssignmentRequest{
-				Name: rc.ref.Name,
-			})
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			return &scopedRoleAssignmentCollection{items: []*scopedaccessv1.ScopedRoleAssignment{rsp.Assignment}}, nil
-		}
-
-		items, err := stream.Collect(scopedutils.RangeScopedRoleAssignments(ctx, client.ScopedAccessServiceClient(), &scopedaccessv1.ListScopedRoleAssignmentsRequest{}))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &scopedRoleAssignmentCollection{items: items}, nil
-	case types.KindInferencePolicy:
-		policies, err := rc.getInferencePolicies(ctx, client)
-		return policies, trace.Wrap(err)
 	}
-	return nil, trace.BadParameter("getting %q is not supported", rc.ref.String())
+	return nil, trace.BadParameter("getting %q is not supported", ref.String())
+}
+
+// errNotSupported is used to mark NotImplemented errors that were transformed
+// into BadParameter, so they can later be identified.
+type errNotSupported struct {
+	cause error
+}
+
+func (e *errNotSupported) Error() string {
+	return e.cause.Error()
+}
+
+func (e *errNotSupported) Unwrap() error {
+	return e.cause
 }
 
 // UpsertVerb generates the correct string form of a verb based on the action taken
@@ -1472,21 +1212,21 @@ func UpsertVerb(exists bool, force bool) string {
 }
 
 func findDeviceByIDOrTag(ctx context.Context, remote devicepb.DeviceTrustServiceClient, idOrTag string) ([]*devicepb.Device, error) {
-	resp, err := remote.FindDevices(ctx, &devicepb.FindDevicesRequest{
+	resp, err := remote.FindDevices(ctx, devicepb.FindDevicesRequest_builder{
 		IdOrTag: idOrTag,
-	})
+	}.Build())
 	switch {
 	case err != nil:
 		return nil, trace.Wrap(err)
-	case len(resp.Devices) == 0:
+	case len(resp.GetDevices()) == 0:
 		return nil, trace.NotFound("device %q not found", idOrTag)
-	case len(resp.Devices) == 1:
-		return resp.Devices, nil
+	case len(resp.GetDevices()) == 1:
+		return resp.GetDevices(), nil
 	}
 
 	// Do we have an ID match?
-	for _, dev := range resp.Devices {
-		if dev.Id == idOrTag {
+	for _, dev := range resp.GetDevices() {
+		if dev.GetId() == idOrTag {
 			return []*devicepb.Device{dev}, nil
 		}
 	}
@@ -1510,43 +1250,12 @@ func (rc *ResourceCommand) createSecurityReport(ctx context.Context, client *aut
 	return nil
 }
 
-func (rc *ResourceCommand) createVnetConfig(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	vnetConfig, err := services.UnmarshalProtoResource[*vnet.VnetConfig](raw.Raw, services.DisallowUnknown())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if rc.IsForced() {
-		_, err = client.VnetConfigServiceClient().UpsertVnetConfig(ctx, &vnet.UpsertVnetConfigRequest{VnetConfig: vnetConfig})
-	} else {
-		_, err = client.VnetConfigServiceClient().CreateVnetConfig(ctx, &vnet.CreateVnetConfigRequest{VnetConfig: vnetConfig})
-	}
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	fmt.Println("vnet_config has been created")
-	return nil
-}
-
-func (rc *ResourceCommand) updateVnetConfig(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	vnetConfig, err := services.UnmarshalProtoResource[*vnet.VnetConfig](raw.Raw, services.DisallowUnknown())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if _, err := client.VnetConfigServiceClient().UpdateVnetConfig(ctx, &vnet.UpdateVnetConfigRequest{VnetConfig: vnetConfig}); err != nil {
-		return trace.Wrap(err)
-	}
-	fmt.Println("vnet_config has been updated")
-	return nil
-}
-
 func (rc *ResourceCommand) updatePlugin(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	item := pluginResourceWrapper{PluginV1: types.PluginV1{}}
 	if err := utils.FastUnmarshal(raw.Raw, &item); err != nil {
 		return trace.Wrap(err)
 	}
-	if _, err := client.PluginsClient().UpdatePlugin(ctx, &pluginsv1.UpdatePluginRequest{Plugin: &item.PluginV1}); err != nil {
+	if _, err := client.PluginsClient().UpdatePlugin(ctx, pluginsv1.UpdatePluginRequest_builder{Plugin: &item.PluginV1}.Build()); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -1563,7 +1272,7 @@ func (rc *ResourceCommand) createPlugin(ctx context.Context, client *authclient.
 		// Plugin needs to be installed before it can be updated.
 		return trace.BadParameter("Only plugin update operation is supported. Please use 'tctl plugins install' instead\n")
 	}
-	if _, err := client.PluginsClient().UpdatePlugin(ctx, &pluginsv1.UpdatePluginRequest{Plugin: &item.PluginV1}); err != nil {
+	if _, err := client.PluginsClient().UpdatePlugin(ctx, pluginsv1.UpdatePluginRequest_builder{Plugin: &item.PluginV1}.Build()); err != nil {
 		return trace.Wrap(err)
 	}
 	fmt.Printf("plugin %q has been updated\n", item.GetName())
@@ -1572,19 +1281,67 @@ func (rc *ResourceCommand) createPlugin(ctx context.Context, client *authclient.
 
 // UpdateFields updates select resource fields: expiry and labels
 func (rc *ResourceCommand) listKinds() error {
-	// We must compute rows before, and cannot add them as we go
-	// because this breaks the "truncated columns behavior"
-	var rows [][]string
+	rows := resourceKindRows()
+
+	switch rc.format {
+	case teleport.Text:
+		return trace.Wrap(rc.writeResourceKindRowsText(rows))
+	case teleport.JSON:
+		return trace.Wrap(utils.WriteJSON(rc.Stdout, rows))
+	case teleport.YAML:
+		return trace.Wrap(utils.WriteYAMLArray(rc.Stdout, rows))
+	default:
+		return trace.BadParameter("unsupported format %q", rc.format)
+	}
+}
+
+type resourceKindRow struct {
+	Kind              string   `json:"kind"`
+	SupportedCommands []string `json:"supported_commands"`
+	Singleton         bool     `json:"singleton"`
+	MFARequired       bool     `json:"mfa_required"`
+	Description       string   `json:"description"`
+}
+
+func resourceKindRows() []resourceKindRow {
+	rows := make([]resourceKindRow, 0, len(resources.Handlers()))
 	for kind, handler := range resources.Handlers() {
-		rows = append(rows, []string{
-			kind,
-			strings.Join(handler.SupportedCommands(), ","),
-			yesOrEmpty(handler.Singleton()),
-			yesOrEmpty(handler.MFARequired()),
-			handler.Description(),
+		rows = append(rows, resourceKindRow{
+			Kind:              kind,
+			SupportedCommands: handler.SupportedCommands(),
+			Singleton:         handler.Singleton(),
+			MFARequired:       handler.MFARequired(),
+			Description:       handler.Description(),
 		})
 	}
+	for kind, handler := range resources.ScopedHandlers() {
+		rows = append(rows, resourceKindRow{
+			Kind:              kind,
+			SupportedCommands: handler.SupportedCommands(),
+			Singleton:         false, // scoped resources are never singletons
+			MFARequired:       handler.MFARequired(),
+			Description:       handler.Description(),
+		})
+	}
+	slices.SortStableFunc(rows, func(a, b resourceKindRow) int {
+		return strings.Compare(a.Kind, b.Kind)
+	})
+	return rows
+}
 
+func (rc *ResourceCommand) writeResourceKindRowsText(kindRows []resourceKindRow) error {
+	// We must compute rows before, and cannot add them as we go
+	// because this breaks the "truncated columns behavior"
+	rows := make([][]string, 0, len(kindRows))
+	for _, row := range kindRows {
+		rows = append(rows, []string{
+			row.Kind,
+			strings.Join(row.SupportedCommands, ","),
+			yesOrEmpty(row.Singleton),
+			yesOrEmpty(row.MFARequired),
+			row.Description,
+		})
+	}
 	var t asciitable.Table
 	headers := []string{"Kind", "Supported Commands", "Singleton", "MFA", "Description"}
 	if rc.verbose {
@@ -1592,7 +1349,6 @@ func (rc *ResourceCommand) listKinds() error {
 	} else {
 		t = asciitable.MakeTableWithTruncatedColumn(headers, rows, "Description")
 	}
-	t.SortRowsBy([]int{0}, true)
 	return trace.Wrap(t.WriteTo(rc.Stdout))
 }
 

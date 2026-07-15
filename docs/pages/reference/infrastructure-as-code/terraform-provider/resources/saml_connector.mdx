@@ -91,9 +91,11 @@ Optional:
 - `audience` (String) Audience uniquely identifies our service provider.
 - `cert` (String, Sensitive) Cert is the identity provider certificate PEM. IDP signs `<Response>` responses using this certificate.
 - `client_redirect_settings` (Attributes) ClientRedirectSettings defines which client redirect URLs are allowed for non-browser SSO logins other than the standard localhost ones. (see [below for nested schema](#nested-schema-for-specclient_redirect_settings))
+- `credentials` (Attributes) SAMLConnectorCredentials configures authentication for the connector to authenticate against the identity provider for performing ancillary operations, e.g. for standalone Entra SAML connectors to authenticate against MS Graph API. (see [below for nested schema](#nested-schema-for-speccredentials))
 - `display` (String) Display controls how this connector is displayed.
 - `entity_descriptor` (String, Sensitive) EntityDescriptor is XML with descriptor. It can be used to supply configuration parameters in one XML file rather than supplying them in the individual elements.
 - `entity_descriptor_url` (String) EntityDescriptorURL is a URL that supplies a configuration XML.
+- `entra_id_groups_provider` (Attributes) EntraIDGroupsProvider configures out-of-band user groups provider. It works by following through the "groups.link" SAML assertion attribute, which is sent instead of the "groups" attribute, when the user's group membership exceeds 150 max item limit. (see [below for nested schema](#nested-schema-for-specentra_id_groups_provider))
 - `force_authn` (Number) ForceAuthn specified whether re-authentication should be forced on login. UNSPECIFIED is treated as NO.
 - `include_subject` (Boolean) IncludeSubject is a flag that indicates whether the Subject element is included in the SAML authentication request. Defaults to false. Note: Some IdPs will reject requests that contain a Subject.
 - `issuer` (String) Issuer is the identity provider issuer.
@@ -129,6 +131,30 @@ Optional:
 
 - `allowed_https_hostnames` (List of String) a list of hostnames allowed for https client redirect URLs
 - `insecure_allowed_cidr_ranges` (List of String) a list of CIDRs allowed for HTTP or HTTPS client redirect URLs
+
+
+### Nested Schema for `spec.credentials`
+
+Optional:
+
+- `oauth` (Attributes) OAuthClientCredentials holds the credentials to use for OAuth client credentials grant. (see [below for nested schema](#nested-schema-for-speccredentialsoauth))
+
+### Nested Schema for `spec.credentials.oauth`
+
+Optional:
+
+- `client_id` (String) ClientID is the client ID to use for OAuth client credentials grant.
+- `client_secret` (String, Sensitive) ClientSecret is the client secret to use for OAuth client credentials grant.
+
+
+
+### Nested Schema for `spec.entra_id_groups_provider`
+
+Optional:
+
+- `disabled` (Boolean) Disabled specifies that the groups provider should be disabled even when Entra ID responds with a groups claim source. User may choose to disable it if they are using integrations such as SCIM or similar groups importer as connector based role mapping may be not needed in such a scenario.
+- `graph_endpoint` (String) GraphEndpoint is a Microsoft Graph API endpoint. The groups claim source endpoint provided by Entra ID points to the now-retired Azure AD Graph endpoint ("https://graph.windows.net"). To convert it to the newer Microsoft Graph API endpoint, Teleport defaults to the Microsoft Graph global service endpoint ("https://graph.microsoft.com"). Update GraphEndpoint to point to a different Microsoft Graph national cloud deployment endpoint.
+- `group_type` (String) GroupType is a user group type filter. Defaults to "security-groups". Value can be "security-groups", "directory-roles", "all-groups".
 
 
 ### Nested Schema for `spec.mfa`

@@ -18,6 +18,8 @@
 
 import { MessageEvent, MessagePortMain } from 'electron';
 
+import Logger from 'teleterm/logger';
+
 export type Message = MessageData | MessageAck;
 
 export interface MessageData {
@@ -41,6 +43,7 @@ function isMessageAck(v: unknown): v is MessageAck {
 }
 
 export interface IAwaitableSender<T> {
+  readonly id: string;
   send(payload: T, options?: { signal?: AbortSignal }): Promise<void>;
   whenDisposed(): Promise<void>;
 }
@@ -54,6 +57,8 @@ export interface IAwaitableSender<T> {
  * to receive messages.
  */
 export class AwaitableSender<T> implements IAwaitableSender<T> {
+  public readonly id = crypto.randomUUID().slice(0, 8);
+  private readonly logger = new Logger(`AwaitableSender ${this.id}`);
   private messages = new Map<
     string,
     { resolve(): void; reject(reason: unknown): void }
@@ -72,14 +77,14 @@ export class AwaitableSender<T> implements IAwaitableSender<T> {
    * This method returns a promise that resolves once the other side
    * acknowledges receiving and processing the message.
    * If the acknowledgment is not received within the specified timeout
-   * (default 10 seconds), the promise rejects with a `MessageAcknowledgementError`.
+   * (default 20 seconds), the promise rejects with a `MessageAcknowledgementError`.
    *
    * If the renderer received the message, but failed to process it, the promise
    * is also rejected.
    */
   send(
     payload: T,
-    { signal = AbortSignal.timeout(10_000) }: { signal?: AbortSignal } = {}
+    { signal = AbortSignal.timeout(20_000) }: { signal?: AbortSignal } = {}
   ): Promise<void> {
     const id = crypto.randomUUID();
 
@@ -91,6 +96,10 @@ export class AwaitableSender<T> implements IAwaitableSender<T> {
 
       const abort = () => {
         cleanup();
+        this.logger.warn('Message acknowledgement aborted', {
+          messageId: id,
+          reason: signal.reason,
+        });
         reject(new MessageAcknowledgementError(signal.reason));
       };
 
@@ -112,7 +121,24 @@ export class AwaitableSender<T> implements IAwaitableSender<T> {
       });
 
       const message: MessageData = { type: 'data', id, payload };
-      this.port.postMessage(message);
+      this.logger.info('Sending message to renderer', {
+        messageId: message.id,
+        messageType: message.type,
+      });
+      try {
+        this.port.postMessage(message);
+      } catch (error) {
+        cleanup();
+        this.logger.error(
+          'Failed to post message to renderer',
+          {
+            messageId: id,
+            messageType: message.type,
+          },
+          error
+        );
+        reject(error);
+      }
     });
   }
 
@@ -123,19 +149,34 @@ export class AwaitableSender<T> implements IAwaitableSender<T> {
 
   private processMessage = (event: MessageEvent): void => {
     const message = event.data;
-    // Only to satisfy TypeScript.
     // We don't expect non-ack messages to be received on this port.
     if (!isMessageAck(message)) {
+      this.logger.warn('Received non-ack message on awaitable sender port', {
+        message,
+      });
       return;
     }
     const item = this.messages.get(message.id);
     if (!item) {
+      this.logger.warn('Received ack for unknown message id', {
+        messageId: message.id,
+        messageType: message.type,
+      });
       return;
     }
     if (message.error) {
+      this.logger.error('Renderer failed to process message', {
+        messageId: message.id,
+        messageType: message.type,
+        error: message.error,
+      });
       item.reject(message.error);
       return;
     }
+    this.logger.info('Message acknowledged by renderer', {
+      messageId: message.id,
+      messageType: message.type,
+    });
     item.resolve();
   };
 

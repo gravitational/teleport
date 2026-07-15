@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"strconv"
 	"testing"
 	"time"
 
@@ -32,6 +33,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	gproto "google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
@@ -46,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/defaults"
+	iterstream "github.com/gravitational/teleport/lib/itertools/stream"
 )
 
 // TestApplicationServersCRUD verifies backend operations on app servers.
@@ -139,6 +142,77 @@ func TestApplicationServersCRUD(t *testing.T) {
 	out, err = presence.GetApplicationServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
 	require.Empty(t, out)
+}
+
+func mustCreateApplicationServer(t *testing.T, appName string) types.AppServer {
+	t.Helper()
+	app, err := types.NewAppV3(types.Metadata{
+		Name: appName,
+	}, types.AppSpecV3{
+		URI: "localhost",
+	})
+	require.NoError(t, err)
+
+	server, err := types.NewAppServerV3FromApp(app, "localhost", uuid.New().String())
+	require.NoError(t, err)
+	return server
+}
+
+func TestRangeApplicationServersWithName(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	bk, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = bk.Close() })
+
+	presence := NewPresenceService(bk)
+
+	t.Run("ParameterValidation", func(t *testing.T) {
+		_, err = iterstream.Collect(presence.RangeApplicationServersWithName(ctx, ""))
+		require.ErrorAs(t, err, new(*trace.BadParameterError))
+	})
+
+	server1 := mustCreateApplicationServer(t, "shared-app")
+	server2 := mustCreateApplicationServer(t, "shared-app")
+	server3 := mustCreateApplicationServer(t, "standalone-app")
+
+	for _, s := range []types.AppServer{server1, server2, server3} {
+		_, err := presence.UpsertApplicationServer(ctx, s)
+		require.NoError(t, err)
+	}
+
+	t.Run("MultipleServersSameApplication", func(t *testing.T) {
+		servers, err := iterstream.Collect(presence.RangeApplicationServersWithName(ctx, "shared-app"))
+		require.NoError(t, err)
+		require.Len(t, servers, 2)
+		for _, s := range servers {
+			require.Equal(t, "shared-app", s.GetApp().GetName())
+		}
+	})
+
+	t.Run("SingleServerForApplication", func(t *testing.T) {
+		servers, err := iterstream.Collect(presence.RangeApplicationServersWithName(ctx, "standalone-app"))
+		require.NoError(t, err)
+		require.Len(t, servers, 1)
+		require.Equal(t, "standalone-app", servers[0].GetApp().GetName())
+	})
+
+	t.Run("NoServersForApplication", func(t *testing.T) {
+		servers, err := iterstream.Collect(presence.RangeApplicationServersWithName(ctx, "nonexistent-app"))
+		require.NoError(t, err)
+		require.Empty(t, servers)
+	})
+
+	t.Run("DeletedServersNotReturned", func(t *testing.T) {
+		err := presence.DeleteApplicationServer(ctx, server1.GetNamespace(), server1.GetHostID(), server1.GetName())
+		require.NoError(t, err)
+
+		servers, err := iterstream.Collect(presence.RangeApplicationServersWithName(ctx, "shared-app"))
+		require.NoError(t, err)
+		require.Len(t, servers, 1)
+		require.Equal(t, server2.GetHostID(), servers[0].GetHostID())
+	})
 }
 
 func mustCreateDatabase(t *testing.T, name, protocol, uri string) *types.DatabaseV3 {
@@ -238,6 +312,145 @@ func TestDatabaseServersCRUD(t *testing.T) {
 	out, err = presence.GetDatabaseServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
 	require.Empty(t, out)
+}
+
+func mustCreateDatabaseServer(t *testing.T, dbName string) types.DatabaseServer {
+	t.Helper()
+	server, err := types.NewDatabaseServerV3(types.Metadata{
+		Name: dbName,
+	}, types.DatabaseServerSpecV3{
+		HostID:   uuid.New().String(),
+		Hostname: "localhost",
+		Database: mustCreateDatabase(t, dbName, defaults.ProtocolPostgres, "localhost:5432"),
+	})
+	require.NoError(t, err)
+	return server
+}
+
+func TestRangeDatabaseServersWithName(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	bk, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = bk.Close() })
+
+	presence := NewPresenceService(bk)
+
+	t.Run("ParameterValidation", func(t *testing.T) {
+		_, err = iterstream.Collect(presence.RangeDatabaseServersWithName(ctx, ""))
+		require.ErrorAs(t, err, new(*trace.BadParameterError))
+	})
+
+	server1 := mustCreateDatabaseServer(t, "shared-db")
+	server2 := mustCreateDatabaseServer(t, "shared-db")
+	server3 := mustCreateDatabaseServer(t, "standalone-db")
+
+	for _, s := range []types.DatabaseServer{server1, server2, server3} {
+		_, err := presence.UpsertDatabaseServer(ctx, s)
+		require.NoError(t, err)
+	}
+
+	t.Run("MultipleServersSameDatabase", func(t *testing.T) {
+		servers, err := iterstream.Collect(presence.RangeDatabaseServersWithName(ctx, "shared-db"))
+		require.NoError(t, err)
+		require.Len(t, servers, 2)
+		for _, s := range servers {
+			require.Equal(t, "shared-db", s.GetDatabase().GetName())
+		}
+	})
+
+	t.Run("SingleServerForDatabase", func(t *testing.T) {
+		servers, err := iterstream.Collect(presence.RangeDatabaseServersWithName(ctx, "standalone-db"))
+		require.NoError(t, err)
+		require.Len(t, servers, 1)
+		require.Equal(t, "standalone-db", servers[0].GetDatabase().GetName())
+	})
+
+	t.Run("NoServersForDatabase", func(t *testing.T) {
+		servers, err := iterstream.Collect(presence.RangeDatabaseServersWithName(ctx, "nonexistent-db"))
+		require.NoError(t, err)
+		require.Empty(t, servers)
+	})
+
+	t.Run("DeletedServersNotReturned", func(t *testing.T) {
+		err := presence.DeleteDatabaseServer(ctx, server1.GetNamespace(), server1.GetHostID(), server1.GetName())
+		require.NoError(t, err)
+
+		servers, err := iterstream.Collect(presence.RangeDatabaseServersWithName(ctx, "shared-db"))
+		require.NoError(t, err)
+		require.Len(t, servers, 1)
+		require.Equal(t, server2.GetHostID(), servers[0].GetHostID())
+	})
+}
+
+func mustCreateKubernetesServer(t *testing.T, clusterName string) types.KubeServer {
+	t.Helper()
+	cluster, err := types.NewKubernetesClusterV3(types.Metadata{
+		Name: clusterName,
+	}, types.KubernetesClusterSpecV3{})
+	require.NoError(t, err)
+
+	server, err := types.NewKubernetesServerV3FromCluster(cluster, "localhost", uuid.New().String())
+	require.NoError(t, err)
+	return server
+}
+
+func TestRangeKubernetesServersWithName(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	bk, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = bk.Close() })
+
+	presence := NewPresenceService(bk)
+
+	t.Run("ParameterValidation", func(t *testing.T) {
+		_, err = iterstream.Collect(presence.RangeKubernetesServersWithName(ctx, ""))
+		require.ErrorAs(t, err, new(*trace.BadParameterError))
+	})
+
+	server1 := mustCreateKubernetesServer(t, "shared-cluster")
+	server2 := mustCreateKubernetesServer(t, "shared-cluster")
+	server3 := mustCreateKubernetesServer(t, "standalone-cluster")
+
+	for _, s := range []types.KubeServer{server1, server2, server3} {
+		_, err := presence.UpsertKubernetesServer(ctx, s)
+		require.NoError(t, err)
+	}
+
+	t.Run("MultipleServersSameCluster", func(t *testing.T) {
+		servers, err := iterstream.Collect(presence.RangeKubernetesServersWithName(ctx, "shared-cluster"))
+		require.NoError(t, err)
+		require.Len(t, servers, 2)
+		for _, s := range servers {
+			require.Equal(t, "shared-cluster", s.GetCluster().GetName())
+		}
+	})
+
+	t.Run("SingleServerForCluster", func(t *testing.T) {
+		servers, err := iterstream.Collect(presence.RangeKubernetesServersWithName(ctx, "standalone-cluster"))
+		require.NoError(t, err)
+		require.Len(t, servers, 1)
+		require.Equal(t, "standalone-cluster", servers[0].GetCluster().GetName())
+	})
+
+	t.Run("NoServersForCluster", func(t *testing.T) {
+		servers, err := iterstream.Collect(presence.RangeKubernetesServersWithName(ctx, "nonexistent-cluster"))
+		require.NoError(t, err)
+		require.Empty(t, servers)
+	})
+
+	t.Run("DeletedServersNotReturned", func(t *testing.T) {
+		err := presence.DeleteKubernetesServer(ctx, server1.GetHostID(), server1.GetName())
+		require.NoError(t, err)
+
+		servers, err := iterstream.Collect(presence.RangeKubernetesServersWithName(ctx, "shared-cluster"))
+		require.NoError(t, err)
+		require.Len(t, servers, 1)
+		require.Equal(t, server2.GetHostID(), servers[0].GetHostID())
+	})
 }
 
 func TestNodeCRUD(t *testing.T) {
@@ -1066,6 +1279,69 @@ func TestFakePaginate_TotalCount(t *testing.T) {
 	})
 }
 
+// TestFakePaginateWithScopes ensures that a resource scope can be used to
+// paginate resources with duplicate names.
+func TestFakePaginateWithScopes(t *testing.T) {
+	t.Parallel()
+	clock := clockwork.NewFakeClock()
+	bend, err := memory.New(memory.Config{
+		Clock: clock,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = bend.Close() })
+
+	makeScope := func(i int) string {
+		a := byte('a')
+		z := byte('z')
+		mod := int(z - a)
+		return fmt.Sprintf("/%c%c", a+byte(i/mod), a+byte(i%mod))
+	}
+	newKubeCluster := func(i int) *types.KubernetesClusterV3 {
+		kubeCluster, err := types.NewKubernetesClusterV3(
+			types.Metadata{
+				Name: "cluster",
+				// we use the revision to easily tell the resources apart
+				Revision: strconv.Itoa(i),
+			},
+			types.KubernetesClusterSpecV3{},
+			types.KubeClusterWithScope(makeScope(i)),
+		)
+		require.NoError(t, err)
+		return kubeCluster
+	}
+
+	clusterCount := 100
+	// all kube clusters have the same name, so the only way to
+	// correctly paginate them is by scope
+	resources := make([]types.ResourceWithLabels, clusterCount)
+	for i := range clusterCount {
+		resources[i] = newKubeCluster(i)
+	}
+
+	for _, pageSize := range []int{1, 2, 3, 5, 8, 13, 21} {
+		startKey := ""
+		count := 0
+		for range clusterCount/pageSize + 1 {
+			res, err := FakePaginate(resources, FakePaginateParams{
+				ResourceType: types.KindKubernetesCluster,
+				Limit:        int32(pageSize),
+				Kinds:        []string{types.KindKubernetesCluster},
+				StartKey:     startKey,
+			})
+			require.NoError(t, err)
+			for _, r := range res.Resources {
+				assert.Equal(t, strconv.Itoa(count), r.GetRevision())
+				count++
+			}
+			startKey = res.NextKey
+			if startKey == "" {
+				break
+			}
+		}
+		require.Equal(t, clusterCount, count)
+	}
+}
+
 func TestPresenceService_CancelSemaphoreLease(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -1446,14 +1722,14 @@ func TestPresenceService_RelayServer(t *testing.T) {
 	_, err = p.UpsertRelayServer(ctx, nil)
 	require.ErrorAs(t, err, new(*trace.BadParameterError))
 
-	relayA := &presencev1.RelayServer{
+	relayA := presencev1.RelayServer_builder{
 		Kind:    types.KindRelayServer,
 		SubKind: "",
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: "a",
-		},
-	}
+		}.Build(),
+	}.Build()
 
 	upsertedA, err := p.UpsertRelayServer(ctx, gproto.CloneOf(relayA))
 	require.NoError(t, err)
@@ -1481,14 +1757,14 @@ func TestPresenceService_RelayServer(t *testing.T) {
 	err = p.DeleteRelayServer(ctx, "a")
 	require.ErrorAs(t, err, new(*trace.NotFoundError))
 
-	relayB := &presencev1.RelayServer{
+	relayB := presencev1.RelayServer_builder{
 		Kind:    types.KindRelayServer,
 		SubKind: "",
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: "b",
-		},
-	}
+		}.Build(),
+	}.Build()
 
 	_, err = p.UpsertRelayServer(ctx, gproto.CloneOf(relayA))
 	require.NoError(t, err)
@@ -1680,5 +1956,67 @@ func TestPresenceService_ListSemaphores(t *testing.T) {
 			require.Equal(t, wantName, sem.GetName())
 		}
 	})
+
+}
+
+func TestReverseTunnels_SkipsUnmarshalErrorsHittingPageBoundary(t *testing.T) {
+	ctx := t.Context()
+
+	const pageLimit = 64
+	const numberOfPages = 5
+
+	clock := clockwork.NewFakeClock()
+	mem, err := memory.New(memory.Config{
+		Context: t.Context(),
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+	service := NewPresenceService(mem)
+
+	createResource := func(name string) {
+		rc, err := types.NewReverseTunnel(name, []string{"example.com:443"})
+		require.NoError(t, err)
+		_, err = service.UpsertReverseTunnel(ctx, rc)
+		require.NoError(t, err)
+	}
+
+	createMalformedApp := func(name string) {
+		_, err := mem.Put(ctx, backend.Item{
+			Key:   backend.NewKey(reverseTunnelsPrefix, name),
+			Value: []byte("not-valid-json"),
+		})
+		require.NoError(t, err)
+	}
+
+	for i := range pageLimit * numberOfPages {
+		key := fmt.Sprintf("r%d", i)
+		if i%2 == 0 {
+			createMalformedApp(key)
+		} else {
+			createResource(key)
+		}
+	}
+
+	page1, next, err := service.ListReverseTunnels(ctx, pageLimit, "")
+	require.NoError(t, err)
+	require.Len(t, page1, pageLimit)
+	require.NotEmpty(t, next)
+
+	page2, next, err := service.ListReverseTunnels(ctx, pageLimit, next)
+	require.NoError(t, err)
+	require.Len(t, page2, pageLimit)
+	require.NotEmpty(t, next)
+
+	page3, next, err := service.ListReverseTunnels(ctx, pageLimit, next)
+	require.NoError(t, err)
+	require.Len(t, page3, pageLimit/2)
+	require.Empty(t, next)
+
+	slices := [][]types.ReverseTunnel{page1, page2, page3}
+	for i := range len(slices) {
+		for j := i + 1; j < len(slices); j++ {
+			assert.NotEqual(t, slices[i], slices[j], "slices %d and %d should differ", i, j)
+		}
+	}
 
 }

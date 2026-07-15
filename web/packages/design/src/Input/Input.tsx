@@ -74,6 +74,7 @@ interface InputProps extends ColorProps, SpaceProps, WidthProps, HeightProps {
 
   'aria-invalid'?: HTMLAttributes<'input'>['aria-invalid'];
   'aria-describedby'?: HTMLAttributes<'input'>['aria-describedby'];
+  'data-1p-ignore'?: boolean;
 
   onChange?: React.ChangeEventHandler<HTMLInputElement>;
   onKeyPress?: React.KeyboardEventHandler<HTMLInputElement>;
@@ -175,6 +176,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>((props, ref) => {
 
     'aria-invalid': ariaInvalid,
     'aria-describedby': ariaDescribedBy,
+    'data-1p-ignore': data1pignore,
 
     onChange,
     onKeyPress,
@@ -205,6 +207,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>((props, ref) => {
         ref={ref}
         hasIcon={!!IconComponent}
         inputSize={size}
+        data-1p-ignore={data1pignore ? true : undefined}
         {...{
           hasError,
 

@@ -171,9 +171,6 @@ const (
 	// ComponentSubsystemProxy is the proxy subsystem.
 	ComponentSubsystemProxy = "subsystem:proxy"
 
-	// ComponentSubsystemSFTP is the SFTP subsystem.
-	ComponentSubsystemSFTP = "subsystem:sftp"
-
 	// ComponentLocalTerm is a terminal on a regular SSH node.
 	ComponentLocalTerm = "term:local"
 
@@ -214,9 +211,6 @@ const (
 
 	// ComponentDynamoDB represents dynamodb clients
 	ComponentDynamoDB = "dynamodb"
-
-	// Component pluggable authentication module (PAM)
-	ComponentPAM = "pam"
 
 	// ComponentUpload is a session recording upload server
 	ComponentUpload = "upload"
@@ -275,6 +269,9 @@ const (
 	// ComponentWindowsDesktop is a Windows desktop access server.
 	ComponentWindowsDesktop = "windows_desktop"
 
+	// ComponentLinuxDesktop is a Linux desktop access server.
+	ComponentLinuxDesktop = "linux_desktop"
+
 	// ComponentTracing is a tracing exporter
 	ComponentTracing = "tracing"
 
@@ -307,6 +304,9 @@ const (
 
 	// ComponentMCP represents the MCP server handler.
 	ComponentMCP = "mcp"
+
+	// ComponentLLM represents the LLM server handler.
+	ComponentLLM = "llm"
 
 	// ComponentRecordingEncryption represents recording encryption
 	ComponentRecordingEncryption = "recording-encryption"
@@ -476,6 +476,9 @@ const (
 	// This constrains other identities' access to the agent itself as well as the agent's
 	// access to other resources based on scoping rules.
 	CertExtensionAgentScope = "agent-scope@goteleport.com"
+	// CertExtensionAgentScopePin encodes an agent's scope pin, including the pinned scope and system roles.
+	// Supersedes CertExtensionAgentScope for scoped agents.
+	CertExtensionAgentScopePin = "agent-scope-pin@goteleport.com"
 	// CertExtensionPermitX11Forwarding allows X11 forwarding for certificate
 	CertExtensionPermitX11Forwarding = "permit-X11-forwarding"
 	// CertExtensionPermitAgentForwarding allows agent forwarding for certificate
@@ -521,6 +524,9 @@ const (
 	// CertExtensionAllowedResources lists the resources which this certificate
 	// should be allowed to access
 	CertExtensionAllowedResources = "teleport-allowed-resources"
+	// CertExtensionAllowedResourceAccessIDs lists the resources which this
+	// certificate should be allowed to access, paired with additional access information.
+	CertExtensionAllowedResourceAccessIDs = "teleport-allowed-resource-access-ids"
 	// CertExtensionConnectionDiagnosticID contains the ID of the ConnectionDiagnostic.
 	// The Node/Agent will append connection traces to this diagnostic instance.
 	CertExtensionConnectionDiagnosticID = "teleport-connection-diagnostic-id"
@@ -541,9 +547,19 @@ const (
 	// Machine ID bot instance, if any. This identifier is persisted through
 	// certificate renewals.
 	CertExtensionBotInstanceID = "bot-instance-id@goteleport.com"
+	// CertExtensionBotScope indicates the scope of the Machine ID bot this
+	// certificate was issued to, if any.
+	CertExtensionBotScope = "bot-scope@goteleport.com"
 	// CertExtensionJoinToken is the name of the join token used to join this
 	// bot, if any.
 	CertExtensionJoinToken = "join-token@goteleport.com"
+	// CertExtensionDelegationSessionID contains the identifier of the
+	// Delegation Session this certificate was created for.
+	CertExtensionDelegationSessionID = "delegation-session-id@goteleport.com"
+	// CertExtensionBeamID contains the identifier of the Beam this certificate
+	// was created for, derived from the delegation session's
+	// types.BeamIDLabel label.
+	CertExtensionBeamID = "beam-id@goteleport.com"
 
 	// CertCriticalOptionSourceAddress is a critical option that defines IP addresses (in CIDR notation)
 	// from which this certificate is accepted for authentication.
@@ -555,6 +571,12 @@ const (
 	// CertExtensionGitHubUsername indicates the GitHub username identified by
 	// the GitHub connector.
 	CertExtensionGitHubUsername = "github-login@goteleport.com"
+	// CertExtensionImmutableLabelHash is the hash used to verify immutable
+	// labels against a certificate.
+	CertExtensionImmutableLabelHash = "immutable-label-hash@goteleport.com"
+	// CertExtensionHeadlessAuthenticationID is the ID of the headless
+	// authentication resource this certificate was created for.
+	CertExtensionHeadlessAuthenticationID = "headless-authentication-id@goteleport.com"
 )
 
 // Note: when adding new providers to this list, consider updating the help message for --provider flag
@@ -573,27 +595,6 @@ const (
 	// JumpCloud is an identity provider.
 	JumpCloud = "jumpcloud"
 )
-
-const (
-	// RemoteCommandSuccess is returned when a command has successfully executed.
-	RemoteCommandSuccess = 0
-	// RemoteCommandFailure is returned when a command has failed to execute and
-	// we don't have another status code for it.
-	RemoteCommandFailure = 255
-	// HomeDirNotFound is returned when the "teleport checkhomedir" command cannot
-	// find the user's home directory.
-	HomeDirNotFound = 254
-	// HomeDirNotAccessible is returned when the "teleport checkhomedir" command has
-	// found the user's home directory, but the user does NOT have permissions to
-	// access it.
-	HomeDirNotAccessible = 253
-	// UnexpectedCredentials is returned when a command is no longer running with the expected
-	// credentials.
-	UnexpectedCredentials = 252
-)
-
-// MaxEnvironmentFileLines is the maximum number of lines in a environment file.
-const MaxEnvironmentFileLines = 1000
 
 // MaxResourceSize is the maximum size (in bytes) of a serialized resource.  This limit is
 // typically only enforced against resources that are likely to arbitrarily grow (e.g. PluginData).
@@ -762,6 +763,10 @@ const (
 	// Access Requests.
 	SystemIdentityCenterAccessRoleName = "aws-ic-access"
 
+	// SystemBeamRoleName specifies the name of a system role that grants the
+	// beam bot permission to issue itself credentials.
+	SystemBeamRoleName = "beam"
+
 	// PresetWildcardWorkloadIdentityIssuerRoleName is a name of a preset role
 	// that includes the permissions necessary to issue workload identity
 	// credentials using any workload_identity resource. This exists to simplify
@@ -772,6 +777,10 @@ const (
 	// permissions required by self-hosted access request plugin.
 	PresetAccessPluginRoleName = "access-plugin"
 
+	// PresetAccessPluginWithReviewRoleName names the preset role that includes
+	// permissions required by self-hosted access request plugins that permit native reviews.
+	PresetAccessPluginWithReviewRoleName = "access-plugin-with-review"
+
 	// PresetListAccessRequestResourcesRoleName is a name of a preset role that
 	// includes permissions to read access request resources.
 	PresetListAccessRequestResourcesRoleName = "list-access-request-resources"
@@ -779,6 +788,14 @@ const (
 	// PresetMCPUserRoleName is a name of a preset role that allows
 	// accessing MCP servers.
 	PresetMCPUserRoleName = "mcp-user"
+
+	// PresetBeamUserRoleName is a name of a preset role that allows users to use
+	// the Beams feature.
+	PresetBeamUserRoleName = "beam-user"
+
+	// PresetBeamAdminRoleName is a name of a preset role that allows users to
+	// administer beams belonging to other users.
+	PresetBeamAdminRoleName = "beam-admin"
 )
 
 var PresetRoles = []string{PresetEditorRoleName, PresetAccessRoleName, PresetAuditorRoleName}
@@ -919,6 +936,14 @@ const (
 	// UsageWindowsDesktopOnly specifies certificate usage metadata that limits
 	// certificate to be only used for Windows desktop access
 	UsageWindowsDesktopOnly = "usage:windows_desktop"
+
+	// UsageLinuxDesktopOnly specifies certificate usage metadata that limits
+	// certificate to be only used for Linux desktop access
+	UsageLinuxDesktopOnly = "usage:linux_desktop"
+
+	// UsageAccessGraphAPIOnly specifies certificate usage metadata that limits
+	// certificate to be only used for Access Graph API access.
+	UsageAccessGraphAPIOnly = "usage:access_graph_api"
 )
 
 // ErrNodeIsAmbiguous serves as an identifying error string indicating that
@@ -954,28 +979,6 @@ const (
 )
 
 const (
-	// ExecSubCommand is the sub-command Teleport uses to re-exec itself for
-	// command execution (exec and shells).
-	ExecSubCommand = "exec"
-
-	// NetworkingSubCommand is the sub-command Teleport uses to re-exec itself
-	// for networking operations. e.g. local/remote port forwarding, agent forwarding,
-	// or x11 forwarding.
-	NetworkingSubCommand = "networking"
-
-	// CheckHomeDirSubCommand is the sub-command Teleport uses to re-exec itself
-	// to check if the user's home directory exists.
-	CheckHomeDirSubCommand = "checkhomedir"
-
-	// ParkSubCommand is the sub-command Teleport uses to re-exec itself as a
-	// specific UID to prevent the matching user from being deleted before
-	// spawning the intended child process.
-	ParkSubCommand = "park"
-
-	// SFTPSubCommand is the sub-command Teleport uses to re-exec itself to
-	// handle SFTP connections.
-	SFTPSubCommand = "sftp"
-
 	// WaitSubCommand is the sub-command Teleport uses to wait
 	// until a domain name stops resolving. Its main use is to ensure no
 	// auth instances are still running the previous major version.
@@ -998,10 +1001,6 @@ const (
 )
 
 const (
-	// GetHomeDirSubsystem is an SSH subsystem request that Teleport
-	// uses to get the home directory of a remote user.
-	GetHomeDirSubsystem = "gethomedir"
-
 	// SFTPSubsystem is the SFTP SSH subsystem.
 	SFTPSubsystem = "sftp"
 )

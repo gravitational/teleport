@@ -32,7 +32,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"golang.org/x/crypto/ssh"
@@ -47,11 +46,14 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/imds"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/plugin"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/session/pam/pamcfg"
 )
 
 // Config contains the configuration for all services that Teleport can run.
@@ -61,6 +63,9 @@ type Config struct {
 	Version string
 	// DataDir is the directory where teleport stores its local state, e.g. keys
 	DataDir string
+
+	// ScopesFeatures dictates which scoped components are enabled for this process.
+	ScopesFeatures scopes.Features
 
 	// Hostname is a node host name
 	Hostname string
@@ -122,6 +127,9 @@ type Config struct {
 	// WindowsDesktop defines the Windows desktop service configuration.
 	WindowsDesktop WindowsDesktopConfig
 
+	// LinuxDesktop defines the Linux desktop service configuration.
+	LinuxDesktop LinuxDesktopConfig
+
 	// Discovery defines the discovery service configuration.
 	Discovery DiscoveryConfig
 
@@ -160,13 +168,13 @@ type Config struct {
 	Events types.Events
 
 	// Provisioner is a service that keeps track of provisioning tokens
-	Provisioner services.Provisioner
+	Provisioner services.ProvisionerInternal
 
 	// Identity is a service that manages users and credentials
-	Identity services.Identity
+	Identity services.IdentityInternal
 
 	// Access is a service that controls access
-	Access services.Access
+	Access services.AccessInternal
 
 	// ClusterConfiguration is a service that provides cluster configuration
 	ClusterConfiguration services.ClusterConfigurationInternal
@@ -211,8 +219,11 @@ type Config struct {
 	// Clock is used to control time in tests.
 	Clock clockwork.Clock
 
-	// FIPS means FedRAMP/FIPS compliant configuration was requested.
+	// FIPS means FedRAMP/FIPS compliant configuration was requested via the --fips flag.
 	FIPS bool
+
+	// Modules defines build time constraints and licensed features.
+	Modules modules.Modules
 
 	// SkipVersionCheck means the version checking between server and client
 	// will be skipped.
@@ -273,18 +284,14 @@ type Config struct {
 	// DatabaseREPLRegistry is used to retrieve datatabase REPL given the
 	// protocol.
 	DatabaseREPLRegistry dbrepl.REPLRegistry
-
+	// InsecureMode defines whether insecure connections are allowed.
+	InsecureMode bool
 	// token is either the token needed to join the auth server, or a path pointing to a file
 	// that contains the token
 	//
 	// This is private to avoid external packages reading the value - the value should be obtained
 	// using Token()
 	token string
-
-	// tokenSecret is either the secret needed to join with the token defined for the config, or
-	// a path that contains the secret. This is private to avoid external packages reading the
-	// value - the value should be obtained using TokenSecret()
-	tokenSecret string
 
 	// v1, v2 -
 	// AuthServers is a list of auth servers, proxies and peer auth servers to
@@ -299,6 +306,10 @@ type Config struct {
 	// and the value is retrieved via AuthServerAddresses() and set via SetAuthServerAddresses()
 	// as we still need to keep multiple addresses and return them for older config versions.
 	authServers []utils.NetAddr
+
+	// UserMonitor config contains configuration for the user monitor service, which is responsible for monitoring
+	// user related changes and updating user_state accordingly.
+	UserMonitor UserMonitorConfig
 }
 
 type ConfigTesting struct {
@@ -334,6 +345,20 @@ type ConfigTesting struct {
 	// especially when the list is also being modified concurrently by the background
 	// eligibility handler.
 	RunWhileLockedRetryInterval time.Duration
+
+	// TriggerOktaSyncC is a channel that can be used in tests to trigger Okta sync immediately instead of waiting for the next scheduled sync.
+	TriggerOktaSyncC chan struct{}
+}
+
+// UserMonitorConfig contains configuration for the user monitor service, which is responsible for monitoring
+// user related changes and updating user_state accordingly.
+type UserMonitorConfig struct {
+	// ReconcileInterval overrides the default user monitor reconcile interval.
+	// Used in tests to speed up reconciliation. Zero value uses the default.
+	ReconcileInterval time.Duration
+	// LockTTL overrides the default user monitor lock TTL.
+	// Used in tests to speed up lock acquisition. Zero value uses the default.
+	LockTTL time.Duration
 }
 
 // AccessGraphConfig represents TAG server config
@@ -433,18 +458,105 @@ func DisableLongRunningServices(cfg *Config) {
 	cfg.Kube.Enabled = false
 	cfg.Apps.Enabled = false
 	cfg.WindowsDesktop.Enabled = false
+	cfg.LinuxDesktop.Enabled = false
 	cfg.Databases.Enabled = false
 	cfg.Okta.Enabled = false
 }
 
 // JoinParams is a set of extra parameters for joining the auth server.
 type JoinParams struct {
-	Azure AzureJoinParams
+	Azure        AzureJoinParams
+	BoundKeypair BoundKeypairParams
+	GenericOIDC  GenericOIDCParams
 }
 
 // AzureJoinParams is the parameters specific to the azure join method.
 type AzureJoinParams struct {
 	ClientID string
+}
+
+// BoundKeypairParams contains parameters specific to bound keypair joining.
+type BoundKeypairParams struct {
+	// RegistrationSecretValue is an explicit registration secret value, used to
+	// authenticate the initial join with a bound keypair token. It becomes
+	// inert once used.
+	RegistrationSecretValue string
+
+	// RegistrationSecretPath is a path to a file on the local disk containing a
+	// registration secret. It is incompatible with RegistrationSecretValue.
+	RegistrationSecretPath string
+
+	// StaticPrivateKeyPath is a path to a file on the local disk containing a
+	// static keypair to be used for bound keypair joining. Static keys are
+	// immutable and are not managed automatically. They must be preregistered,
+	// do not support automatic keypair rotation, and must be used with a token
+	// set to use `insecure` recovery mode.
+	StaticPrivateKeyPath string
+}
+
+// GenericOIDCParams contains configuration relevant to the
+// `generic_oidc` join method.
+type GenericOIDCParams struct {
+	// Env is the name of the environment variable containing a JWT. Cannot be
+	// set if `command` is set.
+	Env string `yaml:"env"`
+
+	// Command is the command to run and its arguments. The executable is the
+	// first element, followed by optional arguments. Cannot be set if `env` is
+	// set.
+	Command []string `yaml:"command"`
+
+	// Timeout is the maximum amount of time to wait for this command to
+	// complete before giving up, after which the join attempt fails.
+	Timeout time.Duration `yaml:"timeout"`
+}
+
+// RegistrationSecret returns the currently configured bound keypair
+// registration secret, if any. Registration secrets are optional, and only used
+// at first join when no existing identity can be used to authenticate the join
+// request, no pregenerated key exists, and no static key is configured.
+func (b *BoundKeypairParams) RegistrationSecret() (string, error) {
+	if b.RegistrationSecretValue != "" && b.RegistrationSecretPath != "" {
+		return "", trace.BadParameter("only one of `registration_secret` and `registration_secret_path` may be specified")
+	}
+
+	// Note: no env var support like in tbot, we could consider adding it in the
+	// future.
+
+	switch {
+	case b.RegistrationSecretPath != "":
+		bytes, err := os.ReadFile(b.RegistrationSecretPath)
+		if err != nil {
+			return "", trace.ConvertSystemError(err)
+		}
+
+		return strings.TrimSpace(string(bytes)), nil
+	case b.RegistrationSecretValue != "":
+		return b.RegistrationSecretValue, nil
+	default:
+		return "", nil
+	}
+}
+
+// StaticPrivateKeyBytes returns the configured static private key if one has
+// been configured. If not nil, this value should be used to initialize a
+// bound keypair `StaticClientState` instead of the process-stored state. Static
+// keys do not support automatic rotation or join state verification.
+func (b *BoundKeypairParams) StaticPrivateKeyBytes() ([]byte, error) {
+	if b.StaticPrivateKeyPath != "" {
+		bytes, err := os.ReadFile(b.StaticPrivateKeyPath)
+		if err != nil {
+			return nil, trace.Wrap(err, "reading static key from %s", b.StaticPrivateKeyPath)
+		}
+
+		return bytes, nil
+	}
+
+	// Note: no env var support like in tbot, may consider adding it in the
+	// future.
+
+	// No static key configured, nothing to return.
+	return nil, nil
 }
 
 // CachePolicy sets caching policy for proxies and nodes
@@ -487,6 +599,8 @@ func (cfg *Config) CheckServicesForSELinux() bool {
 	case cfg.Okta.Enabled:
 		fallthrough
 	case cfg.Proxy.Enabled:
+		fallthrough
+	case cfg.LinuxDesktop.Enabled:
 		fallthrough
 	case cfg.WindowsDesktop.Enabled:
 		return false
@@ -539,34 +653,11 @@ func (cfg *Config) Token() (string, error) {
 	return token, nil
 }
 
-// TokenSecret returns token secret needed to join the auth server with the configured token
-//
-// If the value stored points to a file, it will attempt to read the token secret from the file
-// and return an error if it wasn't successful.
-// If the value stored doesn't point to a file, it'll return the value stored.
-// If the secret hasn't been set, an empty string will be returned
-func (cfg *Config) TokenSecret() (string, error) {
-	secret, err := utils.TryReadValueAsFile(cfg.tokenSecret)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	return secret, nil
-}
-
 // SetToken stores the value for --token or auth_token in the config
 //
 // This can be either the token or an absolute path to a file containing the token.
 func (cfg *Config) SetToken(token string) {
 	cfg.token = token
-}
-
-// SetTokenSecret stores the value for --token-secret or join_params.token_secret in the
-// config.
-//
-// This can be either the secret or an absolute path to a file containing the secret.
-func (cfg *Config) SetTokenSecret(secret string) {
-	cfg.tokenSecret = secret
 }
 
 // HasToken gives the ability to check if there has been a token value stored
@@ -597,20 +688,6 @@ func (cfg *Config) ApplyCAPins(caPins []string) error {
 		cfg.CAPins = filteredPins
 	}
 	return nil
-}
-
-// DebugDumpToYAML is useful for debugging: it dumps the Config structure into
-// a string
-func (cfg *Config) DebugDumpToYAML() string {
-	shallow := *cfg
-	// do not copy sensitive data to stdout
-	shallow.Identities = nil
-	shallow.Auth.Authorities = nil
-	out, err := yaml.Marshal(shallow)
-	if err != nil {
-		return err.Error()
-	}
-	return string(out)
 }
 
 // ApplyFIPSDefaults updates default configuration to be FedRAMP/FIPS
@@ -662,6 +739,10 @@ func ApplyDefaults(cfg *Config) {
 		cfg.LoggerLevel = new(slog.LevelVar)
 	}
 
+	if cfg.Modules == nil {
+		cfg.Modules = modules.GetModules()
+	}
+
 	// Remove insecure and (borderline insecure) cryptographic primitives from
 	// default configuration. These can still be added back in file configuration by
 	// users, but not supported by default by Teleport. See #1856 for more
@@ -711,7 +792,7 @@ func ApplyDefaults(cfg *Config) {
 	// SSH service defaults.
 	cfg.SSH.Enabled = true
 	defaults.ConfigureLimiter(&cfg.SSH.Limiter)
-	cfg.SSH.PAM = &PAMConfig{Enabled: false}
+	cfg.SSH.PAM = &pamcfg.PAMConfig{Enabled: false}
 	cfg.SSH.BPF = &BPFConfig{Enabled: false}
 	cfg.SSH.AllowTCPForwarding = true
 	cfg.SSH.AllowFileCopying = true
@@ -722,6 +803,7 @@ func ApplyDefaults(cfg *Config) {
 
 	// Apps service defaults. It's disabled by default.
 	cfg.Apps.Enabled = false
+	defaults.ConfigureLimiter(&cfg.Apps.Limiter)
 
 	// Databases proxy service is disabled by default.
 	cfg.Databases.Enabled = false
@@ -733,6 +815,10 @@ func ApplyDefaults(cfg *Config) {
 	// Windows desktop service is disabled by default.
 	cfg.WindowsDesktop.Enabled = false
 	defaults.ConfigureLimiter(&cfg.WindowsDesktop.ConnLimiter)
+
+	// Linux desktop service is disabled by default.
+	cfg.LinuxDesktop.Enabled = false
+	defaults.ConfigureLimiter(&cfg.LinuxDesktop.ConnLimiter)
 
 	cfg.RotationConnectionInterval = defaults.HighResPollingPeriod
 	cfg.AuthConnectionConfig = *DefaultRatioAuthConnectionConfig(defaults.MaxWatcherBackoff)
@@ -920,6 +1006,7 @@ func verifyEnabledService(cfg *Config) error {
 		cfg.Apps.Enabled,
 		cfg.Databases.Enabled,
 		cfg.WindowsDesktop.Enabled,
+		cfg.LinuxDesktop.Enabled,
 		cfg.Discovery.Enabled,
 		cfg.Okta.Enabled,
 		cfg.Jamf.Enabled(),
@@ -933,7 +1020,7 @@ func verifyEnabledService(cfg *Config) error {
 	}
 
 	return trace.BadParameter(
-		"config: enable at least one of auth_service, ssh_service, proxy_service, relay_service, app_service, database_service, kubernetes_service, windows_desktop_service, discovery_service, okta_service or jamf_service",
+		"config: enable at least one of auth_service, ssh_service, proxy_service, relay_service, app_service, database_service, kubernetes_service, windows_desktop_service, linux_desktop_service, discovery_service, okta_service or jamf_service",
 	)
 }
 

@@ -150,6 +150,15 @@ func SetLimiter(limiter *limiter.Limiter) ServerOption {
 	}
 }
 
+// ConnectionLimitExceededCallback records connection limit hits rejected by a
+// limiter.Listener before they reach this server's accept loop.
+func ConnectionLimitExceededCallback(ctx context.Context, logger *slog.Logger) limiter.ListenerOption {
+	return limiter.WithLimitExceededCallback(func(remoteAddr string, err error) {
+		proxyConnectionLimitHitCount.Inc()
+		logger.ErrorContext(ctx, "connection limit exceeded", "client_ip", remoteAddr, "error", err)
+	})
+}
+
 // SetShutdownPollPeriod sets a polling period for graceful shutdowns of SSH servers
 func SetShutdownPollPeriod(period time.Duration) ServerOption {
 	return func(s *Server) error {
@@ -237,6 +246,7 @@ func NewServer(
 	}
 
 	s.cfg.PublicKeyCallback = ah.PublicKey
+	s.cfg.VerifiedPublicKeyCallback = ah.VerifiedPublicKey
 	s.cfg.PasswordCallback = ah.Password
 	s.cfg.NoClientAuth = ah.NoClient
 
@@ -318,9 +328,11 @@ func (s *Server) Addr() string {
 	return s.listener.Addr().String()
 }
 
-func (s *Server) Serve(listener net.Listener) error {
-	if err := s.SetListener(listener); err != nil {
-		return trace.Wrap(err)
+// Serve serves SSH connections using an already configured listener and blocks
+// until the listener is closed.
+func (s *Server) Serve() error {
+	if s.Addr() == "" {
+		return trace.BadParameter("listener is not set")
 	}
 	s.acceptConnections()
 	return nil
@@ -333,7 +345,10 @@ func (s *Server) Start() error {
 			return trace.ConvertSystemError(err)
 		}
 
-		listener, err = s.limiter.WrapListener(listener)
+		listener, err = s.limiter.WrapListener(listener, ConnectionLimitExceededCallback(
+			s.closeContext,
+			s.logger.With("listen_addr", listener.Addr().String()),
+		))
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -350,6 +365,9 @@ func (s *Server) Start() error {
 func (s *Server) SetListener(l net.Listener) error {
 	s.Lock()
 	defer s.Unlock()
+	if l == nil {
+		return trace.BadParameter("listener is nil")
+	}
 	if s.listener != nil {
 		return trace.BadParameter("listener is already set to %v", s.listener.Addr())
 	}
@@ -723,9 +741,10 @@ func (f NewConnHandlerFunc) HandleNewConn(ctx context.Context, ccx *ConnectionCo
 }
 
 type AuthMethods struct {
-	PublicKey PublicKeyFunc
-	Password  PasswordFunc
-	NoClient  bool
+	PublicKey         PublicKeyFunc
+	VerifiedPublicKey VerifiedPublicKeyFunc
+	Password          PasswordFunc
+	NoClient          bool
 }
 
 // GetHostSignersFunc is an infallible function that returns host signers for
@@ -801,8 +820,9 @@ func validateHostSigner(fips bool, signer ssh.Signer) error {
 }
 
 type (
-	PublicKeyFunc func(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error)
-	PasswordFunc  func(conn ssh.ConnMetadata, password []byte) (*ssh.Permissions, error)
+	PublicKeyFunc         func(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error)
+	VerifiedPublicKeyFunc func(conn ssh.ConnMetadata, key ssh.PublicKey, permissions *ssh.Permissions, signatureAlgorithm string) (*ssh.Permissions, error)
+	PasswordFunc          func(conn ssh.ConnMetadata, password []byte) (*ssh.Permissions, error)
 )
 
 // ClusterDetails specifies information about a cluster

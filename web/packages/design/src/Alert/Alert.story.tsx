@@ -37,6 +37,7 @@ export const Simple = () => (
     <Alert kind="neutral" icon={Restore}>
       Alert with a custom icon
     </Alert>
+    <Alert kind="cta">You should do something!</Alert>
   </Box>
 );
 
@@ -108,6 +109,9 @@ export const Actionable = () => (
       All work and no play makes Jack a dull boy. All work and no play makes
       Jack a dull boy.
       AllworkandnoplaymakesJackadullboy.AllworkandnoplaymakesJackadullboy.AllworkandnoplaymakesJackadullboy.AllworkandnoplaymakesJackadullboy.AllworkandnoplaymakesJackadullboy.
+    </Alert>
+    <Alert kind="cta" primaryAction={{ content: 'Go Here!' }}>
+      cta: You should do something!
     </Alert>
   </Box>
 );

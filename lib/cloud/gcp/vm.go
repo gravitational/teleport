@@ -43,6 +43,7 @@ import (
 	"google.golang.org/api/option"
 
 	"github.com/gravitational/teleport/api/internalutils/stream"
+	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/trail"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
@@ -566,10 +567,12 @@ https://cloud.google.com/solutions/connecting-securely#storing_host_keys_by_enab
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	config := &ssh.ClientConfig{
+	config := apissh.ClientConfig{
 		User: sshUser,
-		Auth: []ssh.AuthMethod{
-			ssh.PublicKeys(signer),
+		PublicKeyAuth: apissh.PublicKeyAuthConfig{
+			Signers: func() ([]ssh.Signer, error) {
+				return []ssh.Signer{signer}, nil
+			},
 		},
 		HostKeyCallback: callback,
 	}
@@ -589,14 +592,15 @@ https://cloud.google.com/solutions/connecting-securely#storing_host_keys_by_enab
 			return nil
 		}
 
+		loggerWithVMMetadata.ErrorContext(ctx, "Installing teleport in GCP VM failed",
+			"ip", ip,
+			"error", err,
+			"stdout", string(stdout),
+			"stderr", string(stderr),
+		)
+
 		// An exit error means the connection was successful, so don't try another address.
 		if errors.Is(err, &ssh.ExitError{}) {
-			loggerWithVMMetadata.ErrorContext(ctx, "Installing teleport in GCP VM failed after connecting",
-				"ip", ip,
-				"error", err,
-				"stdout", string(stdout),
-				"stderr", string(stderr),
-			)
 			return trace.Wrap(err)
 		}
 		errs = append(errs, err)

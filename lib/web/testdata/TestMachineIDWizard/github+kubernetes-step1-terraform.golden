@@ -2,6 +2,14 @@
 # Actions workflow to enroll with Teleport and connect to allowed Kubernetes
 # clusters protected by Teleport.
 
+# To apply this template
+#  - Log in to your cluster using `tsh login --proxy=teleport.example.com --user=email@example.com`
+#  - Generate a temporary bot using `eval "$(tctl terraform env)"`
+#  - Run `terraform init` followed by `terraform plan`
+#  - To apply the changes, run `terraform apply`
+# Note: Consider contributing the resources below to your Infrastructure as
+# Code (IaC) repo (if you have one) instead of executing Terraform locally.
+
 # See the Teleport Terraform Provider docs for more information about using
 # Terraform to manage Teleport resources:
 # https://goteleport.com/docs/zero-trust-access/infrastructure-as-code/terraform-provider/

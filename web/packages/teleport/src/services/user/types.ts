@@ -21,6 +21,8 @@ import { MfaChallengeResponse } from 'teleport/services/mfa';
 
 export type AuthType = 'local' | 'sso' | 'passwordless';
 
+export type WebTerminalClipboardMode = '' | 'unrestricted' | 'no-copy';
+
 export interface AccessStrategy {
   type: 'optional' | 'always' | 'reason';
   prompt: string;
@@ -36,6 +38,10 @@ export interface UserContext {
   authType: AuthType;
   acl: Acl;
   username: string;
+  /** Human-readable name resolved server-side, empty if not distinct from username. */
+  displayPrimary: string;
+  /** Supporting context resolved server-side, usually email. */
+  displaySecondary: string;
   cluster: Cluster;
   accessStrategy: AccessStrategy;
   accessCapabilities: AccessCapabilities;
@@ -47,6 +53,11 @@ export interface UserContext {
   allowedSearchAsRoles: string[];
   /** Indicates whether the user has a password set. */
   passwordState: PasswordState;
+  /**
+   * A list of scopes available to sign in for this user, based on user's
+   * scoped role assignments.
+   */
+  availableScopes: string[];
 }
 
 /**
@@ -69,6 +80,10 @@ export interface Access {
 
 export interface AccessWithUse extends Access {
   use: boolean;
+}
+
+export interface MobileDeviceAccess {
+  createEnrollToken: boolean;
 }
 
 export interface Acl {
@@ -110,12 +125,26 @@ export interface Acl {
   accessMonitoringRule: Access;
   contacts: Access;
   fileTransferAccess: boolean;
+  /**
+   * webTerminalClipboardMode determines clipboard behavior in the Web UI terminal.
+   */
+  webTerminalClipboardMode: WebTerminalClipboardMode;
   gitServers: Access;
   accessGraphSettings: Access;
   botInstances: Access;
   instances: Access;
   workloadIdentity: Access;
   clientIpRestriction: Access;
+  autoUpdateConfig: Access;
+  autoUpdateVersion: Access;
+  autoUpdateAgentRollout: Access;
+  autoUpdateAgentReport: Access;
+  inferencePolicy: Access;
+  inferenceModel: Access;
+  inferenceSecret: Access;
+  classifier: Access;
+  beam: Access;
+  mobileDevice: MobileDeviceAccess;
 }
 
 // AllTraits represent all the traits defined for a user.
@@ -126,6 +155,10 @@ export type UserOrigin = 'okta' | 'saml' | 'scim';
 export interface User {
   // name is the teleport username.
   name: string;
+  // displayPrimary is the human-readable name resolved server-side.
+  displayPrimary?: string;
+  // displaySecondary is supporting display context resolved server-side.
+  displaySecondary?: string;
   // roles is the list of roles user is assigned to.
   roles: string[];
   // authType describes how the user authenticated

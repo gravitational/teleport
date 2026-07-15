@@ -65,7 +65,7 @@ var (
 	// managed identities started using MSAL by default.
 	//
 	// https://learn.microsoft.com/en-us/cli/azure/release-notes-azure-cli?view=azure-cli-latest#profile
-	azureCLIVersionMSALRequirement = semver.New("2.73.0")
+	azureCLIVersionMSALRequirement = &semver.Version{Major: 2, Minor: 73, Patch: 0}
 )
 
 func onAzure(cf *CLIConf) error {

@@ -71,6 +71,7 @@ func (h *Handler) putHeadlessState(_ http.ResponseWriter, r *http.Request, param
 		}
 	}
 
+	// MFAResponse is required only when accepting a request.
 	mfaResp, err := req.MFAResponse.GetOptionalMFAResponseProtoReq()
 	if err != nil {
 		return nil, trace.Wrap(err)

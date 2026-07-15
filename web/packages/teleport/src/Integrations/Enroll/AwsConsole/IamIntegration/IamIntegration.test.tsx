@@ -17,6 +17,7 @@
  */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { screen } from '@testing-library/react';
+import { MemoryRouter } from 'react-router';
 
 import { fireEvent, render, waitFor } from 'design/utils/testing';
 import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
@@ -37,12 +38,11 @@ const queryClient = new QueryClient({
   },
 });
 
+const mockNavigate = jest.fn();
+
 jest.mock('react-router', () => ({
   ...jest.requireActual('react-router'),
-  useHistory: () => ({
-    goBack: jest.fn(),
-    push: jest.fn(),
-  }),
+  useNavigate: () => mockNavigate,
 }));
 
 beforeEach(() => {
@@ -63,13 +63,15 @@ afterEach(() => {
 
 test('flows through roles anywhere IAM setup', async () => {
   render(
-    <ContextProvider ctx={createTeleportContext()}>
-      <InfoGuidePanelProvider>
-        <QueryClientProvider client={queryClient}>
-          <IamIntegration />
-        </QueryClientProvider>
-      </InfoGuidePanelProvider>
-    </ContextProvider>
+    <MemoryRouter>
+      <ContextProvider ctx={createTeleportContext()}>
+        <InfoGuidePanelProvider>
+          <QueryClientProvider client={queryClient}>
+            <IamIntegration />
+          </QueryClientProvider>
+        </InfoGuidePanelProvider>
+      </ContextProvider>
+    </MemoryRouter>
   );
 
   expect(
@@ -122,11 +124,14 @@ test('flows through roles anywhere IAM setup', async () => {
   );
   fireEvent.click(screen.getByRole('button', { name: 'Generate Command' }));
   expect(
-    screen.getByText('Name must be a lower case valid DNS subdomain')
+    screen.getByText(
+      "Name must only contain lowercase alphanumeric characters or '-'"
+    )
   ).toBeInTheDocument();
-  expect(screen.getAllByText(/Name can only contain characters/i)).toHaveLength(
-    3
-  );
+
+  expect(
+    screen.getAllByText(/Name must only contain characters/i)
+  ).toHaveLength(3);
 
   fireEvent.change(screen.getByLabelText('Integration Name'), {
     target: { value: 'some-integration-name' },

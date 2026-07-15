@@ -103,7 +103,6 @@ func makeTestClient(ctx context.Context, config common.TestClientConfig, useTLS 
 
 	clientCfg := spanner.ClientConfig{
 		DisableNativeMetrics: true,
-		SessionPoolConfig:    spanner.DefaultSessionPoolConfig,
 	}
 	clt, err := spanner.NewClientWithConfig(ctx, databaseID, clientCfg, opts...)
 	if err != nil {

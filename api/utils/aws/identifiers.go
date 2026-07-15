@@ -109,6 +109,17 @@ func IsValidRegion(region string) error {
 	return trace.BadParameter("region %q is invalid", region)
 }
 
+// IsValidRegionWithWeakCheck validates a region accepting any string of
+// lowercase letters, digits, and hyphens. Use this instead of IsValidRegion
+// when customers can be interacting with their own AWS like API implementation
+// like S3 where regions do not follow strict naming convention.
+func IsValidRegionWithWeakCheck(region string) error {
+	if weakRegionValidation.MatchString(region) {
+		return nil
+	}
+	return trace.BadParameter("region %q is invalid", region)
+}
+
 // IsValidPartition checks if partition is a valid AWS partition
 func IsValidPartition(partition string) error {
 	if slices.Contains(validPartitions, partition) {
@@ -190,6 +201,15 @@ var (
 	// Reference:
 	// https://github.com/aws/aws-sdk-go-v2/blob/main/codegen/smithy-aws-go-codegen/src/main/resources/software/amazon/smithy/aws/go/codegen/endpoints.json
 	matchRegion = regexp.MustCompile(`^(eusc-)?[a-z]{2}(-gov|-iso|-isob|-isoe|-isof)?-\w+-\d+$`)
+
+	// weakRegionValidation is a permissive regex used as a fallback when a
+	// region does not match the stricter matchRegion pattern. It accepts any
+	// string composed solely of lowercase letters, digits, and hyphens, which
+	// covers regions that may not yet conform to the known naming
+	// convention (e.g. users that have AWS compatible services). This prevents
+	// invalid input (special characters, whitespace, injection
+	// attempts).
+	weakRegionValidation = regexp.MustCompile(`^[a-zA-Z0-9-_]+$`)
 
 	// https://docs.aws.amazon.com/athena/latest/APIReference/API_CreateWorkGroup.html
 	matchAthenaWorkgroupName = regexp.MustCompile(`^[a-zA-Z0-9._-]{1,128}$`).MatchString

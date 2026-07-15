@@ -24,6 +24,7 @@ import "google/protobuf/timestamp.proto";
 import "teleport/accesslist/v1/accesslist.proto";
 import "teleport/devicetrust/v1/device_confirmation_token.proto";
 import "teleport/devicetrust/v1/device_web_token.proto";
+import "teleport/legacy/types/resources.proto";
 import "teleport/lib/teleterm/v1/access_request.proto";
 import "teleport/lib/teleterm/v1/app.proto";
 import "teleport/lib/teleterm/v1/auth_settings.proto";
@@ -62,8 +63,6 @@ service TerminalService {
   // StartHeadlessWatcher starts a headless watcher.
   // If the watcher is already running, it is restarted.
   rpc StartHeadlessWatcher(StartHeadlessWatcherRequest) returns (StartHeadlessWatcherResponse);
-  // ListDatabaseUsers lists allowed users for the given database based on the role set.
-  rpc ListDatabaseUsers(ListDatabaseUsersRequest) returns (ListDatabaseUsersResponse);
   // ListDatabaseServers lists allowed users for the given database based on the role set.
   rpc ListDatabaseServers(ListDatabaseServersRequest) returns (ListDatabaseServersResponse);
   // GetAccessRequests lists filtered AccessRequests
@@ -277,6 +276,13 @@ message CreateAccessRequestRequest {
   // request_ttl is the expiration time of the request (how long it will await
   // approval).
   google.protobuf.Timestamp request_ttl = 9;
+  // resource_access_ids is the set of resources to which access is being requested,
+  // paired with additional information such as ResourceConstraints.
+  // Differs from resource_ids, which only identify resources and cannot be used
+  // to express additional information per-resource such as ResourceConstraints.
+  // When present, resource_access_ids should be treated as authoritative
+  // (ResourceIDs can be derived by mapping to ResourceAccessID.id).
+  repeated types.ResourceAccessID resource_access_ids = 10;
 }
 
 message CreateAccessRequestResponse {
@@ -495,14 +501,6 @@ message ListClustersResponse {
 
 message ListLeafClustersRequest {
   string cluster_uri = 1;
-}
-
-message ListDatabaseUsersRequest {
-  string db_uri = 1;
-}
-
-message ListDatabaseUsersResponse {
-  repeated string users = 1;
 }
 
 // ListResourcesParams describes different types of params

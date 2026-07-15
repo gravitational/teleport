@@ -91,7 +91,7 @@ test('getSsoUrl', () => {
   expect(
     cfg.getSsoUrl(providerUrl, 'keycloak', 'example.com', 'user@example.com')
   ).toEqual(
-    'http://localhost/v1/webapi/oidc/login/web?connector_id=keycloak&login_hint=user@example.com&redirect_url=example.com'
+    'http://localhost/v1/webapi/oidc/login/web?connector_id=keycloak&login_hint=user%40example.com&redirect_url=example.com'
   );
   expect(
     cfg.getSsoUrl(
@@ -101,6 +101,178 @@ test('getSsoUrl', () => {
       'user@example.com'
     )
   ).toEqual(
-    'http://localhost/v1/webapi/oidc/login/web?connector_id=keycloak&login_hint=user@example.com&redirect_url=example.com%3Fa=b&c=d'
+    'http://localhost/v1/webapi/oidc/login/web?connector_id=keycloak&login_hint=user%40example.com&redirect_url=example.com%3Fa%3Db%26c%3Dd'
+  );
+});
+
+test('getUsersUrlV2 encodes params', () => {
+  expect(
+    cfg.getUsersUrlV2({
+      startKey: 'next=1&offset=2',
+      search: 'user@example.com / admin',
+      limit: 25,
+    })
+  ).toEqual(
+    '/v2/webapi/users?startKey=next%3D1%26offset%3D2&search=user%40example.com%20%2F%20admin&limit=25'
+  );
+});
+
+test('getUsersUrlV2 clears optional params', () => {
+  expect(cfg.getUsersUrlV2()).toEqual(
+    '/v2/webapi/users?startKey=&search=&limit='
+  );
+});
+
+test('getClusterEventsUrl does not corrupt startKey when start is set', () => {
+  const url = cfg.getClusterEventsUrlV2('root', {
+    start: '2025-01-01T00:00:00.000Z',
+    end: '',
+    startKey: 'next=1&offset=2',
+  });
+
+  expect(url).toContain('from=2025-01-01T00%3A00%3A00.000Z');
+  expect(url).toContain('startKey=next%3D1%26offset%3D2');
+  expect(url).not.toContain('00.000ZKey?');
+});
+
+test('getAppLauncherRoute encodes slash in AWS role ARN', () => {
+  const url = cfg.getAppLauncherRoute({
+    fqdn: 'app.example.com',
+    clusterId: 'cluster1',
+    publicAddr: 'app.example.com',
+    arn: 'arn:aws:iam::123456789012:role/my-role',
+  });
+  expect(url).toContain('role%2Fmy-role');
+  expect(url).not.toContain('role/my-role');
+});
+
+test('getAppLauncherRoute encodes multi-level ARN path', () => {
+  const url = cfg.getAppLauncherRoute({
+    fqdn: 'app.example.com',
+    clusterId: 'cluster1',
+    publicAddr: 'app.example.com',
+    arn: 'arn:aws:iam::123456789012:role/path/to/my-role',
+  });
+  expect(url).toContain('role%2Fpath%2Fto%2Fmy-role');
+});
+
+test('getAppLauncherRoute without ARN leaves route unchanged', () => {
+  const url = cfg.getAppLauncherRoute({
+    fqdn: 'app.example.com',
+    clusterId: 'cluster1',
+    publicAddr: 'app.example.com',
+  });
+  expect(url).toBe('/web/launch/app.example.com/cluster1/app.example.com');
+});
+
+describe('MFA helpers', () => {
+  const original = {
+    second_factor: cfg.auth.second_factor,
+    second_factors: cfg.auth.second_factors,
+  };
+  afterEach(() => {
+    cfg.auth.second_factor = original.second_factor;
+    cfg.auth.second_factors = original.second_factors;
+  });
+
+  describe('secondFactors()', () => {
+    test.each`
+      second_factors                | expected
+      ${['webauthn']}               | ${['webauthn']}
+      ${['sso']}                    | ${['sso']}
+      ${['otp', 'webauthn', 'sso']} | ${['otp', 'webauthn', 'sso']}
+    `('returns $second_factors directly', ({ second_factors, expected }) => {
+      cfg.auth.second_factors = second_factors;
+      expect(cfg.secondFactors()).toEqual(expected);
+    });
+
+    test.each`
+      second_factor | expected
+      ${'webauthn'} | ${['webauthn']}
+      ${'otp'}      | ${['otp']}
+      ${'on'}       | ${['otp', 'webauthn']}
+      ${'optional'} | ${['otp', 'webauthn']}
+      ${'off'}      | ${[]}
+    `(
+      'derives from legacy second_factor=$second_factor when second_factors is empty',
+      ({ second_factor, expected }) => {
+        cfg.auth.second_factors = [];
+        cfg.auth.second_factor = second_factor;
+        expect(cfg.secondFactors()).toEqual(expected);
+      }
+    );
+  });
+
+  describe('isAdminActionMfaEnforced()', () => {
+    test.each`
+      second_factors         | expected
+      ${['webauthn']}        | ${true}
+      ${['sso']}             | ${true}
+      ${['webauthn', 'sso']} | ${true}
+      ${['otp']}             | ${false}
+      ${['otp', 'webauthn']} | ${false}
+    `(
+      'second_factors=$second_factors → $expected',
+      ({ second_factors, expected }) => {
+        cfg.auth.second_factors = second_factors;
+        expect(cfg.isAdminActionMfaEnforced()).toBe(expected);
+      }
+    );
+
+    test.each`
+      second_factor | expected
+      ${'webauthn'} | ${true}
+      ${'otp'}      | ${false}
+      ${'on'}       | ${false}
+      ${'optional'} | ${false}
+    `(
+      'legacy second_factor=$second_factor with empty second_factors → $expected',
+      ({ second_factor, expected }) => {
+        cfg.auth.second_factors = [];
+        cfg.auth.second_factor = second_factor;
+        expect(cfg.isAdminActionMfaEnforced()).toBe(expected);
+      }
+    );
+
+    test('legacy second_factor=off with empty second_factors is undefined (SSO-only ambiguous)', () => {
+      cfg.auth.second_factors = [];
+      cfg.auth.second_factor = 'off';
+      expect(cfg.isAdminActionMfaEnforced()).toBeUndefined();
+    });
+  });
+
+  describe('isMfaUserConfigurable()', () => {
+    test.each`
+      second_factors                | expected
+      ${['webauthn']}               | ${true}
+      ${['otp']}                    | ${true}
+      ${['otp', 'webauthn', 'sso']} | ${true}
+      ${['sso']}                    | ${false}
+      ${[]}                         | ${false}
+    `(
+      'second_factors=$second_factors → $expected',
+      ({ second_factors, expected }) => {
+        cfg.auth.second_factors = second_factors;
+        cfg.auth.second_factor = 'off';
+        expect(cfg.isMfaUserConfigurable()).toBe(expected);
+      }
+    );
+  });
+});
+
+test('getRoleUrl listv2 encodes query params', () => {
+  expect(
+    cfg.getRoleUrl({
+      action: 'listv2',
+      params: {
+        startKey: 'next=1&offset=2',
+        search: 'role:admin@example.com',
+        limit: 50,
+        includeSystemRoles: 'yes',
+        includeObject: 'yes',
+      },
+    })
+  ).toEqual(
+    '/v2/webapi/roles?startKey=next%3D1%26offset%3D2&search=role%3Aadmin%40example.com&limit=50&includeSystemRoles=yes&includeObject=yes'
   );
 });

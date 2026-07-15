@@ -120,6 +120,8 @@ const (
 	SessionDataCode = "T2006I"
 	// AppSessionStartCode is the application session start code.
 	AppSessionStartCode = "T2007I"
+	// AppSessionStartFailureCode is the application session start failure code.
+	AppSessionStartFailureCode = "T2007E"
 	// AppSessionChunkCode is the application session chunk create code.
 	AppSessionChunkCode = "T2008I"
 	// AppSessionRequestCode is the application request/response code.
@@ -132,6 +134,18 @@ const (
 	SessionRecordingAccessCode = "T2012I"
 	// AppSessionDynamoDBRequestCode is the application request/response code.
 	AppSessionDynamoDBRequestCode = "T2013I"
+	// AppSessionLLMRequestSuccessCode is the LLM app request/response success code.
+	AppSessionLLMRequestSuccessCode = "T2014I"
+	// AppSessionLLMRequestFailureCode is the LLM app request/response success code.
+	AppSessionLLMRequestFailureCode = "T2014E"
+	// AppSessionHTTPRequestCode is the HTTP proxy request event code.
+	AppSessionHTTPRequestCode = "T2015I"
+	// AppSessionHTTPRequestBodyChunkCode is the HTTP proxy request body chunk event code.
+	AppSessionHTTPRequestBodyChunkCode = "T2016I"
+	// AppSessionHTTPResponseCode is the HTTP proxy response event code.
+	AppSessionHTTPResponseCode = "T2017I"
+	// AppSessionHTTPResponseBodyChunkCode is the HTTP proxy response body chunk event code.
+	AppSessionHTTPResponseBodyChunkCode = "T2018I"
 
 	// AppCreateCode is the app.create event code.
 	AppCreateCode = "TAP03I"
@@ -275,6 +289,13 @@ const (
 	// for when a write operation fails, or for if the internal cache state was corrupted
 	// causing information loss, or for when the internal cache has exceeded its max size.
 	DesktopSharedDirectoryWriteFailureCode = "TDP06W"
+	// LinuxDesktopSessionStartCode is the Linux desktop session start event code.
+	LinuxDesktopSessionStartCode = "TDP07I"
+	// LinuxDesktopSessionStartFailureCode is event code for Linux desktop sessions
+	// that failed to start.
+	LinuxDesktopSessionStartFailureCode = "TDP07W"
+	// LinuxDesktopSessionEndCode is the Linux desktop session end event code.
+	LinuxDesktopSessionEndCode = "TDP08I"
 
 	// SubsystemCode is the subsystem event code.
 	SubsystemCode = "T3001I"
@@ -320,6 +341,10 @@ const (
 	KubernetesClusterUpdateCode = "T3011I"
 	// KubernetesClusterDeleteCode is the kube.delete event code.
 	KubernetesClusterDeleteCode = "T3012I"
+	// AgentForwardCode is the agent forward event code.
+	AgentForwardCode = "T3013I"
+	// AgentForwardFailureCode is the agent forward failure event code.
+	AgentForwardFailureCode = "T3013W"
 
 	// The following codes correspond to SFTP file operations.
 	SFTPOpenCode           = "TS001I"
@@ -387,6 +412,23 @@ const (
 	// [github.com/gravitational/teleport/api/types.ProvisionToken].
 	ProvisionTokenCreateCode = "TJT00I"
 
+	// ScopedTokenCreateCode is the event code for creating a scoped token.
+	ScopedTokenCreateCode = "TST000I"
+	// ScopedTokenCreateFailureCode is the event code for failing to create a scoped token.
+	ScopedTokenCreateFailureCode = "TST000E"
+	// ScopedTokenUpsertCode is the event code for upserting a scoped token.
+	ScopedTokenUpsertCode = "TST001I"
+	// ScopedTokenUpsertFailureCode is the event code failing to upsert a scoped token.
+	ScopedTokenUpsertFailureCode = "TST001E"
+	// ScopedTokenUpdateCode is the event code for updating a scoped token.
+	ScopedTokenUpdateCode = "TST002I"
+	// ScopedTokenUpdateFailureCode is the event code for failing to update a scoped token.
+	ScopedTokenUpdateFailureCode = "TST002E"
+	// ScopedTokenDeleteCode is the event code for deleting a scoped token.
+	ScopedTokenDeleteCode = "TST003I"
+	// ScopedTokenDeleteFailureCode is the event code for failing to delete a scoped token.
+	ScopedTokenDeleteFailureCode = "TST003E"
+
 	// GithubConnectorCreatedCode is the Github connector created event code.
 	GithubConnectorCreatedCode = "T8000I"
 	// GithubConnectorDeletedCode is the Github connector deleted event code.
@@ -419,10 +461,15 @@ const (
 	BotJoinCode = "TJ001I"
 	// BotJoinFailureCode is the 'bot.join' event code for failures.
 	BotJoinFailureCode = "TJ001E"
+	// BotJoinLimitCode is the 'bot.join' event code for failures due to token limits.
+	BotJoinLimitCode = "TJ001L"
 	// InstanceJoinCode is the 'node.join' event code.
 	InstanceJoinCode = "TJ002I"
 	// InstanceJoinFailureCode is the 'node.join' event code for failures.
 	InstanceJoinFailureCode = "TJ002E"
+	// InstanceJoinLimitCode is the 'node.join' event code for failures due to
+	// usage limits.
+	InstanceJoinLimitCode = "TJ002L"
 
 	// BotCreateCode is the `bot.create` event code.
 	BotCreateCode = "TB001I"
@@ -445,11 +492,18 @@ const (
 
 	// UpgradeWindowStartUpdatedCode is the edit code of UpgradeWindowStartUpdateEvent.
 	UpgradeWindowStartUpdatedCode = "TUW01I"
+	// EnvironmentProfileUpdatedCode is the edit code of EnvironmentProfileUpdateEvent.
+	EnvironmentProfileUpdatedCode = "TEP01I"
 
 	// SSMRunSuccessCode is the discovery script success code.
 	SSMRunSuccessCode = "TDS00I"
-	// SSMRunFailCode is the discovery script success code.
+	// SSMRunFailCode is the discovery script failure code.
 	SSMRunFailCode = "TDS00W"
+
+	// AzureRunSuccessCode is the Azure discovery script success code.
+	AzureRunSuccessCode = "TDA00I"
+	// AzureRunFailCode is the Azure discovery script failure code.
+	AzureRunFailCode = "TDA00W"
 
 	// DeviceCreateCode is the device creation/registration code.
 	DeviceCreateCode = "TV001I"
@@ -841,10 +895,78 @@ const (
 
 	// WorkloadClusterCreateCode is the workload cluster create event code.
 	WorkloadClusterCreateCode = "WC001I"
+	// WorkloadClusterCreateFailureCode is the workload cluster create failure event code.
+	WorkloadClusterCreateFailureCode = "WC001E"
 	// WorkloadClusterUpdateCode is the workload cluster update event code.
 	WorkloadClusterUpdateCode = "WC002I"
+	// WorkloadClusterUpdateFailureCode is the workload cluster update failure event code.
+	WorkloadClusterUpdateFailureCode = "WC002E"
 	// WorkloadClusterDeleteCode is the workload cluster delete event code.
 	WorkloadClusterDeleteCode = "WC003I"
+	// WorkloadClusterDeleteFailureCode is the workload cluster delete failure event code.
+	WorkloadClusterDeleteFailureCode = "WC003E"
+
+	// InferenceModelCreateCode is the inference model create event code.
+	InferenceModelCreateCode = "INF001I"
+	// InferenceModelUpdateCode is the inference model update event code.
+	InferenceModelUpdateCode = "INF002I"
+	// InferenceModelDeleteCode is the inference model delete event code.
+	InferenceModelDeleteCode = "INF003I"
+
+	// InferenceSecretCreateCode is the inference secret create event code.
+	InferenceSecretCreateCode = "INF004I"
+	// InferenceSecretUpdateCode is the inference secret update event code.
+	InferenceSecretUpdateCode = "INF005I"
+	// InferenceSecretDeleteCode is the inference secret delete event code.
+	InferenceSecretDeleteCode = "INF006I"
+
+	// InferencePolicyCreateCode is the inference policy create event code.
+	InferencePolicyCreateCode = "INF007I"
+	// InferencePolicyUpdateCode is the inference policy update event code.
+	InferencePolicyUpdateCode = "INF008I"
+	// InferencePolicyDeleteCode is the inference policy delete event code.
+	InferencePolicyDeleteCode = "INF009I"
+
+	// SessionSummarizedCode is the session summarized event code.
+	SessionSummarizedCode = "INF010I"
+	// SessionSummarizedErrorCode is the session summarized error event code.
+	SessionSummarizedErrorCode = "INF010E"
+
+	// RetrievalModelCreateCode is the retrieval model create event code.
+	RetrievalModelCreateCode = "INF011I"
+	// RetrievalModelUpdateCode is the retrieval model update event code.
+	RetrievalModelUpdateCode = "INF012I"
+	// RetrievalModelDeleteCode is the retrieval model delete event code.
+	RetrievalModelDeleteCode = "INF013I"
+
+	// ClassifierCreateCode is the classifier create event code.
+	ClassifierCreateCode = "INF014I"
+	// ClassifierCreateFailureCode is the classifier create failure event code.
+	ClassifierCreateFailureCode = "INF014E"
+	// ClassifierUpdateCode is the classifier update event code.
+	ClassifierUpdateCode = "INF015I"
+	// ClassifierUpdateFailureCode is the classifier update failure event code.
+	ClassifierUpdateFailureCode = "INF015E"
+	// ClassifierDeleteCode is the classifier delete event code.
+	ClassifierDeleteCode = "INF016I"
+	// ClassifierDeleteFailureCode is the classifier delete failure event code.
+	ClassifierDeleteFailureCode = "INF016E"
+
+	// CertAuthOverrideCreateCode is the cert_auth_override create event code.
+	CertAuthOverrideCreateCode = "TCO01I"
+	// CertAuthOverrideUpdateCode is the cert_auth_override update event code.
+	CertAuthOverrideUpdateCode = "TCO02I"
+	// CertAuthOverrideUpsertCode is the cert_auth_override upsert event code.
+	CertAuthOverrideUpsertCode = "TCO03I"
+	// CertAuthOverrideDeleteCode is the cert_auth_override delete event code.
+	CertAuthOverrideDeleteCode = "TCO04I"
+
+	// BeamsConfigCreateCode is the Beams config create event code.
+	BeamsConfigCreateCode = "TBEAM001I"
+	// BeamsConfigUpdateCode is the Beams config update event code.
+	BeamsConfigUpdateCode = "TBEAM002I"
+	// BeamsConfigDeleteCode is the Beams config delete event code.
+	BeamsConfigDeleteCode = "TBEAM003I"
 
 	// UnknownCode is used when an event of unknown type is encountered.
 	UnknownCode = apievents.UnknownCode

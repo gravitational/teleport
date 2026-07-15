@@ -28,7 +28,6 @@ import (
 	"time"
 
 	"github.com/jonboulle/clockwork"
-	"github.com/julienschmidt/httprouter"
 	"google.golang.org/grpc/credentials"
 
 	"github.com/gravitational/teleport/api/client"
@@ -43,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/join/boundkeypair"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -70,6 +70,9 @@ const (
 
 	MaxUserAgentLen = maxUserAgentLen
 	ForwardedTag    = forwardedTag
+
+	SAMLCertExpiryTimeframe = samlCertExpiryTimeframe
+	SAMLCertExpiryAlertID   = samlCertExpiryAlertIDPrefix
 )
 
 var (
@@ -80,12 +83,10 @@ var (
 	CreateAuditStreamAcceptedTotalMetric = createAuditStreamAcceptedTotalMetric
 )
 
-func (a *Server) SetRemoteClusterRefreshLimit(limit int) {
-	remoteClusterRefreshLimit = limit
-}
-
-func (a *Server) RemoteClusterRefreshBuckets(buckets int) {
-	remoteClusterRefreshBuckets = buckets
+func ServerWithModules(mt *modulestest.Modules) *Server {
+	return &Server{
+		modules: mt,
+	}
 }
 
 func (a *Server) VerifyRecoveryCode(ctx context.Context, username string, recoveryCode []byte) (errResult error) {
@@ -193,7 +194,7 @@ func (a *Server) SetCreateBoundKeypairValidator(validator boundkeypair.CreateBou
 	a.createBoundKeypairValidator = validator
 }
 
-func (a *Server) AuthenticateUserLogin(ctx context.Context, req authclient.AuthenticateUserRequest) (services.UserState, *services.SplitAccessChecker, error) {
+func (a *Server) AuthenticateUserLogin(ctx context.Context, req authclient.AuthenticateUserRequest) (services.UserState, *services.ScopedAccessCheckerContext, error) {
 	return a.authenticateUserLogin(ctx, req)
 }
 
@@ -213,16 +214,12 @@ func FormatGithubURL(host string, path string) string {
 	return formatGithubURL(host, path)
 }
 
-func CheckGithubOrgSSOSupport(ctx context.Context, conn types.GithubConnector, userTeams []GithubTeamResponse, orgCache *utils.FnCache, client httpRequester) error {
-	return checkGithubOrgSSOSupport(ctx, conn, userTeams, orgCache, client)
+func CheckGithubOrgSSOSupport(ctx context.Context, conn types.GithubConnector, userTeams []GithubTeamResponse, buildType string, orgCache *utils.FnCache, client httpRequester) error {
+	return checkGithubOrgSSOSupport(ctx, conn, userTeams, buildType, orgCache, client)
 }
 
 func ChangeUserAuthentication(ctx context.Context, a *Server, req *proto.ChangeUserAuthenticationRequest) (types.User, error) {
 	return a.changeUserAuthentication(ctx, req)
-}
-
-func ValidateOracleJoinToken(token types.ProvisionToken) error {
-	return validateOracleJoinToken(token)
 }
 
 func CreatePresetUsers(ctx context.Context, buildType string, um PresetUsers) error {
@@ -245,37 +242,38 @@ func ValidServerHostname(hostname string) bool {
 	return validServerHostname(hostname)
 }
 
-func FormatAccountName(s proxyDomainGetter, username string, authHostname string) (string, error) {
-	return formatAccountName(context.TODO(), s, username, authHostname)
+func FormatAccountName(ctx context.Context, s proxyDomainGetter, username string, authHostname string) (string, error) {
+	return formatAccountName(ctx, s, username, authHostname)
 }
 
 func ConfigureCAsForTrustedCluster(tc types.TrustedCluster, cas []types.CertAuthority) {
 	configureCAsForTrustedCluster(tc, cas)
 }
 
-func UpdateAccessRequestWithAdditionalReviewers(ctx context.Context, req types.AccessRequest, accessLists services.AccessListsGetter, promotions *types.AccessRequestAllowedPromotions) {
-	updateAccessRequestWithAdditionalReviewers(ctx, req, accessLists, promotions)
+// UpdateAccessRequestWithAdditionalReviewers updates the access request with the suggested reviewers.
+func UpdateAccessRequestWithAdditionalReviewers(ctx context.Context, req types.AccessRequest, suggestedReviewers []string) {
+	updateAccessRequestWithAdditionalReviewers(req, suggestedReviewers)
 }
 
 func EncodeProquint(x uint16) string {
-	return encodeProquint(x)
+	return string(encodeProquint(x))
 }
 
 func EmitSSOLoginFailureEvent(ctx context.Context, emitter apievents.Emitter, method string, err error, testFlow bool) {
 	emitSSOLoginFailureEvent(ctx, emitter, method, err, testFlow)
 }
 
-type UpsertServerRawReq = upsertServerRawReq
-
-func UpsertServer(srv *APIServer, auth presenceForAPIServer, role types.SystemRole, r *http.Request, p httprouter.Params) (any, error) {
-	return srv.upsertServer(auth, role, r, p)
-}
-
 func NewServerWithRoles(srv *Server, alog events.AuditLogSessionStreamer, authzContext authz.Context) *ServerWithRoles {
 	return &ServerWithRoles{
-		authServer: srv,
-		alog:       alog,
+		serverBase: serverBase{authServer: srv, alog: alog},
 		context:    authzContext,
+	}
+}
+
+func NewScopedServerWithRoles(srv *Server, alog events.AuditLogSessionStreamer, scopedContext *authz.ScopedContext) *ScopedServerWithRoles {
+	return &ScopedServerWithRoles{
+		serverBase:    serverBase{authServer: srv, alog: alog},
+		scopedContext: scopedContext,
 	}
 }
 

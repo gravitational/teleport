@@ -18,14 +18,14 @@
 
 import { format } from 'date-fns';
 import {
-  Suspense,
-  useMemo,
   type ComponentType,
   type MouseEventHandler,
   type PropsWithChildren,
+  Suspense,
+  useMemo,
 } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import styled, { css } from 'styled-components';
 
 import Box from 'design/Box';
@@ -67,6 +67,7 @@ export interface RecordingActionProps {
 
 export interface RecordingItemProps {
   actionComponent?: ComponentType<RecordingActionProps>;
+  badgeComponent?: ComponentType<RecordingActionProps>;
   density: Density;
   recording: Recording;
   thumbnailStyles: string;
@@ -75,6 +76,7 @@ export interface RecordingItemProps {
 
 export function RecordingItem({
   actionComponent: ActionComponent,
+  badgeComponent: BadgeComponent,
   density,
   recording,
   thumbnailStyles,
@@ -120,6 +122,23 @@ export function RecordingItem({
       viewMode={viewMode}
       onClick={handleClick}
     >
+      {BadgeComponent && (
+        <RecordingItemHeader>
+          <BadgeContainer viewMode={viewMode}>
+            <BadgeComponent
+              durationMs={recording.duration}
+              createdDate={recording.createdDate}
+              recordingType={recording.recordingType}
+              sessionId={recording.sid}
+              username={recording.user}
+              hostname={recording.hostname}
+            />
+          </BadgeContainer>
+
+          <Duration viewMode={viewMode}>{duration}</Duration>
+        </RecordingItemHeader>
+      )}
+
       <ThumbnailContainer density={density} viewMode={viewMode}>
         {recording.playable ? (
           hasThumbnail ? (
@@ -145,7 +164,9 @@ export function RecordingItem({
           </ThumbnailError>
         )}
 
-        <Duration viewMode={viewMode}>{duration}</Duration>
+        {!BadgeComponent && (
+          <FloatingDuration viewMode={viewMode}>{duration}</FloatingDuration>
+        )}
       </ThumbnailContainer>
 
       <Flex width="100%">
@@ -201,7 +222,7 @@ export function RecordingItem({
   );
 }
 
-const RecordingItemContainer = styled(Link).withConfig({
+export const RecordingItemContainer = styled(Link).withConfig({
   // We need to specify this when wrapping non-styled components
   shouldForwardProp: prop =>
     !['viewMode', 'density', 'playable'].includes(prop),
@@ -236,7 +257,16 @@ const RecordingItemContainer = styled(Link).withConfig({
   `
 );
 
-const ThumbnailContainer = styled.div<
+export const RecordingItemHeader = styled(Flex)`
+  background: ${p => p.theme.colors.levels.sunken};
+  flex: 0 0 40px;
+  align-items: center;
+  padding: 0 ${p => p.theme.space[2]}px;
+  justify-content: space-between;
+  border-bottom: 1px solid ${p => p.theme.colors.interactive.tonal.neutral[0]};
+`;
+
+export const ThumbnailContainer = styled.div<
   Pick<RecordingItemProps, 'viewMode' | 'density'>
 >(
   p => css`
@@ -266,7 +296,7 @@ const ThumbnailContainer = styled.div<
   `
 );
 
-const RecordingDetails = styled.div<
+export const RecordingDetails = styled.div<
   Pick<RecordingItemProps, 'viewMode' | 'density'>
 >(
   p => css`
@@ -294,16 +324,13 @@ const RecordingDetails = styled.div<
   `
 );
 
-const Duration = styled.div<Pick<RecordingItemProps, 'viewMode'>>(
+// BadgeContainer overlays the badge slot on the thumbnail, mirroring the
+// Duration placement on the opposite side, so badges appearing after the
+// initial render never shift the item layout.
+export const BadgeContainer = styled.div<Pick<RecordingItemProps, 'viewMode'>>(
   p => css`
-    background: rgba(0, 0, 0, 0.5);
-    border-radius: ${p.theme.radii[3]}px;
-    color: white;
-    font-weight: bold;
-    position: absolute;
-    line-height: 1;
-    padding: ${p.theme.space[1]}px ${p.theme.space[2]}px;
-    right: ${p.theme.space[2]}px;
+    display: flex;
+    gap: ${p.theme.space[1]}px;
 
     ${p.viewMode === ViewMode.List
       ? css`
@@ -315,7 +342,31 @@ const Duration = styled.div<Pick<RecordingItemProps, 'viewMode'>>(
   `
 );
 
-const ItemSpan = styled.span`
+export const Duration = styled.div<Pick<RecordingItemProps, 'viewMode'>>(
+  p => css`
+    background: rgba(0, 0, 0, 0.5);
+    border-radius: ${p.theme.radii[3]}px;
+    color: white;
+    font-weight: bold;
+    line-height: 1;
+    padding: ${p.theme.space[1]}px ${p.theme.space[2]}px;
+
+    ${p.viewMode === ViewMode.List
+      ? css`
+          bottom: ${p.theme.space[2]}px;
+        `
+      : css`
+          top: ${p.theme.space[2]}px;
+        `}
+  `
+);
+
+const FloatingDuration = styled(Duration)`
+  position: absolute;
+  right: ${p => p.theme.space[2]}px;
+`;
+
+export const ItemSpan = styled.span`
   background: ${p => p.theme.colors.spotBackground[0]};
   line-height: 1;
   padding: ${p => p.theme.space[1]}px ${p => p.theme.space[1]}px;

@@ -105,7 +105,7 @@ func testKubeClusterCollection_writeText(t *testing.T) {
 		mustCreateNewKubeCluster(t, "cluster3-eks-us-west-1-123456789012", "", eksDiscoveredNameLabel),
 	}
 	test := writeTextTest{
-		collection: &kubeClusterCollection{clusters: kubeClusters},
+		collection: resources.NewKubeClusterCollection(kubeClusters),
 		wantNonVerboseTable: func() string {
 			table := asciitable.MakeTableWithTruncatedColumn(
 				[]string{"Name", "Labels"},
@@ -143,7 +143,7 @@ func testKubeServerCollection_writeText(t *testing.T) {
 		mustCreateNewKubeServer(t, "cluster3-eks-us-west-1-123456789012", "_", "cluster3", nil),
 	}
 	test := writeTextTest{
-		collection: &kubeServerCollection{servers: kubeServers},
+		collection: resources.NewKubeServerCollection(kubeServers),
 		wantNonVerboseTable: func() string {
 			table := asciitable.MakeTableWithTruncatedColumn(
 				[]string{"Cluster", "Labels", "Version"},

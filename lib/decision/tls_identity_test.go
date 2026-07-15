@@ -27,31 +27,32 @@ import (
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	traitpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trait/v1"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/decision"
+	"github.com/gravitational/teleport/lib/scopes/pinning"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 func TestTLSIdentity_roundtrip(t *testing.T) {
 	t.Parallel()
 
-	minimalTLSIdentity := &decisionpb.TLSIdentity{
+	minimalTLSIdentity := decisionpb.TLSIdentity_builder{
 		// tlsca.Identity has no pointer fields, so these are always non-nil after
 		// copying.
 		RouteToApp:       &decisionpb.RouteToApp{},
 		RouteToDatabase:  &decisionpb.RouteToDatabase{},
 		DeviceExtensions: &decisionpb.DeviceExtensions{},
-	}
+	}.Build()
 
-	fullIdentity := &decisionpb.TLSIdentity{
+	fullIdentity := decisionpb.TLSIdentity_builder{
 		Username: "user",
-		ScopePin: &scopesv1.Pin{
+		ScopePin: scopesv1.Pin_builder{
+			Kind:  scopesv1.PinKind_PIN_KIND_USER,
 			Scope: "/foo",
-			Assignments: map[string]*scopesv1.PinnedAssignments{
-				"/": {
-					Roles: []string{"role1", "role2"},
-				},
-			},
-		},
+			AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+				"/": {"/": {"role1", "role2"}},
+			}),
+		}.Build(),
 		Impersonator:      "impersonator",
 		Groups:            []string{"role1", "role2"},
 		SystemRoles:       []string{"system1", "system2"},
@@ -64,12 +65,12 @@ func TestTLSIdentity_roundtrip(t *testing.T) {
 		KubernetesCluster: "k8s-cluster",
 		Traits: []*traitpb.Trait{
 			// Note: sorted by key on conversion.
-			{Key: "", Values: []string{"missingkey"}},
-			{Key: "missingvalues", Values: nil},
-			{Key: "trait1", Values: []string{"val1"}},
-			{Key: "trait2", Values: []string{"val1", "val2"}},
+			traitpb.Trait_builder{Key: "", Values: []string{"missingkey"}}.Build(),
+			traitpb.Trait_builder{Key: "missingvalues", Values: nil}.Build(),
+			traitpb.Trait_builder{Key: "trait1", Values: []string{"val1"}}.Build(),
+			traitpb.Trait_builder{Key: "trait2", Values: []string{"val1", "val2"}}.Build(),
 		},
-		RouteToApp: &decisionpb.RouteToApp{
+		RouteToApp: decisionpb.RouteToApp_builder{
 			SessionId:                       "session-id",
 			PublicAddr:                      "public-addr",
 			ClusterName:                     "cluster-name",
@@ -80,15 +81,15 @@ func TestTLSIdentity_roundtrip(t *testing.T) {
 			Uri:                             "uri",
 			TargetPort:                      111,
 			AwsCredentialprocessCredentials: "aws-cred-process-creds",
-		},
+		}.Build(),
 		TeleportCluster: "teleport-cluster",
-		RouteToDatabase: &decisionpb.RouteToDatabase{
+		RouteToDatabase: decisionpb.RouteToDatabase_builder{
 			ServiceName: "service-name",
 			Protocol:    "protocol",
 			Username:    "username",
 			Database:    "database",
 			Roles:       []string{"role1", "role2"},
-		},
+		}.Build(),
 		DatabaseNames:           []string{"db1", "db2"},
 		DatabaseUsers:           []string{"dbuser1", "dbuser2"},
 		MfaVerified:             "mfa-device-id",
@@ -104,29 +105,42 @@ func TestTLSIdentity_roundtrip(t *testing.T) {
 		Generation:              112,
 		BotName:                 "bot-name",
 		BotInstanceId:           "bot-instance-id",
+		BotScope:                "/foo",
 		AllowedResourceIds: []*decisionpb.ResourceId{
-			{
+			decisionpb.ResourceId_builder{
 				ClusterName:     "cluster1",
 				Kind:            "kind1",
 				Name:            "name1",
 				SubResourceName: "sub-resource1",
-			},
-			{
+			}.Build(),
+			decisionpb.ResourceId_builder{
 				ClusterName:     "cluster2",
 				Kind:            "kind2",
 				Name:            "name2",
 				SubResourceName: "sub-resource2",
+			}.Build(),
+		},
+		AllowedResourceAccessIds: []*types.ResourceAccessID{
+			{
+				Id: types.ResourceID{
+					ClusterName:     "cluster1",
+					Kind:            "kind1",
+					Name:            "name1",
+					SubResourceName: "sub-resource1",
+				},
 			},
 		},
 		PrivateKeyPolicy:       "private-key-policy",
 		ConnectionDiagnosticId: "connection-diag-id",
-		DeviceExtensions: &decisionpb.DeviceExtensions{
+		DeviceExtensions: decisionpb.DeviceExtensions_builder{
 			DeviceId:     "device-id",
 			AssetTag:     "asset-tag",
 			CredentialId: "credential-id",
-		},
-		UserType: "user-type",
-	}
+		}.Build(),
+		UserType:            "user-type",
+		DelegationSessionId: "delegation-session",
+		BeamId:              "beam-id",
+	}.Build()
 
 	tests := []struct {
 		name        string
@@ -172,10 +186,10 @@ func TestTLSIdentity_roundtrip(t *testing.T) {
 func TestTLSIdentityToTLSCA_zeroTimestamp(t *testing.T) {
 	t.Parallel()
 
-	id := decision.TLSIdentityToTLSCA(&decisionpb.TLSIdentity{
+	id := decision.TLSIdentityToTLSCA(decisionpb.TLSIdentity_builder{
 		Expires:                 &timestamppb.Timestamp{},
 		PreviousIdentityExpires: &timestamppb.Timestamp{},
-	})
+	}.Build())
 	assert.Zero(t, id.Expires, "id.Expires")
 	assert.Zero(t, id.PreviousIdentityExpires, "id.PreviousIdentityExpires")
 }

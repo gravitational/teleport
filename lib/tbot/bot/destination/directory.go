@@ -222,6 +222,12 @@ func (dd *Directory) Init(ctx context.Context, subdirs []string) error {
 	return nil
 }
 
+// ACLsEnabled returns true if new-style ACLs are enabled and the write test
+// succeeded. It will always return false before Init is called.
+func (dd *Directory) ACLsEnabled() bool {
+	return dd.aclsEnabled
+}
+
 // verifyLegacyACLs performs minor runtime verification of legacy-style ACLs,
 // where it is _not_ assumed that the destination is owned by the bot user.
 // This will not attempt to correct any issues, but will cause a hard failure if
@@ -399,7 +405,7 @@ func (dd *Directory) verifyAndCorrectACL(ctx context.Context, subpath string) er
 }
 
 func (dd *Directory) Write(ctx context.Context, name string, data []byte) error {
-	_, span := tracer.Start(
+	ctx, span := tracer.Start(
 		ctx,
 		"Directory/Write",
 		oteltrace.WithAttributes(attribute.String("name", name)),
@@ -450,7 +456,8 @@ func (dd *Directory) Write(ctx context.Context, name string, data []byte) error 
 }
 
 func (dd *Directory) Read(ctx context.Context, name string) ([]byte, error) {
-	_, span := tracer.Start(
+	//nolint:ineffassign,staticcheck // ctx is shadowed so future downstream calls inherit the span.
+	ctx, span := tracer.Start(
 		ctx,
 		"Directory/Read",
 		oteltrace.WithAttributes(attribute.String("name", name)),

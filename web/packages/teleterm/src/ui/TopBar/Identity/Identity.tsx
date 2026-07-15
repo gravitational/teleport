@@ -33,31 +33,34 @@ import {
   useKeyboardShortcuts,
 } from 'teleterm/ui/services/keyboardShortcuts';
 
-import { ActiveCluster, ClusterList } from './IdentityList/IdentityList';
+import { ActiveCluster, IdentityList } from './IdentityList/IdentityList';
 import { IdentitySelector } from './IdentitySelector/IdentitySelector';
 import { useIdentity } from './useIdentity';
 
 export function IdentityContainer() {
   const {
-    activeRootCluster,
-    rootClusters,
-    changeRootCluster,
+    activeWorkspaceCluster,
+    otherWorkspaces,
+    changeWorkspace,
     logout,
     addCluster,
+    forget,
     refreshCluster,
     changeColor,
   } = useIdentity();
   const selectorRef = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState(false);
   const { getLabelWithAccelerator } = useKeyboardShortcutFormatters();
-  const hasClusters = activeRootCluster || rootClusters.length;
+  const hasAnyWorkspaces = Boolean(
+    activeWorkspaceCluster || otherWorkspaces.length
+  );
   const togglePopoverOrAddCluster = useCallback(() => {
-    if (hasClusters) {
+    if (hasAnyWorkspaces) {
       setOpen(o => !o);
     } else {
       addCluster();
     }
-  }, [addCluster, hasClusters]);
+  }, [addCluster, hasAnyWorkspaces]);
 
   useKeyboardShortcuts(
     useMemo(
@@ -84,7 +87,7 @@ export function IdentityContainer() {
   }
 
   const deviceTrustStatus = calculateDeviceTrustStatus(
-    activeRootCluster?.loggedInUser
+    activeWorkspaceCluster?.loggedInUser
   );
   const activeColor = useStoreSelector(
     'workspacesService',
@@ -97,7 +100,7 @@ export function IdentityContainer() {
         ref={selectorRef}
         onClick={togglePopoverOrAddCluster}
         open={open}
-        activeCluster={activeRootCluster}
+        activeCluster={activeWorkspaceCluster}
         activeColor={activeColor}
         makeTitle={makeTitle}
         deviceTrustStatus={deviceTrustStatus}
@@ -109,26 +112,30 @@ export function IdentityContainer() {
         transformOrigin={{ vertical: 'top', horizontal: 'right' }}
         onClose={() => setOpen(false)}
         popoverCss={() => `max-width: min(450px, 90%)`}
+        updatePositionOnChildResize
       >
         <Container>
-          {activeRootCluster && (
+          {activeWorkspaceCluster && (
             <ActiveCluster
-              activeCluster={activeRootCluster}
+              activeCluster={activeWorkspaceCluster}
               activeColor={activeColor}
               onChangeColor={changeColor}
-              onLogout={withClose(() => logout(activeRootCluster.uri))}
-              onRefresh={withClose(() => refreshCluster(activeRootCluster.uri))}
+              onLogout={withClose(() => logout(activeWorkspaceCluster.uri))}
+              onRefresh={withClose(() =>
+                refreshCluster(activeWorkspaceCluster.uri)
+              )}
               deviceTrustStatus={deviceTrustStatus}
             />
           )}
           <TshHomeMigrationBanner />
           <KeyboardArrowsNavigation>
             {focusGrabber}
-            <ClusterList
-              clusters={rootClusters}
-              onSelect={withClose(changeRootCluster)}
+            <IdentityList
+              items={otherWorkspaces}
+              onSelect={withClose(changeWorkspace)}
               onLogout={withClose(logout)}
               onAdd={withClose(addCluster)}
+              onForget={withClose(forget)}
             />
           </KeyboardArrowsNavigation>
         </Container>

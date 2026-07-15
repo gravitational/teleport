@@ -8,9 +8,8 @@ tags:
  - get-started
  - mwi
  - infrastructure-identity
+page_type: how-to
 ---
-
-{/* lint disable page-structure remark-lint */}
 
 Teleport Machine and Workload Identity (MWI) provides secure access for Non-Human Identities across multiple platforms
 and resource types, supporting everything from [Infrastructure-as-Code](./use-cases/iac-mwi.mdx)
@@ -18,8 +17,7 @@ workflows to [AI agent](./use-cases/ai-agents-mwi.mdx) operations. This guide fo
 implementation: executing commands on deployment targets through CI/CD pipelines. Even if your specific use case differs,
 this guide covers the fundamental MWI setup process, after which you can reference the dedicated use case pages for tool-specific guidance.
 
-Here's an overview of what you will do:
-
+In this guide, you will:
 - Choose a Linux server or Kubernetes cluster as your target resource.
 - Create a Role for your Bot, or choose an existing one.
 - Create a Bot in Teleport with a role allowing it to access your target resource.
@@ -29,6 +27,8 @@ Here's an overview of what you will do:
 This guide covers configuring MWI for development and learning purposes.
 For a production-ready configuration of MWI, visit the [Deploying Machine
 ID](../machine-workload-identity/deployment/deployment.mdx) guides.
+
+{/* lint ignore page-structure remark-lint */}
 
 ## Prerequisites
 
@@ -185,9 +185,9 @@ $ tctl create -f role.yaml
 
 ## Step 3/5. Create a bot
 
-In Teleport, a **Bot** represents an identity for a machine. This is similar to
-how a user represents the identity of a human. Like users, bots are assigned
-roles to manage their access to resources.
+In Teleport, a **Bot user** represents an identity for a machine or AI agent.
+Like SSO users and local users bots are assigned roles to manage their access to
+resources.
 
 You'll now create a bot to represent the GitHub Actions workflow.
 
@@ -350,7 +350,7 @@ Replace:
 - `myinstance.example.teleport.sh` with the address of your target server.
 - `ubuntu` with the Linux user you want to log in as.
 
-In the second step of this workflow, we use one one of the published actions
+In the second step of this workflow, we use one of the published actions
 which installs the `tbot` binary into the workflow run environment.
 
 In the third step, we use this binary with the configuration you created earlier
@@ -436,7 +436,7 @@ Replace:
 
 - `example.teleport.sh:443` with the address of your Teleport proxy
 
-In the second step of this workflow, we use one one of the published actions
+In the second step of this workflow, we use one of the published actions
 which installs the `tbot` binary into the workflow run environment.
 
 In the third step, we use this binary with the configuration you created earlier
@@ -453,11 +453,28 @@ Commit and push this file to your repository.
 
 ### Run the workflow
 
-In your GitHub repository
+Execute the workflow you created:
+
+<Tabs>
+<TabItem label="Web UI">
+
+In your GitHub repository:
 - Go to the `Actions` tab
 - Select the Teleport workflow on the left
 - Click `Run workflow` on the right
 - Make sure the branch is `main` and click the `Run workflow` confirmation button
+
+</TabItem>
+<TabItem label="CLI">
+
+Execute the following command:
+
+```code
+$ gh workflow run teleport.yaml --ref main
+```
+
+</TabItem>
+</Tabs>
 
 After the workflow completes, you should see the job complete successfully, and the output of the command in the logs.
 

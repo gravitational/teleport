@@ -24,9 +24,10 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
 	"google.golang.org/protobuf/encoding/protojson"
 
-	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	mfav2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
 	sshpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/ssh/v1"
 	srvssh "github.com/gravitational/teleport/lib/srv/ssh"
 )
@@ -130,13 +131,11 @@ func TestMFAPromptVerifier_VerifyAnswer_Success(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	resp := &sshpb.MFAPromptResponse{
-		Response: &sshpb.MFAPromptResponse_Reference{
-			Reference: &sshpb.MFAPromptResponseReference{
-				ChallengeName: challengeName,
-			},
-		},
-	}
+	resp := sshpb.MFAPromptResponse_builder{
+		Reference: sshpb.MFAPromptResponseReference_builder{
+			ChallengeName: challengeName,
+		}.Build(),
+	}.Build()
 	respJSON, err := protojson.Marshal(resp)
 	require.NoError(t, err)
 
@@ -171,7 +170,7 @@ func TestMFAPromptVerifier_VerifyAnswer_MissingResponse(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	resp := &sshpb.MFAPromptResponse{Response: nil}
+	resp := sshpb.MFAPromptResponse_builder{}.Build()
 	respJSON, err := protojson.Marshal(resp)
 	require.NoError(t, err)
 
@@ -190,13 +189,11 @@ func TestMFAPromptVerifier_VerifyAnswer_EmptyChallengeName(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	resp := &sshpb.MFAPromptResponse{
-		Response: &sshpb.MFAPromptResponse_Reference{
-			Reference: &sshpb.MFAPromptResponseReference{
-				ChallengeName: "",
-			},
-		},
-	}
+	resp := sshpb.MFAPromptResponse_builder{
+		Reference: sshpb.MFAPromptResponseReference_builder{
+			ChallengeName: "",
+		}.Build(),
+	}.Build()
 	respJSON, err := protojson.Marshal(resp)
 	require.NoError(t, err)
 
@@ -211,19 +208,20 @@ type mockValidatedMFAChallengeVerifier struct {
 
 func (m *mockValidatedMFAChallengeVerifier) VerifyValidatedMFAChallenge(
 	_ context.Context,
-	req *mfav1.VerifyValidatedMFAChallengeRequest,
-) error {
+	req *mfav2.VerifyValidatedMFAChallengeRequest,
+	_ ...grpc.CallOption,
+) (*mfav2.VerifyValidatedMFAChallengeResponse, error) {
 	if m.err != nil {
-		return m.err
+		return nil, m.err
 	}
 
-	if m.expectedChallengeName != "" && req.Name != m.expectedChallengeName {
-		return trace.Errorf(
+	if m.expectedChallengeName != "" && req.GetName() != m.expectedChallengeName {
+		return nil, trace.Errorf(
 			"unexpected challenge name: got %q, want %q",
-			req.Name,
+			req.GetName(),
 			m.expectedChallengeName,
 		)
 	}
 
-	return nil
+	return &mfav2.VerifyValidatedMFAChallengeResponse{}, nil
 }

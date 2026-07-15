@@ -34,7 +34,6 @@ import (
 	"os"
 	"slices"
 	"strconv"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -47,16 +46,15 @@ import (
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc"
 	grpccredentials "google.golang.org/grpc/credentials"
-	"gvisor.dev/gvisor/pkg/tcpip"
-	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
-	"gvisor.dev/gvisor/pkg/tcpip/link/channel"
-	"gvisor.dev/gvisor/pkg/tcpip/network/ipv6"
-	"gvisor.dev/gvisor/pkg/tcpip/stack"
+	"google.golang.org/protobuf/encoding/protojson"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	sshpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/ssh/v1"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
+	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	typesvnet "github.com/gravitational/teleport/api/types/vnet"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
@@ -66,10 +64,13 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/services"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
+	dbvnet "github.com/gravitational/teleport/lib/srv/db/vnet"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/testutils"
+	"github.com/gravitational/teleport/lib/vnet/dns"
 )
 
 const (
@@ -82,19 +83,14 @@ func TestMain(m *testing.M) {
 }
 
 type testPack struct {
-	vnetIPv6Prefix tcpip.Address
-	dnsIPv6        tcpip.Address
-	ns             *networkStack
-
-	testStack        *stack.Stack
-	testLinkEndpoint *channel.Endpoint
-	localAddress     tcpip.Address
+	hostNetwork *FakeHostNetwork
 }
 
 type testPackConfig struct {
-	clock         clockwork.Clock
-	fakeClientApp *fakeClientApp
-	homePath      string
+	clock               clockwork.Clock
+	fakeClientApp       *fakeClientApp
+	homePath            string
+	allowAppHTTPSTunnel bool
 }
 
 func newTestPack(t *testing.T, ctx context.Context, cfg testPackConfig) *testPack {
@@ -102,54 +98,13 @@ func newTestPack(t *testing.T, ctx context.Context, cfg testPackConfig) *testPac
 		cfg.homePath = t.TempDir()
 	}
 
-	// Create two sides of an emulated TUN interface: writes to one can be read on the other, and vice versa.
-	tun1, tun2 := newSplitTUN()
-
-	// Create an isolated userspace networking stack that can be manipulated from test code. It will be
-	// connected to the VNet over the TUN interface. This emulates the host networking stack.
-	// This is a completely separate gvisor network stack than the one that will be created in
-	// NewNetworkStack - the two will be connected over a fake TUN interface. This exists so that the
-	// test can setup IP routes without affecting the host running the Test.
-	testStack, testLinkEndpoint, err := createStack()
+	hostNetwork, err := NewFakeHostNetwork()
 	require.NoError(t, err)
+	t.Cleanup(hostNetwork.Close)
 
-	errIsOK := func(err error) bool {
-		return err == nil || errors.Is(err, context.Canceled) || utils.IsOKNetworkError(err) || errors.Is(err, errFakeTUNClosed)
-	}
-
-	testutils.RunTestBackgroundTask(ctx, t, &testutils.TestBackgroundTask{
-		Name: "test network stack",
-		Task: func(ctx context.Context) error {
-			if err := forwardBetweenTunAndNetstack(ctx, tun1, testLinkEndpoint); !errIsOK(err) {
-				return trace.Wrap(err)
-			}
-			return nil
-		},
-		Terminate: func() error {
-			testLinkEndpoint.Close()
-			return trace.Wrap(tun1.Close())
-		},
-	})
-
-	// Assign a local IP address to the test stack.
-	localAddress, err := randomULAAddress()
-	require.NoError(t, err)
-	protocolAddr, err := protocolAddress(localAddress)
-	require.NoError(t, err)
-	tcpErr := testStack.AddProtocolAddress(nicID, protocolAddr, stack.AddressProperties{})
-	require.Nil(t, tcpErr)
-
-	// Route the VNet range to the TUN interface - this emulates the route that will be installed on the host.
 	vnetIPv6Prefix, err := newIPv6Prefix()
 	require.NoError(t, err)
-	subnet, err := tcpip.NewSubnet(vnetIPv6Prefix, tcpip.MaskFromBytes(net.CIDRMask(64, 128)))
-	require.NoError(t, err)
-	testStack.SetRouteTable([]tcpip.Route{{
-		Destination: subnet,
-		NIC:         nicID,
-	}})
-
-	dnsIPv6 := ipv6WithSuffix(vnetIPv6Prefix, []byte{2})
+	dnsIPv6 := ipv6WithSuffix(vnetIPv6Prefix, dns.DNSServerSuffix)
 
 	// In reality the VNet networking stack runs in a separate process from the
 	// client application and communicates over gRPC. For the test, everything
@@ -166,14 +121,16 @@ func newTestPack(t *testing.T, ctx context.Context, cfg testPackConfig) *testPac
 	tcpHandlerResolver := newTCPHandlerResolver(&tcpHandlerResolverConfig{
 		clt:                      clt,
 		appProvider:              appProvider,
+		dbProvider:               newDBProvider(clt),
 		sshProvider:              sshProvider,
 		clock:                    cfg.clock,
 		alwaysTrustRootClusterCA: true,
+		parentCtx:                ctx,
 	})
 
 	// Create the VNet and connect it to the other side of the TUN.
 	ns, err := newNetworkStack(&networkStackConfig{
-		tunDevice:                tun2,
+		tunDevice:                hostNetwork.TUNDevice(),
 		ipv6Prefix:               vnetIPv6Prefix,
 		dnsIPv6:                  dnsIPv6,
 		tcpHandlerResolver:       tcpHandlerResolver,
@@ -181,87 +138,60 @@ func newTestPack(t *testing.T, ctx context.Context, cfg testPackConfig) *testPac
 	})
 	require.NoError(t, err)
 
+	tunIPv6, err := tunIPv6ForPrefix(vnetIPv6Prefix.String())
+	require.NoError(t, err)
+	require.NoError(t, hostNetwork.Configure(ctx, &EmbeddedVNetHostConfig{
+		DeviceIPv6: tunIPv6,
+		CIDRRanges: []string{tunIPv6 + "/64"},
+		DNSAddrs:   []string{dnsIPv6.String()},
+	}))
+
 	testutils.RunTestBackgroundTask(ctx, t, &testutils.TestBackgroundTask{
 		Name: "VNet",
 		Task: func(ctx context.Context) error {
-			if err := ns.run(ctx); !errIsOK(err) {
+			err := ns.run(ctx)
+			switch {
+			case err == nil,
+				utils.IsOKNetworkError(err),
+				errors.Is(err, context.Canceled),
+				errors.Is(err, errFakeTUNClosed):
+				return nil
+			default:
 				return trace.Wrap(err)
 			}
-			return nil
 		},
 	})
 
 	return &testPack{
-		vnetIPv6Prefix:   vnetIPv6Prefix,
-		dnsIPv6:          dnsIPv6,
-		ns:               ns,
-		testStack:        testStack,
-		testLinkEndpoint: testLinkEndpoint,
-		localAddress:     localAddress,
+		hostNetwork: hostNetwork,
 	}
-}
-
-// dialIPPort dials the VNet address [addr] from the test virtual netstack.
-func (p *testPack) dialIPPort(ctx context.Context, addr tcpip.Address, port uint16) (*gonet.TCPConn, error) {
-	conn, err := gonet.DialTCPWithBind(
-		ctx,
-		p.testStack,
-		tcpip.FullAddress{
-			NIC:      nicID,
-			Addr:     p.localAddress,
-			LinkAddr: p.testLinkEndpoint.LinkAddress(),
-		},
-		tcpip.FullAddress{
-			NIC:      nicID,
-			Addr:     addr,
-			Port:     port,
-			LinkAddr: p.ns.linkEndpoint.LinkAddress(),
-		},
-		ipv6.ProtocolNumber,
-	)
-	return conn, trace.Wrap(err)
-}
-
-func (p *testPack) dialUDP(ctx context.Context, addr tcpip.Address, port uint16) (net.Conn, error) {
-	conn, err := gonet.DialUDP(
-		p.testStack,
-		&tcpip.FullAddress{
-			NIC:      nicID,
-			Addr:     p.localAddress,
-			LinkAddr: p.testLinkEndpoint.LinkAddress(),
-		},
-		&tcpip.FullAddress{
-			NIC:      nicID,
-			Addr:     addr,
-			Port:     port,
-			LinkAddr: p.ns.linkEndpoint.LinkAddress(),
-		},
-		ipv6.ProtocolNumber,
-	)
-	return conn, trace.Wrap(err)
 }
 
 func (p *testPack) lookupHost(ctx context.Context, host string) ([]string, error) {
-	resolver := &net.Resolver{
-		PreferGo: true,
-		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
-			conn, err := p.dialUDP(ctx, p.dnsIPv6, 53)
-			return conn, err
-		},
-	}
-	return resolver.LookupHost(ctx, host)
+	return p.hostNetwork.DNSResolver().LookupHost(ctx, host)
+}
+
+func (p *testPack) lookupHostShouldFail(t *testing.T, host string) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
+	defer cancel()
+	_, err := p.lookupHost(ctx, host)
+	require.Error(t, err)
 }
 
 func (p *testPack) dialHost(ctx context.Context, host string, port int) (net.Conn, error) {
+	addr := net.JoinHostPort(host, strconv.Itoa(port))
+	if net.ParseIP(host) != nil {
+		return p.hostNetwork.DialIP(ctx, "tcp", addr)
+	}
+
 	addrs, err := p.lookupHost(ctx, host)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	var allErrs []error
 	for _, addr := range addrs {
-		netIP := net.ParseIP(addr)
-		ip := tcpip.AddrFromSlice(netIP)
-		conn, err := p.dialIPPort(ctx, ip, uint16(port))
+		conn, err := p.hostNetwork.DialIP(ctx, "tcp", net.JoinHostPort(addr, strconv.Itoa(port)))
 		if err != nil {
 			allErrs = append(allErrs, trace.Wrap(err, "dialing %s", addr))
 			continue
@@ -279,9 +209,11 @@ func runTestClientApplicationService(t *testing.T, ctx context.Context, cfg test
 	leafClusterCache, err := newLeafClusterCache(cfg.clock)
 	require.NoError(t, err)
 	fqdnResolver := newFQDNResolver(&fqdnResolverConfig{
-		clientApplication:  cfg.fakeClientApp,
-		clusterConfigCache: clusterConfigCache,
-		leafClusterCache:   leafClusterCache,
+		clientApplication:   cfg.fakeClientApp,
+		clusterConfigCache:  clusterConfigCache,
+		leafClusterCache:    leafClusterCache,
+		allowDatabaseAccess: true,
+		allowAppHTTPSTunnel: cfg.allowAppHTTPSTunnel,
 	})
 	clientApplicationService, err := newClientApplicationService(&clientApplicationServiceConfig{
 		clientApplication: cfg.fakeClientApp,
@@ -336,9 +268,32 @@ func (n noUpstreamNameservers) UpstreamNameservers(ctx context.Context) ([]strin
 }
 
 type appSpec struct {
-	// publicAddr is used both as the name of the app and its public address in the final spec.
+	// name is optional and will default to publicAddr if unset
+	name       string
 	publicAddr string
+	isWebApp   bool
+	isLLMApp   bool
 	tcpPorts   []*types.PortRange
+}
+
+func (s *appSpec) getName() string {
+	return cmp.Or(s.name, s.publicAddr)
+}
+
+func (s *appSpec) getURI() string {
+	switch {
+	case s.isLLMApp:
+		return types.SchemeLLMEndpoint + "://"
+	case s.isWebApp:
+		return "http://" + s.publicAddr
+	default:
+		return "tcp://" + s.publicAddr
+	}
+}
+
+type dbSpec struct {
+	name     string
+	protocol string
 }
 
 type nodeSpec struct {
@@ -347,6 +302,7 @@ type nodeSpec struct {
 
 type testClusterSpec struct {
 	apps           []appSpec
+	databases      []dbSpec
 	nodes          map[string]nodeSpec
 	cidrRange      string
 	customDNSZones []string
@@ -366,12 +322,17 @@ type fakeClientApp struct {
 	teleportHostCA ssh.Signer
 	teleportUserCA ssh.Signer
 
-	onNewSSHSessionCallCount    atomic.Uint32
-	onNewAppConnectionCallCount atomic.Uint32
-	onInvalidLocalPortCallCount atomic.Uint32
+	onNewSSHSessionCallCount           atomic.Uint32
+	performSessionMFACeremonyCallCount atomic.Uint32
+	onNewAppConnectionCallCount        atomic.Uint32
+	onNewDBConnectionCallCount         atomic.Uint32
+	onInvalidLocalPortCallCount        atomic.Uint32
 	// requestedRouteToApps indexed by public address.
 	requestedRouteToApps   map[string][]*proto.RouteToApp
 	requestedRouteToAppsMu sync.RWMutex
+	// requestedRouteToDatabases indexed by database name.
+	requestedRouteToDatabases   map[string][]*proto.RouteToDatabase
+	requestedRouteToDatabasesMu sync.RWMutex
 
 	forwardedAgents *forwardedAgents
 }
@@ -410,13 +371,14 @@ func newFakeClientApp(ctx context.Context, t *testing.T, cfg *fakeClientAppConfi
 	})
 
 	return &fakeClientApp{
-		cfg:                  cfg,
-		tlsCA:                tlsCA,
-		dialOpts:             dialOpts,
-		teleportHostCA:       teleportHostCA,
-		teleportUserCA:       teleportUserCA,
-		requestedRouteToApps: make(map[string][]*proto.RouteToApp),
-		forwardedAgents:      forwardedAgents,
+		cfg:                       cfg,
+		tlsCA:                     tlsCA,
+		dialOpts:                  dialOpts,
+		teleportHostCA:            teleportHostCA,
+		teleportUserCA:            teleportUserCA,
+		requestedRouteToApps:      make(map[string][]*proto.RouteToApp),
+		requestedRouteToDatabases: make(map[string][]*proto.RouteToDatabase),
+		forwardedAgents:           forwardedAgents,
 	}
 }
 
@@ -440,6 +402,7 @@ func (p *fakeClientApp) GetCachedClient(ctx context.Context, profileName, leafCl
 				clusterName:     profileName,
 				rootClusterName: profileName,
 			},
+			clientApp:      p,
 			clusterSpec:    &rootCluster,
 			teleportHostCA: p.teleportHostCA,
 			teleportUserCA: p.teleportUserCA,
@@ -456,6 +419,7 @@ func (p *fakeClientApp) GetCachedClient(ctx context.Context, profileName, leafCl
 			clusterName:     leafClusterName,
 			rootClusterName: profileName,
 		},
+		clientApp:      p,
 		clusterSpec:    &leafCluster,
 		teleportHostCA: p.teleportHostCA,
 		teleportUserCA: p.teleportUserCA,
@@ -525,20 +489,20 @@ func (p *fakeClientApp) GetVnetConfig(ctx context.Context, profileName, leafClus
 		if rootCluster.cidrRange == "" {
 			return nil, trace.NotFound("vnet_config not found")
 		}
-		cfg := &vnet.VnetConfig{
+		cfg := vnet.VnetConfig_builder{
 			Kind:    types.KindVnetConfig,
 			Version: types.V1,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: "vnet-config",
-			},
-			Spec: &vnet.VnetConfigSpec{
+			}.Build(),
+			Spec: vnet.VnetConfigSpec_builder{
 				Ipv4CidrRange: rootCluster.cidrRange,
-			},
-		}
+			}.Build(),
+		}.Build()
 		for _, zone := range rootCluster.customDNSZones {
-			cfg.Spec.CustomDnsZones = append(cfg.Spec.CustomDnsZones,
-				&vnet.CustomDNSZone{Suffix: zone},
-			)
+			cfg.GetSpec().SetCustomDnsZones(append(cfg.GetSpec().GetCustomDnsZones(),
+				vnet.CustomDNSZone_builder{Suffix: zone}.Build(),
+			))
 		}
 		return cfg, nil
 	}
@@ -549,26 +513,31 @@ func (p *fakeClientApp) GetVnetConfig(ctx context.Context, profileName, leafClus
 	if leafCluster.cidrRange == "" {
 		return nil, trace.NotFound("vnet_config not found")
 	}
-	cfg := &vnet.VnetConfig{
+	cfg := vnet.VnetConfig_builder{
 		Kind:    types.KindVnetConfig,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: "vnet-config",
-		},
-		Spec: &vnet.VnetConfigSpec{
+		}.Build(),
+		Spec: vnet.VnetConfigSpec_builder{
 			Ipv4CidrRange: leafCluster.cidrRange,
-		},
-	}
+		}.Build(),
+	}.Build()
 	for _, zone := range leafCluster.customDNSZones {
-		cfg.Spec.CustomDnsZones = append(cfg.Spec.CustomDnsZones,
-			&vnet.CustomDNSZone{Suffix: zone},
-		)
+		cfg.GetSpec().SetCustomDnsZones(append(cfg.GetSpec().GetCustomDnsZones(),
+			vnet.CustomDNSZone_builder{Suffix: zone}.Build(),
+		))
 	}
 	return cfg, nil
 }
 
 func (p *fakeClientApp) OnNewSSHSession(ctx context.Context, profileName, rootClusterName string) {
 	p.onNewSSHSessionCallCount.Add(1)
+}
+
+func (p *fakeClientApp) PerformSessionMFACeremony(_ context.Context, _, _ string, _ []byte) (string, error) {
+	p.performSessionMFACeremonyCallCount.Add(1)
+	return "test-challenge-name", nil
 }
 
 func (p *fakeClientApp) OnNewAppConnection(_ context.Context, _ *vnetv1.AppKey) error {
@@ -578,6 +547,37 @@ func (p *fakeClientApp) OnNewAppConnection(_ context.Context, _ *vnetv1.AppKey) 
 
 func (p *fakeClientApp) OnInvalidLocalPort(_ context.Context, _ *vnetv1.AppInfo, _ uint16) {
 	p.onInvalidLocalPortCallCount.Add(1)
+}
+
+func (p *fakeClientApp) ReissueDBCert(ctx context.Context, dbInfo *vnetv1.DatabaseInfo) (tls.Certificate, error) {
+	p.requestedRouteToDatabasesMu.Lock()
+	defer p.requestedRouteToDatabasesMu.Unlock()
+
+	routeToDatabase := RouteToDatabase(dbInfo)
+	p.requestedRouteToDatabases[routeToDatabase.ServiceName] = append(
+		p.requestedRouteToDatabases[routeToDatabase.ServiceName], routeToDatabase)
+
+	return newClientCert(ctx,
+		p.tlsCA,
+		"testclient",
+		p.cfg.clock.Now().Add(appCertLifetime),
+		p.cfg.signatureAlgorithmSuite,
+		cryptosuites.UserTLS)
+}
+
+func (p *fakeClientApp) RequestedRouteToDatabases(dbName string) []*proto.RouteToDatabase {
+	p.requestedRouteToDatabasesMu.RLock()
+	defer p.requestedRouteToDatabasesMu.RUnlock()
+
+	routes := p.requestedRouteToDatabases[dbName]
+	returnedRoutes := make([]*proto.RouteToDatabase, len(routes))
+	copy(returnedRoutes, routes)
+	return returnedRoutes
+}
+
+func (p *fakeClientApp) OnNewDBConnection(_ context.Context, _ *vnetv1.DatabaseKey) error {
+	p.onNewDBConnectionCallCount.Add(1)
+	return nil
 }
 
 func (p *fakeClientApp) dialSSHNode(
@@ -612,6 +612,7 @@ func (p *fakeClientApp) dialSSHNode(
 
 type fakeClusterClient struct {
 	authClient     *fakeAuthClient
+	clientApp      *fakeClientApp
 	clusterSpec    *testClusterSpec
 	teleportHostCA ssh.Signer
 	teleportUserCA ssh.Signer
@@ -659,6 +660,19 @@ func (c *fakeClusterClient) SessionSSHKeyRing(ctx context.Context, user string, 
 		ValidAfter:      uint64(now.Add(-1 * time.Minute).Unix()),
 		ValidBefore:     uint64(now.Add(time.Minute).Unix()),
 	}
+
+	// We treat fallbackLegacyMFAUser as having completed MFA if the target
+	// requires MFA checks or doesn't specify them at all. This allows us to
+	// test both MFA and non-MFA scenarios without needing to implement a fake
+	// MFA service and ceremony.
+	mfaVerified := user == fallbackLegacyMFAUser &&
+		(target.MFACheck == nil || target.MFACheck.Required)
+
+	if mfaVerified {
+		cert.Extensions = map[string]string{
+			teleport.CertExtensionMFAVerified: mfaDeviceID,
+		}
+	}
 	if err := cert.SignCert(rand.Reader, c.teleportUserCA); err != nil {
 		return nil, false, trace.Wrap(err)
 	}
@@ -673,11 +687,14 @@ func (c *fakeClusterClient) SessionSSHKeyRing(ctx context.Context, user string, 
 			},
 		},
 	}
-	return k, false, nil
+	return k, mfaVerified, nil
 }
 
-// fakeAuthClient is a fake auth client that answers GetResources requests with a static list of apps and
-// basic/faked predicate filtering.
+func (c *fakeClusterClient) PerformSessionMFACeremony(ctx context.Context, sessionID []byte) (string, error) {
+	return c.clientApp.PerformSessionMFACeremony(ctx, c.RootClusterName(), c.ClusterName(), sessionID)
+}
+
+// fakeAuthClient is a fake auth client that answers GetResources requests with a static list of apps.
 type fakeAuthClient struct {
 	authclient.ClientI
 	clusterSpec     testClusterSpec
@@ -686,40 +703,93 @@ type fakeAuthClient struct {
 }
 
 func (c *fakeAuthClient) GetResources(ctx context.Context, req *proto.ListResourcesRequest) (*proto.ListResourcesResponse, error) {
+	filter, err := services.MatchResourceFilterFromListResourceRequest(req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	resp := &proto.ListResourcesResponse{}
-	for _, app := range c.clusterSpec.apps {
-		// Poor-man's predicate expression filter.
-		if !strings.Contains(req.PredicateExpression, app.publicAddr) {
-			continue
+
+	// Only iterate resources matching the requested type. Predicate
+	// expressions are type-specific (e.g. resource.spec.public_addr is only
+	// valid for app servers) and would fail on other resource types.
+	if req.ResourceType == types.KindDatabaseServer {
+		for _, db := range c.clusterSpec.databases {
+			dbServer := &types.DatabaseServerV3{
+				Kind: types.KindDatabaseServer,
+				Metadata: types.Metadata{
+					Name: db.name,
+				},
+				Spec: types.DatabaseServerSpecV3{
+					Database: &types.DatabaseV3{
+						Metadata: types.Metadata{
+							Name: db.name,
+						},
+						Spec: types.DatabaseSpecV3{
+							Protocol: db.protocol,
+							URI:      "localhost:5432",
+						},
+						Status: types.DatabaseStatusV3{
+							VNetDNSName: dbvnet.DNSName(db.name),
+						},
+					},
+				},
+			}
+
+			match, err := services.MatchResourceByFilters(dbServer, filter, nil /* seenMap */)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			if !match {
+				continue
+			}
+
+			resp.Resources = append(resp.Resources, &proto.PaginatedResource{
+				Resource: &proto.PaginatedResource_DatabaseServer{
+					DatabaseServer: dbServer,
+				},
+			})
 		}
-		spec := &types.AppV3{
+		resp.TotalCount = int32(len(resp.Resources))
+		return resp, nil
+	}
+
+	for _, app := range c.clusterSpec.apps {
+		appServer := &types.AppServerV3{
+			Kind: types.KindAppServer,
 			Metadata: types.Metadata{
-				Name: app.publicAddr,
+				Name: app.getName(),
 			},
-			Spec: types.AppSpecV3{
-				PublicAddr: app.publicAddr,
-				URI:        "tcp://" + app.publicAddr,
+			Spec: types.AppServerSpecV3{
+				App: &types.AppV3{
+					Metadata: types.Metadata{
+						Name: app.getName(),
+					},
+					Spec: types.AppSpecV3{
+						PublicAddr: app.publicAddr,
+						URI:        app.getURI(),
+					},
+				},
 			},
+		}
+		if len(app.tcpPorts) != 0 {
+			appServer.Spec.App.SetTCPPorts(app.tcpPorts)
 		}
 
-		if len(app.tcpPorts) != 0 {
-			spec.SetTCPPorts(app.tcpPorts)
+		match, err := services.MatchResourceByFilters(appServer, filter, nil /* seenMap */)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if !match {
+			continue
 		}
 
 		resp.Resources = append(resp.Resources, &proto.PaginatedResource{
 			Resource: &proto.PaginatedResource_AppServer{
-				AppServer: &types.AppServerV3{
-					Kind: types.KindAppServer,
-					Metadata: types.Metadata{
-						Name: app.publicAddr,
-					},
-					Spec: types.AppServerSpecV3{
-						App: spec,
-					},
-				},
+				AppServer: appServer,
 			},
 		})
 	}
+
 	resp.TotalCount = int32(len(resp.Resources))
 	return resp, nil
 }
@@ -744,15 +814,15 @@ func (c *fakeAuthClient) Ping(ctx context.Context) (proto.PingResponse, error) {
 }
 
 func (c *fakeAuthClient) GetVnetConfig(ctx context.Context) (*vnet.VnetConfig, error) {
-	vnetConfig := &vnet.VnetConfig{
-		Spec: &vnet.VnetConfigSpec{
+	vnetConfig := vnet.VnetConfig_builder{
+		Spec: vnet.VnetConfigSpec_builder{
 			Ipv4CidrRange: c.clusterSpec.cidrRange,
-		},
-	}
+		}.Build(),
+	}.Build()
 	for _, zone := range c.clusterSpec.customDNSZones {
-		vnetConfig.Spec.CustomDnsZones = append(vnetConfig.Spec.CustomDnsZones, &vnet.CustomDNSZone{
+		vnetConfig.GetSpec().SetCustomDnsZones(append(vnetConfig.GetSpec().GetCustomDnsZones(), vnet.CustomDNSZone_builder{
 			Suffix: zone,
-		})
+		}.Build()))
 	}
 	return vnetConfig, nil
 }
@@ -780,6 +850,11 @@ func TestDialFakeApp(t *testing.T) {
 							{Port: 4242},
 						},
 					},
+					{
+						name:       "webroot",
+						publicAddr: "webroot.root1.example.com",
+						isWebApp:   true,
+					},
 				},
 				customDNSZones: []string{
 					"myzone.example.com",
@@ -795,6 +870,18 @@ func TestDialFakeApp(t *testing.T) {
 									{Port: 1337},
 									{Port: 4242},
 								},
+							},
+							{
+								// Important: leaf web apps are reachable at
+								// their public_addr if the user logs in
+								// directly to the leaf, and they must also be
+								// reachable at <name>.<root-proxy-public-addr>
+								// if the user is logged in to the root.
+								// In this case webleaf.root1.example.com must
+								// be reachable.
+								name:       "webleaf",
+								publicAddr: "webleaf.leaf1.example.com",
+								isWebApp:   true,
 							},
 						},
 					},
@@ -995,10 +1082,7 @@ func TestDialFakeApp(t *testing.T) {
 		for _, fqdn := range invalidTestCases {
 			t.Run(fqdn, func(t *testing.T) {
 				t.Parallel()
-				ctx, cancel := context.WithTimeout(ctx, 200*time.Millisecond)
-				defer cancel()
-				_, err := p.lookupHost(ctx, fqdn)
-				require.Error(t, err)
+				p.lookupHostShouldFail(t, fqdn)
 			})
 		}
 	})
@@ -1018,6 +1102,127 @@ func TestDialFakeApp(t *testing.T) {
 			return int(route.TargetPort) == port
 		}), "no certs are supposed to be requested for target port %d in app %s", port, app)
 		require.Equal(t, uint32(1), clientApp.onInvalidLocalPortCallCount.Load(), "unexpected number of calls to OnInvalidLocalPort")
+	})
+
+	// Test that VNet does not resolve known web app addrs to VNet IP
+	// addresses. The expected behavior is for VNet to forward these requests
+	// to upstream nameservers so that clients can go around VNet and the
+	// browser hit the proxy public IP directly.
+	t.Run("web", func(t *testing.T) {
+		t.Parallel()
+		for _, addr := range []string{
+			"webroot.root1.example.com",
+			"webleaf.leaf1.example.com",
+			"webleaf.root1.example.com", // leaf web app name as subdomain of root proxy addr must work.
+		} {
+			t.Run(addr, func(t *testing.T) {
+				t.Parallel()
+
+				// For the test we've configured VNet with no upstream
+				// nameservers, so we expect the DNS lookup to fail.
+				p.lookupHostShouldFail(t, addr)
+			})
+		}
+	})
+}
+
+func TestDialHTTPSTunnelApp(t *testing.T) {
+	t.Parallel()
+	clock := clockwork.NewFakeClockAt(time.Now())
+
+	clusterSpec := map[string]testClusterSpec{
+		"root.example.com": {
+			apps: []appSpec{
+				{publicAddr: "tcp-app.root.example.com"},
+				{publicAddr: "http-app.root.example.com", isWebApp: true},
+				{publicAddr: "llm-app.root.example.com", isLLMApp: true},
+			},
+		},
+	}
+
+	t.Run("enabled", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+
+		clientApp := newFakeClientApp(ctx, t, &fakeClientAppConfig{
+			clusters:                clusterSpec,
+			clock:                   clock,
+			signatureAlgorithmSuite: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1,
+		})
+		p := newTestPack(t, ctx, testPackConfig{
+			fakeClientApp:       clientApp,
+			clock:               clock,
+			allowAppHTTPSTunnel: true,
+		})
+
+		for _, tc := range []struct {
+			name string
+			app  string
+		}{
+			{
+				name: "TCP app",
+				app:  "tcp-app.root.example.com",
+			},
+			{
+				name: "HTTP app",
+				app:  "http-app.root.example.com",
+			},
+			{
+				name: "LLM app",
+				app:  "llm-app.root.example.com",
+			},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				conn, err := p.dialHost(ctx, tc.app, 443)
+				require.NoError(t, err)
+				testEchoConnection(t, conn)
+				require.NoError(t, conn.Close())
+			})
+		}
+	})
+
+	t.Run("disabled", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+
+		clientApp := newFakeClientApp(ctx, t, &fakeClientAppConfig{
+			clusters:                clusterSpec,
+			clock:                   clock,
+			signatureAlgorithmSuite: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1,
+		})
+		p := newTestPack(t, ctx, testPackConfig{
+			fakeClientApp:       clientApp,
+			clock:               clock,
+			allowAppHTTPSTunnel: false,
+		})
+
+		t.Run("TCP app still works", func(t *testing.T) {
+			t.Parallel()
+			conn, err := p.dialHost(ctx, "tcp-app.root.example.com", 443)
+			require.NoError(t, err)
+			testEchoConnection(t, conn)
+			require.NoError(t, conn.Close())
+		})
+
+		for _, tc := range []struct {
+			name string
+			app  string
+		}{
+			{
+				name: "HTTP app not resolved",
+				app:  "http-app.root.example.com",
+			},
+			{
+				name: "LLM app not resolved",
+				app:  "llm-app.root.example.com",
+			},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				p.lookupHostShouldFail(t, tc.app)
+			})
+		}
 	})
 }
 
@@ -1055,7 +1260,7 @@ func TestOnNewAppConnection(t *testing.T) {
 		clusters: map[string]testClusterSpec{
 			"root1.example.com": {
 				apps: []appSpec{
-					{publicAddr: "echo1"},
+					{publicAddr: "echo1.root1.example.com"},
 				},
 				cidrRange:    "192.168.2.0/24",
 				leafClusters: map[string]testClusterSpec{},
@@ -1073,8 +1278,8 @@ func TestOnNewAppConnection(t *testing.T) {
 		fakeClientApp: clientApp,
 	})
 
-	// Attempt to establish a connection to an invalid app and verify that OnNewAppConnection was not
-	// called.
+	// Attempt to establish a connection to an invalid app and verify
+	// that OnNewAppConnection was not called.
 	lookupCtx, lookupCtxCancel := context.WithTimeout(ctx, 200*time.Millisecond)
 	defer lookupCtxCancel()
 	_, err := p.lookupHost(lookupCtx, invalidAppName)
@@ -1086,6 +1291,184 @@ func TestOnNewAppConnection(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, conn.Close()) })
 	require.Equal(t, uint32(1), clientApp.onNewAppConnectionCallCount.Load())
+}
+
+// TestDialFakeDatabase tests basic functionality of database access via VNet.
+func TestDialFakeDatabase(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	clock := clockwork.NewFakeClockAt(time.Now())
+
+	clientApp := newFakeClientApp(ctx, t, &fakeClientAppConfig{
+		clusters: map[string]testClusterSpec{
+			"root1.example.com": {
+				databases: []dbSpec{
+					{name: "my-postgres", protocol: "postgres"},
+					{name: "my-mysql", protocol: "mysql"},
+					// Unsupported protocol kept here so we exercise the
+					// resolver's protocol gate below.
+					{name: "my-mongo", protocol: "mongodb"},
+				},
+				cidrRange: "192.168.2.0/24",
+				leafClusters: map[string]testClusterSpec{
+					"leaf1.example.com": {
+						databases: []dbSpec{
+							{name: "leaf-postgres", protocol: "postgres"},
+						},
+					},
+				},
+			},
+		},
+		clock:                   clock,
+		signatureAlgorithmSuite: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1,
+	})
+
+	p := newTestPack(t, ctx, testPackConfig{
+		fakeClientApp: clientApp,
+		clock:         clock,
+	})
+
+	validTestCases := []struct {
+		name                  string
+		fqdn                  string
+		expectCIDR            string
+		expectRouteToDatabase proto.RouteToDatabase
+	}{
+		{
+			name:       "postgres",
+			fqdn:       dbvnet.DNSName("my-postgres") + ".db.root1.example.com",
+			expectCIDR: "192.168.2.0/24",
+			expectRouteToDatabase: proto.RouteToDatabase{
+				ServiceName: "my-postgres",
+				Protocol:    "postgres",
+				Username:    "", // username comes from wire protocol
+			},
+		},
+		{
+			name:       "mysql",
+			fqdn:       dbvnet.DNSName("my-mysql") + ".db.root1.example.com",
+			expectCIDR: "192.168.2.0/24",
+			expectRouteToDatabase: proto.RouteToDatabase{
+				ServiceName: "my-mysql",
+				Protocol:    "mysql",
+				Username:    "",
+			},
+		},
+		{
+			name:       "leaf cluster postgres via leaf proxy",
+			fqdn:       dbvnet.DNSName("leaf-postgres") + ".db.leaf1.example.com",
+			expectCIDR: typesvnet.DefaultIPv4CIDRRange,
+			expectRouteToDatabase: proto.RouteToDatabase{
+				ServiceName: "leaf-postgres",
+				Protocol:    "postgres",
+				Username:    "", // username comes from wire protocol
+			},
+		},
+	}
+
+	t.Run("valid", func(t *testing.T) {
+		for _, tc := range validTestCases {
+			t.Run(tc.name, func(t *testing.T) {
+				_, expectNet, err := net.ParseCIDR(tc.expectCIDR)
+				require.NoError(t, err)
+
+				conn, err := p.dialHost(ctx, tc.fqdn, 5432)
+				require.NoError(t, err)
+				t.Cleanup(func() { assert.NoError(t, conn.Close()) })
+
+				remoteAddr, _, err := net.SplitHostPort(conn.RemoteAddr().String())
+				require.NoError(t, err)
+				remoteIP := net.ParseIP(remoteAddr)
+				require.NotNil(t, remoteIP)
+
+				// Verify the assigned IP is in the expected CIDR range.
+				remoteIPSuffix := remoteIP[len(remoteIP)-4:]
+				assert.True(t, expectNet.Contains(remoteIPSuffix),
+					"expected CIDR range %s does not include remote IP %s", expectNet, remoteIPSuffix)
+
+				testEchoConnection(t, conn)
+
+				// Verify that a cert was requested with the correct RouteToDatabase.
+				requestedRoutes := clientApp.RequestedRouteToDatabases(tc.expectRouteToDatabase.ServiceName)
+				assert.True(t, slices.ContainsFunc(requestedRoutes, func(route *proto.RouteToDatabase) bool {
+					return route.ServiceName == tc.expectRouteToDatabase.ServiceName &&
+						route.Protocol == tc.expectRouteToDatabase.Protocol &&
+						route.Username == tc.expectRouteToDatabase.Username
+				}), "expected RouteToDatabase %v to be in requested routes %v", tc.expectRouteToDatabase, requestedRoutes)
+			})
+		}
+	})
+
+	// Test that FQDNs for completely unknown zones fail DNS resolution.
+	// Note: FQDNs that match a known cluster subdomain (like
+	// "reader.not-a-db.db.root1.example.com") will still resolve to an IP
+	// via the SSH cluster fallback, which is expected VNet behavior.
+	t.Run("invalid database FQDN", func(t *testing.T) {
+		t.Parallel()
+
+		lookupShouldFailFast := func(t *testing.T, host string) {
+			t.Helper()
+			lookupCtx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
+			defer cancel()
+			_, err := p.lookupHost(lookupCtx, host)
+			require.Error(t, err)
+		}
+
+		invalidFQDNs := []struct {
+			name string
+			fqdn string
+		}{
+			{
+				name: "wrong proxy address",
+				fqdn: dbvnet.DNSName("my-postgres") + ".db.wrong.example.com",
+			},
+		}
+
+		for _, tc := range invalidFQDNs {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				lookupShouldFailFast(t, tc.fqdn)
+			})
+		}
+	})
+}
+
+// TestOnNewDBConnection tests that the client application's OnNewDBConnection method
+// is called when a user connects to a valid database via VNet.
+func TestOnNewDBConnection(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	clock := clockwork.NewFakeClockAt(time.Now())
+
+	clientApp := newFakeClientApp(ctx, t, &fakeClientAppConfig{
+		clusters: map[string]testClusterSpec{
+			"root1.example.com": {
+				databases: []dbSpec{
+					{name: "my-postgres", protocol: "postgres"},
+				},
+				cidrRange:    "192.168.2.0/24",
+				leafClusters: map[string]testClusterSpec{},
+			},
+		},
+		clock:                   clock,
+		signatureAlgorithmSuite: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1,
+	})
+
+	p := newTestPack(t, ctx, testPackConfig{
+		clock:         clock,
+		fakeClientApp: clientApp,
+	})
+
+	// Verify OnNewDBConnection is not called until a valid database connection is made.
+	require.Equal(t, uint32(0), clientApp.onNewDBConnectionCallCount.Load())
+
+	// Connect to a valid database and verify OnNewDBConnection was called.
+	conn, err := p.dialHost(ctx, dbvnet.DNSName("my-postgres")+".db.root1.example.com", 5432)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, conn.Close()) })
+	require.Equal(t, uint32(1), clientApp.onNewDBConnectionCallCount.Load())
 }
 
 // TestWithAlgorithmSuites tests basic VNet functionality with each signature
@@ -1116,15 +1499,15 @@ func testWithAlgorithmSuite(t *testing.T, suite types.SignatureAlgorithmSuite) {
 		clusters: map[string]testClusterSpec{
 			"root.example.com": {
 				apps: []appSpec{
-					{publicAddr: "echo1"},
-					{publicAddr: "echo2"},
+					{publicAddr: "echo1.root.example.com"},
+					{publicAddr: "echo2.root.example.com"},
 				},
 				cidrRange: "192.168.2.0/24",
 				leafClusters: map[string]testClusterSpec{
 					"leaf.example.com": {
 						apps: []appSpec{
-							{publicAddr: "echo1"},
-							{publicAddr: "echo2"},
+							{publicAddr: "echo1.leaf.example.com"},
+							{publicAddr: "echo2.leaf.example.com"},
 						},
 						cidrRange: "192.168.2.0/24",
 					},
@@ -1161,6 +1544,17 @@ func testWithAlgorithmSuite(t *testing.T, suite types.SignatureAlgorithmSuite) {
 	_, err := p.dialHost(dialCtx, "badapp.root.example.com.", 123)
 	require.Error(t, err)
 }
+
+const (
+	// inbandMFAUser is the username used for testing in-band MFA.
+	inbandMFAUser = "in-band-mfa-user"
+
+	// fallbackLegacyMFAUser is the username used for testing fallback to legacy MFA certs.
+	fallbackLegacyMFAUser = "fallback-legacy-mfa-user"
+
+	// mfaDeviceID is the MFA device ID encoded in fake legacy MFA certs.
+	mfaDeviceID = "mfa-device-id"
+)
 
 // TestSSH tests basic VNet SSH functionality.
 func TestSSH(t *testing.T) {
@@ -1245,6 +1639,13 @@ func TestSSH(t *testing.T) {
 			"OnNewSSHSession call count does not match the expected number of reported SSH sessions")
 	})
 
+	// Check that each session-bound MFA ceremony is performed through the client application when expected.
+	var expectMFACeremonies atomic.Uint32
+	t.Cleanup(func() {
+		assert.Equal(t, expectMFACeremonies.Load(), clientApp.performSessionMFACeremonyCallCount.Load(),
+			"PerformSessionMFACeremony call count does not match the expected number of MFA ceremonies")
+	})
+
 	for _, tc := range []struct {
 		dialAddr                 string
 		dialPort                 int
@@ -1256,6 +1657,7 @@ func TestSSH(t *testing.T) {
 		expectSSHHandshakeToFail bool
 		expectBannerMessages     []string
 		expectSSHSessionReported bool
+		expectMFACeremonies      uint32
 	}{
 		{
 			// Connection to node in root cluster should work.
@@ -1318,7 +1720,30 @@ func TestSSH(t *testing.T) {
 			// The session should be reported because VNet successfully got a
 			// Teleport user SSH cert for this session and made the SSH dial to
 			// the target, only then the target SSH server rejected the
-			// connection.
+			// connection. The fallback attempt is part of the same logical SSH
+			// session and is not reported separately.
+			expectSSHSessionReported: true,
+		},
+		{
+			// When the target requests in-band MFA, VNet should complete the
+			// session-bound MFA ceremony through the client application.
+			dialAddr:                 "node.root1.example.com",
+			dialPort:                 22,
+			expectCIDR:               root1CIDR,
+			sshUser:                  inbandMFAUser,
+			sshUserSigner:            sshUserSigner,
+			expectSSHSessionReported: true,
+			expectMFACeremonies:      1,
+		},
+		{
+			// If direct auth fails because the target doesn't support in-band
+			// MFA, or if the client does not support in-band MFA, then VNet
+			// should retry with the legacy MFA cert credential mode.
+			dialAddr:                 "node.root1.example.com",
+			dialPort:                 22,
+			expectCIDR:               root1CIDR,
+			sshUser:                  fallbackLegacyMFAUser,
+			sshUserSigner:            sshUserSigner,
 			expectSSHSessionReported: true,
 		},
 		{
@@ -1371,6 +1796,7 @@ func TestSSH(t *testing.T) {
 			if tc.expectSSHSessionReported {
 				expectReportedSSHSessions.Add(1)
 			}
+			expectMFACeremonies.Add(tc.expectMFACeremonies)
 
 			if tc.expectLookupToFail {
 				// In these cases the DNS lookup is expected to fail, just run the DNS lookup.
@@ -1421,9 +1847,13 @@ func TestSSH(t *testing.T) {
 				Clock: clock.Now,
 			}
 			var bannerMessages []string
-			clientConfig := &ssh.ClientConfig{
-				User:            tc.sshUser,
-				Auth:            []ssh.AuthMethod{ssh.PublicKeys(tc.sshUserSigner)},
+			clientConfig := apissh.ClientConfig{
+				User: tc.sshUser,
+				PublicKeyAuth: apissh.PublicKeyAuthConfig{
+					Signers: func() ([]ssh.Signer, error) {
+						return []ssh.Signer{tc.sshUserSigner}, nil
+					},
+				},
 				HostKeyCallback: certChecker.CheckHostKey,
 				BannerCallback: func(msg string) error {
 					bannerMessages = append(bannerMessages, msg)
@@ -1431,7 +1861,7 @@ func TestSSH(t *testing.T) {
 				},
 			}
 
-			sshConn, chans, reqs, err := ssh.NewClientConn(conn, net.JoinHostPort(tc.dialAddr, strconv.Itoa(tc.dialPort)), clientConfig)
+			sshConn, chans, reqs, err := apissh.NewClientConn(ctx, conn, net.JoinHostPort(tc.dialAddr, strconv.Itoa(tc.dialPort)), clientConfig)
 			assert.Equal(t, tc.expectBannerMessages, bannerMessages, "actual banner messages did not match the expected")
 			if tc.expectSSHHandshakeToFail {
 				assert.Error(t, err, "expected SSH handshake to fail")
@@ -1449,9 +1879,13 @@ func TestSSH(t *testing.T) {
 		t.Parallel()
 		// Set up the SSH client config to capture the host certs it sees.
 		var checkedHostCerts []*ssh.Certificate
-		clientConfig := &ssh.ClientConfig{
+		clientConfig := apissh.ClientConfig{
 			User: "testuser",
-			Auth: []ssh.AuthMethod{ssh.PublicKeys(sshUserSigner)},
+			PublicKeyAuth: apissh.PublicKeyAuthConfig{
+				Signers: func() ([]ssh.Signer, error) {
+					return []ssh.Signer{sshUserSigner}, nil
+				},
+			},
 			HostKeyCallback: func(addr string, remote net.Addr, key ssh.PublicKey) error {
 				checkedHostCerts = append(checkedHostCerts, key.(*ssh.Certificate))
 				return nil
@@ -1461,7 +1895,7 @@ func TestSSH(t *testing.T) {
 		for range connections {
 			conn, err := p.dialHost(ctx, "node.root1.example.com", 22)
 			require.NoError(t, err)
-			sshConn, _, _, err := ssh.NewClientConn(conn, "node.root1.example.com:22", clientConfig)
+			sshConn, _, _, err := apissh.NewClientConn(ctx, conn, "node.root1.example.com:22", clientConfig)
 			require.NoError(t, err)
 			sshConn.Close()
 			expectReportedSSHSessions.Add(1)
@@ -1473,90 +1907,207 @@ func TestSSH(t *testing.T) {
 	})
 }
 
-func randomULAAddress() (tcpip.Address, error) {
-	var bytes [16]byte
-	bytes[0] = 0xfd
-	if _, err := rand.Read(bytes[1:16]); err != nil {
-		return tcpip.Address{}, trace.Wrap(err)
+// TestPriority tests resolution priority in case a query may match multiple targets:
+//
+//  1. A matching TCP app gets first priority (resolves to a VNet IP and is reachable)
+//  2. A matching web app gets second priority (no address should be resolved)
+//  3. A matching SSH host gets third priority (any subdomain of the cluster
+//     should resolve if it's not an app, only reachable if there's an SSH node)
+//
+// Between multiple clusters:
+//
+//  1. Any app in a root cluster gets priority over apps in leaf clusters that also match
+//  2. If falling back to a cluster/SSH match, longest matching cluster name wins
+//  3. If the same app public_addr is present in multiple root clusters, resolution is arbitrary.
+func TestPriority(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	clock := clockwork.NewFakeClockAt(time.Now())
+
+	const (
+		rootCIDR = "192.168.10.0/24"
+		leafCIDR = "192.168.20.0/24"
+	)
+
+	homePath := t.TempDir()
+	clientApp := newFakeClientApp(ctx, t, &fakeClientAppConfig{
+		clusters: map[string]testClusterSpec{
+			"example.com": {
+				apps: []appSpec{
+					{name: "dual-web", publicAddr: "dual.example.com", isWebApp: true},
+					{name: "dual-tcp", publicAddr: "dual.example.com"},
+					{name: "shared-root", publicAddr: "shared.apps.shared.test"},
+				},
+				nodes: map[string]nodeSpec{
+					"node": {},
+				},
+				cidrRange:      rootCIDR,
+				customDNSZones: []string{"apps.shared.test"},
+				leafClusters: map[string]testClusterSpec{
+					"leaf.example.com": {
+						apps: []appSpec{
+							{name: "webwins", publicAddr: "webwins.leaf.example.com", isWebApp: true},
+							{name: "shared-leaf", publicAddr: "shared.apps.shared.test"},
+						},
+						nodes: map[string]nodeSpec{
+							"webwins": {},
+							"node":    {},
+						},
+						cidrRange:      leafCIDR,
+						customDNSZones: []string{"apps.shared.test"},
+					},
+				},
+			},
+		},
+		clock:                   clock,
+		signatureAlgorithmSuite: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1,
+	})
+
+	p := newTestPack(t, ctx, testPackConfig{
+		fakeClientApp: clientApp,
+		clock:         clock,
+		homePath:      homePath,
+	})
+
+	assertConnInCIDR := func(t *testing.T, conn net.Conn, expectCIDR string) {
+		t.Helper()
+		remoteAddr, _, err := net.SplitHostPort(conn.RemoteAddr().String())
+		require.NoError(t, err)
+		remoteIP := net.ParseIP(remoteAddr)
+		require.NotNil(t, remoteIP)
+
+		_, expectNet, err := net.ParseCIDR(expectCIDR)
+		require.NoError(t, err)
+		remoteIPSuffix := remoteIP[len(remoteIP)-4:]
+		assert.True(t, expectNet.Contains(remoteIPSuffix), "expected CIDR range %s does not include remote IP %s", expectNet, remoteIPSuffix)
 	}
-	return tcpip.AddrFrom16(bytes), nil
-}
 
-var errFakeTUNClosed = errors.New("TUN closed")
+	dialAndAssertCIDR := func(t *testing.T, host string, port int, expectCIDR string) net.Conn {
+		t.Helper()
+		conn, err := p.dialHost(ctx, host, port)
+		require.NoError(t, err)
+		assertConnInCIDR(t, conn, expectCIDR)
+		return conn
+	}
 
-type fakeTUN struct {
-	name                            string
-	writePacketsTo, readPacketsFrom chan []byte
-	closed                          chan struct{}
-	closeOnce                       func()
-}
+	_, webProxyPortString, err := net.SplitHostPort(clientApp.dialOpts.GetWebProxyAddr())
+	require.NoError(t, err)
+	webProxyPort, err := strconv.Atoi(webProxyPortString)
+	require.NoError(t, err)
 
-// newSplitTUN returns two fake TUN devices that are tied together: writes to one can be read on the other,
-// and vice versa.
-func newSplitTUN() (*fakeTUN, *fakeTUN) {
-	aClosed := make(chan struct{})
-	bClosed := make(chan struct{})
-	ab := make(chan []byte)
-	ba := make(chan []byte)
-	return &fakeTUN{
-			name:            "tun1",
-			writePacketsTo:  ab,
-			readPacketsFrom: ba,
-			closed:          aClosed,
-			closeOnce:       sync.OnceFunc(func() { close(aClosed) }),
-		}, &fakeTUN{
-			name:            "tun2",
-			writePacketsTo:  ba,
-			readPacketsFrom: ab,
-			closed:          bClosed,
-			closeOnce:       sync.OnceFunc(func() { close(bClosed) }),
+	knownHosts, err := os.ReadFile(keypaths.VNetKnownHostsPath(homePath))
+	require.NoError(t, err)
+	marker, hosts, hostCAPubKey, _, _, err := ssh.ParseKnownHosts(knownHosts)
+	require.NoError(t, err)
+	require.Equal(t, "cert-authority", marker)
+	require.Equal(t, []string{"*"}, hosts)
+
+	sshUserKey, err := os.ReadFile(keypaths.VNetClientSSHKeyPath(homePath))
+	require.NoError(t, err)
+	sshUserSigner, err := ssh.ParsePrivateKey(sshUserKey)
+	require.NoError(t, err)
+
+	t.Run("tcp app beats web app", func(t *testing.T) {
+		t.Parallel()
+
+		conn := dialAndAssertCIDR(t, "dual.example.com", 80, rootCIDR)
+		t.Cleanup(func() { assert.NoError(t, conn.Close()) })
+		testEchoConnection(t, conn)
+
+		routes := clientApp.RequestedRouteToApps("dual.example.com")
+		require.Len(t, routes, 1)
+		route := routes[0]
+		expectedRoute := &proto.RouteToApp{
+			ClusterName: "example.com",
+			Name:        "dual-tcp",
+			PublicAddr:  "dual.example.com",
+			URI:         "tcp://dual.example.com",
 		}
-}
+		assert.Equal(t, expectedRoute, route)
+	})
 
-func (f *fakeTUN) BatchSize() int {
-	return 1
-}
+	t.Run("web app beats SSH cluster match", func(t *testing.T) {
+		t.Parallel()
 
-// Write one or more packets to the device (without any additional headers).
-// On a successful write it returns the number of packets written. A nonzero
-// offset can be used to instruct the Device on where to begin writing from
-// each packet contained within the bufs slice.
-func (f *fakeTUN) Write(bufs [][]byte, offset int) (int, error) {
-	if len(bufs) != 1 {
-		return 0, trace.BadParameter("batchsize is 1")
-	}
-	packet := make([]byte, len(bufs[0][offset:]))
-	copy(packet, bufs[0][offset:])
-	select {
-	case <-f.closed:
-		return 0, errFakeTUNClosed
-	case f.writePacketsTo <- packet:
-	}
-	return 1, nil
-}
+		p.lookupHostShouldFail(t, "webwins.leaf.example.com")
+		assert.Empty(t, clientApp.RequestedRouteToApps("webwins.leaf.example.com"))
+	})
 
-// Read one or more packets from the Device (without any additional headers).
-// On a successful read it returns the number of packets read, and sets
-// packet lengths within the sizes slice. len(sizes) must be >= len(bufs).
-// A nonzero offset can be used to instruct the Device on where to begin
-// reading into each element of the bufs slice.
-func (f *fakeTUN) Read(bufs [][]byte, sizes []int, offset int) (n int, err error) {
-	if len(bufs) != 1 {
-		return 0, trace.BadParameter("batchsize is 1")
-	}
-	var packet []byte
-	select {
-	case <-f.closed:
-		return 0, errFakeTUNClosed
-	case packet = <-f.readPacketsFrom:
-	}
-	sizes[0] = copy(bufs[0][offset:], packet)
-	return 1, nil
-}
+	t.Run("cluster SSH fallback longest match wins", func(t *testing.T) {
+		t.Parallel()
 
-func (f *fakeTUN) Close() error {
-	f.closeOnce()
-	return nil
+		conn := dialAndAssertCIDR(t, "node.leaf.example.com", 22, leafCIDR)
+		t.Cleanup(func() { assert.NoError(t, conn.Close()) })
+
+		certChecker := ssh.CertChecker{
+			IsHostAuthority: func(auth ssh.PublicKey, address string) bool {
+				return sshutils.KeysEqual(auth, hostCAPubKey)
+			},
+			Clock: clock.Now,
+		}
+		clientConfig := apissh.ClientConfig{
+			User:            "testuser",
+			PublicKeyAuth:   apissh.PublicKeyAuthConfig{Signers: func() ([]ssh.Signer, error) { return []ssh.Signer{sshUserSigner}, nil }},
+			HostKeyCallback: certChecker.CheckHostKey,
+		}
+
+		sshConn, chans, reqs, err := apissh.NewClientConn(ctx, conn, net.JoinHostPort("node.leaf.example.com", "22"), clientConfig)
+		require.NoError(t, err)
+		defer sshConn.Close()
+
+		testConnectionToSshEchoServer(t, sshConn, chans, reqs)
+	})
+
+	t.Run("cluster match on proxy port is reachable", func(t *testing.T) {
+		t.Parallel()
+		// Regression test for #63980: this hostname only matches a cluster
+		// subdomain and not any app that is visible to VNet. Historically VNet
+		// could assign it to an undecided handler and then reject proxy-port
+		// traffic, breaking browser/web UI access when an access request
+		// assumed only in the web UI granted access to the web app. We now
+		// expect proxy-port traffic to be forwarded to the proxy.
+
+		conn := dialAndAssertCIDR(t, "invisible-webapp.example.com", webProxyPort, rootCIDR)
+		t.Cleanup(func() { assert.NoError(t, conn.Close()) })
+
+		roots := x509.NewCertPool()
+		require.True(t, roots.AppendCertsFromPEM(clientApp.dialOpts.GetRootClusterCaCertPool()))
+		tlsConn := tls.Client(conn, &tls.Config{
+			RootCAs:    roots,
+			ServerName: clientApp.dialOpts.GetSni(),
+		})
+		buf, err := io.ReadAll(tlsConn)
+		require.NoError(t, err)
+		require.Equal(t, `you dialed the proxy with alpn=""`, string(buf))
+	})
+
+	t.Run("cluster match still rejects non-SSH non-proxy port", func(t *testing.T) {
+		t.Parallel()
+		// Guard case for the same cluster-subdomain behavior: non-SSH and
+		// non-proxy ports should still be rejected.
+
+		_, err := p.dialHost(ctx, "invisible-webapp.example.com", 12345)
+		require.Error(t, err)
+	})
+
+	t.Run("root app beats leaf app when both match", func(t *testing.T) {
+		t.Parallel()
+
+		conn := dialAndAssertCIDR(t, "shared.apps.shared.test", 80, rootCIDR)
+		t.Cleanup(func() { assert.NoError(t, conn.Close()) })
+		testEchoConnection(t, conn)
+
+		routes := clientApp.RequestedRouteToApps("shared.apps.shared.test")
+		require.Len(t, routes, 1)
+		route := routes[0]
+		expectedRoute := &proto.RouteToApp{
+			ClusterName: "example.com",
+			Name:        "shared-root",
+			PublicAddr:  "shared.apps.shared.test",
+			URI:         "tcp://shared.apps.shared.test",
+		}
+		assert.Equal(t, expectedRoute, route)
+	})
 }
 
 func newSelfSignedCA(t *testing.T) tls.Certificate {
@@ -1678,12 +2229,9 @@ func mustStartFakeWebProxy(
 
 	proxyTLSConfig := &tls.Config{
 		Certificates: []tls.Certificate{proxyCert},
-		ClientAuth:   tls.RequireAndVerifyClientCert,
+		ClientAuth:   tls.VerifyClientCertIfGiven,
 		ClientCAs:    roots,
-		NextProtos: []string{
-			string(alpncommon.ProtocolProxySSH),
-			string(alpncommon.ProtocolTCP),
-		},
+		NextProtos:   fakeWebProxyALPNProtocols(),
 	}
 
 	tcpAppHandler := func(conn net.Conn) error {
@@ -1721,17 +2269,49 @@ func mustStartFakeWebProxy(
 				if !cfg.forwardedAgents.forwarded(pubKey) {
 					return nil, trace.Errorf("user SSH key was not forwarded")
 				}
-				return certChecker.Authenticate(conn, pubKey)
+
+				perms, err := certChecker.Authenticate(conn, pubKey)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+
+				// Special test cases for certain usernames to test MFA behavior.
+				switch conn.User() {
+				case fallbackLegacyMFAUser:
+					cert, ok := pubKey.(*ssh.Certificate)
+					if !ok || cert.Extensions[teleport.CertExtensionMFAVerified] != mfaDeviceID {
+						return nil, trace.AccessDenied("expected legacy MFA cert, got %T", pubKey)
+					}
+
+				case inbandMFAUser:
+					return nil, &ssh.PartialSuccessError{
+						Next: ssh.ServerAuthCallbacks{
+							KeyboardInteractiveCallback: handleSSHKeyboardInteractive,
+						},
+					}
+				}
+
+				return perms, nil
 			},
 		}
 		serverConfig.AddHostKey(hostCert)
 		return trace.Wrap(runTestSSHServerInstance(conn, serverConfig))
 	}
 
+	httpsTunnelAppHandler := func(conn net.Conn) error {
+		// HTTPS tunnel apps use the same echo handler as TCP apps for testing.
+		_, err := io.Copy(conn, conn)
+		return trace.Wrap(err, "io.Copy error in HTTPS tunnel echo server")
+	}
+
 	// Run a simplified TLS router for the test.
 	protocolHandlers := map[alpncommon.Protocol]func(net.Conn) error{
 		alpncommon.ProtocolTCP:      tcpAppHandler,
+		alpncommon.ProtocolAppHTTPS: httpsTunnelAppHandler,
 		alpncommon.ProtocolProxySSH: sshHandler,
+	}
+	for _, dbProto := range alpncommon.DatabaseProtocols {
+		protocolHandlers[dbProto] = tcpAppHandler
 	}
 
 	listener, err := tls.Listen("tcp", "localhost:0", proxyTLSConfig)
@@ -1762,6 +2342,12 @@ func mustStartFakeWebProxy(
 						t.Log("error completing tls handshake")
 						return
 					}
+					protocol := tlsConn.ConnectionState().NegotiatedProtocol
+					handler, ok := protocolHandlers[alpncommon.Protocol(protocol)]
+					if !ok {
+						_, _ = io.WriteString(tlsConn, fmt.Sprintf("you dialed the proxy with alpn=%q", protocol))
+						return
+					}
 					clientCerts := tlsConn.ConnectionState().PeerCertificates
 					if len(clientCerts) == 0 {
 						t.Log("client has no certs")
@@ -1774,13 +2360,6 @@ func mustStartFakeWebProxy(
 					// satisfied.
 					if cfg.clock.Now().After(clientCerts[0].NotAfter) {
 						t.Logf("client cert is expired: currentTime=%s expiry=%s", cfg.clock.Now(), clientCerts[0].NotAfter)
-						return
-					}
-
-					protocol := tlsConn.ConnectionState().NegotiatedProtocol
-					handler, ok := protocolHandlers[alpncommon.Protocol(protocol)]
-					if !ok {
-						t.Logf("unhandled proxy protocol %s", protocol)
 						return
 					}
 					if err := handler(conn); err != nil {
@@ -1799,12 +2378,26 @@ func mustStartFakeWebProxy(
 
 	caPEM, err := tlsca.MarshalCertificatePEM(caX509)
 	require.NoError(t, err)
-	dialOpts := &vnetv1.DialOptions{
+	dialOpts := vnetv1.DialOptions_builder{
 		WebProxyAddr:          listener.Addr().String(),
 		RootClusterCaCertPool: caPEM,
 		Sni:                   proxyCN,
-	}
+	}.Build()
 	return dialOpts
+}
+
+// fakeWebProxyALPNProtocols returns the list of ALPN protocols the fake web
+// proxy should advertise. This includes TCP app, SSH, and all database protocols.
+func fakeWebProxyALPNProtocols() []string {
+	protos := []string{
+		string(alpncommon.ProtocolProxySSH),
+		string(alpncommon.ProtocolTCP),
+		string(alpncommon.ProtocolAppHTTPS),
+	}
+	for _, dbProto := range alpncommon.DatabaseProtocols {
+		protos = append(protos, string(dbProto))
+	}
+	return protos
 }
 
 // forwardedAgents is a crude way of tracking all the forwarded SSH agents and
@@ -1837,4 +2430,18 @@ func (a *forwardedAgents) forwarded(key ssh.PublicKey) bool {
 		}
 	}
 	return false
+}
+
+func handleSSHKeyboardInteractive(_ ssh.ConnMetadata, clt ssh.KeyboardInteractiveChallenge) (*ssh.Permissions, error) {
+	prompt := sshpb.AuthPrompt_builder{
+		MfaPrompt: &sshpb.MFAPrompt{},
+	}.Build()
+
+	promptBytes, err := protojson.Marshal(prompt)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	_, err = clt("", "", []string{string(promptBytes)}, []bool{false})
+	return nil, trace.Wrap(err)
 }

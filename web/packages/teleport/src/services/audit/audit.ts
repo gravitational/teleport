@@ -33,7 +33,7 @@ class AuditService {
   ): Promise<EventResponse> {
     const limit = params.limit || this.maxFetchLimit;
 
-    const url = cfg.getClusterEventsUrl(clusterId, {
+    const url = cfg.getClusterEventsUrlV2(clusterId, {
       start: params.from && params.from.toISOString(),
       end: params.to && params.to.toISOString(),
       limit,
@@ -56,8 +56,8 @@ class AuditService {
   }
 
   fetchEvents(clusterId: string, params: EventQuery): Promise<EventResponse> {
-    const start = params.from.toISOString();
-    const end = params.to.toISOString();
+    const start = params.from?.toISOString();
+    const end = params.to?.toISOString();
 
     const url = cfg.getClusterEventsUrl(clusterId, {
       start,

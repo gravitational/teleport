@@ -53,7 +53,7 @@ const defaultKubeconfigPath = "kubeconfig.yaml"
 
 func OutputV1ServiceBuilder(cfg *OutputV1Config, opts ...OutputV1Option) bot.ServiceBuilder {
 	buildFn := func(deps bot.ServiceDependencies) (bot.Service, error) {
-		if err := cfg.CheckAndSetDefaults(); err != nil {
+		if err := cfg.CheckAndSetDefaults(deps.Scoped); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		svc := &OutputV1Service{
@@ -154,9 +154,13 @@ func (s *OutputV1Service) generate(ctx context.Context) error {
 
 	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime)
 	identityOpts := []identity.GenerateOption{
-		identity.WithRoles(s.cfg.Roles),
 		identity.WithLifetime(effectiveLifetime.TTL, effectiveLifetime.RenewalInterval),
 		identity.WithLogger(s.log),
+	}
+	if s.cfg.DelegationSessionID == "" {
+		identityOpts = append(identityOpts, identity.WithRoles(s.cfg.Roles))
+	} else {
+		identityOpts = append(identityOpts, identity.WithDelegation(s.cfg.DelegationSessionID))
 	}
 	id, err := s.identityGenerator.GenerateFacade(ctx, identityOpts...)
 	if err != nil {

@@ -24,6 +24,22 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/lib/scopes"
+	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
+)
+
+var (
+	// ErrDeniedAccessListDeletion is returned when an Access List which also also a
+	// member of another Access List is attempted for deletion.
+	ErrDeniedAccessListDeletion = &trace.AccessDeniedError{Message: "Access List with nested Access List membership cannot be deleted"}
+	// ErrCyclicMembership is returned when a cyclic Access List membership
+	// is detected. E.g. List A is a member of List B and List B is a member
+	// of List A.
+	ErrCyclicMembership = &trace.BadParameterError{Message: "cyclic membership not allowed"}
+	// ErrMaxNestedMembershipDepth is returned when Access List membership
+	// exceeds maximum supported nested membership depth. Default max depth
+	// is defined in accesslist.MaxAllowedDepth.
+	ErrMaxNestedMembershipDepth = &trace.BadParameterError{Message: "excdeeds maximum nested Access List membership depth"}
 )
 
 // ValidateAccessListWithMembers makes sure the given AccessList and it's members is valid before
@@ -79,6 +95,94 @@ func validateAccessList(a *accesslist.AccessList) error {
 		}
 	}
 
+	// Any access lists that assign scoped roles cannot contain
+	// membership_requires or ownership_requires.
+	hasRequirements := !a.Spec.MembershipRequires.IsEmpty() || !a.Spec.OwnershipRequires.IsEmpty()
+	hasScopedRoleGrants := len(a.Spec.Grants.ScopedRoles) > 0 || len(a.Spec.OwnerGrants.ScopedRoles) > 0
+	if hasScopedRoleGrants && hasRequirements {
+		return trace.BadParameter("access lists cannot contain both scoped_role grants and non-empty membership_requires or ownership_requires blocks")
+	}
+
+	if a.Scope != "" {
+		if err := scopes.StrongValidate(a.Scope); err != nil {
+			return trace.Wrap(err, "access list has invalid scope")
+		}
+
+		// Scoped access lists cannot contain requirements.
+		if hasRequirements {
+			return trace.BadParameter("scoped access lists cannot contain non-empty membership_requires or ownership_requires blocks")
+		}
+
+		// Scoped access lists cannot grant unscoped roles or traits.
+		if len(a.Spec.Grants.Roles) > 0 || len(a.Spec.OwnerGrants.Roles) > 0 {
+			return trace.BadParameter("scoped access lists cannot grant unscoped roles")
+		}
+		if len(a.Spec.Grants.Traits) > 0 || len(a.Spec.OwnerGrants.Traits) > 0 {
+			return trace.BadParameter("scoped access lists cannot grant traits")
+		}
+
+		// TODO(nklaassen): after scoped role assignments have been updated to
+		// refer to scoped access lists with scope-qualified names, access
+		// lists should do the same. At that point we must validate that the
+		// scope of origin of each granted scoped role is equal or ancestor to
+		// the scope of the access list.
+	}
+
+	if err := validateScopedRoleGrants(a); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+func validateScopedRoleGrants(a *accesslist.AccessList) error {
+	uniqueScopedRoleGrants := make(map[accesslist.ScopedRoleGrant]struct{})
+	validateScopedRoleGrant := func(grant accesslist.ScopedRoleGrant) error {
+		if _, alreadyValidated := uniqueScopedRoleGrants[grant]; alreadyValidated {
+			return nil
+		}
+		switch {
+		case grant.Role == "":
+			return trace.BadParameter("role is empty")
+		case grant.Scope == "":
+			return trace.BadParameter("scope is empty")
+		}
+
+		if err := scopes.StrongValidate(grant.Scope); err != nil {
+			return trace.Wrap(err, "validating scope")
+		}
+
+		if scopes.Compare(grant.Scope, scopes.Root) == scopes.Equivalent {
+			return trace.BadParameter("root scope cannot be used as a scope of effect")
+		}
+
+		if a.Scope != "" {
+			// Scoped access lists can only assign scoped roles to their own scope or a descendent scope.
+			if !scopes.ScopeOfOrigin(a.Scope).IsAssignableToScopeOfEffect(grant.Scope) {
+				return trace.BadParameter("scoped role grant has scope %q that is not a sub-scope of the access list's scope %q", grant.Scope, a.Scope)
+			}
+		}
+
+		uniqueScopedRoleGrants[grant] = struct{}{}
+		return nil
+	}
+	for i, grant := range a.Spec.Grants.ScopedRoles {
+		if err := validateScopedRoleGrant(grant); err != nil {
+			return trace.Wrap(err, "validating grants.scoped_roles[%d]", i)
+		}
+	}
+	for i, grant := range a.Spec.OwnerGrants.ScopedRoles {
+		if err := validateScopedRoleGrant(grant); err != nil {
+			return trace.Wrap(err, "validating owner_grants.scoped_roles[%d]", i)
+		}
+	}
+	// Unique scoped role grants per access list have the same limit as role
+	// grants per scoped role assignment, because each access list materializes
+	// to a single scoped roles assignment.
+	if len(uniqueScopedRoleGrants) > scopedaccess.MaxRolesPerAssignment {
+		return trace.BadParameter("access list contains too many unique scoped role grants (max %d)", scopedaccess.MaxRolesPerAssignment)
+	}
+
 	return nil
 }
 
@@ -131,22 +235,59 @@ func ValidateAccessListMember(
 	member *accesslist.AccessListMember,
 	g AccessListAndMembersGetter,
 ) error {
-	if err := validateAccessListMemberBasic(member); err != nil {
+	if err := validateAccessListMemberBasic(parentList, member); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := validateAccessListMemberOrOwnerNesting(ctx, parentList, member.GetName(), RelationshipKindMember, member.Spec.MembershipKind, g); err != nil {
+	memberName, err := MemberScopeQualifiedName(member)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := validateAccessListMemberOrOwnerNesting(ctx, parentList, memberName, RelationshipKindMember, member.Spec.MembershipKind, g); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
 }
 
-// validateAccessListMemberBasic performs basic fields validation for AccessListMember.
-func validateAccessListMemberBasic(member *accesslist.AccessListMember) error {
+// validateAccessListMemberBasic performs basic fields validation for AccessListMember
+// and performs the cross membership integrity check.
+func validateAccessListMemberBasic(parent *accesslist.AccessList, member *accesslist.AccessListMember) error {
 	if member.Spec.AccessList == "" {
 		return trace.BadParameter("member %s: access_list field empty", member.Metadata.Name)
 	}
 	if member.Spec.Name != member.Metadata.Name {
 		return trace.BadParameter("member metadata name = %q and spec name = %q must be equal", member.Metadata.Name, member.Spec.Name)
+	}
+	if member.Scope != parent.Scope {
+		return trace.BadParameter("member resource scope %q must be equal to parent list scope %q", member.Scope, parent.Scope)
+	}
+	parentName := ScopeQualifiedName(parent)
+	if member.Scope != "" {
+		if err := scopes.StrongValidate(member.Scope); err != nil {
+			return trace.Wrap(err, "access list member has invalid scope")
+		}
+		memberSQN, err := MemberScopeQualifiedName(member)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if memberSQN.Scope != "" {
+			if err := memberSQN.ToScopesQualifiedName().StrongValidate(); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+		// The member must belong to the parent access list.
+		memberParentName, err := ParentListOf(member)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if memberParentName != parentName {
+			return trace.BadParameter("member spec.access_list %q must match parent list name %q",
+				member.Spec.AccessList, parentName.String())
+		}
+	} else {
+		// The member must belong to the parent access list.
+		if member.Spec.AccessList != parent.GetName() {
+			return trace.BadParameter("member %s: spec.access_list field %q doesn't match parent list name %q", member.Metadata.Name, member.Spec.AccessList, parent.GetName())
+		}
 	}
 	if member.Spec.Joined.IsZero() || member.Spec.Joined.Unix() == 0 {
 		return trace.BadParameter("member %s: joined field empty or missing", member.Metadata.Name)
@@ -165,7 +306,16 @@ func validateAccessListOwner(
 	owner accesslist.Owner,
 	g AccessListAndMembersGetter,
 ) error {
-	if err := validateAccessListMemberOrOwnerNesting(ctx, parentList, owner.Name, RelationshipKindOwner, owner.MembershipKind, g); err != nil {
+	ownerName, err := OwnerScopeQualifiedName(owner)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if ownerName.Scope != "" {
+		if err := ownerName.ToScopesQualifiedName().StrongValidate(); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	if err := validateAccessListMemberOrOwnerNesting(ctx, parentList, ownerName, RelationshipKindOwner, owner.MembershipKind, g); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -174,22 +324,60 @@ func validateAccessListOwner(
 func validateAccessListMemberOrOwnerNesting(
 	ctx context.Context,
 	parentList *accesslist.AccessList,
-	memberOrOwnerName string,
+	memberOrOwnerName NormalizedSQN,
 	relationshipKind RelationshipKind,
 	membershipKind string,
 	g AccessListAndMembersGetter,
 ) error {
-	if membershipKind != accesslist.MembershipKindList {
+	if !accesslist.IsMembershipKindList(membershipKind) {
 		return nil
 	}
+
+	if err := validateMemberOrOwnerScopeHierarchy(parentList, memberOrOwnerName, relationshipKind); err != nil {
+		return trace.Wrap(err)
+	}
+
 	// If it is a AccessList member/owner then the referenced AccessList must exist.
-	memberOrOwnerList, err := g.GetAccessList(ctx, memberOrOwnerName)
+	memberOrOwnerList, err := getAccessList(ctx, g, memberOrOwnerName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	if err := validateAddition(ctx, parentList, memberOrOwnerList, relationshipKind, g); err != nil {
 		return trace.Wrap(err)
 	}
+	return nil
+}
+
+func validateMemberOrOwnerScopeHierarchy(
+	list *accesslist.AccessList,
+	memberOrOwnerName NormalizedSQN,
+	relationshipKind RelationshipKind,
+) error {
+	if memberOrOwnerName.Scope == "" {
+		// Unscoped access lists can be members or owners of scoped or unscoped lists.
+		return nil
+	}
+
+	if list.GetScope() == memberOrOwnerName.Scope {
+		// Members or owners are always allowed at the same scope of the parent/owned list.
+		return nil
+	}
+
+	kindStr := "a Member"
+	if relationshipKind == RelationshipKindOwner {
+		kindStr = "an Owner"
+	}
+
+	if list.GetScope() == "" {
+		return trace.BadParameter("Access List '%s' cannot name '%s' as %s because scoped access lists cannot be members or owners of unscoped access lists",
+			list.Spec.Title, memberOrOwnerName.String(), kindStr)
+	}
+
+	if !scopes.PolicyResourceScope(list.GetScope()).CanDependOnStateFromPolicyResourceAtScope(memberOrOwnerName.Scope) {
+		return trace.BadParameter("Access List '%s' cannot name '%s' as %s because it is not at an equal or ancestor scope",
+			list.Spec.Title, memberOrOwnerName.String(), kindStr)
+	}
+
 	return nil
 }
 
@@ -206,13 +394,12 @@ func validateAddition(
 	}
 
 	// Cycle detection
-	reachable, err := isReachable(ctx, childList, parentList, make(map[string]struct{}), g)
+	reachable, err := isReachable(ctx, childList, parentList, make(map[NormalizedSQN]struct{}), g)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	if reachable {
-		return trace.BadParameter(
-			"Access List '%s' can't be added as %s of '%s' because '%s' is already included as a Member or Owner in '%s'",
+		return trace.Wrap(ErrCyclicMembership, "Access List '%s' can't be added as %s of '%s' because '%s' is already included as a Member or Owner in '%s'",
 			childList.Spec.Title, kindStr, parentList.Spec.Title, parentList.Spec.Title, childList.Spec.Title)
 	}
 
@@ -222,8 +409,7 @@ func validateAddition(
 		return trace.Wrap(err)
 	}
 	if exceeds {
-		return trace.BadParameter(
-			"Access List '%s' can't be added as %s of '%s' because it would exceed the maximum nesting depth of %d",
+		return trace.Wrap(ErrMaxNestedMembershipDepth, "Access List '%s' can't be added as %s of '%s' because it would exceed the maximum nesting depth of %d",
 			childList.Spec.Title, kindStr, parentList.Spec.Title, accesslist.MaxAllowedDepth)
 	}
 
@@ -234,52 +420,62 @@ func isReachable(
 	ctx context.Context,
 	currentList *accesslist.AccessList,
 	targetList *accesslist.AccessList,
-	visited map[string]struct{},
+	visited map[NormalizedSQN]struct{},
 	g AccessListAndMembersGetter,
 ) (bool, error) {
-	if currentList.GetName() == targetList.GetName() {
+	if ScopeQualifiedName(currentList) == ScopeQualifiedName(targetList) {
 		return true, nil
 	}
-	if _, ok := visited[currentList.GetName()]; ok {
+	if _, ok := visited[ScopeQualifiedName(currentList)]; ok {
 		return false, nil
 	}
-	visited[currentList.GetName()] = struct{}{}
+	visited[ScopeQualifiedName(currentList)] = struct{}{}
 
 	// Traverse member lists
-	listMembers, err := fetchMembers(ctx, currentList.GetName(), g)
+	listMembers, err := fetchMembers(ctx, ScopeQualifiedName(currentList), g)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
 	for _, member := range listMembers {
-		if member.Spec.MembershipKind == accesslist.MembershipKindList {
-			childList, err := g.GetAccessList(ctx, member.GetName())
-			if err != nil {
-				return false, trace.Wrap(err)
-			}
-			reachable, err := isReachable(ctx, childList, targetList, visited, g)
-			if err != nil {
-				return false, trace.Wrap(err)
-			}
-			if reachable {
-				return true, nil
-			}
+		if !member.IsList() {
+			continue
+		}
+		childListName, err := MemberScopeQualifiedName(member)
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+		childList, err := getAccessList(ctx, g, childListName)
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+		reachable, err := isReachable(ctx, childList, targetList, visited, g)
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+		if reachable {
+			return true, nil
 		}
 	}
 
 	// Traverse owner lists
 	for _, owner := range currentList.Spec.Owners {
-		if owner.MembershipKind == accesslist.MembershipKindList {
-			ownerList, err := g.GetAccessList(ctx, owner.Name)
-			if err != nil {
-				return false, trace.Wrap(err)
-			}
-			reachable, err := isReachable(ctx, ownerList, targetList, visited, g)
-			if err != nil {
-				return false, trace.Wrap(err)
-			}
-			if reachable {
-				return true, nil
-			}
+		if !owner.IsMembershipKindList() {
+			continue
+		}
+		ownerName, err := OwnerScopeQualifiedName(owner)
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+		ownerList, err := getAccessList(ctx, g, ownerName)
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+		reachable, err := isReachable(ctx, ownerList, targetList, visited, g)
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+		if reachable {
+			return true, nil
 		}
 	}
 
@@ -296,18 +492,18 @@ func exceedsMaxDepth(
 	switch kind {
 	case RelationshipKindOwner:
 		// For Owners, only consider the depth downwards from the child node
-		depthDownwards, err := maxDepthDownwards(ctx, childList.GetName(), make(map[string]struct{}), g)
+		depthDownwards, err := maxDepthDownwards(ctx, ScopeQualifiedName(childList), make(map[NormalizedSQN]struct{}), g)
 		if err != nil {
 			return false, trace.Wrap(err)
 		}
 		return depthDownwards > accesslist.MaxAllowedDepth, nil
 	default:
 		// For Members, consider the depth upwards from the parent node, downwards from the child node, and the edge between them
-		depthUpwards, err := maxDepthUpwards(ctx, parentList, make(map[string]struct{}), g)
+		depthUpwards, err := maxDepthUpwards(ctx, parentList, make(map[NormalizedSQN]struct{}), g)
 		if err != nil {
 			return false, trace.Wrap(err)
 		}
-		depthDownwards, err := maxDepthDownwards(ctx, childList.GetName(), make(map[string]struct{}), g)
+		depthDownwards, err := maxDepthDownwards(ctx, ScopeQualifiedName(childList), make(map[NormalizedSQN]struct{}), g)
 		if err != nil {
 			return false, trace.Wrap(err)
 		}

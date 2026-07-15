@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	transportv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
+	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/trail"
 	"github.com/gravitational/teleport/api/utils/grpc/stream"
 )
@@ -212,7 +213,15 @@ func newFakeProxy(t *testing.T, transportService transportv1pb.TransportServiceS
 func (f *fakeProxy) clientConfig(t *testing.T) ClientConfig {
 	return ClientConfig{
 		ProxyAddress: "127.0.0.1",
-		SSHConfig:    &ssh.ClientConfig{},
+		SSHConfig: apissh.ClientConfig{
+			User: "test-user",
+			PublicKeyAuth: apissh.PublicKeyAuthConfig{
+				Signers: func() ([]ssh.Signer, error) {
+					return []ssh.Signer{mockSigner{}}, nil
+				},
+			},
+			HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		},
 		DialOpts: []grpc.DialOption{grpc.WithContextDialer(func(ctx context.Context, s string) (net.Conn, error) {
 			return f.fakeGRPCServer.DialContext(ctx)
 		})},
@@ -561,15 +570,15 @@ func TestClient_SSHConfig(t *testing.T) {
 	proxy := newFakeProxy(t, fakeTransportService{})
 	cfg := proxy.clientConfig(t)
 
-	clt, err := NewClient(context.Background(), cfg)
+	clt, err := NewClient(t.Context(), cfg)
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, clt.Close()) })
 
 	const user = "test-user"
 	sshConfig := clt.SSHConfig(user)
-	require.NotNil(t, sshConfig)
-	require.Equal(t, user, sshConfig.User)
-	require.Empty(t, cmp.Diff(cfg.SSHConfig, sshConfig, cmpopts.IgnoreFields(ssh.ClientConfig{}, "User", "Auth", "HostKeyCallback")))
+	require.Empty(
+		t, cmp.Diff(cfg.SSHConfig, sshConfig, cmpopts.IgnoreFields(apissh.ClientConfig{}, "PublicKeyAuth", "HostKeyCallback")),
+	)
 }
 
 type fakeTransportCredentials struct {
@@ -734,4 +743,8 @@ func TestNewDialerForGRPCClient(t *testing.T) {
 			require.Fail(t, "Timed out waiting for connection")
 		}
 	})
+}
+
+type mockSigner struct {
+	ssh.Signer
 }

@@ -11,8 +11,8 @@ resource "azurerm_kubernetes_cluster" "kube_cluster" {
 
   default_node_pool {
     name       = "defaultpool"
-    vm_size    = "Standard_D16s_v3" # 16 cpu 64gb ram
-    node_count = 3
+    vm_size    = "Standard_D8s_v6" # 8 cpu 32gb ram
+    node_count = 6
   }
 
   identity {
@@ -25,6 +25,12 @@ resource "azurerm_kubernetes_cluster" "kube_cluster" {
   network_profile {
     network_plugin = "kubenet"
     network_policy = "calico"
+  }
+
+  lifecycle {
+    ignore_changes = [
+      default_node_pool.0.upgrade_settings,
+    ]
   }
 }
 

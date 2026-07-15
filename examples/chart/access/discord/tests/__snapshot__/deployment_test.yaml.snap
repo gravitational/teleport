@@ -7,8 +7,8 @@ should match the snapshot:
         app.kubernetes.io/instance: RELEASE-NAME
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: teleport-plugin-discord
-        app.kubernetes.io/version: 19.0.0-dev
-        helm.sh/chart: teleport-plugin-discord-19.0.0-dev
+        app.kubernetes.io/version: 19.0.0-prealpha.2
+        helm.sh/chart: teleport-plugin-discord-19.0.0-prealpha.2
       name: RELEASE-NAME-teleport-plugin-discord
     spec:
       replicas: 1
@@ -22,43 +22,43 @@ should match the snapshot:
             app.kubernetes.io/instance: RELEASE-NAME
             app.kubernetes.io/managed-by: Helm
             app.kubernetes.io/name: teleport-plugin-discord
-            app.kubernetes.io/version: 19.0.0-dev
-            helm.sh/chart: teleport-plugin-discord-19.0.0-dev
+            app.kubernetes.io/version: 19.0.0-prealpha.2
+            helm.sh/chart: teleport-plugin-discord-19.0.0-prealpha.2
         spec:
           containers:
-          - command:
-            - /usr/local/bin/teleport-plugin
-            - start
-            - --config
-            - /etc/teleport-discord.toml
-            env:
-            - name: TELEPORT_PLUGIN_FAIL_FAST
-              value: "true"
-            image: gcr.io/overridden/repository:v98.76.54
-            imagePullPolicy: IfNotPresent
-            name: teleport-plugin-discord
-            resources: {}
-            securityContext: {}
-            volumeMounts:
-            - mountPath: /etc/teleport-discord.toml
-              name: config
-              subPath: teleport-discord.toml
-            - mountPath: /var/lib/teleport/plugins/discord/teleport-identity
-              name: teleport-identity
-            - mountPath: /var/lib/teleport/plugins/discord/discord-token
-              name: password-file
-              subPath: discordToken
+            - command:
+                - /usr/local/bin/teleport-plugin
+                - start
+                - --config
+                - /etc/teleport-discord.toml
+              env:
+                - name: TELEPORT_PLUGIN_FAIL_FAST
+                  value: "true"
+              image: gcr.io/overridden/repository:v98.76.54
+              imagePullPolicy: IfNotPresent
+              name: teleport-plugin-discord
+              resources: {}
+              securityContext: {}
+              volumeMounts:
+                - mountPath: /etc/teleport-discord.toml
+                  name: config
+                  subPath: teleport-discord.toml
+                - mountPath: /var/lib/teleport/plugins/discord/teleport-identity
+                  name: teleport-identity
+                - mountPath: /var/lib/teleport/plugins/discord/discord-token
+                  name: password-file
+                  subPath: discordToken
           securityContext: {}
           volumes:
-          - configMap:
-              defaultMode: 384
-              name: RELEASE-NAME-teleport-plugin-discord
-            name: config
-          - name: teleport-identity
-            secret:
-              defaultMode: 384
-              secretName: ""
-          - name: password-file
-            secret:
-              defaultMode: 384
-              secretName: RELEASE-NAME-teleport-plugin-discord-secret
+            - configMap:
+                defaultMode: 384
+                name: RELEASE-NAME-teleport-plugin-discord
+              name: config
+            - name: teleport-identity
+              secret:
+                defaultMode: 384
+                secretName: ""
+            - name: password-file
+              secret:
+                defaultMode: 384
+                secretName: RELEASE-NAME-teleport-plugin-discord-secret

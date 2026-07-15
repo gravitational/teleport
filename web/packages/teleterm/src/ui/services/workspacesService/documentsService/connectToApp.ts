@@ -172,6 +172,7 @@ export async function setUpAppGateway(
     targetUser: '',
     targetSubresourceName: options.targetPort?.toString(),
     targetProtocol: options.targetProtocol,
+    autoUserProvisioning: undefined,
   });
 
   const connectionToReuse = ctx.connectionTracker.findConnectionByDocument(doc);
@@ -181,7 +182,11 @@ export async function setUpAppGateway(
       origin: options.telemetry.origin,
     });
   } else {
-    await ctx.workspacesService.setActiveWorkspace(rootClusterUri);
+    const { isAtDesiredWorkspace } =
+      await ctx.workspacesService.setActiveWorkspace(rootClusterUri);
+    if (!isAtDesiredWorkspace) {
+      return;
+    }
     documentsService.add(doc);
     documentsService.open(doc.uri);
   }

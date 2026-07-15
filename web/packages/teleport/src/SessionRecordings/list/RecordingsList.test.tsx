@@ -17,12 +17,13 @@
  */
 
 import { http, HttpResponse } from 'msw';
-import { setupServer } from 'msw/node';
 import { generatePath, MemoryRouter } from 'react-router';
 
 import {
+  enableMswServer,
   render,
   screen,
+  server,
   testQueryClient,
   userEvent,
 } from 'design/utils/testing';
@@ -39,13 +40,16 @@ import {
   MOCK_EVENTS,
   MOCK_THUMBNAIL,
 } from './mock';
-import { RecordingsList } from './RecordingsList';
+import {
+  RecordingsList,
+  type RecordingsDecoratorProps,
+  type RecordingsListProps,
+} from './RecordingsList';
 import type { RecordingsListState } from './state';
 import { Density, ViewMode } from './ViewSwitcher';
 
-const server = setupServer();
+enableMswServer();
 
-beforeAll(() => server.listen());
 beforeEach(() => {
   server.use(
     getThumbnail(MOCK_THUMBNAIL),
@@ -63,12 +67,9 @@ beforeEach(() => {
     })
   );
 });
-afterEach(async () => {
-  server.resetHandlers();
-
+afterEach(() => {
   testQueryClient.clear();
 });
-afterAll(() => server.close());
 
 const defaultState: RecordingsListState = {
   filters: {
@@ -110,7 +111,10 @@ function withListRecordings(events = MOCK_EVENTS) {
   );
 }
 
-function setupTest(state: RecordingsListState = defaultState) {
+function setupTest(
+  state: RecordingsListState = defaultState,
+  extraProps: Partial<RecordingsListProps> = {}
+) {
   const ctx = createTeleportContext();
 
   mockHandlers.onFilterChange.mockClear();
@@ -127,11 +131,51 @@ function setupTest(state: RecordingsListState = defaultState) {
           onPageChange={mockHandlers.onPageChange}
           onSearchChange={mockHandlers.onSearchChange}
           onSortChange={mockHandlers.onSortChange}
+          {...extraProps}
         />
       </ContextProvider>
     </MemoryRouter>
   );
 }
+
+describe('decorator and badge slots', () => {
+  it('wraps the visible page with the decorator and passes it the page recordings', async () => {
+    withListRecordings();
+
+    const seenPages: string[][] = [];
+    function Decorator({ recordings, children }: RecordingsDecoratorProps) {
+      seenPages.push(recordings.map(recording => recording.sid));
+      return <div data-testid="decorator">{children}</div>;
+    }
+
+    setupTest(defaultState, { recordingsDecorator: Decorator });
+
+    expect(await screen.findByText('server-01')).toBeInTheDocument();
+
+    expect(screen.getByTestId('decorator')).toBeInTheDocument();
+    expect(seenPages.at(-1)?.toSorted()).toEqual([
+      'session-001',
+      'session-002',
+      'session-003',
+      'session-004',
+      'session-005',
+    ]);
+  });
+
+  it('renders the badge component for every recording on the page', async () => {
+    withListRecordings();
+
+    setupTest(defaultState, {
+      badgeComponent: ({ sessionId }) => (
+        <div data-testid="badge-component">{sessionId}</div>
+      ),
+    });
+
+    expect(await screen.findByText('server-01')).toBeInTheDocument();
+
+    expect(screen.getAllByTestId('badge-component')).toHaveLength(5);
+  });
+});
 
 describe('rendering', () => {
   it('renders recordings list with all items', async () => {

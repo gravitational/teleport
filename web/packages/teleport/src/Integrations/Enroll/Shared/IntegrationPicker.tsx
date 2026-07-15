@@ -88,7 +88,7 @@ export function IntegrationPicker<T extends BaseIntegration>({
     }
 
     return sorted;
-  }, [integrations, state.sortDirection, state.sortKey]);
+  }, [integrations, initialSort, state.sortDirection, state.sortKey]);
 
   const filteredIntegrations = useMemo(
     () =>

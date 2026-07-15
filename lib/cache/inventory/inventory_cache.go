@@ -33,6 +33,7 @@ import (
 	"github.com/charlievieth/strcase"
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
+	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/time/rate"
 	"google.golang.org/protobuf/proto"
 	"rsc.io/ordered"
@@ -44,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/cache"
 	"github.com/gravitational/teleport/lib/expression"
+	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils/set"
 	"github.com/gravitational/teleport/lib/utils/sortcache"
@@ -56,7 +58,81 @@ const (
 
 	// botInstancePrefix is the backend prefix for bot instances.
 	botInstancePrefix = "bot_instance"
+
+	metricsSubsystem = "inventory_cache"
+	// metricsVersionLabel is the label name for version metrics.
+	metricsVersionLabel = "version"
 )
+
+type inventoryCacheMetrics struct {
+	// instancesTotal is the total number of teleport instances in the cache.
+	instancesTotal prometheus.Gauge
+
+	// botInstancesTotal is the total number of bot instances in the cache.
+	botInstancesTotal prometheus.Gauge
+
+	// instancesByVersion is the number of instances by teleport version.
+	instancesByVersion *prometheus.GaugeVec
+
+	// initDurationSeconds is how long it took to initialize and populate the cache.
+	initDurationSeconds prometheus.Gauge
+
+	// requests is the total number of requests made to the cache (times ListUnifiedInstances was called).
+	requests prometheus.Counter
+}
+
+// newInventoryCacheMetrics creates the inventory cache metrics.
+func newInventoryCacheMetrics(reg *metrics.Registry) *inventoryCacheMetrics {
+	var namespace, subsystem string
+	if reg != nil {
+		namespace = reg.Namespace()
+		subsystem = reg.Subsystem()
+	}
+
+	return &inventoryCacheMetrics{
+		instancesTotal: prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: namespace,
+			Subsystem: subsystem,
+			Name:      "instances_total",
+			Help:      "Total number of teleport instances in the inventory cache.",
+		}),
+		botInstancesTotal: prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: namespace,
+			Subsystem: subsystem,
+			Name:      "bot_instances_total",
+			Help:      "Total number of bot instances in the inventory cache.",
+		}),
+		instancesByVersion: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: namespace,
+			Subsystem: subsystem,
+			Name:      "instances_by_version",
+			Help:      "Number of teleport instances by teleport version.",
+		}, []string{metricsVersionLabel}),
+		initDurationSeconds: prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: namespace,
+			Subsystem: subsystem,
+			Name:      "init_duration_seconds",
+			Help:      "Time taken to initialize and populate the inventory cache.",
+		}),
+		requests: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: namespace,
+			Subsystem: subsystem,
+			Name:      "requests_total",
+			Help:      "Total number of requests to the inventory cache.",
+		}),
+	}
+}
+
+// register registers the metrics with the provided registerer.
+func (m *inventoryCacheMetrics) register(reg prometheus.Registerer) error {
+	return trace.NewAggregate(
+		reg.Register(m.instancesTotal),
+		reg.Register(m.botInstancesTotal),
+		reg.Register(m.instancesByVersion),
+		reg.Register(m.initDurationSeconds),
+		reg.Register(m.requests),
+	)
+}
 
 var (
 	// unifiedExpressionParser is a cached unified expression parser
@@ -172,8 +248,8 @@ func (u *inventoryInstance) getVersionKey() bytestring {
 		name = u.instance.GetHostname()
 		id = u.instance.GetName()
 	} else {
-		if u.bot.Status != nil && len(u.bot.Status.LatestHeartbeats) > 0 {
-			versionStr = u.bot.Status.LatestHeartbeats[0].Version
+		if u.bot.HasStatus() && len(u.bot.GetStatus().GetLatestHeartbeats()) > 0 {
+			versionStr = u.bot.GetStatus().GetLatestHeartbeats()[0].GetVersion()
 		}
 		name = u.bot.GetSpec().GetBotName()
 		id = u.bot.GetSpec().GetInstanceId()
@@ -266,6 +342,9 @@ type InventoryCacheConfig struct {
 	TargetVersion string
 
 	Logger *slog.Logger
+
+	// MetricsRegistry is the registry for prometheus metrics.
+	MetricsRegistry *metrics.Registry
 }
 
 func (c *InventoryCacheConfig) CheckAndSetDefaults() error {
@@ -303,11 +382,26 @@ type InventoryCache struct {
 
 	// cache is the unified sortcache that holds both teleport and bot instances.
 	cache *sortcache.SortCache[*inventoryInstance, inventoryIndex]
+
+	// metrics holds the prometheus metrics for the inventory cache.
+	metrics *inventoryCacheMetrics
 }
 
 func NewInventoryCache(cfg InventoryCacheConfig) (*InventoryCache, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	var reg *metrics.Registry
+	if cfg.MetricsRegistry != nil {
+		reg = cfg.MetricsRegistry.Wrap(metricsSubsystem)
+	}
+
+	m := newInventoryCacheMetrics(reg)
+	if reg != nil {
+		if err := m.register(reg); err != nil {
+			cfg.Logger.ErrorContext(context.Background(), "Failed to register inventory cache metrics", "error", err)
+		}
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -328,8 +422,9 @@ func NewInventoryCache(cfg InventoryCacheConfig) (*InventoryCache, error) {
 		// Create a channel that will close when the initialization is done.
 		done: make(chan struct{}),
 
-		ctx:    ctx,
-		cancel: cancel,
+		ctx:     ctx,
+		cancel:  cancel,
+		metrics: m,
 	}
 
 	go func() {
@@ -350,6 +445,34 @@ func (ic *InventoryCache) Close() error {
 	// Wait for done channel to finish so we can close gracefully.
 	<-ic.done
 	return nil
+}
+
+// updateMetrics iterates through the cache and updates all prometheus metrics.
+func (ic *InventoryCache) updateMetrics() {
+	var instanceCount, botInstanceCount float64
+	versionCounts := make(map[string]float64)
+
+	for item := range ic.cache.Ascend(inventoryIDIndex, "", "") {
+		if item.isInstance() {
+			instanceCount++
+
+			// Count versions
+			version := item.instance.Spec.Version
+			if version != "" {
+				versionCounts[version]++
+			}
+		} else {
+			botInstanceCount++
+		}
+	}
+
+	ic.metrics.instancesTotal.Set(instanceCount)
+	ic.metrics.botInstancesTotal.Set(botInstanceCount)
+
+	ic.metrics.instancesByVersion.Reset()
+	for version, count := range versionCounts {
+		ic.metrics.instancesByVersion.WithLabelValues(version).Set(count)
+	}
 }
 
 // calculateReadsPerSecond calculates the rate limit to use for backend reads based on cluster size.
@@ -408,6 +531,8 @@ func (ic *InventoryCache) initializeAndWatchWithRetry(ctx context.Context) {
 
 // initializeAndWatch initializes the inventory cache and begins watching for instance and bot_instance backend events.
 func (ic *InventoryCache) initializeAndWatch(ctx context.Context) error {
+	initStart := time.Now()
+
 	// Wait for primary cache to be ready.
 	if err := ic.waitForPrimaryCacheInit(ctx); err != nil {
 		return trace.Wrap(err, "Failed to wait for primary cache init")
@@ -433,6 +558,11 @@ func (ic *InventoryCache) initializeAndWatch(ctx context.Context) error {
 	if err := ic.populateCache(ctx, readsPerSecond); err != nil {
 		return trace.Wrap(err, "failed to populate inventory cache")
 	}
+
+	// Record how long it took to initialize the cache
+	ic.metrics.initDurationSeconds.Set(time.Since(initStart).Seconds())
+
+	ic.updateMetrics()
 
 	// Mark cache as healthy.
 	ic.healthy.Store(true)
@@ -561,6 +691,9 @@ func (ic *InventoryCache) populateBotInstances(ctx context.Context, limiter *rat
 
 // processEvents processes events from the watcher.
 func (ic *InventoryCache) processEvents(ctx context.Context, watcher types.Watcher) {
+	metricsTicker := time.NewTicker(30 * time.Second)
+	defer metricsTicker.Stop()
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -570,6 +703,9 @@ func (ic *InventoryCache) processEvents(ctx context.Context, watcher types.Watch
 			if err := ic.processEvent(event); err != nil {
 				ic.cfg.Logger.WarnContext(ctx, "Failed to process event", "error", err)
 			}
+
+		case <-metricsTicker.C:
+			ic.updateMetrics()
 		}
 	}
 }
@@ -641,13 +777,13 @@ func (ic *InventoryCache) parseFilter(filter *inventoryv1.ListUnifiedInstancesFi
 		filter: filter,
 	}
 
-	if filter == nil || filter.PredicateExpression == "" {
+	if filter == nil || filter.GetPredicateExpression() == "" {
 		return pf, nil
 	}
 
 	parser := getUnifiedExpressionParser()
 
-	expr, err := parser.Parse(filter.PredicateExpression)
+	expr, err := parser.Parse(filter.GetPredicateExpression())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -661,17 +797,19 @@ func (ic *InventoryCache) parseFilter(filter *inventoryv1.ListUnifiedInstancesFi
 func (ic *InventoryCache) ListUnifiedInstances(ctx context.Context, req *inventoryv1.ListUnifiedInstancesRequest) (*inventoryv1.ListUnifiedInstancesResponse, error) {
 	if !ic.IsHealthy() {
 		// This returns HTTP error 503. Keep in sync with web/packages/teleport/src/Instances/Instances.tsx (isCacheInitializing)
-		return nil, trace.ConnectionProblem(nil, "inventory cache is not yet healthy")
+		return nil, trace.ConnectionProblem(nil, "inventory cache is not yet healthy, please try again in a few minutes'")
 	}
 
-	if req.PageSize <= 0 {
-		req.PageSize = defaults.DefaultChunkSize
+	ic.metrics.requests.Inc()
+
+	if req.GetPageSize() <= 0 {
+		req.SetPageSize(defaults.DefaultChunkSize)
 	}
 
 	// Decode the PageToken from base32hex
 	var startKey string
-	if req.PageToken != "" {
-		decoded, err := base32.HexEncoding.WithPadding(base32.NoPadding).DecodeString(req.PageToken)
+	if req.GetPageToken() != "" {
+		decoded, err := base32.HexEncoding.WithPadding(base32.NoPadding).DecodeString(req.GetPageToken())
 		if err != nil {
 			return nil, trace.BadParameter("invalid page token: %v", err)
 		}
@@ -719,7 +857,7 @@ func (ic *InventoryCache) ListUnifiedInstances(ctx context.Context, req *invento
 			start, end = end, start
 		}
 
-		if req.PageToken == "" {
+		if req.GetPageToken() == "" {
 			startKey = start
 		}
 		endKey = end
@@ -736,7 +874,7 @@ func (ic *InventoryCache) ListUnifiedInstances(ctx context.Context, req *invento
 			continue
 		}
 
-		if len(items) == int(req.PageSize) {
+		if len(items) == int(req.GetPageSize()) {
 			// Get the key for the current item based on the index
 			rawKey, err := ic.getKeyForIndex(sf, index)
 			if err != nil {
@@ -751,10 +889,10 @@ func (ic *InventoryCache) ListUnifiedInstances(ctx context.Context, req *invento
 		items = append(items, item)
 	}
 
-	return &inventoryv1.ListUnifiedInstancesResponse{
+	return inventoryv1.ListUnifiedInstancesResponse_builder{
 		Items:         items,
 		NextPageToken: nextPageToken,
-	}, nil
+	}.Build(), nil
 }
 
 // matchesFilter checks if a unified instance matches the filter criteria.
@@ -768,7 +906,7 @@ func (ic *InventoryCache) matchesFilter(ui *inventoryInstance, parsed *parsedFil
 	// Filter by instance types
 	isInstance := ui.isInstance()
 	matchesType := false
-	for _, instanceType := range filter.InstanceTypes {
+	for _, instanceType := range filter.GetInstanceTypes() {
 		if instanceType == inventoryv1.InstanceType_INSTANCE_TYPE_INSTANCE && isInstance {
 			matchesType = true
 			break
@@ -778,22 +916,22 @@ func (ic *InventoryCache) matchesFilter(ui *inventoryInstance, parsed *parsedFil
 			break
 		}
 	}
-	if len(filter.InstanceTypes) > 0 && !matchesType {
+	if len(filter.GetInstanceTypes()) > 0 && !matchesType {
 		return false
 	}
 
 	// Basic search
-	if filter.Search != "" {
+	if filter.GetSearch() != "" {
 		var searchableText string
 		if ui.isInstance() {
 			// For instances, search by hostname or instance ID
 			searchableText = ui.instance.Spec.Hostname + " " + ui.instance.GetName()
 		} else {
 			// For bot instances, search by bot name or instance ID
-			searchableText = ui.bot.Spec.BotName + " " + ui.bot.GetMetadata().GetName()
+			searchableText = ui.bot.GetSpec().GetBotName() + " " + ui.bot.GetMetadata().GetName()
 		}
 
-		searchTerms := strings.Fields(filter.Search)
+		searchTerms := strings.Fields(filter.GetSearch())
 		matchedAll := true
 		for _, term := range searchTerms {
 			if !strcase.Contains(searchableText, term) {
@@ -808,12 +946,12 @@ func (ic *InventoryCache) matchesFilter(ui *inventoryInstance, parsed *parsedFil
 	}
 
 	// Filter by services (only applies to instances)
-	if len(filter.Services) > 0 {
+	if len(filter.GetServices()) > 0 {
 		// Bot instances don't have services, so exclude them when the services filter is active
 		if !ui.isInstance() {
 			return false
 		}
-		filterServices := set.New(filter.Services...)
+		filterServices := set.New(filter.GetServices()...)
 		hasService := false
 		for _, svc := range ui.instance.Spec.Services {
 			if filterServices.Contains(string(svc)) {
@@ -827,39 +965,39 @@ func (ic *InventoryCache) matchesFilter(ui *inventoryInstance, parsed *parsedFil
 	}
 
 	// Filter by updater groups
-	if len(filter.UpdaterGroups) > 0 {
+	if len(filter.GetUpdaterGroups()) > 0 {
 		var updateGroup string
 		if ui.isInstance() {
 			if ui.instance.Spec.UpdaterInfo != nil {
 				updateGroup = ui.instance.Spec.UpdaterInfo.UpdateGroup
 			}
 		} else {
-			if len(ui.bot.Status.LatestHeartbeats) > 0 && ui.bot.Status.LatestHeartbeats[0].UpdaterInfo != nil {
-				updateGroup = ui.bot.Status.LatestHeartbeats[0].UpdaterInfo.UpdateGroup
+			if len(ui.bot.GetStatus().GetLatestHeartbeats()) > 0 && ui.bot.GetStatus().GetLatestHeartbeats()[0].HasUpdaterInfo() {
+				updateGroup = ui.bot.GetStatus().GetLatestHeartbeats()[0].GetUpdaterInfo().UpdateGroup
 			}
 		}
-		if !slices.Contains(filter.UpdaterGroups, updateGroup) {
+		if !slices.Contains(filter.GetUpdaterGroups(), updateGroup) {
 			return false
 		}
 	}
 
 	// Filter by upgraders
-	if len(filter.Upgraders) > 0 {
+	if len(filter.GetUpgraders()) > 0 {
 		var upgrader string
 		if ui.isInstance() {
 			upgrader = ui.instance.Spec.ExternalUpgrader
 		} else {
-			if len(ui.bot.Status.LatestHeartbeats) > 0 {
-				upgrader = ui.bot.Status.LatestHeartbeats[0].ExternalUpdater
+			if len(ui.bot.GetStatus().GetLatestHeartbeats()) > 0 {
+				upgrader = ui.bot.GetStatus().GetLatestHeartbeats()[0].GetExternalUpdater()
 			}
 		}
-		if !slices.Contains(filter.Upgraders, upgrader) {
+		if !slices.Contains(filter.GetUpgraders(), upgrader) {
 			return false
 		}
 	}
 
 	// Filter with predicate language query
-	if filter.PredicateExpression != "" {
+	if filter.GetPredicateExpression() != "" {
 		match, err := ic.matchSearchKeywords(ui, parsed)
 		if err != nil {
 			ic.cfg.Logger.DebugContext(context.Background(), "Failed to filter instances using predicate expression", "error", err)
@@ -901,11 +1039,13 @@ func (e *unifiedFilterEnvironment) GetVersion() string {
 		return ""
 	}
 	if e.ui.isInstance() {
-		return e.ui.instance.Spec.Version
+		// Trim "v" prefix if it's there
+		return strings.TrimPrefix(e.ui.instance.Spec.Version, "v")
 	}
 	// For bot instances, get version from latest heartbeat
-	if e.ui.bot.Status != nil && len(e.ui.bot.Status.LatestHeartbeats) > 0 {
-		return e.ui.bot.Status.LatestHeartbeats[0].Version
+	if e.ui.bot.HasStatus() && len(e.ui.bot.GetStatus().GetLatestHeartbeats()) > 0 {
+		// Trim "v" prefix if it's there
+		return strings.TrimPrefix(e.ui.bot.GetStatus().GetLatestHeartbeats()[0].GetVersion(), "v")
 	}
 	return ""
 }
@@ -918,8 +1058,8 @@ func (e *unifiedFilterEnvironment) GetHostname() string {
 		return e.ui.instance.Spec.Hostname
 	}
 	// For bot instances, get hostname from latest heartbeat
-	if e.ui.bot.Status != nil && len(e.ui.bot.Status.LatestHeartbeats) > 0 {
-		return e.ui.bot.Status.LatestHeartbeats[0].Hostname
+	if e.ui.bot.HasStatus() && len(e.ui.bot.GetStatus().GetLatestHeartbeats()) > 0 {
+		return e.ui.bot.GetStatus().GetLatestHeartbeats()[0].GetHostname()
 	}
 	return ""
 }
@@ -938,7 +1078,7 @@ func (e *unifiedFilterEnvironment) GetBotName() string {
 	if e == nil || e.ui == nil || e.ui.isInstance() {
 		return ""
 	}
-	return e.ui.bot.Spec.BotName
+	return e.ui.bot.GetSpec().GetBotName()
 }
 
 func (e *unifiedFilterEnvironment) GetInstanceID() string {
@@ -948,7 +1088,7 @@ func (e *unifiedFilterEnvironment) GetInstanceID() string {
 	if e.ui.isInstance() {
 		return e.ui.instance.GetName()
 	}
-	return e.ui.bot.Spec.InstanceId
+	return e.ui.bot.GetSpec().GetInstanceId()
 }
 
 func (e *unifiedFilterEnvironment) GetServices() []string {
@@ -974,8 +1114,8 @@ func (e *unifiedFilterEnvironment) GetUpdaterGroup() string {
 		return ""
 	}
 	// For bot instances, get from latest heartbeat
-	if e.ui.bot.Status != nil && len(e.ui.bot.Status.LatestHeartbeats) > 0 && e.ui.bot.Status.LatestHeartbeats[0].UpdaterInfo != nil {
-		return e.ui.bot.Status.LatestHeartbeats[0].UpdaterInfo.UpdateGroup
+	if e.ui.bot.HasStatus() && len(e.ui.bot.GetStatus().GetLatestHeartbeats()) > 0 && e.ui.bot.GetStatus().GetLatestHeartbeats()[0].HasUpdaterInfo() {
+		return e.ui.bot.GetStatus().GetLatestHeartbeats()[0].GetUpdaterInfo().UpdateGroup
 	}
 	return ""
 }
@@ -988,8 +1128,8 @@ func (e *unifiedFilterEnvironment) GetExternalUpgrader() string {
 		return e.ui.instance.Spec.ExternalUpgrader
 	}
 	// For bot instances, get from latest heartbeat
-	if e.ui.bot.Status != nil && len(e.ui.bot.Status.LatestHeartbeats) > 0 {
-		return e.ui.bot.Status.LatestHeartbeats[0].ExternalUpdater
+	if e.ui.bot.HasStatus() && len(e.ui.bot.GetStatus().GetLatestHeartbeats()) > 0 {
+		return e.ui.bot.GetStatus().GetLatestHeartbeats()[0].GetExternalUpdater()
 	}
 	return ""
 }
@@ -1080,15 +1220,11 @@ func (ic *InventoryCache) getKeyForIndex(ui *inventoryInstance, index inventoryI
 // unifiedInstanceToProto converts a unified instance to a proto UnifiedInstanceItem.
 func (ic *InventoryCache) unifiedInstanceToProto(ui *inventoryInstance) *inventoryv1.UnifiedInstanceItem {
 	if ui.isInstance() {
-		return &inventoryv1.UnifiedInstanceItem{
-			Item: &inventoryv1.UnifiedInstanceItem_Instance{
-				Instance: ui.instance,
-			},
-		}
+		return inventoryv1.UnifiedInstanceItem_builder{
+			Instance: ui.instance,
+		}.Build()
 	}
-	return &inventoryv1.UnifiedInstanceItem{
-		Item: &inventoryv1.UnifiedInstanceItem_BotInstance{
-			BotInstance: ui.bot,
-		},
-	}
+	return inventoryv1.UnifiedInstanceItem_builder{
+		BotInstance: proto.ValueOrDefault(ui.bot),
+	}.Build()
 }

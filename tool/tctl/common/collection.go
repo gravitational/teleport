@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"io"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
@@ -33,11 +32,7 @@ import (
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
-	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
-	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
-	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/externalauditstorage"
 	"github.com/gravitational/teleport/api/types/label"
 	"github.com/gravitational/teleport/api/types/secreports"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -45,18 +40,9 @@ import (
 	"github.com/gravitational/teleport/lib/devicetrust"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/common"
-	"github.com/gravitational/teleport/tool/tctl/common/loginrule"
 	"github.com/gravitational/teleport/tool/tctl/common/oktaassignment"
 	"github.com/gravitational/teleport/tool/tctl/common/resources"
 )
-
-func printMetadataLabels(labels map[string]string) string {
-	pairs := []string{}
-	for key, value := range labels {
-		pairs = append(pairs, fmt.Sprintf("%v=%v", key, value))
-	}
-	return strings.Join(pairs, ",")
-}
 
 type reverseTunnelCollection struct {
 	tunnels []types.ReverseTunnel
@@ -74,35 +60,6 @@ func (r *reverseTunnelCollection) WriteText(w io.Writer, verbose bool) error {
 	for _, tunnel := range r.tunnels {
 		t.AddRow([]string{
 			tunnel.GetClusterName(), strings.Join(tunnel.GetDialAddrs(), ","),
-		})
-	}
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
-type trustedClusterCollection struct {
-	trustedClusters []types.TrustedCluster
-}
-
-func (c *trustedClusterCollection) Resources() (r []types.Resource) {
-	for _, resource := range c.trustedClusters {
-		r = append(r, resource)
-	}
-	return r
-}
-
-func (c *trustedClusterCollection) WriteText(w io.Writer, verbose bool) error {
-	t := asciitable.MakeTable([]string{
-		"Name", "Enabled", "Token", "Proxy Address", "Reverse Tunnel Address", "Role Map",
-	})
-	for _, tc := range c.trustedClusters {
-		t.AddRow([]string{
-			tc.GetName(),
-			strconv.FormatBool(tc.GetEnabled()),
-			tc.GetToken(),
-			tc.GetProxyAddress(),
-			tc.GetReverseTunnelAddress(),
-			fmt.Sprintf("%v", tc.CombinedMapping()),
 		})
 	}
 	_, err := t.AsBuffer().WriteTo(w)
@@ -251,54 +208,6 @@ func (c *databaseServerCollection) writeYAML(w io.Writer) error {
 	return utils.WriteYAML(w, c.servers)
 }
 
-type kubeServerCollection struct {
-	servers []types.KubeServer
-}
-
-func (c *kubeServerCollection) Resources() (r []types.Resource) {
-	for _, resource := range c.servers {
-		r = append(r, resource)
-	}
-	return r
-}
-
-func (c *kubeServerCollection) WriteText(w io.Writer, verbose bool) error {
-	var rows [][]string
-	for _, server := range c.servers {
-		kube := server.GetCluster()
-		if kube == nil {
-			continue
-		}
-		labels := common.FormatLabels(kube.GetAllLabels(), verbose)
-		rows = append(rows, []string{
-			common.FormatResourceName(kube, verbose),
-			labels,
-			server.GetTeleportVersion(),
-		})
-
-	}
-	headers := []string{"Cluster", "Labels", "Version"}
-	var t asciitable.Table
-	if verbose {
-		t = asciitable.MakeTable(headers, rows...)
-	} else {
-		t = asciitable.MakeTableWithTruncatedColumn(headers, rows, "Labels")
-	}
-	// stable sort by cluster name.
-	t.SortRowsBy([]int{0}, true)
-
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
-func (c *kubeServerCollection) writeYAML(w io.Writer) error {
-	return utils.WriteYAML(w, c.servers)
-}
-
-func (c *kubeServerCollection) writeJSON(w io.Writer) error {
-	return utils.WriteJSONArray(w, c.servers)
-}
-
 type crownJewelCollection struct {
 	items []*crownjewelv1.CrownJewel
 }
@@ -317,50 +226,9 @@ func (c *crownJewelCollection) WriteText(w io.Writer, verbose bool) error {
 	var rows [][]string
 	for _, item := range c.items {
 		labels := common.FormatLabels(item.GetMetadata().GetLabels(), verbose)
-		rows = append(rows, []string{item.Metadata.GetName(), item.GetSpec().String(), labels})
+		rows = append(rows, []string{item.GetMetadata().GetName(), item.GetSpec().String(), labels})
 	}
 	headers := []string{"Name", "Spec", "Labels"}
-	var t asciitable.Table
-	if verbose {
-		t = asciitable.MakeTable(headers, rows...)
-	} else {
-		t = asciitable.MakeTableWithTruncatedColumn(headers, rows, "Labels")
-	}
-	// stable sort by name.
-	t.SortRowsBy([]int{0}, true)
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
-type kubeClusterCollection struct {
-	clusters []types.KubeCluster
-}
-
-func (c *kubeClusterCollection) Resources() (r []types.Resource) {
-	for _, resource := range c.clusters {
-		r = append(r, resource)
-	}
-	return r
-}
-
-// writeText formats the dynamic kube clusters into a table and writes them into w.
-// Name          Labels
-// ------------- ----------------------------------------------------------------------------------------------------------
-// cluster1      region=eastus,resource-group=cluster1,subscription-id=subID
-// cluster2      region=westeurope,resource-group=cluster2,subscription-id=subID
-// cluster3      region=northcentralus,resource-group=cluster3,subscription-id=subID
-// cluster4      owner=cluster4,region=southcentralus,resource-group=cluster4,subscription-id=subID
-// If verbose is disabled, labels column can be truncated to fit into the console.
-func (c *kubeClusterCollection) WriteText(w io.Writer, verbose bool) error {
-	var rows [][]string
-	for _, cluster := range c.clusters {
-		labels := common.FormatLabels(cluster.GetAllLabels(), verbose)
-		rows = append(rows, []string{
-			common.FormatResourceName(cluster, verbose),
-			labels,
-		})
-	}
-	headers := []string{"Name", "Labels"}
 	var t asciitable.Table
 	if verbose {
 		t = asciitable.MakeTable(headers, rows...)
@@ -399,39 +267,6 @@ func (c *integrationCollection) WriteText(w io.Writer, verbose bool) error {
 		})
 	}
 	headers := []string{"Name", "Type", "Spec"}
-	t := asciitable.MakeTable(headers, rows...)
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
-type externalAuditStorageCollection struct {
-	externalAuditStorages []*externalauditstorage.ExternalAuditStorage
-}
-
-func (c *externalAuditStorageCollection) Resources() (r []types.Resource) {
-	for _, a := range c.externalAuditStorages {
-		r = append(r, a)
-	}
-	return r
-}
-
-func (c *externalAuditStorageCollection) WriteText(w io.Writer, verbose bool) error {
-	var rows [][]string
-	for _, a := range c.externalAuditStorages {
-		rows = append(rows, []string{
-			a.GetName(),
-			a.Spec.IntegrationName,
-			a.Spec.PolicyName,
-			a.Spec.Region,
-			a.Spec.SessionRecordingsURI,
-			a.Spec.AuditEventsLongTermURI,
-			a.Spec.AthenaResultsURI,
-			a.Spec.AthenaWorkgroup,
-			a.Spec.GlueDatabase,
-			a.Spec.GlueTable,
-		})
-	}
-	headers := []string{"Name", "IntegrationName", "PolicyName", "Region", "SessionRecordingsURI", "AuditEventsLongTermURI", "AthenaResultsURI", "AthenaWorkgroup", "GlueDatabase", "GlueTable"}
 	t := asciitable.MakeTable(headers, rows...)
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
@@ -490,27 +325,6 @@ func (c *databaseServiceCollection) WriteText(w io.Writer, verbose bool) error {
 	return trace.Wrap(err)
 }
 
-type loginRuleCollection struct {
-	rules []*loginrulepb.LoginRule
-}
-
-func (l *loginRuleCollection) WriteText(w io.Writer, verbose bool) error {
-	t := asciitable.MakeTable([]string{"Name", "Priority"})
-	for _, rule := range l.rules {
-		t.AddRow([]string{rule.Metadata.Name, strconv.FormatInt(int64(rule.Priority), 10)})
-	}
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
-func (l *loginRuleCollection) Resources() []types.Resource {
-	resources := make([]types.Resource, len(l.rules))
-	for i, rule := range l.rules {
-		resources[i] = loginrule.ProtoToResource(rule)
-	}
-	return resources
-}
-
 type deviceCollection struct {
 	devices []*devicepb.Device
 }
@@ -527,12 +341,12 @@ func (c *deviceCollection) WriteText(w io.Writer, verbose bool) error {
 	t := asciitable.MakeTable([]string{"ID", "OS Type", "Asset Tag", "Enrollment Status", "Creation Time", "Last Updated"})
 	for _, device := range c.devices {
 		t.AddRow([]string{
-			device.Id,
-			devicetrust.FriendlyOSType(device.OsType),
-			device.AssetTag,
-			devicetrust.FriendlyDeviceEnrollStatus(device.EnrollStatus),
-			device.CreateTime.AsTime().Format(time.RFC3339),
-			device.UpdateTime.AsTime().Format(time.RFC3339),
+			device.GetId(),
+			devicetrust.FriendlyOSType(device.GetOsType()),
+			device.GetAssetTag(),
+			devicetrust.FriendlyDeviceEnrollStatus(device.GetEnrollStatus()),
+			device.GetCreateTime().AsTime().Format(time.RFC3339),
+			device.GetUpdateTime().AsTime().Format(time.RFC3339),
 		})
 	}
 	_, err := t.AsBuffer().WriteTo(w)
@@ -626,28 +440,6 @@ func (c *securityReportCollection) WriteText(w io.Writer, verbose bool) error {
 		}
 		t.AddRow([]string{v.GetName(), v.Spec.Title, strings.Join(auditQueriesNames, ", "), v.Spec.Description})
 	}
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
-type vnetConfigCollection struct {
-	vnetConfig *vnet.VnetConfig
-}
-
-func (c *vnetConfigCollection) Resources() []types.Resource {
-	return []types.Resource{types.Resource153ToLegacy(c.vnetConfig)}
-}
-
-func (c *vnetConfigCollection) WriteText(w io.Writer, verbose bool) error {
-	var dnsZoneSuffixes []string
-	for _, dnsZone := range c.vnetConfig.Spec.CustomDnsZones {
-		dnsZoneSuffixes = append(dnsZoneSuffixes, dnsZone.Suffix)
-	}
-	t := asciitable.MakeTable([]string{"IPv4 CIDR range", "Custom DNS Zones"})
-	t.AddRow([]string{
-		c.vnetConfig.GetSpec().GetIpv4CidrRange(),
-		strings.Join(dnsZoneSuffixes, ", "),
-	})
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
 }
@@ -845,70 +637,6 @@ func (c *healthCheckConfigCollection) WriteText(w io.Writer, verbose bool) error
 
 	// stable sort by name.
 	t.SortRowsBy([]int{0}, true)
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
-type scopedRoleCollection struct {
-	items []*scopedaccessv1.ScopedRole
-}
-
-func (c *scopedRoleCollection) Resources() []types.Resource {
-	out := make([]types.Resource, 0, len(c.items))
-	for _, item := range c.items {
-		out = append(out, types.Resource153ToLegacy(item))
-	}
-	return out
-}
-
-func (c *scopedRoleCollection) WriteText(w io.Writer, verbose bool) error {
-	headers := []string{"Scope", "Name"}
-	var rows [][]string
-	for _, item := range c.items {
-		rows = append(rows, []string{
-			item.GetScope(),
-			item.GetMetadata().GetName(),
-		})
-	}
-
-	t := asciitable.MakeTable(headers, rows...)
-
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
-type scopedRoleAssignmentCollection struct {
-	items []*scopedaccessv1.ScopedRoleAssignment
-}
-
-func (c *scopedRoleAssignmentCollection) Resources() []types.Resource {
-	out := make([]types.Resource, 0, len(c.items))
-	for _, item := range c.items {
-		out = append(out, types.Resource153ToLegacy(item))
-	}
-	return out
-}
-
-func (c *scopedRoleAssignmentCollection) WriteText(w io.Writer, verbose bool) error {
-	headers := []string{"Scope", "Name", "User", "Assigns"}
-	var rows [][]string
-
-	for _, item := range c.items {
-		var assigns []string
-		for _, subAssignment := range item.GetSpec().GetAssignments() {
-			assigns = append(assigns, fmt.Sprintf("%s -> %s", subAssignment.GetRole(), subAssignment.GetScope()))
-		}
-
-		rows = append(rows, []string{
-			item.GetScope(),
-			item.GetMetadata().GetName(),
-			item.GetSpec().GetUser(),
-			strings.Join(assigns, ", "),
-		})
-	}
-
-	t := asciitable.MakeTable(headers, rows...)
-
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
 }

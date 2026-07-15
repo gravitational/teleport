@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-import { Link as InternalLink } from 'react-router-dom';
+import { Link as InternalLink } from 'react-router';
 
 import { Box, CardTile, Flex, H2, H3, P2, Text } from 'design';
 import * as Icons from 'design/Icon';
@@ -123,10 +123,8 @@ function EnrollCard({
       width="33%"
       data-testid={`${resource}-enroll`}
       as={InternalLink}
-      to={{
-        pathname: cfg.routes.discover,
-        state: { searchKeywords: resource },
-      }}
+      to={cfg.routes.discover}
+      state={{ searchKeywords: resource }}
     >
       <Flex flexDirection="column" justifyContent="space-between" height="100%">
         <Box>

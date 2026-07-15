@@ -1,0 +1,15 @@
+resource "teleport_role" "example-role" {
+  depends_on = [teleport_role.some-role-id-1, teleport_role.some-role-id-2, teleport_role.some-role-id-3]
+
+  version = "v7"
+
+  metadata = {
+    name = "example-role"
+  }
+
+  spec = {
+    allow = {
+      kubernetes_groups = ["system:masters"]
+    }
+  }
+}

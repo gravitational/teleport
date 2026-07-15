@@ -167,7 +167,7 @@ export function Navigation<T>({
   startWithIcon,
 }: NavigationProps<T>) {
   return (
-    <Flex>
+    <Flex minWidth={0} width="100%">
       {startWithIcon && (
         <StepsContainer>
           <StepTitle css={{ fontWeight: 'bold' }}>
@@ -176,7 +176,9 @@ export function Navigation<T>({
           </StepTitle>
         </StepsContainer>
       )}
-      <StepList views={views} currentStep={currentStep} />
+      <Flex flex={1} css="overflow-x: auto;">
+        <StepList views={views} currentStep={currentStep} />
+      </Flex>
     </Flex>
   );
 }

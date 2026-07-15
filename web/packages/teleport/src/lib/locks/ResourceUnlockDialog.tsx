@@ -19,7 +19,7 @@
 import { format } from 'date-fns/format';
 import { parseISO } from 'date-fns/parseISO';
 import { MouseEventHandler } from 'react';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import styled from 'styled-components';
 
 import { Alert } from 'design/Alert/Alert';

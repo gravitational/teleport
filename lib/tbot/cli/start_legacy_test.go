@@ -82,5 +82,18 @@ func TestLegacyCommand(t *testing.T) {
 				require.Equal(t, "/bar", dir.Path)
 			},
 		},
+		{
+			name: "scoped",
+			args: []string{
+				"start",
+				"--scoped",
+				"--token=foo",
+				"--join-method=github",
+				"--auth-server=example.com:3024",
+			},
+			assertConfig: func(t *testing.T, cfg *config.BotConfig) {
+				require.True(t, cfg.Scoped)
+			},
+		},
 	})
 }

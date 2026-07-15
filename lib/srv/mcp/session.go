@@ -20,11 +20,9 @@ package mcp
 
 import (
 	"context"
-	"encoding/json"
 	"log/slog"
 	"net"
 	"net/http"
-	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -38,7 +36,6 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	appcommon "github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/mcputils"
 )
 
@@ -144,8 +141,7 @@ func (c *sessionHandlerConfig) checkAndSetDefaults() error {
 type sessionHandler struct {
 	sessionHandlerConfig
 
-	idTracker   *mcputils.IDTracker
-	accessCache *utils.FnCache
+	idTracker *mcputils.IDTracker
 }
 
 func newSessionHandler(cfg sessionHandlerConfig) (*sessionHandler, error) {
@@ -162,15 +158,6 @@ func newSessionHandler(cfg sessionHandlerConfig) (*sessionHandler, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// Cache access check like tool name for a small period of time.
-	accessCache, err := utils.NewFnCache(utils.FnCacheConfig{
-		TTL:   time.Minute * 10,
-		Clock: cfg.clock,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	// Always begins with session start event for single-connection sessions.
 	if cfg.sessionCtx.transport != types.MCPTransportHTTP {
 		cfg.sessionAuditor.appendStartEvent(cfg.parentCtx)
@@ -179,24 +166,19 @@ func newSessionHandler(cfg sessionHandlerConfig) (*sessionHandler, error) {
 	return &sessionHandler{
 		sessionHandlerConfig: cfg,
 		idTracker:            idTracker,
-		accessCache:          accessCache,
 	}, nil
 }
 
 func (s *sessionHandler) checkAccessToTool(ctx context.Context, toolName string) error {
-	authErr, err := utils.FnCacheGet(ctx, s.accessCache, toolName, func(ctx context.Context) (error, error) {
-		authPref, err := s.accessPoint.GetAuthPreference(ctx)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		matcher := &services.MCPToolMatcher{
-			Name: toolName,
-		}
-		authErr := s.AuthCtx.Checker.CheckAccess(s.App, s.getAccessState(authPref), matcher)
-		return trace.Wrap(authErr), nil
-	})
-	// Fails the check on either authErr or internal error.
-	return trace.NewAggregate(authErr, err)
+	authPref, err := s.accessPoint.GetAuthPreference(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	matcher := &services.MCPToolMatcher{
+		Name: toolName,
+	}
+	err = s.AuthCtx.Checker.CheckAccess(s.App, s.getAccessState(authPref), matcher)
+	return trace.Wrap(err)
 }
 
 // NOTE: the onClientXXX/onServerXXX functions and the close function below
@@ -223,12 +205,15 @@ func (s *sessionHandler) onClientNotification(serverRequestWriter mcputils.Messa
 
 func (s *sessionHandler) onClientRequest(clientResponseWriter, serverRequestWriter mcputils.MessageWriter) mcputils.HandleRequestFunc {
 	return func(ctx context.Context, request *mcputils.JSONRPCRequest) error {
-		msg, authErr := s.processClientRequest(ctx, request)
-		s.emitRequestEvent(ctx, request, eventWithError(authErr))
-		if authErr != nil {
-			return trace.Wrap(clientResponseWriter.WriteMessage(ctx, msg))
+		sanitizeMCPRequestParams(request)
+		errMsg := s.processClientRequest(ctx, request)
+		if errMsg != nil {
+			// Respond immediately
+			s.emitRequestEvent(ctx, request, eventWithError(toError(*errMsg)))
+			return trace.Wrap(clientResponseWriter.WriteMessage(ctx, *errMsg))
 		}
-		return trace.Wrap(serverRequestWriter.WriteMessage(ctx, msg))
+		s.emitRequestEvent(ctx, request)
+		return trace.Wrap(serverRequestWriter.WriteMessage(ctx, request))
 	}
 }
 
@@ -249,23 +234,28 @@ func (s *sessionHandler) onServerResponse(clientResponseWriter mcputils.MessageW
 	}
 }
 
-func (s *sessionHandler) processClientRequest(ctx context.Context, req *mcputils.JSONRPCRequest) (mcp.JSONRPCMessage, error) {
+func (s *sessionHandler) processClientRequest(ctx context.Context, req *mcputils.JSONRPCRequest) *mcp.JSONRPCError {
 	messagesFromClient.WithLabelValues(s.transport, "request", reportRequestMethod(req.Method)).Inc()
+
+	switch req.Method {
+	case mcputils.MethodToolsCall:
+		toolName, _ := req.Params.GetName()
+		if toolName == "" {
+			return makeInvalidRequestResponse(req, errInvalidRequestMissingName)
+		}
+		if authErr := s.checkAccessToTool(ctx, toolName); authErr != nil {
+			return makeToolAccessDeniedResponse(req, authErr)
+		}
+	}
 
 	// TODO(greedy52) add checks to ensure that the initialize request is the
 	// first request coming in (with the exception of the ping).
 	s.idTracker.PushRequest(req)
-	switch req.Method {
-	case mcputils.MethodToolsCall:
-		methodName, _ := req.Params.GetName()
-		if authErr := s.checkAccessToTool(ctx, methodName); authErr != nil {
-			return makeToolAccessDeniedResponse(req, authErr), trace.Wrap(authErr)
-		}
-	}
-	return req, nil
+
+	return nil
 }
 
-func (s *sessionHandler) processClientNotification(ctx context.Context, notification *mcputils.JSONRPCNotification) {
+func (s *sessionHandler) processClientNotification(_ context.Context, notification *mcputils.JSONRPCNotification) {
 	messagesFromClient.WithLabelValues(s.transport, "notification", reportNotificationMethod(notification.Method)).Inc()
 }
 
@@ -291,8 +281,8 @@ func (s *sessionHandler) makeToolsCallResponse(ctx context.Context, resp *mcputi
 		return resp
 	}
 
-	var listResult mcp.ListToolsResult
-	if err := json.Unmarshal(resp.Result, &listResult); err != nil {
+	listResult, err := resp.GetListToolResult()
+	if err != nil {
 		return mcp.NewJSONRPCError(resp.ID, mcp.INTERNAL_ERROR, "failed to unmarshal tools/list response", err)
 	}
 
@@ -314,7 +304,7 @@ func (s *sessionHandler) makeToolsCallResponse(ctx context.Context, resp *mcputi
 }
 
 func (s *sessionHandler) rewriteHTTPRequestHeaders(r *http.Request) error {
-	jwt, traits, err := s.generateJWTAndTraits(r.Context())
+	jwt, rewriteTraits, err := s.generateJWTAndTraits(r.Context())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -328,15 +318,40 @@ func (s *sessionHandler) rewriteHTTPRequestHeaders(r *http.Request) error {
 	r.Header.Set(teleport.AppJWTHeader, jwt)
 	// Add headers from rewrite configuration.
 	rewriteHeaders := appcommon.AppRewriteHeaders(r.Context(), s.App.GetRewrite(), s.logger)
-	services.RewriteHeadersAndApplyValueTraits(r, rewriteHeaders, traits, s.logger)
+	services.RewriteHeadersAndApplyValueTraits(r, rewriteHeaders, rewriteTraits, s.logger)
 	return nil
 }
 
-func makeToolAccessDeniedResponse(msg *mcputils.JSONRPCRequest, authErr error) mcp.JSONRPCMessage {
-	return mcp.NewJSONRPCError(
-		msg.ID,
+var errInvalidRequestMissingName = &trace.BadParameterError{Message: `"name" parameter missing`}
+
+func makeInvalidRequestResponse(req *mcputils.JSONRPCRequest, err error) *mcp.JSONRPCError {
+	r := mcp.NewJSONRPCError(
+		req.ID,
+		mcp.INVALID_REQUEST,
+		"Teleport did not forward an invalid Request object.",
+		err,
+	)
+	return &r
+}
+
+func makeToolAccessDeniedResponse(req *mcputils.JSONRPCRequest, authErr error) *mcp.JSONRPCError {
+	r := mcp.NewJSONRPCError(
+		req.ID,
 		mcp.INVALID_PARAMS,
 		"RBAC is enforced by your Teleport roles. Contact your Teleport Admin for more details.",
 		authErr,
 	)
+	return &r
+}
+
+func toError(e mcp.JSONRPCError) error {
+	// If the data holds an underlying error, replace the message with that, before
+	// constructing the final error. In that case the Message should be a high-level
+	// user-facing error. Otherwise fall back to the original message.
+	if e.Error.Data != nil {
+		if dataErr, ok := e.Error.Data.(error); ok {
+			e.Error.Message = dataErr.Error()
+		}
+	}
+	return e.Error.AsError()
 }

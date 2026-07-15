@@ -23,11 +23,11 @@ output "monitoring_release" {
 }
 
 output "teleport_namespace" {
-  value = var.deploy_teleport ? helm_release.teleport.0.namespace : null
+  value = var.deploy_teleport ? helm_release.teleport.namespace : null
 }
 
 output "teleport_release" {
-  value = var.deploy_teleport ? helm_release.teleport.0.name : null
+  value = var.deploy_teleport ? helm_release.teleport.name : null
 }
 
 output "public_addr" {

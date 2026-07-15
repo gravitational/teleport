@@ -269,7 +269,7 @@ func valuesHelpString[K constraints.Integer](possibleValues map[K]string) string
 	// maps are nor ordered, so we must sort keys to consistently generate the help message.
 	keys := maps.Keys(possibleValues)
 	for _, k := range slices.Sorted(keys) {
-		sb.WriteString(fmt.Sprintf(" %d:%s", k, possibleValues[k]))
+		fmt.Fprintf(&sb, " %d:%s", k, possibleValues[k])
 	}
 
 	sb.WriteRune('.')
@@ -342,7 +342,7 @@ func (m *metrics) setGroupStates(groups []*autoupdatepb.AutoUpdateAgentRolloutSt
 	// Set the state for the groups specified in the rollout.
 	for i, group := range groups {
 		labels := prometheus.Labels{metricsGroupNumberLabelName: strconv.Itoa(i)}
-		m.rolloutGroupState.With(labels).Set(float64(group.State))
+		m.rolloutGroupState.With(labels).Set(float64(group.GetState()))
 	}
 
 	// If we have as many or more groups than before, no cleanup to do.

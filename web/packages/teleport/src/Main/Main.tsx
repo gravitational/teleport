@@ -26,7 +26,7 @@ import {
   useMemo,
   useState,
 } from 'react';
-import { matchPath, useHistory } from 'react-router';
+import { matchPath, useLocation } from 'react-router';
 import styled from 'styled-components';
 
 import { Box, Flex, Indicator } from 'design';
@@ -53,6 +53,7 @@ import {
   LINK_DESTINATION_LABEL,
   LINK_TEXT_LABEL,
 } from 'teleport/services/alerts/alerts';
+import history from 'teleport/services/history/history';
 import { storageService } from 'teleport/services/storageService';
 import { TopBar } from 'teleport/TopBar';
 import type { LockedFeatures, TeleportFeature } from 'teleport/types';
@@ -60,7 +61,6 @@ import { useUser } from 'teleport/User/UserContext';
 import useTeleport from 'teleport/useTeleport';
 
 import { MainContainer } from './MainContainer';
-import { OnboardDiscover } from './OnboardDiscover';
 
 export interface MainProps {
   initialAlerts?: ClusterAlert[];
@@ -72,7 +72,7 @@ export interface MainProps {
 
 export function Main(props: MainProps) {
   const ctx = useTeleport();
-  const history = useHistory();
+  const location = useLocation();
 
   const { attempt, setAttempt, run } = useAttempt('processing');
 
@@ -96,23 +96,14 @@ export function Main(props: MainProps) {
 
   const { alerts, dismissAlert } = useAlerts(props.initialAlerts);
 
-  // if there is a redirectUrl, do not show the onboarding popup - it'll get in the way of the redirected page
-  const [showOnboardDiscover, setShowOnboardDiscover] = useState(
-    !ctx.redirectUrl
-  );
-
   useEffect(() => {
     if (
-      matchPath(history.location.pathname, {
-        path: ctx.redirectUrl,
-        exact: true,
-      })
+      ctx.redirectUrl &&
+      matchPath({ path: ctx.redirectUrl, end: true }, location.pathname)
     ) {
-      // hide the onboarding popup if we're on the redirectUrl, just in case
-      setShowOnboardDiscover(false);
       ctx.redirectUrl = null;
     }
-  }, [ctx, history.location.pathname]);
+  }, [ctx, location.pathname]);
 
   if (attempt.status === 'failed') {
     return <Failed message={attempt.statusText} />;
@@ -126,25 +117,27 @@ export function Main(props: MainProps) {
     );
   }
 
-  function handleOnboard() {
-    updateOnboardDiscover();
-    history.push(cfg.routes.discover);
-  }
+  const availableScopes = ctx.storeUser.getAvailableScopes();
+  const isScopePickerRoute = !!matchPath(
+    { path: cfg.routes.scopePicker, end: true },
+    location.pathname
+  );
 
-  function handleOnClose() {
-    updateOnboardDiscover();
-    setShowOnboardDiscover(false);
-  }
-
-  function updateOnboardDiscover() {
-    const discover = storageService.getOnboardDiscover();
-    storageService.setOnboardDiscover({ ...discover, notified: true });
+  // TODO(bl-nero): Don't redirect once the user picks a scope.
+  // For now, as the scope picker is not fully operational, we only enable it
+  // if a local storage flag is on.
+  if (storageService.getUseLoginScopePicker()) {
+    if (
+      cfg.scopesEnabled &&
+      availableScopes.length > 0 &&
+      !isScopePickerRoute
+    ) {
+      return <Redirect to={history.getScopePickerUrl()} />;
+    }
   }
 
   // redirect to the default feature when hitting the root /web URL
-  if (
-    matchPath(history.location.pathname, { path: cfg.routes.root, exact: true })
-  ) {
+  if (matchPath(cfg.routes.root, location.pathname)) {
     if (ctx.redirectUrl) {
       return <Redirect to={ctx.redirectUrl} />;
     }
@@ -178,14 +171,12 @@ export function Main(props: MainProps) {
     })
   );
 
-  const onboard = storageService.getOnboardDiscover();
-  const requiresOnboarding =
-    onboard && !onboard.hasResource && !onboard.notified;
-  const displayOnboardDiscover = requiresOnboarding && showOnboardDiscover;
-
   return (
     <FeaturesContextProvider value={features}>
-      <TopBar CustomLogo={props.CustomLogo} />
+      <TopBar
+        CustomLogo={props.CustomLogo}
+        scopePickerMode={isScopePickerRoute}
+      />
       <Wrapper>
         <MainContainer>
           <Navigation showPoweredByLogo={!!props.CustomLogo} />
@@ -207,9 +198,6 @@ export function Main(props: MainProps) {
           </InfoGuidePanelProvider>
         </MainContainer>
       </Wrapper>
-      {displayOnboardDiscover && (
-        <OnboardDiscover onClose={handleOnClose} onOnboard={handleOnboard} />
-      )}
     </FeaturesContextProvider>
   );
 }

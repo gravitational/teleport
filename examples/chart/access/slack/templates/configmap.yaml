@@ -11,12 +11,20 @@ metadata:
 data:
   teleport-slack.toml: |
     [teleport]
-    addr = {{ coalesce .Values.teleport.address .Values.tbot.teleportProxyAddress .Values.tbot.teleportAuthAddress | quote }}
+    addr = {{ default "" (coalesce .Values.teleport.address .Values.tbot.teleportProxyAddress .Values.tbot.teleportAuthAddress) | quote }}
     identity = "/var/lib/teleport/plugins/slack/teleport-identity/{{ include "slack.identitySecretPath" . }}"
     refresh_identity = true
 
     [slack]
     token = "/var/lib/teleport/plugins/slack/slack-token"
+
+    [review]
+    enabled = {{ .Values.review.enabled }}
+    {{- if .Values.review.enabled }}
+    app_token = "/var/lib/teleport/plugins/slack/slack-app-token"
+    slack_user_id_trait = "{{ .Values.review.slackUserIdTrait }}"
+    allow_email_username_match = {{ .Values.review.allowEmailUsernameMatch }}
+    {{- end }}
 
     [role_to_recipients]
     {{- range $role, $recipients := .Values.roleToRecipients }}

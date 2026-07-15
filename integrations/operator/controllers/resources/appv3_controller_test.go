@@ -126,15 +126,20 @@ func (g *appV3TestingPrimitives) CompareTeleportAndKubernetesResource(tResource 
 
 func TestTeleportAppV3Creation(t *testing.T) {
 	test := &appV3TestingPrimitives{}
-	testlib.ResourceCreationSynchronousTest[types.Application, *resourcesv1.TeleportAppV3](t, resources.NewAppV3Reconciler, test)
+	testlib.ResourceCreationSynchronousTest(t, resources.NewAppV3Reconciler, test)
+}
+
+func TestTeleportAppV3Deletion(t *testing.T) {
+	test := &appV3TestingPrimitives{}
+	testlib.ResourceDeletionSynchronousTest(t, resources.NewAppV3Reconciler, test)
 }
 
 func TestTeleportAppV3DeletionDrift(t *testing.T) {
 	test := &appV3TestingPrimitives{}
-	testlib.ResourceDeletionDriftSynchronousTest[types.Application, *resourcesv1.TeleportAppV3](t, resources.NewAppV3Reconciler, test)
+	testlib.ResourceDeletionDriftSynchronousTest(t, resources.NewAppV3Reconciler, test)
 }
 
 func TestTeleportAppV3Update(t *testing.T) {
 	test := &appV3TestingPrimitives{}
-	testlib.ResourceUpdateTestSynchronous[types.Application, *resourcesv1.TeleportAppV3](t, resources.NewAppV3Reconciler, test)
+	testlib.ResourceUpdateTestSynchronous(t, resources.NewAppV3Reconciler, test)
 }

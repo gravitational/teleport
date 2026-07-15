@@ -49,14 +49,14 @@ func (f *eksAuditLogFetcherFixture) Start(t *testing.T) {
 	t.Helper()
 
 	f.ctx, f.cancel = context.WithCancel(t.Context())
-	tester := grpctest.NewGRPCTester[kalsRequest, kalsResponse](f.ctx)
+	tester := grpctest.NewGRPCTester[accessgraphv1alpha.KubeAuditLogStreamRequest, accessgraphv1alpha.KubeAuditLogStreamResponse](f.ctx)
 	f.server = tester.NewServerStream()
 	logger := slog.New(slog.DiscardHandler)
 	f.fakeLogFetcher = newFakeCloudWatchLogFetcher()
-	f.cluster = &accessgraphv1alpha.AWSEKSClusterV1{
+	f.cluster = accessgraphv1alpha.AWSEKSClusterV1_builder{
 		Name: "cluster-name",
 		Arn:  "cluster-arn",
-	}
+	}.Build()
 	logFetcher := newEKSAuditLogFetcher(f.fakeLogFetcher, f.cluster, tester.NewClientStream(), logger)
 	go func() { f.fetcherErr = logFetcher.Run(f.ctx) }()
 }
@@ -193,14 +193,12 @@ func TestEKSAuditLogFetcher_ContinueOnError(t *testing.T) {
 	})
 }
 
-func newKubeAuditLogResponseResumeState(cursor *accessgraphv1alpha.KubeAuditLogCursor) *kalsResponse {
-	return &kalsResponse{
-		State: &accessgraphv1alpha.KubeAuditLogStreamResponse_ResumeState{
-			ResumeState: &accessgraphv1alpha.KubeAuditLogResumeState{
-				Cursor: cursor,
-			},
-		},
-	}
+func newKubeAuditLogResponseResumeState(cursor *accessgraphv1alpha.KubeAuditLogCursor) *accessgraphv1alpha.KubeAuditLogStreamResponse {
+	return accessgraphv1alpha.KubeAuditLogStreamResponse_builder{
+		ResumeState: accessgraphv1alpha.KubeAuditLogResumeState_builder{
+			Cursor: cursor,
+		}.Build(),
+	}.Build()
 }
 
 func makeEvent(t time.Time, id int, msg string) cwltypes.FilteredLogEvent {

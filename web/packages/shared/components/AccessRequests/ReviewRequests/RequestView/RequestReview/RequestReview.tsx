@@ -111,6 +111,10 @@ export default function RequestReview({
     return state !== undefined ? state === currentOptionState : undefined;
   }
 
+  const someResourcesConstrained = request.resources?.some(
+    r => !!r.constraints
+  );
+
   return (
     <Validation>
       {({ validator }) => (
@@ -168,7 +172,9 @@ export default function RequestReview({
                     <React.Fragment key={index}>
                       {radio}
                       <Box ml={4} mt={2} css={{ position: 'relative' }}>
-                        <HorizontalLine />
+                        <HorizontalLine
+                          height={92 + (someResourcesConstrained ? 24 : 0)}
+                        />
                         <FieldSelect<SuggestedAcessListOption>
                           ml={1}
                           maxWidth="600px"
@@ -196,6 +202,18 @@ export default function RequestReview({
                           }
                           options={suggestedAccessListOptions}
                         />
+                        {someResourcesConstrained && (
+                          <Text
+                            ml={1}
+                            mt={2}
+                            fontSize={1}
+                            color="text.slightlyMuted"
+                          >
+                            Requested resource(s) include Constraints; access
+                            granted via membership in an Access List will be
+                            broader than requested.
+                          </Text>
+                        )}
                       </Box>
                     </React.Fragment>
                   );
@@ -284,18 +302,29 @@ function makeReviewStateOptions(
   ) {
     promotedContent = <Text>{promotedTxt}</Text>;
   } else {
-    let msg = 'No Access Lists will grant the requested resources';
+    let msg =
+      'To approve long-term access, you must own an Access List that grants every requested resource, ' +
+      'including any resources automatically added to the request. None you own covers them all.';
     if (fetchSuggestedAccessListsAttempt.status === 'error') {
-      msg = fetchSuggestedAccessListsAttempt.statusText;
+      // A permission failure (HTTP 403 in the web UI, gRPC PERMISSION_DENIED in
+      // Connect) means the reviewer can't see the eligible Access Lists, which
+      // is distinct from there being none. Detect it by status code rather than
+      // message text so it survives across versions; surface other errors as-is.
+      const err = fetchSuggestedAccessListsAttempt.error;
+      const isPermissionError =
+        err?.response?.status === 403 || err?.code === 'PERMISSION_DENIED';
+      msg = isPermissionError
+        ? "You don't have permission to view the Access Lists eligible for long-term approval of this request. You can still reject it."
+        : fetchSuggestedAccessListsAttempt.statusText;
     } else if (request.resources.length === 0) {
       msg = 'Only supported for resource based access requests';
     }
     promotedContent = (
       <HoverTooltip tipContent={msg}>
-        <Flex alignItems="center">
+        <Flex alignItems="center" gap={2}>
           <Text>{promotedTxt}</Text>
           {fetchSuggestedAccessListsAttempt.status === 'error' && (
-            <Warning color="warning.active" ml={1} size={20} />
+            <Warning color="warning.active" size={20} />
           )}
         </Flex>
       </HoverTooltip>

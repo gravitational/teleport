@@ -6,9 +6,10 @@ spec:
   - claim: groups
     roles:
     - access
-    value: users
+    value: devs
   - claim: groups
     roles:
+    - auditor
     - editor
     value: admins
   client_id: <CLIENT-NAME>

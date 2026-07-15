@@ -32,6 +32,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -44,7 +45,12 @@ import (
 // testResource for testing the generic service.
 type testResource struct {
 	types.ResourceHeader
-	Spec testResourceSpec
+	Spec  testResourceSpec
+	Scope string
+}
+
+func (r *testResource) GetScope() string {
+	return r.Scope
 }
 
 func newTestResource(name string) *testResource {
@@ -225,13 +231,13 @@ func TestGenericCRUD(t *testing.T) {
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
-	// Retrieve all resources from the stream
+	// Retrieve resources within an exclusive end range from the stream.
 	streamedResources = nil
 	for r, err := range service.Resources(ctx, r1.GetName(), r2.GetName()) {
 		require.NoError(t, err)
 		streamedResources = append(streamedResources, r)
 	}
-	require.Empty(t, cmp.Diff(paginatedOut, streamedResources,
+	require.Empty(t, cmp.Diff([]*testResource{r1}, streamedResources,
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
@@ -245,15 +251,13 @@ func TestGenericCRUD(t *testing.T) {
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
-	// Retrieve a single resource from the stream
+	// An exclusive end equal to the first resource yields nothing.
 	streamedResources = nil
 	for r, err := range service.Resources(ctx, "", r1.GetName()) {
 		require.NoError(t, err)
 		streamedResources = append(streamedResources, r)
 	}
-	require.Empty(t, cmp.Diff([]*testResource{r1}, streamedResources,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
-	))
+	require.Empty(t, streamedResources)
 
 	// Fetch a specific service provider.
 	r, err := service.GetResource(ctx, r2.GetName())
@@ -370,6 +374,155 @@ func TestGenericCRUD(t *testing.T) {
 	count, err = service.CountResources(ctx)
 	require.NoError(t, err)
 	require.Equal(t, uint(0), count)
+}
+
+func TestGenericConditionalDelete(t *testing.T) {
+	t.Parallel()
+
+	memBackend, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+
+	service, err := NewService(&ServiceConfig[*testResource]{
+		Backend:       memBackend,
+		ResourceKind:  "generic resource",
+		PageLimit:     200,
+		BackendPrefix: backend.NewKey("generic_prefix"),
+		UnmarshalFunc: unmarshalResource,
+		MarshalFunc:   marshalResource,
+	})
+	require.NoError(t, err)
+
+	// services methods modify their inputs. Take a defensive copy before calling.
+	cloneResource := func(r *testResource) *testResource {
+		r2 := *r
+		return &r2
+	}
+
+	// Create a couple revisions of a resource.
+	res := newTestResource("myresource")
+	res.Metadata.Expires = nil
+	res.Spec = testResourceSpec{PropA: "1"}
+	rev1, err := service.CreateResource(t.Context(), cloneResource(res))
+	require.NoError(t, err)
+
+	res.SetRevision(rev1.GetRevision())
+	rev2, err := service.ConditionalUpdateResource(t.Context(), cloneResource(res))
+	require.NoError(t, err)
+	// Sanity check.
+	require.NotEqual(t, rev1.GetRevision(), rev2.GetRevision())
+
+	const errNotFoundOrRevision = "does not exist or revision does not match"
+	tests := []struct {
+		desc        string
+		name        string
+		revision    string
+		wantErr     string
+		wantErrType any
+	}{
+		{
+			desc:        "unknown resource",
+			name:        "unknown-resource",
+			revision:    rev2.GetRevision(),
+			wantErr:     errNotFoundOrRevision,
+			wantErrType: new(*trace.CompareFailedError),
+		},
+		{
+			desc:        "unknown revision",
+			name:        rev2.GetName(),
+			revision:    rev1.GetRevision(),
+			wantErr:     errNotFoundOrRevision,
+			wantErrType: new(*trace.CompareFailedError),
+		},
+		{
+			desc:        "empty name", // same as unknown resource
+			revision:    rev2.GetRevision(),
+			wantErr:     errNotFoundOrRevision,
+			wantErrType: new(*trace.CompareFailedError),
+		},
+		{
+			desc:        "empty revision",
+			name:        rev2.GetName(),
+			wantErr:     "revision required",
+			wantErrType: new(*trace.BadParameterError),
+		},
+		{
+			desc:     "ok",
+			name:     rev2.GetName(),
+			revision: rev2.GetRevision(),
+			// success: no error wanted.
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			t.Parallel()
+
+			err := service.ConditionalDeleteResource(t.Context(), test.name, test.revision)
+			if test.wantErr != "" {
+				assert.ErrorContains(t, err, test.wantErr, "ConditionalDeleteResource error mismatch")
+			}
+			if test.wantErrType != nil {
+				assert.ErrorAs(t, err, test.wantErrType, "ConditionalDeleteResource error type mismatch")
+			}
+			if test.wantErr != "" && test.wantErrType != nil {
+				return // Asserted above.
+			}
+			require.NoError(t, err)
+
+			// Verify effective deletion.
+			_, err = service.GetResource(t.Context(), test.name)
+			assert.ErrorAs(t, err, new(*trace.NotFoundError), "Get error mismatch after ConditionalDelete")
+		})
+	}
+}
+
+// TestResourcesSkipsUnmarshalErrors guards against a regression where a single
+// malformed backend item would terminate iteration over Resources rather than
+// being skipped.
+func TestResourcesSkipsUnmarshalErrors(t *testing.T) {
+	ctx := t.Context()
+
+	memBackend, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clockwork.NewFakeClock(),
+	})
+	require.NoError(t, err)
+
+	service, err := NewService(&ServiceConfig[*testResource]{
+		Backend:       memBackend,
+		ResourceKind:  "generic resource",
+		PageLimit:     200,
+		BackendPrefix: backend.NewKey("generic_prefix"),
+		UnmarshalFunc: unmarshalResource,
+		MarshalFunc:   marshalResource,
+	})
+	require.NoError(t, err)
+
+	// Insert valid resources at "r1" and "r3".
+	r1 := newTestResource("r1")
+	_, err = service.CreateResource(ctx, r1)
+	require.NoError(t, err)
+	r3 := newTestResource("r3")
+	_, err = service.CreateResource(ctx, r3)
+	require.NoError(t, err)
+
+	// Insert a malformed item at "r2", bypassing marshal so the unmarshal
+	// path will fail when iterating.
+	_, err = memBackend.Put(ctx, backend.Item{
+		Key:   service.MakeKey(backend.NewKey("r2")),
+		Value: []byte("not-valid-json"),
+	})
+	require.NoError(t, err)
+
+	// Resources must skip the malformed item and continue past it.
+	var got []*testResource
+	for r, err := range service.Resources(ctx, "", "") {
+		require.NoError(t, err)
+		got = append(got, r)
+	}
+	require.Empty(t, cmp.Diff(
+		[]*testResource{r1, r3}, got,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
 }
 
 func TestGenericListResourcesReturnNextResource(t *testing.T) {
@@ -646,7 +799,7 @@ func TestGenericKeyOverride(t *testing.T) {
 		BackendPrefix: backend.NewKey("generic_prefix"),
 		UnmarshalFunc: unmarshalResource,
 		MarshalFunc:   marshalResource,
-		NameKeyFunc:   func(string) string { return "llama" },
+		NameKeyFunc:   func() backend.Key { return backend.NewKey("llama") },
 	})
 	require.NoError(t, err)
 
@@ -725,4 +878,94 @@ func TestGenericKeyOverride(t *testing.T) {
 	require.NoError(t, err)
 	_, err = memBackend.Get(ctx, backend.NewKey("generic_prefix", "llama"))
 	require.ErrorAs(t, err, new(*trace.NotFoundError))
+
+	t.Run("WithNameKeyFunc", func(t *testing.T) {
+		s := service.WithNameKeyFunc(func() backend.Key {
+			return backend.NewKey("camelid", "thellama")
+		})
+
+		ctx := t.Context()
+		r1 := newTestResource("r1")
+
+		// Test a few basic operations to make sure the With is sound.
+		created, err := s.CreateResource(ctx, r1)
+		require.NoError(t, err, "CreateResource")
+
+		// Test that the customized key exists.
+		wantKey := backend.NewKey("generic_prefix", "camelid", "thellama")
+		_, err = memBackend.Get(ctx, wantKey)
+		require.NoError(t, err, "Get by customized key")
+
+		// Get.
+		stored, err := s.GetResource(ctx, "")
+		require.NoError(t, err, "GetResource")
+		assert.Equal(t, created, stored, "GetResource mismatch")
+
+		// Delete.
+		require.NoError(t, s.DeleteResource(ctx, ""), "DeleteResource")
+		// 2nd Delete.
+		require.ErrorAs(t, s.DeleteResource(ctx, ""), new(*trace.NotFoundError), "2nd DeleteResource error mismatch")
+	})
+}
+
+// TestResourcesSkipsUnmarshalErrorsHittingPageBoundary guards against a regression where hitting a page boundary with a malformed backend item would
+// return less items than the page limit and no next token. This would cause callers to miss resources and fail to paginate properly when malformed items are present in the backend.
+func TestResourcesSkipsUnmarshalErrorsHittingPageBoundary(t *testing.T) {
+	ctx := t.Context()
+
+	memBackend, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clockwork.NewFakeClock(),
+	})
+	require.NoError(t, err)
+
+	const pageLimit = 64
+	const numberOfPages = 5
+	service, err := NewService(&ServiceConfig[*testResource]{
+		Backend:       memBackend,
+		ResourceKind:  "generic resource",
+		PageLimit:     pageLimit,
+		BackendPrefix: backend.NewKey("generic_prefix"),
+		UnmarshalFunc: unmarshalResource,
+		MarshalFunc:   marshalResource,
+	})
+	require.NoError(t, err)
+
+	for i := range pageLimit * numberOfPages {
+		key := fmt.Sprintf("r%d", i)
+		if i%2 == 0 {
+			_, err = memBackend.Put(ctx, backend.Item{
+				Key:   service.MakeKey(backend.NewKey(key)),
+				Value: []byte("not-valid-json"),
+			})
+			require.NoError(t, err)
+		} else {
+			r := newTestResource(key)
+			_, err = service.CreateResource(ctx, r)
+			require.NoError(t, err)
+		}
+	}
+
+	page1, next, err := service.ListResources(ctx, pageLimit, "")
+	require.NoError(t, err)
+	require.Len(t, page1, pageLimit)
+	require.NotEmpty(t, next)
+
+	page2, next, err := service.ListResources(ctx, pageLimit, next)
+	require.NoError(t, err)
+	require.Len(t, page2, pageLimit)
+	require.NotEmpty(t, next)
+
+	page3, next, err := service.ListResources(ctx, pageLimit, next)
+	require.NoError(t, err)
+	require.Len(t, page3, pageLimit/2)
+	require.Empty(t, next)
+
+	slices := [][]*testResource{page1, page2, page3}
+	for i := range len(slices) {
+		for j := i + 1; j < len(slices); j++ {
+			assert.NotEqual(t, slices[i], slices[j], "slices %d and %d should differ", i, j)
+		}
+	}
+
 }

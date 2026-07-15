@@ -179,17 +179,25 @@ export const editBotForever = () =>
 
 export const genWizardCiCdSuccess = (options?: {
   response?: Awaited<ReturnType<typeof generateGhaK8sTemplates>>;
+  prettyFormat?: boolean;
 }) => {
   return http.post(cfg.api.bot.genWizardCiCd, async ({ request }) => {
-    const {
-      response = {
-        terraform: TERRAFORM_MOCK.replaceAll(
-          ':body',
-          await request.clone().text()
-        ),
-      },
-    } = options ?? {};
-    return HttpResponse.json(response);
+    const { response, prettyFormat } = options ?? {};
+
+    const body = prettyFormat
+      ? JSON.stringify(await request.clone().json(), undefined, 2)
+          .split('\n')
+          .map(l => `# ${l}`)
+          .join('\n')
+      : `# ${await request.clone().text()}`;
+
+    const terraform = TERRAFORM_MOCK.replaceAll(':body', body);
+
+    return HttpResponse.json(
+      response ?? {
+        terraform,
+      }
+    );
   });
 };
 
@@ -215,7 +223,7 @@ export const genWizardCiCdForever = () =>
   );
 
 const TERRAFORM_MOCK = `# POST ${cfg.api.bot.genWizardCiCd}
-# :body
+:body
 
 # This is a mocked Terraform template
 resource "teleport_bot" "bot_name" {

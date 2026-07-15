@@ -225,6 +225,89 @@ func TestIsValidRegion(t *testing.T) {
 	}
 }
 
+func TestIsValidRegionWithWeakCheck(t *testing.T) {
+	for _, tt := range []struct {
+		name     string
+		region   string
+		errCheck require.ErrorAssertionFunc
+	}{
+		{
+			name:     "standard us region",
+			region:   "us-east-1",
+			errCheck: require.NoError,
+		},
+		{
+			name:     "aws global sentinel value",
+			region:   "aws-global",
+			errCheck: require.NoError,
+		},
+		{
+			name:     "eu region",
+			region:   "eu-west-1",
+			errCheck: require.NoError,
+		},
+		{
+			name:     "us gov",
+			region:   "us-gov-east-1",
+			errCheck: require.NoError,
+		},
+		{
+			name:     "unknown region with valid chars accepted by weak check",
+			region:   "xx-newpartition-99",
+			errCheck: require.NoError,
+		},
+		{
+			name:     "digits only accepted by weak check",
+			region:   "123",
+			errCheck: require.NoError,
+		},
+		{
+			name:     "empty",
+			region:   "",
+			errCheck: isBadParamErrFn,
+		},
+		{
+			name:     "uppercase letters",
+			region:   "US-EAST-1",
+			errCheck: require.NoError,
+		},
+		{
+			name:     "underscores",
+			region:   "US_EAST_1",
+			errCheck: require.NoError,
+		},
+		{
+			name:     "special symbols",
+			region:   "us@east-1",
+			errCheck: isBadParamErrFn,
+		},
+		{
+			name:     "spaces",
+			region:   "us east-1",
+			errCheck: isBadParamErrFn,
+		},
+		{
+			name:     "unicode digit",
+			region:   "us-east-৩",
+			errCheck: isBadParamErrFn,
+		},
+		{
+			name:     "/ char",
+			region:   "us-east/",
+			errCheck: isBadParamErrFn,
+		},
+		{
+			name:     "? char",
+			region:   "us-east?",
+			errCheck: isBadParamErrFn,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.errCheck(t, IsValidRegionWithWeakCheck(tt.region))
+		})
+	}
+}
+
 func TestCheckRoleARN(t *testing.T) {
 	for _, tt := range []struct {
 		name     string

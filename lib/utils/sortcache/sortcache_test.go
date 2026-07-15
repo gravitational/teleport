@@ -285,6 +285,9 @@ func TestNextKey(t *testing.T) {
 // cpu: Intel(R) Xeon(R) CPU @ 2.80GHz
 // BenchmarkSortCache-4   	      12	 250820820 ns/op
 func BenchmarkSortCache(b *testing.B) {
+	if testing.Short() {
+		b.Skip("skipping heavy benchmark")
+	}
 	const (
 		concurrency      = 100
 		resourcesPerKind = 50_000

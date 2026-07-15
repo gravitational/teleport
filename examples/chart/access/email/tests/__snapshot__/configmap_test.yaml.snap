@@ -12,7 +12,6 @@ should match the snapshot (mailgun on):
         domain           = "mymailgunsubdomain.mailgun.org"
         private_key_file = "/var/lib/teleport/plugins/email/mailgun_private_key"
 
-
         [delivery]
         sender = ""
         recipients = []
@@ -26,8 +25,8 @@ should match the snapshot (mailgun on):
         app.kubernetes.io/instance: RELEASE-NAME
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: teleport-plugin-email
-        app.kubernetes.io/version: 19.0.0-dev
-        helm.sh/chart: teleport-plugin-email-19.0.0-dev
+        app.kubernetes.io/version: 19.0.0-prealpha.2
+        helm.sh/chart: teleport-plugin-email-19.0.0-prealpha.2
       name: RELEASE-NAME-teleport-plugin-email
 should match the snapshot (smtp on):
   1: |
@@ -59,8 +58,8 @@ should match the snapshot (smtp on):
         app.kubernetes.io/instance: RELEASE-NAME
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: teleport-plugin-email
-        app.kubernetes.io/version: 19.0.0-dev
-        helm.sh/chart: teleport-plugin-email-19.0.0-dev
+        app.kubernetes.io/version: 19.0.0-prealpha.2
+        helm.sh/chart: teleport-plugin-email-19.0.0-prealpha.2
       name: RELEASE-NAME-teleport-plugin-email
 should match the snapshot (smtp on, no starttls):
   1: |
@@ -92,8 +91,8 @@ should match the snapshot (smtp on, no starttls):
         app.kubernetes.io/instance: RELEASE-NAME
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: teleport-plugin-email
-        app.kubernetes.io/version: 19.0.0-dev
-        helm.sh/chart: teleport-plugin-email-19.0.0-dev
+        app.kubernetes.io/version: 19.0.0-prealpha.2
+        helm.sh/chart: teleport-plugin-email-19.0.0-prealpha.2
       name: RELEASE-NAME-teleport-plugin-email
 should match the snapshot (smtp on, password file):
   1: |
@@ -125,8 +124,8 @@ should match the snapshot (smtp on, password file):
         app.kubernetes.io/instance: RELEASE-NAME
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: teleport-plugin-email
-        app.kubernetes.io/version: 19.0.0-dev
-        helm.sh/chart: teleport-plugin-email-19.0.0-dev
+        app.kubernetes.io/version: 19.0.0-prealpha.2
+        helm.sh/chart: teleport-plugin-email-19.0.0-prealpha.2
       name: RELEASE-NAME-teleport-plugin-email
 should match the snapshot (smtp on, roleToRecipients set):
   1: |
@@ -161,8 +160,8 @@ should match the snapshot (smtp on, roleToRecipients set):
         app.kubernetes.io/instance: RELEASE-NAME
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: teleport-plugin-email
-        app.kubernetes.io/version: 19.0.0-dev
-        helm.sh/chart: teleport-plugin-email-19.0.0-dev
+        app.kubernetes.io/version: 19.0.0-prealpha.2
+        helm.sh/chart: teleport-plugin-email-19.0.0-prealpha.2
       name: RELEASE-NAME-teleport-plugin-email
 should match the snapshot (smtp on, starttls disabled):
   1: |
@@ -194,6 +193,6 @@ should match the snapshot (smtp on, starttls disabled):
         app.kubernetes.io/instance: RELEASE-NAME
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: teleport-plugin-email
-        app.kubernetes.io/version: 19.0.0-dev
-        helm.sh/chart: teleport-plugin-email-19.0.0-dev
+        app.kubernetes.io/version: 19.0.0-prealpha.2
+        helm.sh/chart: teleport-plugin-email-19.0.0-prealpha.2
       name: RELEASE-NAME-teleport-plugin-email
