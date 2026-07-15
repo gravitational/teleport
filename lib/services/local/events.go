@@ -33,6 +33,7 @@ import (
 	accessgraphsecretsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessgraph/v1"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
+	discoveryservicev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryservice/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
@@ -212,6 +213,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newUserTaskParser()
 		case types.KindDiscoveryConfig:
 			parser = newDiscoveryConfigParser()
+		case types.KindDiscoveryService:
+			parser = newDiscoveryServiceParser()
 		case types.KindHeadlessAuthentication:
 			p, err := newHeadlessAuthenticationParser(kind.Filter)
 			if err != nil {
@@ -2563,6 +2566,51 @@ func (p *discoveryConfigParser) parse(event backend.Event) (types.Resource, erro
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}
+}
+
+func newDiscoveryServiceParser() resourceParser {
+	return discoveryServiceParser{}
+}
+
+type discoveryServiceParser struct{}
+
+// parse implements [resourceParser].
+func (discoveryServiceParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		return types.Resource153ToLegacy(discoveryservicev1.DiscoveryService_builder{
+			Kind:    types.KindDiscoveryService,
+			SubKind: "",
+			Version: types.V1,
+			Metadata: headerv1.Metadata_builder{
+				Name: event.Item.Key.TrimPrefix(backend.ExactKey(discoveryServicesPrefix)).String(),
+			}.Build(),
+		}.Build()), nil
+	case types.OpPut:
+		// The codec is encoding/json, not protojson: the spec embeds legacy
+		// gogoproto matcher types; see [services.MarshalDiscoveryService].
+		r, err := services.UnmarshalDiscoveryService(
+			event.Item.Value,
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Resource153ToLegacy(r), nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+// match implements [resourceParser].
+func (discoveryServiceParser) match(key backend.Key) bool {
+	return key.HasPrefix(backend.ExactKey(discoveryServicesPrefix))
+}
+
+// prefixes implements [resourceParser].
+func (discoveryServiceParser) prefixes() []backend.Key {
+	return []backend.Key{backend.ExactKey(discoveryServicesPrefix)}
 }
 
 func newHeadlessAuthenticationParser(m map[string]string) (*headlessAuthenticationParser, error) {

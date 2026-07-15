@@ -311,6 +311,8 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindRetrievalModel, nil
 	case types.KindRelayServer, types.KindRelayServer + "s":
 		return types.KindRelayServer, nil
+	case types.KindDiscoveryService, types.KindDiscoveryService + "s":
+		return types.KindDiscoveryService, nil
 	case types.KindAppAuthConfig, types.KindAppAuthConfig + "s", "aac":
 		return types.KindAppAuthConfig, nil
 	case types.KindWorkloadCluster, types.KindWorkloadCluster + "s":

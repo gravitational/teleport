@@ -17,16 +17,61 @@ package client
 import (
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/testing/protocmp"
 
 	authpb "github.com/gravitational/teleport/api/client/proto"
+	discoveryservicev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryservice/v1"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	accesslistv1conv "github.com/gravitational/teleport/api/types/accesslist/convert/v1"
 	"github.com/gravitational/teleport/api/types/header"
 )
+
+// TestEventDiscoveryServiceRoundTrip pins the watcher event codec for the
+// discovery_service resource: EventToGRPC must have a oneof case for the
+// wrapped resource (a missing case returns BadParameter, which closes remote
+// watcher streams), the gRPC event must survive binary proto encoding with
+// the legacy gogoproto matcher types embedded in the spec, and EventFromGRPC
+// must hand back the same heartbeat.
+func TestEventDiscoveryServiceRoundTrip(t *testing.T) {
+	hb := discoveryservicev1.DiscoveryService_builder{
+		Kind:     types.KindDiscoveryService,
+		Version:  types.V1,
+		Metadata: headerv1.Metadata_builder{Name: "host-1"}.Build(),
+		Spec: discoveryservicev1.DiscoveryServiceSpec_builder{
+			DiscoveryGroup: "demo",
+			StaticMatchers: discoveryservicev1.StaticMatchers_builder{
+				Aws: []*types.AWSMatcher{{
+					Types:   []string{"ec2"},
+					Regions: []string{"us-east-1"},
+					Tags:    types.Labels{"env": []string{"prod"}},
+				}},
+			}.Build(),
+		}.Build(),
+	}.Build()
+
+	grpcEvent, err := EventToGRPC(types.Event{
+		Type:     types.OpPut,
+		Resource: types.Resource153ToLegacy(hb),
+	})
+	require.NoError(t, err)
+
+	encoded, err := proto.Marshal(grpcEvent)
+	require.NoError(t, err)
+	decoded := &authpb.Event{}
+	require.NoError(t, proto.Unmarshal(encoded, decoded))
+
+	out, err := EventFromGRPC(decoded)
+	require.NoError(t, err)
+	got, ok := out.Resource.(types.Resource153UnwrapperT[*discoveryservicev1.DiscoveryService])
+	require.True(t, ok, "expected a discovery_service event resource, got %T", out.Resource)
+	require.Empty(t, cmp.Diff(hb, got.UnwrapT(), protocmp.Transform()))
+}
 
 // TestEventEqual will test an event object against a google proto.Equal. This is
 // primarily to catch potential issues with using our "mixed" gogo + regular protobuf

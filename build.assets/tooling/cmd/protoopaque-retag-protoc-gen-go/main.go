@@ -183,6 +183,8 @@ func defaultHybridFromPrefix(prefix string) bool {
 		"api/gen/proto/go/teleport/devicetrust/v1/user_certificates",
 		"api/gen/proto/go/teleport/discoveryconfig/v1/discoveryconfig_service",
 		"api/gen/proto/go/teleport/discoveryconfig/v1/discoveryconfig",
+		"api/gen/proto/go/teleport/discoveryservice/v1/discovery_service",
+		"api/gen/proto/go/teleport/discoveryservice/v1/discovery_heartbeat_service",
 		"api/gen/proto/go/teleport/dynamicwindows/v1/dynamicwindows_service",
 		"api/gen/proto/go/teleport/embedding/v1/embedding",
 		"api/gen/proto/go/teleport/externalauditstorage/v1/externalauditstorage_service",

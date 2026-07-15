@@ -25,6 +25,7 @@ import (
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
+	discoveryservicev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryservice/v1"
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
@@ -191,6 +192,10 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 	case types.Resource153UnwrapperT[*presencev1.RelayServer]:
 		out.Resource = &proto.Event_RelayServer{
 			RelayServer: r.UnwrapT(),
+		}
+	case types.Resource153UnwrapperT[*discoveryservicev1.DiscoveryService]:
+		out.Resource = &proto.Event_DiscoveryService{
+			DiscoveryService: r.UnwrapT(),
 		}
 	case types.Resource153UnwrapperT[*appauthconfigv1.AppAuthConfig]:
 		out.Resource = &proto.Event_AppAuthConfig{
@@ -732,6 +737,13 @@ func EventFromGRPC(in *proto.Event) (*types.Event, error) {
 		return &out, nil
 	} else if r := in.GetRelayServer(); r != nil {
 		out.Resource = types.ProtoResource153ToLegacy(r)
+		return &out, nil
+	} else if r := in.GetDiscoveryService(); r != nil {
+		// Resource153ToLegacy, not ProtoResource153ToLegacy: the latter
+		// marshals to JSON via protojson, which cannot represent the legacy
+		// gogoproto matcher types embedded in the spec; see
+		// [services.MarshalDiscoveryService].
+		out.Resource = types.Resource153ToLegacy(r)
 		return &out, nil
 	} else if r := in.GetRecordingEncryption(); r != nil {
 		out.Resource = types.ProtoResource153ToLegacy(r)

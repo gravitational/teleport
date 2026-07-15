@@ -1,0 +1,121 @@
+// Copyright 2026 Gravitational, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.discoveryservice.v1;
+
+import "google/protobuf/duration.proto";
+import "teleport/header/v1/metadata.proto";
+import "teleport/legacy/types/types.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryservice/v1;discoveryservicev1";
+
+// DiscoveryService is the self-reported heartbeat of one Discovery Service
+// instance: its identity and the bounded effective static configuration
+// loaded from its own configuration file. It never carries dynamic
+// DiscoveryConfig contents (readers correlate those by exact discovery_group
+// equality) and never carries discovery-cycle or runtime health.
+//
+// One resource exists per reporting instance, named by its host ID. An expired
+// resource means Auth has no unexpired announcement from the instance;
+// it does not prove why announcements stopped.
+message DiscoveryService {
+  // kind is the fixed string "discovery_service".
+  string kind = 1;
+  // sub_kind is unused; fixed string "".
+  string sub_kind = 2;
+  // version is the fixed string "v1".
+  string version = 3;
+  // metadata holds the resource metadata; the name is the host ID of the
+  // Discovery Service instance and expires carries the heartbeat TTL.
+  teleport.header.v1.Metadata metadata = 4;
+  // spec is the effective configuration reported by the instance.
+  DiscoveryServiceSpec spec = 5;
+  // status is reserved for possible future runtime-status reporting and is
+  // empty in v1.
+  DiscoveryServiceStatus status = 6;
+}
+
+// DiscoveryServiceSpec describes the effective configuration of a Discovery
+// Service instance. v1 fields derive from configuration initialized at process
+// startup and never carry clock- or cycle-derived data such as sync results or
+// timestamps. Instance liveness is carried by metadata expiry, not by any spec
+// field.
+message DiscoveryServiceSpec {
+  reserved 6, 7;
+  reserved "discarded_matchers", "bound_discovery_configs";
+  // hostname is the configured hostname of the machine running the instance,
+  // for troubleshooting and debugging.
+  string hostname = 1;
+  // teleport_version is the Teleport version of the instance.
+  string teleport_version = 2;
+  // discovery_group is the discovery group this instance claims. Exact group
+  // equality identifies DiscoveryConfigs intended for this instance; it does
+  // not prove that the instance observed or applied them. Empty for
+  // static-only instances.
+  string discovery_group = 3;
+  // poll_interval is the cadence at which the instance runs its discovery
+  // cycles.
+  google.protobuf.Duration poll_interval = 4;
+  // static_matchers is a discovery-oriented projection of the accepted
+  // matchers from the instance's configuration file after normalization and
+  // filtering. AWS, Azure, and GCP installer parameters are omitted because
+  // they control post-discovery enrollment rather than resource selection. It
+  // does not report discovery-cycle health.
+  StaticMatchers static_matchers = 5;
+  // matchers_truncated is set when static_matchers detail was replaced by
+  // counts because the payload exceeded the size budget; consumers must then
+  // treat matcher visibility as partial rather than authoritative.
+  bool matchers_truncated = 8;
+  // static_matcher_counts carries per-cloud effective matcher counts (keys:
+  // "aws", "azure", "gcp", "kube", "access_graph") when matchers_truncated is
+  // set, so consumers retain scale information after detail is dropped. Each
+  // count is the length of the corresponding static_matchers list, except
+  // "access_graph", which is the sum of the Access Graph AWS and Azure sync
+  // entries.
+  //
+  // The keys are deliberately a Go-validated string vocabulary rather than
+  // per-cloud message fields, following how matcher type vocabularies are
+  // modeled in Go (validated string sets, not proto enums): the closed set
+  // has one source of truth at admission, where Auth rejects heartbeats
+  // with unknown keys, and adding a family is a producer and validation
+  // change with no schema revision.
+  map<string, int32> static_matcher_counts = 9;
+}
+
+// StaticMatchers is a discovery-oriented projection of the effective matchers
+// loaded from the Discovery Service instance's configuration file. AWS, Azure,
+// and GCP InstallerParams are omitted. The Access Graph client connection
+// configuration (address, CA) is also excluded because it is host plumbing
+// rather than discovery semantics.
+message StaticMatchers {
+  // aws is the effective set of AWS matchers.
+  repeated types.AWSMatcher aws = 1;
+  // azure is the effective set of Azure matchers.
+  repeated types.AzureMatcher azure = 2;
+  // gcp is the effective set of GCP matchers.
+  repeated types.GCPMatcher gcp = 3;
+  // kube is the effective set of Kubernetes matchers.
+  repeated types.KubernetesMatcher kube = 4;
+  // access_graph carries the Access Graph sync matchers: which cloud accounts
+  // and subscriptions this instance syncs into the Access Graph. The separate
+  // client connection configuration (Access Graph address, CA) is how the
+  // instance reaches the graph, not what it discovers, and is not reported.
+  types.AccessGraphSync access_graph = 5;
+}
+
+// DiscoveryServiceStatus is reserved for possible future runtime-status
+// reporting; currently never populated.
+message DiscoveryServiceStatus {}

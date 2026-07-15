@@ -238,6 +238,15 @@
           },
           {
             "resources": [
+              "discovery_service"
+            ],
+            "verbs": [
+              "list",
+              "read"
+            ]
+          },
+          {
+            "resources": [
               "security_report"
             ],
             "verbs": [
@@ -669,6 +678,15 @@
           {
             "resources": [
               "instance"
+            ],
+            "verbs": [
+              "list",
+              "read"
+            ]
+          },
+          {
+            "resources": [
+              "discovery_service"
             ],
             "verbs": [
               "list",

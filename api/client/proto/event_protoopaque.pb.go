@@ -32,6 +32,7 @@ import (
 	v17 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	v18 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	v12 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
+	v126 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryservice/v1"
 	v116 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	v114 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	v15 "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
@@ -984,6 +985,15 @@ func (x *Event) GetClassifier() *v124.Classifier {
 	return nil
 }
 
+func (x *Event) GetDiscoveryService() *v126.DiscoveryService {
+	if x != nil {
+		if x, ok := x.xxx_hidden_Resource.(*event_DiscoveryService); ok {
+			return x.DiscoveryService
+		}
+	}
+	return nil
+}
+
 func (x *Event) SetType(v Operation) {
 	x.xxx_hidden_Type = v
 }
@@ -1723,6 +1733,14 @@ func (x *Event) SetClassifier(v *v124.Classifier) {
 		return
 	}
 	x.xxx_hidden_Resource = &event_Classifier{v}
+}
+
+func (x *Event) SetDiscoveryService(v *v126.DiscoveryService) {
+	if v == nil {
+		x.xxx_hidden_Resource = nil
+		return
+	}
+	x.xxx_hidden_Resource = &event_DiscoveryService{v}
 }
 
 func (x *Event) HasResource() bool {
@@ -2469,6 +2487,14 @@ func (x *Event) HasClassifier() bool {
 	return ok
 }
 
+func (x *Event) HasDiscoveryService() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.xxx_hidden_Resource.(*event_DiscoveryService)
+	return ok
+}
+
 func (x *Event) ClearResource() {
 	x.xxx_hidden_Resource = nil
 }
@@ -3026,6 +3052,12 @@ func (x *Event) ClearClassifier() {
 	}
 }
 
+func (x *Event) ClearDiscoveryService() {
+	if _, ok := x.xxx_hidden_Resource.(*event_DiscoveryService); ok {
+		x.xxx_hidden_Resource = nil
+	}
+}
+
 const Event_Resource_not_set_case case_Event_Resource = 0
 const Event_ResourceHeader_case case_Event_Resource = 2
 const Event_CertAuthority_case case_Event_Resource = 3
@@ -3119,6 +3151,7 @@ const Event_Beam_case case_Event_Resource = 95
 const Event_ValidatedMFAChallengeV2_case case_Event_Resource = 96
 const Event_BeamsConfig_case case_Event_Resource = 97
 const Event_Classifier_case case_Event_Resource = 98
+const Event_DiscoveryService_case case_Event_Resource = 99
 
 func (x *Event) WhichResource() case_Event_Resource {
 	if x == nil {
@@ -3309,6 +3342,8 @@ func (x *Event) WhichResource() case_Event_Resource {
 		return Event_BeamsConfig_case
 	case *event_Classifier:
 		return Event_Classifier_case
+	case *event_DiscoveryService:
+		return Event_DiscoveryService_case
 	default:
 		return Event_Resource_not_set_case
 	}
@@ -3513,6 +3548,9 @@ type Event_builder struct {
 	BeamsConfig *v125.BeamsConfig
 	// Classifier is a resource for defining session summarization classifiers.
 	Classifier *v124.Classifier
+	// DiscoveryService is the configuration heartbeat of a Discovery Service
+	// instance.
+	DiscoveryService *v126.DiscoveryService
 	// -- end of xxx_hidden_Resource
 }
 
@@ -3796,6 +3834,9 @@ func (b0 Event_builder) Build() *Event {
 	}
 	if b.Classifier != nil {
 		x.xxx_hidden_Resource = &event_Classifier{b.Classifier}
+	}
+	if b.DiscoveryService != nil {
+		x.xxx_hidden_Resource = &event_DiscoveryService{b.DiscoveryService}
 	}
 	return m0
 }
@@ -4281,6 +4322,12 @@ type event_Classifier struct {
 	Classifier *v124.Classifier `protobuf:"bytes,98,opt,name=Classifier,proto3,oneof"`
 }
 
+type event_DiscoveryService struct {
+	// DiscoveryService is the configuration heartbeat of a Discovery Service
+	// instance.
+	DiscoveryService *v126.DiscoveryService `protobuf:"bytes,99,opt,name=DiscoveryService,proto3,oneof"`
+}
+
 func (*event_ResourceHeader) isEvent_Resource() {}
 
 func (*event_CertAuthority) isEvent_Resource() {}
@@ -4465,11 +4512,13 @@ func (*event_BeamsConfig) isEvent_Resource() {}
 
 func (*event_Classifier) isEvent_Resource() {}
 
+func (*event_DiscoveryService) isEvent_Resource() {}
+
 var File_teleport_legacy_client_proto_event_proto protoreflect.FileDescriptor
 
 const file_teleport_legacy_client_proto_event_proto_rawDesc = "" +
 	"\n" +
-	"(teleport/legacy/client/proto/event.proto\x12\x05proto\x1a'teleport/accesslist/v1/accesslist.proto\x1a?teleport/accessmonitoringrules/v1/access_monitoring_rules.proto\x1a-teleport/appauthconfig/v1/appauthconfig.proto\x1a'teleport/autoupdate/v1/autoupdate.proto\x1a\x1cteleport/beams/v1/beam.proto\x1a$teleport/beams/v1/beams_config.proto\x1a5teleport/clusterconfig/v1/access_graph_settings.proto\x1a'teleport/crownjewel/v1/crownjewel.proto\x1a#teleport/dbobject/v1/dbobject.proto\x1a1teleport/discoveryconfig/v1/discoveryconfig.proto\x1a7teleport/healthcheckconfig/v1/health_check_config.proto\x1a/teleport/identitycenter/v1/identitycenter.proto\x1a;teleport/kubewaitingcontainer/v1/kubewaitingcontainer.proto\x1a!teleport/legacy/types/types.proto\x1a,teleport/linuxdesktop/v1/linux_desktop.proto\x1a(teleport/machineid/v1/bot_instance.proto\x1a&teleport/machineid/v1/federation.proto\x1a)teleport/mfa/v1/validated_challenge.proto\x1a)teleport/mfa/v2/validated_challenge.proto\x1a-teleport/notifications/v1/notifications.proto\x1a'teleport/presence/v1/relay_server.proto\x1a+teleport/provisioning/v1/provisioning.proto\x1a:teleport/recordingencryption/v1/recording_encryption.proto\x1a*teleport/scopes/access/v1/assignment.proto\x1a$teleport/scopes/access/v1/role.proto\x1a'teleport/secreports/v1/secreports.proto\x1a/teleport/subca/v1/cert_authority_override.proto\x1a'teleport/summarizer/v1/summarizer.proto\x1a/teleport/userloginstate/v1/userloginstate.proto\x1a1teleport/userprovisioning/v2/statichostuser.proto\x1a&teleport/usertasks/v1/user_tasks.proto\x1a+teleport/workloadidentity/v1/resource.proto\x1a6teleport/workloadidentity/v1/revocation_resource.proto\"\xcb8\n" +
+	"(teleport/legacy/client/proto/event.proto\x12\x05proto\x1a'teleport/accesslist/v1/accesslist.proto\x1a?teleport/accessmonitoringrules/v1/access_monitoring_rules.proto\x1a-teleport/appauthconfig/v1/appauthconfig.proto\x1a'teleport/autoupdate/v1/autoupdate.proto\x1a\x1cteleport/beams/v1/beam.proto\x1a$teleport/beams/v1/beams_config.proto\x1a5teleport/clusterconfig/v1/access_graph_settings.proto\x1a'teleport/crownjewel/v1/crownjewel.proto\x1a#teleport/dbobject/v1/dbobject.proto\x1a1teleport/discoveryconfig/v1/discoveryconfig.proto\x1a4teleport/discoveryservice/v1/discovery_service.proto\x1a7teleport/healthcheckconfig/v1/health_check_config.proto\x1a/teleport/identitycenter/v1/identitycenter.proto\x1a;teleport/kubewaitingcontainer/v1/kubewaitingcontainer.proto\x1a!teleport/legacy/types/types.proto\x1a,teleport/linuxdesktop/v1/linux_desktop.proto\x1a(teleport/machineid/v1/bot_instance.proto\x1a&teleport/machineid/v1/federation.proto\x1a)teleport/mfa/v1/validated_challenge.proto\x1a)teleport/mfa/v2/validated_challenge.proto\x1a-teleport/notifications/v1/notifications.proto\x1a'teleport/presence/v1/relay_server.proto\x1a+teleport/provisioning/v1/provisioning.proto\x1a:teleport/recordingencryption/v1/recording_encryption.proto\x1a*teleport/scopes/access/v1/assignment.proto\x1a$teleport/scopes/access/v1/role.proto\x1a'teleport/secreports/v1/secreports.proto\x1a/teleport/subca/v1/cert_authority_override.proto\x1a'teleport/summarizer/v1/summarizer.proto\x1a/teleport/userloginstate/v1/userloginstate.proto\x1a1teleport/userprovisioning/v2/statichostuser.proto\x1a&teleport/usertasks/v1/user_tasks.proto\x1a+teleport/workloadidentity/v1/resource.proto\x1a6teleport/workloadidentity/v1/revocation_resource.proto\"\xa99\n" +
 	"\x05Event\x12$\n" +
 	"\x04Type\x18\x01 \x01(\x0e2\x10.proto.OperationR\x04Type\x12?\n" +
 	"\x0eResourceHeader\x18\x02 \x01(\v2\x15.types.ResourceHeaderH\x00R\x0eResourceHeader\x12>\n" +
@@ -4578,7 +4627,8 @@ const file_teleport_legacy_client_proto_event_proto_rawDesc = "" +
 	"\vBeamsConfig\x18a \x01(\v2\x1e.teleport.beams.v1.BeamsConfigH\x00R\vBeamsConfig\x12D\n" +
 	"\n" +
 	"Classifier\x18b \x01(\v2\".teleport.summarizer.v1.ClassifierH\x00R\n" +
-	"ClassifierB\n" +
+	"Classifier\x12\\\n" +
+	"\x10DiscoveryService\x18c \x01(\v2..teleport.discoveryservice.v1.DiscoveryServiceH\x00R\x10DiscoveryServiceB\n" +
 	"\n" +
 	"\bResourceJ\x04\b\a\x10\bJ\x04\b1\x102J\x04\b?\x10@J\x04\bD\x10EJ\x04\bX\x10YR\x12ExternalCloudAuditR\x0eStaticHostUserR\x13AutoUpdateAgentPlanR\x0fWorkloadCluster**\n" +
 	"\tOperation\x12\b\n" +
@@ -4681,6 +4731,7 @@ var file_teleport_legacy_client_proto_event_proto_goTypes = []any{
 	(*v21.ValidatedMFAChallenge)(nil),           // 88: teleport.mfa.v2.ValidatedMFAChallenge
 	(*v125.BeamsConfig)(nil),                    // 89: teleport.beams.v1.BeamsConfig
 	(*v124.Classifier)(nil),                     // 90: teleport.summarizer.v1.Classifier
+	(*v126.DiscoveryService)(nil),               // 91: teleport.discoveryservice.v1.DiscoveryService
 }
 var file_teleport_legacy_client_proto_event_proto_depIdxs = []int32{
 	0,  // 0: proto.Event.Type:type_name -> proto.Operation
@@ -4776,11 +4827,12 @@ var file_teleport_legacy_client_proto_event_proto_depIdxs = []int32{
 	88, // 90: proto.Event.ValidatedMFAChallengeV2:type_name -> teleport.mfa.v2.ValidatedMFAChallenge
 	89, // 91: proto.Event.BeamsConfig:type_name -> teleport.beams.v1.BeamsConfig
 	90, // 92: proto.Event.Classifier:type_name -> teleport.summarizer.v1.Classifier
-	93, // [93:93] is the sub-list for method output_type
-	93, // [93:93] is the sub-list for method input_type
-	93, // [93:93] is the sub-list for extension type_name
-	93, // [93:93] is the sub-list for extension extendee
-	0,  // [0:93] is the sub-list for field type_name
+	91, // 93: proto.Event.DiscoveryService:type_name -> teleport.discoveryservice.v1.DiscoveryService
+	94, // [94:94] is the sub-list for method output_type
+	94, // [94:94] is the sub-list for method input_type
+	94, // [94:94] is the sub-list for extension type_name
+	94, // [94:94] is the sub-list for extension extendee
+	0,  // [0:94] is the sub-list for field type_name
 }
 
 func init() { file_teleport_legacy_client_proto_event_proto_init() }
@@ -4881,6 +4933,7 @@ func file_teleport_legacy_client_proto_event_proto_init() {
 		(*event_ValidatedMFAChallengeV2)(nil),
 		(*event_BeamsConfig)(nil),
 		(*event_Classifier)(nil),
+		(*event_DiscoveryService)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{

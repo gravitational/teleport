@@ -1040,6 +1040,38 @@ func TestAddRoleDefaults(t *testing.T) {
 	}
 }
 
+func TestPresetRolesDiscoveryServiceAccess(t *testing.T) {
+	tests := []struct {
+		name string
+		role types.Role
+	}{
+		{
+			name: "editor",
+			role: NewPresetEditorRole(),
+		},
+		{
+			name: "auditor",
+			role: NewPresetAuditorRole(),
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var discoveryServiceRules []types.Rule
+			for _, rule := range test.role.GetRules(types.Allow) {
+				if rule.HasResource(types.KindDiscoveryService) {
+					discoveryServiceRules = append(discoveryServiceRules, rule)
+				}
+			}
+
+			require.Len(t, discoveryServiceRules, 1,
+				"preset role must contain exactly one discovery_service rule")
+			require.ElementsMatch(t, RO(), discoveryServiceRules[0].Verbs,
+				"preset role must have read-only discovery_service access")
+		})
+	}
+}
+
 func TestPresetRolesDumped(t *testing.T) {
 	// This test ensures that the most recent version of selected preset roles
 	// has been correctly dumped to a generated JSON file. We use a generated

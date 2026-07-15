@@ -26,6 +26,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
+	discoveryservicev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryservice/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	mfav2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
@@ -299,6 +300,82 @@ func TestWatchers(t *testing.T) {
 
 				// EXPECT that the resource is a ResourceHeader with the correct kind
 				require.Equal(subtestT, types.KindLinuxDesktop, event.Resource.GetKind())
+			},
+		},
+		{
+			name: "discovery service PUT",
+			kind: types.KindDiscoveryService,
+			causeEvents: func(subtestCtx context.Context, subtestT *testing.T, backend backend.Backend) {
+				// GIVEN an empty backend, WHEN I upsert a discovery service
+				// heartbeat
+				svc, err := NewDiscoveryServiceService(backend)
+				require.NoError(subtestT, err)
+
+				hb := discoveryservicev1.DiscoveryService_builder{
+					Kind:    types.KindDiscoveryService,
+					Version: types.V1,
+					Metadata: headerv1.Metadata_builder{
+						Name: "host-1",
+					}.Build(),
+					Spec: discoveryservicev1.DiscoveryServiceSpec_builder{
+						Hostname:       "disc-1.example.com",
+						DiscoveryGroup: "demo",
+					}.Build(),
+				}.Build()
+
+				_, err = svc.UpsertDiscoveryService(subtestCtx, hb)
+				require.NoError(subtestT, err)
+			},
+			validateEvents: func(subtestCtx context.Context, subtestT *testing.T, watcher types.Watcher) {
+				// EXPECT that the watcher gets an event notifying us about
+				// the upsert
+				event := fetchEvent(subtestT, watcher, fetchTimeout)
+				require.Equal(subtestT, types.OpPut, event.Type)
+
+				// EXPECT that the resource attached to the event is the
+				// heartbeat, spec included
+				hb := unwrapResource153[*discoveryservicev1.DiscoveryService](subtestT, event.Resource)
+				require.Equal(subtestT, "host-1", hb.GetMetadata().GetName())
+				require.Equal(subtestT, "disc-1.example.com", hb.GetSpec().GetHostname())
+				require.Equal(subtestT, "demo", hb.GetSpec().GetDiscoveryGroup())
+			},
+		},
+		{
+			name: "discovery service DELETE",
+			kind: types.KindDiscoveryService,
+			init: func(subtestCtx context.Context, subtestT *testing.T, backend backend.Backend) {
+				// GIVEN an existing discovery service heartbeat
+				svc, err := NewDiscoveryServiceService(backend)
+				require.NoError(subtestT, err)
+
+				hb := discoveryservicev1.DiscoveryService_builder{
+					Kind:    types.KindDiscoveryService,
+					Version: types.V1,
+					Metadata: headerv1.Metadata_builder{
+						Name: "host-to-delete",
+					}.Build(),
+					Spec: discoveryservicev1.DiscoveryServiceSpec_builder{
+						Hostname: "disc-2.example.com",
+					}.Build(),
+				}.Build()
+
+				_, err = svc.UpsertDiscoveryService(subtestCtx, hb)
+				require.NoError(subtestT, err)
+			},
+			causeEvents: func(subtestCtx context.Context, subtestT *testing.T, backend backend.Backend) {
+				// WHEN I delete the heartbeat
+				svc, err := NewDiscoveryServiceService(backend)
+				require.NoError(subtestT, err)
+				require.NoError(subtestT, svc.DeleteDiscoveryService(subtestCtx, "host-to-delete"))
+			},
+			validateEvents: func(subtestCtx context.Context, subtestT *testing.T, watcher types.Watcher) {
+				// EXPECT to receive a DELETE event
+				event := fetchEvent(subtestT, watcher, fetchTimeout)
+				require.Equal(subtestT, types.OpDelete, event.Type)
+
+				// EXPECT that the event targets our pre-created heartbeat
+				require.Equal(subtestT, "host-to-delete", event.Resource.GetMetadata().Name)
+				require.Equal(subtestT, types.KindDiscoveryService, event.Resource.GetKind())
 			},
 		},
 		{

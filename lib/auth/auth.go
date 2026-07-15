@@ -485,6 +485,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 			return nil, trace.Wrap(err)
 		}
 	}
+	if cfg.DiscoveryServices == nil {
+		cfg.DiscoveryServices, err = local.NewDiscoveryServiceService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
 	if cfg.UserPreferences == nil {
 		cfg.UserPreferences = local.NewUserPreferencesService(cfg.Backend)
 	}
@@ -715,6 +721,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		Integrations:                    cfg.Integrations,
 		UserTasks:                       cfg.UserTasks,
 		DiscoveryConfigs:                cfg.DiscoveryConfigs,
+		DiscoveryServices:               cfg.DiscoveryServices,
 		Okta:                            cfg.Okta,
 		AccessListsInternal:             cfg.AccessLists,
 		DatabaseObjectImportRules:       cfg.DatabaseObjectImportRules,

@@ -21,32 +21,14 @@ import (
 
 	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	apitypes "github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/common"
 )
 
 // ValidateRelayServer will check the given relay server for validity. Should be
 // called before writing a new value in the cluster state storage and before
 // using a value. The value will not be modified.
 func ValidateRelayServer(resource *presencev1.RelayServer) error {
-	if expected, actual := apitypes.KindRelayServer, resource.GetKind(); expected != actual {
-		return trace.BadParameter("expected kind %v, got %q", expected, actual)
-	}
-	if expected, actual := "", resource.GetSubKind(); expected != actual {
-		return trace.BadParameter("expected sub_kind %v, got %q", expected, actual)
-	}
-	if expected, actual := apitypes.V1, resource.GetVersion(); expected != actual {
-		return trace.BadParameter("expected version %v, got %q", expected, actual)
-	}
-	if name := resource.GetMetadata().GetName(); name == "" {
-		return trace.BadParameter("missing name")
-	}
-	for key := range resource.GetMetadata().GetLabels() {
-		if key == apitypes.OriginLabel {
-			return trace.BadParameter("origin label unsupported")
-		}
-		if !common.IsValidLabelKey(key) {
-			return trace.BadParameter("invalid label key %q", key)
-		}
+	if err := validateHostHeartbeatEnvelope(resource, apitypes.KindRelayServer); err != nil {
+		return trace.Wrap(err)
 	}
 
 	// TODO(espadolini): validate spec contents, nothing to validate so far
