@@ -89,6 +89,26 @@ Flags:
 |`--source`|*no default* (any of (repeatable): `AWS`, `Entra`, `Gitlab`, `Okta`, `TELEPORT`)|Filter by source (repeatable; each is OR'd). Combine axes with --filter.|
 |`--type`|*no default* (any of (repeatable): `aws_ec2`, `aws_eks`, `aws_rds`, `aws_s3`, `aws_user`, `entra_user`, `gitlab_project`, `gitlab_user`, `okta_application`, `okta_user`, `teleport_application`, `teleport_bot`, `teleport_database`, `teleport_desktop`, `teleport_kubernetes`, `teleport_node`, `teleport_user`)|Filter by origin type (repeatable; each is OR'd). Combine axes with --filter.|
 
+## tctl access-review
+
+Review which identities can access which resources.
+
+Usage:
+
+```code
+$ tctl access-review --query=QUERY [<flags>]
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format. (Values: text, json, yaml)|
+|`--from`|*no default*|Show access activity at or after this time; enables the activity columns. (Examples: 2006-01-02T15:04:05Z07:00, 2006-01-02, 24h, 7d). Default: activity hidden.|
+|`--limit`|`50`|Maximum number of identities to return.|
+|`--query`|*no default*|SQL SELECT against access_path scoping the identities to review.|
+|`--to`|*no default*|Upper bound for access activity. Defaults to now when --from is set; requires --from.|
+
 ## tctl acl get
 
 Get detailed information for an Access List.
