@@ -103,7 +103,7 @@ jobs:
         env:
           TERRAFORM_REGISTRY_BUCKET: ${{ env.TERRAFORM_REGISTRY_BUCKET }}
         run: |
-          aws s3 cp "s3://$TERRAFORM_REGISTRY_BUCKET/" "$LOCAL_TERRAFORM_REGISTRY_PATH" --recursive
+          aws s3 cp "s3://$TERRAFORM_REGISTRY_BUCKET/" "$LOCAL_TERRAFORM_REGISTRY_PATH" --recursive --exclude "store/*"
 
       - name: Run the terraform-publish tool for teleport
         env:
