@@ -344,7 +344,8 @@ func Test_TunnelService_Run_CancellationDuringRetry(t *testing.T) {
 		// Verify that the reporter wiring is correct and it's reporting Unhealthy
 		status, ok := registry.ServiceStatus("test")
 		require.True(t, ok)
-		assert.Equal(t, readyz.Unhealthy, status.Status)
+		require.Equal(t, readyz.Unhealthy, status.Status)
+		require.Contains(t, status.Reason, "proxy unreachable")
 
 		// Verify that Run has not returned, therefore it's retrying.
 		select {
