@@ -19,14 +19,15 @@
 import React, { type JSX } from 'react';
 import { matchPath, useHistory } from 'react-router';
 import { Link } from 'react-router-dom';
-import styled, { useTheme } from 'styled-components';
+import styled, { css, useTheme } from 'styled-components';
 
-import { breakpointsPx, Flex, Image, TopNav } from 'design';
+import { Box, breakpointsPx, Flex, Image, TopNav } from 'design';
 import { HoverTooltip } from 'design/Tooltip';
 
 import { logoSrc } from 'teleport/components/LogoHero/LogoHero';
 import { UserMenuNav } from 'teleport/components/UserMenuNav';
 import cfg from 'teleport/config';
+import { FeatureScopes } from 'teleport/features';
 import { useFeatures } from 'teleport/FeaturesContext';
 import { useLayout } from 'teleport/Main/LayoutContext';
 import { zIndexMap } from 'teleport/Navigation/zIndexMap';
@@ -35,8 +36,10 @@ import useTeleport from 'teleport/useTeleport';
 
 export function TopBar({
   CustomLogo,
+  scopePickerMode,
 }: {
   CustomLogo?: () => React.ReactElement;
+  scopePickerMode?: boolean;
 }) {
   const ctx = useTeleport();
   const history = useHistory();
@@ -59,12 +62,15 @@ export function TopBar({
       : navigationIconSizeSmall;
 
   return (
-    <TopBarContainer navigationHidden={feature?.hideNavigation}>
-      <TeleportLogo CustomLogo={CustomLogo} />
+    <TopBarContainer>
+      <TeleportLogo CustomLogo={CustomLogo} withLink={!scopePickerMode} />
       {!feature?.logoOnlyTopbar && (
         <Flex height="100%" alignItems="center">
           <Notifications iconSize={iconSize} />
-          <UserMenuNav username={ctx.storeUser.state.username} />
+          <UserMenuNav
+            username={ctx.storeUser.state.username}
+            hideFeatures={feature instanceof FeatureScopes}
+          />
         </Flex>
       )}
     </TopBarContainer>
@@ -91,61 +97,71 @@ export const TopBarContainer = styled(TopNav)`
 
 const TeleportLogo = ({
   CustomLogo,
+  withLink,
 }: {
   CustomLogo?: () => React.ReactElement;
+  withLink: boolean;
 }) => {
   const theme = useTheme();
   const src = logoSrc(theme.type);
+  const logoContent = CustomLogo ? (
+    <CustomLogo />
+  ) : (
+    <Image
+      data-testid="teleport-logo"
+      src={src}
+      alt="Teleport logo"
+      css={`
+        padding-left: ${props => props.theme.space[3]}px;
+        padding-right: ${props => props.theme.space[3]}px;
+        height: 18px;
+        @media screen and (min-width: ${p => p.theme.breakpoints.small}) {
+          height: 28px;
+          padding-left: ${props => props.theme.space[4]}px;
+          padding-right: ${props => props.theme.space[4]}px;
+        }
+        @media screen and (min-width: ${p => p.theme.breakpoints.large}) {
+          height: 30px;
+        }
+      `}
+    />
+  );
 
-  return (
+  return withLink ? (
     <HoverTooltip placement="bottom" tipContent="Teleport Resources Home">
-      <Link
-        css={`
-          cursor: pointer;
-          display: flex;
-          transition: background-color 0.1s linear;
-          &:hover {
-            background-color: ${p =>
-              p.theme.colors.interactive.tonal.primary[0]};
-          }
-          align-items: center;
-          height: 100%;
-          margin-right: 0px;
-          @media screen and (min-width: ${p => p.theme.breakpoints.medium}) {
-            margin-right: 76px;
-          }
-          @media screen and (min-width: ${p => p.theme.breakpoints.large}) {
-            margin-right: 67px;
-          }
-        `}
-        to={cfg.routes.root}
-      >
-        {CustomLogo ? (
-          <CustomLogo />
-        ) : (
-          <Image
-            data-testid="teleport-logo"
-            src={src}
-            alt="Teleport logo"
-            css={`
-              padding-left: ${props => props.theme.space[3]}px;
-              padding-right: ${props => props.theme.space[3]}px;
-              height: 18px;
-              @media screen and (min-width: ${p => p.theme.breakpoints.small}) {
-                height: 28px;
-                padding-left: ${props => props.theme.space[4]}px;
-                padding-right: ${props => props.theme.space[4]}px;
-              }
-              @media screen and (min-width: ${p => p.theme.breakpoints.large}) {
-                height: 30px;
-              }
-            `}
-          />
-        )}
-      </Link>
+      <LinkLogoWrapper to={cfg.routes.root}>{logoContent}</LinkLogoWrapper>
     </HoverTooltip>
+  ) : (
+    <BoxLogoWrapper>{logoContent}</BoxLogoWrapper>
   );
 };
+
+const commonLogoWrapperStyles = css`
+  display: flex;
+  align-items: center;
+  height: 100%;
+  margin-right: 0px;
+  @media screen and (min-width: ${p => p.theme.breakpoints.medium}) {
+    margin-right: 76px;
+  }
+  @media screen and (min-width: ${p => p.theme.breakpoints.large}) {
+    margin-right: 67px;
+  }
+`;
+
+const BoxLogoWrapper = styled(Box)`
+  ${commonLogoWrapperStyles}
+`;
+
+const LinkLogoWrapper = styled(Link)`
+  ${commonLogoWrapperStyles}
+
+  cursor: pointer;
+  transition: background-color 0.1s linear;
+  &:hover {
+    background-color: ${p => p.theme.colors.interactive.tonal.primary[0]};
+  }
+`;
 
 export const navigationIconSizeSmall = 20;
 export const navigationIconSizeMedium = 24;

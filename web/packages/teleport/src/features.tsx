@@ -70,6 +70,7 @@ import { Locks } from './LocksV2/Locks';
 import { NewLockView } from './LocksV2/NewLock';
 import { ManagedUpdates } from './ManagedUpdates';
 import { RolesContainer as Roles } from './Roles';
+import { LoginScopePicker } from './Scopes';
 import { SessionsContainer as Sessions } from './Sessions';
 import { Support } from './Support';
 import { TrustedClusters } from './TrustedClusters';
@@ -950,6 +951,21 @@ export class FeatureHelpAndSupport implements TeleportFeature {
   };
 }
 
+export class FeatureScopes implements TeleportFeature {
+  route = {
+    title: 'Pick a Scope',
+    path: cfg.routes.scopePicker,
+    exact: true,
+    component: LoginScopePicker,
+  };
+
+  hideNavigation = true;
+
+  hasAccess(): boolean {
+    return cfg.scopesEnabled;
+  }
+}
+
 export function getOSSFeatures(): TeleportFeature[] {
   return [
     // Resources
@@ -993,5 +1009,6 @@ export function getOSSFeatures(): TeleportFeature[] {
     // Other
     new FeatureAccount(),
     new FeatureHelpAndSupport(),
+    new FeatureScopes(),
   ];
 }
