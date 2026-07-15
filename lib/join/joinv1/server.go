@@ -19,6 +19,7 @@ package joinv1
 import (
 	"context"
 	"net"
+	"runtime/debug"
 
 	"github.com/gravitational/trace"
 	grpc "google.golang.org/grpc"
@@ -90,6 +91,18 @@ func (s *joinServer) Join(grpcStream grpc.BidiStreamingServer[joinv1.JoinRequest
 	}
 	errCh := make(chan error, 1)
 	go func() {
+		// Recover from any panic in the join handler so that a bad request
+		// cannot crash the auth process.
+		defer func() {
+			if r := recover(); r != nil {
+				// Log the panic value and stack, and return a generic error to the client.
+				log.ErrorContext(ctx, "recovered from panic in join handler",
+					"panic", r,
+					"stack", string(debug.Stack()),
+				)
+				errCh <- trace.Errorf("error handling join request")
+			}
+		}()
 		errCh <- trace.Wrap(s.server.Join(messageStream))
 	}()
 	select {
