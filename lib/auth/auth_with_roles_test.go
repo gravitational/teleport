@@ -84,6 +84,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/cache"
+	"github.com/gravitational/teleport/lib/componentfeatures"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -9522,6 +9523,114 @@ func TestUpsertScopedNode(t *testing.T) {
 			require.NoError(t, err)
 		})
 	}
+}
+
+// TestUpsertStripsComponentFeatures verifies that ComponentFeatures is server-managed.
+// Serving agents advertise over the inventory control stream which reaches
+// auth.Server directly. Client writes through authorized API must never be able
+// to claim feature support.
+func TestUpsertStripsComponentFeatures(t *testing.T) {
+	t.Parallel()
+	authsrv, err := authtest.NewAuthServer(authtest.AuthServerConfig{
+		Dir:            t.TempDir(),
+		ScopesFeatures: scopes.Features{Enabled: true},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, authsrv.Close()) })
+
+	rcv1 := componentfeatures.New(componentfeatures.FeatureResourceConstraintsV1)
+
+	t.Run("node", func(t *testing.T) {
+		scoped := newScopedTestServerWithUnscopedUser(t, authsrv, "node-admin",
+			[]types.Rule{types.NewRule(types.KindNode, []string{types.VerbCreate, types.VerbUpdate, types.VerbRead})})
+
+		node, err := types.NewNode("client-written-node", types.SubKindOpenSSHNode, types.ServerSpecV2{
+			Addr:     "someaddr.com:443",
+			Hostname: "client-written-node",
+		}, nil)
+		require.NoError(t, err)
+		node.SetComponentFeatures(rcv1)
+
+		_, err = scoped.UpsertNode(t.Context(), node)
+		require.NoError(t, err)
+
+		unscoped, ok := scoped.UnscopedServerWithRoles()
+		require.True(t, ok)
+		got, err := unscoped.GetNode(t.Context(), apidefaults.Namespace, "client-written-node")
+		require.NoError(t, err)
+		require.Nil(t, got.GetComponentFeatures(), "client-set ComponentFeatures must not be persisted on a node")
+	})
+
+	t.Run("app server", func(t *testing.T) {
+		unscoped := serverWithAllowRules(t, authsrv,
+			[]types.Rule{types.NewRule(types.KindAppServer, []string{types.VerbCreate, types.VerbUpdate, types.VerbRead})})
+
+		app, err := types.NewAppV3(types.Metadata{Name: "client-written-app"},
+			types.AppSpecV3{URI: "https://console.aws.amazon.com"})
+		require.NoError(t, err)
+		appServer, err := types.NewAppServerV3FromApp(app, "host", "host-id")
+		require.NoError(t, err)
+		appServer.SetComponentFeatures(rcv1)
+
+		_, err = unscoped.UpsertApplicationServer(t.Context(), appServer)
+		require.NoError(t, err)
+
+		got, err := unscoped.GetApplicationServers(t.Context(), apidefaults.Namespace)
+		require.NoError(t, err)
+		require.Len(t, got, 1)
+		require.Nil(t, got[0].GetComponentFeatures(), "client-set ComponentFeatures must not be persisted on an app server")
+	})
+
+	// Proxy record is the one node/app-adjacent kind whose own heartbeat uses
+	// this API rather than the inventory control stream; its strip is identity-gated.
+	t.Run("proxy server client write strips", func(t *testing.T) {
+		unscoped := serverWithAllowRules(t, authsrv,
+			[]types.Rule{types.NewRule(types.KindProxy, []string{types.VerbCreate, types.VerbUpdate, types.VerbRead})})
+
+		proxy, err := types.NewServer("client-written-proxy", types.KindProxy, types.ServerSpecV2{
+			Addr: "proxy.example.com:3080",
+		})
+		require.NoError(t, err)
+		proxy.SetComponentFeatures(rcv1)
+
+		_, err = unscoped.UpsertProxyServer(t.Context(), proxy)
+		require.NoError(t, err)
+
+		got, err := authsrv.AuthServer.GetProxies()
+		require.NoError(t, err)
+		require.Len(t, got, 1)
+		require.Nil(t, got[0].GetComponentFeatures(), "client-set ComponentFeatures must not be persisted on a proxy server")
+
+		require.NoError(t, authsrv.AuthServer.DeleteProxyServer(t.Context(), "client-written-proxy"))
+	})
+
+	t.Run("proxy server own heartbeat preserves", func(t *testing.T) {
+		authContext, err := authz.ContextForBuiltinRole(
+			authz.BuiltinRole{
+				Role:     types.RoleProxy,
+				Username: "proxy.example.com",
+			},
+			types.DefaultSessionRecordingConfig(),
+		)
+		require.NoError(t, err)
+		srv := auth.NewServerWithRoles(authsrv.AuthServer, events.NewDiscardAuditLog(), *authContext)
+
+		proxy, err := types.NewServer("heartbeat-proxy", types.KindProxy, types.ServerSpecV2{
+			Addr: "proxy.example.com:3080",
+		})
+		require.NoError(t, err)
+		proxy.SetComponentFeatures(rcv1)
+
+		_, err = srv.UpsertProxyServer(t.Context(), proxy)
+		require.NoError(t, err)
+
+		got, err := authsrv.AuthServer.GetProxies()
+		require.NoError(t, err)
+		require.Len(t, got, 1)
+		require.NotNil(t, got[0].GetComponentFeatures(), "the proxy's own heartbeat must keep ComponentFeatures")
+
+		require.NoError(t, authsrv.AuthServer.DeleteProxyServer(t.Context(), "heartbeat-proxy"))
+	})
 }
 
 // TestGenerateHostCertsAgentScopePin verifies that GenerateHostCerts handles agent scope pins

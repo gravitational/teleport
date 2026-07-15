@@ -592,6 +592,13 @@ func (s *Service) UpsertProxyServer(
 		return nil, trace.Wrap(err)
 	}
 
+	// ComponentFeatures is server-managed. This API is Proxy's own heartbeat; the
+	// field survives only for the builtin Proxy identity. Any other caller is a
+	// client write and can't claim support the component doesn't have.
+	if !authz.HasBuiltinRole(*authCtx, string(types.RoleProxy)) {
+		srv.SetComponentFeatures(nil)
+	}
+
 	// If the proxy advertised a local/unspecified address, replace the host
 	// component with the peer address observed on the socket.
 	if p, ok := peer.FromContext(ctx); ok {
