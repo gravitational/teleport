@@ -2,8 +2,13 @@
 //
 // Pure helper functions for the "Docs Preview" workflow. None of these
 // touch the GitHub API or the Actions `context`/`core` objects, so they can
-// be unit tested in isolation (see preview-links.test.js). The workflow's
+// be unit tested in isolation (see test-preview-links.js). The workflow's
 // orchestration lives in post-preview-links.js, which calls into here.
+//
+// NOTE: test files here use Node's built-in runner (node --test) and are
+// named test-*.js on purpose: Jest's default testMatch collects *.test.js
+// anywhere in the repo and fails on them as empty suites, while node --test
+// discovers the test-*.js form and Jest does not.
 
 const path = require('path');
 
@@ -213,25 +218,84 @@ function buildPageEntries(allPagePaths, previewHost, refMaps = {}) {
   });
 }
 
+// GitHub rejects issue-comment bodies over 65,536 characters, and our section
+// is upserted into the existing Amplify deployment comment, so we cap the
+// section well below the hard limit to leave headroom for the rest of the
+// comment body. The entry-count caps keep the comment readable even when a
+// longer list would technically fit.
+const MAX_SECTION_LENGTH = 55000;
+const MAX_PAGE_ENTRIES = 50;
+const MAX_ORPHAN_ENTRIES = 20;
+
+// Take entries from the front of `entries` while staying within both the
+// entry-count cap and the character budget (each entry costs its length plus
+// a newline). Returns the included entries and how many were omitted.
+function capEntries(entries, maxCount, budget) {
+  const included = [];
+  let used = 0;
+  for (const entry of entries) {
+    if (included.length >= maxCount) break;
+    if (used + entry.length + 1 > budget) break;
+    included.push(entry);
+    used += entry.length + 1;
+  }
+  return { included, omittedCount: entries.length - included.length, usedChars: used };
+}
+
 // Compose the full Markdown section (including the start/end markers) from the
-// page entries and any orphaned images/partials.
-function composeLinksSection(pageEntries, orphanedImages = [], orphanedPartials = []) {
+// page entries and any orphaned images/partials. Oversized lists are capped
+// (see MAX_SECTION_LENGTH above) and summarized with an "…and N more" line;
+// pass options.previewHost to make that line link to the preview site root.
+function composeLinksSection(pageEntries, orphanedImages = [], orphanedPartials = [], options = {}) {
+  const {
+    maxSectionLength = MAX_SECTION_LENGTH,
+    maxPageEntries = MAX_PAGE_ENTRIES,
+    maxOrphanEntries = MAX_ORPHAN_ENTRIES,
+    previewHost = null,
+  } = options;
+
   const sectionLines = [START_MARKER, '', '### Preview links for changed docs pages', ''];
 
+  // Reserve room for the headers, closing marker, and up to three summary
+  // lines, so the remaining budget can be spent purely on entries.
+  const RESERVED = 1000;
+  let remaining = maxSectionLength - sectionLines.join('\n').length - RESERVED;
+
   if (pageEntries.length > 0) {
-    sectionLines.push(...pageEntries);
+    const { included, omittedCount, usedChars } = capEntries(pageEntries, maxPageEntries, remaining);
+    sectionLines.push(...included);
+    remaining -= usedChars;
+    if (omittedCount > 0) {
+      const noun = omittedCount === 1 ? 'page' : 'pages';
+      sectionLines.push(
+        previewHost
+          ? `- _…and ${omittedCount} more changed ${noun} not listed here — browse the full preview at ${previewHost}/docs/_`
+          : `- _…and ${omittedCount} more changed ${noun} not listed here_`
+      );
+    }
   } else {
     sectionLines.push('No docs pages changed in this PR.');
   }
 
   if (orphanedImages.length > 0) {
     sectionLines.push('', '#### Changed images with no associated page', '');
-    sectionLines.push(...orphanedImages.map((p) => `- \`${p}\``));
+    const entries = orphanedImages.map((p) => `- \`${p}\``);
+    const { included, omittedCount, usedChars } = capEntries(entries, maxOrphanEntries, remaining);
+    sectionLines.push(...included);
+    remaining -= usedChars;
+    if (omittedCount > 0) {
+      sectionLines.push(`- _…and ${omittedCount} more_`);
+    }
   }
 
   if (orphanedPartials.length > 0) {
     sectionLines.push('', '#### Changed partials not included by any page', '');
-    sectionLines.push(...orphanedPartials.map((p) => `- \`${p}\``));
+    const entries = orphanedPartials.map((p) => `- \`${p}\``);
+    const { included, omittedCount } = capEntries(entries, maxOrphanEntries, remaining);
+    sectionLines.push(...included);
+    if (omittedCount > 0) {
+      sectionLines.push(`- _…and ${omittedCount} more_`);
+    }
   }
 
   sectionLines.push('', END_MARKER);
@@ -281,6 +345,7 @@ function sanitizeBranchForDomain(branch) {
 module.exports = {
   START_MARKER,
   END_MARKER,
+  MAX_SECTION_LENGTH,
   isRenderedPage,
   pageUrl,
   getChangedPaths,
