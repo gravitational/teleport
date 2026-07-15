@@ -70,3 +70,41 @@ func MarshalCertAuthorityOverride(resource *subcav1.CertAuthorityOverride, opts 
 func UnmarshalCertAuthorityOverride(data []byte, opts ...MarshalOption) (*subcav1.CertAuthorityOverride, error) {
 	return UnmarshalProtoResource[*subcav1.CertAuthorityOverride](data, opts...)
 }
+
+// PendingCSRRequestServiceGetter is the read-only PendingCSRRequestService
+// interface.
+//
+// This service is not exposed to Auth clients.
+type PendingCSRRequestServiceGetter interface {
+	// GetPendingCSRRequest reads a PendingCSRRequest by name.
+	GetPendingCSRRequest(ctx context.Context, name string) (*subcav1.PendingCSRRequest, error)
+	// ListPendingCSRRequest lists all PendingCSRRequests.
+	ListPendingCSRRequest(ctx context.Context, pageSize int, pageToken string) (_ []*subcav1.PendingCSRRequest, nextPageToken string, _ error)
+}
+
+// PendingCSRRequestService manages PendingCSRRequest resources.
+//
+// This service is not exposed to Auth clients.
+type PendingCSRRequestService interface {
+	PendingCSRRequestServiceGetter
+
+	// CreatePendingCSRRequest creates a PendingCSRRequest.
+	//
+	// PendingCSRRequest instances must have an expiration. If they don't a
+	// default expiration is assigned on creation.
+	CreatePendingCSRRequest(ctx context.Context, resource *subcav1.PendingCSRRequest) (*subcav1.PendingCSRRequest, error)
+	// UpdatePendingCSRRequest conditionally updates a PendingCSRRequest.
+	UpdatePendingCSRRequest(ctx context.Context, resource *subcav1.PendingCSRRequest) (*subcav1.PendingCSRRequest, error)
+	// DeletePendingCSRRequest hard-deletes a PendingCSRRequest.
+	DeletePendingCSRRequest(ctx context.Context, name string) error
+}
+
+// MarshalPendingCSRRequest marshals a PendingCSRRequest.
+func MarshalPendingCSRRequest(resource *subcav1.PendingCSRRequest, opts ...MarshalOption) ([]byte, error) {
+	return MarshalProtoResource(resource, opts...)
+}
+
+// UnmarshalPendingCSRRequest unmarshals a PendingCSRRequest.
+func UnmarshalPendingCSRRequest(data []byte, opts ...MarshalOption) (*subcav1.PendingCSRRequest, error) {
+	return UnmarshalProtoResource[*subcav1.PendingCSRRequest](data, opts...)
+}

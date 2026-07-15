@@ -18,8 +18,13 @@ package local
 
 import (
 	"context"
+	"slices"
+	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	subcav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/subca/v1"
@@ -71,11 +76,14 @@ type SubCAServiceParams struct {
 //
 // Follows RFD 153 / generic.Service semantics.
 type SubCAService struct {
-	service *generic.ServiceWrapper[*subcav1.CertAuthorityOverride]
+	clock      clockwork.Clock
+	service    *generic.ServiceWrapper[*subcav1.CertAuthorityOverride]
+	csrService *generic.ServiceWrapper[*subcav1.PendingCSRRequest]
 }
 
 // Keep interface in-sync with implementation.
 var _ services.SubCAService = (*SubCAService)(nil)
+var _ services.PendingCSRRequestService = (*SubCAService)(nil)
 
 // NewSubCAService creates a new service using the provided params.
 func NewSubCAService(p SubCAServiceParams) (*SubCAService, error) {
@@ -94,8 +102,27 @@ func NewSubCAService(p SubCAServiceParams) (*SubCAService, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	csrService, err := generic.NewServiceWrapper(generic.ServiceConfig[*subcav1.PendingCSRRequest]{
+		Backend:       p.Backend,
+		ResourceKind:  types.KindPendingCSRRequest,
+		BackendPrefix: newPendingCSRRequestPrefix(),
+		MarshalFunc:   services.MarshalPendingCSRRequest,
+		UnmarshalFunc: services.UnmarshalPendingCSRRequest,
+		ValidateFunc:  validatePendingCSRRequest,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clock := p.Backend.Clock()
+	if clock == nil {
+		clock = clockwork.NewRealClock()
+	}
+
 	return &SubCAService{
-		service: service,
+		clock:      clock,
+		service:    service,
+		csrService: csrService,
 	}, nil
 }
 
@@ -310,4 +337,115 @@ func itemFromCertAuthorityOverride(resource *subcav1.CertAuthorityOverride) (*ba
 		Expires:  expires,
 		Revision: resource.GetMetadata().GetRevision(),
 	}, nil
+}
+
+// CreatePendingCSRRequest creates a PendingCSRRequest.
+//
+// PendingCSRRequest instances must have an expiration. If they don't a
+// default expiration is assigned on creation.
+func (s *SubCAService) CreatePendingCSRRequest(ctx context.Context, resource *subcav1.PendingCSRRequest) (*subcav1.PendingCSRRequest, error) {
+	s.setPendingCSRRequestDefaultExpires(resource)
+
+	created, err := s.csrService.CreateResource(ctx, resource)
+	return created, trace.Wrap(err)
+}
+
+// UpdatePendingCSRRequest conditionally updates a PendingCSRRequest.
+func (s *SubCAService) UpdatePendingCSRRequest(ctx context.Context, resource *subcav1.PendingCSRRequest) (*subcav1.PendingCSRRequest, error) {
+	s.setPendingCSRRequestDefaultExpires(resource)
+
+	updated, err := s.csrService.ConditionalUpdateResource(ctx, resource)
+	return updated, trace.Wrap(err)
+}
+
+// DeletePendingCSRRequest hard-deletes a PendingCSRRequest.
+func (s *SubCAService) DeletePendingCSRRequest(ctx context.Context, name string) error {
+	if name == "" {
+		return trace.BadParameter("name required")
+	}
+	return trace.Wrap(s.csrService.DeleteResource(ctx, name))
+}
+
+// GetPendingCSRRequest reads a PendingCSRRequest by name.
+func (s *SubCAService) GetPendingCSRRequest(ctx context.Context, name string) (*subcav1.PendingCSRRequest, error) {
+	if name == "" {
+		return nil, trace.BadParameter("name required")
+	}
+	resource, err := s.csrService.GetResource(ctx, name)
+	return resource, trace.Wrap(err)
+}
+
+// ListPendingCSRRequest lists all PendingCSRRequests.
+func (s *SubCAService) ListPendingCSRRequest(ctx context.Context, pageSize int, pageToken string) (_ []*subcav1.PendingCSRRequest, nextPageToken string, _ error) {
+	resources, nextPageToken, err := s.csrService.ListResources(ctx, pageSize, pageToken)
+	return resources, nextPageToken, trace.Wrap(err)
+}
+
+func (s *SubCAService) setPendingCSRRequestDefaultExpires(resource *subcav1.PendingCSRRequest) {
+	if !resource.HasMetadata() || resource.GetMetadata().HasExpires() {
+		return
+	}
+	const defaultExpires = 5 * time.Minute
+	resource.GetMetadata().SetExpires(timestamppb.New(s.clock.Now().Add(defaultExpires)))
+}
+
+func newPendingCSRRequestPrefix() backend.Key {
+	return backend.NewKey("cert_authority_overrides", "csr_req")
+}
+
+func validatePendingCSRRequest(resource *subcav1.PendingCSRRequest) error {
+	switch {
+	case resource == nil:
+		return trace.BadParameter("nil PendingCSRRequest")
+	case resource.GetKind() != types.KindPendingCSRRequest:
+		return trace.BadParameter("invalid kind: %q", resource.GetKind())
+	case resource.GetSubKind() != "":
+		return trace.BadParameter("invalid sub_kind: %q (sub_kind not supported)", resource.GetSubKind())
+	case resource.GetVersion() != types.V1:
+		return trace.BadParameter("invalid or unsupported version: %q)", resource.GetVersion())
+	case resource.GetMetadata().GetName() == "":
+		return trace.BadParameter("metadata.name required")
+	case !resource.GetMetadata().HasExpires():
+		return trace.BadParameter("metadata.expires required")
+	case !resource.HasSpec():
+		return trace.BadParameter("spec required")
+	case resource.GetSpec().GetClusterName() == "":
+		return trace.BadParameter("spec.cluster_name required")
+	case !slices.Contains(subca.SupportedCATypes(), resource.GetSpec().GetCaType()):
+		return trace.BadParameter("spec.ca_type invalid or unsupported: %q", resource.GetSpec().GetCaType())
+	case len(resource.GetSpec().GetPublicKeyHashes()) == 0:
+		return trace.BadParameter("spec.public_key_hashes required")
+	}
+
+	// spec.custom_subject.
+	if subj := resource.GetSpec().GetCustomSubject(); subj != nil {
+		if _, err := subca.DistinguishedNameProtoToRDNSequence(subj); err != nil {
+			return trace.Wrap(err, "parse spec.custom_subject")
+		}
+	}
+
+	// spec.public_key_hashes.
+	knownPKHs := make(map[string]struct{})
+	for i, pkh := range resource.GetSpec().GetPublicKeyHashes() {
+		if pkh.GetValue() == "" {
+			return trace.BadParameter("spec.public_key_hashes[%d]: value required", i)
+		}
+		knownPKHs[pkh.GetValue()] = struct{}{}
+	}
+
+	// status.public_key_hash_to_pending_csr.
+	const pkhToPendingField = "status.public_key_hash_to_pending_csr"
+	for k, v := range resource.GetStatus().GetPublicKeyHashToPendingCsr() {
+		if _, ok := knownPKHs[k]; !ok {
+			return trace.BadParameter("%s[%s]: unrequested key not allowed", pkhToPendingField, k)
+		}
+		switch {
+		case !v.HasStatus():
+			return trace.BadParameter("%s[%s]: status required", pkhToPendingField, k)
+		case codes.Code(v.GetStatus().GetCode()) == codes.OK && v.GetCsr().GetPem() == "":
+			return trace.BadParameter("%s[%s]: csr required for status OK", pkhToPendingField, k)
+		}
+	}
+
+	return nil
 }
