@@ -9668,9 +9668,9 @@ message AzureMatcher {
 
 // GCPMatcher matches GCP resources.
 message GCPMatcher {
-  // Types are GKE resource types to match: "gke", "vm".
+  // Types are GCP resource types to match: "gke", "gce", "cloudsql".
   repeated string Types = 1 [(gogoproto.jsontag) = "types,omitempty"];
-  // Locations are GKE locations to search resources for.
+  // Locations are GCP locations to search resources for.
   repeated string Locations = 2 [(gogoproto.jsontag) = "locations,omitempty"];
   // Tags is obsolete and only exists for backwards compatibility. Use Labels instead.
   wrappers.LabelValues Tags = 3 [
