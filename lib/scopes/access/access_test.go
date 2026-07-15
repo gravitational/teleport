@@ -1543,6 +1543,15 @@ func TestStrongValidateRoleSpecAllFieldsValidated(t *testing.T) {
 			Labels: []*labelv1.Label{
 				{Name: "env", Values: []string{"prod"}},
 			},
+			Resources: []*scopedaccessv1.KubeResource{
+				scopedaccessv1.KubeResource_builder{
+					Kind:      "pods",
+					Namespace: "default",
+					Name:      "*",
+					ApiGroup:  "*",
+					Verbs:     []string{"get"},
+				}.Build(),
+			},
 			ClientIdleTimeout:     "1h",
 			DisconnectExpiredCert: ptr(true),
 			Lock: &scopedaccessv1.Lock{
