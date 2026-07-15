@@ -158,7 +158,7 @@ func (c *beamsLSCommand) print(cf *CLIConf, beams []*beamsv1.Beam, proxyAddr str
 }
 
 func (c *beamsLSCommand) printTable(w io.Writer, beams []formattedBeam) error {
-	headings := []string{"ID", "URL", "Expires"}
+	headings := []string{"ID", "URL", "Region", "Expires"}
 
 	// We only show the owner column when the user passed the `--all` flag,
 	// otherwise there's no point as we're just showing them their own beams.
@@ -171,6 +171,7 @@ func (c *beamsLSCommand) printTable(w io.Writer, beams []formattedBeam) error {
 		row := []string{
 			beam.ID,
 			beam.URL,
+			beam.Region,
 			c.humanizeTimeFn(beam.Expires),
 		}
 		if c.all {

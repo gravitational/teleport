@@ -1,5 +1,5 @@
-ID      URL                                      Expires          
-------- ---------------------------------------- ---------------- 
-alpha   https://alpha-app.proxy.example.com      3 hours from now 
-bravo                                            4 hours from now 
-charlie tcp://charlie-app.proxy.example.com:5432 5 hours from now 
+ID      URL                                      Region       Expires          
+------- ---------------------------------------- ------------ ---------------- 
+alpha   https://alpha-app.proxy.example.com      us-east-1    3 hours from now 
+bravo                                            us-west-2    4 hours from now 
+charlie tcp://charlie-app.proxy.example.com:5432 eu-central-1 5 hours from now 
