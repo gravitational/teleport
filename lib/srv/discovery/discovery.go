@@ -463,6 +463,12 @@ type Server struct {
 	awsRDSTasks           awsRDSTasks
 	azureVMStatus         atomic.Pointer[discoveryStatus]
 
+	// syntheticDiscoveryConfigPublished tracks whether the synthetic discovery
+	// config describing this service's static matchers is known to exist in
+	// the backend. Status updates for static matchers are only routed to the
+	// synthetic config while it does.
+	syntheticDiscoveryConfigPublished atomic.Bool
+
 	// caRotationCh receives nodes that need to have their CAs rotated.
 	caRotationCh chan []types.Server
 	// reconciler periodically reconciles the labels of discovered instances
@@ -2081,6 +2087,7 @@ func (s *Server) Start() error {
 	if err := s.startDatabaseWatchers(); err != nil {
 		return trace.Wrap(err)
 	}
+	s.startSyntheticDiscoveryConfigPublisher()
 	return nil
 }
 
