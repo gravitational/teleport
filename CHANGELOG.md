@@ -4,9 +4,7 @@
 
 ### Directory sharing enhancements for Windows desktop access
 
-Teleport now supports sharing multiple directories in a single RDP session. In
-addition, users will be able to unmount shared directories without terminating
-the session.
+Teleport now supports sharing multiple directories in a single RDP session.
 
 ### Windows sessions summaries
 
