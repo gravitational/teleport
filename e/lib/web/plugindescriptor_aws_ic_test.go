@@ -509,6 +509,7 @@ func newAWSIdentityCenterPluginTestSuite(t *testing.T, opts ...icSuitOpt) (*webS
 			w.WriteHeader(http.StatusForbidden)
 		}
 	}))
+	t.Cleanup(testSCIMServer.Close)
 
 	// ensured SCIM base URL always points to real AWS endpoint so we need a custom transport
 	// to override dialer to dail test server.

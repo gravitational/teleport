@@ -475,6 +475,7 @@ func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 		},
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, userClientNoMFA.Close()) })
 
 	userClientWithMFA, err := authclient.NewClient(client.Config{
 		Addrs: []string{authAddr.String()},
@@ -484,6 +485,7 @@ func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 		MFAPromptConstructor: mockMFAPromptConstructor,
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, userClientWithMFA.Close()) })
 
 	identity, err := storage.ReadLocalIdentityForRole(t.Context(), filepath.Join(process.Config.DataDir, teleport.ComponentProcess), types.RoleAdmin)
 	require.NoError(t, err)
@@ -498,6 +500,7 @@ func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 		MFAPromptConstructor: mockMFAPromptConstructor,
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, authClient.Close()) })
 
 	return &adminActionTestSuite{
 		authServer:        authServer,
