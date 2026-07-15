@@ -374,7 +374,8 @@ func (r resourceTeleportClusterMaintenanceConfig) ModifyPlan(ctx context.Context
 
 	clusterMaintenanceConfig = clusterMaintenanceConfigResource
 
-	resp.Diagnostics.Append(tfschema.CopyClusterMaintenanceConfigV1ToTerraform(ctx, clusterMaintenanceConfig, &config)...)
+	const preserveUnknown = true
+	resp.Diagnostics.Append(tfschema.CopyClusterMaintenanceConfigV1ToTerraformPreserveUnknown(ctx, clusterMaintenanceConfig, &config, preserveUnknown)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}

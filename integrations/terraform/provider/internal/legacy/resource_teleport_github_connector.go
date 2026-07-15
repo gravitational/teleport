@@ -380,7 +380,8 @@ func (r resourceTeleportGithubConnector) ModifyPlan(ctx context.Context, req tfs
 
 	githubConnector = githubConnectorResource
 
-	resp.Diagnostics.Append(tfschema.CopyGithubConnectorV3ToTerraform(ctx, githubConnector, &config)...)
+	const preserveUnknown = true
+	resp.Diagnostics.Append(tfschema.CopyGithubConnectorV3ToTerraformPreserveUnknown(ctx, githubConnector, &config, preserveUnknown)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}

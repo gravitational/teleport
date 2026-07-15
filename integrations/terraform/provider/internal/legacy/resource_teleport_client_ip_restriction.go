@@ -362,7 +362,8 @@ func (r resourceTeleportClientIPRestriction) ModifyPlan(ctx context.Context, req
 
 	clientIPRestriction = clientIPRestrictionResource
 
-	resp.Diagnostics.Append(schemav1.CopyClientIPRestrictionToTerraform(ctx, clientIPRestriction, &config)...)
+	const preserveUnknown = true
+	resp.Diagnostics.Append(schemav1.CopyClientIPRestrictionToTerraformPreserveUnknown(ctx, clientIPRestriction, &config, preserveUnknown)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
