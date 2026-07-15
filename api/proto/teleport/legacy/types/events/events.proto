@@ -170,6 +170,14 @@ message UserMetadata {
   // BotScopeOfOrigin is the scope of origin of the Bot if this action is
   // associated with a scoped bot.
   string BotScopeOfOrigin = 19 [(gogoproto.jsontag) = "bot_scope_of_origin,omitempty"];
+
+  // DelegationChain is the flattened delegation chain associated with this
+  // identity. Ordered from most recent delegator (index 0) to the original
+  // delegator (last element). Empty if the identity has no delegation chain.
+  repeated DelegationChainEntry DelegationChain = 20 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "delegation_chain,omitempty"
+  ];
 }
 
 // Server is a server metadata
@@ -5628,6 +5636,14 @@ message Identity {
   // BotScopeOfOrigin indicates the scope of origin of the Machine ID bot
   // this identity was issued to, if any.
   string BotScopeOfOrigin = 34 [(gogoproto.jsontag) = "bot_scope_of_origin,omitempty"];
+
+  // DelegationChain is the flattened delegation chain associated with this
+  // identity. Ordered from most recent delegator (index 0) to the original
+  // delegator (last element). Empty if the identity has no delegation chain.
+  repeated DelegationChainEntry DelegationChain = 35 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "delegation_chain,omitempty"
+  ];
 }
 
 // ScopePin is a marker that identifies a certificate/identity as being "pinned" to a target scope, and encodes relevant
@@ -5651,6 +5667,17 @@ message ScopePin {
 message ScopePinnedAssignments {
   // Roles is a list of scoped roles that are assigned to the pinned identity at the target scope.
   repeated string Roles = 1 [(gogoproto.jsontag) = "roles"];
+}
+
+// DelegationChainEntry represents a single link in a flattened delegation
+// chain. Each entry identifies one delegator — either a human user or a bot.
+message DelegationChainEntry {
+  // Username of the delegating human user. Mutually exclusive with BotName.
+  string Username = 1 [(gogoproto.jsontag) = "username,omitempty"];
+  // BotName is the name of the delegating bot. Mutually exclusive with Username.
+  string BotName = 2 [(gogoproto.jsontag) = "bot_name,omitempty"];
+  // BotScope is the scope of the delegating bot, if applicable.
+  string BotScope = 3 [(gogoproto.jsontag) = "bot_scope,omitempty"];
 }
 
 // RouteToApp contains parameters for application access certificate requests.

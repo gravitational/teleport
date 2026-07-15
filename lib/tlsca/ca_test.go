@@ -853,6 +853,35 @@ func TestIdentity_GetUserMetadata(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "delegation chain",
+			identity: Identity{
+				Username: "bot-session",
+				BotName:  "session-bot",
+				Groups:   []string{"role1"},
+				Delegation: delegationv1.Delegation_builder{
+					Bot: delegationv1.BotDelegator_builder{
+						Name:  "session-bot",
+						Scope: "/staging",
+					}.Build(),
+					Previous: delegationv1.Delegation_builder{
+						User: delegationv1.UserDelegator_builder{
+							Username: "alice",
+						}.Build(),
+					}.Build(),
+				}.Build(),
+			},
+			want: apievents.UserMetadata{
+				User:          "bot-session",
+				UserKind:      apievents.UserKind_USER_KIND_BOT,
+				BotName:       "session-bot",
+				UserRoles:     []string{"role1"},
+				DelegationChain: []apievents.DelegationChainEntry{
+					{BotName: "session-bot", BotScope: "/staging"},
+					{Username: "alice"},
+				},
+			},
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

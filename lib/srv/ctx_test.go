@@ -27,6 +27,7 @@ import (
 	"google.golang.org/protobuf/testing/protocmp"
 
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
+	delegationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -292,6 +293,39 @@ func TestIdentityContext_GetUserMetadata(t *testing.T) {
 						"/staging/blue":  {Roles: []string{"staging-access"}},
 						"/staging/green": {Roles: []string{"staging-access"}},
 					},
+				},
+			},
+		},
+		{
+			name: "delegation chain",
+			idCtx: IdentityContext{
+				TeleportUser:  "bot-session",
+				Login:         "ubuntu",
+				BotName:       "session-bot",
+				BotInstanceID: "inst-1",
+				UnmappedIdentity: &sshca.Identity{
+					Delegation: delegationv1.Delegation_builder{
+						Bot: delegationv1.BotDelegator_builder{
+							Name:  "session-bot",
+							Scope: "/staging",
+						}.Build(),
+						Previous: delegationv1.Delegation_builder{
+							User: delegationv1.UserDelegator_builder{
+								Username: "alice",
+							}.Build(),
+						}.Build(),
+					}.Build(),
+				},
+			},
+			want: apievents.UserMetadata{
+				User:          "bot-session",
+				Login:         "ubuntu",
+				UserKind:      apievents.UserKind_USER_KIND_BOT,
+				BotName:       "session-bot",
+				BotInstanceID: "inst-1",
+				DelegationChain: []apievents.DelegationChainEntry{
+					{BotName: "session-bot", BotScope: "/staging"},
+					{Username: "alice"},
 				},
 			},
 		},

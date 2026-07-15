@@ -50,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/moderation"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/decision"
+	"github.com/gravitational/teleport/lib/delegation"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/scopes/pinning"
 	"github.com/gravitational/teleport/lib/services"
@@ -1169,9 +1170,11 @@ func (id *IdentityContext) GetUserMetadata() apievents.UserMetadata {
 	// on the unmapped identity for all scoped identities.
 	var scopePin *scopesv1.Pin
 	var beamID string
+	var delegationChain []apievents.DelegationChainEntry
 	if id.UnmappedIdentity != nil {
 		scopePin = id.UnmappedIdentity.ScopePin
 		beamID = id.UnmappedIdentity.BeamID
+		delegationChain = delegation.EventsFrom(id.UnmappedIdentity.Delegation)
 	}
 
 	return apievents.UserMetadata{
@@ -1189,6 +1192,7 @@ func (id *IdentityContext) GetUserMetadata() apievents.UserMetadata {
 		UserTraits:       id.Traits.Clone(),
 		ScopePin:         pinning.ToEventsPin(scopePin),
 		BeamID:           beamID,
+		DelegationChain:  delegationChain,
 	}
 }
 
