@@ -1,6 +1,6 @@
 name: teleport-kube-updater
 apiVersion: v2
-version: &version "19.0.0-dev.avatus-mcp.5"
+version: &version "19.0.0-dev.avatus-mcp.6"
 appVersion: *version
 type: library
 description: |
