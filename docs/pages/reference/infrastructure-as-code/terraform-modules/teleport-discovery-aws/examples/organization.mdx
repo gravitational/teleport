@@ -23,6 +23,54 @@ Run Terraform with credentials from the AWS Organization management account or a
 
 After applying, you have to manually create an IAM Role in each target account using the details provided in the `aws_child_account_iam_role_template` output, which you can get by running `terraform output`. When the root or `*` is included, this also includes the management or delegated administrator account.
 
+Use the following template, obtained from `terraform output`, to create the IAM role in each target account.
+```hcl
+{
+  "aws_child_account_iam_role_template" = {
+    "assume_role_policy" = <<-EOT
+    {
+      "Version": "2012-10-17",
+      "Statement": [
+        {
+          "Effect": "Allow",
+          "Action": "sts:AssumeRole",
+          "Principal": {
+            "AWS": "arn:aws:iam::<aws-root-account-id>:role/teleport-discovery-<timestamp>"
+          },
+          "Condition": {
+            "StringEquals": {
+              "aws:PrincipalOrgID": "<aws-organization-id>"
+            }
+          }
+        }
+      ]
+    }
+    EOT
+    "policy" = <<-EOT
+    {
+      "Version": "2012-10-17",
+      "Statement": [
+        {
+          "Effect": "Allow",
+          "Action": [
+            "ssm:SendCommand",
+            "ssm:ListCommandInvocations",
+            "ssm:GetCommandInvocation",
+            "ssm:DescribeInstanceInformation",
+            "ec2:DescribeInstances",
+            "account:ListRegions"
+          ],
+          "Resource": "*"
+        }
+      ]
+    }
+    EOT
+    "role_name" = "teleport-organization-discovery-child-account-role"
+  }
+  # ...
+}
+```
+
 When not using the AWS OIDC integration, you also have to create two extra IAM Roles in a management or delegated administrator account:
 
 - `teleport_organization_account_enumeration_iam_role_template`: must be accessible from the Discovery Service and is used to enumerate all the accounts under the Organization and to assume the role created in each target account.
