@@ -444,6 +444,263 @@ func TestUpdateDiscoveryConfigStatus(t *testing.T) {
 	}
 }
 
+func TestSyntheticDiscoveryConfig(t *testing.T) {
+	t.Parallel()
+	clusterName := "test-cluster"
+	serverID := uuid.NewString()
+
+	requireTraceErrorFn := func(traceFn func(error) bool) require.ErrorAssertionFunc {
+		return func(tt require.TestingT, err error, i ...any) {
+			require.True(t, traceFn(err), "received an un-expected error: %v", err)
+		}
+	}
+
+	ctx, localClient, resourceSvc := initSvc(t, clusterName)
+
+	sampleSyntheticDiscoveryConfigFn := func(t *testing.T, serverID string) *discoveryconfig.DiscoveryConfig {
+		dc, err := discoveryconfig.NewSyntheticDiscoveryConfig(serverID, discoveryconfig.Spec{
+			DiscoveryGroup: "some-group",
+			AWS: []types.AWSMatcher{
+				{Types: []string{"ec2"}, Regions: []string{"us-east-1"}},
+			},
+		})
+		require.NoError(t, err)
+		dc.SetExpiry(time.Now().UTC().Add(time.Hour))
+		return dc
+	}
+
+	upsertFn := func(ctx context.Context, dc *discoveryconfig.DiscoveryConfig) error {
+		_, err := resourceSvc.UpsertDiscoveryConfig(ctx, discoveryconfigpb.UpsertDiscoveryConfigRequest_builder{
+			DiscoveryConfig: convert.ToProto(dc),
+		}.Build())
+		return err
+	}
+
+	fullAccessRole := types.RoleSpecV6{
+		Allow: types.RoleConditions{Rules: []types.Rule{{
+			Resources: []string{types.KindDiscoveryConfig},
+			Verbs:     []string{types.VerbCreate, types.VerbUpdate},
+		}}},
+	}
+
+	tt := []struct {
+		name         string
+		identity     func(t *testing.T) context.Context
+		setup        func(t *testing.T)
+		test         func(t *testing.T, ctx context.Context) error
+		errAssertion require.ErrorAssertionFunc
+	}{
+		{
+			name: "discovery service can upsert its own synthetic config",
+			identity: func(t *testing.T) context.Context {
+				return authorizerForDiscoveryService(ctx, clusterName, serverID)
+			},
+			test: func(t *testing.T, localCtx context.Context) error {
+				if err := upsertFn(localCtx, sampleSyntheticDiscoveryConfigFn(t, serverID)); err != nil {
+					return err
+				}
+
+				stored, err := localClient.GetDiscoveryConfig(ctx, discoveryconfig.SyntheticName(serverID))
+				require.NoError(t, err)
+				require.True(t, stored.IsSynthetic())
+				require.False(t, stored.Expiry().IsZero())
+				return nil
+			},
+			errAssertion: require.NoError,
+		},
+		{
+			name: "keep-alive refresh preserves reported status",
+			identity: func(t *testing.T) context.Context {
+				return authorizerForDiscoveryService(ctx, clusterName, serverID)
+			},
+			test: func(t *testing.T, localCtx context.Context) error {
+				require.NoError(t, upsertFn(localCtx, sampleSyntheticDiscoveryConfigFn(t, serverID)))
+
+				status := discoveryconfigpb.DiscoveryConfigStatus_builder{
+					State:               discoveryconfigpb.DiscoveryConfigState_DISCOVERY_CONFIG_STATE_RUNNING,
+					DiscoveredResources: 42,
+				}.Build()
+				_, err := resourceSvc.UpdateDiscoveryConfigStatus(localCtx, discoveryconfigpb.UpdateDiscoveryConfigStatusRequest_builder{
+					Name:   discoveryconfig.SyntheticName(serverID),
+					Status: status,
+				}.Build())
+				require.NoError(t, err)
+
+				require.NoError(t, upsertFn(localCtx, sampleSyntheticDiscoveryConfigFn(t, serverID)))
+
+				stored, err := localClient.GetDiscoveryConfig(ctx, discoveryconfig.SyntheticName(serverID))
+				require.NoError(t, err)
+				require.Equal(t, uint64(42), stored.Status.DiscoveredResources)
+				return nil
+			},
+			errAssertion: require.NoError,
+		},
+		{
+			name: "discovery service cannot upsert a synthetic config for another server",
+			identity: func(t *testing.T) context.Context {
+				return authorizerForDiscoveryService(ctx, clusterName, uuid.NewString())
+			},
+			test: func(t *testing.T, localCtx context.Context) error {
+				return upsertFn(localCtx, sampleSyntheticDiscoveryConfigFn(t, serverID))
+			},
+			errAssertion: requireTraceErrorFn(trace.IsAccessDenied),
+		},
+		{
+			name: "discovery service cannot upsert a synthetic config without expiry",
+			identity: func(t *testing.T) context.Context {
+				return authorizerForDiscoveryService(ctx, clusterName, serverID)
+			},
+			test: func(t *testing.T, localCtx context.Context) error {
+				dc := sampleSyntheticDiscoveryConfigFn(t, serverID)
+				dc.SetExpiry(time.Time{})
+				return upsertFn(localCtx, dc)
+			},
+			errAssertion: requireTraceErrorFn(trace.IsBadParameter),
+		},
+		{
+			name: "discovery service cannot upsert a synthetic config with a real discovery group",
+			identity: func(t *testing.T) context.Context {
+				return authorizerForDiscoveryService(ctx, clusterName, serverID)
+			},
+			test: func(t *testing.T, localCtx context.Context) error {
+				dc := sampleSyntheticDiscoveryConfigFn(t, serverID)
+				dc.Spec.DiscoveryGroup = "some-group"
+				return upsertFn(localCtx, dc)
+			},
+			errAssertion: requireTraceErrorFn(trace.IsBadParameter),
+		},
+		{
+			name: "discovery service cannot upsert a regular discovery config",
+			identity: func(t *testing.T) context.Context {
+				return authorizerForDiscoveryService(ctx, clusterName, serverID)
+			},
+			test: func(t *testing.T, localCtx context.Context) error {
+				dc, err := discoveryconfig.NewDiscoveryConfig(
+					header.Metadata{Name: uuid.NewString()},
+					discoveryconfig.Spec{DiscoveryGroup: "some-group"},
+				)
+				require.NoError(t, err)
+				return upsertFn(localCtx, dc)
+			},
+			errAssertion: requireTraceErrorFn(trace.IsAccessDenied),
+		},
+		{
+			name: "other system roles cannot upsert synthetic configs",
+			identity: func(t *testing.T) context.Context {
+				return authorizerForSystemRole(ctx, string(types.RoleNode))
+			},
+			test: func(t *testing.T, localCtx context.Context) error {
+				return upsertFn(localCtx, sampleSyntheticDiscoveryConfigFn(t, serverID))
+			},
+			errAssertion: requireTraceErrorFn(trace.IsAccessDenied),
+		},
+		{
+			name: "users cannot upsert synthetic configs",
+			identity: func(t *testing.T) context.Context {
+				return authorizerForDummyUser(t, ctx, fullAccessRole, localClient)
+			},
+			test: func(t *testing.T, localCtx context.Context) error {
+				return upsertFn(localCtx, sampleSyntheticDiscoveryConfigFn(t, serverID))
+			},
+			errAssertion: requireTraceErrorFn(trace.IsAccessDenied),
+		},
+		{
+			name: "users cannot create synthetic configs",
+			identity: func(t *testing.T) context.Context {
+				return authorizerForDummyUser(t, ctx, fullAccessRole, localClient)
+			},
+			test: func(t *testing.T, localCtx context.Context) error {
+				_, err := resourceSvc.CreateDiscoveryConfig(localCtx, discoveryconfigpb.CreateDiscoveryConfigRequest_builder{
+					DiscoveryConfig: convert.ToProto(sampleSyntheticDiscoveryConfigFn(t, serverID)),
+				}.Build())
+				return err
+			},
+			errAssertion: requireTraceErrorFn(trace.IsAccessDenied),
+		},
+		{
+			name: "users cannot update synthetic configs",
+			identity: func(t *testing.T) context.Context {
+				return authorizerForDummyUser(t, ctx, fullAccessRole, localClient)
+			},
+			test: func(t *testing.T, localCtx context.Context) error {
+				_, err := resourceSvc.UpdateDiscoveryConfig(localCtx, discoveryconfigpb.UpdateDiscoveryConfigRequest_builder{
+					DiscoveryConfig: convert.ToProto(sampleSyntheticDiscoveryConfigFn(t, serverID)),
+				}.Build())
+				return err
+			},
+			errAssertion: requireTraceErrorFn(trace.IsAccessDenied),
+		},
+		{
+			// Use a dedicated server ID so this test doesn't collide with the
+			// synthetic config published by other test cases.
+			name: "discovery service cannot overwrite a user-created config occupying the synthetic name",
+			identity: func(t *testing.T) context.Context {
+				return authorizerForDiscoveryService(ctx, clusterName, "squatted-"+serverID)
+			},
+			setup: func(t *testing.T) {
+				squatter, err := discoveryconfig.NewDiscoveryConfig(
+					header.Metadata{Name: discoveryconfig.SyntheticName("squatted-" + serverID)},
+					discoveryconfig.Spec{DiscoveryGroup: "some-group"},
+				)
+				require.NoError(t, err)
+				_, err = localClient.CreateDiscoveryConfig(ctx, squatter)
+				require.NoError(t, err)
+			},
+			test: func(t *testing.T, localCtx context.Context) error {
+				err := upsertFn(localCtx, sampleSyntheticDiscoveryConfigFn(t, "squatted-"+serverID))
+
+				// The user-created resource must be intact.
+				stored, getErr := localClient.GetDiscoveryConfig(ctx, discoveryconfig.SyntheticName("squatted-"+serverID))
+				require.NoError(t, getErr)
+				require.False(t, stored.IsSynthetic())
+				require.Equal(t, "some-group", stored.GetDiscoveryGroup())
+				return err
+			},
+			errAssertion: requireTraceErrorFn(trace.IsAlreadyExists),
+		},
+		{
+			name: "users cannot overwrite an existing synthetic config",
+			identity: func(t *testing.T) context.Context {
+				return authorizerForDummyUser(t, ctx, fullAccessRole, localClient)
+			},
+			setup: func(t *testing.T) {
+				discoveryCtx := authorizerForDiscoveryService(ctx, clusterName, serverID)
+				require.NoError(t, upsertFn(discoveryCtx, sampleSyntheticDiscoveryConfigFn(t, serverID)))
+			},
+			test: func(t *testing.T, localCtx context.Context) error {
+				// A non-synthetic payload reusing the synthetic name must be
+				// rejected on both the upsert and update paths.
+				squatter, err := discoveryconfig.NewDiscoveryConfig(
+					header.Metadata{Name: discoveryconfig.SyntheticName(serverID)},
+					discoveryconfig.Spec{DiscoveryGroup: "some-group"},
+				)
+				require.NoError(t, err)
+
+				upsertErr := upsertFn(localCtx, squatter)
+				require.True(t, trace.IsAccessDenied(upsertErr), "received an un-expected error: %v", upsertErr)
+
+				_, err = resourceSvc.UpdateDiscoveryConfig(localCtx, discoveryconfigpb.UpdateDiscoveryConfigRequest_builder{
+					DiscoveryConfig: convert.ToProto(squatter),
+				}.Build())
+				return err
+			},
+			errAssertion: requireTraceErrorFn(trace.IsAccessDenied),
+		},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
+			localCtx := tc.identity(t)
+			if tc.setup != nil {
+				tc.setup(t)
+			}
+
+			err := tc.test(t, localCtx)
+			tc.errAssertion(t, err)
+		})
+	}
+}
+
 func authorizerForDummyUser(t *testing.T, ctx context.Context, roleSpec types.RoleSpecV6, localClient localClient) context.Context {
 	// Create role
 	roleName := "role-" + uuid.NewString()
@@ -480,10 +737,29 @@ func authorizerForSystemRole(ctx context.Context, systemRole string) context.Con
 	})
 }
 
+// authorizerForDiscoveryService builds a context for a Discovery Service
+// running on the host identified by serverID, mimicking the identity of a real
+// agent, whose certificate username is "<server-id>.<cluster-name>".
+func authorizerForDiscoveryService(ctx context.Context, clusterName, serverID string) context.Context {
+	systemRole := string(types.RoleDiscovery)
+	username := serverID + "." + clusterName
+	return authz.ContextWithUser(ctx, authz.BuiltinRole{
+		Username:    username,
+		Role:        types.RoleDiscovery,
+		ClusterName: clusterName,
+		Identity: tlsca.Identity{
+			Username:    username,
+			SystemRoles: []string{systemRole},
+			Groups:      []string{systemRole},
+		},
+	})
+}
+
 type localClient interface {
 	CreateUser(ctx context.Context, user types.User) (types.User, error)
 	CreateRole(ctx context.Context, role types.Role) (types.Role, error)
 	CreateDiscoveryConfig(ctx context.Context, dc *discoveryconfig.DiscoveryConfig) (*discoveryconfig.DiscoveryConfig, error)
+	GetDiscoveryConfig(ctx context.Context, name string) (*discoveryconfig.DiscoveryConfig, error)
 }
 
 type testClient struct {

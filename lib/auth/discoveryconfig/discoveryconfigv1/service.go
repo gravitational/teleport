@@ -190,6 +190,10 @@ func (s *Service) CreateDiscoveryConfig(ctx context.Context, req *discoveryconfi
 		return nil, trace.Wrap(err)
 	}
 
+	if req.GetDiscoveryConfig().GetHeader().GetSubKind() == discoveryconfig.SubKindSynthetic {
+		return nil, trace.AccessDenied("synthetic discovery configs are published by Discovery Services and cannot be created directly")
+	}
+
 	dc, err := conv.FromProto(req.GetDiscoveryConfig())
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -235,6 +239,10 @@ func (s *Service) UpdateDiscoveryConfig(ctx context.Context, req *discoveryconfi
 		return nil, trace.Wrap(err)
 	}
 
+	if req.GetDiscoveryConfig().GetHeader().GetSubKind() == discoveryconfig.SubKindSynthetic {
+		return nil, trace.AccessDenied("synthetic discovery configs are published by Discovery Services and cannot be updated directly")
+	}
+
 	dc, err := conv.FromProto(req.GetDiscoveryConfig())
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -244,6 +252,9 @@ func (s *Service) UpdateDiscoveryConfig(ctx context.Context, req *discoveryconfi
 	oldDiscoveryConfig, err := s.backend.GetDiscoveryConfig(ctx, dc.GetName())
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+	if oldDiscoveryConfig.IsSynthetic() {
+		return nil, trace.AccessDenied("discovery config %q is a synthetic resource owned by a Discovery Service and cannot be modified", dc.GetName())
 	}
 	dc.Status = oldDiscoveryConfig.Status
 
@@ -279,6 +290,10 @@ func (s *Service) UpsertDiscoveryConfig(ctx context.Context, req *discoveryconfi
 		return nil, trace.Wrap(err)
 	}
 
+	if req.GetDiscoveryConfig().GetHeader().GetSubKind() == discoveryconfig.SubKindSynthetic {
+		return s.upsertSyntheticDiscoveryConfig(ctx, authCtx, req)
+	}
+
 	if err := authCtx.CheckAccessToKind(types.KindDiscoveryConfig, types.VerbCreate, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -286,6 +301,15 @@ func (s *Service) UpsertDiscoveryConfig(ctx context.Context, req *discoveryconfi
 	dc, err := conv.FromProto(req.GetDiscoveryConfig())
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	// Refuse to overwrite an existing synthetic config: those are owned by the
+	// Discovery Service that published them.
+	switch old, err := s.backend.GetDiscoveryConfig(ctx, dc.GetName()); {
+	case err != nil && !trace.IsNotFound(err):
+		return nil, trace.Wrap(err)
+	case err == nil && old.IsSynthetic():
+		return nil, trace.AccessDenied("discovery config %q is a synthetic resource owned by a Discovery Service and cannot be modified", dc.GetName())
 	}
 
 	// Set the status to an empty struct to clear any status that may have been set
@@ -314,6 +338,61 @@ func (s *Service) UpsertDiscoveryConfig(ctx context.Context, req *discoveryconfi
 
 	s.emitUsageEvent(resp, prehogv1a.DiscoveryConfigAction_DISCOVERY_CONFIG_ACTION_CREATE)
 
+	return conv.ToProto(resp), nil
+}
+
+// upsertSyntheticDiscoveryConfig handles self-publication of synthetic
+// discovery configs by Discovery Services. Discovery Services only have
+// read-only RBAC access to discovery configs; this carve-out allows each
+// service to upsert exactly one resource whose name is strictly derived from
+// its own host ID, so it cannot touch any other discovery config.
+func (s *Service) upsertSyntheticDiscoveryConfig(ctx context.Context, authCtx *authz.Context, req *discoveryconfigv1.UpsertDiscoveryConfigRequest) (*discoveryconfigv1.DiscoveryConfig, error) {
+	if !authz.HasBuiltinRole(*authCtx, string(types.RoleDiscovery)) {
+		return nil, trace.AccessDenied("synthetic discovery configs can only be published by a Discovery Service")
+	}
+	role, ok := authCtx.Identity.(authz.BuiltinRole)
+	if !ok {
+		return nil, trace.AccessDenied("synthetic discovery configs can only be published by a Discovery Service")
+	}
+	serverID := role.GetServerID()
+
+	dc, err := conv.FromProto(req.GetDiscoveryConfig())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if expected := discoveryconfig.SyntheticName(serverID); dc.GetName() != expected {
+		return nil, trace.AccessDenied("discovery service %q may only publish the synthetic discovery config named %q, got %q", serverID, expected, dc.GetName())
+	}
+	if err := discoveryconfig.CheckSyntheticDiscoveryConfig(dc, serverID); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Ignore any status set in the request, but preserve the status already
+	// reported to the backend: static matchers report their discovery status
+	// into the synthetic config, and the keep-alive refresh must not wipe it.
+	dc.Status = discoveryconfig.Status{}
+	switch old, err := s.backend.GetDiscoveryConfig(ctx, dc.GetName()); {
+	case err != nil && !trace.IsNotFound(err):
+		return nil, trace.Wrap(err)
+	case err == nil && !old.IsSynthetic():
+		// Never overwrite a user-created discovery config that happens to
+		// occupy the synthetic name (e.g. one created before the cluster
+		// learned about synthetic configs). Resolving the conflict requires an
+		// explicit admin deletion.
+		return nil, trace.AlreadyExists("discovery config %q already exists and is not synthetic; refusing to overwrite it, delete it to let the Discovery Service publish its static configuration", dc.GetName())
+	case err == nil:
+		dc.Status = old.Status
+	}
+
+	resp, err := s.backend.UpsertDiscoveryConfig(ctx, dc)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// No audit or usage events are emitted here on purpose: synthetic configs
+	// are machine self-publications refreshed on a keep-alive interval, akin
+	// to heartbeats, and auditing each refresh would flood the audit log.
 	return conv.ToProto(resp), nil
 }
 
