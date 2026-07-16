@@ -27,15 +27,6 @@ import (
 	accessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 )
 
-// ScopedSessionControls exposes the per-protocol session controls (idle
-// timeout, disconnect on cert expiry, locking mode) of the role that granted
-// access for a connection.
-type ScopedSessionControls interface {
-	AdjustClientIdleTimeout(time.Duration) (time.Duration, error)
-	AdjustDisconnectExpiredCert(bool) bool
-	LockingMode(constants.LockingMode) constants.LockingMode
-}
-
 // adjust the client idle timeout value - preferring the default if not set
 func (c *ScopedAccessChecker) adjustScopedClientIdleTimeout(idleStr string, timeout time.Duration) (time.Duration, error) {
 	if idleStr == "" {

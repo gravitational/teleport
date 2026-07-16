@@ -405,7 +405,7 @@ func TestTrackingReadConn(t *testing.T) {
 	})
 }
 
-// mockScopedControls implements [ScopedSessionControls] for MonitorConnScoped tests.
+// mockScopedControls implements [authz.ScopedSessionControls] for MonitorConnScoped tests.
 type mockScopedControls struct {
 	idleTimeout       time.Duration
 	disconnectExpired bool
