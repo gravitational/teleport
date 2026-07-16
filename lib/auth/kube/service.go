@@ -34,15 +34,18 @@ import (
 	"github.com/gravitational/teleport/lib/services/local/generic"
 )
 
+// A ClusterReader knows how to get and range over kube clusters.
 type ClusterReader interface {
 	GetKubeCluster(ctx context.Context, req *kubev1.GetKubeClusterRequest) (types.KubeCluster, error)
 	RangeKubeClusters(ctx context.Context, req *kubev1.ListKubeClustersRequest, startKey, endKey string) iter.Seq2[types.KubeCluster, error]
 }
 
+// A ClusterWriter knows how to delete kube clusters.
 type ClusterWriter interface {
 	DeleteKubeCluster(ctx context.Context, req *kubev1.DeleteKubeClusterRequest) error
 }
 
+// Config contains the parameters for building a new [Server].
 type Config struct {
 	ScopedAuthorizer authz.ScopedAuthorizer
 	Logger           *slog.Logger
@@ -51,12 +54,16 @@ type Config struct {
 	ClusterWriter    ClusterWriter
 }
 
-type Service struct {
+// Server is the [kubev1.UnimplementedKubeClusterServiceServer] returned by
+// [New].
+type Server struct {
 	cfg *Config
 	kubev1.UnimplementedKubeClusterServiceServer
 }
 
-func NewService(cfg *Config) (*Service, error) {
+// New returns the auth server implementation for the kube cluster service,
+// including the gRPC interface, authz enforcement, and business logic.
+func New(cfg *Config) (*Server, error) {
 	switch {
 	case cfg.ScopedAuthorizer == nil:
 		return nil, trace.BadParameter("ScopedAuthorizer must be provided")
@@ -67,12 +74,13 @@ func NewService(cfg *Config) (*Service, error) {
 	case cfg.Logger == nil:
 		cfg.Logger = slog.With(teleport.ComponentKey, "kube")
 	}
-	return &Service{
+	return &Server{
 		cfg: cfg,
 	}, nil
 }
 
-func (s *Service) GetKubeCluster(ctx context.Context, req *kubev1.GetKubeClusterRequest) (*kubev1.GetKubeClusterResponse, error) {
+// GetKubeCluster returns the specified kube cluster resource.
+func (s *Server) GetKubeCluster(ctx context.Context, req *kubev1.GetKubeClusterRequest) (*kubev1.GetKubeClusterResponse, error) {
 	authContext, err := s.cfg.ScopedAuthorizer.AuthorizeScoped(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -113,7 +121,8 @@ func getCursorForKubeCluster(cluster *types.KubernetesClusterV3) string {
 	return services.GetCursorForKubeCluster(cluster)
 }
 
-func (s *Service) ListKubeClusters(ctx context.Context, req *kubev1.ListKubeClustersRequest) (*kubev1.ListKubeClustersResponse, error) {
+// ListKubeClusters returns a page of registered kube clusters.
+func (s *Server) ListKubeClusters(ctx context.Context, req *kubev1.ListKubeClustersRequest) (*kubev1.ListKubeClustersResponse, error) {
 	authContext, err := s.cfg.ScopedAuthorizer.AuthorizeScoped(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -154,14 +163,15 @@ func (s *Service) ListKubeClusters(ctx context.Context, req *kubev1.ListKubeClus
 	}.Build(), nil
 }
 
-func (s *Service) DeleteKubeCluster(ctx context.Context, req *kubev1.DeleteKubeClusterRequest) (*kubev1.DeleteKubeClusterResponse, error) {
+// DeleteKubeCluster removes the specified kube cluster resource.
+func (s *Server) DeleteKubeCluster(ctx context.Context, req *kubev1.DeleteKubeClusterRequest) (*kubev1.DeleteKubeClusterResponse, error) {
 	authContext, err := s.cfg.ScopedAuthorizer.AuthorizeScoped(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	ruleCtx := authContext.RuleContext()
-	if err := authContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, types.KindKubernetesCluster, types.VerbRead, types.VerbList); err != nil {
+	if err := authContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, types.KindKubernetesCluster, types.VerbDelete); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
