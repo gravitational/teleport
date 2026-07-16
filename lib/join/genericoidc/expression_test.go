@@ -148,7 +148,7 @@ func TestEvaluateExpression(t *testing.T) {
 				"groups": ["foo", "bar", "baz"]
 			}`),
 			expression:  `contains_all(set(claims.groups), set("foo", "bar", "baz", "qux"))`,
-			expect:      true,
+			expect:      false,
 			expectError: require.NoError,
 		},
 	}
