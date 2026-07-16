@@ -21,10 +21,10 @@ struct PrimaryButtonStyle: PrimitiveButtonStyle {
 	func makeBody(configuration: Configuration) -> some View {
 		Button(action: configuration.trigger) {
 			configuration.label
-				.foregroundStyle(Color.Button.primayForeground)
+				.foregroundStyle(Color.Button.primaryForeground)
 		}
 		.buttonStyle(.borderedProminent)
-		.tint(Color.Button.primaryBackground)
+		.tint(.teleport)
 	}
 }
 

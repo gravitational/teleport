@@ -19,8 +19,12 @@ package local
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
+	"errors"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -42,6 +46,7 @@ const EnrollPairingExpireDuration = 5 * time.Minute
 // EnrollPairingService implements [services.EnrollPairing] on a [backend.Backend].
 type EnrollPairingService struct {
 	service *generic.ServiceWrapper[*devicepb.EnrollPairing]
+	backend backend.Backend
 	clock   clockwork.Clock
 	log     *slog.Logger
 }
@@ -62,6 +67,7 @@ func NewEnrollPairingService(b backend.Backend) (*EnrollPairingService, error) {
 	return &EnrollPairingService{
 		clock:   b.Clock(),
 		service: service,
+		backend: b,
 		log:     slog.With(teleport.ComponentKey, teleport.Component("enrollpairing")),
 	}, nil
 }
@@ -118,8 +124,40 @@ func (s *EnrollPairingService) CreateEnrollPairing(ctx context.Context, user str
 		s.log.WarnContext(ctx, "Failed to clear expired pairing if any", "error", err)
 	}
 
-	pairing, err := s.service.CreateResource(ctx, pairing)
-	return pairing, trace.Wrap(err)
+	if err := validateEnrollPairing(pairing); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	pairingItem, err := s.service.MakeBackendItem(pairing)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	indexItem := backend.Item{
+		Key:     enrollPairingByTokenKey(token),
+		Value:   []byte(user),
+		Expires: expires,
+	}
+
+	revision, err := s.backend.AtomicWrite(ctx, []backend.ConditionalAction{
+		{
+			Key:       pairingItem.Key,
+			Condition: backend.NotExists(),
+			Action:    backend.Put(pairingItem),
+		},
+		{
+			Key:       indexItem.Key,
+			Condition: backend.NotExists(),
+			Action:    backend.Put(indexItem),
+		},
+	})
+	if err != nil {
+		if errors.Is(err, backend.ErrConditionFailed) {
+			return nil, trace.AlreadyExists("enroll pairing for user %q already exists", user)
+		}
+		return nil, trace.Wrap(err)
+	}
+
+	pairing.GetMetadata().SetRevision(revision)
+	return pairing, nil
 }
 
 // GetCurrentEnrollPairing returns the EnrollPairing for user, or NotFound if no
@@ -131,6 +169,71 @@ func (s *EnrollPairingService) GetCurrentEnrollPairing(ctx context.Context, user
 
 	pairing, err := s.service.GetResource(ctx, user)
 	return pairing, trace.Wrap(err)
+}
+
+// GetEnrollPairingByToken returns the EnrollPairing whose status token matches
+// token, or NotFound if none matches.
+func (s *EnrollPairingService) GetEnrollPairingByToken(ctx context.Context, token string) (*devicepb.EnrollPairing, error) {
+	if token == "" {
+		return nil, trace.BadParameter("token required")
+	}
+
+	item, err := s.backend.Get(ctx, enrollPairingByTokenKey(token))
+	if err != nil {
+		return nil, trace.Wrap(err, "read by index")
+	}
+
+	pairing, err := s.service.GetResource(ctx, string(item.Value))
+	if err != nil {
+		return nil, trace.Wrap(err, "read enroll pairing")
+	}
+
+	// Verify that the index and the pairing have the same token, in case the
+	// pairing was updated between the two Gets.
+	if pairing.GetStatus().GetToken() != token {
+		return nil, trace.NotFound("enroll pairing not found")
+	}
+
+	return pairing, nil
+}
+
+// RequestEnrollPairingApproval transitions the pairing identified by token from
+// AWAITING_DEVICE to AWAITING_APPROVAL, persisting device, and returns the
+// updated pairing.
+func (s *EnrollPairingService) RequestEnrollPairingApproval(ctx context.Context, token string, device *devicepb.EnrollPairingDevice) (*devicepb.EnrollPairing, error) {
+	if token == "" {
+		return nil, trace.BadParameter("token required")
+	}
+	if device == nil {
+		return nil, trace.BadParameter("device required")
+	}
+
+	pairing, err := s.GetEnrollPairingByToken(ctx, token)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	const errNotAwaitingDevice = "enroll pairing is not awaiting a device"
+	// TODO(ravicious): Make the call retryable from the same device, as described
+	// in the Interrputibility section of RFD 32e.
+	if pairing.GetStatus().GetState() != devicepb.EnrollPairingState_ENROLL_PAIRING_STATE_AWAITING_DEVICE {
+		return nil, trace.CompareFailed(errNotAwaitingDevice)
+	}
+
+	pairing.GetStatus().SetState(devicepb.EnrollPairingState_ENROLL_PAIRING_STATE_AWAITING_APPROVAL)
+	pairing.GetStatus().SetDevice(device)
+
+	updated, err := s.service.ConditionalUpdateResource(ctx, pairing)
+	if trace.IsCompareFailed(err) {
+		// Lost the CAS to a concurrent claim — same outcome as the state check above.
+		return nil, trace.CompareFailed(errNotAwaitingDevice)
+	}
+	return updated, trace.Wrap(err)
+}
+
+func enrollPairingByTokenKey(token string) backend.Key {
+	hash := sha256.Sum256([]byte(token))
+	return backend.NewKey("devices", "enroll_pairing_by_token", hex.EncodeToString(hash[:]))
 }
 
 func validateEnrollPairing(pairing *devicepb.EnrollPairing) error {
@@ -146,5 +249,20 @@ func validateEnrollPairing(pairing *devicepb.EnrollPairing) error {
 	if pairing.GetStatus().GetState() == devicepb.EnrollPairingState_ENROLL_PAIRING_STATE_UNSPECIFIED {
 		return trace.BadParameter("enroll pairing status.state is missing")
 	}
+
+	if device := pairing.GetStatus().GetDevice(); device != nil {
+		if device.GetOsType() == devicepb.OSType_OS_TYPE_UNSPECIFIED {
+			return trace.BadParameter("device.os_type is missing")
+		}
+
+		if strings.TrimSpace(device.GetOsVersion()) == "" {
+			return trace.BadParameter("device.os_version is missing")
+		}
+
+		if strings.TrimSpace(device.GetSerialNumber()) == "" {
+			return trace.BadParameter("device.serial_number is missing")
+		}
+	}
+
 	return nil
 }

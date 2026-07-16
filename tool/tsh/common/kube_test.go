@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keypaths"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
@@ -787,4 +788,59 @@ func newKubeSelfSubjectServer(t *testing.T) string {
 	t.Cleanup(func() { srv.Close() })
 
 	return srv.URL
+}
+
+func Test_kubeCredentialsCommand_checkLocalProxyRequirement(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		inputProfile *profile.Profile
+		wantErr      bool
+	}{
+		{
+			name: "no requirement",
+			inputProfile: &profile.Profile{
+				WebProxyAddr:  "example.com:443",
+				KubeProxyAddr: "example.com:3026",
+			},
+			wantErr: false,
+		},
+		{
+			name: "kube local proxy required",
+			inputProfile: &profile.Profile{
+				WebProxyAddr:                  "example.com:443",
+				KubeProxyAddr:                 "example.com:443",
+				TLSRoutingConnUpgradeRequired: true,
+			},
+			wantErr: true,
+		},
+		{
+			// A hardware-key policy can't be serialized for the exec plugin, so
+			// the credentials command must return an actionable error even when
+			// a local proxy would not otherwise be required.
+			name: "hardware key policy",
+			inputProfile: &profile.Profile{
+				WebProxyAddr:     "example.com:443",
+				KubeProxyAddr:    "example.com:3026",
+				PrivateKeyPolicy: keys.PrivateKeyPolicyHardwareKeyTouch,
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			c := &kubeCredentialsCommand{}
+			err := c.checkLocalProxyRequirement(test.inputProfile)
+			if !test.wantErr {
+				require.NoError(t, err)
+				return
+			}
+			// The error must be the actionable one, not the opaque PEM failure.
+			require.True(t, trace.IsBadParameter(err), "want BadParameter, got %v", err)
+			require.ErrorContains(t, err, "tsh proxy kube")
+			require.ErrorContains(t, err, "tsh kubectl")
+		})
+	}
 }

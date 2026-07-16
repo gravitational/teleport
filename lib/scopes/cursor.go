@@ -17,6 +17,7 @@
 package scopes
 
 import (
+	"encoding/hex"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -59,19 +60,29 @@ func IsScopedResourceCursor(cursor string) bool {
 //
 //	~scoped/<encoded-scope>/<name>
 //
-// The scope component is encoded with EncodeForKey so that scoped cursors
+// The scope component is encoded with [EncodeForKey] so that scoped cursors
 // preserve scope ordering and can safely use '/' as the cursor separator.
-func MakeResourceCursor(scope, name string) (string, error) {
+//
+// MakeResourceCursor is infallible so that it can back key derivation with no
+// error path (in-memory cache indexes, pagination cursors). A scope that
+// cannot be encoded (which is only possible for invalid stored data) yields a
+// degraded cursor that is deterministic, unique per scope and name, sorts after
+// all valid cursors, and fails [ParseResourceCursor].
+func MakeResourceCursor(scope, name string) string {
 	if scope == "" {
-		return name, nil
+		return name
 	}
 
 	encodedScope, err := EncodeForKey(scope)
 	if err != nil {
-		return "", trace.Wrap(err)
+		// '~' cannot appear in a valid scope encoding (which starts with '+'),
+		// so degraded cursors never collide with valid cursors and sort after
+		// them. The scope is hex-encoded so the cursor's scope component is a
+		// single path segment regardless of the scope's contents.
+		encodedScope = "~invalid+" + hex.EncodeToString([]byte(scope))
 	}
 
-	return ResourceCursorPrefix + encodedScope + separator + name, nil
+	return ResourceCursorPrefix + encodedScope + separator + name
 }
 
 // ParseResourceCursor parses a resource cursor produced by [MakeResourceCursor]

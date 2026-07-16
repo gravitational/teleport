@@ -268,6 +268,9 @@ func (s *Server) ListScopedTokens(ctx context.Context, req *scopedjoiningv1.List
 		return nil, trace.Wrap(err)
 	}
 
+	// list method scope filters must use identity-based defaults per RFD 0229i
+	req.SetScopeFilter(authzContext.CheckerContext.ResolveScopeFilter(req.GetScopeFilter()))
+
 	limit := int(req.GetLimit())
 	if limit == 0 {
 		limit = defaultTokenPageSize
