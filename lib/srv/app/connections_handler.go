@@ -30,6 +30,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -251,6 +252,7 @@ func NewConnectionsHandler(closeContext context.Context, cfg *ConnectionsHandler
 	llmHandler, err := appllm.NewHandler(closeContext, appllm.HandlerConfig{
 		Log:               cfg.Logger.With(teleport.ComponentKey, teleport.ComponentLLM),
 		AWSConfigProvider: awsConfigProvider,
+		RecordingEnabled:  appllm.BeamLLMRecordingEnabled(os.Getenv),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

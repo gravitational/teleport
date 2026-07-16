@@ -1069,3 +1069,12 @@ const (
 	// OktaReviewerRoleContext  is the context used to name Okta Reviewer role created by Okta Access List sync
 	OktaReviewerRoleContext = "reviewer-okta-acl-role"
 )
+
+const (
+	// BeamsRuntimeEnvVar is set (to a truthy value) in the environment of an
+	// app service running inside a beam sandbox.
+	BeamsRuntimeEnvVar = "TELEPORT_BEAMS_RUNTIME"
+	// BeamsLLMRecordingEnvVar, when truthy, opts a beam's app service into
+	// recording LLM traffic for later replay.
+	BeamsLLMRecordingEnvVar = "TELEPORT_BEAMS_LLM_RECORDING"
+)
