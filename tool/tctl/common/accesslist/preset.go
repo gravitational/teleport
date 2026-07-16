@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/common"
 	"github.com/gravitational/teleport/lib/accesslists/preset"
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -39,12 +40,128 @@ const (
 
 var awsIcAppLabel = types.Labels{types.OriginLabel: []string{common.OriginAWSIdentityCenter}}
 
+type applyAccessFlagsToRole func(allow *types.RoleConditions) error
+
+// applyStandardAccessFlagsToRole modifies the standard role's allow block.
+// Empty values clear the field, unset flags leave field alone.
+func (c *Command) applyStandardAccessFlagsToRole(allow *types.RoleConditions) error {
+	// Nodes
+	if c.nodeLabelsSet {
+		labels, err := client.MultiValueLabelSelectorSpec(c.nodeLabels)
+		if err != nil {
+			return trace.Wrap(err, "--node-labels")
+		}
+		allow.NodeLabels = types.ToLabels(labels)
+	}
+	if c.loginsSet {
+		allow.Logins = utils.SplitIdentifiers(c.logins)
+	}
+
+	// Dbs
+	if c.dbLabelsSet {
+		labels, err := client.MultiValueLabelSelectorSpec(c.dbLabels)
+		if err != nil {
+			return trace.Wrap(err, "--db-labels")
+		}
+		allow.DatabaseLabels = types.ToLabels(labels)
+	}
+	if c.dbUsersSet {
+		allow.DatabaseUsers = utils.SplitIdentifiers(c.dbUsers)
+	}
+	if c.dbNamesSet {
+		allow.DatabaseNames = utils.SplitIdentifiers(c.dbNames)
+	}
+
+	// Kubes
+	if c.kubeLabelsSet {
+		labels, err := client.MultiValueLabelSelectorSpec(c.kubeLabels)
+		if err != nil {
+			return trace.Wrap(err, "--kubernetes-labels")
+		}
+		allow.KubernetesLabels = types.ToLabels(labels)
+	}
+	if c.kubeUsersSet {
+		allow.KubeUsers = utils.SplitIdentifiers(c.kubeUsers)
+	}
+	if c.kubeGroupsSet {
+		allow.KubeGroups = utils.SplitIdentifiers(c.kubeGroups)
+	}
+
+	// Apps
+	if c.appLabelsSet {
+		labels, err := client.MultiValueLabelSelectorSpec(c.appLabels)
+		if err != nil {
+			return trace.Wrap(err, "--app-labels")
+		}
+		allow.AppLabels = types.ToLabels(labels)
+	}
+	if c.awsRoleARNsSet {
+		allow.AWSRoleARNs = utils.SplitIdentifiers(c.awsRoleARNs)
+	}
+	if c.azureIdentitiesSet {
+		allow.AzureIdentities = utils.SplitIdentifiers(c.azureIdentities)
+	}
+	if c.gcpServiceAccountsSet {
+		allow.GCPServiceAccounts = utils.SplitIdentifiers(c.gcpServiceAccounts)
+	}
+	if c.mcpToolsSet {
+		tools := utils.SplitIdentifiers(c.mcpTools)
+		if len(tools) == 0 {
+			allow.MCP = nil
+		} else {
+			allow.MCP = &types.MCPPermissions{Tools: tools}
+		}
+	}
+
+	// Windows
+	if c.windowsLabelsSet {
+		labels, err := client.MultiValueLabelSelectorSpec(c.windowsLabels)
+		if err != nil {
+			return trace.Wrap(err, "--windows-labels")
+		}
+		allow.WindowsDesktopLabels = types.ToLabels(labels)
+	}
+	if c.windowsLoginsSet {
+		allow.WindowsDesktopLogins = utils.SplitIdentifiers(c.windowsLogins)
+	}
+
+	// GitHub
+	if c.gitHubOrgsSet {
+		orgs := utils.SplitIdentifiers(c.gitHubOrgs)
+		if len(orgs) == 0 {
+			allow.GitHubPermissions = nil
+		} else {
+			allow.GitHubPermissions = []types.GitHubPermission{{Organizations: orgs}}
+		}
+	}
+	return nil
+}
+
+// applyAWSICFlagsToRole modifies the AWS IC role's allow block.
+// Empty values clear the whole allow spec since this role is specific to awsic,
+// unset flags leave fields alone.
+func (c *Command) applyAWSICFlagsToRole(allow *types.RoleConditions) error {
+	if c.awsicAssignments == "" {
+		*allow = types.RoleConditions{}
+		return nil
+	}
+
+	aa, err := buildAWSICAccountAssignments(c.awsicAssignments)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	allow.AccountAssignments = aa
+	allow.AppLabels = awsIcAppLabel
+
+	return nil
+}
+
 func buildAWSICAccountAssignments(awsicAssignments string) ([]types.IdentityCenterAccountAssignment, error) {
 	var aa []types.IdentityCenterAccountAssignment
 	for _, a := range utils.SplitIdentifiers(awsicAssignments) {
-		account, permSet, ok := strings.Cut(a, ":")
+		account, permSet, ok := strings.Cut(a, "^")
 		if !ok {
-			return nil, trace.BadParameter("--aws-ic-assignments: %q is not in 'accountID:permissionSetARN' format", a)
+			return nil, trace.BadParameter("--aws-ic-assignments: %q is not in 'accountID^permissionSetARN' format", a)
 		}
 		aa = append(aa, types.IdentityCenterAccountAssignment{
 			Account:       strings.TrimSpace(account),
@@ -79,6 +196,17 @@ func accessType(presetType string) string {
 		return accessTypeLongTerm
 	case string(preset.ShortTermPresetType):
 		return accessTypeShortTerm
+	}
+	return ""
+}
+
+// presetType converts user facing accessType value to the expected backend value.
+func presetType(accessType string) string {
+	switch accessType {
+	case accessTypeLongTerm:
+		return string(preset.LongTermPresetType)
+	case accessTypeShortTerm:
+		return string(preset.ShortTermPresetType)
 	}
 	return ""
 }
