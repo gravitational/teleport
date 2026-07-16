@@ -17,26 +17,10 @@
 #if DEBUG
 
 	import Observation
-	import SwiftNavigation
 
-	@Observable
-	final class DebugViewModel {
-		@CasePathable
-		enum Destination {
-			// MARK: - Feature Demos
-
-			case deviceTrustCredentialDemo(FeatureDemo.DeviceTrustCredentialViewModel)
-		}
-
-		var destination: Destination? = nil
-	}
-
-	// MARK: - SheetPresentable
-
-	extension DebugViewModel: SheetPresentable {
-		var presentationID: some Hashable {
-			"DebugViewModel"
-		}
+	extension FeatureDemo {
+		@Observable @MainActor
+		final class DeviceTrustCredentialViewModel {}
 	}
 
 #endif
