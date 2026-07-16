@@ -786,6 +786,69 @@ func TestIntegrationCRUD(t *testing.T) {
 			// Deleting all integrations via gRPC is not supported.
 			ErrAssertion: trace.IsBadParameter,
 		},
+
+		// Admin action MFA
+		{
+			Name: "create fails without admin MFA",
+			Role: types.RoleSpecV6{
+				Allow: types.RoleConditions{Rules: []types.Rule{{
+					Resources: []string{types.KindIntegration},
+					Verbs:     []string{types.VerbCreate},
+				}}},
+			},
+			Test: func(ctx context.Context, resourceSvc *Service, igName string) error {
+				ig := sampleIntegrationFn(t, igName)
+				_, err := resourceSvc.CreateIntegration(
+					contextWithoutAdminMFA(ctx),
+					integrationpb.CreateIntegrationRequest_builder{Integration: ig.(*types.IntegrationV1)}.Build(),
+				)
+				return err
+			},
+			ErrAssertion: trace.IsAccessDenied,
+		},
+		{
+			Name: "update fails without admin MFA",
+			Role: types.RoleSpecV6{
+				Allow: types.RoleConditions{Rules: []types.Rule{{
+					Resources: []string{types.KindIntegration},
+					Verbs:     []string{types.VerbUpdate, types.VerbCreate},
+				}}},
+			},
+			Setup: func(t *testing.T, igName string) {
+				_, err := localClient.CreateIntegration(ctx, sampleIntegrationFn(t, igName))
+				require.NoError(t, err)
+			},
+			Test: func(ctx context.Context, resourceSvc *Service, igName string) error {
+				ig := sampleIntegrationFn(t, igName)
+				_, err := resourceSvc.UpdateIntegration(
+					contextWithoutAdminMFA(ctx),
+					integrationpb.UpdateIntegrationRequest_builder{Integration: ig.(*types.IntegrationV1)}.Build(),
+				)
+				return err
+			},
+			ErrAssertion: trace.IsAccessDenied,
+		},
+		{
+			Name: "delete fails without admin MFA",
+			Role: types.RoleSpecV6{
+				Allow: types.RoleConditions{Rules: []types.Rule{{
+					Resources: []string{types.KindIntegration},
+					Verbs:     []string{types.VerbDelete, types.VerbCreate},
+				}}},
+			},
+			Setup: func(t *testing.T, igName string) {
+				_, err := localClient.CreateIntegration(ctx, sampleIntegrationFn(t, igName))
+				require.NoError(t, err)
+			},
+			Test: func(ctx context.Context, resourceSvc *Service, igName string) error {
+				_, err := resourceSvc.DeleteIntegration(
+					contextWithoutAdminMFA(ctx),
+					integrationpb.DeleteIntegrationRequest_builder{Name: igName}.Build(),
+				)
+				return err
+			},
+			ErrAssertion: trace.IsAccessDenied,
+		},
 	}
 
 	for _, tc := range tt {
@@ -834,6 +897,16 @@ func authorizerForDummyUser(t *testing.T, ctx context.Context, roleSpec types.Ro
 			Groups:   []string{role.GetName()},
 		},
 	})
+}
+
+type withoutAdminMFAKeyType struct{}
+
+func contextWithoutAdminMFA(ctx context.Context) context.Context {
+	return context.WithValue(ctx, withoutAdminMFAKeyType{}, struct{}{})
+}
+
+func hasWithoutAdminMFA(ctx context.Context) bool {
+	return ctx.Value(withoutAdminMFAKeyType{}) != nil
 }
 
 type localClient interface {
@@ -931,7 +1004,13 @@ func initSvc(t *testing.T, ca types.CertAuthority, clusterName string, proxyPubl
 	easSvc := local.NewExternalAuditStorageService(backend)
 	pluginSvc := local.NewPluginsService(backend)
 
-	_, err = clusterConfigSvc.UpsertAuthPreference(ctx, types.DefaultAuthPreference())
+	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type:         "local",
+		SecondFactor: "webauthn",
+		Webauthn:     &types.Webauthn{RPID: "localhost"},
+	})
+	require.NoError(t, err)
+	_, err = clusterConfigSvc.UpsertAuthPreference(ctx, authPref)
 	require.NoError(t, err)
 	require.NoError(t, clusterConfigSvc.SetClusterAuditConfig(ctx, types.DefaultClusterAuditConfig()))
 	_, err = clusterConfigSvc.UpsertClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig())
@@ -961,12 +1040,24 @@ func initSvc(t *testing.T, ca types.CertAuthority, clusterName string, proxyPubl
 	discoveryConfigService, err := local.NewDiscoveryConfigService(backend)
 	require.NoError(t, err)
 
-	authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
+	realAuthorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
 		ClusterName: clusterName,
 		AccessPoint: accessPoint,
 		LockWatcher: lockWatcher,
 	})
 	require.NoError(t, err)
+	// Wrap the authorizer to default to admin MFA verified. Tests that need
+	// to verify MFA denial inject withoutAdminMFA into the context.
+	authorizer := authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
+		authCtx, err := realAuthorizer.Authorize(ctx)
+		if err != nil {
+			return nil, err
+		}
+		if !hasWithoutAdminMFA(ctx) {
+			authCtx.AdminActionAuthState = authz.AdminActionAuthMFAVerified
+		}
+		return authCtx, nil
+	})
 
 	localResourceService, err := local.NewIntegrationsService(backend)
 	require.NoError(t, err)
@@ -1241,3 +1332,4 @@ func mustMakeAppServer(t *testing.T, ig types.Integration) types.AppServer {
 	require.NoError(t, err)
 	return appServer
 }
+
