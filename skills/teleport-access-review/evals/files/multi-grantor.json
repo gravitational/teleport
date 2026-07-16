@@ -1,0 +1,53 @@
+{
+  "identities": [
+    {
+      "identity": {
+        "id": "f7777777-7777-4777-8777-777777777777",
+        "name": "frank@example.com",
+        "kind": "identity",
+        "sub_kind": "user",
+        "source": "TELEPORT",
+        "origin": "teleport_user"
+      },
+      "resources": [
+        {
+          "resource": {
+            "id": "57a91d00-1111-4111-8111-111111111111",
+            "name": "staging-db",
+            "kind": "resource",
+            "sub_kind": "db",
+            "source": "TELEPORT",
+            "origin": "teleport_db"
+          },
+          "level": "standing",
+          "grantor_counts": {"standing": 1, "impersonate": 0, "request": 1},
+          "grantors": [
+            {
+              "node": {
+                "id": "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
+                "name": "platform-admins",
+                "kind": "identity_group",
+                "sub_kind": "role",
+                "source": "TELEPORT",
+                "origin": "teleport_role"
+              },
+              "level": "standing"
+            },
+            {
+              "node": {
+                "id": "5f4e3d2c-1b0a-4987-8654-3210fedcba98",
+                "name": "jit-staging",
+                "kind": "identity_group",
+                "sub_kind": "access_request",
+                "source": "TELEPORT",
+                "origin": "teleport_access_request",
+                "temporary": true
+              },
+              "level": "request"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
