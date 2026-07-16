@@ -64,3 +64,34 @@ describe('formatRawEventForUI', () => {
     expect(event.raw).toBe(input);
   });
 });
+
+describe('makeEvent', () => {
+  test.each([
+    [
+      eventCodes.SPIFFE_FEDERATION_CREATE,
+      'spiffe_federation.create',
+      'SPIFFE Federation Created',
+      'User [alice] created a SPIFFE federation [example.com]',
+    ],
+    [
+      eventCodes.SPIFFE_FEDERATION_DELETE,
+      'spiffe_federation.delete',
+      'SPIFFE Federation Deleted',
+      'User [alice] deleted a SPIFFE federation [example.com]',
+    ],
+  ])(
+    'formats %s events instead of falling back to Unknown Event',
+    (code, eventType, expectedDesc, expectedMessage) => {
+      const event = makeEvent({
+        code,
+        event: eventType,
+        user: 'alice',
+        time: '2026-01-01T00:00:00.000Z',
+        name: 'example.com',
+      });
+
+      expect(event.codeDesc).toBe(expectedDesc);
+      expect(event.message).toBe(expectedMessage);
+    }
+  );
+});
