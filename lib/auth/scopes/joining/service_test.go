@@ -39,6 +39,9 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/events/eventstest"
+	"github.com/gravitational/teleport/lib/scopes"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	jointoken "github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/scopes/pinning"
@@ -81,7 +84,7 @@ func TestScopedJoiningService(t *testing.T) {
 			Kind:     types.KindScopedToken,
 			Version:  types.V1,
 			Scope:    "/staging",
-			Metadata: &headerv1.Metadata{},
+			Metadata: headerv1.Metadata_builder{}.Build(),
 			Spec: joiningv1.ScopedTokenSpec_builder{
 				AssignedScope: "/staging/aa",
 				JoinMethod:    "token",
@@ -156,8 +159,8 @@ func TestScopedJoiningService(t *testing.T) {
 		// list tokens while filtering their resource scope
 		res, err := service.ListScopedTokens(ctx, joiningv1.ListScopedTokensRequest_builder{
 			WithSecrets: true,
-			ResourceScope: scopesv1.Filter_builder{
-				Mode:  scopesv1.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
+			ScopeFilter: scopesv1.Filter_builder{
+				Mode:  scopesv1.Mode_MODE_DESCENDANTS,
 				Scope: "/staging/cc",
 			}.Build(),
 		}.Build())
@@ -240,7 +243,7 @@ func TestScopedJoiningService(t *testing.T) {
 			Kind:     types.KindScopedToken,
 			Version:  types.V1,
 			Scope:    "/staging/aa",
-			Metadata: &headerv1.Metadata{},
+			Metadata: headerv1.Metadata_builder{}.Build(),
 			Spec: joiningv1.ScopedTokenSpec_builder{
 				AssignedScope: "/staging/aa",
 				JoinMethod:    "token",
@@ -470,6 +473,66 @@ func TestScopedJoiningService(t *testing.T) {
 			require.True(t, trace.IsBadParameter(err))
 		})
 	})
+
+	// ensure audit events are emitted when creating, updating, upserting, or deleting scoped tokens
+	t.Run("audit events", func(t *testing.T) {
+		service := newServerForIdentity(t, pack, &services.AccessInfo{
+			ScopePin: scopesv1.Pin_builder{
+				Kind:  scopesv1.PinKind_PIN_KIND_USER,
+				Scope: "/staging",
+				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+					"/staging": {"/staging": {"staging-admin"}},
+				}),
+			}.Build(),
+		})
+
+		baseToken := joiningv1.ScopedToken_builder{
+			Kind:     types.KindScopedToken,
+			Version:  types.V1,
+			Scope:    "/staging",
+			Metadata: headerv1.Metadata_builder{}.Build(),
+			Spec: joiningv1.ScopedTokenSpec_builder{
+				AssignedScope: "/staging/aa",
+				JoinMethod:    "token",
+				Roles:         []string{"Node"},
+				UsageMode:     string(jointoken.TokenUsageModeUnlimited),
+			}.Build(),
+		}.Build()
+
+		pack.emitter.Reset()
+		// create a token
+		token, err := createToken(ctx, service, baseToken)
+		require.NoError(t, err)
+		require.Equal(t, events.ScopedTokenCreateEvent, pack.emitter.LastEvent().GetType())
+		require.Equal(t, events.ScopedTokenCreateCode, pack.emitter.LastEvent().GetCode())
+		require.Len(t, pack.emitter.Events(), 1)
+
+		token.GetMetadata().SetLabels(map[string]string{"env": "test"})
+		_, err = service.UpdateScopedToken(ctx, joiningv1.UpdateScopedTokenRequest_builder{
+			Token: token,
+		}.Build())
+		require.NoError(t, err)
+		require.Equal(t, events.ScopedTokenUpdateEvent, pack.emitter.LastEvent().GetType())
+		require.Equal(t, events.ScopedTokenUpdateCode, pack.emitter.LastEvent().GetCode())
+		require.Len(t, pack.emitter.Events(), 2)
+
+		token.GetMetadata().SetLabels(map[string]string{"env": "staging"})
+		_, err = service.UpsertScopedToken(ctx, joiningv1.UpsertScopedTokenRequest_builder{
+			Token: token,
+		}.Build())
+		require.NoError(t, err)
+		require.Equal(t, events.ScopedTokenUpsertEvent, pack.emitter.LastEvent().GetType())
+		require.Equal(t, events.ScopedTokenUpsertCode, pack.emitter.LastEvent().GetCode())
+		require.Len(t, pack.emitter.Events(), 3)
+
+		_, err = service.DeleteScopedToken(ctx, joiningv1.DeleteScopedTokenRequest_builder{
+			Name: token.GetMetadata().GetName(),
+		}.Build())
+		require.NoError(t, err)
+		require.Equal(t, events.ScopedTokenDeleteEvent, pack.emitter.LastEvent().GetType())
+		require.Equal(t, events.ScopedTokenDeleteCode, pack.emitter.LastEvent().GetCode())
+		require.Len(t, pack.emitter.Events(), 4)
+	})
 }
 
 // fakeSplitAuthorizer is a mock implementation of ScopedAuthorizer that provides a hard-coded context.
@@ -515,6 +578,7 @@ func newServerForIdentity(t *testing.T, bk *backendPack, accessInfo *services.Ac
 		ScopedAuthorizer: authz,
 		Backend:          bk.scopedTokenService,
 		Logger:           logtest.NewLogger(),
+		Emitter:          bk.emitter,
 	})
 	require.NoError(t, err)
 
@@ -526,6 +590,7 @@ type backendPack struct {
 	service            *local.ScopedAccessService
 	classicService     *local.AccessService
 	scopedTokenService *local.ScopedTokenService
+	emitter            *eventstest.MockRecorderEmitter
 }
 
 func (p *backendPack) Close() {
@@ -542,7 +607,7 @@ func newBackendPack(t *testing.T) *backendPack {
 
 	service := local.NewScopedAccessService(backend)
 	classicService := local.NewAccessService(backend)
-	scopedTokenService, err := local.NewScopedTokenService(backend)
+	scopedTokenService, err := local.NewScopedTokenService(backend, scopes.Features{Enabled: true})
 	require.NoError(t, err)
 
 	roles := []*scopedaccessv1.ScopedRole{
@@ -673,5 +738,6 @@ func newBackendPack(t *testing.T) *backendPack {
 		service:            service,
 		classicService:     classicService,
 		scopedTokenService: scopedTokenService,
+		emitter:            &eventstest.MockRecorderEmitter{},
 	}
 }

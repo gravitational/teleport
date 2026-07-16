@@ -636,6 +636,26 @@ export const formatters: Formatters = {
       return `User [${user}] has disconnected from application [${app_name}]`;
     },
   },
+  [eventCodes.APP_SESSION_HTTP_REQUEST]: {
+    type: 'http.request',
+    desc: 'App HTTP Request',
+    format: ({ method, url }) => `HTTP request recorded: ${method} ${url}`,
+  },
+  [eventCodes.APP_SESSION_HTTP_REQUEST_BODY_CHUNK]: {
+    type: 'http.request.body_chunk',
+    desc: 'App HTTP Request Body',
+    format: () => 'HTTP request body chunk recorded',
+  },
+  [eventCodes.APP_SESSION_HTTP_RESPONSE]: {
+    type: 'http.response',
+    desc: 'App HTTP Response',
+    format: ({ status_code }) => `HTTP response recorded: ${status_code}`,
+  },
+  [eventCodes.APP_SESSION_HTTP_RESPONSE_BODY_CHUNK]: {
+    type: 'http.response.body_chunk',
+    desc: 'App HTTP Response Body',
+    format: () => 'HTTP response body chunk recorded',
+  },
   [eventCodes.APP_SESSION_CHUNK]: {
     type: 'app.session.chunk',
     desc: 'App Session Data',
@@ -1256,6 +1276,27 @@ export const formatters: Formatters = {
       return message;
     },
   },
+  [eventCodes.LINUX_DESKTOP_SESSION_STARTED]: {
+    type: 'linux.desktop.session.start',
+    desc: 'Linux Desktop Session Started',
+    format: ({ user, desktop_name, sid, linux_user }) => {
+      return `User [${user}] started session [${sid}] on Linux desktop [${linux_user}@${desktop_name}]`;
+    },
+  },
+  [eventCodes.LINUX_DESKTOP_SESSION_STARTED_FAILED]: {
+    type: 'linux.desktop.session.start',
+    desc: 'Linux Desktop Session Denied',
+    format: ({ user, desktop_name, linux_user }) => {
+      return `User [${user}] was denied access to Linux desktop [${linux_user}@${desktop_name}]`;
+    },
+  },
+  [eventCodes.LINUX_DESKTOP_SESSION_ENDED]: {
+    type: 'linux.desktop.session.end',
+    desc: 'Linux Desktop Session Ended',
+    format: ({ user, desktop_name, sid, linux_user }) => {
+      return `Session [${sid}] for Linux desktop [${linux_user}@${desktop_name}] has ended for user [${user}]`;
+    },
+  },
   [eventCodes.DESKTOP_CLIPBOARD_RECEIVE]: {
     type: 'desktop.clipboard.receive',
     desc: 'Clipboard Data Received',
@@ -1432,6 +1473,18 @@ export const formatters: Formatters = {
     format: ({ user }) =>
       `User [${user}] was denied x11 forwarding for a session`,
   },
+  [eventCodes.AGENT_FORWARD]: {
+    type: 'agent-forward',
+    desc: 'Agent Forwarding Requested',
+    format: ({ user }) =>
+      `User [${user}] has requested SSH agent forwarding for a session`,
+  },
+  [eventCodes.AGENT_FORWARD_FAILURE]: {
+    type: 'agent-forward',
+    desc: 'Agent Forwarding Request Failed',
+    format: ({ user }) =>
+      `User [${user}] was denied SSH agent forwarding for a session`,
+  },
   [eventCodes.SESSION_CONNECT]: {
     type: 'session.connect',
     desc: 'Session Connected',
@@ -1502,9 +1555,8 @@ export const formatters: Formatters = {
   [eventCodes.BOT_JOIN]: {
     type: 'bot.join',
     desc: 'Bot Joined',
-    format: ({ bot_name, method, token_name }) => {
-      return `Bot [${bot_name}] joined the cluster using the [${method}] join method and the [${token_name || 'unknown'}] token`;
-    },
+    format: ({ bot_name, method, token_name, scope }) =>
+      `Bot [${formatSqn({ scope, name: bot_name })}] joined the cluster using the [${method}] join method and the [${token_name || 'unknown'}] token`,
   },
   [eventCodes.BOT_JOIN_FAILURE]: {
     type: 'bot.join',
@@ -1513,18 +1565,31 @@ export const formatters: Formatters = {
       return `Bot [${bot_name || 'unknown'}] failed to join the cluster using the [${method || 'unknown'}] join method and the [${token_name || 'unknown'}] token`;
     },
   },
+  [eventCodes.BOT_JOIN_LIMIT]: {
+    type: 'bot.join',
+    desc: 'Bot Join Failed',
+    format: ({ bot_name }) => {
+      return `Bot [${bot_name || 'unknown'}] failed to join the cluster due to token limits`;
+    },
+  },
   [eventCodes.INSTANCE_JOIN]: {
     type: 'instance.join',
     desc: 'Instance Joined',
-    format: ({ node_name, role, method }) => {
-      return `Instance [${node_name}] joined the cluster with the [${role}] role using the [${method}] join method`;
-    },
+    format: ({ node_name, role, method, scope }) =>
+      `Instance [${formatSqn({ scope, name: node_name })}] joined the cluster with the [${role}] role using the [${method}] join method`,
   },
   [eventCodes.INSTANCE_JOIN_FAILURE]: {
     type: 'instance.join',
     desc: 'Instance Join Failed',
     format: ({ node_name }) => {
       return `Instance [${node_name || 'unknown'}] failed to join the cluster`;
+    },
+  },
+  [eventCodes.INSTANCE_JOIN_LIMIT]: {
+    type: 'instance.join',
+    desc: 'Instance Join Limit',
+    format: ({ node_name }) => {
+      return `Instance [${node_name || 'unknown'}] failed to join the cluster due to token limits`;
     },
   },
   [eventCodes.BOT_CREATED]: {
@@ -2728,6 +2793,60 @@ export const formatters: Formatters = {
         : `User [${user}] failed to delete a Certificate Authority Override [${name}]`;
     },
   },
+  [eventCodes.SCOPED_TOKEN_CREATE]: {
+    type: 'scoped_token.create',
+    desc: 'Scoped Join Token Created',
+    format: res => {
+      const { user, roles, join_method, assigned_scope } = res;
+      return `User [${user}] created scoped join token [${formatSqn(res)}] with role(s) [${roles}] assigning to scope [${assigned_scope}] using join method [${join_method}]`;
+    },
+  },
+  [eventCodes.SCOPED_TOKEN_CREATE_FAILURE]: {
+    type: 'scoped_token.create',
+    desc: 'Scoped Join Token Create Failed',
+    format: res =>
+      `User [${res.user}] failed to create scoped join token [${formatSqn(res)}]`,
+  },
+  [eventCodes.SCOPED_TOKEN_UPSERT]: {
+    type: 'scoped_token.upsert',
+    desc: 'Scoped Join Token Upserted',
+    format: res => {
+      const { user, roles, join_method, assigned_scope } = res;
+      return `User [${user}] upserted scoped join token [${formatSqn(res)}] with role(s) [${roles}] assigning to scope [${assigned_scope}] using join method [${join_method}]`;
+    },
+  },
+  [eventCodes.SCOPED_TOKEN_UPSERT_FAILURE]: {
+    type: 'scoped_token.upsert',
+    desc: 'Scoped Join Token Upsert Failed',
+    format: res =>
+      `User [${res.user}] failed to upsert scoped join token [${formatSqn(res)}]`,
+  },
+  [eventCodes.SCOPED_TOKEN_UPDATE]: {
+    type: 'scoped_token.update',
+    desc: 'Scoped Join Token Updated',
+    format: res => {
+      const { user, roles, join_method, assigned_scope } = res;
+      return `User [${user}] updated scoped join token [${formatSqn(res)}] with role(s) [${roles}] assigning to scope [${assigned_scope}] using join method [${join_method}]`;
+    },
+  },
+  [eventCodes.SCOPED_TOKEN_UPDATE_FAILURE]: {
+    type: 'scoped_token.update',
+    desc: 'Scoped Join Token Update Failed',
+    format: res =>
+      `User [${res.user}] failed to update scoped join token [${formatSqn(res)}]`,
+  },
+  [eventCodes.SCOPED_TOKEN_DELETE]: {
+    type: 'scoped_token.delete',
+    desc: 'Scoped Join Token Deleted',
+    format: res =>
+      `User [${res.user}] deleted scoped join token [${formatSqn(res)}]`,
+  },
+  [eventCodes.SCOPED_TOKEN_DELETE_FAILURE]: {
+    type: 'scoped_token.delete',
+    desc: 'Scoped Join Token Delete Failed',
+    format: res =>
+      `User [${res.user}] failed to delete scoped join token [${formatSqn(res)}]`,
+  },
 };
 
 const unknownFormatter = {
@@ -2812,4 +2931,19 @@ function contactTypeStr(type: number): string {
     default:
       return `Unknown type: ${type}`;
   }
+}
+
+// Formats an object with a scope and name into a scope-qualified name (RFD0229f).
+// If a scope is not provided, the unformatted name is returned.
+export function formatSqn({
+  scope,
+  name,
+}: {
+  scope?: string;
+  name: string;
+}): string {
+  if (!scope) {
+    return name;
+  }
+  return `${scope}::${name}`;
 }

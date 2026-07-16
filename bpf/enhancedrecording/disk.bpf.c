@@ -114,12 +114,12 @@ int BPF_PROG(security_file_open, struct file *f)
     return 0;
 }
 
-// do_filp_open is called for all file open syscalls, but we aren't
+// do_file_open is called for all file open syscalls, but we aren't
 // able to get a resolved path here. If opening failed early,
 // security_file_open will not be called so we fall back to using the
 // unresolved path in the emitted event.
-SEC("fexit/do_filp_open")
-int BPF_PROG(do_filp_open_exit, int dfd, struct filename *pathname, const struct open_flags *op, struct file *ret)
+SEC("fexit/do_file_open")
+int BPF_PROG(do_file_open_exit, int dfd, struct filename *pathname, const struct open_flags *op, struct file *ret)
 {
     struct task_struct *task = bpf_get_current_task_btf();
     u32 session_id = task->sessionid;

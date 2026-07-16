@@ -39,12 +39,12 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
-	"k8s.io/apimachinery/pkg/util/httpstream/wsstream"
 	"k8s.io/apimachinery/pkg/util/remotecommand"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/portforward"
 	clientremotecommand "k8s.io/client-go/tools/remotecommand"
 	"k8s.io/client-go/transport"
+	"k8s.io/streaming/pkg/httpstream/wsstream"
 
 	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
 )

@@ -49,6 +49,9 @@ module.exports = {
         // This causes Babel to transform the Vite-specific import.meta.env properties
         // like import.meta.env.MODE into nodejs (jest) compatible code.
         'babel-plugin-transform-vite-meta-env',
+        // This causes Babel to transform the Vite-specific import.meta.hot properties
+        // into nodejs (jest) compatible code.
+        'babel-plugin-transform-vite-meta-hot',
       ],
     },
     development: {

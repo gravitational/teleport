@@ -16,6 +16,7 @@ jobs:
       changed_files: ${{ steps.changes.outputs.changed_files }}
       new_docs_content: ${{ steps.changes.outputs.new_docs_content }}
       new_docs_content_files: ${{ steps.changes.outputs.new_docs_content_files }}
+      scripts_changed: ${{ steps.changes.outputs.scripts }}
     steps:
       - name: Checkout
         if: ${{ github.event_name == 'merge_group' }}
@@ -32,8 +33,38 @@ jobs:
               - 'CHANGELOG.md'
               - 'docs/**'
               - 'examples/**'
+            scripts:
+              - '.github/workflows/doc-tests.yaml'
+              - '.github/scripts/**'
             new_docs_content:
               - added|modified: 'docs/pages/**/*.mdx'
+
+  # Runs the preview-link script unit tests from the PR's checkout. This job
+  # deliberately executes PR-controlled code, so it is isolated from every
+  # credential: no secrets are referenced, no GitHub App token is generated,
+  # and permissions are limited to contents: read for the checkout itself.
+  # Do not add secrets or elevated permissions to this job.
+  script-tests:
+    name: Test preview-link scripts
+    needs: changes
+    if: ${{ !startsWith(github.head_ref, 'dependabot/') && needs.changes.outputs.scripts_changed == 'true' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Check out teleport
+        uses: actions/checkout@v6
+        with:
+          repository: 'gravitational/teleport'
+          path: 'teleport'
+
+      - name: Run docs preview-link script unit tests
+        # Guards the per-page Amplify preview-link logic in .github/scripts/.
+        # Uses Node's built-in test runner, so there are no dependencies to
+        # install. The teleport repo (at the PR's ref) is checked out under
+        # `teleport/` above, so the scripts live there.
+        working-directory: teleport/.github/scripts
+        run: node --test
 
   doc-tests:
     name: Lint (Docs)
@@ -43,8 +74,22 @@ jobs:
 
     permissions:
       contents: read
+      id-token: write
 
     steps:
+      - name: Get runtime values from kvstore
+        id: kvstore
+        uses: gravitational/shared-workflows/tools/env-kvstore@tools/env-kvstore/v1.0.0
+        with:
+          cognito-identity-pool-id: "us-west-2:da53389e-a459-4a28-bd54-43eeb8e4b579"
+          cognito-role-arn: "arn:aws:iam::247230412011:role/github-actions-cognito-oidc"
+          existing-gh-secrets: "${{ toJSON(secrets) }}"
+          existing-gh-variables: "${{ toJSON(vars) }}"
+          # values: |
+          #   REVIEWERS_APP_ID,secret
+          #   REVIEWERS_PRIVATE_KEY,secret
+          #   REVIEWERS,secret
+
       - name: Check out teleport
         uses: actions/checkout@v6
         with:
@@ -69,7 +114,7 @@ jobs:
         with:
           repository: gravitational/shared-workflows
           path: shared-workflows
-          ref: 6f388765b8ce993721502083c74cb9af1fc5658f 
+          ref: 6f388765b8ce993721502083c74cb9af1fc5658f
 
       - name: Install Go
         uses: actions/setup-go@faf52423ec0d44c58f68e83b614bfcd99dded66f # v6.0.0
@@ -105,7 +150,7 @@ jobs:
         # To do this, we delete the three submodules we use for building the
         # live docs site and copy a gravitational/teleport clone into the
         # content directory.
-        # 
+        #
         # The docs engine expects a config.json file at the root of the
         # gravitational/docs clone that associates directories with git
         # submodules. By default, these directories represent versioned branches
@@ -147,7 +192,7 @@ jobs:
         run: yarn markdown-lint
 
       - name: Download vale
-        env: 
+        env:
           GH_TOKEN: ${{ github.token }}
           VALE_VERSION: 3.12.0
           # The sha256 checksum must be changed based on the downloaded package

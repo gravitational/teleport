@@ -1343,7 +1343,6 @@ func runCommand(t *testing.T, srv Server, bpfSrv bpf.BPF, command string, expect
 	scx.execRequest.SetCommand(command)
 
 	clientChan, serverChan := newMockSSHChannel(t)
-	clientChan.Drain()
 
 	t.Logf("running %q", command)
 
@@ -1399,7 +1398,7 @@ func runCommand(t *testing.T, srv Server, bpfSrv bpf.BPF, command string, expect
 
 		stdout := make([]byte, 1024)
 		for {
-			_, err := serverChan.Read(stdout)
+			_, err := clientChan.Read(stdout)
 			if err != nil {
 				if errors.Is(err, io.EOF) {
 					return

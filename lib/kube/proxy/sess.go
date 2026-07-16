@@ -25,7 +25,6 @@ import (
 	"log/slog"
 	"net/http"
 	"path"
-	"reflect"
 	"slices"
 	"strings"
 	"sync"
@@ -236,43 +235,19 @@ type terminalResizeMessage struct {
 
 // multiResizeQueue is a merged queue of multiple terminal size queues.
 type multiResizeQueue struct {
-	queues       map[string]<-chan terminalResizeMessage
-	cases        []reflect.SelectCase
-	callback     func(terminalResizeMessage)
-	mutex        sync.Mutex
-	parentCtx    context.Context
-	reloadCtx    context.Context
-	reloadCancel context.CancelFunc
-	lastSize     *remotecommand.TerminalSize
+	resizes   chan terminalResizeMessage
+	cancels   map[string]context.CancelFunc
+	callback  func(terminalResizeMessage)
+	mutex     sync.Mutex
+	parentCtx context.Context
+	lastSize  *remotecommand.TerminalSize
 }
 
 func newMultiResizeQueue(parentCtx context.Context) *multiResizeQueue {
-	ctx, cancel := context.WithCancel(parentCtx)
 	return &multiResizeQueue{
-		queues:       make(map[string]<-chan terminalResizeMessage),
-		parentCtx:    parentCtx,
-		reloadCtx:    ctx,
-		reloadCancel: cancel,
-	}
-}
-
-func (r *multiResizeQueue) rebuild() {
-	oldCancel := r.reloadCancel
-	defer oldCancel()
-
-	r.reloadCtx, r.reloadCancel = context.WithCancel(r.parentCtx)
-	r.cases = make([]reflect.SelectCase, 1, len(r.queues)+1)
-	r.cases[0] = reflect.SelectCase{
-		Dir:  reflect.SelectRecv,
-		Chan: reflect.ValueOf(r.reloadCtx.Done()),
-	}
-	for _, queue := range r.queues {
-		r.cases = append(r.cases,
-			reflect.SelectCase{
-				Dir:  reflect.SelectRecv,
-				Chan: reflect.ValueOf(queue),
-			},
-		)
+		resizes:   make(chan terminalResizeMessage),
+		cancels:   make(map[string]context.CancelFunc),
+		parentCtx: parentCtx,
 	}
 }
 
@@ -282,48 +257,70 @@ func (r *multiResizeQueue) getLastSize() *remotecommand.TerminalSize {
 	return r.lastSize
 }
 
+// close stops every forwarder. Canceling the parent context has the same effect; this is the explicit teardown path.
 func (r *multiResizeQueue) close() {
-	r.reloadCancel()
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+	for id, cancel := range r.cancels {
+		cancel()
+		delete(r.cancels, id)
+	}
 }
 
 func (r *multiResizeQueue) add(id string, queue <-chan terminalResizeMessage) {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
-	r.queues[id] = queue
-	r.rebuild()
+	ctx, cancel := context.WithCancel(r.parentCtx)
+	r.cancels[id] = cancel
+	go func() {
+		defer func() {
+			r.mutex.Lock()
+			delete(r.cancels, id)
+			r.mutex.Unlock()
+		}()
+		forwardResizes(ctx, queue, r.resizes)
+	}()
 }
 
 func (r *multiResizeQueue) remove(id string) {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
-	delete(r.queues, id)
-	r.rebuild()
+	if cancel, ok := r.cancels[id]; ok {
+		cancel()
+		delete(r.cancels, id)
+	}
+}
+
+// forwardResizes drains queue into out until the queue is closed or ctx is canceled (the party is removed or the session ends).
+func forwardResizes(ctx context.Context, queue <-chan terminalResizeMessage, out chan<- terminalResizeMessage) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case msg, ok := <-queue:
+			if !ok {
+				return
+			}
+			select {
+			case out <- msg:
+			case <-ctx.Done():
+				return
+			}
+		}
+	}
 }
 
 func (r *multiResizeQueue) Next() *remotecommand.TerminalSize {
-loop:
-	for {
+	select {
+	// If the parent context is canceled, the session has ended and we return early.
+	case <-r.parentCtx.Done():
+		return nil
+	case msg := <-r.resizes:
+		r.callback(msg)
 		r.mutex.Lock()
-		cases := r.cases
+		r.lastSize = msg.size
 		r.mutex.Unlock()
-		idx, value, ok := reflect.Select(cases)
-		if !ok || idx == 0 {
-			select {
-			// if parent context is canceled, the session has ended and we should
-			// return early. Otherwise, it means that we rebuilt and in that case we should continue.
-			case <-r.parentCtx.Done():
-				return nil
-			default:
-				continue loop
-			}
-		}
-
-		size := value.Interface().(terminalResizeMessage)
-		r.callback(size)
-		r.mutex.Lock()
-		r.lastSize = size.size
-		r.mutex.Unlock()
-		return size.size
+		return msg.size
 	}
 }
 
@@ -723,13 +720,12 @@ func (s *session) launch(ephemeralContainerStatus *corev1.ContainerStatus) (retu
 		s.log.WarnContext(s.forwarder.ctx, "Failed to set tracker state to running", "error", err)
 	}
 
-	var executor remotecommand.Executor
-
-	executor, err = s.forwarder.getExecutor(s.sess, s.req)
+	executor, executorCleanup, err := s.forwarder.getExecutor(s.sess, s.req)
 	if err != nil {
 		s.log.WarnContext(s.forwarder.ctx, "Failed creating executor", "error", err)
 		return trace.Wrap(err)
 	}
+	defer executorCleanup()
 
 	options := remotecommand.StreamOptions{
 		Stdin:             s.io,

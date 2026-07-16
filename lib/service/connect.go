@@ -50,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/join"
 	"github.com/gravitational/teleport/lib/auth/join/boundkeypair"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/client"
@@ -95,7 +96,10 @@ func (process *TeleportProcess) reconnectToAuthService(role types.SystemRole) (*
 			return connector, nil
 		} else {
 			switch {
-			case errors.As(connectErr, &invalidVersionErr{}):
+			// Version incompatibilities (the client is too new or too old for
+			// the cluster) are fatal. Retrying is pointless until the client is
+			// up or downgraded, so surface the error and stop reconnecting.
+			case isVersionCompatibilityError(connectErr):
 				return nil, trace.Wrap(connectErr)
 			case strings.Contains(connectErr.Error(), auth.TokenExpiredOrNotFound):
 				process.logger.ErrorContext(process.ExitContext(), "Can not join the cluster, the token is expired or not found. Regenerate the token and try again.")
@@ -133,6 +137,11 @@ type invalidVersionErr struct {
 
 func (i invalidVersionErr) Error() string {
 	return fmt.Sprintf("Teleport instance is too new. This instance is running v%d. The auth server is running v%d and only supports instances on v%d or v%d. To connect anyway pass the --skip-version-check flag.", i.LocalMajorVersion, i.ClusterMajorVersion, i.ClusterMajorVersion, i.ClusterMajorVersion-1)
+}
+
+func isVersionCompatibilityError(err error) bool {
+	return errors.As(err, &invalidVersionErr{}) ||
+		isVersionIncompatible(err)
 }
 
 func (process *TeleportProcess) assertSystemRoles(rolesToAssert []types.SystemRole) (assertionID string, err error) {
@@ -816,6 +825,7 @@ func (process *TeleportProcess) makeJoinParams(
 		CircuitBreakerConfig: breaker.NoopBreakerConfig(),
 		FIPS:                 process.Config.FIPS,
 		Insecure:             process.Config.InsecureMode,
+		OnVersionCallback:    process.enforceVersionPolicy,
 	}
 	if joinParams.JoinMethod == types.JoinMethodAzure {
 		joinParams.AzureParams = joinclient.AzureParams{
@@ -830,6 +840,13 @@ func (process *TeleportProcess) makeJoinParams(
 
 		joinParams.BoundKeypairState = boundKeypairState
 		joinParams.BoundKeypairRegistrationSecret = regSecret
+	}
+	if joinParams.JoinMethod == types.JoinMethodGenericOIDC {
+		joinParams.GenericOIDCParams = join.GenericOIDCParams{
+			EnvVarName: process.Config.JoinParams.GenericOIDC.Env,
+			Command:    process.Config.JoinParams.GenericOIDC.Command,
+			Timeout:    process.Config.JoinParams.GenericOIDC.Timeout,
+		}
 	}
 	return joinParams, nil
 }

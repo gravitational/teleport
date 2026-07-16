@@ -30,6 +30,7 @@ import (
 	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/scopes"
+	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/scopes/pinning"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -222,8 +223,20 @@ func (c *ScopedAccessCheckerContext) checkersForResourceScope(ctx context.Contex
 		// particular role. For example, if a user has a scoped role assigned at /foo which grants access to all ssh
 		// nodes, but they are pinned to scope /foo/bar, even if a role at /foo permits access, the pin restricts
 		// access to only resources subject to /foo/bar.
-		if enforcePin && !pinning.PinAppliesToResourceScope(c.pin, scope) {
-			yield(nil, trace.AccessDenied("scope pin %q does not apply to resource scope %q", c.pin.GetScope(), scope))
+		if enforcePin {
+			if !pinning.PinAppliesToResourceScope(c.pin, scope) {
+				yield(nil, trace.AccessDenied(
+					"a resource in scope %q can't be manipulated from a session pinned to scope %q",
+					scope, c.pin.GetScope(),
+				))
+				return
+			}
+		} else if !pinning.PinCompatibleWithPolicyScope(c.pin, scope) {
+			// Unpinned reads should still not allow orthogonal reads.
+			yield(nil, trace.AccessDenied(
+				"a resource in scope %q can't be manipulated from a session pinned to orthogonal scope %q",
+				scope, c.pin.GetScope(),
+			))
 			return
 		}
 
@@ -290,6 +303,36 @@ func (c *ScopedAccessCheckerContext) riskyEnumerateScopedCheckers(ctx context.Co
 		panic("riskyEnumerateScopedCheckers called on an agent pin context (this is a bug)")
 	}
 	return c.enumerateAll(ctx)
+}
+
+// ResolveScopeFilter returns the scope filter that should be used for a list/read/watch request, applying
+// identity-derived defaulting when the caller did not specify an explicit filter. An empty (nil or
+// MODE_UNSPECIFIED) filter is replaced with the safe default for this identity: MODE_EXACT at the pinned
+// scope for scoped identities, or MODE_UNSCOPED for unscoped identities. A filter with an explicit mode is
+// returned unchanged.
+//
+// This is the single source of truth for scope-filter defaulting. API handlers should pass caller-provided
+// filters through this method so that an omitted filter is consistently and safely defaulted, minimizing
+// per-API defaulting logic. Note that this method only handles defaulting; callers are still responsible for
+// validating (see [scopes.ValidateFilter]) and authorizing the resulting filter.
+func (c *ScopedAccessCheckerContext) ResolveScopeFilter(filter *scopesv1.Filter) *scopesv1.Filter {
+	if filter.GetMode() != scopesv1.Mode_MODE_UNSPECIFIED {
+		// the caller specified an explicit filter; return it unchanged.
+		return filter
+	}
+
+	if !c.isScoped() {
+		// unscoped callers default to matching unscoped resources only.
+		return scopesv1.Filter_builder{
+			Mode: scopesv1.Mode_MODE_UNSCOPED,
+		}.Build()
+	}
+
+	// scoped callers default to the minimal/safe MODE_EXACT at their pinned scope.
+	return scopesv1.Filter_builder{
+		Scope: c.pin.GetScope(),
+		Mode:  scopesv1.Mode_MODE_EXACT,
+	}.Build()
 }
 
 // CheckMaybeHasAccessToRules returns an error if the context definitely does not have access to the provided
@@ -426,6 +469,67 @@ func (c *ScopedAccessCheckerContext) RiskyAuthorizeUnpinnedRead(
 	)
 }
 
+// RiskyAuthorizeUnpinnedReadWithScope extends [RiskyAuthorizeUnpinnedRead].
+// It authorizes a read-only access check that bypasses
+// enforcement of the identity's pinned scope, but ensures that the
+// resource scope is related to the identity's pinned scope.
+// This must only be used for specific APIs that make an exception to pinning exclusion rules (e.g.
+// allowing read operations for resources at a parent scope). To avoid misuse,
+// a specific [UnpinnedReadAuthorization] must be provided that will encode the
+// effective scope of the access check and the allowed verbs. The scope provided
+// must not be empty, and will be used to determine the enforcement.
+func (c *ScopedAccessCheckerContext) RiskyAuthorizeUnpinnedReadWithScope(
+	ctx context.Context,
+	authz UnpinnedReadAuthorization,
+	ruleCtx RuleContext,
+	resourceScope string,
+) error {
+	authz.resourceScope = resourceScope
+	return c.RiskyAuthorizeUnpinnedRead(ctx, authz, ruleCtx)
+}
+
+// RiskyAuthorizeUnpinnedEmitEvent authorizes a create-only access check that bypasses
+// enforcement of the identity's pinned scope specifically for emitting audit events.
+// It is special-cased to avoid misuse of unpinned writes.
+func (c *ScopedAccessCheckerContext) RiskyAuthorizeUnpinnedEmitEvent(
+	ctx context.Context,
+	ruleCtx RuleContext,
+) error {
+	if pin, ok := c.ScopePin(); ok {
+		if pin.GetKind() != scopesv1.PinKind_PIN_KIND_AGENT {
+			return trace.AccessDenied("unpinned authorization for audit event emission is only supported for agent pins")
+		}
+	}
+
+	return c.decision(
+		c.riskyUnpinnedCheckersForResourceScope(ctx, scopes.Root),
+		func(checker *ScopedAccessChecker) error {
+			return checker.CheckAccessToRules(ruleCtx, types.KindEvent, types.VerbCreate)
+		},
+	)
+}
+
+// RiskyAuthorizeUnpinnedWriteEvent authorizes a write-only access check that bypasses
+// enforcement of the identity's pinned scope specifically for creating and updating audit events.
+// It is special-cased to avoid misuse of unpinned writes.
+func (c *ScopedAccessCheckerContext) RiskyAuthorizeUnpinnedWriteEvent(
+	ctx context.Context,
+	ruleCtx RuleContext,
+) error {
+	if pin, ok := c.ScopePin(); ok {
+		if pin.GetKind() != scopesv1.PinKind_PIN_KIND_AGENT {
+			return trace.AccessDenied("unpinned authorization for audit event emission is only supported for agent pins")
+		}
+	}
+
+	return c.decision(
+		c.riskyUnpinnedCheckersForResourceScope(ctx, scopes.Root),
+		func(checker *ScopedAccessChecker) error {
+			return checker.CheckAccessToRules(ruleCtx, types.KindEvent, types.VerbCreate, types.VerbUpdate)
+		},
+	)
+}
+
 // UnpinnedReadAuthorization is a special authorization to complete an unscoped
 // read-only access check. This is meant to be used for access checks on
 // typically cluster-wide resources that need to be readable by identities with
@@ -532,6 +636,27 @@ var (
 	UnpinnedReadSessionRecordingConfig = UnpinnedReadAuthorization{
 		resourceScope: scopes.Root,
 		kind:          types.KindSessionRecordingConfig,
+		verbs:         []string{types.VerbRead},
+	}
+	// UnpinnedReadScopedRole is a special authorization to complete an
+	// unscoped access check to read a scoped role.
+	UnpinnedReadScopedRole = UnpinnedReadAuthorization{
+		resourceScope: scopes.Root,
+		kind:          scopedaccess.KindScopedRole,
+		verbs:         []string{types.VerbRead},
+	}
+	// UnpinnedReadUser is a special authorization to complete a unscoped access check
+	// to read a user.
+	UnpinnedReadUser = UnpinnedReadAuthorization{
+		resourceScope: scopes.Root,
+		kind:          types.KindUser,
+		verbs:         []string{types.VerbRead},
+	}
+	// UnpinnedReadRole is a special authorization to complete an unscoped access check
+	// to read a role.
+	UnpinnedReadRole = UnpinnedReadAuthorization{
+		resourceScope: scopes.Root,
+		kind:          types.KindRole,
 		verbs:         []string{types.VerbRead},
 	}
 )

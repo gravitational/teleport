@@ -136,18 +136,50 @@ Using the certificates acquired in step 2, configure downstream trust before
 proceeding. We recommend retaining trust in the self-signed Teleport CA for a
 grace period, until you have verified normal cluster use.
 
-CA instructions:
+See below for CA-specific instructions.
 
-- `db_client`: most databases only need to trust the external root CA and
-  intermediate CAs. They do not need to trust the override CA certificate
-  directly.
-- `windows`: NTAuth needs to trust the override CA certificate directly.
-  Follow the
-  [AD](../../../enroll-resources/desktop-access/active-directory.mdx#step-37-configure-a-gpo-to-allow-teleport-connections)
-  or
-  [local](../../../enroll-resources/desktop-access/getting-started.mdx#step-14-prepare-windows)
-  guides, adding or replacing the self-signed Teleport CA certificate with the
-  override certificate.
+### db_client
+
+Most databases only need to trust the external root CA and intermediate CAs.
+It's not necessary to trust the override CA certificate directly. Those include,
+but are not limited to, MariaDB, MySQL, PostgreSQL, Redis and Oracle.
+
+We recommend checking your database documentation and verifying access after
+applying the CA override in a controlled environment.
+
+### windows
+
+Your configuration depends on whether you use
+[AD](../../../enroll-resources/desktop-access/active-directory.mdx#step-37-configure-a-gpo-to-allow-teleport-connections)
+or
+[local](../../../enroll-resources/desktop-access/getting-started.mdx#step-14-prepare-windows)
+setups.
+
+For AD, import the CA chain's trusted roots and intermediates as required by the
+domain, and publish the override CA certificate directly to NTAuth.
+
+Run the following command on a domain-joined Windows host to verify that the
+NTAuth store includes the override CA certificate.
+
+```code
+$ certutil -viewstore -enterprise NTAuth
+```
+
+Additionally, verify the override CA chain:
+
+```code
+$ certutil -verify -urlfetch .\override.cer
+```
+
+For local setups, import the CA chain to the Local Computer "Trusted Root CAs"
+and "Intermediate CAs" stores, as appropriate. An externally signed override CA
+certificate is usually an intermediate CA.
+
+Verify the override CA chain:
+
+```code
+$ certutil -verify -urlfetch .\override.cer
+```
 
 ## Step 4/5. Create the certificate overrides
 

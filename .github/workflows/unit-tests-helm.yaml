@@ -25,6 +25,7 @@ jobs:
           filters: |
             changed:
               - '.github/workflows/unit-tests-helm.yaml'
+              - 'build.assets/helm-unittest.version'
               - 'examples/chart/**'
               - 'Makefile'
               - 'docs/pages/reference/helm-reference/*'
@@ -42,12 +43,39 @@ jobs:
     container:
       image: ghcr.io/gravitational/teleport-buildbox:teleport19
       env:
-        # TODO(hugoShaka) remove the '-new' prefix when updating to teleport13 buildbox
-        HELM_PLUGINS: /home/ci/.local/share/helm/plugins-new
+        HELM_PLUGINS: /home/ci/.local/share/helm/plugins
+        HELM_UNITTEST_VERSION_FILE: build.assets/helm-unittest.version
 
     steps:
       - name: Checkout Teleport
         uses: actions/checkout@v6
+
+      - name: Install pinned helm-unittest plugin
+        shell: bash
+        run: |
+          set -xeuo pipefail
+          plugin_version="$(cat "${HELM_UNITTEST_VERSION_FILE}")"
+          desired_version="${plugin_version#v}"
+          current_version="$(helm plugin list | (grep -P '^unittest\t' || true) | cut -f2)"
+
+          # Ensure we're running the correct unittest plugin, even if the
+          # buildbox has a different version. Without this, plugin upgrades that
+          # involve breaking changes are impossible -- upgrading the buildbox
+          # first fails because our unittests would break with the new plugin 
+          # version, but upgrading the unittests first fails because the
+          # buildbox doesn't yet have the new version. This solution uses the
+          # buildbox version if it's already at the expected version but
+          # downloads the expected version if it's not.
+          if [ "$current_version" = "$desired_version" ] && [ -d "${HELM_PLUGINS}/helm-unittest" ]; then
+            echo "helm-unittest ${plugin_version} already installed in ${HELM_PLUGINS}; skipping download"
+            exit 0
+          fi
+
+          mkdir -p "${HELM_PLUGINS}"
+          rm -rf "${HELM_PLUGINS}/helm-unittest"
+          rm -rf "${HELM_PLUGINS}/helm3-unittest"
+          helm plugin install https://github.com/helm-unittest/helm-unittest --version "$plugin_version"
+          helm plugin list
 
       - name: Lint helm
         timeout-minutes: 10

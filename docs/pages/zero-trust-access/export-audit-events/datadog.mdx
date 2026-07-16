@@ -88,7 +88,7 @@ We will modify the `fluent.conf` file generated in the prerequisite setup guide.
 1. Copy the API key and use it to add a new `<match>` block to `fluent.conf`:
 
    ```ini
-   <match test.log>
+   <match events.log>
    
      @type datadog
      @id awesome_agent
@@ -159,6 +159,9 @@ Teleport Cluster, ensure that:
 - Review the Fluentd output plugin for Datadog [README
 file](https://github.com/DataDog/fluent-plugin-datadog/blob/master/README.md)
 to learn how to customize the log format entering Datadog.
+- To see all of the options you can set for the Teleport Event Handler binary,
+consult our [reference
+guide](../../reference/deployment/monitoring/event-handler.mdx).
 - To see all of the options you can set in the values file for the
-`teleport-plugin-event-handler` Helm chart, consult our [reference
+`teleport-plugin-event-handler` Helm chart, consult our [Helm chart reference
 guide](../../reference/helm-reference/teleport-plugin-event-handler.mdx).

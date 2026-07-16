@@ -20,13 +20,21 @@ import cfg from 'teleport/config';
 import api from 'teleport/services/api';
 
 import makeUser, { makeTraits } from './makeUser';
-import { Acl, ExcludeUserField, PasswordState, User } from './types';
+import {
+  Acl,
+  ExcludeUserField,
+  PasswordState,
+  User,
+  UserContext,
+} from './types';
 import user from './user';
 
 test('undefined values in context response gives proper default values', async () => {
   const mockContext = {
     authType: 'local',
     userName: 'foo',
+    displayPrimary: 'Foo User',
+    displaySecondary: 'foo@example.com',
     cluster: {
       name: 'aws',
       lastConnected: new Date('2020-09-26T17:30:23.512876876Z'),
@@ -388,10 +396,22 @@ test('undefined values in context response gives proper default values', async (
       create: false,
       remove: false,
     },
+    classifier: {
+      list: false,
+      read: false,
+      edit: false,
+      create: false,
+      remove: false,
+    },
+    mobileDevice: {
+      createEnrollToken: false,
+    },
   };
 
   expect(response).toEqual({
     username: 'foo',
+    displayPrimary: 'Foo User',
+    displaySecondary: 'foo@example.com',
     authType: 'local',
     acl,
     cluster: {
@@ -414,7 +434,8 @@ test('undefined values in context response gives proper default values', async (
     },
     allowedSearchAsRoles: [],
     passwordState: PasswordState.PASSWORD_STATE_UNSPECIFIED,
-  });
+    availableScopes: [],
+  } as UserContext);
 });
 
 test('fetch users, null response values gives empty array', async () => {

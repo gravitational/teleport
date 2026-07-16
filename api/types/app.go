@@ -87,6 +87,8 @@ type Application interface {
 	GetAWSRolesAnywhereProfileARN() string
 	// GetAWSRolesAnywhereAcceptRoleSessionName returns whether the IAM Roles Anywhere Profile supports defining a custom AWS Session Name.
 	GetAWSRolesAnywhereAcceptRoleSessionName() bool
+	// GetAWSRegion returns the AWS region configured for the app.
+	GetAWSRegion() string
 	// GetUserGroups will get the list of user group IDs associated with the application.
 	GetUserGroups() []string
 	// SetUserGroups will set the list of user group IDs associated with the application.
@@ -120,14 +122,27 @@ type Application interface {
 	GetTLSMode() AppTLSMode
 	// IsEqual determines if two application resources are equivalent to one another.
 	IsEqual(Application) bool
+	// GetScope gets the scope of the app.
+	GetScope() string
 }
 
 // NewAppV3 creates a new app resource.
-func NewAppV3(meta Metadata, spec AppSpecV3) (*AppV3, error) {
+// TODO(williamo/scopes): scope is variadic only so existing
+// callers compile unchanged during the scope migration.
+func NewAppV3(meta Metadata, spec AppSpecV3, scope ...string) (*AppV3, error) {
 	app := &AppV3{
 		Metadata: meta,
 		Spec:     spec,
 	}
+
+	switch len(scope) {
+	case 0: // unscoped
+	case 1:
+		app.Scope = scope[0]
+	default:
+		return nil, trace.BadParameter("expected at most 1 scope, got %d", len(scope))
+	}
+
 	if err := app.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -365,6 +380,14 @@ func (a *AppV3) GetAWSRolesAnywhereProfileARN() string {
 	return a.Spec.AWS.RolesAnywhereProfile.ProfileARN
 }
 
+// GetAWSRegion returns the AWS region configured for the app.
+func (a *AppV3) GetAWSRegion() string {
+	if a.Spec.AWS == nil {
+		return ""
+	}
+	return a.Spec.AWS.Region
+}
+
 // GetAWSRolesAnywhereAcceptRoleSessionName returns whether the IAM Roles Anywhere Profile supports defining a custom AWS Session Name.
 func (a *AppV3) GetAWSRolesAnywhereAcceptRoleSessionName() bool {
 	if a.Spec.AWS == nil || a.Spec.AWS.RolesAnywhereProfile == nil {
@@ -523,6 +546,7 @@ func (a *AppV3) CheckAndSetDefaults() error {
 		}
 		a.Metadata.Labels[AppSubKindLabel] = a.SubKind
 	}
+
 	return nil
 }
 
@@ -599,7 +623,7 @@ func (a *AppV3) checkMCPStdio() error {
 // format.
 var supportedFormatInferenceProviders = map[LLMFormat][]LLMProvider{
 	LLMFormatAnthropic: {LLMProviderAnthropic, LLMProviderAWSBedrock},
-	LLMFormatOpenAI:    {LLMProviderOpenAI},
+	LLMFormatOpenAI:    {LLMProviderOpenAI, LLMProviderAWSBedrock},
 }
 
 func (a *AppV3) checkLLM() error {
@@ -616,8 +640,6 @@ func (a *AppV3) checkLLM() error {
 		return trace.BadParameter("Inference endpoint %q cannot specify 'tcp_ports' configuration", a.GetName())
 	case a.Spec.Rewrite != nil:
 		return trace.BadParameter("Inference endpoint %q cannot specify 'rewrite' configuration", a.GetName())
-	case a.Spec.AWS != nil:
-		return trace.BadParameter("Inference endpoint %q cannot specify 'aws' configuration", a.GetName())
 	}
 
 	llm := a.Spec.LLM
@@ -630,6 +652,10 @@ func (a *AppV3) checkLLM() error {
 
 	if !slices.Contains(providers, llm.Provider) {
 		return trace.BadParameter("Inference endpoint %q must set one of the providers supported by %q format: %s", a.GetName(), llm.Format, strings.Join(providers, ", "))
+	}
+
+	if a.Spec.AWS != nil && llm.Provider != LLMProviderAWSBedrock {
+		return trace.BadParameter("Inference endpoint %q can only define 'aws' options for provider %q", a.GetName(), LLMProviderAWSBedrock)
 	}
 
 	for _, model := range llm.Models {
@@ -722,6 +748,15 @@ func (a *AppV3) GetClientCertMode() AppClientCertMode {
 	}
 
 	return a.Spec.TLS.ClientCertMode
+}
+
+// GetScope returns the scope of the app.
+func (a *AppV3) GetScope() string {
+	if a == nil {
+		return ""
+	}
+
+	return a.Scope
 }
 
 // DeduplicateApps deduplicates apps by combination of app name and public address.

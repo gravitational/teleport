@@ -120,6 +120,11 @@ func init() {
 		// TODO(zmb3): remove this after sspi-rs logging is cleaned up
 		rustLogLevel += ",sspi=warn"
 
+		// IronRDP instruments hot-path decode functions (e.g. RemoteFX process_frame) at INFO.
+		// With no tracing subscriber installed, tracing's `log` feature bridges those span
+		// records to env_logger as noisy non-JSON lines, so drop the span-lifecycle target.
+		rustLogLevel += ",tracing::span=off"
+
 		os.Setenv("RUST_LOG", rustLogLevel)
 	}
 
@@ -325,7 +330,7 @@ func readClientKeyboardLayout(conn *tdp.Conn, logger *slog.Logger) (uint32, erro
 	return k.KeyboardLayout, nil
 }
 
-func (c *Client) sendTDBPAlert(message string, severity tdpbv1.AlertSeverity) error {
+func (c *Client) sendTDPBAlert(message string, severity tdpbv1.AlertSeverity) error {
 	return c.conn.WriteMessage(&tdpb.Alert{Message: message, Severity: severity})
 }
 
@@ -489,7 +494,7 @@ func (c *Client) startRustRDP(ctx context.Context, certDER, keyDER []byte) error
 			err = trace.Errorf("RDP client exited with an unknown error")
 		}
 
-		c.sendTDBPAlert(err.Error(), tdpbv1.AlertSeverity_ALERT_SEVERITY_ERROR)
+		c.sendTDPBAlert(err.Error(), tdpbv1.AlertSeverity_ALERT_SEVERITY_ERROR)
 		return err
 	}
 
@@ -501,7 +506,7 @@ func (c *Client) startRustRDP(ctx context.Context, certDER, keyDER []byte) error
 
 	c.cfg.Logger.InfoContext(ctx, message)
 
-	c.sendTDBPAlert(message, tdpbv1.AlertSeverity_ALERT_SEVERITY_ERROR)
+	c.sendTDPBAlert(message, tdpbv1.AlertSeverity_ALERT_SEVERITY_ERROR)
 
 	return nil
 }
@@ -726,6 +731,10 @@ func (c *Client) handleTDPInput(msg tdp.Message) error {
 		}
 	case *tdpb.SharedDirectoryAnnounce:
 		if c.cfg.AllowDirectorySharing {
+			if m.DirectoryId == 0 {
+				return trace.BadParameter("Zero is not a valid directory identifier")
+			}
+
 			driveName := C.CString(m.Name)
 			defer C.free(unsafe.Pointer(driveName))
 			if errCode := C.client_handle_tdp_sd_announce(C.uintptr_t(c.handle), C.CGOSharedDirectoryAnnounce{
@@ -751,6 +760,7 @@ func (c *Client) handleTDPInput(msg tdp.Message) error {
 				defer C.free(unsafe.Pointer(path))
 				if errCode := C.client_handle_tdp_sd_info_response(C.uintptr_t(c.handle), C.CGOSharedDirectoryInfoResponse{
 					completion_id: C.uint32_t(m.CompletionId),
+					directory_id:  C.uint32_t(m.DirectoryId),
 					err_code:      m.ErrorCode,
 					fso: C.CGOFileSystemObject{
 						last_modified: C.uint64_t(op.Info.Fso.LastModified),
@@ -769,6 +779,7 @@ func (c *Client) handleTDPInput(msg tdp.Message) error {
 				defer C.free(unsafe.Pointer(path))
 				if errCode := C.client_handle_tdp_sd_create_response(C.uintptr_t(c.handle), C.CGOSharedDirectoryCreateResponse{
 					completion_id: C.uint32_t(m.CompletionId),
+					directory_id:  C.uint32_t(m.DirectoryId),
 					err_code:      m.ErrorCode,
 					fso: C.CGOFileSystemObject{
 						last_modified: C.uint64_t(op.Create.Fso.LastModified),
@@ -785,6 +796,7 @@ func (c *Client) handleTDPInput(msg tdp.Message) error {
 			if c.cfg.AllowDirectorySharing {
 				if errCode := C.client_handle_tdp_sd_delete_response(C.uintptr_t(c.handle), C.CGOSharedDirectoryDeleteResponse{
 					completion_id: C.uint32_t(m.CompletionId),
+					directory_id:  C.uint32_t(m.DirectoryId),
 					err_code:      m.ErrorCode,
 				}); errCode != C.ErrCodeSuccess {
 					return trace.Errorf("SharedDirectoryDeleteResponse failed: %v", errCode)
@@ -796,7 +808,6 @@ func (c *Client) handleTDPInput(msg tdp.Message) error {
 				for _, fso := range op.List.FsoList {
 					path := C.CString(fso.Path)
 					defer C.free(unsafe.Pointer(path))
-
 					fsoList = append(fsoList, C.CGOFileSystemObject{
 						last_modified: C.uint64_t(fso.LastModified),
 						size:          C.uint64_t(fso.Size),
@@ -817,6 +828,7 @@ func (c *Client) handleTDPInput(msg tdp.Message) error {
 
 				if errCode := C.client_handle_tdp_sd_list_response(C.uintptr_t(c.handle), C.CGOSharedDirectoryListResponse{
 					completion_id:   C.uint32_t(m.CompletionId),
+					directory_id:    C.uint32_t(m.DirectoryId),
 					err_code:        m.ErrorCode,
 					fso_list_length: C.uint32_t(fsoListLen),
 					fso_list:        cgoFsoList,
@@ -835,6 +847,7 @@ func (c *Client) handleTDPInput(msg tdp.Message) error {
 
 				if errCode := C.client_handle_tdp_sd_read_response(C.uintptr_t(c.handle), C.CGOSharedDirectoryReadResponse{
 					completion_id:    C.uint32_t(m.CompletionId),
+					directory_id:     C.uint32_t(m.DirectoryId),
 					err_code:         m.ErrorCode,
 					read_data_length: C.uint32_t(len(op.Read.Data)),
 					read_data:        readData,
@@ -846,6 +859,7 @@ func (c *Client) handleTDPInput(msg tdp.Message) error {
 			if c.cfg.AllowDirectorySharing {
 				if errCode := C.client_handle_tdp_sd_write_response(C.uintptr_t(c.handle), C.CGOSharedDirectoryWriteResponse{
 					completion_id: C.uint32_t(m.CompletionId),
+					directory_id:  C.uint32_t(m.DirectoryId),
 					err_code:      m.ErrorCode,
 					bytes_written: C.uint32_t(op.Write.BytesWritten),
 				}); errCode != C.ErrCodeSuccess {
@@ -856,6 +870,7 @@ func (c *Client) handleTDPInput(msg tdp.Message) error {
 			if c.cfg.AllowDirectorySharing {
 				if errCode := C.client_handle_tdp_sd_move_response(C.uintptr_t(c.handle), C.CGOSharedDirectoryMoveResponse{
 					completion_id: C.uint32_t(m.CompletionId),
+					directory_id:  C.uint32_t(m.DirectoryId),
 					err_code:      m.ErrorCode,
 				}); errCode != C.ErrCodeSuccess {
 					return trace.Errorf("SharedDirectoryMoveResponse failed: %v", errCode)
@@ -865,6 +880,7 @@ func (c *Client) handleTDPInput(msg tdp.Message) error {
 			if c.cfg.AllowDirectorySharing {
 				if errCode := C.client_handle_tdp_sd_truncate_response(C.uintptr_t(c.handle), C.CGOSharedDirectoryTruncateResponse{
 					completion_id: C.uint32_t(m.CompletionId),
+					directory_id:  C.uint32_t(m.DirectoryId),
 					err_code:      m.ErrorCode,
 				}); errCode != C.ErrCodeSuccess {
 					return trace.Errorf("SharedDirectoryTruncateResponse failed: %v", errCode)
@@ -1045,16 +1061,17 @@ func cgo_handle_rdp_connection_activated(
 	user_channel_id C.uint16_t,
 	screen_width C.uint16_t,
 	screen_height C.uint16_t,
+	share_id C.uint32_t,
 ) C.CGOErrCode {
 	client, err := toClient(handle)
 	if err != nil {
 		return C.ErrCodeFailure
 	}
-	return client.handleRDPConnectionActivated(io_channel_id, user_channel_id, screen_width, screen_height)
+	return client.handleRDPConnectionActivated(io_channel_id, user_channel_id, screen_width, screen_height, share_id)
 }
 
-func (c *Client) handleRDPConnectionActivated(ioChannelID, userChannelID, screenWidth, screenHeight C.uint16_t) C.CGOErrCode {
-	c.cfg.Logger.DebugContext(context.Background(), "Received RDP channel IDs", "io_channel_id", ioChannelID, "user_channel_id", userChannelID)
+func (c *Client) handleRDPConnectionActivated(ioChannelID, userChannelID, screenWidth, screenHeight C.uint16_t, shareID C.uint32_t) C.CGOErrCode {
+	c.cfg.Logger.DebugContext(context.Background(), "Received RDP channel IDs", "io_channel_id", ioChannelID, "user_channel_id", userChannelID, "share_id", shareID)
 
 	// Note: RDP doesn't always use the resolution we asked for.
 	// This is especially true when we request dimensions that are not a multiple of 4.
@@ -1066,10 +1083,12 @@ func (c *Client) handleRDPConnectionActivated(ioChannelID, userChannelID, screen
 			UserChannelId: uint32(userChannelID),
 			ScreenWidth:   uint32(screenWidth),
 			ScreenHeight:  uint32(screenHeight),
+			ShareId:       uint32(shareID),
 		},
-		ClipboardEnabled:         true,
-		DirectoryRemoveSupported: true,
-		HidpiSupported:           true,
+		ClipboardEnabled:               true,
+		DirectoryRemoveSupported:       false,
+		HidpiSupported:                 true,
+		MultidirectorySharingSupported: true,
 	}); err != nil {
 		c.cfg.Logger.ErrorContext(context.Background(), "failed handling connection initialization", "error", err)
 		return C.ErrCodeFailure

@@ -96,12 +96,20 @@ func (a *Server) RegisterUsingTPMMethod(
 		params := makeBotCertsParams(initReq.JoinRequest, validatedEK, workloadidentityv1pb.JoinAttrs_builder{
 			Tpm: validatedEK.JoinAttrs(),
 		}.Build())
-		certs, _, err := a.GenerateBotCertsForJoin(ctx, ptv2, params)
-		return certs, trace.Wrap(err, "generating certs for bot")
+		certs, botInstanceID, err := a.GenerateBotCertsForJoin(ctx, ptv2, params)
+		if err != nil {
+			return nil, trace.Wrap(err, "generating certs for bot")
+		}
+		a.emitBotJoinEvent(ctx, ptv2, params, botInstanceID)
+		return certs, nil
 	}
 	params := makeHostCertsParams(initReq.JoinRequest, validatedEK)
 	certs, err := a.GenerateHostCertsForJoin(ctx, ptv2, params)
-	return certs, trace.Wrap(err, "generating certs for host")
+	if err != nil {
+		return nil, trace.Wrap(err, "generating certs for host")
+	}
+	a.emitJoinEvent(ctx, ptv2, params)
+	return certs, nil
 }
 
 // GetTPMValidator returns the server's TPM validator.
