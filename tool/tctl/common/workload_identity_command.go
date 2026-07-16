@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -110,7 +111,7 @@ func (c *WorkloadIdentityCommand) Initialize(
 		"Delete a workload identity configuration.",
 	)
 	c.rmCmd.
-		Arg("name", "Name of the workload identity configuration to delete.").
+		Arg("name", "Name of the workload identity configuration to delete. For a scoped workload identity, provide a scope-qualified name of the form '<scope>::<name>'.").
 		Required().
 		StringVar(&c.workloadIdentityName)
 
@@ -251,10 +252,25 @@ func (c *WorkloadIdentityCommand) DeleteWorkloadIdentity(
 	ctx context.Context,
 	client *authclient.Client,
 ) error {
+	// Provided name may be unscoped or an SQN
+	name := c.workloadIdentityName
+	var scope string
+	if strings.Contains(name, scopes.QualifiedNameSeparator) {
+		qn, err := scopes.ParseQualifiedName(name)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if err := qn.StrongValidate(); err != nil {
+			return trace.Wrap(err)
+		}
+		scope, name = qn.Scope, qn.Name
+	}
+
 	workloadIdentityClient := client.WorkloadIdentityResourceServiceClient()
 	_, err := workloadIdentityClient.DeleteWorkloadIdentity(
 		ctx, workloadidentityv1pb.DeleteWorkloadIdentityRequest_builder{
-			Name: c.workloadIdentityName,
+			Name:  name,
+			Scope: scope,
 		}.Build())
 	if err != nil {
 		return trace.Wrap(err)
@@ -300,7 +316,8 @@ func (c *WorkloadIdentityCommand) ListWorkloadIdentities(
 		t := asciitable.MakeTable([]string{"Name", "SPIFFE ID"})
 		for _, u := range workloadIdentities {
 			t.AddRow([]string{
-				u.GetMetadata().GetName(), u.GetSpec().GetSpiffe().GetId(),
+				scopes.QualifiedName{Scope: u.GetScope(), Name: u.GetMetadata().GetName()}.String(),
+				u.GetSpec().GetSpiffe().GetId(),
 			})
 		}
 		fmt.Fprintln(c.stdout, t.AsBuffer().String())

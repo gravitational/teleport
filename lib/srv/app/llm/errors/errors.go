@@ -22,6 +22,8 @@ import (
 	"net/http"
 
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 var (
@@ -39,6 +41,8 @@ var (
 	ErrUnsupported = errors.New("teleport doesn't support the requested endpoint, please check the list of supported endpoints in the documentation")
 	// ErrBadResponse returned when the provider replied the request with an unsupported message or format.
 	ErrBadResponse = errors.New("the inference provider returned an unexpected response. Contact your Teleport administrator")
+	// ErrConfig returned when the app or app service are misconfigured, requiring admin intervention.
+	ErrConfig = errors.New("unable to serve request due to an app configuration error. Contact your Teleport administrator")
 	// ErrUnknown returned when the handler could not identify the error.
 	ErrUnknown = errors.New("the inference provider returned an unexpected error. Contact your Teleport administrator")
 )
@@ -91,4 +95,20 @@ func StatusCodeFromErr(err error) int {
 	default:
 		return trace.ErrorToCode(err)
 	}
+}
+
+// MarshalMessage marshals an error into JSON format. This function might return
+// empty.
+//
+// Callers can safely interpolate the result of this function with JSON strings.
+func MarshalMessage(err error) string {
+	if err == nil {
+		return `""`
+	}
+
+	if enc, err := utils.FastMarshal(err.Error()); err == nil {
+		return string(enc)
+	}
+
+	return `""`
 }

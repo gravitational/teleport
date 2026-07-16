@@ -91,6 +91,7 @@ Optional:
 Optional:
 
 - `external_id` (String) ExternalID is the AWS External ID used when assuming roles in this app.
+- `region` (String) Region is a cloud region for the app. This field is set for apps that integrates with AWS applications/APIs.
 - `roles_anywhere_profile` (Attributes) RolesAnywhereProfile contains the IAM Roles Anywhere fields associated with this Application. These fields are set when performing the synchronization of AWS IAM Roles Anywhere Profiles into Teleport Apps. (see [below for nested schema](#nested-schema-for-specawsroles_anywhere_profile))
 
 ### Nested Schema for `spec.aws.roles_anywhere_profile`

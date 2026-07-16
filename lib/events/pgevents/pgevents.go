@@ -20,6 +20,7 @@ package pgevents
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/url"
@@ -32,6 +33,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/gravitational/teleport"
@@ -452,21 +454,17 @@ func (l *Log) getEventRow(ctx context.Context, event apievents.AuditEvent) (even
 	}, nil
 }
 
-const insertEventQuery = `WITH ins AS (
-	INSERT INTO events (event_time, event_id, event_type, session_id, event_data)
-		VALUES ($1, $2, $3, $4, $5)
-		ON CONFLICT (event_time, event_id) DO NOTHING
-		RETURNING 1
-)
-SELECT
-	EXISTS (SELECT 1 FROM ins),
-	(SELECT e.event_data::jsonb = $5::jsonb
-		FROM events e
-		WHERE e.event_time = $1 AND e.event_id = $2)`
+const insertEventQuery = `INSERT INTO events (event_time, event_id, event_type, session_id, event_data)
+	VALUES ($1, $2, $3, $4, $5)
+	ON CONFLICT (event_time, event_id) DO NOTHING`
+
+const matchEventQuery = `SELECT event_data::jsonb = $3::jsonb
+	FROM events
+	WHERE event_time = $1 AND event_id = $2`
 
 type insertResult struct {
 	inserted bool
-	matches  *bool
+	matches  bool
 }
 
 func (l *Log) insertEvents(ctx context.Context, evts []apievents.AuditEvent) error {
@@ -490,7 +488,7 @@ func (l *Log) insertEvents(ctx context.Context, evts []apievents.AuditEvent) err
 		switch {
 		case res.inserted:
 			// Inserted without trouble. Nothing to do here.
-		case res.matches != nil && *res.matches:
+		case res.matches:
 			writeRequestsDeduped.Inc()
 		default:
 			newID := uuid.New()
@@ -516,9 +514,12 @@ func (l *Log) insertEvents(ctx context.Context, evts []apievents.AuditEvent) err
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	for _, res := range results {
-		if !res.inserted {
-			return trace.AlreadyExists("audit event id collision persisted after generating a new id")
+	for i, res := range results {
+		if !res.inserted && !res.matches {
+			return trace.AlreadyExists(
+				"audit event id collision persisted after generating a new id (event_time %v)",
+				collisions[i].eventTime,
+			)
 		}
 	}
 	return nil
@@ -527,16 +528,40 @@ func (l *Log) insertEvents(ctx context.Context, evts []apievents.AuditEvent) err
 func (l *Log) pipelineInsert(ctx context.Context, rows []eventRow) ([]insertResult, error) {
 	return pgcommon.RetryIdempotent(ctx, l.log, func() ([]insertResult, error) {
 		out := make([]insertResult, len(rows))
-		var batch pgx.Batch
+		var insertBatch pgx.Batch
 		for i := range rows {
 			r := rows[i]
-			batch.Queue(insertEventQuery,
+			insertBatch.Queue(insertEventQuery,
 				r.eventTime, r.eventID, r.eventType, r.sessionID, string(r.eventData),
-			).QueryRow(func(row pgx.Row) error {
-				return trace.Wrap(row.Scan(&out[i].inserted, &out[i].matches))
+			).Exec(func(tag pgconn.CommandTag) error {
+				out[i].inserted = tag.RowsAffected() > 0
+				return nil
 			})
 		}
-		if err := l.pool.SendBatch(ctx, &batch).Close(); err != nil {
+		if err := l.pool.SendBatch(ctx, &insertBatch).Close(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		var matchBatch pgx.Batch
+		for i := range rows {
+			if out[i].inserted {
+				continue
+			}
+			r := rows[i]
+			matchBatch.Queue(matchEventQuery,
+				r.eventTime, r.eventID, string(r.eventData),
+			).QueryRow(func(row pgx.Row) error {
+				err := row.Scan(&out[i].matches)
+				if errors.Is(err, pgx.ErrNoRows) {
+					return nil
+				}
+				return trace.Wrap(err)
+			})
+		}
+		if matchBatch.Len() == 0 {
+			return out, nil
+		}
+		if err := l.pool.SendBatch(ctx, &matchBatch).Close(); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		return out, nil

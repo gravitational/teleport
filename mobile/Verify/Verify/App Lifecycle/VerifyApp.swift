@@ -14,6 +14,8 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+import Dependencies
+import SQLiteData
 import SwiftUI
 
 /// This type is the entrypoint of our app.
@@ -66,9 +68,16 @@ struct VerifyApp: App {
 	@State
 	private var appModel = VerifyAppModel()
 
+	init() {
+		prepareDependencies {
+			$0.defaultDatabase = AppDatabase.makeLiveDatabase()
+		}
+	}
+
 	var body: some Scene {
 		WindowGroup {
 			LandingView(viewModel: appModel.landingViewModel)
+				.tint(.teleport)
 				.onOpenURL { url in
 					appModel.openDeepLink(url)
 				}

@@ -116,20 +116,22 @@ pub struct FastPathProcessor {
 #[wasm_bindgen]
 impl FastPathProcessor {
     #[wasm_bindgen(constructor)]
-    pub fn new(width: u16, height: u16, io_channel_id: u16, user_channel_id: u16) -> Self {
+    pub fn new(
+        width: u16,
+        height: u16,
+        io_channel_id: u16,
+        user_channel_id: u16,
+        share_id: u32,
+    ) -> Self {
         Self {
             fast_path_processor: IronRdpFastPathProcessorBuilder {
                 io_channel_id,
                 user_channel_id,
+                share_id,
                 // These should be set to the same values as they're set to in the
                 // `Config` object in lib/srv/desktop/rdp/rdpclient/src/client.rs.
                 enable_server_pointer: true,
                 pointer_software_rendering: false,
-                // TODO (rhammonds): Update our ServerHello TDPB message to
-                // report the share_id so that we can set it here. This may
-                // fix a known resize bug.
-                // https://github.com/Devolutions/IronRDP/pull/1147
-                share_id: 0,
                 bulk_decompressor: None,
             }
             .build(),

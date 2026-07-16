@@ -1077,6 +1077,55 @@ func TestDeadLetterSweep_RedeliversOnRecovery(t *testing.T) {
 	require.ErrorIs(t, <-runErr, context.Canceled)
 }
 
+func TestDeadLetterSweep_KickedOnDeliveryRecovery(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	q, err := newSQLiteQueue(Config{
+		Path:                    filepath.Join(t.TempDir(), queueDir),
+		MaxAttempts:             1,
+		DeadLetterSweepInterval: time.Hour, // only the recovery kick can trigger a sweep
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = q.Close() })
+
+	require.NoError(t, q.Enqueue(newTestEvent(1)))
+
+	var recovered atomic.Bool
+	handler := func(_ context.Context, items []Item) []Item {
+		if recovered.Load() {
+			return items
+		}
+		return nil
+	}
+
+	runCtx, cancel := context.WithCancel(ctx)
+	t.Cleanup(cancel)
+
+	runErr := make(chan error, 1)
+	go func() { runErr <- q.Run(runCtx, handler) }()
+
+	// Wait for the first event to fail its delivery and land in dead-letter.
+	require.Eventually(t, func() bool {
+		items, _ := fetchDeadLetter(q.ctx, q.db, 10)
+		return len(items) == 1
+	}, 5*time.Second, 50*time.Millisecond)
+
+	// Recover, then enqueue a fresh event. Its successful delivery marks the
+	// failing -> succeeding transition, which should kick an immediate sweep.
+	recovered.Store(true)
+	require.NoError(t, q.Enqueue(newTestEvent(2)))
+
+	require.Eventually(t, func() bool {
+		items, _ := fetchDeadLetter(q.ctx, q.db, 10)
+		return len(items) == 0
+	}, 5*time.Second, 50*time.Millisecond,
+		"dead-letter queue should be swept on delivery recovery without waiting for the sweep interval")
+
+	cancel()
+	require.ErrorIs(t, <-runErr, context.Canceled)
+}
+
 func TestDeadLetterSweep_DrainsEntireBacklog(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()

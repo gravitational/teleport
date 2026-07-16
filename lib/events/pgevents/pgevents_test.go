@@ -355,7 +355,7 @@ func TestBuildSchema(t *testing.T) {
 func TestEmitAuditEvent_NoLossDeduplication(t *testing.T) {
 	// Don't t.Parallel(), relies on the database backed by urlEnvVar.
 	log := newLogForTesting(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	truncate := func(t *testing.T) {
 		t.Helper()
