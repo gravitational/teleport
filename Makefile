@@ -20,7 +20,11 @@ DOCKER_IMAGE ?= teleport
 # This directory will be the real path of the directory of the first Makefile in the list.
 MAKE_DIR := $(dir $(realpath $(firstword $(MAKEFILE_LIST))))
 HELM_UNITTEST_VERSION := $(shell cat $(MAKE_DIR)/build.assets/helm-unittest.version)
-HELM_UNITTEST_SHA256 := $(shell grep '^$(HELM_UNITTEST_VERSION) macos arm64 ' $(MAKE_DIR)/build.assets/helm-unittest.sha256 | cut -d' ' -f4)
+HELM_UNITTEST_OS := $(shell if [ "$(shell uname -s)" = Darwin ]; then echo macos; elif [ "$(shell uname -s)" = Linux ]; then echo linux; else echo unsupported; fi)
+HELM_UNITTEST_ARCH := $(shell if [ "$(shell uname -m)" = x86_64 ]; then echo amd64; elif [ "$(shell uname -m)" = arm64 ] || [ "$(shell uname -m)" = aarch64 ]; then echo arm64; else echo unsupported; fi)
+HELM_UNITTEST_PLATFORM := $(HELM_UNITTEST_OS)-$(HELM_UNITTEST_ARCH)
+HELM_UNITTEST_ARCHIVE := helm-unittest-$(HELM_UNITTEST_PLATFORM)-$(HELM_UNITTEST_VERSION:v%=%).tgz
+HELM_UNITTEST_CHECKSUM_CMD := $(shell if command -v sha256sum >/dev/null 2>&1; then echo sha256sum; else echo 'shasum -a 256'; fi)
 
 # If set to 1, webassets are not built.
 WEBASSETS_SKIP_BUILD ?= 0
@@ -954,11 +958,12 @@ test: test-helm test-sh test-api test-go test-rust test-operator test-terraform-
 $(TEST_LOG_DIR):
 	mkdir -p $(TEST_LOG_DIR)
 
-# Install the release archive directly instead of using `helm plugin install`.
-# The Helm installer executes plugin-provided hooks, which duplicates setup and
-# would require separately verifying those scripts.
 .PHONY: helmunit/installed
 helmunit/installed:
+	@if ! grep -q "[[:space:]]$(HELM_UNITTEST_ARCHIVE)$$" build.assets/helm-unittest.sha256; then \
+		echo "No helm-unittest checksum is available for $(HELM_UNITTEST_OS)/$(HELM_UNITTEST_ARCH)." >&2; \
+		exit 1; \
+	fi
 	@if ! command -v helm >/dev/null 2>&1; then \
 		printf '%s\n' \
 			'Helm is required to test Helm charts.' \
@@ -975,24 +980,23 @@ helmunit/installed:
 	required="$(HELM_UNITTEST_VERSION:v%=%)"; \
 	if [ -z "$$actual" ]; then \
 		printf '%s\n' \
-			'Helm unittest plugin is required to test Helm charts. Run:' \
-			'  plugin_dir="$${HELM_PLUGINS:-$$HOME/.local/share/helm/plugins}/helm-unittest"' \
-			'  mkdir -p "$$plugin_dir"' \
-			'  curl -fsSL https://github.com/helm-unittest/helm-unittest/releases/download/$(HELM_UNITTEST_VERSION)/helm-unittest-macos-arm64-$(HELM_UNITTEST_VERSION:v%=%).tgz | tar -xz -C "$$plugin_dir"' \
-			'  echo "$(HELM_UNITTEST_SHA256)  $$plugin_dir/untt" | shasum -a 256 -c -'; \
-		exit 1; \
-	fi; \
-	if [ "$$(printf '%s\n' "$$actual" "$$required" | sort -V | head -n1)" != "$$required" ]; then \
+			'Helm unittest plugin is required to test Helm charts. Run:'; \
+	elif [ "$$(printf '%s\n' "$$actual" "$$required" | sort -V | head -n1)" != "$$required" ]; then \
 		printf '%s\n' \
 			"Helm unittest plugin $$actual is too old; version $(HELM_UNITTEST_VERSION) or newer is required." \
-			'Run:' \
-			'  plugin_dir="$${HELM_PLUGINS:-$$HOME/.local/share/helm/plugins}/helm-unittest"' \
-			'  rm -rf "$$plugin_dir"' \
-			'  mkdir -p "$$plugin_dir"' \
-			'  curl -fsSL https://github.com/helm-unittest/helm-unittest/releases/download/$(HELM_UNITTEST_VERSION)/helm-unittest-macos-arm64-$(HELM_UNITTEST_VERSION:v%=%).tgz | tar -xz -C "$$plugin_dir"' \
-			'  echo "$(HELM_UNITTEST_SHA256)  $$plugin_dir/untt" | shasum -a 256 -c -'; \
-		exit 1; \
-	fi
+			'Run:'; \
+	else \
+		exit 0; \
+	fi; \
+	printf '%s\n' \
+		'helm-unittest does not provide the plugin signature required for Helm plugin signature verification, so we verify the release archive ourselves when installing:' \
+		'  plugin_dir="$${HELM_PLUGINS:-$$HOME/.local/share/helm/plugins}/helm-unittest"' \
+		'  rm -rf "$$plugin_dir"' \
+		'  mkdir -p "$$plugin_dir"' \
+		'  curl -fsSL -o "$(HELM_UNITTEST_ARCHIVE)" https://github.com/helm-unittest/helm-unittest/releases/download/$(HELM_UNITTEST_VERSION)/$(HELM_UNITTEST_ARCHIVE)' \
+		'  grep "[[:space:]]$(HELM_UNITTEST_ARCHIVE)$$" build.assets/helm-unittest.sha256 | $(HELM_UNITTEST_CHECKSUM_CMD) -c -' \
+		'  tar -xz -f "$(HELM_UNITTEST_ARCHIVE)" -C "$$plugin_dir"'; \
+	exit 1
 
 # The CI environment is responsible for setting HELM_PLUGINS to a directory where
 # helm-unittest/helm-unittest is installed.

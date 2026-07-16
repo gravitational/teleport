@@ -271,15 +271,18 @@ COPY helm-unittest.sha256 /tmp/helm-unittest.sha256
 # The Helm installer executes plugin-provided hooks, which duplicates setup and
 # would require separately verifying those scripts.
 RUN plugin_arch="${TARGETARCH:-$BUILDARCH}" && \
-    plugin_version="$(grep " linux ${plugin_arch} " /tmp/helm-unittest.sha256 | head -n 1 | cut -d' ' -f1)" && \
+    archive_name="$(grep "helm-unittest-linux-${plugin_arch}-" /tmp/helm-unittest.sha256 | head -n 1 | awk '{print $2}')" && \
+    test -n "$archive_name" && \
+    plugin_version="${archive_name#helm-unittest-linux-${plugin_arch}-}" && \
+    plugin_version="v${plugin_version%.tgz}" && \
     test -n "$plugin_version" && \
     plugin_dir=/home/ci/.local/share/helm/plugins/helm-unittest && \
-    checksum="$(grep "^${plugin_version} linux ${plugin_arch} " /tmp/helm-unittest.sha256 | cut -d' ' -f4)" && \
-    test -n "$checksum" && \
+    archive=/tmp/$archive_name && \
     mkdir -p "$plugin_dir" && \
-    curl -fsSL "https://github.com/helm-unittest/helm-unittest/releases/download/${plugin_version}/helm-unittest-linux-${plugin_arch}-${plugin_version#v}.tgz" \
-      | tar -xz -C "$plugin_dir" && \
-    echo "$checksum  $plugin_dir/untt" | sha256sum -c - && \
+    curl -fsSL -o "$archive" "https://github.com/helm-unittest/helm-unittest/releases/download/${plugin_version}/helm-unittest-linux-${plugin_arch}-${plugin_version#v}.tgz" && \
+    (cd /tmp && grep "[[:space:]]$archive_name$" helm-unittest.sha256 | sha256sum -c -) && \
+    tar -xz -f "$archive" -C "$plugin_dir" && \
+    rm -f "$archive" && \
     chown -R ci /home/ci/.local/share/helm
 
 # Install JS gRPC tools.
