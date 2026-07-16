@@ -1,4 +1,3 @@
-import { describe, expect, it } from 'vitest';
 /**
  * Teleport
  * Copyright (C) 2025 Gravitational, Inc.
@@ -20,6 +19,7 @@ import { describe, expect, it } from 'vitest';
 import { act, renderHook } from '@testing-library/react';
 import type { PropsWithChildren } from 'react';
 import { MemoryRouter, useLocation, useNavigate } from 'react-router';
+import { describe, expect, it } from 'vitest';
 
 import { EventRange } from 'teleport/components/EventRangePicker';
 

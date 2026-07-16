@@ -14,7 +14,7 @@
     "storybook": "./web/scripts/run-storybook.sh",
     "storybook-smoke-test": "storybook dev -p 9002 -c web/.storybook --ci --smoke-test",
     "test-storybook": "NODE_TLS_REJECT_UNAUTHORIZED=0 test-storybook -c web/.storybook --url https://localhost:9002 --skipTags=skip-test --browsers=chromium",
-    "test": "pnpm test-jest && pnpm test-vitest",
+    "test": "node web/scripts/test.mjs",
     "test-jest": "jest",
     "test-vitest": "vitest run",
     "test-coverage": "jest --coverage && web/scripts/print-coverage-link.sh",
