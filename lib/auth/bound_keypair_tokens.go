@@ -23,6 +23,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -95,7 +96,7 @@ func (a *Server) CreateBoundKeypairToken(ctx context.Context, token types.Provis
 
 	tokenV2, ok := token.(*types.ProvisionTokenV2)
 	if !ok {
-		return trace.BadParameter("%v join method requires ProvisionTokenV2", types.JoinMethodOracle)
+		return trace.BadParameter("bound_keypair join method requires ProvisionTokenV2, got %T", token)
 	}
 
 	spec := tokenV2.Spec.BoundKeypair
@@ -126,7 +127,7 @@ func (a *Server) UpsertBoundKeypairToken(ctx context.Context, token types.Provis
 
 	tokenV2, ok := token.(*types.ProvisionTokenV2)
 	if !ok {
-		return trace.BadParameter("%v join method requires ProvisionTokenV2", types.JoinMethodOracle)
+		return trace.BadParameter("bound_keypair join method requires ProvisionTokenV2, got %T", token)
 	}
 
 	spec := tokenV2.Spec.BoundKeypair
@@ -145,4 +146,129 @@ func (a *Server) UpsertBoundKeypairToken(ctx context.Context, token types.Provis
 	// Implementation note: checkAndSetDefaults() impl for this token type is
 	// called at insertion time as part of `tokenToItem()`
 	return trace.Wrap(a.UpsertToken(ctx, token))
+}
+
+// applyBoundKeypairToken applies a bound_keypair provision token supplied via
+// --apply-on-startup.
+//
+// Bound keypair tokens require an initialized status.bound_keypair: the join
+// path rejects tokens without one. The regular admin path
+// (ServerWithRoles.UpsertToken -> Server.UpsertBoundKeypairToken) initializes
+// it, but apply-on-startup writes through the raw storage layer, which persists
+// the spec-only YAML verbatim and leaves status nil. We initialize
+// status.bound_keypair here to match.
+//
+// apply-on-startup re-applies on every auth restart, so we also preserve any
+// compatible status from the stored token; otherwise a restart would reset a
+// bot's join state (recovery counters, bound public key).
+func applyBoundKeypairToken(ctx context.Context, service *Services, token types.ProvisionToken) error {
+	tokenV2, ok := token.(*types.ProvisionTokenV2)
+	if !ok {
+		return trace.BadParameter("bound_keypair join method requires ProvisionTokenV2, got %T", token)
+	}
+
+	if tokenV2.Spec.BoundKeypair == nil {
+		return trace.BadParameter("bound_keypair token requires non-nil spec.bound_keypair")
+	}
+	if err := validateBoundKeypairTokenSpec(tokenV2.Spec.BoundKeypair); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Patch an existing token so its server-owned status is preserved.
+	// PatchToken handles compare-failure retries; this loop only covers the
+	// create/patch race (a create from a non-init path, or a lost init lock):
+	// create if absent, else patch on the next iteration.
+	const attempts = 3
+	for range attempts {
+		_, err := service.PatchToken(ctx, tokenV2.GetName(), func(existing types.ProvisionToken) (types.ProvisionToken, error) {
+			return prepareAppliedBoundKeypairToken(tokenV2, existing)
+		})
+		if !trace.IsNotFound(err) {
+			// Covers success (err == nil) and any non-recoverable error.
+			return trace.Wrap(err)
+		}
+
+		// The token does not exist yet. Initialize status.bound_keypair
+		// (including the registration secret) and create it; a lost create race
+		// retries the patch above.
+		cloned, err := services.CloneProvisionToken(tokenV2)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		created := cloned.(*types.ProvisionTokenV2)
+		// apply-on-startup config is spec-only: never trust status supplied via
+		// config. Discard it before initializing, so a config-supplied
+		// bound_public_key can't bind a key without the join ceremony. This
+		// mirrors prepareAppliedBoundKeypairToken, which nils status on re-apply.
+		created.Status = nil
+		if err := populateRegistrationSecret(created); err != nil {
+			return trace.Wrap(err)
+		}
+		if err := service.CreateToken(ctx, created); err == nil {
+			return nil
+		} else if !trace.IsAlreadyExists(err) {
+			return trace.Wrap(err)
+		}
+	}
+
+	return trace.LimitExceeded("failed to apply bound_keypair token %q after %d attempts", tokenV2.GetName(), attempts)
+}
+
+// prepareAppliedBoundKeypairToken returns a fresh copy of desired carrying
+// existing's revision, merging in server-owned status when it is still valid for
+// the desired identity and onboarding credential. It is invoked by PatchToken,
+// which only calls it with a non-nil existing token.
+func prepareAppliedBoundKeypairToken(desired *types.ProvisionTokenV2, existing types.ProvisionToken) (*types.ProvisionTokenV2, error) {
+	cloned, err := services.CloneProvisionToken(desired)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	updated := cloned.(*types.ProvisionTokenV2)
+
+	updated.SetRevision(existing.GetRevision())
+	updated.Status = nil
+	if shouldPreserveBoundKeypairStatus(existing, updated) {
+		updated.Status = &types.ProvisionTokenStatusV2{
+			BoundKeypair: existing.GetBoundKeypairStatus(),
+		}
+	}
+
+	if err := populateRegistrationSecret(updated); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return updated, nil
+}
+
+// shouldPreserveBoundKeypairStatus decides whether server-owned bound_keypair
+// status from the stored token survives a spec re-apply.
+func shouldPreserveBoundKeypairStatus(existing types.ProvisionToken, desired *types.ProvisionTokenV2) bool {
+	status := existing.GetBoundKeypairStatus()
+	if existing.GetJoinMethod() != types.JoinMethodBoundKeypair || status == nil {
+		return false
+	}
+	existingBot, _ := existing.GetBot()
+	desiredBot, _ := desired.GetBot()
+	if existingBot != desiredBot || !existing.GetRoles().Equals(desired.GetRoles()) {
+		return false
+	}
+
+	// Once a key is bound, onboarding credentials are no longer used. Preserve
+	// the binding while allowing recovery and rotation settings to be changed.
+	if status.BoundPublicKey != "" {
+		return true
+	}
+
+	// Before the first join, changing the configured onboarding credential must
+	// revoke the old registration secret or preregistered key.
+	var existingInitialKey, existingSecret string
+	if spec := existing.GetBoundKeypair(); spec != nil && spec.Onboarding != nil {
+		existingInitialKey = spec.Onboarding.InitialPublicKey
+		existingSecret = spec.Onboarding.RegistrationSecret
+	}
+	var desiredInitialKey, desiredSecret string
+	if spec := desired.GetBoundKeypair(); spec != nil && spec.Onboarding != nil {
+		desiredInitialKey = spec.Onboarding.InitialPublicKey
+		desiredSecret = spec.Onboarding.RegistrationSecret
+	}
+	return existingInitialKey == desiredInitialKey && existingSecret == desiredSecret
 }
