@@ -36,14 +36,14 @@ import (
 // through the local authenticated ALPN proxy.
 func TestLocalProxyPostgres(t *testing.T) {
 	tests := []struct {
-		name               string
+		name        string
 		noCancelKey bool
 	}{
 		{
 			name: "with query cancellation",
 		},
 		{
-			name:               "without query cancellation",
+			name:        "without query cancellation",
 			noCancelKey: true,
 		},
 	}
