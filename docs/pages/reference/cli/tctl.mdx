@@ -52,8 +52,14 @@ Get details about an access path change
 Usage:
 
 ```code
-$ tctl access-changes get <change-id>
+$ tctl access-changes get [<flags>] <change-id>
 ```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format. (Values: text, json, yaml)|
 
 Arguments:
 
@@ -76,6 +82,7 @@ Flags:
 |Flag|Default|Description|
 |---|---|---|
 |`--filter`|*no default*|Filter by comma-separated key=value pairs (keys: type, kind, source). Pairs within one --filter are AND'd; repeat --filter to OR. Example: --filter kind=resource,source=AWS --filter type=teleport_user.|
+|`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format. (Values: text, json, yaml)|
 |`--kind`|*no default* (any of (repeatable): `identity`, `resource`)|Filter by change kind (repeatable; each is OR'd). Combine axes with --filter.|
 |`--limit`|`100`|Maximum number of changes to return (0 for unlimited).|
 |`--search`|*no default*|Search term to filter access changes.|
@@ -1171,8 +1178,16 @@ Get Identity Security detection details.
 Usage:
 
 ```code
-$ tctl detections get <id>
+$ tctl detections get [<flags>] <id>
 ```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format. (Values: text, json, yaml)|
+|`--from`|`30d`|Include activity at or after this time. (Examples: 2006-01-02T15:04:05Z07:00, 2006-01-02, 24h, 7d; negative durations like -1h are future-relative. Default: 30d)|
+|`--to`|`now`|Include activity at or before this time. (Examples: 2006-01-02T15:04:05Z07:00, 2006-01-02, 24h, 7d; negative durations like -1h are future-relative. Default: now)|
 
 Arguments:
 
@@ -1194,11 +1209,14 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
+|`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format. (Values: text, json, yaml)|
+|`--from`|`30d`|Include activity at or after this time. (Examples: 2006-01-02T15:04:05Z07:00, 2006-01-02, 24h, 7d; negative durations like -1h are future-relative. Default: 30d)|
 |`--limit`|`100`|Maximum number of detections to return.|
 |`--[no-]detailed`|`false`|Include extra columns (Reported By, Type, Affected Entity, Tags, Description, Start Time, End Time, Updated) in text output.|
 |`--severity`|*no default* (any of (repeatable): `low`, `medium`, `high`, `critical`)|Filter detections by severity (Values: low, medium, high, critical).|
 |`--source`|*no default*|Filter detections by source.|
 |`--status`|`in_progress`,`triaged` (any of (repeatable): `in_progress`, `triaged`, `resolved`, `closed`)|Filter detections by status (Values: in_progress, triaged, resolved, closed). Default: in_progress, triaged.|
+|`--to`|`now`|Include activity at or before this time. (Examples: 2006-01-02T15:04:05Z07:00, 2006-01-02, 24h, 7d; negative durations like -1h are future-relative. Default: now)|
 |`--type`|*no default*|Filter detections by type.|
 
 ## tctl devices add
