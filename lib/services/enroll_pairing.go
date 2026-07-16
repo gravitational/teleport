@@ -37,12 +37,11 @@ type EnrollPairing interface {
 	// matches token. Returns NotFound if no pairing matches.
 	GetEnrollPairingByToken(ctx context.Context, token string) (*devicepb.EnrollPairing, error)
 
-	// RequestEnrollPairingApproval transitions the EnrollPairing identified by
-	// token from AWAITING_DEVICE to AWAITING_APPROVAL, persisting device for the
-	// Web UI to display and for retry gating, and returns the updated pairing.
-	// Returns NotFound if no pairing matches token and CompareFailed if the
-	// pairing is no longer awaiting a device.
-	RequestEnrollPairingApproval(ctx context.Context, token string, device *devicepb.EnrollPairingDevice) (*devicepb.EnrollPairing, error)
+	// RequestEnrollPairingApproval transitions pairing from AWAITING_DEVICE to
+	// AWAITING_APPROVAL, persisting device for the Web UI to display and for
+	// retry gating, and returns the updated pairing.
+	// Returns CompareFailed if the pairing is no longer awaiting a device.
+	RequestEnrollPairingApproval(ctx context.Context, pairing *devicepb.EnrollPairing, device *devicepb.EnrollPairingDevice) (*devicepb.EnrollPairing, error)
 }
 
 // MarshalEnrollPairing marshals an EnrollPairing resource to JSON.
