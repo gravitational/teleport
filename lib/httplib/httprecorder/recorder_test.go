@@ -32,13 +32,73 @@ import (
 	"testing/synctest"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/constants"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 )
+
+// TestBodyChunkEventFitsRecordingCap asserts that a body chunk carrying a
+// full maxChunkSize payload, plus generously oversized event metadata,
+// serializes below the per-event session-recording cap
+// (constants.MaxProtoMessageSizeBytes, 64KiB).
+//
+// Body chunk events are part of the session recording, and every streamer on
+// the way to final storage -- the local file, the async upload streamer
+// (api/client.auditStreamer) and the sync SyncStreamer -- trims any event
+// larger than that cap. If a single chunk doesn't fit, its body data is
+// silently truncated before it's stored. Keeping maxChunkSize under the cap
+// (minus headroom for metadata) is what guarantees chunks survive intact.
+func TestBodyChunkEventFitsRecordingCap(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		event apievents.AuditEvent
+	}{
+		{
+			name: "response",
+			event: &apievents.AppSessionHTTPResponseBodyChunk{
+				Metadata: apievents.Metadata{
+					Type:        events.AppSessionHTTPResponseBodyChunkEvent,
+					Code:        events.AppSessionHTTPResponseBodyChunkCode,
+					ID:          uuid.NewString(),
+					ClusterName: strings.Repeat("c", 255), // pathologically long
+					Index:       1 << 40,
+				},
+				SessionMetadata: apievents.SessionMetadata{SessionID: uuid.NewString()},
+				RequestId:       uuid.NewString(),
+				ChunkIndex:      1 << 40,
+				IsLast:          true,
+				Data:            bytes.Repeat([]byte("x"), maxChunkSize),
+			},
+		},
+		{
+			name: "request",
+			event: &apievents.AppSessionHTTPRequestBodyChunk{
+				Metadata: apievents.Metadata{
+					Type:        events.AppSessionHTTPRequestBodyChunkEvent,
+					Code:        events.AppSessionHTTPRequestBodyChunkCode,
+					ID:          uuid.NewString(),
+					ClusterName: strings.Repeat("c", 255),
+					Index:       1 << 40,
+				},
+				SessionMetadata: apievents.SessionMetadata{SessionID: uuid.NewString()},
+				RequestId:       uuid.NewString(),
+				ChunkIndex:      1 << 40,
+				IsLast:          true,
+				Data:            bytes.Repeat([]byte("x"), maxChunkSize),
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			require.LessOrEqual(t, tc.event.Size(), constants.MaxProtoMessageSizeBytes,
+				"a full-size body chunk must fit the per-event recording cap so it survives the audit stream without being trimmed")
+		})
+	}
+}
 
 // newCaptureRecorder returns a capturing recorder with a no-op event preparer.
 func newCaptureRecorder() (*eventstest.MockRecorderEmitter, events.SessionPreparerRecorder) {
