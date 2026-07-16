@@ -32,12 +32,14 @@ import (
 )
 
 const (
-	discoveryConfigPrefix = "discovery_config"
+	discoveryConfigPrefix          = "discovery_config"
+	syntheticDiscoveryConfigPrefix = "synthetic_discovery_config"
 )
 
 // DiscoveryConfigService manages DiscoveryConfigs in the Backend.
 type DiscoveryConfigService struct {
-	svc generic.Service[*discoveryconfig.DiscoveryConfig]
+	svc          generic.Service[*discoveryconfig.DiscoveryConfig]
+	syntheticSvc generic.Service[*discoveryconfig.DiscoveryConfig]
 }
 
 // NewDiscoveryConfigService creates a new DiscoveryConfigService.
@@ -53,10 +55,36 @@ func NewDiscoveryConfigService(b backend.Backend) (*DiscoveryConfigService, erro
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	syntheticSvc, err := generic.NewService(&generic.ServiceConfig[*discoveryconfig.DiscoveryConfig]{
+		Backend: b, PageLimit: defaults.MaxIterationLimit, ResourceKind: types.KindDiscoveryConfig,
+		BackendPrefix: backend.NewKey(syntheticDiscoveryConfigPrefix), MarshalFunc: services.MarshalSyntheticDiscoveryConfig,
+		UnmarshalFunc: services.UnmarshalDiscoveryConfig,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	return &DiscoveryConfigService{
-		svc: *svc,
+		svc:          *svc,
+		syntheticSvc: *syntheticSvc,
 	}, nil
+}
+
+func (s *DiscoveryConfigService) ListSyntheticDiscoveryConfigs(ctx context.Context, n int, token string) ([]*discoveryconfig.DiscoveryConfig, string, error) {
+	r, next, err := s.syntheticSvc.ListResources(ctx, n, token)
+	return r, next, trace.Wrap(err)
+}
+func (s *DiscoveryConfigService) GetSyntheticDiscoveryConfig(ctx context.Context, name string) (*discoveryconfig.DiscoveryConfig, error) {
+	r, err := s.syntheticSvc.GetResource(ctx, name)
+	return r, trace.Wrap(err)
+}
+func (s *DiscoveryConfigService) CreateSyntheticDiscoveryConfig(ctx context.Context, dc *discoveryconfig.DiscoveryConfig) (*discoveryconfig.DiscoveryConfig, error) {
+	r, err := s.syntheticSvc.CreateResource(ctx, dc)
+	return r, trace.Wrap(err)
+}
+func (s *DiscoveryConfigService) ConditionalUpdateSyntheticDiscoveryConfig(ctx context.Context, dc *discoveryconfig.DiscoveryConfig) (*discoveryconfig.DiscoveryConfig, error) {
+	r, err := s.syntheticSvc.ConditionalUpdateResource(ctx, dc)
+	return r, trace.Wrap(err)
 }
 
 // ListDiscoveryConfigs returns a paginated list of DiscoveryConfig resources.

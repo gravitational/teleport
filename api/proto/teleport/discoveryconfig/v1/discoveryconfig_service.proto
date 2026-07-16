@@ -30,6 +30,19 @@ service DiscoveryConfigService {
   // ListDiscoveryConfigs returns a paginated list of Discovery Config resources.
   rpc ListDiscoveryConfigs(ListDiscoveryConfigsRequest) returns (ListDiscoveryConfigsResponse);
 
+  // ListSyntheticDiscoveryConfigs returns synthetic Discovery Config resources.
+  rpc ListSyntheticDiscoveryConfigs(ListDiscoveryConfigsRequest) returns (ListDiscoveryConfigsResponse);
+
+  // GetSyntheticDiscoveryConfig returns the specified synthetic Discovery
+  // Config resource. The legacy GetDiscoveryConfig RPC serves regular
+  // resources only, because clients released before synthetic resources
+  // existed cannot decode their empty spec; current clients combine the two
+  // RPCs for regular-first, synthetic-second named lookup.
+  rpc GetSyntheticDiscoveryConfig(GetDiscoveryConfigRequest) returns (DiscoveryConfig);
+
+  // UpsertSyntheticDiscoveryConfig publishes the caller's observed static inventory.
+  rpc UpsertSyntheticDiscoveryConfig(UpsertSyntheticDiscoveryConfigRequest) returns (DiscoveryConfig);
+
   // GetDiscoveryConfig returns the specified DiscoveryConfig resource.
   rpc GetDiscoveryConfig(GetDiscoveryConfigRequest) returns (DiscoveryConfig);
 
@@ -59,6 +72,11 @@ message ListDiscoveryConfigsRequest {
 
   // next_token is the page token.
   string next_token = 2;
+}
+
+// UpsertSyntheticDiscoveryConfigRequest contains only owner-observed inventory.
+message UpsertSyntheticDiscoveryConfigRequest {
+  SyntheticDiscoveryConfigStatus synthetic = 1;
 }
 
 // ListDiscoveryConfigsResponse is the response for ListDiscoveryConfigsRequest.

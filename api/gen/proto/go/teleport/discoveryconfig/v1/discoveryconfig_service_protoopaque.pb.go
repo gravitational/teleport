@@ -111,6 +111,75 @@ func (b0 ListDiscoveryConfigsRequest_builder) Build() *ListDiscoveryConfigsReque
 	return m0
 }
 
+// UpsertSyntheticDiscoveryConfigRequest contains only owner-observed inventory.
+type UpsertSyntheticDiscoveryConfigRequest struct {
+	state                protoimpl.MessageState          `protogen:"opaque.v1"`
+	xxx_hidden_Synthetic *SyntheticDiscoveryConfigStatus `protobuf:"bytes,1,opt,name=synthetic,proto3"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
+}
+
+func (x *UpsertSyntheticDiscoveryConfigRequest) Reset() {
+	*x = UpsertSyntheticDiscoveryConfigRequest{}
+	mi := &file_teleport_discoveryconfig_v1_discoveryconfig_service_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpsertSyntheticDiscoveryConfigRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpsertSyntheticDiscoveryConfigRequest) ProtoMessage() {}
+
+func (x *UpsertSyntheticDiscoveryConfigRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_discoveryconfig_v1_discoveryconfig_service_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *UpsertSyntheticDiscoveryConfigRequest) GetSynthetic() *SyntheticDiscoveryConfigStatus {
+	if x != nil {
+		return x.xxx_hidden_Synthetic
+	}
+	return nil
+}
+
+func (x *UpsertSyntheticDiscoveryConfigRequest) SetSynthetic(v *SyntheticDiscoveryConfigStatus) {
+	x.xxx_hidden_Synthetic = v
+}
+
+func (x *UpsertSyntheticDiscoveryConfigRequest) HasSynthetic() bool {
+	if x == nil {
+		return false
+	}
+	return x.xxx_hidden_Synthetic != nil
+}
+
+func (x *UpsertSyntheticDiscoveryConfigRequest) ClearSynthetic() {
+	x.xxx_hidden_Synthetic = nil
+}
+
+type UpsertSyntheticDiscoveryConfigRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Synthetic *SyntheticDiscoveryConfigStatus
+}
+
+func (b0 UpsertSyntheticDiscoveryConfigRequest_builder) Build() *UpsertSyntheticDiscoveryConfigRequest {
+	m0 := &UpsertSyntheticDiscoveryConfigRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.xxx_hidden_Synthetic = b.Synthetic
+	return m0
+}
+
 // ListDiscoveryConfigsResponse is the response for ListDiscoveryConfigsRequest.
 type ListDiscoveryConfigsResponse struct {
 	state                       protoimpl.MessageState `protogen:"opaque.v1"`
@@ -123,7 +192,7 @@ type ListDiscoveryConfigsResponse struct {
 
 func (x *ListDiscoveryConfigsResponse) Reset() {
 	*x = ListDiscoveryConfigsResponse{}
-	mi := &file_teleport_discoveryconfig_v1_discoveryconfig_service_proto_msgTypes[1]
+	mi := &file_teleport_discoveryconfig_v1_discoveryconfig_service_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -135,7 +204,7 @@ func (x *ListDiscoveryConfigsResponse) String() string {
 func (*ListDiscoveryConfigsResponse) ProtoMessage() {}
 
 func (x *ListDiscoveryConfigsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_discoveryconfig_v1_discoveryconfig_service_proto_msgTypes[1]
+	mi := &file_teleport_discoveryconfig_v1_discoveryconfig_service_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -212,7 +281,7 @@ type GetDiscoveryConfigRequest struct {
 
 func (x *GetDiscoveryConfigRequest) Reset() {
 	*x = GetDiscoveryConfigRequest{}
-	mi := &file_teleport_discoveryconfig_v1_discoveryconfig_service_proto_msgTypes[2]
+	mi := &file_teleport_discoveryconfig_v1_discoveryconfig_service_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -224,7 +293,7 @@ func (x *GetDiscoveryConfigRequest) String() string {
 func (*GetDiscoveryConfigRequest) ProtoMessage() {}
 
 func (x *GetDiscoveryConfigRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_discoveryconfig_v1_discoveryconfig_service_proto_msgTypes[2]
+	mi := &file_teleport_discoveryconfig_v1_discoveryconfig_service_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -271,7 +340,7 @@ type CreateDiscoveryConfigRequest struct {
 
 func (x *CreateDiscoveryConfigRequest) Reset() {
 	*x = CreateDiscoveryConfigRequest{}
-	mi := &file_teleport_discoveryconfig_v1_discoveryconfig_service_proto_msgTypes[3]
+	mi := &file_teleport_discoveryconfig_v1_discoveryconfig_service_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -283,7 +352,7 @@ func (x *CreateDiscoveryConfigRequest) String() string {
 func (*CreateDiscoveryConfigRequest) ProtoMessage() {}
 
 func (x *CreateDiscoveryConfigRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_discoveryconfig_v1_discoveryconfig_service_proto_msgTypes[3]
+	mi := &file_teleport_discoveryconfig_v1_discoveryconfig_service_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -341,7 +410,7 @@ type UpdateDiscoveryConfigRequest struct {
 
 func (x *UpdateDiscoveryConfigRequest) Reset() {
 	*x = UpdateDiscoveryConfigRequest{}
-	mi := &file_teleport_discoveryconfig_v1_discoveryconfig_service_proto_msgTypes[4]
+	mi := &file_teleport_discoveryconfig_v1_discoveryconfig_service_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -353,7 +422,7 @@ func (x *UpdateDiscoveryConfigRequest) String() string {
 func (*UpdateDiscoveryConfigRequest) ProtoMessage() {}
 
 func (x *UpdateDiscoveryConfigRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_discoveryconfig_v1_discoveryconfig_service_proto_msgTypes[4]
+	mi := &file_teleport_discoveryconfig_v1_discoveryconfig_service_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -411,7 +480,7 @@ type UpsertDiscoveryConfigRequest struct {
 
 func (x *UpsertDiscoveryConfigRequest) Reset() {
 	*x = UpsertDiscoveryConfigRequest{}
-	mi := &file_teleport_discoveryconfig_v1_discoveryconfig_service_proto_msgTypes[5]
+	mi := &file_teleport_discoveryconfig_v1_discoveryconfig_service_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -423,7 +492,7 @@ func (x *UpsertDiscoveryConfigRequest) String() string {
 func (*UpsertDiscoveryConfigRequest) ProtoMessage() {}
 
 func (x *UpsertDiscoveryConfigRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_discoveryconfig_v1_discoveryconfig_service_proto_msgTypes[5]
+	mi := &file_teleport_discoveryconfig_v1_discoveryconfig_service_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -481,7 +550,7 @@ type DeleteDiscoveryConfigRequest struct {
 
 func (x *DeleteDiscoveryConfigRequest) Reset() {
 	*x = DeleteDiscoveryConfigRequest{}
-	mi := &file_teleport_discoveryconfig_v1_discoveryconfig_service_proto_msgTypes[6]
+	mi := &file_teleport_discoveryconfig_v1_discoveryconfig_service_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -493,7 +562,7 @@ func (x *DeleteDiscoveryConfigRequest) String() string {
 func (*DeleteDiscoveryConfigRequest) ProtoMessage() {}
 
 func (x *DeleteDiscoveryConfigRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_discoveryconfig_v1_discoveryconfig_service_proto_msgTypes[6]
+	mi := &file_teleport_discoveryconfig_v1_discoveryconfig_service_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -539,7 +608,7 @@ type DeleteAllDiscoveryConfigsRequest struct {
 
 func (x *DeleteAllDiscoveryConfigsRequest) Reset() {
 	*x = DeleteAllDiscoveryConfigsRequest{}
-	mi := &file_teleport_discoveryconfig_v1_discoveryconfig_service_proto_msgTypes[7]
+	mi := &file_teleport_discoveryconfig_v1_discoveryconfig_service_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -551,7 +620,7 @@ func (x *DeleteAllDiscoveryConfigsRequest) String() string {
 func (*DeleteAllDiscoveryConfigsRequest) ProtoMessage() {}
 
 func (x *DeleteAllDiscoveryConfigsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_discoveryconfig_v1_discoveryconfig_service_proto_msgTypes[7]
+	mi := &file_teleport_discoveryconfig_v1_discoveryconfig_service_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -586,7 +655,7 @@ type UpdateDiscoveryConfigStatusRequest struct {
 
 func (x *UpdateDiscoveryConfigStatusRequest) Reset() {
 	*x = UpdateDiscoveryConfigStatusRequest{}
-	mi := &file_teleport_discoveryconfig_v1_discoveryconfig_service_proto_msgTypes[8]
+	mi := &file_teleport_discoveryconfig_v1_discoveryconfig_service_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -598,7 +667,7 @@ func (x *UpdateDiscoveryConfigStatusRequest) String() string {
 func (*UpdateDiscoveryConfigStatusRequest) ProtoMessage() {}
 
 func (x *UpdateDiscoveryConfigStatusRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_discoveryconfig_v1_discoveryconfig_service_proto_msgTypes[8]
+	mi := &file_teleport_discoveryconfig_v1_discoveryconfig_service_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -668,7 +737,9 @@ const file_teleport_discoveryconfig_v1_discoveryconfig_service_proto_rawDesc = "
 	"\x1bListDiscoveryConfigsRequest\x12\x1b\n" +
 	"\tpage_size\x18\x01 \x01(\x05R\bpageSize\x12\x1d\n" +
 	"\n" +
-	"next_token\x18\x02 \x01(\tR\tnextToken\"\xb5\x01\n" +
+	"next_token\x18\x02 \x01(\tR\tnextToken\"\x82\x01\n" +
+	"%UpsertSyntheticDiscoveryConfigRequest\x12Y\n" +
+	"\tsynthetic\x18\x01 \x01(\v2;.teleport.discoveryconfig.v1.SyntheticDiscoveryConfigStatusR\tsynthetic\"\xb5\x01\n" +
 	"\x1cListDiscoveryConfigsResponse\x12Y\n" +
 	"\x11discovery_configs\x18\x01 \x03(\v2,.teleport.discoveryconfig.v1.DiscoveryConfigR\x10discoveryConfigs\x12\x19\n" +
 	"\bnext_key\x18\x02 \x01(\tR\anextKey\x12\x1f\n" +
@@ -687,9 +758,12 @@ const file_teleport_discoveryconfig_v1_discoveryconfig_service_proto_rawDesc = "
 	" DeleteAllDiscoveryConfigsRequest\"\x84\x01\n" +
 	"\"UpdateDiscoveryConfigStatusRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12J\n" +
-	"\x06status\x18\x02 \x01(\v22.teleport.discoveryconfig.v1.DiscoveryConfigStatusR\x06status2\x9a\b\n" +
+	"\x06status\x18\x02 \x01(\v22.teleport.discoveryconfig.v1.DiscoveryConfigStatusR\x06status2\xcc\v\n" +
 	"\x16DiscoveryConfigService\x12\x8b\x01\n" +
-	"\x14ListDiscoveryConfigs\x128.teleport.discoveryconfig.v1.ListDiscoveryConfigsRequest\x1a9.teleport.discoveryconfig.v1.ListDiscoveryConfigsResponse\x12z\n" +
+	"\x14ListDiscoveryConfigs\x128.teleport.discoveryconfig.v1.ListDiscoveryConfigsRequest\x1a9.teleport.discoveryconfig.v1.ListDiscoveryConfigsResponse\x12\x94\x01\n" +
+	"\x1dListSyntheticDiscoveryConfigs\x128.teleport.discoveryconfig.v1.ListDiscoveryConfigsRequest\x1a9.teleport.discoveryconfig.v1.ListDiscoveryConfigsResponse\x12\x83\x01\n" +
+	"\x1bGetSyntheticDiscoveryConfig\x126.teleport.discoveryconfig.v1.GetDiscoveryConfigRequest\x1a,.teleport.discoveryconfig.v1.DiscoveryConfig\x12\x92\x01\n" +
+	"\x1eUpsertSyntheticDiscoveryConfig\x12B.teleport.discoveryconfig.v1.UpsertSyntheticDiscoveryConfigRequest\x1a,.teleport.discoveryconfig.v1.DiscoveryConfig\x12z\n" +
 	"\x12GetDiscoveryConfig\x126.teleport.discoveryconfig.v1.GetDiscoveryConfigRequest\x1a,.teleport.discoveryconfig.v1.DiscoveryConfig\x12\x80\x01\n" +
 	"\x15CreateDiscoveryConfig\x129.teleport.discoveryconfig.v1.CreateDiscoveryConfigRequest\x1a,.teleport.discoveryconfig.v1.DiscoveryConfig\x12\x80\x01\n" +
 	"\x15UpdateDiscoveryConfig\x129.teleport.discoveryconfig.v1.UpdateDiscoveryConfigRequest\x1a,.teleport.discoveryconfig.v1.DiscoveryConfig\x12\x80\x01\n" +
@@ -698,48 +772,57 @@ const file_teleport_discoveryconfig_v1_discoveryconfig_service_proto_rawDesc = "
 	"\x19DeleteAllDiscoveryConfigs\x12=.teleport.discoveryconfig.v1.DeleteAllDiscoveryConfigsRequest\x1a\x16.google.protobuf.Empty\x12\x8c\x01\n" +
 	"\x1bUpdateDiscoveryConfigStatus\x12?.teleport.discoveryconfig.v1.UpdateDiscoveryConfigStatusRequest\x1a,.teleport.discoveryconfig.v1.DiscoveryConfigBbZ`github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1;discoveryconfigv1b\x06proto3"
 
-var file_teleport_discoveryconfig_v1_discoveryconfig_service_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
+var file_teleport_discoveryconfig_v1_discoveryconfig_service_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
 var file_teleport_discoveryconfig_v1_discoveryconfig_service_proto_goTypes = []any{
-	(*ListDiscoveryConfigsRequest)(nil),        // 0: teleport.discoveryconfig.v1.ListDiscoveryConfigsRequest
-	(*ListDiscoveryConfigsResponse)(nil),       // 1: teleport.discoveryconfig.v1.ListDiscoveryConfigsResponse
-	(*GetDiscoveryConfigRequest)(nil),          // 2: teleport.discoveryconfig.v1.GetDiscoveryConfigRequest
-	(*CreateDiscoveryConfigRequest)(nil),       // 3: teleport.discoveryconfig.v1.CreateDiscoveryConfigRequest
-	(*UpdateDiscoveryConfigRequest)(nil),       // 4: teleport.discoveryconfig.v1.UpdateDiscoveryConfigRequest
-	(*UpsertDiscoveryConfigRequest)(nil),       // 5: teleport.discoveryconfig.v1.UpsertDiscoveryConfigRequest
-	(*DeleteDiscoveryConfigRequest)(nil),       // 6: teleport.discoveryconfig.v1.DeleteDiscoveryConfigRequest
-	(*DeleteAllDiscoveryConfigsRequest)(nil),   // 7: teleport.discoveryconfig.v1.DeleteAllDiscoveryConfigsRequest
-	(*UpdateDiscoveryConfigStatusRequest)(nil), // 8: teleport.discoveryconfig.v1.UpdateDiscoveryConfigStatusRequest
-	(*DiscoveryConfig)(nil),                    // 9: teleport.discoveryconfig.v1.DiscoveryConfig
-	(*DiscoveryConfigStatus)(nil),              // 10: teleport.discoveryconfig.v1.DiscoveryConfigStatus
-	(*emptypb.Empty)(nil),                      // 11: google.protobuf.Empty
+	(*ListDiscoveryConfigsRequest)(nil),           // 0: teleport.discoveryconfig.v1.ListDiscoveryConfigsRequest
+	(*UpsertSyntheticDiscoveryConfigRequest)(nil), // 1: teleport.discoveryconfig.v1.UpsertSyntheticDiscoveryConfigRequest
+	(*ListDiscoveryConfigsResponse)(nil),          // 2: teleport.discoveryconfig.v1.ListDiscoveryConfigsResponse
+	(*GetDiscoveryConfigRequest)(nil),             // 3: teleport.discoveryconfig.v1.GetDiscoveryConfigRequest
+	(*CreateDiscoveryConfigRequest)(nil),          // 4: teleport.discoveryconfig.v1.CreateDiscoveryConfigRequest
+	(*UpdateDiscoveryConfigRequest)(nil),          // 5: teleport.discoveryconfig.v1.UpdateDiscoveryConfigRequest
+	(*UpsertDiscoveryConfigRequest)(nil),          // 6: teleport.discoveryconfig.v1.UpsertDiscoveryConfigRequest
+	(*DeleteDiscoveryConfigRequest)(nil),          // 7: teleport.discoveryconfig.v1.DeleteDiscoveryConfigRequest
+	(*DeleteAllDiscoveryConfigsRequest)(nil),      // 8: teleport.discoveryconfig.v1.DeleteAllDiscoveryConfigsRequest
+	(*UpdateDiscoveryConfigStatusRequest)(nil),    // 9: teleport.discoveryconfig.v1.UpdateDiscoveryConfigStatusRequest
+	(*SyntheticDiscoveryConfigStatus)(nil),        // 10: teleport.discoveryconfig.v1.SyntheticDiscoveryConfigStatus
+	(*DiscoveryConfig)(nil),                       // 11: teleport.discoveryconfig.v1.DiscoveryConfig
+	(*DiscoveryConfigStatus)(nil),                 // 12: teleport.discoveryconfig.v1.DiscoveryConfigStatus
+	(*emptypb.Empty)(nil),                         // 13: google.protobuf.Empty
 }
 var file_teleport_discoveryconfig_v1_discoveryconfig_service_proto_depIdxs = []int32{
-	9,  // 0: teleport.discoveryconfig.v1.ListDiscoveryConfigsResponse.discovery_configs:type_name -> teleport.discoveryconfig.v1.DiscoveryConfig
-	9,  // 1: teleport.discoveryconfig.v1.CreateDiscoveryConfigRequest.discovery_config:type_name -> teleport.discoveryconfig.v1.DiscoveryConfig
-	9,  // 2: teleport.discoveryconfig.v1.UpdateDiscoveryConfigRequest.discovery_config:type_name -> teleport.discoveryconfig.v1.DiscoveryConfig
-	9,  // 3: teleport.discoveryconfig.v1.UpsertDiscoveryConfigRequest.discovery_config:type_name -> teleport.discoveryconfig.v1.DiscoveryConfig
-	10, // 4: teleport.discoveryconfig.v1.UpdateDiscoveryConfigStatusRequest.status:type_name -> teleport.discoveryconfig.v1.DiscoveryConfigStatus
-	0,  // 5: teleport.discoveryconfig.v1.DiscoveryConfigService.ListDiscoveryConfigs:input_type -> teleport.discoveryconfig.v1.ListDiscoveryConfigsRequest
-	2,  // 6: teleport.discoveryconfig.v1.DiscoveryConfigService.GetDiscoveryConfig:input_type -> teleport.discoveryconfig.v1.GetDiscoveryConfigRequest
-	3,  // 7: teleport.discoveryconfig.v1.DiscoveryConfigService.CreateDiscoveryConfig:input_type -> teleport.discoveryconfig.v1.CreateDiscoveryConfigRequest
-	4,  // 8: teleport.discoveryconfig.v1.DiscoveryConfigService.UpdateDiscoveryConfig:input_type -> teleport.discoveryconfig.v1.UpdateDiscoveryConfigRequest
-	5,  // 9: teleport.discoveryconfig.v1.DiscoveryConfigService.UpsertDiscoveryConfig:input_type -> teleport.discoveryconfig.v1.UpsertDiscoveryConfigRequest
-	6,  // 10: teleport.discoveryconfig.v1.DiscoveryConfigService.DeleteDiscoveryConfig:input_type -> teleport.discoveryconfig.v1.DeleteDiscoveryConfigRequest
-	7,  // 11: teleport.discoveryconfig.v1.DiscoveryConfigService.DeleteAllDiscoveryConfigs:input_type -> teleport.discoveryconfig.v1.DeleteAllDiscoveryConfigsRequest
-	8,  // 12: teleport.discoveryconfig.v1.DiscoveryConfigService.UpdateDiscoveryConfigStatus:input_type -> teleport.discoveryconfig.v1.UpdateDiscoveryConfigStatusRequest
-	1,  // 13: teleport.discoveryconfig.v1.DiscoveryConfigService.ListDiscoveryConfigs:output_type -> teleport.discoveryconfig.v1.ListDiscoveryConfigsResponse
-	9,  // 14: teleport.discoveryconfig.v1.DiscoveryConfigService.GetDiscoveryConfig:output_type -> teleport.discoveryconfig.v1.DiscoveryConfig
-	9,  // 15: teleport.discoveryconfig.v1.DiscoveryConfigService.CreateDiscoveryConfig:output_type -> teleport.discoveryconfig.v1.DiscoveryConfig
-	9,  // 16: teleport.discoveryconfig.v1.DiscoveryConfigService.UpdateDiscoveryConfig:output_type -> teleport.discoveryconfig.v1.DiscoveryConfig
-	9,  // 17: teleport.discoveryconfig.v1.DiscoveryConfigService.UpsertDiscoveryConfig:output_type -> teleport.discoveryconfig.v1.DiscoveryConfig
-	11, // 18: teleport.discoveryconfig.v1.DiscoveryConfigService.DeleteDiscoveryConfig:output_type -> google.protobuf.Empty
-	11, // 19: teleport.discoveryconfig.v1.DiscoveryConfigService.DeleteAllDiscoveryConfigs:output_type -> google.protobuf.Empty
-	9,  // 20: teleport.discoveryconfig.v1.DiscoveryConfigService.UpdateDiscoveryConfigStatus:output_type -> teleport.discoveryconfig.v1.DiscoveryConfig
-	13, // [13:21] is the sub-list for method output_type
-	5,  // [5:13] is the sub-list for method input_type
-	5,  // [5:5] is the sub-list for extension type_name
-	5,  // [5:5] is the sub-list for extension extendee
-	0,  // [0:5] is the sub-list for field type_name
+	10, // 0: teleport.discoveryconfig.v1.UpsertSyntheticDiscoveryConfigRequest.synthetic:type_name -> teleport.discoveryconfig.v1.SyntheticDiscoveryConfigStatus
+	11, // 1: teleport.discoveryconfig.v1.ListDiscoveryConfigsResponse.discovery_configs:type_name -> teleport.discoveryconfig.v1.DiscoveryConfig
+	11, // 2: teleport.discoveryconfig.v1.CreateDiscoveryConfigRequest.discovery_config:type_name -> teleport.discoveryconfig.v1.DiscoveryConfig
+	11, // 3: teleport.discoveryconfig.v1.UpdateDiscoveryConfigRequest.discovery_config:type_name -> teleport.discoveryconfig.v1.DiscoveryConfig
+	11, // 4: teleport.discoveryconfig.v1.UpsertDiscoveryConfigRequest.discovery_config:type_name -> teleport.discoveryconfig.v1.DiscoveryConfig
+	12, // 5: teleport.discoveryconfig.v1.UpdateDiscoveryConfigStatusRequest.status:type_name -> teleport.discoveryconfig.v1.DiscoveryConfigStatus
+	0,  // 6: teleport.discoveryconfig.v1.DiscoveryConfigService.ListDiscoveryConfigs:input_type -> teleport.discoveryconfig.v1.ListDiscoveryConfigsRequest
+	0,  // 7: teleport.discoveryconfig.v1.DiscoveryConfigService.ListSyntheticDiscoveryConfigs:input_type -> teleport.discoveryconfig.v1.ListDiscoveryConfigsRequest
+	3,  // 8: teleport.discoveryconfig.v1.DiscoveryConfigService.GetSyntheticDiscoveryConfig:input_type -> teleport.discoveryconfig.v1.GetDiscoveryConfigRequest
+	1,  // 9: teleport.discoveryconfig.v1.DiscoveryConfigService.UpsertSyntheticDiscoveryConfig:input_type -> teleport.discoveryconfig.v1.UpsertSyntheticDiscoveryConfigRequest
+	3,  // 10: teleport.discoveryconfig.v1.DiscoveryConfigService.GetDiscoveryConfig:input_type -> teleport.discoveryconfig.v1.GetDiscoveryConfigRequest
+	4,  // 11: teleport.discoveryconfig.v1.DiscoveryConfigService.CreateDiscoveryConfig:input_type -> teleport.discoveryconfig.v1.CreateDiscoveryConfigRequest
+	5,  // 12: teleport.discoveryconfig.v1.DiscoveryConfigService.UpdateDiscoveryConfig:input_type -> teleport.discoveryconfig.v1.UpdateDiscoveryConfigRequest
+	6,  // 13: teleport.discoveryconfig.v1.DiscoveryConfigService.UpsertDiscoveryConfig:input_type -> teleport.discoveryconfig.v1.UpsertDiscoveryConfigRequest
+	7,  // 14: teleport.discoveryconfig.v1.DiscoveryConfigService.DeleteDiscoveryConfig:input_type -> teleport.discoveryconfig.v1.DeleteDiscoveryConfigRequest
+	8,  // 15: teleport.discoveryconfig.v1.DiscoveryConfigService.DeleteAllDiscoveryConfigs:input_type -> teleport.discoveryconfig.v1.DeleteAllDiscoveryConfigsRequest
+	9,  // 16: teleport.discoveryconfig.v1.DiscoveryConfigService.UpdateDiscoveryConfigStatus:input_type -> teleport.discoveryconfig.v1.UpdateDiscoveryConfigStatusRequest
+	2,  // 17: teleport.discoveryconfig.v1.DiscoveryConfigService.ListDiscoveryConfigs:output_type -> teleport.discoveryconfig.v1.ListDiscoveryConfigsResponse
+	2,  // 18: teleport.discoveryconfig.v1.DiscoveryConfigService.ListSyntheticDiscoveryConfigs:output_type -> teleport.discoveryconfig.v1.ListDiscoveryConfigsResponse
+	11, // 19: teleport.discoveryconfig.v1.DiscoveryConfigService.GetSyntheticDiscoveryConfig:output_type -> teleport.discoveryconfig.v1.DiscoveryConfig
+	11, // 20: teleport.discoveryconfig.v1.DiscoveryConfigService.UpsertSyntheticDiscoveryConfig:output_type -> teleport.discoveryconfig.v1.DiscoveryConfig
+	11, // 21: teleport.discoveryconfig.v1.DiscoveryConfigService.GetDiscoveryConfig:output_type -> teleport.discoveryconfig.v1.DiscoveryConfig
+	11, // 22: teleport.discoveryconfig.v1.DiscoveryConfigService.CreateDiscoveryConfig:output_type -> teleport.discoveryconfig.v1.DiscoveryConfig
+	11, // 23: teleport.discoveryconfig.v1.DiscoveryConfigService.UpdateDiscoveryConfig:output_type -> teleport.discoveryconfig.v1.DiscoveryConfig
+	11, // 24: teleport.discoveryconfig.v1.DiscoveryConfigService.UpsertDiscoveryConfig:output_type -> teleport.discoveryconfig.v1.DiscoveryConfig
+	13, // 25: teleport.discoveryconfig.v1.DiscoveryConfigService.DeleteDiscoveryConfig:output_type -> google.protobuf.Empty
+	13, // 26: teleport.discoveryconfig.v1.DiscoveryConfigService.DeleteAllDiscoveryConfigs:output_type -> google.protobuf.Empty
+	11, // 27: teleport.discoveryconfig.v1.DiscoveryConfigService.UpdateDiscoveryConfigStatus:output_type -> teleport.discoveryconfig.v1.DiscoveryConfig
+	17, // [17:28] is the sub-list for method output_type
+	6,  // [6:17] is the sub-list for method input_type
+	6,  // [6:6] is the sub-list for extension type_name
+	6,  // [6:6] is the sub-list for extension extendee
+	0,  // [0:6] is the sub-list for field type_name
 }
 
 func init() { file_teleport_discoveryconfig_v1_discoveryconfig_service_proto_init() }
@@ -754,7 +837,7 @@ func file_teleport_discoveryconfig_v1_discoveryconfig_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_discoveryconfig_v1_discoveryconfig_service_proto_rawDesc), len(file_teleport_discoveryconfig_v1_discoveryconfig_service_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   9,
+			NumMessages:   10,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

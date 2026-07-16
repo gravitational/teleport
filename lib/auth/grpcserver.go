@@ -6460,12 +6460,13 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	usertaskv1pb.RegisterUserTaskServiceServer(server, userTask)
 
 	discoveryConfig, err := discoveryconfigv1.NewService(discoveryconfigv1.ServiceConfig{
-		Authorizer:    cfg.Authorizer,
-		Backend:       cfg.AuthServer.Services,
-		Clock:         cfg.AuthServer.clock,
-		Emitter:       cfg.Emitter,
-		UsageReporter: cfg.AuthServer.UsageReporter,
-		Logger:        cfg.AuthServer.logger.With(teleport.ComponentKey, "discoveryconfig_crud_service"),
+		Authorizer:       cfg.Authorizer,
+		Backend:          cfg.AuthServer.Services,
+		SyntheticBackend: cfg.AuthServer.Services,
+		Clock:            cfg.AuthServer.clock,
+		Emitter:          cfg.Emitter,
+		UsageReporter:    cfg.AuthServer.UsageReporter,
+		Logger:           cfg.AuthServer.logger.With(teleport.ComponentKey, "discoveryconfig_crud_service"),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -389,7 +389,9 @@ type DiscoveryConfigStatus struct {
 	// IntegrationDiscoveredResources maps an integration to discovered resources summary.
 	IntegrationDiscoveredResources map[string]*IntegrationDiscoveredSummary `protobuf:"bytes,6,rep,name=integration_discovered_resources,json=integrationDiscoveredResources,proto3" json:"integration_discovered_resources,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	// ServerStatus contains the status from each Discovery Service that is watching this Discovery Config.
-	ServerStatus  map[string]*DiscoveryStatusServer `protobuf:"bytes,7,rep,name=server_status,json=serverStatus,proto3" json:"server_status,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	ServerStatus map[string]*DiscoveryStatusServer `protobuf:"bytes,7,rep,name=server_status,json=serverStatus,proto3" json:"server_status,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	// Synthetic contains the observed static configuration for a synthetic DiscoveryConfig.
+	Synthetic     *SyntheticDiscoveryConfigStatus `protobuf:"bytes,8,opt,name=synthetic,proto3" json:"synthetic,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -461,6 +463,13 @@ func (x *DiscoveryConfigStatus) GetServerStatus() map[string]*DiscoveryStatusSer
 	return nil
 }
 
+func (x *DiscoveryConfigStatus) GetSynthetic() *SyntheticDiscoveryConfigStatus {
+	if x != nil {
+		return x.Synthetic
+	}
+	return nil
+}
+
 func (x *DiscoveryConfigStatus) SetState(v DiscoveryConfigState) {
 	x.State = v
 }
@@ -485,6 +494,10 @@ func (x *DiscoveryConfigStatus) SetServerStatus(v map[string]*DiscoveryStatusSer
 	x.ServerStatus = v
 }
 
+func (x *DiscoveryConfigStatus) SetSynthetic(v *SyntheticDiscoveryConfigStatus) {
+	x.Synthetic = v
+}
+
 func (x *DiscoveryConfigStatus) HasErrorMessage() bool {
 	if x == nil {
 		return false
@@ -499,12 +512,23 @@ func (x *DiscoveryConfigStatus) HasLastSyncTime() bool {
 	return x.LastSyncTime != nil
 }
 
+func (x *DiscoveryConfigStatus) HasSynthetic() bool {
+	if x == nil {
+		return false
+	}
+	return x.Synthetic != nil
+}
+
 func (x *DiscoveryConfigStatus) ClearErrorMessage() {
 	x.ErrorMessage = nil
 }
 
 func (x *DiscoveryConfigStatus) ClearLastSyncTime() {
 	x.LastSyncTime = nil
+}
+
+func (x *DiscoveryConfigStatus) ClearSynthetic() {
+	x.Synthetic = nil
 }
 
 type DiscoveryConfigStatus_builder struct {
@@ -522,6 +546,8 @@ type DiscoveryConfigStatus_builder struct {
 	IntegrationDiscoveredResources map[string]*IntegrationDiscoveredSummary
 	// ServerStatus contains the status from each Discovery Service that is watching this Discovery Config.
 	ServerStatus map[string]*DiscoveryStatusServer
+	// Synthetic contains the observed static configuration for a synthetic DiscoveryConfig.
+	Synthetic *SyntheticDiscoveryConfigStatus
 }
 
 func (b0 DiscoveryConfigStatus_builder) Build() *DiscoveryConfigStatus {
@@ -534,6 +560,243 @@ func (b0 DiscoveryConfigStatus_builder) Build() *DiscoveryConfigStatus {
 	x.LastSyncTime = b.LastSyncTime
 	x.IntegrationDiscoveredResources = b.IntegrationDiscoveredResources
 	x.ServerStatus = b.ServerStatus
+	x.Synthetic = b.Synthetic
+	return m0
+}
+
+// SyntheticDiscoveryConfigStatus is the static matcher inventory observed by a Discovery Service.
+type SyntheticDiscoveryConfigStatus struct {
+	state             protoimpl.MessageState `protogen:"hybrid.v1"`
+	DiscoveryGroup    string                 `protobuf:"bytes,1,opt,name=discovery_group,json=discoveryGroup,proto3" json:"discovery_group,omitempty"`
+	Matchers          *DiscoveryConfigSpec   `protobuf:"bytes,2,opt,name=matchers,proto3" json:"matchers,omitempty"`
+	MatchersTruncated bool                   `protobuf:"varint,3,opt,name=matchers_truncated,json=matchersTruncated,proto3" json:"matchers_truncated,omitempty"`
+	MatcherCounts     *StaticMatcherCounts   `protobuf:"bytes,4,opt,name=matcher_counts,json=matcherCounts,proto3" json:"matcher_counts,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *SyntheticDiscoveryConfigStatus) Reset() {
+	*x = SyntheticDiscoveryConfigStatus{}
+	mi := &file_teleport_discoveryconfig_v1_discoveryconfig_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SyntheticDiscoveryConfigStatus) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SyntheticDiscoveryConfigStatus) ProtoMessage() {}
+
+func (x *SyntheticDiscoveryConfigStatus) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_discoveryconfig_v1_discoveryconfig_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *SyntheticDiscoveryConfigStatus) GetDiscoveryGroup() string {
+	if x != nil {
+		return x.DiscoveryGroup
+	}
+	return ""
+}
+
+func (x *SyntheticDiscoveryConfigStatus) GetMatchers() *DiscoveryConfigSpec {
+	if x != nil {
+		return x.Matchers
+	}
+	return nil
+}
+
+func (x *SyntheticDiscoveryConfigStatus) GetMatchersTruncated() bool {
+	if x != nil {
+		return x.MatchersTruncated
+	}
+	return false
+}
+
+func (x *SyntheticDiscoveryConfigStatus) GetMatcherCounts() *StaticMatcherCounts {
+	if x != nil {
+		return x.MatcherCounts
+	}
+	return nil
+}
+
+func (x *SyntheticDiscoveryConfigStatus) SetDiscoveryGroup(v string) {
+	x.DiscoveryGroup = v
+}
+
+func (x *SyntheticDiscoveryConfigStatus) SetMatchers(v *DiscoveryConfigSpec) {
+	x.Matchers = v
+}
+
+func (x *SyntheticDiscoveryConfigStatus) SetMatchersTruncated(v bool) {
+	x.MatchersTruncated = v
+}
+
+func (x *SyntheticDiscoveryConfigStatus) SetMatcherCounts(v *StaticMatcherCounts) {
+	x.MatcherCounts = v
+}
+
+func (x *SyntheticDiscoveryConfigStatus) HasMatchers() bool {
+	if x == nil {
+		return false
+	}
+	return x.Matchers != nil
+}
+
+func (x *SyntheticDiscoveryConfigStatus) HasMatcherCounts() bool {
+	if x == nil {
+		return false
+	}
+	return x.MatcherCounts != nil
+}
+
+func (x *SyntheticDiscoveryConfigStatus) ClearMatchers() {
+	x.Matchers = nil
+}
+
+func (x *SyntheticDiscoveryConfigStatus) ClearMatcherCounts() {
+	x.MatcherCounts = nil
+}
+
+type SyntheticDiscoveryConfigStatus_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	DiscoveryGroup    string
+	Matchers          *DiscoveryConfigSpec
+	MatchersTruncated bool
+	MatcherCounts     *StaticMatcherCounts
+}
+
+func (b0 SyntheticDiscoveryConfigStatus_builder) Build() *SyntheticDiscoveryConfigStatus {
+	m0 := &SyntheticDiscoveryConfigStatus{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.DiscoveryGroup = b.DiscoveryGroup
+	x.Matchers = b.Matchers
+	x.MatchersTruncated = b.MatchersTruncated
+	x.MatcherCounts = b.MatcherCounts
+	return m0
+}
+
+// StaticMatcherCounts contains matcher counts by family when matcher details are truncated.
+type StaticMatcherCounts struct {
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
+	Aws           uint32                 `protobuf:"varint,1,opt,name=aws,proto3" json:"aws,omitempty"`
+	Azure         uint32                 `protobuf:"varint,2,opt,name=azure,proto3" json:"azure,omitempty"`
+	Gcp           uint32                 `protobuf:"varint,3,opt,name=gcp,proto3" json:"gcp,omitempty"`
+	Kube          uint32                 `protobuf:"varint,4,opt,name=kube,proto3" json:"kube,omitempty"`
+	AccessGraph   uint32                 `protobuf:"varint,5,opt,name=access_graph,json=accessGraph,proto3" json:"access_graph,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *StaticMatcherCounts) Reset() {
+	*x = StaticMatcherCounts{}
+	mi := &file_teleport_discoveryconfig_v1_discoveryconfig_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StaticMatcherCounts) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StaticMatcherCounts) ProtoMessage() {}
+
+func (x *StaticMatcherCounts) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_discoveryconfig_v1_discoveryconfig_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *StaticMatcherCounts) GetAws() uint32 {
+	if x != nil {
+		return x.Aws
+	}
+	return 0
+}
+
+func (x *StaticMatcherCounts) GetAzure() uint32 {
+	if x != nil {
+		return x.Azure
+	}
+	return 0
+}
+
+func (x *StaticMatcherCounts) GetGcp() uint32 {
+	if x != nil {
+		return x.Gcp
+	}
+	return 0
+}
+
+func (x *StaticMatcherCounts) GetKube() uint32 {
+	if x != nil {
+		return x.Kube
+	}
+	return 0
+}
+
+func (x *StaticMatcherCounts) GetAccessGraph() uint32 {
+	if x != nil {
+		return x.AccessGraph
+	}
+	return 0
+}
+
+func (x *StaticMatcherCounts) SetAws(v uint32) {
+	x.Aws = v
+}
+
+func (x *StaticMatcherCounts) SetAzure(v uint32) {
+	x.Azure = v
+}
+
+func (x *StaticMatcherCounts) SetGcp(v uint32) {
+	x.Gcp = v
+}
+
+func (x *StaticMatcherCounts) SetKube(v uint32) {
+	x.Kube = v
+}
+
+func (x *StaticMatcherCounts) SetAccessGraph(v uint32) {
+	x.AccessGraph = v
+}
+
+type StaticMatcherCounts_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Aws         uint32
+	Azure       uint32
+	Gcp         uint32
+	Kube        uint32
+	AccessGraph uint32
+}
+
+func (b0 StaticMatcherCounts_builder) Build() *StaticMatcherCounts {
+	m0 := &StaticMatcherCounts{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Aws = b.Aws
+	x.Azure = b.Azure
+	x.Gcp = b.Gcp
+	x.Kube = b.Kube
+	x.AccessGraph = b.AccessGraph
 	return m0
 }
 
@@ -553,7 +816,7 @@ type DiscoveryStatusServer struct {
 
 func (x *DiscoveryStatusServer) Reset() {
 	*x = DiscoveryStatusServer{}
-	mi := &file_teleport_discoveryconfig_v1_discoveryconfig_proto_msgTypes[3]
+	mi := &file_teleport_discoveryconfig_v1_discoveryconfig_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -565,7 +828,7 @@ func (x *DiscoveryStatusServer) String() string {
 func (*DiscoveryStatusServer) ProtoMessage() {}
 
 func (x *DiscoveryStatusServer) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_discoveryconfig_v1_discoveryconfig_proto_msgTypes[3]
+	mi := &file_teleport_discoveryconfig_v1_discoveryconfig_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -670,7 +933,7 @@ type DiscoverSummary struct {
 
 func (x *DiscoverSummary) Reset() {
 	*x = DiscoverSummary{}
-	mi := &file_teleport_discoveryconfig_v1_discoveryconfig_proto_msgTypes[4]
+	mi := &file_teleport_discoveryconfig_v1_discoveryconfig_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -682,7 +945,7 @@ func (x *DiscoverSummary) String() string {
 func (*DiscoverSummary) ProtoMessage() {}
 
 func (x *DiscoverSummary) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_discoveryconfig_v1_discoveryconfig_proto_msgTypes[4]
+	mi := &file_teleport_discoveryconfig_v1_discoveryconfig_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -819,7 +1082,7 @@ type ResourceSummary struct {
 
 func (x *ResourceSummary) Reset() {
 	*x = ResourceSummary{}
-	mi := &file_teleport_discoveryconfig_v1_discoveryconfig_proto_msgTypes[5]
+	mi := &file_teleport_discoveryconfig_v1_discoveryconfig_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -831,7 +1094,7 @@ func (x *ResourceSummary) String() string {
 func (*ResourceSummary) ProtoMessage() {}
 
 func (x *ResourceSummary) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_discoveryconfig_v1_discoveryconfig_proto_msgTypes[5]
+	mi := &file_teleport_discoveryconfig_v1_discoveryconfig_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -922,7 +1185,7 @@ type IntegrationDiscoveredSummary struct {
 
 func (x *IntegrationDiscoveredSummary) Reset() {
 	*x = IntegrationDiscoveredSummary{}
-	mi := &file_teleport_discoveryconfig_v1_discoveryconfig_proto_msgTypes[6]
+	mi := &file_teleport_discoveryconfig_v1_discoveryconfig_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -934,7 +1197,7 @@ func (x *IntegrationDiscoveredSummary) String() string {
 func (*IntegrationDiscoveredSummary) ProtoMessage() {}
 
 func (x *IntegrationDiscoveredSummary) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_discoveryconfig_v1_discoveryconfig_proto_msgTypes[6]
+	mi := &file_teleport_discoveryconfig_v1_discoveryconfig_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1077,7 +1340,7 @@ type ResourcesDiscoveredSummary struct {
 
 func (x *ResourcesDiscoveredSummary) Reset() {
 	*x = ResourcesDiscoveredSummary{}
-	mi := &file_teleport_discoveryconfig_v1_discoveryconfig_proto_msgTypes[7]
+	mi := &file_teleport_discoveryconfig_v1_discoveryconfig_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1089,7 +1352,7 @@ func (x *ResourcesDiscoveredSummary) String() string {
 func (*ResourcesDiscoveredSummary) ProtoMessage() {}
 
 func (x *ResourcesDiscoveredSummary) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_discoveryconfig_v1_discoveryconfig_proto_msgTypes[7]
+	mi := &file_teleport_discoveryconfig_v1_discoveryconfig_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1220,21 +1483,33 @@ const file_teleport_discoveryconfig_v1_discoveryconfig_proto_rawDesc = "" +
 	"\x05azure\x18\x03 \x03(\v2\x13.types.AzureMatcherR\x05azure\x12#\n" +
 	"\x03gcp\x18\x04 \x03(\v2\x11.types.GCPMatcherR\x03gcp\x12,\n" +
 	"\x04kube\x18\x05 \x03(\v2\x18.types.KubernetesMatcherR\x04kube\x129\n" +
-	"\faccess_graph\x18\x06 \x01(\v2\x16.types.AccessGraphSyncR\vaccessGraph\"\xc7\x06\n" +
+	"\faccess_graph\x18\x06 \x01(\v2\x16.types.AccessGraphSyncR\vaccessGraph\"\xa2\a\n" +
 	"\x15DiscoveryConfigStatus\x12G\n" +
 	"\x05state\x18\x01 \x01(\x0e21.teleport.discoveryconfig.v1.DiscoveryConfigStateR\x05state\x12(\n" +
 	"\rerror_message\x18\x02 \x01(\tH\x00R\ferrorMessage\x88\x01\x01\x121\n" +
 	"\x14discovered_resources\x18\x03 \x01(\x04R\x13discoveredResources\x12@\n" +
 	"\x0elast_sync_time\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\flastSyncTime\x12\xa0\x01\n" +
 	" integration_discovered_resources\x18\x06 \x03(\v2V.teleport.discoveryconfig.v1.DiscoveryConfigStatus.IntegrationDiscoveredResourcesEntryR\x1eintegrationDiscoveredResources\x12i\n" +
-	"\rserver_status\x18\a \x03(\v2D.teleport.discoveryconfig.v1.DiscoveryConfigStatus.ServerStatusEntryR\fserverStatus\x1a\x8c\x01\n" +
+	"\rserver_status\x18\a \x03(\v2D.teleport.discoveryconfig.v1.DiscoveryConfigStatus.ServerStatusEntryR\fserverStatus\x12Y\n" +
+	"\tsynthetic\x18\b \x01(\v2;.teleport.discoveryconfig.v1.SyntheticDiscoveryConfigStatusR\tsynthetic\x1a\x8c\x01\n" +
 	"#IntegrationDiscoveredResourcesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12O\n" +
 	"\x05value\x18\x02 \x01(\v29.teleport.discoveryconfig.v1.IntegrationDiscoveredSummaryR\x05value:\x028\x01\x1as\n" +
 	"\x11ServerStatusEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12H\n" +
 	"\x05value\x18\x02 \x01(\v22.teleport.discoveryconfig.v1.DiscoveryStatusServerR\x05value:\x028\x01B\x10\n" +
-	"\x0e_error_messageJ\x04\b\x05\x10\x06R\x1caws_ec2_instances_discovered\"\x8f\x03\n" +
+	"\x0e_error_messageJ\x04\b\x05\x10\x06R\x1caws_ec2_instances_discovered\"\x9f\x02\n" +
+	"\x1eSyntheticDiscoveryConfigStatus\x12'\n" +
+	"\x0fdiscovery_group\x18\x01 \x01(\tR\x0ediscoveryGroup\x12L\n" +
+	"\bmatchers\x18\x02 \x01(\v20.teleport.discoveryconfig.v1.DiscoveryConfigSpecR\bmatchers\x12-\n" +
+	"\x12matchers_truncated\x18\x03 \x01(\bR\x11matchersTruncated\x12W\n" +
+	"\x0ematcher_counts\x18\x04 \x01(\v20.teleport.discoveryconfig.v1.StaticMatcherCountsR\rmatcherCounts\"\x86\x01\n" +
+	"\x13StaticMatcherCounts\x12\x10\n" +
+	"\x03aws\x18\x01 \x01(\rR\x03aws\x12\x14\n" +
+	"\x05azure\x18\x02 \x01(\rR\x05azure\x12\x10\n" +
+	"\x03gcp\x18\x03 \x01(\rR\x03gcp\x12\x12\n" +
+	"\x04kube\x18\x04 \x01(\rR\x04kube\x12!\n" +
+	"\faccess_graph\x18\x05 \x01(\rR\vaccessGraph\"\x8f\x03\n" +
 	"\x15DiscoveryStatusServer\x12;\n" +
 	"\vlast_update\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
 	"lastUpdate\x12>\n" +
@@ -1270,65 +1545,70 @@ const file_teleport_discoveryconfig_v1_discoveryconfig_proto_rawDesc = "" +
 	"\x1eDISCOVERY_CONFIG_STATE_SYNCING\x10\x03BbZ`github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1;discoveryconfigv1b\x06proto3"
 
 var file_teleport_discoveryconfig_v1_discoveryconfig_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_teleport_discoveryconfig_v1_discoveryconfig_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
+var file_teleport_discoveryconfig_v1_discoveryconfig_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
 var file_teleport_discoveryconfig_v1_discoveryconfig_proto_goTypes = []any{
-	(DiscoveryConfigState)(0),            // 0: teleport.discoveryconfig.v1.DiscoveryConfigState
-	(*DiscoveryConfig)(nil),              // 1: teleport.discoveryconfig.v1.DiscoveryConfig
-	(*DiscoveryConfigSpec)(nil),          // 2: teleport.discoveryconfig.v1.DiscoveryConfigSpec
-	(*DiscoveryConfigStatus)(nil),        // 3: teleport.discoveryconfig.v1.DiscoveryConfigStatus
-	(*DiscoveryStatusServer)(nil),        // 4: teleport.discoveryconfig.v1.DiscoveryStatusServer
-	(*DiscoverSummary)(nil),              // 5: teleport.discoveryconfig.v1.DiscoverSummary
-	(*ResourceSummary)(nil),              // 6: teleport.discoveryconfig.v1.ResourceSummary
-	(*IntegrationDiscoveredSummary)(nil), // 7: teleport.discoveryconfig.v1.IntegrationDiscoveredSummary
-	(*ResourcesDiscoveredSummary)(nil),   // 8: teleport.discoveryconfig.v1.ResourcesDiscoveredSummary
-	nil,                                  // 9: teleport.discoveryconfig.v1.DiscoveryConfigStatus.IntegrationDiscoveredResourcesEntry
-	nil,                                  // 10: teleport.discoveryconfig.v1.DiscoveryConfigStatus.ServerStatusEntry
-	nil,                                  // 11: teleport.discoveryconfig.v1.DiscoveryStatusServer.IntegrationSummariesEntry
-	(*v1.ResourceHeader)(nil),            // 12: teleport.header.v1.ResourceHeader
-	(*types.AWSMatcher)(nil),             // 13: types.AWSMatcher
-	(*types.AzureMatcher)(nil),           // 14: types.AzureMatcher
-	(*types.GCPMatcher)(nil),             // 15: types.GCPMatcher
-	(*types.KubernetesMatcher)(nil),      // 16: types.KubernetesMatcher
-	(*types.AccessGraphSync)(nil),        // 17: types.AccessGraphSync
-	(*timestamppb.Timestamp)(nil),        // 18: google.protobuf.Timestamp
-	(*durationpb.Duration)(nil),          // 19: google.protobuf.Duration
+	(DiscoveryConfigState)(0),              // 0: teleport.discoveryconfig.v1.DiscoveryConfigState
+	(*DiscoveryConfig)(nil),                // 1: teleport.discoveryconfig.v1.DiscoveryConfig
+	(*DiscoveryConfigSpec)(nil),            // 2: teleport.discoveryconfig.v1.DiscoveryConfigSpec
+	(*DiscoveryConfigStatus)(nil),          // 3: teleport.discoveryconfig.v1.DiscoveryConfigStatus
+	(*SyntheticDiscoveryConfigStatus)(nil), // 4: teleport.discoveryconfig.v1.SyntheticDiscoveryConfigStatus
+	(*StaticMatcherCounts)(nil),            // 5: teleport.discoveryconfig.v1.StaticMatcherCounts
+	(*DiscoveryStatusServer)(nil),          // 6: teleport.discoveryconfig.v1.DiscoveryStatusServer
+	(*DiscoverSummary)(nil),                // 7: teleport.discoveryconfig.v1.DiscoverSummary
+	(*ResourceSummary)(nil),                // 8: teleport.discoveryconfig.v1.ResourceSummary
+	(*IntegrationDiscoveredSummary)(nil),   // 9: teleport.discoveryconfig.v1.IntegrationDiscoveredSummary
+	(*ResourcesDiscoveredSummary)(nil),     // 10: teleport.discoveryconfig.v1.ResourcesDiscoveredSummary
+	nil,                                    // 11: teleport.discoveryconfig.v1.DiscoveryConfigStatus.IntegrationDiscoveredResourcesEntry
+	nil,                                    // 12: teleport.discoveryconfig.v1.DiscoveryConfigStatus.ServerStatusEntry
+	nil,                                    // 13: teleport.discoveryconfig.v1.DiscoveryStatusServer.IntegrationSummariesEntry
+	(*v1.ResourceHeader)(nil),              // 14: teleport.header.v1.ResourceHeader
+	(*types.AWSMatcher)(nil),               // 15: types.AWSMatcher
+	(*types.AzureMatcher)(nil),             // 16: types.AzureMatcher
+	(*types.GCPMatcher)(nil),               // 17: types.GCPMatcher
+	(*types.KubernetesMatcher)(nil),        // 18: types.KubernetesMatcher
+	(*types.AccessGraphSync)(nil),          // 19: types.AccessGraphSync
+	(*timestamppb.Timestamp)(nil),          // 20: google.protobuf.Timestamp
+	(*durationpb.Duration)(nil),            // 21: google.protobuf.Duration
 }
 var file_teleport_discoveryconfig_v1_discoveryconfig_proto_depIdxs = []int32{
-	12, // 0: teleport.discoveryconfig.v1.DiscoveryConfig.header:type_name -> teleport.header.v1.ResourceHeader
+	14, // 0: teleport.discoveryconfig.v1.DiscoveryConfig.header:type_name -> teleport.header.v1.ResourceHeader
 	2,  // 1: teleport.discoveryconfig.v1.DiscoveryConfig.spec:type_name -> teleport.discoveryconfig.v1.DiscoveryConfigSpec
 	3,  // 2: teleport.discoveryconfig.v1.DiscoveryConfig.status:type_name -> teleport.discoveryconfig.v1.DiscoveryConfigStatus
-	13, // 3: teleport.discoveryconfig.v1.DiscoveryConfigSpec.aws:type_name -> types.AWSMatcher
-	14, // 4: teleport.discoveryconfig.v1.DiscoveryConfigSpec.azure:type_name -> types.AzureMatcher
-	15, // 5: teleport.discoveryconfig.v1.DiscoveryConfigSpec.gcp:type_name -> types.GCPMatcher
-	16, // 6: teleport.discoveryconfig.v1.DiscoveryConfigSpec.kube:type_name -> types.KubernetesMatcher
-	17, // 7: teleport.discoveryconfig.v1.DiscoveryConfigSpec.access_graph:type_name -> types.AccessGraphSync
+	15, // 3: teleport.discoveryconfig.v1.DiscoveryConfigSpec.aws:type_name -> types.AWSMatcher
+	16, // 4: teleport.discoveryconfig.v1.DiscoveryConfigSpec.azure:type_name -> types.AzureMatcher
+	17, // 5: teleport.discoveryconfig.v1.DiscoveryConfigSpec.gcp:type_name -> types.GCPMatcher
+	18, // 6: teleport.discoveryconfig.v1.DiscoveryConfigSpec.kube:type_name -> types.KubernetesMatcher
+	19, // 7: teleport.discoveryconfig.v1.DiscoveryConfigSpec.access_graph:type_name -> types.AccessGraphSync
 	0,  // 8: teleport.discoveryconfig.v1.DiscoveryConfigStatus.state:type_name -> teleport.discoveryconfig.v1.DiscoveryConfigState
-	18, // 9: teleport.discoveryconfig.v1.DiscoveryConfigStatus.last_sync_time:type_name -> google.protobuf.Timestamp
-	9,  // 10: teleport.discoveryconfig.v1.DiscoveryConfigStatus.integration_discovered_resources:type_name -> teleport.discoveryconfig.v1.DiscoveryConfigStatus.IntegrationDiscoveredResourcesEntry
-	10, // 11: teleport.discoveryconfig.v1.DiscoveryConfigStatus.server_status:type_name -> teleport.discoveryconfig.v1.DiscoveryConfigStatus.ServerStatusEntry
-	18, // 12: teleport.discoveryconfig.v1.DiscoveryStatusServer.last_update:type_name -> google.protobuf.Timestamp
-	19, // 13: teleport.discoveryconfig.v1.DiscoveryStatusServer.poll_interval:type_name -> google.protobuf.Duration
-	11, // 14: teleport.discoveryconfig.v1.DiscoveryStatusServer.integration_summaries:type_name -> teleport.discoveryconfig.v1.DiscoveryStatusServer.IntegrationSummariesEntry
-	6,  // 15: teleport.discoveryconfig.v1.DiscoverSummary.aws_ec2:type_name -> teleport.discoveryconfig.v1.ResourceSummary
-	6,  // 16: teleport.discoveryconfig.v1.DiscoverSummary.aws_rds:type_name -> teleport.discoveryconfig.v1.ResourceSummary
-	6,  // 17: teleport.discoveryconfig.v1.DiscoverSummary.aws_eks:type_name -> teleport.discoveryconfig.v1.ResourceSummary
-	6,  // 18: teleport.discoveryconfig.v1.DiscoverSummary.azure_vms:type_name -> teleport.discoveryconfig.v1.ResourceSummary
-	8,  // 19: teleport.discoveryconfig.v1.ResourceSummary.current:type_name -> teleport.discoveryconfig.v1.ResourcesDiscoveredSummary
-	8,  // 20: teleport.discoveryconfig.v1.ResourceSummary.previous:type_name -> teleport.discoveryconfig.v1.ResourcesDiscoveredSummary
-	8,  // 21: teleport.discoveryconfig.v1.IntegrationDiscoveredSummary.aws_ec2:type_name -> teleport.discoveryconfig.v1.ResourcesDiscoveredSummary
-	8,  // 22: teleport.discoveryconfig.v1.IntegrationDiscoveredSummary.aws_rds:type_name -> teleport.discoveryconfig.v1.ResourcesDiscoveredSummary
-	8,  // 23: teleport.discoveryconfig.v1.IntegrationDiscoveredSummary.aws_eks:type_name -> teleport.discoveryconfig.v1.ResourcesDiscoveredSummary
-	8,  // 24: teleport.discoveryconfig.v1.IntegrationDiscoveredSummary.azure_vms:type_name -> teleport.discoveryconfig.v1.ResourcesDiscoveredSummary
-	18, // 25: teleport.discoveryconfig.v1.ResourcesDiscoveredSummary.sync_start:type_name -> google.protobuf.Timestamp
-	18, // 26: teleport.discoveryconfig.v1.ResourcesDiscoveredSummary.sync_end:type_name -> google.protobuf.Timestamp
-	7,  // 27: teleport.discoveryconfig.v1.DiscoveryConfigStatus.IntegrationDiscoveredResourcesEntry.value:type_name -> teleport.discoveryconfig.v1.IntegrationDiscoveredSummary
-	4,  // 28: teleport.discoveryconfig.v1.DiscoveryConfigStatus.ServerStatusEntry.value:type_name -> teleport.discoveryconfig.v1.DiscoveryStatusServer
-	5,  // 29: teleport.discoveryconfig.v1.DiscoveryStatusServer.IntegrationSummariesEntry.value:type_name -> teleport.discoveryconfig.v1.DiscoverSummary
-	30, // [30:30] is the sub-list for method output_type
-	30, // [30:30] is the sub-list for method input_type
-	30, // [30:30] is the sub-list for extension type_name
-	30, // [30:30] is the sub-list for extension extendee
-	0,  // [0:30] is the sub-list for field type_name
+	20, // 9: teleport.discoveryconfig.v1.DiscoveryConfigStatus.last_sync_time:type_name -> google.protobuf.Timestamp
+	11, // 10: teleport.discoveryconfig.v1.DiscoveryConfigStatus.integration_discovered_resources:type_name -> teleport.discoveryconfig.v1.DiscoveryConfigStatus.IntegrationDiscoveredResourcesEntry
+	12, // 11: teleport.discoveryconfig.v1.DiscoveryConfigStatus.server_status:type_name -> teleport.discoveryconfig.v1.DiscoveryConfigStatus.ServerStatusEntry
+	4,  // 12: teleport.discoveryconfig.v1.DiscoveryConfigStatus.synthetic:type_name -> teleport.discoveryconfig.v1.SyntheticDiscoveryConfigStatus
+	2,  // 13: teleport.discoveryconfig.v1.SyntheticDiscoveryConfigStatus.matchers:type_name -> teleport.discoveryconfig.v1.DiscoveryConfigSpec
+	5,  // 14: teleport.discoveryconfig.v1.SyntheticDiscoveryConfigStatus.matcher_counts:type_name -> teleport.discoveryconfig.v1.StaticMatcherCounts
+	20, // 15: teleport.discoveryconfig.v1.DiscoveryStatusServer.last_update:type_name -> google.protobuf.Timestamp
+	21, // 16: teleport.discoveryconfig.v1.DiscoveryStatusServer.poll_interval:type_name -> google.protobuf.Duration
+	13, // 17: teleport.discoveryconfig.v1.DiscoveryStatusServer.integration_summaries:type_name -> teleport.discoveryconfig.v1.DiscoveryStatusServer.IntegrationSummariesEntry
+	8,  // 18: teleport.discoveryconfig.v1.DiscoverSummary.aws_ec2:type_name -> teleport.discoveryconfig.v1.ResourceSummary
+	8,  // 19: teleport.discoveryconfig.v1.DiscoverSummary.aws_rds:type_name -> teleport.discoveryconfig.v1.ResourceSummary
+	8,  // 20: teleport.discoveryconfig.v1.DiscoverSummary.aws_eks:type_name -> teleport.discoveryconfig.v1.ResourceSummary
+	8,  // 21: teleport.discoveryconfig.v1.DiscoverSummary.azure_vms:type_name -> teleport.discoveryconfig.v1.ResourceSummary
+	10, // 22: teleport.discoveryconfig.v1.ResourceSummary.current:type_name -> teleport.discoveryconfig.v1.ResourcesDiscoveredSummary
+	10, // 23: teleport.discoveryconfig.v1.ResourceSummary.previous:type_name -> teleport.discoveryconfig.v1.ResourcesDiscoveredSummary
+	10, // 24: teleport.discoveryconfig.v1.IntegrationDiscoveredSummary.aws_ec2:type_name -> teleport.discoveryconfig.v1.ResourcesDiscoveredSummary
+	10, // 25: teleport.discoveryconfig.v1.IntegrationDiscoveredSummary.aws_rds:type_name -> teleport.discoveryconfig.v1.ResourcesDiscoveredSummary
+	10, // 26: teleport.discoveryconfig.v1.IntegrationDiscoveredSummary.aws_eks:type_name -> teleport.discoveryconfig.v1.ResourcesDiscoveredSummary
+	10, // 27: teleport.discoveryconfig.v1.IntegrationDiscoveredSummary.azure_vms:type_name -> teleport.discoveryconfig.v1.ResourcesDiscoveredSummary
+	20, // 28: teleport.discoveryconfig.v1.ResourcesDiscoveredSummary.sync_start:type_name -> google.protobuf.Timestamp
+	20, // 29: teleport.discoveryconfig.v1.ResourcesDiscoveredSummary.sync_end:type_name -> google.protobuf.Timestamp
+	9,  // 30: teleport.discoveryconfig.v1.DiscoveryConfigStatus.IntegrationDiscoveredResourcesEntry.value:type_name -> teleport.discoveryconfig.v1.IntegrationDiscoveredSummary
+	6,  // 31: teleport.discoveryconfig.v1.DiscoveryConfigStatus.ServerStatusEntry.value:type_name -> teleport.discoveryconfig.v1.DiscoveryStatusServer
+	7,  // 32: teleport.discoveryconfig.v1.DiscoveryStatusServer.IntegrationSummariesEntry.value:type_name -> teleport.discoveryconfig.v1.DiscoverSummary
+	33, // [33:33] is the sub-list for method output_type
+	33, // [33:33] is the sub-list for method input_type
+	33, // [33:33] is the sub-list for extension type_name
+	33, // [33:33] is the sub-list for extension extendee
+	0,  // [0:33] is the sub-list for field type_name
 }
 
 func init() { file_teleport_discoveryconfig_v1_discoveryconfig_proto_init() }
@@ -1343,7 +1623,7 @@ func file_teleport_discoveryconfig_v1_discoveryconfig_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_discoveryconfig_v1_discoveryconfig_proto_rawDesc), len(file_teleport_discoveryconfig_v1_discoveryconfig_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   11,
+			NumMessages:   13,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

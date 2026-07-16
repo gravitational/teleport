@@ -402,3 +402,33 @@ Helm charts must support the new property when setting up a `discovery_service`.
 The `editor` preset role will include read and write access to this new resource.
 
 The `discovery` system role (used by `discovery_service`) must be able to list and read `DiscoveryConfig` resources to be able to update the matchers of its service.
+
+### Synthetic publication namespace compatibility
+
+Discovery Services publish owner-managed inventory under names derived from
+their server IDs. Names of the form `synthetic-<canonical-UUID>` and the
+equivalent hashed form are reserved for that inventory.
+
+A regular `DiscoveryConfig` that used one of these names before the namespace
+was reserved remains readable, updatable, and deletable. Once deleted, it
+cannot be recreated under the reserved name and must be renamed to remain
+user-managed. Upsert therefore uses update-only semantics for these
+grandfathered resources and returns the reserved-name validation error if a
+concurrent deletion wins the race.
+
+After a grandfathered regular config is deleted, the RPC contract is:
+
+| RPC | Result for the now-unoccupied reserved name |
+| --- | --- |
+| Create | `BadParameter`, with guidance to choose another name |
+| Upsert | The same `BadParameter`, including when deletion races the update-only write |
+| Update | `NotFound`, preserving standard update semantics |
+| Delete | `NotFound`, preserving standard delete semantics |
+| Status update | `NotFound`, allowing Discovery Services to stop reporting for a removed config |
+
+This terminal deletion behavior is a policy choice rather than a backend
+atomicity limitation. A cross-key atomic write could prevent regular and
+synthetic records from being created simultaneously, but it would still allow
+an IaC reconciler and the synthetic publisher to repeatedly reclaim the same
+logical name. Making deletion final ensures the namespace converges to its
+reserved owner instead of permitting ownership to flip-flop.

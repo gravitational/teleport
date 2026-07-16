@@ -34,14 +34,17 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	DiscoveryConfigService_ListDiscoveryConfigs_FullMethodName        = "/teleport.discoveryconfig.v1.DiscoveryConfigService/ListDiscoveryConfigs"
-	DiscoveryConfigService_GetDiscoveryConfig_FullMethodName          = "/teleport.discoveryconfig.v1.DiscoveryConfigService/GetDiscoveryConfig"
-	DiscoveryConfigService_CreateDiscoveryConfig_FullMethodName       = "/teleport.discoveryconfig.v1.DiscoveryConfigService/CreateDiscoveryConfig"
-	DiscoveryConfigService_UpdateDiscoveryConfig_FullMethodName       = "/teleport.discoveryconfig.v1.DiscoveryConfigService/UpdateDiscoveryConfig"
-	DiscoveryConfigService_UpsertDiscoveryConfig_FullMethodName       = "/teleport.discoveryconfig.v1.DiscoveryConfigService/UpsertDiscoveryConfig"
-	DiscoveryConfigService_DeleteDiscoveryConfig_FullMethodName       = "/teleport.discoveryconfig.v1.DiscoveryConfigService/DeleteDiscoveryConfig"
-	DiscoveryConfigService_DeleteAllDiscoveryConfigs_FullMethodName   = "/teleport.discoveryconfig.v1.DiscoveryConfigService/DeleteAllDiscoveryConfigs"
-	DiscoveryConfigService_UpdateDiscoveryConfigStatus_FullMethodName = "/teleport.discoveryconfig.v1.DiscoveryConfigService/UpdateDiscoveryConfigStatus"
+	DiscoveryConfigService_ListDiscoveryConfigs_FullMethodName           = "/teleport.discoveryconfig.v1.DiscoveryConfigService/ListDiscoveryConfigs"
+	DiscoveryConfigService_ListSyntheticDiscoveryConfigs_FullMethodName  = "/teleport.discoveryconfig.v1.DiscoveryConfigService/ListSyntheticDiscoveryConfigs"
+	DiscoveryConfigService_GetSyntheticDiscoveryConfig_FullMethodName    = "/teleport.discoveryconfig.v1.DiscoveryConfigService/GetSyntheticDiscoveryConfig"
+	DiscoveryConfigService_UpsertSyntheticDiscoveryConfig_FullMethodName = "/teleport.discoveryconfig.v1.DiscoveryConfigService/UpsertSyntheticDiscoveryConfig"
+	DiscoveryConfigService_GetDiscoveryConfig_FullMethodName             = "/teleport.discoveryconfig.v1.DiscoveryConfigService/GetDiscoveryConfig"
+	DiscoveryConfigService_CreateDiscoveryConfig_FullMethodName          = "/teleport.discoveryconfig.v1.DiscoveryConfigService/CreateDiscoveryConfig"
+	DiscoveryConfigService_UpdateDiscoveryConfig_FullMethodName          = "/teleport.discoveryconfig.v1.DiscoveryConfigService/UpdateDiscoveryConfig"
+	DiscoveryConfigService_UpsertDiscoveryConfig_FullMethodName          = "/teleport.discoveryconfig.v1.DiscoveryConfigService/UpsertDiscoveryConfig"
+	DiscoveryConfigService_DeleteDiscoveryConfig_FullMethodName          = "/teleport.discoveryconfig.v1.DiscoveryConfigService/DeleteDiscoveryConfig"
+	DiscoveryConfigService_DeleteAllDiscoveryConfigs_FullMethodName      = "/teleport.discoveryconfig.v1.DiscoveryConfigService/DeleteAllDiscoveryConfigs"
+	DiscoveryConfigService_UpdateDiscoveryConfigStatus_FullMethodName    = "/teleport.discoveryconfig.v1.DiscoveryConfigService/UpdateDiscoveryConfigStatus"
 )
 
 // DiscoveryConfigServiceClient is the client API for DiscoveryConfigService service.
@@ -56,6 +59,16 @@ const (
 type DiscoveryConfigServiceClient interface {
 	// ListDiscoveryConfigs returns a paginated list of Discovery Config resources.
 	ListDiscoveryConfigs(ctx context.Context, in *ListDiscoveryConfigsRequest, opts ...grpc.CallOption) (*ListDiscoveryConfigsResponse, error)
+	// ListSyntheticDiscoveryConfigs returns synthetic Discovery Config resources.
+	ListSyntheticDiscoveryConfigs(ctx context.Context, in *ListDiscoveryConfigsRequest, opts ...grpc.CallOption) (*ListDiscoveryConfigsResponse, error)
+	// GetSyntheticDiscoveryConfig returns the specified synthetic Discovery
+	// Config resource. The legacy GetDiscoveryConfig RPC serves regular
+	// resources only, because clients released before synthetic resources
+	// existed cannot decode their empty spec; current clients combine the two
+	// RPCs for regular-first, synthetic-second named lookup.
+	GetSyntheticDiscoveryConfig(ctx context.Context, in *GetDiscoveryConfigRequest, opts ...grpc.CallOption) (*DiscoveryConfig, error)
+	// UpsertSyntheticDiscoveryConfig publishes the caller's observed static inventory.
+	UpsertSyntheticDiscoveryConfig(ctx context.Context, in *UpsertSyntheticDiscoveryConfigRequest, opts ...grpc.CallOption) (*DiscoveryConfig, error)
 	// GetDiscoveryConfig returns the specified DiscoveryConfig resource.
 	GetDiscoveryConfig(ctx context.Context, in *GetDiscoveryConfigRequest, opts ...grpc.CallOption) (*DiscoveryConfig, error)
 	// CreateDiscoveryConfig creates a new DiscoveryConfig resource.
@@ -84,6 +97,36 @@ func (c *discoveryConfigServiceClient) ListDiscoveryConfigs(ctx context.Context,
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListDiscoveryConfigsResponse)
 	err := c.cc.Invoke(ctx, DiscoveryConfigService_ListDiscoveryConfigs_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *discoveryConfigServiceClient) ListSyntheticDiscoveryConfigs(ctx context.Context, in *ListDiscoveryConfigsRequest, opts ...grpc.CallOption) (*ListDiscoveryConfigsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListDiscoveryConfigsResponse)
+	err := c.cc.Invoke(ctx, DiscoveryConfigService_ListSyntheticDiscoveryConfigs_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *discoveryConfigServiceClient) GetSyntheticDiscoveryConfig(ctx context.Context, in *GetDiscoveryConfigRequest, opts ...grpc.CallOption) (*DiscoveryConfig, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DiscoveryConfig)
+	err := c.cc.Invoke(ctx, DiscoveryConfigService_GetSyntheticDiscoveryConfig_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *discoveryConfigServiceClient) UpsertSyntheticDiscoveryConfig(ctx context.Context, in *UpsertSyntheticDiscoveryConfigRequest, opts ...grpc.CallOption) (*DiscoveryConfig, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DiscoveryConfig)
+	err := c.cc.Invoke(ctx, DiscoveryConfigService_UpsertSyntheticDiscoveryConfig_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -172,6 +215,16 @@ func (c *discoveryConfigServiceClient) UpdateDiscoveryConfigStatus(ctx context.C
 type DiscoveryConfigServiceServer interface {
 	// ListDiscoveryConfigs returns a paginated list of Discovery Config resources.
 	ListDiscoveryConfigs(context.Context, *ListDiscoveryConfigsRequest) (*ListDiscoveryConfigsResponse, error)
+	// ListSyntheticDiscoveryConfigs returns synthetic Discovery Config resources.
+	ListSyntheticDiscoveryConfigs(context.Context, *ListDiscoveryConfigsRequest) (*ListDiscoveryConfigsResponse, error)
+	// GetSyntheticDiscoveryConfig returns the specified synthetic Discovery
+	// Config resource. The legacy GetDiscoveryConfig RPC serves regular
+	// resources only, because clients released before synthetic resources
+	// existed cannot decode their empty spec; current clients combine the two
+	// RPCs for regular-first, synthetic-second named lookup.
+	GetSyntheticDiscoveryConfig(context.Context, *GetDiscoveryConfigRequest) (*DiscoveryConfig, error)
+	// UpsertSyntheticDiscoveryConfig publishes the caller's observed static inventory.
+	UpsertSyntheticDiscoveryConfig(context.Context, *UpsertSyntheticDiscoveryConfigRequest) (*DiscoveryConfig, error)
 	// GetDiscoveryConfig returns the specified DiscoveryConfig resource.
 	GetDiscoveryConfig(context.Context, *GetDiscoveryConfigRequest) (*DiscoveryConfig, error)
 	// CreateDiscoveryConfig creates a new DiscoveryConfig resource.
@@ -198,6 +251,15 @@ type UnimplementedDiscoveryConfigServiceServer struct{}
 
 func (UnimplementedDiscoveryConfigServiceServer) ListDiscoveryConfigs(context.Context, *ListDiscoveryConfigsRequest) (*ListDiscoveryConfigsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListDiscoveryConfigs not implemented")
+}
+func (UnimplementedDiscoveryConfigServiceServer) ListSyntheticDiscoveryConfigs(context.Context, *ListDiscoveryConfigsRequest) (*ListDiscoveryConfigsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListSyntheticDiscoveryConfigs not implemented")
+}
+func (UnimplementedDiscoveryConfigServiceServer) GetSyntheticDiscoveryConfig(context.Context, *GetDiscoveryConfigRequest) (*DiscoveryConfig, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetSyntheticDiscoveryConfig not implemented")
+}
+func (UnimplementedDiscoveryConfigServiceServer) UpsertSyntheticDiscoveryConfig(context.Context, *UpsertSyntheticDiscoveryConfigRequest) (*DiscoveryConfig, error) {
+	return nil, status.Error(codes.Unimplemented, "method UpsertSyntheticDiscoveryConfig not implemented")
 }
 func (UnimplementedDiscoveryConfigServiceServer) GetDiscoveryConfig(context.Context, *GetDiscoveryConfigRequest) (*DiscoveryConfig, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetDiscoveryConfig not implemented")
@@ -256,6 +318,60 @@ func _DiscoveryConfigService_ListDiscoveryConfigs_Handler(srv interface{}, ctx c
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(DiscoveryConfigServiceServer).ListDiscoveryConfigs(ctx, req.(*ListDiscoveryConfigsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _DiscoveryConfigService_ListSyntheticDiscoveryConfigs_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListDiscoveryConfigsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DiscoveryConfigServiceServer).ListSyntheticDiscoveryConfigs(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: DiscoveryConfigService_ListSyntheticDiscoveryConfigs_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DiscoveryConfigServiceServer).ListSyntheticDiscoveryConfigs(ctx, req.(*ListDiscoveryConfigsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _DiscoveryConfigService_GetSyntheticDiscoveryConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetDiscoveryConfigRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DiscoveryConfigServiceServer).GetSyntheticDiscoveryConfig(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: DiscoveryConfigService_GetSyntheticDiscoveryConfig_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DiscoveryConfigServiceServer).GetSyntheticDiscoveryConfig(ctx, req.(*GetDiscoveryConfigRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _DiscoveryConfigService_UpsertSyntheticDiscoveryConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpsertSyntheticDiscoveryConfigRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DiscoveryConfigServiceServer).UpsertSyntheticDiscoveryConfig(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: DiscoveryConfigService_UpsertSyntheticDiscoveryConfig_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DiscoveryConfigServiceServer).UpsertSyntheticDiscoveryConfig(ctx, req.(*UpsertSyntheticDiscoveryConfigRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -396,6 +512,18 @@ var DiscoveryConfigService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListDiscoveryConfigs",
 			Handler:    _DiscoveryConfigService_ListDiscoveryConfigs_Handler,
+		},
+		{
+			MethodName: "ListSyntheticDiscoveryConfigs",
+			Handler:    _DiscoveryConfigService_ListSyntheticDiscoveryConfigs_Handler,
+		},
+		{
+			MethodName: "GetSyntheticDiscoveryConfig",
+			Handler:    _DiscoveryConfigService_GetSyntheticDiscoveryConfig_Handler,
+		},
+		{
+			MethodName: "UpsertSyntheticDiscoveryConfig",
+			Handler:    _DiscoveryConfigService_UpsertSyntheticDiscoveryConfig_Handler,
 		},
 		{
 			MethodName: "GetDiscoveryConfig",

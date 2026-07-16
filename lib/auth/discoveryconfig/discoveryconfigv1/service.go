@@ -23,12 +23,15 @@ import (
 	"fmt"
 	"log/slog"
 	"maps"
+	"math"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/gravitational/teleport"
@@ -39,6 +42,7 @@ import (
 	conv "github.com/gravitational/teleport/api/types/discoveryconfig/convert/v1"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/aws"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	prehogv1a "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
@@ -55,8 +59,10 @@ type ServiceConfig struct {
 	// Authorizer is the authorizer to use.
 	Authorizer authz.Authorizer
 
-	// Backend is the backend for storing DiscoveryConfigs.
+	// Backend stores regular DiscoveryConfigs.
 	Backend services.DiscoveryConfigs
+	// SyntheticBackend is the isolated backend for synthetic DiscoveryConfigs.
+	SyntheticBackend services.SyntheticDiscoveryConfigs
 
 	// Clock is the clock.
 	Clock clockwork.Clock
@@ -77,6 +83,9 @@ func (s *ServiceConfig) CheckAndSetDefaults() error {
 	}
 	if s.Backend == nil {
 		return trace.BadParameter("backend is required")
+	}
+	if s.SyntheticBackend == nil {
+		return trace.BadParameter("synthetic backend is required")
 	}
 	if s.Emitter == nil {
 		return trace.BadParameter("emitter is required")
@@ -100,13 +109,16 @@ func (s *ServiceConfig) CheckAndSetDefaults() error {
 type Service struct {
 	discoveryconfigv1.UnimplementedDiscoveryConfigServiceServer
 
-	log           *slog.Logger
-	authorizer    authz.Authorizer
-	backend       services.DiscoveryConfigs
-	clock         clockwork.Clock
-	emitter       apievents.Emitter
-	usageReporter usagereporter.UsageReporter
+	log              *slog.Logger
+	authorizer       authz.Authorizer
+	backend          services.DiscoveryConfigs
+	syntheticBackend services.SyntheticDiscoveryConfigs
+	clock            clockwork.Clock
+	emitter          apievents.Emitter
+	usageReporter    usagereporter.UsageReporter
 }
+
+const discoveryConfigWriteAttempts = 4
 
 // NewService returns a new DiscoveryConfigs gRPC service.
 func NewService(cfg ServiceConfig) (*Service, error) {
@@ -115,12 +127,13 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 	}
 
 	return &Service{
-		log:           cfg.Logger,
-		authorizer:    cfg.Authorizer,
-		backend:       cfg.Backend,
-		clock:         cfg.Clock,
-		emitter:       cfg.Emitter,
-		usageReporter: cfg.UsageReporter,
+		log:              cfg.Logger,
+		authorizer:       cfg.Authorizer,
+		backend:          cfg.Backend,
+		syntheticBackend: cfg.SyntheticBackend,
+		clock:            cfg.Clock,
+		emitter:          cfg.Emitter,
+		usageReporter:    cfg.UsageReporter,
 	}, nil
 }
 
@@ -155,7 +168,34 @@ func (s *Service) ListDiscoveryConfigs(ctx context.Context, req *discoveryconfig
 	}.Build(), nil
 }
 
+// ListSyntheticDiscoveryConfigs explicitly lists owner-managed synthetic inventory.
+func (s *Service) ListSyntheticDiscoveryConfigs(ctx context.Context, req *discoveryconfigv1.ListDiscoveryConfigsRequest) (*discoveryconfigv1.ListDiscoveryConfigsResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := authCtx.CheckAccessToKind(types.KindDiscoveryConfig, types.VerbRead, types.VerbList); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	results, next, err := s.syntheticBackend.ListSyntheticDiscoveryConfigs(ctx, int(req.GetPageSize()), req.GetNextToken())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	out := make([]*discoveryconfigv1.DiscoveryConfig, len(results))
+	for i, dc := range results {
+		out[i] = conv.ToProto(dc)
+	}
+	return &discoveryconfigv1.ListDiscoveryConfigsResponse{DiscoveryConfigs: out, NextKey: next}, nil
+}
+
 // GetDiscoveryConfig returns the specified DiscoveryConfig resource.
+//
+// This legacy RPC intentionally serves regular resources only: clients
+// released before synthetic resources existed cannot decode a synthetic
+// resource's empty spec, so serving one here would turn a successful RPC into
+// a confusing client-side validation failure. Current API clients combine
+// this RPC with GetSyntheticDiscoveryConfig for regular-first, synthetic-second
+// named lookup.
 func (s *Service) GetDiscoveryConfig(ctx context.Context, req *discoveryconfigv1.GetDiscoveryConfigRequest) (*discoveryconfigv1.DiscoveryConfig, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
@@ -179,6 +219,27 @@ func (s *Service) GetDiscoveryConfig(ctx context.Context, req *discoveryconfigv1
 	return conv.ToProto(downgraded), nil
 }
 
+// GetSyntheticDiscoveryConfig returns owner-published synthetic inventory by
+// name. See GetDiscoveryConfig for why synthetic resources are not served
+// through the legacy RPC.
+func (s *Service) GetSyntheticDiscoveryConfig(ctx context.Context, req *discoveryconfigv1.GetDiscoveryConfigRequest) (*discoveryconfigv1.DiscoveryConfig, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(types.KindDiscoveryConfig, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	dc, err := s.syntheticBackend.GetSyntheticDiscoveryConfig(ctx, req.GetName())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return conv.ToProto(dc), nil
+}
+
 // CreateDiscoveryConfig creates a new DiscoveryConfig resource.
 func (s *Service) CreateDiscoveryConfig(ctx context.Context, req *discoveryconfigv1.CreateDiscoveryConfigRequest) (*discoveryconfigv1.DiscoveryConfig, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
@@ -190,7 +251,18 @@ func (s *Service) CreateDiscoveryConfig(ctx context.Context, req *discoveryconfi
 		return nil, trace.Wrap(err)
 	}
 
-	dc, err := conv.FromProto(req.GetDiscoveryConfig())
+	name := req.GetDiscoveryConfig().GetHeader().GetMetadata().GetName()
+	if err := s.checkReservedWrite(ctx, name, true); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// checkReservedWrite passes a reserved name only when a grandfathered
+	// regular config occupies it, so a create can never succeed; answer
+	// without racing the backend, where a concurrent deletion would let the
+	// create recreate a reserved name.
+	if discoveryconfig.IsReservedSyntheticName(name) {
+		return nil, trace.AlreadyExists("discovery config %q already exists", name)
+	}
+	dc, err := regularDiscoveryConfigFromProto(req.GetDiscoveryConfig())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -235,12 +307,16 @@ func (s *Service) UpdateDiscoveryConfig(ctx context.Context, req *discoveryconfi
 		return nil, trace.Wrap(err)
 	}
 
-	dc, err := conv.FromProto(req.GetDiscoveryConfig())
+	if err := s.checkReservedWrite(ctx, req.GetDiscoveryConfig().GetHeader().GetMetadata().GetName(), false); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	dc, err := regularDiscoveryConfigFromProto(req.GetDiscoveryConfig())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// Set the status to the existing status to ensure it is not cleared.
+	// Preserve the stored status. Synthetic resources are in a different key
+	// range, so regular updates retain their historical write behavior.
 	oldDiscoveryConfig, err := s.backend.GetDiscoveryConfig(ctx, dc.GetName())
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -283,7 +359,10 @@ func (s *Service) UpsertDiscoveryConfig(ctx context.Context, req *discoveryconfi
 		return nil, trace.Wrap(err)
 	}
 
-	dc, err := conv.FromProto(req.GetDiscoveryConfig())
+	if err := s.checkReservedWrite(ctx, req.GetDiscoveryConfig().GetHeader().GetMetadata().GetName(), true); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	dc, err := regularDiscoveryConfigFromProto(req.GetDiscoveryConfig())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -292,7 +371,7 @@ func (s *Service) UpsertDiscoveryConfig(ctx context.Context, req *discoveryconfi
 	// in the request.
 	dc.Status = discoveryconfig.Status{}
 
-	resp, err := s.backend.UpsertDiscoveryConfig(ctx, dc)
+	resp, err := s.upsertRegularDiscoveryConfig(ctx, dc)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -317,6 +396,84 @@ func (s *Service) UpsertDiscoveryConfig(ctx context.Context, req *discoveryconfi
 	return conv.ToProto(resp), nil
 }
 
+// UpsertSyntheticDiscoveryConfig publishes only the authenticated owner's
+// inventory. Periodic machine renewals intentionally emit neither generic
+// DiscoveryConfig CRUD audit events nor lifecycle usage events: like discovery
+// status updates, they report observed state rather than a user configuration
+// change.
+func (s *Service) UpsertSyntheticDiscoveryConfig(ctx context.Context, req *discoveryconfigv1.UpsertSyntheticDiscoveryConfigRequest) (*discoveryconfigv1.DiscoveryConfig, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	identity, ok := authCtx.Identity.(authz.BuiltinRole)
+	if !ok || !authz.HasBuiltinRole(*authCtx, string(types.RoleDiscovery)) || identity.GetServerID() == "" {
+		return nil, trace.AccessDenied("synthetic DiscoveryConfigs may only be published by their owning Discovery Service")
+	}
+	name := discoveryconfig.SyntheticName(identity.GetServerID())
+	if _, err := s.backend.GetDiscoveryConfig(ctx, name); err == nil {
+		return nil, trace.AlreadyExists("regular discovery config %q occupies the synthetic owner name", name)
+	} else if !trace.IsNotFound(err) {
+		return nil, trace.Wrap(err)
+	}
+	synthetic := conv.StatusFromProto(&discoveryconfigv1.DiscoveryConfigStatus{Synthetic: req.GetSynthetic()}).Synthetic
+	if synthetic == nil {
+		return nil, trace.BadParameter("synthetic inventory is required")
+	}
+	// The wire-size budget is API policy rather than a resource-construction
+	// invariant, so it stays here rather than in the constructor.
+	if !req.GetSynthetic().GetMatchersTruncated() && req.GetSynthetic().GetMatchers() != nil && proto.Size(req.GetSynthetic().GetMatchers()) > discoveryconfig.SyntheticMatcherDetailBudget {
+		return nil, trace.LimitExceeded("synthetic matcher detail exceeds maximum size of %d bytes", discoveryconfig.SyntheticMatcherDetailBudget)
+	}
+	dc, err := discoveryconfig.NewSyntheticDiscoveryConfig(identity.GetServerID(), *synthetic)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	for attempt := range discoveryConfigWriteAttempts {
+		if err := waitForDiscoveryConfigRetry(ctx, attempt); err != nil {
+			return nil, err
+		}
+		dc.SetExpiry(s.clock.Now().Add(discoveryconfig.SyntheticDiscoveryConfigTTL))
+		existing, err := s.syntheticBackend.GetSyntheticDiscoveryConfig(ctx, name)
+		if trace.IsNotFound(err) {
+			// A fresh publication must not carry status merged from a record
+			// observed by an earlier iteration and deleted since.
+			dc.Status = discoveryconfig.Status{Synthetic: dc.Status.Synthetic}
+			dc.SetRevision("")
+			if _, err := services.MarshalSyntheticDiscoveryConfig(dc); err != nil {
+				return nil, trace.Wrap(err)
+			}
+			created, err := s.syntheticBackend.CreateSyntheticDiscoveryConfig(ctx, dc)
+			if trace.IsAlreadyExists(err) {
+				continue
+			}
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return conv.ToProto(created), nil
+		}
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		inventory := dc.Status.Synthetic
+		dc.Status = existing.Status
+		dc.Status.Synthetic = inventory
+		dc.SetRevision(existing.GetRevision())
+		if _, err := services.MarshalSyntheticDiscoveryConfig(dc); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		updated, err := s.syntheticBackend.ConditionalUpdateSyntheticDiscoveryConfig(ctx, dc)
+		if trace.IsCompareFailed(err) {
+			continue
+		}
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return conv.ToProto(updated), nil
+	}
+	return nil, trace.LimitExceeded("synthetic discovery config write exceeded retry limit")
+}
+
 // DeleteDiscoveryConfig removes the specified DiscoveryConfig resource.
 func (s *Service) DeleteDiscoveryConfig(ctx context.Context, req *discoveryconfigv1.DeleteDiscoveryConfigRequest) (*emptypb.Empty, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
@@ -330,6 +487,13 @@ func (s *Service) DeleteDiscoveryConfig(ctx context.Context, req *discoveryconfi
 
 	// Fetch the DiscoveryConfig before deletion to capture metadata for the usage event.
 	dc, err := s.backend.GetDiscoveryConfig(ctx, req.GetName())
+	if trace.IsNotFound(err) {
+		if _, syntheticErr := s.syntheticBackend.GetSyntheticDiscoveryConfig(ctx, req.GetName()); syntheticErr == nil {
+			return nil, trace.AccessDenied("synthetic discovery config %q is owner-managed", req.GetName())
+		} else if !trace.IsNotFound(syntheticErr) {
+			return nil, trace.Wrap(syntheticErr)
+		}
+	}
 	if err != nil && !trace.IsNotFound(err) {
 		s.log.WarnContext(ctx, "Skipping DiscoveryConfig delete usage event due to GetDiscoveryConfig failure.",
 			"discovery_config_name", req.GetName(),
@@ -400,17 +564,55 @@ func (s *Service) UpdateDiscoveryConfigStatus(ctx context.Context, req *discover
 	if !authz.HasBuiltinRole(*authCtx, string(types.RoleDiscovery)) {
 		return nil, trace.AccessDenied("UpdateDiscoveryConfigStatus request can be only executed by a Discovery Service")
 	}
-
-	for {
+	for attempt := range discoveryConfigWriteAttempts {
+		if err := waitForDiscoveryConfigRetry(ctx, attempt); err != nil {
+			return nil, err
+		}
 		dc, err := s.backend.GetDiscoveryConfig(ctx, req.GetName())
 		switch {
 		case trace.IsNotFound(err):
-			return nil, trace.NotFound("discovery config %q not found", req.GetName())
+			if !discoveryconfig.IsReservedSyntheticName(req.GetName()) {
+				return nil, trace.NotFound("discovery config %q not found", req.GetName())
+			}
+			dc, err = s.syntheticBackend.GetSyntheticDiscoveryConfig(ctx, req.GetName())
+			if trace.IsNotFound(err) {
+				return nil, trace.NotFound("discovery config %q not found", req.GetName())
+			}
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			identity, ok := authCtx.Identity.(authz.BuiltinRole)
+			if !ok || identity.GetServerID() == "" {
+				return nil, trace.AccessDenied("synthetic status requires a builtin Discovery Service identity")
+			}
+			if req.GetName() != discoveryconfig.SyntheticName(identity.GetServerID()) {
+				return nil, trace.AccessDenied("synthetic discovery config status is owner-managed")
+			}
+			status := conv.StatusFromProto(req.GetStatus())
+			for serverID := range status.ServerStatus {
+				if serverID != identity.GetServerID() {
+					return nil, trace.BadParameter("synthetic status contains foreign server %q", serverID)
+				}
+			}
+			status.Synthetic = dc.Status.Synthetic
+			dc.Status = status
+			if err := validateSyntheticReportSize(dc); err != nil {
+				return nil, trace.Wrap(err)
+			}
+			resp, err := s.syntheticBackend.ConditionalUpdateSyntheticDiscoveryConfig(ctx, dc)
+			if trace.IsCompareFailed(err) {
+				continue
+			}
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return conv.ToProto(resp), nil
 		case err != nil:
 			return nil, trace.Wrap(err)
 		}
-
-		dc.Status = conv.StatusFromProto(req.GetStatus())
+		status := conv.StatusFromProto(req.GetStatus())
+		status.Synthetic = nil
+		dc.Status = status
 		resp, err := s.backend.UpdateDiscoveryConfig(ctx, dc)
 		if err != nil {
 			if trace.IsCompareFailed(err) {
@@ -421,6 +623,111 @@ func (s *Service) UpdateDiscoveryConfigStatus(ctx context.Context, req *discover
 
 		return conv.ToProto(resp), nil
 	}
+	return nil, trace.LimitExceeded("discovery config status update exceeded retry limit; retry the request")
+}
+
+// validateSyntheticReportSize verifies both the report merged with the
+// current inventory and the report with the count-only fallback a publisher
+// uses when detailed inventory no longer fits. This prevents report updates
+// from consuming the space required to keep owner renewal available.
+func validateSyntheticReportSize(dc *discoveryconfig.DiscoveryConfig) error {
+	if _, err := services.MarshalSyntheticDiscoveryConfig(dc); err != nil {
+		return trace.Wrap(err)
+	}
+
+	fallback := dc.Clone()
+	fallback.Status.Synthetic = &discoveryconfig.SyntheticStatus{
+		DiscoveryGroup:    dc.Status.Synthetic.DiscoveryGroup,
+		MatchersTruncated: true,
+		MatcherCounts: &discoveryconfig.StaticMatcherCounts{
+			AWS:         math.MaxUint32,
+			Azure:       math.MaxUint32,
+			GCP:         math.MaxUint32,
+			Kube:        math.MaxUint32,
+			AccessGraph: math.MaxUint32,
+		},
+	}
+	_, err := services.MarshalSyntheticDiscoveryConfig(fallback)
+	return trace.Wrap(err)
+}
+
+func (s *Service) upsertRegularDiscoveryConfig(ctx context.Context, dc *discoveryconfig.DiscoveryConfig) (*discoveryconfig.DiscoveryConfig, error) {
+	if discoveryconfig.IsReservedSyntheticName(dc.GetName()) {
+		// checkReservedWrite already verified that a regular config predating
+		// the reservation occupies this name; an upsert must not recreate one
+		// after concurrent deletion.
+		updated, err := s.backend.UpdateDiscoveryConfig(ctx, dc)
+		if trace.IsNotFound(err) {
+			return nil, reservedSyntheticNameError(dc.GetName())
+		}
+		return updated, trace.Wrap(err)
+	}
+	return s.backend.UpsertDiscoveryConfig(ctx, dc)
+}
+
+func reservedSyntheticNameError(name string) error {
+	return trace.BadParameter("discovery config name %q is reserved for synthetic discovery configs; a pre-existing config with this name can be updated but not recreated; rename it to keep managing it", name)
+}
+
+// checkReservedWrite gates the generic write RPCs for reserved synthetic
+// names so get-then-mutate flows (web UI edits, tctl edit) fail with the
+// ownership story rather than conversion or existence noise. It runs before
+// proto conversion on purpose: a round-tripped synthetic resource has an
+// empty spec that would otherwise fail validation with a misleading
+// "discovery group is missing".
+//
+// Regular configs that predate the reservation remain manageable (nil). A name
+// occupied by owner-published synthetic inventory is readable but owner-managed
+// (AccessDenied, matching DeleteDiscoveryConfig). When rejectUnoccupied is set,
+// an unoccupied reserved name is rejected with the migration-oriented
+// BadParameter used by create and upsert. Update leaves it to the backend to
+// return its normal NotFound response.
+func (s *Service) checkReservedWrite(ctx context.Context, name string, rejectUnoccupied bool) error {
+	if !discoveryconfig.IsReservedSyntheticName(name) {
+		return nil
+	}
+	if _, err := s.backend.GetDiscoveryConfig(ctx, name); err == nil {
+		return nil
+	} else if !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+	if _, err := s.syntheticBackend.GetSyntheticDiscoveryConfig(ctx, name); err == nil {
+		return trace.AccessDenied("synthetic discovery config %q is owner-managed", name)
+	} else if !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+	if !rejectUnoccupied {
+		return nil
+	}
+	return reservedSyntheticNameError(name)
+}
+
+func waitForDiscoveryConfigRetry(ctx context.Context, attempt int) error {
+	if attempt == 0 {
+		return nil
+	}
+	t := time.NewTimer(retryutils.FullJitter(time.Duration(300*attempt) * time.Millisecond))
+	defer t.Stop()
+	select {
+	case <-ctx.Done():
+		return trace.Wrap(ctx.Err())
+	case <-t.C:
+		return nil
+	}
+}
+
+// regularDiscoveryConfigFromProto preserves the legacy write behavior: all
+// subkinds are discarded before conversion and therefore cannot influence
+// validation or normalization of a regular write.
+func regularDiscoveryConfigFromProto(msg *discoveryconfigv1.DiscoveryConfig) (*discoveryconfig.DiscoveryConfig, error) {
+	if msg == nil {
+		return conv.FromProto(nil)
+	}
+	msg = proto.CloneOf(msg)
+	if msg.GetHeader() != nil {
+		msg.GetHeader().SubKind = ""
+	}
+	return conv.FromProto(msg)
 }
 
 // emitUsageEvent emits a DiscoveryConfigEvent usage event.

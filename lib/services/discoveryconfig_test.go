@@ -19,9 +19,11 @@
 package services
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
 
@@ -78,6 +80,21 @@ func TestDiscoveryConfigMarshal(t *testing.T) {
 	actual, err := UnmarshalDiscoveryConfig(data)
 	require.NoError(t, err)
 	require.Equal(t, expected, actual)
+}
+
+func TestMarshalSyntheticDiscoveryConfigSizeLimit(t *testing.T) {
+	dc, err := discoveryconfig.NewSyntheticDiscoveryConfig("server-01", discoveryconfig.SyntheticStatus{
+		Matchers: &discoveryconfig.Spec{},
+	})
+	require.NoError(t, err)
+
+	_, err = MarshalSyntheticDiscoveryConfig(dc)
+	require.NoError(t, err)
+
+	errorMessage := strings.Repeat("x", discoveryconfig.MaxSyntheticDiscoveryConfigSize)
+	dc.Status.ErrorMessage = &errorMessage
+	_, err = MarshalSyntheticDiscoveryConfig(dc)
+	require.True(t, trace.IsLimitExceeded(err), "got %v", err)
 }
 
 var discoveryConfigYAML = `---

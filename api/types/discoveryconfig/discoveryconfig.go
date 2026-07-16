@@ -88,6 +88,25 @@ type Status struct {
 	IntegrationDiscoveredResources map[string]*IntegrationDiscoveredSummary `json:"integration_discovered_resources,omitempty" yaml:"integration_discovered_resources,omitempty"`
 	// ServerStatus tracks the discovery iteration status for multiple discovery servers, keyed by Server ID.
 	ServerStatus map[string]*DiscoveryStatusServer `json:"server_status,omitempty" yaml:"server_status,omitempty"`
+	// Synthetic is the observed static inventory for synthetic configs.
+	Synthetic *SyntheticStatus `json:"synthetic,omitempty" yaml:"synthetic,omitempty"`
+}
+
+// SyntheticStatus is the native representation of observed static inventory.
+type SyntheticStatus struct {
+	DiscoveryGroup    string               `json:"discovery_group" yaml:"discovery_group"`
+	Matchers          *Spec                `json:"matchers,omitempty" yaml:"matchers,omitempty"`
+	MatchersTruncated bool                 `json:"matchers_truncated" yaml:"matchers_truncated"`
+	MatcherCounts     *StaticMatcherCounts `json:"matcher_counts,omitempty" yaml:"matcher_counts,omitempty"`
+}
+
+// StaticMatcherCounts contains matcher counts by family.
+type StaticMatcherCounts struct {
+	AWS         uint32 `json:"aws" yaml:"aws"`
+	Azure       uint32 `json:"azure" yaml:"azure"`
+	GCP         uint32 `json:"gcp" yaml:"gcp"`
+	Kube        uint32 `json:"kube" yaml:"kube"`
+	AccessGraph uint32 `json:"access_graph" yaml:"access_graph"`
 }
 
 // NewDiscoveryConfig will create a new discovery config.
@@ -102,6 +121,32 @@ func NewDiscoveryConfig(metadata header.Metadata, spec Spec) (*DiscoveryConfig, 
 	}
 
 	return discoveryConfig, nil
+}
+
+// NewDiscoveryConfigWithSubKind creates a DiscoveryConfig with the given
+// subkind. Synthetic configs are sanitized before validation and again after
+// matcher defaulting so installer parameters can never survive construction.
+func NewDiscoveryConfigWithSubKind(metadata header.Metadata, spec Spec, subKind string) (*DiscoveryConfig, error) {
+	if subKind == SubKindSynthetic {
+		var clonedSpec Spec
+		if err := utils.StrictObjectToStruct(&spec, &clonedSpec); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		spec = clonedSpec
+		SanitizeSyntheticDiscoveryConfigSpec(&spec)
+	}
+	dc := &DiscoveryConfig{
+		ResourceHeader: header.ResourceHeaderFromMetadata(metadata),
+		Spec:           spec,
+	}
+	dc.SetSubKind(subKind)
+	if err := dc.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if dc.IsSynthetic() {
+		SanitizeSyntheticDiscoveryConfigSpec(&dc.Spec)
+	}
+	return dc, nil
 }
 
 // IntegrationDiscoveredSummary holds the summary of resources discovered for a specific integration.
@@ -161,7 +206,10 @@ func (a *DiscoveryConfig) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 
-	if a.Spec.DiscoveryGroup == "" {
+	// Synthetic resources carry observed inventory in status and intentionally
+	// keep their spec empty. Every other subkind remains a regular discovery
+	// config and must identify the Discovery Services that consume it.
+	if a.Spec.DiscoveryGroup == "" && !a.IsSynthetic() {
 		return trace.BadParameter("discovery config group required")
 	}
 

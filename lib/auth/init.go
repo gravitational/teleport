@@ -278,6 +278,9 @@ type InitConfig struct {
 	// DiscoveryConfigs is a service that manages DiscoveryConfigs.
 	DiscoveryConfigs services.DiscoveryConfigs
 
+	// SyntheticDiscoveryConfigs manages isolated synthetic DiscoveryConfigs.
+	SyntheticDiscoveryConfigs services.SyntheticDiscoveryConfigs
+
 	// SessionTrackerService is a service that manages trackers for all active sessions.
 	SessionTrackerService services.SessionTrackerService
 

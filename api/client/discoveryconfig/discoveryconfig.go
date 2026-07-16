@@ -39,29 +39,68 @@ func NewClient(grpcClient discoveryconfigv1.DiscoveryConfigServiceClient) *Clien
 
 // ListDiscoveryConfigs returns a paginated list of DiscoveryConfigs.
 func (c *Client) ListDiscoveryConfigs(ctx context.Context, pageSize int, nextToken string) ([]*discoveryconfig.DiscoveryConfig, string, error) {
-	resp, err := c.grpcClient.ListDiscoveryConfigs(ctx, &discoveryconfigv1.ListDiscoveryConfigsRequest{
-		PageSize:  int32(pageSize),
-		NextToken: nextToken,
-	})
+	resp, err := c.grpcClient.ListDiscoveryConfigs(ctx, &discoveryconfigv1.ListDiscoveryConfigsRequest{PageSize: int32(pageSize), NextToken: nextToken})
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
+	return convertList(resp)
+}
 
-	discoveryConfigs := make([]*discoveryconfig.DiscoveryConfig, len(resp.DiscoveryConfigs))
-	for i, discoveryConfig := range resp.DiscoveryConfigs {
-		var err error
-		discoveryConfigs[i], err = conv.FromProto(discoveryConfig)
+// ListSyntheticDiscoveryConfigs returns synthetic inventory explicitly.
+func (c *Client) ListSyntheticDiscoveryConfigs(ctx context.Context, pageSize int, nextToken string) ([]*discoveryconfig.DiscoveryConfig, string, error) {
+	resp, err := c.grpcClient.ListSyntheticDiscoveryConfigs(ctx, &discoveryconfigv1.ListDiscoveryConfigsRequest{PageSize: int32(pageSize), NextToken: nextToken})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	return convertList(resp)
+}
+
+func convertList(resp *discoveryconfigv1.ListDiscoveryConfigsResponse) ([]*discoveryconfig.DiscoveryConfig, string, error) {
+	discoveryConfigs := make([]*discoveryconfig.DiscoveryConfig, 0, len(resp.DiscoveryConfigs))
+	for _, discoveryConfig := range resp.DiscoveryConfigs {
+		dc, err := conv.FromProto(discoveryConfig)
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}
+		discoveryConfigs = append(discoveryConfigs, dc)
 	}
 
 	return discoveryConfigs, resp.GetNextKey(), nil
 }
 
-// GetDiscoveryConfig returns the specified DiscoveryConfig resource.
+// UpsertSyntheticDiscoveryConfig publishes observed static inventory.
+func (c *Client) UpsertSyntheticDiscoveryConfig(ctx context.Context, status discoveryconfig.SyntheticStatus) (*discoveryconfig.DiscoveryConfig, error) {
+	resp, err := c.grpcClient.UpsertSyntheticDiscoveryConfig(ctx, &discoveryconfigv1.UpsertSyntheticDiscoveryConfigRequest{Synthetic: conv.SyntheticStatusToProto(&status)})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return conv.FromProto(resp)
+}
+
+// GetDiscoveryConfig returns the named DiscoveryConfig resource: regular
+// resources first, falling back to owner-published synthetic inventory for
+// reserved synthetic names. The server keeps the legacy RPC regular-only so
+// older clients never receive a synthetic resource they cannot decode; the
+// combined lookup lives here.
 func (c *Client) GetDiscoveryConfig(ctx context.Context, name string) (*discoveryconfig.DiscoveryConfig, error) {
 	resp, err := c.grpcClient.GetDiscoveryConfig(ctx, &discoveryconfigv1.GetDiscoveryConfigRequest{
+		Name: name,
+	})
+	if err == nil {
+		discoveryConfig, err := conv.FromProto(resp)
+		return discoveryConfig, trace.Wrap(err)
+	}
+	if !trace.IsNotFound(err) || !discoveryconfig.IsReservedSyntheticName(name) {
+		return nil, trace.Wrap(err)
+	}
+	dc, syntheticErr := c.GetSyntheticDiscoveryConfig(ctx, name)
+	return dc, trace.Wrap(syntheticErr)
+}
+
+// GetSyntheticDiscoveryConfig returns the named owner-published synthetic
+// DiscoveryConfig resource.
+func (c *Client) GetSyntheticDiscoveryConfig(ctx context.Context, name string) (*discoveryconfig.DiscoveryConfig, error) {
+	resp, err := c.grpcClient.GetSyntheticDiscoveryConfig(ctx, &discoveryconfigv1.GetDiscoveryConfigRequest{
 		Name: name,
 	})
 	if err != nil {

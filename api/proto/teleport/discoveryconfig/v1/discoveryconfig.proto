@@ -76,6 +76,26 @@ message DiscoveryConfigStatus {
 
   // ServerStatus contains the status from each Discovery Service that is watching this Discovery Config.
   map<string, DiscoveryStatusServer> server_status = 7;
+
+  // Synthetic contains the observed static configuration for a synthetic DiscoveryConfig.
+  SyntheticDiscoveryConfigStatus synthetic = 8;
+}
+
+// SyntheticDiscoveryConfigStatus is the static matcher inventory observed by a Discovery Service.
+message SyntheticDiscoveryConfigStatus {
+  string discovery_group = 1;
+  DiscoveryConfigSpec matchers = 2;
+  bool matchers_truncated = 3;
+  StaticMatcherCounts matcher_counts = 4;
+}
+
+// StaticMatcherCounts contains matcher counts by family when matcher details are truncated.
+message StaticMatcherCounts {
+  uint32 aws = 1;
+  uint32 azure = 2;
+  uint32 gcp = 3;
+  uint32 kube = 4;
+  uint32 access_graph = 5;
 }
 
 // DiscoveryConfigState is the state of the discovery config resource.

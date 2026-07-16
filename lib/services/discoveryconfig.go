@@ -45,6 +45,15 @@ type DiscoveryConfigs interface {
 	DeleteAllDiscoveryConfigs(context.Context) error
 }
 
+// SyntheticDiscoveryConfigs is the isolated persistence API for owner-managed
+// synthetic DiscoveryConfigs.
+type SyntheticDiscoveryConfigs interface {
+	ListSyntheticDiscoveryConfigs(ctx context.Context, pageSize int, nextToken string) ([]*discoveryconfig.DiscoveryConfig, string, error)
+	GetSyntheticDiscoveryConfig(context.Context, string) (*discoveryconfig.DiscoveryConfig, error)
+	CreateSyntheticDiscoveryConfig(context.Context, *discoveryconfig.DiscoveryConfig) (*discoveryconfig.DiscoveryConfig, error)
+	ConditionalUpdateSyntheticDiscoveryConfig(context.Context, *discoveryconfig.DiscoveryConfig) (*discoveryconfig.DiscoveryConfig, error)
+}
+
 // DiscoveryConfigWithStatusUpdater defines an interface for managing DiscoveryConfig resources including updating their status.
 type DiscoveryConfigWithStatusUpdater interface {
 	DiscoveryConfigs
@@ -54,11 +63,16 @@ type DiscoveryConfigWithStatusUpdater interface {
 
 // DiscoveryConfigsGetter defines methods for List/Read operations on DiscoveryConfig Resources.
 type DiscoveryConfigsGetter interface {
+	DiscoveryConfigsLister
+	// GetDiscoveryConfig returns the specified DiscoveryConfig resources.
+	GetDiscoveryConfig(ctx context.Context, name string) (*discoveryconfig.DiscoveryConfig, error)
+}
+
+// DiscoveryConfigsLister lists DiscoveryConfig resources.
+type DiscoveryConfigsLister interface {
 	// ListDiscoveryConfigs returns a paginated list of all DiscoveryConfig resources.
 	// An optional DiscoveryGroup can be provided to filter.
 	ListDiscoveryConfigs(ctx context.Context, pageSize int, nextToken string) ([]*discoveryconfig.DiscoveryConfig, string, error)
-	// GetDiscoveryConfig returns the specified DiscoveryConfig resources.
-	GetDiscoveryConfig(ctx context.Context, name string) (*discoveryconfig.DiscoveryConfig, error)
 }
 
 // MarshalDiscoveryConfig marshals the DiscoveryConfig resource to JSON.
@@ -78,6 +92,21 @@ func MarshalDiscoveryConfig(discoveryConfig *discoveryconfig.DiscoveryConfig, op
 		discoveryConfig = &copy
 	}
 	return utils.FastMarshal(discoveryConfig)
+}
+
+// MarshalSyntheticDiscoveryConfig marshals a synthetic DiscoveryConfig to its
+// stored JSON representation and enforces the complete-resource size limit.
+// Callers may use this before persistence to validate the result of merging
+// independently owned inventory and report fields.
+func MarshalSyntheticDiscoveryConfig(discoveryConfig *discoveryconfig.DiscoveryConfig, opts ...MarshalOption) ([]byte, error) {
+	data, err := MarshalDiscoveryConfig(discoveryConfig, opts...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if len(data) > discoveryconfig.MaxSyntheticDiscoveryConfigSize {
+		return nil, trace.LimitExceeded("synthetic discovery config exceeds maximum stored size of %d bytes", discoveryconfig.MaxSyntheticDiscoveryConfigSize)
+	}
+	return data, nil
 }
 
 // UnmarshalDiscoveryConfig unmarshals the DiscoveryConfig resource from JSON.

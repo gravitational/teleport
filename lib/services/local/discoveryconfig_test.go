@@ -20,6 +20,7 @@ package local
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -138,6 +139,57 @@ func TestDiscoveryConfigCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, nextToken)
 	require.Empty(t, out)
+}
+
+func TestSyntheticDiscoveryConfigStorageIsolation(t *testing.T) {
+	ctx := context.Background()
+	mem, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+
+	service, err := NewDiscoveryConfigService(mem)
+	require.NoError(t, err)
+
+	synthetic := newDiscoveryConfig(t, "a-synthetic")
+	synthetic.SetSubKind(discoveryconfig.SubKindSynthetic)
+	_, err = service.CreateSyntheticDiscoveryConfig(ctx, synthetic)
+	require.NoError(t, err)
+	_, err = service.CreateDiscoveryConfig(ctx, newDiscoveryConfig(t, "b-regular"))
+	require.NoError(t, err)
+
+	page, nextToken, err := service.ListDiscoveryConfigs(ctx, 1, "")
+	require.NoError(t, err)
+	require.Len(t, page, 1)
+	require.Equal(t, "b-regular", page[0].GetName())
+	require.Empty(t, nextToken)
+
+	page, nextToken, err = service.ListSyntheticDiscoveryConfigs(ctx, 1, "")
+	require.NoError(t, err)
+	require.Len(t, page, 1)
+	require.Equal(t, "a-synthetic", page[0].GetName())
+	require.Empty(t, nextToken)
+
+	oversized := synthetic.Clone()
+	errorMessage := strings.Repeat("x", discoveryconfig.MaxSyntheticDiscoveryConfigSize)
+	oversized.Status.ErrorMessage = &errorMessage
+	_, err = service.CreateSyntheticDiscoveryConfig(ctx, oversized)
+	require.True(t, trace.IsLimitExceeded(err), "expected full stored resource size enforcement, got %v", err)
+}
+
+func TestDiscoveryConfigStorageRejectsUnknownSubKindWithoutGroup(t *testing.T) {
+	ctx := context.Background()
+	mem, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+
+	service, err := NewDiscoveryConfigService(mem)
+	require.NoError(t, err)
+
+	dc := newDiscoveryConfig(t, "unknown-subkind")
+	dc.SetSubKind("some-future-subkind")
+	dc.Spec.DiscoveryGroup = ""
+	_, err = service.CreateDiscoveryConfig(ctx, dc)
+	require.True(t, trace.IsBadParameter(err), "got %v", err)
+	_, err = service.GetDiscoveryConfig(ctx, dc.GetName())
+	require.True(t, trace.IsNotFound(err), "invalid config must not be persisted, got %v", err)
 }
 
 func newDiscoveryConfig(t *testing.T, name string) *discoveryconfig.DiscoveryConfig {
