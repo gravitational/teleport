@@ -90,6 +90,13 @@ func (s *Service) GetKubeCluster(ctx context.Context, req *kubev1.GetKubeCluster
 	}.Build(), nil
 }
 
+// getCursorForKubeCluster wraps [services.GetCursorForKubeCluster] with a signature
+// referencing [*types.KubernetesClusterV3] directly. This helps go infer the proper
+// typing when using [generic.CollectPageAndCursor].
+func getCursorForKubeCluster(cluster *types.KubernetesClusterV3) string {
+	return services.GetCursorForKubeCluster(cluster)
+}
+
 func (s *Service) ListKubeClusters(ctx context.Context, req *kubev1.ListKubeClustersRequest) (*kubev1.ListKubeClustersResponse, error) {
 	authContext, err := s.cfg.ScopedAuthorizer.AuthorizeScoped(ctx)
 	if err != nil {
@@ -119,7 +126,7 @@ func (s *Service) ListKubeClusters(ctx context.Context, req *kubev1.ListKubeClus
 			},
 		),
 		int(req.GetPageSize()),
-		(*types.KubernetesClusterV3).GetName,
+		getCursorForKubeCluster,
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)

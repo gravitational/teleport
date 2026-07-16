@@ -75,7 +75,7 @@ func TestKubernetes(t *testing.T) {
 		})
 	})
 
-	t.Run("GetAllKubeClusters scoped", func(t *testing.T) {
+	t.Run("GetKubernetesClusters scoped", func(t *testing.T) {
 		const scope = "/test"
 		testResources(t, p, testFuncs[types.KubeCluster]{
 			newResource: func(name string) (types.KubeCluster, error) {
@@ -86,7 +86,7 @@ func TestKubernetes(t *testing.T) {
 			create:    p.kubernetes.CreateKubernetesCluster,
 			list:      getAllAdapter(p.kubernetes.GetKubernetesClusters),
 			cacheGet:  cacheGetKubeClusterWithScope(p.cache, scope),
-			cacheList: cacheListKubeClustersWithScope(p.cache, scope),
+			cacheList: getAllAdapter(p.cache.GetKubernetesClusters),
 			update:    p.kubernetes.UpdateKubernetesCluster,
 			deleteAll: p.kubernetes.DeleteAllKubernetesClusters,
 		}, withSkipPaginationTest())
