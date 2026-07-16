@@ -11,6 +11,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/accessgraph"
 	"github.com/gravitational/teleport/e/lib/auth"
 	_ "github.com/gravitational/teleport/e/lib/backend/crdb"
+	_ "github.com/gravitational/teleport/e/lib/backend/dsqlbk"
 	"github.com/gravitational/teleport/e/lib/cloud/feature"
 	"github.com/gravitational/teleport/e/lib/db/oracle"
 	"github.com/gravitational/teleport/e/lib/licensefile"
