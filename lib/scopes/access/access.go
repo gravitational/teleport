@@ -373,7 +373,7 @@ func validateAppBlock(app *scopedaccessv1.ScopedRoleApp) error {
 
 	labels := app.GetLabels()
 	if len(labels) == 0 && app.GetLabelExpression() == "" {
-		return trace.BadParameter("empty labels and label expressions for apps. Please add at least one label entry or a label expression")
+		return trace.BadParameter("no labels or label expressions for apps. Please add at least one label entry or a label expression")
 	}
 
 	if expr := app.GetLabelExpression(); expr != "" {
