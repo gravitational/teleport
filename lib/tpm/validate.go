@@ -123,9 +123,8 @@ func Validate(
 	}
 
 	activationParameters := attest.ActivationParameters{
-		TPMVersion: attest.TPMVersion20,
-		AK:         params.AttestParams,
-		EK:         ekPub,
+		AK: params.AttestParams,
+		EK: ekPub,
 	}
 	// The generate method completes initial validation that provides the
 	// following assurances:
