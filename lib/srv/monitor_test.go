@@ -405,7 +405,7 @@ func TestTrackingReadConn(t *testing.T) {
 	})
 }
 
-// mockScopedControls implements [authz.ScopedSessionControls] for MonitorConnScoped tests.
+// mockScopedControls implements [ScopedSessionControls] for MonitorConnScoped tests.
 type mockScopedControls struct {
 	idleTimeout       time.Duration
 	disconnectExpired bool
@@ -461,8 +461,10 @@ func TestMonitorScoped(t *testing.T) {
 			ServerID:       "test",
 		})
 		require.NoError(t, err)
-		scopedCtx.SessionControls = mockScopedControls{}
-		monitorCtx, _, err := monitor.MonitorConnScoped(ctx, scopedCtx, conn)
+		monitorCtx, _, err := monitor.MonitorConnScoped(ctx, &ScopedSessionContext{
+			Context:         scopedCtx,
+			SessionControls: mockScopedControls{},
+		}, conn)
 		require.NoError(t, err)
 		require.NoError(t, monitorCtx.Err())
 
@@ -504,8 +506,10 @@ func TestMonitorScoped(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		idleCtx.SessionControls = mockScopedControls{idleTimeout: time.Minute}
-		_, _, err = m.MonitorConnScoped(ctx, idleCtx, conn)
+		_, _, err = m.MonitorConnScoped(ctx, &ScopedSessionContext{
+			Context:         idleCtx,
+			SessionControls: mockScopedControls{idleTimeout: time.Minute},
+		}, conn)
 		require.NoError(t, err)
 
 		clock.BlockUntilContext(t.Context(), 1)
@@ -539,8 +543,10 @@ func TestMonitorScoped(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		expiredCtx.SessionControls = mockScopedControls{disconnectExpired: true}
-		_, _, err = m.MonitorConnScoped(ctx, expiredCtx, conn)
+		_, _, err = m.MonitorConnScoped(ctx, &ScopedSessionContext{
+			Context:         expiredCtx,
+			SessionControls: mockScopedControls{disconnectExpired: true},
+		}, conn)
 		require.NoError(t, err)
 
 		select {
@@ -616,8 +622,10 @@ func TestMonitorScoped(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			authCtx.SessionControls = mockScopedControls{lockingMode: tc.lockingMode}
-			_, _, err = m.MonitorConnScoped(ctx, authCtx, conn)
+			_, _, err = m.MonitorConnScoped(ctx, &ScopedSessionContext{
+				Context:         authCtx,
+				SessionControls: mockScopedControls{lockingMode: tc.lockingMode},
+			}, conn)
 			require.NoError(t, err)
 			select {
 			case <-conn.closedC:

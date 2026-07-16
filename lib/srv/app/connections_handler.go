@@ -66,7 +66,7 @@ import (
 // ConnMonitor monitors authorized connections and terminates them when
 // session controls dictate so.
 type ConnMonitor interface {
-	MonitorConnScoped(ctx context.Context, scopedCtx *authz.ScopedContext, conn net.Conn) (context.Context, net.Conn, error)
+	MonitorConnScoped(ctx context.Context, scopedCtx *srv.ScopedSessionContext, conn net.Conn) (context.Context, net.Conn, error)
 }
 
 // ConnectionsHandlerConfig is the configuration for a ConnectionsHandler.
@@ -476,12 +476,12 @@ func (c *ConnectionsHandler) Close(ctx context.Context) []error {
 func (c *ConnectionsHandler) serveHTTP(w http.ResponseWriter, r *http.Request) error {
 	// Extract the identity and application being requested from the certificate
 	// and check if the caller has access.
-	authCtx, app, err := c.authorizeContext(r.Context())
+	scopedCtx, app, err := c.authorizeContext(r.Context())
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	identity := authCtx.Identity.GetIdentity()
+	identity := scopedCtx.Context.Identity.GetIdentity()
 	switch {
 	case app.IsAWSConsole():
 		// Requests from AWS applications are signed by AWS Signature Version 4
@@ -561,8 +561,9 @@ func (c *ConnectionsHandler) serveAWSWebConsole(w http.ResponseWriter, r *http.R
 }
 
 // authorizeContext will check if the context carries identity information and
-// runs authorization checks on it.
-func (c *ConnectionsHandler) authorizeContext(ctx context.Context) (*authz.ScopedContext, types.Application, error) {
+// runs authorization checks on it. On success it returns the scoped context
+// bundled with the session controls of the role that granted access.
+func (c *ConnectionsHandler) authorizeContext(ctx context.Context) (*srv.ScopedSessionContext, types.Application, error) {
 	// Only allow local and remote identities to proxy to an application.
 	userType, err := authz.UserFromContext(ctx)
 	if err != nil {
@@ -627,14 +628,12 @@ func (c *ConnectionsHandler) authorizeContext(ctx context.Context) (*authz.Scope
 		return nil, nil, trace.AccessDenied("identity center account apps are not supported for scoped identities")
 	}
 
-	// Capture the checker that grants access so its per-role session controls (idle
-	// timeout, locking mode, disconnect on expired cert) can be applied to connection
-	// monitoring. For unscoped callers this wraps the classic checker.
+	var sessionControls srv.ScopedSessionControls
 	switch err := authContext.CheckerContext.Decision(ctx, app.GetScope(), func(check *services.ScopedAccessChecker) error {
 		if err := check.App().CheckAccessToApp(app, state, matchers...); err != nil {
 			return trace.Wrap(err)
 		}
-		authContext.SessionControls = check.App()
+		sessionControls = check.App()
 		return nil
 	}); {
 	case errors.Is(err, services.ErrTrustedDeviceRequired) || errors.Is(err, services.ErrSessionMFARequired):
@@ -650,7 +649,10 @@ func (c *ConnectionsHandler) authorizeContext(ctx context.Context) (*authz.Scope
 		return nil, nil, utils.OpaqueAccessDenied(err)
 	}
 
-	return authContext, app, nil
+	return &srv.ScopedSessionContext{
+		Context:         authContext,
+		SessionControls: sessionControls,
+	}, app, nil
 }
 
 func (c *ConnectionsHandler) handleConnection(ctx context.Context, cancel context.CancelCauseFunc, conn net.Conn) (func(), error) {
@@ -690,7 +692,7 @@ func (c *ConnectionsHandler) handleConnection(ctx context.Context, cancel contex
 
 	ctx = authz.ContextWithUser(ctx, user)
 	ctx = authz.ContextWithClientSrcAddr(ctx, conn.RemoteAddr())
-	authCtx, _, err := c.authorizeContext(ctx)
+	scopedCtx, _, err := c.authorizeContext(ctx)
 
 	// The behavior here is a little hard to track. To be clear here, if authorization fails
 	// the following will occur:
@@ -713,7 +715,7 @@ func (c *ConnectionsHandler) handleConnection(ctx context.Context, cancel contex
 			c.setConnAuth(tlsConn, err)
 		}
 	} else {
-		ctx, _, err = c.cfg.ConnectionMonitor.MonitorConnScoped(ctx, authCtx, tc)
+		ctx, _, err = c.cfg.ConnectionMonitor.MonitorConnScoped(ctx, scopedCtx, tc)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -730,12 +732,12 @@ func (c *ConnectionsHandler) handleConnection(ctx context.Context, cancel contex
 	// blocks on waitConn.Wait() until the HTTP server closes the conn.
 	switch {
 	case app.IsTCP():
-		identity := authCtx.Identity.GetIdentity()
+		identity := scopedCtx.Context.Identity.GetIdentity()
 		return nil, trace.Wrap(c.handleTCPApp(ctx, tlsConn, &identity, app))
 
 	case app.IsMCP():
 		// TODO (williamo/scopes): change this to a scoped context when we support MCP.
-		unscopedAuthCtx, ok := authCtx.UnscopedContext()
+		unscopedAuthCtx, ok := scopedCtx.Context.UnscopedContext()
 		if !ok {
 			return nil, trace.AccessDenied("MCP application access is not supported for scoped identities")
 		}

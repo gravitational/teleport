@@ -175,14 +175,31 @@ func (c *ConnectionMonitor) MonitorConn(ctx context.Context, authzCtx *authz.Con
 	}, conn)
 }
 
+// ScopedSessionControls exposes the per-protocol session controls (idle
+// timeout, disconnect on cert expiry, locking mode) of the role that granted
+// access for a connection.
+type ScopedSessionControls interface {
+	AdjustClientIdleTimeout(time.Duration) (time.Duration, error)
+	AdjustDisconnectExpiredCert(bool) bool
+	LockingMode(constants.LockingMode) constants.LockingMode
+}
+
+// ScopedSessionContext bundles a scoped authorization context with the session
+// controls produced by the access decision that authorized the connection.
+type ScopedSessionContext struct {
+	// Context is the scoped authorization context of the caller.
+	Context *authz.ScopedContext
+	// SessionControls are the per-protocol session controls of the role that
+	// granted access.
+	SessionControls ScopedSessionControls
+}
+
 // MonitorConnScoped is the scoped-identity variant of [ConnectionMonitor.MonitorConn].
-// Session controls are read from the scoped context, where the authorizing service
-// stores the granting role's controls after its access decision.
-func (c *ConnectionMonitor) MonitorConnScoped(ctx context.Context, scopedCtx *authz.ScopedContext, conn net.Conn) (context.Context, net.Conn, error) {
-	controls := scopedCtx.SessionControls
-	if controls == nil {
-		return ctx, conn, trace.BadParameter("missing session controls in scoped authorization context (this is a bug)")
+func (c *ConnectionMonitor) MonitorConnScoped(ctx context.Context, scopedCtx *ScopedSessionContext, conn net.Conn) (context.Context, net.Conn, error) {
+	if scopedCtx == nil || scopedCtx.Context == nil || scopedCtx.SessionControls == nil {
+		return ctx, conn, trace.BadParameter("missing session controls for scoped connection monitoring")
 	}
+	controls := scopedCtx.SessionControls
 
 	authPref, err := c.cfg.AccessPoint.GetAuthPreference(ctx)
 	if err != nil {
@@ -200,12 +217,12 @@ func (c *ConnectionMonitor) MonitorConnScoped(ctx context.Context, scopedCtx *au
 
 	var disconnectExpiredCert time.Time
 	if controls.AdjustDisconnectExpiredCert(authPref.GetDisconnectExpiredCert()) {
-		disconnectExpiredCert = scopedCtx.GetDisconnectCertExpiryTime()
+		disconnectExpiredCert = scopedCtx.Context.GetDisconnectCertExpiryTime()
 	}
 
-	identity := scopedCtx.Identity.GetIdentity()
+	identity := scopedCtx.Context.Identity.GetIdentity()
 	return c.monitorConn(ctx, monitorParams{
-		lockTargets:           scopedCtx.LockTargets(),
+		lockTargets:           scopedCtx.Context.LockTargets(),
 		lockingMode:           controls.LockingMode(authPref.GetLockingMode()),
 		disconnectExpiredCert: disconnectExpiredCert,
 		clientIdleTimeout:     idleTimeout,

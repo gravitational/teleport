@@ -73,6 +73,7 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
@@ -173,7 +174,7 @@ type suiteConfig struct {
 
 type fakeConnMonitor struct{}
 
-func (f fakeConnMonitor) MonitorConnScoped(ctx context.Context, scopedCtx *authz.ScopedContext, conn net.Conn) (context.Context, net.Conn, error) {
+func (f fakeConnMonitor) MonitorConnScoped(ctx context.Context, scopedCtx *srv.ScopedSessionContext, conn net.Conn) (context.Context, net.Conn, error) {
 	return ctx, conn, nil
 }
 

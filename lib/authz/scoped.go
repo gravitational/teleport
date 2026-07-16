@@ -25,7 +25,6 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/scopes/pinning"
 	"github.com/gravitational/teleport/lib/services"
@@ -196,15 +195,6 @@ func scopedContextForLocalUser(ctx context.Context, u LocalUser, accessPoint Aut
 	}, nil
 }
 
-// ScopedSessionControls exposes the per-protocol session controls (idle
-// timeout, disconnect on cert expiry, locking mode) of the role that granted
-// access for a connection.
-type ScopedSessionControls interface {
-	AdjustClientIdleTimeout(time.Duration) (time.Duration, error)
-	AdjustDisconnectExpiredCert(bool) bool
-	LockingMode(constants.LockingMode) constants.LockingMode
-}
-
 // ScopedContext is the scoped authorization context returned by [ScopedAuthorizer.AuthorizeScoped]. It provides
 // access-checking materials for use in making authorization decisions in contexts where the caller may be using
 // a scoped identity. This type does not yet have feature parity with the unscoped [Context] type, and should be
@@ -218,9 +208,6 @@ type ScopedContext struct {
 	// purpose to [services.AccessChecker] but requires different usage patterns to accommodate the more complex
 	// scoped decision model.
 	CheckerContext *services.ScopedAccessCheckerContext
-	// SessionControls holds the per-protocol session controls of the role that
-	// granted access for a connection.
-	SessionControls ScopedSessionControls
 	// unscopedContext is the context derived from unscoped authorization, if available. This will be nil
 	// if the calling identity was scoped.
 	unscopedContext *Context
