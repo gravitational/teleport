@@ -1383,6 +1383,192 @@ func TestMaybeStripTargetStatuses(t *testing.T) {
 	}
 }
 
+func TestAssignmentProcessorInactiveUsers(t *testing.T) {
+	startTime := time.Now().UTC()
+	testUsername := userName("test-user@test-user")
+	testUserID := oktaUserID("test-user-id")
+	testAssignmentName := "test-assignment"
+	testAppName := mustAppName(t, "app1", "link")
+	addTime := 15 * time.Minute
+
+	tests := []struct {
+		name       string
+		status     string
+		assignment types.OktaAssignment
+		expected   types.OktaAssignment
+	}{
+		{
+			name:   "cleanup successful deprovisioned user",
+			status: userStatusDeprovisioned,
+			assignment: assignment(t, testAssignmentName, testUsername, startTime, constants.OktaAssignmentStatusSuccessful, startTime, false,
+				target(types.OktaAssignmentTargetV1_APPLICATION, testAppName, withStatus(
+					status(constants.OktaAssignmentTargetOpCleanup, constants.OktaAssignmentTargetOutcomeSuccessful, startTime, 0),
+				))),
+			expected: assignment(t, testAssignmentName, testUsername, startTime, constants.OktaAssignmentStatusSuccessful, startTime.Add(addTime), true,
+				target(types.OktaAssignmentTargetV1_APPLICATION, testAppName, withStatus(
+					status(constants.OktaAssignmentTargetOpCleanup, constants.OktaAssignmentTargetOutcomeSuccessful, startTime.Add(addTime), 0),
+				))),
+		},
+		{
+			name:   "cleanup failed deprovisioned user",
+			status: userStatusDeprovisioned,
+			assignment: assignment(t, testAssignmentName, testUsername, startTime, constants.OktaAssignmentStatusFailed, startTime, false,
+				target(types.OktaAssignmentTargetV1_APPLICATION, testAppName, withStatus(
+					status(constants.OktaAssignmentTargetOpCleanup, constants.OktaAssignmentTargetOutcomeFailed, startTime, 1),
+				))),
+			expected: assignment(t, testAssignmentName, testUsername, startTime, constants.OktaAssignmentStatusSuccessful, startTime.Add(addTime), true,
+				target(types.OktaAssignmentTargetV1_APPLICATION, testAppName, withStatus(
+					status(constants.OktaAssignmentTargetOpCleanup, constants.OktaAssignmentTargetOutcomeSuccessful, startTime.Add(addTime), 0),
+				))),
+		},
+		{
+			name:   "cleanup successful suspended user",
+			status: userStatusSuspended,
+			assignment: assignment(t, testAssignmentName, testUsername, startTime, constants.OktaAssignmentStatusSuccessful, startTime, false,
+				target(types.OktaAssignmentTargetV1_APPLICATION, testAppName, withStatus(
+					status(constants.OktaAssignmentTargetOpCleanup, constants.OktaAssignmentTargetOutcomeSuccessful, startTime, 0),
+				))),
+			expected: assignment(t, testAssignmentName, testUsername, startTime, constants.OktaAssignmentStatusSuccessful, startTime.Add(addTime), true,
+				target(types.OktaAssignmentTargetV1_APPLICATION, testAppName, withStatus(
+					status(constants.OktaAssignmentTargetOpCleanup, constants.OktaAssignmentTargetOutcomeSuccessful, startTime.Add(addTime), 0),
+				))),
+		},
+		{
+			name:   "cleanup failed suspended user",
+			status: userStatusSuspended,
+			assignment: assignment(t, testAssignmentName, testUsername, startTime, constants.OktaAssignmentStatusFailed, startTime, false,
+				target(types.OktaAssignmentTargetV1_APPLICATION, testAppName, withStatus(
+					status(constants.OktaAssignmentTargetOpCleanup, constants.OktaAssignmentTargetOutcomeFailed, startTime, 1),
+				))),
+			expected: assignment(t, testAssignmentName, testUsername, startTime, constants.OktaAssignmentStatusSuccessful, startTime.Add(addTime), true,
+				target(types.OktaAssignmentTargetV1_APPLICATION, testAppName, withStatus(
+					status(constants.OktaAssignmentTargetOpCleanup, constants.OktaAssignmentTargetOutcomeSuccessful, startTime.Add(addTime), 0),
+				))),
+		},
+		{
+			name:   "provision successful deprovisioned user",
+			status: userStatusDeprovisioned,
+			assignment: assignment(t, testAssignmentName, testUsername, time.Time{}, constants.OktaAssignmentStatusSuccessful, startTime, false,
+				target(types.OktaAssignmentTargetV1_APPLICATION, testAppName, withStatus(
+					status(constants.OktaAssignmentTargetOpProvision, constants.OktaAssignmentTargetOutcomeSuccessful, startTime, 0),
+				))),
+			expected: assignment(t, testAssignmentName, testUsername, time.Time{}, constants.OktaAssignmentStatusSuccessful, startTime, false,
+				target(types.OktaAssignmentTargetV1_APPLICATION, testAppName, withStatus(
+					status(constants.OktaAssignmentTargetOpProvision, constants.OktaAssignmentTargetOutcomeSuccessful, startTime, 0),
+				))),
+		},
+		{
+			name:   "provision failed deprovisioned user",
+			status: userStatusDeprovisioned,
+			assignment: assignment(t, testAssignmentName, testUsername, time.Time{}, constants.OktaAssignmentStatusFailed, startTime, false,
+				target(types.OktaAssignmentTargetV1_APPLICATION, testAppName, withStatus(
+					status(constants.OktaAssignmentTargetOpProvision, constants.OktaAssignmentTargetOutcomeFailed, startTime, 1),
+				))),
+			expected: assignment(t, testAssignmentName, testUsername, time.Time{}, constants.OktaAssignmentStatusFailed, startTime, false,
+				target(types.OktaAssignmentTargetV1_APPLICATION, testAppName, withStatus(
+					status(constants.OktaAssignmentTargetOpProvision, constants.OktaAssignmentTargetOutcomeFailed, startTime, 1),
+				))),
+		},
+		{
+			name:   "provision successful suspended user",
+			status: userStatusSuspended,
+			assignment: assignment(t, testAssignmentName, testUsername, time.Time{}, constants.OktaAssignmentStatusSuccessful, startTime, false,
+				target(types.OktaAssignmentTargetV1_APPLICATION, testAppName, withStatus(
+					status(constants.OktaAssignmentTargetOpProvision, constants.OktaAssignmentTargetOutcomeSuccessful, startTime, 0),
+				))),
+			expected: assignment(t, testAssignmentName, testUsername, time.Time{}, constants.OktaAssignmentStatusSuccessful, startTime, false,
+				target(types.OktaAssignmentTargetV1_APPLICATION, testAppName, withStatus(
+					status(constants.OktaAssignmentTargetOpProvision, constants.OktaAssignmentTargetOutcomeSuccessful, startTime, 0),
+				))),
+		},
+		{
+			name:   "provision failed suspended user",
+			status: userStatusSuspended,
+			assignment: assignment(t, testAssignmentName, testUsername, time.Time{}, constants.OktaAssignmentStatusFailed, startTime, false,
+				target(types.OktaAssignmentTargetV1_APPLICATION, testAppName, withStatus(
+					status(constants.OktaAssignmentTargetOpProvision, constants.OktaAssignmentTargetOutcomeFailed, startTime, 1),
+				))),
+			expected: assignment(t, testAssignmentName, testUsername, time.Time{}, constants.OktaAssignmentStatusFailed, startTime, false,
+				target(types.OktaAssignmentTargetV1_APPLICATION, testAppName, withStatus(
+					status(constants.OktaAssignmentTargetOpProvision, constants.OktaAssignmentTargetOutcomeFailed, startTime, 1),
+				))),
+		},
+		{
+			name:   "provision successful active user",
+			status: userStatusActive,
+			assignment: assignment(t, testAssignmentName, testUsername, time.Time{}, constants.OktaAssignmentStatusSuccessful, startTime, false,
+				target(types.OktaAssignmentTargetV1_APPLICATION, testAppName, withStatus(
+					status(constants.OktaAssignmentTargetOpProvision, constants.OktaAssignmentTargetOutcomeSuccessful, startTime, 0),
+				))),
+			expected: assignment(t, testAssignmentName, testUsername, time.Time{}, constants.OktaAssignmentStatusSuccessful, startTime.Add(addTime), false,
+				target(types.OktaAssignmentTargetV1_APPLICATION, testAppName, withStatus(
+					status(constants.OktaAssignmentTargetOpProvision, constants.OktaAssignmentTargetOutcomeSuccessful, startTime.Add(addTime), 0),
+				))),
+		},
+		{
+			name:   "provision failed active user",
+			status: userStatusActive,
+			assignment: assignment(t, testAssignmentName, testUsername, time.Time{}, constants.OktaAssignmentStatusFailed, startTime, false,
+				target(types.OktaAssignmentTargetV1_APPLICATION, testAppName, withStatus(
+					status(constants.OktaAssignmentTargetOpProvision, constants.OktaAssignmentTargetOutcomeFailed, startTime, 1),
+				))),
+			expected: assignment(t, testAssignmentName, testUsername, time.Time{}, constants.OktaAssignmentStatusSuccessful, startTime.Add(addTime), false,
+				target(types.OktaAssignmentTargetV1_APPLICATION, testAppName, withStatus(
+					status(constants.OktaAssignmentTargetOpProvision, constants.OktaAssignmentTargetOutcomeSuccessful, startTime.Add(addTime), 0),
+				))),
+		},
+		{
+			name:   "cleanup successful active user",
+			status: userStatusActive,
+			assignment: assignment(t, testAssignmentName, testUsername, startTime, constants.OktaAssignmentStatusSuccessful, startTime, false,
+				target(types.OktaAssignmentTargetV1_APPLICATION, testAppName, withStatus(
+					status(constants.OktaAssignmentTargetOpCleanup, constants.OktaAssignmentTargetOutcomeSuccessful, startTime, 0),
+				))),
+			expected: assignment(t, testAssignmentName, testUsername, startTime, constants.OktaAssignmentStatusSuccessful, startTime.Add(addTime), true,
+				target(types.OktaAssignmentTargetV1_APPLICATION, testAppName, withStatus(
+					status(constants.OktaAssignmentTargetOpCleanup, constants.OktaAssignmentTargetOutcomeSuccessful, startTime.Add(addTime), 0),
+				))),
+		},
+		{
+			name:   "cleanup failed active user",
+			status: userStatusActive,
+			assignment: assignment(t, testAssignmentName, testUsername, startTime, constants.OktaAssignmentStatusFailed, startTime, false,
+				target(types.OktaAssignmentTargetV1_APPLICATION, testAppName, withStatus(
+					status(constants.OktaAssignmentTargetOpCleanup, constants.OktaAssignmentTargetOutcomeFailed, startTime, 1),
+				))),
+			expected: assignment(t, testAssignmentName, testUsername, startTime, constants.OktaAssignmentStatusSuccessful, startTime.Add(addTime), true,
+				target(types.OktaAssignmentTargetV1_APPLICATION, testAppName, withStatus(
+					status(constants.OktaAssignmentTargetOpCleanup, constants.OktaAssignmentTargetOutcomeSuccessful, startTime.Add(addTime), 0),
+				))),
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			ctx := t.Context()
+			clock := clockwork.NewFakeClockAt(startTime)
+			oktaClient := newTestOktaClient()
+			ap := newTestAccessPoint(t, clock)
+			svc, _ := newTestService(t, ap, oktaClient)
+			svc.clock = clock
+			a := newAssignmentProcessor(svc)
+
+			oktaClient.AddUserID(testUsername, testUserID)
+			oktaClient.SetUserStatus(testUsername, test.status)
+
+			_, err := ap.CreateOktaAssignment(ctx, test.assignment)
+			require.NoError(t, err)
+
+			clock.Advance(addTime)
+			a.processTimerEvent(ctx)
+
+			testAssignment, err := ap.GetOktaAssignment(ctx, testAssignmentName)
+			require.NoError(t, err)
+			require.Empty(t, cmp.Diff(test.expected, testAssignment, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+		})
+	}
+}
+
 func getOktaAssignmentNames(assignments []types.OktaAssignment) []string {
 	var res []string
 	for _, r := range assignments {

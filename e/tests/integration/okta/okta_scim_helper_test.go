@@ -77,6 +77,7 @@ func witAccessListSettings(config *oktav1.AccessListSettings) oktaIntegrationOpt
 		opts.AccessListSettings = config
 	}
 }
+
 func withEnableFullSync() oktaIntegrationOption {
 	return func(opts *scimIntegrationOptions) {
 		opts.EnableFullSync = true
@@ -96,7 +97,7 @@ func createAndWaitForOktaIntegration(t *testing.T, sut *common.SUT, fakeOkta *fa
 	scimToken := uuid.NewString()
 	oktaClient := sut.GetOktaAuthClient(t, "alice-admin")
 
-	for _, u := range fakeOkta.ListUsers() {
+	for _, u := range fakeOkta.ListUsers("") {
 		require.NoError(t, fakeOkta.AssignUserToApplication(fakeOkta.provisionedSAMLApp.Id, u.Id))
 	}
 

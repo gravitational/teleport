@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"log/slog"
 	"maps"
+	"slices"
 	"sync"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/okta/okta-sdk-golang/v2/okta/query"
@@ -15,6 +17,13 @@ import (
 	oktaapi "github.com/gravitational/teleport/e/lib/okta/api"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/set"
+)
+
+const (
+	// userListTimeout is the maximum amount of time to spend listing Okta users.
+	// It is long because listing a page of 500 users using the regular API
+	// (not Skinny Users Endpoints) may take minutes.
+	userListTimeout time.Duration = 10 * time.Minute
 )
 
 // assignmentClient is a caching Okta client that will keep track of of Okta
@@ -26,12 +35,19 @@ type assignmentClient struct {
 	logger     *slog.Logger
 	oktaClient oktaapi.Interface
 
-	// Mapping of usernames to user IDs. Initialized once on first read and then
-	// only ever read from, so locking isn't an issue.
+	// usersMu is used to protect initialization of users, deactivatedUsers and suspendedUsers.
+	usersMu sync.Mutex
+	// usersReady indicates whether users has been successfully populated.
+	usersReady bool
+
+	// Mapping of usernames to user IDs.
+	// Initialized once by ensureUsers under usersMu lock, and read only when usersReady is true.
 	users map[userName]oktaUserID
 
-	// Guard for initializing the `users` map
-	initUsersOnce sync.Once
+	// deactivatedUsers is the set of users reported deactivated by Okta API.
+	deactivatedUsers set.Set[userName]
+	// suspendedUsers is the set of users reported suspended by Okta API.
+	suspendedUsers set.Set[userName]
 
 	// Group membership.
 	groups utils.SyncMap[oktaGroupID, set.Set[oktaUserID]]
@@ -331,34 +347,7 @@ func (a *assignmentClient) unregisterUserFromApp(ctx context.Context, username u
 
 // userID will return the Okta userID for the username.
 func (a *assignmentClient) userID(ctx context.Context, username userName) (oktaUserID, error) {
-	var err error
-
-	a.initUsersOnce.Do(func() {
-		a.logger.DebugContext(ctx, "Refreshing organization user list")
-		a.users, err = a.oktaClient.ListUsers(ctx)
-		if err != nil {
-			err = trace.Wrap(err)
-			return
-		}
-
-		// Assignment can be stale and refer to deactivated user.
-		// userID function needs succeed to successfully process and clean the assignment.
-		// We need to make sure that all assignments for deactivated user was cleanup
-		// before deleting okta assignment.
-		filter := fmt.Sprintf(`status eq "%s"`, userStatusDeprovisioned)
-		var deactivatedUsers map[userName]oktaUserID
-		deactivatedUsers, err = a.oktaClient.ListUsers(ctx, query.WithFilter(filter))
-		if err != nil {
-			err = trace.Wrap(err)
-			return
-		}
-
-		if a.users == nil {
-			a.users = make(map[oktaapi.UserName]oktaapi.OktaUserID)
-		}
-		maps.Copy(a.users, deactivatedUsers)
-	})
-	if err != nil {
+	if err := a.ensureUsers(ctx); err != nil {
 		return "", trace.Wrap(err)
 	}
 
@@ -368,4 +357,72 @@ func (a *assignmentClient) userID(ctx context.Context, username userName) (oktaU
 	}
 
 	return uid, nil
+}
+
+// ensureUsers builds the user lists and sets the usersReady flag once successful.
+// This ensures that subsequent calls after an initial failure either error or return
+// the full users listing.
+func (a *assignmentClient) ensureUsers(ctx context.Context) error {
+	a.usersMu.Lock()
+	defer a.usersMu.Unlock()
+
+	if a.usersReady {
+		return nil
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, userListTimeout)
+	defer cancel()
+
+	var err error
+
+	a.logger.DebugContext(ctx, "Refreshing organization user list")
+	a.users, err = a.oktaClient.ListUsers(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	deactivatedFilter := fmt.Sprintf(`status eq "%s"`, userStatusDeprovisioned)
+	deactivatedUsers, err := a.oktaClient.ListUsers(ctx, query.WithFilter(deactivatedFilter))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	a.deactivatedUsers = set.New(slices.Collect(maps.Keys(deactivatedUsers))...)
+
+	suspendedFilter := fmt.Sprintf(`status eq "%s"`, userStatusSuspended)
+	suspendedUsers, err := a.oktaClient.ListUsers(ctx, query.WithFilter(suspendedFilter))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	a.suspendedUsers = set.New(slices.Collect(maps.Keys(suspendedUsers))...)
+
+	if a.users == nil {
+		a.users = make(map[oktaapi.UserName]oktaapi.OktaUserID)
+	}
+	// Assignment can be stale and refer to deactivated user.
+	// userID function needs succeed to successfully process and clean the assignment.
+	// We need to make sure that all assignments for deactivated user was cleanup
+	// before deleting okta assignment.
+	maps.Copy(a.users, deactivatedUsers)
+	// TODO(nixpig): Also add suspended users for the same reason,
+	// which will become relevant when handling not found as removed users.
+	// See: https://github.com/gravitational/teleport.e/issues/7915
+
+	a.usersReady = true
+
+	return nil
+}
+
+// userExists checks whether an Okta user with the username exists.
+func (a *assignmentClient) userExists(ctx context.Context, username userName) (bool, error) {
+	_, err := a.userID(ctx, username)
+	switch {
+	case trace.IsNotFound(err):
+		return false, nil
+	case err != nil:
+		return false, trace.Wrap(err)
+	}
+
+	return true, nil
 }

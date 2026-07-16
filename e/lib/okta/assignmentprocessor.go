@@ -33,11 +33,9 @@ import (
 
 const (
 	// processAssignmentTargetsTimeout is the maximum amount of time can be spent on processing
-	// okta_assignment targets.  It is long because short times don't make sense when the cache
-	// is cold. Listing a page of 500 users using the regular API (not Skinny Users Endpoints)
-	// may take minutes. For a group/application that has many users assigned we'll repeat the
-	// same listing for every user so if the time is shorter it may lead to significantly
-	// longer overall processing time.
+	// okta_assignment targets. For a group/application that has many users assigned we'll repeat the
+	// same listing for every user so if the time is shorter it may lead to significantly longer
+	// overall processing time.
 	//
 	// At the same time this timeout means the watcher goroutine may be blocked on reconciling
 	// a single assignment blocking other okta_assignment events being processed by the
@@ -281,6 +279,33 @@ func (a *assignmentProcessor) processAssignment(ctx context.Context, logger *slo
 		return processAssignmentSkipped
 	}
 
+	username := userName(assignment.GetUser())
+	// TODO(kopiczko) pass the logger with extra attributes to assignmentClient.
+	assignmentClient := a.getAssignmentClient()
+
+	// TODO(nixpig): Handle not exists as removed then cleanup and remove assignment.
+	// See: https://github.com/gravitational/teleport.e/issues/7915
+	exists, err := assignmentClient.userExists(ctx, username)
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to check Okta user. Skipping processing assignment.", "error", err)
+		a.emitAuditEvent(ctx, assignment, startStatus, startStatus, needsCleanup, trace.Wrap(err))
+		return processAssignmentSkipped
+	}
+	if !exists {
+		logger.WarnContext(ctx, "Okta user for the assignment not found (was the user deleted in Okta?). Skipping")
+		return processAssignmentSkipped
+	}
+
+	op := constants.OktaAssignmentTargetOpProvision
+	if needsCleanup {
+		op = constants.OktaAssignmentTargetOpCleanup
+	}
+
+	if !a.shouldProcessUserAssignment(ctx, logger, assignmentClient, username, op) {
+		logger.DebugContext(ctx, "Skipping processing provision assignment for inactive user")
+		return processAssignmentSkipped
+	}
+
 	logger.DebugContext(ctx, "Processing assignment", assignmentDetailsSlogGroup(assignment))
 
 	// Make sure we process only one event for each assignment at a time. We can receive
@@ -312,7 +337,7 @@ func (a *assignmentProcessor) processAssignment(ctx context.Context, logger *slo
 		return processAssignmentFailed
 	}
 	assignment.SetLastTransition(a.clock.Now())
-	assignment, err := a.accessPoint.ConditionalUpdateOktaAssignment(ctx, assignment)
+	assignment, err = a.accessPoint.ConditionalUpdateOktaAssignment(ctx, assignment)
 	if err != nil {
 		if trace.IsCompareFailed(err) {
 			logger.DebugContext(ctx, "Assignment is stale. Skipping", "error", err.Error())
@@ -322,12 +347,6 @@ func (a *assignmentProcessor) processAssignment(ctx context.Context, logger *slo
 		return processAssignmentFailed
 	}
 
-	// TODO(kopiczko) pass the logger with extra attributes to assignmentClient.
-	assignmentClient := a.getAssignmentClient()
-	op := constants.OktaAssignmentTargetOpProvision
-	if needsCleanup {
-		op = constants.OktaAssignmentTargetOpCleanup
-	}
 	result := a.processTargets(ctx, logger, assignmentClient, assignment, op)
 
 	assignmentSuccessful := len(result.errs) == 0 && !assignmentHasFailedTargets(assignment)
@@ -447,13 +466,6 @@ func (a *assignmentProcessor) processTargets(ctx context.Context, logger *slog.L
 	ctx, cancel := context.WithTimeout(ctx, processAssignmentTargetsTimeout)
 	defer cancel()
 
-	// If we can't find the user in Okta, skip trying to process any of the targets.
-	if _, err := client.userID(ctx, userName(assignment.GetUser())); err != nil {
-		logger.WarnContext(ctx, "Okta user for the assignment not found (was the user deleted/deactivated in Okta?). Skipping")
-		result.errs = append(result.errs, trace.NotFound("Okta user for the assignment not found (was the user deleted/deactivated in Okta?)"))
-		return result
-	}
-
 	targets := assignment.GetTargets()
 	for i, target := range targets {
 		logger := logger.With(
@@ -490,6 +502,37 @@ func (a *assignmentProcessor) processTargets(ctx context.Context, logger *slog.L
 		logger.DebugContext(ctx, "Processed assignment target", "target_outcome", outcome)
 	}
 	return result
+}
+
+// shouldProcessUserAssignment returns true when an assignment should be processed for a user based on the operation and their status.
+func (a *assignmentProcessor) shouldProcessUserAssignment(ctx context.Context, logger *slog.Logger, client *assignmentClient, username userName, op constants.OktaAssignmentTargetOp) bool {
+	if op != constants.OktaAssignmentTargetOpProvision {
+		return true
+	}
+
+	// Provision assignments for suspended users should not be processed to reduce unnecessary calls to Okta API.
+	// Cleanup assignments for suspended users should continue to be processed to ensure when the user is
+	// reactivated they do not have previously authorized but expired JIT access reinstated as long-standing
+	// in the window prior to the assignment processor picking it back up.
+	if client.suspendedUsers.Contains(username) {
+		return false
+	}
+
+	// Provision assignments for deactivated (deprovisioned) users should not be processed to reduce unnecessary calls to Okta API.
+	// Cleanup assignments for deactivated users should continue to be processed for both app and groups:
+	//   - Apps: when user is deactivated in Okta, app membership is automatically removed. Continue processing to remove Teleport side stale assignment.
+	//   - Groups: when user is deactivated in Okta, they remain in groups. Continue processing to ensure when user is reactivated they do not have
+	//     previously authorized but expired JIT access reinstated as long-standing access in the window prior to the assignment processor picking it back up.
+	if client.deactivatedUsers.Contains(username) {
+		logger.WarnContext(ctx,
+			"This assignment's user is deactivated. The okta_assignment will be automatically removed when the user is removed in Okta. "+
+				"If the user will not be removed in Okta, stale assignment can be manually removed using `tctl delete okta_assignment/<assignment_name>` which will suppress this message. "+
+				"Note that manually removing the okta_assignment then reactivating the user in Okta will result in any previous authorized JIT access being reinstated as standing access.",
+		)
+		return false
+	}
+
+	return true
 }
 
 func (a *assignmentProcessor) processTarget(ctx context.Context, logger *slog.Logger, client *assignmentClient, assignment types.OktaAssignment, target types.OktaAssignmentTarget, op constants.OktaAssignmentTargetOp) error {

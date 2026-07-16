@@ -140,6 +140,8 @@ func (d *LocalData) newClientFuncs() ClientFuncs {
 			case "":
 			case `status eq "DEPROVISIONED"`:
 				return nil, nil
+			case `status eq "SUSPENDED"`:
+				return nil, nil
 			default:
 				panic("unhandled filter: " + p.Filter)
 			}

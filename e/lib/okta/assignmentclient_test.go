@@ -23,11 +23,12 @@ import (
 	"github.com/gravitational/teleport/lib/utils/set"
 )
 
-// purgeCache clears the assignmentClient caches, forcing the client to reload
-// everything from the upstream Okta service. Used only in tests.
+// purgeCache resets usersReady, and clears apps and groups caches,
+// forcing the client to reload everything from the upstream Okta service. Used only in tests.
 func (a *assignmentClient) purgeCache() {
-	clear(a.users)
-	a.initUsersOnce = sync.Once{}
+	a.usersMu.Lock()
+	a.usersReady = false
+	a.usersMu.Unlock()
 	a.apps.Clear()
 	a.groups.Clear()
 }
@@ -260,6 +261,26 @@ func TestAssignmentClient(t *testing.T) {
 		require.NotPanics(t, func() {
 			_, _ = assignmentClient.userID(context.Background(), "bob")
 		})
+	})
+
+	t.Run("ensure users retries after initial failure", func(t *testing.T) {
+		assignmentClient := newAssignmentClient(log, &badOktaUserLister{err: errors.New("fake Okta error")})
+
+		err := assignmentClient.ensureUsers(t.Context())
+		require.Error(t, err)
+		require.False(t, trace.IsNotFound(err))
+		require.False(t, assignmentClient.usersReady)
+		require.Empty(t, assignmentClient.users)
+
+		oktaClient := newTestOktaClient()
+		oktaClient.UsernamesToUserIDs.Store(testUser, testOktaUserID)
+		assignmentClient.oktaClient = oktaClient
+
+		require.NoError(t, assignmentClient.ensureUsers(t.Context()))
+		require.True(t, assignmentClient.usersReady)
+		id, err := assignmentClient.userID(ctx, testUser)
+		require.NoError(t, err)
+		require.Equal(t, testOktaUserID, id)
 	})
 }
 

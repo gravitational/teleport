@@ -3,8 +3,10 @@ package oktaapi
 import (
 	"context"
 	"errors"
+	"fmt"
 	"maps"
 	"net/url"
+	"strings"
 
 	"github.com/gravitational/trace"
 	"github.com/okta/okta-sdk-golang/v2/okta"
@@ -29,7 +31,14 @@ type TestOktaClient struct {
 	OktaApps     []okta.App
 	OktaOrgURL   string
 
+	// TODO(nixpig): Update mock so that instead of maintaining a separate collection of
+	// usernames to user IDs that external callers directly update, we store users on the
+	// client and methods such as ListUsers build the map of usernames to user IDs when
+	// called. That will also enable us to remove the separate mapping of user statuses.
 	UsernamesToUserIDs utils.SyncMap[UserName, OktaUserID]
+
+	// userStatuses is a mapping of users to non-default status, e.g. "DEPROVISIONED" or "SUSPENDED".
+	userStatuses utils.SyncMap[UserName, string]
 
 	// groupsToUsers is a mapping of group IDs to users that have been assigned to them.
 	GroupsToUsers utils.SyncMap[OktaGroupID, set.Set[OktaUserID]]
@@ -160,13 +169,46 @@ func (t *TestOktaClient) GetAppAssignments(ctx context.Context, appID OktaAppID)
 }
 
 // ListUsers will return a mapping of usernames to user IDs from Okta.
-func (t *TestOktaClient) ListUsers(_ context.Context, _ ...query.ParamOptions) (map[UserName]OktaUserID, error) {
-	return t.UsernamesToUserIDs.Clone(), nil
+// When a status filter is provided, the user list is filtered by status.
+func (t *TestOktaClient) ListUsers(_ context.Context, paramOpts ...query.ParamOptions) (map[UserName]OktaUserID, error) {
+	const statusFilterPrefix = "status eq"
+
+	users := t.UsernamesToUserIDs.Clone()
+	filter := query.NewQueryParams(paramOpts...).Filter
+
+	if filter == "" {
+		maps.DeleteFunc(users, func(u UserName, _ OktaUserID) bool {
+			status, ok := t.userStatuses.Load(u)
+			if !ok {
+				return false
+			}
+			return status == "DEPROVISIONED"
+		})
+		return users, nil
+	}
+
+	if strings.HasPrefix(filter, statusFilterPrefix) {
+		maps.DeleteFunc(users, func(u UserName, _ OktaUserID) bool {
+			status, ok := t.userStatuses.Load(u)
+			if !ok {
+				return true
+			}
+			return filter != fmt.Sprintf(`%s "%s"`, statusFilterPrefix, status)
+		})
+	}
+
+	return users, nil
 }
 
 // AddUserID will add a mapping from the username to the user ID.
 func (t *TestOktaClient) AddUserID(username UserName, userID OktaUserID) {
 	t.UsernamesToUserIDs.Store(username, userID)
+}
+
+// SetUserStatus sets a non-default status for a user.
+// Used by ListUsers to filter users by status.
+func (t *TestOktaClient) SetUserStatus(user UserName, status string) {
+	t.userStatuses.Store(user, status)
 }
 
 // AddGroupToMapping will add the given group to the group to user mapping in the test client.
@@ -180,7 +222,6 @@ func (t *TestOktaClient) AddGroupToMapping(groupId string) {
 		t.OktaGroups = append(t.OktaGroups, &okta.Group{Id: groupId})
 		groupsToUsers[OktaGroupID(groupId)] = set.New[OktaUserID]()
 	})
-
 }
 
 // AddOktaGroupToMapping will add the given Okta group to the group to user mapping in the test client.
@@ -208,7 +249,6 @@ func (t *TestOktaClient) AssignUserToGroup(_ context.Context, userID OktaUserID,
 
 // UnassignUserFromGroup will unassign the given user from the group.
 func (t *TestOktaClient) UnassignUserFromGroup(_ context.Context, userID OktaUserID, groupID OktaGroupID) error {
-
 	if err, ok := t.UnassignGroupErr[groupID]; ok {
 		return err
 	}
@@ -228,7 +268,6 @@ func (t *TestOktaClient) UnassignUserFromGroup(_ context.Context, userID OktaUse
 
 // AddApplicationToMapping will add the given application to the application to user mapping in the test client.
 func (t *TestOktaClient) AddApplicationToMapping(applicationId string) {
-
 	t.AppsToUsers.Store(OktaAppID(applicationId), set.New[AppAssignment]())
 
 	t.OktaApps = append(t.OktaApps, &okta.Application{
@@ -391,7 +430,6 @@ func (t *TestOktaClient) GetTestGroupAssignments(groupID OktaGroupID) ([]OktaUse
 		for k := range maps.Keys(members) {
 			users = append(users, k)
 		}
-
 	})
 
 	return users, err
@@ -413,9 +451,11 @@ func (t *TestOktaClient) GetAuthorizedScopes(ctx context.Context) ([]string, err
 func (w *TestOktaClient) ListLogEvents(ctx context.Context, qp *query.Params) ([]*okta.LogEvent, *okta.Response, error) {
 	return nil, nil, trace.NotImplemented("listLogEvents")
 }
+
 func (w *TestOktaClient) ListApiTokens(ctx context.Context, qp *query.Params) ([]*ApiToken, *okta.Response, error) {
 	return nil, nil, trace.NotImplemented("listApiTokens")
 }
+
 func (w *TestOktaClient) ListUsersWithRoleAssignments(ctx context.Context) (*RoleAssignedUsers, *okta.Response, error) {
 	return nil, nil, trace.NotImplemented("listUsersWithRoleAssignments")
 }

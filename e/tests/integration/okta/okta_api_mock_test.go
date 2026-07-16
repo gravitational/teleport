@@ -143,7 +143,7 @@ func (f *fakeOktaServer) routes() http.Handler {
 
 	mux.HandleFunc(http.MethodGet+" /api/v1/users", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Add("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(f.ListUsers()); err != nil {
+		if err := json.NewEncoder(w).Encode(f.ListUsers(r.URL.Query().Get("filter"))); err != nil {
 			f.error(w, r, err.Error(), http.StatusInternalServerError)
 		}
 	})
@@ -713,15 +713,24 @@ func (f *fakeOktaServer) GetAppUser(appID, userID string) (*okta.AppUser, error)
 }
 
 // ListUsers will return the list of users.
-func (f *fakeOktaServer) ListUsers() []*okta.User {
+// If a status filter string is provided, the users will be filtered by status.
+func (f *fakeOktaServer) ListUsers(filter string) []*okta.User {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
 	var users []*okta.User
 	for _, user := range f.users {
-		if user.Status == "DEPROVISIONED" {
+		switch filter {
+		case "":
+			if user.Status == "DEPROVISIONED" {
+				continue
+			}
+		case fmt.Sprintf(`status eq "%s"`, user.Status):
+			// Keep users with matching status.
+		default:
 			continue
 		}
+
 		users = append(users, user)
 	}
 
