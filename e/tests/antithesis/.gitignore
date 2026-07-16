@@ -1,0 +1,3 @@
+# Config for building and running locally, see .env.example
+.env
+workloads/bin/

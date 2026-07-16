@@ -1,0 +1,10 @@
+{
+  "antithesis.description": "Example Teleport SUT",
+  "antithesis.source": "example",
+  "custom.clock_jitter": "true",
+  "custom.cpu_mod": "true",
+  "custom.exclude_from_faults": "workload",
+  "custom.include_for_node_hang": "",
+  "custom.include_for_node_termination": "",
+  "custom.include_for_node_throttle": ""
+}

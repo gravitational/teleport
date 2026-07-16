@@ -1,0 +1,27 @@
+version: v3
+teleport:
+  data_dir: /var/lib/teleport
+  log:
+    output: stderr
+    severity: INFO
+  storage:
+    type: postgresql
+    conn_string: "postgresql://teleport@pg:5432/teleport_backend?sslcert=/certs/client.crt&sslkey=/certs/client.key&sslrootcert=/certs/ca.crt&sslmode=verify-full&pool_max_conns=10"
+    change_feed_conn_string: "postgresql://teleport@pg:5432/teleport_backend?sslcert=/certs/client.crt&sslkey=/certs/client.key&sslrootcert=/certs/ca.crt&sslmode=verify-full"
+
+auth_service:
+  enabled: true
+  proxy_listener_mode: multiplex
+  tunnel_strategy:
+    type: proxy_peering
+  session_recording_config:
+    mode: node
+  cluster_name: antithesis.teleport.local
+  tokens:
+    - "proxy:proxy-token"
+
+proxy_service:
+  enabled: false
+
+ssh_service:
+  enabled: false

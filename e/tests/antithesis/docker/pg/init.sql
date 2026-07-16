@@ -1,0 +1,2 @@
+CREATE USER teleport WITH REPLICATION CREATEDB;
+GRANT SET ON PARAMETER log_min_messages TO teleport;

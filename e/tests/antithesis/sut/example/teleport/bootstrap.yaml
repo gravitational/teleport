@@ -1,0 +1,21 @@
+kind: role
+version: v8
+metadata:
+  name: workload-admin
+spec:
+  allow:
+    rules:
+    - resources:
+      - "*"
+      verbs:
+      - list
+      - read
+---
+kind: token
+version: v2
+metadata:
+  name: workload-token
+spec:
+  roles: [Bot]
+  join_method: token
+  bot_name: workload

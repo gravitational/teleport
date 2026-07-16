@@ -1,0 +1,37 @@
+# This Dockerfile is built with the repository root as the build context:
+#   docker build -f e/tests/antithesis/docker/teleport/Dockerfile .
+
+# Ignore everything
+*
+
+# Allow Go files that aren't tests
+!**/*.go
+!**/*.mod
+!**/*.sum
+**/*_test.go
+
+# Allow headers
+!**/*.h
+# But not from node_modules
+node_modules/**
+
+# Allow scripts needed by the image itself
+!e/tests/antithesis/docker/**/*.sh
+
+# Allow workload commands.
+!e/tests/antithesis/workloads/cmd/
+
+# embed files
+!**/*.tmpl
+!**/*.te
+!**/*.sql
+!lib/web/scripts/
+!lib/auth/windows-configure-ad.ps1
+!integrations/access/msteams/_tpl/
+!lib/web/templates/
+!lib/usertasks/descriptions/
+
+# Ignore unusued parts to reduce size of instrumentation and improve caching.
+examples/**
+build.assets/**
+e2e/**
