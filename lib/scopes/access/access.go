@@ -27,6 +27,7 @@ import (
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/scopes"
+	"github.com/gravitational/teleport/lib/services/label"
 )
 
 const (
@@ -283,7 +284,6 @@ func StrongValidateRole(role *scopedaccessv1.ScopedRole) error {
 			return trace.BadParameter("scoped role %q has invalid defaults.lock.mode %q", role.GetMetadata().GetName(), lock.GetMode())
 		}
 	}
-
 	// verify that lock.Mode is a recognized value for SSH
 	if lock := role.GetSpec().GetSsh().GetLock(); lock != nil {
 		if err := validateLock(lock); err != nil {
@@ -376,8 +376,13 @@ func validateAppBlock(app *scopedaccessv1.ScopedRoleApp) error {
 		return trace.BadParameter("empty labels and label expressions for apps. Please add at least one label entry or a label expression")
 	}
 
+	if expr := app.GetLabelExpression(); expr != "" {
+		if _, err := label.ParseLabelExpression(expr); err != nil {
+			return trace.BadParameter("invalid app.label_expression: %v", err)
+		}
+	}
+
 	// verify that app labels are well formed
-	// label expressions are evaluated in write time as of right now in lib/services/local/scoped_access.go
 	for _, label := range labels {
 		// we currently don't support any form of wildcard/regex/substitution in scoped role
 		// app labels. we likely will support such things in the future, but its best to disallow

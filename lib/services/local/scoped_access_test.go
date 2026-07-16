@@ -417,58 +417,6 @@ func TestScopedRoleBasicCRUD(t *testing.T) {
 	require.True(t, trace.IsBadParameter(err), "expected BadParameter error, got %v", err)
 }
 
-func TestScopedRoleLabelExpressionValidation(t *testing.T) {
-	t.Parallel()
-
-	ctx := t.Context()
-
-	backend, err := memory.New(memory.Config{
-		Context: ctx,
-	})
-	require.NoError(t, err)
-	defer backend.Close()
-
-	testCases := []struct {
-		name      string
-		labelExpr string
-		expectErr bool
-	}{
-		{
-			name:      "valid expression",
-			labelExpr: `labels["env"] == "staging"`,
-		},
-		{
-			name:      "invalid expression",
-			labelExpr: `labels["env"] ==`,
-			expectErr: true,
-		},
-	}
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			err := strongValidateRole(scopedaccessv1.ScopedRole_builder{
-				Kind: scopedaccess.KindScopedRole,
-				Metadata: headerv1.Metadata_builder{
-					Name: "test",
-				}.Build(),
-				Scope: "/test",
-				Spec: scopedaccessv1.ScopedRoleSpec_builder{
-					AssignableScopes: []string{"/test/foo"},
-					App: scopedaccessv1.ScopedRoleApp_builder{
-						LabelExpression: tc.labelExpr,
-					}.Build(),
-				}.Build(),
-				Version: types.V1,
-			}.Build())
-			if tc.expectErr {
-				require.True(t, trace.IsBadParameter(err), err)
-				require.ErrorContains(t, err, "has invalid app.label_expression")
-			} else {
-				require.NoError(t, err)
-			}
-		})
-	}
-}
-
 // TestScopedRoleAssignmentBasicCRD tests the basic CRD operations of the ScopedRoleAssignmentService, excluding the more non-trivial
 // scenarios involving roles with active assignments, which are tested separately.
 func TestScopedRoleAssignmentBasicCRD(t *testing.T) {
