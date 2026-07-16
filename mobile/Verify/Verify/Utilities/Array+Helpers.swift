@@ -15,29 +15,12 @@
 // along with this program.  If not, see http://www.gnu.org/licenses/
 
 import Foundation
-import SQLiteData
 
-@Table("clusters")
-struct Cluster: Identifiable {
-	let id: UUID
-	var host: String
-	var port: Int
-}
-
-// MARK: - CustomDebugStringConvertible
-
-extension Cluster: CustomDebugStringConvertible {
-	var debugDescription: String {
-		"\(id):\(host):\(port)"
-	}
-}
-
-extension Cluster {
-	var url: URL? {
-		var components = URLComponents()
-		components.host = host
-		components.port = port
-		components.scheme = "https"
-		return components.url
+extension Array {
+	func values(at indexSet: IndexSet) -> [Element] {
+		indexSet.compactMap { index in
+			guard self.indices.contains(index) else { return nil }
+			return self[index]
+		}
 	}
 }
