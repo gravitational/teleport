@@ -38,8 +38,8 @@ COPY . ./
 COPY e/tests/antithesis/docker/teleport/webassets_override.go webassets_noembed.go
 
 RUN --mount=type=cache,target=/go/pkg/mod \
-    go get github.com/antithesishq/antithesis-sdk-go@v0.7.0 && \
-    go get -tool github.com/antithesishq/antithesis-sdk-go/tools/antithesis-go-instrumentor@v0.7.0
+    go get github.com/antithesishq/antithesis-sdk-go@v0.7.2 && \
+    go get -tool github.com/antithesishq/antithesis-sdk-go/tools/antithesis-go-instrumentor@v0.7.2
 
 # Instrument the source tree. This creates customer, notifier, and symbols
 # under the empty output directory.
@@ -79,16 +79,6 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     -o /out/tbot ./tool/tbot
 
 WORKDIR /instrumented/customer/e/tests/antithesis/workloads
-# TODO(okraport): This is a workaround for antithesis-go-instrumentor not correctly rewriting nested go.mod files when generating
-# instrumented code. The notifier module is created in /instrumented/notifier and the root module go.mod file
-# correctly adds the replace directive.
-# Unfortunatley that is not the case with the workloads go.mod, we patch this manually until the fix is done and released.
-RUN --mount=type=cache,target=/go/pkg/mod \
-    notifier_module="$(sed -n 's/.*"\(antithesis\.notifier\/[^"]*\)".*/\1/p' cmd/workload_entrypoint/main.go | head -n 1)" && \
-    test -n "${notifier_module}" && \
-    go mod edit -require="${notifier_module}@v0.0.0" && \
-    go mod edit -replace="${notifier_module}=/instrumented/notifier" && \
-    go mod tidy
 
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \

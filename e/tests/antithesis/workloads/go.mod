@@ -4,7 +4,7 @@ go 1.26.5
 
 require (
 	github.com/alecthomas/kingpin/v2 v2.4.0
-	github.com/antithesishq/antithesis-sdk-go v0.7.0
+	github.com/antithesishq/antithesis-sdk-go v0.7.2
 	github.com/gravitational/teleport v0.0.0-00010101000000-000000000000
 	github.com/gravitational/teleport/api v0.0.0-00010101000000-000000000000
 	github.com/gravitational/trace v1.5.4
