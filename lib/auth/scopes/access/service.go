@@ -397,12 +397,16 @@ func (s *Server) ListScopedRoleAssignments(ctx context.Context, req *scopedacces
 		}
 	}
 
+	// list method scope filters must use identity-based defaults per RFD 0229i
+	req.SetScopeFilter(authzContext.CheckerContext.ResolveScopeFilter(req.GetScopeFilter()))
+
 	// list scoped role assignments with a filter that only passes assignments the user has access to.
 	rsp, err := s.cfg.Reader.ListScopedRoleAssignmentsWithFilter(ctx, req, func(assignment *scopedaccessv1.ScopedRoleAssignment) bool {
 		if req.GetAllCallerAssignments() {
 			// note that this short-circuit doesn't just bypass verb checks, it also bypasses scope pinning. this is
 			// intended behavior and an important part of what makes the all_caller_assignments mode useful, as it allows
-			// users to get an overview of their available privileges across all scopes.
+			// users to get an overview of their available privileges across all scopes (assuming the scope filter mode
+			// has been set to ALL).
 			return authzContext.User.GetName() == assignment.GetSpec().GetUser()
 		}
 		err := authzContext.CheckerContext.Decision(ctx, assignment.GetScope(), func(checker *services.ScopedAccessChecker) error {
@@ -430,6 +434,15 @@ func (s *Server) ListScopedRoles(ctx context.Context, req *scopedaccessv1.ListSc
 	if err := authzContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, scopedaccess.KindScopedRole, types.VerbReadNoSecrets, types.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// the resource_scope field was renamed to scope_filter and is now deprecated. honor it as equivalent to
+	// scope_filter for back-compat with clients that have not yet been updated to set scope_filter.
+	if req.HasResourceScope() && !req.HasScopeFilter() { //nolint:staticcheck // SA1019. Reading deprecated field for backwards compatibility.
+		req.SetScopeFilter(req.GetResourceScope()) //nolint:staticcheck // SA1019. Reading deprecated field for backwards compatibility.
+	}
+
+	// list method scope filters must use identity-based defaults per RFD 0229i
+	req.SetScopeFilter(authzContext.CheckerContext.ResolveScopeFilter(req.GetScopeFilter()))
 
 	// list scoped roles with a filter that only passes roles the user has access to.
 	rsp, err := s.cfg.Reader.ListScopedRolesWithFilter(ctx, req, func(role *scopedaccessv1.ScopedRole) bool {

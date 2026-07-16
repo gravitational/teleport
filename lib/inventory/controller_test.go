@@ -41,10 +41,12 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/inventory/metadata"
+	scopedapp "github.com/gravitational/teleport/lib/scopes/app"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
@@ -182,6 +184,33 @@ func (a *fakeAuth) KeepAliveServer(_ context.Context, ka types.KeepAlive) error 
 	}
 	a.lastServerExpiry = ka.Expires
 	return a.err
+}
+
+func (a *fakeAuth) UpsertLinuxDesktop(_ context.Context, desktop *linuxdesktopv1.LinuxDesktop) (*linuxdesktopv1.LinuxDesktop, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.upserts++
+
+	if a.failUpserts > 0 {
+		a.failUpserts--
+		return nil, trace.Errorf("upsert failed as test condition")
+	}
+	if desktop.GetMetadata() != nil {
+		a.lastServerExpiry = desktop.GetMetadata().GetExpires().AsTime()
+	}
+	return desktop, a.err
+}
+
+func (a *fakeAuth) DeleteLinuxDesktop(ctx context.Context, name string) error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.deletes++
+
+	if a.failDeletes > 0 {
+		a.failDeletes--
+		return trace.Errorf("delete failed as test condition")
+	}
+	return nil
 }
 
 // UpsertRelayServer implements [Auth].
@@ -931,9 +960,11 @@ func TestScopedAppServer(t *testing.T) {
 	t.Parallel()
 
 	// happy path: server and app scopes match the hello scope (static registration).
-	synctest.Test(t, testAppServerScoped("/test", "/test", "/test", true))
+	synctest.Test(t, testAppServerScoped("/test", "/test", "/test", "", true))
 	// embedded app scope is different from the server scope.
-	synctest.Test(t, testAppServerScoped("/test", "/test", "/test/child", false))
+	synctest.Test(t, testAppServerScoped("/test", "/test", "/test/child", "", false))
+	// add incorrect app computed public addr
+	synctest.Test(t, testAppServerScoped("/test", "/test", "/test", "overridenpublicaddr.com", false))
 }
 
 // appTestController bundles the pieces an app-server heartbeat test needs from a
@@ -1044,9 +1075,14 @@ func testAppServerHeartbeatNormalization(t *testing.T) {
 	require.Equal(t, "mixedcaseapp.example.com", srv.resource.GetApp().GetPublicAddr())
 }
 
-func testAppServerScoped(initialScope, serverScope, appScope string, expectOK bool) func(t *testing.T) {
+func testAppServerScoped(initialScope, serverScope, appScope, publicAddrOverride string, expectOK bool) func(t *testing.T) {
 	return func(t *testing.T) {
 		c := newAppTestController(t, initialScope)
+
+		pubAddr := scopedapp.ScopedAppPublicAddr(appScope, "app", "teleport.example.com")
+		if publicAddrOverride != "" {
+			pubAddr = publicAddrOverride
+		}
 
 		err := c.downstream.Send(c.ctx, proto.InventoryHeartbeat_builder{
 			AppServer: &types.AppServerV3{
@@ -1059,7 +1095,10 @@ func testAppServerScoped(initialScope, serverScope, appScope string, expectOK bo
 						Version:  types.V3,
 						Scope:    appScope,
 						Metadata: types.Metadata{Name: "app"},
-						Spec:     types.AppSpecV3{URI: "http://localhost:8080"},
+						Spec: types.AppSpecV3{
+							URI:        "http://localhost:8080",
+							PublicAddr: pubAddr,
+						},
 					},
 				},
 			},

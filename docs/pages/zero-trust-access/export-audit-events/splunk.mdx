@@ -141,10 +141,10 @@ your `fluent.conf` file as follows:
    For more information on Splunk HEC URIs, see [Splunk HTTP Event Collector
    ](https://help.splunk.com/en/splunk-enterprise/get-started/get-data-in/10.2/get-data-with-http-event-collector/set-up-and-use-http-event-collector-in-splunk-web#send-data-to-http-event-collector-on-splunk-cloud-platform-0).
 
-1. Edit the `<match test.log>` section with the following section.
+1. Edit the `<match events.log>` section with the following section.
 
    ```xml
-    <match test.log>
+    <match events.log>
       @type http
       endpoint <Var name="splunk-endpoint" />
       headers {"Authorization": "Splunk <Var name="TOKEN" />"}

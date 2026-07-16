@@ -130,6 +130,7 @@ export type UnifiedResourceDesktop = {
   name: string;
   addr: string;
   labels: ResourceLabel[];
+  host_id?: string;
   requiresRequest?: boolean;
 };
 

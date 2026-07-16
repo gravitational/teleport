@@ -248,8 +248,8 @@ func TestScopedTokenList(t *testing.T) {
 		{
 			name: "tokens assigning scope descendant of /test",
 			req: joiningv1.ListScopedTokensRequest_builder{
-				AssignedScope: scopesv1.Filter_builder{
-					Mode:  scopesv1.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
+				AssignedScopeFilter: scopesv1.Filter_builder{
+					Mode:  scopesv1.Mode_MODE_DESCENDANTS,
 					Scope: "/test",
 				}.Build(),
 				WithSecrets: true,
@@ -259,8 +259,8 @@ func TestScopedTokenList(t *testing.T) {
 		{
 			name: "tokens assigning scope descendant of /test/aa",
 			req: joiningv1.ListScopedTokensRequest_builder{
-				AssignedScope: scopesv1.Filter_builder{
-					Mode:  scopesv1.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
+				AssignedScopeFilter: scopesv1.Filter_builder{
+					Mode:  scopesv1.Mode_MODE_DESCENDANTS,
 					Scope: "/test/aa",
 				}.Build(),
 				WithSecrets: true,
@@ -270,8 +270,8 @@ func TestScopedTokenList(t *testing.T) {
 		{
 			name: "tokens assigning scope ancestor to /test/bb",
 			req: joiningv1.ListScopedTokensRequest_builder{
-				AssignedScope: scopesv1.Filter_builder{
-					Mode:  scopesv1.Mode_MODE_POLICIES_APPLICABLE_TO_SCOPE,
+				AssignedScopeFilter: scopesv1.Filter_builder{
+					Mode:  scopesv1.Mode_MODE_ANCESTORS,
 					Scope: "/test/bb",
 				}.Build(),
 				WithSecrets: true,
@@ -281,8 +281,8 @@ func TestScopedTokenList(t *testing.T) {
 		{
 			name: "tokens descendants of /test",
 			req: joiningv1.ListScopedTokensRequest_builder{
-				ResourceScope: scopesv1.Filter_builder{
-					Mode:  scopesv1.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
+				ScopeFilter: scopesv1.Filter_builder{
+					Mode:  scopesv1.Mode_MODE_DESCENDANTS,
 					Scope: "/test",
 				}.Build(),
 				WithSecrets: true,
@@ -292,8 +292,8 @@ func TestScopedTokenList(t *testing.T) {
 		{
 			name: "tokens descendants of /test/aa",
 			req: joiningv1.ListScopedTokensRequest_builder{
-				ResourceScope: scopesv1.Filter_builder{
-					Mode:  scopesv1.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
+				ScopeFilter: scopesv1.Filter_builder{
+					Mode:  scopesv1.Mode_MODE_DESCENDANTS,
 					Scope: "/test/aa",
 				}.Build(),
 				WithSecrets: true,
@@ -303,8 +303,8 @@ func TestScopedTokenList(t *testing.T) {
 		{
 			name: "tokens ancestor to /test/bb",
 			req: joiningv1.ListScopedTokensRequest_builder{
-				ResourceScope: scopesv1.Filter_builder{
-					Mode:  scopesv1.Mode_MODE_POLICIES_APPLICABLE_TO_SCOPE,
+				ScopeFilter: scopesv1.Filter_builder{
+					Mode:  scopesv1.Mode_MODE_ANCESTORS,
 					Scope: "/test/bb",
 				}.Build(),
 				WithSecrets: true,
@@ -314,12 +314,12 @@ func TestScopedTokenList(t *testing.T) {
 		{
 			name: "tokens descendant of /stage assigning /stage/aa",
 			req: joiningv1.ListScopedTokensRequest_builder{
-				ResourceScope: scopesv1.Filter_builder{
-					Mode:  scopesv1.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
+				ScopeFilter: scopesv1.Filter_builder{
+					Mode:  scopesv1.Mode_MODE_DESCENDANTS,
 					Scope: "/stage",
 				}.Build(),
-				AssignedScope: scopesv1.Filter_builder{
-					Mode:  scopesv1.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
+				AssignedScopeFilter: scopesv1.Filter_builder{
+					Mode:  scopesv1.Mode_MODE_DESCENDANTS,
 					Scope: "/stage/aa",
 				}.Build(),
 				WithSecrets: true,
@@ -329,12 +329,12 @@ func TestScopedTokenList(t *testing.T) {
 		{
 			name: "tokens descendant of /stage/aa assigning /stage/aa",
 			req: joiningv1.ListScopedTokensRequest_builder{
-				ResourceScope: scopesv1.Filter_builder{
-					Mode:  scopesv1.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
+				ScopeFilter: scopesv1.Filter_builder{
+					Mode:  scopesv1.Mode_MODE_DESCENDANTS,
 					Scope: "/stage/aa",
 				}.Build(),
-				AssignedScope: scopesv1.Filter_builder{
-					Mode:  scopesv1.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
+				AssignedScopeFilter: scopesv1.Filter_builder{
+					Mode:  scopesv1.Mode_MODE_DESCENDANTS,
 					Scope: "/stage/aa",
 				}.Build(),
 				WithSecrets: true,
@@ -344,8 +344,8 @@ func TestScopedTokenList(t *testing.T) {
 		{
 			name: "tokens in /test scope applying auth role",
 			req: joiningv1.ListScopedTokensRequest_builder{
-				ResourceScope: scopesv1.Filter_builder{
-					Mode:  scopesv1.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
+				ScopeFilter: scopesv1.Filter_builder{
+					Mode:  scopesv1.Mode_MODE_DESCENDANTS,
 					Scope: "/test",
 				}.Build(),
 				Roles:       []string{types.RoleAuth.String()},
@@ -356,8 +356,8 @@ func TestScopedTokenList(t *testing.T) {
 		{
 			name: "tokens in /test scope filtered by label",
 			req: joiningv1.ListScopedTokensRequest_builder{
-				ResourceScope: scopesv1.Filter_builder{
-					Mode:  scopesv1.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
+				ScopeFilter: scopesv1.Filter_builder{
+					Mode:  scopesv1.Mode_MODE_DESCENDANTS,
 					Scope: "/test",
 				}.Build(),
 				Roles: []string{types.RoleNode.String()},

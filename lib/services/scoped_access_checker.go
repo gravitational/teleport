@@ -28,6 +28,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -232,6 +233,12 @@ func (c *ScopedAccessChecker) Kube() *KubeAccessChecker {
 	return &KubeAccessChecker{checker: c}
 }
 
+// App returns an app-specific access checker backed by this checker. All app-specific methods
+// live on [AppAccessChecker].
+func (c *ScopedAccessChecker) App() *AppAccessChecker {
+	return &AppAccessChecker{checker: c}
+}
+
 // AccessInfo returns the AccessInfo that this access checker is based on.
 func (c *ScopedAccessChecker) AccessInfo() *AccessInfo {
 	if !c.isScoped() {
@@ -272,6 +279,17 @@ func (c *ScopedAccessChecker) CheckAccessToRemoteCluster(cluster types.RemoteClu
 	// at the type-level. this has been implemented experimentally to explore the pattern of having the scoped access checker
 	// implement methods that always deny for unsupported features.
 	return trace.AccessDenied("remote cluster access is not permitted for scoped identities")
+}
+
+// CheckAccessToWorkloadIdentity checks access to a workload identity resource by
+// matching it against the WorkloadIdentityLabels granted by the checker's roles.
+// This is the scoped equivalent of the label-based access check used by the
+// unscoped issuance path.
+func (c *ScopedAccessChecker) CheckAccessToWorkloadIdentity(wi *workloadidentityv1pb.WorkloadIdentity) error {
+	if !c.isScoped() {
+		return c.unscopedChecker.CheckAccess(types.Resource153ToResourceWithLabels(wi), AccessState{})
+	}
+	return c.scopedCompatChecker.CheckAccess(types.Resource153ToResourceWithLabels(wi), AccessState{})
 }
 
 // AdjustSessionTTL will reduce the requested ttl to the lowest max allowed TTL for this role set.

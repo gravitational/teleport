@@ -372,6 +372,22 @@ export interface MemberStatus {
     addedByDisplay?: UserDisplay;
 }
 /**
+ * ReviewStatus contains dynamic fields calculated during retrieval.
+ *
+ * @generated from protobuf message teleport.accesslist.v1.ReviewStatus
+ */
+export interface ReviewStatus {
+    /**
+     * reviewer_displays maps reviewer usernames to read-time display values
+     * derived from the user resource.
+     *
+     * @generated from protobuf field: map<string, teleport.accesslist.v1.UserDisplay> reviewer_displays = 1;
+     */
+    reviewerDisplays: {
+        [key: string]: UserDisplay;
+    };
+}
+/**
  * MemberSpec is the specification for an Access List member.
  *
  * @generated from protobuf message teleport.accesslist.v1.MemberSpec
@@ -456,6 +472,12 @@ export interface Review {
      * @generated from protobuf field: string scope = 3;
      */
     scope: string;
+    /**
+     * status contains dynamically calculated fields.
+     *
+     * @generated from protobuf field: teleport.accesslist.v1.ReviewStatus status = 4;
+     */
+    status?: ReviewStatus;
 }
 /**
  * ReviewSpec is the specification for an Access List review.
@@ -1546,6 +1568,73 @@ class MemberStatus$Type extends MessageType<MemberStatus> {
  */
 export const MemberStatus = new MemberStatus$Type();
 // @generated message type with reflection information, may provide speed optimized methods
+class ReviewStatus$Type extends MessageType<ReviewStatus> {
+    constructor() {
+        super("teleport.accesslist.v1.ReviewStatus", [
+            { no: 1, name: "reviewer_displays", kind: "map", K: 9 /*ScalarType.STRING*/, V: { kind: "message", T: () => UserDisplay } }
+        ]);
+    }
+    create(value?: PartialMessage<ReviewStatus>): ReviewStatus {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.reviewerDisplays = {};
+        if (value !== undefined)
+            reflectionMergePartial<ReviewStatus>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ReviewStatus): ReviewStatus {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* map<string, teleport.accesslist.v1.UserDisplay> reviewer_displays */ 1:
+                    this.binaryReadMap1(message.reviewerDisplays, reader, options);
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    private binaryReadMap1(map: ReviewStatus["reviewerDisplays"], reader: IBinaryReader, options: BinaryReadOptions): void {
+        let len = reader.uint32(), end = reader.pos + len, key: keyof ReviewStatus["reviewerDisplays"] | undefined, val: ReviewStatus["reviewerDisplays"][any] | undefined;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case 1:
+                    key = reader.string();
+                    break;
+                case 2:
+                    val = UserDisplay.internalBinaryRead(reader, reader.uint32(), options);
+                    break;
+                default: throw new globalThis.Error("unknown map entry field for field teleport.accesslist.v1.ReviewStatus.reviewer_displays");
+            }
+        }
+        map[key ?? ""] = val ?? UserDisplay.create();
+    }
+    internalBinaryWrite(message: ReviewStatus, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* map<string, teleport.accesslist.v1.UserDisplay> reviewer_displays = 1; */
+        for (let k of globalThis.Object.keys(message.reviewerDisplays)) {
+            writer.tag(1, WireType.LengthDelimited).fork().tag(1, WireType.LengthDelimited).string(k);
+            writer.tag(2, WireType.LengthDelimited).fork();
+            UserDisplay.internalBinaryWrite(message.reviewerDisplays[k], writer, options);
+            writer.join().join();
+        }
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.accesslist.v1.ReviewStatus
+ */
+export const ReviewStatus = new ReviewStatus$Type();
+// @generated message type with reflection information, may provide speed optimized methods
 class MemberSpec$Type extends MessageType<MemberSpec> {
     constructor() {
         super("teleport.accesslist.v1.MemberSpec", [
@@ -1652,7 +1741,8 @@ class Review$Type extends MessageType<Review> {
         super("teleport.accesslist.v1.Review", [
             { no: 1, name: "header", kind: "message", T: () => ResourceHeader },
             { no: 2, name: "spec", kind: "message", T: () => ReviewSpec },
-            { no: 3, name: "scope", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 3, name: "scope", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 4, name: "status", kind: "message", T: () => ReviewStatus }
         ]);
     }
     create(value?: PartialMessage<Review>): Review {
@@ -1676,6 +1766,9 @@ class Review$Type extends MessageType<Review> {
                 case /* string scope */ 3:
                     message.scope = reader.string();
                     break;
+                case /* teleport.accesslist.v1.ReviewStatus status */ 4:
+                    message.status = ReviewStatus.internalBinaryRead(reader, reader.uint32(), options, message.status);
+                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -1697,6 +1790,9 @@ class Review$Type extends MessageType<Review> {
         /* string scope = 3; */
         if (message.scope !== "")
             writer.tag(3, WireType.LengthDelimited).string(message.scope);
+        /* teleport.accesslist.v1.ReviewStatus status = 4; */
+        if (message.status)
+            ReviewStatus.internalBinaryWrite(message.status, writer.tag(4, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
