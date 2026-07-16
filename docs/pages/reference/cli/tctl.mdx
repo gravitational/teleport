@@ -52,8 +52,14 @@ Get details about an access path change
 Usage:
 
 ```code
-$ tctl access-changes get <change-id>
+$ tctl access-changes get [<flags>] <change-id>
 ```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format. (Values: text, json, yaml)|
 
 Arguments:
 
@@ -76,11 +82,32 @@ Flags:
 |Flag|Default|Description|
 |---|---|---|
 |`--filter`|*no default*|Filter by comma-separated key=value pairs (keys: type, kind, source). Pairs within one --filter are AND'd; repeat --filter to OR. Example: --filter kind=resource,source=AWS --filter type=teleport_user.|
+|`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format. (Values: text, json, yaml)|
 |`--kind`|*no default* (any of (repeatable): `identity`, `resource`)|Filter by change kind (repeatable; each is OR'd). Combine axes with --filter.|
 |`--limit`|`100`|Maximum number of changes to return (0 for unlimited).|
 |`--search`|*no default*|Search term to filter access changes.|
 |`--source`|*no default* (any of (repeatable): `AWS`, `Entra`, `Gitlab`, `Okta`, `TELEPORT`)|Filter by source (repeatable; each is OR'd). Combine axes with --filter.|
 |`--type`|*no default* (any of (repeatable): `aws_ec2`, `aws_eks`, `aws_rds`, `aws_s3`, `aws_user`, `entra_user`, `gitlab_project`, `gitlab_user`, `okta_application`, `okta_user`, `teleport_application`, `teleport_bot`, `teleport_database`, `teleport_desktop`, `teleport_kubernetes`, `teleport_node`, `teleport_user`)|Filter by origin type (repeatable; each is OR'd). Combine axes with --filter.|
+
+## tctl access-review
+
+Review which identities can access which resources.
+
+Usage:
+
+```code
+$ tctl access-review --query=QUERY [<flags>]
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format. (Values: text, json, yaml)|
+|`--from`|*no default*|Show access activity at or after this time; enables the activity columns. (Examples: 2006-01-02T15:04:05Z07:00, 2006-01-02, 24h, 7d). Default: activity hidden.|
+|`--limit`|`50`|Maximum number of identities to return.|
+|`--query`|*no default*|SQL SELECT against access_path scoping the identities to review.|
+|`--to`|*no default*|Upper bound for access activity. Defaults to now when --from is set; requires --from.|
 
 ## tctl acl get
 
@@ -475,6 +502,8 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
+|`--days`|`7`|Days range (default 7)|
+|`--format`|`yaml`|Output format: 'yaml' or 'json'|
 |`--name`|*no default*|Audit query name|
 
 Arguments:
@@ -490,8 +519,15 @@ Execute audit query.
 Usage:
 
 ```code
-$ tctl audit query exec [<query>]
+$ tctl audit query exec [<flags>] [<query>]
 ```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--days`|`7`|Days range (default 7)|
+|`--format`|`yaml`|Output format: 'yaml' or 'json'|
 
 Arguments:
 
@@ -506,8 +542,15 @@ Get audit query.
 Usage:
 
 ```code
-$ tctl audit query get <name>
+$ tctl audit query get [<flags>] <name>
 ```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--days`|`7`|Days range (default 7)|
+|`--format`|`yaml`|Output format: 'yaml' or 'json'|
 
 Arguments:
 
@@ -522,8 +565,15 @@ List audit queries.
 Usage:
 
 ```code
-$ tctl audit query ls
+$ tctl audit query ls [<flags>]
 ```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--days`|`7`|Days range (default 7)|
+|`--format`|`yaml`|Output format: 'yaml' or 'json'|
 
 ## tctl audit query rm
 
@@ -532,8 +582,15 @@ Remove audit query.
 Usage:
 
 ```code
-$ tctl audit query rm <name>
+$ tctl audit query rm [<flags>] <name>
 ```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--days`|`7`|Days range (default 7)|
+|`--format`|`yaml`|Output format: 'yaml' or 'json'|
 
 Arguments:
 
@@ -548,8 +605,15 @@ Get security report.
 Usage:
 
 ```code
-$ tctl audit report get <name>
+$ tctl audit report get [<flags>] <name>
 ```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--days`|`7`|Days range (default 7)|
+|`--format`|`yaml`|Output format: 'yaml' or 'json'|
 
 Arguments:
 
@@ -564,8 +628,15 @@ List security reports.
 Usage:
 
 ```code
-$ tctl audit report ls
+$ tctl audit report ls [<flags>]
 ```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--days`|`7`|Days range (default 7)|
+|`--format`|`yaml`|Output format: 'yaml' or 'json'|
 
 ## tctl audit report run
 
@@ -574,8 +645,15 @@ Run the security report.
 Usage:
 
 ```code
-$ tctl audit report run <name>
+$ tctl audit report run [<flags>] <name>
 ```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--days`|`7`|Days range (default 7)|
+|`--format`|`yaml`|Output format: 'yaml' or 'json'|
 
 Arguments:
 
@@ -590,8 +668,15 @@ Print the state of the security report.
 Usage:
 
 ```code
-$ tctl audit report state <name>
+$ tctl audit report state [<flags>] <name>
 ```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--days`|`7`|Days range (default 7)|
+|`--format`|`yaml`|Output format: 'yaml' or 'json'|
 
 Arguments:
 
@@ -606,8 +691,15 @@ Print audit query schema.
 Usage:
 
 ```code
-$ tctl audit schema
+$ tctl audit schema [<flags>]
 ```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--days`|`7`|Days range (default 7)|
+|`--format`|`yaml`|Output format: 'yaml' or 'json'|
 
 ## tctl auth create-override
 
@@ -1241,8 +1333,16 @@ Get Identity Security detection details.
 Usage:
 
 ```code
-$ tctl detections get <id>
+$ tctl detections get [<flags>] <id>
 ```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format. (Values: text, json, yaml)|
+|`--from`|`30d`|Include activity at or after this time. (Examples: 2006-01-02T15:04:05Z07:00, 2006-01-02, 24h, 7d; negative durations like -1h are future-relative. Default: 30d)|
+|`--to`|`now`|Include activity at or before this time. (Examples: 2006-01-02T15:04:05Z07:00, 2006-01-02, 24h, 7d; negative durations like -1h are future-relative. Default: now)|
 
 Arguments:
 
@@ -1264,11 +1364,14 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
+|`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format. (Values: text, json, yaml)|
+|`--from`|`30d`|Include activity at or after this time. (Examples: 2006-01-02T15:04:05Z07:00, 2006-01-02, 24h, 7d; negative durations like -1h are future-relative. Default: 30d)|
 |`--limit`|`100`|Maximum number of detections to return.|
 |`--[no-]detailed`|`false`|Include extra columns (Reported By, Type, Affected Entity, Tags, Description, Start Time, End Time, Updated) in text output.|
 |`--severity`|*no default* (any of (repeatable): `low`, `medium`, `high`, `critical`)|Filter detections by severity (Values: low, medium, high, critical).|
 |`--source`|*no default*|Filter detections by source.|
 |`--status`|`in_progress`,`triaged` (any of (repeatable): `in_progress`, `triaged`, `resolved`, `closed`)|Filter detections by status (Values: in_progress, triaged, resolved, closed). Default: in_progress, triaged.|
+|`--to`|`now`|Include activity at or before this time. (Examples: 2006-01-02T15:04:05Z07:00, 2006-01-02, 24h, 7d; negative durations like -1h are future-relative. Default: now)|
 |`--type`|*no default*|Filter detections by type.|
 
 ## tctl devices add
