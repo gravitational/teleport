@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/devicetrust"
+	"github.com/gravitational/teleport/lib/scopes"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
@@ -1760,7 +1761,10 @@ func (p *databaseServiceParser) parse(event backend.Event) (types.Resource, erro
 
 func newKubeClusterParser() *kubeClusterParser {
 	return &kubeClusterParser{
-		baseParser: newBaseParser(backend.NewKey(kubernetesPrefix)),
+		baseParser: newBaseParser(
+			kubeUnscopedPrefix(),
+			kubeScopedPrefix(),
+		),
 	}
 }
 
@@ -1771,17 +1775,19 @@ type kubeClusterParser struct {
 func (p *kubeClusterParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		name := event.Item.Key.TrimPrefix(backend.NewKey(kubernetesPrefix)).String()
-		if name == "" {
-			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+		sqn, err := kubeNameFromKey(event.Item.Key)
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
-		return &types.ResourceHeader{
+
+		return &types.KubernetesClusterV3{
 			Kind:    types.KindKubernetesCluster,
 			Version: types.V3,
 			Metadata: types.Metadata{
-				Name:      strings.TrimPrefix(name, backend.SeparatorString),
+				Name:      sqn.Name,
 				Namespace: apidefaults.Namespace,
 			},
+			Scope: sqn.Scope,
 		}, nil
 	case types.OpPut:
 		return services.UnmarshalKubeCluster(event.Item.Value,
@@ -1790,6 +1796,35 @@ func (p *kubeClusterParser) parse(event backend.Event) (types.Resource, error) {
 		)
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func kubeNameFromKey(key backend.Key) (scopes.QualifiedName, error) {
+	switch {
+	case key.HasPrefix(kubeScopedPrefix()):
+		components := key.TrimPrefix(kubeScopedPrefix()).Components()
+		if len(components) != 2 {
+			return scopes.QualifiedName{}, trace.NotFound("failed parsing %v", key.String())
+		}
+		encodedScope, name := components[0], components[1]
+		scope, err := scopes.DecodeFromKey(encodedScope)
+		if err != nil {
+			return scopes.QualifiedName{}, trace.Wrap(err)
+		}
+		return scopes.QualifiedName{
+			Scope: scope,
+			Name:  name,
+		}, nil
+	case key.HasPrefix(kubeUnscopedPrefix()):
+		components := key.TrimPrefix(kubeUnscopedPrefix()).Components()
+		if len(components) != 1 {
+			return scopes.QualifiedName{}, trace.NotFound("failed parsing %v", key.String())
+		}
+		return scopes.QualifiedName{
+			Name: components[0],
+		}, nil
+	default:
+		return scopes.QualifiedName{}, trace.NotFound("failed parsing %v", key.String())
 	}
 }
 

@@ -8,6 +8,7 @@ import (
 
 	kubev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/scopes"
 )
 
 type KubeClusterService interface {
@@ -57,4 +58,10 @@ func (c kubeClusterClientAdapter) ListKubeClusters(ctx context.Context, req *kub
 		clusters[i] = cluster
 	}
 	return clusters, res.GetNextPageToken(), nil
+}
+
+// GetCursorForKubeCluster returns the backend key for a kube cluster with
+// consideration for whether or not it is scoped.
+func GetCursorForKubeCluster(cluster types.KubeCluster) string {
+	return scopes.MakeResourceCursor(cluster.GetScope(), cluster.GetName())
 }

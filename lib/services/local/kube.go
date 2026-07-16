@@ -51,8 +51,8 @@ func NewKubernetesService(b backend.Backend) (*KubernetesService, error) {
 	svc, err := generic.NewScopeAwareService(&generic.ScopeAwareServiceConfig[types.KubeCluster]{
 		Backend:               b,
 		ResourceKind:          types.KindKubernetesCluster,
-		UnscopedBackendPrefix: backend.NewKey(kubernetesPrefix),
-		ScopedBackendPrefix:   backend.NewKey("scoped", kubernetesPrefix),
+		UnscopedBackendPrefix: kubeUnscopedPrefix(),
+		ScopedBackendPrefix:   kubeScopedPrefix(),
 		MarshalFunc: func(kc types.KubeCluster, option ...services.MarshalOption) ([]byte, error) {
 			return services.MarshalKubeCluster(kc, option...)
 		},
@@ -200,6 +200,10 @@ func validateKubeCluster(cluster types.KubeCluster) error {
 	return nil
 }
 
-const (
-	kubernetesPrefix = "kubernetes"
-)
+func kubeUnscopedPrefix() backend.Key {
+	return backend.NewKey("kubernetes")
+}
+
+func kubeScopedPrefix() backend.Key {
+	return backend.NewKey("scoped", "kubernetes")
+}
