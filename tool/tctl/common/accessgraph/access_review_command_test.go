@@ -209,9 +209,9 @@ func TestDisplayAccessReviewText(t *testing.T) {
 		}},
 	}
 
-	t.Run("without window omits activity columns", func(t *testing.T) {
+	t.Run("summary without window omits activity columns", func(t *testing.T) {
 		var buf bytes.Buffer
-		require.NoError(t, displayAccessReviewText(&buf, output, time.Time{}, time.Time{}, false))
+		require.NoError(t, displayAccessReviewText(&buf, output, time.Time{}, time.Time{}, false, false))
 		out := buf.String()
 		require.NotContains(t, out, "Last Access")
 		require.NotContains(t, out, "Accesses")
@@ -224,11 +224,11 @@ func TestDisplayAccessReviewText(t *testing.T) {
 		require.NotContains(t, out, "break-glass", "summary shows only the primary grantor")
 	})
 
-	t.Run("with window shows activity and period", func(t *testing.T) {
+	t.Run("summary with window shows activity and period", func(t *testing.T) {
 		from := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
 		to := time.Date(2026, 6, 13, 0, 0, 0, 0, time.UTC)
 		var buf bytes.Buffer
-		require.NoError(t, displayAccessReviewText(&buf, output, from, to, true))
+		require.NoError(t, displayAccessReviewText(&buf, output, from, to, true, false))
 		out := buf.String()
 		require.Contains(t, out, "Period:")
 		require.Contains(t, out, "Last Access")
@@ -238,7 +238,7 @@ func TestDisplayAccessReviewText(t *testing.T) {
 
 	t.Run("identity cell blanked after first resource row", func(t *testing.T) {
 		var buf bytes.Buffer
-		require.NoError(t, displayAccessReviewText(&buf, output, time.Time{}, time.Time{}, false))
+		require.NoError(t, displayAccessReviewText(&buf, output, time.Time{}, time.Time{}, false, false))
 		// alice@corp must appear exactly once even though she has two resources.
 		require.Equal(t, 1, bytes.Count(buf.Bytes(), []byte("alice@corp")))
 	})
@@ -253,20 +253,30 @@ func TestDisplayAccessReviewText(t *testing.T) {
 			}},
 		}}}
 		var buf bytes.Buffer
-		require.NoError(t, displayAccessReviewText(&buf, o, time.Time{}, time.Time{}, false))
+		require.NoError(t, displayAccessReviewText(&buf, o, time.Time{}, time.Time{}, false, false))
 		require.Contains(t, buf.String(), "break-glass*", "a temporary primary grantor should be marked")
+	})
+
+	t.Run("legend keys the marker in both views", func(t *testing.T) {
+		const legend = "* marks self-expiring access or a temporary grantor"
+		var summary, detailed bytes.Buffer
+		require.NoError(t, displayAccessReviewText(&summary, output, time.Time{}, time.Time{}, false, false))
+		require.NoError(t, displayAccessReviewText(&detailed, output, time.Time{}, time.Time{}, false, true))
+		require.Contains(t, summary.String(), legend)
+		require.Contains(t, detailed.String(), legend)
 	})
 
 	t.Run("empty result", func(t *testing.T) {
 		var buf bytes.Buffer
-		require.NoError(t, displayAccessReviewText(&buf, accessReviewOutput{}, time.Time{}, time.Time{}, false))
+		require.NoError(t, displayAccessReviewText(&buf, accessReviewOutput{}, time.Time{}, time.Time{}, false, false))
 		require.Contains(t, buf.String(), "No access found.")
+		require.NotContains(t, buf.String(), "* marks", "no legend without a table")
 	})
 
 	t.Run("warnings printed", func(t *testing.T) {
 		var buf bytes.Buffer
 		o := accessReviewOutput{Warnings: []string{"activity unavailable: boom"}}
-		require.NoError(t, displayAccessReviewText(&buf, o, time.Time{}, time.Time{}, false))
+		require.NoError(t, displayAccessReviewText(&buf, o, time.Time{}, time.Time{}, false, false))
 		require.Contains(t, buf.String(), "Warning: activity unavailable: boom")
 	})
 }
@@ -276,7 +286,7 @@ func TestDisplayAccessReviewText(t *testing.T) {
 // bounded — so naturally wide columns like Grantor Counts and Last Access are never
 // truncated just because the table has many columns.
 func TestBuildAccessTable(t *testing.T) {
-	headers := []string{"Identity", "Kind", "Resource", "Resource Kind", "Access Level", "Granted By", "Grantor Counts", "Accesses", "Last Access"}
+	headers := []string{"Identity", "Kind", "Resource", "Resource Kind", "Access Level", "Grantor", "Grantor Counts", "Accesses", "Last Access"}
 	rows := [][]string{
 		{"ghassan", "user", "teleport-mcp-demo", "app", "standing", "Local DB ACL", "3 standing, 1 request", "6", "2026-06-05T19:15:32-07:00"},
 	}
@@ -411,6 +421,7 @@ func TestAccessReviewFlags(t *testing.T) {
 		require.Equal(t, "SELECT * FROM access_path", c.accessReview.query)
 		require.Equal(t, 50, c.accessReview.limit)
 		require.Equal(t, teleport.Text, c.accessReview.format)
+		require.False(t, c.accessReview.detailed)
 		require.True(t, c.accessReview.from.IsZero())
 		require.True(t, c.accessReview.to.IsZero())
 	})

@@ -68,11 +68,29 @@ message AssignmentNode {
 
 // RoleNode represents a node in the role tree. It encodes any roles assigned at the given scope level, as well as any child scopes
 // that have further role assignments. The role tree is organized by *Scope of Effect* (i.e. the scope at which the roles apply).
+// The role tree is *relative to* the Scope of Origin that references it (i.e. if assignment node `/staging` contains a role tree
+// with roles at `/west`, the full Scope of Effect for those roles is `/staging/west`).
 message RoleNode {
-  // children are the child role nodes, keyed by scope segment.
+  reserved 2;
+  reserved "roles";
+
+  // children are the child role nodes, keyed by scope segment, relative to the Scope of Origin.
   map<string, RoleNode> children = 1;
-  // roles are the roles assigned at this scope level.
-  repeated string roles = 2;
+
+  // roles_by_scope encodes the roles assigned at this Scope of Effect. The roles are grouped by their resource scope.
+  repeated RolesByScope roles_by_scope = 3;
+}
+
+// RolesByScope groups a set of roles that share the same resource scope. Because pins are subject to size constraints when encoded
+// to certificates, we only store the depth (segment count) of the resource scope associated with this set of roles.  Roles are only
+// assignable to equivalent/descendant scopes, and so their resource scope is always a prefix of the Scope of Effect, which is already
+// known at the RoleNode where this entry appears.
+message RolesByScope {
+  // depth is the number of path segments in the roles' resource scope (root=0, /staging/west=2, etc).
+  uint32 depth = 1;
+
+  // names are the role names whose resource scope is at this depth.
+  repeated string names = 2;
 }
 
 // PinnedAssignments is a collection of scoped role assignments that are relevant to the pinned identity at the target scope.
