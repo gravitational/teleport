@@ -19,74 +19,95 @@ package integrations
 import (
 	"context"
 	"fmt"
-	"sort"
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/utils"
 )
+
+type awsicAccount struct {
+	name     string
+	permSets []string
+}
 
 // listAWSICAccounts prints the AWS Identity Center accounts synced into the
 // cluster along with their permission sets.
 func (c *Command) listAWSICAccounts(ctx context.Context, clt *authclient.Client) error {
-	resources, err := apiclient.GetAllUnifiedResources(ctx, clt, &proto.ListUnifiedResourcesRequest{
-		Kinds: []string{types.KindApp},
-		// Returns only the permission sets the user is able to assume.
-		IncludeLogins: true,
-	})
+	assignments, err := getAllAWSICAccountAssignments(ctx, clt)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	servers := filterICAccounts(resources)
-	return trace.Wrap(c.writeAWSICText(servers))
+	return trace.Wrap(c.writeAWSICOutput(assignments))
 }
 
-func filterICAccounts(resources []*types.EnrichedResource) []types.AppServer {
-	var servers []types.AppServer
-	for _, r := range resources {
-		appServer, ok := r.ResourceWithLabels.(types.AppServer)
-		if !ok {
-			continue
-		}
-		if appServer.GetApp().GetIdentityCenter() == nil {
-			continue
-		}
-		servers = append(servers, appServer)
+func getAllAWSICAccountAssignments(ctx context.Context, clt *authclient.Client) ([]*identitycenterv1.AccountAssignment, error) {
+	resources, err := apiclient.GetResourcesWithFilters(ctx, clt, proto.ListResourcesRequest{
+		ResourceType: types.KindIdentityCenterAccountAssignment,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	sort.Slice(servers, func(i, j int) bool {
-		return icAccountName(servers[i].GetApp()) < icAccountName(servers[j].GetApp())
-	})
-
-	return servers
+	accAssignments := make([]*identitycenterv1.AccountAssignment, 0, len(resources))
+	for _, resource := range resources {
+		unwrapper, ok := resource.(types.Resource153UnwrapperT[*identitycenterv1.AccountAssignment])
+		if !ok {
+			return nil, trace.BadParameter("expected account assignment type, got %T", resource)
+		}
+		accAssignments = append(accAssignments, unwrapper.UnwrapT())
+	}
+	return accAssignments, nil
 }
 
-func (c *Command) writeAWSICText(servers []types.AppServer) error {
-	headers := []string{"Account Name", "Account ID", "Permission Sets"}
-	rows := make([][]string, 0, len(servers))
-	for _, server := range servers {
-		app := server.GetApp()
-		ic := app.GetIdentityCenter()
-		name := icAccountName(app)
+func (c *Command) writeAWSICOutput(assignments []*identitycenterv1.AccountAssignment) error {
+	switch c.awsicAccountsLsFormat {
+	case teleport.JSON:
+		return trace.Wrap(utils.WriteJSONArray(c.Stdout, awsicResources(assignments)))
+	case teleport.YAML:
+		return trace.Wrap(utils.WriteYAML(c.Stdout, awsicResources(assignments)))
+	default:
+		return trace.Wrap(c.writeAWSICText(assignments))
+	}
+}
 
-		if len(ic.PermissionSets) == 0 {
-			rows = append(rows, []string{name, ic.AccountID, ""})
-			continue
+func (c *Command) writeAWSICText(assignments []*identitycenterv1.AccountAssignment) error {
+	accountIDs := []string{}
+	accountLookup := make(map[string]*awsicAccount)
+
+	for _, assignment := range assignments {
+		spec := assignment.GetSpec()
+		accountID := spec.GetAccountId()
+		ps := spec.GetPermissionSet()
+
+		account, ok := accountLookup[accountID]
+		if !ok {
+			account = &awsicAccount{name: spec.GetAccountName()}
+			accountLookup[accountID] = account
+			accountIDs = append(accountIDs, accountID)
 		}
+		account.permSets = append(account.permSets, fmt.Sprintf("%s (%s)", ps.GetName(), ps.GetArn()))
+	}
 
+	headers := []string{"Account Name", "Account ID", "Permission Sets"}
+	rows := make([][]string, 0, len(assignments))
+
+	for _, accountID := range accountIDs {
+		account := accountLookup[accountID]
 		// Print each permission set in its own row.
-		for i, ps := range ic.PermissionSets {
-			permSet := fmt.Sprintf("%s (%s)", ps.Name, ps.ARN)
+		for i, permSet := range account.permSets {
 			if i == 0 {
-				rows = append(rows, []string{name, ic.AccountID, permSet})
-				continue
+				rows = append(rows, []string{account.name, accountID, permSet})
+			} else {
+				rows = append(rows, []string{"", "", permSet})
 			}
-			rows = append(rows, []string{"", "", permSet})
 		}
 	}
 	t := asciitable.MakeTable(headers, rows...)
@@ -94,17 +115,10 @@ func (c *Command) writeAWSICText(servers []types.AppServer) error {
 	return trace.Wrap(err)
 }
 
-// icAccountName returns human-readable name for an Identity Center account
-// (versus the AWS account ID).
-func icAccountName(app types.Application) string {
-	if name := types.FriendlyName(app); name != "" {
-		return name
+func awsicResources(assignments []*identitycenterv1.AccountAssignment) []types.Resource {
+	r := make([]types.Resource, len(assignments))
+	for i, assignment := range assignments {
+		r[i] = types.ProtoResource153ToLegacy(assignment)
 	}
-	if name, ok := app.GetLabel(types.AWSAccountNameLabel); ok && name != "" {
-		return name
-	}
-	if ic := app.GetIdentityCenter(); ic != nil {
-		return ic.AccountID
-	}
-	return ""
+	return r
 }

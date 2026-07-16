@@ -22,79 +22,60 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport"
+	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	"github.com/gravitational/teleport/lib/utils/testutils/golden"
 )
 
-func TestFilterICAccounts(t *testing.T) {
+func TestWriteAWSICOutput(t *testing.T) {
 	t.Parallel()
 
-	node := &types.ServerV2{
-		Kind:     types.KindNode,
-		Version:  types.V2,
-		Metadata: types.Metadata{Name: "node1"},
+	assignments := []*identitycenterv1.AccountAssignment{
+		newICAccountAssignment("111111111111", "Production", "AdminAccess", "arn:aws:sso:::permissionSet/abc/ps-aaaa"),
+		newICAccountAssignment("111111111111", "Production", "ReadOnly", "arn:aws:sso:::permissionSet/abc/ps-bbbb"),
+		newICAccountAssignment("222222222222", "Staging", "ReadOnly", "arn:aws:sso:::permissionSet/abc/ps-bbbb"),
 	}
 
-	regularApp := &types.AppServerV3{
-		Spec: types.AppServerSpecV3{App: &types.AppV3{}},
-	}
-
-	resources := []*types.EnrichedResource{
-		{ResourceWithLabels: newICAppServer("222222222222", "alpaca")},
-		{ResourceWithLabels: regularApp},
-		{ResourceWithLabels: node},
-		{ResourceWithLabels: newICAppServer("111111111111", "llama")},
-	}
-
-	got := filterICAccounts(resources)
-
-	// Non IC resources should be dropped.
-	require.Len(t, got, 2)
-	require.Equal(t, "alpaca", icAccountName(got[0].GetApp()))
-	require.Equal(t, "llama", icAccountName(got[1].GetApp()))
-}
-
-func TestWriteAWSICText(t *testing.T) {
-	t.Parallel()
-
-	servers := []types.AppServer{
-		newICAppServer("111111111111", "Production",
-			&types.IdentityCenterPermissionSet{
-				Name: "AdminAccess", ARN: "arn:aws:sso:::permissionSet/abc/ps-aaaa",
-			},
-			&types.IdentityCenterPermissionSet{
-				Name: "ReadOnly", ARN: "arn:aws:sso:::permissionSet/abc/ps-bbbb",
-			},
-		),
-		newICAppServer("222222222222", "Staging",
-			&types.IdentityCenterPermissionSet{
-				Name: "ReadOnly", ARN: "arn:aws:sso:::permissionSet/abc/ps-bbbb",
-			},
-		),
-	}
-
-	var buf bytes.Buffer
-	c := &Command{Stdout: &buf}
-	require.NoError(t, c.writeAWSICText(servers))
-
-	if golden.ShouldSet() {
-		golden.Set(t, buf.Bytes())
-	}
-	require.Equal(t, string(golden.Get(t)), buf.String())
-}
-
-func newICAppServer(accountID, accountName string, pss ...*types.IdentityCenterPermissionSet) *types.AppServerV3 {
-	return &types.AppServerV3{
-		Spec: types.AppServerSpecV3{
-			App: &types.AppV3{
-				Metadata: types.Metadata{Description: accountName},
-				Spec: types.AppSpecV3{
-					IdentityCenter: &types.AppIdentityCenter{
-						AccountID:      accountID,
-						PermissionSets: pss,
-					},
-				},
-			},
+	tests := []struct {
+		name   string
+		format string
+	}{
+		{
+			name:   "text",
+			format: "", // default text
+		},
+		{
+			name:   "json",
+			format: teleport.JSON,
+		},
+		{
+			name:   "yaml",
+			format: teleport.YAML,
 		},
 	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var buf bytes.Buffer
+			c := &Command{Stdout: &buf, awsicAccountsLsFormat: tt.format}
+			require.NoError(t, c.writeAWSICOutput(assignments))
+			if golden.ShouldSet() {
+				golden.Set(t, buf.Bytes())
+			}
+			require.Equal(t, string(golden.Get(t)), buf.String())
+		})
+	}
+}
+
+func newICAccountAssignment(accountID, accountName, permSetName, permSetARN string) *identitycenterv1.AccountAssignment {
+	return identitycenterv1.AccountAssignment_builder{
+		Spec: identitycenterv1.AccountAssignmentSpec_builder{
+			AccountId:   accountID,
+			AccountName: accountName,
+			PermissionSet: identitycenterv1.PermissionSetInfo_builder{
+				Name: permSetName,
+				Arn:  permSetARN,
+			}.Build(),
+		}.Build(),
+	}.Build()
 }
