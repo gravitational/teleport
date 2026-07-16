@@ -49,6 +49,7 @@ service BeamService {
   // ListBeams returns a list of beams, authorized by the `beam_labels` and
   // `beam_labels_expression` role options.
   rpc ListBeams(ListBeamsRequest) returns (ListBeamsResponse);
+  rpc Complete(CompleteRequest) returns (CompleteResponse);
 }
 
 // CreateBeamRequest contains the parameters to the CreateBeam RPC.
@@ -140,6 +141,20 @@ message ListBeamsResponse {
   // Token to retrieve the next page of results, or empty if there are no more
   // results in the list.
   string next_page_token = 2;
+}
+
+// CompleteRequest contains the parameters to the Complete RPC.
+message CompleteRequest {
+  // Opaque Anthropic Messages API request JSON. The model is selected
+  // server-side, so any "model" field is ignored.
+  bytes anthropic_request = 1;
+}
+
+// CompleteResponse contains the results of the Complete RPC.
+message CompleteResponse {
+  // Opaque Anthropic Messages API response JSON, returned verbatim from the
+  // upstream model provider.
+  bytes anthropic_response = 1;
 }
 
 // BeamSortField specifies the sort field for listing.

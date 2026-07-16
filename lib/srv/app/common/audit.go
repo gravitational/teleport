@@ -230,8 +230,6 @@ func (a *audit) OnDynamoDBRequest(ctx context.Context, sessionCtx *SessionContex
 }
 
 // OnLLMRequest is called when app request for LLM inference endpoint is sent and a response is received.
-//
-// This event only goes to app session recording (chunk).
 func (a *audit) OnLLMRequest(ctx context.Context, sessionCtx *SessionContext, req *http.Request, llmReq LLMRequest, llmResp LLMResponse) error {
 	event := &apievents.AppSessionLLMRequest{
 		Metadata: apievents.Metadata{
@@ -256,10 +254,10 @@ func (a *audit) OnLLMRequest(ctx context.Context, sessionCtx *SessionContext, re
 		event.Status.Success = false
 		event.Status.Error = llmResp.Error.Error()
 	}
-	return trace.Wrap(a.recordEvent(ctx, event))
+	return trace.Wrap(a.EmitEvent(ctx, event))
 }
 
-// EmitEvent emits and records the provided audit event.
+// EmitEvent emits the provided audit event.
 func (a *audit) EmitEvent(ctx context.Context, e apievents.AuditEvent) error {
 	preparedEvent, err := a.cfg.Recorder.PrepareSessionEvent(e)
 	if err != nil {

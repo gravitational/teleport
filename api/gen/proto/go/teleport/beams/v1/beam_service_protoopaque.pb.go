@@ -932,6 +932,132 @@ func (b0 ListBeamsResponse_builder) Build() *ListBeamsResponse {
 	return m0
 }
 
+// CompleteRequest contains the parameters to the Complete RPC.
+type CompleteRequest struct {
+	state                       protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_AnthropicRequest []byte                 `protobuf:"bytes,1,opt,name=anthropic_request,json=anthropicRequest,proto3"`
+	unknownFields               protoimpl.UnknownFields
+	sizeCache                   protoimpl.SizeCache
+}
+
+func (x *CompleteRequest) Reset() {
+	*x = CompleteRequest{}
+	mi := &file_teleport_beams_v1_beam_service_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CompleteRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CompleteRequest) ProtoMessage() {}
+
+func (x *CompleteRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_beams_v1_beam_service_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *CompleteRequest) GetAnthropicRequest() []byte {
+	if x != nil {
+		return x.xxx_hidden_AnthropicRequest
+	}
+	return nil
+}
+
+func (x *CompleteRequest) SetAnthropicRequest(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.xxx_hidden_AnthropicRequest = v
+}
+
+type CompleteRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Opaque Anthropic Messages API request JSON. The model is selected
+	// server-side, so any "model" field is ignored.
+	AnthropicRequest []byte
+}
+
+func (b0 CompleteRequest_builder) Build() *CompleteRequest {
+	m0 := &CompleteRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.xxx_hidden_AnthropicRequest = b.AnthropicRequest
+	return m0
+}
+
+// CompleteResponse contains the results of the Complete RPC.
+type CompleteResponse struct {
+	state                        protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_AnthropicResponse []byte                 `protobuf:"bytes,1,opt,name=anthropic_response,json=anthropicResponse,proto3"`
+	unknownFields                protoimpl.UnknownFields
+	sizeCache                    protoimpl.SizeCache
+}
+
+func (x *CompleteResponse) Reset() {
+	*x = CompleteResponse{}
+	mi := &file_teleport_beams_v1_beam_service_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CompleteResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CompleteResponse) ProtoMessage() {}
+
+func (x *CompleteResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_beams_v1_beam_service_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *CompleteResponse) GetAnthropicResponse() []byte {
+	if x != nil {
+		return x.xxx_hidden_AnthropicResponse
+	}
+	return nil
+}
+
+func (x *CompleteResponse) SetAnthropicResponse(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.xxx_hidden_AnthropicResponse = v
+}
+
+type CompleteResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Opaque Anthropic Messages API response JSON, returned verbatim from the
+	// upstream model provider.
+	AnthropicResponse []byte
+}
+
+func (b0 CompleteResponse_builder) Build() *CompleteResponse {
+	m0 := &CompleteResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.xxx_hidden_AnthropicResponse = b.AnthropicResponse
+	return m0
+}
+
 // Filters contains fields that will be used to filter the results. When
 // multiple filters are provided, they will be combined with AND.
 type ListBeamsRequest_Filters struct {
@@ -943,7 +1069,7 @@ type ListBeamsRequest_Filters struct {
 
 func (x *ListBeamsRequest_Filters) Reset() {
 	*x = ListBeamsRequest_Filters{}
-	mi := &file_teleport_beams_v1_beam_service_proto_msgTypes[9]
+	mi := &file_teleport_beams_v1_beam_service_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -955,7 +1081,7 @@ func (x *ListBeamsRequest_Filters) String() string {
 func (*ListBeamsRequest_Filters) ProtoMessage() {}
 
 func (x *ListBeamsRequest_Filters) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_beams_v1_beam_service_proto_msgTypes[9]
+	mi := &file_teleport_beams_v1_beam_service_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1028,7 +1154,11 @@ const file_teleport_beams_v1_beam_service_proto_rawDesc = "" +
 	"\x05users\x18\x01 \x03(\tR\x05users\"j\n" +
 	"\x11ListBeamsResponse\x12-\n" +
 	"\x05beams\x18\x01 \x03(\v2\x17.teleport.beams.v1.BeamR\x05beams\x12&\n" +
-	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken*\x9c\x01\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\">\n" +
+	"\x0fCompleteRequest\x12+\n" +
+	"\x11anthropic_request\x18\x01 \x01(\fR\x10anthropicRequest\"A\n" +
+	"\x10CompleteResponse\x12-\n" +
+	"\x12anthropic_response\x18\x01 \x01(\fR\x11anthropicResponse*\x9c\x01\n" +
 	"\rBeamSortField\x12\x1f\n" +
 	"\x1bBEAM_SORT_FIELD_UNSPECIFIED\x10\x00\x12\x18\n" +
 	"\x14BEAM_SORT_FIELD_NAME\x10\x01\x12\x19\n" +
@@ -1038,7 +1168,7 @@ const file_teleport_beams_v1_beam_service_proto_rawDesc = "" +
 	"\rBeamSortOrder\x12\x1f\n" +
 	"\x1bBEAM_SORT_ORDER_UNSPECIFIED\x10\x00\x12\x1d\n" +
 	"\x19BEAM_SORT_ORDER_ASCENDING\x10\x01\x12\x1e\n" +
-	"\x1aBEAM_SORT_ORDER_DESCENDING\x10\x022\xb9\x03\n" +
+	"\x1aBEAM_SORT_ORDER_DESCENDING\x10\x022\x8e\x04\n" +
 	"\vBeamService\x12Y\n" +
 	"\n" +
 	"CreateBeam\x12$.teleport.beams.v1.CreateBeamRequest\x1a%.teleport.beams.v1.CreateBeamResponse\x12Y\n" +
@@ -1047,10 +1177,11 @@ const file_teleport_beams_v1_beam_service_proto_rawDesc = "" +
 	"\n" +
 	"DeleteBeam\x12$.teleport.beams.v1.DeleteBeamRequest\x1a\x16.google.protobuf.Empty\x12P\n" +
 	"\aGetBeam\x12!.teleport.beams.v1.GetBeamRequest\x1a\".teleport.beams.v1.GetBeamResponse\x12V\n" +
-	"\tListBeams\x12#.teleport.beams.v1.ListBeamsRequest\x1a$.teleport.beams.v1.ListBeamsResponseBNZLgithub.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1;beamsv1b\x06proto3"
+	"\tListBeams\x12#.teleport.beams.v1.ListBeamsRequest\x1a$.teleport.beams.v1.ListBeamsResponse\x12S\n" +
+	"\bComplete\x12\".teleport.beams.v1.CompleteRequest\x1a#.teleport.beams.v1.CompleteResponseBNZLgithub.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1;beamsv1b\x06proto3"
 
 var file_teleport_beams_v1_beam_service_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_teleport_beams_v1_beam_service_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
+var file_teleport_beams_v1_beam_service_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
 var file_teleport_beams_v1_beam_service_proto_goTypes = []any{
 	(BeamSortField)(0),               // 0: teleport.beams.v1.BeamSortField
 	(BeamSortOrder)(0),               // 1: teleport.beams.v1.BeamSortOrder
@@ -1063,33 +1194,37 @@ var file_teleport_beams_v1_beam_service_proto_goTypes = []any{
 	(*GetBeamResponse)(nil),          // 8: teleport.beams.v1.GetBeamResponse
 	(*ListBeamsRequest)(nil),         // 9: teleport.beams.v1.ListBeamsRequest
 	(*ListBeamsResponse)(nil),        // 10: teleport.beams.v1.ListBeamsResponse
-	(*ListBeamsRequest_Filters)(nil), // 11: teleport.beams.v1.ListBeamsRequest.Filters
-	(EgressMode)(0),                  // 12: teleport.beams.v1.EgressMode
-	(*Beam)(nil),                     // 13: teleport.beams.v1.Beam
-	(*emptypb.Empty)(nil),            // 14: google.protobuf.Empty
+	(*CompleteRequest)(nil),          // 11: teleport.beams.v1.CompleteRequest
+	(*CompleteResponse)(nil),         // 12: teleport.beams.v1.CompleteResponse
+	(*ListBeamsRequest_Filters)(nil), // 13: teleport.beams.v1.ListBeamsRequest.Filters
+	(EgressMode)(0),                  // 14: teleport.beams.v1.EgressMode
+	(*Beam)(nil),                     // 15: teleport.beams.v1.Beam
+	(*emptypb.Empty)(nil),            // 16: google.protobuf.Empty
 }
 var file_teleport_beams_v1_beam_service_proto_depIdxs = []int32{
-	12, // 0: teleport.beams.v1.CreateBeamRequest.egress:type_name -> teleport.beams.v1.EgressMode
-	13, // 1: teleport.beams.v1.CreateBeamResponse.beam:type_name -> teleport.beams.v1.Beam
-	13, // 2: teleport.beams.v1.UpdateBeamRequest.beam:type_name -> teleport.beams.v1.Beam
-	13, // 3: teleport.beams.v1.UpdateBeamResponse.beam:type_name -> teleport.beams.v1.Beam
-	13, // 4: teleport.beams.v1.GetBeamResponse.beam:type_name -> teleport.beams.v1.Beam
-	11, // 5: teleport.beams.v1.ListBeamsRequest.filters:type_name -> teleport.beams.v1.ListBeamsRequest.Filters
+	14, // 0: teleport.beams.v1.CreateBeamRequest.egress:type_name -> teleport.beams.v1.EgressMode
+	15, // 1: teleport.beams.v1.CreateBeamResponse.beam:type_name -> teleport.beams.v1.Beam
+	15, // 2: teleport.beams.v1.UpdateBeamRequest.beam:type_name -> teleport.beams.v1.Beam
+	15, // 3: teleport.beams.v1.UpdateBeamResponse.beam:type_name -> teleport.beams.v1.Beam
+	15, // 4: teleport.beams.v1.GetBeamResponse.beam:type_name -> teleport.beams.v1.Beam
+	13, // 5: teleport.beams.v1.ListBeamsRequest.filters:type_name -> teleport.beams.v1.ListBeamsRequest.Filters
 	0,  // 6: teleport.beams.v1.ListBeamsRequest.sort_field:type_name -> teleport.beams.v1.BeamSortField
 	1,  // 7: teleport.beams.v1.ListBeamsRequest.sort_order:type_name -> teleport.beams.v1.BeamSortOrder
-	13, // 8: teleport.beams.v1.ListBeamsResponse.beams:type_name -> teleport.beams.v1.Beam
+	15, // 8: teleport.beams.v1.ListBeamsResponse.beams:type_name -> teleport.beams.v1.Beam
 	2,  // 9: teleport.beams.v1.BeamService.CreateBeam:input_type -> teleport.beams.v1.CreateBeamRequest
 	4,  // 10: teleport.beams.v1.BeamService.UpdateBeam:input_type -> teleport.beams.v1.UpdateBeamRequest
 	6,  // 11: teleport.beams.v1.BeamService.DeleteBeam:input_type -> teleport.beams.v1.DeleteBeamRequest
 	7,  // 12: teleport.beams.v1.BeamService.GetBeam:input_type -> teleport.beams.v1.GetBeamRequest
 	9,  // 13: teleport.beams.v1.BeamService.ListBeams:input_type -> teleport.beams.v1.ListBeamsRequest
-	3,  // 14: teleport.beams.v1.BeamService.CreateBeam:output_type -> teleport.beams.v1.CreateBeamResponse
-	5,  // 15: teleport.beams.v1.BeamService.UpdateBeam:output_type -> teleport.beams.v1.UpdateBeamResponse
-	14, // 16: teleport.beams.v1.BeamService.DeleteBeam:output_type -> google.protobuf.Empty
-	8,  // 17: teleport.beams.v1.BeamService.GetBeam:output_type -> teleport.beams.v1.GetBeamResponse
-	10, // 18: teleport.beams.v1.BeamService.ListBeams:output_type -> teleport.beams.v1.ListBeamsResponse
-	14, // [14:19] is the sub-list for method output_type
-	9,  // [9:14] is the sub-list for method input_type
+	11, // 14: teleport.beams.v1.BeamService.Complete:input_type -> teleport.beams.v1.CompleteRequest
+	3,  // 15: teleport.beams.v1.BeamService.CreateBeam:output_type -> teleport.beams.v1.CreateBeamResponse
+	5,  // 16: teleport.beams.v1.BeamService.UpdateBeam:output_type -> teleport.beams.v1.UpdateBeamResponse
+	16, // 17: teleport.beams.v1.BeamService.DeleteBeam:output_type -> google.protobuf.Empty
+	8,  // 18: teleport.beams.v1.BeamService.GetBeam:output_type -> teleport.beams.v1.GetBeamResponse
+	10, // 19: teleport.beams.v1.BeamService.ListBeams:output_type -> teleport.beams.v1.ListBeamsResponse
+	12, // 20: teleport.beams.v1.BeamService.Complete:output_type -> teleport.beams.v1.CompleteResponse
+	15, // [15:21] is the sub-list for method output_type
+	9,  // [9:15] is the sub-list for method input_type
 	9,  // [9:9] is the sub-list for extension type_name
 	9,  // [9:9] is the sub-list for extension extendee
 	0,  // [0:9] is the sub-list for field type_name
@@ -1111,7 +1246,7 @@ func file_teleport_beams_v1_beam_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_beams_v1_beam_service_proto_rawDesc), len(file_teleport_beams_v1_beam_service_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   10,
+			NumMessages:   12,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

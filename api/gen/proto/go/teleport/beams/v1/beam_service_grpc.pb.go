@@ -39,6 +39,7 @@ const (
 	BeamService_DeleteBeam_FullMethodName = "/teleport.beams.v1.BeamService/DeleteBeam"
 	BeamService_GetBeam_FullMethodName    = "/teleport.beams.v1.BeamService/GetBeam"
 	BeamService_ListBeams_FullMethodName  = "/teleport.beams.v1.BeamService/ListBeams"
+	BeamService_Complete_FullMethodName   = "/teleport.beams.v1.BeamService/Complete"
 )
 
 // BeamServiceClient is the client API for BeamService service.
@@ -69,6 +70,7 @@ type BeamServiceClient interface {
 	// ListBeams returns a list of beams, authorized by the `beam_labels` and
 	// `beam_labels_expression` role options.
 	ListBeams(ctx context.Context, in *ListBeamsRequest, opts ...grpc.CallOption) (*ListBeamsResponse, error)
+	Complete(ctx context.Context, in *CompleteRequest, opts ...grpc.CallOption) (*CompleteResponse, error)
 }
 
 type beamServiceClient struct {
@@ -129,6 +131,16 @@ func (c *beamServiceClient) ListBeams(ctx context.Context, in *ListBeamsRequest,
 	return out, nil
 }
 
+func (c *beamServiceClient) Complete(ctx context.Context, in *CompleteRequest, opts ...grpc.CallOption) (*CompleteResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CompleteResponse)
+	err := c.cc.Invoke(ctx, BeamService_Complete_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // BeamServiceServer is the server API for BeamService service.
 // All implementations must embed UnimplementedBeamServiceServer
 // for forward compatibility.
@@ -157,6 +169,7 @@ type BeamServiceServer interface {
 	// ListBeams returns a list of beams, authorized by the `beam_labels` and
 	// `beam_labels_expression` role options.
 	ListBeams(context.Context, *ListBeamsRequest) (*ListBeamsResponse, error)
+	Complete(context.Context, *CompleteRequest) (*CompleteResponse, error)
 	mustEmbedUnimplementedBeamServiceServer()
 }
 
@@ -181,6 +194,9 @@ func (UnimplementedBeamServiceServer) GetBeam(context.Context, *GetBeamRequest) 
 }
 func (UnimplementedBeamServiceServer) ListBeams(context.Context, *ListBeamsRequest) (*ListBeamsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListBeams not implemented")
+}
+func (UnimplementedBeamServiceServer) Complete(context.Context, *CompleteRequest) (*CompleteResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method Complete not implemented")
 }
 func (UnimplementedBeamServiceServer) mustEmbedUnimplementedBeamServiceServer() {}
 func (UnimplementedBeamServiceServer) testEmbeddedByValue()                     {}
@@ -293,6 +309,24 @@ func _BeamService_ListBeams_Handler(srv interface{}, ctx context.Context, dec fu
 	return interceptor(ctx, in, info, handler)
 }
 
+func _BeamService_Complete_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CompleteRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BeamServiceServer).Complete(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BeamService_Complete_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BeamServiceServer).Complete(ctx, req.(*CompleteRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // BeamService_ServiceDesc is the grpc.ServiceDesc for BeamService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -319,6 +353,10 @@ var BeamService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListBeams",
 			Handler:    _BeamService_ListBeams_Handler,
+		},
+		{
+			MethodName: "Complete",
+			Handler:    _BeamService_Complete_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

@@ -17,19 +17,25 @@
 package common
 
 import (
+	"time"
+
 	"github.com/gravitational/teleport/api/types"
 )
 
 // LLMRequest describes an inbound LLM API request being proxied to a provider.
 type LLMRequest struct {
-	// Format identifies the LLM format used on the request.
-	Format types.LLMFormat
 	// Provider identifies the LLM provider handling the request.
 	Provider types.LLMProvider
 	// Model is the resolved model name sent to the provider.
 	Model string
 	// RequestedModel is the original model name as specified by the client.
 	RequestedModel string
+	// Streaming indicates whether the response is streamed back to the client.
+	Streaming bool
+	// MaxTokens is the maximum number of tokens the response may contain.
+	MaxTokens int64
+	// Timeout is the maximum duration allowed for the request.
+	Timeout time.Duration
 }
 
 // LLMResponse describes the outcome of a proxied LLM API request.
