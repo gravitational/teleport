@@ -490,7 +490,7 @@ func TestEnqueueDequeue_RoundTrip(t *testing.T) {
 
 			q := newTestQueue(t, kind)
 
-			require.NoError(t, q.Enqueue(ctx, original))
+			require.NoError(t, q.Enqueue(original))
 
 			delivered := make(chan apievents.AuditEvent, 1)
 			handler := func(_ context.Context, items []Item) []Item {
@@ -508,7 +508,7 @@ func TestEnqueueDequeue_RoundTrip(t *testing.T) {
 			require.Equal(t, original, got)
 
 			cancel()
-			require.NoError(t, <-runErr)
+			require.ErrorIs(t, <-runErr, context.Canceled)
 		})
 	}
 }

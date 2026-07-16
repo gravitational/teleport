@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	conv "github.com/gravitational/teleport/api/types/accesslist/convert/v1"
+	"github.com/gravitational/teleport/lib/accesslists/preset"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/parse"
@@ -510,7 +511,7 @@ func (c *Command) printUpdateText(r UpdateJSONResponse) {
 // - not attached + updates requested: return a fresh role with updates applied
 // - not attached + no updates: return nil
 func resolveAccessRole(ctx context.Context, client *authclient.Client, al *accesslist.AccessList, prefix string, applyUpdates applyAccessFlagsToRole) (*types.RoleV6, error) {
-	roleName := accesslist.RoleName(prefix, al.GetName())
+	roleName := preset.RoleName(prefix, al.GetName())
 	role, err := getAccessRoleByName(ctx, client, roleName)
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)

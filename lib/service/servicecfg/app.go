@@ -257,6 +257,9 @@ func (a *App) checkPorts() error {
 type AppAWS struct {
 	// ExternalID is the AWS External ID used when assuming roles in this app.
 	ExternalID string
+	// Region is a cloud region for the app.
+	// This field is set for apps that integrates with AWS applications/APIs.
+	Region string
 }
 
 // Rewrite is a list of rewriting rules to apply to requests and responses.

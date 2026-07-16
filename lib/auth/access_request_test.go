@@ -638,6 +638,102 @@ func TestListAccessRequests(t *testing.T) {
 	}))
 }
 
+func TestListAccessRequestsUserDisplays(t *testing.T) {
+	t.Parallel()
+
+	authServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
+		Dir: t.TempDir(),
+	})
+	require.NoError(t, err)
+	defer authServer.Close()
+
+	tlsServer, err := authServer.NewTestTLSServer()
+	require.NoError(t, err)
+	defer tlsServer.Close()
+
+	ctx := t.Context()
+
+	const (
+		requester         = "display-requester"
+		reviewer          = "display-reviewer"
+		suggestedReviewer = "display-suggested-reviewer"
+		plainUser         = "display-plain-user"
+		missingUser       = "display-missing-user"
+		roleName          = "display-role"
+	)
+
+	role, err := types.NewRole(roleName, types.RoleSpecV6{})
+	require.NoError(t, err)
+	_, err = tlsServer.Auth().UpsertRole(ctx, role)
+	require.NoError(t, err)
+
+	for _, user := range []types.User{
+		newAccessRequestDisplayUser(t, requester, "Request User", "requester@example.com", roleName),
+		newAccessRequestDisplayUser(t, reviewer, "Review User", "reviewer@example.com", roleName),
+		newAccessRequestDisplayUser(t, suggestedReviewer, "Suggested User", "suggested@example.com", roleName),
+		newAccessRequestDisplayUser(t, plainUser, "", "", roleName),
+	} {
+		_, err := tlsServer.Auth().UpsertUser(ctx, user)
+		require.NoError(t, err)
+	}
+
+	req, err := services.NewAccessRequest(requester, roleName)
+	require.NoError(t, err)
+	req.SetReviews([]types.AccessReview{{Author: reviewer}})
+	req.SetSuggestedReviewers([]string{suggestedReviewer, plainUser, missingUser})
+	require.NoError(t, tlsServer.Auth().UpsertAccessRequest(ctx, req))
+
+	waitForAccessRequests(t, ctx, tlsServer.Auth(), func(reqs []*types.AccessRequestV3) bool {
+		return len(reqs) == 1
+	})
+
+	adminClient, err := tlsServer.NewClient(authtest.TestAdmin())
+	require.NoError(t, err)
+	defer adminClient.Close()
+
+	rsp, err := adminClient.ListAccessRequests(ctx, &proto.ListAccessRequestsRequest{
+		Filter: &types.AccessRequestFilter{
+			ID: req.GetName(),
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, rsp.AccessRequests, 1)
+	require.Equal(t, map[string]*proto.UserDisplay{
+		requester: {
+			Primary:   "Request User",
+			Secondary: "requester@example.com",
+		},
+		reviewer: {
+			Primary:   "Review User",
+			Secondary: "reviewer@example.com",
+		},
+		suggestedReviewer: {
+			Primary:   "Suggested User",
+			Secondary: "suggested@example.com",
+		},
+		plainUser: {},
+	}, rsp.UserDisplays)
+	require.NotContains(t, rsp.UserDisplays, missingUser)
+}
+
+func newAccessRequestDisplayUser(t *testing.T, name, primary, secondary, role string) types.User {
+	t.Helper()
+
+	user, err := types.NewUser(name)
+	require.NoError(t, err)
+	user.SetRoles([]string{role})
+
+	traits := make(map[string][]string)
+	if primary != "" {
+		traits["displayName"] = []string{primary}
+	}
+	if secondary != "" {
+		traits["email"] = []string{secondary}
+	}
+	user.SetTraits(traits)
+	return user
+}
+
 func testAccessRequestDenyRules(t *testing.T, testPack *accessRequestTestPack) {
 	t.Parallel()
 

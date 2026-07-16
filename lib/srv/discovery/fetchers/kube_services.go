@@ -190,7 +190,14 @@ func (f *KubeAppFetcher) Get(ctx context.Context) (types.ResourcesWithLabels, er
 			portProtocols := map[v1.ServicePort]string{}
 			for _, port := range ports {
 				switch protocolAnnotation {
-				case protoHTTPS, protoHTTP, protoTCP:
+				// MCP servers using the Streamable HTTP or SSE transport are
+				// registered as MCP apps based on their URI scheme, so the
+				// annotation value is passed through as the URI scheme.
+				// mcp+stdio is intentionally excluded: it requires a command,
+				// which a Kubernetes Service cannot provide.
+				case protoHTTPS, protoHTTP, protoTCP,
+					types.SchemeMCPHTTP, types.SchemeMCPHTTPS,
+					types.SchemeMCPSSEHTTP, types.SchemeMCPSSEHTTPS:
 					portProtocols[port] = protocolAnnotation
 				default:
 					if p := autoProtocolDetection(service, port, f.ProtocolChecker); p != protoTCP {

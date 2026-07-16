@@ -19,7 +19,6 @@
 package auth
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/url"
@@ -256,34 +255,21 @@ type upsertServerRawReq struct {
 	TTL    time.Duration   `json:"ttl"`
 }
 
-// presenceForAPIServer is a subset of [services.Presence].
-type presenceForAPIServer interface {
-	UpsertNode(ctx context.Context, s types.Server) (*types.KeepAlive, error)
-	UpsertProxyServer(ctx context.Context, s types.Server) (types.Server, error)
-}
-
-// upsertServer is a common utility function
-func (s *APIServer) upsertServer(auth presenceForAPIServer, role types.SystemRole, r *http.Request, p httprouter.Params) (any, error) {
+// upsertProxy registers a proxy server heartbeat sent via the legacy HTTP endpoint.
+//
+// TODO(noah): move to httpMigratedHandler in v20.0.0
+func (s *APIServer) upsertProxy(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (any, error) {
 	var req upsertServerRawReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var kind string
-	switch role {
-	case types.RoleNode:
-		kind = types.KindNode
-	case types.RoleProxy:
-		kind = types.KindProxy
-	default:
-		return nil, trace.BadParameter("upsertServer with unknown role: %q", role)
-	}
-	// UnmarshalServer forces s.Kind = kind, ignoring the Kind in the payload.
+	// UnmarshalServer forces s.Kind = KindProxy, ignoring the Kind in the payload.
 	// This is retained for backwards compatibility: prior to v19, proxy
 	// heartbeats sent the resource with Kind=KindNode over the wire (see
 	// https://github.com/gravitational/teleport/issues/66997). v19+ proxies
 	// send the correct kind; the override remains so older proxies in mixed
 	// clusters continue to work.
-	server, err := services.UnmarshalServer(req.Server, kind)
+	server, err := services.UnmarshalServer(req.Server, types.KindProxy)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -293,33 +279,10 @@ func (s *APIServer) upsertServer(auth presenceForAPIServer, role types.SystemRol
 	if req.TTL != 0 {
 		server.SetExpiry(s.Now().UTC().Add(req.TTL))
 	}
-	switch role {
-	case types.RoleNode:
-		namespace := p.ByName("namespace")
-		if !types.IsValidNamespace(namespace) {
-			return nil, trace.BadParameter("invalid namespace %q", namespace)
-		}
-		server.SetNamespace(namespace)
-		handle, err := auth.UpsertNode(r.Context(), server)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return handle, nil
-	case types.RoleProxy:
-		if _, err := auth.UpsertProxyServer(r.Context(), server); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	default:
-		return nil, trace.BadParameter("unknown server role %q", role)
+	if _, err := auth.UpsertProxyServer(r.Context(), server); err != nil {
+		return nil, trace.Wrap(err)
 	}
 	return message("ok"), nil
-}
-
-// upsertProxy is called by remote SSH nodes when they ping back into the auth service
-//
-// TODO(noah): move to httpMigratedHandler in v20.0.0
-func (s *APIServer) upsertProxy(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (any, error) {
-	return s.upsertServer(auth, types.RoleProxy, r, p)
 }
 
 // getProxies returns registered proxies

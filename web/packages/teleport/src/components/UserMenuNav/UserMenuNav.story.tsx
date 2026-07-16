@@ -18,8 +18,6 @@
 
 import { MemoryRouter } from 'react-router';
 
-import * as Icons from 'design/Icon';
-
 import { getOSSFeatures } from 'teleport/features';
 import { FeaturesContextProvider } from 'teleport/FeaturesContext';
 import { makeUserContext } from 'teleport/services/user';
@@ -30,13 +28,56 @@ import { UserMenuNav } from './UserMenuNav';
 
 export default {
   title: 'Teleport/UserMenuNav',
-  args: { userContext: true },
 };
 
-export function Loaded() {
+export function UsernameOnly() {
+  return renderUserMenuNav({
+    userName: 'george',
+    displayPrimary: '',
+    displaySecondary: '',
+  });
+}
+
+export function DisplayName() {
+  return renderUserMenuNav({
+    userName: '123456',
+    displayPrimary: 'Jane Garcia',
+    displaySecondary: 'jane@example.com',
+  });
+}
+
+export function SecondaryOnly() {
+  return renderUserMenuNav({
+    userName: 'casey',
+    displayPrimary: '',
+    displaySecondary: 'casey@example.com',
+  });
+}
+
+export function LongName() {
+  return renderUserMenuNav({
+    userName: 'long-canonical-username-used-for-display-testing@example.com',
+    displayPrimary:
+      'Josephine Alexandra Montgomery-Smith With A Very Long Display Name',
+    displaySecondary: '',
+  });
+}
+
+function renderUserMenuNav({
+  userName,
+  displayPrimary,
+  displaySecondary,
+}: {
+  userName: string;
+  displayPrimary: string;
+  displaySecondary: string;
+}) {
   const ctx = new TeleportContext();
 
   ctx.storeUser.state = makeUserContext({
+    userName,
+    displayPrimary,
+    displaySecondary,
     cluster: {
       name: 'test-cluster',
       lastConnected: Date.now(),
@@ -47,27 +88,9 @@ export function Loaded() {
     <MemoryRouter>
       <TeleportContextProvider ctx={ctx}>
         <FeaturesContextProvider value={getOSSFeatures()}>
-          <UserMenuNav {...props} />
+          <UserMenuNav />
         </FeaturesContextProvider>
       </TeleportContextProvider>
     </MemoryRouter>
   );
 }
-
-const props = {
-  navItems: [
-    {
-      title: 'Nav Item 1',
-      Icon: Icons.Apple,
-      getLink: () => 'test',
-    },
-    {
-      title: 'Nav Item 2',
-      Icon: Icons.Cloud,
-      getLink: () => 'test2',
-    },
-  ],
-  iconSize: 24,
-  username: 'george',
-  logout: () => null,
-};

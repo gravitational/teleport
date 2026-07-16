@@ -35,6 +35,7 @@ import (
 func ScopedHandlers() map[string]ScopedHandler {
 	return map[string]ScopedHandler{
 		types.KindNode:                        serverScopedHandler(),
+		types.KindWorkloadIdentity:            workloadIdentityScopedHandler(),
 		scopedaccess.KindScopedRole:           scopedRoleScopedHandler(),
 		types.KindScopedToken:                 scopedTokenScopedHandler(),
 		scopedaccess.KindScopedRoleAssignment: scopedRoleAssignmentScopedHandler(),

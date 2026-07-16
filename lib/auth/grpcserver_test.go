@@ -1955,6 +1955,59 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 			},
 		},
 		{
+			desc: "fail kube multi with wrong usage",
+			opts: generateUserSingleUseCertsTestOpts{
+				initReq: &proto.UserCertsRequest{
+					TLSPublicKey:  tlsPub,
+					Username:      user.GetName(),
+					Expires:       clock.Now().Add(2 * teleport.UserSingleUseCertTTL),
+					Usage:         proto.UserCertsRequest_App,
+					RequesterName: proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_MULTI,
+					Purpose:       proto.UserCertsRequest_CERT_PURPOSE_SINGLE_USE_CERTS,
+					RouteToApp: proto.RouteToApp{
+						Name: "app-a",
+					},
+				},
+				mfaAllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
+				authnHandler:  registered.webAuthHandler,
+				verifyErr: func(t require.TestingT, err error, i ...any) {
+					require.ErrorContains(t, err, "can only request Kubernetes certificates")
+				},
+			},
+		},
+		{
+			desc: "kube multi with reuse",
+			opts: generateUserSingleUseCertsTestOpts{
+				initReq: &proto.UserCertsRequest{
+					TLSPublicKey:      tlsPub,
+					Username:          user.GetName(),
+					Expires:           clock.Now().Add(2 * teleport.UserSingleUseCertTTL),
+					Usage:             proto.UserCertsRequest_Kubernetes,
+					KubernetesCluster: "kube-a",
+					RequesterName:     proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_MULTI,
+					Purpose:           proto.UserCertsRequest_CERT_PURPOSE_SINGLE_USE_CERTS,
+				},
+				mfaAllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
+				authnHandler:  registered.webAuthHandler,
+				verifyErr:     require.NoError,
+				verifyCert: func(t *testing.T, c *proto.Certs) {
+					crt := c.TLS
+					require.NotEmpty(t, crt)
+
+					cert, err := tlsca.ParseCertificatePEM(crt)
+					require.NoError(t, err)
+
+					identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+					require.NoError(t, err)
+					require.Equal(t, webDevID, identity.MFAVerified)
+					require.Equal(t, userCertExpires, identity.PreviousIdentityExpires)
+					require.True(t, net.ParseIP(identity.LoginIP).IsLoopback())
+					require.Equal(t, []string{teleport.UsageKubeOnly}, identity.Usage)
+					require.Equal(t, "kube-a", identity.KubernetesCluster)
+				},
+			},
+		},
+		{
 			desc: "db exec with reuse",
 			opts: generateUserSingleUseCertsTestOpts{
 				initReq: &proto.UserCertsRequest{
@@ -2004,6 +2057,30 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 						ServiceName: "db-a",
 						Database:    "db-a",
 					},
+				},
+				mfaAllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
+				authnHandler: func(t *testing.T, challenge *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
+					resp := registered.webAuthHandler(t, challenge)
+					// Delete the session data to simulate that the session has expired.
+					require.NoError(t, srv.Auth().Services.DeleteWebauthnSessionData(ctx, user.GetName(), "login"))
+					return resp
+				},
+				verifyErr: func(t require.TestingT, err error, i ...any) {
+					require.ErrorIs(t, err, &mfa.ErrExpiredReusableMFAResponse)
+				},
+			},
+		},
+		{
+			desc: "fail kube multi with reuse expired",
+			opts: generateUserSingleUseCertsTestOpts{
+				initReq: &proto.UserCertsRequest{
+					TLSPublicKey:      tlsPub,
+					Username:          user.GetName(),
+					Expires:           clock.Now().Add(2 * teleport.UserSingleUseCertTTL),
+					Usage:             proto.UserCertsRequest_Kubernetes,
+					KubernetesCluster: "kube-a",
+					RequesterName:     proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_MULTI,
+					Purpose:           proto.UserCertsRequest_CERT_PURPOSE_SINGLE_USE_CERTS,
 				},
 				mfaAllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
 				authnHandler: func(t *testing.T, challenge *proto.MFAAuthenticateChallenge) *proto.MFAAuthenticateResponse {
@@ -2143,6 +2220,42 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 				},
 				authnHandler: registered.webAuthHandler,
 				verifyErr:    require.NoError,
+				verifyCert: func(t *testing.T, c *proto.Certs) {
+					crt := c.TLS
+					require.NotEmpty(t, crt)
+
+					cert, err := tlsca.ParseCertificatePEM(crt)
+					require.NoError(t, err)
+					require.Equal(t, userCertExpires, cert.NotAfter)
+
+					identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+					require.NoError(t, err)
+					require.Equal(t, webDevID, identity.MFAVerified)
+					require.Equal(t, userCertExpires, identity.PreviousIdentityExpires)
+					require.True(t, net.ParseIP(identity.LoginIP).IsLoopback())
+					require.Equal(t, []string{teleport.UsageKubeOnly}, identity.Usage)
+					require.Equal(t, "kube-a", identity.KubernetesCluster)
+				},
+			},
+		},
+		{
+			desc: "kube multi with ttl limit disabled",
+			opts: generateUserSingleUseCertsTestOpts{
+				initReq: &proto.UserCertsRequest{
+					TLSPublicKey: tlsPub,
+					Username:     user.GetName(),
+					// This expiry should *not* be adjusted to single user cert TTL,
+					// since ttl limiting is disabled when requester is a local proxy.
+					// It *should* be adjusted to the user cert ttl though.
+					Expires:           clock.Now().Add(1000 * time.Hour),
+					Usage:             proto.UserCertsRequest_Kubernetes,
+					KubernetesCluster: "kube-a",
+					RequesterName:     proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_MULTI,
+					Purpose:           proto.UserCertsRequest_CERT_PURPOSE_SINGLE_USE_CERTS,
+				},
+				mfaAllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
+				authnHandler:  registered.webAuthHandler,
+				verifyErr:     require.NoError,
 				verifyCert: func(t *testing.T, c *proto.Certs) {
 					crt := c.TLS
 					require.NotEmpty(t, crt)
@@ -5888,7 +6001,8 @@ func TestApplicationServerHeartbeatLowercase(t *testing.T) {
 
 	ctx := t.Context()
 	server := newTestTLSServer(t)
-	agent := authtest.TestBuiltin(types.RoleApp)
+	// The RoleApp identity's host ID must match the app server's HostID.
+	agent := authtest.TestServerID(types.RoleApp, "host-id")
 	client, err := server.NewClient(agent)
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, client.Close()) })

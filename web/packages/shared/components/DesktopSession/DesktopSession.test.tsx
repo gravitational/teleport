@@ -94,6 +94,7 @@ function encodeServerHello(canRemoveDirectory: boolean): ArrayBuffer {
             userChannelId: 2,
             screenHeight: 100,
             screenWidth: 100,
+            shareId: 1,
           },
           clipboardEnabled: true,
           directoryRemoveSupported: canRemoveDirectory,
