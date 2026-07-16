@@ -43,6 +43,9 @@ type GenerateAppTokenRequest struct {
 
 	// AuthorityType configures which Teleport authority issues the JWT token.
 	AuthorityType CertAuthType
+
+	// Scope is the scope that this app token is valid for.
+	Scope string
 }
 
 // Check validates the request.

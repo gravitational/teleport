@@ -81,6 +81,9 @@ message ScopedRoleSpec {
   // WorkloadIdentity specifies controls that govern issuance using
   // WorkloadIdentity resources.
   ScopedRoleWorkloadIdentity workload_identity = 9;
+
+  // The App Access specific configuration for a scoped role.
+  ScopedRoleApp app = 10;
 }
 
 // ScopedRoleDefaults provides fallback values for controls shared across multiple protocols.
@@ -173,8 +176,8 @@ message ScopedRoleKube {
   // An optional list of impersonatable kubernetes users this role allows.
   repeated string users = 3;
 
-  reserved 4; // saving for kube resources
-  reserved "resources"; // saving for kube resources
+  // The kubernetes resources this role grants access to.
+  repeated KubeResource resources = 4;
 
   // Overrides the defaults block idle timeout specifically for kube sessions.
   // Must be a valid Go duration string (e.g. "30m", "1h"). If empty, the defaults block value
@@ -200,6 +203,16 @@ message ScopedRoleWorkloadIdentity {
   // multi-issue RPC, list) rules for the workload_identity kind in the relevant
   // scope.
   repeated teleport.label.v1.Label labels = 1;
+}
+
+// ScopedRoleApp groups all scoped role fields relevant to application access.
+message ScopedRoleApp {
+  // The set of application labels used for RBAC.
+  repeated teleport.label.v1.Label labels = 1;
+
+  // LabelExpression is an optional predicate expression evaluated against an
+  // application's labels.
+  string label_expression = 2;
 }
 
 // ScopedRule maps resources to verbs. This is the underlying type used to describe
@@ -263,4 +276,22 @@ message Lock {
   // Allowed values: strict or best_effort.
   // Defaults to value cluster wide auth preference if not set.
   string mode = 1;
+}
+
+// The kube resource identifier.
+message KubeResource {
+  // The kube resource type.
+  string kind = 1;
+
+  // The kube resource namespace. It supports wildcards.
+  string namespace = 2;
+
+  // The kube resource name. It supports wildcards.
+  string name = 3;
+
+  // The allowed kube verbs for interacting with the kube resource.
+  repeated string verbs = 4;
+
+  // The kube API group of the kube resource. It supports wildcards.
+  string api_group = 5;
 }

@@ -162,6 +162,7 @@ type ConnectPolicy = { mode: 'tdpb' } | { mode: 'tdp' };
 type ServerCapabilities = {
   directoryRemoval: boolean;
   multidirectorySharing: boolean;
+  availableSessions: string[];
 };
 
 export interface Logger {
@@ -395,6 +396,7 @@ export class TdpClient extends EventEmitter<EventMap> {
   private initFastPathProcessor(
     ioChannelId: number,
     userChannelId: number,
+    shareId: number,
     spec: ClientScreenSpec
   ) {
     this.logger.info(
@@ -405,7 +407,8 @@ export class TdpClient extends EventEmitter<EventMap> {
       spec.width,
       spec.height,
       ioChannelId,
-      userChannelId
+      userChannelId,
+      shareId
     );
   }
 
@@ -541,6 +544,7 @@ export class TdpClient extends EventEmitter<EventMap> {
     this.emit(TdpClientEvent.SERVER_CAPABILITIES, {
       directoryRemoval: hello.directoryRemovalSupport,
       multidirectorySharing: hello.multidirectorySharingSupported,
+      availableSessions: hello.sessions,
     });
     this.handleRdpConnectionActivated(hello.activationEvent);
   }
@@ -582,7 +586,8 @@ export class TdpClient extends EventEmitter<EventMap> {
   }
 
   handleRdpConnectionActivated(activated: RdpConnectionActivated) {
-    const { ioChannelId, userChannelId, screenWidth, screenHeight } = activated;
+    const { ioChannelId, userChannelId, screenWidth, screenHeight, shareId } =
+      activated;
     // Scale is not relevant for the server's response; use 100 (1x) as default.
     const spec: ClientScreenSpec = {
       width: screenWidth,
@@ -593,7 +598,7 @@ export class TdpClient extends EventEmitter<EventMap> {
       `screen spec received from server ${spec.width} x ${spec.height}`
     );
 
-    this.initFastPathProcessor(ioChannelId, userChannelId, {
+    this.initFastPathProcessor(ioChannelId, userChannelId, shareId, {
       width: screenWidth,
       height: screenHeight,
       scale: 100,
@@ -885,6 +890,10 @@ export class TdpClient extends EventEmitter<EventMap> {
       return;
     }
     this.transport.send(data);
+  }
+
+  sendSessionSelection(session: string) {
+    this.send(this.codec.encodeSessionSelection(session));
   }
 
   sendClientScreenSpec(spec: ClientScreenSpec) {

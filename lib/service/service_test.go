@@ -56,6 +56,8 @@ import (
 	"github.com/gravitational/teleport/api/breaker"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	autoupdatepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	autoupdate "github.com/gravitational/teleport/api/types/autoupdate"
@@ -78,6 +80,9 @@ import (
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/scopes"
+	scopedapp "github.com/gravitational/teleport/lib/scopes/app"
+	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -2655,7 +2660,236 @@ func TestInitAppsFromConfig(t *testing.T) {
 	}
 }
 
-func TestInitAppsScoped(t *testing.T) {
+func TestValidateScopedAppRegistration(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		isScoped     bool
+		publicAddr   string
+		cloud        string
+		mcp          *types.MCP
+		llm          *types.LLM
+		requiredApps []string
+		aws          *servicecfg.AppAWS
+		wantErr      bool
+	}{
+		{
+			name:         "unscoped app ignores all guards",
+			isScoped:     false,
+			publicAddr:   "app.example.com",
+			cloud:        types.CloudAWS,
+			mcp:          &types.MCP{},
+			llm:          &types.LLM{},
+			requiredApps: []string{"other"},
+			aws:          &servicecfg.AppAWS{},
+			wantErr:      false,
+		},
+		{
+			name:       "scoped app with public_addr rejected",
+			isScoped:   true,
+			publicAddr: "app.example.com",
+			wantErr:    true,
+		},
+		{
+			name:     "scoped app with cloud rejected",
+			isScoped: true,
+			cloud:    types.CloudAWS,
+			wantErr:  true,
+		},
+		{
+			name:     "scoped app with mcp rejected",
+			isScoped: true,
+			mcp:      &types.MCP{},
+			wantErr:  true,
+		},
+		{
+			name:     "scoped app with llm rejected",
+			isScoped: true,
+			llm:      &types.LLM{},
+			wantErr:  true,
+		},
+		{
+			name:         "scoped app with required apps rejected",
+			isScoped:     true,
+			requiredApps: []string{"other"},
+			wantErr:      true,
+		},
+		{
+			name:     "scoped app with aws rejected",
+			isScoped: true,
+			aws:      &servicecfg.AppAWS{},
+			wantErr:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateScopedAppRegistration(
+				tt.isScoped,
+				"test-app",
+				tt.publicAddr,
+				tt.cloud,
+				tt.mcp,
+				tt.llm,
+				tt.requiredApps,
+				tt.aws,
+			)
+			if tt.wantErr {
+				require.True(t, trace.IsBadParameter(err), "expected BadParameter, got %v", err)
+			}
+		})
+	}
+}
+
+func TestInitScopedAppsFromConfig(t *testing.T) {
+	const (
+		tokenName   = "scoped-app-token"
+		tokenSecret = "scoped-app-secret"
+		agentScope  = "/test"
+	)
+
+	// --- Auth + proxy process ---
+	authDir := makeTempDir(t)
+	authCfg := servicecfg.MakeDefaultConfig()
+	authCfg.InsecureMode = true
+	authCfg.Version = defaults.TeleportConfigVersionV3
+	authCfg.DataDir = authDir
+	authCfg.Auth.Enabled = true
+	authCfg.Auth.ListenAddr.Addr = newListener(t, ListenerAuth, &authCfg.FileDescriptors)
+	authCfg.SetAuthServerAddress(authCfg.Auth.ListenAddr)
+	authCfg.Auth.StorageConfig.Params = backend.Params{defaults.BackendPath: filepath.Join(authDir, defaults.BackendDir)}
+	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{ClusterName: "auth-server"})
+	require.NoError(t, err)
+	authCfg.Auth.ClusterName = clusterName
+	authCfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+	authCfg.ScopesFeatures = scopes.Features{
+		Enabled:         true,
+		AgentPinEnabled: true,
+	}
+
+	token := joiningv1.ScopedToken_builder{
+		Version: types.V1,
+		Kind:    types.KindScopedToken,
+		Metadata: headerv1.Metadata_builder{
+			Name: tokenName,
+		}.Build(),
+		Scope: scopes.Root,
+		Spec: joiningv1.ScopedTokenSpec_builder{
+			Roles:         []string{types.RoleApp.String()},
+			AssignedScope: agentScope,
+			JoinMethod:    string(types.JoinMethodToken),
+			UsageMode:     string(joining.TokenUsageModeUnlimited),
+		}.Build(),
+		Status: joiningv1.ScopedTokenStatus_builder{
+			Secret: tokenSecret,
+		}.Build(),
+	}.Build()
+	require.NoError(t, joining.StrongValidateToken(token))
+
+	authCfg.Auth.StaticScopedTokens = joiningv1.StaticScopedTokens_builder{
+		Version: types.V1,
+		Kind:    types.KindStaticScopedTokens,
+		Scope:   scopes.Root,
+		Metadata: headerv1.Metadata_builder{
+			Name: types.MetaNameStaticScopedTokens,
+		}.Build(),
+		Spec: joiningv1.StaticScopedTokensSpec_builder{
+			Tokens: []*joiningv1.ScopedToken{token},
+		}.Build(),
+	}.Build()
+
+	authCfg.Proxy.Enabled = true
+	authCfg.Proxy.DisableWebInterface = true
+	proxyAddr := newListener(t, ListenerProxyWeb, &authCfg.FileDescriptors)
+	authCfg.Proxy.WebAddr.Addr = proxyAddr
+	authCfg.SSH.Enabled = false
+
+	authProc, err := NewTeleport(authCfg)
+	require.NoError(t, err)
+	require.NoError(t, authProc.Start())
+	t.Cleanup(func() {
+		_ = authProc.Close()
+		_ = authProc.Wait()
+	})
+
+	_, err = authProc.WaitForEventTimeout(30*time.Second, TeleportReadyEvent)
+	require.NoError(t, err)
+
+	authC := authProc.GetAuthServer()
+	encodedToken := joining.EncodeScopedToken(tokenName, tokenSecret)
+
+	watchCtx, watchCancel := context.WithTimeout(t.Context(), 30*time.Second)
+	t.Cleanup(watchCancel)
+	watcher, err := authC.NewWatcher(watchCtx, types.Watch{
+		Kinds: []types.WatchKind{{Kind: types.KindAppServer}},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = watcher.Close()
+	})
+
+	select {
+	case ev := <-watcher.Events():
+		require.Equal(t, types.OpInit, ev.Type)
+	case <-watchCtx.Done():
+		t.Fatal("timed out waiting for watcher init")
+	}
+
+	const appName = "scoped-graf"
+	agentCfg := servicecfg.MakeDefaultConfig()
+	agentCfg.InsecureMode = true
+	agentCfg.Version = defaults.TeleportConfigVersionV3
+	agentCfg.DataDir = makeTempDir(t)
+	agentCfg.ProxyServer = utils.NetAddr{AddrNetwork: "tcp", Addr: proxyAddr}
+	agentCfg.SetToken(encodedToken)
+	agentCfg.JoinMethod = types.JoinMethodToken
+	agentCfg.ScopesFeatures = scopes.Features{Enabled: true, AgentPinEnabled: true}
+	agentCfg.Auth.Enabled = false
+	agentCfg.Proxy.Enabled = false
+	agentCfg.SSH.Enabled = false
+	agentCfg.Apps.Enabled = true
+	agentCfg.Apps.Apps = []servicecfg.App{
+		{
+			Name: appName,
+			URI:  "http://localhost:8080",
+		},
+	}
+
+	agentProc, err := NewTeleport(agentCfg)
+	require.NoError(t, err)
+	require.NoError(t, agentProc.Start())
+	t.Cleanup(func() {
+		_ = agentProc.Close()
+		_ = agentProc.Wait()
+	})
+
+	for {
+		select {
+		case ev := <-watcher.Events():
+			if ev.Type != types.OpPut {
+				continue
+			}
+			srv, ok := ev.Resource.(types.AppServer)
+			if !ok || srv.GetApp().GetName() != appName {
+				continue
+			}
+			require.Equal(t, agentScope, srv.GetScope())
+			require.Equal(t, agentScope, srv.GetApp().GetScope())
+			// public_addr is derived from (name, scope)
+			require.True(t,
+				scopedapp.ScopedAppPublicAddrValid(agentScope, appName, srv.GetApp().GetPublicAddr()),
+				"public addr %q is not a valid scoped address for %q@%q", srv.GetApp().GetPublicAddr(), appName, agentScope)
+			return
+		case <-watcher.Done():
+			t.Fatalf("watcher closed before scoped app registered: %v", watcher.Error())
+		case <-watchCtx.Done():
+			t.Fatal("timed out waiting for scoped app server")
+		}
+	}
+}
+
+func TestAgentPinsCheck(t *testing.T) {
 	t.Parallel()
 
 	agentPin := func(scope string) *scopesv1.Pin {

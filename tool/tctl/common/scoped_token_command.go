@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -286,6 +287,8 @@ func (c *ScopedTokensCommand) List(ctx context.Context, client *authclient.Clien
 			Limit:       uint32(pageSize),
 			Cursor:      pageKey,
 			WithSecrets: c.withSecrets,
+			// exhaustive user-facing views use MODE_ALL per RFD 0229i
+			ScopeFilter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_ALL}.Build(),
 		}.Build())
 		if err != nil {
 			return nil, "", trace.Wrap(err)

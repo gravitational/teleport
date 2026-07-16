@@ -58,11 +58,13 @@ Example:
 ```yaml
 external_id: "string"
 roles_anywhere_profile: # [...]
+region: "string"
 ```
 
 |Field Name|Description|Type|
 |---|---|---|
 |external_id|The AWS External ID used when assuming roles in this app.|string|
+|region|A cloud region for the app. This field is set for apps that integrates with AWS applications/APIs.|string|
 |roles_anywhere_profile|Contains the IAM Roles Anywhere fields associated with this Application. These fields are set when performing the synchronization of AWS IAM Roles Anywhere Profiles into Teleport Apps.|[App AWS Roles Anywhere Profile](#app-aws-roles-anywhere-profile)|
 
 ## App AWS Roles Anywhere Profile

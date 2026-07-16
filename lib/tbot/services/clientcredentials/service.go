@@ -71,6 +71,7 @@ func NewSidecar(deps bot.ServiceDependencies, credentialLifetime bot.CredentialL
 		identityGenerator:  deps.IdentityGenerator,
 		statusReporter:     readyz.NoopReporter(),
 		log:                deps.Logger,
+		scoped:             deps.Scoped,
 	}
 	return svc, cfg
 }

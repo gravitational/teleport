@@ -73,6 +73,7 @@ import (
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
+	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/tracing"
@@ -196,6 +197,22 @@ func (f *sshTestFixture) newSSHClient(ctx context.Context, t testing.TB, user *u
 	return client
 }
 
+func newTestInventoryHandle(t testing.TB, clt *authclient.Client, hostID string, role types.SystemRole) inventory.DownstreamHandle {
+	t.Helper()
+	handle, err := inventory.NewDownstreamHandle(clt.InventoryControlStream,
+		func(_ context.Context) (*proto.UpstreamInventoryHello, error) {
+			return proto.UpstreamInventoryHello_builder{
+				ServerID: hostID,
+				Version:  teleport.Version,
+				Services: types.SystemRoles{role}.StringSlice(),
+				Hostname: "test",
+			}.Build(), nil
+		})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, handle.Close()) })
+	return handle
+}
+
 func setChildLogConfigForTest() ServerOption {
 	return func(s *Server) error {
 		s.childLogConfig = &srv.ChildLogConfig{
@@ -266,6 +283,7 @@ func newCustomFixture(t testing.TB, mutateCfg func(*authtest.ServerConfig), sshO
 		SetSessionController(sessionController),
 		SetStoragePresenceService(testServer.AuthServer.AuthServer.PresenceInternal),
 		SetConnectedProxyGetter(reversetunnel.NewConnectedProxyGetter()),
+		SetInventoryControlHandle(newTestInventoryHandle(t, nodeClient, nodeID, types.RoleNode)),
 		setChildLogConfigForTest(),
 	}
 
@@ -2423,7 +2441,7 @@ func TestLimiter(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	nodeClient, _ := newNodeClient(t, f.testSrv)
+	nodeClient, nodeID := newNodeClient(t, f.testSrv)
 
 	lockWatcher := newLockWatcher(ctx, t, nodeClient)
 
@@ -2458,6 +2476,7 @@ func TestLimiter(t *testing.T) {
 		SetLockWatcher(lockWatcher),
 		SetSessionController(sessionController),
 		SetConnectedProxyGetter(reversetunnel.NewConnectedProxyGetter()),
+		SetInventoryControlHandle(newTestInventoryHandle(t, nodeClient, nodeID, types.RoleNode)),
 		setChildLogConfigForTest(),
 	)
 	require.NoError(t, err)
@@ -2835,19 +2854,6 @@ func TestParseSubsystemRequest(t *testing.T) {
 		}
 	}()
 
-	agentlessSrv := types.ServerV2{
-		Kind:    types.KindNode,
-		SubKind: types.SubKindOpenSSHNode,
-		Version: types.V2,
-		Metadata: types.Metadata{
-			Name: uuid.NewString(),
-		},
-		Spec: types.ServerSpecV2{
-			Addr:     agentlessListener.Addr().String(),
-			Hostname: "agentless",
-		},
-	}
-
 	getNonProxySession := func() func() *tracessh.Session {
 		f := newFixtureWithoutDiskBasedLogging(t, SetAllowFileCopying(true))
 		return func() *tracessh.Session {
@@ -2898,8 +2904,19 @@ func TestParseSubsystemRequest(t *testing.T) {
 		require.NoError(t, reverseTunnelServer.Start())
 		t.Cleanup(func() { _ = reverseTunnelServer.Close() })
 
-		nodeClient, _ := newNodeClient(t, f.testSrv)
-
+		nodeClient, nodeID := newNodeClient(t, f.testSrv)
+		agentlessSrv := types.ServerV2{
+			Kind:    types.KindNode,
+			SubKind: types.SubKindOpenSSHNode,
+			Version: types.V2,
+			Metadata: types.Metadata{
+				Name: nodeID,
+			},
+			Spec: types.ServerSpecV2{
+				Addr:     agentlessListener.Addr().String(),
+				Hostname: "agentless",
+			},
+		}
 		_, err = nodeClient.UpsertNode(ctx, &agentlessSrv)
 		require.NoError(t, err)
 
@@ -2989,7 +3006,7 @@ func TestParseSubsystemRequest(t *testing.T) {
 		},
 		{
 			name:                 "proxy:agentlessServer",
-			subsystemOverride:    "proxy:" + agentlessSrv.Spec.Addr,
+			subsystemOverride:    "proxy:" + agentlessListener.Addr().String(),
 			wantErrInProxyMode:   false,
 			wantErrInRegularMode: true,
 		},
@@ -3336,6 +3353,7 @@ func TestEventMetadata(t *testing.T) {
 		SetX11ForwardingConfig(&x11.ServerConfig{}),
 		SetSessionController(sessionController),
 		SetConnectedProxyGetter(reversetunnel.NewConnectedProxyGetter()),
+		SetInventoryControlHandle(newTestInventoryHandle(t, nodeClient, nodeID, types.RoleNode)),
 		setChildLogConfigForTest(),
 	}
 
@@ -4031,6 +4049,9 @@ func TestGetServerInfoHeartbeat(t *testing.T) {
 			SetLockWatcher(lockWatcher),
 			SetSessionController(sessionController),
 			SetConnectedProxyGetter(reversetunnel.NewConnectedProxyGetter()),
+		}
+		if role == types.RoleNode {
+			opts = append(opts, SetInventoryControlHandle(newTestInventoryHandle(t, client, serverID, role)))
 		}
 		opts = append(opts, extraOpts...)
 

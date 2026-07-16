@@ -138,6 +138,9 @@ type sqliteQueue struct {
 	maxAttempts             int
 	deadLetterSweepInterval time.Duration
 	deadLetterTTL           time.Duration
+	// deadLetterKick wakes the dead-letter sweeper ahead of its timer. It has
+	// capacity 1 so pending kicks coalesce into a single sweep.
+	deadLetterKick chan struct{}
 }
 
 // Ensure that we implement the interface Queue at compile time.
@@ -188,6 +191,7 @@ func newBaseQueue(db *sql.DB, cfg Config) (*sqliteQueue, error) {
 		maxAttempts:             maxAttempts,
 		deadLetterSweepInterval: deadLetterSweepInterval,
 		deadLetterTTL:           deadLetterTTL,
+		deadLetterKick:          make(chan struct{}, 1),
 	}
 
 	q.wg.Go(q.writeLoop)
@@ -339,6 +343,7 @@ func (q *sqliteQueue) runPollLoop(ctx context.Context, handler Handler) error {
 	pollTimer := time.NewTimer(pollInterval)
 	defer pollTimer.Stop()
 
+	deliveryFailing := false
 	for {
 		if err := ctx.Err(); err != nil {
 			return err
@@ -375,12 +380,24 @@ func (q *sqliteQueue) runPollLoop(ctx context.Context, handler Handler) error {
 			// This is done via the handler function.
 			successfullyDelivered := handler(ctx, items)
 			if len(successfullyDelivered) > 0 {
+				// Delivery transitioned from failing to succeeding, which
+				// may indicate that a downstream outage just ended. Kick the
+				// dead-letter sweeper so events that failed during the outage
+				// are re-delivered without waiting for the next sweep
+				// interval.
+				if deliveryFailing {
+					q.kickDeadLetterSweep()
+				}
+				deliveryFailing = false
+
 				// 3. ACK the delivered events, retrying without re-delivering
 				//    on failure.
 				if err := q.ackWithRetry(ctx, successfullyDelivered); err != nil {
 					return err
 				}
 				progressed = true
+			} else {
+				deliveryFailing = true
 			}
 
 			// 4. Handle delivery failures.
@@ -561,7 +578,8 @@ func (q *sqliteQueue) processFailedDeliveries(ctx context.Context, failed []Item
 }
 
 // deadLetterSweepLoop periodically re-attempts delivery of dead-letter events
-// and deletes entries that have exceeded the TTL.
+// and deletes entries that have exceeded the TTL. A kick on deadLetterKick
+// triggers a sweep immediately instead of waiting for the timer.
 func (q *sqliteQueue) deadLetterSweepLoop(ctx context.Context, handler Handler) {
 	timer := time.NewTimer(q.deadLetterSweepInterval)
 	defer timer.Stop()
@@ -572,10 +590,20 @@ func (q *sqliteQueue) deadLetterSweepLoop(ctx context.Context, handler Handler) 
 		case <-q.ctx.Done():
 			return
 		case <-timer.C:
-			q.sweepDeadLetter(ctx, handler)
-			q.expireDeadLetter()
-			timer.Reset(q.deadLetterSweepInterval)
+		case <-q.deadLetterKick:
 		}
+		q.sweepDeadLetter(ctx, handler)
+		q.expireDeadLetter()
+		timer.Reset(q.deadLetterSweepInterval)
+	}
+}
+
+// kickDeadLetterSweep requests an immediate dead-letter sweep. It never
+// blocks: if a kick is already pending, the two coalesce.
+func (q *sqliteQueue) kickDeadLetterSweep() {
+	select {
+	case q.deadLetterKick <- struct{}{}:
+	default:
 	}
 }
 
