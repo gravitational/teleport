@@ -76,6 +76,7 @@ import (
 	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/scopes/pinning"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -1833,7 +1834,7 @@ func newScopedKubeAuthorizer(t *testing.T, cfg scopedKubeAuthorizerConfig) mockA
 	pin := scopesv1.Pin_builder{Kind: scopesv1.PinKind_PIN_KIND_USER, Scope: scopedTestScope}.Build()
 	pin.SetAssignmentTree(pinning.AssignmentTreeFromMap(map[string]map[string][]string{
 		"/": {
-			scopedTestScope: {scopedTestRole},
+			scopedTestScope: {scopes.QualifiedName{Scope: "/", Name: scopedTestRole}.String()},
 		},
 	}))
 

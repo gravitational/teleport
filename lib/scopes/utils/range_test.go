@@ -95,7 +95,7 @@ func TestRangeScopedRoleAssignments(t *testing.T) {
 				User: "alice",
 				Assignments: []*scopedaccessv1.Assignment{
 					scopedaccessv1.Assignment_builder{
-						Role:  "some-role",
+						Role:  "/::some-role",
 						Scope: "/foo",
 					}.Build(),
 				},

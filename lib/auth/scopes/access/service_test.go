@@ -201,7 +201,8 @@ func TestGetScopedRoleAgentReadsAncestorScope(t *testing.T) {
 	}.Build())
 
 	rrsp, err := srv.GetScopedRole(ctx, scopedaccessv1.GetScopedRoleRequest_builder{
-		Name: "staging-admin",
+		Name:  "staging-admin",
+		Scope: "/staging",
 	}.Build())
 	require.NoError(t, err)
 	require.Equal(t, "staging-admin", rrsp.GetRole().GetMetadata().GetName())
@@ -324,7 +325,7 @@ func TestRoleBasics(t *testing.T) {
 			Kind:  scopesv1.PinKind_PIN_KIND_USER,
 			Scope: "/staging",
 			AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
-				"/staging": {"/staging": {"staging-admin"}},
+				"/staging": {"/staging": {"/staging::staging-admin"}},
 			}),
 		}.Build(),
 		Username: "alice",
@@ -332,7 +333,8 @@ func TestRoleBasics(t *testing.T) {
 
 	// verify expected successful read
 	rrsp, err := srv.GetScopedRole(ctx, scopedaccessv1.GetScopedRoleRequest_builder{
-		Name: "staging-admin",
+		Name:  "staging-admin",
+		Scope: "/staging",
 	}.Build())
 	require.NoError(t, err)
 	require.Equal(t, "staging-admin", rrsp.GetRole().GetMetadata().GetName())
@@ -340,7 +342,8 @@ func TestRoleBasics(t *testing.T) {
 
 	// verify expected denied read
 	_, err = srv.GetScopedRole(ctx, scopedaccessv1.GetScopedRoleRequest_builder{
-		Name: "prod-admin",
+		Name:  "prod-admin",
+		Scope: "/prod",
 	}.Build())
 	require.Error(t, err)
 	// within the scopes model, getting a disallowed resource by its name is always considered an access denied,
@@ -409,7 +412,8 @@ func TestRoleBasics(t *testing.T) {
 	// verify that denied create really didn't create the role (requires using backend service
 	// directly to avoid false positive due to cache replication)
 	rrsp, err = bk.service.GetScopedRole(ctx, scopedaccessv1.GetScopedRoleRequest_builder{
-		Name: "prod-user",
+		Name:  "prod-user",
+		Scope: "/prod",
 	}.Build())
 	require.Error(t, err)
 	require.True(t, trace.IsNotFound(err), "expected not found error, got: %v", err)
@@ -419,7 +423,8 @@ func TestRoleBasics(t *testing.T) {
 
 	// start by getting the existing role
 	rrsp, err = srv.GetScopedRole(ctx, scopedaccessv1.GetScopedRoleRequest_builder{
-		Name: "staging-user",
+		Name:  "staging-user",
+		Scope: "/staging",
 	}.Build())
 	require.NoError(t, err)
 
@@ -453,7 +458,8 @@ func TestRoleBasics(t *testing.T) {
 	// start by getting the existing role (requires using backend service
 	// directly since our server is using a scoped identity)
 	rrsp, err = bk.service.GetScopedRole(ctx, scopedaccessv1.GetScopedRoleRequest_builder{
-		Name: "prod-admin",
+		Name:  "prod-admin",
+		Scope: "/prod",
 	}.Build())
 	require.NoError(t, err)
 
@@ -473,14 +479,16 @@ func TestRoleBasics(t *testing.T) {
 	// verify that denied update really didn't update the role (requires using backend service
 	// directly to avoid false positive due to cache replication)
 	rrsp, err = bk.service.GetScopedRole(ctx, scopedaccessv1.GetScopedRoleRequest_builder{
-		Name: "prod-admin",
+		Name:  "prod-admin",
+		Scope: "/prod",
 	}.Build())
 	require.NoError(t, err)
 	require.Nil(t, rrsp.GetRole().GetMetadata().GetLabels())
 
 	// verify expected successful delete
 	_, err = srv.DeleteScopedRole(ctx, scopedaccessv1.DeleteScopedRoleRequest_builder{
-		Name: "staging-user",
+		Name:  "staging-user",
+		Scope: "/staging",
 	}.Build())
 	require.NoError(t, err)
 
@@ -496,7 +504,8 @@ func TestRoleBasics(t *testing.T) {
 
 	// verify expected denied delete (out of scope)
 	_, err = srv.DeleteScopedRole(ctx, scopedaccessv1.DeleteScopedRoleRequest_builder{
-		Name: "prod-admin",
+		Name:  "prod-admin",
+		Scope: "/prod",
 	}.Build())
 	require.Error(t, err)
 	require.True(t, trace.IsAccessDenied(err), "expected access denied error, got: %v", err)
@@ -504,7 +513,8 @@ func TestRoleBasics(t *testing.T) {
 	// verify that denied delete really didn't delete the role (requires using backend service
 	// directly to avoid false positive due to cache replication)
 	rrsp, err = bk.service.GetScopedRole(ctx, scopedaccessv1.GetScopedRoleRequest_builder{
-		Name: "prod-admin",
+		Name:  "prod-admin",
+		Scope: "/prod",
 	}.Build())
 	require.NoError(t, err)
 	require.Equal(t, "prod-admin", rrsp.GetRole().GetMetadata().GetName())
@@ -655,7 +665,7 @@ func TestAssignmentBasics(t *testing.T) {
 			Kind:  scopesv1.PinKind_PIN_KIND_USER,
 			Scope: "/staging",
 			AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
-				"/staging": {"/staging": {"staging-admin"}},
+				"/staging": {"/staging": {"/staging::staging-admin"}},
 			}),
 		}.Build(),
 		Username: "alice",
@@ -665,6 +675,7 @@ func TestAssignmentBasics(t *testing.T) {
 	rasp, err := srv.GetScopedRoleAssignment(ctx, scopedaccessv1.GetScopedRoleAssignmentRequest_builder{
 		Name:    initialAssignments[0].GetMetadata().GetName(),
 		SubKind: initialAssignments[0].GetSubKind(),
+		Scope:   "/staging",
 	}.Build())
 	require.NoError(t, err)
 	require.Equal(t, initialAssignments[0].GetMetadata().GetName(), rasp.GetAssignment().GetMetadata().GetName())
@@ -674,6 +685,7 @@ func TestAssignmentBasics(t *testing.T) {
 	rasp, err = srv.GetScopedRoleAssignment(ctx, scopedaccessv1.GetScopedRoleAssignmentRequest_builder{
 		Name:    initialAssignments[1].GetMetadata().GetName(),
 		SubKind: initialAssignments[1].GetSubKind(),
+		Scope:   "/prod",
 	}.Build())
 	require.Error(t, err)
 	require.True(t, trace.IsAccessDenied(err), "expected access denied error, got: %v", err)
@@ -715,6 +727,7 @@ func TestAssignmentBasics(t *testing.T) {
 	garsp, err := bk.service.GetScopedRoleAssignment(ctx, scopedaccessv1.GetScopedRoleAssignmentRequest_builder{
 		Name:    a2.GetMetadata().GetName(),
 		SubKind: a2.GetSubKind(),
+		Scope:   "/prod",
 	}.Build())
 	require.Error(t, err)
 	require.True(t, trace.IsNotFound(err), "expected not found error, got: %v", err)
@@ -724,6 +737,7 @@ func TestAssignmentBasics(t *testing.T) {
 	_, err = srv.DeleteScopedRoleAssignment(ctx, scopedaccessv1.DeleteScopedRoleAssignmentRequest_builder{
 		Name:    a1.GetMetadata().GetName(),
 		SubKind: a1.GetSubKind(),
+		Scope:   "/staging",
 	}.Build())
 	require.NoError(t, err)
 
@@ -741,6 +755,7 @@ func TestAssignmentBasics(t *testing.T) {
 	_, err = srv.DeleteScopedRoleAssignment(ctx, scopedaccessv1.DeleteScopedRoleAssignmentRequest_builder{
 		Name:    initialAssignments[1].GetMetadata().GetName(),
 		SubKind: initialAssignments[1].GetSubKind(),
+		Scope:   "/prod",
 	}.Build())
 	require.Error(t, err)
 	require.True(t, trace.IsAccessDenied(err), "expected access denied error, got: %v", err)
@@ -750,6 +765,7 @@ func TestAssignmentBasics(t *testing.T) {
 	rasp, err = bk.service.GetScopedRoleAssignment(ctx, scopedaccessv1.GetScopedRoleAssignmentRequest_builder{
 		Name:    initialAssignments[1].GetMetadata().GetName(),
 		SubKind: initialAssignments[1].GetSubKind(),
+		Scope:   "/prod",
 	}.Build())
 	require.NoError(t, err)
 	require.Equal(t, initialAssignments[1].GetMetadata().GetName(), rasp.GetAssignment().GetMetadata().GetName())
@@ -803,6 +819,7 @@ func TestAssignmentBasics(t *testing.T) {
 	garsp, err = bk.service.GetScopedRoleAssignment(ctx, scopedaccessv1.GetScopedRoleAssignmentRequest_builder{
 		Name:    initialAssignments[1].GetMetadata().GetName(),
 		SubKind: initialAssignments[1].GetSubKind(),
+		Scope:   "/prod",
 	}.Build())
 	require.NoError(t, err)
 
@@ -819,6 +836,7 @@ func TestAssignmentBasics(t *testing.T) {
 	garsp, err = bk.service.GetScopedRoleAssignment(ctx, scopedaccessv1.GetScopedRoleAssignmentRequest_builder{
 		Name:    initialAssignments[1].GetMetadata().GetName(),
 		SubKind: initialAssignments[1].GetSubKind(),
+		Scope:   "/prod",
 	}.Build())
 	require.NoError(t, err)
 	require.Nil(t, garsp.GetAssignment().GetMetadata().GetLabels())
@@ -858,6 +876,7 @@ func TestAssignmentBasics(t *testing.T) {
 	garsp, err = bk.service.GetScopedRoleAssignment(ctx, scopedaccessv1.GetScopedRoleAssignmentRequest_builder{
 		Name:    a4.GetMetadata().GetName(),
 		SubKind: a4.GetSubKind(),
+		Scope:   "/staging",
 	}.Build())
 	require.NoError(t, err)
 	require.Nil(t, garsp.GetAssignment().GetStatus())
@@ -883,7 +902,7 @@ func newScopedRoleAssignmentAtScope(roleName string, scope string) *scopedaccess
 			User: "bob",
 			Assignments: []*scopedaccessv1.Assignment{
 				scopedaccessv1.Assignment_builder{
-					Role:  roleName,
+					Role:  scopes.QualifiedName{Scope: scope, Name: roleName}.String(),
 					Scope: scope,
 				}.Build(),
 			},
@@ -975,7 +994,8 @@ func TestUnscopedBasics(t *testing.T) {
 
 	// verify that admin can read the role
 	rrsp, err := srvAlice.GetScopedRole(ctx, scopedaccessv1.GetScopedRoleRequest_builder{
-		Name: "some-role",
+		Name:  "some-role",
+		Scope: "/some-scope",
 	}.Build())
 	require.NoError(t, err)
 	require.Equal(t, "some-role", rrsp.GetRole().GetMetadata().GetName())
@@ -1014,7 +1034,8 @@ func TestUnscopedBasics(t *testing.T) {
 
 	// verify that auditor can read the admin-created role
 	rrsp, err = srvBob.GetScopedRole(ctx, scopedaccessv1.GetScopedRoleRequest_builder{
-		Name: "some-role",
+		Name:  "some-role",
+		Scope: "/some-scope",
 	}.Build())
 	require.NoError(t, err)
 	require.Equal(t, crsp.GetRole().GetMetadata().GetName(), rrsp.GetRole().GetMetadata().GetName())
@@ -1041,7 +1062,7 @@ func TestUnscopedBasics(t *testing.T) {
 				User: "bob",
 				Assignments: []*scopedaccessv1.Assignment{
 					scopedaccessv1.Assignment_builder{
-						Role:  "some-role",
+						Role:  "/some-scope::some-role",
 						Scope: "/some-scope",
 					}.Build(),
 				},
@@ -1061,6 +1082,7 @@ func TestUnscopedBasics(t *testing.T) {
 	rasp, err := srvAlice.GetScopedRoleAssignment(ctx, scopedaccessv1.GetScopedRoleAssignmentRequest_builder{
 		Name:    acrsp.GetAssignment().GetMetadata().GetName(),
 		SubKind: acrsp.GetAssignment().GetSubKind(),
+		Scope:   "/some-scope",
 	}.Build())
 	require.NoError(t, err)
 	require.Equal(t, acrsp.GetAssignment().GetMetadata().GetName(), rasp.GetAssignment().GetMetadata().GetName())
@@ -1087,7 +1109,7 @@ func TestUnscopedBasics(t *testing.T) {
 				User: "alice",
 				Assignments: []*scopedaccessv1.Assignment{
 					scopedaccessv1.Assignment_builder{
-						Role:  "some-role",
+						Role:  "/some-scope::some-role",
 						Scope: "/some-scope",
 					}.Build(),
 				},
@@ -1102,6 +1124,7 @@ func TestUnscopedBasics(t *testing.T) {
 	rasp, err = srvBob.GetScopedRoleAssignment(ctx, scopedaccessv1.GetScopedRoleAssignmentRequest_builder{
 		Name:    acrsp.GetAssignment().GetMetadata().GetName(),
 		SubKind: acrsp.GetAssignment().GetSubKind(),
+		Scope:   "/some-scope",
 	}.Build())
 	require.NoError(t, err)
 	require.Equal(t, acrsp.GetAssignment().GetMetadata().GetName(), rasp.GetAssignment().GetMetadata().GetName())
@@ -1119,7 +1142,8 @@ func TestUnscopedBasics(t *testing.T) {
 
 	// start by getting the existing role
 	rrsp, err = srvAlice.GetScopedRole(ctx, scopedaccessv1.GetScopedRoleRequest_builder{
-		Name: "some-role",
+		Name:  "some-role",
+		Scope: "/some-scope",
 	}.Build())
 	require.NoError(t, err)
 	rrsp.GetRole().GetMetadata().SetLabels(map[string]string{
@@ -1136,7 +1160,8 @@ func TestUnscopedBasics(t *testing.T) {
 
 	// verify that auditor cannot update roles
 	rrsp, err = srvBob.GetScopedRole(ctx, scopedaccessv1.GetScopedRoleRequest_builder{
-		Name: crsp.GetRole().GetMetadata().GetName(),
+		Name:  crsp.GetRole().GetMetadata().GetName(),
+		Scope: "/some-scope",
 	}.Build())
 	require.NoError(t, err)
 	rrsp.GetRole().GetMetadata().SetLabels(map[string]string{
@@ -1153,6 +1178,7 @@ func TestUnscopedBasics(t *testing.T) {
 	_, err = srvBob.DeleteScopedRoleAssignment(ctx, scopedaccessv1.DeleteScopedRoleAssignmentRequest_builder{
 		Name:    acrsp.GetAssignment().GetMetadata().GetName(),
 		SubKind: acrsp.GetAssignment().GetSubKind(),
+		Scope:   "/some-scope",
 	}.Build())
 	require.Error(t, err)
 	require.True(t, trace.IsAccessDenied(err), "expected access denied error, got: %v", err)
@@ -1161,6 +1187,7 @@ func TestUnscopedBasics(t *testing.T) {
 	_, err = srvAlice.DeleteScopedRoleAssignment(ctx, scopedaccessv1.DeleteScopedRoleAssignmentRequest_builder{
 		Name:    acrsp.GetAssignment().GetMetadata().GetName(),
 		SubKind: acrsp.GetAssignment().GetSubKind(),
+		Scope:   "/some-scope",
 	}.Build())
 	require.NoError(t, err)
 
@@ -1176,14 +1203,16 @@ func TestUnscopedBasics(t *testing.T) {
 
 	// verify that auditor cannot delete roles
 	_, err = srvBob.DeleteScopedRole(ctx, scopedaccessv1.DeleteScopedRoleRequest_builder{
-		Name: "some-role",
+		Name:  "some-role",
+		Scope: "/some-scope",
 	}.Build())
 	require.Error(t, err)
 	require.True(t, trace.IsAccessDenied(err), "expected access denied error, got: %v", err)
 
 	// verify that admin can delete roles
 	_, err = srvAlice.DeleteScopedRole(ctx, scopedaccessv1.DeleteScopedRoleRequest_builder{
-		Name: "some-role",
+		Name:  "some-role",
+		Scope: "/some-scope",
 	}.Build())
 	require.NoError(t, err)
 	// wait for deletion to be populated into cache
@@ -1266,7 +1295,7 @@ func TestAccessChecksSkipInconsistentAssignments(t *testing.T) {
 			Kind:  scopesv1.PinKind_PIN_KIND_USER,
 			Scope: "/staging",
 			AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
-				"/staging": {"/staging": {"staging-reader", "staging-admin"}},
+				"/staging": {"/staging": {"/staging::staging-reader", "/staging::staging-admin"}},
 			}),
 		}.Build(),
 		Username: "alice",
@@ -1297,7 +1326,7 @@ func TestAccessChecksSkipInconsistentAssignments(t *testing.T) {
 	// now update staging-admin to change its assignable scopes so that it no longer covers /staging.
 	// this makes the assignment inconsistent: the role is still referenced in alice's certificate, but
 	// it will fail RoleIsEnforceableAt during access checks and be skipped.
-	adminRole, err := bk.service.GetScopedRole(ctx, scopedaccessv1.GetScopedRoleRequest_builder{Name: "staging-admin"}.Build())
+	adminRole, err := bk.service.GetScopedRole(ctx, scopedaccessv1.GetScopedRoleRequest_builder{Name: "staging-admin", Scope: "/staging"}.Build())
 	require.NoError(t, err)
 	// /staging/sub is a valid sub-scope of the role's resource scope /staging, so it passes
 	// StrongValidateRole — but it no longer covers /staging as a scope of effect, making the
@@ -1321,11 +1350,11 @@ func TestAccessChecksSkipInconsistentAssignments(t *testing.T) {
 	srv = newServerForIdentity(t, bk, aliceAccessInfo)
 
 	// read access should still succeed — staging-reader is still consistent and grants it.
-	_, err = srv.GetScopedRole(ctx, scopedaccessv1.GetScopedRoleRequest_builder{Name: "staging-probe"}.Build())
+	_, err = srv.GetScopedRole(ctx, scopedaccessv1.GetScopedRoleRequest_builder{Name: "staging-probe", Scope: "/staging"}.Build())
 	require.NoError(t, err, "alice should retain read access from the still-consistent staging-reader role")
 
 	// write access should now be denied — staging-admin is skipped, and staging-reader does not grant write.
-	_, err = srv.DeleteScopedRole(ctx, scopedaccessv1.DeleteScopedRoleRequest_builder{Name: "staging-probe"}.Build())
+	_, err = srv.DeleteScopedRole(ctx, scopedaccessv1.DeleteScopedRoleRequest_builder{Name: "staging-probe", Scope: "/staging"}.Build())
 	require.Error(t, err, "alice should lose write access when the write-granting role becomes inconsistent")
 	require.True(t, trace.IsAccessDenied(err), "expected access denied error, got: %v", err)
 }
@@ -1426,7 +1455,7 @@ func TestListScopedRolesFilterDefaulting(t *testing.T) {
 			Kind:  scopesv1.PinKind_PIN_KIND_USER,
 			Scope: "/staging",
 			AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
-				"/staging": {"/staging": {"staging-admin"}},
+				"/staging": {"/staging": {"/staging::staging-admin"}},
 			}),
 		}.Build(),
 		Username: "alice",
