@@ -181,24 +181,30 @@ const updateHelpText = "Update an existing access list. Each flag you pass repla
 	"For an access list created with an access type, resource flags (--node-labels, etc.) edit the\n" +
 	"supporting roles."
 
-const createHelpText = "Create an access list.\n" +
-	"\n" +
-	"Use --access-type if you want Teleport to create the supporting roles for you.\n" +
-	"It sets how members are granted access:\n" +
-	"  standing       members receive persistent access to the resources set below.\n" +
-	"  request-based  members must request that access; owners approve.\n" +
-	"These roles are built from the resource flags you set. Without --access-type,\n" +
-	"a plain access list is created with no roles, and you set its grants yourself.\n" +
-	"\n" +
-	"Resource access (requires --access-type), grouped by target:\n" +
-	"  SSH servers          --node-labels, --logins\n" +
-	"  Databases            --db-labels, --db-users, --db-names\n" +
-	"  Kubernetes           --kubernetes-labels, --kubernetes-users, --kubernetes-groups\n" +
-	"  Windows desktops     --windows-labels, --windows-logins\n" +
-	"  Git servers          --github-orgs\n" +
-	"  AWS Identity Center  --aws-ic-assignments\n" +
-	"  Web applications     --app-labels, --aws-role-arns, --azure-identities,\n" +
-	"                       --gcp-service-accounts, --mcp-tools"
+const createHelpText = `Create an access list.
+
+Use --access-type to have Teleport create the access list's supporting
+roles for you. The --access-type value controls how members are granted
+access. Possible values are:
+
+  standing       members receive persistent access to the resources set below.
+  request-based  members must request that access; owners approve.
+
+The supporting roles are built from the resource flags you set. The available
+resource flags (grouped by target) are:
+
+  SSH servers          --node-labels, --logins
+  Databases            --db-labels, --db-users, --db-names
+  Kubernetes           --kubernetes-labels, --kubernetes-users, --kubernetes-groups
+  Windows desktops     --windows-labels, --windows-logins
+  Git servers          --github-orgs
+  AWS Identity Center  --aws-ic-assignments
+  Web applications     --app-labels, --aws-role-arns, --azure-identities
+                       --gcp-service-accounts, --mcp-tools
+
+If --access-type is omitted, a plain access list is created with whatever
+grants you set directly (--member-grant-roles, etc.) — there are no
+auto-generated supporting roles.`
 
 // Initialize allows Command to plug itself into the CLI parser
 func (c *Command) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, _ *servicecfg.Config) {

@@ -42,36 +42,8 @@ func (c *Command) Create(ctx context.Context, client *authclient.Client) error {
 		return trace.Wrap(err)
 	}
 
-	reviewFreq, err := getReviewFrequency(c.auditFrequency)
+	newAccessList, err := c.buildAccessListForCreate()
 	if err != nil {
-		return trace.Wrap(err)
-	}
-	reviewMonth, err := getReviewDayOfMonth(c.auditDay)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	newAccessList, err := accesslist.NewAccessList(
-		header.Metadata{
-			Name: uuid.NewString(),
-		},
-		accesslist.Spec{
-			Title:       strings.TrimSpace(c.title),
-			Description: strings.TrimSpace(c.description),
-			Owners:      c.buildOwners(),
-			Audit: accesslist.Audit{
-				Recurrence: accesslist.Recurrence{
-					Frequency:  reviewFreq,
-					DayOfMonth: reviewMonth,
-				},
-			},
-		},
-	)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := c.applyGrantsAndRequirements(newAccessList); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -80,66 +52,12 @@ func (c *Command) Create(ctx context.Context, client *authclient.Client) error {
 		return trace.Wrap(err)
 	}
 
-	createJSONResp := CreateJSONResponse{
-		AccessType: c.accessType,
+	createResponse, err := c.createAccessList(ctx, client, newAccessList, members)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
-	var createdAccessList *accesslist.AccessList
-
-	if c.accessType != "" {
-		accessRoles, err := c.buildResourceAccessRoles()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		grpcClient := accesslistv1.NewAccessListServiceClient(client.GetConnection())
-		resp, err := grpcClient.CreateAccessListWithPreset(ctx, accesslistv1.CreateAccessListWithPresetRequest_builder{
-			PresetType: presetType(c.accessType),
-			AccessList: conv.ToProto(newAccessList),
-			Roles:      accessRoles,
-		}.Build())
-		if err != nil {
-			return printPresetCreateError(ctx, client, newAccessList.GetName(), err)
-		}
-
-		createdAccessList, err = conv.FromProto(resp.GetAccessList())
-		if err != nil {
-			return printPresetCreateError(ctx, client, newAccessList.GetName(), err)
-		}
-		createJSONResp.CreatedRoles = createdAccessList.PresetRoleNames()
-
-		if len(members) > 0 {
-			_, _, err = client.AccessListClient().UpsertAccessListWithMembers(ctx, createdAccessList, members)
-			if err != nil {
-				return c.printMemberCreateError(newAccessList.GetName(), err)
-			}
-		}
-
-	} else {
-		// Regular access list create.
-		createdAccessList, _, err = client.AccessListClient().UpsertAccessListWithMembers(ctx, newAccessList, members)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	}
-	createJSONResp.AccessList = createdAccessList
-
-	if c.format == teleport.JSON {
-		return trace.Wrap(utils.WriteJSON(c.Stdout, createJSONResp), "failed to marshal access list create response")
-	}
-
-	fmt.Fprintf(c.Stdout, "Created access list %q (%s)\n", createdAccessList.Spec.Title, createdAccessList.GetName())
-	if c.accessType != "" {
-		fmt.Fprintf(c.Stdout, "Access type: %s\n", c.accessType)
-	}
-	if len(createJSONResp.CreatedRoles) > 0 {
-		fmt.Fprintf(c.Stdout, "Roles created for the access list:\n")
-		for _, name := range createJSONResp.CreatedRoles {
-			fmt.Fprintf(c.Stdout, "  - %s\n", name)
-		}
-	}
-
-	return nil
+	return trace.Wrap(c.printCreateResult(createResponse))
 }
 
 func (c *Command) validateCreate() error {
@@ -176,6 +94,110 @@ func (c *Command) buildOwners() []accesslist.Owner {
 		owners = append(owners, accesslist.Owner{Name: name, MembershipKind: accesslist.MembershipKindList})
 	}
 	return owners
+}
+
+func (c *Command) buildAccessListForCreate() (*accesslist.AccessList, error) {
+	reviewFreq, err := getReviewFrequency(c.auditFrequency)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	reviewMonth, err := getReviewDayOfMonth(c.auditDay)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	newAccessList, err := accesslist.NewAccessList(
+		header.Metadata{
+			Name: uuid.NewString(),
+		},
+		accesslist.Spec{
+			Title:       strings.TrimSpace(c.title),
+			Description: strings.TrimSpace(c.description),
+			Owners:      c.buildOwners(),
+			Audit: accesslist.Audit{
+				Recurrence: accesslist.Recurrence{
+					Frequency:  reviewFreq,
+					DayOfMonth: reviewMonth,
+				},
+			},
+		},
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := c.applyGrantsAndRequirements(newAccessList); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return newAccessList, nil
+}
+
+func (c *Command) createAccessList(ctx context.Context, client *authclient.Client, newAccessList *accesslist.AccessList, newMembers []*accesslist.AccessListMember) (CreateResponse, error) {
+	createResponse := CreateResponse{
+		AccessType: c.accessType,
+	}
+
+	var createdAccessList *accesslist.AccessList
+
+	if c.accessType != "" {
+		accessRoles, err := c.buildResourceAccessRoles()
+		if err != nil {
+			return CreateResponse{}, trace.Wrap(err)
+		}
+
+		grpcClient := accesslistv1.NewAccessListServiceClient(client.GetConnection())
+		resp, err := grpcClient.CreateAccessListWithPreset(ctx, accesslistv1.CreateAccessListWithPresetRequest_builder{
+			PresetType: presetType(c.accessType),
+			AccessList: conv.ToProto(newAccessList),
+			Roles:      accessRoles,
+		}.Build())
+		if err != nil {
+			return CreateResponse{}, printPresetCreateError(ctx, client, newAccessList.GetName(), err)
+		}
+
+		createdAccessList, err = conv.FromProto(resp.GetAccessList())
+		if err != nil {
+			return CreateResponse{}, printPresetCreateError(ctx, client, newAccessList.GetName(), err)
+		}
+		createResponse.CreatedRoles = createdAccessList.PresetRoleNames()
+
+		if len(newMembers) > 0 {
+			_, _, err = client.AccessListClient().UpsertAccessListWithMembers(ctx, createdAccessList, newMembers)
+			if err != nil {
+				return CreateResponse{}, c.printMemberCreateError(newAccessList.GetName(), err)
+			}
+		}
+
+	} else {
+		// Regular access list create.
+		var err error
+		createdAccessList, _, err = client.AccessListClient().UpsertAccessListWithMembers(ctx, newAccessList, newMembers)
+		if err != nil {
+			return CreateResponse{}, trace.Wrap(err)
+		}
+	}
+	createResponse.AccessList = createdAccessList
+
+	return createResponse, nil
+}
+
+func (c *Command) printCreateResult(resp CreateResponse) error {
+	if c.format == teleport.JSON {
+		return trace.Wrap(utils.WriteJSON(c.Stdout, resp), "failed to marshal access list create response")
+	}
+
+	fmt.Fprintf(c.Stdout, "Created access list %q (%s)\n", resp.AccessList.Spec.Title, resp.AccessList.GetName())
+	if c.accessType != "" {
+		fmt.Fprintf(c.Stdout, "Access type: %s\n", c.accessType)
+	}
+	if len(resp.CreatedRoles) > 0 {
+		fmt.Fprintf(c.Stdout, "Roles created for the access list:\n")
+		for _, name := range resp.CreatedRoles {
+			fmt.Fprintf(c.Stdout, "  - %s\n", name)
+		}
+	}
+	return nil
 }
 
 func printPresetCreateError(ctx context.Context, client *authclient.Client, accessListName string, createErr error) error {
@@ -270,9 +292,9 @@ func (c *Command) buildMembers(accessListID string) ([]*accesslist.AccessListMem
 	return members, nil
 }
 
-// CreateJSONResponse is a structured response when `format=json`
+// CreateResponse is a structured response when `format=json`
 // is requested.
-type CreateJSONResponse struct {
+type CreateResponse struct {
 	AccessList   *accesslist.AccessList `json:"access_list"`
 	AccessType   string                 `json:"access_type,omitempty"`
 	CreatedRoles []string               `json:"created_roles,omitempty"`
