@@ -372,11 +372,9 @@ func NewAccessListServiceV2(cfg AccessListServiceConfig) (*AccessListService, er
 	}, nil
 }
 
-// GetAccessLists returns a list of all access lists.
+// GetAccessLists returns a list of all unscoped access lists.
 func (a *AccessListService) GetAccessLists(ctx context.Context) ([]*accesslist.AccessList, error) {
-	// TODO(nklaassen): support listing scoped access lists.
-	accessLists, err := a.service.UnscopedService.GetResources(ctx)
-	return accessLists, trace.Wrap(err)
+	return a.service.UnscopedService.GetResources(ctx)
 }
 
 // GetInheritedGrants returns grants inherited by access list accessListID from parent access lists.
@@ -385,9 +383,8 @@ func (a *AccessListService) GetInheritedGrants(ctx context.Context, accessListID
 	return nil, trace.NotImplemented("GetInheritedGrants should not be called")
 }
 
-// ListAccessLists returns a paginated list of access lists.
+// ListAccessLists returns a paginated list of unscoped access lists.
 func (a *AccessListService) ListAccessLists(ctx context.Context, pageSize int, nextToken string) ([]*accesslist.AccessList, string, error) {
-	// TODO(nklaassen): support listing scoped access lists.
 	return a.service.UnscopedService.ListResources(ctx, pageSize, nextToken)
 }
 
@@ -395,13 +392,17 @@ func (a *AccessListService) ListAccessLists(ctx context.Context, pageSize int, n
 func (a *AccessListService) ListAccessListsV2(ctx context.Context, req *accesslistv1.ListAccessListsV2Request) ([]*accesslist.AccessList, string, error) {
 	// Currently, the backend only sorts on lexicographical keys and not
 	// based on fields within a resource
-	if req.HasSortBy() && (req.GetSortBy().Field != "name" || req.GetSortBy().IsDesc != false) {
+	if req.HasSortBy() && (req.GetSortBy().Field != "name" || req.GetSortBy().IsDesc) {
 		return nil, "", trace.CompareFailed("unsupported sort, only name:asc is supported, but got %q (desc = %t)", req.GetSortBy().Field, req.GetSortBy().IsDesc)
 	}
 
-	// TODO(nklaassen): support listing scoped access lists.
-	return a.service.UnscopedService.ListResourcesWithFilter(ctx, int(req.GetPageSize()), req.GetPageToken(), func(item *accesslist.AccessList) bool {
-		return services.MatchAccessList(item, req.GetFilter())
+	scopeFilter := req.GetScopeFilter()
+	if err := scopes.ValidateFilter(scopeFilter); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	return a.service.ListResourcesWithFilter(ctx, int(req.GetPageSize()), req.GetPageToken(), func(item *accesslist.AccessList) bool {
+		return services.MatchAccessList(item, req.GetFilter()) && scopes.MatchScope(scopeFilter, item.GetScope())
 	})
 }
 
@@ -746,10 +747,20 @@ func (a *AccessListService) ListAccessListMembersV2(ctx context.Context, req *ac
 	return membersService.listResources(ctx, int(req.GetPageSize()), req.GetPageToken())
 }
 
-// ListAllAccessListMembers returns a paginated list of all access list members for all access lists.
+// ListAllAccessListMembers returns a paginated list of all access list members for all unscoped access lists.
 func (a *AccessListService) ListAllAccessListMembers(ctx context.Context, pageSize int, pageToken string) ([]*accesslist.AccessListMember, string, error) {
-	// TODO(nklaassen): support listing scoped access list members with opt-in.
 	return a.memberService.UnscopedService.ListResources(ctx, pageSize, pageToken)
+}
+
+// ListAllAccessListMembersV2 returns a paginated list of all access list members for all access lists.
+func (a *AccessListService) ListAllAccessListMembersV2(ctx context.Context, req *accesslistv1.ListAllAccessListMembersRequest) ([]*accesslist.AccessListMember, string, error) {
+	scopeFilter := req.GetScopeFilter()
+	if err := scopes.ValidateFilter(scopeFilter); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	return a.memberService.ListResourcesWithFilter(ctx, int(req.GetPageSize()), req.GetPageToken(), func(member *accesslist.AccessListMember) bool {
+		return scopes.MatchScope(scopeFilter, member.GetScope())
+	})
 }
 
 // GetAccessListMember returns the specified access list member resource.
@@ -1457,18 +1468,20 @@ func (a *AccessListService) ListAccessListReviewsV2(ctx context.Context, req *ac
 	return reviews, nextToken, nil
 }
 
-// ListAllAccessListReviews will list access list reviews for all access lists.
+// ListAllAccessListReviews will list access list reviews for all unscoped access lists.
 func (a *AccessListService) ListAllAccessListReviews(ctx context.Context, pageSize int, pageToken string) ([]*accesslist.Review, string, error) {
-	// TODO(nklaassen): support listing reviews of scoped access lists.
-	reviews, next, err := a.reviewService.UnscopedService.ListResourcesReturnNextResource(ctx, pageSize, pageToken)
-	if err != nil {
+	return a.reviewService.UnscopedService.ListResources(ctx, pageSize, pageToken)
+}
+
+// ListAllAccessListReviewsV2 will list access list reviews for all access lists.
+func (a *AccessListService) ListAllAccessListReviewsV2(ctx context.Context, req *accesslistv1.ListAllAccessListReviewsRequest) ([]*accesslist.Review, string, error) {
+	scopeFilter := req.GetScopeFilter()
+	if err := scopes.ValidateFilter(scopeFilter); err != nil {
 		return nil, "", trace.Wrap(err)
 	}
-	var nextKey string
-	if next != nil {
-		nextKey = (*next).Spec.AccessList + string(backend.Separator) + (*next).Metadata.Name
-	}
-	return reviews, nextKey, nil
+	return a.reviewService.ListResourcesWithFilter(ctx, int(req.GetPageSize()), req.GetNextToken(), func(review *accesslist.Review) bool {
+		return scopes.MatchScope(scopeFilter, review.GetScope())
+	})
 }
 
 // CreateAccessListReview will create a new review for an access list.

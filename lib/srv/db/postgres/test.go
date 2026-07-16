@@ -936,7 +936,6 @@ func getJSONB[T any](formatCode int16, src []byte) (T, error) {
 
 func (s *TestServer) sendMessages(client *pgproto3.Backend, messages ...pgproto3.BackendMessage) error {
 	for _, message := range messages {
-		s.log.DebugContext(context.Background(), "Sending.", "message", fmt.Sprintf("%#v", message))
 		client.Send(message)
 	}
 	return trace.Wrap(client.Flush())

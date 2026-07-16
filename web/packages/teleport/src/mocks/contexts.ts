@@ -91,6 +91,7 @@ export const allAccessAcl: Acl = {
   inferenceModel: fullAccess,
   inferenceSecret: fullAccess,
   beam: fullAccess,
+  classifier: fullAccess,
   mobileDevice: { createEnrollToken: true },
 };
 

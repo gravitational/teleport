@@ -71,6 +71,7 @@ Flags:
 |`--[no-]oneshot`|`false`|If set, quit after the first renewal.|
 |`--[no-]scoped`|`false`|Indicates whether tbot should run in scoped mode. This is required when authenticating as a scoped Bot.|
 |`--[no-]specific-tls-extensions`|`false`|If set, includes additional `tls.crt`, `tls.key`, and `tls.cas` for apps that require these file extensions|
+|`-o`, `--output`|*no default*|Path to write the generated configuration file to. If unspecified, the generated configuration is written to stdout.|
 |`--pid-file`|*no default*|Full path to the PID file. By default no PID file will be created.|
 |`--proxy-server`|*no default*|Address of the Teleport Proxy Server.|
 |`--reader-group`|*no default*|An additional group name or GID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.|
@@ -113,6 +114,7 @@ Flags:
 |`--listen`|*no default*|The socket URI on which the local proxy should listen, such as `tcp://0.0.0.0:8080`.|
 |`--[no-]oneshot`|`false`|If set, quit after the first renewal.|
 |`--[no-]scoped`|`false`|Indicates whether tbot should run in scoped mode. This is required when authenticating as a scoped Bot.|
+|`-o`, `--output`|*no default*|Path to write the generated configuration file to. If unspecified, the generated configuration is written to stdout.|
 |`--pid-file`|*no default*|Full path to the PID file. By default no PID file will be created.|
 |`--proxy-server`|*no default*|Address of the Teleport Proxy Server.|
 |`--registration-secret`|*no default*|For bound keypair joining, specifies a registration secret for use at first join.|
@@ -154,6 +156,7 @@ Flags:
 |`--listen`|*no default*|The socket URI on which the tunnel should listen, such as `tcp://0.0.0.0:8080`.|
 |`--[no-]oneshot`|`false`|If set, quit after the first renewal.|
 |`--[no-]scoped`|`false`|Indicates whether tbot should run in scoped mode. This is required when authenticating as a scoped Bot.|
+|`-o`, `--output`|*no default*|Path to write the generated configuration file to. If unspecified, the generated configuration is written to stdout.|
 |`--pid-file`|*no default*|Full path to the PID file. By default no PID file will be created.|
 |`--proxy-server`|*no default*|Address of the Teleport Proxy Server.|
 |`--registration-secret`|*no default*|For bound keypair joining, specifies a registration secret for use at first join.|
@@ -196,6 +199,7 @@ Flags:
 |`--join-uri`|*no default*|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
 |`--[no-]oneshot`|`false`|If set, quit after the first renewal.|
 |`--[no-]scoped`|`false`|Indicates whether tbot should run in scoped mode. This is required when authenticating as a scoped Bot.|
+|`-o`, `--output`|*no default*|Path to write the generated configuration file to. If unspecified, the generated configuration is written to stdout.|
 |`--pid-file`|*no default*|Full path to the PID file. By default no PID file will be created.|
 |`--proxy-server`|*no default*|Address of the Teleport Proxy Server.|
 |`--reader-group`|*no default*|An additional group name or GID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.|
@@ -241,6 +245,7 @@ Flags:
 |`--listen`|*no default*|A socket URI to listen on, such as `tcp://0.0.0.0:3306`.|
 |`--[no-]oneshot`|`false`|If set, quit after the first renewal.|
 |`--[no-]scoped`|`false`|Indicates whether tbot should run in scoped mode. This is required when authenticating as a scoped Bot.|
+|`-o`, `--output`|*no default*|Path to write the generated configuration file to. If unspecified, the generated configuration is written to stdout.|
 |`--pid-file`|*no default*|Full path to the PID file. By default no PID file will be created.|
 |`--proxy-server`|*no default*|Address of the Teleport Proxy Server.|
 |`--registration-secret`|*no default*|For bound keypair joining, specifies a registration secret for use at first join.|
@@ -285,6 +290,7 @@ Flags:
 |`--[no-]allow-reissue`|`false`|Allow the credentials output by this command to be reissued.|
 |`--[no-]oneshot`|`false`|If set, quit after the first renewal.|
 |`--[no-]scoped`|`false`|Indicates whether tbot should run in scoped mode. This is required when authenticating as a scoped Bot.|
+|`-o`, `--output`|*no default*|Path to write the generated configuration file to. If unspecified, the generated configuration is written to stdout.|
 |`--pid-file`|*no default*|Full path to the PID file. By default no PID file will be created.|
 |`--proxy-server`|*no default*|Address of the Teleport Proxy Server.|
 |`--reader-group`|*no default*|An additional group name or GID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.|
@@ -329,6 +335,7 @@ Flags:
 |`--[no-]disable-exec-plugin`|`false`|If set, disables the exec plugin. This allows credentials to be used without the `tbot` binary.|
 |`--[no-]oneshot`|`false`|If set, quit after the first renewal.|
 |`--[no-]scoped`|`false`|Indicates whether tbot should run in scoped mode. This is required when authenticating as a scoped Bot.|
+|`-o`, `--output`|*no default*|Path to write the generated configuration file to. If unspecified, the generated configuration is written to stdout.|
 |`--pid-file`|*no default*|Full path to the PID file. By default no PID file will be created.|
 |`--proxy-server`|*no default*|Address of the Teleport Proxy Server.|
 |`--reader-group`|*no default*|An additional group name or GID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.|
@@ -374,6 +381,7 @@ Flags:
 |`--[no-]disable-exec-plugin`|`false`|If set, disables the exec plugin. This allows credentials to be used without the `tbot` binary.|
 |`--[no-]oneshot`|`false`|If set, quit after the first renewal.|
 |`--[no-]scoped`|`false`|Indicates whether tbot should run in scoped mode. This is required when authenticating as a scoped Bot.|
+|`-o`, `--output`|*no default*|Path to write the generated configuration file to. If unspecified, the generated configuration is written to stdout.|
 |`--pid-file`|*no default*|Full path to the PID file. By default no PID file will be created.|
 |`--proxy-server`|*no default*|Address of the Teleport Proxy Server.|
 |`--reader-group`|*no default*|An additional group name or GID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.|
@@ -416,6 +424,7 @@ Flags:
 |`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`, `generic_oidc`)|Method to use to join the cluster.|
 |`--[no-]oneshot`|`false`|If set, quit after the first renewal.|
 |`--[no-]scoped`|`false`|Indicates whether tbot should run in scoped mode. This is required when authenticating as a scoped Bot.|
+|`-o`, `--output`|*no default*|Path to write the generated configuration file to. If unspecified, the generated configuration is written to stdout.|
 |`--pid-file`|*no default*|Full path to the PID file. By default no PID file will be created.|
 |`--proxy-server`|*no default*|Address of the Teleport Proxy Server.|
 |`--renewal-interval`|*no default*|Interval at which short-lived certificates are renewed; must be less than the certificate TTL.|
@@ -451,6 +460,7 @@ Flags:
 |`--join-uri`|*no default*|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
 |`--[no-]oneshot`|`false`|If set, quit after the first renewal.|
 |`--[no-]scoped`|`false`|Indicates whether tbot should run in scoped mode. This is required when authenticating as a scoped Bot.|
+|`-o`, `--output`|*no default*|Path to write the generated configuration file to. If unspecified, the generated configuration is written to stdout.|
 |`--pid-file`|*no default*|Full path to the PID file. By default no PID file will be created.|
 |`--proxy-server`|*no default*|Address of the Teleport Proxy Server.|
 |`--registration-secret`|*no default*|For bound keypair joining, specifies a registration secret for use at first join.|
@@ -492,6 +502,7 @@ Flags:
 |`--[no-]enable-resumption`|`false`|If set, disables SSH session resumption.|
 |`--[no-]oneshot`|`false`|If set, quit after the first renewal.|
 |`--[no-]scoped`|`false`|Indicates whether tbot should run in scoped mode. This is required when authenticating as a scoped Bot.|
+|`-o`, `--output`|*no default*|Path to write the generated configuration file to. If unspecified, the generated configuration is written to stdout.|
 |`--pid-file`|*no default*|Full path to the PID file. By default no PID file will be created.|
 |`--proxy-command`|*no default*|The command to run as the SSH ProxyCommand, such as `fdpass-teleport`. Defaults to this tbot binary. Repeatable to add additional args.|
 |`--proxy-server`|*no default*|Address of the Teleport Proxy Server.|
@@ -539,6 +550,7 @@ Flags:
 |`--name-selector`|*no default*|The name of the workload identity to issue. Mutually exclusive with --label-selector.|
 |`--[no-]oneshot`|`false`|If set, quit after the first renewal.|
 |`--[no-]scoped`|`false`|Indicates whether tbot should run in scoped mode. This is required when authenticating as a scoped Bot.|
+|`-o`, `--output`|*no default*|Path to write the generated configuration file to. If unspecified, the generated configuration is written to stdout.|
 |`--pid-file`|*no default*|Full path to the PID file. By default no PID file will be created.|
 |`--proxy-server`|*no default*|Address of the Teleport Proxy Server.|
 |`--registration-secret`|*no default*|For bound keypair joining, specifies a registration secret for use at first join.|
@@ -582,6 +594,7 @@ Flags:
 |`--name-selector`|*no default*|The name of the workload identity to issue. Mutually exclusive with --label-selector.|
 |`--[no-]oneshot`|`false`|If set, quit after the first renewal.|
 |`--[no-]scoped`|`false`|Indicates whether tbot should run in scoped mode. This is required when authenticating as a scoped Bot.|
+|`-o`, `--output`|*no default*|Path to write the generated configuration file to. If unspecified, the generated configuration is written to stdout.|
 |`--pid-file`|*no default*|Full path to the PID file. By default no PID file will be created.|
 |`--profile-arn`|*no default*|The ARN of the Roles Anywhere profile to use.|
 |`--proxy-server`|*no default*|Address of the Teleport Proxy Server.|
@@ -633,6 +646,7 @@ Flags:
 |`--name-selector`|*no default*|The name of the workload identity to issue. Mutually exclusive with --label-selector.|
 |`--[no-]oneshot`|`false`|If set, quit after the first renewal.|
 |`--[no-]scoped`|`false`|Indicates whether tbot should run in scoped mode. This is required when authenticating as a scoped Bot.|
+|`-o`, `--output`|*no default*|Path to write the generated configuration file to. If unspecified, the generated configuration is written to stdout.|
 |`--pid-file`|*no default*|Full path to the PID file. By default no PID file will be created.|
 |`--proxy-server`|*no default*|Address of the Teleport Proxy Server.|
 |`--reader-group`|*no default*|An additional group name or GID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.|
@@ -678,6 +692,7 @@ Flags:
 |`--[no-]include-federated-trust-bundles`|`false`|If set, include federated trust bundles in the output.|
 |`--[no-]oneshot`|`false`|If set, quit after the first renewal.|
 |`--[no-]scoped`|`false`|Indicates whether tbot should run in scoped mode. This is required when authenticating as a scoped Bot.|
+|`-o`, `--output`|*no default*|Path to write the generated configuration file to. If unspecified, the generated configuration is written to stdout.|
 |`--pid-file`|*no default*|Full path to the PID file. By default no PID file will be created.|
 |`--proxy-server`|*no default*|Address of the Teleport Proxy Server.|
 |`--reader-group`|*no default*|An additional group name or GID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.|

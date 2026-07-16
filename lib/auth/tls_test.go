@@ -1581,7 +1581,7 @@ func TestAuthPreferenceSettings_ScopedIdentity(t *testing.T) {
 			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
 				User: user.GetName(),
 				Assignments: []*scopedaccessv1.Assignment{
-					scopedaccessv1.Assignment_builder{Role: "empty-role", Scope: "/test/scope"}.Build(),
+					scopedaccessv1.Assignment_builder{Role: "/test::empty-role", Scope: "/test/scope"}.Build(),
 				},
 			}.Build(),
 		}.Build(),
@@ -1592,6 +1592,7 @@ func TestAuthPreferenceSettings_ScopedIdentity(t *testing.T) {
 		_, err := srv.AuthServer.AuthServer.ScopedAccessCache.GetScopedRoleAssignment(ctx, scopedaccessv1.GetScopedRoleAssignmentRequest_builder{
 			Name:    createResp.GetAssignment().GetMetadata().GetName(),
 			SubKind: createResp.GetAssignment().GetSubKind(),
+			Scope:   createResp.GetAssignment().GetScope(),
 		}.Build())
 		require.NoError(t, err)
 	}, 10*time.Second, 100*time.Millisecond)
@@ -2009,7 +2010,10 @@ func TestAppServerCRUD(t *testing.T) {
 
 	testSrv := newTestTLSServer(t)
 
-	clt, err := testSrv.NewClient(authtest.TestBuiltin(types.RoleApp))
+	// A RoleApp agent may only manage app servers with its own host ID, so the
+	// identity's host ID and the app server's HostID must match.
+	const appHostID = "app-host-id"
+	clt, err := testSrv.NewClient(authtest.TestServerID(types.RoleApp, appHostID))
 	require.NoError(t, err)
 
 	ctx := context.Background()
@@ -2028,7 +2032,7 @@ func TestAppServerCRUD(t *testing.T) {
 		Namespace: apidefaults.Namespace,
 	}, types.AppServerSpecV3{
 		Hostname: "localhost",
-		HostID:   uuid.New().String(),
+		HostID:   appHostID,
 		App:      app,
 	})
 	require.NoError(t, err)
@@ -2924,7 +2928,7 @@ func TestGetCertAuthority_ScopedIdentity(t *testing.T) {
 			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
 				User: user.GetName(),
 				Assignments: []*scopedaccessv1.Assignment{
-					scopedaccessv1.Assignment_builder{Role: "empty-role", Scope: "/test/scope"}.Build(),
+					scopedaccessv1.Assignment_builder{Role: "/test::empty-role", Scope: "/test/scope"}.Build(),
 				},
 			}.Build(),
 		}.Build(),
@@ -2935,6 +2939,7 @@ func TestGetCertAuthority_ScopedIdentity(t *testing.T) {
 		_, err := srv.AuthServer.AuthServer.ScopedAccessCache.GetScopedRoleAssignment(ctx, scopedaccessv1.GetScopedRoleAssignmentRequest_builder{
 			Name:    createResp.GetAssignment().GetMetadata().GetName(),
 			SubKind: createResp.GetAssignment().GetSubKind(),
+			Scope:   createResp.GetAssignment().GetScope(),
 		}.Build())
 		require.NoError(t, err)
 	}, 10*time.Second, 100*time.Millisecond)
@@ -5325,7 +5330,7 @@ func TestWatchEvents_ScopedIdentity(t *testing.T) {
 			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
 				User: user.GetName(),
 				Assignments: []*scopedaccessv1.Assignment{
-					scopedaccessv1.Assignment_builder{Role: "empty-role", Scope: "/test/scope"}.Build(),
+					scopedaccessv1.Assignment_builder{Role: "/test::empty-role", Scope: "/test/scope"}.Build(),
 				},
 			}.Build(),
 		}.Build(),
@@ -5336,6 +5341,7 @@ func TestWatchEvents_ScopedIdentity(t *testing.T) {
 		_, err := srv.AuthServer.AuthServer.ScopedAccessCache.GetScopedRoleAssignment(ctx, scopedaccessv1.GetScopedRoleAssignmentRequest_builder{
 			Name:    createResp.GetAssignment().GetMetadata().GetName(),
 			SubKind: createResp.GetAssignment().GetSubKind(),
+			Scope:   createResp.GetAssignment().GetScope(),
 		}.Build())
 		require.NoError(t, err)
 	}, 10*time.Second, 100*time.Millisecond)
