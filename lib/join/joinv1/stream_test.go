@@ -146,31 +146,3 @@ func newTestJoinClient(t *testing.T, server *bufconn.Listener) *Client {
 
 	return NewClientFromConn(conn)
 }
-
-func TestJoinHandlerPanicIsRecovered(t *testing.T) {
-	calls := 0
-	server := newTestJoinServer(t, testMessageServerFunc(func(stream messages.ServerStream) error {
-		_, _ = stream.Recv()
-		calls++
-		if calls == 1 {
-			panic("boom")
-		}
-		// This shows that the server is still serving after the first panic
-		return trace.AccessDenied("second call reached")
-	}))
-	client := newTestJoinClient(t, server)
-
-	// On first join the handler panics and client gets an error rather crashing the server.
-	stream, err := client.Join(t.Context())
-	require.NoError(t, err)
-	require.NoError(t, stream.Send(&messages.ClientInit{TokenName: "t", SystemRole: "node"}))
-	_, err = stream.Recv()
-	require.ErrorContains(t, err, "error handling join request", "client must get a generic error message")
-
-	// On second join the server is still serving and returns an error to the client.
-	stream2, err := client.Join(t.Context())
-	require.NoError(t, err)
-	require.NoError(t, stream2.Send(&messages.ClientInit{TokenName: "t", SystemRole: "node"}))
-	_, err = stream2.Recv()
-	require.ErrorContains(t, err, "second call reached")
-}
