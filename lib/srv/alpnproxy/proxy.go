@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/srv/db/dbutils"
@@ -74,6 +75,9 @@ type ProxyConfig struct {
 	ClusterName string
 	// PingInterval defines the ping interval for ping-wrapped connections.
 	PingInterval time.Duration
+	// Limiter applies a per-client-IP limit on the number of simultaneous connections
+	// accepted from the Listener.
+	Limiter *limiter.Limiter
 }
 
 // NewRouter creates a ALPN new router.
@@ -259,6 +263,14 @@ func (c *ProxyConfig) CheckAndSetDefaults() error {
 	if c.Listener == nil {
 		return trace.BadParameter("listener missing")
 	}
+	if c.Limiter == nil {
+		return trace.BadParameter("limiter missing")
+	}
+	listener, err := c.Limiter.WrapListener(c.Listener)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	c.Listener = listener
 	if c.Log == nil {
 		c.Log = logrus.WithField(teleport.ComponentKey, "alpn:proxy")
 	}
@@ -305,6 +317,7 @@ func New(cfg ProxyConfig) (*Proxy, error) {
 		proxyConnectionsTotal,
 		proxyActiveConnections,
 		proxyConnectionErrorsTotal,
+		proxyConnectionLimitExceededTotal,
 	); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -333,6 +346,11 @@ func (p *Proxy) Serve(ctx context.Context) error {
 	for {
 		clientConn, err := p.cfg.Listener.Accept()
 		if err != nil {
+			if trace.IsLimitExceeded(err) {
+				proxyConnectionLimitExceededTotal.Inc()
+				p.log.WithError(err).Warn("Connection limit exceeded, rejecting connection. Adjust the limit with the connection_limits.max_connections config field.")
+				continue
+			}
 			if utils.IsOKNetworkError(err) || trace.IsConnectionProblem(err) || ctx.Err() != nil {
 				return nil
 			}
@@ -761,5 +779,13 @@ var (
 			Help:      "Number of connection handler errors encountered by TLS routing proxy server.",
 		},
 		[]string{"alpn", "source"},
+	)
+	proxyConnectionLimitExceededTotal = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Namespace: teleport.MetricNamespace,
+			Subsystem: "alpn_proxy",
+			Name:      "connection_limit_exceeded_total",
+			Help:      "Number of connections rejected by TLS routing proxy server due to exceeded connection limits.",
+		},
 	)
 )
