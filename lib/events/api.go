@@ -617,6 +617,13 @@ const (
 	// from a desktop.
 	WindowsDesktopSessionEndEvent = "windows.desktop.session.end"
 
+	// LinuxDesktopSessionStartEvent is emitted when a user attempts
+	// to connect to a desktop.
+	LinuxDesktopSessionStartEvent = "linux.desktop.session.start"
+	// LinuxDesktopSessionEndEvent is emitted when a user disconnects
+	// from a desktop.
+	LinuxDesktopSessionEndEvent = "linux.desktop.session.end"
+
 	// CertificateCreateEvent is emitted when a certificate is issued.
 	CertificateCreateEvent = "cert.create"
 
@@ -1108,6 +1115,7 @@ const (
 var SessionRecordingEvents = []string{
 	SessionEndEvent,
 	WindowsDesktopSessionEndEvent,
+	LinuxDesktopSessionEndEvent,
 	DatabaseSessionEndEvent,
 
 	// HTTP/HTTPS application sessions do not emit AppSessionEndEvent.

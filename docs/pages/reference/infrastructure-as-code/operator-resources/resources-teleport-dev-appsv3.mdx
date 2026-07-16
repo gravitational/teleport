@@ -52,6 +52,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |Field|Type|Description|
 |---|---|---|
 |external_id|string|ExternalID is the AWS External ID used when assuming roles in this app.|
+|region|string|Region is a cloud region for the app. This field is set for apps that integrates with AWS applications/APIs.|
 |roles_anywhere_profile|[object](#specawsroles_anywhere_profile)|RolesAnywhereProfile contains the IAM Roles Anywhere fields associated with this Application. These fields are set when performing the synchronization of AWS IAM Roles Anywhere Profiles into Teleport Apps.|
 
 ### spec.aws.roles_anywhere_profile

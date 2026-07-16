@@ -1094,6 +1094,7 @@ func scopedDefinitionForBuiltinRole(clusterName string, recConfig readonly.Sessi
 					Namespaces:       []string{types.Wildcard},
 					KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 					Rules: []types.Rule{
+						// Kube agents have implicit permission to write their own cluster resource.
 						types.NewRule(types.KindKubernetesCluster, services.RO()),
 						types.NewRule(types.KindEvent, services.RW()),
 						types.NewRule(types.KindCertAuthority, services.ReadNoSecrets()),
@@ -1148,7 +1149,8 @@ func unscopedDefinitionForBuiltinRole(clusterName string, recConfig readonly.Ses
 					Namespaces: []string{types.Wildcard},
 					NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 					Rules: []types.Rule{
-						types.NewRule(types.KindNode, services.RW()),
+						// Node agents have implicit permission to write their own node resource.
+						types.NewRule(types.KindNode, services.RO()),
 						types.NewRule(types.KindSSHSession, services.RW()),
 						types.NewRule(types.KindEvent, services.WO()),
 						types.NewRule(types.KindProxy, services.RO()),
@@ -1200,7 +1202,9 @@ func unscopedDefinitionForBuiltinRole(clusterName string, recConfig readonly.Ses
 						types.NewRule(types.KindClusterNetworkingConfig, services.RO()),
 						types.NewRule(types.KindSessionRecordingConfig, services.RO()),
 						types.NewRule(types.KindClusterAuthPreference, services.RO()),
-						types.NewRule(types.KindAppServer, services.RW()),
+						// App agents have implicit permission to write their own server resources.
+						types.NewRule(types.KindAppServer, services.RO()),
+						// App agents have implicit permission to write their own App resource.
 						types.NewRule(types.KindApp, services.RO()),
 						types.NewRule(types.KindJWT, services.RW()),
 						types.NewRule(types.KindLock, services.RO()),
@@ -1234,8 +1238,10 @@ func unscopedDefinitionForBuiltinRole(clusterName string, recConfig readonly.Ses
 						types.NewRule(types.KindClusterNetworkingConfig, services.RO()),
 						types.NewRule(types.KindSessionRecordingConfig, services.RO()),
 						types.NewRule(types.KindClusterAuthPreference, services.RO()),
-						types.NewRule(types.KindDatabaseServer, services.RW()),
-						types.NewRule(types.KindDatabaseService, services.RW()),
+						// Databases agents have implicit permission to write their own server resources.
+						types.NewRule(types.KindDatabaseServer, services.RO()),
+						// Databases agents have implicit permission to write their own service resource.
+						types.NewRule(types.KindDatabaseService, services.RO()),
 						types.NewRule(types.KindDatabase, services.RO()),
 						types.NewRule(types.KindSemaphore, services.RW()),
 						types.NewRule(types.KindLock, services.RO()),
@@ -1325,6 +1331,7 @@ func unscopedDefinitionForBuiltinRole(clusterName string, recConfig readonly.Ses
 					DatabaseServiceLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 					ClusterLabels:         types.Labels{types.Wildcard: []string{types.Wildcard}},
 					WindowsDesktopLabels:  types.Labels{types.Wildcard: []string{types.Wildcard}},
+					LinuxDesktopLabels:    types.Labels{types.Wildcard: []string{types.Wildcard}},
 					GitHubPermissions: []types.GitHubPermission{{
 						Organizations: []string{types.Wildcard},
 					}},
@@ -1343,7 +1350,8 @@ func unscopedDefinitionForBuiltinRole(clusterName string, recConfig readonly.Ses
 					Namespaces:       []string{types.Wildcard},
 					KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 					Rules: []types.Rule{
-						types.NewRule(types.KindKubeServer, services.RW()),
+						// Kube agents have implicit permission to write their own server resources.
+						types.NewRule(types.KindKubeServer, services.RO()),
 						types.NewRule(types.KindKubeWaitingContainer, services.RW()),
 						types.NewRule(types.KindEvent, services.WO()),
 						types.NewRule(types.KindCertAuthority, services.ReadNoSecrets()),
@@ -1356,6 +1364,7 @@ func unscopedDefinitionForBuiltinRole(clusterName string, recConfig readonly.Ses
 						types.NewRule(types.KindRole, services.RO()),
 						types.NewRule(types.KindNamespace, services.RO()),
 						types.NewRule(types.KindLock, services.RO()),
+						// Kube agents have implicit permission to write their own cluster resource.
 						types.NewRule(types.KindKubernetesCluster, services.RO()),
 						types.NewRule(types.KindSemaphore, services.RW()),
 						types.NewRule(types.KindHealthCheckConfig, services.RO()),
@@ -1382,9 +1391,34 @@ func unscopedDefinitionForBuiltinRole(clusterName string, recConfig readonly.Ses
 						types.NewRule(types.KindRole, services.RO()),
 						types.NewRule(types.KindNamespace, services.RO()),
 						types.NewRule(types.KindLock, services.RO()),
-						types.NewRule(types.KindWindowsDesktopService, services.RW()),
-						types.NewRule(types.KindWindowsDesktop, services.RW()),
+						// Desktop agents have implicit permission to write their own service resource.
+						types.NewRule(types.KindWindowsDesktopService, services.RO()),
+						// Desktop agents have implicit permission to write their own desktop resources.
+						types.NewRule(types.KindWindowsDesktop, services.RO()),
 						types.NewRule(types.KindDynamicWindowsDesktop, services.RW()),
+					},
+				},
+			})
+	case types.RoleLinuxDesktop:
+		return services.RoleFromSpec(
+			role.String(),
+			types.RoleSpecV6{
+				Allow: types.RoleConditions{
+					Namespaces:         []string{types.Wildcard},
+					LinuxDesktopLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+					Rules: []types.Rule{
+						types.NewRule(types.KindEvent, services.WO()),
+						types.NewRule(types.KindCertAuthority, services.ReadNoSecrets()),
+						types.NewRule(types.KindClusterName, services.RO()),
+						types.NewRule(types.KindClusterAuditConfig, services.RO()),
+						types.NewRule(types.KindClusterNetworkingConfig, services.RO()),
+						types.NewRule(types.KindSessionRecordingConfig, services.RO()),
+						types.NewRule(types.KindClusterAuthPreference, services.RO()),
+						types.NewRule(types.KindUser, services.RO()),
+						types.NewRule(types.KindRole, services.RO()),
+						types.NewRule(types.KindNamespace, services.RO()),
+						types.NewRule(types.KindLock, services.RO()),
+						types.NewRule(types.KindLinuxDesktop, services.RO()),
 					},
 				},
 			})

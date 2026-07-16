@@ -40,6 +40,7 @@ struct LandingView: View {
 				.scrollBounceBehavior(.basedOnSize)
 			}
 			.padding(.horizontal)
+			.background(Color.Background.depth3)
 
 			// MARK: Navigation
 
@@ -72,11 +73,11 @@ extension LandingView {
 	private var titleBlock: some View {
 		VStack(spacing: .small) {
 			Text("Scan QR code")
-				.font(.title)
+				.font(.title2)
+				.fontWeight(.semibold)
 			Text("Enroll this device for your cluster by scanning the QR code in your web browser")
-				.font(.callout)
 				.multilineTextAlignment(.center)
-				.foregroundStyle(.secondary)
+				.foregroundStyle(Color.Foreground.slightlyMuted)
 		}
 	}
 
@@ -114,13 +115,18 @@ extension LandingView {
 	private func instructionStep(stepNumber: UInt, @ViewBuilder label: () -> some View) -> some View {
 		Label {
 			label()
+				.font(.callout)
+				.foregroundStyle(Color.Foreground.slightlyMuted)
 		} icon: {
 			Image(systemName: "\(stepNumber).circle.fill")
 				.foregroundStyle(.tint.opacity(0.8))
 		}
 		.frame(maxWidth: .infinity, alignment: .leading)
 		.padding()
-		.background(RoundedRectangle(cornerRadius: .small).fill(.background).strokeBorder(.separator))
+		.background(
+			RoundedRectangle(cornerRadius: .small)
+				.fill(Color.Background.depth2),
+		)
 	}
 
 	private var rightArrow: Image {

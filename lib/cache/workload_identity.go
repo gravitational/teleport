@@ -28,6 +28,7 @@ import (
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/itertools/stream"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
 )
@@ -66,6 +67,9 @@ func newWorkloadIdentityCollection(upstream services.WorkloadIdentities, w types
 			return out, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) *workloadidentityv1pb.WorkloadIdentity {
+			// Only unscoped deletes arrive as a ResourceHeader (scoped deletes
+			// carry a skeleton WorkloadIdentity with the scope set), so the
+			// rebuilt skeleton keys on the bare name.
 			return workloadidentityv1pb.WorkloadIdentity_builder{
 				Kind:    hdr.Kind,
 				Version: hdr.Version,
@@ -127,18 +131,31 @@ func (c *Cache) RangeWorkloadIdentities(
 	}
 }
 
-// GetWorkloadIdentity returns a single WorkloadIdentity by name
-func (c *Cache) GetWorkloadIdentity(ctx context.Context, name string) (*workloadidentityv1pb.WorkloadIdentity, error) {
+// GetWorkloadIdentity returns a single WorkloadIdentity by the name and scope in
+// the request.
+func (c *Cache) GetWorkloadIdentity(ctx context.Context, req *workloadidentityv1pb.GetWorkloadIdentityRequest) (*workloadidentityv1pb.WorkloadIdentity, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetWorkloadIdentity")
 	defer span.End()
 
-	getter := genericGetter[*workloadidentityv1pb.WorkloadIdentity, workloadIdentityIndex]{
-		cache:       c,
-		collection:  c.collections.workloadIdentity,
-		index:       workloadIdentityNameIndex,
-		upstreamGet: c.Config.WorkloadIdentity.GetWorkloadIdentity,
+	// The name index is keyed by resource cursor, so look up by the cursor for
+	// the requested scope-qualified name. The scope is caller input, so weakly
+	// validate it before deriving the cursor.
+	if req.GetScope() != "" {
+		if err := scopes.WeakValidate(req.GetScope()); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
-	out, err := getter.get(ctx, name)
+	cursor := scopes.MakeResourceCursor(req.GetScope(), req.GetName())
+
+	getter := genericGetter[*workloadidentityv1pb.WorkloadIdentity, workloadIdentityIndex]{
+		cache:      c,
+		collection: c.collections.workloadIdentity,
+		index:      workloadIdentityNameIndex,
+		upstreamGet: func(ctx context.Context, _ string) (*workloadidentityv1pb.WorkloadIdentity, error) {
+			return c.Config.WorkloadIdentity.GetWorkloadIdentity(ctx, req)
+		},
+	}
+	out, err := getter.get(ctx, cursor)
 	return out, trace.Wrap(err)
 }
 

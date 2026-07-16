@@ -33,6 +33,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/inventory/internal/delay"
@@ -712,6 +713,9 @@ type upstreamHandle struct {
 
 	// relayServer, if set, is the current relay heartbeat.
 	relayServer *presencev1.RelayServer
+
+	// linuxDesktop, if set, is the current linux desktop heartbeat.
+	linuxDesktop *heartBeatInfo[*linuxdesktopv1.LinuxDesktop]
 
 	// relayServerErrorCount counts how many times in a row we have failed to
 	// keepalive the relay server heartbeat, or, if negative, signals that we

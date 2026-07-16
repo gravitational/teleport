@@ -57,7 +57,7 @@ tests:
           value: RELEASE-NAME-proxy-test
         documentIndex: 2
       - equal:
-          path: metadata.annotations.helm\.sh/hook
+          path: metadata.annotations["helm.sh/hook"]
           value: pre-install,pre-upgrade
         documentIndex: 2
       - isKind:
@@ -68,7 +68,7 @@ tests:
           value: RELEASE-NAME-proxy-test
         documentIndex: 3
       - equal:
-          path: metadata.annotations.helm\.sh/hook
+          path: metadata.annotations["helm.sh/hook"]
           value: pre-install,pre-upgrade
         documentIndex: 3
       - isKind:
@@ -79,7 +79,7 @@ tests:
           value: RELEASE-NAME-proxy-hook
         documentIndex: 4
       - equal:
-          path: metadata.annotations.helm\.sh/hook
+          path: metadata.annotations["helm.sh/hook"]
           value: pre-install,pre-upgrade
         documentIndex: 4
 
@@ -110,7 +110,7 @@ tests:
     values:
       - ../.lint/resources.yaml
     asserts:
-      - isEmpty:
+      - notExists:
           path: spec.template.spec.containers[0].resources
 
   - it: should not set resources on proxy predeploy job when resources set in values
@@ -124,7 +124,7 @@ tests:
       - equal:
           path: metadata.name
           value: RELEASE-NAME-proxy-test
-      - isEmpty:
+      - notExists:
           path: spec.template.spec.containers[0].resources
 
   - it: should set resources on auth predeploy job when jobResources set in values
