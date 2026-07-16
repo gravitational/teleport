@@ -7,10 +7,11 @@ import (
 	"testing"
 	"testing/synctest"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 	"github.com/gravitational/teleport/lib/tbot/readyz"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
-	"github.com/stretchr/testify/require"
 )
 
 func TestTunnelService_Run_CancellationDuringRetry(t *testing.T) {

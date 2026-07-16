@@ -12,9 +12,10 @@ import (
 	"testing/synctest"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/lib/tbot/readyz"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
-	"github.com/stretchr/testify/require"
 )
 
 func TestRetryTunnelInitialization(t *testing.T) {
