@@ -49,6 +49,7 @@ func (c *Command) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags
 		"To configure the AWS Identity Center integration itself, use `tctl plugins install awsic` or `tctl plugins edit awsic`.")
 	awsicAccountsCmd := awsicCmd.Command("accounts", "View AWS Identity Center accounts synced with the cluster.")
 	c.awsicAccountsLsCmd = awsicAccountsCmd.Command("ls", "List AWS Identity Center accounts and their permission sets.")
+	c.awsicAccountsLsCmd.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&c.awsicAccountsLsFormat, teleport.Text, teleport.JSON, teleport.YAML)
 
 	if c.Stdout == nil {
 		c.Stdout = os.Stdout
@@ -115,7 +116,8 @@ type Command struct {
 	testCmd  *kingpin.CmdClause
 	testArgs testArgs
 
-	awsicAccountsLsCmd *kingpin.CmdClause
+	awsicAccountsLsCmd    *kingpin.CmdClause
+	awsicAccountsLsFormat string
 
 	// Stdout allows to switch the standard output source. Used in tests.
 	Stdout io.Writer
