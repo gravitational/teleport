@@ -32,4 +32,4 @@ download linux-arm64
 download macos-arm64
 
 cd "$TEMP_DIR"
-(set -x; "${CHECKSUM_CMD[@]}" *) > "${OUTPUT}"
+(set -x; "${CHECKSUM_CMD[@]}" -- *.tgz) > "${OUTPUT}"
