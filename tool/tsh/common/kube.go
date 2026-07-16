@@ -835,6 +835,15 @@ func isNetworkError(err error) bool {
 
 func (c *kubeCredentialsCommand) checkLocalProxyRequirement(profile *profile.Profile) error {
 	if profile.RequireKubeLocalProxy() || profile.PrivateKeyPolicy.IsHardwareKeyPolicy() {
+		// If we're inside an active `tsh proxy kube --exec` shell.
+		// Reaching this exec plugin means a Kubernetes client bypassed the local proxy,
+		// typically because KUBECONFIG was overridden (e.g. by a shell startup file).
+		// Point the user at the fix instead of the generic message.
+		if sessionKubeconfig := os.Getenv(kubeLocalProxyEnvVar); sessionKubeconfig != "" {
+			return trace.BadParameter(`this Kubernetes client invoked "tsh kube credentials" from inside an active "tsh proxy kube" session, bypassing the local proxy.
+Your KUBECONFIG no longer points at the session config, usually because a shell startup file or another tool overrode it.
+Run 'export KUBECONFIG=%s' to use the local proxy, or check your shell configuration.`, sessionKubeconfig)
+		}
 		return trace.BadParameter("Cannot connect Kubernetes clients to Teleport Proxy directly. Please use `tsh proxy kube` or `tsh kubectl` instead.")
 	}
 	return nil
