@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -276,6 +277,10 @@ func (noopAudit) OnLLMRequest(context.Context, *common.SessionContext, *http.Req
 }
 
 func (noopAudit) EmitEvent(context.Context, apievents.AuditEvent) error {
+	return nil
+}
+
+func (noopAudit) Recorder() events.SessionPreparerRecorder {
 	return nil
 }
 
