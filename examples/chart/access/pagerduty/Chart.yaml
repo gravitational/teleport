@@ -1,4 +1,4 @@
-.version: &version "18.11.0-dev.terraform.2"
+.version: &version "18.11.0-dev.terraform.3"
 
 apiVersion: v2
 name: teleport-plugin-pagerduty
