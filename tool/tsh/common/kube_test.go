@@ -869,3 +869,32 @@ func Test_kubeCredentialsCommand_checkLocalProxyRequirement(t *testing.T) {
 		})
 	}
 }
+
+// Test_kubeCredentialsCommand_checkLocalProxyRequirement_inLocalProxyShell
+// covers the case where credentials are requested from inside an active
+// `tsh proxy kube --exec` shell (kubeLocalProxyEnvVar set).
+func Test_kubeCredentialsCommand_checkLocalProxyRequirement_inLocalProxyShell(t *testing.T) {
+	const sessionKubeconfig = "/tmp/proxy-kubeconfig-123"
+	t.Setenv(kubeLocalProxyEnvVar, sessionKubeconfig)
+	c := &kubeCredentialsCommand{}
+
+	t.Run("hardware key -> session-specific error", func(t *testing.T) {
+		err := c.checkLocalProxyRequirement(&profile.Profile{
+			PrivateKeyPolicy: keys.PrivateKeyPolicyHardwareKeyTouch,
+		})
+		require.True(t, trace.IsBadParameter(err), "want BadParameter, got %v", err)
+		require.ErrorContains(t, err, "tsh proxy kube")
+		// The error points the user at the session's kubeconfig path.
+		require.ErrorContains(t, err, sessionKubeconfig)
+	})
+
+	t.Run("software key -> no error even inside a session", func(t *testing.T) {
+		// A software key can be served by the exec plugin, so being inside a
+		// local proxy shell must not break it (no regression).
+		err := c.checkLocalProxyRequirement(&profile.Profile{
+			WebProxyAddr:  "example.com:443",
+			KubeProxyAddr: "example.com:3026",
+		})
+		require.NoError(t, err)
+	})
+}

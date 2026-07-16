@@ -89,7 +89,12 @@ func reexecToShell(ctx context.Context, kubeconfigData []byte) (err error) {
 	cmd.Stdout = os.Stdout
 	cmd.Stdin = os.Stdin
 	// Set KUBECONFIG in the environment. Even if it was already set, we override it.
-	cmd.Env = append(os.Environ(), fmt.Sprintf("%s=%s", teleport.EnvKubeConfig, "/proc/self/fd/3"))
+	// Also mark the shell as a live local-proxy session so `tsh kube credentials`
+	// can detect a Kubernetes client that bypasses the local proxy.
+	cmd.Env = append(os.Environ(),
+		fmt.Sprintf("%s=%s", teleport.EnvKubeConfig, "/proc/self/fd/3"),
+		fmt.Sprintf("%s=%s", kubeLocalProxyEnvVar, "/proc/self/fd/3"),
+	)
 	// Pass the file descriptor to the child process as an extra file
 	// descriptor. It will be available as fd 3 in "/proc/self/fd/3".
 	cmd.ExtraFiles = []*os.File{f}
