@@ -115,6 +115,42 @@ func TestEvaluateExpression(t *testing.T) {
 				require.ErrorContains(t, err, "operator (==) not supported for type: float64")
 			},
 		},
+		{
+			name: "set helper enables regex with single string",
+			claims: claims(t, `{
+				"user": "alice@example.com"
+			}`),
+			expression:  `regexp.match(set(claims.user), "^.+@example.com$")`,
+			expect:      true,
+			expectError: require.NoError,
+		},
+		{
+			name: "set helper denies via regex with single string",
+			claims: claims(t, `{
+				"user": "alice@example.com"
+			}`),
+			expression:  `regexp.match(set(claims.user), "^.+@nope.com$")`,
+			expect:      false,
+			expectError: require.NoError,
+		},
+		{
+			name: "set helper enables contains_all with array of strings",
+			claims: claims(t, `{
+				"groups": ["foo", "bar", "baz"]
+			}`),
+			expression:  `contains_all(set(claims.groups), set("foo", "bar", "baz"))`,
+			expect:      true,
+			expectError: require.NoError,
+		},
+		{
+			name: "set helper denies contains_all with array of strings",
+			claims: claims(t, `{
+				"groups": ["foo", "bar", "baz"]
+			}`),
+			expression:  `contains_all(set(claims.groups), set("foo", "bar", "baz", "qux"))`,
+			expect:      true,
+			expectError: require.NoError,
+		},
 	}
 
 	for _, tt := range tests {

@@ -20,6 +20,7 @@ package genericoidc
 
 import (
 	"fmt"
+	"maps"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -47,6 +48,24 @@ var booleanExpressionParser = func() *typical.Parser[*Environment, any] {
 
 		return getByFields(env.Claims, fields[1:])
 	}
+
+	// Add (overwrite) `set()` with an enhanced variant that can ingest and
+	// flatten []string. The built-in `set()` only supports `string` values as
+	// variadic args and there's no "foo..." operator equivalent, meaning it
+	// can't convert []string -> Set, and unfortunately, essentially all
+	// built-in predicate functions operate on Sets and not lists, with no
+	// coercion.
+	// This enhanced variant can wrap list variables (e.g. parsed lists in
+	// claims documents) in addition to plain strings, or other sets. It's a
+	// simple opt-in override (just changes the underlying impl from
+	// `expression.NewSet()`) to avoid changing behavior for other predicate
+	// uses.
+	maps.Copy(spec.Functions, map[string]typical.Function{
+		"set": typical.UnaryVariadicFunction[*Environment](
+			func(args ...any) (expression.Set, error) {
+				return expression.NewFlattenedSet(args...)
+			}),
+	})
 
 	parser, err := typical.NewParser[*Environment, any](spec)
 	if err != nil {
