@@ -44,7 +44,7 @@ jobs:
           existing-gh-variables: "${{ toJSON(vars) }}"
           values: |
             REVIEWERS_APP_ID,variable
-            REVIEWERS_APP_PRIVATE_KEY,secret
+            REVIEWERS_PRIVATE_KEY,secret
             REVIEWERS,secret
       - name: Checkout base
         uses: actions/checkout@v6
@@ -74,7 +74,7 @@ jobs:
         uses: actions/create-github-app-token@v3
         with:
           app-id: ${{ env.REVIEWERS_APP_ID }}
-          private-key: ${{ env.REVIEWERS_APP_PRIVATE_KEY }}
+          private-key: ${{ env.REVIEWERS_PRIVATE_KEY }}
 
       - if: ${{ steps.cache-build-restore.outputs.cache-hit != 'true' }}
         name: Build base
