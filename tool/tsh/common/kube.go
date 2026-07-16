@@ -1480,9 +1480,9 @@ clients cannot use directly, so Kubernetes access must go through a local proxy.
 To access the cluster, use "tsh kubectl" to run the Kubernetes client:
   tsh kubectl version
 
-Or, start a local proxy with "tsh proxy kube" and use the kubeconfig it provides
-with your native Kubernetes clients:
-  tsh proxy kube -p 8443
+Or start a local proxy and drop into a shell where native Kubernetes clients are
+ready to use, so you can re-run the same command:
+  tsh proxy kube --exec
 `)
 		return
 	}
