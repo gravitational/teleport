@@ -19,39 +19,40 @@ package local
 import (
 	"context"
 	"iter"
-	"strings"
 
 	"github.com/gravitational/trace"
 
-	apidefaults "github.com/gravitational/teleport/api/defaults"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/itertools/stream"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
 )
 
-const (
-	workloadIdentityPrefix = "workload_identity"
-)
+const workloadIdentityPrefix = "workload_identity"
 
 // WorkloadIdentityService exposes backend functionality for storing
 // WorkloadIdentity resources
 type WorkloadIdentityService struct {
-	service *generic.ServiceWrapper[*workloadidentityv1pb.WorkloadIdentity]
+	service *generic.ScopeAwareServiceWrapper[*workloadidentityv1pb.WorkloadIdentity]
 }
 
 // NewWorkloadIdentityService creates a new WorkloadIdentityService
 func NewWorkloadIdentityService(b backend.Backend) (*WorkloadIdentityService, error) {
-	service, err := generic.NewServiceWrapper(
-		generic.ServiceConfig[*workloadidentityv1pb.WorkloadIdentity]{
-			Backend:       b,
-			ResourceKind:  types.KindWorkloadIdentity,
-			BackendPrefix: backend.NewKey(workloadIdentityPrefix),
-			MarshalFunc:   services.MarshalWorkloadIdentity,
-			UnmarshalFunc: services.UnmarshalWorkloadIdentity,
-			ValidateFunc:  services.ValidateWorkloadIdentity,
+	service, err := generic.NewScopeAwareServiceWrapper(
+		generic.ScopeAwareServiceWrapperConfig[*workloadidentityv1pb.WorkloadIdentity]{
+			Backend:      b,
+			ResourceKind: types.KindWorkloadIdentity,
+			// Unscoped resources keep their historical key range so existing
+			// WorkloadIdentities are unaffected.
+			UnscopedBackendPrefix: backend.NewKey(workloadIdentityPrefix),
+			ScopedBackendPrefix:   backend.NewKey(scopedPrefix, workloadIdentityPrefix),
+			MarshalFunc:           services.MarshalWorkloadIdentity,
+			UnmarshalFunc:         services.UnmarshalWorkloadIdentity,
+			ValidateFunc:          services.ValidateWorkloadIdentity,
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -69,11 +70,15 @@ func (b *WorkloadIdentityService) CreateWorkloadIdentity(
 	return created, trace.Wrap(err)
 }
 
-// GetWorkloadIdentity retrieves a specific WorkloadIdentity given a name
+// GetWorkloadIdentity retrieves a WorkloadIdentity by the name and scope in the
+// request.
 func (b *WorkloadIdentityService) GetWorkloadIdentity(
-	ctx context.Context, name string,
+	ctx context.Context, req *workloadidentityv1pb.GetWorkloadIdentityRequest,
 ) (*workloadidentityv1pb.WorkloadIdentity, error) {
-	resource, err := b.service.GetResource(ctx, name)
+	resource, err := b.service.GetResource(ctx, scopes.QualifiedName{
+		Scope: req.GetScope(),
+		Name:  req.GetName(),
+	})
 	return resource, trace.Wrap(err)
 }
 
@@ -96,11 +101,15 @@ func (b *WorkloadIdentityService) RangeWorkloadIdentities(
 	return b.service.Resources(ctx, start, end)
 }
 
-// DeleteWorkloadIdentity deletes a specific WorkloadIdentity.
+// DeleteWorkloadIdentity deletes a specific WorkloadIdentity given the name and
+// scope in the request.
 func (b *WorkloadIdentityService) DeleteWorkloadIdentity(
-	ctx context.Context, name string,
+	ctx context.Context, req *workloadidentityv1pb.DeleteWorkloadIdentityRequest,
 ) error {
-	return trace.Wrap(b.service.DeleteResource(ctx, name))
+	return trace.Wrap(b.service.DeleteResource(ctx, scopes.QualifiedName{
+		Scope: req.GetScope(),
+		Name:  req.GetName(),
+	}))
 }
 
 // DeleteAllWorkloadIdentities deletes all SPIFFE resources, this is typically
@@ -153,22 +162,80 @@ func (b *WorkloadIdentityService) AppendPutWorkloadIdentityActions(
 }
 
 // AppendDeleteWorkloadIdentityActions adds conditional actions to an atomic
-// write to delete a WorkloadIdentity.
+// write to delete a WorkloadIdentity given its scope-qualified name.
 func (b *WorkloadIdentityService) AppendDeleteWorkloadIdentityActions(
 	actions []backend.ConditionalAction,
-	name string,
+	name scopes.QualifiedName,
 	condition backend.Condition,
 ) ([]backend.ConditionalAction, error) {
+	key, err := b.service.BackendKey(name)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return append(actions, backend.ConditionalAction{
-		Key:       b.service.BackendKey(name),
+		Key:       key,
 		Condition: condition,
 		Action:    backend.Delete(),
 	}), nil
 }
 
+func workloadIdentityUnscopedWatchPrefix() backend.Key {
+	return backend.ExactKey(workloadIdentityPrefix)
+}
+
+func workloadIdentityScopedWatchPrefix() backend.Key {
+	return backend.ExactKey(scopedPrefix, workloadIdentityPrefix)
+}
+
+// workloadIdentityNameFromKey recovers the scope-qualified name of a deleted
+// WorkloadIdentity from its backend key. It handles both the unscoped key
+// range (<workload_identity>/<name>) and the scope-namespaced range
+// (<scoped>/<workload_identity>/<encoded-scope>/<name>).
+func workloadIdentityNameFromKey(key backend.Key) (scopes.QualifiedName, error) {
+	switch {
+	case key.HasPrefix(workloadIdentityScopedWatchPrefix()):
+		components := key.TrimPrefix(workloadIdentityScopedWatchPrefix()).Components()
+		if len(components) != 2 {
+			return scopes.QualifiedName{}, trace.NotFound(
+				"expected 2 components, got %d parsing backend key %v",
+				len(components),
+				key.String(),
+			)
+		}
+		encodedScope, name := components[0], components[1]
+		scope, err := scopes.DecodeFromKey(encodedScope)
+		if err != nil {
+			return scopes.QualifiedName{}, trace.Wrap(err)
+		}
+		return scopes.QualifiedName{
+			Scope: scope,
+			Name:  name,
+		}, nil
+	case key.HasPrefix(workloadIdentityUnscopedWatchPrefix()):
+		components := key.TrimPrefix(workloadIdentityUnscopedWatchPrefix()).Components()
+		if len(components) != 1 {
+			return scopes.QualifiedName{}, trace.NotFound(
+				"expected 1 component, got %d parsing backend key %v",
+				len(components),
+				key.String(),
+			)
+		}
+		return scopes.QualifiedName{
+			Name: components[0],
+		}, nil
+	default:
+		return scopes.QualifiedName{}, trace.NotFound(
+			"unexpected prefix parsing backend key %v", key.String(),
+		)
+	}
+}
+
 func newWorkloadIdentityParser() *workloadIdentityParser {
 	return &workloadIdentityParser{
-		baseParser: newBaseParser(backend.ExactKey(workloadIdentityPrefix)),
+		baseParser: newBaseParser(
+			workloadIdentityUnscopedWatchPrefix(),
+			workloadIdentityScopedWatchPrefix(),
+		),
 	}
 }
 
@@ -179,17 +246,33 @@ type workloadIdentityParser struct {
 func (p *workloadIdentityParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		name := event.Item.Key.TrimPrefix(backend.NewKey(workloadIdentityPrefix)).String()
-		if name == "" {
-			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+		name, err := workloadIdentityNameFromKey(event.Item.Key)
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
 
+		if name.Scope != "" {
+			// For scoped wids, we need to leverage a "skeleton" rather than the
+			// ResourceHeader which has no place for the scope.
+			// At some later date, we'll migrate to using the skeleton rather
+			// than ResourceHeader for all WorkloadIdentity Delete events.
+			return types.Resource153ToLegacy(workloadidentityv1pb.WorkloadIdentity_builder{
+				Kind:    types.KindWorkloadIdentity,
+				Version: types.V1,
+				Metadata: headerv1.Metadata_builder{
+					Name: name.Name,
+				}.Build(),
+				Scope: name.Scope,
+			}.Build()), nil
+		}
+
+		// Unscoped deletes keep their historical ResourceHeader representation
+		// so existing consumers of these events are unaffected.
 		return &types.ResourceHeader{
 			Kind:    types.KindWorkloadIdentity,
 			Version: types.V1,
 			Metadata: types.Metadata{
-				Name:      strings.TrimPrefix(name, backend.SeparatorString),
-				Namespace: apidefaults.Namespace,
+				Name: name.Name,
 			},
 		}, nil
 	case types.OpPut:
@@ -199,6 +282,15 @@ func (p *workloadIdentityParser) parse(event backend.Event) (types.Resource, err
 			services.WithRevision(event.Item.Revision))
 		if err != nil {
 			return nil, trace.Wrap(err, "unmarshalling resource from event")
+		}
+		// Downstream consumers (e.g. cache index keys) assume resource scopes
+		// have passed weak validation, so drop events that violate that here.
+		// A failure drops just this event: the watcher logs it and stays
+		// healthy.
+		if scope := resource.GetScope(); scope != "" {
+			if err := scopes.WeakValidate(scope); err != nil {
+				return nil, trace.Wrap(err, "validating scope of workload identity %q from event", resource.GetMetadata().GetName())
+			}
 		}
 		return types.Resource153ToLegacy(resource), nil
 	default:

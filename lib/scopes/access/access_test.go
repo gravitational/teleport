@@ -1657,6 +1657,15 @@ func TestStrongValidateRoleSpecAllFieldsValidated(t *testing.T) {
 			Labels: []*labelv1.Label{
 				labelv1.Label_builder{Name: "env", Values: []string{"prod"}}.Build(),
 			},
+			Resources: []*scopedaccessv1.KubeResource{
+				scopedaccessv1.KubeResource_builder{
+					Kind:      "pods",
+					Namespace: "default",
+					Name:      "*",
+					ApiGroup:  "*",
+					Verbs:     []string{"get"},
+				}.Build(),
+			},
 			ClientIdleTimeout:     "1h",
 			DisconnectExpiredCert: ptr(true),
 			Lock: scopedaccessv1.Lock_builder{
@@ -1667,6 +1676,12 @@ func TestStrongValidateRoleSpecAllFieldsValidated(t *testing.T) {
 			Labels: []*labelv1.Label{
 				labelv1.Label_builder{Name: "env", Values: []string{"prod"}}.Build(),
 			},
+		}.Build(),
+		App: scopedaccessv1.ScopedRoleApp_builder{
+			Labels: []*labelv1.Label{
+				labelv1.Label_builder{Name: "env", Values: []string{"prod"}}.Build(),
+			},
+			LabelExpression: `contains(labels["env"], "prod")`,
 		}.Build(),
 	}.Build()
 

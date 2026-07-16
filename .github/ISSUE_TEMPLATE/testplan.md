@@ -2445,6 +2445,28 @@ Configure SAML using [Quick GitHub/SAML/OIDC Setup Tips] and
   - [ ] Verify MCP client can only see allowed tools
   - [ ] Verify `deny.mcp.tools` is greedy (deny overrides allow)
 
+## CA overrides
+
+Validate downstream configuration and protocol access, using an enabled
+override, for each supported CA.
+
+- [ ] Create an override for the "db_client" CA
+- [ ] Create an override for the "windows" CA
+- [ ] Exercise CA rotation
+- [ ] Exercise Cloud tenant
+- [ ] Exercise multi-Auth, PKCS#11 deployment
+  - [ ] Async CRL creation works
+- [ ] Exercise tctl commands, verify that audit events are issued
+  - [ ] tctl auth create-override-csr
+  - [ ] tctl auth create-override
+  - [ ] tctl auth update-override
+  - [ ] tctl auth delete-override
+  - [ ] tctl create
+  - [ ] tctl edit
+  - [ ] tctl delete
+  - [ ] tctl auth pub-key-hash (no audit)
+  - [ ] tctl get (no audit)
+
 ## Resources
 
 [Quick GitHub/SAML/OIDC Setup Tips]

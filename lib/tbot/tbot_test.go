@@ -32,6 +32,7 @@ import (
 	"maps"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -46,6 +47,9 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/spiffe/go-spiffe/v2/svid/jwtsvid"
+	"github.com/spiffe/go-spiffe/v2/svid/x509svid"
+	"github.com/spiffe/go-spiffe/v2/workloadapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
@@ -65,6 +69,7 @@ import (
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
+	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -93,6 +98,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/sshca"
 	apisshutils "github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/bot/onboarding"
@@ -106,6 +112,8 @@ import (
 	identitysvc "github.com/gravitational/teleport/lib/tbot/services/identity"
 	"github.com/gravitational/teleport/lib/tbot/services/k8s"
 	sshsvc "github.com/gravitational/teleport/lib/tbot/services/ssh"
+	workloadidentitysvc "github.com/gravitational/teleport/lib/tbot/services/workloadidentity"
+	"github.com/gravitational/teleport/lib/tbot/workloadidentity/workloadattest"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
@@ -1855,6 +1863,209 @@ func TestScopedBotKubernetes(t *testing.T) {
 			gotNamespaces = append(gotNamespaces, ns.Name)
 		}
 		require.ElementsMatch(t, []string{"default", "test", "dev", "prod"}, gotNamespaces)
+	})
+}
+
+// TestScopedBotWorkloadIdentity tests that a scoped bot can issue X.509 and
+// JWT SVIDs for a scoped WorkloadIdentity addressed by a scope-qualified name
+// selector ("<scope>::<name>"), via the x509/jwt file outputs and the SPIFFE
+// workload API. In scoped mode these services use the bot's internal scoped
+// identity (rather than a role-impersonated identity, which scoped bots cannot
+// mint) to call the issuance RPCs.
+func TestScopedBotWorkloadIdentity(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	log := logtest.NewLogger()
+
+	const (
+		scopeName      = "/test-scope"
+		scopedRoleName = "scoped-wi-issuer"
+		botName        = "scoped-wi-bot"
+		wiName         = "scoped-svc"
+		audience       = "example.com"
+	)
+
+	// Start the main Teleport process (auth + proxy).
+	process, err := testenv.NewTeleportProcess(
+		t.TempDir(),
+		defaultTestServerOpts(log),
+		testenv.WithScopesFeatures(scopes.Features{Enabled: true}),
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
+
+	rootClient, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = rootClient.Close() })
+
+	clusterName := process.Config.Auth.ClusterName.GetClusterName()
+
+	// Create a scoped role granting issuance using prod-labeled WorkloadIdentities.
+	scopedSvc := rootClient.ScopedAccessServiceClient()
+	_, err = scopedSvc.CreateScopedRole(ctx, scopedaccessv1.CreateScopedRoleRequest_builder{
+		Role: scopedaccessv1.ScopedRole_builder{
+			Kind:    scopedaccess.KindScopedRole,
+			Version: types.V1,
+			Metadata: headerv1.Metadata_builder{
+				Name: scopedRoleName,
+			}.Build(),
+			Scope: scopeName,
+			Spec: scopedaccessv1.ScopedRoleSpec_builder{
+				AssignableScopes: []string{scopeName},
+				Rules: []*scopedaccessv1.ScopedRule{
+					scopedaccessv1.ScopedRule_builder{
+						Resources: []string{types.KindWorkloadIdentity},
+						Verbs:     []string{types.VerbReadNoSecrets, types.VerbList},
+					}.Build(),
+				},
+				WorkloadIdentity: scopedaccessv1.ScopedRoleWorkloadIdentity_builder{
+					Labels: []*labelv1.Label{
+						labelv1.Label_builder{Name: "env", Values: []string{"prod"}}.Build(),
+					},
+				}.Build(),
+			}.Build(),
+		}.Build(),
+	}.Build())
+	require.NoError(t, err)
+
+	botOnboarding := createScopedBot(t, process, rootClient, botName, scopeName, scopedRoleName)
+
+	// Create a scoped WorkloadIdentity at the backend.
+	_, err = process.GetAuthServer().CreateWorkloadIdentity(ctx, workloadidentityv1pb.WorkloadIdentity_builder{
+		Kind:    types.KindWorkloadIdentity,
+		Version: types.V1,
+		Metadata: headerv1.Metadata_builder{
+			Name:   wiName,
+			Labels: map[string]string{"env": "prod"},
+		}.Build(),
+		Scope: scopeName,
+		Spec: workloadidentityv1pb.WorkloadIdentitySpec_builder{
+			Spiffe: workloadidentityv1pb.WorkloadIdentitySPIFFE_builder{
+				Id: scopeName + "/_/" + wiName,
+			}.Build(),
+		}.Build(),
+	}.Build())
+	require.NoError(t, err)
+
+	// Configure tbot with workload-identity x509 and jwt outputs and a
+	// workload API listening on a unix socket, all addressing the
+	// WorkloadIdentity by scope-qualified name. The workload API is a
+	// long-running service, so the bot runs in daemon mode rather than oneshot.
+	tmpDir := t.TempDir()
+	jwtDir := t.TempDir()
+	listenURL := url.URL{
+		Scheme: "unix",
+		Path:   filepath.Join(t.TempDir(), "workload.sock"),
+	}
+	selector := bot.WorkloadIdentitySelector{
+		Name: scopes.QualifiedName{Scope: scopeName, Name: wiName}.String(),
+	}
+	botConfig := defaultBotConfig(
+		t, process, botOnboarding,
+		config.ServiceConfigs{
+			&workloadidentitysvc.X509OutputConfig{
+				Selector: selector,
+				Destination: &destination.Directory{
+					Path: tmpDir,
+				},
+			},
+			&workloadidentitysvc.JWTOutputConfig{
+				Selector: selector,
+				Destination: &destination.Directory{
+					Path: jwtDir,
+				},
+				Audiences: []string{audience},
+			},
+			&workloadidentitysvc.WorkloadAPIConfig{
+				Selector: selector,
+				Listen:   listenURL.String(),
+				Attestors: workloadattest.Config{
+					Unix: workloadattest.UnixAttestorConfig{
+						BinaryHashMaxSizeBytes: workloadattest.TestBinaryHashMaxBytes,
+					},
+				},
+			},
+		},
+		defaultBotConfigOpts{
+			useAuthServer: true,
+			insecure:      true,
+		},
+	)
+	botConfig.Scoped = true
+	botConfig.Oneshot = false
+	b := New(botConfig, log)
+
+	botCtx, cancelBot := context.WithCancel(ctx)
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		assert.NoError(t, b.Run(botCtx), "bot should not exit with error")
+	}()
+	t.Cleanup(func() {
+		cancelBot()
+		wg.Wait()
+	})
+
+	expectedSPIFFEID := "spiffe://" + clusterName + scopeName + "/_/" + wiName
+
+	t.Run("x509 output", func(t *testing.T) {
+		// The x509 output should write an SVID with a SPIFFE ID inside the
+		// bot's scope.
+		var svid *x509svid.SVID
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			var err error
+			svid, err = x509svid.Load(
+				filepath.Join(tmpDir, internal.SVIDPEMPath),
+				filepath.Join(tmpDir, internal.SVIDKeyPEMPath),
+			)
+			require.NoError(t, err)
+		}, 10*time.Second, 100*time.Millisecond)
+		require.Equal(t, expectedSPIFFEID, svid.ID.String())
+	})
+
+	t.Run("jwt output", func(t *testing.T) {
+		// The jwt output should write a JWT SVID with the same scoped SPIFFE
+		// ID.
+		var jwt *jwtsvid.SVID
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			jwtBytes, err := os.ReadFile(filepath.Join(jwtDir, internal.JWTSVIDPath))
+			require.NoError(t, err)
+			jwt, err = jwtsvid.ParseInsecure(string(jwtBytes), []string{audience})
+			require.NoError(t, err)
+		}, 10*time.Second, 100*time.Millisecond)
+		require.Equal(t, expectedSPIFFEID, jwt.ID.String())
+	})
+
+	t.Run("workload api", func(t *testing.T) {
+		ctx := t.Context()
+
+		// X.509 and JWT SVIDs fetched over the workload API socket should
+		// carry the same scoped SPIFFE ID.
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			_, err := os.Stat(listenURL.Path)
+			require.NoError(t, err)
+		}, 10*time.Second, 100*time.Millisecond)
+		apiClient, err := workloadapi.New(ctx, workloadapi.WithAddr(listenURL.String()))
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = apiClient.Close() })
+
+		source, err := workloadapi.NewX509Source(ctx, workloadapi.WithClient(apiClient))
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = source.Close() })
+		apiSVID, err := source.GetX509SVID()
+		require.NoError(t, err)
+		require.Equal(t, expectedSPIFFEID, apiSVID.ID.String())
+
+		apiJWTSVID, err := apiClient.FetchJWTSVID(ctx, jwtsvid.Params{
+			Audience: audience,
+		})
+		require.NoError(t, err)
+		require.Equal(t, expectedSPIFFEID, apiJWTSVID.ID.String())
 	})
 }
 

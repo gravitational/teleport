@@ -23,6 +23,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"os"
+	"time"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
@@ -39,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/join/bitbucket"
 	"github.com/gravitational/teleport/lib/join/circleci"
 	"github.com/gravitational/teleport/lib/join/env0"
+	"github.com/gravitational/teleport/lib/join/genericoidc"
 	"github.com/gravitational/teleport/lib/join/githubactions"
 	"github.com/gravitational/teleport/lib/join/gitlab"
 	"github.com/gravitational/teleport/lib/join/internal/messages"
@@ -50,11 +52,12 @@ import (
 )
 
 type (
-	JoinParams   = authjoin.RegisterParams
-	JoinResult   = authjoin.RegisterResult
-	AzureParams  = authjoin.AzureParams
-	GitlabParams = authjoin.GitlabParams
-	VersionInfo  = authjoin.VersionInfo
+	JoinParams        = authjoin.RegisterParams
+	JoinResult        = authjoin.RegisterResult
+	AzureParams       = authjoin.AzureParams
+	GitlabParams      = authjoin.GitlabParams
+	GenericOIDCParams = authjoin.GenericOIDCParams
+	VersionInfo       = authjoin.VersionInfo
 )
 
 // Join is used to join a cluster. A host or bot calls this with the name of a
@@ -390,6 +393,34 @@ func joinWithMethod(
 				return nil, trace.Wrap(err)
 			}
 		}
+		return oidcJoin(stream, joinParams, clientParams)
+	case types.JoinMethodGenericOIDC:
+		if joinParams.IDToken == "" {
+			params := joinParams.GenericOIDCParams
+			if err := params.Validate(); err != nil {
+				return nil, trace.Wrap(err, "validating generic_oidc params")
+			}
+
+			timeout := params.Timeout
+			if timeout == 0 {
+				timeout = time.Minute
+			}
+
+			source := genericoidc.NewIDTokenSource(os.Getenv, genericoidc.DefaultCommandRunner)
+			if params.EnvVarName != "" {
+				joinParams.IDToken, err = source.GetIDTokenFromEnvironment(params.EnvVarName)
+				if err != nil {
+					return nil, trace.Wrap(err, "fetching generic_oidc token from the environment")
+				}
+			} else {
+				// Per Validate(), either EnvVarName ^ Command must be set.
+				joinParams.IDToken, err = source.GetIDTokenFromCommand(ctx, timeout, params.Command...)
+				if err != nil {
+					return nil, trace.Wrap(err, "fetching generic_oidc token from a command")
+				}
+			}
+		}
+
 		return oidcJoin(stream, joinParams, clientParams)
 	case types.JoinMethodGitHub:
 		if joinParams.IDToken == "" {

@@ -202,6 +202,7 @@ func (a *Server) upsertMFASession(ctx context.Context, params upsertMFASessionPa
 	if params.sip != nil {
 		data.Payload = &mfatypes.SessionIdentifyingPayload{
 			SSHSessionID: params.sip.GetSshSessionId(),
+			TLSSessionID: params.sip.GetTlsSessionId(),
 		}
 	}
 

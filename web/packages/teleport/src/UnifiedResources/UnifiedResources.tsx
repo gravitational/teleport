@@ -95,6 +95,22 @@ export const ResizingResourceWrapper = styled(Box)`
   padding-right: ${props => props.theme.space[3]}px;
 `;
 
+// expandDesktopKinds ensures that we include both Windows in Linux in every search that targets desktops
+function expandDesktopKinds(kinds?: string[]): string[] | undefined {
+  if (!kinds || kinds.length === 0) {
+    return kinds;
+  }
+
+  const hasWindowsDesktop = kinds.includes('windows_desktop');
+  const hasLinuxDesktop = kinds.includes('linux_desktop');
+
+  if (!hasWindowsDesktop && !hasLinuxDesktop) {
+    return kinds;
+  }
+
+  return Array.from(new Set([...kinds, 'windows_desktop', 'linux_desktop']));
+}
+
 const getAvailableKindsWithAccess = (flags: FeatureFlags): FilterKind[] => {
   return [
     {
@@ -206,6 +222,7 @@ export function ClusterResources({
   } = useUnifiedResourcesFetch({
     fetchFunc: useCallback(
       async (paginationParams, signal) => {
+        const kinds = expandDesktopKinds(params.kinds);
         const response = await teleCtx.resourceService.fetchUnifiedResources(
           clusterId,
           {
@@ -213,7 +230,7 @@ export function ClusterResources({
             query: buildPredicateExpression(params.statuses, params.query),
             pinnedOnly: params.pinnedOnly,
             sort: params.sort,
-            kinds: params.kinds,
+            kinds,
             searchAsRoles: '',
             limit: paginationParams.limit,
             startKey: paginationParams.startKey,

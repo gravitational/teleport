@@ -263,6 +263,11 @@ message UserCertsRequest {
     // When using per-session MFA, this ensures the TTL of the certificate (and thus the AWS session) is the same as the Teleport identity session.
     // AWS credentials should not be written to disk when this requester is used, but may be exported as env variables through stdout.
     TSH_APP_AWS_CREDENTIALPROCESS = 6;
+    // TSH_KUBE_LOCAL_PROXY_MULTI is set when the request was sent by a tsh kube local proxy
+    // fanning out across multiple Kubernetes clusters. Like TSH_DB_EXEC, it allows reuse of the
+    // MFA session response so one ceremony can authorize per-cluster certificates. Like the other
+    // kube local proxy requesters, the in-memory certificates are not limited to the single use TTL.
+    TSH_KUBE_LOCAL_PROXY_MULTI = 7;
   }
   // RequesterName identifies who sent the request.
   Requester RequesterName = 17 [(gogoproto.jsontag) = "requester_name"];
@@ -803,6 +808,9 @@ message GenerateAppTokenRequest {
   // AuthorityType configures which Teleport authority issues the JWT token.
   // Defaults to JWTSigner ("jwt") if empty.
   string authority_type = 6;
+  // Scope is defined when a scoped service must generate an app token.
+  // It will be used when making scoped rbac decisions
+  string scope = 7;
 }
 
 // GenerateAppTokenResponse contains a signed application token.
@@ -2989,6 +2997,16 @@ message ListAccessRequestsRequest {
   string StartKey = 5;
 }
 
+// UserDisplay holds read-time display values derived from a user resource.
+message UserDisplay {
+  // Primary is a human-readable display name derived from the user's traits.
+  // Empty when the user has no display value distinct from their username.
+  string Primary = 1;
+  // Secondary is supporting context, typically the user's email address.
+  // Empty when the user has no such value distinct from their username.
+  string Secondary = 2;
+}
+
 // ListAccessRequestsResponse is a page of access requests.
 message ListAccessRequestsResponse {
   // AccessRequests is a page of access requests.
@@ -2996,6 +3014,10 @@ message ListAccessRequestsResponse {
 
   // NextKey will serve as the StartKey for the next page of requests.
   string NextKey = 2;
+
+  // UserDisplays maps usernames referenced by this page's requests
+  // (requester, review authors, suggested reviewers) to display values.
+  map<string, UserDisplay> UserDisplays = 3;
 }
 
 // AccessRequestAllowedPromotionRequest is the request to AccessRequestAllowedPromotion RPC call.
