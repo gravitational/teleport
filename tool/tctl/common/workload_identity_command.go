@@ -523,10 +523,7 @@ func (c *WorkloadIdentityCommand) runOverridesCreate(ctx context.Context, client
 		}
 		certs, err := tlsca.ParseCertificatePEMs(f)
 		if err != nil {
-			return trace.Wrap(err)
-		}
-		if len(certs) < 1 {
-			return trace.BadParameter("got no certificates from fullchain PEM file %q", p)
+			return trace.Wrap(err, "parsing fullchain PEM file %q", p)
 		}
 		overrides = append(overrides, certs)
 	}
