@@ -21,6 +21,6 @@ protocol SheetPresentable {
 	associatedtype PresentationID: Hashable
 	/// The ID to use for presentation purposes in things like `.sheet` SwiftUI modifiers
 	///
-	/// If there is no real distinction bewteen instances of a particular type, consider supplying a constant value.
+	/// If there is no real distinction between instances of a particular type, consider supplying a constant value.
 	var presentationID: PresentationID { get }
 }
