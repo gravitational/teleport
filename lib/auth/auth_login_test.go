@@ -1058,10 +1058,10 @@ func TestBasicSSHScopedLogin(t *testing.T) {
 				Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
 					User: "alice",
 					Assignments: []*scopedaccessv1.Assignment{
-						{
-							Role:  role.GetMetadata().GetName(),
+						scopedaccessv1.Assignment_builder{
+							Role:  scopes.QualifiedName{Scope: role.GetScope(), Name: role.GetMetadata().GetName()}.String(),
 							Scope: role.GetScope(),
-						},
+						}.Build(),
 					},
 				},
 				Version: types.V1,
@@ -1103,9 +1103,9 @@ func TestBasicSSHScopedLogin(t *testing.T) {
 		Kind:  scopesv1.PinKind_PIN_KIND_USER,
 		Scope: "/aa/bb",
 		AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
-			"/aa":       {"/aa": {"role-a"}},
-			"/aa/bb":    {"/aa/bb": {"role-b"}},
-			"/aa/bb/cc": {"/aa/bb/cc": {"role-c"}},
+			"/aa":       {"/aa": {"/aa::role-a"}},
+			"/aa/bb":    {"/aa/bb": {"/aa/bb::role-b"}},
+			"/aa/bb/cc": {"/aa/bb/cc": {"/aa/bb/cc::role-c"}},
 		}),
 	}
 

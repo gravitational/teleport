@@ -378,7 +378,7 @@ func (x *Assignment) SetScope(v string) {
 type Assignment_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
-	// Roles is the name of the role that is assigned by this assignment.
+	// Role is the scope-qualified name of the role that is assigned by this assignment.
 	Role string
 	// Scope is the scope to which the role is assigned. This must be a member/child
 	// of the scope of the [ScopedRoleAssignment] in which this assignment is contained.

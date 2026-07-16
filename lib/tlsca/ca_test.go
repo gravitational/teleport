@@ -138,7 +138,7 @@ func TestScopePin(t *testing.T) {
 			Kind:  scopesv1.PinKind_PIN_KIND_USER,
 			Scope: "/foo",
 			AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
-				"/": {"/": {"r1"}, "/foo": {"r2"}},
+				"/": {"/": {"/::r1"}, "/foo": {"/::r2"}},
 			}),
 		},
 	}
@@ -774,9 +774,9 @@ func TestIdentity_GetUserMetadata(t *testing.T) {
 					Scope: "/staging",
 					AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
 						"/staging": {
-							"/staging":       {"staging-admin"},
-							"/staging/blue":  {"staging-access"},
-							"/staging/green": {"staging-access"},
+							"/staging":       {"/staging::staging-admin"},
+							"/staging/blue":  {"/staging::staging-access"},
+							"/staging/green": {"/staging::staging-access"},
 						},
 					}),
 				},
@@ -805,9 +805,9 @@ func TestIdentity_GetUserMetadata(t *testing.T) {
 					Scope: "/staging",
 					AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
 						"/staging": {
-							"/staging":       {"staging-admin"},
-							"/staging/blue":  {"staging-access"},
-							"/staging/green": {"staging-access"},
+							"/staging":       {"/staging::staging-admin"},
+							"/staging/blue":  {"/staging::staging-access"},
+							"/staging/green": {"/staging::staging-access"},
 						},
 					}),
 				},
