@@ -46,4 +46,4 @@ jobs:
           go-version: 'stable'
         # Run "check" subcommand on bot.
       - name: Labeling PR
-        run: cd .github/shared-workflows/bot && go run main.go -workflow=label -token="${{ secrets.GITHUB_TOKEN }}" -reviewers="${{ secrets.reviewers }}"
+        run: cd .github/shared-workflows/bot && go run main.go -workflow=label -token="${{ secrets.GITHUB_TOKEN }}" -reviewers='{}'
