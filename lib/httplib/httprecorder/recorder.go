@@ -32,17 +32,27 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 )
 
 const (
 	// maxChunkSize is the largest body payload stored in one chunk event.
-	// These events are never sent to the audit log, so the limit is to allow
-	// consumers to receive the message via streaming without being impacted
-	// by the gRPC message size limit. The default gRPC limit is 4MB, so
-	// 1MB is a safe choice.
-	maxChunkSize = 1024 * 1024 // 1MB
+	//
+	// Body chunk events are part of the session recording, and every streamer
+	// on the path to final storage trims any single event whose serialized
+	// size exceeds constants.MaxProtoMessageSizeBytes (64KiB): the local
+	// async file, the async upload streamer (api/client.auditStreamer, which
+	// re-records each event read back from disk) and the sync SyncStreamer.
+	// A chunk larger than that cap would have its body data silently
+	// truncated before it reaches storage.
+	//
+	// So a chunk must fit within that cap, including the event's own metadata
+	// (type/code/cluster name, session and request IDs, indices). That
+	// metadata is only a few hundred bytes for these events (they carry no
+	// AppMetadata or headers), so 4KiB of headroom is comfortably enough.
+	maxChunkSize = constants.MaxProtoMessageSizeBytes - 4*1024
 )
 
 // Config contains the inputs New needs to record one HTTP exchange.

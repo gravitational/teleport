@@ -214,6 +214,68 @@ func TestProtoStreamLargeEvent(t *testing.T) {
 	require.NoError(t, stream.Complete(ctx))
 }
 
+// makeBodyChunkEvent builds an AppSessionHTTPResponseBodyChunk event carrying
+// dataSize bytes of recognizable, non-repeating-block data so that a
+// round-tripped event can be checked for byte-for-byte equality.
+func makeBodyChunkEvent(dataSize int) *apievents.AppSessionHTTPResponseBodyChunk {
+	data := make([]byte, dataSize)
+	for i := range data {
+		data[i] = byte(i % 251)
+	}
+	return &apievents.AppSessionHTTPResponseBodyChunk{
+		Metadata: apievents.Metadata{
+			Type:  events.AppSessionHTTPResponseBodyChunkEvent,
+			Code:  events.AppSessionHTTPResponseBodyChunkCode,
+			Index: 0,
+			Time:  time.Now().UTC(),
+		},
+		SessionMetadata: apievents.SessionMetadata{
+			SessionID: "1",
+		},
+		RequestId:  "req-1",
+		ChunkIndex: 0,
+		IsLast:     true,
+		Data:       data,
+	}
+}
+
+// TestProtoStreamDefaultCapTrimsLargeEvent documents that a streamer trims
+// large events down to the 64KB cap (constants.MaxProtoMessageSizeBytes).
+func TestProtoStreamDefaultCapTrimsLargeEvent(t *testing.T) {
+	ctx := context.Background()
+	uploader := eventstest.NewMemoryUploader()
+
+	streamer, err := events.NewProtoStreamer(events.ProtoStreamerConfig{
+		Uploader: uploader,
+	})
+	require.NoError(t, err)
+
+	sid := session.ID("default-cap-session")
+	stream, err := streamer.CreateAuditStream(ctx, sid)
+	require.NoError(t, err)
+
+	const dataSize = 200 * 1024 // 200KB, > default 64KB cap
+	event := makeBodyChunkEvent(dataSize)
+
+	require.NoError(t, stream.RecordEvent(ctx, eventstest.PrepareEvent(event)))
+	require.NoError(t, stream.Complete(ctx))
+
+	rc, err := uploader.StreamSessionRecording(ctx, sid)
+	require.NoError(t, err)
+	defer rc.Close()
+
+	reader := events.NewProtoReader(rc, nil)
+	defer reader.Close()
+
+	got, err := reader.Read(ctx)
+	require.NoError(t, err)
+
+	chunk, ok := got.(*apievents.AppSessionHTTPResponseBodyChunk)
+	require.True(t, ok, "expected *apievents.AppSessionHTTPResponseBodyChunk, got %T", got)
+	require.Less(t, len(chunk.Data), dataSize, "data should have been trimmed down from the original size")
+	require.LessOrEqual(t, chunk.Size(), constants.MaxProtoMessageSizeBytes, "trimmed event must fit within the default cap")
+}
+
 // TestReadCorruptedRecording tests that the streamer can successfully decode the kind of corrupted
 // recordings that some older bugged versions of teleport might end up producing when under heavy load/throttling.
 func TestReadCorruptedRecording(t *testing.T) {
