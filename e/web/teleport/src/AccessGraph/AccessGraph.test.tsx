@@ -16,6 +16,7 @@ import { AccessGraph } from './AccessGraph';
 jest.mock('teleport/services/storageService', () => ({
   storageService: {
     getAccessGraphEnabled: jest.fn(),
+    getUseNewRoleEditor: jest.fn(),
   },
 }));
 

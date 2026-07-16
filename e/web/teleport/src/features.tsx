@@ -926,6 +926,7 @@ export function getEnterpriseFeatures(): TeleportFeature[] {
     new FeatureUsageSummary(),
     new FeatureDeviceTrustWeb(),
     new FeatureSSOConfirm(),
+    new OSS.FeatureScopes(),
   ];
 }
 
