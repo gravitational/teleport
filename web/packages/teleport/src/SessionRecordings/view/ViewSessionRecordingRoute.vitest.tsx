@@ -32,7 +32,6 @@ import {
 
 import { ContextProvider } from 'teleport';
 import cfg from 'teleport/config';
-import { MockAuthenticatedWebSocket } from 'teleport/lib/AuthenticatedWebSocket.mock';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import {
   type RecordingType,
@@ -47,8 +46,12 @@ vi.spyOn(cfg, 'getSessionRecordingMetadataUrl').mockReturnValue(
   'ws://localhost/v1/webapi/sites/:clusterId/sessionrecording/:sessionId/metadata/ws'
 );
 
-vi.mock('teleport/lib/AuthenticatedWebSocket', () => ({
-  AuthenticatedWebSocket: MockAuthenticatedWebSocket,
+// Import the mock inside the factory: vi.mock is hoisted above the file's imports, so referencing a top-level
+// import binding here risks a before-initialization error.
+vi.mock('teleport/lib/AuthenticatedWebSocket', async () => ({
+  AuthenticatedWebSocket: (
+    await import('teleport/lib/AuthenticatedWebSocket.mock')
+  ).MockAuthenticatedWebSocket,
 }));
 
 enableMswServer();

@@ -28,6 +28,12 @@
 declare const jest: unknown;
 declare const vi: unknown;
 
-export const mockFn = (
-  typeof jest !== 'undefined' ? jest : vi
-) as (typeof import('vitest'))['vi'];
+// Jest isn't a strict superset of `vi`, so typing mockFn as the full `vi` lets vi-only or renamed methods
+// (hoisted, stubGlobal, importActual) type-check yet be undefined under Jest. Narrow to the methods actually used
+// through mockFn that exist on both runners so misuse becomes a compile error. Widen as needed.
+type Vi = (typeof import('vitest'))['vi'];
+type SharedMock<K extends keyof Vi> = Pick<Vi, K>;
+
+export const mockFn = (typeof jest !== 'undefined' ? jest : vi) as SharedMock<
+  'spyOn' | 'mocked'
+>;

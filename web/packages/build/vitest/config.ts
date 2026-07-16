@@ -53,8 +53,7 @@ export function createVitestConfig(testInclude: string[]): ViteUserConfig {
       pool: 'vmThreads',
       include: testInclude,
       exclude: standardExclude,
-      // happy-dom resolves the design system's modern CSS that jsdom's parser
-      // drops (breaking toHaveStyle).
+      // happy-dom resolves the design system's modern CSS that jsdom's parser drops (breaking toHaveStyle).
       environment: 'happy-dom',
       environmentOptions: {
         happyDOM: { url: 'http://localhost' },
@@ -62,5 +61,5 @@ export function createVitestConfig(testInclude: string[]): ViteUserConfig {
       setupFiles: ['./web/packages/build/vitest/setup.ts'],
       css: false,
     },
-  } as ViteUserConfig);
+  });
 }

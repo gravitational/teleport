@@ -1,4 +1,3 @@
-import { expect, test, afterEach } from 'vitest';
 /**
  * Teleport
  * Copyright (C) 2025 Gravitational, Inc.
@@ -16,6 +15,8 @@ import { expect, test, afterEach } from 'vitest';
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+
+import { expect, test, afterEach } from 'vitest';
 
 import {
   enableMswServer,
