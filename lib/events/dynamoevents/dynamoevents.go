@@ -745,6 +745,9 @@ func (l *Log) createPutItem(sessionID string, in apievents.AuditEvent) (*dynamod
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// TODO(kkloberdanz): We currently do what is in effect a strict bytes
+	// comparision. Should this be a proper JSON comparision?
 	hash, err := payloadHash(in)
 	if err != nil {
 		return nil, trace.Wrap(err)
