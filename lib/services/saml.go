@@ -208,10 +208,11 @@ func ValidateSAMLConnector(sc types.SAMLConnector, rg RoleGetter, opts ...types.
 	// Validate MFA settings.
 	if mfa := sc.GetMFASettings(); mfa != nil {
 		if mfa.EntityDescriptorUrl != "" {
-			if mfa.EntityDescriptorUrl == sc.GetEntityDescriptorURL() {
+			switch {
+			case mfa.EntityDescriptorUrl == sc.GetEntityDescriptorURL():
 				// we got the entity descriptor above, skip the redundant round trip.
 				mfa.EntityDescriptor = sc.GetEntityDescriptor()
-			} else {
+			case !options.NoFollowURLs:
 				entityDescriptor, err := getEntityDescriptorFromURL(mfa.EntityDescriptorUrl)
 				if err != nil {
 					return trace.Wrap(err)
