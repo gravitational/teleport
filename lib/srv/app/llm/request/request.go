@@ -68,3 +68,15 @@ func (c *Config) CheckAndSetDefaults() error {
 
 	return nil
 }
+
+// RequestInfo interface that contains the request information.
+type RequestInfo interface {
+	// RequestedModel returns the requested model name.
+	RequestedModel() string
+	// ProviderModel returns the model name sent to the provider.
+	ProviderModel() string
+	// IsStream indicates if the request uses streaming.
+	IsStream() bool
+	// RequestSize contains the total request size in bytes.
+	RequestSize() int
+}

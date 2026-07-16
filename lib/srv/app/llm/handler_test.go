@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv/app/common"
+	llmrequest "github.com/gravitational/teleport/lib/srv/app/llm/request"
 )
 
 // TestHandleRequest covers `handleRequest` function which is responsible for
@@ -60,7 +61,7 @@ func TestHandleRequest(t *testing.T) {
 	}{
 		"success request": {
 			newRequestFunc: func(w http.ResponseWriter, s *httptest.Server) NewUpstreamRequestFunc {
-				return func(_ types.Application, _ *http.Request) (*http.Request, RequestInfo, error) {
+				return func(_ types.Application, _ *http.Request) (*http.Request, llmrequest.RequestInfo, error) {
 					req, err := http.NewRequest(http.MethodPost, s.URL, nil)
 					if err != nil {
 						return nil, nil, trace.Wrap(err)
@@ -95,7 +96,7 @@ func TestHandleRequest(t *testing.T) {
 		},
 		"new request error": {
 			newRequestFunc: func(w http.ResponseWriter, s *httptest.Server) NewUpstreamRequestFunc {
-				return func(_ types.Application, _ *http.Request) (*http.Request, RequestInfo, error) {
+				return func(_ types.Application, _ *http.Request) (*http.Request, llmrequest.RequestInfo, error) {
 					return nil, nil, trace.BadParameter("invalid request")
 				}
 			},
@@ -117,7 +118,7 @@ func TestHandleRequest(t *testing.T) {
 		},
 		"new request error with partial info": {
 			newRequestFunc: func(w http.ResponseWriter, s *httptest.Server) NewUpstreamRequestFunc {
-				return func(_ types.Application, _ *http.Request) (*http.Request, RequestInfo, error) {
+				return func(_ types.Application, _ *http.Request) (*http.Request, llmrequest.RequestInfo, error) {
 					return nil, &mockRequestInfo{
 						requestedModel: "requested",
 						providerModel:  "provider",
@@ -142,7 +143,7 @@ func TestHandleRequest(t *testing.T) {
 		},
 		"successful request with recorder error": {
 			newRequestFunc: func(w http.ResponseWriter, s *httptest.Server) NewUpstreamRequestFunc {
-				return func(_ types.Application, _ *http.Request) (*http.Request, RequestInfo, error) {
+				return func(_ types.Application, _ *http.Request) (*http.Request, llmrequest.RequestInfo, error) {
 					req, err := http.NewRequest(http.MethodPost, s.URL, nil)
 					if err != nil {
 						return nil, nil, trace.Wrap(err)
@@ -176,7 +177,7 @@ func TestHandleRequest(t *testing.T) {
 		// This case covers scenarios where upstream is not reachable.
 		"upstream forward error": {
 			newRequestFunc: func(w http.ResponseWriter, s *httptest.Server) NewUpstreamRequestFunc {
-				return func(_ types.Application, _ *http.Request) (*http.Request, RequestInfo, error) {
+				return func(_ types.Application, _ *http.Request) (*http.Request, llmrequest.RequestInfo, error) {
 					req, err := http.NewRequest(http.MethodPost, s.URL, nil)
 					if err != nil {
 						return nil, nil, trace.Wrap(err)
@@ -249,7 +250,7 @@ func TestHandleRequest(t *testing.T) {
 				w,
 				req,
 				tc.newRequestFunc(w, mockServer),
-				func(_ *slog.Logger, w http.ResponseWriter) (UpstreamRecorder, error) {
+				func(_ *slog.Logger, _ llmrequest.RequestInfo, w http.ResponseWriter) (UpstreamRecorder, error) {
 					rec := &mockUpstreamRecorder{ResponseWriter: w}
 					tc.modifyRecorderFunc(rec)
 					return rec, nil
@@ -299,7 +300,7 @@ func (m *mockUpstreamRecorder) Written() int {
 }
 
 type mockRequestInfo struct {
-	RequestInfo
+	llmrequest.RequestInfo
 
 	requestedModel string
 	providerModel  string
