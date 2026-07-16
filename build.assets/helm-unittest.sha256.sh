@@ -30,6 +30,7 @@ download() {
 download linux-amd64
 download linux-arm64
 download macos-arm64
+download macos-amd64
 
 cd "$TEMP_DIR"
 (set -x; "${CHECKSUM_CMD[@]}" -- *.tgz) > "${OUTPUT}"
