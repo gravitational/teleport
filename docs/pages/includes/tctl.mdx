@@ -45,8 +45,14 @@ Check that you can connect to your Teleport cluster and verify that you can run
    $ tsh status --proxy=<Var name="teleport.example.com" />
    ```
 
-   Export the `TELEPORT_IDENTITY_FILE` environment variable and add the
-   `--auth-server` or `--proxy` flags to all subsequent `tctl` and `tsh`
+   Ensure client commands can access your identity file. Replace
+   <Var name="path/to/identity/file" /> with the path to your identity file:
+
+   ```code
+   $ export TELEPORT_IDENTITY_FILE="${TELEPORT_IDENTITY_FILE:-<Var name="path/to/identity/file" />}"
+   ```
+
+   Add the `--auth-server` or `--proxy` flags to all subsequent `tctl` and `tsh`
    commands.
 
 If you can connect to the cluster and run the `tctl status` command, you can use your
