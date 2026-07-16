@@ -236,33 +236,45 @@ func GenSchemaScopedRole(ctx context.Context) (github_com_hashicorp_terraform_pl
 						"resources": {
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 								"api_group": {
-									Description: "The kube API group of the kube resource. It supports wildcards.",
-									Optional:    true,
-									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									Computed:      true,
+									Description:   "The kube API group of the kube resource. It supports wildcards.",
+									Optional:      true,
+									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+									Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"kind": {
-									Description: "The kube resource type.",
-									Optional:    true,
-									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									Computed:      true,
+									Description:   "The kube resource type.",
+									Optional:      true,
+									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+									Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"name": {
-									Description: "The kube resource name. It supports wildcards.",
-									Optional:    true,
-									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									Computed:      true,
+									Description:   "The kube resource name. It supports wildcards.",
+									Optional:      true,
+									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+									Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"namespace": {
-									Description: "The kube resource namespace. It supports wildcards.",
-									Optional:    true,
-									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									Computed:      true,
+									Description:   "The kube resource namespace. It supports wildcards.",
+									Optional:      true,
+									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+									Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"verbs": {
-									Description: "The allowed kube verbs for interacting with the kube resource.",
-									Optional:    true,
-									Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+									Computed:      true,
+									Description:   "The allowed kube verbs for interacting with the kube resource.",
+									Optional:      true,
+									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+									Type:          github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 								},
 							}),
-							Description: "The kubernetes resources this role grants access to.",
-							Optional:    true,
+							Computed:      true,
+							Description:   "The kubernetes resources this role grants access to.",
+							Optional:      true,
+							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 						},
 						"users": {
 							Computed:      true,
@@ -4214,13 +4226,15 @@ func CopyScopedRoleToTerraformPreserveUnknown(ctx context.Context, obj *github_c
 														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Resources))
 													}
 												}
-												if obj.Resources != nil {
+												{
 													o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
 													if len(obj.Resources) != len(c.Elems) {
-														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Resources))
+														newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Resources))
+														copy(newElems, c.Elems)
+														c.Elems = newElems
 													}
 													for k, a := range obj.Resources {
-														v, ok := tf.Attrs["resources"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+														v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.Object)
 														if !ok {
 															v = github_com_hashicorp_terraform_plugin_framework_types.Object{
 
@@ -4235,6 +4249,7 @@ func CopyScopedRoleToTerraformPreserveUnknown(ctx context.Context, obj *github_c
 														if a == nil {
 															v.Null = true
 														} else {
+															v.Null = false
 															obj := a
 															tf := &v
 															{
@@ -4244,6 +4259,9 @@ func CopyScopedRoleToTerraformPreserveUnknown(ctx context.Context, obj *github_c
 																} else {
 																	v, ok := tf.Attrs["kind"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																	if !ok {
+																		if tf.Attrs["kind"] != nil {
+																			diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedRole.spec.kube.resources.kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		}
 																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																		if err != nil {
 																			diags.Append(attrWriteGeneralError{"ScopedRole.spec.kube.resources.kind", err})
@@ -4252,10 +4270,13 @@ func CopyScopedRoleToTerraformPreserveUnknown(ctx context.Context, obj *github_c
 																		if !ok {
 																			diags.Append(attrWriteConversionFailureDiag{"ScopedRole.spec.kube.resources.kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																		}
-																		v.Null = string(obj.Kind) == ""
 																	}
+
+																	v.Null = false
 																	v.Value = string(obj.Kind)
-																	v.Unknown = false
+																	if !preserveUnknown {
+																		v.Unknown = false
+																	}
 																	tf.Attrs["kind"] = v
 																}
 															}
@@ -4266,6 +4287,9 @@ func CopyScopedRoleToTerraformPreserveUnknown(ctx context.Context, obj *github_c
 																} else {
 																	v, ok := tf.Attrs["namespace"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																	if !ok {
+																		if tf.Attrs["namespace"] != nil {
+																			diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedRole.spec.kube.resources.namespace", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		}
 																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																		if err != nil {
 																			diags.Append(attrWriteGeneralError{"ScopedRole.spec.kube.resources.namespace", err})
@@ -4274,10 +4298,13 @@ func CopyScopedRoleToTerraformPreserveUnknown(ctx context.Context, obj *github_c
 																		if !ok {
 																			diags.Append(attrWriteConversionFailureDiag{"ScopedRole.spec.kube.resources.namespace", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																		}
-																		v.Null = string(obj.Namespace) == ""
 																	}
+
+																	v.Null = false
 																	v.Value = string(obj.Namespace)
-																	v.Unknown = false
+																	if !preserveUnknown {
+																		v.Unknown = false
+																	}
 																	tf.Attrs["namespace"] = v
 																}
 															}
@@ -4288,6 +4315,9 @@ func CopyScopedRoleToTerraformPreserveUnknown(ctx context.Context, obj *github_c
 																} else {
 																	v, ok := tf.Attrs["name"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																	if !ok {
+																		if tf.Attrs["name"] != nil {
+																			diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedRole.spec.kube.resources.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		}
 																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																		if err != nil {
 																			diags.Append(attrWriteGeneralError{"ScopedRole.spec.kube.resources.name", err})
@@ -4296,10 +4326,13 @@ func CopyScopedRoleToTerraformPreserveUnknown(ctx context.Context, obj *github_c
 																		if !ok {
 																			diags.Append(attrWriteConversionFailureDiag{"ScopedRole.spec.kube.resources.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																		}
-																		v.Null = string(obj.Name) == ""
 																	}
+
+																	v.Null = false
 																	v.Value = string(obj.Name)
-																	v.Unknown = false
+																	if !preserveUnknown {
+																		v.Unknown = false
+																	}
 																	tf.Attrs["name"] = v
 																}
 															}
@@ -4325,14 +4358,19 @@ func CopyScopedRoleToTerraformPreserveUnknown(ctx context.Context, obj *github_c
 																				c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Verbs))
 																			}
 																		}
-																		if obj.Verbs != nil {
+																		{
 																			t := o.ElemType
 																			if len(obj.Verbs) != len(c.Elems) {
-																				c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Verbs))
+																				newElems := make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Verbs))
+																				copy(newElems, c.Elems)
+																				c.Elems = newElems
 																			}
 																			for k, a := range obj.Verbs {
-																				v, ok := tf.Attrs["verbs"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																				v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																				if !ok {
+																					if c.Elems[k] != nil {
+																						diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedRole.spec.kube.resources.verbs", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																					}
 																					i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																					if err != nil {
 																						diags.Append(attrWriteGeneralError{"ScopedRole.spec.kube.resources.verbs", err})
@@ -4341,17 +4379,20 @@ func CopyScopedRoleToTerraformPreserveUnknown(ctx context.Context, obj *github_c
 																					if !ok {
 																						diags.Append(attrWriteConversionFailureDiag{"ScopedRole.spec.kube.resources.verbs", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																					}
-																					v.Null = string(a) == ""
 																				}
+
+																				v.Null = false
 																				v.Value = string(a)
-																				v.Unknown = false
+																				if !preserveUnknown {
+																					v.Unknown = false
+																				}
 																				c.Elems[k] = v
 																			}
-																			if len(obj.Verbs) > 0 {
-																				c.Null = false
-																			}
 																		}
-																		c.Unknown = false
+																		c.Null = false
+																		if !preserveUnknown {
+																			c.Unknown = false
+																		}
 																		tf.Attrs["verbs"] = c
 																	}
 																}
@@ -4363,6 +4404,9 @@ func CopyScopedRoleToTerraformPreserveUnknown(ctx context.Context, obj *github_c
 																} else {
 																	v, ok := tf.Attrs["api_group"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																	if !ok {
+																		if tf.Attrs["api_group"] != nil {
+																			diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedRole.spec.kube.resources.api_group", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		}
 																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																		if err != nil {
 																			diags.Append(attrWriteGeneralError{"ScopedRole.spec.kube.resources.api_group", err})
@@ -4371,22 +4415,27 @@ func CopyScopedRoleToTerraformPreserveUnknown(ctx context.Context, obj *github_c
 																		if !ok {
 																			diags.Append(attrWriteConversionFailureDiag{"ScopedRole.spec.kube.resources.api_group", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																		}
-																		v.Null = string(obj.ApiGroup) == ""
 																	}
+
+																	v.Null = false
 																	v.Value = string(obj.ApiGroup)
-																	v.Unknown = false
+																	if !preserveUnknown {
+																		v.Unknown = false
+																	}
 																	tf.Attrs["api_group"] = v
 																}
 															}
 														}
-														v.Unknown = false
+														if !preserveUnknown {
+															v.Unknown = false
+														}
 														c.Elems[k] = v
 													}
-													if len(obj.Resources) > 0 {
-														c.Null = false
-													}
 												}
-												c.Unknown = false
+												c.Null = false
+												if !preserveUnknown {
+													c.Unknown = false
+												}
 												tf.Attrs["resources"] = c
 											}
 										}
