@@ -59,6 +59,8 @@ func (c *integrationCollection) WriteText(w io.Writer, verbose bool) error {
 		switch ig.GetSubKind() {
 		case types.IntegrationSubKindAWSOIDC:
 			specProps = append(specProps, fmt.Sprintf("RoleARN=%s", ig.GetAWSOIDCIntegrationSpec().RoleARN))
+		case types.IntegrationSubKindGitHub:
+			specProps = append(specProps, fmt.Sprintf("Organization=%s", ig.GetGitHubIntegrationSpec().Organization))
 		}
 		rows = append(rows, []string{
 			ig.GetName(), ig.GetSubKind(), strings.Join(specProps, ","),
@@ -151,7 +153,11 @@ func updateExistingIntegration(ctx context.Context, client *authclient.Client, e
 		existingIntegration.SetAWSOIDCIntegrationSpec(integration.GetAWSOIDCIntegrationSpec())
 	case types.IntegrationSubKindGitHub:
 		existingIntegration.SetGitHubIntegrationSpec(integration.GetGitHubIntegrationSpec())
-		// TODO(greedy52) allow overwriting credentials.
+		if integration.GetCredentials() != nil {
+			if err := existingIntegration.SetCredentials(integration.GetCredentials()); err != nil {
+				return trace.Wrap(err)
+			}
+		}
 	case types.IntegrationSubKindAWSRolesAnywhere:
 		existingIntegration.SetAWSRolesAnywhereIntegrationSpec(integration.GetAWSRolesAnywhereIntegrationSpec())
 	case types.IntegrationSubKindAzureOIDC:
