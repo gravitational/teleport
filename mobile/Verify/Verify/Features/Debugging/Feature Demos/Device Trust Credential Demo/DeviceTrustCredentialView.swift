@@ -16,26 +16,14 @@
 
 #if DEBUG
 
-	import Observation
-	import SwiftNavigation
+	import SwiftUI
 
-	@Observable
-	final class DebugViewModel {
-		@CasePathable
-		enum Destination {
-			// MARK: - Feature Demos
-
-			case deviceTrustCredentialDemo(FeatureDemo.DeviceTrustCredentialViewModel)
-		}
-
-		var destination: Destination? = nil
-	}
-
-	// MARK: - SheetPresentable
-
-	extension DebugViewModel: SheetPresentable {
-		var presentationID: some Hashable {
-			"DebugViewModel"
+	extension FeatureDemo {
+		struct DeviceTrustCredentialView: View {
+			var viewModel: DeviceTrustCredentialViewModel
+			var body: some View {
+				Text("Placeholder for DeviceTrustCredentialDemoView")
+			}
 		}
 	}
 
