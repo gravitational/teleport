@@ -36,7 +36,8 @@ func Handlers() map[string]Handler {
 	// Note: scoped_role, scoped_role_assignment, and scoped_token are registered in
 	// ScopedHandlers() rather than here because they require scope-qualified names.
 	return map[string]Handler{
-		types.KindNode: serverHandler(),
+		types.KindClientIPRestriction: clientIPRestrictionHandler(),
+		types.KindNode:                serverHandler(),
 	}
 }
 

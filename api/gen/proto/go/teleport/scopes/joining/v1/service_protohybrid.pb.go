@@ -187,10 +187,6 @@ func (b0 GetScopedTokenResponse_builder) Build() *GetScopedTokenResponse {
 // ListScopedTokensRequest is the request to list scoped tokens.
 type ListScopedTokensRequest struct {
 	state protoimpl.MessageState `protogen:"hybrid.v1"`
-	// Filter tokens by their resource scope.
-	ResourceScope *v1.Filter `protobuf:"bytes,1,opt,name=resource_scope,json=resourceScope,proto3" json:"resource_scope,omitempty"`
-	// Filter tokens by their assigned scope.
-	AssignedScope *v1.Filter `protobuf:"bytes,2,opt,name=assigned_scope,json=assignedScope,proto3" json:"assigned_scope,omitempty"`
 	// The pagination cursor.
 	Cursor string `protobuf:"bytes,3,opt,name=cursor,proto3" json:"cursor,omitempty"`
 	// The maximum number of results to return.
@@ -200,9 +196,16 @@ type ListScopedTokensRequest struct {
 	// Filter tokens that match all provided labels.
 	Labels map[string]string `protobuf:"bytes,6,rep,name=labels,proto3" json:"labels,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	// If true, include the token secrets in the response.
-	WithSecrets   bool `protobuf:"varint,7,opt,name=with_secrets,json=withSecrets,proto3" json:"with_secrets,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	WithSecrets bool `protobuf:"varint,7,opt,name=with_secrets,json=withSecrets,proto3" json:"with_secrets,omitempty"`
+	// ScopeFilter is the primary scope filter. Filtering is performed against the scope of the
+	// resource itself. Defaults to one of EXACT or UNSCOPED depending on wether the caller is
+	// a scoped or unscoped identity. Exhaustive user-facing views (e.g. `tctl get`) should
+	// specify mode ALL.
+	ScopeFilter *v1.Filter `protobuf:"bytes,8,opt,name=scope_filter,json=scopeFilter,proto3" json:"scope_filter,omitempty"`
+	// AssignedScopeFilter filters tokens by their assigned scope if specified.
+	AssignedScopeFilter *v1.Filter `protobuf:"bytes,9,opt,name=assigned_scope_filter,json=assignedScopeFilter,proto3" json:"assigned_scope_filter,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
 func (x *ListScopedTokensRequest) Reset() {
@@ -228,20 +231,6 @@ func (x *ListScopedTokensRequest) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-func (x *ListScopedTokensRequest) GetResourceScope() *v1.Filter {
-	if x != nil {
-		return x.ResourceScope
-	}
-	return nil
-}
-
-func (x *ListScopedTokensRequest) GetAssignedScope() *v1.Filter {
-	if x != nil {
-		return x.AssignedScope
-	}
-	return nil
 }
 
 func (x *ListScopedTokensRequest) GetCursor() string {
@@ -279,12 +268,18 @@ func (x *ListScopedTokensRequest) GetWithSecrets() bool {
 	return false
 }
 
-func (x *ListScopedTokensRequest) SetResourceScope(v *v1.Filter) {
-	x.ResourceScope = v
+func (x *ListScopedTokensRequest) GetScopeFilter() *v1.Filter {
+	if x != nil {
+		return x.ScopeFilter
+	}
+	return nil
 }
 
-func (x *ListScopedTokensRequest) SetAssignedScope(v *v1.Filter) {
-	x.AssignedScope = v
+func (x *ListScopedTokensRequest) GetAssignedScopeFilter() *v1.Filter {
+	if x != nil {
+		return x.AssignedScopeFilter
+	}
+	return nil
 }
 
 func (x *ListScopedTokensRequest) SetCursor(v string) {
@@ -307,35 +302,39 @@ func (x *ListScopedTokensRequest) SetWithSecrets(v bool) {
 	x.WithSecrets = v
 }
 
-func (x *ListScopedTokensRequest) HasResourceScope() bool {
+func (x *ListScopedTokensRequest) SetScopeFilter(v *v1.Filter) {
+	x.ScopeFilter = v
+}
+
+func (x *ListScopedTokensRequest) SetAssignedScopeFilter(v *v1.Filter) {
+	x.AssignedScopeFilter = v
+}
+
+func (x *ListScopedTokensRequest) HasScopeFilter() bool {
 	if x == nil {
 		return false
 	}
-	return x.ResourceScope != nil
+	return x.ScopeFilter != nil
 }
 
-func (x *ListScopedTokensRequest) HasAssignedScope() bool {
+func (x *ListScopedTokensRequest) HasAssignedScopeFilter() bool {
 	if x == nil {
 		return false
 	}
-	return x.AssignedScope != nil
+	return x.AssignedScopeFilter != nil
 }
 
-func (x *ListScopedTokensRequest) ClearResourceScope() {
-	x.ResourceScope = nil
+func (x *ListScopedTokensRequest) ClearScopeFilter() {
+	x.ScopeFilter = nil
 }
 
-func (x *ListScopedTokensRequest) ClearAssignedScope() {
-	x.AssignedScope = nil
+func (x *ListScopedTokensRequest) ClearAssignedScopeFilter() {
+	x.AssignedScopeFilter = nil
 }
 
 type ListScopedTokensRequest_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
-	// Filter tokens by their resource scope.
-	ResourceScope *v1.Filter
-	// Filter tokens by their assigned scope.
-	AssignedScope *v1.Filter
 	// The pagination cursor.
 	Cursor string
 	// The maximum number of results to return.
@@ -346,19 +345,26 @@ type ListScopedTokensRequest_builder struct {
 	Labels map[string]string
 	// If true, include the token secrets in the response.
 	WithSecrets bool
+	// ScopeFilter is the primary scope filter. Filtering is performed against the scope of the
+	// resource itself. Defaults to one of EXACT or UNSCOPED depending on wether the caller is
+	// a scoped or unscoped identity. Exhaustive user-facing views (e.g. `tctl get`) should
+	// specify mode ALL.
+	ScopeFilter *v1.Filter
+	// AssignedScopeFilter filters tokens by their assigned scope if specified.
+	AssignedScopeFilter *v1.Filter
 }
 
 func (b0 ListScopedTokensRequest_builder) Build() *ListScopedTokensRequest {
 	m0 := &ListScopedTokensRequest{}
 	b, x := &b0, m0
 	_, _ = b, x
-	x.ResourceScope = b.ResourceScope
-	x.AssignedScope = b.AssignedScope
 	x.Cursor = b.Cursor
 	x.Limit = b.Limit
 	x.Roles = b.Roles
 	x.Labels = b.Labels
 	x.WithSecrets = b.WithSecrets
+	x.ScopeFilter = b.ScopeFilter
+	x.AssignedScopeFilter = b.AssignedScopeFilter
 	return m0
 }
 
@@ -994,18 +1000,18 @@ const file_teleport_scopes_joining_v1_service_proto_rawDesc = "" +
 	"\vwith_secret\x18\x02 \x01(\bR\n" +
 	"withSecret\"W\n" +
 	"\x16GetScopedTokenResponse\x12=\n" +
-	"\x05token\x18\x01 \x01(\v2'.teleport.scopes.joining.v1.ScopedTokenR\x05token\"\x9a\x03\n" +
-	"\x17ListScopedTokensRequest\x12A\n" +
-	"\x0eresource_scope\x18\x01 \x01(\v2\x1a.teleport.scopes.v1.FilterR\rresourceScope\x12A\n" +
-	"\x0eassigned_scope\x18\x02 \x01(\v2\x1a.teleport.scopes.v1.FilterR\rassignedScope\x12\x16\n" +
+	"\x05token\x18\x01 \x01(\v2'.teleport.scopes.joining.v1.ScopedTokenR\x05token\"\xcf\x03\n" +
+	"\x17ListScopedTokensRequest\x12\x16\n" +
 	"\x06cursor\x18\x03 \x01(\tR\x06cursor\x12\x14\n" +
 	"\x05limit\x18\x04 \x01(\rR\x05limit\x12\x14\n" +
 	"\x05roles\x18\x05 \x03(\tR\x05roles\x12W\n" +
 	"\x06labels\x18\x06 \x03(\v2?.teleport.scopes.joining.v1.ListScopedTokensRequest.LabelsEntryR\x06labels\x12!\n" +
-	"\fwith_secrets\x18\a \x01(\bR\vwithSecrets\x1a9\n" +
+	"\fwith_secrets\x18\a \x01(\bR\vwithSecrets\x12=\n" +
+	"\fscope_filter\x18\b \x01(\v2\x1a.teleport.scopes.v1.FilterR\vscopeFilter\x12N\n" +
+	"\x15assigned_scope_filter\x18\t \x01(\v2\x1a.teleport.scopes.v1.FilterR\x13assignedScopeFilter\x1a9\n" +
 	"\vLabelsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"s\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01J\x04\b\x01\x10\x02J\x04\b\x02\x10\x03R\x0eresource_scopeR\x0eassigned_scope\"s\n" +
 	"\x18ListScopedTokensResponse\x12?\n" +
 	"\x06tokens\x18\x01 \x03(\v2'.teleport.scopes.joining.v1.ScopedTokenR\x06tokens\x12\x16\n" +
 	"\x06cursor\x18\x02 \x01(\tR\x06cursor\"Y\n" +
@@ -1053,9 +1059,9 @@ var file_teleport_scopes_joining_v1_service_proto_goTypes = []any{
 }
 var file_teleport_scopes_joining_v1_service_proto_depIdxs = []int32{
 	13, // 0: teleport.scopes.joining.v1.GetScopedTokenResponse.token:type_name -> teleport.scopes.joining.v1.ScopedToken
-	14, // 1: teleport.scopes.joining.v1.ListScopedTokensRequest.resource_scope:type_name -> teleport.scopes.v1.Filter
-	14, // 2: teleport.scopes.joining.v1.ListScopedTokensRequest.assigned_scope:type_name -> teleport.scopes.v1.Filter
-	12, // 3: teleport.scopes.joining.v1.ListScopedTokensRequest.labels:type_name -> teleport.scopes.joining.v1.ListScopedTokensRequest.LabelsEntry
+	12, // 1: teleport.scopes.joining.v1.ListScopedTokensRequest.labels:type_name -> teleport.scopes.joining.v1.ListScopedTokensRequest.LabelsEntry
+	14, // 2: teleport.scopes.joining.v1.ListScopedTokensRequest.scope_filter:type_name -> teleport.scopes.v1.Filter
+	14, // 3: teleport.scopes.joining.v1.ListScopedTokensRequest.assigned_scope_filter:type_name -> teleport.scopes.v1.Filter
 	13, // 4: teleport.scopes.joining.v1.ListScopedTokensResponse.tokens:type_name -> teleport.scopes.joining.v1.ScopedToken
 	13, // 5: teleport.scopes.joining.v1.CreateScopedTokenRequest.token:type_name -> teleport.scopes.joining.v1.ScopedToken
 	13, // 6: teleport.scopes.joining.v1.CreateScopedTokenResponse.token:type_name -> teleport.scopes.joining.v1.ScopedToken

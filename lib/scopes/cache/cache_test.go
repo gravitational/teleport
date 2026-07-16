@@ -222,7 +222,7 @@ func TestCacheFiltering(t *testing.T) {
 			}
 
 			var policiesApplicableTo []item[int]
-			for scope := range cache.PoliciesApplicableToResourceScope(tt.scope, cache.WithFilter(tt.filter)) {
+			for scope := range cache.ScopeAndAncestors(tt.scope, cache.WithFilter(tt.filter)) {
 				var seen int
 				for item := range scope.Items() {
 					seen++
@@ -238,7 +238,7 @@ func TestCacheFiltering(t *testing.T) {
 
 			cloned = 0
 			var resourcesSubjectTo []item[int]
-			for scope := range cache.ResourcesSubjectToPolicyScope(tt.scope, cache.WithFilter(tt.filter)) {
+			for scope := range cache.ScopeAndDescendants(tt.scope, cache.WithFilter(tt.filter)) {
 				var seen int
 				for item := range scope.Items() {
 					seen++
@@ -254,7 +254,7 @@ func TestCacheFiltering(t *testing.T) {
 
 			cloned = 0
 			var nonOrthogonalResources []item[int]
-			for scope := range cache.AllNonOrthogonalResources(tt.scope, cache.WithFilter(tt.filter)) {
+			for scope := range cache.ScopeAndRelatives(tt.scope, cache.WithFilter(tt.filter)) {
 				var seen int
 				for item := range scope.Items() {
 					seen++
@@ -275,10 +275,10 @@ func TestCacheFiltering(t *testing.T) {
 	}
 }
 
-// TestCacheAllNonOrthogonalResources verifies the expected behavior of the AllNonOrthogonalResources method separately
+// TestCacheScopeAndRelatives verifies the expected behavior of the ScopeAndRelatives method separately
 // because most coverage is provided by asserting that it produces the union of the output of the other two
 // methods. This test primarily servers as a sanity-check to ensure that the other checks aren't wildly off-base.
-func TestCacheAllNonOrthogonalResources(t *testing.T) {
+func TestCacheScopeAndRelatives(t *testing.T) {
 	t.Parallel()
 
 	items := []item[int]{
@@ -355,7 +355,7 @@ func TestCacheAllNonOrthogonalResources(t *testing.T) {
 			}
 
 			var nonOrthogonalResources []item[int]
-			for scope := range cache.AllNonOrthogonalResources(tt.scope) {
+			for scope := range cache.ScopeAndRelatives(tt.scope) {
 				for item := range scope.Items() {
 					nonOrthogonalResources = append(nonOrthogonalResources, item)
 				}
@@ -366,8 +366,8 @@ func TestCacheAllNonOrthogonalResources(t *testing.T) {
 }
 
 // joinAndDeduplicateItems joins multiple sets of items and deduplicates them based on their keys. Used in testing
-// the AllNonOrthogonalResources method since its output should always be the union of the output of
-// PoliciesApplicableToResourceScope and ResourcesSubjectToPolicyScope.
+// the ScopeAndRelatives method since its output should always be the union of the output of
+// ScopeAndAncestors and ScopeAndDescendants.
 func joinAndDeduplicateItems(sets ...[]item[int]) []item[int] {
 	// join all sets together and deduplicate
 	seen := make(map[int]struct{})
@@ -419,7 +419,7 @@ func TestCacheConcurrency(t *testing.T) {
 
 	go func() {
 		// perform a policy application query that will match all items
-		for _ = range cache.PoliciesApplicableToResourceScope("/aa/bb/cc") {
+		for _ = range cache.ScopeAndAncestors("/aa/bb/cc") {
 			lockstepC <- struct{}{} // block until the second query has caught up
 			<-proceedC              // wait for the main test routine to unblock us
 		}
@@ -427,7 +427,7 @@ func TestCacheConcurrency(t *testing.T) {
 
 	go func() {
 		// perform a resource subjugation query that will match all items
-		for _ = range cache.ResourcesSubjectToPolicyScope("/") {
+		for _ = range cache.ScopeAndDescendants("/") {
 			<-lockstepC // wait until we get the signal from the first query
 		}
 	}()
@@ -784,7 +784,7 @@ func TestCursorScenarios(t *testing.T) {
 
 			// verify policies-applicable-to-resource iteration
 			var policiesApplicableTo []item[int]
-			for scope := range cache.PoliciesApplicableToResourceScope(tt.scope, cache.WithCursor(tt.cursor)) {
+			for scope := range cache.ScopeAndAncestors(tt.scope, cache.WithCursor(tt.cursor)) {
 				for item := range scope.Items() {
 					policiesApplicableTo = append(policiesApplicableTo, item)
 				}
@@ -794,7 +794,7 @@ func TestCursorScenarios(t *testing.T) {
 
 			// verify resources-subject-to-policy iteration
 			var resourcesSubjectTo []item[int]
-			for scope := range cache.ResourcesSubjectToPolicyScope(tt.scope, cache.WithCursor(tt.cursor)) {
+			for scope := range cache.ScopeAndDescendants(tt.scope, cache.WithCursor(tt.cursor)) {
 				for item := range scope.Items() {
 					resourcesSubjectTo = append(resourcesSubjectTo, item)
 				}
@@ -804,7 +804,7 @@ func TestCursorScenarios(t *testing.T) {
 
 			// verify non-orhthogonal iteration
 			var nonOrthogonal []item[int]
-			for scope := range cache.AllNonOrthogonalResources(tt.scope, cache.WithCursor(tt.cursor)) {
+			for scope := range cache.ScopeAndRelatives(tt.scope, cache.WithCursor(tt.cursor)) {
 				for item := range scope.Items() {
 					nonOrthogonal = append(nonOrthogonal, item)
 				}
@@ -973,7 +973,7 @@ func TestCursorPagination(t *testing.T) {
 			var remaining []item[int]
 			var cursor Cursor[int]
 		PolicyApplicationOuter:
-			for scope := range cache.PoliciesApplicableToResourceScope(tt.scope) {
+			for scope := range cache.ScopeAndAncestors(tt.scope) {
 				for item := range scope.Items() {
 					if len(firstPage) == tt.limit {
 						cursor = Cursor[int]{
@@ -989,7 +989,7 @@ func TestCursorPagination(t *testing.T) {
 			require.Equal(t, tt.policiesApplicableTo.firstPage, firstPage)
 
 			if !cursor.IsZero() {
-				for scope := range cache.PoliciesApplicableToResourceScope(tt.scope, cache.WithCursor(cursor)) {
+				for scope := range cache.ScopeAndAncestors(tt.scope, cache.WithCursor(cursor)) {
 					for item := range scope.Items() {
 						remaining = append(remaining, item)
 					}
@@ -1005,7 +1005,7 @@ func TestCursorPagination(t *testing.T) {
 			cursor = Cursor[int]{}
 
 		ResourceSubjugationOuter:
-			for scope := range cache.ResourcesSubjectToPolicyScope(tt.scope) {
+			for scope := range cache.ScopeAndDescendants(tt.scope) {
 				for item := range scope.Items() {
 					if len(firstPage) == tt.limit {
 						cursor = Cursor[int]{
@@ -1021,7 +1021,7 @@ func TestCursorPagination(t *testing.T) {
 			require.Equal(t, tt.resourcesSubjectTo.firstPage, firstPage)
 
 			if !cursor.IsZero() {
-				for scope := range cache.ResourcesSubjectToPolicyScope(tt.scope, cache.WithCursor(cursor)) {
+				for scope := range cache.ScopeAndDescendants(tt.scope, cache.WithCursor(cursor)) {
 					for item := range scope.Items() {
 						remaining = append(remaining, item)
 					}
@@ -1073,12 +1073,12 @@ func TestCacheOperations(t *testing.T) {
 	require.Equal(t, 0, cache.Len())
 
 	// verify empty reads of root
-	require.Equal(t, map[string][]string{}, collectScopedItemKeys(cache.PoliciesApplicableToResourceScope("/")))
-	require.Equal(t, map[string][]string{}, collectScopedItemKeys(cache.ResourcesSubjectToPolicyScope("/")))
+	require.Equal(t, map[string][]string{}, collectScopedItemKeys(cache.ScopeAndAncestors("/")))
+	require.Equal(t, map[string][]string{}, collectScopedItemKeys(cache.ScopeAndDescendants("/")))
 
 	// verify empty sub-scope reads
-	require.Equal(t, map[string][]string{}, collectScopedItemKeys(cache.PoliciesApplicableToResourceScope("/child")))
-	require.Equal(t, map[string][]string{}, collectScopedItemKeys(cache.ResourcesSubjectToPolicyScope("/child")))
+	require.Equal(t, map[string][]string{}, collectScopedItemKeys(cache.ScopeAndAncestors("/child")))
+	require.Equal(t, map[string][]string{}, collectScopedItemKeys(cache.ScopeAndDescendants("/child")))
 
 	for _, item := range items {
 		cache.Put(item)
@@ -1090,49 +1090,49 @@ func TestCacheOperations(t *testing.T) {
 
 	require.Equal(t, map[string][]string{
 		"/": {"root-scoped", "root-scoped-other"},
-	}, collectScopedItemKeys(cache.PoliciesApplicableToResourceScope("/")))
+	}, collectScopedItemKeys(cache.ScopeAndAncestors("/")))
 
 	require.Equal(t, map[string][]string{
 		"/":      {"root-scoped", "root-scoped-other"},
 		"/child": {"child-scoped", "child-scoped-other"},
-	}, collectScopedItemKeys(cache.PoliciesApplicableToResourceScope("/child")))
+	}, collectScopedItemKeys(cache.ScopeAndAncestors("/child")))
 
 	require.Equal(t, map[string][]string{
 		"/":               {"root-scoped", "root-scoped-other"},
 		"/child":          {"child-scoped", "child-scoped-other"},
 		"/child/subchild": {"child-sub-scoped"},
-	}, collectScopedItemKeys(cache.PoliciesApplicableToResourceScope("/child/subchild")))
+	}, collectScopedItemKeys(cache.ScopeAndAncestors("/child/subchild")))
 
 	// verify basic resources-subject-to-policy iteration
 
 	require.Equal(t, map[string][]string{},
-		collectScopedItemKeys(cache.ResourcesSubjectToPolicyScope("/nonexistent")))
+		collectScopedItemKeys(cache.ScopeAndDescendants("/nonexistent")))
 
 	require.Equal(t, map[string][]string{
 		"/child/subchild": {"child-sub-scoped"},
-	}, collectScopedItemKeys(cache.ResourcesSubjectToPolicyScope("/child/subchild")))
+	}, collectScopedItemKeys(cache.ScopeAndDescendants("/child/subchild")))
 
 	require.Equal(t, map[string][]string{
 		"/child":          {"child-scoped", "child-scoped-other"},
 		"/child/subchild": {"child-sub-scoped"},
-	}, collectScopedItemKeys(cache.ResourcesSubjectToPolicyScope("/child")))
+	}, collectScopedItemKeys(cache.ScopeAndDescendants("/child")))
 
 	require.Equal(t, map[string][]string{
 		"/":               {"root-scoped", "root-scoped-other"},
 		"/child":          {"child-scoped", "child-scoped-other"},
 		"/child/subchild": {"child-sub-scoped"},
 		"/orthogonal":     {"child-orthogonal"},
-	}, collectScopedItemKeys(cache.ResourcesSubjectToPolicyScope("/")))
+	}, collectScopedItemKeys(cache.ScopeAndDescendants("/")))
 
 	// verify that the concept of policies-applicable-to-resource used by the cache
 	// matches up with the definition expected by the scopes package.
-	for scope := range cache.PoliciesApplicableToResourceScope("/child/subchild") {
+	for scope := range cache.ScopeAndAncestors("/child/subchild") {
 		require.True(t, scopes.ResourceScope("/child/subchild").IsSubjectToScopeOfEffect(scope.Scope()), "scope=%s", scope.Scope())
 	}
 
 	// verify that the concept of resources-subject-to-policy used by the cache
 	// matches up with the definition expected by the scopes package.
-	for scope := range cache.ResourcesSubjectToPolicyScope("/child") {
+	for scope := range cache.ScopeAndDescendants("/child") {
 		require.True(t, scopes.ScopeOfEffect("/child").AppliesToResourceScope(scope.Scope()), "scope=%s", scope.Scope())
 	}
 
@@ -1144,14 +1144,14 @@ func TestCacheOperations(t *testing.T) {
 		"/":               {"root-scoped", "root-scoped-other"},
 		"/child":          {"child-scoped-other"},
 		"/child/subchild": {"child-sub-scoped"},
-	}, collectScopedItemKeys(cache.PoliciesApplicableToResourceScope("/child/subchild")))
+	}, collectScopedItemKeys(cache.ScopeAndAncestors("/child/subchild")))
 
 	require.Equal(t, map[string][]string{
 		"/":               {"root-scoped", "root-scoped-other"},
 		"/child":          {"child-scoped-other"},
 		"/child/subchild": {"child-sub-scoped"},
 		"/orthogonal":     {"child-orthogonal"},
-	}, collectScopedItemKeys(cache.ResourcesSubjectToPolicyScope("/")))
+	}, collectScopedItemKeys(cache.ScopeAndDescendants("/")))
 
 	// verify deletion of a single root-scoped item
 	cache.Del("root-scoped")
@@ -1161,14 +1161,14 @@ func TestCacheOperations(t *testing.T) {
 		"/":               {"root-scoped-other"},
 		"/child":          {"child-scoped-other"},
 		"/child/subchild": {"child-sub-scoped"},
-	}, collectScopedItemKeys(cache.PoliciesApplicableToResourceScope("/child/subchild")))
+	}, collectScopedItemKeys(cache.ScopeAndAncestors("/child/subchild")))
 
 	require.Equal(t, map[string][]string{
 		"/":               {"root-scoped-other"},
 		"/child":          {"child-scoped-other"},
 		"/child/subchild": {"child-sub-scoped"},
 		"/orthogonal":     {"child-orthogonal"},
-	}, collectScopedItemKeys(cache.ResourcesSubjectToPolicyScope("/")))
+	}, collectScopedItemKeys(cache.ScopeAndDescendants("/")))
 
 	// verify full deletion of all contents of an intermediate scope
 	cache.Del("child-scoped-other")
@@ -1177,13 +1177,13 @@ func TestCacheOperations(t *testing.T) {
 	require.Equal(t, map[string][]string{
 		"/":               {"root-scoped-other"},
 		"/child/subchild": {"child-sub-scoped"},
-	}, collectScopedItemKeys(cache.PoliciesApplicableToResourceScope("/child/subchild")))
+	}, collectScopedItemKeys(cache.ScopeAndAncestors("/child/subchild")))
 
 	require.Equal(t, map[string][]string{
 		"/":               {"root-scoped-other"},
 		"/child/subchild": {"child-sub-scoped"},
 		"/orthogonal":     {"child-orthogonal"},
-	}, collectScopedItemKeys(cache.ResourcesSubjectToPolicyScope("/")))
+	}, collectScopedItemKeys(cache.ScopeAndDescendants("/")))
 
 	// verfiy full deletion of all contents of a root scope
 	cache.Del("root-scoped-other")
@@ -1191,23 +1191,23 @@ func TestCacheOperations(t *testing.T) {
 
 	require.Equal(t, map[string][]string{
 		"/child/subchild": {"child-sub-scoped"},
-	}, collectScopedItemKeys(cache.PoliciesApplicableToResourceScope("/child/subchild")))
+	}, collectScopedItemKeys(cache.ScopeAndAncestors("/child/subchild")))
 
 	require.Equal(t, map[string][]string{
 		"/child/subchild": {"child-sub-scoped"},
 		"/orthogonal":     {"child-orthogonal"},
-	}, collectScopedItemKeys(cache.ResourcesSubjectToPolicyScope("/")))
+	}, collectScopedItemKeys(cache.ScopeAndDescendants("/")))
 
 	// verify deletion of leaf scope
 	cache.Del("child-sub-scoped")
 	require.Equal(t, len(items)-5, cache.Len())
 
 	require.Equal(t, map[string][]string{},
-		collectScopedItemKeys(cache.PoliciesApplicableToResourceScope("/child/subchild")))
+		collectScopedItemKeys(cache.ScopeAndAncestors("/child/subchild")))
 
 	require.Equal(t, map[string][]string{
 		"/orthogonal": {"child-orthogonal"},
-	}, collectScopedItemKeys(cache.ResourcesSubjectToPolicyScope("/")))
+	}, collectScopedItemKeys(cache.ScopeAndDescendants("/")))
 
 	// verify basic re-add
 	cache.Put(item[string]{
@@ -1218,12 +1218,12 @@ func TestCacheOperations(t *testing.T) {
 
 	require.Equal(t, map[string][]string{
 		"/child": {"child-scoped"},
-	}, collectScopedItemKeys(cache.PoliciesApplicableToResourceScope("/child")))
+	}, collectScopedItemKeys(cache.ScopeAndAncestors("/child")))
 
 	require.Equal(t, map[string][]string{
 		"/child":      {"child-scoped"},
 		"/orthogonal": {"child-orthogonal"},
-	}, collectScopedItemKeys(cache.ResourcesSubjectToPolicyScope("/")))
+	}, collectScopedItemKeys(cache.ScopeAndDescendants("/")))
 
 	// verify overwrite of existing item by primary key
 	cache.Put(item[string]{
@@ -1233,16 +1233,16 @@ func TestCacheOperations(t *testing.T) {
 	require.Equal(t, len(items)-4, cache.Len())
 
 	require.Equal(t, map[string][]string{},
-		collectScopedItemKeys(cache.PoliciesApplicableToResourceScope("/child/subchild")))
+		collectScopedItemKeys(cache.ScopeAndAncestors("/child/subchild")))
 
 	require.Equal(t, map[string][]string{
 		"/child/other": {"child-scoped"},
-	}, collectScopedItemKeys(cache.PoliciesApplicableToResourceScope("/child/other")))
+	}, collectScopedItemKeys(cache.ScopeAndAncestors("/child/other")))
 
 	require.Equal(t, map[string][]string{
 		"/child/other": {"child-scoped"},
 		"/orthogonal":  {"child-orthogonal"},
-	}, collectScopedItemKeys(cache.ResourcesSubjectToPolicyScope("/")))
+	}, collectScopedItemKeys(cache.ScopeAndDescendants("/")))
 }
 
 // collectScopedItemKeys aggregates a scoped iterator from one of the cache iteration
