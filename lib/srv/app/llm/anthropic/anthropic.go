@@ -37,7 +37,7 @@ import (
 
 // NewRequest creates a new provider request based on the downstream request,
 // and inference endpoint configuration.
-func NewRequest(cfg *llmrequest.Config) (*http.Request, *RequestInfo, error) {
+func NewRequest(cfg *llmrequest.Config) (*http.Request, llmrequest.RequestInfo, error) {
 	var (
 		info            = &RequestInfo{}
 		providerPath    string
@@ -189,7 +189,7 @@ func marshalError(apiErr *errorEnvelope) []byte {
 	enc, err := utils.FastMarshal(apiErr)
 	if err != nil {
 		return []byte(
-			`{"type": "error", "error": {"type": "api_error", "message": "` + llmerrors.ErrUnknown.Error() + `"}}`,
+			`{"type": "error", "error": {"type": "api_error", "message": ` + llmerrors.MarshalMessage(llmerrors.ErrUnknown) + `}}`,
 		)
 	}
 	return enc
