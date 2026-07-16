@@ -148,6 +148,8 @@ export type RdpConnectionActivated = {
   userChannelId: number;
   screenWidth: number;
   screenHeight: number;
+  // TDPB exclusive field
+  shareId: number;
 };
 
 export enum Severity {
@@ -372,6 +374,7 @@ export type ServerHello = {
   activationEvent: RdpConnectionActivated;
   directoryRemovalSupport: boolean;
   multidirectorySharingSupported: boolean;
+  sessions: string[];
 };
 
 export type ClientHello = {
@@ -444,6 +447,7 @@ export interface Codec {
   encodeKeyboardInput(code: string, state: ButtonState): Message[];
   encodeMouseWheelScroll(axis: ScrollAxis, delta: number): Message;
   encodeClientScreenSpec(spec: ClientScreenSpec): Message;
+  encodeSessionSelection(sessions: string): Message;
   encodeMfaJson(mfaJson: MfaResponse): Message;
   encodeSharedDirectoryInfoResponse(res: SharedDirectoryInfoResponse): Message;
   encodeSharedDirectoryReadResponse(res: SharedDirectoryReadResponse): Message;
@@ -646,16 +650,17 @@ export class TdpbCodec implements Codec {
 
     switch (envelope.payload.oneofKind) {
       case 'serverHello':
+        const hello = envelope.payload.serverHello;
         return {
           kind: 'serverHello',
           data: {
-            clipboardSupport: envelope.payload.serverHello.clipboardEnabled,
-            hidpiSupported: envelope.payload.serverHello.hidpiSupported,
-            activationEvent: envelope.payload.serverHello.activationSpec,
-            directoryRemovalSupport:
-              envelope.payload.serverHello.directoryRemoveSupported,
+            sessions: hello.sessions.map(s => s.name),
+            clipboardSupport: hello.clipboardEnabled,
+            hidpiSupported: hello.hidpiSupported,
+            activationEvent: hello.activationSpec,
+            directoryRemovalSupport: hello.directoryRemoveSupported,
             multidirectorySharingSupported:
-              envelope.payload.serverHello.multidirectorySharingSupported,
+              hello.multidirectorySharingSupported,
           },
         };
       case 'pngFrame':
@@ -825,6 +830,17 @@ export class TdpbCodec implements Codec {
       }),
     });
     return [hello];
+  }
+
+  encodeSessionSelection(session: string): Message {
+    return this.marshal({
+      oneofKind: 'sessionSelection',
+      sessionSelection: {
+        session: {
+          name: session,
+        },
+      },
+    });
   }
 
   encodeClientScreenSpec(spec: ClientScreenSpec): Message {
@@ -1258,6 +1274,11 @@ export class TdpCodec implements Codec {
       x: view.getUint8(1),
       y: view.getUint8(2),
     };
+  }
+
+  encodeSessionSelection(_sessions: string): Message {
+    // SessionSelection is used only by Linux desktop and it uses TDPB only
+    throw new Error('Method not implemented.');
   }
 
   encodeInitialMessages(
@@ -1868,7 +1889,14 @@ export class TdpCodec implements Codec {
     const screenHeight = dv.getUint16(offset);
     offset += UINT_16_LEN;
 
-    return { ioChannelId, userChannelId, screenWidth, screenHeight };
+    // shareId is not supported by legacy TDP. Hardcode to zero.
+    return {
+      ioChannelId,
+      userChannelId,
+      screenWidth,
+      screenHeight,
+      shareId: 0,
+    };
   }
 
   // | message type (12) | err_code error | directory_id uint32 |

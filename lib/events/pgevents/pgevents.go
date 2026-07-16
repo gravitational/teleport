@@ -20,6 +20,7 @@ package pgevents
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/url"
@@ -411,28 +412,15 @@ func (l *Log) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) er
 	return nil
 }
 
-const insertEventQuery = `WITH ins AS (
-	INSERT INTO events (event_time, event_id, event_type, session_id, event_data)
-		VALUES ($1, $2, $3, $4, $5)
-		ON CONFLICT (event_time, event_id) DO NOTHING
-		RETURNING 1
-)
-SELECT
-	EXISTS (SELECT 1 FROM ins),
-	(SELECT e.event_data::jsonb = $5::jsonb
-		FROM events e
-		WHERE e.event_time = $1 AND e.event_id = $2)`
-
 func (l *Log) insertEvent(ctx context.Context, event apievents.AuditEvent, eventID, sessionID uuid.UUID, eventJSON string) error {
-	inserted, existingMatches, err := l.tryInsertEvent(ctx, event, eventID, sessionID, eventJSON)
+	inserted, matches, err := l.tryInsertEvent(ctx, event, eventID, sessionID, eventJSON)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	if inserted {
 		return nil
 	}
-
-	if existingMatches != nil && *existingMatches {
+	if matches {
 		writeRequestsDeduped.Inc()
 		return nil
 	}
@@ -447,33 +435,57 @@ func (l *Log) insertEvent(ctx context.Context, event apievents.AuditEvent, event
 	)
 	eventIDCollisions.Inc()
 
-	inserted, _, err = l.tryInsertEvent(ctx, event, newID, sessionID, eventJSON)
+	inserted, matches, err = l.tryInsertEvent(ctx, event, newID, sessionID, eventJSON)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if !inserted {
-		return trace.AlreadyExists(
-			"audit event id collision persisted after generating a new id (event_time %v)",
-			event.GetTime().UTC(),
-		)
+	if inserted || matches {
+		return nil
 	}
-	return nil
+	return trace.AlreadyExists(
+		"audit event id collision persisted after generating a new id (event_time %v)",
+		event.GetTime().UTC(),
+	)
 }
 
-func (l *Log) tryInsertEvent(ctx context.Context, event apievents.AuditEvent, eventID, sessionID uuid.UUID, eventJSON string) (bool, *bool, error) {
+const insertEventQuery = `INSERT INTO events (event_time, event_id, event_type, session_id, event_data)
+	VALUES ($1, $2, $3, $4, $5)
+	ON CONFLICT (event_time, event_id) DO NOTHING`
+
+const matchEventQuery = `SELECT event_data::jsonb = $3::jsonb
+	FROM events
+	WHERE event_time = $1 AND event_id = $2`
+
+func (l *Log) tryInsertEvent(ctx context.Context, event apievents.AuditEvent, eventID, sessionID uuid.UUID, eventJSON string) (bool, bool, error) {
 	type insertResult struct {
 		inserted bool
-		matches  *bool
+		matches  bool
 	}
 	res, err := pgcommon.RetryIdempotent(ctx, l.log, func() (insertResult, error) {
-		var out insertResult
-		err := l.pool.QueryRow(ctx, insertEventQuery,
+		tag, err := l.pool.Exec(ctx, insertEventQuery,
 			event.GetTime().UTC(), eventID, event.GetType(), sessionID, eventJSON,
-		).Scan(&out.inserted, &out.matches)
-		return out, trace.Wrap(err)
+		)
+		if err != nil {
+			return insertResult{}, trace.Wrap(err)
+		}
+		if tag.RowsAffected() > 0 {
+			return insertResult{inserted: true}, nil
+		}
+
+		var matches bool
+		err = l.pool.QueryRow(ctx, matchEventQuery,
+			event.GetTime().UTC(), eventID, eventJSON,
+		).Scan(&matches)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return insertResult{}, nil
+		}
+		if err != nil {
+			return insertResult{}, trace.Wrap(err)
+		}
+		return insertResult{matches: matches}, nil
 	})
 	if err != nil {
-		return false, nil, trace.Wrap(err)
+		return false, false, trace.Wrap(err)
 	}
 	return res.inserted, res.matches, nil
 }

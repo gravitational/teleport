@@ -722,6 +722,7 @@ func ApplyFileConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		&cfg.Kube.Limiter,
 		&cfg.WindowsDesktop.ConnLimiter,
 		&cfg.Apps.Limiter,
+		&cfg.LinuxDesktop.ConnLimiter,
 	}
 	for _, l := range limiters {
 		if fc.Limits.MaxConnections > 0 {
@@ -779,6 +780,11 @@ func ApplyFileConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	}
 	if fc.WindowsDesktop.Enabled() {
 		if err := applyWindowsDesktopConfig(fc, cfg); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	if fc.LinuxDesktop.Enabled() {
+		if err := applyLinuxDesktopConfig(fc, cfg); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -2138,6 +2144,7 @@ func applyAppsConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		if application.AWS != nil {
 			app.AWS = &servicecfg.AppAWS{
 				ExternalID: application.AWS.ExternalID,
+				Region:     application.AWS.Region,
 			}
 		}
 
@@ -2380,20 +2387,13 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		cfg.WindowsDesktop.ListenAddr = *listenAddr
 	}
 
-	for _, attributeName := range fc.WindowsDesktop.Discovery.LabelAttributes {
-		if !types.IsValidLabelKey(attributeName) {
-			return trace.BadParameter("WindowsDesktopService specifies label_attribute %q which is not a valid label key", attributeName)
-		}
-	}
-
-	for _, filter := range fc.WindowsDesktop.Discovery.Filters {
-		if _, err := ldap.CompileFilter(filter); err != nil {
-			return trace.BadParameter("WindowsDesktopService specifies invalid LDAP filter %q", filter)
-		}
-	}
-
 	if fc.WindowsDesktop.Discovery.BaseDN != "" && len(fc.WindowsDesktop.DiscoveryConfigs) > 0 {
 		return trace.BadParameter("WindowsDesktopService specifies both discovery and discovery_configs: move the discovery section to discovery_configs to continue")
+	}
+
+	// append the old (singular) discovery config to the new format that supports multiple configs
+	if fc.WindowsDesktop.Discovery.BaseDN != "" {
+		fc.WindowsDesktop.DiscoveryConfigs = append(fc.WindowsDesktop.DiscoveryConfigs, fc.WindowsDesktop.Discovery)
 	}
 
 	for _, discoveryConfig := range fc.WindowsDesktop.DiscoveryConfigs {
@@ -2412,14 +2412,16 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 				return trace.BadParameter("WindowsDesktopService specifies label_attribute %q which is not a valid label key", attributeName)
 			}
 		}
+		switch mode := discoveryConfig.LabelAttributeMode; mode {
+		case servicecfg.LabelAttributeModeJoin:
+		case servicecfg.LabelAttributeModeFirst, "":
+		default:
+			return trace.BadParameter("WindowsDesktopService specifies invalid label_attribute_mode %q", mode)
+		}
+
 		if p := discoveryConfig.RDPPort; p < 0 || p > 65535 {
 			return trace.BadParameter("WindowsDesktopService specifies invalid RDP port %d", p)
 		}
-	}
-
-	// append the old (singular) discovery config to the new format that supports multiple configs
-	if fc.WindowsDesktop.Discovery.BaseDN != "" {
-		fc.WindowsDesktop.DiscoveryConfigs = append(fc.WindowsDesktop.DiscoveryConfigs, fc.WindowsDesktop.Discovery)
 	}
 
 	cfg.WindowsDesktop.Discovery = make([]servicecfg.LDAPDiscoveryConfig, 0, len(fc.WindowsDesktop.DiscoveryConfigs))
@@ -2429,11 +2431,13 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		}
 		cfg.WindowsDesktop.Discovery = append(cfg.WindowsDesktop.Discovery,
 			servicecfg.LDAPDiscoveryConfig{
-				BaseDN:          dc.BaseDN,
-				Filters:         dc.Filters,
-				Labels:          dc.Labels,
-				LabelAttributes: dc.LabelAttributes,
-				RDPPort:         cmp.Or(dc.RDPPort, int(defaults.RDPListenPort)),
+				BaseDN:                      dc.BaseDN,
+				Filters:                     dc.Filters,
+				Labels:                      dc.Labels,
+				LabelAttributes:             dc.LabelAttributes,
+				LabelAttributeMode:          cmp.Or(dc.LabelAttributeMode, string(servicecfg.LabelAttributeModeFirst)),
+				LabelAttributeJoinSeparator: dc.LabelAttributeJoinSeparator,
+				RDPPort:                     cmp.Or(dc.RDPPort, int(defaults.RDPListenPort)),
 			},
 		)
 	}
@@ -2546,6 +2550,35 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	if fc.WindowsDesktop.Labels != nil {
 		cfg.WindowsDesktop.Labels = maps.Clone(fc.WindowsDesktop.Labels)
 	}
+
+	return nil
+}
+
+// applyLinuxDesktopConfig applies file configuration for the "linux_desktop_service" section.
+func applyLinuxDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
+	cfg.LinuxDesktop.Enabled = true
+
+	if fc.LinuxDesktop.Labels != nil {
+		cfg.LinuxDesktop.Labels = maps.Clone(fc.LinuxDesktop.Labels)
+	}
+
+	if fc.LinuxDesktop.XSessions.Included != "" {
+		r, err := regexp.Compile(fc.LinuxDesktop.XSessions.Included)
+		if err != nil {
+			return trace.BadParameter("invalid pattern for included sessions: %s", fc.LinuxDesktop.XSessions.Included)
+		}
+		cfg.LinuxDesktop.IncludedSessions = r
+	}
+
+	if fc.LinuxDesktop.XSessions.Excluded != "" {
+		r, err := regexp.Compile(fc.LinuxDesktop.XSessions.Excluded)
+		if err != nil {
+			return trace.BadParameter("invalid pattern for excluded sessions: %s", fc.LinuxDesktop.XSessions.Excluded)
+		}
+		cfg.LinuxDesktop.ExcludedSessions = r
+	}
+
+	cfg.LinuxDesktop.SessionWrapper = fc.LinuxDesktop.SessionWrapper
 
 	return nil
 }
@@ -3250,6 +3283,7 @@ func validateRoles(roles string) error {
 			defaults.RoleApp,
 			defaults.RoleDatabase,
 			defaults.RoleWindowsDesktop,
+			defaults.RoleLinuxDesktop,
 			defaults.RoleDiscovery:
 		default:
 			return trace.Errorf("unknown role: '%s'", role)
@@ -3265,8 +3299,12 @@ func splitRoles(roles string) []string {
 
 // applyTokenConfig applies the auth_token and join_params to the config
 func applyTokenConfig(fc *FileConfig, cfg *servicecfg.Config) error {
+	// Determine if JoinParams is set to something beyond its zero value using
+	// a go-derive generated helper.
+	joinParamsSet := !fc.JoinParams.IsEqual(&JoinParams{})
+
 	if fc.AuthToken != "" {
-		if fc.JoinParams != (JoinParams{}) {
+		if joinParamsSet {
 			return trace.BadParameter("only one of auth_token or join_params should be set")
 		}
 
@@ -3276,7 +3314,7 @@ func applyTokenConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		return nil
 	}
 
-	if fc.JoinParams != (JoinParams{}) {
+	if joinParamsSet {
 		cfg.SetToken(fc.JoinParams.TokenName)
 
 		if err := types.ValidateJoinMethod(fc.JoinParams.Method); err != nil {
@@ -3299,6 +3337,16 @@ func applyTokenConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 					RegistrationSecretValue: fc.JoinParams.BoundKeypair.RegistrationSecretValue,
 					RegistrationSecretPath:  fc.JoinParams.BoundKeypair.RegistrationSecretPath,
 					StaticPrivateKeyPath:    fc.JoinParams.BoundKeypair.StaticPrivateKeyPath,
+				},
+			}
+		}
+
+		if fc.JoinParams.GenericOIDC.IsSet() {
+			cfg.JoinParams = servicecfg.JoinParams{
+				GenericOIDC: servicecfg.GenericOIDCParams{
+					Env:     fc.JoinParams.GenericOIDC.Env,
+					Command: fc.JoinParams.GenericOIDC.Command,
+					Timeout: fc.JoinParams.GenericOIDC.Timeout,
 				},
 			}
 		}

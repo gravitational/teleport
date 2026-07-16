@@ -57,6 +57,9 @@ type ScopeAwareService[T ScopedResource] struct {
 	// ScopedService is the underlying service for resources with a scope.
 	// Resources will be keyed at <scoped_prefix>/<backend_prefix>/<encoded_scope>/<name>
 	ScopedService *Service[T]
+
+	backend                     backend.Backend
+	runWhileLockedRetryInterval time.Duration
 }
 
 // ScopeAwareServiceConfig holds configuration options for ScopeAwareService.
@@ -125,8 +128,10 @@ func NewScopeAwareService[T ScopedResource](cfg *ScopeAwareServiceConfig[T]) (*S
 	}
 
 	return &ScopeAwareService[T]{
-		UnscopedService: unscopedService,
-		ScopedService:   scopedService,
+		UnscopedService:             unscopedService,
+		ScopedService:               scopedService,
+		backend:                     cfg.Backend,
+		runWhileLockedRetryInterval: cfg.RunWhileLockedRetryInterval,
 	}, nil
 }
 
@@ -367,4 +372,19 @@ func (s *ScopeAwareService[T]) WithScopedResourcePrefix(scopedName scopes.Qualif
 		return nil, trace.Wrap(err)
 	}
 	return s.ScopedService.WithPrefix(encodedScope, scopedName.Name), nil
+}
+
+// RunWhileLocked will run the given function in a backend lock. This is a wrapper around the backend.RunWhileLocked function.
+func (s *ScopeAwareService[T]) RunWhileLocked(ctx context.Context, lockNameComponents []string, ttl time.Duration, fn func(context.Context, backend.Backend) error) error {
+	return trace.Wrap(backend.RunWhileLocked(ctx,
+		backend.RunWhileLockedConfig{
+			LockConfiguration: backend.LockConfiguration{
+				Backend:            s.backend,
+				LockNameComponents: lockNameComponents,
+				TTL:                ttl,
+				RetryInterval:      s.runWhileLockedRetryInterval,
+			},
+		}, func(ctx context.Context) error {
+			return fn(ctx, s.backend)
+		}))
 }

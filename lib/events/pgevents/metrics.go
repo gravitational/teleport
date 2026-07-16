@@ -110,5 +110,6 @@ var (
 		writeRequests, batchReadRequests, batchDeleteRequests,
 		writeRequestsDeduped, eventIDCollisions,
 		writeLatencies, batchReadLatencies, batchDeleteLatencies,
+		writeRequestsDeduped, eventIDCollisions,
 	}
 )

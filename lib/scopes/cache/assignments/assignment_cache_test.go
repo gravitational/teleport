@@ -214,8 +214,8 @@ func TestListScopedRoleAssignmentsScenarios(t *testing.T) {
 
 	// verify expected behavior for standard cursors in resources subject to scope mode
 	rsp, err := cache.ListScopedRoleAssignments(t.Context(), scopedaccessv1.ListScopedRoleAssignmentsRequest_builder{
-		ResourceScope: scopespb.Filter_builder{
-			Mode:  scopespb.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
+		ScopeFilter: scopespb.Filter_builder{
+			Mode:  scopespb.Mode_MODE_DESCENDANTS,
 			Scope: "/aa",
 		}.Build(),
 		PageToken: "v1:bob-02/dynamic@/aa",
@@ -226,8 +226,8 @@ func TestListScopedRoleAssignmentsScenarios(t *testing.T) {
 
 	// try to inject a malicious root out-of-band cursor in resources subject to scope mode (no effect)
 	rsp, err = cache.ListScopedRoleAssignments(t.Context(), scopedaccessv1.ListScopedRoleAssignmentsRequest_builder{
-		ResourceScope: scopespb.Filter_builder{
-			Mode:  scopespb.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
+		ScopeFilter: scopespb.Filter_builder{
+			Mode:  scopespb.Mode_MODE_DESCENDANTS,
 			Scope: "/aa",
 		}.Build(),
 		PageToken: "v1:bob-01/dynamic@/",
@@ -238,8 +238,8 @@ func TestListScopedRoleAssignmentsScenarios(t *testing.T) {
 
 	// try to inject a malicious orthogonal out-of-band cursor in resources subject to scope mode (no effect)
 	rsp, err = cache.ListScopedRoleAssignments(t.Context(), scopedaccessv1.ListScopedRoleAssignmentsRequest_builder{
-		ResourceScope: scopespb.Filter_builder{
-			Mode:  scopespb.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
+		ScopeFilter: scopespb.Filter_builder{
+			Mode:  scopespb.Mode_MODE_DESCENDANTS,
 			Scope: "/aa",
 		}.Build(),
 		PageToken: "v1:carol-01/dynamic@/bb",
@@ -250,8 +250,8 @@ func TestListScopedRoleAssignmentsScenarios(t *testing.T) {
 
 	// verify expected behavior for standard cursors in policies applicable to scope mode
 	rsp, err = cache.ListScopedRoleAssignments(t.Context(), scopedaccessv1.ListScopedRoleAssignmentsRequest_builder{
-		ResourceScope: scopespb.Filter_builder{
-			Mode:  scopespb.Mode_MODE_POLICIES_APPLICABLE_TO_SCOPE,
+		ScopeFilter: scopespb.Filter_builder{
+			Mode:  scopespb.Mode_MODE_ANCESTORS,
 			Scope: "/aa",
 		}.Build(),
 		PageToken: "v1:bob-01/dynamic@/",
@@ -263,8 +263,8 @@ func TestListScopedRoleAssignmentsScenarios(t *testing.T) {
 	// try to inject a malicious child out-of-band cursor in policies applicable to scope mode (effect is
 	// to ignore all items in valid query path).
 	rsp, err = cache.ListScopedRoleAssignments(t.Context(), scopedaccessv1.ListScopedRoleAssignmentsRequest_builder{
-		ResourceScope: scopespb.Filter_builder{
-			Mode:  scopespb.Mode_MODE_POLICIES_APPLICABLE_TO_SCOPE,
+		ScopeFilter: scopespb.Filter_builder{
+			Mode:  scopespb.Mode_MODE_ANCESTORS,
 			Scope: "/aa",
 		}.Build(),
 		PageToken: "v1:bob-03/dynamic@/aa/bb",
@@ -276,8 +276,8 @@ func TestListScopedRoleAssignmentsScenarios(t *testing.T) {
 	// try to inject a malicious orthogonal out-of-band cursor in policies applicable to scope mode (effect is to
 	// ignore root, but process leaf normally).
 	rsp, err = cache.ListScopedRoleAssignments(t.Context(), scopedaccessv1.ListScopedRoleAssignmentsRequest_builder{
-		ResourceScope: scopespb.Filter_builder{
-			Mode:  scopespb.Mode_MODE_POLICIES_APPLICABLE_TO_SCOPE,
+		ScopeFilter: scopespb.Filter_builder{
+			Mode:  scopespb.Mode_MODE_ANCESTORS,
 			Scope: "/aa",
 		}.Build(),
 		PageToken: "v1:carol-01/dynamic@/bb",
@@ -288,8 +288,8 @@ func TestListScopedRoleAssignmentsScenarios(t *testing.T) {
 
 	// verify rejection of unknown cursor version
 	_, err = cache.ListScopedRoleAssignments(t.Context(), scopedaccessv1.ListScopedRoleAssignmentsRequest_builder{
-		ResourceScope: scopespb.Filter_builder{
-			Mode:  scopespb.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
+		ScopeFilter: scopespb.Filter_builder{
+			Mode:  scopespb.Mode_MODE_DESCENDANTS,
 			Scope: "/aa",
 		}.Build(),
 		PageToken: "v2:bob-02/dynamic@/aa",
@@ -545,8 +545,8 @@ func TestListScopedRoleAssignmentsBasics(t *testing.T) {
 		{
 			name: "resource scope root",
 			req: scopedaccessv1.ListScopedRoleAssignmentsRequest_builder{
-				ResourceScope: scopespb.Filter_builder{
-					Mode:  scopespb.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
+				ScopeFilter: scopespb.Filter_builder{
+					Mode:  scopespb.Mode_MODE_DESCENDANTS,
 					Scope: "/",
 				}.Build(),
 			}.Build(),
@@ -563,8 +563,8 @@ func TestListScopedRoleAssignmentsBasics(t *testing.T) {
 		{
 			name: "resource scope non-root",
 			req: scopedaccessv1.ListScopedRoleAssignmentsRequest_builder{
-				ResourceScope: scopespb.Filter_builder{
-					Mode:  scopespb.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
+				ScopeFilter: scopespb.Filter_builder{
+					Mode:  scopespb.Mode_MODE_DESCENDANTS,
 					Scope: "/aa",
 				}.Build(),
 			}.Build(),
@@ -578,8 +578,8 @@ func TestListScopedRoleAssignmentsBasics(t *testing.T) {
 		{
 			name: "policy scope root",
 			req: scopedaccessv1.ListScopedRoleAssignmentsRequest_builder{
-				ResourceScope: scopespb.Filter_builder{
-					Mode:  scopespb.Mode_MODE_POLICIES_APPLICABLE_TO_SCOPE,
+				ScopeFilter: scopespb.Filter_builder{
+					Mode:  scopespb.Mode_MODE_ANCESTORS,
 					Scope: "/",
 				}.Build(),
 			}.Build(),
@@ -593,8 +593,8 @@ func TestListScopedRoleAssignmentsBasics(t *testing.T) {
 		{
 			name: "policy scope non-root",
 			req: scopedaccessv1.ListScopedRoleAssignmentsRequest_builder{
-				ResourceScope: scopespb.Filter_builder{
-					Mode:  scopespb.Mode_MODE_POLICIES_APPLICABLE_TO_SCOPE,
+				ScopeFilter: scopespb.Filter_builder{
+					Mode:  scopespb.Mode_MODE_ANCESTORS,
 					Scope: "/aa",
 				}.Build(),
 			}.Build(),
