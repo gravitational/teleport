@@ -13,7 +13,24 @@ on:
       oss-teleport-repo:
         type: string
         default: "gravitational/teleport"
+      teleport-release-tag:
+        description: |
+          The semver version of the teleport release to rebuild, including
+          the leading `v`
+        type: string
+        required: true
+      environment:
+        description: |
+          GitHub Actions environment in which to run the rebuild. Can be either
+          `stage/oci-rebuild` or `prod/oci-rebuild`.
+        type: string
+        default: stage/oci-rebuild
 
+  workflow_call:
+    inputs:
+      oss-teleport-repo:
+        type: string
+        default: "gravitational/teleport"
       teleport-release-tag:
         description: |
           The semver version of the teleport release to rebuild, including
