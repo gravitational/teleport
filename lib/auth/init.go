@@ -1878,7 +1878,7 @@ func applyResources(ctx context.Context, service *Services, resources []types.Re
 	return nil
 }
 
-// applyTokens upserts a provision token supplied via --apply-on-startup. 
+// applyTokens upserts a provision token supplied via --apply-on-startup.
 func applyTokens(ctx context.Context, service *Services, token types.ProvisionToken) error {
 	switch token.GetJoinMethod() {
 	case types.JoinMethodBoundKeypair:
