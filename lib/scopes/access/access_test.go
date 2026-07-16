@@ -829,7 +829,7 @@ func TestValidateAsssignment(t *testing.T) {
 					User: "alice",
 					Assignments: []*scopedaccessv1.Assignment{
 						scopedaccessv1.Assignment_builder{
-							Role:  "test",
+							Role:  "/::test",
 							Scope: "/foo",
 						}.Build(),
 					},
@@ -852,7 +852,7 @@ func TestValidateAsssignment(t *testing.T) {
 					User: "alice",
 					Assignments: []*scopedaccessv1.Assignment{
 						scopedaccessv1.Assignment_builder{
-							Role:  "test",
+							Role:  "/::test",
 							Scope: "/foo",
 						}.Build(),
 					},
@@ -872,7 +872,7 @@ func TestValidateAsssignment(t *testing.T) {
 					User: "alice",
 					Assignments: []*scopedaccessv1.Assignment{
 						scopedaccessv1.Assignment_builder{
-							Role:  "test",
+							Role:  "/::test",
 							Scope: "/foo",
 						}.Build(),
 					},
@@ -893,7 +893,7 @@ func TestValidateAsssignment(t *testing.T) {
 					User: "alice",
 					Assignments: []*scopedaccessv1.Assignment{
 						scopedaccessv1.Assignment_builder{
-							Role:  "test",
+							Role:  "/::test",
 							Scope: "/foo",
 						}.Build(),
 					},
@@ -915,7 +915,7 @@ func TestValidateAsssignment(t *testing.T) {
 					User: "alice",
 					Assignments: []*scopedaccessv1.Assignment{
 						scopedaccessv1.Assignment_builder{
-							Role:  "test",
+							Role:  "/::test",
 							Scope: "/foo",
 						}.Build(),
 					},
@@ -937,7 +937,7 @@ func TestValidateAsssignment(t *testing.T) {
 					User: "alice",
 					Assignments: []*scopedaccessv1.Assignment{
 						scopedaccessv1.Assignment_builder{
-							Role:  "test",
+							Role:  "/::test",
 							Scope: "/foo",
 						}.Build(),
 					},
@@ -960,7 +960,7 @@ func TestValidateAsssignment(t *testing.T) {
 					User: "alice",
 					Assignments: []*scopedaccessv1.Assignment{
 						scopedaccessv1.Assignment_builder{
-							Role:  "test",
+							Role:  "/::test",
 							Scope: "/foo",
 						}.Build(),
 					},
@@ -982,7 +982,7 @@ func TestValidateAsssignment(t *testing.T) {
 					User: "alice",
 					Assignments: []*scopedaccessv1.Assignment{
 						scopedaccessv1.Assignment_builder{
-							Role:  "test",
+							Role:  "/::test",
 							Scope: "/foo",
 						}.Build(),
 					},
@@ -1004,7 +1004,7 @@ func TestValidateAsssignment(t *testing.T) {
 					User: "alice",
 					Assignments: []*scopedaccessv1.Assignment{
 						scopedaccessv1.Assignment_builder{
-							Role:  "test",
+							Role:  "/::test",
 							Scope: "/foo",
 						}.Build(),
 					},
@@ -1027,7 +1027,7 @@ func TestValidateAsssignment(t *testing.T) {
 					User: "alice",
 					Assignments: []*scopedaccessv1.Assignment{
 						scopedaccessv1.Assignment_builder{
-							Role:  "test",
+							Role:  "foo::test",
 							Scope: "/foo",
 						}.Build(),
 					},
@@ -1050,7 +1050,7 @@ func TestValidateAsssignment(t *testing.T) {
 					User: "alice",
 					Assignments: []*scopedaccessv1.Assignment{
 						scopedaccessv1.Assignment_builder{
-							Role:  "test",
+							Role:  "foo@bar::test",
 							Scope: "/foo",
 						}.Build(),
 					},
@@ -1073,7 +1073,7 @@ func TestValidateAsssignment(t *testing.T) {
 					User: "alice",
 					Assignments: []*scopedaccessv1.Assignment{
 						scopedaccessv1.Assignment_builder{
-							Role:  "test",
+							Role:  "/foo/bar::test",
 							Scope: "/foo",
 						}.Build(),
 					},
@@ -1096,7 +1096,7 @@ func TestValidateAsssignment(t *testing.T) {
 					User: "alice",
 					Assignments: []*scopedaccessv1.Assignment{
 						scopedaccessv1.Assignment_builder{
-							Role:  "test",
+							Role:  "/::test",
 							Scope: "foo",
 						}.Build(),
 					},
@@ -1118,7 +1118,7 @@ func TestValidateAsssignment(t *testing.T) {
 					User: "alice",
 					Assignments: []*scopedaccessv1.Assignment{
 						scopedaccessv1.Assignment_builder{
-							Role:  "test",
+							Role:  "/::test",
 							Scope: "/",
 						}.Build(),
 					},
@@ -1141,7 +1141,7 @@ func TestValidateAsssignment(t *testing.T) {
 					User: "alice",
 					Assignments: []*scopedaccessv1.Assignment{
 						scopedaccessv1.Assignment_builder{
-							Role:  "test",
+							Role:  "/::test",
 							Scope: "/foo",
 						}.Build(),
 					},
@@ -1164,7 +1164,7 @@ func TestValidateAsssignment(t *testing.T) {
 					Bot: "/foo/bar::mybot",
 					Assignments: []*scopedaccessv1.Assignment{
 						scopedaccessv1.Assignment_builder{
-							Role:  "test",
+							Role:  "/::test",
 							Scope: "/foo/bar/child",
 						}.Build(),
 					},
@@ -1188,7 +1188,7 @@ func TestValidateAsssignment(t *testing.T) {
 					Bot:  "/foo/bar::mybot",
 					Assignments: []*scopedaccessv1.Assignment{
 						scopedaccessv1.Assignment_builder{
-							Role:  "test",
+							Role:  "/::test",
 							Scope: "/foo",
 						}.Build(),
 					},
@@ -1211,7 +1211,7 @@ func TestValidateAsssignment(t *testing.T) {
 					Bot: "mybot",
 					Assignments: []*scopedaccessv1.Assignment{
 						scopedaccessv1.Assignment_builder{
-							Role:  "test",
+							Role:  "/::test",
 							Scope: "/foo",
 						}.Build(),
 					},
@@ -1234,7 +1234,7 @@ func TestValidateAsssignment(t *testing.T) {
 					Bot: "/foo/bar::",
 					Assignments: []*scopedaccessv1.Assignment{
 						scopedaccessv1.Assignment_builder{
-							Role:  "test",
+							Role:  "/::test",
 							Scope: "/foo",
 						}.Build(),
 					},
@@ -1257,7 +1257,7 @@ func TestValidateAsssignment(t *testing.T) {
 					Bot: "not-a-scope::mybot",
 					Assignments: []*scopedaccessv1.Assignment{
 						scopedaccessv1.Assignment_builder{
-							Role:  "test",
+							Role:  "/::test",
 							Scope: "/foo",
 						}.Build(),
 					},
@@ -1281,12 +1281,12 @@ func TestValidateAsssignment(t *testing.T) {
 					Assignments: []*scopedaccessv1.Assignment{
 						// Valid
 						scopedaccessv1.Assignment_builder{
-							Role:  "test",
+							Role:  "/::test",
 							Scope: "/foo/bar",
 						}.Build(),
 						// Invalid
 						scopedaccessv1.Assignment_builder{
-							Role:  "test",
+							Role:  "/::test",
 							Scope: "/foo/baz",
 						}.Build(),
 					},
@@ -1385,21 +1385,21 @@ func TestWeakValidatedSubAssignments(t *testing.T) {
 			scope: "/foo",
 			assignments: []*scopedaccessv1.Assignment{
 				scopedaccessv1.Assignment_builder{
-					Role:  "test",
+					Role:  "/foo::test",
 					Scope: "/foo/bar",
 				}.Build(),
 				scopedaccessv1.Assignment_builder{
-					Role:  "test",
+					Role:  "/foo::test",
 					Scope: "/foo/baz",
 				}.Build(),
 			},
 			expect: []*scopedaccessv1.Assignment{
 				scopedaccessv1.Assignment_builder{
-					Role:  "test",
+					Role:  "/foo::test",
 					Scope: "/foo/bar",
 				}.Build(),
 				scopedaccessv1.Assignment_builder{
-					Role:  "test",
+					Role:  "/foo::test",
 					Scope: "/foo/baz",
 				}.Build(),
 			},
@@ -1409,21 +1409,21 @@ func TestWeakValidatedSubAssignments(t *testing.T) {
 			scope: "/foo",
 			assignments: []*scopedaccessv1.Assignment{
 				scopedaccessv1.Assignment_builder{
-					Role:  "test",
+					Role:  "/foo::test",
 					Scope: "foo/bar",
 				}.Build(),
 				scopedaccessv1.Assignment_builder{
-					Role:  "test",
+					Role:  "/foo::test",
 					Scope: "/foo/baz",
 				}.Build(),
 			},
 			expect: []*scopedaccessv1.Assignment{
 				scopedaccessv1.Assignment_builder{
-					Role:  "test",
+					Role:  "/foo::test",
 					Scope: "foo/bar",
 				}.Build(),
 				scopedaccessv1.Assignment_builder{
-					Role:  "test",
+					Role:  "/foo::test",
 					Scope: "/foo/baz",
 				}.Build(),
 			},
@@ -1433,17 +1433,17 @@ func TestWeakValidatedSubAssignments(t *testing.T) {
 			scope: "/foo",
 			assignments: []*scopedaccessv1.Assignment{
 				scopedaccessv1.Assignment_builder{
-					Role:  "test",
+					Role:  "/foo::test",
 					Scope: "foo@bar",
 				}.Build(),
 				scopedaccessv1.Assignment_builder{
-					Role:  "test",
+					Role:  "/foo::test",
 					Scope: "/foo/baz",
 				}.Build(),
 			},
 			expect: []*scopedaccessv1.Assignment{
 				scopedaccessv1.Assignment_builder{
-					Role:  "test",
+					Role:  "/foo::test",
 					Scope: "/foo/baz",
 				}.Build(),
 			},
@@ -1453,17 +1453,17 @@ func TestWeakValidatedSubAssignments(t *testing.T) {
 			scope: "/foo/bar",
 			assignments: []*scopedaccessv1.Assignment{
 				scopedaccessv1.Assignment_builder{
-					Role:  "test",
+					Role:  "/foo/bar::test",
 					Scope: "/foo/bar",
 				}.Build(),
 				scopedaccessv1.Assignment_builder{
-					Role:  "test",
+					Role:  "/foo/bar::test",
 					Scope: "/foo/baz",
 				}.Build(),
 			},
 			expect: []*scopedaccessv1.Assignment{
 				scopedaccessv1.Assignment_builder{
-					Role:  "test",
+					Role:  "/foo/bar::test",
 					Scope: "/foo/bar",
 				}.Build(),
 			},
@@ -1473,17 +1473,17 @@ func TestWeakValidatedSubAssignments(t *testing.T) {
 			scope: "/foo",
 			assignments: []*scopedaccessv1.Assignment{
 				scopedaccessv1.Assignment_builder{
-					Role:  "test",
+					Role:  "/foo::test",
 					Scope: "",
 				}.Build(),
 				scopedaccessv1.Assignment_builder{
-					Role:  "test",
+					Role:  "/foo::test",
 					Scope: "/foo/baz",
 				}.Build(),
 			},
 			expect: []*scopedaccessv1.Assignment{
 				scopedaccessv1.Assignment_builder{
-					Role:  "test",
+					Role:  "/foo::test",
 					Scope: "/foo/baz",
 				}.Build(),
 			},
@@ -1493,7 +1493,7 @@ func TestWeakValidatedSubAssignments(t *testing.T) {
 			scope: "/foo",
 			assignments: []*scopedaccessv1.Assignment{
 				scopedaccessv1.Assignment_builder{
-					Role:  "test",
+					Role:  "/foo::test",
 					Scope: "/foo/bar",
 				}.Build(),
 				scopedaccessv1.Assignment_builder{
@@ -1503,7 +1503,7 @@ func TestWeakValidatedSubAssignments(t *testing.T) {
 			},
 			expect: []*scopedaccessv1.Assignment{
 				scopedaccessv1.Assignment_builder{
-					Role:  "test",
+					Role:  "/foo::test",
 					Scope: "/foo/bar",
 				}.Build(),
 			},

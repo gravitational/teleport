@@ -26,6 +26,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	"github.com/gravitational/teleport/lib/scopes"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/scopes/cache"
 )
@@ -64,6 +65,12 @@ func (c *RoleCache) GetScopedRole(ctx context.Context, req *scopedaccessv1.GetSc
 	role, ok := c.cache.Get(req.GetName())
 	if !ok {
 		return nil, trace.NotFound("scoped role %q not found", req.GetName())
+	}
+
+	// emulate namespace-like behavior by treating mismatched scopes as NotFound (prep for the transition
+	// to true namespacing).
+	if scopes.Compare(req.GetScope(), role.GetScope()) != scopes.Equivalent {
+		return nil, trace.NotFound("scoped role %q not found in scope %q", req.GetName(), req.GetScope())
 	}
 
 	return scopedaccessv1.GetScopedRoleResponse_builder{

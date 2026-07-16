@@ -161,15 +161,12 @@ func getScopedRoleAssignment(ctx context.Context, client *authclient.Client, sub
 		rsp, err := client.ScopedAccessServiceClient().GetScopedRoleAssignment(ctx, scopedaccessv1.GetScopedRoleAssignmentRequest_builder{
 			Name:    sqn.Name,
 			SubKind: subKind,
+			Scope:   sqn.Scope,
 		}.Build())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		assignment := rsp.GetAssignment()
-		if assignment.GetScope() != sqn.Scope {
-			return nil, scopeMismatchNotFound(scopedaccess.KindScopedRoleAssignment, *sqn, assignment.GetScope())
-		}
-		return &ScopedRoleAssignmentCollection{roleAssignments: []*scopedaccessv1.ScopedRoleAssignment{assignment}}, nil
+		return &ScopedRoleAssignmentCollection{roleAssignments: []*scopedaccessv1.ScopedRoleAssignment{rsp.GetAssignment()}}, nil
 	}
 
 	items, err := stream.Collect(scopedutils.RangeScopedRoleAssignments(ctx, client.ScopedAccessServiceClient(), scopedaccessv1.ListScopedRoleAssignmentsRequest_builder{
@@ -195,21 +192,10 @@ func deleteScopedRoleAssignment(ctx context.Context, client *authclient.Client, 
 		return trace.BadParameter("%s scoped_role_assignments are derived from access lists and cannot be deleted directly", scopedaccess.SubKindMaterialized)
 	}
 
-	// Fetch first to verify scope before deleting.
-	rsp, err := client.ScopedAccessServiceClient().GetScopedRoleAssignment(ctx, scopedaccessv1.GetScopedRoleAssignmentRequest_builder{
-		Name:    sqn.Name,
-		SubKind: subKind,
-	}.Build())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if rsp.GetAssignment().GetScope() != sqn.Scope {
-		return scopeMismatchNotFound(scopedaccess.KindScopedRoleAssignment, sqn, rsp.GetAssignment().GetScope())
-	}
-
 	if _, err := client.ScopedAccessServiceClient().DeleteScopedRoleAssignment(ctx, scopedaccessv1.DeleteScopedRoleAssignmentRequest_builder{
 		Name:    sqn.Name,
 		SubKind: subKind,
+		Scope:   sqn.Scope,
 	}.Build()); err != nil {
 		return trace.Wrap(err)
 	}
