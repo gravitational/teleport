@@ -68,6 +68,11 @@ type HandlerConfig struct {
 	Transport *http.Transport
 	// Limiter is the tokens limiter applied to the requests.
 	Limiter Limiter
+	// RecordingEnabled records the raw LLM request/response traffic into the
+	// session recording for beam replay. It is resolved once by the app service
+	// (see [BeamLLMRecordingEnabled]) and is only enabled inside a beam with LLM
+	// recording turned on.
+	RecordingEnabled bool
 }
 
 // CheckAndSetDefaults validates required dependencies and sets defaults.
@@ -166,8 +171,17 @@ func NewHandler(ctx context.Context, cfg HandlerConfig) (*Handler, error) {
 
 // ServeHTTP handles an authorized client connection.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if err := h.serveHTTP(w, r); err != nil {
-		h.cfg.Log.ErrorContext(r.Context(), "failed to handle LLM request", "error", err)
+	// Record the raw HTTP exchange into the session recording when beam LLM
+	// recording is enabled. Recording lives here so it is scoped to LLM
+	// traffic alone; other app handlers are not recorded.
+	err := maybeRecordSessionExchange(h.cfg.Log, h.cfg.RecordingEnabled, w, r, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := h.serveHTTP(w, r); err != nil {
+			h.cfg.Log.ErrorContext(r.Context(), "failed to handle LLM request", "error", err)
+			trace.WriteError(w, err)
+		}
+	}))
+	if err != nil {
+		h.cfg.Log.ErrorContext(r.Context(), "failed to record LLM session", "error", err)
 		trace.WriteError(w, err)
 	}
 }
