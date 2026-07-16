@@ -3589,19 +3589,42 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 					return nil, trace.Wrap(err)
 				}
 
-				nodeComponentFeatures := componentfeatures.Intersect(r.GetComponentFeatures(), clusterAuthProxyServerFeatures)
-				unifiedResources = append(unifiedResources, ui.MakeServer(r, ui.MakeServerConfig{
+				cfg := ui.MakeServerConfig{
 					ClusterName:       cluster.GetName(),
-					Logins:            principals.Logins,
 					RequiresRequest:   enriched.RequiresRequest,
-					SupportedFeatures: nodeComponentFeatures,
-				}))
+					SupportedFeatures: componentfeatures.Intersect(r.GetComponentFeatures(), clusterAuthProxyServerFeatures),
+				}
+				if principals != nil && principals.Logins != nil {
+					cfg.Logins = principals.Logins
+				}
+
+				unifiedResources = append(unifiedResources, ui.MakeServer(r, cfg))
 			case types.KindGitServer:
 				unifiedResources = append(unifiedResources, ui.MakeGitServer(cluster.GetName(), r, enriched.RequiresRequest))
 			}
 		case types.DatabaseServer:
-			db := ui.MakeDatabaseFromDatabaseServer(r, accessChecker, h.cfg.DatabaseREPLRegistry, enriched.RequiresRequest)
-			unifiedResources = append(unifiedResources, db)
+			principals, err := PrincipalsForUnifiedResource(PrincipalsForUnifiedResourceOpts{
+				Resource:           enriched,
+				AccessChecker:      accessChecker,
+				IncludeRequestable: req.IncludeRequestable,
+				UseSearchAsRoles:   req.UseSearchAsRoles,
+			})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			cfg := ui.MakeDatabaseFromDatabaseServerConfig{
+				AccessChecker:      accessChecker,
+				InteractiveChecker: h.cfg.DatabaseREPLRegistry,
+				RequiresRequest:    enriched.RequiresRequest,
+				SupportedFeatures:  componentfeatures.Intersect(componentfeatures.GetEffectiveServerFeatures(r), clusterAuthProxyServerFeatures),
+			}
+			if principals != nil {
+				cfg.Principals = &ui.DatabasePrincipals{
+					ByRole:          principals.DBPrincipalsByRole,
+					AutoUserEnabled: principals.DBAutoUserEnabled,
+				}
+			}
+			unifiedResources = append(unifiedResources, ui.MakeDatabaseFromDatabaseServer(r, cfg))
 		case types.AppServer:
 			principals, err := PrincipalsForUnifiedResource(PrincipalsForUnifiedResourceOpts{
 				Resource:           enriched,

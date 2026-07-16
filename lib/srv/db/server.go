@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
+	"github.com/gravitational/teleport/lib/componentfeatures"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/healthcheck"
@@ -896,6 +897,7 @@ func (s *Server) getServerInfo(ctx context.Context, database types.Database) (*t
 		ProxyIDs: s.cfg.ConnectedProxyGetter.GetProxyIDs(),
 	})
 	server.SetTargetHealth(s.getTargetHealth(ctx, database))
+	server.SetComponentFeatures(componentfeatures.ForDatabaseServer())
 	return server, trace.Wrap(err)
 }
 
