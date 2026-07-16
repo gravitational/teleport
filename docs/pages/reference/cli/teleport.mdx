@@ -59,8 +59,14 @@ Clones data from a source to a destination backend.
 Usage:
 
 ```code
-$ teleport backend clone
+$ teleport backend clone [<flags>]
 ```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`-c`, `--config`|*no default*|Path to the config file.|
 
 ## teleport backend edit
 
@@ -69,8 +75,14 @@ Modify a single item from the cluster state backend.
 Usage:
 
 ```code
-$ teleport backend edit <key>
+$ teleport backend edit [<flags>] <key>
 ```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`-c`, `--config`|*no default*|Path to the config file.|
 
 Arguments:
 
@@ -92,6 +104,7 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
+|`-c`, `--config`|*no default*|Path to the config file.|
 |`-f`, `--format`|`text` (one of: `text`, `json`, `yaml`)|Format output (text, json, yaml).|
 
 Arguments:
@@ -114,6 +127,7 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
+|`-c`, `--config`|*no default*|Path to the config file.|
 |`-f`, `--format`|`text` (one of: `text`, `json`, `yaml`)|Format output (text, json, yaml).|
 
 Arguments:
@@ -129,8 +143,14 @@ Removes a single item from the cluster state backend.
 Usage:
 
 ```code
-$ teleport backend rm <key>
+$ teleport backend rm [<flags>] <key>
 ```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`-c`, `--config`|*no default*|Path to the config file.|
 
 Arguments:
 
@@ -159,7 +179,7 @@ Flags:
 |`--cert-file`|*no default*|Path to a TLS certificate file for the proxy.|
 |`--cluster-name`|*no default*|Unique cluster name, e.g. example.com.|
 |`--data-dir`|`/var/lib/teleport`|Path to a directory where Teleport keep its data.|
-|`--join-method`|`token` (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `ec2`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`)|Method to use to join the cluster.|
+|`--join-method`|`token` (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `ec2`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`, `generic_oidc`)|Method to use to join the cluster.|
 |`--key-file`|*no default*|Path to a TLS key file for the proxy.|
 |`--[no-]acme`|`false`|Get automatic certificate from Letsencrypt.org using ACME.|
 |`--node-labels`|*no default*|Comma-separated list of labels to add to newly created nodes, for example env=staging,cloud=aws.|
@@ -349,8 +369,14 @@ Checks if the embedded session helper is working, if available in this build.
 Usage:
 
 ```code
-$ teleport debug check-session-helper
+$ teleport debug check-session-helper [<flags>]
 ```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`-c`, `--config`|*no default*|Path to a configuration file \[/etc/teleport.yaml\].|
 
 ## teleport debug get-log-level
 
@@ -359,8 +385,14 @@ Fetches current log level.
 Usage:
 
 ```code
-$ teleport debug get-log-level
+$ teleport debug get-log-level [<flags>]
 ```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`-c`, `--config`|*no default*|Path to a configuration file \[/etc/teleport.yaml\].|
 
 ## teleport debug metrics
 
@@ -369,8 +401,14 @@ Fetches the cluster's Prometheus metrics.
 Usage:
 
 ```code
-$ teleport debug metrics
+$ teleport debug metrics [<flags>]
 ```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`-c`, `--config`|*no default*|Path to a configuration file \[/etc/teleport.yaml\].|
 
 ## teleport debug profile
 
@@ -387,6 +425,7 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
+|`-c`, `--config`|*no default*|Path to a configuration file \[/etc/teleport.yaml\].|
 |`-s`, `--seconds`|`0`|For CPU and trace profiles, profile for the given duration (if set to 0, it returns a profile snapshot). For other profiles, return a delta profile. Default: 0|
 
 Arguments:
@@ -402,8 +441,14 @@ Checks if the instance is ready to serve requests.
 Usage:
 
 ```code
-$ teleport debug readyz
+$ teleport debug readyz [<flags>]
 ```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`-c`, `--config`|*no default*|Path to a configuration file \[/etc/teleport.yaml\].|
 
 ## teleport debug require-session-helper
 
@@ -413,8 +458,14 @@ this build.
 Usage:
 
 ```code
-$ teleport debug require-session-helper
+$ teleport debug require-session-helper [<flags>]
 ```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`-c`, `--config`|*no default*|Path to a configuration file \[/etc/teleport.yaml\].|
 
 ## teleport debug set-log-level
 
@@ -423,8 +474,14 @@ Changes the log level.
 Usage:
 
 ```code
-$ teleport debug set-log-level <LEVEL>
+$ teleport debug set-log-level [<flags>] <LEVEL>
 ```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`-c`, `--config`|*no default*|Path to a configuration file \[/etc/teleport.yaml\].|
 
 Arguments:
 
@@ -822,7 +879,7 @@ Flags:
 |`--ca-pin`|*no default*|Comma-separated list of SKPI hashes for the CA used to verify the auth server.|
 |`--cluster-name`|*no default*|Unique cluster name, e.g. example.com.|
 |`--data-dir`|`/var/lib/teleport`|Path to a directory where Teleport keep its data.|
-|`--join-method`|`token` (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `ec2`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`)|Method to use to join the cluster.|
+|`--join-method`|`token` (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `ec2`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`, `generic_oidc`)|Method to use to join the cluster.|
 |`--labels`|*no default*|Comma-separated list of labels to add to newly created nodes ex) env=staging,cloud=aws.|
 |`--node-name`|*no default*|Name for the Teleport node.|
 |`--[no-]silent`|`false`|Suppress user hint message.|

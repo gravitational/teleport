@@ -30,6 +30,8 @@ struct EnrollDeviceView: View {
 						.padding(.bottom, .small)
 						.padding(.top, .xxlarge)
 					titleBlock
+					EventStackView(viewModel: viewModel.eventStackViewModel)
+						.padding(.vertical, .medium)
 				}
 				.multilineTextAlignment(.center)
 				.frame(maxHeight: .infinity, alignment: .center)
@@ -40,15 +42,7 @@ struct EnrollDeviceView: View {
 		}
 		.padding()
 		.frame(maxWidth: .infinity, maxHeight: .infinity)
-		.background(Color(.systemGroupedBackground))
-
-		// MARK: Navigation
-
-		.navigationDestination(item: $viewModel.destination.loadingSheet) {
-			EnrollRequestStatusView(attempt: viewModel.loadingState, onDismiss: {})
-				.presentationDetents([.medium])
-				.interactiveDismissDisabled(viewModel.loadingState.isLoading)
-		}
+		.background(Color.Background.depth3)
 	}
 }
 
@@ -61,7 +55,7 @@ extension EnrollDeviceView {
 			.font(.title2)
 			.fontWeight(.semibold)
 		Text("To finish enrolling this device, approve the request from your account settings on another device.")
-			.foregroundStyle(.secondary)
+			.foregroundStyle(Color.Foreground.slightlyMuted)
 	}
 
 	var requestNowButton: some View {
