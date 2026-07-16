@@ -64,6 +64,7 @@ To change these flags, run `enable` again with the new flags.
 | -g, --group          | Update group for this agent installation.                                                      |
 | -b, --base-url       | Base URL used to override the Teleport download URL.                                           |
 | -o, --[no-]overwrite | Allow existing installed Teleport binaries to be overwritten.                                  |
+| --enable-selinux.    | Install an SELinux module to constrain Teleport SSH.                                           |
 
 ### Examples
 
@@ -158,6 +159,7 @@ New versions will continue to be reported in SystemD `teleport-update.service` l
 | -b, --base-url       | Base URL used to override the Teleport download URL.                                           |
 | -o, --[no-]overwrite | Allow existing installed Teleport binaries to be overwritten.                                  |
 | -f, --force-version  | Force the provided version instead of using the version provided by the Teleport cluster.      |
+| --enable-selinux.    | Install an SELinux module to constrain Teleport SSH.                                           |
 
 ### Examples
 
