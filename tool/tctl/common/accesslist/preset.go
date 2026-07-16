@@ -22,8 +22,8 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	accesslistapi "github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/common"
-	"github.com/gravitational/teleport/lib/accesslists/preset"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/parse"
 )
@@ -190,11 +190,11 @@ func buildRole(roleName string, allow types.RoleConditions) (*types.RoleV6, erro
 }
 
 // accessType maps the backend value into the user facing accessType value.
-func accessType(presetType string) string {
-	switch presetType {
-	case string(preset.LongTermPresetType):
+func accessType(preset string) string {
+	switch preset {
+	case string(accesslistapi.LongTermPresetType):
 		return accessTypeLongTerm
-	case string(preset.ShortTermPresetType):
+	case string(accesslistapi.ShortTermPresetType):
 		return accessTypeShortTerm
 	}
 	return ""
@@ -204,9 +204,9 @@ func accessType(presetType string) string {
 func presetType(accessType string) string {
 	switch accessType {
 	case accessTypeLongTerm:
-		return string(accesslist.LongTermPresetType)
+		return string(accesslistapi.LongTermPresetType)
 	case accessTypeShortTerm:
-		return string(accesslist.ShortTermPresetType)
+		return string(accesslistapi.ShortTermPresetType)
 	}
 	return ""
 }
