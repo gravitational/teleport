@@ -19,6 +19,7 @@ package local
 import (
 	"context"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -448,4 +449,44 @@ func validatePendingCSRRequest(resource *subcav1.PendingCSRRequest) error {
 	}
 
 	return nil
+}
+
+type pendingCSRRequestParser struct {
+	baseParser
+}
+
+func newPendingCSRRequestParser() *pendingCSRRequestParser {
+	return &pendingCSRRequestParser{
+		baseParser: newBaseParser(newPendingCSRRequestPrefix()),
+	}
+}
+
+func (p *pendingCSRRequestParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		name := event.Item.Key.TrimPrefix(newPendingCSRRequestPrefix()).String()
+		name = strings.TrimPrefix(name, backend.SeparatorString)
+		if name == "" {
+			return nil, trace.BadParameter("unexpected %s key: %s", types.KindPendingCSRRequest, event.Item.Key)
+		}
+
+		return types.Resource153ToLegacy(subcav1.PendingCSRRequest_builder{
+			Kind:    types.KindPendingCSRRequest,
+			Version: types.V1,
+			Metadata: headerv1.Metadata_builder{
+				Name: name,
+			}.Build(),
+		}.Build()), nil
+	case types.OpPut:
+		r, err := services.UnmarshalPendingCSRRequest(event.Item.Value,
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Resource153ToLegacy(r), nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
 }
