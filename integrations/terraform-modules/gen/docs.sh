@@ -141,6 +141,10 @@ EOF
             example_title="Example for discovering ${remote_system} resources in a single account"
             example_description="Configure Teleport to discover resources in an ${remote_system} account."
             ;;
+          organization)
+            example_title="Example for discovering ${remote_system} resources in all accounts under an organization"
+            example_description="Configure Teleport to discover resources in accounts within an ${remote_system} organization."
+            ;;
           *)
             example_title="Example for discovering ${remote_system} resources"
             example_description="Configure Teleport to discover resources in ${remote_system}."
