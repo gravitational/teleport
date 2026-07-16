@@ -78,7 +78,16 @@ and updates are welcome!
     ```shell
     brew install helm
 
-    helm plugin install https://github.com/quintush/helm-unittest --version 0.2.11
+    helm plugin install https://github.com/helm-unittest/helm-unittest \
+        --version $(cat build.assets/helm-unittest.version) \
+        --verify=false
+    ```
+
+    If you're running helm v3, the `--verify=false` flag is not supported:
+
+    ```shell
+    helm plugin install https://github.com/helm-unittest/helm-unittest \
+        --version $(cat build.assets/helm-unittest.version)
     ```
 
 1. Install `bats`:
