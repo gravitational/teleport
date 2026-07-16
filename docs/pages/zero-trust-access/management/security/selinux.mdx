@@ -8,13 +8,6 @@ tags:
  - resiliency
 ---
 
-<Admonition type="note">
-
-This feature is currently under active development. Future releases will extend SELinux policy to support
-more Teleport features, and integration with Teleport Managed Updates.
-
-</Admonition>
-
 The Teleport SSH Service SELinux module allows SELinux to confine the Teleport SSH Service. It ensures that Teleport SSH Service processes can only perform explicitly allowed operations, reducing the attack surface and preventing unauthorized actions even if the Teleport binary were compromised.
 
 ## Prerequisites
@@ -72,6 +65,22 @@ Before installing the SELinux module ensure that the `selinux-policy-devel` pack
 $ sudo dnf install selinux-policy-devel
 ```
 
+### Using teleport-update
+
+`teleport-update` is the recommended way to install the SELinux module for Teleport SSH Service as it will
+ensure the SELinux module version is kept in sync with the installed version of Teleport. Once `teleport-update`
+is configured to handle the SELinux module, it will update the SELinux module automatically when it updates Teleport.
+
+This can be done by passing `--selinux-ssh` to `teleport-update enable` or `teleport-update pin`:
+
+```code
+$ teleport-update enable --selinux-ssh
+```
+
+If you are unable to use `teleport-update`, you can install the SELinux module manually by following the steps below.
+
+### Using the install script
+
 To install the SELinux module, run the `install-selinux.sh` script included in Linux tarballs as `root`:
 
 ```code
@@ -99,8 +108,6 @@ $ sudo ./install-selinux.sh -c /path/to/teleport.yaml
 You must re-run `install-selinux.sh` whenever your Teleport SSH Service agents are updated. This ensures the SELinux module matches the version of the binaries in use.
 
 </Admonition>
-
-Future versions of Teleport will make managed updates with `teleport-update` the primary way to manage the SELinux module.
 
 ## SELinux modes
 
@@ -145,6 +152,8 @@ $ sudo semanage fcontext -a -t teleport_ssh_exec_t /path/to/teleport
 <Admonition type="note">
 
 Teleport will probably not run under the correct `teleport_ssh_t` domain and not be enforced by SELinux unless it is running as a **systemd service**. For more information on SELinux domains refer to the Red Hat article [Getting started with SELinux](https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/9/html/using_selinux/getting-started-with-selinux_using-selinux).
+
+If you are running Teleport as a systemd service you will need to add the `--enable-selinux` flag to the `ExecStart` option in the Teleport systemd service file.
 
 </Admonition>
 
