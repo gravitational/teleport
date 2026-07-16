@@ -955,6 +955,69 @@ func TestLoginScopeChangeClearsAgentKeys(t *testing.T) {
 	}
 }
 
+// TestLoginForceReauth verifies that "tsh login --force" re-authenticates even
+// when the active profile is still valid, so a role granted server-side is
+// picked up without a separate logout. A plain "tsh login" on a valid session
+// short-circuits and keeps the existing certificate, so the new role does not
+// appear until --force is used.
+func TestLoginForceReauth(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	tmpHomePath := t.TempDir()
+
+	// A role alice does not hold at first login.
+	extra, err := types.NewRole("extra", types.RoleSpecV6{})
+	require.NoError(t, err)
+
+	alice, err := types.NewUser("alice@example.com")
+	require.NoError(t, err)
+	alice.SetRoles([]string{"access"})
+
+	connector := mockConnector(t)
+	authProcess, proxyProcess := makeTestServers(t, withBootstrap(connector, extra, alice))
+	authServer := authProcess.GetAuthServer()
+	require.NotNil(t, authServer)
+
+	proxyAddr, err := proxyProcess.ProxyWebAddr()
+	require.NoError(t, err)
+
+	login := func(t *testing.T, extraArgs ...string) string {
+		t.Helper()
+		out := &output{}
+		args := append([]string{
+			"login",
+			"--insecure",
+			"--proxy", proxyAddr.String(),
+			"--user", alice.GetName(),
+		}, extraArgs...)
+		err := Run(ctx, args,
+			setHomePath(tmpHomePath),
+			setMockSSOLogin(authServer, alice, connector.GetName()),
+			func(cf *CLIConf) error {
+				cf.OverrideStdout = out
+				return nil
+			})
+		require.NoError(t, err)
+		return out.String()
+	}
+
+	// Initial login: the certificate carries only "access".
+	require.NotContains(t, login(t), extra.GetName())
+
+	// Grant the extra role server-side.
+	alice.SetRoles([]string{"access", extra.GetName()})
+	_, err = authServer.UpsertUser(ctx, alice)
+	require.NoError(t, err)
+
+	// A plain login on a still-valid session short-circuits: the certificate is
+	// not reissued, so the new role is not reflected.
+	require.NotContains(t, login(t), extra.GetName())
+
+	// --force re-authenticates and reissues the certificate, picking up the new
+	// role without a separate logout.
+	require.Regexp(t, regexp.MustCompile(`Roles:\s.*\bextra\b`), login(t, "--force"))
+}
+
 func TestRelogin(t *testing.T) {
 	t.Parallel()
 
