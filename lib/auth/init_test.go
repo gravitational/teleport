@@ -1919,6 +1919,21 @@ spec:
    - aws_account: "123456789012"
      aws_organizational_units:
        include: [r-rootid]`
+	boundKeypairTokenYAML = `kind: token
+version: v2
+metadata:
+  name: bound-keypair-token
+  expires: "3000-01-01T00:00:00Z"
+spec:
+  roles: [Bot]
+  join_method: bound_keypair
+  bot_name: bound-keypair-demo
+  bound_keypair:
+    onboarding:
+      initial_public_key: "ssh-ed25519 AAAAtestinitialpublickey"
+    recovery:
+      limit: 1
+      mode: insecure`
 	roleYAML = `kind: role
 version: v7
 metadata:
@@ -2100,6 +2115,177 @@ func TestInit_ApplyOnStartup(t *testing.T) {
 			test.assertError(t, err)
 		})
 	}
+}
+
+// TestInit_ApplyOnStartup_BoundKeypair verifies that bound_keypair tokens
+// applied via --apply-on-startup have their status.bound_keypair initialized
+// (the join path rejects tokens without it), and that re-applying on a
+// subsequent auth restart preserves an already-populated status rather than
+// resetting the bot's join state.
+func TestInit_ApplyOnStartup_BoundKeypair(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	t.Run("initializes status on first apply", func(t *testing.T) {
+		token := resourceFromYAML(t, boundKeypairTokenYAML).(types.ProvisionToken)
+
+		cfg := setupConfig(t)
+		cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, token)
+
+		srv, err := auth.Init(ctx, cfg)
+		require.NoError(t, err)
+
+		stored, err := srv.GetToken(ctx, token.GetName())
+		require.NoError(t, err)
+		require.NotNil(t, stored.GetBoundKeypairStatus(),
+			"apply-on-startup must initialize status.bound_keypair, otherwise bound_keypair joins are rejected")
+	})
+
+	t.Run("discards config-supplied status on first apply", func(t *testing.T) {
+		// apply-on-startup config is spec-only and its status is untrusted. A
+		// bound_public_key supplied via config must not bind a key on creation:
+		// that would skip the join ceremony's proof-of-possession.
+		token := resourceFromYAML(t, boundKeypairTokenYAML).(*types.ProvisionTokenV2)
+		token.Status = &types.ProvisionTokenStatusV2{
+			BoundKeypair: &types.ProvisionTokenStatusV2BoundKeypair{
+				BoundPublicKey: "ssh-ed25519 AAAAconfigsuppliedkey",
+				RecoveryCount:  7,
+			},
+		}
+
+		cfg := setupConfig(t)
+		cfg.ApplyOnStartupResources = []types.Resource{token}
+
+		srv, err := auth.Init(ctx, cfg)
+		require.NoError(t, err)
+
+		stored, err := srv.GetToken(ctx, token.GetName())
+		require.NoError(t, err)
+		status := stored.GetBoundKeypairStatus()
+		require.NotNil(t, status)
+		require.Empty(t, status.BoundPublicKey,
+			"config-supplied bound_public_key must not be persisted on first apply")
+		require.Zero(t, status.RecoveryCount,
+			"config-supplied recovery count must not be persisted on first apply")
+	})
+
+	t.Run("generates a registration secret when no onboarding credential is set", func(t *testing.T) {
+		// The Terraform onboarding flow supplies neither an initial_public_key
+		// nor an explicit registration_secret; apply-on-startup must generate
+		// the secret so the bot has a credential to join with.
+		token := resourceFromYAML(t, boundKeypairTokenYAML).(*types.ProvisionTokenV2)
+		token.Spec.BoundKeypair.Onboarding.InitialPublicKey = ""
+		token.Spec.BoundKeypair.Onboarding.RegistrationSecret = ""
+
+		cfg := setupConfig(t)
+		cfg.ApplyOnStartupResources = []types.Resource{token}
+
+		srv, err := auth.Init(ctx, cfg)
+		require.NoError(t, err)
+
+		stored, err := srv.GetToken(ctx, token.GetName())
+		require.NoError(t, err)
+		require.NotEmpty(t, stored.GetBoundKeypairStatus().RegistrationSecret,
+			"apply-on-startup must generate a registration secret when none is configured")
+	})
+
+	t.Run("preserves populated status on re-apply", func(t *testing.T) {
+		token := resourceFromYAML(t, boundKeypairTokenYAML).(types.ProvisionToken)
+		tokenV2 := token.(*types.ProvisionTokenV2)
+
+		cfg := setupConfig(t)
+		cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, token)
+
+		srv, err := auth.Init(ctx, cfg)
+		require.NoError(t, err)
+
+		// Simulate a successful bound_keypair join populating the status.
+		stored, err := srv.GetToken(ctx, token.GetName())
+		require.NoError(t, err)
+		storedV2, ok := stored.(*types.ProvisionTokenV2)
+		require.True(t, ok)
+		require.NotNil(t, storedV2.GetBoundKeypairStatus())
+		storedV2.Status.BoundKeypair.BoundPublicKey = "ssh-ed25519 AAAAboundpublickey"
+		storedV2.Status.BoundKeypair.RecoveryCount = 3
+		require.NoError(t, srv.UpsertToken(ctx, storedV2))
+
+		// Recovery policy is declarative and may change without changing the
+		// identity to which the key is bound.
+		tokenV2.Spec.BoundKeypair.Recovery.Limit = 5
+
+		// Re-running Init against the same backend re-applies the (spec-only)
+		// startup resource, mimicking an auth restart.
+		_, err = auth.Init(ctx, cfg)
+		require.NoError(t, err)
+
+		reStored, err := srv.GetToken(ctx, token.GetName())
+		require.NoError(t, err)
+		status := reStored.GetBoundKeypairStatus()
+		require.NotNil(t, status)
+		require.Equal(t, "ssh-ed25519 AAAAboundpublickey", status.BoundPublicKey,
+			"re-apply must preserve the bound public key")
+		require.Equal(t, uint32(3), status.RecoveryCount,
+			"re-apply must preserve the recovery count")
+		require.Equal(t, uint32(5), reStored.GetBoundKeypair().Recovery.Limit,
+			"re-apply must update the recovery policy")
+	})
+
+	t.Run("replaces an unconsumed explicit registration secret", func(t *testing.T) {
+		token := resourceFromYAML(t, boundKeypairTokenYAML).(*types.ProvisionTokenV2)
+		token.Spec.BoundKeypair.Onboarding.InitialPublicKey = ""
+		token.Spec.BoundKeypair.Onboarding.RegistrationSecret = "old-registration-secret"
+
+		cfg := setupConfig(t)
+		cfg.ApplyOnStartupResources = []types.Resource{token}
+
+		srv, err := auth.Init(ctx, cfg)
+		require.NoError(t, err)
+
+		stored, err := srv.GetToken(ctx, token.GetName())
+		require.NoError(t, err)
+		require.Equal(t, "old-registration-secret", stored.GetBoundKeypairStatus().RegistrationSecret)
+
+		updated := resourceFromYAML(t, boundKeypairTokenYAML).(*types.ProvisionTokenV2)
+		updated.Spec.BoundKeypair.Onboarding.InitialPublicKey = ""
+		updated.Spec.BoundKeypair.Onboarding.RegistrationSecret = "new-registration-secret"
+		cfg.ApplyOnStartupResources = []types.Resource{updated}
+
+		_, err = auth.Init(ctx, cfg)
+		require.NoError(t, err)
+
+		stored, err = srv.GetToken(ctx, token.GetName())
+		require.NoError(t, err)
+		require.Equal(t, "new-registration-secret", stored.GetBoundKeypairStatus().RegistrationSecret)
+	})
+
+	t.Run("does not transfer a binding to a different bot", func(t *testing.T) {
+		token := resourceFromYAML(t, boundKeypairTokenYAML).(*types.ProvisionTokenV2)
+
+		cfg := setupConfig(t)
+		cfg.ApplyOnStartupResources = []types.Resource{token}
+
+		srv, err := auth.Init(ctx, cfg)
+		require.NoError(t, err)
+
+		stored, err := srv.GetToken(ctx, token.GetName())
+		require.NoError(t, err)
+		storedV2 := stored.(*types.ProvisionTokenV2)
+		storedV2.Status.BoundKeypair.BoundPublicKey = "ssh-ed25519 AAAAboundpublickey"
+		require.NoError(t, srv.UpsertToken(ctx, storedV2))
+
+		updated := resourceFromYAML(t, boundKeypairTokenYAML).(*types.ProvisionTokenV2)
+		updated.Spec.BotName = "different-bot"
+		cfg.ApplyOnStartupResources = []types.Resource{updated}
+
+		_, err = auth.Init(ctx, cfg)
+		require.NoError(t, err)
+
+		stored, err = srv.GetToken(ctx, token.GetName())
+		require.NoError(t, err)
+		require.Equal(t, "different-bot", stored.(*types.ProvisionTokenV2).Spec.BotName)
+		require.Empty(t, stored.GetBoundKeypairStatus().BoundPublicKey,
+			"a key bound to the old bot must not be authorized for the new bot")
+	})
 }
 
 func resourceFromYAML(t *testing.T, value string) types.Resource {
