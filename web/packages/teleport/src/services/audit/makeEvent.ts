@@ -1976,13 +1976,13 @@ export const formatters: Formatters = {
       `User [${user}] failed to issue SPIFFE SVID [${spiffe_id}]`,
   },
   [eventCodes.SPIFFE_FEDERATION_CREATE]: {
-    type: 'spiffe_federation.create',
+    type: 'spiffe.federation.create',
     desc: 'SPIFFE Federation Created',
     format: ({ user, name }) =>
       `User [${user}] created a SPIFFE federation [${name}]`,
   },
   [eventCodes.SPIFFE_FEDERATION_DELETE]: {
-    type: 'spiffe_federation.delete',
+    type: 'spiffe.federation.delete',
     desc: 'SPIFFE Federation Deleted',
     format: ({ user, name }) =>
       `User [${user}] deleted a SPIFFE federation [${name}]`,
