@@ -49,6 +49,35 @@ webhook run by the plugin, which modifies the Access Request in Teleport.
     to allow traffic to the Jira plugin via a `LoadBalancer` service, so your
     environment must support services of this type.
 
+- A Jira Kanban project with exactly four columns named `Pending`, `Approved`,
+  `Denied`, and `Expired`, and no other columns or statuses. This requires
+  manual preparation using the Jira Web UI. In this guide, we assume that your
+  project is called "Teleport Access Requests", which receives the key `TAR` by
+  default. 
+
+  <Admonition type="warning">
+
+  If your project board does not contain these (and only these) columns, each
+  with a status of the same name, the Jira Access Request plugin will behave in
+  unexpected ways.
+
+  </Admonition>
+
+- A Jira API token for the plugin to authenticate with, which requires the
+  Atlassian Web UI. Follow the [Atlassian
+  documentation](https://support.atlassian.com/atlassian-account/docs/manage-api-tokens-for-your-atlassian-account/)
+  for instructions on creating a token.
+
+- The public domain name (including any DNS records) for the Teleport Jira
+  plugin. Jira must be able to reach your webhook on this domain name.
+
+- A Jira webhook pointing to `<plugin-domain>:8081` (if you are deploying the
+  plugin on a Linux server) or `<plugin-domain>:443` (if using Kubernetes). The
+  webhook needs to be notified only when an issue is created, updated, or
+  deleted. Follow the [Atlassian webhook
+  docs](https://developer.atlassian.com/server/jira/platform/webhooks/) to
+  create it.
+
 - A means of providing TLS credentials for the Jira webhook run by the plugin.
   **TLS certificates must not be self signed.** For example, you can obtain TLS
   credentials for the webhook with Let's Encrypt by using an [ACME
@@ -62,14 +91,14 @@ webhook run by the plugin, which modifies the Access Request in Teleport.
 
 - (!docs/pages/includes/tctl.mdx!)
 
-## Step 1/8. Define RBAC resources
+## Step 1/7. Define RBAC resources
 
 Before you set up the Jira plugin, you need to enable Role Access Requests in
 your Teleport cluster.
 
 (!docs/pages/includes/plugins/editor-request-rbac.mdx!)
 
-## Step 2/8. Define a Teleport Jira plugin user
+## Step 2/7. Define a Teleport Jira plugin user
 
 The required permissions for the plugin are configured in the preset `access-plugin`
 role. To generate credentials for the plugin, define either a Machine ID bot user
@@ -84,7 +113,7 @@ or a regular Teleport user.
 </TabItem>
 </Tabs>
 
-## Step 3/8. Export the access plugin identity
+## Step 3/7. Export the access plugin identity
 
 Give the plugin access to a Teleport identity file. We recommend using Machine
 ID for this in order to produce short-lived identity files that are less
@@ -100,7 +129,7 @@ longer-lived identity files with `tctl`:
 </TabItem>
 </Tabs>
 
-## Step 4/8. Install the Teleport Jira plugin
+## Step 4/7. Install the Teleport Jira plugin
 
 Install the Teleport Jira plugin following the instructions below, which depend
 on whether you are deploying the plugin on a host (e.g., an EC2 instance) or a
@@ -112,91 +141,7 @@ tenant).
 
 (!docs/pages/includes/plugins/install-access-request.mdx name="jira"!)
 
-## Step 5/8. Set up a Jira project
-
-In this section, you will create a Jira a project that the Teleport plugin can
-modify when a Teleport user creates or updates an Access Request. The plugin
-then uses the Jira webhook to monitor the state of the board and respond to any
-changes in the tickets it creates.
-
-### Create a project for managing Access Requests
-
-In Jira, find the top navigation bar and click **Projects** -> **Create
-project**. Select **Kanban** for the template, then **Use template**. Click
-**Select a company-managed project**.
-
-You'll see a screen where you can enter a name for your project. In this guide,
-we assume that your project is called "Teleport Access Requests", which
-receives the key `TAR` by default. 
-
-Make sure "Connect repositories, documents, and more" is unset, then click
-**Create project**.
-
-In the three-dots menu on the upper right of your new board, click **Board
-settings**, then click **Columns**. Edit the statuses in your board so it
-contains the following four:
-
-1. Pending
-1. Approved
-1. Denied
-1. Expired
-
-Create a column with the same name as each status. The result should be the
-following:
-
-![Jira board setup](../../../../img/enterprise/plugins/jira/board-setup.png)
-
-<Admonition type="warning">
-
-If your project board does not contain these (and only these) columns, each with
-a status of the same name, the Jira Access Request plugin will behave in
-unexpected ways. Remove all other columns and statuses.
-
-</Admonition>
-
-Click **Back to board** to review your changes.
-
-### Retrieve your Jira API token
-
-Obtain an API token that the Access Request plugin uses to make
-changes to your Jira project. Click the gear menu at the upper right of the
-screen, then click **Atlassian account settings**. Click **Security** >
-**Create and manage API tokens** > **Create API token**. 
-
-Choose any label and click **Copy**. Paste the API token into a convenient
-location (e.g., a password manager or local text document) so you can use it
-later in this guide when you configure the Jira plugin.
-
-### Set up a Jira webhook
-
-Now that you have generated an API key that the Teleport Jira plugin uses to
-manage your project, enable Jira to notify the Teleport Jira plugin when your
-project is updated by creating a webhook.
-
-Return to Jira. Click the gear menu on the upper right of the screen. Click
-**System** > **WebHooks** > **Create a WebHook**. 
-
-<Tabs>
-<TabItem label="Executable">
-
-Enter "Teleport Access Request Plugin" in the "Name" field. In the "URL" field,
-enter the domain name you created for the plugin earlier, plus port `8081`.
-
-</TabItem>
-<TabItem label="Helm Chart">
-
-Enter "Teleport Access Request Plugin" in the "Name" field. In the "URL" field,
-enter the domain name you created for the plugin earlier, plus port `443`.
-
-</TabItem>
-</Tabs>
-
-The webhook needs to be notified only when an issue is created, updated, or
-deleted. You can leave all the other boxes empty.
-
-Click **Create**.
-
-## Step 6/8. Configure the Jira Access Request plugin
+## Step 5/7. Configure the Jira Access Request plugin
 
 Earlier, you retrieved credentials that the Jira plugin uses to connect to
 Teleport and the Jira API. You will now configure the plugin to use these
@@ -321,7 +266,7 @@ for the webhook. Use `teleport-plugin-jira-tls`.
 </TabItem>
 </Tabs>
 
-## Step 7/8. Run the Jira plugin
+## Step 6/7. Run the Jira plugin
 
 After finishing your configuration, you can now run the plugin and test your
 Jira-based Access Request flow:
@@ -425,7 +370,7 @@ Request Reviewed` in the Teleport Web UI.
 
 </Admonition>
 
-## Step 8/8. Set up systemd
+## Step 7/7. Set up systemd
 
 <Admonition type="tip">
 
