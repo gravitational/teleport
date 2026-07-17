@@ -3012,6 +3012,10 @@ func (m *SessionSummarized) TrimToMaxSize(_ int) AuditEvent {
 	return m
 }
 
+func (m *BeamSessionEnd) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
+
 func (m *CertAuthorityOverrideEvent) TrimToMaxSize(maxSize int) AuditEvent {
 	return trimEventToMaxSize(m, maxSize, func(m, out *CertAuthorityOverrideEvent) fieldTrimmer {
 		return fieldTrimmers{

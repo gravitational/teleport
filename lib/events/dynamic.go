@@ -197,6 +197,8 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.AppSessionDynamoDBRequest{}
 	case AppSessionLLMRequestSuccessEvent, AppSessionLLMRequestFailureEvent:
 		e = &events.AppSessionLLMRequest{}
+	case BeamSessionEndEvent:
+		e = &events.BeamSessionEnd{}
 	case AppSessionHTTPRequestEvent:
 		e = &events.AppSessionHTTPRequest{}
 	case AppSessionHTTPRequestBodyChunkEvent:

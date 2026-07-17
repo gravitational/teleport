@@ -244,6 +244,10 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_AppSessionLLMRequest{
 			AppSessionLLMRequest: e,
 		}
+	case *BeamSessionEnd:
+		out.Event = &OneOf_BeamSessionEnd{
+			BeamSessionEnd: e,
+		}
 	case *AppSessionHTTPRequest:
 		out.Event = &OneOf_AppSessionHTTPRequest{
 			AppSessionHTTPRequest: e,

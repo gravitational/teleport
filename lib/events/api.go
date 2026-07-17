@@ -24,10 +24,13 @@ import (
 	"io"
 	"iter"
 	"math"
+	"os"
 	"time"
 
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
@@ -439,6 +442,10 @@ const (
 	// AppSessionLLMRequestFailureEvent is emitted when an LLM inference request
 	// is sent and fails.
 	AppSessionLLMRequestFailureEvent = "app.session.llm.request.failure"
+	// BeamSessionEndEvent is emitted when a garbage-collected beam has been
+	// summarized. It makes the beam appear as a single session recording,
+	// played back via BeamReplayService.
+	BeamSessionEndEvent = "beam.session.end"
 	// AppSessionHTTPRequestEvent is emitted when a proxied HTTP request is received.
 	AppSessionHTTPRequestEvent = "http.request"
 	// AppSessionHTTPRequestBodyChunkEvent is emitted for each chunk of a proxied HTTP request body.
@@ -1110,12 +1117,25 @@ var SessionRecordingEvents = []string{
 	WindowsDesktopSessionEndEvent,
 	DatabaseSessionEndEvent,
 
+	// A garbage-collected beam is recorded as a single session (played back
+	// via BeamReplayService), marked by BeamSessionEndEvent.
+	BeamSessionEndEvent,
+}
+
+func init() {
 	// HTTP/HTTPS application sessions do not emit AppSessionEndEvent.
 	// Their recordings IDs are in AppSessionChunkEvent, so it is included.
 	//
 	// TCP application sessions emit AppSessionEndEvent but produce no
 	// recordings, so it is excluded.
-	AppSessionChunkEvent,
+	// This is injected at runtime to skip adding AppSessionChunkEvent to SessionRecordingEvents
+	// when running on Beams. This is because app chunk events are not playable on webui.
+	if runningOnBeams, _ := apiutils.ParseBool(os.Getenv(teleport.BeamsRuntimeEnvVar)); !runningOnBeams {
+		SessionRecordingEvents = append(
+			SessionRecordingEvents,
+			AppSessionChunkEvent,
+		)
+	}
 }
 
 // ServerMetadataGetter represents interface
