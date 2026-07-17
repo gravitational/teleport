@@ -31,13 +31,38 @@ struct DeviceTrustCredentialClient {
 
 	/// Signs the raw Teleport challenge after a user-presence check and returns an ASN.1 DER ECDSA signature.
 	///
-	/// Callers should treat ``DeviceTrustCredentialError/authenticationCancelled`` as a no-op. All other errors
+	/// Callers should treat ``DeviceTrustCredentialError/signingAuthorizationCancelled`` as a no-op. All other errors
 	/// describe an operation that failed and should follow the feature's normal error handling.
 	var signChallenge: @Sendable (
 		_ challenge: Data,
 		_ purpose: DeviceTrustChallengePurpose,
 	) async throws -> Data
 }
+
+// MARK: - Live Implementation
+
+extension DeviceTrustCredentialClient {
+	static let liveValue = value(location: .app)
+
+	static func value(location: DeviceTrustCredentialKeychain.Location) -> Self {
+		let store = SecureEnclaveCredentialStore(
+			keychain: DeviceTrustCredentialKeychain(location: location),
+		)
+		return Self(
+			loadOrCreate: {
+				try store.loadOrCreate()
+			},
+			load: {
+				try store.loadExistingCredential()
+			},
+			signChallenge: { challenge, purpose in
+				try await store.signChallenge(challenge, purpose: purpose)
+			},
+		)
+	}
+}
+
+// MARK: - Supporting Types
 
 /// The public portion of a Device Trust credential.
 ///
@@ -51,7 +76,7 @@ struct DeviceTrustCredential: Equatable {
 	let publicKeyDER: Data
 }
 
-/// Identifies why Teleport needs a signature so the system authentication prompt can explain the request.
+/// Identifies why Teleport needs a signature so the system user-presence prompt can explain the request.
 enum DeviceTrustChallengePurpose {
 	case enrollment
 	case authentication
@@ -81,10 +106,10 @@ enum DeviceTrustCredentialError: Error, Equatable {
 	case accessControlCreationFailed
 
 	/// The user or system cancelled the presence prompt.
-	case authenticationCancelled
+	case signingAuthorizationCancelled
 
 	/// The user-presence check failed without being cancelled.
-	case authenticationFailed
+	case signingAuthorizationFailed
 
 	/// CryptoKit could not sign the challenge with the stored Secure Enclave key.
 	case signingFailed
