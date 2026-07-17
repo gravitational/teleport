@@ -72,6 +72,7 @@ export const EventIconMap: Record<EventCode, any> = {
   [eventCodes.SFTP_LINK_FAILURE]: Icons.FolderPlus,
   [eventCodes.SFTP_DISALLOWED]: Icons.FolderPlus,
   [eventCodes.APP_SESSION_CHUNK]: Icons.Info,
+  [eventCodes.BEAM_SESSION_END]: Icons.Info,
   [eventCodes.APP_SESSION_START]: Icons.Info,
   [eventCodes.APP_SESSION_START_FAILURE]: Icons.Warning,
   [eventCodes.APP_SESSION_END]: Icons.Info,
