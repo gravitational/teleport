@@ -9,8 +9,8 @@ enterprise: Identity Security
 page_type: how-to
 ---
 
-`tctl access-review` answers who can reach which resources, through which
-grantors, and — optionally — whether that access has actually been used. Use it
+`tctl access-review` answers who can reach which resources, what grants that
+access, and — optionally — whether that access has actually been used. Use it
 to review and certify role and access-list grants, answer "who can reach this
 database", or find dormant standing privileges.
 
@@ -18,7 +18,7 @@ You scope every review with a `--query`: a SQL `SELECT` against the Access Graph
 `access_path` model. The query defines which identities and resources the review
 covers; the results describe the **access** each identity has to each resource
 and how that access is granted. It reports access paths only — it does not
-enumerate other relationships, such as who can *review* an Access List rather
+enumerate other relationships, such as who can _review_ an Access List rather
 than gain access through it.
 
 ## Prerequisites
@@ -40,51 +40,58 @@ $ tctl access-review --query "SELECT * FROM access_path WHERE identity = 'alice'
 
 `identity` matches a user or bot by its stored name or alias — for SSO users
 this is usually their username or email. `resource` matches a resource by name,
-and `identity_group` matches a grantor: a role, Access List, or Access Request.
+and `identity_group` matches what grants access — a role, Access List, or Access
+Request (shown as **Granted By** in the output).
 Matches with `=` and `IN` are exact and case-sensitive; use `ILIKE` for
 case-insensitive or prefix matching when you are unsure of the exact name.
 
 ### Common review patterns
 
-| Goal | Query |
-| --- | --- |
-| Everything one user can reach | `SELECT * FROM access_path WHERE identity = 'alice'` |
-| Who can reach a resource | `SELECT * FROM access_path WHERE resource ILIKE 'prod-db%'` |
-| What a role grants, and to whom | `SELECT * FROM access_path WHERE identity_group IN ('prod-db-admin')` |
-| What an Access List grants, and to whom | `SELECT * FROM access_path WHERE identity_group IN ('Prod Admins')` |
+| Goal                                       | Query                                                                                          |
+| ------------------------------------------ | ---------------------------------------------------------------------------------------------- |
+| Everything one user can reach              | `SELECT * FROM access_path WHERE identity = 'alice'`                                           |
+| Who can reach a resource                   | `SELECT * FROM access_path WHERE resource ILIKE 'prod-db%'`                                    |
+| What a role grants, and to whom            | `SELECT * FROM access_path WHERE identity_group IN ('prod-db-admin')`                          |
+| What an Access List grants, and to whom    | `SELECT * FROM access_path WHERE identity_group IN ('Prod Admins')`                            |
 | Why a resource is reachable through a role | `SELECT * FROM access_path WHERE resource = 'prod-db' AND identity_group IN ('prod-db-admin')` |
 
 Roles and Access Lists are both `identity_group` nodes. The text output does not
 mark a grantor's kind; to tell a `role` from an `access_list`, use
-`--format=json` (or `yaml`) and read `grantors[].node.sub_kind`. When you scope a
+`--format=json` (or `yaml`) and read `granted_by[].node.sub_kind`. When you scope a
 review through a grantor like this, mind what the results do and do not cover —
 see [Understand query scope](#understand-query-scope).
 
 By default the output summarizes each identity's resources, resolved access
-level, primary grantor, and grantor counts. Add `--detailed` to break each
-resource down by individual grantor and the level each one contributes:
+level, the primary grant (the **Granted By** column), and grant counts. Add
+`--detailed` to break each resource down by each grant and the level it
+contributes:
 
 ```code
 $ tctl access-review --query "<query>" --detailed
 ```
 
-| Flag | Description |
-| --- | --- |
-| `--query` | Required. SQL `SELECT` against `access_path` scoping the identities to review. |
-| `--from` | Show activity at or after this time; enables the activity columns. RFC3339, `YYYY-MM-DD`, or durations like `24h`, `7d`. |
-| `--to` | Upper bound for activity. Defaults to now when `--from` is set. Requires `--from`. |
-| `--detailed` | Show each grantor with its individual access level instead of summary counts. |
-| `--limit` | Maximum identities to return. Default: `50`. |
-| `--format` | `text`, `json`, `yaml`. |
+**Granted By** is the identity group — a role, Access List, or Access Request —
+that confers the access; it is what you filter on with `identity_group` in a
+query.
 
-In text output, a `*` marks self-expiring access or a temporary grantor.
+| Flag            | Description                                                                                                          |
+| --------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `--query`       | Required. SQL `SELECT` against `access_path` scoping the identities to review.                                       |
+| `--from`        | Show activity at or after this time. RFC3339, `YYYY-MM-DD`, or durations like `24h`, `7d`. Defaults to 24 hours ago. |
+| `--to`          | Upper bound for activity. Defaults to now.                                                                           |
+| `--no-activity` | Skip the activity lookup and hide the activity columns for a faster review. Takes priority over `--from`/`--to`.     |
+| `--detailed`    | Show each grant with its individual access level instead of summary counts.                                          |
+| `--limit`       | Maximum identities to return. Default: `50`.                                                                         |
+| `--format`      | `text`, `json`, `yaml`.                                                                                              |
+
+In text output, a `*` marks self-expiring access or a temporary grant.
 
 ## Understand query scope
 
 Results are derived only from the paths your query produces. When you scope a
-review through a given node — a role, an Access List, or any other grantor — the
-results show only the paths that flow **through that node**, not necessarily
-every path the matched identities have to the matched resources.
+review through a given node — a role, an Access List, or any other identity
+group — the results show only the paths that flow **through that node**, not
+necessarily every path the matched identities have to the matched resources.
 
 For example, this query answers "what does membership in `Prod Admins` grant,
 and to whom":
@@ -106,19 +113,23 @@ follow-up query scoped by `identity` and `resource` directly:
 $ tctl access-review --query "SELECT * FROM access_path WHERE identity = 'alice' AND resource = 'prod-server'"
 ```
 
-This returns every path from `alice` to `prod-server`, with each grantor that
+This returns every path from `alice` to `prod-server`, with each grant that
 backs it — the authoritative view to check before you add or remove access.
 
 ## Show access activity
 
 If your cluster has
 [Identity Activity Center](../access-graph/identity-activity-center.mdx) enabled,
-add `--from` (and optionally `--to`) to include activity columns that show how
-often each access was used and when it was last exercised:
+`tctl access-review` shows the activity columns by default over the last 24
+hours — how often each access was used and when it was last exercised. Widen the
+window with `--from` (and optionally `--to`):
 
 ```code
 $ tctl access-review --query "<query>" --from=30d
 ```
+
+To skip the activity lookup entirely — for a faster, structural-only review of
+who can reach what — pass `--no-activity`.
 
 Activity counts come from Teleport session-start events, so they cover only
 resources reached through a Teleport session (SSH, database, Kubernetes, app,
@@ -133,6 +144,7 @@ To let an AI agent drive this command, install the matching Agent Skill:
 ```code
 $ npx skills add https://github.com/gravitational/teleport/tree/master/skills/teleport-access-review
 ```
+
 </Admonition>
 
 ## Next steps
