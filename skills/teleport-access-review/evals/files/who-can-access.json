@@ -1,0 +1,127 @@
+{
+  "identities": [
+    {
+      "identity": {
+        "id": "a1111111-1111-4111-8111-111111111111",
+        "name": "alice@example.com",
+        "kind": "identity",
+        "sub_kind": "user",
+        "source": "TELEPORT",
+        "origin": "teleport_user"
+      },
+      "resources": [
+        {
+          "resource": {
+            "id": "d0000000-0000-4000-8000-0000000000db",
+            "name": "prod-db",
+            "kind": "resource",
+            "sub_kind": "db",
+            "source": "TELEPORT",
+            "origin": "teleport_db"
+          },
+          "level": "standing",
+          "grantor_counts": {"standing": 1, "impersonate": 0, "request": 0},
+          "grantors": [
+            {
+              "node": {
+                "id": "4f0c1d2e-3a4b-4c5d-8e6f-7a8b9c0d1e2f",
+                "name": "4f0c1d2e-3a4b-4c5d-8e6f-7a8b9c0d1e2f",
+                "alias": "Prod DB ACL",
+                "kind": "identity_group",
+                "sub_kind": "access_list",
+                "source": "TELEPORT",
+                "origin": "teleport_access_list"
+              },
+              "level": "standing"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "identity": {
+        "id": "c2222222-2222-4222-8222-222222222222",
+        "name": "carol@example.com",
+        "kind": "identity",
+        "sub_kind": "user",
+        "source": "TELEPORT",
+        "origin": "teleport_user"
+      },
+      "resources": [
+        {
+          "resource": {
+            "id": "d0000000-0000-4000-8000-0000000000db",
+            "name": "prod-db",
+            "kind": "resource",
+            "sub_kind": "db",
+            "source": "TELEPORT",
+            "origin": "teleport_db"
+          },
+          "level": "request",
+          "grantor_counts": {"standing": 0, "impersonate": 0, "request": 1},
+          "grantors": [
+            {
+              "node": {
+                "id": "10706870-2ac4-499d-8c2d-4db7198f7e87",
+                "name": "requester",
+                "kind": "identity_group",
+                "sub_kind": "role",
+                "source": "TELEPORT",
+                "origin": "teleport_role"
+              },
+              "level": "request"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "identity": {
+        "id": "d3333333-3333-4333-8333-333333333333",
+        "name": "dave@example.com",
+        "kind": "identity",
+        "sub_kind": "user",
+        "source": "TELEPORT",
+        "origin": "teleport_user"
+      },
+      "resources": [
+        {
+          "resource": {
+            "id": "d0000000-0000-4000-8000-0000000000db",
+            "name": "prod-db",
+            "kind": "resource",
+            "sub_kind": "db",
+            "source": "TELEPORT",
+            "origin": "teleport_db"
+          },
+          "level": "denied",
+          "grantor_counts": {"standing": 0, "impersonate": 0, "request": 0},
+          "grantors": [
+            {
+              "node": {
+                "id": "b10c0000-0000-4000-8000-000000000001",
+                "name": "prod-db-deny",
+                "kind": "identity_group",
+                "sub_kind": "role",
+                "source": "TELEPORT",
+                "origin": "teleport_role"
+              },
+              "level": "denied"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "identity": {
+        "id": "e4444444-4444-4444-8444-444444444444",
+        "name": "eve@example.com",
+        "kind": "identity",
+        "sub_kind": "user",
+        "source": "TELEPORT",
+        "origin": "teleport_user"
+      },
+      "resources": []
+    }
+  ]
+}

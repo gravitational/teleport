@@ -921,6 +921,7 @@ func waitForSRACache(t *testing.T, srv *authtest.TLSServer, resps ...*accessv1.C
 			_, err := srv.Auth().ScopedAccessCache.GetScopedRoleAssignment(ctx, accessv1.GetScopedRoleAssignmentRequest_builder{
 				Name:    resp.GetAssignment().GetMetadata().GetName(),
 				SubKind: resp.GetAssignment().GetSubKind(),
+				Scope:   resp.GetAssignment().GetScope(),
 			}.Build())
 			require.NoError(t, err)
 		}
