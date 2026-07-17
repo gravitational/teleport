@@ -777,6 +777,7 @@ Examples:
 			fmt.Printf("%s\n", teleport.Version)
 		} else {
 			modules.GetModules().PrintVersion()
+			fmt.Println("testing release process development builds")
 		}
 	case dbConfigureCreate.FullCommand():
 		err = onDumpDatabaseConfig(dbConfigCreateFlags)
