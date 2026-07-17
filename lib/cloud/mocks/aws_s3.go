@@ -20,6 +20,7 @@ package mocks
 
 import (
 	"context"
+	"strconv"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
@@ -29,18 +30,39 @@ import (
 
 // S3Client mocks AWS S3 API.
 type S3Client struct {
-	Buckets            []s3types.Bucket
-	BucketPolicy       map[string]string
-	BucketPolicyStatus map[string]s3types.PolicyStatus
-	BucketACL          map[string][]s3types.Grant
-	BucketTags         map[string][]s3types.Tag
-	BucketLocations    map[string]s3types.BucketLocationConstraint
+	Buckets             []s3types.Bucket
+	BucketPolicy        map[string]string
+	BucketPolicyStatus  map[string]s3types.PolicyStatus
+	BucketACL           map[string][]s3types.Grant
+	BucketTags          map[string][]s3types.Tag
+	BucketLocations     map[string]s3types.BucketLocationConstraint
+	ListBucketsPageSize int
 }
 
-func (m *S3Client) ListBuckets(_ context.Context, _ *s3.ListBucketsInput, _ ...func(*s3.Options)) (*s3.ListBucketsOutput, error) {
-	return &s3.ListBucketsOutput{
-		Buckets: m.Buckets,
-	}, nil
+func (m *S3Client) ListBuckets(_ context.Context, input *s3.ListBucketsInput, _ ...func(*s3.Options)) (*s3.ListBucketsOutput, error) {
+	// When <=0, all buckets are returned in a single page.
+	if m.ListBucketsPageSize <= 0 {
+		return &s3.ListBucketsOutput{
+			Buckets: m.Buckets,
+		}, nil
+	}
+
+	start := 0
+	if token := aws.ToString(input.ContinuationToken); token != "" {
+		var err error
+		start, err = strconv.Atoi(token)
+		if err != nil {
+			return nil, trace.BadParameter("invalid continuation token %q", token)
+		}
+	}
+	end := min(start+m.ListBucketsPageSize, len(m.Buckets))
+	out := &s3.ListBucketsOutput{
+		Buckets: m.Buckets[start:end],
+	}
+	if end < len(m.Buckets) {
+		out.ContinuationToken = aws.String(strconv.Itoa(end))
+	}
+	return out, nil
 }
 
 func (m *S3Client) GetBucketPolicy(_ context.Context, input *s3.GetBucketPolicyInput, _ ...func(*s3.Options)) (*s3.GetBucketPolicyOutput, error) {
