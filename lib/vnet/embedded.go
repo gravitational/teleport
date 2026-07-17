@@ -81,6 +81,12 @@ type EmbeddedApplicationService interface {
 
 	// GetDBSigner returns the private key for the database certificate
 	GetDBSigner(ctx context.Context, dbKey *vnetv1.DatabaseKey) (crypto.Signer, error)
+
+	// GetGitCert issues a TLS certificate for the given git server.
+	GetGitCert(ctx context.Context, gitInfo *vnetv1.GitServerInfo) (*tls.Certificate, error)
+
+	// GetGitSigner returns the private key for the git server certificate.
+	GetGitSigner(ctx context.Context, gitKey *vnetv1.GitServerKey) (crypto.Signer, error)
 }
 
 // EmbeddedVNetHostConfig is passed to EmbeddedVNetConfig.ConfigureHost to
@@ -297,6 +303,10 @@ func (*embeddedApplicationServiceClient) ExchangeSSHKeys(context.Context, *vnetv
 	}, nil
 }
 
+func (*embeddedApplicationServiceClient) PerformSessionMFACeremony(context.Context, *vnetv1.PerformSessionMFACeremonyRequest, ...grpc.CallOption) (*vnetv1.PerformSessionMFACeremonyResponse, error) {
+	return nil, trace.NotImplemented("MFA ceremonies not supported in embedded VNet")
+}
+
 func (e *embeddedApplicationServiceClient) ReissueDBCert(ctx context.Context, req *vnetv1.ReissueDBCertRequest, _ ...grpc.CallOption) (*vnetv1.ReissueDBCertResponse, error) {
 	cert, err := e.service.GetDBCert(ctx, req.GetDatabaseInfo())
 	if err != nil {
@@ -319,6 +329,30 @@ func (e *embeddedApplicationServiceClient) SignForDB(ctx context.Context, req *v
 
 func (*embeddedApplicationServiceClient) OnNewDBConnection(context.Context, *vnetv1.OnNewDBConnectionRequest, ...grpc.CallOption) (*vnetv1.OnNewDBConnectionResponse, error) {
 	return &vnetv1.OnNewDBConnectionResponse{}, nil
+}
+
+func (e *embeddedApplicationServiceClient) ReissueGitCert(ctx context.Context, req *vnetv1.ReissueGitCertRequest, _ ...grpc.CallOption) (*vnetv1.ReissueGitCertResponse, error) {
+	cert, err := e.service.GetGitCert(ctx, req.GetGitServerInfo())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &vnetv1.ReissueGitCertResponse{Cert: cert.Certificate[0]}, nil
+}
+
+func (e *embeddedApplicationServiceClient) SignForGit(ctx context.Context, req *vnetv1.SignForGitRequest, _ ...grpc.CallOption) (*vnetv1.SignForGitResponse, error) {
+	signer, err := e.service.GetGitSigner(ctx, req.GetGitServerKey())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sig, err := sign(signer, req.GetSign())
+	if err != nil {
+		return nil, trace.Wrap(err, "signing for git server %v", req.GetGitServerKey())
+	}
+	return &vnetv1.SignForGitResponse{Signature: sig}, nil
+}
+
+func (*embeddedApplicationServiceClient) OnNewGitConnection(context.Context, *vnetv1.OnNewGitConnectionRequest, ...grpc.CallOption) (*vnetv1.OnNewGitConnectionResponse, error) {
+	return &vnetv1.OnNewGitConnectionResponse{}, nil
 }
 
 var _ vnetv1.ClientApplicationServiceClient = (*embeddedApplicationServiceClient)(nil)

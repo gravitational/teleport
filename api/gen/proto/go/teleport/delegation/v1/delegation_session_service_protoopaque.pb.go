@@ -225,6 +225,15 @@ func (x *GenerateCertsRequest) GetRouteToApp() *RouteToApp {
 	return nil
 }
 
+func (x *GenerateCertsRequest) GetRouteToGit() *RouteToGit {
+	if x != nil {
+		if x, ok := x.xxx_hidden_Routing.(*generateCertsRequest_RouteToGit); ok {
+			return x.RouteToGit
+		}
+	}
+	return nil
+}
+
 func (x *GenerateCertsRequest) SetDelegationSessionId(v string) {
 	x.xxx_hidden_DelegationSessionId = v
 }
@@ -271,6 +280,14 @@ func (x *GenerateCertsRequest) SetRouteToApp(v *RouteToApp) {
 	x.xxx_hidden_Routing = &generateCertsRequest_RouteToApp{v}
 }
 
+func (x *GenerateCertsRequest) SetRouteToGit(v *RouteToGit) {
+	if v == nil {
+		x.xxx_hidden_Routing = nil
+		return
+	}
+	x.xxx_hidden_Routing = &generateCertsRequest_RouteToGit{v}
+}
+
 func (x *GenerateCertsRequest) HasTtl() bool {
 	if x == nil {
 		return false
@@ -309,6 +326,14 @@ func (x *GenerateCertsRequest) HasRouteToApp() bool {
 	return ok
 }
 
+func (x *GenerateCertsRequest) HasRouteToGit() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.xxx_hidden_Routing.(*generateCertsRequest_RouteToGit)
+	return ok
+}
+
 func (x *GenerateCertsRequest) ClearTtl() {
 	x.xxx_hidden_Ttl = nil
 }
@@ -335,10 +360,17 @@ func (x *GenerateCertsRequest) ClearRouteToApp() {
 	}
 }
 
+func (x *GenerateCertsRequest) ClearRouteToGit() {
+	if _, ok := x.xxx_hidden_Routing.(*generateCertsRequest_RouteToGit); ok {
+		x.xxx_hidden_Routing = nil
+	}
+}
+
 const GenerateCertsRequest_Routing_not_set_case case_GenerateCertsRequest_Routing = 0
 const GenerateCertsRequest_RouteToKubernetes_case case_GenerateCertsRequest_Routing = 5
 const GenerateCertsRequest_RouteToDatabase_case case_GenerateCertsRequest_Routing = 6
 const GenerateCertsRequest_RouteToApp_case case_GenerateCertsRequest_Routing = 7
+const GenerateCertsRequest_RouteToGit_case case_GenerateCertsRequest_Routing = 8
 
 func (x *GenerateCertsRequest) WhichRouting() case_GenerateCertsRequest_Routing {
 	if x == nil {
@@ -351,6 +383,8 @@ func (x *GenerateCertsRequest) WhichRouting() case_GenerateCertsRequest_Routing 
 		return GenerateCertsRequest_RouteToDatabase_case
 	case *generateCertsRequest_RouteToApp:
 		return GenerateCertsRequest_RouteToApp_case
+	case *generateCertsRequest_RouteToGit:
+		return GenerateCertsRequest_RouteToGit_case
 	default:
 		return GenerateCertsRequest_Routing_not_set_case
 	}
@@ -374,6 +408,8 @@ type GenerateCertsRequest_builder struct {
 	RouteToDatabase *RouteToDatabase
 	// Route to the application the certificates will be used to access.
 	RouteToApp *RouteToApp
+	// Route to the git server the certificates will be used to access.
+	RouteToGit *RouteToGit
 	// -- end of xxx_hidden_Routing
 }
 
@@ -393,6 +429,9 @@ func (b0 GenerateCertsRequest_builder) Build() *GenerateCertsRequest {
 	}
 	if b.RouteToApp != nil {
 		x.xxx_hidden_Routing = &generateCertsRequest_RouteToApp{b.RouteToApp}
+	}
+	if b.RouteToGit != nil {
+		x.xxx_hidden_Routing = &generateCertsRequest_RouteToGit{b.RouteToGit}
 	}
 	return m0
 }
@@ -426,11 +465,18 @@ type generateCertsRequest_RouteToApp struct {
 	RouteToApp *RouteToApp `protobuf:"bytes,7,opt,name=route_to_app,json=routeToApp,proto3,oneof"`
 }
 
+type generateCertsRequest_RouteToGit struct {
+	// Route to the git server the certificates will be used to access.
+	RouteToGit *RouteToGit `protobuf:"bytes,8,opt,name=route_to_git,json=routeToGit,proto3,oneof"`
+}
+
 func (*generateCertsRequest_RouteToKubernetes) isGenerateCertsRequest_Routing() {}
 
 func (*generateCertsRequest_RouteToDatabase) isGenerateCertsRequest_Routing() {}
 
 func (*generateCertsRequest_RouteToApp) isGenerateCertsRequest_Routing() {}
+
+func (*generateCertsRequest_RouteToGit) isGenerateCertsRequest_Routing() {}
 
 // RouteToKubernetes contains Kubernetes access routing information.
 type RouteToKubernetes struct {
@@ -774,6 +820,65 @@ func (b0 RouteToApp_builder) Build() *RouteToApp {
 	return m0
 }
 
+// RouteToGit contains git server access routing information.
+type RouteToGit struct {
+	state                    protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_GitServerName string                 `protobuf:"bytes,1,opt,name=git_server_name,json=gitServerName,proto3"`
+	unknownFields            protoimpl.UnknownFields
+	sizeCache                protoimpl.SizeCache
+}
+
+func (x *RouteToGit) Reset() {
+	*x = RouteToGit{}
+	mi := &file_teleport_delegation_v1_delegation_session_service_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RouteToGit) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RouteToGit) ProtoMessage() {}
+
+func (x *RouteToGit) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_delegation_v1_delegation_session_service_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *RouteToGit) GetGitServerName() string {
+	if x != nil {
+		return x.xxx_hidden_GitServerName
+	}
+	return ""
+}
+
+func (x *RouteToGit) SetGitServerName(v string) {
+	x.xxx_hidden_GitServerName = v
+}
+
+type RouteToGit_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Git server name.
+	GitServerName string
+}
+
+func (b0 RouteToGit_builder) Build() *RouteToGit {
+	m0 := &RouteToGit{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.xxx_hidden_GitServerName = b.GitServerName
+	return m0
+}
+
 // GenerateCertsResponse are the results of calling GenerateCerts.
 type GenerateCertsResponse struct {
 	state          protoimpl.MessageState `protogen:"opaque.v1"`
@@ -785,7 +890,7 @@ type GenerateCertsResponse struct {
 
 func (x *GenerateCertsResponse) Reset() {
 	*x = GenerateCertsResponse{}
-	mi := &file_teleport_delegation_v1_delegation_session_service_proto_msgTypes[5]
+	mi := &file_teleport_delegation_v1_delegation_session_service_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -797,7 +902,7 @@ func (x *GenerateCertsResponse) String() string {
 func (*GenerateCertsResponse) ProtoMessage() {}
 
 func (x *GenerateCertsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_delegation_v1_delegation_session_service_proto_msgTypes[5]
+	mi := &file_teleport_delegation_v1_delegation_session_service_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -861,7 +966,7 @@ const file_teleport_delegation_v1_delegation_session_service_proto_rawDesc = "" 
 	"7teleport/delegation/v1/delegation_session_service.proto\x12\x16teleport.delegation.v1\x1a\x1egoogle/protobuf/duration.proto\x1a8teleport/delegation/v1/delegation_session_resource.proto\"\x90\x01\n" +
 	"\x1eCreateDelegationSessionRequest\x12A\n" +
 	"\x04spec\x18\x01 \x01(\v2-.teleport.delegation.v1.DelegationSessionSpecR\x04spec\x12+\n" +
-	"\x03ttl\x18\x02 \x01(\v2\x19.google.protobuf.DurationR\x03ttl\"\xca\x03\n" +
+	"\x03ttl\x18\x02 \x01(\v2\x19.google.protobuf.DurationR\x03ttl\"\x92\x04\n" +
 	"\x14GenerateCertsRequest\x122\n" +
 	"\x15delegation_session_id\x18\x01 \x01(\tR\x13delegationSessionId\x12$\n" +
 	"\x0essh_public_key\x18\x02 \x01(\fR\fsshPublicKey\x12$\n" +
@@ -870,7 +975,9 @@ const file_teleport_delegation_v1_delegation_session_service_proto_rawDesc = "" 
 	"\x13route_to_kubernetes\x18\x05 \x01(\v2).teleport.delegation.v1.RouteToKubernetesH\x00R\x11routeToKubernetes\x12U\n" +
 	"\x11route_to_database\x18\x06 \x01(\v2'.teleport.delegation.v1.RouteToDatabaseH\x00R\x0frouteToDatabase\x12F\n" +
 	"\froute_to_app\x18\a \x01(\v2\".teleport.delegation.v1.RouteToAppH\x00R\n" +
-	"routeToAppB\t\n" +
+	"routeToApp\x12F\n" +
+	"\froute_to_git\x18\b \x01(\v2\".teleport.delegation.v1.RouteToGitH\x00R\n" +
+	"routeToGitB\t\n" +
 	"\arouting\"6\n" +
 	"\x11RouteToKubernetes\x12!\n" +
 	"\fcluster_name\x18\x01 \x01(\tR\vclusterName\"\x9e\x01\n" +
@@ -892,7 +999,10 @@ const file_teleport_delegation_v1_delegation_session_service_proto_rawDesc = "" 
 	"\faws_role_arn\x18\x06 \x01(\tR\n" +
 	"awsRoleArn\x12%\n" +
 	"\x0eazure_identity\x18\a \x01(\tR\razureIdentity\x12.\n" +
-	"\x13gcp_service_account\x18\b \x01(\tR\x11gcpServiceAccount\";\n" +
+	"\x13gcp_service_account\x18\b \x01(\tR\x11gcpServiceAccount\"4\n" +
+	"\n" +
+	"RouteToGit\x12&\n" +
+	"\x0fgit_server_name\x18\x01 \x01(\tR\rgitServerName\";\n" +
 	"\x15GenerateCertsResponse\x12\x10\n" +
 	"\x03ssh\x18\x01 \x01(\fR\x03ssh\x12\x10\n" +
 	"\x03tls\x18\x02 \x01(\fR\x03tls2\x86\x02\n" +
@@ -900,34 +1010,36 @@ const file_teleport_delegation_v1_delegation_session_service_proto_rawDesc = "" 
 	"\x17CreateDelegationSession\x126.teleport.delegation.v1.CreateDelegationSessionRequest\x1a).teleport.delegation.v1.DelegationSession\x12l\n" +
 	"\rGenerateCerts\x12,.teleport.delegation.v1.GenerateCertsRequest\x1a-.teleport.delegation.v1.GenerateCertsResponseBXZVgithub.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1;delegationv1b\x06proto3"
 
-var file_teleport_delegation_v1_delegation_session_service_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
+var file_teleport_delegation_v1_delegation_session_service_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
 var file_teleport_delegation_v1_delegation_session_service_proto_goTypes = []any{
 	(*CreateDelegationSessionRequest)(nil), // 0: teleport.delegation.v1.CreateDelegationSessionRequest
 	(*GenerateCertsRequest)(nil),           // 1: teleport.delegation.v1.GenerateCertsRequest
 	(*RouteToKubernetes)(nil),              // 2: teleport.delegation.v1.RouteToKubernetes
 	(*RouteToDatabase)(nil),                // 3: teleport.delegation.v1.RouteToDatabase
 	(*RouteToApp)(nil),                     // 4: teleport.delegation.v1.RouteToApp
-	(*GenerateCertsResponse)(nil),          // 5: teleport.delegation.v1.GenerateCertsResponse
-	(*DelegationSessionSpec)(nil),          // 6: teleport.delegation.v1.DelegationSessionSpec
-	(*durationpb.Duration)(nil),            // 7: google.protobuf.Duration
-	(*DelegationSession)(nil),              // 8: teleport.delegation.v1.DelegationSession
+	(*RouteToGit)(nil),                     // 5: teleport.delegation.v1.RouteToGit
+	(*GenerateCertsResponse)(nil),          // 6: teleport.delegation.v1.GenerateCertsResponse
+	(*DelegationSessionSpec)(nil),          // 7: teleport.delegation.v1.DelegationSessionSpec
+	(*durationpb.Duration)(nil),            // 8: google.protobuf.Duration
+	(*DelegationSession)(nil),              // 9: teleport.delegation.v1.DelegationSession
 }
 var file_teleport_delegation_v1_delegation_session_service_proto_depIdxs = []int32{
-	6, // 0: teleport.delegation.v1.CreateDelegationSessionRequest.spec:type_name -> teleport.delegation.v1.DelegationSessionSpec
-	7, // 1: teleport.delegation.v1.CreateDelegationSessionRequest.ttl:type_name -> google.protobuf.Duration
-	7, // 2: teleport.delegation.v1.GenerateCertsRequest.ttl:type_name -> google.protobuf.Duration
+	7, // 0: teleport.delegation.v1.CreateDelegationSessionRequest.spec:type_name -> teleport.delegation.v1.DelegationSessionSpec
+	8, // 1: teleport.delegation.v1.CreateDelegationSessionRequest.ttl:type_name -> google.protobuf.Duration
+	8, // 2: teleport.delegation.v1.GenerateCertsRequest.ttl:type_name -> google.protobuf.Duration
 	2, // 3: teleport.delegation.v1.GenerateCertsRequest.route_to_kubernetes:type_name -> teleport.delegation.v1.RouteToKubernetes
 	3, // 4: teleport.delegation.v1.GenerateCertsRequest.route_to_database:type_name -> teleport.delegation.v1.RouteToDatabase
 	4, // 5: teleport.delegation.v1.GenerateCertsRequest.route_to_app:type_name -> teleport.delegation.v1.RouteToApp
-	0, // 6: teleport.delegation.v1.DelegationSessionService.CreateDelegationSession:input_type -> teleport.delegation.v1.CreateDelegationSessionRequest
-	1, // 7: teleport.delegation.v1.DelegationSessionService.GenerateCerts:input_type -> teleport.delegation.v1.GenerateCertsRequest
-	8, // 8: teleport.delegation.v1.DelegationSessionService.CreateDelegationSession:output_type -> teleport.delegation.v1.DelegationSession
-	5, // 9: teleport.delegation.v1.DelegationSessionService.GenerateCerts:output_type -> teleport.delegation.v1.GenerateCertsResponse
-	8, // [8:10] is the sub-list for method output_type
-	6, // [6:8] is the sub-list for method input_type
-	6, // [6:6] is the sub-list for extension type_name
-	6, // [6:6] is the sub-list for extension extendee
-	0, // [0:6] is the sub-list for field type_name
+	5, // 6: teleport.delegation.v1.GenerateCertsRequest.route_to_git:type_name -> teleport.delegation.v1.RouteToGit
+	0, // 7: teleport.delegation.v1.DelegationSessionService.CreateDelegationSession:input_type -> teleport.delegation.v1.CreateDelegationSessionRequest
+	1, // 8: teleport.delegation.v1.DelegationSessionService.GenerateCerts:input_type -> teleport.delegation.v1.GenerateCertsRequest
+	9, // 9: teleport.delegation.v1.DelegationSessionService.CreateDelegationSession:output_type -> teleport.delegation.v1.DelegationSession
+	6, // 10: teleport.delegation.v1.DelegationSessionService.GenerateCerts:output_type -> teleport.delegation.v1.GenerateCertsResponse
+	9, // [9:11] is the sub-list for method output_type
+	7, // [7:9] is the sub-list for method input_type
+	7, // [7:7] is the sub-list for extension type_name
+	7, // [7:7] is the sub-list for extension extendee
+	0, // [0:7] is the sub-list for field type_name
 }
 
 func init() { file_teleport_delegation_v1_delegation_session_service_proto_init() }
@@ -940,6 +1052,7 @@ func file_teleport_delegation_v1_delegation_session_service_proto_init() {
 		(*generateCertsRequest_RouteToKubernetes)(nil),
 		(*generateCertsRequest_RouteToDatabase)(nil),
 		(*generateCertsRequest_RouteToApp)(nil),
+		(*generateCertsRequest_RouteToGit)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -947,7 +1060,7 @@ func file_teleport_delegation_v1_delegation_session_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_delegation_v1_delegation_session_service_proto_rawDesc), len(file_teleport_delegation_v1_delegation_session_service_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   6,
+			NumMessages:   7,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

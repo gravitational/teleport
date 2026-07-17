@@ -1,3 +1,5 @@
+//go:build windows
+
 /*
  * Teleport
  * Copyright (C) 2026  Gravitational, Inc.
@@ -16,16 +18,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-//go:build windows
-
 package common
 
 import (
 	"fmt"
 	"os"
 	"path/filepath"
-
-	"github.com/gravitational/trace"
 )
 
 const gitRemoteHelperBinary = "git-remote-teleport"
@@ -33,22 +31,24 @@ const gitRemoteHelperBinary = "git-remote-teleport"
 // ensureGitRemoteHelper ensures that git-remote-teleport.cmd exists in the
 // same directory as the tsh binary. Git on Windows looks for
 // git-remote-<scheme>.cmd when handling custom URL schemes. The .cmd wrapper
-// delegates to "tsh git http-remote".
-func ensureGitRemoteHelper(cf *CLIConf) error {
+// delegates to "tsh git remote-http".
+func ensureGitRemoteHelper(cf *CLIConf) {
 	tshPath, err := os.Executable()
 	if err != nil {
-		return trace.Wrap(err, "could not determine tsh path")
+		logger.DebugContext(cf.Context, "Could not determine tsh path", "error", err)
+		return
 	}
 	tshPath, err = filepath.EvalSymlinks(tshPath)
 	if err != nil {
-		return trace.Wrap(err, "could not resolve tsh path")
+		logger.DebugContext(cf.Context, "Could not resolve tsh path", "error", err)
+		return
 	}
 
 	tshDir := filepath.Dir(tshPath)
 	helperPath := filepath.Join(tshDir, gitRemoteHelperBinary+".cmd")
 
 	if _, err := os.Stat(helperPath); err == nil {
-		return nil
+		return
 	}
 
 	// The .cmd wrapper passes all arguments through to tsh git remote-http.
@@ -56,13 +56,14 @@ func ensureGitRemoteHelper(cf *CLIConf) error {
 	content := fmt.Sprintf("@\"%s\" git remote-http %%*\r\n", tshPath)
 
 	if err := os.WriteFile(helperPath, []byte(content), 0755); err != nil {
-		return trace.Errorf("could not create %s.cmd; create %s manually with: %s",
-			gitRemoteHelperBinary, helperPath, content)
+		fmt.Fprintf(cf.Stderr(), "Note: could not create %s.cmd automatically.\n", gitRemoteHelperBinary)
+		fmt.Fprintf(cf.Stderr(), "To enable 'teleport://' git URLs, create %s with:\n", helperPath)
+		fmt.Fprintf(cf.Stderr(), "  %s\n\n", content)
+		return
 	}
 
 	logger.DebugContext(cf.Context, "Created git-remote-teleport.cmd wrapper",
 		"path", helperPath,
 		"tsh", tshPath,
 	)
-	return nil
 }

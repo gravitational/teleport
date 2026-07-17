@@ -195,6 +195,15 @@ func WithRouteToApp(route proto.RouteToApp) GenerateOption {
 	}
 }
 
+// WithRouteToGit sets the RouteToGit field on the certificates request.
+func WithRouteToGit(route proto.RouteToGit) GenerateOption {
+	return func(opts *generateOpts) {
+		opts.requestModifiers = append(opts.requestModifiers, func(req *proto.UserCertsRequest) {
+			req.RouteToGit = route
+		})
+	}
+}
+
 // WithRouteToDatabase sets the RouteToDatabase field on the certificates
 // request.
 func WithRouteToDatabase(route proto.RouteToDatabase) GenerateOption {
@@ -542,6 +551,13 @@ func (g *Generator) generateDelegationCertificates(ctx context.Context, req prot
 		certReq.Routing = &delegationv1.GenerateCertsRequest_RouteToKubernetes{
 			RouteToKubernetes: &delegationv1.RouteToKubernetes{
 				ClusterName: req.GetKubernetesCluster(),
+			},
+		}
+	case req.GetRouteToGit().GitServerName != "":
+		route := req.GetRouteToGit()
+		certReq.Routing = &delegationv1.GenerateCertsRequest_RouteToGit{
+			RouteToGit: &delegationv1.RouteToGit{
+				GitServerName: route.GetGitServerName(),
 			},
 		}
 	}

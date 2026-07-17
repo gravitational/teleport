@@ -48,6 +48,7 @@ type fqdnResolverConfig struct {
 	// allowDatabaseAccess gates VNet database FQDN resolution for tsh/Connect.
 	allowDatabaseAccess bool
 	allowAppHTTPSTunnel bool
+	allowGitAccess      bool
 }
 
 func newFQDNResolver(cfg *fqdnResolverConfig) *fqdnResolver {
@@ -91,6 +92,15 @@ func (r *fqdnResolver) ResolveFQDN(ctx context.Context, fqdn string) (*vnetv1.Re
 		switch {
 		case err == nil:
 			// Found a matching database, return it immediately.
+			return result, nil
+		case !errors.Is(err, errNoMatch):
+			return nil, err
+		}
+
+		// Check if there's a matching git server in this cluster.
+		result, err = r.resolveGitInfoForCluster(ctx, candidate, fqdn)
+		switch {
+		case err == nil:
 			return result, nil
 		case !errors.Is(err, errNoMatch):
 			return nil, err
@@ -461,6 +471,80 @@ func (r *fqdnResolver) resolveDBInfoForCluster(
 		Match: &vnetv1.ResolveFQDNResponse_MatchedDatabase{
 			MatchedDatabase: &vnetv1.MatchedDatabase{
 				DatabaseInfo: dbInfo,
+			},
+		},
+	}, nil
+}
+
+// parseGitFQDN parses a git server FQDN of the form
+// "<name>.git.<proxy-public-addr>." and returns the git server name.
+// Returns empty string if the FQDN doesn't match the git pattern.
+func parseGitFQDN(fqdn, proxyPublicAddr string) string {
+	suffix := ".git." + dns.FullyQualify(proxyPublicAddr)
+	if !strings.HasSuffix(fqdn, suffix) {
+		return ""
+	}
+	name := strings.TrimSuffix(fqdn, suffix)
+	if name == "" || strings.ContainsRune(name, '.') {
+		return ""
+	}
+	return name
+}
+
+func (r *fqdnResolver) resolveGitInfoForCluster(
+	ctx context.Context,
+	candidate clusterResolutionCandidate,
+	fqdn string,
+) (*vnetv1.ResolveFQDNResponse, error) {
+	if !r.cfg.allowGitAccess {
+		return nil, errNoMatch
+	}
+
+	clusterConfig, err := r.cfg.clusterConfigCache.GetClusterConfig(ctx, candidate.client)
+	if err != nil {
+		return nil, errNoMatch
+	}
+	if clusterConfig.ProxyPublicAddr == "" {
+		return nil, errNoMatch
+	}
+
+	gitServerName := parseGitFQDN(fqdn, clusterConfig.ProxyPublicAddr)
+	if gitServerName == "" {
+		return nil, errNoMatch
+	}
+
+	log := log.With("profile", candidate.profileName, "leaf_cluster", candidate.leafClusterName, "fqdn", fqdn)
+
+	_, err = candidate.client.CurrentCluster().GitServerReadOnlyClient().GetGitServer(ctx, gitServerName)
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return nil, errNoMatch
+		}
+		log.InfoContext(ctx, "Failed to get git server", "error", err)
+		return nil, errNoMatch
+	}
+
+	dialOpts, err := r.cfg.clientApplication.GetDialOptions(ctx, candidate.profileName)
+	if err != nil {
+		log.ErrorContext(ctx, "Failed to get cluster dial options", "error", err)
+		return nil, trace.Wrap(err, "getting dial options for matching git server")
+	}
+
+	log.InfoContext(ctx, "Query matched a git server", "git_server", gitServerName)
+	gitInfo := &vnetv1.GitServerInfo{
+		GitServerKey: &vnetv1.GitServerKey{
+			Profile:     candidate.profileName,
+			LeafCluster: candidate.leafClusterName,
+			Name:        gitServerName,
+		},
+		Cluster:       candidate.clusterName,
+		Ipv4CidrRange: clusterConfig.IPv4CIDRRange,
+		DialOptions:   dialOpts,
+	}
+	return &vnetv1.ResolveFQDNResponse{
+		Match: &vnetv1.ResolveFQDNResponse_MatchedGitServer{
+			MatchedGitServer: &vnetv1.MatchedGitServer{
+				GitServerInfo: gitInfo,
 			},
 		},
 	}, nil

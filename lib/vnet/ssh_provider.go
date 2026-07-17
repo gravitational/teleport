@@ -182,7 +182,7 @@ func (p *sshProvider) sessionSSHConfig(
 ) (*ssh.ClientConfig, error) {
 	// TODO(nklaassen): cache session SSH configs so we don't have to regenerate
 	// every time.
-	resp, err := p.cfg.clt.SessionSSHConfig(ctx, target, user)
+	resp, err := p.cfg.clt.SessionSSHConfig(ctx, target, user, vnetv1.SessionSSHConfigCredentialMode_SESSION_SSH_CONFIG_CREDENTIAL_MODE_MFA_CERT)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

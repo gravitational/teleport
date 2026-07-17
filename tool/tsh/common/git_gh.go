@@ -20,7 +20,6 @@ package common
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
 	"net"
 	"net/http"
@@ -37,7 +36,6 @@ import (
 	proto "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 )
 
@@ -97,14 +95,18 @@ func (c *gitGHCommand) run(cf *CLIConf) error {
 		return trace.BadParameter("git server %v does not have HTTP proxying enabled", gitServer.GetName())
 	}
 
-	valid, _ := hasValidGitCert(tc, gitServer.GetName())
-	if !valid {
-		if err := ensureGitCredentialsAndCert(cf, tc, gitServer); err != nil {
-			return trace.Wrap(err)
+	if !isBeamsEnvironment() {
+		valid, _ := hasValidGitCert(tc, gitServer.GetName())
+		if !valid {
+			if err := ensureGitCredentialsAndCert(cf, tc, gitServer); err != nil {
+				return trace.Wrap(err)
+			}
 		}
 	}
 
-	proxy, err := startGitProxy(cf, tc, gitServer.GetName())
+	proxy, err := startGitProxy(cf, tc, gitProxyConfig{
+		gitServerName: gitServer.GetName(),
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -119,7 +121,7 @@ func (c *gitGHCommand) run(cf *CLIConf) error {
 	cmd.Stderr = cf.Stderr()
 	cmd.Stdin = os.Stdin
 	cmd.Env = os.Environ()
-	for k, v := range proxy.GetEnvVars() {
+	for k, v := range proxy.GetGHEnvVars() {
 		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", k, v))
 	}
 
@@ -179,14 +181,18 @@ func (c *gitGHCommand) resolveGitServer(cf *CLIConf, tc *client.TeleportClient) 
 type gitProxyCommand struct {
 	*kingpin.CmdClause
 
-	gitServerName string
+	gitServerName      string
+	gitHubOrganization string
+	port               string
 }
 
 func newGitProxyCommand(parent *kingpin.CmdClause) *gitProxyCommand {
 	cmd := &gitProxyCommand{
-		CmdClause: parent.Command("git", "Start a local proxy for Git HTTPS and GitHub API access."),
+		CmdClause: parent.Command("git", "Start a local proxy for GitHub API access."),
 	}
-	cmd.Arg("git-server", "Name of the git server.").Required().StringVar(&cmd.gitServerName)
+	cmd.Arg("git-server", "Name of the git server.").StringVar(&cmd.gitServerName)
+	cmd.Flag("github-org", "GitHub organization.").StringVar(&cmd.gitHubOrganization)
+	cmd.Flag("port", "Specifies the source port used by the proxy.").Short('p').StringVar(&cmd.port)
 	return cmd
 }
 
@@ -196,20 +202,36 @@ func (c *gitProxyCommand) run(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	proxy, err := startGitProxy(cf, tc, c.gitServerName)
+	gitServer, err := resolveGitServer(cf, tc, c.gitServerName, c.gitHubOrganization)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	proxy, err := startGitProxy(cf, tc, gitProxyConfig{
+		gitServerName: gitServer.GetName(),
+		port:          c.port,
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	defer proxy.Close()
 
-	fmt.Fprintf(cf.Stdout(), "Started git proxy for %q\n\n", c.gitServerName)
-	fmt.Fprintf(cf.Stdout(), "Use with gh CLI:\n")
+	github := gitServer.GetGitHub()
+	if github == nil {
+		return trace.BadParameter("git server %v is not a GitHub server", gitServer.GetName())
+	}
+
+	fmt.Fprintf(cf.Stdout(), "Started git proxy for GitHub organization %q\n\n", github.Organization)
+	fmt.Fprintf(cf.Stdout(), "Export the following environment variables to use the proxy:\n\n")
+	fmt.Fprintf(cf.Stdout(), "  export HTTP_PROXY=http://%s\n", proxy.httpProxyAddr)
+	fmt.Fprintf(cf.Stdout(), "  export http_proxy=http://%s\n\n", proxy.httpProxyAddr)
+	fmt.Fprintf(cf.Stdout(), "Use the GitHub API at http://api.github.localhost:\n\n")
+	fmt.Fprintf(cf.Stdout(), "  curl http://api.github.localhost/user\n")
+	fmt.Fprintf(cf.Stdout(), "  curl http://api.github.localhost/repos/%s/<repo>/issues\n\n", github.Organization)
+	fmt.Fprintf(cf.Stdout(), "Use with gh CLI (additional env vars required):\n\n")
 	fmt.Fprintf(cf.Stdout(), "  export GH_HOST=github.localhost\n")
 	fmt.Fprintf(cf.Stdout(), "  export GH_TOKEN=teleport\n")
-	fmt.Fprintf(cf.Stdout(), "  export HTTP_PROXY=http://%s\n", proxy.httpProxyAddr)
 	fmt.Fprintf(cf.Stdout(), "  gh api /user\n\n")
-	fmt.Fprintf(cf.Stdout(), "Use with curl (HTTPS via forward proxy):\n")
-	fmt.Fprintf(cf.Stdout(), "  HTTPS_PROXY=http://%s curl --cacert <ca-path> https://api.github.com/user\n\n", proxy.forwardProxy.GetAddr())
 
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
@@ -222,13 +244,9 @@ func (c *gitProxyCommand) run(cf *CLIConf) error {
 
 // gitProxy holds the running git proxy infrastructure.
 type gitProxy struct {
-	certChecker    *client.CertChecker
-	localCAPath    string
-	alpnProxy      *alpnproxy.LocalProxy
-	forwardProxy   *alpnproxy.ForwardProxy
-	httpProxy      *http.Server
-	httpProxyLn    net.Listener
-	httpProxyAddr  string
+	httpProxy     *http.Server
+	httpProxyLn   net.Listener
+	httpProxyAddr string
 }
 
 func (p *gitProxy) Close() error {
@@ -239,25 +257,15 @@ func (p *gitProxy) Close() error {
 	if p.httpProxyLn != nil {
 		errs = append(errs, p.httpProxyLn.Close())
 	}
-	if p.forwardProxy != nil {
-		errs = append(errs, p.forwardProxy.Close())
-	}
-	if p.alpnProxy != nil {
-		errs = append(errs, p.alpnProxy.Close())
-	}
 	return trace.NewAggregate(errs...)
 }
 
-// GetEnvVars returns environment variables for gh CLI.
+// GetGHEnvVars returns environment variables for gh CLI.
 // Uses GH_HOST=github.localhost so gh sends plain HTTP (no TLS verification
 // needed). The HTTP_PROXY routes requests through our local proxy which
 // rewrites github.localhost to github.com and forwards to the Teleport proxy
-// with mTLS.
-//
-// TODO(greedy52) once Go supports SSL_CERT_FILE on macOS
-// (https://github.com/golang/go/issues/77865), switch to using HTTPS_PROXY
-// with a self-signed CA instead of the github.localhost workaround.
-func (p *gitProxy) GetEnvVars() map[string]string {
+// with mTLS via ALPN.
+func (p *gitProxy) GetGHEnvVars() map[string]string {
 	return map[string]string{
 		"GH_TOKEN":   "teleport",
 		"GH_HOST":    "github.localhost",
@@ -266,84 +274,47 @@ func (p *gitProxy) GetEnvVars() map[string]string {
 	}
 }
 
-func startGitProxy(cf *CLIConf, tc *client.TeleportClient, gitServerName string) (*gitProxy, error) {
+// GetGitEnvVars returns environment variables for git remote-http.
+// git remote-http is called with http:// URL and routed through this proxy.
+func (p *gitProxy) GetGitEnvVars() map[string]string {
+	return map[string]string{
+		"HTTP_PROXY": fmt.Sprintf("http://%s", p.httpProxyAddr),
+		"http_proxy": fmt.Sprintf("http://%s", p.httpProxyAddr),
+	}
+}
+
+type gitProxyConfig struct {
+	gitServerName string
+	port          string
+}
+
+func startGitProxy(cf *CLIConf, tc *client.TeleportClient, cfg gitProxyConfig) (*gitProxy, error) {
 	routeToGit := proto.RouteToGit{
-		GitServerName: gitServerName,
+		GitServerName: cfg.gitServerName,
 	}
 
 	gitCertChecker := client.NewGitCertChecker(tc, routeToGit, nil, client.WithTTL(tc.KeyTTL))
 
-	if cert, err := loadAppCertificate(tc, gitServerName); err == nil {
+	if cert, err := loadAppCertificate(tc, cfg.gitServerName); err == nil {
 		gitCertChecker.SetCert(cert)
 	}
 
-	// Create a local CA for TLS termination (used by git clone HTTPS via the
-	// forward proxy). Git (LibreSSL) respects GIT_SSL_CAINFO.
-	profile, err := cf.ProfileStatus()
+	listenAddr := "localhost:0"
+	if cfg.port != "" {
+		listenAddr = "localhost:" + cfg.port
+	}
+	httpProxyLn, err := net.Listen("tcp", listenAddr)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	appLocalCAPath := profile.AppLocalCAPath(tc.SiteName, gitServerName)
-	localCertGen, err := client.NewLocalCertGenerator(cf.Context, gitCertChecker, appLocalCAPath)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Start ALPN proxy with TLS listener (terminates git's HTTPS with
-	// self-signed CA, then connects to Teleport proxy with mTLS git cert).
-	tlsListener, err := tls.Listen("tcp", "localhost:0", &tls.Config{
-		GetCertificate: localCertGen.GetCertificate,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	cfg := makeBasicLocalProxyConfig(cf.Context, tc, tlsListener, false)
-	cfg.Protocols = []alpncommon.Protocol{alpncommon.ProtocolHTTP}
-
-	alpnProxy, err := alpnproxy.NewLocalProxy(
-		cfg,
-		alpnproxy.WithClusterCAsIfConnUpgrade(cf.Context, tc.RootClusterCACertPool),
-		alpnproxy.WithMiddleware(gitCertChecker),
-	)
-	if err != nil {
-		tlsListener.Close()
-		return nil, trace.Wrap(err)
-	}
-
-	go func() {
-		if err := alpnProxy.Start(cf.Context); err != nil {
-			logger.ErrorContext(cf.Context, "Failed to start git ALPN proxy", "error", err)
-		}
-	}()
 
 	proxy := &gitProxy{
-		certChecker: gitCertChecker,
-		localCAPath: appLocalCAPath,
-		alpnProxy:   alpnProxy,
+		httpProxyLn:   httpProxyLn,
+		httpProxyAddr: httpProxyLn.Addr().String(),
 	}
-
-	// Start forward proxy (for curl / HTTPS_PROXY usage with SSL_CERT_FILE on Linux).
-	forwardProxy, err := startGitForwardProxy(cf, alpnProxy.GetAddr())
-	if err != nil {
-		alpnProxy.Close()
-		return nil, trace.Wrap(err)
-	}
-	proxy.forwardProxy = forwardProxy
-
-	// Start HTTP proxy for gh CLI with GH_HOST=github.localhost.
-	// gh sends plain HTTP through HTTP_PROXY. We rewrite github.localhost to
-	// github.com and forward to the Teleport proxy with mTLS.
-	httpProxyLn, err := net.Listen("tcp", "localhost:0")
-	if err != nil {
-		proxy.Close()
-		return nil, trace.Wrap(err)
-	}
-	proxy.httpProxyLn = httpProxyLn
-	proxy.httpProxyAddr = httpProxyLn.Addr().String()
 
 	httpProxyServer := &http.Server{
-		Handler: newGitHTTPProxyHandler(gitCertChecker, alpnProxy.GetAddr()),
+		Handler: newGitHTTPProxyHandler(gitCertChecker, tc, cfg.gitServerName),
 	}
 	proxy.httpProxy = httpProxyServer
 
@@ -354,70 +325,27 @@ func startGitProxy(cf *CLIConf, tc *client.TeleportClient, gitServerName string)
 	}()
 
 	logger.DebugContext(cf.Context, "Git proxy started",
-		"alpn_proxy", alpnProxy.GetAddr(),
-		"forward_proxy", forwardProxy.GetAddr(),
 		"http_proxy", proxy.httpProxyAddr,
 	)
 
 	return proxy, nil
 }
 
-func matchGitHubRequests(req *http.Request) bool {
-	host := req.Host
-	if h, _, err := net.SplitHostPort(host); err == nil {
-		host = h
-	}
-	switch host {
-	case "github.com", "api.github.com":
-		return true
-	default:
-		return false
-	}
-}
-
-func startGitForwardProxy(cf *CLIConf, alpnProxyAddr string) (*alpnproxy.ForwardProxy, error) {
-	listener, err := net.Listen("tcp", "localhost:0")
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	proxy, err := alpnproxy.NewForwardProxy(alpnproxy.ForwardProxyConfig{
-		Listener:     listener,
-		CloseContext: cf.Context,
-		Handlers: []alpnproxy.ConnectRequestHandler{
-			alpnproxy.NewForwardToHostHandler(alpnproxy.ForwardToHostHandlerConfig{
-				MatchFunc: matchGitHubRequests,
-				Host:      alpnProxyAddr,
-			}),
-			alpnproxy.NewForwardToSystemProxyHandler(alpnproxy.ForwardToSystemProxyHandlerConfig{}),
-			alpnproxy.NewForwardToOriginalHostHandler(),
-		},
-	})
-	if err != nil {
-		listener.Close()
-		return nil, trace.Wrap(err)
-	}
-
-	go func() {
-		if err := proxy.Start(); err != nil {
-			logger.ErrorContext(cf.Context, "Failed to start git forward proxy", "error", err)
-		}
-	}()
-	return proxy, nil
-}
-
-// gitHTTPProxyHandler receives plain HTTP proxy requests from gh when using
-// GH_HOST=github.localhost. It rewrites github.localhost URLs to github.com
-// and forwards to the Teleport proxy with mTLS.
+// gitHTTPProxyHandler receives plain HTTP proxy requests from gh (via
+// GH_HOST=github.localhost) and git remote-http (via http://github.com).
+// It rewrites the host as needed and dials the Teleport proxy directly via
+// ALPN with mTLS git cert.
 type gitHTTPProxyHandler struct {
-	certChecker *client.CertChecker
-	proxyAddr   string
+	certChecker   *client.CertChecker
+	tc            *client.TeleportClient
+	gitServerName string
 }
 
-func newGitHTTPProxyHandler(certChecker *client.CertChecker, proxyAddr string) *gitHTTPProxyHandler {
+func newGitHTTPProxyHandler(certChecker *client.CertChecker, tc *client.TeleportClient, gitServerName string) *gitHTTPProxyHandler {
 	return &gitHTTPProxyHandler{
-		certChecker: certChecker,
-		proxyAddr:   proxyAddr,
+		certChecker:   certChecker,
+		tc:            tc,
+		gitServerName: gitServerName,
 	}
 }
 
@@ -428,32 +356,41 @@ func (h *gitHTTPProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 		"url", r.URL.String(),
 	)
 
-	cert, err := h.certChecker.GetOrIssueCert(r.Context())
-	if err != nil {
-		logger.ErrorContext(r.Context(), "Failed to get git cert", "error", err)
-		http.Error(w, "failed to get certificate", http.StatusInternalServerError)
-		return
+	dialFunc := h.dialALPN
+	if isBeamsEnvironment() {
+		dialFunc = h.dialVNet
 	}
 
 	proxy := &httputil.ReverseProxy{
 		Director: func(req *http.Request) {
-			req.URL.Scheme = "https"
+			req.URL.Scheme = "http"
 			req.URL.Host = strings.Replace(req.URL.Host, "github.localhost", "github.com", 1)
 			req.Host = strings.Replace(req.Host, "github.localhost", "github.com", 1)
 		},
 		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{
-				Certificates:       []tls.Certificate{cert},
-				InsecureSkipVerify: true,
-				NextProtos:         []string{string(alpncommon.ProtocolHTTP)},
-			},
-			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-				return net.Dial("tcp", h.proxyAddr)
-			},
+			DialContext: dialFunc,
 		},
 		ModifyResponse: gitHTTPProxyModifyResponse,
 	}
 	proxy.ServeHTTP(w, r)
+}
+
+func (h *gitHTTPProxyHandler) dialALPN(ctx context.Context, network, addr string) (net.Conn, error) {
+	cert, err := h.certChecker.GetOrIssueCert(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err, "getting git cert")
+	}
+	return h.tc.DialALPN(ctx, cert, alpncommon.ProtocolHTTP)
+}
+
+// dialVNet dials the git server through VNet. VNet handles ALPN tunneling and
+// cert management, so tsh just makes a plain TCP connection.
+func (h *gitHTTPProxyHandler) dialVNet(ctx context.Context, network, addr string) (net.Conn, error) {
+	proxyHost, _, _ := net.SplitHostPort(h.tc.WebProxyAddr)
+	vnetFQDN := fmt.Sprintf("%s.git.%s", h.gitServerName, proxyHost)
+	logger.DebugContext(ctx, "Dialing git server through VNet", "fqdn", vnetFQDN)
+	var d net.Dialer
+	return d.DialContext(ctx, "tcp", net.JoinHostPort(vnetFQDN, "443"))
 }
 
 // gitHTTPProxyModifyResponse intercepts responses from the Teleport proxy and

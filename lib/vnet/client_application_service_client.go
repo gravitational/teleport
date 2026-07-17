@@ -192,14 +192,23 @@ func (c *clientApplicationServiceClient) SignForUserTLS(ctx context.Context, req
 }
 
 // SessionSSHConfig returns user SSH configuration values for an SSH session.
-func (c *clientApplicationServiceClient) SessionSSHConfig(ctx context.Context, target dialTarget, user string) (*vnetv1.SessionSSHConfigResponse, error) {
-	resp, err := c.clt.SessionSSHConfig(ctx, &vnetv1.SessionSSHConfigRequest{
-		Profile:     target.profile,
-		RootCluster: target.rootCluster,
-		LeafCluster: target.leafCluster,
-		Address:     target.addr,
-		User:        user,
-	})
+func (c *clientApplicationServiceClient) SessionSSHConfig(
+	ctx context.Context,
+	target dialTarget,
+	user string,
+	mode vnetv1.SessionSSHConfigCredentialMode,
+) (*vnetv1.SessionSSHConfigResponse, error) {
+	resp, err := c.clt.SessionSSHConfig(
+		ctx,
+		&vnetv1.SessionSSHConfigRequest{
+			Profile:        target.profile,
+			RootCluster:    target.rootCluster,
+			LeafCluster:    target.leafCluster,
+			Address:        target.addr,
+			User:           user,
+			CredentialMode: mode,
+		},
+	)
 	return resp, trace.Wrap(err, "calling SessionSSHConfig rpc")
 }
 
@@ -234,6 +243,28 @@ func (c *clientApplicationServiceClient) ExchangeSSHKeys(ctx context.Context, ho
 	return userPublicKey, nil
 }
 
+// PerformSessionMFACeremony performs a session-bound MFA ceremony for a SSH session and returns the challenge name.
+func (c *clientApplicationServiceClient) PerformSessionMFACeremony(
+	ctx context.Context,
+	profile string,
+	leafCluster string,
+	sessionID []byte,
+) (string, error) {
+	resp, err := c.clt.PerformSessionMFACeremony(
+		ctx,
+		&vnetv1.PerformSessionMFACeremonyRequest{
+			Profile:      profile,
+			LeafCluster:  leafCluster,
+			SshSessionId: sessionID,
+		},
+	)
+	if err != nil {
+		return "", trace.Wrap(err, "calling PerformSessionMFACeremony rpc")
+	}
+
+	return resp.GetChallengeName(), nil
+}
+
 // ReissueDBCert issues a new certificate for the requested database.
 func (c *clientApplicationServiceClient) ReissueDBCert(ctx context.Context, dbInfo *vnetv1.DatabaseInfo) ([]byte, error) {
 	resp, err := c.clt.ReissueDBCert(ctx, &vnetv1.ReissueDBCertRequest{
@@ -260,6 +291,31 @@ func (c *clientApplicationServiceClient) OnNewDBConnection(ctx context.Context, 
 		DatabaseKey: dbKey,
 	})
 	return trace.Wrap(err, "calling OnNewDBConnection rpc")
+}
+
+func (c *clientApplicationServiceClient) ReissueGitCert(ctx context.Context, gitInfo *vnetv1.GitServerInfo) ([]byte, error) {
+	resp, err := c.clt.ReissueGitCert(ctx, &vnetv1.ReissueGitCertRequest{
+		GitServerInfo: gitInfo,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "calling ReissueGitCert rpc")
+	}
+	return resp.GetCert(), nil
+}
+
+func (c *clientApplicationServiceClient) SignForGit(ctx context.Context, req *vnetv1.SignForGitRequest) ([]byte, error) {
+	resp, err := c.clt.SignForGit(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err, "calling SignForGit rpc")
+	}
+	return resp.GetSignature(), nil
+}
+
+func (c *clientApplicationServiceClient) OnNewGitConnection(ctx context.Context, gitKey *vnetv1.GitServerKey) error {
+	_, err := c.clt.OnNewGitConnection(ctx, &vnetv1.OnNewGitConnectionRequest{
+		GitServerKey: gitKey,
+	})
+	return trace.Wrap(err, "calling OnNewGitConnection rpc")
 }
 
 // newRPCCertSigner creates an [rpcSigner] from a DER-encoded certificate and a

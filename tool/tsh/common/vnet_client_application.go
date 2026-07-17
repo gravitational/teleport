@@ -202,6 +202,56 @@ func (p *vnetClientApplication) OnNewDBConnection(_ context.Context, _ *vnetv1.D
 	return nil
 }
 
+func (p *vnetClientApplication) ReissueGitCert(ctx context.Context, gitInfo *vnetv1.GitServerInfo) (tls.Certificate, error) {
+	gitKey := gitInfo.GetGitServerKey()
+	tc, err := p.newTeleportClient(ctx, gitKey.GetProfile(), gitKey.GetLeafCluster())
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
+	}
+	routeToGit := vnet.RouteToGit(gitInfo)
+
+	var cert tls.Certificate
+	err = p.retryWithRelogin(ctx, tc, func() error {
+		var err error
+		cert, err = p.reissueGitCert(ctx, tc, gitKey.GetProfile(), gitKey.GetLeafCluster(), routeToGit)
+		return trace.Wrap(err, "reissuing git cert")
+	})
+	return cert, trace.Wrap(err)
+}
+
+func (p *vnetClientApplication) reissueGitCert(ctx context.Context, tc *client.TeleportClient, profileName, leafClusterName string, routeToGit *proto.RouteToGit) (tls.Certificate, error) {
+	slog.InfoContext(ctx, "Reissuing cert for git server.", "git_server", routeToGit.GitServerName, "profile", profileName, "leaf_cluster", leafClusterName)
+
+	profile, err := tc.ProfileStatus()
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err, "loading client profile")
+	}
+
+	clusterClient, err := p.clientCache.Get(ctx, profileName, leafClusterName)
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err, "getting cached cluster client")
+	}
+
+	result, err := clusterClient.IssueUserCertsWithMFA(ctx, client.ReissueParams{
+		RouteToCluster: leafClusterName,
+		RouteToGit:     *routeToGit,
+		AccessRequests: profile.ActiveRequests,
+	})
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err, "issuing git cert")
+	}
+
+	gitCert, err := result.KeyRing.AppTLSCert(routeToGit.GitServerName)
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err, "getting TLS cert from key ring")
+	}
+	return gitCert, nil
+}
+
+func (p *vnetClientApplication) OnNewGitConnection(_ context.Context, _ *vnetv1.GitServerKey) error {
+	return nil
+}
+
 // OnInvalidLocalPort gets called before VNet refuses to handle a connection to a multi-port TCP app
 // because the provided port does not match any of the TCP ports in the app spec.
 func (p *vnetClientApplication) OnInvalidLocalPort(ctx context.Context, appInfo *vnetv1.AppInfo, targetPort uint16) {

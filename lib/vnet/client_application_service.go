@@ -73,6 +73,12 @@ type clientApplicationService struct {
 	// dbSignerCache caches the crypto.Signer for each certificate issued by
 	// ReissueDBCert so that SignForDB can later use that signer.
 	dbSignerCache map[dbKey]crypto.Signer
+
+	// gitSignerMu protects gitSignerCache.
+	gitSignerMu sync.RWMutex
+	// gitSignerCache caches the crypto.Signer for each certificate issued by
+	// ReissueGitCert so that SignForGit can later use that signer.
+	gitSignerCache map[gitKey]crypto.Signer
 }
 
 type clientApplicationServiceConfig struct {
@@ -96,6 +102,7 @@ func newClientApplicationService(cfg *clientApplicationServiceConfig) (*clientAp
 		networkStackInfo: make(chan *vnetv1.NetworkStackInfo, 1),
 		appSignerCache:   make(map[appKey]crypto.Signer),
 		dbSignerCache:    make(map[dbKey]crypto.Signer),
+		gitSignerCache:   make(map[gitKey]crypto.Signer),
 		sshSigners:       sshSigners,
 	}, nil
 }
@@ -323,6 +330,22 @@ func (s *clientApplicationService) SessionSSHConfig(ctx context.Context, req *vn
 		Addr:    req.GetAddress(),
 		Cluster: targetCluster,
 	}
+
+	switch req.GetCredentialMode() {
+	case vnetv1.SessionSSHConfigCredentialMode_SESSION_SSH_CONFIG_CREDENTIAL_MODE_DIRECT:
+		// Direct mode disables the pre-auth MFA check so the target can request in-band MFA during SSH auth.
+		target.MFACheck = &proto.IsMFARequiredResponse{
+			Required:    false,
+			MFARequired: proto.MFARequired_MFA_REQUIRED_NO,
+		}
+
+	case vnetv1.SessionSSHConfigCredentialMode_SESSION_SSH_CONFIG_CREDENTIAL_MODE_MFA_CERT:
+		// Leave MFACheck unset so SessionSSHKeyRing performs the legacy pre-auth MFA flow if required.
+
+	default:
+		return nil, trace.BadParameter("unsupported credential mode %v", req.GetCredentialMode())
+	}
+
 	keyRing, completedMFA, err := clusterClient.SessionSSHKeyRing(ctx, req.GetUser(), target)
 	if err != nil {
 		return nil, trace.Wrap(err, "getting KeyRing for SSH session")
@@ -379,8 +402,12 @@ func (s *clientApplicationService) SessionSSHConfig(ctx context.Context, req *vn
 	}
 	sessionID := s.setSignerForSSHSession(keyRing.SSHPrivateKey)
 
-	// Submit usage event.
-	s.cfg.clientApplication.OnNewSSHSession(ctx, req.GetProfile(), req.GetRootCluster())
+	// Submit usage event. The fallback MFA cert mode is still part of the same
+	// logical SSH connection already reported by the direct attempt and should
+	// not be reported as a separate connection.
+	if req.GetCredentialMode() == vnetv1.SessionSSHConfigCredentialMode_SESSION_SSH_CONFIG_CREDENTIAL_MODE_DIRECT {
+		s.cfg.clientApplication.OnNewSSHSession(ctx, req.GetProfile(), req.GetRootCluster())
+	}
 
 	return &vnetv1.SessionSSHConfigResponse{
 		SessionId:  sessionID,
@@ -435,6 +462,26 @@ func (s *clientApplicationService) ExchangeSSHKeys(ctx context.Context, req *vne
 	return &vnetv1.ExchangeSSHKeysResponse{
 		UserPublicKey: userPublicKey.Marshal(),
 	}, nil
+}
+
+// PerformSessionMFACeremony implements [vnetv1.ClientApplicationServiceServer.PerformSessionMFACeremony]. It performs
+// a session-bound MFA ceremony for a SSH session and returns the challenge name.
+func (s *clientApplicationService) PerformSessionMFACeremony(
+	ctx context.Context,
+	req *vnetv1.PerformSessionMFACeremonyRequest,
+) (*vnetv1.PerformSessionMFACeremonyResponse, error) {
+	switch {
+	case req.GetProfile() == "":
+		return nil, trace.BadParameter("profile must not be empty")
+
+	case len(req.GetSshSessionId()) == 0:
+		return nil, trace.BadParameter("SSH session ID must not be empty")
+	}
+
+	// Session-bound MFA ceremony (SSH DIRECT credential mode) is not supported
+	// in this build — the session-bound MFA stack isn't backported to v18 here.
+	// Git (HTTP) routing and SSH MFA_CERT mode do not use it.
+	return nil, trace.NotImplemented("session-bound MFA ceremony is not supported in this build")
 }
 
 // checkAppKey checks that at least the app profile and name are set, which are
@@ -556,4 +603,64 @@ func (s *clientApplicationService) OnNewDBConnection(ctx context.Context, req *v
 		return nil, trace.Wrap(err)
 	}
 	return &vnetv1.OnNewDBConnectionResponse{}, nil
+}
+
+type gitKey struct {
+	profile, leafCluster, name string
+}
+
+func newGitKey(protoKey *vnetv1.GitServerKey) gitKey {
+	return gitKey{
+		profile:     protoKey.GetProfile(),
+		leafCluster: protoKey.GetLeafCluster(),
+		name:        protoKey.GetName(),
+	}
+}
+
+func (s *clientApplicationService) setSignerForGit(gitKey *vnetv1.GitServerKey, signer crypto.Signer) {
+	s.gitSignerMu.Lock()
+	defer s.gitSignerMu.Unlock()
+	s.gitSignerCache[newGitKey(gitKey)] = signer
+}
+
+func (s *clientApplicationService) getSignerForGit(gitKey *vnetv1.GitServerKey) (crypto.Signer, bool) {
+	s.gitSignerMu.RLock()
+	defer s.gitSignerMu.RUnlock()
+	signer, ok := s.gitSignerCache[newGitKey(gitKey)]
+	return signer, ok
+}
+
+func (s *clientApplicationService) ReissueGitCert(ctx context.Context, req *vnetv1.ReissueGitCertRequest) (*vnetv1.ReissueGitCertResponse, error) {
+	gitInfo := req.GetGitServerInfo()
+	gitKey := gitInfo.GetGitServerKey()
+	cert, err := s.cfg.clientApplication.ReissueGitCert(ctx, gitInfo)
+	if err != nil {
+		return nil, trace.Wrap(err, "reissuing git cert for %s", gitKey.GetName())
+	}
+	s.setSignerForGit(gitKey, cert.PrivateKey.(crypto.Signer))
+	return &vnetv1.ReissueGitCertResponse{
+		Cert: cert.Certificate[0],
+	}, nil
+}
+
+func (s *clientApplicationService) SignForGit(ctx context.Context, req *vnetv1.SignForGitRequest) (*vnetv1.SignForGitResponse, error) {
+	gitKey := req.GetGitServerKey()
+	signer, ok := s.getSignerForGit(gitKey)
+	if !ok {
+		return nil, trace.BadParameter("no signer for git server %v", gitKey)
+	}
+	signature, err := sign(signer, req.GetSign())
+	if err != nil {
+		return nil, trace.Wrap(err, "signing for git server %v", gitKey)
+	}
+	return &vnetv1.SignForGitResponse{
+		Signature: signature,
+	}, nil
+}
+
+func (s *clientApplicationService) OnNewGitConnection(ctx context.Context, req *vnetv1.OnNewGitConnectionRequest) (*vnetv1.OnNewGitConnectionResponse, error) {
+	if err := s.cfg.clientApplication.OnNewGitConnection(ctx, req.GetGitServerKey()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &vnetv1.OnNewGitConnectionResponse{}, nil
 }

@@ -104,16 +104,16 @@ func (c *gitCloneCommand) runHTTPS(cf *CLIConf) error {
 		return trace.BadParameter("git server %v does not have HTTP proxying enabled", gitServer.GetName())
 	}
 
-	valid, _ := hasValidGitCert(tc, gitServer.GetName())
-	if !valid {
-		if err := ensureGitCredentialsAndCert(cf, tc, gitServer); err != nil {
-			return trace.Wrap(err)
+	if !isBeamsEnvironment() {
+		valid, _ := hasValidGitCert(tc, gitServer.GetName())
+		if !valid {
+			if err := ensureGitCredentialsAndCert(cf, tc, gitServer); err != nil {
+				return trace.Wrap(err)
+			}
 		}
 	}
 
-	if err := ensureGitRemoteHelper(cf); err != nil {
-		return trace.Wrap(err)
-	}
+	ensureGitRemoteHelper(cf)
 
 	teleportURL := fmt.Sprintf("teleport://github.com/%s", repoPath)
 	args := []string{"clone", teleportURL}

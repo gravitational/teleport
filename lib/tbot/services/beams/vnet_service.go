@@ -356,6 +356,14 @@ func (v *vnetApplicationService) ResolveFQDN(ctx context.Context, fqdn string) (
 		return nil, trace.Wrap(err)
 	}
 
+	gitResp, err := v.resolveGitFQDN(ctx, fqdn, osConfig)
+	switch {
+	case err == nil:
+		return gitResp, nil
+	case !errors.Is(err, errNoGitMatch):
+		return nil, trace.Wrap(err)
+	}
+
 	expr := fmt.Sprintf(
 		`resource.spec.public_addr == %+q || resource.spec.public_addr == %+q`,
 		fqdn,
@@ -453,6 +461,58 @@ func (v *vnetApplicationService) GetAppSigner(context.Context, *vnetv1.AppKey, u
 // FQDN, and ResolveFQDN should fall through to app resolution.
 var errNoDBMatch = errors.New("no DB match for queried FQDN")
 
+var errNoGitMatch = errors.New("no git match for queried FQDN")
+
+// resolveGitFQDN attempts to resolve fqdn as a VNet git server FQDN of the
+// form <name>.git.<zone>. Returns errNoGitMatch when fqdn doesn't match.
+func (v *vnetApplicationService) resolveGitFQDN(
+	ctx context.Context,
+	fqdn string,
+	osConfig *vnetOSConfiguration,
+) (*vnetv1.ResolveFQDNResponse, error) {
+	proxyHost := hostname(osConfig.pong.GetProxyPublicAddr())
+	suffix := ".git." + fullyQualify(proxyHost)
+	v.logger.DebugContext(ctx, "Attempting git FQDN resolution", "fqdn", fqdn, "suffix", suffix, "proxy_host", proxyHost)
+	if !strings.HasSuffix(fqdn, suffix) {
+		return nil, errNoGitMatch
+	}
+	name := strings.TrimSuffix(fqdn, suffix)
+	if name == "" || strings.ContainsRune(name, '.') {
+		return nil, errNoGitMatch
+	}
+
+	v.logger.DebugContext(ctx, "Parsed git server name from FQDN", "name", name)
+	_, err := v.client.GitServerReadOnlyClient().GetGitServer(ctx, name)
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return nil, errNoGitMatch
+		}
+		v.logger.ErrorContext(ctx, "Failed to get git server", "fqdn", fqdn, "error", err)
+		return nil, trace.Wrap(err, "getting git server")
+	}
+
+	v.logger.InfoContext(ctx, "Query matched a git server", "fqdn", fqdn, "git_server", name)
+	ca, err := v.clusterAccess(osConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &vnetv1.ResolveFQDNResponse{
+		Match: &vnetv1.ResolveFQDNResponse_MatchedGitServer{
+			MatchedGitServer: &vnetv1.MatchedGitServer{
+				GitServerInfo: &vnetv1.GitServerInfo{
+					GitServerKey: &vnetv1.GitServerKey{
+						Profile: ca.profile,
+						Name:    name,
+					},
+					Cluster:       ca.cluster,
+					Ipv4CidrRange: ca.ipv4CIDR,
+					DialOptions:   ca.dialOptions,
+				},
+			},
+		},
+	}, nil
+}
+
 // resolveDatabaseFQDN attempts to resolve fqdn as a VNet database FQDN of the
 // form <identifier>.db.<zone>. Returns errNoDBMatch when fqdn is not DB-shaped,
 // no databases match the parsed identifier, or the matched database's protocol
@@ -521,6 +581,26 @@ func (v *vnetApplicationService) GetDBCert(ctx context.Context, dbInfo *vnetv1.D
 // GetDBSigner returns the bot-bound private key. The same key is shared
 // across all VNet-issued database certificates in this service.
 func (v *vnetApplicationService) GetDBSigner(context.Context, *vnetv1.DatabaseKey) (crypto.Signer, error) {
+	return v.privateKey, nil
+}
+
+// GetGitCert issues a TLS certificate for the given git server via tbot's
+// identity generator.
+func (v *vnetApplicationService) GetGitCert(ctx context.Context, gitInfo *vnetv1.GitServerInfo) (*tls.Certificate, error) {
+	id, err := v.identityGenerator.Generate(ctx,
+		identity.WithPrivateKey(v.privateKey),
+		identity.WithRouteToGit(*vnet.RouteToGit(gitInfo)),
+		identity.WithLifetime(v.credentialLifetime.TTL, v.credentialLifetime.RenewalInterval),
+		identity.WithDelegation(v.delegationSessionID),
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return id.TLSCert, nil
+}
+
+// GetGitSigner returns the bot-bound private key.
+func (v *vnetApplicationService) GetGitSigner(context.Context, *vnetv1.GitServerKey) (crypto.Signer, error) {
 	return v.privateKey, nil
 }
 

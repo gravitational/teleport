@@ -50,7 +50,7 @@ type gitHTTPRemoteCommand struct {
 
 func newGitHTTPRemoteCommand(parent *kingpin.CmdClause) *gitHTTPRemoteCommand {
 	cmd := &gitHTTPRemoteCommand{
-		CmdClause: parent.Command("remote-http", "Git remote helper for teleport:// URLs (internal).").Hidden(),
+		CmdClause: parent.Command("remote-http", "Git HTTP remote helper for teleport:// URLs (internal).").Hidden(),
 	}
 	cmd.Arg("git-cmd", "Git command (remote name).").Required().StringVar(&cmd.gitCmd)
 	cmd.Arg("url", "Remote URL.").Required().StringVar(&cmd.remoteURL)
@@ -58,7 +58,7 @@ func newGitHTTPRemoteCommand(parent *kingpin.CmdClause) *gitHTTPRemoteCommand {
 }
 
 func (c *gitHTTPRemoteCommand) run(cf *CLIConf) error {
-	httpsURL, org, err := parseTeleportURL(c.remoteURL)
+	httpURL, org, err := parseTeleportURL(c.remoteURL)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -73,32 +73,27 @@ func (c *gitHTTPRemoteCommand) run(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	proxy, err := startGitProxy(cf, tc, gitServer.GetName())
+	proxy, err := startGitProxy(cf, tc, gitProxyConfig{
+		gitServerName: gitServer.GetName(),
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	defer proxy.Close()
 
-	// Git (C binary, LibreSSL) respects GIT_SSL_CAINFO for custom CA certs
-	// on all platforms including macOS (unlike Go binaries).
-	// The ALPN proxy terminates git's HTTPS with a self-signed CA, then
-	// forwards to the Teleport proxy with mTLS.
-	cmd := exec.Command("git", "remote-http", c.gitCmd, httpsURL)
+	cmd := exec.Command("git", "remote-http", c.gitCmd, httpURL)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Env = os.Environ()
-	cmd.Env = append(cmd.Env,
-		fmt.Sprintf("HTTPS_PROXY=http://%s", proxy.forwardProxy.GetAddr()),
-		fmt.Sprintf("https_proxy=http://%s", proxy.forwardProxy.GetAddr()),
-		fmt.Sprintf("GIT_SSL_CAINFO=%s", proxy.localCAPath),
-	)
+	for k, v := range proxy.GetGitEnvVars() {
+		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", k, v))
+	}
 
 	logger.DebugContext(cf.Context, "Running git remote-http",
 		"git_cmd", c.gitCmd,
-		"https_url", httpsURL,
-		"forward_proxy", proxy.forwardProxy.GetAddr(),
-		"ca_file", proxy.localCAPath,
+		"http_url", httpURL,
+		"http_proxy", proxy.httpProxyAddr,
 	)
 
 	if err := cf.RunCommand(cmd); err != nil {
@@ -107,13 +102,14 @@ func (c *gitHTTPRemoteCommand) run(cf *CLIConf) error {
 	return nil
 }
 
-// parseTeleportURL parses a teleport:// URL and returns the HTTPS equivalent
-// and the org name.
+// parseTeleportURL parses a teleport:// URL and returns the HTTP equivalent
+// and the org name. Plain HTTP is used because the local proxy handles
+// forwarding to the Teleport proxy with mTLS.
 //
 // Format: teleport://github.com/<org>/<repo>.git
 // Example: teleport://github.com/gravitational/teleport.git
-// Returns: https://github.com/gravitational/teleport.git, "gravitational"
-func parseTeleportURL(rawURL string) (httpsURL, org string, err error) {
+// Returns: http://github.com/gravitational/teleport.git, "gravitational"
+func parseTeleportURL(rawURL string) (httpURL, org string, err error) {
 	const scheme = "teleport://"
 	if !strings.HasPrefix(rawURL, scheme) {
 		return "", "", trace.BadParameter("expected teleport:// URL, got %q", rawURL)
@@ -133,6 +129,6 @@ func parseTeleportURL(rawURL string) (httpsURL, org string, err error) {
 	}
 
 	org = parts[0]
-	httpsURL = fmt.Sprintf("https://%s", path)
-	return httpsURL, org, nil
+	httpURL = fmt.Sprintf("http://%s", path)
+	return httpURL, org, nil
 }

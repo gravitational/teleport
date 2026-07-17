@@ -306,6 +306,13 @@ func (s *SessionService) generateCertificates(
 		certReq.DBUser = route.GetUsername()
 		certReq.DBName = route.GetDatabase()
 		certReq.DBRoles = route.GetRoles()
+	case *delegationv1.GenerateCertsRequest_RouteToGit:
+		certReq.GitServerName = routing.RouteToGit.GetGitServerName()
+		gitSessionID, err := utils.CryptoRandomHex(defaults.SessionTokenBytes)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		certReq.GitSessionID = gitSessionID
 	}
 
 	certs, err := s.certGenerator.GenerateUserCerts(ctx, certReq)
