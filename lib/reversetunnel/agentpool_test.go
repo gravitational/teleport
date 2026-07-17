@@ -132,15 +132,29 @@ func setupTestAgentPool(t *testing.T) (*AgentPool, *mockClient) {
 	)
 	pool.newAgentFunc = func(ctx context.Context, tracker *track.Tracker, l *track.Lease) (Agent, error) {
 		agent := &mockAgent{}
+		var (
+			stateMu sync.Mutex
+			state   = AgentInitial
+		)
+		agent.mockGetState = func() AgentState {
+			stateMu.Lock()
+			defer stateMu.Unlock()
+			return state
+		}
 		agent.mockStart = func(ctx context.Context) error {
+			stateMu.Lock()
+			state = AgentConnected
+			stateMu.Unlock()
+			callback := pool.getStateCallback(agent)
+			go callback(AgentConnected)
 			return nil
 		}
 
 		go func() {
 			<-pool.ctx.Done()
-			agent.mockGetState = func() AgentState {
-				return AgentClosed
-			}
+			stateMu.Lock()
+			state = AgentClosed
+			stateMu.Unlock()
 			callback := pool.getStateCallback(agent)
 			callback(AgentClosed)
 		}()

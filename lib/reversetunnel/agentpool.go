@@ -91,7 +91,7 @@ type AgentPool struct {
 	// newAgentFunc is used during testing to mock new agents.
 	newAgentFunc newAgentFunc
 
-	// wg waits for the pool and all agents to complete.
+	// wg waits for the pool loop to complete.
 	wg     sync.WaitGroup
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -248,7 +248,7 @@ func (p *AgentPool) updateConnectedProxies() {
 		return
 	}
 
-	proxies := p.active.proxyIDs()
+	proxies := p.active.proxyIDsByJoinTime()
 	p.logger.DebugContext(p.ctx, "Updating connected proxies", "proxies", proxies)
 	p.AgentPoolConfig.ConnectedProxyGetter.setProxyIDs(proxies)
 }
@@ -278,8 +278,7 @@ func (p *AgentPool) Start() error {
 // run connects agents until the agent pool context is done.
 func (p *AgentPool) run() error {
 	for {
-		agent, err := p.connectAgent(p.ctx, p.events)
-		if err != nil {
+		if _, err := p.connectAgent(p.ctx, p.events); err != nil {
 			if p.ctx.Err() != nil {
 				return nil
 			}
@@ -294,33 +293,17 @@ func (p *AgentPool) run() error {
 
 			p.logger.Log(p.ctx, level, "Failed to establish reverse tunnel", "error", err)
 		} else {
-			p.addActiveAgent(p.ctx, agent)
+			p.lastConnectivityChange = p.Clock.Now()
+			p.updateConnectedProxies()
 		}
 
-		err = p.waitForBackoff(p.ctx, p.events)
+		err := p.waitForBackoff(p.ctx, p.events)
 		if p.ctx.Err() != nil {
 			return nil
 		} else if err != nil {
 			p.logger.DebugContext(p.ctx, "Failed to wait for backoff", "error", err)
 		}
 	}
-}
-
-// addActiveAgent registers a successfully started agent with the pool.
-func (p *AgentPool) addActiveAgent(ctx context.Context, agent Agent) {
-	p.wg.Add(1)
-	p.active.add(agent)
-	p.lastConnectivityChange = p.Clock.Now()
-
-	if agent.GetState() == AgentClosed {
-		// The agent can close after Start succeeds but before run registers it.
-		// If the AgentClosed callback already ran, it could not remove the agent
-		// from the active set, so reconcile the state after registration.
-		p.handleEvent(ctx, agent)
-		return
-	}
-
-	p.updateConnectedProxies()
 }
 
 // connectAgent connects a new agent and processes any agent events blocking until a
@@ -438,7 +421,7 @@ func (p *AgentPool) tryDisconnect(ctx context.Context) {
 		return
 	}
 
-	proxyIDs := p.active.proxyIDs()
+	proxyIDs := p.active.proxyIDsByJoinTime()
 	snapshot := p.tracker.Snapshot()
 	if snapshot.ConnectionCount == 0 {
 		return
@@ -534,10 +517,9 @@ func (p *AgentPool) handleEvent(ctx context.Context, agent Agent) {
 	case AgentConnecting:
 		return
 	case AgentConnected:
+		p.active.add(agent)
 	case AgentClosed:
-		if ok := p.active.remove(agent); ok {
-			p.wg.Done()
-		}
+		p.active.remove(agent)
 	}
 	p.updateConnectedProxies()
 	p.logger.DebugContext(ctx, "Processed agent event", "active_agent_count", p.active.len())
@@ -633,7 +615,9 @@ func (p *AgentPool) Wait() {
 	}
 
 	<-p.ctx.Done()
+	// The run loop has to exit before we can wait for the agents to close.
 	p.wg.Wait()
+	p.active.wait()
 }
 
 // Stop stops the pool and waits for all resources to be released.
@@ -642,7 +626,9 @@ func (p *AgentPool) Stop() {
 		return
 	}
 	p.cancel()
+	// The run loop has to exit before we can wait for the agents to close.
 	p.wg.Wait()
+	p.active.wait()
 }
 
 // getVersion gets the connected auth server version.
