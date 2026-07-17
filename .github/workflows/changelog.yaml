@@ -35,4 +35,4 @@ jobs:
         with:
           go-version: 'stable'
       - name: Validate the changelog entry
-        run: cd .github/shared-workflows/bot && go run main.go -workflow=changelog -token="${{ secrets.GITHUB_TOKEN }}" -reviewers='{}'"
+        run: cd .github/shared-workflows/bot && go run main.go -workflow=changelog -token="${{ secrets.GITHUB_TOKEN }}" -reviewers='{}'
