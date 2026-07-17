@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"maps"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -21,7 +22,12 @@ type AccessRequest struct {
 	// RequestReason is the reason for request.
 	RequestReason string `json:"requestReason"`
 	// User is the name of requestor.
+	//
+	// Deprecated: Use UserInfo instead.
+	// TODO(tele-lion): DELETE IN 20
 	User string `json:"user"`
+	// UserInfo pairs the requestor's username with display values.
+	UserInfo UserInfo `json:"userInfo"`
 	// Roles are the list of roles requested.
 	Roles []string `json:"roles"`
 	// Created is the time the request was made.
@@ -39,7 +45,13 @@ type AccessRequest struct {
 	// Reviews are reviews applied to this access request.
 	Reviews []AccessRequestReview `json:"reviews"`
 	// SuggestedReviewers is a list of reviewers suggested.
+	//
+	// Deprecated: Use SuggestedReviewersInfo instead.
+	// TODO(tele-lion): DELETE IN 20
 	SuggestedReviewers []string `json:"suggestedReviewers"`
+	// SuggestedReviewersInfo is the suggested reviewer list with display
+	// values.
+	SuggestedReviewersInfo []UserInfo `json:"suggestedReviewersInfo,omitempty"`
 	// ThresholdNames is a list of threshold names.
 	ThresholdNames []string `json:"thresholdNames"`
 	// Resources is the list of resources for a Resource Access Request
@@ -66,7 +78,12 @@ type AccessRequest struct {
 // AccessRequestReview defines fields of a review applied to a request.
 type AccessRequestReview struct {
 	// Author is the user who reviewed request.
+	//
+	// Deprecated: Use AuthorInfo instead.
+	// TODO(tele-lion): DELETE IN 20
 	Author string `json:"author"`
+	// AuthorInfo pairs the review author's username with display values.
+	AuthorInfo UserInfo `json:"authorInfo"`
 	// Roles are the list of roles approved.
 	Roles []string `json:"roles"`
 	// State is either DENIED or APPROVED.
@@ -109,6 +126,11 @@ type ResourceDetails struct {
 
 type NewAccessRequestConfig struct {
 	resourceDetails map[string]ResourceDetails
+	// userDisplays holds display values for every username the request
+	// references (requester, review authors, suggested reviewers).
+	// NewAccessRequest resolves it into the inline UserInfo, AuthorInfo, and
+	// SuggestedReviewersInfo response fields.
+	userDisplays map[string]types.UserDisplay
 }
 
 func defaultNewAccessRequestConfig() *NewAccessRequestConfig {
@@ -120,6 +142,14 @@ type NewAccessRequestOption func(*NewAccessRequestConfig)
 func WithResourceDetails(resourceDetails map[string]ResourceDetails) NewAccessRequestOption {
 	return func(cfg *NewAccessRequestConfig) {
 		cfg.resourceDetails = resourceDetails
+	}
+}
+
+// WithUserDisplays supplies display values for the usernames referenced by
+// the request.
+func WithUserDisplays(userDisplays map[string]types.UserDisplay) NewAccessRequestOption {
+	return func(cfg *NewAccessRequestConfig) {
+		cfg.userDisplays = userDisplays
 	}
 }
 
@@ -140,9 +170,35 @@ func NewAccessRequest(request types.AccessRequest, opts ...NewAccessRequestOptio
 		return nil, trace.BadParameter("request %q, state is set to none", request.GetMetadata().Name)
 	}
 
+	dryRunEnrichment := request.GetDryRunEnrichment()
+	if dryRunEnrichment == nil {
+		dryRunEnrichment = &types.AccessRequestDryRunEnrichment{
+			ReasonMode: types.RequestReasonModeOptional,
+		}
+	}
+
+	// Display values come from the list response envelope on read paths
+	// OR from the dry-run enrichment on dry-run creates.
+	displays := make(map[string]types.UserDisplay, len(cfg.userDisplays)+len(dryRunEnrichment.UserDisplays))
+	maps.Copy(displays, cfg.userDisplays)
+	if request.GetDryRun() {
+		for username, display := range dryRunEnrichment.UserDisplays {
+			displays[username] = types.UserDisplay{
+				Primary:   display.Primary,
+				Secondary: display.Secondary,
+			}
+		}
+	}
+
 	reviews := make([]AccessRequestReview, 0, len(request.GetReviews()))
 	for _, review := range request.GetReviews() {
-		reviews = append(reviews, newAccessReview(review))
+		reviews = append(reviews, newAccessReview(review, displays))
+	}
+
+	suggestedReviewers := request.GetSuggestedReviewers()
+	suggestedReviewersInfo := make([]UserInfo, 0, len(suggestedReviewers))
+	for _, reviewer := range suggestedReviewers {
+		suggestedReviewersInfo = append(suggestedReviewersInfo, newUserInfo(reviewer, displays))
 	}
 
 	thresholdNames := make([]string, 0, len(request.GetThresholds()))
@@ -180,19 +236,13 @@ func NewAccessRequest(request types.AccessRequest, opts ...NewAccessRequestOptio
 		maxDuration = &reqMaxDuration
 	}
 
-	dryRunEnrichment := request.GetDryRunEnrichment()
-	if dryRunEnrichment == nil {
-		dryRunEnrichment = &types.AccessRequestDryRunEnrichment{
-			ReasonMode: types.RequestReasonModeOptional,
-		}
-	}
-
 	uiReq := &AccessRequest{
 		ID:                      request.GetMetadata().Name,
 		State:                   request.GetState().String(),
 		ResolveReason:           request.GetResolveReason(),
 		RequestReason:           request.GetRequestReason(),
 		User:                    request.GetUser(),
+		UserInfo:                newUserInfo(request.GetUser(), displays),
 		Roles:                   request.GetRoles(),
 		Created:                 request.GetCreationTime(),
 		MaxDuration:             maxDuration,
@@ -200,7 +250,8 @@ func NewAccessRequest(request types.AccessRequest, opts ...NewAccessRequestOptio
 		SessionTTL:              request.GetSessionTLL(),
 		Expires:                 request.GetAccessExpiry(),
 		Reviews:                 reviews,
-		SuggestedReviewers:      request.GetSuggestedReviewers(),
+		SuggestedReviewers:      suggestedReviewers,
+		SuggestedReviewersInfo:  suggestedReviewersInfo,
 		ThresholdNames:          thresholdNames,
 		Resources:               resources,
 		PromotedAccessListTitle: request.GetPromotedAccessListTitle(),
@@ -223,9 +274,10 @@ func NewAccessRequest(request types.AccessRequest, opts ...NewAccessRequestOptio
 	return uiReq, nil
 }
 
-func newAccessReview(review types.AccessReview) AccessRequestReview {
+func newAccessReview(review types.AccessReview, displays map[string]types.UserDisplay) AccessRequestReview {
 	return AccessRequestReview{
 		Author:                  review.Author,
+		AuthorInfo:              newUserInfo(review.Author, displays),
 		Roles:                   review.Roles,
 		State:                   review.ProposedState.String(),
 		Reason:                  review.Reason,

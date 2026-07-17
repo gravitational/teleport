@@ -94,6 +94,57 @@ func TestCreateAccessRequest_SearchBased(t *testing.T) {
 	require.Equal(t, types.RequestState_PENDING.String(), req.State)
 }
 
+func TestCreateAccessRequest_DryRunUserDisplays(t *testing.T) {
+	m := &mockedAccessRequestAPIGetter{}
+	const (
+		requester         = "userFoo"
+		suggestedReviewer = "reviewerFoo"
+		missingReviewer   = "missing-reviewer"
+	)
+
+	m.mockCreateAccessRequest = func(ctx context.Context, req types.AccessRequest) error {
+		// The server resolves displays into the dry-run enrichment.
+		enrichment := req.GetDryRunEnrichment()
+		if enrichment == nil {
+			enrichment = &types.AccessRequestDryRunEnrichment{}
+		}
+		enrichment.UserDisplays = map[string]types.AccessRequestUserDisplay{
+			requester: {
+				Primary:   "User Foo",
+				Secondary: "foo@example.com",
+			},
+			suggestedReviewer: {
+				Primary: "Reviewer Foo",
+			},
+		}
+		req.SetDryRunEnrichment(enrichment)
+		return nil
+	}
+	m.mockListAccessRequests = func(ctx context.Context, req *proto.ListAccessRequestsRequest) (*proto.ListAccessRequestsResponse, error) {
+		return nil, trace.Errorf("dry-run create should not fetch enriched access request")
+	}
+
+	req, err := createAccessRequest(t.Context(), m, ui.AccessRequestParameters{
+		DryRun:             true,
+		SuggestedReviewers: []string{suggestedReviewer, missingReviewer},
+	}, requester)
+	require.NoError(t, err)
+	require.Equal(t, ui.UserInfo{
+		Username: requester,
+		Display: &types.UserDisplay{
+			Primary:   "User Foo",
+			Secondary: "foo@example.com",
+		},
+	}, req.UserInfo)
+	require.ElementsMatch(t, []ui.UserInfo{
+		{
+			Username: suggestedReviewer,
+			Display:  &types.UserDisplay{Primary: "Reviewer Foo"},
+		},
+		{Username: missingReviewer},
+	}, req.SuggestedReviewersInfo)
+}
+
 // TestCreateAccessRequestHandle_PlainResourcesInResourceAccessIDs verifies that
 // the HTTP handler path does not reject unconstrained resources sent via the new
 // ResourceAccessIDs field when the cluster does not fully support FeatureResourceConstraintsV1.
@@ -1412,6 +1463,7 @@ func TestGetAccessRequest(t *testing.T) {
 			require.NoError(t, err)
 
 			require.Equal(t, req.GetName(), result.ID)
+			//nolint:staticcheck // the deprecated field must stay populated for older clients
 			require.Equal(t, "alice", result.User)
 
 			require.Len(t, result.Resources, len(tc.requestedResources))
@@ -1441,6 +1493,8 @@ func TestGetAccessRequests(t *testing.T) {
 		roleBasedReq2, err := services.NewAccessRequest("foz", []string{"foo"}...)
 		require.NoError(t, err)
 		roleBasedReq2.SetState(types.RequestState_APPROVED)
+		roleBasedReq2.SetReviews([]types.AccessReview{{Author: "shared-reviewer"}})
+		roleBasedReq2.SetSuggestedReviewers([]string{"plain-reviewer", "missing-reviewer"})
 		rb2, ok := roleBasedReq2.(*types.AccessRequestV3)
 		require.True(t, ok)
 
@@ -1451,6 +1505,22 @@ func TestGetAccessRequests(t *testing.T) {
 
 		return &proto.ListAccessRequestsResponse{
 			AccessRequests: []*types.AccessRequestV3{rb1, rb2, sb},
+			UserDisplays: map[string]*proto.UserDisplay{
+				"baz": {
+					Primary: "Filtered User",
+				},
+				"foz": {
+					Primary:   "Role Requester",
+					Secondary: "foz@example.com",
+				},
+				"bar": {
+					Primary: "Resource Requester",
+				},
+				"shared-reviewer": {
+					Primary: "Shared Reviewer",
+				},
+				"plain-reviewer": nil,
+			},
 		}, nil
 	}
 
@@ -1461,12 +1531,98 @@ func TestGetAccessRequests(t *testing.T) {
 		Filter: &types.AccessRequestFilter{},
 	}
 	// Test request state set to NONE, is not returned.
-	reqs, err := plugin.getAccessRequests(context.Background(), m, request)
+	reqs, err := plugin.getAccessRequests(t.Context(), m, request)
 	require.NoError(t, err)
 	require.Len(t, reqs.AccessRequests, 2)
 	require.Equal(t, types.RequestState_APPROVED.String(), reqs.AccessRequests[0].State)
+	//nolint:staticcheck // the deprecated field must stay populated for older clients
+	require.Equal(t, "foz", reqs.AccessRequests[0].User)
+	require.Equal(t, ui.UserInfo{
+		Username: "foz",
+		Display: &types.UserDisplay{
+			Primary:   "Role Requester",
+			Secondary: "foz@example.com",
+		},
+	}, reqs.AccessRequests[0].UserInfo)
+	//nolint:staticcheck // the deprecated field must stay populated for older clients
+	require.Equal(t, "shared-reviewer", reqs.AccessRequests[0].Reviews[0].Author)
+	require.Equal(t, ui.UserInfo{
+		Username: "shared-reviewer",
+		Display:  &types.UserDisplay{Primary: "Shared Reviewer"},
+	}, reqs.AccessRequests[0].Reviews[0].AuthorInfo)
+	//nolint:staticcheck // the deprecated field must stay populated for older clients
+	require.ElementsMatch(t, []string{"plain-reviewer", "missing-reviewer"}, reqs.AccessRequests[0].SuggestedReviewers)
+	// A found user with no distinct display values carries an empty display,
+	// while a missing user carries none, so clients fall back to the username.
+	require.ElementsMatch(t, []ui.UserInfo{
+		{Username: "plain-reviewer", Display: &types.UserDisplay{}},
+		{Username: "missing-reviewer"},
+	}, reqs.AccessRequests[0].SuggestedReviewersInfo)
+
 	require.Equal(t, types.RequestState_PENDING.String(), reqs.AccessRequests[1].State)
 	require.Equal(t, []ui.Resource{{ID: ui.ResourceID{ClusterName: "test-cluster", Name: "test-name", Kind: "test-kind"}}}, reqs.AccessRequests[1].Resources)
+	require.Equal(t, ui.UserInfo{
+		Username: "bar",
+		Display:  &types.UserDisplay{Primary: "Resource Requester"},
+	}, reqs.AccessRequests[1].UserInfo)
+}
+
+func TestGetAccessRequestUserDisplays(t *testing.T) {
+	m := &mockedAccessRequestAPIGetter{}
+
+	fakeReq, err := services.NewAccessRequest("foo", []string{"bar"}...)
+	require.NoError(t, err)
+	fakeReq.SetReviews([]types.AccessReview{{Author: "reviewer"}})
+	fakeReq.SetSuggestedReviewers([]string{"plain-reviewer", "missing-reviewer"})
+	reqV3, ok := fakeReq.(*types.AccessRequestV3)
+	require.True(t, ok)
+
+	m.mockListAccessRequests = func(ctx context.Context, req *proto.ListAccessRequestsRequest) (*proto.ListAccessRequestsResponse, error) {
+		require.Equal(t, fakeReq.GetName(), req.Filter.ID)
+		return &proto.ListAccessRequestsResponse{
+			AccessRequests: []*types.AccessRequestV3{reqV3},
+			UserDisplays: map[string]*proto.UserDisplay{
+				"foo": {
+					Primary:   "Foo",
+					Secondary: "foo@example.com",
+				},
+				"reviewer": {
+					Primary: "Reviewer",
+				},
+				"plain-reviewer": nil,
+				"unrelated": {
+					Primary: "Unrelated",
+				},
+			},
+		}, nil
+	}
+
+	req, err := getAccessRequest(t.Context(), m, fakeReq.GetName())
+	require.NoError(t, err)
+
+	//nolint:staticcheck // the deprecated field must stay populated for older clients
+	require.Equal(t, "foo", req.User)
+	require.Equal(t, ui.UserInfo{
+		Username: "foo",
+		Display: &types.UserDisplay{
+			Primary:   "Foo",
+			Secondary: "foo@example.com",
+		},
+	}, req.UserInfo)
+	//nolint:staticcheck // the deprecated field must stay populated for older clients
+	require.Equal(t, "reviewer", req.Reviews[0].Author)
+	require.Equal(t, ui.UserInfo{
+		Username: "reviewer",
+		Display:  &types.UserDisplay{Primary: "Reviewer"},
+	}, req.Reviews[0].AuthorInfo)
+	//nolint:staticcheck // the deprecated field must stay populated for older clients
+	require.ElementsMatch(t, []string{"plain-reviewer", "missing-reviewer"}, req.SuggestedReviewers)
+	// The map entry for "unrelated" maps to no referenced user and surfaces
+	// nowhere in the serialized request.
+	require.ElementsMatch(t, []ui.UserInfo{
+		{Username: "plain-reviewer", Display: &types.UserDisplay{}},
+		{Username: "missing-reviewer"},
+	}, req.SuggestedReviewersInfo)
 }
 
 func TestReviewAccessRequest(t *testing.T) {
@@ -1474,16 +1630,33 @@ func TestReviewAccessRequest(t *testing.T) {
 
 	fakeReq, err := services.NewAccessRequest("foo", []string{"bar"}...)
 	require.NoError(t, err)
-	m.mockGetAccessRequests = func(ctx context.Context, filter types.AccessRequestFilter) ([]types.AccessRequest, error) {
-		return []types.AccessRequest{fakeReq}, nil
-	}
+	fakeReq.SetReviews([]types.AccessReview{{Author: "reviewer"}})
+	reqV3, ok := fakeReq.(*types.AccessRequestV3)
+	require.True(t, ok)
 
+	var submitted bool
 	m.mockSubmitAccessReview = func(ctx context.Context, params types.AccessReviewSubmission) (types.AccessRequest, error) {
 		require.Equal(t, fakeReq.GetMetadata().Name, params.RequestID)
 		require.Equal(t, types.RequestState_DENIED, params.Review.ProposedState)
 		require.Equal(t, "Not today", params.Review.Reason)
 		require.Empty(t, params.Review.Roles)
+		submitted = true
 		return fakeReq, nil
+	}
+	m.mockListAccessRequests = func(ctx context.Context, req *proto.ListAccessRequestsRequest) (*proto.ListAccessRequestsResponse, error) {
+		require.True(t, submitted)
+		require.Equal(t, fakeReq.GetName(), req.Filter.ID)
+		return &proto.ListAccessRequestsResponse{
+			AccessRequests: []*types.AccessRequestV3{reqV3},
+			UserDisplays: map[string]*proto.UserDisplay{
+				"foo": {
+					Primary: "Foo",
+				},
+				"reviewer": {
+					Primary: "Reviewer",
+				},
+			},
+		}, nil
 	}
 
 	reviewSubmission := ui.AccessRequestParameters{
@@ -1492,24 +1665,60 @@ func TestReviewAccessRequest(t *testing.T) {
 		ID:     fakeReq.GetMetadata().Name,
 	}
 
-	_, err = reviewAccessRequest(context.Background(), m, reviewSubmission)
+	req, err := reviewAccessRequest(t.Context(), m, reviewSubmission)
 	require.NoError(t, err)
+	require.Equal(t, ui.UserInfo{
+		Username: "foo",
+		Display:  &types.UserDisplay{Primary: "Foo"},
+	}, req.UserInfo)
+	require.Equal(t, ui.UserInfo{
+		Username: "reviewer",
+		Display:  &types.UserDisplay{Primary: "Reviewer"},
+	}, req.Reviews[0].AuthorInfo)
 
 	// Test error paths.
 	reviewSubmission.State = "NONE"
-	req, err := reviewAccessRequest(context.Background(), m, reviewSubmission)
+	req, err = reviewAccessRequest(t.Context(), m, reviewSubmission)
 	require.True(t, trace.IsBadParameter(err))
 	require.Nil(t, req)
 
 	reviewSubmission.State = "PENDING"
-	req, err = reviewAccessRequest(context.Background(), m, reviewSubmission)
+	req, err = reviewAccessRequest(t.Context(), m, reviewSubmission)
 	require.True(t, trace.IsBadParameter(err))
 	require.Nil(t, req)
 
 	reviewSubmission.State = ""
-	req, err = reviewAccessRequest(context.Background(), m, reviewSubmission)
+	req, err = reviewAccessRequest(t.Context(), m, reviewSubmission)
 	require.True(t, trace.IsBadParameter(err))
 	require.Nil(t, req)
+}
+
+func TestReviewAccessRequest_FetchFailureFallsBackToReviewResponse(t *testing.T) {
+	m := &mockedAccessRequestAPIGetter{}
+
+	fakeReq, err := services.NewAccessRequest("foo", []string{"bar"}...)
+	require.NoError(t, err)
+	fakeReq.SetReviews([]types.AccessReview{{Author: "reviewer"}})
+
+	m.mockSubmitAccessReview = func(ctx context.Context, params types.AccessReviewSubmission) (types.AccessRequest, error) {
+		return fakeReq, nil
+	}
+	m.mockListAccessRequests = func(ctx context.Context, req *proto.ListAccessRequestsRequest) (*proto.ListAccessRequestsResponse, error) {
+		return nil, trace.ConnectionProblem(nil, "auth is unavailable")
+	}
+
+	// A committed review must not surface as an error when the follow-up
+	// fetch fails, the response falls back to the submit result.
+	req, err := reviewAccessRequest(t.Context(), m, ui.AccessRequestParameters{
+		State:  "DENIED",
+		Reason: "Not today",
+		ID:     fakeReq.GetMetadata().Name,
+	})
+	require.NoError(t, err)
+	require.Equal(t, fakeReq.GetMetadata().Name, req.ID)
+	// The submit response carries no display values.
+	require.Equal(t, ui.UserInfo{Username: "foo"}, req.UserInfo)
+	require.Equal(t, ui.UserInfo{Username: "reviewer"}, req.Reviews[0].AuthorInfo)
 }
 
 func TestReviewAccessRequest_Approved(t *testing.T) {
@@ -1547,17 +1756,8 @@ type mockedAccessRequestAPIGetter struct {
 	mockSubmitAccessReview  func(ctx context.Context, params types.AccessReviewSubmission) (types.AccessRequest, error)
 
 	mockGetAccessRequestAllowedPromotions func(ctx context.Context, req types.AccessRequest) (*types.AccessRequestAllowedPromotions, error)
-	mockGetUser                           func(ctx context.Context, userName string, withSecrets bool) (types.User, error)
 	mockGetRole                           func(ctx context.Context, name string) (types.Role, error)
 	mockListResources                     func(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
-}
-
-func (m *mockedAccessRequestAPIGetter) GetUser(ctx context.Context, userName string, withSecrets bool) (types.User, error) {
-	if m.mockGetUser != nil {
-		return m.mockGetUser(ctx, userName, withSecrets)
-	}
-
-	return nil, trace.NotImplemented("mockGetUser not implemented")
 }
 
 func (m *mockedAccessRequestAPIGetter) GetRole(ctx context.Context, name string) (types.Role, error) {
@@ -1611,6 +1811,28 @@ func (m *mockedAccessRequestAPIGetter) GetAccessRequests(ctx context.Context, fi
 func (m *mockedAccessRequestAPIGetter) ListAccessRequests(ctx context.Context, req *proto.ListAccessRequestsRequest) (*proto.ListAccessRequestsResponse, error) {
 	if m.mockListAccessRequests != nil {
 		return m.mockListAccessRequests(ctx, req)
+	}
+	if m.mockGetAccessRequests != nil {
+		var filter types.AccessRequestFilter
+		if req.GetFilter() != nil {
+			filter = *req.GetFilter()
+		}
+		reqs, err := m.mockGetAccessRequests(ctx, filter)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		resp := &proto.ListAccessRequestsResponse{
+			AccessRequests: make([]*types.AccessRequestV3, 0, len(reqs)),
+		}
+		for _, req := range reqs {
+			reqV3, ok := req.(*types.AccessRequestV3)
+			if !ok {
+				return nil, trace.BadParameter("unexpected access request type %T", req)
+			}
+			resp.AccessRequests = append(resp.AccessRequests, reqV3)
+		}
+		return resp, nil
 	}
 
 	return nil, trace.NotImplemented("mockListAccessRequests not implemented")
@@ -1932,6 +2154,7 @@ func TestPromoteAccessRequest(t *testing.T) {
 	promotedAccessReq := promoteResp.AccessRequest
 
 	// Verify the promoted access request has the correct fields
+	//nolint:staticcheck // the deprecated field must stay populated for older clients
 	require.Equal(t, accessRequest.GetUser(), promotedAccessReq.User)
 	require.Equal(t, types.RequestState_PROMOTED.String(), promotedAccessReq.State)
 	require.Equal(t, "promotion reason", promotedAccessReq.ResolveReason)
@@ -2042,6 +2265,7 @@ func TestCreateAccessRequest_SuggestedReviewers(t *testing.T) {
 		}, requesterNonMemberUser.GetName())
 
 		require.NoError(t, err)
+		//nolint:staticcheck // the deprecated field must stay populated for older clients
 		require.Empty(t, req.SuggestedReviewers)
 	})
 
@@ -2080,6 +2304,7 @@ func TestCreateAccessRequest_SuggestedReviewers(t *testing.T) {
 		}, requesterMemberUser.GetName())
 
 		require.NoError(t, err)
+		//nolint:staticcheck // the deprecated field must stay populated for older clients
 		require.ElementsMatch(t, req.SuggestedReviewers, []string{ownerUser.GetName()})
 	})
 
@@ -2168,6 +2393,7 @@ func TestCreateAccessRequest_SuggestedReviewers(t *testing.T) {
 		}, longTermMemberUser.GetName())
 
 		require.NoError(t, err)
+		//nolint:staticcheck // the deprecated field must stay populated for older clients
 		require.ElementsMatch(t, req.SuggestedReviewers, []string{longTermOwnerUser.GetName()})
 	})
 
@@ -2237,6 +2463,7 @@ func TestCreateAccessRequest_SuggestedReviewers(t *testing.T) {
 		}, longTermMemberUser.GetName())
 
 		require.NoError(t, err)
+		//nolint:staticcheck // the deprecated field must stay populated for older clients
 		require.ElementsMatch(t, req.SuggestedReviewers, []string{longTermRoleOwner.GetName()})
 	})
 }

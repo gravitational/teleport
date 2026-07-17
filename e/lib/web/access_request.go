@@ -314,19 +314,20 @@ func getAccessRequest(ctx context.Context, clt accessRequestGetter, requestID st
 		return nil, trace.BadParameter("missing request id")
 	}
 
-	requestFilter := types.AccessRequestFilter{
-		ID: requestID,
-	}
-
-	reqs, err := clt.GetAccessRequests(ctx, requestFilter)
+	resp, err := clt.ListAccessRequests(ctx, &proto.ListAccessRequestsRequest{
+		Filter: &types.AccessRequestFilter{
+			ID: requestID,
+		},
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if len(reqs) < 1 {
+	if len(resp.AccessRequests) < 1 {
 		return nil, trace.NotFound("access request %q not found", requestID)
 	}
-	req := reqs[0]
+	req := resp.AccessRequests[0]
+	userDisplays := userDisplaysFromProto(resp.UserDisplays)
 
 	// TODO(kiosion): Handle generating long-term resource groupings similar to getResourceDetails.
 	resourceDetails, err := getResourceDetails(ctx, req, cfg)
@@ -334,10 +335,10 @@ func getAccessRequest(ctx context.Context, clt accessRequestGetter, requestID st
 		// This error is unexpected, but we don't want to break the API filling
 		// in optional details
 		slog.InfoContext(ctx, "Unexpected error in getAccessRequest while fetching resource details", "error", err)
-		return ui.NewAccessRequest(req)
+		return ui.NewAccessRequest(req, ui.WithUserDisplays(userDisplays))
 	}
 
-	return ui.NewAccessRequest(req, ui.WithResourceDetails(resourceDetails))
+	return ui.NewAccessRequest(req, ui.WithResourceDetails(resourceDetails), ui.WithUserDisplays(userDisplays))
 }
 
 // getResourceDetails returns a map of resource details keyed by the string
@@ -528,9 +529,7 @@ func (p *Plugin) getAccessRequestsHandle(w http.ResponseWriter, r *http.Request,
 }
 
 type accessRequestGetter interface {
-	GetAccessRequests(ctx context.Context, filter types.AccessRequestFilter) ([]types.AccessRequest, error)
 	ListAccessRequests(ctx context.Context, req *proto.ListAccessRequestsRequest) (*proto.ListAccessRequestsResponse, error)
-	GetAccessRequestAllowedPromotions(ctx context.Context, req types.AccessRequest) (*types.AccessRequestAllowedPromotions, error)
 }
 
 type AccessRequestsPage struct {
@@ -554,9 +553,10 @@ func (p *Plugin) getAccessRequests(ctx context.Context, clt accessRequestGetter,
 		slog.WarnContext(ctx, "Failed to load resource details for access requests", "error", err)
 	}
 
+	userDisplays := userDisplaysFromProto(resp.UserDisplays)
 	uiReqs := make([]ui.AccessRequest, 0, len(resp.AccessRequests))
 	for _, req := range resp.AccessRequests {
-		uiReq, err := ui.NewAccessRequest(req, ui.WithResourceDetails(details))
+		uiReq, err := ui.NewAccessRequest(req, ui.WithResourceDetails(details), ui.WithUserDisplays(userDisplays))
 		if err != nil {
 			p.Logger.WarnContext(ctx, "Failed to process access request", "error", err)
 			continue
@@ -568,6 +568,25 @@ func (p *Plugin) getAccessRequests(ctx context.Context, clt accessRequestGetter,
 		AccessRequests: uiReqs,
 		StartKey:       resp.NextKey,
 	}, nil
+}
+
+func userDisplaysFromProto(displays map[string]*proto.UserDisplay) map[string]types.UserDisplay {
+	if len(displays) == 0 {
+		return nil
+	}
+
+	out := make(map[string]types.UserDisplay, len(displays))
+	for username, display := range displays {
+		if display == nil {
+			out[username] = types.UserDisplay{}
+			continue
+		}
+		out[username] = types.UserDisplay{
+			Primary:   display.Primary,
+			Secondary: display.Secondary,
+		}
+	}
+	return out
 }
 
 func (p *Plugin) reviewAccessRequestHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext, clusterClientProvider web.ClusterClientProvider) (any, error) {
@@ -585,6 +604,7 @@ func (p *Plugin) reviewAccessRequestHandle(w http.ResponseWriter, r *http.Reques
 }
 
 type accessReviewSubmitter interface {
+	accessRequestGetter
 	SubmitAccessReview(ctx context.Context, params types.AccessReviewSubmission) (types.AccessRequest, error)
 }
 
@@ -624,15 +644,26 @@ func reviewAccessRequest(ctx context.Context, clt accessReviewSubmitter, review 
 		return nil, trace.Wrap(err)
 	}
 
-	resourceDetails, err := getResourceDetails(ctx, updatedRequest, cfg)
+	// Refetch the reviewed request. getAccessRequest returns the complete
+	// response, with both server-resolved user displays and resource details.
+	// The review is already committed at this point, so a fetch failure must
+	// not surface as an error, fall back to the submit response, which lacks
+	// user displays.
+	uiResp, err := getAccessRequest(ctx, clt, review.ID, opts...)
 	if err != nil {
-		// This error is unexpected, but we don't want to break the API filling
-		// in optional details
-		slog.InfoContext(ctx, "Unexpected error in reviewAccessRequest while fetching resource details", "error", err)
-		return ui.NewAccessRequest(updatedRequest)
+		slog.WarnContext(ctx, "Failed to fetch reviewed access request, returning the review response without user displays", "error", err)
+
+		resourceDetails, err := getResourceDetails(ctx, updatedRequest, cfg)
+		if err != nil {
+			// This error is unexpected, but we don't want to break the API filling
+			// in optional details
+			slog.InfoContext(ctx, "Unexpected error in reviewAccessRequest while fetching resource details", "error", err)
+			return ui.NewAccessRequest(updatedRequest)
+		}
+		return ui.NewAccessRequest(updatedRequest, ui.WithResourceDetails(resourceDetails))
 	}
 
-	return ui.NewAccessRequest(updatedRequest, ui.WithResourceDetails(resourceDetails))
+	return uiResp, nil
 }
 
 func (p *Plugin) deleteAccessRequestHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (any, error) {
