@@ -53,6 +53,7 @@ export const eventCodes = {
   ACCESS_REQUEST_RESOURCE_SEARCH: 'T5004I',
   ACCESS_REQUEST_EXPIRED: 'T5005I',
   APP_SESSION_CHUNK: 'T2008I',
+  BEAM_SESSION_END: 'T2019I',
   APP_SESSION_START: 'T2007I',
   APP_SESSION_START_FAILURE: 'T2007E',
   APP_SESSION_END: 'T2011I',
@@ -733,6 +734,15 @@ export type RawEvents = {
       sid: string;
       aws_role_arn: string;
       app_name: string;
+    }
+  >;
+  [eventCodes.BEAM_SESSION_END]: RawEvent<
+    typeof eventCodes.BEAM_SESSION_END,
+    {
+      user: string;
+      sid: string;
+      beam_id: string;
+      beam_alias: string;
     }
   >;
   [eventCodes.APP_SESSION_DYNAMODB_REQUEST]: RawEvent<

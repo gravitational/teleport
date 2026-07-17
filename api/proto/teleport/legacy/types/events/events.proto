@@ -3336,6 +3336,36 @@ message AppSessionLLMRequest {
   int64 output_token_count = 10 [(gogoproto.jsontag) = "output_token_count,omitempty"];
 }
 
+// BeamSessionEnd marks a garbage-collected beam whose activity has been
+// summarized. It makes the beam appear as a single session recording (played
+// back via BeamReplayService) and is emitted once, when summarization
+// completes.
+message BeamSessionEnd {
+  // Metadata is a common event metadata.
+  Metadata metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // User is the beam's owner.
+  UserMetadata user = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Session identifies the beam's recording; SessionID is the ID the beam's
+  // replay artifact and summary are stored under.
+  SessionMetadata session = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // BeamID is the identifier of the summarized beam.
+  string beam_id = 4 [(gogoproto.jsontag) = "beam_id"];
+  // BeamAlias is the human-readable alias of the beam, if any.
+  string beam_alias = 5 [(gogoproto.jsontag) = "beam_alias,omitempty"];
+}
+
 // HTTPHeader is an HTTP header name/value pair used in HTTP recording events.
 message HTTPHeader {
   string name = 1 [(gogoproto.jsontag) = "name"];
@@ -5482,6 +5512,7 @@ message OneOf {
     events.AppSessionHTTPRequestBodyChunk AppSessionHTTPRequestBodyChunk = 268;
     events.AppSessionHTTPResponse AppSessionHTTPResponse = 269;
     events.AppSessionHTTPResponseBodyChunk AppSessionHTTPResponseBodyChunk = 270;
+    events.BeamSessionEnd BeamSessionEnd = 271;
   }
 }
 
