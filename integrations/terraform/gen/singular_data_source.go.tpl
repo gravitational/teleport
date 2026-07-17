@@ -24,6 +24,7 @@ import (
     {{- protoImport . }}
     {{- end }}
 	"github.com/gravitational/trace"
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 {{- if .DefaultSubKind }}
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -91,16 +92,31 @@ func (r dataSourceTeleport{{.Name}}) Read(ctx context.Context, req tfsdk.ReadDat
 	{{- end }}
 {{- end}}
 
-	var state types.Object
-	resp.Diagnostics.Append(req.Config.Get(ctx, &state)...)
-	if resp.Diagnostics.HasError() {
+	// TODO: This is a non-idiomatic approach to initializing the state of the
+	// data source. It is a workaround to avoid initializing all omitted fields
+	// to null values. State should be initialized using `req.Config.Get` once
+	// `Copy<resource>ToTerraform` is able to properly handle null values.
+	objType, ok := req.Config.Schema.AttributeType().(types.ObjectType)
+	if !ok {
+		resp.Diagnostics.AddError("Error reading schema attribute types", "{{.Kind}}")
 		return
+	}
+
+	state := types.Object{
+		Unknown:   false,
+		Null:      false,
+		Attrs:     make(map[string]attr.Value),
+		AttrTypes: objType.AttributeTypes(),
 	}
 
 	{{if .IsPlainStruct -}}
 	{{.VarName}} := {{.VarName}}I
 	{{else -}}
-	{{.VarName}} := {{.VarName}}I.(*{{.ProtoPackage}}.{{.TypeName}})
+	{{.VarName}}, ok := {{.VarName}}I.(*{{.ProtoPackage}}.{{.TypeName}})
+	if !ok {
+		resp.Diagnostics.Append(diagFromWrappedErr("Error reading {{.Name}}", trace.Errorf("Can not convert %T to {{.TypeName}}", {{.VarName}}I), "{{.Kind}}"))
+		return
+	}
 	{{end -}}
 	diags := {{.SchemaPackage}}.Copy{{.TypeName}}ToTerraform(ctx, {{.VarName}}, &state)
 	resp.Diagnostics.Append(diags...)

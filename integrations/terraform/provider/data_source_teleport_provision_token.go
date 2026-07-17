@@ -22,6 +22,7 @@ import (
 
 	apitypes "github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
@@ -65,10 +66,21 @@ func (r dataSourceTeleportProvisionToken) Read(ctx context.Context, req tfsdk.Re
 		return
 	}
 
-	var state types.Object
-	resp.Diagnostics.Append(req.Config.Get(ctx, &state)...)
-	if resp.Diagnostics.HasError() {
+	// TODO: This is a non-idiomatic approach to initializing the state of the
+	// data source. It is a workaround to avoid initializing all omitted fields
+	// to null values. State should be initialized using `req.Config.Get` once
+	// `Copy<resource>ToTerraform` is able to properly handle null values.
+	objType, ok := req.Config.Schema.AttributeType().(types.ObjectType)
+	if !ok {
+		resp.Diagnostics.AddError("Error reading schema attribute types", "token")
 		return
+	}
+
+	state := types.Object{
+		Unknown:   false,
+		Null:      false,
+		Attrs:     make(map[string]attr.Value),
+		AttrTypes: objType.AttributeTypes(),
 	}
 
 	// Todo: Remove after updating terraform-plugin to >=v1.5.0.
@@ -81,7 +93,11 @@ func (r dataSourceTeleportProvisionToken) Read(ctx context.Context, req tfsdk.Re
 	}
 
 	
-	provisionToken := provisionTokenI.(*apitypes.ProvisionTokenV2)
+	provisionToken, ok := provisionTokenI.(*apitypes.ProvisionTokenV2)
+	if !ok {
+		resp.Diagnostics.Append(diagFromWrappedErr("Error reading ProvisionToken", trace.Errorf("Can not convert %T to ProvisionTokenV2", provisionTokenI), "token"))
+		return
+	}
 	diags = token.CopyProvisionTokenV2ToTerraform(ctx, provisionToken, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
