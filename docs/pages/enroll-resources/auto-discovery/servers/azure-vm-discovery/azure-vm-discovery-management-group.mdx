@@ -26,6 +26,12 @@ each one.
 For each discovered VM, the Discovery Service executes a script using the Azure
 Run Command feature that installs Teleport, starts it and joins the cluster.
 
+You can also enroll VMs across your entire Azure environment, including any
+additional subscriptions and management groups added later, using the
+[Tenant root
+group](https://learn.microsoft.com/en-us/azure/governance/management-groups/overview#root-management-group-for-each-directory).
+The Tenant root management group ID is the same as your Azure tenant ID.
+
 ## Prerequisites
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
@@ -38,9 +44,9 @@ Run Command feature that installs Teleport, starts it and joins the cluster.
   other Linux distributions, you can install Teleport manually.)
 - (!docs/pages/includes/tctl.mdx!)
 
-## Step 1/6. Create an Azure invite token
+## Step 1/5. Create an Azure join token
 
-When discovering Azure virtual machines, Teleport makes use of Azure invite tokens for
+When discovering Azure virtual machines, Teleport uses Azure join tokens for
 authenticating joining SSH Service instances. Using an allow rule scoped to the
 tenant allows VMs from any subscription in the tenant to join the cluster.
 
@@ -72,85 +78,12 @@ Add the token to the Teleport cluster with:
 $ tctl create -f token.yaml
 ```
 
-## Step 2/6. Configure IAM permissions for Teleport
+## Step 2/5. Configure IAM permissions for Teleport
 
 The Teleport Discovery Service needs Azure IAM permissions to discover and
 register Azure virtual machines.
 
-### Configure an Azure service principal
-
-There are a couple of ways for the Teleport Discovery Service to access Azure
-resources:
-
-- The Discovery Service can run on an Azure VM with attached managed identity. This
-  is the recommended way of deploying the Discovery Service in production since
-  it eliminates the need to manage Azure credentials.
-- The Discovery Service can be registered as a Microsoft Entra ID application
-  and configured with its credentials. This is only recommended for development
-  and testing purposes since it requires Azure credentials to be present in the
-  Discovery Service's environment.
-
-<Tabs>
-<TabItem label="Using managed identity">
-  Go to the [Managed Identities](https://portal.azure.com/#browse/Microsoft.ManagedIdentity%2FuserAssignedIdentities)
-  page in your Azure portal and click *Create* to create a new user-assigned
-  managed identity:
-
-  ![Managed identities](../../../../../img/azure/managed-identities@2x.png)
-
-  Pick a name and resource group for the new identity and create it:
-
-  ![New identity](../../../../../img/server-access/guides/azure/new-identity@2x.png)
-
-  Take note of the created identity's *Client ID*:
-
-  ![Created identity](../../../../../img/server-access/guides/azure/created-identity@2x.png)
-
-  Next, navigate to the Azure VM that will run your Discovery Service instance and
-  add the identity you've just created to it:
-
-  ![VM identity](../../../../../img/server-access/guides/azure/vm-identity@2x.png)
-
-  Attach this identity to all Azure VMs that will be running the Discovery
-  Service.
-</TabItem>
-<TabItem label="Using app registrations">
-  <Admonition type="note">
-    Registering the Discovery Service as a Microsoft Entra ID application is
-    suitable for test and development scenarios, or if your Discovery Service
-    does not run on an Azure VM. For production scenarios prefer to use the
-    managed identity approach.
-  </Admonition>
-
-  Go to the [App registrations](https://portal.azure.com/#blade/Microsoft_AAD_IAM/ActiveDirectoryMenuBlade/RegisteredApps)
-  page in Microsoft Entra ID and click on *New registration*:
-
-  ![App registrations](../../../../../img/azure/app-registrations@2x.png)
-
-  Pick a name (e.g. *DiscoveryService*) and register a new application. Once the
-  app has been created, take note of its *Application (client) ID* and click on
-  *Add a certificate or secret*:
-
-  ![Registered app](../../../../../img/server-access/guides/azure/registered-app@2x.png)
-
-  Create a new client secret that the Discovery Service agent will use to
-  authenticate with the Azure API:
-
-  ![Registered app secrets](../../../../../img/azure/registered-app-secrets@2x.png)
-
-  The Teleport Discovery Service uses Azure SDK's default credential provider chain to
-  look for credentials. Refer to [Azure SDK Authorization](https://docs.microsoft.com/en-us/azure/developer/go/azure-sdk-authorization)
-  to pick a method suitable for your use-case. For example, to use
-  environment-based authentication with a client secret, the Discovery Service should
-  have the following environment variables set:
-
-  ```text
-  export AZURE_TENANT_ID=
-  export AZURE_CLIENT_ID=
-  export AZURE_CLIENT_SECRET=
-  ```
-</TabItem>
-</Tabs>
+(!docs/pages/includes/auto-discovery/azure-vm-configure-service-principal.mdx!)
 
 ### Create a custom role
 
@@ -259,7 +192,7 @@ the Teleport service principal as a member.
 The Discovery Service will discover VMs in all subscriptions under the assigned
 management group scope.
 
-## Step 3/6. Set up an identity for discovered nodes
+## Step 3/5. Set up an identity for discovered nodes
 
 Every Azure VM to be discovered must have an identity assigned to it: either system assigned or user assigned managed identity.
 
@@ -268,7 +201,7 @@ Every Azure VM to be discovered must have an identity assigned to it: either sys
 If the VMs to be discovered have no system-managed identity and more than one user-managed identity assigned to them,
 copy the client ID of one of your user-managed identities for Step 5.
 
-## Step 4/6. Install the Teleport Discovery Service
+## Step 4/5. Install the Teleport Discovery Service
 
 <Admonition type="tip">
 
@@ -281,51 +214,9 @@ Install Teleport on the virtual machine that will run the Discovery Service:
 
 (!docs/pages/includes/install-linux.mdx!)
 
-## Step 5/6. Configure Teleport to discover Azure instances
+## Step 5/5. Configure Teleport to discover Azure instances
 
-If you are running the Discovery Service on its own host, the service requires a
-valid invite token to connect to the cluster. Generate one by running the
-following command against your Teleport Auth Service:
-
-```code
-$ tctl tokens add --type=discovery
-```
-
-Save the generated token in `/tmp/token` on the virtual machine that will run
-the Discovery Service.
-
-(!docs/pages/includes/discovery/discovery-group.mdx!)
-
-Assign <Var name="teleport.example.com:443" /> to the host and port of the Teleport Proxy Service in your cluster,
-and <Var name="azure-prod" /> to a name that identifies a group of resources that you will enroll:
-
-```yaml
-# teleport.yaml
-version: v3
-teleport:
-  join_params:
-    token_name: "/tmp/token"
-    method: token
-  proxy_server: "<Var name="teleport.example.com:443" />"
-auth_service:
-  enabled: false
-proxy_service:
-  enabled: false
-ssh_service:
-  enabled: false
-discovery_service:
-  enabled: true
-  discovery_group: <Var name="azure-prod" />
-```
-
-Create a matcher for the resources you want to enroll.
-
-<Admonition type="tip">
-Dynamic configuration uses Discovery Configs which can be managed using Terraform.
-See the [Terraform `discovery_config` reference](../../../../reference/infrastructure-as-code/terraform-provider/resources/discovery_config.mdx) for more information.
-
-Static configuration while simpler at first, has less flexibility because enrollment changes require edits to `teleport.yaml` and the restart of the Discovery Service.
-</Admonition>
+(!docs/pages/includes/auto-discovery/azure-vm-configure-discovery-service.mdx!)
 
 <Tabs>
 <TabItem label="Dynamic configuration (recommended)">
@@ -402,8 +293,6 @@ To configure Terraform for VM discovery across subscriptions in a management gro
 [Discover VMs in multiple subscriptions using management groups](azure-vm-discovery-terraform.mdx#discover-vms-in-multiple-subscriptions-using-management-groups)
 in the Terraform Azure VM Auto-Discovery guide.
 </Admonition>
-
-## Step 6/6. Start Teleport
 
 (!docs/pages/includes/start-teleport.mdx service="the Discovery Service"!)
 
