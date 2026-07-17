@@ -813,6 +813,8 @@ func Main() {
 		cmdLine = append([]string{"ssh"}, cmdLineOrig...)
 	case "scp":
 		cmdLine = append([]string{"scp"}, cmdLineOrig...)
+	case "git-remote-teleport":
+		cmdLine = append([]string{"git", "remote-http"}, cmdLineOrig...)
 	default:
 		cmdLine = cmdLineOrig
 	}
@@ -1193,6 +1195,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	proxyAWS.Flag("port", "Specifies the source port used by the proxy listener.").Short('p').StringVar(&cf.LocalProxyPort)
 	proxyAWS.Flag("endpoint-url", "Run local proxy to serve as an AWS endpoint URL. If not specified, local proxy serves as an HTTPS proxy.").Short('e').Hidden().BoolVar(&cf.AWSEndpointURLMode)
 	proxyAWS.Flag("format", awsProxyFormatFlagDescription()).Short('f').Default(envVarDefaultFormat()).EnumVar(&cf.Format, awsProxyFormats...)
+
+	proxyGit := newGitProxyCommand(proxy)
 
 	proxyAzure := proxy.Command("azure", "Start local proxy for Azure access.")
 	proxyAzure.Flag("app", "Optional Name of the Azure application to use if logged into multiple.").StringVar(&cf.AppName)
@@ -1597,6 +1601,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	connectUpdaterServiceInstallUpdateCommand := newConnectUpdaterServiceInstallUpdateCommand(connectUpdater)
 
 	gitCmd := newGitCommands(app)
+	ghCmd := newTopLevelGHCommand(app)
 	beamsCmd := newBeamsCommands(app)
 	pivCmd := newPIVCommands(app)
 	mcpCmd := newMCPCommands(app, &cf)
@@ -1946,6 +1951,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = onProxyCommandApp(&cf)
 	case proxyAWS.FullCommand():
 		err = onProxyCommandAWS(&cf)
+	case proxyGit.FullCommand():
+		err = proxyGit.run(&cf)
 	case proxyAzure.FullCommand():
 		err = onProxyCommandAzure(&cf)
 	case proxyGcloud.FullCommand():
@@ -2064,12 +2071,20 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = gitCmd.list.run(&cf)
 	case gitCmd.login.FullCommand():
 		err = gitCmd.login.run(&cf)
+	case gitCmd.logout.FullCommand():
+		err = gitCmd.logout.run(&cf)
 	case gitCmd.ssh.FullCommand():
 		err = gitCmd.ssh.run(&cf)
 	case gitCmd.config.FullCommand():
 		err = gitCmd.config.run(&cf)
 	case gitCmd.clone.FullCommand():
 		err = gitCmd.clone.run(&cf)
+	case gitCmd.gh.FullCommand():
+		err = gitCmd.gh.run(&cf)
+	case gitCmd.httpRemote.FullCommand():
+		err = gitCmd.httpRemote.run(&cf)
+	case ghCmd.FullCommand():
+		err = ghCmd.run(&cf)
 	case beamsCmd.ls.FullCommand():
 		err = beamsCmd.ls.run(&cf)
 	case beamsCmd.add.FullCommand():

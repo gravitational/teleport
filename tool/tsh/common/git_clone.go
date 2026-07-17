@@ -20,9 +20,13 @@ package common
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/types"
+	toolcommon "github.com/gravitational/teleport/tool/common"
 )
 
 // gitCloneCommand implements `tsh git clone`.
@@ -52,6 +56,13 @@ func newGitCloneCommand(parent *kingpin.CmdClause) *gitCloneCommand {
 }
 
 func (c *gitCloneCommand) run(cf *CLIConf) error {
+	if isHTTPSGitURL(c.repository) {
+		return c.runHTTPS(cf)
+	}
+	return c.runSSH(cf)
+}
+
+func (c *gitCloneCommand) runSSH(cf *CLIConf) error {
 	u, err := parseGitSSHURL(c.repository)
 	if err != nil {
 		return trace.Wrap(err)
@@ -71,3 +82,72 @@ func (c *gitCloneCommand) run(cf *CLIConf) error {
 	}
 	return trace.Wrap(execGit(cf, args...))
 }
+
+func (c *gitCloneCommand) runHTTPS(cf *CLIConf) error {
+	org, repoPath, err := parseGitHTTPSURL(c.repository)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	tc, err := makeClient(cf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	gitServer, err := findGitServerByOrg(cf, tc, org)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	github := gitServer.GetGitHub()
+	if github == nil || !types.GitServerHTTPEnabled(github) {
+		return trace.BadParameter("git server %v does not have HTTP proxying enabled", gitServer.GetName())
+	}
+
+	valid, _ := hasValidGitCert(tc, gitServer.GetName())
+	if !valid {
+		if err := ensureGitCredentialsAndCert(cf, tc, gitServer); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	if err := ensureGitRemoteHelper(cf); err != nil {
+		return trace.Wrap(err)
+	}
+
+	teleportURL := fmt.Sprintf("teleport://github.com/%s", repoPath)
+	args := []string{"clone", teleportURL}
+	if c.directory != "" {
+		args = append(args, c.directory)
+	}
+
+	fmt.Fprintf(cf.Stdout(), "Cloning via Teleport git server %q\n", gitServer.GetName())
+	if err := execGit(cf, args...); err != nil {
+		// git already printed the error to stderr. Use ExitCodeError to
+		// exit without printing the error again.
+		return trace.Wrap(&toolcommon.ExitCodeError{Code: 1})
+	}
+	return nil
+}
+
+func isHTTPSGitURL(url string) bool {
+	return strings.HasPrefix(url, "https://") || strings.HasPrefix(url, "http://")
+}
+
+// parseGitHTTPSURL parses a GitHub HTTPS URL and returns the org and repo path.
+// Example: https://github.com/gravitational/teleport.git -> "gravitational", "gravitational/teleport.git"
+func parseGitHTTPSURL(rawURL string) (org, repoPath string, err error) {
+	for _, prefix := range []string{"https://github.com/", "http://github.com/"} {
+		if strings.HasPrefix(rawURL, prefix) {
+			repoPath = strings.TrimPrefix(rawURL, prefix)
+			parts := strings.SplitN(repoPath, "/", 2)
+			if len(parts) < 2 {
+				return "", "", trace.BadParameter("invalid GitHub URL %q", rawURL)
+			}
+			return parts[0], repoPath, nil
+		}
+	}
+	return "", "", trace.BadParameter("unsupported HTTPS URL %q, only github.com is supported", rawURL)
+}
+
+// findGitServerByOrg is defined in git_login.go.

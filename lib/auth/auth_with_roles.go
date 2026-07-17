@@ -52,6 +52,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -4132,7 +4133,48 @@ func (a *ScopedServerWithRoles) generateUserCerts(ctx context.Context, req proto
 	}
 
 	var appSessionID string
-	if req.RouteToApp.Name != "" {
+	var gitSessionID string
+	if req.RouteToGit.GitServerName != "" {
+		if a.scopedContext.Identity.GetIdentity().PrivateKeyPolicy == keys.PrivateKeyPolicyWebSession {
+			return nil, trace.AccessDenied("web sessions cannot create git certificates")
+		}
+		// Generate a session ID for recording correlation only. No backend
+		// session is created (session-less auth per RFD 0315).
+		gitSessionID, err = utils.CryptoRandomHex(defaults.SessionTokenBytes)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		gitServer, err := a.authServer.GetGitServer(ctx, req.RouteToGit.GitServerName)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		github := gitServer.GetGitHub()
+		if github == nil {
+			return nil, trace.BadParameter("git server %v is not a GitHub server", req.RouteToGit.GitServerName)
+		}
+
+		if emitErr := a.authServer.emitter.EmitAuditEvent(ctx, &apievents.GitSessionStart{
+			Metadata: apievents.Metadata{
+				Type: events.GitSessionStartEvent,
+				Code: events.GitSessionStartCode,
+			},
+			UserMetadata: authz.ClientUserMetadata(ctx),
+			SessionMetadata: apievents.SessionMetadata{
+				SessionID: gitSessionID,
+			},
+			ConnectionMetadata: apievents.ConnectionMetadata{
+				RemoteAddr: a.scopedContext.Identity.GetIdentity().LoginIP,
+			},
+			GitMetadata: apievents.GitMetadata{
+				GitServerName: gitServer.GetName(),
+				Organization:  github.Organization,
+				Integration:   github.Integration,
+			},
+		}); emitErr != nil {
+			a.authServer.logger.WarnContext(ctx, "Failed to emit git session start event", "error", emitErr)
+		}
+	} else if req.RouteToApp.Name != "" {
 		if isScoped {
 			return nil, trace.Wrap(services.ErrScopedIdentity, "creating app session")
 		}
@@ -4217,6 +4259,8 @@ func (a *ScopedServerWithRoles) generateUserCerts(ctx context.Context, req proto
 		AWSRoleARN:                       req.RouteToApp.AWSRoleARN,
 		AzureIdentity:                    req.RouteToApp.AzureIdentity,
 		GCPServiceAccount:                req.RouteToApp.GCPServiceAccount,
+		GitServerName:                    req.RouteToGit.GitServerName,
+		GitSessionID:                     gitSessionID,
 		CheckerContext:                   checkerCtx,
 		// Copy IP from current identity to the generated certificate, if present,
 		// to avoid generateUserCerts() being used to drop IP pinning in the new certificates.
@@ -4273,6 +4317,8 @@ func (a *ScopedServerWithRoles) generateUserCerts(ctx context.Context, req proto
 	case proto.UserCertsRequest_WindowsDesktop:
 		// Desktop certs.
 		certReq.Usage = []string{teleport.UsageWindowsDesktopOnly}
+	case proto.UserCertsRequest_Git:
+		certReq.Usage = []string{teleport.UsageGitOnly}
 	default:
 		return nil, trace.BadParameter("unsupported cert usage %q", req.Usage)
 	}

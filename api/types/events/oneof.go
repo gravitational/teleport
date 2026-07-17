@@ -846,6 +846,26 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_GitCommand{
 			GitCommand: e,
 		}
+	case *GitHTTPRequest:
+		out.Event = &OneOf_GitHTTPRequest{
+			GitHTTPRequest: e,
+		}
+	case *GitSessionChunk:
+		out.Event = &OneOf_GitSessionChunk{
+			GitSessionChunk: e,
+		}
+	case *GitCredentialCreate:
+		out.Event = &OneOf_GitCredentialCreate{
+			GitCredentialCreate: e,
+		}
+	case *GitCredentialRevoke:
+		out.Event = &OneOf_GitCredentialRevoke{
+			GitCredentialRevoke: e,
+		}
+	case *GitSessionStart:
+		out.Event = &OneOf_GitSessionStart{
+			GitSessionStart: e,
+		}
 	case *StableUNIXUserCreate:
 		out.Event = &OneOf_StableUNIXUserCreate{
 			StableUNIXUserCreate: e,

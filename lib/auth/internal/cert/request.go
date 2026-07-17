@@ -99,6 +99,10 @@ type Request struct {
 	// TCP app, as long as the port is defined in the app spec. Used only for routing, should not be
 	// used in other contexts (e.g., access requests).
 	AppTargetPort int
+	// GitServerName is the name of the git server for Git HTTPS proxying.
+	GitServerName string
+	// GitSessionID is the session ID of the git session.
+	GitSessionID string
 	// AWSRoleARN is the role ARN to generate certificate for.
 	AWSRoleARN string
 	// AzureIdentity is the Azure identity to generate certificate for.

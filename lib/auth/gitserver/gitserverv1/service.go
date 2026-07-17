@@ -31,14 +31,14 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/services"
+	"k8s.io/apimachinery/pkg/util/validation"
 )
 
 // Backend handpicks a list of backend functions this service needs.
 type Backend interface {
 	services.GitServers
 
-	// GetIntegration returns the specified integration resources.
-	GetIntegration(ctx context.Context, name string) (types.Integration, error)
+	services.IntegrationsGetter
 
 	// GetPluginStaticCredentialsByLabels will get a list of plugin static credentials resource by matching labels.
 	GetPluginStaticCredentialsByLabels(ctx context.Context, labels map[string]string) ([]types.PluginStaticCredentials, error)
@@ -107,6 +107,9 @@ func toServerV2(server types.Server) (*types.ServerV2, error) {
 
 func (s *Service) CreateGitServer(ctx context.Context, req *pb.CreateGitServerRequest) (*types.ServerV2, error) {
 	if _, err := s.authorize(ctx, types.VerbCreate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := validateGitServerName(req.Server.GetName()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	server, err := s.cfg.Backend.CreateGitServer(ctx, req.Server)
@@ -179,6 +182,9 @@ func (s *Service) UpsertGitServer(ctx context.Context, req *pb.UpsertGitServerRe
 	if _, err := s.authorize(ctx, types.VerbCreate, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if err := validateGitServerName(req.Server.GetName()); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	server, err := s.cfg.Backend.UpsertGitServer(ctx, req.Server)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -195,6 +201,13 @@ func (s *Service) DeleteGitServer(ctx context.Context, req *pb.DeleteGitServerRe
 		return nil, trace.Wrap(err)
 	}
 	return &emptypb.Empty{}, nil
+}
+
+func validateGitServerName(name string) error {
+	if errs := validation.IsDNS1123Label(name); len(errs) > 0 {
+		return trace.BadParameter("git server name %q is not a valid DNS label: %v", name, errs)
+	}
+	return nil
 }
 
 func (s *Service) authorize(ctx context.Context, verb string, additionalVerbs ...string) (*authz.Context, error) {

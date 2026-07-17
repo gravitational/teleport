@@ -36,10 +36,12 @@ export default function makeGitServer(json: any): GitServer {
 
 function makeGitHubMetadata(json: any): GitHubMetadata {
   json = json ?? {};
-  const { integration, organization } = json;
+  const { integration, organization, sshEnabled, httpEnabled } = json;
 
   return {
     integration,
     organization,
+    sshEnabled,
+    httpEnabled,
   };
 }

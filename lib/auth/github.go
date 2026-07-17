@@ -32,11 +32,14 @@ import (
 
 	"github.com/gravitational/trace"
 	"golang.org/x/oauth2"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	userexternalcredentialsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userexternalcredentials/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/userexternalcredentials"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -539,29 +542,6 @@ func newGithubOAuth2Config(connector types.GithubConnector) oauth2.Config {
 func (a *Server) ValidateGithubAuthRedirect(ctx context.Context, diagCtx *SSODiagContext, q url.Values) (*authclient.GithubAuthResponse, error) {
 	logger := a.logger.With(teleport.ComponentKey, "github")
 
-	if errParam := q.Get("error"); errParam != "" {
-		// try to find request so the error gets logged against it.
-		state := q.Get("state")
-		if state != "" {
-			diagCtx.RequestID = state
-			req, err := a.Services.GetGithubAuthRequest(ctx, state)
-			if err == nil {
-				diagCtx.Info.TestFlow = req.SSOTestFlow
-			}
-		}
-
-		// optional parameter: error_description
-		errDesc := q.Get("error_description")
-		oauthErr := trace.OAuth2("invalid_request", errParam, q)
-		return nil, trace.WithUserMessage(oauthErr, "GitHub returned error: %v [%v]", errDesc, errParam)
-	}
-
-	code := q.Get("code")
-	if code == "" {
-		oauthErr := trace.OAuth2("invalid_request", "code query param must be set", q)
-		return nil, trace.WithUserMessage(oauthErr, "Invalid parameters received from GitHub.")
-	}
-
 	stateToken := q.Get("state")
 	if stateToken == "" {
 		oauthErr := trace.OAuth2("invalid_request", "missing state query param", q)
@@ -573,9 +553,28 @@ func (a *Server) ValidateGithubAuthRedirect(ctx context.Context, diagCtx *SSODia
 	if err != nil {
 		return nil, trace.Wrap(err, "Failed to get OIDC Auth Request.")
 	}
+	if err := a.Services.DeleteGithubAuthRequest(ctx, stateToken); err != nil {
+		logger.WarnContext(ctx, "Failed to delete GitHub auth request after use", "error", err)
+	}
 	diagCtx.Info.TestFlow = req.SSOTestFlow
 
+	if errParam := q.Get("error"); errParam != "" {
+		errDesc := q.Get("error_description")
+		oauthErr := trace.OAuth2("invalid_request", errParam, q)
+		return nil, trace.WithUserMessage(oauthErr, "GitHub returned error: %v [%v]", errDesc, errParam)
+	}
+
+	code := q.Get("code")
+	if code == "" {
+		oauthErr := trace.OAuth2("invalid_request", "code query param must be set", q)
+		return nil, trace.WithUserMessage(oauthErr, "Invalid parameters received from GitHub.")
+	}
+
 	if req.AuthenticatedUser != "" {
+		// TODO(greedy52) deprecate this unauthenticated path in v20. Customers
+		// should update their GitHub App/OAuth App callback URL to
+		// /webapi/github/integration/callback which requires a web session and
+		// prevents login-CSRF attacks.
 		return a.validateGithubAuthCallbackForAuthenticatedUser(ctx, code, req, diagCtx, logger)
 	}
 
@@ -745,18 +744,18 @@ func (a *Server) getGitHubAPIClient(
 	code string,
 	diagCtx *SSODiagContext,
 	logger *slog.Logger,
-) (*githubAPIClient, error) {
+) (*githubAPIClient, *oauth2.Token, error) {
 	config := newGithubOAuth2Config(connector)
 
 	// exchange the authorization code received by the callback for an access token
 	token, err := config.Exchange(ctx, code)
 	if err != nil {
-		return nil, trace.Wrap(err, "Requesting GitHub OAuth2 token failed.")
+		return nil, nil, trace.Wrap(err, "Requesting GitHub OAuth2 token failed.")
 	}
 
 	scope, ok := token.Extra("scope").(string)
 	if !ok {
-		return nil, trace.BadParameter("missing or invalid scope found in GitHub OAuth2 token")
+		return nil, nil, trace.BadParameter("missing or invalid scope found in GitHub OAuth2 token")
 	}
 	diagCtx.Info.GithubTokenInfo = &types.GithubTokenInfo{
 		TokenType: token.TokenType,
@@ -771,13 +770,13 @@ func (a *Server) getGitHubAPIClient(
 	// make unnecessary API requests
 	apiEndpoint, err := buildAPIEndpoint(connector.GetAPIEndpointURL())
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 	return &githubAPIClient{
 		token:       token.AccessToken,
 		authServer:  a,
 		apiEndpoint: apiEndpoint,
-	}, nil
+	}, token, nil
 }
 
 func (a *Server) getGithubUserAndTeams(
@@ -793,7 +792,7 @@ func (a *Server) getGithubUserAndTeams(
 		return a.GithubUserAndTeamsOverride()
 	}
 
-	ghClient, err := a.getGitHubAPIClient(ctx, connector, code, diagCtx, logger)
+	ghClient, _, err := a.getGitHubAPIClient(ctx, connector, code, diagCtx, logger)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -832,13 +831,53 @@ func (a *Server) validateGithubAuthCallbackForAuthenticatedUser(
 	if err != nil {
 		return nil, trace.Wrap(err, "Failed to get GitHub connector and client.")
 	}
-	ghClient, err := a.getGitHubAPIClient(ctx, connector, code, diagCtx, logger)
+	ghClient, oauthToken, err := a.getGitHubAPIClient(ctx, connector, code, diagCtx, logger)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	githubUser, err := ghClient.getUser()
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	// In test flow, skip saving credentials. Verify the token works by making
+	// a test API call and record diagnostic info.
+	if req.SSOTestFlow {
+		diagCtx.Info.TestFlow = true
+		diagCtx.Info.GithubClaims = &types.GithubClaims{
+			Username: githubUser.Login,
+		}
+		diagCtx.Info.GithubTokenInfo = &types.GithubTokenInfo{
+			TokenType: oauthToken.TokenType,
+			Scope:     "",
+		}
+
+		diagCtx.Info.Success = true
+		return &authclient.GithubAuthResponse{
+			Req:      GithubAuthRequestFromProto(req),
+			Identity: githubUser.makeExternalIdentity(req.ConnectorID),
+			Username: req.AuthenticatedUser,
+		}, nil
+	}
+
+	// Save the access token for later use (e.g. GitHub API proxying).
+	if err := a.saveGitHubOAuthCredentials(ctx, req.AuthenticatedUser, connector.GetClientID(), oauthToken, githubUser, logger); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := a.emitter.EmitAuditEvent(ctx, &apievents.GitCredentialCreate{
+		Metadata: apievents.Metadata{
+			Type: events.GitCredentialCreateEvent,
+			Code: events.GitCredentialCreateCode,
+		},
+		UserMetadata: apievents.UserMetadata{
+			User: req.AuthenticatedUser,
+		},
+		GitMetadata: apievents.GitMetadata{
+			Integration: req.ConnectorID,
+		},
+	}); err != nil {
+		logger.WarnContext(ctx, "Failed to emit git credential create event", "error", err)
 	}
 
 	// Attach the new (but secondary) identity.
@@ -857,6 +896,47 @@ func (a *Server) validateGithubAuthCallbackForAuthenticatedUser(
 	}
 
 	return a.makeGithubAuthResponse(ctx, req, userState, githubUser, req.CertTTL)
+}
+
+// TODO(greedy52) save and use refresh token for token refresh support.
+func (a *Server) saveGitHubOAuthCredentials(ctx context.Context, username, clientID string, token *oauth2.Token, githubUser *GithubUserResponse, logger *slog.Logger) error {
+	ghCreds := userexternalcredentialsv1.GitHubOAuthCredentials_builder{
+		AccessToken:  token.AccessToken,
+		RefreshToken: token.RefreshToken,
+		Username:     githubUser.Login,
+		UserId:       githubUser.getIDStr(),
+	}
+	if !token.Expiry.IsZero() {
+		ghCreds.AccessTokenExpiry = timestamppb.New(token.Expiry)
+	}
+	// GitHub refresh tokens expire after 6 months.
+	// https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/refreshing-user-access-tokens
+	if token.RefreshToken != "" {
+		refreshExpiry := token.Extra("refresh_token_expires_in")
+		if seconds, ok := refreshExpiry.(float64); ok && seconds > 0 {
+			ghCreds.RefreshTokenExpiry = timestamppb.New(time.Now().Add(time.Duration(seconds) * time.Second))
+		}
+	}
+	creds, err := userexternalcredentials.NewGitHubOAuth(
+		username,
+		clientID,
+		ghCreds.Build(),
+	)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	// Set initial credential TTL using the default. The integration's
+	// max_credential_ttl takes effect on subsequent token refreshes.
+	creds.GetMetadata().Expires = timestamppb.New(time.Now().Add(7 * 24 * time.Hour))
+
+	if _, err := a.UserExternalCredentials.UpsertUserExternalCredentials(ctx, creds); err != nil {
+		return trace.Wrap(err)
+	}
+	logger.DebugContext(ctx, "Saved GitHub OAuth credentials",
+		"user", username,
+		"client_id", clientID,
+	)
+	return nil
 }
 
 // buildAPIEndpoint takes a URL of a GitHub API endpoint and returns only

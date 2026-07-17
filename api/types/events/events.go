@@ -2951,3 +2951,34 @@ func (m *AppSessionLLMRequest) TrimToMaxSize(maxSize int) AuditEvent {
 		}
 	})
 }
+
+// TrimToMaxSize implements [AuditEvent].
+func (m *GitHTTPRequest) TrimToMaxSize(maxSize int) AuditEvent {
+	return trimEventToMaxSize(m, maxSize, func(m, out *GitHTTPRequest) fieldTrimmer {
+		return fieldTrimmers{
+			newStrTrimmer(m.GraphQLQuery, &out.GraphQLQuery),
+			newStrTrimmer(m.RequestPath, &out.RequestPath),
+			newStrTrimmer(m.Method, &out.Method),
+		}
+	})
+}
+
+// TrimToMaxSize implements [AuditEvent].
+func (m *GitSessionChunk) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
+
+// TrimToMaxSize implements [AuditEvent].
+func (m *GitCredentialCreate) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
+
+// TrimToMaxSize implements [AuditEvent].
+func (m *GitCredentialRevoke) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
+
+// TrimToMaxSize implements [AuditEvent].
+func (m *GitSessionStart) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}

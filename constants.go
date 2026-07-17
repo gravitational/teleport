@@ -915,6 +915,10 @@ const (
 	// used for proxying applications.
 	UsageAppsOnly = "usage:apps"
 
+	// UsageGitOnly specifies certificate usage metadata that only allows it to
+	// be used for Git HTTPS proxying.
+	UsageGitOnly = "usage:git"
+
 	// UsageDatabaseOnly specifies certificate usage metadata that only allows
 	// it to be used for proxying database connections.
 	UsageDatabaseOnly = "usage:db"

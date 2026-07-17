@@ -24,13 +24,18 @@ import (
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 
+	proto "github.com/gravitational/teleport/api/client/proto"
+	gitserverv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/gitserver/v1"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // gitLoginCommand implements `tsh git login`.
 type gitLoginCommand struct {
 	*kingpin.CmdClause
 
+	gitServerName      string
 	gitHubOrganization string
 	force              bool
 }
@@ -40,22 +45,257 @@ func newGitLoginCommand(parent *kingpin.CmdClause) *gitLoginCommand {
 		CmdClause: parent.Command("login", "Opens a browser and retrieves your login from GitHub."),
 	}
 
-	// TODO(greedy52) make "github-org" optional. Most likely there is only a
-	// single Git server configured anyway so do a "list" op then use the
-	// organization from that Git server. If more than one Git servers are
-	// found, prompt the user to pick one.
-	cmd.Flag("github-org", "GitHub organization.").Required().StringVar(&cmd.gitHubOrganization)
+	cmd.Arg("git-server", "Name of the git server.").StringVar(&cmd.gitServerName)
+	cmd.Flag("github-org", "GitHub organization (deprecated, use git-server argument instead).").StringVar(&cmd.gitHubOrganization)
 	cmd.Flag("force", "Force a login.").BoolVar(&cmd.force)
 	return cmd
 }
 
 func (c *gitLoginCommand) run(cf *CLIConf) error {
-	identity, err := getGitHubIdentity(cf, c.gitHubOrganization, withForceOAuthFlow(c.force))
+	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Fprintf(cf.Stdout(), "Your GitHub username is %s.\n", identity.Username)
+
+	gitServer, err := resolveGitServer(cf, tc, c.gitServerName, c.gitHubOrganization)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	github := gitServer.GetGitHub()
+	if github == nil {
+		return trace.BadParameter("git server %v is not a GitHub server", gitServer.GetName())
+	}
+
+	if !types.GitServerSSHEnabled(github) && !types.GitServerHTTPEnabled(github) {
+		return trace.BadParameter("git server %v has no protocols enabled", gitServer.GetName())
+	}
+
+	if c.force {
+		if _, err := getGitHubIdentity(cf, github.Organization, withForceOAuthFlow(true)); err != nil {
+			return trace.Wrap(err)
+		}
+	} else {
+		if err := ensureGitHubCredentials(cf, tc, gitServer, types.GitServerSSHEnabled(github), types.GitServerHTTPEnabled(github)); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	profile, err := cf.ProfileStatus()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if profile.GitHubIdentity != nil {
+		fmt.Fprintf(cf.Stdout(), "Logged in as GitHub user %q.\n", profile.GitHubIdentity.Username)
+	}
+
+	sshOK := types.GitServerSSHEnabled(github)
+	httpOK := types.GitServerHTTPEnabled(github)
+
+	if httpOK {
+		if err := ensureGitRemoteHelper(cf); err != nil {
+			logger.WarnContext(cf.Context, "Failed to install git remote helper", "error", err)
+		}
+
+		valid, reason := hasValidGitCert(tc, gitServer.GetName())
+		logger.DebugContext(cf.Context, "Checking git cert validity",
+			"git_server", gitServer.GetName(),
+			"valid", valid,
+			"reason", reason,
+		)
+		if !valid {
+			if err := issueGitCert(cf, tc, gitServer.GetName()); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+	}
+
+	fmt.Fprintln(cf.Stdout())
+	if sshOK {
+		fmt.Fprintf(cf.Stdout(), "You can now use Git over SSH:\n")
+		fmt.Fprintf(cf.Stdout(), "  tsh git clone git@github.com:%s/<repo>.git\n", github.Organization)
+		fmt.Fprintln(cf.Stdout())
+	}
+	if httpOK {
+		fmt.Fprintf(cf.Stdout(), "You can now use Git over HTTPS:\n")
+		fmt.Fprintf(cf.Stdout(), "  tsh git clone https://github.com/%s/<repo>.git\n", github.Organization)
+		fmt.Fprintln(cf.Stdout())
+		fmt.Fprintf(cf.Stdout(), "You can now use the GitHub CLI:\n")
+		fmt.Fprintf(cf.Stdout(), "  tsh gh -- api /user\n")
+		fmt.Fprintln(cf.Stdout())
+	}
 	return nil
+}
+
+// ensureGitHubCredentials ensures the user has the necessary GitHub credentials
+// for the given git server and protocol. For SSH, it ensures GitHub identity is
+// bound. For HTTP, it also ensures the access token is stored.
+func ensureGitHubCredentials(cf *CLIConf, tc *client.TeleportClient, gitServer types.Server, needSSH, needHTTP bool) error {
+	github := gitServer.GetGitHub()
+	if github == nil {
+		return trace.BadParameter("git server %v is not a GitHub server", gitServer.GetName())
+	}
+
+	needOAuth := false
+	if needSSH {
+		profile, err := cf.ProfileStatus()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if profile.GitHubIdentity == nil {
+			needOAuth = true
+		}
+	}
+	if !needOAuth && needHTTP {
+		hasCredentials, err := checkGitHubCredentials(cf, tc, gitServer.GetName())
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if !hasCredentials {
+			needOAuth = true
+		}
+	}
+
+	if needOAuth {
+		if _, err := getGitHubIdentity(cf, github.Organization, withForceOAuthFlow(true)); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
+func hasValidGitCert(tc *client.TeleportClient, gitServerName string) (bool, string) {
+	keyRing, err := tc.LocalAgent().GetKeyRing(tc.SiteName, client.WithAllCerts...)
+	if err != nil {
+		return false, fmt.Sprintf("failed to get key ring: %v", err)
+	}
+	cert, err := keyRing.AppTLSCert(gitServerName)
+	if err != nil {
+		return false, fmt.Sprintf("no cert found: %v", err)
+	}
+	if err := utils.VerifyTLSCertLeafExpiry(cert, nil); err != nil {
+		return false, fmt.Sprintf("cert expired: %v", err)
+	}
+	return true, "valid"
+}
+
+func issueGitCert(cf *CLIConf, tc *client.TeleportClient, gitServerName string) error {
+	return client.RetryWithRelogin(cf.Context, tc, func() error {
+		clusterClient, err := tc.ConnectToCluster(cf.Context)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer clusterClient.Close()
+
+		result, err := clusterClient.IssueUserCertsWithMFA(cf.Context, client.ReissueParams{
+			RouteToGit: proto.RouteToGit{
+				GitServerName: gitServerName,
+			},
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		return trace.Wrap(tc.LocalAgent().AddAppKeyRing(result.KeyRing))
+	})
+}
+
+func checkGitHubCredentials(cf *CLIConf, tc *client.TeleportClient, gitServerName string) (bool, error) {
+	var valid bool
+	err := client.RetryWithRelogin(cf.Context, tc, func() error {
+		clusterClient, err := tc.ConnectToCluster(cf.Context)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer clusterClient.Close()
+
+		checkReq := &gitserverv1.CheckGitCredentialsRequest{}
+		checkReq.SetGitServerName(gitServerName)
+		resp, err := clusterClient.AuthClient.GitCredentialsClient().CheckGitCredentials(cf.Context, checkReq)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		valid = resp.GetValid()
+		return nil
+	})
+	return valid, trace.Wrap(err)
+}
+
+// resolveGitServer finds a git server by name, org, or auto-selects if only
+// one exists.
+func resolveGitServer(cf *CLIConf, tc *client.TeleportClient, name, org string) (types.Server, error) {
+	switch {
+	case name != "":
+		return findGitServerByName(cf, tc, name)
+	case org != "":
+		return findGitServerByOrg(cf, tc, org)
+	}
+
+	var servers []types.Server
+	err := client.RetryWithRelogin(cf.Context, tc, func() error {
+		clusterClient, err := tc.ConnectToCluster(cf.Context)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer clusterClient.Close()
+
+		servers, _, err = clusterClient.AuthClient.GitServerReadOnlyClient().ListGitServers(cf.Context, 0, "")
+		return trace.Wrap(err)
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	switch len(servers) {
+	case 0:
+		return nil, trace.NotFound("no git servers found")
+	case 1:
+		return servers[0], nil
+	default:
+		var names []string
+		for _, s := range servers {
+			names = append(names, s.GetName())
+		}
+		return nil, trace.BadParameter("multiple git servers found, specify one: %v", names)
+	}
+}
+
+func findGitServerByName(cf *CLIConf, tc *client.TeleportClient, name string) (types.Server, error) {
+	var server types.Server
+	err := client.RetryWithRelogin(cf.Context, tc, func() error {
+		clusterClient, err := tc.ConnectToCluster(cf.Context)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer clusterClient.Close()
+
+		server, err = clusterClient.AuthClient.GitServerReadOnlyClient().GetGitServer(cf.Context, name)
+		return trace.Wrap(err)
+	})
+	return server, trace.Wrap(err)
+}
+
+func findGitServerByOrg(cf *CLIConf, tc *client.TeleportClient, org string) (types.Server, error) {
+	var server types.Server
+	err := client.RetryWithRelogin(cf.Context, tc, func() error {
+		clusterClient, err := tc.ConnectToCluster(cf.Context)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer clusterClient.Close()
+
+		servers, _, err := clusterClient.AuthClient.GitServerReadOnlyClient().ListGitServers(cf.Context, 0, "")
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		for _, s := range servers {
+			if github := s.GetGitHub(); github != nil && github.Organization == org {
+				server = s
+				return nil
+			}
+		}
+		return trace.NotFound("git server for organization %q not found", org)
+	})
+	return server, trace.Wrap(err)
 }
 
 func getGitHubIdentity(cf *CLIConf, org string, applyOpts ...getGitHubIdentityOption) (*client.GitHubIdentity, error) {

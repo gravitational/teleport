@@ -75,6 +75,9 @@ type ServiceConfig struct {
 	Emitter          apievents.Emitter
 	Reporter         usagereporter.UsageReporter
 	Clock            clockwork.Clock
+	// OnUserDelete is an optional callback invoked after a user is deleted.
+	// Used for cleaning up associated resources like external credentials.
+	OnUserDelete func(ctx context.Context, username string)
 }
 
 // Service implements the teleport.users.v1.UsersService RPC service.
@@ -89,6 +92,7 @@ type Service struct {
 	emitter          apievents.Emitter
 	reporter         usagereporter.UsageReporter
 	clock            clockwork.Clock
+	onUserDelete     func(ctx context.Context, username string)
 }
 
 // NewService returns a new users gRPC service.
@@ -124,6 +128,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		emitter:          cfg.Emitter,
 		reporter:         cfg.Reporter,
 		clock:            cfg.Clock,
+		onUserDelete:     cfg.OnUserDelete,
 	}, nil
 }
 
@@ -549,6 +554,10 @@ func (s *Service) DeleteUser(ctx context.Context, req *userspb.DeleteUserRequest
 
 	if err := s.backend.DeleteUser(ctx, req.Name); err != nil {
 		return &emptypb.Empty{}, trace.Wrap(err)
+	}
+
+	if s.onUserDelete != nil {
+		s.onUserDelete(ctx, req.Name)
 	}
 
 	// If the user was successfully deleted, emit an event.

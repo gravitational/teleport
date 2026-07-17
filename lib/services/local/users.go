@@ -2256,6 +2256,14 @@ func (s *IdentityService) GetGithubAuthRequest(ctx context.Context, stateToken s
 	return req, nil
 }
 
+// DeleteGithubAuthRequest deletes a Github auth request by state token.
+func (s *IdentityService) DeleteGithubAuthRequest(ctx context.Context, stateToken string) error {
+	if stateToken == "" {
+		return trace.BadParameter("missing parameter stateToken")
+	}
+	return trace.Wrap(s.Delete(ctx, backend.NewKey(webPrefix, connectorsPrefix, githubPrefix, requestsPrefix, stateToken)))
+}
+
 // GetRecoveryCodes returns user's recovery codes.
 func (s *IdentityService) GetRecoveryCodes(ctx context.Context, user string, withSecrets bool) (*types.RecoveryCodesV1, error) {
 	if user == "" {

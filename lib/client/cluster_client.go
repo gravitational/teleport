@@ -239,6 +239,11 @@ func (c *ClusterClient) generateUserCerts(ctx context.Context, cachePolicy CertC
 			PrivateKey: newUserKeys.app,
 			Cert:       certs.TLS,
 		}
+	case proto.UserCertsRequest_Git:
+		keyRing.AppTLSCredentials[params.RouteToGit.GitServerName] = TLSCredential{
+			PrivateKey: newUserKeys.app,
+			Cert:       certs.TLS,
+		}
 	case proto.UserCertsRequest_Database:
 		dbCert, err := makeDatabaseClientPEM(params.RouteToDatabase.Protocol, certs.TLS, newUserKeys.db)
 		if err != nil {
@@ -430,6 +435,12 @@ func (c *ClusterClient) prepareUserCertsRequest(ctx context.Context, params Reis
 			return nil, nil, trace.Wrap(err)
 		}
 		newUserKeys.windowsDesktop = tlsSubjectKey
+	case proto.UserCertsRequest_Git:
+		tlsSubjectKey, err = keyRing.generateSubjectTLSKey(ctx, c.tc, cryptosuites.UserTLS)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		newUserKeys.app = tlsSubjectKey
 	default:
 		// Assume we're reissuing the base SSH and TLS certs, reuse the existing
 		// private keys.
@@ -477,6 +488,7 @@ func (c *ClusterClient) prepareUserCertsRequest(ctx context.Context, params Reis
 		RouteToDatabase:                  params.RouteToDatabase,
 		RouteToApp:                       params.RouteToApp,
 		RouteToWindowsDesktop:            params.RouteToWindowsDesktop,
+		RouteToGit:                       params.RouteToGit,
 		NodeName:                         params.NodeName,
 		Usage:                            params.usage(),
 		Format:                           c.tc.CertificateFormat,

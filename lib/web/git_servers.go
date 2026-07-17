@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
+	gitserverv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/gitserver/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -41,9 +42,17 @@ func (h *Handler) gitServerCreateOrUpsert(_ http.ResponseWriter, r *http.Request
 
 	// Only GitHub server is supported. Above req.Check() performs necessary
 	// checks to ensure all the fields are set.
+	var allowProtocols []string
+	if req.GitHub.SshEnabled {
+		allowProtocols = append(allowProtocols, types.GitProtocolSSH)
+	}
+	if req.GitHub.HttpEnabled {
+		allowProtocols = append(allowProtocols, types.GitProtocolHTTP)
+	}
 	gitServer, err := types.NewGitHubServerWithName(req.Name, types.GitHubServerMetadata{
-		Organization: req.GitHub.Organization,
-		Integration:  req.GitHub.Integration,
+		Organization:   req.GitHub.Organization,
+		Integration:    req.GitHub.Integration,
+		AllowProtocols: allowProtocols,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -98,4 +107,52 @@ func (h *Handler) gitServerDelete(_ http.ResponseWriter, r *http.Request, p http
 	}
 
 	return OK(), nil
+}
+
+func (h *Handler) gitCredentialsStatus(_ http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
+	name := p.ByName("name")
+	if name == "" {
+		return nil, trace.BadParameter("git server name is required")
+	}
+
+	clt, err := sctx.GetUserClient(r.Context(), cluster)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	req := &gitserverv1.CheckGitCredentialsRequest{}
+	req.SetGitServerName(name)
+	resp, err := clt.GitCredentialsClient().CheckGitCredentials(r.Context(), req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &gitCredentialsStatusResponse{
+		Valid:          resp.GetValid(),
+		GitHubUsername: resp.GetGithubUsername(),
+	}, nil
+}
+
+func (h *Handler) gitCredentialsRevoke(_ http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
+	name := p.ByName("name")
+	if name == "" {
+		return nil, trace.BadParameter("git server name is required")
+	}
+
+	clt, err := sctx.GetUserClient(r.Context(), cluster)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	req := &gitserverv1.RevokeGitCredentialsRequest{}
+	req.SetGitServerName(name)
+	if _, err := clt.GitCredentialsClient().RevokeGitCredentials(r.Context(), req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return OK(), nil
+}
+
+type gitCredentialsStatusResponse struct {
+	Valid          bool   `json:"valid"`
+	GitHubUsername string `json:"githubUsername,omitempty"`
 }
