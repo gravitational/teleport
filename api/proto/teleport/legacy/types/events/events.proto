@@ -3382,6 +3382,13 @@ message AppSessionHTTPRequest {
   repeated HTTPHeader headers = 9 [(gogoproto.jsontag) = "headers"];
   // Raw query string (the part after '?' in the URL).
   string raw_query = 10 [(gogoproto.jsontag) = "raw_query,omitempty"];
+  // LLM API wire format the request used (e.g. "anthropic", "openai"), set when
+  // the app is an LLM proxy. Stored so consumers don't have to infer it from
+  // the request endpoint.
+  string format = 11 [(gogoproto.jsontag) = "format,omitempty"];
+  // LLM inference provider serving the request (e.g. "anthropic", "openai"),
+  // set when the app is an LLM proxy.
+  string provider = 12 [(gogoproto.jsontag) = "provider,omitempty"];
 }
 
 // AppSessionHTTPRequestBodyChunk carries a chunk of the HTTP request body.

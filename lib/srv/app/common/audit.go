@@ -50,6 +50,11 @@ type Audit interface {
 	OnLLMRequest(ctx context.Context, sessionCtx *SessionContext, req *http.Request, llmReq LLMRequest, llmResp LLMResponse) error
 	// EmitEvent emits the provided audit event.
 	EmitEvent(ctx context.Context, event apievents.AuditEvent) error
+	// Recorder returns the session chunk recorder backing this audit logger.
+	// It is used to record individual HTTP request/response envelopes and body
+	// chunks (via lib/httplib/httprecorder) into the app session chunk
+	// recording.
+	Recorder() events.SessionPreparerRecorder
 }
 
 // AuditConfig is the audit events emitter configuration.
@@ -88,6 +93,11 @@ func NewAudit(config AuditConfig) (Audit, error) {
 		cfg: config,
 		log: slog.With(teleport.ComponentKey, "app:audit"),
 	}, nil
+}
+
+// Recorder returns the session chunk recorder backing this audit logger.
+func (a *audit) Recorder() events.SessionPreparerRecorder {
+	return a.cfg.Recorder
 }
 
 func getSessionMetadata(identity *tlsca.Identity) apievents.SessionMetadata {

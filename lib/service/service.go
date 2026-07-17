@@ -7071,8 +7071,7 @@ func (process *TeleportProcess) initApps() {
 		// with dynamic labels, which allow for code execution.
 		// This is primarily for the beams use case, where the only apps we expect
 		// to see are those created by `tsh beams publish`.
-		const teleportBeamsEnvVar = "TELEPORT_BEAMS_RUNTIME"
-		runningOnBeams, _ := apiutils.ParseBool(os.Getenv(teleportBeamsEnvVar))
+		runningOnBeams, _ := apiutils.ParseBool(os.Getenv(teleport.BeamsRuntimeEnvVar))
 
 		appServer, err := app.New(process.ExitContext(), &app.Config{
 			Clock:                       process.Config.Clock,

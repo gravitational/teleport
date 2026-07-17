@@ -70,7 +70,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestVNetService(t *testing.T) {
-	t.Setenv("TELEPORT_BEAMS_RUNTIME", "yes")
+	t.Setenv(teleport.BeamsRuntimeEnvVar, "yes")
 
 	// Start a fake upstream nameserver to check recursion works.
 	logger := logtest.NewLogger()
