@@ -163,10 +163,7 @@ func TestValidateClientVersionRaisesAlert(t *testing.T) {
 	require.True(t, trace.IsAccessDenied(reject()))
 	require.Len(t, alerts, 1)
 	require.Equal(t, "rejected-unsupported-connection", alerts[0].Metadata.Name)
-	require.Contains(t, alerts[0].Spec.Message, "1.0.0")
-	require.Contains(t, alerts[0].Spec.Message, "2.0.0")
-	require.Contains(t, alerts[0].Spec.Message, "10.1.2.3:4567")
-	require.Contains(t, alerts[0].Spec.Message, "Instance")
+	require.Equal(t, alerts[0].Spec.Message, "One or more agents or bots were rejected from joining due to running unsupported versions. Check the audit log for more details.")
 
 	// A second rejection within the 24h window is suppressed.
 	clock.Advance(23 * time.Hour)

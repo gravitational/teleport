@@ -447,13 +447,8 @@ func (s *Server) validateClientVersion(ctx context.Context, info diagnostic.Info
 	minVersion.PreRelease = ""
 
 	clientSemVer, err := semver.NewVersion(clientVersion)
-	if err != nil {
-		s.displayRejectedClientAlert(ctx, info)
-		return trace.AccessDenied("client version is unsupported, minimum supported version is %s", minVersion.String())
-	}
-
-	if clientSemVer.LessThan(*s.oldestSupportedVersion) {
-		s.displayRejectedClientAlert(ctx, info)
+	if err != nil || clientSemVer.LessThan(*s.oldestSupportedVersion) {
+		s.displayRejectedClientAlert(ctx)
 		return trace.AccessDenied("client version is unsupported, minimum supported version is %s", minVersion.String())
 	}
 	return nil
@@ -462,25 +457,14 @@ func (s *Server) validateClientVersion(ctx context.Context, info diagnostic.Info
 // displayRejectedClientAlert raises a once-per-day cluster alert for rejected
 // outdated clients. It shares the auth middleware's alert name so rejections
 // coalesce into a single alert.
-func (s *Server) displayRejectedClientAlert(ctx context.Context, info diagnostic.Info) {
+func (s *Server) displayRejectedClientAlert(ctx context.Context) {
 	if s.cfg.AlertCreator == nil {
 		return
 	}
 
-	alertVersion := semver.Version{
-		Major: s.oldestSupportedVersion.Major,
-		Minor: s.oldestSupportedVersion.Minor,
-		Patch: s.oldestSupportedVersion.Patch,
-	}
-
-	client := info.Role
-	if info.RemoteAddr != "" {
-		client += " at " + info.RemoteAddr
-	}
-
 	alert, err := types.NewClusterAlert(
 		"rejected-unsupported-connection",
-		fmt.Sprintf("%s attempted to join running unsupported version v%s and was rejected. Joining will be allowed after upgrading to v%s or newer", client, info.ClientVersion, alertVersion.String()),
+		"One or more agents or bots were rejected from joining due to running unsupported versions. Check the audit log for more details.",
 		types.WithAlertSeverity(types.AlertSeverity_MEDIUM),
 		types.WithAlertLabel(types.AlertOnLogin, "yes"),
 		types.WithAlertLabel(types.AlertVerbPermit, fmt.Sprintf("%s:%s", types.KindToken, types.VerbCreate)),
