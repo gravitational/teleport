@@ -16,22 +16,25 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import cfg from 'teleport/config';
+import { createTeleportContext, getAcl } from 'teleport/mocks/contexts';
 import { getResourcesSection } from 'teleport/Navigation/ResourcesSection';
 import { makeDefaultUserPreferences } from 'teleport/services/userPreferences/userPreferences';
 
 describe('getResourcesSection', () => {
+  const fixed = ['All Resources', 'Pinned Resources'];
+
   test('titles for subsections by kind are sorted', () => {
+    const ctx = createTeleportContext();
     const navSections = getResourcesSection({
       clusterId: 'cluster',
       preferences: makeDefaultUserPreferences(),
       updatePreferences: async () => {},
       searchParams: new URLSearchParams(),
+      flags: ctx.getFeatureFlags(),
     });
 
     const titles = navSections.subsections.map(s => s.title);
-
-    // First two sections are fixed.
-    const fixed = ['All Resources', 'Pinned Resources'];
 
     // Kind filters that should be sorted alphabetically.
     const kindFilters = [
@@ -50,5 +53,41 @@ describe('getResourcesSection', () => {
     ];
 
     expect(titles).toEqual(expected);
+  });
+
+  test('all kind shortcuts are shown when feature hiding is off', () => {
+    const ctx = createTeleportContext({ customAcl: getAcl({ noAccess: true }) });
+    const navSections = getResourcesSection({
+      clusterId: 'cluster',
+      preferences: makeDefaultUserPreferences(),
+      updatePreferences: async () => {},
+      searchParams: new URLSearchParams(),
+      flags: ctx.getFeatureFlags(),
+    });
+
+    const titles = navSections.subsections.map(s => s.title);
+    expect(titles).toHaveLength(fixed.length + 7);
+  });
+
+  test('inaccessible kind shortcuts are hidden when feature hiding is on', () => {
+    const defaultFeatureHiding = cfg.entitlements.FeatureHiding.enabled;
+    cfg.entitlements.FeatureHiding.enabled = true;
+    try {
+      const ctx = createTeleportContext({
+        customAcl: getAcl({ noAccess: true }),
+      });
+      const navSections = getResourcesSection({
+        clusterId: 'cluster',
+        preferences: makeDefaultUserPreferences(),
+        updatePreferences: async () => {},
+        searchParams: new URLSearchParams(),
+        flags: ctx.getFeatureFlags(),
+      });
+
+      const titles = navSections.subsections.map(s => s.title);
+      expect(titles).toEqual(fixed);
+    } finally {
+      cfg.entitlements.FeatureHiding.enabled = defaultFeatureHiding;
+    }
   });
 });

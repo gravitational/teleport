@@ -31,8 +31,11 @@ import {
 import { encodeUrlQueryParams } from 'teleport/components/hooks/useUrlFiltering';
 import { EncodeUrlQueryParamsProps } from 'teleport/components/hooks/useUrlFiltering/encodeUrlQueryParams';
 import cfg from 'teleport/config';
+import { shouldHideInaccessibleFeatures} from 'teleport/features';
+import { FeatureFlags } from 'teleport/types';
 import { useUser } from 'teleport/User/UserContext';
 import useStickyClusterId from 'teleport/useStickyClusterId';
+import useTeleport from 'teleport/useTeleport';
 
 import { CustomNavigationSubcategory, NavigationCategory } from './categories';
 import {
@@ -68,7 +71,35 @@ type GetSubsectionProps = {
   preferences: UserPreferences;
   updatePreferences: (preferences: Partial<UserPreferences>) => Promise<void>;
   searchParams: URLSearchParams;
+  flags: FeatureFlags;
 };
+
+// hasAccessToResourceKind returns whether the user has RBAC access to the given
+// resource kind.
+function hasAccessToResourceKind(
+  kind: ResourceFilterKind,
+  flags: FeatureFlags
+): boolean {
+  switch (kind) {
+    case 'app':
+    case 'mcp':
+      // MCP servers are app resources, so they share the same RBAC rule
+      return flags.applications;
+    case 'db':
+      return flags.databases;
+    case 'windows_desktop':
+    case 'linux_desktop':
+      return flags.desktops;
+    case 'kube_cluster':
+      return flags.kubernetes;
+    case 'git_server':
+      return flags.gitServers;
+    case 'node':
+      return flags.nodes;
+    default:
+      return true;
+  }
+}
 
 function encodeUrlQueryParamsWithTypedKinds(
   params: Omit<EncodeUrlQueryParamsProps, 'kinds'> & {
@@ -83,6 +114,7 @@ function getResourcesSubsections({
   preferences,
   updatePreferences,
   searchParams,
+  flags,
 }: GetSubsectionProps): NavigationSubsection[] {
   const baseRoute = cfg.getUnifiedResourcesRoute(clusterId);
 
@@ -168,7 +200,7 @@ function getResourcesSubsections({
     pinnedOnly: false,
   });
 
-  return [
+  const baseSubsections: NavigationSubsection[] = [
     {
       title: 'All Resources',
       icon: Icons.Server,
@@ -203,85 +235,121 @@ function getResourcesSubsections({
         currentKinds.length !== 1,
       onClick: () => setPinnedUserPreference(true),
     },
+  ];
+
+  const filteredViews: {
+    kind: ResourceFilterKind;
+    subsection: NavigationSubsection;
+  }[] = [
     {
-      title: getFilterKindName('app'),
-      icon: Icons.Application,
-      route: applicationsOnlyRoute,
-      searchableTags: ['resources', 'apps', 'applications'],
-      category: NavigationCategory.Resources,
-      exact: false,
-      customRouteMatchFn: () => isKindActive('app'),
-      onClick: () => setPinnedUserPreference(false),
-      subCategory: CustomNavigationSubcategory.FilteredViews,
+      kind: 'app',
+      subsection: {
+        title: getFilterKindName('app'),
+        icon: Icons.Application,
+        route: applicationsOnlyRoute,
+        searchableTags: ['resources', 'apps', 'applications'],
+        category: NavigationCategory.Resources,
+        exact: false,
+        customRouteMatchFn: () => isKindActive('app'),
+        onClick: () => setPinnedUserPreference(false),
+        subCategory: CustomNavigationSubcategory.FilteredViews,
+      },
     },
     {
-      title: getFilterKindName('db'),
-      icon: Icons.Database,
-      route: databasesOnlyRoute,
-      searchableTags: ['resources', 'dbs', 'databases'],
-      category: NavigationCategory.Resources,
-      exact: false,
-      customRouteMatchFn: () => isKindActive('db'),
-      onClick: () => setPinnedUserPreference(false),
-      subCategory: CustomNavigationSubcategory.FilteredViews,
+      kind: 'db',
+      subsection: {
+        title: getFilterKindName('db'),
+        icon: Icons.Database,
+        route: databasesOnlyRoute,
+        searchableTags: ['resources', 'dbs', 'databases'],
+        category: NavigationCategory.Resources,
+        exact: false,
+        customRouteMatchFn: () => isKindActive('db'),
+        onClick: () => setPinnedUserPreference(false),
+        subCategory: CustomNavigationSubcategory.FilteredViews,
+      },
     },
     {
-      title: getFilterKindName('windows_desktop'),
-      icon: Icons.Desktop,
-      route: desktopsOnlyRoute,
-      searchableTags: ['resources', 'desktops', 'rdp', 'windows'],
-      category: NavigationCategory.Resources,
-      exact: false,
-      customRouteMatchFn: () =>
-        isKindActive('windows_desktop') || isKindActive('linux_desktop'),
-      onClick: () => setPinnedUserPreference(false),
-      subCategory: CustomNavigationSubcategory.FilteredViews,
+      kind: 'windows_desktop',
+      subsection: {
+        title: getFilterKindName('windows_desktop'),
+        icon: Icons.Desktop,
+        route: desktopsOnlyRoute,
+        searchableTags: ['resources', 'desktops', 'rdp', 'windows'],
+        category: NavigationCategory.Resources,
+        exact: false,
+        customRouteMatchFn: () =>
+          isKindActive('windows_desktop') || isKindActive('linux_desktop'),
+        onClick: () => setPinnedUserPreference(false),
+        subCategory: CustomNavigationSubcategory.FilteredViews,
+      },
     },
     {
-      title: getFilterKindName('git_server'),
-      icon: Icons.GitHub,
-      route: gitOnlyRoute,
-      searchableTags: ['resources', 'git', 'github', 'git servers'],
-      category: NavigationCategory.Resources,
-      exact: false,
-      customRouteMatchFn: () => isKindActive('git_server'),
-      onClick: () => setPinnedUserPreference(false),
-      subCategory: CustomNavigationSubcategory.FilteredViews,
+      kind: 'git_server',
+      subsection: {
+        title: getFilterKindName('git_server'),
+        icon: Icons.GitHub,
+        route: gitOnlyRoute,
+        searchableTags: ['resources', 'git', 'github', 'git servers'],
+        category: NavigationCategory.Resources,
+        exact: false,
+        customRouteMatchFn: () => isKindActive('git_server'),
+        onClick: () => setPinnedUserPreference(false),
+        subCategory: CustomNavigationSubcategory.FilteredViews,
+      },
     },
     {
-      title: getFilterKindName('kube_cluster'),
-      icon: Icons.Kubernetes,
-      route: kubesOnlyRoute,
-      searchableTags: ['resources', 'k8s', 'kubes', 'kubernetes'],
-      category: NavigationCategory.Resources,
-      exact: false,
-      customRouteMatchFn: () => isKindActive('kube_cluster'),
-      onClick: () => setPinnedUserPreference(false),
-      subCategory: CustomNavigationSubcategory.FilteredViews,
+      kind: 'kube_cluster',
+      subsection: {
+        title: getFilterKindName('kube_cluster'),
+        icon: Icons.Kubernetes,
+        route: kubesOnlyRoute,
+        searchableTags: ['resources', 'k8s', 'kubes', 'kubernetes'],
+        category: NavigationCategory.Resources,
+        exact: false,
+        customRouteMatchFn: () => isKindActive('kube_cluster'),
+        onClick: () => setPinnedUserPreference(false),
+        subCategory: CustomNavigationSubcategory.FilteredViews,
+      },
     },
     {
-      title: getFilterKindName('mcp'),
-      icon: Icons.ModelContextProtocol,
-      route: mcpOnlyRoute,
-      searchableTags: ['resources', 'mcp', 'mcp servers'],
-      category: NavigationCategory.Resources,
-      exact: false,
-      customRouteMatchFn: () => isKindActive('mcp'),
-      onClick: () => setPinnedUserPreference(false),
-      subCategory: CustomNavigationSubcategory.FilteredViews,
+      kind: 'mcp',
+      subsection: {
+        title: getFilterKindName('mcp'),
+        icon: Icons.ModelContextProtocol,
+        route: mcpOnlyRoute,
+        searchableTags: ['resources', 'mcp', 'mcp servers'],
+        category: NavigationCategory.Resources,
+        exact: false,
+        customRouteMatchFn: () => isKindActive('mcp'),
+        onClick: () => setPinnedUserPreference(false),
+        subCategory: CustomNavigationSubcategory.FilteredViews,
+      },
     },
     {
-      title: getFilterKindName('node'),
-      icon: Icons.Server,
-      route: nodesOnlyRoute,
-      searchableTags: ['resources', 'servers', 'nodes', 'ssh resources'],
-      category: NavigationCategory.Resources,
-      exact: false,
-      customRouteMatchFn: () => isKindActive('node'),
-      onClick: () => setPinnedUserPreference(false),
-      subCategory: CustomNavigationSubcategory.FilteredViews,
+      kind: 'node',
+      subsection: {
+        title: getFilterKindName('node'),
+        icon: Icons.Server,
+        route: nodesOnlyRoute,
+        searchableTags: ['resources', 'servers', 'nodes', 'ssh resources'],
+        category: NavigationCategory.Resources,
+        exact: false,
+        customRouteMatchFn: () => isKindActive('node'),
+        onClick: () => setPinnedUserPreference(false),
+        subCategory: CustomNavigationSubcategory.FilteredViews,
+      },
     },
   ];
+
+  const hideInaccessible = shouldHideInaccessibleFeatures(cfg);
+  const visibleFilteredViews = filteredViews
+    .filter(
+      ({ kind }) => !hideInaccessible || hasAccessToResourceKind(kind, flags)
+    )
+    .map(({ subsection }) => subsection);
+
+  return [...baseSubsections, ...visibleFilteredViews];
 }
 
 export function ResourcesSection({
@@ -303,6 +371,7 @@ export function ResourcesSection({
   canToggleStickyMode: boolean;
   showPoweredByLogo: boolean;
 }) {
+  const ctx = useTeleport();
   const { clusterId } = useStickyClusterId();
   const { preferences, updatePreferences } = useUser();
   const section: NavigationSection = {
@@ -320,6 +389,7 @@ export function ResourcesSection({
     preferences,
     updatePreferences,
     searchParams,
+    flags: ctx.getFeatureFlags(),
   });
 
   const currentViewRoute = currentView?.route;

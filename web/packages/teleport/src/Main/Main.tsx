@@ -46,6 +46,7 @@ import { CatchError } from 'teleport/components/CatchError';
 import { Redirect, Route, Switch } from 'teleport/components/Router';
 import { InfoGuideSidePanel } from 'teleport/components/SlidingSidePanel/InfoGuideSidePanel';
 import cfg from 'teleport/config';
+import { canShowFeature } from 'teleport/features';
 import { FeaturesContextProvider, useFeatures } from 'teleport/FeaturesContext';
 import { Navigation } from 'teleport/Navigation';
 import {
@@ -90,7 +91,7 @@ export function Main(props: MainProps) {
   const featureFlags = ctx.getFeatureFlags();
 
   const features = useMemo(
-    () => props.features.filter(feature => feature.hasAccess(featureFlags)),
+    () => props.features.filter(feature => canShowFeature(feature, featureFlags)),
     [featureFlags, props.features]
   );
 
