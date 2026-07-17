@@ -541,9 +541,9 @@ func TestWatchers(t *testing.T) {
 					subcav1.PendingCSRRequest_builder{
 						Kind:    types.KindPendingCSRRequest,
 						Version: types.V1,
-						Metadata: &headerv1.Metadata{
+						Metadata: headerv1.Metadata_builder{
 							Name: "2f878e0f-115c-4b48-a4f6-f4deae8efb6f",
-						},
+						}.Build(),
 						Spec: subcav1.PendingCSRRequestSpec_builder{
 							ClusterName: "example.com",
 							CaType:      string(types.WindowsCA),
