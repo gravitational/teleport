@@ -50,6 +50,10 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+// kubeLocalProxyEnvVar marks a shell started by `tsh proxy kube --exec` as a
+// live local-proxy session. Its value is the KUBECONFIG path the session set.
+const kubeLocalProxyEnvVar = "TELEPORT_KUBE_LOCAL_PROXY"
+
 type proxyKubeCommand struct {
 	*kingpin.CmdClause
 	kubeClusters        []string
