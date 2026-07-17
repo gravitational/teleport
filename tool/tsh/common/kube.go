@@ -835,6 +835,15 @@ func isNetworkError(err error) bool {
 
 func (c *kubeCredentialsCommand) checkLocalProxyRequirement(profile *profile.Profile) error {
 	if profile.RequireKubeLocalProxy() {
+		// If we're inside an active `tsh proxy kube --exec` shell.
+		// Reaching this exec plugin means a Kubernetes client bypassed the local proxy,
+		// typically because KUBECONFIG was overridden (e.g. by a shell startup file).
+		// Point the user at the fix instead of the generic message.
+		if sessionKubeconfig := os.Getenv(kubeLocalProxyEnvVar); sessionKubeconfig != "" {
+			return trace.BadParameter(`this Kubernetes client invoked "tsh kube credentials" from inside an active "tsh proxy kube" session, bypassing the local proxy.
+Your KUBECONFIG no longer points at the session config, usually because a shell startup file or another tool overrode it.
+Run 'export KUBECONFIG=%s' to use the local proxy, or check your shell configuration.`, sessionKubeconfig)
+		}
 		return trace.BadParameter("Cannot connect Kubernetes clients to Teleport Proxy directly. Please use `tsh proxy kube` or `tsh kubectl` instead.")
 	}
 	return nil
@@ -1434,7 +1443,7 @@ func matchClustersByNameOrDiscoveredName(name string, clusters types.KubeCluster
 
 func (c *kubeLoginCommand) printUserMessage(cf *CLIConf, tc *client.TeleportClient, names []string) {
 	if tc.Profile().RequireKubeLocalProxy() {
-		c.printLocalProxyUserMessage(cf, names)
+		c.printLocalProxyUserMessage(cf, names, tc.Profile().PrivateKeyPolicy.IsHardwareKeyPolicy())
 		return
 	}
 
@@ -1452,7 +1461,7 @@ Select a context and try 'kubectl version' to test the connection.
 	}
 }
 
-func (c *kubeLoginCommand) printLocalProxyUserMessage(cf *CLIConf, names []string) {
+func (c *kubeLoginCommand) printLocalProxyUserMessage(cf *CLIConf, names []string, hardwareKey bool) {
 	switch {
 	case c.kubeCluster != "":
 		fmt.Fprintf(cf.Stdout(), `Logged into Kubernetes cluster %q.`, c.kubeCluster)
@@ -1461,6 +1470,22 @@ func (c *kubeLoginCommand) printLocalProxyUserMessage(cf *CLIConf, names []strin
 %v`, strings.Join(names, "\n"))
 	case c.all:
 		fmt.Fprintf(cf.Stdout(), "Logged into all Kubernetes clusters available.")
+	}
+
+	if hardwareKey {
+		fmt.Fprintf(cf.Stdout(), `
+
+This cluster requires a hardware-backed private key, which native Kubernetes
+clients cannot use directly, so Kubernetes access must go through a local proxy.
+
+To access the cluster, use "tsh kubectl" to run the Kubernetes client:
+  tsh kubectl version
+
+Or start a local proxy and drop into a shell where native Kubernetes clients are
+ready to use, so you can re-run the same command:
+  tsh proxy kube --exec
+`)
+		return
 	}
 
 	fmt.Fprintf(cf.Stdout(), `
