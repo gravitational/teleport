@@ -17,6 +17,7 @@ limitations under the License.
 package types
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -801,6 +802,69 @@ func TestLegacyKubeResourceIDs(t *testing.T) {
 	}
 }
 
+// TestResourceConstraintsDecodeDegradesUnknown verifies decode-side
+// compatibility. Any constraint content this build can't fully/strictly
+// understand degrades to a non-nil ResourceConstraints with nil Details,
+// denied at enforcement-time.
+func TestResourceConstraintsDecodeDegradesUnknown(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		input       string
+		wantVersion string
+	}{
+		{
+			name:        "unknown kind",
+			input:       `{"version":"v1","some_future_kind":{"names":["a"]}}`,
+			wantVersion: "v1",
+		},
+		{
+			name:        "unknown field inside known kind",
+			input:       `{"version":"v1","ssh":{"logins":["root"],"future_narrowing":["x"]}}`,
+			wantVersion: "v1",
+		},
+		{
+			name:        "unknown sibling field",
+			input:       `{"version":"v1","ssh":{"logins":["root"]},"future_field":true}`,
+			wantVersion: "v1",
+		},
+		{
+			name:        "unsupported version with known kind",
+			input:       `{"version":"v2","ssh":{"logins":["root"]}}`,
+			wantVersion: "v2",
+		},
+		{
+			name:        "unsupported version alone",
+			input:       `{"version":"v2"}`,
+			wantVersion: "v2",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var rc ResourceConstraints
+			require.NoError(t, rc.UnmarshalJSON([]byte(tc.input)))
+			require.Equal(t, tc.wantVersion, rc.Version)
+			require.Nil(t, rc.Details, "unrecognized content must not decode to enforceable Details")
+			require.Error(t, rc.CheckAndSetDefaults())
+		})
+	}
+
+	t.Run("valid current-version content decodes fully", func(t *testing.T) {
+		var rc ResourceConstraints
+		require.NoError(t, rc.UnmarshalJSON([]byte(`{"version":"v1","ssh":{"logins":["root"]}}`)))
+		require.NotNil(t, rc.Details)
+		require.NoError(t, rc.CheckAndSetDefaults())
+	})
+
+	t.Run("malformed content errors at decode", func(t *testing.T) {
+		for _, input := range []string{`not json`, `{"version":42}`, `[]`} {
+			var rc ResourceConstraints
+			require.Error(t, rc.UnmarshalJSON([]byte(input)), "input: %s", input)
+		}
+	})
+}
+
 func TestResourceIDsToResourceAccessIDs(t *testing.T) {
 	t.Parallel()
 
@@ -934,4 +998,89 @@ func TestRiskyExtractResourceIDs(t *testing.T) {
 	require.Equal(t, []ResourceID{a1.Id, a2.Id}, out)
 
 	require.Empty(t, RiskyExtractResourceIDs(nil))
+}
+
+// TestResourceAccessIDsNewerConstraintContent verifies that constraint
+// content minted by a newer Teleport (an unknown kind, or an unsupported
+// version) decodes to a constrained entry with nil Details rather than
+// failing the whole list: a cert minted by a newer Teleport must not
+// invalidate every access it grants through an older component. Enforcement
+// denies a nil-Details entry, so the newer constraint fails closed for its
+// own resource only.
+func TestResourceAccessIDsNewerConstraintContent(t *testing.T) {
+	t.Parallel()
+
+	ids := []ResourceAccessID{
+		{
+			Id: ResourceID{ClusterName: "root", Kind: KindNode, Name: "n1"},
+		},
+		{
+			Id: ResourceID{ClusterName: "root", Kind: KindApp, Name: "aws-console"},
+			Constraints: &ResourceConstraints{
+				Version: "v1",
+				Details: &ResourceConstraints_AwsConsole{
+					AwsConsole: &AWSConsoleResourceConstraints{RoleArns: []string{"arn:aws:iam::123:role/Allowed"}},
+				},
+			},
+		},
+	}
+	encoded, err := ResourceAccessIDsToString(ids)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name        string
+		from, to    string
+		wantVersion string
+	}{
+		{
+			name:        "unknown kind",
+			from:        `"aws_console"`,
+			to:          `"some_future_kind"`,
+			wantVersion: "v1",
+		},
+		{
+			name:        "unsupported version",
+			from:        `"version":"v1"`,
+			to:          `"version":"v2"`,
+			wantVersion: "v2",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Simulate the same cert minted by a newer version.
+			require.Contains(t, encoded, tc.from)
+			fromNewer := strings.Replace(encoded, tc.from, tc.to, 1)
+
+			decoded, err := ResourceAccessIDsFromString(fromNewer)
+			require.NoError(t, err)
+			require.Len(t, decoded, 2)
+
+			// The plain entry is untouched.
+			require.Equal(t, ids[0].Id, decoded[0].Id)
+			require.Nil(t, decoded[0].GetConstraints())
+
+			// The newer-content entry keeps its constraints marker, with nil
+			// Details and the minted version.
+			rc := decoded[1].GetConstraints()
+			require.NotNil(t, rc, "constraints marker must survive decoding")
+			require.Nil(t, rc.Details)
+			require.Equal(t, tc.wantVersion, rc.Version)
+
+			// Newer content can never validate, so creation-side strictness
+			// holds.
+			require.Error(t, rc.CheckAndSetDefaults())
+
+			// Re-encoding (the database CSR re-sign path) preserves the
+			// marker and version so downstream components also fail closed.
+			reencoded, err := ResourceAccessIDsToString(decoded)
+			require.NoError(t, err)
+			roundTripped, err := ResourceAccessIDsFromString(reencoded)
+			require.NoError(t, err)
+			require.Len(t, roundTripped, 2)
+			rt := roundTripped[1].GetConstraints()
+			require.NotNil(t, rt)
+			require.Nil(t, rt.Details)
+			require.Equal(t, tc.wantVersion, rt.Version)
+		})
+	}
 }

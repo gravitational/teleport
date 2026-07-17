@@ -18,6 +18,7 @@ package types
 
 import (
 	"bytes"
+	"encoding/json"
 
 	"github.com/gogo/protobuf/jsonpb" //nolint:depguard // needed for backwards compatibility
 	"github.com/gravitational/trace"
@@ -65,10 +66,31 @@ func (rc *ResourceConstraints) MarshalJSON() ([]byte, error) {
 }
 
 func (rc *ResourceConstraints) UnmarshalJSON(b []byte) error {
-	u := &jsonpb.Unmarshaler{
+	strict := &jsonpb.Unmarshaler{
 		AllowUnknownFields: false,
 	}
-	return trace.Wrap(u.Unmarshal(bytes.NewReader(b), rc))
+	strictErr := strict.Unmarshal(bytes.NewReader(b), rc)
+	if strictErr == nil {
+		if rc.Version == "" || rc.Version == ResourceConstraintVersionV1 {
+			return nil
+		}
+		// All fields decoded but the version is newer than this build
+		// understands. Degrade to the unsatisfiable marker.
+		*rc = ResourceConstraints{Version: rc.Version}
+		return nil
+	}
+	// Constraint content this build can't strictly decode: unknown kind,
+	// or an unknown field inside a known kind. Degrade to non-nil
+	// Constraints with nil Details, which enforcement will deny, so newer
+	// fields fail-closed only per-resource and not identity-wide.
+	var v struct {
+		Version string `json:"version"`
+	}
+	if err := json.Unmarshal(b, &v); err != nil {
+		return trace.Wrap(strictErr)
+	}
+	*rc = ResourceConstraints{Version: v.Version}
+	return nil
 }
 
 // Validate ensures RoleArns is non-nil and contains Role ARNs.
