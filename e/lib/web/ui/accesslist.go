@@ -37,10 +37,34 @@ type AccessListResponse struct {
 	AccessList *AccessList `json:"accessList,omitempty"`
 }
 
+// AccessListReview is a UI representation of an Access List review.
+type AccessListReview struct {
+	*accesslist.Review
+	ReviewersInfo []UserInfo `json:"reviewersInfo"`
+}
+
+// NewAccessListReview creates a UI Access List review.
+func NewAccessListReview(review *accesslist.Review) AccessListReview {
+	var displays map[string]types.UserDisplay
+	if review.Status != nil {
+		displays = review.Status.ReviewerDisplays
+	}
+
+	reviewersInfo := make([]UserInfo, 0, len(review.Spec.Reviewers))
+	for _, reviewer := range review.Spec.Reviewers {
+		reviewersInfo = append(reviewersInfo, newUserInfo(reviewer, displays))
+	}
+
+	return AccessListReview{
+		Review:        review,
+		ReviewersInfo: reviewersInfo,
+	}
+}
+
 // AccessListReviewsResponse is a UI representation of a response for listing access list reviews.
 type AccessListReviewsResponse struct {
-	Reviews  []*accesslist.Review `json:"reviews"`
-	StartKey string               `json:"startKey"`
+	Reviews  []AccessListReview `json:"reviews"`
+	StartKey string             `json:"startKey"`
 }
 
 // AccessListsResponse is a UI representation of access lists response.

@@ -3264,6 +3264,70 @@ func TestService_ListAccessListReviews(t *testing.T) {
 	require.Empty(t, cmp.Diff([]*accesslist.Review{review1ForA3, review2ForA3}, reviews, cmpOpts...))
 }
 
+func TestService_ListAccessListReviewsReviewerDisplays(t *testing.T) {
+	c := initSvc(t)
+	auth := &authWithIdentity{
+		fakeAuth: &fakeAuth{},
+		identity: c.testEnv.identity,
+	}
+	c.svc.authServer = auth
+
+	reviewer, err := c.testEnv.identity.GetUser(t.Context(), testUser, false)
+	require.NoError(t, err)
+	reviewer.SetTraits(map[string][]string{
+		"displayName": {"Test Reviewer"},
+		"email":       {"reviewer@example.com"},
+	})
+	_, err = c.testEnv.identity.UpdateUser(t.Context(), reviewer)
+	require.NoError(t, err)
+
+	a1 := newAccessList(t, "review-displays", c.clock)
+	createAccessListsAndMembers(t, c.userCtx, c.svc, c.emitter, c.usageEvents, []*accesslist.AccessList{a1}, nil)
+
+	reviewWithReviewers := newAccessListReview(t, a1.GetName())
+	reviewWithReviewers.Spec.Reviewers = []string{testUser, ownerUser, "deleted-user"}
+	_, _, err = c.testEnv.accessLists.CreateAccessListReview(t.Context(), reviewWithReviewers)
+	require.NoError(t, err)
+
+	resp, err := c.svc.ListAccessListReviews(c.userCtx, accesslistv1.ListAccessListReviewsRequest_builder{
+		AccessList: a1.GetName(),
+		PageSize:   10,
+	}.Build())
+	require.NoError(t, err)
+
+	displays := resp.GetReviews()[0].GetStatus().GetReviewerDisplays()
+	require.Equal(t, accesslistv1.UserDisplay_builder{
+		Primary:   "Test Reviewer",
+		Secondary: "reviewer@example.com",
+	}.Build(), displays[testUser])
+	require.Equal(t, &accesslistv1.UserDisplay{}, displays[ownerUser])
+	require.NotContains(t, displays, "deleted-user")
+}
+
+func TestService_ListAccessListReviewsReviewerDisplayError(t *testing.T) {
+	c := initSvc(t)
+	c.svc.authServer = &erroringAuth{
+		fakeAuth: &fakeAuth{},
+		err:      errors.New("display resolver failed"),
+	}
+
+	a1 := newAccessList(t, "review-display-error", c.clock)
+	createAccessListsAndMembers(t, c.userCtx, c.svc, c.emitter, c.usageEvents, []*accesslist.AccessList{a1}, nil)
+
+	review := newAccessListReview(t, a1.GetName())
+	review.Spec.Reviewers = []string{testUser}
+	_, _, err := c.testEnv.accessLists.CreateAccessListReview(t.Context(), review)
+	require.NoError(t, err)
+
+	resp, err := c.svc.ListAccessListReviews(c.userCtx, accesslistv1.ListAccessListReviewsRequest_builder{
+		AccessList: a1.GetName(),
+		PageSize:   10,
+	}.Build())
+	require.NoError(t, err)
+	require.Len(t, resp.GetReviews(), 1)
+	require.Nil(t, resp.GetReviews()[0].GetStatus())
+}
+
 func TestService_DeleteAccessListReviews(t *testing.T) {
 	clock := clockwork.NewFakeClock()
 	c := initSvc(t, withClock(clock))
@@ -3895,6 +3959,24 @@ func (a *fakeAuthWithUsers) UpsertRole(ctx context.Context, r types.Role) (types
 
 func (a *fakeAuthWithUsers) GetUser(ctx context.Context, userName string, withSecrets bool) (types.User, error) {
 	return a.svc.cache.(services.Identity).GetUser(ctx, userName, withSecrets)
+}
+
+type authWithIdentity struct {
+	*fakeAuth
+	identity services.Identity
+}
+
+func (a *authWithIdentity) GetUser(ctx context.Context, userName string, withSecrets bool) (types.User, error) {
+	return a.identity.GetUser(ctx, userName, withSecrets)
+}
+
+type erroringAuth struct {
+	*fakeAuth
+	err error
+}
+
+func (a *erroringAuth) GetUser(ctx context.Context, userName string, withSecrets bool) (types.User, error) {
+	return nil, a.err
 }
 
 func TestService_ListUserAccessLists(t *testing.T) {

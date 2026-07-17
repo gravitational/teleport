@@ -597,6 +597,66 @@ func TestReviewAccessList(t *testing.T) {
 	require.Equal(t, []string{"access"}, accessListResp.AccessList.AccessList.GetMembershipRequires().Roles)
 }
 
+func TestListAccessListReviewsIncludesReviewerInfo(t *testing.T) {
+	t.Parallel()
+	s := newWebSuite(t,
+		// Disable retry interval to prevent test from hanging
+		// because it uses the fake clock.
+		withRunWhileLockedRetryInterval(-1*time.Millisecond),
+	)
+
+	webPack := s.newAuthWebPack(t, "foo")
+	reviewer, err := s.testAuthServer.Auth().Services.GetUser(s.ctx, "foo", false)
+	require.NoError(t, err)
+	reviewer.SetTraits(map[string][]string{
+		"displayName": {"Review Owner"},
+		"email":       {"reviewer@example.com"},
+	})
+	_, err = s.testAuthServer.Auth().Services.UpdateUser(s.ctx, reviewer)
+	require.NoError(t, err)
+
+	owner := createUser(t, s, "reviewer-display-owner")
+	accessListName := testCreateAccessListRequireOK(t, webPack.clt, owner)
+
+	endpoint := webPack.clt.Endpoint("enterprise", "accesslist", accessListName, "reviews")
+	resp, err := webPack.clt.PostJSON(s.ctx, endpoint, ui.ReviewAccessListRequest{
+		ReviewSpec: accesslist.ReviewSpec{
+			AccessList: accessListName,
+			Reviewers:  []string{"does-not-matter"},
+			ReviewDate: s.clock.Now(),
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.Code())
+
+	resp, err = webPack.clt.Get(s.ctx, endpoint, url.Values{})
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.Code())
+
+	var reviewResp struct {
+		Reviews []struct {
+			Spec struct {
+				Reviewers []string `json:"reviewers"`
+			} `json:"spec"`
+			ReviewersInfo []struct {
+				Username string             `json:"username"`
+				Display  *types.UserDisplay `json:"display,omitempty"`
+			} `json:"reviewersInfo"`
+		} `json:"reviews"`
+		ReviewerDisplays json.RawMessage `json:"reviewerDisplays"`
+	}
+	require.NoError(t, json.Unmarshal(resp.Bytes(), &reviewResp))
+	require.Len(t, reviewResp.Reviews, 1)
+	require.Equal(t, []string{reviewer.GetName()}, reviewResp.Reviews[0].Spec.Reviewers)
+	require.Len(t, reviewResp.Reviews[0].ReviewersInfo, 1)
+	require.Equal(t, reviewer.GetName(), reviewResp.Reviews[0].ReviewersInfo[0].Username)
+	require.Equal(t, &types.UserDisplay{
+		Primary:   "Review Owner",
+		Secondary: "reviewer@example.com",
+	}, reviewResp.Reviews[0].ReviewersInfo[0].Display)
+	require.Empty(t, reviewResp.ReviewerDisplays)
+}
+
 // Creates a user with an empty role with the same name and sets the users's password to
 // `s.testPassword()`.
 func createUser(t *testing.T, s *webSuite, name string) types.User {

@@ -491,8 +491,13 @@ func (p *Plugin) listAccessListReviews(_ http.ResponseWriter, r *http.Request, p
 		return nil, trace.Wrap(err)
 	}
 
+	uiReviews := make([]ui.AccessListReview, 0, len(reviews))
+	for _, review := range reviews {
+		uiReviews = append(uiReviews, ui.NewAccessListReview(review))
+	}
+
 	return ui.AccessListReviewsResponse{
-		Reviews:  reviews,
+		Reviews:  uiReviews,
 		StartKey: nextKey,
 	}, nil
 }

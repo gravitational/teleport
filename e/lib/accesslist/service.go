@@ -2077,11 +2077,40 @@ func (s *Service) ListAccessListReviews(ctx context.Context, req *accesslistv1.L
 		NextToken: nextToken,
 	}.Build()
 
+	reviewerDisplays, err := services.ResolveUserDisplays(ctx, s.authServer, reviewerNames(reviews))
+	if err != nil {
+		s.logger.WarnContext(ctx, "Failed to resolve reviewer display values.", "error", err)
+	}
+
 	for i, review := range reviews {
-		resp.GetReviews()[i] = conv.ToReviewProto(review)
+		protoReview := conv.ToReviewProto(review)
+		if displays := reviewerDisplaysForReview(review, reviewerDisplays); len(displays) > 0 {
+			protoReview.SetStatus(accesslistv1.ReviewStatus_builder{
+				ReviewerDisplays: displays,
+			}.Build())
+		}
+		resp.GetReviews()[i] = protoReview
 	}
 
 	return resp, nil
+}
+
+func reviewerNames(reviews []*accesslist.Review) []string {
+	var names []string
+	for _, review := range reviews {
+		names = append(names, review.Spec.Reviewers...)
+	}
+	return names
+}
+
+func reviewerDisplaysForReview(review *accesslist.Review, displays map[string]types.UserDisplay) map[string]*accesslistv1.UserDisplay {
+	reviewerDisplays := make(map[string]*accesslistv1.UserDisplay)
+	for _, name := range review.Spec.Reviewers {
+		if display, ok := displays[name]; ok {
+			reviewerDisplays[name] = conv.ToUserDisplayProto(display)
+		}
+	}
+	return reviewerDisplays
 }
 
 // CreateAccessListReview will create a new review for an access list. It will also modify the original access list
