@@ -36,8 +36,8 @@ jobs:
             has_go:
               - '.github/workflows/lint.yaml'
               - '**.go'
-              - 'go.mod'
-              - 'go.sum'
+              - '**/go.mod'
+              - '**/go.sum'
               - 'build.assets/Makefile'
               - 'build.assets/Dockerfile*'
               - 'Makefile'
