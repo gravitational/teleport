@@ -217,6 +217,15 @@ export function makeUnifiedResourceViewItemGitServer(
   resource: UnifiedResourceGitServer,
   ui: UnifiedResourceUi
 ): UnifiedResourceViewItem {
+  const protocols: string[] = [];
+  if (resource.github?.sshEnabled) {
+    protocols.push('SSH');
+  }
+  if (resource.github?.httpEnabled) {
+    protocols.push('HTTPS');
+  }
+  const protocolDesc = protocols.length > 0 ? protocols.join(', ') : undefined;
+
   return {
     name: resource.github ? resource.github.organization : resource.hostname,
     SecondaryIcon: GitHubIcon,
@@ -224,10 +233,12 @@ export function makeUnifiedResourceViewItemGitServer(
     ActionButton: ui.ActionButton,
     labels: resource.labels,
     cardViewProps: {
-      primaryDesc: 'GitHub Organization',
+      primaryDesc: 'GitHub',
+      secondaryDesc: protocolDesc,
     },
     listViewProps: {
-      resourceType: 'GitHub Organization',
+      resourceType: 'GitHub',
+      description: protocolDesc,
     },
     requiresRequest: resource.requiresRequest,
   };

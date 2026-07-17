@@ -1,0 +1,14 @@
+# integration.yaml
+kind: integration
+sub_kind: github
+version: v1
+metadata:
+  name: github-ohin-teleport-test
+spec:
+  github:
+    organization: ohin-teleport-test
+    allow_protocols: ["http"]
+  credentials:
+    id_secret:
+      id: <github-app-client-id>
+      secret: <github-app-client-secret>

@@ -497,6 +497,14 @@ export type GitHubServerMetadata = {
    * name of the github integration associated with this server
    */
   integration: string;
+  /**
+   * indicates the server supports git SSH proxying
+   */
+  sshEnabled?: boolean;
+  /**
+   * indicates the server supports git HTTPS and API proxying
+   */
+  httpEnabled?: boolean;
 };
 
 export type GitServer = {

@@ -33,9 +33,33 @@ export function makeRecording(event: any): Recording {
     return makeDatabaseRecording(event);
   } else if (event.code === eventCodes.APP_SESSION_CHUNK) {
     return makeAppRecording(event);
+  } else if (event.code === eventCodes.GIT_SESSION_CHUNK) {
+    return makeGitRecording(event);
   } else {
     return makeSshOrKubeRecording(event);
   }
+}
+
+function makeGitRecording(event: {
+  time: string;
+  user: string;
+  session_chunk_id: string;
+  git_server_name: string;
+}): Recording {
+  const { time, user, session_chunk_id, git_server_name } = event;
+
+  return {
+    duration: 0,
+    durationText: '-',
+    sid: session_chunk_id,
+    createdDate: new Date(time),
+    users: user,
+    hostname: git_server_name,
+    description: `Git HTTPS access via ${git_server_name}`,
+    recordingType: 'app',
+    playable: false,
+    user,
+  } as Recording;
 }
 
 function makeAppRecording(event: {

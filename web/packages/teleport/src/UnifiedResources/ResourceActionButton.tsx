@@ -398,6 +398,9 @@ function GitServerConnect({ gitServer }: { gitServer: GitServer }) {
           username={username}
           clusterId={clusterId}
           organization={organization}
+          gitServerName={gitServer.id}
+          sshEnabled={gitServer.github.sshEnabled}
+          httpEnabled={gitServer.github.httpEnabled}
           onClose={() => setOpen(false)}
           authType={authType}
           accessRequestId={accessRequestId}

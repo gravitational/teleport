@@ -1,0 +1,11 @@
+# git_server.yaml
+kind: git_server
+sub_kind: github
+version: v2
+metadata:
+  name: github-ohin-teleport-test
+spec:
+  github:
+    integration: github-ohin-teleport-test
+    organization: ohin-teleport-test
+    allow_protocols: ["http"]

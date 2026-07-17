@@ -336,6 +336,11 @@ export const eventCodes = {
   CONTACT_DELETE: 'TCTC002I',
   GIT_COMMAND: 'TGIT001I',
   GIT_COMMAND_FAILURE: 'TGIT001E',
+  GIT_HTTP_REQUEST: 'TGIT002I',
+  GIT_SESSION_CHUNK: 'TGIT003I',
+  GIT_CREDENTIAL_CREATE: 'TGIT004I',
+  GIT_CREDENTIAL_REVOKE: 'TGIT005I',
+  GIT_SESSION_START: 'TGIT006I',
   STABLE_UNIX_USER_CREATE: 'TSUU001I',
   AWS_IC_RESOURCE_SYNC_SUCCESS: 'TAIC001I',
   AWS_IC_RESOURCE_SYNC_FAILURE: 'TAIC001E',
@@ -2081,6 +2086,44 @@ export type RawEvents = {
       service: string;
       path: string;
       exitError: string;
+      exitCode?: string;
+      http_status_code?: string;
+    }
+  >;
+  [eventCodes.GIT_HTTP_REQUEST]: RawEvent<
+    typeof eventCodes.GIT_HTTP_REQUEST,
+    {
+      method: string;
+      path: string;
+      host: string;
+      status_code: number;
+      git_server_name: string;
+    }
+  >;
+  [eventCodes.GIT_SESSION_CHUNK]: RawEvent<
+    typeof eventCodes.GIT_SESSION_CHUNK,
+    {
+      session_chunk_id: string;
+      git_server_name: string;
+    }
+  >;
+  [eventCodes.GIT_CREDENTIAL_CREATE]: RawEvent<
+    typeof eventCodes.GIT_CREDENTIAL_CREATE,
+    {
+      organization: string;
+    }
+  >;
+  [eventCodes.GIT_CREDENTIAL_REVOKE]: RawEvent<
+    typeof eventCodes.GIT_CREDENTIAL_REVOKE,
+    {
+      organization: string;
+    }
+  >;
+  [eventCodes.GIT_SESSION_START]: RawEvent<
+    typeof eventCodes.GIT_SESSION_START,
+    {
+      sid: string;
+      git_server_name: string;
     }
   >;
   [eventCodes.STABLE_UNIX_USER_CREATE]: RawEvent<

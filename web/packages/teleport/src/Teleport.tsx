@@ -40,6 +40,8 @@ import { HeadlessRequest } from './HeadlessRequest';
 import { Login } from './Login';
 import { LoginClose } from './Login/LoginClose';
 import { LoginFailed } from './Login/LoginFailed';
+import { GitHubIntegrationCallback } from './GitHubIntegrationCallback';
+import { GitHubIntegrationLogin } from './GitHubIntegrationLogin';
 import { LoginSuccess } from './Login/LoginSuccess';
 import { LoginTerminalRedirect } from './Login/LoginTerminalRedirect';
 import { Main } from './Main';
