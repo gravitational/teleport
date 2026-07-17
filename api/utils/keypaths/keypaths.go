@@ -63,6 +63,8 @@ const (
 	kubeConfigSuffix = "-kubeconfig"
 	// fileNameKubeCredLock is file name of lockfile used to prevent excessive login attempts.
 	fileNameKubeCredLock = "kube_credentials.lock"
+	// fileNameProxySSHRetryerLock is the file name of the lockfile used to synchronize relogin attempts for 'tsh proxy ssh'.
+	fileNameProxySSHRetryerLock = "proxy_ssh_retryer.lock"
 	// casDir is the directory name for where clusters certs are stored.
 	casDir = "cas"
 	// fileExtPem is the extension of a file where a public certificate is stored.
@@ -106,6 +108,7 @@ const (
 //    │   ├── foo.pub                  --> SSH Public Key
 //    │   ├── foo.ppk                  --> PuTTY PPK-formatted keypair for user "foo"
 //    │   ├── kube_credentials.lock    --> Kube credential lockfile, used to prevent excessive relogin attempts
+//    │   ├── proxy_ssh_retryer.lock   --> Proxy SSH retryer lockfile, used to synchronize relogin in 'tsh proxy ssh'
 //    │   ├── foo-ssh                  --> SSH certs for user "foo"
 //    │   │   ├── root-cert.pub        --> SSH cert for Teleport cluster "root"
 //    │   │   └── leaf-cert.pub        --> SSH cert for Teleport cluster "leaf"
@@ -424,6 +427,13 @@ func KubeConfigPath(baseDir, proxy, username, cluster, kubename string) string {
 // <baseDir>/keys/<proxy>/kube_credentials.lock
 func KubeCredLockfilePath(baseDir, proxy string) string {
 	return filepath.Join(ProxyKeyDir(baseDir, proxy), fileNameKubeCredLock)
+}
+
+// ProxySSHRetryerLockfilePath returns the SSH retryer lock file for the given proxy.
+//
+// <baseDir>/keys/<proxy>/ssh_retryer.lock
+func ProxySSHRetryerLockfilePath(baseDir, proxy string) string {
+	return filepath.Join(ProxyKeyDir(baseDir, proxy), fileNameProxySSHRetryerLock)
 }
 
 // IsProfileKubeConfigPath makes a best effort attempt to check if the given
