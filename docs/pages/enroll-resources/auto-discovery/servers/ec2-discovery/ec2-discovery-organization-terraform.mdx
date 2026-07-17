@@ -11,7 +11,7 @@ tags:
  - aws
 ---
 
-This guide shows you how to use Terraform to configure Teleport and AWS to automatically enroll EC2 instances in your cluster.
+This guide shows you how to use Terraform to configure Teleport and AWS to automatically enroll EC2 instances from your AWS organization into your Teleport cluster.
 
 ## How it works
 
@@ -277,6 +277,7 @@ module "aws_discovery" {
 </TabItem>
 
 <TabItem label="self-hosted">
+
 ```hcl
 module "aws_discovery" {
   source = "terraform.releases.teleport.dev/teleport/discovery/aws"
@@ -321,13 +322,81 @@ module "aws_discovery" {
   ]
 }
 ```
-</TabItem>
 
-{/*
-TODO(gavin): add instructions for the scenario where a self-hosted Teleport cluster cannot be reached on the public internet.
-In this case, they need to use a different IAM credential source because OIDC federation will not work. 
-The discovery team has not yet come to a consensus on how we want to approach this use-case, so it is currently out of scope.
-*/}
+<Admonition type="note">
+
+By default, the `teleport-discovery-aws` Terraform module configures an AWS OIDC integration for discovery and enrollment of EC2 instances.
+However, this requires the Teleport Proxy Service to be reachable on the public internet.
+
+If your cluster is running in a private network and the Proxy Service is not reachable on the public internet, you can disable the OIDC integration and assign the necessary IAM permissions for discovering and enrolling EC2 instances.
+
+You can disable the AWS OIDC integration by setting the following:
+```hcl
+  discovery_service_iam_credential_source = {
+    use_oidc_integration = false
+  }
+  # This role must be created manually and be assigned to the Discovery Service.
+  aws_organization_discovery_iam_principal_arn = "arn:aws:iam::<root-account-id>:role/teleport-organization-account-enumeration"
+```
+
+After applying the terraform module, run `terraform output` to obtain the IAM role templates for the Discovery Service and Auth Service:
+
+```hcl
+aws_discovery = {
+  # ...
+  "teleport_organization_account_enumeration_iam_role_template" = {
+    "policy" = <<-EOT
+    {
+      "Version": "2012-10-17",
+      "Statement": [
+        {
+          "Effect": "Allow",
+          "Action": [
+            "organizations:ListRoots",
+            "organizations:ListChildren",
+            "organizations:ListAccountsForParent"
+          ],
+          "Resource": "*"
+        },
+        {
+          "Effect": "Allow",
+          "Action": "sts:AssumeRole",
+          "Resource": "arn:aws:iam::*:role/teleport-organization-discovery-child-account-role",
+          "Condition": {
+            "StringEquals": {
+              "aws:ResourceOrgID": "<aws-organization-id>"
+            }
+          }
+        }
+      ]
+    }
+    EOT
+    "role_name" = "teleport-organization-account-enumeration"
+  }
+  "teleport_organization_join_validation_iam_role_template" = {
+    "policy" = <<-EOT
+    {
+      "Version": "2012-10-17",
+      "Statement": [
+        {
+          "Effect": "Allow",
+          "Action": "organizations:DescribeAccount",
+          "Resource": "*"
+        }
+      ]
+    }
+    EOT
+    "role_name" = "teleport-organization-join-validation"
+  }
+}
+```
+The Discovery Service attached IAM role must have the policy defined in `teleport_organization_account_enumeration_iam_role_template` and the Auth Service attached IAM role must have the policy defined in `teleport_organization_join_validation_iam_role_template`.
+
+In setups where the Discovery Service and Auth Service are running from the same process, you can combine the two policies into a single IAM role and attach it to the instance that is running the services.
+
+</Admonition>
+
+</TabItem>
 
 </Tabs>
 
