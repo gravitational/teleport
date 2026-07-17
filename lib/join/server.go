@@ -149,9 +149,9 @@ type Server struct {
 	// mu is used to rate limit the creation of rejected client alerts to at
 	// most once per day.
 	mu sync.Mutex
-	// lastRejectedAlertTime is the timestamp of the last unsupported client
-	// alert.
-	lastRejectedAlertTime time.Time
+	// nextAllowedAlertTime is the earliest time at which a new client
+	// rejection alert can be created.
+	nextAllowedAlertTime time.Time
 }
 
 // NewServer returns a new [Server] instance.
@@ -454,9 +454,19 @@ func (s *Server) validateClientVersion(ctx context.Context, info diagnostic.Info
 	return nil
 }
 
+const (
+	// rejectedAlertInterval is the minimum interval between successfully
+	// created rejected-client alerts.
+	rejectedAlertInterval = 24 * time.Hour
+	// failedAlertCooldown is the shorter interval before retrying after a
+	// failed alert write, so a degraded backend isn't hammered.
+	failedAlertCooldown = 5 * time.Minute
+)
+
 // displayRejectedClientAlert raises a once-per-day cluster alert for rejected
 // outdated clients. It shares the auth middleware's alert name so rejections
-// coalesce into a single alert.
+// coalesce into a single alert. If the alert write fails, it sets a short
+// cooldown before retrying so a degraded backend isn't hammered.
 func (s *Server) displayRejectedClientAlert(ctx context.Context) {
 	if s.cfg.AlertCreator == nil {
 		return
@@ -474,14 +484,15 @@ func (s *Server) displayRejectedClientAlert(ctx context.Context) {
 		return
 	}
 
-	now := s.cfg.AuthService.GetClock().Now()
+	clock := s.cfg.AuthService.GetClock()
+	now := clock.Now()
+	reserved := now.Add(rejectedAlertInterval)
 	s.mu.Lock()
-	if now.Sub(s.lastRejectedAlertTime) < 24*time.Hour {
+	if now.Before(s.nextAllowedAlertTime) {
 		s.mu.Unlock()
 		return
 	}
-	prev := s.lastRejectedAlertTime
-	s.lastRejectedAlertTime = now
+	s.nextAllowedAlertTime = reserved
 	s.mu.Unlock()
 
 	alertCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaults.DefaultIOTimeout)
@@ -493,8 +504,8 @@ func (s *Server) displayRejectedClientAlert(ctx context.Context) {
 
 	s.cfg.Logger.WarnContext(ctx, "failed to persist rejected-unsupported-connection alert", "error", err)
 	s.mu.Lock()
-	if s.lastRejectedAlertTime.Equal(now) {
-		s.lastRejectedAlertTime = prev
+	if s.nextAllowedAlertTime.Equal(reserved) {
+		s.nextAllowedAlertTime = clock.Now().Add(failedAlertCooldown)
 	}
 	s.mu.Unlock()
 }

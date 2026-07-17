@@ -176,8 +176,8 @@ func TestValidateClientVersionRaisesAlert(t *testing.T) {
 }
 
 // TestValidateClientVersionAlertRetriesAfterWriteFailure asserts that a failed
-// alert write rolls back the rate-limit timestamp so the next rejection retries
-// rather than staying suppressed for a full day.
+// alert write shortens the alert cooldown, allowing a retry to succeed after a
+// short wait rather than the full alert interval.
 func TestValidateClientVersionAlertRetriesAfterWriteFailure(t *testing.T) {
 	t.Parallel()
 
@@ -202,11 +202,17 @@ func TestValidateClientVersionAlertRetriesAfterWriteFailure(t *testing.T) {
 		return s.validateClientVersion(t.Context(), diagnostic.Info{ClientVersion: "1.0.0", Role: "Instance"})
 	}
 
-	// First rejection attempts the write, which fails and rolls back the timestamp.
+	// First rejection attempts the write, which fails and sets a short cooldown.
 	require.True(t, trace.IsAccessDenied(reject()))
 	require.Equal(t, 1, writes)
 
-	// The next rejection retries immediately (still within 24h) and succeeds.
+	// A second rejection within the cooldown is suppressed.
+	clock.Advance(failedAlertCooldown - time.Second)
+	require.True(t, trace.IsAccessDenied(reject()))
+	require.Equal(t, 1, writes)
+
+	// Once the cooldown elapses, a rejection retries the write, which succeeds.
+	clock.Advance(time.Second)
 	require.True(t, trace.IsAccessDenied(reject()))
 	require.Equal(t, 2, writes)
 }
