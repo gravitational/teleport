@@ -5277,8 +5277,10 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 								Description: "SAML are options related to the Teleport SAML IdP.",
 								Optional:    true,
 							}}),
-							Description: "IDP is a set of options related to accessing IdPs within Teleport. Requires Teleport Enterprise.",
-							Optional:    true,
+							Computed:      true,
+							Description:   "IDP is a set of options related to accessing IdPs within Teleport. Requires Teleport Enterprise.",
+							Optional:      true,
+							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 						},
 						"lock": {
 							Computed:      true,
