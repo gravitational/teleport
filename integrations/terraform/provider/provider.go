@@ -99,6 +99,10 @@ const (
 	// When unset, the join client will try the `KUBERNETES_TOKEN_PATH` env var, else it will use the standard location:
 	// "/var/run/secrets/kubernetes.io/serviceaccount/token".
 	attributeKubernetesTokenPath = "kubernetes_token_path"
+	// attributeScoped indicates that the Terraform Operator will join with a scoped token.
+	// This only takes effect when the operator performs native MachineID joining
+	// (i.e. join method and join token are specified). This must be set when using a scoped join token.
+	attributeScoped = "scoped"
 )
 
 type RetryConfig struct {
@@ -166,6 +170,10 @@ type providerData struct {
 	// When unset, the join client will try the `KUBERNETES_TOKEN_PATH` env var, else it will use the standard location:
 	// "/var/run/secrets/kubernetes.io/serviceaccount/token".
 	KubernetesTokenPath types.String `tfsdk:"kubernetes_token_path"`
+	// Scoped indicates that the Terraform Operator will join with a scoped token.
+	// This only takes effect when the operator performs native MachineID joining
+	// (i.e. join method and join token are specified). This must be set when using a scoped join token.
+	Scoped types.Bool `tfsdk:"scoped"`
 }
 
 // New returns an empty provider struct
@@ -298,6 +306,12 @@ func (p *Provider) GetSchema(_ context.Context) (tfsdk.Schema, diag.Diagnostics)
 				Sensitive:   false,
 				Optional:    true,
 				Description: "KubernetesTokenPath configures the Kubernetes token location when joining using MachineID and the `kubernetes` join method. When unset, the join client will try the `KUBERNETES_TOKEN_PATH` env var, else it will use the standard location: `/var/run/secrets/kubernetes.io/serviceaccount/token`.",
+			},
+			attributeScoped: {
+				Type:        types.BoolType,
+				Sensitive:   false,
+				Optional:    true,
+				Description: fmt.Sprintf("Scoped indicates that the Terraform Operator will join with a scoped token. This only takes effect when the operator performs native MachineID joining (i.e. join method and join token are specified). This must be set when using a scoped join token. This can also be set with the environment variable `%s`", constants.EnvVarTerraformScoped),
 			},
 		},
 	}, nil
