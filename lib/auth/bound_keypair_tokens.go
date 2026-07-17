@@ -151,16 +151,14 @@ func (a *Server) UpsertBoundKeypairToken(ctx context.Context, token types.Provis
 // applyBoundKeypairToken applies a bound_keypair provision token supplied via
 // --apply-on-startup.
 //
-// Bound keypair tokens require an initialized status.bound_keypair: the join
-// path rejects tokens without one. The regular admin path
-// (ServerWithRoles.UpsertToken -> Server.UpsertBoundKeypairToken) initializes
-// it, but apply-on-startup writes through the raw storage layer, which persists
-// the spec-only YAML verbatim and leaves status nil. We initialize
-// status.bound_keypair here to match.
+// The join path rejects tokens without an initialized status.bound_keypair, so
+// we initialize it here (the normal admin path does this too, but
+// apply-on-startup writes spec-only YAML straight to storage and leaves status
+// nil).
 //
-// apply-on-startup re-applies on every auth restart, so we also preserve any
-// compatible status from the stored token; otherwise a restart would reset a
-// bot's join state (recovery counters, bound public key).
+// apply-on-startup re-runs on every auth restart. If the token already exists,
+// we preserve its status so a restart never resets a bot's join state
+// (recovery counters, bound public key).
 func applyBoundKeypairToken(ctx context.Context, service *Services, token types.ProvisionToken) error {
 	tokenV2, ok := token.(*types.ProvisionTokenV2)
 	if !ok {
@@ -174,10 +172,9 @@ func applyBoundKeypairToken(ctx context.Context, service *Services, token types.
 		return trace.Wrap(err)
 	}
 
-	// Patch an existing token so its server-owned status is preserved.
-	// PatchToken handles compare-failure retries; this loop only covers the
-	// create/patch race (a create from a non-init path, or a lost init lock):
-	// create if absent, else patch on the next iteration.
+	// Patch an existing token to keep its status; create it if absent. This
+	// loop only handles the create/patch race (PatchToken already retries
+	// compare failures): patch, and if the token doesn't exist yet, create.
 	const attempts = 3
 	for range attempts {
 		_, err := service.PatchToken(ctx, tokenV2.GetName(), func(existing types.ProvisionToken) (types.ProvisionToken, error) {
@@ -196,10 +193,8 @@ func applyBoundKeypairToken(ctx context.Context, service *Services, token types.
 			return trace.Wrap(err)
 		}
 		created := cloned.(*types.ProvisionTokenV2)
-		// apply-on-startup config is spec-only: never trust status supplied via
-		// config. Discard it before initializing, so a config-supplied
-		// bound_public_key can't bind a key without the join ceremony. This
-		// mirrors prepareAppliedBoundKeypairToken, which nils status on re-apply.
+		// Never trust status from config: drop it so a config-supplied
+		// bound_public_key can't bind a key without the join ceremony.
 		created.Status = nil
 		if err := populateRegistrationSecret(created); err != nil {
 			return trace.Wrap(err)
@@ -214,10 +209,13 @@ func applyBoundKeypairToken(ctx context.Context, service *Services, token types.
 	return trace.LimitExceeded("failed to apply bound_keypair token %q after %d attempts", tokenV2.GetName(), attempts)
 }
 
-// prepareAppliedBoundKeypairToken returns a fresh copy of desired carrying
-// existing's revision, merging in server-owned status when it is still valid for
-// the desired identity and onboarding credential. It is invoked by PatchToken,
-// which only calls it with a non-nil existing token.
+// prepareAppliedBoundKeypairToken returns a copy of desired that keeps
+// existing's revision and status. It is called by PatchToken, always with a
+// non-nil existing token.
+//
+// A re-apply updates spec but never status: spec fields can be edited freely,
+// but to change status you must delete and recreate the token. This matches the
+// Update/Upsert RPCs and stops an edit from knocking a bot offline.
 func prepareAppliedBoundKeypairToken(desired *types.ProvisionTokenV2, existing types.ProvisionToken) (*types.ProvisionTokenV2, error) {
 	cloned, err := services.CloneProvisionToken(desired)
 	if err != nil {
@@ -227,9 +225,9 @@ func prepareAppliedBoundKeypairToken(desired *types.ProvisionTokenV2, existing t
 
 	updated.SetRevision(existing.GetRevision())
 	updated.Status = nil
-	if shouldPreserveBoundKeypairStatus(existing, updated) {
+	if status := existing.GetBoundKeypairStatus(); status != nil {
 		updated.Status = &types.ProvisionTokenStatusV2{
-			BoundKeypair: existing.GetBoundKeypairStatus(),
+			BoundKeypair: status,
 		}
 	}
 
@@ -237,38 +235,4 @@ func prepareAppliedBoundKeypairToken(desired *types.ProvisionTokenV2, existing t
 		return nil, trace.Wrap(err)
 	}
 	return updated, nil
-}
-
-// shouldPreserveBoundKeypairStatus decides whether server-owned bound_keypair
-// status from the stored token survives a spec re-apply.
-func shouldPreserveBoundKeypairStatus(existing types.ProvisionToken, desired *types.ProvisionTokenV2) bool {
-	status := existing.GetBoundKeypairStatus()
-	if existing.GetJoinMethod() != types.JoinMethodBoundKeypair || status == nil {
-		return false
-	}
-	existingBot, _ := existing.GetBot()
-	desiredBot, _ := desired.GetBot()
-	if existingBot != desiredBot || !existing.GetRoles().Equals(desired.GetRoles()) {
-		return false
-	}
-
-	// Once a key is bound, onboarding credentials are no longer used. Preserve
-	// the binding while allowing recovery and rotation settings to be changed.
-	if status.BoundPublicKey != "" {
-		return true
-	}
-
-	// Before the first join, changing the configured onboarding credential must
-	// revoke the old registration secret or preregistered key.
-	var existingInitialKey, existingSecret string
-	if spec := existing.GetBoundKeypair(); spec != nil && spec.Onboarding != nil {
-		existingInitialKey = spec.Onboarding.InitialPublicKey
-		existingSecret = spec.Onboarding.RegistrationSecret
-	}
-	var desiredInitialKey, desiredSecret string
-	if spec := desired.GetBoundKeypair(); spec != nil && spec.Onboarding != nil {
-		desiredInitialKey = spec.Onboarding.InitialPublicKey
-		desiredSecret = spec.Onboarding.RegistrationSecret
-	}
-	return existingInitialKey == desiredInitialKey && existingSecret == desiredSecret
 }
