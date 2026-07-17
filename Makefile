@@ -990,7 +990,7 @@ helmunit/installed:
 	fi; \
 	printf '%s\n' \
 		'helm-unittest does not provide the plugin signature required for Helm plugin signature verification, so we verify the release archive ourselves when installing:' \
-		'  plugin_dir="$${HELM_PLUGINS:-$$HOME/.local/share/helm/plugins}/helm-unittest"' \
+		'  plugin_dir="$$(helm env HELM_PLUGINS)/helm-unittest"' \
 		'  rm -rf "$$plugin_dir"' \
 		'  mkdir -p "$$plugin_dir"' \
 		'  curl -fsSL -o "$(HELM_UNITTEST_ARCHIVE)" https://github.com/helm-unittest/helm-unittest/releases/download/$(HELM_UNITTEST_VERSION)/$(HELM_UNITTEST_ARCHIVE)' \
