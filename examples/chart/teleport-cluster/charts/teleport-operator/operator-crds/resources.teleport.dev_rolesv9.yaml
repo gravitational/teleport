@@ -3,23 +3,23 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     resources.teleport.dev/scoped: "false"
-  name: teleportrolesv7.resources.teleport.dev
+  name: teleportrolesv9.resources.teleport.dev
 spec:
   group: resources.teleport.dev
   names:
-    kind: TeleportRoleV7
-    listKind: TeleportRoleV7List
-    plural: teleportrolesv7
+    kind: TeleportRoleV9
+    listKind: TeleportRoleV9List
+    plural: teleportrolesv9
     shortNames:
-    - rolev7
-    - rolesv7
-    singular: teleportrolev7
+    - rolev9
+    - rolesv9
+    singular: teleportrolev9
   scope: Namespaced
   versions:
   - name: v1
     schema:
       openAPIV3Schema:
-        description: RoleV7 is the Schema for the rolesv7 API
+        description: RoleV9 is the Schema for the rolesv9 API
         properties:
           apiVersion:
             description: 'APIVersion defines the versioned schema of this representation
@@ -34,7 +34,7 @@ spec:
           metadata:
             type: object
           spec:
-            description: Role resource definition v7 from Teleport
+            description: Role resource definition v9 from Teleport
             properties:
               allow:
                 description: Allow is the set of conditions evaluated to grant access.

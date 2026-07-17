@@ -72,6 +72,7 @@ spec:
                             field.
                           type: boolean
                       type: object
+                      x-kubernetes-preserve-unknown-fields: true
                     type: array
                   aws_role_arns:
                     description: AWSRoleARNs is a list of AWS role ARNs this role
@@ -738,6 +739,7 @@ spec:
                             field.
                           type: boolean
                       type: object
+                      x-kubernetes-preserve-unknown-fields: true
                     type: array
                   aws_role_arns:
                     description: AWSRoleARNs is a list of AWS role ARNs this role

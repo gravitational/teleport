@@ -468,6 +468,15 @@ func (generator *SchemaGenerator) prop(field *Field) (apiextv1.JSONSchemaProps, 
 		if err := generator.singularProp(field, prop.Items.Schema); err != nil {
 			return prop, trace.Wrap(err)
 		}
+		// The API server prunes fields the schema does not declare.
+		// An AppResource rule may contain only allow_all, so pruning any
+		// other field would accept a rule the user never wrote rather
+		// than reject it. Preserve unknown fields so the operator's
+		// strict conversion rejects such rules.
+		if field.TypeName() == ".types.AppResource" {
+			preserveUnknownFields := true
+			prop.Items.Schema.XPreserveUnknownFields = &preserveUnknownFields
+		}
 	} else {
 		if err := generator.singularProp(field, &prop); err != nil {
 			return prop, trace.Wrap(err)
