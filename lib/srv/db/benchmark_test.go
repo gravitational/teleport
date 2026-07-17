@@ -48,9 +48,7 @@ func BenchmarkPostgresReadLargeTable(b *testing.B) {
 		b.Skip("skipping heavy benchmark")
 	}
 	ctx := context.Background()
-	testCtx := setupTestContext(ctx, b, withSelfHostedPostgres("postgres", func(db *types.DatabaseV3) {
-		db.SetStaticLabels(map[string]string{"foo": "bar"})
-	}))
+	testCtx := setupTestContext(ctx, b, withSelfHostedPostgres("postgres", withPostgresStaticLabels(map[string]string{"foo": "bar"})))
 	go testCtx.startHandlingConnections()
 
 	user := "alice"
