@@ -33,11 +33,17 @@ import (
 
 const (
 	discoveryConfigPrefix = "discovery_config"
+	// staticSnapshotDiscoveryConfigPrefix isolates owner-published static
+	// snapshots from the regular range: no DiscoveryConfig event parser
+	// watches it, so snapshots never surface through caches or watchers and
+	// cannot be consumed as dynamic matchers by Discovery Services.
+	staticSnapshotDiscoveryConfigPrefix = "static_snapshot_discovery_config"
 )
 
 // DiscoveryConfigService manages DiscoveryConfigs in the Backend.
 type DiscoveryConfigService struct {
-	svc generic.Service[*discoveryconfig.DiscoveryConfig]
+	svc         generic.Service[*discoveryconfig.DiscoveryConfig]
+	snapshotSvc generic.Service[*discoveryconfig.DiscoveryConfig]
 }
 
 // NewDiscoveryConfigService creates a new DiscoveryConfigService.
@@ -53,10 +59,40 @@ func NewDiscoveryConfigService(b backend.Backend) (*DiscoveryConfigService, erro
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	snapshotSvc, err := generic.NewService(&generic.ServiceConfig[*discoveryconfig.DiscoveryConfig]{
+		Backend:       b,
+		PageLimit:     defaults.MaxIterationLimit,
+		ResourceKind:  types.KindDiscoveryConfig,
+		BackendPrefix: backend.NewKey(staticSnapshotDiscoveryConfigPrefix),
+		MarshalFunc:   services.MarshalStaticSnapshotDiscoveryConfig,
+		UnmarshalFunc: services.UnmarshalStaticSnapshotDiscoveryConfig,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	return &DiscoveryConfigService{
-		svc: *svc,
+		svc:         *svc,
+		snapshotSvc: *snapshotSvc,
 	}, nil
+}
+
+// GetStaticSnapshotDiscoveryConfig returns the named static snapshot from the isolated range.
+func (s *DiscoveryConfigService) GetStaticSnapshotDiscoveryConfig(ctx context.Context, name string) (*discoveryconfig.DiscoveryConfig, error) {
+	r, err := s.snapshotSvc.GetResource(ctx, name)
+	return r, trace.Wrap(err)
+}
+
+// CreateStaticSnapshotDiscoveryConfig creates a static snapshot in the isolated range.
+func (s *DiscoveryConfigService) CreateStaticSnapshotDiscoveryConfig(ctx context.Context, dc *discoveryconfig.DiscoveryConfig) (*discoveryconfig.DiscoveryConfig, error) {
+	r, err := s.snapshotSvc.CreateResource(ctx, dc)
+	return r, trace.Wrap(err)
+}
+
+// ConditionalUpdateStaticSnapshotDiscoveryConfig updates a static snapshot if the revision matches.
+func (s *DiscoveryConfigService) ConditionalUpdateStaticSnapshotDiscoveryConfig(ctx context.Context, dc *discoveryconfig.DiscoveryConfig) (*discoveryconfig.DiscoveryConfig, error) {
+	r, err := s.snapshotSvc.ConditionalUpdateResource(ctx, dc)
+	return r, trace.Wrap(err)
 }
 
 // ListDiscoveryConfigs returns a paginated list of DiscoveryConfig resources.
@@ -96,6 +132,17 @@ func (s *DiscoveryConfigService) UpdateDiscoveryConfig(ctx context.Context, dc *
 	}
 
 	updated, err := s.svc.UpdateResource(ctx, dc)
+	return updated, trace.Wrap(err)
+}
+
+// ConditionalUpdateDiscoveryConfig updates a DiscoveryConfig resource if the
+// revision matches, returning CompareFailed otherwise.
+func (s *DiscoveryConfigService) ConditionalUpdateDiscoveryConfig(ctx context.Context, dc *discoveryconfig.DiscoveryConfig) (*discoveryconfig.DiscoveryConfig, error) {
+	if err := dc.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	updated, err := s.svc.ConditionalUpdateResource(ctx, dc)
 	return updated, trace.Wrap(err)
 }
 

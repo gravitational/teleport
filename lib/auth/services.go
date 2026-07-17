@@ -56,7 +56,7 @@ type Services struct {
 	services.Integrations
 	services.IntegrationsTokenGenerator
 	services.UserTasks
-	services.DiscoveryConfigs
+	services.DiscoveryConfigsInternal
 	services.Okta
 	services.AccessListsInternal
 	services.DatabaseObjectImportRules
@@ -102,6 +102,7 @@ type Services struct {
 	services.BeamsConfigService
 	services.SubCAService
 	services.EnrollPairing
+	services.StaticSnapshotDiscoveryConfigs
 }
 
 // MFAService defines the interface for managing MFA resources in the backend.

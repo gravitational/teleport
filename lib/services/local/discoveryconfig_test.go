@@ -20,6 +20,7 @@ package local
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -29,6 +30,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/lib/backend"
@@ -138,6 +140,84 @@ func TestDiscoveryConfigCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, nextToken)
 	require.Empty(t, out)
+}
+
+func TestStaticSnapshotDiscoveryConfigStorageIsolation(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	mem, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, mem.Close()) })
+
+	service, err := NewDiscoveryConfigService(mem)
+	require.NoError(t, err)
+
+	snapshot := newDiscoveryConfig(t, "a-snapshot")
+	snapshot.SetSubKind(discoveryconfig.SubKindStaticSnapshot)
+	snapshot.Spec.AWS = []types.AWSMatcher{{
+		Types: []string{types.AWSMatcherEC2}, Regions: []string{"us-east-1"},
+	}}
+	_, err = service.CreateStaticSnapshotDiscoveryConfig(ctx, snapshot)
+	require.NoError(t, err)
+	_, err = service.CreateDiscoveryConfig(ctx, newDiscoveryConfig(t, "b-regular"))
+	require.NoError(t, err)
+
+	// The regular range must not surface the snapshot: generic listings (and
+	// the watchers built on the regular prefix) are how Discovery Services
+	// load dynamic matchers.
+	page, nextToken, err := service.ListDiscoveryConfigs(ctx, 0, "")
+	require.NoError(t, err)
+	require.Len(t, page, 1)
+	require.Equal(t, "b-regular", page[0].GetName())
+	require.Empty(t, nextToken)
+	_, err = service.GetDiscoveryConfig(ctx, snapshot.GetName())
+	require.True(t, trace.IsNotFound(err), "got %v", err)
+
+	got, err := service.GetStaticSnapshotDiscoveryConfig(ctx, snapshot.GetName())
+	require.NoError(t, err)
+	require.Equal(t, snapshot.GetName(), got.GetName())
+	// Reads from the isolated range keep the no-installer-params invariant.
+	require.Nil(t, got.Spec.AWS[0].Params)
+}
+
+// TestStaticSnapshotDiscoveryConfigStorageSizeLimit pins the storage-layer
+// stored-size cap: it covers the complete resource, so an oversized status
+// alone rejects the write.
+func TestStaticSnapshotDiscoveryConfigStorageSizeLimit(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	mem, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, mem.Close()) })
+
+	service, err := NewDiscoveryConfigService(mem)
+	require.NoError(t, err)
+
+	oversized := newDiscoveryConfig(t, "c-oversized")
+	oversized.SetSubKind(discoveryconfig.SubKindStaticSnapshot)
+	errorMessage := strings.Repeat("x", discoveryconfig.MaxStaticSnapshotSize)
+	oversized.Status.ErrorMessage = &errorMessage
+	_, err = service.CreateStaticSnapshotDiscoveryConfig(ctx, oversized)
+	require.True(t, trace.IsLimitExceeded(err), "expected full stored resource size enforcement, got %v", err)
+}
+
+func TestDiscoveryConfigStorageRejectsUnknownSubKindWithoutGroup(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	mem, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, mem.Close()) })
+
+	service, err := NewDiscoveryConfigService(mem)
+	require.NoError(t, err)
+
+	dc := newDiscoveryConfig(t, "unknown-subkind")
+	dc.SetSubKind("some-future-subkind")
+	dc.Spec.DiscoveryGroup = ""
+	_, err = service.CreateDiscoveryConfig(ctx, dc)
+	require.True(t, trace.IsBadParameter(err), "got %v", err)
+	_, err = service.GetDiscoveryConfig(ctx, dc.GetName())
+	require.True(t, trace.IsNotFound(err), "invalid config must not be persisted, got %v", err)
 }
 
 func newDiscoveryConfig(t *testing.T, name string) *discoveryconfig.DiscoveryConfig {

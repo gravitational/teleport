@@ -92,16 +92,39 @@ type Status struct {
 
 // NewDiscoveryConfig will create a new discovery config.
 func NewDiscoveryConfig(metadata header.Metadata, spec Spec) (*DiscoveryConfig, error) {
-	discoveryConfig := &DiscoveryConfig{
+	return NewDiscoveryConfigWithSubKind(metadata, spec, "")
+}
+
+// NewDiscoveryConfigWithSubKind creates a DiscoveryConfig with the given
+// subkind. Static snapshot specs are copied and sanitized before validation
+// (received installer params are discarded rather than validated, and the
+// caller's spec is never mutated); snapshot validation itself runs against
+// a throwaway copy and persists nothing it derives, so one sanitization
+// suffices.
+//
+// Sanitization deliberately lives here and NOT in CheckAndSetDefaults: this
+// constructor is only reached with a subkind the caller vouches for (proto
+// conversion, snapshot construction), while CheckAndSetDefaults also runs on
+// user-supplied YAML, where a claimed static-snapshot subkind must not
+// silently delete a regular config's installer params.
+func NewDiscoveryConfigWithSubKind(metadata header.Metadata, spec Spec, subKind string) (*DiscoveryConfig, error) {
+	if subKind == SubKindStaticSnapshot {
+		var clonedSpec Spec
+		if err := utils.StrictObjectToStruct(&spec, &clonedSpec); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		spec = clonedSpec
+		SanitizeStaticSnapshotSpec(&spec)
+	}
+	dc := &DiscoveryConfig{
 		ResourceHeader: header.ResourceHeaderFromMetadata(metadata),
 		Spec:           spec,
 	}
-
-	if err := discoveryConfig.CheckAndSetDefaults(); err != nil {
+	dc.SetSubKind(subKind)
+	if err := dc.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	return discoveryConfig, nil
+	return dc, nil
 }
 
 // IntegrationDiscoveredSummary holds the summary of resources discovered for a specific integration.
@@ -161,52 +184,70 @@ func (a *DiscoveryConfig) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 
-	if a.Spec.DiscoveryGroup == "" {
+	// Static snapshots mirror the owning service's file configuration, which
+	// may legitimately have no discovery group. Every other subkind remains a
+	// regular discovery config and must identify the Discovery Services that
+	// consume it.
+	if a.Spec.DiscoveryGroup == "" && !a.IsStaticSnapshot() {
 		return trace.BadParameter("discovery config group required")
 	}
 
 	if a.Spec.AWS == nil {
 		a.Spec.AWS = make([]types.AWSMatcher, 0)
 	}
-	for i := range a.Spec.AWS {
-		if err := a.Spec.AWS[i].CheckAndSetDefaults(); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
 	if a.Spec.Azure == nil {
 		a.Spec.Azure = make([]types.AzureMatcher, 0)
 	}
-	for i := range a.Spec.Azure {
-		if err := a.Spec.Azure[i].CheckAndSetDefaults(); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
 	if a.Spec.GCP == nil {
 		a.Spec.GCP = make([]types.GCPMatcher, 0)
 	}
-	for i := range a.Spec.GCP {
-		if err := a.Spec.GCP[i].CheckAndSetDefaults(); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
 	if a.Spec.Kube == nil {
 		a.Spec.Kube = make([]types.KubernetesMatcher, 0)
 	}
-	for i := range a.Spec.Kube {
-		if err := a.Spec.Kube[i].CheckAndSetDefaults(); err != nil {
+
+	// Snapshot matchers are validated without being mutated: persisted
+	// inventory stays exactly what the publisher sent, never enriched with
+	// Auth-derived defaults such as installer params or wildcard scoping.
+	if a.IsStaticSnapshot() {
+		if err := validateStaticSnapshotSpec(&a.Spec); err != nil {
+			return trace.Wrap(err)
+		}
+	} else if err := a.Spec.checkAndSetMatcherDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+// checkAndSetMatcherDefaults validates every matcher family and applies its
+// in-place defaulting. Regular configs run it on the live spec; snapshot
+// validation runs it on a throwaway copy so derived defaults never persist.
+func (s *Spec) checkAndSetMatcherDefaults() error {
+	for i := range s.AWS {
+		if err := s.AWS[i].CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
 	}
-
-	if a.Spec.AccessGraph != nil {
-		if err := a.Spec.AccessGraph.CheckAndSetDefaults(); err != nil {
+	for i := range s.Azure {
+		if err := s.Azure[i].CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
 	}
-
+	for i := range s.GCP {
+		if err := s.GCP[i].CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	for i := range s.Kube {
+		if err := s.Kube[i].CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	if s.AccessGraph != nil {
+		if err := s.AccessGraph.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+	}
 	return nil
 }
 

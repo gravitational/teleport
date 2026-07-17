@@ -25,6 +25,7 @@ import (
 	"maps"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
@@ -39,6 +40,7 @@ import (
 	conv "github.com/gravitational/teleport/api/types/discoveryconfig/convert/v1"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/aws"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	prehogv1a "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
@@ -55,8 +57,11 @@ type ServiceConfig struct {
 	// Authorizer is the authorizer to use.
 	Authorizer authz.Authorizer
 
-	// Backend is the backend for storing DiscoveryConfigs.
-	Backend services.DiscoveryConfigs
+	// Backend stores regular DiscoveryConfigs.
+	Backend services.DiscoveryConfigsInternal
+	// StaticSnapshotBackend is the isolated backend for owner-published
+	// static snapshot DiscoveryConfigs.
+	StaticSnapshotBackend services.StaticSnapshotDiscoveryConfigs
 
 	// Clock is the clock.
 	Clock clockwork.Clock
@@ -77,6 +82,9 @@ func (s *ServiceConfig) CheckAndSetDefaults() error {
 	}
 	if s.Backend == nil {
 		return trace.BadParameter("backend is required")
+	}
+	if s.StaticSnapshotBackend == nil {
+		return trace.BadParameter("static snapshot backend is required")
 	}
 	if s.Emitter == nil {
 		return trace.BadParameter("emitter is required")
@@ -100,13 +108,29 @@ func (s *ServiceConfig) CheckAndSetDefaults() error {
 type Service struct {
 	discoveryconfigv1.UnimplementedDiscoveryConfigServiceServer
 
-	log           *slog.Logger
-	authorizer    authz.Authorizer
-	backend       services.DiscoveryConfigs
-	clock         clockwork.Clock
-	emitter       apievents.Emitter
-	usageReporter usagereporter.UsageReporter
+	log             *slog.Logger
+	authorizer      authz.Authorizer
+	backend         services.DiscoveryConfigsInternal
+	snapshotBackend services.StaticSnapshotDiscoveryConfigs
+	clock           clockwork.Clock
+	emitter         apievents.Emitter
+	usageReporter   usagereporter.UsageReporter
 }
+
+const (
+	// discoveryConfigWriteAttempts bounds every CAS retry loop on the
+	// discovery config write paths. Contention per record comes from a
+	// handful of periodic writers (the owner's publication and status
+	// reporting for a snapshot, a discovery group's status reports for a
+	// regular config), so a few backed-off retries converge; 4 keeps the
+	// worst-case added wait under 2s (jitter draws total at most
+	// 1*base + 2*base + 3*base = 1.8s), and exhaustion returns
+	// CompareFailed for the caller's next periodic cycle to retry.
+	discoveryConfigWriteAttempts = 4
+	// discoveryConfigWriteBackoffBase scales the jittered linear backoff
+	// before CAS retry attempt N, drawn from [0, N*base).
+	discoveryConfigWriteBackoffBase = 300 * time.Millisecond
+)
 
 // NewService returns a new DiscoveryConfigs gRPC service.
 func NewService(cfg ServiceConfig) (*Service, error) {
@@ -115,12 +139,13 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 	}
 
 	return &Service{
-		log:           cfg.Logger,
-		authorizer:    cfg.Authorizer,
-		backend:       cfg.Backend,
-		clock:         cfg.Clock,
-		emitter:       cfg.Emitter,
-		usageReporter: cfg.UsageReporter,
+		log:             cfg.Logger,
+		authorizer:      cfg.Authorizer,
+		backend:         cfg.Backend,
+		snapshotBackend: cfg.StaticSnapshotBackend,
+		clock:           cfg.Clock,
+		emitter:         cfg.Emitter,
+		usageReporter:   cfg.UsageReporter,
 	}, nil
 }
 
@@ -155,7 +180,23 @@ func (s *Service) ListDiscoveryConfigs(ctx context.Context, req *discoveryconfig
 	}.Build(), nil
 }
 
-// GetDiscoveryConfig returns the specified DiscoveryConfig resource.
+// GetDiscoveryConfig returns the named DiscoveryConfig resource: regular
+// resources first, falling back to owner-published static snapshots for
+// reserved snapshot names. When both exist, the grandfathered regular
+// resource wins.
+//
+// The snapshot fallback never returns matcher inventory to a Discovery
+// Service identity: a service may fetch its own snapshot inventory-stripped
+// (envelope and status only, the same shape as the write echoes; see
+// staticSnapshotOwnerResponse) so read-modify-write status reporting can
+// merge against stored history, while every foreign snapshot name answers
+// the unoccupied NotFound. Together this closes every read channel that
+// could feed a snapshot's spec-carried matchers back into a service as
+// dynamic configuration, without disclosing which snapshots exist.
+// Clients that predate the static-snapshot subkind (or report no version)
+// also receive NotFound: their unconditional validation cannot decode a
+// group-less snapshot, so a successful RPC would surface as a misleading
+// client-side "discovery group is missing" failure.
 func (s *Service) GetDiscoveryConfig(ctx context.Context, req *discoveryconfigv1.GetDiscoveryConfigRequest) (*discoveryconfigv1.DiscoveryConfig, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
@@ -168,7 +209,40 @@ func (s *Service) GetDiscoveryConfig(ctx context.Context, req *discoveryconfigv1
 
 	dc, err := s.backend.GetDiscoveryConfig(ctx, req.GetName())
 	if err != nil {
-		return nil, trace.Wrap(err)
+		if !trace.IsNotFound(err) || !discoveryconfig.IsReservedStaticSnapshotName(req.GetName()) {
+			return nil, trace.Wrap(err)
+		}
+		if authz.HasBuiltinRole(*authCtx, string(types.RoleDiscovery)) {
+			identity, ok := authCtx.Identity.(authz.BuiltinRole)
+			if !ok || identity.GetServerID() == "" || req.GetName() != discoveryconfig.StaticSnapshotName(identity.GetServerID()) {
+				return nil, trace.Wrap(err)
+			}
+			snapshot, snapshotErr := s.snapshotBackend.GetStaticSnapshotDiscoveryConfig(ctx, req.GetName())
+			if snapshotErr != nil {
+				return nil, trace.Wrap(snapshotErr)
+			}
+			return staticSnapshotOwnerResponse(snapshot), nil
+		}
+		supported, supportErr := staticSnapshotClientSupported(ctx)
+		if supportErr != nil {
+			return nil, trace.Wrap(supportErr)
+		}
+		if !supported {
+			return nil, trace.Wrap(err)
+		}
+		snapshot, snapshotErr := s.snapshotBackend.GetStaticSnapshotDiscoveryConfig(ctx, req.GetName())
+		if snapshotErr != nil {
+			return nil, trace.Wrap(snapshotErr)
+		}
+		// Snapshots follow the same response pipeline as regular configs.
+		// Every current downgrade rule targets clients older than the
+		// snapshot support gate, so this is a no-op today; it keeps future
+		// compatibility rules from silently applying only to regular configs.
+		downgraded, downgradeErr := MaybeDowngradeDiscoveryConfig(ctx, snapshot)
+		if downgradeErr != nil {
+			return nil, trace.Wrap(downgradeErr)
+		}
+		return conv.ToProto(downgraded), nil
 	}
 
 	downgraded, err := MaybeDowngradeDiscoveryConfig(ctx, dc)
@@ -177,6 +251,34 @@ func (s *Service) GetDiscoveryConfig(ctx context.Context, req *discoveryconfigv1
 	}
 
 	return conv.ToProto(downgraded), nil
+}
+
+// minStaticSnapshotClientVersion is the first stable release whose
+// DiscoveryConfig validation accepts a group-less static snapshot spec.
+// All v19 prereleases are excluded because multiple builds can report the
+// same prerelease version despite straddling the introduction of the static
+// snapshot contract.
+//
+// TODO: DELETE IN v20.0.0, when the oldest supported client is v19.
+var minStaticSnapshotClientVersion = semver.Version{Major: 19}
+
+// staticSnapshotClientSupported reports whether the calling client can decode
+// a static snapshot. Clients that do not report a version are treated as too
+// old: unlike resource downgrading, where serving the resource unchanged is
+// the safe default, serving a possibly group-less snapshot to an unknown
+// client risks a misleading client-side validation failure. A version that
+// does not parse is an error, matching MaybeDowngradeDiscoveryConfig, so the
+// caller surfaces it instead of folding it into a misleading NotFound.
+func staticSnapshotClientSupported(ctx context.Context) (bool, error) {
+	clientVersionString, ok := metadata.ClientVersionFromContext(ctx)
+	if !ok {
+		return false, nil
+	}
+	clientVersion, err := semver.NewVersion(clientVersionString)
+	if err != nil {
+		return false, trace.BadParameter("unrecognized client version: %s is not a valid semver", clientVersionString)
+	}
+	return !clientVersion.LessThan(minStaticSnapshotClientVersion), nil
 }
 
 // CreateDiscoveryConfig creates a new DiscoveryConfig resource.
@@ -190,6 +292,9 @@ func (s *Service) CreateDiscoveryConfig(ctx context.Context, req *discoveryconfi
 		return nil, trace.Wrap(err)
 	}
 
+	if err := checkReservedName(req.GetDiscoveryConfig().GetHeader().GetMetadata().GetName()); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	dc, err := conv.FromProto(req.GetDiscoveryConfig())
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -235,12 +340,16 @@ func (s *Service) UpdateDiscoveryConfig(ctx context.Context, req *discoveryconfi
 		return nil, trace.Wrap(err)
 	}
 
+	if err := checkReservedName(req.GetDiscoveryConfig().GetHeader().GetMetadata().GetName()); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	dc, err := conv.FromProto(req.GetDiscoveryConfig())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// Set the status to the existing status to ensure it is not cleared.
+	// Preserve the stored status. Static snapshots are in a different key
+	// range, so regular updates retain their historical write behavior.
 	oldDiscoveryConfig, err := s.backend.GetDiscoveryConfig(ctx, dc.GetName())
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -279,10 +388,22 @@ func (s *Service) UpsertDiscoveryConfig(ctx context.Context, req *discoveryconfi
 		return nil, trace.Wrap(err)
 	}
 
+	// Owner publication routes before generic RBAC: the Discovery role
+	// deliberately has no generic write verbs on the kind. Every other caller
+	// keeps the regular path, which discards subkinds, so a user cannot
+	// self-declare a static snapshot to bypass regular validation.
+	if req.GetDiscoveryConfig().GetHeader().GetSubKind() == discoveryconfig.SubKindStaticSnapshot &&
+		authz.HasBuiltinRole(*authCtx, string(types.RoleDiscovery)) {
+		return s.upsertStaticSnapshot(ctx, authCtx, req.GetDiscoveryConfig())
+	}
+
 	if err := authCtx.CheckAccessToKind(types.KindDiscoveryConfig, types.VerbCreate, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	if err := checkReservedName(req.GetDiscoveryConfig().GetHeader().GetMetadata().GetName()); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	dc, err := conv.FromProto(req.GetDiscoveryConfig())
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -317,6 +438,100 @@ func (s *Service) UpsertDiscoveryConfig(ctx context.Context, req *discoveryconfi
 	return conv.ToProto(resp), nil
 }
 
+// upsertStaticSnapshot publishes only the authenticated owner's observed
+// inventory. Periodic machine renewals intentionally emit neither generic
+// DiscoveryConfig CRUD audit events nor lifecycle usage events: like discovery
+// status updates, they report observed state rather than a user configuration
+// change.
+//
+// Only the observed spec is taken from the request. Every trusted envelope
+// field (name, subkind, origin, expiry, revision) is rebuilt server-side and
+// the request's status is ignored: the publisher owns the spec, status
+// reporting owns the status. Publication is fail-closed: a spec still
+// carrying installer params is rejected inside the constructor rather than
+// silently stripped.
+func (s *Service) upsertStaticSnapshot(ctx context.Context, authCtx *authz.Context, msg *discoveryconfigv1.DiscoveryConfig) (*discoveryconfigv1.DiscoveryConfig, error) {
+	identity, ok := authCtx.Identity.(authz.BuiltinRole)
+	if !ok || identity.GetServerID() == "" {
+		return nil, trace.AccessDenied("static snapshot discovery configs may only be published by their owning Discovery Service")
+	}
+	if msg.GetSpec() == nil {
+		return nil, trace.BadParameter("spec is missing")
+	}
+	serverID := identity.GetServerID()
+	name := discoveryconfig.StaticSnapshotName(serverID)
+	if requested := msg.GetHeader().GetMetadata().GetName(); requested != "" && requested != name {
+		return nil, trace.AccessDenied("static snapshot discovery configs are owner-managed; server %q publishes %q", serverID, name)
+	}
+	if _, err := s.backend.GetDiscoveryConfig(ctx, name); err == nil {
+		return nil, trace.AlreadyExists("regular discovery config %q occupies the static snapshot owner name", name)
+	} else if !trace.IsNotFound(err) {
+		return nil, trace.Wrap(err)
+	}
+	dc, err := discoveryconfig.NewStaticSnapshotDiscoveryConfig(serverID, conv.SpecFromProto(msg.GetSpec()))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	retry, err := s.newDiscoveryConfigWriteRetry()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	for attempt := range discoveryConfigWriteAttempts {
+		if err := waitForDiscoveryConfigRetry(ctx, retry, attempt); err != nil {
+			return nil, err
+		}
+		dc.SetExpiry(s.clock.Now().Add(discoveryconfig.StaticSnapshotTTL))
+		existing, err := s.snapshotBackend.GetStaticSnapshotDiscoveryConfig(ctx, name)
+		if trace.IsNotFound(err) {
+			// A fresh publication must not carry status merged from a record
+			// observed by an earlier iteration and deleted since.
+			dc.Status = discoveryconfig.Status{}
+			dc.SetRevision("")
+			created, err := s.snapshotBackend.CreateStaticSnapshotDiscoveryConfig(ctx, dc)
+			if trace.IsAlreadyExists(err) {
+				continue
+			}
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return staticSnapshotOwnerResponse(created), nil
+		}
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		// Renewal replaces the inventory and preserves whatever status
+		// reporting has stored since. The storage layer enforces the
+		// stored-size cap on the merged record.
+		dc.Status = existing.Status
+		dc.SetRevision(existing.GetRevision())
+		updated, err := s.snapshotBackend.ConditionalUpdateStaticSnapshotDiscoveryConfig(ctx, dc)
+		if trace.IsCompareFailed(err) {
+			continue
+		}
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return staticSnapshotOwnerResponse(updated), nil
+	}
+	// CompareFailed matches the status loops' exhaustion category and keeps
+	// LimitExceeded reserved for the stored-size cap, so a publisher can tell
+	// write contention (retry soon) from an oversized record (shrink first).
+	return nil, trace.CompareFailed("static snapshot discovery config write failed after %d attempts", discoveryConfigWriteAttempts)
+}
+
+// staticSnapshotOwnerResponse is the RPC echo of a snapshot write, with the
+// spec inventory removed. Snapshot write responses go only to the owning
+// Discovery Service, which published the data and has no read use for the
+// echo; stripping it enforces the "Discovery Service identities never
+// receive snapshot matchers" invariant on every channel instead of
+// documenting it on the Get gate alone. The envelope (name, subkind, expiry)
+// and the merged status remain for the caller's bookkeeping.
+func staticSnapshotOwnerResponse(dc *discoveryconfig.DiscoveryConfig) *discoveryconfigv1.DiscoveryConfig {
+	msg := conv.ToProto(dc)
+	msg.SetSpec(&discoveryconfigv1.DiscoveryConfigSpec{})
+	return msg
+}
+
 // DeleteDiscoveryConfig removes the specified DiscoveryConfig resource.
 func (s *Service) DeleteDiscoveryConfig(ctx context.Context, req *discoveryconfigv1.DeleteDiscoveryConfigRequest) (*emptypb.Empty, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
@@ -330,6 +545,14 @@ func (s *Service) DeleteDiscoveryConfig(ctx context.Context, req *discoveryconfi
 
 	// Fetch the DiscoveryConfig before deletion to capture metadata for the usage event.
 	dc, err := s.backend.GetDiscoveryConfig(ctx, req.GetName())
+	// Delete is the one write verb that discloses snapshot occupancy: the
+	// owner-managed AccessDenied goes only to callers holding the read verb,
+	// who could learn the occupancy via Get anyway.
+	if trace.IsNotFound(err) && discoveryconfig.IsReservedStaticSnapshotName(req.GetName()) {
+		if ownerErr := s.snapshotOwnerManagedForReaders(ctx, authCtx, req.GetName()); ownerErr != nil {
+			return nil, trace.Wrap(ownerErr)
+		}
+	}
 	if err != nil && !trace.IsNotFound(err) {
 		s.log.WarnContext(ctx, "Skipping DiscoveryConfig delete usage event due to GetDiscoveryConfig failure.",
 			"discovery_config_name", req.GetName(),
@@ -400,18 +623,26 @@ func (s *Service) UpdateDiscoveryConfigStatus(ctx context.Context, req *discover
 	if !authz.HasBuiltinRole(*authCtx, string(types.RoleDiscovery)) {
 		return nil, trace.AccessDenied("UpdateDiscoveryConfigStatus request can be only executed by a Discovery Service")
 	}
-
-	for {
+	retry, err := s.newDiscoveryConfigWriteRetry()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	for attempt := range discoveryConfigWriteAttempts {
+		if err := waitForDiscoveryConfigRetry(ctx, retry, attempt); err != nil {
+			return nil, err
+		}
 		dc, err := s.backend.GetDiscoveryConfig(ctx, req.GetName())
 		switch {
 		case trace.IsNotFound(err):
-			return nil, trace.NotFound("discovery config %q not found", req.GetName())
+			return s.updateStaticSnapshotStatus(ctx, authCtx, req)
 		case err != nil:
 			return nil, trace.Wrap(err)
 		}
-
 		dc.Status = conv.StatusFromProto(req.GetStatus())
-		resp, err := s.backend.UpdateDiscoveryConfig(ctx, dc)
+		// The revision-checked update makes the retry loop real: a stale
+		// working copy must not clobber a concurrent spec edit with the
+		// spec it fetched before that edit.
+		resp, err := s.backend.ConditionalUpdateDiscoveryConfig(ctx, dc)
 		if err != nil {
 			if trace.IsCompareFailed(err) {
 				continue
@@ -421,6 +652,132 @@ func (s *Service) UpdateDiscoveryConfigStatus(ctx context.Context, req *discover
 
 		return conv.ToProto(resp), nil
 	}
+	return nil, trace.CompareFailed("discovery config status update failed after %d attempts", discoveryConfigWriteAttempts)
+}
+
+// updateStaticSnapshotStatus handles the status report for a name absent from
+// the regular range, mirroring upsertStaticSnapshot: the identity, ownership,
+// and payload checks are loop-invariant and run once; only the read-merge-CAS
+// cycle retries.
+//
+// Ownership is derivable from the caller's identity alone, so it is checked
+// before the snapshot store is ever consulted: a foreign reserved name
+// answers the same NotFound as an unoccupied one, disclosing nothing about
+// which snapshots exist and costing no backend read.
+func (s *Service) updateStaticSnapshotStatus(ctx context.Context, authCtx *authz.Context, req *discoveryconfigv1.UpdateDiscoveryConfigStatusRequest) (*discoveryconfigv1.DiscoveryConfig, error) {
+	identity, ok := authCtx.Identity.(authz.BuiltinRole)
+	if !discoveryconfig.IsReservedStaticSnapshotName(req.GetName()) ||
+		!ok || identity.GetServerID() == "" ||
+		req.GetName() != discoveryconfig.StaticSnapshotName(identity.GetServerID()) {
+		return nil, trace.NotFound("discovery config %q not found", req.GetName())
+	}
+	status := conv.StatusFromProto(req.GetStatus())
+	for serverID := range status.ServerStatus {
+		if serverID != identity.GetServerID() {
+			return nil, trace.BadParameter("static snapshot status contains foreign server %q", serverID)
+		}
+	}
+	retry, err := s.newDiscoveryConfigWriteRetry()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	for attempt := range discoveryConfigWriteAttempts {
+		if err := waitForDiscoveryConfigRetry(ctx, retry, attempt); err != nil {
+			return nil, err
+		}
+		dc, err := s.snapshotBackend.GetStaticSnapshotDiscoveryConfig(ctx, req.GetName())
+		if trace.IsNotFound(err) {
+			return nil, trace.NotFound("discovery config %q not found", req.GetName())
+		}
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		// Reporting owns the status and must not touch the spec inventory
+		// or renew the publication expiry. The storage layer enforces the
+		// stored-size cap on the merged record, so an oversized report is
+		// rejected here rather than persisted; if a previously accepted
+		// status ever blocks a larger inventory renewal, the record
+		// TTL-expires and the fresh publication (which carries no status)
+		// re-establishes the inventory, after which the oversized report
+		// no longer fits and keeps failing loudly.
+		dc.Status = status
+		resp, err := s.snapshotBackend.ConditionalUpdateStaticSnapshotDiscoveryConfig(ctx, dc)
+		if trace.IsCompareFailed(err) {
+			continue
+		}
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return staticSnapshotOwnerResponse(resp), nil
+	}
+	return nil, trace.CompareFailed("static snapshot status update failed after %d attempts", discoveryConfigWriteAttempts)
+}
+
+func reservedStaticSnapshotNameError(name string) error {
+	return trace.BadParameter("discovery config name %q is reserved for static snapshot discovery configs; a pre-existing config with this name remains readable and deletable but cannot be modified; recreate it under a different name to keep managing it", name)
+}
+
+// checkReservedName rejects every generic write (Create, Update, Upsert) to
+// a reserved static snapshot name so get-then-mutate flows (web UI edits,
+// tctl edit) fail with the ownership story rather than conversion or
+// existence noise. It runs before proto conversion on purpose: the regular
+// write path discards subkinds, so a round-tripped group-less snapshot would
+// otherwise fail validation with a misleading "discovery group is missing".
+//
+// The check is a pure name-shape test that reads nothing from the backend:
+// the response is identical whether the name is occupied by a grandfathered
+// regular config, a snapshot, or nothing, so the write verbs disclose no
+// occupancy information to any caller. Snapshot-occupancy disclosure lives
+// only in DeleteDiscoveryConfig, via snapshotOwnerManagedForReaders.
+func checkReservedName(name string) error {
+	if discoveryconfig.IsReservedStaticSnapshotName(name) {
+		return reservedStaticSnapshotNameError(name)
+	}
+	return nil
+}
+
+// snapshotOwnerManagedForReaders returns the owner-managed AccessDenied when
+// a snapshot occupies name and the caller holds the read verb; callers
+// without it learn nothing (nil), so deletes of names they cannot read keep
+// the unoccupied-name NotFound and disclose no snapshot existence.
+func (s *Service) snapshotOwnerManagedForReaders(ctx context.Context, authCtx *authz.Context, name string) error {
+	if authCtx.CheckAccessToKind(types.KindDiscoveryConfig, types.VerbRead) != nil {
+		return nil
+	}
+	if _, err := s.snapshotBackend.GetStaticSnapshotDiscoveryConfig(ctx, name); err == nil {
+		return trace.AccessDenied("static snapshot discovery config %q is owner-managed", name)
+	} else if !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// newDiscoveryConfigWriteRetry builds the jittered linear backoff shared by
+// the discovery config CAS write loops: retry attempt N waits a duration
+// drawn from [0, N*discoveryConfigWriteBackoffBase).
+func (s *Service) newDiscoveryConfigWriteRetry() (*retryutils.RetryV2, error) {
+	retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
+		Driver: retryutils.NewLinearDriver(discoveryConfigWriteBackoffBase),
+		Max:    (discoveryConfigWriteAttempts - 1) * discoveryConfigWriteBackoffBase,
+		Jitter: retryutils.FullJitter,
+		Clock:  s.clock,
+	})
+	return retry, trace.Wrap(err)
+}
+
+// waitForDiscoveryConfigRetry waits for the next CAS retry slot, honoring
+// context cancellation. The first attempt proceeds without waiting.
+func waitForDiscoveryConfigRetry(ctx context.Context, retry *retryutils.RetryV2, attempt int) error {
+	if attempt == 0 {
+		return nil
+	}
+	retry.Inc()
+	select {
+	case <-ctx.Done():
+		return trace.Wrap(ctx.Err())
+	case <-retry.After():
+	}
+	return nil
 }
 
 // emitUsageEvent emits a DiscoveryConfigEvent usage event.

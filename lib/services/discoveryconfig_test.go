@@ -19,12 +19,15 @@
 package services
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
 
+	"github.com/gravitational/teleport/api/constants"
 	discoveryconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
@@ -78,6 +81,109 @@ func TestDiscoveryConfigMarshal(t *testing.T) {
 	actual, err := UnmarshalDiscoveryConfig(data)
 	require.NoError(t, err)
 	require.Equal(t, expected, actual)
+}
+
+// TestUnmarshalPreservesInstallerParamsForClaimedSnapshotSubKind pins the
+// tctl-create trust boundary: UnmarshalDiscoveryConfig also parses
+// user-supplied YAML, so a claimed static-snapshot subkind (copy-pasted from a
+// tctl get dump, or a mistake) must not silently delete a regular config's
+// installer params. Sanitization belongs to the isolated snapshot range's
+// UnmarshalStaticSnapshotDiscoveryConfig only.
+func TestUnmarshalPreservesInstallerParamsForClaimedSnapshotSubKind(t *testing.T) {
+	dc, err := discoveryconfig.NewDiscoveryConfig(
+		header.Metadata{Name: "user-config"},
+		discoveryconfig.Spec{
+			DiscoveryGroup: "group",
+			AWS: []types.AWSMatcher{{
+				Types:   []string{types.AWSMatcherEC2},
+				Regions: []string{"us-east-1"},
+				Params: &types.InstallerParams{
+					JoinToken: "my-enrollment-token",
+				},
+			}},
+		},
+	)
+	require.NoError(t, err)
+	dc.SetSubKind(discoveryconfig.SubKindStaticSnapshot)
+	wantParams := dc.Spec.AWS[0].Params
+
+	data, err := MarshalDiscoveryConfig(dc)
+	require.NoError(t, err)
+
+	parsed, err := UnmarshalDiscoveryConfig(data)
+	require.NoError(t, err)
+	// The round trip must carry the claimed subkind: were the marshal to
+	// strip it, the assertions below would pass without ever exercising a
+	// config that claims to be a snapshot.
+	require.Equal(t, discoveryconfig.SubKindStaticSnapshot, parsed.GetSubKind())
+	require.Equal(t, wantParams, parsed.Spec.AWS[0].Params,
+		"user-supplied configs must keep installer params regardless of claimed subkind")
+
+	sanitized, err := UnmarshalStaticSnapshotDiscoveryConfig(data)
+	require.NoError(t, err)
+	require.Nil(t, sanitized.Spec.AWS[0].Params,
+		"the isolated snapshot range's unmarshal must sanitize")
+}
+
+func TestMarshalStaticSnapshotDiscoveryConfigSizeLimit(t *testing.T) {
+	dc, err := discoveryconfig.NewStaticSnapshotDiscoveryConfig("server-01", discoveryconfig.Spec{})
+	require.NoError(t, err)
+
+	_, err = MarshalStaticSnapshotDiscoveryConfig(dc)
+	require.NoError(t, err)
+
+	errorMessage := strings.Repeat("x", discoveryconfig.MaxStaticSnapshotSize)
+	dc.Status.ErrorMessage = &errorMessage
+	_, err = MarshalStaticSnapshotDiscoveryConfig(dc)
+	require.True(t, trace.IsLimitExceeded(err), "got %v", err)
+}
+
+// TestMarshalStaticSnapshotDiscoveryConfigRejectsInvalidUTF8Status pins the
+// failure mode of the pre-serialization copy: status strings originate in
+// cloud APIs and are not guaranteed to be valid UTF-8, which protojson
+// refuses to encode. The write must be rejected with the encoding error, not
+// panic on a nil copy the way the error-swallowing Clone() would.
+func TestMarshalStaticSnapshotDiscoveryConfigRejectsInvalidUTF8Status(t *testing.T) {
+	dc, err := discoveryconfig.NewStaticSnapshotDiscoveryConfig("server-01", discoveryconfig.Spec{})
+	require.NoError(t, err)
+
+	dc.Status.ServerStatus = map[string]*discoveryconfig.DiscoveryStatusServer{
+		"server-01": {DiscoveryStatusServer: discoveryconfigv1.DiscoveryStatusServer_builder{
+			IntegrationSummaries: map[string]*discoveryconfigv1.DiscoverSummary{
+				"bad-\xff-integration": {},
+			},
+		}.Build()},
+	}
+	_, err = MarshalStaticSnapshotDiscoveryConfig(dc)
+	require.ErrorContains(t, err, "UTF-8")
+}
+
+func TestStaticSnapshotIntegrationEC2MatcherStorageRoundtrip(t *testing.T) {
+	t.Setenv(constants.UnstableEnableEICEEnvVar, "")
+
+	dc, err := discoveryconfig.NewStaticSnapshotDiscoveryConfig("server-01", discoveryconfig.Spec{
+		AWS: []types.AWSMatcher{{
+			Types:       []string{types.AWSMatcherEC2},
+			Regions:     []string{"us-east-1"},
+			Integration: "integration",
+		}},
+		GCP: []types.GCPMatcher{{
+			Types:      []string{types.GCPMatcherCompute},
+			ProjectIDs: []string{"project"},
+		}},
+	})
+	require.NoError(t, err)
+
+	data, err := MarshalStaticSnapshotDiscoveryConfig(dc)
+	require.NoError(t, err)
+	require.NotContains(t, string(data), "\"params\"", "stored snapshots must not contain installer params")
+	got, err := UnmarshalStaticSnapshotDiscoveryConfig(data)
+	require.NoError(t, err)
+	require.Equal(t, "integration", got.Spec.AWS[0].Integration)
+	require.Nil(t, got.Spec.AWS[0].Params)
+	require.Nil(t, got.Spec.AWS[0].SSM,
+		"the storage path must not derive an SSM document the publisher never sent")
+	require.Nil(t, got.Spec.GCP[0].Params)
 }
 
 var discoveryConfigYAML = `---

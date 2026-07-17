@@ -276,7 +276,10 @@ type InitConfig struct {
 	UserTasks services.UserTasks
 
 	// DiscoveryConfigs is a service that manages DiscoveryConfigs.
-	DiscoveryConfigs services.DiscoveryConfigs
+	DiscoveryConfigs services.DiscoveryConfigsInternal
+
+	// StaticSnapshotDiscoveryConfigs manages isolated static snapshot DiscoveryConfigs.
+	StaticSnapshotDiscoveryConfigs services.StaticSnapshotDiscoveryConfigs
 
 	// SessionTrackerService is a service that manages trackers for all active sessions.
 	SessionTrackerService services.SessionTrackerService

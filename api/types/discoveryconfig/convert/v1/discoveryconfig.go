@@ -23,54 +23,46 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	discoveryconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	headerv1 "github.com/gravitational/teleport/api/types/header/convert/v1"
 )
 
-// FromProto converts a v1 discovery config into an internal discovery config object.
+// FromProto converts a v1 discovery config into an internal one, discarding the client-supplied
+// subkind so that it cannot relax validation or alter installer parameters. This preserves the
+// conversion behavior from before static snapshots existed and is the safe default for every user-input path.
 func FromProto(msg *discoveryconfigv1.DiscoveryConfig) (*discoveryconfig.DiscoveryConfig, error) {
 	if msg == nil {
 		return nil, trace.BadParameter("discovery config message is nil")
 	}
+	return fromProto(msg, "")
+}
 
+// FromProtoWithSubKind converts a server-returned v1 discovery config into an internal one,
+// preserving its subkind. Use this only for trusted read responses, where retaining the
+// server-assigned static-snapshot marker is required.
+func FromProtoWithSubKind(msg *discoveryconfigv1.DiscoveryConfig) (*discoveryconfig.DiscoveryConfig, error) {
+	if msg == nil {
+		return nil, trace.BadParameter("discovery config message is nil")
+	}
+	return fromProto(msg, msg.GetHeader().GetSubKind())
+}
+
+func fromProto(msg *discoveryconfigv1.DiscoveryConfig, subKind string) (*discoveryconfig.DiscoveryConfig, error) {
 	if msg.GetSpec() == nil {
 		return nil, trace.BadParameter("spec is missing")
 	}
-	if msg.GetSpec().GetDiscoveryGroup() == "" {
+	// Static snapshots mirror the owning service's file configuration, which may legitimately
+	// have no discovery group. Unknown subkinds retain regular validation. Snapshot specs are
+	// additionally sanitized inside the constructor, so unsupported installer params in a
+	// received snapshot are discarded rather than rejected.
+	if msg.GetSpec().GetDiscoveryGroup() == "" && subKind != discoveryconfig.SubKindStaticSnapshot {
 		return nil, trace.BadParameter("discovery group is missing")
 	}
 
-	awsMatchers := make([]types.AWSMatcher, 0, len(msg.GetSpec().GetAws()))
-	for _, m := range msg.GetSpec().GetAws() {
-		awsMatchers = append(awsMatchers, *m)
-	}
-
-	azureMatchers := make([]types.AzureMatcher, 0, len(msg.GetSpec().GetAzure()))
-	for _, m := range msg.GetSpec().GetAzure() {
-		azureMatchers = append(azureMatchers, *m)
-	}
-
-	gcpMatchers := make([]types.GCPMatcher, 0, len(msg.GetSpec().GetGcp()))
-	for _, m := range msg.GetSpec().GetGcp() {
-		gcpMatchers = append(gcpMatchers, *m)
-	}
-
-	kubeMatchers := make([]types.KubernetesMatcher, 0, len(msg.GetSpec().GetKube()))
-	for _, m := range msg.GetSpec().GetKube() {
-		kubeMatchers = append(kubeMatchers, *m)
-	}
-
-	discoveryConfig, err := discoveryconfig.NewDiscoveryConfig(
+	discoveryConfig, err := discoveryconfig.NewDiscoveryConfigWithSubKind(
 		headerv1.FromMetadataProto(msg.GetHeader().GetMetadata()),
-		discoveryconfig.Spec{
-			DiscoveryGroup: msg.GetSpec().GetDiscoveryGroup(),
-			AWS:            awsMatchers,
-			Azure:          azureMatchers,
-			GCP:            gcpMatchers,
-			Kube:           kubeMatchers,
-			AccessGraph:    msg.GetSpec().GetAccessGraph(),
-		},
+		SpecFromProto(msg.GetSpec()),
+		subKind,
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -112,39 +104,30 @@ func StatusFromProto(msg *discoveryconfigv1.DiscoveryConfigStatus) discoveryconf
 	}
 }
 
+// SpecFromProto converts a v1 discovery config spec into its internal
+// representation.
+func SpecFromProto(msg *discoveryconfigv1.DiscoveryConfigSpec) discoveryconfig.Spec {
+	s := discoveryconfig.Spec{DiscoveryGroup: msg.GetDiscoveryGroup(), AccessGraph: msg.GetAccessGraph()}
+	for _, m := range msg.GetAws() {
+		s.AWS = append(s.AWS, *m)
+	}
+	for _, m := range msg.GetAzure() {
+		s.Azure = append(s.Azure, *m)
+	}
+	for _, m := range msg.GetGcp() {
+		s.GCP = append(s.GCP, *m)
+	}
+	for _, m := range msg.GetKube() {
+		s.Kube = append(s.Kube, *m)
+	}
+	return s
+}
+
 // ToProto converts an internal discovery config into a v1 discovery config object.
 func ToProto(discoveryConfig *discoveryconfig.DiscoveryConfig) *discoveryconfigv1.DiscoveryConfig {
-	awsMatchers := make([]*types.AWSMatcher, 0, len(discoveryConfig.Spec.AWS))
-	for _, m := range discoveryConfig.Spec.AWS {
-		m := m
-		awsMatchers = append(awsMatchers, &m)
-	}
-
-	azureMatchers := make([]*types.AzureMatcher, 0, len(discoveryConfig.Spec.Azure))
-	for _, m := range discoveryConfig.Spec.Azure {
-		azureMatchers = append(azureMatchers, &m)
-	}
-
-	gcpMatchers := make([]*types.GCPMatcher, 0, len(discoveryConfig.Spec.GCP))
-	for _, m := range discoveryConfig.Spec.GCP {
-		gcpMatchers = append(gcpMatchers, &m)
-	}
-
-	kubeMatchers := make([]*types.KubernetesMatcher, 0, len(discoveryConfig.Spec.Kube))
-	for _, m := range discoveryConfig.Spec.Kube {
-		kubeMatchers = append(kubeMatchers, &m)
-	}
-
 	return &discoveryconfigv1.DiscoveryConfig{
 		Header: headerv1.ToResourceHeaderProto(discoveryConfig.ResourceHeader),
-		Spec: &discoveryconfigv1.DiscoveryConfigSpec{
-			DiscoveryGroup: discoveryConfig.GetDiscoveryGroup(),
-			Aws:            awsMatchers,
-			Azure:          azureMatchers,
-			Gcp:            gcpMatchers,
-			Kube:           kubeMatchers,
-			AccessGraph:    discoveryConfig.Spec.AccessGraph,
-		},
+		Spec:   specToProto(discoveryConfig.Spec),
 		Status: StatusToProto(discoveryConfig.Status),
 	}
 }
@@ -186,4 +169,23 @@ func StatusToProto(status discoveryconfig.Status) *discoveryconfigv1.DiscoveryCo
 		IntegrationDiscoveredResources: integrationDiscoveredResources,
 		ServerStatus:                   serverStatus,
 	}
+}
+
+// specToProto shallow-copies each matcher so the returned message does not
+// alias the source spec's slice elements.
+func specToProto(s discoveryconfig.Spec) *discoveryconfigv1.DiscoveryConfigSpec {
+	p := &discoveryconfigv1.DiscoveryConfigSpec{DiscoveryGroup: s.DiscoveryGroup, AccessGraph: s.AccessGraph}
+	for _, m := range s.AWS {
+		p.Aws = append(p.Aws, &m)
+	}
+	for _, m := range s.Azure {
+		p.Azure = append(p.Azure, &m)
+	}
+	for _, m := range s.GCP {
+		p.Gcp = append(p.Gcp, &m)
+	}
+	for _, m := range s.Kube {
+		p.Kube = append(p.Kube, &m)
+	}
+	return p
 }

@@ -45,6 +45,31 @@ type DiscoveryConfigs interface {
 	DeleteAllDiscoveryConfigs(context.Context) error
 }
 
+// DiscoveryConfigsInternal extends DiscoveryConfigs with operations available
+// only on the Auth-local store. ConditionalUpdateDiscoveryConfig deliberately
+// stays out of DiscoveryConfigs: the public UpdateDiscoveryConfig API is
+// unconditional, so remote clients cannot conform to a revision-checked
+// contract.
+type DiscoveryConfigsInternal interface {
+	DiscoveryConfigs
+	// ConditionalUpdateDiscoveryConfig updates a DiscoveryConfig resource if
+	// the revision matches, returning CompareFailed otherwise.
+	ConditionalUpdateDiscoveryConfig(context.Context, *discoveryconfig.DiscoveryConfig) (*discoveryconfig.DiscoveryConfig, error)
+}
+
+// StaticSnapshotDiscoveryConfigs is the isolated persistence API for
+// owner-managed static snapshot DiscoveryConfigs. The isolated range keeps
+// snapshots out of DiscoveryConfig watch events and generic listings; the only
+// read path is a named lookup, so the interface deliberately has no List.
+// It also has no Delete: snapshots expire when their owner stops renewing
+// them, and deleting one while its owner is active would only cause it to be
+// recreated on the next publication.
+type StaticSnapshotDiscoveryConfigs interface {
+	GetStaticSnapshotDiscoveryConfig(context.Context, string) (*discoveryconfig.DiscoveryConfig, error)
+	CreateStaticSnapshotDiscoveryConfig(context.Context, *discoveryconfig.DiscoveryConfig) (*discoveryconfig.DiscoveryConfig, error)
+	ConditionalUpdateStaticSnapshotDiscoveryConfig(context.Context, *discoveryconfig.DiscoveryConfig) (*discoveryconfig.DiscoveryConfig, error)
+}
+
 // DiscoveryConfigWithStatusUpdater defines an interface for managing DiscoveryConfig resources including updating their status.
 type DiscoveryConfigWithStatusUpdater interface {
 	DiscoveryConfigs
@@ -78,6 +103,64 @@ func MarshalDiscoveryConfig(discoveryConfig *discoveryconfig.DiscoveryConfig, op
 		discoveryConfig = &copy
 	}
 	return utils.FastMarshal(discoveryConfig)
+}
+
+// MarshalStaticSnapshotDiscoveryConfig marshals a static snapshot
+// DiscoveryConfig to its stored JSON representation and enforces the
+// complete-resource size limit, covering the spec inventory and the reported
+// status together. An accepted status can block a later, larger inventory
+// renewal only until the record TTL-expires: the fresh publication carries no
+// status, and the oversized status is then rejected against the merged record
+// instead of being re-accepted.
+//
+// Like MarshalDiscoveryConfig, the resource is validated before it is
+// serialized. On top of that, the storage boundary enforces the fail-closed
+// invariants that protect stored bytes: no installer params and the
+// stored-size cap. The sanitized check is separate because
+// CheckAndSetDefaults deliberately does not enforce it (a claimed
+// static-snapshot subkind in user-supplied YAML must not be treated as
+// sanitized; see NewDiscoveryConfigWithSubKind).
+func MarshalStaticSnapshotDiscoveryConfig(discoveryConfig *discoveryconfig.DiscoveryConfig, opts ...MarshalOption) ([]byte, error) {
+	if err := discoveryConfig.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := discoveryconfig.CheckStaticSnapshotSpecSanitized(&discoveryConfig.Spec); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	cfg, err := CollectOptions(opts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// A shallow copy isolates the revision reset from the caller's resource.
+	record := *discoveryConfig
+	if !cfg.PreserveRevision {
+		record.SetRevision("")
+	}
+	data, err := utils.FastMarshal(&record)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if len(data) > discoveryconfig.MaxStaticSnapshotSize {
+		return nil, trace.LimitExceeded("static snapshot discovery config exceeds maximum stored size of %d bytes", discoveryconfig.MaxStaticSnapshotSize)
+	}
+	return data, nil
+}
+
+// UnmarshalStaticSnapshotDiscoveryConfig unmarshals a static snapshot from
+// its stored JSON representation. Records from the isolated snapshot range
+// are sanitized after unmarshal so the no-installer-params invariant holds
+// on every read, even for stored bytes that predate the invariant. The
+// generic UnmarshalDiscoveryConfig deliberately does not do this: it also
+// handles user-supplied YAML (tctl create), where a claimed static-snapshot
+// subkind must not silently delete a regular config's installer params; the
+// isolated backend range, not the subkind field, is the trust boundary.
+func UnmarshalStaticSnapshotDiscoveryConfig(data []byte, opts ...MarshalOption) (*discoveryconfig.DiscoveryConfig, error) {
+	dc, err := UnmarshalDiscoveryConfig(data, opts...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	discoveryconfig.SanitizeStaticSnapshotSpec(&dc.Spec)
+	return dc, nil
 }
 
 // UnmarshalDiscoveryConfig unmarshals the DiscoveryConfig resource from JSON.

@@ -479,10 +479,16 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 			return nil, trace.Wrap(err)
 		}
 	}
-	if cfg.DiscoveryConfigs == nil {
-		cfg.DiscoveryConfigs, err = local.NewDiscoveryConfigService(cfg.Backend)
+	if cfg.DiscoveryConfigs == nil || cfg.StaticSnapshotDiscoveryConfigs == nil {
+		discoveryConfigs, err := local.NewDiscoveryConfigService(cfg.Backend)
 		if err != nil {
 			return nil, trace.Wrap(err)
+		}
+		if cfg.DiscoveryConfigs == nil {
+			cfg.DiscoveryConfigs = discoveryConfigs
+		}
+		if cfg.StaticSnapshotDiscoveryConfigs == nil {
+			cfg.StaticSnapshotDiscoveryConfigs = discoveryConfigs
 		}
 	}
 	if cfg.UserPreferences == nil {
@@ -714,7 +720,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		ConnectionsDiagnostic:           cfg.ConnectionsDiagnostic,
 		Integrations:                    cfg.Integrations,
 		UserTasks:                       cfg.UserTasks,
-		DiscoveryConfigs:                cfg.DiscoveryConfigs,
+		DiscoveryConfigsInternal:        cfg.DiscoveryConfigs,
 		Okta:                            cfg.Okta,
 		AccessListsInternal:             cfg.AccessLists,
 		DatabaseObjectImportRules:       cfg.DatabaseObjectImportRules,
@@ -755,6 +761,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		BeamsConfigService:              cfg.BeamsConfigService,
 		SubCAService:                    cfg.SubCAService,
 		EnrollPairing:                   cfg.EnrollPairing,
+		StaticSnapshotDiscoveryConfigs:  cfg.StaticSnapshotDiscoveryConfigs,
 	}
 
 	if cfg.FakePasswordHash == nil {

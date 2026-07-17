@@ -50,7 +50,7 @@ func (c *Client) ListDiscoveryConfigs(ctx context.Context, pageSize int, nextTok
 	discoveryConfigs := make([]*discoveryconfig.DiscoveryConfig, len(resp.DiscoveryConfigs))
 	for i, discoveryConfig := range resp.DiscoveryConfigs {
 		var err error
-		discoveryConfigs[i], err = conv.FromProto(discoveryConfig)
+		discoveryConfigs[i], err = conv.FromProtoWithSubKind(discoveryConfig)
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}
@@ -68,7 +68,7 @@ func (c *Client) GetDiscoveryConfig(ctx context.Context, name string) (*discover
 		return nil, trace.Wrap(err)
 	}
 
-	discoveryConfig, err := conv.FromProto(resp)
+	discoveryConfig, err := conv.FromProtoWithSubKind(resp)
 	return discoveryConfig, trace.Wrap(err)
 }
 
@@ -80,7 +80,7 @@ func (c *Client) CreateDiscoveryConfig(ctx context.Context, discoveryConfig *dis
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	dc, err := conv.FromProto(resp)
+	dc, err := conv.FromProtoWithSubKind(resp)
 	return dc, trace.Wrap(err)
 }
 
@@ -92,7 +92,7 @@ func (c *Client) UpdateDiscoveryConfig(ctx context.Context, discoveryConfig *dis
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	dc, err := conv.FromProto(resp)
+	dc, err := conv.FromProtoWithSubKind(resp)
 	return dc, trace.Wrap(err)
 }
 
@@ -104,7 +104,7 @@ func (c *Client) UpsertDiscoveryConfig(ctx context.Context, discoveryConfig *dis
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	dc, err := conv.FromProto(resp)
+	dc, err := conv.FromProtoWithSubKind(resp)
 	return dc, trace.Wrap(err)
 }
 
@@ -131,6 +131,6 @@ func (c *Client) UpdateDiscoveryConfigStatus(ctx context.Context, name string, s
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	dc, err := conv.FromProto(resp)
+	dc, err := conv.FromProtoWithSubKind(resp)
 	return dc, trace.Wrap(err)
 }
