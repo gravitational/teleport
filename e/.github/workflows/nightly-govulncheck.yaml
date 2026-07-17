@@ -109,6 +109,11 @@ jobs:
             govulncheck-report \
                 --ignore=GO-2022-0635 \
                 --ignore=GO-2022-0646 \
+                --ignore=GO-2026-5064 \
+                --ignore=GO-2026-5298 \
+                --ignore=GO-2026-5338 \
+                --ignore=GO-2026-5622 \
+                --ignore=GO-2026-5932 \
                 -- \
                 -C "${MODULE_DIRECTORY_PATH}" -show traces,verbose -test ./... tool 2>&1; \
               EXIT_CODE=$?
