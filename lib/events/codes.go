@@ -138,6 +138,8 @@ const (
 	AppSessionLLMRequestSuccessCode = "T2014I"
 	// AppSessionLLMRequestFailureCode is the LLM app request/response success code.
 	AppSessionLLMRequestFailureCode = "T2014E"
+	// BeamSessionEndCode is the beam session recording (summarized) event code.
+	BeamSessionEndCode = "T2019I"
 	// AppSessionHTTPRequestCode is the HTTP proxy request event code.
 	AppSessionHTTPRequestCode = "T2015I"
 	// AppSessionHTTPRequestBodyChunkCode is the HTTP proxy request body chunk event code.
