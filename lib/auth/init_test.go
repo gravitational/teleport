@@ -2230,7 +2230,10 @@ func TestInit_ApplyOnStartup_BoundKeypair(t *testing.T) {
 			"re-apply must update the recovery policy")
 	})
 
-	t.Run("replaces an unconsumed explicit registration secret", func(t *testing.T) {
+	t.Run("does not modify the registration secret on re-apply", func(t *testing.T) {
+		// Re-apply never modifies status. The stored registration secret is
+		// authoritative; editing spec.onboarding.registration_secret has no
+		// effect once the token exists.
 		token := resourceFromYAML(t, boundKeypairTokenYAML).(*types.ProvisionTokenV2)
 		token.Spec.BoundKeypair.Onboarding.InitialPublicKey = ""
 		token.Spec.BoundKeypair.Onboarding.RegistrationSecret = "old-registration-secret"
@@ -2255,10 +2258,14 @@ func TestInit_ApplyOnStartup_BoundKeypair(t *testing.T) {
 
 		stored, err = srv.GetToken(ctx, token.GetName())
 		require.NoError(t, err)
-		require.Equal(t, "new-registration-secret", stored.GetBoundKeypairStatus().RegistrationSecret)
+		require.Equal(t, "old-registration-secret", stored.GetBoundKeypairStatus().RegistrationSecret,
+			"re-apply must never modify status; the stored registration secret is authoritative")
 	})
 
-	t.Run("does not transfer a binding to a different bot", func(t *testing.T) {
+	t.Run("preserves status even when the spec identity changes", func(t *testing.T) {
+		// Re-apply never modifies status. Spec fields (including the bot) are
+		// applied freely; changing them does not unbind the key. To reset a
+		// binding, an admin must delete and recreate the token.
 		token := resourceFromYAML(t, boundKeypairTokenYAML).(*types.ProvisionTokenV2)
 
 		cfg := setupConfig(t)
@@ -2282,9 +2289,10 @@ func TestInit_ApplyOnStartup_BoundKeypair(t *testing.T) {
 
 		stored, err = srv.GetToken(ctx, token.GetName())
 		require.NoError(t, err)
-		require.Equal(t, "different-bot", stored.(*types.ProvisionTokenV2).Spec.BotName)
-		require.Empty(t, stored.GetBoundKeypairStatus().BoundPublicKey,
-			"a key bound to the old bot must not be authorized for the new bot")
+		require.Equal(t, "different-bot", stored.(*types.ProvisionTokenV2).Spec.BotName,
+			"spec fields are applied freely")
+		require.Equal(t, "ssh-ed25519 AAAAboundpublickey", stored.GetBoundKeypairStatus().BoundPublicKey,
+			"re-apply must preserve status; changing spec never unbinds the key")
 	})
 }
 
