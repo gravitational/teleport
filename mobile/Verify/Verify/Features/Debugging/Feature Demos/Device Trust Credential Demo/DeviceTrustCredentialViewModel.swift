@@ -98,7 +98,7 @@
 				}
 
 				status = .success("The demo credential signed the challenge and its public key verified the signature.")
-			} catch DeviceTrustCredentialError.authenticationCancelled {
+			} catch DeviceTrustCredentialError.signingAuthorizationCancelled {
 				// Cancellation is expected control flow. Nothing is sent and no failure is shown.
 				status = .cancelled
 			} catch {
@@ -106,7 +106,7 @@
 			}
 		}
 
-		/// Loads the existing demo credential without creating one or showing an authentication prompt.
+		/// Loads the existing demo credential without creating one or showing a user-presence prompt.
 		func loadExistingCredential() {
 			guard !isRunning else {
 				return
@@ -220,7 +220,7 @@
 				case .accessControlCreationFailed:
 					return "Security.framework could not create the key's access-control policy."
 
-				case .authenticationCancelled, .authenticationFailed, .signingFailed:
+				case .signingAuthorizationCancelled, .signingAuthorizationFailed, .signingFailed:
 					return operationMessage(for: error)
 
 				case let .keychain(status):
@@ -231,17 +231,17 @@
 
 		private static func operationMessage(for error: DeviceTrustCredentialError) -> String {
 			switch error {
-				case .authenticationCancelled:
-					"Authentication was cancelled."
+				case .signingAuthorizationCancelled:
+					"Signing authorization was cancelled."
 
-				case .authenticationFailed:
+				case .signingAuthorizationFailed:
 					"LocalAuthentication could not confirm user presence."
 
 				case .signingFailed:
 					"CryptoKit could not sign with the stored Secure Enclave key."
 
 				default:
-					preconditionFailure("Only authentication and signing errors belong here")
+					preconditionFailure("Only signing authorization and signing errors belong here")
 			}
 		}
 	}
