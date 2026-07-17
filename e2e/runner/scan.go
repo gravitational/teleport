@@ -29,6 +29,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"unicode"
 
 	"github.com/gravitational/teleport/e2e/runner/fixtures"
 )
@@ -282,13 +283,11 @@ func parseHelperImports(path string) []string {
 }
 
 func scanFile(path string, targetLine int) []*fixtures.Fixture {
-	data, err := os.ReadFile(path)
-	if err != nil {
+	cleaned, ok := readCleaned(path)
+	if !ok {
 		return nil
 	}
 
-	lines := strings.Split(string(data), "\n")
-	cleaned := stripComments(lines)
 	blocks := parseBlocks(cleaned)
 	content := strings.Join(cleaned, "\n")
 
@@ -309,6 +308,16 @@ func scanFile(path string, targetLine int) []*fixtures.Fixture {
 	}
 
 	return result
+}
+
+// readCleaned reads a spec file and returns its lines with comments stripped.
+func readCleaned(path string) ([]string, bool) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		slog.Warn("scan: could not read file", "path", path, "error", err)
+		return nil, false
+	}
+	return stripComments(strings.Split(string(data), "\n")), true
 }
 
 func stripComments(lines []string) []string {
@@ -577,17 +586,11 @@ func defaultUsers() []scannedUser {
 // are rejected if they declare user/users/recordings since runtime would
 // merge them into every importing spec.
 func scanFileUsers(path string, targetLine int, sourceFile string) ([]scannedUser, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		// Helper module paths are guessed from import names (see
-		// resolveTargetsWithHelpers), so the file may not exist. Warn
-		// but continue rather than failing the whole scan.
-		slog.Warn("scan: could not read file", "path", path, "error", err)
+	cleaned, ok := readCleaned(path)
+	if !ok {
 		return nil, nil
 	}
 
-	lines := strings.Split(string(data), "\n")
-	cleaned := stripComments(lines)
 	blocks := parseBlocks(cleaned)
 	content := strings.Join(cleaned, "\n")
 
@@ -1108,4 +1111,128 @@ func sortRoles(roles []scannedRole) {
 
 		return strings.Compare(a.file, b.file)
 	})
+}
+
+// uniqueTeleportConfig is a distinct custom Teleport config declared by one or more
+// test files, and the test files that declare it.
+type uniqueTeleportConfig struct {
+	// raw is the config object's raw JS text.
+	raw string
+	// files are the test files that declared this config.
+	files []string
+}
+
+// scanTeleportConfigs looks for custom Teleport config declarations, dedupes them, and
+// returns them alongside the test files using them.
+func scanTeleportConfigs(targets []scanTarget) ([]uniqueTeleportConfig, error) {
+	byKey := make(map[string]*uniqueTeleportConfig)
+	var order []string
+
+	for _, t := range targets {
+		if t.sourceFile == "" {
+			continue
+		}
+
+		raw, err := scanFileTeleportConfig(t.path)
+		if err != nil {
+			return nil, err
+		}
+		if raw == "" {
+			continue
+		}
+
+		key := normalizeConfigText(raw)
+		u, ok := byKey[key]
+		if !ok {
+			u = &uniqueTeleportConfig{raw: raw}
+			byKey[key] = u
+			order = append(order, key)
+		}
+		u.files = append(u.files, t.sourceFile)
+	}
+
+	result := make([]uniqueTeleportConfig, 0, len(order))
+	for _, k := range order {
+		result = append(result, *byKey[k])
+	}
+	return result, nil
+}
+
+// scanFileTeleportConfig returns the teleport config object text declared in a
+// test file, or "" if none.
+func scanFileTeleportConfig(path string) (string, error) {
+	cleaned, ok := readCleaned(path)
+	if !ok {
+		return "", nil
+	}
+	return extractTeleportConfig(strings.Join(cleaned, "\n"), path)
+}
+
+// extractTeleportConfig pulls the `config` object out of every
+// test.use({ teleport: { config: {...} } }) call in content.
+func extractTeleportConfig(content, path string) (string, error) {
+	var found string
+
+	for _, call := range findTestUseCalls(content) {
+		body := content[call.start:call.end]
+
+		teleportOpen, teleportClose := findKeyValueAtDepth(body, "teleport", '{', '}', 1)
+		if teleportOpen < 0 {
+			continue
+		}
+
+		teleportBody := body[teleportOpen:teleportClose]
+		configOpen, configClose := findKeyValueAtDepth(teleportBody, "config", '{', '}', 1)
+		if configOpen < 0 {
+			return "", fmt.Errorf("%s: test.use({ teleport }) must contain a `config` object", path)
+		}
+
+		raw := teleportBody[configOpen:configClose]
+if found != "" && strings.Join(strings.Fields(found), " ") != strings.Join(strings.Fields(raw), " ") {
+      return "", fmt.Errorf("%s: a test file may only declare one teleport config", path)
+}
+found = raw
+	}
+
+	return found, nil
+}
+
+// normalizeConfigText gets rid of whitespace.
+func normalizeConfigText(s string) string {
+	var b strings.Builder
+	space := false
+	for _, r := range s {
+		if unicode.IsSpace(r) {
+			space = true
+			continue
+		}
+		if space && b.Len() > 0 {
+			b.WriteByte(' ')
+		}
+		space = false
+		b.WriteRune(r)
+	}
+	return b.String()
+}
+
+// defaultConfigFiles returns the test files that didn't declare a custom config and thus will use the default base config.
+func defaultConfigFiles(targets []scanTarget, configs []uniqueTeleportConfig) []string {
+	if len(configs) == 0 {
+		return nil
+	}
+
+	configured := make(map[string]bool)
+	for _, c := range configs {
+		for _, f := range c.files {
+			configured[f] = true
+		}
+	}
+
+	var out []string
+	for _, t := range targets {
+		if t.sourceFile != "" && !configured[t.sourceFile] {
+			out = append(out, t.sourceFile)
+		}
+	}
+	return out
 }

@@ -29,6 +29,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"golang.org/x/sync/errgroup"
 )
@@ -36,6 +37,8 @@ import (
 type playwrightRunner struct {
 	config *e2eConfig
 }
+
+var baseProjects = []string{"authenticated", "unauthenticated"}
 
 func (p *playwrightRunner) startURL(inst *testInstance) string {
 	if p.config.teleportURL != "" {
@@ -95,8 +98,6 @@ func (p *playwrightRunner) test(ctx context.Context, debug bool) error {
 		return fmt.Errorf("cleaning blob-reports directory: %w", err)
 	}
 
-	baseProjects := []string{"authenticated", "unauthenticated"}
-
 	var extraArgs []string
 	if p.config.updateSnapshots {
 		extraArgs = append(extraArgs, "--update-snapshots")
@@ -113,38 +114,27 @@ func (p *playwrightRunner) test(ctx context.Context, debug bool) error {
 			}
 			defer inst.stop()
 
-			env, err := p.startEnv(inst)
-			if err != nil {
-				return fmt.Errorf("building env for %s: %w", inst.browser, err)
-			}
-			if debug {
-				env = append(env, "PWDEBUG=1")
-			}
-
-			env = append(env, "PLAYWRIGHT_BLOB_OUTPUT_FILE="+filepath.Join(blobBaseDir, inst.browser+".zip"))
-
-			args := []string{"exec", "playwright", "test", p.configFlag()}
-			args = append(args, extraArgs...)
-			args = append(args, "--reporter=blob,"+filepath.Join(p.config.sharedDir, "scripts", "dot-progress-reporter.ts"))
-			// Avoid `.playwright-artifacts-<n>` collisions across parallel pnpm runs.
-			args = append(args, "--output=test-results/"+inst.browser)
-
-			for _, proj := range baseProjects {
-				args = append(args, "--project="+inst.browser+":"+proj)
+			// The default pass runs all the tests that didn't declare a custom config.
+			hasConfigs := len(p.config.teleportConfigs) > 0
+			defaultFiles := p.config.testFiles
+			if hasConfigs {
+				defaultFiles = defaultConfigFiles(p.config.scanTargets, p.config.teleportConfigs)
 			}
 
-			if len(p.config.testFiles) > 0 {
-				args = append(args, p.config.testFiles...)
+			// Skip the default pass if every selected test declared a custom config (nothing left to run against the base config).
+			if !hasConfigs || len(defaultFiles) > 0 {
+				blobPath := filepath.Join(blobBaseDir, inst.browser+".zip")
+				if err := p.runInstanceTests(ctx, inst, defaultFiles, blobPath, debug, extraArgs); err != nil {
+					return err
+				}
 			}
 
-			if len(p.config.testFiles) > 0 {
-				inst.log.Info("running e2e tests", "files", p.config.testFiles)
-			} else {
-				inst.log.Info("running e2e tests", "projects", baseProjects)
-			}
-
-			if err := p.pnpm(ctx, args, env); err != nil {
-				return fmt.Errorf("playwright tests failed for %s: %w", inst.browser, err)
+			// Re-init Teleport with each unique custom declared config and run that config's tests.
+			baseConfigPath := inst.teleportConfigPath
+			for i, cfg := range p.config.teleportConfigs {
+				if err := p.runTeleportConfig(ctx, inst, baseConfigPath, cfg, i, blobBaseDir, debug, extraArgs); err != nil {
+					return err
+				}
 			}
 			return nil
 		})
@@ -211,6 +201,64 @@ func (p *playwrightRunner) test(ctx context.Context, debug bool) error {
 	}
 
 	return testErr
+}
+
+// runInstanceTests runs Playwright against a running Teleport instance for the
+// given test files. If `files` is empty, all tests are run.
+func (p *playwrightRunner) runInstanceTests(ctx context.Context, inst *testInstance, files []string, blobPath string, debug bool, extraArgs []string) error {
+	env, err := p.startEnv(inst)
+	if err != nil {
+		return fmt.Errorf("building env for %s: %w", inst.browser, err)
+	}
+	if debug {
+		env = append(env, "PWDEBUG=1")
+	}
+	env = append(env, "PLAYWRIGHT_BLOB_OUTPUT_FILE="+blobPath)
+
+	args := []string{"exec", "playwright", "test", p.configFlag()}
+	args = append(args, extraArgs...)
+	args = append(args, "--reporter=blob,"+filepath.Join(p.config.sharedDir, "scripts", "dot-progress-reporter.ts"))
+	// Avoid `.playwright-artifacts-<n>` collisions across parallel pnpm runs.
+	args = append(args, "--output=test-results/"+inst.browser)
+	for _, proj := range baseProjects {
+		args = append(args, "--project="+inst.browser+":"+proj)
+	}
+	args = append(args, files...)
+
+	if len(files) > 0 {
+		inst.log.Info("running e2e tests", "files", files)
+	} else {
+		inst.log.Info("running e2e tests", "projects", baseProjects)
+	}
+
+	if err := p.pnpm(ctx, args, env); err != nil {
+		return fmt.Errorf("playwright tests failed for %s: %w", inst.browser, err)
+	}
+	return nil
+}
+
+// runTeleportConfig re-inits the instance's Teleport with a test-declared config.
+func (p *playwrightRunner) runTeleportConfig(ctx context.Context, inst *testInstance, baseConfigPath string, cfg uniqueTeleportConfig, idx int, blobBaseDir string, debug bool, extraArgs []string) error {
+	inst.log.Info("re-initializing teleport with a test-declared config", "files", cfg.files)
+
+	inst.teleport.stop()
+
+	mergedPath := filepath.Join(p.config.e2eDir, "config", fmt.Sprintf("%s-teleport-config-%d.yaml", inst.browser, idx))
+	if err := mergeTeleportConfig(baseConfigPath, mergedPath, p.config.e2eDir, cfg.raw); err != nil {
+		return fmt.Errorf("merging teleport config for %s: %w", inst.browser, err)
+	}
+	inst.teleport.configPath = mergedPath
+	inst.teleportConfigPath = mergedPath
+
+	if err := inst.teleport.start(ctx); err != nil {
+		return fmt.Errorf("re-initializing teleport for %s: %w", inst.browser, err)
+	}
+	if err := inst.teleport.waitReady(ctx, 30*time.Second); err != nil {
+		return fmt.Errorf("teleport for %s not ready after config change: %w", inst.browser, err)
+	}
+
+	blobPath := filepath.Join(blobBaseDir, fmt.Sprintf("%s-config-%d.zip", inst.browser, idx))
+	return p.runInstanceTests(ctx, inst, cfg.files, blobPath, debug, extraArgs)
 }
 
 func (p *playwrightRunner) ui(ctx context.Context) error {

@@ -26,6 +26,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/e2e/runner/fixtures"
 )
 
@@ -1214,4 +1216,71 @@ func fixtureNames(ff []*fixtures.Fixture) []string {
 		names[i] = f.Name
 	}
 	return names
+}
+
+func TestExtractTeleportConfig(t *testing.T) {
+	tests := []struct {
+		name    string
+		content string
+		want    string
+		wantErr bool
+	}{
+		{
+			name:    "no declaration",
+			content: `test.use({ user: { roles: ['access'] } });`,
+			want:    "",
+		},
+		{
+			name:    "simple config",
+			content: `test.use({ teleport: { config: { auth_service: { license_file: 'x.pem' } } } });`,
+			want:    `{ auth_service: { license_file: 'x.pem' } }`,
+		},
+		{
+			name: "config alongside a user",
+			content: `test.use({
+  user: { roles: [{ file: 'r.yaml' }] },
+  teleport: { config: { auth_service: { license_file: 'lic.pem' } } },
+});`,
+			want: `{ auth_service: { license_file: 'lic.pem' } }`,
+		},
+		{
+			name: "same config twice is fine",
+			content: `test.use({ teleport: { config: { a: 1 } } });
+test.use({ teleport: { config: { a: 1 } } });`,
+			want: `{ a: 1 }`,
+		},
+		{
+			name: "two different configs in one file errors",
+			content: `test.use({ teleport: { config: { a: 1 } } });
+test.use({ teleport: { config: { a: 2 } } });`,
+			wantErr: true,
+		},
+		{
+			name:    "teleport without config errors",
+			content: `test.use({ teleport: { foo: 1 } });`,
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := extractTeleportConfig(tt.content, "test.spec.ts")
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestNormalizeConfigText(t *testing.T) {
+	// Differently-formatted but identical configs normalize the same (so they can be deduped).
+	a := normalizeConfigText("{ auth_service: { license_file: 'x.pem' } }")
+	b := normalizeConfigText("{\n  auth_service: {\n    license_file: 'x.pem'\n  }\n}")
+	require.Equal(t, a, b)
+
+	c := normalizeConfigText("{ auth_service: { license_file: 'y.pem' } }")
+	require.NotEqual(t, a, c)
 }
