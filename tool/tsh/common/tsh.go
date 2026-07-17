@@ -336,6 +336,10 @@ type CLIConf struct {
 	// any files.
 	IdentityOverwrite bool
 
+	// ForceReauth when true makes `tsh login` re-authenticate even if the active
+	// profile is still valid.
+	ForceReauth bool
+
 	// BindAddr is an address in the form of host:port to bind to
 	// during `tsh login` command
 	BindAddr string
@@ -1293,6 +1297,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		identityfile.FormatKubernetes,
 	)).Default(string(identityfile.DefaultFormat)).Short('f').StringVar((*string)(&cf.IdentityFormat))
 	login.Flag("overwrite", "Whether to overwrite the existing identity file.").BoolVar(&cf.IdentityOverwrite)
+	login.Flag("force", "Force re-authentication even if the current session is still valid.").BoolVar(&cf.ForceReauth)
 	login.Flag("request-roles", "Request one or more extra roles").StringVar(&cf.DesiredRoles)
 	login.Flag("request-reason", "Reason for requesting additional roles").StringVar(&cf.RequestReason)
 	login.Flag("request-reviewers", "Suggested reviewers for role request").StringVar(&cf.SuggestedReviewers)
@@ -2424,7 +2429,7 @@ func onLogin(cf *CLIConf, reExecArgs ...string) (err error) {
 	}
 
 	// client is already logged in and profile is not expired and scope hasn't changed
-	if profile != nil && !profile.IsExpired(time.Now()) && !scopeChanged {
+	if profile != nil && !profile.IsExpired(time.Now()) && !scopeChanged && !cf.ForceReauth {
 		switch {
 		// in case if nothing is specified, re-fetch kube clusters and print
 		// current status
