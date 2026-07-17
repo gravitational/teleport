@@ -4805,6 +4805,8 @@ enum MFADeviceKind {
   MFA_DEVICE_KIND_TOTP = 2;
   // MFA device is known to be configured using WebAuthn as the weakest form of MFA.
   MFA_DEVICE_KIND_WEBAUTHN = 3;
+  // MFA device is known to be configured using SSO as the weakest form of MFA.
+  MFA_DEVICE_KIND_SSO = 4;
 }
 
 // UserSpecV2 is a specification for V2 user
