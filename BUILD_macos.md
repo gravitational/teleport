@@ -91,7 +91,9 @@ and updates are welcome!
 
     ```shell
     brew install helm
-    make helmunit/installed
+
+    # The pinned helm-unittest version is tracked in build.assets/helm-unittest.version.
+    helm plugin install https://github.com/helm-unittest/helm-unittest --version v1.0.3 --verify=false
     ```
 
 1. Install `bats`:
