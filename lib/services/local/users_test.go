@@ -1789,8 +1789,24 @@ func TestWeakestMFADeviceKind(t *testing.T) {
 	err = identity.DeleteMFADevice(ctx, "bob", totpDevice.Id)
 	require.NoError(t, err)
 
-	// Expect the new weakest device to be SSO FMA.
+	// Expect the new weakest device to be SSO MFA.
 	got, err = identity.GetUser(ctx, "bob", false /* withSecrets */)
+	require.NoError(t, err)
+	require.Equal(t, types.MFADeviceKind_MFA_DEVICE_KIND_SSO, got.GetWeakestDevice())
+
+	// New SAML user that has a referenced connector with MFA settings enabled should
+	// get the MFADeviceKind_MFA_DEVICE_KIND_SSO at the time of resource creation.
+	alice, err := types.NewUser("alice")
+	require.NoError(t, err)
+	alice.SetCreatedBy(types.CreatedBy{
+		Connector: &types.ConnectorRef{
+			Type:     constants.SAML,
+			ID:       samlConnectorWithSSOMFA.GetName(),
+			Identity: alice.GetName(),
+		},
+		Time: clock.Now().UTC(),
+	})
+	got, err = identity.CreateUser(ctx, alice)
 	require.NoError(t, err)
 	require.Equal(t, types.MFADeviceKind_MFA_DEVICE_KIND_SSO, got.GetWeakestDevice())
 }

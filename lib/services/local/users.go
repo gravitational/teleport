@@ -1328,7 +1328,7 @@ func (s *IdentityService) buildAndSetWeakestMFADeviceKind(ctx context.Context, u
 	if localAuthSecrets != nil {
 		upsertingMFA = localAuthSecrets.MFA
 	}
-	state, err := s.buildWeakestMFADeviceKind(ctx, user.GetName(), upsertingMFA...)
+	state, err := s.buildWeakestMFADeviceKind(ctx, user, upsertingMFA...)
 	if err != nil {
 		s.logger.WarnContext(ctx, "Failed to determine weakest mfa device kind for user", "error", err)
 		return
@@ -1336,8 +1336,10 @@ func (s *IdentityService) buildAndSetWeakestMFADeviceKind(ctx context.Context, u
 	user.SetWeakestDevice(state)
 }
 
-func (s *IdentityService) buildWeakestMFADeviceKind(ctx context.Context, user string, upsertingMFA ...*types.MFADevice) (types.MFADeviceKind, error) {
-	devs, err := s.GetMFADevices(ctx, user, false)
+func (s *IdentityService) buildWeakestMFADeviceKind(ctx context.Context, user types.User, upsertingMFA ...*types.MFADevice) (types.MFADeviceKind, error) {
+	devs, err := s.getMFADevices(ctx, user.GetName(), false /* MFA secrets not needed */, func() (types.CreatedBy, error) {
+		return user.GetCreatedBy(), nil
+	})
 	if err != nil {
 		return types.MFADeviceKind_MFA_DEVICE_KIND_UNSET, trace.Wrap(err)
 	}
@@ -1387,7 +1389,13 @@ func (s *IdentityService) DeleteMFADevice(ctx context.Context, user, id string) 
 
 	err := s.Delete(ctx, backend.NewKey(webPrefix, usersPrefix, user, mfaDevicePrefix, id))
 	if trace.IsNotFound(err) {
-		if _, err := s.getSSOMFADevice(ctx, user); err == nil {
+		if _, err := s.getSSOMFADevice(ctx, func() (types.CreatedBy, error) {
+			user, err := s.GetUser(ctx, user, false /* user secrets not required */)
+			if err != nil {
+				return types.CreatedBy{}, trace.Wrap(err)
+			}
+			return user.GetCreatedBy(), nil
+		}); err == nil {
 			return trace.BadParameter("cannot delete ephemeral SSO MFA device")
 		}
 		return trace.Wrap(err)
@@ -1406,20 +1414,36 @@ func (s *IdentityService) GetMFADevices(ctx context.Context, user string, withSe
 		return nil, trace.BadParameter("missing parameter user")
 	}
 
+	devices, err := s.getMFADevices(ctx, user, withSecrets, func() (types.CreatedBy, error) {
+		user, err := s.GetUser(ctx, user, false /* user secrets not required */)
+		if err != nil {
+			return types.CreatedBy{}, trace.Wrap(err)
+		}
+		return user.GetCreatedBy(), nil
+	})
+
+	return devices, trace.Wrap(err)
+}
+
+func (s *IdentityService) getMFADevices(ctx context.Context, user string, withMFASecrets bool, userCreatedByFn func() (types.CreatedBy, error)) ([]*types.MFADevice, error) {
+	if user == "" {
+		return nil, trace.BadParameter("missing parameter user")
+	}
+
 	// get normal MFA devices and SSO mfa device concurrently, returning the first error we get.
 	eg, egCtx := errgroup.WithContext(ctx)
 
 	var devices []*types.MFADevice
 	eg.Go(func() error {
 		var err error
-		devices, err = s.getMFADevices(egCtx, user, withSecrets)
+		devices, err = s.getPersistedMFADevices(egCtx, user, withMFASecrets)
 		return trace.Wrap(err)
 	})
 
 	var ssoDev *types.MFADevice
 	eg.Go(func() error {
 		var err error
-		ssoDev, err = s.getSSOMFADevice(egCtx, user)
+		ssoDev, err = s.getSSOMFADevice(egCtx, userCreatedByFn)
 		if trace.IsNotFound(err) {
 			return nil // OK, SSO device may not exist.
 		}
@@ -1437,10 +1461,10 @@ func (s *IdentityService) GetMFADevices(ctx context.Context, user string, withSe
 	return devices, nil
 }
 
-// getMFADevices reads devices from storage. Devices from other sources, such as
+// getPersistedMFADevices reads devices from storage. Devices from other sources, such as
 // the ephemeral SSO devices, are not returned by it.
 // See getSSOMFADevice and GetMFADevices (which returns all devices).
-func (s *IdentityService) getMFADevices(ctx context.Context, user string, withSecrets bool) ([]*types.MFADevice, error) {
+func (s *IdentityService) getPersistedMFADevices(ctx context.Context, user string, withSecrets bool) ([]*types.MFADevice, error) {
 	startKey := backend.ExactKey(webPrefix, usersPrefix, user, mfaDevicePrefix)
 	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
@@ -1467,17 +1491,14 @@ func (s *IdentityService) getMFADevices(ctx context.Context, user string, withSe
 // getSSOMFADevice returns the user's SSO MFA device. This device is ephemeral, meaning it
 // does not actually appear in the backend under the user's mfa key. Instead it is fetched
 // by checking related user and cluster configuration settings.
-func (s *IdentityService) getSSOMFADevice(ctx context.Context, user string) (*types.MFADevice, error) {
-	if user == "" {
-		return nil, trace.BadParameter("missing parameter user")
+func (s *IdentityService) getSSOMFADevice(ctx context.Context, userCreatedByFn func() (types.CreatedBy, error)) (*types.MFADevice, error) {
+	if userCreatedByFn == nil {
+		return nil, trace.BadParameter("missing parameter userCreatedByFn")
 	}
-
-	u, err := s.GetUser(ctx, user, false /* withSecrets */)
+	cb, err := userCreatedByFn()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	cb := u.GetCreatedBy()
 	if cb.Connector == nil {
 		return nil, trace.NotFound("no SSO MFA device found; user was not created by an auth connector")
 	}
