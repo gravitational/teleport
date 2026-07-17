@@ -1684,59 +1684,103 @@ type memberChanges struct {
 	deleted []*accesslist.AccessListMember
 }
 
+// pickAccessListForWrite returns the access list to persist and whether the
+// request semantically modifies the ACL. The returned ACL is chosen between the
+// requested and original. Ephemeral-only and canonical-only differences do not
+// count as ACL modifications. For canonical-only differences, the stored ACL is
+// written back so that dups and reordered lists are not written back.
+//
+// The following logic applies:
+//   - if original/requested equal with/without canonicalisation: ACL is unmodified -
+//     return requested ACL.
+//   - if original/requested equal but only WITH canonicalisation: ACL is unmodified but
+//     potentially with different order and/or dups - return original ACL.
+//   - if not equal at all: ACL modified, return requested
+func pickAccessListForWrite(
+	original, requested *accesslist.AccessList,
+) (writeAccessList *accesslist.AccessList, modified bool) {
+	if original == nil {
+		return requested, true
+	}
+
+	if accesslist.EqualAccessLists(
+		original,
+		requested,
+		accesslist.WithIgnoreEphemeralFields(),
+	) {
+		return requested, false
+	}
+
+	if accesslist.EqualAccessLists(
+		original,
+		requested,
+		accesslist.WithIgnoreEphemeralFields(),
+		accesslist.WithCanonicalFields(),
+	) {
+		return original, false
+	}
+
+	return requested, true
+}
+
 // upsertAccessListWithMembers is a helper for upserting an access list with members that returns the response,
 // whether the access list was updated, the modified members, and an error.
 func (s *Service) upsertAccessListWithMembers(ctx context.Context, authCtx *authz.Context,
 	req *accesslistv1.UpsertAccessListWithMembersRequest) (resp *accesslistv1.UpsertAccessListWithMembersResponse, updated,
 	accessListModified bool, modified *memberChanges, err error,
 ) {
-	newAccessList, err := conv.FromProto(req.GetAccessList())
+	requestAccessList, err := conv.FromProto(req.GetAccessList())
 	if err != nil {
 		return nil, false, false, nil, trace.Wrap(err)
 	}
 
-	oldAccessList, err := s.accessLists.GetAccessList(ctx, newAccessList.GetName())
-	if oldAccessList != nil {
+	originalAccessList, err := s.accessLists.GetAccessList(ctx, requestAccessList.GetName())
+	if originalAccessList != nil {
 		updated = true
 
 		// Update the revision to make sure that the future upsert is rejected if somebody else has modified it while we're
 		// running this function.
-		newAccessList.SetRevision(oldAccessList.GetRevision())
+		requestAccessList.SetRevision(originalAccessList.GetRevision())
 	}
 
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, updated, accessListModified, nil, trace.Wrap(err)
 	}
 
-	accessListModified = !accesslist.EqualAccessLists(oldAccessList, newAccessList, accesslist.WithIgnoreEphemeralFields())
+	// Owners can manage members, but only RBAC users can change the ACL itself.
+	// Ignore non-semantic representation differences, such as reordered roles
+	// or duplicate owners, so a member-only update is not considered an ACL
+	// modification.
+	var pickedAccessList *accesslist.AccessList
+	pickedAccessList, accessListModified = pickAccessListForWrite(originalAccessList, requestAccessList)
 
 	// Modifying the access list requires RBAC access.
 	var authErrOld error
 
 	verb := types.VerbCreate
 	// Make sure the user has access to the old access list if it exists.
-	if oldAccessList != nil {
+	if originalAccessList != nil {
 		verb = types.VerbUpdate
-		authErrOld = s.hasAccessListRBAC(ctx, authCtx, oldAccessList, verb)
+		authErrOld = s.hasAccessListRBAC(ctx, authCtx, originalAccessList, verb)
 		if services.IsAccessExplicitlyDenied(authErrOld) {
 			return nil, updated, accessListModified, nil, trace.Wrap(authErrOld)
 		}
 	}
 
 	// Make sure the user also has access to the access list to be created.
-	authErrNew := s.hasAccessListRBAC(ctx, authCtx, newAccessList, verb)
+	authErrNew := s.hasAccessListRBAC(ctx, authCtx, pickedAccessList, verb)
 	if services.IsAccessExplicitlyDenied(authErrNew) {
 		return nil, updated, accessListModified, nil, trace.Wrap(authErrNew)
 	}
 
 	if accessListModified {
-		if err := s.checkModificationAllowed(*authCtx, oldAccessList, newAccessList); err != nil {
+		if err := s.checkModificationAllowed(*authCtx, originalAccessList, pickedAccessList); err != nil {
 			return nil, updated, accessListModified, nil, trace.Wrap(err)
 		}
 	}
 
 	hasRBAC := authErrOld == nil && authErrNew == nil
-	ownershipType, err := accesslists.IsAccessListOwner(ctx, authCtx.User, newAccessList, s.accessLists, s.lockGetter, s.clock)
+	ownershipType, err := accesslists.IsAccessListOwner(ctx, authCtx.User, pickedAccessList, s.accessLists, s.lockGetter, s.clock)
 	isOwner := err == nil && ownershipType != accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED
 
 	// The logic here is as follows:
@@ -1780,16 +1824,16 @@ func (s *Service) upsertAccessListWithMembers(ctx context.Context, authCtx *auth
 	}
 
 	if areMembersModified(oldMembers, members) {
-		err = s.checkMembersModificationAllowed(ctx, *authCtx, oldAccessList)
+		err = s.checkMembersModificationAllowed(ctx, *authCtx, originalAccessList)
 		if trace.IsAccessDenied(err) {
-			return nil, updated, accessListModified, nil, trace.Wrap(err, "forbidden Access List %q members modification", oldAccessList.GetName())
+			return nil, updated, accessListModified, nil, trace.Wrap(err, "forbidden Access List %q members modification", originalAccessList.GetName())
 		} else if err != nil {
-			return nil, updated, accessListModified, nil, trace.Wrap(err, "checking if Access List %q members modification is allowed", oldAccessList.GetName())
+			return nil, updated, accessListModified, nil, trace.Wrap(err, "checking if Access List %q members modification is allowed", originalAccessList.GetName())
 		}
 	}
 
 	// Call the API.
-	updatedAccessList, updatedMembers, err := s.accessLists.UpsertAccessListWithMembers(ctx, newAccessList, members)
+	updatedAccessList, updatedMembers, err := s.accessLists.UpsertAccessListWithMembers(ctx, pickedAccessList, members)
 	if err != nil {
 		return nil, updated, accessListModified, nil, trace.Wrap(err)
 	}

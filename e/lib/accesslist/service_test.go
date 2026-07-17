@@ -2354,6 +2354,81 @@ func TestService_UpsertAccessListWithMembers_IneligibleStatus(t *testing.T) {
 	require.Equal(t, accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_MISSING_REQUIREMENTS, resp.GetMembers()[0].GetSpec().GetIneligibleStatus())
 }
 
+func TestPickAccessListForWrite(t *testing.T) {
+	clock := clockwork.NewFakeClock()
+
+	tests := []struct {
+		name              string
+		mutate            func(originalAccessList, requestedAccessList *accesslist.AccessList)
+		originalNil       bool
+		wantModified      bool
+		wantOriginalWrite bool
+	}{
+		{
+			name:         "original is nil - keep requested and ACL has changed",
+			originalNil:  true,
+			wantModified: true,
+		},
+		{
+			name: "ephemeral only differences keep requested ACL",
+			mutate: func(originalAccessList, requestedAccessList *accesslist.AccessList) {
+				requestedAccessList.SetRevision("new-revision")
+				requestedAccessList.Status.OwnerOf = []string{"owner-of"}
+				requestedAccessList.Status.ScopedOwnerOf = []string{"/scope/owned"}
+				requestedAccessList.Spec.Owners[0].IneligibleStatus = accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_EXPIRED.String()
+			},
+			wantModified: false,
+		},
+		{
+			name: "canonical only differences use stored ACL",
+			mutate: func(originalAccessList, requestedAccessList *accesslist.AccessList) {
+				requestedAccessList.Spec.Owners = []accesslist.Owner{
+					originalAccessList.Spec.Owners[1],
+					originalAccessList.Spec.Owners[1],
+					originalAccessList.Spec.Owners[0],
+					originalAccessList.Spec.Owners[2],
+					originalAccessList.Spec.Owners[3],
+				}
+				requestedAccessList.Spec.Grants.Roles = []string{"grole2", "grole1", "grole1"}
+				requestedAccessList.Spec.MembershipRequires.Roles = []string{"mrole2", "mrole1", "mrole1"}
+				requestedAccessList.Spec.OwnershipRequires.Roles = []string{"orole2", "orole1", "orole1"}
+			},
+			wantModified:      false,
+			wantOriginalWrite: true,
+		},
+		{
+			name: "semantic differences keep requested ACL and mark modified",
+			mutate: func(originalAccessList, requestedAccessList *accesslist.AccessList) {
+				requestedAccessList.Spec.Title = "updated title"
+			},
+			wantModified: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			originalAccessList := newAccessList(t, "test", clock)
+			requestedAccessList := originalAccessList.Clone()
+			if tt.originalNil {
+				originalAccessList = nil
+				requestedAccessList = newAccessList(t, "test", clock)
+			}
+			if tt.mutate != nil {
+				tt.mutate(originalAccessList, requestedAccessList)
+			}
+
+			writeAccessList, modified := pickAccessListForWrite(originalAccessList, requestedAccessList)
+
+			require.Equal(t, tt.wantModified, modified)
+			if tt.wantOriginalWrite {
+				require.Same(t, originalAccessList, writeAccessList)
+			} else {
+				require.Same(t, requestedAccessList, writeAccessList)
+			}
+		})
+	}
+}
+
 func TestService_UpsertAccessListWithMembers(t *testing.T) {
 	// disable reconciler to avoid extra update events
 	c := initSvc(t, withDisabledReconcilers())
@@ -2515,6 +2590,93 @@ func TestService_UpsertAccessListWithMembers(t *testing.T) {
 
 	membersA2 := getAccessListMembers(c.userCtx, t, c.svc, a2.GetName(), 2)
 	require.Len(t, membersA2, 1)
+
+	t.Run("non-RBAC owner can modify members when roles are in different order", func(t *testing.T) {
+		// access list with roles in sorted order
+		alWithSortedRoles := newAccessListWithPartialSpec(t, "sorted-roles", c.clock.Now().Add(time.Hour*24*365), accesslist.Spec{
+			Owners: []accesslist.Owner{
+				{Name: ownerUser, Description: "owner1", MembershipKind: accesslist.MembershipKindUser},
+				{Name: ownerUser2, Description: "owner2", MembershipKind: accesslist.MembershipKindUser},
+			},
+			Grants: accesslist.Grants{
+				Roles: []string{"grant-a", "grant-b", "grant-c"},
+			},
+			OwnerGrants: accesslist.Grants{
+				Roles: []string{"grant-a", "grant-b", "grant-c"},
+			},
+			MembershipRequires: accesslist.Requires{
+				Roles: []string{"alpha", "beta", "gamma"},
+			},
+			OwnershipRequires: accesslist.Requires{
+				Roles: []string{"orole1", "orole2"},
+			},
+		})
+		createResp, err := c.svc.UpsertAccessListWithMembers(c.userCtx, accesslistv1.UpsertAccessListWithMembersRequest_builder{
+			AccessList: conv.ToProto(alWithSortedRoles),
+			Members:    nil,
+		}.Build())
+		require.NoError(t, err)
+
+		expectEvent(t, events.AccessListCreateSuccessCode, c.emitter, func(event *apievents.AccessListCreate) {})
+		expectUsageEvent(t, c.usageEvents, func(event *usageeventsv1.UsageEventOneOf_AccessListCreate) {})
+
+		alWithReorderedRoles, err := conv.FromProto(createResp.GetAccessList())
+		require.NoError(t, err)
+
+		// reorder and add dups to owners to make sure it gets canonicalised before the equality check.
+		alWithReorderedRoles.Spec.Owners = []accesslist.Owner{
+			alWithSortedRoles.Spec.Owners[1],
+			alWithSortedRoles.Spec.Owners[1],
+			alWithSortedRoles.Spec.Owners[0],
+		}
+		// reorder roles to simulate web ui behavior
+		alWithReorderedRoles.Spec.Grants.Roles = []string{"grant-c", "grant-a", "grant-b"}
+		alWithReorderedRoles.Spec.OwnerGrants.Roles = []string{"grant-c", "grant-a", "grant-b"}
+		alWithReorderedRoles.Spec.MembershipRequires.Roles = []string{"gamma", "alpha", "beta"}
+		alWithReorderedRoles.Spec.OwnershipRequires.Roles = []string{"orole2", "orole1"}
+
+		ownerAuthCtx, err := c.svc.authorizer.Authorize(c.ownerCtx)
+		require.NoError(t, err)
+
+		// make sure the owner does not have RBAC for this test to check the
+		// non-RBAC owner can still add members to the ACL.
+		err = c.svc.hasAccessListRBAC(
+			c.ownerCtx,
+			ownerAuthCtx,
+			alWithReorderedRoles,
+			types.VerbUpdate,
+		)
+		require.True(t, trace.IsAccessDenied(err), "owner does not need RBAC to be able to add members to ACL")
+
+		// owner should be able to add members even though role order differs
+		newMember := newAccessListMember(t, alWithSortedRoles.GetName(), member1, accesslist.MembershipKindUser, c.clock)
+		upsertResp, err := c.svc.UpsertAccessListWithMembers(c.ownerCtx, accesslistv1.UpsertAccessListWithMembersRequest_builder{
+			AccessList: conv.ToProto(alWithReorderedRoles),
+			Members:    conv.ToMembersProto([]*accesslist.AccessListMember{newMember}),
+		}.Build())
+		require.NoError(t, err, "owner should be able to add members when roles are in different order")
+		require.NotNil(t, upsertResp)
+
+		// non-RBAC owners are not authorized to change the ACL (other than
+		// add/remove members), so check that the ACL remains unchanged.
+
+		// ensure the unordered owners were not persisted.
+		require.Equal(t, createResp.GetAccessList().GetSpec().GetOwners(), upsertResp.GetAccessList().GetSpec().GetOwners())
+
+		// ensure the unordered roles were not persisted
+		require.Equal(t, createResp.GetAccessList().GetSpec().GetMembershipRequires(), upsertResp.GetAccessList().GetSpec().GetMembershipRequires(), "membershipRequires should not be updated")
+		require.Equal(t, createResp.GetAccessList().GetSpec().GetGrants(), upsertResp.GetAccessList().GetSpec().GetGrants(), "memberGrants should not be updated")
+		require.Equal(t, createResp.GetAccessList().GetSpec().GetOwnershipRequires(), upsertResp.GetAccessList().GetSpec().GetOwnershipRequires(), "ownershipRequires should not be updated")
+		require.Equal(t, createResp.GetAccessList().GetSpec().GetOwnerGrants(), upsertResp.GetAccessList().GetSpec().GetOwnerGrants(), "ownerGrants should not be updated")
+
+		expectEvent(t, events.AccessListMemberCreateSuccessCode, c.emitter, func(event *apievents.AccessListMemberCreate) {})
+		expectUsageEvent(t, c.usageEvents, func(event *usageeventsv1.UsageEventOneOf_AccessListMemberCreate) {})
+
+		// verify member was added
+		members := getAccessListMembers(c.userCtx, t, c.svc, alWithSortedRoles.GetName(), 2)
+		require.Len(t, members, 1)
+		require.Equal(t, member1, members[0].GetName())
+	})
 
 	t.Run("create a new access list with members", func(t *testing.T) {
 		a4 := newAccessList(t, "4", c.clock)
@@ -4381,6 +4543,7 @@ func newAccessListWithPartialSpec(t *testing.T, name string, nextAuditDate time.
 			MembershipRequires: spec.MembershipRequires,
 			OwnershipRequires:  spec.OwnershipRequires,
 			Grants:             spec.Grants,
+			OwnerGrants:        spec.OwnerGrants,
 		},
 	)
 	require.NoError(t, err)
