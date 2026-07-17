@@ -75,6 +75,9 @@ type Interface struct {
 	// configurations are skipped. Empty only when the NIC has no usable
 	// private IP.
 	PrivateIP string
+	// Primary indicates whether this is the primary network interface on the
+	// VM it is attached to. Azure flags exactly one NIC per VM as primary.
+	Primary bool
 }
 
 // InterfacesClient retrieves Azure network interfaces.
@@ -415,6 +418,9 @@ type armNetworkInterfaceProperties struct {
 	IPConfigurations []armIPConfiguration `json:"ipConfigurations,omitempty"`
 	// VirtualMachine references the VM the NIC is attached to, if any.
 	VirtualMachine *armSubResource `json:"virtualMachine,omitempty"`
+	// Primary indicates whether this is the primary network interface on the
+	// virtual machine it is attached to.
+	Primary bool `json:"primary,omitempty"`
 }
 
 // armSubResource is an ARM reference to another resource by ID.
@@ -470,6 +476,7 @@ func interfaceFromARM(resourceID string, raw *armNetworkInterface) *Interface {
 	if raw.Properties == nil {
 		return nic
 	}
+	nic.Primary = raw.Properties.Primary
 	var firstIP string
 	for _, ipConfig := range raw.Properties.IPConfigurations {
 		if ipConfig.Properties == nil || ipConfig.Properties.PrivateIPAddress == "" {

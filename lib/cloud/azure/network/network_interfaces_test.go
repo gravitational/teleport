@@ -234,12 +234,27 @@ func TestInterfacesClientGet(t *testing.T) {
 		body          string
 		wantName      string
 		wantPrivateIP string
+		wantPrimary   bool
 	}{
 		{
 			name:          "single primary ip config",
 			body:          `{"name":"my-nic","properties":{"ipConfigurations":[{"properties":{"privateIPAddress":"10.0.0.4","primary":true}}]}}`,
 			wantName:      "my-nic",
 			wantPrivateIP: "10.0.0.4",
+		},
+		{
+			name:          "primary network interface",
+			body:          `{"name":"my-nic","properties":{"primary":true,"ipConfigurations":[{"properties":{"privateIPAddress":"10.0.0.4","primary":true}}]}}`,
+			wantName:      "my-nic",
+			wantPrivateIP: "10.0.0.4",
+			wantPrimary:   true,
+		},
+		{
+			name:          "non-primary network interface",
+			body:          `{"name":"my-nic","properties":{"primary":false,"ipConfigurations":[{"properties":{"privateIPAddress":"10.0.0.4","primary":true}}]}}`,
+			wantName:      "my-nic",
+			wantPrivateIP: "10.0.0.4",
+			wantPrimary:   false,
 		},
 		{
 			name:          "multiple ip configs, primary not first",
@@ -294,6 +309,7 @@ func TestInterfacesClientGet(t *testing.T) {
 			require.Equal(t, testNICID, nic.ID)
 			require.Equal(t, test.wantName, nic.Name)
 			require.Equal(t, test.wantPrivateIP, nic.PrivateIP)
+			require.Equal(t, test.wantPrimary, nic.Primary)
 		})
 	}
 }
@@ -353,13 +369,19 @@ const (
 	testVMB = "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.Compute/virtualMachines/vmB"
 )
 
-func nicJSON(name, vmID, privateIP string) string {
+// nicJSON builds a NIC list-entry JSON body. primary sets the NIC-level primary
+// flag, i.e. whether this is the primary network interface on the VM.
+func nicJSON(name, vmID, privateIP string, primary bool) string {
 	vm := ""
 	if vmID != "" {
 		vm = `"virtualMachine":{"id":"` + vmID + `"},`
 	}
+	primaryField := ""
+	if primary {
+		primaryField = `"primary":true,`
+	}
 	return `{"id":"/subscriptions/sub/resourceGroups/rg/providers/Microsoft.Network/networkInterfaces/` + name + `",` +
-		`"name":"` + name + `","properties":{` + vm +
+		`"name":"` + name + `","properties":{` + vm + primaryField +
 		`"ipConfigurations":[{"properties":{"privateIPAddress":"` + privateIP + `","primary":true}}]}}`
 }
 
@@ -383,8 +405,10 @@ func TestInterfacesClientList(t *testing.T) {
 
 	// Two pages of flat NICs: standalone vmA (one NIC per page, so grouping spans
 	// pages) and vmB, the flexible-VMSS instance, and an orphan NIC to be dropped.
-	flatPage1 := `{"value":[` + nicJSON("nicA1", testVMA, "10.0.0.4") + `,` + nicJSON("orphan", "", "10.0.0.5") + `],"nextLink":"https://management.azure.com/flat-page-2"}`
-	flatPage2 := `{"value":[` + nicJSON("nicA2", testVMA, "10.0.0.7") + `,` + nicJSON("nicB", testVMB, "10.0.0.6") + `,` + nicJSON("flex-nic", flexInstance, "10.0.0.8") + `]}`
+	// vmA's primary NIC is nicA2, on the second page, so grouping must carry the
+	// primary flag across pages.
+	flatPage1 := `{"value":[` + nicJSON("nicA1", testVMA, "10.0.0.4", false) + `,` + nicJSON("orphan", "", "10.0.0.5", false) + `],"nextLink":"https://management.azure.com/flat-page-2"}`
+	flatPage2 := `{"value":[` + nicJSON("nicA2", testVMA, "10.0.0.7", true) + `,` + nicJSON("nicB", testVMB, "10.0.0.6", true) + `,` + nicJSON("flex-nic", flexInstance, "10.0.0.8", true) + `]}`
 
 	var mu sync.Mutex
 	var requestedPaths []string
@@ -398,7 +422,7 @@ func TestInterfacesClientList(t *testing.T) {
 			return jsonResponse(http.StatusOK, flatPage2), nil
 		case strings.Contains(p, "/virtualMachineScaleSets/") && strings.HasSuffix(p, "/networkInterfaces"):
 			if s, ok := setForPath(uniform, p); ok {
-				return jsonResponse(http.StatusOK, `{"value":[`+nicJSON(s.nicName, s.instance, s.privateIP)+`]}`), nil
+				return jsonResponse(http.StatusOK, `{"value":[`+nicJSON(s.nicName, s.instance, s.privateIP, true)+`]}`), nil
 			}
 			return jsonResponse(http.StatusNotFound, `{}`), nil
 		case strings.HasSuffix(p, "/virtualMachineScaleSets"):
@@ -417,10 +441,17 @@ func TestInterfacesClientList(t *testing.T) {
 	// is dropped.
 	require.Len(t, nicsByVM, 3+len(uniform))
 
-	// vmA's two NICs are grouped together, collected across both flat pages.
+	// vmA's two NICs are grouped together, collected across both flat pages, and
+	// only its primary NIC (nicA2) carries the primary flag.
 	vmA := nicsByVM[strings.ToLower(testVMA)]
 	require.Len(t, vmA, 2)
 	require.ElementsMatch(t, []string{"10.0.0.4", "10.0.0.7"}, []string{vmA[0].PrivateIP, vmA[1].PrivateIP})
+	vmAByName := make(map[string]*Interface, len(vmA))
+	for _, nic := range vmA {
+		vmAByName[nic.Name] = nic
+	}
+	require.False(t, vmAByName["nicA1"].Primary, "nicA1 is not vmA's primary NIC")
+	require.True(t, vmAByName["nicA2"].Primary, "nicA2 is vmA's primary NIC")
 
 	// Standalone vmB and the flexible-VMSS instance each have one NIC.
 	require.Equal(t, "10.0.0.6", nicsByVM[strings.ToLower(testVMB)][0].PrivateIP)
@@ -469,7 +500,7 @@ func TestInterfacesClientListFlatError(t *testing.T) {
 					return jsonResponse(test.status, `{"error":{"code":"fail","message":"bye"}}`), nil
 				case strings.Contains(p, "/virtualMachineScaleSets/") && strings.HasSuffix(p, "/networkInterfaces"):
 					if s, ok := setForPath(uniform, p); ok {
-						return jsonResponse(http.StatusOK, `{"value":[`+nicJSON(s.nicName, s.instance, s.privateIP)+`]}`), nil
+						return jsonResponse(http.StatusOK, `{"value":[`+nicJSON(s.nicName, s.instance, s.privateIP, true)+`]}`), nil
 					}
 					return jsonResponse(http.StatusNotFound, `{}`), nil
 				case strings.HasSuffix(p, "/virtualMachineScaleSets"):
