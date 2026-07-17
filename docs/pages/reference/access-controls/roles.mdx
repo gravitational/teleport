@@ -696,7 +696,7 @@ spec:
 
 ## Access Requests
 
-Access Requests are Teleport's mechanism for *just-in-time (JIT) access*: rather
+Access Requests are Teleport's mechanism for just-in-time (JIT) access: rather
 than holding elevated permissions permanently, a user requests them, a reviewer
 approves the request, and the elevated access expires automatically after a
 configurable duration.
@@ -768,9 +768,8 @@ spec:
 ```
 
 <Admonition type="tip">
-The `max_duration` field is what makes access *just-in-time*: it caps how long
-elevated privileges last (up to a maximum of 14 days) so access is granted
-temporarily rather than permanently.
+The `max_duration` field caps how long elevated privileges last (up to a maximum of 14 days) 
+so access is granted temporarily rather than permanently
 </Admonition>
 
 To let users request access to specific resources—such as a single server or
