@@ -32,7 +32,7 @@
 					storedCredentialSection
 					challengeAndSignatureSection
 				}
-				.navigationTitle("Secure Enclave")
+				.navigationTitle("Device Trust Credential")
 				.navigationBarTitleDisplayMode(.inline)
 			}
 		}
@@ -45,8 +45,8 @@
 			Section {
 				Text(
 					"""
-					This creates or loads a debug-only credential from a separate Keychain location, signs a \
-					random challenge after a user-presence check, and verifies the signature locally
+					Creates or loads a separate demo credential, reloads it from Keychain, requests user presence \
+					to authorize signing, signs a random challenge, and verifies the signature locally.
 					""",
 				)
 				.font(.callout)
@@ -82,7 +82,7 @@
 				Text("Actions")
 			} footer: {
 				Text(
-					"Every action uses the demo-only Keychain item. The app's Device Trust credential is never queried.",
+					"This demo uses a separate Keychain item and never reads or modifies the app's Device Trust credential.",
 				)
 			}
 		}
@@ -100,7 +100,7 @@
 					detail("Credential ID", value: credentialID)
 
 					if let fingerprint = viewModel.publicKeyFingerprint {
-						detail("Public Key SHA-256", value: fingerprint)
+						detail("Public Key Fingerprint (SHA-256)", value: fingerprint)
 					}
 
 					if let publicKey = viewModel.publicKeyDERBase64 {
@@ -108,7 +108,7 @@
 					}
 
 					if let matched = viewModel.credentialReloadMatched {
-						result("Reload matched", succeeded: matched)
+						result("Credential persisted correctly", succeeded: matched)
 					}
 				}
 			}
@@ -121,11 +121,11 @@
 					detail("Random 32-byte challenge", value: challenge)
 
 					if let signature = viewModel.signatureDERBase64 {
-						detail("ECDSA signature DER (Base64)", value: signature)
+						detail("ECDSA Signature (DER, Base64-encoded)", value: signature)
 					}
 
 					if let verified = viewModel.signatureVerified {
-						result("Signature verified", succeeded: verified)
+						result("Signature verified with reloaded public key", succeeded: verified)
 					}
 				}
 			}
@@ -139,7 +139,7 @@
 			Button {
 				Task { await viewModel.runRoundTrip() }
 			} label: {
-				Label("Run Full Round Trip", systemImage: "checkmark.shield")
+				Label("Create, Sign, and Verify", systemImage: "checkmark.shield")
 			}
 			.disabled(viewModel.isRunning || !viewModel.secureEnclaveAvailable)
 		}
@@ -158,7 +158,7 @@
 				viewModel.resetDemoCredential()
 			} label: {
 				Label {
-					Text("Reset Demo Credentials")
+					Text("Delete Demo Credential")
 				} icon: {
 					Image(systemName: "trash")
 						.foregroundStyle(.danger)
@@ -178,7 +178,7 @@
 				case .idle:
 					status(
 						"Ready",
-						message: "Run the full round trip on a physical device.",
+						message: "Create, sign, and verify on a physical device.",
 						systemImage: "circle.dotted",
 						color: .secondary,
 					)
