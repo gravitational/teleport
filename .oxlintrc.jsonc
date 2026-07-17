@@ -521,6 +521,83 @@
         ]
       }
     },
+    /*
+     * E2E tests
+     */
+    {
+      "files": ["e2e/**/*.ts", "e/e2e/**/*.ts"],
+      "rules": {
+        "react-hooks/rules-of-hooks": "off"
+      }
+    },
+    {
+      "files": ["e2e/tests/web/**/*.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "@playwright/test",
+                "importNames": ["test", "expect"],
+                "message": "Import 'test' and 'expect' from '@gravitational/e2e/helpers/test' instead."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["e2e/tests/connect/**/*.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "@playwright/test",
+                "importNames": ["test", "expect"],
+                "message": "Import 'test' and 'expect' from '@gravitational/e2e/helpers/connect' instead."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["e/e2e/tests/web/**/*.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "@playwright/test",
+                "importNames": ["test", "expect"],
+                "message": "Import 'test' and 'expect' from '@gravitational/e-e2e/helpers/test' instead."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["e/e2e/tests/connect/**/*.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "@playwright/test",
+                "importNames": ["test", "expect"],
+                "message": "Import 'test' and 'expect' from '@gravitational/e-e2e/helpers/connect' instead."
+              }
+            ]
+          }
+        ]
+      }
+    },
     // Legacy async state hook call sites (RFD 197). These files predate the ban added to
     // the per-directory blocks above. Each one keeps its directory's cross-package import
     // restrictions but is exempt from the new hook ban. As files migrate to TanStack Query,
