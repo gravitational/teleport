@@ -78,7 +78,7 @@ func newProxyKubeCommand(parent *kingpin.CmdClause) *proxyKubeCommand {
 	// kube-namespace exists for backwards compatibility.
 	c.Flag("kube-namespace", "Configure the default Kubernetes namespace.").Hidden().StringVar(&c.namespace)
 	c.Flag("namespace", "Configure the default Kubernetes namespace.").Short('n').StringVar(&c.namespace)
-	c.Flag("port", "Specifies the source port used by the proxy listener").Short('p').StringVar(&c.port)
+	c.Flag("port", "Specifies the source port used by the proxy listener.").Short('p').StringVar(&c.port)
 	c.Flag("format", envVarFormatFlagDescription()).Short('f').Default(envVarDefaultFormat()).EnumVar(&c.format, envVarFormats...)
 	c.Flag("labels", labelHelp).StringVar(&c.labels)
 	c.Flag("query", queryHelp).StringVar(&c.predicateExpression)
@@ -133,7 +133,7 @@ func (c *proxyKubeCommand) run(cf *CLIConf) error {
 	// re-exec into a new shell with $KUBECONFIG already pointed to our config file
 	// if --exec flag is set, --exec-cmd is provided, or headless mode is enabled.
 	reexecIntoShell := cf.Headless || c.exec || c.execCmd != ""
-	if err := c.printTemplate(cf.Stdout(), reexecIntoShell, localProxy); err != nil {
+	if err := c.printTemplate(cf.ProxyStatusOutput(), reexecIntoShell, localProxy); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -197,7 +197,7 @@ func runHeadlessKubeProxy(cf *CLIConf, localProxy *kubeLocalProxy, command strin
 
 	err = reexecToShell(ctx, configBytes, command, args)
 	err = trace.NewAggregate(err, localProxy.Close())
-	_, _ = fmt.Fprint(cf.Stdout(), "Local proxy for Kubernetes is closed.\n")
+	_, _ = fmt.Fprint(cf.ProxyStatusOutput(), "Local proxy for Kubernetes is closed.\n")
 	err = trace.NewAggregate(err, <-lpErrChan)
 	return err
 }
@@ -283,7 +283,7 @@ func (c *proxyKubeCommand) prepare(cf *CLIConf, tc *client.TeleportClient) (*cli
 }
 
 func (c *proxyKubeCommand) printPrepare(cf *CLIConf, title string, clusters kubeconfig.LocalProxyClusters) {
-	fmt.Fprintln(cf.Stdout(), title)
+	fmt.Fprintln(cf.ProxyStatusOutput(), title)
 	table := asciitable.MakeTable([]string{"Teleport Cluster Name", "Kube Cluster Name", "Context Name"})
 	for _, cluster := range clusters {
 		contextName, err := kubeconfig.ContextNameFromTemplate(c.overrideContextName, cluster.TeleportCluster, cluster.KubeCluster)
@@ -293,7 +293,7 @@ func (c *proxyKubeCommand) printPrepare(cf *CLIConf, title string, clusters kube
 		}
 		table.AddRow([]string{cluster.TeleportCluster, cluster.KubeCluster, contextName})
 	}
-	fmt.Fprintln(cf.Stdout(), table.AsBuffer().String())
+	fmt.Fprintln(cf.ProxyStatusOutput(), table.AsBuffer().String())
 }
 
 func (c *proxyKubeCommand) printTemplate(w io.Writer, isReexec bool, localProxy *kubeLocalProxy) error {

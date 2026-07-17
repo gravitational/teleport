@@ -64,7 +64,7 @@ func (c *recordingsEncryptionCommand) Initialize(recordingsCmd *kingpin.CmdClaus
 
 	c.rotateCmd = c.cmd.Command("rotate", "Rotate encryption keys used for encrypting session recordings.")
 	c.statusCmd = c.cmd.Command("status", "Show current rotation status.")
-	c.statusCmd.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)+". Defaults to 'text'.").Default(teleport.Text).StringVar(&c.format)
+	c.statusCmd.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)+" Defaults to 'text'.").Default(teleport.Text).StringVar(&c.format)
 	c.completeCmd = c.cmd.Command("complete-rotation", "Completes an in-progress encryption key rotation.")
 	c.rollbackCmd = c.cmd.Command("rollback-rotation", "Rolls back an in-progress encryption key rotation.")
 	if stdout == nil {

@@ -531,10 +531,10 @@ func onProxyCommandApp(cf *CLIConf) error {
 	if portMapping.TargetPort != 0 {
 		appName = fmt.Sprintf("%s:%d", appName, portMapping.TargetPort)
 	}
-	fmt.Fprintf(cf.Stdout(), "Proxying connections to %s on %v\n", appName, proxyApp.GetAddr())
+	fmt.Fprintf(cf.ProxyStatusOutput(), "Proxying connections to %s on %v\n", appName, proxyApp.GetAddr())
 	// If target port is not equal to zero, the user must know about the port flag.
 	if portMapping.LocalPort == 0 && portMapping.TargetPort == 0 {
-		fmt.Fprintln(cf.Stdout(), "To avoid port randomization, you can choose the listening port using the --port flag.")
+		fmt.Fprintln(cf.ProxyStatusOutput(), "To avoid port randomization, you can choose the listening port using the --port flag.")
 	}
 
 	if cf.AppHTTPSTunnel {
@@ -542,7 +542,7 @@ func onProxyCommandApp(cf *CLIConf) error {
 		if cf.InsecureSkipVerify {
 			curlCmd += " -k"
 		}
-		fmt.Fprintf(cf.Stdout(), "\nExample curl command:\n%s\n", curlCmd)
+		fmt.Fprintf(cf.ProxyStatusOutput(), "\nExample curl command:\n%s\n", curlCmd)
 	}
 
 	defer func() {
@@ -913,7 +913,7 @@ func envVarFormatFlagDescription() string {
 
 func awsProxyFormatFlagDescription() string {
 	return fmt.Sprintf(
-		"%s Or specify a service format, one of: %s",
+		"%s Or specify a service format, one of: %s.",
 		envVarFormatFlagDescription(),
 		strings.Join(awsProxyServiceFormats, ", "),
 	)
