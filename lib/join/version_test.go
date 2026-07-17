@@ -158,8 +158,7 @@ func TestValidateClientVersionRaisesAlert(t *testing.T) {
 	require.NoError(t, s.validateClientVersion(t.Context(), diagnostic.Info{ClientVersion: "2.0.0"}))
 	require.Empty(t, alerts)
 
-	// A rejected client raises one alert naming the client version, the minimum
-	// version, and the peer info (role and remote address) from the diagnostic.
+	// A rejected client raises one alert and the rejection is returned to the caller.
 	require.True(t, trace.IsAccessDenied(reject()))
 	require.Len(t, alerts, 1)
 	require.Equal(t, "rejected-unsupported-connection", alerts[0].Metadata.Name)
