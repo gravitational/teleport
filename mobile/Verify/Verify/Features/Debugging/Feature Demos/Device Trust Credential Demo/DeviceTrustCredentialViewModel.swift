@@ -81,7 +81,7 @@
 				let challenge = Self.makeRandomChallenge()
 				challengeHex = Self.hex(challenge)
 
-				status = .loading("Waiting for user presence, then signing the challenge…")
+				status = .loading("Requesting user presence to authorize signing…")
 				let signature = try await credentialClient.signChallenge(challenge, .authentication)
 				signatureDERBase64 = signature.base64EncodedString()
 
@@ -97,7 +97,9 @@
 					throw DeviceTrustCredentialDemoError.signatureRejected
 				}
 
-				status = .success("The demo credential signed the challenge and its public key verified the signature.")
+				status = .success(
+					"The Secure Enclave key signed the challenge, and the reloaded public key verified the signature.",
+				)
 			} catch DeviceTrustCredentialError.signingAuthorizationCancelled {
 				// Cancellation is expected control flow. Nothing is sent and no failure is shown.
 				status = .cancelled
@@ -118,7 +120,7 @@
 			do {
 				let credential = try credentialClient.load()
 				show(credential)
-				status = .success("Loaded the existing demo credential without using its private key.")
+				status = .success("Loaded the demo credential without requesting signing authorization.")
 			} catch {
 				status = .failure(Self.message(for: error))
 			}
@@ -206,7 +208,7 @@
 					return "The Secure Enclave is unavailable. Run this demo on a supported physical device."
 
 				case .notFound:
-					return "No demo credential exists yet. Run the full round trip to create one."
+					return "No demo credential exists yet. Create, sign, and verify to create one."
 
 				case .invalidStoredCredential:
 					return "Keychain contains a credential that this Secure Enclave cannot restore."
