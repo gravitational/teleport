@@ -1329,8 +1329,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		identityfile.FormatKubernetes,
 	)).Default(string(identityfile.DefaultFormat)).Short('f').StringVar((*string)(&cf.IdentityFormat))
 	login.Flag("overwrite", "Whether to overwrite the existing identity file.").BoolVar(&cf.IdentityOverwrite)
-  login.Flag("force", "Force re-authentication even if the current session is still valid.").BoolVar(&cf.ForceReauth)
-  login.Flag("request-roles", "Request one or more extra roles.").StringVar(&cf.DesiredRoles)
+	login.Flag("force", "Force re-authentication even if the current session is still valid.").BoolVar(&cf.ForceReauth)
+	login.Flag("request-roles", "Request one or more extra roles.").StringVar(&cf.DesiredRoles)
 	login.Flag("request-reason", "Reason for requesting additional roles.").StringVar(&cf.RequestReason)
 	login.Flag("request-reviewers", "Suggested reviewers for role request.").StringVar(&cf.SuggestedReviewers)
 	login.Flag("request-nowait", "Finish without waiting for request resolution.").BoolVar(&cf.NoWait)
