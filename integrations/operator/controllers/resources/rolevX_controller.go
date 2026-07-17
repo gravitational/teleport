@@ -34,8 +34,8 @@ import (
 
 // roleClient implements TeleportResourceClient and offers CRUD methods needed to reconcile roles
 // Currently the same client is used by all role versions. If we need to treat
-// them differently at some point, for example by adding a Mutate function
-// functions, we can always split the client into separate clients.
+// them differently at some point, for example by adding a Mutate function,
+// we can always split the client into separate clients.
 type roleClient struct {
 	teleportClient *client.Client
 }
@@ -115,6 +115,21 @@ func NewRoleV8Reconciler(client kclient.Client, tClient *client.Client) (control
 	}
 
 	resourceReconciler, err := reconcilers.NewTeleportResourceWithLabelsReconciler[types.Role, *resourcesv1.TeleportRoleV8](
+		client,
+		roleClient,
+		reconcilers.Config{},
+	)
+
+	return resourceReconciler, trace.Wrap(err, "building teleport resource reconciler")
+}
+
+// NewRoleV9Reconciler instantiates a new Kubernetes controller reconciling role v9 resources
+func NewRoleV9Reconciler(client kclient.Client, tClient *client.Client) (controllers.Reconciler, error) {
+	roleClient := &roleClient{
+		teleportClient: tClient,
+	}
+
+	resourceReconciler, err := reconcilers.NewTeleportResourceWithLabelsReconciler[types.Role, *resourcesv1.TeleportRoleV9](
 		client,
 		roleClient,
 		reconcilers.Config{},
