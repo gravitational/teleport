@@ -55,4 +55,4 @@ jobs:
           go-version: 'stable'
         # Run "backport" subcommand on bot.
       - name: Backport PR
-        run: ( cd .github/shared-workflows/bot && go build ) && .github/shared-workflows/bot/bot -workflow=backport -token="${{ steps.generate_token.outputs.token }}" -reviewers="${{ env.reviewers }}"
+        run: ( cd .github/shared-workflows/bot && go build ) && .github/shared-workflows/bot/bot -workflow=backport -token="${{ steps.generate_token.outputs.token }}" -reviewers="${{ env.REVIEWERS }}"

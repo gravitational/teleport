@@ -10,6 +10,7 @@ on:
 # GitHub token is only used to read the repository contents for checkout.
 permissions:
   contents: read
+  id-token: write
 
 jobs:
   renovate:

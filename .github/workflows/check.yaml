@@ -65,4 +65,4 @@ jobs:
           go-version: 'stable'
         # Run "check" subcommand on bot.
       - name: Checking reviewers
-        run: cd .github/shared-workflows/bot && go run main.go -workflow=check -token="${{ steps.generate_token.outputs.token }}" -reviewers="${{ env.reviewers }}"
+        run: cd .github/shared-workflows/bot && go run main.go -workflow=check -token="${{ steps.generate_token.outputs.token }}" -reviewers="${{ env.REVIEWERS }}"

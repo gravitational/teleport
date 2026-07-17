@@ -86,7 +86,7 @@ jobs:
 
       - name: Find excluded tests
         id: find_excluded
-        run: cd .github/shared-workflows/bot && go run main.go -workflow=exclude-flakes -token="${{ steps.generate_token.outputs.token }}" -reviewers="${{ env.reviewers }}"
+        run: cd .github/shared-workflows/bot && go run main.go -workflow=exclude-flakes -token="${{ steps.generate_token.outputs.token }}" -reviewers="${{ env.REVIEWERS }}"
 
       - name: Run base difftest
         uses: ./.github/actions/difftest
