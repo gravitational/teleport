@@ -1,4 +1,4 @@
-.version: &version "18.11.0-dev.terraform.3"
+.version: &version "18.11.0-dev.terraform.4"
 
 name: teleport-kube-updater
 apiVersion: v2
