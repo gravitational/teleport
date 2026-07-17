@@ -143,12 +143,13 @@ const testNICID = "/subscriptions/sub-id/resourceGroups/rg/providers/Microsoft.N
 const token = "fake-token"
 
 // fakeDoer is an HTTP doer that returns canned responses and records the request
-// it received, so tests can run without contacting Azure.
+// it received, so tests can run without contacting Azure. It builds a fresh
+// response body on every call, so the same doer can serve repeated requests.
 type fakeDoer struct {
-	resp       *http.Response
-	repeatBody string
-	respond    func(*http.Request) (*http.Response, error)
-	err        error
+	status  int
+	body    string
+	respond func(*http.Request) (*http.Response, error)
+	err     error
 
 	mu    sync.Mutex
 	calls int
@@ -166,13 +167,9 @@ func (f *fakeDoer) Do(req *http.Request) (*http.Response, error) {
 	if f.respond != nil {
 		return f.respond(req)
 	}
-	if f.repeatBody != "" {
-		resp := jsonResponse(http.StatusOK, f.repeatBody)
-		resp.Request = req
-		return resp, nil
-	}
-	f.resp.Request = req
-	return f.resp, nil
+	resp := jsonResponse(cmp.Or(f.status, http.StatusOK), f.body)
+	resp.Request = req
+	return resp, nil
 }
 
 func jsonResponse(status int, body string) *http.Response {
@@ -291,7 +288,7 @@ func TestInterfacesClientGet(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			doer := &fakeDoer{resp: jsonResponse(http.StatusOK, test.body)}
+			doer := &fakeDoer{body: test.body}
 			nic, err := newTestClient(t, doer).Get(t.Context(), testNICID)
 			require.NoError(t, err)
 			require.Equal(t, testNICID, nic.ID)
@@ -304,7 +301,7 @@ func TestInterfacesClientGet(t *testing.T) {
 func TestInterfacesClientGetRequest(t *testing.T) {
 	t.Parallel()
 
-	doer := &fakeDoer{resp: jsonResponse(http.StatusOK, `{"name":"my-nic"}`)}
+	doer := &fakeDoer{body: `{"name":"my-nic"}`}
 	_, err := newTestClient(t, doer).Get(t.Context(), testNICID)
 	require.NoError(t, err)
 
@@ -334,7 +331,7 @@ func TestInterfacesClientGetErrors(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			doer := &fakeDoer{resp: jsonResponse(test.status, `{"error":{"code":"fail","message":"bye"}}`)}
+			doer := &fakeDoer{status: test.status, body: `{"error":{"code":"fail","message":"bye"}}`}
 			_, err := newTestClient(t, doer).Get(t.Context(), testNICID)
 			require.Error(t, err)
 			require.True(t, test.assertErr(err), "unexpected error type: %v", err)
@@ -345,7 +342,7 @@ func TestInterfacesClientGetErrors(t *testing.T) {
 func TestInterfacesClientGetInvalidResourceID(t *testing.T) {
 	t.Parallel()
 
-	doer := &fakeDoer{resp: jsonResponse(http.StatusOK, `{}`)}
+	doer := &fakeDoer{body: `{}`}
 	_, err := newTestClient(t, doer).Get(t.Context(), "not-a-valid-resource-id")
 	require.True(t, trace.IsBadParameter(err), "expected BadParameter, got %v", err)
 	require.Zero(t, doer.calls, "transport must not be called for an invalid resource ID")
@@ -494,7 +491,7 @@ func TestInterfacesClientListMaxPages(t *testing.T) {
 
 	// Every response points to a next page, which would loop forever without the
 	// page cap.
-	doer := &fakeDoer{repeatBody: `{"value":[],"nextLink":"https://management.azure.com/next"}`}
+	doer := &fakeDoer{body: `{"value":[],"nextLink":"https://management.azure.com/next"}`}
 
 	_, err := newTestClient(t, doer).List(t.Context(), "sub", "rg")
 	require.Error(t, err)

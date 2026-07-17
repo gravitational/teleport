@@ -331,7 +331,7 @@ func TestExtractRetryAfterDuration(t *testing.T) {
 			convertedErr := ErrorFromResponse(httpResponseWithHeaders)
 			errorAsRateLimitErr := &RateLimitError{}
 			require.Error(t, convertedErr)
-			require.True(t, errors.As(convertedErr, &errorAsRateLimitErr), "converted error must be a RateLimitError")
+			require.ErrorAs(t, convertedErr, &errorAsRateLimitErr, "converted error must be a RateLimitError")
 			require.Equal(t, tc.want, errorAsRateLimitErr.RetryAfter, "unexpected RetryAfter duration")
 		})
 	}

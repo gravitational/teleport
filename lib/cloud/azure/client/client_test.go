@@ -177,7 +177,7 @@ func TestNewClient(t *testing.T) {
 	t.Run("applies options", func(t *testing.T) {
 		t.Parallel()
 		httpClient := &fakeHTTPClient{}
-		logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+		logger := slog.New(slog.DiscardHandler)
 		clock := clockwork.NewFakeClock()
 
 		c, err := NewClient(&fakeTokenCredential{},
@@ -454,7 +454,7 @@ func TestDoRequest_RateLimitContextCanceledDuringWait(t *testing.T) {
 	clock := clockwork.NewFakeClock()
 	httpClient := &fakeHTTPClient{
 		respond: func(int, *http.Request) (*http.Response, error) {
-			return rateLimitResponse(0), nil
+			return rateLimitResponse(5), nil
 		},
 	}
 	c, err := NewClient(&fakeTokenCredential{token: "token"},
