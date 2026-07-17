@@ -41,14 +41,42 @@ struct StoredDeviceTrustCredential: Codable {
 /// This type knows nothing about signing or key creation. Its entire responsibility is to atomically load or insert
 /// the opaque record used by ``SecureEnclaveCredentialStore``.
 struct DeviceTrustCredentialKeychain {
-	private static let service = "com.gravitational.teleport.verify.device-trust"
-	private static let account = "credential.v1"
+	/// A fixed Keychain identity for a Device Trust credential.
+	///
+	/// The private initializer prevents callers from inventing new storage locations while still allowing the app and
+	/// debug demo to use independent credentials.
+	struct Location {
+		fileprivate let service: String
+		fileprivate let account: String
 
+		static let app = Self(
+			service: "com.gravitational.teleport.verify.device-trust",
+			account: "credential.v1",
+		)
+
+		#if DEBUG
+			static let demo = Self(
+				service: "com.gravitational.teleport.verify.device-trust.demo",
+				account: "credential.demo.v1",
+			)
+		#endif
+
+		private init(service: String, account: String) {
+			self.service = service
+			self.account = account
+		}
+	}
+
+	private let location: Location
 	private let logger = Logger.forType(DeviceTrustCredentialKeychain.self)
+
+	init(location: Location) {
+		self.location = location
+	}
 
 	/// Loads and validates the existing versioned record.
 	func load() throws -> StoredDeviceTrustCredential {
-		var query = Self.baseQuery
+		var query = baseQuery
 		query[kSecReturnData] = true
 		query[kSecMatchLimit] = kSecMatchLimitOne
 
@@ -85,7 +113,7 @@ struct DeviceTrustCredentialKeychain {
 			throw DeviceTrustCredentialError.keyCreationFailed
 		}
 
-		var attributes = Self.baseQuery
+		var attributes = baseQuery
 		// Match the Secure Enclave key's lifetime: local to this device and invalid once its passcode is removed.
 		attributes[kSecAttrAccessible] = kSecAttrAccessibleWhenPasscodeSetThisDeviceOnly
 		attributes[kSecAttrSynchronizable] = false
@@ -97,6 +125,21 @@ struct DeviceTrustCredentialKeychain {
 			throw DeviceTrustCredentialError.keychain(status: status)
 		}
 	}
+
+	#if DEBUG
+		/// Deletes this Keychain record so debug-only callers can repeat credential creation.
+		func delete() throws {
+			let status = SecItemDelete(baseQuery as CFDictionary)
+			switch status {
+				case errSecSuccess, errSecItemNotFound:
+					return
+
+				default:
+					logger.error("Could not delete Device Trust credential from Keychain: \(status)")
+					throw DeviceTrustCredentialError.keychain(status: status)
+			}
+		}
+	#endif
 
 	private func decode(_ data: Data) throws -> StoredDeviceTrustCredential {
 		do {
@@ -118,14 +161,14 @@ struct DeviceTrustCredentialKeychain {
 		}
 	}
 
-	/// The stable service/account pair identifies exactly one app-wide Device Trust credential.
+	/// The selected service/account pair identifies exactly one Device Trust credential.
 	///
 	/// No access group is specified, so Security.framework uses the Verify app's default signed access group.
-	private static var baseQuery: [CFString: Any] {
+	private var baseQuery: [CFString: Any] {
 		[
 			kSecClass: kSecClassGenericPassword,
-			kSecAttrService: service,
-			kSecAttrAccount: account,
+			kSecAttrService: location.service,
+			kSecAttrAccount: location.account,
 		]
 	}
 }

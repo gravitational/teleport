@@ -21,8 +21,12 @@ import OSLog
 import Security
 
 extension DeviceTrustCredentialClient {
-	static let liveValue: Self = {
-		let store = SecureEnclaveCredentialStore()
+	static let liveValue = value(location: .app)
+
+	static func value(location: DeviceTrustCredentialKeychain.Location) -> Self {
+		let store = SecureEnclaveCredentialStore(
+			keychain: DeviceTrustCredentialKeychain(location: location),
+		)
 		return Self(
 			loadOrCreate: {
 				try store.loadOrCreate()
@@ -34,7 +38,7 @@ extension DeviceTrustCredentialClient {
 				try await store.signChallenge(challenge, purpose: purpose)
 			},
 		)
-	}()
+	}
 }
 
 /// Implements Device Trust using two pieces of device-local storage.
@@ -43,10 +47,14 @@ extension DeviceTrustCredentialClient {
 /// key together with Teleport's opaque credential ID. The representation cannot be used to recover the private-key
 /// bytes and only the Secure Enclave that created it can restore the key.
 private final class SecureEnclaveCredentialStore: Sendable {
-	private let keychain = DeviceTrustCredentialKeychain()
+	private let keychain: DeviceTrustCredentialKeychain
 	private let logger = Logger.forType(SecureEnclaveCredentialStore.self)
 
-	/// Loads the app's existing credential or creates it for enrollment when no record exists.
+	init(keychain: DeviceTrustCredentialKeychain) {
+		self.keychain = keychain
+	}
+
+	/// Loads the configured location's existing credential or creates one when no record exists.
 	///
 	/// A corrupt record or unexpected Keychain error is never treated as absence. Silently replacing a credential in
 	/// those cases would leave Teleport enrolled with a public key that the app can no longer use.
