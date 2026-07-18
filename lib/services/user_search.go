@@ -88,8 +88,8 @@ type searchKeywordUsernameResolver struct {
 	usernamesBySearchKeyword map[string]usernameSet
 }
 
-// newSearchKeywordUsernameResolver returns a memoizing resolver for search-keyword username matches.
-func newSearchKeywordUsernameResolver(ctx context.Context, users UserSearchLister) func(string) usernameSet {
+// NewSearchKeywordUsernameResolver returns a memoizing resolver for search-keyword username matches.
+func NewSearchKeywordUsernameResolver(ctx context.Context, users UserSearchLister) func(string) map[string]struct{} {
 	resolver := &searchKeywordUsernameResolver{
 		ctx:                      ctx,
 		users:                    users,
@@ -98,7 +98,7 @@ func newSearchKeywordUsernameResolver(ctx context.Context, users UserSearchListe
 	return resolver.resolveUsernames
 }
 
-func (r *searchKeywordUsernameResolver) resolveUsernames(searchKeyword string) usernameSet {
+func (r *searchKeywordUsernameResolver) resolveUsernames(searchKeyword string) map[string]struct{} {
 	searchKeyword = strings.TrimSpace(searchKeyword)
 	if searchKeyword == "" {
 		return nil
@@ -125,7 +125,7 @@ func (r *searchKeywordUsernameResolver) resolveUsernames(searchKeyword string) u
 // NewAccessRequestSearchMatcher returns a matcher that checks stored request fields and requester user-search matches.
 func NewAccessRequestSearchMatcher(ctx context.Context, searchKeywords []string, users UserSearchLister) func(*types.AccessRequestV3) bool {
 	searchKeywords = cleanSearchKeywords(searchKeywords)
-	resolveToUsernames := newSearchKeywordUsernameResolver(ctx, users)
+	resolveToUsernames := NewSearchKeywordUsernameResolver(ctx, users)
 
 	return func(accessRequest *types.AccessRequestV3) bool {
 		return types.MatchSearch(accessRequest.SearchableFields(), searchKeywords, func(searchKeyword string) bool {
