@@ -37,10 +37,10 @@ type botClient struct {
 }
 
 // Get gets the Teleport bot of a given name
-func (l botClient) Get(ctx context.Context, name string) (*machineidv1.Bot, error) {
+func (l botClient) Get(ctx context.Context, key reconcilers.ResourceKey) (*machineidv1.Bot, error) {
 	resp, err := l.teleportClient.
 		BotServiceClient().
-		GetBot(ctx, &machineidv1.GetBotRequest{BotName: name})
+		GetBot(ctx, &machineidv1.GetBotRequest{BotName: key.Name})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -64,10 +64,10 @@ func (l botClient) Update(ctx context.Context, resource *machineidv1.Bot) error 
 }
 
 // Delete deletes a Teleport bot
-func (l botClient) Delete(ctx context.Context, name string) error {
+func (l botClient) Delete(ctx context.Context, key reconcilers.ResourceKey) error {
 	_, err := l.teleportClient.
 		BotServiceClient().
-		DeleteBot(ctx, &machineidv1.DeleteBotRequest{BotName: name})
+		DeleteBot(ctx, &machineidv1.DeleteBotRequest{BotName: key.Name})
 	return trace.Wrap(err)
 }
 

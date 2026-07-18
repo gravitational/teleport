@@ -58,10 +58,10 @@ type fakeTeleportResourceClient struct {
 }
 
 // Get implements the TeleportResourceClient interface.
-func (f *fakeTeleportResourceClient) Get(_ context.Context, name string) (*fakeTeleportResource, error) {
-	metadata, ok := f.store[name]
+func (f *fakeTeleportResourceClient) Get(_ context.Context, id ResourceKey) (*fakeTeleportResource, error) {
+	metadata, ok := f.store[id.String()]
 	if !ok {
-		return nil, trace.NotFound("%q not found", name)
+		return nil, trace.NotFound("%q not found", id.String())
 	}
 	return newFakeTeleportResource(metadata), nil
 }
@@ -96,12 +96,12 @@ func (f *fakeTeleportResourceClient) Update(_ context.Context, t *fakeTeleportRe
 }
 
 // Delete implements the TeleportResourceClient interface.
-func (f *fakeTeleportResourceClient) Delete(_ context.Context, name string) error {
-	_, ok := f.store[name]
+func (f *fakeTeleportResourceClient) Delete(_ context.Context, id ResourceKey) error {
+	_, ok := f.store[id.String()]
 	if !ok {
-		return trace.NotFound("%q not found", name)
+		return trace.NotFound("%q not found", id.String())
 	}
-	delete(f.store, name)
+	delete(f.store, id.String())
 	return nil
 
 }
