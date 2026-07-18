@@ -2969,6 +2969,37 @@ func TestService_UpsertAccessListWithMembers(t *testing.T) {
 	})
 }
 
+// TestService_UpsertAccessListWithMembers_DuplicateMember verifies that
+// duplicate members in the request don't produce spurious create audit events
+func TestService_UpsertAccessListWithMembers_DuplicateMember(t *testing.T) {
+	c := initSvc(t, withDisabledReconcilers())
+
+	al := newAccessList(t, "dup-test", c.clock)
+	m := newAccessListMember(t, al.GetName(), member1, accesslist.MembershipKindUser, c.clock)
+	createAccessListsAndMembers(t, c.userCtx, c.svc, c.emitter, c.usageEvents,
+		[]*accesslist.AccessList{al}, []*accesslist.AccessListMember{m})
+
+	// Send the same member twice
+	memberProto := conv.ToMemberProto(m)
+	_, err := c.svc.UpsertAccessListWithMembers(c.userCtx, accesslistv1.UpsertAccessListWithMembersRequest_builder{
+		AccessList: conv.ToProto(al),
+		Members:    []*accesslistv1.Member{memberProto, memberProto},
+	}.Build())
+	require.NoError(t, err)
+
+	// The member already existed, so we expect a single update event, no creates
+	expectEvent(t, events.AccessListMemberUpdateSuccessCode, c.emitter, func(event *apievents.AccessListMemberUpdate) {
+		require.True(t, event.Success)
+	})
+
+	// No further audit events should be pending (specifically, no spurious create)
+	select {
+	case evt := <-c.emitter.C():
+		t.Fatalf("unexpected extra event: %T code=%s", evt, evt.GetCode())
+	default:
+	}
+}
+
 func TestService_AuthOrIsOwner(t *testing.T) {
 	c := initSvc(t)
 	memberCtx := genUserContext(context.Background(), member2, []string{"mrole1", "mrole2"}, map[string][]string{

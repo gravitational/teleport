@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
+	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 const (
@@ -1949,8 +1950,13 @@ func getMemberChanges(oldMembers map[string]*accesslist.AccessListMember, update
 	}
 
 	modified := &memberChanges{}
+	seen := set.NewWithCapacity[string](len(updatedMembers))
 	for _, member := range updatedMembers {
 		memberName := member.GetName()
+		if seen.Contains(memberName) {
+			continue
+		}
+		seen.Add(memberName)
 		if _, ok := oldMembers[memberName]; ok {
 			modified.updated = append(modified.updated, member)
 			delete(oldMembers, memberName)
