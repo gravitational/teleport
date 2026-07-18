@@ -68,7 +68,7 @@ func TestFindUsernamesBySearchKeywords(t *testing.T) {
 
 	usernames, err := findUsernamesBySearchKeywords(t.Context(), lister, []string{"Jane", "Garcia"})
 	require.NoError(t, err)
-	require.Equal(t, map[string]struct{}{janeUsername: {}}, usernames)
+	require.Equal(t, usernameSet{janeUsername: {}}, usernames)
 
 	// Verify that only one page of users was requested with the expected filter.
 	require.Equal(t, 1, lister.calls)
@@ -101,17 +101,17 @@ func TestFindUsernamesBySearchKeywordsMatchesOnlyDisplayValues(t *testing.T) {
 	tests := []struct {
 		name     string
 		keyword  string
-		expected map[string]struct{}
+		expected usernameSet
 	}{
 		{
 			name:     "primary display",
 			keyword:  "Jane",
-			expected: map[string]struct{}{janeUsername: {}},
+			expected: usernameSet{janeUsername: {}},
 		},
 		{
 			name:     "secondary display",
 			keyword:  "jane.garcia@example.com",
-			expected: map[string]struct{}{janeUsername: {}},
+			expected: usernameSet{janeUsername: {}},
 		},
 		{name: "role", keyword: "finance-role"},
 		{name: "label key", keyword: "cost-center"},
@@ -147,4 +147,32 @@ func TestFindUsernamesBySearchKeywordsSkipsBlankSearch(t *testing.T) {
 	require.NoError(t, err)
 	require.Nil(t, usernames)
 	require.Zero(t, lister.calls)
+}
+
+func TestNewAccessRequestSearchMatcherDegradesGracefullyOnUserLookupFailure(t *testing.T) {
+	t.Parallel()
+
+	const displayOnlyUsername = "123456"
+
+	displayOnly, err := types.NewAccessRequest("display-only", displayOnlyUsername, "role")
+	require.NoError(t, err)
+
+	resolvedUser, err := types.NewUser(displayOnlyUsername)
+	require.NoError(t, err)
+	resolvedUser.SetTraits(map[string][]string{
+		"okta/displayName": {"Jane"},
+	})
+	resolvedUsers := []*types.UserV2{resolvedUser.(*types.UserV2)}
+
+	successLister := &testUserSearchLister{users: resolvedUsers}
+	successMatcher := NewAccessRequestSearchMatcher(t.Context(), []string{"Jane"}, successLister)
+	require.True(t, successMatcher(displayOnly.(*types.AccessRequestV3)), "display-only match should pass when user lookup resolves the requester")
+
+	failedLister := &testUserSearchLister{
+		users: resolvedUsers,
+		err:   errors.New("backend unavailable"),
+	}
+	failedMatcher := NewAccessRequestSearchMatcher(t.Context(), []string{"Jane"}, failedLister)
+	// Gracefully degrade to return false when user lookup fails.
+	require.False(t, failedMatcher(displayOnly.(*types.AccessRequestV3)), "same display-only match should be skipped when user lookup fails")
 }
