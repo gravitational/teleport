@@ -273,6 +273,9 @@ func (s *Server) Join(stream messages.ServerStream) (err error) {
 		if clientInit.JoinMethod != nil {
 			i.RequestedJoinMethod = joinutils.SanitizeUntrustedString(*clientInit.JoinMethod)
 		}
+		if clientInit.HostName != "" {
+			i.NodeName = joinutils.SanitizeUntrustedString(clientInit.HostName)
+		}
 	})
 	if err := clientInit.Check(); err != nil {
 		return trace.Wrap(err, "validating ClientInit message")

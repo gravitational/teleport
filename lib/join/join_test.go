@@ -162,7 +162,8 @@ func TestJoinToken(t *testing.T) {
 					ConnectionMetadata: apievents.ConnectionMetadata{
 						RemoteAddr: "127.0.0.1",
 					},
-					Role: "Instance",
+					Role:     "Instance",
+					NodeName: "node",
 				},
 				evt,
 				protocmp.Transform(),
@@ -375,9 +376,10 @@ func TestJoinToken(t *testing.T) {
 					ConnectionMetadata: apievents.ConnectionMetadata{
 						RemoteAddr: "127.0.0.1",
 					},
-					HostID: identity.ID.HostID(),
-					Role:   "Instance",
-					Roles:  slices.DeleteFunc(token1.GetRoles().StringSlice(), func(role string) bool { return role == types.RoleInstance.String() }),
+					HostID:   identity.ID.HostID(),
+					Role:     "Instance",
+					NodeName: "node",
+					Roles:    slices.DeleteFunc(token1.GetRoles().StringSlice(), func(role string) bool { return role == types.RoleInstance.String() }),
 				},
 				evt,
 				protocmp.Transform(),
@@ -543,6 +545,53 @@ func TestJoinToken(t *testing.T) {
 			tc.assertRejoinExpectation(t, newIdentity, err)
 		})
 	}
+
+	t.Run("rejected join records sanitized node name", func(t *testing.T) {
+		ctx := t.Context()
+		// The join is rejected before host params are received, so the node name
+		// on the audit event comes from the advisory (untrusted) ClientInit
+		// value and must be sanitized. \x00 is stripped to '_'.
+		_, err := joinclient.Join(ctx, joinclient.JoinParams{
+			Token: "invalidtoken",
+			ID: state.IdentityID{
+				Role:     types.RoleInstance,
+				NodeName: "node\x00name",
+			},
+			ProxyServer: utils.NetAddr{
+				AddrNetwork: proxyListener.Addr().Network(),
+				Addr:        proxyListener.Addr().String(),
+			},
+			// The proxy's TLS cert for the test is not trusted.
+			Insecure: true,
+		})
+		require.ErrorAs(t, err, new(*trace.AccessDeniedError))
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			evt, err := authService.lastEvent(ctx, "instance.join")
+			require.NoError(t, err)
+			require.Empty(t, cmp.Diff(
+				&apievents.InstanceJoin{
+					Metadata: apievents.Metadata{
+						Type: "instance.join",
+						Code: events.InstanceJoinFailureCode,
+					},
+					Status: apievents.Status{
+						Success: false,
+						Error:   "token expired or not found",
+					},
+					ConnectionMetadata: apievents.ConnectionMetadata{
+						RemoteAddr: "127.0.0.1",
+					},
+					Role:     "Instance",
+					NodeName: "node_name",
+				},
+				evt,
+				protocmp.Transform(),
+				cmpopts.IgnoreMapEntries(func(key string, val any) bool {
+					return key == "Time" || key == "ID"
+				}),
+			))
+		}, 5*time.Second, 5*time.Millisecond, "expected instance.join failed event not found")
+	})
 }
 
 // TestJoinError asserts that attempts to join with an invalid token return an

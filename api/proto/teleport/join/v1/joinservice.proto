@@ -52,6 +52,12 @@ message ClientInit {
     string client_version = 2;
   }
   optional ProxySuppliedParams proxy_supplied_parameters = 5;
+
+  // HostName is the user-friendly node name of a joining host, sent early so it
+  // can be recorded on the join audit event even when the join is rejected
+  // before the host params are received. It is advisory; the host name used for
+  // issued certificates is carried in HostParams.
+  string host_name = 6;
 }
 
 // PublicKeys holds public keys sent by the client requested subject keys for
