@@ -250,6 +250,102 @@ func TestFillSAMLSigningKeyFromExisting(t *testing.T) {
 	}
 }
 
+func TestFillSAMLEncryptionKeyFromExisting(t *testing.T) {
+	t.Parallel()
+
+	existingKeyPEM, existingCertPEM, err := utils.GenerateSelfSignedSigningCert(pkix.Name{
+		Organization: []string{"Teleport OSS"},
+		CommonName:   "teleport.localhost.localdomain",
+	}, nil, 10*365*24*time.Hour)
+	require.NoError(t, err)
+
+	existingEKP := &types.AsymmetricKeyPair{
+		PrivateKey: string(existingKeyPEM),
+		Cert:       string(existingCertPEM),
+	}
+
+	existingConnectorName := "existing"
+	existingConnectors := mockSAMLGetter{
+		existingConnectorName: &types.SAMLConnectorV2{
+			Spec: types.SAMLConnectorSpecV2{
+				EncryptionKeyPair: existingEKP,
+			},
+		},
+	}
+
+	_, unrelatedCertPEM, err := utils.GenerateSelfSignedSigningCert(pkix.Name{
+		Organization: []string{"Teleport OSS"},
+		CommonName:   "teleport.localhost.localdomain",
+	}, nil, 10*365*24*time.Hour)
+	require.NoError(t, err)
+
+	testCases := []struct {
+		name          string
+		connectorName string
+		connectorSpec types.SAMLConnectorSpecV2
+		assertErr     require.ErrorAssertionFunc
+		assertResult  require.ValueAssertionFunc
+	}{
+		{
+			name:          "should read assertion key from existing connector with matching cert",
+			connectorName: existingConnectorName,
+			connectorSpec: types.SAMLConnectorSpecV2{
+				EncryptionKeyPair: &types.AsymmetricKeyPair{
+					PrivateKey: "",
+					Cert:       string(existingCertPEM),
+				},
+			},
+			assertErr: require.NoError,
+			assertResult: func(t require.TestingT, value any, args ...any) {
+				require.Implements(t, (*types.SAMLConnector)(nil), value)
+				connector := value.(types.SAMLConnector)
+				ekp := connector.GetEncryptionKeyPair()
+				require.Equal(t, existingEKP, ekp)
+			},
+		},
+		{
+			name:          "should error when there's no existing connector",
+			connectorName: "non-existing",
+			connectorSpec: types.SAMLConnectorSpecV2{
+				EncryptionKeyPair: &types.AsymmetricKeyPair{
+					PrivateKey: "",
+					Cert:       string(unrelatedCertPEM),
+				},
+			},
+			assertErr: require.Error,
+		},
+		{
+			name:          "should error when existing connector cert is not matching",
+			connectorName: existingConnectorName,
+			connectorSpec: types.SAMLConnectorSpecV2{
+				EncryptionKeyPair: &types.AsymmetricKeyPair{
+					PrivateKey: "",
+					Cert:       string(unrelatedCertPEM),
+				},
+			},
+			assertErr: require.Error,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+			connector := &types.SAMLConnectorV2{
+				Metadata: types.Metadata{
+					Name: tc.connectorName,
+				},
+				Spec: tc.connectorSpec,
+			}
+
+			err := FillSAMLSecretFieldsFromExistingConnector(ctx, connector, existingConnectors)
+			tc.assertErr(t, err)
+			if tc.assertResult != nil {
+				tc.assertResult(t, connector)
+			}
+		})
+	}
+}
+
 func TestFillSAMLOAuthClientSecretFromExisting(t *testing.T) {
 	t.Parallel()
 

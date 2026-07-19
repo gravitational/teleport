@@ -478,6 +478,10 @@ func FillSAMLSecretFieldsFromExistingConnector(ctx context.Context, connector ty
 		return trace.Wrap(err)
 	}
 
+	if err := fillSAMLEncryptionKeyFromExisting(connector, getExisting); err != nil {
+		return trace.Wrap(err)
+	}
+
 	if err := fillSAMLOAuthClientSecretFromExisting(connector, getExisting); err != nil {
 		return trace.Wrap(err)
 	}
@@ -512,6 +516,37 @@ func fillSAMLSigningKeyFromExisting(connector types.SAMLConnector, getExisting s
 	}
 
 	connector.SetSigningKeyPair(keyPair)
+
+	return nil
+}
+
+// fillSAMLEncryptionKeyFromExisting populates the assertion encryption key on the given connector
+// if it's missing with the assertion encryption key from the connector returned by getExisting.
+func fillSAMLEncryptionKeyFromExisting(connector types.SAMLConnector, getExisting samlConnectorGetter) error {
+	connectorEKP := connector.GetEncryptionKeyPair()
+	if connectorEKP == nil {
+		return nil
+	}
+
+	if connectorEKP.PrivateKey != "" {
+		return nil
+	}
+
+	existing, err := getExisting()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	keyPair := existing.GetEncryptionKeyPair()
+	if keyPair == nil {
+		return trace.BadParameter("the SAML connector has no assertion key pair and none was provided. " + ErrMsgHowToFixMissingPrivateKey)
+	}
+
+	if keyPair.Cert != connectorEKP.Cert {
+		return trace.BadParameter("the SAML connector assertion key cert does not match the existing one. " + ErrMsgHowToFixMissingPrivateKey)
+	}
+
+	connector.SetEncryptionKeyPair(keyPair)
 
 	return nil
 }
