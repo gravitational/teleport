@@ -84,6 +84,16 @@ var wasmSecurityPolicy = CSPMap{
 	"script-src": {"'self'", "'wasm-unsafe-eval'"},
 }
 
+// stripeSecurityPolicy grants the origins Stripe.js and the Payment Element
+// need to load and communicate with Stripe. Applied only to stripe-managed
+// tenants — see getIndexContentSecurityPolicyString.
+// https://docs.stripe.com/security/guide#content-security-policy
+var stripeSecurityPolicy = CSPMap{
+	"script-src":  {"https://js.stripe.com", "https://*.js.stripe.com"},
+	"frame-src":   {"https://js.stripe.com", "https://*.js.stripe.com", "https://hooks.stripe.com"},
+	"connect-src": {"https://api.stripe.com"},
+}
+
 // combineCSPMaps combines multiple CSP maps into a single map.
 // When multiple of the input CSPMap have the same key, their
 // respective lists are concatenated.
@@ -169,8 +179,12 @@ func SetDefaultSecurityHeaders(h http.Header) {
 	h.Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
 }
 
-func getIndexContentSecurityPolicy(withWasm bool) CSPMap {
+func getIndexContentSecurityPolicy(withStripe, withWasm bool) CSPMap {
 	cspMaps := []CSPMap{defaultContentSecurityPolicy, defaultFontSrc, defaultConnectSrc}
+
+	if withStripe {
+		cspMaps = append(cspMaps, stripeSecurityPolicy)
+	}
 
 	if withWasm {
 		cspMaps = append(cspMaps, wasmSecurityPolicy)
@@ -197,26 +211,27 @@ var sshSessionRe = regexp.MustCompile(`^/web/cluster/[^/]+/console/node/[^/]+/[^
 
 var indexCSPStringCache *cspCache = newCSPCache()
 
-func getIndexContentSecurityPolicyString(urlPath string) string {
-	// Check for result with this urlPath in cache
-	if cspString, ok := indexCSPStringCache.get(urlPath); ok {
+func getIndexContentSecurityPolicyString(withStripe bool, urlPath string) string {
+	key := fmt.Sprintf("%v-%v", withStripe, urlPath)
+	if cspString, ok := indexCSPStringCache.get(key); ok {
 		return cspString
 	}
 
 	// Nothing found in cache, calculate regex and result
 	withWasm := desktopSessionRe.MatchString(urlPath) || recordingRe.MatchString(urlPath) || sshSessionRe.MatchString(urlPath) || linuxDesktopSessionRe.MatchString(urlPath)
 	cspString := GetContentSecurityPolicyString(
-		getIndexContentSecurityPolicy(withWasm),
+		getIndexContentSecurityPolicy(withStripe, withWasm),
 	)
-	// Add result to cache
-	indexCSPStringCache.set(urlPath, cspString)
+	indexCSPStringCache.set(key, cspString)
 
 	return cspString
 }
 
-// SetIndexContentSecurityPolicy sets the Content-Security-Policy header for main index.html page
-func SetIndexContentSecurityPolicy(h http.Header, urlPath string) {
-	cspString := getIndexContentSecurityPolicyString(urlPath)
+// SetIndexContentSecurityPolicy sets the Content-Security-Policy header for main index.html page.
+// withStripe should be true for stripe-managed tenants so that Stripe.js and the Payment Element
+// can load in the cloud panel.
+func SetIndexContentSecurityPolicy(h http.Header, withStripe bool, urlPath string) {
+	cspString := getIndexContentSecurityPolicyString(withStripe, urlPath)
 	h.Set("Content-Security-Policy", cspString)
 }
 
