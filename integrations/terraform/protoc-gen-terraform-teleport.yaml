@@ -211,6 +211,7 @@ exclude_fields:
     # Role
     - "RoleV6.Spec.Allow.Namespaces" # These fields are not settable via API
     - "RoleV6.Spec.Deny.Namespaces"
+    - "RoleV6.Spec.Deny.AppResources" # app_resources is valid only under allow
 
     # Server
     - "ServerSpecV2.CmdLabels"
