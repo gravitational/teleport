@@ -39,6 +39,7 @@ import (
 	authproto "github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	apitracing "github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
@@ -241,6 +242,10 @@ func ForAuth(cfg Config) Config {
 // ForProxy sets up watch configuration for proxy
 func ForProxy(cfg Config) Config {
 	cfg.target = "proxy"
+	// Scope-aware kinds default (for unscoped callers) to matching only unscoped instances. The proxy is
+	// unscoped but must see all instances (scoped and unscoped) of the resources it routes on, so it
+	// watches those kinds with an explicit MODE_ALL filter.
+	allScopes := types.ScopeFilterFromProto(scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_ALL}.Build())
 	cfg.Watches = []types.WatchKind{
 		{Kind: types.KindCertAuthority, LoadSecrets: false, Filter: makeAllKnownCAsFilter().IntoMap()},
 		{Kind: types.KindClusterName},
@@ -251,27 +256,27 @@ func ForProxy(cfg Config) Config {
 		{Kind: types.KindUIConfig},
 		{Kind: types.KindUser},
 		{Kind: types.KindRole},
-		{Kind: types.KindNode},
+		{Kind: types.KindNode, ScopeFilter: allScopes},
 		{Kind: types.KindProxy},
 		{Kind: types.KindAuthServer},
 		{Kind: types.KindReverseTunnel},
 		{Kind: types.KindTunnelConnection},
-		{Kind: types.KindAppServer},
-		{Kind: types.KindApp},
+		{Kind: types.KindAppServer, ScopeFilter: allScopes},
+		{Kind: types.KindApp, ScopeFilter: allScopes},
 		{Kind: types.KindWebSession, SubKind: types.KindSnowflakeSession, LoadSecrets: true},
 		{Kind: types.KindWebSession, SubKind: types.KindAppSession, LoadSecrets: true},
 		{Kind: types.KindWebSession, SubKind: types.KindWebSession, LoadSecrets: true},
 		{Kind: types.KindWebToken},
 		{Kind: types.KindRemoteCluster},
-		{Kind: types.KindDatabaseServer},
+		{Kind: types.KindDatabaseServer, ScopeFilter: allScopes},
 		{Kind: types.KindDatabaseService},
 		{Kind: types.KindDatabase},
 		{Kind: types.KindWindowsDesktopService},
 		{Kind: types.KindWindowsDesktop},
 		{Kind: types.KindDynamicWindowsDesktop},
 		{Kind: types.KindLinuxDesktop},
-		{Kind: types.KindKubeServer},
-		{Kind: types.KindKubernetesCluster},
+		{Kind: types.KindKubeServer, ScopeFilter: allScopes},
+		{Kind: types.KindKubernetesCluster, ScopeFilter: allScopes},
 		{Kind: types.KindSAMLIdPServiceProvider},
 		{Kind: types.KindUserGroup},
 		{Kind: types.KindIntegration},
