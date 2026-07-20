@@ -23,12 +23,13 @@ package decoder
 #cgo linux,amd64 LDFLAGS: -L${SRCDIR}/../../../../../target/x86_64-unknown-linux-gnu/release
 #cgo linux,arm LDFLAGS: -L${SRCDIR}/../../../../../target/arm-unknown-linux-gnueabihf/release
 #cgo linux,arm64 LDFLAGS: -L${SRCDIR}/../../../../../target/aarch64-unknown-linux-gnu/release
-// The system libraries below are required by the Rust std library and the
-// crates that get bundled into librdp_decoder.a.
-// The list comes from:
+// The system libraries below are based on:
 //   cargo rustc --release --target x86_64-unknown-linux-gnu -p rdp-decoder \
 //     --crate-type staticlib -- --print native-static-libs
-#cgo linux LDFLAGS: -lrdp_decoder -lgcc_s -lutil -lrt -lpthread -lm -ldl -lc
+// -static-libgcc statically links the unwinder that catch_unwind needs, and -Wl,-Bstatic -lm
+// statically links libm (float math for the RemoteFX decode path), keeping libgcc_s.so and
+// libm.so off tsh's runtime dependencies.
+#cgo linux LDFLAGS: -lrdp_decoder -static-libgcc -lutil -lrt -lpthread -Wl,-Bstatic -lm -Wl,-Bdynamic -ldl -lc
 
 #cgo darwin,amd64 LDFLAGS: -L${SRCDIR}/../../../../../target/x86_64-apple-darwin/release
 #cgo darwin,arm64 LDFLAGS: -L${SRCDIR}/../../../../../target/aarch64-apple-darwin/release
