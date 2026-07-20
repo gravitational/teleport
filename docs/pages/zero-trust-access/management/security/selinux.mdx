@@ -155,6 +155,8 @@ Teleport will probably not run under the correct `teleport_ssh_t` domain and not
 
 If you are running Teleport as a systemd service you will need to add the `--enable-selinux` flag to the `ExecStart` option in the Teleport systemd service file.
 
+A future version of `teleport-update` will handle this automatically.
+
 </Admonition>
 
 The optional `--ensure-selinux-enforcing` flag causes Teleport to exit with an error if:
