@@ -1,0 +1,35 @@
+[
+  {
+    "kind": "node",
+    "metadata": {
+      "name": "a3f1c2d4-0000-4000-8000-000000000101",
+      "labels": { "env": "staging", "team": "backend" }
+    },
+    "spec": {
+      "hostname": "staging-web-1",
+      "addr": "10.0.1.11:3022"
+    }
+  },
+  {
+    "kind": "node",
+    "metadata": {
+      "name": "a3f1c2d4-0000-4000-8000-000000000102",
+      "labels": { "env": "staging", "team": "backend" }
+    },
+    "spec": {
+      "hostname": "staging-web-2",
+      "addr": "10.0.1.12:3022"
+    }
+  },
+  {
+    "kind": "node",
+    "metadata": {
+      "name": "a3f1c2d4-0000-4000-8000-000000000103",
+      "labels": { "env": "staging", "team": "backend" }
+    },
+    "spec": {
+      "hostname": "staging-worker-1",
+      "addr": "10.0.1.13:3022"
+    }
+  }
+]

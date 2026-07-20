@@ -1,0 +1,22 @@
+[
+  {
+    "kind": "git_server",
+    "metadata": {
+      "name": "9c1a2b3d-0000-4000-8000-000000000201",
+      "labels": {}
+    },
+    "spec": {
+      "github": { "organization": "acme-corp" }
+    }
+  },
+  {
+    "kind": "git_server",
+    "metadata": {
+      "name": "9c1a2b3d-0000-4000-8000-000000000202",
+      "labels": {}
+    },
+    "spec": {
+      "github": { "organization": "acme-labs" }
+    }
+  }
+]
