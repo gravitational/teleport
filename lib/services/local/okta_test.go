@@ -417,7 +417,8 @@ func TestOktaAssignmentCRUD(t *testing.T) {
 	))
 
 	// Try to conditionally delete an assignment with old revision.
-	require.Error(t, service.ConditionalDeleteOktaAssignment(ctx, assignment1.GetName(), assignment1.GetRevision()))
+	err = service.ConditionalDeleteOktaAssignment(ctx, assignment1.GetName(), assignment1.GetRevision())
+	require.True(t, trace.IsCompareFailed(err), "expected compare failed error, got %v", err)
 
 	// Delete an assignment
 	err = service.DeleteOktaAssignment(ctx, assignment1.GetName())
@@ -475,8 +476,8 @@ func oktaAssignment(t *testing.T, name, username, status string, lastTransition 
 }
 
 func oktaTarget(t *testing.T, targetType types.OktaAssignmentTargetV1_OktaAssignmentTargetType,
-	id string) *types.OktaAssignmentTargetV1 {
-
+	id string,
+) *types.OktaAssignmentTargetV1 {
 	target := &types.OktaAssignmentTargetV1{
 		Type: targetType,
 		Id:   id,
