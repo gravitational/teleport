@@ -75,10 +75,10 @@ func TestScopedAssignmentListCommand(t *testing.T) {
 			},
 			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
 				User: "alice",
-				Assignments: []*scopedaccessv1.Assignment{{
-					Role:  "role1",
+				Assignments: []*scopedaccessv1.Assignment{scopedaccessv1.Assignment_builder{
+					Role:  "/testscope::role1",
 					Scope: "/testscope",
-				}},
+				}.Build()},
 			},
 		},
 		"bob-role1": {
@@ -91,10 +91,10 @@ func TestScopedAssignmentListCommand(t *testing.T) {
 			},
 			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
 				User: "bob",
-				Assignments: []*scopedaccessv1.Assignment{{
-					Role:  "role1",
+				Assignments: []*scopedaccessv1.Assignment{scopedaccessv1.Assignment_builder{
+					Role:  "/testscope::role1",
 					Scope: "/testscope",
-				}},
+				}.Build()},
 			},
 		},
 		"charlie-role2": {
@@ -107,10 +107,10 @@ func TestScopedAssignmentListCommand(t *testing.T) {
 			},
 			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
 				User: "charlie",
-				Assignments: []*scopedaccessv1.Assignment{{
-					Role:  "role2",
+				Assignments: []*scopedaccessv1.Assignment{scopedaccessv1.Assignment_builder{
+					Role:  "/testscope::role2",
 					Scope: "/testscope",
-				}},
+				}.Build()},
 			},
 		},
 		"charlie-role3": {
@@ -123,10 +123,10 @@ func TestScopedAssignmentListCommand(t *testing.T) {
 			},
 			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
 				User: "charlie",
-				Assignments: []*scopedaccessv1.Assignment{{
-					Role:  "role3",
+				Assignments: []*scopedaccessv1.Assignment{scopedaccessv1.Assignment_builder{
+					Role:  "/testscope::role3",
 					Scope: "/testscope",
-				}},
+				}.Build()},
 			},
 		},
 	}
@@ -183,12 +183,12 @@ func TestScopedAssignmentListCommand(t *testing.T) {
 		},
 		{
 			desc:                    "charlie role2",
-			args:                    []string{"assignments", "ls", "--user", "charlie", "--role", "role2"},
+			args:                    []string{"assignments", "ls", "--user", "charlie", "--role", "/testscope::role2"},
 			expectedAssignmentNames: []string{"charlie-role2"},
 		},
 		{
 			desc:                    "role1",
-			args:                    []string{"assignments", "ls", "--role", "role1"},
+			args:                    []string{"assignments", "ls", "--role", "/testscope::role1"},
 			expectedAssignmentNames: []string{"alice-role1", "bob-role1"},
 		},
 		{

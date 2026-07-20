@@ -86,9 +86,10 @@ func (b *scopedAccessCheckerBuilder) newCheckerForRole(ctx context.Context, key 
 		return nil, trace.BadParameter("cannot build checker for non-user role kind %q (this is a bug)", key.RoleKind)
 	}
 
-	rsp, err := b.reader.GetScopedRole(ctx, &scopedaccessv1.GetScopedRoleRequest{
-		Name: key.RoleName,
-	})
+	rsp, err := b.reader.GetScopedRole(ctx, scopedaccessv1.GetScopedRoleRequest_builder{
+		Name:  key.RoleName,
+		Scope: key.RoleScope,
+	}.Build())
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return nil, errMissingAssignedRole

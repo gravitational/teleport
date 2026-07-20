@@ -1203,7 +1203,10 @@ func TestGenerateUserCertsForHeadlessKube(t *testing.T) {
 			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
 				User: user1.GetName(),
 				Assignments: []*scopedaccessv1.Assignment{
-					{Role: role.GetMetadata().GetName(), Scope: scope},
+					scopedaccessv1.Assignment_builder{
+						Role:  scopes.QualifiedName{Scope: role.GetScope(), Name: role.GetMetadata().GetName()}.String(),
+						Scope: scope,
+					}.Build(),
 				},
 			},
 		},
@@ -5541,12 +5544,12 @@ func TestListResources_KindKubernetesCluster(t *testing.T) {
 	srv := newTestTLSServer(t, withScopesFeatures(scopes.Features{Enabled: true}))
 
 	scopedAccess := srv.Auth().ScopedAccess()
-	scopes := []string{"/test", "/other"}
+	testScopes := []string{"/test", "/other"}
 	getScopeAsName := func(scope string) string {
 		return strings.ReplaceAll(strings.Trim(scope, "/"), "/", "-")
 	}
 	// create scoped roles, users, and assignments
-	for _, scope := range scopes {
+	for _, scope := range testScopes {
 		roleResp, err := scopedAccess.CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
 			Role: &scopedaccessv1.ScopedRole{
 				Kind:    scopedaccess.KindScopedRole,
@@ -5588,7 +5591,10 @@ func TestListResources_KindKubernetesCluster(t *testing.T) {
 				Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
 					User: user.GetName(),
 					Assignments: []*scopedaccessv1.Assignment{
-						{Role: role.GetMetadata().GetName(), Scope: scope},
+						scopedaccessv1.Assignment_builder{
+							Role:  scopes.QualifiedName{Scope: role.GetScope(), Name: role.GetMetadata().GetName()}.String(),
+							Scope: scope,
+						}.Build(),
 					},
 				},
 			},
@@ -5601,14 +5607,14 @@ func TestListResources_KindKubernetesCluster(t *testing.T) {
 	require.NoError(t, err)
 
 	scopedClient, err := srv.NewClient(authtest.TestScopedUser(
-		getScopeAsName(scopes[0])+"-reader",
-		scopes[0],
+		getScopeAsName(testScopes[0])+"-reader",
+		testScopes[0],
 	))
 	require.NoError(t, err)
 
 	otherScopedClient, err := srv.NewClient(authtest.TestScopedUser(
-		getScopeAsName(scopes[1])+"-reader",
-		scopes[1],
+		getScopeAsName(testScopes[1])+"-reader",
+		testScopes[1],
 	))
 	require.NoError(t, err)
 
@@ -5627,11 +5633,11 @@ func TestListResources_KindKubernetesCluster(t *testing.T) {
 	createKubeServer(t, srv.Auth(), []string{"a", "c"}, "host2", "")
 
 	// Add scoped variants of the kube services
-	createKubeServer(t, srv.Auth(), []string{"b", "a"}, "scoped_host1", scopes[0])
+	createKubeServer(t, srv.Auth(), []string{"b", "a"}, "scoped_host1", testScopes[0])
 
 	// Add a kube service with 2 clusters.
 	// Includes a duplicate cluster name to test deduplicate.
-	createKubeServer(t, srv.Auth(), []string{"a", "c"}, "scoped_host2", scopes[0])
+	createKubeServer(t, srv.Auth(), []string{"a", "c"}, "scoped_host2", testScopes[0])
 
 	// Test upsert.
 	kubeServers, err := srv.Auth().GetKubernetesServers(ctx)
@@ -5774,6 +5780,7 @@ func waitForSRACache(t *testing.T, srv *authtest.TLSServer, resps ...*scopedacce
 			_, err := srv.Auth().ScopedAccessCache.GetScopedRoleAssignment(ctx, &scopedaccessv1.GetScopedRoleAssignmentRequest{
 				Name:    resp.GetAssignment().GetMetadata().GetName(),
 				SubKind: resp.GetAssignment().GetSubKind(),
+				Scope:   resp.GetAssignment().GetScope(),
 			})
 			require.NoError(t, err)
 		}
@@ -8851,7 +8858,10 @@ func newScopePinnedTestServerWithScopedUser(t *testing.T, srv *authtest.AuthServ
 			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
 				User: username,
 				Assignments: []*scopedaccessv1.Assignment{
-					scopedaccessv1.Assignment_builder{Role: roleName, Scope: scope}.Build(),
+					scopedaccessv1.Assignment_builder{
+						Role:  scopes.QualifiedName{Scope: scope, Name: roleName}.String(),
+						Scope: scope,
+					}.Build(),
 				},
 			}.Build(),
 		}.Build(),
@@ -12052,9 +12062,10 @@ func TestScopedRoleEvents(t *testing.T) {
 	require.Empty(t, cmp.Diff(crsp.Role, resource, protocmp.Transform() /* deliberately not ignoring revision */))
 
 	// delete the role and verify delete event is well-formed.
-	_, err = service.DeleteScopedRole(ctx, &scopedaccessv1.DeleteScopedRoleRequest{
-		Name: role.Metadata.Name,
-	})
+	_, err = service.DeleteScopedRole(ctx, scopedaccessv1.DeleteScopedRoleRequest_builder{
+		Name:  role.GetMetadata().GetName(),
+		Scope: role.GetScope(),
+	}.Build())
 	require.NoError(t, err)
 
 	event = getNextEvent()
@@ -12085,10 +12096,10 @@ func TestScopedRoleEvents(t *testing.T) {
 		Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
 			User: "alice",
 			Assignments: []*scopedaccessv1.Assignment{
-				{
-					Role:  role.Metadata.Name,
+				scopedaccessv1.Assignment_builder{
+					Role:  scopes.QualifiedName{Scope: role.GetScope(), Name: role.GetMetadata().GetName()}.String(),
 					Scope: "/foo",
-				},
+				}.Build(),
 			},
 		},
 		Version: types.V1,
@@ -12105,10 +12116,11 @@ func TestScopedRoleEvents(t *testing.T) {
 	require.Empty(t, cmp.Diff(acrsp.Assignment, assignmentResource, protocmp.Transform() /* deliberately not ignoring revision */))
 
 	// delete the assignment and verify delete event is well-formed.
-	_, err = service.DeleteScopedRoleAssignment(ctx, &scopedaccessv1.DeleteScopedRoleAssignmentRequest{
-		Name:    assignment.Metadata.Name,
-		SubKind: assignment.SubKind,
-	})
+	_, err = service.DeleteScopedRoleAssignment(ctx, scopedaccessv1.DeleteScopedRoleAssignmentRequest_builder{
+		Name:    assignment.GetMetadata().GetName(),
+		SubKind: assignment.GetSubKind(),
+		Scope:   assignment.GetScope(),
+	}.Build())
 	require.NoError(t, err)
 
 	event = getNextEvent()
@@ -13351,7 +13363,10 @@ func TestScopedUserCertGeneration(t *testing.T) {
 			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
 				User: user.GetName(),
 				Assignments: []*scopedaccessv1.Assignment{
-					{Role: scopedRole.GetMetadata().GetName(), Scope: scope},
+					scopedaccessv1.Assignment_builder{
+						Role:  scopes.QualifiedName{Scope: scopedRole.GetScope(), Name: scopedRole.GetMetadata().GetName()}.String(),
+						Scope: scope,
+					}.Build(),
 				},
 			},
 		},

@@ -348,7 +348,7 @@ scope: "/"
 spec:
   user: "bob"
   assignments:
-    - role: some-role
+    - role: /::some-role
       scope: /foo
 version: v1
 `
@@ -503,15 +503,24 @@ version: v1
 	assignmentName := as[0].GetMetadata().GetName()
 
 	// Ensure that retrieving the scoped role assignment with incorrect sub_kind fails.
-	_, err = runResourceCommand(t, clt, []string{"get", "scoped_role_assignment/materialized", "/::" + assignmentName, "--format=json"})
+	_, err = runResourceCommand(t, clt, []string{"get", "scoped_role_assignment/materialized", scopes.QualifiedName{
+		Scope: "/",
+		Name:  assignmentName,
+	}.String(), "--format=json"})
 	require.True(t, trace.IsNotFound(err), "expected NotFound error, got %v", err)
 
 	// Ensure that trying to retrieve the scoped role assignment without a subkind fails.
-	_, err = runResourceCommand(t, clt, []string{"get", "scoped_role_assignment", "/::" + assignmentName, "--format=json"})
+	_, err = runResourceCommand(t, clt, []string{"get", "scoped_role_assignment", scopes.QualifiedName{
+		Scope: "/",
+		Name:  assignmentName,
+	}.String(), "--format=json"})
 	require.ErrorContains(t, err, "requires a sub-kind")
 
 	// Ensure that retrieving the scoped role assignment by name with explicit sub_kind works.
-	buff, err = runResourceCommand(t, clt, []string{"get", "scoped_role_assignment/dynamic", "/::" + assignmentName, "--format=json"})
+	buff, err = runResourceCommand(t, clt, []string{"get", "scoped_role_assignment/dynamic", scopes.QualifiedName{
+		Scope: "/",
+		Name:  assignmentName,
+	}.String(), "--format=json"})
 	require.NoError(t, err)
 	var asByName []*scopedaccessv1.ScopedRoleAssignment
 	err = json.Unmarshal(buff.Bytes(), &asByName)
@@ -530,10 +539,10 @@ version: v1
 		Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
 			User: "bob",
 			Assignments: []*scopedaccessv1.Assignment{
-				{
-					Role:  "some-role",
+				scopedaccessv1.Assignment_builder{
+					Role:  "/::some-role",
 					Scope: "/foo",
-				},
+				}.Build(),
 			},
 		},
 		Version: types.V1,
@@ -548,26 +557,41 @@ version: v1
 	require.ErrorContains(t, err, "scope-qualified name")
 
 	// scope mismatch on delete should return NotFound (assignment lives at "/", not "/wrong")
-	_, err = runResourceCommand(t, clt, []string{"rm", "scoped_role_assignment/dynamic", "/wrong::" + assignmentName})
+	_, err = runResourceCommand(t, clt, []string{"rm", "scoped_role_assignment/dynamic", scopes.QualifiedName{
+		Scope: "/wrong",
+		Name:  assignmentName,
+	}.String()})
 	require.True(t, trace.IsNotFound(err), "expected NotFound for scope mismatch on assignment delete, got %v", err)
 
 	// verify delete of assignment fails without subkind
-	_, err = runResourceCommand(t, clt, []string{"rm", "scoped_role_assignment", "/::" + assignmentName})
+	_, err = runResourceCommand(t, clt, []string{"rm", "scoped_role_assignment", scopes.QualifiedName{
+		Scope: "/",
+		Name:  assignmentName,
+	}.String()})
 	require.ErrorContains(t, err, "requires a sub-kind")
 
 	// verify delete of assignment fails without materialized subkind.
-	_, err = runResourceCommand(t, clt, []string{"rm", "scoped_role_assignment/materialized", "/::" + assignmentName})
+	_, err = runResourceCommand(t, clt, []string{"rm", "scoped_role_assignment/materialized", scopes.QualifiedName{
+		Scope: "/",
+		Name:  assignmentName,
+	}.String()})
 	require.ErrorContains(t, err, "cannot be deleted")
 
 	// verify delete of assignment
-	_, err = runResourceCommand(t, clt, []string{"rm", "scoped_role_assignment/dynamic", "/::" + assignmentName})
+	_, err = runResourceCommand(t, clt, []string{"rm", "scoped_role_assignment/dynamic", scopes.QualifiedName{
+		Scope: "/",
+		Name:  assignmentName,
+	}.String()})
 	require.NoError(t, err)
 
 	// wait for delete cache propagation
 	timeout = time.After(time.Second * 30)
 	for {
 		// verify assignment is gone
-		_, err = runResourceCommand(t, clt, []string{"get", "scoped_role_assignment/dynamic", "/::" + assignmentName, "--format=json"})
+		_, err = runResourceCommand(t, clt, []string{"get", "scoped_role_assignment/dynamic", scopes.QualifiedName{
+			Scope: "/",
+			Name:  assignmentName,
+		}.String(), "--format=json"})
 		if err != nil {
 			require.True(t, trace.IsNotFound(err), "expected a NotFound error, got %v", err)
 			break

@@ -1562,7 +1562,7 @@ func TestAuthPreferenceSettings_ScopedIdentity(t *testing.T) {
 			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
 				User: user.GetName(),
 				Assignments: []*scopedaccessv1.Assignment{
-					{Role: "empty-role", Scope: "/test/scope"},
+					scopedaccessv1.Assignment_builder{Role: "/test::empty-role", Scope: "/test/scope"}.Build(),
 				},
 			},
 		},
@@ -1573,6 +1573,7 @@ func TestAuthPreferenceSettings_ScopedIdentity(t *testing.T) {
 		_, err := srv.AuthServer.AuthServer.ScopedAccessCache.GetScopedRoleAssignment(ctx, &scopedaccessv1.GetScopedRoleAssignmentRequest{
 			Name:    createResp.GetAssignment().GetMetadata().GetName(),
 			SubKind: scopedaccess.SubKindDynamic,
+			Scope:   createResp.GetAssignment().GetScope(),
 		})
 		require.NoError(t, err)
 	}, 10*time.Second, 100*time.Millisecond)
@@ -2648,7 +2649,7 @@ func TestGetCertAuthority_ScopedIdentity(t *testing.T) {
 			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
 				User: user.GetName(),
 				Assignments: []*scopedaccessv1.Assignment{
-					{Role: "empty-role", Scope: "/test/scope"},
+					scopedaccessv1.Assignment_builder{Role: "/test::empty-role", Scope: "/test/scope"}.Build(),
 				},
 			},
 		},
@@ -2659,6 +2660,7 @@ func TestGetCertAuthority_ScopedIdentity(t *testing.T) {
 		_, err := srv.AuthServer.AuthServer.ScopedAccessCache.GetScopedRoleAssignment(ctx, &scopedaccessv1.GetScopedRoleAssignmentRequest{
 			Name:    createResp.GetAssignment().GetMetadata().GetName(),
 			SubKind: scopedaccess.SubKindDynamic,
+			Scope:   createResp.GetAssignment().GetScope(),
 		})
 		require.NoError(t, err)
 	}, 10*time.Second, 100*time.Millisecond)
@@ -5065,7 +5067,7 @@ func TestWatchEvents_ScopedIdentity(t *testing.T) {
 			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
 				User: user.GetName(),
 				Assignments: []*scopedaccessv1.Assignment{
-					{Role: "empty-role", Scope: "/test/scope"},
+					scopedaccessv1.Assignment_builder{Role: "/test::empty-role", Scope: "/test/scope"}.Build(),
 				},
 			},
 		},
@@ -5076,6 +5078,7 @@ func TestWatchEvents_ScopedIdentity(t *testing.T) {
 		_, err := srv.AuthServer.AuthServer.ScopedAccessCache.GetScopedRoleAssignment(ctx, &scopedaccessv1.GetScopedRoleAssignmentRequest{
 			Name:    createResp.GetAssignment().GetMetadata().GetName(),
 			SubKind: createResp.GetAssignment().GetSubKind(),
+			Scope:   createResp.GetAssignment().GetScope(),
 		})
 		require.NoError(t, err)
 	}, 10*time.Second, 100*time.Millisecond)
