@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package internal
+package tunnel
 
 import (
 	"bytes"
@@ -36,7 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
-func TestRetryTunnelInitialization(t *testing.T) {
+func TestRetryInitialization(t *testing.T) {
 	t.Parallel()
 
 	var initCalled bool
@@ -51,7 +51,7 @@ func TestRetryTunnelInitialization(t *testing.T) {
 	registry := readyz.NewRegistry()
 	reporter := registry.AddService("application-tunnel", "test")
 
-	err := RetryTunnelInitialization(t.Context(), logger, reporter, init)
+	err := RetryInitialization(t.Context(), logger, reporter, init)
 	require.NoError(t, err)
 	require.True(t, initCalled)
 
@@ -63,7 +63,7 @@ func TestRetryTunnelInitialization(t *testing.T) {
 	require.NotContains(t, loggerContents.String(), "Tunnel initialization recovered")
 }
 
-func TestRetryTunnelInitialization_Retries(t *testing.T) {
+func TestRetryInitialization_Retries(t *testing.T) {
 	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
@@ -97,7 +97,7 @@ func TestRetryTunnelInitialization_Retries(t *testing.T) {
 		logger := slog.New(slog.NewTextHandler(&loggerContents, nil))
 
 		go func() {
-			result <- retryTunnelInitialization(
+			result <- retryInitialization(
 				retryCtx,
 				logger,
 				reporter,
@@ -149,7 +149,7 @@ func TestRetryTunnelInitialization_Retries(t *testing.T) {
 
 		select {
 		case <-result:
-			require.Fail(t, "RetryTunnelInitialization returned when it shouldn't yet")
+			require.Fail(t, "RetryInitialization returned when it shouldn't yet")
 		default:
 		}
 
@@ -162,7 +162,7 @@ func TestRetryTunnelInitialization_Retries(t *testing.T) {
 		// The "1 minute" is just to ensure the check happens after all the other timed
 		// events inside synctest.
 		case <-time.After(1 * time.Minute):
-			require.Fail(t, "timed out waiting for RetryTunnelInitialization to return")
+			require.Fail(t, "timed out waiting for RetryInitialization to return")
 		}
 
 		// Validate that log reporting is correct
@@ -172,7 +172,7 @@ func TestRetryTunnelInitialization_Retries(t *testing.T) {
 		// There should have been 7 failed attempts, plus one successful.
 		require.Equal(t, int32(8), initCallCount.Load())
 
-		// The RetryTunnelInitialization intentionally never sets the status to Healthy.
+		// The RetryInitialization intentionally never sets the status to Healthy.
 		status, ok = registry.ServiceStatus("test")
 		require.True(t, ok)
 		require.Equal(t, readyz.Unhealthy, status.Status)
@@ -180,7 +180,7 @@ func TestRetryTunnelInitialization_Retries(t *testing.T) {
 	})
 }
 
-func TestRetryTunnelInitialization_ContextCancellation(t *testing.T) {
+func TestRetryInitialization_ContextCancelation(t *testing.T) {
 	t.Parallel()
 
 	t.Run("starting with a canceled context", func(t *testing.T) {
@@ -198,7 +198,7 @@ func TestRetryTunnelInitialization_ContextCancellation(t *testing.T) {
 		registry := readyz.NewRegistry()
 		reporter := registry.AddService("application-tunnel", "test")
 
-		err := RetryTunnelInitialization(
+		err := RetryInitialization(
 			ctx,
 			logtest.NewLogger(),
 			reporter,
@@ -215,7 +215,7 @@ func TestRetryTunnelInitialization_ContextCancellation(t *testing.T) {
 		require.False(t, initCalled, "the init function was called when it shouldn't")
 	})
 
-	t.Run("mid-init cancellation", func(t *testing.T) {
+	t.Run("mid-init cancelation", func(t *testing.T) {
 		t.Parallel()
 
 		synctest.Test(t, func(t *testing.T) {
@@ -233,7 +233,7 @@ func TestRetryTunnelInitialization_ContextCancellation(t *testing.T) {
 			result := make(chan error, 1)
 
 			go func() {
-				result <- RetryTunnelInitialization(
+				result <- RetryInitialization(
 					ctx,
 					logtest.NewLogger(),
 					reporter,
@@ -276,7 +276,7 @@ func TestRetryTunnelInitialization_ContextCancellation(t *testing.T) {
 			result := make(chan error, 1)
 
 			go func() {
-				result <- RetryTunnelInitialization(
+				result <- RetryInitialization(
 					ctx,
 					logtest.NewLogger(),
 					reporter,
@@ -292,7 +292,7 @@ func TestRetryTunnelInitialization_ContextCancellation(t *testing.T) {
 
 			select {
 			case <-result:
-				require.Fail(t, "RetryTunnelInitialization returned when it shouldn't yet")
+				require.Fail(t, "RetryInitialization returned when it shouldn't yet")
 			default:
 			}
 
@@ -304,7 +304,7 @@ func TestRetryTunnelInitialization_ContextCancellation(t *testing.T) {
 				require.ErrorIs(t, err, context.Canceled)
 
 			case <-time.After(1 * time.Minute):
-				require.Fail(t, "timed out waiting for RetryTunnelInitialization to return")
+				require.Fail(t, "timed out waiting for RetryInitialization to return")
 			}
 		})
 	})

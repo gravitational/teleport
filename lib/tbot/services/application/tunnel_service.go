@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/client"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tbot/internal"
+	"github.com/gravitational/teleport/lib/tbot/internal/tunnel"
 	"github.com/gravitational/teleport/lib/tbot/readyz"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -110,7 +111,7 @@ func (s *TunnelService) Run(ctx context.Context) error {
 	}
 
 	var lpCfg alpnproxy.LocalProxyConfig
-	err := internal.RetryTunnelInitialization(ctx, s.log, s.statusReporter, func(ctx context.Context) error {
+	err := tunnel.RetryInitialization(ctx, s.log, s.statusReporter, func(ctx context.Context) error {
 		var proxyErr error
 		lpCfg, proxyErr = s.buildLocalProxyConfig(ctx)
 		return proxyErr
@@ -141,7 +142,7 @@ func (s *TunnelService) Run(ctx context.Context) error {
 	// lp.Start will block and continues to block until lp.Close() is called.
 	// Despite taking a context, it will not exit until the first connection is
 	// made after the context is canceled.
-	var errCh = make(chan error, 1)
+	errCh := make(chan error, 1)
 	go func() {
 		errCh <- lp.Start(ctx)
 	}()

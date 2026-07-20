@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package internal
+package tunnel
 
 import (
 	"context"
@@ -29,23 +29,23 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/readyz"
 )
 
-const tunnelInitializationMaxBackoff = 10 * time.Second
+const initializationMaxBackoff = 10 * time.Second
 
-// RetryTunnelInitialization retries remote tunnel initialization until it
+// RetryInitialization retries remote tunnel initialization until it
 // succeeds or ctx is canceled. It reports failures as unhealthy.
 // On recovery (or success) it does not report Success, it's up to the
 // caller to do so once it finishes creating the proxy.
-func RetryTunnelInitialization(
+func RetryInitialization(
 	ctx context.Context,
 	log *slog.Logger,
 	statusReporter readyz.Reporter,
 	initialize func(context.Context) error,
 ) error {
-	return retryTunnelInitialization(ctx, log, statusReporter, retryutils.HalfJitter, initialize)
+	return retryInitialization(ctx, log, statusReporter, retryutils.HalfJitter, initialize)
 }
 
-// retryTunnelInitialization exposes the jitter setting to allow predictable testing.
-func retryTunnelInitialization(
+// retryInitialization exposes the jitter setting to allow predictable testing.
+func retryInitialization(
 	ctx context.Context,
 	log *slog.Logger,
 	statusReporter readyz.Reporter,
@@ -58,7 +58,7 @@ func retryTunnelInitialization(
 
 	retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
 		Driver: retryutils.NewExponentialDriver(time.Second),
-		Max:    tunnelInitializationMaxBackoff,
+		Max:    initializationMaxBackoff,
 		Jitter: jitter,
 	})
 	if err != nil {
@@ -79,7 +79,7 @@ func retryTunnelInitialization(
 			return nil
 		}
 
-		// Cancellation can race with the operation returning an error. Do not
+		// Cancelation can race with the operation returning an error. Do not
 		// report shutdown as another unhealthy initialization attempt.
 		if ctxErr := ctx.Err(); ctxErr != nil {
 			return ctxErr
