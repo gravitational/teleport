@@ -98,7 +98,7 @@ func SignRequest(ctx context.Context, opts SignRequestOptions) error {
 	return nil
 }
 
-// BuildURL builds the Anthropic-compatible Bedrock URL address.
+// BuildAnthropicURL builds the Anthropic-compatible Bedrock URL address.
 //
 // Messages API: https://docs.aws.amazon.com/bedrock/latest/userguide/inference-messages-api.html
 func BuildAnthropicURL(log *slog.Logger, app types.Application) *url.URL {
@@ -109,7 +109,7 @@ func BuildAnthropicURL(log *slog.Logger, app types.Application) *url.URL {
 	}
 }
 
-// BuildURL builds the OpenAI-compatible Bedrock URL address.
+// BuildOpenAIURL builds the OpenAI-compatible Bedrock URL address.
 //
 // Responses API: https://docs.aws.amazon.com/bedrock/latest/userguide/bedrock-mantle.html
 // Chat completions API: https://docs.aws.amazon.com/bedrock/latest/userguide/inference-chat-completions-mantle.html
