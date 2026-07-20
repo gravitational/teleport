@@ -44,9 +44,12 @@ import (
 )
 
 const (
-	chalName      = "test-challenge"
-	sourceCluster = "test-cluster"
-	targetCluster = "test-cluster"
+	chalName           = "test-challenge"
+	sourceCluster      = "test-cluster"
+	targetCluster      = "test-cluster"
+	nonExistentCluster = "non-existent-cluster"
+	differentCluster   = "different-cluster"
+	emptyCluster       = ""
 )
 
 var payload = mfav2.SessionIdentifyingPayload_builder{
@@ -379,7 +382,7 @@ func TestCreateSessionChallenge_TargetClusterDoesNotExist(t *testing.T) {
 		ctx,
 		mfav2.CreateSessionChallengeRequest_builder{
 			Payload:       payload,
-			TargetCluster: "non-existent-cluster",
+			TargetCluster: new(nonExistentCluster),
 		}.Build(),
 	)
 	require.True(t, trace.IsNotFound(err))
@@ -1014,7 +1017,7 @@ func TestReplicateValidatedMFAChallenge_TargetClusterMismatch(t *testing.T) {
 		Name:          chalName,
 		Payload:       payload,
 		SourceCluster: sourceCluster,
-		TargetCluster: "different-cluster",
+		TargetCluster: differentCluster,
 		Username:      "test-user",
 	}.Build())
 	require.Error(t, err)
@@ -1073,7 +1076,7 @@ func TestReplicateValidatedMFAChallenge_InvalidRequest(t *testing.T) {
 				Name:          chalName,
 				Payload:       payload,
 				SourceCluster: sourceCluster,
-				TargetCluster: "",
+				TargetCluster: emptyCluster,
 				Username:      "test-user",
 			}.Build(),
 			expectedError: trace.BadParameter("missing ReplicateValidatedMFAChallengeRequest target_cluster"),
