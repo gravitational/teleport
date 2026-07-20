@@ -18,7 +18,7 @@
 // 	protoc        (unknown)
 // source: teleport/clientiprestriction/v1/clientiprestriction.proto
 
-//go:build teleport_protohybrid
+//go:build !teleport_protoopaque
 
 package clientiprestrictionv1
 
