@@ -123,7 +123,7 @@ func ResolveFQDN(
 	fqdn string,
 	canAccess func(types.Application) bool,
 ) (types.AppServer, string, error) {
-	hostname, err := validateFQDN(fqdn)
+	hostname, err := extractHostname(fqdn)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -174,9 +174,9 @@ func ResolveFQDN(
 	return nil, "", trace.NotFound("failed to resolve %v to any application within any cluster", fqdn)
 }
 
-// validateFQDN checks that fqdn is a well-formed hostname with an optional
+// extractHostname checks that fqdn is a well-formed hostname with an optional
 // numeric port and returns its hostname without the port.
-func validateFQDN(fqdn string) (string, error) {
+func extractHostname(fqdn string) (string, error) {
 	hostname := fqdn
 	// An error here means the fqdn isn't in proper host:port form. In that case
 	// let the hostname check below reject anything bad.

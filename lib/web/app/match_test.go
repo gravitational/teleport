@@ -25,7 +25,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	scopedapp "github.com/gravitational/teleport/lib/scopes/app"
+	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/readonly"
 )
 
 func TestMatchAppServerForRoute(t *testing.T) {
@@ -206,7 +209,7 @@ func TestHostIsProxyOrSubdomain(t *testing.T) {
 	}
 }
 
-func TestValidateFQDN(t *testing.T) {
+func TestExtractHostname(t *testing.T) {
 	t.Parallel()
 	for _, test := range []struct {
 		desc         string
@@ -267,7 +270,7 @@ func TestValidateFQDN(t *testing.T) {
 		},
 	} {
 		t.Run(test.desc, func(t *testing.T) {
-			host, err := validateFQDN(test.fqdn)
+			host, err := extractHostname(test.fqdn)
 			if test.wantErr {
 				require.True(t, trace.IsBadParameter(err), "want BadParameter, got %v", err)
 				return
@@ -276,6 +279,42 @@ func TestValidateFQDN(t *testing.T) {
 			require.Equal(t, test.wantHostname, host)
 		})
 	}
+}
+
+// emptyCluster is a minimal reversetunnelclient.Cluster without an app-server watcher.
+type emptyCluster struct {
+	reversetunnelclient.Cluster
+	name string
+}
+
+func (c emptyCluster) GetName() string { return c.name }
+
+func (c emptyCluster) AppServerWatcher() (*services.GenericWatcher[types.AppServer, readonly.AppServer], error) {
+	return nil, trace.NotFound("no app server watcher in test")
+}
+
+// TestResolveFQDN_ProxyWithPort verifies that a request under a proxy whose DNS
+// name includes a port does not get rejected as BadParameter.
+func TestResolveFQDN_ProxyWithPort(t *testing.T) {
+	t.Parallel()
+
+	getter := &reversetunnelclient.FakeServer{
+		FakeClusters: []reversetunnelclient.Cluster{emptyCluster{name: "local"}},
+	}
+	proxyDNSNames := []string{"proxy.example.com:3080"}
+
+	_, _, err := ResolveFQDN(
+		t.Context(),
+		getter,
+		"local",
+		proxyDNSNames,
+		"myapp.proxy.example.com",
+		nil,
+	)
+
+	require.Error(t, err)
+	require.False(t, trace.IsBadParameter(err),
+		"proxy with port must not be rejected, got %v", err)
 }
 
 func TestPickAppServer(t *testing.T) {
