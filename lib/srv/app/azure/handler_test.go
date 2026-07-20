@@ -97,6 +97,10 @@ func (noopAudit) OnDynamoDBRequest(context.Context, *common.SessionContext, *htt
 	return nil
 }
 
+func (noopAudit) OnLLMRequest(context.Context, *common.SessionContext, *http.Request, common.LLMRequest, common.LLMResponse) error {
+	return nil
+}
+
 func (noopAudit) EmitEvent(context.Context, apievents.AuditEvent) error {
 	return nil
 }

@@ -42,6 +42,7 @@ type GetScopedTokenRequest struct {
 	state                 protoimpl.MessageState `protogen:"opaque.v1"`
 	xxx_hidden_Name       string                 `protobuf:"bytes,1,opt,name=name,proto3"`
 	xxx_hidden_WithSecret bool                   `protobuf:"varint,2,opt,name=with_secret,json=withSecret,proto3"`
+	xxx_hidden_Scope      string                 `protobuf:"bytes,3,opt,name=scope,proto3"`
 	unknownFields         protoimpl.UnknownFields
 	sizeCache             protoimpl.SizeCache
 }
@@ -85,12 +86,23 @@ func (x *GetScopedTokenRequest) GetWithSecret() bool {
 	return false
 }
 
+func (x *GetScopedTokenRequest) GetScope() string {
+	if x != nil {
+		return x.xxx_hidden_Scope
+	}
+	return ""
+}
+
 func (x *GetScopedTokenRequest) SetName(v string) {
 	x.xxx_hidden_Name = v
 }
 
 func (x *GetScopedTokenRequest) SetWithSecret(v bool) {
 	x.xxx_hidden_WithSecret = v
+}
+
+func (x *GetScopedTokenRequest) SetScope(v string) {
+	x.xxx_hidden_Scope = v
 }
 
 type GetScopedTokenRequest_builder struct {
@@ -100,6 +112,8 @@ type GetScopedTokenRequest_builder struct {
 	Name string
 	// If true, include the token secret in the response.
 	WithSecret bool
+	// The scope which the token exists in.
+	Scope string
 }
 
 func (b0 GetScopedTokenRequest_builder) Build() *GetScopedTokenRequest {
@@ -108,6 +122,7 @@ func (b0 GetScopedTokenRequest_builder) Build() *GetScopedTokenRequest {
 	_, _ = b, x
 	x.xxx_hidden_Name = b.Name
 	x.xxx_hidden_WithSecret = b.WithSecret
+	x.xxx_hidden_Scope = b.Scope
 	return m0
 }
 
@@ -716,6 +731,7 @@ type DeleteScopedTokenRequest struct {
 	state               protoimpl.MessageState `protogen:"opaque.v1"`
 	xxx_hidden_Name     string                 `protobuf:"bytes,1,opt,name=name,proto3"`
 	xxx_hidden_Revision string                 `protobuf:"bytes,2,opt,name=revision,proto3"`
+	xxx_hidden_Scope    string                 `protobuf:"bytes,3,opt,name=scope,proto3"`
 	unknownFields       protoimpl.UnknownFields
 	sizeCache           protoimpl.SizeCache
 }
@@ -759,12 +775,23 @@ func (x *DeleteScopedTokenRequest) GetRevision() string {
 	return ""
 }
 
+func (x *DeleteScopedTokenRequest) GetScope() string {
+	if x != nil {
+		return x.xxx_hidden_Scope
+	}
+	return ""
+}
+
 func (x *DeleteScopedTokenRequest) SetName(v string) {
 	x.xxx_hidden_Name = v
 }
 
 func (x *DeleteScopedTokenRequest) SetRevision(v string) {
 	x.xxx_hidden_Revision = v
+}
+
+func (x *DeleteScopedTokenRequest) SetScope(v string) {
+	x.xxx_hidden_Scope = v
 }
 
 type DeleteScopedTokenRequest_builder struct {
@@ -774,6 +801,8 @@ type DeleteScopedTokenRequest_builder struct {
 	Name string
 	// Revision asserts the revision of the scoped token to delete (optional).
 	Revision string
+	// The scope which the token exists in.
+	Scope string
 }
 
 func (b0 DeleteScopedTokenRequest_builder) Build() *DeleteScopedTokenRequest {
@@ -782,6 +811,7 @@ func (b0 DeleteScopedTokenRequest_builder) Build() *DeleteScopedTokenRequest {
 	_, _ = b, x
 	x.xxx_hidden_Name = b.Name
 	x.xxx_hidden_Revision = b.Revision
+	x.xxx_hidden_Scope = b.Scope
 	return m0
 }
 
@@ -973,11 +1003,12 @@ var File_teleport_scopes_joining_v1_service_proto protoreflect.FileDescriptor
 
 const file_teleport_scopes_joining_v1_service_proto_rawDesc = "" +
 	"\n" +
-	"(teleport/scopes/joining/v1/service.proto\x12\x1ateleport.scopes.joining.v1\x1a&teleport/scopes/joining/v1/token.proto\x1a\x1fteleport/scopes/v1/scopes.proto\"L\n" +
+	"(teleport/scopes/joining/v1/service.proto\x12\x1ateleport.scopes.joining.v1\x1a&teleport/scopes/joining/v1/token.proto\x1a\x1fteleport/scopes/v1/scopes.proto\"b\n" +
 	"\x15GetScopedTokenRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x1f\n" +
 	"\vwith_secret\x18\x02 \x01(\bR\n" +
-	"withSecret\"W\n" +
+	"withSecret\x12\x14\n" +
+	"\x05scope\x18\x03 \x01(\tR\x05scope\"W\n" +
 	"\x16GetScopedTokenResponse\x12=\n" +
 	"\x05token\x18\x01 \x01(\v2'.teleport.scopes.joining.v1.ScopedTokenR\x05token\"\xcf\x03\n" +
 	"\x17ListScopedTokensRequest\x12\x16\n" +
@@ -1001,10 +1032,11 @@ const file_teleport_scopes_joining_v1_service_proto_rawDesc = "" +
 	"\x18UpsertScopedTokenRequest\x12=\n" +
 	"\x05token\x18\x01 \x01(\v2'.teleport.scopes.joining.v1.ScopedTokenR\x05token\"Z\n" +
 	"\x19UpsertScopedTokenResponse\x12=\n" +
-	"\x05token\x18\x01 \x01(\v2'.teleport.scopes.joining.v1.ScopedTokenR\x05token\"J\n" +
+	"\x05token\x18\x01 \x01(\v2'.teleport.scopes.joining.v1.ScopedTokenR\x05token\"`\n" +
 	"\x18DeleteScopedTokenRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x1a\n" +
-	"\brevision\x18\x02 \x01(\tR\brevision\"\x1b\n" +
+	"\brevision\x18\x02 \x01(\tR\brevision\x12\x14\n" +
+	"\x05scope\x18\x03 \x01(\tR\x05scope\"\x1b\n" +
 	"\x19DeleteScopedTokenResponse\"Y\n" +
 	"\x18UpdateScopedTokenRequest\x12=\n" +
 	"\x05token\x18\x01 \x01(\v2'.teleport.scopes.joining.v1.ScopedTokenR\x05token\"Z\n" +

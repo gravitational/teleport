@@ -49,6 +49,9 @@ message GetScopedTokenRequest {
 
   // If true, include the token secret in the response.
   bool with_secret = 2;
+
+  // The scope which the token exists in.
+  string scope = 3;
 }
 
 // GetScopedTokenResponse is the response to get a scoped token.
@@ -127,6 +130,9 @@ message DeleteScopedTokenRequest {
 
   // Revision asserts the revision of the scoped token to delete (optional).
   string revision = 2;
+
+  // The scope which the token exists in.
+  string scope = 3;
 }
 
 // DeleteScopedTokenResponse is the response to delete a scoped token.
