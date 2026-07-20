@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	authpb "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
@@ -7032,13 +7033,20 @@ func (a *ServerWithRoles) UpsertKubernetesServer(ctx context.Context, s types.Ku
 }
 
 // DeleteKubernetesServer deletes specified kubernetes server.
-func (a *ServerWithRoles) DeleteKubernetesServer(ctx context.Context, hostID, name string) error {
-	if err := a.ScopedServerWithRoles().agentOwnedResourceAction(ctx, hostID, types.RoleKube); err != nil {
-		if err := a.authorizeAction(types.KindKubeServer, types.VerbDelete); err != nil {
-			return trace.Wrap(err)
+func (a *ScopedServerWithRoles) DeleteKubernetesServer(ctx context.Context, req *authpb.DeleteKubernetesServerRequest) error {
+	ruleCtx := a.scopedContext.RuleContext()
+	if err := a.scopedContext.CheckerContext.Decision(ctx, req.Scope, func(checker *services.ScopedAccessChecker) error {
+		if err := a.scopedContext.AgentOwnedResourceAction("", req.HostID, types.RoleKube); err == nil {
+			return nil
 		}
+		return checker.CheckAccessToRules(&ruleCtx, types.KindKubeServer, types.VerbDelete)
+	}); err != nil {
+		return trace.Wrap(err)
 	}
-	return a.authServer.DeleteKubernetesServer(ctx, hostID, name)
+	return a.authServer.DeleteKubeServer(ctx, presencev1.DeleteKubeServerRequest_builder{
+		Name:   req.GetName(),
+		HostId: req.GetHostID(),
+	}.Build())
 }
 
 // DeleteAllKubernetesServers deletes all registered kubernetes servers.

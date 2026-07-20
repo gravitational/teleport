@@ -2263,11 +2263,11 @@ func (g *GRPCServer) UpsertKubernetesServer(ctx context.Context, req *authpb.Ups
 
 // DeleteKubernetesServer deletes a kubernetes server.
 func (g *GRPCServer) DeleteKubernetesServer(ctx context.Context, req *authpb.DeleteKubernetesServerRequest) (*emptypb.Empty, error) {
-	auth, err := g.authenticate(ctx)
+	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	err = auth.DeleteKubernetesServer(ctx, req.GetHostID(), req.GetName())
+	err = auth.DeleteKubernetesServer(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
