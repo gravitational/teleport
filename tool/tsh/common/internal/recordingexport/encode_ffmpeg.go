@@ -45,9 +45,12 @@ func NewFFMPEGEncoder(outputPrefix string, fps int) (*FFMPEGEncoder, error) {
 		// Output args:
 		"-c:v", "libx264", // codec: encode video w/ libx264
 		"-r", framesPerSecond,
-		"-preset", "veryfast", // a good tradeoff between encoding speed and output size
+		"-preset", "medium",
+		"-tune", "stillimage",
+		"-crf", "20", // screen content compresses well, so a lower CRF is crisp for little size
 		"-pix_fmt", "yuv420p", // use a commonly-supported pixel format
 		"-vf", "pad=ceil(iw/2)*2:ceil(ih/2)*2", // H264 requires even dimensions, pad the output if necessary
+		"-movflags", "+faststart",
 		outputFile, // output file
 	)
 	buf := new(bytes.Buffer)
