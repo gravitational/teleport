@@ -31,9 +31,37 @@ export function makeRecording(event: any): Recording {
     return makeDatabaseRecording(event);
   } else if (event.code === eventCodes.APP_SESSION_CHUNK) {
     return makeAppRecording(event);
+  } else if (event.code === eventCodes.BEAM_SESSION_END) {
+    return makeBeamRecording(event);
   } else {
     return makeSshOrKubeRecording(event);
   }
+}
+
+// makeBeamRecording builds a Recording from a BeamSessionEnd event. A beam is
+// recorded as a single session, played back via the beam replay viewer. The
+// recording is keyed by the beam id so the viewer can open its replay artifact.
+function makeBeamRecording(event: {
+  time: string;
+  user: string;
+  beam_id: string;
+  beam_alias: string;
+}): Recording {
+  const { time, user, beam_id, beam_alias } = event;
+  const name = beam_alias || beam_id;
+
+  return {
+    duration: 0,
+    durationText: '-',
+    sid: beam_id,
+    createdDate: new Date(time),
+    users: user,
+    hostname: name,
+    description: `Beam session ${name}`,
+    recordingType: 'beam',
+    playable: true,
+    user,
+  } as Recording;
 }
 
 function makeAppRecording(event: {

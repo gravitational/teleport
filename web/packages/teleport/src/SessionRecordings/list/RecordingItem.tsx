@@ -437,6 +437,12 @@ export function getRecordingTypeInfo(type: RecordingType): {
         icon: Application,
         label: 'Application Session Chunk',
       };
+
+    case 'beam':
+      return {
+        icon: Application,
+        label: 'Beam Session',
+      };
   }
 }
 

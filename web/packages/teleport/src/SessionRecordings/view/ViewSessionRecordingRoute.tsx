@@ -52,14 +52,23 @@ import {
 } from './RecordingWithMetadata';
 import { SidebarResizeHandle } from './SidebarResizeHandle';
 
+export interface BeamViewerProps {
+  clusterId: string;
+  sid: string;
+}
+
 interface ViewSessionRecordingRouteProps {
   withMetadataComponent?: ComponentType<RecordingWithMetadataProps>;
   withSummaryComponent?: ComponentType<RecordingWithSummaryProps>;
+  // beamViewerComponent renders a beam session recording. It is enterprise-only
+  // and injected by the enterprise app; beam recordings never appear in OSS.
+  beamViewerComponent?: ComponentType<BeamViewerProps>;
 }
 
 export function ViewSessionRecordingRoute({
   withMetadataComponent: RecordingWithMetadataComponent = RecordingWithMetadata,
   withSummaryComponent: RecordingWithSummaryComponent,
+  beamViewerComponent: BeamViewerComponent,
 }: ViewSessionRecordingRouteProps) {
   const { sid, clusterId } = useParams<UrlPlayerParams>();
   const { search } = useLocation();
@@ -72,6 +81,22 @@ export function ViewSessionRecordingRoute({
   useEffect(() => {
     document.title = `Play ${sid} • ${clusterId}`;
   }, [sid, clusterId]);
+
+  // A beam is not a time-based recording; it is replayed as a stream of
+  // recorded HTTP exchanges and attributed audit events via BeamReplayService,
+  // so it bypasses the duration/metadata player machinery entirely. The viewer
+  // is enterprise-only and injected by the enterprise app.
+  if (recordingType === 'beam') {
+    return BeamViewerComponent ? (
+      <BeamViewerComponent clusterId={clusterId} sid={sid} />
+    ) : (
+      <Flex width="100%" height="100%" flexDirection="column">
+        <Box textAlign="center" mx={10} mt={5}>
+          <Danger mb={0}>Beam session replay is not available.</Danger>
+        </Box>
+      </Flex>
+    );
+  }
 
   const validRecordingType = VALID_RECORDING_TYPES.includes(recordingType);
   const durationMs = Number(getUrlParameter('durationMs', search));

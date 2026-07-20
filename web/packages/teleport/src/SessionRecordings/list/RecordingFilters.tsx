@@ -79,6 +79,10 @@ const typeOptions: TypeOption[] = [
     label: 'Database',
     value: 'database',
   },
+  {
+    label: 'Beams',
+    value: 'beam',
+  },
 ];
 
 export function RecordingFilters({
