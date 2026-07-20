@@ -27,6 +27,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
@@ -93,10 +94,21 @@ func (s *TLSServer) startReconciler(ctx context.Context) (err error) {
 // startKubeClusterResourceWatcher starts watching changes to Kube Clusters resources and
 // registers/unregisters the proxied Kube Cluster accordingly.
 func (s *TLSServer) startKubeClusterResourceWatcher(ctx context.Context) (*services.GenericWatcher[types.KubeCluster, readonly.KubeCluster], error) {
-	if len(s.ResourceMatchers) == 0 || s.KubeServiceType != KubeService || s.GetScope() != "" {
+	if len(s.ResourceMatchers) == 0 || s.KubeServiceType != KubeService {
 		s.log.DebugContext(ctx, "Not initializing Kube Cluster resource watcher")
 		return nil, nil
 	}
+	scope := s.GetScope()
+	// when unscoped, we should watch all kube clusters regardless of scope
+	scopeFilterMode := scopesv1.Mode_MODE_ALL
+	if scope != "" {
+		// when scoped, we should only watch kube clusters that match our scope
+		scopeFilterMode = scopesv1.Mode_MODE_EXACT
+	}
+	scopeFilter := types.ScopeFilterFromProto(scopesv1.Filter_builder{
+		Mode:  scopeFilterMode,
+		Scope: scope,
+	}.Build())
 	s.log.DebugContext(ctx, "Initializing Kube Cluster resource watcher")
 	watcher, err := services.NewKubeClusterWatcher(ctx, services.KubeClusterWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
@@ -105,6 +117,7 @@ func (s *TLSServer) startKubeClusterResourceWatcher(ctx context.Context) (*servi
 			Client:    s.AccessPoint,
 		},
 		KubernetesClusterGetter: s.AccessPoint,
+		ScopeFilter:             scopeFilter,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
