@@ -1,0 +1,44 @@
+/**
+ * Teleport
+ * Copyright (C) 2026  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+import type { Locator, Page } from '@playwright/test';
+
+export class SideNavPage {
+  constructor(private page: Page) {}
+
+  async openSection(sectionName: string): Promise<Locator> {
+    const button = this.page.getByRole('button', { name: sectionName });
+
+    await button.hover();
+    await button.click();
+
+    const panel = this.page.locator(`[id="panel-${sectionName}"]`);
+
+    await panel.waitFor({ state: 'visible' });
+
+    return panel;
+  }
+
+  async navigateToLink(sectionName: string, linkName: string) {
+    const panel = await this.openSection(sectionName);
+
+    await panel.getByRole('link', { name: linkName }).click();
+
+    await this.page.waitForLoadState('networkidle');
+  }
+}

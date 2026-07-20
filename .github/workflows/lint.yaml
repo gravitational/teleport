@@ -35,8 +35,8 @@ jobs:
             has_go:
               - '.github/workflows/lint.yaml'
               - '**.go'
-              - 'go.mod'
-              - 'go.sum'
+              - '**/go.mod'
+              - '**/go.sum'
               - 'build.assets/Makefile'
               - 'build.assets/Dockerfile*'
               - 'Makefile'
@@ -85,6 +85,7 @@ jobs:
             has_ui:
               - '.github/workflows/lint.yaml'
               - 'web/**'
+              - 'e2e/**'
               - 'gen/proto/js/**'
               - 'gen/proto/ts/**'
               - 'package.json'

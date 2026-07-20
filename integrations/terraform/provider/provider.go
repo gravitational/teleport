@@ -572,6 +572,7 @@ func (p *Provider) GetResources(_ context.Context) (map[string]tfsdk.ResourceTyp
 		"teleport_scoped_role":                resourceTeleportScopedRoleType{},
 		"teleport_scoped_role_assignment":     resourceTeleportScopedRoleAssignmentType{},
 		"teleport_db_object_import_rule":      resourceTeleportDatabaseObjectImportRuleType{},
+		"teleport_client_ip_restriction":      resourceTeleportClientIPRestrictionType{},
 	}, nil
 }
 
@@ -621,7 +622,8 @@ func (p *Provider) GetDataSources(_ context.Context) (map[string]tfsdk.DataSourc
 		// - Data sources use the same schema as resources, which means that fields
 		//   required on a resource also need to be set on the data source
 		//   definition.
-		"teleport_workload_cluster": dataSourceTeleportWorkloadClusterType{},
+		"teleport_workload_cluster":      dataSourceTeleportWorkloadClusterType{},
+		"teleport_client_ip_restriction": dataSourceTeleportClientIPRestrictionType{},
 	}, nil
 }
 

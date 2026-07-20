@@ -247,125 +247,125 @@ func TestScopedTokenList(t *testing.T) {
 		},
 		{
 			name: "tokens assigning scope descendant of /test",
-			req: &joiningv1.ListScopedTokensRequest{
-				AssignedScope: &scopesv1.Filter{
-					Mode:  scopesv1.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
+			req: joiningv1.ListScopedTokensRequest_builder{
+				AssignedScopeFilter: scopesv1.Filter_builder{
+					Mode:  scopesv1.Mode_MODE_DESCENDANTS,
 					Scope: "/test",
-				},
+				}.Build(),
 				WithSecrets: true,
-			},
+			}.Build(),
 			expected: []*joiningv1.ScopedToken{test, test1, test2, test3, test4},
 		},
 		{
 			name: "tokens assigning scope descendant of /test/aa",
-			req: &joiningv1.ListScopedTokensRequest{
-				AssignedScope: &scopesv1.Filter{
-					Mode:  scopesv1.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
+			req: joiningv1.ListScopedTokensRequest_builder{
+				AssignedScopeFilter: scopesv1.Filter_builder{
+					Mode:  scopesv1.Mode_MODE_DESCENDANTS,
 					Scope: "/test/aa",
-				},
+				}.Build(),
 				WithSecrets: true,
-			},
+			}.Build(),
 			expected: []*joiningv1.ScopedToken{test1, test3, test4},
 		},
 		{
 			name: "tokens assigning scope ancestor to /test/bb",
-			req: &joiningv1.ListScopedTokensRequest{
-				AssignedScope: &scopesv1.Filter{
-					Mode:  scopesv1.Mode_MODE_POLICIES_APPLICABLE_TO_SCOPE,
+			req: joiningv1.ListScopedTokensRequest_builder{
+				AssignedScopeFilter: scopesv1.Filter_builder{
+					Mode:  scopesv1.Mode_MODE_ANCESTORS,
 					Scope: "/test/bb",
-				},
+				}.Build(),
 				WithSecrets: true,
-			},
+			}.Build(),
 			expected: []*joiningv1.ScopedToken{test, test2},
 		},
 		{
 			name: "tokens descendants of /test",
-			req: &joiningv1.ListScopedTokensRequest{
-				ResourceScope: &scopesv1.Filter{
-					Mode:  scopesv1.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
+			req: joiningv1.ListScopedTokensRequest_builder{
+				ScopeFilter: scopesv1.Filter_builder{
+					Mode:  scopesv1.Mode_MODE_DESCENDANTS,
 					Scope: "/test",
-				},
+				}.Build(),
 				WithSecrets: true,
-			},
+			}.Build(),
 			expected: []*joiningv1.ScopedToken{test, test1, test2, test3, test4},
 		},
 		{
 			name: "tokens descendants of /test/aa",
-			req: &joiningv1.ListScopedTokensRequest{
-				ResourceScope: &scopesv1.Filter{
-					Mode:  scopesv1.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
+			req: joiningv1.ListScopedTokensRequest_builder{
+				ScopeFilter: scopesv1.Filter_builder{
+					Mode:  scopesv1.Mode_MODE_DESCENDANTS,
 					Scope: "/test/aa",
-				},
+				}.Build(),
 				WithSecrets: true,
-			},
+			}.Build(),
 			expected: []*joiningv1.ScopedToken{test1, test3, test4},
 		},
 		{
 			name: "tokens ancestor to /test/bb",
-			req: &joiningv1.ListScopedTokensRequest{
-				ResourceScope: &scopesv1.Filter{
-					Mode:  scopesv1.Mode_MODE_POLICIES_APPLICABLE_TO_SCOPE,
+			req: joiningv1.ListScopedTokensRequest_builder{
+				ScopeFilter: scopesv1.Filter_builder{
+					Mode:  scopesv1.Mode_MODE_ANCESTORS,
 					Scope: "/test/bb",
-				},
+				}.Build(),
 				WithSecrets: true,
-			},
+			}.Build(),
 			expected: []*joiningv1.ScopedToken{test, test2},
 		},
 		{
 			name: "tokens descendant of /stage assigning /stage/aa",
-			req: &joiningv1.ListScopedTokensRequest{
-				ResourceScope: &scopesv1.Filter{
-					Mode:  scopesv1.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
+			req: joiningv1.ListScopedTokensRequest_builder{
+				ScopeFilter: scopesv1.Filter_builder{
+					Mode:  scopesv1.Mode_MODE_DESCENDANTS,
 					Scope: "/stage",
-				},
-				AssignedScope: &scopesv1.Filter{
-					Mode:  scopesv1.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
+				}.Build(),
+				AssignedScopeFilter: scopesv1.Filter_builder{
+					Mode:  scopesv1.Mode_MODE_DESCENDANTS,
 					Scope: "/stage/aa",
-				},
+				}.Build(),
 				WithSecrets: true,
-			},
+			}.Build(),
 			expected: []*joiningv1.ScopedToken{stage1, stage2},
 		},
 		{
 			name: "tokens descendant of /stage/aa assigning /stage/aa",
-			req: &joiningv1.ListScopedTokensRequest{
-				ResourceScope: &scopesv1.Filter{
-					Mode:  scopesv1.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
+			req: joiningv1.ListScopedTokensRequest_builder{
+				ScopeFilter: scopesv1.Filter_builder{
+					Mode:  scopesv1.Mode_MODE_DESCENDANTS,
 					Scope: "/stage/aa",
-				},
-				AssignedScope: &scopesv1.Filter{
-					Mode:  scopesv1.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
+				}.Build(),
+				AssignedScopeFilter: scopesv1.Filter_builder{
+					Mode:  scopesv1.Mode_MODE_DESCENDANTS,
 					Scope: "/stage/aa",
-				},
+				}.Build(),
 				WithSecrets: true,
-			},
+			}.Build(),
 			expected: []*joiningv1.ScopedToken{stage2},
 		},
 		{
 			name: "tokens in /test scope applying auth role",
-			req: &joiningv1.ListScopedTokensRequest{
-				ResourceScope: &scopesv1.Filter{
-					Mode:  scopesv1.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
+			req: joiningv1.ListScopedTokensRequest_builder{
+				ScopeFilter: scopesv1.Filter_builder{
+					Mode:  scopesv1.Mode_MODE_DESCENDANTS,
 					Scope: "/test",
-				},
+				}.Build(),
 				Roles:       []string{types.RoleAuth.String()},
 				WithSecrets: true,
-			},
+			}.Build(),
 			expected: []*joiningv1.ScopedToken{},
 		},
 		{
 			name: "tokens in /test scope filtered by label",
-			req: &joiningv1.ListScopedTokensRequest{
-				ResourceScope: &scopesv1.Filter{
-					Mode:  scopesv1.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
+			req: joiningv1.ListScopedTokensRequest_builder{
+				ScopeFilter: scopesv1.Filter_builder{
+					Mode:  scopesv1.Mode_MODE_DESCENDANTS,
 					Scope: "/test",
-				},
+				}.Build(),
 				Roles: []string{types.RoleNode.String()},
 				Labels: map[string]string{
 					"hello": "world",
 				},
 				WithSecrets: true,
-			},
+			}.Build(),
 			expected: []*joiningv1.ScopedToken{test2},
 		},
 		{

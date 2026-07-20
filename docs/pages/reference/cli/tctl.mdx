@@ -325,6 +325,8 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
+|`--days`|`7`|Days range (default 7)|
+|`--format`|`yaml`|Output format: 'yaml' or 'json'|
 |`--name`|*no default*|Audit query name|
 
 Arguments:
@@ -340,8 +342,15 @@ Execute audit query.
 Usage:
 
 ```code
-$ tctl audit query exec [<query>]
+$ tctl audit query exec [<flags>] [<query>]
 ```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--days`|`7`|Days range (default 7)|
+|`--format`|`yaml`|Output format: 'yaml' or 'json'|
 
 Arguments:
 
@@ -356,8 +365,15 @@ Get audit query.
 Usage:
 
 ```code
-$ tctl audit query get <name>
+$ tctl audit query get [<flags>] <name>
 ```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--days`|`7`|Days range (default 7)|
+|`--format`|`yaml`|Output format: 'yaml' or 'json'|
 
 Arguments:
 
@@ -372,8 +388,15 @@ List audit queries.
 Usage:
 
 ```code
-$ tctl audit query ls
+$ tctl audit query ls [<flags>]
 ```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--days`|`7`|Days range (default 7)|
+|`--format`|`yaml`|Output format: 'yaml' or 'json'|
 
 ## tctl audit query rm
 
@@ -382,8 +405,15 @@ Remove audit query.
 Usage:
 
 ```code
-$ tctl audit query rm <name>
+$ tctl audit query rm [<flags>] <name>
 ```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--days`|`7`|Days range (default 7)|
+|`--format`|`yaml`|Output format: 'yaml' or 'json'|
 
 Arguments:
 
@@ -398,8 +428,15 @@ Get security report.
 Usage:
 
 ```code
-$ tctl audit report get <name>
+$ tctl audit report get [<flags>] <name>
 ```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--days`|`7`|Days range (default 7)|
+|`--format`|`yaml`|Output format: 'yaml' or 'json'|
 
 Arguments:
 
@@ -414,8 +451,15 @@ List security reports.
 Usage:
 
 ```code
-$ tctl audit report ls
+$ tctl audit report ls [<flags>]
 ```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--days`|`7`|Days range (default 7)|
+|`--format`|`yaml`|Output format: 'yaml' or 'json'|
 
 ## tctl audit report run
 
@@ -424,8 +468,15 @@ Run the security report.
 Usage:
 
 ```code
-$ tctl audit report run <name>
+$ tctl audit report run [<flags>] <name>
 ```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--days`|`7`|Days range (default 7)|
+|`--format`|`yaml`|Output format: 'yaml' or 'json'|
 
 Arguments:
 
@@ -440,8 +491,15 @@ Print the state of the security report.
 Usage:
 
 ```code
-$ tctl audit report state <name>
+$ tctl audit report state [<flags>] <name>
 ```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--days`|`7`|Days range (default 7)|
+|`--format`|`yaml`|Output format: 'yaml' or 'json'|
 
 Arguments:
 
@@ -456,8 +514,15 @@ Print audit query schema.
 Usage:
 
 ```code
-$ tctl audit schema
+$ tctl audit schema [<flags>]
 ```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--days`|`7`|Days range (default 7)|
+|`--format`|`yaml`|Output format: 'yaml' or 'json'|
 
 ## tctl auth create-override
 
@@ -1155,6 +1220,23 @@ Flags:
 |`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format.|
 |`--last`|`1h`|Time window to look back for failures in Teleport audit log (e.g. 1h, 24h, 30m).|
 |`--[no-]failures-only`|`false`|Only show instances with enrollment failures.|
+
+## tctl discovery status
+
+Show auto-discovery status and enrollment progress.
+
+Usage:
+
+```code
+$ tctl discovery status [<flags>]
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--cloud`|``|Comma-separated list of cloud providers to include (allowed: aws, azure). Empty (default) returns all.|
+|`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format.|
 
 ## tctl edit
 
@@ -2065,7 +2147,7 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`-f`, `--format`|`text` (one of: `text`, `json`, `yaml`)|Format output (text, json, yaml)|
+|`-f`, `--format`|`text` (one of: `text`, `json`, `yaml`)|Format output (text, json, yaml).|
 |`--role`|*no default*|Filter by assigned role.|
 |`--user`|*no default*|Filter by user.|
 
@@ -2094,7 +2176,7 @@ Flags:
 |Flag|Default|Description|
 |---|---|---|
 |`--assign-scope`|*no default*|Scope that should be applied to resources provisioned by this token|
-|`--format`|*no default* (one of: `text`, `json`, `yaml`)|Format output (text, json, yaml)|
+|`--format`|*no default* (one of: `text`, `json`, `yaml`)|Format output (text, json, yaml).|
 |`--labels`|*no default*|Set token labels, e.g. env=prod,region=us-west|
 |`--mode`|*no default*|Usage mode of a token (default: unlimited, single_use)|
 |`--name`|*no default*|Override the default, randomly generated token name with a specified name|
@@ -2117,7 +2199,7 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`-f`, `--format`|*no default* (one of: `text`, `json`, `yaml`)|Format output (text, json, yaml)|
+|`-f`, `--format`|*no default* (one of: `text`, `json`, `yaml`)|Format output (text, json, yaml).|
 |`--[no-]with-secrets`|`false`|Do not redact join tokens|
 
 ## tctl scoped tokens rm

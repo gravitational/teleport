@@ -24,6 +24,7 @@ import * as Icons from 'design/Icon';
 import { IconProps } from 'design/Icon/Icon';
 
 import { LinearProgress } from 'teleterm/ui/components/LinearProgress';
+import { Kind } from 'teleterm/ui/services/workspacesService/documentsService';
 
 import { useTabDnD } from './useTabDnD';
 
@@ -35,6 +36,7 @@ type TabItemProps = {
   nextActive?: boolean;
   closeTabTooltip?: string;
   isLoading?: boolean;
+  docKind?: Kind;
   onClick?(): void;
   onClose?(): void;
   onMoved?(oldIndex: number, newIndex: number): void;
@@ -53,6 +55,7 @@ export function TabItem(props: TabItemProps) {
     isLoading,
     onContextMenu,
     closeTabTooltip,
+    docKind,
   } = props;
   const ref = useRef<HTMLDivElement>(null);
   const canDrag = !!onMoved;
@@ -77,7 +80,15 @@ export function TabItem(props: TabItemProps) {
         min-width: 0;
       `}
     >
-      <TabContent ref={ref} active={active} dragging={isDragging} title={name}>
+      <TabContent
+        ref={ref}
+        active={active}
+        dragging={isDragging}
+        title={name}
+        role="tab"
+        aria-selected={active}
+        data-doc-kind={docKind}
+      >
         {props.Icon && <props.Icon size="small" pr={1} />}
         <Title color="inherit" fontWeight={500} fontSize="12px">
           {name}

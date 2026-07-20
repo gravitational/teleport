@@ -21,14 +21,12 @@ package assignments
 import (
 	"context"
 	"os"
-	"slices"
 	"strconv"
 
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/proto"
 
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
-	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/lib/scopes"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/scopes/cache"
@@ -119,23 +117,21 @@ func (c *AssignmentCache) ListScopedRoleAssignmentsWithFilter(ctx context.Contex
 		pageSize = maxPageSize
 	}
 
-	if req.GetResourceScope() != nil && req.GetAssignedScope() != nil {
-		return nil, trace.BadParameter("cannot filter by both resource scope and assigned scope simultaneously")
+	// validate the secondary assigned-scope filter. the primary scope filter is validated by the
+	// Cache.ResourcesMatchingScopeFilter method invoked below.
+	if err := scopes.ValidateFilter(req.GetAssignedScopeFilter()); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	filter := func(assignment *scopedaccessv1.ScopedRoleAssignment) bool {
-		if req.GetUser() != "" && assignment.GetSpec().GetUser() != req.GetUser() {
+		// primary scope filter matching is handled by the Cache.ResourcesMatchingScopeFilter method
+		// invoked below. secondary filters (e.g. username) are applied here *after* the primary
+		// has already been applied.
+		if !scopedaccess.MatchSecondaryAssignmentFilters(req, assignment) {
 			return false
 		}
 
-		if req.GetRole() != "" {
-			if !slices.ContainsFunc(assignment.GetSpec().Assignments, func(a *scopedaccessv1.Assignment) bool { return a.GetRole() == req.GetRole() }) {
-				// if the assignment does not have the requested role, skip it
-				return false
-			}
-		}
-
-		// apply the external filter after the basic request filter as the externally provided filter
+		// apply the external filter after the secondary filters as the externally provided filter
 		// is often more expensive to evaluate.
 		if !externalFilter(assignment) {
 			return false
@@ -149,39 +145,16 @@ func (c *AssignmentCache) ListScopedRoleAssignmentsWithFilter(ctx context.Contex
 		return nil, trace.Wrap(err)
 	}
 
-	// resources subject to policy scope root is basically the scoped resource equivalent
-	// of a "get all". this is a reasonable default for most queries.
-	getter := c.cache.ResourcesSubjectToPolicyScope
-	scope := scopes.Root
-
-	// if a resource scope filter has been provided, the user has specified a custom scope/mode to
-	// query by.
-	if req.GetResourceScope() != nil {
-		// a resource-scope based filter has been provided
-		switch req.GetResourceScope().GetMode() {
-		case scopesv1.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE:
-			getter = c.cache.ResourcesSubjectToPolicyScope
-		case scopesv1.Mode_MODE_POLICIES_APPLICABLE_TO_SCOPE:
-			getter = c.cache.PoliciesApplicableToResourceScope
-		default:
-			return nil, trace.BadParameter("unsupported or unspecified scoping mode %q in scoped role assignment resource scope filter", req.GetResourceScope().GetMode())
-		}
-		scope = req.GetResourceScope().GetScope()
-	}
-
-	if req.GetAssignedScope() != nil {
-		// NOTE: we eventually want to be able to query assignments by the scopes at which they assign roles,
-		// instead of just resource scope. this is important for introspection/auditing but not necessary for
-		// the core funcationality of teleport until we've fully migrated to PDP. For now, the implementation has
-		// been deferred. (will require implementation of a more complex caching structure where each resource
-		// will be associable with multiple scopes)
-		return nil, trace.NotImplemented("assigned scope filtering for scoped role assignments is not yet supported")
+	// the primary scope filter selects the cache traversal strategy.
+	resources, err := c.cache.ResourcesMatchingScopeFilter(req.GetScopeFilter(), c.cache.WithFilter(filter), c.cache.WithCursor(cursor))
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	var out []*scopedaccessv1.ScopedRoleAssignment
 	var nextCursor cache.Cursor[string]
 Outer:
-	for scope := range getter(scope, c.cache.WithFilter(filter), c.cache.WithCursor(cursor)) {
+	for scope := range resources {
 		for assignment := range scope.Items() {
 			if len(out) == pageSize {
 				nextCursor = cache.Cursor[string]{

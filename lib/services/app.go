@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
+	"github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/api/utils/tlsutils"
 	"github.com/gravitational/teleport/lib/backend"
@@ -103,7 +104,16 @@ func ValidateApp(app types.Application, proxyGetter ProxyGetter) error {
 		}
 	}
 
-	// If no public address is set, there's nothing to validate.
+	if region := app.GetAWSRegion(); region != "" {
+		if err := aws.IsValidRegion(region); err != nil {
+			return trace.BadParameter(
+				"Application %q is configured with an invalid AWS region (%q)",
+				app.GetName(),
+				region,
+			)
+		}
+	}
+
 	if app.GetPublicAddr() == "" {
 		return nil
 	}

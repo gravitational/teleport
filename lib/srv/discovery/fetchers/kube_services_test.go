@@ -79,6 +79,19 @@ func TestKubeAppFetcher_Get(t *testing.T) {
 				{Port: 42, Name: "custom", Protocol: corev1.ProtocolTCP},
 				{Port: 43, Name: "custom-udp", Protocol: corev1.ProtocolUDP},
 			}),
+		newMockService("service6", "ns4", "", map[string]string{"test-label4": "testval4"}, map[string]string{
+			types.DiscoveryProtocolLabel: types.SchemeMCPHTTP,
+		},
+			[]corev1.ServicePort{
+				{Port: 8080, Name: "custom", Protocol: corev1.ProtocolTCP},
+			}),
+		newMockService("service7", "ns4", "", map[string]string{"test-label4": "testval4"}, map[string]string{
+			types.DiscoveryProtocolLabel: types.SchemeMCPSSEHTTPS,
+			types.DiscoveryPathLabel:     "/sse",
+		},
+			[]corev1.ServicePort{
+				{Port: 443, Name: "custom", Protocol: corev1.ProtocolTCP},
+			}),
 	}
 
 	apps := map[string]*types.AppV3{
@@ -173,6 +186,42 @@ func TestKubeAppFetcher_Get(t *testing.T) {
 				URI: "tcp://service5.ns3.svc.cluster.local:42",
 			},
 		},
+		"service6.app1": {
+			Kind:    "app",
+			SubKind: types.SubKindMCP,
+			Version: "v3",
+			Metadata: types.Metadata{
+				Name:        "service6-ns4-test-cluster",
+				Namespace:   "default",
+				Description: "Discovered application in Kubernetes cluster \"test-cluster\"",
+				Labels: map[string]string{
+					"test-label4":                "testval4",
+					types.KubernetesClusterLabel: "test-cluster",
+					types.AppSubKindLabel:        types.SubKindMCP,
+				},
+			},
+			Spec: types.AppSpecV3{
+				URI: "mcp+http://service6.ns4.svc.cluster.local:8080",
+			},
+		},
+		"service7.app1": {
+			Kind:    "app",
+			SubKind: types.SubKindMCP,
+			Version: "v3",
+			Metadata: types.Metadata{
+				Name:        "service7-ns4-test-cluster",
+				Namespace:   "default",
+				Description: "Discovered application in Kubernetes cluster \"test-cluster\"",
+				Labels: map[string]string{
+					"test-label4":                "testval4",
+					types.KubernetesClusterLabel: "test-cluster",
+					types.AppSubKindLabel:        types.SubKindMCP,
+				},
+			},
+			Spec: types.AppSpecV3{
+				URI: "mcp+sse+https://service7.ns4.svc.cluster.local:443/sse",
+			},
+		},
 	}
 
 	tests := []struct {
@@ -265,6 +314,13 @@ func TestKubeAppFetcher_Get(t *testing.T) {
 			matcherNamespaces: []string{"ns3"},
 			matcherLabels:     types.Labels{"test-label3": []string{"testval3"}},
 			expected:          types.Apps{apps["service5.app1"]},
+		},
+		{
+			desc:              "Service with MCP Streamable HTTP protocol annotation",
+			services:          mockServices,
+			matcherNamespaces: []string{"ns4"},
+			matcherLabels:     types.Labels{"test-label4": []string{"testval4"}},
+			expected:          types.Apps{apps["service6.app1"], apps["service7.app1"]},
 		},
 		{
 			desc:              "Matching service with protocol checker",

@@ -26,6 +26,7 @@ import (
 	v1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+	structpb "google.golang.org/protobuf/types/known/structpb"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
 	unsafe "unsafe"
@@ -239,6 +240,7 @@ type ScopedTokenSpec struct {
 	xxx_hidden_Kubernetes      *Kubernetes            `protobuf:"bytes,11,opt,name=kubernetes,proto3"`
 	xxx_hidden_BoundKeypair    *BoundKeypairSpec      `protobuf:"bytes,12,opt,name=bound_keypair,json=boundKeypair,proto3"`
 	xxx_hidden_Bot             string                 `protobuf:"bytes,15,opt,name=bot,proto3"`
+	xxx_hidden_GenericOidc     *GenericOIDC           `protobuf:"bytes,16,opt,name=generic_oidc,json=genericOidc,proto3"`
 	unknownFields              protoimpl.UnknownFields
 	sizeCache                  protoimpl.SizeCache
 }
@@ -359,6 +361,13 @@ func (x *ScopedTokenSpec) GetBot() string {
 	return ""
 }
 
+func (x *ScopedTokenSpec) GetGenericOidc() *GenericOIDC {
+	if x != nil {
+		return x.xxx_hidden_GenericOidc
+	}
+	return nil
+}
+
 func (x *ScopedTokenSpec) SetAssignedScope(v string) {
 	x.xxx_hidden_AssignedScope = v
 }
@@ -409,6 +418,10 @@ func (x *ScopedTokenSpec) SetBoundKeypair(v *BoundKeypairSpec) {
 
 func (x *ScopedTokenSpec) SetBot(v string) {
 	x.xxx_hidden_Bot = v
+}
+
+func (x *ScopedTokenSpec) SetGenericOidc(v *GenericOIDC) {
+	x.xxx_hidden_GenericOidc = v
 }
 
 func (x *ScopedTokenSpec) HasImmutableLabels() bool {
@@ -467,6 +480,13 @@ func (x *ScopedTokenSpec) HasBoundKeypair() bool {
 	return x.xxx_hidden_BoundKeypair != nil
 }
 
+func (x *ScopedTokenSpec) HasGenericOidc() bool {
+	if x == nil {
+		return false
+	}
+	return x.xxx_hidden_GenericOidc != nil
+}
+
 func (x *ScopedTokenSpec) ClearImmutableLabels() {
 	x.xxx_hidden_ImmutableLabels = nil
 }
@@ -497,6 +517,10 @@ func (x *ScopedTokenSpec) ClearKubernetes() {
 
 func (x *ScopedTokenSpec) ClearBoundKeypair() {
 	x.xxx_hidden_BoundKeypair = nil
+}
+
+func (x *ScopedTokenSpec) ClearGenericOidc() {
+	x.xxx_hidden_GenericOidc = nil
 }
 
 type ScopedTokenSpec_builder struct {
@@ -541,6 +565,8 @@ type ScopedTokenSpec_builder struct {
 	//
 	// Mutually exclusive with assigned_scope.
 	Bot string
+	// Configuration specific to the "generic_oidc" join method.
+	GenericOidc *GenericOIDC
 }
 
 func (b0 ScopedTokenSpec_builder) Build() *ScopedTokenSpec {
@@ -560,6 +586,7 @@ func (b0 ScopedTokenSpec_builder) Build() *ScopedTokenSpec {
 	x.xxx_hidden_Kubernetes = b.Kubernetes
 	x.xxx_hidden_BoundKeypair = b.BoundKeypair
 	x.xxx_hidden_Bot = b.Bot
+	x.xxx_hidden_GenericOidc = b.GenericOidc
 	return m0
 }
 
@@ -2180,6 +2207,221 @@ func (b0 BoundKeypairStatus_builder) Build() *BoundKeypairStatus {
 	return m0
 }
 
+// Configuration for `generic_oidc`-type tokens.
+type GenericOIDC struct {
+	state                              protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_Issuer                  string                 `protobuf:"bytes,1,opt,name=issuer,proto3"`
+	xxx_hidden_InsecureAllowHttpIssuer bool                   `protobuf:"varint,2,opt,name=insecure_allow_http_issuer,json=insecureAllowHttpIssuer,proto3"`
+	xxx_hidden_Audience                string                 `protobuf:"bytes,3,opt,name=audience,proto3"`
+	xxx_hidden_StaticJwks              string                 `protobuf:"bytes,4,opt,name=static_jwks,json=staticJwks,proto3"`
+	xxx_hidden_TlsCa                   string                 `protobuf:"bytes,5,opt,name=tls_ca,json=tlsCa,proto3"`
+	xxx_hidden_MustMatchFields         *structpb.Struct       `protobuf:"bytes,6,opt,name=must_match_fields,json=mustMatchFields,proto3"`
+	xxx_hidden_AllowAny                *[]*GenericOIDC_Rule   `protobuf:"bytes,7,rep,name=allow_any,json=allowAny,proto3"`
+	unknownFields                      protoimpl.UnknownFields
+	sizeCache                          protoimpl.SizeCache
+}
+
+func (x *GenericOIDC) Reset() {
+	*x = GenericOIDC{}
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[17]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GenericOIDC) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GenericOIDC) ProtoMessage() {}
+
+func (x *GenericOIDC) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[17]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *GenericOIDC) GetIssuer() string {
+	if x != nil {
+		return x.xxx_hidden_Issuer
+	}
+	return ""
+}
+
+func (x *GenericOIDC) GetInsecureAllowHttpIssuer() bool {
+	if x != nil {
+		return x.xxx_hidden_InsecureAllowHttpIssuer
+	}
+	return false
+}
+
+func (x *GenericOIDC) GetAudience() string {
+	if x != nil {
+		return x.xxx_hidden_Audience
+	}
+	return ""
+}
+
+func (x *GenericOIDC) GetStaticJwks() string {
+	if x != nil {
+		return x.xxx_hidden_StaticJwks
+	}
+	return ""
+}
+
+func (x *GenericOIDC) GetTlsCa() string {
+	if x != nil {
+		return x.xxx_hidden_TlsCa
+	}
+	return ""
+}
+
+func (x *GenericOIDC) GetMustMatchFields() *structpb.Struct {
+	if x != nil {
+		return x.xxx_hidden_MustMatchFields
+	}
+	return nil
+}
+
+func (x *GenericOIDC) GetAllowAny() []*GenericOIDC_Rule {
+	if x != nil {
+		if x.xxx_hidden_AllowAny != nil {
+			return *x.xxx_hidden_AllowAny
+		}
+	}
+	return nil
+}
+
+func (x *GenericOIDC) SetIssuer(v string) {
+	x.xxx_hidden_Issuer = v
+}
+
+func (x *GenericOIDC) SetInsecureAllowHttpIssuer(v bool) {
+	x.xxx_hidden_InsecureAllowHttpIssuer = v
+}
+
+func (x *GenericOIDC) SetAudience(v string) {
+	x.xxx_hidden_Audience = v
+}
+
+func (x *GenericOIDC) SetStaticJwks(v string) {
+	x.xxx_hidden_StaticJwks = v
+}
+
+func (x *GenericOIDC) SetTlsCa(v string) {
+	x.xxx_hidden_TlsCa = v
+}
+
+func (x *GenericOIDC) SetMustMatchFields(v *structpb.Struct) {
+	x.xxx_hidden_MustMatchFields = v
+}
+
+func (x *GenericOIDC) SetAllowAny(v []*GenericOIDC_Rule) {
+	x.xxx_hidden_AllowAny = &v
+}
+
+func (x *GenericOIDC) HasMustMatchFields() bool {
+	if x == nil {
+		return false
+	}
+	return x.xxx_hidden_MustMatchFields != nil
+}
+
+func (x *GenericOIDC) ClearMustMatchFields() {
+	x.xxx_hidden_MustMatchFields = nil
+}
+
+type GenericOIDC_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The expected `iss` value as written in the JWT you wish to trust. Unless
+	// `static_jwks` is configured, this issuer must be accessible over HTTPS to
+	// the Teleport cluster and must serve valid OIDC metadata, including
+	// discovery configuration and JWKS keys.
+	Issuer string
+	// If set, disables the requirement that the issuer must use HTTPS.
+	InsecureAllowHttpIssuer bool
+	// The expected JWT audience value (required). This must match or be included
+	// in the list of `aud` values in the JWT provided by the client when joining.
+	//
+	// For providers that do not allow you to configure this value yourself (this
+	// is technically an OIDC spec violation, but is common), use the value they
+	// provide. Otherwise, we recommend using a value that uniquely identifies the
+	// Teleport cluster and join token. For example, you can use this scheme:
+	//
+	//	$clusterName/$tokenName
+	//
+	// For a cluster named `example.teleport.sh` and a token named `example`, this
+	// would result in an audience of `example.teleport.sh/example`. If you
+	// prefer, you can also use a UUID instead of the token name. Note that you
+	// will need to configure the matching value with the issuer, usually at
+	// request time.
+	Audience string
+	// An optional static JWKS value that can be used to specify JWKS keys when
+	// either OIDC discovery is either not supported by the provider or the
+	// discovery configuration is not accessible to Teleport. When set,
+	// configuration and JWKS keys will not be fetched from the URL contained in
+	// `issuer` and JWTs will be validated using the key set specified here.
+	StaticJwks string
+	// A TLS CA certificate that should be used to verify requests for OIDC
+	// metadata from the issuer instead of Teleport's CA store, useful if the
+	// issuer is not public or otherwise uses a self-signed certificate. If unset,
+	// the standard web PKI root certificates will be used to verify the
+	// connection to the issuer when fetching OIDC metadata. Note that this value
+	// only applies to requests using this token, and will be used instead of and
+	// not in addition to the system CA store, and will need to be updated
+	// manually if the remote CA is updated.
+	TlsCa string
+	// "Must match" fields perform simple comparison matches using "AND"
+	// semantics. Rules are specified by mirroring the structure of the JWT, using
+	// values that are expected to be equal to those on the incoming token. These
+	// field matching rules can only be used to compare simple values: strings,
+	// numbers, booleans, and nested fields. Complex values, including lists, will
+	// need to use `allow_any` expression rules instead.
+	//
+	// If any field match rules are specified, all must be equal to corresponding
+	// JWT fields for the join attempt to succeed. If complex rules are specified
+	// in `allow_any`, those are evaluated after `must_match_fields`. If
+	// `must_match_fields` is not specified or is empty, only rules in `allow_any`
+	// are evaluated.
+	//
+	// These rules can be used as "global" rules that apply to all join attempts.
+	// For example, you can use these to ensure all attempts originate from your
+	// organization, then use `allow_any` rules to allow individual repositories,
+	// pipelines, or workspaces.
+	//
+	// Note that at least one rule, either in `must_match_fields` or `allow_any`,
+	// must be specified for any join attempts to succeed.
+	MustMatchFields *structpb.Struct
+	// Complex rules evaluated using "OR" semantics. If any rules are specified,
+	// at least one rule must evaluate to `true` for the join attempt/ to be
+	// allowed. These rules are evaluated after `must_match_fields`, if any field
+	// matchers are specified in that block.
+	//
+	// Note that at least one rule, either in `must_match_fields` or `allow_any`,
+	// must be specified for any join attempts to succeed.
+	AllowAny []*GenericOIDC_Rule
+}
+
+func (b0 GenericOIDC_builder) Build() *GenericOIDC {
+	m0 := &GenericOIDC{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.xxx_hidden_Issuer = b.Issuer
+	x.xxx_hidden_InsecureAllowHttpIssuer = b.InsecureAllowHttpIssuer
+	x.xxx_hidden_Audience = b.Audience
+	x.xxx_hidden_StaticJwks = b.StaticJwks
+	x.xxx_hidden_TlsCa = b.TlsCa
+	x.xxx_hidden_MustMatchFields = b.MustMatchFields
+	x.xxx_hidden_AllowAny = &b.AllowAny
+	return m0
+}
+
 // A rule that a joining node must match in order to use the associated token
 // with AWS join methods.
 type AWS_Rule struct {
@@ -2195,7 +2437,7 @@ type AWS_Rule struct {
 
 func (x *AWS_Rule) Reset() {
 	*x = AWS_Rule{}
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[18]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2207,7 +2449,7 @@ func (x *AWS_Rule) String() string {
 func (*AWS_Rule) ProtoMessage() {}
 
 func (x *AWS_Rule) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[18]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2317,7 +2559,7 @@ type GCP_Rule struct {
 
 func (x *GCP_Rule) Reset() {
 	*x = GCP_Rule{}
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[19]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2329,7 +2571,7 @@ func (x *GCP_Rule) String() string {
 func (*GCP_Rule) ProtoMessage() {}
 
 func (x *GCP_Rule) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[19]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2407,7 +2649,7 @@ type Azure_Rule struct {
 
 func (x *Azure_Rule) Reset() {
 	*x = Azure_Rule{}
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[20]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2419,7 +2661,7 @@ func (x *Azure_Rule) String() string {
 func (*Azure_Rule) ProtoMessage() {}
 
 func (x *Azure_Rule) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[20]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2502,7 +2744,7 @@ type AzureDevops_Rule struct {
 
 func (x *AzureDevops_Rule) Reset() {
 	*x = AzureDevops_Rule{}
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[21]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2514,7 +2756,7 @@ func (x *AzureDevops_Rule) String() string {
 func (*AzureDevops_Rule) ProtoMessage() {}
 
 func (x *AzureDevops_Rule) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[21]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2679,7 +2921,7 @@ type Oracle_Rule struct {
 
 func (x *Oracle_Rule) Reset() {
 	*x = Oracle_Rule{}
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[22]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2691,7 +2933,7 @@ func (x *Oracle_Rule) String() string {
 func (*Oracle_Rule) ProtoMessage() {}
 
 func (x *Oracle_Rule) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[22]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2783,7 +3025,7 @@ type Kubernetes_StaticJWKSConfig struct {
 
 func (x *Kubernetes_StaticJWKSConfig) Reset() {
 	*x = Kubernetes_StaticJWKSConfig{}
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[23]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2795,7 +3037,7 @@ func (x *Kubernetes_StaticJWKSConfig) String() string {
 func (*Kubernetes_StaticJWKSConfig) ProtoMessage() {}
 
 func (x *Kubernetes_StaticJWKSConfig) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[23]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2844,7 +3086,7 @@ type Kubernetes_OIDCConfig struct {
 
 func (x *Kubernetes_OIDCConfig) Reset() {
 	*x = Kubernetes_OIDCConfig{}
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[24]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2856,7 +3098,7 @@ func (x *Kubernetes_OIDCConfig) String() string {
 func (*Kubernetes_OIDCConfig) ProtoMessage() {}
 
 func (x *Kubernetes_OIDCConfig) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[24]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2925,7 +3167,7 @@ type Kubernetes_Rule struct {
 
 func (x *Kubernetes_Rule) Reset() {
 	*x = Kubernetes_Rule{}
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[25]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2937,7 +3179,7 @@ func (x *Kubernetes_Rule) String() string {
 func (*Kubernetes_Rule) ProtoMessage() {}
 
 func (x *Kubernetes_Rule) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[25]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3022,7 +3264,7 @@ type BoundKeypairSpec_OnboardingSpec struct {
 
 func (x *BoundKeypairSpec_OnboardingSpec) Reset() {
 	*x = BoundKeypairSpec_OnboardingSpec{}
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[26]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3034,7 +3276,7 @@ func (x *BoundKeypairSpec_OnboardingSpec) String() string {
 func (*BoundKeypairSpec_OnboardingSpec) ProtoMessage() {}
 
 func (x *BoundKeypairSpec_OnboardingSpec) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[26]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3136,7 +3378,7 @@ type BoundKeypairSpec_RecoverySpec struct {
 
 func (x *BoundKeypairSpec_RecoverySpec) Reset() {
 	*x = BoundKeypairSpec_RecoverySpec{}
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[27]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3148,7 +3390,7 @@ func (x *BoundKeypairSpec_RecoverySpec) String() string {
 func (*BoundKeypairSpec_RecoverySpec) ProtoMessage() {}
 
 func (x *BoundKeypairSpec_RecoverySpec) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[27]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3218,11 +3460,492 @@ func (b0 BoundKeypairSpec_RecoverySpec_builder) Build() *BoundKeypairSpec_Recove
 	return m0
 }
 
+// The attribute casted to a string must be equal to the value.
+type GenericOIDC_ConditionEq struct {
+	state            protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_Value string                 `protobuf:"bytes,1,opt,name=value,proto3"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *GenericOIDC_ConditionEq) Reset() {
+	*x = GenericOIDC_ConditionEq{}
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[29]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GenericOIDC_ConditionEq) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GenericOIDC_ConditionEq) ProtoMessage() {}
+
+func (x *GenericOIDC_ConditionEq) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[29]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *GenericOIDC_ConditionEq) GetValue() string {
+	if x != nil {
+		return x.xxx_hidden_Value
+	}
+	return ""
+}
+
+func (x *GenericOIDC_ConditionEq) SetValue(v string) {
+	x.xxx_hidden_Value = v
+}
+
+type GenericOIDC_ConditionEq_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The value to compare the attribute against.
+	Value string
+}
+
+func (b0 GenericOIDC_ConditionEq_builder) Build() *GenericOIDC_ConditionEq {
+	m0 := &GenericOIDC_ConditionEq{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.xxx_hidden_Value = b.Value
+	return m0
+}
+
+// The attribute casted to a string must not be equal to the value.
+type GenericOIDC_ConditionNotEq struct {
+	state            protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_Value string                 `protobuf:"bytes,1,opt,name=value,proto3"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *GenericOIDC_ConditionNotEq) Reset() {
+	*x = GenericOIDC_ConditionNotEq{}
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[30]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GenericOIDC_ConditionNotEq) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GenericOIDC_ConditionNotEq) ProtoMessage() {}
+
+func (x *GenericOIDC_ConditionNotEq) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[30]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *GenericOIDC_ConditionNotEq) GetValue() string {
+	if x != nil {
+		return x.xxx_hidden_Value
+	}
+	return ""
+}
+
+func (x *GenericOIDC_ConditionNotEq) SetValue(v string) {
+	x.xxx_hidden_Value = v
+}
+
+type GenericOIDC_ConditionNotEq_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The value to compare the attribute against.
+	Value string
+}
+
+func (b0 GenericOIDC_ConditionNotEq_builder) Build() *GenericOIDC_ConditionNotEq {
+	m0 := &GenericOIDC_ConditionNotEq{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.xxx_hidden_Value = b.Value
+	return m0
+}
+
+// The attribute casted to a string must be in the list of values.
+type GenericOIDC_ConditionIn struct {
+	state             protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_Values []string               `protobuf:"bytes,1,rep,name=values,proto3"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *GenericOIDC_ConditionIn) Reset() {
+	*x = GenericOIDC_ConditionIn{}
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[31]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GenericOIDC_ConditionIn) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GenericOIDC_ConditionIn) ProtoMessage() {}
+
+func (x *GenericOIDC_ConditionIn) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[31]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *GenericOIDC_ConditionIn) GetValues() []string {
+	if x != nil {
+		return x.xxx_hidden_Values
+	}
+	return nil
+}
+
+func (x *GenericOIDC_ConditionIn) SetValues(v []string) {
+	x.xxx_hidden_Values = v
+}
+
+type GenericOIDC_ConditionIn_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The list of values to compare the attribute against.
+	Values []string
+}
+
+func (b0 GenericOIDC_ConditionIn_builder) Build() *GenericOIDC_ConditionIn {
+	m0 := &GenericOIDC_ConditionIn{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.xxx_hidden_Values = b.Values
+	return m0
+}
+
+// The attribute casted to a string must not be in the list of values.
+type GenericOIDC_ConditionNotIn struct {
+	state             protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_Values []string               `protobuf:"bytes,1,rep,name=values,proto3"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *GenericOIDC_ConditionNotIn) Reset() {
+	*x = GenericOIDC_ConditionNotIn{}
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[32]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GenericOIDC_ConditionNotIn) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GenericOIDC_ConditionNotIn) ProtoMessage() {}
+
+func (x *GenericOIDC_ConditionNotIn) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[32]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *GenericOIDC_ConditionNotIn) GetValues() []string {
+	if x != nil {
+		return x.xxx_hidden_Values
+	}
+	return nil
+}
+
+func (x *GenericOIDC_ConditionNotIn) SetValues(v []string) {
+	x.xxx_hidden_Values = v
+}
+
+type GenericOIDC_ConditionNotIn_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The list of values to compare the attribute against.
+	Values []string
+}
+
+func (b0 GenericOIDC_ConditionNotIn_builder) Build() *GenericOIDC_ConditionNotIn {
+	m0 := &GenericOIDC_ConditionNotIn{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.xxx_hidden_Values = b.Values
+	return m0
+}
+
+// An allow rule condition for simple checks against a specific field.
+type GenericOIDC_Condition struct {
+	state                protoimpl.MessageState      `protogen:"opaque.v1"`
+	xxx_hidden_Attribute string                      `protobuf:"bytes,1,opt,name=attribute,proto3"`
+	xxx_hidden_Eq        *GenericOIDC_ConditionEq    `protobuf:"bytes,2,opt,name=eq,proto3"`
+	xxx_hidden_NotEq     *GenericOIDC_ConditionNotEq `protobuf:"bytes,3,opt,name=not_eq,json=notEq,proto3"`
+	xxx_hidden_In        *GenericOIDC_ConditionIn    `protobuf:"bytes,4,opt,name=in,proto3"`
+	xxx_hidden_NotIn     *GenericOIDC_ConditionNotIn `protobuf:"bytes,5,opt,name=not_in,json=notIn,proto3"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
+}
+
+func (x *GenericOIDC_Condition) Reset() {
+	*x = GenericOIDC_Condition{}
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[33]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GenericOIDC_Condition) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GenericOIDC_Condition) ProtoMessage() {}
+
+func (x *GenericOIDC_Condition) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[33]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *GenericOIDC_Condition) GetAttribute() string {
+	if x != nil {
+		return x.xxx_hidden_Attribute
+	}
+	return ""
+}
+
+func (x *GenericOIDC_Condition) GetEq() *GenericOIDC_ConditionEq {
+	if x != nil {
+		return x.xxx_hidden_Eq
+	}
+	return nil
+}
+
+func (x *GenericOIDC_Condition) GetNotEq() *GenericOIDC_ConditionNotEq {
+	if x != nil {
+		return x.xxx_hidden_NotEq
+	}
+	return nil
+}
+
+func (x *GenericOIDC_Condition) GetIn() *GenericOIDC_ConditionIn {
+	if x != nil {
+		return x.xxx_hidden_In
+	}
+	return nil
+}
+
+func (x *GenericOIDC_Condition) GetNotIn() *GenericOIDC_ConditionNotIn {
+	if x != nil {
+		return x.xxx_hidden_NotIn
+	}
+	return nil
+}
+
+func (x *GenericOIDC_Condition) SetAttribute(v string) {
+	x.xxx_hidden_Attribute = v
+}
+
+func (x *GenericOIDC_Condition) SetEq(v *GenericOIDC_ConditionEq) {
+	x.xxx_hidden_Eq = v
+}
+
+func (x *GenericOIDC_Condition) SetNotEq(v *GenericOIDC_ConditionNotEq) {
+	x.xxx_hidden_NotEq = v
+}
+
+func (x *GenericOIDC_Condition) SetIn(v *GenericOIDC_ConditionIn) {
+	x.xxx_hidden_In = v
+}
+
+func (x *GenericOIDC_Condition) SetNotIn(v *GenericOIDC_ConditionNotIn) {
+	x.xxx_hidden_NotIn = v
+}
+
+func (x *GenericOIDC_Condition) HasEq() bool {
+	if x == nil {
+		return false
+	}
+	return x.xxx_hidden_Eq != nil
+}
+
+func (x *GenericOIDC_Condition) HasNotEq() bool {
+	if x == nil {
+		return false
+	}
+	return x.xxx_hidden_NotEq != nil
+}
+
+func (x *GenericOIDC_Condition) HasIn() bool {
+	if x == nil {
+		return false
+	}
+	return x.xxx_hidden_In != nil
+}
+
+func (x *GenericOIDC_Condition) HasNotIn() bool {
+	if x == nil {
+		return false
+	}
+	return x.xxx_hidden_NotIn != nil
+}
+
+func (x *GenericOIDC_Condition) ClearEq() {
+	x.xxx_hidden_Eq = nil
+}
+
+func (x *GenericOIDC_Condition) ClearNotEq() {
+	x.xxx_hidden_NotEq = nil
+}
+
+func (x *GenericOIDC_Condition) ClearIn() {
+	x.xxx_hidden_In = nil
+}
+
+func (x *GenericOIDC_Condition) ClearNotIn() {
+	x.xxx_hidden_NotIn = nil
+}
+
+type GenericOIDC_Condition_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The name of the field this condition should check, separated by "." for
+	// nested fields.
+	Attribute string
+	// An "equals" operator. Only one operator may be set within a condition.
+	Eq *GenericOIDC_ConditionEq
+	// A "not equals" operator. Only one operator may be set within a condition.
+	NotEq *GenericOIDC_ConditionNotEq
+	// An "in" operator. Only one operator may be set within a condition.
+	In *GenericOIDC_ConditionIn
+	// A "not in" operator. Only one operator may be set within a condition.
+	NotIn *GenericOIDC_ConditionNotIn
+}
+
+func (b0 GenericOIDC_Condition_builder) Build() *GenericOIDC_Condition {
+	m0 := &GenericOIDC_Condition{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.xxx_hidden_Attribute = b.Attribute
+	x.xxx_hidden_Eq = b.Eq
+	x.xxx_hidden_NotEq = b.NotEq
+	x.xxx_hidden_In = b.In
+	x.xxx_hidden_NotIn = b.NotIn
+	return m0
+}
+
+// An allow rule, containing either a predict expression or simple field
+// check.
+type GenericOIDC_Rule struct {
+	state                 protoimpl.MessageState    `protogen:"opaque.v1"`
+	xxx_hidden_Conditions *[]*GenericOIDC_Condition `protobuf:"bytes,1,rep,name=conditions,proto3"`
+	xxx_hidden_Expression string                    `protobuf:"bytes,2,opt,name=expression,proto3"`
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
+}
+
+func (x *GenericOIDC_Rule) Reset() {
+	*x = GenericOIDC_Rule{}
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[34]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GenericOIDC_Rule) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GenericOIDC_Rule) ProtoMessage() {}
+
+func (x *GenericOIDC_Rule) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[34]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *GenericOIDC_Rule) GetConditions() []*GenericOIDC_Condition {
+	if x != nil {
+		if x.xxx_hidden_Conditions != nil {
+			return *x.xxx_hidden_Conditions
+		}
+	}
+	return nil
+}
+
+func (x *GenericOIDC_Rule) GetExpression() string {
+	if x != nil {
+		return x.xxx_hidden_Expression
+	}
+	return ""
+}
+
+func (x *GenericOIDC_Rule) SetConditions(v []*GenericOIDC_Condition) {
+	x.xxx_hidden_Conditions = &v
+}
+
+func (x *GenericOIDC_Rule) SetExpression(v string) {
+	x.xxx_hidden_Expression = v
+}
+
+type GenericOIDC_Rule_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Conditions are simple eq/not_eq/in/not_in conditions that check
+	// individual fields. All conditions must be satisfied for a join attempt to
+	// be allowed. Mutually exclusive with `expression`.
+	Conditions []*GenericOIDC_Condition
+	// A predicate expression that must evaluate to `true` for the join attempt
+	// to be allowed. It is mutually exclusive with `conditions`.
+	// TODO: Include name of variable available to the expr in docs
+	Expression string
+}
+
+func (b0 GenericOIDC_Rule_builder) Build() *GenericOIDC_Rule {
+	m0 := &GenericOIDC_Rule{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.xxx_hidden_Conditions = &b.Conditions
+	x.xxx_hidden_Expression = b.Expression
+	return m0
+}
+
 var File_teleport_scopes_joining_v1_token_proto protoreflect.FileDescriptor
 
 const file_teleport_scopes_joining_v1_token_proto_rawDesc = "" +
 	"\n" +
-	"&teleport/scopes/joining/v1/token.proto\x12\x1ateleport.scopes.joining.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a!teleport/header/v1/metadata.proto\"\xae\x02\n" +
+	"&teleport/scopes/joining/v1/token.proto\x12\x1ateleport.scopes.joining.v1\x1a\x1cgoogle/protobuf/struct.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a!teleport/header/v1/metadata.proto\"\xae\x02\n" +
 	"\vScopedToken\x12\x12\n" +
 	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x19\n" +
 	"\bsub_kind\x18\x02 \x01(\tR\asubKind\x12\x18\n" +
@@ -3230,7 +3953,7 @@ const file_teleport_scopes_joining_v1_token_proto_rawDesc = "" +
 	"\bmetadata\x18\x04 \x01(\v2\x1c.teleport.header.v1.MetadataR\bmetadata\x12\x14\n" +
 	"\x05scope\x18\x05 \x01(\tR\x05scope\x12?\n" +
 	"\x04spec\x18\x06 \x01(\v2+.teleport.scopes.joining.v1.ScopedTokenSpecR\x04spec\x12E\n" +
-	"\x06status\x18\a \x01(\v2-.teleport.scopes.joining.v1.ScopedTokenStatusR\x06status\"\xdb\x05\n" +
+	"\x06status\x18\a \x01(\v2-.teleport.scopes.joining.v1.ScopedTokenStatusR\x06status\"\xa7\x06\n" +
 	"\x0fScopedTokenSpec\x12%\n" +
 	"\x0eassigned_scope\x18\x01 \x01(\tR\rassignedScope\x12\x14\n" +
 	"\x05roles\x18\x02 \x03(\tR\x05roles\x12\x1f\n" +
@@ -3249,7 +3972,8 @@ const file_teleport_scopes_joining_v1_token_proto_rawDesc = "" +
 	"kubernetes\x18\v \x01(\v2&.teleport.scopes.joining.v1.KubernetesR\n" +
 	"kubernetes\x12Q\n" +
 	"\rbound_keypair\x18\f \x01(\v2,.teleport.scopes.joining.v1.BoundKeypairSpecR\fboundKeypair\x12\x10\n" +
-	"\x03bot\x18\x0f \x01(\tR\x03botJ\x04\b\r\x10\x0eJ\x04\b\x0e\x10\x0fR\bbot_nameR\tbot_scope\"\xb6\x01\n" +
+	"\x03bot\x18\x0f \x01(\tR\x03bot\x12J\n" +
+	"\fgeneric_oidc\x18\x10 \x01(\v2'.teleport.scopes.joining.v1.GenericOIDCR\vgenericOidcJ\x04\b\r\x10\x0eJ\x04\b\x0e\x10\x0fR\bbot_nameR\tbot_scope\"\xb6\x01\n" +
 	"\x0eHostCertParams\x12\x17\n" +
 	"\ahost_id\x18\x01 \x01(\tR\x06hostId\x12\x1b\n" +
 	"\tnode_name\x18\x02 \x01(\tR\bnodeName\x12\x12\n" +
@@ -3365,9 +4089,39 @@ const file_teleport_scopes_joining_v1_token_proto_rawDesc = "" +
 	"\x0erecovery_count\x18\x04 \x01(\rR\rrecoveryCount\x12F\n" +
 	"\x11last_recovered_at\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\x0flastRecoveredAt\x12B\n" +
 	"\x0flast_rotated_at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\rlastRotatedAt\x12\"\n" +
-	"\rbound_host_id\x18\a \x01(\tR\vboundHostIdBYZWgithub.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1;joiningv1b\x06proto3"
+	"\rbound_host_id\x18\a \x01(\tR\vboundHostId\"\xb3\a\n" +
+	"\vGenericOIDC\x12\x16\n" +
+	"\x06issuer\x18\x01 \x01(\tR\x06issuer\x12;\n" +
+	"\x1ainsecure_allow_http_issuer\x18\x02 \x01(\bR\x17insecureAllowHttpIssuer\x12\x1a\n" +
+	"\baudience\x18\x03 \x01(\tR\baudience\x12\x1f\n" +
+	"\vstatic_jwks\x18\x04 \x01(\tR\n" +
+	"staticJwks\x12\x15\n" +
+	"\x06tls_ca\x18\x05 \x01(\tR\x05tlsCa\x12C\n" +
+	"\x11must_match_fields\x18\x06 \x01(\v2\x17.google.protobuf.StructR\x0fmustMatchFields\x12I\n" +
+	"\tallow_any\x18\a \x03(\v2,.teleport.scopes.joining.v1.GenericOIDC.RuleR\ballowAny\x1a#\n" +
+	"\vConditionEq\x12\x14\n" +
+	"\x05value\x18\x01 \x01(\tR\x05value\x1a&\n" +
+	"\x0eConditionNotEq\x12\x14\n" +
+	"\x05value\x18\x01 \x01(\tR\x05value\x1a%\n" +
+	"\vConditionIn\x12\x16\n" +
+	"\x06values\x18\x01 \x03(\tR\x06values\x1a(\n" +
+	"\x0eConditionNotIn\x12\x16\n" +
+	"\x06values\x18\x01 \x03(\tR\x06values\x1a\xd1\x02\n" +
+	"\tCondition\x12\x1c\n" +
+	"\tattribute\x18\x01 \x01(\tR\tattribute\x12C\n" +
+	"\x02eq\x18\x02 \x01(\v23.teleport.scopes.joining.v1.GenericOIDC.ConditionEqR\x02eq\x12M\n" +
+	"\x06not_eq\x18\x03 \x01(\v26.teleport.scopes.joining.v1.GenericOIDC.ConditionNotEqR\x05notEq\x12C\n" +
+	"\x02in\x18\x04 \x01(\v23.teleport.scopes.joining.v1.GenericOIDC.ConditionInR\x02in\x12M\n" +
+	"\x06not_in\x18\x05 \x01(\v26.teleport.scopes.joining.v1.GenericOIDC.ConditionNotInR\x05notIn\x1ay\n" +
+	"\x04Rule\x12Q\n" +
+	"\n" +
+	"conditions\x18\x01 \x03(\v21.teleport.scopes.joining.v1.GenericOIDC.ConditionR\n" +
+	"conditions\x12\x1e\n" +
+	"\n" +
+	"expression\x18\x02 \x01(\tR\n" +
+	"expressionBYZWgithub.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1;joiningv1b\x06proto3"
 
-var file_teleport_scopes_joining_v1_token_proto_msgTypes = make([]protoimpl.MessageInfo, 28)
+var file_teleport_scopes_joining_v1_token_proto_msgTypes = make([]protoimpl.MessageInfo, 35)
 var file_teleport_scopes_joining_v1_token_proto_goTypes = []any{
 	(*ScopedToken)(nil),                     // 0: teleport.scopes.joining.v1.ScopedToken
 	(*ScopedTokenSpec)(nil),                 // 1: teleport.scopes.joining.v1.ScopedTokenSpec
@@ -3386,22 +4140,30 @@ var file_teleport_scopes_joining_v1_token_proto_goTypes = []any{
 	(*Kubernetes)(nil),                      // 14: teleport.scopes.joining.v1.Kubernetes
 	(*BoundKeypairSpec)(nil),                // 15: teleport.scopes.joining.v1.BoundKeypairSpec
 	(*BoundKeypairStatus)(nil),              // 16: teleport.scopes.joining.v1.BoundKeypairStatus
-	nil,                                     // 17: teleport.scopes.joining.v1.ImmutableLabels.SshEntry
-	(*AWS_Rule)(nil),                        // 18: teleport.scopes.joining.v1.AWS.Rule
-	(*GCP_Rule)(nil),                        // 19: teleport.scopes.joining.v1.GCP.Rule
-	(*Azure_Rule)(nil),                      // 20: teleport.scopes.joining.v1.Azure.Rule
-	(*AzureDevops_Rule)(nil),                // 21: teleport.scopes.joining.v1.AzureDevops.Rule
-	(*Oracle_Rule)(nil),                     // 22: teleport.scopes.joining.v1.Oracle.Rule
-	(*Kubernetes_StaticJWKSConfig)(nil),     // 23: teleport.scopes.joining.v1.Kubernetes.StaticJWKSConfig
-	(*Kubernetes_OIDCConfig)(nil),           // 24: teleport.scopes.joining.v1.Kubernetes.OIDCConfig
-	(*Kubernetes_Rule)(nil),                 // 25: teleport.scopes.joining.v1.Kubernetes.Rule
-	(*BoundKeypairSpec_OnboardingSpec)(nil), // 26: teleport.scopes.joining.v1.BoundKeypairSpec.OnboardingSpec
-	(*BoundKeypairSpec_RecoverySpec)(nil),   // 27: teleport.scopes.joining.v1.BoundKeypairSpec.RecoverySpec
-	(*v1.Metadata)(nil),                     // 28: teleport.header.v1.Metadata
-	(*timestamppb.Timestamp)(nil),           // 29: google.protobuf.Timestamp
+	(*GenericOIDC)(nil),                     // 17: teleport.scopes.joining.v1.GenericOIDC
+	nil,                                     // 18: teleport.scopes.joining.v1.ImmutableLabels.SshEntry
+	(*AWS_Rule)(nil),                        // 19: teleport.scopes.joining.v1.AWS.Rule
+	(*GCP_Rule)(nil),                        // 20: teleport.scopes.joining.v1.GCP.Rule
+	(*Azure_Rule)(nil),                      // 21: teleport.scopes.joining.v1.Azure.Rule
+	(*AzureDevops_Rule)(nil),                // 22: teleport.scopes.joining.v1.AzureDevops.Rule
+	(*Oracle_Rule)(nil),                     // 23: teleport.scopes.joining.v1.Oracle.Rule
+	(*Kubernetes_StaticJWKSConfig)(nil),     // 24: teleport.scopes.joining.v1.Kubernetes.StaticJWKSConfig
+	(*Kubernetes_OIDCConfig)(nil),           // 25: teleport.scopes.joining.v1.Kubernetes.OIDCConfig
+	(*Kubernetes_Rule)(nil),                 // 26: teleport.scopes.joining.v1.Kubernetes.Rule
+	(*BoundKeypairSpec_OnboardingSpec)(nil), // 27: teleport.scopes.joining.v1.BoundKeypairSpec.OnboardingSpec
+	(*BoundKeypairSpec_RecoverySpec)(nil),   // 28: teleport.scopes.joining.v1.BoundKeypairSpec.RecoverySpec
+	(*GenericOIDC_ConditionEq)(nil),         // 29: teleport.scopes.joining.v1.GenericOIDC.ConditionEq
+	(*GenericOIDC_ConditionNotEq)(nil),      // 30: teleport.scopes.joining.v1.GenericOIDC.ConditionNotEq
+	(*GenericOIDC_ConditionIn)(nil),         // 31: teleport.scopes.joining.v1.GenericOIDC.ConditionIn
+	(*GenericOIDC_ConditionNotIn)(nil),      // 32: teleport.scopes.joining.v1.GenericOIDC.ConditionNotIn
+	(*GenericOIDC_Condition)(nil),           // 33: teleport.scopes.joining.v1.GenericOIDC.Condition
+	(*GenericOIDC_Rule)(nil),                // 34: teleport.scopes.joining.v1.GenericOIDC.Rule
+	(*v1.Metadata)(nil),                     // 35: teleport.header.v1.Metadata
+	(*timestamppb.Timestamp)(nil),           // 36: google.protobuf.Timestamp
+	(*structpb.Struct)(nil),                 // 37: google.protobuf.Struct
 }
 var file_teleport_scopes_joining_v1_token_proto_depIdxs = []int32{
-	28, // 0: teleport.scopes.joining.v1.ScopedToken.metadata:type_name -> teleport.header.v1.Metadata
+	35, // 0: teleport.scopes.joining.v1.ScopedToken.metadata:type_name -> teleport.header.v1.Metadata
 	1,  // 1: teleport.scopes.joining.v1.ScopedToken.spec:type_name -> teleport.scopes.joining.v1.ScopedTokenSpec
 	5,  // 2: teleport.scopes.joining.v1.ScopedToken.status:type_name -> teleport.scopes.joining.v1.ScopedTokenStatus
 	8,  // 3: teleport.scopes.joining.v1.ScopedTokenSpec.immutable_labels:type_name -> teleport.scopes.joining.v1.ImmutableLabels
@@ -3412,35 +4174,43 @@ var file_teleport_scopes_joining_v1_token_proto_depIdxs = []int32{
 	13, // 8: teleport.scopes.joining.v1.ScopedTokenSpec.oracle:type_name -> teleport.scopes.joining.v1.Oracle
 	14, // 9: teleport.scopes.joining.v1.ScopedTokenSpec.kubernetes:type_name -> teleport.scopes.joining.v1.Kubernetes
 	15, // 10: teleport.scopes.joining.v1.ScopedTokenSpec.bound_keypair:type_name -> teleport.scopes.joining.v1.BoundKeypairSpec
-	29, // 11: teleport.scopes.joining.v1.SingleUseStatus.used_at:type_name -> google.protobuf.Timestamp
-	29, // 12: teleport.scopes.joining.v1.SingleUseStatus.reusable_until:type_name -> google.protobuf.Timestamp
-	2,  // 13: teleport.scopes.joining.v1.SingleUseStatus.host_cert_params:type_name -> teleport.scopes.joining.v1.HostCertParams
-	3,  // 14: teleport.scopes.joining.v1.UsageStatus.single_use:type_name -> teleport.scopes.joining.v1.SingleUseStatus
-	16, // 15: teleport.scopes.joining.v1.UsageStatus.bound_keypair:type_name -> teleport.scopes.joining.v1.BoundKeypairStatus
-	4,  // 16: teleport.scopes.joining.v1.ScopedTokenStatus.usage:type_name -> teleport.scopes.joining.v1.UsageStatus
-	28, // 17: teleport.scopes.joining.v1.StaticScopedTokens.metadata:type_name -> teleport.header.v1.Metadata
-	7,  // 18: teleport.scopes.joining.v1.StaticScopedTokens.spec:type_name -> teleport.scopes.joining.v1.StaticScopedTokensSpec
-	0,  // 19: teleport.scopes.joining.v1.StaticScopedTokensSpec.tokens:type_name -> teleport.scopes.joining.v1.ScopedToken
-	17, // 20: teleport.scopes.joining.v1.ImmutableLabels.ssh:type_name -> teleport.scopes.joining.v1.ImmutableLabels.SshEntry
-	18, // 21: teleport.scopes.joining.v1.AWS.allow:type_name -> teleport.scopes.joining.v1.AWS.Rule
-	19, // 22: teleport.scopes.joining.v1.GCP.allow:type_name -> teleport.scopes.joining.v1.GCP.Rule
-	20, // 23: teleport.scopes.joining.v1.Azure.allow:type_name -> teleport.scopes.joining.v1.Azure.Rule
-	21, // 24: teleport.scopes.joining.v1.AzureDevops.allow:type_name -> teleport.scopes.joining.v1.AzureDevops.Rule
-	22, // 25: teleport.scopes.joining.v1.Oracle.allow:type_name -> teleport.scopes.joining.v1.Oracle.Rule
-	25, // 26: teleport.scopes.joining.v1.Kubernetes.allow:type_name -> teleport.scopes.joining.v1.Kubernetes.Rule
-	23, // 27: teleport.scopes.joining.v1.Kubernetes.static_jwks:type_name -> teleport.scopes.joining.v1.Kubernetes.StaticJWKSConfig
-	24, // 28: teleport.scopes.joining.v1.Kubernetes.oidc:type_name -> teleport.scopes.joining.v1.Kubernetes.OIDCConfig
-	26, // 29: teleport.scopes.joining.v1.BoundKeypairSpec.onboarding:type_name -> teleport.scopes.joining.v1.BoundKeypairSpec.OnboardingSpec
-	27, // 30: teleport.scopes.joining.v1.BoundKeypairSpec.recovery:type_name -> teleport.scopes.joining.v1.BoundKeypairSpec.RecoverySpec
-	29, // 31: teleport.scopes.joining.v1.BoundKeypairSpec.rotate_after:type_name -> google.protobuf.Timestamp
-	29, // 32: teleport.scopes.joining.v1.BoundKeypairStatus.last_recovered_at:type_name -> google.protobuf.Timestamp
-	29, // 33: teleport.scopes.joining.v1.BoundKeypairStatus.last_rotated_at:type_name -> google.protobuf.Timestamp
-	29, // 34: teleport.scopes.joining.v1.BoundKeypairSpec.OnboardingSpec.must_register_before:type_name -> google.protobuf.Timestamp
-	35, // [35:35] is the sub-list for method output_type
-	35, // [35:35] is the sub-list for method input_type
-	35, // [35:35] is the sub-list for extension type_name
-	35, // [35:35] is the sub-list for extension extendee
-	0,  // [0:35] is the sub-list for field type_name
+	17, // 11: teleport.scopes.joining.v1.ScopedTokenSpec.generic_oidc:type_name -> teleport.scopes.joining.v1.GenericOIDC
+	36, // 12: teleport.scopes.joining.v1.SingleUseStatus.used_at:type_name -> google.protobuf.Timestamp
+	36, // 13: teleport.scopes.joining.v1.SingleUseStatus.reusable_until:type_name -> google.protobuf.Timestamp
+	2,  // 14: teleport.scopes.joining.v1.SingleUseStatus.host_cert_params:type_name -> teleport.scopes.joining.v1.HostCertParams
+	3,  // 15: teleport.scopes.joining.v1.UsageStatus.single_use:type_name -> teleport.scopes.joining.v1.SingleUseStatus
+	16, // 16: teleport.scopes.joining.v1.UsageStatus.bound_keypair:type_name -> teleport.scopes.joining.v1.BoundKeypairStatus
+	4,  // 17: teleport.scopes.joining.v1.ScopedTokenStatus.usage:type_name -> teleport.scopes.joining.v1.UsageStatus
+	35, // 18: teleport.scopes.joining.v1.StaticScopedTokens.metadata:type_name -> teleport.header.v1.Metadata
+	7,  // 19: teleport.scopes.joining.v1.StaticScopedTokens.spec:type_name -> teleport.scopes.joining.v1.StaticScopedTokensSpec
+	0,  // 20: teleport.scopes.joining.v1.StaticScopedTokensSpec.tokens:type_name -> teleport.scopes.joining.v1.ScopedToken
+	18, // 21: teleport.scopes.joining.v1.ImmutableLabels.ssh:type_name -> teleport.scopes.joining.v1.ImmutableLabels.SshEntry
+	19, // 22: teleport.scopes.joining.v1.AWS.allow:type_name -> teleport.scopes.joining.v1.AWS.Rule
+	20, // 23: teleport.scopes.joining.v1.GCP.allow:type_name -> teleport.scopes.joining.v1.GCP.Rule
+	21, // 24: teleport.scopes.joining.v1.Azure.allow:type_name -> teleport.scopes.joining.v1.Azure.Rule
+	22, // 25: teleport.scopes.joining.v1.AzureDevops.allow:type_name -> teleport.scopes.joining.v1.AzureDevops.Rule
+	23, // 26: teleport.scopes.joining.v1.Oracle.allow:type_name -> teleport.scopes.joining.v1.Oracle.Rule
+	26, // 27: teleport.scopes.joining.v1.Kubernetes.allow:type_name -> teleport.scopes.joining.v1.Kubernetes.Rule
+	24, // 28: teleport.scopes.joining.v1.Kubernetes.static_jwks:type_name -> teleport.scopes.joining.v1.Kubernetes.StaticJWKSConfig
+	25, // 29: teleport.scopes.joining.v1.Kubernetes.oidc:type_name -> teleport.scopes.joining.v1.Kubernetes.OIDCConfig
+	27, // 30: teleport.scopes.joining.v1.BoundKeypairSpec.onboarding:type_name -> teleport.scopes.joining.v1.BoundKeypairSpec.OnboardingSpec
+	28, // 31: teleport.scopes.joining.v1.BoundKeypairSpec.recovery:type_name -> teleport.scopes.joining.v1.BoundKeypairSpec.RecoverySpec
+	36, // 32: teleport.scopes.joining.v1.BoundKeypairSpec.rotate_after:type_name -> google.protobuf.Timestamp
+	36, // 33: teleport.scopes.joining.v1.BoundKeypairStatus.last_recovered_at:type_name -> google.protobuf.Timestamp
+	36, // 34: teleport.scopes.joining.v1.BoundKeypairStatus.last_rotated_at:type_name -> google.protobuf.Timestamp
+	37, // 35: teleport.scopes.joining.v1.GenericOIDC.must_match_fields:type_name -> google.protobuf.Struct
+	34, // 36: teleport.scopes.joining.v1.GenericOIDC.allow_any:type_name -> teleport.scopes.joining.v1.GenericOIDC.Rule
+	36, // 37: teleport.scopes.joining.v1.BoundKeypairSpec.OnboardingSpec.must_register_before:type_name -> google.protobuf.Timestamp
+	29, // 38: teleport.scopes.joining.v1.GenericOIDC.Condition.eq:type_name -> teleport.scopes.joining.v1.GenericOIDC.ConditionEq
+	30, // 39: teleport.scopes.joining.v1.GenericOIDC.Condition.not_eq:type_name -> teleport.scopes.joining.v1.GenericOIDC.ConditionNotEq
+	31, // 40: teleport.scopes.joining.v1.GenericOIDC.Condition.in:type_name -> teleport.scopes.joining.v1.GenericOIDC.ConditionIn
+	32, // 41: teleport.scopes.joining.v1.GenericOIDC.Condition.not_in:type_name -> teleport.scopes.joining.v1.GenericOIDC.ConditionNotIn
+	33, // 42: teleport.scopes.joining.v1.GenericOIDC.Rule.conditions:type_name -> teleport.scopes.joining.v1.GenericOIDC.Condition
+	43, // [43:43] is the sub-list for method output_type
+	43, // [43:43] is the sub-list for method input_type
+	43, // [43:43] is the sub-list for extension type_name
+	43, // [43:43] is the sub-list for extension extendee
+	0,  // [0:43] is the sub-list for field type_name
 }
 
 func init() { file_teleport_scopes_joining_v1_token_proto_init() }
@@ -3458,7 +4228,7 @@ func file_teleport_scopes_joining_v1_token_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_scopes_joining_v1_token_proto_rawDesc), len(file_teleport_scopes_joining_v1_token_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   28,
+			NumMessages:   35,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
