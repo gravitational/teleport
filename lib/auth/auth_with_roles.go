@@ -3946,7 +3946,7 @@ func (a *ScopedServerWithRoles) generateUserCerts(ctx context.Context, req proto
 			// TODO (eriktate/scopes): Remove this restriction once we have more thorough support for scopes with other usages.
 			// For now this is out of an abundance of caution to prevent scoped identities from generating user certs for
 			// usages that have not been fully thought through or tested yet.
-			return nil, trace.Wrap(services.ErrScopedIdentity, "generating scoped user cert for non-kubernetes and non-app usage")
+			return nil, trace.Wrap(services.ErrScopedIdentity, "generating scoped user cert for unsupported usage %q", req.Usage)
 		}
 
 		// Scoped identities cannot access cloud apps (AWS console / AWS Roles Anywhere, Azure, GCP).

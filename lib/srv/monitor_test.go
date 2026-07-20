@@ -24,6 +24,7 @@ import (
 	"net"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -430,134 +431,144 @@ func (m mockScopedControls) LockingMode(defaultMode constants.LockingMode) const
 func TestMonitorScoped(t *testing.T) {
 	t.Parallel()
 
-	ctx := t.Context()
-
-	srv, err := authtest.NewAuthServer(authtest.AuthServerConfig{
-		Dir:   t.TempDir(),
-		Clock: clockwork.NewFakeClock(),
-	})
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, srv.Close()) })
-
-	scopedCtx := &authz.ScopedContext{
-		Identity: authz.LocalUser{
-			Username: "scoped-user",
-			Identity: tlsca.Identity{Username: "scoped-user"},
-		},
+	newAuthServer := func(t *testing.T) *authtest.AuthServer {
+		srv, err := authtest.NewAuthServer(authtest.AuthServerConfig{
+			Dir:   t.TempDir(),
+			Clock: clockwork.NewFakeClock(),
+		})
+		require.NoError(t, err)
+		return srv
 	}
 
 	t.Run("scoped connection terminated when a matching lock is created", func(t *testing.T) {
-		emitter := eventstest.NewChannelEmitter(1)
-		lock, err := types.NewLock("test-lock", types.LockSpecV2{Target: types.LockTarget{User: "scoped-user"}})
-		require.NoError(t, err)
-		conn := &mockTrackingConn{closedC: make(chan struct{})}
-		monitor, err := NewConnectionMonitor(ConnectionMonitorConfig{
-			AccessPoint:    srv.AuthServer,
-			Emitter:        emitter,
-			EmitterContext: ctx,
-			Clock:          srv.Clock(),
-			Logger:         logtest.NewLogger(),
-			LockWatcher:    srv.LockWatcher,
-			ServerID:       "test",
+		synctest.Test(t, func(t *testing.T) {
+			ctx := t.Context()
+			srv := newAuthServer(t)
+			defer func() { require.NoError(t, srv.Close()) }()
+
+			scopedCtx := &authz.ScopedContext{
+				Identity: authz.LocalUser{
+					Username: "scoped-user",
+					Identity: tlsca.Identity{Username: "scoped-user"},
+				},
+			}
+			emitter := eventstest.NewChannelEmitter(1)
+			lock, err := types.NewLock("test-lock", types.LockSpecV2{Target: types.LockTarget{User: "scoped-user"}})
+			require.NoError(t, err)
+			conn := &mockTrackingConn{closedC: make(chan struct{})}
+			monitor, err := NewConnectionMonitor(ConnectionMonitorConfig{
+				AccessPoint:    srv.AuthServer,
+				Emitter:        emitter,
+				EmitterContext: ctx,
+				Clock:          srv.Clock(),
+				Logger:         logtest.NewLogger(),
+				LockWatcher:    srv.LockWatcher,
+				ServerID:       "test",
+			})
+			require.NoError(t, err)
+			monitorCtx, _, err := monitor.MonitorConnScoped(ctx, &ScopedSessionContext{
+				Context:         scopedCtx,
+				SessionControls: mockScopedControls{},
+			}, conn)
+			require.NoError(t, err)
+			require.NoError(t, monitorCtx.Err())
+
+			// Create a lock targeting the scoped user after the connection is established.
+			require.NoError(t, srv.AuthServer.UpsertLock(ctx, lock))
+			synctest.Wait()
+
+			select {
+			case <-conn.closedC:
+			default:
+				t.Fatal("connection is still open")
+			}
+			require.Error(t, monitorCtx.Err())
+			cause := context.Cause(monitorCtx)
+			require.True(t, trace.IsAccessDenied(cause))
+			require.Equal(t, services.LockInForceAccessDenied(lock).Error(), (<-emitter.C()).(*apievents.ClientDisconnect).Reason)
 		})
-		require.NoError(t, err)
-		monitorCtx, _, err := monitor.MonitorConnScoped(ctx, &ScopedSessionContext{
-			Context:         scopedCtx,
-			SessionControls: mockScopedControls{},
-		}, conn)
-		require.NoError(t, err)
-		require.NoError(t, monitorCtx.Err())
-
-		// Create a lock targeting the scoped user after the connection is established.
-		require.NoError(t, srv.AuthServer.UpsertLock(ctx, lock))
-
-		select {
-		case <-conn.closedC:
-		case <-time.After(2 * time.Second):
-			t.Fatal("Timeout waiting for connection close.")
-		}
-
-		require.Error(t, monitorCtx.Err())
-		cause := context.Cause(monitorCtx)
-		require.True(t, trace.IsAccessDenied(cause))
-		require.Equal(t, services.LockInForceAccessDenied(lock).Error(), (<-emitter.C()).(*apievents.ClientDisconnect).Reason)
 	})
 
 	t.Run("scoped client idle timeout is enforced", func(t *testing.T) {
-		// A distinct user (no lock) so the disconnect is attributable to the idle timeout,
-		// not the lock created above.
-		idleCtx := &authz.ScopedContext{
-			Identity: authz.LocalUser{
-				Username: "idle-user",
-				Identity: tlsca.Identity{Username: "idle-user"},
-			},
-		}
-		clock := clockwork.NewFakeClock()
-		conn := &mockTrackingConn{closedC: make(chan struct{})}
+		synctest.Test(t, func(t *testing.T) {
+			ctx := t.Context()
+			srv := newAuthServer(t)
+			defer func() { require.NoError(t, srv.Close()) }()
 
-		m, err := NewConnectionMonitor(ConnectionMonitorConfig{
-			AccessPoint:    srv.AuthServer,
-			Emitter:        eventstest.NewChannelEmitter(1),
-			EmitterContext: ctx,
-			Clock:          clock,
-			Logger:         logtest.NewLogger(),
-			LockWatcher:    srv.LockWatcher,
-			ServerID:       "test",
+			idleCtx := &authz.ScopedContext{
+				Identity: authz.LocalUser{
+					Username: "idle-user",
+					Identity: tlsca.Identity{Username: "idle-user"},
+				},
+			}
+			conn := &mockTrackingConn{closedC: make(chan struct{})}
+			m, err := NewConnectionMonitor(ConnectionMonitorConfig{
+				AccessPoint:    srv.AuthServer,
+				Emitter:        eventstest.NewChannelEmitter(1),
+				EmitterContext: ctx,
+				Clock:          clockwork.NewRealClock(),
+				Logger:         logtest.NewLogger(),
+				LockWatcher:    srv.LockWatcher,
+				ServerID:       "test",
+			})
+			require.NoError(t, err)
+
+			_, _, err = m.MonitorConnScoped(ctx, &ScopedSessionContext{
+				Context:         idleCtx,
+				SessionControls: mockScopedControls{idleTimeout: time.Minute},
+			}, conn)
+			require.NoError(t, err)
+
+			time.Sleep(2 * time.Minute)
+			synctest.Wait()
+			select {
+			case <-conn.closedC:
+			default:
+				t.Fatal("connection is still open after the idle timeout")
+			}
 		})
-		require.NoError(t, err)
-
-		_, _, err = m.MonitorConnScoped(ctx, &ScopedSessionContext{
-			Context:         idleCtx,
-			SessionControls: mockScopedControls{idleTimeout: time.Minute},
-		}, conn)
-		require.NoError(t, err)
-
-		clock.BlockUntilContext(t.Context(), 1)
-		clock.Advance(2 * time.Minute)
-
-		select {
-		case <-conn.closedC:
-		case <-time.After(2 * time.Second):
-			t.Fatal("Timeout waiting for idle-timeout disconnect.")
-		}
 	})
 
 	t.Run("scoped disconnect_expired_cert is enforced at cert expiry", func(t *testing.T) {
-		clock := clockwork.NewRealClock()
-		// close immediately since the user's cert has expired already.
-		expiredCtx := &authz.ScopedContext{
-			Identity: authz.LocalUser{
-				Username: "expiry-user",
-				Identity: tlsca.Identity{Username: "expiry-user", Expires: clock.Now().Add(-time.Second)},
-			},
-		}
-		conn := &mockTrackingConn{closedC: make(chan struct{})}
-		m, err := NewConnectionMonitor(ConnectionMonitorConfig{
-			AccessPoint:    srv.AuthServer,
-			Emitter:        eventstest.NewChannelEmitter(1),
-			EmitterContext: ctx,
-			Clock:          clock,
-			Logger:         logtest.NewLogger(),
-			LockWatcher:    srv.LockWatcher,
-			ServerID:       "test",
+		synctest.Test(t, func(t *testing.T) {
+			ctx := t.Context()
+			srv := newAuthServer(t)
+			defer func() { require.NoError(t, srv.Close()) }()
+
+			clock := clockwork.NewRealClock()
+			expiredCtx := &authz.ScopedContext{
+				Identity: authz.LocalUser{
+					Username: "expiry-user",
+					Identity: tlsca.Identity{Username: "expiry-user", Expires: clock.Now().Add(-time.Second)},
+				},
+			}
+			conn := &mockTrackingConn{closedC: make(chan struct{})}
+			m, err := NewConnectionMonitor(ConnectionMonitorConfig{
+				AccessPoint:    srv.AuthServer,
+				Emitter:        eventstest.NewChannelEmitter(1),
+				EmitterContext: ctx,
+				Clock:          clock,
+				Logger:         logtest.NewLogger(),
+				LockWatcher:    srv.LockWatcher,
+				ServerID:       "test",
+			})
+			require.NoError(t, err)
+
+			_, _, err = m.MonitorConnScoped(ctx, &ScopedSessionContext{
+				Context:         expiredCtx,
+				SessionControls: mockScopedControls{disconnectExpired: true},
+			}, conn)
+			require.NoError(t, err)
+
+			synctest.Wait()
+			select {
+			case <-conn.closedC:
+			default:
+				t.Fatal("connection is still open after certificate expiry")
+			}
 		})
-		require.NoError(t, err)
-
-		_, _, err = m.MonitorConnScoped(ctx, &ScopedSessionContext{
-			Context:         expiredCtx,
-			SessionControls: mockScopedControls{disconnectExpired: true},
-		}, conn)
-		require.NoError(t, err)
-
-		select {
-		case <-conn.closedC:
-		case <-time.After(5 * time.Second):
-			t.Fatal("Timeout waiting for expired-cert disconnect.")
-		}
 	})
 
-	// Both stale-lock cases share the same setup and the destructive stale-forcing sequence;
-	// only the final assertion differs, supplied per case.
 	staleLockCases := []struct {
 		name        string
 		lockingMode constants.LockingMode
@@ -593,17 +604,11 @@ func TestMonitorScoped(t *testing.T) {
 
 	for _, tc := range staleLockCases {
 		t.Run(tc.name, func(t *testing.T) {
-			emitter := eventstest.NewChannelEmitter(1)
-
-			// Forcing the lock watcher stale is one-way and destructive, so each case uses its
-			// own auth server rather than the one shared with the cases above.
-			srv, err := authtest.NewAuthServer(authtest.AuthServerConfig{
-				Dir:   t.TempDir(),
-				Clock: clockwork.NewFakeClock(),
-			})
-			require.NoError(t, err)
+			ctx := t.Context()
+			srv := newAuthServer(t)
 			t.Cleanup(func() { require.NoError(t, srv.Close()) })
 
+			emitter := eventstest.NewChannelEmitter(1)
 			authCtx := &authz.ScopedContext{
 				Identity: authz.LocalUser{
 					Username: "stale-lock-user",
@@ -654,6 +659,9 @@ func TestMonitorScoped(t *testing.T) {
 
 			// StaleC is listened by multiple goroutines, so we close it to ensure they are all
 			// unblocked and the stale state is detected.
+			// synctest is not applicable here because closing srv.LockWatcher.StaleC
+			// causes its resource watch loop to retry continuously, preventing
+			// synctest.Wait from returning.
 			close(srv.LockWatcher.StaleC)
 			require.EventuallyWithT(t, func(c *assert.CollectT) {
 				assert.True(c, srv.LockWatcher.IsStale())

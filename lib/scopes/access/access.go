@@ -313,7 +313,7 @@ func StrongValidateRole(role *scopedaccessv1.ScopedRole) error {
 	}
 
 	if err := validateAppBlock(role.GetSpec().GetApp()); err != nil {
-		return trace.BadParameter("scoped role %q has %s", role.GetMetadata().GetName(), err)
+		return trace.BadParameter("scoped role %q %s", role.GetMetadata().GetName(), err)
 	}
 
 	// verify that kube groups are well-formed
@@ -373,12 +373,12 @@ func validateAppBlock(app *scopedaccessv1.ScopedRoleApp) error {
 
 	labels := app.GetLabels()
 	if len(labels) == 0 && app.GetLabelExpression() == "" {
-		return trace.BadParameter("no labels or label expressions for apps. Please add at least one label entry or a label expression")
+		return trace.BadParameter("must define at least one apps.labels entry or apps.label expressions")
 	}
 
 	if expr := app.GetLabelExpression(); expr != "" {
 		if _, err := label.ParseLabelExpression(expr); err != nil {
-			return trace.BadParameter("invalid app.label_expression: %v", err)
+			return trace.BadParameter("has invalid app.label_expression: %v", err)
 		}
 	}
 
@@ -389,23 +389,23 @@ func validateAppBlock(app *scopedaccessv1.ScopedRoleApp) error {
 		// them until that has landed.
 
 		if strings.ContainsAny(label.GetName(), invalidLabelChars) {
-			return trace.BadParameter("invalid app label name %q", label.GetName())
+			return trace.BadParameter("has invalid app label name %q", label.GetName())
 		}
 		if value := validateDoesNotContain(label.GetValues(), invalidLabelChars); value != "" {
-			return trace.BadParameter("invalid app label value %q for label %q", value, label.GetName())
+			return trace.BadParameter("has invalid app label value %q for label %q", value, label.GetName())
 		}
 	}
 
 	// verify that lock.Mode is a recognized value for App
 	if lock := app.GetLock(); lock != nil {
 		if err := validateLock(lock); err != nil {
-			return trace.BadParameter("invalid app.lock.mode %q", lock.GetMode())
+			return trace.BadParameter("has invalid app.lock.mode %q", lock.GetMode())
 		}
 	}
 
 	if s := app.GetClientIdleTimeout(); s != "" {
 		if _, err := time.ParseDuration(s); err != nil {
-			return trace.BadParameter("invalid app.client_idle_timeout %q: %v", s, err)
+			return trace.BadParameter("has invalid app.client_idle_timeout %q: %v", s, err)
 		}
 	}
 	return nil

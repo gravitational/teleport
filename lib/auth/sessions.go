@@ -477,6 +477,13 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 
 	var checkerContext *services.ScopedAccessCheckerContext
 	if req.Identity.ScopePin != nil {
+		if req.DelegationSessionID != "" {
+			return nil, trace.AccessDenied("scoped identities do not support delegation session ID")
+		}
+		if len(req.RequestedResourceAccessIDs) != 0 {
+			return nil, trace.AccessDenied("scoped identities do not support requested resource access IDs")
+		}
+
 		accessInfo := services.ScopePinnedAccessInfoFromUserState(user, req.Identity.ScopePin)
 		checkerContext, err = services.NewScopedAccessCheckerContext(ctx, accessInfo, clusterName.GetClusterName(), a.ScopedAccessCache)
 		if err != nil {
