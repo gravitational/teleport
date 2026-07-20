@@ -10,9 +10,9 @@ should match the snapshot (full):
       kind: Role
       name: RELEASE-NAME-tbot-spiffe-daemon-set
     subjects:
-    - kind: ServiceAccount
-      name: RELEASE-NAME-tbot-spiffe-daemon-set
-      namespace: NAMESPACE
+      - kind: ServiceAccount
+        name: RELEASE-NAME-tbot-spiffe-daemon-set
+        namespace: NAMESPACE
 should match the snapshot (simple):
   1: |
     apiVersion: rbac.authorization.k8s.io/v1
@@ -25,6 +25,6 @@ should match the snapshot (simple):
       kind: Role
       name: RELEASE-NAME-tbot-spiffe-daemon-set
     subjects:
-    - kind: ServiceAccount
-      name: RELEASE-NAME-tbot-spiffe-daemon-set
-      namespace: NAMESPACE
+      - kind: ServiceAccount
+        name: RELEASE-NAME-tbot-spiffe-daemon-set
+        namespace: NAMESPACE

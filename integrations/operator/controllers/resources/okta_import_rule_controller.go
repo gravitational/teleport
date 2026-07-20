@@ -37,8 +37,8 @@ type oktaImportRuleClient struct {
 }
 
 // Get gets the Teleport okta_import_rule of a given name
-func (r oktaImportRuleClient) Get(ctx context.Context, name string) (types.OktaImportRule, error) {
-	importRule, err := r.teleportClient.OktaClient().GetOktaImportRule(ctx, name)
+func (r oktaImportRuleClient) Get(ctx context.Context, key reconcilers.ResourceKey) (types.OktaImportRule, error) {
+	importRule, err := r.teleportClient.OktaClient().GetOktaImportRule(ctx, key.Name)
 	return importRule, trace.Wrap(err)
 }
 
@@ -55,8 +55,8 @@ func (r oktaImportRuleClient) Update(ctx context.Context, importRule types.OktaI
 }
 
 // Delete deletes a Teleport okta_import_rule
-func (r oktaImportRuleClient) Delete(ctx context.Context, name string) error {
-	return trace.Wrap(r.teleportClient.OktaClient().DeleteOktaImportRule(ctx, name))
+func (r oktaImportRuleClient) Delete(ctx context.Context, key reconcilers.ResourceKey) error {
+	return trace.Wrap(r.teleportClient.OktaClient().DeleteOktaImportRule(ctx, key.Name))
 }
 
 // NewOktaImportRuleReconciler instantiates a new Kubernetes controller reconciling okta_import_rule resources

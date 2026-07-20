@@ -114,6 +114,9 @@ type AccessRequest interface {
 	GetSuggestedReviewers() []string
 	// SetSuggestedReviewers sets the suggested reviewer list.
 	SetSuggestedReviewers([]string)
+	// GetReferencedUsers returns the usernames referenced by this request: the
+	// requester, review authors, and suggested reviewers.
+	GetReferencedUsers() []string
 	// GetRequestedResourceIDs gets the resource IDs to which access is being requested.
 	GetRequestedResourceIDs() []ResourceID
 	// SetRequestedResourceIDs sets the resource IDs to which access is being requested.
@@ -440,6 +443,16 @@ func (r *AccessRequestV3) GetSuggestedReviewers() []string {
 // SetSuggestedReviewers sets the suggested reviewer list.
 func (r *AccessRequestV3) SetSuggestedReviewers(reviewers []string) {
 	r.Spec.SuggestedReviewers = reviewers
+}
+
+// GetReferencedUsers returns the usernames referenced by this request: the
+// requester, review authors, and suggested reviewers.
+func (r *AccessRequestV3) GetReferencedUsers() []string {
+	usernames := []string{r.GetUser()}
+	for _, review := range r.GetReviews() {
+		usernames = append(usernames, review.Author)
+	}
+	return append(usernames, r.GetSuggestedReviewers()...)
 }
 
 // GetPromotedAccessListName returns PromotedAccessListName.

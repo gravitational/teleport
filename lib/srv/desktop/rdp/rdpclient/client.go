@@ -1061,16 +1061,17 @@ func cgo_handle_rdp_connection_activated(
 	user_channel_id C.uint16_t,
 	screen_width C.uint16_t,
 	screen_height C.uint16_t,
+	share_id C.uint32_t,
 ) C.CGOErrCode {
 	client, err := toClient(handle)
 	if err != nil {
 		return C.ErrCodeFailure
 	}
-	return client.handleRDPConnectionActivated(io_channel_id, user_channel_id, screen_width, screen_height)
+	return client.handleRDPConnectionActivated(io_channel_id, user_channel_id, screen_width, screen_height, share_id)
 }
 
-func (c *Client) handleRDPConnectionActivated(ioChannelID, userChannelID, screenWidth, screenHeight C.uint16_t) C.CGOErrCode {
-	c.cfg.Logger.DebugContext(context.Background(), "Received RDP channel IDs", "io_channel_id", ioChannelID, "user_channel_id", userChannelID)
+func (c *Client) handleRDPConnectionActivated(ioChannelID, userChannelID, screenWidth, screenHeight C.uint16_t, shareID C.uint32_t) C.CGOErrCode {
+	c.cfg.Logger.DebugContext(context.Background(), "Received RDP channel IDs", "io_channel_id", ioChannelID, "user_channel_id", userChannelID, "share_id", shareID)
 
 	// Note: RDP doesn't always use the resolution we asked for.
 	// This is especially true when we request dimensions that are not a multiple of 4.
@@ -1082,6 +1083,7 @@ func (c *Client) handleRDPConnectionActivated(ioChannelID, userChannelID, screen
 			UserChannelId: uint32(userChannelID),
 			ScreenWidth:   uint32(screenWidth),
 			ScreenHeight:  uint32(screenHeight),
+			ShareId:       uint32(shareID),
 		},
 		ClipboardEnabled:               true,
 		DirectoryRemoveSupported:       false,
@@ -1340,35 +1342,4 @@ func isEmpty(b bool) C.uint8_t {
 // DisableNLA disables NLA in the client configuration.
 func (c *Client) DisableNLA() {
 	c.cfg.NLA = false
-}
-
-// EncodeQOIZ encodes changed frame to series of FastPath SetSurface PDUs using QOIZ codec.
-// Resulting frames can be consumed directly by the FastPath processor from IronRDP if qoiz
-// feature is enabled in ironrdp-session crate
-func EncodeQOIZ(frame []byte, x, y, width, height uint16) ([]*tdpb.FastPathPDU, error) {
-	if len(frame) == 0 {
-		return nil, nil
-	}
-	if len(frame) != int(width)*int(height)*4 {
-		return nil, trace.BadParameter("incorrect frame size")
-	}
-	data := unsafe.SliceData(frame)
-	encodingResult := C.encode_qoiz((*C.uint8_t)(data), C.uint16_t(x), C.uint16_t(y), C.uint16_t(width), C.uint16_t(height))
-	defer C.free_encoding_result(encodingResult)
-	if encodingResult.error_code != C.ErrCodeSuccess {
-		msg := C.GoBytes(unsafe.Pointer(encodingResult.error_msg), C.int(encodingResult.length))
-		return nil, trace.Errorf("Couldn't encode frame: %s", string(msg))
-	}
-	pdus := unsafe.Slice((*C.Pdu)(encodingResult.pdus), encodingResult.length)
-	messages := make([]*tdpb.FastPathPDU, 0, encodingResult.length)
-	for _, frame := range pdus {
-		messages = append(messages, &tdpb.FastPathPDU{
-			Pdu: C.GoBytes(unsafe.Pointer(frame.data), C.int(frame.length)),
-		})
-	}
-	return messages, nil
-}
-
-func EncodeQOIZAvailable() bool {
-	return true
 }

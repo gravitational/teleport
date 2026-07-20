@@ -516,12 +516,21 @@ func StrongValidateAssignment(assignment *scopedaccessv1.ScopedRoleAssignment) e
 			return trace.BadParameter("scoped role assignment %q is missing role in sub-assignment %d", assignment.GetMetadata().GetName(), i)
 		}
 
-		if err := validateRoleName(subAssignment.GetRole()); err != nil {
-			return trace.BadParameter("scoped role assignment %q has invalid role name in sub-assignment %d: %v", assignment.GetMetadata().GetName(), i, err)
+		// the role is referenced by scope-qualified name (`<roleScope>::<roleName>`); validate both components.
+		role, err := scopes.ParseQualifiedName(subAssignment.GetRole())
+		if err != nil {
+			return trace.BadParameter("scoped role assignment %q has invalid role reference in sub-assignment %d: %v", assignment.GetMetadata().GetName(), i, err)
+		}
+		if err := role.StrongValidate(); err != nil {
+			return trace.BadParameter("scoped role assignment %q has invalid role reference in sub-assignment %d: %v", assignment.GetMetadata().GetName(), i, err)
 		}
 
 		if err := scopes.StrongValidate(subAssignment.GetScope()); err != nil {
 			return trace.BadParameter("scoped role assignment %q has invalid scope in sub-assignment %d: %v", assignment.GetMetadata().GetName(), i, err)
+		}
+
+		if !scopes.ScopeOfOrigin(role.Scope).IsAssignableToScopeOfEffect(subAssignment.GetScope()) {
+			return trace.BadParameter("scoped role assignment %q sub-assignment %d references role %q whose scope is not equivalent or ancestral to the scope of effect %q", assignment.GetMetadata().GetName(), i, subAssignment.GetRole(), subAssignment.GetScope())
 		}
 
 		if scopes.Compare(subAssignment.GetScope(), scopes.Root) == scopes.Equivalent {

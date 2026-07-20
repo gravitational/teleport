@@ -53,11 +53,7 @@ func ListEnabledRegions(ctx context.Context, listerGetter ListerGetter, opts ...
 		page, err := paginator.NextPage(ctx)
 		if err != nil {
 			convertedErr := libcloudaws.ConvertRequestFailureError(err)
-			if trace.IsAccessDenied(convertedErr) {
-				return nil, trace.BadParameter("Missing account:ListRegions permission in IAM Role, which is required to iterate over all regions. " +
-					"Add this permission to the IAM Role, or enumerate the regions explicitly.")
-			}
-			return nil, convertedErr
+			return nil, trace.Wrap(convertedErr)
 		}
 
 		for _, region := range page.Regions {

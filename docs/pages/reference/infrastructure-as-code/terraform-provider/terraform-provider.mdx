@@ -195,4 +195,5 @@ This auth method has the following limitations:
 - `retry_max_tries` (String) Retry algorithm when the API returns 'not found': max tries. This can also be set with the environment variable `TF_TELEPORT_RETRY_MAX_TRIES`.
 - `root_ca_base64` (String) Base64 encoded Root CA. This can also be set with the environment variable `TF_TELEPORT_CA_BASE64`.
 - `root_ca_path` (String) Path to Teleport Root CA. This can also be set with the environment variable `TF_TELEPORT_ROOT_CA`.
+- `scoped` (Boolean) Scoped indicates that the Terraform Operator will join with a scoped token. This only takes effect when the operator performs native MachineID joining (i.e. join method and join token are specified). This must be set when using a scoped join token. This can also be set with the environment variable `TF_TELEPORT_SCOPED`
 

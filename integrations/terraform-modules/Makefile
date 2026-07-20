@@ -61,6 +61,7 @@ release: build
 
 PLUGIN_TYPE := terraform-module
 # This list controls which modules are actually published.
+# TODO(gavin): publish teleport/container-service/aws after updating the promote-terraform cmd in teleport.e to handle hyphens in module names
 PUBLISHED_TF_MODULES := \
 	teleport/discovery/aws \
 	teleport/discovery/azure \
@@ -98,6 +99,13 @@ tfclean:
 		-or -name '.terraform.lock.hcl' \
 		-or -name 'terraform.tfstate*' \
 	\) -exec rm -rf {} \+
+
+#
+# update-version updates Terraform source code that depends on the current release version.
+#
+.PHONY: update-version
+update-version:
+	./gen/update-version.sh $(VERSION)
 
 .PHONY: create-module
 create-module:

@@ -1,0 +1,7 @@
+> Profile URL:        https://teleport.example.com:443
+  Logged in as:       admin
+  Cluster:            example.com
+  Roles:              access, auditor, editor
+  Logins:             root, ubuntu
+  Kubernetes:         enabled
+  Valid until:        2026-12-31 23:59:59 -0700 PDT [valid for 11h52m]

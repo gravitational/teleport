@@ -234,9 +234,9 @@ func TestIdentityContext_GetUserMetadata(t *testing.T) {
 						Scope: "/staging",
 						AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
 							"/staging": {
-								"/staging":       {"staging-admin"},
-								"/staging/blue":  {"staging-access"},
-								"/staging/green": {"staging-access"},
+								"/staging":       {"/staging::staging-admin"},
+								"/staging/blue":  {"/staging::staging-access"},
+								"/staging/green": {"/staging::staging-access"},
 							},
 						}),
 					}.Build(),
@@ -270,9 +270,9 @@ func TestIdentityContext_GetUserMetadata(t *testing.T) {
 						Scope: "/staging",
 						AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
 							"/staging": {
-								"/staging":       {"staging-admin"},
-								"/staging/blue":  {"staging-access"},
-								"/staging/green": {"staging-access"},
+								"/staging":       {"/staging::staging-admin"},
+								"/staging/blue":  {"/staging::staging-access"},
+								"/staging/green": {"/staging::staging-access"},
 							},
 						}),
 					}.Build(),

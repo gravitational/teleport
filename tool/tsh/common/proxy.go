@@ -23,6 +23,7 @@ import (
 	"crypto"
 	"crypto/tls"
 	"crypto/x509/pkix"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -30,6 +31,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"time"
 	"unicode"
 
 	template "github.com/DataDog/datadog-agent/pkg/template/text"
@@ -38,8 +40,11 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/keypaths"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -95,7 +100,143 @@ func onProxyCommandSSH(cf *CLIConf, initFunc ClientInitFunc) error {
 		return trace.Wrap(sshFunc())
 	}
 
-	return trace.Wrap(libclient.RetryWithRelogin(cf.Context, tc, sshFunc))
+	return trace.Wrap(sshRetryer{
+		shouldRetry:  libclient.ShouldRetryWithRelogin,
+		relogin:      libclient.Relogin,
+		lockfilePath: GetProxySSHRetryerLockfilePath(cf.HomePath, tc.WebProxyHost()),
+		// Try to provide enough time for a manual login or
+		// retry attempts due to network issues.
+		waitDuration:  30 * time.Second,
+		retryAttempts: 3,
+		retryDriver:   retryutils.NewLinearDriver(1 * time.Second),
+	}.retryWithLimitedRelogin(cf.Context, tc, sshFunc))
+}
+
+// GetProxySSHRetryerLockfilePath gets the path to the proxy ssh retryer lockfile.
+func GetProxySSHRetryerLockfilePath(baseDir, proxy string) string {
+	return keypaths.ProxySSHRetryerLockfilePath(profile.FullProfilePath(baseDir), proxy)
+}
+
+type shouldRetryFunc func(context.Context, *libclient.TeleportClient, error) (bool, error)
+type reloginFunc func(context.Context, *libclient.TeleportClient, ...libclient.RetryWithReloginOption) error
+
+// sshRetryer is a more bespoke of libclient.RetryWithRelogin.
+// It uses a file lock to allow a single tsh process to handle relogin
+// while holding an exclusive lock, while other concurrently executing tsh
+// processes wait on shared lock for relogin to complete. This prevents
+// concurrently executing instances of 'tsh proxy ssh' commands from
+// opening an excessive number of browser windows for relogin.
+type sshRetryer struct {
+	// shouldRetry checks if the error can be retried. Wraps the error and returns a boolean
+	// indicating whether or not the original error should retried after relogin.
+	shouldRetry shouldRetryFunc
+	// relogin performs re-authentication.
+	relogin reloginFunc
+	// lockfilePath is the path to the lockfile which will be used to synchronize relogin attempts.
+	lockfilePath string
+	// waitDuration determines how long a command invocation will wait for a concurrent tsh process
+	// to perform a relogin before giving up and trying again anyway.
+	waitDuration time.Duration
+	// retryConfig determines the retry strategy to use when recovering
+	// from transient network errors.
+	retryDriver retryutils.Driver
+	// retryAttempts determines how many times sshRetryer will attempt to
+	// recover from transient network errors. e.g. (1 means that we will
+	// try to relogin once, and then *retry* once more).
+	retryAttempts int
+}
+
+// acquireLock acquires either the exclusive lock, or the shared lock.
+// is returns a boolean indiciating whether or not the lock is exclusive, and unlock callback,
+// and an error. If error is non nil, the caller should discard the boolean and unlock function.
+func (s sshRetryer) acquireLock(ctx context.Context) (bool, func() error, error) {
+	if _, err := utils.EnsureLocalPath(s.lockfilePath, "", ""); err != nil {
+		return false, nil, trace.Wrap(err)
+	}
+
+	// Try to grab the exclusive lock first
+	exclusiveUnlock, err := utils.FSTryWriteLock(s.lockfilePath)
+	if err == nil {
+		return true, exclusiveUnlock, nil
+	}
+
+	// Failed to get exclusive lock. Is something wrong, or did we just
+	// lose the race?
+	if !errors.Is(err, utils.ErrUnsuccessfulLockTry) {
+		return false, nil, trace.Wrap(err)
+	}
+
+	// Someone else has the exclusive lock. Let's wait for the shared lock then.
+	// We don't necessarily _need_ a timeout. We will unblock when the exclusive lock holder releases
+	// or exits. We'll try with a timeout anyway not because we're concerned about blocking forever,
+	// but because FSTryReadLockTimeout is the only API that exposes a context that we can cancel on.
+	sharedUnlock, err := utils.FSTryReadLockTimeout(ctx, s.lockfilePath, s.waitDuration)
+	return false, sharedUnlock, trace.Wrap(err)
+}
+
+func (s sshRetryer) tryRelogin(ctx context.Context, tc *libclient.TeleportClient) error {
+	driver := s.retryDriver
+	if driver == nil {
+		driver = retryutils.NewLinearDriver(1 * time.Second)
+	}
+
+	var reloginErr error
+	// "+1" to attempt relogin at least once in case
+	// retryAttempts is set to zero.
+	for attempt := range s.retryAttempts + 1 {
+		// Backoff per our retry driver
+		// (attempt "0" does not wait)
+		select {
+		case <-time.After(driver.Duration(int64(attempt))):
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+
+		reloginErr = s.relogin(ctx, tc)
+		if reloginErr == nil {
+			// Success!
+			return nil
+		}
+
+		if !isNetworkError(reloginErr) {
+			// Only retry network errors.
+			return trace.Wrap(reloginErr)
+		}
+	}
+	return reloginErr
+}
+
+func (s sshRetryer) retryWithLimitedRelogin(ctx context.Context, tc *libclient.TeleportClient, operation func() error) error {
+	const reloginErrorMessage = "Having problems with relogin, please use 'tsh login' manually"
+	opErr := operation()
+	if opErr == nil {
+		return nil
+	}
+
+	var shouldRetry bool
+	if shouldRetry, opErr = s.shouldRetry(ctx, tc, opErr); !shouldRetry {
+		return opErr
+	}
+
+	// Either acquire the exclusive lock, or block until either another instance
+	// releases the exclusive lock, or a timeout occurs.
+	isExclusive, unlock, err := s.acquireLock(ctx)
+	if err != nil {
+		return trace.Wrap(err, reloginErrorMessage)
+	}
+
+	if isExclusive {
+		// We got the exclusive lock, so we're responsible for attempting relogin.
+		if err := s.tryRelogin(ctx, tc); err != nil {
+			unlock()
+			return trace.Wrap(err, reloginErrorMessage)
+		}
+	}
+
+	// We must unlock *before* retrying the operation. arbitrary SSH commands
+	// can run indefinitely. We don't want to block other tsh processes.
+	unlock()
+	return operation()
 }
 
 // cleanTargetHost cleans the targetHost and remote site and proxy suffixes.
@@ -531,10 +672,10 @@ func onProxyCommandApp(cf *CLIConf) error {
 	if portMapping.TargetPort != 0 {
 		appName = net.JoinHostPort(appName, strconv.Itoa(portMapping.TargetPort))
 	}
-	fmt.Fprintf(cf.Stdout(), "Proxying connections to %s on %v\n", appName, proxyApp.GetAddr())
+	fmt.Fprintf(cf.ProxyStatusOutput(), "Proxying connections to %s on %v\n", appName, proxyApp.GetAddr())
 	// If target port is not equal to zero, the user must know about the port flag.
 	if portMapping.LocalPort == 0 && portMapping.TargetPort == 0 {
-		fmt.Fprintln(cf.Stdout(), "To avoid port randomization, you can choose the listening port using the --port flag.")
+		fmt.Fprintln(cf.ProxyStatusOutput(), "To avoid port randomization, you can choose the listening port using the --port flag.")
 	}
 
 	if cf.AppHTTPSTunnel {
@@ -542,7 +683,7 @@ func onProxyCommandApp(cf *CLIConf) error {
 		if cf.InsecureSkipVerify {
 			curlCmd += " -k"
 		}
-		fmt.Fprintf(cf.Stdout(), "\nExample curl command:\n%s\n", curlCmd)
+		fmt.Fprintf(cf.ProxyStatusOutput(), "\nExample curl command:\n%s\n", curlCmd)
 	}
 
 	defer func() {
