@@ -1,0 +1,398 @@
+// Copyright 2026 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.beams.v1;
+
+import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1;beamsv1";
+
+// BeamReplayService streams a beam's recorded HTTP traffic + attributed audit
+// activity from the S3 replay artifact.
+service BeamReplayService {
+  // Replay is a bidirectional stream: the client sends framed ReplayRequests
+  // and the server interleaves framed ReplayResponses, each tagged with the
+  // originating client request_id.
+  rpc Replay(stream ReplayRequest) returns (stream ReplayResponse);
+}
+
+// ReplayRequest is a single framed request sent by the client on the Replay
+// stream.
+message ReplayRequest {
+  // RequestID identifies this request. Responses carrying data for this
+  // request will echo the same request_id.
+  string request_id = 1;
+
+  oneof kind {
+    OpenRequest open = 2;
+    FetchExchangesRequest fetch_exchanges = 3;
+    FetchEventsRequest fetch_events = 4;
+    FetchPayloadRequest fetch_payload = 5;
+    CancelRequest cancel = 6;
+  }
+}
+
+// OpenRequest opens a replay session for the given beam, returning its
+// manifest.
+message OpenRequest {
+  // BeamID is the UUID name of the beam whose replay artifact should be
+  // opened.
+  string beam_id = 1;
+}
+
+// FetchExchangesRequest requests a page of recorded HTTP exchanges.
+message FetchExchangesRequest {
+  // Cursor is the ordinal to resume listing from.
+  int64 cursor = 1;
+
+  // Limit is the maximum number of exchanges to return.
+  int32 limit = 2;
+}
+
+// FetchEventsRequest requests a page of audit events attributed to a given
+// exchange.
+message FetchEventsRequest {
+  // ExchangeOrdinal identifies the exchange whose events are being fetched.
+  int64 exchange_ordinal = 1;
+
+  // Cursor is the offset to resume listing from.
+  int64 cursor = 2;
+
+  // Limit is the maximum number of events to return.
+  int32 limit = 3;
+}
+
+// FetchPayloadRequest requests a chunk of a request/response/event payload
+// blob.
+message FetchPayloadRequest {
+  // ExchangeOrdinal identifies the exchange the payload belongs to.
+  int64 exchange_ordinal = 1;
+
+  // Ref locates the payload within the replay artifact's blob parts.
+  PayloadRef ref = 2;
+
+  // Offset is the byte offset within the referenced payload to start
+  // reading from.
+  int64 offset = 3;
+
+  // Limit is the maximum number of bytes to return.
+  int64 limit = 4;
+}
+
+// CancelRequest cancels a previously issued, still in-flight request.
+message CancelRequest {
+  // TargetRequestID is the request_id of the request to cancel.
+  string target_request_id = 1;
+}
+
+// ReplayResponse is a single framed response sent by the server on the
+// Replay stream.
+message ReplayResponse {
+  // RequestID echoes the request_id of the ReplayRequest this response
+  // corresponds to.
+  string request_id = 1;
+
+  oneof kind {
+    ReplayManifest manifest = 2;
+    ExchangePage exchange_page = 3;
+    EventPage event_page = 4;
+    PayloadChunk payload_chunk = 5;
+    ReplayError error = 6;
+  }
+}
+
+// ExchangePage is a page of recorded HTTP exchanges.
+message ExchangePage {
+  // Exchanges is the page of exchange entries.
+  repeated ReplayExchangeEntry exchanges = 1;
+
+  // NextCursor is the ordinal to pass as the cursor of the next
+  // FetchExchangesRequest.
+  int64 next_cursor = 2;
+
+  // HasMore indicates whether additional exchanges are available beyond
+  // this page.
+  bool has_more = 3;
+}
+
+// EventPage is a page of audit events attributed to an exchange.
+message EventPage {
+  // Events is the page of audit event entries.
+  repeated ReplayAuditEvent events = 1;
+
+  // NextCursor is the offset to pass as the cursor of the next
+  // FetchEventsRequest.
+  int64 next_cursor = 2;
+
+  // HasMore indicates whether additional events are available beyond this
+  // page.
+  bool has_more = 3;
+}
+
+// PayloadChunk is a chunk of a request/response/event payload blob.
+message PayloadChunk {
+  // Data is the raw bytes of this chunk.
+  bytes data = 1;
+
+  // IsLast indicates whether this is the final chunk for the requested
+  // payload.
+  bool is_last = 2;
+}
+
+// ReplayError describes a failure that occurred while servicing a
+// ReplayRequest.
+message ReplayError {
+  // Message describes the error.
+  string message = 1;
+}
+
+// ReplayManifest describes the top-level layout of a beam's replay
+// artifact.
+message ReplayManifest {
+  // Version is the manifest schema version.
+  int32 version = 1;
+
+  // BeamID is the UUID name of the beam this artifact belongs to.
+  string beam_id = 2;
+
+  // Alias is the human-friendly handle of the beam.
+  string alias = 3;
+
+  // Owner is the user that owned the beam.
+  string owner = 4;
+
+  // CreatedAt is when the beam, and thus this artifact, was created.
+  google.protobuf.Timestamp created_at = 5;
+
+  // ExpiresAt is when this artifact, and the underlying beam's recording,
+  // expires.
+  google.protobuf.Timestamp expires_at = 6;
+
+  // TotalExchanges is the total number of recorded HTTP exchanges.
+  int64 total_exchanges = 7;
+
+  // Incomplete indicates whether the recording was truncated or otherwise
+  // ended before the beam's session concluded normally.
+  bool incomplete = 8;
+
+  // SummaryRef references the part containing the recording's summary, if
+  // any.
+  string summary_ref = 9;
+
+  // IndexPageNames lists the names of the index page parts that make up
+  // this artifact.
+  repeated string index_page_names = 10;
+
+  // BlobPartNames lists the names of the blob parts that make up this
+  // artifact.
+  repeated string blob_part_names = 11;
+
+  // CommandPageRefs references the pages of the artifact's command index --
+  // the tool/command calls the LLM issued across the recording, extracted from
+  // each exchange's response, split into fixed-size pages. It is empty for
+  // artifacts recorded before command extraction existed, or that recorded no
+  // commands. Each page is a separate object (not inlined here) served through
+  // FetchPayload with a negative exchange ordinal; see BeamReplayService.
+  repeated PayloadRef command_page_refs = 12;
+
+  // PublishedAppName is the name of the Teleport application the beam published,
+  // if any (from the beam's status.app_name at teardown). It's empty when the
+  // beam never published an app. The viewer reconstructs the app's public URL
+  // from it (published_app_name + the cluster's public address), so a beam's
+  // published app remains visible in its history after the beam is gone.
+  string published_app_name = 13;
+}
+
+// ReplayIndexPage is a page of the replay artifact's exchange index.
+message ReplayIndexPage {
+  // Entries is the page's exchange entries.
+  repeated ReplayExchangeEntry entries = 1;
+}
+
+// ReplayCommandIndex is one page of the artifact's command index: a slice of
+// the tool/command calls the LLM issued, in issue order. The full index is
+// split across ReplayManifest.command_page_refs and fetched page by page to
+// drive the replay viewer's command timeline.
+message ReplayCommandIndex {
+  // Commands is this page's ordered list of tool/command calls.
+  repeated ReplayCommand commands = 1;
+}
+
+// ReplayCommand describes a single tool/command call the LLM issued in an
+// exchange's response (an OpenAI function_call / Chat Completions tool_call /
+// Anthropic tool_use). It anchors the call back to the exchange and the
+// specific streamed output item it came from, so the viewer can jump straight
+// to it.
+message ReplayCommand {
+  // CommandOrdinal is this command's position across the whole recording.
+  int64 command_ordinal = 1;
+
+  // ExchangeOrdinal is the ordinal of the exchange whose response issued this
+  // command.
+  int64 exchange_ordinal = 2;
+
+  // OutputIndex is the index of the streamed output item that carried this
+  // command within its response, used to expand the exact item in the parsed
+  // stream view. It is the response's output_index for the OpenAI Responses
+  // API, or the item's position for other shapes.
+  int64 output_index = 3;
+
+  // ToolName is the name of the tool/function the LLM called.
+  string tool_name = 4;
+
+  // Phase is the response phase the call was emitted in (e.g. commentary,
+  // final), when the provider reports one.
+  string phase = 5;
+
+  // ArgumentsPreview is a short, single-line preview of the call's arguments,
+  // for the timeline label. The full arguments live in the exchange's recorded
+  // response body.
+  string arguments_preview = 6;
+
+  // At is when the issuing exchange occurred.
+  google.protobuf.Timestamp at = 7;
+
+  // Risk is the LLM-assigned risk level for this command
+  // (none/low/medium/high/critical). Empty for artifacts recorded before
+  // command-risk scoring, or when no beam inference policy is configured.
+  string risk = 8;
+}
+
+// ReplayExchangeEntry describes a single recorded HTTP exchange.
+message ReplayExchangeEntry {
+  // Ordinal is this exchange's position in the recording.
+  int64 ordinal = 1;
+
+  // RequestID is the identifier of the originating HTTP request.
+  string request_id = 2;
+
+  // Method is the HTTP method of the request.
+  string method = 3;
+
+  // URL is the HTTP request URL.
+  string url = 4;
+
+  // StatusCode is the HTTP response status code.
+  uint32 status_code = 5;
+
+  // RequestBodySize is the size, in bytes, of the request body.
+  int64 request_body_size = 6;
+
+  // ResponseBodySize is the size, in bytes, of the response body.
+  int64 response_body_size = 7;
+
+  // SendTimeMs is the number of milliseconds spent sending the request.
+  int64 send_time_ms = 8;
+
+  // WaitTimeMs is the number of milliseconds spent waiting for the first
+  // byte of the response.
+  int64 wait_time_ms = 9;
+
+  // ReceiveTimeMs is the number of milliseconds spent receiving the
+  // response.
+  int64 receive_time_ms = 10;
+
+  // Provider identifies the upstream AI provider, if this exchange was
+  // classified as AI traffic.
+  string provider = 11;
+
+  // Model identifies the upstream AI model, if this exchange was
+  // classified as AI traffic.
+  string model = 12;
+
+  // InputTokens is the number of input/prompt tokens consumed, if known.
+  int64 input_tokens = 13;
+
+  // OutputTokens is the number of output/completion tokens produced, if
+  // known.
+  int64 output_tokens = 14;
+
+  // At is when the exchange occurred.
+  google.protobuf.Timestamp at = 15;
+
+  // RequestBody references the exchange's request body payload.
+  PayloadRef request_body = 16;
+
+  // ResponseBody references the exchange's response body payload.
+  PayloadRef response_body = 17;
+
+  // Attachments lists any attachments associated with the exchange.
+  repeated ReplayAttachment attachments = 18;
+
+  // Events references the batch of audit events attributed to this
+  // exchange.
+  PayloadRef events = 19;
+
+  // EventCount is the number of audit events attributed to this exchange.
+  int64 event_count = 20;
+}
+
+// PayloadRef locates a payload within one of the replay artifact's blob
+// parts.
+message PayloadRef {
+  // PartName is the name of the blob part containing the payload.
+  string part_name = 1;
+
+  // Offset is the byte offset of the payload within the blob part.
+  int64 offset = 2;
+
+  // Length is the length, in bytes, of the payload.
+  int64 length = 3;
+}
+
+// ReplayAttachment describes a non-body attachment associated with an
+// exchange.
+message ReplayAttachment {
+  // Kind categorizes the attachment.
+  string kind = 1;
+
+  // Mime is the MIME type of the attachment.
+  string mime = 2;
+
+  // Name is the attachment's name.
+  string name = 3;
+
+  // Ref locates the attachment's contents.
+  PayloadRef ref = 4;
+}
+
+// ReplayEventBatch is a batch of audit events attributed to a single
+// exchange.
+message ReplayEventBatch {
+  // Events is the batch's audit event entries.
+  repeated ReplayAuditEvent events = 1;
+}
+
+// ReplayAuditEvent describes a single audit event attributed to an
+// exchange.
+message ReplayAuditEvent {
+  // Type is the audit event's type.
+  string type = 1;
+
+  // Code is the audit event's code.
+  string code = 2;
+
+  // At is when the audit event occurred.
+  google.protobuf.Timestamp at = 3;
+
+  // Summary is a human-readable summary of the audit event.
+  string summary = 4;
+
+  // Data is the audit event's full, unstructured payload, so the replay viewer
+  // can show the complete event rather than only its type/summary.
+  google.protobuf.Struct data = 5;
+}
