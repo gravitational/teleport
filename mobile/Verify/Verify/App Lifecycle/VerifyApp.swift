@@ -66,12 +66,14 @@ import SwiftUI
 @main
 struct VerifyApp: App {
 	@State
-	private var appModel = VerifyAppModel()
+	private var appModel: VerifyAppModel
 
 	init() {
 		prepareDependencies {
 			$0.defaultDatabase = AppDatabase.makeLiveDatabase()
 		}
+		// Only initialize the model after our app's dependencies have been prepared
+		appModel = VerifyAppModel()
 	}
 
 	var body: some Scene {
