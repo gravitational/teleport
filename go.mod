@@ -105,7 +105,7 @@ require (
 	github.com/beevik/etree v1.6.0
 	github.com/boombuler/barcode v1.0.1
 	github.com/buildkite/bintest/v3 v3.3.0
-	github.com/charlievieth/strcase v0.0.5
+	github.com/charlievieth/strcase v0.0.6
 	github.com/charmbracelet/bubbles v0.21.1-0.20250623103423-23b8fd6302d7
 	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/charmbracelet/huh v0.8.0
