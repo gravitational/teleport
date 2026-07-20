@@ -24,6 +24,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	devicetrustpublicv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/public/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	proxyinsecureclient "github.com/gravitational/teleport/lib/client/proxy/insecure"
 )
@@ -64,9 +65,10 @@ type DeviceEnrollToken struct {
 	Token string
 }
 
-// CreateMobileEnrollToken calls CreateMobileDeviceEnrollToken on the public
-// Device Trust service. Populated fields of deviceData are forwarded as-is.
-func (c *Client) CreateMobileEnrollToken(pairingToken string, deviceData *DeviceCollectedData) (*DeviceEnrollToken, error) {
+// CreatePairedDeviceEnrollToken calls CreatePairedDeviceEnrollToken on the
+// public Device Trust service. Populated fields of deviceData are forwarded
+// as-is.
+func (c *Client) CreatePairedDeviceEnrollToken(pairingToken string, deviceData *DeviceCollectedData) (*DeviceEnrollToken, error) {
 	// TODO(ravicious): Integrate Go's context with Swift's task cancellation
 	// See https://github.com/gravitational/teleport/pull/61278/changes/8980e91f611264bd760890316d49a842ded2aebb
 	ctx, cancel := context.WithCancel(context.Background())
@@ -86,29 +88,29 @@ func (c *Client) CreateMobileEnrollToken(pairingToken string, deviceData *Device
 	}
 	defer grpcConn.Close()
 
-	// TODO(ravicious): Replace this with a call to the public gRPC service.
-	client := devicepb.NewDeviceTrustServiceClient(grpcConn)
-	resp, err := client.CreateDeviceEnrollToken(ctx,
-		devicepb.CreateDeviceEnrollTokenRequest_builder{
-			DeviceData: toPBDeviceData(deviceData),
+	client := devicetrustpublicv1pb.NewDeviceTrustServiceClient(grpcConn)
+	resp, err := client.CreatePairedDeviceEnrollToken(ctx,
+		devicetrustpublicv1pb.CreatePairedDeviceEnrollTokenRequest_builder{
+			EnrollPairingToken: pairingToken,
+			DeviceData:         toPBDeviceData(deviceData),
 		}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &DeviceEnrollToken{
-		Token: resp.GetToken(),
+		Token: resp.GetDeviceEnrollToken().GetToken(),
 	}, nil
 }
 
-// toPBDeviceData translates DeviceCollectedData into the proto type.
-// OsType stays UNSPECIFIED until OS_TYPE_IOS lands in
-// teleport.devicetrust.v1.OSType (see RFD 32e).
+// toPBDeviceData translates DeviceCollectedData into the proto type. OsType is
+// hardcoded to iOS.
 func toPBDeviceData(d *DeviceCollectedData) *devicepb.DeviceCollectedData {
 	if d == nil {
 		d = &DeviceCollectedData{}
 	}
 	return devicepb.DeviceCollectedData_builder{
 		CollectTime:        timestamppb.Now(),
+		OsType:             devicepb.OSType_OS_TYPE_IOS,
 		SerialNumber:       d.SerialNumber,
 		ModelIdentifier:    d.ModelIdentifier,
 		OsVersion:          d.VersionOS,
