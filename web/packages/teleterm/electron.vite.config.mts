@@ -30,13 +30,6 @@ import { getConnectCsp } from './csp';
 const rootDirectory = path.resolve(import.meta.dirname, '../../..');
 const outputDirectory = path.resolve(import.meta.dirname, 'build', 'app');
 
-// Dependencies that must be bundled rather than externalized.
-//
-// ring-buffer-ts ships as a minified UMD/CommonJS bundle with no ESM entry.
-// This makes the Node's ESM loader fail to detect its named exports.
-// A workaround is to switch to `import rb from 'ring-buffer-ts'` but this doesn't work under Babel.
-const bundledDeps = ['ring-buffer-ts'];
-
 // electron-vite's externalizeDepsPlugin sets build.rollupOptions.external, which
 // Vite 8 ignores (it uses rolldownOptions).
 // TODO(ryan): Remove this once electron-vite supports Vite 8.
@@ -45,9 +38,7 @@ const bundledDeps = ['ring-buffer-ts'];
 // dependencies for main and preload, but bundles everything for the renderer.
 // See https://electron-vite.org/guide/dependency-handling.
 const pkg = createRequire(import.meta.url)('./package.json');
-const deps = Object.keys(pkg.dependencies || {}).filter(
-  dep => !bundledDeps.includes(dep)
-);
+const deps = Object.keys(pkg.dependencies || {});
 
 // Main and preload run in Node.js, so we externalize electron, Node.js built-in
 // modules, and package.json dependencies (they'll be included during packaging).
