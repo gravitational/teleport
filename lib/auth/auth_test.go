@@ -3058,7 +3058,7 @@ func TestGenerateOpenSSHCertScoped(t *testing.T) {
 				User: "scoped-user",
 				Assignments: []*scopedaccessv1pb.Assignment{
 					scopedaccessv1pb.Assignment_builder{
-						Role:  "staging-ssh",
+						Role:  "/staging::staging-ssh",
 						Scope: "/staging",
 					}.Build(),
 				},

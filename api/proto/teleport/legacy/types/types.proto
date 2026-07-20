@@ -3354,6 +3354,23 @@ message AccessRequestDryRunEnrichment {
   ];
   // ReasonPrompts is a sorted and deduplicated list of reason prompts for this Access Request.
   repeated string ReasonPrompts = 2 [(gogoproto.jsontag) = "reason_prompt,omitempty"];
+  // UserDisplays maps the requester and server-suggested reviewer usernames to
+  // read-time display values.
+  map<string, AccessRequestUserDisplay> UserDisplays = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "user_displays,omitempty"
+  ];
+}
+
+// AccessRequestUserDisplay holds read-time display values derived from a user
+// resource.
+message AccessRequestUserDisplay {
+  // Primary is a human-readable display name derived from the user's traits.
+  // Empty when the user has no display value distinct from their username.
+  string Primary = 1 [(gogoproto.jsontag) = "primary,omitempty"];
+  // Secondary is supporting context, typically the user's email address.
+  // Empty when the user has no such value distinct from their username.
+  string Secondary = 2 [(gogoproto.jsontag) = "secondary,omitempty"];
 }
 
 // AccessReview is a review to be applied to an Access Request.

@@ -1,0 +1,95 @@
+{
+  "identities": [
+    {
+      "identity": {
+        "id": "a1111111-1111-4111-8111-111111111111",
+        "name": "alice@example.com",
+        "kind": "identity",
+        "sub_kind": "user",
+        "source": "TELEPORT",
+        "origin": "teleport_user"
+      },
+      "resources": [
+        {
+          "resource": {
+            "id": "d0000000-0000-4000-8000-0000000000db",
+            "name": "prod-db",
+            "kind": "resource",
+            "sub_kind": "db",
+            "source": "TELEPORT",
+            "origin": "teleport_db"
+          },
+          "level": "standing",
+          "grantor_counts": {"standing": 1, "impersonate": 0, "request": 0},
+          "grantors": [
+            {
+              "node": {
+                "id": "4f0c1d2e-3a4b-4c5d-8e6f-7a8b9c0d1e2f",
+                "name": "4f0c1d2e-3a4b-4c5d-8e6f-7a8b9c0d1e2f",
+                "alias": "Prod DB ACL",
+                "kind": "identity_group",
+                "sub_kind": "access_list",
+                "source": "TELEPORT",
+                "origin": "teleport_access_list"
+              },
+              "level": "standing"
+            }
+          ],
+          "activity": {"count": 12, "last_access": "2026-06-20T14:03:11Z"}
+        },
+        {
+          "resource": {
+            "id": "1e6a9a00-0000-4000-8000-000000000001",
+            "name": "legacy-app",
+            "kind": "resource",
+            "sub_kind": "app",
+            "source": "TELEPORT",
+            "origin": "teleport_application"
+          },
+          "level": "standing",
+          "grantor_counts": {"standing": 1, "impersonate": 0, "request": 0},
+          "grantors": [
+            {
+              "node": {
+                "id": "1e6a9acc-0000-4000-8000-000000000002",
+                "name": "legacy-access",
+                "kind": "identity_group",
+                "sub_kind": "role",
+                "source": "TELEPORT",
+                "origin": "teleport_role"
+              },
+              "level": "standing"
+            }
+          ]
+        },
+        {
+          "resource": {
+            "id": "b6c00000-0000-4000-8000-000000000001",
+            "name": "break-glass-prod",
+            "kind": "resource",
+            "sub_kind": "db",
+            "source": "TELEPORT",
+            "origin": "teleport_db"
+          },
+          "level": "standing",
+          "temporary": true,
+          "grantor_counts": {"standing": 1, "impersonate": 0, "request": 0},
+          "grantors": [
+            {
+              "node": {
+                "id": "b6c0acc0-0000-4000-8000-000000000003",
+                "name": "break-glass",
+                "kind": "identity_group",
+                "sub_kind": "access_request",
+                "source": "TELEPORT",
+                "origin": "teleport_access_request",
+                "temporary": true
+              },
+              "level": "standing"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

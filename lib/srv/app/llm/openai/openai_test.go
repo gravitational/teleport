@@ -298,6 +298,71 @@ func TestNewRequest(t *testing.T) {
 			expectedRequest: require.Nil,
 			expectedInfo:    require.NotNil,
 		},
+		"successful chat completions": {
+			app: newApp(t, &types.LLM{
+				Format:   types.LLMFormatOpenAI,
+				Provider: types.LLMProviderOpenAI,
+			}, nil /* appAWS */),
+			request: func() *http.Request {
+				r, _ := http.NewRequest(
+					http.MethodPost,
+					"/chat/completions",
+					strings.NewReader(`{"model":"gpt-5","stream": true,"messages":[{"role":"user","content":"Hello"}]}`),
+				)
+				return r
+			},
+			expectedError: require.NoError,
+			expectedRequest: func(tt require.TestingT, i1 any, i2 ...any) {
+				req, _ := i1.(*http.Request)
+				require.Equal(tt, "/v1/chat/completions", req.URL.Path)
+				require.Equal(tt, http.MethodPost, req.Method)
+				require.Equal(tt, "Bearer "+apiKey, req.Header.Get("Authorization"))
+				require.NotEmpty(tt, req.Header.Get("content-type"))
+				// Usage reporting is enabled on chat completions requests.
+				body, err := io.ReadAll(req.Body)
+				require.NoError(tt, err)
+				require.Contains(tt, string(body), `"include_usage":true`)
+			},
+			expectedInfo: func(tt require.TestingT, i1 any, i2 ...any) {
+				info, _ := i1.(*RequestInfo)
+				require.Equal(tt, "gpt-5", info.RequestedModel())
+				require.Equal(tt, "gpt-5", info.ProviderModel())
+			},
+		},
+		"chat completions store is not supported": {
+			app: newApp(t, &types.LLM{
+				Format:   types.LLMFormatOpenAI,
+				Provider: types.LLMProviderOpenAI,
+			}, nil /* appAWS */),
+			request: func() *http.Request {
+				r, _ := http.NewRequest(
+					http.MethodPost,
+					"/chat/completions",
+					strings.NewReader(`{"model":"gpt-5","stream": true,"store":true,"messages":[{"role":"user","content":"Hello"}]}`),
+				)
+				return r
+			},
+			expectedError:   require.Error,
+			expectedRequest: require.Nil,
+			expectedInfo:    require.NotNil,
+		},
+		"unsupported method on chat completions": {
+			app: newApp(t, &types.LLM{
+				Format:   types.LLMFormatOpenAI,
+				Provider: types.LLMProviderOpenAI,
+			}, nil /* appAWS */),
+			request: func() *http.Request {
+				r, _ := http.NewRequest(
+					http.MethodGet,
+					"/chat/completions",
+					nil,
+				)
+				return r
+			},
+			expectedError:   require.Error,
+			expectedRequest: require.Nil,
+			expectedInfo:    require.NotNil,
+		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			req, info, err := NewRequest(&llmrequest.Config{

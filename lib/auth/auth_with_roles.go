@@ -3411,7 +3411,7 @@ func (a *ServerWithRoles) AuthorizeAccessReviewRequestSubmittedForUser(ctx conte
 	if err != nil {
 		a.authServer.logger.ErrorContext(ctx, "Could not submit review for another user, the user could not be fetched from local store",
 			"submitter", a.context.User.GetName(),
-			"submitted for user", params.Review.Author,
+			"submitted_for_user", params.Review.Author,
 			"error", err,
 		)
 		return trace.AccessDenied("user %q cannot submit reviews for %q, user could not be fetched from local store",
@@ -3423,7 +3423,7 @@ func (a *ServerWithRoles) AuthorizeAccessReviewRequestSubmittedForUser(ctx conte
 	if err := a.context.Checker.CheckSubmitForUser(a.context.User, user); err != nil {
 		a.authServer.logger.ErrorContext(ctx, "Could not submit review for another user, invalid permissions",
 			"submitter", a.context.User.GetName(),
-			"submitted for user", params.Review.Author,
+			"submitted_for_user", params.Review.Author,
 			"error", err,
 		)
 		return trace.AccessDenied("user %q cannot submit reviews for %q", a.context.User.GetName(), params.Review.Author)
