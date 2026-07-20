@@ -232,11 +232,9 @@ func (issuer *kubeCertIssuer) issue(ctx context.Context, cc kubeCertClient, para
 	}
 
 	// Set leaf so we don't have to parse it on each request.
-	leaf, err := utils.TLSCertLeaf(cert)
-	if err != nil {
+	if cert.Leaf, err = utils.TLSCertLeaf(cert); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	cert.Leaf = leaf
 
 	return &cert, nil
 }
