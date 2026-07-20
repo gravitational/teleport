@@ -30,9 +30,6 @@ import (
 )
 
 func (s *TerraformSuiteEnterprise) TestInferencePolicy() {
-	// TODO: Test case should now expect a zero value rather than a null value.
-	s.T().Skip("Attribute 'spec.filter' found when not expected")
-
 	t := s.T()
 	ctx := t.Context()
 
@@ -71,7 +68,7 @@ func (s *TerraformSuiteEnterprise) TestInferencePolicy() {
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr(name, "spec.kinds.1", "db"),
 					resource.TestCheckResourceAttr(name, "spec.model", "another-dummy-model"),
-					resource.TestCheckNoResourceAttr(name, "spec.filter"),
+					resource.TestCheckResourceAttr(name, "spec.filter", ""),
 				),
 			},
 			{
