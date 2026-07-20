@@ -32,7 +32,9 @@ func IsAWSEndpoint(uri string) bool {
 	if err != nil {
 		return false
 	}
-	return strings.HasSuffix(hostname, AWSEndpointSuffix) || strings.HasSuffix(hostname, AWSCNEndpointSuffix)
+	return strings.HasSuffix(hostname, AWSEndpointSuffix) ||
+		strings.HasSuffix(hostname, AWSCNEndpointSuffix) ||
+		strings.HasSuffix(hostname, AWSAPIEndpointSuffix)
 }
 
 // IsRDSEndpoint returns true if the input URI is an RDS endpoint.
@@ -733,6 +735,12 @@ const (
 	//
 	// https://docs.amazonaws.cn/en_us/aws/latest/userguide/endpoints-arns.html
 	AWSCNEndpointSuffix = ".amazonaws.com.cn"
+
+	// AWSAPIEndpointSuffix is the endpoint suffix for AWS dualstack and newer
+	// service endpoints. The api.aws domain is owned and operated by AWS.
+	//
+	// https://docs.aws.amazon.com/general/latest/gr/rande.html#dual-stack-endpoints
+	AWSAPIEndpointSuffix = ".api.aws"
 
 	// RDSServiceName is the service name for AWS RDS.
 	RDSServiceName = "rds"
