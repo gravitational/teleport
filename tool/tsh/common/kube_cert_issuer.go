@@ -93,8 +93,8 @@ func newKubeCertIssuer(tc *client.TeleportClient) *kubeCertIssuer {
 // and the remaining MFA-gated clusters are issued concurrently replaying its response.
 // Clusters without per-session MFA are issued serially, as their certs are
 // saved to the key store, which does not tolerate concurrent use.
-func (i *kubeCertIssuer) issueCerts(ctx context.Context, cc kubeCertClient, clusters kubeconfig.LocalProxyClusters) (alpnproxy.KubeClientCerts, error) {
-	mfaChecks, err := i.fetchMFARequired(ctx, cc, clusters)
+func (issuer *kubeCertIssuer) issueCerts(ctx context.Context, cc kubeCertClient, clusters kubeconfig.LocalProxyClusters) (alpnproxy.KubeClientCerts, error) {
+	mfaChecks, err := issuer.fetchMFARequired(ctx, cc, clusters)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -111,7 +111,7 @@ func (i *kubeCertIssuer) issueCerts(ctx context.Context, cc kubeCertClient, clus
 	certs := make(alpnproxy.KubeClientCerts)
 	var certsMu sync.Mutex
 	issueAndAdd := func(ctx context.Context, cluster kubeconfig.LocalProxyCluster) error {
-		cert, err := i.issueCert(ctx, cc, cluster.TeleportCluster, cluster.KubeCluster, mfaChecks[localProxyClusterKey(cluster)])
+		cert, err := issuer.issueCert(ctx, cc, cluster.TeleportCluster, cluster.KubeCluster, mfaChecks[localProxyClusterKey(cluster)])
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -130,7 +130,7 @@ func (i *kubeCertIssuer) issueCerts(ctx context.Context, cc kubeCertClient, clus
 		if err := issueAndAdd(ctx, mfaOn[0]); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if i.fallbackActive() {
+		if issuer.fallbackActive() {
 			// Older auth server: every MFA-gated issuance prompts, so keep
 			// them serial to prompt one at a time, as before.
 			for _, cluster := range mfaOn[1:] {
@@ -168,43 +168,43 @@ func (i *kubeCertIssuer) issueCerts(ctx context.Context, cc kubeCertClient, clus
 
 // issueCert issues one cert, replaying the reusable MFA response
 // when one is held and capturing the response produced by a fresh ceremony.
-func (i *kubeCertIssuer) issueCert(ctx context.Context, cc kubeCertClient, teleportCluster, kubeCluster string, mfaCheck *proto.IsMFARequiredResponse) (*tls.Certificate, error) {
+func (issuer *kubeCertIssuer) issueCert(ctx context.Context, cc kubeCertClient, teleportCluster, kubeCluster string, mfaCheck *proto.IsMFARequiredResponse) (*tls.Certificate, error) {
 	params := client.ReissueParams{
 		RouteToCluster:    teleportCluster,
 		KubernetesCluster: kubeCluster,
-		TTL:               i.tc.KeyTTL,
+		TTL:               issuer.tc.KeyTTL,
 		MFACheck:          mfaCheck,
 	}
 
 	// Headless keeps its dedicated requester and non-reusable ceremony.
 	// "proxy kube" sets AllowHeadless only when running with --headless, so it means the user is in headless mode.
-	if i.tc.AllowHeadless {
+	if issuer.tc.AllowHeadless {
 		params.RequesterName = proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_HEADLESS
-		return i.issue(ctx, cc, params)
+		return issuer.issue(ctx, cc, params)
 	}
 
-	i.mu.Lock()
-	requester := i.requester
-	reusable := i.reusableMFAResponse
-	i.mu.Unlock()
+	issuer.mu.Lock()
+	requester := issuer.requester
+	reusable := issuer.reusableMFAResponse
+	issuer.mu.Unlock()
 
 	params.RequesterName = requester
 	params.ReusableMFAResponse = reusable
-	cert, err := i.issue(ctx, cc, params)
+	cert, err := issuer.issue(ctx, cc, params)
 	if requester == proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_MULTI && isMFAReuseRejected(err) {
 		logger.DebugContext(ctx, "Auth server does not allow reusable MFA for the kube local proxy, falling back to per-cluster MFA ceremonies", "error", err)
-		i.mu.Lock()
-		i.requester = proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY
-		i.reusableMFAResponse = nil
-		i.mu.Unlock()
+		issuer.mu.Lock()
+		issuer.requester = proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY
+		issuer.reusableMFAResponse = nil
+		issuer.mu.Unlock()
 		params.RequesterName = proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY
 		params.ReusableMFAResponse = nil
-		return i.issue(ctx, cc, params)
+		return issuer.issue(ctx, cc, params)
 	}
 	return cert, trace.Wrap(err)
 }
 
-func (i *kubeCertIssuer) issue(ctx context.Context, cc kubeCertClient, params client.ReissueParams) (*tls.Certificate, error) {
+func (issuer *kubeCertIssuer) issue(ctx context.Context, cc kubeCertClient, params client.ReissueParams) (*tls.Certificate, error) {
 	result, err := cc.IssueUserCertsWithMFA(ctx, params)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -212,16 +212,16 @@ func (i *kubeCertIssuer) issue(ctx context.Context, cc kubeCertClient, params cl
 
 	// Save the reusable MFA response produced by a fresh ceremony.
 	if result.ReusableMFAResponse != nil {
-		i.mu.Lock()
-		if i.requester == proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_MULTI {
-			i.reusableMFAResponse = result.ReusableMFAResponse
+		issuer.mu.Lock()
+		if issuer.requester == proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_MULTI {
+			issuer.reusableMFAResponse = result.ReusableMFAResponse
 		}
-		i.mu.Unlock()
+		issuer.mu.Unlock()
 	}
 
 	// Save it if MFA was not required.
 	if result.MFARequired == proto.MFARequired_MFA_REQUIRED_NO {
-		if err := i.saveKeyRing(result.KeyRing); err != nil {
+		if err := issuer.saveKeyRing(result.KeyRing); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -243,7 +243,7 @@ func (i *kubeCertIssuer) issue(ctx context.Context, cc kubeCertClient, params cl
 
 // fetchMFARequired checks the per-session MFA requirement for every cluster concurrently,
 // so issuance can be partitioned into prompt-free and MFA-gated work up front.
-func (i *kubeCertIssuer) fetchMFARequired(ctx context.Context, cc kubeCertClient, clusters kubeconfig.LocalProxyClusters) (map[string]*proto.IsMFARequiredResponse, error) {
+func (issuer *kubeCertIssuer) fetchMFARequired(ctx context.Context, cc kubeCertClient, clusters kubeconfig.LocalProxyClusters) (map[string]*proto.IsMFARequiredResponse, error) {
 	checks := make(map[string]*proto.IsMFARequiredResponse, len(clusters))
 	var checksMu sync.Mutex
 
@@ -285,10 +285,10 @@ func (i *kubeCertIssuer) fetchMFARequired(ctx context.Context, cc kubeCertClient
 	return checks, nil
 }
 
-func (i *kubeCertIssuer) fallbackActive() bool {
-	i.mu.Lock()
-	defer i.mu.Unlock()
-	return i.requester == proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY
+func (issuer *kubeCertIssuer) fallbackActive() bool {
+	issuer.mu.Lock()
+	defer issuer.mu.Unlock()
+	return issuer.requester == proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY
 }
 
 func localProxyClusterKey(cluster kubeconfig.LocalProxyCluster) string {
