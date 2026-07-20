@@ -339,11 +339,19 @@ func newTaskUpdater(t *testing.T, existingTasks ...*usertasksv1.UserTask) (*task
 	return manager, ap
 }
 
-func TestUpsertAzureSubscriptionListPermissionTask(t *testing.T) {
+func TestUpsertDiscoverAzureVMTaskWithoutInstances(t *testing.T) {
 	t.Parallel()
 
 	updater, ap := newTaskUpdater(t)
-	require.NoError(t, updater.upsertAzureSubscriptionListPermissionTask("azure-integration"))
+	require.NoError(t, updater.upsertDiscoverAzureVMTask(
+		usertasks.TaskGroup{
+			Integration: "azure-integration",
+			IssueType:   usertasks.AutoDiscoverAzureVMIssueSubscriptionListDenied,
+		},
+		usertasksv1.DiscoverAzureVM_builder{
+			Instances: map[string]*usertasksv1.DiscoverAzureVMInstance{},
+		}.Build(),
+	))
 	require.Len(t, ap.tasks, 1)
 
 	for _, task := range ap.tasks {

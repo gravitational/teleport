@@ -34,6 +34,15 @@ func classifyAzureInstallResultIssue(installResult server.AzureInstallResult) st
 	return classifyAzureVMEnrollmentError(installResult.APIError)
 }
 
+// classifyAzureSubscriptionListError classifies errors returned while
+// resolving a wildcard subscription matcher.
+func classifyAzureSubscriptionListError(err error) string {
+	if trace.IsAccessDenied(err) {
+		return usertasks.AutoDiscoverAzureVMIssueSubscriptionListDenied
+	}
+	return ""
+}
+
 // classifyAzureVMEnrollmentError classifies Azure API errors into user-facing
 // messages for VM auto-discovery. This is best-effort based on error strings
 // which may change without notice. The matching logic may require future
