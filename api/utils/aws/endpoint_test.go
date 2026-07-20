@@ -31,6 +31,8 @@ func TestIsAWSEndpoint(t *testing.T) {
 			"example.amazonaws.com",
 			"foo.amazonaws.com.cn",
 			"example.amazonaws.com:12345", // port numbers must be allowed here
+			"aws-mcp.us-east-1.api.aws",
+			"kms-fips.us-east-1.api.aws:443",
 		} {
 			require.True(t, IsAWSEndpoint(endpoint))
 		}
@@ -40,6 +42,9 @@ func TestIsAWSEndpoint(t *testing.T) {
 			"example.com",
 			"foo.amazonaws.com.cn.example.com",
 			"bad.amazonaws.com.example.com",
+			"api.aws",
+			"evil-api.aws",
+			"foo.api.aws.example.com",
 		} {
 			require.False(t, IsAWSEndpoint(endpoint))
 		}
