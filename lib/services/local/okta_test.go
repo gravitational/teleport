@@ -416,6 +416,9 @@ func TestOktaAssignmentCRUD(t *testing.T) {
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
+	// Try to conditionally delete an assignment with old revision.
+	require.Error(t, service.ConditionalDeleteOktaAssignment(ctx, assignment1.GetName(), assignment1.GetRevision()))
+
 	// Delete an assignment
 	err = service.DeleteOktaAssignment(ctx, assignment1.GetName())
 	require.NoError(t, err)
@@ -429,6 +432,21 @@ func TestOktaAssignmentCRUD(t *testing.T) {
 	// Try to delete an assignment that doesn't exist.
 	err = service.DeleteOktaAssignment(ctx, "doesnotexist")
 	require.True(t, trace.IsNotFound(err), "expected not found error, got %v", err)
+
+	// Create a new assignment.
+	assignment, err = service.CreateOktaAssignment(ctx, oktaAssignment(t, "assignment3", "test-user@test.user", constants.OktaAssignmentStatusProcessing, clock.Now()))
+	require.NoError(t, err)
+
+	// Try to conditionally delete an assignment that doesn't exist.
+	err = service.ConditionalDeleteOktaAssignment(ctx, "doesnotexist", assignment.GetRevision())
+	require.True(t, trace.IsCompareFailed(err), "expected compare failed error, got %v", err)
+
+	// Try to conditionally delete an assignment with no revision.
+	err = service.ConditionalDeleteOktaAssignment(ctx, assignment.GetName(), "")
+	require.True(t, trace.IsBadParameter(err), "expected bad parameter error, got %v", err)
+
+	// Conditionally delete an assignment.
+	require.NoError(t, service.ConditionalDeleteOktaAssignment(ctx, assignment.GetName(), assignment.GetRevision()))
 
 	// Delete all assignments.
 	err = service.DeleteAllOktaAssignments(ctx)
