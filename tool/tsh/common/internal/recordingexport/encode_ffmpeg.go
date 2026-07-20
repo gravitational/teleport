@@ -81,6 +81,10 @@ type FFMPEGEncoder struct {
 
 	stderr     *bytes.Buffer
 	outputFile string
+
+	// frameBuf holds the most recently encoded frame. It is reused across EmitFrames calls to avoid reallocating a
+	// full-frame buffer for every event.
+	frameBuf bytes.Buffer
 }
 
 // OutputFiles returns the path of the single MP4 file written by ffmpeg.
@@ -92,16 +96,28 @@ func (f *FFMPEGEncoder) EmitFrames(img image.Image, count int) error {
 	if img == nil {
 		return trace.BadParameter("no frame to export")
 	}
+
+	// A single event after an idle stretch can emit hundreds of identical frames (RDP sends nothing while the screen is
+	// static).
+	// Encode the bitmap once and write the same bytes for each frame rather than re-encoding the image every time.
+	f.frameBuf.Reset()
+
+	// We use bitmaps instead of something like PNG because it's essentially free to encode.
+	// The bitmap encoding here just puts a header in front of the existing pixel data.
+	if err := bmp.Encode(&f.frameBuf, img); err != nil {
+		// Close the input pipe. ffmpeg will finish any in-progress encoding and terminate.
+		f.Close()
+		return trace.Wrap(err, "encoding bitmap frame")
+	}
+
+	frame := f.frameBuf.Bytes()
 	for range count {
-		// ffmpeg supports a variety of input image formats.
-		// We use bitmaps instead of something like PNG because it's essentially free to encode.
-		// The bitmap encoding here just puts a header in front of the existing pixel data.
-		if err := bmp.Encode(f.stdin, img); err != nil {
-			// Close the input pipe. ffmpeg will finish any in-progress encoding and terminate.
+		if _, err := f.stdin.Write(frame); err != nil {
 			f.Close()
-			return trace.Wrap(err, "encoding bitmap frame")
+			return trace.Wrap(err, "writing bitmap frame")
 		}
 	}
+
 	return nil
 }
 
