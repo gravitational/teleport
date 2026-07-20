@@ -351,8 +351,23 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		}
 	}
 	if cfg.Kubernetes == nil {
-		cfg.Kubernetes = local.NewKubernetesService(cfg.Backend)
+		cfg.Kubernetes, err = local.NewKubernetesService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
+
+	if cfg.KubeClusterService == nil {
+		if service, ok := cfg.Kubernetes.(*local.KubernetesService); ok {
+			cfg.KubeClusterService = service
+		} else {
+			cfg.KubeClusterService, err = local.NewKubernetesService(cfg.Backend)
+			if err != nil {
+				return nil, trace.Wrap(err, "creating KubeClusterService")
+			}
+		}
+	}
+
 	if cfg.Status == nil {
 		cfg.Status = local.NewStatusService(cfg.Backend)
 	}
@@ -755,6 +770,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		BeamsConfigService:              cfg.BeamsConfigService,
 		SubCAService:                    cfg.SubCAService,
 		EnrollPairing:                   cfg.EnrollPairing,
+		KubeClusterService:              cfg.KubeClusterService,
 	}
 
 	if cfg.FakePasswordHash == nil {
