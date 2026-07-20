@@ -17,6 +17,7 @@
 package openai
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"log/slog"
@@ -67,6 +68,15 @@ func (e Endpoint) ParseUsage(body []byte) (inputTokens int, outputTokens int, er
 			return 0, 0, trace.Wrap(err)
 		}
 		return result.Usage.InputTokens, result.Usage.OutputTokens, nil
+	case endpointTypeChatCompletions:
+		var result chatCompletionsResponse
+		if err := utils.FastUnmarshal(body, &result); err != nil {
+			return 0, 0, trace.Wrap(err)
+		}
+		if result.Usage == nil {
+			return 0, 0, llmerrors.NewProviderError(llmerrors.ErrBadResponse, "missing usage information")
+		}
+		return result.Usage.PromptTokens, result.Usage.CompletionTokens, nil
 	default:
 		return 0, 0, trace.BadParameter("endpoint type not supported")
 	}
@@ -77,6 +87,8 @@ func (e Endpoint) ProcessSSE(ctx context.Context, log *slog.Logger, reader io.Re
 	switch e.endpointType {
 	case endpointTypeResponses:
 		return processResponsesSSEEvents(ctx, log, reader, writer)
+	case endpointTypeChatCompletions:
+		return processChatCompletionsSSEEvents(ctx, log, reader, writer)
 	default:
 		return 0, 0, trace.BadParameter("endpoint type not supported")
 	}
@@ -196,6 +208,80 @@ func processResponsesSSEEvents(ctx context.Context, log *slog.Logger, r io.ReadC
 	}
 
 	return inputTokensCount, outputTokensCount, nil
+}
+
+// processChatCompletionsSSEEvents process chat completions API streaming (SSE)
+// events.
+//
+// This streaming has only one type of event, and they have roughly the same
+// shape as the non-stream chat completions responses, with only a subset of
+// fields available in the events.
+//
+// Usage information will be available on the last JSON event of the stream, and
+// similarly to responses API streaming, if the request is canceled before the
+// event arrives we cannot determine the token usage. This is a known limitation
+// and will be addressed in the future when we introduce token budgeting.
+func processChatCompletionsSSEEvents(ctx context.Context, log *slog.Logger, r io.ReadCloser, w io.Writer) (int, int, error) {
+	defer r.Close()
+
+	// Instead of trying to unmarshal every chunk to check if usage is
+	// available, we'll do that only on the last JSON event which is the only
+	// event that contains usage information.
+	//
+	// Chat completions always send a `[DONE]` event when streaming is done, and
+	// when usage is enabled the chunk before that will contain the usage
+	// information. We can use that as differentiator of "non-data" event,
+	// but not a requirement. If the last event contains the usage information
+	// we should be good to go.
+	//
+	// Note usage information needs to be enabled in the request using
+	// `stream_options`. Note from OpenAI docs:
+	//
+	//	> If set, an additional chunk will be streamed before the data: [DONE] message.
+	//	> The usage field on this chunk shows the token usage statistics for the
+	//	> entire request, and the choices field will always be an empty array.
+	//	> All other chunks will also include a usage field, but with a null value.
+	//	> NOTE: If the stream is interrupted, you may not receive the final usage
+	//	> chunk which contains the total token usage for the request.
+
+	var lastEventPayload []byte
+	for event, err := range sse.ReadEvents(r) {
+		if err != nil {
+			return 0, 0, trace.Wrap(err)
+		}
+
+		if !bytes.Equal(event.Data, []byte("[DONE]")) {
+			lastEventPayload = event.Data
+		}
+
+		if _, err := sse.WriteEvent(w, event); err != nil {
+			return 0, 0, trace.Wrap(err)
+		}
+	}
+
+	if len(lastEventPayload) == 0 {
+		log.ErrorContext(ctx, "empty chat completion response")
+		return 0, 0, llmerrors.ErrBadResponse
+	}
+
+	var completionResp chatCompletionsResponse
+	if err := utils.FastUnmarshal(lastEventPayload, &completionResp); err != nil {
+		log.ErrorContext(ctx, "failed to parse chat completion event", "error", err)
+		return 0, 0, llmerrors.ErrBadResponse
+	}
+
+	// This behavior is not documented, but the SDKs do handle it. So here we're
+	// being defensive, otherwise an error event would be seen as success with
+	// empty usage.
+	if completionResp.Error != nil {
+		return 0, 0, llmerrors.NewProviderError(llmerrors.ErrUnknown, completionResp.Error.Message)
+	}
+
+	if completionResp.Usage == nil {
+		return 0, 0, llmerrors.NewProviderError(llmerrors.ErrBadResponse, "provider did not send final event")
+	}
+
+	return completionResp.Usage.PromptTokens, completionResp.Usage.CompletionTokens, nil
 }
 
 const (
