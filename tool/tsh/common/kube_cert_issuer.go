@@ -44,7 +44,7 @@ func kubeCertIssueConcurrency() int {
 		defaultKubeCertIssueConcurrency = 10
 		// kubeCertIssueConcurrencyEnvVar overrides the concurrency bound.
 		// It is a tuning and benchmarking knob, not a supported interface.
-		kubeCertIssueConcurrencyEnvVar = "TELEPORT_KUBE_CERT_ISSUE_CONCURRENCY"
+		kubeCertIssueConcurrencyEnvVar = "TELEPORT_UNSTABLE_KUBE_CERT_ISSUE_CONCURRENCY"
 	)
 	if v := os.Getenv(kubeCertIssueConcurrencyEnvVar); v != "" {
 		if n, err := strconv.Atoi(v); err == nil && n > 0 {
