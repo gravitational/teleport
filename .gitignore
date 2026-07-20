@@ -134,3 +134,9 @@ unit-tests*.json
 
 # Local Claude config
 .claude
+
+# PAM POC — VM-local secrets and runtime state, never commit.
+# See teleport-agent.yaml.example / resources/node.yaml.example for templates.
+/teleport-agent.yaml
+/teleport-data/
+/teleport

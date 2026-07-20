@@ -1,0 +1,19 @@
+services:
+  teleport:
+    build:
+      context: .
+      dockerfile: Dockerfile.teleport-proxy
+      network: host          # avoids the apt-get/cargo DNS issue we hit building manually
+    image: teleport-pam:latest
+    container_name: teleport
+    restart: unless-stopped
+    ports:
+      - "3080:3080"
+      - "3025:3025"
+    volumes:
+      - ./teleport.yaml:/etc/teleport/teleport.yaml:ro
+      - teleport-data:/var/lib/teleport
+      - ./resources:/etc/teleport/resources:ro   # node.yaml, new-node.yaml, etc.
+
+volumes:
+  teleport-data:

@@ -1,0 +1,16 @@
+FROM debian:bookworm-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        ca-certificates dumb-init sudo \
+        xvfb xfce4 xfce4-terminal dbus-x11 \
+        chromium fonts-liberation fonts-noto \
+        openssh-client curl wget git vim nano net-tools iputils-ping \
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd -m -s /bin/bash gor \
+    && echo "gor ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers \
+    && mkdir -p /var/lib/teleport /etc/teleport
+
+COPY teleport /usr/local/bin/teleport
+
+ENTRYPOINT ["dumb-init", "teleport"]
+CMD ["start", "-c", "/etc/teleport/teleport.yaml"]

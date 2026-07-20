@@ -1,0 +1,10 @@
+kind: node
+version: v2
+sub_kind: openssh
+metadata:
+  name: server-225
+  labels:
+    env: staging
+spec:
+  addr: 192.168.35.225:22
+  hostname: 192.168.35.225

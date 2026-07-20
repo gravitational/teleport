@@ -1,0 +1,75 @@
+# Self-contained multi-stage build for a Teleport PAM POC image.
+# Builds Teleport (with embedded web UI) from source inside a Linux container,
+# so there is no macOS cross-compile pain — the binary is native linux/<arch>.
+#
+# Build (from repo root):
+#   docker buildx build --network=host --platform linux/amd64 -f Dockerfile.poc -t teleport-pam:20 .
+#
+# Run:
+#   docker run -d --name teleport \
+#     -p 3080:3080 -p 3025:3025 \
+#     -v "$PWD/teleport.yaml:/etc/teleport/teleport.yaml" \
+#     -v teleport-data:/var/lib/teleport \
+#     teleport-pam:20
+
+# ---------- build stage ----------
+FROM golang:1.26-bookworm AS build
+
+ARG TARGETARCH
+ARG NODE_VERSION=24.16.0
+
+# Build deps + the native libs Teleport links by default (fido2/pcsc/pam),
+# plus clang/lld — required by cc-rs to compile the Rust RDP client and the
+# IronRDP WASM decoder now that we build them (needed for Linux desktop access).
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        build-essential git ca-certificates curl xz-utils pkg-config \
+        libfido2-dev libpcsclite-dev libpam0g-dev \
+        clang lld \
+    && rm -rf /var/lib/apt/lists/* \
+    && command -v clang || ln -s "$(command -v clang-14 || ls /usr/bin/clang-* | head -1)" /usr/bin/clang
+
+# Fast sanity check — fails in seconds instead of ~4 minutes into `make full`
+# if clang isn't actually resolvable.
+RUN clang --version && which lld
+
+# Node.js (exact version the web UI build expects) + pnpm via corepack.
+RUN NODE_ARCH="$([ "$TARGETARCH" = "amd64" ] && echo x64 || echo arm64)" && \
+    curl -fsSL "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-${NODE_ARCH}.tar.xz" \
+      | tar -xJ -C /usr/local --strip-components=1 && \
+    corepack enable
+
+# Rust toolchain (required for wasm-bindgen web UI components).
+ENV CARGO_HOME=/usr/local/cargo
+ENV RUSTUP_HOME=/usr/local/rustup
+ENV PATH=/usr/local/cargo/bin:$PATH
+RUN echo '--http1.1' > /etc/curlrc && \
+    curl --http1.1 --retry 5 --retry-delay 10 --retry-connrefused \
+         -sSf -o /tmp/rustup-init.sh https://sh.rustup.rs && \
+    sh /tmp/rustup-init.sh -y --profile minimal \
+         --default-toolchain 1.94.0 \
+         --target wasm32-unknown-unknown \
+         --no-modify-path && \
+    rm /tmp/rustup-init.sh
+
+WORKDIR /src
+COPY . .
+
+# Binaries + embedded web UI, including the RDP client and IronRDP WASM
+# decoder (needed for Windows and Linux desktop access session recording).
+RUN make full
+
+# ---------- runtime stage ----------
+FROM debian:bookworm-slim AS runtime
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        ca-certificates dumb-init libfido2-1 libpcsclite1 libpam0g libelf1 \
+    && rm -rf /var/lib/apt/lists/* \
+    && mkdir -p /var/lib/teleport /etc/teleport
+
+COPY --from=build /src/build/teleport /usr/local/bin/teleport
+COPY --from=build /src/build/tctl     /usr/local/bin/tctl
+COPY --from=build /src/build/tsh      /usr/local/bin/tsh
+
+EXPOSE 3080 3025
+ENTRYPOINT ["dumb-init", "teleport"]
+CMD ["start", "-c", "/etc/teleport/teleport.yaml"]
