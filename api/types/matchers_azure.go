@@ -41,6 +41,8 @@ const (
 	AzureMatcherRedis = "redis"
 	// AzureMatcherSQLServer is the Azure matcher type for SQL Server databases.
 	AzureMatcherSQLServer = "sqlserver"
+	// AzureMatcherWindowsVM is the Azure matcher type for Azure VMs with Windows OS.
+	AzureMatcherWindowsVM = "windows-vm"
 )
 
 // SupportedAzureMatchers is list of Azure services currently supported by the
@@ -54,6 +56,7 @@ var SupportedAzureMatchers = []string{
 	AzureMatcherPostgres,
 	AzureMatcherRedis,
 	AzureMatcherSQLServer,
+	AzureMatcherWindowsVM,
 }
 
 // GetTypes gets the types that the matcher can match.

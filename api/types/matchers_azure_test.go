@@ -152,6 +152,20 @@ func TestAzureMatcherCheckAndSetDefaults(t *testing.T) {
 			},
 			errCheck: isBadParameterErr,
 		},
+		{
+			name: "windows-vm is a valid type",
+			in: &AzureMatcher{
+				Types: []string{"windows-vm"},
+			},
+			errCheck: require.NoError,
+		},
+		{
+			name: "vm and windows-vm can be combined",
+			in: &AzureMatcher{
+				Types: []string{"vm", "windows-vm"},
+			},
+			errCheck: require.NoError,
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			err := tt.in.CheckAndSetDefaults()

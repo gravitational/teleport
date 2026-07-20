@@ -1443,45 +1443,39 @@ func TestVirtualMachineFromVirtualMachineScaleSetVM(t *testing.T) {
 	}
 }
 
-func TestVirtualMachineIsLinuxOrUnknown(t *testing.T) {
+func TestVirtualMachineOSPredicates(t *testing.T) {
 	t.Parallel()
 	linuxOS := armcompute.OperatingSystemTypesLinux
 	windowsOS := armcompute.OperatingSystemTypesWindows
 
 	for _, tc := range []struct {
-		desc     string
-		vm       *VirtualMachine
-		want     bool
-		wantDesc string
+		desc        string
+		vm          *VirtualMachine
+		wantLinux   bool
+		wantWindows bool
 	}{
 		{
-			desc: "Linux VM",
-			vm: &VirtualMachine{
-				operatingSystem: &linuxOS,
-			},
-			want:     true,
-			wantDesc: "Linux",
+			desc:        "Linux VM",
+			vm:          &VirtualMachine{operatingSystem: &linuxOS},
+			wantLinux:   true,
+			wantWindows: false,
 		},
 		{
-			desc: "Windows VM",
-			vm: &VirtualMachine{
-				operatingSystem: &windowsOS,
-			},
-			want:     false,
-			wantDesc: "Windows",
+			desc:        "Windows VM",
+			vm:          &VirtualMachine{operatingSystem: &windowsOS},
+			wantLinux:   false,
+			wantWindows: true,
 		},
 		{
-			desc: "Unknown OSType",
-			vm: &VirtualMachine{
-				operatingSystem: nil,
-			},
-			want:     true,
-			wantDesc: "Unknown",
+			desc:        "Unknown OSType",
+			vm:          &VirtualMachine{operatingSystem: nil},
+			wantLinux:   true,
+			wantWindows: true,
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
-			got := tc.vm.IsLinuxOrUnknown()
-			require.Equal(t, tc.want, got, "expected IsLinuxOrUnknown() to return %v for %s VM, got %v", tc.want, tc.wantDesc, got)
+			require.Equal(t, tc.wantLinux, tc.vm.IsLinuxOrUnknown(), "IsLinuxOrUnknown()")
+			require.Equal(t, tc.wantWindows, tc.vm.IsWindowsOrUnknown(), "IsWindowsOrUnknown()")
 		})
 	}
 }
