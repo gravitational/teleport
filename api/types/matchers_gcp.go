@@ -17,6 +17,7 @@ limitations under the License.
 package types
 
 import (
+	"maps"
 	"slices"
 
 	"github.com/gravitational/trace"
@@ -64,6 +65,7 @@ func (m GCPMatcher) GetLabels() Labels {
 }
 
 // CheckAndSetDefaults that the matcher is correct and adds default values.
+// On success the deprecated tags alias is folded into labels and cleared.
 func (m *GCPMatcher) CheckAndSetDefaults() error {
 	if len(m.Types) == 0 {
 		return trace.BadParameter("At least one GCP discovery service type must be specified, the supported resource types are: %v",
@@ -125,13 +127,21 @@ func (m *GCPMatcher) CheckAndSetDefaults() error {
 		return trace.BadParameter("GCP discovery service project_ids does cannot be empty; please specify at least one value in project_ids.")
 	}
 
-	if len(m.Labels) > 0 && len(m.Tags) > 0 {
-		return trace.BadParameter("labels and tags should not both be set.")
+	// Older releases copied non-empty tags to labels without clearing tags,
+	// so stored records and writes from older clients can carry both fields
+	// with equal content. Accept that legacy state and normalize non-empty
+	// tags below: only conflicting values are an error. Equality is intentionally
+	// order-sensitive because the legacy alias copy preserved value order.
+	if len(m.Labels) > 0 && len(m.Tags) > 0 &&
+		!maps.EqualFunc(m.Labels, m.Tags, func(a, b apiutils.Strings) bool { return slices.Equal(a, b) }) {
+		return trace.BadParameter("labels (%v) and tags (%v) are both set with different values; tags is a deprecated alias for labels, set only one", m.Labels, m.Tags)
 	}
 
 	if len(m.Tags) > 0 {
 		m.Labels = m.Tags
 	}
+	// Cleared even when empty: defaulting's output never carries the alias.
+	m.Tags = nil
 
 	if len(m.Labels) == 0 {
 		m.Labels = map[string]apiutils.Strings{

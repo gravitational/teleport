@@ -135,18 +135,130 @@ func TestGCPMatcherCheckAndSetDefaults(t *testing.T) {
 			errCheck: isBadParameterErr,
 		},
 		{
-			name: "error if both labels and tags are set",
+			name: "error if labels and tags are set with different values",
 			in: &GCPMatcher{
 				Types:      []string{"gce"},
 				ProjectIDs: []string{"project001"},
 				Labels: Labels{
-					"*": []string{"*"},
+					"env": []string{"prod"},
 				},
 				Tags: Labels{
-					"*": []string{"*"},
+					"env": []string{"dev"},
 				},
 			},
 			errCheck: isBadParameterErr,
+		},
+		{
+			name: "labels and tags with equal values in different order are rejected",
+			in: &GCPMatcher{
+				Types:      []string{"gce"},
+				ProjectIDs: []string{"project001"},
+				Labels: Labels{
+					"env": []string{"prod", "dev"},
+				},
+				Tags: Labels{
+					"env": []string{"dev", "prod"},
+				},
+			},
+			errCheck: isBadParameterErr,
+		},
+		{
+			name: "labels and tags with equal content are tolerated and normalized",
+			in: &GCPMatcher{
+				Types:      []string{"gce"},
+				ProjectIDs: []string{"project001"},
+				Labels: Labels{
+					"env": []string{"prod"},
+				},
+				Tags: Labels{
+					"env": []string{"prod"},
+				},
+			},
+			errCheck: require.NoError,
+			expected: &GCPMatcher{
+				Types:      []string{"gce"},
+				Locations:  []string{"*"},
+				ProjectIDs: []string{"project001"},
+				Labels: Labels{
+					"env": []string{"prod"},
+				},
+				Params: &InstallerParams{
+					JoinMethod: "gcp",
+					JoinToken:  "gcp-discovery-token",
+					ScriptName: "default-installer",
+				},
+			},
+		},
+		{
+			name: "empty tags map is cleared and labels default",
+			in: &GCPMatcher{
+				Types:      []string{"gce"},
+				ProjectIDs: []string{"project001"},
+				Tags:       Labels{},
+			},
+			errCheck: require.NoError,
+			expected: &GCPMatcher{
+				Types:      []string{"gce"},
+				Locations:  []string{"*"},
+				ProjectIDs: []string{"project001"},
+				Labels: Labels{
+					"*": []string{"*"},
+				},
+				Params: &InstallerParams{
+					JoinMethod: "gcp",
+					JoinToken:  "gcp-discovery-token",
+					ScriptName: "default-installer",
+				},
+			},
+		},
+		{
+			name: "empty tags map is cleared and existing labels kept",
+			in: &GCPMatcher{
+				Types:      []string{"gce"},
+				ProjectIDs: []string{"project001"},
+				Labels: Labels{
+					"env": []string{"prod"},
+				},
+				Tags: Labels{},
+			},
+			errCheck: require.NoError,
+			expected: &GCPMatcher{
+				Types:      []string{"gce"},
+				Locations:  []string{"*"},
+				ProjectIDs: []string{"project001"},
+				Labels: Labels{
+					"env": []string{"prod"},
+				},
+				Params: &InstallerParams{
+					JoinMethod: "gcp",
+					JoinToken:  "gcp-discovery-token",
+					ScriptName: "default-installer",
+				},
+			},
+		},
+		{
+			name: "tags only is normalized into labels",
+			in: &GCPMatcher{
+				Types:      []string{"gce"},
+				ProjectIDs: []string{"project001"},
+				Tags: Labels{
+					"env": []string{"prod"},
+				},
+			},
+			errCheck: require.NoError,
+			expected: &GCPMatcher{
+				Types:      []string{"gce"},
+				Locations:  []string{"*"},
+				ProjectIDs: []string{"project001"},
+				Labels: Labels{
+					"env": []string{"prod"},
+				},
+				Params: &InstallerParams{
+					JoinMethod: "gcp",
+					JoinToken:  "gcp-discovery-token",
+					ScriptName: "default-installer",
+				},
+			},
 		},
 		{
 			name: "invalid install suffix",
@@ -192,4 +304,58 @@ func TestGCPMatcherCheckAndSetDefaults(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestGCPMatcherCheckAndSetDefaultsIdempotent verifies that re-running
+// defaulting on an already-defaulted matcher succeeds and changes nothing.
+// Defaulting normalizes the deprecated tags alias into labels and clears
+// tags, so its own output must validate cleanly on every later run: stored
+// or republished matchers (for example static snapshot publication) run
+// defaulting again on its own prior output. The both-fields-equal shape
+// written by older releases and older clients must normalize to the same
+// result instead of being rejected.
+func TestGCPMatcherCheckAndSetDefaultsIdempotent(t *testing.T) {
+	t.Parallel()
+
+	newMatcher := func() *GCPMatcher {
+		return &GCPMatcher{
+			Types:      []string{"gce"},
+			ProjectIDs: []string{"project01"},
+			Tags: Labels{
+				"env": []string{"prod"},
+			},
+		}
+	}
+
+	once := newMatcher()
+	require.NoError(t, once.CheckAndSetDefaults())
+	require.Equal(t, Labels{"env": []string{"prod"}}, once.Labels)
+	require.Nil(t, once.Tags)
+
+	twice := newMatcher()
+	require.NoError(t, twice.CheckAndSetDefaults())
+	require.NoError(t, twice.CheckAndSetDefaults())
+	require.Equal(t, once, twice)
+
+	// The shape produced by older releases and by older clients during a
+	// rolling upgrade: both fields populated with equal content. It must
+	// be accepted and normalize to the same result as a fresh tags-only
+	// matcher.
+	legacy := &GCPMatcher{
+		Types:      []string{"gce"},
+		ProjectIDs: []string{"project01"},
+		Labels: Labels{
+			"env": []string{"prod"},
+		},
+		Tags: Labels{
+			"env": []string{"prod"},
+		},
+	}
+	require.NoError(t, legacy.CheckAndSetDefaults())
+	require.Equal(t, once, legacy)
+
+	// The normalized legacy matcher is itself a fixed point:
+	// a further run doesn't change anything.
+	require.NoError(t, legacy.CheckAndSetDefaults())
+	require.Equal(t, once, legacy)
 }
