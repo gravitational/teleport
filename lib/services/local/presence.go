@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/itertools/stream"
+	"github.com/gravitational/teleport/lib/scopes"
 	scopecache "github.com/gravitational/teleport/lib/scopes/cache"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
@@ -57,6 +58,7 @@ type PresenceService struct {
 
 	relayServers *generic.ServiceWrapper[*presencev1.RelayServer]
 	appServers   *generic.ScopeAwareService[types.AppServer]
+	kubeServers  *generic.ScopeAwareService[types.KubeServer]
 }
 
 type appServerServiceParams struct {
@@ -83,6 +85,25 @@ func appServerServiceForHost(
 	}
 
 	return service.WithPrefix(params.Host), nil
+}
+
+// kubeServerServiceForHost returns a [*generic.Service] prefixed for the kube
+// servers of a single host:
+//   - unscoped: /kubeServers/default/<host-id>/<name>
+//   - scoped:   /scoped/kubeServers/<encoded-scope>/<host-id>/<name>
+//
+// Since a kube server represents a single forwarded kube cluster, there may be
+// multiple kube clusters on a single host, so the hostID prefix is needed.
+func kubeServerServiceForHost(
+	kubeServers *generic.ScopeAwareService[types.KubeServer],
+	sqn scopes.QualifiedName,
+) (*generic.Service[types.KubeServer], error) {
+	service, err := kubeServers.WithScopePrefix(sqn.Scope)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return service.WithPrefix(sqn.Name), nil
 }
 
 var _ services.PresenceInternal = (*PresenceService)(nil)
@@ -117,6 +138,22 @@ func NewPresenceService(b backend.Backend) *PresenceService {
 		panic("impossible: failed to construct app_server service wrapper")
 	}
 
+	kubeServers, err := generic.NewScopeAwareService(&generic.ScopeAwareServiceConfig[types.KubeServer]{
+		Backend:               b,
+		ResourceKind:          types.KindKubeServer,
+		UnscopedBackendPrefix: kubeServersUnscopedPrefix(),
+		ScopedBackendPrefix:   kubeServersScopedPrefix(),
+		MarshalFunc: func(server types.KubeServer, option ...services.MarshalOption) ([]byte, error) {
+			return services.MarshalKubeServer(server, option...)
+		},
+		UnmarshalFunc: func(bytes []byte, option ...services.MarshalOption) (types.KubeServer, error) {
+			server, err := services.UnmarshalKubeServer(bytes, option...)
+			return server, trace.Wrap(err)
+		},
+	})
+	if err != nil {
+		panic("impossible: failed to construct kube_server service wrapper")
+	}
 	return &PresenceService{
 		logger:  slog.With(teleport.ComponentKey, "Presence"),
 		jitter:  retryutils.FullJitter,
@@ -124,6 +161,7 @@ func NewPresenceService(b backend.Backend) *PresenceService {
 
 		relayServers: relayServers,
 		appServers:   appServers,
+		kubeServers:  kubeServers,
 	}
 }
 
@@ -1006,30 +1044,19 @@ func (s *PresenceService) DeleteSemaphore(ctx context.Context, filter types.Sema
 
 // UpsertKubernetesServer registers an kubernetes server.
 func (s *PresenceService) UpsertKubernetesServer(ctx context.Context, server types.KubeServer) (*types.KeepAlive, error) {
-	if err := services.CheckAndSetDefaults(server); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	rev := server.GetRevision()
-	value, err := services.MarshalKubeServer(server)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	// Since a kube server represents a single proxied cluster, there may
-	// be multiple kubernetes servers on a single host, so they are stored under
-	// the following path in the backend:
-	//   /kubeServers/<host-uuid>/<name>
-	_, err = s.Put(ctx, backend.Item{
-		Key: backend.NewKey(kubeServersPrefix,
-			server.GetHostID(),
-			server.GetName()),
-		Value:    value,
-		Expires:  server.Expiry(),
-		Revision: rev,
+	svc, err := s.kubeServers.WithScopedResourcePrefix(scopes.QualifiedName{
+		Scope: server.GetScope(),
+		Name:  server.GetHostID(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if server.Expiry().IsZero() {
+
+	upserted, err := svc.UpsertResource(ctx, server)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if upserted.Expiry().IsZero() {
 		return &types.KeepAlive{}, nil
 	}
 	return &types.KeepAlive{
@@ -1037,33 +1064,38 @@ func (s *PresenceService) UpsertKubernetesServer(ctx context.Context, server typ
 		Name:      server.GetName(),
 		Namespace: server.GetNamespace(),
 		HostID:    server.GetHostID(),
-		Expires:   server.Expiry(),
+		Expires:   upserted.Expiry(),
 		Scope:     server.GetScope(),
 	}, nil
 }
 
-// DeleteKubernetesServer removes specified kubernetes server.
-func (s *PresenceService) DeleteKubernetesServer(ctx context.Context, hostID, name string) error {
-	if name == "" {
+// DeleteKubeServer removes specified kubernetes server.
+func (s *PresenceService) DeleteKubeServer(ctx context.Context, req *presencev1.DeleteKubeServerRequest) error {
+	if req.GetName() == "" {
 		return trace.BadParameter("no name specified for kubernetes server deletion")
 	}
-	if hostID == "" {
+	if req.GetHostId() == "" {
 		return trace.BadParameter("no hostID specified for kubernetes server deletion")
 	}
-	key := backend.NewKey(kubeServersPrefix, hostID, name)
-	return s.Delete(ctx, key)
+
+	svc, err := kubeServerServiceForHost(s.kubeServers, scopes.QualifiedName{
+		Scope: req.GetScope(),
+		Name:  req.GetHostId(),
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return svc.DeleteResource(ctx, req.GetName())
 }
 
 // DeleteAllKubernetesServers removes all registered kubernetes servers.
 func (s *PresenceService) DeleteAllKubernetesServers(ctx context.Context) error {
-	startKey := backend.ExactKey(kubeServersPrefix)
-	return s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
+	return s.kubeServers.DeleteAllResources(ctx)
 }
 
 // GetKubernetesServers returns all registered kubernetes servers.
 func (s *PresenceService) GetKubernetesServers(ctx context.Context) ([]types.KubeServer, error) {
-	servers, err := s.getKubernetesServers(ctx)
-	return servers, trace.Wrap(err)
+	return stream.Collect(s.kubeServers.Resources(ctx, "", ""))
 }
 
 // RangeKubernetesServersWithName returns an iterator over kubernetes servers for a given cluster name.
@@ -1076,44 +1108,12 @@ func (s *PresenceService) RangeKubernetesServersWithName(ctx context.Context, cl
 	// CheckAndSetDefaults invariant, this filter could check against the backend
 	// key's trailing component before unmarshalling. Currently no such invariant
 	// exists, so we unmarshal every item to read the embedded cluster name.
-	mapFn := func(item backend.Item) (types.KubeServer, bool) {
-		server, err := services.UnmarshalKubeServer(
-			item.Value,
-			services.WithExpires(item.Expires),
-			services.WithRevision(item.Revision),
-		)
-		if err != nil {
-			s.logger.WarnContext(ctx, "Failed to unmarshal kubernetes server", "key", item.Key, "error", err)
-			return nil, false
-		}
+	mapFn := func(server types.KubeServer) (types.KubeServer, bool) {
 		cluster := server.GetCluster()
 		return server, cluster != nil && cluster.GetName() == clusterName
 	}
 
-	startKey := backend.ExactKey(kubeServersPrefix)
-	endKey := backend.RangeEnd(startKey)
-
-	return stream.FilterMap(s.Backend.Items(ctx, backend.ItemsParams{StartKey: startKey, EndKey: endKey}), mapFn)
-}
-
-func (s *PresenceService) getKubernetesServers(ctx context.Context) ([]types.KubeServer, error) {
-	startKey := backend.ExactKey(kubeServersPrefix)
-	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	servers := make([]types.KubeServer, len(result.Items))
-	for i, item := range result.Items {
-		server, err := services.UnmarshalKubeServer(
-			item.Value,
-			services.WithExpires(item.Expires),
-			services.WithRevision(item.Revision))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		servers[i] = server
-	}
-	return servers, nil
+	return stream.FilterMap(s.kubeServers.Resources(ctx, "", ""), mapFn)
 }
 
 // GetDatabaseServers returns all registered database proxy servers.
@@ -1345,6 +1345,14 @@ func (s *PresenceService) KeepAliveServer(ctx context.Context, h types.KeepAlive
 		return trace.Wrap(err)
 	}
 
+	var encodedScope string
+	if h.Scope != "" {
+		var err error
+		encodedScope, err = scopes.EncodeForKey(h.Scope)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
 	// Update the prefix off the type information in the keep alive.
 	var key backend.Key
 	switch h.GetType() {
@@ -1361,7 +1369,11 @@ func (s *PresenceService) KeepAliveServer(ctx context.Context, h types.KeepAlive
 	case constants.KeepAliveWindowsDesktopService:
 		key = backend.NewKey(windowsDesktopServicesPrefix, h.Name)
 	case constants.KeepAliveKube:
-		key = backend.NewKey(kubeServersPrefix, h.HostID, h.Name)
+		if encodedScope == "" {
+			key = kubeServersUnscopedPrefix().AppendKey(backend.NewKey(h.HostID, h.Name))
+		} else {
+			key = kubeServersScopedPrefix().AppendKey(backend.NewKey(encodedScope, h.HostID, h.Name))
+		}
 	case constants.KeepAliveDatabaseService:
 		key = backend.NewKey(databaseServicePrefix, h.Name)
 	default:
@@ -1586,8 +1598,7 @@ func (s *PresenceService) listResources(ctx context.Context, req proto.ListResou
 		keyPrefix = []string{windowsDesktopsPrefix}
 		unmarshalItemFunc = backendItemToWindowsDesktop
 	case types.KindKubeServer:
-		keyPrefix = []string{kubeServersPrefix}
-		unmarshalItemFunc = backendItemToKubernetesServer
+		return s.listKubeServers(ctx, req)
 	case types.KindUserGroup:
 		keyPrefix = []string{userGroupPrefix}
 		unmarshalItemFunc = backendItemToUserGroup
@@ -1688,6 +1699,47 @@ func (s *PresenceService) listAppServers(ctx context.Context, req proto.ListReso
 
 	return &types.ListResourcesResponse{
 		Resources: types.AppServers(servers).AsResources(),
+		NextKey:   nextKey,
+	}, nil
+}
+
+// listKubeServers returns a page of kube servers retrieving both the
+// unscoped and the scoped backend entries.
+func (s *PresenceService) listKubeServers(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
+	filter := services.MatchResourceFilter{
+		ResourceKind:   req.ResourceType,
+		Labels:         req.Labels,
+		SearchKeywords: req.SearchKeywords,
+	}
+	if req.PredicateExpression != "" {
+		expression, err := services.NewResourceExpression(req.PredicateExpression)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		filter.PredicateExpression = expression
+	}
+
+	var matchErr error
+	servers, nextKey, err := s.kubeServers.ListResourcesWithFilter(ctx, int(req.Limit), req.StartKey, func(server types.KubeServer) bool {
+		if matchErr != nil {
+			return false
+		}
+		match, err := services.MatchResourceByFilters(server, filter, nil /* ignore dup matches */)
+		if err != nil {
+			matchErr = err
+			return false
+		}
+		return match
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if matchErr != nil {
+		return nil, trace.Wrap(matchErr)
+	}
+
+	return &types.ListResourcesResponse{
+		Resources: types.KubeServers(servers).AsResources(),
 		NextKey:   nextKey,
 	}, nil
 }
@@ -1976,16 +2028,6 @@ func backendItemToDatabaseService(item backend.Item) (types.ResourceWithLabels, 
 	)
 }
 
-// backendItemToKubernetesServer unmarshals `backend.Item` into a
-// `types.KubeServer`, returning it as a `types.ResourceWithLabels`.
-func backendItemToKubernetesServer(item backend.Item) (types.ResourceWithLabels, error) {
-	return services.UnmarshalKubeServer(
-		item.Value,
-		services.WithExpires(item.Expires),
-		services.WithRevision(item.Revision),
-	)
-}
-
 // backendItemToServer returns `backendItemToResourceFunc` to unmarshal a
 // `backend.Item` into a `types.ServerV2` with a specific `kind`, returning it
 // as a `types.ResourceWithLabels`.
@@ -2101,6 +2143,14 @@ func (relayServerParser) prefixes() []backend.Key {
 	return []backend.Key{backend.ExactKey(relayServersPrefix)}
 }
 
+func kubeServersUnscopedPrefix() backend.Key {
+	return backend.NewKey("kubeServers")
+}
+
+func kubeServersScopedPrefix() backend.Key {
+	return backend.NewKey("scoped", "kubeServers")
+}
+
 const (
 	reverseTunnelsPrefix         = "reverseTunnels"
 	tunnelConnectionsPrefix      = "tunnelConnections"
@@ -2113,7 +2163,6 @@ const (
 	serversPrefix                = "servers"
 	dbServersPrefix              = "databaseServers"
 	appServersPrefix             = "appServers"
-	kubeServersPrefix            = "kubeServers"
 	namespacesPrefix             = "namespaces"
 	authServersPrefix            = "authservers"
 	proxiesPrefix                = "proxies"

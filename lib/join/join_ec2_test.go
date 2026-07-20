@@ -676,7 +676,10 @@ func TestHostUniqueCheck(t *testing.T) {
 				require.NoError(t, err)
 			},
 			deleter: func(t *testing.T, hostID string) {
-				require.NoError(t, a.DeleteKubernetesServer(t.Context(), hostID, "test-kube-cluster"))
+				require.NoError(t, a.DeleteKubeServer(t.Context(), presencev1.DeleteKubeServerRequest_builder{
+					HostId: hostID,
+					Name:   "test-kube-cluster",
+				}.Build()))
 			},
 		},
 		{

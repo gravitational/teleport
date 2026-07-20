@@ -347,8 +347,11 @@ func GetCursorForAppServer(server types.AppServer) string {
 // GetCursorForResource returns the pagination cursor for a
 // resource used in ListResources.
 func GetCursorForResource(r types.ResourceWithLabels) string {
-	if s, ok := r.(types.AppServer); ok {
-		return GetCursorForAppServer(s)
+	switch res := r.(type) {
+	case types.AppServer:
+		return GetCursorForAppServer(res)
+	case types.KubeServer:
+		return GetCursorForKubeServer(res)
 	}
 	return backend.GetPaginationKey(r)
 }

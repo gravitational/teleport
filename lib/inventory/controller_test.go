@@ -182,7 +182,7 @@ func (a *fakeAuth) UpsertKubernetesServer(_ context.Context, server types.KubeSe
 	}, a.err
 }
 
-func (a *fakeAuth) DeleteKubernetesServer(ctx context.Context, hostID, name string) error {
+func (a *fakeAuth) DeleteKubeServer(ctx context.Context, req *presencev1.DeleteKubeServerRequest) error {
 	return nil
 }
 
