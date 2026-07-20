@@ -40,16 +40,16 @@ func (s *scopedRoleClient) Create(ctx context.Context, role *accessv1.ScopedRole
 	return trace.Wrap(err)
 }
 
-func (s *scopedRoleClient) Delete(ctx context.Context, name string) error {
+func (s *scopedRoleClient) Delete(ctx context.Context, key reconcilers.ResourceKey) error {
 	_, err := s.teleportClient.ScopedAccessServiceClient().DeleteScopedRole(ctx, accessv1.DeleteScopedRoleRequest_builder{
-		Name: name,
+		Name: key.String(),
 	}.Build())
 	return trace.Wrap(err)
 }
 
-func (s *scopedRoleClient) Get(ctx context.Context, name string) (*accessv1.ScopedRole, error) {
+func (s *scopedRoleClient) Get(ctx context.Context, key reconcilers.ResourceKey) (*accessv1.ScopedRole, error) {
 	resp, err := s.teleportClient.ScopedAccessServiceClient().GetScopedRole(ctx, accessv1.GetScopedRoleRequest_builder{
-		Name: name,
+		Name: key.String(),
 	}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)

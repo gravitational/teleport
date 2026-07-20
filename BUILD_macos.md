@@ -77,8 +77,7 @@ and updates are welcome!
 
     ```shell
     brew install helm
-
-    helm plugin install https://github.com/quintush/helm-unittest --version 0.2.11
+    make helmunit/installed
     ```
 
 1. Install `bats`:

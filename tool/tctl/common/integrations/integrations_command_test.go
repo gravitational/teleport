@@ -87,7 +87,7 @@ func TestIntegrationsCommandTest_AWSOIDC(t *testing.T) {
 
 			var out bytes.Buffer
 			cmd := &Command{
-				stdout: &out,
+				Stdout: &out,
 				testArgs: testArgs{
 					integration: "my-integration",
 					format:      tc.format,
