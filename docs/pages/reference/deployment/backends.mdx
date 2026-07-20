@@ -1702,7 +1702,11 @@ The DSQL storage backend requires a DSQL cluster and a Kinesis stream receiving 
 
 Since it's not currently possible to configure the CDC stream in such a way that would restrict the changes available to any reader of the Kinesis data stream, we strongly recommend not using the same DSQL cluster for additional workloads, as the Auth Service instances will have access to the unrestricted change feed for the whole cluster, which is essentially equivalent to having full read permissions over every table in every schema of the cluster.
 
-Because of Kinesis throughput limits, no more than two Auth Service instances (per region) should be used, or it's possible for throttling to occur and for Teleport to not be able to keep up with changes.
+<Admonition type="danger">
+
+No more than two Auth Service instances should be reading from the same Kinesis data stream, or it's possible that throttling will prevent Teleport from keeping up with the event stream; as such, you should deploy no more than two Auth Service instances per region.
+
+</Admonition>
 
 Teleport will only use a single schema in the DSQL cluster, expecting to be able to create tables and run migrations as needed. Because of this, we recommend either letting Teleport use the `admin` database user (requiring permissions to use the `dsql:DbConnectAdmin` action) and the pre-existing `public` schema, or you should [create a database user](https://docs.aws.amazon.com/aurora-dsql/latest/userguide/using-database-and-iam-roles.html#using-database-and-iam-roles-custom-database-roles) and grant it full permissions over a schema (Teleport will then need permissions to use the `dsql:DbConnect` action):
 
