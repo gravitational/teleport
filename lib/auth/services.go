@@ -103,6 +103,7 @@ type Services struct {
 	services.SubCAService
 	services.PendingCSRRequestService
 	services.EnrollPairing
+	services.KubeClusterService
 }
 
 // MFAService defines the interface for managing MFA resources in the backend.
