@@ -66,15 +66,16 @@ func protocolAndPort(databaseVersion string) (protocol, port string, ok bool) {
 		versionPrefixMySQL    = "MYSQL_"
 		versionPrefixPostgres = "POSTGRES_"
 
-		defaultPortMySQL    = "3306"
-		defaultPortPostgres = "5432"
+		// these ports are not configurable
+		portMySQL    = "3306"
+		portPostgres = "5432"
 	)
 
 	switch {
 	case strings.HasPrefix(databaseVersion, versionPrefixMySQL):
-		return defaults.ProtocolMySQL, defaultPortMySQL, true
+		return defaults.ProtocolMySQL, portMySQL, true
 	case strings.HasPrefix(databaseVersion, versionPrefixPostgres):
-		return defaults.ProtocolPostgres, defaultPortPostgres, true
+		return defaults.ProtocolPostgres, portPostgres, true
 	default:
 		return "", "", false
 	}
