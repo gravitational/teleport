@@ -91,7 +91,7 @@ spec:
                     items:
                       properties:
                         role:
-                          description: role is scope-qualified name of the scoped
+                          description: role is the scope-qualified name of the scoped
                             role to be granted.
                           type: string
                         scope:
@@ -148,7 +148,7 @@ spec:
                     items:
                       properties:
                         role:
-                          description: role is scope-qualified name of the scoped
+                          description: role is the scope-qualified name of the scoped
                             role to be granted.
                           type: string
                         scope:

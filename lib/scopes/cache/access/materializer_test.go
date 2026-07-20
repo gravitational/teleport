@@ -267,11 +267,11 @@ func TestMaterializerDoubleListParents(t *testing.T) {
 			AccessListsByName: map[string]*accesslist.AccessList{
 				"parentA": newAccessList(t, "parentA", withMemberGrants([]accesslist.ScopedRoleGrant{{
 					Scope: "/aa",
-					Role:  "/::roleA",
+					Role:  "/::rolea",
 				}})),
 				"parentB": newAccessList(t, "parentB", withMemberGrants([]accesslist.ScopedRoleGrant{{
 					Scope: "/bb",
-					Role:  "/::roleB",
+					Role:  "/::roleb",
 				}})),
 				"child": newAccessList(t, "child"),
 			},
@@ -290,11 +290,11 @@ func TestMaterializerDoubleListParents(t *testing.T) {
 		expectedAssignments: []*scopedaccessv1.ScopedRoleAssignment{
 			// User should be a nested member of both parents and get an assignment for each.
 			expectedScopedRoleAssignment("tester", "parentA", []*scopedaccessv1.Assignment{scopedaccessv1.Assignment_builder{
-				Role:  "/::roleA",
+				Role:  "/::rolea",
 				Scope: "/aa",
 			}.Build()}),
 			expectedScopedRoleAssignment("tester", "parentB", []*scopedaccessv1.Assignment{scopedaccessv1.Assignment_builder{
-				Role:  "/::roleB",
+				Role:  "/::roleb",
 				Scope: "/bb",
 			}.Build()}),
 		},
