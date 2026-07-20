@@ -1686,8 +1686,12 @@ teleport:
 
 ## Amazon Aurora DSQL
 
-<Admonition type="warning" title="Enterprise">
+<Admonition type="warning" title="Enterprise-only feature">
   Use of the DSQL storage backend requires Teleport Enterprise.
+</Admonition>
+
+<Admonition type="note" title="Version requirement">
+  The DSQL storage backend is supported in Teleport v19.0.0 and later.
 </Admonition>
 
 Teleport can use [Amazon Aurora DSQL](https://aws.amazon.com/rds/aurora/dsql/) as a storage backend to achieve high availability and survive regional failures.
