@@ -225,6 +225,26 @@ func TestTargetDialerControl(t *testing.T) {
 		require.True(t, ok)
 		require.Len(t, denial.ResolvedIPs, 4)
 	})
+
+	t.Run("unspecified target is rejected", func(t *testing.T) {
+		t.Parallel()
+		// On Linux a dial to 0.0.0.0 or :: reaches loopback, so an unspecified
+		// target must be rejected even when the deny list names only loopback
+		// ranges, which do not contain the unspecified address.
+		policy := TargetHostPolicy{DeniedPrefixes: []netip.Prefix{
+			netip.MustParsePrefix("127.0.0.0/8"),
+			netip.MustParsePrefix("::1/128"),
+		}}
+		for _, unspec := range []string{"0.0.0.0", "::"} {
+			a := &dialAttempt{policy: policy, host: "target.example.com", port: "443"}
+			errs := runControl(a, unspec)
+			require.Error(t, errs[0], "unspecified target %q must be rejected", unspec)
+
+			denial, ok := a.denial()
+			require.True(t, ok, "unspecified target %q must be a denial", unspec)
+			require.Equal(t, unspec, denial.BlockedIP.String())
+		}
+	})
 }
 
 // TestControlContextCandidateFallback verifies the dialer behavior the policy

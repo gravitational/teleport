@@ -212,7 +212,11 @@ func (a *dialAttempt) control(_ context.Context, _ string, address string, _ sys
 	defer a.mu.Unlock()
 	a.resolved = append(a.resolved, addr)
 
-	if !a.policy.blocked(addr) {
+	// An unspecified address (0.0.0.0 or ::) is never a legitimate target: on
+	// Linux a connect to it reaches loopback, so allowing it would let a target
+	// resolving to the unspecified address bypass a deny list that blocks loopback
+	// ranges.
+	if !addr.IsUnspecified() && !a.policy.blocked(addr) {
 		a.allowedSeen = true
 		return nil
 	}

@@ -55,7 +55,7 @@ func TestProperty_DialAttempt_MatchesReferenceModel(t *testing.T) {
 		for i, c := range cands {
 			canon := canonicalAddr(c)
 			resolved = append(resolved, canon)
-			blocked := policy.blocked(canon)
+			blocked := rejected(policy, canon)
 			require.Equal(t, blocked, gotErr[i],
 				"control error must track blocked status at %d: cand=%v policy=%+v", i, c, policy)
 			switch {
@@ -107,7 +107,7 @@ func TestProperty_DialAttempt_ConcurrentControlIsConsistent(t *testing.T) {
 		for i, c := range cands {
 			canon := canonicalAddr(c)
 			wantResolved[i] = canon
-			if policy.blocked(canon) {
+			if rejected(policy, canon) {
 				hasBlocked = true
 				blocked[canon] = true
 			} else {
@@ -156,7 +156,7 @@ func TestProperty_DialAttempt_EvaluatesCanonicalForm(t *testing.T) {
 		for i, base := range bases {
 			require.Equal(t, base, a.resolved[i],
 				"control must record the canonical form: base=%v recorded=%v", base, a.resolved[i])
-			require.Equal(t, policy.blocked(base), gotErr[i],
+			require.Equal(t, rejected(policy, base), gotErr[i],
 				"control must evaluate the policy on the canonical form: base=%v policy=%+v", base, policy)
 		}
 	})
@@ -176,9 +176,10 @@ func genPolicy(t *rapid.T) TargetHostPolicy {
 	return TargetHostPolicy{DeniedPrefixes: prefixes}
 }
 
-// genCandidates draws a candidate sequence biased so that both blocked and
-// permitted addresses occur: some are built inside a policy prefix, the rest are
-// arbitrary. Addresses are canonical here; hostile forms are exercised separately.
+// genCandidates draws a candidate sequence biased so that blocked, permitted, and
+// unspecified addresses all occur: some are built inside a policy prefix, some are
+// arbitrary, and some are the unspecified address (which the classifier must
+// always reject). Each may then be presented in a hostile (mapped or zoned) form.
 func genCandidates(t *rapid.T, policy TargetHostPolicy) []netip.Addr {
 	prefixes := policy.AllowedPrefixes
 	if len(prefixes) == 0 {
@@ -188,11 +189,14 @@ func genCandidates(t *rapid.T, policy TargetHostPolicy) []netip.Addr {
 	cands := make([]netip.Addr, n)
 	for i := range cands {
 		var c netip.Addr
-		if rapid.Bool().Draw(t, "inside") {
+		switch rapid.IntRange(0, 2).Draw(t, "candidate_kind") {
+		case 0:
 			p := prefixes[rapid.IntRange(0, len(prefixes)-1).Draw(t, "which_prefix")]
 			c = addrInPrefix(t, p)
-		} else {
+		case 1:
 			c = canonicalAddr(genAddr(t))
+		default:
+			c = rapid.SampledFrom([]netip.Addr{netip.IPv4Unspecified(), netip.IPv6Unspecified()}).Draw(t, "unspecified")
 		}
 		// Sometimes present the candidate the way an OS might, mapped or zoned.
 		// The reference model canonicalizes every candidate, so this exercises the
@@ -203,6 +207,13 @@ func genCandidates(t *rapid.T, policy TargetHostPolicy) []netip.Addr {
 		cands[i] = c
 	}
 	return cands
+}
+
+// rejected mirrors dialAttempt.control's per-candidate decision: an unspecified
+// address is never dialable (on Linux it reaches loopback), and otherwise the
+// policy's membership check decides.
+func rejected(policy TargetHostPolicy, addr netip.Addr) bool {
+	return addr.IsUnspecified() || policy.blocked(addr)
 }
 
 // oneHostileForm draws a single presentation of base: the address itself, a
