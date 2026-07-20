@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package kube_test
+package kubecluster_test
 
 import (
 	"context"
@@ -30,7 +30,7 @@ import (
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth/kube"
+	"github.com/gravitational/teleport/lib/auth/kubecluster"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -319,14 +319,14 @@ func newKubeCluster(t *testing.T, scope string, name string, labels map[string]s
 	return cluster
 }
 
-func newServerForIdentity(t *testing.T, bk *backendPack, accessInfo *services.AccessInfo, unscopedErr error) *kube.Server {
+func newServerForIdentity(t *testing.T, bk *backendPack, accessInfo *services.AccessInfo, unscopedErr error) *kubecluster.Server {
 	t.Helper()
 
 	authorizer := newFakeAuthorizer(t, newFakeAccessChecker(unscopedErr))
 	if accessInfo.ScopePin != nil {
 		authorizer = newFakeScopedAuthorizer(t, accessInfo, bk.service)
 	}
-	srv, err := kube.New(&kube.Config{
+	srv, err := kubecluster.New(&kubecluster.Config{
 		ScopedAuthorizer: authorizer,
 		Logger:           logtest.NewLogger(),
 		ClusterReader:    bk.kubeService,

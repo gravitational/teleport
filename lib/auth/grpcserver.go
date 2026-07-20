@@ -125,7 +125,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/integration/integrationv1"
 	"github.com/gravitational/teleport/lib/auth/inventory/inventoryv1"
 	issuancev1 "github.com/gravitational/teleport/lib/auth/issuance/v1"
-	kubesvc "github.com/gravitational/teleport/lib/auth/kube"
+	kubecluster "github.com/gravitational/teleport/lib/auth/kubecluster"
 	"github.com/gravitational/teleport/lib/auth/kubewaitingcontainer/kubewaitingcontainerv1"
 	"github.com/gravitational/teleport/lib/auth/linuxdesktop/linuxdesktopv1"
 	"github.com/gravitational/teleport/lib/auth/loginrule/loginrulev1"
@@ -6748,7 +6748,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		clientiprestrictionv1pb.RegisterClientIPRestrictionServiceServer(server, clientiprestrictionv1.NewService())
 	}
 
-	kubeSvc, err := kubesvc.NewService(&kubesvc.Config{
+	kubeClusterSvc, err := kubecluster.New(&kubecluster.Config{
 		ScopedAuthorizer: cfg.ScopedAuthorizer,
 		ClusterWriter:    cfg.AuthServer,
 		ClusterReader:    cfg.AuthServer,
@@ -6756,7 +6756,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	if err != nil {
 		return nil, trace.Wrap(err, "instantiating kubev1 cluster service")
 	}
-	kubev1.RegisterKubeClusterServiceServer(server, kubeSvc)
+	kubev1.RegisterKubeClusterServiceServer(server, kubeClusterSvc)
 
 	return authServer, nil
 }
