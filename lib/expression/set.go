@@ -19,8 +19,9 @@
 package expression
 
 import (
-	"github.com/gravitational/teleport/lib/utils/set"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 // Set is a map of type string key and struct values. Set is a thin wrapper over
