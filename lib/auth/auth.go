@@ -8740,7 +8740,8 @@ func newKeySet(ctx context.Context, keyStore *keystore.Manager, caID types.CertA
 		types.AWSRACA,
 		types.BoundKeypairCA,
 		types.WindowsCA,
-		types.AppClientCA:
+		types.AppClientCA,
+		types.InBandCA:
 		// OK, known CA type.
 	default:
 		return types.CAKeySet{}, trace.BadParameter(
