@@ -796,8 +796,7 @@ func (a *Middleware) GetUser(connState tls.ConnectionState) (authz.IdentityGette
 func getPrimarySystemRole(roles []string) *types.SystemRole {
 	for _, role := range roles {
 		systemRole := types.SystemRole(role)
-		err := systemRole.Check()
-		if err == nil {
+		if systemRole.IsValid() {
 			return &systemRole
 		}
 	}
@@ -808,8 +807,7 @@ func extractAdditionalSystemRoles(roles []string) types.SystemRoles {
 	var systemRoles types.SystemRoles
 	for _, role := range roles {
 		systemRole := types.SystemRole(role)
-		err := systemRole.Check()
-		if err != nil {
+		if !systemRole.IsValid() {
 			// ignore unknown system roles rather than rejecting them, since new unknown system
 			// roles may be present on certs if we rolled back from a newer version.
 			logger.WarnContext(context.Background(), "Ignoring unknown system role", "unknown_role", role)

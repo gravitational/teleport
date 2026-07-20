@@ -234,11 +234,8 @@ func RoleForCertAuthority(ca types.CertAuthority) types.Role {
 // ValidateRoleName checks that the role name is allowed to be created.
 func ValidateRoleName(role types.Role) error {
 	// System role names are not allowed.
-	systemRoles := types.SystemRoles([]types.SystemRole{
-		types.SystemRole(role.GetMetadata().Name),
-	})
-	if err := systemRoles.Check(); err == nil {
-		return trace.BadParameter("reserved role: %s", role.GetMetadata().Name)
+	if types.SystemRole(role.GetMetadata().Name).IsValid() {
+		return trace.BadParameter("reserved role: %+q", role.GetMetadata().Name)
 	}
 	return nil
 }

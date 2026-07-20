@@ -197,15 +197,15 @@ func NewTeleportRoles(in []string) (SystemRoles, error) {
 // of teleport roles, or an error if parsing failed
 func ParseTeleportRoles(str string) (SystemRoles, error) {
 	var roles SystemRoles
-	for _, s := range strings.Split(str, ",") {
-		if r := normalizedSystemRole(s); r.Check() == nil {
+	for s := range strings.SplitSeq(str, ",") {
+		if r := normalizedSystemRole(s); r.IsValid() {
 			roles = append(roles, r)
 			continue
 		}
-		return nil, trace.BadParameter("invalid role %q", s)
+		return nil, trace.BadParameter("invalid role %+q", s)
 	}
 	if len(roles) == 0 {
-		return nil, trace.BadParameter("no valid roles in $%q", str)
+		return nil, trace.BadParameter("no valid roles in %+q", str)
 	}
 
 	return roles, roles.Check()
