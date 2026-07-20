@@ -33,21 +33,21 @@ import (
 type testUserSearchLister struct {
 	users   []*types.UserV2
 	err     error
-	nextKey string
 	calls   int
+	ctx     context.Context
 	request *userspb.ListUsersRequest
 }
 
 func (l *testUserSearchLister) ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*userspb.ListUsersResponse, error) {
 	l.calls++
+	l.ctx = ctx
 	l.request = req
 	if l.err != nil {
 		return nil, l.err
 	}
 
 	return userspb.ListUsersResponse_builder{
-		Users:         l.users,
-		NextPageToken: l.nextKey,
+		Users: l.users,
 	}.Build(), nil
 }
 
@@ -139,14 +139,54 @@ func TestFindUsernamesBySearchKeywordsMatchesOnlyDisplayValues(t *testing.T) {
 	}
 }
 
-func TestFindUsernamesBySearchKeywordsSkipsBlankSearch(t *testing.T) {
+func TestSearchKeywordUsernameResolver(t *testing.T) {
 	t.Parallel()
 
-	lister := &testUserSearchLister{}
-	usernames, err := findUsernamesBySearchKeywords(t.Context(), lister, []string{"", "   "})
+	const janeUsername = "123456"
+
+	jane, err := types.NewUser(janeUsername)
 	require.NoError(t, err)
-	require.Nil(t, usernames)
+	jane.SetTraits(map[string][]string{
+		"okta/displayName": {"Jane Garcia"},
+	})
+
+	type contextKey struct{}
+	ctx := context.WithValue(t.Context(), contextKey{}, "test-value")
+	lister := &testUserSearchLister{users: []*types.UserV2{jane.(*types.UserV2)}}
+	resolveUsernames := NewSearchKeywordUsernameResolver(lister)
+
+	require.Equal(t, map[string]struct{}{janeUsername: {}}, resolveUsernames(ctx, " Jane "))
+	require.Equal(t, map[string]struct{}{janeUsername: {}}, resolveUsernames(ctx, "Jane"))
+	require.Equal(t, 1, lister.calls)
+	require.Equal(t, ctx, lister.ctx)
+	require.Nil(t, resolveUsernames(ctx, "   "))
+	require.Equal(t, 1, lister.calls)
+}
+
+func TestNewAccessRequestSearchMatcherResolvesLazilyAndMemoizes(t *testing.T) {
+	t.Parallel()
+
+	const janeUsername = "123456"
+
+	jane, err := types.NewUser(janeUsername)
+	require.NoError(t, err)
+	jane.SetTraits(map[string][]string{
+		"okta/displayName": {"Jane Garcia"},
+	})
+
+	accessRequest, err := types.NewAccessRequest("request", janeUsername, "db-access")
+	require.NoError(t, err)
+	accessRequestV3 := accessRequest.(*types.AccessRequestV3)
+	lister := &testUserSearchLister{users: []*types.UserV2{jane.(*types.UserV2)}}
+
+	storedFieldMatcher := NewAccessRequestSearchMatcher([]string{"db-access"}, lister)
+	require.True(t, storedFieldMatcher(t.Context(), accessRequestV3))
 	require.Zero(t, lister.calls)
+
+	displayMatcher := NewAccessRequestSearchMatcher([]string{"Jane"}, lister)
+	require.True(t, displayMatcher(t.Context(), accessRequestV3))
+	require.True(t, displayMatcher(t.Context(), accessRequestV3))
+	require.Equal(t, 1, lister.calls)
 }
 
 func TestNewAccessRequestSearchMatcherDegradesGracefullyOnUserLookupFailure(t *testing.T) {
@@ -165,14 +205,14 @@ func TestNewAccessRequestSearchMatcherDegradesGracefullyOnUserLookupFailure(t *t
 	resolvedUsers := []*types.UserV2{resolvedUser.(*types.UserV2)}
 
 	successLister := &testUserSearchLister{users: resolvedUsers}
-	successMatcher := NewAccessRequestSearchMatcher(t.Context(), []string{"Jane"}, successLister)
-	require.True(t, successMatcher(displayOnly.(*types.AccessRequestV3)), "display-only match should pass when user lookup resolves the requester")
+	successMatcher := NewAccessRequestSearchMatcher([]string{"Jane"}, successLister)
+	require.True(t, successMatcher(t.Context(), displayOnly.(*types.AccessRequestV3)), "display-only match should pass when user lookup resolves the requester")
 
 	failedLister := &testUserSearchLister{
 		users: resolvedUsers,
 		err:   errors.New("backend unavailable"),
 	}
-	failedMatcher := NewAccessRequestSearchMatcher(t.Context(), []string{"Jane"}, failedLister)
+	failedMatcher := NewAccessRequestSearchMatcher([]string{"Jane"}, failedLister)
 	// Gracefully degrade to return false when user lookup fails.
-	require.False(t, failedMatcher(displayOnly.(*types.AccessRequestV3)), "same display-only match should be skipped when user lookup fails")
+	require.False(t, failedMatcher(t.Context(), displayOnly.(*types.AccessRequestV3)), "same display-only match should be skipped when user lookup fails")
 }

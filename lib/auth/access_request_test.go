@@ -764,6 +764,20 @@ func TestListAccessRequestsRequesterDisplaySearch(t *testing.T) {
 			expected: []string{existingRequestID, displayRequestID},
 		},
 		{
+			name: "search keywords are normalized",
+			filter: &types.AccessRequestFilter{
+				SearchKeywords: []string{" Jane "},
+			},
+			expected: []string{existingRequestID, displayRequestID},
+		},
+		{
+			name: "blank search keywords are ignored",
+			filter: &types.AccessRequestFilter{
+				SearchKeywords: []string{"", "   "},
+			},
+			expected: []string{existingRequestID, displayRequestID},
+		},
+		{
 			name: "display secondary",
 			filter: &types.AccessRequestFilter{
 				SearchKeywords: []string{"jane.garcia@example.com"},

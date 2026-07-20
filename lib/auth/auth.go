@@ -6035,35 +6035,36 @@ func (a *Server) ListMatchingAccessRequests(ctx context.Context, req *proto.List
 }
 
 func (a *Server) listMatchingAccessRequests(ctx context.Context, req *proto.ListAccessRequestsRequest, match func(*types.AccessRequestV3) bool) (*proto.ListAccessRequestsResponse, error) {
-	searchKeywords := accessRequestSearchKeywords(req)
-	searchMatcher := services.NewAccessRequestSearchMatcher(ctx, searchKeywords, a)
-
-	cacheReq := req
-	if len(searchKeywords) > 0 {
-		reqCopy := *req
-		if req.Filter != nil {
-			filterCopy := *req.Filter
-			// Strip search keywords because it can contain user display names,
-			// which are not stored in the backend and will cause the cache to return no results.
-			// The searchMatcher will handle filtering by display name, along with any other search keywords.
-			filterCopy.SearchKeywords = nil
-			reqCopy.Filter = &filterCopy
-		}
-		cacheReq = &reqCopy
-	}
+	cacheReq, searchKeywords := splitAccessRequestSearchKeywords(req)
+	searchMatcher := services.NewAccessRequestSearchMatcher(searchKeywords, a)
 
 	return a.AccessRequestCache.ListMatchingAccessRequests(ctx, cacheReq, func(accessRequest *types.AccessRequestV3) bool {
 		// searchMatcher decides whether the request matches the query. match
 		// preserves the caller-specific visibility filter, such as RBAC.
-		return searchMatcher(accessRequest) && match(accessRequest)
+		return searchMatcher(ctx, accessRequest) && match(accessRequest)
 	})
 }
 
-func accessRequestSearchKeywords(req *proto.ListAccessRequestsRequest) []string {
-	if req.Filter == nil {
-		return nil
+func splitAccessRequestSearchKeywords(req *proto.ListAccessRequestsRequest) (*proto.ListAccessRequestsRequest, []string) {
+	if req.Filter == nil || len(req.Filter.SearchKeywords) == 0 {
+		return req, nil
 	}
-	return req.Filter.SearchKeywords
+
+	searchKeywords := make([]string, 0, len(req.Filter.SearchKeywords))
+	for _, keyword := range req.Filter.SearchKeywords {
+		keyword = strings.TrimSpace(keyword)
+		if keyword != "" {
+			searchKeywords = append(searchKeywords, keyword)
+		}
+	}
+
+	reqCopy := *req
+	filterCopy := *req.Filter
+	// Search keywords can contain user display values that are not stored in the
+	// backend to result in false negatives, so the custom matcher handles all keyword filtering instead.
+	filterCopy.SearchKeywords = nil
+	reqCopy.Filter = &filterCopy
+	return &reqCopy, searchKeywords
 }
 
 func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequest, identity tlsca.Identity) (types.AccessRequest, error) {

@@ -31,8 +31,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
-const logKeySearchKeywords = "search_keywords"
-
 var userSearchLogger = slog.With(teleport.ComponentKey, "user.search")
 
 // UserSearchLister lists users for display-value search.
@@ -45,7 +43,6 @@ type usernameSet map[string]struct{}
 
 // findUsernamesBySearchKeywords returns usernames whose resolved display values match the keywords.
 func findUsernamesBySearchKeywords(ctx context.Context, users UserSearchLister, searchKeywords []string) (usernameSet, error) {
-	searchKeywords = cleanSearchKeywords(searchKeywords)
 	if len(searchKeywords) == 0 {
 		return nil, nil
 	}
@@ -71,34 +68,25 @@ func findUsernamesBySearchKeywords(ctx context.Context, users UserSearchLister, 
 		usernames[user.GetName()] = struct{}{}
 	}
 
-	if rsp.GetNextPageToken() != "" {
-		userSearchLogger.WarnContext(ctx, "User search result truncated while resolving search keywords",
-			logKeySearchKeywords, searchKeywords,
-			"page_size", apidefaults.DefaultChunkSize,
-		)
-	}
-
 	return usernames, nil
 }
 
 type searchKeywordUsernameResolver struct {
-	ctx   context.Context
 	users UserSearchLister
 	// usernamesBySearchKeyword caches the resolved usernames for each keyword.
 	usernamesBySearchKeyword map[string]usernameSet
 }
 
 // NewSearchKeywordUsernameResolver returns a memoizing resolver for search-keyword username matches.
-func NewSearchKeywordUsernameResolver(ctx context.Context, users UserSearchLister) func(string) map[string]struct{} {
+func NewSearchKeywordUsernameResolver(users UserSearchLister) func(context.Context, string) map[string]struct{} {
 	resolver := &searchKeywordUsernameResolver{
-		ctx:                      ctx,
 		users:                    users,
 		usernamesBySearchKeyword: make(map[string]usernameSet),
 	}
 	return resolver.resolveUsernames
 }
 
-func (r *searchKeywordUsernameResolver) resolveUsernames(searchKeyword string) map[string]struct{} {
+func (r *searchKeywordUsernameResolver) resolveUsernames(ctx context.Context, searchKeyword string) map[string]struct{} {
 	searchKeyword = strings.TrimSpace(searchKeyword)
 	if searchKeyword == "" {
 		return nil
@@ -108,10 +96,10 @@ func (r *searchKeywordUsernameResolver) resolveUsernames(searchKeyword string) m
 		return usernames
 	}
 
-	usernames, err := findUsernamesBySearchKeywords(r.ctx, r.users, []string{searchKeyword})
+	usernames, err := findUsernamesBySearchKeywords(ctx, r.users, []string{searchKeyword})
 	if err != nil {
-		userSearchLogger.WarnContext(r.ctx, "Failed to resolve search keyword to users",
-			logKeySearchKeywords, []string{searchKeyword},
+		userSearchLogger.WarnContext(ctx, "Failed to resolve search keyword to users",
+			"search_keywords", []string{searchKeyword},
 			"error", err,
 		)
 		r.usernamesBySearchKeyword[searchKeyword] = nil
@@ -123,29 +111,13 @@ func (r *searchKeywordUsernameResolver) resolveUsernames(searchKeyword string) m
 }
 
 // NewAccessRequestSearchMatcher returns a matcher that checks stored request fields and requester user-search matches.
-func NewAccessRequestSearchMatcher(ctx context.Context, searchKeywords []string, users UserSearchLister) func(*types.AccessRequestV3) bool {
-	searchKeywords = cleanSearchKeywords(searchKeywords)
-	resolveToUsernames := NewSearchKeywordUsernameResolver(ctx, users)
+func NewAccessRequestSearchMatcher(searchKeywords []string, users UserSearchLister) func(context.Context, *types.AccessRequestV3) bool {
+	resolveToUsernames := NewSearchKeywordUsernameResolver(users)
 
-	return func(accessRequest *types.AccessRequestV3) bool {
+	return func(ctx context.Context, accessRequest *types.AccessRequestV3) bool {
 		return types.MatchSearch(accessRequest.SearchableFields(), searchKeywords, func(searchKeyword string) bool {
-			_, ok := resolveToUsernames(searchKeyword)[accessRequest.GetUser()]
+			_, ok := resolveToUsernames(ctx, searchKeyword)[accessRequest.GetUser()]
 			return ok
 		})
 	}
-}
-
-func cleanSearchKeywords(searchKeywords []string) []string {
-	if len(searchKeywords) == 0 {
-		return nil
-	}
-
-	cleaned := make([]string, 0, len(searchKeywords))
-	for _, keyword := range searchKeywords {
-		keyword = strings.TrimSpace(keyword)
-		if keyword != "" {
-			cleaned = append(cleaned, keyword)
-		}
-	}
-	return cleaned
 }
