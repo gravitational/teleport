@@ -111,24 +111,8 @@ message ListKubeClustersRequest {
   // The next_page_token value returned from a previous List request, if any.
   string page_token = 2;
 
-  // The possible sort modes for listing kube cluster resources.
-  enum SortMode {
-    SORT_MODE_UNSPECIFIED = 0;
-  }
-
-  // Specifies the sorting type for the results.
-  SortMode sort_mode = 3;
-
-  // Specifies sort direction
-  bool is_sort_descending = 4;
-
-  // A collection of fields to filter kube clusters.
-  message ListKubeClustersFilter {}
-  // A collection of fields to filter kube clusters.
-  ListKubeClustersFilter filter = 5;
-
   // Filters kube clusters by scope.
-  teleport.scopes.v1.Filter scope_filter = 6;
+  teleport.scopes.v1.Filter scope_filter = 3;
 }
 
 // The response for listing kube cluster resources within the backend.

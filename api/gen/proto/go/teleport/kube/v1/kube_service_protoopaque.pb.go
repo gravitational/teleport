@@ -38,45 +38,6 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// The possible sort modes for listing kube cluster resources.
-type ListKubeClustersRequest_SortMode int32
-
-const (
-	ListKubeClustersRequest_SORT_MODE_UNSPECIFIED ListKubeClustersRequest_SortMode = 0
-)
-
-// Enum value maps for ListKubeClustersRequest_SortMode.
-var (
-	ListKubeClustersRequest_SortMode_name = map[int32]string{
-		0: "SORT_MODE_UNSPECIFIED",
-	}
-	ListKubeClustersRequest_SortMode_value = map[string]int32{
-		"SORT_MODE_UNSPECIFIED": 0,
-	}
-)
-
-func (x ListKubeClustersRequest_SortMode) Enum() *ListKubeClustersRequest_SortMode {
-	p := new(ListKubeClustersRequest_SortMode)
-	*p = x
-	return p
-}
-
-func (x ListKubeClustersRequest_SortMode) String() string {
-	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
-}
-
-func (ListKubeClustersRequest_SortMode) Descriptor() protoreflect.EnumDescriptor {
-	return file_teleport_kube_v1_kube_service_proto_enumTypes[0].Descriptor()
-}
-
-func (ListKubeClustersRequest_SortMode) Type() protoreflect.EnumType {
-	return &file_teleport_kube_v1_kube_service_proto_enumTypes[0]
-}
-
-func (x ListKubeClustersRequest_SortMode) Number() protoreflect.EnumNumber {
-	return protoreflect.EnumNumber(x)
-}
-
 // ListKubernetesResourcesRequest defines a request to retrieve resources paginated. Only
 // one type of resource can be retrieved per request.
 type ListKubernetesResourcesRequest struct {
@@ -572,15 +533,12 @@ func (b0 GetKubeClusterResponse_builder) Build() *GetKubeClusterResponse {
 
 // The request to list kube cluster resources within the backend.
 type ListKubeClustersRequest struct {
-	state                       protoimpl.MessageState                          `protogen:"opaque.v1"`
-	xxx_hidden_PageSize         int32                                           `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3"`
-	xxx_hidden_PageToken        string                                          `protobuf:"bytes,2,opt,name=page_token,json=pageToken,proto3"`
-	xxx_hidden_SortMode         ListKubeClustersRequest_SortMode                `protobuf:"varint,3,opt,name=sort_mode,json=sortMode,proto3,enum=teleport.kube.v1.ListKubeClustersRequest_SortMode"`
-	xxx_hidden_IsSortDescending bool                                            `protobuf:"varint,4,opt,name=is_sort_descending,json=isSortDescending,proto3"`
-	xxx_hidden_Filter           *ListKubeClustersRequest_ListKubeClustersFilter `protobuf:"bytes,5,opt,name=filter,proto3"`
-	xxx_hidden_ScopeFilter      *v1.Filter                                      `protobuf:"bytes,6,opt,name=scope_filter,json=scopeFilter,proto3"`
-	unknownFields               protoimpl.UnknownFields
-	sizeCache                   protoimpl.SizeCache
+	state                  protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_PageSize    int32                  `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3"`
+	xxx_hidden_PageToken   string                 `protobuf:"bytes,2,opt,name=page_token,json=pageToken,proto3"`
+	xxx_hidden_ScopeFilter *v1.Filter             `protobuf:"bytes,3,opt,name=scope_filter,json=scopeFilter,proto3"`
+	unknownFields          protoimpl.UnknownFields
+	sizeCache              protoimpl.SizeCache
 }
 
 func (x *ListKubeClustersRequest) Reset() {
@@ -622,27 +580,6 @@ func (x *ListKubeClustersRequest) GetPageToken() string {
 	return ""
 }
 
-func (x *ListKubeClustersRequest) GetSortMode() ListKubeClustersRequest_SortMode {
-	if x != nil {
-		return x.xxx_hidden_SortMode
-	}
-	return ListKubeClustersRequest_SORT_MODE_UNSPECIFIED
-}
-
-func (x *ListKubeClustersRequest) GetIsSortDescending() bool {
-	if x != nil {
-		return x.xxx_hidden_IsSortDescending
-	}
-	return false
-}
-
-func (x *ListKubeClustersRequest) GetFilter() *ListKubeClustersRequest_ListKubeClustersFilter {
-	if x != nil {
-		return x.xxx_hidden_Filter
-	}
-	return nil
-}
-
 func (x *ListKubeClustersRequest) GetScopeFilter() *v1.Filter {
 	if x != nil {
 		return x.xxx_hidden_ScopeFilter
@@ -658,27 +595,8 @@ func (x *ListKubeClustersRequest) SetPageToken(v string) {
 	x.xxx_hidden_PageToken = v
 }
 
-func (x *ListKubeClustersRequest) SetSortMode(v ListKubeClustersRequest_SortMode) {
-	x.xxx_hidden_SortMode = v
-}
-
-func (x *ListKubeClustersRequest) SetIsSortDescending(v bool) {
-	x.xxx_hidden_IsSortDescending = v
-}
-
-func (x *ListKubeClustersRequest) SetFilter(v *ListKubeClustersRequest_ListKubeClustersFilter) {
-	x.xxx_hidden_Filter = v
-}
-
 func (x *ListKubeClustersRequest) SetScopeFilter(v *v1.Filter) {
 	x.xxx_hidden_ScopeFilter = v
-}
-
-func (x *ListKubeClustersRequest) HasFilter() bool {
-	if x == nil {
-		return false
-	}
-	return x.xxx_hidden_Filter != nil
 }
 
 func (x *ListKubeClustersRequest) HasScopeFilter() bool {
@@ -686,10 +604,6 @@ func (x *ListKubeClustersRequest) HasScopeFilter() bool {
 		return false
 	}
 	return x.xxx_hidden_ScopeFilter != nil
-}
-
-func (x *ListKubeClustersRequest) ClearFilter() {
-	x.xxx_hidden_Filter = nil
 }
 
 func (x *ListKubeClustersRequest) ClearScopeFilter() {
@@ -704,12 +618,6 @@ type ListKubeClustersRequest_builder struct {
 	PageSize int32
 	// The next_page_token value returned from a previous List request, if any.
 	PageToken string
-	// Specifies the sorting type for the results.
-	SortMode ListKubeClustersRequest_SortMode
-	// Specifies sort direction
-	IsSortDescending bool
-	// A collection of fields to filter kube clusters.
-	Filter *ListKubeClustersRequest_ListKubeClustersFilter
 	// Filters kube clusters by scope.
 	ScopeFilter *v1.Filter
 }
@@ -720,9 +628,6 @@ func (b0 ListKubeClustersRequest_builder) Build() *ListKubeClustersRequest {
 	_, _ = b, x
 	x.xxx_hidden_PageSize = b.PageSize
 	x.xxx_hidden_PageToken = b.PageToken
-	x.xxx_hidden_SortMode = b.SortMode
-	x.xxx_hidden_IsSortDescending = b.IsSortDescending
-	x.xxx_hidden_Filter = b.Filter
 	x.xxx_hidden_ScopeFilter = b.ScopeFilter
 	return m0
 }
@@ -922,50 +827,6 @@ func (b0 DeleteKubeClusterResponse_builder) Build() *DeleteKubeClusterResponse {
 	return m0
 }
 
-// A collection of fields to filter kube clusters.
-type ListKubeClustersRequest_ListKubeClustersFilter struct {
-	state         protoimpl.MessageState `protogen:"opaque.v1"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ListKubeClustersRequest_ListKubeClustersFilter) Reset() {
-	*x = ListKubeClustersRequest_ListKubeClustersFilter{}
-	mi := &file_teleport_kube_v1_kube_service_proto_msgTypes[9]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ListKubeClustersRequest_ListKubeClustersFilter) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ListKubeClustersRequest_ListKubeClustersFilter) ProtoMessage() {}
-
-func (x *ListKubeClustersRequest_ListKubeClustersFilter) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_kube_v1_kube_service_proto_msgTypes[9]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-type ListKubeClustersRequest_ListKubeClustersFilter_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-}
-
-func (b0 ListKubeClustersRequest_ListKubeClustersFilter_builder) Build() *ListKubeClustersRequest_ListKubeClustersFilter {
-	m0 := &ListKubeClustersRequest_ListKubeClustersFilter{}
-	b, x := &b0, m0
-	_, _ = b, x
-	return m0
-}
-
 var File_teleport_kube_v1_kube_service_proto protoreflect.FileDescriptor
 
 const file_teleport_kube_v1_kube_service_proto_rawDesc = "" +
@@ -997,18 +858,12 @@ const file_teleport_kube_v1_kube_service_proto_rawDesc = "" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x14\n" +
 	"\x05scope\x18\x02 \x01(\tR\x05scope\"N\n" +
 	"\x16GetKubeClusterResponse\x124\n" +
-	"\acluster\x18\x01 \x01(\v2\x1a.types.KubernetesClusterV3R\acluster\"\xae\x03\n" +
+	"\acluster\x18\x01 \x01(\v2\x1a.types.KubernetesClusterV3R\acluster\"\x94\x01\n" +
 	"\x17ListKubeClustersRequest\x12\x1b\n" +
 	"\tpage_size\x18\x01 \x01(\x05R\bpageSize\x12\x1d\n" +
 	"\n" +
-	"page_token\x18\x02 \x01(\tR\tpageToken\x12O\n" +
-	"\tsort_mode\x18\x03 \x01(\x0e22.teleport.kube.v1.ListKubeClustersRequest.SortModeR\bsortMode\x12,\n" +
-	"\x12is_sort_descending\x18\x04 \x01(\bR\x10isSortDescending\x12X\n" +
-	"\x06filter\x18\x05 \x01(\v2@.teleport.kube.v1.ListKubeClustersRequest.ListKubeClustersFilterR\x06filter\x12=\n" +
-	"\fscope_filter\x18\x06 \x01(\v2\x1a.teleport.scopes.v1.FilterR\vscopeFilter\x1a\x18\n" +
-	"\x16ListKubeClustersFilter\"%\n" +
-	"\bSortMode\x12\x19\n" +
-	"\x15SORT_MODE_UNSPECIFIED\x10\x00\"z\n" +
+	"page_token\x18\x02 \x01(\tR\tpageToken\x12=\n" +
+	"\fscope_filter\x18\x03 \x01(\v2\x1a.teleport.scopes.v1.FilterR\vscopeFilter\"z\n" +
 	"\x18ListKubeClustersResponse\x126\n" +
 	"\bclusters\x18\x01 \x03(\v2\x1a.types.KubernetesClusterV3R\bclusters\x12&\n" +
 	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"D\n" +
@@ -1023,47 +878,42 @@ const file_teleport_kube_v1_kube_service_proto_rawDesc = "" +
 	"\x10ListKubeClusters\x12).teleport.kube.v1.ListKubeClustersRequest\x1a*.teleport.kube.v1.ListKubeClustersResponse\x12l\n" +
 	"\x11DeleteKubeCluster\x12*.teleport.kube.v1.DeleteKubeClusterRequest\x1a+.teleport.kube.v1.DeleteKubeClusterResponseBLZJgithub.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1;kubev1b\x06proto3"
 
-var file_teleport_kube_v1_kube_service_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_teleport_kube_v1_kube_service_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
+var file_teleport_kube_v1_kube_service_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
 var file_teleport_kube_v1_kube_service_proto_goTypes = []any{
-	(ListKubeClustersRequest_SortMode)(0),                  // 0: teleport.kube.v1.ListKubeClustersRequest.SortMode
-	(*ListKubernetesResourcesRequest)(nil),                 // 1: teleport.kube.v1.ListKubernetesResourcesRequest
-	(*ListKubernetesResourcesResponse)(nil),                // 2: teleport.kube.v1.ListKubernetesResourcesResponse
-	(*GetKubeClusterRequest)(nil),                          // 3: teleport.kube.v1.GetKubeClusterRequest
-	(*GetKubeClusterResponse)(nil),                         // 4: teleport.kube.v1.GetKubeClusterResponse
-	(*ListKubeClustersRequest)(nil),                        // 5: teleport.kube.v1.ListKubeClustersRequest
-	(*ListKubeClustersResponse)(nil),                       // 6: teleport.kube.v1.ListKubeClustersResponse
-	(*DeleteKubeClusterRequest)(nil),                       // 7: teleport.kube.v1.DeleteKubeClusterRequest
-	(*DeleteKubeClusterResponse)(nil),                      // 8: teleport.kube.v1.DeleteKubeClusterResponse
-	nil,                                                    // 9: teleport.kube.v1.ListKubernetesResourcesRequest.LabelsEntry
-	(*ListKubeClustersRequest_ListKubeClustersFilter)(nil), // 10: teleport.kube.v1.ListKubeClustersRequest.ListKubeClustersFilter
-	(*types.SortBy)(nil),                                   // 11: types.SortBy
-	(*types.KubernetesResourceV1)(nil),                     // 12: types.KubernetesResourceV1
-	(*types.KubernetesClusterV3)(nil),                      // 13: types.KubernetesClusterV3
-	(*v1.Filter)(nil),                                      // 14: teleport.scopes.v1.Filter
+	(*ListKubernetesResourcesRequest)(nil),  // 0: teleport.kube.v1.ListKubernetesResourcesRequest
+	(*ListKubernetesResourcesResponse)(nil), // 1: teleport.kube.v1.ListKubernetesResourcesResponse
+	(*GetKubeClusterRequest)(nil),           // 2: teleport.kube.v1.GetKubeClusterRequest
+	(*GetKubeClusterResponse)(nil),          // 3: teleport.kube.v1.GetKubeClusterResponse
+	(*ListKubeClustersRequest)(nil),         // 4: teleport.kube.v1.ListKubeClustersRequest
+	(*ListKubeClustersResponse)(nil),        // 5: teleport.kube.v1.ListKubeClustersResponse
+	(*DeleteKubeClusterRequest)(nil),        // 6: teleport.kube.v1.DeleteKubeClusterRequest
+	(*DeleteKubeClusterResponse)(nil),       // 7: teleport.kube.v1.DeleteKubeClusterResponse
+	nil,                                     // 8: teleport.kube.v1.ListKubernetesResourcesRequest.LabelsEntry
+	(*types.SortBy)(nil),                    // 9: types.SortBy
+	(*types.KubernetesResourceV1)(nil),      // 10: types.KubernetesResourceV1
+	(*types.KubernetesClusterV3)(nil),       // 11: types.KubernetesClusterV3
+	(*v1.Filter)(nil),                       // 12: teleport.scopes.v1.Filter
 }
 var file_teleport_kube_v1_kube_service_proto_depIdxs = []int32{
-	9,  // 0: teleport.kube.v1.ListKubernetesResourcesRequest.labels:type_name -> teleport.kube.v1.ListKubernetesResourcesRequest.LabelsEntry
-	11, // 1: teleport.kube.v1.ListKubernetesResourcesRequest.sort_by:type_name -> types.SortBy
-	12, // 2: teleport.kube.v1.ListKubernetesResourcesResponse.resources:type_name -> types.KubernetesResourceV1
-	13, // 3: teleport.kube.v1.GetKubeClusterResponse.cluster:type_name -> types.KubernetesClusterV3
-	0,  // 4: teleport.kube.v1.ListKubeClustersRequest.sort_mode:type_name -> teleport.kube.v1.ListKubeClustersRequest.SortMode
-	10, // 5: teleport.kube.v1.ListKubeClustersRequest.filter:type_name -> teleport.kube.v1.ListKubeClustersRequest.ListKubeClustersFilter
-	14, // 6: teleport.kube.v1.ListKubeClustersRequest.scope_filter:type_name -> teleport.scopes.v1.Filter
-	13, // 7: teleport.kube.v1.ListKubeClustersResponse.clusters:type_name -> types.KubernetesClusterV3
-	1,  // 8: teleport.kube.v1.KubeService.ListKubernetesResources:input_type -> teleport.kube.v1.ListKubernetesResourcesRequest
-	3,  // 9: teleport.kube.v1.KubeClusterService.GetKubeCluster:input_type -> teleport.kube.v1.GetKubeClusterRequest
-	5,  // 10: teleport.kube.v1.KubeClusterService.ListKubeClusters:input_type -> teleport.kube.v1.ListKubeClustersRequest
-	7,  // 11: teleport.kube.v1.KubeClusterService.DeleteKubeCluster:input_type -> teleport.kube.v1.DeleteKubeClusterRequest
-	2,  // 12: teleport.kube.v1.KubeService.ListKubernetesResources:output_type -> teleport.kube.v1.ListKubernetesResourcesResponse
-	4,  // 13: teleport.kube.v1.KubeClusterService.GetKubeCluster:output_type -> teleport.kube.v1.GetKubeClusterResponse
-	6,  // 14: teleport.kube.v1.KubeClusterService.ListKubeClusters:output_type -> teleport.kube.v1.ListKubeClustersResponse
-	8,  // 15: teleport.kube.v1.KubeClusterService.DeleteKubeCluster:output_type -> teleport.kube.v1.DeleteKubeClusterResponse
-	12, // [12:16] is the sub-list for method output_type
-	8,  // [8:12] is the sub-list for method input_type
-	8,  // [8:8] is the sub-list for extension type_name
-	8,  // [8:8] is the sub-list for extension extendee
-	0,  // [0:8] is the sub-list for field type_name
+	8,  // 0: teleport.kube.v1.ListKubernetesResourcesRequest.labels:type_name -> teleport.kube.v1.ListKubernetesResourcesRequest.LabelsEntry
+	9,  // 1: teleport.kube.v1.ListKubernetesResourcesRequest.sort_by:type_name -> types.SortBy
+	10, // 2: teleport.kube.v1.ListKubernetesResourcesResponse.resources:type_name -> types.KubernetesResourceV1
+	11, // 3: teleport.kube.v1.GetKubeClusterResponse.cluster:type_name -> types.KubernetesClusterV3
+	12, // 4: teleport.kube.v1.ListKubeClustersRequest.scope_filter:type_name -> teleport.scopes.v1.Filter
+	11, // 5: teleport.kube.v1.ListKubeClustersResponse.clusters:type_name -> types.KubernetesClusterV3
+	0,  // 6: teleport.kube.v1.KubeService.ListKubernetesResources:input_type -> teleport.kube.v1.ListKubernetesResourcesRequest
+	2,  // 7: teleport.kube.v1.KubeClusterService.GetKubeCluster:input_type -> teleport.kube.v1.GetKubeClusterRequest
+	4,  // 8: teleport.kube.v1.KubeClusterService.ListKubeClusters:input_type -> teleport.kube.v1.ListKubeClustersRequest
+	6,  // 9: teleport.kube.v1.KubeClusterService.DeleteKubeCluster:input_type -> teleport.kube.v1.DeleteKubeClusterRequest
+	1,  // 10: teleport.kube.v1.KubeService.ListKubernetesResources:output_type -> teleport.kube.v1.ListKubernetesResourcesResponse
+	3,  // 11: teleport.kube.v1.KubeClusterService.GetKubeCluster:output_type -> teleport.kube.v1.GetKubeClusterResponse
+	5,  // 12: teleport.kube.v1.KubeClusterService.ListKubeClusters:output_type -> teleport.kube.v1.ListKubeClustersResponse
+	7,  // 13: teleport.kube.v1.KubeClusterService.DeleteKubeCluster:output_type -> teleport.kube.v1.DeleteKubeClusterResponse
+	10, // [10:14] is the sub-list for method output_type
+	6,  // [6:10] is the sub-list for method input_type
+	6,  // [6:6] is the sub-list for extension type_name
+	6,  // [6:6] is the sub-list for extension extendee
+	0,  // [0:6] is the sub-list for field type_name
 }
 
 func init() { file_teleport_kube_v1_kube_service_proto_init() }
@@ -1076,14 +926,13 @@ func file_teleport_kube_v1_kube_service_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_kube_v1_kube_service_proto_rawDesc), len(file_teleport_kube_v1_kube_service_proto_rawDesc)),
-			NumEnums:      1,
-			NumMessages:   10,
+			NumEnums:      0,
+			NumMessages:   9,
 			NumExtensions: 0,
 			NumServices:   2,
 		},
 		GoTypes:           file_teleport_kube_v1_kube_service_proto_goTypes,
 		DependencyIndexes: file_teleport_kube_v1_kube_service_proto_depIdxs,
-		EnumInfos:         file_teleport_kube_v1_kube_service_proto_enumTypes,
 		MessageInfos:      file_teleport_kube_v1_kube_service_proto_msgTypes,
 	}.Build()
 	File_teleport_kube_v1_kube_service_proto = out.File
