@@ -158,6 +158,10 @@ message CreateCSRRequest {
 }
 
 // Response for CreateCSR.
+//
+// A successful response contains at least one CSR and zero or more warnings.
+// If the server is incapable of returning any CSRs the response will be an
+// error (instead of a CreateCSRResponse).
 message CreateCSRResponse {
   // Created CSRs.
   repeated CertificateSigningRequest csrs = 1;
