@@ -382,6 +382,8 @@ const cfg = {
       'wss://:fqdn/v1/webapi/sites/:clusterId/db/exec/ws?params=:params',
     ttyPlaybackWsAddr:
       'wss://:fqdn/v1/webapi/sites/:clusterId/ttyplayback/:sid?access_token=:token', // TODO(zmb3): get token out of URL
+    beamReplayWsAddr:
+      'wss://:fqdn/v1/webapi/sites/:clusterId/beamreplay/:sid/ws',
     activeAndPendingSessionsPath: '/v1/webapi/sites/:clusterId/sessions',
     sessionDurationPath: '/v1/webapi/sites/:clusterId/sessionlength/:sid',
 
@@ -1188,6 +1190,16 @@ const cfg = {
       clusterId,
       sessionId,
     });
+  },
+
+  // getBeamReplayWsUrl builds the WebSocket URL used by the beam replay viewer
+  // to stream a recorded beam session from the proxy (which bridges to the
+  // backend BeamReplayService). Mirrors the desktop/tty playback pattern.
+  getBeamReplayWsUrl({ clusterId, sid }: { clusterId: string; sid: string }) {
+    return cfg.api.beamReplayWsAddr
+      .replace(':fqdn', window.location.host)
+      .replace(':clusterId', clusterId)
+      .replace(':sid', sid);
   },
 
   getConnectionDiagnosticUrl() {
