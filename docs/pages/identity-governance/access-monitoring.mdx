@@ -298,9 +298,9 @@ ORDER BY
 
 ```code
 $ tctl investigate --event-type=cert.create --from=30d --limit=0 --format=json \
-  | jq '[.data[] | {user: .event_data.identity.user, ip: .event_data.identity.client_ip}]
-        | group_by(.user)
-        | map({user: .[0].user, unique_ip_count: ([.[].ip] | unique | length)})'
+  | jq '[.data[] | {event_date: .time[0:10], user: .event_data.identity.user, ip: .event_data.identity.client_ip}]
+        | group_by([.event_date, .user])
+        | map({event_date: .[0].event_date, user: .[0].user, unique_ip_count: ([.[].ip] | unique | length)})'
 ```
 
 </details>
@@ -325,9 +325,9 @@ ORDER BY
 
 ```code
 $ tctl investigate --event-type=cert.create --from=30d --limit=0 --format=json \
-  | jq '[.data[] | {user: .event_data.identity.user, ip: .event_data.identity.client_ip}]
-        | group_by(.user)
-        | map({user: .[0].user, unique_ip_count: ([.[].ip] | unique | length)})
+  | jq '[.data[] | {event_date: .time[0:10], user: .event_data.identity.user, ip: .event_data.identity.client_ip}]
+        | group_by([.event_date, .user])
+        | map({event_date: .[0].event_date, user: .[0].user, unique_ip_count: ([.[].ip] | unique | length)})
         | map(select(.unique_ip_count > 1))'
 ```
 
