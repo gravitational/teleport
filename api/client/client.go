@@ -1002,6 +1002,11 @@ func (c *Client) BeamsConfigServiceClient() beamsv1.BeamsConfigServiceClient {
 	return beamsv1.NewBeamsConfigServiceClient(c.conn)
 }
 
+// BeamReplayServiceClient returns a client for the beam replay service.
+func (c *Client) BeamReplayServiceClient() beamsv1.BeamReplayServiceClient {
+	return beamsv1.NewBeamReplayServiceClient(c.conn)
+}
+
 // GetVnetConfig returns the singleton VnetConfig resource.
 func (c *Client) GetVnetConfig(ctx context.Context) (*vnet.VnetConfig, error) {
 	return c.VnetConfigServiceClient().GetVnetConfig(ctx, &vnet.GetVnetConfigRequest{})

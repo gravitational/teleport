@@ -2000,4 +2000,7 @@ type ClientI interface {
 
 	// BeamServiceClient returns a client for the beam service.
 	BeamServiceClient() beamsv1.BeamServiceClient
+
+	// BeamReplayServiceClient returns a client for the beam replay service.
+	BeamReplayServiceClient() beamsv1.BeamReplayServiceClient
 }
