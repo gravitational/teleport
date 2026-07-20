@@ -93,11 +93,10 @@ Teleport provides several preset roles:
 There are currently seven supported role versions: `v3`, `v4`, `v5`, `v6`, `v7`, `v8`,
 and `v9`.
 
+#### Role v4
+
 `v4` and higher roles are completely backwards compatible with `v3`. The only difference
 lies in the default values which will be applied to the role if they are not explicitly set.
-Additionally, roles with version `v5` or higher do not allow joining sessions by default. The
-[Joining Sessions](../../zero-trust-access/authentication/joining-sessions.mdx) configuration in roles 'v5` or higher
-must be set to allow for joining sessions.
 
 Label              | `v3` Default   | `v4` and higher Default
 ------------------ | -------------- | ---------------
@@ -106,10 +105,22 @@ Label              | `v3` Default   | `v4` and higher Default
 `kubernetes_labels` | `[{"*": "*"}]` | `[]`
 `db_labels`         | `[{"*": "*"}]` | `[]`
 
+#### Role v5
+
+Roles with version `v5` or higher do not allow joining sessions by default. The
+[Joining Sessions](../../zero-trust-access/authentication/joining-sessions.mdx) configuration in roles `v5` or higher
+must be set to allow for joining sessions.
+
+#### Role v6
+
 Role v6 introduced a new field, `kubernetes_resources`, that allows
 fine-grained control over Kubernetes resources. See [Kubernetes RBAC](../../enroll-resources/kubernetes-access/controls.mdx) for more details.
 
+#### Role v7
+
 Role v7 added support for more `kind` values in the `kubernetes_resources` field.
+
+#### Role v8
 
 Role v8 added support for Kubernetes CRDs and introduced changes in how
 `kubernetes_resources` behave and are defined. Role v8 is not compatible with
@@ -119,6 +130,12 @@ cannot interpret the fields specific to v8 roles. Upgrade all agents to v18
 before using role v8.
 
 See [Kubernetes Resources](../../enroll-resources/kubernetes-access/controls.mdx#kubernetes_resources) for more details about the difference between versions.
+
+The SAML IdP role option `spec.idp.saml.enabled: true/false` is only supported in role version 7 and below.
+There are further changes to the `saml_idp_service_provider` resource RBAC starting role `v8`.
+See [SAML IdP RBAC](./saml-idp.mdx#RBAC) for more details.
+
+#### Role v9
 
 Role v9 makes application access deny-by-default. When a v9 role grants an
 app via `app_labels` or `app_labels_expression`, HTTP requests to that app
@@ -152,10 +169,6 @@ Version              |  `kubernetes_resources`
 `v6` |  `[]`
 `v7` |  `[{"kind":"*","name":"*","namespace":"*","verbs":["*"]}]`
 `v8` |  `[{"kind":"*","api_group":"*","name":"*","namespace":"*","verbs":["*"]},{"kind":"*","api_group":"*","name":"*","namespace":"","verbs":["*"]}]`
-
-SAML IdP role option `spec.idp.saml.enabled: true/false` is only supported in role version 7 and below.
-There are further changes to the `saml_idp_service_provider` resource RBAC starting role `v8`.
-See [SAML IdP RBAC](./saml-idp.mdx#RBAC) for more details.
 
 ## RBAC for infrastructure resources
 
