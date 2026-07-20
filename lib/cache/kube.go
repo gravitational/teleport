@@ -27,11 +27,13 @@ import (
 
 	clientproto "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
+	kubev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	kubewaitingcontainerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/itertools/stream"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
@@ -199,9 +201,9 @@ type kubeClusterIndex string
 
 const kubeClusterNameIndex = "name"
 
-func newKubernetesClusterCollection(k services.Kubernetes, w types.WatchKind) (*collection[types.KubeCluster, kubeClusterIndex], error) {
-	if k == nil {
-		return nil, trace.BadParameter("missing parameter Kubernetes")
+func newKubernetesClusterCollection(upstream services.KubeClusterUpstream, w types.WatchKind) (*collection[types.KubeCluster, kubeClusterIndex], error) {
+	if upstream == nil {
+		return nil, trace.BadParameter("missing parameter KubeClusterUpstream")
 	}
 
 	return &collection[types.KubeCluster, kubeClusterIndex]{
@@ -209,11 +211,20 @@ func newKubernetesClusterCollection(k services.Kubernetes, w types.WatchKind) (*
 			types.KindKubernetesCluster,
 			types.KubeCluster.Copy,
 			map[kubeClusterIndex]func(types.KubeCluster) string{
-				kubeClusterNameIndex: types.KubeCluster.GetName,
+				kubeClusterNameIndex: services.GetCursorForKubeCluster,
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.KubeCluster, error) {
-			return k.GetKubernetesClusters(ctx)
+			return stream.Collect(clientutils.Resources(ctx, func(ctx context.Context, pageSize int, pageToken string) ([]types.KubeCluster, string, error) {
+				return upstream.ListKubeClusters(ctx, kubev1.ListKubeClustersRequest_builder{
+					PageSize:  int32(pageSize),
+					PageToken: pageToken,
+					// TODO (eriktate): propagate filter from WatchKind once that's possible
+					ScopeFilter: nil,
+				}.Build())
+			}))
 		},
+		// TODO (eriktate): DELETE IN v21: headerTransform is kept for backwards compatibility, but delete events for
+		// kube clusters are expected to be the resource type going forward
 		headerTransform: func(hdr *types.ResourceHeader) types.KubeCluster {
 			return &types.KubernetesClusterV3{
 				Kind:    hdr.Kind,
@@ -257,11 +268,16 @@ func (c *Cache) ListKubernetesClusters(ctx context.Context, limit int, start str
 	defer span.End()
 
 	lister := genericLister[types.KubeCluster, kubeClusterIndex]{
-		cache:        c,
-		collection:   c.collections.kubeClusters,
-		index:        kubeClusterNameIndex,
-		upstreamList: c.Config.Kubernetes.ListKubernetesClusters,
-		nextToken:    types.KubeCluster.GetName,
+		cache:      c,
+		collection: c.collections.kubeClusters,
+		index:      kubeClusterNameIndex,
+		upstreamList: func(ctx context.Context, pageSize int, pageToken string) ([]types.KubeCluster, string, error) {
+			return c.KubeClusterUpstream.ListKubeClusters(ctx, kubev1.ListKubeClustersRequest_builder{
+				PageSize:  int32(pageSize),
+				PageToken: pageToken,
+			}.Build())
+		},
+		nextToken: services.GetCursorForKubeCluster,
 	}
 	out, next, err := lister.list(ctx, limit, start)
 	if err != nil {
@@ -271,14 +287,43 @@ func (c *Cache) ListKubernetesClusters(ctx context.Context, limit int, start str
 	return out, next, nil
 }
 
+// ListKubeClusters returns a page of registered kubernetes clusters.
+func (c *Cache) ListKubeClusters(ctx context.Context, req *kubev1.ListKubeClustersRequest) ([]types.KubeCluster, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListKubeClusters")
+	defer span.End()
+
+	scopeFilter := req.GetScopeFilter()
+	if err := scopes.ValidateFilter(scopeFilter); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	lister := genericLister[types.KubeCluster, kubeClusterIndex]{
+		cache:      c,
+		collection: c.collections.kubeClusters,
+		index:      kubeClusterNameIndex,
+		upstreamList: func(ctx context.Context, _ int, _ string) ([]types.KubeCluster, string, error) {
+			return c.KubeClusterUpstream.ListKubeClusters(ctx, req)
+		},
+		nextToken: services.GetCursorForKubeCluster,
+		filter: func(cluster types.KubeCluster) bool {
+			return scopes.MatchScope(scopeFilter, cluster.GetScope())
+		},
+	}
+	return lister.list(ctx, int(req.GetPageSize()), req.GetPageToken())
+}
+
 // RangeKubernetesClusters returns kubernetes clusters within the range [start, end).
 func (c *Cache) RangeKubernetesClusters(ctx context.Context, start, end string) iter.Seq2[types.KubeCluster, error] {
 	lister := genericLister[types.KubeCluster, kubeClusterIndex]{
-		cache:        c,
-		collection:   c.collections.kubeClusters,
-		index:        kubeClusterNameIndex,
-		upstreamList: c.Config.Kubernetes.ListKubernetesClusters,
-		nextToken:    types.KubeCluster.GetName,
+		cache:      c,
+		collection: c.collections.kubeClusters,
+		index:      kubeClusterNameIndex,
+		upstreamList: func(ctx context.Context, pageSize int, pageToken string) ([]types.KubeCluster, string, error) {
+			return c.KubeClusterUpstream.ListKubeClusters(ctx, kubev1.ListKubeClustersRequest_builder{
+				PageSize:  int32(pageSize),
+				PageToken: pageToken,
+			}.Build())
+		},
+		nextToken: services.GetCursorForKubeCluster,
 		// TODO(lokraszewski): DELETE IN v21.0.0
 		fallbackGetter: c.Config.Kubernetes.GetKubernetesClusters,
 	}
@@ -299,6 +344,35 @@ func (c *Cache) RangeKubernetesClusters(ctx context.Context, start, end string) 
 	}
 }
 
+// RangeKubeClusters returns kubernetes clusters within the range [start, end).
+func (c *Cache) RangeKubeClusters(ctx context.Context, req *kubev1.ListKubeClustersRequest, startKey, endKey string) iter.Seq2[types.KubeCluster, error] {
+	ctx, span := c.Tracer.Start(ctx, "cache/RangeKubeClusters")
+	defer span.End()
+	scopeFilter := req.GetScopeFilter()
+	if err := scopes.ValidateFilter(scopeFilter); err != nil {
+		return stream.Fail[types.KubeCluster](trace.Wrap(err))
+	}
+
+	lister := genericLister[types.KubeCluster, kubeClusterIndex]{
+		cache:      c,
+		collection: c.collections.kubeClusters,
+		index:      kubeClusterNameIndex,
+		upstreamList: func(ctx context.Context, pageSize int, pageToken string) ([]types.KubeCluster, string, error) {
+			return c.KubeClusterUpstream.ListKubeClusters(ctx, kubev1.ListKubeClustersRequest_builder{
+				PageSize:    int32(pageSize),
+				PageToken:   pageToken,
+				ScopeFilter: scopeFilter,
+			}.Build())
+		},
+		filter: func(cluster types.KubeCluster) bool {
+			return scopes.MatchScope(scopeFilter, cluster.GetScope())
+		},
+		nextToken: services.GetCursorForKubeCluster,
+	}
+
+	return lister.Range(ctx, startKey, endKey)
+}
+
 // GetKubernetesCluster returns the specified kubernetes cluster resource.
 func (c *Cache) GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetKubernetesCluster")
@@ -311,7 +385,9 @@ func (c *Cache) GetKubernetesCluster(ctx context.Context, name string) (types.Ku
 	defer rg.Release()
 
 	if !rg.ReadCache() {
-		cluster, err := c.Config.Kubernetes.GetKubernetesCluster(ctx, name)
+		cluster, err := c.Config.KubeClusterUpstream.GetKubeCluster(ctx, kubev1.GetKubeClusterRequest_builder{
+			Name: name,
+		}.Build())
 		return cluster, trace.Wrap(err)
 	}
 
@@ -321,6 +397,29 @@ func (c *Cache) GetKubernetesCluster(ctx context.Context, name string) (types.Ku
 	}
 
 	return k.Copy(), nil
+}
+
+// GetKubeCluster returns the specified kubernetes cluster resource.
+func (c *Cache) GetKubeCluster(ctx context.Context, req *kubev1.GetKubeClusterRequest) (types.KubeCluster, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetKubeCluster")
+	defer span.End()
+
+	clusterCursor := scopes.MakeResourceCursor(req.GetScope(), req.GetName())
+
+	getter := genericGetter[types.KubeCluster, kubeClusterIndex]{
+		cache:      c,
+		collection: c.collections.kubeClusters,
+		index:      kubeClusterNameIndex,
+		upstreamGet: func(ctx context.Context, _ string) (types.KubeCluster, error) {
+			return c.KubeClusterUpstream.GetKubeCluster(ctx, req)
+		},
+	}
+
+	out, err := getter.get(ctx, clusterCursor)
+	if out == nil {
+		return nil, trace.Wrap(err)
+	}
+	return out.Copy(), trace.Wrap(err)
 }
 
 type kubeWaitingContainerIndex string

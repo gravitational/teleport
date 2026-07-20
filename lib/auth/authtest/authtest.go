@@ -624,6 +624,7 @@ func InitAuthCache(p AuthCacheParams) error {
 		Integrations:            p.AuthServer.Services.Integrations,
 		KubeWaitingContainers:   p.AuthServer.Services.KubeWaitingContainer,
 		Kubernetes:              p.AuthServer.Services.Kubernetes,
+		KubeClusterUpstream:     p.AuthServer.Services.KubeClusterService,
 		Notifications:           p.AuthServer.Services.Notifications,
 		Okta:                    p.AuthServer.Services.Okta,
 		Presence:                p.AuthServer.Services.PresenceInternal,

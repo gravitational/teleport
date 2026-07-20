@@ -382,7 +382,10 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	p.webTokenS = idService
 	p.restrictions = local.NewRestrictionsService(p.backend)
 	p.apps = local.NewAppService(p.backend)
-	p.kubernetes = local.NewKubernetesService(p.backend)
+	p.kubernetes, err = local.NewKubernetesService(p.backend)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	p.databases = local.NewDatabasesService(p.backend)
 	p.databaseServices = local.NewDatabaseServicesService(p.backend)
 	p.windowsDesktops = local.NewWindowsDesktopService(p.backend)
@@ -599,6 +602,7 @@ func newPack(t testing.TB, setupConfig func(c Config) Config, opts ...packOption
 		Restrictions:            p.restrictions,
 		Apps:                    p.apps,
 		Kubernetes:              p.kubernetes,
+		KubeClusterUpstream:     p.kubernetes,
 		DatabaseServices:        p.databaseServices,
 		Databases:               p.databases,
 		WindowsDesktops:         p.windowsDesktops,
@@ -875,6 +879,7 @@ func TestCompletenessInit(t *testing.T) {
 			Restrictions:            p.restrictions,
 			Apps:                    p.apps,
 			Kubernetes:              p.kubernetes,
+			KubeClusterUpstream:     p.kubernetes,
 			DatabaseServices:        p.databaseServices,
 			Databases:               p.databases,
 			WindowsDesktops:         p.windowsDesktops,
@@ -970,6 +975,7 @@ func TestCompletenessReset(t *testing.T) {
 		Restrictions:            p.restrictions,
 		Apps:                    p.apps,
 		Kubernetes:              p.kubernetes,
+		KubeClusterUpstream:     p.kubernetes,
 		DatabaseServices:        p.databaseServices,
 		Databases:               p.databases,
 		WindowsDesktops:         p.windowsDesktops,
@@ -1140,6 +1146,7 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		Restrictions:            p.restrictions,
 		Apps:                    p.apps,
 		Kubernetes:              p.kubernetes,
+		KubeClusterUpstream:     p.kubernetes,
 		DatabaseServices:        p.databaseServices,
 		Databases:               p.databases,
 		WindowsDesktops:         p.windowsDesktops,
@@ -1247,6 +1254,7 @@ func initStrategy(t *testing.T) {
 		Restrictions:            p.restrictions,
 		Apps:                    p.apps,
 		Kubernetes:              p.kubernetes,
+		KubeClusterUpstream:     p.kubernetes,
 		DatabaseServices:        p.databaseServices,
 		Databases:               p.databases,
 		WindowsDesktops:         p.windowsDesktops,
