@@ -1584,6 +1584,8 @@ type Cache interface {
 
 	// SubCAServiceGetter reads CertAuthorityOverride resources.
 	services.SubCAServiceGetter
+	// KubeClusterReader reads KubeCluster resources.
+	services.KubeClusterReader
 }
 
 type NodeWrapper struct {
