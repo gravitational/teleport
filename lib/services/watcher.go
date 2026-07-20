@@ -663,8 +663,15 @@ func NewKubeClusterWatcher(ctx context.Context, cfg KubeClusterWatcherConfig) (*
 		ResourceGetter: func(ctx context.Context) ([]types.KubeCluster, error) {
 			return iterstream.Collect(getter.RangeKubeClusters(ctx, nil))
 		},
-		ResourceKey: types.KubeCluster.GetName,
-		ResourcesC:  cfg.KubeClustersC,
+		ResourceKey: GetCursorForKubeCluster,
+		DeleteKey: func(res types.Resource) string {
+			cluster, ok := res.(types.KubeCluster)
+			if !ok {
+				return ""
+			}
+			return GetCursorForKubeCluster(cluster)
+		},
+		ResourcesC: cfg.KubeClustersC,
 		CloneFunc: func(resource types.KubeCluster) types.KubeCluster {
 			return resource.Copy()
 		},
