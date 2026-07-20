@@ -17,6 +17,7 @@
 package vnet
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"os"
@@ -327,8 +328,11 @@ func TestConfigureDNSRestoresModifiedResolverFile(t *testing.T) {
 	cfg := dnsTestOSConfig()
 
 	require.NoError(t, platformConfigureOS(t.Context(), cfg, state))
+	// Tamper without changing the file size to make sure drift detection
+	// doesn't rely on cheap size checks.
+	tampered := bytes.ToUpper(resolverFileContents(cfg.dnsAddrs))
 	require.NoError(t, os.WriteFile(
-		resolverFileForZone("example.com"), []byte("# tampered\n"), 0644))
+		resolverFileForZone("example.com"), tampered, 0644))
 	require.NoError(t, platformConfigureOS(t.Context(), cfg, state))
 
 	requireResolverFiles(t, cfg.dnsAddrs, "example.com", "leaf.example.com")

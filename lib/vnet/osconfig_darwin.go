@@ -143,9 +143,8 @@ func configureDNS(ctx context.Context, state *platformOSConfigState, nameservers
 	if state.configuredDNS != nil &&
 		bytes.Equal(state.configuredDNS.fileContents, desiredContents) &&
 		slices.Equal(state.configuredDNS.files, files) {
-		// Check managed files for size changes to catch external drift
-		// This misses same-size edits, but those should be rare.
-		if resolverFileSizesMatch(files, int64(len(desiredContents))) {
+		// Read the managed files to catch external drift
+		if resolverFilesMatch(files, desiredContents) {
 			return nil
 		}
 		log.InfoContext(ctx, "Resolver files changed externally, re-applying DNS configuration.")
@@ -202,11 +201,12 @@ func resolverFileContents(nameservers []string) []byte {
 	return fileContents.Bytes()
 }
 
-// resolverFileSizesMatch reports whether every file exists with the expected.
-func resolverFileSizesMatch(files []string, wantSize int64) bool {
+// resolverFilesMatch reports whether every managed resolver file still has
+// the expected contents.
+func resolverFilesMatch(files []string, wantContents []byte) bool {
 	for _, f := range files {
-		info, err := os.Stat(f)
-		if err != nil || info.Size() != wantSize {
+		contents, err := os.ReadFile(f)
+		if err != nil || !bytes.Equal(contents, wantContents) {
 			return false
 		}
 	}
