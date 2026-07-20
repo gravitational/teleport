@@ -89,7 +89,7 @@ type OktaServiceClient interface {
 	// DeleteOktaAssignment removes the specified Okta assignment resource.
 	DeleteOktaAssignment(ctx context.Context, in *DeleteOktaAssignmentRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// ConditionalDeleteOktaAssignment deletes the specifiied Okta assignment resource, protected by optimistic locking.
-	ConditionalDeleteOktaAssignment(ctx context.Context, in *ConditionalDeleteOktaAssignmentRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	ConditionalDeleteOktaAssignment(ctx context.Context, in *ConditionalDeleteOktaAssignmentRequest, opts ...grpc.CallOption) (*ConditionalDeleteOktaAssignmentResponse, error)
 	// DeleteAllOktaAssignments removes all Okta assignments.
 	DeleteAllOktaAssignments(ctx context.Context, in *DeleteAllOktaAssignmentsRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// ConditionalUpdateOktaAssignment updates an Okta assignment resource, protected by optimistic locking.
@@ -236,9 +236,9 @@ func (c *oktaServiceClient) DeleteOktaAssignment(ctx context.Context, in *Delete
 	return out, nil
 }
 
-func (c *oktaServiceClient) ConditionalDeleteOktaAssignment(ctx context.Context, in *ConditionalDeleteOktaAssignmentRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+func (c *oktaServiceClient) ConditionalDeleteOktaAssignment(ctx context.Context, in *ConditionalDeleteOktaAssignmentRequest, opts ...grpc.CallOption) (*ConditionalDeleteOktaAssignmentResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(emptypb.Empty)
+	out := new(ConditionalDeleteOktaAssignmentResponse)
 	err := c.cc.Invoke(ctx, OktaService_ConditionalDeleteOktaAssignment_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
@@ -357,7 +357,7 @@ type OktaServiceServer interface {
 	// DeleteOktaAssignment removes the specified Okta assignment resource.
 	DeleteOktaAssignment(context.Context, *DeleteOktaAssignmentRequest) (*emptypb.Empty, error)
 	// ConditionalDeleteOktaAssignment deletes the specifiied Okta assignment resource, protected by optimistic locking.
-	ConditionalDeleteOktaAssignment(context.Context, *ConditionalDeleteOktaAssignmentRequest) (*emptypb.Empty, error)
+	ConditionalDeleteOktaAssignment(context.Context, *ConditionalDeleteOktaAssignmentRequest) (*ConditionalDeleteOktaAssignmentResponse, error)
 	// DeleteAllOktaAssignments removes all Okta assignments.
 	DeleteAllOktaAssignments(context.Context, *DeleteAllOktaAssignmentsRequest) (*emptypb.Empty, error)
 	// ConditionalUpdateOktaAssignment updates an Okta assignment resource, protected by optimistic locking.
@@ -420,7 +420,7 @@ func (UnimplementedOktaServiceServer) UpdateOktaAssignmentStatus(context.Context
 func (UnimplementedOktaServiceServer) DeleteOktaAssignment(context.Context, *DeleteOktaAssignmentRequest) (*emptypb.Empty, error) {
 	return nil, status.Error(codes.Unimplemented, "method DeleteOktaAssignment not implemented")
 }
-func (UnimplementedOktaServiceServer) ConditionalDeleteOktaAssignment(context.Context, *ConditionalDeleteOktaAssignmentRequest) (*emptypb.Empty, error) {
+func (UnimplementedOktaServiceServer) ConditionalDeleteOktaAssignment(context.Context, *ConditionalDeleteOktaAssignmentRequest) (*ConditionalDeleteOktaAssignmentResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ConditionalDeleteOktaAssignment not implemented")
 }
 func (UnimplementedOktaServiceServer) DeleteAllOktaAssignments(context.Context, *DeleteAllOktaAssignmentsRequest) (*emptypb.Empty, error) {

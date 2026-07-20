@@ -50,7 +50,7 @@ service OktaService {
   // DeleteOktaAssignment removes the specified Okta assignment resource.
   rpc DeleteOktaAssignment(DeleteOktaAssignmentRequest) returns (google.protobuf.Empty);
   // ConditionalDeleteOktaAssignment deletes the specifiied Okta assignment resource, protected by optimistic locking.
-  rpc ConditionalDeleteOktaAssignment(ConditionalDeleteOktaAssignmentRequest) returns (google.protobuf.Empty);
+  rpc ConditionalDeleteOktaAssignment(ConditionalDeleteOktaAssignmentRequest) returns (ConditionalDeleteOktaAssignmentResponse);
   // DeleteAllOktaAssignments removes all Okta assignments.
   rpc DeleteAllOktaAssignments(DeleteAllOktaAssignmentsRequest) returns (google.protobuf.Empty);
   // ConditionalUpdateOktaAssignment updates an Okta assignment resource, protected by optimistic locking.
@@ -369,6 +369,10 @@ message ConditionalDeleteOktaAssignmentRequest {
   // revision is the revision of the Okta assignment resource.
   string revision = 2;
 }
+
+// ConditionalDeleteOktaAssignmentResponse is the response for deleting an Okta assignment,
+// protected by optimistic locking.
+message ConditionalDeleteOktaAssignmentResponse {}
 
 // DeleteAllOktaAssignmentsRequest is the request for deleting all Okta assignments.
 message DeleteAllOktaAssignmentsRequest {}

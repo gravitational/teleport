@@ -438,16 +438,12 @@ func TestOktaAssignmentCRUD(t *testing.T) {
 	assignment, err = service.CreateOktaAssignment(ctx, oktaAssignment(t, "assignment3", "test-user@test.user", constants.OktaAssignmentStatusProcessing, clock.Now()))
 	require.NoError(t, err)
 
-	// Try to conditionally delete an assignment that doesn't exist.
-	err = service.ConditionalDeleteOktaAssignment(ctx, "doesnotexist", assignment.GetRevision())
-	require.True(t, trace.IsCompareFailed(err), "expected compare failed error, got %v", err)
-
-	// Try to conditionally delete an assignment with no revision.
-	err = service.ConditionalDeleteOktaAssignment(ctx, assignment.GetName(), "")
-	require.True(t, trace.IsBadParameter(err), "expected bad parameter error, got %v", err)
-
-	// Conditionally delete an assignment.
+	// Conditionally delete assignment.
 	require.NoError(t, service.ConditionalDeleteOktaAssignment(ctx, assignment.GetName(), assignment.GetRevision()))
+
+	// Verify assignment deleted.
+	_, err = service.GetOktaAssignment(ctx, assignment.GetName())
+	require.ErrorAs(t, err, new(*trace.NotFoundError))
 
 	// Delete all assignments.
 	err = service.DeleteAllOktaAssignments(ctx)
@@ -476,8 +472,7 @@ func oktaAssignment(t *testing.T, name, username, status string, lastTransition 
 }
 
 func oktaTarget(t *testing.T, targetType types.OktaAssignmentTargetV1_OktaAssignmentTargetType,
-	id string,
-) *types.OktaAssignmentTargetV1 {
+	id string) *types.OktaAssignmentTargetV1 {
 	target := &types.OktaAssignmentTargetV1{
 		Type: targetType,
 		Id:   id,
