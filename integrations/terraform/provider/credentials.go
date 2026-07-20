@@ -65,7 +65,7 @@ func (s CredentialSources) ActiveSources(ctx context.Context, config providerDat
 		}
 		if !active {
 			tflog.Info(ctx, "credentials source is not active, skipping", logFields)
-			inactiveReason.WriteString(fmt.Sprintf(" - cannot read credentials %s because %s\n", source.Name(), reason))
+			fmt.Fprintf(&inactiveReason, " - cannot read credentials %s because %s\n", source.Name(), reason)
 			continue
 		}
 		tflog.Info(ctx, "credentials source is active", logFields)
