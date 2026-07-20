@@ -3846,7 +3846,7 @@ message RoleV6 {
   // SubKind is an optional resource sub kind, used in some resources
   string SubKind = 2 [(gogoproto.jsontag) = "sub_kind,omitempty"];
   // Version is the resource version. It must be specified.
-  // Supported values are: `v3`, `v4`, `v5`, `v6`, `v7`, `v8`.
+  // Supported values are: `v3`, `v4`, `v5`, `v6`, `v7`, `v8`, `v9`.
   string Version = 3 [(gogoproto.jsontag) = "version"];
   // Metadata is resource metadata
   Metadata Metadata = 4 [
@@ -4419,6 +4419,34 @@ message RoleConditions {
   // BeamLabelsExpression is a predicate expression used to allow/deny access
   // to beams.
   string BeamLabelsExpression = 51 [(gogoproto.jsontag) = "beam_labels_expression,omitempty"];
+
+  // AppResources is the list of rules controlling access to an app's
+  // resources on each HTTP request. It is valid only in role version v9 and
+  // above, and only under allow.
+  repeated AppResource AppResources = 52 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "app_resources,omitempty"
+  ];
+
+  // Field 53 is reserved for AppResourcesExpressions, the predicate
+  // counterpart of the declarative AppResources rules.
+  reserved 53;
+  reserved "AppResourcesExpressions";
+}
+
+// AppResource is one rule under a role's app_resources. The only supported
+// rule form is allow_all, which grants unrestricted access. The reserved
+// field numbers are for upcoming path, method, and where rules.
+message AppResource {
+  // Fields 1 to 4 and 6 to 9 are reserved for the upcoming fine-grained
+  // rule fields (paths, methods, where, allow_encoded, allow_code,
+  // allow_reason, deny_code_hint, deny_reason_hint).
+  reserved 1 to 4, 6 to 9;
+  reserved "Paths", "Methods", "Where", "AllowEncoded", "AllowCode", "AllowReason", "DenyCodeHint", "DenyReasonHint";
+
+  // AllowAll grants unrestricted access to every path and method. It
+  // cannot be combined with any other field.
+  bool AllowAll = 5 [(gogoproto.jsontag) = "allow_all,omitempty"];
 }
 
 // IdentityCenterAccountAssignment captures an AWS Identity Center account

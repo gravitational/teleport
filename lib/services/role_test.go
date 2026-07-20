@@ -1646,6 +1646,72 @@ func TestUnmarshalRole(t *testing.T) {
 	}
 }
 
+// TestMarshalRoleV9RoundTrip guards the UnmarshalRoleV6 version allow-list.
+// A v9 role must survive a marshal/unmarshal round-trip with its
+// app_resources intact, since backend reads and the cache watcher decode
+// roles this way.
+func TestMarshalRoleV9RoundTrip(t *testing.T) {
+	t.Parallel()
+
+	role, err := types.NewRoleWithVersion("v9-role", types.V9, types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			AppLabels:    types.Labels{"env": []string{"dev"}},
+			AppResources: []types.AppResource{{AllowAll: true}},
+		},
+	})
+	require.NoError(t, err)
+
+	data, err := MarshalRole(role)
+	require.NoError(t, err)
+
+	got, err := UnmarshalRole(data)
+	require.NoError(t, err)
+	require.Equal(t, types.V9, got.GetVersion())
+	require.Equal(t, role.GetAppResources(types.Allow), got.GetAppResources(types.Allow))
+}
+
+// TestValidateRoleAppResources covers the write-path app_resources
+// rules. The field is allow-only and every rule must set allow_all
+// and nothing else.
+func TestValidateRoleAppResources(t *testing.T) {
+	t.Parallel()
+
+	newV9Role := func(allow, deny []types.AppResource) types.Role {
+		return &types.RoleV6{
+			Metadata: types.Metadata{Name: "v9-role"},
+			Version:  types.V9,
+			Spec: types.RoleSpecV6{
+				Allow: types.RoleConditions{
+					AppLabels:    types.Labels{"env": []string{"dev"}},
+					AppResources: allow,
+				},
+				Deny: types.RoleConditions{AppResources: deny},
+			},
+		}
+	}
+
+	err := ValidateRole(newV9Role([]types.AppResource{{AllowAll: true}}, nil))
+	require.NoError(t, err)
+
+	err = ValidateRole(newV9Role(nil, nil))
+	require.NoError(t, err)
+
+	err = ValidateRole(newV9Role([]types.AppResource{{AllowAll: true}, {}}, nil))
+	require.ErrorContains(t, err, "app_resources[1]: a rule must set allow_all")
+
+	err = ValidateRole(newV9Role([]types.AppResource{{AllowAll: true}, {AllowAll: true}}, nil))
+	require.ErrorContains(t, err, "app_resources: a rule setting allow_all must be the only rule")
+
+	// Unknown proto bytes from a newer client must be rejected. The JSON
+	// marshal into the backend would drop them and widen the rule.
+	combined := types.AppResource{AllowAll: true, XXX_unrecognized: []byte{0x0a, 0x01, 0x2f}}
+	err = ValidateRole(newV9Role([]types.AppResource{combined}, nil))
+	require.ErrorContains(t, err, "a rule must set allow_all and nothing else")
+
+	err = ValidateRole(newV9Role(nil, []types.AppResource{{AllowAll: true}}))
+	require.ErrorContains(t, err, "app_resources is not allowed under deny")
+}
+
 func TestValidateRoleName(t *testing.T) {
 	tests := []struct {
 		name         string
