@@ -81,9 +81,6 @@ func (s *TerraformSuiteOSS) TestHealthCheckConfig() {
 }
 
 func (s *TerraformSuiteOSS) TestImportHealthCheckConfig() {
-	// TODO: Test case should now expect a zero value rather than a null value.
-	s.T().Skip("Should be empty, but was 0")
-
 	t := s.T()
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
@@ -165,11 +162,11 @@ func (s *TerraformSuiteOSS) TestImportHealthCheckConfig() {
 					require.Equal(t, existing.Metadata.Namespace, state[0].Attributes["metadata.namespace"])
 					require.Equal(t, existing.Metadata.Description, state[0].Attributes["metadata.description"])
 					require.Equal(t, "test", state[0].Attributes["metadata.labels.purpose"])
-					require.Equal(t, existing.Metadata.Revision, state[0].Attributes["metadata.revision"])
+					require.Empty(t, state[0].Attributes["metadata.revision"])
 					require.Equal(t, "42s", state[0].Attributes["spec.interval"])
 					require.Empty(t, state[0].Attributes["spec.timeout"])
 					require.Equal(t, "3", state[0].Attributes["spec.healthy_threshold"])
-					require.Empty(t, state[0].Attributes["spec.unhealthy_threshold"])
+					require.Equal(t, "0", state[0].Attributes["spec.unhealthy_threshold"])
 					require.Equal(t, "env", state[0].Attributes["spec.match.db_labels.0.name"])
 					require.Equal(t, "one", state[0].Attributes["spec.match.db_labels.0.values.0"])
 					require.Equal(t, "two", state[0].Attributes["spec.match.db_labels.0.values.1"])
