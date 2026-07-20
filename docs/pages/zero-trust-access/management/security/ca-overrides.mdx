@@ -88,11 +88,11 @@ You may customize the certificate subject:
 $ tctl auth create-override-csr --type=windows --subject='OU=My Organization Unit,CN=My Windows CA'
 ```
 
-### Prepare CSRs for multi-Auth, HSM-enabled clusters
+### Multi-Auth Service clusters with per-instance HSM keys
 
-In multi-Auth, HSM-enabled clusters, run `tctl` locally against each Auth
-Service instance. Each Auth Service instance generates CSRs for the keys it can
-access.
+In clusters with multiple Auth Service instances and a separate HSM key per
+instance, run `tctl` locally against each Auth Service instance. Each Auth
+Service instance generates CSRs for the keys it can access.
 
 For example:
 
@@ -114,7 +114,7 @@ $ tctl auth create-override-csr --type=windows
 
 When writing the override resource, make sure the final
 `spec.certificate_overrides` contains one entry for each certificate issued from
-those CSRs. See steps 4 and 4.1.
+those CSRs. See Step 4.
 
 ## Step 2/5. Issue override certificates using your external CA
 
@@ -183,113 +183,73 @@ $ certutil -verify -urlfetch .\override.cer
 
 ## Step 4/5. Create the certificate overrides
 
-After issuing certificates and configuring downstream trust, create the
-certificate overrides.
-
-Find your cluster name:
+After issuing certificates and configuring downstream trust, create a
+certificate override for each certificate:
 
 ```code
-$ tctl get cas/windows | yq '.spec.cluster_name'
-mycluster
+$ tctl auth create-override --type=windows cert.pem
 ```
 
-Prepare the `ca_override_windows.yaml` file, assigning
-<Var name="cluster-name" /> to your cluster name.
+### Disabled overrides
 
-Add one entry under `spec.certificate_overrides` for each override certificate.
-Replace the example PEM with your override certificate PEM.
-
-```yaml
-kind: cert_authority_override
-sub_kind: windows
-version: v1
-metadata:
-  name: <Var name="cluster-name" />
-spec:
-  certificate_overrides:
-  - certificate: |-
-      -----BEGIN CERTIFICATE-----
-      (...)
-      -----END CERTIFICATE-----
-```
-
-Create the override:
-
-```code
-$ tctl create ca_override_windows.yaml
-```
-
-<Admonition type="tip">
-You may create a disabled override and enable it later.
+You may create a disabled override and enable it later. A disabled override
+works as if it didn't exist, leaving signing to the self-signed CA certificate.
 
 This is useful for environments with staged rollouts, so overrides may be
 created in a disabled state until downstream services are ready to accept them.
 Set `disabled` to `false` when you are ready to enable the override.
 
-```yaml
-kind: cert_authority_override
-sub_kind: windows
-version: v1
-metadata:
-  name: <Var name="cluster-name" />
-spec:
-  certificate_overrides:
-  - certificate: |-
-      -----BEGIN CERTIFICATE-----
-      (...)
-      -----END CERTIFICATE-----
-    disabled: true
-```
-</Admonition>
-
-### Create certificate overrides on multi-Auth, HSM-enabled clusters
-
-In multi-Auth, HSM-enabled clusters, each `certificate_override` entry must be
-added by the corresponding Auth Service instance, which is the Auth Service
-instance that has access to the relevant private key.
-
-Start with an empty CA override created by any Auth Service instance:
-
-```yaml
-kind: cert_authority_override
-sub_kind: windows
-version: v1
-metadata:
-  name: <Var name="cluster-name" />
-spec: {}
-```
+Create the disabled override:
 
 ```code
-$ tctl create ca_override_windows.yaml
+$ tctl auth create-override --type=windows cert.pem --disabled
 ```
 
-Then, on each Auth Service instance, edit the CA override with `tctl edit`.
+Enable it:
 
 ```code
-# Modify the command below as appropriate.
-$ tsh ssh user@Auth1
+$ tctl auth update-override --type=windows --public-key=<Var name="public-key" /> --set-disabled=false
+```
 
+You can find the public key of the target override using the `tctl auth
+pub-key-hash` command or reading it from the ca_override itself.
+
+Using `tctl auth pub-key-hash`:
+
+```code
+$ tctl auth pub-key-hash --cert=cert.pem
+```
+
+Using `tctl get`:
+
+```code
+$ tctl get ca_overrides/windows
+```
+
+Alternatively, you may edit directly using:
+
+```code
 $ tctl edit ca_overrides/windows
 ```
 
-Add the corresponding `certificate_override` stanza, then save and exit.
+### Multi-Auth Service clusters with per-instance HSM keys
 
-```yaml
-kind: cert_authority_override
-sub_kind: windows
-version: v1
-metadata:
-  name: <Var name="cluster-name" />
-spec:
-  certificate_overrides:
-  - certificate: |-
-      -----BEGIN CERTIFICATE-----
-      (...)
-      -----END CERTIFICATE-----
-  - certificate: |-
-      -----BEGIN CERTIFICATE-----
-      (...)
-      -----END CERTIFICATE-----
+In clusters with multiple Auth Service instances and a separate HSM key per
+instance, each Auth Service instance may only be able to access its own private
+keys. In this scenario, make sure all Auth Service instances are online and
+healthy, then create your overrides in the disabled state. The Auth Service
+instances automatically sign CRLs in the background for their respective keys.
+After a certificate override has a matching CRL it can be enabled.
+
+```code
+# Create the override. Repeat for each certificate override.
+$ tctl auth create-override --disabled --type=windows cert.pem
+
+# Verify that CRLs are present.
+$ tctl get ca_overrides/windows
+
+# Enable the override. Repeat for each certificate override.
+$ tctl auth update-override --type=windows --public-key=<Var name="public-key" /> --set-disabled=false
 ```
 
 ## Step 5/5. Exercise the CA override

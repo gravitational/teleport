@@ -1,0 +1,20 @@
+spec:
+  account_id: "111111111111"
+  account_name: Production
+  permission_set:
+    arn: arn:aws:sso:::permissionSet/abc/ps-aaaa
+    name: AdminAccess
+---
+spec:
+  account_id: "111111111111"
+  account_name: Production
+  permission_set:
+    arn: arn:aws:sso:::permissionSet/abc/ps-bbbb
+    name: ReadOnly
+---
+spec:
+  account_id: "222222222222"
+  account_name: Staging
+  permission_set:
+    arn: arn:aws:sso:::permissionSet/abc/ps-bbbb
+    name: ReadOnly

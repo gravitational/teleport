@@ -38,8 +38,8 @@ type samlIdPServiceProviderClient struct {
 }
 
 // Get gets the Teleport saml_idp_service_provider of a given name.
-func (r samlIdPServiceProviderClient) Get(ctx context.Context, name string) (types.SAMLIdPServiceProvider, error) {
-	sp, err := r.teleportClient.GetSAMLIdPServiceProvider(ctx, name)
+func (r samlIdPServiceProviderClient) Get(ctx context.Context, key reconcilers.ResourceKey) (types.SAMLIdPServiceProvider, error) {
+	sp, err := r.teleportClient.GetSAMLIdPServiceProvider(ctx, key.Name)
 	return sp, trace.Wrap(err)
 }
 
@@ -54,8 +54,8 @@ func (r samlIdPServiceProviderClient) Update(ctx context.Context, sp types.SAMLI
 }
 
 // Delete deletes a Teleport saml_idp_service_provider.
-func (r samlIdPServiceProviderClient) Delete(ctx context.Context, name string) error {
-	return trace.Wrap(r.teleportClient.DeleteSAMLIdPServiceProvider(ctx, name))
+func (r samlIdPServiceProviderClient) Delete(ctx context.Context, key reconcilers.ResourceKey) error {
+	return trace.Wrap(r.teleportClient.DeleteSAMLIdPServiceProvider(ctx, key.Name))
 }
 
 // NewSAMLIdPServiceProviderV1Reconciler instantiates a new Kubernetes controller
