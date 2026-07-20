@@ -176,6 +176,8 @@ type azureClientGetter func(ctx context.Context, integration string) (azure.Clie
 
 type listSubscriptionsFunc func(ctx context.Context, integration string) (subscriptions []string, err error)
 
+type subscriptionListErrorHandler func(integration string, err error)
+
 // MatchersToAzureInstanceFetchers converts a list of Azure VM Matchers into a list of Azure VM Fetchers.
 func MatchersToAzureInstanceFetchers(
 	ctx context.Context,
@@ -184,10 +186,11 @@ func MatchersToAzureInstanceFetchers(
 	getClient azureClientGetter,
 	discoveryConfigName string,
 	listSubs listSubscriptionsFunc,
+	handleSubscriptionListError subscriptionListErrorHandler,
 ) []Fetcher[*AzureInstances] {
 	ret := make([]Fetcher[*AzureInstances], 0)
 	for _, matcher := range matchers {
-		matcher.Subscriptions = expandAzureMatcherSubscriptions(ctx, logger, matcher.Subscriptions, matcher.Integration, listSubs)
+		matcher.Subscriptions = expandAzureMatcherSubscriptions(ctx, logger, matcher.Subscriptions, matcher.Integration, listSubs, handleSubscriptionListError)
 		for _, subscription := range matcher.Subscriptions {
 			for _, resourceGroup := range matcher.ResourceGroups {
 				fetcher := newAzureInstanceFetcher(azureFetcherConfig{
@@ -213,6 +216,7 @@ func expandAzureMatcherSubscriptions(
 	subscriptions []string,
 	integration string,
 	listSubs listSubscriptionsFunc,
+	handleSubscriptionListError subscriptionListErrorHandler,
 ) []string {
 	var out []string
 	for _, sub := range subscriptions {
@@ -222,11 +226,24 @@ func expandAzureMatcherSubscriptions(
 		}
 		subs, err := listSubs(ctx, integration)
 		if err != nil {
-			// TODO(gavin): make a user task
 			logger.WarnContext(ctx, "Failed to fetch Azure subscription list for wildcard in discovery configuration",
 				"integration", integration,
 				"error", err,
 			)
+			if handleSubscriptionListError != nil {
+				handleSubscriptionListError(integration, err)
+			}
+			continue
+		}
+		if len(subs) == 0 {
+			err := trace.AccessDenied("Azure returned no subscriptions for wildcard in discovery configuration")
+			logger.WarnContext(ctx, "Azure subscription list for wildcard in discovery configuration is empty",
+				"integration", integration,
+				"error", err,
+			)
+			if handleSubscriptionListError != nil {
+				handleSubscriptionListError(integration, err)
+			}
 			continue
 		}
 		out = append(out, subs...)

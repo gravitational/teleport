@@ -1049,6 +1049,24 @@ type taskUpdater struct {
 	Log            *slog.Logger
 }
 
+func (s *taskUpdater) upsertAzureSubscriptionListPermissionTask(integration string) error {
+	task, err := usertasks.NewDiscoverAzureVMUserTask(
+		usertasks.TaskGroup{
+			Integration: integration,
+			IssueType:   usertasks.AutoDiscoverAzureVMIssueSubscriptionListDenied,
+		},
+		s.clock.Now().Add(2*s.PollInterval),
+		usertasksv1.DiscoverAzureVM_builder{
+			Instances: map[string]*usertasksv1.DiscoverAzureVMInstance{},
+		}.Build(),
+	)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(s.mergeUpsertUserTask(task, s.mergeAzure))
+}
+
 func (s *taskUpdater) mergeUpsertUserTask(newTask *usertasksv1.UserTask, mergeUserTasks func(oldTask *usertasksv1.UserTaskSpec, newTask *usertasksv1.UserTaskSpec)) error {
 	taskName := newTask.GetMetadata().GetName()
 

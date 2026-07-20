@@ -150,6 +150,20 @@ func TestValidateUserTask(t *testing.T) {
 		require.NoError(t, err)
 		return userTask
 	}
+	baseAzureVMPermissionTask := func(t *testing.T) *usertasksv1.UserTask {
+		userTask, err := NewDiscoverAzureVMUserTask(
+			TaskGroup{
+				Integration: "my-integration",
+				IssueType:   AutoDiscoverAzureVMIssueSubscriptionListDenied,
+			},
+			time.Now().Add(24*time.Hour),
+			&usertasksv1.DiscoverAzureVM{
+				Instances: map[string]*usertasksv1.DiscoverAzureVMInstance{},
+			},
+		)
+		require.NoError(t, err)
+		return userTask
+	}
 
 	const noError = ""
 
@@ -617,6 +631,11 @@ func TestValidateUserTask(t *testing.T) {
 		{
 			name:    "DiscoverAzureVM: valid",
 			task:    baseAzureVMDiscoverTask,
+			wantErr: noError,
+		},
+		{
+			name:    "DiscoverAzureVM: subscription list permission issue allows empty scope and instances",
+			task:    baseAzureVMPermissionTask,
 			wantErr: noError,
 		},
 		{

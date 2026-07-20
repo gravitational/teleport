@@ -841,7 +841,28 @@ func (s *Server) azureServerFetchersFromMatchers(matchers []types.AzureMatcher, 
 		return matcherType == types.AzureMatcherVM
 	})
 
-	return server.MatchersToAzureInstanceFetchers(s.ctx, s.Log, serverMatchers, s.getAzureClients, discoveryConfigName, s.getAzureSubscriptionList)
+	return server.MatchersToAzureInstanceFetchers(
+		s.ctx,
+		s.Log,
+		serverMatchers,
+		s.getAzureClients,
+		discoveryConfigName,
+		s.getAzureSubscriptionList,
+		s.handleAzureSubscriptionListError,
+	)
+}
+
+func (s *Server) handleAzureSubscriptionListError(integration string, err error) {
+	if integration == "" || !trace.IsAccessDenied(err) {
+		return
+	}
+
+	if err := s.taskUpdater().upsertAzureSubscriptionListPermissionTask(integration); err != nil {
+		s.Log.WarnContext(s.ctx, "Failed to upsert Azure subscription list permission User Task",
+			"integration", integration,
+			"error", err,
+		)
+	}
 }
 
 func (s *Server) getAzureSubscriptionListNoCache(ctx context.Context, integration string) ([]string, error) {

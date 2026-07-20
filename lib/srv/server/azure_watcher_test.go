@@ -280,6 +280,7 @@ func TestAzureWatcher(t *testing.T) {
 					func(ctx context.Context, integration string) (subscriptions []string, err error) {
 						return []string{sub1, sub2}, nil
 					},
+					nil,
 				),
 			)
 
@@ -307,6 +308,64 @@ func TestAzureWatcher(t *testing.T) {
 			require.ElementsMatch(t, tc.wantVMs, vmIDs)
 		})
 	}
+}
+
+func TestMatchersToAzureInstanceFetchersSubscriptionListError(t *testing.T) {
+	t.Parallel()
+
+	permissionErr := trace.AccessDenied("missing subscriptions/read")
+	var handledIntegration string
+	var handledErr error
+	fetchers := MatchersToAzureInstanceFetchers(
+		t.Context(),
+		logtest.NewLogger(),
+		[]types.AzureMatcher{{
+			Types:          []string{types.AzureMatcherVM},
+			Subscriptions:  []string{types.Wildcard, "explicit-subscription"},
+			ResourceGroups: []string{types.Wildcard},
+			Integration:    "azure-integration",
+		}},
+		func(context.Context, string) (azure.Clients, error) { return nil, nil },
+		"discovery-config",
+		func(context.Context, string) ([]string, error) { return nil, permissionErr },
+		func(integration string, err error) {
+			handledIntegration = integration
+			handledErr = err
+		},
+	)
+
+	require.Len(t, fetchers, 1, "the explicit subscription should still produce a fetcher")
+	require.Equal(t, "azure-integration", handledIntegration)
+	require.ErrorIs(t, handledErr, permissionErr)
+}
+
+func TestMatchersToAzureInstanceFetchersEmptySubscriptionList(t *testing.T) {
+	t.Parallel()
+
+	var handledIntegration string
+	var handledErr error
+	fetchers := MatchersToAzureInstanceFetchers(
+		t.Context(),
+		logtest.NewLogger(),
+		[]types.AzureMatcher{{
+			Types:          []string{types.AzureMatcherVM},
+			Subscriptions:  []string{types.Wildcard},
+			ResourceGroups: []string{types.Wildcard},
+			Integration:    "azure-integration",
+		}},
+		func(context.Context, string) (azure.Clients, error) { return nil, nil },
+		"discovery-config",
+		func(context.Context, string) ([]string, error) { return nil, nil },
+		func(integration string, err error) {
+			handledIntegration = integration
+			handledErr = err
+		},
+	)
+
+	require.Empty(t, fetchers)
+	require.Equal(t, "azure-integration", handledIntegration)
+	require.Error(t, handledErr)
+	require.True(t, trace.IsAccessDenied(handledErr))
 }
 
 func TestAzureInstances_FilterExistingNodes(t *testing.T) {

@@ -339,6 +339,23 @@ func newTaskUpdater(t *testing.T, existingTasks ...*usertasksv1.UserTask) (*task
 	return manager, ap
 }
 
+func TestUpsertAzureSubscriptionListPermissionTask(t *testing.T) {
+	t.Parallel()
+
+	updater, ap := newTaskUpdater(t)
+	require.NoError(t, updater.upsertAzureSubscriptionListPermissionTask("azure-integration"))
+	require.Len(t, ap.tasks, 1)
+
+	for _, task := range ap.tasks {
+		require.Equal(t, usertasks.TaskTypeDiscoverAzureVM, task.GetSpec().GetTaskType())
+		require.Equal(t, usertasks.AutoDiscoverAzureVMIssueSubscriptionListDenied, task.GetSpec().GetIssueType())
+		require.Equal(t, "azure-integration", task.GetSpec().GetIntegration())
+		require.Empty(t, task.GetSpec().GetDiscoverAzureVm().GetSubscriptionId())
+		require.Empty(t, task.GetSpec().GetDiscoverAzureVm().GetInstances())
+		require.True(t, updater.clock.Now().Add(2*updater.PollInterval).Equal(task.GetMetadata().GetExpires().AsTime()))
+	}
+}
+
 func TestAWSEC2Tasks_AddFailedEnrollment(t *testing.T) {
 	t.Parallel()
 
