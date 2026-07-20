@@ -99,10 +99,10 @@ Example invocations:
 
 ### teleport-discovery
 
-Enroll cloud resources (AWS EC2 instances, AWS EKS clusters, and Azure VMs) into
-Teleport using Auto-Discovery. Provides a guided workflow to generate a Terraform
-configuration to create an OIDC integration. Use for checking status of the
-Discovery Service or troubleshooting resource enrollment.
+Connect Teleport to your cloud to automatically discover and enroll your resources. Use Terraform
+to create an OIDC integration in your cloud provider and configure the Teleport
+Discovery Service. Troubleshoot any issues getting your resources enrolled. Supports AWS EC2
+instances, AWS EKS clusters, and Azure VMS.
 
 Example invocations:
 
