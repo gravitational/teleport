@@ -447,9 +447,6 @@ importers:
       node-pty:
         specifier: 1.2.0-beta.14
         version: 1.2.0-beta.14
-      ring-buffer-ts:
-        specifier: ^1.2.0
-        version: 1.2.0
       split2:
         specifier: 4.2.0
         version: 4.2.0
@@ -7167,9 +7164,6 @@ packages:
   reusify@1.1.0:
     resolution: {integrity: sha512-g6QUff04oZpHs0eG5p83rFLhHeV00ug/Yf9nZM6fLeUrPguBTkTQOdpAWWspMh55TZfVQDPaN3NQJfbVRAxdIw==}
     engines: {iojs: '>=1.0.0', node: '>=0.10.0'}
-
-  ring-buffer-ts@1.2.0:
-    resolution: {integrity: sha512-dkGqA7YHZgXp1dWwcNIsmt+4EgHK1RmY9sp7eqHLLfTkhYhQQ4agAwqgED7hJakELMaXkBgZ5568vqaI3/wV6Q==}
 
   roarr@2.15.4:
     resolution: {integrity: sha512-CHhPh+UNHD2GTXNYhPWLnU8ONHdI+5DI+4EYIAOaiD63rHeYlZvyh8P+in5999TTSFgUYuKUAjzRI4mdh/p+2A==}
@@ -15875,8 +15869,6 @@ snapshots:
   rettime@0.11.11: {}
 
   reusify@1.1.0: {}
-
-  ring-buffer-ts@1.2.0: {}
 
   roarr@2.15.4:
     dependencies:

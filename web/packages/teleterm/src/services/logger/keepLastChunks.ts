@@ -18,7 +18,7 @@
 
 import stream from 'node:stream';
 
-import { RingBuffer } from 'ring-buffer-ts';
+import { RingBuffer } from './ringBuffer';
 
 /**
  * A writeable stream that keeps the last n chunks.
