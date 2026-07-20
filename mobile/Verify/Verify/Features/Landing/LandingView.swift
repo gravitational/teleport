@@ -50,10 +50,10 @@ struct LandingView: View {
 				ToolbarItem {
 					Menu {
 						Button(
-							"Delete All Clusters",
+							"Forget All Clusters",
 							systemImage: "trash",
 							role: .destructive,
-							action: viewModel.userTappedDeleteAllClusters,
+							action: viewModel.userTappedForgetAllClusters,
 						)
 					} label: {
 						Label("Menu", systemImage: "ellipsis")
@@ -70,9 +70,9 @@ struct LandingView: View {
 				EnrollCameraScannerView(viewModel: enrollCameraScannerViewModel)
 			}
 			.alert($viewModel.destination.notice) { _ in }
-			.alert($viewModel.destination.deleteAllClustersAlert) { action in
+			.alert($viewModel.destination.forgetAllClustersAlert) { action in
 				switch action {
-					case .confirm: Task { await viewModel.userConfirmedDeleteAllClusters() }
+					case .confirm: Task { await viewModel.userConfirmedForgetAllClusters() }
 					case .none: break
 				}
 			}

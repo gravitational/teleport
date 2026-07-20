@@ -28,8 +28,8 @@ final class LandingViewModel {
 	@CasePathable
 	enum Destination {
 		case cameraScanner(EnrollCameraScannerViewModel)
-		case deleteAllClustersAlert(AlertState<DeleteAllClustersAlertAction>)
 		case enrollDevice(EnrollDeviceViewModel)
+		case forgetAllClustersAlert(AlertState<ForgetAllClustersAlertAction>)
 		case notice(AlertState<Void>)
 	}
 
@@ -49,10 +49,10 @@ final class LandingViewModel {
 	var sensoryFeedbackTrigger = false
 }
 
-// MARK: - LandingViewModel.DeleteAllClustersAlertAction
+// MARK: - LandingViewModel.ForgetAllClustersAlertAction
 
 extension LandingViewModel {
-	enum DeleteAllClustersAlertAction {
+	enum ForgetAllClustersAlertAction {
 		case confirm
 	}
 }
@@ -100,19 +100,24 @@ extension LandingViewModel {
 		}
 	}
 
-	func userTappedDeleteAllClusters() {
-		let alertState = AlertState<DeleteAllClustersAlertAction> {
-			TextState("Are you sure you want to unenroll your device from all clusters?")
+	func userTappedForgetAllClusters() {
+		let alertState = AlertState<ForgetAllClustersAlertAction> {
+			TextState("Are you sure you want to forget all clusters?")
 		} actions: {
 			ButtonState(role: .destructive, action: .confirm) { TextState("Confirm") }
 			ButtonState(role: .cancel) { TextState("Cancel") }
 		} message: {
-			TextState("This action cannot be undone. You will need to re-enroll this device with each cluster.")
+			TextState(
+				"""
+				This action cannot be undone. You will still be able to authenticate using this device until you \
+				remove it from your trusted devices in Account Settings in the web UI.
+				""",
+			)
 		}
-		destination = .deleteAllClustersAlert(alertState)
+		destination = .forgetAllClustersAlert(alertState)
 	}
 
-	func userConfirmedDeleteAllClusters() async {
+	func userConfirmedForgetAllClusters() async {
 		await deleteClusters { Cluster.delete() }
 	}
 }
@@ -167,13 +172,13 @@ extension LandingViewModel {
 				try deleteOperation().execute(db)
 			}
 		} catch {
-			Self.logger.warning("Failed to delete clusters: \(error)")
+			Self.logger.warning("Failed to forget clusters: \(error)")
 			destination = .notice(AlertState(
 				title: {
-					TextState("Could Not Delete Clusters")
+					TextState("Could Not Forget Clusters")
 				},
 				message: {
-					TextState("An error occurred when trying to deregister the cluster from your device.")
+					TextState("An error occurred when trying to forget the cluster on this device.")
 				},
 			))
 		}
