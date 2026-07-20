@@ -1565,7 +1565,7 @@ func TestSAMLCreateConnectorErrorSanitization(t *testing.T) {
 
 	const loginMetadataPath = "/test_metadata_login"
 	const mfaMetadataPath = "/test_metadata_mfa"
-	const badMetadtaPath = "/test_metadata_bad"
+	const badMetadataPath = "/test_metadata_bad"
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case loginMetadataPath:
@@ -1580,7 +1580,7 @@ func TestSAMLCreateConnectorErrorSanitization(t *testing.T) {
 
 	samlConnector, err := types.NewSAMLConnector("fetch-entity-descriptor-url-errors", types.SAMLConnectorSpecV2{
 		AssertionConsumerService: "https://teleport.example.com/v1/webapi/saml/acs",
-		EntityDescriptorURL:      server.URL + badMetadtaPath,
+		EntityDescriptorURL:      server.URL + badMetadataPath,
 		AttributesToRoles: []types.AttributeMapping{
 			{Name: "groups", Value: "admin", Roles: []string{role.GetName()}},
 		},
@@ -1600,7 +1600,7 @@ func TestSAMLCreateConnectorErrorSanitization(t *testing.T) {
 	// Now let's check MFA entity descriptor fetching errors sanitization.
 	createdSAMLConnector.SetMFASettings(&types.SAMLConnectorMFASettings{
 		Enabled:             true,
-		EntityDescriptorUrl: server.URL + badMetadtaPath,
+		EntityDescriptorUrl: server.URL + badMetadataPath,
 	})
 	_, err = s.a.UpdateSAMLConnector(ctx, createdSAMLConnector)
 	require.ErrorIs(t, err, services.ErrFailedToFetchOrParseEntityDescriptor)

@@ -789,6 +789,7 @@ type SAMLConnectorValidationOptions struct {
 	Transport http.RoundTripper
 }
 
+// NewSAMLConnectorValidationOptions creates SAMLConnectorValidationOptions from provided options.
 func NewSAMLConnectorValidationOptions(opts []SAMLConnectorValidationOption) SAMLConnectorValidationOptions {
 	options := SAMLConnectorValidationOptions{}
 	for _, o := range opts {
