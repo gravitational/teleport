@@ -23,6 +23,7 @@ import (
 	"context"
 	"fmt"
 	"image"
+	"image/draw"
 	"io"
 	"os"
 	"os/exec"
@@ -30,11 +31,13 @@ import (
 
 	"github.com/gravitational/trace"
 
+	tdpbv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/desktop/v1"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/legacy"
+	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/tdpb"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/progressbar"
 	"github.com/gravitational/teleport/tool/tsh/common/internal/recordingexport"
@@ -106,10 +109,7 @@ func onExportRecording(cf *CLIConf) error {
 	// but very old recordings might require a PNG decoder.
 	var decoder imageDecoder
 	if meta.isRemoteFX {
-		decoder, err = recordingexport.NewRemoteFXDecoder(meta.maxWidth, meta.maxHeight)
-		if err != nil {
-			return trace.Wrap(err, "creating RemoteFX decoder")
-		}
+		decoder = recordingexport.NewRemoteFXDecoder()
 	} else {
 		decoder = recordingexport.NewPNGDecoder(int(meta.maxWidth), int(meta.maxHeight))
 	}
@@ -175,8 +175,7 @@ type videoEncoder interface {
 
 // imageDecoder decodes image data from a desktop session recording
 type imageDecoder interface {
-	ClearScreen()
-	UpdateScreen(tdp.Message) error
+	UpdateScreen(evt *apievents.DesktopRecording) (screenData bool, err error)
 	Image() image.Image
 	Close() error
 }
@@ -193,6 +192,10 @@ func (d *desktopRecordingExporter) run(
 	var frameCount int
 	var gotScreenData bool
 	lastEmitted := int64(-1)
+
+	// canvas holds a max-size frame that smaller frames are composited onto, so the encoder always
+	// receives a constant frame size even when the recording changes resolution. Created lazily.
+	var canvas *image.RGBA
 
 	evts, errs := d.ss.StreamSessionEvents(ctx, d.sid, 0)
 loop:
@@ -222,23 +225,12 @@ loop:
 				break loop
 
 			case *apievents.DesktopRecording:
-				msg, err := legacy.Decode(bytes.NewReader(evt.Message))
+				screenData, err := decoder.UpdateScreen(evt)
 				if err != nil {
-					logger.WarnContext(ctx, "failed to decode desktop recording message", "error", err)
-					break loop
+					return frameCount, trace.Wrap(err)
 				}
-
-				switch msg := msg.(type) {
-				case legacy.ClientScreenSpec:
-					decoder.ClearScreen()
-				case legacy.RDPFastPathPDU:
+				if screenData {
 					gotScreenData = true
-					if err := decoder.UpdateScreen(msg); err != nil {
-						return frameCount, trace.Wrap(err)
-					}
-				case legacy.PNGFrame, legacy.PNG2Frame:
-					gotScreenData = true
-					decoder.UpdateScreen(msg)
 				}
 
 				// if it's the very first screen fragment, mark the time and continue
@@ -261,7 +253,9 @@ loop:
 						"last_event_ms", delta,
 						"frames_to_emit", framesToEmit,
 					)
-					if err := encoder.EmitFrames(decoder.Image(), int(framesToEmit)); err != nil {
+					var frame image.Image
+					frame, canvas = fitFrame(decoder.Image(), int(meta.maxWidth), int(meta.maxHeight), canvas)
+					if err := encoder.EmitFrames(frame, int(framesToEmit)); err != nil {
 						return frameCount, trace.Wrap(err)
 					}
 					frameCount += int(framesToEmit)
@@ -315,19 +309,66 @@ loop:
 			if !ok {
 				continue
 			}
-			msg, err := legacy.Decode(bytes.NewReader(dr.Message))
+			msg, err := decodeRecordingMessage(dr)
 			if err != nil {
 				return nil, trace.Wrap(err, "recording includes invalid data")
 			}
 
 			switch msg := msg.(type) {
 			case legacy.ClientScreenSpec:
-				height = max(height, msg.Height)
 				width = max(width, msg.Width)
+				height = max(height, msg.Height)
+			case legacy.ConnectionActivated:
+				width = max(width, uint32(msg.ScreenWidth))
+				height = max(height, uint32(msg.ScreenHeight))
+				remoteFX = true
 			case legacy.RDPFastPathPDU:
+				remoteFX = true
+			case *tdpb.ServerHello:
+				if spec := (*tdpbv1.ServerHello)(msg).GetActivationSpec(); spec != nil {
+					width = max(width, spec.GetScreenWidth())
+					height = max(height, spec.GetScreenHeight())
+				}
+				remoteFX = true
+			case *tdpb.FastPathPDU:
 				remoteFX = true
 			}
 		}
 	}
 	return &recordingMetadata{totalEvents: total, maxWidth: width, maxHeight: height, isRemoteFX: remoteFX}, nil
+}
+
+func decodeRecordingMessage(dr *apievents.DesktopRecording) (tdp.Message, error) {
+	switch {
+	case len(dr.TDPBMessage) > 0:
+		return tdpb.DecodeWithTDPDiscard(dr.TDPBMessage)
+	case len(dr.Message) > 0:
+		return legacy.Decode(bytes.NewReader(dr.Message))
+	default:
+		return nil, nil
+	}
+}
+
+// fitFrame returns img unchanged when it already matches the recording's max dimensions.
+// Otherwise, it composites img at the top-left of a reused max-size canvas (clearing the rest to black) and
+// returns the canvas, so the encoder always receives a constant frame size.
+func fitFrame(img image.Image, maxWidth, maxHeight int, canvas *image.RGBA) (image.Image, *image.RGBA) {
+	if img == nil || maxWidth == 0 || maxHeight == 0 {
+		return img, canvas
+	}
+
+	b := img.Bounds()
+	if b.Dx() == maxWidth && b.Dy() == maxHeight {
+		return img, canvas
+	}
+
+	if canvas == nil {
+		canvas = image.NewRGBA(image.Rect(0, 0, maxWidth, maxHeight))
+	} else {
+		clear(canvas.Pix)
+	}
+
+	draw.Draw(canvas, b, img, b.Min, draw.Src)
+
+	return canvas, canvas
 }

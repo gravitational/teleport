@@ -27,6 +27,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/legacy"
 )
@@ -45,16 +46,26 @@ func NewPNGDecoder(maxWidth, maxHeight int) *PNGDecoder {
 	}
 }
 
-func (p *PNGDecoder) ClearScreen() {
-	draw.Draw(p.screen, p.screen.Bounds(), image.NewUniform(color.Black), image.Point{}, draw.Src)
-}
+// UpdateScreen decodes one legacy recording event and applies it to the screen, reporting whether it
+// produced new image content. PNG recordings predate TDPB, so only the legacy TDP wire format is
+// handled here.
+func (p *PNGDecoder) UpdateScreen(evt *apievents.DesktopRecording) (bool, error) {
+	if len(evt.Message) == 0 {
+		return false, nil
+	}
 
-func (p *PNGDecoder) UpdateScreen(msg tdp.Message) error {
+	msg, err := legacy.Decode(bytes.NewReader(evt.Message))
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+
 	switch msg.(type) {
+	case legacy.ClientScreenSpec:
+		draw.Draw(p.screen, p.screen.Bounds(), image.NewUniform(color.Black), image.Point{}, draw.Src)
 	case legacy.PNGFrame, legacy.PNG2Frame:
 		fragment, err := imgFromPNGMessage(msg)
 		if err != nil {
-			return trace.Wrap(err)
+			return false, trace.Wrap(err)
 		}
 		draw.Draw(
 			p.screen,
@@ -63,8 +74,10 @@ func (p *PNGDecoder) UpdateScreen(msg tdp.Message) error {
 			fragment.Bounds().Min,
 			draw.Src,
 		)
+		return true, nil
 	}
-	return nil
+
+	return false, nil
 }
 
 func (p *PNGDecoder) Image() image.Image {

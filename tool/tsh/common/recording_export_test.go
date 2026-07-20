@@ -35,6 +35,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/srv/desktop/rdpstate/rdpstatetest"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/legacy"
 	"github.com/gravitational/teleport/tool/tsh/common/internal/recordingexport"
@@ -172,6 +173,92 @@ func TestWritesManyFrames(t *testing.T) {
 	require.Equal(t, framesPerSecond, frames)
 }
 
+func TestGetSessionMetadataRemoteFX(t *testing.T) {
+	t.Parallel()
+
+	legacyActivated, err := rdpstatetest.LegacyConnectionActivated(1280, 720)
+	require.NoError(t, err)
+	tdpbHello, err := rdpstatetest.EncodeTDPBServerHello(1600, 900)
+	require.NoError(t, err)
+	tdpbFrame, err := rdpstatetest.EncodeTDPBFastPathPDU([]byte{0x00})
+	require.NoError(t, err)
+
+	for _, tc := range []struct {
+		name          string
+		events        []apievents.AuditEvent
+		width, height uint32
+	}{
+		{
+			name: "legacy",
+			events: []apievents.AuditEvent{
+				&apievents.WindowsDesktopSessionStart{},
+				legacyActivated,
+				tdpEvent(t, legacy.RDPFastPathPDU([]byte{0x00})),
+				&apievents.WindowsDesktopSessionEnd{},
+			},
+			width:  1280,
+			height: 720,
+		},
+		{
+			name: "tdpb",
+			events: []apievents.AuditEvent{
+				&apievents.WindowsDesktopSessionStart{},
+				tdpbHello,
+				tdpbFrame,
+				&apievents.WindowsDesktopSessionEnd{},
+			},
+			width:  1600,
+			height: 900,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			exporter := &desktopRecordingExporter{
+				ss:  eventstest.NewFakeStreamer(tc.events, 0),
+				sid: session.NewID(),
+			}
+
+			meta, err := exporter.getSessionMetadata(t.Context())
+			require.NoError(t, err)
+			require.NotNil(t, meta)
+
+			assert.True(t, meta.isRemoteFX)
+			assert.EqualValues(t, tc.width, meta.maxWidth)
+			assert.EqualValues(t, tc.height, meta.maxHeight)
+			assert.EqualValues(t, len(tc.events), meta.totalEvents)
+		})
+	}
+}
+
+func TestExportEmitsConsistentFrameSize(t *testing.T) {
+	t.Parallel()
+
+	events := []apievents.AuditEvent{
+		tdpEventMillis(t, legacy.RDPFastPathPDU([]byte{0}), 0),
+		tdpEventMillis(t, legacy.RDPFastPathPDU([]byte{0}), 50),
+		tdpEventMillis(t, legacy.RDPFastPathPDU([]byte{0}), 100),
+	}
+
+	dec := &resizingDecoder{sizes: []image.Rectangle{
+		image.Rect(0, 0, 64, 64),
+		image.Rect(0, 0, 64, 64),
+		image.Rect(0, 0, 128, 128),
+	}}
+	enc := &sizeCapturingEncoder{}
+
+	exporter := &desktopRecordingExporter{
+		ss:  eventstest.NewFakeStreamer(events, 0),
+		sid: session.NewID(),
+	}
+
+	_, err := exporter.run(t.Context(), &recordingMetadata{maxWidth: 128, maxHeight: 128}, dec, enc)
+	require.NoError(t, err)
+	require.NotEmpty(t, enc.sizes)
+
+	for _, s := range enc.sizes {
+		assert.Equal(t, image.Pt(128, 128), s, "every emitted frame must be the recording's max size")
+	}
+}
+
 func tdpEvent(t *testing.T, msg tdp.Message) *apievents.DesktopRecording {
 	t.Helper()
 
@@ -230,3 +317,41 @@ func TestReportOutputFiles(t *testing.T) {
 		})
 	}
 }
+
+type resizingDecoder struct {
+	sizes []image.Rectangle
+	i     int
+	cur   image.Rectangle
+}
+
+func (d *resizingDecoder) UpdateScreen(*apievents.DesktopRecording) (bool, error) {
+	if d.i < len(d.sizes) {
+		d.cur = d.sizes[d.i]
+		d.i++
+	}
+	return true, nil
+}
+
+func (d *resizingDecoder) Image() image.Image {
+	if d.cur.Empty() {
+		return nil
+	}
+	return image.NewRGBA(d.cur)
+}
+
+func (d *resizingDecoder) Close() error { return nil }
+
+type sizeCapturingEncoder struct {
+	sizes []image.Point
+}
+
+func (e *sizeCapturingEncoder) EmitFrames(img image.Image, count int) error {
+	b := img.Bounds()
+	for range count {
+		e.sizes = append(e.sizes, image.Pt(b.Dx(), b.Dy()))
+	}
+	return nil
+}
+
+func (e *sizeCapturingEncoder) OutputFiles() []string { return nil }
+func (e *sizeCapturingEncoder) Close() error          { return nil }

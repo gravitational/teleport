@@ -1,6 +1,6 @@
 /*
  * Teleport
- * Copyright (C) 2026 Gravitational, Inc.
+ * Copyright (C) 2026  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -23,55 +23,40 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/lib/srv/desktop/rdp/decoder"
-	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
-	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/legacy"
+	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/srv/desktop/rdpstate"
 )
 
-// RemoteFXDecoder decodes screen fragments from RemoteFX desktop recordings.
+// RemoteFXDecoder decodes screen fragments from RemoteFX desktop recordings by driving the shared rdpstate screen
+// reconstruction, which handles both legacy TDP and modern TDPB recordings and owns the underlying RDP decoder.
 type RemoteFXDecoder struct {
-	d                   *decoder.Decoder
-	maxWidth, maxHeight uint16
+	state *rdpstate.RDPState
 }
 
 // NewRemoteFXDecoder creates a decoder for RemoteFX recordings.
 //
 //nolint:staticcheck // SA4023. False positive, depends on build tags.
-func NewRemoteFXDecoder(maxWidth, maxHeight uint32) (*RemoteFXDecoder, error) {
-	d, err := decoder.New(uint16(maxWidth), uint16(maxHeight))
-	if err != nil {
-		return nil, trace.Wrap(err, "creating RemoteFX decoder")
-	}
-
-	return &RemoteFXDecoder{
-		d:         d,
-		maxWidth:  uint16(maxWidth),
-		maxHeight: uint16(maxHeight),
-	}, nil
+func NewRemoteFXDecoder() *RemoteFXDecoder {
+	return &RemoteFXDecoder{state: rdpstate.New()}
 }
 
-func (r *RemoteFXDecoder) ClearScreen() {
-	r.d.Resize(r.maxWidth, r.maxHeight)
-}
-
-func (r *RemoteFXDecoder) UpdateScreen(msg tdp.Message) error {
-	fastPath, ok := msg.(legacy.RDPFastPathPDU)
-	if !ok {
-		return nil
+func (r *RemoteFXDecoder) UpdateScreen(evt *apievents.DesktopRecording) (bool, error) {
+	r.state.ResetUpdatedRegions()
+	if err := r.state.HandleMessage(evt); err != nil {
+		return false, trace.Wrap(err)
 	}
 
-	r.d.Process(fastPath)
-	return nil
+	return len(r.state.UpdatedRegions()) > 0, nil
 }
 
 func (r *RemoteFXDecoder) Image() image.Image {
-	return r.d.Image()
+	if img := r.state.Image(); img != nil {
+		return img
+	}
+	return nil
 }
 
 func (r *RemoteFXDecoder) Close() error {
-	if r.d != nil {
-		r.d.Release()
-		r.d = nil
-	}
+	r.state.Release()
 	return nil
 }
