@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import type { ComponentProps } from 'react';
 import styled, { css } from 'styled-components';
 
 import { Text } from 'design';
@@ -29,12 +30,14 @@ export function UserDisplayName({
   secondaryText,
   layout = 'tooltip',
   className,
+  primaryTextProps,
 }: {
   username: string;
   primaryText?: string;
   secondaryText?: string;
   layout?: UserDisplayNameLayout;
   className?: string;
+  primaryTextProps?: ComponentProps<typeof Text>;
 }) {
   const displayPrimary = normalizeText(primaryText);
   const displaySecondary = normalizeText(secondaryText);
@@ -42,7 +45,7 @@ export function UserDisplayName({
   const tooltipLabel = getTooltipAriaLabel(primary, displaySecondary, username);
 
   const primaryValue = (ariaLabel?: string) => (
-    <PrimaryValue title={primary} aria-label={ariaLabel}>
+    <PrimaryValue {...primaryTextProps} title={primary} aria-label={ariaLabel}>
       {primary}
     </PrimaryValue>
   );
