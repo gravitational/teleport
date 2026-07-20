@@ -810,11 +810,11 @@ func (a *ScopedServerWithRoles) checkAdditionalSystemRoles(ctx context.Context, 
 	// check that additional system roles are theoretically valid (distinct from permissibility, which
 	// is checked in the following loop).
 	for _, r := range req.SystemRoles {
-		if r.Check() != nil {
-			return trace.AccessDenied("additional system role %q cannot be applied (not a valid system role)", r)
+		if !r.IsValid() {
+			return trace.AccessDenied("additional system role %+q cannot be applied (not a valid system role)", r)
 		}
 		if !r.IsLocalService() {
-			return trace.AccessDenied("additional system role %q cannot be applied (not a builtin service role)", r)
+			return trace.AccessDenied("additional system role %+q cannot be applied (not a builtin service role)", r)
 		}
 	}
 
@@ -831,7 +831,7 @@ func (a *ScopedServerWithRoles) checkAdditionalSystemRoles(ctx context.Context, 
 				"instance", req.HostID,
 				"error", err,
 			)
-			return trace.AccessDenied("failed to load system role assertion set with ID %q", req.SystemRoleAssertionID)
+			return trace.AccessDenied("failed to load system role assertion set with ID %+q", req.SystemRoleAssertionID)
 		}
 	}
 
@@ -850,7 +850,7 @@ Outer:
 			}
 		}
 
-		return trace.AccessDenied("additional system role %q cannot be applied (not authorized)", requestedRole)
+		return trace.AccessDenied("additional system role %+q cannot be applied (not authorized)", requestedRole)
 	}
 
 	return nil
