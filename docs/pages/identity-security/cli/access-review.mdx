@@ -54,10 +54,11 @@ case-insensitive or prefix matching when you are unsure of the exact name.
 | What an Access List grants, and to whom | `SELECT * FROM access_path WHERE identity_group IN ('Prod Admins')` |
 | Why a resource is reachable through a role | `SELECT * FROM access_path WHERE resource = 'prod-db' AND identity_group IN ('prod-db-admin')` |
 
-Roles and Access Lists are both `identity_group` nodes; the output's `Kind`
-column distinguishes `role` from `access_list`. When you scope a review through
-a grantor like this, mind what the results do and do not cover — see
-[Understand query scope](#understand-query-scope).
+Roles and Access Lists are both `identity_group` nodes. The text output does not
+mark a grantor's kind; to tell a `role` from an `access_list`, use
+`--format=json` (or `yaml`) and read `grantors[].node.sub_kind`. When you scope a
+review through a grantor like this, mind what the results do and do not cover —
+see [Understand query scope](#understand-query-scope).
 
 By default the output summarizes each identity's resources, resolved access
 level, primary grantor, and grantor counts. Add `--detailed` to break each
