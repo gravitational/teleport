@@ -1715,7 +1715,7 @@ GRANT ALL PRIVILEGES ON SCHEMA teleport TO teleport;
 
 It is not possible to grant all privileges on the `public` schema to a non-admin user.
 
-The IAM role used by Teleport will need permissions for `kinesis:ListShards`, `kinesis:GetShardIterator` and `kinesis:GetRecords` on the Kinesis data stream that's receiving the DSQL CDC stream, and either `dsql:DbConnectAdmin` or `dsql:DbConnect` on the DSQL cluster to use the `admin` database user or some other database user, respectively.
+The IAM role used by Teleport will need, at a minimum, permissions for `kinesis:ListShards`, `kinesis:GetShardIterator` and `kinesis:GetRecords` on the Kinesis data stream that's receiving the DSQL CDC stream, and either `dsql:DbConnectAdmin` or `dsql:DbConnect` on the DSQL cluster to use the `admin` database user or some other database user, respectively. Depending on the configuration, additional permissions might be required - for example, [user-generated KMS keys in Kinesis require `kms:Decrypt`](https://docs.aws.amazon.com/streams/latest/dev/permissions-user-key-KMS.html).
 
 ### Configuration
 
