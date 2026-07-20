@@ -1,0 +1,5 @@
+Account Name Account ID   Permission Sets                                       
+------------ ------------ ----------------------------------------------------- 
+Production   111111111111 AdminAccess (arn:aws:sso:::permissionSet/abc/ps-aaaa) 
+                          ReadOnly (arn:aws:sso:::permissionSet/abc/ps-bbbb)    
+Staging      222222222222 ReadOnly (arn:aws:sso:::permissionSet/abc/ps-bbbb)    

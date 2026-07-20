@@ -80,6 +80,17 @@ func NewRequest(cfg *llmrequest.Config) (*http.Request, llmrequest.RequestInfo, 
 			providerPath = "/responses"
 			providerMethod = http.MethodPost
 			req = &responsesAPIRequest{}
+		// https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create
+		case "/chat/completions":
+			if cfg.DownstreamRequest.Method != http.MethodPost {
+				// We're ok with returning 404 back to clients instead 405 status.
+				return nil, info, trace.NotFound("chat completions API supports only POST requests")
+			}
+
+			info.endpointType = endpointTypeChatCompletions
+			providerPath = "/chat/completions"
+			providerMethod = http.MethodPost
+			req = &chatCompletionsAPIRequest{}
 		default:
 			return nil, info, trace.NotFound("unsupported endpoint")
 		}
@@ -125,6 +136,7 @@ func NewRequest(cfg *llmrequest.Config) (*http.Request, llmrequest.RequestInfo, 
 	info.providerModel = providerModel
 	req.SetModel(providerModel)
 	req.EnableReportUsage()
+	req.DisableDataRetention()
 
 	providerBody, err := utils.FastMarshal(req)
 	if err != nil {

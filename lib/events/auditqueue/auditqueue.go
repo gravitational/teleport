@@ -72,7 +72,7 @@ type Config struct {
 	// OrphanScanInterval is how often the queue scans for orphaned audit log
 	// queues.
 	OrphanScanInterval time.Duration
-	// MaxBytes sets the maximum database file size
+	// MaxBytes sets the maximum database size
 	MaxBytes int64
 	// SoftLimit is the size of the audit log queue at which we start logging
 	// warning messages.

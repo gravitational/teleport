@@ -1072,6 +1072,7 @@ Flags:
 |`--browser`|*no default*|Set to 'none' to suppress browser opening on login.|
 |`-f`, `--format`|`file`|Identity format: file, openssh (for OpenSSH compatibility) or kubernetes (for kubeconfig).|
 |`--kube-cluster`|*no default*|Name of the Kubernetes cluster to login to.|
+|`--[no-]force`|`false`|Force re-authentication even if the current session is still valid.|
 |`--[no-]overwrite`|`false`|Whether to overwrite the existing identity file.|
 |`--[no-]request-nowait`|`false`|Finish without waiting for request resolution.|
 |`-o`, `--out`|*no default*|Identity output.|
@@ -1316,12 +1317,19 @@ Usage:
 $ tsh proxy app [<flags>] <app>
 ```
 
+Environment variables:
+
+|Variable|Default|Description|
+|---|---|---|
+|`TELEPORT_PROXY_LOG_OUTPUT`|`stderr` (one of: `stdout`, `stderr`, `none`)|Select where proxy status messages are printed. Defaults to "stderr", but can be used to revert to legacy behavior of send proxy output to stdout. Valid values are "stdout", "stderr", and "none".|
+
 Flags:
 
 |Flag|Default|Description|
 |---|---|---|
 |`-c`, `--cluster`|*no default*|Specify the Teleport cluster to connect.|
 |`-p`, `--port`|*no default*|Specifies the listening port used by the proxy app listener. Accepts an optional target port of a multi-port TCP app after a colon, e.g. "1234:5678".|
+|`--proxy-log-output`|`stderr` (one of: `stdout`, `stderr`, `none`)|Select where proxy status messages are printed. Defaults to "stderr", but can be used to revert to legacy behavior of send proxy output to stdout. Valid values are "stdout", "stderr", and "none".|
 
 Arguments:
 
@@ -1339,6 +1347,12 @@ Usage:
 $ tsh proxy aws [<flags>]
 ```
 
+Environment variables:
+
+|Variable|Default|Description|
+|---|---|---|
+|`TELEPORT_PROXY_LOG_OUTPUT`|`stderr` (one of: `stdout`, `stderr`, `none`)|Select where proxy status messages are printed. Defaults to "stderr", but can be used to revert to legacy behavior of send proxy output to stdout. Valid values are "stdout", "stderr", and "none".|
+
 Flags:
 
 |Flag|Default|Description|
@@ -1346,6 +1360,7 @@ Flags:
 |`--app`|*no default*|Optional Name of the AWS application to use if logged into multiple.|
 |`-f`, `--format`|`unix` (one of: `unix`, `command-prompt`, `powershell`, `text`, `athena-odbc`, `athena-jdbc`)|Optional format to print the commands for setting environment variables, one of: unix, command-prompt, powershell, text. Default is unix. Or specify a service format, one of: athena-odbc, athena-jdbc.|
 |`-p`, `--port`|*no default*|Specifies the source port used by the proxy listener.|
+|`--proxy-log-output`|`stderr` (one of: `stdout`, `stderr`, `none`)|Select where proxy status messages are printed. Defaults to "stderr", but can be used to revert to legacy behavior of send proxy output to stdout. Valid values are "stdout", "stderr", and "none".|
 
 ## tsh proxy azure
 
@@ -1357,6 +1372,12 @@ Usage:
 $ tsh proxy azure [<flags>]
 ```
 
+Environment variables:
+
+|Variable|Default|Description|
+|---|---|---|
+|`TELEPORT_PROXY_LOG_OUTPUT`|`stderr` (one of: `stdout`, `stderr`, `none`)|Select where proxy status messages are printed. Defaults to "stderr", but can be used to revert to legacy behavior of send proxy output to stdout. Valid values are "stdout", "stderr", and "none".|
+
 Flags:
 
 |Flag|Default|Description|
@@ -1364,6 +1385,7 @@ Flags:
 |`--app`|*no default*|Optional Name of the Azure application to use if logged into multiple.|
 |`-f`, `--format`|`unix` (one of: `unix`, `command-prompt`, `powershell`, `text`)|Optional format to print the commands for setting environment variables, one of: unix, command-prompt, powershell, text. Default is unix.|
 |`-p`, `--port`|*no default*|Specifies the source port used by the proxy listener.|
+|`--proxy-log-output`|`stderr` (one of: `stdout`, `stderr`, `none`)|Select where proxy status messages are printed. Defaults to "stderr", but can be used to revert to legacy behavior of send proxy output to stdout. Valid values are "stdout", "stderr", and "none".|
 
 ## tsh proxy db
 
@@ -1375,6 +1397,12 @@ Usage:
 ```code
 $ tsh proxy db [<flags>] [<db>]
 ```
+
+Environment variables:
+
+|Variable|Default|Description|
+|---|---|---|
+|`TELEPORT_PROXY_LOG_OUTPUT`|`stderr` (one of: `stdout`, `stderr`, `none`)|Select where proxy status messages are printed. Defaults to "stderr", but can be used to revert to legacy behavior of send proxy output to stdout. Valid values are "stdout", "stderr", and "none".|
 
 Flags:
 
@@ -1388,6 +1416,7 @@ Flags:
 |`--[no-]insecure-listen-anywhere`|`false`|Allows the local proxy to listen on any address without restrictions. WARNING: this will expose unsecured listener to anyone in the network. Only use when network access is otherwise restricted.|
 |`--[no-]tunnel`|`false`|Open authenticated tunnel using database's client certificate so clients don't need to authenticate.|
 |`-p`, `--port`|*no default*|Specifies the source port used by proxy db listener.|
+|`--proxy-log-output`|`stderr` (one of: `stdout`, `stderr`, `none`)|Select where proxy status messages are printed. Defaults to "stderr", but can be used to revert to legacy behavior of send proxy output to stdout. Valid values are "stdout", "stderr", and "none".|
 |`--query`|*no default*|Query by predicate language enclosed in single quotes. Supports ==, !=, &&, and \|\| (e.g. --query='labels\["key1"\] == "value1" && labels\["key2"\] != "value2"').|
 |`-r`, `--db-roles`|*no default*|List of comma separate database roles to use for auto-provisioned user.|
 |`--request-reason`|*no default*|Reason for requesting access.|
@@ -1409,6 +1438,12 @@ Usage:
 $ tsh proxy gcloud [<flags>]
 ```
 
+Environment variables:
+
+|Variable|Default|Description|
+|---|---|---|
+|`TELEPORT_PROXY_LOG_OUTPUT`|`stderr` (one of: `stdout`, `stderr`, `none`)|Select where proxy status messages are printed. Defaults to "stderr", but can be used to revert to legacy behavior of send proxy output to stdout. Valid values are "stdout", "stderr", and "none".|
+
 Flags:
 
 |Flag|Default|Description|
@@ -1416,6 +1451,7 @@ Flags:
 |`--app`|*no default*|Optional Name of the GCP application to use if logged into multiple.|
 |`-f`, `--format`|`unix` (one of: `unix`, `command-prompt`, `powershell`, `text`)|Optional format to print the commands for setting environment variables, one of: unix, command-prompt, powershell, text. Default is unix.|
 |`-p`, `--port`|*no default*|Specifies the source port used by the proxy listener.|
+|`--proxy-log-output`|`stderr` (one of: `stdout`, `stderr`, `none`)|Select where proxy status messages are printed. Defaults to "stderr", but can be used to revert to legacy behavior of send proxy output to stdout. Valid values are "stdout", "stderr", and "none".|
 
 ## tsh proxy kube
 
@@ -1426,6 +1462,12 @@ Usage:
 ```code
 $ tsh proxy kube [<flags>] [<kube-cluster>...]
 ```
+
+Environment variables:
+
+|Variable|Default|Description|
+|---|---|---|
+|`TELEPORT_PROXY_LOG_OUTPUT`|`stderr` (one of: `stdout`, `stderr`, `none`)|Select where proxy status messages are printed. Defaults to "stderr", but can be used to revert to legacy behavior of send proxy output to stdout. Valid values are "stdout", "stderr", and "none".|
 
 Flags:
 
@@ -1441,6 +1483,7 @@ Flags:
 |`-n`, `--namespace`|*no default*|Configure the default Kubernetes namespace.|
 |`--[no-]exec`|`false`|Run the proxy in the background and reexec into a new shell with $KUBECONFIG already pointed to our config file.|
 |`-p`, `--port`|*no default*|Specifies the source port used by the proxy listener.|
+|`--proxy-log-output`|`stderr` (one of: `stdout`, `stderr`, `none`)|Select where proxy status messages are printed. Defaults to "stderr", but can be used to revert to legacy behavior of send proxy output to stdout. Valid values are "stdout", "stderr", and "none".|
 |`--query`|*no default*|Query by predicate language enclosed in single quotes. Supports ==, !=, &&, and \|\| (e.g. --query='labels\["key1"\] == "value1" && labels\["key2"\] != "value2"').|
 |`--set-context-name`|`{{.ClusterName}}-{{.KubeName}}`|Define a custom context name or template.|
 
@@ -1460,12 +1503,19 @@ Usage:
 $ tsh proxy mcp [<flags>] <app>
 ```
 
+Environment variables:
+
+|Variable|Default|Description|
+|---|---|---|
+|`TELEPORT_PROXY_LOG_OUTPUT`|`stderr` (one of: `stdout`, `stderr`, `none`)|Select where proxy status messages are printed. Defaults to "stderr", but can be used to revert to legacy behavior of send proxy output to stdout. Valid values are "stdout", "stderr", and "none".|
+
 Flags:
 
 |Flag|Default|Description|
 |---|---|---|
 |`-c`, `--cluster`|*no default*|Specify the Teleport cluster to connect.|
 |`-p`, `--port`|*no default*|Specifies the listening port used by the proxy app listener.|
+|`--proxy-log-output`|`stderr` (one of: `stdout`, `stderr`, `none`)|Select where proxy status messages are printed. Defaults to "stderr", but can be used to revert to legacy behavior of send proxy output to stdout. Valid values are "stdout", "stderr", and "none".|
 
 Arguments:
 
@@ -1489,6 +1539,7 @@ Environment variables:
 |Variable|Default|Description|
 |---|---|---|
 |`TELEPORT_NO_RESUME`|`false`|Disable SSH connection resumption.|
+|`TELEPORT_PROXY_LOG_OUTPUT`|`stderr` (one of: `stdout`, `stderr`, `none`)|Select where proxy status messages are printed. Defaults to "stderr", but can be used to revert to legacy behavior of send proxy output to stdout. Valid values are "stdout", "stderr", and "none".|
 
 Flags:
 
@@ -1497,6 +1548,7 @@ Flags:
 |`-c`, `--cluster`|*no default*|Specify the Teleport cluster to connect.|
 |`--[no-]no-resume`|`false`|Disable SSH connection resumption.|
 |`--[no-]relogin`|`true`|Permit performing an authentication attempt on a failed command.|
+|`--proxy-log-output`|`stderr` (one of: `stdout`, `stderr`, `none`)|Select where proxy status messages are printed. Defaults to "stderr", but can be used to revert to legacy behavior of send proxy output to stdout. Valid values are "stdout", "stderr", and "none".|
 
 Arguments:
 
