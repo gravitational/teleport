@@ -60,6 +60,8 @@ type Backend interface {
 	GetKubeCluster(ctx context.Context, req *presencepb.GetKubeClusterRequest) (types.KubeCluster, error)
 	RangeKubeClusters(ctx context.Context, req *presencepb.ListKubeClustersRequest) iter.Seq2[types.KubeCluster, error]
 	DeleteKubeCluster(ctx context.Context, req *presencepb.DeleteKubeClusterRequest) error
+
+	DeleteKubeServer(ctx context.Context, req *presencepb.DeleteKubeServerRequest) error
 }
 
 type Cache interface {
@@ -775,4 +777,39 @@ func (s *Service) DeleteKubeCluster(ctx context.Context, req *presencepb.DeleteK
 		s.logger.WarnContext(ctx, "Failed to emit kube cluster delete event", "error", err)
 	}
 	return presencepb.DeleteKubeClusterResponse_builder{}.Build(), nil
+}
+
+// DeleteKubeServer deletes a scoped or unscoped kube server.
+func (s *Service) DeleteKubeServer(
+	ctx context.Context, req *presencepb.DeleteKubeServerRequest,
+) (*presencepb.DeleteKubeServerResponse, error) {
+	authzCtx, err := s.scopedAuthorizer.AuthorizeScoped(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	switch {
+	case req.GetHostId() == "":
+		return nil, trace.BadParameter("host_id: must be specified")
+	case req.GetName() == "":
+		return nil, trace.BadParameter("name: must be specified")
+	}
+
+	ruleCtx := authzCtx.RuleContext()
+	if err := authzCtx.CheckerContext.Decision(ctx, req.GetScope(), func(checker *services.ScopedAccessChecker) error {
+		// Kube agents can delete their own kube servers
+		// (builtin RoleKube only grants read on kube_server rules); anyone else
+		// needs an app_server delete rule granted in the target scope.
+		if err := authzCtx.AgentOwnedResourceAction(req.GetScope(), req.GetHostId(), types.RoleKube); err == nil {
+			return nil
+		}
+		return checker.CheckAccessToRules(&ruleCtx, types.KindKubeServer, types.VerbDelete)
+	}); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := s.backend.DeleteKubeServer(ctx, req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return presencepb.DeleteKubeServerResponse_builder{}.Build(), nil
 }

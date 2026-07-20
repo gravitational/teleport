@@ -396,7 +396,7 @@ func mustCreateKubernetesServer(t *testing.T, clusterName string) types.KubeServ
 	return server
 }
 
-func TestRangeKubernetesServersWithName(t *testing.T) {
+func TestKubeServersCRUD(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 
@@ -404,7 +404,7 @@ func TestRangeKubernetesServersWithName(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = bk.Close() })
 
-	presence := NewPresenceService(bk)
+	presence := NewPresenceService(backend.NewSanitizer(bk))
 
 	t.Run("ParameterValidation", func(t *testing.T) {
 		_, err = iterstream.Collect(presence.RangeKubernetesServersWithName(ctx, ""))
@@ -443,7 +443,10 @@ func TestRangeKubernetesServersWithName(t *testing.T) {
 	})
 
 	t.Run("DeletedServersNotReturned", func(t *testing.T) {
-		err := presence.DeleteKubernetesServer(ctx, server1.GetHostID(), server1.GetName())
+		err := presence.DeleteKubeServer(ctx, presencev1.DeleteKubeServerRequest_builder{
+			HostId: server1.GetHostID(),
+			Name:   server1.GetName(),
+		}.Build())
 		require.NoError(t, err)
 
 		servers, err := iterstream.Collect(presence.RangeKubernetesServersWithName(ctx, "shared-cluster"))

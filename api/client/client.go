@@ -1539,10 +1539,15 @@ func (c *Client) GetKubernetesServers(ctx context.Context) ([]types.KubeServer, 
 
 // DeleteKubernetesServer deletes a named kubernetes server.
 func (c *Client) DeleteKubernetesServer(ctx context.Context, hostID, name string) error {
-	_, err := c.grpc.DeleteKubernetesServer(ctx, &proto.DeleteKubernetesServerRequest{
-		HostID: hostID,
+	return c.DeleteKubeServer(ctx, presencepb.DeleteKubeServerRequest_builder{
+		HostId: hostID,
 		Name:   name,
-	})
+	}.Build())
+}
+
+// DeleteKubernetesServer deletes a named kubernetes server.
+func (c *Client) DeleteKubeServer(ctx context.Context, req *presencepb.DeleteKubeServerRequest) error {
+	_, err := c.PresenceServiceClient().DeleteKubeServer(ctx, req)
 	return trace.Wrap(err)
 }
 

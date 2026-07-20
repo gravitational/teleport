@@ -168,6 +168,9 @@ type Presence interface {
 	// DeleteKubernetesServer deletes a named kubernetes servers.
 	DeleteKubernetesServer(ctx context.Context, hostID, name string) error
 
+	// DeleteKubeServer deletes a named kubernetes servers.
+	DeleteKubeServer(ctx context.Context, req *presencev1.DeleteKubeServerRequest) error
+
 	// DeleteAllKubernetesServers deletes all registered kubernetes servers.
 	DeleteAllKubernetesServers(context.Context) error
 
