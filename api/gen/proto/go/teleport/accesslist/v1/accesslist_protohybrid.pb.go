@@ -1279,7 +1279,7 @@ func (b0 AccessListGrants_builder) Build() *AccessListGrants {
 // ScopedRoleGrant describes a scoped role granted at a specific scope.
 type ScopedRoleGrant struct {
 	state protoimpl.MessageState `protogen:"hybrid.v1"`
-	// role is scope-qualified name of the scoped role to be granted.
+	// role is the scope-qualified name of the scoped role to be granted.
 	Role string `protobuf:"bytes,1,opt,name=role,proto3" json:"role,omitempty"`
 	// scope is the scope the role will be granted at. It must be an assignable
 	// scope of the role.
@@ -1338,7 +1338,7 @@ func (x *ScopedRoleGrant) SetScope(v string) {
 type ScopedRoleGrant_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
-	// role is scope-qualified name of the scoped role to be granted.
+	// role is the scope-qualified name of the scoped role to be granted.
 	Role string
 	// scope is the scope the role will be granted at. It must be an assignable
 	// scope of the role.

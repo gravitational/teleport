@@ -44,11 +44,12 @@ const accessReviewPageSize = 25
 type accessReviewArgs struct {
 	cmd *kingpin.CmdClause
 
-	query  string
-	from   time.Time
-	to     time.Time
-	limit  int
-	format string
+	query    string
+	from     time.Time
+	to       time.Time
+	limit    int
+	detailed bool
+	format   string
 }
 
 func (c *AccessGraphCommand) initAccessReview(app *kingpin.Application) {
@@ -67,6 +68,8 @@ func (c *AccessGraphCommand) initAccessReview(app *kingpin.Application) {
 	cmd.Flag("limit", "Maximum number of identities to return.").
 		Default("50").
 		IntVar(&c.accessReview.limit)
+	cmd.Flag("detailed", "In text output, show each grantor with its individual access level instead of the summary counts.").
+		BoolVar(&c.accessReview.detailed)
 	cmd.Flag("format", "Output format. (Values: text, json, yaml)").
 		Default(teleport.Text).
 		EnumVar(&c.accessReview.format, teleport.Text, teleport.JSON, teleport.YAML)
@@ -123,7 +126,7 @@ func (c *AccessGraphCommand) AccessReview(ctx context.Context, client *accessgra
 	}
 
 	return writeOutput(c.stdout, output, args.format, func(w io.Writer) error {
-		return displayAccessReviewText(w, output, from, to, showActivity)
+		return displayAccessReviewText(w, output, from, to, showActivity, args.detailed)
 	})
 }
 
@@ -345,7 +348,7 @@ func grantorSummary(p grantorCounts) string {
 
 // --- display ----------------------------------------------------------------
 
-func displayAccessReviewText(out io.Writer, output accessReviewOutput, from, to time.Time, showActivity bool) error {
+func displayAccessReviewText(out io.Writer, output accessReviewOutput, from, to time.Time, showActivity, detailed bool) error {
 	if showActivity {
 		if _, err := fmt.Fprintf(out, "Period: %s → %s\n\n", from.Format(time.RFC3339), to.Format(time.RFC3339)); err != nil {
 			return trace.Wrap(err)
@@ -359,7 +362,14 @@ func displayAccessReviewText(out io.Writer, output accessReviewOutput, from, to 
 		return trace.Wrap(writeWarnings(out, output.Warnings))
 	}
 
-	if err := renderAccessReviewSummary(out, output, showActivity); err != nil {
+	render := renderAccessReviewSummary
+	if detailed {
+		render = renderAccessReviewDetailed
+	}
+	if err := render(out, output, showActivity); err != nil {
+		return trace.Wrap(err)
+	}
+	if _, err := fmt.Fprintln(out, "* marks self-expiring access or a temporary grantor"); err != nil {
 		return trace.Wrap(err)
 	}
 	return trace.Wrap(writeWarnings(out, output.Warnings))
@@ -368,7 +378,7 @@ func displayAccessReviewText(out io.Writer, output accessReviewOutput, from, to 
 // renderAccessReviewSummary shows one row per (identity, resource) with the
 // resolved level, the primary grantor, and the grantor path counts.
 func renderAccessReviewSummary(out io.Writer, output accessReviewOutput, showActivity bool) error {
-	headers := []string{"Identity", "Kind", "Resource", "Resource Kind", "Access Level", "Granted By", "Grantor Counts"}
+	headers := []string{"Identity", "Kind", "Resource", "Resource Kind", "Access Level", "Grantor", "Grantor Counts"}
 	if showActivity {
 		headers = append(headers, "Accesses", "Last Access")
 	}
@@ -376,11 +386,7 @@ func renderAccessReviewSummary(out io.Writer, output accessReviewOutput, showAct
 	var rows [][]string
 	for _, ia := range output.Identities {
 		if len(ia.Resources) == 0 {
-			row := []string{cellName(ia.Identity), cellKind(ia.Identity), "", "", "", "", ""}
-			if showActivity {
-				row = append(row, "", "")
-			}
-			rows = append(rows, row)
+			rows = append(rows, padActivity([]string{cellName(ia.Identity), cellKind(ia.Identity), "", "", "", "", ""}, showActivity))
 			continue
 		}
 		for i, ra := range ia.Resources {
@@ -389,23 +395,13 @@ func renderAccessReviewSummary(out io.Writer, output accessReviewOutput, showAct
 				identity, kind = cellName(ia.Identity), cellKind(ia.Identity)
 			}
 
-			level := utils.EscapeControl(ra.Level)
-			if ra.Temporary {
-				level += "*"
-			}
 			granted := ""
 			if g, ok := primaryGrantor(ra); ok {
 				granted = grantorName(g)
 			}
-			row := []string{identity, kind, cellName(ra.Resource), cellKind(ra.Resource), level, granted, grantorSummary(ra.GrantorCounts)}
+			row := []string{identity, kind, cellName(ra.Resource), cellKind(ra.Resource), levelCell(ra), granted, grantorSummary(ra.GrantorCounts)}
 			if showActivity {
-				accesses, last := "0", "never"
-				if ra.Activity != nil {
-					accesses = fmt.Sprintf("%d", ra.Activity.Count)
-					if ra.Activity.LastAccess != nil {
-						last = ra.Activity.LastAccess.Format(time.RFC3339)
-					}
-				}
+				accesses, last := activityCells(ra)
 				row = append(row, accesses, last)
 			}
 			rows = append(rows, row)
@@ -413,6 +409,73 @@ func renderAccessReviewSummary(out io.Writer, output accessReviewOutput, showAct
 	}
 
 	return writeAccessTable(out, headers, rows)
+}
+
+func renderAccessReviewDetailed(out io.Writer, output accessReviewOutput, showActivity bool) error {
+	headers, rows := accessReviewDetailedRows(output, showActivity)
+	return writeAccessTable(out, headers, rows)
+}
+
+// accessReviewDetailedRows builds the detailed table rows, breaking each
+// (identity, resource) pair down by grantor.
+func accessReviewDetailedRows(output accessReviewOutput, showActivity bool) ([]string, [][]string) {
+	headers := []string{"Identity", "Kind", "Resource", "Resource Kind", "Access Level", "Grantor", "Grantor Level"}
+	if showActivity {
+		headers = append(headers, "Accesses", "Last Access")
+	}
+
+	var rows [][]string
+	for _, ia := range output.Identities {
+		identityShown := false
+		identityCells := func() (string, string) {
+			if identityShown {
+				return "", ""
+			}
+			identityShown = true
+			return cellName(ia.Identity), cellKind(ia.Identity)
+		}
+
+		if len(ia.Resources) == 0 {
+			id, kind := identityCells()
+			rows = append(rows, padActivity([]string{id, kind, "", "", "", "", ""}, showActivity))
+			continue
+		}
+		for _, ra := range ia.Resources {
+			id, kind := identityCells()
+
+			// A single grantor shares the resource's row; its activity is
+			// unambiguous. Zero grantors leave the grantor cells blank.
+			if len(ra.Grantors) <= 1 {
+				grantor, grantorLevel := "", ""
+				if len(ra.Grantors) == 1 {
+					g := ra.Grantors[0]
+					grantor, grantorLevel = grantorName(g), utils.EscapeControl(g.Level)
+				}
+				row := []string{id, kind, cellName(ra.Resource), cellKind(ra.Resource), levelCell(ra), grantor, grantorLevel}
+				if showActivity {
+					accesses, last := activityCells(ra)
+					row = append(row, accesses, last)
+				}
+				rows = append(rows, row)
+				continue
+			}
+
+			// Multiple grantors: summary row carries the pair-level activity,
+			// then one indented row per grantor.
+			summary := []string{id, kind, cellName(ra.Resource), cellKind(ra.Resource), levelCell(ra), "", ""}
+			if showActivity {
+				accesses, last := activityCells(ra)
+				summary = append(summary, accesses, last)
+			}
+			rows = append(rows, summary)
+
+			for _, g := range ra.Grantors {
+				rows = append(rows, padActivity([]string{"", "", "", "", "", "↳ " + grantorName(g), utils.EscapeControl(g.Level)}, showActivity))
+			}
+		}
+	}
+
+	return headers, rows
 }
 
 const resourceColumn = "Resource"
@@ -491,4 +554,35 @@ func grantorName(g grantor) string {
 		name += "*"
 	}
 	return name
+}
+
+// levelCell renders the resolved access level, marking self-expiring access.
+func levelCell(ra resourceAccess) string {
+	level := utils.EscapeControl(ra.Level)
+	if ra.Temporary {
+		level += "*"
+	}
+	return level
+}
+
+// activityCells renders the access count and last-access time for a pair,
+// reading absent activity as zero / never.
+func activityCells(ra resourceAccess) (accesses, last string) {
+	if ra.Activity == nil {
+		return "0", "never"
+	}
+	last = "never"
+	if ra.Activity.LastAccess != nil {
+		last = ra.Activity.LastAccess.Format(time.RFC3339)
+	}
+	return fmt.Sprintf("%d", ra.Activity.Count), last
+}
+
+// padActivity keeps rows the same width as the activity headers, so a row
+// built without per-row activity still lines up under the activity columns.
+func padActivity(row []string, showActivity bool) []string {
+	if showActivity {
+		return append(row, "", "")
+	}
+	return row
 }

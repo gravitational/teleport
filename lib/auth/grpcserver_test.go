@@ -3529,11 +3529,12 @@ func TestGetSSHTargets(t *testing.T) {
 
 func TestResolveSSHTarget(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	srv := newTestTLSServer(t)
 
 	clt, err := srv.NewClient(authtest.TestAdmin())
 	require.NoError(t, err)
+	t.Cleanup(func() { clt.Close() })
 
 	upper, err := types.NewServerWithLabels(uuid.New().String(), types.KindNode, types.ServerSpecV2{
 		Hostname:  "Foo",
@@ -3558,6 +3559,16 @@ func TestResolveSSHTarget(t *testing.T) {
 		_, err = clt.UpsertNode(ctx, node)
 		require.NoError(t, err)
 	}
+
+	// Wait for the nodes to show up in the unified resource cache.
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		var nodes []string
+		for node, err := range srv.Auth().UnifiedResourceCache.Nodes(ctx, services.UnifiedResourcesIterateParams{}) {
+			assert.NoError(t, err)
+			nodes = append(nodes, node.GetHostname())
+		}
+		assert.Subset(t, nodes, []string{"Foo", "foo", "bar"})
+	}, 15*time.Second, 20*time.Millisecond)
 
 	rsp, err := clt.ResolveSSHTarget(ctx, &proto.ResolveSSHTargetRequest{
 		Host: "foo",
@@ -7282,7 +7293,10 @@ func TestGenerateUserCertsScopedBot(t *testing.T) {
 						Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
 							Bot: scopes.QualifiedName{Scope: c.scope, Name: bot.GetMetadata().GetName()}.String(),
 							Assignments: []*scopedaccessv1.Assignment{
-								scopedaccessv1.Assignment_builder{Role: roleResp.GetRole().GetMetadata().GetName(), Scope: c.scope}.Build(),
+								scopedaccessv1.Assignment_builder{
+									Role:  scopes.QualifiedName{Scope: roleResp.GetRole().GetScope(), Name: roleResp.GetRole().GetMetadata().GetName()}.String(),
+									Scope: c.scope,
+								}.Build(),
 							},
 						}.Build(),
 					}.Build(),

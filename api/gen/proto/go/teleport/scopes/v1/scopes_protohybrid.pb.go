@@ -416,12 +416,14 @@ func (b0 AssignmentNode_builder) Build() *AssignmentNode {
 
 // RoleNode represents a node in the role tree. It encodes any roles assigned at the given scope level, as well as any child scopes
 // that have further role assignments. The role tree is organized by *Scope of Effect* (i.e. the scope at which the roles apply).
+// The role tree is *relative to* the Scope of Origin that references it (i.e. if assignment node `/staging` contains a role tree
+// with roles at `/west`, the full Scope of Effect for those roles is `/staging/west`).
 type RoleNode struct {
 	state protoimpl.MessageState `protogen:"hybrid.v1"`
-	// children are the child role nodes, keyed by scope segment.
+	// children are the child role nodes, keyed by scope segment, relative to the Scope of Origin.
 	Children map[string]*RoleNode `protobuf:"bytes,1,rep,name=children,proto3" json:"children,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	// roles are the roles assigned at this scope level.
-	Roles         []string `protobuf:"bytes,2,rep,name=roles,proto3" json:"roles,omitempty"`
+	// roles_by_scope encodes the roles assigned at this Scope of Effect. The roles are grouped by their resource scope.
+	RolesByScope  []*RolesByScope `protobuf:"bytes,3,rep,name=roles_by_scope,json=rolesByScope,proto3" json:"roles_by_scope,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -458,9 +460,9 @@ func (x *RoleNode) GetChildren() map[string]*RoleNode {
 	return nil
 }
 
-func (x *RoleNode) GetRoles() []string {
+func (x *RoleNode) GetRolesByScope() []*RolesByScope {
 	if x != nil {
-		return x.Roles
+		return x.RolesByScope
 	}
 	return nil
 }
@@ -469,17 +471,17 @@ func (x *RoleNode) SetChildren(v map[string]*RoleNode) {
 	x.Children = v
 }
 
-func (x *RoleNode) SetRoles(v []string) {
-	x.Roles = v
+func (x *RoleNode) SetRolesByScope(v []*RolesByScope) {
+	x.RolesByScope = v
 }
 
 type RoleNode_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
-	// children are the child role nodes, keyed by scope segment.
+	// children are the child role nodes, keyed by scope segment, relative to the Scope of Origin.
 	Children map[string]*RoleNode
-	// roles are the roles assigned at this scope level.
-	Roles []string
+	// roles_by_scope encodes the roles assigned at this Scope of Effect. The roles are grouped by their resource scope.
+	RolesByScope []*RolesByScope
 }
 
 func (b0 RoleNode_builder) Build() *RoleNode {
@@ -487,7 +489,86 @@ func (b0 RoleNode_builder) Build() *RoleNode {
 	b, x := &b0, m0
 	_, _ = b, x
 	x.Children = b.Children
-	x.Roles = b.Roles
+	x.RolesByScope = b.RolesByScope
+	return m0
+}
+
+// RolesByScope groups a set of roles that share the same resource scope. Because pins are subject to size constraints when encoded
+// to certificates, we only store the depth (segment count) of the resource scope associated with this set of roles.  Roles are only
+// assignable to equivalent/descendant scopes, and so their resource scope is always a prefix of the Scope of Effect, which is already
+// known at the RoleNode where this entry appears.
+type RolesByScope struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// depth is the number of path segments in the roles' resource scope (root=0, /staging/west=2, etc).
+	Depth uint32 `protobuf:"varint,1,opt,name=depth,proto3" json:"depth,omitempty"`
+	// names are the role names whose resource scope is at this depth.
+	Names         []string `protobuf:"bytes,2,rep,name=names,proto3" json:"names,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RolesByScope) Reset() {
+	*x = RolesByScope{}
+	mi := &file_teleport_scopes_v1_scopes_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RolesByScope) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RolesByScope) ProtoMessage() {}
+
+func (x *RolesByScope) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_v1_scopes_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *RolesByScope) GetDepth() uint32 {
+	if x != nil {
+		return x.Depth
+	}
+	return 0
+}
+
+func (x *RolesByScope) GetNames() []string {
+	if x != nil {
+		return x.Names
+	}
+	return nil
+}
+
+func (x *RolesByScope) SetDepth(v uint32) {
+	x.Depth = v
+}
+
+func (x *RolesByScope) SetNames(v []string) {
+	x.Names = v
+}
+
+type RolesByScope_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// depth is the number of path segments in the roles' resource scope (root=0, /staging/west=2, etc).
+	Depth uint32
+	// names are the role names whose resource scope is at this depth.
+	Names []string
+}
+
+func (b0 RolesByScope_builder) Build() *RolesByScope {
+	m0 := &RolesByScope{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Depth = b.Depth
+	x.Names = b.Names
 	return m0
 }
 
@@ -502,7 +583,7 @@ type PinnedAssignments struct {
 
 func (x *PinnedAssignments) Reset() {
 	*x = PinnedAssignments{}
-	mi := &file_teleport_scopes_v1_scopes_proto_msgTypes[3]
+	mi := &file_teleport_scopes_v1_scopes_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -514,7 +595,7 @@ func (x *PinnedAssignments) String() string {
 func (*PinnedAssignments) ProtoMessage() {}
 
 func (x *PinnedAssignments) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_v1_scopes_proto_msgTypes[3]
+	mi := &file_teleport_scopes_v1_scopes_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -566,7 +647,7 @@ type SystemRoles struct {
 
 func (x *SystemRoles) Reset() {
 	*x = SystemRoles{}
-	mi := &file_teleport_scopes_v1_scopes_proto_msgTypes[4]
+	mi := &file_teleport_scopes_v1_scopes_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -578,7 +659,7 @@ func (x *SystemRoles) String() string {
 func (*SystemRoles) ProtoMessage() {}
 
 func (x *SystemRoles) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_v1_scopes_proto_msgTypes[4]
+	mi := &file_teleport_scopes_v1_scopes_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -651,7 +732,7 @@ type Filter struct {
 
 func (x *Filter) Reset() {
 	*x = Filter{}
-	mi := &file_teleport_scopes_v1_scopes_proto_msgTypes[5]
+	mi := &file_teleport_scopes_v1_scopes_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -663,7 +744,7 @@ func (x *Filter) String() string {
 func (*Filter) ProtoMessage() {}
 
 func (x *Filter) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_v1_scopes_proto_msgTypes[5]
+	mi := &file_teleport_scopes_v1_scopes_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -730,13 +811,16 @@ const file_teleport_scopes_v1_scopes_proto_rawDesc = "" +
 	"\trole_tree\x18\x02 \x01(\v2\x1c.teleport.scopes.v1.RoleNodeR\broleTree\x1a_\n" +
 	"\rChildrenEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x128\n" +
-	"\x05value\x18\x02 \x01(\v2\".teleport.scopes.v1.AssignmentNodeR\x05value:\x028\x01\"\xc3\x01\n" +
+	"\x05value\x18\x02 \x01(\v2\".teleport.scopes.v1.AssignmentNodeR\x05value:\x028\x01\"\x82\x02\n" +
 	"\bRoleNode\x12F\n" +
-	"\bchildren\x18\x01 \x03(\v2*.teleport.scopes.v1.RoleNode.ChildrenEntryR\bchildren\x12\x14\n" +
-	"\x05roles\x18\x02 \x03(\tR\x05roles\x1aY\n" +
+	"\bchildren\x18\x01 \x03(\v2*.teleport.scopes.v1.RoleNode.ChildrenEntryR\bchildren\x12F\n" +
+	"\x0eroles_by_scope\x18\x03 \x03(\v2 .teleport.scopes.v1.RolesByScopeR\frolesByScope\x1aY\n" +
 	"\rChildrenEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x122\n" +
-	"\x05value\x18\x02 \x01(\v2\x1c.teleport.scopes.v1.RoleNodeR\x05value:\x028\x01\")\n" +
+	"\x05value\x18\x02 \x01(\v2\x1c.teleport.scopes.v1.RoleNodeR\x05value:\x028\x01J\x04\b\x02\x10\x03R\x05roles\":\n" +
+	"\fRolesByScope\x12\x14\n" +
+	"\x05depth\x18\x01 \x01(\rR\x05depth\x12\x14\n" +
+	"\x05names\x18\x02 \x03(\tR\x05names\")\n" +
 	"\x11PinnedAssignments\x12\x14\n" +
 	"\x05roles\x18\x01 \x03(\tR\x05roles\"G\n" +
 	"\vSystemRoles\x12\x18\n" +
@@ -763,34 +847,36 @@ const file_teleport_scopes_v1_scopes_proto_rawDesc = "" +
 	"\bMODE_ALL\x10\b\"\x04\b\x01\x10\x01*\x1fMODE_RESOURCES_SUBJECT_TO_SCOPEBPZNgithub.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1;scopesv1b\x06proto3"
 
 var file_teleport_scopes_v1_scopes_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_teleport_scopes_v1_scopes_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
+var file_teleport_scopes_v1_scopes_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
 var file_teleport_scopes_v1_scopes_proto_goTypes = []any{
 	(PinKind)(0),              // 0: teleport.scopes.v1.PinKind
 	(Mode)(0),                 // 1: teleport.scopes.v1.Mode
 	(*Pin)(nil),               // 2: teleport.scopes.v1.Pin
 	(*AssignmentNode)(nil),    // 3: teleport.scopes.v1.AssignmentNode
 	(*RoleNode)(nil),          // 4: teleport.scopes.v1.RoleNode
-	(*PinnedAssignments)(nil), // 5: teleport.scopes.v1.PinnedAssignments
-	(*SystemRoles)(nil),       // 6: teleport.scopes.v1.SystemRoles
-	(*Filter)(nil),            // 7: teleport.scopes.v1.Filter
-	nil,                       // 8: teleport.scopes.v1.AssignmentNode.ChildrenEntry
-	nil,                       // 9: teleport.scopes.v1.RoleNode.ChildrenEntry
+	(*RolesByScope)(nil),      // 5: teleport.scopes.v1.RolesByScope
+	(*PinnedAssignments)(nil), // 6: teleport.scopes.v1.PinnedAssignments
+	(*SystemRoles)(nil),       // 7: teleport.scopes.v1.SystemRoles
+	(*Filter)(nil),            // 8: teleport.scopes.v1.Filter
+	nil,                       // 9: teleport.scopes.v1.AssignmentNode.ChildrenEntry
+	nil,                       // 10: teleport.scopes.v1.RoleNode.ChildrenEntry
 }
 var file_teleport_scopes_v1_scopes_proto_depIdxs = []int32{
-	0, // 0: teleport.scopes.v1.Pin.kind:type_name -> teleport.scopes.v1.PinKind
-	3, // 1: teleport.scopes.v1.Pin.assignment_tree:type_name -> teleport.scopes.v1.AssignmentNode
-	6, // 2: teleport.scopes.v1.Pin.system_roles:type_name -> teleport.scopes.v1.SystemRoles
-	8, // 3: teleport.scopes.v1.AssignmentNode.children:type_name -> teleport.scopes.v1.AssignmentNode.ChildrenEntry
-	4, // 4: teleport.scopes.v1.AssignmentNode.role_tree:type_name -> teleport.scopes.v1.RoleNode
-	9, // 5: teleport.scopes.v1.RoleNode.children:type_name -> teleport.scopes.v1.RoleNode.ChildrenEntry
-	1, // 6: teleport.scopes.v1.Filter.mode:type_name -> teleport.scopes.v1.Mode
-	3, // 7: teleport.scopes.v1.AssignmentNode.ChildrenEntry.value:type_name -> teleport.scopes.v1.AssignmentNode
-	4, // 8: teleport.scopes.v1.RoleNode.ChildrenEntry.value:type_name -> teleport.scopes.v1.RoleNode
-	9, // [9:9] is the sub-list for method output_type
-	9, // [9:9] is the sub-list for method input_type
-	9, // [9:9] is the sub-list for extension type_name
-	9, // [9:9] is the sub-list for extension extendee
-	0, // [0:9] is the sub-list for field type_name
+	0,  // 0: teleport.scopes.v1.Pin.kind:type_name -> teleport.scopes.v1.PinKind
+	3,  // 1: teleport.scopes.v1.Pin.assignment_tree:type_name -> teleport.scopes.v1.AssignmentNode
+	7,  // 2: teleport.scopes.v1.Pin.system_roles:type_name -> teleport.scopes.v1.SystemRoles
+	9,  // 3: teleport.scopes.v1.AssignmentNode.children:type_name -> teleport.scopes.v1.AssignmentNode.ChildrenEntry
+	4,  // 4: teleport.scopes.v1.AssignmentNode.role_tree:type_name -> teleport.scopes.v1.RoleNode
+	10, // 5: teleport.scopes.v1.RoleNode.children:type_name -> teleport.scopes.v1.RoleNode.ChildrenEntry
+	5,  // 6: teleport.scopes.v1.RoleNode.roles_by_scope:type_name -> teleport.scopes.v1.RolesByScope
+	1,  // 7: teleport.scopes.v1.Filter.mode:type_name -> teleport.scopes.v1.Mode
+	3,  // 8: teleport.scopes.v1.AssignmentNode.ChildrenEntry.value:type_name -> teleport.scopes.v1.AssignmentNode
+	4,  // 9: teleport.scopes.v1.RoleNode.ChildrenEntry.value:type_name -> teleport.scopes.v1.RoleNode
+	10, // [10:10] is the sub-list for method output_type
+	10, // [10:10] is the sub-list for method input_type
+	10, // [10:10] is the sub-list for extension type_name
+	10, // [10:10] is the sub-list for extension extendee
+	0,  // [0:10] is the sub-list for field type_name
 }
 
 func init() { file_teleport_scopes_v1_scopes_proto_init() }
@@ -804,7 +890,7 @@ func file_teleport_scopes_v1_scopes_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_scopes_v1_scopes_proto_rawDesc), len(file_teleport_scopes_v1_scopes_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   8,
+			NumMessages:   9,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

@@ -187,6 +187,23 @@ func Test_AccessRequest_SetExpiry(t *testing.T) {
 	require.Equal(t, t1, *reqV3.Spec.ResourceExpiry)
 }
 
+func TestAccessRequestGetReferencedUsers(t *testing.T) {
+	t.Run("requester only", func(t *testing.T) {
+		req, err := NewAccessRequest("req-1", "alice", "role-a")
+		require.NoError(t, err)
+		require.Equal(t, []string{"alice"}, req.GetReferencedUsers())
+	})
+
+	t.Run("requester, review authors, and suggested reviewers", func(t *testing.T) {
+		req, err := NewAccessRequest("req-2", "alice", "role-a")
+		require.NoError(t, err)
+		req.SetReviews([]AccessReview{{Author: "bob"}, {Author: "carol"}})
+		req.SetSuggestedReviewers([]string{"carol", "dave"})
+
+		require.Equal(t, []string{"alice", "bob", "carol", "carol", "dave"}, req.GetReferencedUsers())
+	})
+}
+
 func TestAccessRequestV3IsEqual(t *testing.T) {
 	newReq := func(t *testing.T) *AccessRequestV3 {
 		t.Helper()
