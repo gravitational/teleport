@@ -19,7 +19,6 @@
 package local
 
 import (
-	"context"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -28,6 +27,8 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
+	kubev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/itertools/stream"
@@ -35,7 +36,7 @@ import (
 
 // TestKubernetesCRUD tests backend operations with kubernetes resources.
 func TestKubernetesCRUD(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	backend, err := memory.New(memory.Config{
 		Context: ctx,
@@ -43,9 +44,10 @@ func TestKubernetesCRUD(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	service := NewKubernetesService(backend)
+	service, err := NewKubernetesService(backend)
+	require.NoError(t, err)
 
-	// Create a couple kube clusters.
+	// Create a few couple kube clusters.
 	kubeCluster1, err := types.NewKubernetesClusterV3(types.Metadata{
 		Name: "c1",
 	}, types.KubernetesClusterSpecV3{})
@@ -59,93 +61,241 @@ func TestKubernetesCRUD(t *testing.T) {
 	}, types.KubernetesClusterSpecV3{})
 	require.NoError(t, err)
 
-	// Initially we expect no Kubernetess.
-	out, err := service.GetKubernetesClusters(ctx)
-	require.NoError(t, err)
-	require.Empty(t, out)
+	testLegacyMethods(t, service, []types.KubeCluster{
+		kubeCluster1,
+		kubeCluster2,
+		kubeCluster3,
+	})
+}
 
-	// Create both Kubernetess.
-	err = service.CreateKubernetesCluster(ctx, kubeCluster1)
-	require.NoError(t, err)
-	err = service.CreateKubernetesCluster(ctx, kubeCluster2)
-	require.NoError(t, err)
-	err = service.CreateKubernetesCluster(ctx, kubeCluster3)
+// TestScopedKubeClusterCRUD tests backend operations with kubernetes resources.
+func TestScopedKubeClusterCRUD(t *testing.T) {
+	ctx := t.Context()
+
+	backend, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clockwork.NewFakeClock(),
+	})
 	require.NoError(t, err)
 
-	expectedAll := []types.KubeCluster{kubeCluster1, kubeCluster2, kubeCluster3}
+	service, err := NewKubernetesService(backend)
+	require.NoError(t, err)
+
+	const (
+		scope           = "/aa"
+		orthogonalScope = "/bb"
+	)
+
+	// Create a couple kube clusters.
+	unscopedCluster, err := types.NewKubernetesClusterV3(types.Metadata{
+		Name: "kube-cluster",
+	}, types.KubernetesClusterSpecV3{})
+	require.NoError(t, err)
+	scopedCluster, err := types.NewKubernetesClusterV3(types.Metadata{
+		Name: "kube-cluster",
+	}, types.KubernetesClusterSpecV3{}, types.KubeClusterWithScope(scope))
+	require.NoError(t, err)
+	orthogonalCluster, err := types.NewKubernetesClusterV3(types.Metadata{
+		Name: "kube-cluster",
+	}, types.KubernetesClusterSpecV3{}, types.KubeClusterWithScope(orthogonalScope))
+	require.NoError(t, err)
+
+	clusters := []types.KubeCluster{
+		unscopedCluster,
+		scopedCluster,
+		orthogonalCluster,
+	}
+	testLegacyMethods(t, service, clusters)
+
+	// test new kube cluster methods
+	//
+	// Create all clusters
+	for _, cluster := range clusters {
+		err = service.CreateKubernetesCluster(ctx, cluster)
+		require.NoError(t, err)
+	}
+
+	// ensure each cluster can be updated and fetched
 	diffopt := cmpopts.IgnoreFields(types.Metadata{}, "Revision")
+	for _, cluster := range clusters {
+		cluster.SetStaticLabels(map[string]string{"updated": "updated"})
+		err := service.UpdateKubernetesCluster(ctx, cluster)
+		require.NoError(t, err)
 
-	// Fetch all Kubernetess.
-	out, err = service.GetKubernetesClusters(ctx)
+		res, err := service.GetKubeCluster(ctx, kubev1.GetKubeClusterRequest_builder{
+			Scope: cluster.GetScope(),
+			Name:  cluster.GetName(),
+		}.Build())
+		require.NoError(t, err)
+		require.Empty(t, cmp.Diff(cluster, res, diffopt))
+		require.Equal(t, "updated", res.GetStaticLabels()["updated"])
+	}
+
+	// ensure all clusters can be listed
+	list, nextToken, err := service.ListKubeClusters(ctx, kubev1.ListKubeClustersRequest_builder{
+		PageSize: 10,
+	}.Build())
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(expectedAll, out, diffopt))
+	require.Empty(t, nextToken)
+	require.Len(t, list, 3)
 
-	// List with page limit
-	page1, page2Start, err := service.ListKubernetesClusters(ctx, 2, "")
+	// ensure scope filtering works
+	list, nextToken, err = service.ListKubeClusters(ctx, kubev1.ListKubeClustersRequest_builder{
+		PageSize: 10,
+		ScopeFilter: scopesv1.Filter_builder{
+			Scope: scopedCluster.GetScope(),
+			Mode:  scopesv1.Mode_MODE_EXACT,
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
-	require.NotEmpty(t, page2Start)
-	require.Len(t, page1, 2)
+	require.Empty(t, nextToken)
+	require.Len(t, list, 1)
+	require.Empty(t, cmp.Diff(scopedCluster, list[0], diffopt))
 
-	// List with start
-	page2, next, err := service.ListKubernetesClusters(ctx, 2, page2Start)
+	// ensure unscoped filtering works
+	list, nextToken, err = service.ListKubeClusters(ctx, kubev1.ListKubeClustersRequest_builder{
+		PageSize: 10,
+		ScopeFilter: scopesv1.Filter_builder{
+			Mode: scopesv1.Mode_MODE_UNSCOPED,
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
-	require.Empty(t, next)
-	require.Len(t, page2, 1)
-	require.Empty(t, cmp.Diff(expectedAll, append(page1, page2...), diffopt))
+	require.Empty(t, nextToken)
+	require.Len(t, list, 1)
+	require.Empty(t, cmp.Diff(unscopedCluster, list[0], diffopt))
 
-	// Range over all
-	out, err = stream.Collect(service.RangeKubernetesClusters(ctx, "", ""))
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(expectedAll, out, diffopt))
+	// ensure clusters can be deleted
+	for _, cluster := range clusters {
+		cluster.SetStaticLabels(map[string]string{"updated": "updated"})
+		err := service.UpdateKubernetesCluster(ctx, cluster)
+		require.NoError(t, err)
 
-	// Range with upper bound
-	out, err = stream.Collect(service.RangeKubernetesClusters(ctx, "", page2Start))
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(page1, out, diffopt))
+		err = service.DeleteKubeCluster(ctx, kubev1.DeleteKubeClusterRequest_builder{
+			Scope: cluster.GetScope(),
+			Name:  cluster.GetName(),
+		}.Build())
+		require.NoError(t, err)
 
-	// Range with lower bound
-	out, err = stream.Collect(service.RangeKubernetesClusters(ctx, page2Start, ""))
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(page2, out, diffopt))
+		_, err = service.GetKubeCluster(ctx, kubev1.GetKubeClusterRequest_builder{
+			Scope: cluster.GetScope(),
+			Name:  cluster.GetName(),
+		}.Build())
+		require.Error(t, err)
+		require.True(t, trace.IsNotFound(err), "expected not found error after kube cluster deletion")
+	}
+}
 
-	// Fetch a specific Kubernetes.
-	cluster, err := service.GetKubernetesCluster(ctx, kubeCluster2.GetName())
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(kubeCluster2, cluster, diffopt))
+func testLegacyMethods(t *testing.T, service *KubernetesService, clusters []types.KubeCluster) {
+	t.Helper()
+	if len(clusters) < 3 {
+		require.FailNow(t, "need at least 3 clusters to run legacy method test")
+	}
 
-	// Try to fetch a Kubernetes that doesn't exist.
-	_, err = service.GetKubernetesCluster(ctx, "doesnotexist")
-	require.ErrorAs(t, err, new(*trace.NotFoundError))
+	t.Run("legacy methods", func(t *testing.T) {
+		ctx := t.Context()
+		// We should start out with no clusters
+		out, err := service.GetKubernetesClusters(ctx)
+		require.NoError(t, err)
+		require.Empty(t, out)
 
-	// Try to create the same Kubernetes.
-	err = service.CreateKubernetesCluster(ctx, kubeCluster1)
-	require.ErrorAs(t, err, new(*trace.AlreadyExistsError))
+		// Create all clusters
+		for _, cluster := range clusters {
+			err = service.CreateKubernetesCluster(ctx, cluster)
+			require.NoError(t, err)
+		}
 
-	// Update a Kubernetes.
-	kubeCluster1.Metadata.Description = "description"
-	err = service.UpdateKubernetesCluster(ctx, kubeCluster1)
-	require.NoError(t, err)
-	cluster, err = service.GetKubernetesCluster(ctx, kubeCluster1.GetName())
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(kubeCluster1, cluster, diffopt))
+		diffopt := cmpopts.IgnoreFields(types.Metadata{}, "Revision")
 
-	// Delete a Kubernetes.
-	err = service.DeleteKubernetesCluster(ctx, kubeCluster1.GetName())
-	require.NoError(t, err)
+		// Fetch all clusters
+		out, err = service.GetKubernetesClusters(ctx)
+		require.NoError(t, err)
+		require.Empty(t, cmp.Diff(clusters, out, diffopt))
 
-	expectedAll = []types.KubeCluster{kubeCluster2, kubeCluster3}
-	out, err = service.GetKubernetesClusters(ctx)
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(expectedAll, out, diffopt))
+		// List with page limit
+		page1, page2Start, err := service.ListKubernetesClusters(ctx, 2, "")
+		require.NoError(t, err)
+		require.NotEmpty(t, page2Start)
+		require.Len(t, page1, 2)
 
-	// Try to delete a Kubernetes that doesn't exist.
-	err = service.DeleteKubernetesCluster(ctx, "doesnotexist")
-	require.ErrorAs(t, err, new(*trace.NotFoundError))
+		// List with start
+		page2, next, err := service.ListKubernetesClusters(ctx, 2, page2Start)
+		require.NoError(t, err)
+		require.Empty(t, next)
+		require.Len(t, page2, 1)
+		require.Empty(t, cmp.Diff(clusters, append(page1, page2...), diffopt))
 
-	// Delete all Kubernetess.
-	err = service.DeleteAllKubernetesClusters(ctx)
-	require.NoError(t, err)
-	out, err = service.GetKubernetesClusters(ctx)
-	require.NoError(t, err)
-	require.Empty(t, out)
+		// Range over all
+		out, err = stream.Collect(service.RangeKubernetesClusters(ctx, "", ""))
+		require.NoError(t, err)
+		require.Empty(t, cmp.Diff(clusters, out, diffopt))
+
+		// Range with upper bound
+		out, err = stream.Collect(service.RangeKubernetesClusters(ctx, "", page2Start))
+		require.NoError(t, err)
+		require.Empty(t, cmp.Diff(page1, out, diffopt))
+
+		// Range with lower bound
+		out, err = stream.Collect(service.RangeKubernetesClusters(ctx, page2Start, ""))
+		require.NoError(t, err)
+		require.Empty(t, cmp.Diff(page2, out, diffopt))
+
+		// Fetch a specific kube cluster
+		if clusters[1].GetScope() == "" {
+			cluster, err := service.GetKubernetesCluster(ctx, clusters[1].GetName())
+			require.NoError(t, err)
+			require.Empty(t, cmp.Diff(clusters[1], cluster, diffopt))
+		} else {
+			cluster, err := service.GetKubeCluster(ctx, kubev1.GetKubeClusterRequest_builder{
+				Scope: clusters[1].GetScope(),
+				Name:  clusters[1].GetName(),
+			}.Build())
+			require.NoError(t, err)
+			require.Empty(t, cmp.Diff(clusters[1], cluster, diffopt))
+		}
+
+		// Try to fetch a kube cluster that doesn't exist
+		_, err = service.GetKubernetesCluster(ctx, "doesnotexist")
+		require.ErrorAs(t, err, new(*trace.NotFoundError))
+
+		// Try to create the same kube cluster
+		err = service.CreateKubernetesCluster(ctx, clusters[0])
+		require.ErrorAs(t, err, new(*trace.AlreadyExistsError))
+
+		// Update a kube cluster
+		clusters[0].SetStaticLabels(map[string]string{"updated": "yes"})
+		err = service.UpdateKubernetesCluster(ctx, clusters[0])
+		require.NoError(t, err)
+		if clusters[0].GetScope() == "" {
+			cluster, err := service.GetKubernetesCluster(ctx, clusters[0].GetName())
+			require.NoError(t, err)
+			require.Empty(t, cmp.Diff(clusters[0], cluster, diffopt))
+		} else {
+			cluster, err := service.GetKubeCluster(ctx, kubev1.GetKubeClusterRequest_builder{
+				Scope: clusters[0].GetScope(),
+				Name:  clusters[0].GetName(),
+			}.Build())
+			require.NoError(t, err)
+			require.Empty(t, cmp.Diff(clusters[0], cluster, diffopt))
+		}
+
+		// Delete a Kubernetes.
+		err = service.DeleteKubernetesCluster(ctx, clusters[0].GetName())
+		require.NoError(t, err)
+
+		expectedClusters := []types.KubeCluster{clusters[1], clusters[2]}
+		out, err = service.GetKubernetesClusters(ctx)
+		require.NoError(t, err)
+		require.Empty(t, cmp.Diff(expectedClusters, out, diffopt))
+
+		// Try to delete a Kubernetes that doesn't exist.
+		err = service.DeleteKubernetesCluster(ctx, "doesnotexist")
+		require.ErrorAs(t, err, new(*trace.NotFoundError))
+
+		// Delete all Kubernetess.
+		err = service.DeleteAllKubernetesClusters(ctx)
+		require.NoError(t, err)
+		out, err = service.GetKubernetesClusters(ctx)
+		require.NoError(t, err)
+		require.Empty(t, out)
+	})
 }
