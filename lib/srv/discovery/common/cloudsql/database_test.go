@@ -38,6 +38,7 @@ func dnsMapping(name, connType, scope string) *sqladmin.DnsNameMapping {
 }
 
 func TestCheckInstanceAvailable(t *testing.T) {
+	t.Parallel()
 	withPolicy := func(policy string) *sqladmin.Settings {
 		return &sqladmin.Settings{ActivationPolicy: policy}
 	}
@@ -57,6 +58,7 @@ func TestCheckInstanceAvailable(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			ok, reason := checkInstanceAvailable(&sqladmin.DatabaseInstance{State: tt.state, Settings: tt.settings})
 			require.Equal(t, tt.wantReason == "", ok)
 			require.Equal(t, tt.wantReason, reason)
@@ -65,6 +67,7 @@ func TestCheckInstanceAvailable(t *testing.T) {
 }
 
 func TestProtocolAndPort(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name         string
 		version      string
@@ -80,6 +83,7 @@ func TestProtocolAndPort(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			protocol, port, ok := protocolAndPort(tt.version)
 			require.Equal(t, tt.wantOK, ok)
 			require.Equal(t, tt.wantProtocol, protocol)
@@ -89,6 +93,7 @@ func TestProtocolAndPort(t *testing.T) {
 }
 
 func TestPSCEnabled(t *testing.T) {
+	t.Parallel()
 	enabled := func(b bool) *sqladmin.Settings {
 		return &sqladmin.Settings{
 			IpConfiguration: &sqladmin.IpConfiguration{PscConfig: &sqladmin.PscConfig{PscEnabled: b}},
@@ -107,12 +112,14 @@ func TestPSCEnabled(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			require.Equal(t, tt.want, pscEnabled(&sqladmin.DatabaseInstance{Settings: tt.settings}))
 		})
 	}
 }
 
 func TestFindInstanceEndpoints(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		instance *sqladmin.DatabaseInstance
@@ -188,12 +195,14 @@ func TestFindInstanceEndpoints(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			require.Equal(t, tt.want, findInstanceEndpoints(tt.instance))
 		})
 	}
 }
 
 func TestInstanceUserLabel(t *testing.T) {
+	t.Parallel()
 	require.Empty(t, instanceUserLabel(&sqladmin.DatabaseInstance{}, "key"),
 		"nil Settings yields empty string")
 	require.Empty(t, instanceUserLabel(&sqladmin.DatabaseInstance{Settings: &sqladmin.Settings{}}, "key"),
@@ -207,6 +216,7 @@ func TestInstanceUserLabel(t *testing.T) {
 }
 
 func TestChooseEndpoint(t *testing.T) {
+	t.Parallel()
 	overrideLabels := func(surface string) *sqladmin.Settings {
 		return &sqladmin.Settings{UserLabels: map[string]string{types.GCPDatabaseEndpointTypeOverrideLabel: surface}}
 	}
@@ -297,6 +307,7 @@ func TestChooseEndpoint(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			got, endpointType, err := chooseEndpoint(tt.instance)
 			if tt.wantErr != "" {
 				require.ErrorContains(t, err, tt.wantErr)
@@ -310,6 +321,7 @@ func TestChooseEndpoint(t *testing.T) {
 }
 
 func TestMapInstanceTypeLabel(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		instanceType string
 		want         string
@@ -322,12 +334,14 @@ func TestMapInstanceTypeLabel(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.instanceType, func(t *testing.T) {
+			t.Parallel()
 			require.Equal(t, tt.want, mapInstanceTypeLabel(tt.instanceType))
 		})
 	}
 }
 
 func TestResolveRouting(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name             string
 		instance         *sqladmin.DatabaseInstance
@@ -373,6 +387,7 @@ func TestResolveRouting(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			r, skipReason := resolveRouting(tt.instance)
 			if tt.wantNil {
 				require.Nil(t, r)
@@ -389,6 +404,7 @@ func TestResolveRouting(t *testing.T) {
 }
 
 func TestLabelsFromInstance(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		instance *sqladmin.DatabaseInstance
@@ -487,12 +503,14 @@ func TestLabelsFromInstance(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			require.Equal(t, tt.want, labelsFromInstance(tt.instance, tt.routing))
 		})
 	}
 }
 
 func TestNewDatabaseFromInstance(t *testing.T) {
+	t.Parallel()
 	makeInstance := func(opts ...func(*sqladmin.DatabaseInstance)) *sqladmin.DatabaseInstance {
 		instance := &sqladmin.DatabaseInstance{
 			Name:            "pg-instance",
@@ -555,6 +573,7 @@ func TestNewDatabaseFromInstance(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			identity := func(meta types.Metadata) types.Metadata { return meta }
 			got, skipReason, err := NewDatabaseFromInstance(tt.instance, identity)
 			require.NoError(t, err)
