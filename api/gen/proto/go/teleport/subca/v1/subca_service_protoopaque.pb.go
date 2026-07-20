@@ -173,6 +173,10 @@ func (b0 CreateCSRRequest_builder) Build() *CreateCSRRequest {
 }
 
 // Response for CreateCSR.
+//
+// A successful response contains at least one CSR and zero or more warnings.
+// If the server is incapable of returning any CSRs the response will be an
+// error (instead of a CreateCSRResponse).
 type CreateCSRResponse struct {
 	state               protoimpl.MessageState        `protogen:"opaque.v1"`
 	xxx_hidden_Csrs     *[]*CertificateSigningRequest `protobuf:"bytes,1,rep,name=csrs,proto3"`
