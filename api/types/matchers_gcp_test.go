@@ -135,7 +135,7 @@ func TestGCPMatcherCheckAndSetDefaults(t *testing.T) {
 			errCheck: isBadParameterErr,
 		},
 		{
-			name: "error if labels and tags are set with different values",
+			name: "error if both labels and tags are set with different values",
 			in: &GCPMatcher{
 				Types:      []string{"gce"},
 				ProjectIDs: []string{"project001"},
@@ -149,7 +149,7 @@ func TestGCPMatcherCheckAndSetDefaults(t *testing.T) {
 			errCheck: isBadParameterErr,
 		},
 		{
-			name: "labels and tags with equal values in different order are rejected",
+			name: "error if both labels and tags are set with equal keys but different values",
 			in: &GCPMatcher{
 				Types:      []string{"gce"},
 				ProjectIDs: []string{"project001"},
@@ -163,7 +163,7 @@ func TestGCPMatcherCheckAndSetDefaults(t *testing.T) {
 			errCheck: isBadParameterErr,
 		},
 		{
-			name: "labels and tags with equal content are tolerated and normalized",
+			name: "equal labels and tags are accepted and preserved (legacy stored shape)",
 			in: &GCPMatcher{
 				Types:      []string{"gce"},
 				ProjectIDs: []string{"project001"},
@@ -182,51 +182,7 @@ func TestGCPMatcherCheckAndSetDefaults(t *testing.T) {
 				Labels: Labels{
 					"env": []string{"prod"},
 				},
-				Params: &InstallerParams{
-					JoinMethod: "gcp",
-					JoinToken:  "gcp-discovery-token",
-					ScriptName: "default-installer",
-				},
-			},
-		},
-		{
-			name: "empty tags map is cleared and labels default",
-			in: &GCPMatcher{
-				Types:      []string{"gce"},
-				ProjectIDs: []string{"project001"},
-				Tags:       Labels{},
-			},
-			errCheck: require.NoError,
-			expected: &GCPMatcher{
-				Types:      []string{"gce"},
-				Locations:  []string{"*"},
-				ProjectIDs: []string{"project001"},
-				Labels: Labels{
-					"*": []string{"*"},
-				},
-				Params: &InstallerParams{
-					JoinMethod: "gcp",
-					JoinToken:  "gcp-discovery-token",
-					ScriptName: "default-installer",
-				},
-			},
-		},
-		{
-			name: "empty tags map is cleared and existing labels kept",
-			in: &GCPMatcher{
-				Types:      []string{"gce"},
-				ProjectIDs: []string{"project001"},
-				Labels: Labels{
-					"env": []string{"prod"},
-				},
-				Tags: Labels{},
-			},
-			errCheck: require.NoError,
-			expected: &GCPMatcher{
-				Types:      []string{"gce"},
-				Locations:  []string{"*"},
-				ProjectIDs: []string{"project001"},
-				Labels: Labels{
+				Tags: Labels{
 					"env": []string{"prod"},
 				},
 				Params: &InstallerParams{
@@ -237,7 +193,7 @@ func TestGCPMatcherCheckAndSetDefaults(t *testing.T) {
 			},
 		},
 		{
-			name: "tags only is normalized into labels",
+			name: "tags only is preserved and not copied into labels",
 			in: &GCPMatcher{
 				Types:      []string{"gce"},
 				ProjectIDs: []string{"project001"},
@@ -250,7 +206,7 @@ func TestGCPMatcherCheckAndSetDefaults(t *testing.T) {
 				Types:      []string{"gce"},
 				Locations:  []string{"*"},
 				ProjectIDs: []string{"project001"},
-				Labels: Labels{
+				Tags: Labels{
 					"env": []string{"prod"},
 				},
 				Params: &InstallerParams{
@@ -308,12 +264,11 @@ func TestGCPMatcherCheckAndSetDefaults(t *testing.T) {
 
 // TestGCPMatcherCheckAndSetDefaultsIdempotent verifies that re-running
 // defaulting on an already-defaulted matcher succeeds and changes nothing.
-// Defaulting normalizes the deprecated tags alias into labels and clears
-// tags, so its own output must validate cleanly on every later run: stored
-// or republished matchers (for example static snapshot publication) run
-// defaulting again on its own prior output. The both-fields-equal shape
-// written by older releases and older clients must normalize to the same
-// result instead of being rejected.
+// Defaulting does not mutate the deprecated tags alias: it neither copies
+// tags into labels nor clears either field, so a tags-only matcher stays
+// tags-only and re-running defaulting on its own output changes nothing.
+// This is what lets stored or republished matchers (for example static
+// snapshot publication) be re-validated repeatedly without failing.
 func TestGCPMatcherCheckAndSetDefaultsIdempotent(t *testing.T) {
 	t.Parallel()
 
@@ -329,33 +284,35 @@ func TestGCPMatcherCheckAndSetDefaultsIdempotent(t *testing.T) {
 
 	once := newMatcher()
 	require.NoError(t, once.CheckAndSetDefaults())
-	require.Equal(t, Labels{"env": []string{"prod"}}, once.Labels)
-	require.Nil(t, once.Tags)
+	// The spec is preserved exactly: tags kept, labels not synthesized.
+	require.Equal(t, Labels{"env": []string{"prod"}}, once.Tags)
+	require.Empty(t, once.Labels)
+	// The alias still resolves through GetLabels for matching.
+	require.Equal(t, Labels{"env": []string{"prod"}}, once.GetLabels())
 
 	twice := newMatcher()
 	require.NoError(t, twice.CheckAndSetDefaults())
 	require.NoError(t, twice.CheckAndSetDefaults())
 	require.Equal(t, once, twice)
 
-	// The shape produced by older releases and by older clients during a
-	// rolling upgrade: both fields populated with equal content. It must
-	// be accepted and normalize to the same result as a fresh tags-only
-	// matcher.
-	legacy := &GCPMatcher{
-		Types:      []string{"gce"},
-		ProjectIDs: []string{"project01"},
-		Labels: Labels{
-			"env": []string{"prod"},
-		},
-		Tags: Labels{
-			"env": []string{"prod"},
-		},
+	// A legacy stored shape (older versions copied tags into labels
+	// without clearing tags) must validate, stay unmutated, and be a
+	// fixed point across further runs.
+	newLegacy := func() *GCPMatcher {
+		return &GCPMatcher{
+			Types:      []string{"gce"},
+			ProjectIDs: []string{"project01"},
+			Labels:     Labels{"env": []string{"prod"}},
+			Tags:       Labels{"env": []string{"prod"}},
+		}
 	}
-	require.NoError(t, legacy.CheckAndSetDefaults())
-	require.Equal(t, once, legacy)
+	legacyOnce := newLegacy()
+	require.NoError(t, legacyOnce.CheckAndSetDefaults())
+	require.Equal(t, Labels{"env": []string{"prod"}}, legacyOnce.Labels)
+	require.Equal(t, Labels{"env": []string{"prod"}}, legacyOnce.Tags)
 
-	// The normalized legacy matcher is itself a fixed point:
-	// a further run doesn't change anything.
-	require.NoError(t, legacy.CheckAndSetDefaults())
-	require.Equal(t, once, legacy)
+	legacyTwice := newLegacy()
+	require.NoError(t, legacyTwice.CheckAndSetDefaults())
+	require.NoError(t, legacyTwice.CheckAndSetDefaults())
+	require.Equal(t, legacyOnce, legacyTwice)
 }
