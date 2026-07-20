@@ -69,16 +69,18 @@ type kubeCertIssuer struct {
 	// saveKeyRing persists certs not gated by MFA to the key store.
 	saveKeyRing func(keyRing *client.KeyRing) error
 
-	mu                  sync.Mutex
+	mu sync.Mutex
+	// requester starts as TSH_KUBE_LOCAL_PROXY_MULTI and permanently drops to
+	// the legacy TSH_KUBE_LOCAL_PROXY, with one non-reusable ceremony per cluster,
+	// once an auth server rejects reuse.
+	requester           proto.UserCertsRequest_Requester
 	reusableMFAResponse *proto.MFAAuthenticateResponse
-	// perClusterFallback switches all further issuances to the legacy
-	// per-cluster ceremony once an older auth server rejects reuse.
-	perClusterFallback bool
 }
 
 func newKubeCertIssuer(tc *client.TeleportClient) *kubeCertIssuer {
 	return &kubeCertIssuer{
-		tc: tc,
+		tc:        tc,
+		requester: proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_MULTI,
 		saveKeyRing: func(keyRing *client.KeyRing) error {
 			return trace.Wrap(tc.LocalAgent().AddKubeKeyRing(keyRing))
 		},
@@ -182,22 +184,17 @@ func (i *kubeCertIssuer) issueCert(ctx context.Context, cc kubeCertClient, telep
 	}
 
 	i.mu.Lock()
-	fallback := i.perClusterFallback
+	requester := i.requester
 	reusable := i.reusableMFAResponse
 	i.mu.Unlock()
 
-	if fallback {
-		params.RequesterName = proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY
-		return i.issue(ctx, cc, params)
-	}
-
-	params.RequesterName = proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_MULTI
+	params.RequesterName = requester
 	params.ReusableMFAResponse = reusable
 	cert, err := i.issue(ctx, cc, params)
-	if isMFAReuseRejected(err) {
+	if requester == proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_MULTI && isMFAReuseRejected(err) {
 		logger.DebugContext(ctx, "Auth server does not allow reusable MFA for the kube local proxy, falling back to per-cluster MFA ceremonies", "error", err)
 		i.mu.Lock()
-		i.perClusterFallback = true
+		i.requester = proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY
 		i.reusableMFAResponse = nil
 		i.mu.Unlock()
 		params.RequesterName = proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY
@@ -216,7 +213,9 @@ func (i *kubeCertIssuer) issue(ctx context.Context, cc kubeCertClient, params cl
 	// Save the reusable MFA response produced by a fresh ceremony.
 	if result.ReusableMFAResponse != nil {
 		i.mu.Lock()
-		i.reusableMFAResponse = result.ReusableMFAResponse
+		if i.requester == proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_MULTI {
+			i.reusableMFAResponse = result.ReusableMFAResponse
+		}
 		i.mu.Unlock()
 	}
 
@@ -289,7 +288,7 @@ func (i *kubeCertIssuer) fetchMFARequired(ctx context.Context, cc kubeCertClient
 func (i *kubeCertIssuer) fallbackActive() bool {
 	i.mu.Lock()
 	defer i.mu.Unlock()
-	return i.perClusterFallback
+	return i.requester == proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY
 }
 
 func localProxyClusterKey(cluster kubeconfig.LocalProxyCluster) string {

@@ -190,6 +190,7 @@ func newTestKubeKeyRing(t *testing.T, clusters kubeconfig.LocalProxyClusters) *c
 func newTestKubeCertIssuer() *kubeCertIssuer {
 	return &kubeCertIssuer{
 		tc:          &client.TeleportClient{},
+		requester:   proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_MULTI,
 		saveKeyRing: func(keyRing *client.KeyRing) error { return nil },
 	}
 }
