@@ -178,7 +178,7 @@ func GenSchemaAccessList(ctx context.Context) (github_com_hashicorp_terraform_pl
 						"scoped_roles": {
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 								"role": {
-									Description: "role is scope-qualified name of the scoped role to be granted.",
+									Description: "role is the scope-qualified name of the scoped role to be granted.",
 									Optional:    true,
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
@@ -248,7 +248,7 @@ func GenSchemaAccessList(ctx context.Context) (github_com_hashicorp_terraform_pl
 						"scoped_roles": {
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 								"role": {
-									Description: "role is scope-qualified name of the scoped role to be granted.",
+									Description: "role is the scope-qualified name of the scoped role to be granted.",
 									Optional:    true,
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},

@@ -75,7 +75,9 @@ func NewScopedAccessService(bk backend.Backend) *ScopedAccessService {
 	}
 }
 
-func (s *ScopedAccessService) GetScopedRole(ctx context.Context, req *scopedaccessv1.GetScopedRoleRequest) (*scopedaccessv1.GetScopedRoleResponse, error) {
+// getScopedRoleByName is equivalent to GetScopedRole, but does not enforce scope equivalence. Can be safely
+// folded back into GetScopedRole and removed once the backend is namespaced by key.
+func (s *ScopedAccessService) getScopedRoleByName(ctx context.Context, req *scopedaccessv1.GetScopedRoleRequest) (*scopedaccessv1.GetScopedRoleResponse, error) {
 	if req.GetName() == "" {
 		return nil, trace.BadParameter("missing scoped role name in get request")
 	}
@@ -100,6 +102,21 @@ func (s *ScopedAccessService) GetScopedRole(ctx context.Context, req *scopedacce
 	return scopedaccessv1.GetScopedRoleResponse_builder{
 		Role: role,
 	}.Build(), nil
+}
+
+func (s *ScopedAccessService) GetScopedRole(ctx context.Context, req *scopedaccessv1.GetScopedRoleRequest) (*scopedaccessv1.GetScopedRoleResponse, error) {
+	rsp, err := s.getScopedRoleByName(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// emulate namespace-like behavior by treating mismatched scopes as NotFound (prep for the transition
+	// to true namespacing).
+	if scopes.Compare(req.GetScope(), rsp.GetRole().GetScope()) != scopes.Equivalent {
+		return nil, trace.NotFound("scoped role %q not found in scope %q", req.GetName(), req.GetScope())
+	}
+
+	return rsp, nil
 }
 
 // ListScopedRoles returns a paginated list of scoped roles.
@@ -211,8 +228,9 @@ func (s *ScopedAccessService) UpdateScopedRole(ctx context.Context, req *scopeda
 		return nil, trace.Wrap(err)
 	}
 
-	extant, err := s.GetScopedRole(ctx, scopedaccessv1.GetScopedRoleRequest_builder{
-		Name: role.GetMetadata().GetName(),
+	extant, err := s.getScopedRoleByName(ctx, scopedaccessv1.GetScopedRoleRequest_builder{
+		Name:  role.GetMetadata().GetName(),
+		Scope: role.GetScope(),
 	}.Build())
 	if err != nil {
 		if trace.IsNotFound(err) {
@@ -261,6 +279,18 @@ func (s *ScopedAccessService) DeleteScopedRole(ctx context.Context, req *scopeda
 		return nil, trace.BadParameter("missing scoped role name in delete request")
 	}
 
+	// emulate namespace-like behavior by treating mismatched scopes as NotFound (prep for the transition
+	// to true namespacing). Note that we ignore malformed roles below in order to ensure they remain deletable.
+	item, err := s.bk.Get(ctx, scopedRoleKey(roleName))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if role, decErr := scopedRoleFromItem(item); decErr == nil {
+		if scopes.Compare(req.GetScope(), role.GetScope()) != scopes.Equivalent {
+			return nil, trace.NotFound("scoped role %q not found in scope %q", roleName, req.GetScope())
+		}
+	}
+
 	if rev := req.GetRevision(); rev != "" {
 		if err := s.bk.ConditionalDelete(ctx, scopedRoleKey(roleName), rev); err != nil {
 			if errors.Is(err, backend.ErrIncorrectRevision) {
@@ -303,8 +333,9 @@ func (s *ScopedAccessService) UpsertScopedRole(ctx context.Context, req *scopeda
 			}
 		}
 
-		existing, err := s.GetScopedRole(ctx, scopedaccessv1.GetScopedRoleRequest_builder{
-			Name: role.GetMetadata().GetName(),
+		existing, err := s.getScopedRoleByName(ctx, scopedaccessv1.GetScopedRoleRequest_builder{
+			Name:  role.GetMetadata().GetName(),
+			Scope: role.GetScope(),
 		}.Build())
 		if trace.IsNotFound(err) {
 			rsp, err := s.CreateScopedRole(ctx, scopedaccessv1.CreateScopedRoleRequest_builder{
@@ -337,23 +368,23 @@ func (s *ScopedAccessService) UpsertScopedRole(ctx context.Context, req *scopeda
 	return nil, trace.LimitExceeded("exceeded max retries attempting to upsert scoped role %q", role.GetMetadata().GetName())
 }
 
-func (s *ScopedAccessService) GetScopedRoleAssignment(ctx context.Context, req *scopedaccessv1.GetScopedRoleAssignmentRequest) (*scopedaccessv1.GetScopedRoleAssignmentResponse, error) {
-	assignmentName := req.GetName()
-	if assignmentName == "" {
+// getScopedRoleAssignmentByName is equivalent to GetScopedRoleAssignment, but does not enforce scope equivalence. Can be safely
+// folded back into GetScopedRoleAssignment and removed once the backend is namespaced by key.
+func (s *ScopedAccessService) getScopedRoleAssignmentByName(ctx context.Context, req *scopedaccessv1.GetScopedRoleAssignmentRequest) (*scopedaccessv1.GetScopedRoleAssignmentResponse, error) {
+	if req.GetName() == "" {
 		return nil, trace.BadParameter("missing scoped role assignment name in get request")
 	}
-	subKind := req.GetSubKind()
-	if subKind == scopedaccess.SubKindMaterialized {
+	if req.GetSubKind() == scopedaccess.SubKindMaterialized {
 		return nil, trace.BadParameter(`reading scoped role assignments with sub_kind "materialized" from the backend is not supported`)
 	}
 
 	item, err := s.bk.Get(ctx, scopedRoleAssignmentKey{
-		name:    assignmentName,
-		subKind: subKind,
+		name:    req.GetName(),
+		subKind: req.GetSubKind(),
 	}.Key())
 	if err != nil {
 		if trace.IsNotFound(err) {
-			return nil, trace.NotFound("scoped role assignment %q not found", assignmentName)
+			return nil, trace.NotFound("scoped role assignment %q not found", req.GetName())
 		}
 		return nil, trace.Wrap(err)
 	}
@@ -370,6 +401,21 @@ func (s *ScopedAccessService) GetScopedRoleAssignment(ctx context.Context, req *
 	return scopedaccessv1.GetScopedRoleAssignmentResponse_builder{
 		Assignment: assignment,
 	}.Build(), nil
+}
+
+func (s *ScopedAccessService) GetScopedRoleAssignment(ctx context.Context, req *scopedaccessv1.GetScopedRoleAssignmentRequest) (*scopedaccessv1.GetScopedRoleAssignmentResponse, error) {
+	rsp, err := s.getScopedRoleAssignmentByName(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// emulate namespace-like behavior by treating mismatched scopes as NotFound (prep for the transition
+	// to true namespacing).
+	if scopes.Compare(req.GetScope(), rsp.GetAssignment().GetScope()) != scopes.Equivalent {
+		return nil, trace.NotFound("scoped role assignment %q not found in scope %q", req.GetName(), req.GetScope())
+	}
+
+	return rsp, nil
 }
 
 // ListScopedRoleAssignments returns a paginated list of scoped role assignments.
@@ -509,9 +555,10 @@ func (s *ScopedAccessService) UpdateScopedRoleAssignment(ctx context.Context, re
 		return nil, trace.BadParameter("scoped role assignment resource %q contains too many sub-assignments (max %d)", assignment.GetMetadata().GetName(), scopedaccess.MaxRolesPerAssignment)
 	}
 
-	extant, err := s.GetScopedRoleAssignment(ctx, scopedaccessv1.GetScopedRoleAssignmentRequest_builder{
+	extant, err := s.getScopedRoleAssignmentByName(ctx, scopedaccessv1.GetScopedRoleAssignmentRequest_builder{
 		Name:    assignment.GetMetadata().GetName(),
 		SubKind: assignment.GetSubKind(),
+		Scope:   assignment.GetScope(),
 	}.Build())
 	if trace.IsNotFound(err) {
 		// generic condition failure keeps error handling simpler
@@ -572,9 +619,10 @@ func (s *ScopedAccessService) UpsertScopedRoleAssignment(ctx context.Context, re
 			}
 		}
 
-		_, err := s.GetScopedRoleAssignment(ctx, scopedaccessv1.GetScopedRoleAssignmentRequest_builder{
+		_, err := s.getScopedRoleAssignmentByName(ctx, scopedaccessv1.GetScopedRoleAssignmentRequest_builder{
 			Name:    assignment.GetMetadata().GetName(),
 			SubKind: assignment.GetSubKind(),
+			Scope:   assignment.GetScope(),
 		}.Build())
 		if trace.IsNotFound(err) {
 			rsp, err := s.CreateScopedRoleAssignment(ctx, scopedaccessv1.CreateScopedRoleAssignmentRequest_builder{
@@ -622,6 +670,18 @@ func (s *ScopedAccessService) DeleteScopedRoleAssignment(ctx context.Context, re
 	}
 
 	key := scopedRoleAssignmentKey{name: assignmentName, subKind: subKind}.Key()
+
+	// emulate namespace-like behavior by treating mismatched scopes as NotFound (prep for the transition
+	// to true namespacing). Note that we ignore malformed roles below in order to ensure they remain deletable.
+	item, err := s.bk.Get(ctx, key)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if assignment, decErr := scopedRoleAssignmentFromItem(item); decErr == nil {
+		if scopes.Compare(req.GetScope(), assignment.GetScope()) != scopes.Equivalent {
+			return nil, trace.NotFound("scoped role assignment %q not found in scope %q", assignmentName, req.GetScope())
+		}
+	}
 
 	if rev := req.GetRevision(); rev != "" {
 		if err := s.bk.ConditionalDelete(ctx, key, rev); err != nil {

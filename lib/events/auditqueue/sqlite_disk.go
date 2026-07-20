@@ -441,11 +441,6 @@ func (q *sqliteQueue) adoptOrphans(ctx context.Context) {
 			continue
 		}
 
-		// TODO:(kkloberdanz): We need to ensure that we only adopt a queue if
-		// we have the appropriate inner.EmitAuditEvent. Perhaps we can do this
-		// on a component basis where we check if the adopted queue is from SSH,
-		// DB, etc. Will fix in a follow up.
-
 		// If we got to this point, then we have found a directory that is not a
 		// tmp directory and is not the same directory as the one this process
 		// is already using. We are safe to attempt to adopt it.

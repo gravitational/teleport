@@ -111,7 +111,7 @@ func GenSchemaScopedRoleAssignment(ctx context.Context) (github_com_hashicorp_te
 				"assignments": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 						"role": {
-							Description: "Roles is the name of the role that is assigned by this assignment.",
+							Description: "Role is the scope-qualified name of the role that is assigned by this assignment.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},

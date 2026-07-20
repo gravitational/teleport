@@ -32,7 +32,8 @@ import (
 type endpointType string
 
 const (
-	endpointTypeResponses endpointType = "responses"
+	endpointTypeResponses       endpointType = "responses"
+	endpointTypeChatCompletions endpointType = "chat_completions"
 )
 
 // RequestInfo contains the request information.
@@ -54,6 +55,7 @@ type apiRequest interface {
 	SetModel(string)
 	GetStream() bool
 	EnableReportUsage()
+	DisableDataRetention()
 	Validate() error
 }
 
@@ -68,6 +70,11 @@ type responsesAPIRequest struct {
 	Store      bool   `json:"store"`
 
 	raw map[string]json.RawMessage `json:"-"`
+}
+
+func (r *responsesAPIRequest) DisableDataRetention() {
+	r.Store = false
+	r.Background = false
 }
 
 // Nothing to do, usage is always reported on responses API.
@@ -86,6 +93,11 @@ func (r *responsesAPIRequest) Validate() error {
 	return nil
 }
 
+var (
+	_ (apiRequest) = (*responsesAPIRequest)(nil)
+	_ (apiRequest) = (*chatCompletionsAPIRequest)(nil)
+)
+
 func (r *responsesAPIRequest) UnmarshalJSON(data []byte) error {
 	type Alias responsesAPIRequest
 	aux := &struct{ *Alias }{Alias: (*Alias)(r)}
@@ -100,7 +112,7 @@ func (r *responsesAPIRequest) UnmarshalJSON(data []byte) error {
 
 	for key := range raw {
 		switch strings.ToLower(key) {
-		case "model", "stream", "background":
+		case "model", "stream", "store", "background":
 			delete(raw, key)
 		default:
 		}
@@ -121,8 +133,100 @@ func (r responsesAPIRequest) MarshalJSON() ([]byte, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
-	// [Background] and [Store] are expected to always be set `false`, so no
-	// need to marshal it.
+	if err := marshalField(final, "background", r.Background); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := marshalField(final, "store", r.Store); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	res, err := utils.FastMarshal(final)
+	return res, trace.Wrap(err)
+}
+
+// chatCompletionsAPIRequestStreamOptions contains `stream_options` fields from
+// chat completions API.
+type chatCompletionsAPIRequestStreamOptions struct {
+	// `include_obfuscation` defaults to `true` when not set in OpenAI spec,
+	// meaning that we must avoid emitting the value when it is not set to
+	// comply with the default behavior.
+	IncludeObfuscation *bool `json:"include_obfuscation,omitempty"`
+	IncludeUsage       bool  `json:"include_usage"`
+}
+
+// chatCompletionsAPIRequest contains part of the fields from chat completions
+// API request body.
+//
+// https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create
+type chatCompletionsAPIRequest struct {
+	Model         string                                 `json:"model"`
+	Stream        bool                                   `json:"stream"`
+	StreamOptions chatCompletionsAPIRequestStreamOptions `json:"stream_options"`
+	Store         bool                                   `json:"store"`
+
+	raw map[string]json.RawMessage `json:"-"`
+}
+
+func (r *chatCompletionsAPIRequest) DisableDataRetention() {
+	r.Store = false
+}
+
+func (r *chatCompletionsAPIRequest) EnableReportUsage() {
+	r.StreamOptions.IncludeUsage = true
+}
+func (r *chatCompletionsAPIRequest) GetModel() string      { return r.Model }
+func (r *chatCompletionsAPIRequest) GetStream() bool       { return r.Stream }
+func (r *chatCompletionsAPIRequest) SetModel(model string) { r.Model = model }
+func (r *chatCompletionsAPIRequest) Validate() error {
+	if r.Store {
+		return llmerrors.NewProviderError(llmerrors.ErrUnsupported, "storing chat completions not supported")
+	}
+
+	return nil
+}
+
+func (r *chatCompletionsAPIRequest) UnmarshalJSON(data []byte) error {
+	type Alias chatCompletionsAPIRequest
+	aux := &struct{ *Alias }{Alias: (*Alias)(r)}
+	if err := caseSensitiveJSONConfig.Unmarshal(data, aux); err != nil {
+		return trace.Wrap(err)
+	}
+
+	var raw map[string]json.RawMessage
+	if err := utils.FastUnmarshal(data, &raw); err != nil {
+		return trace.Wrap(err)
+	}
+
+	for key := range raw {
+		switch strings.ToLower(key) {
+		case "model", "stream", "stream_options", "store":
+			delete(raw, key)
+		default:
+		}
+	}
+
+	r.raw = raw
+	return nil
+}
+
+func (r chatCompletionsAPIRequest) MarshalJSON() ([]byte, error) {
+	final := make(map[string]json.RawMessage, len(r.raw)+4) // Current len + taken fields.
+	maps.Copy(final, r.raw)
+	if err := marshalField(final, "model", r.Model); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := marshalField(final, "stream", r.Stream); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := marshalField(final, "store", r.Store); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// We must include `stream_options` only for streaming requests, as some
+	// providers might reject it as bad request.
+	if r.Stream {
+		if err := marshalField(final, "stream_options", r.StreamOptions); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
 	res, err := utils.FastMarshal(final)
 	return res, trace.Wrap(err)
 }
@@ -171,6 +275,18 @@ type responsesErrorSSEEvent struct {
 	Type           string `json:"type"`
 	Message        string `json:"message"`
 	SequenceNumber int    `json:"sequence_number"`
+}
+
+// chatCompletionsResponse contains part of the fields from chat completions API
+// response body.
+//
+// https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create#(resource)%20chat.completions%20%3E%20(model)%20chat_completion%20%3E%20(schema)
+type chatCompletionsResponse struct {
+	Usage *struct {
+		PromptTokens     int `json:"prompt_tokens"`
+		CompletionTokens int `json:"completion_tokens"`
+	} `json:"usage"`
+	Error *errorMessage `json:"error"`
 }
 
 // caseSensitiveJSONConfig is used to decode JSON messages. The config is

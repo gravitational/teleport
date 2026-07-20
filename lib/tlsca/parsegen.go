@@ -222,6 +222,7 @@ func ParseCertificatePEM(bytes []byte) (*x509.Certificate, error) {
 }
 
 // ParseCertificatePEM parses multiple PEM-encoded certificates
+// It returns an error if bytes doesn't contain at least one certificate.
 func ParseCertificatePEMs(bytes []byte) ([]*x509.Certificate, error) {
 	if len(bytes) == 0 {
 		return nil, trace.BadParameter("missing PEM encoded block")
@@ -239,6 +240,9 @@ func ParseCertificatePEMs(bytes []byte) ([]*x509.Certificate, error) {
 			return nil, trace.BadParameter("%s", err)
 		}
 		certs = append(certs, cert)
+	}
+	if len(certs) == 0 {
+		return nil, trace.BadParameter("no PEM-encoded certificate found")
 	}
 	return certs, nil
 }
