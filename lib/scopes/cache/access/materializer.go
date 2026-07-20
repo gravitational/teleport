@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/scopes"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -73,7 +74,7 @@ type AccessListReader interface {
 // materialized assignments.
 type AssignmentStore interface {
 	Put(assignment *scopedaccessv1.ScopedRoleAssignment) error
-	Delete(name, subKind string)
+	Delete(assignment scopes.QualifiedName, subKind string)
 }
 
 // listAccessListMembers is a helper for calling clientutils.Resources to range
@@ -835,10 +836,10 @@ func (m *Materializer) materializeAssignment(
 		Kind:    scopedaccess.KindScopedRoleAssignment,
 		SubKind: scopedaccess.SubKindMaterialized,
 		Version: types.V1,
-		Scope:   "/",
-		Metadata: &headerv1.Metadata{
+		Scope:   scopes.Root,
+		Metadata: headerv1.Metadata_builder{
 			Name: key.AssignmentName(),
-		},
+		}.Build(),
 		Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
 			User: userName,
 		},
@@ -883,7 +884,10 @@ func (m *Materializer) deleteMaterializedAssignment(ctx context.Context, key Mat
 		m.logger.DebugContext(ctx, "Deleting materialized scoped role assignment",
 			"user", key.User,
 			"list", key.List)
-		m.assignmentStore.Delete(key.AssignmentName(), scopedaccess.SubKindMaterialized)
+		m.assignmentStore.Delete(scopes.QualifiedName{
+			Scope: scopes.Root,
+			Name:  key.AssignmentName(),
+		}, scopedaccess.SubKindMaterialized)
 		delete(m.materializedAssignments, key)
 		m.syncMaterializedAssignmentsMetric()
 

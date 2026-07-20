@@ -48,6 +48,8 @@ import (
 )
 
 const (
+	scopedPrefix = "scoped"
+
 	accessListPrefix      = "access_list"
 	accessListMaxPageSize = 100
 
