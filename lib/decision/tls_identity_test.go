@@ -50,7 +50,7 @@ func TestTLSIdentity_roundtrip(t *testing.T) {
 			Kind:  scopesv1.PinKind_PIN_KIND_USER,
 			Scope: "/foo",
 			AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
-				"/": {"/": {"role1", "role2"}},
+				"/": {"/": {"/::role1", "/::role2"}},
 			}),
 		}.Build(),
 		Impersonator:      "impersonator",
