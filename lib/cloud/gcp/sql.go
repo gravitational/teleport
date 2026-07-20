@@ -52,7 +52,7 @@ type SQLAdminClient interface {
 	GenerateEphemeralCert(ctx context.Context, db types.Database, certExpiry time.Time, pubKey crypto.PublicKey) (string, error)
 }
 
-// NewSQLAdminClient returns a SQLAdminClient interface wrapping sqladmin.Service.
+// NewSQLAdminClient returns a [SQLAdminClient] interface wrapping [sqladmin.Service].
 func NewSQLAdminClient(ctx context.Context) (SQLAdminClient, error) {
 	service, err := sqladmin.NewService(ctx)
 	if err != nil {
