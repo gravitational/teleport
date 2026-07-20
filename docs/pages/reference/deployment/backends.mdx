@@ -1732,7 +1732,7 @@ teleport:
 
     # The identifier of the cluster, also shown as "Cluster ID" in the
     # AWS console. Required.
-    dsql_identifier: ln7855l7l8l77lnlm5v8787lm7n7vl
+    dsql_identifier: ln7855l7l8l77ln4m5v8787lm7n7vl
     # The region that the DSQL cluster is in. In multi-region setups,
     # auths in different regions should be pointed at different DSQL
     # clusters in different regions. Required.
@@ -1742,7 +1742,7 @@ teleport:
     # PrivateLink, it should be left unset or empty otherwise. The
     # hostname depends on the VPC endpoint service name, which can
     # change from cluster to cluster (see https://docs.aws.amazon.com/aurora-dsql/latest/userguide/privatelink-managing-clusters.html#privatelink-connecting-clusters).
-    dsql_endpoint: ln7855l7l8l77lnlm5v8787lm7n7vl.dsql-7cwu.us-west-2.on.aws
+    dsql_endpoint: ln7855l7l8l77ln4m5v8787lm7n7vl.dsql-7cwu.us-west-2.on.aws
 
     # The name of the AWS profile used as a source of credentials and
     # configuration for DSQL. If unset or blank, the default profile
@@ -1751,7 +1751,7 @@ teleport:
     # a specific role. The profile configuration, by default, is read
     # from the ~/.aws/config file, but a different file can be used
     # by specifying the aws_config_file_path option (see below).
-    dsql_aws_profile: profilename
+    dsql_aws_profile: profile-name
 
     # The ARN of the Kinesis data stream that is receiving CDC events
     # from the DSQL cluster. Required.
@@ -1764,7 +1764,7 @@ teleport:
     # The name of the AWS profile used as a source of credentials and
     # configuration for the Kinesis data stream. If unset or blank,
     # the default profile is used.
-    kinesis_aws_profile: profilename
+    kinesis_aws_profile: profile-name
 
     # The path to an AWS config file. If set, only the specified file
     # will be used as configuration for AWS credentials for DSQL
