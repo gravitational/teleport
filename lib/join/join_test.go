@@ -18,6 +18,7 @@ package join_test
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"net"
 	"slices"
@@ -36,6 +37,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/test/bufconn"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
 
@@ -52,7 +54,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	authjoin "github.com/gravitational/teleport/lib/auth/join"
 	"github.com/gravitational/teleport/lib/auth/state"
-	proxyinsecureclient "github.com/gravitational/teleport/lib/client/proxy/insecure"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/join/internal/messages"
 	"github.com/gravitational/teleport/lib/join/joinclient"
@@ -568,15 +569,18 @@ func startOutdatedClientJoin(t *testing.T) (stream messages.ClientStream, authSe
 
 	proxy := newFakeProxy(authService)
 	proxy.join(t)
-	proxyListener, err := net.Listen("tcp", "127.0.0.1:0")
-	require.NoError(t, err)
+	proxyListener := bufconn.Listen(1024)
 	t.Cleanup(func() { proxyListener.Close() })
 	proxy.runGRPCServer(t, proxyListener)
 
-	conn, err := proxyinsecureclient.NewConnection(t.Context(), proxyinsecureclient.ConnectionConfig{
-		ProxyServer: proxyListener.Addr().String(),
-		Insecure:    true,
-	})
+	conn, err := grpc.NewClient("passthrough:///bufconn",
+		grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{InsecureSkipVerify: true})),
+		grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) {
+			return proxyListener.DialContext(ctx)
+		}),
+		// Decodes trace errors from the server so IsAccessDenied works on the rejection.
+		grpc.WithStreamInterceptor(interceptors.GRPCClientStreamErrorInterceptor),
+	)
 	require.NoError(t, err)
 	t.Cleanup(func() { conn.Close() })
 
@@ -634,7 +638,7 @@ func TestJoinRejectsOutdatedClient(t *testing.T) {
 				Success: false,
 			},
 			ConnectionMetadata: apievents.ConnectionMetadata{
-				RemoteAddr: "127.0.0.1",
+				RemoteAddr: "bufconn",
 			},
 			Role: types.RoleInstance.String(),
 		},
