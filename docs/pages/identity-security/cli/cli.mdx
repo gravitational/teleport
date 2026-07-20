@@ -47,12 +47,15 @@ not be asked again until it expires.
 
 ## Commands
 
-| Command | What it does | In the Web UI |
-| --- | --- | --- |
-| [`tctl detections`](./detections.mdx) | Investigate security detections and anomalies. | [Alerts](../usage/alerts.mdx) |
-| [`tctl investigate`](./investigate.mdx) | Search and explore Identity Security activity logs. | [Investigate](../usage/investigate.mdx) |
-| [`tctl access-changes`](./access-changes.mdx) | Monitor access-path changes to crown jewels. | [Crown Jewels](../usage/crown-jewels.mdx) |
-| [`tctl access-review`](./access-review.mdx) | Review which identities can access which resources. | Access Graph |
+| Command                                       | What it does                                        | In the Web UI                             |
+| --------------------------------------------- | --------------------------------------------------- | ----------------------------------------- |
+| [`tctl detections`](./detections.mdx) \*      | Investigate security detections and anomalies.      | [Alerts](../usage/alerts.mdx)             |
+| [`tctl investigate`](./investigate.mdx) \*    | Search and explore Identity Security activity logs. | [Investigate](../usage/investigate.mdx)   |
+| [`tctl access-changes`](./access-changes.mdx) | Monitor access-path changes to crown jewels.        | [Crown Jewels](../usage/crown-jewels.mdx) |
+| [`tctl access-review`](./access-review.mdx)   | Review which identities can access which resources. | Access Graph                              |
+
+\* Requires [Identity Activity Center](../access-graph/identity-activity-center.mdx),
+currently available only in self-hosted Teleport Enterprise deployments.
 
 ## Next steps
 
