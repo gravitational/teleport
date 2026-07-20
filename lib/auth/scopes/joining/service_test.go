@@ -75,7 +75,7 @@ func TestScopedJoiningService(t *testing.T) {
 				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/staging",
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
-					"/staging": {"/staging": {"staging-admin"}},
+					"/staging": {"/staging": {"/staging::staging-admin"}},
 				}),
 			}.Build(),
 		})
@@ -184,7 +184,7 @@ func TestScopedJoiningService(t *testing.T) {
 				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/staging",
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
-					"/staging": {"/staging": {"staging-admin"}},
+					"/staging": {"/staging": {"/staging::staging-admin"}},
 				}),
 			}.Build(),
 		})
@@ -194,7 +194,7 @@ func TestScopedJoiningService(t *testing.T) {
 				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/staging/aa",
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
-					"/staging/aa": {"/staging/aa": {"staging-create"}},
+					"/staging/aa": {"/staging/aa": {"/staging::staging-create"}},
 				}),
 			}.Build(),
 		})
@@ -204,7 +204,7 @@ func TestScopedJoiningService(t *testing.T) {
 				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/staging/aa",
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
-					"/staging/aa": {"/staging/aa": {"staging-read"}},
+					"/staging/aa": {"/staging/aa": {"/staging::staging-read"}},
 				}),
 			}.Build(),
 		})
@@ -214,7 +214,7 @@ func TestScopedJoiningService(t *testing.T) {
 				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/staging/aa",
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
-					"/staging/aa": {"/staging/aa": {"staging-readnosecrets"}},
+					"/staging/aa": {"/staging/aa": {"/staging::staging-readnosecrets"}},
 				}),
 			}.Build(),
 		})
@@ -224,7 +224,7 @@ func TestScopedJoiningService(t *testing.T) {
 				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/staging/aa",
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
-					"/staging/aa": {"/staging/aa": {"staging-delete"}},
+					"/staging/aa": {"/staging/aa": {"/staging::staging-delete"}},
 				}),
 			}.Build(),
 		})
@@ -234,7 +234,7 @@ func TestScopedJoiningService(t *testing.T) {
 				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/staging/aa",
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
-					"/staging/aa": {"/staging/aa": {"staging-upserter"}},
+					"/staging/aa": {"/staging/aa": {"/staging::staging-upserter"}},
 				}),
 			}.Build(),
 		})
@@ -481,7 +481,7 @@ func TestScopedJoiningService(t *testing.T) {
 				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/staging",
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
-					"/staging": {"/staging": {"staging-admin"}},
+					"/staging": {"/staging": {"/staging::staging-admin"}},
 				}),
 			}.Build(),
 		})

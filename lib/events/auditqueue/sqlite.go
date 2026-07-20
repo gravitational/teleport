@@ -174,7 +174,7 @@ func addSharedParams(params url.Values, maxBytes int64) {
 	params.Add("_pragma", fmt.Sprintf("max_page_count(%d)", bytesToPages(maxBytes)))
 }
 
-// newSqliteBaseQueue creates the common core of a sqliteQueue. It is used so
+// newBaseQueue creates the common core of a sqliteQueue. It is used so
 // that shared initialization between the `sqliteQueue` and the
 // `sqliteInMemoryQueue` can re-use code.
 func newBaseQueue(db *sql.DB, cfg Config) (*sqliteQueue, error) {

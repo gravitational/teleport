@@ -15,61 +15,26 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import SwiftUI
-import SwiftUINavigation
 
-struct LandingView: View {
-	@Bindable
-	var viewModel: LandingViewModel
+/// The contents of the landing view if the user has not yet enrolled their device.
+struct PreEnrollmentLandingView: View {
+	var onScanQRCodeTapped: () -> Void
 
 	var body: some View {
-		NavigationStack {
-			VStack(spacing: .zero) {
-				Image("logo")
-					.resizable()
-					.scaledToFit()
-					.frame(maxWidth: .infinity, maxHeight: 44, alignment: .leading)
-				ScrollView {
-					VStack(spacing: .large) {
-						Icon(systemName: "viewfinder")
-							.padding(.top, .xlarge)
-						titleBlock
-						instructionSteps
-						scanQRCodeButton
-					}
-				}
-				.scrollBounceBehavior(.basedOnSize)
+		ScrollView {
+			VStack(spacing: .large) {
+				Icon(systemName: "viewfinder")
+					.padding(.top, .xlarge)
+				titleBlock
+				instructionSteps
+				scanQRCodeButton
 			}
-			.padding(.horizontal)
-			.background(Color.Background.depth3)
-
-			// MARK: Navigation
-
-			.navigationDestination(item: $viewModel.destination.enrollDevice) { deviceEnrollmentViewModel in
-				EnrollDeviceView(viewModel: deviceEnrollmentViewModel)
-			}
-			.sheet(item: $viewModel.destination.cameraScanner, id: \.presentationID) { enrollCameraScannerViewModel in
-				EnrollCameraScannerView(viewModel: enrollCameraScannerViewModel)
-			}
-			.alert(
-				item: $viewModel.destination.deepLinkParsingAlert,
-				title: { errorMessage in
-					Text(errorMessage)
-				},
-				actions: { _ in
-					Button("OK") {}
-				},
-			)
-
-			// MARK: Haptics
-
-			.sensoryFeedback(.success, trigger: viewModel.sensoryFeedbackTrigger)
 		}
+		.scrollBounceBehavior(.basedOnSize)
 	}
 }
 
-// MARK: - Subviews
-
-extension LandingView {
+extension PreEnrollmentLandingView {
 	private var titleBlock: some View {
 		VStack(spacing: .small) {
 			Text("Scan QR code")
@@ -103,7 +68,7 @@ extension LandingView {
 
 	private var scanQRCodeButton: some View {
 		Button {
-			viewModel.userTappedOnScanQRCode()
+			onScanQRCodeTapped()
 		} label: {
 			Text("Scan QR Code")
 				.frame(maxWidth: .infinity)
@@ -134,8 +99,8 @@ extension LandingView {
 	}
 }
 
-#Preview("In ContentView") {
-	@Previewable @State
-	var viewModel = LandingViewModel()
-	LandingView(viewModel: viewModel)
+#Preview("Pre Enrollment") {
+	PreEnrollmentLandingView {}
+		.padding(.horizontal)
+		.background(Color.Background.depth3)
 }

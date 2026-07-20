@@ -9965,11 +9965,11 @@ func TestUerContextWithScopes(t *testing.T) {
 					// Deliberately put these out of order to make sure that the result
 					// is sorted.
 					scopedaccessv1.Assignment_builder{
-						Role:  "role-b",
+						Role:  scopes.QualifiedName{Scope: "/test", Name: "role-b"}.String(),
 						Scope: "/test/b1",
 					}.Build(),
 					scopedaccessv1.Assignment_builder{
-						Role:  "role-a",
+						Role:  scopes.QualifiedName{Scope: "/test", Name: "role-a"}.String(),
 						Scope: "/test/a2",
 					}.Build(),
 				},
@@ -9990,12 +9990,12 @@ func TestUerContextWithScopes(t *testing.T) {
 				User: username,
 				Assignments: []*scopedaccessv1.Assignment{
 					scopedaccessv1.Assignment_builder{
-						Role:  "role-a",
+						Role:  scopes.QualifiedName{Scope: "/test", Name: "role-a"}.String(),
 						Scope: "/test/a1",
 					}.Build(),
 					// Add a duplicate to make sure that the result is deduplicated.
 					scopedaccessv1.Assignment_builder{
-						Role:  "role-a",
+						Role:  scopes.QualifiedName{Scope: "/test", Name: "role-a"}.String(),
 						Scope: "/test/a2",
 					}.Build(),
 				},
@@ -10030,6 +10030,7 @@ func waitForSRACache(t *testing.T, srv *authtest.TLSServer, resps ...*scopedacce
 			_, err := srv.Auth().ScopedAccessCache.GetScopedRoleAssignment(ctx, scopedaccessv1.GetScopedRoleAssignmentRequest_builder{
 				Name:    resp.GetAssignment().GetMetadata().GetName(),
 				SubKind: resp.GetAssignment().GetSubKind(),
+				Scope:   resp.GetAssignment().GetScope(),
 			}.Build())
 			require.NoError(t, err)
 		}
