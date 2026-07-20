@@ -3678,6 +3678,15 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
+						"app_resources": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"allow_all": {
+								Description: "AllowAll grants unrestricted access to every path and method. It cannot be combined with any other field.",
+								Optional:    true,
+								Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+							}}),
+							Description: "AppResources is the list of rules controlling access to an app's resources on each HTTP request. It is valid only in role version v9 and above, and only under allow.",
+							Optional:    true,
+						},
 						"aws_role_arns": {
 							Computed:      true,
 							Description:   "AWSRoleARNs is a list of AWS role ARNs this role is allowed to assume.",
@@ -4424,6 +4433,15 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 							Optional:      true,
 							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						},
+						"app_resources": {
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"allow_all": {
+								Description: "AllowAll grants unrestricted access to every path and method. It cannot be combined with any other field.",
+								Optional:    true,
+								Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
+							}}),
+							Description: "AppResources is the list of rules controlling access to an app's resources on each HTTP request. It is valid only in role version v9 and above, and only under allow.",
+							Optional:    true,
 						},
 						"aws_role_arns": {
 							Computed:      true,
@@ -5452,10 +5470,10 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
 		"version": {
-			Description: "Version is the resource version. It must be specified. Supported values are: `v3`, `v4`, `v5`, `v6`, `v7`, `v8`.",
+			Description: "Version is the resource version. It must be specified. Supported values are: `v3`, `v4`, `v5`, `v6`, `v7`, `v8`, `v9`.",
 			Required:    true,
 			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
-			Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{UseVersionBetween(3, 8)},
+			Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{UseVersionBetween(3, 9)},
 		},
 	}}, nil
 }
@@ -37248,6 +37266,51 @@ func CopyRoleV6FromTerraform(_ context.Context, tf github_com_hashicorp_terrafor
 											}
 										}
 									}
+									{
+										a, ok := tf.Attrs["app_resources"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"RoleV6.Spec.Allow.AppResources"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.List)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"RoleV6.Spec.Allow.AppResources", "github.com/hashicorp/terraform-plugin-framework/types.List"})
+											} else {
+												obj.AppResources = make([]github_com_gravitational_teleport_api_types.AppResource, len(v.Elems))
+												if !v.Null && !v.Unknown {
+													for k, a := range v.Elems {
+														v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+														if !ok {
+															diags.Append(attrReadConversionFailureDiag{"RoleV6.Spec.Allow.AppResources", "github_com_hashicorp_terraform_plugin_framework_types.Object"})
+														} else {
+															var t github_com_gravitational_teleport_api_types.AppResource
+															if !v.Null && !v.Unknown {
+																tf := v
+																obj := &t
+																{
+																	a, ok := tf.Attrs["allow_all"]
+																	if !ok {
+																		diags.Append(attrReadMissingDiag{"RoleV6.Spec.Allow.AppResources.AllowAll"})
+																	} else {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"RoleV6.Spec.Allow.AppResources.AllowAll", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
+																		} else {
+																			var t bool
+																			if !v.Null && !v.Unknown {
+																				t = bool(v.Value)
+																			}
+																			obj.AllowAll = t
+																		}
+																	}
+																}
+															}
+															obj.AppResources[k] = t
+														}
+													}
+												}
+											}
+										}
+									}
 								}
 							}
 						}
@@ -39471,6 +39534,51 @@ func CopyRoleV6FromTerraform(_ context.Context, tf github_com_hashicorp_terrafor
 													t = string(v.Value)
 												}
 												obj.BeamLabelsExpression = t
+											}
+										}
+									}
+									{
+										a, ok := tf.Attrs["app_resources"]
+										if !ok {
+											diags.Append(attrReadMissingDiag{"RoleV6.Spec.Deny.AppResources"})
+										} else {
+											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.List)
+											if !ok {
+												diags.Append(attrReadConversionFailureDiag{"RoleV6.Spec.Deny.AppResources", "github.com/hashicorp/terraform-plugin-framework/types.List"})
+											} else {
+												obj.AppResources = make([]github_com_gravitational_teleport_api_types.AppResource, len(v.Elems))
+												if !v.Null && !v.Unknown {
+													for k, a := range v.Elems {
+														v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Object)
+														if !ok {
+															diags.Append(attrReadConversionFailureDiag{"RoleV6.Spec.Deny.AppResources", "github_com_hashicorp_terraform_plugin_framework_types.Object"})
+														} else {
+															var t github_com_gravitational_teleport_api_types.AppResource
+															if !v.Null && !v.Unknown {
+																tf := v
+																obj := &t
+																{
+																	a, ok := tf.Attrs["allow_all"]
+																	if !ok {
+																		diags.Append(attrReadMissingDiag{"RoleV6.Spec.Deny.AppResources.AllowAll"})
+																	} else {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"RoleV6.Spec.Deny.AppResources.AllowAll", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
+																		} else {
+																			var t bool
+																			if !v.Null && !v.Unknown {
+																				t = bool(v.Value)
+																			}
+																			obj.AllowAll = t
+																		}
+																	}
+																}
+															}
+															obj.AppResources[k] = t
+														}
+													}
+												}
 											}
 										}
 									}
@@ -45471,6 +45579,84 @@ func CopyRoleV6ToTerraformPreserveUnknown(ctx context.Context, obj *github_com_g
 											tf.Attrs["beam_labels_expression"] = v
 										}
 									}
+									{
+										a, ok := tf.AttrTypes["app_resources"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Allow.AppResources"})
+										} else {
+											o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
+											if !ok {
+												diags.Append(attrWriteConversionFailureDiag{"RoleV6.Spec.Allow.AppResources", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
+											} else {
+												c, ok := tf.Attrs["app_resources"].(github_com_hashicorp_terraform_plugin_framework_types.List)
+												if !ok {
+													c = github_com_hashicorp_terraform_plugin_framework_types.List{
+
+														ElemType: o.ElemType,
+														Elems:    make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.AppResources)),
+														Null:     true,
+													}
+												} else {
+													if c.Elems == nil {
+														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.AppResources))
+													}
+												}
+												if obj.AppResources != nil {
+													o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+													if len(obj.AppResources) != len(c.Elems) {
+														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.AppResources))
+													}
+													for k, a := range obj.AppResources {
+														v, ok := tf.Attrs["app_resources"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+														if !ok {
+															v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+																AttrTypes: o.AttrTypes,
+																Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+															}
+														} else {
+															if v.Attrs == nil {
+																v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+															}
+														}
+														{
+															obj := a
+															tf := &v
+															{
+																t, ok := tf.AttrTypes["allow_all"]
+																if !ok {
+																	diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Allow.AppResources.AllowAll"})
+																} else {
+																	v, ok := tf.Attrs["allow_all"].(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+																	if !ok {
+																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																		if err != nil {
+																			diags.Append(attrWriteGeneralError{"RoleV6.Spec.Allow.AppResources.AllowAll", err})
+																		}
+																		v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+																		if !ok {
+																			diags.Append(attrWriteConversionFailureDiag{"RoleV6.Spec.Allow.AppResources.AllowAll", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
+																		}
+																		v.Null = bool(obj.AllowAll) == false
+																	}
+																	v.Value = bool(obj.AllowAll)
+																	v.Unknown = false
+																	tf.Attrs["allow_all"] = v
+																}
+															}
+														}
+														v.Unknown = false
+														c.Elems[k] = v
+													}
+													if len(obj.AppResources) > 0 {
+														c.Null = false
+													}
+												}
+												c.Unknown = false
+												tf.Attrs["app_resources"] = c
+											}
+										}
+									}
 								}
 								if !preserveUnknown {
 									v.Unknown = false
@@ -49942,6 +50128,84 @@ func CopyRoleV6ToTerraformPreserveUnknown(ctx context.Context, obj *github_com_g
 												v.Unknown = false
 											}
 											tf.Attrs["beam_labels_expression"] = v
+										}
+									}
+									{
+										a, ok := tf.AttrTypes["app_resources"]
+										if !ok {
+											diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Deny.AppResources"})
+										} else {
+											o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ListType)
+											if !ok {
+												diags.Append(attrWriteConversionFailureDiag{"RoleV6.Spec.Deny.AppResources", "github.com/hashicorp/terraform-plugin-framework/types.ListType"})
+											} else {
+												c, ok := tf.Attrs["app_resources"].(github_com_hashicorp_terraform_plugin_framework_types.List)
+												if !ok {
+													c = github_com_hashicorp_terraform_plugin_framework_types.List{
+
+														ElemType: o.ElemType,
+														Elems:    make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.AppResources)),
+														Null:     true,
+													}
+												} else {
+													if c.Elems == nil {
+														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.AppResources))
+													}
+												}
+												if obj.AppResources != nil {
+													o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
+													if len(obj.AppResources) != len(c.Elems) {
+														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.AppResources))
+													}
+													for k, a := range obj.AppResources {
+														v, ok := tf.Attrs["app_resources"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+														if !ok {
+															v = github_com_hashicorp_terraform_plugin_framework_types.Object{
+
+																AttrTypes: o.AttrTypes,
+																Attrs:     make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(o.AttrTypes)),
+															}
+														} else {
+															if v.Attrs == nil {
+																v.Attrs = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(tf.AttrTypes))
+															}
+														}
+														{
+															obj := a
+															tf := &v
+															{
+																t, ok := tf.AttrTypes["allow_all"]
+																if !ok {
+																	diags.Append(attrWriteMissingDiag{"RoleV6.Spec.Deny.AppResources.AllowAll"})
+																} else {
+																	v, ok := tf.Attrs["allow_all"].(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+																	if !ok {
+																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																		if err != nil {
+																			diags.Append(attrWriteGeneralError{"RoleV6.Spec.Deny.AppResources.AllowAll", err})
+																		}
+																		v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.Bool)
+																		if !ok {
+																			diags.Append(attrWriteConversionFailureDiag{"RoleV6.Spec.Deny.AppResources.AllowAll", "github.com/hashicorp/terraform-plugin-framework/types.Bool"})
+																		}
+																		v.Null = bool(obj.AllowAll) == false
+																	}
+																	v.Value = bool(obj.AllowAll)
+																	v.Unknown = false
+																	tf.Attrs["allow_all"] = v
+																}
+															}
+														}
+														v.Unknown = false
+														c.Elems[k] = v
+													}
+													if len(obj.AppResources) > 0 {
+														c.Null = false
+													}
+												}
+												c.Unknown = false
+												tf.Attrs["app_resources"] = c
+											}
 										}
 									}
 								}
