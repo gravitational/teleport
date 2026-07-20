@@ -7252,6 +7252,19 @@ func TestRoleVersionV9Downgrade(t *testing.T) {
 			}
 			require.True(t, found, "GetRoles result does not include expected role")
 
+			currentRoles, err := client.GetCurrentUserRoles(ctx)
+			require.NoError(t, err)
+			found = false
+			for _, role := range currentRoles {
+				if role.GetName() != tc.roleName {
+					continue
+				}
+				require.Equal(t, tc.wantVersion, role.GetVersion())
+				found = true
+				break
+			}
+			require.True(t, found, "GetCurrentUserRoles result does not include expected role")
+
 			ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 			defer cancel()
 

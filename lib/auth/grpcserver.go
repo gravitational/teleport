@@ -1134,7 +1134,11 @@ func (g *GRPCServer) GetCurrentUserRoles(_ *emptypb.Empty, stream authpb.AuthSer
 			)
 			return trace.Errorf("encountered unexpected role type")
 		}
-		if err := stream.Send(v6); err != nil {
+		downgraded, err := maybeDowngradeRole(stream.Context(), v6)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if err := stream.Send(downgraded); err != nil {
 			return trace.Wrap(err)
 		}
 	}
