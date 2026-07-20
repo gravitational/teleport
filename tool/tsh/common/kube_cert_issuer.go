@@ -258,6 +258,11 @@ func (i *kubeCertIssuer) fetchMFARequired(ctx context.Context, cc kubeCertClient
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		defer func() {
+			if err := authClient.Close(); err != nil {
+				logger.WarnContext(ctx, "Failed to close auth client", "error", err)
+			}
+		}()
 		g, gctx := errgroup.WithContext(ctx)
 		g.SetLimit(kubeCertIssueConcurrency())
 		for _, cluster := range group {
@@ -274,11 +279,7 @@ func (i *kubeCertIssuer) fetchMFARequired(ctx context.Context, cc kubeCertClient
 				return nil
 			})
 		}
-		err = g.Wait()
-		if closeErr := authClient.Close(); err == nil {
-			err = closeErr
-		}
-		if err != nil {
+		if err := g.Wait(); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
