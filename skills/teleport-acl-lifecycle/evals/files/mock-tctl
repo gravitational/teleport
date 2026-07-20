@@ -1,0 +1,209 @@
+#!/usr/bin/env python3
+
+# Mock tctl binary for teleport-acl-lifecycle route-coverage evals. Reads
+# fixtures from the same directory instead of hitting a real cluster.
+
+import json
+import os
+import sys
+
+dir = os.path.dirname(os.path.abspath(__file__))
+args = sys.argv[1:]
+
+
+def read(filename):
+    with open(os.path.join(dir, filename)) as f:
+        print(f.read(), end="")
+
+
+def has(flag_prefix):
+    return any(a.startswith(flag_prefix) for a in args)
+
+
+try:
+    ACL_GET_DETAILS = json.load(open(os.path.join(dir, "acl-get-details.json")))
+except FileNotFoundError:
+    ACL_GET_DETAILS = {}
+
+# Titles that make 'acl create' simulate a role-build failure: the list is
+# created but role creation fails, and 'tctl' tells the caller to run
+# 'acl rm <name>' to clean up (which itself then surfaces leftover roles).
+ROLE_BUILD_FAILURE_TITLES = {"Duplicate Role Conflict"}
+ROLE_BUILD_FAILURE_UUID = "c9f3a1b2-0000-4000-8000-000000000099"
+
+# Titles that make 'acl create' simulate a member-setup failure: the list and
+# its roles are created, but adding members fails, and 'tctl' tells the
+# caller to retry with 'acl update <name> --members=...'.
+MEMBER_SETUP_FAILURE_TITLES = {"Member Setup Conflict"}
+MEMBER_SETUP_FAILURE_UUID = "d8e2b4c6-0000-4000-8000-000000000098"
+
+# UUIDs whose 'acl rm' prints a leftover supporting-role warning block.
+LEFTOVER_ROLES_ON_RM = {
+    "07070707-0000-4000-8000-000000000009": [
+        "support-tier1-acl-preset-07070707",
+        "support-tier2-acl-preset-07070707",
+    ],
+    ROLE_BUILD_FAILURE_UUID: [
+        "reviewer-acl-preset-c9f3a1b2",
+    ],
+}
+
+LEFTOVER_ROLE_BLOCK = """The following roles are no longer used by this access list:
+{roles}
+
+These roles may still be assigned to users or referenced by other roles.
+Verify each role is unused before deleting it with:
+  tctl rm roles/<name>
+"""
+
+if args[:1] == ["status"]:
+    read("tsh-status.txt")
+
+elif args[:3] == ["acl", "create", "--help"]:
+    read("acl-create-help.txt")
+
+elif args[:3] == ["acl", "update", "--help"]:
+    print(
+        "Usage: tctl acl update <name> [<flags>]\n\n"
+        "Update an existing access list. Accepts the same metadata/owner/member\n"
+        "flags as 'acl create', plus --remove-access (access-type lists only).\n"
+    )
+
+elif args[:2] == ["apps", "ls"]:
+    if any("resource.sub_kind" in a and "mcp" in a for a in args):
+        read("apps-ls-mcp.json")
+    else:
+        read("apps-ls.json")
+
+elif args[:2] == ["nodes", "ls"]:
+    if any("does-not-exist" in a for a in args):
+        print("[]")
+    else:
+        read("nodes-ls.json")
+
+elif args[:2] == ["kube", "ls"]:
+    read("kube-ls.json")
+
+elif args[:2] == ["get", "windows_desktop"]:
+    read("windows-desktops.json")
+
+elif args[:2] == ["get", "git_server"]:
+    read("git-server-ls.json")
+
+elif args[:2] == ["acl", "ls"]:
+    read("acl-ls.json")
+
+elif args[:2] == ["acl", "get"]:
+    uuid = args[2] if len(args) > 2 else ""
+    obj = ACL_GET_DETAILS.get(uuid)
+    if obj:
+        print(json.dumps(obj, indent=2))
+    else:
+        print(f"ERROR: access_list \"{uuid}\" is not found", file=sys.stderr)
+        sys.exit(1)
+
+elif args[:2] == ["get", "roles"]:
+    read("roles.json")
+
+elif args[:4] == ["integrations", "awsic", "accounts", "ls"]:
+    if "--format=json" in args:
+        read("awsic-accounts-ls.json")
+    else:
+        print("ERROR: AWS IC account listings must use --format=json in these evals", file=sys.stderr)
+        sys.exit(1)
+
+elif args[:2] == ["acl", "create"]:
+    title = ""
+    access_type = None
+    for a in args:
+        if a.startswith("--title="):
+            title = a[len("--title="):].strip('"')
+        elif a.startswith("--access-type="):
+            access_type = a[len("--access-type="):].strip('"')
+
+    if title in ROLE_BUILD_FAILURE_TITLES:
+        print("ERROR: forced error building roles", file=sys.stderr)
+        print(file=sys.stderr)
+        print(
+            f'An access list named "{ROLE_BUILD_FAILURE_UUID}" was created '
+            "before the operation failed.",
+            file=sys.stderr,
+        )
+        print(file=sys.stderr)
+        print(
+            f"Run `tctl acl rm {ROLE_BUILD_FAILURE_UUID}` and follow the "
+            "cleanup instructions before retrying.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    if title in MEMBER_SETUP_FAILURE_TITLES:
+        print("ERROR: forced creating members error", file=sys.stderr)
+        print(file=sys.stderr)
+        print(
+            f'Access list "{MEMBER_SETUP_FAILURE_UUID}" was created, but '
+            "Teleport could not add all requested members.",
+            file=sys.stderr,
+        )
+        print(file=sys.stderr)
+        print("To retry member setup, run:", file=sys.stderr)
+        print(
+            f'  tctl acl update {MEMBER_SETUP_FAILURE_UUID} --members="apple,banana"',
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    new_uuid = "11111111-2222-4333-8444-555555555555"
+    created_roles = []
+    if access_type:
+        # reviewer/requester are created for any access-type list (standing
+        # or request-based) to manage list membership, regardless of whether
+        # the granted *resource* access itself is request-based.
+        created_roles.append(f"reviewer-acl-preset-{new_uuid[:8]}")
+        created_roles.append(f"requester-acl-preset-{new_uuid[:8]}")
+        if has("--node-labels=") or has("--db-labels=") or has("--kubernetes-labels=") \
+                or has("--app-labels=") or has("--windows-labels=") or has("--github-orgs="):
+            created_roles.append(f"access-standard-acl-preset-{new_uuid[:8]}")
+        if has("--aws-ic-assignments="):
+            created_roles.append(f"access-awsic-acl-preset-{new_uuid[:8]}")
+
+    if "--format=json" in args:
+        response = {
+            "access_list": {
+                "kind": "access_list",
+                "metadata": {"name": new_uuid},
+                "spec": {"title": title},
+            }
+        }
+        if access_type:
+            response["access_type"] = access_type
+        if created_roles:
+            response["created_roles"] = created_roles
+        print(json.dumps(response, indent=2))
+    else:
+        print(f'Created access list "{title}" ({new_uuid})')
+        if access_type:
+            print(f"Access type: {access_type}")
+            print("Roles created for the access list:")
+            for r in created_roles:
+                print(f"  - {r}")
+
+elif args[:2] == ["acl", "update"]:
+    name = args[2] if len(args) > 2 else "<unknown>"
+    print(f'access_list "{name}" has been updated')
+    if "--remove-access" in args and name == "f6f6f6f6-0000-4000-8000-000000000008":
+        print()
+        print(LEFTOVER_ROLE_BLOCK.format(roles="  - access-standard-acl-preset-f6f6f6f6"))
+
+elif args[:2] == ["acl", "rm"]:
+    name = args[2] if len(args) > 2 else "<unknown>"
+    print(f'access_list "{name}" has been removed')
+    roles = LEFTOVER_ROLES_ON_RM.get(name)
+    if roles:
+        role_lines = "\n".join(f"  - {r}" for r in roles)
+        print()
+        print(LEFTOVER_ROLE_BLOCK.format(roles=role_lines))
+
+else:
+    print(f"mock-tctl: unrecognized command: {' '.join(args)}", file=sys.stderr)
+    sys.exit(1)

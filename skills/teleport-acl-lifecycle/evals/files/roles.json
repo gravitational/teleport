@@ -1,0 +1,5 @@
+[
+  { "kind": "role", "metadata": { "name": "auditor" } },
+  { "kind": "role", "metadata": { "name": "db-read" } },
+  { "kind": "role", "metadata": { "name": "app-access" } }
+]
