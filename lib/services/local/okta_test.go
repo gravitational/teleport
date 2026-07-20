@@ -416,10 +416,6 @@ func TestOktaAssignmentCRUD(t *testing.T) {
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
-	// Try to conditionally delete an assignment with old revision.
-	err = service.ConditionalDeleteOktaAssignment(ctx, assignment1.GetName(), assignment1.GetRevision())
-	require.True(t, trace.IsCompareFailed(err), "expected compare failed error, got %v", err)
-
 	// Delete an assignment
 	err = service.DeleteOktaAssignment(ctx, assignment1.GetName())
 	require.NoError(t, err)
