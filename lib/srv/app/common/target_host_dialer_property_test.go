@@ -93,11 +93,9 @@ func TestProperty_DialAttempt_ConcurrentControlIsConsistent(t *testing.T) {
 		a := &dialAttempt{policy: policy, host: "target.example.com", port: "443"}
 		var wg sync.WaitGroup
 		for _, c := range cands {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
+			wg.Go(func() {
 				_ = a.control(context.Background(), "tcp", net.JoinHostPort(c.String(), "443"), nil)
-			}()
+			})
 		}
 		wg.Wait()
 
