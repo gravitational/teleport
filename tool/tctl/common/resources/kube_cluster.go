@@ -101,7 +101,13 @@ func getKubeCluster(ctx context.Context, client *authclient.Client, ref services
 	if ref.Name == "" {
 		return NewKubeClusterCollection(clusters), nil
 	}
-	clusters = FilterByNameOrDiscoveredName(clusters, ref.Name)
+	sqn, err := scopes.ParseQualifiedName(ref.Name)
+	if err != nil {
+		sqn = scopes.QualifiedName{
+			Name: ref.Name,
+		}
+	}
+	clusters = FilterBySQNOrDiscoveredName(clusters, sqn)
 	if len(clusters) == 0 {
 		return nil, trace.NotFound("Kubernetes cluster %q not found", ref.Name)
 	}
@@ -113,6 +119,10 @@ func createKubeCluster(ctx context.Context, client *authclient.Client, raw servi
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	sqn := scopes.QualifiedName{
+		Scope: cluster.GetScope(),
+		Name:  cluster.GetName(),
+	}
 	if err := client.CreateKubernetesCluster(ctx, cluster); err != nil {
 		if trace.IsAlreadyExists(err) {
 			if !opts.Force {
@@ -121,12 +131,12 @@ func createKubeCluster(ctx context.Context, client *authclient.Client, raw servi
 			if err := client.UpdateKubernetesCluster(ctx, cluster); err != nil {
 				return trace.Wrap(err)
 			}
-			fmt.Printf("Kubernetes cluster %q has been updated\n", cluster.GetName())
+			fmt.Printf("Kubernetes cluster %q has been updated\n", sqn.String())
 			return nil
 		}
 		return trace.Wrap(err)
 	}
-	fmt.Printf("Kubernetes cluster %q has been created\n", cluster.GetName())
+	fmt.Printf("Kubernetes cluster %q has been created\n", sqn.String())
 	return nil
 }
 
@@ -137,7 +147,13 @@ func deleteKubeCluster(ctx context.Context, client *authclient.Client, ref servi
 		return trace.Wrap(err)
 	}
 	resDesc := "Kubernetes cluster"
-	clusters = FilterByNameOrDiscoveredName(clusters, ref.Name)
+	sqn, err := scopes.ParseQualifiedName(ref.Name)
+	if err != nil {
+		sqn = scopes.QualifiedName{
+			Name: ref.Name,
+		}
+	}
+	clusters = FilterBySQNOrDiscoveredName(clusters, sqn)
 	name, err := GetOneResourceNameToDelete(clusters, ref, resDesc)
 	if err != nil {
 		return trace.Wrap(err)
@@ -208,10 +224,14 @@ func createScopedKubeCluster(ctx context.Context, client *authclient.Client, raw
 		return trace.Wrap(err)
 	}
 
+	sqn := scopes.QualifiedName{
+		Scope: cluster.GetScope(),
+		Name:  cluster.GetName(),
+	}
 	if err := client.CreateKubernetesCluster(ctx, cluster); err != nil {
 		if trace.IsAlreadyExists(err) {
 			if !opts.Force {
-				return trace.AlreadyExists("Kubernetes cluster %q already exists", cluster.GetName())
+				return trace.AlreadyExists("Kubernetes cluster %q already exists", sqn.String())
 			}
 			if err := client.UpdateKubernetesCluster(ctx, cluster); err != nil {
 				return trace.Wrap(err)
@@ -221,7 +241,7 @@ func createScopedKubeCluster(ctx context.Context, client *authclient.Client, raw
 		}
 		return trace.Wrap(err)
 	}
-	fmt.Printf("Kubernetes cluster %q has been created\n", cluster.GetName())
+	fmt.Printf("Kubernetes cluster %q has been created\n", sqn.String())
 	return nil
 }
 
@@ -235,7 +255,11 @@ func updateScopedKubeCluster(ctx context.Context, client *authclient.Client, raw
 		return trace.Wrap(err)
 	}
 
-	fmt.Printf("%v %q has been updated\n", types.KindKubernetesCluster, cluster.GetName())
+	sqn := scopes.QualifiedName{
+		Scope: cluster.GetScope(),
+		Name:  cluster.GetName(),
+	}
+	fmt.Printf("%v %q has been updated\n", types.KindKubernetesCluster, sqn.String())
 	return nil
 }
 
@@ -267,7 +291,7 @@ func deleteScopedKubeCluster(ctx context.Context, client *authclient.Client, sub
 	fmt.Printf(
 		"%v %q has been deleted\n",
 		types.KindKubernetesCluster,
-		sqn.Name,
+		sqn.String(),
 	)
 	return nil
 }
