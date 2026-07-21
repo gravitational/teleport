@@ -174,6 +174,40 @@ func TestWatcherWithDynamicFetchers(t *testing.T) {
 	assertFetchResources(t, watcher, types.ResourcesWithLabels{app1, app2, db})
 }
 
+func TestWatcherHandledFetchErrorPreservesResources(t *testing.T) {
+	t.Parallel()
+
+	app, err := types.NewAppV3(types.Metadata{Name: "app"}, types.AppSpecV3{Cloud: types.CloudAWS})
+	require.NoError(t, err)
+	fetchErr := trace.AccessDenied("partial discovery failure")
+
+	var (
+		handledErr   error
+		gotResources types.ResourcesWithLabels
+	)
+	watcher, err := NewWatcher(t.Context(), WatcherConfig{
+		FetchersFn: StaticFetchers([]Fetcher{&mockFetcher{
+			resources:    types.ResourcesWithLabels{app},
+			resourceType: types.KindApp,
+			cloud:        types.CloudAWS,
+			fetchErr:     fetchErr,
+		}}),
+		Origin: types.OriginCloud,
+		FetchErrorHookFn: func(err error) bool {
+			handledErr = err
+			return true
+		},
+		ProcessResourcesDiscoveredHookFn: func(resources types.ResourcesWithLabels) {
+			gotResources = resources
+		},
+	})
+	require.NoError(t, err)
+
+	watcher.fetchAndSend()
+	require.ErrorIs(t, handledErr, fetchErr)
+	require.Equal(t, types.ResourcesWithLabels{app}, gotResources)
+}
+
 func assertFetchResources(t *testing.T, watcher *Watcher, wantResources types.ResourcesWithLabels) {
 	select {
 	case fetchResources := <-watcher.ResourcesC():
@@ -188,6 +222,7 @@ type mockFetcher struct {
 	resourceType string
 	cloud        string
 	noAuth       bool
+	fetchErr     error
 }
 
 func (m *mockFetcher) String() string {
@@ -198,7 +233,7 @@ func (m *mockFetcher) Get(ctx context.Context) (types.ResourcesWithLabels, error
 	if m.noAuth {
 		return nil, trace.AccessDenied("access denied")
 	}
-	return m.resources, nil
+	return m.resources, m.fetchErr
 }
 
 func (m *mockFetcher) ResourceType() string {

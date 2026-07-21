@@ -68,6 +68,10 @@ type WatcherConfig struct {
 	PreFetchHookFn func()
 	// ProcessResourcesDiscoveredHookFn is called for each discovered resources during a fetch cycle.
 	ProcessResourcesDiscoveredHookFn func(types.ResourcesWithLabels)
+	// FetchErrorHookFn is called for errors returned by fetchers. It returns
+	// whether the error was handled and any accompanying resources should still
+	// be processed.
+	FetchErrorHookFn func(error) bool
 	// PostFetchHookFn is called after completing a fetch cycle.
 	PostFetchHookFn func()
 }
@@ -97,6 +101,9 @@ func (c *WatcherConfig) CheckAndSetDefaults() error {
 	}
 	if c.PostFetchHookFn == nil {
 		c.PostFetchHookFn = func() {}
+	}
+	if c.FetchErrorHookFn == nil {
+		c.FetchErrorHookFn = func(error) bool { return false }
 	}
 	return nil
 }
@@ -179,7 +186,7 @@ func (w *Watcher) fetchAndSend() {
 
 		group.Go(func() error {
 			resources, err := lFetcher.Get(groupCtx)
-			if err != nil {
+			if err != nil && !w.cfg.FetchErrorHookFn(err) {
 				// The agent may have permissions to fetch some resources but
 				// not others. This is acceptable, so make a debug log instead
 				// of a warning.

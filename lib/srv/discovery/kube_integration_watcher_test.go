@@ -31,6 +31,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
@@ -42,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/header"
+	"github.com/gravitational/teleport/api/types/usertasks"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
@@ -136,6 +138,69 @@ func TestServer_getKubeFetchers(t *testing.T) {
 		require.ElementsMatch(t, tc.expectedIntegrationFetchers, s.getKubeFetchers(true))
 		require.ElementsMatch(t, tc.expectedNonIntegrationFetchers, s.getKubeFetchers(false))
 	}
+}
+
+func TestHandleEKSWatcherError(t *testing.T) {
+	t.Parallel()
+
+	const (
+		integration     = "integration"
+		accountID       = "123456789012"
+		region          = "us-east-1"
+		clusterName     = "cluster"
+		discoveryConfig = "discovery-config"
+		discoveryGroup  = "discovery-group"
+	)
+
+	clock := clockwork.NewFakeClock()
+	s := &Server{
+		Config: &Config{
+			DiscoveryGroup: discoveryGroup,
+			Log:            logtest.NewLogger(),
+			clock:          clock,
+		},
+		ctx: t.Context(),
+	}
+
+	handled := s.handleEKSWatcherError(&fetchers.EKSDiscoveryPermissionError{
+		Integration:         integration,
+		AccountID:           accountID,
+		Region:              region,
+		Cluster:             clusterName,
+		Operation:           fetchers.EKSDiscoveryOperationDescribeCluster,
+		DiscoveryConfigName: discoveryConfig,
+		Err:                 trace.AccessDenied("access denied"),
+	})
+	require.True(t, handled)
+
+	key := awsEKSTaskKey{
+		integration: integration,
+		issueType:   usertasks.AutoDiscoverEKSIssuePermClusterDenied,
+		accountID:   accountID,
+		region:      region,
+	}
+	issue := s.awsEKSTasks.clusterIssues[key]
+	require.NotNil(t, issue)
+	require.Contains(t, s.awsEKSTasks.issuesSyncQueue, key)
+	cluster := issue.GetClusters()[clusterName]
+	require.Equal(t, clusterName, cluster.GetName())
+	require.Equal(t, discoveryConfig, cluster.GetDiscoveryConfig())
+	require.Equal(t, discoveryGroup, cluster.GetDiscoveryGroup())
+	require.True(t, cluster.GetSyncTime().AsTime().Equal(clock.Now()))
+
+	t.Run("unhandled error", func(t *testing.T) {
+		s := &Server{Config: &Config{Log: logtest.NewLogger()}}
+		require.False(t, s.handleEKSWatcherError(trace.BadParameter("not an EKS permission error")))
+		require.False(t, s.handleEKSWatcherError(&fetchers.EKSDiscoveryPermissionError{
+			Operation: "unknown:Operation",
+			Err:       trace.AccessDenied("access denied"),
+		}))
+		require.False(t, s.handleEKSWatcherError(&fetchers.EKSDiscoveryPermissionError{
+			Operation: fetchers.EKSDiscoveryOperationDescribeCluster,
+			Err:       trace.AccessDenied("access denied"),
+		}))
+		require.Empty(t, s.awsEKSTasks.clusterIssues)
+	})
 }
 
 func staticKubeAgentVersionGetter(t *testing.T) version.Getter {

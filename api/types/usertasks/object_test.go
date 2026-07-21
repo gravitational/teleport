@@ -392,6 +392,21 @@ func TestValidateUserTask(t *testing.T) {
 			wantErr: noError,
 		},
 		{
+			name: "DiscoverEKS: valid cluster permission issue",
+			task: func(t *testing.T) *usertasksv1.UserTask {
+				ut := baseEKSDiscoverTask(t)
+				ut.Spec.IssueType = AutoDiscoverEKSIssuePermClusterDenied
+				ut.Metadata.Name = TaskNameForDiscoverEKS(TaskNameForDiscoverEKSParts{
+					Integration: ut.Spec.Integration,
+					IssueType:   ut.Spec.IssueType,
+					AccountID:   ut.Spec.DiscoverEks.AccountId,
+					Region:      ut.Spec.DiscoverEks.Region,
+				})
+				return ut
+			},
+			wantErr: noError,
+		},
+		{
 			name: "DiscoverEKS: invalid issue type",
 			task: func(t *testing.T) *usertasksv1.UserTask {
 				ut := baseEKSDiscoverTask(t)
