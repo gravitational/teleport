@@ -19,13 +19,26 @@
 import { Alert, Card, Flex, Text } from 'design';
 import { TextSelectCopyMulti } from 'shared/components/TextSelectCopy';
 
+import { IntegrationKind } from 'teleport/services/integrations';
+
+type IaCIntegrationKind = IntegrationKind.AwsOidc | IntegrationKind.AzureOidc;
+
+const cloudName: Record<IaCIntegrationKind, string> = {
+  [IntegrationKind.AwsOidc]: 'AWS',
+  [IntegrationKind.AzureOidc]: 'Azure',
+};
+
 type DeleteIntegrationSectionProps = {
   integrationName: string;
+  kind: IaCIntegrationKind;
 };
 
 export function DeleteIntegrationSection({
   integrationName,
+  kind,
 }: DeleteIntegrationSectionProps) {
+  const cloud = cloudName[kind];
+
   return (
     <Card>
       <Flex flexDirection="column" p={4} mt={3}>
@@ -40,8 +53,8 @@ export function DeleteIntegrationSection({
               <Text as="strong" fontWeight="bold">
                 {integrationName}
               </Text>{' '}
-              module from your Terraform configuration will remove Teleport and
-              AWS resources used for auto-discovery.
+              module from your Terraform configuration will remove Teleport and{' '}
+              {cloud} resources used for auto-discovery.
             </Text>
           </Flex>
         </Alert>
@@ -54,8 +67,8 @@ export function DeleteIntegrationSection({
         <TextSelectCopyMulti lines={[{ text: 'terraform apply' }]} />
 
         <Text mt={2} fontSize={1} color="text.slightlyMuted">
-          Note: This removes the integration and dependent IAM resources but
-          does not delete your AWS resources in Teleport. To remove resources
+          Note: This removes the integration and dependent resources but does
+          not delete your {cloud} resources in Teleport. To remove resources
           from Teleport, delete them via the Teleport UI or CLI.
         </Text>
       </Flex>
