@@ -21,6 +21,7 @@ package common
 import (
 	"context"
 	"fmt"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"testing/synctest"
@@ -163,6 +164,60 @@ func TestKubeCertIssuer_MFAOffNoCeremony(t *testing.T) {
 	})
 }
 
+// TestKubeCertIssuer_DistinctTeleportClusters verifies a fan-out spanning distinct Teleport clusters.
+// MFA requirements are fetched from each Teleport cluster,
+// every cert is routed to its own Teleport cluster,
+// and the single ceremony's reusable response is replayed across all of them.
+func TestKubeCertIssuer_DistinctTeleportClusters(t *testing.T) {
+	t.Parallel()
+
+	clusters := kubeconfig.LocalProxyClusters{
+		{TeleportCluster: "root", KubeCluster: "kube-root-0"},
+		{TeleportCluster: "root", KubeCluster: "kube-root-1"},
+		{TeleportCluster: "leaf", KubeCluster: "kube-leaf-0"},
+	}
+	keyRing := newTestKubeKeyRing(t, clusters)
+
+	synctest.Test(t, func(t *testing.T) {
+		routes := make(map[string]string, len(clusters))
+		for _, cluster := range clusters {
+			routes[cluster.KubeCluster] = cluster.TeleportCluster
+		}
+
+		var ceremonies, replays atomic.Int32
+		var ceremonyResp proto.MFAAuthenticateResponse
+		cc := &fakeKubeCertClient{mfaRequired: true}
+		cc.issueFn = func(ctx context.Context, params client.ReissueParams) (*client.IssueUserCertsWithMFAResult, error) {
+			if params.RouteToCluster != routes[params.KubernetesCluster] {
+				return nil, trace.BadParameter("unexpected route %q for kube cluster %q", params.RouteToCluster, params.KubernetesCluster)
+			}
+			if params.ReusableMFAResponse == nil {
+				ceremonies.Add(1)
+				return &client.IssueUserCertsWithMFAResult{
+					KeyRing:             keyRing,
+					MFARequired:         proto.MFARequired_MFA_REQUIRED_YES,
+					ReusableMFAResponse: &ceremonyResp,
+				}, nil
+			}
+			replays.Add(1)
+			return &client.IssueUserCertsWithMFAResult{
+				KeyRing:     keyRing,
+				MFARequired: proto.MFARequired_MFA_REQUIRED_YES,
+			}, nil
+		}
+
+		start := time.Now()
+		certs, err := newTestKubeCertIssuer().issueCerts(t.Context(), cc, clusters)
+		require.NoError(t, err)
+		require.Len(t, certs, len(clusters))
+		require.Equal(t, int32(1), ceremonies.Load(), "one ceremony should cover all Teleport clusters")
+		require.Equal(t, int32(len(clusters)-1), replays.Load())
+		require.ElementsMatch(t, []string{"root", "leaf"}, cc.connects, "MFA requirements should be fetched from each Teleport cluster")
+		// One serial ceremony plus one concurrent replay wave.
+		require.Equal(t, 2*time.Second, time.Since(start))
+	})
+}
+
 func newTestKubeClusters(n int) kubeconfig.LocalProxyClusters {
 	clusters := make(kubeconfig.LocalProxyClusters, 0, n)
 	for i := range n {
@@ -212,6 +267,9 @@ func (f *fakeMFAAuthClient) Close() error { return nil }
 type fakeKubeCertClient struct {
 	mfaRequired bool
 	issueFn     func(ctx context.Context, params client.ReissueParams) (*client.IssueUserCertsWithMFAResult, error)
+
+	mu       sync.Mutex
+	connects []string
 }
 
 func (f *fakeKubeCertClient) IssueUserCertsWithMFA(ctx context.Context, params client.ReissueParams) (*client.IssueUserCertsWithMFAResult, error) {
@@ -222,5 +280,8 @@ func (f *fakeKubeCertClient) IssueUserCertsWithMFA(ctx context.Context, params c
 }
 
 func (f *fakeKubeCertClient) ConnectToCluster(ctx context.Context, clusterName string) (authclient.ClientI, error) {
+	f.mu.Lock()
+	f.connects = append(f.connects, clusterName)
+	f.mu.Unlock()
 	return &fakeMFAAuthClient{required: f.mfaRequired}, nil
 }
