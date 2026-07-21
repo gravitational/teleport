@@ -110,6 +110,10 @@ type Handler struct {
 	// upgrade, configured via TELEPORT_UNSTABLE_APP_CSWSH_ACTION. Defaults to
 	// no-op.
 	cswshAction cswshAction
+
+	// dbscDisabled disables all DBSC handling, configured via
+	// TELEPORT_UNSTABLE_DISABLE_DBSC.
+	dbscDisabled bool
 }
 
 // NewHandler returns a new application handler.
@@ -124,10 +128,14 @@ func NewHandler(ctx context.Context, c *HandlerConfig) (*Handler, error) {
 		closeContext: ctx,
 		logger:       slog.With(teleport.ComponentKey, teleport.ComponentAppProxy),
 		cswshAction:  parseCSWSHAction(os.Getenv(cswshActionEnv)),
+		dbscDisabled: os.Getenv(dbscDisabledEnv) != "",
 	}
 	if h.cswshAction.enabled() {
 		h.logger.InfoContext(ctx, "Application access cross-site WebSocket (CSWSH) guard enabled",
 			"report", h.cswshAction.report, "block", h.cswshAction.block)
+	}
+	if h.dbscDisabled {
+		h.logger.InfoContext(ctx, "Application access DBSC support disabled via TELEPORT_UNSTABLE_DISABLE_DBSC")
 	}
 
 	// Create a new session cache, this holds sessions that can be used to
