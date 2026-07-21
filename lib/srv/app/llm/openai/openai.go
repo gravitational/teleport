@@ -28,6 +28,8 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/srv/app/llm/bedrock"
+	llmerrors "github.com/gravitational/teleport/lib/srv/app/llm/errors"
 	"github.com/gravitational/teleport/lib/srv/app/llm/models"
 	llmrequest "github.com/gravitational/teleport/lib/srv/app/llm/request"
 	"github.com/gravitational/teleport/lib/utils"
@@ -57,49 +59,56 @@ func NewRequest(cfg *llmrequest.Config) (*http.Request, llmrequest.RequestInfo, 
 		Path:   "/v1",
 	})
 
+	// All endpoints use JSON content-type.
+	providerHeaders.Set("Content-Type", "application/json")
 	llm := cfg.App.GetLLM()
-	// TODO(gabrielcorado): add support for bedrock provider.
-	switch llm.Provider {
-	case types.LLMProviderOpenAI:
-		switch strings.TrimPrefix(cfg.DownstreamRequest.URL.Path, "/v1") {
-		// https://developers.openai.com/api/reference/resources/responses/methods/create
-		case "/responses":
-			if cfg.DownstreamRequest.Method != http.MethodPost {
-				// We're ok with returning 404 back to clients instead 405 status.
-				return nil, info, trace.NotFound("responses API supports only POST requests")
-			}
 
-			// Currently, websocket mode is not supported.
-			//
-			// https://developers.openai.com/api/docs/guides/websocket-mode
-			if websocket.IsWebSocketUpgrade(cfg.DownstreamRequest) {
-				return nil, info, trace.NotFound("websocket mode is not supported")
-			}
-
-			info.endpointType = endpointTypeResponses
-			providerPath = "/responses"
-			providerMethod = http.MethodPost
-			req = &responsesAPIRequest{}
-		// https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create
-		case "/chat/completions":
-			if cfg.DownstreamRequest.Method != http.MethodPost {
-				// We're ok with returning 404 back to clients instead 405 status.
-				return nil, info, trace.NotFound("chat completions API supports only POST requests")
-			}
-
-			info.endpointType = endpointTypeChatCompletions
-			providerPath = "/chat/completions"
-			providerMethod = http.MethodPost
-			req = &chatCompletionsAPIRequest{}
-		default:
-			return nil, info, trace.NotFound("unsupported endpoint")
+	// Both `openai` and `bedrock` providers support responses and chat
+	// completions endpoints.
+	//
+	// https://docs.aws.amazon.com/bedrock/latest/userguide/bedrock-mantle.html
+	switch strings.TrimPrefix(cfg.DownstreamRequest.URL.Path, "/v1") {
+	// https://developers.openai.com/api/reference/resources/responses/methods/create
+	case "/responses":
+		if cfg.DownstreamRequest.Method != http.MethodPost {
+			// We're ok with returning 404 back to clients instead 405 status.
+			return nil, info, trace.NotFound("responses API supports only POST requests")
 		}
 
+		// Teleport and Bedrock don't support WebSocket mode.
+		//
+		// https://developers.openai.com/api/docs/guides/websocket-mode
+		// https://developers.openai.com/api/docs/guides/amazon-bedrock#responses-api-feature-availability
+		if websocket.IsWebSocketUpgrade(cfg.DownstreamRequest) {
+			return nil, info, trace.NotFound("websocket mode is not supported")
+		}
+
+		info.endpointType = endpointTypeResponses
+		providerPath = "/responses"
+		providerMethod = http.MethodPost
+		req = &responsesAPIRequest{}
+	case "/chat/completions":
+		if cfg.DownstreamRequest.Method != http.MethodPost {
+			// We're ok with returning 404 back to clients instead 405 status.
+			return nil, info, trace.NotFound("chat completions API supports only POST requests")
+		}
+
+		info.endpointType = endpointTypeChatCompletions
+		providerPath = "/chat/completions"
+		providerMethod = http.MethodPost
+		req = &chatCompletionsAPIRequest{}
+	default:
+		return nil, info, trace.NotFound("unsupported endpoint")
+	}
+
+	switch llm.Provider {
+	case types.LLMProviderOpenAI:
 		// OpenAI API requires only `Authorization` header carrying the API key.
 		//
 		// https://developers.openai.com/api/reference/overview#authentication
 		providerHeaders.Set("Authorization", "Bearer "+cfg.GetAPIKeyFunc())
-		providerHeaders.Set("Content-Type", "application/json")
+	case types.LLMProviderAWSBedrock:
+		cfg.ProviderURL = bedrock.BuildOpenAIURL(cfg.Logger, cfg.App, info.endpointType == endpointTypeResponses)
 	default:
 		return nil, info, trace.NotImplemented("provider %q is not supported", llm.Provider)
 	}
@@ -157,5 +166,16 @@ func NewRequest(cfg *llmrequest.Config) (*http.Request, llmrequest.RequestInfo, 
 		return nil, info, trace.Wrap(err)
 	}
 	providerReq.Header = providerHeaders
+
+	if llm.Provider == types.LLMProviderAWSBedrock {
+		if err := cfg.SignBedrockRequest(providerReq.Context(), cfg.App, providerReq, providerBody); err != nil {
+			// The signing failure cause can carry AWS credentials/config
+			// details, so it is only logged, and clients receive a generic
+			// internal error message.
+			cfg.Logger.ErrorContext(providerReq.Context(), "failed to sign provider request", "error", err)
+			return nil, info, llmerrors.ErrConfig
+		}
+	}
+
 	return providerReq, info, nil
 }
