@@ -1766,9 +1766,10 @@ teleport:
     # the default profile is used.
     kinesis_aws_profile: profile-name
 
-    # The path to an AWS config file. If set, only the specified file
-    # will be used as configuration for AWS credentials for DSQL
-    # and Kinesis. If unset, the default configuration file is used.
+    # The path to an AWS config file (see https://docs.aws.amazon.com/sdkref/latest/guide/file-format.html).
+    # If set, only the specified file will be used as configuration for
+    # AWS credentials for DSQL and Kinesis. If unset, the default
+    # configuration file (at ~/.aws/config) is used.
     aws_config_file_path: path/to/aws/config
 
     # The username and schema name to use in the DSQL cluster. The
