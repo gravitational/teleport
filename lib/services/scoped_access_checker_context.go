@@ -315,6 +315,10 @@ func (c *ScopedAccessCheckerContext) riskyEnumerateScopedCheckers(ctx context.Co
 // filters through this method so that an omitted filter is consistently and safely defaulted, minimizing
 // per-API defaulting logic. Note that this method only handles defaulting; callers are still responsible for
 // validating (see [scopes.ValidateFilter]) and authorizing the resulting filter.
+//
+// There is one subtle exception to this default behavior. The event system treats requests to watch certain
+// *always unscoped* kinds as having a default UNSCOPED filter, even for scoped callers. This behavior is only
+// present for unscoped kinds that have an unscoped read exception in place (e.g. cert authorities).
 func (c *ScopedAccessCheckerContext) ResolveScopeFilter(filter *scopesv1.Filter) *scopesv1.Filter {
 	if filter.GetMode() != scopesv1.Mode_MODE_UNSPECIFIED {
 		// the caller specified an explicit filter; return it unchanged.
