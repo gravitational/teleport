@@ -36,6 +36,7 @@ use js_sys::Uint8Array;
 use log::{debug, warn};
 use wasm_bindgen::{prelude::*, Clamped};
 use web_sys::ImageData;
+mod egfx;
 
 #[wasm_bindgen]
 pub fn init_wasm_log(log_level: &str) {
