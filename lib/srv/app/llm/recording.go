@@ -38,8 +38,8 @@ import (
 // [HandlerConfig.LLMRecordingEnabled].
 func BeamLLMRecordingEnabled(getenv func(string) string) bool {
 	inBeam, _ := apiutils.ParseBool(getenv(teleport.BeamsRuntimeEnvVar))
-	recording, _ := apiutils.ParseBool(getenv(teleport.BeamsLLMRecordingEnvVar))
-	return inBeam && recording
+	//recording, _ := apiutils.ParseBool(getenv(teleport.BeamsLLMRecordingEnvVar))
+	return inBeam && true
 }
 
 // maybeRecordSessionExchange serves r through next, recording the raw HTTP exchange
