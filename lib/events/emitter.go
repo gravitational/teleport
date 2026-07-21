@@ -63,6 +63,8 @@ type AsyncEmitterConfig struct {
 	AuditQueueCfg auditqueue.Config
 	// AuditQueueBackends is the ordered list of backends to try on startup.
 	AuditQueueBackends []auditqueue.Kind
+	// Sealer is used to encrypt audit log events before writing them to disk.
+	Sealer auditqueue.Sealer
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -169,10 +171,14 @@ type AsyncEmitter struct {
 func (a *AsyncEmitter) Close() error {
 	a.cancel()
 	a.wg.Wait()
-	if a.queue != nil {
-		return trace.Wrap(a.queue.Close())
+	var errs []error
+	if a.cfg.Sealer != nil {
+		errs = append(errs, a.cfg.Sealer.Close())
 	}
-	return nil
+	if a.queue != nil {
+		errs = append(errs, a.queue.Close())
+	}
+	return trace.NewAggregate(errs...)
 }
 
 // Shutdown makes a best effort attempt to flush pending audit events to the
