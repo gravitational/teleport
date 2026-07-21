@@ -408,7 +408,7 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server any, getClient
 		ctx,
 		accesslist.ServiceConfig{
 			Logger:            logger,
-			Authorizer:        p.authServer.Authorizer,
+			Authorizer:        p.authServer.ScopedAuthorizer,
 			AccessLists:       p.authServer.AuthServer,
 			LockGetter:        p.authServer.AuthServer,
 			AccessListReviews: p.authServer.AuthServer,

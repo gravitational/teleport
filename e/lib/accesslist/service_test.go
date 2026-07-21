@@ -18,6 +18,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
@@ -35,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -56,6 +58,9 @@ const (
 
 	testDisplayNameTrait = "displayName"
 	testEmailTrait       = "email"
+
+	scopeTeamA = "/team-a"
+	scopeTeamB = "/team-b"
 )
 
 // cmpOpts are general cmpOpts for all comparisons.
@@ -72,6 +77,7 @@ var cmpOpts = []cmp.Option{
 }
 
 func TestService_GetAccessLists(t *testing.T) {
+	t.Parallel()
 	c := initSvc(t)
 
 	getResp, err := c.svc.GetAccessLists(c.userCtx, &accesslistv1.GetAccessListsRequest{})
@@ -142,7 +148,237 @@ func TestService_GetAccessLists(t *testing.T) {
 	require.Empty(t, cmp.Diff([]*accesslist.AccessList{a4}, mustFromProtoAll(t, getResp.GetAccessLists()...), cmpOpts...))
 }
 
+func TestService_ScopedAccessLists_ListFiltering(t *testing.T) {
+	t.Parallel()
+	c := initSvc(t)
+
+	// Create same-named resources across scopes to catch collisions.
+	teamA := newScopedAccessList(t, scopedAccessListName(scopeTeamA, "shared"), c.clock)
+	// This child list is intentionally owned by the caller too. List methods
+	// use identity-based default scope filters, and a pinned user defaults to
+	// their exact pinned scope unless they request a broader filter. So this
+	// one should be filtered out by default.
+	teamAChild := newScopedAccessList(t, scopedAccessListName(scopeTeamA+"/child", "child"), c.clock)
+	// This is in an orthogonal scope and a caller pinned to scopeTeamA should
+	// never see it.
+	teamB := newScopedAccessList(t, scopedAccessListName(scopeTeamB, "shared"), c.clock)
+	unscoped := newAccessList(t, "shared", c.clock)
+	createAccessLists(t, c.userCtx, c.svc, c.emitter, nil, []*accesslist.AccessList{teamA, teamAChild, teamB, unscoped})
+
+	// An unscoped caller should only see the unscoped list by default.
+	unscopedResp, err := c.svc.ListAccessListsV2(c.userCtx, accesslistv1.ListAccessListsV2Request_builder{}.Build())
+	require.NoError(t, err)
+	require.Equal(t, []accesslists.NormalizedSQN{{Name: unscoped.GetName()}}, accessListSQNsFromProto(unscopedResp.GetAccessLists()))
+
+	// An unscoped caller can see all lists by passing an explicit filter.
+	unscopedResp, err = c.svc.ListAccessListsV2(c.userCtx, accesslistv1.ListAccessListsV2Request_builder{
+		ScopeFilter: scopesv1.Filter_builder{
+			Mode: scopesv1.Mode_MODE_ALL,
+		}.Build(),
+	}.Build())
+	require.NoError(t, err)
+	require.Equal(t,
+		[]accesslists.NormalizedSQN{
+			accesslists.ScopeQualifiedName(unscoped),
+			accesslists.ScopeQualifiedName(teamA),
+			accesslists.ScopeQualifiedName(teamAChild),
+			accesslists.ScopeQualifiedName(teamB),
+		},
+		accessListSQNsFromProto(unscopedResp.GetAccessLists()),
+	)
+
+	// A scoped caller will only see lists in their exact scope by default.
+	scopedOwnerCtx := genScopedUserContext(t.Context(), ownerUser, scopeTeamA)
+	resp, err := c.svc.ListAccessListsV2(scopedOwnerCtx, accesslistv1.ListAccessListsV2Request_builder{}.Build())
+	require.NoError(t, err)
+	require.Equal(t,
+		[]accesslists.NormalizedSQN{accesslists.ScopeQualifiedName(teamA)},
+		accessListSQNsFromProto(resp.GetAccessLists()),
+	)
+
+	// The scoped caller can pass an explicit filter to request all lists, but
+	// they are still restricted by their scope pin.
+	resp, err = c.svc.ListAccessListsV2(scopedOwnerCtx, accesslistv1.ListAccessListsV2Request_builder{
+		ScopeFilter: scopesv1.Filter_builder{
+			Mode: scopesv1.Mode_MODE_ALL,
+		}.Build(),
+	}.Build())
+	require.NoError(t, err)
+	require.Equal(t,
+		[]accesslists.NormalizedSQN{
+			accesslists.ScopeQualifiedName(teamA),
+			accesslists.ScopeQualifiedName(teamAChild),
+		},
+		accessListSQNsFromProto(resp.GetAccessLists()),
+	)
+}
+
+func TestService_ScopedAccessLists_SameNameUpdateDeleteScopeIsolation(t *testing.T) {
+	t.Parallel()
+	c := initSvc(t)
+
+	// Updating and deleting one scoped list must not affect a same-name list in
+	// another scope.
+	teamA := newScopedAccessList(t, scopedAccessListName(scopeTeamA, "shared"), c.clock)
+	teamA.Spec.Title = "team a"
+	teamB := newScopedAccessList(t, scopedAccessListName(scopeTeamB, "shared"), c.clock)
+	teamB.Spec.Title = "team b"
+	createAccessLists(t, c.userCtx, c.svc, c.emitter, nil, []*accesslist.AccessList{teamA, teamB})
+
+	teamA.Spec.Title = "team a updated"
+	_, err := c.svc.UpdateAccessList(c.userCtx, accesslistv1.UpdateAccessListRequest_builder{AccessList: conv.ToProto(teamA)}.Build())
+	require.NoError(t, err)
+
+	gotTeamA := getAccessListV2(t, c, accesslists.ScopeQualifiedName(teamA))
+	require.Equal(t, "team a updated", gotTeamA.GetSpec().GetTitle())
+	gotTeamB := getAccessListV2(t, c, accesslists.ScopeQualifiedName(teamB))
+	require.Equal(t, "team b", gotTeamB.GetSpec().GetTitle())
+
+	_, err = c.svc.DeleteAccessList(c.userCtx, accesslistv1.DeleteAccessListRequest_builder{
+		Scope: scopeTeamA,
+		Name:  "shared",
+	}.Build())
+	require.NoError(t, err)
+
+	_, err = c.svc.GetAccessList(c.userCtx, accesslistv1.GetAccessListRequest_builder{Scope: scopeTeamA, Name: "shared"}.Build())
+	require.ErrorAs(t, err, new(*trace.NotFoundError))
+	gotTeamB = getAccessListV2(t, c, accesslists.ScopeQualifiedName(teamB))
+	require.Equal(t, "team b", gotTeamB.GetSpec().GetTitle())
+}
+
+func TestService_ScopedAccessListMembers_SameParentNameScopeIsolation(t *testing.T) {
+	t.Parallel()
+	c := initSvc(t)
+
+	// Member operations must key by parent list scope and name, not just parent
+	// list name.
+	teamA := newScopedAccessList(t, scopedAccessListName(scopeTeamA, "shared"), c.clock)
+	teamB := newScopedAccessList(t, scopedAccessListName(scopeTeamB, "shared"), c.clock)
+	createAccessLists(t, c.userCtx, c.svc, c.emitter, nil, []*accesslist.AccessList{teamA, teamB})
+
+	teamAMember := newScopedAccessListMember(t, accesslists.ScopeQualifiedName(teamA), accesslists.NormalizedSQN{Name: member1}, accesslist.MembershipKindUser, c.clock)
+	teamBMember := newScopedAccessListMember(t, accesslists.ScopeQualifiedName(teamB), accesslists.NormalizedSQN{Name: member2}, accesslist.MembershipKindUser, c.clock)
+	_, err := c.svc.UpsertAccessListMember(c.userCtx, accesslistv1.UpsertAccessListMemberRequest_builder{Member: conv.ToMemberProto(teamAMember)}.Build())
+	require.NoError(t, err)
+	_, err = c.svc.UpsertAccessListMember(c.userCtx, accesslistv1.UpsertAccessListMemberRequest_builder{Member: conv.ToMemberProto(teamBMember)}.Build())
+	require.NoError(t, err)
+
+	teamAMembers := listAccessListMembersV2(t, c, accesslists.ScopeQualifiedName(teamA))
+	require.Equal(t, []string{member1}, memberNames(teamAMembers))
+	teamBMembers := listAccessListMembersV2(t, c, accesslists.ScopeQualifiedName(teamB))
+	require.Equal(t, []string{member2}, memberNames(teamBMembers))
+
+	_, err = c.svc.GetAccessListMember(c.userCtx, accesslistv1.GetAccessListMemberRequest_builder{
+		AccessListScope: scopeTeamB,
+		AccessList:      "shared",
+		MemberName:      member1,
+	}.Build())
+	require.ErrorAs(t, err, new(*trace.NotFoundError))
+}
+
+func TestService_UpsertAccessListWithMembers_ScopedNestedMemberNamesDoNotCollide(t *testing.T) {
+	t.Parallel()
+	c := initSvc(t)
+
+	// Nested list members can share a name if they're in different scopes.
+	// Make sure UpsertAccessListWithMembers handles this properly.
+	parent := newScopedAccessList(t, scopedAccessListName(scopeTeamA+"/child", "parent"), c.clock)
+	teamAGroup := newScopedAccessList(t, scopedAccessListName(scopeTeamA, "group"), c.clock)
+	teamAChildGroup := newScopedAccessList(t, scopedAccessListName(scopeTeamA+"/child", "group"), c.clock)
+	createAccessLists(t, c.userCtx, c.svc, c.emitter, nil, []*accesslist.AccessList{teamAGroup, teamAChildGroup})
+
+	memberTeamAGroup := newScopedAccessListMember(t, accesslists.ScopeQualifiedName(parent), accesslists.ScopeQualifiedName(teamAGroup), accesslist.MembershipKindScopedList, c.clock)
+	memberTeamAChildGroup := newScopedAccessListMember(t, accesslists.ScopeQualifiedName(parent), accesslists.ScopeQualifiedName(teamAChildGroup), accesslist.MembershipKindScopedList, c.clock)
+	resp, err := c.svc.UpsertAccessListWithMembers(c.userCtx, accesslistv1.UpsertAccessListWithMembersRequest_builder{
+		AccessList: conv.ToProto(parent),
+		Members: []*accesslistv1.Member{
+			conv.ToMemberProto(memberTeamAGroup),
+			conv.ToMemberProto(memberTeamAChildGroup),
+		},
+	}.Build())
+	require.NoError(t, err)
+	require.Len(t, resp.GetMembers(), 2)
+
+	resp, err = c.svc.UpsertAccessListWithMembers(c.userCtx, accesslistv1.UpsertAccessListWithMembersRequest_builder{
+		AccessList: conv.ToProto(parent),
+		Members: []*accesslistv1.Member{
+			conv.ToMemberProto(newScopedAccessListMember(t, accesslists.ScopeQualifiedName(parent), accesslists.ScopeQualifiedName(teamAGroup), accesslist.MembershipKindScopedList, c.clock)),
+			conv.ToMemberProto(newScopedAccessListMember(t, accesslists.ScopeQualifiedName(parent), accesslists.ScopeQualifiedName(teamAChildGroup), accesslist.MembershipKindScopedList, c.clock)),
+		},
+	}.Build())
+	require.NoError(t, err)
+	require.Len(t, resp.GetMembers(), 2)
+
+	storedMembers := listAccessListMembersV2(t, c, accesslists.ScopeQualifiedName(parent))
+	require.ElementsMatch(t,
+		[]string{
+			accesslists.ScopeQualifiedName(teamAGroup).String(),
+			accesslists.ScopeQualifiedName(teamAChildGroup).String(),
+		},
+		memberNames(storedMembers),
+	)
+}
+
+func TestService_OwnerScopePinIsolation(t *testing.T) {
+	t.Parallel()
+	c := initSvc(t)
+
+	// A caller pinned to a specific scope should not be able to manage lists
+	// outside that scope, even if they are an owner.
+	scopedOwnerCtx := genScopedUserContext(t.Context(), ownerUser, scopeTeamA)
+	teamAGroup := newScopedAccessList(t, scopedAccessListName(scopeTeamA, "group"), c.clock)
+	teamBGroup := newScopedAccessList(t, scopedAccessListName(scopeTeamB, "group"), c.clock)
+	createAccessLists(t, c.userCtx, c.svc, c.emitter, nil, []*accesslist.AccessList{teamAGroup, teamBGroup})
+
+	// Can only read the list in the caller's pinned scope.
+	_, err := c.svc.GetAccessList(scopedOwnerCtx, accesslistv1.GetAccessListRequest_builder{
+		Scope: scopeTeamA,
+		Name:  "group",
+	}.Build())
+	require.NoError(t, err)
+	_, err = c.svc.GetAccessList(scopedOwnerCtx, accesslistv1.GetAccessListRequest_builder{
+		Scope: scopeTeamB,
+		Name:  "group",
+	}.Build())
+	require.ErrorAs(t, err, new(*trace.AccessDeniedError))
+
+	// Can only read members of a list in the caller's pinned scope.
+	_, err = c.svc.ListAccessListMembers(scopedOwnerCtx, accesslistv1.ListAccessListMembersRequest_builder{
+		AccessListScope: scopeTeamA,
+		AccessList:      "group",
+	}.Build())
+	require.NoError(t, err)
+	_, err = c.svc.ListAccessListMembers(scopedOwnerCtx, accesslistv1.ListAccessListMembersRequest_builder{
+		AccessListScope: scopeTeamB,
+		AccessList:      "group",
+	}.Build())
+	require.ErrorAs(t, err, new(*trace.AccessDeniedError))
+
+	// Can only add a member to a list in the caller's pinned scope.
+	_, err = c.svc.UpsertAccessListMember(scopedOwnerCtx, accesslistv1.UpsertAccessListMemberRequest_builder{
+		Member: conv.ToMemberProto(newScopedAccessListMember(t,
+			accesslists.ScopeQualifiedName(teamAGroup), accesslists.NormalizedSQN{Name: "user"}, accesslist.MembershipKindUser, c.clock)),
+	}.Build())
+	require.NoError(t, err)
+	_, err = c.svc.UpsertAccessListMember(scopedOwnerCtx, accesslistv1.UpsertAccessListMemberRequest_builder{
+		Member: conv.ToMemberProto(newScopedAccessListMember(t,
+			accesslists.ScopeQualifiedName(teamBGroup), accesslists.NormalizedSQN{Name: "user"}, accesslist.MembershipKindUser, c.clock)),
+	}.Build())
+	require.ErrorAs(t, err, new(*trace.AccessDeniedError))
+
+	// Can only review a list in the caller's pinned scope.
+	_, err = c.svc.CreateAccessListReview(scopedOwnerCtx, accesslistv1.CreateAccessListReviewRequest_builder{
+		Review: conv.ToReviewProto(newScopedAccessListReview(t, accesslists.ScopeQualifiedName(teamAGroup))),
+	}.Build())
+	require.NoError(t, err)
+	_, err = c.svc.CreateAccessListReview(scopedOwnerCtx, accesslistv1.CreateAccessListReviewRequest_builder{
+		Review: conv.ToReviewProto(newScopedAccessListReview(t, accesslists.ScopeQualifiedName(teamBGroup))),
+	}.Build())
+	require.ErrorAs(t, err, new(*trace.AccessDeniedError))
+}
+
 func TestService_ListAccessLists(t *testing.T) {
+	t.Parallel()
 	c := initSvc(t)
 
 	accessLists := listAccessLists(c.userCtx, t, c.svc, 1)
@@ -263,6 +499,7 @@ func TestService_ListAccessLists(t *testing.T) {
 }
 
 func TestService_ListAccessLists_CurrentUserAssignments(t *testing.T) {
+	t.Parallel()
 	c := initSvc(t)
 
 	a1 := newAccessList(t, "1", c.clock)
@@ -419,6 +656,7 @@ func listAccessListsV2(ctx context.Context, t *testing.T, svc *Service, pageSize
 }
 
 func TestService_UpsertAccessList(t *testing.T) {
+	t.Parallel()
 	c := initSvc(t)
 
 	getResp, err := c.svc.GetAccessLists(c.userCtx, &accesslistv1.GetAccessListsRequest{})
@@ -543,6 +781,7 @@ func TestService_UpsertAccessList(t *testing.T) {
 }
 
 func TestService_GetAccessList(t *testing.T) {
+	t.Parallel()
 	c := initSvc(t)
 
 	getResp, err := c.svc.GetAccessLists(c.userCtx, &accesslistv1.GetAccessListsRequest{})
@@ -681,6 +920,7 @@ func TestService_GetAccessList(t *testing.T) {
 }
 
 func TestService_GetInheritedGrants(t *testing.T) {
+	t.Parallel()
 	c := initSvc(t)
 
 	a1 := newAccessList(t, "1", c.clock)
@@ -722,7 +962,12 @@ func (c *cacheGetErrWrapper) GetAccessList(_ context.Context, _ string) (*access
 	return c.acl, c.getErr
 }
 
+func (c *cacheGetErrWrapper) GetAccessListV2(_ context.Context, _ *accesslistv1.GetAccessListRequest) (*accesslist.AccessList, error) {
+	return c.acl, c.getErr
+}
+
 func TestService_GetAccessListsToReview(t *testing.T) {
+	t.Parallel()
 	clock := clockwork.NewFakeClock()
 	c := initSvc(t, withClock(clock))
 
@@ -793,7 +1038,29 @@ func TestService_GetAccessListsToReview(t *testing.T) {
 	require.Empty(t, cmp.Diff([]*accesslist.AccessList{a1, a2, a3, a4, a5, a6}, mustFromProtoAll(t, resp.GetAccessLists()...), cmpOpts...))
 }
 
+func TestService_GetAccessListsToReview_ScopePin(t *testing.T) {
+	t.Parallel()
+	clock := clockwork.NewFakeClock()
+	c := initSvc(t, withClock(clock))
+
+	// Review listing should respect the caller's scope pin even when the caller
+	// owns same-name reviewable lists in multiple scopes.
+	teamA := newScopedAccessList(t, scopedAccessListName(scopeTeamA, "review-me"), c.clock)
+	teamB := newScopedAccessList(t, scopedAccessListName(scopeTeamB, "review-me"), c.clock)
+	teamA.Spec.Audit.NextAuditDate = time.Date(2024, 2, 1, 0, 0, 0, 0, time.UTC)
+	teamB.Spec.Audit.NextAuditDate = time.Date(2024, 2, 1, 0, 0, 0, 0, time.UTC)
+	createAccessLists(t, c.userCtx, c.svc, c.emitter, nil, []*accesslist.AccessList{teamA, teamB})
+
+	scopedOwnerCtx := genScopedUserContext(t.Context(), ownerUser, scopeTeamA)
+	setDate(clock, time.Date(2024, 1, 18, 0, 0, 0, 0, time.UTC))
+
+	resp, err := c.svc.GetAccessListsToReview(scopedOwnerCtx, &accesslistv1.GetAccessListsToReviewRequest{})
+	require.NoError(t, err)
+	require.Equal(t, []accesslists.NormalizedSQN{accesslists.ScopeQualifiedName(teamA)}, accessListSQNsFromProto(resp.GetAccessLists()))
+}
+
 func TestService_UpsertAndGetAccessList_OwnersIneligibleReason(t *testing.T) {
+	t.Parallel()
 	c := initSvc(t)
 
 	getResp, err := c.svc.GetAccessLists(c.userCtx, &accesslistv1.GetAccessListsRequest{})
@@ -880,6 +1147,7 @@ func TestService_GetAccessListOwnerDisplays(t *testing.T) {
 }
 
 func TestService_UpsertAndGetAccessList_MembersIneligibleReason(t *testing.T) {
+	t.Parallel()
 	c := initSvc(t)
 
 	getResp, err := c.svc.GetAccessLists(c.userCtx, &accesslistv1.GetAccessListsRequest{})
@@ -1042,6 +1310,7 @@ func TestService_UpsertAccessListWithMembersUserDisplays(t *testing.T) {
 }
 
 func TestService_DeleteAccessList(t *testing.T) {
+	t.Parallel()
 	c := initSvc(t)
 
 	getResp, err := c.svc.GetAccessLists(c.userCtx, &accesslistv1.GetAccessListsRequest{})
@@ -1316,6 +1585,7 @@ func initSvc(t *testing.T, opts ...svcOpts) testSvcComponents {
 				Cloud: true,
 			},
 		},
+		ScopesFeatures:              scopes.Features{Enabled: true},
 		RunWhileLockedRetryInterval: -1 * time.Millisecond,
 	})
 	require.NoError(t, err)
@@ -1335,6 +1605,7 @@ func initSvc(t *testing.T, opts ...svcOpts) testSvcComponents {
 	}
 
 	accessService := local.NewAccessService(backend)
+	scopedAccessService := local.NewScopedAccessService(backend)
 	eventService := local.NewEventsService(backend)
 	emitter := eventstest.NewChannelEmitter(10)
 	lockWatcher, err := services.NewLockWatcher(ctx, services.LockWatcherConfig{
@@ -1346,10 +1617,12 @@ func initSvc(t *testing.T, opts ...svcOpts) testSvcComponents {
 	})
 	require.NoError(t, err)
 
-	authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
-		ClusterName: "test-cluster",
-		AccessPoint: accessPoint,
-		LockWatcher: lockWatcher,
+	authorizer, err := authz.NewScopedAuthorizer(authz.AuthorizerOpts{
+		ClusterName:      "test-cluster",
+		AccessPoint:      accessPoint,
+		LockWatcher:      lockWatcher,
+		ScopedRoleReader: scopedAccessService,
+		ScopesFeatures:   scopes.Features{Enabled: true},
 	})
 	require.NoError(t, err)
 
@@ -1566,6 +1839,7 @@ func setDate(clock *clockwork.FakeClock, date time.Time) {
 }
 
 func TestService_CountAccessListMembers(t *testing.T) {
+	t.Parallel()
 	c := initSvc(t)
 
 	a1 := newAccessList(t, "1", c.clock)
@@ -1614,6 +1888,7 @@ func TestService_CountAccessListMembers(t *testing.T) {
 }
 
 func TestService_ListAccessListMembers(t *testing.T) {
+	t.Parallel()
 	c := initSvc(t)
 
 	a1 := newAccessList(t, "1", c.clock)
@@ -1695,6 +1970,7 @@ func TestService_ListAccessListMembers(t *testing.T) {
 }
 
 func TestService_GetAccessListMember(t *testing.T) {
+	t.Parallel()
 	c := initSvc(t)
 
 	a1 := newAccessList(t, "1", c.clock)
@@ -1739,6 +2015,7 @@ func TestService_GetAccessListMember(t *testing.T) {
 }
 
 func TestService_GetStaticAccessListMember(t *testing.T) {
+	t.Parallel()
 	c := initSvc(t)
 
 	staticAccessList := newAccessList(t, "test-acl-1", c.clock, withType(accesslist.Static))
@@ -1802,6 +2079,7 @@ type client struct {
 }
 
 func TestService_UpsertAccessListMember(t *testing.T) {
+	t.Parallel()
 	c := initSvc(t)
 
 	var err error
@@ -1957,7 +2235,10 @@ func TestService_UpsertAccessListMember(t *testing.T) {
 		require.Equal(t, a5.GetName(), event.AccessListMemberCreate.Metadata.Id)
 		require.Equal(t, accesslist.MembershipKindUser, event.AccessListMemberCreate.MemberMetadata.MembershipKind.String())
 	})
-	_, err = c.svc.UpsertAccessListMember(c.userDenyWhereCtx, accesslistv1.UpsertAccessListMemberRequest_builder{Member: conv.ToMemberProto(newAccessListMemberWithIneligibleReason(t, a6.GetName(), a5.GetName(), c.clock, accesslist.MembershipKindList, accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_ELIGIBLE.String()))}.Build())
+	_, err = c.svc.UpsertAccessListMember(c.userDenyWhereCtx, accesslistv1.UpsertAccessListMemberRequest_builder{
+		Member: conv.ToMemberProto(newAccessListMemberWithIneligibleReason(
+			t, a6.GetName(), a5.GetName(), c.clock, accesslist.MembershipKindList, accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_ELIGIBLE.String())),
+	}.Build())
 	// since user is a member of a1, and lacks Update/Create RBAC, they should not be able to add a1 to a4
 	require.ErrorIs(t, err, trace.AccessDenied("Adding an Access List you are a member of to another Access List is not allowed"))
 	expectEvent(t, events.AccessListMemberCreateFailureCode, c.emitter, func(event *apievents.AccessListMemberCreate) {
@@ -1988,6 +2269,7 @@ func TestService_UpsertAccessListMember(t *testing.T) {
 }
 
 func TestService_UpsertStaticAccessListMember(t *testing.T) {
+	t.Parallel()
 	c := initSvc(t)
 
 	staticAccessList := newAccessList(t, "test-acl-1", c.clock, withType(accesslist.Static))
@@ -2041,6 +2323,7 @@ func TestService_UpsertStaticAccessListMember(t *testing.T) {
 }
 
 func TestService_UpsertAccessListMemberMaxDepth(t *testing.T) {
+	t.Parallel()
 	c := initSvc(t)
 
 	// Nested lists cannot be > `MaxAllowedDepth` levels deep
@@ -2104,6 +2387,7 @@ func TestService_UpsertAccessListMemberMaxDepth(t *testing.T) {
 }
 
 func TestService_DeleteAccessListMember(t *testing.T) {
+	t.Parallel()
 	c := initSvc(t)
 
 	a1 := newAccessList(t, "1", c.clock)
@@ -2206,6 +2490,7 @@ func TestService_DeleteAccessListMember(t *testing.T) {
 }
 
 func TestService_DeleteStaticAccessListMember(t *testing.T) {
+	t.Parallel()
 	c := initSvc(t)
 
 	staticAccessList := newAccessList(t, "test-acl-1", c.clock, withType(accesslist.Static))
@@ -2262,6 +2547,7 @@ func TestService_DeleteStaticAccessListMember(t *testing.T) {
 }
 
 func TestService_DeleteAllAccessListMembersForAccessList(t *testing.T) {
+	t.Parallel()
 	c := initSvc(t)
 
 	a1 := newAccessList(t, "1", c.clock)
@@ -2328,6 +2614,7 @@ func TestService_DeleteAllAccessListMembersForAccessList(t *testing.T) {
 }
 
 func TestService_UpsertAccessListWithMembers_IneligibleStatus(t *testing.T) {
+	t.Parallel()
 	c := initSvc(t)
 
 	// Create a list.
@@ -2355,6 +2642,7 @@ func TestService_UpsertAccessListWithMembers_IneligibleStatus(t *testing.T) {
 }
 
 func TestPickAccessListForWrite(t *testing.T) {
+	t.Parallel()
 	clock := clockwork.NewFakeClock()
 
 	tests := []struct {
@@ -2430,6 +2718,7 @@ func TestPickAccessListForWrite(t *testing.T) {
 }
 
 func TestService_UpsertAccessListWithMembers(t *testing.T) {
+	t.Parallel()
 	// disable reconciler to avoid extra update events
 	c := initSvc(t, withDisabledReconcilers())
 
@@ -2481,13 +2770,15 @@ func TestService_UpsertAccessListWithMembers(t *testing.T) {
 			accessListCreated = true
 			membersCreated = len(members)
 		} else {
-			oldMembers, err := c.svc.getAccessListMemberMap(ctx, accessList.GetName())
+			oldMembers, err := c.svc.getAccessListMemberMap(ctx, accesslists.ScopeQualifiedName(accessList))
 			require.NoError(t, err)
 
 			for _, member := range members {
-				if _, ok := oldMembers[member.GetName()]; ok {
+				memberName, err := accesslists.MemberScopeQualifiedName(member)
+				require.NoError(t, err)
+				if _, ok := oldMembers[memberName]; ok {
 					membersUpdated++
-					delete(oldMembers, member.GetName())
+					delete(oldMembers, memberName)
 				} else {
 					membersCreated++
 				}
@@ -2635,7 +2926,7 @@ func TestService_UpsertAccessListWithMembers(t *testing.T) {
 		alWithReorderedRoles.Spec.MembershipRequires.Roles = []string{"gamma", "alpha", "beta"}
 		alWithReorderedRoles.Spec.OwnershipRequires.Roles = []string{"orole2", "orole1"}
 
-		ownerAuthCtx, err := c.svc.authorizer.Authorize(c.ownerCtx)
+		ownerAuthCtx, err := c.svc.authorizer.AuthorizeScoped(c.ownerCtx)
 		require.NoError(t, err)
 
 		// make sure the owner does not have RBAC for this test to check the
@@ -2972,6 +3263,7 @@ func TestService_UpsertAccessListWithMembers(t *testing.T) {
 // TestService_UpsertAccessListWithMembers_DuplicateMember verifies that
 // duplicate members in the request don't produce spurious create audit events
 func TestService_UpsertAccessListWithMembers_DuplicateMember(t *testing.T) {
+	t.Parallel()
 	c := initSvc(t, withDisabledReconcilers())
 
 	al := newAccessList(t, "dup-test", c.clock)
@@ -3001,12 +3293,13 @@ func TestService_UpsertAccessListWithMembers_DuplicateMember(t *testing.T) {
 }
 
 func TestService_AuthOrIsOwner(t *testing.T) {
+	t.Parallel()
 	c := initSvc(t)
-	memberCtx := genUserContext(context.Background(), member2, []string{"mrole1", "mrole2"}, map[string][]string{
+	memberCtx := genUserContext(t.Context(), member2, []string{"mrole1", "mrole2"}, map[string][]string{
 		"mtrait1": {"mvalue1", "mvalue2"},
 		"mtrait2": {"mvalue3", "mvalue4"},
 	})
-	nonExistentUser := genUserContext(context.Background(), "doesnt-exist", []string{"mrole1", "mrole2"}, map[string][]string{
+	nonExistentUser := genUserContext(t.Context(), "doesnt-exist", []string{"mrole1", "mrole2"}, map[string][]string{
 		"mtrait1": {"mvalue1", "mvalue2"},
 		"mtrait2": {"mvalue3", "mvalue4"},
 	})
@@ -3019,25 +3312,25 @@ func TestService_AuthOrIsOwner(t *testing.T) {
 	tests := []struct {
 		name           string
 		ctx            context.Context
-		accessListName string
+		accessListName accesslists.NormalizedSQN
 		wantErr        require.ErrorAssertionFunc
 	}{
 		{
 			name:           "admin context",
 			ctx:            c.userCtx,
-			accessListName: a1.GetName(),
+			accessListName: accesslists.ScopeQualifiedName(a1),
 			wantErr:        require.NoError,
 		},
 		{
 			name:           "owner context",
 			ctx:            c.ownerCtx,
-			accessListName: a1.GetName(),
+			accessListName: accesslists.ScopeQualifiedName(a1),
 			wantErr:        require.NoError,
 		},
 		{
 			name:           "member context",
 			ctx:            memberCtx,
-			accessListName: a1.GetName(),
+			accessListName: accesslists.ScopeQualifiedName(a1),
 			wantErr: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsAccessDenied(err))
 			},
@@ -3045,7 +3338,7 @@ func TestService_AuthOrIsOwner(t *testing.T) {
 		{
 			name:           "non-existent user context",
 			ctx:            nonExistentUser,
-			accessListName: a1.GetName(),
+			accessListName: accesslists.ScopeQualifiedName(a1),
 			wantErr: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsAccessDenied(err))
 			},
@@ -3063,6 +3356,7 @@ func TestService_AuthOrIsOwner(t *testing.T) {
 }
 
 func TestBatchAccessListMemberMetadata(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name            string
 		numberOfEvents  int
@@ -3097,7 +3391,7 @@ func TestBatchAccessListMemberMetadata(t *testing.T) {
 				}
 			}
 
-			batches := batchAccessListMemberMetadata("test-access-list", "test-access-list", members)
+			batches := batchAccessListMemberMetadata(accesslists.NormalizedSQN{Name: "test-access-list"}, "test-access-list", members)
 			require.Len(t, batches, test.expectedBatches)
 
 			for i := range test.expectedBatches {
@@ -3115,6 +3409,7 @@ func TestBatchAccessListMemberMetadata(t *testing.T) {
 }
 
 func TestService_CreateAccessListWithPreset_Permissions(t *testing.T) {
+	t.Parallel()
 	c := initSvc(t)
 
 	// Create a role with full permissions for preset operations
@@ -3206,6 +3501,7 @@ func TestService_CreateAccessListWithPreset_Permissions(t *testing.T) {
 }
 
 func TestService_CreateAccessListReview(t *testing.T) {
+	t.Parallel()
 	clock := clockwork.NewFakeClock()
 	c := initSvc(t, withClock(clock))
 
@@ -3397,6 +3693,7 @@ func TestService_CreateAccessListReview(t *testing.T) {
 }
 
 func TestService_ListAccessListReviews(t *testing.T) {
+	t.Parallel()
 	c := initSvc(t)
 
 	a1 := newAccessList(t, "1", c.clock)
@@ -3458,6 +3755,7 @@ func TestService_ListAccessListReviews(t *testing.T) {
 }
 
 func TestService_ListAccessListReviewsReviewerDisplays(t *testing.T) {
+	t.Parallel()
 	c := initSvc(t)
 	auth := &authWithIdentity{
 		fakeAuth: &fakeAuth{},
@@ -3498,6 +3796,7 @@ func TestService_ListAccessListReviewsReviewerDisplays(t *testing.T) {
 }
 
 func TestService_ListAccessListReviewsReviewerDisplayError(t *testing.T) {
+	t.Parallel()
 	c := initSvc(t)
 	c.svc.authServer = &erroringAuth{
 		fakeAuth: &fakeAuth{},
@@ -3522,6 +3821,7 @@ func TestService_ListAccessListReviewsReviewerDisplayError(t *testing.T) {
 }
 
 func TestService_DeleteAccessListReviews(t *testing.T) {
+	t.Parallel()
 	clock := clockwork.NewFakeClock()
 	c := initSvc(t, withClock(clock))
 
@@ -3615,6 +3915,7 @@ func member(t *testing.T, metadata header.Metadata, spec accesslist.AccessListMe
 }
 
 func TestPopulateMemberFields(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name          string
 		currentTime   time.Time
@@ -3691,6 +3992,7 @@ func TestPopulateMemberFields(t *testing.T) {
 }
 
 func TestCanUpdateMembership(t *testing.T) {
+	t.Parallel()
 	c := initSvc(t)
 
 	tests := []struct {
@@ -3799,7 +4101,7 @@ func TestCanUpdateMembership(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			ctx := context.Background()
-			authCtx, err := c.svc.authorizer.Authorize(test.userCtx)
+			authCtx, err := c.svc.authorizer.AuthorizeScoped(test.userCtx)
 			require.NoError(t, err)
 			username, err := getUsername(authCtx)
 			require.NoError(t, err)
@@ -3810,6 +4112,7 @@ func TestCanUpdateMembership(t *testing.T) {
 }
 
 func TestPopulateMembersFields(t *testing.T) {
+	t.Parallel()
 	c := initSvc(t)
 
 	a1 := newAccessList(t, "1", c.clock)
@@ -3880,6 +4183,7 @@ func TestPopulateMembersFields(t *testing.T) {
 }
 
 func Test_nonStaticAccessListError(t *testing.T) {
+	t.Parallel()
 	err := newNonStaticAccessListErrorFromMemberMetaReq(
 		accesslistv1.GetAccessListMemberRequest_builder{
 			AccessList: "vegetables",
@@ -3894,6 +4198,7 @@ func Test_nonStaticAccessListError(t *testing.T) {
 }
 
 func Test_userTryingToAddThemselves(t *testing.T) {
+	t.Parallel()
 	c := initSvc(t)
 
 	// Test setup: creating common fixtures.
@@ -4129,7 +4434,7 @@ func Test_userTryingToAddThemselves(t *testing.T) {
 
 			// Test execution.
 			userCtx := genUserContext(t.Context(), tt.user.GetName(), tt.user.GetRoles(), tt.user.GetTraits())
-			authCtx, err := c.svc.authorizer.Authorize(userCtx)
+			authCtx, err := c.svc.authorizer.AuthorizeScoped(userCtx)
 			require.NoError(t, err)
 			tt.expectErr(t, c.svc.userTryingToAddThemselves(t.Context(), authCtx, tt.user.GetName(), tt.newMemberships...))
 
@@ -4173,6 +4478,7 @@ func (a *erroringAuth) GetUser(ctx context.Context, userName string, withSecrets
 }
 
 func TestService_ListUserAccessLists(t *testing.T) {
+	t.Parallel()
 	c := initSvc(t)
 
 	c.svc.authServer = &fakeAuthWithUsers{
@@ -4497,6 +4803,34 @@ func genUserContext(ctx context.Context, username string, groups []string, trait
 	})
 }
 
+func genScopedUserContext(ctx context.Context, username string, scope string) context.Context {
+	return authz.ContextWithUser(ctx, authz.LocalUser{
+		Username: username,
+		Identity: tlsca.Identity{
+			Username: username,
+			ScopePin: scopesv1.Pin_builder{
+				Kind:  scopesv1.PinKind_PIN_KIND_USER,
+				Scope: scope,
+			}.Build(),
+		},
+	})
+}
+
+func scopedAccessListName(scope, name string) accesslists.NormalizedSQN {
+	return accesslists.NormalizeSQN(scopes.QualifiedName{Scope: scope, Name: name})
+}
+
+func accessListSQNsFromProto(accessLists []*accesslistv1.AccessList) []accesslists.NormalizedSQN {
+	out := make([]accesslists.NormalizedSQN, 0, len(accessLists))
+	for _, accessList := range accessLists {
+		out = append(out, accesslists.NormalizeSQN(scopes.QualifiedName{
+			Scope: accessList.GetScope(),
+			Name:  accessList.GetHeader().GetMetadata().GetName(),
+		}))
+	}
+	return out
+}
+
 type accessListOptions struct {
 	typ accesslist.Type
 }
@@ -4510,13 +4844,18 @@ func withType(typ accesslist.Type) accessListOpt {
 }
 
 func newAccessList(t *testing.T, name string, clock clockwork.Clock, opts ...accessListOpt) *accesslist.AccessList {
+	return newScopedAccessList(t, accesslists.NormalizedSQN{Name: name}, clock, opts...)
+}
+
+func newScopedAccessList(t *testing.T, name accesslists.NormalizedSQN, clock clockwork.Clock, opts ...accessListOpt) *accesslist.AccessList {
 	options := accessListOptions{}
 	for _, o := range opts {
 		o(&options)
 	}
 
-	// Default to an access list with the next audit date 1 year in the future and ownership/membership requirements.
-	return newAccessListWithPartialSpec(t, name, clock.Now().Add(time.Hour*24*365), accesslist.Spec{
+	// Default to an access list with the next audit date 1 year in the future,
+	// and ownership/membership requirements if it's unscoped.
+	spec := accesslist.Spec{
 		Type: options.typ,
 		Owners: []accesslist.Owner{
 			{Name: ownerUser, Description: "owner user", MembershipKind: accesslist.MembershipKindUser},
@@ -4524,31 +4863,38 @@ func newAccessList(t *testing.T, name string, clock clockwork.Clock, opts ...acc
 			{Name: testUserDenyWhere, Description: "deny where user", MembershipKind: accesslist.MembershipKindUser},
 			{Name: testUserDenyAll, Description: "deny where user", MembershipKind: accesslist.MembershipKindUser},
 		},
-		MembershipRequires: accesslist.Requires{
+	}
+	if name.Scope == "" {
+		spec.MembershipRequires = accesslist.Requires{
 			Roles: []string{"mrole1", "mrole2"},
 			Traits: map[string][]string{
 				"mtrait1": {"mvalue1", "mvalue2"},
 				"mtrait2": {"mvalue3", "mvalue4"},
 			},
-		},
-		OwnershipRequires: accesslist.Requires{
+		}
+		spec.OwnershipRequires = accesslist.Requires{
 			Roles: []string{"orole1", "orole2"},
 			Traits: map[string][]string{
 				"otrait1": {"ovalue1", "ovalue2"},
 				"otrait2": {"ovalue3", "ovalue4"},
 			},
-		},
-		Grants: accesslist.Grants{
+		}
+		spec.Grants = accesslist.Grants{
 			Roles: []string{"grole1", "grole2"},
 			Traits: map[string][]string{
 				"gtrait1": {"gvalue1", "gvalue2"},
 				"gtrait2": {"gvalue3", "gvalue4"},
 			},
-		},
-	})
+		}
+	}
+	return newScopedAccessListWithPartialSpec(t, name, clock.Now().Add(time.Hour*24*365), spec)
 }
 
 func newAccessListWithPartialSpec(t *testing.T, name string, nextAuditDate time.Time, spec accesslist.Spec) *accesslist.AccessList {
+	return newScopedAccessListWithPartialSpec(t, accesslists.NormalizedSQN{Name: name}, nextAuditDate, spec)
+}
+
+func newScopedAccessListWithPartialSpec(t *testing.T, name accesslists.NormalizedSQN, nextAuditDate time.Time, spec accesslist.Spec) *accesslist.AccessList {
 	t.Helper()
 
 	audit := accesslist.Audit{}
@@ -4561,12 +4907,12 @@ func newAccessListWithPartialSpec(t *testing.T, name string, nextAuditDate time.
 		}
 	}
 
-	accessList, err := accesslist.NewAccessList(
+	accessList, err := accesslist.NewAccessListWithScope(
 		header.Metadata{
-			Name: name,
+			Name: name.Name,
 		},
 		accesslist.Spec{
-			Title:              name,
+			Title:              name.Name,
 			Type:               spec.Type,
 			Description:        "test access list",
 			Owners:             spec.Owners,
@@ -4576,6 +4922,7 @@ func newAccessListWithPartialSpec(t *testing.T, name string, nextAuditDate time.
 			Grants:             spec.Grants,
 			OwnerGrants:        spec.OwnerGrants,
 		},
+		name.Scope,
 	)
 	require.NoError(t, err)
 	accessList.Status = accesslist.Status{
@@ -4645,6 +4992,40 @@ func newAccessListMember(t *testing.T, accessListName, memberName string, member
 			AddedBy:        testUser,
 			MembershipKind: memberKind,
 		},
+	)
+	require.NoError(t, err)
+
+	for _, opt := range opts {
+		opt(member)
+	}
+
+	return member
+}
+
+func newScopedAccessListMember(t *testing.T, parentListName, memberName accesslists.NormalizedSQN, memberKind string, clock clockwork.Clock, opts ...newMemberOption) *accesslist.AccessListMember {
+	t.Helper()
+
+	accessListName := parentListName.Name
+	if parentListName.Scope != "" {
+		accessListName = parentListName.String()
+	}
+	name := memberName.Name
+	if memberKind == accesslist.MembershipKindScopedList {
+		name = memberName.String()
+	}
+
+	member, err := accesslist.NewAccessListMemberWithScope(
+		header.Metadata{Name: name},
+		accesslist.AccessListMemberSpec{
+			AccessList:     accessListName,
+			Name:           name,
+			Joined:         clock.Now().UTC(),
+			Expires:        clock.Now().UTC().Add(24 * time.Hour),
+			Reason:         "because",
+			AddedBy:        testUser,
+			MembershipKind: memberKind,
+		},
+		parentListName.Scope,
 	)
 	require.NoError(t, err)
 
@@ -4726,6 +5107,42 @@ func mustFromProtoAll(t *testing.T, accessLists ...*accesslistv1.AccessList) []*
 	return convertedAccessLists
 }
 
+func getAccessListV2(t *testing.T, c testSvcComponents, name accesslists.NormalizedSQN) *accesslistv1.AccessList {
+	t.Helper()
+
+	resp, err := c.svc.GetAccessList(c.userCtx, accesslistv1.GetAccessListRequest_builder{
+		Scope: name.Scope,
+		Name:  name.Name,
+	}.Build())
+	require.NoError(t, err)
+	return resp
+}
+
+func listAccessListMembersV2(t *testing.T, c testSvcComponents, accessListName accesslists.NormalizedSQN) []*accesslistv1.Member {
+	t.Helper()
+
+	members, err := stream.Collect(clientutils.Resources(c.userCtx, func(ctx context.Context, pageSize int, pageToken string) ([]*accesslistv1.Member, string, error) {
+		resp, err := c.svc.ListAccessListMembers(ctx, accesslistv1.ListAccessListMembersRequest_builder{
+			AccessListScope: accessListName.Scope,
+			AccessList:      accessListName.Name,
+			PageSize:        10,
+			PageToken:       pageToken,
+		}.Build())
+		return resp.GetMembers(), resp.GetNextPageToken(), err
+	}))
+	require.NoError(t, err)
+	return members
+}
+
+func memberNames(members []*accesslistv1.Member) []string {
+	out := make([]string, 0, len(members))
+	for _, member := range members {
+		out = append(out, member.GetSpec().GetName())
+	}
+	sort.Strings(out)
+	return out
+}
+
 func createAccessLists(t *testing.T, ctx context.Context, service *Service, emitter *eventstest.ChannelEmitter,
 	usageEvents *usageEventsClient, accessLists []*accesslist.AccessList,
 ) {
@@ -4740,7 +5157,7 @@ func createAccessListsAndMembers(t *testing.T, ctx context.Context, service *Ser
 
 	for _, al := range accessLists {
 		_, err := service.UpsertAccessList(ctx, accesslistv1.UpsertAccessListRequest_builder{AccessList: conv.ToProto(al)}.Build())
-		require.NoError(t, err)
+		require.NoError(t, err, trace.DebugReport(err))
 		expectEvent(t, events.AccessListCreateSuccessCode, emitter, func(event *apievents.AccessListCreate) {
 			require.True(t, event.Success)
 		})
@@ -4766,17 +5183,22 @@ func createAccessListsAndMembers(t *testing.T, ctx context.Context, service *Ser
 }
 
 func newAccessListReview(t *testing.T, accessListName string) *accesslist.Review {
+	return newScopedAccessListReview(t, accesslists.NormalizedSQN{Name: accessListName})
+}
+
+func newScopedAccessListReview(t *testing.T, accessListName accesslists.NormalizedSQN) *accesslist.Review {
 	t.Helper()
 
-	review, err := accesslist.NewReview(
+	review, err := accesslist.NewReviewWithScope(
 		header.Metadata{
 			Name: "dummy", // This will be overwritten by the service.
 		},
 		accesslist.ReviewSpec{
-			AccessList: accessListName,
+			AccessList: accessListName.String(),
 			Reviewers:  []string{"dummy"}, // This will be overwritten as well.
 			ReviewDate: time.Now(),        // This will be overwritten by the service.
 		},
+		accessListName.Scope,
 	)
 	require.NoError(t, err)
 

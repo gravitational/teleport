@@ -18,7 +18,7 @@ import (
 // in the Okta plugin.
 func oktaMembersModificationAllowed(
 	ctx context.Context,
-	authCtx authz.Context,
+	authCtx *authz.ScopedContext,
 	plugins services.Plugins,
 	accessList *accesslist.AccessList,
 ) (bool, error) {
@@ -28,10 +28,7 @@ func oktaMembersModificationAllowed(
 
 	// Services like SCIM and sync from Okta to Teleport has to work regardless of read-only
 	// (bidirectional sync) mode.
-	if authz.HasBuiltinRole(authCtx, string(types.RoleAuth)) {
-		return true, nil
-	}
-	if authz.HasBuiltinRole(authCtx, string(types.RoleOkta)) {
+	if hasAnyUnscopedAllowedSystemRole(authCtx, types.RoleAuth, types.RoleOkta) {
 		return true, nil
 	}
 
@@ -48,12 +45,12 @@ func oktaMembersModificationAllowed(
 
 // oktaModificationAllowed will return true if an Okta modification is allowed. If the access list is not an Okta object,
 // this will return true.
-func oktaModificationAllowed(authCtx authz.Context, oldAccessList, newAccessList *accesslist.AccessList) bool {
+func oktaModificationAllowed(authCtx *authz.ScopedContext, oldAccessList, newAccessList *accesslist.AccessList) bool {
 	if !hasOktaOrigin(oldAccessList) && !hasOktaOrigin(newAccessList) {
 		return true
 	}
 
-	if authz.HasBuiltinRole(authCtx, string(types.RoleOkta)) {
+	if hasAnyUnscopedAllowedSystemRole(authCtx, types.RoleOkta) {
 		return true
 	}
 
@@ -74,12 +71,12 @@ func hasOktaOrigin(accessList *accesslist.AccessList) bool {
 //
 // Okta-originated Access Lists are not user-deletable while they're being synced by the Okta integration to prevent
 // Access List deletion in Teleport resulting in Okta group unassignment.
-func oktaDeletionAllowed(ctx context.Context, authCtx authz.Context, plugins services.Plugins, accessList *accesslist.AccessList) (bool, error) {
+func oktaDeletionAllowed(ctx context.Context, authCtx *authz.ScopedContext, plugins services.Plugins, accessList *accesslist.AccessList) (bool, error) {
 	if !hasOktaOrigin(accessList) {
 		return true, nil
 	}
 
-	if authz.HasBuiltinRole(authCtx, string(types.RoleOkta)) {
+	if hasAnyUnscopedAllowedSystemRole(authCtx, types.RoleOkta) {
 		return true, nil
 	}
 
@@ -91,4 +88,20 @@ func oktaDeletionAllowed(ctx context.Context, authCtx authz.Context, plugins ser
 	}
 
 	return !plugin.Spec.GetOkta().GetSyncSettings().GetEnableAccessListSync(), nil
+}
+
+// hasAnyUnscopedAllowedSystemRole returns true if the auth context is unscoped
+// and has any of the given allowed system roles. The system roles passed here
+// are currently always unscoped. If they ever become scoped, this will fail closed.
+func hasAnyUnscopedAllowedSystemRole(authCtx *authz.ScopedContext, allowedSystemRoles ...types.SystemRole) bool {
+	unscopedCtx, isUnscoped := authCtx.UnscopedContext()
+	if !isUnscoped {
+		return false
+	}
+	for _, allowsSystemRole := range allowedSystemRoles {
+		if authz.HasBuiltinRole(*unscopedCtx, string(allowsSystemRole)) {
+			return true
+		}
+	}
+	return false
 }

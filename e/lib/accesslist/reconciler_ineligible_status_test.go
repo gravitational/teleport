@@ -14,6 +14,7 @@ import (
 )
 
 func TestNewIneligibleStatusReconciler(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		waitForBatchWindow := func() {
 			time.Sleep(batchWindow)
@@ -156,6 +157,7 @@ func TestNewIneligibleStatusReconciler(t *testing.T) {
 // This is important to prevent continues ineligibility status updates when dealing with external user
 // references that may not exist in Teleport's identity system.
 func TestIneligibleStatusReconcilerFlowForNotExistingUsers(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		clock := clockwork.NewRealClock()
 		c := initSvc(t, withClock(clock))
@@ -228,6 +230,7 @@ func TestIneligibleStatusReconcilerFlowForNotExistingUsers(t *testing.T) {
 // TestIneligibleStatusReconcilerBatcher triggers multiple changes within the batch window
 // and test the StateOverloaded state where no reconciliation action taken till the events thought settle down.
 func TestIneligibleStatusReconcilerBatcher(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		clock := clockwork.NewRealClock()
 		c := initSvc(t, withClock(clock))

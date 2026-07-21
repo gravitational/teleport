@@ -9,6 +9,7 @@ import (
 )
 
 func Test_isReviewChangesAllowed(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string
 		in   accesslist.ReviewChanges

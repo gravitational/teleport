@@ -39,17 +39,18 @@ type AccessListUpdater interface {
 
 // Cache is a cache of resources.
 type Cache interface {
-	GetAccessListMember(ctx context.Context, accessList string, name string) (*accesslist.AccessListMember, error)
-	GetAccessList(ctx context.Context, name string) (*accesslist.AccessList, error)
+	GetAccessListMemberV2(ctx context.Context, req *accesslistv1.GetAccessListMemberRequest) (*accesslist.AccessListMember, error)
+	GetAccessListV2(ctx context.Context, req *accesslistv1.GetAccessListRequest) (*accesslist.AccessList, error)
 	GetAccessLists(ctx context.Context) ([]*accesslist.AccessList, error)
 	ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*userspb.ListUsersResponse, error)
 	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
 	ListAllAccessListMembers(ctx context.Context, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error)
-	ListAccessListMembers(ctx context.Context, accessList string, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error)
+	ListAllAccessListMembersV2(ctx context.Context, req *accesslistv1.ListAllAccessListMembersRequest) (members []*accesslist.AccessListMember, nextToken string, err error)
+	ListAccessListMembersV2(ctx context.Context, req *accesslistv1.ListAccessListMembersRequest) (members []*accesslist.AccessListMember, nextToken string, err error)
 	ListAccessLists(ctx context.Context, pageSize int, nextToken string) ([]*accesslist.AccessList, string, error)
 	// ListAccessListsV2 lists access lists with filtering and sorting options.
 	ListAccessListsV2(ctx context.Context, req *accesslistv1.ListAccessListsV2Request) ([]*accesslist.AccessList, string, error)
-	CountAccessListMembers(ctx context.Context, accessList string) (uint32, uint32, error)
+	CountAccessListMembersV2(ctx context.Context, req *accesslistv1.CountAccessListMembersRequest) (uint32, uint32, error)
 }
 
 // NewIneligibleStatusReconciler creates a new IneligibleStatusReconciler.

@@ -11,6 +11,7 @@ import (
 )
 
 func Test_validateMemberRequest(t *testing.T) {
+	t.Parallel()
 	t.Run("missing member.access_list", func(t *testing.T) {
 		req := accesslistv1.UpsertAccessListMemberRequest_builder{
 			Member: accesslistv1.Member_builder{
@@ -116,6 +117,7 @@ func Test_validateMemberRequest(t *testing.T) {
 }
 
 func Test_validateMemberMetaRequest(t *testing.T) {
+	t.Parallel()
 	t.Run("missing access_list", func(t *testing.T) {
 		req := accesslistv1.GetAccessListMemberRequest_builder{
 			MemberName: "test-member-name",

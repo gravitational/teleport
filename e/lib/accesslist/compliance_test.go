@@ -12,6 +12,7 @@ import (
 )
 
 func TestReportCompliance(t *testing.T) {
+	t.Parallel()
 	aclSpec := accesslist.Spec{
 		Owners: []accesslist.Owner{
 			{Name: ownerUser, Description: "owner user", MembershipKind: accesslist.MembershipKindUser},
