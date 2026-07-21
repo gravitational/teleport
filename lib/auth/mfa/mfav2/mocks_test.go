@@ -26,8 +26,8 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
-	mfav2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
+	mfav1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	mfav2pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/mfatypes"
@@ -83,7 +83,7 @@ func (m *mockAuthServer) VerifySSOMFASession(
 	username string,
 	requestID string,
 	token string,
-	_ *mfav1.ChallengeExtensions,
+	_ *mfav1pb.ChallengeExtensions,
 ) (*authz.MFAAuthData, error) {
 	_, ok := m.requestIDs.Load(requestID)
 	if !ok {
@@ -141,13 +141,13 @@ func (m *mockAuthServerIdentity) GetMFADevices(
 }
 
 type mockMFAService struct {
-	chal *mfav2.ValidatedMFAChallenge
+	chal *mfav2pb.ValidatedMFAChallenge
 	mu   sync.Mutex
 
 	createValidatedMFAChallengeError error
 	getValidatedMFAChallengeError    error
 
-	listValidatedMFAChallenges          []*mfav2.ValidatedMFAChallenge
+	listValidatedMFAChallenges          []*mfav2pb.ValidatedMFAChallenge
 	listValidatedMFAChallengesToken     string
 	listValidatedMFAChallengesError     error
 	listValidatedMFAChallengesPageSize  int32
@@ -158,8 +158,8 @@ type mockMFAService struct {
 func (m *mockMFAService) CreateValidatedMFAChallenge(
 	_ context.Context,
 	_ string,
-	chal *mfav2.ValidatedMFAChallenge,
-) (*mfav2.ValidatedMFAChallenge, error) {
+	chal *mfav2pb.ValidatedMFAChallenge,
+) (*mfav2pb.ValidatedMFAChallenge, error) {
 	if m.createValidatedMFAChallengeError != nil {
 		return nil, m.createValidatedMFAChallengeError
 	}
@@ -176,7 +176,7 @@ func (m *mockMFAService) GetValidatedMFAChallenge(
 	_ context.Context,
 	_ string,
 	_ string,
-) (*mfav2.ValidatedMFAChallenge, error) {
+) (*mfav2pb.ValidatedMFAChallenge, error) {
 	if m.getValidatedMFAChallengeError != nil {
 		return nil, m.getValidatedMFAChallengeError
 	}
@@ -192,7 +192,7 @@ func (m *mockMFAService) ListValidatedMFAChallenges(
 	pageSize int32,
 	pageToken string,
 	targetCluster string,
-) ([]*mfav2.ValidatedMFAChallenge, string, error) {
+) ([]*mfav2pb.ValidatedMFAChallenge, string, error) {
 	if m.listValidatedMFAChallengesError != nil {
 		return nil, "", m.listValidatedMFAChallengesError
 	}

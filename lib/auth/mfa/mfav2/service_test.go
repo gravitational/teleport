@@ -135,6 +135,7 @@ func testCreateValidateSessionChallengeWebauthn(t *testing.T, payload *mfav2.Ses
 	)
 	require.NoError(t, err)
 	require.NotNil(t, validateResp)
+	require.NotEmpty(t, validateResp.GetToken())
 
 	// Verify emitted event.
 	event = emitter.LastEvent()
@@ -247,6 +248,7 @@ func TestCreateValidateSessionChallenge_SSO(t *testing.T) {
 	)
 	require.NoError(t, err)
 	require.NotNil(t, validateResp)
+	require.NotEmpty(t, validateResp.GetToken())
 
 	// Verify emitted event.
 	event = emitter.LastEvent()
@@ -321,11 +323,6 @@ func TestCreateSessionChallenge_InvalidRequest(t *testing.T) {
 		req           *mfav2.CreateSessionChallengeRequest
 		expectedError error
 	}{
-		{
-			name:          "missing payload",
-			req:           mfav2.CreateSessionChallengeRequest_builder{Payload: nil}.Build(),
-			expectedError: trace.BadParameter("missing SessionIdentifyingPayload in request"),
-		},
 		{
 			name: "empty ssh_session_id",
 			req: mfav2.CreateSessionChallengeRequest_builder{
@@ -619,12 +616,15 @@ func TestValidateSessionChallenge_WebauthnFailedStorage(t *testing.T) {
 	mfaService := &mockMFAService{createValidatedMFAChallengeError: errors.New("MOCKED TEST ERROR FROM STORAGE LAYER")}
 
 	service, err := mfav2impl.NewService(mfav2impl.ServiceConfig{
-		Authorizer: authServer.AuthServer.Authorizer,
-		AuthServer: authServer,
-		Cache:      authServer.Auth().Cache,
-		Emitter:    authServer.Auth(),
-		Identity:   authServer.Auth().IdentityInternal,
-		Storage:    mfaService,
+		Authorizer:         authServer.AuthServer.Authorizer,
+		AuthServer:         authServer,
+		Cache:              authServer.Auth().Cache,
+		Emitter:            authServer.Auth(),
+		Identity:           authServer.Auth().IdentityInternal,
+		Storage:            mfaService,
+		CertAuthorityCache: authServer.Auth().Cache,
+		KeyStore:           authServer.Auth().GetKeyStore(),
+		Clock:              authServer.Auth().GetClock(),
 	})
 	require.NoError(t, err)
 
@@ -733,12 +733,15 @@ func TestListValidatedMFAChallenges_Success(t *testing.T) {
 		listValidatedMFAChallenges: challenges,
 	}
 	service, err := mfav2impl.NewService(mfav2impl.ServiceConfig{
-		Authorizer: authServer.AuthServer.Authorizer,
-		AuthServer: authServer,
-		Cache:      authServer.Auth().Cache,
-		Emitter:    authServer.Auth(),
-		Identity:   authServer.Auth().IdentityInternal,
-		Storage:    mfaService,
+		Authorizer:         authServer.AuthServer.Authorizer,
+		AuthServer:         authServer,
+		Cache:              authServer.Auth().Cache,
+		Emitter:            authServer.Auth(),
+		Identity:           authServer.Auth().IdentityInternal,
+		Storage:            mfaService,
+		CertAuthorityCache: authServer.Auth().Cache,
+		KeyStore:           authServer.Auth().GetKeyStore(),
+		Clock:              authServer.Auth().GetClock(),
 	})
 	require.NoError(t, err)
 
@@ -843,12 +846,15 @@ func TestListValidatedMFAChallenges_FilterByTargetCluster(t *testing.T) {
 		listValidatedMFAChallenges: challenges,
 	}
 	service, err := mfav2impl.NewService(mfav2impl.ServiceConfig{
-		Authorizer: authServer.AuthServer.Authorizer,
-		AuthServer: authServer,
-		Cache:      authServer.Auth().Cache,
-		Emitter:    authServer.Auth(),
-		Identity:   authServer.Auth().IdentityInternal,
-		Storage:    mfaService,
+		Authorizer:         authServer.AuthServer.Authorizer,
+		AuthServer:         authServer,
+		Cache:              authServer.Auth().Cache,
+		Emitter:            authServer.Auth(),
+		Identity:           authServer.Auth().IdentityInternal,
+		Storage:            mfaService,
+		CertAuthorityCache: authServer.Auth().Cache,
+		KeyStore:           authServer.Auth().GetKeyStore(),
+		Clock:              authServer.Auth().GetClock(),
 	})
 	require.NoError(t, err)
 
@@ -954,11 +960,14 @@ func TestReplicateValidatedMFAChallenge_RemoteBuiltinWrongRoleDenied(t *testing.
 				Checker:          mockAccessChecker{},
 			}, nil
 		}),
-		AuthServer: authServer,
-		Cache:      authServer.Auth().Cache,
-		Emitter:    authServer.Auth(),
-		Identity:   authServer.Auth().IdentityInternal,
-		Storage:    &mockMFAService{},
+		AuthServer:         authServer,
+		Cache:              authServer.Auth().Cache,
+		Emitter:            authServer.Auth(),
+		Identity:           authServer.Auth().IdentityInternal,
+		Storage:            &mockMFAService{},
+		CertAuthorityCache: authServer.Auth().Cache,
+		KeyStore:           authServer.Auth().GetKeyStore(),
+		Clock:              authServer.Auth().GetClock(),
 	})
 	require.NoError(t, err)
 
@@ -1435,12 +1444,15 @@ func setupAuthServer(t *testing.T, devices []*types.MFADevice) (*mockAuthServer,
 	require.NoError(t, err)
 
 	service, err := mfav2impl.NewService(mfav2impl.ServiceConfig{
-		Authorizer: authServer.AuthServer.Authorizer,
-		AuthServer: authServer,
-		Cache:      authServer.Auth().Cache,
-		Emitter:    authServer.Auth(),
-		Identity:   authServer.Auth().IdentityInternal,
-		Storage:    authServer.Auth(),
+		Authorizer:         authServer.AuthServer.Authorizer,
+		AuthServer:         authServer,
+		Cache:              authServer.Auth().Cache,
+		Emitter:            authServer.Auth(),
+		Identity:           authServer.Auth().IdentityInternal,
+		Storage:            authServer.Auth(),
+		CertAuthorityCache: authServer.Auth().Cache,
+		KeyStore:           authServer.Auth().GetKeyStore(),
+		Clock:              authServer.Auth().GetClock(),
 	})
 	require.NoError(t, err)
 

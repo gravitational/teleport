@@ -19,11 +19,13 @@ package mfav2
 import (
 	"cmp"
 	"context"
+	"crypto"
 	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/gravitational/teleport"
@@ -40,7 +42,19 @@ import (
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/jwt"
+	"github.com/gravitational/teleport/lib/services"
 )
+
+// CertAuthorityCache defines the subset of cache methods needed for JWT signing.
+type CertAuthorityCache interface {
+	GetCertAuthority(ctx context.Context, id types.CertAuthID, includeKey bool) (types.CertAuthority, error)
+}
+
+// KeyStore defines the subset of keystore methods needed for JWT signing.
+type KeyStore interface {
+	GetJWTSigner(ctx context.Context, ca types.CertAuthority) (crypto.Signer, error)
+}
 
 // AuthServer defines the subset of lib/auth.Server methods used by the MFA service.
 // TODO(cthach): Remove after SSO MFA device support is added to lib/auth/authtest
@@ -109,25 +123,31 @@ type MFAService interface {
 
 // ServiceConfig holds creation parameters for [Service].
 type ServiceConfig struct {
-	Authorizer authz.Authorizer
-	AuthServer AuthServer
-	Cache      Cache
-	Emitter    Emitter
-	Identity   Identity
-	Storage    MFAService
+	Authorizer         authz.Authorizer
+	AuthServer         AuthServer
+	Cache              Cache
+	Emitter            Emitter
+	Identity           Identity
+	Storage            MFAService
+	CertAuthorityCache CertAuthorityCache
+	KeyStore           KeyStore
+	Clock              clockwork.Clock
 }
 
 // Service implements the mfav2 MFAService gRPC API.
 type Service struct {
 	mfav2.UnimplementedMFAServiceServer
 
-	logger     *slog.Logger
-	authorizer authz.Authorizer
-	authServer AuthServer
-	cache      Cache
-	emitter    Emitter
-	identity   Identity
-	storage    MFAService
+	logger             *slog.Logger
+	authorizer         authz.Authorizer
+	authServer         AuthServer
+	cache              Cache
+	emitter            Emitter
+	identity           Identity
+	storage            MFAService
+	certAuthorityCache CertAuthorityCache
+	keyStore           KeyStore
+	clock              clockwork.Clock
 }
 
 const (
@@ -136,6 +156,9 @@ const (
 
 	// verifyValidatedMFAChallengePollInterval is how often we check for the validated challenge to appear.
 	verifyValidatedMFAChallengePollInterval = 100 * time.Millisecond
+
+	// tokenTTL is the lifetime of an in-band MFA JWT. Matches ValidatedMFAChallenge TTL.
+	tokenTTL = 5 * time.Minute
 )
 
 // NewService creates a new [Service] instance.
@@ -153,16 +176,25 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		return nil, trace.BadParameter("param Identity is required for MFA service")
 	case cfg.Storage == nil:
 		return nil, trace.BadParameter("param Storage is required for MFA service")
+	case cfg.CertAuthorityCache == nil:
+		return nil, trace.BadParameter("param CertAuthorityCache is required for MFA service")
+	case cfg.KeyStore == nil:
+		return nil, trace.BadParameter("param KeyStore is required for MFA service")
+	case cfg.Clock == nil:
+		return nil, trace.BadParameter("param Clock is required for MFA service")
 	}
 
 	return &Service{
-		logger:     slog.With(teleport.ComponentKey, "mfa.service"),
-		authorizer: cfg.Authorizer,
-		authServer: cfg.AuthServer,
-		cache:      cfg.Cache,
-		emitter:    cfg.Emitter,
-		identity:   cfg.Identity,
-		storage:    cfg.Storage,
+		logger:             slog.With(teleport.ComponentKey, "mfa.service"),
+		authorizer:         cfg.Authorizer,
+		authServer:         cfg.AuthServer,
+		cache:              cfg.Cache,
+		emitter:            cfg.Emitter,
+		identity:           cfg.Identity,
+		storage:            cfg.Storage,
+		certAuthorityCache: cfg.CertAuthorityCache,
+		keyStore:           cfg.KeyStore,
+		clock:              cfg.Clock,
 	}, nil
 }
 
@@ -417,7 +449,44 @@ func (s *Service) ValidateSessionChallenge(
 	// Emit success event.
 	s.emitValidationEvent(ctx, currentCluster.GetClusterName(), username, details.Device, nil)
 
-	return &mfav2.ValidateSessionChallengeResponse{}, nil
+	token, err := s.signJWT(ctx, currentCluster.GetClusterName(), username)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return mfav2.ValidateSessionChallengeResponse_builder{Token: token}.Build(), nil
+}
+
+func (s *Service) signJWT(ctx context.Context, clusterName, username string) (string, error) {
+	ca, err := s.certAuthorityCache.GetCertAuthority(
+		ctx, types.CertAuthID{
+			Type:       types.InBandCA,
+			DomainName: clusterName,
+		},
+		true,
+	)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	signer, err := s.keyStore.GetJWTSigner(ctx, ca)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	jwtKey, err := services.GetJWTSigner(signer, ca.GetClusterName(), s.clock)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return jwtKey.Sign(
+		jwt.SignParams{
+			Username: username,
+			Issuer:   ca.GetClusterName(),
+			URI:      ca.GetClusterName(),
+			Expires:  s.clock.Now().Add(tokenTTL),
+		},
+	)
 }
 
 // ListValidatedMFAChallenges implements the mfav2.MFAServiceServer.ListValidatedMFAChallenges method.
@@ -570,8 +639,10 @@ func (s *Service) VerifyValidatedMFAChallenge(
 }
 
 func validateCreateSessionChallengeRequest(req *mfav2.CreateSessionChallengeRequest) error {
-	if err := checkPayload(req.GetPayload()); err != nil {
-		return trace.Wrap(err)
+	if req.GetPayload() != nil {
+		if err := checkPayload(req.GetPayload()); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	// If either SSO challenge field is set, both must be set.
