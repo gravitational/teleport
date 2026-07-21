@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package teleport.clientiprestriction.v1;
 
+import "google/protobuf/timestamp.proto";
 import "teleport/header/v1/metadata.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/clientiprestriction/v1;clientiprestrictionv1";
@@ -47,12 +48,34 @@ message ClientIPRestrictionSpec {
   // allowed_cidrs is the list of CIDR blocks permitted to connect to the cluster.
   // An empty list disables restrictions and allows all traffic.
   repeated string allowed_cidrs = 1;
+
+  // mode is the user-controlled operational mode of the restriction. It denotes
+  // intent; the actual enforcement state is reported by status.state.
+  // Possible values: "draft" (configured but not enforced) and "enforced"
+  // (should be enforced by Teleport Cloud). An empty value is treated as
+  // "enforced" for backward compatibility.
+  string mode = 2;
+
+  // expires is the time at which the restriction is disabled and mode reverts
+  // to "draft". An unset value means the restriction never expires. When set,
+  // it must be at least 20 minutes in the future.
+  //
+  // Note: we do not use the `metadata.expires` field for this, because that
+  // conventionally denotes that the resource should be deleted once it elapses.
+  // Here expiry only stops enforcement on the Cloud side; the resource itself
+  // keeps existing, reverting to a "draft" state rather than being removed.
+  //
+  // Writes fully replace the resource, so a client editing other fields must
+  // re-send a still-valid expiry or clear it. An expiry read earlier and passed
+  // back unchanged can be rejected once it is under 20 minutes away.
+  google.protobuf.Timestamp expires = 3;
 }
 
 // ClientIPRestrictionStatus contains dynamic properties of a ClientIPRestriction. These properties are
 // modified during runtime of a Teleport process. They should not be modified by users.
 message ClientIPRestrictionStatus {
   // state is the current enforcement state of the restrictions at the ingress layer.
-  // Possible values: "pending", "active".
+  // Possible values: "pending" (written but not yet applied), "active" (applied
+  // and enforced), and "draft" (saved but not enforced because mode is "draft").
   string state = 1;
 }

@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"time"
 
 	"github.com/gravitational/trace"
 
@@ -113,10 +114,22 @@ func (c *clientIPRestrictionCollection) Resources() []types.Resource {
 }
 
 func (c *clientIPRestrictionCollection) WriteText(w io.Writer, verbose bool) error {
-	t := asciitable.MakeTable([]string{"Allowed CIDRs", "State"})
+	mode := c.cir.GetSpec().GetMode()
+	if mode == "" {
+		// An empty mode is treated as enforced for backward compatibility.
+		mode = "enforced"
+	}
+	expires := "never"
+	if e := c.cir.GetSpec().GetExpires(); e != nil {
+		expires = e.AsTime().Format(time.RFC3339)
+	}
+
+	t := asciitable.MakeTable([]string{"Allowed CIDRs", "Mode", "State", "Expires"})
 	t.AddRow([]string{
 		strings.Join(c.cir.GetSpec().GetAllowedCidrs(), ", "),
+		mode,
 		c.cir.GetStatus().GetState(),
+		expires,
 	})
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
