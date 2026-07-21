@@ -590,6 +590,7 @@ const mapToSharedResource = (
           requiresRequest: resource.requiresRequest,
           subKind: resource.resource.subKind as AppSubKind,
           permissionSets: resource.resource.permissionSets,
+          scope: app.scope,
         },
         ui: {
           ActionButton: <ConnectAppActionButton app={app} />,

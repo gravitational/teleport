@@ -466,7 +466,7 @@ func (p *clientApplication) getCachedClient(ctx context.Context, profileName, le
 func (p *clientApplication) ReissueAppCert(ctx context.Context, appInfo *vnetv1.AppInfo, targetPort uint16) (tls.Certificate, error) {
 	appKey := appInfo.GetAppKey()
 	clusterURI := uri.NewClusterURI(appKey.GetProfile()).AppendLeafCluster(appKey.GetLeafCluster())
-	appURI := clusterURI.AppendApp(appKey.GetName())
+	appURI := clusterURI.AppendApp(appKey.GetName(), appKey.GetScope())
 
 	routeToApp := vnet.RouteToApp(appInfo, targetPort)
 	apiteletermRouteToApp := apiteleterm.RouteToApp_builder{
@@ -613,7 +613,7 @@ func (p *clientApplication) OnNewAppConnection(ctx context.Context, appKey *vnet
 	// Enqueue the event from a separate goroutine since we don't care about errors anyway and we also
 	// don't want to slow down VNet connections.
 	go func() {
-		uri := uri.NewClusterURI(appKey.GetProfile()).AppendLeafCluster(appKey.GetLeafCluster()).AppendApp(appKey.GetName())
+		uri := uri.NewClusterURI(appKey.GetProfile()).AppendLeafCluster(appKey.GetLeafCluster()).AppendApp(appKey.GetName(), appKey.GetScope())
 
 		// Not passing ctx to ReportApp since ctx is tied to the lifetime of the connection.
 		// If it's a short-lived connection, inheriting its context would interrupt reporting.
@@ -636,7 +636,7 @@ func (p *clientApplication) OnInvalidLocalPort(ctx context.Context, appInfo *vne
 	appKey := appInfo.GetAppKey()
 	appURI := uri.NewClusterURI(appKey.GetProfile()).
 		AppendLeafCluster(appKey.GetLeafCluster()).
-		AppendApp(appKey.GetName())
+		AppendApp(appKey.GetName(), appKey.GetScope())
 	routeToApp := vnet.RouteToApp(appInfo, targetPort)
 	apiteletermRouteToApp := apiteleterm.RouteToApp_builder{
 		Name:        routeToApp.Name,

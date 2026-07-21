@@ -81,6 +81,7 @@ export const makeKube = (props: Partial<tsh.Kube> = {}): tsh.Kube => ({
 
 export const makeApp = (props: Partial<App> = {}): App => ({
   name: 'foo',
+  scope: '/staging',
   labels: [],
   endpointUri: 'tcp://localhost:3000',
   friendlyName: '',

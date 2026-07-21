@@ -111,8 +111,10 @@ type App struct {
 	// other involved components (Auth, Proxy). Used to determine if features like resource
 	// constraints are available.
 	SupportedFeatureIds []int32 `protobuf:"varint,15,rep,packed,name=supported_feature_ids,json=supportedFeatureIds,proto3" json:"supported_feature_ids,omitempty"`
-	unknownFields       protoimpl.UnknownFields
-	sizeCache           protoimpl.SizeCache
+	// scope is the scope the app.
+	Scope         string `protobuf:"bytes,16,opt,name=scope,proto3" json:"scope,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *App) Reset() {
@@ -245,6 +247,13 @@ func (x *App) GetSupportedFeatureIds() []int32 {
 	return nil
 }
 
+func (x *App) GetScope() string {
+	if x != nil {
+		return x.Scope
+	}
+	return ""
+}
+
 func (x *App) SetUri(v string) {
 	x.Uri = v
 }
@@ -303,6 +312,10 @@ func (x *App) SetPermissionSets(v []*IdentityCenterPermissionSet) {
 
 func (x *App) SetSupportedFeatureIds(v []int32) {
 	x.SupportedFeatureIds = v
+}
+
+func (x *App) SetScope(v string) {
+	x.Scope = v
 }
 
 type App_builder struct {
@@ -377,6 +390,8 @@ type App_builder struct {
 	// other involved components (Auth, Proxy). Used to determine if features like resource
 	// constraints are available.
 	SupportedFeatureIds []int32
+	// scope is the scope the app.
+	Scope string
 }
 
 func (b0 App_builder) Build() *App {
@@ -398,6 +413,7 @@ func (b0 App_builder) Build() *App {
 	x.SubKind = b.SubKind
 	x.PermissionSets = b.PermissionSets
 	x.SupportedFeatureIds = b.SupportedFeatureIds
+	x.Scope = b.Scope
 	return m0
 }
 
@@ -839,7 +855,7 @@ var File_teleport_lib_teleterm_v1_app_proto protoreflect.FileDescriptor
 
 const file_teleport_lib_teleterm_v1_app_proto_rawDesc = "" +
 	"\n" +
-	"\"teleport/lib/teleterm/v1/app.proto\x12\x18teleport.lib.teleterm.v1\x1a$teleport/lib/teleterm/v1/label.proto\"\xe2\x04\n" +
+	"\"teleport/lib/teleterm/v1/app.proto\x12\x18teleport.lib.teleterm.v1\x1a$teleport/lib/teleterm/v1/label.proto\"\xf8\x04\n" +
 	"\x03App\x12\x10\n" +
 	"\x03uri\x18\x01 \x01(\tR\x03uri\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12!\n" +
@@ -858,7 +874,8 @@ const file_teleport_lib_teleterm_v1_app_proto_rawDesc = "" +
 	"\ttcp_ports\x18\f \x03(\v2#.teleport.lib.teleterm.v1.PortRangeR\btcpPorts\x12\x19\n" +
 	"\bsub_kind\x18\r \x01(\tR\asubKind\x12^\n" +
 	"\x0fpermission_sets\x18\x0e \x03(\v25.teleport.lib.teleterm.v1.IdentityCenterPermissionSetR\x0epermissionSets\x122\n" +
-	"\x15supported_feature_ids\x18\x0f \x03(\x05R\x13supportedFeatureIds\"\x93\x01\n" +
+	"\x15supported_feature_ids\x18\x0f \x03(\x05R\x13supportedFeatureIds\x12\x14\n" +
+	"\x05scope\x18\x10 \x01(\tR\x05scope\"\x93\x01\n" +
 	"\aAWSRole\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x18\n" +
 	"\adisplay\x18\x02 \x01(\tR\adisplay\x12\x10\n" +

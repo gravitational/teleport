@@ -19,6 +19,7 @@
 package uri_test
 
 import (
+	"encoding/base64"
 	"fmt"
 	"testing"
 
@@ -28,6 +29,8 @@ import (
 )
 
 func TestString(t *testing.T) {
+	const appScope = "/staging"
+	base64EncodedScope := base64.RawURLEncoding.EncodeToString([]byte(appScope))
 	tests := []struct {
 		in  uri.ResourceURI
 		out string
@@ -37,8 +40,12 @@ func TestString(t *testing.T) {
 			"/clusters/teleport.sh/servers/server1",
 		},
 		{
-			uri.NewClusterURI("teleport.sh").AppendApp("app1"),
+			uri.NewClusterURI("teleport.sh").AppendApp("app1", ""),
 			"/clusters/teleport.sh/apps/app1",
+		},
+		{
+			uri.NewClusterURI("teleport.sh").AppendApp("app1", appScope),
+			"/clusters/teleport.sh/apps/app1/scope/" + base64EncodedScope,
 		},
 		{
 			uri.NewClusterURI("teleport.sh").AppendDB("dbhost1"),

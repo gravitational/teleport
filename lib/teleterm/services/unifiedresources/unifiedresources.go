@@ -139,7 +139,7 @@ func List(ctx context.Context, cluster *clusters.Cluster, authClient AuthClient,
 
 			response.Resources = append(response.Resources, UnifiedResource{
 				App: &clusters.App{
-					URI:      cluster.URI.AppendApp(app.GetName()),
+					URI:      cluster.URI.AppendApp(app.GetName(), app.GetScope()),
 					FQDN:     cluster.AssembleAppFQDN(app),
 					AWSRoles: cluster.GetAWSRoles(app),
 					App:      app,
@@ -149,7 +149,7 @@ func List(ctx context.Context, cluster *clusters.Cluster, authClient AuthClient,
 		case types.SAMLIdPServiceProvider:
 			response.Resources = append(response.Resources, UnifiedResource{
 				SAMLIdPServiceProvider: &clusters.SAMLIdPServiceProvider{
-					URI:      cluster.URI.AppendApp(r.GetName()),
+					URI:      cluster.URI.AppendApp(r.GetName(), ""),
 					Provider: r,
 				},
 				RequiresRequest: requiresRequest,

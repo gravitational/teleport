@@ -43,6 +43,10 @@ func generateScopedSubDomain(appName, scope string) string {
 	return strings.ToLower(scopedAppEncoder.EncodeToString(h[:scopedPubAddrHashBytes]))
 }
 
+func ScopedSubdomain(scope, appName string) string {
+	return generateScopedSubDomain(appName, scope)
+}
+
 // scopeSubdomainOk reports whether the subdomain is a valid string produced by
 // ScopedSubdomain: exactly 32 lowercase base32 characters (a-z, 2-7).
 func scopeSubdomainOk(subdomain string) bool {

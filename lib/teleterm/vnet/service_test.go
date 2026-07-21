@@ -61,27 +61,35 @@ func TestDaemonUsageReporter(t *testing.T) {
 	t.Cleanup(usageReporter.Stop)
 
 	// Verify that reporting the same app twice adds only one usage event.
-	err = usageReporter.ReportApp(validCluster.AppendApp("app"))
+	err = usageReporter.ReportApp(validCluster.AppendApp("app", ""))
 	require.NoError(t, err)
-	err = usageReporter.ReportApp(validCluster.AppendApp("app"))
+	err = usageReporter.ReportApp(validCluster.AppendApp("app", ""))
 	require.NoError(t, err)
 	require.Equal(t, 1, eventConsumer.EventCount())
 
+	// Verify that reporting the same app twice, but in different scopes adds both usage event.
+	const newExpectedEventCountAfterScopedApps = 3
+	err = usageReporter.ReportApp(validCluster.AppendApp("app", "/staging"))
+	require.NoError(t, err)
+	err = usageReporter.ReportApp(validCluster.AppendApp("app", "/prod"))
+	require.NoError(t, err)
+	require.Equal(t, newExpectedEventCountAfterScopedApps, eventConsumer.EventCount())
+
 	// Verify that reporting an invalid cluster doesn't submit an event.
-	err = usageReporter.ReportApp(clusterWithoutClient.AppendApp("bar"))
+	err = usageReporter.ReportApp(clusterWithoutClient.AppendApp("bar", ""))
 	require.True(t, trace.IsNotFound(err), "Not a NotFound error: %#v", err)
-	require.Equal(t, 1, eventConsumer.EventCount())
-	err = usageReporter.ReportApp(clusterWithoutProfile.AppendApp("bar"))
+	require.Equal(t, newExpectedEventCountAfterScopedApps, eventConsumer.EventCount())
+	err = usageReporter.ReportApp(clusterWithoutProfile.AppendApp("bar", ""))
 	require.True(t, trace.IsNotFound(err), "Not a NotFound error: %#v", err)
-	require.Equal(t, 1, eventConsumer.EventCount())
-	err = usageReporter.ReportApp(clusterWithoutClusterID.AppendApp("bar"))
+	require.Equal(t, newExpectedEventCountAfterScopedApps, eventConsumer.EventCount())
+	err = usageReporter.ReportApp(clusterWithoutClusterID.AppendApp("bar", ""))
 	require.ErrorIs(t, err, trace.NotFound("cluster ID for \"/clusters/no-cluster-id\" not found"))
-	require.Equal(t, 1, eventConsumer.EventCount())
+	require.Equal(t, newExpectedEventCountAfterScopedApps, eventConsumer.EventCount())
 
 	// Verify that reporting an SSH session works.
 	err = usageReporter.ReportSSHSession(validCluster.GetProfileName(), "foo")
 	require.NoError(t, err)
-	require.Equal(t, 2, eventConsumer.EventCount())
+	require.Equal(t, newExpectedEventCountAfterScopedApps+1, eventConsumer.EventCount())
 }
 
 func TestDaemonUsageReporter_Stop(t *testing.T) {
@@ -109,7 +117,7 @@ func TestDaemonUsageReporter_Stop(t *testing.T) {
 		usageReporter.Stop()
 	}()
 
-	uri := uri.NewClusterURI("foo").AppendApp("bar")
+	uri := uri.NewClusterURI("foo").AppendApp("bar", "")
 	err = usageReporter.ReportApp(uri)
 	require.ErrorIs(t, err, context.Canceled)
 

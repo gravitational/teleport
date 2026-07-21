@@ -42,7 +42,7 @@ func (h *Handler) GetApp(ctx context.Context, req *api.GetAppRequest) (*api.GetA
 	var app types.Application
 	if err := clusters.AddMetadataToRetryableError(ctx, func() error {
 		var err error
-		app, err = clusters.GetApp(ctx, proxyClient.CurrentCluster(), appURI.GetAppName())
+		app, err = clusters.GetApp(ctx, proxyClient.CurrentCluster(), appURI.GetAppName(), appURI.GetAppScope())
 		return trace.Wrap(err)
 	}); err != nil {
 		return nil, trace.Wrap(err)
@@ -94,6 +94,7 @@ func newAPIApp(clusterApp clusters.App) *api.App {
 		TcpPorts:       tcpPorts,
 		SubKind:        app.GetSubKind(),
 		PermissionSets: permissionSets,
+		Scope:          app.GetScope(),
 	}.Build()
 }
 

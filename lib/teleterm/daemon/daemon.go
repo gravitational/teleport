@@ -590,7 +590,7 @@ func (s *Service) SetGatewayTargetSubresourceName(ctx context.Context, gatewayUR
 		var app types.Application
 		if err := clusters.AddMetadataToRetryableError(ctx, func() error {
 			var err error
-			app, err = clusters.GetApp(ctx, clusterClient.CurrentCluster(), targetURI.GetAppName())
+			app, err = clusters.GetApp(ctx, clusterClient.CurrentCluster(), targetURI.GetAppName(), targetURI.GetAppScope())
 			return trace.Wrap(err)
 		}); err != nil {
 			return nil, trace.Wrap(err)

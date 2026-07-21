@@ -85,6 +85,21 @@ func TestUnifiedResourcesList(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	scopedApp, err := types.NewAppServerV3(types.Metadata{
+		Name: "scopedAPp",
+	}, types.AppServerSpecV3{
+		HostID: uuid.New().String(),
+		App: &types.AppV3{
+			Metadata: types.Metadata{
+				Name: "scopedApp",
+			},
+			Spec: types.AppSpecV3{
+				URI: "https://scoped.app",
+			},
+		},
+	}, "/staging")
+	require.NoError(t, err)
+
 	samlSP, err := types.NewSAMLIdPServiceProvider(types.Metadata{
 		Name: "testApp",
 	}, types.SAMLIdPServiceProviderSpecV1{
@@ -144,6 +159,7 @@ func TestUnifiedResourcesList(t *testing.T) {
 		{Resource: &proto.PaginatedResource_SAMLIdPServiceProvider{SAMLIdPServiceProvider: samlSP.(*types.SAMLIdPServiceProviderV1)}},
 		{Resource: &proto.PaginatedResource_WindowsDesktop{WindowsDesktop: windowsDesktop}},
 		{Resource: &proto.PaginatedResource_AppServer{AppServer: mcp}},
+		{Resource: &proto.PaginatedResource_AppServer{AppServer: scopedApp}},
 	}
 	mockedNextKey := "nextKey"
 
@@ -176,7 +192,7 @@ func TestUnifiedResourcesList(t *testing.T) {
 	}}, response.Resources[2])
 
 	require.Equal(t, UnifiedResource{App: &clusters.App{
-		URI: uri.NewClusterURI(cluster.ProfileName).AppendApp(app.GetApp().GetName()),
+		URI: uri.NewClusterURI(cluster.ProfileName).AppendApp(app.GetApp().GetName(), app.GetApp().GetScope()),
 		// FQDN looks weird because we cannot mock cluster.status.ProxyHost in tests.
 		FQDN:     "testApp.",
 		AWSRoles: aws.Roles{},
@@ -184,7 +200,7 @@ func TestUnifiedResourcesList(t *testing.T) {
 	}}, response.Resources[3])
 
 	require.Equal(t, UnifiedResource{SAMLIdPServiceProvider: &clusters.SAMLIdPServiceProvider{
-		URI:      uri.NewClusterURI(cluster.ProfileName).AppendApp(samlSP.GetName()),
+		URI:      uri.NewClusterURI(cluster.ProfileName).AppendApp(samlSP.GetName(), ""),
 		Provider: samlSP,
 	}}, response.Resources[4])
 
@@ -195,10 +211,18 @@ func TestUnifiedResourcesList(t *testing.T) {
 
 	require.Equal(t, UnifiedResource{App: &clusters.App{
 		FQDN:     "test-mcp.",
-		URI:      uri.NewClusterURI(cluster.ProfileName).AppendApp(mcp.GetName()),
+		URI:      uri.NewClusterURI(cluster.ProfileName).AppendApp(mcp.GetName(), ""),
 		AWSRoles: aws.Roles{},
 		App:      mcp.GetApp(),
 	}}, response.Resources[6])
+
+	require.Equal(t, UnifiedResource{App: &clusters.App{
+		URI: uri.NewClusterURI(cluster.ProfileName).AppendApp(scopedApp.GetApp().GetName(), scopedApp.GetApp().GetScope()),
+		// FQDN looks weird because we cannot mock cluster.status.ProxyHost in tests.
+		FQDN:     "scopedApp.",
+		AWSRoles: aws.Roles{},
+		App:      scopedApp.GetApp(),
+	}}, response.Resources[7])
 
 	require.Equal(t, mockedNextKey, response.NextKey)
 

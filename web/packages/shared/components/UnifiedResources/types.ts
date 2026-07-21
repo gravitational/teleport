@@ -91,6 +91,7 @@ export type UnifiedResourceApp = {
   permissionSets?: PermissionSet[];
   mcp?: AppMCP;
   supportedFeatureIds?: ComponentFeatureID[];
+  scope?: string;
 };
 
 export interface UnifiedResourceDatabase {
