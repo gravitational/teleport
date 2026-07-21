@@ -10,10 +10,13 @@ import (
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport"
+	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
+	"github.com/gravitational/teleport/lib/accesslists"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
@@ -27,26 +30,26 @@ const (
 )
 
 type statusReconcilerAccessPoint interface {
-	// GetAccessList returns the specified access list resource.
-	GetAccessList(context.Context, string) (*accesslist.AccessList, error)
-	// ListAccessLists returns a paginated list of access lists.
-	ListAccessLists(ctx context.Context, pageSize int, pageToken string) ([]*accesslist.AccessList, string, error)
+	// GetAccessListV2 returns the specified access list resource.
+	GetAccessListV2(context.Context, *accesslistv1.GetAccessListRequest) (*accesslist.AccessList, error)
+	// ListAccessListsV2 returns a paginated list of access lists.
+	ListAccessListsV2(context.Context, *accesslistv1.ListAccessListsV2Request) ([]*accesslist.AccessList, string, error)
 	// UpdateAccessList updates an access list resource.
 	UpdateAccessList(context.Context, *accesslist.AccessList) (*accesslist.AccessList, error)
 
-	// GetAccessListMember returns the specified access list member resource.
-	GetAccessListMember(ctx context.Context, accessList string, memberName string) (*accesslist.AccessListMember, error)
-	// ListAccessListMembers returns a paginated list of all access list members.
-	ListAccessListMembers(ctx context.Context, accessList string, pageSize int, pageToken string) ([]*accesslist.AccessListMember, string, error)
+	// GetAccessListMemberV2 returns the specified access list member resource.
+	GetAccessListMemberV2(context.Context, *accesslistv1.GetAccessListMemberRequest) (*accesslist.AccessListMember, error)
+	// ListAccessListMembersV2 returns a paginated list of all access list members.
+	ListAccessListMembersV2(context.Context, *accesslistv1.ListAccessListMembersRequest) (members []*accesslist.AccessListMember, nextToken string, err error)
 	// UpdateAccessListMember conditionally updates an access list member resource.
 	UpdateAccessListMember(ctx context.Context, member *accesslist.AccessListMember) (*accesslist.AccessListMember, error)
 
-	// CleanupAccessListStatus removes invalid Status.OwnerOf and Status.MemberOf references.
-	CleanupAccessListStatus(ctx context.Context, accessListName string) (*accesslist.AccessList, error)
+	// CleanupAccessListStatusV2 removes invalid Status.OwnerOf and Status.MemberOf references.
+	CleanupAccessListStatusV2(ctx context.Context, accessListName accesslists.NormalizedSQN) (*accesslist.AccessList, error)
 
-	// EnsureNestedListStatuses goes over all nested owners and nested members of the named access
+	// EnsureNestedListStatusesV2 goes over all nested owners and nested members of the named access
 	// list and ensures the the nested lists' statuses owner_of/member_of contain the access list name.
-	EnsureNestedAccessListStatuses(ctx context.Context, accessListName string) error
+	EnsureNestedAccessListStatusesV2(ctx context.Context, accessListName accesslists.NormalizedSQN) error
 }
 
 // statusReconcilerConfig configuration.
@@ -141,7 +144,16 @@ func (r *statusReconciler) Run(ctx context.Context) error {
 func (r *statusReconciler) reconcile(ctx context.Context) (*statusReconcilerStats, error) {
 	stats := statusReconcilerStats{}
 
-	for accessList, err := range clientutils.Resources(ctx, r.AccessPoint.ListAccessLists) {
+	pageFn := func(ctx context.Context, pageSize int, pageToken string) ([]*accesslist.AccessList, string, error) {
+		return r.AccessPoint.ListAccessListsV2(ctx, accesslistv1.ListAccessListsV2Request_builder{
+			PageSize:  int32(pageSize),
+			PageToken: pageToken,
+			ScopeFilter: scopesv1.Filter_builder{
+				Mode: scopesv1.Mode_MODE_ALL,
+			}.Build(),
+		}.Build())
+	}
+	for accessList, err := range clientutils.Resources(ctx, pageFn) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -152,7 +164,7 @@ func (r *statusReconciler) reconcile(ctx context.Context) (*statusReconcilerStat
 			return nil, trace.Wrap(err)
 		}
 		if isStatusDirty {
-			accessList, err = r.AccessPoint.CleanupAccessListStatus(ctx, accessList.GetName())
+			accessList, err = r.AccessPoint.CleanupAccessListStatusV2(ctx, accesslists.ScopeQualifiedName(accessList))
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -169,7 +181,7 @@ func (r *statusReconciler) reconcile(ctx context.Context) (*statusReconcilerStat
 		}
 
 		if badOwnerListCnt+badMemberListCnt > 0 {
-			if err := r.AccessPoint.EnsureNestedAccessListStatuses(ctx, accessList.GetName()); err != nil {
+			if err := r.AccessPoint.EnsureNestedAccessListStatusesV2(ctx, accesslists.ScopeQualifiedName(accessList)); err != nil {
 				return nil, trace.Wrap(err)
 			}
 			stats.fixed += badOwnerListCnt + badMemberListCnt
@@ -185,36 +197,100 @@ func (r *statusReconciler) reconcile(ctx context.Context) (*statusReconcilerStat
 func (r *statusReconciler) isAccessListStatusDirty(ctx context.Context, accessList *accesslist.AccessList) (bool, error) {
 	dirty := false
 
+	accessListName := accesslists.ScopeQualifiedName(accessList)
+
 	for _, ownedListName := range accessList.Status.OwnerOf {
-		ownedList, err := r.AccessPoint.GetAccessList(ctx, ownedListName)
+		ownedList, err := r.AccessPoint.GetAccessListV2(ctx, accesslistv1.GetAccessListRequest_builder{
+			Name: ownedListName,
+		}.Build())
 		if err != nil {
 			if trace.IsNotFound(err) {
 				r.Logger.WarnContext(ctx, "Found access_list with status.owner_of reference to a list that does not exist. It will be cleared",
-					"access_list", accessList.GetName(), "bad_owner_of_entry", ownedListName)
+					"access_list", accessListName.String(), "bad_owner_of_entry", ownedListName)
 				dirty = true
 				continue
 			}
 			return false, trace.Wrap(err)
 		}
 		isActualOwner := slices.ContainsFunc(ownedList.Spec.Owners, func(ownedListOwner accesslist.Owner) bool {
-			return ownedListOwner.MembershipKind == accesslist.MembershipKindList && ownedListOwner.Name == accessList.GetName()
+			return ownedListOwner.IsMembershipKindList() && ownedListOwner.Name == accessListName.String()
 		})
 		if !isActualOwner {
 			r.Logger.WarnContext(ctx, "Found access_list with incorrect status.owner_of entry. It will be cleared",
-				"access_list", accessList.GetName(), "bad_owner_of_entry", ownedListName)
+				"access_list", accessListName.String(), "bad_owner_of_entry", ownedListName)
+			dirty = true
+			continue
+		}
+	}
+	for _, ownedListName := range accessList.Status.ScopedOwnerOf {
+		ownedListSQN, err := accesslists.ParseScopeQualifiedName(ownedListName)
+		if err != nil {
+			r.Logger.WarnContext(ctx, "Found access_list with status.scoped_owner_of reference that does not parse. It will be cleared",
+				"access_list", accessListName.String(), "bad_scoped_owner_of_entry", ownedListName)
+			dirty = true
+			continue
+		}
+		ownedList, err := r.AccessPoint.GetAccessListV2(ctx, accesslistv1.GetAccessListRequest_builder{
+			Scope: ownedListSQN.Scope,
+			Name:  ownedListSQN.Name,
+		}.Build())
+		if err != nil {
+			if trace.IsNotFound(err) {
+				r.Logger.WarnContext(ctx, "Found access_list with status.scoped_owner_of reference to a list that does not exist. It will be cleared",
+					"access_list", accessListName.String(), "bad_scoped_owner_of_entry", ownedListName)
+				dirty = true
+				continue
+			}
+			return false, trace.Wrap(err)
+		}
+		isActualOwner := slices.ContainsFunc(ownedList.Spec.Owners, func(ownedListOwner accesslist.Owner) bool {
+			return ownedListOwner.IsMembershipKindList() && ownedListOwner.Name == accessListName.String()
+		})
+		if !isActualOwner {
+			r.Logger.WarnContext(ctx, "Found access_list with incorrect status.scoped_owner_of entry. It will be cleared",
+				"access_list", accessListName.String(), "bad_owner_of_entry", ownedListName)
 			dirty = true
 			continue
 		}
 	}
 
 	for _, parentListName := range accessList.Status.MemberOf {
-		if _, err := r.AccessPoint.GetAccessListMember(ctx, parentListName, accessList.GetName()); err != nil {
-			if trace.IsNotFound(err) {
-				r.Logger.WarnContext(ctx, "Found access_list with status.member_of reference to a list that does not exist. It will be cleared",
-					"access_list", accessList.GetName(), "bad_member_of_entry", parentListName)
-				dirty = true
-				continue
-			}
+		member, err := r.AccessPoint.GetAccessListMemberV2(ctx, accesslistv1.GetAccessListMemberRequest_builder{
+			AccessList:  parentListName,
+			MemberScope: accessListName.Scope,
+			MemberName:  accessListName.Name,
+		}.Build())
+		if trace.IsNotFound(err) || err == nil && !member.IsList() {
+			r.Logger.WarnContext(ctx, "Found access_list with status.member_of reference to a list it's not a member of. It will be cleared",
+				"access_list", accessListName.String(), "bad_member_of_entry", parentListName)
+			dirty = true
+			continue
+		}
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+	}
+	for _, parentListName := range accessList.Status.ScopedMemberOf {
+		parentListSQN, err := accesslists.ParseScopeQualifiedName(parentListName)
+		if err != nil {
+			r.Logger.WarnContext(ctx, "Found access_list with status.scoped_member_of reference that does not parse. It will be cleared",
+				"access_list", accessListName.String(), "bad_scoped_member_of_entry", parentListName)
+			dirty = true
+			continue
+		}
+		member, err := r.AccessPoint.GetAccessListMemberV2(ctx, accesslistv1.GetAccessListMemberRequest_builder{
+			AccessListScope: parentListSQN.Scope,
+			AccessList:      parentListSQN.Name,
+			MemberScope:     accessListName.Scope,
+			MemberName:      accessListName.Name,
+		}.Build())
+		if trace.IsNotFound(err) || err == nil && !member.IsList() {
+			r.Logger.WarnContext(ctx, "Found access_list with status.scoped_member_of reference to a list to a list it's not a member of. It will be cleared",
+				"access_list", accessListName.String(), "bad_member_of_entry", parentListName)
+			dirty = true
+			continue
+		}
+		if err != nil {
 			return false, trace.Wrap(err)
 		}
 	}
@@ -223,26 +299,44 @@ func (r *statusReconciler) isAccessListStatusDirty(ctx context.Context, accessLi
 }
 
 // getBadOwnerListCnt returns a total number of all the owner access lists (of the provided access
-// list) which don't have the provided access list name in their status.owner_of.
+// list) which don't have the provided access list name in their status.(scoped_)owner_of.
 func (r *statusReconciler) getBadOwnerListCnt(ctx context.Context, accessList *accesslist.AccessList) (int, error) {
+	accessListName := accesslists.ScopeQualifiedName(accessList)
 	badOwnerListCnt := 0
 	for _, owner := range accessList.Spec.Owners {
-		if owner.MembershipKind != accesslist.MembershipKindList {
+		if !owner.IsMembershipKindList() {
 			continue
 		}
-		ownerList, err := r.AccessPoint.GetAccessList(ctx, owner.Name)
+		ownerName, err := accesslists.OwnerScopeQualifiedName(owner)
+		if err != nil {
+			r.Logger.WarnContext(ctx, "access_list has an owner with an unparseable name",
+				"originated_access_list", accessListName.String(), "owner_access_list", owner.Name)
+			continue
+		}
+		ownerList, err := r.AccessPoint.GetAccessListV2(ctx, accesslistv1.GetAccessListRequest_builder{
+			Scope: ownerName.Scope,
+			Name:  ownerName.Name,
+		}.Build())
 		if trace.IsNotFound(err) {
 			r.Logger.WarnContext(ctx,
 				"access_list has a non-existing owner. The access_list can have a non-existing owner set or the owner access_list could be deleted in the meantime.",
-				"originated_access_list", accessList.GetName(), "owner_access_list", owner.Name)
+				"originated_access_list", accessListName.String(), "owner_access_list", owner.Name)
 			continue
 		} else if err != nil {
 			return 0, trace.Wrap(err)
 		}
-		if !slices.Contains(ownerList.Status.OwnerOf, accessList.GetName()) {
-			r.Logger.WarnContext(ctx, "Found owner access_list with missing status.owner_of entry. It will be added",
-				"access_list", ownerList.GetName(), "missing_owner_of_entry", accessList.GetName())
-			badOwnerListCnt++
+		if accessList.GetScope() == "" {
+			if !slices.Contains(ownerList.Status.OwnerOf, accessListName.String()) {
+				r.Logger.WarnContext(ctx, "Found owner access_list with missing status.owner_of entry. It will be added",
+					"access_list", ownerName.String(), "missing_owner_of_entry", accessListName.String())
+				badOwnerListCnt++
+			}
+		} else {
+			if !slices.Contains(ownerList.Status.ScopedOwnerOf, accessListName.String()) {
+				r.Logger.WarnContext(ctx, "Found owner access_list with missing status.scoped_owner_of entry. It will be added",
+					"access_list", ownerName.String(), "missing_scoped_owner_of_entry", accessListName.String())
+				badOwnerListCnt++
+			}
 		}
 	}
 	return badOwnerListCnt, nil
@@ -251,9 +345,15 @@ func (r *statusReconciler) getBadOwnerListCnt(ctx context.Context, accessList *a
 // getBadMemberListCnt returns a total number of all the member access lists (of the provided
 // access list) which don't have the provided access list name in their status.member_of.
 func (r *statusReconciler) getBadMemberListCnt(ctx context.Context, accessList *accesslist.AccessList) (int, error) {
+	accessListName := accesslists.ScopeQualifiedName(accessList)
 	badMemberListCnt := 0
 	listMembersFn := func(ctx context.Context, pageSize int, pageToken string) ([]*accesslist.AccessListMember, string, error) {
-		members, pageToken, err := r.AccessPoint.ListAccessListMembers(ctx, accessList.GetName(), pageSize, pageToken)
+		members, pageToken, err := r.AccessPoint.ListAccessListMembersV2(ctx, accesslistv1.ListAccessListMembersRequest_builder{
+			AccessListScope: accessList.GetScope(),
+			AccessList:      accessList.GetName(),
+			PageSize:        int32(pageSize),
+			PageToken:       pageToken,
+		}.Build())
 		return members, pageToken, trace.Wrap(err)
 	}
 	for member, err := range clientutils.Resources(ctx, listMembersFn) {
@@ -261,22 +361,39 @@ func (r *statusReconciler) getBadMemberListCnt(ctx context.Context, accessList *
 			return 0, trace.Wrap(err)
 		}
 
-		if member.Spec.MembershipKind != accesslist.MembershipKindList {
+		if !member.IsList() {
 			continue
 		}
-		memberList, err := r.AccessPoint.GetAccessList(ctx, member.GetName())
+		memberName, err := accesslists.MemberScopeQualifiedName(member)
+		if err != nil {
+			r.Logger.WarnContext(ctx, "access_list has a member with an unparseable name",
+				"originated_access_list", accessListName.String(), "member_access_list", member.GetName())
+			continue
+		}
+		memberList, err := r.AccessPoint.GetAccessListV2(ctx, accesslistv1.GetAccessListRequest_builder{
+			Scope: memberName.Scope,
+			Name:  memberName.Name,
+		}.Build())
 		if trace.IsNotFound(err) {
 			r.Logger.WarnContext(ctx,
 				"access_list has a non-existing member. The originated access_list can have a non-existing member set or the member access_list could be deleted in the meantime.",
-				"originated_access_list", accessList.GetName(), "member_access_list", member.GetName())
+				"originated_access_list", accessListName.String(), "member_access_list", memberName.String())
 			continue
 		} else if err != nil {
 			return 0, trace.Wrap(err)
 		}
-		if !slices.Contains(memberList.Status.MemberOf, accessList.GetName()) {
-			r.Logger.WarnContext(ctx, "Found member access_list with missing status.member_of entry. It will be added",
-				"access_list", memberList.GetName(), "missing_member_of_entry", accessList.GetName())
-			badMemberListCnt++
+		if accessList.GetScope() == "" {
+			if !slices.Contains(memberList.Status.MemberOf, accessListName.String()) {
+				r.Logger.WarnContext(ctx, "Found member access_list with missing status.member_of entry. It will be added",
+					"access_list", memberName.String(), "missing_scoped_member_of_entry", accessListName.String())
+				badMemberListCnt++
+			}
+		} else {
+			if !slices.Contains(memberList.Status.ScopedMemberOf, accessListName.String()) {
+				r.Logger.WarnContext(ctx, "Found member access_list with missing status.scoped_member_of entry. It will be added",
+					"access_list", memberName.String(), "missing_scoped_member_of_entry", accessListName.String())
+				badMemberListCnt++
+			}
 		}
 	}
 	return badMemberListCnt, nil

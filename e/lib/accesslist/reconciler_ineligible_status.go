@@ -9,11 +9,13 @@ import (
 	"github.com/jonboulle/clockwork"
 
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/common"
 	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/accesslists"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/utils/batcher"
 	"github.com/gravitational/teleport/lib/utils/interval"
@@ -287,7 +289,15 @@ func (r *IneligibleStatusReconciler) reconciliationLoop(ctx context.Context) (ne
 }
 
 func getAllAccessLists(ctx context.Context, cache Cache) ([]*accesslist.AccessList, error) {
-	out, err := stream.Collect(clientutils.Resources(ctx, cache.ListAccessLists))
+	out, err := stream.Collect(clientutils.Resources(ctx, func(ctx context.Context, pageSize int, pageToken string) ([]*accesslist.AccessList, string, error) {
+		return cache.ListAccessListsV2(ctx, accesslistv1.ListAccessListsV2Request_builder{
+			PageSize:  int32(pageSize),
+			PageToken: pageToken,
+			ScopeFilter: scopesv1.Filter_builder{
+				Mode: scopesv1.Mode_MODE_ALL,
+			}.Build(),
+		}.Build())
+	}))
 	return out, trace.Wrap(err)
 }
 
@@ -297,12 +307,11 @@ func (r *IneligibleStatusReconciler) reconcileAccessListOwnership(ctx context.Co
 		var toUpdate bool
 		for i, owner := range accessList.Spec.Owners {
 			var ineligibleStatus accesslistv1.IneligibleStatus
-			switch owner.MembershipKind {
-			case accesslist.MembershipKindList:
+			if owner.IsMembershipKindList() {
 				// ownership requires are not checked for lists
 				// they are always eligible
 				ineligibleStatus = accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_ELIGIBLE
-			default:
+			} else {
 				ineligibleStatus = checkUserIsStillEligible(StillEligibleFields{
 					userLookup: usersMap,
 					username:   owner.Name,
@@ -339,27 +348,46 @@ func (r *IneligibleStatusReconciler) reconcileAccessListOwnership(ctx context.Co
 }
 
 func (r *IneligibleStatusReconciler) reconcileMemberships(ctx context.Context, now time.Time, accessLists []*accesslist.AccessList, usersMap map[string]types.User) (time.Duration, error) {
-	accessListsMap := sliceToMap(accessLists)
+	accessListsMap := make(map[accesslists.NormalizedSQN]*accesslist.AccessList, len(accessLists))
+	for _, acl := range accessLists {
+		accessListsMap[accesslists.ScopeQualifiedName(acl)] = acl
+	}
 
+	pageFn := func(ctx context.Context, pageSize int, pageToken string) ([]*accesslist.AccessListMember, string, error) {
+		return r.cache.ListAllAccessListMembersV2(ctx, accesslistv1.ListAllAccessListMembersRequest_builder{
+			PageSize:  int32(pageSize),
+			PageToken: pageToken,
+			ScopeFilter: scopesv1.Filter_builder{
+				Mode: scopesv1.Mode_MODE_ALL,
+			}.Build(),
+		}.Build())
+	}
 	nextExpiration := neverDuration
-	for member, err := range clientutils.Resources(ctx, r.cache.ListAllAccessListMembers) {
+	for member, err := range clientutils.Resources(ctx, pageFn) {
 		if err != nil {
 			return 0, trace.Wrap(err, "unable to get access list members")
 		}
 
-		accessList, ok := accessListsMap[member.Spec.AccessList]
+		parentListName, err := accesslists.ParentListOf(member)
+		if err != nil {
+			r.logger.WarnContext(ctx, "Failed to parse member.Spec.AccessList",
+				"error", err,
+				"access_list", member.Spec.AccessList,
+			)
+			continue
+		}
+		accessList, ok := accessListsMap[parentListName]
 		if !ok {
 			r.logger.WarnContext(ctx, "Access list not found", "access_list", member.Spec.AccessList)
 			continue
 		}
 
 		var ineligibleStatus accesslistv1.IneligibleStatus
-		switch member.Spec.MembershipKind {
-		case accesslist.MembershipKindList:
+		if member.IsList() {
 			// membership requires are not checked for lists
 			// they are always eligible
 			ineligibleStatus = accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_ELIGIBLE
-		default:
+		} else {
 			if _, ok := usersMap[member.Spec.Name]; ok {
 				ineligibleStatus = checkUserIsStillEligible(StillEligibleFields{
 					userLookup: usersMap,
@@ -416,7 +444,6 @@ func (r *IneligibleStatusReconciler) updateAccessList(ctx context.Context, a *ac
 	return trace.Wrap(err)
 }
 
-// StillEligibleFields holds the fields required to check if a user is still eligible.
 func sliceToMap[T interface{ GetName() string }](slice []T) map[string]T {
 	m := make(map[string]T, len(slice))
 	for _, item := range slice {

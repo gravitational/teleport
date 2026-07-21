@@ -4,28 +4,35 @@ import (
 	"context"
 	"log/slog"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/entitlements"
+	"github.com/gravitational/teleport/lib/accesslists"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 )
 
 func Test_statusReconciler_MemberOfOwnerOf(t *testing.T) {
 	t.Parallel()
+	synctest.Test(t, test_statusReconciler_MemberOfOwnerOf)
+}
+
+func test_statusReconciler_MemberOfOwnerOf(t *testing.T) {
 	ctx := t.Context()
 
-	clock := clockwork.NewFakeClock()
+	clock := clockwork.NewRealClock()
 	bk, err := memory.New(memory.Config{Clock: clock})
 	require.NoError(t, err)
 	storage, err := local.NewAccessListServiceV2(local.AccessListServiceConfig{
@@ -37,6 +44,9 @@ func Test_statusReconciler_MemberOfOwnerOf(t *testing.T) {
 			},
 		},
 		RunWhileLockedRetryInterval: -1 * time.Millisecond,
+		ScopesFeatures: scopes.Features{
+			Enabled: true,
+		},
 	})
 	require.NoError(t, err)
 
@@ -55,6 +65,16 @@ func Test_statusReconciler_MemberOfOwnerOf(t *testing.T) {
 	// a7 has status.owner_of referencing a non-existing list
 	a7 := newAccessList(t, "7", clock)
 
+	// a8 has status.scoped_member_of and status.scoped_owner_of set to unparseable scope-qualified names
+	a8Name := accesslists.NormalizedSQN{Name: "s8", Scope: "/test"}
+	a8 := newScopedAccessList(t, a8Name, clock)
+	// a9 is a member and an owner of a8, but doesn't have it set in status
+	a9Name := accesslists.NormalizedSQN{Name: "s9", Scope: "/test"}
+	a9 := newScopedAccessList(t, a9Name, clock)
+	// a10 is not a member and an owner of a8, but does have it set in status
+	a10Name := accesslists.NormalizedSQN{Name: "s10", Scope: "/test"}
+	a10 := newScopedAccessList(t, a10Name, clock)
+
 	a1m1 := newAccessListMember(t, a1.GetName(), a2.GetName(), accesslist.MembershipKindList, clock)
 	a1.SetOwners([]accesslist.Owner{
 		{
@@ -62,9 +82,15 @@ func Test_statusReconciler_MemberOfOwnerOf(t *testing.T) {
 			MembershipKind: accesslist.MembershipKindList,
 		},
 	})
-	require.NoError(t, upsertAccessList(t.Context(), storage, []*accesslist.AccessList{a7, a6, a5, a4, a3, a2, a1}, []*accesslist.AccessListMember{a1m1}))
+	a8m9 := newScopedAccessListMember(t, a8Name, a9Name, accesslist.MembershipKindScopedList, clock)
+	a8.SetOwners([]accesslist.Owner{{
+		Name:           a9Name.String(),
+		MembershipKind: accesslist.MembershipKindScopedList,
+	}})
+	require.NoError(t, upsertAccessList(t.Context(), storage, []*accesslist.AccessList{a10, a9, a8, a7, a6, a5, a4, a3, a2, a1}, []*accesslist.AccessListMember{a8m9, a1m1}))
 
 	const nonExistingList1, nonExistingList2 = "non_existing_list1", "non_existing_list2"
+	const badSQN = "bad scope::bad/name"
 
 	assertStatusMemberOf(t, ctx, storage, a2.GetName(), []string{a1.GetName()})
 	assertStatusOwnerOf(t, ctx, storage, a3.GetName(), []string{a1.GetName()})
@@ -75,6 +101,9 @@ func Test_statusReconciler_MemberOfOwnerOf(t *testing.T) {
 	setAccessListStatus(t, bk, storage, a5, accesslist.Status{OwnerOf: []string{a1.GetName()}})
 	setAccessListStatus(t, bk, storage, a6, accesslist.Status{MemberOf: []string{nonExistingList1}})
 	setAccessListStatus(t, bk, storage, a7, accesslist.Status{OwnerOf: []string{nonExistingList2}})
+	setAccessListStatus(t, bk, storage, a8, accesslist.Status{ScopedMemberOf: []string{badSQN}, ScopedOwnerOf: []string{badSQN}})
+	resetAccessListStatus(t, bk, storage, a9)
+	setAccessListStatus(t, bk, storage, a10, accesslist.Status{ScopedMemberOf: []string{a8Name.String()}, ScopedOwnerOf: []string{a8Name.String()}})
 
 	cfg := statusReconcilerConfig{
 		Logger:      slog.Default(),
@@ -90,19 +119,31 @@ func Test_statusReconciler_MemberOfOwnerOf(t *testing.T) {
 	assertStatusOwnerOf(t, ctx, storage, a5.GetName(), []string{a1.GetName()})
 	assertStatusMemberOf(t, ctx, storage, a6.GetName(), []string{nonExistingList1})
 	assertStatusOwnerOf(t, ctx, storage, a7.GetName(), []string{nonExistingList2})
+	assertStatusScopedMemberOf(t, ctx, storage, a8Name, []string{badSQN})
+	assertStatusScopedOwnerOf(t, ctx, storage, a8Name, []string{badSQN})
+	assertStatusScopedMemberOf(t, ctx, storage, a9Name, []string{})
+	assertStatusScopedOwnerOf(t, ctx, storage, a9Name, []string{})
+	assertStatusScopedMemberOf(t, ctx, storage, a10Name, []string{a8Name.String()})
+	assertStatusScopedOwnerOf(t, ctx, storage, a10Name, []string{a8Name.String()})
 
 	go r.Run(ctx)
-	clock.Advance(statusReconcilerStartupSeventhJitter)
 
-	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		clock.Advance(statusReconcilerStartupSeventhJitter)
-		assertStatusMemberOf(c, ctx, storage, a2.GetName(), []string{a1.GetName()})
-		assertStatusOwnerOf(c, ctx, storage, a3.GetName(), []string{a1.GetName()})
-		assertStatusMemberOf(c, ctx, storage, a4.GetName(), []string{})
-		assertStatusOwnerOf(c, ctx, storage, a5.GetName(), []string{})
-		assertStatusMemberOf(c, ctx, storage, a6.GetName(), []string{})
-		assertStatusOwnerOf(c, ctx, storage, a7.GetName(), []string{})
-	}, 10*time.Second, 100*time.Millisecond)
+	synctest.Wait()
+	time.Sleep(statusReconcilerStartupSeventhJitter)
+	synctest.Wait()
+
+	assertStatusMemberOf(t, ctx, storage, a2.GetName(), []string{a1.GetName()})
+	assertStatusOwnerOf(t, ctx, storage, a3.GetName(), []string{a1.GetName()})
+	assertStatusMemberOf(t, ctx, storage, a4.GetName(), []string{})
+	assertStatusOwnerOf(t, ctx, storage, a5.GetName(), []string{})
+	assertStatusMemberOf(t, ctx, storage, a6.GetName(), []string{})
+	assertStatusOwnerOf(t, ctx, storage, a7.GetName(), []string{})
+	assertStatusScopedMemberOf(t, ctx, storage, a8Name, []string{})
+	assertStatusScopedOwnerOf(t, ctx, storage, a8Name, []string{})
+	assertStatusScopedMemberOf(t, ctx, storage, a9Name, []string{a8Name.String()})
+	assertStatusScopedOwnerOf(t, ctx, storage, a9Name, []string{a8Name.String()})
+	assertStatusScopedMemberOf(t, ctx, storage, a10Name, []string{})
+	assertStatusScopedOwnerOf(t, ctx, storage, a10Name, []string{})
 }
 
 // Test statusReconcilerConfig.reconcile can survive the situation where the owner or member
@@ -187,22 +228,38 @@ func Test_statusReconciler_reconcile_missingOwnerAndMemberLists(t *testing.T) {
 	})
 }
 
-func assertStatusMemberOf(t require.TestingT, ctx context.Context, svc *local.AccessListService, name string, expected []string) {
-	if t, ok := t.(*testing.T); ok {
-		t.Helper()
-	}
+func assertStatusMemberOf(t *testing.T, ctx context.Context, svc *local.AccessListService, name string, expected []string) {
+	t.Helper()
 	item, err := svc.GetAccessList(ctx, name)
 	require.NoError(t, err)
 	require.ElementsMatch(t, expected, item.Status.MemberOf)
 }
 
-func assertStatusOwnerOf(t require.TestingT, ctx context.Context, svc *local.AccessListService, name string, expected []string) {
-	if t, ok := t.(*testing.T); ok {
-		t.Helper()
-	}
+func assertStatusOwnerOf(t *testing.T, ctx context.Context, svc *local.AccessListService, name string, expected []string) {
+	t.Helper()
 	item, err := svc.GetAccessList(ctx, name)
 	require.NoError(t, err)
 	require.ElementsMatch(t, expected, item.Status.OwnerOf)
+}
+
+func assertStatusScopedMemberOf(t *testing.T, ctx context.Context, svc *local.AccessListService, name accesslists.NormalizedSQN, expected []string) {
+	t.Helper()
+	item, err := svc.GetAccessListV2(ctx, accesslistv1.GetAccessListRequest_builder{
+		Scope: name.Scope,
+		Name:  name.Name,
+	}.Build())
+	require.NoError(t, err)
+	require.ElementsMatch(t, expected, item.Status.ScopedMemberOf)
+}
+
+func assertStatusScopedOwnerOf(t *testing.T, ctx context.Context, svc *local.AccessListService, name accesslists.NormalizedSQN, expected []string) {
+	t.Helper()
+	item, err := svc.GetAccessListV2(ctx, accesslistv1.GetAccessListRequest_builder{
+		Scope: name.Scope,
+		Name:  name.Name,
+	}.Build())
+	require.NoError(t, err)
+	require.ElementsMatch(t, expected, item.Status.ScopedOwnerOf)
 }
 
 func resetAccessListStatus(t *testing.T, bk *memory.Memory, storage *local.AccessListService, acl *accesslist.AccessList) {
@@ -211,7 +268,13 @@ func resetAccessListStatus(t *testing.T, bk *memory.Memory, storage *local.Acces
 
 func setAccessListStatus(t *testing.T, bk *memory.Memory, storage *local.AccessListService, acl *accesslist.AccessList, newStatus accesslist.Status) {
 	t.Helper()
-	i, err := bk.Get(t.Context(), backend.NewKey("access_list", acl.GetName()))
+	key := backend.NewKey("access_list", acl.GetName())
+	if acl.Scope != "" {
+		encodedScope, err := scopes.EncodeForKey(acl.Scope)
+		require.NoError(t, err)
+		key = backend.NewKey("scoped", "access_list", encodedScope, acl.GetName())
+	}
+	i, err := bk.Get(t.Context(), key)
 	require.NoError(t, err)
 	v, err := services.UnmarshalAccessList(i.Value)
 	require.NoError(t, err)
@@ -221,7 +284,10 @@ func setAccessListStatus(t *testing.T, bk *memory.Memory, storage *local.AccessL
 	i.Value = buff
 	_, err = bk.Update(t.Context(), *i)
 	require.NoError(t, err)
-	v, err = storage.GetAccessList(t.Context(), acl.GetName())
+	v, err = storage.GetAccessListV2(t.Context(), accesslistv1.GetAccessListRequest_builder{
+		Scope: acl.Scope,
+		Name:  acl.GetName(),
+	}.Build())
 	require.NoError(t, err)
 	require.Equal(t, newStatus, v.Status)
 }

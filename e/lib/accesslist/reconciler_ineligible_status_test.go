@@ -8,9 +8,11 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
+	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/common"
+	"github.com/gravitational/teleport/lib/accesslists"
 )
 
 func TestNewIneligibleStatusReconciler(t *testing.T) {
@@ -40,11 +42,16 @@ func TestNewIneligibleStatusReconciler(t *testing.T) {
 		a3m2 := newAccessListMember(t, a3.GetName(), member2, accesslist.MembershipKindUser, c.clock, withOriginLabel(common.OriginAWSIdentityCenter), withExpire(memberExpires))
 		externalMemberWithIdentityCenterOrigin := newAccessListMember(t, a3.GetName(), externalMember1, accesslist.MembershipKindUser, c.clock, withOriginLabel(common.OriginAWSIdentityCenter), withExpire(memberExpires))
 
+		listAllAccessListMembers := func() ([]*accesslist.AccessListMember, error) {
+			members, _, err := c.testEnv.accessLists.ListAllAccessListMembersV2(c.userCtx, accesslistv1.ListAllAccessListMembersRequest_builder{}.Build())
+			return members, err
+		}
+
 		createAccessListsAndMembers(t, c.userCtx, c.svc, c.emitter, nil,
 			[]*accesslist.AccessList{a1, a2, a3, a4}, []*accesslist.AccessListMember{a1m1, a1m2, a1m3, a2m1, a3m1, a3m2, externalMemberWithIdentityCenterOrigin})
 
 		waitForBatchWindow()
-		members, _, err := c.testEnv.accessLists.ListAllAccessListMembers(c.userCtx, 100, "")
+		members, err := listAllAccessListMembers()
 		require.NoError(t, err)
 		for _, member := range members {
 			require.Equal(t, "INELIGIBLE_STATUS_ELIGIBLE", member.Spec.IneligibleStatus)
@@ -56,7 +63,7 @@ func TestNewIneligibleStatusReconciler(t *testing.T) {
 			[]*accesslist.AccessList{}, []*accesslist.AccessListMember{externalMemberWithoutOrigin})
 
 		waitForBatchWindow()
-		members, _, err = c.testEnv.accessLists.ListAllAccessListMembers(c.userCtx, 100, "")
+		members, err = listAllAccessListMembers()
 		require.NoError(t, err)
 		for _, member := range members {
 			switch member.Spec.Name {
@@ -77,7 +84,7 @@ func TestNewIneligibleStatusReconciler(t *testing.T) {
 
 		waitForBatchWindow()
 		// Check that the access list member is now ineligible.
-		members, _, err = c.testEnv.accessLists.ListAllAccessListMembers(c.userCtx, 100, "")
+		members, err = listAllAccessListMembers()
 		require.NoError(t, err)
 		for _, member := range members {
 			switch member.GetName() {
@@ -96,7 +103,7 @@ func TestNewIneligibleStatusReconciler(t *testing.T) {
 		require.NoError(t, err)
 
 		waitForBatchWindow()
-		members, _, err = c.testEnv.accessLists.ListAllAccessListMembers(c.userCtx, 100, "")
+		members, err = listAllAccessListMembers()
 		require.NoError(t, err)
 		for _, member := range members {
 			require.Equal(t, "INELIGIBLE_STATUS_ELIGIBLE", member.Spec.IneligibleStatus)
@@ -110,7 +117,7 @@ func TestNewIneligibleStatusReconciler(t *testing.T) {
 
 		waitForBatchWindow()
 		// Check that the access list member is now ineligible.
-		members, _, err = c.testEnv.accessLists.ListAllAccessListMembers(c.userCtx, 100, "")
+		members, err = listAllAccessListMembers()
 		require.NoError(t, err)
 		for _, member := range members {
 			switch member.Spec.AccessList {
@@ -138,7 +145,7 @@ func TestNewIneligibleStatusReconciler(t *testing.T) {
 
 		time.Sleep(expireMemberAfter + time.Nanosecond)
 		synctest.Wait()
-		members, _, err = c.testEnv.accessLists.ListAllAccessListMembers(c.userCtx, 100, "")
+		members, err = listAllAccessListMembers()
 		require.NoError(t, err)
 		for _, member := range members {
 			switch member.Spec.Name {
@@ -148,6 +155,51 @@ func TestNewIneligibleStatusReconciler(t *testing.T) {
 				require.Equal(t, "INELIGIBLE_STATUS_EXPIRED", member.Spec.IneligibleStatus)
 			}
 		}
+	})
+}
+
+// TestIneligibleStatusReconcilerScopedListMember asserts that a member of a
+// scoped access list gets marked ineligible after the member resource expires.
+// Because scoped access list's can't contain membership requirements,
+// expiration is the only way for a member of a scoped list to become
+// ineligible.
+func TestIneligibleStatusReconcilerScopedListMember(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		clock := clockwork.NewRealClock()
+		c := initSvc(t, withClock(clock))
+
+		listName := accesslists.NormalizedSQN{
+			Scope: "/test",
+			Name:  "list",
+		}
+		list := newScopedAccessList(t, listName, clock)
+
+		expireMemberAfter := 24 * time.Hour
+		memberExpires := c.clock.Now().Add(expireMemberAfter)
+		member := newScopedAccessListMember(t, listName, accesslists.NormalizedSQN{Name: testUser}, accesslist.MembershipKindUser, clock, withExpire(memberExpires))
+
+		createAccessListsAndMembers(t, c.userCtx, c.svc, c.emitter, nil,
+			[]*accesslist.AccessList{list}, []*accesslist.AccessListMember{member})
+		synctest.Wait()
+
+		getMember := func() *accesslist.AccessListMember {
+			member, err := c.testEnv.accessLists.GetAccessListMemberV2(c.userCtx, accesslistv1.GetAccessListMemberRequest_builder{
+				AccessListScope: listName.Scope,
+				AccessList:      listName.Name,
+				MemberName:      testUser,
+			}.Build())
+			require.NoError(t, err)
+			return member
+		}
+
+		time.Sleep(batchWindow)
+		synctest.Wait()
+		require.Equal(t, "INELIGIBLE_STATUS_ELIGIBLE", getMember().Spec.IneligibleStatus)
+
+		time.Sleep(expireMemberAfter + time.Nanosecond)
+		synctest.Wait()
+		require.Equal(t, "INELIGIBLE_STATUS_EXPIRED", getMember().Spec.IneligibleStatus)
 	})
 }
 

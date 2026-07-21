@@ -3037,6 +3037,7 @@ func (s *Service) checkMembersModificationAllowed(ctx context.Context, authCtx *
 	return nil
 }
 
+// StillEligibleFields holds the fields required to check if a user is still eligible.
 type StillEligibleFields struct {
 	userLookup map[string]types.User
 	requires   accesslist.Requires
