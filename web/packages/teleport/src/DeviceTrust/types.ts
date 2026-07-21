@@ -17,6 +17,7 @@
  */
 
 import { PagerPosition } from 'design/DataTable/types';
+import { OSType } from 'gen-proto-ts/teleport/devicetrust/v1/os_type_pb';
 
 export type TrustedDevice = {
   id: string;
@@ -56,36 +57,21 @@ export type DeviceSource = {
  */
 export type TrustedDeviceOSType = TrustedDevice['osType'];
 
-/**
- * OsType mirrors the teleport.devicetrust.v1.OSType proto enum.
- *
- * The numeric values are what raw events carry over the wire (e.g. device audit events), as opposed
- * to the resolved TrustedDevice['osType'] labels used elsewhere.
- */
-export enum OsType {
-  Unspecified = 0,
-  Linux = 1,
-  MacOS = 2,
-  Windows = 3,
-  IOS = 4,
-  IPadOS = 5,
-}
-
 export function osTypeLabel(
-  osType: OsType
+  osType: OSType
 ): TrustedDevice['osType'] | undefined {
   switch (osType) {
-    case OsType.Linux:
+    case OSType.OS_TYPE_LINUX:
       return 'Linux';
-    case OsType.MacOS:
+    case OSType.OS_TYPE_MACOS:
       return 'macOS';
-    case OsType.Windows:
+    case OSType.OS_TYPE_WINDOWS:
       return 'Windows';
-    case OsType.IOS:
+    case OSType.OS_TYPE_IOS:
       return 'iOS';
-    case OsType.IPadOS:
+    case OSType.OS_TYPE_IPADOS:
       return 'iPadOS';
-    case OsType.Unspecified:
+    case OSType.OS_TYPE_UNSPECIFIED:
       return undefined;
     default:
       osType satisfies never;
