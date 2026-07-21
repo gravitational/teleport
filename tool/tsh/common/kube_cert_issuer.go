@@ -130,10 +130,11 @@ func (issuer *kubeCertIssuer) issueCerts(ctx context.Context, cc kubeCertClient,
 		if err := issueAndAdd(ctx, mfaOn[0]); err != nil {
 			return nil, trace.Wrap(err)
 		}
+		mfaOn = mfaOn[1:]
 		if issuer.fallbackActive() {
 			// Older auth server: every MFA-gated issuance prompts, so keep
 			// them serial to prompt one at a time, as before.
-			for _, cluster := range mfaOn[1:] {
+			for _, cluster := range mfaOn {
 				if err := issueAndAdd(ctx, cluster); err != nil {
 					return nil, trace.Wrap(err)
 				}
@@ -143,7 +144,7 @@ func (issuer *kubeCertIssuer) issueCerts(ctx context.Context, cc kubeCertClient,
 			// write the key store, so they are safe to run concurrently.
 			g, gctx := errgroup.WithContext(ctx)
 			g.SetLimit(kubeCertIssueConcurrency())
-			for _, cluster := range mfaOn[1:] {
+			for _, cluster := range mfaOn {
 				g.Go(func() error {
 					return trace.Wrap(issueAndAdd(gctx, cluster))
 				})
