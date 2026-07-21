@@ -114,6 +114,7 @@ export const paths = {
   dbLeaf: '/clusters/:rootClusterId/leaves/:leafClusterId/dbs/:dbId',
   appRoot: '/clusters/:rootClusterId/apps/:appId',
   appLeaf: '/clusters/:rootClusterId/leaves/:leafClusterId/apps/:appId',
+  appScoped: '/clusters/:rootClusterId/apps/:appId/scope/:appScope',
   windowsDesktopRoot:
     '/clusters/:rootClusterId/windows_desktops/:windowsDesktopId',
   windowsDesktopLeaf:
@@ -181,7 +182,8 @@ export const routing = {
   parseAppUri(uri: string) {
     return (
       routing.parseUri(uri, paths.appLeaf) ||
-      routing.parseUri(uri, paths.appRoot)
+      routing.parseUri(uri, paths.appRoot) ||
+      routing.parseUri(uri, paths.appScoped)
     );
   },
 
