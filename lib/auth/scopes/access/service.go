@@ -187,9 +187,10 @@ func (s *Server) DeleteScopedRole(ctx context.Context, req *scopedaccessv1.Delet
 	}
 
 	// load the role so we can determine the resource scope.
-	grsp, err := s.cfg.BackendReader.GetScopedRole(ctx, &scopedaccessv1.GetScopedRoleRequest{
-		Name: req.GetName(),
-	})
+	grsp, err := s.cfg.BackendReader.GetScopedRole(ctx, scopedaccessv1.GetScopedRoleRequest_builder{
+		Name:  req.GetName(),
+		Scope: req.GetScope(),
+	}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -244,6 +245,7 @@ func (s *Server) DeleteScopedRoleAssignment(ctx context.Context, req *scopedacce
 	grsp, err := s.cfg.BackendReader.GetScopedRoleAssignment(ctx, &scopedaccessv1.GetScopedRoleAssignmentRequest{
 		Name:    req.GetName(),
 		SubKind: req.GetSubKind(),
+		Scope:   req.GetScope(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

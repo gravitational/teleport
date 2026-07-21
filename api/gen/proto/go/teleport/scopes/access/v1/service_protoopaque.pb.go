@@ -39,10 +39,11 @@ const (
 
 // GetScopedRoleRequest is the request to get a scoped role.
 type GetScopedRoleRequest struct {
-	state           protoimpl.MessageState `protogen:"opaque.v1"`
-	xxx_hidden_Name string                 `protobuf:"bytes,1,opt,name=name,proto3"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	state            protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_Name  string                 `protobuf:"bytes,1,opt,name=name,proto3"`
+	xxx_hidden_Scope string                 `protobuf:"bytes,2,opt,name=scope,proto3"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *GetScopedRoleRequest) Reset() {
@@ -77,8 +78,19 @@ func (x *GetScopedRoleRequest) GetName() string {
 	return ""
 }
 
+func (x *GetScopedRoleRequest) GetScope() string {
+	if x != nil {
+		return x.xxx_hidden_Scope
+	}
+	return ""
+}
+
 func (x *GetScopedRoleRequest) SetName(v string) {
 	x.xxx_hidden_Name = v
+}
+
+func (x *GetScopedRoleRequest) SetScope(v string) {
+	x.xxx_hidden_Scope = v
 }
 
 type GetScopedRoleRequest_builder struct {
@@ -86,6 +98,8 @@ type GetScopedRoleRequest_builder struct {
 
 	// Name is the name of the scoped role.
 	Name string
+	// Scope is the resource scope of the scoped role (required).
+	Scope string
 }
 
 func (b0 GetScopedRoleRequest_builder) Build() *GetScopedRoleRequest {
@@ -93,6 +107,7 @@ func (b0 GetScopedRoleRequest_builder) Build() *GetScopedRoleRequest {
 	b, x := &b0, m0
 	_, _ = b, x
 	x.xxx_hidden_Name = b.Name
+	x.xxx_hidden_Scope = b.Scope
 	return m0
 }
 
@@ -818,6 +833,7 @@ type DeleteScopedRoleRequest struct {
 	state               protoimpl.MessageState `protogen:"opaque.v1"`
 	xxx_hidden_Name     string                 `protobuf:"bytes,1,opt,name=name,proto3"`
 	xxx_hidden_Revision string                 `protobuf:"bytes,2,opt,name=revision,proto3"`
+	xxx_hidden_Scope    string                 `protobuf:"bytes,3,opt,name=scope,proto3"`
 	unknownFields       protoimpl.UnknownFields
 	sizeCache           protoimpl.SizeCache
 }
@@ -861,12 +877,23 @@ func (x *DeleteScopedRoleRequest) GetRevision() string {
 	return ""
 }
 
+func (x *DeleteScopedRoleRequest) GetScope() string {
+	if x != nil {
+		return x.xxx_hidden_Scope
+	}
+	return ""
+}
+
 func (x *DeleteScopedRoleRequest) SetName(v string) {
 	x.xxx_hidden_Name = v
 }
 
 func (x *DeleteScopedRoleRequest) SetRevision(v string) {
 	x.xxx_hidden_Revision = v
+}
+
+func (x *DeleteScopedRoleRequest) SetScope(v string) {
+	x.xxx_hidden_Scope = v
 }
 
 type DeleteScopedRoleRequest_builder struct {
@@ -876,6 +903,8 @@ type DeleteScopedRoleRequest_builder struct {
 	Name string
 	// Revision asserts the revision of the scoped role to delete (optional).
 	Revision string
+	// Scope is the resource scope of the scoped role to delete (required).
+	Scope string
 }
 
 func (b0 DeleteScopedRoleRequest_builder) Build() *DeleteScopedRoleRequest {
@@ -884,6 +913,7 @@ func (b0 DeleteScopedRoleRequest_builder) Build() *DeleteScopedRoleRequest {
 	_, _ = b, x
 	x.xxx_hidden_Name = b.Name
 	x.xxx_hidden_Revision = b.Revision
+	x.xxx_hidden_Scope = b.Scope
 	return m0
 }
 
@@ -936,6 +966,7 @@ type GetScopedRoleAssignmentRequest struct {
 	state              protoimpl.MessageState `protogen:"opaque.v1"`
 	xxx_hidden_Name    string                 `protobuf:"bytes,1,opt,name=name,proto3"`
 	xxx_hidden_SubKind string                 `protobuf:"bytes,2,opt,name=sub_kind,json=subKind,proto3"`
+	xxx_hidden_Scope   string                 `protobuf:"bytes,3,opt,name=scope,proto3"`
 	unknownFields      protoimpl.UnknownFields
 	sizeCache          protoimpl.SizeCache
 }
@@ -979,12 +1010,23 @@ func (x *GetScopedRoleAssignmentRequest) GetSubKind() string {
 	return ""
 }
 
+func (x *GetScopedRoleAssignmentRequest) GetScope() string {
+	if x != nil {
+		return x.xxx_hidden_Scope
+	}
+	return ""
+}
+
 func (x *GetScopedRoleAssignmentRequest) SetName(v string) {
 	x.xxx_hidden_Name = v
 }
 
 func (x *GetScopedRoleAssignmentRequest) SetSubKind(v string) {
 	x.xxx_hidden_SubKind = v
+}
+
+func (x *GetScopedRoleAssignmentRequest) SetScope(v string) {
+	x.xxx_hidden_Scope = v
 }
 
 type GetScopedRoleAssignmentRequest_builder struct {
@@ -994,6 +1036,8 @@ type GetScopedRoleAssignmentRequest_builder struct {
 	Name string
 	// SubKind is the sub kind of the scoped role assignment.
 	SubKind string
+	// Scope is the resource scope of the scoped role assignment (required).
+	Scope string
 }
 
 func (b0 GetScopedRoleAssignmentRequest_builder) Build() *GetScopedRoleAssignmentRequest {
@@ -1002,6 +1046,7 @@ func (b0 GetScopedRoleAssignmentRequest_builder) Build() *GetScopedRoleAssignmen
 	_, _ = b, x
 	x.xxx_hidden_Name = b.Name
 	x.xxx_hidden_SubKind = b.SubKind
+	x.xxx_hidden_Scope = b.Scope
 	return m0
 }
 
@@ -1756,6 +1801,7 @@ type DeleteScopedRoleAssignmentRequest struct {
 	xxx_hidden_Name     string                 `protobuf:"bytes,1,opt,name=name,proto3"`
 	xxx_hidden_Revision string                 `protobuf:"bytes,2,opt,name=revision,proto3"`
 	xxx_hidden_SubKind  string                 `protobuf:"bytes,3,opt,name=sub_kind,json=subKind,proto3"`
+	xxx_hidden_Scope    string                 `protobuf:"bytes,4,opt,name=scope,proto3"`
 	unknownFields       protoimpl.UnknownFields
 	sizeCache           protoimpl.SizeCache
 }
@@ -1806,6 +1852,13 @@ func (x *DeleteScopedRoleAssignmentRequest) GetSubKind() string {
 	return ""
 }
 
+func (x *DeleteScopedRoleAssignmentRequest) GetScope() string {
+	if x != nil {
+		return x.xxx_hidden_Scope
+	}
+	return ""
+}
+
 func (x *DeleteScopedRoleAssignmentRequest) SetName(v string) {
 	x.xxx_hidden_Name = v
 }
@@ -1818,6 +1871,10 @@ func (x *DeleteScopedRoleAssignmentRequest) SetSubKind(v string) {
 	x.xxx_hidden_SubKind = v
 }
 
+func (x *DeleteScopedRoleAssignmentRequest) SetScope(v string) {
+	x.xxx_hidden_Scope = v
+}
+
 type DeleteScopedRoleAssignmentRequest_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
@@ -1827,6 +1884,8 @@ type DeleteScopedRoleAssignmentRequest_builder struct {
 	Revision string
 	// SubKind is the sub kind of the scoped role assignment.
 	SubKind string
+	// Scope is the resource scope of the scoped role assignment to delete (required).
+	Scope string
 }
 
 func (b0 DeleteScopedRoleAssignmentRequest_builder) Build() *DeleteScopedRoleAssignmentRequest {
@@ -1836,6 +1895,7 @@ func (b0 DeleteScopedRoleAssignmentRequest_builder) Build() *DeleteScopedRoleAss
 	x.xxx_hidden_Name = b.Name
 	x.xxx_hidden_Revision = b.Revision
 	x.xxx_hidden_SubKind = b.SubKind
+	x.xxx_hidden_Scope = b.Scope
 	return m0
 }
 
@@ -1887,9 +1947,10 @@ var File_teleport_scopes_access_v1_service_proto protoreflect.FileDescriptor
 
 const file_teleport_scopes_access_v1_service_proto_rawDesc = "" +
 	"\n" +
-	"'teleport/scopes/access/v1/service.proto\x12\x19teleport.scopes.access.v1\x1a*teleport/scopes/access/v1/assignment.proto\x1a$teleport/scopes/access/v1/role.proto\x1a\x1fteleport/scopes/v1/scopes.proto\"*\n" +
+	"'teleport/scopes/access/v1/service.proto\x12\x19teleport.scopes.access.v1\x1a*teleport/scopes/access/v1/assignment.proto\x1a$teleport/scopes/access/v1/role.proto\x1a\x1fteleport/scopes/v1/scopes.proto\"@\n" +
 	"\x14GetScopedRoleRequest\x12\x12\n" +
-	"\x04name\x18\x01 \x01(\tR\x04name\"R\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x14\n" +
+	"\x05scope\x18\x02 \x01(\tR\x05scope\"R\n" +
 	"\x15GetScopedRoleResponse\x129\n" +
 	"\x04role\x18\x01 \x01(\v2%.teleport.scopes.access.v1.ScopedRoleR\x04role\"\x93\x02\n" +
 	"\x16ListScopedRolesRequest\x12\x1b\n" +
@@ -1914,14 +1975,16 @@ const file_teleport_scopes_access_v1_service_proto_rawDesc = "" +
 	"\x17UpsertScopedRoleRequest\x129\n" +
 	"\x04role\x18\x01 \x01(\v2%.teleport.scopes.access.v1.ScopedRoleR\x04role\"U\n" +
 	"\x18UpsertScopedRoleResponse\x129\n" +
-	"\x04role\x18\x01 \x01(\v2%.teleport.scopes.access.v1.ScopedRoleR\x04role\"I\n" +
+	"\x04role\x18\x01 \x01(\v2%.teleport.scopes.access.v1.ScopedRoleR\x04role\"_\n" +
 	"\x17DeleteScopedRoleRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x1a\n" +
-	"\brevision\x18\x02 \x01(\tR\brevision\"\x1a\n" +
-	"\x18DeleteScopedRoleResponse\"O\n" +
+	"\brevision\x18\x02 \x01(\tR\brevision\x12\x14\n" +
+	"\x05scope\x18\x03 \x01(\tR\x05scope\"\x1a\n" +
+	"\x18DeleteScopedRoleResponse\"e\n" +
 	"\x1eGetScopedRoleAssignmentRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x19\n" +
-	"\bsub_kind\x18\x02 \x01(\tR\asubKind\"r\n" +
+	"\bsub_kind\x18\x02 \x01(\tR\asubKind\x12\x14\n" +
+	"\x05scope\x18\x03 \x01(\tR\x05scope\"r\n" +
 	"\x1fGetScopedRoleAssignmentResponse\x12O\n" +
 	"\n" +
 	"assignment\x18\x01 \x01(\v2/.teleport.scopes.access.v1.ScopedRoleAssignmentR\n" +
@@ -1961,11 +2024,12 @@ const file_teleport_scopes_access_v1_service_proto_rawDesc = "" +
 	"\"UpsertScopedRoleAssignmentResponse\x12O\n" +
 	"\n" +
 	"assignment\x18\x01 \x01(\v2/.teleport.scopes.access.v1.ScopedRoleAssignmentR\n" +
-	"assignment\"n\n" +
+	"assignment\"\x84\x01\n" +
 	"!DeleteScopedRoleAssignmentRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x1a\n" +
 	"\brevision\x18\x02 \x01(\tR\brevision\x12\x19\n" +
-	"\bsub_kind\x18\x03 \x01(\tR\asubKind\"$\n" +
+	"\bsub_kind\x18\x03 \x01(\tR\asubKind\x12\x14\n" +
+	"\x05scope\x18\x04 \x01(\tR\x05scope\"$\n" +
 	"\"DeleteScopedRoleAssignmentResponse2\x93\r\n" +
 	"\x13ScopedAccessService\x12r\n" +
 	"\rGetScopedRole\x12/.teleport.scopes.access.v1.GetScopedRoleRequest\x1a0.teleport.scopes.access.v1.GetScopedRoleResponse\x12x\n" +

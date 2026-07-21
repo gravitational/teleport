@@ -43,10 +43,10 @@ type ErrorResult struct {
 func (e ErrorResult) Error() string {
 	sb := strings.Builder{}
 	if len(e.ErrorMessages) > 0 {
-		sb.WriteString(fmt.Sprintf("error messages: %s ", strings.Join(e.ErrorMessages, ";")))
+		fmt.Fprintf(&sb, "error messages: %s ", strings.Join(e.ErrorMessages, ";"))
 	}
 	if details := e.Details.String(); details != "" {
-		sb.WriteString(fmt.Sprintf("error details: %s", details))
+		fmt.Fprintf(&sb, "error details: %s", details)
 	}
 	result := sb.String()
 	if result == "" {
