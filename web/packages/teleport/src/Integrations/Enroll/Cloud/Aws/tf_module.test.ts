@@ -236,4 +236,38 @@ describe('buildTerraformConfig', () => {
       'regions = ["eu-west-1", "us-east-1", "us-west-2"]'
     );
   });
+
+  describe('organization scope', () => {
+    test('disabled', () => {
+      const result = buildTerraformConfig(baseConfig);
+
+      expect(result).not.toContain('aws_organization_discovery');
+      expect(result).not.toContain('aws_child_account_iam_role_template');
+    });
+
+    test('enabled, includes wildcard by default', () => {
+      const result = buildTerraformConfig({
+        ...baseConfig,
+        orgUnits: { include: [], exclude: [] },
+      });
+
+      expect(result).toContain('include = ["*"]');
+      expect(result).not.toContain('exclude');
+      expect(result).toContain('output "aws_child_account_iam_role_template"');
+    });
+
+    test('with values', () => {
+      const result = buildTerraformConfig({
+        ...baseConfig,
+        orgUnits: { include: ['ou-1', 'ou-2'], exclude: ['ou-3'] },
+      });
+
+      expect(result).toContain('aws_organization_discovery');
+      expect(result).toContain('include = ["ou-1", "ou-2"]');
+      expect(result).toContain('exclude = ["ou-3"]');
+      expect(result).toContain(
+        'module.aws_discovery.aws_child_account_iam_role_template'
+      );
+    });
+  });
 });
