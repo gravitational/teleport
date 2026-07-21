@@ -184,6 +184,12 @@ func (c *Client) DeleteAccessList(ctx context.Context, name string) error {
 	return trace.Wrap(err)
 }
 
+// DeleteAccessList removes the specified access list resource.
+func (c *Client) DeleteAccessListV2(ctx context.Context, req *accesslistv1.DeleteAccessListRequest) error {
+	_, err := c.grpcClient.DeleteAccessList(ctx, req)
+	return trace.Wrap(err)
+}
+
 // CountAccessListMembers will count all access list members.
 func (c *Client) CountAccessListMembers(ctx context.Context, accessListName string) (users uint32, lists uint32, err error) {
 	return c.CountAccessListMembersV2(ctx, &accesslistv1.CountAccessListMembersRequest{
@@ -373,11 +379,23 @@ func (c *Client) DeleteAccessListMember(ctx context.Context, accessList, memberN
 	return trace.Wrap(err)
 }
 
+// DeleteAccessListMemberV2 hard deletes the specified access list member resource.
+func (c *Client) DeleteAccessListMemberV2(ctx context.Context, req *accesslistv1.DeleteAccessListMemberRequest) error {
+	_, err := c.grpcClient.DeleteAccessListMember(ctx, req)
+	return trace.Wrap(err)
+}
+
 // DeleteAllAccessListMembersForAccessList hard deletes all access list members for an access list.
 func (c *Client) DeleteAllAccessListMembersForAccessList(ctx context.Context, accessList string) error {
 	_, err := c.grpcClient.DeleteAllAccessListMembersForAccessList(ctx, &accesslistv1.DeleteAllAccessListMembersForAccessListRequest{
 		AccessList: accessList,
 	})
+	return trace.Wrap(err)
+}
+
+// DeleteAllAccessListMembersForAccessListV2 hard deletes all access list members for an access list.
+func (c *Client) DeleteAllAccessListMembersForAccessListV2(ctx context.Context, req *accesslistv1.DeleteAllAccessListMembersForAccessListRequest) error {
+	_, err := c.grpcClient.DeleteAllAccessListMembersForAccessList(ctx, req)
 	return trace.Wrap(err)
 }
 
@@ -490,6 +508,12 @@ func (c *Client) DeleteAccessListReview(ctx context.Context, accessListName, rev
 		AccessListName: accessListName,
 		ReviewName:     reviewName,
 	})
+	return trace.Wrap(err)
+}
+
+// DeleteAccessListReviewV2 will delete an access list review from the backend.
+func (c *Client) DeleteAccessListReviewV2(ctx context.Context, req *accesslistv1.DeleteAccessListReviewRequest) error {
+	_, err := c.grpcClient.DeleteAccessListReview(ctx, req)
 	return trace.Wrap(err)
 }
 
