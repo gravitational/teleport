@@ -26,10 +26,7 @@ package decoder
 // The system libraries below are based on:
 //   cargo rustc --release --target x86_64-unknown-linux-gnu -p rdp-decoder \
 //     --crate-type staticlib -- --print native-static-libs
-// -static-libgcc statically links the unwinder that catch_unwind needs, and -Wl,-Bstatic -lm
-// statically links libm (float math for the RemoteFX decode path), keeping libgcc_s.so and
-// libm.so off tsh's runtime dependencies.
-#cgo linux LDFLAGS: -lrdp_decoder -static-libgcc -lutil -lrt -lpthread -Wl,-Bstatic -lm -Wl,-Bdynamic -ldl -lc
+#cgo linux LDFLAGS: -lrdp_decoder -static-libgcc -lutil -lrt -lpthread -lm -ldl -lc
 
 #cgo darwin,amd64 LDFLAGS: -L${SRCDIR}/../../../../../target/x86_64-apple-darwin/release
 #cgo darwin,arm64 LDFLAGS: -L${SRCDIR}/../../../../../target/aarch64-apple-darwin/release
