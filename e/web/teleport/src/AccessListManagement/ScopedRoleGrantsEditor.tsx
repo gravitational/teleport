@@ -44,7 +44,7 @@ export function ScopedRoleGrantsEditor({
     }
     setKnownScopedRoles(prev => ({
       ...prev,
-      ...Object.fromEntries(roles.map(role => [role.name, role])),
+      ...Object.fromEntries(roles.map(role => [qualifiedName(role), role])),
     }));
   }, []);
 
@@ -224,10 +224,14 @@ const Fieldset = styled.fieldset`
   padding: 0;
 `;
 
+function qualifiedName(role: ScopedRoleListItem): string {
+  return `${role.scope}::${role.name}`;
+}
+
 function toOptions(roles: ScopedRoleListItem[]): Option[] {
   return roles.map(role => ({
-    value: role.name,
-    label: role.name,
+    value: qualifiedName(role),
+    label: qualifiedName(role),
   }));
 }
 

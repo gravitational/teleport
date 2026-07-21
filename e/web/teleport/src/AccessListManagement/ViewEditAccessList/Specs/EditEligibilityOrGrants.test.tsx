@@ -69,7 +69,7 @@ test('saves edited scoped roles for member grants', async () => {
   await act(async () => {
     await selectEvent.select(
       screen.getByLabelText('Scoped Role Name'),
-      'team-admin'
+      '/::team-admin'
     );
   });
   const scopeInput = screen.getByLabelText('Assigned Scope');
@@ -92,7 +92,7 @@ test('saves edited scoped roles for member grants', async () => {
           grants: {
             roles: [],
             traits: {},
-            scopedRoles: [{ role: 'team-admin', scope: '/dev/api' }],
+            scopedRoles: [{ role: '/::team-admin', scope: '/dev/api' }],
           },
         }),
       })
@@ -127,7 +127,7 @@ test('keeps scope input focused while typing', async () => {
   await act(async () => {
     await selectEvent.select(
       screen.getByLabelText('Scoped Role Name'),
-      'team-admin'
+      '/::team-admin'
     );
   });
 

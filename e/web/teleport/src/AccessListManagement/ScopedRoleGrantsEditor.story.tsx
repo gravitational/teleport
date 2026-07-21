@@ -69,7 +69,7 @@ export const ExistingGrant: StoryObj = {
   render() {
     return (
       <EditorStory
-        initialGrants={[{ role: 'team-admin', scope: '/dev/platform' }]}
+        initialGrants={[{ role: '/::team-admin', scope: '/dev/platform' }]}
       />
     );
   },
@@ -84,7 +84,7 @@ export const ValidationError: StoryObj = {
   render() {
     return (
       <EditorStory
-        initialGrants={[{ role: 'support', scope: '/dev/platform' }]}
+        initialGrants={[{ role: '/::support', scope: '/dev/platform' }]}
       />
     );
   },
