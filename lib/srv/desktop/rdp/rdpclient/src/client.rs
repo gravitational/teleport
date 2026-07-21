@@ -16,11 +16,13 @@
 
 pub mod global;
 
+use crate::egfx::{DvcHandler, EGFX_CHANNEL_NAME, PassthroughDVC};
 use crate::rdpdr::tdp;
 use crate::{
-    cgo_handle_fastpath_pdu, cgo_handle_rdp_connection_activated, cgo_handle_remote_copy, ssl,
+    cgo_handle_fastpath_pdu, cgo_handle_rdp_connection_activated, cgo_handle_remote_copy,
+    cgo_handle_dvc_data_pdu, cgo_handle_dvc_start_pdu, ssl,
     CGOErrCode, CGOKeyboardEvent, CGOMousePointerEvent, CGOPointerButton, CGOPointerWheel,
-    CGOSyncKeys, CgoHandle,
+    CGOSyncKeys, CgoHandle, CGODvcPduStart,
 };
 #[cfg(feature = "fips")]
 use boring::error::ErrorStack;
@@ -57,6 +59,7 @@ use ironrdp_pdu::{encode_err, pdu_other_err};
 use ironrdp_rdpdr::pdu::efs::ClientDeviceListAnnounce;
 use ironrdp_rdpdr::pdu::RdpdrPdu;
 use ironrdp_rdpdr::Rdpdr;
+use ironrdp_rdpdr::pdu::esc::rpce::Pdu;
 use ironrdp_rdpsnd::client::{NoopRdpsndBackend, Rdpsnd};
 use ironrdp_session::x224::{self, DisconnectDescription, ProcessorOutput};
 use ironrdp_session::SessionErrorKind::Reason;
@@ -67,7 +70,9 @@ use ironrdp_tokio::{
 };
 use log::{debug, error, warn};
 use rand::{Rng, TryRngCore};
+use rsa::pkcs8::der::Encode;
 use std::error::Error;
+use std::ffi::CString;
 use std::fmt::{Debug, Display, Formatter};
 use std::io::{Error as IoError, ErrorKind as IoErrorKind};
 use std::net::ToSocketAddrs;
@@ -199,12 +204,15 @@ impl Client {
             )),
         }));
 
+        let pt = PassthroughDVC::new(EGFX_CHANNEL_NAME, Box::new(cgo_handle));
+
         let pending_resize_clone = pending_resize.clone();
         let display_control = DisplayControlClient::new(move |_| {
             Self::on_display_ctl_capabilities_received(&pending_resize_clone)
         });
-        let drdynvc_client = DrdynvcClient::new().with_dynamic_channel(display_control);
-
+        let mut drdynvc_client = DrdynvcClient::new().with_dynamic_channel(display_control);
+        drdynvc_client.attach_dynamic_channel(pt);
+        
         let mut connector =
             ironrdp_connector::ClientConnector::new(connector_config.clone(), server_socket_addr)
                 .with_static_channel(drdynvc_client) // require for resizing
@@ -1152,6 +1160,37 @@ impl Client {
             ))
     }
 }
+
+impl DvcHandler for CgoHandle {
+    fn start(&mut self, channel_id: u32, channel_name: String) -> Result<(), PduError> {     
+        
+        let err = unsafe {
+            cgo_handle_dvc_start_pdu(self.clone(), channel_id, CGODvcPduStart{
+                channel_name: channel_name.as_ptr() as *const i8
+            })
+        };
+
+        if err == CGOErrCode::ErrCodeSuccess {
+            Ok(())
+        } else {
+            Err(ClientError::from(err).into())
+        }
+    }
+
+    fn process(&mut self, channel_id: u32, payload: &[u8]) -> Result<(), PduError> {
+        
+        let err = unsafe {
+            cgo_handle_dvc_data_pdu(self.clone(), channel_id, payload.to_owned().as_mut_ptr(), payload.len() as u32)
+        };
+
+        if err == CGOErrCode::ErrCodeSuccess {
+            Ok(())
+        } else {
+            Err(ClientError::from(err).into())
+        }
+    }
+}
+
 
 impl Drop for Client {
     fn drop(&mut self) {

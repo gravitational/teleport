@@ -73,6 +73,30 @@ message RDPResponsePDU {
   bytes response = 1;
 }
 
+// Contains redirected DVC PDUs.
+message DynamicVirtualChannelPDU {
+  uint32 channel_id = 1;
+
+  // Start indicates that a DVC has started.
+  message Start {
+    string channel_name = 1;
+  }
+
+  // Data carries DVC data to be processed
+  message Data {
+    bytes data = 1;
+  }
+
+  // Stop indicates that the DVC has closed.
+  message Stop {}
+
+  oneof kind {
+    Start start = 2;
+    Data data = 3;
+    Stop stop = 4;
+  }
+}
+
 // Internal message sent by the server after establishing a connection
 // to the RDP host.
 message ConnectionActivated {
@@ -394,5 +418,6 @@ message Envelope {
     AuthPrompt auth_prompt = 23;
     MFAPromptResponse mfa_prompt_response = 24;
     SessionEstablishing session_establishing = 25;
+    DynamicVirtualChannelPDU dvc_pdu = 26;
   }
 }

@@ -163,6 +163,70 @@ export interface RDPResponsePDU {
     response: Uint8Array;
 }
 /**
+ * Contains redirected DVC PDUs.
+ *
+ * @generated from protobuf message teleport.desktop.v1.DynamicVirtualChannelPDU
+ */
+export interface DynamicVirtualChannelPDU {
+    /**
+     * @generated from protobuf field: uint32 channel_id = 1;
+     */
+    channelId: number;
+    /**
+     * @generated from protobuf oneof: kind
+     */
+    kind: {
+        oneofKind: "start";
+        /**
+         * @generated from protobuf field: teleport.desktop.v1.DynamicVirtualChannelPDU.Start start = 2;
+         */
+        start: DynamicVirtualChannelPDU_Start;
+    } | {
+        oneofKind: "data";
+        /**
+         * @generated from protobuf field: teleport.desktop.v1.DynamicVirtualChannelPDU.Data data = 3;
+         */
+        data: DynamicVirtualChannelPDU_Data;
+    } | {
+        oneofKind: "stop";
+        /**
+         * @generated from protobuf field: teleport.desktop.v1.DynamicVirtualChannelPDU.Stop stop = 4;
+         */
+        stop: DynamicVirtualChannelPDU_Stop;
+    } | {
+        oneofKind: undefined;
+    };
+}
+/**
+ * Start indicates that a DVC has started.
+ *
+ * @generated from protobuf message teleport.desktop.v1.DynamicVirtualChannelPDU.Start
+ */
+export interface DynamicVirtualChannelPDU_Start {
+    /**
+     * @generated from protobuf field: string channel_name = 1;
+     */
+    channelName: string;
+}
+/**
+ * Data carries DVC data to be processed
+ *
+ * @generated from protobuf message teleport.desktop.v1.DynamicVirtualChannelPDU.Data
+ */
+export interface DynamicVirtualChannelPDU_Data {
+    /**
+     * @generated from protobuf field: bytes data = 1;
+     */
+    data: Uint8Array;
+}
+/**
+ * Stop indicates that the DVC has closed.
+ *
+ * @generated from protobuf message teleport.desktop.v1.DynamicVirtualChannelPDU.Stop
+ */
+export interface DynamicVirtualChannelPDU_Stop {
+}
+/**
  * Internal message sent by the server after establishing a connection
  * to the RDP host.
  *
@@ -1009,6 +1073,12 @@ export interface Envelope {
          */
         sessionEstablishing: SessionEstablishing;
     } | {
+        oneofKind: "dvcPdu";
+        /**
+         * @generated from protobuf field: teleport.desktop.v1.DynamicVirtualChannelPDU dvc_pdu = 26;
+         */
+        dvcPdu: DynamicVirtualChannelPDU;
+    } | {
         oneofKind: undefined;
     };
 }
@@ -1556,6 +1626,203 @@ class RDPResponsePDU$Type extends MessageType<RDPResponsePDU> {
  * @generated MessageType for protobuf message teleport.desktop.v1.RDPResponsePDU
  */
 export const RDPResponsePDU = new RDPResponsePDU$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class DynamicVirtualChannelPDU$Type extends MessageType<DynamicVirtualChannelPDU> {
+    constructor() {
+        super("teleport.desktop.v1.DynamicVirtualChannelPDU", [
+            { no: 1, name: "channel_id", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 2, name: "start", kind: "message", oneof: "kind", T: () => DynamicVirtualChannelPDU_Start },
+            { no: 3, name: "data", kind: "message", oneof: "kind", T: () => DynamicVirtualChannelPDU_Data },
+            { no: 4, name: "stop", kind: "message", oneof: "kind", T: () => DynamicVirtualChannelPDU_Stop }
+        ]);
+    }
+    create(value?: PartialMessage<DynamicVirtualChannelPDU>): DynamicVirtualChannelPDU {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.channelId = 0;
+        message.kind = { oneofKind: undefined };
+        if (value !== undefined)
+            reflectionMergePartial<DynamicVirtualChannelPDU>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: DynamicVirtualChannelPDU): DynamicVirtualChannelPDU {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* uint32 channel_id */ 1:
+                    message.channelId = reader.uint32();
+                    break;
+                case /* teleport.desktop.v1.DynamicVirtualChannelPDU.Start start */ 2:
+                    message.kind = {
+                        oneofKind: "start",
+                        start: DynamicVirtualChannelPDU_Start.internalBinaryRead(reader, reader.uint32(), options, (message.kind as any).start)
+                    };
+                    break;
+                case /* teleport.desktop.v1.DynamicVirtualChannelPDU.Data data */ 3:
+                    message.kind = {
+                        oneofKind: "data",
+                        data: DynamicVirtualChannelPDU_Data.internalBinaryRead(reader, reader.uint32(), options, (message.kind as any).data)
+                    };
+                    break;
+                case /* teleport.desktop.v1.DynamicVirtualChannelPDU.Stop stop */ 4:
+                    message.kind = {
+                        oneofKind: "stop",
+                        stop: DynamicVirtualChannelPDU_Stop.internalBinaryRead(reader, reader.uint32(), options, (message.kind as any).stop)
+                    };
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: DynamicVirtualChannelPDU, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* uint32 channel_id = 1; */
+        if (message.channelId !== 0)
+            writer.tag(1, WireType.Varint).uint32(message.channelId);
+        /* teleport.desktop.v1.DynamicVirtualChannelPDU.Start start = 2; */
+        if (message.kind.oneofKind === "start")
+            DynamicVirtualChannelPDU_Start.internalBinaryWrite(message.kind.start, writer.tag(2, WireType.LengthDelimited).fork(), options).join();
+        /* teleport.desktop.v1.DynamicVirtualChannelPDU.Data data = 3; */
+        if (message.kind.oneofKind === "data")
+            DynamicVirtualChannelPDU_Data.internalBinaryWrite(message.kind.data, writer.tag(3, WireType.LengthDelimited).fork(), options).join();
+        /* teleport.desktop.v1.DynamicVirtualChannelPDU.Stop stop = 4; */
+        if (message.kind.oneofKind === "stop")
+            DynamicVirtualChannelPDU_Stop.internalBinaryWrite(message.kind.stop, writer.tag(4, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.desktop.v1.DynamicVirtualChannelPDU
+ */
+export const DynamicVirtualChannelPDU = new DynamicVirtualChannelPDU$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class DynamicVirtualChannelPDU_Start$Type extends MessageType<DynamicVirtualChannelPDU_Start> {
+    constructor() {
+        super("teleport.desktop.v1.DynamicVirtualChannelPDU.Start", [
+            { no: 1, name: "channel_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<DynamicVirtualChannelPDU_Start>): DynamicVirtualChannelPDU_Start {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.channelName = "";
+        if (value !== undefined)
+            reflectionMergePartial<DynamicVirtualChannelPDU_Start>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: DynamicVirtualChannelPDU_Start): DynamicVirtualChannelPDU_Start {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string channel_name */ 1:
+                    message.channelName = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: DynamicVirtualChannelPDU_Start, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string channel_name = 1; */
+        if (message.channelName !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.channelName);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.desktop.v1.DynamicVirtualChannelPDU.Start
+ */
+export const DynamicVirtualChannelPDU_Start = new DynamicVirtualChannelPDU_Start$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class DynamicVirtualChannelPDU_Data$Type extends MessageType<DynamicVirtualChannelPDU_Data> {
+    constructor() {
+        super("teleport.desktop.v1.DynamicVirtualChannelPDU.Data", [
+            { no: 1, name: "data", kind: "scalar", T: 12 /*ScalarType.BYTES*/ }
+        ]);
+    }
+    create(value?: PartialMessage<DynamicVirtualChannelPDU_Data>): DynamicVirtualChannelPDU_Data {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.data = new Uint8Array(0);
+        if (value !== undefined)
+            reflectionMergePartial<DynamicVirtualChannelPDU_Data>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: DynamicVirtualChannelPDU_Data): DynamicVirtualChannelPDU_Data {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* bytes data */ 1:
+                    message.data = reader.bytes();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: DynamicVirtualChannelPDU_Data, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* bytes data = 1; */
+        if (message.data.length)
+            writer.tag(1, WireType.LengthDelimited).bytes(message.data);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.desktop.v1.DynamicVirtualChannelPDU.Data
+ */
+export const DynamicVirtualChannelPDU_Data = new DynamicVirtualChannelPDU_Data$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class DynamicVirtualChannelPDU_Stop$Type extends MessageType<DynamicVirtualChannelPDU_Stop> {
+    constructor() {
+        super("teleport.desktop.v1.DynamicVirtualChannelPDU.Stop", []);
+    }
+    create(value?: PartialMessage<DynamicVirtualChannelPDU_Stop>): DynamicVirtualChannelPDU_Stop {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<DynamicVirtualChannelPDU_Stop>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: DynamicVirtualChannelPDU_Stop): DynamicVirtualChannelPDU_Stop {
+        return target ?? this.create();
+    }
+    internalBinaryWrite(message: DynamicVirtualChannelPDU_Stop, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.desktop.v1.DynamicVirtualChannelPDU.Stop
+ */
+export const DynamicVirtualChannelPDU_Stop = new DynamicVirtualChannelPDU_Stop$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class ConnectionActivated$Type extends MessageType<ConnectionActivated> {
     constructor() {
@@ -3743,7 +4010,8 @@ class Envelope$Type extends MessageType<Envelope> {
             { no: 22, name: "session_selection", kind: "message", oneof: "payload", T: () => SessionSelection },
             { no: 23, name: "auth_prompt", kind: "message", oneof: "payload", T: () => AuthPrompt },
             { no: 24, name: "mfa_prompt_response", kind: "message", oneof: "payload", T: () => MFAPromptResponse },
-            { no: 25, name: "session_establishing", kind: "message", oneof: "payload", T: () => SessionEstablishing }
+            { no: 25, name: "session_establishing", kind: "message", oneof: "payload", T: () => SessionEstablishing },
+            { no: 26, name: "dvc_pdu", kind: "message", oneof: "payload", T: () => DynamicVirtualChannelPDU }
         ]);
     }
     create(value?: PartialMessage<Envelope>): Envelope {
@@ -3908,6 +4176,12 @@ class Envelope$Type extends MessageType<Envelope> {
                         sessionEstablishing: SessionEstablishing.internalBinaryRead(reader, reader.uint32(), options, (message.payload as any).sessionEstablishing)
                     };
                     break;
+                case /* teleport.desktop.v1.DynamicVirtualChannelPDU dvc_pdu */ 26:
+                    message.payload = {
+                        oneofKind: "dvcPdu",
+                        dvcPdu: DynamicVirtualChannelPDU.internalBinaryRead(reader, reader.uint32(), options, (message.payload as any).dvcPdu)
+                    };
+                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -3995,6 +4269,9 @@ class Envelope$Type extends MessageType<Envelope> {
         /* teleport.desktop.v1.SessionEstablishing session_establishing = 25; */
         if (message.payload.oneofKind === "sessionEstablishing")
             SessionEstablishing.internalBinaryWrite(message.payload.sessionEstablishing, writer.tag(25, WireType.LengthDelimited).fork(), options).join();
+        /* teleport.desktop.v1.DynamicVirtualChannelPDU dvc_pdu = 26; */
+        if (message.payload.oneofKind === "dvcPdu")
+            DynamicVirtualChannelPDU.internalBinaryWrite(message.payload.dvcPdu, writer.tag(26, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

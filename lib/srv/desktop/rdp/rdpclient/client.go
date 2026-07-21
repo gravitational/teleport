@@ -1041,6 +1041,34 @@ func cgo_handle_fastpath_pdu(handle C.uintptr_t, data *C.uint8_t, length C.uint3
 	return client.handleRDPFastPathPDU(goData)
 }
 
+//export cgo_handle_dvc_data_pdu
+func cgo_handle_dvc_data_pdu(handle C.uintptr_t, channelID uint32, data *C.uint8_t, length C.uint32_t) C.CGOErrCode {
+	goData := asRustBackedSlice(data, int(length))
+	client, err := toClient(handle)
+	if err != nil {
+		return C.ErrCodeFailure
+	}
+	return client.handleDVCDataPDU(channelID, goData)
+}
+
+//export cgo_handle_dvc_start_pdu
+func cgo_handle_dvc_start_pdu(handle C.uintptr_t, channelID uint32, data C.CGODvcPduStart) C.CGOErrCode {
+	client, err := toClient(handle)
+	if err != nil {
+		return C.ErrCodeFailure
+	}
+	return client.handleDVCStartPDU(channelID, C.GoString(data.channel_name))
+}
+
+//export cgo_handle_dvc_stop_pdu
+func cgo_handle_dvc_stop_pdu(handle C.uintptr_t, channelID uint32) C.CGOErrCode {
+	client, err := toClient(handle)
+	if err != nil {
+		return C.ErrCodeFailure
+	}
+	return client.handleDVCStopPDU(channelID)
+}
+
 func (c *Client) handleRDPFastPathPDU(data []byte) C.CGOErrCode {
 	// Notify the input forwarding goroutine that we're ready for input.
 	// Input can only be sent after connection was established, which we infer
@@ -1049,6 +1077,54 @@ func (c *Client) handleRDPFastPathPDU(data []byte) C.CGOErrCode {
 
 	if err := c.conn.WriteMessage(&tdpb.FastPathPDU{Pdu: data}); err != nil {
 		c.cfg.Logger.ErrorContext(context.Background(), "failed handling RDPFastPathPDU", "error", err)
+		return C.ErrCodeFailure
+	}
+	return C.ErrCodeSuccess
+}
+
+func (c *Client) handleDVCStartPDU(channelID uint32, channel_name string) C.CGOErrCode {
+	if err := c.conn.WriteMessage(&tdpb.DynamicVirtualChannelPDU{
+		ChannelId: channelID,
+		Kind: &tdpbv1.DynamicVirtualChannelPDU_Start_{
+			Start: &tdpbv1.DynamicVirtualChannelPDU_Start{
+				ChannelName: channel_name,
+			},
+		},
+	}); err != nil {
+		c.cfg.Logger.ErrorContext(context.Background(), "failed handling DVC start", "error", err)
+		return C.ErrCodeFailure
+	}
+	return C.ErrCodeSuccess
+}
+
+func (c *Client) handleDVCDataPDU(channelID uint32, data []byte) C.CGOErrCode {
+	// Notify the input forwarding goroutine that we're ready for input.
+	// Input can only be sent after connection was established, which we infer
+	// from the fact that a fast path pdu was sent.
+	atomic.StoreUint32(&c.readyForInput, 1)
+
+	if err := c.conn.WriteMessage(&tdpb.DynamicVirtualChannelPDU{
+		ChannelId: channelID,
+		Kind: &tdpbv1.DynamicVirtualChannelPDU_Data_{
+			Data: &tdpbv1.DynamicVirtualChannelPDU_Data{
+				Data: data,
+			},
+		},
+	}); err != nil {
+		c.cfg.Logger.ErrorContext(context.Background(), "failed handling DVC data", "error", err)
+		return C.ErrCodeFailure
+	}
+	return C.ErrCodeSuccess
+}
+
+func (c *Client) handleDVCStopPDU(channelID uint32) C.CGOErrCode {
+	if err := c.conn.WriteMessage(&tdpb.DynamicVirtualChannelPDU{
+		ChannelId: channelID,
+		Kind: &tdpbv1.DynamicVirtualChannelPDU_Stop_{
+			Stop: &tdpbv1.DynamicVirtualChannelPDU_Stop{},
+		},
+	}); err != nil {
+		c.cfg.Logger.ErrorContext(context.Background(), "failed handling DVC stop", "error", err)
 		return C.ErrCodeFailure
 	}
 	return C.ErrCodeSuccess

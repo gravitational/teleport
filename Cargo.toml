@@ -34,3 +34,4 @@ ironrdp-session = "0.11"
 ironrdp-svc = "0.8"
 ironrdp-tls = { version = "0.2", features = ["rustls"] }
 ironrdp-tokio = "0.10"
+ironrdp-egfx = "0.3.0"

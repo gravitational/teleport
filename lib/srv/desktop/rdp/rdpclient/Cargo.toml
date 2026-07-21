@@ -25,6 +25,7 @@ ironrdp-svc.workspace = true
 ironrdp-dvc.workspace = true
 ironrdp-displaycontrol.workspace = true
 ironrdp-tls.workspace = true
+ironrdp-egfx.workspace = true
 ironrdp-tokio.workspace = true
 iso7816 = "0.2.0"
 iso7816-tlv = "0.4.4"

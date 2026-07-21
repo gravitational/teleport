@@ -427,6 +427,17 @@ func marshalWithHeader(msg proto.Message) ([]byte, error) {
 	return header, nil
 }
 
+type DynamicVirtualChannelPDU tdpbv1.DynamicVirtualChannelPDU
+
+// Encodes a ping message.
+func (d *DynamicVirtualChannelPDU) Encode() ([]byte, error) {
+	return marshalWithHeader(tdpbv1.Envelope_builder{
+		DvcPdu: proto.ValueOrDefault((*tdpbv1.DynamicVirtualChannelPDU)(d)),
+	}.Build())
+}
+
+func (*DynamicVirtualChannelPDU) validate() error { return nil }
+
 func WarningConstructor(msg string) tdp.Message {
 	return &Alert{
 		Severity: tdpbv1.AlertSeverity_ALERT_SEVERITY_WARNING,

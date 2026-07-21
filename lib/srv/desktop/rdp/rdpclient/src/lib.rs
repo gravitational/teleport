@@ -56,6 +56,7 @@ mod piv;
 mod rdpdr;
 mod ssl;
 mod util;
+mod egfx;
 
 /// rdpclient_init_log should be called at initialization time to set up
 /// logging on the rdpclient side.
@@ -622,6 +623,11 @@ pub struct CGOResult {
 }
 
 #[repr(C)]
+pub struct CGODvcPduStart {
+    pub channel_name: *const c_char,
+}
+
+#[repr(C)]
 pub struct CGOSharedDirectoryAnnounce {
     pub directory_id: u32,
     pub name: *const c_char,
@@ -791,6 +797,9 @@ extern "C" {
     ) -> CGOErrCode;
     fn cgo_handle_remote_copy(cgo_handle: CgoHandle, data: *mut u8, len: u32) -> CGOErrCode;
     fn cgo_handle_fastpath_pdu(cgo_handle: CgoHandle, data: *mut u8, len: u32) -> CGOErrCode;
+    fn cgo_handle_dvc_start_pdu(cgo_handle: CgoHandle, channel_id: u32, data: CGODvcPduStart) -> CGOErrCode;
+    fn cgo_handle_dvc_data_pdu(cgo_handle: CgoHandle, channel_id: u32, data: *mut u8, len: u32) -> CGOErrCode;
+    fn cgo_handle_dvc_stop_pdu(cgo_handle: CgoHandle, channel_id: u32) -> CGOErrCode;
     fn cgo_handle_rdp_connection_activated(
         cgo_handle: CgoHandle,
         io_channel_id: u16,
