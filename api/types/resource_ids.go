@@ -93,16 +93,18 @@ func (idl *ResourceAccessIDList) CheckAndSetDefaults() error {
 			continue
 		}
 		if rc.Details == nil {
-			// Non-nil Constraints with nil Details is the decoded form of
-			// constraint content this build does not understand: a newer
-			// kind, a newer field inside a known kind, or a newer version
-			// (see [ResourceConstraints.UnmarshalJSON]). Keep entry as-is
-			// so AccessChecker fails closed on this resource; validating
-			// it would reject the list and, at cert decode, the identity.
+			// Non-nil Constraints with nil Details represents decoded
+			// constraint content this build doesn't understand or that
+			// isn't valid (see [ResourceConstraints.UnmarshalJSON]).
+			// Keep entry as-is so AccessChecker fails on this resource;
+			// propagating the err here would reject the list and the
+			// identity at cert decode.
 			continue
 		}
 		if err := rc.CheckAndSetDefaults(); err != nil {
-			return trace.Wrap(err)
+			// Invalid known-kind content degrades like unknown content.
+			rc.Details = nil
+			continue
 		}
 	}
 	return nil

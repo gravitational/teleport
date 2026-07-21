@@ -74,15 +74,15 @@ func (rc *ResourceConstraints) UnmarshalJSON(b []byte) error {
 		if rc.Version == "" || rc.Version == ResourceConstraintVersionV1 {
 			return nil
 		}
-		// All fields decoded but the version is newer than this build
-		// understands. Degrade to the unsatisfiable marker.
+		// All fields decoded, but the version is newer than this build
+		// understands. Degrade to nil Details to mark unsatisfiable.
 		*rc = ResourceConstraints{Version: rc.Version}
 		return nil
 	}
 	// Constraint content this build can't strictly decode: unknown kind,
-	// or an unknown field inside a known kind. Degrade to non-nil
-	// Constraints with nil Details, which enforcement will deny, so newer
-	// fields fail-closed only per-resource and not identity-wide.
+	// or an unknown field inside a known kind. Degrade to nil Details,
+	// which enforcement will deny, so newer fields fail-closed only
+	// per-resource and not identity-wide.
 	var v struct {
 		Version string `json:"version"`
 	}

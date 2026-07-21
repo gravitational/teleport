@@ -830,6 +830,11 @@ func TestResourceConstraintsDecodeDegradesUnknown(t *testing.T) {
 			wantVersion: "v1",
 		},
 		{
+			name:        "type mismatch inside known kind",
+			input:       `{"version":"v1","ssh":{"logins":[123]}}`,
+			wantVersion: "v1",
+		},
+		{
 			name:        "unsupported version with known kind",
 			input:       `{"version":"v2","ssh":{"logins":["root"]}}`,
 			wantVersion: "v2",
@@ -863,6 +868,36 @@ func TestResourceConstraintsDecodeDegradesUnknown(t *testing.T) {
 			require.Error(t, rc.UnmarshalJSON([]byte(input)), "input: %s", input)
 		}
 	})
+}
+
+// TestResourceAccessIDsInvalidKnownKindDegrades verifies that decodable but
+// invalid known-kind constraint content degrades to the nil-Details marker.
+func TestResourceAccessIDsInvalidKnownKindDegrades(t *testing.T) {
+	t.Parallel()
+
+	ids := []ResourceAccessID{
+		{
+			Id: ResourceID{ClusterName: "root", Kind: KindNode, Name: "n1"},
+			Constraints: &ResourceConstraints{
+				Version: "v1",
+				Details: &ResourceConstraints_Ssh{
+					Ssh: &SSHResourceConstraints{Logins: []string{"root"}},
+				},
+			},
+		},
+	}
+	encoded, err := ResourceAccessIDsToString(ids)
+	require.NoError(t, err)
+	require.Contains(t, encoded, `"logins":["root"]`)
+	invalid := strings.Replace(encoded, `"logins":["root"]`, "", 1)
+
+	decoded, err := ResourceAccessIDsFromString(invalid)
+	require.NoError(t, err)
+	require.Len(t, decoded, 1)
+	rc := decoded[0].GetConstraints()
+	require.NotNil(t, rc, "constraints marker must survive decoding")
+	require.Nil(t, rc.Details)
+	require.Equal(t, "v1", rc.Version)
 }
 
 func TestResourceIDsToResourceAccessIDs(t *testing.T) {
@@ -1000,13 +1035,11 @@ func TestRiskyExtractResourceIDs(t *testing.T) {
 	require.Empty(t, RiskyExtractResourceIDs(nil))
 }
 
-// TestResourceAccessIDsNewerConstraintContent verifies that constraint
-// content minted by a newer Teleport (an unknown kind, or an unsupported
+// TestResourceAccessIDsNewerConstraintContent verifies constraint
+// content created by a newer Auth (unknown kind, or unsupported
 // version) decodes to a constrained entry with nil Details rather than
-// failing the whole list: a cert minted by a newer Teleport must not
-// invalidate every access it grants through an older component. Enforcement
-// denies a nil-Details entry, so the newer constraint fails closed for its
-// own resource only.
+// failing the whole list, and enforcement denies a nil-Details entry
+// specifically rather than the whole cert.
 func TestResourceAccessIDsNewerConstraintContent(t *testing.T) {
 	t.Parallel()
 
@@ -1047,7 +1080,7 @@ func TestResourceAccessIDsNewerConstraintContent(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			// Simulate the same cert minted by a newer version.
+			// Simulate the same cert created by a newer version.
 			require.Contains(t, encoded, tc.from)
 			fromNewer := strings.Replace(encoded, tc.from, tc.to, 1)
 
@@ -1059,19 +1092,13 @@ func TestResourceAccessIDsNewerConstraintContent(t *testing.T) {
 			require.Equal(t, ids[0].Id, decoded[0].Id)
 			require.Nil(t, decoded[0].GetConstraints())
 
-			// The newer-content entry keeps its constraints marker, with nil
-			// Details and the minted version.
 			rc := decoded[1].GetConstraints()
-			require.NotNil(t, rc, "constraints marker must survive decoding")
+			require.NotNil(t, rc, "constraints nil-Details marker must survive decoding")
 			require.Nil(t, rc.Details)
 			require.Equal(t, tc.wantVersion, rc.Version)
 
-			// Newer content can never validate, so creation-side strictness
-			// holds.
 			require.Error(t, rc.CheckAndSetDefaults())
 
-			// Re-encoding (the database CSR re-sign path) preserves the
-			// marker and version so downstream components also fail closed.
 			reencoded, err := ResourceAccessIDsToString(decoded)
 			require.NoError(t, err)
 			roundTripped, err := ResourceAccessIDsFromString(reencoded)
