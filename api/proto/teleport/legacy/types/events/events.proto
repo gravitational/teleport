@@ -3349,6 +3349,51 @@ message AppSessionLLMRequest {
   int64 output_token_count = 10 [(gogoproto.jsontag) = "output_token_count,omitempty"];
 }
 
+// AppSessionRequestDenied is emitted when the app agent denies an HTTP app
+// request because the caller's roles carry app_resources rules or role
+// versions that this Teleport version does not implement, so those rules
+// deny by default. A request denied by an intended v9 default-deny rule is
+// not audited by this version.
+message AppSessionRequestDenied {
+  // Common event metadata.
+  Metadata metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // User who initiated the session.
+  UserMetadata user = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Session ID and MFA metadata.
+  SessionMetadata session = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Server metadata of the app agent that denied the request.
+  ServerMetadata server = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Application being accessed.
+  AppMetadata app = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // HTTP method, e.g. GET, POST.
+  string method = 6 [(gogoproto.jsontag) = "method"];
+  // Relative path in the URL.
+  string path = 7 [(gogoproto.jsontag) = "path"];
+  // Machine-readable deny code, also sent to the client in the response
+  // body, e.g. teleport_request_not_allowed.
+  string deny_kind = 8 [(gogoproto.jsontag) = "deny_kind"];
+}
+
 // HTTPHeader is an HTTP header name/value pair used in HTTP recording events.
 message HTTPHeader {
   string name = 1 [(gogoproto.jsontag) = "name"];
@@ -5488,6 +5533,7 @@ message OneOf {
     events.AppSessionHTTPRequestBodyChunk AppSessionHTTPRequestBodyChunk = 268;
     events.AppSessionHTTPResponse AppSessionHTTPResponse = 269;
     events.AppSessionHTTPResponseBodyChunk AppSessionHTTPResponseBodyChunk = 270;
+    events.AppSessionRequestDenied AppSessionRequestDenied = 271;
   }
 }
 

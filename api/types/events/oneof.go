@@ -260,6 +260,10 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_AppSessionHTTPResponseBodyChunk{
 			AppSessionHTTPResponseBodyChunk: e,
 		}
+	case *AppSessionRequestDenied:
+		out.Event = &OneOf_AppSessionRequestDenied{
+			AppSessionRequestDenied: e,
+		}
 	case *AppCreate:
 		out.Event = &OneOf_AppCreate{
 			AppCreate: e,

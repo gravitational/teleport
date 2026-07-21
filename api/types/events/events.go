@@ -3065,6 +3065,15 @@ func (m *AppSessionHTTPResponseBodyChunk) TrimToMaxSize(maxSize int) AuditEvent 
 	})
 }
 
+func (m *AppSessionRequestDenied) TrimToMaxSize(maxSize int) AuditEvent {
+	return trimEventToMaxSize(m, maxSize, func(m, out *AppSessionRequestDenied) fieldTrimmer {
+		return fieldTrimmers{
+			newStrTrimmer(m.Method, &out.Method),
+			newStrTrimmer(m.Path, &out.Path),
+		}
+	})
+}
+
 func (m *BeamsConfigCreate) TrimToMaxSize(int) AuditEvent {
 	return m
 }

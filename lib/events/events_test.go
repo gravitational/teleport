@@ -104,6 +104,7 @@ var eventsMap = map[string]apievents.AuditEvent{
 	AppSessionHTTPRequestBodyChunkEvent:            &apievents.AppSessionHTTPRequestBodyChunk{},
 	AppSessionHTTPResponseEvent:                    &apievents.AppSessionHTTPResponse{},
 	AppSessionHTTPResponseBodyChunkEvent:           &apievents.AppSessionHTTPResponseBodyChunk{},
+	AppSessionRequestDeniedEvent:                   &apievents.AppSessionRequestDenied{},
 	AppCreateEvent:                                 &apievents.AppCreate{},
 	AppUpdateEvent:                                 &apievents.AppUpdate{},
 	AppDeleteEvent:                                 &apievents.AppDelete{},
