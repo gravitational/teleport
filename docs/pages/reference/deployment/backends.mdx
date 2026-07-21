@@ -1753,9 +1753,9 @@ teleport:
     # by specifying the aws_config_file_path option (see below).
     dsql_aws_profile: profile-name
 
-    # The ARN of the Kinesis data stream that is receiving CDC events
+    # The name of the Kinesis data stream that is receiving CDC events
     # from the DSQL cluster. Required.
-    kinesis_stream_arn: arn:aws:kinesis:us-west-2:123456789012:stream/change-feed-stream-name
+    kinesis_stream_name: change-feed-stream-name
     # The region that the Kinesis data stream is in. In multi-region
     # setups, each DSQL cluster peer should be configured to emit CDC
     # events to a regional Kinesis data stream. Required.
