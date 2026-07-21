@@ -1,5 +1,5 @@
 variable "teleport_version" {
-  default     = "19.0.0-hugoopupd.9"
+  default     = "19.0.0-hugoopupd.10"
   description = <<EOD
 The version of Teleport to deploy.
 Generally, the version of Teleport should be controlled by using the appropriate version of this module.
