@@ -21,6 +21,7 @@ package common
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"time"
@@ -76,6 +77,9 @@ type AccessRequestCommand struct {
 	requestDelete  *kingpin.CmdClause
 	requestCaps    *kingpin.CmdClause
 	requestReview  *kingpin.CmdClause
+
+	// stdout allows to switch the standard output source. Used in tests.
+	stdout io.Writer
 }
 
 // Initialize allows AccessRequestCommand to plug itself into the CLI parser
@@ -112,6 +116,7 @@ func (c *AccessRequestCommand) Initialize(app *kingpin.Application, _ *tctlcfg.G
 	c.requestCreate.Flag("resource", "Resource ID to be requested").StringsVar(&c.requestedResourceIDs)
 	c.requestCreate.Flag("reason", "Optional reason message").StringVar(&c.reason)
 	c.requestCreate.Flag("dry-run", "Don't actually generate the Access Request").BoolVar(&c.dryRun)
+	c.requestCreate.Flag("format", "Output format, 'text', 'json', or 'yaml'").Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON, teleport.YAML)
 
 	c.requestDelete = requests.Command("rm", "Delete an Access Request.")
 	c.requestDelete.Arg("request-id", "ID of target request(s)").Required().StringVar(&c.reqIDs)
@@ -125,6 +130,10 @@ func (c *AccessRequestCommand) Initialize(app *kingpin.Application, _ *tctlcfg.G
 	c.requestReview.Flag("author", "Username of reviewer").Required().StringVar(&c.user)
 	c.requestReview.Flag("approve", "Review proposes approval").BoolVar(&c.approve)
 	c.requestReview.Flag("deny", "Review proposes denial").BoolVar(&c.deny)
+
+	if c.stdout == nil {
+		c.stdout = os.Stdout
+	}
 }
 
 // TryRun takes the CLI command as an argument (like "access-request list") and executes it.
@@ -337,14 +346,24 @@ func (c *AccessRequestCommand) Create(ctx context.Context, client *authclient.Cl
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		return trace.Wrap(utils.WriteJSON(os.Stdout, req), "failed to marshal request")
+		return trace.Wrap(utils.WriteJSON(c.stdout, req), "failed to marshal request")
 	}
 	req, err = client.CreateAccessRequestV2(ctx, req)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("%s\n", req.GetName())
-	return nil
+
+	switch c.format {
+	case teleport.Text:
+		fmt.Fprintf(c.stdout, "%s\n", req.GetName())
+		return nil
+	case teleport.JSON:
+		return trace.Wrap(utils.WriteJSON(c.stdout, req), "failed to marshal request")
+	case teleport.YAML:
+		return trace.Wrap(utils.WriteYAML(c.stdout, req), "failed to marshal request")
+	default:
+		return trace.BadParameter("unknown format %q", c.format)
+	}
 }
 
 func (c *AccessRequestCommand) Delete(ctx context.Context, client *authclient.Client) error {

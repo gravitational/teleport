@@ -187,9 +187,9 @@ func azurePush(
 		return trace.Wrap(err)
 	}
 	err = client.Send(
-		&accessgraphv1alpha.AzureEventsStreamRequest{
-			Operation: &accessgraphv1alpha.AzureEventsStreamRequest_Sync{},
-		},
+		accessgraphv1alpha.AzureEventsStreamRequest_builder{
+			Sync: &accessgraphv1alpha.AzureSyncOperation{},
+		}.Build(),
 	)
 	return trace.Wrap(err)
 }

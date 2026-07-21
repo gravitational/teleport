@@ -260,7 +260,11 @@ func TestX11ForwardingNotInClassicRole(t *testing.T) {
 	t.Parallel()
 
 	sr := baseScopedRole()
-	sr.GetSpec().GetSsh().PermitX11Forwarding = ptr(true)
+	if x := ptr(true); x != nil {
+		sr.GetSpec().GetSsh().SetPermitX11Forwarding(*x)
+	} else {
+		sr.GetSpec().GetSsh().ClearPermitX11Forwarding()
+	}
 
 	role, err := ScopedRoleToRole(sr, "/foo/bar")
 	require.NoError(t, err)
@@ -271,7 +275,11 @@ func TestForwardAgentNotInClassicRole(t *testing.T) {
 	t.Parallel()
 
 	sr := baseScopedRole()
-	sr.GetSpec().GetSsh().ForwardAgent = ptr(true)
+	if x := ptr(true); x != nil {
+		sr.GetSpec().GetSsh().SetForwardAgent(*x)
+	} else {
+		sr.GetSpec().GetSsh().ClearForwardAgent()
+	}
 
 	role, err := ScopedRoleToRole(sr, "/foo/bar")
 	require.NoError(t, err)
@@ -282,7 +290,11 @@ func TestMaxSessionsNotInClassicRole(t *testing.T) {
 	t.Parallel()
 
 	sr := baseScopedRole()
-	sr.GetSpec().GetSsh().MaxSessions = ptr(int64(10))
+	if x := ptr(int64(10)); x != nil {
+		sr.GetSpec().GetSsh().SetMaxSessions(*x)
+	} else {
+		sr.GetSpec().GetSsh().ClearMaxSessions()
+	}
 
 	role, err := ScopedRoleToRole(sr, "/foo/bar")
 	require.NoError(t, err)
@@ -320,7 +332,11 @@ func TestSSHFileCopyNotInClassicRole(t *testing.T) {
 	t.Parallel()
 
 	sr := baseScopedRole()
-	sr.GetSpec().GetSsh().FileCopy = ptr(false)
+	if x := ptr(false); x != nil {
+		sr.GetSpec().GetSsh().SetFileCopy(*x)
+	} else {
+		sr.GetSpec().GetSsh().ClearFileCopy()
+	}
 
 	role, err := ScopedRoleToRole(sr, "/foo/bar")
 	require.NoError(t, err)
@@ -346,7 +362,11 @@ func TestDisconnectExpiredCertNotInClassicRole(t *testing.T) {
 	t.Parallel()
 
 	sr := baseScopedRole()
-	sr.GetSpec().GetSsh().DisconnectExpiredCert = ptr(true)
+	if x := ptr(true); x != nil {
+		sr.GetSpec().GetSsh().SetDisconnectExpiredCert(*x)
+	} else {
+		sr.GetSpec().GetSsh().ClearDisconnectExpiredCert()
+	}
 
 	role, err := ScopedRoleToRole(sr, "/foo/bar")
 	require.NoError(t, err)
@@ -493,6 +513,92 @@ func TestKubeConversion(t *testing.T) {
 				Scope: "/foo",
 				Spec: scopedaccessv1.ScopedRoleSpec_builder{
 					Kube:             tt.kube,
+					AssignableScopes: []string{"/foo/bar"},
+				}.Build(),
+				Version: types.V1,
+			}.Build(), "/foo/bar")
+			require.NoError(t, err)
+			tt.expect.Namespaces = []string{"default"}
+			require.Empty(t, cmp.Diff(tt.expect, role.GetRoleConditions(types.Allow)))
+		})
+	}
+}
+
+// TestAppConversion verifies that the scoped role app block converts its labels and
+// label_expression into the classic role's AppLabels/AppLabelsExpression conditions.
+func TestAppConversion(t *testing.T) {
+	t.Parallel()
+
+	tts := []struct {
+		name   string
+		app    *scopedaccessv1.ScopedRoleApp
+		expect types.RoleConditions
+	}{
+		{
+			name:   "empty conditions",
+			app:    &scopedaccessv1.ScopedRoleApp{},
+			expect: types.RoleConditions{},
+		},
+		{
+			name: "labels only",
+			app: scopedaccessv1.ScopedRoleApp_builder{
+				Labels: []*labelv1.Label{
+					labelv1.Label_builder{
+						Name:   "env",
+						Values: []string{"prod", "staging"},
+					}.Build(),
+					labelv1.Label_builder{
+						Name:   "team",
+						Values: []string{"blue"},
+					}.Build(),
+				},
+			}.Build(),
+			expect: types.RoleConditions{
+				AppLabels: types.Labels{
+					"env":  apiutils.Strings{"prod", "staging"},
+					"team": apiutils.Strings{"blue"},
+				},
+			},
+		},
+		{
+			name: "label expression only",
+			app: scopedaccessv1.ScopedRoleApp_builder{
+				LabelExpression: `contains(labels["env"], "prod")`,
+			}.Build(),
+			expect: types.RoleConditions{
+				AppLabelsExpression: `contains(labels["env"], "prod")`,
+			},
+		},
+		{
+			name: "labels and expression",
+			app: scopedaccessv1.ScopedRoleApp_builder{
+				Labels: []*labelv1.Label{
+					labelv1.Label_builder{
+						Name:   "env",
+						Values: []string{"prod"},
+					}.Build(),
+				},
+				LabelExpression: `contains(labels["team"], "blue")`,
+			}.Build(),
+			expect: types.RoleConditions{
+				AppLabels: types.Labels{
+					"env": apiutils.Strings{"prod"},
+				},
+				AppLabelsExpression: `contains(labels["team"], "blue")`,
+			},
+		},
+	}
+
+	for _, tt := range tts {
+		t.Run(tt.name, func(t *testing.T) {
+			role, err := ScopedRoleToRole(scopedaccessv1.ScopedRole_builder{
+				Kind: KindScopedRole,
+				Metadata: headerv1.Metadata_builder{
+					Name: "test",
+				}.Build(),
+				Scope: "/foo",
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
+					App:              tt.app,
 					AssignableScopes: []string{"/foo/bar"},
 				}.Build(),
 				Version: types.V1,

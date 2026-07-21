@@ -155,11 +155,9 @@ func (r *Service) GetMetadata(req *pb.GetMetadataRequest, stream grpc.ServerStre
 		// Try to decode as metadata
 		metadata := &pb.SessionRecordingMetadata{}
 		if err := proto.Unmarshal(msgBytes, metadata); err == nil {
-			metadataChunk := &pb.GetMetadataResponseChunk{
-				Chunk: &pb.GetMetadataResponseChunk_Metadata{
-					Metadata: metadata,
-				},
-			}
+			metadataChunk := pb.GetMetadataResponseChunk_builder{
+				Metadata: proto.ValueOrDefault(metadata),
+			}.Build()
 
 			if err := stream.Send(metadataChunk); err != nil {
 				if !errors.Is(err, io.EOF) {
@@ -175,11 +173,9 @@ func (r *Service) GetMetadata(req *pb.GetMetadataRequest, stream grpc.ServerStre
 		// Try to decode as thumbnail
 		thumbnail := &pb.SessionRecordingThumbnail{}
 		if err := proto.Unmarshal(msgBytes, thumbnail); err == nil {
-			frameChunk := &pb.GetMetadataResponseChunk{
-				Chunk: &pb.GetMetadataResponseChunk_Frame{
-					Frame: thumbnail,
-				},
-			}
+			frameChunk := pb.GetMetadataResponseChunk_builder{
+				Frame: proto.ValueOrDefault(thumbnail),
+			}.Build()
 
 			if err := stream.Send(frameChunk); err != nil {
 				if !errors.Is(err, io.EOF) {

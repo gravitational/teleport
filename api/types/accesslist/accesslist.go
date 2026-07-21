@@ -87,6 +87,9 @@ var (
 
 	// MembershipKindList is the list membership kind.
 	MembershipKindList = accesslistv1.MembershipKind_MEMBERSHIP_KIND_LIST.String()
+
+	// MembershipKindScopedList is the scoped list membership kind.
+	MembershipKindScopedList = accesslistv1.MembershipKind_MEMBERSHIP_KIND_SCOPED_LIST.String()
 )
 
 // ReviewDayOfMonth is the day of month the review should be repeated on.
@@ -138,6 +141,9 @@ type AccessList struct {
 
 	// Status contains dynamically calculated fields.
 	Status Status `json:"status" yaml:"status"`
+
+	// Scope is the scope of the access list.
+	Scope string `json:"scope" yaml:"scope"`
 }
 
 // Spec is the specification for an access list.
@@ -214,7 +220,10 @@ func (t Type) Equals(other Type) bool {
 
 // Owner is an owner of an access list.
 type Owner struct {
-	// Name is the username of the owner.
+	// Name is the username of the owner, depending on MembershipKind:
+	// MEMBERSHIP_KIND_USER: the username of the owner.
+	// MEMBERSHIP_KIND_LIST: the name of the owner access list.
+	// MEMBERSHIP_KIND_SCOPED_LIST: the scope-qualified name of the owner access list.
 	Name string `json:"name" yaml:"name"`
 
 	// Title is the title of an owner if it is of type MEMBERSHIP_KIND_LIST.
@@ -228,14 +237,19 @@ type Owner struct {
 	IneligibleStatus string `json:"ineligible_status" yaml:"ineligible_status"`
 
 	// MembershipKind describes the kind of ownership,
-	// either "MEMBERSHIP_KIND_USER" or "MEMBERSHIP_KIND_LIST".
+	// either "MEMBERSHIP_KIND_USER" or "MEMBERSHIP_KIND_LIST" or "MEMBERSHIP_KIND_SCOPED_LIST".
 	MembershipKind string `json:"membership_kind" yaml:"membership_kind"`
 }
 
 // IsMembershipKindUser returns true if the owner is of kind user.
-// All types expect "MEMBERSHIP_KIND_LIST" are treated as "MEMBERSHIP_KIND_USER".
+// "" and "MEMBERSHIP_KIND_UNSPECIFIED" are treated as "MEMBERSHIP_KIND_USER".
 func (o *Owner) IsMembershipKindUser() bool {
 	return isMembershipKindUser(o.MembershipKind)
+}
+
+// IsMembershipKindList returns true if the owner is an access list.
+func (o *Owner) IsMembershipKindList() bool {
+	return IsMembershipKindList(o.MembershipKind)
 }
 
 func isMembershipKindUser(membershipKind string) bool {
@@ -244,6 +258,17 @@ func isMembershipKindUser(membershipKind string) bool {
 		return true
 	default:
 		// In case if MembershipKind was extended.
+		return false
+	}
+}
+
+// IsMembershipKindList returns true if the membership kind is
+// MembershipKindList or MembershipKindScopedList.
+func IsMembershipKindList(membershipKind string) bool {
+	switch membershipKind {
+	case MembershipKindList, MembershipKindScopedList:
+		return true
+	default:
 		return false
 	}
 }
@@ -288,7 +313,7 @@ type Requires struct {
 
 // IsEmpty returns true when no roles or traits are set
 func (r *Requires) IsEmpty() bool {
-	return len(r.Roles) == 0 && len(r.Traits) == 0
+	return r == nil || (len(r.Roles) == 0 && len(r.Traits) == 0)
 }
 
 // Clone returns a deep copy of the [Requires]
@@ -329,7 +354,7 @@ func (grants *Grants) Clone() Grants {
 
 // ScopedRoleGrant describes a scoped role granted at a specific scope.
 type ScopedRoleGrant struct {
-	// Role is the name of the scoped role to be granted.
+	// Role is the scope-qualified name of the scoped role to be granted.
 	Role string `json:"role" yaml:"role"`
 	// Scope is the scope the role will be assigned at. It must be an assignable
 	// scope of the role.
@@ -347,6 +372,17 @@ type Status struct {
 	OwnerOf []string `json:"owner_of" yaml:"owner_of"`
 	// MemberOf is a list of Access List UUIDs where this access list is an explicit member.
 	MemberOf []string `json:"member_of" yaml:"member_of"`
+
+	// OwnerDisplays contains display values for owners, keyed by owner username.
+	// It is ignored when marshaling so tctl users do not mistake these read-time
+	// values for fields they could update with resource YAML.
+	OwnerDisplays map[string]types.UserDisplay `json:"-" yaml:"-"`
+	// ScopedOwnerOf is a list of scope-qualified names of scoped access lists
+	// where this access list is an explicit owner.
+	ScopedOwnerOf []string `json:"scoped_owner_of" yaml:"scoped_owner_of"`
+	// ScopedMemberOf is a list of scope-qualified names of scoped access lists
+	// where this access list is an explicit member.
+	ScopedMemberOf []string `json:"scoped_member_of" yaml:"scoped_member_of"`
 
 	// CurrentUserAssignments describes the current user's ownership and membership in the access list.
 	CurrentUserAssignments *CurrentUserAssignments `json:"-" yaml:"-"`
@@ -392,9 +428,15 @@ func (u *UserAssignments) IsOwner() bool {
 
 // NewAccessList will create a new access list.
 func NewAccessList(metadata header.Metadata, spec Spec) (*AccessList, error) {
+	return NewAccessListWithScope(metadata, spec, "")
+}
+
+// NewAccessListWithScope will create a new access list with a scope.
+func NewAccessListWithScope(metadata header.Metadata, spec Spec, scope string) (*AccessList, error) {
 	accessList := &AccessList{
 		ResourceHeader: header.ResourceHeaderFromMetadata(metadata),
 		Spec:           spec,
+		Scope:          scope,
 	}
 
 	if err := accessList.CheckAndSetDefaults(); err != nil {
@@ -464,6 +506,11 @@ func (a *AccessList) CheckAndSetDefaults() error {
 	a.Spec.Owners = deduplicatedOwners
 
 	return nil
+}
+
+// GetScope returns the scope of the access list resource.
+func (a *AccessList) GetScope() string {
+	return a.Scope
 }
 
 // GetOwners returns the list of owners from the access list.
@@ -675,8 +722,9 @@ func (a *AccessList) setInitialAuditDate(clock clockwork.Clock) (err error) {
 type EqualAccessListsOption func(*equalAccessListsConfig)
 
 type equalAccessListsConfig struct {
-	skipClone     bool
-	resetFieldsFn func(*AccessList)
+	skipClone      bool
+	resetFieldsFn  func(*AccessList)
+	canonicalizeFn func(*AccessList)
 }
 
 // WithSkipClone configures EqualAccessLists to skip cloning
@@ -741,6 +789,24 @@ func WithIgnoreOktaUserManagedFields() EqualAccessListsOption {
 	}
 }
 
+// WithCanonicalFields configures EqualAccessLists to canonicalize slice fields
+// within the Spec to ensure a consistent order and remove duplicates before
+// comparison. This prevents false negatives in equality checks where slices
+// might have different orders or contain duplicates.
+//
+// The following fields are canonicalized: Grants (roles/traits/scopedRoles),
+// OwnerGrants (roles/traits/scopedRoles), MembershipRequires (roles/traits),
+// OwnershipRequires (roles/traits) and Owners.
+//
+// Note: This option reorders and de-duplicates the listed slice fields. As with
+// [WithIgnoreEphemeralFields], the input Access Lists are cloned (unless
+// [WithSkipClone] is also used) to avoid modifying the originals.
+func WithCanonicalFields() EqualAccessListsOption {
+	return func(c *equalAccessListsConfig) {
+		c.canonicalizeFn = canonicalizeAccessList
+	}
+}
+
 // EqualAccessLists compares two access lists for semantic equality.
 //
 // By default, this function performs a standard equality check. Use WithIgnoreEphemeralFields()
@@ -765,6 +831,11 @@ func EqualAccessLists(a, b *AccessList, opts ...EqualAccessListsOption) bool {
 		cfg.resetFieldsFn(b)
 	}
 
+	if cfg.canonicalizeFn != nil {
+		cfg.canonicalizeFn(a)
+		cfg.canonicalizeFn(b)
+	}
+
 	return deriveTeleportEqualAccessList(a, b)
 }
 
@@ -778,5 +849,97 @@ func resetEphemeralFieldsAccessList(a *AccessList) {
 	a.Status = Status{}
 	for i := range a.Spec.Owners {
 		a.Spec.Owners[i].IneligibleStatus = ""
+	}
+}
+
+func canonicalizeAccessList(a *AccessList) {
+	if a == nil {
+		return
+	}
+
+	canonicalizeOwners(&a.Spec.Owners)
+	canonicalizeGrants(&a.Spec.Grants)
+	canonicalizeGrants(&a.Spec.OwnerGrants)
+	canonicalizeRequires(&a.Spec.MembershipRequires)
+	canonicalizeRequires(&a.Spec.OwnershipRequires)
+}
+
+// canonicalize the owner of an access list.
+// NOTE: Please to not use this function outside of the canonicalize flow. If
+// similar functionality is needed elsewhere, please consider using derive based
+// functions instead.
+func canonicalizeOwner(a, b Owner) int {
+	if a.Name != b.Name {
+		return strings.Compare(a.Name, b.Name)
+	}
+	if a.MembershipKind != b.MembershipKind {
+		return strings.Compare(a.MembershipKind, b.MembershipKind)
+	}
+	if a.Description != b.Description {
+		return strings.Compare(a.Description, b.Description)
+	}
+	if a.Title != b.Title {
+		return strings.Compare(a.Title, b.Title)
+	}
+
+	// If WithIgnoreEphemeralFields is used - the fields will be reset and equal.
+	return strings.Compare(a.IneligibleStatus, b.IneligibleStatus)
+}
+
+func canonicalizeOwners(o *[]Owner) {
+	slices.SortFunc(*o, canonicalizeOwner)
+
+	*o = slices.CompactFunc(*o, func(a, b Owner) bool {
+		return canonicalizeOwner(a, b) == 0
+	})
+
+	if len(*o) == 0 {
+		*o = nil
+	}
+}
+
+func canonicalizeGrants(g *Grants) {
+	if g == nil {
+		return
+	}
+
+	slices.Sort(g.Roles)
+	g.Roles = slices.Compact(g.Roles)
+	if len(g.Roles) == 0 {
+		g.Roles = nil
+	}
+
+	trait.Merge(g.Traits, nil)
+	if len(g.Traits) == 0 {
+		g.Traits = nil
+	}
+
+	slices.SortFunc(g.ScopedRoles, func(a, b ScopedRoleGrant) int {
+		if a.Role == b.Role {
+			return strings.Compare(a.Scope, b.Scope)
+		}
+		return strings.Compare(a.Role, b.Role)
+	})
+
+	g.ScopedRoles = slices.Compact(g.ScopedRoles)
+	if len(g.ScopedRoles) == 0 {
+		g.ScopedRoles = nil
+	}
+}
+
+func canonicalizeRequires(r *Requires) {
+	if r == nil {
+		return
+	}
+
+	slices.Sort(r.Roles)
+	r.Roles = slices.Compact(r.Roles)
+	if len(r.Roles) == 0 {
+		r.Roles = nil
+	}
+
+	trait.Merge(r.Traits, nil)
+	if len(r.Traits) == 0 {
+		r.Traits = nil
 	}
 }

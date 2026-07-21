@@ -62,11 +62,9 @@ type ClientHello tdpbv1.ClientHello
 
 // Encode encodes a ClientHello message.
 func (c *ClientHello) Encode() ([]byte, error) {
-	return marshalWithHeader(&tdpbv1.Envelope{
-		Payload: &tdpbv1.Envelope_ClientHello{
-			ClientHello: (*tdpbv1.ClientHello)(c),
-		},
-	})
+	return marshalWithHeader(tdpbv1.Envelope_builder{
+		ClientHello: proto.ValueOrDefault((*tdpbv1.ClientHello)(c)),
+	}.Build())
 }
 
 func (*ClientHello) validate() error { return nil }
@@ -78,11 +76,9 @@ type ServerHello tdpbv1.ServerHello
 
 // Encode encodes a ServerHello message.
 func (s *ServerHello) Encode() ([]byte, error) {
-	return marshalWithHeader(&tdpbv1.Envelope{
-		Payload: &tdpbv1.Envelope_ServerHello{
-			ServerHello: (*tdpbv1.ServerHello)(s),
-		},
-	})
+	return marshalWithHeader(tdpbv1.Envelope_builder{
+		ServerHello: proto.ValueOrDefault((*tdpbv1.ServerHello)(s)),
+	}.Build())
 }
 
 func (*ServerHello) validate() error { return nil }
@@ -94,11 +90,9 @@ type PNGFrame tdpbv1.PNGFrame
 
 // Encode encodes a PNGFrame message.
 func (p *PNGFrame) Encode() ([]byte, error) {
-	return marshalWithHeader(&tdpbv1.Envelope{
-		Payload: &tdpbv1.Envelope_PngFrame{
-			PngFrame: (*tdpbv1.PNGFrame)(p),
-		},
-	})
+	return marshalWithHeader(tdpbv1.Envelope_builder{
+		PngFrame: proto.ValueOrDefault((*tdpbv1.PNGFrame)(p)),
+	}.Build())
 }
 
 func (*PNGFrame) validate() error { return nil }
@@ -108,11 +102,9 @@ type FastPathPDU tdpbv1.FastPathPDU
 
 // Encode encodes a FastPathPDU message.
 func (f *FastPathPDU) Encode() ([]byte, error) {
-	return marshalWithHeader(&tdpbv1.Envelope{
-		Payload: &tdpbv1.Envelope_FastPathPdu{
-			FastPathPdu: (*tdpbv1.FastPathPDU)(f),
-		},
-	})
+	return marshalWithHeader(tdpbv1.Envelope_builder{
+		FastPathPdu: proto.ValueOrDefault((*tdpbv1.FastPathPDU)(f)),
+	}.Build())
 }
 
 func (*FastPathPDU) validate() error { return nil }
@@ -122,11 +114,9 @@ type RDPResponsePDU tdpbv1.RDPResponsePDU
 
 // Encode encodes a RDPResponsePDU message.
 func (f *RDPResponsePDU) Encode() ([]byte, error) {
-	return marshalWithHeader(&tdpbv1.Envelope{
-		Payload: &tdpbv1.Envelope_RdpResponsePdu{
-			RdpResponsePdu: (*tdpbv1.RDPResponsePDU)(f),
-		},
-	})
+	return marshalWithHeader(tdpbv1.Envelope_builder{
+		RdpResponsePdu: proto.ValueOrDefault((*tdpbv1.RDPResponsePDU)(f)),
+	}.Build())
 }
 
 func (*RDPResponsePDU) validate() error { return nil }
@@ -137,25 +127,32 @@ type SyncKeys tdpbv1.SyncKeys
 
 // Encode encodes a SyncKeys message.
 func (s *SyncKeys) Encode() ([]byte, error) {
-	return marshalWithHeader(&tdpbv1.Envelope{
-		Payload: &tdpbv1.Envelope_SyncKeys{
-			SyncKeys: (*tdpbv1.SyncKeys)(s),
-		},
-	})
+	return marshalWithHeader(tdpbv1.Envelope_builder{
+		SyncKeys: proto.ValueOrDefault((*tdpbv1.SyncKeys)(s)),
+	}.Build())
 }
 
 func (*SyncKeys) validate() error { return nil }
+
+// SessionSelection is sent by client to select one of available sessions for Linux desktop
+type SessionSelection tdpbv1.SessionSelection
+
+func (s *SessionSelection) Encode() ([]byte, error) {
+	return marshalWithHeader(tdpbv1.Envelope_builder{
+		SessionSelection: proto.ValueOrDefault((*tdpbv1.SessionSelection)(s)),
+	}.Build())
+}
+
+func (*SessionSelection) validate() error { return nil }
 
 // MouseMove contains mouse coordinates.
 type MouseMove tdpbv1.MouseMove
 
 // Encode encodes a MouseMove message.
 func (m *MouseMove) Encode() ([]byte, error) {
-	return marshalWithHeader(&tdpbv1.Envelope{
-		Payload: &tdpbv1.Envelope_MouseMove{
-			MouseMove: (*tdpbv1.MouseMove)(m),
-		},
-	})
+	return marshalWithHeader(tdpbv1.Envelope_builder{
+		MouseMove: proto.ValueOrDefault((*tdpbv1.MouseMove)(m)),
+	}.Build())
 }
 
 func (*MouseMove) validate() error { return nil }
@@ -165,11 +162,9 @@ type MouseButton tdpbv1.MouseButton
 
 // Encode encodes a MouseButton message.
 func (m *MouseButton) Encode() ([]byte, error) {
-	return marshalWithHeader(&tdpbv1.Envelope{
-		Payload: &tdpbv1.Envelope_MouseButton{
-			MouseButton: (*tdpbv1.MouseButton)(m),
-		},
-	})
+	return marshalWithHeader(tdpbv1.Envelope_builder{
+		MouseButton: proto.ValueOrDefault((*tdpbv1.MouseButton)(m)),
+	}.Build())
 }
 
 func (*MouseButton) validate() error { return nil }
@@ -179,11 +174,9 @@ type KeyboardButton tdpbv1.KeyboardButton
 
 // Encode encodes a KeyboardButton message.
 func (k *KeyboardButton) Encode() ([]byte, error) {
-	return marshalWithHeader(&tdpbv1.Envelope{
-		Payload: &tdpbv1.Envelope_KeyboardButton{
-			KeyboardButton: (*tdpbv1.KeyboardButton)(k),
-		},
-	})
+	return marshalWithHeader(tdpbv1.Envelope_builder{
+		KeyboardButton: proto.ValueOrDefault((*tdpbv1.KeyboardButton)(k)),
+	}.Build())
 }
 
 func (*KeyboardButton) validate() error { return nil }
@@ -195,11 +188,9 @@ type ClientScreenSpec tdpbv1.ClientScreenSpec
 
 // Encode encodes a ClientScreenSpec message.
 func (c *ClientScreenSpec) Encode() ([]byte, error) {
-	return marshalWithHeader(&tdpbv1.Envelope{
-		Payload: &tdpbv1.Envelope_ClientScreenSpec{
-			ClientScreenSpec: (*tdpbv1.ClientScreenSpec)(c),
-		},
-	})
+	return marshalWithHeader(tdpbv1.Envelope_builder{
+		ClientScreenSpec: proto.ValueOrDefault((*tdpbv1.ClientScreenSpec)(c)),
+	}.Build())
 }
 
 func (*ClientScreenSpec) validate() error { return nil }
@@ -210,11 +201,9 @@ type Alert tdpbv1.Alert
 
 // Encode encodes a Alert message.
 func (a *Alert) Encode() ([]byte, error) {
-	return marshalWithHeader(&tdpbv1.Envelope{
-		Payload: &tdpbv1.Envelope_Alert{
-			Alert: (*tdpbv1.Alert)(a),
-		},
-	})
+	return marshalWithHeader(tdpbv1.Envelope_builder{
+		Alert: proto.ValueOrDefault((*tdpbv1.Alert)(a)),
+	}.Build())
 }
 
 func (*Alert) validate() error { return nil }
@@ -224,11 +213,9 @@ type MouseWheel tdpbv1.MouseWheel
 
 // Encode encodes a MouseWheel message.
 func (m *MouseWheel) Encode() ([]byte, error) {
-	return marshalWithHeader(&tdpbv1.Envelope{
-		Payload: &tdpbv1.Envelope_MouseWheel{
-			MouseWheel: (*tdpbv1.MouseWheel)(m),
-		},
-	})
+	return marshalWithHeader(tdpbv1.Envelope_builder{
+		MouseWheel: proto.ValueOrDefault((*tdpbv1.MouseWheel)(m)),
+	}.Build())
 }
 
 func (*MouseWheel) validate() error { return nil }
@@ -239,11 +226,9 @@ type ClipboardData tdpbv1.ClipboardData
 
 // Encode encodes a ClipboardData message.
 func (c *ClipboardData) Encode() ([]byte, error) {
-	return marshalWithHeader(&tdpbv1.Envelope{
-		Payload: &tdpbv1.Envelope_ClipboardData{
-			ClipboardData: (*tdpbv1.ClipboardData)(c),
-		},
-	})
+	return marshalWithHeader(tdpbv1.Envelope_builder{
+		ClipboardData: proto.ValueOrDefault((*tdpbv1.ClipboardData)(c)),
+	}.Build())
 }
 
 func (c *ClipboardData) validate() error {
@@ -259,11 +244,9 @@ type MFA tdpbv1.MFA
 
 // Encode encodes a MFA message.
 func (m *MFA) Encode() ([]byte, error) {
-	return marshalWithHeader(&tdpbv1.Envelope{
-		Payload: &tdpbv1.Envelope_Mfa{
-			Mfa: (*tdpbv1.MFA)(m),
-		},
-	})
+	return marshalWithHeader(tdpbv1.Envelope_builder{
+		Mfa: proto.ValueOrDefault((*tdpbv1.MFA)(m)),
+	}.Build())
 }
 
 func (*MFA) validate() error { return nil }
@@ -273,11 +256,9 @@ type SharedDirectoryAnnounce tdpbv1.SharedDirectoryAnnounce
 
 // Encode encodes a SharedDirectoryAnnounce message.
 func (s *SharedDirectoryAnnounce) Encode() ([]byte, error) {
-	return marshalWithHeader(&tdpbv1.Envelope{
-		Payload: &tdpbv1.Envelope_SharedDirectoryAnnounce{
-			SharedDirectoryAnnounce: (*tdpbv1.SharedDirectoryAnnounce)(s),
-		},
-	})
+	return marshalWithHeader(tdpbv1.Envelope_builder{
+		SharedDirectoryAnnounce: proto.ValueOrDefault((*tdpbv1.SharedDirectoryAnnounce)(s)),
+	}.Build())
 }
 
 func (*SharedDirectoryAnnounce) validate() error { return nil }
@@ -287,11 +268,9 @@ type SharedDirectoryRemove tdpbv1.SharedDirectoryRemove
 
 // Encode encodes a SharedDirectoryAnnounce message.
 func (s *SharedDirectoryRemove) Encode() ([]byte, error) {
-	return marshalWithHeader(&tdpbv1.Envelope{
-		Payload: &tdpbv1.Envelope_SharedDirectoryRemove{
-			SharedDirectoryRemove: (*tdpbv1.SharedDirectoryRemove)(s),
-		},
-	})
+	return marshalWithHeader(tdpbv1.Envelope_builder{
+		SharedDirectoryRemove: proto.ValueOrDefault((*tdpbv1.SharedDirectoryRemove)(s)),
+	}.Build())
 }
 
 func (*SharedDirectoryRemove) validate() error { return nil }
@@ -302,11 +281,9 @@ type SharedDirectoryAcknowledge tdpbv1.SharedDirectoryAcknowledge
 
 // Encode encodes a SharedDirectoryAcknowledge message.
 func (s *SharedDirectoryAcknowledge) Encode() ([]byte, error) {
-	return marshalWithHeader(&tdpbv1.Envelope{
-		Payload: &tdpbv1.Envelope_SharedDirectoryAcknowledge{
-			SharedDirectoryAcknowledge: (*tdpbv1.SharedDirectoryAcknowledge)(s),
-		},
-	})
+	return marshalWithHeader(tdpbv1.Envelope_builder{
+		SharedDirectoryAcknowledge: proto.ValueOrDefault((*tdpbv1.SharedDirectoryAcknowledge)(s)),
+	}.Build())
 }
 
 func (*SharedDirectoryAcknowledge) validate() error { return nil }
@@ -317,11 +294,9 @@ type SharedDirectoryRequest tdpbv1.SharedDirectoryRequest
 
 // Encode encodes a SharedDirectoryRequest message.
 func (s *SharedDirectoryRequest) Encode() ([]byte, error) {
-	return marshalWithHeader(&tdpbv1.Envelope{
-		Payload: &tdpbv1.Envelope_SharedDirectoryRequest{
-			SharedDirectoryRequest: (*tdpbv1.SharedDirectoryRequest)(s),
-		},
-	})
+	return marshalWithHeader(tdpbv1.Envelope_builder{
+		SharedDirectoryRequest: proto.ValueOrDefault((*tdpbv1.SharedDirectoryRequest)(s)),
+	}.Build())
 }
 
 func (s *SharedDirectoryRequest) validate() error {
@@ -374,11 +349,9 @@ type SharedDirectoryResponse tdpbv1.SharedDirectoryResponse
 
 // Encode encodes a SharedDirectoryResponse message.
 func (s *SharedDirectoryResponse) Encode() ([]byte, error) {
-	return marshalWithHeader(&tdpbv1.Envelope{
-		Payload: &tdpbv1.Envelope_SharedDirectoryResponse{
-			SharedDirectoryResponse: (*tdpbv1.SharedDirectoryResponse)(s),
-		},
-	})
+	return marshalWithHeader(tdpbv1.Envelope_builder{
+		SharedDirectoryResponse: proto.ValueOrDefault((*tdpbv1.SharedDirectoryResponse)(s)),
+	}.Build())
 }
 
 func (s *SharedDirectoryResponse) validate() error {
@@ -416,11 +389,9 @@ type LatencyStats tdpbv1.LatencyStats
 
 // Encode encodes a LatencyStats message.
 func (l *LatencyStats) Encode() ([]byte, error) {
-	return marshalWithHeader(&tdpbv1.Envelope{
-		Payload: &tdpbv1.Envelope_LatencyStats{
-			LatencyStats: (*tdpbv1.LatencyStats)(l),
-		},
-	})
+	return marshalWithHeader(tdpbv1.Envelope_builder{
+		LatencyStats: proto.ValueOrDefault((*tdpbv1.LatencyStats)(l)),
+	}.Build())
 }
 
 func (*LatencyStats) validate() error { return nil }
@@ -431,11 +402,9 @@ type Ping tdpbv1.Ping
 
 // Encodes a ping message.
 func (p *Ping) Encode() ([]byte, error) {
-	return marshalWithHeader(&tdpbv1.Envelope{
-		Payload: &tdpbv1.Envelope_Ping{
-			Ping: (*tdpbv1.Ping)(p),
-		},
-	})
+	return marshalWithHeader(tdpbv1.Envelope_builder{
+		Ping: proto.ValueOrDefault((*tdpbv1.Ping)(p)),
+	}.Build())
 }
 
 func (*Ping) validate() error { return nil }
@@ -587,6 +556,8 @@ func messageFromEnvelope(e *tdpbv1.Envelope) validatableMessage {
 		return (*Ping)(e.GetPing())
 	case tdpbv1.Envelope_SharedDirectoryRemove_case:
 		return (*SharedDirectoryRemove)(e.GetSharedDirectoryRemove())
+	case tdpbv1.Envelope_SessionSelection_case:
+		return (*SessionSelection)(e.GetSessionSelection())
 	default:
 		return nil
 	}

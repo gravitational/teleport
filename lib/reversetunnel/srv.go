@@ -456,7 +456,7 @@ func (s *server) periodicFunctions() {
 	ticker := time.NewTicker(defaults.ResyncInterval)
 	defer ticker.Stop()
 
-	if err := s.fetchExpectedLeafClusters(); err != nil {
+	if err := s.fetchExpectedLeafClusters(s.ctx); err != nil {
 		s.logger.WarnContext(s.Context, "Failed to fetch expected leaf cluster", "error", err)
 	}
 	for {
@@ -465,7 +465,7 @@ func (s *server) periodicFunctions() {
 			s.logger.DebugContext(s.ctx, "Closing")
 			return
 		case <-ticker.C:
-			if err := s.fetchExpectedLeafClusters(); err != nil {
+			if err := s.fetchExpectedLeafClusters(s.ctx); err != nil {
 				s.logger.WarnContext(s.ctx, "Failed to fetch expected leaf clusters", "error", err)
 			}
 
@@ -494,8 +494,8 @@ func (s *server) periodicFunctions() {
 // what was found in the previous iteration and updates the in-memory cluster
 // placeholders. This map is used later by Cluster(s) to return either local or
 // leaf cluster, or if no match, a placeholder.
-func (s *server) fetchExpectedLeafClusters() error {
-	conns, err := s.LocalAccessPoint.GetAllTunnelConnections()
+func (s *server) fetchExpectedLeafClusters(ctx context.Context) error {
+	conns, err := s.LocalAccessPoint.GetAllTunnelConnections(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -783,6 +783,7 @@ func (s *server) handleTransportChannel(sconn *ssh.ServerConn, ch ssh.Channel, r
 			s.logger.ErrorContext(s.ctx, "Failed to create signed PROXY header", "error", err)
 			fmt.Fprint(ch.Stderr(), "internal server error")
 			req.Reply(false, nil)
+			return
 		}
 		proxyHeader = h
 	}
@@ -850,6 +851,8 @@ func (s *server) handleHeartbeat(ctx context.Context, conn net.Conn, sconn *ssh.
 		s.handleNewCluster(ctx, conn, sconn, nch)
 	case types.RoleWindowsDesktop:
 		s.handleNewService(ctx, role, conn, sconn, nch, types.WindowsDesktopTunnel)
+	case types.RoleLinuxDesktop:
+		s.handleNewService(ctx, role, conn, sconn, nch, types.LinuxDesktopTunnel)
 	case types.RoleOkta:
 		s.handleNewService(ctx, role, conn, sconn, nch, types.OktaTunnel)
 	// Unknown role.

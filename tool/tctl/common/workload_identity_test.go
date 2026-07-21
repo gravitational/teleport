@@ -37,6 +37,7 @@ import (
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/lib/utils/testutils/golden"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
@@ -58,7 +59,12 @@ func runWorkloadIdentityCommand(
 func TestWorkloadIdentity(t *testing.T) {
 	t.Parallel()
 
-	process, err := testenv.NewTeleportProcess(t.TempDir(), testenv.WithLogger(logtest.NewLogger()))
+	process, err := testenv.NewTeleportProcess(
+		t.TempDir(),
+		testenv.WithLogger(logtest.NewLogger()),
+		// Scoped workload identity writes are feature-gated.
+		testenv.WithScopesFeatures(scopes.Features{Enabled: true}),
+	)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		require.NoError(t, process.Close())
@@ -173,6 +179,57 @@ spec:
 
 		resources := mustDecodeJSON[[]*workloadidentityv1pb.WorkloadIdentity](t, buf)
 		require.Empty(t, resources)
+	})
+
+	createWorkloadIdentity := func(t *testing.T, yamlData string) {
+		yamlPath := filepath.Join(t.TempDir(), "workload_identity.yaml")
+		require.NoError(t, os.WriteFile(yamlPath, []byte(yamlData), 0644))
+		_, err := runResourceCommand(t, rootClient, []string{"create", yamlPath})
+		require.NoError(t, err)
+	}
+
+	t.Run("scoped create", func(t *testing.T) {
+		createWorkloadIdentity(t, `kind: workload_identity
+version: v1
+metadata:
+  name: classic-wi
+spec:
+  spiffe:
+    id: /classic
+`)
+		createWorkloadIdentity(t, `kind: workload_identity
+version: v1
+metadata:
+  name: staging-wi
+scope: /staging
+spec:
+  spiffe:
+    id: /staging/_/svc
+`)
+	})
+
+	t.Run("scoped ls shows scope-qualified name", func(t *testing.T) {
+		buf, err := runWorkloadIdentityCommand(t, rootClient, []string{"workload-identity", "ls"})
+		require.NoError(t, err)
+		out := buf.String()
+		// Scoped identities are shown as a scope-qualified name; unscoped ones
+		// keep their bare name.
+		require.Contains(t, out, "/staging::staging-wi")
+		require.Contains(t, out, "classic-wi")
+	})
+
+	t.Run("scoped rm by scope-qualified name", func(t *testing.T) {
+		_, err := runWorkloadIdentityCommand(t, rootClient, []string{"workload-identity", "rm", "/staging::staging-wi"})
+		require.NoError(t, err)
+
+		buf, err := runWorkloadIdentityCommand(t, rootClient, []string{"workload-identity", "ls"})
+		require.NoError(t, err)
+		require.NotContains(t, buf.String(), "staging-wi")
+	})
+
+	t.Run("rm remaining unscoped by bare name", func(t *testing.T) {
+		_, err := runWorkloadIdentityCommand(t, rootClient, []string{"workload-identity", "rm", "classic-wi"})
+		require.NoError(t, err)
 	})
 }
 
@@ -308,5 +365,46 @@ func TestWorkloadIdentityRevocation(t *testing.T) {
 		)
 		require.NoError(t, err)
 		require.Equal(t, "[]\n", buf.String())
+	})
+
+	// Structured output must serialize the created revocation resource instead
+	// of the "Revocation for the X509 certificate ... created" prose.
+	t.Run("revocations add json", func(t *testing.T) {
+		buf, err := runWorkloadIdentityCommand(
+			t, rootClient, []string{
+				"workload-identity", "revocations", "add",
+				"--type=x509",
+				"--serial=11:22:33:44",
+				"--reason=compromised",
+				"--expires-at=2030-02-24T15:04:00Z",
+				"--format=json",
+			},
+		)
+		require.NoError(t, err)
+		require.NotContains(t, buf.String(), "created")
+
+		// Output is the legacy-wrapped resource (RFC3339 timestamps), matching
+		// `revocations ls`/`tctl get`, so decode with protojson like those do.
+		got := &workloadidentityv1pb.WorkloadIdentityX509Revocation{}
+		require.NoError(t, protojson.UnmarshalOptions{DiscardUnknown: true}.Unmarshal(buf.Bytes(), got))
+		require.Equal(t, "11223344", got.GetMetadata().GetName())
+		require.Equal(t, "compromised", got.GetSpec().GetReason())
+	})
+
+	t.Run("revocations add yaml", func(t *testing.T) {
+		buf, err := runWorkloadIdentityCommand(
+			t, rootClient, []string{
+				"workload-identity", "revocations", "add",
+				"--type=x509",
+				"--serial=55:66:77:88",
+				"--reason=compromised",
+				"--expires-at=2030-02-24T15:04:00Z",
+				"--format=yaml",
+			},
+		)
+		require.NoError(t, err)
+		require.NotContains(t, buf.String(), "created")
+		require.Contains(t, buf.String(), "name: \"55667788\"")
+		require.Contains(t, buf.String(), "reason: compromised")
 	})
 }

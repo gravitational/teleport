@@ -16,7 +16,7 @@ README_FILES := $(addsuffix /README.md,$(MODULE_DIRS))
 
 .PHONY: docs
 docs: $(README_FILES)
-	./gen/docs.sh $(VERSION) $(PUBLISHED_TF_MODULES)
+	./gen/docs.sh "$(VERSION)" $(PUBLISHED_TF_MODULES)
 
 %/README.md: force
 	terraform-docs markdown table --config .terraform-docs.yml $*
@@ -61,6 +61,7 @@ release: build
 
 PLUGIN_TYPE := terraform-module
 # This list controls which modules are actually published.
+# TODO(gavin): publish teleport/container-service/aws after updating the promote-terraform cmd in teleport.e to handle hyphens in module names
 PUBLISHED_TF_MODULES := \
 	teleport/discovery/aws \
 	teleport/discovery/azure \
@@ -98,3 +99,33 @@ tfclean:
 		-or -name '.terraform.lock.hcl' \
 		-or -name 'terraform.tfstate*' \
 	\) -exec rm -rf {} \+
+
+#
+# update-version updates Terraform source code that depends on the current release version.
+#
+.PHONY: update-version
+update-version:
+	./gen/update-version.sh $(VERSION)
+
+.PHONY: create-module
+create-module:
+ifndef MODULE
+	$(error MODULE is required)
+endif
+ifndef REMOTE_SYSTEM
+	$(error REMOTE_SYSTEM is required)
+endif
+	./gen/module.sh "$(MODULE)" "$(REMOTE_SYSTEM)"
+
+.PHONY: create-example
+create-example:
+ifndef MODULE
+	$(error MODULE is required)
+endif
+ifndef REMOTE_SYSTEM
+	$(error REMOTE_SYSTEM is required)
+endif
+ifndef EXAMPLE
+	$(error EXAMPLE is required)
+endif
+	./gen/example.sh "$(MODULE)" "$(REMOTE_SYSTEM)" "$(EXAMPLE)"

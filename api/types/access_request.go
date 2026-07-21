@@ -114,6 +114,9 @@ type AccessRequest interface {
 	GetSuggestedReviewers() []string
 	// SetSuggestedReviewers sets the suggested reviewer list.
 	SetSuggestedReviewers([]string)
+	// GetReferencedUsers returns the usernames referenced by this request: the
+	// requester, review authors, and suggested reviewers.
+	GetReferencedUsers() []string
 	// GetRequestedResourceIDs gets the resource IDs to which access is being requested.
 	GetRequestedResourceIDs() []ResourceID
 	// SetRequestedResourceIDs sets the resource IDs to which access is being requested.
@@ -442,6 +445,16 @@ func (r *AccessRequestV3) SetSuggestedReviewers(reviewers []string) {
 	r.Spec.SuggestedReviewers = reviewers
 }
 
+// GetReferencedUsers returns the usernames referenced by this request: the
+// requester, review authors, and suggested reviewers.
+func (r *AccessRequestV3) GetReferencedUsers() []string {
+	usernames := []string{r.GetUser()}
+	for _, review := range r.GetReviews() {
+		usernames = append(usernames, review.Author)
+	}
+	return append(usernames, r.GetSuggestedReviewers()...)
+}
+
 // GetPromotedAccessListName returns PromotedAccessListName.
 func (r *AccessRequestV3) GetPromotedAccessListName() string {
 	if r.Spec.AccessList == nil {
@@ -620,7 +633,13 @@ func (r *AccessRequestV3) SetRequestedResourceAccessIDs(ids []ResourceAccessID) 
 	r.Spec.RequestedResourceAccessIDs = append([]ResourceAccessID{}, ids...)
 }
 
-// GetAllRequestedResourceIDs gets all [ResourceAccessID]-based representations of requested resources.
+// GetAllRequestedResourceIDs gets all [ResourceAccessID]-based representations
+// of requested resources, merging the spec's RequestedResourceIDs and
+// RequestedResourceAccessIDs fields without deduplication. The two spec fields
+// are deduplicated against each other when the request is created, with
+// constrained entries taking precedence. To merge the equivalent parallel
+// fields on API request parameters, which are not validated this way, use
+// [CombineAsResourceAccessIDs] instead.
 func (r *AccessRequestV3) GetAllRequestedResourceIDs() []ResourceAccessID {
 	wrapped := make([]ResourceAccessID, 0, len(r.Spec.RequestedResourceIDs)+len(r.Spec.RequestedResourceAccessIDs))
 	for _, rid := range r.Spec.RequestedResourceIDs {

@@ -76,6 +76,54 @@ func (e AlertStatus) Valid() bool {
 	}
 }
 
+// Defines values for IdentityAccessDecisionLevel.
+const (
+	IdentityAccessDecisionLevelDenied      IdentityAccessDecisionLevel = "denied"
+	IdentityAccessDecisionLevelImpersonate IdentityAccessDecisionLevel = "impersonate"
+	IdentityAccessDecisionLevelRequest     IdentityAccessDecisionLevel = "request"
+	IdentityAccessDecisionLevelStanding    IdentityAccessDecisionLevel = "standing"
+)
+
+// Valid indicates whether the value is a known member of the IdentityAccessDecisionLevel enum.
+func (e IdentityAccessDecisionLevel) Valid() bool {
+	switch e {
+	case IdentityAccessDecisionLevelDenied:
+		return true
+	case IdentityAccessDecisionLevelImpersonate:
+		return true
+	case IdentityAccessDecisionLevelRequest:
+		return true
+	case IdentityAccessDecisionLevelStanding:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for IdentityAccessGrantorLevel.
+const (
+	IdentityAccessGrantorLevelDenied      IdentityAccessGrantorLevel = "denied"
+	IdentityAccessGrantorLevelImpersonate IdentityAccessGrantorLevel = "impersonate"
+	IdentityAccessGrantorLevelRequest     IdentityAccessGrantorLevel = "request"
+	IdentityAccessGrantorLevelStanding    IdentityAccessGrantorLevel = "standing"
+)
+
+// Valid indicates whether the value is a known member of the IdentityAccessGrantorLevel enum.
+func (e IdentityAccessGrantorLevel) Valid() bool {
+	switch e {
+	case IdentityAccessGrantorLevelDenied:
+		return true
+	case IdentityAccessGrantorLevelImpersonate:
+		return true
+	case IdentityAccessGrantorLevelRequest:
+		return true
+	case IdentityAccessGrantorLevelStanding:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for SecurityAlertSeverity.
 const (
 	Critical SecurityAlertSeverity = "critical"
@@ -240,6 +288,97 @@ type GetLogsStatsResponse struct {
 // Graph defines model for Graph.
 type Graph = externalRef0.Graph
 
+// IdentityAccessActivity Observed access activity for this (identity, resource) pair over the request's activity window, aggregated server-side from session-start audit events. Present only when the window (`start_time` + `end_time`) was supplied and the activity lookup succeeded, and only for pairs with at least one access in the window — a pair with no events leaves `activity` absent (the client reads that as zero).
+type IdentityAccessActivity struct {
+	// Count Number of access (session-start) events for this pair in the window; always at least 1 when present.
+	Count int64 `json:"count"`
+
+	// LastAccess Timestamp of the most recent access in the window.
+	LastAccess *time.Time `json:"last_access,omitempty"`
+}
+
+// IdentityAccessDecision defines model for IdentityAccessDecision.
+type IdentityAccessDecision struct {
+	// Activity Observed access activity for this (identity, resource) pair over the request's activity window, aggregated server-side from session-start audit events. Present only when the window (`start_time` + `end_time`) was supplied and the activity lookup succeeded, and only for pairs with at least one access in the window — a pair with no events leaves `activity` absent (the client reads that as zero).
+	Activity *IdentityAccessActivity `json:"activity,omitempty"`
+
+	// GrantorCounts Counts of grantors backing this (identity, resource) pair, split by level. Denied grantors appear in `grantors` but aren't counted here — these counts describe how access *is* granted, and a deny is the absence of a grant.
+	GrantorCounts IdentityAccessGrantorCounts `json:"grantor_counts"`
+
+	// Grantors Grantors backing (or denying) this access, in a stable order callers can rely on: by `level` priority `denied > standing > impersonate > request`, then permanent before temporary, then by name, then by `id`. The first element is the strongest-priority grantor.
+	Grantors []IdentityAccessGrantor `json:"grantors"`
+
+	// Level Resolved access level for this identity, in priority order `denied > standing > impersonate > request`. `denied` overrides the others when a deny path applies; `impersonate` means the access is only reachable by impersonating another identity (no approval, just a certificate minted as the target); the grantor and path counts still describe how access would otherwise be reached. `temporary` is a within-level qualifier on this value, not a level of its own.
+	Level IdentityAccessDecisionLevel `json:"level"`
+
+	// Temporary True when the resolved access is self-expiring — every grantor at the winning `level` was created by an access request (see the grantor node's own `temporary`). If any permanent grantor reaches the resource at that level, a non-expiring path exists and this is omitted. Read it alongside `level` ("standing, but temporary"). Omitted when false.
+	Temporary *bool `json:"temporary,omitempty"`
+}
+
+// IdentityAccessDecisionLevel Resolved access level for this identity, in priority order `denied > standing > impersonate > request`. `denied` overrides the others when a deny path applies; `impersonate` means the access is only reachable by impersonating another identity (no approval, just a certificate minted as the target); the grantor and path counts still describe how access would otherwise be reached. `temporary` is a within-level qualifier on this value, not a level of its own.
+type IdentityAccessDecisionLevel string
+
+// IdentityAccessGrantor A grantor backing (or denying) this (identity, resource) access. Only the per-access fields live here; the grantor's shared node fields (name, kind, source, origin, …) are resolved by `id` against the response `nodes` list.
+type IdentityAccessGrantor struct {
+	// Id Node id of the grantor; resolve it against the response `nodes` list.
+	Id uuid.UUID `json:"id"`
+
+	// Level This grantor's strongest contribution to the access: `denied` if any path through it crosses a deny, `standing` if a clean path exists, `impersonate` if it is only reachable by impersonating another identity, or `request` if every path is gated by a request.
+	Level IdentityAccessGrantorLevel `json:"level"`
+}
+
+// IdentityAccessGrantorLevel This grantor's strongest contribution to the access: `denied` if any path through it crosses a deny, `standing` if a clean path exists, `impersonate` if it is only reachable by impersonating another identity, or `request` if every path is gated by a request.
+type IdentityAccessGrantorLevel string
+
+// IdentityAccessGrantorCounts Counts of grantors backing this (identity, resource) pair, split by level. Denied grantors appear in `grantors` but aren't counted here — these counts describe how access *is* granted, and a deny is the absence of a grant.
+type IdentityAccessGrantorCounts struct {
+	Impersonate int `json:"impersonate"`
+	Request     int `json:"request"`
+	Standing    int `json:"standing"`
+}
+
+// IdentityAccessNode defines model for IdentityAccessNode.
+type IdentityAccessNode struct {
+	// Alias Optional human-readable alias; UIs should prefer this over `name` when present.
+	Alias   *string               `json:"alias,omitempty"`
+	Id      uuid.UUID             `json:"id"`
+	Kind    externalRef0.NodeKind `json:"kind"`
+	Name    string                `json:"name"`
+	Origin  *string               `json:"origin,omitempty"`
+	Source  *string               `json:"source,omitempty"`
+	SubKind *string               `json:"sub_kind,omitempty"`
+
+	// Temporary True when this node is a grantor created by an access request (e.g. an approved request that granted a role for a window) rather than a standing membership. Access through it still resolves at the grantor's `level`, but it will expire on its own, so reviewers should treat it differently from permanent access. A concrete expiry timestamp is future work (the graph carries only this boolean today). Omitted for permanent nodes.
+	Temporary *bool `json:"temporary,omitempty"`
+}
+
+// IdentityAccessResource defines model for IdentityAccessResource.
+type IdentityAccessResource struct {
+	AccessInfo IdentityAccessDecision `json:"access_info"`
+
+	// Resource Node id of the resource; resolve it against the response `nodes` list.
+	Resource uuid.UUID `json:"resource"`
+}
+
+// IdentityAccessResponse defines model for IdentityAccessResponse.
+type IdentityAccessResponse struct {
+	Data []IdentityAccessRow `json:"data"`
+
+	// IacError Set when the per-pair activity lookup failed or was unavailable (e.g. the Identity Activity Center is not configured, or the audit query errored). User-displayable and non-blocking: because activity comes from a different backend than the graph classification, a failure there is isolated to this one field — `data` still carries the full set of access decisions and only the per-pair `activity` is missing.
+	IacError   *string `json:"iac_error,omitempty"`
+	NextCursor *string `json:"next_cursor,omitempty"`
+
+	// Nodes Deduplicated identity, resource, and grantor nodes referenced by `data`. Clients build a lookup map keyed by `id` and resolve each row's `identity` / `resource` / grantor `id` against it. Scoped to nodes referenced by the current page.
+	Nodes []IdentityAccessNode `json:"nodes"`
+}
+
+// IdentityAccessRow defines model for IdentityAccessRow.
+type IdentityAccessRow struct {
+	// Identity Node id of the identity; resolve it against the response `nodes` list.
+	Identity  uuid.UUID                `json:"identity"`
+	Resources []IdentityAccessResource `json:"resources"`
+}
+
 // IdentitySummary defines model for IdentitySummary.
 type IdentitySummary struct {
 	Data       []IdentitySummaryItem `json:"data"`
@@ -364,6 +503,24 @@ type SecurityAlert struct {
 // SecurityAlertSeverity Severity level of the alert
 type SecurityAlertSeverity string
 
+// ListIdentityAccessParams defines parameters for ListIdentityAccess.
+type ListIdentityAccessParams struct {
+	// Query SQL SELECT against `access_path`. WHERE/LIMIT scope the seed identity set.
+	Query string `form:"query" json:"query"`
+
+	// Limit Maximum number of identities to return per page.
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Iterator Opaque cursor returned in `next_cursor` of a prior response.
+	Iterator *string `form:"iterator,omitempty" json:"iterator,omitempty"`
+
+	// StartTime Start of the activity window (RFC 3339). Must be paired with `end_time` to enable per-pair activity.
+	StartTime *time.Time `form:"start_time,omitempty" json:"start_time,omitempty"`
+
+	// EndTime End of the activity window (RFC 3339). Must be paired with `start_time` to enable per-pair activity.
+	EndTime *time.Time `form:"end_time,omitempty" json:"end_time,omitempty"`
+}
+
 // ListAlertStatsV1Params defines parameters for ListAlertStatsV1.
 type ListAlertStatsV1Params struct {
 	// StartTime Start time for the logs
@@ -460,6 +617,15 @@ type GetEventCountSinceParams struct {
 type ExecuteLogsStatsQueryV1Params struct {
 	// Query Query to execute
 	Query *string `form:"query,omitempty" json:"query,omitempty"`
+
+	// Latitude Center latitude for the logs
+	Latitude *float32 `form:"latitude,omitempty" json:"latitude,omitempty"`
+
+	// Longitude Center longitude for the logs
+	Longitude *float32 `form:"longitude,omitempty" json:"longitude,omitempty"`
+
+	// Radius Radius for the logs
+	Radius *float32 `form:"radius,omitempty" json:"radius,omitempty"`
 
 	// StartTime Start time for the logs
 	StartTime *time.Time `form:"start_time,omitempty" json:"start_time,omitempty"`
@@ -565,6 +731,9 @@ func WithRequestEditorFn(fn RequestEditorFn) ClientOption {
 
 // The interface specification for the client above.
 type ClientInterface interface {
+	// ListIdentityAccess request
+	ListIdentityAccess(ctx context.Context, params *ListIdentityAccessParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// GetAccountAliases request
 	GetAccountAliases(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -637,6 +806,18 @@ type ClientInterface interface {
 	GetRoleTesterAccessPathsWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	GetRoleTesterAccessPaths(ctx context.Context, body GetRoleTesterAccessPathsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+}
+
+func (c *Client) ListIdentityAccess(ctx context.Context, params *ListIdentityAccessParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListIdentityAccessRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
 }
 
 func (c *Client) GetAccountAliases(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -949,6 +1130,60 @@ func (c *Client) GetRoleTesterAccessPaths(ctx context.Context, body GetRoleTeste
 		return nil, err
 	}
 	return c.Client.Do(req)
+}
+
+// NewListIdentityAccessRequest generates requests for ListIdentityAccess
+func NewListIdentityAccessRequest(server string, params *ListIdentityAccessParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/graph/access/v1")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+		queryValues.Add("query", string(params.Query))
+
+		if params.Limit != nil {
+			queryValues.Add("limit", strconv.Itoa(*params.Limit))
+
+		}
+
+		if params.Iterator != nil {
+			queryValues.Add("iterator", string(*params.Iterator))
+
+		}
+
+		if params.StartTime != nil {
+			queryValues.Add("start_time", (*params.StartTime).Format(time.RFC3339Nano))
+
+		}
+
+		if params.EndTime != nil {
+			queryValues.Add("end_time", (*params.EndTime).Format(time.RFC3339Nano))
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
 }
 
 // NewGetAccountAliasesRequest generates requests for GetAccountAliases
@@ -1661,6 +1896,21 @@ func NewExecuteLogsStatsQueryV1Request(server string, params *ExecuteLogsStatsQu
 
 		}
 
+		if params.Latitude != nil {
+			queryValues.Add("latitude", strconv.FormatFloat(float64(*params.Latitude), 'f', -1, 32))
+
+		}
+
+		if params.Longitude != nil {
+			queryValues.Add("longitude", strconv.FormatFloat(float64(*params.Longitude), 'f', -1, 32))
+
+		}
+
+		if params.Radius != nil {
+			queryValues.Add("radius", strconv.FormatFloat(float64(*params.Radius), 'f', -1, 32))
+
+		}
+
 		if params.StartTime != nil {
 			queryValues.Add("start_time", (*params.StartTime).Format(time.RFC3339Nano))
 
@@ -1827,6 +2077,9 @@ func WithBaseURL(baseURL string) ClientOption {
 
 // ClientWithResponsesInterface is the interface specification for the client with responses above.
 type ClientWithResponsesInterface interface {
+	// ListIdentityAccessWithResponse request
+	ListIdentityAccessWithResponse(ctx context.Context, params *ListIdentityAccessParams, reqEditors ...RequestEditorFn) (*ListIdentityAccessResponse, error)
+
 	// GetAccountAliasesWithResponse request
 	GetAccountAliasesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetAccountAliasesResponse, error)
 
@@ -1899,6 +2152,34 @@ type ClientWithResponsesInterface interface {
 	GetRoleTesterAccessPathsWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*GetRoleTesterAccessPathsResponse, error)
 
 	GetRoleTesterAccessPathsWithResponse(ctx context.Context, body GetRoleTesterAccessPathsJSONRequestBody, reqEditors ...RequestEditorFn) (*GetRoleTesterAccessPathsResponse, error)
+}
+
+type ListIdentityAccessResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *IdentityAccessResponse
+	JSON400      *BadRequest
+}
+
+// Status returns HTTPResponse.Status
+func (r ListIdentityAccessResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListIdentityAccessResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// Bytes is a convenience method to retrieve the raw bytes from the HTTP response
+func (r ListIdentityAccessResponse) Bytes() []byte {
+	return r.Body
 }
 
 type GetAccountAliasesResponse struct {
@@ -1990,6 +2271,7 @@ type ListAlertStatsV1Response struct {
 	JSON200      *GetAlertsStatsResponse
 	JSON400      *BadRequest
 	JSON404      *BadRequest
+	JSON501      *BadRequest
 }
 
 // Status returns HTTPResponse.Status
@@ -2019,6 +2301,7 @@ type ListAlertsV1Response struct {
 	JSON200      *ListAlertsResponse
 	JSON400      *BadRequest
 	JSON404      *BadRequest
+	JSON501      *BadRequest
 }
 
 // Status returns HTTPResponse.Status
@@ -2048,6 +2331,7 @@ type GetAlertV1Response struct {
 	JSON200      *GetAlertResponse
 	JSON400      *BadRequest
 	JSON404      *BadRequest
+	JSON501      *BadRequest
 }
 
 // Status returns HTTPResponse.Status
@@ -2076,6 +2360,7 @@ type UpdateAlertStatusV1Response struct {
 	HTTPResponse *http.Response
 	JSON400      *BadRequest
 	JSON404      *BadRequest
+	JSON501      *BadRequest
 }
 
 // Status returns HTTPResponse.Status
@@ -2329,6 +2614,7 @@ type ExecuteLogsQueryV1Response struct {
 	JSON400      *BadRequest
 	JSON404      *BadRequest
 	JSON500      *BadRequest
+	JSON501      *BadRequest
 }
 
 // Status returns HTTPResponse.Status
@@ -2358,6 +2644,7 @@ type GetEventCountSinceResponse struct {
 	JSON200      *NewLogEntriesResponse
 	JSON400      *BadRequest
 	JSON404      *BadRequest
+	JSON501      *BadRequest
 }
 
 // Status returns HTTPResponse.Status
@@ -2387,6 +2674,7 @@ type ExecuteLogsStatsQueryV1Response struct {
 	JSON200      *GetLogsStatsResponse
 	JSON400      *BadRequest
 	JSON404      *BadRequest
+	JSON501      *BadRequest
 }
 
 // Status returns HTTPResponse.Status
@@ -2495,6 +2783,15 @@ func (r GetRoleTesterAccessPathsResponse) StatusCode() int {
 // Bytes is a convenience method to retrieve the raw bytes from the HTTP response
 func (r GetRoleTesterAccessPathsResponse) Bytes() []byte {
 	return r.Body
+}
+
+// ListIdentityAccessWithResponse request returning *ListIdentityAccessResponse
+func (c *ClientWithResponses) ListIdentityAccessWithResponse(ctx context.Context, params *ListIdentityAccessParams, reqEditors ...RequestEditorFn) (*ListIdentityAccessResponse, error) {
+	rsp, err := c.ListIdentityAccess(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListIdentityAccessResponse(rsp)
 }
 
 // GetAccountAliasesWithResponse request returning *GetAccountAliasesResponse
@@ -2726,6 +3023,39 @@ func (c *ClientWithResponses) GetRoleTesterAccessPathsWithResponse(ctx context.C
 	return ParseGetRoleTesterAccessPathsResponse(rsp)
 }
 
+// ParseListIdentityAccessResponse parses an HTTP response from a ListIdentityAccessWithResponse call
+func ParseListIdentityAccessResponse(rsp *http.Response) (*ListIdentityAccessResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListIdentityAccessResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest IdentityAccessResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseGetAccountAliasesResponse parses an HTTP response from a GetAccountAliasesWithResponse call
 func ParseGetAccountAliasesResponse(rsp *http.Response) (*GetAccountAliasesResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -2853,6 +3183,13 @@ func ParseListAlertStatsV1Response(rsp *http.Response) (*ListAlertStatsV1Respons
 		}
 		response.JSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON501 = &dest
+
 	}
 
 	return response, nil
@@ -2892,6 +3229,13 @@ func ParseListAlertsV1Response(rsp *http.Response) (*ListAlertsV1Response, error
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON501 = &dest
 
 	}
 
@@ -2933,6 +3277,13 @@ func ParseGetAlertV1Response(rsp *http.Response) (*GetAlertV1Response, error) {
 		}
 		response.JSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON501 = &dest
+
 	}
 
 	return response, nil
@@ -2965,6 +3316,13 @@ func ParseUpdateAlertStatusV1Response(rsp *http.Response) (*UpdateAlertStatusV1R
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON501 = &dest
 
 	}
 
@@ -3270,6 +3628,13 @@ func ParseExecuteLogsQueryV1Response(rsp *http.Response) (*ExecuteLogsQueryV1Res
 		}
 		response.JSON500 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON501 = &dest
+
 	}
 
 	return response, nil
@@ -3310,6 +3675,13 @@ func ParseGetEventCountSinceResponse(rsp *http.Response) (*GetEventCountSinceRes
 		}
 		response.JSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON501 = &dest
+
 	}
 
 	return response, nil
@@ -3349,6 +3721,13 @@ func ParseExecuteLogsStatsQueryV1Response(rsp *http.Response) (*ExecuteLogsStats
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON501 = &dest
 
 	}
 

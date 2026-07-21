@@ -23,13 +23,17 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
+	"sort"
 	"strings"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
@@ -126,6 +130,9 @@ type RecordingsCommand struct {
 	searchMode string
 	// searchResumeToken resumes a previous JSON/YAML search from a truncated result set.
 	searchResumeToken string
+	// searchReviewReasons filters results to sessions that have at least one of
+	// the specified review reasons. An empty slice disables this filter.
+	searchReviewReasons []string
 
 	// stdout allows to switch standard output source for resource command. Used in tests.
 	stdout io.Writer
@@ -168,6 +175,8 @@ func (c *RecordingsCommand) Initialize(app *kingpin.Application, t *tctlcfg.Glob
 	c.recordingsSearch.Flag("limit", "Maximum number of results to return.").Default(defaults.TshTctlSessionListLimit).Uint32Var(&c.searchLimit)
 	c.recordingsSearch.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)+". Defaults to 'text'.").Default(teleport.Text).StringVar(&c.searchFormat)
 	c.recordingsSearch.Flag("resume-token", "Resume a previous JSON/YAML search from a truncated result set (token printed to stderr when results are truncated).").StringVar(&c.searchResumeToken)
+	c.recordingsSearch.Flag("review-reason", "Filter to sessions that have at least one of the given review reasons. Use 'any' to match any flagged session. Can be specified multiple times.").
+		EnumsVar(&c.searchReviewReasons, append(reviewReasonFlagOptions(), "any")...)
 
 	c.recordingsEncryption.Initialize(recordings, c.stdout)
 
@@ -285,26 +294,6 @@ func (c *RecordingsCommand) SearchRecordings(ctx context.Context, tc *authclient
 		return trace.Wrap(err)
 	}
 
-	// fetcher is defined early so it can be used both for resume and for normal pagination.
-	fetcher := recordingstui.BatchFetcher(func(ctx context.Context, token string) ([]*sessionsearchv1pb.SessionSummary, string, error) {
-		// When BatchToken is set the server ignores all other filter fields per the proto contract.
-		batchStream, err := searchClient.SearchSessionSummaries(ctx, sessionsearchv1pb.SearchSessionSummariesRequest_builder{
-			BatchToken: token,
-		}.Build())
-		if err != nil {
-			return nil, "", trace.Wrap(err)
-		}
-		return collectStream(batchStream)
-	})
-
-	if c.searchResumeToken != "" {
-		sessions, nextToken, err := fetcher(ctx, c.searchResumeToken)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		return trace.Wrap(showSessionSummaries(ctx, sessions, nextToken, c.searchFormat, c.stdout, tc.SummarizerServiceClient(), fetcher))
-	}
-
 	fromUTC, toUTC, err := defaults.SearchSessionRange(clockwork.NewRealClock(), c.searchFromUTC, c.searchToUTC, "")
 	if err != nil {
 		return trace.Wrap(err)
@@ -359,24 +348,63 @@ func (c *RecordingsCommand) SearchRecordings(ctx context.Context, tc *authclient
 		}
 		req.SetSearchMode(mode)
 	}
+	if len(c.searchReviewReasons) > 0 {
+		var reasons []summarizerv1pb.NeedsReviewReason
+		hasAny := false
+		for _, s := range c.searchReviewReasons {
+			if s == "any" {
+				hasAny = true
+				break
+			}
+		}
+		if hasAny {
+			for _, k := range reviewReasonFlagOptions() {
+				reasons = append(reasons, reviewReasonNames[k])
+			}
+		} else {
+			reasons = make([]summarizerv1pb.NeedsReviewReason, 0, len(c.searchReviewReasons))
+			for _, s := range c.searchReviewReasons {
+				r, err := parseReviewReason(s)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				reasons = append(reasons, r)
+			}
+		}
+		req.SetFilterNeedsFurtherReviewReasons(reasons)
+	}
 
-	stream, err := searchClient.SearchSessionSummaries(ctx, req)
+	// fetcher resends the full request with the batch token set. It is used for
+	// both the first page (empty or resume token) and subsequent "load more"
+	// pages. The batch token is only a cursor: the server requires and applies
+	// the filter fields (start_time, end_time, ...) on every request, so the
+	// original request must be replayed each time rather than sending the token
+	// alone.
+	fetcher := recordingstui.BatchFetcher(func(ctx context.Context, token string) ([]*sessionsearchv1pb.SessionSummary, string, error) {
+		pageReq := proto.CloneOf(req)
+		pageReq.SetBatchToken(token)
+		stream, err := searchClient.SearchSessionSummaries(ctx, pageReq)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+		return collectStream(stream)
+	})
+
+	// c.searchResumeToken is empty for a fresh search and set when resuming a
+	// previous one; either way the first page is just a fetch with that token.
+	sessions, nextToken, err := fetcher(ctx, c.searchResumeToken)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	sessions, nextToken, err := collectStream(stream)
-	if err != nil {
-		return trace.Wrap(err)
-	}
 
-	return trace.Wrap(showSessionSummaries(ctx, sessions, nextToken, c.searchFormat, c.stdout, tc.SummarizerServiceClient(), fetcher))
+	return trace.Wrap(showSessionSummaries(ctx, sessions, nextToken, c.searchFormat, c.stdout, tc.SummarizerServiceClient(), fetcher, resumeCommand))
 }
 
 // maxJSONYAMLSessions is the maximum number of sessions collected before truncating
 // structured (JSON/YAML) output and printing a --resume-token hint to stderr.
-const maxJSONYAMLSessions = 500
+const maxJSONYAMLSessions = 100
 
-func showSessionSummaries(ctx context.Context, sessions []*sessionsearchv1pb.SessionSummary, nextToken, format string, w io.Writer, summaryGetter recordingstui.SummaryGetter, fetcher recordingstui.BatchFetcher) error {
+func showSessionSummaries(ctx context.Context, sessions []*sessionsearchv1pb.SessionSummary, nextToken, format string, w io.Writer, summaryGetter recordingstui.SummaryGetter, fetcher recordingstui.BatchFetcher, resumeCmd func(token string) string) error {
 	switch format {
 	case teleport.JSON, teleport.YAML:
 		// Paginate automatically up to maxJSONYAMLSessions for structured output.
@@ -390,7 +418,7 @@ func showSessionSummaries(ctx context.Context, sessions []*sessionsearchv1pb.Ses
 			nextToken = tok
 		}
 		if nextToken != "" {
-			fmt.Fprintf(os.Stderr, "Showing %d sessions (more available). Resume with: --resume-token %q\n", len(all), nextToken)
+			fmt.Fprintf(os.Stderr, "Showing %d sessions (more available). Resume with:\n  %s\n", len(all), resumeCmd(nextToken))
 		}
 		if format == teleport.JSON {
 			return trace.Wrap(utils.WriteJSONArray(w, all))
@@ -403,6 +431,68 @@ func showSessionSummaries(ctx context.Context, sessions []*sessionsearchv1pb.Ses
 		}
 		return recordingstui.RunSearchTUI(ctx, sessions, nextToken, summaryGetter, fetcher)
 	}
+}
+
+// resumeCommand renders a replayable command for the given resume token by
+// reusing the exact arguments of the current invocation (os.Args) and rewriting
+// only the resume token, replaced in place when already present or appended
+// otherwise. All other flags (including any time range the user passed) are
+// preserved verbatim.
+func resumeCommand(token string) string {
+	args := append([]string(nil), os.Args...)
+	if len(args) > 0 {
+		args[0] = filepath.Base(args[0])
+	}
+	args = replaceOrAppendFlag(args, []string{"--resume-token"}, "--resume-token", token)
+
+	quoted := make([]string, len(args))
+	for i, a := range args {
+		quoted[i] = shellQuote(a)
+	}
+	return strings.Join(quoted, " ")
+}
+
+// replaceOrAppendFlag removes every occurrence of the given flag names (in both
+// "--flag value" and "--flag=value" forms) from args, then appends
+// "canonical value" so the flag ends up set exactly once to value. The multiple
+// names allow collapsing aliases (e.g. --from and --from-utc) onto a single
+// canonical flag.
+func replaceOrAppendFlag(args, names []string, canonical, value string) []string {
+	match := func(arg string) (isFlag, inlineValue bool) {
+		for _, n := range names {
+			if arg == n {
+				return true, false
+			}
+			if strings.HasPrefix(arg, n+"=") {
+				return true, true
+			}
+		}
+		return false, false
+	}
+	out := make([]string, 0, len(args)+2)
+	for i := 0; i < len(args); i++ {
+		isFlag, inline := match(args[i])
+		if !isFlag {
+			out = append(out, args[i])
+			continue
+		}
+		if !inline {
+			i++ // skip the value token that follows "--flag value"
+		}
+	}
+	return append(out, canonical, value)
+}
+
+// shellQuote wraps s in single quotes when it contains characters that a shell
+// would otherwise interpret, so the rendered resume command can be pasted as-is.
+func shellQuote(s string) string {
+	if s == "" {
+		return "''"
+	}
+	if !strings.ContainsAny(s, " \t\n'\"\\$`*?(){}[]|&;<>~#!") {
+		return s
+	}
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }
 
 func (c *RecordingsCommand) buildSearchResourceProperties() (*sessionsearchv1pb.ResourceProperties, error) {
@@ -433,11 +523,9 @@ func (c *RecordingsCommand) buildSearchResourceProperties() (*sessionsearchv1pb.
 		if c.searchServerAddr != "" {
 			props.SetServerAddr(c.searchServerAddr)
 		}
-		return &sessionsearchv1pb.ResourceProperties{
-			Type: &sessionsearchv1pb.ResourceProperties_Ssh{
-				Ssh: props,
-			},
-		}, nil
+		return sessionsearchv1pb.ResourceProperties_builder{
+			Ssh: proto.ValueOrDefault(props),
+		}.Build(), nil
 	case kubernetesSet:
 		props := &sessionsearchv1pb.KubernetesProperties{}
 		if c.searchPodNamespace != "" {
@@ -446,11 +534,9 @@ func (c *RecordingsCommand) buildSearchResourceProperties() (*sessionsearchv1pb.
 		if c.searchPodName != "" {
 			props.SetPodName(c.searchPodName)
 		}
-		return &sessionsearchv1pb.ResourceProperties{
-			Type: &sessionsearchv1pb.ResourceProperties_Kubernetes{
-				Kubernetes: props,
-			},
-		}, nil
+		return sessionsearchv1pb.ResourceProperties_builder{
+			Kubernetes: proto.ValueOrDefault(props),
+		}.Build(), nil
 	case databaseSet:
 		return sessionsearchv1pb.ResourceProperties_builder{
 			Database: sessionsearchv1pb.DatabaseProperties_builder{
@@ -538,6 +624,37 @@ func parseSeverity(s string) (summarizerv1pb.RiskLevel, error) {
 	default:
 		return 0, trace.BadParameter("invalid --severity %q: must be one of low, medium, high, critical", s)
 	}
+}
+
+// reviewReasonNames maps every valid --review-reason CLI value to its proto
+// enum counterpart. It is the single source of truth: the flag validates
+// against its keys, and parseReviewReason converts using its values.
+// A parity test asserts that exactly one entry exists per non-UNSPECIFIED
+// NeedsReviewReason enum value.
+var reviewReasonNames = map[string]summarizerv1pb.NeedsReviewReason{
+	"access_request_resource_mismatch": summarizerv1pb.NeedsReviewReason_NEEDS_REVIEW_REASON_ACCESS_REQUEST_RESOURCE_MISMATCH,
+	"command_analysis_failed":          summarizerv1pb.NeedsReviewReason_NEEDS_REVIEW_REASON_COMMAND_ANALYSIS_FAILED,
+	"failed_to_fetch_access_request":   summarizerv1pb.NeedsReviewReason_NEEDS_REVIEW_REASON_FAILED_TO_FETCH_ACCESS_REQUEST,
+	"output_not_fully_captured":        summarizerv1pb.NeedsReviewReason_NEEDS_REVIEW_REASON_OUTPUT_NOT_FULLY_CAPTURED,
+	"too_large":                        summarizerv1pb.NeedsReviewReason_NEEDS_REVIEW_REASON_TOO_LARGE,
+	"classifier_matched":               summarizerv1pb.NeedsReviewReason_NEEDS_REVIEW_REASON_CLASSIFIER_MATCHED,
+}
+
+// reviewReasonFlagOptions returns the valid --review-reason values in
+// alphabetical order, used in flag help text and error messages.
+func reviewReasonFlagOptions() []string {
+	keys := slices.Collect(maps.Keys(reviewReasonNames))
+	sort.Strings(keys)
+	return keys
+}
+
+// parseReviewReason converts a validated --review-reason string to its proto
+// enum value using reviewReasonNames.
+func parseReviewReason(s string) (summarizerv1pb.NeedsReviewReason, error) {
+	if r, ok := reviewReasonNames[s]; ok {
+		return r, nil
+	}
+	return 0, trace.BadParameter("invalid --review-reason %q: must be one of %s", s, strings.Join(reviewReasonFlagOptions(), ", "))
 }
 
 // createFileWriter creates a file-based session event writer that outputs to a file.

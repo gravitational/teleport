@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
+	"google.golang.org/protobuf/proto"
 
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	aws_sync "github.com/gravitational/teleport/lib/srv/discovery/fetchers/aws-sync"
@@ -134,9 +135,20 @@ func TestEKSAuditLogWatcher_Reconcile(t *testing.T) {
 		require.Equal(t, 3, fetcherTracker.newCount)
 		require.True(t, f1.done)
 
+		// Add the two clusters back
+		watcher.Reconcile(ctx, []eksAuditLogCluster{{fetcher1, cluster1}, {fetcher2, cluster2}})
+		synctest.Wait()
+		require.Len(t, fetcherTracker.fetchers, 2)
+		require.Equal(t, 5, fetcherTracker.newCount)
+		require.True(t, f1.done)
+		require.True(t, f2.done)
+
+		// Cancel the watcher and ensure it waits for the fetchers to be done
 		cancel()
 		synctest.Wait()
 		require.ErrorIs(t, err, context.Canceled)
+		require.True(t, f1.done)
+		require.True(t, f2.done)
 	})
 }
 
@@ -235,11 +247,9 @@ func (f *fakeEksAuditLogFetcher) Run(ctx context.Context) error {
 }
 
 func newKubeAuditLogResponseConfig(cfg *accessgraphv1alpha.KubeAuditLogConfig) *accessgraphv1alpha.KubeAuditLogStreamResponse {
-	return &accessgraphv1alpha.KubeAuditLogStreamResponse{
-		State: &accessgraphv1alpha.KubeAuditLogStreamResponse_Config{
-			Config: cfg,
-		},
-	}
+	return accessgraphv1alpha.KubeAuditLogStreamResponse_builder{
+		Config: proto.ValueOrDefault(cfg),
+	}.Build()
 }
 
 func newFakeKubeAuditLogClient(ctx context.Context) *fakeKubeAuditLogClient {

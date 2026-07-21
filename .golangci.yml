@@ -1,6 +1,5 @@
 version: '2'
 run:
-  go: '1.25'
   timeout: 15m
 linters:
   default: none
@@ -203,6 +202,8 @@ linters:
                 google.golang.org/protobuf/protoadapt instead, or, better yet,
                 see if you can move the code generation for that message to the
                 modern protoc-gen-go.
+            - pkg: golang.org/x/crypto/openpgp
+              desc: use "github.com/ProtonMail/go-crypto/openpgp" instead
         oidc:
           deny:
             - pkg: github.com/coreos/go-oidc

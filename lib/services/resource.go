@@ -173,6 +173,8 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindCertAuthority, nil
 	case types.KindCertAuthorityOverride, "cert_authority_overrides", "ca_override", "ca_overrides":
 		return types.KindCertAuthorityOverride, nil
+	case types.KindClientIPRestriction, types.KindClientIPRestriction + "s":
+		return types.KindClientIPRestriction, nil
 	case types.KindReverseTunnel, "reverse_tunnels", "rts":
 		return types.KindReverseTunnel, nil
 	case types.KindTrustedCluster, "tc", "cluster", "clusters":
@@ -303,6 +305,8 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindInferenceSecret, nil
 	case types.KindInferencePolicy, "inference_policies":
 		return types.KindInferencePolicy, nil
+	case types.KindClassifier, types.KindClassifier + "s":
+		return types.KindClassifier, nil
 	case types.KindRetrievalModel:
 		return types.KindRetrievalModel, nil
 	case types.KindRelayServer, types.KindRelayServer + "s":
@@ -313,6 +317,8 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindWorkloadCluster, nil
 	case scopedaccess.KindScopedToken, scopedaccess.KindScopedToken + "s", "scopedtoken", "scopedtokens":
 		return scopedaccess.KindScopedToken, nil
+	case types.KindBeamsConfig:
+		return types.KindBeamsConfig, nil
 	}
 	return "", trace.BadParameter("unsupported resource: %q - resources should be expressed as 'type/name', for example 'connector/github'", in)
 }

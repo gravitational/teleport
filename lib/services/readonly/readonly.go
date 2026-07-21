@@ -244,6 +244,8 @@ type Application interface {
 	GetRequiredAppNames() []string
 	// GetCORS returns the CORS configuration for the app.
 	GetCORS() *types.CORSPolicy
+	// GetScope returns the scope
+	GetScope() string
 }
 
 var _ Application = types.Application(nil)

@@ -60,11 +60,13 @@ Example:
 ```yaml
 external_id: "string"
 roles_anywhere_profile: # [...]
+region: "string"
 ```
 
 |Field Name|Description|Type|
 |---|---|---|
 |external_id|The AWS External ID used when assuming roles in this app.|string|
+|region|A cloud region for the app. This field is set for apps that integrates with AWS applications/APIs.|string|
 |roles_anywhere_profile|Contains the IAM Roles Anywhere fields associated with this Application. These fields are set when performing the synchronization of AWS IAM Roles Anywhere Profiles into Teleport Apps.|[App AWS Roles Anywhere Profile](#app-aws-roles-anywhere-profile)|
 
 ## App AWS Roles Anywhere Profile
@@ -239,12 +241,14 @@ sub_kind: "string"
 version: "string"
 metadata: # [...]
 spec: # [...]
+scope: "string"
 ```
 
 |Field Name|Description|Type|
 |---|---|---|
 |kind|The app resource kind. Always "app".|string|
 |metadata|The app resource metadata.|[Metadata](#metadata)|
+|scope|The App's scope.|string|
 |spec|The app resource spec.|[App Spec V3](#app-spec-v3)|
 |sub_kind|An optional resource subkind.|string|
 |version|The resource version. It must be specified. Supported values are:`v3`.|string|

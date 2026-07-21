@@ -23,11 +23,13 @@ import (
 	"encoding/pem"
 	"errors"
 	"os"
+	"time"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/client/webclient"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
 	authjoin "github.com/gravitational/teleport/lib/auth/join"
@@ -38,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/join/bitbucket"
 	"github.com/gravitational/teleport/lib/join/circleci"
 	"github.com/gravitational/teleport/lib/join/env0"
+	"github.com/gravitational/teleport/lib/join/genericoidc"
 	"github.com/gravitational/teleport/lib/join/githubactions"
 	"github.com/gravitational/teleport/lib/join/gitlab"
 	"github.com/gravitational/teleport/lib/join/internal/messages"
@@ -49,10 +52,12 @@ import (
 )
 
 type (
-	JoinParams   = authjoin.RegisterParams
-	JoinResult   = authjoin.RegisterResult
-	AzureParams  = authjoin.AzureParams
-	GitlabParams = authjoin.GitlabParams
+	JoinParams        = authjoin.RegisterParams
+	JoinResult        = authjoin.RegisterResult
+	AzureParams       = authjoin.AzureParams
+	GitlabParams      = authjoin.GitlabParams
+	GenericOIDCParams = authjoin.GenericOIDCParams
+	VersionInfo       = authjoin.VersionInfo
 )
 
 // Join is used to join a cluster. A host or bot calls this with the name of a
@@ -166,7 +171,43 @@ func joinNew(ctx context.Context, params JoinParams) (*JoinResult, error) {
 	return nil, trace.NewAggregate(errs...)
 }
 
+// invokeVersionCallback fetches the cluster's version information using the
+// proxy's web API and passes it to the caller's callback, configured via the
+// [JoinParams.OnVersionCallback] field. It is best-effort and fails open if
+// the version information can't be fetched. It exits early, skipping the
+// fetch, if no version callback is configured.
+func invokeVersionCallback(ctx context.Context, params JoinParams, proxyAddr string) error {
+	if params.OnVersionCallback == nil {
+		params.Log.DebugContext(ctx,
+			"No version callback configured, skipping version information fetch.")
+		return nil
+	}
+
+	resp, err := webclient.Find(&webclient.Config{
+		Context:   ctx,
+		ProxyAddr: proxyAddr,
+		Insecure:  params.Insecure,
+	})
+	if err != nil {
+		params.Log.WarnContext(ctx,
+			"Could not fetch the cluster's version information from the proxy's web API, skipping version callback.",
+			"proxy_addr", proxyAddr,
+			"error", err,
+		)
+		return nil
+	}
+
+	return trace.Wrap(params.OnVersionCallback(ctx, VersionInfo{
+		ServerVersion:    resp.ServerVersion,
+		MinClientVersion: resp.MinClientVersion,
+	}))
+}
+
 func joinViaProxy(ctx context.Context, params JoinParams, proxyAddr string) (*JoinResult, error) {
+	if err := invokeVersionCallback(ctx, params, proxyAddr); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// Connect to the proxy's insecure gRPC listener (this is regular TLS, the
 	// client is not authenticated because it doesn't have certs yet).
 	conn, err := proxyinsecureclient.NewConnection(ctx,
@@ -352,6 +393,34 @@ func joinWithMethod(
 				return nil, trace.Wrap(err)
 			}
 		}
+		return oidcJoin(stream, joinParams, clientParams)
+	case types.JoinMethodGenericOIDC:
+		if joinParams.IDToken == "" {
+			params := joinParams.GenericOIDCParams
+			if err := params.Validate(); err != nil {
+				return nil, trace.Wrap(err, "validating generic_oidc params")
+			}
+
+			timeout := params.Timeout
+			if timeout == 0 {
+				timeout = time.Minute
+			}
+
+			source := genericoidc.NewIDTokenSource(os.Getenv, genericoidc.DefaultCommandRunner)
+			if params.EnvVarName != "" {
+				joinParams.IDToken, err = source.GetIDTokenFromEnvironment(params.EnvVarName)
+				if err != nil {
+					return nil, trace.Wrap(err, "fetching generic_oidc token from the environment")
+				}
+			} else {
+				// Per Validate(), either EnvVarName ^ Command must be set.
+				joinParams.IDToken, err = source.GetIDTokenFromCommand(ctx, timeout, params.Command...)
+				if err != nil {
+					return nil, trace.Wrap(err, "fetching generic_oidc token from a command")
+				}
+			}
+		}
+
 		return oidcJoin(stream, joinParams, clientParams)
 	case types.JoinMethodGitHub:
 		if joinParams.IDToken == "" {

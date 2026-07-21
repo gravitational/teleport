@@ -166,7 +166,7 @@ longer-lived identity files with `tctl`:
 (!docs/pages/includes/plugins/tbot-identity.mdx secret="teleport-plugin-jira-identity"!)
 </TabItem>
 <TabItem label="Long-lived identity files">
-(!docs/pages/includes/plugins/identity-export.mdx user="access-plugin-update" secret="teleport-plugin-jira-identity"!)
+(!docs/pages/includes/plugins/identity-export.mdx plugin="jira" user="access-plugin-update" secret="teleport-plugin-jira-identity"!)
 </TabItem>
 </Tabs>
 
@@ -441,3 +441,8 @@ $ sudo systemctl start teleport-jira
 
 (!docs/pages/includes/plugins/access-plugin-troubleshooting.mdx!)
 
+## Next steps
+
+- To see all of the options you can set in the values file for the
+`teleport-plugin-jira` Helm chart, consult our [Helm chart reference
+guide](../../../reference/helm-reference/teleport-plugin-jira.mdx).

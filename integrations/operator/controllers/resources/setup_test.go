@@ -21,136 +21,203 @@ import (
 
 	"github.com/go-logr/logr"
 	"github.com/stretchr/testify/require"
+	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/discovery"
+	kclient "sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	"github.com/gravitational/teleport/entitlements"
-	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/modules/modulestest"
+	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/integrations/operator/controllers"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
-func TestEnabledReconcilers(t *testing.T) {
-	// Test setup: create the fixtures
-	ossFeatures := modulestest.OSSModules().Features()
-	entFeatures := modulestest.EnterpriseModules().Features()
-	entFeatures.Entitlements[entitlements.OIDC] = modules.EntitlementInfo{Enabled: true}
-	entFeatures.Entitlements[entitlements.SAML] = modules.EntitlementInfo{Enabled: true}
-	entFeatures.Entitlements[entitlements.Policy] = modules.EntitlementInfo{Enabled: true}
-	entFeatures.AdvancedAccessWorkflows = true
+type fakeReconciler struct {
+	reconcile.Reconciler
+	gvk          schema.GroupVersionKind
+	teleportKind string
+	scoped       bool
+	featureGate  controllers.CheckFeaturesFunc
+}
+
+func (f *fakeReconciler) SetupWithManager(mgr manager.Manager) error {
+	return nil
+}
+
+func (f *fakeReconciler) GVK() schema.GroupVersionKind {
+	return f.gvk
+}
+
+func (f *fakeReconciler) TeleportKind() string {
+	return f.teleportKind
+}
+
+func (f *fakeReconciler) Scoped() bool {
+	return f.scoped
+}
+
+func (f *fakeReconciler) CheckFeatures(features *proto.Features) bool {
+	return f.featureGate(features)
+}
+
+// Factory is a ReconcilerFactory for the given fakeReconciler.
+func (f *fakeReconciler) Factory(_ kclient.Client, _ *client.Client) (controllers.Reconciler, error) {
+	return f, nil
+}
+
+type fakeDiscovery struct {
+	discovery.DiscoveryInterface
+	gvks []schema.GroupVersionKind
+}
+
+func (f *fakeDiscovery) ServerResourcesForGroupVersion(groupVersion string) (*metav1.APIResourceList, error) {
+	var apiResources []metav1.APIResource
+	for _, gvk := range f.gvks {
+		if gvk.Group+"/"+gvk.Version == groupVersion {
+			apiResources = append(apiResources, metav1.APIResource{
+				Group:   gvk.Group,
+				Version: gvk.Version,
+				Kind:    gvk.Kind,
+			})
+		}
+	}
+	if len(apiResources) == 0 {
+		return nil, &errors.StatusError{ErrStatus: metav1.Status{Reason: metav1.StatusReasonNotFound}}
+	}
+	return &metav1.APIResourceList{
+		GroupVersion: groupVersion,
+		APIResources: apiResources,
+	}, nil
+}
+
+func TestFilterEnabledReconcilers(t *testing.T) {
+	log := logr.FromSlogHandler(logtest.NewLogger().Handler())
+	// Test setup: create CRD fixtures and a fake kubernetes client to look them up
+	installedGVK := schema.GroupVersionKind{Group: "resources.teleport.dev", Version: "v1", Kind: "Installed"}
+	otherGVK := schema.GroupVersionKind{Group: "resources.teleport.dev", Version: "v1", Kind: "AnotherInstalled"}
+	missingGVK := schema.GroupVersionKind{Group: "resources.teleport.dev", Version: "v1", Kind: "NotInstalled"}
+	missingGV := schema.GroupVersionKind{Group: "not.installed.teleport.dev", Version: "v1", Kind: "NotInstalled"}
+
+	discoveryClient := fakeDiscovery{gvks: []schema.GroupVersionKind{otherGVK, installedGVK}}
+
+	// Test setup: create a list will various kinds of controllers so we can check which ones get selected.
+	unscopedReconciler := &fakeReconciler{
+		gvk: installedGVK,
+		// note: we use teleport_kind
+		teleportKind: "unscoped_reconciler",
+		scoped:       false,
+		featureGate:  controllers.AlwaysEnabled,
+	}
+
+	scopedReconciler := &fakeReconciler{
+		gvk:         installedGVK,
+		scoped:      true,
+		featureGate: controllers.AlwaysEnabled,
+	}
+
+	missingReconciler := &fakeReconciler{
+		gvk:         missingGVK,
+		scoped:      false,
+		featureGate: controllers.AlwaysEnabled,
+	}
+
+	missingGVReconciler := &fakeReconciler{
+		gvk:         missingGV,
+		scoped:      false,
+		featureGate: controllers.AlwaysEnabled,
+	}
+
+	missingScopedReconciler := &fakeReconciler{
+		gvk:         missingGVK,
+		scoped:      true,
+		featureGate: controllers.AlwaysEnabled,
+	}
+
+	unscopedEnterpriseReconciler := &fakeReconciler{
+		gvk:         installedGVK,
+		scoped:      false,
+		featureGate: controllers.RequireEnterprise,
+	}
+
+	scopedEnterpriseReconciler := &fakeReconciler{
+		gvk:         installedGVK,
+		scoped:      true,
+		featureGate: controllers.RequireEnterprise,
+	}
+
+	reconcilers := []ReconcilerFactory{
+		unscopedReconciler.Factory,
+		scopedReconciler.Factory,
+		missingReconciler.Factory,
+		missingGVReconciler.Factory,
+		missingScopedReconciler.Factory,
+		unscopedEnterpriseReconciler.Factory,
+		scopedEnterpriseReconciler.Factory,
+	}
 
 	tests := []struct {
-		name                string
-		scoped              bool
-		features            modules.Features
-		expectedReconcilers map[string]struct{}
+		name     string
+		scoped   bool
+		features *proto.Features
+		expected []controllers.Reconciler
 	}{
 		{
-			name:     "Unscoped, OSS",
+			name:     "unscoped OSS",
 			scoped:   false,
-			features: ossFeatures,
-			expectedReconcilers: map[string]struct{}{
-				// scoped
-				"TeleportScopedTokenV1":          {},
-				"TeleportScopedRoleV1":           {},
-				"TeleportScopedRoleAssignmentV1": {},
-				// unscoped oss
-				"TeleportRole":                     {},
-				"TeleportRoleV6":                   {},
-				"TeleportRoleV7":                   {},
-				"TeleportRoleV8":                   {},
-				"TeleportUser":                     {},
-				"TeleportGithubConnector":          {},
-				"TeleportLockV2":                   {},
-				"TeleportProvisionToken":           {},
-				"TeleportOpenSSHServerV2":          {},
-				"TeleportOpenSSHEICEServerV2":      {},
-				"TeleportTrustedClusterV2":         {},
-				"TeleportBotV1":                    {},
-				"TeleportWorkloadIdentityV1":       {},
-				"TeleportAutoupdateConfigV1":       {},
-				"TeleportAutoupdateVersionV1":      {},
-				"TeleportAppV3":                    {},
-				"TeleportDatabaseV3":               {},
-				"TeleportAccessMonitoringRuleV1":   {},
-				"TeleportSAMLIdPServiceProviderV1": {},
+			features: &proto.Features{},
+			expected: []controllers.Reconciler{
+				unscopedReconciler,
+				scopedReconciler,
 			},
 		},
 		{
-			name:     "Scoped, OSS",
+			name:     "scoped OSS",
 			scoped:   true,
-			features: ossFeatures,
-			expectedReconcilers: map[string]struct{}{
-				"TeleportScopedTokenV1":          {},
-				"TeleportScopedRoleV1":           {},
-				"TeleportScopedRoleAssignmentV1": {},
+			features: &proto.Features{},
+			expected: []controllers.Reconciler{
+				scopedReconciler,
 			},
 		},
 		{
-			name:     "Unscoped, enterprise",
-			scoped:   false,
-			features: entFeatures,
-			expectedReconcilers: map[string]struct{}{
-				// scoped
-				"TeleportScopedTokenV1":          {},
-				"TeleportScopedRoleV1":           {},
-				"TeleportScopedRoleAssignmentV1": {},
-				// unscoped oss
-				"TeleportRole":                     {},
-				"TeleportRoleV6":                   {},
-				"TeleportRoleV7":                   {},
-				"TeleportRoleV8":                   {},
-				"TeleportUser":                     {},
-				"TeleportGithubConnector":          {},
-				"TeleportLockV2":                   {},
-				"TeleportProvisionToken":           {},
-				"TeleportOpenSSHServerV2":          {},
-				"TeleportOpenSSHEICEServerV2":      {},
-				"TeleportTrustedClusterV2":         {},
-				"TeleportBotV1":                    {},
-				"TeleportWorkloadIdentityV1":       {},
-				"TeleportAutoupdateConfigV1":       {},
-				"TeleportAutoupdateVersionV1":      {},
-				"TeleportAppV3":                    {},
-				"TeleportDatabaseV3":               {},
-				"TeleportAccessMonitoringRuleV1":   {},
-				"TeleportSAMLIdPServiceProviderV1": {},
-				// unscoped enterprise
-				"TeleportOIDCConnector":    {},
-				"TeleportSAMLConnector":    {},
-				"TeleportInferenceModel":   {},
-				"TeleportInferencePolicy":  {},
-				"TeleportInferenceSecret":  {},
-				"TeleportRetrievalModelV1": {},
-				"TeleportLoginRule":        {},
-				"TeleportAccessList":       {},
-				"TeleportOktaImportRule":   {},
+			name:   "unscoped enterprise",
+			scoped: false,
+			features: &proto.Features{
+				AdvancedAccessWorkflows: true,
+			},
+			expected: []controllers.Reconciler{
+				unscopedReconciler,
+				scopedReconciler,
+				unscopedEnterpriseReconciler,
+				scopedEnterpriseReconciler,
 			},
 		},
-
 		{
-			name:     "Scoped, enterprise",
-			scoped:   true,
-			features: entFeatures,
-			expectedReconcilers: map[string]struct{}{
-				"TeleportScopedTokenV1":          {},
-				"TeleportScopedRoleV1":           {},
-				"TeleportScopedRoleAssignmentV1": {},
+			name:   "scoped enterprise",
+			scoped: true,
+			features: &proto.Features{
+				AdvancedAccessWorkflows: true,
+			},
+			expected: []controllers.Reconciler{
+				scopedReconciler,
+				scopedEnterpriseReconciler,
 			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			log := logr.FromSlogHandler(logtest.NewLogger().Handler())
-			features := tt.features.ToProto()
-			reconcilers := enabledReconcilers(log, features, tt.scoped)
-
-			// Test validation: check that the expected reconcilers were enabled
-			reconcilersSet := make(map[string]struct{}, len(reconcilers))
-			for _, reconciler := range reconcilers {
-				reconcilersSet[reconciler.cr] = struct{}{}
-			}
-			require.Len(t, reconcilersSet, len(tt.expectedReconcilers))
-			require.Equal(t, tt.expectedReconcilers, reconcilersSet)
+			// Test execution: filter reconciler and check that the picked ones are the ones we expect.
+			result, err := filterEnabledReconcilers(
+				Config{
+					Log:      log,
+					Scoped:   tt.scoped,
+					Features: tt.features,
+				},
+				reconcilers, &discoveryClient)
+			require.NoError(t, err)
+			require.ElementsMatch(t, tt.expected, result)
 		})
 	}
 }

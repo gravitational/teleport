@@ -217,8 +217,8 @@ services:
 ## Output Services
 
 Output services define what actions `tbot` should take when it runs. They
-describe the format of the certificates to be generated, the roles used to
-generate the certificates, and the destination where they should be written.
+describe the format of the certificates to be generated and the destination
+where they should be written.
 
 There are multiple types of output. Select the one that is most appropriate for
 your intended use-case.
@@ -413,7 +413,6 @@ selectors:
       env: dev
 
 # The following configuration fields are available across most output types.
-# Note that `roles` are not supported for this output type.
 
 destination:
   type: directory
@@ -591,7 +590,7 @@ cluster_resources: true
 cluster_name_template: "{{.KubeName}}"
 
 # The following configuration fields are available across most output types.
-# Note that `roles` and `destination` are not supported for this output type.
+# Note that `destination` is not supported for this output type.
 
 # credential_ttl and renewal_interval override the credential TTL and renewal
 # interval for this specific output, so that you can make its certificates valid

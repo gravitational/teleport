@@ -1220,15 +1220,11 @@ func (ic *InventoryCache) getKeyForIndex(ui *inventoryInstance, index inventoryI
 // unifiedInstanceToProto converts a unified instance to a proto UnifiedInstanceItem.
 func (ic *InventoryCache) unifiedInstanceToProto(ui *inventoryInstance) *inventoryv1.UnifiedInstanceItem {
 	if ui.isInstance() {
-		return &inventoryv1.UnifiedInstanceItem{
-			Item: &inventoryv1.UnifiedInstanceItem_Instance{
-				Instance: ui.instance,
-			},
-		}
+		return inventoryv1.UnifiedInstanceItem_builder{
+			Instance: ui.instance,
+		}.Build()
 	}
-	return &inventoryv1.UnifiedInstanceItem{
-		Item: &inventoryv1.UnifiedInstanceItem_BotInstance{
-			BotInstance: ui.bot,
-		},
-	}
+	return inventoryv1.UnifiedInstanceItem_builder{
+		BotInstance: proto.ValueOrDefault(ui.bot),
+	}.Build()
 }

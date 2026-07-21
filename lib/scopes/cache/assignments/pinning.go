@@ -60,7 +60,7 @@ func (c *AssignmentCache) PopulatePinnedAssignmentsForUser(ctx context.Context, 
 	var lastErr error
 
 	// all non-orthogonal assignments for this user *may* assign roles relevant to this pin
-	assignments := c.cache.AllNonOrthogonalResources(pin.GetScope(), c.cache.WithFilter(func(assignment *scopedaccessv1.ScopedRoleAssignment) bool {
+	assignments := c.cache.ScopeAndRelatives(pin.GetScope(), c.cache.WithFilter(func(assignment *scopedaccessv1.ScopedRoleAssignment) bool {
 		return assignment.GetSpec().GetUser() == user
 	}))
 
@@ -91,15 +91,23 @@ func (c *AssignmentCache) PopulatePinnedAssignmentsForUser(ctx context.Context, 
 					continue
 				}
 
+				// the role is referenced by scope-qualified name.
+				role, err := scopes.ParseQualifiedName(subAssignment.GetRole())
+				if err != nil {
+					slog.WarnContext(ctx, "skipping role assignment with malformed role reference", "role", subAssignment.GetRole(), "scope_of_origin", scopeOfOrigin, "scope_of_effect", scopeOfEffect, "user", user, "error", err)
+					continue
+				}
+
 				// write the role assignment to the pin's assignment tree. the write function will automatically handle
 				// deduplication and maintain proper tree structure for evaluation ordering.
 				if err := pinning.WriteRoleAssignment(pin, pinning.RoleAssignment{
 					RoleKind:      pinning.RoleKindUser,
 					ScopeOfOrigin: scopeOfOrigin,
 					ScopeOfEffect: scopeOfEffect,
-					RoleName:      subAssignment.GetRole(),
+					RoleName:      role.Name,
+					RoleScope:     role.Scope,
 				}); err != nil {
-					slog.WarnContext(ctx, "failed to write role assignment to scope pin", "role_name", subAssignment.GetRole(), "scope_of_origin", scopeOfOrigin, "scope_of_effect", scopeOfEffect, "user", user, "error", err)
+					slog.WarnContext(ctx, "failed to write role assignment to scope pin", "role_name", role.Name, "role_scope", role.Scope, "scope_of_origin", scopeOfOrigin, "scope_of_effect", scopeOfEffect, "user", user, "error", err)
 					lastErr = trace.Wrap(err)
 					continue
 				}
@@ -199,12 +207,11 @@ func (c *AssignmentCache) PopulatePinnedAssignmentsForBot(
 	var lastErr error
 
 	// all non-orthogonal assignments for this bot *may* assign roles relevant to this pin
-	assignments := c.cache.AllNonOrthogonalResources(pin.GetScope(), c.cache.WithFilter(func(assignment *scopedaccessv1.ScopedRoleAssignment) bool {
-		matchesBotName := assignment.GetSpec().GetBotName() == botName
-		// ignore assignments where actual bot scope mismatches bot scope
-		// specified in SRA. this mitigates name reuse attacks across scopes.
-		matchesBotScope := assignment.GetSpec().GetBotScope() == botScope
-		return matchesBotName && matchesBotScope
+	wantBot := scopes.QualifiedName{Scope: botScope, Name: botName}.String()
+	assignments := c.cache.ScopeAndRelatives(pin.GetScope(), c.cache.WithFilter(func(assignment *scopedaccessv1.ScopedRoleAssignment) bool {
+		// match on the full scope-qualified name. comparing the scope component
+		// as well as the name mitigates name reuse attacks across scopes.
+		return assignment.GetSpec().GetBot() == wantBot
 	}))
 
 	// iterate over all potentially relevant assignments and populate the assignment tree
@@ -236,18 +243,27 @@ func (c *AssignmentCache) PopulatePinnedAssignmentsForBot(
 					continue
 				}
 
+				// the role is referenced by scope-qualified name.
+				role, err := scopes.ParseQualifiedName(subAssignment.GetRole())
+				if err != nil {
+					slog.WarnContext(ctx, "skipping role assignment with malformed role reference", "role", subAssignment.GetRole(), "scope_of_origin", scopeOfOrigin, "scope_of_effect", scopeOfEffect, "bot", botName, "error", err)
+					continue
+				}
+
 				// write the role assignment to the pin's assignment tree. the write function will automatically handle
 				// deduplication and maintain proper tree structure for evaluation ordering.
 				if err := pinning.WriteRoleAssignment(pin, pinning.RoleAssignment{
 					RoleKind:      pinning.RoleKindUser,
 					ScopeOfOrigin: scopeOfOrigin,
 					ScopeOfEffect: scopeOfEffect,
-					RoleName:      subAssignment.GetRole(),
+					RoleName:      role.Name,
+					RoleScope:     role.Scope,
 				}); err != nil {
 					slog.WarnContext(
 						ctx,
 						"failed to write role assignment to scope pin",
-						"role_name", subAssignment.GetRole(),
+						"role_name", role.Name,
+						"role_scope", role.Scope,
 						"scope_of_origin", scopeOfOrigin,
 						"scope_of_effect", scopeOfEffect,
 						"bot", botName,

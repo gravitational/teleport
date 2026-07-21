@@ -20,9 +20,8 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { mockIntersectionObserver } from 'jsdom-testing-mocks';
 import { PropsWithChildren } from 'react';
 
-import { darkTheme } from 'design/theme';
 import { ConfiguredThemeProvider } from 'design/ThemeProvider';
-import { act, screen, testQueryClient } from 'design/utils/testing';
+import { act, screen, testQueryClient, theme } from 'design/utils/testing';
 
 import cfg from 'teleport/config';
 import { createTeleportContext } from 'teleport/mocks/contexts';
@@ -157,7 +156,7 @@ function makeWrapper({ ctx }: { ctx: TeleportContext }) {
     return (
       <QueryClientProvider client={testQueryClient}>
         <ContextProvider ctx={ctx}>
-          <ConfiguredThemeProvider theme={darkTheme}>
+          <ConfiguredThemeProvider theme={theme}>
             {children}
           </ConfiguredThemeProvider>
         </ContextProvider>

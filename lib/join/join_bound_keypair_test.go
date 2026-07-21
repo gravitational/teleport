@@ -32,11 +32,14 @@ import (
 	"time"
 
 	"github.com/go-jose/go-jose/v3/jwt"
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
@@ -44,12 +47,15 @@ import (
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	libboundkeypair "github.com/gravitational/teleport/lib/auth/join/boundkeypair"
+	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/boundkeypair"
 	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/join/joinclient"
 	"github.com/gravitational/teleport/lib/scopes"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
@@ -1870,10 +1876,9 @@ func createScopedBot(t *testing.T, srv *authtest.TLSServer, adminClient *authcli
 			SubKind: scopedaccess.SubKindDynamic,
 			Scope:   "/test",
 			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
-				BotName:  "test-scoped",
-				BotScope: "/test",
+				Bot: scopes.QualifiedName{Scope: "/test", Name: "test-scoped"}.String(),
 				Assignments: []*scopedaccessv1.Assignment{
-					scopedaccessv1.Assignment_builder{Role: "scoped-example", Scope: "/test"}.Build(),
+					scopedaccessv1.Assignment_builder{Role: "/test::scoped-example", Scope: "/test"}.Build(),
 				},
 			}.Build(),
 		}.Build(),
@@ -1885,6 +1890,7 @@ func createScopedBot(t *testing.T, srv *authtest.TLSServer, adminClient *authcli
 		_, err := srv.Auth().ScopedAccessCache.GetScopedRoleAssignment(ctx, scopedaccessv1.GetScopedRoleAssignmentRequest_builder{
 			Name:    resp.GetAssignment().GetMetadata().GetName(),
 			SubKind: resp.GetAssignment().GetSubKind(),
+			Scope:   resp.GetAssignment().GetScope(),
 		}.Build())
 		require.NoError(t, err)
 	}, time.Second*10, 100*time.Millisecond)
@@ -1938,8 +1944,7 @@ func TestJoinBoundKeypair_ScopedToken(t *testing.T) {
 			JoinMethod: string(types.JoinMethodBoundKeypair),
 			Roles:      []string{string(types.RoleBot)},
 			UsageMode:  joining.TokenUsageModeBot,
-			BotName:    "test-scoped",
-			BotScope:   "/test",
+			Bot:        scopes.QualifiedName{Scope: "/test", Name: "test-scoped"}.String(),
 			BoundKeypair: joiningv1.BoundKeypairSpec_builder{
 				Onboarding: joiningv1.BoundKeypairSpec_OnboardingSpec_builder{
 					InitialPublicKey: correctPublicKey,
@@ -1984,6 +1989,71 @@ func TestJoinBoundKeypair_ScopedToken(t *testing.T) {
 	}.Build())
 	require.NoError(t, err)
 	require.Equal(t, "/test", botInstance.GetScope())
+
+	// Join event should be emitted
+	require.EventuallyWithT(t, func(collectT *assert.CollectT) {
+		evt, err := lastEvent(ctx, srv.Auth(), srv.Auth().GetClock(), events.BotJoinEvent)
+		require.NoError(t, err)
+
+		sqn, err := scopes.ParseQualifiedName(scopedToken.GetSpec().GetBot())
+		require.NoError(t, err)
+		require.Empty(t, cmp.Diff(
+			&apievents.BotJoin{
+				Metadata: apievents.Metadata{
+					Type: "bot.join",
+					Code: events.BotJoinCode,
+				},
+				Status: apievents.Status{
+					Success: true,
+				},
+				ConnectionMetadata: apievents.ConnectionMetadata{
+					RemoteAddr: "127.0.0.1",
+				},
+				BotInstanceID: firstInstance,
+				TokenName:     scopedToken.GetMetadata().GetName(),
+				Method:        scopedToken.GetSpec().GetJoinMethod(),
+				UserName:      machineidv1.BotResourceName(sqn.Name),
+				BotName:       sqn.Name,
+				Scope:         sqn.Scope,
+			},
+			evt,
+			protocmp.Transform(),
+			cmpopts.IgnoreMapEntries(func(key string, val any) bool {
+				return key == "Time" || key == "ID"
+			}),
+		))
+	}, 5*time.Second, 5*time.Millisecond, "expected bot.join success event not found")
+
+	// The recovery event emitted for the first join should carry the bot's
+	// scope.
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		evt, err := lastEvent(ctx, srv.Auth(), srv.Auth().GetClock(), events.BoundKeypairRecovery)
+		require.NoError(t, err)
+		require.Empty(t, cmp.Diff(
+			&apievents.BoundKeypairRecovery{
+				Metadata: apievents.Metadata{
+					Type: events.BoundKeypairRecovery,
+					Code: events.BoundKeypairRecoveryCode,
+				},
+				Status: apievents.Status{
+					Success: true,
+				},
+				ConnectionMetadata: apievents.ConnectionMetadata{
+					RemoteAddr: "127.0.0.1",
+				},
+				TokenName:        scopedToken.GetMetadata().GetName(),
+				BotName:          "test-scoped",
+				BotScopeOfOrigin: "/test",
+				PublicKey:        correctPublicKey,
+				RecoveryCount:    1,
+			},
+			evt,
+			protocmp.Transform(),
+			cmpopts.IgnoreMapEntries(func(key string, val any) bool {
+				return key == "Time" || key == "ID"
+			}),
+		))
+	}, 5*time.Second, 5*time.Millisecond, "expected bound keypair recovery event not found")
 
 	// Status should be updated.
 	token, err := adminClient.GetScopedToken(ctx, "example-token", false)

@@ -30,11 +30,27 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 
 |Field|Type|Description|
 |---|---|---|
+|app|[object](#specapp)|The App Access specific configuration for a scoped role.|
 |assignable_scopes|[]string|AssignableScopes is a list of scopes to which this role can be assigned.|
 |defaults|[object](#specdefaults)|Defaults specifies default values for controls common across multiple protocols. If the same control specified in defaults is also specified in a protocol block, the value in the protocol block takes precedence.|
 |kube|[object](#speckube)|The kubernetes specific configuration for a scoped role.|
 |rules|[][object](#specrules-items)|Rules describes basic resource:verb permissions (e.g. scoped_role:read).|
 |ssh|[object](#specssh)|Ssh specifies controls that govern SSH access.|
+|workload_identity|[object](#specworkload_identity)|WorkloadIdentity specifies controls that govern issuance using WorkloadIdentity resources.|
+
+### spec.app
+
+|Field|Type|Description|
+|---|---|---|
+|label_expression|string|LabelExpression is an optional predicate expression evaluated against an application's labels.|
+|labels|[][object](#specapplabels-items)|The set of application labels used for RBAC.|
+
+### spec.app.labels items
+
+|Field|Type|Description|
+|---|---|---|
+|name|string|The name of the label.|
+|values|[]string|The values associated with the label.|
 
 ### spec.defaults
 
@@ -66,6 +82,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |groups|[]string|The list of kubernetes groups this role allows.|
 |labels|[][object](#speckubelabels-items)|The map of kubernetes cluster labels used for RBAC.|
 |lock|[object](#speckubelock)|Lock configures the role's locking behavior for kubernetes sessions.|
+|resources|[][object](#speckuberesources-items)|The kubernetes resources this role grants access to.|
 |users|[]string|An optional list of impersonatable kubernetes users this role allows.|
 
 ### spec.kube.labels items
@@ -80,6 +97,16 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |Field|Type|Description|
 |---|---|---|
 |mode|string|Allowed values: strict or best_effort. Defaults to value cluster wide auth preference if not set.|
+
+### spec.kube.resources items
+
+|Field|Type|Description|
+|---|---|---|
+|api_group|string|The kube API group of the kube resource. It supports wildcards.|
+|kind|string|The kube resource type.|
+|name|string|The kube resource name. It supports wildcards.|
+|namespace|string|The kube resource namespace. It supports wildcards.|
+|verbs|[]string|The allowed kube verbs for interacting with the kube resource.|
 
 ### spec.rules items
 
@@ -160,4 +187,17 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |Field|Type|Description|
 |---|---|---|
 |mode|string|Mode sets the session recording mode. Allowed values: strict or best_effort.|
+
+### spec.workload_identity
+
+|Field|Type|Description|
+|---|---|---|
+|labels|[][object](#specworkload_identitylabels-items)|Labels is the set of WorkloadIdentity labels used to dynamically select which WorkloadIdentity resources this role permits issuance with. Issuance additionally requires the caller to hold read_no_secrets (and, for the multi-issue RPC, list) rules for the workload_identity kind in the relevant scope.|
+
+### spec.workload_identity.labels items
+
+|Field|Type|Description|
+|---|---|---|
+|name|string|The name of the label.|
+|values|[]string|The values associated with the label.|
 

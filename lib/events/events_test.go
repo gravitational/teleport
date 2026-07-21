@@ -68,6 +68,7 @@ var eventsMap = map[string]apievents.AuditEvent{
 	ExecEvent:                                      &apievents.Exec{},
 	SubsystemEvent:                                 &apievents.Subsystem{},
 	X11ForwardEvent:                                &apievents.X11Forward{},
+	AgentForwardEvent:                              &apievents.AgentForward{},
 	PortForwardEvent:                               &apievents.PortForward{},
 	AuthAttemptEvent:                               &apievents.AuthAttempt{},
 	SCPEvent:                                       &apievents.SCP{},
@@ -99,6 +100,10 @@ var eventsMap = map[string]apievents.AuditEvent{
 	AppSessionDynamoDBRequestEvent:                 &apievents.AppSessionDynamoDBRequest{},
 	AppSessionLLMRequestSuccessEvent:               &apievents.AppSessionLLMRequest{},
 	AppSessionLLMRequestFailureEvent:               &apievents.AppSessionLLMRequest{},
+	AppSessionHTTPRequestEvent:                     &apievents.AppSessionHTTPRequest{},
+	AppSessionHTTPRequestBodyChunkEvent:            &apievents.AppSessionHTTPRequestBodyChunk{},
+	AppSessionHTTPResponseEvent:                    &apievents.AppSessionHTTPResponse{},
+	AppSessionHTTPResponseBodyChunkEvent:           &apievents.AppSessionHTTPResponseBodyChunk{},
 	AppCreateEvent:                                 &apievents.AppCreate{},
 	AppUpdateEvent:                                 &apievents.AppUpdate{},
 	AppDeleteEvent:                                 &apievents.AppDelete{},
@@ -291,6 +296,9 @@ var eventsMap = map[string]apievents.AuditEvent{
 	RetrievalModelCreateEvent:                     &apievents.RetrievalModelCreate{},
 	RetrievalModelUpdateEvent:                     &apievents.RetrievalModelUpdate{},
 	RetrievalModelDeleteEvent:                     &apievents.RetrievalModelDelete{},
+	ClassifierCreateEvent:                         &apievents.ClassifierCreate{},
+	ClassifierUpdateEvent:                         &apievents.ClassifierUpdate{},
+	ClassifierDeleteEvent:                         &apievents.ClassifierDelete{},
 	SessionSummarizedEvent:                        &apievents.SessionSummarized{},
 	SCIMListingEvent:                              &apievents.SCIMListingEvent{},
 	SCIMGetEvent:                                  &apievents.SCIMResourceEvent{},
@@ -302,6 +310,9 @@ var eventsMap = map[string]apievents.AuditEvent{
 	CertAuthOverrideUpdateEvent:                   &apievents.CertAuthorityOverrideEvent{},
 	CertAuthOverrideUpsertEvent:                   &apievents.CertAuthorityOverrideEvent{},
 	CertAuthOverrideDeleteEvent:                   &apievents.CertAuthorityOverrideEvent{},
+	BeamsConfigCreateEvent:                        &apievents.BeamsConfigCreate{},
+	BeamsConfigUpdateEvent:                        &apievents.BeamsConfigUpdate{},
+	BeamsConfigDeleteEvent:                        &apievents.BeamsConfigDelete{},
 }
 
 // TestJSON tests JSON marshal events
@@ -1255,9 +1266,6 @@ func TestEventCodesInWebTypes(t *testing.T) {
 		"WID004I":     true, // WorkloadIdentityX509RevocationCreateCode
 		"WID005I":     true, // WorkloadIdentityX509RevocationUpdateCode
 		"WID006I":     true, // WorkloadIdentityX509RevocationDeleteCode
-		"TCO05I":      true, // CertAuthOverrideCertificatesAddCode
-		"TCO06I":      true, // CertAuthOverrideCertificatesUpdateCode
-		"TCO07I":      true, // CertAuthOverrideCertificatesRemoveCode
 	}
 
 	codesFile, err := os.ReadFile("codes.go")
@@ -1693,6 +1701,117 @@ func TestInferenceEvents(t *testing.T) {
 			},
 			eventType:  RetrievalModelDeleteEvent,
 			eventCode:  RetrievalModelDeleteCode,
+			hasPayload: false,
+		},
+		{
+			name: "BeamsConfigCreate",
+			event: &apievents.BeamsConfigCreate{
+				Metadata: apievents.Metadata{
+					Type:        BeamsConfigCreateEvent,
+					Code:        BeamsConfigCreateCode,
+					Time:        testTime,
+					ClusterName: "test-cluster",
+				},
+				UserMetadata: apievents.UserMetadata{
+					User: "test-user",
+				},
+			},
+			eventType:  BeamsConfigCreateEvent,
+			eventCode:  BeamsConfigCreateCode,
+			hasPayload: false,
+		},
+		{
+			name: "BeamsConfigUpdate",
+			event: &apievents.BeamsConfigUpdate{
+				Metadata: apievents.Metadata{
+					Type:        BeamsConfigUpdateEvent,
+					Code:        BeamsConfigUpdateCode,
+					Time:        testTime,
+					ClusterName: "test-cluster",
+				},
+				UserMetadata: apievents.UserMetadata{
+					User: "test-user",
+				},
+			},
+			eventType:  BeamsConfigUpdateEvent,
+			eventCode:  BeamsConfigUpdateCode,
+			hasPayload: false,
+		},
+		{
+			name: "BeamsConfigDelete",
+			event: &apievents.BeamsConfigDelete{
+				Metadata: apievents.Metadata{
+					Type:        BeamsConfigDeleteEvent,
+					Code:        BeamsConfigDeleteCode,
+					Time:        testTime,
+					ClusterName: "test-cluster",
+				},
+				UserMetadata: apievents.UserMetadata{
+					User: "test-user",
+				},
+			},
+			eventType:  BeamsConfigDeleteEvent,
+			eventCode:  BeamsConfigDeleteCode,
+			hasPayload: false,
+		},
+		{
+			name: "ClassifierCreate",
+			event: &apievents.ClassifierCreate{
+				Metadata: apievents.Metadata{
+					Type:        ClassifierCreateEvent,
+					Code:        ClassifierCreateCode,
+					Time:        testTime,
+					ClusterName: "test-cluster",
+				},
+				ResourceMetadata: apievents.ResourceMetadata{
+					Name: "test-classifier",
+				},
+				UserMetadata: apievents.UserMetadata{
+					User: "test-user",
+				},
+			},
+			eventType:  ClassifierCreateEvent,
+			eventCode:  ClassifierCreateCode,
+			hasPayload: true,
+		},
+		{
+			name: "ClassifierUpdate",
+			event: &apievents.ClassifierUpdate{
+				Metadata: apievents.Metadata{
+					Type:        ClassifierUpdateEvent,
+					Code:        ClassifierUpdateCode,
+					Time:        testTime,
+					ClusterName: "test-cluster",
+				},
+				ResourceMetadata: apievents.ResourceMetadata{
+					Name: "test-classifier",
+				},
+				UserMetadata: apievents.UserMetadata{
+					User: "test-user",
+				},
+			},
+			eventType:  ClassifierUpdateEvent,
+			eventCode:  ClassifierUpdateCode,
+			hasPayload: true,
+		},
+		{
+			name: "ClassifierDelete",
+			event: &apievents.ClassifierDelete{
+				Metadata: apievents.Metadata{
+					Type:        ClassifierDeleteEvent,
+					Code:        ClassifierDeleteCode,
+					Time:        testTime,
+					ClusterName: "test-cluster",
+				},
+				ResourceMetadata: apievents.ResourceMetadata{
+					Name: "test-classifier",
+				},
+				UserMetadata: apievents.UserMetadata{
+					User: "test-user",
+				},
+			},
+			eventType:  ClassifierDeleteEvent,
+			eventCode:  ClassifierDeleteCode,
 			hasPayload: false,
 		},
 	}

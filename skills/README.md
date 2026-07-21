@@ -4,6 +4,34 @@ This directory contains Teleport agent skills. Each skill is a self-contained
 package that teaches agents such as Claude Code how to perform a specific
 Teleport workflow using CLI tools like `tctl` and `tsh`.
 
+## Installation
+
+These skills follow the [Agent Skills specification](https://agentskills.io/specification)
+and can be installed into any compatible agent (Claude Code, Cursor, Codex,
+Gemini CLI, and others) using Vercel's [`skills`](https://github.com/vercel-labs/skills)
+CLI, which discovers and installs skills straight from this repository:
+
+```bash
+# Auto-discover and enroll cloud infrastructure
+npx skills add https://github.com/gravitational/teleport/tree/master/skills/teleport-discovery
+
+# Session recording review
+npx skills add https://github.com/gravitational/teleport/tree/master/skills/teleport-session-review
+
+# Access list review
+npx skills add https://github.com/gravitational/teleport/tree/master/skills/teleport-acl-review
+
+# Investigate Identity Security Logs
+npx skills add https://github.com/gravitational/teleport/tree/master/skills/teleport-investigate
+
+# Review who can access which resources
+npx skills add https://github.com/gravitational/teleport/tree/master/skills/teleport-access-review
+```
+
+You'll be prompted to pick which agents to install into and whether to install
+globally or per-project. Review a skill before use — skills run with your agent's
+full permissions.
+
 ## Available Skills
 
 ### teleport-acl-review
@@ -17,3 +45,68 @@ Example invocations:
 - Review my Teleport access lists
 - Which access lists need review?
 - Audit my Teleport ACLs
+
+### teleport-session-review
+
+Helps browse, search, and investigate Teleport session recordings. Lists recent
+recordings (`tctl recordings ls`), runs semantic and keyword search over session
+summaries (`tctl recordings search`), presents a risk-triage table, and — with
+confirmation — downloads a recording or hands you a playback link.
+
+Install:
+
+```bash
+npx skills add https://github.com/gravitational/teleport/tree/master/skills/teleport-session-review
+```
+
+Example invocations:
+
+- Review my recent Teleport session recordings
+- Search session recordings for sessions that touched production databases
+- What happened in session &lt;id&gt;?
+- Find risky or high-severity sessions from last week
+- Download the recording for session &lt;id&gt;
+
+### teleport-investigate
+
+Helps search and explore Teleport's Identity Security activity log with
+`tctl investigate` — finding who did what, where, and when across users,
+resources, and integrations such as AWS, GitHub, and Okta.
+
+Example invocations:
+
+- Were there any failed authentications from India in the last 7 days?
+- What did bot CI-deployer do yesterday?
+- Show me who accessed the production-database resource this month
+- Show me what activity was performed during the following access request <uuid>
+
+### teleport-access-review
+
+Helps review who can reach which resources and whether that access is actually
+used, with `tctl access-review` and the `access_path` SQL query language —
+access list / ACL recertification, "who can access this resource", "what can
+this user access", attesting access for audit, and finding dormant or unused
+standing privileges. Pairs with `teleport-investigate` (standing access vs.
+historical activity).
+
+Example invocations:
+
+- Who can access the prod-db database?
+- Review the Prod Admins access list and flag members who haven't used it in 90 days
+- Does alice@example.com have any unused standing access?
+- What can the junior-dev role reach in production?
+- Attest who can reach prod-db and which grants are dormant
+
+### teleport-discovery
+
+Connect Teleport to your cloud to automatically discover and enroll your resources. Use Terraform
+to create an OIDC integration in your cloud provider and configure the Teleport
+Discovery Service. Troubleshoot any issues getting your resources enrolled. Supports AWS EC2
+instances, AWS EKS clusters, and Azure VMS.
+
+Example invocations:
+
+- Enroll my AWS EC2 instances into Teleport
+- Set up auto-discovery for my EKS clusters
+- Enroll my Azure VMs into Teleport
+- Why are my resources not enrolling into Teleport?

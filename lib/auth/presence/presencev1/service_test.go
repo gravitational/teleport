@@ -673,6 +673,265 @@ func TestUpdateRemoteCluster(t *testing.T) {
 	}
 }
 
+// TestListAuthServers is an integration test that uses a real gRPC
+// client/server.
+func TestListAuthServers(t *testing.T) {
+	t.Parallel()
+	srv := newTestTLSServer(t)
+	ctx := context.Background()
+
+	user, role, err := authtest.CreateUserAndRole(
+		srv.Auth(),
+		"auth-server-lister",
+		[]string{},
+		[]types.Rule{
+			{
+				Resources: []string{types.KindAuthServer},
+				Verbs:     []string{types.VerbList, types.VerbRead},
+			},
+		})
+	require.NoError(t, err)
+	_, err = srv.Auth().UpsertRole(ctx, role)
+	require.NoError(t, err)
+
+	unprivilegedUser, unprivilegedRole, err := authtest.CreateUserAndRole(
+		srv.Auth(),
+		"no-perms",
+		[]string{},
+		[]types.Rule{},
+	)
+	require.NoError(t, err)
+	unprivilegedRole.SetRules(types.Deny, []types.Rule{
+		{
+			Resources: []string{types.KindAuthServer},
+			Verbs:     []string{types.VerbList},
+		},
+	})
+	_, err = srv.Auth().UpsertRole(ctx, unprivilegedRole)
+	require.NoError(t, err)
+
+	// Create a few auth servers
+	created := []*types.ServerV2{}
+	for i := range 3 {
+		server := &types.ServerV2{
+			Kind:    types.KindAuthServer,
+			Version: types.V2,
+			Metadata: types.Metadata{
+				Name:      fmt.Sprintf("auth-%d", i),
+				Namespace: "default",
+			},
+			Spec: types.ServerSpecV2{
+				Addr: fmt.Sprintf("127.0.0.1:%d", 3025+i),
+			},
+		}
+		require.NoError(t, srv.Auth().UpsertAuthServer(ctx, server))
+		created = append(created, server)
+	}
+
+	tests := []struct {
+		name        string
+		user        string
+		req         *presencev1pb.ListAuthServersRequest
+		assertError require.ErrorAssertionFunc
+		want        []*types.ServerV2
+	}{
+		{
+			name:        "success",
+			user:        user.GetName(),
+			req:         &presencev1pb.ListAuthServersRequest{},
+			assertError: require.NoError,
+			want:        created,
+		},
+		{
+			name: "no permissions",
+			user: unprivilegedUser.GetName(),
+			req:  &presencev1pb.ListAuthServersRequest{},
+			assertError: func(t require.TestingT, err error, i ...any) {
+				require.True(t, trace.IsAccessDenied(err), "error should be access denied")
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client, err := srv.NewClient(authtest.TestUser(tt.user))
+			require.NoError(t, err)
+
+			res, err := client.PresenceServiceClient().ListAuthServers(ctx, tt.req)
+			tt.assertError(t, err)
+			if tt.want != nil {
+				require.Empty(
+					t, cmp.Diff(
+						tt.want,
+						res.GetServers(),
+						cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+					),
+				)
+			}
+		})
+	}
+
+	t.Run("pagination", func(t *testing.T) {
+		client, err := srv.NewClient(authtest.TestUser(user.GetName()))
+		require.NoError(t, err)
+
+		allGot := []*types.ServerV2{}
+		pageToken := ""
+		for i := range 3 {
+			var got []types.Server
+			got, pageToken, err = client.ListAuthServers(ctx, 1, pageToken)
+			require.NoError(t, err)
+			if i == 2 {
+				require.Empty(t, pageToken)
+			} else {
+				require.NotEmpty(t, pageToken)
+			}
+			require.Len(t, got, 1)
+			for _, item := range got {
+				allGot = append(allGot, item.(*types.ServerV2))
+			}
+		}
+		require.Len(t, allGot, 3)
+
+		require.Empty(
+			t, cmp.Diff(
+				allGot,
+				created,
+				cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+			),
+		)
+	})
+}
+
+// TestListProxyServers is an integration test that uses a real gRPC
+// client/server.
+func TestListProxyServers(t *testing.T) {
+	t.Parallel()
+	srv := newTestTLSServer(t)
+	ctx := context.Background()
+
+	user, role, err := authtest.CreateUserAndRole(
+		srv.Auth(),
+		"proxy-server-lister",
+		[]string{},
+		[]types.Rule{
+			{
+				Resources: []string{types.KindProxy},
+				Verbs:     []string{types.VerbList, types.VerbRead},
+			},
+		})
+	require.NoError(t, err)
+	_, err = srv.Auth().UpsertRole(ctx, role)
+	require.NoError(t, err)
+
+	unprivilegedUser, unprivilegedRole, err := authtest.CreateUserAndRole(
+		srv.Auth(),
+		"no-perms",
+		[]string{},
+		[]types.Rule{},
+	)
+	require.NoError(t, err)
+	unprivilegedRole.SetRules(types.Deny, []types.Rule{
+		{
+			Resources: []string{types.KindProxy},
+			Verbs:     []string{types.VerbList},
+		},
+	})
+	_, err = srv.Auth().UpsertRole(ctx, unprivilegedRole)
+	require.NoError(t, err)
+
+	// Create a few proxy servers
+	created := []*types.ServerV2{}
+	for i := range 3 {
+		server := &types.ServerV2{
+			Kind:    types.KindProxy,
+			Version: types.V2,
+			Metadata: types.Metadata{
+				Name:      fmt.Sprintf("proxy-%d", i),
+				Namespace: "default",
+			},
+			Spec: types.ServerSpecV2{
+				Addr: fmt.Sprintf("127.0.0.1:%d", 3080+i),
+			},
+		}
+		_, err := srv.Auth().UpsertProxyServer(ctx, server)
+		require.NoError(t, err)
+		created = append(created, server)
+	}
+
+	tests := []struct {
+		name        string
+		user        string
+		req         *presencev1pb.ListProxyServersRequest
+		assertError require.ErrorAssertionFunc
+		want        []*types.ServerV2
+	}{
+		{
+			name:        "success",
+			user:        user.GetName(),
+			req:         &presencev1pb.ListProxyServersRequest{},
+			assertError: require.NoError,
+			want:        created,
+		},
+		{
+			name: "no permissions",
+			user: unprivilegedUser.GetName(),
+			req:  &presencev1pb.ListProxyServersRequest{},
+			assertError: func(t require.TestingT, err error, i ...any) {
+				require.True(t, trace.IsAccessDenied(err), "error should be access denied")
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client, err := srv.NewClient(authtest.TestUser(tt.user))
+			require.NoError(t, err)
+
+			res, err := client.PresenceServiceClient().ListProxyServers(ctx, tt.req)
+			tt.assertError(t, err)
+			if tt.want != nil {
+				require.Empty(
+					t, cmp.Diff(
+						tt.want,
+						res.GetServers(),
+						cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+					),
+				)
+			}
+		})
+	}
+
+	t.Run("pagination", func(t *testing.T) {
+		client, err := srv.NewClient(authtest.TestUser(user.GetName()))
+		require.NoError(t, err)
+
+		allGot := []*types.ServerV2{}
+		pageToken := ""
+		for i := range 3 {
+			var got []types.Server
+			got, pageToken, err = client.ListProxyServers(ctx, 1, pageToken)
+			require.NoError(t, err)
+			if i == 2 {
+				require.Empty(t, pageToken)
+			} else {
+				require.NotEmpty(t, pageToken)
+			}
+			require.Len(t, got, 1)
+			for _, item := range got {
+				allGot = append(allGot, item.(*types.ServerV2))
+			}
+		}
+		require.Len(t, allGot, 3)
+
+		require.Empty(
+			t, cmp.Diff(
+				allGot,
+				created,
+				cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+			),
+		)
+	})
+}
+
 // TestListReverseTunnels is an integration test that uses a real gRPC
 // client/server.
 func TestListReverseTunnels(t *testing.T) {

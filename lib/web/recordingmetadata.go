@@ -117,7 +117,7 @@ func (h *Handler) getSessionRecordingMetadata(
 		}
 
 		if chunk.GetFrame() != nil {
-			if err := sendMessage(ws, recordingThumbnailMessageType, encodeSessionRecordingThumbnail(chunk.GetFrame())); err != nil {
+			if err := sendMessage(ws, recordingThumbnailMessageType, EncodeSessionRecordingThumbnail(chunk.GetFrame())); err != nil {
 				h.logger.ErrorContext(ctx, "failed to send thumbnail", "session_id", sessionID, "error", err)
 				return nil, nil
 			}
@@ -170,7 +170,7 @@ func (h *Handler) getSessionRecordingThumbnail(
 		return nil, trace.NotFound("thumbnail not found for session %q", sessionId)
 	}
 
-	return encodeSessionRecordingThumbnail(response.GetThumbnail()), nil
+	return EncodeSessionRecordingThumbnail(response.GetThumbnail()), nil
 }
 
 type baseEvent struct {
@@ -275,7 +275,8 @@ func encodeSessionRecordingMetadata(metadata *recordingmetadatav1.SessionRecordi
 	return result
 }
 
-type sessionRecordingThumbnailResponse struct {
+// SessionRecordingThumbnailResponse is the web API representation of a session recording thumbnail.
+type SessionRecordingThumbnailResponse struct {
 	Svg           string `json:"svg"`
 	Cols          int32  `json:"cols"`
 	Rows          int32  `json:"rows"`
@@ -289,9 +290,9 @@ type sessionRecordingThumbnailResponse struct {
 	ScreenHeight  int32  `json:"screenHeight,omitempty"`
 }
 
-// encodeSessionRecordingThumbnail converts the session recording thumbnail to a format more suitable for the frontend.
-func encodeSessionRecordingThumbnail(thumbnail *recordingmetadatav1.SessionRecordingThumbnail) sessionRecordingThumbnailResponse {
-	return sessionRecordingThumbnailResponse{
+// EncodeSessionRecordingThumbnail converts the session recording thumbnail to a format more suitable for the frontend.
+func EncodeSessionRecordingThumbnail(thumbnail *recordingmetadatav1.SessionRecordingThumbnail) SessionRecordingThumbnailResponse {
+	return SessionRecordingThumbnailResponse{
 		Svg:           string(thumbnail.GetSvg()),
 		Cols:          thumbnail.GetCols(),
 		Rows:          thumbnail.GetRows(),

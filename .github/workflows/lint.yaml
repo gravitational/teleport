@@ -2,6 +2,10 @@ name: Lint
 on:
   pull_request:
   merge_group:
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.event.merge_group.head_sha || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 env:
   GOFLAGS: '-buildvcs=false'
 
@@ -36,8 +40,8 @@ jobs:
             has_go:
               - '.github/workflows/lint.yaml'
               - '**.go'
-              - 'go.mod'
-              - 'go.sum'
+              - '**/go.mod'
+              - '**/go.sum'
               - 'build.assets/Makefile'
               - 'build.assets/Dockerfile*'
               - 'Makefile'
@@ -134,6 +138,21 @@ jobs:
             go mod tidy -diff || (echo "Run 'make go-mod-tidy-all' to resolve" && exit 1);
             popd > /dev/null;
           done
+
+      # Prevent any new uses of the Open API from being added until teleport is converted
+      # to exclusively use the Opaque API.
+      - name: Check for Open API usage
+        run: |
+          # We have to add the current directory as a safe directory or else git commands will not work as expected.
+          git config --global --add safe.directory "$(realpath .)"
+          go install golang.org/x/tools/cmd/goimports@v0.46.0
+          go run google.golang.org/open2opaque@v0.1.7 rewrite -levels=red ./...
+          if ! git diff --quiet --exit-code -- '*.go'; then
+            echo "Detected Open API usage - Update code to use the Opaque API manually or run go run google.golang.org/open2opaque@v0.1.7 rewrite -levels=red ./..."
+            git diff --stat -- '*.go'
+            git diff -- '*.go'
+            exit 1
+          fi
 
       - name: Set linter versions
         run: |

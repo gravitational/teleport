@@ -112,7 +112,7 @@ longer-lived identity files with `tctl`:
 (!docs/pages/includes/plugins/tbot-identity.mdx secret="teleport-plugin-email-identity"!)
 </TabItem>
 <TabItem label="Long-lived identity files">
-(!docs/pages/includes/plugins/identity-export.mdx user="access-plugin" secret="teleport-plugin-email-identity"!)
+(!docs/pages/includes/plugins/identity-export.mdx plugin="email" secret="teleport-plugin-email-identity"!)
 </TabItem>
 </Tabs>
 
@@ -351,13 +351,13 @@ Request event by using the `delivery.recipients` field:
 <TabItem label="Executable or Docker">
 ```toml
 [delivery]
-recipients = ["eng@exmaple.com", "dev@example.com"]
+recipients = ["eng@example.com", "dev@example.com"]
 ```
 </TabItem>
 <TabItem label="Helm Chart">
 ```yaml
 delivery:
-  recipients: ["eng@exmaple.com", "dev@example.com"]
+  recipients: ["eng@example.com", "dev@example.com"]
 ```
 </TabItem>
 </Tabs>
@@ -530,4 +530,8 @@ $ sudo systemctl start teleport-email
 
 (!docs/pages/includes/plugins/access-plugin-troubleshooting.mdx!)
 
+## Next steps
 
+- To see all of the options you can set in the values file for the
+`teleport-plugin-email` Helm chart, consult our [Helm chart reference
+guide](../../../reference/helm-reference/teleport-plugin-email.mdx).

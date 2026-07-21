@@ -5,6 +5,7 @@ tags:
  - how-to
  - zero-trust
  - privileged-access
+page_type: how-to
 ---
 
 Browser MFA enables users of `tsh`, `tctl`, and Teleport Connect to complete
@@ -27,6 +28,9 @@ $ tsh mfa add --mfa-mode=browser
 # Edit a Teleport resource
 $ tctl edit --mfa-mode=browser cluster_auth_preference
 ```
+
+In this guide, you will enable browser MFA on your Teleport cluster and use a
+browser to authenticate your user to Teleport.
 
 ## How it works
 

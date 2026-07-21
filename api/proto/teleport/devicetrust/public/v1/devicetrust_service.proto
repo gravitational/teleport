@@ -1,0 +1,63 @@
+// Copyright 2026 Gravitational, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.devicetrust.public.v1;
+
+import "teleport/devicetrust/v1/device_collected_data.proto";
+import "teleport/devicetrust/v1/device_enroll_token.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/public/v1;devicetrustpublicv1";
+
+// DeviceTrustService provides publicly-accessible (via the Proxy Service)
+// variants of select RPCs from the private teleport.devicetrust.v1.DeviceTrustService.
+// RPCs here are authenticated through means other than a user certificate.
+//
+// This enables mobile devices to carry out device enrollment and device
+// authentication without having to obtain a user certificate through a full
+// login procedure.
+service DeviceTrustService {
+  // CreatePairedDeviceEnrollToken creates a device enrollment token given an
+  // enroll pairing token and collected device data.
+  //
+  // The calling user, identified via the enroll pairing token, must have the
+  // mobile_device.create_enroll_token permission.
+  //
+  // The call blocks and goes through only after the user who created the enroll
+  // pairing token approves the attempt to create an enroll token in the Web UI.
+  // It fails if the user denies the request or if the pairing expires – these
+  // two cases are indistinguishable to the caller.
+  //
+  // The call is retryable to support a case where the client or the service
+  // drops the call before the user accepts the attempt. Note that subsequent
+  // calls with the same enroll pairing token are allowed only if os_type and
+  // serial_number from device_data match those from the initial call.
+  rpc CreatePairedDeviceEnrollToken(CreatePairedDeviceEnrollTokenRequest) returns (CreatePairedDeviceEnrollTokenResponse);
+}
+
+// Request for CreatePairedDeviceEnrollToken.
+message CreatePairedDeviceEnrollTokenRequest {
+  // Enroll pairing token passed from the Web UI to the client on the device that's supposed to be enrolled.
+  string enroll_pairing_token = 1;
+
+  // Device collected data.
+  // Used to authorize issuance of device enrollment token.
+  teleport.devicetrust.v1.DeviceCollectedData device_data = 2;
+}
+
+// Response for CreatePairedDeviceEnrollToken.
+message CreatePairedDeviceEnrollTokenResponse {
+  teleport.devicetrust.v1.DeviceEnrollToken device_enroll_token = 1;
+}

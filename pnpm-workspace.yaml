@@ -12,9 +12,6 @@ allowBuilds:
   protobufjs: true
   unrs-resolver: true
   puppeteer: false
-overrides:
-  # Remove once https://github.com/electron/electron/issues/51619 is addressed.
-  yauzl: '^3.3.1'
 # Without this, electron-builder will pull in electron-builder-squirrel-windows (which we don't need)
 # and that dep will in turn pull electron-winstaller (which we also don't need). pnpm will then
 # start complaining that electron-winstaller is not in onlyBuiltDependencies.
@@ -33,6 +30,18 @@ peerDependencyRules:
     # This dep is needed only when using Squirrel.Windows as an installer in electron-build which we
     # don't use. https://www.electron.build/squirrel-windows.html
     - electron-builder-squirrel-windows
+# create-react-class and @hookform/resolvers import react/zod without declaring them, which fails to
+# resolve under the global virtual store. Declare the peers so pnpm co-locates them.
+packageExtensions:
+  create-react-class@15:
+    peerDependencies:
+      react: '*'
+  '@hookform/resolvers@5':
+    peerDependencies:
+      zod: '*'
+  storybook@10:
+    peerDependencies:
+      '@storybook/react-vite': '*'
 # shellEmulator enables cross-platform scripting, allowing POSIX-style shell variables to work on Windows.
 shellEmulator: true
 # packageImportMethod avoids an issue building the web UI in docker on mac. It does not seem to
@@ -41,5 +50,11 @@ shellEmulator: true
 packageImportMethod: clone-or-copy
 # Do not install packages released less than 2 days (2880 minutes) ago
 minimumReleaseAge: 2880
+# These are published as GitHub release tarballs rather than to the npm registry, so they have no
+# registry publish time for minimumReleaseAge to check and would otherwise fail the policy.
+minimumReleaseAgeExclude:
+  - '@gravitational/design-system'
+  - '@gravitational/swc-plugin-jsx-marker'
+  - '@gravitational/swc-plugin-styled-components'
 # The pnpm team releases new versions pretty often, and we don't need to stay at the freshest version at all times.
 updateNotifier: false

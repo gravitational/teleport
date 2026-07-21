@@ -99,6 +99,10 @@ const (
 	// When unset, the join client will try the `KUBERNETES_TOKEN_PATH` env var, else it will use the standard location:
 	// "/var/run/secrets/kubernetes.io/serviceaccount/token".
 	attributeKubernetesTokenPath = "kubernetes_token_path"
+	// attributeScoped indicates that the Terraform Operator will join with a scoped token.
+	// This only takes effect when the operator performs native MachineID joining
+	// (i.e. join method and join token are specified). This must be set when using a scoped join token.
+	attributeScoped = "scoped"
 )
 
 type RetryConfig struct {
@@ -166,6 +170,10 @@ type providerData struct {
 	// When unset, the join client will try the `KUBERNETES_TOKEN_PATH` env var, else it will use the standard location:
 	// "/var/run/secrets/kubernetes.io/serviceaccount/token".
 	KubernetesTokenPath types.String `tfsdk:"kubernetes_token_path"`
+	// Scoped indicates that the Terraform Operator will join with a scoped token.
+	// This only takes effect when the operator performs native MachineID joining
+	// (i.e. join method and join token are specified). This must be set when using a scoped join token.
+	Scoped types.Bool `tfsdk:"scoped"`
 }
 
 // New returns an empty provider struct
@@ -298,6 +306,12 @@ func (p *Provider) GetSchema(_ context.Context) (tfsdk.Schema, diag.Diagnostics)
 				Sensitive:   false,
 				Optional:    true,
 				Description: "KubernetesTokenPath configures the Kubernetes token location when joining using MachineID and the `kubernetes` join method. When unset, the join client will try the `KUBERNETES_TOKEN_PATH` env var, else it will use the standard location: `/var/run/secrets/kubernetes.io/serviceaccount/token`.",
+			},
+			attributeScoped: {
+				Type:        types.BoolType,
+				Sensitive:   false,
+				Optional:    true,
+				Description: fmt.Sprintf("Scoped indicates that the Terraform Operator will join with a scoped token. This only takes effect when the operator performs native MachineID joining (i.e. join method and join token are specified). This must be set when using a scoped join token. This can also be set with the environment variable `%s`", constants.EnvVarTerraformScoped),
 			},
 		},
 	}, nil
@@ -582,12 +596,14 @@ func (p *Provider) GetResources(_ context.Context) (map[string]tfsdk.ResourceTyp
 		"teleport_inference_model":            resourceTeleportInferenceModelType{},
 		"teleport_inference_secret":           resourceTeleportInferenceSecretType{},
 		"teleport_inference_policy":           resourceTeleportInferencePolicyType{},
+		"teleport_classifier":                 resourceTeleportClassifierType{},
 		"teleport_retrieval_model":            resourceTeleportRetrievalModelType{},
 		"teleport_scoped_token":               resourceTeleportScopedTokenType{},
 		"teleport_workload_cluster":           resourceTeleportWorkloadClusterType{},
 		"teleport_scoped_role":                resourceTeleportScopedRoleType{},
 		"teleport_scoped_role_assignment":     resourceTeleportScopedRoleAssignmentType{},
 		"teleport_db_object_import_rule":      resourceTeleportDatabaseObjectImportRuleType{},
+		"teleport_client_ip_restriction":      resourceTeleportClientIPRestrictionType{},
 	}, nil
 }
 
@@ -632,6 +648,7 @@ func (p *Provider) GetDataSources(_ context.Context) (map[string]tfsdk.DataSourc
 		"teleport_scoped_role":                dataSourceTeleportScopedRoleType{},
 		"teleport_scoped_role_assignment":     dataSourceTeleportScopedRoleAssignmentType{},
 		"teleport_db_object_import_rule":      dataSourceTeleportDatabaseObjectImportRuleType{},
+		"teleport_classifier":                 dataSourceTeleportClassifierType{},
 		// TODO(bl-nero): Add teleport_inference_* data sources after data sources
 		// are fixed. The current problems with data sources include:
 		// - Data sources only perform a "shallow fill", which means only setting
@@ -639,7 +656,8 @@ func (p *Provider) GetDataSources(_ context.Context) (map[string]tfsdk.DataSourc
 		// - Data sources use the same schema as resources, which means that fields
 		//   required on a resource also need to be set on the data source
 		//   definition.
-		"teleport_workload_cluster": dataSourceTeleportWorkloadClusterType{},
+		"teleport_workload_cluster":      dataSourceTeleportWorkloadClusterType{},
+		"teleport_client_ip_restriction": dataSourceTeleportClientIPRestrictionType{},
 	}, nil
 }
 

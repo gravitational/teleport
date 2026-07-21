@@ -341,12 +341,14 @@ func TestScopedBotJoinAuth(t *testing.T) {
 		Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
 			Assignments: []*scopedaccessv1.Assignment{
 				scopedaccessv1.Assignment_builder{
-					Role:  testBotRole,
+					Role: scopes.QualifiedName{
+						Scope: testRootScope,
+						Name:  testBotRole,
+					}.String(),
 					Scope: testRootScope,
 				}.Build(),
 			},
-			BotName:  testBotName,
-			BotScope: testRootScope,
+			Bot: scopes.QualifiedName{Scope: testRootScope, Name: testBotName}.String(),
 		}.Build(),
 	}.Build()
 	_, err = adminClient.ScopedAccessServiceClient().CreateScopedRoleAssignment(
@@ -363,6 +365,7 @@ func TestScopedBotJoinAuth(t *testing.T) {
 			ctx,
 			scopedaccessv1.GetScopedRoleAssignmentRequest_builder{
 				Name:    testBotRole,
+				Scope:   testRootScope,
 				SubKind: scopedaccess.SubKindDynamic,
 			}.Build(),
 		)
@@ -406,9 +409,8 @@ func TestScopedBotJoinAuth(t *testing.T) {
 				Type:       string(types.KubernetesJoinTypeStaticJWKS),
 				StaticJwks: scopedjoiningv1.Kubernetes_StaticJWKSConfig_builder{Jwks: jwks}.Build(),
 			}.Build(),
-			BotName:  testBotName,
-			BotScope: testRootScope,
-			Roles:    []string{string(types.RoleBot)},
+			Bot:   scopes.QualifiedName{Scope: testRootScope, Name: testBotName}.String(),
+			Roles: []string{string(types.RoleBot)},
 		}.Build(),
 	}.Build()
 	// Somehow the admin client interface doesn't expose CreateScopedToken ¯\_(ツ)_/¯
@@ -453,7 +455,8 @@ func TestScopedBotJoinAuth(t *testing.T) {
 	require.Equal(t, clusterName, botPong.ClusterName)
 
 	_, err = botClient.ScopedAccessServiceClient().GetScopedRole(ctx, scopedaccessv1.GetScopedRoleRequest_builder{
-		Name: testBotRole,
+		Name:  testBotRole,
+		Scope: testRootScope,
 	}.Build())
 	require.NoError(t, err)
 }

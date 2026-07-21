@@ -137,7 +137,7 @@ func azurePrincipalsKey(user *accessgraphv1alpha.AzurePrincipal) string {
 }
 
 func azurePrincipalsWrap(principal *accessgraphv1alpha.AzurePrincipal) *accessgraphv1alpha.AzureResource {
-	return &accessgraphv1alpha.AzureResource{Resource: &accessgraphv1alpha.AzureResource_Principal{Principal: principal}}
+	return accessgraphv1alpha.AzureResource_builder{Principal: proto.ValueOrDefault(principal)}.Build()
 }
 
 func azureRoleAssignKey(roleAssign *accessgraphv1alpha.AzureRoleAssignment) string {
@@ -145,7 +145,7 @@ func azureRoleAssignKey(roleAssign *accessgraphv1alpha.AzureRoleAssignment) stri
 }
 
 func azureRoleAssignWrap(roleAssign *accessgraphv1alpha.AzureRoleAssignment) *accessgraphv1alpha.AzureResource {
-	return &accessgraphv1alpha.AzureResource{Resource: &accessgraphv1alpha.AzureResource_RoleAssignment{RoleAssignment: roleAssign}}
+	return accessgraphv1alpha.AzureResource_builder{RoleAssignment: proto.ValueOrDefault(roleAssign)}.Build()
 }
 
 func azureRoleDefKey(roleDef *accessgraphv1alpha.AzureRoleDefinition) string {
@@ -153,7 +153,7 @@ func azureRoleDefKey(roleDef *accessgraphv1alpha.AzureRoleDefinition) string {
 }
 
 func azureRoleDefWrap(roleDef *accessgraphv1alpha.AzureRoleDefinition) *accessgraphv1alpha.AzureResource {
-	return &accessgraphv1alpha.AzureResource{Resource: &accessgraphv1alpha.AzureResource_RoleDefinition{RoleDefinition: roleDef}}
+	return accessgraphv1alpha.AzureResource_builder{RoleDefinition: proto.ValueOrDefault(roleDef)}.Build()
 }
 
 func azureVmKey(vm *accessgraphv1alpha.AzureVirtualMachine) string {
@@ -161,5 +161,5 @@ func azureVmKey(vm *accessgraphv1alpha.AzureVirtualMachine) string {
 }
 
 func azureVmWrap(vm *accessgraphv1alpha.AzureVirtualMachine) *accessgraphv1alpha.AzureResource {
-	return &accessgraphv1alpha.AzureResource{Resource: &accessgraphv1alpha.AzureResource_VirtualMachine{VirtualMachine: vm}}
+	return accessgraphv1alpha.AzureResource_builder{VirtualMachine: proto.ValueOrDefault(vm)}.Build()
 }
