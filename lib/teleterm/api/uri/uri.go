@@ -19,6 +19,7 @@
 package uri
 
 import (
+	"encoding/base64"
 	"fmt"
 
 	"github.com/ucarion/urlpath"
@@ -38,6 +39,7 @@ var pathKubeResourceNamespace = urlpath.New("/clusters/:cluster/kubes/:kubeName/
 var pathLeafKubeResourceNamespace = urlpath.New("/clusters/:cluster/leaves/:leaf/kubes/:kubeName/namespaces/:kubeNamespaceName")
 var pathApps = urlpath.New("/clusters/:cluster/apps/:appName")
 var pathLeafApps = urlpath.New("/clusters/:cluster/leaves/:leaf/apps/:appName")
+var pathScopedApps = urlpath.New("/clusters/:cluster/apps/:appName/scope/:appScope")
 var pathWindowsDesktops = urlpath.New("/clusters/:cluster/windows_desktops/:windowsDesktopName")
 var pathLeafWindowsDesktops = urlpath.New("/clusters/:cluster/leaves/:leaf/windows_desktops/:windowsDesktopName")
 
@@ -160,14 +162,27 @@ func (r ResourceURI) GetKubeResourceNamespace() string {
 
 // GetAppName extracts the app name from r. Returns an empty string if the path is not an app URI.
 func (r ResourceURI) GetAppName() string {
-	result, ok := pathApps.Match(r.path)
-	if ok {
-		return result.Params["appName"]
+	for _, p := range []urlpath.Path{pathScopedApps, pathApps, pathLeafApps} {
+		if result, ok := p.Match(r.path); ok {
+			return result.Params["appName"]
+		}
 	}
 
-	result, ok = pathLeafApps.Match(r.path)
-	if ok {
-		return result.Params["appName"]
+	return ""
+}
+
+// GetAppScope extracts the app scope from r. Returns an empty string if r is
+// not a scoped app URI (including unscoped apps and non-app URIs).
+func (r ResourceURI) GetAppScope() string {
+	if result, ok := pathScopedApps.Match(r.path); ok {
+		// Scoped apps carry their scope as a base64url-encoded segment so same-named
+		// apps in different scopes get distinct URIs. The scope is encoded because
+		// it contains "/".
+		scope, err := base64.RawURLEncoding.DecodeString(result.Params["appScope"])
+		if err != nil {
+			return ""
+		}
+		return string(scope)
 	}
 
 	return ""
@@ -276,9 +291,18 @@ func (r ResourceURI) AddGateway(id string) ResourceURI {
 	return r
 }
 
-// AppendApp appends app segment to the URI
-func (r ResourceURI) AppendApp(name string) ResourceURI {
-	r.path = fmt.Sprintf("%v/apps/%v", r.path, name)
+// AppendApp appends app segment to the URI.
+//
+// Apps can exist in different scopes, so scoped apps append
+// their scope as a base64 encoded segment; unscoped apps keep the bare name,
+// leaving existing persisted URIs unchanged. scope must be empty for unscoped
+// apps.
+func (r ResourceURI) AppendApp(name, scope string) ResourceURI {
+	if scope == "" {
+		r.path = fmt.Sprintf("%v/apps/%v", r.path, name)
+		return r
+	}
+	r.path = fmt.Sprintf("%v/apps/%v/scope/%v", r.path, name, base64.RawURLEncoding.EncodeToString([]byte(scope)))
 	return r
 }
 

@@ -56,23 +56,24 @@ type SAMLIdPServiceProvider struct {
 	Provider types.SAMLIdPServiceProvider
 }
 
-func GetApp(ctx context.Context, authClient authclient.ClientI, appName string) (types.Application, error) {
+// GetApp resolves an application by name and scope.
+func GetApp(ctx context.Context, authClient authclient.ClientI, appName, scope string) (types.Application, error) {
 	var app types.Application
 	err := AddMetadataToRetryableError(ctx, func() error {
-		apps, err := apiclient.GetAllResources[types.AppServer](ctx, authClient, &proto.ListResourcesRequest{
+		appServers, err := apiclient.GetAllResources[types.AppServer](ctx, authClient, &proto.ListResourcesRequest{
 			Namespace:           apidefaults.Namespace,
 			ResourceType:        types.KindAppServer,
-			PredicateExpression: fmt.Sprintf(`name == %q`, appName),
+			PredicateExpression: fmt.Sprintf(`name == %q && scope == %q`, appName, scope),
 		})
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
-		if len(apps) == 0 {
+		if len(appServers) == 0 {
 			return trace.NotFound("app %q not found", appName)
 		}
 
-		app = apps[0].GetApp()
+		app = appServers[0].GetApp()
 		return nil
 	})
 

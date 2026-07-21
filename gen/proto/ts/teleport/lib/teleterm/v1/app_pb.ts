@@ -166,6 +166,12 @@ export interface App {
      * @generated from protobuf field: repeated int32 supported_feature_ids = 15;
      */
     supportedFeatureIds: number[];
+    /**
+     * scope is the scope the app.
+     *
+     * @generated from protobuf field: string scope = 16;
+     */
+    scope: string;
 }
 /**
  * AwsRole describes AWS IAM role.
@@ -314,7 +320,8 @@ class App$Type extends MessageType<App> {
             { no: 12, name: "tcp_ports", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => PortRange },
             { no: 13, name: "sub_kind", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 14, name: "permission_sets", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => IdentityCenterPermissionSet },
-            { no: 15, name: "supported_feature_ids", kind: "scalar", repeat: 1 /*RepeatType.PACKED*/, T: 5 /*ScalarType.INT32*/ }
+            { no: 15, name: "supported_feature_ids", kind: "scalar", repeat: 1 /*RepeatType.PACKED*/, T: 5 /*ScalarType.INT32*/ },
+            { no: 16, name: "scope", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<App>): App {
@@ -334,6 +341,7 @@ class App$Type extends MessageType<App> {
         message.subKind = "";
         message.permissionSets = [];
         message.supportedFeatureIds = [];
+        message.scope = "";
         if (value !== undefined)
             reflectionMergePartial<App>(this, message, value);
         return message;
@@ -391,6 +399,9 @@ class App$Type extends MessageType<App> {
                             message.supportedFeatureIds.push(reader.int32());
                     else
                         message.supportedFeatureIds.push(reader.int32());
+                    break;
+                case /* string scope */ 16:
+                    message.scope = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -453,6 +464,9 @@ class App$Type extends MessageType<App> {
                 writer.int32(message.supportedFeatureIds[i]);
             writer.join();
         }
+        /* string scope = 16; */
+        if (message.scope !== "")
+            writer.tag(16, WireType.LengthDelimited).string(message.scope);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

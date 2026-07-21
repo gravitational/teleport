@@ -95,6 +95,8 @@ message App {
   // other involved components (Auth, Proxy). Used to determine if features like resource
   // constraints are available.
   repeated int32 supported_feature_ids = 15;
+  // scope is the scope the app.
+  string scope = 16;
 }
 
 // AwsRole describes AWS IAM role.

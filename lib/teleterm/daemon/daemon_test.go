@@ -261,7 +261,9 @@ func TestGatewayCRUD(t *testing.T) {
 		{
 			name:                   "CreateGateway returns error if app gateway already exists",
 			gatewayNamesToCreate:   []string{"gateway"},
-			appendGatewayTargetURI: uri.NewClusterURI("foo").AppendApp,
+			appendGatewayTargetURI: func(name string) uri.ResourceURI {
+				return uri.NewClusterURI("foo").AppendApp(name, "" /* scope */)
+			},
 			testFunc: func(t *testing.T, c *gatewayCRUDTestContext, daemon *Service) {
 				createdGateway := c.nameToGateway["gateway"]
 				_, err := daemon.CreateGateway(context.Background(), CreateGatewayParams{

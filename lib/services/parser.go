@@ -1078,6 +1078,16 @@ func newResourceExpressionParser(opts ...func(*typical.ParserSpec[types.Resource
 
 				return r.GetName(), nil
 			}),
+			"scope": typical.DynamicVariable(func(r types.ResourceWithLabels) (string, error) {
+				// Scoped resources expose their scope for exact matching,
+				// letting clients resolve same-named resources registered in
+				// different scopes server-side. Unscoped resources and resource kinds
+				// without scope support evaluate to the empty string.
+				if scoped, ok := r.(interface{ GetScope() string }); ok {
+					return scoped.GetScope(), nil
+				}
+				return "", nil
+			}),
 			"health.status": typical.DynamicVariable(func(r types.ResourceWithLabels) (string, error) {
 				if r, ok := r.(types.TargetHealthStatusGetter); ok {
 					return string(r.GetTargetHealthStatus()), nil

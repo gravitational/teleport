@@ -162,7 +162,7 @@ func (c *Cluster) createKubeGateway(ctx context.Context, params CreateGatewayPar
 
 func (c *Cluster) createAppGateway(ctx context.Context, params CreateGatewayParams) (gateway.Gateway, error) {
 	appName := params.TargetURI.GetAppName()
-	app, err := GetApp(ctx, params.ClusterClient.AuthClient, appName)
+	app, err := GetApp(ctx, params.ClusterClient.AuthClient, appName, params.TargetURI.GetAppScope())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -227,7 +227,7 @@ func (c *Cluster) ReissueGatewayCerts(ctx context.Context, clusterClient *client
 		return cert, trace.Wrap(err)
 	case g.TargetURI().IsApp():
 		appName := g.TargetURI().GetAppName()
-		app, err := GetApp(ctx, clusterClient.AuthClient, appName)
+		app, err := GetApp(ctx, clusterClient.AuthClient, appName, g.TargetURI().GetAppScope())
 		if err != nil {
 			return tls.Certificate{}, trace.Wrap(err)
 		}

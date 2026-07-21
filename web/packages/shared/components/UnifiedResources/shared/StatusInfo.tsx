@@ -335,6 +335,8 @@ export function getResourceId(resource: UnifiedResourceDefinition) {
   let id;
   if (kind === 'node' || kind === 'git_server') {
     id = resource.id;
+  } else if (kind == 'app') {
+    id = `${resource.name}/${resource.scope?? ''}`;
   } else {
     id = resource.name;
   }
