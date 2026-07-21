@@ -35,7 +35,7 @@ import (
 
 const testDefaultTimeout = 2 * time.Second
 
-var allKinds []Kind = []Kind{KindSQLite}
+var allKinds []Kind = []Kind{KindSQLiteDisk, KindSQLiteMemory}
 
 func newTestQueue(tb testing.TB, kind Kind) Queue {
 	tb.Helper()
@@ -51,6 +51,19 @@ func newTestQueueWithConfig(tb testing.TB, kind Kind, cfg Config) Queue {
 		require.NoError(tb, q.Close())
 	})
 	return q
+}
+
+func underlyingQueue(tb testing.TB, q Queue) *sqliteQueue {
+	tb.Helper()
+	switch v := q.(type) {
+	case *sqliteQueue:
+		return v
+	case *sqliteInMemoryQueue:
+		return v.inner
+	default:
+		tb.Fatalf("unexpected queue type %T", q)
+		return nil
+	}
 }
 
 func quietLogs(tb testing.TB) {
@@ -420,8 +433,7 @@ func TestRun_DeadLetter_RedeliversAfterRecovery(t *testing.T) {
 			runErr := make(chan error, 1)
 			go func() { runErr <- q.Run(runCtx, handler) }()
 
-			sq, ok := q.(*sqliteQueue)
-			require.True(t, ok)
+			sq := underlyingQueue(t, q)
 
 			// Wait for the event to exhaust its attempts and land in the
 			// dead-letter queue, then signal recovery.

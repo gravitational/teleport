@@ -42,6 +42,7 @@ const (
 var SupportedGCPMatchers = []string{
 	GCPMatcherKubernetes,
 	GCPMatcherCompute,
+	GCPMatcherCloudSQL,
 }
 
 // GetTypes gets the types that the matcher can match.
