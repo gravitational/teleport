@@ -107,8 +107,8 @@ func NewSubCAService(p SubCAServiceParams) (*SubCAService, error) {
 		Backend:       p.Backend,
 		ResourceKind:  types.KindPendingCSRRequest,
 		BackendPrefix: newPendingCSRRequestPrefix(),
-		MarshalFunc:   services.MarshalPendingCSRRequest,
-		UnmarshalFunc: services.UnmarshalPendingCSRRequest,
+		MarshalFunc:   marshalPendingCSRRequest,
+		UnmarshalFunc: unmarshalPendingCSRRequest,
 		ValidateFunc:  validatePendingCSRRequest,
 	})
 	if err != nil {
@@ -394,6 +394,14 @@ func newPendingCSRRequestPrefix() backend.Key {
 	return backend.NewKey("cert_authority_overrides", "csr_req")
 }
 
+func marshalPendingCSRRequest(resource *subcav1.PendingCSRRequest, opts ...services.MarshalOption) ([]byte, error) {
+	return services.MarshalProtoResource(resource, opts...)
+}
+
+func unmarshalPendingCSRRequest(data []byte, opts ...services.MarshalOption) (*subcav1.PendingCSRRequest, error) {
+	return services.UnmarshalProtoResource[*subcav1.PendingCSRRequest](data, opts...)
+}
+
 func validatePendingCSRRequest(resource *subcav1.PendingCSRRequest) error {
 	switch {
 	case resource == nil:
@@ -478,7 +486,7 @@ func (p *pendingCSRRequestParser) parse(event backend.Event) (types.Resource, er
 			}.Build(),
 		}.Build()), nil
 	case types.OpPut:
-		r, err := services.UnmarshalPendingCSRRequest(event.Item.Value,
+		r, err := unmarshalPendingCSRRequest(event.Item.Value,
 			services.WithExpires(event.Item.Expires),
 			services.WithRevision(event.Item.Revision),
 		)

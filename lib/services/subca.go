@@ -98,13 +98,3 @@ type PendingCSRRequestService interface {
 	// DeletePendingCSRRequest hard-deletes a PendingCSRRequest.
 	DeletePendingCSRRequest(ctx context.Context, name string) error
 }
-
-// MarshalPendingCSRRequest marshals a PendingCSRRequest.
-func MarshalPendingCSRRequest(resource *subcav1.PendingCSRRequest, opts ...MarshalOption) ([]byte, error) {
-	return MarshalProtoResource(resource, opts...)
-}
-
-// UnmarshalPendingCSRRequest unmarshals a PendingCSRRequest.
-func UnmarshalPendingCSRRequest(data []byte, opts ...MarshalOption) (*subcav1.PendingCSRRequest, error) {
-	return UnmarshalProtoResource[*subcav1.PendingCSRRequest](data, opts...)
-}
