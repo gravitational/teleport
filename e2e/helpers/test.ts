@@ -58,6 +58,13 @@ export interface UserDefinition {
   loginAs?: boolean;
 }
 
+/**
+ * TeleportOption lets a test declare a custom Teleport cluster config to use.
+ **/
+export interface TeleportOption {
+  config: Record<string, unknown>;
+}
+
 const e2eDir =
   process.env.E2E_DIR ?? join(dirname(fileURLToPath(import.meta.url)), '..');
 const authDir = join(e2eDir, '.auth');
@@ -75,6 +82,7 @@ interface E2EFixtures {
   recordings: string[];
   user: UserDefinition;
   users: UserDefinition[];
+  teleport: TeleportOption;
   username: string;
   loginAs: (index: number) => Promise<LoginAsResult>;
   recordingIds: Record<string, string>;
@@ -95,6 +103,7 @@ export const test = base.extend<E2EFixtures>({
   recordings: [[], { option: true }],
   user: [undefined as unknown as UserDefinition, { option: true }],
   users: [[], { option: true }],
+  teleport: [undefined as unknown as TeleportOption, { option: true }],
   username: async ({ user, users }, use, testInfo) => {
     const mapping = tryLoadUserMapping() ?? {};
 
