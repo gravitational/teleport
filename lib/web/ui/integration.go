@@ -47,6 +47,17 @@ type IntegrationAWSOIDCSpec struct {
 	// such as preventing integration from update or deletion. Empty audience value
 	// should be treated as a default and backward-compatible behavior of the integration.
 	Audience string `json:"audience,omitempty"`
+
+	// Organization contains the AWS Organization discovery configuration.
+	Organization *IntegrationAWSOrganizationSpec `json:"organization,omitempty"`
+}
+
+// IntegrationAWSOrganizationSpec contains the AWS Organization discovery details.
+type IntegrationAWSOrganizationSpec struct {
+	// IncludeUnits is the list of Organizational Unit IDs to include.
+	IncludeUnits []string `json:"includeUnits,omitempty"`
+	// ExcludeUnits is the list of Organizational Unit IDs to exclude.
+	ExcludeUnits []string `json:"excludeUnits,omitempty"`
 }
 
 // IntegrationAWSRASpec contain the specific fields for the `aws-ra` subkind integration.
@@ -446,6 +457,17 @@ func MakeIntegration(ig types.Integration) (*Integration, error) {
 			IssuerS3Bucket: s3Bucket,
 			IssuerS3Prefix: s3Prefix,
 			Audience:       ig.GetAWSOIDCIntegrationSpec().Audience,
+		}
+		includeUnits, _ := ig.GetLabel(types.AWSOrganizationalUnitsIncludeLabel)
+		excludeUnits, _ := ig.GetLabel(types.AWSOrganizationalUnitsExcludeLabel)
+		if includeUnits != "" || excludeUnits != "" {
+			ret.AWSOIDC.Organization = &IntegrationAWSOrganizationSpec{}
+			if includeUnits != "" {
+				ret.AWSOIDC.Organization.IncludeUnits = strings.Split(includeUnits, ",")
+			}
+			if excludeUnits != "" {
+				ret.AWSOIDC.Organization.ExcludeUnits = strings.Split(excludeUnits, ",")
+			}
 		}
 	case types.IntegrationSubKindAzureOIDC:
 		spec := ig.GetAzureOIDCIntegrationSpec()

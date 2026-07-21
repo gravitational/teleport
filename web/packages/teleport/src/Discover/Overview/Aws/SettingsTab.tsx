@@ -25,11 +25,16 @@ import { copyToClipboard } from 'design/utils/copyToClipboard';
 import Validation from 'shared/components/Validation';
 
 import { DeploymentMethodSection } from 'teleport/Integrations/Enroll/Cloud/Aws/DeploymentMethodSection';
-import { IntegrationSection } from 'teleport/Integrations/Enroll/Cloud/Aws/EnrollAws';
+import {
+  IamSection,
+  IntegrationSection,
+} from 'teleport/Integrations/Enroll/Cloud/Aws/EnrollAws';
 import { InfoGuideContent } from 'teleport/Integrations/Enroll/Cloud/Aws/InfoGuide';
 import { ResourcesSection } from 'teleport/Integrations/Enroll/Cloud/Aws/ResourcesSection';
 import { buildTerraformConfig } from 'teleport/Integrations/Enroll/Cloud/Aws/tf_module';
 import {
+  AwsOrganizationalUnits,
+  AwsScope,
   buildMatchers,
   ServiceConfig,
   ServiceConfigs,
@@ -43,6 +48,7 @@ import {
 } from 'teleport/Integrations/Enroll/Cloud/Shared/InfoGuide';
 import { AwsResource } from 'teleport/Integrations/status/AwsOidc/Cards/StatCard';
 import {
+  IntegrationAwsOidc,
   IntegrationDiscoveryRule,
   IntegrationKind,
   integrationService,
@@ -52,6 +58,25 @@ import {
 import { useClusterVersion } from 'teleport/useClusterVersion';
 
 import { DeleteIntegrationSection } from '../DeleteIntegrationSection';
+
+const orgDiscoveryFromIntegration = (
+  integration?: IntegrationAwsOidc
+): { scope: AwsScope; orgUnits: AwsOrganizationalUnits } => {
+  const org = integration?.spec?.organization;
+  if (org && org.includeUnits?.length > 0) {
+    return {
+      scope: 'organization',
+      orgUnits: {
+        include: org.includeUnits,
+        exclude: org.excludeUnits || [],
+      },
+    };
+  }
+  return {
+    scope: 'account',
+    orgUnits: { include: ['*'], exclude: [] },
+  };
+};
 
 const configFromRules = (rules: IntegrationDiscoveryRule[]): ServiceConfig => {
   const regions = rules.map(r => r.region);
@@ -84,6 +109,16 @@ export function SettingsTab({
   const { clusterVersion } = useClusterVersion();
 
   const {
+    data: integration,
+    isLoading: isIntegrationLoading,
+    isError: isIntegrationError,
+  } = useQuery({
+    queryKey: ['integration', integrationName],
+    queryFn: () =>
+      integrationService.fetchIntegration<IntegrationAwsOidc>(integrationName),
+  });
+
+  const {
     data: ec2Rules,
     isLoading: isLoadingEc2,
     isError: isEc2Error,
@@ -112,8 +147,11 @@ export function SettingsTab({
   const [updatedConfigs, setUpdatedConfigs] = useState<Partial<ServiceConfigs>>(
     {}
   );
+  const [updatedScope, setScope] = useState<AwsScope | null>(null);
+  const [updatedOrgUnits, setOrgUnits] =
+    useState<AwsOrganizationalUnits | null>(null);
 
-  if (isLoadingEc2 || isLoadingEks) {
+  if (isLoadingEc2 || isLoadingEks || isIntegrationLoading) {
     return (
       <Flex justifyContent="center" mt={6}>
         <Indicator />
@@ -121,9 +159,14 @@ export function SettingsTab({
     );
   }
 
-  if (isEc2Error || isEksError) {
+  if (isEc2Error || isEksError || isIntegrationError) {
     return <Danger>Failed to load the integration settings.</Danger>;
   }
+
+  const { scope: initialScope, orgUnits: initialOrgUnits } =
+    orgDiscoveryFromIntegration(integration);
+  const scope = updatedScope ?? initialScope;
+  const orgUnits = updatedOrgUnits ?? initialOrgUnits;
 
   const configs: ServiceConfigs = {
     ec2: updatedConfigs.ec2 ?? configFromRules(ec2Rules.rules),
@@ -141,6 +184,7 @@ export function SettingsTab({
     integrationName,
     matchers: buildMatchers(configs),
     version: clusterVersion,
+    orgDiscovery: scope === 'organization' ? orgUnits : null,
   });
 
   return (
@@ -157,12 +201,20 @@ export function SettingsTab({
                 />
               </Box>
               <Divider />
+              <IamSection
+                scope={scope}
+                onScopeChange={setScope}
+                orgDiscoveryConfig={orgUnits}
+                onOrgDiscoveryChange={setOrgUnits}
+              />
+              <Divider />
               <ResourcesSection
                 configs={configs}
                 onConfigChange={updateConfig}
               />
               <Divider />
               <DeploymentMethodSection
+                isOrganization={scope === 'organization'}
                 terraformConfig={terraformConfig}
                 handleCopy={() => {
                   if (validator.validate() && terraformConfig) {
