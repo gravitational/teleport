@@ -32,6 +32,7 @@ import (
 	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	sqladmin "google.golang.org/api/sqladmin/v1beta4"
 
 	"github.com/gravitational/teleport/api/types"
 	azureutils "github.com/gravitational/teleport/api/utils/azure"
@@ -39,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/discovery/common/cloudsql"
 )
 
 // TestMakeDiscoverySuffix tests makeDiscoverySuffix in isolation.
@@ -329,6 +331,39 @@ func TestApplyGKENameSuffix(t *testing.T) {
 		wantNewName:       "some-cluster-gke-central-1-dev-123456",
 	}
 	runRenameTest(t, test)
+}
+
+func TestApplyGCPDatabaseNameSuffix(t *testing.T) {
+	dbName := "some-db"
+	location := "us-central1"
+	project := "my-project"
+	instance := &sqladmin.DatabaseInstance{
+		Name:            dbName,
+		Project:         project,
+		Region:          location,
+		State:           "RUNNABLE",
+		DatabaseVersion: "POSTGRES_14",
+		InstanceType:    "CLOUD_SQL_INSTANCE",
+		IpAddresses:     []*sqladmin.IpMapping{{Type: "PRIMARY", IpAddress: "1.2.3.4"}},
+		Settings: &sqladmin.Settings{UserLabels: map[string]string{
+			types.GCPDatabaseNameOverrideLabel: dbName,
+		}},
+	}
+	database, skipReason, err := cloudsql.NewDatabaseFromInstance(instance, func(meta types.Metadata) types.Metadata {
+		return setGCPDBName(meta, instance.Name)
+	})
+	require.NoError(t, err)
+	require.Empty(t, skipReason)
+	runRenameTest(t, renameTest{
+		resource: database,
+		renameFn: func(r types.ResourceWithLabels) {
+			db := r.(types.Database)
+			ApplyGCPDatabaseNameSuffix(db, types.GCPMatcherCloudSQL)
+		},
+		originalName:      dbName,
+		nameOverrideLabel: types.GCPDatabaseNameOverrideLabel,
+		wantNewName:       "some-db-cloudsql-us-central1-my-project",
+	})
 }
 
 // requireDiscoveredNameLabel is a test helper that requires a resource have
