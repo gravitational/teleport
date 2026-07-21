@@ -980,10 +980,9 @@ const (
 	// cloud-specific labels from eachother.
 	cloudKubeClusterNameOverrideLabel = "TeleportKubernetesName"
 
-	// cloudDatabaseNameOverrideLabel is a cloud agnostic label key for
-	// overriding the database name in discovered cloud databases.
-	// It's used for AWS, GCP, and Azure, but not exported to decouple the
-	// cloud-specific labels from eachother.
+	// cloudDatabaseNameOverrideLabel is a label key for overriding the database
+	// name in discovered cloud databases. It is used for AWS and Azure. GCP uses
+	// GCPDatabaseNameOverrideLabel instead, as GCP label keys must be lowercase.
 	cloudDatabaseNameOverrideLabel = "TeleportDatabaseName"
 
 	// AzureDatabaseNameOverrideLabel is the label key containing the database
@@ -991,6 +990,17 @@ const (
 	// Azure tags cannot contain these characters: "<>%&\?/", so it doesn't
 	// start with the namespace prefix.
 	AzureDatabaseNameOverrideLabel = cloudDatabaseNameOverrideLabel
+
+	// GCPDatabaseNameOverrideLabel is the GCP user-label key that overrides the
+	// database name for discovered GCP databases.
+	//
+	// GCP label keys must be lowercase, which makes the default "TeleportDatabaseName" unusable for GCP.
+	GCPDatabaseNameOverrideLabel = "teleport-database-name"
+
+	// GCPDatabaseEndpointTypeOverrideLabel is the GCP user-label key on a Cloud
+	// SQL instance that overrides the connection endpoint type chosen by
+	// discovery. Valid values are "public", "private", and "psc".
+	GCPDatabaseEndpointTypeOverrideLabel = "teleport-database-endpoint-type"
 
 	// AzureKubeClusterNameOverrideLabel is the label key containing the
 	// kubernetes cluster name override for discovered Azure kube clusters.
@@ -1151,6 +1161,8 @@ const (
 	DiscoveryLabelEngineVersion = "engine-version"
 	// DiscoveryLabelEndpointType is the label key containing the endpoint type.
 	DiscoveryLabelEndpointType = "endpoint-type"
+	// DiscoveryLabelInstanceType is the label key containing the instance type.
+	DiscoveryLabelInstanceType = "instance-type"
 	// DiscoveryLabelVPCID is the label key containing the VPC ID.
 	DiscoveryLabelVPCID = "vpc-id"
 	// DiscoveryLabelNamespace is the label key for namespace name.

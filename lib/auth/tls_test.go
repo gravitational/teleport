@@ -56,6 +56,7 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/metadata"
@@ -4814,7 +4815,7 @@ func TestEventsPermissionsPartialSuccess(t *testing.T) {
 				AllowPartialSuccess: true,
 			},
 			expectedConfirmedKinds: []types.WatchKind{
-				{Kind: types.KindStaticTokens},
+				{Kind: types.KindStaticTokens, ScopeFilter: types.ScopeFilterFromProto(scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_UNSCOPED}.Build())},
 			},
 		},
 		{
@@ -5208,7 +5209,7 @@ func runEventsTests(t *testing.T, testCases []eventTest, events types.Events, wa
 		require.Equal(t, types.OpInit, event.Type)
 		watchStatus, ok := event.Resource.(types.WatchStatus)
 		require.True(t, ok)
-		expectedKinds := eventsTestKinds(testCases)
+		expectedKinds := eventsTestConfirmedKinds(testCases)
 		require.Equal(t, expectedKinds, watchStatus.GetKinds())
 	case <-w.Done():
 		t.Fatalf("Watcher exited with error %v", w.Error())
@@ -5280,6 +5281,16 @@ func eventsTestKinds(tests []eventTest) []types.WatchKind {
 	out := make([]types.WatchKind, len(tests))
 	for i, tc := range tests {
 		out[i] = tc.kind
+	}
+	return out
+}
+
+// eventsTestConfirmedKinds returns the watch kinds as the server confirms them for an unscoped watcher:
+// every kind's confirmed watch kind carries the caller's defaulted MODE_UNSCOPED scope filter.
+func eventsTestConfirmedKinds(tests []eventTest) []types.WatchKind {
+	out := eventsTestKinds(tests)
+	for i := range out {
+		out[i].ScopeFilter = types.ScopeFilterFromProto(scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_UNSCOPED}.Build())
 	}
 	return out
 }

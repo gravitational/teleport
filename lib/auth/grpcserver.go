@@ -6409,6 +6409,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 			Modules:            cfg.AuthServer.modules,
 			Emitter:            cfg.Emitter,
 			ScopesFeatures:     cfg.AuthServer.scopesFeatures,
+			AlertCreator:       cfg.AuthServer.UpsertClusterAlert,
 		}))
 	}
 
