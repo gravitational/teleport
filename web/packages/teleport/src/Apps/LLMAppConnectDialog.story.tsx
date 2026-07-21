@@ -21,7 +21,7 @@ import { MemoryRouter } from 'react-router';
 import { ContextProvider } from 'teleport';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 
-import { llmApp, llmOpenAIApp } from './fixtures';
+import { llmAnthropicApp, llmBedrockApp, llmOpenAIApp } from './fixtures';
 import { LLMAppConnectDialog as Component } from './LLMAppConnectDialog';
 
 const meta: Meta = {
@@ -40,7 +40,11 @@ const meta: Meta = {
 export default meta;
 
 export function Anthropic() {
-  return <Component app={llmApp} onClose={() => {}} />;
+  return <Component app={llmAnthropicApp} onClose={() => {}} />;
+}
+
+export function Bedrock() {
+  return <Component app={llmBedrockApp} onClose={() => {}} />;
 }
 
 export function OpenAI() {
