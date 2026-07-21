@@ -79,6 +79,7 @@ type GithubConnector interface {
 	// SetUserMatchers sets the set of glob patterns to narrow down which username(s) this auth connector should match
 	// for identifier-first login.
 	SetUserMatchers([]string)
+	Validate() error
 }
 
 // NewGithubConnector creates a new Github connector from name and spec
@@ -205,10 +206,13 @@ func (c *GithubConnectorV3) CheckAndSetDefaults() error {
 		}
 	}
 
+	return nil
+}
+
+func (c *GithubConnectorV3) Validate() error {
 	if len(c.Spec.TeamsToLogins)+len(c.Spec.TeamsToRoles) == 0 {
 		return trace.BadParameter("team_to_logins or team_to_roles mapping is invalid, no mappings defined.")
 	}
-
 	return nil
 }
 

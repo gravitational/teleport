@@ -200,7 +200,6 @@ func (s *IdentityService) streamUsersWithSecrets(itemStream iter.Seq2[backend.It
 		}
 
 		return prev, true
-
 	})
 
 	// since a collector for a given user isn't yielded until the above stream reaches the *next*
@@ -1234,6 +1233,7 @@ func (s *IdentityService) UpsertMFADevice(ctx context.Context, user string, d *t
 	}
 	return nil
 }
+
 func (s *IdentityService) upsertMFADevice(ctx context.Context, user string, d *types.MFADevice) error {
 	if user == "" {
 		return trace.BadParameter("missing parameter user")
@@ -1490,6 +1490,7 @@ func (s *IdentityService) getSSOMFADevice(ctx context.Context, user string) (*ty
 		// Using NoFollowURLs below because getSSOMFADevice only needs connector ID, display and type
 		// to determine if the user has an SSO MFA device.
 		// The URL is followed during connector write and SSO MFA ceremony paths.
+
 		mfaConnector, err = s.GetSAMLConnectorWithValidationOptions(ctx, cb.Connector.ID, withSecrets, types.SAMLConnectorValidationFollowURLs(false))
 	case constants.OIDC:
 		mfaConnector, err = s.GetOIDCConnector(ctx, cb.Connector.ID, withSecrets)
@@ -1642,7 +1643,6 @@ func (s *IdentityService) RangeOIDCConnectors(ctx context.Context, start, end st
 			services.WithExpires(item.Expires),
 			services.WithRevision(item.Revision),
 		)
-
 		if err != nil {
 			s.logger.ErrorContext(ctx, "Failed to unmarshal OIDC Connector",
 				"key", item.Key,
@@ -1679,7 +1679,6 @@ func (s *IdentityService) RangeOIDCConnectors(ctx context.Context, start, end st
 			// if the end has been reached.
 			return end == "" || conn.GetName() < end
 		})
-
 }
 
 // CreateOIDCAuthRequest creates new auth request
@@ -1815,6 +1814,7 @@ func (s *IdentityService) GetSAMLConnectorWithValidationOptions(ctx context.Cont
 		}
 		return nil, trace.Wrap(err)
 	}
+	opts = append(opts, types.SAMLConnectorValidationWithoutAttributesToRoles(true))
 	conn, err := services.UnmarshalSAMLConnectorWithValidationOptions(item.Value, opts, services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1837,18 +1837,20 @@ func (s *IdentityService) GetSAMLConnectorWithValidationOptions(ctx context.Cont
 // GetSAMLConnectors returns registered connectors
 // withSecrets includes or excludes private key values from return results
 func (s *IdentityService) GetSAMLConnectors(ctx context.Context, withSecrets bool) ([]types.SAMLConnector, error) {
-	return stream.Collect(s.RangeSAMLConnectorsWithOptions(ctx, "", "", withSecrets))
+	return stream.Collect(s.RangeSAMLConnectorsWithOptions(ctx, "", "", withSecrets, types.SAMLConnectorValidationWithoutAttributesToRoles(true)))
 }
 
 // GetSAMLConnectorsWithValidationOptions returns registered connectors
 // withSecrets includes or excludes private key values from return results
 func (s *IdentityService) GetSAMLConnectorsWithValidationOptions(ctx context.Context, withSecrets bool, opts ...types.SAMLConnectorValidationOption) ([]types.SAMLConnector, error) {
+	opts = append(opts, types.SAMLConnectorValidationWithoutAttributesToRoles(true))
 	return stream.Collect(s.RangeSAMLConnectorsWithOptions(ctx, "", "", withSecrets, opts...))
 }
 
 // ListSAMLConnectorsWithOptions returns a page of valid registered SAML connectors.
 // withSecrets adds or removes client secret from return results.
 func (s *IdentityService) ListSAMLConnectorsWithOptions(ctx context.Context, limit int, start string, withSecrets bool, opts ...types.SAMLConnectorValidationOption) ([]types.SAMLConnector, string, error) {
+	opts = append(opts, types.SAMLConnectorValidationWithoutAttributesToRoles(true))
 	return generic.CollectPageAndCursor(s.RangeSAMLConnectorsWithOptions(ctx, start, "", withSecrets, opts...), limit, types.SAMLConnector.GetName)
 }
 
@@ -1856,12 +1858,12 @@ func (s *IdentityService) ListSAMLConnectorsWithOptions(ctx context.Context, lim
 // withSecrets adds or removes client secret from return results.
 func (s *IdentityService) RangeSAMLConnectorsWithOptions(ctx context.Context, start, end string, withSecrets bool, opts ...types.SAMLConnectorValidationOption) iter.Seq2[types.SAMLConnector, error] {
 	mapFn := func(item backend.Item) (types.SAMLConnector, bool) {
+		opts = append(opts, types.SAMLConnectorValidationWithoutAttributesToRoles(true))
 		conn, err := services.UnmarshalSAMLConnectorWithValidationOptions(
 			item.Value,
 			opts,
 			services.WithExpires(item.Expires),
 			services.WithRevision(item.Revision))
-
 		if err != nil {
 			s.logger.ErrorContext(ctx, "Failed to unmarshal SAML Connector",
 				"key", item.Key,
@@ -2075,6 +2077,11 @@ func (s *IdentityService) UpsertGithubConnector(ctx context.Context, connector t
 	if err := services.CheckAndSetDefaults(connector); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	if err := connector.Validate(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	rev := connector.GetRevision()
 	value, err := services.MarshalGithubConnector(connector)
 	if err != nil {
@@ -2099,6 +2106,11 @@ func (s *IdentityService) UpdateGithubConnector(ctx context.Context, connector t
 	if err := services.CheckAndSetDefaults(connector); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	if err := connector.Validate(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	value, err := services.MarshalGithubConnector(connector)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2122,6 +2134,11 @@ func (s *IdentityService) CreateGithubConnector(ctx context.Context, connector t
 	if err := services.CheckAndSetDefaults(connector); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	if err := connector.Validate(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	value, err := services.MarshalGithubConnector(connector)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2159,7 +2176,6 @@ func (s *IdentityService) RangeGithubConnectors(ctx context.Context, start, end 
 			services.WithExpires(item.Expires),
 			services.WithRevision(item.Revision),
 		)
-
 		if err != nil {
 			s.logger.ErrorContext(ctx, "Failed to unmarshal GitHub Connector",
 				"key", item.Key,
@@ -2194,7 +2210,6 @@ func (s *IdentityService) RangeGithubConnectors(ctx context.Context, start, end 
 			// if the end has been reached.
 			return end == "" || conn.GetName() < end
 		})
-
 }
 
 // GetGithubConnector returns a particular Github connector.
