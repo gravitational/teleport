@@ -3353,6 +3353,50 @@ message AppSessionLLMRequest {
   int64 output_token_count = 10 [(gogoproto.jsontag) = "output_token_count,omitempty"];
 }
 
+// AppSessionRequestDenied is emitted when the app agent denies an HTTP app
+// request under v9 default-deny. The deny_kind field names the cause,
+// either no rule allows the request or the caller's roles use rule fields or
+// role versions that this Teleport version does not implement.
+message AppSessionRequestDenied {
+  // Common event metadata.
+  Metadata metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // User who initiated the session.
+  UserMetadata user = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Session ID and MFA metadata.
+  SessionMetadata session = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Server metadata of the app agent that denied the request.
+  ServerMetadata server = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Application being accessed.
+  AppMetadata app = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // HTTP method, e.g. GET, POST.
+  string method = 6 [(gogoproto.jsontag) = "method"];
+  // Relative path in the URL.
+  string path = 7 [(gogoproto.jsontag) = "path"];
+  // Machine-readable deny kind. A request that no rule allows also sends
+  // this value to the client, e.g. teleport_request_not_allowed.
+  string deny_kind = 8 [(gogoproto.jsontag) = "deny_kind"];
+}
+
 // HTTPHeader is an HTTP header name/value pair used in HTTP recording events.
 message HTTPHeader {
   string name = 1 [(gogoproto.jsontag) = "name"];
@@ -5494,6 +5538,7 @@ message OneOf {
     events.AppSessionHTTPResponse AppSessionHTTPResponse = 269;
     events.AppSessionHTTPResponseBodyChunk AppSessionHTTPResponseBodyChunk = 270;
     events.AppSessionTargetDialDenied AppSessionTargetDialDenied = 271;
+    events.AppSessionRequestDenied AppSessionRequestDenied = 272;
   }
 }
 

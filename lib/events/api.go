@@ -445,6 +445,12 @@ const (
 	// AppSessionLLMRequestFailureEvent is emitted when an LLM inference request
 	// is sent and fails.
 	AppSessionLLMRequestFailureEvent = "app.session.llm.request.failure"
+
+	// AppSessionRequestDeniedEvent is emitted when the app agent denies an
+	// HTTP app request under v9 default-deny. The deny_kind field names the
+	// cause, either no rule allows the request or the caller's roles use rule
+	// fields or role versions that this Teleport version does not implement.
+	AppSessionRequestDeniedEvent = "app.session.request.denied"
 	// AppSessionHTTPRequestEvent is emitted when a proxied HTTP request is received.
 	AppSessionHTTPRequestEvent = "http.request"
 	// AppSessionHTTPRequestBodyChunkEvent is emitted for each chunk of a proxied HTTP request body.
