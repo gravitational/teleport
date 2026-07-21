@@ -119,15 +119,20 @@ func (c *Client) ListAccessListsV2(ctx context.Context, req *accesslistv1.ListAc
 
 // GetAccessList returns the specified access list resource.
 func (c *Client) GetAccessList(ctx context.Context, name string) (*accesslist.AccessList, error) {
-	resp, err := c.grpcClient.GetAccessList(ctx, &accesslistv1.GetAccessListRequest{
+	return c.GetAccessListV2(ctx, &accesslistv1.GetAccessListRequest{
 		Name: name,
 	})
+}
+
+// GetAccessListV2 returns the specified access list resource.
+func (c *Client) GetAccessListV2(ctx context.Context, req *accesslistv1.GetAccessListRequest) (*accesslist.AccessList, error) {
+	resp, err := c.grpcClient.GetAccessList(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	accessList, err := fromAccessListProto(resp)
-	return accessList, trace.Wrap(err)
+	return accessList, err
 }
 
 // GetAccessListsToReview returns access lists that the user needs to review.
@@ -196,9 +201,14 @@ func (c *Client) DeleteAccessList(ctx context.Context, name string) error {
 
 // CountAccessListMembers will count all access list members.
 func (c *Client) CountAccessListMembers(ctx context.Context, accessListName string) (users uint32, lists uint32, err error) {
-	resp, err := c.grpcClient.CountAccessListMembers(ctx, &accesslistv1.CountAccessListMembersRequest{
+	return c.CountAccessListMembersV2(ctx, &accesslistv1.CountAccessListMembersRequest{
 		AccessListName: accessListName,
 	})
+}
+
+// CountAccessListMembersV2 will count all access list members.
+func (c *Client) CountAccessListMembersV2(ctx context.Context, req *accesslistv1.CountAccessListMembersRequest) (users uint32, lists uint32, err error) {
+	resp, err := c.grpcClient.CountAccessListMembers(ctx, req)
 	if err != nil {
 		return 0, 0, trace.Wrap(err)
 	}
@@ -208,11 +218,16 @@ func (c *Client) CountAccessListMembers(ctx context.Context, accessListName stri
 
 // ListAccessListMembers returns a paginated list of all access list members for an access list.
 func (c *Client) ListAccessListMembers(ctx context.Context, accessList string, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error) {
-	resp, err := c.grpcClient.ListAccessListMembers(ctx, &accesslistv1.ListAccessListMembersRequest{
+	return c.ListAccessListMembersV2(ctx, &accesslistv1.ListAccessListMembersRequest{
 		PageSize:   int32(pageSize),
 		PageToken:  pageToken,
 		AccessList: accessList,
 	})
+}
+
+// ListAccessListMembersV2 returns a paginated list of all access list members for an access list.
+func (c *Client) ListAccessListMembersV2(ctx context.Context, req *accesslistv1.ListAccessListMembersRequest) (members []*accesslist.AccessListMember, nextToken string, err error) {
+	resp, err := c.grpcClient.ListAccessListMembers(ctx, req)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -231,10 +246,15 @@ func (c *Client) ListAccessListMembers(ctx context.Context, accessList string, p
 
 // ListAllAccessListMembers returns a paginated list of all access list members for all access lists.
 func (c *Client) ListAllAccessListMembers(ctx context.Context, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error) {
-	resp, err := c.grpcClient.ListAllAccessListMembers(ctx, &accesslistv1.ListAllAccessListMembersRequest{
+	return c.ListAllAccessListMembersV2(ctx, &accesslistv1.ListAllAccessListMembersRequest{
 		PageSize:  int32(pageSize),
 		PageToken: pageToken,
 	})
+}
+
+// ListAllAccessListMembersV2 returns a paginated list of all access list members for all access lists.
+func (c *Client) ListAllAccessListMembersV2(ctx context.Context, req *accesslistv1.ListAllAccessListMembersRequest) (members []*accesslist.AccessListMember, nextToken string, err error) {
+	resp, err := c.grpcClient.ListAllAccessListMembers(ctx, req)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -253,10 +273,15 @@ func (c *Client) ListAllAccessListMembers(ctx context.Context, pageSize int, pag
 
 // GetAccessListMember returns the specified access list member resource.
 func (c *Client) GetAccessListMember(ctx context.Context, accessList, memberName string) (*accesslist.AccessListMember, error) {
-	resp, err := c.grpcClient.GetAccessListMember(ctx, &accesslistv1.GetAccessListMemberRequest{
+	return c.GetAccessListMemberV2(ctx, &accesslistv1.GetAccessListMemberRequest{
 		AccessList: accessList,
 		MemberName: memberName,
 	})
+}
+
+// GetAccessListMemberV2 returns the specified access list member resource.
+func (c *Client) GetAccessListMemberV2(ctx context.Context, req *accesslistv1.GetAccessListMemberRequest) (*accesslist.AccessListMember, error) {
+	resp, err := c.grpcClient.GetAccessListMember(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -284,9 +309,16 @@ func (c *Client) GetStaticAccessListMember(ctx context.Context, accessList, memb
 //
 // Returned Owners are not validated for ownership requirements – use `IsAccessListOwner` for validation.
 func (c *Client) GetAccessListOwners(ctx context.Context, accessListName string) ([]*accesslist.Owner, error) {
-	resp, err := c.grpcClient.GetAccessListOwners(ctx, &accesslistv1.GetAccessListOwnersRequest{
+	return c.GetAccessListOwnersV2(ctx, &accesslistv1.GetAccessListOwnersRequest{
 		AccessList: accessListName,
 	})
+}
+
+// GetAccessListOwnersV2 returns a list of all owners in an Access List, including those inherited from nested Access Lists.
+//
+// Returned Owners are not validated for ownership requirements – use `IsAccessListOwner` for validation.
+func (c *Client) GetAccessListOwnersV2(ctx context.Context, req *accesslistv1.GetAccessListOwnersRequest) ([]*accesslist.Owner, error) {
+	resp, err := c.grpcClient.GetAccessListOwners(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -402,11 +434,16 @@ func (c *Client) AccessRequestPromote(ctx context.Context, req *accesslistv1.Acc
 
 // ListAccessListReviews will list access list reviews for a particular access list.
 func (c *Client) ListAccessListReviews(ctx context.Context, accessList string, pageSize int, pageToken string) (reviews []*accesslist.Review, nextToken string, err error) {
-	resp, err := c.grpcClient.ListAccessListReviews(ctx, &accesslistv1.ListAccessListReviewsRequest{
+	return c.ListAccessListReviewsV2(ctx, &accesslistv1.ListAccessListReviewsRequest{
 		AccessList: accessList,
 		PageSize:   int32(pageSize),
 		NextToken:  pageToken,
 	})
+}
+
+// ListAccessListReviewsV2 will list access list reviews for a particular access list.
+func (c *Client) ListAccessListReviewsV2(ctx context.Context, req *accesslistv1.ListAccessListReviewsRequest) (reviews []*accesslist.Review, nextToken string, err error) {
+	resp, err := c.grpcClient.ListAccessListReviews(ctx, req)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -425,10 +462,15 @@ func (c *Client) ListAccessListReviews(ctx context.Context, accessList string, p
 
 // ListAllAccessListReviews will list access list reviews for all access lists. Only to be used by the cache.
 func (c *Client) ListAllAccessListReviews(ctx context.Context, pageSize int, pageToken string) (reviews []*accesslist.Review, nextToken string, err error) {
-	resp, err := c.grpcClient.ListAllAccessListReviews(ctx, &accesslistv1.ListAllAccessListReviewsRequest{
+	return c.ListAllAccessListReviewsV2(ctx, &accesslistv1.ListAllAccessListReviewsRequest{
 		PageSize:  int32(pageSize),
 		NextToken: pageToken,
 	})
+}
+
+// ListAllAccessListReviewsV2 will list access list reviews for all access lists. Only to be used by the cache.
+func (c *Client) ListAllAccessListReviewsV2(ctx context.Context, req *accesslistv1.ListAllAccessListReviewsRequest) (reviews []*accesslist.Review, nextToken string, err error) {
+	resp, err := c.grpcClient.ListAllAccessListReviews(ctx, req)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}

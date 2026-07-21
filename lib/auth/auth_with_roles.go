@@ -1326,7 +1326,11 @@ func (a *ServerWithRoles) hasWatchPermissionForKind(
 // resources is only meaningful for these kinds.
 func supportedScopedWatchKind(kind string) bool {
 	switch kind {
-	case scopedaccess.KindScopedRole, scopedaccess.KindScopedRoleAssignment:
+	case types.KindAccessList,
+		types.KindAccessListMember,
+		types.KindAccessListReview,
+		scopedaccess.KindScopedRole,
+		scopedaccess.KindScopedRoleAssignment:
 		return true
 	default:
 		return false
