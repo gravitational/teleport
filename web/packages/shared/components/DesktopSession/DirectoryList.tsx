@@ -19,7 +19,7 @@ import styled from 'styled-components';
 
 import { Flex, Stack, P2, H3 } from 'design';
 import { ButtonPrimary, ButtonProps } from 'design/Button/Button';
-import { FolderPlus, Plus } from 'design/Icon';
+import { FolderPlus, IconSize, Plus } from 'design/Icon';
 import { MenuIcon } from 'shared/components/MenuAction';
 
 interface SharedDirectoriesProps {
@@ -28,6 +28,7 @@ interface SharedDirectoriesProps {
   canShareDirectories: boolean;
   maxSharedDirectories: number;
   directorySharingMessage: string;
+  size?: IconSize;
 }
 
 export interface DirectoryItem {
@@ -41,10 +42,11 @@ export function SharedDirectoryList({
   canShareDirectories,
   maxSharedDirectories,
   directorySharingMessage,
+  size = 'large',
 }: SharedDirectoriesProps) {
   return (
     <MenuIcon
-      Icon={props => <FolderPlus {...props} size="large" />}
+      Icon={props => <FolderPlus {...props} size={size} />}
       buttonIconProps={{
         disabled: !canShareDirectories,
         // square highlight instead of default circle
@@ -53,6 +55,7 @@ export function SharedDirectoryList({
       }}
       // Right align the menu with the icon
       menuProps={{
+        updatePositionOnChildResize: true,
         anchorOrigin: {
           vertical: 'bottom',
           horizontal: 'right',
@@ -68,7 +71,7 @@ export function SharedDirectoryList({
         {/* Without e.stopPropagation here, clicking anywhere within the menu
             container closes it. This handler prevents the menu from closing
             until the user clicks outside of the container. */}
-        <Stack gap={3} fullWidth onClick={e => e.stopPropagation()}>
+        <Stack gap={3} fullWidth>
           {/* Header/Share Button */}
           <Flex justifyContent="space-between" alignItems="center">
             <DropdownHeader directoryCount={sharedDirectories.length} />
