@@ -540,7 +540,10 @@ func (q *sqliteQueue) migrateOrphanDB(ctx context.Context, db *sql.DB, name stri
 	if err := q.migrateOrphanQueue(ctx, db, name); err != nil {
 		return trace.Wrap(err)
 	}
-	return trace.Wrap(q.migrateOrphanDeadLetter(ctx, db, name))
+	if err := q.migrateOrphanDeadLetter(ctx, db, name); err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(q.migrateOrphanCorruptEvents(ctx, db, name))
 }
 
 func (q *sqliteQueue) migrateOrphanQueue(ctx context.Context, orphan *sql.DB, name string) error {
@@ -614,9 +617,10 @@ func (q *sqliteQueue) readOrphanWatermark(ctx context.Context, key string) (int6
 
 func (q *sqliteQueue) clearOrphanWatermarks(ctx context.Context, name string) {
 	if _, err := q.db.ExecContext(ctx,
-		"DELETE FROM teleport_info WHERE key IN (?, ?)",
+		"DELETE FROM teleport_info WHERE key IN (?, ?, ?)",
 		orphanWatermarkKey(name, auditQueueTable),
 		orphanWatermarkKey(name, auditDeadLetterTable),
+		orphanWatermarkKey(name, corruptEventsTable),
 	); err != nil {
 		slog.ErrorContext(q.ctx,
 			"Failed to clear orphan migration watermarks.",
@@ -682,6 +686,13 @@ func (q *sqliteQueue) insertMigratedBatch(ctx context.Context, insertSQL string,
 	return trace.Wrap(tx.Commit())
 }
 
+func (q *sqliteQueue) migrateOrphanCorruptEvents(ctx context.Context, orphan *sql.DB, name string) error {
+	return q.migrateOrphanTable(ctx, orphan, name, corruptEventsTable,
+		"SELECT id, payload, error, source, failed_at FROM corrupt_events WHERE id > ? ORDER BY id ASC LIMIT ?",
+		"INSERT INTO corrupt_events (payload, error, source, failed_at) VALUES (?, ?, ?, ?)",
+	)
+}
+
 func (q *sqliteQueue) Close() error {
 	var errs []error
 	q.closeOnce.Do(func() {
@@ -727,11 +738,13 @@ func (q *sqliteQueue) Close() error {
 	return trace.NewAggregate(errs...)
 }
 
+const isEmptyQuery = `SELECT EXISTS(SELECT 1 FROM audit_queue)
+	OR EXISTS(SELECT 1 FROM audit_dead_letter)
+	OR EXISTS(SELECT 1 FROM corrupt_events)`
+
 func isQueueEmpty(db *sql.DB) (bool, error) {
 	var hasRows int
-	err := db.QueryRow(
-		"SELECT EXISTS(SELECT 1 FROM audit_queue) OR EXISTS(SELECT 1 FROM audit_dead_letter)",
-	).Scan(&hasRows)
+	err := db.QueryRow(isEmptyQuery).Scan(&hasRows)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
