@@ -19,6 +19,7 @@
 package auditqueue
 
 import (
+	"sync"
 	"testing"
 	"time"
 
@@ -84,6 +85,34 @@ func TestSQLiteInMemoryQueue_InstancesAreIsolated(t *testing.T) {
 	var n int
 	require.NoError(t, memB.inner.db.QueryRow("SELECT COUNT(*) FROM audit_queue").Scan(&n))
 	require.Equal(t, 0, n, "instance b should not see events enqueued into instance a")
+}
+
+func TestSQLiteInMemoryQueue_SingleQueueConnection(t *testing.T) {
+	t.Parallel()
+
+	q, err := New(KindSQLiteMemory, Config{})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, q.Close()) })
+
+	mem, ok := q.(*sqliteInMemoryQueue)
+	require.True(t, ok)
+
+	require.Equal(t, 1, mem.inner.db.Stats().MaxOpenConnections,
+		"queue DB must be capped at one connection to avoid shared-cache lock errors")
+
+	const N = 100
+	var wg sync.WaitGroup
+	errs := make([]error, N)
+	for i := range N {
+		wg.Go(func() {
+			errs[i] = q.Enqueue(newTestEvent(int64(i)))
+		})
+	}
+	wg.Wait()
+
+	for i, err := range errs {
+		require.NoError(t, err, "Enqueue %d failed", i)
+	}
 }
 
 func TestSQLiteInMemoryQueue_MaxBytesEnforced(t *testing.T) {
