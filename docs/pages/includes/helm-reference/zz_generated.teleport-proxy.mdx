@@ -26,9 +26,8 @@ VIP used by your existing Teleport cluster.
 | `string` | `""` |
 
 `authServer` the address this proxy should use to contact the Auth
-service. This should be
-be an \<IP\>:\<PORT\> for an internal network path to the Auth Service. Port
-defaults to 3025 if not specified.
+service. This should be an \<IP\>:\<PORT\> for an internal network path to the
+Auth Service. Port defaults to 3025 if not specified.
 If running on the same kube cluster as the Auth Service, consider using the
 teleport-cluster chart instead.
 
@@ -288,11 +287,11 @@ are only needed for AWS, so all other modes are effectively the same. Chart
 mode is reserved for potential future use and to parallel the config shape of
 the `teleport-cluster` chart.
 - "standalone": Generate config file, but no cloud-specific settings
-- "aws": Use when running on EKS
-- "gcp": Use when running on GKE
-- "azure": Use when running on AKS
+- "aws": Use when running on EKS.
+- "gcp": Use when running on GKE.
+- "azure": Use when running on AKS.
 - "scratch": Do not generate config file. You must supply one (see
-   teleportConfig below.)
+   teleportConfig below).
 
 ## `validateConfigOnDeploy`
 
@@ -801,7 +800,7 @@ To set annotations on the service account, use the
 
 | Type | Default |
 |------|---------|
-| `boole` | `true` |
+| `bool` | `true` |
 
 `serviceAccount.create` specifies whether a ServiceAccount should be created
 
