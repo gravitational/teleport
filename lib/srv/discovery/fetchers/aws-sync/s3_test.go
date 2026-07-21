@@ -241,10 +241,11 @@ func TestListS3Buckets(t *testing.T) {
 	errListBuckets := trace.AccessDenied("access denied listing buckets")
 
 	tests := []struct {
-		name       string
-		pageSize   int
-		failOnPage int
-		wantErr    error
+		name              string
+		pageSize          int
+		failOnPage        int
+		rejectUnpaginated bool
+		wantErr           error
 	}{
 		{
 			name:     "multi-page with a partial final page",
@@ -270,6 +271,11 @@ func TestListS3Buckets(t *testing.T) {
 			failOnPage: 3,
 			wantErr:    errListBuckets,
 		},
+		{
+			name:              "reject unpaginated requests",
+			pageSize:          500,
+			rejectUnpaginated: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -277,6 +283,7 @@ func TestListS3Buckets(t *testing.T) {
 			var client s3Client = &mocks.S3Client{
 				Buckets:             s3Buckets(wantNames...),
 				ListBucketsPageSize: tt.pageSize,
+				RequireMaxBuckets:   tt.rejectUnpaginated,
 			}
 			if tt.failOnPage > 0 {
 				client = &failingListBucketsS3Client{
