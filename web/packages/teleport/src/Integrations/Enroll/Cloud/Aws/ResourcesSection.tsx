@@ -82,7 +82,7 @@ export function ResourcesSection({
   return (
     <>
       <Flex alignItems="center" fontSize={4} fontWeight="medium" mb={1}>
-        <CircleNumber>2</CircleNumber>
+        <CircleNumber>3</CircleNumber>
         Resource Types
       </Flex>
       <Text ml={4} mb={3}>
