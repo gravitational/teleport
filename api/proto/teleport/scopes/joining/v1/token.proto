@@ -641,6 +641,7 @@ message GenericOIDC {
   repeated Rule allow_any = 7;
 }
 
+// Configuration for Github token.
 message Github {
   // enterprise_server_host allows joining from runners associated with a
   // GitHub Enterprise Server instance. When unconfigured, tokens will be

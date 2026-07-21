@@ -107,6 +107,7 @@ Optional:
 - `bound_keypair` (Attributes) Configuration specific to the "bound_keypair" join method. (see [below for nested schema](#nested-schema-for-specbound_keypair))
 - `gcp` (Attributes) The GCP-specific configuration used with the "gcp" join method. (see [below for nested schema](#nested-schema-for-specgcp))
 - `generic_oidc` (Attributes) Configuration specific to the "generic_oidc" join method. (see [below for nested schema](#nested-schema-for-specgeneric_oidc))
+- `github` (Attributes) Configuration specific to the "github" join method. (see [below for nested schema](#nested-schema-for-specgithub))
 - `immutable_labels` (Attributes) Immutable labels that should be applied to any resulting resources provisioned using this token. (see [below for nested schema](#nested-schema-for-specimmutable_labels))
 - `kubernetes` (Attributes) The Kubernetes-specific configuration used with the "kubernetes" join method. (see [below for nested schema](#nested-schema-for-speckubernetes))
 - `oracle` (Attributes) The Oracle-specific configuration used with the "oracle" join method. (see [below for nested schema](#nested-schema-for-specoracle))
@@ -267,6 +268,32 @@ Optional:
 - `values` (List of String) The list of values to compare the attribute against.
 
 
+
+
+
+### Nested Schema for `spec.github`
+
+Optional:
+
+- `allow` (Attributes List) allow is a set of claim-matching fields evaluated against the GitHub Actions OIDC token. (see [below for nested schema](#nested-schema-for-specgithuballow))
+- `enterprise_server_host` (String) enterprise_server_host allows joining from runners associated with a GitHub Enterprise Server instance. When unconfigured, tokens will be validated against github.com, but when configured to the host of a GHES instance, then the tokens will be validated against host.  This value should be the hostname of the GHES instance, and should not include the scheme or a path. The instance must be accessible over HTTPS at this hostname and the certificate must be trusted by the Auth Service.
+- `enterprise_slug` (String) enterprise_slug allows the slug of a GitHub Enterprise organisation to be included in the expected issuer of the OIDC tokens. This is for compatibility with the `include_enterprise_slug` option in GHE.  This field should be set to the slug of your enterprise if this is enabled. If this is not enabled, then this field must be left empty. This field cannot be specified if `enterprise_server_host` is specified.  See https://docs.github.com/en/enterprise-cloud@latest/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect#customizing-the-issuer-value-for-an-enterprise for more information about customized issuer values.
+- `static_jwks` (String) static_jwks disables fetching of the GHES signing keys via the JWKS/OIDC endpoints, and allows them to be directly specified. This allows joining from GitHub Actions in GHES instances that are not reachable by the Teleport Auth Service.
+
+### Nested Schema for `spec.github.allow`
+
+Optional:
+
+- `actor` (String) actor is the personal account that initiated the workflow run.  This field supports "glob-style" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.
+- `enterprise` (String) enterprise name in which the repository is stored.
+- `enterprise_id` (String) enterprise_id in which the repository is stored.
+- `environment` (String) environment name used by the job.  This field supports "glob-style" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.
+- `ref` (String) ref (git) that triggered the workflow run.  This field supports "glob-style" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.
+- `ref_type` (String) ref_type for example: "branch".
+- `repository` (String) repository from where the workflow is running. This includes the name of the owner e.g `gravitational/teleport`  This field supports "glob-style" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.
+- `repository_owner` (String) repository_owner is the name of the organization in which the repository is stored.  This field supports "glob-style" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.
+- `sub` (String) sub also known as Subject is a string that roughly uniquely identifies the workload. The format of this varies depending on the type of github action run.  This field supports "glob-style" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.
+- `workflow` (String) workflow name.  This field supports "glob-style" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.
 
 
 
