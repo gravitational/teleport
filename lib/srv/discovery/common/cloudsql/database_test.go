@@ -217,9 +217,48 @@ func TestInstanceUserLabel(t *testing.T) {
 
 func TestChooseEndpoint(t *testing.T) {
 	t.Parallel()
-	overrideLabels := func(surface string) *sqladmin.Settings {
-		return &sqladmin.Settings{UserLabels: map[string]string{types.GCPDatabaseEndpointTypeOverrideLabel: surface}}
+
+	type endpoints = int
+
+	const (
+		withPublic = endpoints(iota)
+		withPrivate
+		withPSC
+	)
+
+	const noOverride = ""
+
+	instance := func(overrideSurface string, opts ...endpoints) *sqladmin.DatabaseInstance {
+		db := &sqladmin.DatabaseInstance{
+			IpAddresses: []*sqladmin.IpMapping{},
+			Settings:    &sqladmin.Settings{},
+		}
+
+		for _, opt := range opts {
+			switch opt {
+			case withPublic:
+				db.IpAddresses = append(db.IpAddresses, ipMapping("PRIMARY", "1.2.3.4"))
+			case withPrivate:
+				db.IpAddresses = append(db.IpAddresses, ipMapping("PRIVATE", "10.0.0.1"))
+			case withPSC:
+				db.DnsNames = []*sqladmin.DnsNameMapping{dnsMapping("psc.example", "PRIVATE_SERVICE_CONNECT", "INSTANCE")}
+				db.Settings.IpConfiguration = &sqladmin.IpConfiguration{PscConfig: &sqladmin.PscConfig{PscEnabled: true}}
+			default:
+				t.Fatalf("unknown option: %v", opt)
+			}
+		}
+
+		if overrideSurface != noOverride {
+			db.Settings.UserLabels = map[string]string{types.GCPDatabaseEndpointTypeOverrideLabel: overrideSurface}
+		}
+
+		return db
 	}
+
+	instanceDefaultEndpoint := func(opts ...endpoints) *sqladmin.DatabaseInstance {
+		return instance(noOverride, opts...)
+	}
+
 	tests := []struct {
 		name     string
 		instance *sqladmin.DatabaseInstance
@@ -229,80 +268,68 @@ func TestChooseEndpoint(t *testing.T) {
 	}{
 		// Default precedence (no override): public > private > psc.
 		{
-			name: "public preferred over private",
-			instance: &sqladmin.DatabaseInstance{IpAddresses: []*sqladmin.IpMapping{
-				ipMapping("PRIMARY", "1.2.3.4"),
-				ipMapping("PRIVATE", "10.0.0.1"),
-			}},
+			name:     "public preferred over private",
+			instance: instanceDefaultEndpoint(withPrivate, withPublic),
 			want:     "1.2.3.4",
 			wantType: endpointTypePublic,
 		},
 		{
 			name:     "private when no public",
-			instance: &sqladmin.DatabaseInstance{IpAddresses: []*sqladmin.IpMapping{ipMapping("PRIVATE", "10.0.0.1")}},
+			instance: instanceDefaultEndpoint(withPrivate),
 			want:     "10.0.0.1",
 			wantType: endpointTypePrivate,
 		},
 		{
-			name: "psc when only psc",
-			instance: &sqladmin.DatabaseInstance{
-				DnsNames: []*sqladmin.DnsNameMapping{dnsMapping("psc.example", "PRIVATE_SERVICE_CONNECT", "INSTANCE")},
-				Settings: &sqladmin.Settings{IpConfiguration: &sqladmin.IpConfiguration{PscConfig: &sqladmin.PscConfig{PscEnabled: true}}},
-			},
+			name:     "psc when only psc",
+			instance: instanceDefaultEndpoint(withPSC),
 			want:     "psc.example",
 			wantType: endpointTypePSC,
 		},
 		{
 			name:     "no endpoint",
-			instance: &sqladmin.DatabaseInstance{},
+			instance: instanceDefaultEndpoint(),
 			want:     "",
 		},
 		{
-			name: "override public",
-			instance: &sqladmin.DatabaseInstance{
-				IpAddresses: []*sqladmin.IpMapping{ipMapping("PRIMARY", "1.2.3.4")},
-				Settings:    overrideLabels(endpointTypePublic),
-			},
+			name:     "override public with all surfaces",
+			instance: instance(endpointTypePublic, withPublic, withPrivate, withPSC),
 			want:     "1.2.3.4",
 			wantType: endpointTypePublic,
 		},
 		{
-			name: "override private",
-			instance: &sqladmin.DatabaseInstance{
-				IpAddresses: []*sqladmin.IpMapping{ipMapping("PRIMARY", "1.2.3.4"), ipMapping("PRIVATE", "10.0.0.1")},
-				Settings:    overrideLabels(endpointTypePrivate),
-			},
+			name:     "override private with all surfaces",
+			instance: instance(endpointTypePrivate, withPublic, withPrivate, withPSC),
 			want:     "10.0.0.1",
 			wantType: endpointTypePrivate,
 		},
 		{
-			name: "override psc",
-			instance: &sqladmin.DatabaseInstance{
-				DnsNames: []*sqladmin.DnsNameMapping{dnsMapping("psc.example", "PRIVATE_SERVICE_CONNECT", "INSTANCE")},
-				Settings: &sqladmin.Settings{
-					IpConfiguration: &sqladmin.IpConfiguration{PscConfig: &sqladmin.PscConfig{PscEnabled: true}},
-					UserLabels:      map[string]string{types.GCPDatabaseEndpointTypeOverrideLabel: endpointTypePSC},
-				},
-			},
+			name:     "override psc with all surfaces",
+			instance: instance(endpointTypePSC, withPublic, withPrivate, withPSC),
 			want:     "psc.example",
 			wantType: endpointTypePSC,
 		},
 		{
-			name: "override to absent surface returns empty",
-			instance: &sqladmin.DatabaseInstance{
-				IpAddresses: []*sqladmin.IpMapping{ipMapping("PRIMARY", "1.2.3.4")}, // only public present
-				Settings:    overrideLabels(endpointTypePrivate),
-			},
+			name:     "override public absent returns empty",
+			instance: instance(endpointTypePublic, withPrivate),
+			want:     "",
+			wantType: endpointTypePublic,
+		},
+		{
+			name:     "override private absent returns empty",
+			instance: instance(endpointTypePrivate, withPublic),
 			want:     "",
 			wantType: endpointTypePrivate,
 		},
 		{
-			name: "unrecognized override fails closed",
-			instance: &sqladmin.DatabaseInstance{
-				IpAddresses: []*sqladmin.IpMapping{ipMapping("PRIMARY", "1.2.3.4")},
-				Settings:    overrideLabels("bogus"),
-			},
-			wantErr: `unknown endpoint type "bogus" in the "teleport-database-endpoint-type" label`,
+			name:     "override psc absent returns empty",
+			instance: instance(endpointTypePSC, withPublic),
+			want:     "",
+			wantType: endpointTypePSC,
+		},
+		{
+			name:     "unrecognized override fails closed",
+			instance: instance("bogus"),
+			wantErr:  `unknown endpoint type "bogus" in the "teleport-database-endpoint-type" label`,
 		},
 	}
 	for _, tt := range tests {
