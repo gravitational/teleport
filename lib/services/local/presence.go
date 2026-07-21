@@ -1566,8 +1566,7 @@ func (s *PresenceService) listResources(ctx context.Context, req proto.ListResou
 		keyPrefix = []string{databaseServicePrefix}
 		unmarshalItemFunc = backendItemToDatabaseService
 	case types.KindAppServer:
-		keyPrefix = []string{appServersPrefix, req.Namespace}
-		unmarshalItemFunc = backendItemToApplicationServer
+		return s.listAppServers(ctx, req)
 	case types.KindNode:
 		keyPrefix = []string{nodesPrefix, req.Namespace}
 		unmarshalItemFunc = backendItemToServer(types.KindNode)
@@ -1641,6 +1640,47 @@ func (s *PresenceService) listResources(ctx context.Context, req proto.ListResou
 	}
 
 	return &resp, nil
+}
+
+// listAppServers returns a page of application servers retrieving both the
+// unscoped and the scoped backend entries.
+func (s *PresenceService) listAppServers(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
+	filter := services.MatchResourceFilter{
+		ResourceKind:   req.ResourceType,
+		Labels:         req.Labels,
+		SearchKeywords: req.SearchKeywords,
+	}
+	if req.PredicateExpression != "" {
+		expression, err := services.NewResourceExpression(req.PredicateExpression)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		filter.PredicateExpression = expression
+	}
+
+	var matchErr error
+	servers, nextKey, err := s.appServers.ListResourcesWithFilter(ctx, int(req.Limit), req.StartKey, func(server types.AppServer) bool {
+		if matchErr != nil {
+			return false
+		}
+		match, err := services.MatchResourceByFilters(server, filter, nil /* ignore dup matches */)
+		if err != nil {
+			matchErr = err
+			return false
+		}
+		return match
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if matchErr != nil {
+		return nil, trace.Wrap(matchErr)
+	}
+
+	return &types.ListResourcesResponse{
+		Resources: types.AppServers(servers).AsResources(),
+		NextKey:   nextKey,
+	}, nil
 }
 
 func getFakePaginationKey(ki backend.KeyedItem) string {
@@ -1923,17 +1963,6 @@ func backendItemToDatabaseService(item backend.Item) (types.ResourceWithLabels, 
 	return services.UnmarshalDatabaseService(
 		item.Value,
 		services.WithExpires(item.Expires),
-		services.WithRevision(item.Revision),
-	)
-}
-
-// backendItemToApplicationServer unmarshals `backend.Item` into a
-// `types.AppServer`, returning it as a `types.ResourceWithLabels`.
-func backendItemToApplicationServer(item backend.Item) (types.ResourceWithLabels, error) {
-	return services.UnmarshalAppServer(
-		item.Value,
-		services.WithExpires(item.Expires),
-		services.WithRevision(item.Revision),
 		services.WithRevision(item.Revision),
 	)
 }

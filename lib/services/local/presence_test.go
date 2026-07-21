@@ -722,6 +722,40 @@ func TestListResources(t *testing.T) {
 				return presence.DeleteAllApplicationServers(ctx, apidefaults.Namespace)
 			},
 		},
+		"ScopedAppServers": {
+			resourceType: types.KindAppServer,
+			createResourceFunc: func(ctx context.Context, presence *PresenceService, name string, labels map[string]string) error {
+				const scope = "/staging"
+				app, err := types.NewAppV3(types.Metadata{
+					Name:   name,
+					Labels: labels,
+				}, types.AppSpecV3{
+					URI: "localhost",
+				}, scope)
+				if err != nil {
+					return err
+				}
+
+				server, err := types.NewAppServerV3(types.Metadata{
+					Name:   name,
+					Labels: labels,
+				}, types.AppServerSpecV3{
+					Hostname: "localhost",
+					HostID:   uuid.New().String(),
+					App:      app,
+				}, scope)
+				if err != nil {
+					return err
+				}
+
+				// Upsert server.
+				_, err = presence.UpsertApplicationServer(ctx, server)
+				return err
+			},
+			deleteAllResourcesFunc: func(ctx context.Context, presence *PresenceService) error {
+				return presence.DeleteAllApplicationServers(ctx, apidefaults.Namespace)
+			},
+		},
 		"AppServersSameHost": {
 			resourceType: types.KindAppServer,
 			createResourceFunc: func(ctx context.Context, presence *PresenceService, name string, labels map[string]string) error {
