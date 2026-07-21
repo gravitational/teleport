@@ -193,6 +193,7 @@ func (h *Handler) serveHTTP(w http.ResponseWriter, r *http.Request) error {
 					GetAPIKeyFunc: func() string {
 						return h.openAIAPIKey
 					},
+					SignBedrockRequest: h.signBedrockRequest,
 				})
 			},
 			func(l *slog.Logger, info llmrequest.RequestInfo, w http.ResponseWriter) (UpstreamRecorder, error) {
