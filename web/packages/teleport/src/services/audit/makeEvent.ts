@@ -20,7 +20,7 @@ import { formatDistanceStrict } from 'date-fns';
 
 import { pluralize } from 'shared/utils/text';
 
-import { OsType, osTypeLabel } from 'teleport/DeviceTrust/types';
+import { osTypeLabel } from 'teleport/DeviceTrust/types';
 
 import {
   Event,
@@ -2973,8 +2973,7 @@ const formatDevice = (device?: {
 }): string => {
   const parts: string[] = [];
   // Account for os_type possibly being 0 (UNSPECIFIED) with os_type != null.
-  const os =
-    device?.os_type != null ? osTypeLabel(device.os_type as OsType) : undefined;
+  const os = device?.os_type != null ? osTypeLabel(device.os_type) : undefined;
   if (os) {
     parts.push(`OS [${os}]`);
   }
