@@ -1543,7 +1543,7 @@ func TestScopedBotSSH(t *testing.T) {
 			Kind:  scopesv1.PinKind_PIN_KIND_USER,
 			Scope: scopeName,
 			AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
-				scopeName: {scopeName: {scopedRoleName}},
+				scopeName: {scopeName: {scopes.QualifiedName{Scope: scopeName, Name: scopedRoleName}.String()}},
 			}),
 		}.Build()
 
@@ -1816,7 +1816,7 @@ func TestScopedBotKubernetes(t *testing.T) {
 			Kind:  scopesv1.PinKind_PIN_KIND_USER,
 			Scope: scopeName,
 			AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
-				scopeName: {scopeName: {scopedRoleName}},
+				scopeName: {scopeName: {scopes.QualifiedName{Scope: scopeName, Name: scopedRoleName}.String()}},
 			}),
 		}.Build()
 
@@ -2077,6 +2077,7 @@ func waitForSRACache(t *testing.T, authServer *auth.Server, resps ...*scopedacce
 			_, err := authServer.ScopedAccessCache.GetScopedRoleAssignment(ctx, scopedaccessv1.GetScopedRoleAssignmentRequest_builder{
 				Name:    resp.GetAssignment().GetMetadata().GetName(),
 				SubKind: resp.GetAssignment().GetSubKind(),
+				Scope:   resp.GetAssignment().GetScope(),
 			}.Build())
 			require.NoError(t, err)
 		}
@@ -2152,7 +2153,7 @@ func createScopedBot(
 			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
 				Bot: scopes.QualifiedName{Scope: scopeName, Name: botName}.String(),
 				Assignments: []*scopedaccessv1.Assignment{
-					scopedaccessv1.Assignment_builder{Role: scopedRoleName, Scope: scopeName}.Build(),
+					scopedaccessv1.Assignment_builder{Role: scopes.QualifiedName{Scope: scopeName, Name: scopedRoleName}.String(), Scope: scopeName}.Build(),
 				},
 			}.Build(),
 		}.Build(),

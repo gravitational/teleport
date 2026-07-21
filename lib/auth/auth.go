@@ -5431,7 +5431,7 @@ func (a *Server) GenerateHostCerts(ctx context.Context, params HostCertsParams) 
 	}
 
 	if err := req.Role.Check(); err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 
 	if err := a.limiter.AcquireConnection(req.Role.String()); err != nil {
@@ -6036,6 +6036,7 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 	now := a.clock.Now().UTC()
 
 	req.SetCreationTime(now)
+	hasUserSuggestedReviewers := len(req.GetSuggestedReviewers()) > 0
 
 	// Always perform variable expansion on creation.
 	expandOpts := services.WithExpandVars(true)
@@ -6088,6 +6089,14 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 		if req.GetRequestKind().IsLongTerm() {
 			req.SetLongTermResourceGrouping(longTermResourceGrouping)
 		}
+
+		usernamesForDisplayResolution := []string{req.GetUser()}
+		if hasUserSuggestedReviewers {
+			usernamesForDisplayResolution = append(usernamesForDisplayResolution, suggestedReviewers...)
+		} else {
+			usernamesForDisplayResolution = append(usernamesForDisplayResolution, req.GetSuggestedReviewers()...)
+		}
+		addAccessRequestDryRunUserDisplays(ctx, req, usernamesForDisplayResolution, a, a.logger)
 
 		// Return before creating the request if this is a dry run.
 		return req, nil

@@ -3,7 +3,7 @@ module github.com/gravitational/teleport/api
 go 1.26.5
 
 require (
-	github.com/charlievieth/strcase v0.0.5
+	github.com/charlievieth/strcase v0.0.6
 	github.com/coreos/go-semver v0.3.1
 	github.com/go-piv/piv-go/v2 v2.6.0
 	github.com/gobwas/ws v1.4.0
