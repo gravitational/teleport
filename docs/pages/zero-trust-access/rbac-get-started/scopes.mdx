@@ -84,7 +84,8 @@ be assumed unsupported in scoped mode.
   scope and assigning scoped SSH access to users.
 - Basic scoped Kubernetes access, including joining Kubernetes services
   at a scope and assigning scoped Kubernetes access to users.
-- Granting scoped roles to users via Access Lists.
+- Scoped Access Lists that can be managed by scoped administrators and used to
+  grant scoped roles to groups of users.
 - Scoped Bots for Machine and Workload Identity (MWI), supporting both
   identity output and SSH access.
 
@@ -152,7 +153,7 @@ spec:
       remote:
         enabled: true
   rules:
-    - resources: [scoped_role, scoped_role_assignment, bot, bot_instance]
+    - resources: [scoped_role, scoped_role_assignment, bot, bot_instance, access_list]
       verbs: [create, list, readnosecrets, update, delete]
     - resources: [scoped_token]
       verbs: [create, list, read, update, delete]
@@ -174,7 +175,7 @@ scope: /examples
 spec:
   user: alice
   assignments:
-    - role: example-admin
+    - role: /examples::example-admin
       scope: /examples/basic
 version: v1
 EOF
@@ -479,23 +480,23 @@ $ tsh ssh ubuntu@example-node
 Access Lists can grant scoped roles to groups of users without requiring an
 individual scoped role assignment per user.
 
-Access Lists are currently unscoped resources and must be managed by an
-unscoped cluster administrator. They may only grant scoped roles defined at
-the root scope `/`, but they can assign those roles at any scope listed in
-the role's `assignable_scopes`.
-
-While logged in with the unscoped `editor` role, create a scoped role at
-the root scope:
+Log the scoped admin into the desired scope:
 
 ```code
-$ tctl create <<EOF
+$ tsh login --user=alice --scope=/examples/basic --proxy=teleport.example.com
+````
+
+Create a scoped role that can grant SSH access in `/examples/basic`:
+
+```code
+$ tctl create -f <<EOF
 kind: scoped_role
 metadata:
   name: example-access
-scope: /
+scope: /examples/basic
 spec:
   assignable_scopes:
-    - /examples/**
+    - /examples/basic
   ssh:
     logins: [ubuntu]
     labels:
@@ -521,15 +522,16 @@ version: v1
 kind: access_list
 metadata:
   name: example-access-list
+scope: /examples/basic
 spec:
   title: "Example scoped Access List"
   description: "Grants scoped access to SSH Services in /examples/basic"
   owners:
-    - name: admin
+    - name: alice
       membership_kind: MEMBERSHIP_KIND_USER
   grants:
     scoped_roles:
-      - role: example-access
+      - role: /examples/basic::example-access
         scope: /examples/basic
 EOF
 ```
@@ -537,28 +539,68 @@ EOF
 Add members to the Access List:
 
 ```code
-$ tctl acl users add example-access-list alice
-$ tctl acl users add example-access-list bob
+$ tctl acl users add /examples/basic::example-access-list bob
+successfully added user bob to access list /examples/basic::example-access-list
+$ tctl acl users add /examples/basic::example-access-list charlie
+successfully added user charlie to access list /examples/basic::example-access-list
 ```
 
-Confirm the scoped role has been materialized for each member:
+Access Lists that grant scoped roles always result in a "materialized" scoped
+role assignment for each of their members and owners.
+A "materialized" scoped role assignment is an one that is automatically created
+and kept up to date for each user that is granted a scoped role by an Access List.
+Each materialized scoped role assignment assigns all of the scoped roles granted
+by the Access List to the user.
+Confirm a scoped role assignment has been materialized for each member:
 
 ```code
 $ tctl get scoped_role_assignments --format text
-SubKind      Scope Name                                       User  Assigns
------------- ----- ------------------------------------------ ----- ---------------------------------
-materialized /     acl-lBPn7FNe97FTVpWdlHjKGrm54xE41RWEphlhLg bob   example-access => /examples/basic
-materialized /     acl-wkniExD3WxPtVW7NvlcNMigD-slBSP2fSW0J1Q alice example-access => /examples/basic
+SubKind      ID                                                          User    Assigns                        
+------------ ----------------------------------------------------------- ------- --------------------------------------------------
+materialized /examples/basic::acl-4ezohtYllrk-gbWjn0hj_npCNwhujMurruDLRg charlie /examples/basic::example-access -> /examples/basic
+materialized /examples/basic::acl-XMyMVGoNZopPQ9WxuZ5RH6GM5FPHVwLSTFUsBg bob     /examples/basic::example-access -> /examples/basic
 ```
 
 Access Lists and members can also be managed via the Web UI under
-**Identity Governance > Access Lists**. Granted scoped roles are visible
-in the UI but cannot yet be edited there.
+**Identity Governance > Access Lists**.
+Currently, only unscoped Access Lists can be created or managed in the web UI,
+but unscoped Access Lists can still grant scoped roles as long as the role is
+defined in the root scope `/`.
 
-Nested Access Lists are fully supported. Scoped roles can also be granted
-to Access List owners using the `owner_grants` field. See the
-[Access Lists reference](../../reference/access-controls/access-lists.mdx)
+Nested Access Lists are fully supported, meaning Access Lists can have members
+that are other Access Lists, and members of the child list receive all scoped
+role grants from the parent list.
+Scoped roles can also be granted to Access List owners using the `owner_grants`
+field.
+See the [Access Lists reference](../../reference/access-controls/access-lists.mdx)
 for details.
+
+### Scoped Access List rules
+
+To maintain hierarchical scoped privilege isolation, the following rules apply
+to scoped Access Lists:
+
+1. An Access List can only grant scoped roles defined in a scope that is equal
+   to or an ancestor of the list's scope.
+1. A scoped role grant can only grant the scoped role at a scope that is equal
+   to or a descendent of the list's scope.
+1. An Access List can only be added as a member of another Access List if the
+   member list's scope is equal to or an ancestor of the parent list's scope.
+1. An Access List can only be added as an owner of another Access List if the
+   owner list's scope is equal to or an ancestor of the owned list's scope.
+1. A scoped Access List (or an unscoped list that grants any scoped roles) may
+   not contain member requirements or owner requirements.
+
+Any attempt to create an Access List violating these rules will be rejected by
+the Auth Service with an error message.
+
+For an example Access List with scope `/examples/basic`:
+
+1. It can only grant scoped roles defined in `/examples/basic` or `/examples` or `/`.
+1. It can only grant scoped roles at `/examples/basic` or `/examples/basic/**`.
+1. It can only have member Access Lists that are unscoped or have scope `/examples/basic` or `/examples` or `/`.
+1. It can only have owner Access Lists that are unscoped or have scope `/examples/basic` or `/examples` or `/`.
+1. It may not contain any member or owner requirements.
 
 ## Infrastructure as Code
 
