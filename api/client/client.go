@@ -2146,10 +2146,7 @@ func (c *Client) GetSAMLConnector(ctx context.Context, name string, withSecrets 
 
 // GetSAMLConnectorWithValidationOptions returns a SAML connector by name.
 func (c *Client) GetSAMLConnectorWithValidationOptions(ctx context.Context, name string, withSecrets bool, opts ...types.SAMLConnectorValidationOption) (types.SAMLConnector, error) {
-	var options types.SAMLConnectorValidationOptions
-	for _, opt := range opts {
-		opt(&options)
-	}
+	options := types.NewSAMLConnectorValidationOptions(opts)
 
 	if name == "" {
 		return nil, trace.BadParameter("cannot get SAML Connector, missing name")
@@ -2173,10 +2170,7 @@ func (c *Client) GetSAMLConnectors(ctx context.Context, withSecrets bool) ([]typ
 
 // GetSAMLConnectorsWithoutURLValidation returns a list of SAML connectors.
 func (c *Client) GetSAMLConnectorsWithValidationOptions(ctx context.Context, withSecrets bool, opts ...types.SAMLConnectorValidationOption) ([]types.SAMLConnector, error) {
-	var options types.SAMLConnectorValidationOptions
-	for _, opt := range opts {
-		opt(&options)
-	}
+	options := types.NewSAMLConnectorValidationOptions(opts)
 
 	req := &types.ResourcesWithSecretsRequest{
 		WithSecrets:                withSecrets,
@@ -2196,10 +2190,7 @@ func (c *Client) GetSAMLConnectorsWithValidationOptions(ctx context.Context, wit
 // ListSAMLConnectorsWithOptions returns a page of valid registered SAML connectors.
 // withSecrets adds or removes client secret from return results.
 func (c *Client) ListSAMLConnectorsWithOptions(ctx context.Context, limit int, start string, withSecrets bool, opts ...types.SAMLConnectorValidationOption) ([]types.SAMLConnector, string, error) {
-	var options types.SAMLConnectorValidationOptions
-	for _, opt := range opts {
-		opt(&options)
-	}
+	options := types.NewSAMLConnectorValidationOptions(opts)
 
 	resp, err := c.grpc.ListSAMLConnectors(ctx, &proto.ListSAMLConnectorsRequest{
 		PageSize:     int32(limit),
