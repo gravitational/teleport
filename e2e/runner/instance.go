@@ -34,6 +34,7 @@ type testInstance struct {
 	e2eDir             string
 	dataDir            string
 	tctlBin            string
+	noResourceSetup    bool
 	teleportConfigPath string
 	teleport           *teleportInstance
 	node               *dockerNode
@@ -60,8 +61,10 @@ func (inst *testInstance) start(ctx context.Context) error {
 		if err = inst.teleport.seedRecordings(ctx, inst.e2eDir, inst.dataDir); err != nil {
 			return fmt.Errorf("failed to seed session recordings for %s: %w", inst.browser, err)
 		}
-		if err = applyResources(ctx, inst.e2eDir, inst.tctlBin, inst.teleportConfigPath); err != nil {
-			return fmt.Errorf("failed to apply resources for %s: %w", inst.browser, err)
+		if !inst.noResourceSetup {
+			if err = applyResources(ctx, inst.e2eDir, inst.tctlBin, inst.teleportConfigPath); err != nil {
+				return fmt.Errorf("failed to apply resources for %s: %w", inst.browser, err)
+			}
 		}
 	}
 
