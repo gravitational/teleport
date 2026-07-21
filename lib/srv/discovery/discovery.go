@@ -858,15 +858,7 @@ func (s *Server) handleAzureSubscriptionListError(integration string, err error)
 		return
 	}
 
-	if err := s.taskUpdater().upsertDiscoverAzureVMTask(
-		usertasks.TaskGroup{
-			Integration: integration,
-			IssueType:   issueType,
-		},
-		usertasksv1.DiscoverAzureVM_builder{
-			Instances: map[string]*usertasksv1.DiscoverAzureVMInstance{},
-		}.Build(),
-	); err != nil {
+	if err := s.taskUpdater().upsertAzureSubscriptionListTask(integration, issueType); err != nil {
 		s.Log.WarnContext(s.ctx, "Failed to upsert Azure subscription list permission User Task",
 			"integration", integration,
 			"error", err,

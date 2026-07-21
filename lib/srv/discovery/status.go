@@ -987,6 +987,8 @@ func (t *azureVMTasks) addFailedEnrollment(tg usertasks.TaskGroup, key azureVMTa
 
 // upsertAll upserts all collected Azure VM user tasks to the backend.
 func (t *azureVMTasks) upsertAll(s *taskUpdater) {
+	expiryTime := s.clock.Now().Add(2 * s.PollInterval)
+
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	for taskGroup, group := range t.taskGroups {
@@ -1002,7 +1004,14 @@ func (t *azureVMTasks) upsertAll(s *taskUpdater) {
 				"resource_group", azureKey.resourceGroup,
 				"region", azureKey.region)
 
-			if err := s.upsertDiscoverAzureVMTask(taskGroup, vmData); err != nil {
+			task, err := usertasks.NewDiscoverAzureVMUserTask(taskGroup, expiryTime, vmData)
+			if err != nil {
+				log.WarnContext(s.ctx, "Failed to construct Discovery User Task (this is a bug)", "error", err)
+				continue
+			}
+
+			err = s.mergeUpsertUserTask(task, s.mergeAzure)
+			if err != nil {
 				log.WarnContext(s.ctx, "Failed to upsert Discovery User Task", "error", err)
 				continue
 			}
@@ -1040,11 +1049,16 @@ type taskUpdater struct {
 	Log            *slog.Logger
 }
 
-func (s *taskUpdater) upsertDiscoverAzureVMTask(taskGroup usertasks.TaskGroup, data *usertasksv1.DiscoverAzureVM) error {
+func (s *taskUpdater) upsertAzureSubscriptionListTask(integration, issueType string) error {
 	task, err := usertasks.NewDiscoverAzureVMUserTask(
-		taskGroup,
+		usertasks.TaskGroup{
+			Integration: integration,
+			IssueType:   issueType,
+		},
 		s.clock.Now().Add(2*s.PollInterval),
-		data,
+		usertasksv1.DiscoverAzureVM_builder{
+			Instances: map[string]*usertasksv1.DiscoverAzureVMInstance{},
+		}.Build(),
 	)
 	if err != nil {
 		return trace.Wrap(err)
