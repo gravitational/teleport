@@ -1934,6 +1934,21 @@ spec:
     recovery:
       limit: 1
       mode: insecure`
+	// boundKeypairTokenNoRecoveryYAML omits spec.bound_keypair.recovery
+	// entirely; CheckAndSetDefaults must default it (limit 1) at unmarshal time,
+	// before apply-on-startup validation runs.
+	boundKeypairTokenNoRecoveryYAML = `kind: token
+version: v2
+metadata:
+  name: bound-keypair-token
+  expires: "3000-01-01T00:00:00Z"
+spec:
+  roles: [Bot]
+  join_method: bound_keypair
+  bot_name: bound-keypair-demo
+  bound_keypair:
+    onboarding:
+      initial_public_key: "ssh-ed25519 AAAAtestinitialpublickey"`
 	roleYAML = `kind: role
 version: v7
 metadata:
@@ -2139,6 +2154,27 @@ func TestInit_ApplyOnStartup_BoundKeypair(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, stored.GetBoundKeypairStatus(),
 			"apply-on-startup must initialize status.bound_keypair, otherwise bound_keypair joins are rejected")
+	})
+
+	t.Run("applies a token with a defaulted recovery policy", func(t *testing.T) {
+		// A config that omits spec.bound_keypair.recovery must still apply:
+		// UnmarshalProvisionToken defaults recovery (limit 1) via
+		// CheckAndSetDefaults before apply-on-startup validation runs, so Init
+		// must not reject it.
+		token := resourceFromYAML(t, boundKeypairTokenNoRecoveryYAML).(*types.ProvisionTokenV2)
+		require.NotNil(t, token.Spec.BoundKeypair.Recovery,
+			"unmarshal must default recovery when the config omits it")
+
+		cfg := setupConfig(t)
+		cfg.ApplyOnStartupResources = []types.Resource{token}
+
+		srv, err := auth.Init(ctx, cfg)
+		require.NoError(t, err)
+
+		stored, err := srv.GetToken(ctx, token.GetName())
+		require.NoError(t, err)
+		require.Equal(t, uint32(1), stored.GetBoundKeypair().Recovery.Limit,
+			"apply-on-startup must persist the defaulted recovery limit")
 	})
 
 	t.Run("discards config-supplied status on first apply", func(t *testing.T) {
