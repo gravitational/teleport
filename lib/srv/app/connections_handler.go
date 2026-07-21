@@ -217,9 +217,9 @@ type ConnectionsHandler struct {
 	resolveApp func(ctx context.Context, name, addr string) (types.Application, error)
 
 	// v9Warned dedupes the v9 enforcement warnings (dropped v8 roles, denied
-	// CORS preflight) to once per warning kind, user, and app. A v9 role
-	// governs every request to a shared app, so the warnings would otherwise
-	// fire on each request.
+	// CORS preflight, denied on version skew) to once per
+	// warning kind, user, and app. A v9 role governs every request to a
+	// shared app, so the warnings would otherwise fire on each request.
 	v9Warned sync.Map
 }
 

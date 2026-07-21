@@ -127,12 +127,12 @@ func TestDecideMinimalV9(t *testing.T) {
 		{
 			desc:  "v9 rule without allow_all denies",
 			roles: []types.Role{v9NoAllowAll},
-			want:  minimalV9Decision{enforced: true},
+			want:  minimalV9Decision{enforced: true, versionSkew: true},
 		},
 		{
 			desc:  "v9 drops a conflicting v8 role",
 			roles: []types.Role{v9NoAllowAll, v8Grants},
-			want:  minimalV9Decision{enforced: true, droppedRoles: []string{"v8-grants"}},
+			want:  minimalV9Decision{enforced: true, versionSkew: true, droppedRoles: []string{"v8-grants"}},
 		},
 		{
 			desc:  "v9 allow_all still drops the v8 role",
@@ -152,17 +152,17 @@ func TestDecideMinimalV9(t *testing.T) {
 		{
 			desc:  "version above v9 enforces default-deny",
 			roles: []types.Role{v10Grants},
-			want:  minimalV9Decision{enforced: true},
+			want:  minimalV9Decision{enforced: true, versionSkew: true},
 		},
 		{
 			desc:  "deny app rules block allow_all",
 			roles: []types.Role{v9AllowAllWithDenyRules},
-			want:  minimalV9Decision{enforced: true},
+			want:  minimalV9Decision{enforced: true, versionSkew: true},
 		},
 		{
 			desc:  "deny app rules in another role block allow_all",
 			roles: []types.Role{v9AllowAll, v9OtherDenyRules},
-			want:  minimalV9Decision{enforced: true},
+			want:  minimalV9Decision{enforced: true, versionSkew: true},
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {

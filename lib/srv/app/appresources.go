@@ -49,6 +49,11 @@ type minimalV9Decision struct {
 	// droppedRoles names the pre-v9 roles dropped because a v9 role grants
 	// the same app. They are logged, never allowed to re-open access.
 	droppedRoles []string
+	// versionSkew is true when the roles carry app rules or versions a
+	// newer Teleport wrote and this version cannot evaluate: deny-side
+	// rules, allow rules beyond a single pure allow_all, or a role
+	// version above v9.
+	versionSkew bool
 }
 
 // preV9RoleVersions lists the role versions that predate v9 default-deny.
@@ -73,7 +78,7 @@ func decideMinimalV9(roles []types.Role, app types.Application, username string,
 		return len(role.GetAppResources(types.Deny)) > 0
 	})
 
-	var decision minimalV9Decision
+	decision := minimalV9Decision{versionSkew: denyAppRules}
 	for _, role := range roles {
 		granted, err := roleGrantsApp(role, app, username, traits)
 		if err != nil {
@@ -87,12 +92,23 @@ func decideMinimalV9(roles []types.Role, app types.Application, username string,
 			continue
 		}
 		decision.enforced = true
-		if !denyAppRules && types.AppResourcesAllowAll(role.GetAppResources(types.Allow), role.GetAppResources(types.Deny)) {
-			decision.allowed = true
+		if role.GetVersion() != types.V9 {
+			decision.versionSkew = true
+		}
+		allow := role.GetAppResources(types.Allow)
+		if types.AppResourcesAllowAll(allow, role.GetAppResources(types.Deny)) {
+			if !denyAppRules {
+				decision.allowed = true
+			}
+		} else if len(allow) > 0 {
+			// This version can only write a single pure allow_all rule, so
+			// any other non-empty rule set must come from a newer version.
+			decision.versionSkew = true
 		}
 	}
 	if !decision.enforced {
 		decision.droppedRoles = nil
+		decision.versionSkew = false
 	}
 	return decision, nil
 }
@@ -150,6 +166,13 @@ func (c *ConnectionsHandler) enforceMinimalV9(w http.ResponseWriter, r *http.Req
 
 	if !decision.enforced || decision.allowed {
 		return false, nil
+	}
+
+	if decision.versionSkew && c.v9WarnOnce("skew", identity.Username, app.GetName()) {
+		c.log.WarnContext(r.Context(), "Denied app request: the user's roles carry app_resources rules or role versions that this Teleport version does not implement, and unimplemented rules deny by default. Upgrade this app agent to enforce the intended rules.",
+			"app", app.GetName(),
+			"user", identity.Username,
+		)
 	}
 
 	if isCORSPreflight(r) && c.v9WarnOnce("cors", identity.Username, app.GetName()) {
