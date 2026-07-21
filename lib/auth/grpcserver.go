@@ -295,6 +295,10 @@ func (g *GRPCServer) EmitAuditEvent(ctx context.Context, req *apievents.OneOf) (
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	// Mark this event as forwarded from a remote instance so the auth server's
+	// fallback queue does not take ownership of it on a delivery failure. The
+	// originating instance retries from its own queue.
+	ctx = events.WithForwardedEmit(ctx)
 	err = auth.EmitAuditEvent(ctx, event)
 	if err != nil {
 		return nil, trace.Wrap(err)

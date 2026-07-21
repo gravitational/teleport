@@ -2446,6 +2446,21 @@ func (process *TeleportProcess) initAuthService() error {
 		}
 	}
 
+	// When the audit queue is enabled, wrap the audit backend so that audit
+	// events this auth server originates are queued to disk if the backend
+	// rejects them, and re-delivered later. Events forwarded from
+	// agents/proxies are not queued here (see GRPCServer.EmitAuditEvent). Their
+	// originating instance retries them from its own queue.
+	var fallbackEmitter *events.FallbackEmitter
+	if isAuditQueueEnabled() {
+		fe, err := process.newAuthFallbackEmitter(emitter)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		fallbackEmitter = fe
+		emitter = fe
+	}
+
 	checkingEmitter, err := events.NewCheckingEmitter(events.CheckingEmitterConfig{
 		Inner:       events.NewMultiEmitter(events.NewLoggingEmitter(process.GetClusterFeatures().Cloud), emitter),
 		Clock:       process.Clock,
@@ -3074,6 +3089,9 @@ func (process *TeleportProcess) initAuthService() error {
 
 	// execute this when process is asked to exit:
 	process.OnExit("auth.shutdown", func(payload any) {
+		if fallbackEmitter != nil {
+			warnOnErr(process.ExitContext(), fallbackEmitter.Close(), logger)
+		}
 		// The listeners have to be closed here, because if shutdown
 		// was called before the start of the http server,
 		// the http server would have not started tracking the listeners
@@ -3475,7 +3493,7 @@ func (process *TeleportProcess) proxyPublicAddr() utils.NetAddr {
 	return process.Config.Proxy.PublicAddrs[0]
 }
 
-func isSQLiteQueueEnabled() bool {
+func isAuditQueueEnabled() bool {
 	enabled, _ := strconv.ParseBool(os.Getenv("TELEPORT_UNSTABLE_AUDIT_LOG_RELIABILITY"))
 	return enabled
 }
@@ -3483,11 +3501,6 @@ func isSQLiteQueueEnabled() bool {
 // NewAsyncEmitter wraps client and returns emitter that never blocks, logs some events and checks values.
 // It is caller's responsibility to call Close on the emitter once done.
 func (process *TeleportProcess) NewAsyncEmitter(clt apievents.Emitter) (*events.CheckingAsyncEmitter, error) {
-	var backends []auditqueue.Kind
-	for _, backend := range process.Config.AuditQueue.Backends {
-		backends = append(backends, auditqueue.Kind(backend))
-	}
-
 	// Wrap the AsyncEmitter in a CheckingEmitter to ensure event fields are
 	// properly set before inserting events into the queue.
 	return events.NewCheckingAsyncEmitter(
@@ -3495,21 +3508,43 @@ func (process *TeleportProcess) NewAsyncEmitter(clt apievents.Emitter) (*events.
 			Clock: process.Clock,
 		},
 		events.AsyncEmitterConfig{
-			Inner:             events.NewMultiEmitter(events.NewLoggingEmitter(process.GetClusterFeatures().Cloud), clt),
-			DataDir:           process.Config.DataDir,
-			EnableSQLiteQueue: isSQLiteQueueEnabled(),
-			AuditQueueCfg: auditqueue.Config{
-				SoftLimit:               process.Config.AuditQueue.SoftLimit,
-				MaxBytes:                process.Config.AuditQueue.MaxBytes,
-				MaxAttempts:             process.Config.AuditQueue.MaxAttempts,
-				DeadLetterTTL:           process.Config.AuditQueue.DeadLetterTTL,
-				DeadLetterSweepInterval: process.Config.AuditQueue.DeadLetterSweepInterval,
-				OrphanScanInterval:      process.Config.AuditQueue.OrphanScanInterval,
-				Synchronous:             process.Config.AuditQueue.Synchronous,
-			},
-			AuditQueueBackends: backends,
+			Inner:              events.NewMultiEmitter(events.NewLoggingEmitter(process.GetClusterFeatures().Cloud), clt),
+			DataDir:            process.Config.DataDir,
+			EnableAuditQueue:   isAuditQueueEnabled(),
+			AuditQueueCfg:      process.auditQueueConfig(),
+			AuditQueueBackends: process.auditQueueBackends(),
 		},
 	)
+}
+
+func (process *TeleportProcess) newAuthFallbackEmitter(primary apievents.Emitter) (*events.FallbackEmitter, error) {
+	return events.NewFallbackEmitter(events.FallbackEmitterConfig{
+		Primary:            primary,
+		DataDir:            process.Config.DataDir,
+		EnableAuditQueue:   isAuditQueueEnabled(),
+		AuditQueueCfg:      process.auditQueueConfig(),
+		AuditQueueBackends: process.auditQueueBackends(),
+	})
+}
+
+func (process *TeleportProcess) auditQueueConfig() auditqueue.Config {
+	return auditqueue.Config{
+		SoftLimit:               process.Config.AuditQueue.SoftLimit,
+		MaxBytes:                process.Config.AuditQueue.MaxBytes,
+		MaxAttempts:             process.Config.AuditQueue.MaxAttempts,
+		DeadLetterTTL:           process.Config.AuditQueue.DeadLetterTTL,
+		DeadLetterSweepInterval: process.Config.AuditQueue.DeadLetterSweepInterval,
+		OrphanScanInterval:      process.Config.AuditQueue.OrphanScanInterval,
+		Synchronous:             process.Config.AuditQueue.Synchronous,
+	}
+}
+
+func (process *TeleportProcess) auditQueueBackends() []auditqueue.Kind {
+	var backends []auditqueue.Kind
+	for _, backend := range process.Config.AuditQueue.Backends {
+		backends = append(backends, auditqueue.Kind(backend))
+	}
+	return backends
 }
 
 // ServerTLSConfig returns a new server-side [*tls.Config] that presents the
