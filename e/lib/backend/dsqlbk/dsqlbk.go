@@ -186,7 +186,7 @@ type Config struct {
 	DSQLRegion     string `json:"dsql_region"`
 	DSQLAWSProfile string `json:"dsql_aws_profile"`
 
-	KinesisStreamARN    string `json:"kinesis_stream_arn"`
+	KinesisStreamName   string `json:"kinesis_stream_name"`
 	KinesisStreamRegion string `json:"kinesis_stream_region"`
 	KinesisAWSProfile   string `json:"kinesis_aws_profile"`
 
@@ -238,8 +238,8 @@ func (c *Config) CheckAndSetDefaults() error {
 		c.DSQLEndpoint = c.DSQLIdentifier + ".dsql." + c.DSQLRegion + ".on.aws"
 	}
 
-	if c.KinesisStreamARN == "" {
-		return trace.BadParameter("missing kinesis_stream_arn")
+	if c.KinesisStreamName == "" {
+		return trace.BadParameter("missing kinesis_stream_name")
 	}
 	if c.KinesisStreamRegion == "" {
 		return trace.BadParameter("missing kinesis_stream_region")

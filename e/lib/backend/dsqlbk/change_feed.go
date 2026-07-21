@@ -39,7 +39,7 @@ func (b *Backend) runChangeFeed(ctx context.Context, awsConfig aws.Config) {
 func (b *Backend) runChangeFeedOnce(ctx context.Context, awsConfig aws.Config) error {
 	clt := kinesis.NewFromConfig(awsConfig)
 
-	shardIDs, err := listOpenShardIDs(ctx, clt, b.cfg.KinesisStreamARN)
+	shardIDs, err := listOpenShardIDs(ctx, clt, b.cfg.KinesisStreamName)
 	if err != nil {
 		if ctx.Err() != nil {
 			return trace.Wrap(ctx.Err())
@@ -62,7 +62,7 @@ func (b *Backend) runChangeFeedOnce(ctx context.Context, awsConfig aws.Config) e
 		req := &kinesis.GetShardIteratorInput{
 			ShardId:           &shardID,
 			ShardIteratorType: "LATEST",
-			StreamARN:         &b.cfg.KinesisStreamARN,
+			StreamName:        &b.cfg.KinesisStreamName,
 		}
 		init := startingSequenceNumber == ""
 		if !init {
@@ -237,7 +237,7 @@ func (b *Backend) runChangeFeedOnce(ctx context.Context, awsConfig aws.Config) e
 			// child shards we have is seemingly a full unfiltered list,
 			// unfortunately; ListShards has incredibly generous rate limits
 			// however, so it should be fine
-			childShards, err := listChildShards(ctx, clt, b.cfg.KinesisStreamARN, resp.ChildShards)
+			childShards, err := listChildShards(ctx, clt, b.cfg.KinesisStreamName, resp.ChildShards)
 			if err != nil {
 				if ctx.Err() != nil {
 					return trace.Wrap(ctx.Err())
@@ -446,12 +446,12 @@ type shard struct {
 
 // listOpenShardIDs returns a list of IDs of open shards for the given stream
 // that have been checked to cover the full hash key range.
-func listOpenShardIDs(ctx context.Context, clt *kinesis.Client, streamARN string) ([]string, error) {
+func listOpenShardIDs(ctx context.Context, clt *kinesis.Client, streamName string) ([]string, error) {
 	req := &kinesis.ListShardsInput{
 		ShardFilter: &kinesistypes.ShardFilter{
 			Type: "AT_LATEST",
 		},
-		StreamARN: &streamARN,
+		StreamName: &streamName,
 	}
 
 	var shards []shard
@@ -565,13 +565,13 @@ func checkShardCoverage(shards []shard) error {
 	return nil
 }
 
-func listChildShards(ctx context.Context, clt *kinesis.Client, streamARN string, childShards []kinesistypes.ChildShard) ([]*kinesistypes.Shard, error) {
+func listChildShards(ctx context.Context, clt *kinesis.Client, streamName string, childShards []kinesistypes.ChildShard) ([]*kinesistypes.Shard, error) {
 	if len(childShards) < 1 {
 		return nil, nil
 	}
 	out := make([]*kinesistypes.Shard, len(childShards))
 	req := &kinesis.ListShardsInput{
-		StreamARN: &streamARN,
+		StreamName: &streamName,
 	}
 	for {
 		resp, err := clt.ListShards(ctx, req)
