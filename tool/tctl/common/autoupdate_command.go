@@ -346,11 +346,11 @@ func (c *AutoUpdateCommand) omittedSummary(reports []*autoupdatev1pb.AutoUpdateA
 
 	var sb strings.Builder
 	sb.WriteRune('\n')
-	sb.WriteString(fmt.Sprintf("%d agents were omitted from the reports:\n", totalOmitted))
+	fmt.Fprintf(&sb, "%d agents were omitted from the reports:\n", totalOmitted)
 	// We sort reasons alphabetically as this ensures the output is consistent
 	// And makes snapshot testing easier.
 	for _, reason := range slices.Sorted(maps.Keys(aggregated)) {
-		sb.WriteString(fmt.Sprintf("- %d omitted because: %s\n", aggregated[reason], reason))
+		fmt.Fprintf(&sb, "- %d omitted because: %s\n", aggregated[reason], reason)
 	}
 	return sb.String()
 }
