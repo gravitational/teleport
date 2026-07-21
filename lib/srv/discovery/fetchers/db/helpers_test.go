@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/cloud/azure"
+	"github.com/gravitational/teleport/lib/cloud/gcp"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
@@ -92,6 +93,20 @@ func mustMakeAzureFetchers(t *testing.T, clients azure.Clients, matchers []types
 	for _, fetcher := range fetchers {
 		require.Equal(t, types.KindDatabase, fetcher.ResourceType())
 		require.Equal(t, types.CloudAzure, fetcher.Cloud())
+	}
+	return fetchers
+}
+
+func mustMakeGCPFetchers(t *testing.T, clients gcp.Clients, matchers []types.GCPMatcher) []common.Fetcher {
+	t.Helper()
+
+	fetchers, err := MakeGCPFetchers(logtest.NewLogger(), clients, matchers, "" /* discovery config */)
+	require.NoError(t, err)
+	require.NotEmpty(t, fetchers)
+
+	for _, fetcher := range fetchers {
+		require.Equal(t, types.KindDatabase, fetcher.ResourceType())
+		require.Equal(t, types.CloudGCP, fetcher.Cloud())
 	}
 	return fetchers
 }
