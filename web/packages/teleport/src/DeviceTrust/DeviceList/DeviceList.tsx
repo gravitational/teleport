@@ -23,10 +23,7 @@ import Table, { Cell } from 'design/DataTable';
 import { ResourceIcon, ResourceIconName } from 'design/ResourceIcon';
 import { P2 } from 'design/Text';
 
-import {
-  DeviceListProps,
-  TrustedDeviceOSType,
-} from 'teleport/DeviceTrust/types';
+import { DeviceListProps, TrustedDevice } from 'teleport/DeviceTrust/types';
 
 export const DeviceList = ({
   items = [],
@@ -84,7 +81,7 @@ const EnrollmentStatusCell = ({ status }: { status: string }) => {
   );
 };
 
-export const IconCell = ({ osType }: { osType: TrustedDeviceOSType }) => {
+export const IconCell = ({ osType }: { osType: TrustedDevice['osType'] }) => {
   let iconName: ResourceIconName;
   switch (osType) {
     case 'Windows':

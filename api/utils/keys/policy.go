@@ -58,6 +58,9 @@ const (
 // IsSatisfiedBy returns whether this key policy is satisfied by the given key policy.
 func (requiredPolicy PrivateKeyPolicy) IsSatisfiedBy(keyPolicy PrivateKeyPolicy) bool {
 	// Web sessions are treated as a special case that meets all private key policy requirements.
+	//
+	// NOTE: We'll likely have to add mobile enrollment here as a special case
+	// rather than re-using web session.
 	if keyPolicy == PrivateKeyPolicyWebSession {
 		return true
 	}

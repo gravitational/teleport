@@ -54,7 +54,12 @@ func VerifyTLSUser(ctx context.Context, dt *types.DeviceTrust, id tlsca.Identity
 		id.Username,
 		VerifyTrustedDeviceModeParams{
 			IsTrustedDevice: IsTLSDeviceVerified(&id.DeviceExtensions),
-			IsBot:           id.IsBot(),
+			// NOTE: I suppose we could add another field here? But the synthetic
+			// identity would need to somehow represent the fact that this is mobile
+			// device enrollment flow. And rather than calling it "mobile device", we
+			// should use a name that could be used in the future for desktop devices
+			// too (e.g. paired enrollment).
+			IsBot: id.IsBot(),
 		})
 }
 
