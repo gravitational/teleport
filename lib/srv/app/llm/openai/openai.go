@@ -19,12 +19,14 @@ package openai
 import (
 	"bytes"
 	"cmp"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
 
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
+	"github.com/klauspost/compress/zstd"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -113,11 +115,45 @@ func NewRequest(cfg *llmrequest.Config) (*http.Request, llmrequest.RequestInfo, 
 		return nil, info, trace.NotImplemented("provider %q is not supported", llm.Provider)
 	}
 
-	body, err := utils.ReadAtMost(cfg.DownstreamRequest.Body, teleport.MaxHTTPRequestSize)
+	// OpenAI API support `zstd` as compression algo for the LLM requests. Some
+	// clients, for example `codex`, use the compression by default. To avoid
+	// disrupting those clients, we support some of the most common compression
+	// algo, and expand it if necessary.
+	//
+	// By definition the encoding header can contain the "chain" of compression,
+	// however we're not supporting them at the moment, so it is safe to
+	// directly assert the encoding.
+	//
+	// https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Content-Encoding
+	var downstreamReader io.ReadCloser
+	switch encoding := strings.ToLower(strings.TrimSpace(cfg.DownstreamRequest.Header.Get("Content-Encoding"))); encoding {
+	case "zstd":
+		var err error
+		downstreamReader, err = newZstdReader(
+			// We also need to enforce the limited reader here because the internal
+			// zstd limits apply only to effectively decoded bytes (not actual
+			// bytes read).
+			utils.LimitReader(cfg.DownstreamRequest.Body, teleport.MaxHTTPRequestSize),
+			cfg.DownstreamRequest.Body,
+		)
+		if err != nil {
+			// Error while initializing the reader is not valuable for callers,
+			// so log the error and return a generic one for the downstream.
+			cfg.Logger.ErrorContext(cfg.DownstreamRequest.Context(), "failed to initialize zstd decoder", "error", err)
+			return nil, info, llmerrors.ErrInternal
+		}
+	case "":
+		// Default non compressed body.
+		downstreamReader = cfg.DownstreamRequest.Body
+	default:
+		return nil, info, trace.BadParameter("encoding format %q not supported, currently only non-compressed or 'zstd' is supported", encoding)
+	}
+
+	body, err := utils.ReadAtMost(downstreamReader, teleport.MaxHTTPRequestSize)
+	_ = downstreamReader.Close()
 	if err != nil {
 		return nil, info, trace.Wrap(err)
 	}
-	defer cfg.DownstreamRequest.Body.Close()
 
 	if err := utils.FastUnmarshal(body, &req); err != nil {
 		return nil, info, trace.BadParameter("unable to parse request body")
@@ -178,4 +214,39 @@ func NewRequest(cfg *llmrequest.Config) (*http.Request, llmrequest.RequestInfo, 
 	}
 
 	return providerReq, info, nil
+}
+
+type zstdReader struct {
+	decoder *zstd.Decoder
+	closer  io.Closer
+}
+
+// Close implements [io.ReadCloser].
+func (z *zstdReader) Close() error {
+	z.decoder.Close()
+	// Just be sure the original buffer is also closed.
+	return trace.Wrap(z.closer.Close())
+}
+
+// Read implements [io.ReadCloser].
+func (z *zstdReader) Read(p []byte) (n int, err error) {
+	return z.decoder.Read(p)
+}
+
+func newZstdReader(orig io.Reader, closer io.Closer) (io.ReadCloser, error) {
+	dec, err := zstd.NewReader(
+		orig,
+		zstd.WithDecoderLowmem(true),
+		// This setting works more like a limit of how much memory it can hold
+		// while decompressing the requests.
+		zstd.WithDecoderMaxWindow(teleport.MaxHTTPRequestSize),
+		zstd.WithDecoderConcurrency(1),
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &zstdReader{
+		decoder: dec,
+		closer:  closer,
+	}, nil
 }
