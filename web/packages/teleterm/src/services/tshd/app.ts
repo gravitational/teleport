@@ -145,19 +145,14 @@ export function doesMcpAppSupportGateway(app: App): boolean {
  */
 export function getAppAddrWithProtocol(source: App): string {
   const { publicAddr, endpointUri } = source;
+  const isCloud = endpointUri.startsWith('cloud://');
 
   const scheme = getAppUriScheme(endpointUri);
-  const isTcp =
-    endpointUri &&
-    (endpointUri.startsWith('tcp://') || endpointUri.startsWith('tls://'));
-  const isCloud = endpointUri && endpointUri.startsWith('cloud://');
-  const isMcp = scheme.startsWith('mcp+');
-  const isLlm = scheme === 'llm';
   let addrWithProtocol = endpointUri;
   if (publicAddr) {
     if (isCloud) {
       addrWithProtocol = `cloud://${publicAddr}`;
-    } else if (isTcp || isMcp || isLlm) {
+    } else if (isTcp(source) || isMcp(source) || isLLM(source)) {
       addrWithProtocol = `${scheme}://${publicAddr}`;
     } else {
       // publicAddr for Identity Center account app is a URL with scheme.

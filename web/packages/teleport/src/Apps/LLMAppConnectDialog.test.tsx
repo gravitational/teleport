@@ -24,7 +24,7 @@ import { ContextProvider } from 'teleport';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import { App } from 'teleport/services/apps';
 
-import { llmApp, llmOpenAIApp } from './fixtures';
+import { llmAnthropicApp, llmBedrockApp, llmOpenAIApp } from './fixtures';
 import { LLMAppConnectDialog } from './LLMAppConnectDialog';
 
 function renderDialog(app: App) {
@@ -40,14 +40,25 @@ function renderDialog(app: App) {
 
 const anthropicBaseUrl = 'export ANTHROPIC_BASE_URL=http://127.0.0.1:3000';
 const openaiBaseUrl = 'export OPENAI_BASE_URL=http://127.0.0.1:3000/v1';
+const codexCommand = 'codex -c openai_base_url=http://127.0.0.1:3000/v1';
+const bedrockEnv = 'export CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS=1';
 
 test('anthropic endpoint shows Claude instructions only', () => {
-  renderDialog(llmApp);
+  renderDialog(llmAnthropicApp);
 
   expect(
     screen.getByText('tsh proxy app anthropic --port 3000')
   ).toBeInTheDocument();
   expect(screen.getByText(anthropicBaseUrl)).toBeInTheDocument();
+  expect(screen.queryByText(openaiBaseUrl)).not.toBeInTheDocument();
+  expect(screen.queryByText(bedrockEnv)).not.toBeInTheDocument();
+});
+
+test('bedrock endpoint adds the disable-experimental-betas setup', () => {
+  renderDialog(llmBedrockApp);
+
+  expect(screen.getByText(anthropicBaseUrl)).toBeInTheDocument();
+  expect(screen.getByText(bedrockEnv)).toBeInTheDocument();
   expect(screen.queryByText(openaiBaseUrl)).not.toBeInTheDocument();
 });
 
@@ -58,5 +69,6 @@ test('openai endpoint shows Codex instructions only', () => {
     screen.getByText('tsh proxy app openai --port 3000')
   ).toBeInTheDocument();
   expect(screen.getByText(openaiBaseUrl)).toBeInTheDocument();
+  expect(screen.getByText(codexCommand)).toBeInTheDocument();
   expect(screen.queryByText(anthropicBaseUrl)).not.toBeInTheDocument();
 });

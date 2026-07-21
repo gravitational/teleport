@@ -146,6 +146,7 @@ export default function makeApp(json: any): App {
     isCloud,
     isLLM,
     llmFormat: llm?.format,
+    llmProvider: llm?.provider,
     addrWithProtocol,
     useAnyProxyPublicAddr,
     friendlyName,
