@@ -779,22 +779,6 @@ func (q *sqliteQueue) fetchDeadLetterRange(afterID, maxID int64, limit int) ([]I
 	return items, nil
 }
 
-// fetchDeadLetter reads up to `limit` oldest items from the audit_dead_letter
-// table, quarantining any rows whose payload fails to deserialize.
-func (q *sqliteQueue) fetchDeadLetter(limit int) ([]Item, error) {
-	rows, err := q.db.QueryContext(q.ctx,
-		"SELECT id, payload FROM audit_dead_letter ORDER BY id ASC LIMIT ?", limit)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	items, corrupt, err := scanItems(rows)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	handleCorrupt(q.ctx, q.db, auditDeadLetterTable, corrupt)
-	return items, nil
-}
-
 // ackDeadLetter deletes successfully re-delivered items from audit_dead_letter.
 func (q *sqliteQueue) ackDeadLetter(items []Item) error {
 	return deleteByIDs(q.ctx, q.db, auditDeadLetterTable, items)

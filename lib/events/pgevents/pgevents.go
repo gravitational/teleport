@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -32,6 +33,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/gravitational/teleport"
@@ -382,25 +384,17 @@ func (l *Log) periodicCleanup(ctx context.Context, cleanupInterval, retentionPer
 	}
 }
 
-var _ events.AuditLogger = (*Log)(nil)
+var (
+	_ events.AuditLogger     = (*Log)(nil)
+	_ apievents.BatchEmitter = (*Log)(nil)
+)
 
 // EmitAuditEvent implements [events.AuditLogger].
 func (l *Log) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
 	ctx = context.WithoutCancel(ctx)
 
-	eventJSON, err := utils.FastMarshal(event)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	eventID, err := uuid.Parse(event.GetID())
-	if err != nil {
-		eventID = uuid.New()
-	}
-	sessionID := l.deriveSessionID(ctx, events.GetSessionID(event))
-
 	start := time.Now()
-	err = l.insertEvent(ctx, event, eventID, sessionID, string(eventJSON))
+	err := l.insertEvents(ctx, []apievents.AuditEvent{event})
 	writeLatencies.Observe(time.Since(start).Seconds())
 
 	if err != nil {
@@ -412,40 +406,52 @@ func (l *Log) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) er
 	return nil
 }
 
-func (l *Log) insertEvent(ctx context.Context, event apievents.AuditEvent, eventID, sessionID uuid.UUID, eventJSON string) error {
-	inserted, matches, err := l.tryInsertEvent(ctx, event, eventID, sessionID, eventJSON)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if inserted {
-		return nil
-	}
-	if matches {
-		writeRequestsDeduped.Inc()
-		return nil
+// EmitAuditEvents inserts a batch of audit events.
+func (l *Log) EmitAuditEvents(ctx context.Context, batch []apievents.AuditEvent) error {
+	ctx = context.WithoutCancel(ctx)
+
+	for chunk := range slices.Chunk(batch, maxRowsPerInsert) {
+		start := time.Now()
+		err := l.insertEvents(ctx, chunk)
+		batchWriteLatencies.Observe(time.Since(start).Seconds())
+		if err != nil {
+			writeRequestsFailure.Add(float64(len(chunk)))
+			return trace.Wrap(err)
+		}
+		writeRequestsSuccess.Add(float64(len(chunk)))
 	}
 
-	newID := uuid.New()
-	l.log.WarnContext(ctx,
-		"Audit event collided with a different event sharing the same id. Re-inserting under a new id.",
-		"event_type", event.GetType(),
-		"event_time", event.GetTime().UTC(),
-		"original_event_id", eventID,
-		"new_event_id", newID,
-	)
-	eventIDCollisions.Inc()
+	return nil
+}
 
-	inserted, matches, err = l.tryInsertEvent(ctx, event, newID, sessionID, eventJSON)
+const maxRowsPerInsert = 200
+
+type eventRow struct {
+	eventTime time.Time
+	eventID   uuid.UUID
+	eventType string
+	sessionID uuid.UUID
+	eventData []byte
+}
+
+func (l *Log) getEventRow(ctx context.Context, event apievents.AuditEvent) (eventRow, error) {
+	eventData, err := utils.FastMarshal(event)
 	if err != nil {
-		return trace.Wrap(err)
+		return eventRow{}, trace.Wrap(err)
 	}
-	if inserted || matches {
-		return nil
+
+	eventID, err := uuid.Parse(event.GetID())
+	if err != nil {
+		eventID = uuid.New()
 	}
-	return trace.AlreadyExists(
-		"audit event id collision persisted after generating a new id (event_time %v)",
-		event.GetTime().UTC(),
-	)
+
+	return eventRow{
+		eventTime: event.GetTime().UTC(),
+		eventID:   eventID,
+		eventType: event.GetType(),
+		sessionID: l.deriveSessionID(ctx, events.GetSessionID(event)),
+		eventData: eventData,
+	}, nil
 }
 
 const insertEventQuery = `INSERT INTO events (event_time, event_id, event_type, session_id, event_data)
@@ -456,38 +462,110 @@ const matchEventQuery = `SELECT event_data::jsonb = $3::jsonb
 	FROM events
 	WHERE event_time = $1 AND event_id = $2`
 
-func (l *Log) tryInsertEvent(ctx context.Context, event apievents.AuditEvent, eventID, sessionID uuid.UUID, eventJSON string) (bool, bool, error) {
-	type insertResult struct {
-		inserted bool
-		matches  bool
-	}
-	res, err := pgcommon.RetryIdempotent(ctx, l.log, func() (insertResult, error) {
-		tag, err := l.pool.Exec(ctx, insertEventQuery,
-			event.GetTime().UTC(), eventID, event.GetType(), sessionID, eventJSON,
-		)
+type insertResult struct {
+	inserted bool
+	matches  bool
+}
+
+func (l *Log) insertEvents(ctx context.Context, evts []apievents.AuditEvent) error {
+	rows := make([]eventRow, len(evts))
+	for i, event := range evts {
+		row, err := l.getEventRow(ctx, event)
 		if err != nil {
-			return insertResult{}, trace.Wrap(err)
+			return trace.Wrap(err)
 		}
-		if tag.RowsAffected() > 0 {
-			return insertResult{inserted: true}, nil
+		rows[i] = row
+	}
+
+	results, err := l.pipelineInsert(ctx, rows)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Collect events that collided with a different event.
+	var collisions []eventRow
+	for i, res := range results {
+		switch {
+		case res.inserted:
+			// Inserted without trouble. Nothing to do here.
+		case res.matches:
+			writeRequestsDeduped.Inc()
+		default:
+			newID := uuid.New()
+			l.log.WarnContext(ctx,
+				"Audit event collided with a different event sharing the same id. Re-inserting under a new id.",
+				"event_type", rows[i].eventType,
+				"event_time", rows[i].eventTime,
+				"original_event_id", rows[i].eventID,
+				"new_event_id", newID,
+			)
+			eventIDCollisions.Inc()
+			row := rows[i]
+			row.eventID = newID
+			collisions = append(collisions, row)
+		}
+	}
+
+	if len(collisions) == 0 {
+		return nil
+	}
+
+	results, err = l.pipelineInsert(ctx, collisions)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	for i, res := range results {
+		if !res.inserted && !res.matches {
+			return trace.AlreadyExists(
+				"audit event id collision persisted after generating a new id (event_time %v)",
+				collisions[i].eventTime,
+			)
+		}
+	}
+	return nil
+}
+
+func (l *Log) pipelineInsert(ctx context.Context, rows []eventRow) ([]insertResult, error) {
+	return pgcommon.RetryIdempotent(ctx, l.log, func() ([]insertResult, error) {
+		out := make([]insertResult, len(rows))
+		var insertBatch pgx.Batch
+		for i := range rows {
+			r := rows[i]
+			insertBatch.Queue(insertEventQuery,
+				r.eventTime, r.eventID, r.eventType, r.sessionID, string(r.eventData),
+			).Exec(func(tag pgconn.CommandTag) error {
+				out[i].inserted = tag.RowsAffected() > 0
+				return nil
+			})
+		}
+		if err := l.pool.SendBatch(ctx, &insertBatch).Close(); err != nil {
+			return nil, trace.Wrap(err)
 		}
 
-		var matches bool
-		err = l.pool.QueryRow(ctx, matchEventQuery,
-			event.GetTime().UTC(), eventID, eventJSON,
-		).Scan(&matches)
-		if errors.Is(err, pgx.ErrNoRows) {
-			return insertResult{}, nil
+		var matchBatch pgx.Batch
+		for i := range rows {
+			if out[i].inserted {
+				continue
+			}
+			r := rows[i]
+			matchBatch.Queue(matchEventQuery,
+				r.eventTime, r.eventID, string(r.eventData),
+			).QueryRow(func(row pgx.Row) error {
+				err := row.Scan(&out[i].matches)
+				if errors.Is(err, pgx.ErrNoRows) {
+					return nil
+				}
+				return trace.Wrap(err)
+			})
 		}
-		if err != nil {
-			return insertResult{}, trace.Wrap(err)
+		if matchBatch.Len() == 0 {
+			return out, nil
 		}
-		return insertResult{matches: matches}, nil
+		if err := l.pool.SendBatch(ctx, &matchBatch).Close(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return out, nil
 	})
-	if err != nil {
-		return false, false, trace.Wrap(err)
-	}
-	return res.inserted, res.matches, nil
 }
 
 // searchEvents returns events within the time range, filtering (optionally) by
