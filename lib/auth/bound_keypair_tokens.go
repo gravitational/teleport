@@ -173,14 +173,21 @@ func applyBoundKeypairToken(ctx context.Context, service *Services, token types.
 	}
 
 	// Patch an existing token to keep its status; create it if absent. This
-	// loop only handles the create/patch race (PatchToken already retries
-	// compare failures): patch, and if the token doesn't exist yet, create.
+	// loop handles two races between concurrently starting auth instances:
+	// a compare failure (PatchToken's own retries were exhausted) re-reads and
+	// retries the patch, and a not-found error falls through to create.
 	const attempts = 3
 	for range attempts {
 		_, err := service.PatchToken(ctx, tokenV2.GetName(), func(existing types.ProvisionToken) (types.ProvisionToken, error) {
 			return prepareAppliedBoundKeypairToken(tokenV2, existing)
 		})
-		if !trace.IsNotFound(err) {
+		switch {
+		case trace.IsCompareFailed(err):
+			// Lost the revision race with another starting instance
+			continue
+		case trace.IsNotFound(err):
+			// The token does not exist yet; fall through to create it below.
+		default:
 			// Covers success (err == nil) and any non-recoverable error.
 			return trace.Wrap(err)
 		}
