@@ -275,6 +275,8 @@ export const EventIconMap: Record<EventCode, any> = {
   [eventCodes.EXTERNAL_AUDIT_STORAGE_DISABLE]: Icons.Database,
   [eventCodes.SPIFFE_SVID_ISSUED]: Icons.Keypair,
   [eventCodes.SPIFFE_SVID_ISSUED_FAILURE]: Icons.Warning,
+  [eventCodes.SPIFFE_FEDERATION_CREATE]: Icons.Info,
+  [eventCodes.SPIFFE_FEDERATION_DELETE]: Icons.Info,
   [eventCodes.AUTH_PREFERENCE_UPDATE]: Icons.Info,
   [eventCodes.CLUSTER_NETWORKING_CONFIG_UPDATE]: Icons.Info,
   [eventCodes.SESSION_RECORDING_CONFIG_UPDATE]: Icons.Info,
