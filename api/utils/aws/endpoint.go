@@ -54,6 +54,8 @@ func IsAWSAPIEndpoint(uri string) bool {
 // endpoint domain (amazonaws.com, amazonaws.com.cn, or api.aws). Use this for
 // trust and interception decisions. Use IsAWSEndpoint when deciding whether a
 // legacy endpoint parser should have understood the URI.
+//
+// https://docs.aws.amazon.com/general/latest/gr/rande.html
 func IsAWSOwnedEndpoint(uri string) bool {
 	return IsAWSEndpoint(uri) || IsAWSAPIEndpoint(uri)
 }
