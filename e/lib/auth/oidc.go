@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -41,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/loginrule"
+	liboidc "github.com/gravitational/teleport/lib/oidc"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -93,86 +93,6 @@ func (cfg *OIDCAuthServiceConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
-// oidcRoundTripper wrapps the [http.RoundTripper] provided to the
-// [rp.RelyingParty] to prevent reading response bodies that exceed
-// [maxDataSize].
-//
-// TODO(tross): remove this when https://github.com/zitadel/oidc/issues/738
-// is resolved.
-type oidcRoundTripper struct {
-	rt http.RoundTripper
-}
-
-func (l *oidcRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
-	resp, err := l.rt.RoundTrip(req)
-	if err != nil {
-		return nil, err
-	}
-
-	return &http.Response{
-		Status:           resp.Status,
-		StatusCode:       resp.StatusCode,
-		Proto:            resp.Proto,
-		ProtoMajor:       resp.ProtoMajor,
-		ProtoMinor:       resp.ProtoMinor,
-		Header:           resp.Header,
-		Body:             newLimitReadCloser(resp.Body, resp.Body),
-		ContentLength:    resp.ContentLength,
-		TransferEncoding: resp.TransferEncoding,
-		Close:            resp.Close,
-		Uncompressed:     resp.Uncompressed,
-		Trailer:          resp.Trailer,
-		Request:          resp.Request,
-		TLS:              resp.TLS,
-	}, nil
-}
-
-func (l *oidcRoundTripper) CloseIdleConnections() {
-	type closeIdler interface {
-		CloseIdleConnections()
-	}
-	if tr, ok := l.rt.(closeIdler); ok {
-		tr.CloseIdleConnections()
-	}
-}
-
-const maxDataSize = 1024 * 1024
-
-// limitReadCloser is an [io.ReadCloser] that limits reading
-// less than [maxDataSize] from the reader.
-type limitReadCloser struct {
-	n      int64
-	reader io.Reader
-	closer io.Closer
-}
-
-func newLimitReadCloser(reader io.Reader, closer io.Closer) *limitReadCloser {
-	return &limitReadCloser{
-		n:      maxDataSize + 1,
-		reader: reader,
-		closer: closer,
-	}
-}
-
-func (r *limitReadCloser) Read(p []byte) (int, error) {
-	if r.n <= 0 {
-		// discard rest of the body to free up connection
-		io.Copy(io.Discard, r.reader)
-		return 0, trace.Errorf("response exceeds maximum size of %d bytes", maxDataSize)
-	}
-
-	if int64(len(p)) > r.n {
-		p = p[0:r.n]
-	}
-	n, err := r.reader.Read(p)
-	r.n -= int64(n)
-	return n, err
-}
-
-func (r *limitReadCloser) Close() error {
-	return r.closer.Close()
-}
-
 func NewOIDCAuthService(cfg *OIDCAuthServiceConfig) (*OIDCAuthService, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, err
@@ -182,7 +102,7 @@ func NewOIDCAuthService(cfg *OIDCAuthServiceConfig) (*OIDCAuthService, error) {
 		auth:    cfg.Auth,
 		emitter: cfg.Emitter,
 		client: &http.Client{
-			Transport:     &oidcRoundTripper{rt: cfg.Client.Transport},
+			Transport:     liboidc.NewOIDCRoundTripper(cfg.Client.Transport),
 			CheckRedirect: cfg.Client.CheckRedirect,
 			Jar:           cfg.Client.Jar,
 			Timeout:       cfg.Client.Timeout,
