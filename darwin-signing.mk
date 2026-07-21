@@ -19,7 +19,7 @@ RETRY_TOOL_ENABLED ?= $(if $(filter true yes 1,$(CI)),true)
 RETRY_TOOL_ENABLED := $(if $(filter true yes 1,$(RETRY_TOOL_ENABLED)),true,)
 RETRY_TOOL_RETRIES ?= 3
 RETRY_TOOL_INITIAL ?= 30s
-RETRY_TOOL = $(if $(RETRY_TOOL_ENABLED),go run github.com/gravitational/shared-workflows/tools/retry@main --retries $(RETRY_TOOL_RETRIES) --initial $(RETRY_TOOL_INITIAL) --)
+RETRY_TOOL = $(if $(RETRY_TOOL_ENABLED),go run github.com/gravitational/shared-workflows/tools/retry@v0.0.2 --retries $(RETRY_TOOL_RETRIES) --initial $(RETRY_TOOL_INITIAL) --)
 
 # Default environment name if not specified. This is currently for running
 # locally instead of from GitHub Actions, where ENVIRONMENT_NAME would not be
