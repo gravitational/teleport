@@ -26,15 +26,36 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// IsAWSEndpoint returns true if the input URI is an AWS endpoint.
+// IsAWSEndpoint returns true if the input URI is an AWS endpoint under the
+// amazonaws.com domains. It deliberately excludes api.aws endpoints (see
+// IsAWSAPIEndpoint) because callers like the DynamoDB/OpenSearch endpoint
+// parsers only understand the amazonaws.com shapes and use this check to
+// decide whether a parse failure is a config error. Once those parsers learn
+// the api.aws endpoint shapes, this split may no longer be necessary.
 func IsAWSEndpoint(uri string) bool {
 	hostname, err := removeSchemaAndPort(uri)
 	if err != nil {
 		return false
 	}
-	return strings.HasSuffix(hostname, AWSEndpointSuffix) ||
-		strings.HasSuffix(hostname, AWSCNEndpointSuffix) ||
-		strings.HasSuffix(hostname, AWSAPIEndpointSuffix)
+	return strings.HasSuffix(hostname, AWSEndpointSuffix) || strings.HasSuffix(hostname, AWSCNEndpointSuffix)
+}
+
+// IsAWSAPIEndpoint returns true if the input URI is an AWS endpoint under the
+// api.aws domain, used for dualstack and newer AWS service endpoints.
+func IsAWSAPIEndpoint(uri string) bool {
+	hostname, err := removeSchemaAndPort(uri)
+	if err != nil {
+		return false
+	}
+	return strings.HasSuffix(hostname, AWSAPIEndpointSuffix)
+}
+
+// IsAWSOwnedEndpoint returns true if the input URI is under any AWS-owned
+// endpoint domain (amazonaws.com, amazonaws.com.cn, or api.aws). Use this for
+// trust and interception decisions. Use IsAWSEndpoint when deciding whether a
+// legacy endpoint parser should have understood the URI.
+func IsAWSOwnedEndpoint(uri string) bool {
+	return IsAWSEndpoint(uri) || IsAWSAPIEndpoint(uri)
 }
 
 // IsRDSEndpoint returns true if the input URI is an RDS endpoint.
