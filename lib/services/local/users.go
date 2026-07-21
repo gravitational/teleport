@@ -1471,7 +1471,8 @@ func (s *IdentityService) getSSOMFADevice(ctx context.Context, user string) (*ty
 		return nil, trace.BadParameter("missing parameter user")
 	}
 
-	u, err := s.GetUser(ctx, user, false /* withSecrets */)
+	const withSecrets = false
+	u, err := s.GetUser(ctx, user, withSecrets)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1489,9 +1490,12 @@ func (s *IdentityService) getSSOMFADevice(ctx context.Context, user string) (*ty
 	const ssoMFADisabledErr = "no SSO MFA device found; user's auth connector does not have MFA enabled"
 	switch cb.Connector.Type {
 	case constants.SAML:
-		mfaConnector, err = s.GetSAMLConnector(ctx, cb.Connector.ID, false /* withSecrets */)
+		// Using NoFollowURLs below because getSSOMFADevice only needs connector ID, display and type
+		// to determine if the user has an SSO MFA device.
+		// The URL is followed during connector write and SSO MFA ceremony paths.
+		mfaConnector, err = s.GetSAMLConnectorWithValidationOptions(ctx, cb.Connector.ID, withSecrets, types.SAMLConnectorValidationFollowURLs(false))
 	case constants.OIDC:
-		mfaConnector, err = s.GetOIDCConnector(ctx, cb.Connector.ID, false /* withSecrets */)
+		mfaConnector, err = s.GetOIDCConnector(ctx, cb.Connector.ID, withSecrets)
 	case constants.Github:
 		// Github connectors do not support SSO MFA.
 		return nil, trace.NotFound("%s", ssoMFADisabledErr)
