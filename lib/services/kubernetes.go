@@ -24,7 +24,9 @@ import (
 
 	"github.com/gravitational/trace"
 
+	kubev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -36,8 +38,16 @@ type KubernetesClusterGetter interface {
 	ListKubernetesClusters(ctx context.Context, limit int, start string) ([]types.KubeCluster, string, error)
 	// RangeKubernetesClusters returns kubernetes clusters within the range [start, end).
 	RangeKubernetesClusters(ctx context.Context, start, end string) iter.Seq2[types.KubeCluster, error]
-	// GetKubernetesCluster returns the specified kubernetes cluster resource.
+	// GetKubernetesCluster returns the specified kubernetes cluster resource by name.
 	GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error)
+	// ListKubeClusters returns a page of registered kube clusters with the ability to apply
+	// scope filters.
+	ListKubeClusters(ctx context.Context, req *kubev1.ListKubeClustersRequest) ([]types.KubeCluster, string, error)
+	// RangeKubeClusters returns kube clusters within the range [start, end) with the ability to
+	// apply scope filters.
+	RangeKubeClusters(ctx context.Context, req *kubev1.ListKubeClustersRequest, startKey, endKey string) iter.Seq2[types.KubeCluster, error]
+	// GetKubeCluster returns the specified kube cluster resource by scope and name.
+	GetKubeCluster(ctx context.Context, req *kubev1.GetKubeClusterRequest) (types.KubeCluster, error)
 }
 
 // KubernetesServerGetter defines interface for fetching kubernetes server resources.
@@ -58,6 +68,9 @@ type Kubernetes interface {
 	DeleteKubernetesCluster(ctx context.Context, name string) error
 	// DeleteAllKubernetesClusters removes all kubernetes resources.
 	DeleteAllKubernetesClusters(context.Context) error
+	// DeleteKubeCluster removes the specified kube cluster resource with
+	// respect to its scope.
+	DeleteKubeCluster(ctx context.Context, req *kubev1.DeleteKubeClusterRequest) error
 }
 
 // MarshalKubeServer marshals the KubeServer resource to JSON.
@@ -166,4 +179,10 @@ func UnmarshalKubeCluster(data []byte, opts ...MarshalOption) (types.KubeCluster
 		return &s, nil
 	}
 	return nil, trace.BadParameter("unsupported kube cluster resource version %q", h.Version)
+}
+
+// GetCursorForKubeCluster returns the backend key for a kube cluster with
+// consideration for whether or not it is scoped.
+func GetCursorForKubeCluster(cluster types.KubeCluster) string {
+	return scopes.MakeResourceCursor(cluster.GetScope(), cluster.GetName())
 }

@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/tool/common"
@@ -180,40 +181,29 @@ func getScopedKubeCluster(ctx context.Context, client *authclient.Client, subKin
 		return nil, rejectSubKind(types.KindKubernetesCluster, subKind)
 	}
 
-	kubeClient := client.KubeClusterServiceClient()
 	if sqn != nil {
-		getRes, err := kubeClient.GetKubeCluster(ctx, kubev1.GetKubeClusterRequest_builder{
+		cluster, err := client.GetKubeCluster(ctx, kubev1.GetKubeClusterRequest_builder{
 			Scope: sqn.Scope,
 			Name:  sqn.Name,
 		}.Build())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		cluster := getRes.GetCluster()
 		if cluster.GetScope() != sqn.Scope {
 			return nil, scopeMismatchNotFound(types.KindKubernetesCluster, *sqn, cluster.GetScope())
 		}
 		return NewKubeClusterCollection([]types.KubeCluster{cluster}), nil
 	}
 
-	var clusters []types.KubeCluster
-	for cluster, err := range clientutils.Resources(ctx, func(ctx context.Context, pageSize int, pageKey string) ([]*types.KubernetesClusterV3, string, error) {
-		res, err := kubeClient.ListKubeClusters(ctx, kubev1.ListKubeClustersRequest_builder{
+	clusters, err := stream.Collect(clientutils.Resources(ctx, func(ctx context.Context, pageSize int, pageKey string) ([]types.KubeCluster, string, error) {
+		return client.ListKubeClusters(ctx, kubev1.ListKubeClustersRequest_builder{
 			PageSize:    int32(pageSize),
 			PageToken:   pageKey,
 			ScopeFilter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_ALL}.Build(),
 		}.Build())
-		if err != nil {
-			return nil, "", trace.Wrap(err)
-		}
-
-		return res.GetClusters(), res.GetNextPageToken(), nil
-	}) {
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		clusters = append(clusters, cluster)
+	}))
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	return NewKubeClusterCollection(clusters), nil
@@ -269,21 +259,20 @@ func deleteScopedKubeCluster(ctx context.Context, client *authclient.Client, sub
 		return rejectSubKind(types.KindKubernetesCluster, subKind)
 	}
 
-	kubeClient := client.KubeClusterServiceClient()
 	// Fetch first to verify scope before deleting.
-	getRes, err := kubeClient.GetKubeCluster(ctx, kubev1.GetKubeClusterRequest_builder{
+	cluster, err := client.GetKubeCluster(ctx, kubev1.GetKubeClusterRequest_builder{
 		Scope: sqn.Scope,
 		Name:  sqn.Name,
 	}.Build())
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	cluster := getRes.GetCluster()
+
 	if cluster.GetScope() != sqn.Scope {
 		return scopeMismatchNotFound(types.KindScopedToken, sqn, cluster.GetScope())
 	}
 
-	if _, err := kubeClient.DeleteKubeCluster(ctx, kubev1.DeleteKubeClusterRequest_builder{
+	if err := client.DeleteKubeCluster(ctx, kubev1.DeleteKubeClusterRequest_builder{
 		Scope: sqn.Scope,
 		Name:  sqn.Name,
 	}.Build()); err != nil {

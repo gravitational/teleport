@@ -44,7 +44,6 @@ import (
 const testClusterName = "test-cluster"
 
 func TestKubeClusterService(t *testing.T) {
-	ctx := t.Context()
 	pack := newBackendPack(t)
 
 	scopedCluster := newKubeCluster(t, "/aa/aa", "kube-cluster", map[string]string{
@@ -60,7 +59,7 @@ func TestKubeClusterService(t *testing.T) {
 		"env": "test",
 	})
 	for _, cluster := range []types.KubeCluster{scopedCluster, orthogonalCluster, prodCluster, unscopedCluster} {
-		require.NoError(t, pack.kubeService.CreateKubernetesCluster(ctx, cluster))
+		require.NoError(t, pack.kubeService.CreateKubernetesCluster(t.Context(), cluster))
 	}
 
 	reader := newServerForIdentity(t, pack, &services.AccessInfo{
@@ -103,7 +102,7 @@ func TestKubeClusterService(t *testing.T) {
 	}, errors.New("test failure"))
 
 	t.Run("get scoped cluster", func(t *testing.T) {
-		res, err := reader.GetKubeCluster(ctx, kubev1.GetKubeClusterRequest_builder{
+		res, err := reader.GetKubeCluster(t.Context(), kubev1.GetKubeClusterRequest_builder{
 			Scope: scopedCluster.GetScope(),
 			Name:  scopedCluster.GetName(),
 		}.Build())
@@ -113,12 +112,12 @@ func TestKubeClusterService(t *testing.T) {
 	})
 
 	t.Run("get denies unscoped and orthogonal clusters", func(t *testing.T) {
-		_, err := reader.GetKubeCluster(ctx, kubev1.GetKubeClusterRequest_builder{
+		_, err := reader.GetKubeCluster(t.Context(), kubev1.GetKubeClusterRequest_builder{
 			Name: unscopedCluster.GetName(),
 		}.Build())
 		require.True(t, trace.IsAccessDenied(err), "expected access denied, got %v", err)
 
-		_, err = reader.GetKubeCluster(ctx, kubev1.GetKubeClusterRequest_builder{
+		_, err = reader.GetKubeCluster(t.Context(), kubev1.GetKubeClusterRequest_builder{
 			Scope: orthogonalCluster.GetScope(),
 			Name:  orthogonalCluster.GetName(),
 		}.Build())
@@ -126,13 +125,13 @@ func TestKubeClusterService(t *testing.T) {
 	})
 
 	t.Run("get applies kube label access", func(t *testing.T) {
-		_, err := reader.GetKubeCluster(ctx, kubev1.GetKubeClusterRequest_builder{
+		_, err := reader.GetKubeCluster(t.Context(), kubev1.GetKubeClusterRequest_builder{
 			Scope: prodCluster.GetScope(),
 			Name:  prodCluster.GetName(),
 		}.Build())
 		require.True(t, trace.IsAccessDenied(err), "expected access denied, got %v", err)
 
-		res, err := prodReader.GetKubeCluster(ctx, kubev1.GetKubeClusterRequest_builder{
+		res, err := prodReader.GetKubeCluster(t.Context(), kubev1.GetKubeClusterRequest_builder{
 			Scope: prodCluster.GetScope(),
 			Name:  prodCluster.GetName(),
 		}.Build())
@@ -141,7 +140,7 @@ func TestKubeClusterService(t *testing.T) {
 	})
 
 	t.Run("list filters inaccessible clusters", func(t *testing.T) {
-		res, err := reader.ListKubeClusters(ctx, kubev1.ListKubeClustersRequest_builder{
+		res, err := reader.ListKubeClusters(t.Context(), kubev1.ListKubeClustersRequest_builder{
 			PageSize: 10,
 		}.Build())
 		require.NoError(t, err)
@@ -152,7 +151,7 @@ func TestKubeClusterService(t *testing.T) {
 	})
 
 	t.Run("list applies kube label access", func(t *testing.T) {
-		res, err := prodReader.ListKubeClusters(ctx, kubev1.ListKubeClustersRequest_builder{
+		res, err := prodReader.ListKubeClusters(t.Context(), kubev1.ListKubeClustersRequest_builder{
 			PageSize: 10,
 		}.Build())
 		require.NoError(t, err)
@@ -166,22 +165,22 @@ func TestKubeClusterService(t *testing.T) {
 		secondCluster := newKubeCluster(t, "/aa/aa", "second-cluster", map[string]string{
 			"env": "test",
 		})
-		require.NoError(t, pack.kubeService.CreateKubernetesCluster(ctx, secondCluster))
+		require.NoError(t, pack.kubeService.CreateKubernetesCluster(t.Context(), secondCluster))
 		t.Cleanup(func() {
-			pack.kubeService.DeleteKubeCluster(ctx, kubev1.DeleteKubeClusterRequest_builder{
+			pack.kubeService.DeleteKubeCluster(t.Context(), kubev1.DeleteKubeClusterRequest_builder{
 				Scope: secondCluster.GetScope(),
 				Name:  secondCluster.GetName(),
 			}.Build())
 		})
 
-		firstPage, err := reader.ListKubeClusters(ctx, kubev1.ListKubeClustersRequest_builder{
+		firstPage, err := reader.ListKubeClusters(t.Context(), kubev1.ListKubeClustersRequest_builder{
 			PageSize: 1,
 		}.Build())
 		require.NoError(t, err)
 		require.Len(t, firstPage.GetClusters(), 1)
 		require.NotEmpty(t, firstPage.GetNextPageToken())
 
-		secondPage, err := reader.ListKubeClusters(ctx, kubev1.ListKubeClustersRequest_builder{
+		secondPage, err := reader.ListKubeClusters(t.Context(), kubev1.ListKubeClustersRequest_builder{
 			PageSize:  1,
 			PageToken: firstPage.GetNextPageToken(),
 		}.Build())
@@ -192,7 +191,7 @@ func TestKubeClusterService(t *testing.T) {
 	})
 
 	t.Run("reader cannot delete cluster", func(t *testing.T) {
-		_, err := reader.DeleteKubeCluster(ctx, kubev1.DeleteKubeClusterRequest_builder{
+		_, err := reader.DeleteKubeCluster(t.Context(), kubev1.DeleteKubeClusterRequest_builder{
 			Scope: scopedCluster.GetScope(),
 			Name:  scopedCluster.GetName(),
 		}.Build())
@@ -200,7 +199,7 @@ func TestKubeClusterService(t *testing.T) {
 	})
 
 	t.Run("deleter cannot delete orthogonal cluster", func(t *testing.T) {
-		_, err := deleter.DeleteKubeCluster(ctx, kubev1.DeleteKubeClusterRequest_builder{
+		_, err := deleter.DeleteKubeCluster(t.Context(), kubev1.DeleteKubeClusterRequest_builder{
 			Scope: orthogonalCluster.GetScope(),
 			Name:  orthogonalCluster.GetName(),
 		}.Build())
@@ -211,15 +210,15 @@ func TestKubeClusterService(t *testing.T) {
 		clusterForDelete := newKubeCluster(t, "/aa/aa", "delete-cluster", map[string]string{
 			"env": "test",
 		})
-		require.NoError(t, pack.kubeService.CreateKubernetesCluster(ctx, clusterForDelete))
+		require.NoError(t, pack.kubeService.CreateKubernetesCluster(t.Context(), clusterForDelete))
 
-		_, err := deleter.DeleteKubeCluster(ctx, kubev1.DeleteKubeClusterRequest_builder{
+		_, err := deleter.DeleteKubeCluster(t.Context(), kubev1.DeleteKubeClusterRequest_builder{
 			Scope: clusterForDelete.GetScope(),
 			Name:  clusterForDelete.GetName(),
 		}.Build())
 		require.NoError(t, err)
 
-		_, err = pack.kubeService.GetKubeCluster(ctx, kubev1.GetKubeClusterRequest_builder{
+		_, err = pack.kubeService.GetKubeCluster(t.Context(), kubev1.GetKubeClusterRequest_builder{
 			Scope: clusterForDelete.GetScope(),
 			Name:  clusterForDelete.GetName(),
 		}.Build())
@@ -227,7 +226,7 @@ func TestKubeClusterService(t *testing.T) {
 	})
 
 	t.Run("unscoped can get a cluster", func(t *testing.T) {
-		res, err := unscoped.GetKubeCluster(ctx, kubev1.GetKubeClusterRequest_builder{
+		res, err := unscoped.GetKubeCluster(t.Context(), kubev1.GetKubeClusterRequest_builder{
 			Scope: scopedCluster.GetScope(),
 			Name:  scopedCluster.GetName(),
 		}.Build())
@@ -237,7 +236,7 @@ func TestKubeClusterService(t *testing.T) {
 	})
 
 	t.Run("unscoped-denier can not get a cluster", func(t *testing.T) {
-		_, err := unscopedDenier.GetKubeCluster(ctx, kubev1.GetKubeClusterRequest_builder{
+		_, err := unscopedDenier.GetKubeCluster(t.Context(), kubev1.GetKubeClusterRequest_builder{
 			Scope: scopedCluster.GetScope(),
 			Name:  scopedCluster.GetName(),
 		}.Build())
@@ -248,15 +247,15 @@ func TestKubeClusterService(t *testing.T) {
 		clusterForDelete := newKubeCluster(t, "/aa/aa", "delete-cluster", map[string]string{
 			"env": "test",
 		})
-		require.NoError(t, pack.kubeService.CreateKubernetesCluster(ctx, clusterForDelete))
+		require.NoError(t, pack.kubeService.CreateKubernetesCluster(t.Context(), clusterForDelete))
 
-		_, err := unscoped.DeleteKubeCluster(ctx, kubev1.DeleteKubeClusterRequest_builder{
+		_, err := unscoped.DeleteKubeCluster(t.Context(), kubev1.DeleteKubeClusterRequest_builder{
 			Scope: clusterForDelete.GetScope(),
 			Name:  clusterForDelete.GetName(),
 		}.Build())
 		require.NoError(t, err)
 
-		_, err = pack.kubeService.GetKubeCluster(ctx, kubev1.GetKubeClusterRequest_builder{
+		_, err = pack.kubeService.GetKubeCluster(t.Context(), kubev1.GetKubeClusterRequest_builder{
 			Scope: clusterForDelete.GetScope(),
 			Name:  clusterForDelete.GetName(),
 		}.Build())
@@ -267,21 +266,21 @@ func TestKubeClusterService(t *testing.T) {
 		clusterForDelete := newKubeCluster(t, "/aa/aa", "delete-cluster", map[string]string{
 			"env": "test",
 		})
-		require.NoError(t, pack.kubeService.CreateKubernetesCluster(ctx, clusterForDelete))
+		require.NoError(t, pack.kubeService.CreateKubernetesCluster(t.Context(), clusterForDelete))
 
-		_, err := unscopedDenier.DeleteKubeCluster(ctx, kubev1.DeleteKubeClusterRequest_builder{
+		_, err := unscopedDenier.DeleteKubeCluster(t.Context(), kubev1.DeleteKubeClusterRequest_builder{
 			Scope: clusterForDelete.GetScope(),
 			Name:  clusterForDelete.GetName(),
 		}.Build())
 		require.Error(t, err)
 		t.Cleanup(func() {
-			pack.kubeService.DeleteKubeCluster(ctx, kubev1.DeleteKubeClusterRequest_builder{
+			pack.kubeService.DeleteKubeCluster(t.Context(), kubev1.DeleteKubeClusterRequest_builder{
 				Scope: clusterForDelete.GetScope(),
 				Name:  clusterForDelete.GetName(),
 			}.Build())
 		})
 
-		cluster, err := pack.kubeService.GetKubeCluster(ctx, kubev1.GetKubeClusterRequest_builder{
+		cluster, err := pack.kubeService.GetKubeCluster(t.Context(), kubev1.GetKubeClusterRequest_builder{
 			Scope: clusterForDelete.GetScope(),
 			Name:  clusterForDelete.GetName(),
 		}.Build())
@@ -290,7 +289,7 @@ func TestKubeClusterService(t *testing.T) {
 	})
 
 	t.Run("unscoped can list all clusters", func(t *testing.T) {
-		res, err := unscoped.ListKubeClusters(ctx, kubev1.ListKubeClustersRequest_builder{
+		res, err := unscoped.ListKubeClusters(t.Context(), kubev1.ListKubeClustersRequest_builder{
 			PageSize: 10,
 		}.Build())
 		require.NoError(t, err)
@@ -299,7 +298,7 @@ func TestKubeClusterService(t *testing.T) {
 	})
 
 	t.Run("unscoped-denier can list no clusters", func(t *testing.T) {
-		_, err := unscopedDenier.ListKubeClusters(ctx, kubev1.ListKubeClustersRequest_builder{
+		_, err := unscopedDenier.ListKubeClusters(t.Context(), kubev1.ListKubeClustersRequest_builder{
 			PageSize: 10,
 		}.Build())
 		require.Error(t, err)

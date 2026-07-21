@@ -3178,7 +3178,6 @@ func (process *TeleportProcess) newAccessCacheForServices(cfg accesspoint.Config
 	cfg.Integrations = services.Integrations
 	cfg.KubeWaitingContainers = services.KubeWaitingContainer
 	cfg.Kubernetes = services.Kubernetes
-	cfg.KubeClusterUpstream = services.KubeClusterService
 	cfg.Notifications = services.Notifications
 	cfg.Okta = services.Okta
 	cfg.Presence = services.PresenceInternal
@@ -3240,7 +3239,6 @@ func (process *TeleportProcess) newAccessCacheForClient(cfg accesspoint.Config, 
 	cfg.UserTasks = client.UserTasksServiceClient()
 	cfg.KubeWaitingContainers = client
 	cfg.Kubernetes = client
-	cfg.KubeClusterUpstream = services.NewKubeClusterClientAdapter(client.KubeClusterServiceClient())
 	cfg.Notifications = client
 	cfg.Okta = client.OktaClient()
 	cfg.Presence = client

@@ -854,8 +854,6 @@ type Config struct {
 	Summarizer services.Summarizer
 	// SubCAService reads CertAuthorityOverride resources.
 	SubCAService services.SubCAServiceGetter
-	// KubeClusterUpstream reads KubeCluster resources.
-	KubeClusterUpstream services.KubeClusterUpstream
 }
 
 // CheckAndSetDefaults checks parameters and sets default values

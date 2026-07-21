@@ -179,6 +179,9 @@ type ReadProxyAccessPoint interface {
 	// resources.
 	services.HealthCheckConfigReader
 
+	// KubernetesClusterGetter defines methods for fetching kube cluster resources
+	services.KubernetesClusterGetter
+
 	// NewWatcher returns a new event watcher.
 	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
 
@@ -324,15 +327,6 @@ type ReadProxyAccessPoint interface {
 	GetWindowsDesktopService(ctx context.Context, name string) (types.WindowsDesktopService, error)
 
 	GetLinuxDesktop(ctx context.Context, name string) (*linuxdesktopv1.LinuxDesktop, error)
-
-	// GetKubernetesClusters returns all kubernetes cluster resources.
-	GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster, error)
-	// ListKubernetesClusters returns a page of registered kubernetes clusters.
-	ListKubernetesClusters(ctx context.Context, limit int, start string) ([]types.KubeCluster, string, error)
-	// RangeKubernetesClusters returns kubernetes clusters within the range [start, end).
-	RangeKubernetesClusters(ctx context.Context, start, end string) iter.Seq2[types.KubeCluster, error]
-	// GetKubernetesCluster returns the specified kubernetes cluster resource.
-	GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error)
 
 	// GetSAMLIdPServiceProvider returns the specified SAML IdP service provider resources.
 	GetSAMLIdPServiceProvider(ctx context.Context, name string) (types.SAMLIdPServiceProvider, error)
@@ -548,6 +542,9 @@ type ReadKubernetesAccessPoint interface {
 	// resources.
 	services.HealthCheckConfigReader
 
+	// KubernetesClusterGetter defines methods for fetching kube cluster resources
+	services.KubernetesClusterGetter
+
 	// NewWatcher returns a new event watcher.
 	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
 
@@ -593,15 +590,6 @@ type ReadKubernetesAccessPoint interface {
 	// container that are waiting to be created until moderated
 	// session conditions are met.
 	GetKubernetesWaitingContainer(ctx context.Context, req *kubewaitingcontainerpb.GetKubernetesWaitingContainerRequest) (*kubewaitingcontainerpb.KubernetesWaitingContainer, error)
-
-	// GetKubernetesClusters returns all kubernetes cluster resources.
-	GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster, error)
-	// ListKubernetesClusters returns a page of registered kubernetes clusters.
-	ListKubernetesClusters(ctx context.Context, limit int, start string) ([]types.KubeCluster, string, error)
-	// RangeKubernetesClusters returns kubernetes clusters within the range [start, end).
-	RangeKubernetesClusters(ctx context.Context, start, end string) iter.Seq2[types.KubeCluster, error]
-	// GetKubernetesCluster returns the specified kubernetes cluster resource.
-	GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error)
 }
 
 // KubernetesAccessPoint is an API interface implemented by a certificate authority (CA) to be
@@ -1182,6 +1170,9 @@ type Cache interface {
 	// Closer closes all the resources
 	io.Closer
 
+	// KubernetesClusterGetter defines methods for fetching kube cluster resources
+	services.KubernetesClusterGetter
+
 	// NewWatcher returns a new event watcher.
 	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
 
@@ -1417,15 +1408,6 @@ type Cache interface {
 	// RangeInstallers returns installer script resources within the range [start, end).
 	RangeInstallers(ctx context.Context, start, end string) iter.Seq2[types.Installer, error]
 
-	// GetKubernetesClusters returns all kubernetes cluster resources.
-	GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster, error)
-	// ListKubernetesClusters returns a page of registered kubernetes clusters.
-	ListKubernetesClusters(ctx context.Context, limit int, start string) ([]types.KubeCluster, string, error)
-	// RangeKubernetesClusters returns kubernetes clusters within the range [start, end).
-	RangeKubernetesClusters(ctx context.Context, start, end string) iter.Seq2[types.KubeCluster, error]
-	// GetKubernetesCluster returns the specified kubernetes cluster resource.
-	GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error)
-
 	// ListSAMLIdPServiceProviders returns a paginated list of SAML IdP service provider resources.
 	ListSAMLIdPServiceProviders(ctx context.Context, pageSize int, nextKey string) ([]types.SAMLIdPServiceProvider, string, error)
 	// GetSAMLIdPServiceProvider returns the specified SAML IdP service provider resources.
@@ -1601,8 +1583,9 @@ type Cache interface {
 
 	// SubCAServiceGetter reads CertAuthorityOverride resources.
 	services.SubCAServiceGetter
-	// KubeClusterReader reads KubeCluster resources.
-	services.KubeClusterReader
+
+	// KubernetesClusterGetter reads KubeCluster resources.
+	services.KubernetesClusterGetter
 }
 
 type NodeWrapper struct {
