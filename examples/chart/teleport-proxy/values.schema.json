@@ -48,7 +48,7 @@
                 "method": {
                     "$id": "#/properties/joinParams/method",
                     "type": "string",
-                    "default": ""
+                    "default": "kubernetes"
                 },
                 "tokenName": {
                     "$id": "#/properties/joinParams/tokenName",
@@ -56,7 +56,7 @@
                     "default": ""
                 },
                 "azure":  {
-                    "$id": "#properties/joinParams/azure",
+                    "$id": "#/properties/joinParams/azure",
                     "type": "object",
                     "properties": {
                         "clientId": {
@@ -128,7 +128,7 @@
         "proxyListenerMode": {
             "$id": "#/properties/proxyListenerMode",
             "type": "string",
-            "default": ""
+            "default": "separate"
         },
         "separatePostgresListener": {
             "$id": "#/properties/separatePostgresListener",
@@ -296,17 +296,17 @@
                         "addCommonName": {
                             "$id": "#/properties/highAvailability/properties/certManager/properties/addCommonName",
                             "type": "boolean",
-                            "default": "false"
+                            "default": false
                         },
                         "addPublicAddrs": {
                             "$id": "#/properties/highAvailability/properties/certManager/properties/addPublicAddrs",
                             "type": "boolean",
-                            "default": "false"
+                            "default": false
                         },
                         "enabled": {
                             "$id": "#/properties/highAvailability/properties/certManager/properties/enabled",
                             "type": "boolean",
-                            "default": "false"
+                            "default": false
                         },
                         "issuerName": {
                             "$id": "#/properties/highAvailability/properties/certManager/properties/issuerName",
@@ -511,7 +511,7 @@
             ],
             "properties": {
                 "type": {
-                    "$id": "#properties/service/type",
+                    "$id": "#/properties/service/type",
                     "type": "string",
                     "default": "LoadBalancer"
                 },
@@ -523,25 +523,34 @@
             }
         },
         "ingress": {
-            "enabled": {
-                "$id": "#/properties/ingress/enabled",
-                "type": "boolean",
-                "default": false
-            },
-            "suppressAutomaticWildcards": {
-                "$id": "#/properties/ingress/suppressAutomaticWildcards",
-                "type": "boolean",
-                "default": false
-            },
-            "useExisting": {
-                "$id": "#/properties/ingress/useExisting",
-                "type": "boolean",
-                "default": false
-            },
-            "spec": {
-                "$id": "#/properties/ingress/spec",
-                "type": "object",
-                "default": {}
+            "$id": "#/properties/ingress",
+            "type": "object",
+            "required": [
+                "enabled",
+                "suppressAutomaticWildcards",
+                "useExisting"
+            ],
+            "properties": {
+                "enabled": {
+                    "$id": "#/properties/ingress/enabled",
+                    "type": "boolean",
+                    "default": false
+                },
+                "suppressAutomaticWildcards": {
+                    "$id": "#/properties/ingress/suppressAutomaticWildcards",
+                    "type": "boolean",
+                    "default": false
+                },
+                "useExisting": {
+                    "$id": "#/properties/ingress/useExisting",
+                    "type": "boolean",
+                    "default": false
+                },
+                "spec": {
+                    "$id": "#/properties/ingress/spec",
+                    "type": "object",
+                    "default": {}
+                }
             }
         },
         "serviceAccount": {
@@ -550,12 +559,12 @@
             "required": [],
             "properties": {
                 "name": {
-                    "$id": "#properties/service/name",
+                    "$id": "#/properties/serviceAccount/name",
                     "type": "string",
                     "default": ""
                 },
                 "create": {
-                    "$id": "#properties/service/create",
+                    "$id": "#/properties/serviceAccount/create",
                     "type": "boolean",
                     "default": true
                 }
@@ -567,7 +576,7 @@
             "required": [],
             "properties": {
                 "create": {
-                    "$id": "#properties/rbac/create",
+                    "$id": "#/properties/rbac/create",
                     "type": "boolean",
                     "default": true
                 }
@@ -626,7 +635,7 @@
             ],
             "properties": {
                 "command": {
-                    "$id": "#properties/postStart/command",
+                    "$id": "#/properties/postStart/command",
                     "type": "array",
                     "default": []
                 }
@@ -675,7 +684,7 @@
         "probeTimeoutSeconds": {
             "$id": "#/properties/probeTimeoutSeconds",
             "type": "integer",
-            "default": 1
+            "default": 5
         },
         "terminationGracePeriodSeconds": {
             "$id": "#/properties/terminationGracePeriodSeconds",

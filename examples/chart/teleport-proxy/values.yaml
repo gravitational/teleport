@@ -16,9 +16,8 @@
 clusterName: ""
 
 # authServer(string) -- the address this proxy should use to contact the Auth
-# service. This should be
-# be an \<IP\>:\<PORT\> for an internal network path to the Auth Service. Port
-# defaults to 3025 if not specified.
+# service. This should be an \<IP\>:\<PORT\> for an internal network path to the
+# Auth Service. Port defaults to 3025 if not specified.
 # If running on the same kube cluster as the Auth Service, consider using the
 # teleport-cluster chart instead.
 authServer: ""
@@ -226,11 +225,11 @@ licenseSecretName: "license"
 # mode is reserved for potential future use and to parallel the config shape of
 # the `teleport-cluster` chart.
 # - "standalone": Generate config file, but no cloud-specific settings
-# - "aws": Use when running on EKS
-# - "gcp": Use when running on GKE
-# - "azure": Use when running on AKS
+# - "aws": Use when running on EKS.
+# - "gcp": Use when running on GKE.
+# - "azure": Use when running on AKS.
 # - "scratch": Do not generate config file. You must supply one (see
-#    teleportConfig below.)
+#    teleportConfig below).
 chartMode: standalone
 
 # validateConfigOnDeploy(bool) -- enables a Kubernetes job before install and
@@ -478,7 +477,7 @@ extraLabels:
 # To set annotations on the service account, use the 
 # `annotations.serviceAccount` value.
 serviceAccount:
-  # serviceAccount.create(boole) -- specifies whether a ServiceAccount should be created
+  # serviceAccount.create(bool) -- specifies whether a ServiceAccount should be created
   create: true
   # serviceAccount.name(string) -- is the name of the ServiceAccount to use.
   # If not set and serviceAccount.create is true, the name is generated using the release name.
