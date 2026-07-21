@@ -635,8 +635,9 @@ func (cfg *Config) SetAuthServerAddress(addr utils.NetAddr) {
 	cfg.authServers = []utils.NetAddr{addr}
 }
 
-// ProxyWebAddr returns the address of the proxy web API: the configured proxy
-// for v3 configs, otherwise the first auth server address.
+// ProxyWebAddr returns the address used to reach the cluster's web API: the
+// configured proxy for v3 configs, otherwise the first address in auth_servers
+// (in v1/v2 configs, this could be either a proxy or an auth server).
 //
 // Config validation guarantees one of the two is set. Returns an empty NetAddr
 // if no addresses are configured, which is unreachable for a validated config.
