@@ -34,8 +34,10 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/join/githubactions"
 	"github.com/gravitational/teleport/lib/join/joinclient"
+	"github.com/gravitational/teleport/lib/join/jointest"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
+	"github.com/gravitational/teleport/lib/scopes"
 )
 
 type mockIDTokenValidator struct {
@@ -119,8 +121,9 @@ func TestJoinGHA(t *testing.T) {
 	testModules := modulestest.OSSModules()
 	authServer, err := authtest.NewTestServer(authtest.ServerConfig{
 		Auth: authtest.AuthServerConfig{
-			Dir:     t.TempDir(),
-			Modules: testModules,
+			Dir:            t.TempDir(),
+			Modules:        testModules,
+			ScopesFeatures: scopes.Features{Enabled: true},
 		},
 	})
 	require.NoError(t, err)
@@ -698,15 +701,36 @@ func TestJoinGHA(t *testing.T) {
 			} else {
 				testModules.TestBuildType = modules.BuildOSS
 			}
+			nopClient, err := authServer.NewClient(authtest.TestNop())
+			require.NoError(t, err)
+
+			t.Run("scoped joinclient", func(t *testing.T) {
+				scopedToken := jointest.CreateScopedToken(t, authServer.Auth(), tt.tokenSpec, "scoped_"+tt.name)
+				result, err := joinclient.Join(t.Context(), joinclient.JoinParams{
+					Token:      scopedToken.GetMetadata().GetName(),
+					JoinMethod: types.JoinMethodGitHub,
+					ID: state.IdentityID{
+						Role:     types.RoleInstance,
+						NodeName: "testnode",
+					},
+					IDToken:    tt.request.IDToken,
+					AuthClient: nopClient,
+				})
+				tt.assertError(t, err)
+				if err != nil {
+					return
+				}
+
+				checkMockGithubValidatorState(t, idTokenValidator, tt.tokenSpec)
+				jointest.RequireScopedHostResult(t, result, scopedToken)
+			})
+
 			token, err := types.NewProvisionTokenFromSpec(
 				tt.name, time.Now().Add(time.Minute), tt.tokenSpec,
 			)
 			require.NoError(t, err)
 			require.NoError(t, authServer.Auth().CreateToken(t.Context(), token))
 			tt.request.Token = tt.name
-
-			nopClient, err := authServer.NewClient(authtest.TestNop())
-			require.NoError(t, err)
 
 			t.Run("legacy joinclient", func(t *testing.T) {
 				_, err := joinclient.LegacyJoin(t.Context(), joinclient.JoinParams{
@@ -746,7 +770,6 @@ func TestJoinGHA(t *testing.T) {
 
 				checkMockGithubValidatorState(t, idTokenValidator, tt.tokenSpec)
 			})
-
 			t.Run("legacy", func(t *testing.T) {
 				_, err = authServer.Auth().RegisterUsingToken(t.Context(), tt.request)
 				tt.assertError(t, err)
