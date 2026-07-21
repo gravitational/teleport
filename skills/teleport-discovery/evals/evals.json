@@ -319,6 +319,103 @@
         "The teleport provider version constraint in the applied configuration floors at the 18.7.6 module minimum or the cluster major and caps below the next major.",
         "The agent verified the resources itself following references/monitor.md and reported the verification in final-response.md."
       ]
+    },
+    {
+      "id": 18,
+      "eval_name": "aws-organization-write-all-accounts",
+      "cloud": "aws",
+      "tier": "write",
+      "fixture": "cloud-aws-organization",
+      "copy_fixture": null,
+      "prompt": "Set up AWS Organization auto-discovery on our Teleport Cloud tenant acme.teleport.sh in every account and every region tagged env=prod. Do not exclude any accounts. Terraform will run with management-account credentials, and both the Discovery Service and Auth Service use credentials from that management account. The plan is approved. Write the Terraform into a new directory, but do not run terraform init, plan, or apply.",
+      "assertions": [
+        "Wrote Terraform into a new directory under outputs/ with versions.tf and main.tf, and terraform validate passes for that directory.",
+        "The agent treated this as AWS Organization scope, not single-account discovery, because the prompt explicitly requests every account.",
+        "The aws_discovery module sets aws_organization_discovery.organizational_units.include to exactly [\"*\"] and exclude to exactly []. It does not invent Root or Organizational Unit IDs.",
+        "Exactly one AWS matcher is present with types [\"ec2\"], regions omitted or [\"*\"], and tags {env: [\"prod\"]}. No EKS matcher or kube_app_discovery setting is present.",
+        "main.tf exports module.aws_discovery.aws_child_account_iam_role_template through an output named exactly aws_child_account_iam_role_template, in addition to integration_name, discovery_config_name, oidc_provider_arn, and discovery_role_arn.",
+        "The module source is exactly terraform.releases.teleport.dev/teleport/discovery/aws and its version is >= 18.10.2, < 19.0.0. The teleport provider constraint is >= 18.8.3, < 19.0.0.",
+        "create_aws_iam_openid_connect_provider is NOT set to false because the fixture account has no matching OIDC provider.",
+        "The agent ran no terraform. outputs/ contains no agent-created .terraform directory, .tfstate, or .terraform.lock.hcl."
+      ]
+    },
+    {
+      "id": 19,
+      "eval_name": "aws-organization-reject-old-cluster",
+      "cloud": "aws",
+      "tier": "write",
+      "fixture": "cloud-aws",
+      "copy_fixture": null,
+      "prompt": "Configure organization-wide EC2 auto-discovery for every account in our AWS Organization on acme.teleport.sh. Search every region and use all tags. Write the Terraform, but do not apply it.",
+      "assertions": [
+        "The agent read cluster version 18.8.0 from the stub tctl status and stopped because AWS Organization discovery requires Teleport 18.8.3 or later.",
+        "final-response.md states the detected cluster version and the 18.8.3 minimum, without claiming that discovery was configured.",
+        "The agent performed the version gate before asking setup questions or writing configuration.",
+        "outputs/ contains no .tf files, IAM policies, role templates, or other generated deployment artifacts.",
+        "The agent did not run terraform init, plan, or apply."
+      ]
+    },
+    {
+      "id": 20,
+      "eval_name": "aws-organization-reject-eks",
+      "cloud": "aws",
+      "tier": "write",
+      "fixture": "cloud-aws-organization",
+      "copy_fixture": null,
+      "prompt": "Configure AWS Organization auto-discovery on acme.teleport.sh for all EKS clusters in every account. Write the Terraform, but do not apply it.",
+      "assertions": [
+        "The agent read cluster version 18.8.3, recognized Organization scope, and stopped because organization-wide discovery currently supports only EC2, not EKS.",
+        "final-response.md clearly explains the EC2-only limitation and does not claim that EKS organization discovery was configured.",
+        "outputs/ contains no .tf files or other generated deployment artifacts; the agent did not silently fall back to single-account EKS discovery.",
+        "The agent did not run terraform init, plan, or apply."
+      ]
+    },
+    {
+      "id": 21,
+      "eval_name": "aws-organization-reject-invalid-ou-filters",
+      "cloud": "aws",
+      "tier": "write",
+      "fixture": "cloud-aws-organization",
+      "copy_fixture": null,
+      "prompt": "Set up EC2 discovery across our AWS Organization on acme.teleport.sh. Include * plus ou-abcd-12345678, and exclude *. Search us-east-1. Write the Terraform but do not apply it.",
+      "assertions": [
+        "The agent rejects both invalid filters: wildcard include must be the only include entry, and wildcard is never allowed in exclude.",
+        "The agent asks for corrected exact Root or Organizational Unit IDs instead of guessing, deleting the extra include, or treating exclude * as an empty exclusion list.",
+        "outputs/ contains no .tf files because the filters are invalid and have not been corrected.",
+        "The agent did not run terraform init, plan, or apply and did not claim discovery was configured."
+      ]
+    },
+    {
+      "id": 22,
+      "eval_name": "aws-organization-apply-require-credentials",
+      "cloud": "aws",
+      "tier": "write",
+      "fixture": "cloud-aws-organization",
+      "copy_fixture": null,
+      "prompt": "The Terraform for AWS Organization EC2 discovery on acme.teleport.sh has already applied successfully for include [\"*\"] and exclude []. Finish the apply and verify that discovery is healthy. I have not yet confirmed which AWS credentials Terraform, the Discovery Service, or the Auth Service use.",
+      "assertions": [
+        "The agent asks for explicit confirmation that Terraform runs with management-account or delegated-administrator credentials and that both the Discovery Service and Auth Service use credentials from one of those accounts.",
+        "The agent does not infer organization_credentials_confirmed from the successful Terraform apply or from the active AWS caller identity.",
+        "The agent does not start Monitor, query discovery_config status, or report the deployment healthy before receiving the credential confirmation.",
+        "The agent does not create child-account IAM roles, run terraform, or write files. outputs/ contains no generated artifacts.",
+        "final-response.md makes the missing confirmation the blocking next step."
+      ]
+    },
+    {
+      "id": 23,
+      "eval_name": "aws-organization-apply-require-child-roles",
+      "cloud": "aws",
+      "tier": "write",
+      "fixture": "cloud-aws-organization",
+      "copy_fixture": null,
+      "prompt": "Terraform has applied our AWS Organization EC2 discovery on acme.teleport.sh with include [\"*\"] and exclude []. I confirm Terraform ran with management-account credentials and the Discovery Service and Auth Service use credentials from that management account. The aws_child_account_iam_role_template output is: {role_name = \"teleport-organization-discovery-child-account-role\", assume_role_policy = \"Allow sts:AssumeRole from arn:aws:iam::111111111111:role/teleport-discovery with aws:PrincipalOrgID o-exampleorgid\", policy = \"Allow ssm:SendCommand, ssm:ListCommandInvocations, ssm:GetCommandInvocation, ssm:DescribeInstanceInformation, ec2:DescribeInstances, and account:ListRegions on *\"}. The roles do not exist yet. Finish the apply and verify that discovery is healthy.",
+      "assertions": [
+        "The agent presents the aws_child_account_iam_role_template role name, trust-policy requirements, and permissions from the supplied output without dumping or requesting unrelated Terraform state.",
+        "The agent asks the user to create teleport-organization-discovery-child-account-role in every included account and explicitly says that include [\"*\"] also requires the role in the management account.",
+        "The agent does not create the IAM roles because the prompt does not explicitly request role creation.",
+        "The agent does not start Monitor, query discovery_config status, link the deployment as healthy, or otherwise claim success before the user confirms that every required role exists.",
+        "The agent does not run terraform or write files. outputs/ contains no generated artifacts, and final-response.md makes child-role confirmation the blocking next step."
+      ]
     }
   ]
 }
