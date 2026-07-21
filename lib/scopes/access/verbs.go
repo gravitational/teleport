@@ -39,6 +39,13 @@ func isAllowedScopedRule(kind string, verb string) bool {
 	case types.KindWorkloadIdentity:
 		// workload identities can be read/written, and do not contain a concept of a secret.
 		return isReadWriteNoSecrets(verb)
+	case types.KindKubernetesCluster:
+		return isReadWriteWithSecrets(verb) || isReadWriteNoSecrets(verb)
+	case types.KindAccessList:
+		// access lists can be read/written, and do not contain a concept of a secret.
+		// permissions for access list members are conferred by permissions for
+		// access list themselves, and/or list ownership.
+		return isReadWriteNoSecrets(verb)
 	default:
 		return false
 	}

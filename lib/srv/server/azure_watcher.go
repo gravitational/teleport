@@ -158,13 +158,10 @@ func (instances *AzureInstances) LogValue() slog.Value {
 func (instances *AzureInstances) FilterExistingNodes(existingNodes []types.Server) {
 	vmIDs := make(map[string]struct{})
 	for _, node := range existingNodes {
-		labels := node.GetAllLabels()
-		subscriptionID := labels[types.SubscriptionIDLabelInternal]
-		if subscriptionID != instances.Metadata.SubscriptionID {
+		if subID := types.GetAzureSubscriptionID(node); subID != instances.Metadata.SubscriptionID {
 			continue
 		}
-		vmID := labels[types.VMIDLabelInternal]
-		if vmID != "" {
+		if vmID := types.GetAzureVMID(node); vmID != "" {
 			vmIDs[vmID] = struct{}{}
 		}
 	}
@@ -312,7 +309,15 @@ func (f *azureInstanceFetcher) GetInstances(ctx context.Context, _ bool) ([]*Azu
 
 	allowAllLocations := slices.Contains(f.Regions, types.Wildcard)
 
+	nonLinuxVMIDs := make([]string, 0)
 	for _, vm := range vms {
+		// Teleport only supports Linux nodes, so we filter out non-Linux VMs.
+		// If the OS is unknown, we allow it because the OS type might not always be present in the API response.
+		if !vm.IsLinuxOrUnknown() {
+			nonLinuxVMIDs = append(nonLinuxVMIDs, vm.ID)
+			continue
+		}
+
 		if !slices.Contains(f.Regions, vm.Location) && !allowAllLocations {
 			continue
 		}
@@ -326,6 +331,19 @@ func (f *azureInstanceFetcher) GetInstances(ctx context.Context, _ bool) ([]*Azu
 		}
 
 		instanceGroups[batchGroup] = append(instanceGroups[batchGroup], vm)
+	}
+	if len(nonLinuxVMIDs) > 0 {
+		// Show at most 10 non-Linux VM IDs in the log message to avoid spamming the logs.
+		sampleSize := min(len(nonLinuxVMIDs), 10)
+		nonLinuxVMIDsSample := make([]string, sampleSize)
+		copy(nonLinuxVMIDsSample, nonLinuxVMIDs[:sampleSize])
+
+		f.Logger.DebugContext(ctx, "Skipped non Linux VMs in Azure Server Discovery",
+			"fetcher", f,
+			"total_vms", len(vms),
+			"skipped_vms", len(nonLinuxVMIDs),
+			"skipped_vms_sample", nonLinuxVMIDsSample,
+		)
 	}
 
 	var instances []*AzureInstances

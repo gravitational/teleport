@@ -28,6 +28,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
+	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
@@ -164,4 +165,49 @@ func newExecServerContext(t *testing.T, srv Server) *ServerContext {
 	t.Cleanup(func() { require.NoError(t, scx.party.s.term.Close()) })
 
 	return scx
+}
+
+func TestCheckSCPAllowed(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name    string
+		command string
+		assert  require.BoolAssertionFunc
+	}{
+		{
+			name:    "scp command",
+			command: "scp foo bar",
+			assert:  require.True,
+		},
+		{
+			name:    "other command",
+			command: "some other command",
+			assert:  require.False,
+		},
+		{
+			name:    "no command",
+			command: "",
+			assert:  require.False,
+		},
+		{
+			name:    "scp command with whitespace",
+			command: "\tscp foo bar",
+			assert:  require.True,
+		},
+		{
+			name:    "other bash commands aren't affected",
+			command: "echo $((1+1))",
+			assert:  require.False,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			scx := newTestServerContext(t, nil, nil, nil)
+			scx.AllowFileCopying = true
+			scx.Identity.AccessPermit = decisionpb.SSHAccessPermit_builder{SshFileCopy: true}.Build()
+			ok, err := checkSCPAllowed(scx, tc.command)
+			require.NoError(t, err)
+			tc.assert(t, ok)
+		})
+	}
 }

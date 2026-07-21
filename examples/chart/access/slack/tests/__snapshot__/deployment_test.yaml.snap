@@ -26,49 +26,49 @@ should contain app token secret volume if review.enabled is true:
             helm.sh/chart: teleport-plugin-slack-19.0.0-prealpha.2
         spec:
           containers:
-          - command:
-            - /usr/local/bin/teleport-plugin
-            - start
-            - --config
-            - /etc/teleport-slack.toml
-            env:
-            - name: TELEPORT_PLUGIN_FAIL_FAST
-              value: "true"
-            image: public.ecr.aws/gravitational/teleport-plugin-slack:19.0.0-prealpha.2
-            imagePullPolicy: IfNotPresent
-            name: teleport-plugin-slack
-            resources: {}
-            securityContext: {}
-            volumeMounts:
-            - mountPath: /etc/teleport-slack.toml
-              name: config
-              subPath: teleport-slack.toml
-            - mountPath: /var/lib/teleport/plugins/slack/teleport-identity
-              name: teleport-identity
-            - mountPath: /var/lib/teleport/plugins/slack/slack-token
-              name: password-file-bot-token
-              subPath: slackToken
-            - mountPath: /var/lib/teleport/plugins/slack/slack-app-token
-              name: password-file-app-token
-              subPath: slackAppToken
+            - command:
+                - /usr/local/bin/teleport-plugin
+                - start
+                - --config
+                - /etc/teleport-slack.toml
+              env:
+                - name: TELEPORT_PLUGIN_FAIL_FAST
+                  value: "true"
+              image: public.ecr.aws/gravitational/teleport-plugin-slack:19.0.0-prealpha.2
+              imagePullPolicy: IfNotPresent
+              name: teleport-plugin-slack
+              resources: {}
+              securityContext: {}
+              volumeMounts:
+                - mountPath: /etc/teleport-slack.toml
+                  name: config
+                  subPath: teleport-slack.toml
+                - mountPath: /var/lib/teleport/plugins/slack/teleport-identity
+                  name: teleport-identity
+                - mountPath: /var/lib/teleport/plugins/slack/slack-token
+                  name: password-file-bot-token
+                  subPath: slackToken
+                - mountPath: /var/lib/teleport/plugins/slack/slack-app-token
+                  name: password-file-app-token
+                  subPath: slackAppToken
           securityContext: {}
           volumes:
-          - configMap:
-              defaultMode: 384
-              name: RELEASE-NAME-teleport-plugin-slack
-            name: config
-          - name: teleport-identity
-            secret:
-              defaultMode: 384
-              secretName: ""
-          - name: password-file-bot-token
-            secret:
-              defaultMode: 384
-              secretName: RELEASE-NAME-teleport-plugin-slack-secret
-          - name: password-file-app-token
-            secret:
-              defaultMode: 384
-              secretName: RELEASE-NAME-teleport-plugin-slack-app-token-secret
+            - configMap:
+                defaultMode: 384
+                name: RELEASE-NAME-teleport-plugin-slack
+              name: config
+            - name: teleport-identity
+              secret:
+                defaultMode: 384
+                secretName: ""
+            - name: password-file-bot-token
+              secret:
+                defaultMode: 384
+                secretName: RELEASE-NAME-teleport-plugin-slack-secret
+            - name: password-file-app-token
+              secret:
+                defaultMode: 384
+                secretName: RELEASE-NAME-teleport-plugin-slack-app-token-secret
 should match the snapshot:
   1: |
     apiVersion: apps/v1
@@ -97,39 +97,39 @@ should match the snapshot:
             helm.sh/chart: teleport-plugin-slack-19.0.0-prealpha.2
         spec:
           containers:
-          - command:
-            - /usr/local/bin/teleport-plugin
-            - start
-            - --config
-            - /etc/teleport-slack.toml
-            env:
-            - name: TELEPORT_PLUGIN_FAIL_FAST
-              value: "true"
-            image: gcr.io/overridden/repository:v98.76.54
-            imagePullPolicy: IfNotPresent
-            name: teleport-plugin-slack
-            resources: {}
-            securityContext: {}
-            volumeMounts:
-            - mountPath: /etc/teleport-slack.toml
-              name: config
-              subPath: teleport-slack.toml
-            - mountPath: /var/lib/teleport/plugins/slack/teleport-identity
-              name: teleport-identity
-            - mountPath: /var/lib/teleport/plugins/slack/slack-token
-              name: password-file-bot-token
-              subPath: slackToken
+            - command:
+                - /usr/local/bin/teleport-plugin
+                - start
+                - --config
+                - /etc/teleport-slack.toml
+              env:
+                - name: TELEPORT_PLUGIN_FAIL_FAST
+                  value: "true"
+              image: gcr.io/overridden/repository:v98.76.54
+              imagePullPolicy: IfNotPresent
+              name: teleport-plugin-slack
+              resources: {}
+              securityContext: {}
+              volumeMounts:
+                - mountPath: /etc/teleport-slack.toml
+                  name: config
+                  subPath: teleport-slack.toml
+                - mountPath: /var/lib/teleport/plugins/slack/teleport-identity
+                  name: teleport-identity
+                - mountPath: /var/lib/teleport/plugins/slack/slack-token
+                  name: password-file-bot-token
+                  subPath: slackToken
           securityContext: {}
           volumes:
-          - configMap:
-              defaultMode: 384
-              name: RELEASE-NAME-teleport-plugin-slack
-            name: config
-          - name: teleport-identity
-            secret:
-              defaultMode: 384
-              secretName: ""
-          - name: password-file-bot-token
-            secret:
-              defaultMode: 384
-              secretName: RELEASE-NAME-teleport-plugin-slack-secret
+            - configMap:
+                defaultMode: 384
+                name: RELEASE-NAME-teleport-plugin-slack
+              name: config
+            - name: teleport-identity
+              secret:
+                defaultMode: 384
+                secretName: ""
+            - name: password-file-bot-token
+              secret:
+                defaultMode: 384
+                secretName: RELEASE-NAME-teleport-plugin-slack-secret

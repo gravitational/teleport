@@ -120,6 +120,11 @@ func init() {
 		// TODO(zmb3): remove this after sspi-rs logging is cleaned up
 		rustLogLevel += ",sspi=warn"
 
+		// IronRDP instruments hot-path decode functions (e.g. RemoteFX process_frame) at INFO.
+		// With no tracing subscriber installed, tracing's `log` feature bridges those span
+		// records to env_logger as noisy non-JSON lines, so drop the span-lifecycle target.
+		rustLogLevel += ",tracing::span=off"
+
 		os.Setenv("RUST_LOG", rustLogLevel)
 	}
 
@@ -325,7 +330,7 @@ func readClientKeyboardLayout(conn *tdp.Conn, logger *slog.Logger) (uint32, erro
 	return k.KeyboardLayout, nil
 }
 
-func (c *Client) sendTDBPAlert(message string, severity tdpbv1.AlertSeverity) error {
+func (c *Client) sendTDPBAlert(message string, severity tdpbv1.AlertSeverity) error {
 	return c.conn.WriteMessage(&tdpb.Alert{Message: message, Severity: severity})
 }
 
@@ -489,7 +494,7 @@ func (c *Client) startRustRDP(ctx context.Context, certDER, keyDER []byte) error
 			err = trace.Errorf("RDP client exited with an unknown error")
 		}
 
-		c.sendTDBPAlert(err.Error(), tdpbv1.AlertSeverity_ALERT_SEVERITY_ERROR)
+		c.sendTDPBAlert(err.Error(), tdpbv1.AlertSeverity_ALERT_SEVERITY_ERROR)
 		return err
 	}
 
@@ -501,7 +506,7 @@ func (c *Client) startRustRDP(ctx context.Context, certDER, keyDER []byte) error
 
 	c.cfg.Logger.InfoContext(ctx, message)
 
-	c.sendTDBPAlert(message, tdpbv1.AlertSeverity_ALERT_SEVERITY_ERROR)
+	c.sendTDPBAlert(message, tdpbv1.AlertSeverity_ALERT_SEVERITY_ERROR)
 
 	return nil
 }
@@ -726,6 +731,10 @@ func (c *Client) handleTDPInput(msg tdp.Message) error {
 		}
 	case *tdpb.SharedDirectoryAnnounce:
 		if c.cfg.AllowDirectorySharing {
+			if m.DirectoryId == 0 {
+				return trace.BadParameter("Zero is not a valid directory identifier")
+			}
+
 			driveName := C.CString(m.Name)
 			defer C.free(unsafe.Pointer(driveName))
 			if errCode := C.client_handle_tdp_sd_announce(C.uintptr_t(c.handle), C.CGOSharedDirectoryAnnounce{
@@ -1052,16 +1061,17 @@ func cgo_handle_rdp_connection_activated(
 	user_channel_id C.uint16_t,
 	screen_width C.uint16_t,
 	screen_height C.uint16_t,
+	share_id C.uint32_t,
 ) C.CGOErrCode {
 	client, err := toClient(handle)
 	if err != nil {
 		return C.ErrCodeFailure
 	}
-	return client.handleRDPConnectionActivated(io_channel_id, user_channel_id, screen_width, screen_height)
+	return client.handleRDPConnectionActivated(io_channel_id, user_channel_id, screen_width, screen_height, share_id)
 }
 
-func (c *Client) handleRDPConnectionActivated(ioChannelID, userChannelID, screenWidth, screenHeight C.uint16_t) C.CGOErrCode {
-	c.cfg.Logger.DebugContext(context.Background(), "Received RDP channel IDs", "io_channel_id", ioChannelID, "user_channel_id", userChannelID)
+func (c *Client) handleRDPConnectionActivated(ioChannelID, userChannelID, screenWidth, screenHeight C.uint16_t, shareID C.uint32_t) C.CGOErrCode {
+	c.cfg.Logger.DebugContext(context.Background(), "Received RDP channel IDs", "io_channel_id", ioChannelID, "user_channel_id", userChannelID, "share_id", shareID)
 
 	// Note: RDP doesn't always use the resolution we asked for.
 	// This is especially true when we request dimensions that are not a multiple of 4.
@@ -1073,10 +1083,12 @@ func (c *Client) handleRDPConnectionActivated(ioChannelID, userChannelID, screen
 			UserChannelId: uint32(userChannelID),
 			ScreenWidth:   uint32(screenWidth),
 			ScreenHeight:  uint32(screenHeight),
+			ShareId:       uint32(shareID),
 		},
-		ClipboardEnabled:         true,
-		DirectoryRemoveSupported: true,
-		HidpiSupported:           true,
+		ClipboardEnabled:               true,
+		DirectoryRemoveSupported:       false,
+		HidpiSupported:                 true,
+		MultidirectorySharingSupported: true,
 	}); err != nil {
 		c.cfg.Logger.ErrorContext(context.Background(), "failed handling connection initialization", "error", err)
 		return C.ErrCodeFailure

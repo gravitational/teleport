@@ -458,7 +458,7 @@ func TestConfigReading(t *testing.T) {
 					},
 				},
 				{
-					Name:         "anthropic",
+					Name:         "anthropic-bedrock",
 					StaticLabels: Labels,
 					LLM: &LLM{
 						Format:   "anthropic",
@@ -470,6 +470,17 @@ func TestConfigReading(t *testing.T) {
 							},
 						},
 						FallbackModel: "claude-opus-4-6",
+					},
+					AWS: &AppAWS{
+						Region: "us-west-2",
+					},
+				},
+				{
+					Name:         "anthropic",
+					StaticLabels: Labels,
+					LLM: &LLM{
+						Format:   "anthropic",
+						Provider: "anthropic",
 					},
 				},
 				{
@@ -1714,7 +1725,7 @@ func makeConfigFixture() string {
 			},
 		},
 		{
-			Name:         "anthropic",
+			Name:         "anthropic-bedrock",
 			StaticLabels: Labels,
 			LLM: &LLM{
 				Format:   "anthropic",
@@ -1726,6 +1737,17 @@ func makeConfigFixture() string {
 					},
 				},
 				FallbackModel: "claude-opus-4-6",
+			},
+			AWS: &AppAWS{
+				Region: "us-west-2",
+			},
+		},
+		{
+			Name:         "anthropic",
+			StaticLabels: Labels,
+			LLM: &LLM{
+				Format:   "anthropic",
+				Provider: "anthropic",
 			},
 		},
 		{
@@ -2382,6 +2404,7 @@ uQM=
 			desc:        "NOK - invalid label key for LDAP attribute",
 			expectError: require.Error,
 			mutate: func(fc *FileConfig) {
+				fc.WindowsDesktop.Discovery.BaseDN = "*"
 				fc.WindowsDesktop.Discovery.LabelAttributes = []string{"this?is not* a valid key 🚨"}
 			},
 		},
@@ -2452,6 +2475,19 @@ uQM=
 			},
 		},
 		{
+			desc:        "OK -  new discovery specified and ldap specified",
+			expectError: require.NoError,
+			mutate: func(fc *FileConfig) {
+				fc.WindowsDesktop.DiscoveryConfigs = []LDAPDiscoveryConfig{
+					{BaseDN: "something"},
+				}
+				fc.WindowsDesktop.LDAP = LDAPConfig{
+					Addr:   "something",
+					Domain: "example.com",
+				}
+			},
+		},
+		{
 			desc:        "OK - discovery not specified and ldap not specified",
 			expectError: require.NoError,
 			mutate: func(fc *FileConfig) {
@@ -2488,6 +2524,30 @@ uQM=
 				}
 				fc.WindowsDesktop.LDAP = LDAPConfig{
 					Addr: "something",
+				}
+			},
+		},
+		{
+			desc:        "NOK - invalid label attribute mode",
+			expectError: require.Error,
+			mutate: func(fc *FileConfig) {
+				fc.WindowsDesktop.DiscoveryConfigs = []LDAPDiscoveryConfig{
+					{
+						BaseDN:             "*",
+						LabelAttributes:    []string{"foo"},
+						LabelAttributeMode: "invalid",
+					},
+				}
+			},
+		},
+		{
+			desc:        "NOK - invalid label attribute  (legacy)",
+			expectError: require.Error,
+			mutate: func(fc *FileConfig) {
+				fc.WindowsDesktop.Discovery = LDAPDiscoveryConfig{
+					BaseDN:             "*",
+					LabelAttributes:    []string{"foo"},
+					LabelAttributeMode: "invalid",
 				}
 			},
 		},
@@ -2583,6 +2643,63 @@ uQM=
 			test.mutate(fc)
 			cfg := &servicecfg.Config{}
 			err := applyWindowsDesktopConfig(fc, cfg)
+			test.expectError(t, err)
+			for _, assertion := range test.assertions {
+				assertion(t, cfg)
+			}
+		})
+	}
+}
+
+func TestLinuxDesktopService(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		desc        string
+		mutate      func(fc *FileConfig)
+		expectError require.ErrorAssertionFunc
+		assertions  []func(*testing.T, *servicecfg.Config)
+	}{
+		{
+			desc:        "OK",
+			expectError: require.NoError,
+			mutate: func(fc *FileConfig) {
+				fc.LinuxDesktop.XSessions.Included = "^inc.*$"
+				fc.LinuxDesktop.XSessions.Excluded = "^exc.*$"
+				fc.LinuxDesktop.Labels = map[string]string{
+					"foo": "bar",
+				}
+			},
+			assertions: []func(t *testing.T, cfg *servicecfg.Config){
+				func(t *testing.T, cfg *servicecfg.Config) {
+					assert.NotNil(t, cfg.LinuxDesktop.IncludedSessions)
+					assert.NotNil(t, cfg.LinuxDesktop.ExcludedSessions)
+					assert.True(t, cfg.LinuxDesktop.Enabled)
+					assert.Len(t, cfg.LinuxDesktop.Labels, 1)
+					assert.Equal(t, "bar", cfg.LinuxDesktop.Labels["foo"])
+				},
+			},
+		},
+		{
+			desc:        "NOK - invalid include",
+			expectError: require.Error,
+			mutate: func(fc *FileConfig) {
+				fc.LinuxDesktop.XSessions.Included = "\\"
+			},
+		},
+		{
+			desc:        "NOK - invalid exclude",
+			expectError: require.Error,
+			mutate: func(fc *FileConfig) {
+				fc.LinuxDesktop.XSessions.Excluded = "\\"
+			},
+		},
+	} {
+		t.Run(test.desc, func(t *testing.T) {
+			fc := &FileConfig{}
+			test.mutate(fc)
+			cfg := &servicecfg.Config{}
+			err := applyLinuxDesktopConfig(fc, cfg)
 			test.expectError(t, err)
 			for _, assertion := range test.assertions {
 				assertion(t, cfg)
@@ -3183,6 +3300,21 @@ app_service:
 				require.ErrorContains(t, err, "app1")
 				require.ErrorContains(t, err, "beta")
 			},
+		},
+		{
+			inConfigString: `
+app_service:
+  enabled: true
+  apps:
+    - name: app-llm-bedrock
+      inference:
+        format: anthropic
+        provider: bedrock
+      aws:
+        region: us-west-2
+`,
+			name:   "App configuration with valid AWS region",
+			outErr: require.NoError,
 		},
 	}
 
@@ -4336,6 +4468,44 @@ teleport:
 				},
 			},
 		},
+		{
+			desc: "generic_oidc with command and timeout",
+			input: `
+teleport:
+  join_params:
+    token_name: example
+    method: generic_oidc
+    generic_oidc:
+      command: ["get-jwt", "--audience=teleport.example.sh"]
+      timeout: 60s
+`,
+			expectToken:      "example",
+			expectJoinMethod: types.JoinMethodGenericOIDC,
+			expectParsed: &servicecfg.JoinParams{
+				GenericOIDC: servicecfg.GenericOIDCParams{
+					Command: []string{"get-jwt", "--audience=teleport.example.sh"},
+					Timeout: time.Minute,
+				},
+			},
+		},
+		{
+			desc: "generic_oidc with environment variable",
+			input: `
+teleport:
+  join_params:
+    token_name: example
+    method: generic_oidc
+    generic_oidc:
+      env: EXAMPLE_ENV_VAR
+`,
+			expectToken:      "example",
+			expectJoinMethod: types.JoinMethodGenericOIDC,
+			expectParsed: &servicecfg.JoinParams{
+				GenericOIDC: servicecfg.GenericOIDCParams{
+					Env: "EXAMPLE_ENV_VAR",
+				},
+			},
+		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
 			conf, err := ReadConfig(strings.NewReader(tc.input))
@@ -5393,6 +5563,32 @@ func TestDiscoveryConfig(t *testing.T) {
 					ScriptName:      installers.InstallerScriptName,
 					PublicProxyAddr: "example.com",
 				},
+			}},
+		},
+		{
+			desc:          "GCP section is filled with Cloud SQL matcher",
+			expectError:   require.NoError,
+			expectEnabled: require.True,
+			mutate: func(cfg cfgMap) {
+				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
+				cfg["discovery_service"].(cfgMap)["gcp"] = []cfgMap{
+					{
+						"types":     []string{"cloudsql"},
+						"locations": []string{"eucentral1"},
+						"labels": cfgMap{
+							"env": "prod",
+						},
+						"project_ids": []string{"p1", "p2"},
+					},
+				}
+			},
+			expectedGCPMatchers: []types.GCPMatcher{{
+				Types:     []string{"cloudsql"},
+				Locations: []string{"eucentral1"},
+				Labels: map[string]apiutils.Strings{
+					"env": []string{"prod"},
+				},
+				ProjectIDs: []string{"p1", "p2"},
 			}},
 		},
 		{

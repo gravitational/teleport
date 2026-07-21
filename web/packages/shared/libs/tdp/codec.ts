@@ -148,6 +148,8 @@ export type RdpConnectionActivated = {
   userChannelId: number;
   screenWidth: number;
   screenHeight: number;
+  // TDPB exclusive field
+  shareId: number;
 };
 
 export enum Severity {
@@ -370,11 +372,18 @@ export type ServerHello = {
   clipboardSupport: boolean;
   hidpiSupported: boolean;
   activationEvent: RdpConnectionActivated;
+  directoryRemovalSupport: boolean;
+  multidirectorySharingSupported: boolean;
+  sessions: string[];
 };
 
 export type ClientHello = {
   keyboardLayout: number;
   screenSpec: ClientScreenSpec;
+};
+
+export type SharedDirectoryRemoveRequest = {
+  directoryId: number;
 };
 
 export type MfaResponse = {
@@ -438,6 +447,7 @@ export interface Codec {
   encodeKeyboardInput(code: string, state: ButtonState): Message[];
   encodeMouseWheelScroll(axis: ScrollAxis, delta: number): Message;
   encodeClientScreenSpec(spec: ClientScreenSpec): Message;
+  encodeSessionSelection(sessions: string): Message;
   encodeMfaJson(mfaJson: MfaResponse): Message;
   encodeSharedDirectoryInfoResponse(res: SharedDirectoryInfoResponse): Message;
   encodeSharedDirectoryReadResponse(res: SharedDirectoryReadResponse): Message;
@@ -456,6 +466,9 @@ export interface Codec {
   ): Message;
   encodeSharedDirectoryTruncateResponse(
     resp: SharedDirectoryTruncateResponse
+  ): Message;
+  encodeSharedDirectoryRemoveRequest(
+    req: SharedDirectoryRemoveRequest
   ): Message;
 }
 
@@ -637,12 +650,17 @@ export class TdpbCodec implements Codec {
 
     switch (envelope.payload.oneofKind) {
       case 'serverHello':
+        const hello = envelope.payload.serverHello;
         return {
           kind: 'serverHello',
           data: {
-            clipboardSupport: envelope.payload.serverHello.clipboardEnabled,
-            hidpiSupported: envelope.payload.serverHello.hidpiSupported,
-            activationEvent: envelope.payload.serverHello.activationSpec,
+            sessions: hello.sessions.map(s => s.name),
+            clipboardSupport: hello.clipboardEnabled,
+            hidpiSupported: hello.hidpiSupported,
+            activationEvent: hello.activationSpec,
+            directoryRemovalSupport: hello.directoryRemoveSupported,
+            multidirectorySharingSupported:
+              hello.multidirectorySharingSupported,
           },
         };
       case 'pngFrame':
@@ -812,6 +830,17 @@ export class TdpbCodec implements Codec {
       }),
     });
     return [hello];
+  }
+
+  encodeSessionSelection(session: string): Message {
+    return this.marshal({
+      oneofKind: 'sessionSelection',
+      sessionSelection: {
+        session: {
+          name: session,
+        },
+      },
+    });
   }
 
   encodeClientScreenSpec(spec: ClientScreenSpec): Message {
@@ -1088,6 +1117,15 @@ export class TdpbCodec implements Codec {
       }),
     });
   }
+
+  encodeSharedDirectoryRemoveRequest(
+    req: SharedDirectoryRemoveRequest
+  ): Message {
+    return this.marshal({
+      oneofKind: 'sharedDirectoryRemove',
+      sharedDirectoryRemove: req,
+    });
+  }
 }
 
 // TdpCodec provides an api for encoding and decoding teleport desktop access protocol messages
@@ -1236,6 +1274,11 @@ export class TdpCodec implements Codec {
       x: view.getUint8(1),
       y: view.getUint8(2),
     };
+  }
+
+  encodeSessionSelection(_sessions: string): Message {
+    // SessionSelection is used only by Linux desktop and it uses TDPB only
+    throw new Error('Method not implemented.');
   }
 
   encodeInitialMessages(
@@ -1678,6 +1721,14 @@ export class TdpCodec implements Codec {
     return buffer;
   }
 
+  encodeSharedDirectoryRemoveRequest(): Message {
+    // This is a bug. TDP connections should not negotiate shared directory removal
+    // with the server, and the client UI should not show directory removal as an option.
+    throw new Error(
+      'Legacy TDP codec does not support shared directory removal'
+    );
+  }
+
   // decodeClipboardData decodes clipboard data
   decodeClipboardData(buffer: ArrayBufferLike): ClipboardData {
     return {
@@ -1838,7 +1889,14 @@ export class TdpCodec implements Codec {
     const screenHeight = dv.getUint16(offset);
     offset += UINT_16_LEN;
 
-    return { ioChannelId, userChannelId, screenWidth, screenHeight };
+    // shareId is not supported by legacy TDP. Hardcode to zero.
+    return {
+      ioChannelId,
+      userChannelId,
+      screenWidth,
+      screenHeight,
+      shareId: 0,
+    };
   }
 
   // | message type (12) | err_code error | directory_id uint32 |

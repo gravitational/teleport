@@ -25,7 +25,6 @@ import (
 	"fmt"
 	"io"
 	"maps"
-	"net/http"
 	"net/url"
 	"os"
 	"regexp"
@@ -39,7 +38,6 @@ import (
 
 	"cloud.google.com/go/container/apiv1/containerpb"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-	azruntime "github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redis/armredis/v3"
@@ -64,6 +62,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	sqladmin "google.golang.org/api/sqladmin/v1beta4"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/testing/protocmp"
 	corev1 "k8s.io/api/core/v1"
@@ -2508,6 +2507,12 @@ func TestDiscoveryDatabase(t *testing.T) {
 
 	eksAWSResource, _ := makeEKSCluster(t, "aws-eks", "us-east-1", rewriteDiscoveryLabelsParams{discoveryGroup: mainDiscoveryGroup, integration: integrationName, discoveryConfigName: discoveryConfigName})
 
+	gcpCloudSQLResource, gcpCloudSQLDB := makeGCPCloudSQLInstance(t, "gcp-sqldb", "p1", "us-central1", rewriteDiscoveryLabelsParams{discoveryGroup: mainDiscoveryGroup})
+	_, gcpCloudSQLDBWithDiscoveryConfig := makeGCPCloudSQLInstance(t, "gcp-sqldb", "p1", "us-central1", rewriteDiscoveryLabelsParams{discoveryGroup: mainDiscoveryGroup, discoveryConfigName: discoveryConfigName})
+	gcpSQLAdminMock := &mocks.GCPSQLAdminClientMock{
+		DatabaseInstances: []*sqladmin.DatabaseInstance{gcpCloudSQLResource},
+	}
+
 	matcherForDiscoveryConfigFn := func(t *testing.T, discoveryGroup string, m Matchers) *discoveryconfig.DiscoveryConfig {
 		dc, err := discoveryconfig.NewDiscoveryConfig(
 			header.Metadata{Name: discoveryConfigName},
@@ -2540,6 +2545,8 @@ func TestDiscoveryDatabase(t *testing.T) {
 		integrationsOnlyCredentials            bool
 		awsMatchers                            []types.AWSMatcher
 		azureMatchers                          []types.AzureMatcher
+		gcpMatchers                            []types.GCPMatcher
+		gcpClients                             gcp.Clients
 		expectDatabases                        []types.Database
 		discoveryConfigs                       func(*testing.T) []*discoveryconfig.DiscoveryConfig
 		discoveryConfigStatusCheck             func(*testing.T, discoveryconfig.Status)
@@ -2593,6 +2600,51 @@ func TestDiscoveryDatabase(t *testing.T) {
 			expectDatabases:             []types.Database{azRedisDBWithIntegration},
 			wantEvents:                  1,
 			integrationsOnlyCredentials: true,
+		},
+		{
+			name: "discover GCP database",
+			gcpMatchers: []types.GCPMatcher{{
+				Types:      []string{types.GCPMatcherCloudSQL},
+				Labels:     map[string]utils.Strings{types.Wildcard: {types.Wildcard}},
+				Locations:  []string{types.Wildcard},
+				ProjectIDs: []string{"p1"},
+			}},
+			gcpClients:      &gcptest.Clients{GCPSQL: gcpSQLAdminMock},
+			expectDatabases: []types.Database{gcpCloudSQLDB},
+			wantEvents:      1,
+		},
+		{
+			name: "discover GCP database with matcher mixing gke and cloudsql types",
+			gcpMatchers: []types.GCPMatcher{{
+				Types:      []string{types.GCPMatcherKubernetes, types.GCPMatcherCloudSQL},
+				Labels:     map[string]utils.Strings{types.Wildcard: {types.Wildcard}},
+				Locations:  []string{types.Wildcard},
+				ProjectIDs: []string{"p1"},
+			}},
+			gcpClients: &gcptest.Clients{
+				GCPSQL:      gcpSQLAdminMock,
+				GCPGKE:      &mockGKEAPI{},
+				GCPProjects: newPopulatedGCPProjectsMock(),
+			},
+			expectDatabases: []types.Database{gcpCloudSQLDB},
+			wantEvents:      1,
+		},
+		{
+			name:            "discover GCP database using dynamic matchers",
+			gcpClients:      &gcptest.Clients{GCPSQL: gcpSQLAdminMock},
+			expectDatabases: []types.Database{gcpCloudSQLDBWithDiscoveryConfig},
+			discoveryConfigs: func(t *testing.T) []*discoveryconfig.DiscoveryConfig {
+				dc1 := matcherForDiscoveryConfigFn(t, mainDiscoveryGroup, Matchers{
+					GCP: []types.GCPMatcher{{
+						Types:      []string{types.GCPMatcherCloudSQL},
+						Labels:     map[string]utils.Strings{types.Wildcard: {types.Wildcard}},
+						Locations:  []string{types.Wildcard},
+						ProjectIDs: []string{"p1"},
+					}},
+				})
+				return []*discoveryconfig.DiscoveryConfig{dc1}
+			},
+			wantEvents: 1,
 		},
 		{
 			name: "update existing database",
@@ -2961,6 +3013,7 @@ func TestDiscoveryDatabase(t *testing.T) {
 						initAzureClients: func(opts ...azure.ClientsOption) (azure.Clients, error) {
 							return azureClients, nil
 						},
+						gcpClients:                tc.gcpClients,
 						ClusterFeatures:           func() proto.Features { return proto.Features{} },
 						kubeAgentVersionGetter:    staticKubeAgentVersionGetter(t),
 						KubernetesClient:          fake.NewClientset(),
@@ -2970,6 +3023,7 @@ func TestDiscoveryDatabase(t *testing.T) {
 						Matchers: Matchers{
 							AWS:   tc.awsMatchers,
 							Azure: tc.azureMatchers,
+							GCP:   tc.gcpMatchers,
 						},
 						Emitter:        authClient,
 						DiscoveryGroup: mainDiscoveryGroup,
@@ -3268,6 +3322,26 @@ func makeAzureRedisServer(t *testing.T, name, subscription, group, region string
 	return resourceInfo, database
 }
 
+func makeGCPCloudSQLInstance(t *testing.T, name, projectID, region string, discoveryParams rewriteDiscoveryLabelsParams) (*sqladmin.DatabaseInstance, types.Database) {
+	t.Helper()
+	instance := &sqladmin.DatabaseInstance{
+		Name:            name,
+		Project:         projectID,
+		Region:          region,
+		State:           "RUNNABLE",
+		DatabaseVersion: "POSTGRES_14",
+		InstanceType:    "CLOUD_SQL_INSTANCE",
+		IpAddresses:     []*sqladmin.IpMapping{{Type: "PRIMARY", IpAddress: "1.2.3.4"}},
+	}
+
+	databases := common.DiscoverCloudSQLDatabases(t.Context(), logtest.NewLogger(), []*sqladmin.DatabaseInstance{instance})
+	require.Len(t, databases, 1)
+	database := databases[0]
+	discoveryParams.matcherType = types.GCPMatcherCloudSQL
+	rewriteCloudResource(t, database, discoveryParams)
+	return instance, database
+}
+
 func mustNewDatabase(t *testing.T, meta types.Metadata, spec types.DatabaseSpecV3) types.Database {
 	t.Helper()
 	database, err := types.NewDatabaseV3(meta, spec)
@@ -3280,7 +3354,7 @@ const azureInstallErrorPrefix = "bad-install"
 
 type mockAzureRunCommandClient struct {
 	mu           sync.Mutex
-	attemptedVMs map[string]struct{}
+	attemptedVMs map[string]int
 }
 
 func (m *mockAzureRunCommandClient) Run(_ context.Context, req azure.RunCommandRequest) (*azure.RunCommandResult, error) {
@@ -3288,21 +3362,12 @@ func (m *mockAzureRunCommandClient) Run(_ context.Context, req azure.RunCommandR
 	defer m.mu.Unlock()
 
 	if m.attemptedVMs == nil {
-		m.attemptedVMs = make(map[string]struct{})
+		m.attemptedVMs = make(map[string]int)
 	}
-	m.attemptedVMs[req.VMName] = struct{}{}
+	m.attemptedVMs[req.VMName] = m.attemptedVMs[req.VMName] + 1
 
 	if strings.HasPrefix(req.VMName, azureApiErrorPrefix) {
-		const statusCode = 403
-		const errorCode = "AuthorizationFailed"
-		const message = "does not have authorization to perform action 'Microsoft.Compute/virtualMachines/runCommands/write'"
-
-		resp := &http.Response{
-			StatusCode: statusCode,
-			Body:       io.NopCloser(strings.NewReader(message)),
-			Request:    &http.Request{Method: http.MethodPut, URL: &url.URL{}},
-		}
-		return nil, azruntime.NewResponseErrorWithErrorCode(resp, errorCode)
+		return nil, trace.AccessDenied("does not have authorization to perform action 'Microsoft.Compute/virtualMachines/runCommands/write'")
 	}
 
 	if strings.HasPrefix(req.VMName, azureInstallErrorPrefix) {
@@ -3327,6 +3392,15 @@ func (m *mockAzureRunCommandClient) getAttempted() []string {
 	elems := slices.Sorted(maps.Keys(m.attemptedVMs))
 	m.mu.Unlock()
 	return elems
+}
+
+func (m *mockAzureRunCommandClient) getAttemptCount(vmName string) int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.attemptedVMs == nil {
+		return 0
+	}
+	return m.attemptedVMs[vmName]
 }
 
 type mockAzureClient struct {
@@ -3476,6 +3550,8 @@ func TestAzureVMDiscovery(t *testing.T) {
 	presentNodeAlt := presentNode.DeepCopy().(*types.ServerV2)
 	presentNodeAlt.Metadata.Labels["teleport.internal/vm-id"] = "alternate-vmid"
 
+	const pollInterval = 5 * time.Minute
+
 	tests := []struct {
 		name                     string
 		presentVMs               []types.Server
@@ -3485,7 +3561,7 @@ func TestAzureVMDiscovery(t *testing.T) {
 		wantInstances            []string
 		wantResources            int
 		expectedIntegrationNames []string
-		userTasksCheck           func(*testing.T, UserTaskLister)
+		checkState               func(*testing.T, UserTaskLister, *mockAzureRunCommandClient)
 	}{
 		{
 			name:           "no nodes present, 2 found",
@@ -3543,7 +3619,7 @@ func TestAzureVMDiscovery(t *testing.T) {
 			wantInstances:   []string{"bad-api0"},
 			wantResources:   0,
 			foundVMS:        makeFaultyVM(true, 1),
-			userTasksCheck: func(t *testing.T, lister UserTaskLister) {
+			checkState: func(t *testing.T, lister UserTaskLister, runClient *mockAzureRunCommandClient) {
 				var tasks []*usertasksv1.UserTask
 				var err error
 				tasks, _, err = lister.ListUserTasks(t.Context(), 200, "", &usertasksv1.ListUserTasksFilters{})
@@ -3569,6 +3645,7 @@ func TestAzureVMDiscovery(t *testing.T) {
 									Name:            "bad-api0",
 									DiscoveryConfig: defaultDiscoveryConfig().GetName(),
 									DiscoveryGroup:  defaultDiscoveryGroup,
+									Attempts:        1,
 								}.Build(),
 							},
 							SubscriptionId: "testsub",
@@ -3579,11 +3656,70 @@ func TestAzureVMDiscovery(t *testing.T) {
 					Status: nil,
 				}.Build()
 
-				require.Empty(t, cmp.Diff(expectedTask, tasks[0],
+				diffTasksOpts := []cmp.Option{
 					protocmp.Transform(),
 					protocmp.IgnoreFields(&headerv1.Metadata{}, "expires", "revision"),
-					protocmp.IgnoreFields(&usertasksv1.DiscoverAzureVMInstance{}, "sync_time"),
-				))
+					protocmp.IgnoreFields(&usertasksv1.DiscoverAzureVMInstance{}, "sync_time", "retry_after_time", "last_attempt_time"),
+				}
+				require.Equal(t, 1, runClient.getAttemptCount("bad-api0"))
+				require.Empty(t, cmp.Diff(expectedTask, tasks[0], diffTasksOpts...))
+				instance := tasks[0].GetSpec().GetDiscoverAzureVm().GetInstances()["bad-api0-vmid"]
+				require.NotNil(t, instance)
+				syncTime1 := instance.GetSyncTime().AsTime()
+				lastAttemptTime1 := instance.GetLastAttemptTime().AsTime()
+				retryAfter1 := instance.GetRetryAfterTime().AsTime()
+				require.NotZero(t, syncTime1)
+				require.NotZero(t, lastAttemptTime1)
+				require.NotZero(t, retryAfter1)
+				require.Equal(t, syncTime1, lastAttemptTime1)
+				require.Greater(t, retryAfter1, lastAttemptTime1)
+				require.Greater(t, retryAfter1, syncTime1)
+
+				time.Sleep(pollInterval + time.Second)
+				synctest.Wait()
+
+				require.Equal(t, 1, runClient.getAttemptCount("bad-api0"), "VM install should not have been reattempted during backoff period")
+				tasks, _, err = lister.ListUserTasks(t.Context(), 200, "", &usertasksv1.ListUserTasksFilters{})
+				require.NoError(t, err)
+				require.Len(t, tasks, 1)
+				require.Empty(t, cmp.Diff(expectedTask, tasks[0], diffTasksOpts...))
+				instance = tasks[0].GetSpec().GetDiscoverAzureVm().GetInstances()["bad-api0-vmid"]
+				require.NotNil(t, instance)
+				syncTime2 := instance.GetSyncTime().AsTime()
+				lastAttemptTime2 := instance.GetLastAttemptTime().AsTime()
+				retryAfter2 := instance.GetRetryAfterTime().AsTime()
+				require.NotZero(t, syncTime2)
+				require.NotZero(t, lastAttemptTime2)
+				require.NotZero(t, retryAfter2)
+				require.Greater(t, retryAfter2, syncTime2)
+				require.Equal(t, lastAttemptTime1, lastAttemptTime2, "last attempt time should not change during backoff period")
+				require.Equal(t, retryAfter1, retryAfter2, "retry time should not change during backoff period")
+				require.Greater(t, syncTime2, syncTime1)
+				require.Greater(t, syncTime2, lastAttemptTime2)
+
+				time.Sleep(pollInterval + time.Second)
+				synctest.Wait()
+
+				require.Equal(t, 2, runClient.getAttemptCount("bad-api0"), "VM install should have been reattempted after backoff period")
+				tasks, _, err = lister.ListUserTasks(t.Context(), 200, "", &usertasksv1.ListUserTasksFilters{})
+				require.NoError(t, err)
+				require.Len(t, tasks, 1)
+				// another attempt (and failure) should happen after backoff period has elapsed
+				expectedTask.GetSpec().GetDiscoverAzureVm().GetInstances()["bad-api0-vmid"].SetAttempts(2)
+				require.Empty(t, cmp.Diff(expectedTask, tasks[0], diffTasksOpts...))
+				instance = tasks[0].GetSpec().GetDiscoverAzureVm().GetInstances()["bad-api0-vmid"]
+				require.NotNil(t, instance)
+				syncTime3 := instance.GetSyncTime().AsTime()
+				lastAttemptTime3 := instance.GetLastAttemptTime().AsTime()
+				retryAfter3 := instance.GetRetryAfterTime().AsTime()
+				require.NotZero(t, syncTime3)
+				require.NotZero(t, lastAttemptTime3)
+				require.NotZero(t, retryAfter3)
+				require.Greater(t, retryAfter3, syncTime3)
+				require.Greater(t, retryAfter3, retryAfter2, "retry time should change after another failed attempt")
+				require.Greater(t, lastAttemptTime3, lastAttemptTime2, "last attempt time should change after another failed attempt")
+				require.Equal(t, lastAttemptTime3, syncTime3)
+				require.Greater(t, syncTime3, syncTime2, "sync time should change after another failed attempt")
 			},
 		},
 		{
@@ -3593,7 +3729,7 @@ func TestAzureVMDiscovery(t *testing.T) {
 			wantInstances:  []string{"bad-api0"},
 			wantResources:  0,
 			foundVMS:       makeFaultyVM(true, 1),
-			userTasksCheck: func(t *testing.T, lister UserTaskLister) {
+			checkState: func(t *testing.T, lister UserTaskLister, _ *mockAzureRunCommandClient) {
 				tasks, _, err := lister.ListUserTasks(t.Context(), 200, "", &usertasksv1.ListUserTasksFilters{})
 				require.NoError(t, err)
 				require.Empty(t, tasks)
@@ -3605,10 +3741,7 @@ func TestAzureVMDiscovery(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			runClient := &mockAzureRunCommandClient{
-				attemptedVMs: make(map[string]struct{}),
-			}
-
+			runClient := &mockAzureRunCommandClient{}
 			initAzureClients := func(opts ...azure.ClientsOption) (azure.Clients, error) {
 				return &azuretest.Clients{
 					AzureVirtualMachines: &mockAzureClient{
@@ -3666,6 +3799,7 @@ func TestAzureVMDiscovery(t *testing.T) {
 					Emitter:          emitter,
 					Log:              logger,
 					DiscoveryGroup:   defaultDiscoveryGroup,
+					PollInterval:     pollInterval,
 				})
 
 				require.NoError(t, err)
@@ -3708,8 +3842,8 @@ func TestAzureVMDiscovery(t *testing.T) {
 				require.ElementsMatch(t, tc.wantInstances, slices.Collect(maps.Keys(seenVMs)))
 
 				// verify user tasks state
-				if tc.userTasksCheck != nil {
-					tc.userTasksCheck(t, tlsServer.Auth())
+				if tc.checkState != nil {
+					tc.checkState(t, tlsServer.Auth(), runClient)
 				}
 
 				// make sure azure client cache has expected entries
@@ -4458,7 +4592,7 @@ func rewriteCloudResource(t *testing.T, r types.ResourceWithLabels, discoveryPar
 		case types.CloudAzure:
 			common.ApplyAzureDatabaseNameSuffix(r, discoveryParams.matcherType)
 		case types.CloudGCP:
-			require.FailNow(t, "GCP database discovery is not supported", cloudLabel)
+			common.ApplyGCPDatabaseNameSuffix(r, discoveryParams.matcherType)
 		default:
 			require.FailNow(t, "unknown cloud label %q", cloudLabel)
 		}

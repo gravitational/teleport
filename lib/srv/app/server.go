@@ -372,6 +372,7 @@ func (s *Server) getServerInfo(app types.Application) (*types.AppServerV3, error
 	s.mu.RLock()
 	copy := s.appWithUpdatedLabelsLocked(app)
 	s.mu.RUnlock()
+
 	expires := s.c.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL)
 	server, err := types.NewAppServerV3(types.Metadata{
 		Name:    copy.GetName(),
@@ -709,6 +710,17 @@ func (s *Server) appWithUpdatedLabelsLocked(app types.Application) *types.AppV3 
 	// Add in the cloud labels if the app has them.
 	if s.c.CloudLabels != nil {
 		s.c.CloudLabels.Apply(copy)
+	}
+
+	// A statically configured app on a scoped agent carries no scope, so use the agent's scope
+	// onto it.
+	// An app that already has a scope keeps it, rather than being silently re-scoped to the
+	// agent's scope.
+	// If it doesn't match this agent's scope, the resulting server/app scope mismatch
+	// is rejected via heartbeat (ValidateAppServer and the inventory controller).
+	// TODO (williamo/scopes) - reject scoped app creation via tctl
+	if copy.GetScope() == "" {
+		copy.Scope = s.c.GetScope()
 	}
 
 	return copy

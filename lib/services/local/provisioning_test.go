@@ -33,6 +33,8 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/services/local"
 )
@@ -312,7 +314,7 @@ func TestProvisioningServiceTokenNameConflict(t *testing.T) {
 	require.NoError(t, err)
 
 	service := local.NewProvisioningService(bk)
-	scopedTokenService, err := local.NewScopedTokenService(bk)
+	scopedTokenService, err := local.NewScopedTokenService(bk, scopes.Features{Enabled: true})
 	require.NoError(t, err)
 
 	ctx := t.Context()
@@ -535,6 +537,56 @@ func TestValidateProvisionToken(t *testing.T) {
 						AWSOrganizationalUnits: &types.AWSOrganizationUnitsMatcher{
 							Include: []string{"ou-1234"},
 							Exclude: []string{"ou-5678"},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "tpm rejects ek_certificate_serial without ekcert_allowed_cas",
+			spec: types.ProvisionTokenSpecV2{
+				JoinMethod: types.JoinMethodTPM,
+				TPM: &types.ProvisionTokenSpecV2TPM{
+					Allow: []*types.ProvisionTokenSpecV2TPM_Rule{
+						{EKCertificateSerial: "73:df:dc:bd"},
+					},
+				},
+			},
+			wantErr:     true,
+			errContains: "ek_certificate_serial requires ek_public_hash or ekcert_allowed_cas to be set",
+		},
+		{
+			name: "tpm accepts ek_certificate_serial with ekcert_allowed_cas",
+			spec: types.ProvisionTokenSpecV2{
+				JoinMethod: types.JoinMethodTPM,
+				TPM: &types.ProvisionTokenSpecV2TPM{
+					EKCertAllowedCAs: []string{fixtures.TLSCACertPEM},
+					Allow: []*types.ProvisionTokenSpecV2TPM_Rule{
+						{EKCertificateSerial: "73:df:dc:bd"},
+					},
+				},
+			},
+		},
+		{
+			name: "tpm accepts ek_public_hash without ekcert_allowed_cas",
+			spec: types.ProvisionTokenSpecV2{
+				JoinMethod: types.JoinMethodTPM,
+				TPM: &types.ProvisionTokenSpecV2TPM{
+					Allow: []*types.ProvisionTokenSpecV2TPM_Rule{
+						{EKPublicHash: "d4b45864d9d6fabfc568d74f26c35ababde2105337d7af9a6605e1c56c891aa6"},
+					},
+				},
+			},
+		},
+		{
+			name: "tpm accepts ek_certificate_serial alongside ek_public_hash without a CA",
+			spec: types.ProvisionTokenSpecV2{
+				JoinMethod: types.JoinMethodTPM,
+				TPM: &types.ProvisionTokenSpecV2TPM{
+					Allow: []*types.ProvisionTokenSpecV2TPM_Rule{
+						{
+							EKPublicHash:        "d4b45864d9d6fabfc568d74f26c35ababde2105337d7af9a6605e1c56c891aa6",
+							EKCertificateSerial: "73:df:dc:bd",
 						},
 					},
 				},

@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { resolveThemeToColors } from '@gravitational/design-system';
 import { ComponentPropsWithoutRef } from 'react';
 import styled, { DefaultTheme, useTheme } from 'styled-components';
 
@@ -97,8 +98,8 @@ const CircleButton = styled(Box)<{ $color: string }>`
   height: 12px;
   border-radius: 50%;
   background-color: ${props => props.$color};
-  border: 1px solid ${props => darken(props.$color, 0.2)};
+  border: 1px solid ${props => darken(resolveThemeToColors(props.$color), 0.2)};
 `;
 
 const topBarColor = (theme: DefaultTheme): string =>
-  emphasize(theme.colors.levels.deep, 0.2);
+  emphasize(resolveThemeToColors(theme.colors.levels.deep), 0.2);

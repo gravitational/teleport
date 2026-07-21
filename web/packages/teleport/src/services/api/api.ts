@@ -32,6 +32,10 @@ type RequestOptions = {
    * challenge.
    */
   skipAuthnRetry?: boolean;
+  /**
+   * If set to `true`, the MFA response on an authn retry will be reusable.
+   */
+  allowReuse?: boolean;
 };
 
 const api = {
@@ -273,7 +277,7 @@ const api = {
         !options.skipAuthnRetry &&
         isAdminActionRequiresMfaError(err)
       ) {
-        mfaResponse = await api.getAdminActionMfaResponse();
+        mfaResponse = await api.getAdminActionMfaResponse(options.allowReuse);
         const response = await api.fetch(url, customOptions, mfaResponse);
         return await api.getJsonFromFetchResponse(response);
       } else {
@@ -318,9 +322,10 @@ const api = {
     });
   },
 
-  async getAdminActionMfaResponse() {
+  async getAdminActionMfaResponse(allowReuse?: boolean) {
     const challenge = await auth.getMfaChallenge({
       scope: MfaChallengeScope.ADMIN_ACTION,
+      allowReuse,
     });
 
     if (!challenge) {

@@ -19,6 +19,12 @@ DOCKER_IMAGE ?= teleport
 
 # This directory will be the real path of the directory of the first Makefile in the list.
 MAKE_DIR := $(dir $(realpath $(firstword $(MAKEFILE_LIST))))
+HELM_UNITTEST_VERSION := $(shell cat $(MAKE_DIR)/build.assets/helm-unittest.version)
+HELM_UNITTEST_OS := $(shell if [ "$(shell uname -s)" = Darwin ]; then echo macos; elif [ "$(shell uname -s)" = Linux ]; then echo linux; else echo unsupported; fi)
+HELM_UNITTEST_ARCH := $(shell if [ "$(shell uname -m)" = x86_64 ]; then echo amd64; elif [ "$(shell uname -m)" = arm64 ] || [ "$(shell uname -m)" = aarch64 ]; then echo arm64; else echo unsupported; fi)
+HELM_UNITTEST_PLATFORM := $(HELM_UNITTEST_OS)-$(HELM_UNITTEST_ARCH)
+HELM_UNITTEST_ARCHIVE := helm-unittest-$(HELM_UNITTEST_PLATFORM)-$(HELM_UNITTEST_VERSION:v%=%).tgz
+HELM_UNITTEST_CHECKSUM_CMD := $(shell if command -v sha256sum >/dev/null 2>&1; then echo sha256sum; else echo 'shasum -a 256'; fi)
 
 # If set to 1, webassets are not built.
 WEBASSETS_SKIP_BUILD ?= 0
@@ -556,6 +562,11 @@ export ironrdp_package_json
 
 IRONRDP_SKIP_BUILD ?= 0
 
+# wasm-bindgen CLI binary to invoke. Overridden to a per-version path under
+# target/ when WASM_BINDGEN_ISOLATE=1 (see ensure-wasm-bindgen); otherwise the
+# shared binary resolved from $$PATH (typically ~/.cargo/bin).
+WASM_BINDGEN ?= wasm-bindgen
+
 .PHONY: build-ironrdp-wasm
 build-ironrdp-wasm: ironrdp = web/packages/shared/libs/ironrdp
 ifeq ($(IRONRDP_SKIP_BUILD),1)
@@ -565,7 +576,7 @@ else
 build-ironrdp-wasm: ensure-wasm-deps
 	RUSTFLAGS='--cfg getrandom_backend="wasm_js"' cargo build --package ironrdp --lib --target $(CARGO_WASM_TARGET) --release
 	wasm-opt target/$(CARGO_WASM_TARGET)/release/ironrdp.wasm -o target/$(CARGO_WASM_TARGET)/release/ironrdp.wasm -O
-	wasm-bindgen target/$(CARGO_WASM_TARGET)/release/ironrdp.wasm --out-dir $(ironrdp)/pkg --typescript --target web
+	$(WASM_BINDGEN) target/$(CARGO_WASM_TARGET)/release/ironrdp.wasm --out-dir $(ironrdp)/pkg --typescript --target web
 	printenv ironrdp_package_json > $(ironrdp)/pkg/package.json
 endif
 
@@ -949,13 +960,46 @@ $(TEST_LOG_DIR):
 
 .PHONY: helmunit/installed
 helmunit/installed:
-	@if ! helm unittest -h >/dev/null; then \
-		echo 'Helm unittest plugin is required to test Helm charts. Run `helm plugin install https://github.com/quintush/helm-unittest --version 0.2.11` to install it'; \
+	@if ! grep -q "[[:space:]]$(HELM_UNITTEST_ARCHIVE)$$" build.assets/helm-unittest.sha256; then \
+		echo "No helm-unittest checksum is available for $(HELM_UNITTEST_OS)/$(HELM_UNITTEST_ARCH)." >&2; \
 		exit 1; \
 	fi
+	@if ! command -v helm >/dev/null 2>&1; then \
+		printf '%s\n' \
+			'Helm is required to test Helm charts.' \
+			'' \
+			'Install with Homebrew:' \
+			'  brew install helm' \
+			'' \
+			'Or download a static binary (macOS Apple Silicon example):' \
+			'  curl -fsSL https://get.helm.sh/helm-v3.12.2-darwin-arm64.tar.gz | tar -xz' \
+			'  sudo mv darwin-arm64/helm /usr/local/bin/helm'; \
+		exit 1; \
+	fi
+	@actual="$$(helm plugin list 2>/dev/null | awk '$$1 == "unittest" { print $$2; exit }')"; \
+	required="$(HELM_UNITTEST_VERSION:v%=%)"; \
+	if [ -z "$$actual" ]; then \
+		printf '%s\n' \
+			'Helm unittest plugin is required to test Helm charts. Run:'; \
+	elif [ "$$(printf '%s\n' "$$actual" "$$required" | sort -V | head -n1)" != "$$required" ]; then \
+		printf '%s\n' \
+			"Helm unittest plugin $$actual is too old; version $(HELM_UNITTEST_VERSION) or newer is required." \
+			'Run:'; \
+	else \
+		exit 0; \
+	fi; \
+	printf '%s\n' \
+		'helm-unittest does not provide the plugin signature required for Helm plugin signature verification, so we verify the release archive ourselves when installing:' \
+		'  plugin_dir="$$(helm env HELM_PLUGINS)/helm-unittest"' \
+		'  rm -rf "$$plugin_dir"' \
+		'  mkdir -p "$$plugin_dir"' \
+		'  curl -fsSL -o "$(HELM_UNITTEST_ARCHIVE)" https://github.com/helm-unittest/helm-unittest/releases/download/$(HELM_UNITTEST_VERSION)/$(HELM_UNITTEST_ARCHIVE)' \
+		'  grep "[[:space:]]$(HELM_UNITTEST_ARCHIVE)$$" build.assets/helm-unittest.sha256 | $(HELM_UNITTEST_CHECKSUM_CMD) -c -' \
+		'  tar -xz -f "$(HELM_UNITTEST_ARCHIVE)" -C "$$plugin_dir"'; \
+	exit 1
 
 # The CI environment is responsible for setting HELM_PLUGINS to a directory where
-# quintish/helm-unittest is installed.
+# helm-unittest/helm-unittest is installed.
 #
 # Github Actions build uses /workspace as homedir and Helm can't pick up plugins by default there,
 # so override the plugin location via environemnt variable when running in CI. Github Actions provide CI=true
@@ -1637,7 +1681,7 @@ GODERIVE := $(TOOLINGDIR)/bin/goderive
 .PHONY: derive
 derive:
 	cd $(TOOLINGDIR) && go build -o $(GODERIVE) ./cmd/goderive/main.go
-	$(GODERIVE) ./api/types ./api/types/discoveryconfig ./api/types/accesslist ./api/types/userloginstate
+	$(GODERIVE) ./api/types ./api/types/discoveryconfig ./api/types/accesslist ./api/types/userloginstate ./lib/config/
 
 # derive-up-to-date checks if the generated derived functions are up to date.
 .PHONY: derive-up-to-date
@@ -1912,12 +1956,39 @@ ensure-js-deps:
 ifeq ($(WEBASSETS_SKIP_BUILD),1)
 ensure-wasm-deps:
 else
-ensure-wasm-deps: rustup-toolchain-warning ensure-wasm-bindgen ensure-wasm-opt
+ensure-wasm-deps: ensure-llvm-macos rustup-toolchain-warning ensure-wasm-bindgen ensure-wasm-opt
+
+.PHONY: ensure-llvm-macos
+ifeq ("$(OS)-$(ARCH)","darwin-arm64")
+BREW_DIR = $(shell brew --prefix)
+LLVM_PREFIX = $(shell brew list | grep llvm | head -n 1)
+LLVM_DIR = $(shell brew --prefix $(LLVM_PREFIX))
+CC = $(LLVM_DIR)/bin/clang
+AR = $(LLVM_DIR)/bin/llvm-ar
+ensure-llvm-macos:
+	@if [[ "${BREW_DIR}" = "${LLVM_DIR}" ]]; then \
+		echo "llvm is required, please run 'brew install llvm' and add '/opt/homebrew/opt/llvm/bin' at the start of PATH variable"; \
+		exit 1; \
+	fi
+
+else
+ensure-llvm-macos:
+endif
 
 WASM_BINDGEN_VERSION = $(shell awk ' \
   $$1 == "name" && $$3 == "\"wasm-bindgen\"" { in_pkg=1; next } \
   in_pkg && $$1 == "version" { gsub(/"/, "", $$3); print $$3; exit } \
 ' Cargo.lock)
+
+# Opt-in isolation (WASM_BINDGEN_ISOLATE=1): install and run the wasm-bindgen CLI
+# from a per-version path under target/ rather than the shared ~/.cargo/bin.
+WASM_BINDGEN_ISOLATE ?= 0
+WASM_BINDGEN_INSTALL_FLAGS =
+ifeq ($(WASM_BINDGEN_ISOLATE),1)
+WASM_BINDGEN_INSTALL_ROOT = $(CURDIR)/target/wasm-bindgen-cli/$(WASM_BINDGEN_VERSION)
+WASM_BINDGEN := $(WASM_BINDGEN_INSTALL_ROOT)/bin/wasm-bindgen
+WASM_BINDGEN_INSTALL_FLAGS = --root "$(WASM_BINDGEN_INSTALL_ROOT)"
+endif
 
 .PHONY: print-wasm-bindgen-version
 print-wasm-bindgen-version:
@@ -1930,11 +2001,11 @@ print-rust-toolchain-version:
 	@echo $(RUST_TOOLCHAIN_VERSION)
 
 ensure-wasm-bindgen: NEED_VERSION = $(WASM_BINDGEN_VERSION)
-ensure-wasm-bindgen: INSTALLED_VERSION = $(word 2,$(shell wasm-bindgen --version 2>/dev/null))
+ensure-wasm-bindgen: INSTALLED_VERSION = $(word 2,$(shell $(WASM_BINDGEN) --version 2>/dev/null))
 ensure-wasm-bindgen:
 	@: $(or $(NEED_VERSION),$(error Unknown wasm-bindgen version. Is it in Cargo.lock?))
 	$(if $(filter-out $(INSTALLED_VERSION),$(NEED_VERSION)),\
-		cargo install wasm-bindgen-cli --force --locked --version "$(NEED_VERSION)", \
+		cargo install wasm-bindgen-cli --force --locked --version "$(NEED_VERSION)" $(WASM_BINDGEN_INSTALL_FLAGS), \
 		@echo wasm-bindgen-cli up-to-date: $(INSTALLED_VERSION) \
 	)
 endif
@@ -1978,8 +2049,20 @@ define rust_toolchain_warning
 endef
 export rust_toolchain_warning
 
+define rust_shadowed_warning
+  The 'cargo'/'rustc' on your PATH are not the ones managed by rustup.
+  Another Rust installation (for example the Homebrew 'rust' formula) is
+  shadowing rustup's shims. Builds will ignore rust-toolchain.toml.
+  Remove the other installation (e.g. 'brew uninstall rust') or put
+  rustup's shims ahead of it on your PATH. Inspect with 'which cargo'
+  and 'cargo --version'.
+endef
+export rust_shadowed_warning
+
 # inspect the current active toolchain and display a warning if it doesn't
-# match the version defined in our toolchain file.
+# match the version defined in our toolchain file. Also warn when the cargo
+# on PATH is not rustup-managed (e.g. the Homebrew 'rust' formula), which
+# silently bypasses the toolchain file even though the checks below pass.
 .PHONY: rustup-toolchain-warning
 rustup-toolchain-warning: EXPECTED = $(shell $(MAKE) print-rust-toolchain-version)
 rustup-toolchain-warning:
@@ -1987,6 +2070,15 @@ rustup-toolchain-warning:
 		echo -en "\033[31m";\
 		echo  "$$rust_toolchain_warning";\
 		echo  -en "\033[0m";\
+	fi
+	@if command -v rustup >/dev/null 2>&1 && command -v cargo >/dev/null 2>&1; then \
+		rustup_cargo="$$(rustup which cargo 2>/dev/null)";\
+		if [ -n "$$rustup_cargo" ] && \
+			[ "$$("$$rustup_cargo" --version 2>/dev/null)" != "$$(cargo --version 2>/dev/null)" ]; then \
+			echo -en "\033[31m";\
+			echo  "$$rust_shadowed_warning";\
+			echo  -en "\033[0m";\
+		fi;\
 	fi
 
 # changelog generates PR changelog between the provided base tag and the tip of

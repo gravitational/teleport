@@ -29,7 +29,6 @@ import {
   WidthProps,
 } from 'design/system';
 import { Theme } from 'design/theme/themes/types';
-import { fade } from 'design/theme/utils/colorManipulator';
 
 export type LabelKind =
   | 'primary'
@@ -76,8 +75,8 @@ const kinds = ({ theme, kind, shadow }: ThemedKindsProps) => {
 
   if (shadow) {
     styles.boxShadow = `
-    0 0 8px ${fade(styles.background, 0.24)},
-    0 4px 16px ${fade(styles.background, 0.56)}
+    0 0 8px color-mix(in srgb, ${styles.background} 24%, transparent),
+    0 4px 16px color-mix(in srgb, ${styles.background} 56%, transparent)
     `;
   }
 

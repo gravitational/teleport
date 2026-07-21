@@ -18,6 +18,7 @@ package types;
 
 import "gogoproto/gogo.proto";
 import "google/protobuf/duration.proto";
+import "google/protobuf/struct.proto";
 import "google/protobuf/timestamp.proto";
 import "teleport/attestation/v1/attestation.proto";
 import "teleport/componentfeatures/v1/component_features.proto";
@@ -26,6 +27,7 @@ import "teleport/legacy/types/mfa_device.proto";
 import "teleport/legacy/types/resources.proto";
 import "teleport/legacy/types/trusted_device_requirement.proto";
 import "teleport/legacy/types/wrappers/wrappers.proto";
+import "teleport/scopes/v1/scopes.proto";
 
 option go_package = "github.com/gravitational/teleport/api/types";
 option (gogoproto.goproto_getters_all) = false;
@@ -1309,6 +1311,9 @@ message AppAWS {
   // RolesAnywhereProfile contains the IAM Roles Anywhere fields associated with this Application.
   // These fields are set when performing the synchronization of AWS IAM Roles Anywhere Profiles into Teleport Apps.
   AppAWSRolesAnywhereProfile RolesAnywhereProfile = 2 [(gogoproto.jsontag) = "roles_anywhere_profile,omitempty"];
+  // Region is a cloud region for the app.
+  // This field is set for apps that integrates with AWS applications/APIs.
+  string region = 3;
 }
 
 // AppAWSRolesAnywhereProfile contains the fields that represent an AWS IAM Roles Anywhere Profile.
@@ -1637,6 +1642,8 @@ message ProvisionTokenSpecV2 {
   // Integration name which provides credentials for validating join attempts.
   // Currently only in use for validating the AWS Organization ID in the IAM Join method.
   string Integration = 22 [(gogoproto.jsontag) = "integration,omitempty"];
+  // GenericOIDC allows the configuration of generic OIDC join tokens.
+  ProvisionTokenSpecV2GenericOIDC GenericOIDC = 23 [(gogoproto.jsontag) = "generic_oidc,omitempty"];
 }
 
 // ProvisionTokenSpecV2AzureDevops contains the Azure Devops-specific
@@ -2223,6 +2230,142 @@ message ProvisionTokenSpecV2Env0 {
   // Allow is a list of Rules, jobs using this token must match at least one
   // allow rule to use this token.
   repeated Rule Allow = 1 [(gogoproto.jsontag) = "allow,omitempty"];
+}
+
+// ProvisionTokenSpecV2GenericOIDC contains configuration for generic_oidc join
+// tokens.
+message ProvisionTokenSpecV2GenericOIDC {
+  // The attribute casted to a string must be equal to the value.
+  message ConditionEq {
+    // The value to compare the attribute against.
+    string Value = 1 [(gogoproto.jsontag) = "value"];
+  }
+
+  // The attribute casted to a string must not be equal to the value.
+  message ConditionNotEq {
+    // The value to compare the attribute against.
+    string Value = 1 [(gogoproto.jsontag) = "value"];
+  }
+
+  // The attribute casted to a string must be in the list of values.
+  message ConditionIn {
+    // The list of values to compare the attribute against.
+    repeated string Values = 1 [(gogoproto.jsontag) = "values"];
+  }
+
+  // The attribute casted to a string must not be in the list of values.
+  message ConditionNotIn {
+    // The list of values to compare the attribute against.
+    repeated string Values = 1 [(gogoproto.jsontag) = "values"];
+  }
+
+  // An allow rule condition for simple checks against a specific field.
+  message Condition {
+    // The name of the field this condition should check, separated by "." for
+    // nested fields.
+    string Attribute = 1 [(gogoproto.jsontag) = "attribute"];
+
+    // An "equals" operator. Only one operator may be set within a condition.
+    ConditionEq Eq = 2 [(gogoproto.jsontag) = "eq"];
+
+    // A "not equals" operator. Only one operator may be set within a condition.
+    ConditionNotEq NotEq = 3 [(gogoproto.jsontag) = "not_eq"];
+
+    // An "in" operator. Only one operator may be set within a condition.
+    ConditionIn In = 4 [(gogoproto.jsontag) = "in"];
+
+    // A "not in" operator. Only one operator may be set within a condition.
+    ConditionNotIn NotIn = 5 [(gogoproto.jsontag) = "not_in"];
+  }
+
+  // An allow rule, containing either a predict expression or simple field
+  // check.
+  message Rule {
+    // Conditions are simple eq/not_eq/in/not_in conditions that check
+    // individual fields. All conditions must be satisfied for a join attempt to
+    // be allowed. Mutually exclusive with `expression`.
+    repeated Condition Conditions = 1 [(gogoproto.jsontag) = "conditions,omitempty"];
+
+    // Expression is a predicate expression that must evaluate to `true` for the
+    // join attempt to be allowed. Expressions are provided the `claims` object,
+    // containing all claims extracted from the incoming JWT. It is mutually
+    // exclusive with `conditions`.
+    string Expression = 2 [(gogoproto.jsontag) = "expression,omitempty"];
+  }
+
+  // Issuer contains the expected `iss` value as written in the JWT you wish to
+  // trust. Unless `static_jwks` is configured, this issuer must be accessible
+  // over HTTPS to the Teleport cluster and must serve valid OIDC metadata,
+  // including discovery configuration and JWKS keys.
+  string Issuer = 1 [(gogoproto.jsontag) = "issuer"];
+
+  // InsecureAllowHTTPIssuer is a flag that, if set, disables the requirement
+  // that the issuer must use HTTPS.
+  bool InsecureAllowHTTPIssuer = 2 [(gogoproto.jsontag) = "insecure_allow_http_issuer"];
+
+  // Audience is the expected audience value (required). This must match or be
+  // included in the list of `aud` values in the JWT provided by the client when
+  // joining.
+  // For providers that do not allow you to configure this value yourself (this
+  // is technically an OIDC spec violation, but is common), use the value they
+  // provide. Otherwise, we recommend using a value that uniquely identifies the
+  // Teleport cluster and join token. For example, you can use this scheme:
+  //   $clusterName/$tokenName
+  // For a cluster named `example.teleport.sh` and a token named `example`, this
+  // would result in an audience of `example.teleport.sh/example`. If you
+  // prefer, you can also use a UUID instead of the token name. Note that you
+  // will need to configure the matching value with the issuer, usually at
+  // request time.
+  string Audience = 3 [(gogoproto.jsontag) = "audience,omitempty"];
+
+  // StaticJWKS is an optional static JWKS value that can be used to specify
+  // JWKS keys when either OIDC discovery is either not supported by the
+  // provider or the discovery configuration is not accessible to Teleport. When
+  // set, configuration and JWKS keys will not be fetched from the URL contained
+  // in `issuer` and JWTs will be validated using the key set specified here.
+  string StaticJWKS = 4 [(gogoproto.jsontag) = "static_jwks,omitempty"];
+
+  // TLSCA is a TLS CA certificate that should be used to verify requests for
+  // OIDC metadata from the issuer instead of Teleport's CA store, useful if the
+  // issuer is not public or otherwise uses a self-signed certificate. Note that
+  // this value only applies to requests using this token, and will be used
+  // instead of and not in addition to the system CA store, and will need to be
+  // updated manually if the remote CA is updated.
+  string TLSCA = 5 [(gogoproto.jsontag) = "tls_ca,omitempty"];
+
+  // MustMatchFields perform simple comparison matches using "AND" semantics.
+  // Rules are specified by mirroring the structure of the JWT, using values
+  // that are expected to be equal to those on the incoming token. These field
+  // matching rules can only be used to compare simple values: strings, numbers,
+  // booleans, and nested fields. Complex values, including lists, will need to
+  // use `allow_any` expression rules instead.
+  //
+  // If any field match rules are specified, all must be equal to corresponding
+  // JWT fields for the join attempt to succeed. If complex rules are specified
+  // in `allow_any`, those are evaluated after `must_match_fields`. If
+  // `must_match_fields` is not specified or is empty, only rules in `allow_any`
+  // are evaluated.
+  //
+  // These rules can be used as "global" rules that apply to all join attempts.
+  // For example, you can use these to ensure all attempts originate from your
+  // organization, then use `allow_any` rules to allow individual repositories,
+  // pipelines, or workspaces.
+  //
+  // Note that at least one rule, either in `must_match_fields` or `allow_any`,
+  // must be specified for any join attempts to succeed.
+  google.protobuf.Struct MustMatchFields = 6 [
+    (gogoproto.jsontag) = "must_match_fields",
+    (gogoproto.casttype) = "Struct"
+  ];
+
+  // AllowAny evaluates complex rules using "OR" semantics. If any rules are
+  // specified, at least one rule must evaluate to `true` for the join attempt
+  // to be allowed. These rules are evaluated after `must_match_fields`, if any
+  // field matchers are specified in that block.
+  //
+  // Note that at least one rule, either in `must_match_fields` or `allow_any`,
+  // must be specified for any join attempts to succeed.
+  repeated Rule AllowAny = 7 [(gogoproto.jsontag) = "allow_any"];
 }
 
 // ProvisionTokenSpecV2BoundKeypair contains configuration for bound_keypair
@@ -3201,6 +3344,23 @@ message AccessRequestDryRunEnrichment {
   ];
   // ReasonPrompts is a sorted and deduplicated list of reason prompts for this Access Request.
   repeated string ReasonPrompts = 2 [(gogoproto.jsontag) = "reason_prompt,omitempty"];
+  // UserDisplays maps the requester and server-suggested reviewer usernames to
+  // read-time display values.
+  map<string, AccessRequestUserDisplay> UserDisplays = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "user_displays,omitempty"
+  ];
+}
+
+// AccessRequestUserDisplay holds read-time display values derived from a user
+// resource.
+message AccessRequestUserDisplay {
+  // Primary is a human-readable display name derived from the user's traits.
+  // Empty when the user has no display value distinct from their username.
+  string Primary = 1 [(gogoproto.jsontag) = "primary,omitempty"];
+  // Secondary is supporting context, typically the user's email address.
+  // Empty when the user has no such value distinct from their username.
+  string Secondary = 2 [(gogoproto.jsontag) = "secondary,omitempty"];
 }
 
 // AccessReview is a review to be applied to an Access Request.
@@ -9164,6 +9324,15 @@ enum HeadlessAuthenticationState {
   HEADLESS_AUTHENTICATION_STATE_APPROVED = 3;
 }
 
+// ScopeFilter is a gogo-native mirror of teleport.scopes.v1.Filter for use on WatchKind. Gogo uses
+// marshaling/unmarshaling logic that is incompatible with our newer proto messages.
+message ScopeFilter {
+  // Scope is the scope the filter is anchored at.
+  string scope = 1;
+  // Mode determines how the scope is matched (exact, descendants, etc.).
+  teleport.scopes.v1.Mode mode = 2;
+}
+
 // WatchKind specifies resource kind to watch
 // When adding fields to this struct, make sure to review/update WatchKind.Contains method.
 message WatchKind {
@@ -9183,6 +9352,10 @@ message WatchKind {
   // Version optionally specifies the resource version to watch.
   // Currently this field is ignored.
   string Version = 6 [(gogoproto.jsontag) = "version,omitempty"];
+  // ScopeFilter optionally filters events by scope. Filtering is performed against the scope of the
+  // resource itself. Defaults to one of EXACT or UNSCOPED depending on wether the caller is
+  // a scoped or unscoped identity for most kinds.
+  ScopeFilter ScopeFilter = 7 [(gogoproto.jsontag) = "scope_filter,omitempty"];
 }
 
 // WatchStatusV1 is intended to be attached to OpInit events and contain information about a successful WatchEvents call.
@@ -9526,9 +9699,9 @@ message AzureMatcher {
 
 // GCPMatcher matches GCP resources.
 message GCPMatcher {
-  // Types are GKE resource types to match: "gke", "vm".
+  // Types are GCP resource types to match: "gke", "gce", "cloudsql".
   repeated string Types = 1 [(gogoproto.jsontag) = "types,omitempty"];
-  // Locations are GKE locations to search resources for.
+  // Locations are GCP locations to search resources for.
   repeated string Locations = 2 [(gogoproto.jsontag) = "locations,omitempty"];
   // Tags is obsolete and only exists for backwards compatibility. Use Labels instead.
   wrappers.LabelValues Tags = 3 [

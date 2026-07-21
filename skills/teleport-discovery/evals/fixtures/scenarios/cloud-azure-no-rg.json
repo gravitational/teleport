@@ -1,0 +1,17 @@
+{
+  "tsh": {
+    "profile_url": "https://azure-tenant.teleport.sh:443",
+    "cluster": "azure-tenant.teleport.sh",
+    "username": "eval"
+  },
+  "tctl": {
+    "cluster": "azure-tenant.teleport.sh",
+    "version": "18.8.0",
+    "integrations": [],
+    "inventory_discovery": [{ "id": "discovery-svc-1" }]
+  },
+  "az": {
+    "subscription_id": "00000000-0000-0000-0000-000000000001",
+    "resource_groups": {}
+  }
+}

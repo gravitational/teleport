@@ -5,6 +5,7 @@ process.env.TZ = 'UTC';
 const esModules = [
   'strip-ansi',
   'ansi-regex',
+  'cookie-es',
   'd3-color',
   'd3-scale',
   'd3-interpolate',
@@ -17,15 +18,19 @@ const esModules = [
   'internmap',
   '@nivo/bar',
   'react-error-boundary',
+  'react-router',
   'until-async',
   '@exodus/bytes',
   'rettime',
   '@open-draft/deferred-promise',
+  '@gravitational/design-system',
 ].join('|');
 
 /** @type {import('@jest/types').Config.InitialOptions} */
 module.exports = {
   ...config,
+  maxWorkers: '75%',
+  workerIdleMemoryLimit: '1GB',
   globals: {
     electron: {},
   },

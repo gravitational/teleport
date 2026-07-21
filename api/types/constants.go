@@ -716,6 +716,10 @@ const (
 	// MetaNameVnetConfig is the exact name of the singleton resource holding VNet config.
 	MetaNameVnetConfig = "vnet-config"
 
+	// MetaNameClientIPRestriction is the exact name of the singleton resource holding
+	// the cluster's client IP restriction allowlist.
+	MetaNameClientIPRestriction = "client-ip-restriction"
+
 	// MetaNameRetrievalModel is the name of the singleton resource holding
 	// the default retrieval model configuration.
 	MetaNameRetrievalModel = "retrieval-model"
@@ -746,6 +750,12 @@ const (
 
 	// KindBeam is an ephemeral AI-optimized compute environment.
 	KindBeam = "beam"
+
+	// KindBeamsConfig is the user-provided configuration for Beams.
+	KindBeamsConfig = "beams_config"
+
+	// MetaNameBeamsConfig is the exact name of the singleton resource holding Beams config.
+	MetaNameBeamsConfig = "beams-config"
 
 	// V8 is the eighth version of resources.
 	V8 = "v8"
@@ -898,11 +908,9 @@ const (
 	AWSSSORegionLabel = TeleportNamespace + "/sso-region"
 	// SubscriptionIDLabelInternal is a hidden label (teleport.internal/) used
 	// to identify Azure VMs by subscription ID during auto-discovery.
-	// Preserved for backward compatibility; superseded by SubscriptionIDLabel.
 	SubscriptionIDLabelInternal = TeleportInternalLabelPrefix + "subscription-id"
 	// VMIDLabelInternal is a hidden label (teleport.internal/) used to identify
 	// Azure VMs by VM ID during auto-discovery.
-	// Preserved for backward compatibility; superseded by VMIDLabel.
 	VMIDLabelInternal = TeleportInternalLabelPrefix + "vm-id"
 	// projectIDLabelSuffix is the identifier for adding the GCE ProjectID to an instance.
 	projectIDLabelSuffix = "project-id"
@@ -916,11 +924,9 @@ const (
 	ProjectIDLabel = TeleportNamespace + "/" + projectIDLabelSuffix
 	// RegionLabelInternal is a hidden label (teleport.internal/) used to
 	// identify Azure VMs by region during auto-discovery.
-	// Preserved for backward compatibility; superseded by RegionLabel.
 	RegionLabelInternal = TeleportInternalLabelPrefix + "region"
 	// ResourceGroupLabelInternal is a hidden label (teleport.internal/) used
 	// to identify Azure VMs by resource group during auto-discovery.
-	// Preserved for backward compatibility; superseded by ResourceGroupLabel.
 	ResourceGroupLabelInternal = TeleportInternalLabelPrefix + "resource-group"
 	// AzureManagedIdentityRegionLabel is the label key for the Azure region for
 	// the managed identity created by the Azure discovery Terraform module.
@@ -928,6 +934,9 @@ const (
 	// AzureManagedIdentityResourceGroupLabel is the label key for the Azure resource
 	// group for the managed identity created by the Azure discovery Terraform module.
 	AzureManagedIdentityResourceGroupLabel = TeleportNamespace + "/azure-managed-identity-resource-group"
+	// AzureManagementGroupIDLabel is the label key for the Azure management group ID
+	// used for tenant-wide discovery scoping.
+	AzureManagementGroupIDLabel = TeleportNamespace + "/azure-management-group-id"
 	// ZoneLabelDiscovery is used to identify virtual machines by GCP zone
 	// found via automatic discovery, to avoid re-running installation
 	// commands on the node.
@@ -974,10 +983,9 @@ const (
 	// cloud-specific labels from eachother.
 	cloudKubeClusterNameOverrideLabel = "TeleportKubernetesName"
 
-	// cloudDatabaseNameOverrideLabel is a cloud agnostic label key for
-	// overriding the database name in discovered cloud databases.
-	// It's used for AWS, GCP, and Azure, but not exported to decouple the
-	// cloud-specific labels from eachother.
+	// cloudDatabaseNameOverrideLabel is a label key for overriding the database
+	// name in discovered cloud databases. It is used for AWS and Azure. GCP uses
+	// GCPDatabaseNameOverrideLabel instead, as GCP label keys must be lowercase.
 	cloudDatabaseNameOverrideLabel = "TeleportDatabaseName"
 
 	// AzureDatabaseNameOverrideLabel is the label key containing the database
@@ -985,6 +993,17 @@ const (
 	// Azure tags cannot contain these characters: "<>%&\?/", so it doesn't
 	// start with the namespace prefix.
 	AzureDatabaseNameOverrideLabel = cloudDatabaseNameOverrideLabel
+
+	// GCPDatabaseNameOverrideLabel is the GCP user-label key that overrides the
+	// database name for discovered GCP databases.
+	//
+	// GCP label keys must be lowercase, which makes the default "TeleportDatabaseName" unusable for GCP.
+	GCPDatabaseNameOverrideLabel = "teleport-database-name"
+
+	// GCPDatabaseEndpointTypeOverrideLabel is the GCP user-label key on a Cloud
+	// SQL instance that overrides the connection endpoint type chosen by
+	// discovery. Valid values are "public", "private", and "psc".
+	GCPDatabaseEndpointTypeOverrideLabel = "teleport-database-endpoint-type"
 
 	// AzureKubeClusterNameOverrideLabel is the label key containing the
 	// kubernetes cluster name override for discovered Azure kube clusters.
@@ -1145,6 +1164,8 @@ const (
 	DiscoveryLabelEngineVersion = "engine-version"
 	// DiscoveryLabelEndpointType is the label key containing the endpoint type.
 	DiscoveryLabelEndpointType = "endpoint-type"
+	// DiscoveryLabelInstanceType is the label key containing the instance type.
+	DiscoveryLabelInstanceType = "instance-type"
 	// DiscoveryLabelVPCID is the label key containing the VPC ID.
 	DiscoveryLabelVPCID = "vpc-id"
 	// DiscoveryLabelNamespace is the label key for namespace name.
@@ -1521,6 +1542,9 @@ const (
 
 	// WindowsDesktopTunnel is a tunnel where the Windows desktop service dials back to the proxy.
 	WindowsDesktopTunnel TunnelType = "windows_desktop"
+
+	// LinuxDesktopTunnel is a tunnel where the Linux desktop service dials back to the proxy.
+	LinuxDesktopTunnel TunnelType = "linux_desktop"
 
 	// OktaTunnel is a tunnel where the Okta service dials back to the proxy.
 	OktaTunnel TunnelType = "okta"

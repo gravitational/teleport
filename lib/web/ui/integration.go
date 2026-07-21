@@ -75,6 +75,8 @@ type IntegrationAzureManagedIdentitySpec struct {
 	Region string `json:"region,omitempty"`
 	// ResourceGroup is the Azure resource group containing the managed identity.
 	ResourceGroup string `json:"resourceGroup,omitempty"`
+	// ManagementGroupID is the Azure management group ID scope used for the managed identity.
+	ManagementGroupID string `json:"managementGroupId,omitempty"`
 }
 
 // AWSRAProfileSync contains the configuration for the AWS Roles Anywhere Profile Sync.
@@ -172,6 +174,7 @@ type ResourcesCount struct {
 	Enrolled int `json:"enrolled"`
 	// Failed is the count of resources that were found but failed to be enrolled
 	Failed int `json:"failed"`
+	// TODO(gavin): add Pending count
 }
 
 // ResourceTypeSummary contains the summary of the enrollment rules and found resources by the integration.
@@ -456,10 +459,12 @@ func MakeIntegration(ig types.Integration) (*Integration, error) {
 		}
 		region, _ := ig.GetLabel(types.AzureManagedIdentityRegionLabel)
 		resourceGroup, _ := ig.GetLabel(types.AzureManagedIdentityResourceGroupLabel)
-		if region != "" || resourceGroup != "" {
+		managementGroupID, _ := ig.GetLabel(types.AzureManagementGroupIDLabel)
+		if region != "" || resourceGroup != "" || managementGroupID != "" {
 			azureSpec.ManagedIdentity = &IntegrationAzureManagedIdentitySpec{
-				Region:        region,
-				ResourceGroup: resourceGroup,
+				Region:            region,
+				ResourceGroup:     resourceGroup,
+				ManagementGroupID: managementGroupID,
 			}
 		}
 		ret.AzureOIDC = azureSpec

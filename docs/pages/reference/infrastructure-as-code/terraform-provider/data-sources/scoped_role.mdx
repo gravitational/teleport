@@ -53,11 +53,28 @@ Required:
 
 Optional:
 
+- `app` (Attributes) The App Access specific configuration for a scoped role. (see [below for nested schema](#nested-schema-for-specapp))
 - `defaults` (Attributes) Defaults specifies default values for controls common across multiple protocols. If the same control specified in defaults is also specified in a protocol block, the value in the protocol block takes precedence. (see [below for nested schema](#nested-schema-for-specdefaults))
 - `kube` (Attributes) The kubernetes specific configuration for a scoped role. (see [below for nested schema](#nested-schema-for-speckube))
 - `rules` (Attributes List) Rules describes basic resource:verb permissions (e.g. scoped_role:read). (see [below for nested schema](#nested-schema-for-specrules))
 - `ssh` (Attributes) Ssh specifies controls that govern SSH access. (see [below for nested schema](#nested-schema-for-specssh))
 - `workload_identity` (Attributes) WorkloadIdentity specifies controls that govern issuance using WorkloadIdentity resources. (see [below for nested schema](#nested-schema-for-specworkload_identity))
+
+### Nested Schema for `spec.app`
+
+Optional:
+
+- `label_expression` (String) LabelExpression is an optional predicate expression evaluated against an application's labels.
+- `labels` (Attributes List) The set of application labels used for RBAC. (see [below for nested schema](#nested-schema-for-specapplabels))
+
+### Nested Schema for `spec.app.labels`
+
+Optional:
+
+- `name` (String) The name of the label.
+- `values` (List of String) The values associated with the label.
+
+
 
 ### Nested Schema for `spec.defaults`
 
@@ -92,6 +109,7 @@ Optional:
 - `groups` (List of String) The list of kubernetes groups this role allows.
 - `labels` (Attributes List) The map of kubernetes cluster labels used for RBAC. (see [below for nested schema](#nested-schema-for-speckubelabels))
 - `lock` (Attributes) Lock configures the role's locking behavior for kubernetes sessions. (see [below for nested schema](#nested-schema-for-speckubelock))
+- `resources` (Attributes List) The kubernetes resources this role grants access to. (see [below for nested schema](#nested-schema-for-speckuberesources))
 - `users` (List of String) An optional list of impersonatable kubernetes users this role allows.
 
 ### Nested Schema for `spec.kube.labels`
@@ -107,6 +125,17 @@ Optional:
 Optional:
 
 - `mode` (String) Allowed values: strict or best_effort. Defaults to value cluster wide auth preference if not set.
+
+
+### Nested Schema for `spec.kube.resources`
+
+Optional:
+
+- `api_group` (String) The kube API group of the kube resource. It supports wildcards.
+- `kind` (String) The kube resource type.
+- `name` (String) The kube resource name. It supports wildcards.
+- `namespace` (String) The kube resource namespace. It supports wildcards.
+- `verbs` (List of String) The allowed kube verbs for interacting with the kube resource.
 
 
 
