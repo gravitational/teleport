@@ -349,8 +349,10 @@ func NewAuthServer(cfg AuthServerConfig) (*AuthServer, error) {
 	}
 
 	accessLists, err := local.NewAccessListServiceV2(local.AccessListServiceConfig{
-		Backend: srv.Backend,
-		Modules: cfg.Modules,
+		Backend:                     srv.Backend,
+		Modules:                     cfg.Modules,
+		ScopesFeatures:              cfg.ScopesFeatures,
+		RunWhileLockedRetryInterval: cfg.RunWhileLockedRetryInterval,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
