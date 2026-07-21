@@ -32,12 +32,16 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/accesslists"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/itertools/stream"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
@@ -62,9 +66,9 @@ type ACLCommand struct {
 	memberKind string
 
 	// Used for managing membership to an access list.
-	userName string
-	expires  string
-	reason   string
+	memberName string
+	expires    string
+	reason     string
 
 	// Used for creating reviews.
 	notes         string
@@ -99,13 +103,13 @@ func (c *ACLCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFl
 	c.usersAdd = users.Command("add", "Add a user to an Access List.")
 	c.usersAdd.Flag("kind", "Access list member kind.").Default(memberKindUser).EnumVar(&c.memberKind, memberKindUser, memberKindList)
 	c.usersAdd.Arg("access-list-name", "The Access List name.").Required().StringVar(&c.accessListName)
-	c.usersAdd.Arg("user", "The user to add to the Access List.").Required().StringVar(&c.userName)
+	c.usersAdd.Arg("user", "The member to add to the Access List.").Required().StringVar(&c.memberName)
 	c.usersAdd.Arg("expires", "When the user's access expires (must be in RFC3339). Defaults to the expiration time of the Access List.").StringVar(&c.expires)
 	c.usersAdd.Arg("reason", "The reason the user has been added to the Access List. Defaults to empty.").StringVar(&c.reason)
 
 	c.usersRemove = users.Command("rm", "Remove a user from an Access List.")
 	c.usersRemove.Arg("access-list-name", "The Access List name.").Required().StringVar(&c.accessListName)
-	c.usersRemove.Arg("user", "The user to remove from the Access List.").Required().StringVar(&c.userName)
+	c.usersRemove.Arg("user", "The member to remove from the Access List.").Required().StringVar(&c.memberName)
 
 	c.usersList = users.Command("ls", "List users that are members of an Access List.")
 	c.usersList.Arg("access-list-name", "The Access List name.").Required().StringVar(&c.accessListName)
@@ -169,7 +173,19 @@ func (c *ACLCommand) List(ctx context.Context, client *authclient.Client) error 
 			return trace.Wrap(err)
 		}
 	} else {
-		accessLists, err = stream.Collect(clientutils.Resources(ctx, client.AccessListClient().ListAccessLists))
+		accessLists, err = stream.Collect(clientutils.Resources(ctx,
+			func(ctx context.Context, pageSize int, pageToken string) ([]*accesslist.AccessList, string, error) {
+				return client.AccessListClient().ListAccessListsV2(ctx, accesslistv1.ListAccessListsV2Request_builder{
+					PageSize:  int32(pageSize),
+					PageToken: pageToken,
+					ScopeFilter: scopesv1.Filter_builder{
+						Mode: scopesv1.Mode_MODE_ALL,
+					}.Build(),
+				}.Build())
+			}))
+		if trace.IsNotImplemented(err) {
+			accessLists, err = stream.Collect(clientutils.Resources(ctx, client.AccessListClient().ListAccessLists))
+		}
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -183,9 +199,53 @@ func (c *ACLCommand) List(ctx context.Context, client *authclient.Client) error 
 	return trace.Wrap(c.displayAccessLists(accessLists...))
 }
 
+func parseACLQualifiedName(name string) (scopes.QualifiedName, error) {
+	// For backward compatibility, an argument is considered a scope-qualified
+	// name only if it:
+	// 1. parses as a qualified name (contains :: somewhere in the middle)
+	// 2. contains /
+	// otherwise it is considered a plain unscoped name. This allows access
+	// lists with names like 'example::list' to continue to be referenced in
+	// CLI commands as unscoped lists, only params like '/example::list' will
+	// be considered scoped.
+	if sqn, err := scopes.ParseQualifiedName(name); err == nil && strings.Contains(name, "/") {
+		return sqn, sqn.StrongValidate()
+	}
+	return scopes.QualifiedName{Name: name}, nil
+}
+
+func (c *ACLCommand) accessListQualifiedName() (scopes.QualifiedName, error) {
+	sqn, err := parseACLQualifiedName(c.accessListName)
+	return sqn, trace.Wrap(err, "validating access list name as a scope-qualified name")
+}
+
+func (c *ACLCommand) memberQualifiedName() (scopes.QualifiedName, error) {
+	sqn, err := parseACLQualifiedName(c.memberName)
+	return sqn, trace.Wrap(err, "validating member name as a scope-qualified name")
+}
+
+func splitACLQualifiedNames(names string) ([]scopes.QualifiedName, error) {
+	var sqns []scopes.QualifiedName
+	for _, name := range utils.SplitIdentifiers(names) {
+		sqn, err := parseACLQualifiedName(strings.TrimSpace(name))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		sqns = append(sqns, sqn)
+	}
+	return sqns, nil
+}
+
 // Get will display information about an access list visible to the user.
 func (c *ACLCommand) Get(ctx context.Context, client *authclient.Client) error {
-	accessList, err := client.AccessListClient().GetAccessList(ctx, c.accessListName)
+	aclName, err := c.accessListQualifiedName()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	accessList, err := client.AccessListClient().GetAccessListV2(ctx, accesslistv1.GetAccessListRequest_builder{
+		Scope: aclName.Scope,
+		Name:  aclName.Name,
+	}.Build())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -203,20 +263,34 @@ func (c *ACLCommand) UsersAdd(ctx context.Context, client *authclient.Client) er
 			return trace.Wrap(err)
 		}
 	}
+	aclName, err := c.accessListQualifiedName()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	memberName, err := c.memberQualifiedName()
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
 	var membershipKind string
 	switch c.memberKind {
 	case memberKindList:
 		membershipKind = accesslist.MembershipKindList
+		if memberName.Scope != "" {
+			membershipKind = accesslist.MembershipKindScopedList
+		}
 	case "", memberKindUser:
+		if memberName.Scope != "" {
+			return trace.BadParameter("user members cannot be scoped, got %q", c.memberName)
+		}
 		membershipKind = accesslist.MembershipKindUser
 	}
 
-	member, err := accesslist.NewAccessListMember(header.Metadata{
-		Name: c.userName,
+	member, err := accesslist.NewAccessListMemberWithScope(header.Metadata{
+		Name: memberName.String(),
 	}, accesslist.AccessListMemberSpec{
-		AccessList: c.accessListName,
-		Name:       c.userName,
+		AccessList: aclName.String(),
+		Name:       memberName.String(),
 		Reason:     c.reason,
 		Expires:    expires,
 
@@ -224,7 +298,7 @@ func (c *ACLCommand) UsersAdd(ctx context.Context, client *authclient.Client) er
 		Joined:         time.Now(),
 		AddedBy:        "dummy",
 		MembershipKind: membershipKind,
-	})
+	}, aclName.Scope)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -234,36 +308,57 @@ func (c *ACLCommand) UsersAdd(ctx context.Context, client *authclient.Client) er
 		return trace.Wrap(err)
 	}
 
-	fmt.Fprintf(c.Stdout, "successfully added user %s to access list %s", c.userName, c.accessListName)
+	fmt.Fprintf(c.Stdout, "successfully added member %s to access list %s", memberName.String(), aclName.String())
 
 	return nil
 }
 
 // UsersRemove will remove a user to an access list.
 func (c *ACLCommand) UsersRemove(ctx context.Context, client *authclient.Client) error {
-	err := client.AccessListClient().DeleteAccessListMember(ctx, c.accessListName, c.userName)
+	aclName, err := c.accessListQualifiedName()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	memberName, err := c.memberQualifiedName()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = client.AccessListClient().DeleteAccessListMemberV2(ctx, accesslistv1.DeleteAccessListMemberRequest_builder{
+		AccessListScope: aclName.Scope,
+		AccessList:      aclName.Name,
+		MemberScope:     memberName.Scope,
+		MemberName:      memberName.Name,
+	}.Build())
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	fmt.Fprintf(c.Stdout, "successfully removed user %s from access list %s\n", c.userName, c.accessListName)
+	fmt.Fprintf(c.Stdout, "successfully removed member %s from access list %s\n", memberName.String(), aclName.String())
 
 	return nil
 }
 
 // UsersList will list the users in an access list.
 func (c *ACLCommand) UsersList(ctx context.Context, client *authclient.Client) error {
+	aclName, err := c.accessListQualifiedName()
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	var (
 		allMembers []*accesslist.AccessListMember
 		nextToken  string
-		err        error
+		listErr    error
 		members    []*accesslist.AccessListMember
 	)
 
 	for {
-		members, nextToken, err = client.AccessListClient().ListAccessListMembers(ctx, c.accessListName, 0, nextToken)
-		if err != nil {
-			return trace.Wrap(err)
+		members, nextToken, listErr = client.AccessListClient().ListAccessListMembersV2(ctx, accesslistv1.ListAccessListMembersRequest_builder{
+			PageToken:       nextToken,
+			AccessListScope: aclName.Scope,
+			AccessList:      aclName.Name,
+		}.Build())
+		if listErr != nil {
+			return trace.Wrap(listErr)
 		}
 		allMembers = append(allMembers, members...)
 		if nextToken == "" {
@@ -276,15 +371,19 @@ func (c *ACLCommand) UsersList(ctx context.Context, client *authclient.Client) e
 		return trace.Wrap(utils.WriteJSONArray(c.Stdout, allMembers))
 	case teleport.Text:
 		if len(allMembers) == 0 {
-			fmt.Fprintf(c.Stdout, "No members found for access list %s.\nYou may not have access to see the members for this list.\n", c.accessListName)
+			fmt.Fprintf(c.Stdout, "No members found for access list %s.\nYou may not have access to see the members for this list.\n", aclName.String())
 			return nil
 		}
-		fmt.Fprintf(c.Stdout, "Members of %s:\n", c.accessListName)
+		fmt.Fprintf(c.Stdout, "Members of %s:\n", aclName.String())
 		for _, member := range allMembers {
-			if member.Spec.MembershipKind == accesslist.MembershipKindList {
-				fmt.Fprintf(c.Stdout, "- (Access List) %s \n", member.Spec.Name)
+			memberName, err := accesslists.MemberScopeQualifiedName(member)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			if member.IsList() {
+				fmt.Fprintf(c.Stdout, "- (Access List) %s \n", memberName.String())
 			} else {
-				fmt.Fprintf(c.Stdout, "- %s\n", member.Spec.Name)
+				fmt.Fprintf(c.Stdout, "- %s\n", memberName.String())
 			}
 		}
 		return nil
@@ -310,32 +409,53 @@ func (c *ACLCommand) ReviewsCreate(ctx context.Context, client *authclient.Clien
 }
 
 func (c *ACLCommand) makeReview() (*accesslist.Review, error) {
+	aclName, err := c.accessListQualifiedName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	var removeMembers []string
-	for _, member := range strings.Split(c.removeMembers, ",") {
-		member = strings.TrimSpace(member)
-		if member != "" {
-			removeMembers = append(removeMembers, member)
+	var removeScopedMembers []string
+	removedMemberNames, err := splitACLQualifiedNames(c.removeMembers)
+	if err != nil {
+		return nil, trace.Wrap(err, "parsing removed member name")
+	}
+	for _, member := range removedMemberNames {
+		if member.Scope == "" {
+			removeMembers = append(removeMembers, member.String())
+		} else {
+			removeScopedMembers = append(removeScopedMembers, member.String())
 		}
 	}
-	return accesslist.NewReview(
+	return accesslist.NewReviewWithScope(
 		header.Metadata{
 			Name: uuid.NewString(),
 		},
 		accesslist.ReviewSpec{
-			AccessList: c.accessListName,
+			AccessList: aclName.String(),
 			Reviewers:  []string{"placeholder"}, // Reviewers is set server-side but API requires it.
 			ReviewDate: time.Now(),              // Review date will be set server-side as well.
 			Notes:      c.notes,
 			Changes: accesslist.ReviewChanges{
-				RemovedMembers: removeMembers,
+				RemovedMembers:       removeMembers,
+				ScopedRemovedMembers: removeScopedMembers,
 			},
-		})
+		},
+		aclName.Scope)
 }
 
 func (c *ACLCommand) ReviewsList(ctx context.Context, client *authclient.Client) error {
+	aclName, err := c.accessListQualifiedName()
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	reviews, err := stream.Collect(clientutils.Resources(ctx,
 		func(ctx context.Context, pageSize int, pageToken string) ([]*accesslist.Review, string, error) {
-			return client.AccessListClient().ListAccessListReviews(ctx, c.accessListName, pageSize, pageToken)
+			return client.AccessListClient().ListAccessListReviewsV2(ctx, accesslistv1.ListAccessListReviewsRequest_builder{
+				PageSize:        int32(pageSize),
+				NextToken:       pageToken,
+				AccessListScope: aclName.Scope,
+				AccessList:      aclName.Name,
+			}.Build())
 		}))
 	if err != nil {
 		return trace.Wrap(err)
@@ -365,7 +485,7 @@ func (c *ACLCommand) displayAccessListReviewsText(reviews []*accesslist.Review) 
 			review.GetName(),
 			strings.Join(review.Spec.Reviewers, ","),
 			review.Spec.ReviewDate.Format(time.DateOnly),
-			strings.Join(review.Spec.Changes.RemovedMembers, ","),
+			strings.Join(append(review.Spec.Changes.RemovedMembers, review.Spec.Changes.ScopedRemovedMembers...), ","),
 			review.Spec.Notes,
 		})
 	}
@@ -390,7 +510,10 @@ func (c *ACLCommand) displayAccessLists(accessLists ...*accesslist.AccessList) e
 func (c *ACLCommand) displayAccessListsText(accessLists ...*accesslist.AccessList) error {
 	table := asciitable.MakeTable([]string{"ID", "Title", "Next Audit", "Granted Roles", "Granted Traits"})
 	for _, accessList := range accessLists {
-		grantedRoles := strings.Join(accessList.GetGrants().Roles, ",")
+		grantedRoles := append([]string(nil), accessList.GetGrants().Roles...)
+		for _, grant := range accessList.GetGrants().ScopedRoles {
+			grantedRoles = append(grantedRoles, grant.Role)
+		}
 		traitStrings := make([]string, 0, len(accessList.GetGrants().Traits))
 		for k, values := range accessList.GetGrants().Traits {
 			traitStrings = append(traitStrings, fmt.Sprintf("%s:{%s}", k, strings.Join(values, ",")))
@@ -398,10 +521,10 @@ func (c *ACLCommand) displayAccessListsText(accessLists ...*accesslist.AccessLis
 
 		grantedTraits := strings.Join(traitStrings, ",")
 		table.AddRow([]string{
-			accessList.GetName(),
+			accesslists.ScopeQualifiedName(accessList).String(),
 			accessList.Spec.Title,
 			accessList.Spec.Audit.NextAuditDate.Format(time.DateOnly),
-			grantedRoles,
+			strings.Join(grantedRoles, ","),
 			grantedTraits,
 		})
 	}
