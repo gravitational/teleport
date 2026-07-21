@@ -27,6 +27,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -42,15 +43,20 @@ import (
 )
 
 const (
-	pollInterval              = 100 * time.Millisecond
-	incrementalVacuumInterval = 10 * time.Minute
-	defaultOrphanScanInterval = 10 * time.Minute
-	queueLockFile             = "queue.lock"
-	queueDBFile               = "queue.db"
-	tmpDirSuffix              = ".tmp"
-	defaultSoftLimit          = 100 * 1024 * 1024 // 100 MiB
-	softLimitCheckInterval    = time.Minute
-	sqlitePageSize            = 4096 // Bytes
+	pollInterval                   = 100 * time.Millisecond
+	incrementalVacuumInterval      = 10 * time.Minute
+	defaultOrphanScanInterval      = 10 * time.Minute
+	queueLockFile                  = "queue.lock"
+	queueDBFile                    = "queue.db"
+	auditQueueTable                = "audit_queue"
+	auditDeadLetterTable           = "audit_dead_letter"
+	tmpDirSuffix                   = ".tmp"
+	defaultSoftLimit               = 100 * 1024 * 1024 // 100 MiB
+	softLimitCheckInterval         = time.Minute
+	sqlitePageSize                 = 4096 // Bytes
+	defaultMaxAttempts             = 10
+	defaultDeadLetterSweepInterval = 10 * time.Minute
+	defaultDeadLetterTTL           = 30 * 24 * time.Hour // 30 days
 
 	// We've run benchmarks and found a batch size of 25 to be a good middle
 	// ground between insertion performance and memory overhead of
@@ -142,18 +148,24 @@ type sqliteQueue struct {
 	// runMu enforces a single consumer. Run only ever TryLocks it and returns
 	// ErrAlreadyRunning if it's held. The lock is held for the entire lifetime
 	// of Run, so a blocking Lock would hang until shutdown.
-	runMu              sync.Mutex
-	toBeWritten        chan writeRequest
-	maxBatch           int
-	ctx                context.Context
-	cancel             context.CancelFunc
-	wg                 sync.WaitGroup
-	closeOnce          sync.Once
-	parentDir          string
-	selfStat           os.FileInfo
-	unlock             func() error
-	orphanScanInterval time.Duration
-	softLimit          int64
+	runMu                   sync.Mutex
+	toBeWritten             chan writeRequest
+	maxBatch                int
+	ctx                     context.Context
+	cancel                  context.CancelFunc
+	wg                      sync.WaitGroup
+	closeOnce               sync.Once
+	parentDir               string
+	selfStat                os.FileInfo
+	unlock                  func() error
+	orphanScanInterval      time.Duration
+	softLimit               int64
+	maxAttempts             int
+	deadLetterSweepInterval time.Duration
+	deadLetterTTL           time.Duration
+	// deadLetterKick wakes the dead-letter sweeper ahead of its timer. It has
+	// capacity 1 so pending kicks coalesce into a single sweep.
+	deadLetterKick chan struct{}
 }
 
 // Ensure that we implement the interface Queue at compile time.
@@ -221,20 +233,51 @@ func newSQLiteQueue(cfg Config) (*sqliteQueue, error) {
 		softLimit = defaultSoftLimit
 	}
 
+	maxAttempts := cfg.MaxAttempts
+	if maxAttempts <= 0 {
+		maxAttempts = defaultMaxAttempts
+	}
+
+	deadLetterSweepInterval := cfg.DeadLetterSweepInterval
+	if deadLetterSweepInterval <= 0 {
+		deadLetterSweepInterval = defaultDeadLetterSweepInterval
+	}
+
+	deadLetterTTL := cfg.DeadLetterTTL
+	if deadLetterTTL <= 0 {
+		deadLetterTTL = defaultDeadLetterTTL
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	q := &sqliteQueue{
-		db:                 db,
-		path:               cfg.Path,
-		toBeWritten:        make(chan writeRequest),
-		maxBatch:           defaultMaxBatch,
-		ctx:                ctx,
-		cancel:             cancel,
-		parentDir:          filepath.Dir(cfg.Path),
-		selfStat:           selfStat,
-		unlock:             unlock,
-		orphanScanInterval: scanInterval,
-		softLimit:          softLimit,
+		db:                      db,
+		path:                    cfg.Path,
+		toBeWritten:             make(chan writeRequest),
+		maxBatch:                defaultMaxBatch,
+		ctx:                     ctx,
+		cancel:                  cancel,
+		parentDir:               filepath.Dir(cfg.Path),
+		selfStat:                selfStat,
+		unlock:                  unlock,
+		orphanScanInterval:      scanInterval,
+		softLimit:               softLimit,
+		maxAttempts:             maxAttempts,
+		deadLetterSweepInterval: deadLetterSweepInterval,
+		deadLetterTTL:           deadLetterTTL,
+		deadLetterKick:          make(chan struct{}, 1),
 	}
+
+	maxBytes := cfg.MaxBytes
+	if maxBytes <= 0 {
+		maxBytes = defaultMaxBytes
+	}
+	slog.InfoContext(q.ctx, "Audit queue initialized.",
+		"path", cfg.Path,
+		"max_bytes", maxBytes,
+		"soft_limit", softLimit,
+		"max_attempts", maxAttempts,
+		"dead_letter_ttl", deadLetterTTL,
+	)
 
 	q.wg.Go(q.writeLoop)
 	q.wg.Go(q.vacuumLoop)
@@ -522,16 +565,20 @@ func (q *sqliteQueue) Run(ctx context.Context, handler Handler) error {
 	}
 	defer q.runMu.Unlock()
 
-	// Startup the orphan scanner.
+	// Startup the orphan scanner and dead-letter sweeper.
 	var wg sync.WaitGroup
 	wg.Go(func() {
-		q.orphanScanLoop(ctx, handler)
+		q.orphanScanLoop(ctx)
+	})
+	wg.Go(func() {
+		q.deadLetterSweepLoop(ctx, handler)
 	})
 	defer wg.Wait()
 
 	pollTimer := time.NewTimer(pollInterval)
 	defer pollTimer.Stop()
 
+	deliveryFailing := false
 	for {
 		if err := ctx.Err(); err != nil {
 			return err
@@ -545,11 +592,13 @@ func (q *sqliteQueue) Run(ctx context.Context, handler Handler) error {
 		// events reside in the database queue until we "ack" that they have
 		// been successfully delivered.
 		//
-		// Dequeueing events is a three stage process.
+		// Dequeueing events is a four stage process.
 		// 1. Fetch a batch of events from the DB.
 		// 2. Forward those events to the inner emitter.
 		// 3. ACK the events that were successfully delivered, thus
 		//    deleting them from the DB.
+		// 4. For failed events, increment their attempt counter. Promote
+		//    any that have hit max_attempts to the dead-letter table.
 
 		// 1. Fetch a batch of events from the DB.
 		items, err := q.fetch(dequeueBatchSize)
@@ -563,15 +612,32 @@ func (q *sqliteQueue) Run(ctx context.Context, handler Handler) error {
 		progressed := false
 		if len(items) > 0 {
 			// 2. Forward those events to the inner emitter.
-			// This is done via the the handler function.
+			// This is done via the handler function.
 			successfullyDelivered := handler(ctx, items)
 			if len(successfullyDelivered) > 0 {
+				// Delivery transitioned from failing to succeeding, which
+				// may indicate that a downstream outage just ended. Kick the
+				// dead-letter sweeper so events that failed during the outage
+				// are re-delivered without waiting for the next sweep
+				// interval.
+				if deliveryFailing {
+					q.kickDeadLetterSweep()
+				}
+				deliveryFailing = false
+
 				// 3. ACK the delivered events, retrying without re-delivering
 				//    on failure.
 				if err := q.ackWithRetry(ctx, successfullyDelivered); err != nil {
 					return err
 				}
 				progressed = true
+			} else {
+				deliveryFailing = true
+			}
+
+			// 4. Handle delivery failures.
+			if ctx.Err() == nil && q.ctx.Err() == nil {
+				q.handleDeliveryFailures(ctx, items, successfullyDelivered)
 			}
 		}
 
@@ -632,12 +698,256 @@ func (q *sqliteQueue) ackWithRetry(ctx context.Context, items []Item) error {
 	}
 }
 
-func (q *sqliteQueue) orphanScanLoop(ctx context.Context, handler Handler) {
+func (q *sqliteQueue) handleDeliveryFailures(ctx context.Context, items []Item, successfullyDelivered []Item) {
+	failed := itemsNotIn(items, successfullyDelivered)
+	if len(failed) == 0 {
+		return
+	}
+	promoted, err := q.processFailedDeliveries(ctx, failed)
+	if err != nil {
+		slog.ErrorContext(q.ctx,
+			"Failed to process failed audit event deliveries.",
+			"error", err,
+		)
+		return
+	}
+	if promoted > 0 {
+		deadLetterPromotions.Add(float64(promoted))
+		slog.WarnContext(q.ctx,
+			"Audit events moved to dead-letter queue after exhausting retries.",
+			"count", promoted,
+			"max_attempts", q.maxAttempts,
+		)
+	}
+	retryTotal.Add(float64(len(failed) - promoted))
+}
+
+// itemsNotIn returns the subset of items from `all` that are not found in
+// `delivered`, hence it returns the items that failed to be delivered.
+func itemsNotIn(all, delivered []Item) []Item {
+	if len(delivered) == 0 {
+		return all
+	}
+	deliveredMap := make(map[int64]struct{}, len(delivered))
+	for _, it := range delivered {
+		deliveredMap[it.id] = struct{}{}
+	}
+	var failed []Item
+	for _, it := range all {
+		if _, ok := deliveredMap[it.id]; !ok {
+			failed = append(failed, it)
+		}
+	}
+	return failed
+}
+
+func (q *sqliteQueue) processFailedDeliveries(ctx context.Context, failed []Item) (int, error) {
+	if len(failed) == 0 {
+		return 0, nil
+	}
+
+	tx, err := q.db.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+	defer tx.Rollback()
+
+	ids := make([]any, len(failed))
+	for i, item := range failed {
+		ids[i] = item.id
+	}
+
+	rows, err := tx.QueryContext(ctx,
+		"UPDATE audit_queue SET attempts = attempts + 1 WHERE id IN ("+placeholders(len(ids))+") RETURNING id, attempts",
+		ids...,
+	)
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+	defer rows.Close()
+
+	var exhaustedEventIDs []any
+	for rows.Next() {
+		var id int64
+		var attempts int
+		if err := rows.Scan(&id, &attempts); err != nil {
+			return 0, trace.Wrap(err)
+		}
+		if attempts >= q.maxAttempts {
+			exhaustedEventIDs = append(exhaustedEventIDs, id)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return 0, trace.Wrap(err)
+	}
+
+	// If no events have exhausted their attempts, then we can skip the rest of
+	// the function.
+	if len(exhaustedEventIDs) == 0 {
+		return 0, trace.Wrap(tx.Commit())
+	}
+
+	// Copy exhausted rows into audit_dead_letter then delete them from
+	// audit_queue.
+	exhaustedPlaceholders := placeholders(len(exhaustedEventIDs))
+
+	insertArgs := make([]any, 0, len(exhaustedEventIDs)+1)
+	insertArgs = append(insertArgs, time.Now().Unix())
+	insertArgs = append(insertArgs, exhaustedEventIDs...)
+	if _, err := tx.ExecContext(ctx,
+		"INSERT INTO audit_dead_letter (payload, failed_at) "+
+			"SELECT payload, ? FROM audit_queue WHERE id IN ("+exhaustedPlaceholders+")",
+		insertArgs...,
+	); err != nil {
+		return 0, trace.Wrap(err)
+	}
+
+	if _, err := tx.ExecContext(ctx,
+		"DELETE FROM audit_queue WHERE id IN ("+exhaustedPlaceholders+")",
+		exhaustedEventIDs...,
+	); err != nil {
+		return 0, trace.Wrap(err)
+	}
+
+	return len(exhaustedEventIDs), trace.Wrap(tx.Commit())
+}
+
+// deadLetterSweepLoop periodically re-attempts delivery of dead-letter events
+// and deletes entries that have exceeded the TTL. A kick on deadLetterKick
+// triggers a sweep immediately instead of waiting for the timer.
+func (q *sqliteQueue) deadLetterSweepLoop(ctx context.Context, handler Handler) {
+	timer := time.NewTimer(q.deadLetterSweepInterval)
+	defer timer.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-q.ctx.Done():
+			return
+		case <-timer.C:
+		case <-q.deadLetterKick:
+		}
+		q.sweepDeadLetter(ctx, handler)
+		q.expireDeadLetter()
+		timer.Reset(q.deadLetterSweepInterval)
+	}
+}
+
+// kickDeadLetterSweep requests an immediate dead-letter sweep. It never
+// blocks: if a kick is already pending, the two coalesce.
+func (q *sqliteQueue) kickDeadLetterSweep() {
+	select {
+	case q.deadLetterKick <- struct{}{}:
+	default:
+	}
+}
+
+func (q *sqliteQueue) sweepDeadLetter(ctx context.Context, handler Handler) {
+	maxID, err := q.maxDeadLetterID()
+	if err != nil {
+		slog.ErrorContext(q.ctx,
+			"Failed to read dead-letter bounds.",
+			"error", err,
+		)
+		return
+	}
+
+	var afterID int64
+	for afterID < maxID {
+		if ctx.Err() != nil || q.ctx.Err() != nil {
+			return
+		}
+
+		items, err := q.fetchDeadLetterRange(afterID, maxID, dequeueBatchSize)
+		if err != nil {
+			slog.ErrorContext(q.ctx,
+				"Failed to fetch dead-letter audit events.",
+				"error", err,
+			)
+			return
+		}
+		if len(items) == 0 {
+			return
+		}
+
+		afterID = items[len(items)-1].id
+
+		delivered := handler(ctx, items)
+		if len(delivered) == 0 {
+			continue
+		}
+		if err := q.ackDeadLetter(delivered); err != nil {
+			slog.ErrorContext(q.ctx,
+				"Failed to ack dead-letter audit events.",
+				"error", err,
+			)
+		}
+	}
+}
+
+func (q *sqliteQueue) maxDeadLetterID() (int64, error) {
+	var maxID int64
+	if err := q.db.QueryRowContext(q.ctx,
+		"SELECT COALESCE(MAX(id), 0) FROM audit_dead_letter").Scan(&maxID); err != nil {
+		return 0, trace.Wrap(err)
+	}
+	return maxID, nil
+}
+
+func (q *sqliteQueue) fetchDeadLetterRange(afterID, maxID int64, limit int) ([]Item, error) {
+	rows, err := q.db.QueryContext(q.ctx,
+		"SELECT id, payload FROM audit_dead_letter WHERE id > ? AND id <= ? ORDER BY id ASC LIMIT ?",
+		afterID, maxID, limit)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return scanItems(rows)
+}
+
+// ackDeadLetter deletes successfully re-delivered items from audit_dead_letter.
+func (q *sqliteQueue) ackDeadLetter(items []Item) error {
+	return deleteByIDs(q.ctx, q.db, auditDeadLetterTable, items)
+}
+
+// expireDeadLetter deletes dead-letter rows older than the configured TTL.
+func (q *sqliteQueue) expireDeadLetter() {
+	cutoff := time.Now().Add(-q.deadLetterTTL).Unix()
+	result, err := q.db.ExecContext(q.ctx,
+		"DELETE FROM audit_dead_letter WHERE failed_at < ?", cutoff)
+	if err != nil {
+		if q.ctx.Err() == nil {
+			slog.ErrorContext(q.ctx,
+				"Failed to expire dead-letter audit events.",
+				"error", err,
+			)
+		}
+		return
+	}
+
+	numExpired, err := result.RowsAffected()
+	if err != nil {
+		slog.ErrorContext(q.ctx,
+			"Failed to read number of expired dead-letter audit events.",
+			"error", err,
+		)
+		return
+	}
+	if numExpired > 0 {
+		deadLetterExpired.Add(float64(numExpired))
+		slog.WarnContext(q.ctx,
+			"Permanently dropped dead-letter audit events that exceeded their TTL.",
+			"count", numExpired,
+			"dead_letter_ttl", q.deadLetterTTL,
+		)
+	}
+}
+
+func (q *sqliteQueue) orphanScanLoop(ctx context.Context) {
 	ticker := time.NewTicker(q.orphanScanInterval)
 	defer ticker.Stop()
 	for {
 		q.sweepStaleTmp()
-		q.adoptOrphans(ctx, handler)
+		q.adoptOrphans(ctx)
 
 		select {
 		case <-ctx.Done():
@@ -670,6 +980,12 @@ func (q *sqliteQueue) sweepStaleTmp() {
 		}
 		info, err := dirEntry.Info()
 		if err != nil {
+			orphanScanErrors.Inc()
+			slog.ErrorContext(q.ctx,
+				"Failed to stat audit-queue tmp directory.",
+				"name", dirEntry.Name(),
+				"error", err,
+			)
 			continue
 		}
 		if info.ModTime().After(cutoff) {
@@ -729,7 +1045,7 @@ func tryRemoveStaleTmp(ctx context.Context, stalePath string) {
 	}
 }
 
-func (q *sqliteQueue) adoptOrphans(ctx context.Context, handler Handler) {
+func (q *sqliteQueue) adoptOrphans(ctx context.Context) {
 	entries, err := os.ReadDir(q.parentDir)
 	if err != nil {
 		orphanScanErrors.Inc()
@@ -766,11 +1082,11 @@ func (q *sqliteQueue) adoptOrphans(ctx context.Context, handler Handler) {
 		// If we got to this point, then we have found a directory that is not a
 		// tmp directory and is not the same directory as the one this process
 		// is already using. We are safe to attempt to adopt it.
-		q.tryAdoptOrphan(ctx, entryPath, handler)
+		q.tryAdoptOrphan(ctx, entryPath)
 	}
 }
 
-func (q *sqliteQueue) tryAdoptOrphan(ctx context.Context, path string, handler Handler) {
+func (q *sqliteQueue) tryAdoptOrphan(ctx context.Context, path string) {
 	unlock, err := utils.FSTryWriteLock(filepath.Join(path, queueLockFile))
 	if err != nil {
 		// This error indicates that the lock has already been taken, hence this
@@ -818,7 +1134,7 @@ func (q *sqliteQueue) tryAdoptOrphan(ctx context.Context, path string, handler H
 		return
 	}
 
-	drained := q.drainOrphanDB(ctx, db, handler)
+	migrateErr := q.migrateOrphanDB(ctx, db, filepath.Base(path))
 	if err := db.Close(); err != nil {
 		slog.ErrorContext(q.ctx,
 			"Failed to close orphan SQLite database.",
@@ -828,61 +1144,180 @@ func (q *sqliteQueue) tryAdoptOrphan(ctx context.Context, path string, handler H
 		return
 	}
 
-	if !drained {
-		// If we fail to drain, we will try again on the next orphan adoption
-		// cycle.
+	if migrateErr != nil {
+		// If we fail to migrate, we will try again on the next orphan adoption
+		// cycle. Cancellation is a normal shutdown, not a migration failure.
+		if ctx.Err() == nil && q.ctx.Err() == nil {
+			orphanScanErrors.Inc()
+			slog.ErrorContext(q.ctx,
+				"Failed to migrate orphaned audit-queue database.",
+				"path", path,
+				"error", migrateErr,
+			)
+		}
 		return
 	}
 
-	// If we got here, then we have successfully drained the orphan. We can now
+	// If we got here, then we have successfully migrated the orphan. We can now
 	// safely remove it.
 	if err := os.RemoveAll(path); err != nil {
 		orphanScanErrors.Inc()
 		slog.ErrorContext(q.ctx,
-			"Failed to remove drained orphan directory.",
+			"Failed to remove migrated orphan directory.",
 			"path", path,
 			"error", err,
 		)
 		return
 	}
+	q.clearOrphanWatermarks(ctx, filepath.Base(path))
 	orphansAdopted.Inc()
 	slog.InfoContext(q.ctx, "Adopted orphaned audit-queue directory.", "path", path)
 }
 
-func (q *sqliteQueue) drainOrphanDB(ctx context.Context, db *sql.DB, handler Handler) bool {
+func (q *sqliteQueue) migrateOrphanDB(ctx context.Context, db *sql.DB, name string) error {
+	if err := q.migrateOrphanQueue(ctx, db, name); err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(q.migrateOrphanDeadLetter(ctx, db, name))
+}
+
+func (q *sqliteQueue) migrateOrphanQueue(ctx context.Context, orphan *sql.DB, name string) error {
+	return q.migrateOrphanTable(ctx, orphan, name, auditQueueTable,
+		"SELECT id, payload, attempts FROM audit_queue WHERE id > ? ORDER BY id ASC LIMIT ?",
+		"INSERT INTO audit_queue (payload, attempts) VALUES (?, ?)",
+	)
+}
+
+func (q *sqliteQueue) migrateOrphanDeadLetter(ctx context.Context, orphan *sql.DB, name string) error {
+	return q.migrateOrphanTable(ctx, orphan, name, auditDeadLetterTable,
+		"SELECT id, payload, failed_at FROM audit_dead_letter WHERE id > ? ORDER BY id ASC LIMIT ?",
+		"INSERT INTO audit_dead_letter (payload, failed_at) VALUES (?, ?)",
+	)
+}
+
+func orphanWatermarkKey(name, table string) string {
+	return "orphan_migration:" + name + ":" + table
+}
+
+func (q *sqliteQueue) migrateOrphanTable(ctx context.Context, orphan *sql.DB, name, table, selectSQL, insertSQL string) error {
+	watermarkKey := orphanWatermarkKey(name, table)
+	watermark, err := q.readOrphanWatermark(ctx, watermarkKey)
+	if err != nil {
+		return trace.Wrap(err, "reading orphan %s watermark", table)
+	}
 	for {
-		if ctx.Err() != nil || q.ctx.Err() != nil {
-			return false
+		if err := ctx.Err(); err != nil {
+			return trace.Wrap(err)
 		}
-		items, err := fetchDB(ctx, db, dequeueBatchSize)
+		if err := q.ctx.Err(); err != nil {
+			return trace.Wrap(err)
+		}
+		batch, err := fetchOrphanRows(ctx, orphan, selectSQL, watermark, dequeueBatchSize)
 		if err != nil {
-			orphanScanErrors.Inc()
-			slog.ErrorContext(q.ctx, "Failed to fetch orphan events.", "error", err)
-			return false
+			return trace.Wrap(err, "fetching orphan %s rows", table)
 		}
-		if len(items) == 0 {
-			return true
-		}
-		successfullyDelivered := handler(ctx, items)
-		if len(successfullyDelivered) == 0 {
-			return false
+		if len(batch) == 0 {
+			return nil
 		}
 
-		// Notice: We do not want to call q.ack() here. This is because this db
-		// is an adopted db. Hence it is a different database than the one that
-		// is currently held by `q`.
-		if err := ackDB(ctx, db, successfullyDelivered); err != nil {
-			orphanScanErrors.Inc()
-			slog.ErrorContext(q.ctx, "Failed to ack orphan events.", "error", err)
-			return false
+		maxID := batch[len(batch)-1].id
+		if err := q.insertMigratedBatch(ctx, insertSQL, batch, watermarkKey, maxID); err != nil {
+			return trace.Wrap(err, "migrating orphan %s rows", table)
 		}
+		watermark = maxID
 
-		// We didn't manage to drain the entire orphan. We will re-attempt to
-		// drain it on the next orphan sweep.
-		if len(successfullyDelivered) < len(items) {
-			return false
+		ids := make([]int64, len(batch))
+		for i, r := range batch {
+			ids[i] = r.id
+		}
+		if err := deleteIDsFromTable(ctx, orphan, table, ids); err != nil {
+			return trace.Wrap(err, "deleting migrated orphan %s rows", table)
 		}
 	}
+}
+
+func (q *sqliteQueue) readOrphanWatermark(ctx context.Context, key string) (int64, error) {
+	var value string
+	err := q.db.QueryRowContext(ctx,
+		"SELECT value FROM teleport_info WHERE key = ?", key).Scan(&value)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, nil
+	}
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+	watermark, err := strconv.ParseInt(value, 10, 64)
+	return watermark, trace.Wrap(err)
+}
+
+func (q *sqliteQueue) clearOrphanWatermarks(ctx context.Context, name string) {
+	if _, err := q.db.ExecContext(ctx,
+		"DELETE FROM teleport_info WHERE key IN (?, ?)",
+		orphanWatermarkKey(name, auditQueueTable),
+		orphanWatermarkKey(name, auditDeadLetterTable),
+	); err != nil {
+		slog.ErrorContext(q.ctx,
+			"Failed to clear orphan migration watermarks.",
+			"orphan", name,
+			"error", err,
+		)
+	}
+}
+
+type migratedRow struct {
+	id     int64
+	values []any
+}
+
+func fetchOrphanRows(ctx context.Context, db *sql.DB, selectSQL string, afterID int64, limit int) ([]migratedRow, error) {
+	rows, err := db.QueryContext(ctx, selectSQL, afterID, limit)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rows.Close()
+	cols, err := rows.Columns()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var out []migratedRow
+	for rows.Next() {
+		r := migratedRow{values: make([]any, len(cols)-1)}
+		targets := make([]any, 0, len(cols))
+		targets = append(targets, &r.id)
+		for i := range r.values {
+			targets = append(targets, &r.values[i])
+		}
+		if err := rows.Scan(targets...); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		out = append(out, r)
+	}
+	return out, trace.Wrap(rows.Err())
+}
+
+func (q *sqliteQueue) insertMigratedBatch(ctx context.Context, insertSQL string, batch []migratedRow, watermarkKey string, maxID int64) error {
+	tx, err := q.db.BeginTx(ctx, nil)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer tx.Rollback()
+	stmt, err := tx.PrepareContext(ctx, insertSQL)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer stmt.Close()
+	for _, r := range batch {
+		if _, err := stmt.ExecContext(ctx, r.values...); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	if _, err := tx.ExecContext(ctx,
+		"INSERT OR REPLACE INTO teleport_info (key, value) VALUES (?, ?)",
+		watermarkKey, strconv.FormatInt(maxID, 10),
+	); err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(tx.Commit())
 }
 
 func (q *sqliteQueue) fetch(limit int) ([]Item, error) {
@@ -904,17 +1339,16 @@ func fetchDB(ctx context.Context, db *sql.DB, limit int) ([]Item, error) {
 	if limit <= 0 {
 		return nil, nil
 	}
-
-	rows, err := db.QueryContext(
-		ctx,
-		"SELECT id, payload FROM audit_queue ORDER BY id ASC LIMIT ?",
-		limit,
-	)
+	rows, err := db.QueryContext(ctx,
+		"SELECT id, payload FROM audit_queue ORDER BY id ASC LIMIT ?", limit)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	defer rows.Close()
+	return scanItems(rows)
+}
 
+func scanItems(rows *sql.Rows) ([]Item, error) {
+	defer rows.Close()
 	var items []Item
 	for rows.Next() {
 		var (
@@ -932,35 +1366,51 @@ func fetchDB(ctx context.Context, db *sql.DB, limit int) ([]Item, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		item := Item{id: id, Event: event}
-		items = append(items, item)
+		items = append(items, Item{id: id, Event: event})
 	}
-	if err := rows.Err(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return items, nil
+	return items, trace.Wrap(rows.Err())
 }
 
-// ackDB deletes the rows for items from the audit_queue table.
-func ackDB(ctx context.Context, db *sql.DB, items []Item) error {
-	if len(items) == 0 {
+func placeholders(n int) string {
+	if n <= 0 {
+		return ""
+	}
+	return strings.Repeat("?,", n-1) + "?"
+}
+
+func deleteIDsFromTable(ctx context.Context, db *sql.DB, table string, ids []int64) error {
+	if len(ids) == 0 {
 		return nil
 	}
-
-	placeholders := strings.Repeat("?,", len(items))
-	query := "DELETE FROM audit_queue WHERE id IN (" + placeholders[:len(placeholders)-1] + ")"
-
-	args := make([]any, len(items))
-	for i, item := range items {
-		args[i] = item.id
+	switch table {
+	case auditQueueTable, auditDeadLetterTable:
+	default:
+		return trace.BadParameter("unknown table %q", table)
 	}
-
+	query := "DELETE FROM " + table + " WHERE id IN (" + placeholders(len(ids)) + ")"
+	args := make([]any, len(ids))
+	for i, id := range ids {
+		args[i] = id
+	}
 	_, err := db.ExecContext(ctx, query, args...)
 	return trace.Wrap(err)
 }
 
+func deleteByIDs(ctx context.Context, db *sql.DB, table string, items []Item) error {
+	ids := make([]int64, len(items))
+	for i, item := range items {
+		ids[i] = item.id
+	}
+	return deleteIDsFromTable(ctx, db, table, ids)
+}
+
+// ackDB deletes the rows for items from the audit_queue table.
+func ackDB(ctx context.Context, db *sql.DB, items []Item) error {
+	return deleteByIDs(ctx, db, auditQueueTable, items)
+}
+
 func (q *sqliteQueue) Close() error {
-	var firstErr error
+	var errs []error
 	q.closeOnce.Do(func() {
 		q.cancel()
 		q.wg.Wait()
@@ -984,7 +1434,7 @@ func (q *sqliteQueue) Close() error {
 		}
 
 		if err := q.db.Close(); err != nil {
-			firstErr = err
+			errs = append(errs, err)
 		}
 
 		// Remove the directory before releasing the lock. This ensures no other
@@ -996,17 +1446,19 @@ func (q *sqliteQueue) Close() error {
 		}
 
 		if q.unlock != nil {
-			if err := q.unlock(); err != nil && firstErr == nil {
-				firstErr = err
+			if err := q.unlock(); err != nil {
+				errs = append(errs, err)
 			}
 		}
 	})
-	return trace.Wrap(firstErr)
+	return trace.NewAggregate(errs...)
 }
 
 func isQueueEmpty(db *sql.DB) (bool, error) {
 	var hasRows int
-	err := db.QueryRow("SELECT EXISTS(SELECT 1 FROM audit_queue)").Scan(&hasRows)
+	err := db.QueryRow(
+		"SELECT EXISTS(SELECT 1 FROM audit_queue) OR EXISTS(SELECT 1 FROM audit_dead_letter)",
+	).Scan(&hasRows)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}

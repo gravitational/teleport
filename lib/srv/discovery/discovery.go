@@ -663,6 +663,7 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 		server.WithTriggerFetchC[*server.EC2Instances](s.newDiscoveryConfigChangedSub()),
 		server.WithPreFetchHookFn(s.ec2WatcherIterationStarted),
 		server.WithClock[*server.EC2Instances](s.clock),
+		server.WithFetchErrorHookFn[*server.EC2Instances](s.handleEC2WatcherError),
 		server.WithPerInstanceHookFn(func(instanceGroups []*server.EC2Instances) {
 			for _, group := range instanceGroups {
 				s.awsEC2ResourcesStatus.incrementFound(awsResourceGroup{
@@ -711,6 +712,40 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 	s.kubeFetchers = append(s.kubeFetchers, kubeFetchers...)
 
 	return nil
+}
+
+func (s *Server) handleEC2WatcherError(err error) bool {
+	permissionErrors := server.EC2IAMPermissionErrors(err)
+	if len(permissionErrors) == 0 {
+		return false
+	}
+
+	for _, permErr := range permissionErrors {
+		if permErr == nil {
+			continue
+		}
+		s.Log.WarnContext(s.ctx, "IAM permission error during EC2 discovery",
+			"issue_type", permErr.IssueType,
+			"integration", permErr.Integration,
+			"account_id", permErr.AccountID,
+			"region", permErr.Region,
+			"discovery_config", permErr.DiscoveryConfigName,
+			"error", permErr.Err,
+		)
+
+		s.awsEC2Tasks.addFailedPermissionEnrollment(
+			awsEC2TaskKey{
+				// Intentionally do not include DiscoveryConfigName in the task key. Permission errors are
+				// account/region scoped and usually shared by all discovery configs using the same credentials.
+				accountID:   permErr.AccountID,
+				integration: permErr.Integration,
+				issueType:   permErr.IssueType,
+				region:      permErr.Region,
+			},
+		)
+	}
+
+	return true
 }
 
 func (s *Server) ec2WatcherIterationStarted(fetchers []server.Fetcher[*server.EC2Instances]) {

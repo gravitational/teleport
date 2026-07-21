@@ -105,7 +105,8 @@ func TestListScopedRolesScenarios(t *testing.T) {
 	cache := NewRoleCache()
 	for _, role := range roles {
 		_, err := cache.GetScopedRole(t.Context(), scopedaccessv1.GetScopedRoleRequest_builder{
-			Name: role.GetMetadata().GetName(),
+			Name:  role.GetMetadata().GetName(),
+			Scope: role.GetScope(),
 		}.Build())
 		require.Error(t, err)
 		require.True(t, trace.IsNotFound(err), "expected NotFound error, got %v", err)
@@ -113,7 +114,8 @@ func TestListScopedRolesScenarios(t *testing.T) {
 		cache.Put(role)
 
 		rsp, err := cache.GetScopedRole(t.Context(), scopedaccessv1.GetScopedRoleRequest_builder{
-			Name: role.GetMetadata().GetName(),
+			Name:  role.GetMetadata().GetName(),
+			Scope: role.GetScope(),
 		}.Build())
 		require.NoError(t, err)
 		require.NotNil(t, rsp.GetRole())
@@ -445,7 +447,8 @@ func TestListScopedRolesBasics(t *testing.T) {
 	cache := NewRoleCache()
 	for _, role := range roles {
 		_, err := cache.GetScopedRole(t.Context(), scopedaccessv1.GetScopedRoleRequest_builder{
-			Name: role.GetMetadata().GetName(),
+			Name:  role.GetMetadata().GetName(),
+			Scope: role.GetScope(),
 		}.Build())
 		require.Error(t, err)
 		require.True(t, trace.IsNotFound(err), "expected NotFound error, got %v", err)
@@ -453,7 +456,8 @@ func TestListScopedRolesBasics(t *testing.T) {
 		cache.Put(role)
 
 		rsp, err := cache.GetScopedRole(t.Context(), scopedaccessv1.GetScopedRoleRequest_builder{
-			Name: role.GetMetadata().GetName(),
+			Name:  role.GetMetadata().GetName(),
+			Scope: role.GetScope(),
 		}.Build())
 		require.NoError(t, err)
 		require.NotNil(t, rsp.GetRole())

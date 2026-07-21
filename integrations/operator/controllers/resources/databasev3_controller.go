@@ -40,8 +40,8 @@ type databaseClient struct {
 }
 
 // Get gets the Teleport database of a given name
-func (r databaseClient) Get(ctx context.Context, name string) (types.Database, error) {
-	database, err := r.teleportClient.GetDatabase(ctx, name)
+func (r databaseClient) Get(ctx context.Context, key reconcilers.ResourceKey) (types.Database, error) {
+	database, err := r.teleportClient.GetDatabase(ctx, key.Name)
 	return database, trace.Wrap(err)
 }
 
@@ -56,8 +56,8 @@ func (r databaseClient) Update(ctx context.Context, database types.Database) err
 }
 
 // Delete deletes a Teleport database
-func (r databaseClient) Delete(ctx context.Context, name string) error {
-	return trace.Wrap(r.teleportClient.DeleteDatabase(ctx, name))
+func (r databaseClient) Delete(ctx context.Context, key reconcilers.ResourceKey) error {
+	return trace.Wrap(r.teleportClient.DeleteDatabase(ctx, key.Name))
 }
 
 // NewDatabaseV3Reconciler instantiates a new Kubernetes controller reconciling database v6 resources

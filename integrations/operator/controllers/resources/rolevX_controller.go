@@ -41,8 +41,8 @@ type roleClient struct {
 }
 
 // Get gets the Teleport role of a given name
-func (r roleClient) Get(ctx context.Context, name string) (types.Role, error) {
-	role, err := r.teleportClient.GetRole(ctx, name)
+func (r roleClient) Get(ctx context.Context, key reconcilers.ResourceKey) (types.Role, error) {
+	role, err := r.teleportClient.GetRole(ctx, key.Name)
 	return role, trace.Wrap(err)
 }
 
@@ -59,8 +59,8 @@ func (r roleClient) Update(ctx context.Context, role types.Role) error {
 }
 
 // Delete deletes a Teleport role
-func (r roleClient) Delete(ctx context.Context, name string) error {
-	return trace.Wrap(r.teleportClient.DeleteRole(ctx, name))
+func (r roleClient) Delete(ctx context.Context, key reconcilers.ResourceKey) error {
+	return trace.Wrap(r.teleportClient.DeleteRole(ctx, key.Name))
 }
 
 // NewRoleReconciler instantiates a new Kubernetes controller reconciling legacy role v5 resources
