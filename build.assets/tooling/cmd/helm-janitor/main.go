@@ -211,7 +211,7 @@ func main() {
 		}
 
 	case "test":
-		if err := runTest(ctx, selectedCharts, *updateSnapshotsFlag); err != nil {
+		if err := runTest(ctx, selectedCharts, *updateSnapshotsFlag, *rootDirFlag); err != nil {
 			log.Fatal(err)
 		}
 
@@ -256,7 +256,7 @@ func runAll(ctx context.Context, charts []Chart, rootDir string) error {
 		return trace.Wrap(err)
 	}
 	const updateSnapshots = false
-	if err := runTest(ctx, charts, updateSnapshots); err != nil {
+	if err := runTest(ctx, charts, updateSnapshots, rootDir); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := runReference(ctx, charts, false); err != nil {

@@ -12,6 +12,7 @@ tests:
   - it: creates a Deployment when updater.enabled is true
     values:
       - ../.lint/updater.yaml
+    documentIndex: 0
     asserts:
       - containsDocument:
           kind: Deployment
@@ -102,10 +103,10 @@ tests:
       - ../.lint/annotations.yaml
     asserts:
       - equal:
-          path: metadata.annotations.kubernetes\.io/deployment
+          path: metadata.annotations["kubernetes.io/deployment"]
           value: test-annotation
       - equal:
-          path: metadata.annotations.kubernetes\.io/deployment-different
+          path: metadata.annotations["kubernetes.io/deployment-different"]
           value: 3
   - it: sets the pod annotations
     documentIndex: 0
@@ -114,10 +115,10 @@ tests:
       - ../.lint/annotations.yaml
     asserts:
       - equal:
-          path: spec.template.metadata.annotations.kubernetes\.io/pod
+          path: spec.template.metadata.annotations["kubernetes.io/pod"]
           value: test-annotation
       - equal:
-          path: spec.template.metadata.annotations.kubernetes\.io/pod-different
+          path: spec.template.metadata.annotations["kubernetes.io/pod-different"]
           value: 4
   - it: sets the affinity
     documentIndex: 0

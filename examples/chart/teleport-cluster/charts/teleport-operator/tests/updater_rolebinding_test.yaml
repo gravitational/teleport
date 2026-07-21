@@ -12,6 +12,7 @@ tests:
   - it: creates a RoleBinding when updater.enabled is true
     values:
       - ../.lint/updater.yaml
+    documentIndex: 2
     asserts:
       - containsDocument:
           kind: RoleBinding

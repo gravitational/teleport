@@ -21,12 +21,13 @@ package main
 import (
 	"context"
 	"fmt"
+	"path"
 	"strings"
 
 	"github.com/gravitational/trace"
 )
 
-func runTest(ctx context.Context, charts []Chart, updateSnapshots bool) error {
+func runTest(ctx context.Context, charts []Chart, updateSnapshots bool, rootDir string) error {
 	if err := checkDependencies(helmBinName); err != nil {
 		return trace.Wrap(err, "preflight checks")
 	}
@@ -35,7 +36,7 @@ func runTest(ctx context.Context, charts []Chart, updateSnapshots bool) error {
 		if chart.IsLibrary {
 			continue
 		}
-		if err := testHelm(ctx, chart, updateSnapshots); err != nil {
+		if err := testHelm(ctx, chart, updateSnapshots, rootDir); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -44,17 +45,25 @@ func runTest(ctx context.Context, charts []Chart, updateSnapshots bool) error {
 	return nil
 }
 
-func testHelm(ctx context.Context, chart Chart, updateSnapshots bool) error {
+func testHelm(ctx context.Context, chart Chart, updateSnapshots bool, rootDir string) error {
+	stdout, stderr, err := run(ctx, "go", "-C", path.Join(rootDir, "build.assets/tools/helm-unittest"), "tool", "-n", "helm-unittest")
+	if err != nil {
+		fmt.Println(string(stdout))
+		fmt.Println(string(stderr))
+		return trace.Wrap(err, "building helm-unittest")
+	}
+	uniteBinPath := strings.TrimSpace(string(stdout))
+
 	fmt.Println("Running tests for chart:", chart.Name)
 	// helm-unittest v1.x removed the `-3` (helm 3 mode) flag -- it is now the
 	// only mode -- and rejects it as an unknown flag.
-	args := []string{"unittest", "--with-subchart=false", chart.Path}
+	args := []string{"--with-subchart=false", chart.Path}
 	if updateSnapshots {
 		args = append(args, "-u")
 	}
 	// We log the test command so it's easier for a developer to copy it and re-run to target a failing test.
-	fmt.Printf(" ▶️ %s %s\n", helmBinName, strings.Join(args, " "))
-	stdout, stderr, err := run(ctx, helmBinName, args...)
+	fmt.Printf(" ▶️ %s %s\n", uniteBinPath, strings.Join(args, " "))
+	stdout, stderr, err = run(ctx, uniteBinPath, args...)
 	if err != nil {
 		fmt.Printf(" ❌ Helm unit tests failed for chart %q", chart.Path)
 		fmt.Println(string(stdout))

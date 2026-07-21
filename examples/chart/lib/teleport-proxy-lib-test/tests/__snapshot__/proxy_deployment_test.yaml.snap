@@ -55,7 +55,7 @@ should set nodeSelector when set in values:
     containers:
       - args:
           - --diag-addr=0.0.0.0:3000
-        image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-prealpha.2
+        image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-hugoopupd.9
         imagePullPolicy: IfNotPresent
         lifecycle:
           preStop:
@@ -180,7 +180,7 @@ should set resources when set in values:
         env:
           - name: GOMEMLIMIT
             value: "3865470567"
-        image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-prealpha.2
+        image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-hugoopupd.9
         imagePullPolicy: IfNotPresent
         lifecycle:
           preStop:
@@ -291,7 +291,7 @@ should set securityContext for initContainers when set in values:
     containers:
       - args:
           - --diag-addr=0.0.0.0:3000
-        image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-prealpha.2
+        image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-hugoopupd.9
         imagePullPolicy: IfNotPresent
         lifecycle:
           preStop:
@@ -418,7 +418,7 @@ should set securityContext when set in values:
     containers:
       - args:
           - --diag-addr=0.0.0.0:3000
-        image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-prealpha.2
+        image: public.ecr.aws/gravitational/teleport-distroless:19.0.0-hugoopupd.9
         imagePullPolicy: IfNotPresent
         lifecycle:
           preStop:

@@ -12,6 +12,7 @@ tests:
   - it: creates a Role when updater.enabled is true
     values:
       - ../.lint/updater.yaml
+    documentIndex: 1
     asserts:
       - containsDocument:
           kind: Role
