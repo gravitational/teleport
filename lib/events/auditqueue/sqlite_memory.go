@@ -56,9 +56,10 @@ func getInMemoryDSN(name string, maxBytes int64) string {
 // sqliteInMemoryQueue is a fully in-memory SQLite database. No filesystem
 // access needed.
 type sqliteInMemoryQueue struct {
-	inner     *sqliteQueue
-	id        string
-	keepAlive *sql.Conn
+	inner       *sqliteQueue
+	id          string
+	keepAliveDB *sql.DB
+	keepAlive   *sql.Conn
 }
 
 // Ensure that we implement the interface Queue at compile time.
@@ -66,10 +67,12 @@ var _ Queue = (*sqliteInMemoryQueue)(nil)
 
 func newSQLiteInMemoryQueue(cfg Config) (*sqliteInMemoryQueue, error) {
 	id := uuid.NewString()
-	db, err := sql.Open("sqlite", getInMemoryDSN(id, cfg.MaxBytes))
+	dsn := getInMemoryDSN(id, cfg.MaxBytes)
+	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	db.SetMaxOpenConns(1)
 	if _, err := db.Exec(schemaSQL); err != nil {
 		db.Close()
 		return nil, trace.Wrap(err)
@@ -79,8 +82,17 @@ func newSQLiteInMemoryQueue(cfg Config) (*sqliteInMemoryQueue, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	keepAlive, err := db.Conn(context.Background())
+	// The shared in-memory database is destroyed when its last connection
+	// closes, so keep one connection pinned for the queue's lifetime.
+	keepAliveDB, err := sql.Open("sqlite", dsn)
 	if err != nil {
+		db.Close()
+		return nil, trace.Wrap(err)
+	}
+	keepAliveDB.SetMaxOpenConns(1)
+	keepAlive, err := keepAliveDB.Conn(context.Background())
+	if err != nil {
+		keepAliveDB.Close()
 		db.Close()
 		return nil, trace.Wrap(err)
 	}
@@ -88,14 +100,16 @@ func newSQLiteInMemoryQueue(cfg Config) (*sqliteInMemoryQueue, error) {
 	inner, err := newBaseQueue(db, cfg)
 	if err != nil {
 		_ = keepAlive.Close()
+		keepAliveDB.Close()
 		db.Close()
 		return nil, trace.Wrap(err)
 	}
 
 	return &sqliteInMemoryQueue{
-		inner:     inner,
-		id:        id,
-		keepAlive: keepAlive,
+		inner:       inner,
+		id:          id,
+		keepAliveDB: keepAliveDB,
+		keepAlive:   keepAlive,
 	}, nil
 }
 
@@ -129,7 +143,7 @@ func (m *sqliteInMemoryQueue) Close() error {
 	m.inner.closeOnce.Do(func() {
 		m.inner.cancel()
 		m.inner.wg.Wait()
-		err = errors.Join(m.keepAlive.Close(), m.inner.db.Close())
+		err = errors.Join(m.inner.db.Close(), m.keepAlive.Close(), m.keepAliveDB.Close())
 	})
 	return trace.Wrap(err)
 }

@@ -1133,6 +1133,9 @@ type OktaAccessPoint interface {
 	// DeleteOktaAssignment removes the specified Okta assignment resource.
 	DeleteOktaAssignment(ctx context.Context, name string) error
 
+	// ConditionalDeleteOktaAssignment removes the specified Okta assignment resource, protected by optimistic locking.
+	ConditionalDeleteOktaAssignment(ctx context.Context, name, revision string) error
+
 	// DeleteApplicationServer removes specified application server.
 	DeleteApplicationServer(ctx context.Context, namespace, hostID, name string) error
 
@@ -1442,15 +1445,25 @@ type Cache interface {
 	ListAccessListsV2(context.Context, *accesslistv1.ListAccessListsV2Request) ([]*accesslist.AccessList, string, error)
 	// GetAccessList returns the specified access list resource.
 	GetAccessList(context.Context, string) (*accesslist.AccessList, error)
+	// GetAccessListV2 returns the specified access list resource.
+	GetAccessListV2(context.Context, *accesslistv1.GetAccessListRequest) (*accesslist.AccessList, error)
 
 	// CountAccessListMembers will count all access list members.
 	CountAccessListMembers(ctx context.Context, accessListName string) (users uint32, lists uint32, err error)
+	// CountAccessListMembersV2 will count all access list members.
+	CountAccessListMembersV2(ctx context.Context, req *accesslistv1.CountAccessListMembersRequest) (users uint32, lists uint32, err error)
 	// ListAccessListMembers returns a paginated list of all access list members.
 	ListAccessListMembers(ctx context.Context, accessListName string, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error)
+	// ListAccessListMembersV2 returns a paginated list of all access list members.
+	ListAccessListMembersV2(ctx context.Context, req *accesslistv1.ListAccessListMembersRequest) (members []*accesslist.AccessListMember, nextToken string, err error)
 	// ListAllAccessListMembers returns a paginated list of all members of all access lists.
 	ListAllAccessListMembers(ctx context.Context, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error)
+	// ListAllAccessListMembersV2 returns a paginated list of all members of all access lists.
+	ListAllAccessListMembersV2(ctx context.Context, req *accesslistv1.ListAllAccessListMembersRequest) (members []*accesslist.AccessListMember, nextToken string, err error)
 	// GetAccessListMember returns the specified access list member resource.
 	GetAccessListMember(ctx context.Context, accessList string, memberName string) (*accesslist.AccessListMember, error)
+	// GetAccessListMemberV2 returns the specified access list member resource.
+	GetAccessListMemberV2(ctx context.Context, req *accesslistv1.GetAccessListMemberRequest) (*accesslist.AccessListMember, error)
 
 	// GetAccessListOwners returns a list of owners for a particular access list.
 	GetAccessListOwners(ctx context.Context, accessList string) ([]*accesslist.Owner, error)
@@ -1990,6 +2003,11 @@ func (w *OktaWrapper) UpdateOktaAssignmentStatus(ctx context.Context, name, stat
 // DeleteOktaAssignment removes the specified Okta assignment resource.
 func (w *OktaWrapper) DeleteOktaAssignment(ctx context.Context, name string) error {
 	return w.NoCache.DeleteOktaAssignment(ctx, name)
+}
+
+// ConditionalDeleteOktaAssignment removes the specified Okta assignment resource, protected by optimistic locking.
+func (w *OktaWrapper) ConditionalDeleteOktaAssignment(ctx context.Context, name, revision string) error {
+	return w.NoCache.ConditionalDeleteOktaAssignment(ctx, name, revision)
 }
 
 // DeleteApplicationServer removes specified application server.

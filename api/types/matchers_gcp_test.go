@@ -84,6 +84,22 @@ func TestGCPMatcherCheckAndSetDefaults(t *testing.T) {
 			},
 		},
 		{
+			name: "cloudsql is valid",
+			in: &GCPMatcher{
+				Types:      []string{"cloudsql"},
+				ProjectIDs: []string{"project01"},
+			},
+			errCheck: require.NoError,
+			expected: &GCPMatcher{
+				Types:      []string{"cloudsql"},
+				Locations:  []string{"*"},
+				ProjectIDs: []string{"project01"},
+				Labels: Labels{
+					"*": []string{"*"},
+				},
+			},
+		},
+		{
 			name: "wildcard is invalid for types",
 			in: &GCPMatcher{
 				Types:      []string{"*"},
