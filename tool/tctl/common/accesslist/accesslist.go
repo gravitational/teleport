@@ -22,17 +22,19 @@ import (
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-func newMember(listName, name, kind string) (*accesslist.AccessListMember, error) {
-	return accesslist.NewAccessListMember(
-		header.Metadata{Name: name},
+func newMember(listName, name scopes.QualifiedName, kind string) (*accesslist.AccessListMember, error) {
+	return accesslist.NewAccessListMemberWithScope(
+		header.Metadata{Name: name.String()},
 		accesslist.AccessListMemberSpec{
-			AccessList:     listName,
-			Name:           name,
+			AccessList:     listName.String(),
+			Name:           name.String(),
 			MembershipKind: kind,
 		},
+		listName.Scope,
 	)
 }
 

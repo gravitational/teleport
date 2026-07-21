@@ -734,9 +734,14 @@ func (c *Command) displayAccessListsText(accessLists ...*accesslist.AccessList) 
 	return trace.Wrap(err)
 }
 
-func (c *Command) collectAllMembers(ctx context.Context, client *authclient.Client, aclName string) ([]*accesslist.AccessListMember, error) {
+func (c *Command) collectAllMembers(ctx context.Context, client *authclient.Client, aclName scopes.QualifiedName) ([]*accesslist.AccessListMember, error) {
 	return stream.Collect(clientutils.Resources(ctx,
 		func(ctx context.Context, pageSize int, pageToken string) ([]*accesslist.AccessListMember, string, error) {
-			return client.AccessListClient().ListAccessListMembers(ctx, aclName, pageSize, pageToken)
+			return client.AccessListClient().ListAccessListMembersV2(ctx, accesslistv1.ListAccessListMembersRequest_builder{
+				PageSize:        int32(pageSize),
+				PageToken:       pageToken,
+				AccessListScope: aclName.Scope,
+				AccessList:      aclName.Name,
+			}.Build())
 		}))
 }
