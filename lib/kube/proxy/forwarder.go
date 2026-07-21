@@ -3168,9 +3168,13 @@ func (f *Forwarder) verifyInbandToken(req *http.Request, actx *authContext) erro
 		return nil
 	}
 
-	raw, err := mfa.UnmarshalPromptResponseToken(token)
+	tokens, err := mfa.UnmarshalAuthPromptResponse(token)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	if len(tokens) == 0 {
+		return nil
 	}
 
 	username, err := authz.GetClientUsername(req.Context())
@@ -3178,7 +3182,7 @@ func (f *Forwarder) verifyInbandToken(req *http.Request, actx *authContext) erro
 		return trace.Wrap(err)
 	}
 
-	_, err = f.cfg.InbandVerifier.Verify(raw, username)
+	_, err = f.cfg.InbandVerifier.Verify(tokens[0], username)
 	if err != nil {
 		return trace.Wrap(err)
 	}

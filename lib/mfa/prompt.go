@@ -50,23 +50,27 @@ func UnmarshalAuthPrompt(raw string) (*mfav2.AuthPrompt, error) {
 	return prompt, nil
 }
 
-// NewPrompt returns an AuthPrompt with MFAPrompt set.
-func NewPrompt() *mfav2.AuthPrompt {
-	prompt := &mfav2.AuthPrompt{}
+// NewAuthPromptWithMFA returns an AuthPrompt with a single MFAPrompt.
+func NewAuthPromptWithMFA() *mfav2.AuthPrompt {
+	prompt := &mfav2.Prompt{}
 	prompt.SetMfa(&mfav2.MFAPrompt{})
 
-	return prompt
+	return mfav2.AuthPrompt_builder{
+		Prompts: []*mfav2.Prompt{prompt},
+	}.Build()
 }
 
-// MarshalPromptResponseToken wraps a JWT in MFAPromptResponseToken and serializes to base64-encoded protojson.
-func MarshalPromptResponseToken(token string) (string, error) {
-	resp := mfav2.MFAPromptResponse_builder{
-		Token: mfav2.MFAPromptResponseToken_builder{
-			Token: token,
-		}.Build(),
+// MarshalAuthPromptResponse wraps a JWT in AuthPromptResponse and serializes to base64-encoded protojson.
+func MarshalAuthPromptResponse(token string) (string, error) {
+	resp := &mfav2.PromptResponse{}
+	resp.SetMfaToken(&mfav2.MFAPromptResponseToken{})
+	resp.GetMfaToken().SetToken(token)
+
+	authResp := mfav2.AuthPromptResponse_builder{
+		Responses: []*mfav2.PromptResponse{resp},
 	}.Build()
 
-	data, err := protojson.Marshal(resp)
+	data, err := protojson.Marshal(authResp)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -74,21 +78,24 @@ func MarshalPromptResponseToken(token string) (string, error) {
 	return base64.StdEncoding.EncodeToString(data), nil
 }
 
-// UnmarshalPromptResponseToken deserializes a token from base64-encoded protojson.
-func UnmarshalPromptResponseToken(raw string) (string, error) {
+// UnmarshalAuthPromptResponse deserializes tokens from base64-encoded protojson.
+func UnmarshalAuthPromptResponse(raw string) ([]string, error) {
 	data, err := base64.StdEncoding.DecodeString(raw)
 	if err != nil {
-		return "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	resp := &mfav2.MFAPromptResponse{}
-	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(data, resp); err != nil {
-		return "", trace.Wrap(err)
+	authResp := &mfav2.AuthPromptResponse{}
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(data, authResp); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	if resp.GetToken() == nil {
-		return "", trace.BadParameter("missing token in MFAPromptResponse")
+	tokens := make([]string, 0, len(authResp.GetResponses()))
+	for _, resp := range authResp.GetResponses() {
+		if token := resp.GetMfaToken(); token != nil {
+			tokens = append(tokens, token.GetToken())
+		}
 	}
 
-	return resp.GetToken().GetToken(), nil
+	return tokens, nil
 }

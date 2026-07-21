@@ -36,14 +36,11 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// AuthPrompt signals that in-band authentication is required. Sent by enforcement points (proxy, agent) to clients via
-// HTTP headers or other transport-appropriate mechanisms.
+// AuthPrompt carries one or more authentication challenges. Sent by enforcement points to clients via HTTP headers or
+// other transport-appropriate mechanisms.
 type AuthPrompt struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
-	// Types that are valid to be assigned to Prompt:
-	//
-	//	*AuthPrompt_Mfa
-	Prompt        isAuthPrompt_Prompt `protobuf_oneof:"prompt"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
+	Prompts       []*Prompt              `protobuf:"bytes,1,rep,name=prompts,proto3" json:"prompts,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -73,109 +70,170 @@ func (x *AuthPrompt) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-func (x *AuthPrompt) GetPrompt() isAuthPrompt_Prompt {
+func (x *AuthPrompt) GetPrompts() []*Prompt {
 	if x != nil {
-		return x.Prompt
+		return x.Prompts
 	}
 	return nil
 }
 
-func (x *AuthPrompt) GetMfa() *MFAPrompt {
-	if x != nil {
-		if x, ok := x.Prompt.(*AuthPrompt_Mfa); ok {
-			return x.Mfa
-		}
-	}
-	return nil
-}
-
-func (x *AuthPrompt) SetMfa(v *MFAPrompt) {
-	if v == nil {
-		x.Prompt = nil
-		return
-	}
-	x.Prompt = &AuthPrompt_Mfa{v}
-}
-
-func (x *AuthPrompt) HasPrompt() bool {
-	if x == nil {
-		return false
-	}
-	return x.Prompt != nil
-}
-
-func (x *AuthPrompt) HasMfa() bool {
-	if x == nil {
-		return false
-	}
-	_, ok := x.Prompt.(*AuthPrompt_Mfa)
-	return ok
-}
-
-func (x *AuthPrompt) ClearPrompt() {
-	x.Prompt = nil
-}
-
-func (x *AuthPrompt) ClearMfa() {
-	if _, ok := x.Prompt.(*AuthPrompt_Mfa); ok {
-		x.Prompt = nil
-	}
-}
-
-const AuthPrompt_Prompt_not_set_case case_AuthPrompt_Prompt = 0
-const AuthPrompt_Mfa_case case_AuthPrompt_Prompt = 1
-
-func (x *AuthPrompt) WhichPrompt() case_AuthPrompt_Prompt {
-	if x == nil {
-		return AuthPrompt_Prompt_not_set_case
-	}
-	switch x.Prompt.(type) {
-	case *AuthPrompt_Mfa:
-		return AuthPrompt_Mfa_case
-	default:
-		return AuthPrompt_Prompt_not_set_case
-	}
+func (x *AuthPrompt) SetPrompts(v []*Prompt) {
+	x.Prompts = v
 }
 
 type AuthPrompt_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
-	// Fields of oneof Prompt:
-	Mfa *MFAPrompt
-	// -- end of Prompt
+	Prompts []*Prompt
 }
 
 func (b0 AuthPrompt_builder) Build() *AuthPrompt {
 	m0 := &AuthPrompt{}
 	b, x := &b0, m0
 	_, _ = b, x
+	x.Prompts = b.Prompts
+	return m0
+}
+
+// Prompt represents a single authentication challenge.
+type Prompt struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// Types that are valid to be assigned to Kind:
+	//
+	//	*Prompt_Mfa
+	Kind          isPrompt_Kind `protobuf_oneof:"kind"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Prompt) Reset() {
+	*x = Prompt{}
+	mi := &file_teleport_mfa_v2_prompt_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Prompt) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Prompt) ProtoMessage() {}
+
+func (x *Prompt) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_mfa_v2_prompt_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *Prompt) GetKind() isPrompt_Kind {
+	if x != nil {
+		return x.Kind
+	}
+	return nil
+}
+
+func (x *Prompt) GetMfa() *MFAPrompt {
+	if x != nil {
+		if x, ok := x.Kind.(*Prompt_Mfa); ok {
+			return x.Mfa
+		}
+	}
+	return nil
+}
+
+func (x *Prompt) SetMfa(v *MFAPrompt) {
+	if v == nil {
+		x.Kind = nil
+		return
+	}
+	x.Kind = &Prompt_Mfa{v}
+}
+
+func (x *Prompt) HasKind() bool {
+	if x == nil {
+		return false
+	}
+	return x.Kind != nil
+}
+
+func (x *Prompt) HasMfa() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Kind.(*Prompt_Mfa)
+	return ok
+}
+
+func (x *Prompt) ClearKind() {
+	x.Kind = nil
+}
+
+func (x *Prompt) ClearMfa() {
+	if _, ok := x.Kind.(*Prompt_Mfa); ok {
+		x.Kind = nil
+	}
+}
+
+const Prompt_Kind_not_set_case case_Prompt_Kind = 0
+const Prompt_Mfa_case case_Prompt_Kind = 1
+
+func (x *Prompt) WhichKind() case_Prompt_Kind {
+	if x == nil {
+		return Prompt_Kind_not_set_case
+	}
+	switch x.Kind.(type) {
+	case *Prompt_Mfa:
+		return Prompt_Mfa_case
+	default:
+		return Prompt_Kind_not_set_case
+	}
+}
+
+type Prompt_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Fields of oneof Kind:
+	Mfa *MFAPrompt
+	// -- end of Kind
+}
+
+func (b0 Prompt_builder) Build() *Prompt {
+	m0 := &Prompt{}
+	b, x := &b0, m0
+	_, _ = b, x
 	if b.Mfa != nil {
-		x.Prompt = &AuthPrompt_Mfa{b.Mfa}
+		x.Kind = &Prompt_Mfa{b.Mfa}
 	}
 	return m0
 }
 
-type case_AuthPrompt_Prompt protoreflect.FieldNumber
+type case_Prompt_Kind protoreflect.FieldNumber
 
-func (x case_AuthPrompt_Prompt) String() string {
-	md := file_teleport_mfa_v2_prompt_proto_msgTypes[0].Descriptor()
+func (x case_Prompt_Kind) String() string {
+	md := file_teleport_mfa_v2_prompt_proto_msgTypes[1].Descriptor()
 	if x == 0 {
 		return "not set"
 	}
 	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
 }
 
-type isAuthPrompt_Prompt interface {
-	isAuthPrompt_Prompt()
+type isPrompt_Kind interface {
+	isPrompt_Kind()
 }
 
-type AuthPrompt_Mfa struct {
+type Prompt_Mfa struct {
 	Mfa *MFAPrompt `protobuf:"bytes,1,opt,name=mfa,proto3,oneof"`
 }
 
-func (*AuthPrompt_Mfa) isAuthPrompt_Prompt() {}
+func (*Prompt_Mfa) isPrompt_Kind() {}
 
-// MFAPrompt is a prompt indicating that the client must complete MFA before proceeding.
+// MFAPrompt signals that the client must complete MFA.
 type MFAPrompt struct {
 	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -184,7 +242,7 @@ type MFAPrompt struct {
 
 func (x *MFAPrompt) Reset() {
 	*x = MFAPrompt{}
-	mi := &file_teleport_mfa_v2_prompt_proto_msgTypes[1]
+	mi := &file_teleport_mfa_v2_prompt_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -196,7 +254,7 @@ func (x *MFAPrompt) String() string {
 func (*MFAPrompt) ProtoMessage() {}
 
 func (x *MFAPrompt) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_mfa_v2_prompt_proto_msgTypes[1]
+	mi := &file_teleport_mfa_v2_prompt_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -219,32 +277,29 @@ func (b0 MFAPrompt_builder) Build() *MFAPrompt {
 	return m0
 }
 
-// MFAPromptResponse is the response to an MFA prompt.
-type MFAPromptResponse struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
-	// Types that are valid to be assigned to Response:
-	//
-	//	*MFAPromptResponse_Token
-	Response      isMFAPromptResponse_Response `protobuf_oneof:"response"`
+// AuthPromptResponse carries responses to authentication challenges.
+type AuthPromptResponse struct {
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
+	Responses     []*PromptResponse      `protobuf:"bytes,1,rep,name=responses,proto3" json:"responses,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *MFAPromptResponse) Reset() {
-	*x = MFAPromptResponse{}
-	mi := &file_teleport_mfa_v2_prompt_proto_msgTypes[2]
+func (x *AuthPromptResponse) Reset() {
+	*x = AuthPromptResponse{}
+	mi := &file_teleport_mfa_v2_prompt_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *MFAPromptResponse) String() string {
+func (x *AuthPromptResponse) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*MFAPromptResponse) ProtoMessage() {}
+func (*AuthPromptResponse) ProtoMessage() {}
 
-func (x *MFAPromptResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_mfa_v2_prompt_proto_msgTypes[2]
+func (x *AuthPromptResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_mfa_v2_prompt_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -255,107 +310,168 @@ func (x *MFAPromptResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-func (x *MFAPromptResponse) GetResponse() isMFAPromptResponse_Response {
+func (x *AuthPromptResponse) GetResponses() []*PromptResponse {
 	if x != nil {
-		return x.Response
+		return x.Responses
 	}
 	return nil
 }
 
-func (x *MFAPromptResponse) GetToken() *MFAPromptResponseToken {
+func (x *AuthPromptResponse) SetResponses(v []*PromptResponse) {
+	x.Responses = v
+}
+
+type AuthPromptResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Responses []*PromptResponse
+}
+
+func (b0 AuthPromptResponse_builder) Build() *AuthPromptResponse {
+	m0 := &AuthPromptResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Responses = b.Responses
+	return m0
+}
+
+// PromptResponse is a response to a single challenge.
+type PromptResponse struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// Types that are valid to be assigned to Kind:
+	//
+	//	*PromptResponse_MfaToken
+	Kind          isPromptResponse_Kind `protobuf_oneof:"kind"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PromptResponse) Reset() {
+	*x = PromptResponse{}
+	mi := &file_teleport_mfa_v2_prompt_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PromptResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PromptResponse) ProtoMessage() {}
+
+func (x *PromptResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_mfa_v2_prompt_proto_msgTypes[4]
 	if x != nil {
-		if x, ok := x.Response.(*MFAPromptResponse_Token); ok {
-			return x.Token
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *PromptResponse) GetKind() isPromptResponse_Kind {
+	if x != nil {
+		return x.Kind
+	}
+	return nil
+}
+
+func (x *PromptResponse) GetMfaToken() *MFAPromptResponseToken {
+	if x != nil {
+		if x, ok := x.Kind.(*PromptResponse_MfaToken); ok {
+			return x.MfaToken
 		}
 	}
 	return nil
 }
 
-func (x *MFAPromptResponse) SetToken(v *MFAPromptResponseToken) {
+func (x *PromptResponse) SetMfaToken(v *MFAPromptResponseToken) {
 	if v == nil {
-		x.Response = nil
+		x.Kind = nil
 		return
 	}
-	x.Response = &MFAPromptResponse_Token{v}
+	x.Kind = &PromptResponse_MfaToken{v}
 }
 
-func (x *MFAPromptResponse) HasResponse() bool {
+func (x *PromptResponse) HasKind() bool {
 	if x == nil {
 		return false
 	}
-	return x.Response != nil
+	return x.Kind != nil
 }
 
-func (x *MFAPromptResponse) HasToken() bool {
+func (x *PromptResponse) HasMfaToken() bool {
 	if x == nil {
 		return false
 	}
-	_, ok := x.Response.(*MFAPromptResponse_Token)
+	_, ok := x.Kind.(*PromptResponse_MfaToken)
 	return ok
 }
 
-func (x *MFAPromptResponse) ClearResponse() {
-	x.Response = nil
+func (x *PromptResponse) ClearKind() {
+	x.Kind = nil
 }
 
-func (x *MFAPromptResponse) ClearToken() {
-	if _, ok := x.Response.(*MFAPromptResponse_Token); ok {
-		x.Response = nil
+func (x *PromptResponse) ClearMfaToken() {
+	if _, ok := x.Kind.(*PromptResponse_MfaToken); ok {
+		x.Kind = nil
 	}
 }
 
-const MFAPromptResponse_Response_not_set_case case_MFAPromptResponse_Response = 0
-const MFAPromptResponse_Token_case case_MFAPromptResponse_Response = 1
+const PromptResponse_Kind_not_set_case case_PromptResponse_Kind = 0
+const PromptResponse_MfaToken_case case_PromptResponse_Kind = 1
 
-func (x *MFAPromptResponse) WhichResponse() case_MFAPromptResponse_Response {
+func (x *PromptResponse) WhichKind() case_PromptResponse_Kind {
 	if x == nil {
-		return MFAPromptResponse_Response_not_set_case
+		return PromptResponse_Kind_not_set_case
 	}
-	switch x.Response.(type) {
-	case *MFAPromptResponse_Token:
-		return MFAPromptResponse_Token_case
+	switch x.Kind.(type) {
+	case *PromptResponse_MfaToken:
+		return PromptResponse_MfaToken_case
 	default:
-		return MFAPromptResponse_Response_not_set_case
+		return PromptResponse_Kind_not_set_case
 	}
 }
 
-type MFAPromptResponse_builder struct {
+type PromptResponse_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
-	// Fields of oneof Response:
-	Token *MFAPromptResponseToken
-	// -- end of Response
+	// Fields of oneof Kind:
+	MfaToken *MFAPromptResponseToken
+	// -- end of Kind
 }
 
-func (b0 MFAPromptResponse_builder) Build() *MFAPromptResponse {
-	m0 := &MFAPromptResponse{}
+func (b0 PromptResponse_builder) Build() *PromptResponse {
+	m0 := &PromptResponse{}
 	b, x := &b0, m0
 	_, _ = b, x
-	if b.Token != nil {
-		x.Response = &MFAPromptResponse_Token{b.Token}
+	if b.MfaToken != nil {
+		x.Kind = &PromptResponse_MfaToken{b.MfaToken}
 	}
 	return m0
 }
 
-type case_MFAPromptResponse_Response protoreflect.FieldNumber
+type case_PromptResponse_Kind protoreflect.FieldNumber
 
-func (x case_MFAPromptResponse_Response) String() string {
-	md := file_teleport_mfa_v2_prompt_proto_msgTypes[2].Descriptor()
+func (x case_PromptResponse_Kind) String() string {
+	md := file_teleport_mfa_v2_prompt_proto_msgTypes[4].Descriptor()
 	if x == 0 {
 		return "not set"
 	}
 	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
 }
 
-type isMFAPromptResponse_Response interface {
-	isMFAPromptResponse_Response()
+type isPromptResponse_Kind interface {
+	isPromptResponse_Kind()
 }
 
-type MFAPromptResponse_Token struct {
-	Token *MFAPromptResponseToken `protobuf:"bytes,1,opt,name=token,proto3,oneof"`
+type PromptResponse_MfaToken struct {
+	MfaToken *MFAPromptResponseToken `protobuf:"bytes,1,opt,name=mfa_token,json=mfaToken,proto3,oneof"`
 }
 
-func (*MFAPromptResponse_Token) isMFAPromptResponse_Response() {}
+func (*PromptResponse_MfaToken) isPromptResponse_Kind() {}
 
 // MFAPromptResponseToken carries the JWT returned after MFA completion.
 type MFAPromptResponseToken struct {
@@ -367,7 +483,7 @@ type MFAPromptResponseToken struct {
 
 func (x *MFAPromptResponseToken) Reset() {
 	*x = MFAPromptResponseToken{}
-	mi := &file_teleport_mfa_v2_prompt_proto_msgTypes[3]
+	mi := &file_teleport_mfa_v2_prompt_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -379,7 +495,7 @@ func (x *MFAPromptResponseToken) String() string {
 func (*MFAPromptResponseToken) ProtoMessage() {}
 
 func (x *MFAPromptResponseToken) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_mfa_v2_prompt_proto_msgTypes[3]
+	mi := &file_teleport_mfa_v2_prompt_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -419,34 +535,41 @@ var File_teleport_mfa_v2_prompt_proto protoreflect.FileDescriptor
 
 const file_teleport_mfa_v2_prompt_proto_rawDesc = "" +
 	"\n" +
-	"\x1cteleport/mfa/v2/prompt.proto\x12\x0fteleport.mfa.v2\"F\n" +
+	"\x1cteleport/mfa/v2/prompt.proto\x12\x0fteleport.mfa.v2\"?\n" +
 	"\n" +
-	"AuthPrompt\x12.\n" +
-	"\x03mfa\x18\x01 \x01(\v2\x1a.teleport.mfa.v2.MFAPromptH\x00R\x03mfaB\b\n" +
-	"\x06prompt\"\v\n" +
-	"\tMFAPrompt\"`\n" +
-	"\x11MFAPromptResponse\x12?\n" +
-	"\x05token\x18\x01 \x01(\v2'.teleport.mfa.v2.MFAPromptResponseTokenH\x00R\x05tokenB\n" +
-	"\n" +
-	"\bresponse\".\n" +
+	"AuthPrompt\x121\n" +
+	"\aprompts\x18\x01 \x03(\v2\x17.teleport.mfa.v2.PromptR\aprompts\"@\n" +
+	"\x06Prompt\x12.\n" +
+	"\x03mfa\x18\x01 \x01(\v2\x1a.teleport.mfa.v2.MFAPromptH\x00R\x03mfaB\x06\n" +
+	"\x04kind\"\v\n" +
+	"\tMFAPrompt\"S\n" +
+	"\x12AuthPromptResponse\x12=\n" +
+	"\tresponses\x18\x01 \x03(\v2\x1f.teleport.mfa.v2.PromptResponseR\tresponses\"`\n" +
+	"\x0ePromptResponse\x12F\n" +
+	"\tmfa_token\x18\x01 \x01(\v2'.teleport.mfa.v2.MFAPromptResponseTokenH\x00R\bmfaTokenB\x06\n" +
+	"\x04kind\".\n" +
 	"\x16MFAPromptResponseToken\x12\x14\n" +
 	"\x05token\x18\x01 \x01(\tR\x05tokenBJZHgithub.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2;mfav2b\x06proto3"
 
-var file_teleport_mfa_v2_prompt_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
+var file_teleport_mfa_v2_prompt_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
 var file_teleport_mfa_v2_prompt_proto_goTypes = []any{
 	(*AuthPrompt)(nil),             // 0: teleport.mfa.v2.AuthPrompt
-	(*MFAPrompt)(nil),              // 1: teleport.mfa.v2.MFAPrompt
-	(*MFAPromptResponse)(nil),      // 2: teleport.mfa.v2.MFAPromptResponse
-	(*MFAPromptResponseToken)(nil), // 3: teleport.mfa.v2.MFAPromptResponseToken
+	(*Prompt)(nil),                 // 1: teleport.mfa.v2.Prompt
+	(*MFAPrompt)(nil),              // 2: teleport.mfa.v2.MFAPrompt
+	(*AuthPromptResponse)(nil),     // 3: teleport.mfa.v2.AuthPromptResponse
+	(*PromptResponse)(nil),         // 4: teleport.mfa.v2.PromptResponse
+	(*MFAPromptResponseToken)(nil), // 5: teleport.mfa.v2.MFAPromptResponseToken
 }
 var file_teleport_mfa_v2_prompt_proto_depIdxs = []int32{
-	1, // 0: teleport.mfa.v2.AuthPrompt.mfa:type_name -> teleport.mfa.v2.MFAPrompt
-	3, // 1: teleport.mfa.v2.MFAPromptResponse.token:type_name -> teleport.mfa.v2.MFAPromptResponseToken
-	2, // [2:2] is the sub-list for method output_type
-	2, // [2:2] is the sub-list for method input_type
-	2, // [2:2] is the sub-list for extension type_name
-	2, // [2:2] is the sub-list for extension extendee
-	0, // [0:2] is the sub-list for field type_name
+	1, // 0: teleport.mfa.v2.AuthPrompt.prompts:type_name -> teleport.mfa.v2.Prompt
+	2, // 1: teleport.mfa.v2.Prompt.mfa:type_name -> teleport.mfa.v2.MFAPrompt
+	4, // 2: teleport.mfa.v2.AuthPromptResponse.responses:type_name -> teleport.mfa.v2.PromptResponse
+	5, // 3: teleport.mfa.v2.PromptResponse.mfa_token:type_name -> teleport.mfa.v2.MFAPromptResponseToken
+	4, // [4:4] is the sub-list for method output_type
+	4, // [4:4] is the sub-list for method input_type
+	4, // [4:4] is the sub-list for extension type_name
+	4, // [4:4] is the sub-list for extension extendee
+	0, // [0:4] is the sub-list for field type_name
 }
 
 func init() { file_teleport_mfa_v2_prompt_proto_init() }
@@ -454,11 +577,11 @@ func file_teleport_mfa_v2_prompt_proto_init() {
 	if File_teleport_mfa_v2_prompt_proto != nil {
 		return
 	}
-	file_teleport_mfa_v2_prompt_proto_msgTypes[0].OneofWrappers = []any{
-		(*AuthPrompt_Mfa)(nil),
+	file_teleport_mfa_v2_prompt_proto_msgTypes[1].OneofWrappers = []any{
+		(*Prompt_Mfa)(nil),
 	}
-	file_teleport_mfa_v2_prompt_proto_msgTypes[2].OneofWrappers = []any{
-		(*MFAPromptResponse_Token)(nil),
+	file_teleport_mfa_v2_prompt_proto_msgTypes[4].OneofWrappers = []any{
+		(*PromptResponse_MfaToken)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -466,7 +589,7 @@ func file_teleport_mfa_v2_prompt_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_mfa_v2_prompt_proto_rawDesc), len(file_teleport_mfa_v2_prompt_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   4,
+			NumMessages:   6,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

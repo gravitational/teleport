@@ -30,8 +30,9 @@ import (
 func TestAuthPromptRoundTrip(t *testing.T) {
 	t.Parallel()
 
-	prompt := mfa.NewPrompt()
-	require.NotNil(t, prompt.GetMfa())
+	prompt := mfa.NewAuthPromptWithMFA()
+	require.Len(t, prompt.GetPrompts(), 1)
+	require.NotNil(t, prompt.GetPrompts()[0].GetMfa())
 
 	encoded, err := mfa.MarshalAuthPrompt(prompt)
 	require.NoError(t, err)
@@ -39,21 +40,22 @@ func TestAuthPromptRoundTrip(t *testing.T) {
 
 	got, err := mfa.UnmarshalAuthPrompt(encoded)
 	require.NoError(t, err)
-	require.NotNil(t, got.GetMfa())
+	require.Len(t, got.GetPrompts(), 1)
+	require.NotNil(t, got.GetPrompts()[0].GetMfa())
 }
 
-func TestMFAPromptResponseTokenRoundTrip(t *testing.T) {
+func TestAuthPromptResponseRoundTrip(t *testing.T) {
 	t.Parallel()
 
 	const jwtToken = "eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCJ9.test.signature"
 
-	encoded, err := mfa.MarshalPromptResponseToken(jwtToken)
+	encoded, err := mfa.MarshalAuthPromptResponse(jwtToken)
 	require.NoError(t, err)
 	require.NotEmpty(t, encoded)
 
-	got, err := mfa.UnmarshalPromptResponseToken(encoded)
+	tokens, err := mfa.UnmarshalAuthPromptResponse(encoded)
 	require.NoError(t, err)
-	require.Equal(t, jwtToken, got)
+	require.Equal(t, []string{jwtToken}, tokens)
 }
 
 func TestUnmarshalAuthPrompt_InvalidInput(t *testing.T) {
@@ -63,25 +65,25 @@ func TestUnmarshalAuthPrompt_InvalidInput(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestUnmarshalMFAPromptResponseToken_InvalidInput(t *testing.T) {
+func TestUnmarshalAuthPromptResponse_InvalidInput(t *testing.T) {
 	t.Parallel()
 
 	// Valid base64 but invalid proto.
-	_, err := mfa.UnmarshalPromptResponseToken("dGVzdA==")
+	_, err := mfa.UnmarshalAuthPromptResponse("dGVzdA==")
 	require.Error(t, err)
 }
 
-func TestUnmarshalMFAPromptResponseToken_MissingToken(t *testing.T) {
+func TestUnmarshalAuthPromptResponse_MissingToken(t *testing.T) {
 	t.Parallel()
 
-	// Marshal an empty response with no token field set.
-	resp := &mfav2.MFAPromptResponse{}
+	// Marshal an empty response with no responses field set.
+	resp := &mfav2.AuthPromptResponse{}
 	data, err := protojson.Marshal(resp)
 	require.NoError(t, err)
 
 	encoded := base64.StdEncoding.EncodeToString(data)
 
-	_, err = mfa.UnmarshalPromptResponseToken(encoded)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "missing token")
+	tokens, err := mfa.UnmarshalAuthPromptResponse(encoded)
+	require.NoError(t, err)
+	require.Empty(t, tokens)
 }

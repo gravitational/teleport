@@ -18,21 +18,31 @@ package teleport.mfa.v2;
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2;mfav2";
 
-// AuthPrompt signals that in-band authentication is required. Sent by enforcement points (proxy, agent) to clients via
-// HTTP headers or other transport-appropriate mechanisms.
+// AuthPrompt carries one or more authentication challenges. Sent by enforcement points to clients via HTTP headers or
+// other transport-appropriate mechanisms.
 message AuthPrompt {
-  oneof prompt {
+  repeated Prompt prompts = 1;
+}
+
+// Prompt represents a single authentication challenge.
+message Prompt {
+  oneof kind {
     MFAPrompt mfa = 1;
   }
 }
 
-// MFAPrompt is a prompt indicating that the client must complete MFA before proceeding.
+// MFAPrompt signals that the client must complete MFA.
 message MFAPrompt {}
 
-// MFAPromptResponse is the response to an MFA prompt.
-message MFAPromptResponse {
-  oneof response {
-    MFAPromptResponseToken token = 1;
+// AuthPromptResponse carries responses to authentication challenges.
+message AuthPromptResponse {
+  repeated PromptResponse responses = 1;
+}
+
+// PromptResponse is a response to a single challenge.
+message PromptResponse {
+  oneof kind {
+    MFAPromptResponseToken mfa_token = 1;
   }
 }
 
