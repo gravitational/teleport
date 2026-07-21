@@ -639,6 +639,15 @@ func TestValidateUserTask(t *testing.T) {
 			wantErr: noError,
 		},
 		{
+			name: "DiscoverAzureVM: subscription list permission issue requires deterministic task name",
+			task: func(t *testing.T) *usertasksv1.UserTask {
+				ut := baseAzureVMPermissionTask(t)
+				ut.Metadata.Name = "another-name"
+				return ut
+			},
+			wantErr: "task name must be",
+		},
+		{
 			name: "DiscoverAzureVM: invalid issue type",
 			task: func(t *testing.T) *usertasksv1.UserTask {
 				ut := baseAzureVMDiscoverTask(t)

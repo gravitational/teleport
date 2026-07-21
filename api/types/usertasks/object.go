@@ -631,35 +631,24 @@ func validateDiscoverAzureVMTaskType(ut *usertasksv1.UserTask) error {
 	if discover == nil {
 		return trace.BadParameter("%s: discover_azure_vm field is required", TaskTypeDiscoverAzureVM)
 	}
-	if spec.IssueType != AutoDiscoverAzureVMIssueSubscriptionListDenied {
-		switch {
-		case discover.SubscriptionId == "":
-			return trace.BadParameter("%s: discover_azure_vm.subscription_id field is required", TaskTypeDiscoverAzureVM)
-		case discover.ResourceGroup == "":
-			return trace.BadParameter("%s: discover_azure_vm.resource_group field is required", TaskTypeDiscoverAzureVM)
-		case discover.Region == "":
-			return trace.BadParameter("%s: discover_azure_vm.region field is required", TaskTypeDiscoverAzureVM)
-		case len(discover.Instances) == 0:
-			return trace.BadParameter("%s: discover_azure_vm.instances field is required", TaskTypeDiscoverAzureVM)
-		}
+	if spec.IssueType == AutoDiscoverAzureVMIssueSubscriptionListDenied {
+		return validateDiscoverAzureVMTaskName(ut, discover)
 	}
-	expectedTaskName := taskNameForDiscoverAzureVM(
-		TaskGroup{
-			Integration: spec.Integration,
-			IssueType:   spec.IssueType,
-		},
-		taskNameForDiscoverAzureVMParts{
-			SubscriptionID: discover.SubscriptionId,
-			ResourceGroup:  discover.ResourceGroup,
-			Region:         discover.Region,
-		})
-	if ut.Metadata.Name != expectedTaskName {
-		return trace.BadParameter("%s: task name must be %s, got %s",
-			TaskTypeDiscoverAzureVM,
-			expectedTaskName,
-			ut.Metadata.Name,
-		)
+
+	switch {
+	case discover.SubscriptionId == "":
+		return trace.BadParameter("%s: discover_azure_vm.subscription_id field is required", TaskTypeDiscoverAzureVM)
+	case discover.ResourceGroup == "":
+		return trace.BadParameter("%s: discover_azure_vm.resource_group field is required", TaskTypeDiscoverAzureVM)
+	case discover.Region == "":
+		return trace.BadParameter("%s: discover_azure_vm.region field is required", TaskTypeDiscoverAzureVM)
+	case len(discover.Instances) == 0:
+		return trace.BadParameter("%s: discover_azure_vm.instances field is required", TaskTypeDiscoverAzureVM)
 	}
+	if err := validateDiscoverAzureVMTaskName(ut, discover); err != nil {
+		return trace.Wrap(err)
+	}
+
 	for vmID, vmIssue := range discover.Instances {
 		switch {
 		case vmIssue == nil:
@@ -675,6 +664,27 @@ func validateDiscoverAzureVMTaskType(ut *usertasksv1.UserTask) error {
 		case vmID != vmIssue.VmId:
 			return trace.BadParameter("%s: discover_azure_vm.instances map key %s does not match vm_id %s", TaskTypeDiscoverAzureVM, vmID, vmIssue.VmId)
 		}
+	}
+	return nil
+}
+
+func validateDiscoverAzureVMTaskName(ut *usertasksv1.UserTask, discover *usertasksv1.DiscoverAzureVM) error {
+	expectedTaskName := taskNameForDiscoverAzureVM(
+		TaskGroup{
+			Integration: ut.Spec.Integration,
+			IssueType:   ut.Spec.IssueType,
+		},
+		taskNameForDiscoverAzureVMParts{
+			SubscriptionID: discover.SubscriptionId,
+			ResourceGroup:  discover.ResourceGroup,
+			Region:         discover.Region,
+		})
+	if ut.Metadata.Name != expectedTaskName {
+		return trace.BadParameter("%s: task name must be %s, got %s",
+			TaskTypeDiscoverAzureVM,
+			expectedTaskName,
+			ut.Metadata.Name,
+		)
 	}
 	return nil
 }

@@ -225,19 +225,14 @@ func expandAzureMatcherSubscriptions(
 			continue
 		}
 		subs, err := listSubs(ctx, integration)
-		if err != nil {
-			logger.WarnContext(ctx, "Failed to fetch Azure subscription list for wildcard in discovery configuration",
-				"integration", integration,
-				"error", err,
-			)
-			if handleSubscriptionListError != nil {
-				handleSubscriptionListError(integration, err)
-			}
-			continue
+		// Azure can return a successful response with no subscriptions when the
+		// identity has no subscription-scoped access. Treat this as an access
+		// failure so wildcard discovery silently produces no fetchers.
+		if err == nil && len(subs) == 0 {
+			err = trace.AccessDenied("Azure returned no subscriptions for wildcard in discovery configuration")
 		}
-		if len(subs) == 0 {
-			err := trace.AccessDenied("Azure returned no subscriptions for wildcard in discovery configuration")
-			logger.WarnContext(ctx, "Azure subscription list for wildcard in discovery configuration is empty",
+		if err != nil {
+			logger.WarnContext(ctx, "Failed to resolve Azure subscription wildcard in discovery configuration",
 				"integration", integration,
 				"error", err,
 			)
