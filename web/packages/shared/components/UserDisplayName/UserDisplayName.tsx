@@ -31,6 +31,8 @@ export function UserDisplayName({
   layout = 'tooltip',
   className,
   primaryTextProps,
+  usernameTextProps,
+  secondaryTextProps,
 }: {
   username: string;
   primaryText?: string;
@@ -38,6 +40,8 @@ export function UserDisplayName({
   layout?: UserDisplayNameLayout;
   className?: string;
   primaryTextProps?: ComponentProps<typeof Text>;
+  usernameTextProps?: ComponentProps<typeof Text>;
+  secondaryTextProps?: ComponentProps<typeof Text>;
 }) {
   const displayPrimary = normalizeText(primaryText);
   const displaySecondary = normalizeText(secondaryText);
@@ -51,18 +55,22 @@ export function UserDisplayName({
   );
 
   const secondaryValue = displaySecondary && (
-    <SecondaryValue title={displaySecondary}>{displaySecondary}</SecondaryValue>
+    <SecondaryValue {...secondaryTextProps} title={displaySecondary}>
+      {displaySecondary}
+    </SecondaryValue>
   );
 
   const separatedSecondaryValue = displaySecondary && (
-    <SeparatedSecondaryValue title={displaySecondary}>
+    <SeparatedSecondaryValue {...secondaryTextProps} title={displaySecondary}>
       {displaySecondary}
     </SeparatedSecondaryValue>
   );
 
   const supportingValues = displayPrimary ? (
     <>
-      <UsernameValue title={username}>{username}</UsernameValue>
+      <UsernameValue {...usernameTextProps} title={username}>
+        {username}
+      </UsernameValue>
       {separatedSecondaryValue}
     </>
   ) : (
