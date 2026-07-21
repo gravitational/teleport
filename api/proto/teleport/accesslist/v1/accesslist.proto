@@ -180,7 +180,7 @@ message AccessListGrants {
 
 // ScopedRoleGrant describes a scoped role granted at a specific scope.
 message ScopedRoleGrant {
-  // role is scope-qualified name of the scoped role to be granted.
+  // role is the scope-qualified name of the scoped role to be granted.
   string role = 1;
   // scope is the scope the role will be granted at. It must be an assignable
   // scope of the role.
@@ -219,6 +219,13 @@ message MemberStatus {
   UserDisplay display = 1;
   // added_by_display contains display values for the user that added the member.
   UserDisplay added_by_display = 2;
+}
+
+// ReviewStatus contains dynamic fields calculated during retrieval.
+message ReviewStatus {
+  // reviewer_displays maps reviewer usernames to read-time display values
+  // derived from the user resource.
+  map<string, UserDisplay> reviewer_displays = 1;
 }
 
 // MemberSpec is the specification for an Access List member.
@@ -298,6 +305,9 @@ message Review {
   // scope is the scope of the Access List review. It must be equal to the
   // scope of the reviewed Access List.
   string scope = 3;
+
+  // status contains dynamically calculated fields.
+  ReviewStatus status = 4;
 }
 
 // ReviewSpec is the specification for an Access List review.

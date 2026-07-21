@@ -629,7 +629,10 @@ func TestSPIFFEFederationService_ScopedIdentity(t *testing.T) {
 			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
 				User: scopedUser.GetName(),
 				Assignments: []*scopedaccessv1.Assignment{
-					scopedaccessv1.Assignment_builder{Role: scopedRole.GetRole().GetMetadata().GetName(), Scope: "/scopes/granted"}.Build(),
+					scopedaccessv1.Assignment_builder{
+						Role:  scopes.QualifiedName{Scope: scopedRole.GetRole().GetScope(), Name: scopedRole.GetRole().GetMetadata().GetName()}.String(),
+						Scope: "/scopes/granted",
+					}.Build(),
 				},
 			}.Build(),
 		}.Build(),

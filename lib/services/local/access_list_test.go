@@ -37,6 +37,7 @@ import (
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/common"
@@ -168,7 +169,12 @@ func TestAccessListCRUDScoped(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	service := newAccessListService(t, mem, modulestest.EnterpriseModules())
+	service, err := NewAccessListServiceV2(AccessListServiceConfig{
+		Backend:        backend.NewSanitizer(mem),
+		Modules:        modulestest.EnterpriseModules(),
+		ScopesFeatures: scopes.Features{Enabled: true},
+	})
+	require.NoError(t, err)
 
 	newScopedAccessList := func(name, scope string) *accesslist.AccessList {
 		acl := newAccessList(t, name, clock,
@@ -188,7 +194,7 @@ func TestAccessListCRUDScoped(t *testing.T) {
 	}
 
 	const listName = "accessList"
-	scopedName := scopes.QualifiedName{Scope: "/eng", Name: listName}
+	scopedName := accesslists.NormalizedSQN{Scope: "/eng", Name: listName}
 	scopedAccessList := newScopedAccessList(listName, scopedName.Scope)
 	unscopedAccessList := newAccessList(t, listName, clock)
 
@@ -206,14 +212,21 @@ func TestAccessListCRUDScoped(t *testing.T) {
 	_, err = service.GetAccessList(ctx, listName)
 	require.True(t, trace.IsNotFound(err), "expected not found error, got %v", err)
 
-	lists, err := service.GetAccessLists(ctx)
+	// Legacy list APIs should not return scoped access lists.
+	listed, err := service.GetAccessLists(ctx)
 	require.NoError(t, err)
-	require.Empty(t, lists)
-
+	require.Empty(t, listed)
 	listed, nextToken, err := service.ListAccessLists(ctx, 100, "")
 	require.NoError(t, err)
 	require.Empty(t, nextToken)
 	require.Empty(t, listed)
+
+	// ListAccessListsV2 _should_ return all access lists by default.
+	listed, nextToken, err = service.ListAccessListsV2(ctx, nil)
+	require.NoError(t, err)
+	require.Empty(t, nextToken)
+	require.Len(t, listed, 1)
+	require.Equal(t, scopedName, accesslists.ScopeQualifiedName(listed[0]))
 
 	unscopedCreated, err := service.UpsertAccessList(ctx, unscopedAccessList)
 	require.NoError(t, err)
@@ -238,6 +251,39 @@ func TestAccessListCRUDScoped(t *testing.T) {
 	unscopedFetched, err = service.GetAccessList(ctx, listName)
 	require.NoError(t, err)
 	require.Equal(t, unscopedAccessList.Spec.Description, unscopedFetched.Spec.Description)
+
+	// Legacy list APIs should not return scoped access lists.
+	listed, err = service.GetAccessLists(ctx)
+	require.NoError(t, err)
+	require.Len(t, listed, 1)
+	require.Empty(t, cmp.Diff(unscopedAccessList, listed[0], cmpOpts...))
+	listed, nextToken, err = service.ListAccessLists(ctx, 100, "")
+	require.NoError(t, err)
+	require.Empty(t, nextToken)
+	require.Len(t, listed, 1)
+	require.Empty(t, cmp.Diff(unscopedAccessList, listed[0], cmpOpts...))
+
+	// ListAccessListsV2 _should_ return all access lists by default.
+	listed, _, err = service.ListAccessListsV2(ctx, nil)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]*accesslist.AccessList{unscopedAccessList, updated}, listed, cmpOpts...))
+
+	// ListAccessListsV2 can filter to include or exclude scoped lists.
+	listed, _, err = service.ListAccessListsV2(ctx, accesslistv1.ListAccessListsV2Request_builder{
+		ScopeFilter: scopesv1.Filter_builder{
+			Mode: scopesv1.Mode_MODE_UNSCOPED,
+		}.Build(),
+	}.Build())
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]*accesslist.AccessList{unscopedAccessList}, listed, cmpOpts...))
+	listed, _, err = service.ListAccessListsV2(ctx, accesslistv1.ListAccessListsV2Request_builder{
+		ScopeFilter: scopesv1.Filter_builder{
+			Scope: "/",
+			Mode:  scopesv1.Mode_MODE_DESCENDANTS,
+		}.Build(),
+	}.Build())
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]*accesslist.AccessList{updated}, listed, cmpOpts...))
 
 	err = service.DeleteAccessListV2(ctx, accesslistv1.DeleteAccessListRequest_builder{
 		Scope: scopedName.Scope,
@@ -296,11 +342,11 @@ func TestAccessListCRUDScopedRoleGrants(t *testing.T) {
 	accessList := newAccessList(t, "accessList-scoped", clock, withOwnerRequires(accesslist.Requires{}), withMemberRequires(accesslist.Requires{}))
 	accessList.Spec.Grants.ScopedRoles = []accesslist.ScopedRoleGrant{
 		{
-			Role:  "scoped-role-1",
+			Role:  "/::scoped-role-1",
 			Scope: "/eng",
 		},
 		{
-			Role:  "scoped-role-2",
+			Role:  "/::scoped-role-2",
 			Scope: "/platform",
 		},
 	}
@@ -319,7 +365,7 @@ func TestAccessListCRUDScopedRoleGrants(t *testing.T) {
 
 	fetched.Spec.Grants.ScopedRoles = []accesslist.ScopedRoleGrant{
 		{
-			Role:  "scoped-role-3",
+			Role:  "/::scoped-role-3",
 			Scope: "/ops",
 		},
 	}
@@ -832,109 +878,134 @@ func getAccessListMembers(t *testing.T, service *AccessListService, listName str
 	return members
 }
 
+// getScopedAccessListMembers fetches the current list of members for the given access
+// list, sorted by name
+func getScopedAccessListMembers(t *testing.T, service *AccessListService, listName scopes.QualifiedName) []*accesslist.AccessListMember {
+	getPage := func(ctx context.Context, pageSize int, pageToken string) ([]*accesslist.AccessListMember, string, error) {
+		return service.ListAccessListMembersV2(ctx, accesslistv1.ListAccessListMembersRequest_builder{
+			AccessListScope: listName.Scope,
+			AccessList:      listName.Name,
+			PageSize:        int32(pageSize),
+			PageToken:       pageToken,
+		}.Build())
+	}
+	members, err := stream.Collect(clientutils.Resources(t.Context(), getPage))
+	require.NoError(t, err)
+	return members
+}
+
 type writeAccessListWithMembersFn func(context.Context, *accesslist.AccessList, []*accesslist.AccessListMember) (*accesslist.AccessList, []*accesslist.AccessListMember, error)
 
 func testAddAndRemoveAccessListMembers(t *testing.T, service *AccessListService, clock clockwork.Clock, fnUnderTest writeAccessListWithMembersFn) {
-	t.Run("add and remove members", func(t *testing.T) {
-		const listName = "test-add-members-list"
-		t.Cleanup(deleteAllAccessLists(t, service))
-		ctx := t.Context()
+	for _, listName := range []scopes.QualifiedName{
+		{Name: "test-add-member-list"},
+		{Scope: "/test", Name: "test-scoped-add-member-list"},
+	} {
+		t.Run("add and remove members "+listName.String(), func(t *testing.T) {
+			t.Cleanup(deleteAllAccessLists(t, service))
+			ctx := t.Context()
 
-		toAccessListMember := func(name string) *accesslist.AccessListMember {
-			return newAccessListMember(t, listName, name)
-		}
+			toAccessListMember := func(name string) *accesslist.AccessListMember {
+				return newScopedAccessListMember(t, listName, scopes.QualifiedName{Name: name})
+			}
 
-		cmpOpts := []cmp.Option{
-			cmpopts.IgnoreFields(header.Metadata{}, "Revision"),
-			cmpopts.EquateEmpty(),
-		}
+			cmpOpts := []cmp.Option{
+				cmpopts.IgnoreFields(header.Metadata{}, "Revision"),
+				cmpopts.EquateEmpty(),
+			}
 
-		// GIVEN an existing Access List
-		acl, err := service.UpsertAccessList(ctx, newAccessList(t, listName, clock))
-		require.NoError(t, err)
-
-		var expectedMemberNames []string
-		for _, memberName := range []string{"alice", "bob", "carol", "dave"} {
-			expectedMemberNames = append(expectedMemberNames, memberName)
-			members := sliceutils.Map(expectedMemberNames, toAccessListMember)
-
-			// WHEN I update the Access List to have one or more users,
-			// EXPECT that the operation succeeds and all member are present
-			// in both the returned member list and in the backend service
-			updatedACL, updatedMembers, err := fnUnderTest(ctx, acl, members)
+			// GIVEN an existing Access List
+			acl, err := service.UpsertAccessList(ctx, newScopedAccessList(t, listName, clock))
 			require.NoError(t, err)
-			require.Empty(t, cmp.Diff(acl, updatedACL, cmpOpts...))
-			require.Empty(t, cmp.Diff(members, updatedMembers, cmpOpts...))
 
-			backendMembers := getAccessListMembers(t, service, listName)
-			require.Empty(t, cmp.Diff(members, backendMembers, cmpOpts...))
-		}
+			var expectedMemberNames []string
+			for _, memberName := range []string{"alice", "bob", "carol", "dave"} {
+				expectedMemberNames = append(expectedMemberNames, memberName)
+				members := sliceutils.Map(expectedMemberNames, toAccessListMember)
 
-		for len(expectedMemberNames) > 0 {
-			expectedMemberNames = expectedMemberNames[1:]
-			members := sliceutils.Map(expectedMemberNames, toAccessListMember)
+				// WHEN I update the Access List to have one or more users,
+				// EXPECT that the operation succeeds and all member are present
+				// in both the returned member list and in the backend service
+				updatedACL, updatedMembers, err := fnUnderTest(ctx, acl, members)
+				require.NoError(t, err)
+				require.Empty(t, cmp.Diff(acl, updatedACL, cmpOpts...))
+				require.Empty(t, cmp.Diff(members, updatedMembers, cmpOpts...))
 
-			// WHEN I update the Access List to remove a user, EXPECT that
-			// the operation succeeds and that only the expected members
-			// are present in the returned member list and in the backend
-			// service
-			updatedACL, updatedMembers, err := fnUnderTest(ctx, acl, members)
-			require.NoError(t, err)
-			require.Empty(t, cmp.Diff(acl, updatedACL, cmpOpts...))
-			require.Empty(t, cmp.Diff(members, updatedMembers, cmpOpts...))
+				backendMembers := getScopedAccessListMembers(t, service, listName)
+				require.Empty(t, cmp.Diff(members, backendMembers, cmpOpts...))
+			}
 
-			backendMembers := getAccessListMembers(t, service, listName)
-			require.Empty(t, cmp.Diff(members, backendMembers, cmpOpts...))
-		}
-	})
+			for len(expectedMemberNames) > 0 {
+				expectedMemberNames = expectedMemberNames[1:]
+				members := sliceutils.Map(expectedMemberNames, toAccessListMember)
+
+				// WHEN I update the Access List to remove a user, EXPECT that
+				// the operation succeeds and that only the expected members
+				// are present in the returned member list and in the backend
+				// service
+				updatedACL, updatedMembers, err := fnUnderTest(ctx, acl, members)
+				require.NoError(t, err)
+				require.Empty(t, cmp.Diff(acl, updatedACL, cmpOpts...))
+				require.Empty(t, cmp.Diff(members, updatedMembers, cmpOpts...))
+
+				backendMembers := getScopedAccessListMembers(t, service, listName)
+				require.Empty(t, cmp.Diff(members, backendMembers, cmpOpts...))
+			}
+
+		})
+	}
 }
 
 func testSetEmptyAccessListMembers(t *testing.T, service *AccessListService, clock clockwork.Clock, fnUnderTest writeAccessListWithMembersFn) {
-	t.Run("setting empty member list deletes members", func(t *testing.T) {
-		ctx := t.Context()
+	for _, listName := range []scopes.QualifiedName{
+		{Name: "test-add-member-list"},
+		{Scope: "/test", Name: "test-scoped-add-member-list"},
+	} {
+		t.Run("setting empty member list deletes members "+listName.String(), func(t *testing.T) {
+			ctx := t.Context()
 
-		emptyLists := []struct {
-			name  string
-			value []*accesslist.AccessListMember
-		}{
-			{
-				name:  "nil",
-				value: nil,
-			},
-			{
-				name:  "zero-length",
-				value: []*accesslist.AccessListMember{},
-			},
-		}
+			emptyLists := []struct {
+				name  string
+				value []*accesslist.AccessListMember
+			}{
+				{
+					name:  "nil",
+					value: nil,
+				},
+				{
+					name:  "zero-length",
+					value: []*accesslist.AccessListMember{},
+				},
+			}
 
-		for _, emptyList := range emptyLists {
-			t.Run(emptyList.name, func(t *testing.T) {
-				t.Cleanup(deleteAllAccessLists(t, service))
-				listName := "test-set-empty-members-list" + emptyList.name
+			for _, emptyList := range emptyLists {
+				t.Run(emptyList.name, func(t *testing.T) {
+					t.Cleanup(deleteAllAccessLists(t, service))
 
-				// GIVEN an access list with several members...
-				acl, _, err := service.UpsertAccessListWithMembers(ctx,
-					newAccessList(t, listName, clock),
-					[]*accesslist.AccessListMember{
-						newAccessListMember(t, listName, "alice"),
-						newAccessListMember(t, listName, "bob"),
-						newAccessListMember(t, listName, "carol"),
-						newAccessListMember(t, listName, "dave"),
-					})
-				require.NoError(t, err)
-				require.Len(t, getAccessListMembers(t, service, listName), 4)
+					// GIVEN an access list with several members...
+					acl, _, err := service.UpsertAccessListWithMembers(ctx,
+						newScopedAccessList(t, listName, clock),
+						[]*accesslist.AccessListMember{
+							newScopedAccessListMember(t, listName, scopes.QualifiedName{Name: "alice"}),
+							newScopedAccessListMember(t, listName, scopes.QualifiedName{Name: "bob"}),
+							newScopedAccessListMember(t, listName, scopes.QualifiedName{Name: "carol"}),
+							newScopedAccessListMember(t, listName, scopes.QualifiedName{Name: "dave"}),
+						})
+					require.NoError(t, err)
+					require.Len(t, getScopedAccessListMembers(t, service, listName), 4)
 
-				// WHEN I update it with an empty member list
-				_, members, err := fnUnderTest(ctx, acl, emptyList.value)
-				require.NoError(t, err)
+					// WHEN I update it with an empty member list
+					_, members, err := fnUnderTest(ctx, acl, emptyList.value)
+					require.NoError(t, err)
 
-				// EXPECT that both the returned member list and the member
-				// collection from the backend are empty
-				require.Empty(t, members)
-				require.Empty(t, getAccessListMembers(t, service, listName))
-			})
-		}
-	})
+					// EXPECT that both the returned member list and the member
+					// collection from the backend are empty
+					require.Empty(t, members)
+					require.Empty(t, getScopedAccessListMembers(t, service, listName))
+				})
+			}
+		})
+	}
 }
 
 func TestUpsertAccessListWithMembers(t *testing.T) {
@@ -1313,6 +1384,145 @@ func TestAccessListMembersCRUD(t *testing.T) {
 	require.ErrorIs(t, err, trace.NotFound("access_list %q doesn't exist", accessList2.GetName()))
 }
 
+func TestAccessListMembersCRUDScoped(t *testing.T) {
+	ctx := t.Context()
+	clock := clockwork.NewFakeClock()
+
+	mem, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+
+	service := newAccessListService(t, mem, modulestest.EnterpriseModules())
+
+	cmpOpts := []cmp.Option{
+		cmpopts.IgnoreFields(header.Metadata{}, "Revision"),
+		cmpopts.EquateEmpty(),
+	}
+
+	t.Run("scoped parent separates unscoped and scoped members with the same name", func(t *testing.T) {
+		t.Cleanup(deleteAllAccessLists(t, service))
+
+		getAccessListMemberRequest := func(listName, memberName scopes.QualifiedName) *accesslistv1.GetAccessListMemberRequest {
+			return accesslistv1.GetAccessListMemberRequest_builder{
+				AccessListScope: listName.Scope,
+				AccessList:      listName.Name,
+				MemberScope:     memberName.Scope,
+				MemberName:      memberName.Name,
+			}.Build()
+		}
+
+		parentName := scopes.QualifiedName{Scope: "/eng/platform", Name: "parent"}
+		unscopedChildName := scopes.QualifiedName{Name: "team"}
+		scopedChildName := scopes.QualifiedName{Scope: "/eng", Name: "team"}
+
+		parent, err := service.UpsertAccessList(ctx, newScopedAccessList(t, parentName, clock))
+		require.NoError(t, err)
+		_, err = service.UpsertAccessList(ctx, newScopedAccessList(t, unscopedChildName, clock))
+		require.NoError(t, err)
+		_, err = service.UpsertAccessList(ctx, newScopedAccessList(t, scopedChildName, clock))
+		require.NoError(t, err)
+
+		unscopedChildMember := newScopedAccessListMember(t, parentName, unscopedChildName, withMembershipKind(accesslist.MembershipKindList))
+		scopedChildMember := newScopedAccessListMember(t, parentName, scopedChildName, withMembershipKind(accesslist.MembershipKindScopedList))
+		userMember := newScopedAccessListMember(t, parentName, scopes.QualifiedName{Name: "alice"}, withMembershipKind(accesslist.MembershipKindUser))
+		expectedMembers := []*accesslist.AccessListMember{userMember, unscopedChildMember, scopedChildMember}
+
+		_, returnedMembers, err := service.UpsertAccessListWithMembers(ctx, parent, expectedMembers)
+		require.NoError(t, err)
+		require.Empty(t, cmp.Diff(expectedMembers, returnedMembers, cmpOpts...))
+
+		gotUnscoped, err := service.GetAccessListMemberV2(ctx, getAccessListMemberRequest(parentName, unscopedChildName))
+		require.NoError(t, err)
+		require.Empty(t, cmp.Diff(unscopedChildMember, gotUnscoped, cmpOpts...))
+
+		gotScoped, err := service.GetAccessListMemberV2(ctx, getAccessListMemberRequest(parentName, scopedChildName))
+		require.NoError(t, err)
+		require.Empty(t, cmp.Diff(scopedChildMember, gotScoped, cmpOpts...))
+
+		users, lists, err := service.CountAccessListMembersV2(ctx, accesslistv1.CountAccessListMembersRequest_builder{
+			AccessListScope: parentName.Scope,
+			AccessListName:  parentName.Name,
+		}.Build())
+		require.NoError(t, err)
+		require.Equal(t, uint32(1), users)
+		require.Equal(t, uint32(2), lists)
+
+		var paginatedMembers []*accesslist.AccessListMember
+		req := accesslistv1.ListAccessListMembersRequest_builder{
+			AccessListScope: parentName.Scope,
+			AccessList:      parentName.Name,
+			PageSize:        1,
+		}.Build()
+		for {
+			members, next, err := service.ListAccessListMembersV2(ctx, req)
+			require.NoError(t, err)
+			paginatedMembers = append(paginatedMembers, members...)
+			if next == "" {
+				break
+			}
+			req.SetPageToken(next)
+		}
+		require.Empty(t, cmp.Diff(expectedMembers, paginatedMembers, append(cmpOpts, cmpopts.SortSlices(func(a, b *accesslist.AccessListMember) bool {
+			// Access list member metadata names are scope-qualified for scoped-list members,
+			// so this orders by the same identity used in the backend key
+			return a.GetName() < b.GetName()
+		}))...))
+
+		err = service.DeleteAccessListMemberV2(ctx, accesslistv1.DeleteAccessListMemberRequest_builder{
+			AccessListScope: parentName.Scope,
+			AccessList:      parentName.Name,
+			MemberScope:     unscopedChildName.Scope,
+			MemberName:      unscopedChildName.Name,
+		}.Build())
+		require.NoError(t, err)
+		_, err = service.GetAccessListMemberV2(ctx, getAccessListMemberRequest(parentName, unscopedChildName))
+		require.True(t, trace.IsNotFound(err), "expected not found error, got %v", err)
+		_, err = service.GetAccessListMemberV2(ctx, getAccessListMemberRequest(parentName, scopedChildName))
+		require.NoError(t, err)
+
+		_, returnedMembers, err = service.UpsertAccessListWithMembers(ctx, parent, []*accesslist.AccessListMember{userMember, unscopedChildMember})
+		require.NoError(t, err)
+		require.Empty(t, cmp.Diff([]*accesslist.AccessListMember{userMember, unscopedChildMember}, returnedMembers, cmpOpts...))
+		_, err = service.GetAccessListMemberV2(ctx, getAccessListMemberRequest(parentName, scopedChildName))
+		require.True(t, trace.IsNotFound(err), "expected not found error, got %v", err)
+		_, err = service.GetAccessListMemberV2(ctx, getAccessListMemberRequest(parentName, unscopedChildName))
+		require.NoError(t, err)
+	})
+
+	t.Run("old member APIs only see unscoped lists and members", func(t *testing.T) {
+		t.Cleanup(deleteAllAccessLists(t, service))
+
+		unscopedParentName := scopes.QualifiedName{Name: "parent"}
+		scopedParentName := scopes.QualifiedName{Scope: "/eng", Name: "parent"}
+
+		unscopedParent, err := service.UpsertAccessList(ctx, newScopedAccessList(t, unscopedParentName, clock))
+		require.NoError(t, err)
+		scopedParent, err := service.UpsertAccessList(ctx, newScopedAccessList(t, scopedParentName, clock))
+		require.NoError(t, err)
+
+		unscopedMember := newScopedAccessListMember(t, unscopedParentName, scopes.QualifiedName{Name: "alice"}, withMembershipKind(accesslist.MembershipKindUser))
+		scopedMember := newScopedAccessListMember(t, scopedParentName, scopes.QualifiedName{Name: "bob"}, withMembershipKind(accesslist.MembershipKindUser))
+		_, _, err = service.UpsertAccessListWithMembers(ctx, unscopedParent, []*accesslist.AccessListMember{unscopedMember})
+		require.NoError(t, err)
+		_, _, err = service.UpsertAccessListWithMembers(ctx, scopedParent, []*accesslist.AccessListMember{scopedMember})
+		require.NoError(t, err)
+
+		members, _, err := service.ListAccessListMembers(ctx, unscopedParentName.Name, 0, "")
+		require.NoError(t, err)
+		require.Empty(t, cmp.Diff([]*accesslist.AccessListMember{unscopedMember}, members, cmpOpts...))
+
+		_, err = service.GetAccessListMember(ctx, unscopedParentName.Name, scopedMember.GetName())
+		require.True(t, trace.IsNotFound(err), "expected not found error, got %v", err)
+
+		users, lists, err := service.CountAccessListMembers(ctx, unscopedParentName.Name)
+		require.NoError(t, err)
+		require.Equal(t, uint32(1), users)
+		require.Equal(t, uint32(0), lists)
+	})
+}
+
 func Test_AccessListMember_Validation(t *testing.T) {
 	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
@@ -1409,7 +1619,6 @@ func runAccessListMemberValidationSuite(
 	makeBad, makeGood func(*accesslist.AccessListMember),
 	errorCheck func(t *testing.T, err error),
 ) {
-	t.Helper()
 	ctx := context.Background()
 
 	makeBad(member)
@@ -1670,6 +1879,156 @@ func TestAccessListReviewCRUD(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestAccessListReviewCRUDScoped(t *testing.T) {
+	ctx := t.Context()
+	clock := clockwork.NewFakeClock()
+
+	mem, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+
+	service := newAccessListService(t, mem, modulestest.EnterpriseModules())
+
+	// Create an access list with 2 members, the review will remove the members.
+	listName := scopes.QualifiedName{Scope: "/eng/platform", Name: "reviewed"}
+	unscopedMemberName := scopes.QualifiedName{Name: "alice"}
+	scopedMemberName := scopes.QualifiedName{Scope: "/eng", Name: "team"}
+
+	accessList, err := service.UpsertAccessList(ctx, newScopedAccessList(t, listName, clock))
+	require.NoError(t, err)
+	_, err = service.UpsertAccessList(ctx, newScopedAccessList(t, scopedMemberName, clock))
+	require.NoError(t, err)
+
+	unscopedMember := newScopedAccessListMember(t, listName, unscopedMemberName, withMembershipKind(accesslist.MembershipKindUser))
+	scopedMember := newScopedAccessListMember(t, listName, scopedMemberName, withMembershipKind(accesslist.MembershipKindScopedList))
+	_, returnedMembers, err := service.UpsertAccessListWithMembers(ctx, accessList, []*accesslist.AccessListMember{unscopedMember, scopedMember})
+	require.NoError(t, err)
+	require.Len(t, returnedMembers, 2)
+
+	// Create a review.
+	review, err := accesslist.NewReviewWithScope(header.Metadata{Name: "ignored-by-create"}, accesslist.ReviewSpec{
+		AccessList: listName.String(),
+		Reviewers:  []string{"user1"},
+		ReviewDate: time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
+		Changes: accesslist.ReviewChanges{
+			// Remove both the scoped and unscoped members.
+			RemovedMembers:         []string{unscopedMemberName.Name},
+			ScopedRemovedMembers:   []string{scopedMemberName.String()},
+			ReviewFrequencyChanged: accesslist.ThreeMonths,
+		},
+	}, listName.Scope)
+	require.NoError(t, err)
+
+	createdReview, nextAuditDate, err := service.CreateAccessListReview(ctx, review)
+	require.NoError(t, err)
+	require.NotEmpty(t, createdReview.GetName())
+	require.Equal(t, listName.Scope, createdReview.Scope)
+	require.Equal(t, listName.String(), createdReview.Spec.AccessList)
+	updatedAccessList, err := service.GetAccessListV2(ctx, accesslistv1.GetAccessListRequest_builder{
+		Scope: listName.Scope,
+		Name:  listName.Name,
+	}.Build())
+	require.NoError(t, err)
+	require.Equal(t, updatedAccessList.Spec.Audit.NextAuditDate, nextAuditDate)
+	require.Equal(t, accesslist.ThreeMonths, updatedAccessList.Spec.Audit.Recurrence.Frequency)
+
+	// Assert that both the members were actually removed.
+	_, err = service.GetAccessListMemberV2(ctx, accesslistv1.GetAccessListMemberRequest_builder{
+		AccessListScope: listName.Scope,
+		AccessList:      listName.Name,
+		MemberName:      unscopedMemberName.Name,
+	}.Build())
+	require.True(t, trace.IsNotFound(err), "expected not found error, got %v", err)
+	_, err = service.GetAccessListMemberV2(ctx, accesslistv1.GetAccessListMemberRequest_builder{
+		AccessListScope: listName.Scope,
+		AccessList:      listName.Name,
+		MemberScope:     scopedMemberName.Scope,
+		MemberName:      scopedMemberName.Name,
+	}.Build())
+	require.True(t, trace.IsNotFound(err), "expected not found error, got %v", err)
+
+	// Make sure the review can be listed.
+	reviews, nextToken, err := service.ListAccessListReviewsV2(ctx, accesslistv1.ListAccessListReviewsRequest_builder{
+		AccessListScope: listName.Scope,
+		AccessList:      listName.Name,
+		PageSize:        1,
+	}.Build())
+	require.NoError(t, err)
+	require.Empty(t, nextToken)
+	require.Len(t, reviews, 1)
+	require.Equal(t, createdReview.GetName(), reviews[0].GetName())
+	require.Equal(t, listName.Scope, reviews[0].Scope)
+
+	// Legacy ListAccessListReviews is unscoped, if there is an unscoped access
+	// list with a colliding name, listing its reviews should return nothing.
+	_, err = service.UpsertAccessList(ctx, newAccessList(t, listName.Name, clock))
+	require.NoError(t, err)
+	reviews, nextToken, err = service.ListAccessListReviews(ctx, listName.Name, 1, "")
+	require.NoError(t, err)
+	require.Empty(t, nextToken)
+	require.Empty(t, reviews)
+
+	// Delete the review and assert that it's not longer listed.
+	err = service.DeleteAccessListReviewV2(ctx, accesslistv1.DeleteAccessListReviewRequest_builder{
+		AccessListScope: listName.Scope,
+		AccessListName:  listName.Name,
+		ReviewName:      createdReview.GetName(),
+	}.Build())
+	require.NoError(t, err)
+
+	reviews, _, err = service.ListAccessListReviewsV2(ctx, accesslistv1.ListAccessListReviewsRequest_builder{
+		AccessListScope: listName.Scope,
+		AccessList:      listName.Name,
+	}.Build())
+	require.NoError(t, err)
+	require.Empty(t, reviews)
+}
+
+func TestCreateAccessListReviewScopedValidation(t *testing.T) {
+	ctx := t.Context()
+	clock := clockwork.NewFakeClock()
+
+	mem, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+
+	service := newAccessListService(t, mem, modulestest.EnterpriseModules())
+	listName := scopes.QualifiedName{Scope: "/eng", Name: "reviewed"}
+	_, err = service.UpsertAccessList(ctx, newScopedAccessList(t, listName, clock))
+	require.NoError(t, err)
+
+	newReview := func(t *testing.T) *accesslist.Review {
+		t.Helper()
+		review, err := accesslist.NewReviewWithScope(header.Metadata{Name: "review"}, accesslist.ReviewSpec{
+			AccessList: listName.String(),
+			Reviewers:  []string{"user1"},
+			ReviewDate: time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
+		}, listName.Scope)
+		require.NoError(t, err)
+		return review
+	}
+
+	t.Run("review scope must match access list scope", func(t *testing.T) {
+		review := newReview(t)
+		review.Scope = "/ops"
+
+		_, _, err := service.CreateAccessListReview(ctx, review)
+		require.ErrorContains(t, err, `access list review scope "/ops" does not match the scope of the reviewed list "/eng"`)
+	})
+
+	t.Run("membership requirements are rejected", func(t *testing.T) {
+		review := newReview(t)
+		review.Spec.Changes.MembershipRequirementsChanged = &accesslist.Requires{Roles: []string{"role"}}
+
+		_, _, err := service.CreateAccessListReview(ctx, review)
+		require.ErrorContains(t, err, "scoped access lists cannot contain membership requirements")
+	})
+}
+
 func Test_CreateAccessListReview_NestedListMemberRemoval(t *testing.T) {
 	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
@@ -1900,6 +2259,10 @@ func withMemberRequires(requires accesslist.Requires) newAccessListOpt {
 }
 
 func newAccessList(t *testing.T, name string, clock clockwork.Clock, opts ...newAccessListOpt) *accesslist.AccessList {
+	return newScopedAccessList(t, scopes.QualifiedName{Name: name}, clock, opts...)
+}
+
+func newScopedAccessList(t *testing.T, name scopes.QualifiedName, clock clockwork.Clock, opts ...newAccessListOpt) *accesslist.AccessList {
 	t.Helper()
 
 	options := newAccessListOptions{
@@ -1913,20 +2276,22 @@ func newAccessList(t *testing.T, name string, clock clockwork.Clock, opts ...new
 				Description: "test user 2",
 			},
 		},
-		memberRequires: accesslist.Requires{
+	}
+	if name.Scope == "" {
+		options.memberRequires = accesslist.Requires{
 			Roles: []string{"mrole1", "mrole2"},
 			Traits: map[string][]string{
 				"mtrait1": {"mvalue1", "mvalue2"},
 				"mtrait2": {"mvalue3", "mvalue4"},
 			},
-		},
-		ownerRequires: accesslist.Requires{
+		}
+		options.ownerRequires = accesslist.Requires{
 			Roles: []string{"orole1", "orole2"},
 			Traits: map[string][]string{
 				"otrait1": {"ovalue1", "ovalue2"},
 				"otrait2": {"ovalue3", "ovalue4"},
 			},
-		},
+		}
 	}
 	for _, o := range opts {
 		o(&options)
@@ -1937,28 +2302,35 @@ func newAccessList(t *testing.T, name string, clock clockwork.Clock, opts ...new
 		audit.NextAuditDate = clock.Now()
 	}
 
-	accessList, err := accesslist.NewAccessList(
+	accessList, err := accesslist.NewAccessListWithScope(
 		header.Metadata{
-			Name: name,
+			Name: name.Name,
 		},
 		accesslist.Spec{
 			Type:               options.typ,
-			Title:              name + " title",
+			Title:              name.String() + " title",
 			Description:        "test access list",
 			Owners:             options.owners,
 			Audit:              audit,
 			MembershipRequires: options.memberRequires,
 			OwnershipRequires:  options.ownerRequires,
-			Grants: accesslist.Grants{
-				Roles: []string{"grole1", "grole2"},
-				Traits: map[string][]string{
-					"gtrait1": {"gvalue1", "gvalue2"},
-					"gtrait2": {"gvalue3", "gvalue4"},
-				},
-			},
 		},
+		name.Scope,
 	)
 	require.NoError(t, err)
+
+	if name.Scope == "" {
+		accessList.Spec.Grants.Roles = []string{"grole1", "grole2"}
+		accessList.Spec.Grants.Traits = map[string][]string{
+			"gtrait1": {"gvalue1", "gvalue2"},
+			"gtrait2": {"gvalue3", "gvalue4"},
+		}
+	} else {
+		accessList.Spec.Grants.ScopedRoles = []accesslist.ScopedRoleGrant{
+			{Role: "/::gscopedrole1", Scope: name.Scope},
+			{Role: "/::gscopedrole2", Scope: name.Scope},
+		}
+	}
 
 	return accessList
 }
@@ -2018,6 +2390,36 @@ func newAccessListMember(t *testing.T, accessList, name string, opts ...accessLi
 			AddedBy:        "dummy",
 			MembershipKind: options.membershipKind,
 		},
+	)
+	require.NoError(t, err)
+
+	return member
+}
+
+func newScopedAccessListMember(t *testing.T, accessList, memberName scopes.QualifiedName, opts ...accessListMemberOpt) *accesslist.AccessListMember {
+	t.Helper()
+
+	options := accessListMemberOptions{
+		expires: time.Now().Add(time.Hour * 24),
+	}
+	for _, o := range opts {
+		o(&options)
+	}
+
+	member, err := accesslist.NewAccessListMemberWithScope(
+		header.Metadata{
+			Name: memberName.String(),
+		},
+		accesslist.AccessListMemberSpec{
+			AccessList:     accessList.String(),
+			Name:           memberName.String(),
+			Joined:         time.Now(),
+			Expires:        options.expires,
+			Reason:         "a reason",
+			AddedBy:        "dummy",
+			MembershipKind: options.membershipKind,
+		},
+		accessList.Scope,
 	)
 	require.NoError(t, err)
 
@@ -2092,8 +2494,9 @@ func TestAccessListService_ListAllAccessListMembers(t *testing.T) {
 	require.NoError(t, err)
 
 	service := newAccessListService(t, mem, modulestest.EnterpriseModules())
-	const numAccessLists = 10
-	const numAccessListMembersPerAccessList = 250
+	const numAccessLists = 2
+	const numAccessListMembersPerAccessList = 3
+	const pageSize = 2
 	totalMembers := numAccessLists * numAccessListMembersPerAccessList
 
 	// Create several access lists.
@@ -2111,22 +2514,70 @@ func TestAccessListService_ListAllAccessListMembers(t *testing.T) {
 		}
 	}
 
-	allMembers := make([]*accesslist.AccessListMember, 0, totalMembers)
-	var nextToken string
-	for {
-		var members []*accesslist.AccessListMember
-		var err error
-		members, nextToken, err = service.ListAllAccessListMembers(ctx, 0, nextToken)
+	allMembers, err := stream.Collect(clientutils.ResourcesWithPageSize(t.Context(), service.ListAllAccessListMembers, pageSize))
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(expectedMembers, allMembers, cmpopts.IgnoreFields(header.Metadata{}, "Revision")))
+
+	// Add a scoped access list with some members.
+	scopedListName := scopes.QualifiedName{Scope: "/example", Name: "scoped"}
+	_, err = service.UpsertAccessList(ctx, newScopedAccessList(t, scopedListName, clock))
+	require.NoError(t, err)
+	expectedScopedMembers := make([]*accesslist.AccessListMember, numAccessListMembersPerAccessList)
+	for j := range numAccessListMembersPerAccessList {
+		memberName := scopes.QualifiedName{Name: fmt.Sprintf("%03d", j)}
+		member := newScopedAccessListMember(t, scopedListName, memberName)
+		expectedScopedMembers[j] = member
+		_, err := service.UpsertAccessListMember(ctx, member)
 		require.NoError(t, err)
-
-		allMembers = append(allMembers, members...)
-
-		if nextToken == "" {
-			break
-		}
 	}
 
-	require.Empty(t, cmp.Diff(expectedMembers, allMembers, cmpopts.IgnoreFields(header.Metadata{}, "Revision")))
+	// Legacy ListAllAccessListMembers should _not_ return the scoped list members.
+	gotMembers, err := stream.Collect(clientutils.ResourcesWithPageSize(t.Context(), service.ListAllAccessListMembers, pageSize))
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(expectedMembers, gotMembers, cmpopts.IgnoreFields(header.Metadata{}, "Revision")))
+
+	// ListAllAccessListMembersV2 should _not_ return the scoped list members if
+	// they are filtered out.
+	gotMembers, err = stream.Collect(clientutils.ResourcesWithPageSize(t.Context(),
+		func(ctx context.Context, pageLimit int, pageToken string) ([]*accesslist.AccessListMember, string, error) {
+			return service.ListAllAccessListMembersV2(ctx, accesslistv1.ListAllAccessListMembersRequest_builder{
+				PageSize:  int32(pageLimit),
+				PageToken: pageToken,
+				ScopeFilter: scopesv1.Filter_builder{
+					Mode: scopesv1.Mode_MODE_UNSCOPED,
+				}.Build(),
+			}.Build())
+		}, pageSize))
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(expectedMembers, gotMembers, cmpopts.IgnoreFields(header.Metadata{}, "Revision")))
+
+	// ListAllAccessListMembersV2 should _only_ return the scoped list members
+	// if unscoped members are filtered out.
+	gotMembers, err = stream.Collect(clientutils.ResourcesWithPageSize(t.Context(),
+		func(ctx context.Context, pageLimit int, pageToken string) ([]*accesslist.AccessListMember, string, error) {
+			return service.ListAllAccessListMembersV2(ctx, accesslistv1.ListAllAccessListMembersRequest_builder{
+				PageSize:  int32(pageLimit),
+				PageToken: pageToken,
+				ScopeFilter: scopesv1.Filter_builder{
+					Scope: "/",
+					Mode:  scopesv1.Mode_MODE_DESCENDANTS,
+				}.Build(),
+			}.Build())
+		}, pageSize))
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(expectedScopedMembers, gotMembers, cmpopts.IgnoreFields(header.Metadata{}, "Revision")))
+
+	// ListAllAccessListMembersV2 should return all list members by default.
+	expectedMembers = append(expectedMembers, expectedScopedMembers...)
+	gotMembers, err = stream.Collect(clientutils.ResourcesWithPageSize(t.Context(),
+		func(ctx context.Context, pageLimit int, pageToken string) ([]*accesslist.AccessListMember, string, error) {
+			return service.ListAllAccessListMembersV2(ctx, accesslistv1.ListAllAccessListMembersRequest_builder{
+				PageSize:  int32(pageLimit),
+				PageToken: pageToken,
+			}.Build())
+		}, pageSize))
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(expectedMembers, gotMembers, cmpopts.IgnoreFields(header.Metadata{}, "Revision")))
 }
 
 func TestAccessListService_ListAllAccessListReviews(t *testing.T) {
@@ -2141,8 +2592,9 @@ func TestAccessListService_ListAllAccessListReviews(t *testing.T) {
 
 	service := newAccessListService(t, mem, modulestest.EnterpriseModules())
 
-	const numAccessLists = 10
-	const numAccessListReviewsPerAccessList = 250
+	const numAccessLists = 2
+	const numAccessListReviewsPerAccessList = 3
+	const pageSize = 2
 	totalReviews := numAccessLists * numAccessListReviewsPerAccessList
 
 	// Create several access lists.
@@ -2172,26 +2624,91 @@ func TestAccessListService_ListAllAccessListReviews(t *testing.T) {
 		}
 	}
 
-	allReviews := make([]*accesslist.Review, 0, totalReviews)
-	var nextToken string
-	for {
-		var reviews []*accesslist.Review
-		var err error
-		reviews, nextToken, err = service.ListAllAccessListReviews(ctx, 0, nextToken)
-		require.NoError(t, err)
-
-		allReviews = append(allReviews, reviews...)
-
-		if nextToken == "" {
-			break
-		}
+	expectReviews := func(t *testing.T, expected, actual []*accesslist.Review) {
+		t.Helper()
+		require.Empty(t, cmp.Diff(expected, actual, cmpopts.IgnoreFields(header.Metadata{}, "Revision"), cmpopts.SortSlices(
+			func(r1, r2 *accesslist.Review) bool {
+				return r1.GetName() < r2.GetName()
+			}),
+		))
 	}
 
-	require.Empty(t, cmp.Diff(expectedReviews, allReviews, cmpopts.IgnoreFields(header.Metadata{}, "Revision"), cmpopts.SortSlices(
-		func(r1, r2 *accesslist.Review) bool {
-			return r1.GetName() < r2.GetName()
-		}),
-	))
+	allReviews, err := stream.Collect(clientutils.ResourcesWithPageSize(ctx, service.ListAllAccessListReviews, pageSize))
+	require.NoError(t, err)
+	expectReviews(t, expectedReviews, allReviews)
+
+	// Add a scoped access list with some reviews.
+	scopedListName := scopes.QualifiedName{Scope: "/example", Name: "scoped"}
+	_, err = service.UpsertAccessList(ctx, newScopedAccessList(t, scopedListName, clock))
+	require.NoError(t, err)
+	expectedScopedReviews := make([]*accesslist.Review, numAccessListReviewsPerAccessList)
+	for j := range numAccessListReviewsPerAccessList {
+		review, err := accesslist.NewReviewWithScope(
+			header.Metadata{
+				Name: strconv.Itoa(j),
+			},
+			accesslist.ReviewSpec{
+				AccessList: scopedListName.String(),
+				Reviewers: []string{
+					"user1",
+				},
+				ReviewDate: time.Now(),
+			},
+			scopedListName.Scope,
+		)
+		require.NoError(t, err)
+		review, _, err = service.CreateAccessListReview(ctx, review)
+		require.NoError(t, err)
+		expectedScopedReviews[j] = review
+	}
+
+	// Legacy ListAllAccessListReviews should _not_ return the scoped list members.
+	gotReviews, err := stream.Collect(clientutils.ResourcesWithPageSize(t.Context(), service.ListAllAccessListReviews, pageSize))
+	require.NoError(t, err)
+	expectReviews(t, expectedReviews, gotReviews)
+
+	// ListAllAccessListReviewsV2 should _not_ return the scoped list members if
+	// they are filtered out.
+	gotReviews, err = stream.Collect(clientutils.ResourcesWithPageSize(t.Context(),
+		func(ctx context.Context, pageLimit int, pageToken string) ([]*accesslist.Review, string, error) {
+			return service.ListAllAccessListReviewsV2(ctx, accesslistv1.ListAllAccessListReviewsRequest_builder{
+				PageSize:  int32(pageLimit),
+				NextToken: pageToken,
+				ScopeFilter: scopesv1.Filter_builder{
+					Mode: scopesv1.Mode_MODE_UNSCOPED,
+				}.Build(),
+			}.Build())
+		}, pageSize))
+	require.NoError(t, err)
+	expectReviews(t, expectedReviews, gotReviews)
+
+	// ListAllAccessListReviewsV2 should _only_ return the scoped list members
+	// if unscoped members are filtered out.
+	gotReviews, err = stream.Collect(clientutils.ResourcesWithPageSize(t.Context(),
+		func(ctx context.Context, pageLimit int, pageToken string) ([]*accesslist.Review, string, error) {
+			return service.ListAllAccessListReviewsV2(ctx, accesslistv1.ListAllAccessListReviewsRequest_builder{
+				PageSize:  int32(pageLimit),
+				NextToken: pageToken,
+				ScopeFilter: scopesv1.Filter_builder{
+					Scope: "/",
+					Mode:  scopesv1.Mode_MODE_DESCENDANTS,
+				}.Build(),
+			}.Build())
+		}, pageSize))
+	require.NoError(t, err)
+	expectReviews(t, expectedScopedReviews, gotReviews)
+
+	// ListAllAccessListReviewsV2 should return all list members by default.
+	expectedReviews = append(expectedReviews, expectedScopedReviews...)
+	gotReviews, err = stream.Collect(clientutils.ResourcesWithPageSize(t.Context(),
+		func(ctx context.Context, pageLimit int, pageToken string) ([]*accesslist.Review, string, error) {
+			return service.ListAllAccessListReviewsV2(ctx, accesslistv1.ListAllAccessListReviewsRequest_builder{
+				PageSize:  int32(pageLimit),
+				NextToken: pageToken,
+			}.Build())
+		}, pageSize))
+	require.NoError(t, err)
+	expectReviews(t, expectedReviews, gotReviews)
 }
 
 func TestAccessListService_Status_OwnerOf(t *testing.T) {
@@ -2496,7 +3013,7 @@ func TestAccessListService_Status_MemberOf(t *testing.T) {
 
 		requireStatusMemberOf(t, service, nestedAccessList.GetName(), []string{accessList.GetName()})
 
-		err = service.updateAccessListMemberOf(ctx, accessList.GetName(), nestedAccessList.GetName(), false /* new - this will delete */)
+		err = service.updateAccessListMemberOf(ctx, accesslists.ScopeQualifiedName(accessList), accesslists.ScopeQualifiedName(nestedAccessList), false /* new - this will delete */)
 		require.NoError(t, err)
 		requireStatusMemberOf(t, service, nestedAccessList.GetName(), []string{})
 
@@ -2504,13 +3021,249 @@ func TestAccessListService_Status_MemberOf(t *testing.T) {
 		require.NoError(t, err)
 		requireStatusMemberOf(t, service, nestedAccessList.GetName(), []string{accessList.GetName()})
 
-		err = service.updateAccessListMemberOf(ctx, accessList.GetName(), nestedAccessList.GetName(), false /* new - this will delete */)
+		err = service.updateAccessListMemberOf(ctx, accesslists.ScopeQualifiedName(accessList), accesslists.ScopeQualifiedName(nestedAccessList), false /* new - this will delete */)
 		require.NoError(t, err)
 		requireStatusMemberOf(t, service, nestedAccessList.GetName(), []string{})
 
 		_, err = service.UpsertAccessListMember(ctx, updatedMember)
 		require.NoError(t, err)
 		requireStatusMemberOf(t, service, nestedAccessList.GetName(), []string{accessList.GetName()})
+	})
+
+	// Assert that when a member's kind changes from a list to a user, stale
+	// member_of refs on the previous member list are removed.
+	t.Run("status member_of and scoped_member_of fixed on kind change", func(t *testing.T) {
+		// Set up a child list with a scoped and unscoped parent list.
+		suffix := uuid.NewString()[:8]
+		scopedParentListName := scopes.QualifiedName{Scope: "/eng/platform", Name: "acl-" + suffix}
+		unscopedParentListName := scopes.QualifiedName{Name: "acl-" + suffix}
+		scopedChildName := scopes.QualifiedName{Scope: "/eng/platform", Name: "child-" + suffix}
+		unscopedChildName := scopes.QualifiedName{Name: "child-" + suffix}
+
+		for _, tc := range []struct {
+			desc                   string
+			parentListName         scopes.QualifiedName
+			childListName          scopes.QualifiedName
+			initialMembershipKind  string
+			targetMembershipKind   string
+			requireKindChangeError require.ErrorAssertionFunc
+			requireMemberOf        func(t *testing.T)
+			requireNotMemberOf     func(t *testing.T)
+		}{
+			{
+				desc:                  "scoped parent, unscoped child",
+				parentListName:        scopedParentListName,
+				childListName:         unscopedChildName,
+				initialMembershipKind: accesslist.MembershipKindList,
+				targetMembershipKind:  accesslist.MembershipKindUser,
+				requireMemberOf: func(t *testing.T) {
+					requireStatusScopedMemberOf(t, service, unscopedChildName, []string{scopedParentListName.String()})
+				},
+				requireNotMemberOf: func(t *testing.T) {
+					requireStatusScopedMemberOf(t, service, unscopedChildName, []string{})
+				},
+			},
+			{
+				desc:                  "unscoped parent, unscoped child",
+				parentListName:        unscopedParentListName,
+				childListName:         unscopedChildName,
+				initialMembershipKind: accesslist.MembershipKindList,
+				targetMembershipKind:  accesslist.MembershipKindUser,
+				requireMemberOf: func(t *testing.T) {
+					requireStatusMemberOfV2(t, service, unscopedChildName, []string{unscopedParentListName.Name})
+				},
+				requireNotMemberOf: func(t *testing.T) {
+					requireStatusMemberOfV2(t, service, unscopedChildName, []string{})
+				},
+			},
+			{
+				desc:                  "scoped parent, scoped child",
+				parentListName:        scopedParentListName,
+				childListName:         scopedChildName,
+				initialMembershipKind: accesslist.MembershipKindScopedList,
+				targetMembershipKind:  accesslist.MembershipKindUser,
+				requireKindChangeError: func(t require.TestingT, err error, msg ...any) {
+					// The user name will be invalid if trying to change a scoped list member to a user.
+					require.ErrorAs(t, err, new(*trace.BadParameterError), msg...)
+				},
+				requireMemberOf: func(t *testing.T) {
+					requireStatusScopedMemberOf(t, service, scopedChildName, []string{scopedParentListName.String()})
+				},
+			},
+			{
+				desc:                  "scoped parent, scoped child, changed to unscoped child",
+				parentListName:        scopedParentListName,
+				childListName:         scopedChildName,
+				initialMembershipKind: accesslist.MembershipKindScopedList,
+				targetMembershipKind:  accesslist.MembershipKindList,
+				requireKindChangeError: func(t require.TestingT, err error, msg ...any) {
+					// The member key will change if trying to change a scoped
+					// list member to an unscoped list member, and the member
+					// will not be found.
+					require.ErrorAs(t, err, new(*trace.NotFoundError), msg...)
+				},
+				requireMemberOf: func(t *testing.T) {
+					requireStatusScopedMemberOf(t, service, scopedChildName, []string{scopedParentListName.String()})
+				},
+			},
+			{
+				desc:                  "scoped parent, unscoped child, changed to scoped child",
+				parentListName:        scopedParentListName,
+				childListName:         unscopedChildName,
+				initialMembershipKind: accesslist.MembershipKindList,
+				targetMembershipKind:  accesslist.MembershipKindScopedList,
+				requireKindChangeError: func(t require.TestingT, err error, msg ...any) {
+					// The member name will be invalid if trying to change an
+					// unscoped list member to a scoped list member.
+					require.ErrorAs(t, err, new(*trace.BadParameterError), msg...)
+				},
+				requireMemberOf: func(t *testing.T) {
+					requireStatusScopedMemberOf(t, service, unscopedChildName, []string{scopedParentListName.String()})
+				},
+			},
+		} {
+			t.Run(tc.desc, func(t *testing.T) {
+				parentList, err := service.UpsertAccessList(ctx, newScopedAccessList(t, tc.parentListName, clock))
+				require.NoError(t, err)
+				_, err = service.UpsertAccessList(ctx, newScopedAccessList(t, tc.childListName, clock))
+				require.NoError(t, err)
+
+				for _, ttc := range []struct {
+					desc                 string
+					changeMembershipKind func(member *accesslist.AccessListMember, kind string) (*accesslist.AccessListMember, error)
+				}{
+					{
+						desc: "UpdateAccessListMember",
+						changeMembershipKind: func(member *accesslist.AccessListMember, kind string) (*accesslist.AccessListMember, error) {
+							member.Spec.MembershipKind = kind
+							return service.UpdateAccessListMember(ctx, member)
+						},
+					},
+					{
+						desc: "UpsertAccessListMember",
+						changeMembershipKind: func(member *accesslist.AccessListMember, kind string) (*accesslist.AccessListMember, error) {
+							member.Spec.MembershipKind = kind
+							return service.UpsertAccessListMember(ctx, member)
+						},
+					},
+					{
+						desc: "UpsertAccessListWithMembers",
+						changeMembershipKind: func(member *accesslist.AccessListMember, kind string) (*accesslist.AccessListMember, error) {
+							member.Spec.MembershipKind = kind
+							_, newMembers, err := service.UpsertAccessListWithMembers(ctx, parentList, []*accesslist.AccessListMember{member})
+							if err != nil {
+								return nil, err
+							}
+							return newMembers[0], nil
+						},
+					},
+					{
+						desc: "UpdateAccessListAndOverwriteMembers",
+						changeMembershipKind: func(member *accesslist.AccessListMember, kind string) (*accesslist.AccessListMember, error) {
+							member.Spec.MembershipKind = kind
+							_, newMembers, err := service.UpdateAccessListAndOverwriteMembers(ctx, parentList, []*accesslist.AccessListMember{member})
+							if err != nil {
+								return nil, err
+							}
+							return newMembers[0], nil
+						},
+					},
+				} {
+					t.Run(ttc.desc, func(t *testing.T) {
+						member, err := service.UpsertAccessListMember(ctx, newScopedAccessListMember(t,
+							tc.parentListName,
+							tc.childListName,
+							withMembershipKind(tc.initialMembershipKind),
+						))
+						require.NoError(t, err)
+
+						// Initially the child list status should reference the parent list.
+						tc.requireMemberOf(t)
+
+						// Change the membership kind to invalidate the initial membership.
+						member, err = ttc.changeMembershipKind(member, tc.targetMembershipKind)
+						if tc.requireKindChangeError != nil {
+							tc.requireKindChangeError(t, err)
+							return
+						}
+						require.NoError(t, err)
+
+						// The child list status should no longer reference the parent list.
+						tc.requireNotMemberOf(t)
+
+						// Make the child list a member again.
+						_, err = ttc.changeMembershipKind(member, tc.initialMembershipKind)
+						require.NoError(t, err)
+
+						// The child list status should reference the parent list again.
+						tc.requireMemberOf(t)
+					})
+				}
+			})
+		}
+	})
+
+	t.Run("scoped parent updates scoped_member_of for scoped and unscoped child lists", func(t *testing.T) {
+		suffix := uuid.NewString()[:8]
+		parentName := scopes.QualifiedName{Scope: "/eng/platform", Name: "acl-" + suffix}
+		unscopedChildName := scopes.QualifiedName{Name: "child-u-" + suffix}
+		scopedChildName := scopes.QualifiedName{Scope: "/eng", Name: "child-s-" + suffix}
+		parentRef := parentName.String()
+
+		_, err = service.UpsertAccessList(ctx, newScopedAccessList(t, parentName, clock))
+		require.NoError(t, err)
+		_, err = service.UpsertAccessList(ctx, newScopedAccessList(t, unscopedChildName, clock))
+		require.NoError(t, err)
+		_, err = service.UpsertAccessList(ctx, newScopedAccessList(t, scopedChildName, clock))
+		require.NoError(t, err)
+
+		unscopedMember, err := service.UpsertAccessListMember(ctx, newScopedAccessListMember(t,
+			parentName,
+			unscopedChildName,
+			withMembershipKind(accesslist.MembershipKindList),
+		))
+		require.NoError(t, err)
+		scopedMember, err := service.UpsertAccessListMember(ctx, newScopedAccessListMember(t,
+			parentName,
+			scopedChildName,
+			withMembershipKind(accesslist.MembershipKindScopedList),
+		))
+		require.NoError(t, err)
+
+		requireStatusMemberOfV2(t, service, unscopedChildName, nil)
+		requireStatusScopedMemberOf(t, service, unscopedChildName, []string{parentRef})
+		requireStatusMemberOfV2(t, service, scopedChildName, nil)
+		requireStatusScopedMemberOf(t, service, scopedChildName, []string{parentRef})
+
+		unscopedMember, err = service.UpdateAccessListMember(ctx, unscopedMember)
+		require.NoError(t, err)
+		scopedMember, err = service.UpdateAccessListMember(ctx, scopedMember)
+		require.NoError(t, err)
+		requireStatusScopedMemberOf(t, service, unscopedChildName, []string{parentRef})
+		requireStatusScopedMemberOf(t, service, scopedChildName, []string{parentRef})
+
+		_, err = service.UpsertAccessListMember(ctx, unscopedMember)
+		require.NoError(t, err)
+		_, err = service.UpsertAccessListMember(ctx, scopedMember)
+		require.NoError(t, err)
+		requireStatusScopedMemberOf(t, service, unscopedChildName, []string{parentRef})
+		requireStatusScopedMemberOf(t, service, scopedChildName, []string{parentRef})
+
+		err = service.DeleteAccessListMemberV2(ctx, accesslistv1.DeleteAccessListMemberRequest_builder{
+			AccessListScope: parentName.Scope,
+			AccessList:      parentName.Name,
+			MemberName:      unscopedChildName.Name,
+		}.Build())
+		require.NoError(t, err)
+		requireStatusScopedMemberOf(t, service, unscopedChildName, nil)
+		requireStatusScopedMemberOf(t, service, scopedChildName, []string{parentRef})
+
+		err = service.DeleteAllAccessListMembersForAccessListV2(ctx, accesslistv1.DeleteAllAccessListMembersForAccessListRequest_builder{
+			AccessListScope: parentName.Scope,
+			AccessList:      parentName.Name,
+		}.Build())
+		require.NoError(t, err)
+		requireStatusScopedMemberOf(t, service, scopedChildName, nil)
 	})
 }
 
@@ -2558,7 +3311,7 @@ func TestAccessListService_CleanupAccessListStatus(t *testing.T) {
 	service.service.UnscopedService.DeleteResource(ctx, a3)
 	a4List.Spec.Owners = []accesslist.Owner{userOwner} // remove a1Owner
 	service.service.UnscopedService.UpdateResource(ctx, a4List)
-	service.memberService.WithPrefix(a6).DeleteResource(ctx, a1)
+	service.memberService.UnscopedService.WithPrefix(a6).DeleteResource(ctx, a1)
 
 	// Let's check the status remain untouched:
 	// - a3 should be removed from owner_of because it doesn't exist anymore
@@ -2586,7 +3339,7 @@ func TestAccessListService_CleanupAccessListStatus(t *testing.T) {
 	a2List := getAccessList(t, service, a2)
 	a2List.Spec.Owners = []accesslist.Owner{userOwner} // remove a1Owner
 	service.service.UnscopedService.UpdateResource(ctx, a2List)
-	service.memberService.WithPrefix(a5).DeleteResource(ctx, a1)
+	service.memberService.UnscopedService.WithPrefix(a5).DeleteResource(ctx, a1)
 
 	// Verify the status is broken now as it should be empty
 	requireStatusOwnerOf(t, service, a1, []string{a2})
@@ -2732,6 +3485,10 @@ type testAccessListGetter interface {
 	GetAccessList(ctx context.Context, name string) (*accesslist.AccessList, error)
 }
 
+type testAccessListGetterV2 interface {
+	GetAccessListV2(ctx context.Context, req *accesslistv1.GetAccessListRequest) (*accesslist.AccessList, error)
+}
+
 type testAccessListGetterFunc func(ctx context.Context, name string) (*accesslist.AccessList, error)
 
 func (fn testAccessListGetterFunc) GetAccessList(ctx context.Context, name string) (*accesslist.AccessList, error) {
@@ -2743,8 +3500,6 @@ func requireStatusOwnerOf(t *testing.T, service testAccessListGetter, accessList
 	ctx := context.Background()
 	accessList, err := service.GetAccessList(ctx, accessListName)
 	require.NoError(t, err)
-	slices.Sort(ownerOf)
-	slices.Sort(accessList.Status.OwnerOf)
 	require.ElementsMatch(t, ownerOf, accessList.Status.OwnerOf)
 }
 
@@ -2753,9 +3508,29 @@ func requireStatusMemberOf(t *testing.T, service testAccessListGetter, accessLis
 	ctx := context.Background()
 	accessList, err := service.GetAccessList(ctx, accessListName)
 	require.NoError(t, err)
-	slices.Sort(memberOf)
-	slices.Sort(accessList.Status.MemberOf)
 	require.ElementsMatch(t, memberOf, accessList.Status.MemberOf)
+}
+
+func requireStatusMemberOfV2(t *testing.T, service testAccessListGetterV2, accessListName scopes.QualifiedName, memberOf []string) {
+	t.Helper()
+	ctx := context.Background()
+	accessList, err := service.GetAccessListV2(ctx, accesslistv1.GetAccessListRequest_builder{
+		Scope: accessListName.Scope,
+		Name:  accessListName.Name,
+	}.Build())
+	require.NoError(t, err)
+	require.ElementsMatch(t, memberOf, accessList.Status.MemberOf)
+}
+
+func requireStatusScopedMemberOf(t *testing.T, service testAccessListGetterV2, accessListName scopes.QualifiedName, memberOf []string) {
+	t.Helper()
+	ctx := context.Background()
+	accessList, err := service.GetAccessListV2(ctx, accesslistv1.GetAccessListRequest_builder{
+		Scope: accessListName.Scope,
+		Name:  accessListName.Name,
+	}.Build())
+	require.NoError(t, err)
+	require.ElementsMatch(t, memberOf, accessList.Status.ScopedMemberOf)
 }
 
 func newAccessListService(t *testing.T, b backend.Backend, m *modulestest.Modules) *AccessListService {
@@ -2764,6 +3539,9 @@ func newAccessListService(t *testing.T, b backend.Backend, m *modulestest.Module
 	service, err := NewAccessListServiceV2(AccessListServiceConfig{
 		Backend: backend.NewSanitizer(b),
 		Modules: m,
+		ScopesFeatures: scopes.Features{
+			Enabled: true,
+		},
 	})
 	require.NoError(t, err)
 
@@ -2905,15 +3683,15 @@ func TestInsertAccessListCollection(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, acls, 3)
 
-		allMembers1, err := service.memberService.WithPrefix(list1.GetName()).GetResources(ctx)
+		allMembers1, err := service.memberService.UnscopedService.WithPrefix(list1.GetName()).GetResources(ctx)
 		require.NoError(t, err)
 		require.Len(t, allMembers1, 500)
 
-		allMembers2, err := service.memberService.WithPrefix(list2.GetName()).GetResources(ctx)
+		allMembers2, err := service.memberService.UnscopedService.WithPrefix(list2.GetName()).GetResources(ctx)
 		require.NoError(t, err)
 		require.Len(t, allMembers2, 600)
 
-		allMembers3, err := service.memberService.WithPrefix(list3.GetName()).GetResources(ctx)
+		allMembers3, err := service.memberService.UnscopedService.WithPrefix(list3.GetName()).GetResources(ctx)
 		require.NoError(t, err)
 		require.Len(t, allMembers3, 400)
 	})
@@ -3087,7 +3865,7 @@ func TestAccessListDeletePrevention_MissingReferences(t *testing.T) {
 			for _, parent := range related {
 				err := service.service.UnscopedService.DeleteResource(ctx, parent.GetName())
 				require.NoError(t, err)
-				err = service.memberService.WithPrefix(parent.GetName()).DeleteAllResources(ctx)
+				err = service.memberService.UnscopedService.WithPrefix(parent.GetName()).DeleteAllResources(ctx)
 				require.NoError(t, err)
 			}
 		},
@@ -3119,7 +3897,7 @@ func TestAccessListDeletePrevention_MissingReferences(t *testing.T) {
 			for _, owned := range related {
 				err := service.service.UnscopedService.DeleteResource(ctx, owned.GetName())
 				require.NoError(t, err)
-				err = service.memberService.WithPrefix(owned.GetName()).DeleteAllResources(ctx)
+				err = service.memberService.UnscopedService.WithPrefix(owned.GetName()).DeleteAllResources(ctx)
 				require.NoError(t, err)
 			}
 		},

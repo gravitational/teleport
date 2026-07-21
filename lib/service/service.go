@@ -149,6 +149,7 @@ import (
 	"github.com/gravitational/teleport/lib/join/legacyjoin"
 	kubegrpc "github.com/gravitational/teleport/lib/kube/grpc"
 	kubeproxy "github.com/gravitational/teleport/lib/kube/proxy"
+	kubewatcher "github.com/gravitational/teleport/lib/kube/proxy/watcher"
 	kuberelay "github.com/gravitational/teleport/lib/kube/relay"
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -183,6 +184,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/regular"
 	"github.com/gravitational/teleport/lib/srv/transport/transportv1"
 	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/subca"
 	"github.com/gravitational/teleport/lib/system"
 	"github.com/gravitational/teleport/lib/tlsca"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
@@ -3103,6 +3105,11 @@ func (process *TeleportProcess) initAuthService() error {
 		}
 		logger.InfoContext(process.ExitContext(), "Exited.")
 	})
+
+	if err := subca.RegisterMetrics(process.metricsRegistry); err != nil {
+		return trace.Wrap(err)
+	}
+
 	return nil
 }
 
@@ -5147,6 +5154,12 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			MaxStaleness: time.Minute,
 		},
 		NodesGetter: accessPoint,
+		// The proxy's node watcher is a routing construct; it must observe nodes in
+		// every scope, not just unscoped ones, so it watches with MODE_ALL. This is
+		// backed by the ForProxy cache, which mirrors nodes in all scopes (see
+		// cache.ForProxy). Sibling routing watchers backed by ForRelay/ForRemoteProxy
+		// intentionally stay unscoped since those caches do not mirror scoped nodes.
+		ScopeFilter: types.ScopeFilterFromProto(scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_ALL}.Build()),
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -5714,6 +5727,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			StaticFS:                  fs,
 			Modules:                   cfg.Modules,
 			ClusterFeatures:           process.GetClusterFeatures(),
+			ScopesFeatures:            process.scopesFeatures,
 			GetProxyClientCertificate: conn.ClientGetCertificate,
 			UI:                        cfg.Proxy.UI,
 			ProxySettings:             proxySettings,
@@ -6147,13 +6161,10 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		// kubeServerWatcher is used to watch for changes in the Kubernetes servers
 		// and feed them to the kube proxy server so it can route the requests to
 		// the correct kubernetes server.
-		kubeServerWatcher, err := services.NewKubeServerWatcher(process.ExitContext(), services.KubeServerWatcherConfig{
-			ResourceWatcherConfig: services.ResourceWatcherConfig{
-				Component: component,
-				Logger:    process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentReverseTunnelServer, process.id)),
-				Client:    accessPoint,
-			},
-			KubernetesServerGetter: accessPoint,
+		kubeServerWatcher, err := kubewatcher.NewProxyKubeServerWatcher(process.ExitContext(), kubewatcher.ProxyKubeServerWatcherConfig{
+			Logger:         process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentReverseTunnelServer, process.id)),
+			AccessPoint:    accessPoint,
+			FallbackGetter: conn.Client, // use auth client as a fallback
 		})
 		if err != nil {
 			return trace.Wrap(err)

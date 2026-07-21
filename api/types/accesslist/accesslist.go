@@ -242,9 +242,14 @@ type Owner struct {
 }
 
 // IsMembershipKindUser returns true if the owner is of kind user.
-// All types expect "MEMBERSHIP_KIND_LIST" are treated as "MEMBERSHIP_KIND_USER".
+// "" and "MEMBERSHIP_KIND_UNSPECIFIED" are treated as "MEMBERSHIP_KIND_USER".
 func (o *Owner) IsMembershipKindUser() bool {
 	return isMembershipKindUser(o.MembershipKind)
+}
+
+// IsMembershipKindList returns true if the owner is an access list.
+func (o *Owner) IsMembershipKindList() bool {
+	return IsMembershipKindList(o.MembershipKind)
 }
 
 func isMembershipKindUser(membershipKind string) bool {
@@ -253,6 +258,17 @@ func isMembershipKindUser(membershipKind string) bool {
 		return true
 	default:
 		// In case if MembershipKind was extended.
+		return false
+	}
+}
+
+// IsMembershipKindList returns true if the membership kind is
+// MembershipKindList or MembershipKindScopedList.
+func IsMembershipKindList(membershipKind string) bool {
+	switch membershipKind {
+	case MembershipKindList, MembershipKindScopedList:
+		return true
+	default:
 		return false
 	}
 }
@@ -297,7 +313,7 @@ type Requires struct {
 
 // IsEmpty returns true when no roles or traits are set
 func (r *Requires) IsEmpty() bool {
-	return len(r.Roles) == 0 && len(r.Traits) == 0
+	return r == nil || (len(r.Roles) == 0 && len(r.Traits) == 0)
 }
 
 // Clone returns a deep copy of the [Requires]
@@ -338,7 +354,7 @@ func (grants *Grants) Clone() Grants {
 
 // ScopedRoleGrant describes a scoped role granted at a specific scope.
 type ScopedRoleGrant struct {
-	// Role is the name of the scoped role to be granted.
+	// Role is the scope-qualified name of the scoped role to be granted.
 	Role string `json:"role" yaml:"role"`
 	// Scope is the scope the role will be assigned at. It must be an assignable
 	// scope of the role.

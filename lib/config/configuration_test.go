@@ -2404,6 +2404,7 @@ uQM=
 			desc:        "NOK - invalid label key for LDAP attribute",
 			expectError: require.Error,
 			mutate: func(fc *FileConfig) {
+				fc.WindowsDesktop.Discovery.BaseDN = "*"
 				fc.WindowsDesktop.Discovery.LabelAttributes = []string{"this?is not* a valid key 🚨"}
 			},
 		},
@@ -2474,6 +2475,19 @@ uQM=
 			},
 		},
 		{
+			desc:        "OK -  new discovery specified and ldap specified",
+			expectError: require.NoError,
+			mutate: func(fc *FileConfig) {
+				fc.WindowsDesktop.DiscoveryConfigs = []LDAPDiscoveryConfig{
+					{BaseDN: "something"},
+				}
+				fc.WindowsDesktop.LDAP = LDAPConfig{
+					Addr:   "something",
+					Domain: "example.com",
+				}
+			},
+		},
+		{
 			desc:        "OK - discovery not specified and ldap not specified",
 			expectError: require.NoError,
 			mutate: func(fc *FileConfig) {
@@ -2510,6 +2524,30 @@ uQM=
 				}
 				fc.WindowsDesktop.LDAP = LDAPConfig{
 					Addr: "something",
+				}
+			},
+		},
+		{
+			desc:        "NOK - invalid label attribute mode",
+			expectError: require.Error,
+			mutate: func(fc *FileConfig) {
+				fc.WindowsDesktop.DiscoveryConfigs = []LDAPDiscoveryConfig{
+					{
+						BaseDN:             "*",
+						LabelAttributes:    []string{"foo"},
+						LabelAttributeMode: "invalid",
+					},
+				}
+			},
+		},
+		{
+			desc:        "NOK - invalid label attribute  (legacy)",
+			expectError: require.Error,
+			mutate: func(fc *FileConfig) {
+				fc.WindowsDesktop.Discovery = LDAPDiscoveryConfig{
+					BaseDN:             "*",
+					LabelAttributes:    []string{"foo"},
+					LabelAttributeMode: "invalid",
 				}
 			},
 		},
@@ -5525,6 +5563,32 @@ func TestDiscoveryConfig(t *testing.T) {
 					ScriptName:      installers.InstallerScriptName,
 					PublicProxyAddr: "example.com",
 				},
+			}},
+		},
+		{
+			desc:          "GCP section is filled with Cloud SQL matcher",
+			expectError:   require.NoError,
+			expectEnabled: require.True,
+			mutate: func(cfg cfgMap) {
+				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
+				cfg["discovery_service"].(cfgMap)["gcp"] = []cfgMap{
+					{
+						"types":     []string{"cloudsql"},
+						"locations": []string{"eucentral1"},
+						"labels": cfgMap{
+							"env": "prod",
+						},
+						"project_ids": []string{"p1", "p2"},
+					},
+				}
+			},
+			expectedGCPMatchers: []types.GCPMatcher{{
+				Types:     []string{"cloudsql"},
+				Locations: []string{"eucentral1"},
+				Labels: map[string]apiutils.Strings{
+					"env": []string{"prod"},
+				},
+				ProjectIDs: []string{"p1", "p2"},
 			}},
 		},
 		{

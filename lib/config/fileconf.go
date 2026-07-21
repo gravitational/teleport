@@ -1807,9 +1807,9 @@ type Discovery struct {
 
 // GCPMatcher matches GCP resources.
 type GCPMatcher struct {
-	// Types are GKE resource types to match: "gke", "gce".
+	// Types are GCP resource types to match: "gke", "gce", "cloudsql".
 	Types []string `yaml:"types,omitempty"`
-	// Locations are GKE locations to search resources for.
+	// Locations are GCP locations to search resources for.
 	Locations []string `yaml:"locations,omitempty"`
 	// Labels are GCP labels to match.
 	Labels map[string]apiutils.Strings `yaml:"labels,omitempty"`
@@ -3072,6 +3072,9 @@ type LDAPDiscoveryConfig struct {
 	// Filters are additional LDAP filters to apply to the search.
 	// See: https://ldap.com/ldap-filters/
 	Filters []string `yaml:"filters"`
+	// RDPPort is the port to use for RDP for hosts discovered with this configuration.
+	// Optional, defaults to 3389 if unspecified.
+	RDPPort int `yaml:"rdp_port"`
 	// Labels are static labels applied to all hosts discovered via
 	// this policy.
 	Labels map[string]string `yaml:"labels,omitempty"`
@@ -3081,9 +3084,13 @@ type LDAPDiscoveryConfig struct {
 	// discovered desktops having a label with key "ldap/location" and
 	// the value being the value of the "location" attribute.
 	LabelAttributes []string `yaml:"label_attributes"`
-	// RDPPort is the port to use for RDP for hosts discovered with this configuration.
-	// Optional, defaults to 3389 if unspecified.
-	RDPPort int `yaml:"rdp_port"`
+	// LabelAttributeMode determines how multi-valued LDAP attributes are
+	// treated. Valid values are:
+	//     - "first" (the default if unspecified): use the first attribute value
+	//     - "join": multi-valued attributes are joined with the specified separator
+	LabelAttributeMode string `yaml:"label_attribute_mode"`
+	// LabelAttributeJoinSeparator is used when LabelAttributeMode is "join".
+	LabelAttributeJoinSeparator string `yaml:"label_attribute_join_separator"`
 }
 
 // TracingService contains configuration for the tracing_service.

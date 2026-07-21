@@ -49,9 +49,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
-	"k8s.io/apimachinery/pkg/util/httpstream"
-	httpstreamspdy "k8s.io/apimachinery/pkg/util/httpstream/spdy"
-	"k8s.io/apimachinery/pkg/util/httpstream/wsstream"
 	utilnet "k8s.io/apimachinery/pkg/util/net"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/portforward"
@@ -59,6 +56,9 @@ import (
 	"k8s.io/client-go/transport/spdy"
 	kwebsocket "k8s.io/client-go/transport/websocket"
 	kubeexec "k8s.io/client-go/util/exec"
+	"k8s.io/streaming/pkg/httpstream"
+	httpstreamspdy "k8s.io/streaming/pkg/httpstream/spdy"
+	"k8s.io/streaming/pkg/httpstream/wsstream"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -2541,7 +2541,12 @@ func (f *Forwarder) getSPDYExecutor(sess *clusterSession, req *http.Request) (_ 
 	}
 	rt = tracehttp.NewTransport(rt)
 
-	executor, err := remotecommand.NewSPDYExecutorForTransports(rt, upgradeRoundTripper, req.Method, req.URL)
+	executor, err := remotecommand.NewSPDYExecutorForTransports(
+		rt,
+		spdy.NewUpgraderForStreaming(upgradeRoundTripper),
+		req.Method,
+		req.URL,
+	)
 	if err != nil {
 		upgradeRoundTripper.Cleanup()
 		return nil, nil, trace.Wrap(err)
@@ -2562,7 +2567,7 @@ func (f *Forwarder) getPortForwardDialer(sess *clusterSession, req *http.Request
 		return nil, nil, trace.Wrap(err)
 	}
 
-	return portforward.NewFallbackDialer(wsDialer, spdyDialer, func(err error) bool {
+	return portforward.NewFallbackDialerForStreaming(wsDialer, spdyDialer, func(err error) bool {
 		// If the error is a known upgrade failure, we can retry with the other protocol.
 		return httpstream.IsUpgradeFailure(err) ||
 			httpstream.IsHTTPSProxyError(err) ||
@@ -2605,7 +2610,9 @@ func (f *Forwarder) getSPDYDialer(sess *clusterSession, req *http.Request) (_ ht
 		Transport: tracehttp.NewTransport(rt),
 	}
 
-	return spdy.NewDialer(upgradeRoundTripper, client, req.Method, req.URL), upgradeRoundTripper.Cleanup, nil
+	return spdy.NewDialerForStreaming(spdy.NewUpgraderForStreaming(upgradeRoundTripper), client, req.Method, req.URL),
+		upgradeRoundTripper.Cleanup,
+		nil
 }
 
 func (f *Forwarder) getWebsocketDialer(sess *clusterSession, req *http.Request) (_ httpstream.Dialer, cleanup func(), _ error) {
@@ -2613,7 +2620,7 @@ func (f *Forwarder) getWebsocketDialer(sess *clusterSession, req *http.Request) 
 	if err != nil {
 		return nil, nil, trace.Wrap(err, "unable to retrieve *rest.Config for websocket")
 	}
-	dialer, err := portforward.NewSPDYOverWebsocketDialer(req.URL, cfg)
+	dialer, err := portforward.NewSPDYOverWebsocketDialerForStreaming(req.URL, cfg)
 	return dialer, wsCleanup, trace.Wrap(err)
 }
 

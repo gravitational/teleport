@@ -54,7 +54,7 @@ productivity.
 - Either an Azure virtual machine or Kubernetes cluster where you will run the
   Teleport Microsoft Teams plugin.
 
-(!/docs/pages/includes/tctl.mdx!)
+(!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/9. Define RBAC resources
 
@@ -90,7 +90,7 @@ longer-lived identity files with `tctl`:
 (!docs/pages/includes/plugins/tbot-identity.mdx secret="teleport-plugin-msteams-identity"!)
 </TabItem>
 <TabItem label="Long-lived identity files">
-(!docs/pages/includes/plugins/identity-export.mdx user="access-plugin" secret="teleport-plugin-msteams-identity"!)
+(!docs/pages/includes/plugins/identity-export.mdx plugin="msteams" secret="teleport-plugin-msteams-identity"!)
 </TabItem>
 </Tabs>
 

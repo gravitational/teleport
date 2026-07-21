@@ -17,10 +17,15 @@
 package subca_test
 
 import (
+	"bytes"
 	"crypto/x509"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/testutil"
+	"github.com/prometheus/common/expfmt"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
@@ -609,4 +614,112 @@ func TestCAOverrideResolver_CalculateOverride(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestCAOverrideResolver_metrics(t *testing.T) {
+	// Don't t.Parallel, metrics are global.
+
+	const (
+		readMetricName  = "teleport_ca_override_read_seconds"
+		applyMetricName = "teleport_ca_override_apply_seconds"
+	)
+
+	subca.OverrideReadHist.Reset()
+	subca.OverrideApplyHist.Reset()
+
+	const caType = types.WindowsCA
+	env := subcaenv.New(t, subcaenv.EnvParams{
+		CATypesToCreate: []types.CertAuthType{
+			caType,
+		},
+	})
+	clusterName := env.ClusterName
+	subCA := env.SubCA
+
+	// Read CA so we have a potential overridden cert.
+	const loadKeys = false
+	ca, err := env.Trust.GetCertAuthority(t.Context(), types.CertAuthID{
+		Type:       caType,
+		DomainName: env.ClusterName,
+	}, loadKeys)
+	require.NoError(t, err)
+	caCertPEM := ca.GetActiveKeys().TLS[0].Cert
+
+	_, unrelatedCertPEM, err := tlscatest.GenerateSelfSignedCA(tlscatest.GenerateCAConfig{
+		ClusterName: clusterName,
+	})
+	require.NoError(t, err)
+
+	// runOverrides runs the Load, Apply and Calculate functions so we can
+	// assert their effects on the metrics.
+	runOverrides := func(t *testing.T) {
+		t.Helper()
+
+		const isEnterprise = true
+		r, err := subca.LoadCAOverrideResolver(t.Context(), subCA, isEnterprise, types.CertAuthorityOverrideID{
+			ClusterName: clusterName,
+			CAType:      string(caType),
+		})
+		require.NoError(t, err)
+		// 2 certs so it creates a distinct metric count.
+		_, err = r.ApplyOverrides([][]byte{caCertPEM, unrelatedCertPEM})
+		require.NoError(t, err)
+		_, err = r.CalculateOverride(subca.Certificate{PEM: caCertPEM})
+		require.NoError(t, err)
+	}
+
+	t.Run("no overrides", func(t *testing.T) {
+		runOverrides(t)
+
+		collectAndCompareCount(t, subca.OverrideReadHist, readMetricName, `
+teleport_ca_override_read_seconds_count{ca_type="windows",result="success"} 1
+`)
+		// No applies recorded.
+		collectAndCompareCount(t, subca.OverrideApplyHist, applyMetricName, ``)
+	})
+
+	t.Run("active overrides", func(t *testing.T) {
+		// Create an active override.
+		caOverride := env.NewOverrideForCAType(t, caType)
+		for _, co := range caOverride.GetSpec().GetCertificateOverrides() {
+			co.SetDisabled(false)
+		}
+		_, err = subCA.CreateCertAuthorityOverride(t.Context(), caOverride)
+		require.NoError(t, err)
+
+		runOverrides(t)
+
+		// +1 read
+		collectAndCompareCount(t, subca.OverrideReadHist, readMetricName, `
+teleport_ca_override_read_seconds_count{ca_type="windows",result="success"} 2
+`)
+		// +2 applies: count=1 (CalculateOverride) and count=2 (ApplyOverrides).
+		collectAndCompareCount(t, subca.OverrideApplyHist, applyMetricName, `
+teleport_ca_override_apply_seconds_count{ca_type="windows",num_certificates="1",result="success"} 1
+teleport_ca_override_apply_seconds_count{ca_type="windows",num_certificates="2",result="success"} 1
+`)
+	})
+}
+
+func collectAndCompareCount(t *testing.T, col prometheus.Collector, metricName, want string) {
+	t.Helper()
+
+	val, err := testutil.CollectAndFormat(col, expfmt.TypeTextPlain, metricName)
+	require.NoError(t, err)
+
+	countName := []byte(metricName + "_count")
+
+	var buf strings.Builder
+	buf.WriteRune('\n') // start with a newline to mimic usual prometheus asserts
+	for line := range bytes.Lines(val) {
+		if bytes.HasPrefix(line, countName) {
+			buf.Write(line)
+		}
+	}
+	if buf.Len() == 1 {
+		buf.Reset() // Only \n present, so the output is empty.
+	}
+
+	got := buf.String()
+	assert.Empty(t, cmp.Diff(want, got))
 }

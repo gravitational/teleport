@@ -52,8 +52,14 @@ Get details about an access path change
 Usage:
 
 ```code
-$ tctl access-changes get <change-id>
+$ tctl access-changes get [<flags>] <change-id>
 ```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format. (Values: text, json, yaml)|
 
 Arguments:
 
@@ -76,11 +82,107 @@ Flags:
 |Flag|Default|Description|
 |---|---|---|
 |`--filter`|*no default*|Filter by comma-separated key=value pairs (keys: type, kind, source). Pairs within one --filter are AND'd; repeat --filter to OR. Example: --filter kind=resource,source=AWS --filter type=teleport_user.|
+|`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format. (Values: text, json, yaml)|
 |`--kind`|*no default* (any of (repeatable): `identity`, `resource`)|Filter by change kind (repeatable; each is OR'd). Combine axes with --filter.|
 |`--limit`|`100`|Maximum number of changes to return (0 for unlimited).|
 |`--search`|*no default*|Search term to filter access changes.|
 |`--source`|*no default* (any of (repeatable): `AWS`, `Entra`, `Gitlab`, `Okta`, `TELEPORT`)|Filter by source (repeatable; each is OR'd). Combine axes with --filter.|
 |`--type`|*no default* (any of (repeatable): `aws_ec2`, `aws_eks`, `aws_rds`, `aws_s3`, `aws_user`, `entra_user`, `gitlab_project`, `gitlab_user`, `okta_application`, `okta_user`, `teleport_application`, `teleport_bot`, `teleport_database`, `teleport_desktop`, `teleport_kubernetes`, `teleport_node`, `teleport_user`)|Filter by origin type (repeatable; each is OR'd). Combine axes with --filter.|
+
+## tctl access-review
+
+Review which identities can access which resources.
+
+Usage:
+
+```code
+$ tctl access-review --query=QUERY [<flags>]
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format. (Values: text, json, yaml)|
+|`--from`|`24h`|Show access activity at or after this time. (Examples: 2006-01-02T15:04:05Z07:00, 2006-01-02, 24h, 7d).|
+|`--limit`|`50`|Maximum number of identities to return.|
+|`--[no-]activity`|`true`|Use --no-activity to skip the activity lookup (on by default) for a faster, structural-only review; takes priority over --from/--to.|
+|`--[no-]detailed`|`false`|In text output, show each grant with its individual access level instead of the summary counts.|
+|`--query`|*no default*|SQL SELECT against access_path scoping the identities to review.|
+|`--to`|`now`|Upper bound for access activity.|
+
+## tctl acl create
+
+Create an access list.
+
+Use --access-type to have Teleport create the access list's supporting roles
+for you. The --access-type value controls how members are granted access.
+Possible values are:
+
+  standing       members receive persistent access to the resources set below.
+  request-based  members must request that access; owners approve.
+
+The supporting roles are built from the resource flags you set. The available
+resource flags (grouped by target) are:
+
+  SSH servers          --node-labels, --logins
+  Databases            --db-labels, --db-users, --db-names
+  Kubernetes           --kubernetes-labels, --kubernetes-users, --kubernetes-groups
+  Windows desktops     --windows-labels, --windows-logins
+  Git servers          --github-orgs
+  AWS Identity Center  --aws-ic-assignments
+  Web applications     --app-labels, --aws-role-arns, --azure-identities
+                       --gcp-service-accounts, --mcp-tools
+
+If --access-type is omitted, a plain access list is created with whatever grants
+you set directly (--member-grant-roles, etc.) — there are no auto-generated
+supporting roles.
+
+Usage:
+
+```code
+$ tctl acl create [<flags>]
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--access-type`|*no default* (one of: `standing`, `request-based`)|How members are granted access: 'standing' (members receive persistent access to the resources described by the resource flags) or 'request-based' (members must request access; owners review). When omitted, a plain access list is created with no auto-generated roles.|
+|`--app-labels`|*no default*|Selects web apps members may access by label match. For AWS Identity Center apps, use --aws-ic-assignments instead.|
+|`--audit-day`|`1`|Day of month for audit (1, 15, or 31).|
+|`--audit-frequency`|`6`|Audit recurrence in months (1, 3, 6, or 12).|
+|`--aws-ic-assignments`|*no default*|Selects AWS Identity Center apps members may access by AWS account ID + permission set ARN ('accountID^permissionSetARN' pairs).|
+|`--aws-role-arns`|*no default*|AWS role ARNs members may assume via matched apps.|
+|`--azure-identities`|*no default*|Azure managed identities members may assume via matched apps.|
+|`--db-labels`|*no default*|Selects databases members may access by label match.|
+|`--db-names`|*no default*|Database names members may connect to on matched databases.|
+|`--db-users`|*no default*|Database users members may connect as on matched databases.|
+|`--description`|*no default*|Optional description.|
+|`--format`|`text` (one of: `text`, `json`)|Output format.|
+|`--gcp-service-accounts`|*no default*|GCP service accounts members may assume via matched apps.|
+|`--github-orgs`|*no default*|Selects git servers members may access by GitHub organization name.|
+|`--kubernetes-groups`|*no default*|Kubernetes groups members may impersonate on matched clusters.|
+|`--kubernetes-labels`|*no default*|Selects Kubernetes clusters members may access by label match.|
+|`--kubernetes-users`|*no default*|Kubernetes users members may impersonate on matched clusters.|
+|`--logins`|*no default*|OS logins members may use to connect to matched SSH servers.|
+|`--mcp-tools`|*no default*|MCP tools members may call on matched MCP apps.|
+|`--member-access-lists`|*no default*|Access list names to add as members; their members inherit this list's member grants (nested access lists).|
+|`--member-grant-roles`|*no default*|Roles granted to members of this access list.|
+|`--member-grant-traits`|*no default*|Traits granted to members of this access list.|
+|`--member-required-roles`|*no default*|Roles a user must already have to be a member of this access list.|
+|`--member-required-traits`|*no default*|Traits a user must already have to be a member of this access list.|
+|`--members`|*no default*|Usernames or emails to add as members of the new access list. Members can also be added later with `tctl acl users add`.|
+|`--node-labels`|*no default*|Selects SSH servers members may access by label match.|
+|`--owner-access-lists`|*no default*|Access list names to add as owners; their members inherit owner permissions on this access list (nested access lists).|
+|`--owner-grant-roles`|*no default*|Roles granted to owners of this access list.|
+|`--owner-grant-traits`|*no default*|Traits granted to owners of this access list.|
+|`--owner-required-roles`|*no default*|Roles a user must already have to be an owner of this access list.|
+|`--owner-required-traits`|*no default*|Traits a user must already have to be an owner of this access list.|
+|`--owners`|*no default*|Usernames or emails who own this access list and review membership.|
+|`--title`|*no default*|Display name for the access list.|
+|`--windows-labels`|*no default*|Selects Windows desktops members may access by label match.|
+|`--windows-logins`|*no default*|Logins members may use to connect to matched Windows desktops.|
 
 ## tctl acl get
 
@@ -234,7 +336,7 @@ Flags:
 |`--app-labels`|*no default*|Selects web apps members may access by label match. For AWS Identity Center apps, use --aws-ic-assignments instead.|
 |`--audit-day`|*no default*|Day of month for audit (1, 15, or 31). Changing this resets the next audit date to now + frequency.|
 |`--audit-frequency`|*no default*|Audit recurrence in months (1, 3, 6, or 12). Changing this resets the next audit date to now + frequency.|
-|`--aws-ic-assignments`|*no default*|Selects AWS Identity Center apps members may access by AWS account ID + permission set ARN ('accountID:permissionSetARN' pairs).|
+|`--aws-ic-assignments`|*no default*|Selects AWS Identity Center apps members may access by AWS account ID + permission set ARN ('accountID^permissionSetARN' pairs).|
 |`--aws-role-arns`|*no default*|AWS role ARNs members may assume via matched apps.|
 |`--azure-identities`|*no default*|Azure managed identities members may assume via matched apps.|
 |`--db-labels`|*no default*|Selects databases members may access by label match.|
@@ -475,6 +577,8 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
+|`--days`|`7`|Days range (default 7)|
+|`--format`|`yaml`|Output format: 'yaml' or 'json'|
 |`--name`|*no default*|Audit query name|
 
 Arguments:
@@ -490,8 +594,15 @@ Execute audit query.
 Usage:
 
 ```code
-$ tctl audit query exec [<query>]
+$ tctl audit query exec [<flags>] [<query>]
 ```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--days`|`7`|Days range (default 7)|
+|`--format`|`yaml`|Output format: 'yaml' or 'json'|
 
 Arguments:
 
@@ -506,8 +617,15 @@ Get audit query.
 Usage:
 
 ```code
-$ tctl audit query get <name>
+$ tctl audit query get [<flags>] <name>
 ```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--days`|`7`|Days range (default 7)|
+|`--format`|`yaml`|Output format: 'yaml' or 'json'|
 
 Arguments:
 
@@ -522,8 +640,15 @@ List audit queries.
 Usage:
 
 ```code
-$ tctl audit query ls
+$ tctl audit query ls [<flags>]
 ```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--days`|`7`|Days range (default 7)|
+|`--format`|`yaml`|Output format: 'yaml' or 'json'|
 
 ## tctl audit query rm
 
@@ -532,8 +657,15 @@ Remove audit query.
 Usage:
 
 ```code
-$ tctl audit query rm <name>
+$ tctl audit query rm [<flags>] <name>
 ```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--days`|`7`|Days range (default 7)|
+|`--format`|`yaml`|Output format: 'yaml' or 'json'|
 
 Arguments:
 
@@ -548,8 +680,15 @@ Get security report.
 Usage:
 
 ```code
-$ tctl audit report get <name>
+$ tctl audit report get [<flags>] <name>
 ```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--days`|`7`|Days range (default 7)|
+|`--format`|`yaml`|Output format: 'yaml' or 'json'|
 
 Arguments:
 
@@ -564,8 +703,15 @@ List security reports.
 Usage:
 
 ```code
-$ tctl audit report ls
+$ tctl audit report ls [<flags>]
 ```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--days`|`7`|Days range (default 7)|
+|`--format`|`yaml`|Output format: 'yaml' or 'json'|
 
 ## tctl audit report run
 
@@ -574,8 +720,15 @@ Run the security report.
 Usage:
 
 ```code
-$ tctl audit report run <name>
+$ tctl audit report run [<flags>] <name>
 ```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--days`|`7`|Days range (default 7)|
+|`--format`|`yaml`|Output format: 'yaml' or 'json'|
 
 Arguments:
 
@@ -590,8 +743,15 @@ Print the state of the security report.
 Usage:
 
 ```code
-$ tctl audit report state <name>
+$ tctl audit report state [<flags>] <name>
 ```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--days`|`7`|Days range (default 7)|
+|`--format`|`yaml`|Output format: 'yaml' or 'json'|
 
 Arguments:
 
@@ -606,8 +766,15 @@ Print audit query schema.
 Usage:
 
 ```code
-$ tctl audit schema
+$ tctl audit schema [<flags>]
 ```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--days`|`7`|Days range (default 7)|
+|`--format`|`yaml`|Output format: 'yaml' or 'json'|
 
 ## tctl auth create-override
 
@@ -1241,8 +1408,16 @@ Get Identity Security detection details.
 Usage:
 
 ```code
-$ tctl detections get <id>
+$ tctl detections get [<flags>] <id>
 ```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format. (Values: text, json, yaml)|
+|`--from`|`30d`|Include activity at or after this time. (Examples: 2006-01-02T15:04:05Z07:00, 2006-01-02, 24h, 7d; negative durations like -1h are future-relative. Default: 30d)|
+|`--to`|`now`|Include activity at or before this time. (Examples: 2006-01-02T15:04:05Z07:00, 2006-01-02, 24h, 7d; negative durations like -1h are future-relative. Default: now)|
 
 Arguments:
 
@@ -1264,11 +1439,14 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
+|`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format. (Values: text, json, yaml)|
+|`--from`|`30d`|Include activity at or after this time. (Examples: 2006-01-02T15:04:05Z07:00, 2006-01-02, 24h, 7d; negative durations like -1h are future-relative. Default: 30d)|
 |`--limit`|`100`|Maximum number of detections to return.|
 |`--[no-]detailed`|`false`|Include extra columns (Reported By, Type, Affected Entity, Tags, Description, Start Time, End Time, Updated) in text output.|
 |`--severity`|*no default* (any of (repeatable): `low`, `medium`, `high`, `critical`)|Filter detections by severity (Values: low, medium, high, critical).|
 |`--source`|*no default*|Filter detections by source.|
 |`--status`|`in_progress`,`triaged` (any of (repeatable): `in_progress`, `triaged`, `resolved`, `closed`)|Filter detections by status (Values: in_progress, triaged, resolved, closed). Default: in_progress, triaged.|
+|`--to`|`now`|Include activity at or before this time. (Examples: 2006-01-02T15:04:05Z07:00, 2006-01-02, 24h, 7d; negative durations like -1h are future-relative. Default: now)|
 |`--type`|*no default*|Filter detections by type.|
 
 ## tctl devices add
@@ -1388,6 +1566,23 @@ Flags:
 |`--last`|`1h`|Time window to look back for failures in Teleport audit log (e.g. 1h, 24h, 30m).|
 |`--[no-]failures-only`|`false`|Only show instances with enrollment failures.|
 
+## tctl discovery status
+
+Show auto-discovery status and enrollment progress.
+
+Usage:
+
+```code
+$ tctl discovery status [<flags>]
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--cloud`|``|Comma-separated list of cloud providers to include (allowed: aws, azure). Empty (default) returns all.|
+|`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format.|
+
 ## tctl edit
 
 Edit a Teleport resource.
@@ -1463,6 +1658,22 @@ Flags:
 |`--format`|*no default*|output format, 'yaml' or 'json'|
 |`--sp`|*no default*|name of a file containing service provider spec|
 |`-u`, `--users`|*no default*|username or name of a file containing user spec|
+
+## tctl integrations awsic accounts ls
+
+List AWS Identity Center accounts and their permission sets.
+
+Usage:
+
+```code
+$ tctl integrations awsic accounts ls [<flags>]
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format.|
 
 ## tctl integrations test
 

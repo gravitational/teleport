@@ -41,17 +41,17 @@ func (s *scopedRoleAssignmentClient) Create(ctx context.Context, assignment *acc
 	return trace.Wrap(err)
 }
 
-func (s *scopedRoleAssignmentClient) Delete(ctx context.Context, name string) error {
+func (s *scopedRoleAssignmentClient) Delete(ctx context.Context, key reconcilers.ResourceKey) error {
 	_, err := s.teleportClient.ScopedAccessServiceClient().DeleteScopedRoleAssignment(ctx, accessv1.DeleteScopedRoleAssignmentRequest_builder{
-		Name:    name,
+		Name:    key.String(),
 		SubKind: scopedaccess.SubKindDynamic,
 	}.Build())
 	return trace.Wrap(err)
 }
 
-func (s *scopedRoleAssignmentClient) Get(ctx context.Context, name string) (*accessv1.ScopedRoleAssignment, error) {
+func (s *scopedRoleAssignmentClient) Get(ctx context.Context, key reconcilers.ResourceKey) (*accessv1.ScopedRoleAssignment, error) {
 	resp, err := s.teleportClient.ScopedAccessServiceClient().GetScopedRoleAssignment(ctx, accessv1.GetScopedRoleAssignmentRequest_builder{
-		Name:    name,
+		Name:    key.String(),
 		SubKind: scopedaccess.SubKindDynamic,
 	}.Build())
 	if err != nil {
