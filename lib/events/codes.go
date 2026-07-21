@@ -148,6 +148,8 @@ const (
 	AppSessionHTTPResponseBodyChunkCode = "T2018I"
 	// AppSessionTargetDialDeniedCode is the application target dial denied event code.
 	AppSessionTargetDialDeniedCode = "T2019E"
+	// AppSessionRequestDeniedCode is the denied app request event code.
+	AppSessionRequestDeniedCode = "T2019W"
 
 	// AppCreateCode is the app.create event code.
 	AppCreateCode = "TAP03I"
