@@ -47,6 +47,7 @@ import (
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
@@ -69,7 +70,9 @@ import (
 	iterstream "github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/scopes"
+	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/scopes/joining"
+	"github.com/gravitational/teleport/lib/scopes/pinning"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/local/generic"
@@ -810,11 +813,11 @@ func (a *ScopedServerWithRoles) checkAdditionalSystemRoles(ctx context.Context, 
 	// check that additional system roles are theoretically valid (distinct from permissibility, which
 	// is checked in the following loop).
 	for _, r := range req.SystemRoles {
-		if r.Check() != nil {
-			return trace.AccessDenied("additional system role %q cannot be applied (not a valid system role)", r)
+		if !r.IsValid() {
+			return trace.AccessDenied("additional system role %+q cannot be applied (not a valid system role)", r)
 		}
 		if !r.IsLocalService() {
-			return trace.AccessDenied("additional system role %q cannot be applied (not a builtin service role)", r)
+			return trace.AccessDenied("additional system role %+q cannot be applied (not a builtin service role)", r)
 		}
 	}
 
@@ -831,7 +834,7 @@ func (a *ScopedServerWithRoles) checkAdditionalSystemRoles(ctx context.Context, 
 				"instance", req.HostID,
 				"error", err,
 			)
-			return trace.AccessDenied("failed to load system role assertion set with ID %q", req.SystemRoleAssertionID)
+			return trace.AccessDenied("failed to load system role assertion set with ID %+q", req.SystemRoleAssertionID)
 		}
 	}
 
@@ -850,7 +853,7 @@ Outer:
 			}
 		}
 
-		return trace.AccessDenied("additional system role %q cannot be applied (not authorized)", requestedRole)
+		return trace.AccessDenied("additional system role %+q cannot be applied (not authorized)", requestedRole)
 	}
 
 	return nil
@@ -1203,19 +1206,9 @@ func (a *ServerWithRoles) KeepAliveServer(ctx context.Context, handle types.Keep
 
 // NewStream returns a new event stream (equivalent to NewWatcher, but with slightly different
 // performance characteristics).
-func (a *ServerWithRoles) NewStream(ctx context.Context, watch types.Watch) (stream.Stream[types.Event], error) {
-	if err := a.authorizeWatchRequest(ctx, &watch); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return a.authServer.NewStream(ctx, watch)
-}
-
-// NewStream is the scoped equivalent of [ServerWithRoles.NewStream]. This method currently only supports a
-// small subset of the functionality of its unscoped counterpart when invoked by scoped callers.
 func (a *ScopedServerWithRoles) NewStream(ctx context.Context, watch types.Watch) (stream.Stream[types.Event], error) {
-	if unscoped, ok := a.UnscopedServerWithRoles(); ok {
-		return unscoped.NewStream(ctx, watch)
-	}
+	// NOTE: authorizeWatchRequest modifies requests inflight in order to apply proper scope filtering to the
+	// event stream and to apply partial success subselection (if appropriate).
 	if err := a.authorizeWatchRequest(ctx, &watch); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1223,45 +1216,36 @@ func (a *ScopedServerWithRoles) NewStream(ctx context.Context, watch types.Watch
 	return a.authServer.NewStream(ctx, watch)
 }
 
-// NewWatcher returns a new event watcher
-func (a *ServerWithRoles) NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error) {
-	if err := a.authorizeWatchRequest(ctx, &watch); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return a.authServer.NewWatcher(ctx, watch)
-}
-
-// NewWatcher is the scoped equivalent of [ServerWithRoles.NewWatcher].  This method currently only supports a
-// small subset of the functionality of its unscoped counterpart when invoked by scoped callers.
+// NewWatcher returns a new event watcher.
 func (a *ScopedServerWithRoles) NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error) {
-	if unscoped, ok := a.UnscopedServerWithRoles(); ok {
-		return unscoped.NewWatcher(ctx, watch)
-	}
+	// NOTE: authorizeWatchRequest modifies requests inflight in order to apply proper scope filtering to the
+	// event stream and to apply partial success subselection (if appropriate).
 	if err := a.authorizeWatchRequest(ctx, &watch); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return a.authServer.NewWatcher(ctx, watch)
 }
 
-// authorizeWatchRequest performs permission checks and filtering on incoming watch requests.
-func (a *ServerWithRoles) authorizeWatchRequest(ctx context.Context, watch *types.Watch) error {
+// authorizeWatchRequest performs permission checks and filtering on incoming watch requests from both
+// scoped and unscoped callers. Each requested kind is authorized by authorizeWatchKind, and the effective
+// scope filter it returns is written back onto the kind so the event stream only yields events for the scoping
+// that was authorized.
+func (a *ScopedServerWithRoles) authorizeWatchRequest(ctx context.Context, watch *types.Watch) error {
 	if len(watch.Kinds) == 0 {
 		return trace.AccessDenied("can't setup global watch")
 	}
-
 	validKinds := make([]types.WatchKind, 0, len(watch.Kinds))
 	for _, kind := range watch.Kinds {
-		err := a.hasWatchPermissionForKind(ctx, kind)
+		filter, err := a.authorizeWatchKind(ctx, kind)
 		if err != nil {
 			if watch.AllowPartialSuccess {
 				continue
 			}
 			return trace.Wrap(err)
 		}
-
+		kind.ScopeFilter = types.ScopeFilterFromProto(filter)
 		validKinds = append(validKinds, kind)
 	}
-
 	if len(validKinds) == 0 {
 		return trace.BadParameter("none of the requested kinds can be watched")
 	}
@@ -1271,34 +1255,6 @@ func (a *ServerWithRoles) authorizeWatchRequest(ctx context.Context, watch *type
 	case a.hasBuiltinRole(types.RoleProxy):
 		watch.QueueSize = defaults.ProxyQueueSize
 	case a.hasBuiltinRole(types.RoleNode):
-		watch.QueueSize = defaults.NodeQueueSize
-	}
-
-	return nil
-}
-
-// authorizeWatchRequest is the scoped equivalent of [ServerWithRoles.authorizeWatchRequest].
-// Queue-size tuning for built-in roles is omitted; kind support is restricted (see hasWatchPermissionForKind).
-func (a *ScopedServerWithRoles) authorizeWatchRequest(ctx context.Context, watch *types.Watch) error {
-	if len(watch.Kinds) == 0 {
-		return trace.AccessDenied("can't setup global watch")
-	}
-	validKinds := make([]types.WatchKind, 0, len(watch.Kinds))
-	for _, kind := range watch.Kinds {
-		if err := a.hasWatchPermissionForKind(ctx, kind); err != nil {
-			if watch.AllowPartialSuccess {
-				continue
-			}
-			return trace.Wrap(err)
-		}
-		validKinds = append(validKinds, kind)
-	}
-	if len(validKinds) == 0 {
-		return trace.BadParameter("none of the requested kinds can be watched")
-	}
-
-	watch.Kinds = validKinds
-	if a.hasBuiltinRole(types.RoleNode) {
 		watch.QueueSize = defaults.NodeQueueSize
 	}
 
@@ -1315,10 +1271,6 @@ func (a *ServerWithRoles) hasWatchPermissionForKind(
 
 	verb := types.VerbRead
 	switch kind.Kind {
-	case types.KindCertAuthority:
-		if !kind.LoadSecrets {
-			verb = types.VerbReadNoSecrets
-		}
 	case types.KindAccessRequest:
 		var filter types.AccessRequestFilter
 		if err := filter.FromMap(kind.Filter); err != nil {
@@ -1369,22 +1321,200 @@ func (a *ServerWithRoles) hasWatchPermissionForKind(
 	return trace.Wrap(a.authorizeAction(kind.Kind, verb))
 }
 
-// hasWatchPermissionForKind is the scoped equivalent of [ServerWithRoles.hasWatchPermissionForKind].
-// Currently only cert_authority (with load_secrets=false) and spiffe_federation are permitted for
-// scoped identities. Both are cluster-global config and are authorized as unpinned root reads.
-func (a *ScopedServerWithRoles) hasWatchPermissionForKind(ctx context.Context, kind types.WatchKind) error {
-	ruleCtx := a.scopedContext.RuleContext()
-	switch kind.Kind {
-	case types.KindCertAuthority:
-		if kind.LoadSecrets {
-			return trace.AccessDenied("scoped identities are not permitted to watch cert_authority with load_secrets=true")
-		}
-		return a.scopedContext.CheckerContext.RiskyAuthorizeUnpinnedRead(ctx, services.UnpinnedReadCertAuthority, &ruleCtx)
-	case types.KindSPIFFEFederation:
-		return a.scopedContext.CheckerContext.RiskyAuthorizeUnpinnedRead(ctx, services.UnpinnedReadSPIFFEFederation, &ruleCtx)
+// supportedScopedWatchKind matches the set of resource kinds that have been converted to support scoped watch
+// (namespaced + scope-carrying delete events). A scope filter that targets scoped
+// resources is only meaningful for these kinds.
+func supportedScopedWatchKind(kind string) bool {
+	switch kind {
+	case types.KindAccessList,
+		types.KindAccessListMember,
+		types.KindAccessListReview,
+		scopedaccess.KindScopedRole,
+		scopedaccess.KindScopedRoleAssignment:
+		return true
 	default:
-		return trace.AccessDenied("scoped identities are not permitted to watch kind %q", kind.Kind)
+		return false
 	}
+}
+
+// authorizeWatchKind authorizes watching the given kind and returns the effective scope filter to apply
+// to its event stream. Kinds whose classical authz includes user-filter-conditioned grants are routed
+// to the classical implementation (and denied for scoped callers); everything else goes through the
+// unified scoped-first path.
+func (a *ScopedServerWithRoles) authorizeWatchKind(ctx context.Context, kind types.WatchKind) (*scopesv1.Filter, error) {
+	// do a pre-check for kinds that have exceptional behavior we haven't integrated into the unified
+	// scoped authz path yet.
+	switch kind.Kind {
+	case types.KindAccessRequest, types.KindWebSession, types.KindHeadlessAuthentication:
+		switch kind.ScopeFilter.ToProto().GetMode() {
+		case scopesv1.Mode_MODE_UNSPECIFIED, scopesv1.Mode_MODE_UNSCOPED, scopesv1.Mode_MODE_ALL:
+			// all equivalent to the unscoped subset for these kinds
+		default:
+			return nil, trace.BadParameter("kind %q does not support scope filter mode %v", kind.Kind, kind.ScopeFilter.ToProto().GetMode())
+		}
+
+		// TODO(fspmarshall/scopes): figure out how current-user exceptions/filters aught to be expressed
+		// in the scoped model so that we can fully eliminate dependence on unscoped server with roles.
+		unscoped, ok := a.UnscopedServerWithRoles()
+		if !ok {
+			return nil, trace.AccessDenied("scoped identities are not permitted to watch kind %q", kind.Kind)
+		}
+		if err := unscoped.hasWatchPermissionForKind(ctx, kind); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_UNSCOPED}.Build(), nil
+	}
+
+	// everything else goes through the unified scoped-first path, which reduces to a classical rule
+	// check for unscoped callers and carries the named unpinned-read exceptions for scoped callers.
+	return a.authorizeWatchKindCore(ctx, kind)
+}
+
+// unscopedWatchKindException maps *unscoped* kinds that permit scoped identities to read them via
+// unpinned-read exceptions to their associated authorization. This category is conceptually distinct
+// from optionally scoped kinds like nodes, or scoped kinds that permit upward-reaching queries such
+// as scoped roles.
+func unscopedWatchKindException(kind string) (ura services.UnpinnedReadAuthorization, ok bool) {
+	switch kind {
+	case types.KindCertAuthority:
+		return services.UnpinnedReadCertAuthority, true
+	case types.KindSPIFFEFederation:
+		return services.UnpinnedReadSPIFFEFederation, true
+	default:
+		return services.UnpinnedReadAuthorization{}, false
+	}
+}
+
+// authorizeUnscopedWatchKindException authorizes a scoped identity to watch the unscoped region of
+// the specific cluster-global kinds matched by unscopedWatchKindException, which are readable
+// regardless of pin. Note that this is conceptually distinct from ancestral watch exceptions.
+func (a *ScopedServerWithRoles) authorizeUnscopedWatchKindException(ctx context.Context, kind types.WatchKind) error {
+	authorization, ok := unscopedWatchKindException(kind.Kind)
+	if !ok {
+		return trace.AccessDenied("scoped identities are not permitted to watch kind %q with an unscoped filter", kind.Kind)
+	}
+	if kind.LoadSecrets {
+		return trace.AccessDenied("scoped identities are not permitted to watch kind %q with load_secrets=true", kind.Kind)
+	}
+	ruleCtx := a.scopedContext.RuleContext()
+	return trace.Wrap(a.scopedContext.CheckerContext.RiskyAuthorizeUnpinnedRead(ctx, authorization, &ruleCtx))
+}
+
+// authorizeAncestralWatchException authorizes the special case where a watch request is made against a scoped kind that
+// includes events in ancestors of the target scope. Only specific resources permit this under specific conditions.
+func (a *ScopedServerWithRoles) authorizeAncestralWatchException(ctx context.Context, kind types.WatchKind, filter *scopesv1.Filter) error {
+	// if the caller is scope-pinned, we want to apply the additional requirement that the requested scope filter is subject
+	// to the pinned scope. this prevents registration of filters that would select orthogonal resources, which are not
+	// covered by unpinned read exceptions. we typically don't have to do this kind of check when we have per-resource RBAC
+	// because the unpinned read helper can validate that the resource is non-orthogonal internally. However, for watches, we
+	// need to be more strict in order to ensure that the filter *could never* match an orthogonal resource.
+	if pin, ok := a.scopedContext.CheckerContext.ScopePin(); ok && !pinning.PinAppliesToResourceScope(pin, filter.GetScope()) {
+		return trace.AccessDenied("scope filter %q is not subject to the caller's pinned scope %q", filter.GetScope(), pin.GetScope())
+	}
+
+	// upward-reaching filter modes are never permitted to load secrets
+	if kind.LoadSecrets {
+		return trace.AccessDenied("cannot watch events with mode %v and load_secrets=true for kind %q", filter.GetMode(), kind.Kind)
+	}
+
+	switch kind.Kind {
+	case scopedaccess.KindScopedRole:
+		// the unpinned read exception for scoped roles is only granted to services.
+		if !authz.ScopedIsLocalOrRemoteService(a.scopedContext) {
+			return trace.AccessDenied("non-service identities are not permitted to watch kind %q with mode %v", kind.Kind, filter.GetMode())
+		}
+		ruleCtx := a.scopedContext.RuleContext()
+		return trace.Wrap(a.scopedContext.CheckerContext.RiskyAuthorizeUnpinnedReadWithScope(ctx, services.UnpinnedReadScopedRole, &ruleCtx, filter.GetScope()))
+	default:
+		return trace.AccessDenied("watches are not permitted for kind %q with mode %v", kind.Kind, filter.GetMode())
+	}
+}
+
+// authorizeWatchKindCore implements the core logic of watch kind authorization and scope filter resolution
+// for scoped and unscoped callers. Authz logic is specialized by scope filter mode, and pinning exceptions
+// are applied to select unscoped and parent-scoped types that must be watchable because they have configuration
+// or policy effects.
+func (a *ScopedServerWithRoles) authorizeWatchKindCore(ctx context.Context, kind types.WatchKind) (*scopesv1.Filter, error) {
+	filter := kind.ScopeFilter.ToProto()
+	if err := scopes.ValidateFilter(filter); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// apply special watcher system specific defaulting behaviors
+	switch filter.GetMode() {
+	case scopesv1.Mode_MODE_UNSPECIFIED:
+		// certain unscoped kinds are always watchable from any scope. we override the default
+		// filter setting behavior for them.
+		// NOTE: in theory it would be more consistent to require setting UNSCOPED explicitly for the
+		// exception to be honored, however the ubiquity of CA watching and the fact that the List APIs
+		// for these types do not accept scope filter parameters makes us wary about doing that.
+		if _, ok := unscopedWatchKindException(kind.Kind); ok {
+			filter = scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_UNSCOPED}.Build()
+		}
+	case scopesv1.Mode_MODE_ALL:
+		// As a special case, we need to translate mode ALL to DESCENDANTS@pin for scoped callers because we
+		// don't have per-event RBAC and rely on the filter matching permissions for event RBAC to work
+		// correctly.
+		// NOTE: its pssible that this could instead be an inbuilt behavior of ScopedAccessCheckerContext.ResolveScopeFilter,
+		// a reasonable argument could be made that no use of mode ALL aught to inherit unpinned exceptions.
+		if pin, ok := a.scopedContext.CheckerContext.ScopePin(); ok {
+			filter = scopesv1.Filter_builder{Scope: pin.GetScope(), Mode: scopesv1.Mode_MODE_DESCENDANTS}.Build()
+		}
+	}
+
+	// apply standard defaulting behavior (unscopded callers get UNSCOPED filter and scoped calelrs get EXACT@pin filters)
+	filter = a.scopedContext.CheckerContext.ResolveScopeFilter(filter)
+
+	// scoped-kind-whitelist: going forward all kinds updated to include a scope attribute will also be
+	// updated to support namespacing.  however, we haven't achieved full namespacing coverage yet. as such,
+	// we need to explicitly reject attempts to use a scope-specific filter against kinds that don't support
+	// namespacing since their delete events don't include `scope` yet. this check can be removed once all
+	// scoped kinds are namespaced.
+	if !supportedScopedWatchKind(kind.Kind) && filter.GetScope() != "" {
+		return nil, trace.AccessDenied("watch of kind %q with a scope-targeting filter is not supported until the kind is namespaced (unscoped callers may use mode ALL to watch all instances)", kind.Kind)
+	}
+
+	// determine the scope of the authorization decision base on filter mode. some filter modes have special
+	// behavior/rules that must be observed.
+	var decisionScope string
+	switch filter.GetMode() {
+	case scopesv1.Mode_MODE_EXACT, scopesv1.Mode_MODE_DESCENDANTS:
+		// a "standard" scoped decision
+		decisionScope = filter.GetScope()
+	case scopesv1.Mode_MODE_ALL, scopesv1.Mode_MODE_UNSCOPED:
+		// these modes select unscoped resources. mode ALL from scoped callers was rewritten to DESCENDANT@pin
+		// above. excluding the unscoped kind exceptions, scoped callers are not permitted to watch unscoped
+		// resources.
+		if _, ok := a.scopedContext.UnscopedContext(); !ok {
+			return filter, trace.Wrap(a.authorizeUnscopedWatchKindException(ctx, kind))
+		}
+		decisionScope = scopes.Unscoped
+	case scopesv1.Mode_MODE_ANCESTORS, scopesv1.Mode_MODE_RELATIVES:
+		// modes that "reach up" the scope hierarchy are only permitted for specific kinds.
+		// NOTE: per the scoped security model, it would be permissible to allow unscoped callers to use these
+		// modes for all kinds. we have omitted making that exception for simplicity's sake, but may revisit
+		// if a specific need arises.
+		if _, ok := a.scopedContext.UnscopedContext(); !ok {
+			return filter, trace.Wrap(a.authorizeAncestralWatchException(ctx, kind, filter))
+		}
+		decisionScope = scopes.Unscoped
+	default:
+		return nil, trace.BadParameter("cannot watch kind %q with unknown mode %v", kind.Kind, filter.GetMode())
+	}
+
+	verb := types.VerbReadNoSecrets
+	if kind.LoadSecrets {
+		verb = types.VerbRead
+	}
+
+	ruleCtx := a.scopedContext.RuleContext()
+	if err := a.scopedContext.CheckerContext.Decision(ctx, decisionScope, func(checker *services.ScopedAccessChecker) error {
+		return checker.CheckAccessToRules(&ruleCtx, kind.Kind, verb)
+	}); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return filter, nil
 }
 
 // DeleteAllNodes deletes all nodes in a given namespace
@@ -7856,6 +7986,9 @@ func (a *ServerWithRoles) CreateWindowsDesktop(ctx context.Context, s types.Wind
 	if err := a.authorizeAction(types.KindWindowsDesktop, types.VerbCreate); err != nil {
 		return trace.Wrap(err)
 	}
+	if err := a.checkAccessToWindowsDesktop(s); err != nil {
+		return trace.Wrap(err)
+	}
 	return a.authServer.CreateWindowsDesktop(ctx, s)
 }
 
@@ -8861,7 +8994,7 @@ func (a *ServerWithRoles) WatchPendingHeadlessAuthentications(ctx context.Contex
 		State:    types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_PENDING,
 	}
 
-	return a.NewWatcher(ctx, types.Watch{
+	return a.ScopedServerWithRoles().NewWatcher(ctx, types.Watch{
 		Name: username,
 		Kinds: []types.WatchKind{{
 			Kind:   types.KindHeadlessAuthentication,
