@@ -37,9 +37,13 @@ type S3Client struct {
 	BucketTags          map[string][]s3types.Tag
 	BucketLocations     map[string]s3types.BucketLocationConstraint
 	ListBucketsPageSize int
+	RequireMaxBuckets   bool
 }
 
 func (m *S3Client) ListBuckets(_ context.Context, input *s3.ListBucketsInput, _ ...func(*s3.Options)) (*s3.ListBucketsOutput, error) {
+	if m.RequireMaxBuckets && input.MaxBuckets == nil {
+		return nil, trace.BadParameter("unpaginated ListBuckets requests are rejected for accounts with a bucket quota greater than 10,000")
+	}
 	// When <=0, all buckets are returned in a single page.
 	if m.ListBucketsPageSize <= 0 {
 		return &s3.ListBucketsOutput{
