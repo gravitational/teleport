@@ -1445,6 +1445,75 @@ func TestDBSCRegistration(t *testing.T) {
 	})
 }
 
+func TestDBSCDisabled(t *testing.T) {
+	t.Setenv("TELEPORT_UNSTABLE_DISABLE_DBSC", "1")
+
+	fakeClock := clockwork.NewFakeClock()
+	clusterName := "test-cluster"
+	publicAddr := "app.example.com"
+
+	tlsCAKey, tlsCACert, err := tlsca.GenerateSelfSignedCA(
+		pkix.Name{CommonName: clusterName},
+		[]string{publicAddr, apiutils.EncodeClusterName(clusterName)},
+		defaults.CATTL,
+	)
+	require.NoError(t, err)
+
+	session := createAppSession(t, fakeClock, tlsCAKey, tlsCACert, clusterName, publicAddr, "testapp")
+	deviceKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+	deviceJWK := jose.JSONWebKey{Key: deviceKey.Public()}
+	deviceJWKJSON, err := deviceJWK.Public().MarshalJSON()
+	require.NoError(t, err)
+	session.SetDBSCPublicKey(deviceJWKJSON)
+
+	jwtSigner, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+
+	authClient := &mockAuthClient{
+		clusterName: clusterName,
+		appSession:  session,
+		jwtSigner:   jwtSigner,
+	}
+	p := setup(t, fakeClock, authClient, nil)
+
+	t.Run("registration returns not found", func(t *testing.T) {
+		cookies := []http.Cookie{
+			{Name: CookieName, Value: session.GetName()},
+			{Name: SubjectCookieName, Value: session.GetBearerToken()},
+		}
+		headers := map[string]string{
+			secureSessionResponseHeader: "proof",
+		}
+		status, _, _ := p.makeRequestWithHeaders(t, http.MethodPost, dbscRegistrationPath, nil, cookies, headers)
+		require.Equal(t, http.StatusNotFound, status)
+	})
+
+	t.Run("refresh returns not found", func(t *testing.T) {
+		headers := map[string]string{
+			secureSessionIDHeader: session.GetName(),
+		}
+		status, _, responseHeaders := p.makeRequestWithHeaders(t, http.MethodPost, dbscRefreshPath, nil, nil, headers)
+		require.Equal(t, http.StatusNotFound, status)
+		require.Empty(t, responseHeaders.Get(secureSessionChallengeHeader))
+	})
+
+	t.Run("registration header not set", func(t *testing.T) {
+		handler, err := NewHandler(t.Context(), &HandlerConfig{
+			Clock:                 fakeClock,
+			AuthClient:            authClient,
+			AccessPoint:           authClient,
+			CipherSuites:          utils.DefaultCipherSuites(),
+			IntegrationAppHandler: &mockIntegrationAppHandler{},
+		})
+		require.NoError(t, err)
+
+		rec := httptest.NewRecorder()
+		require.NoError(t, handler.setDBSCRegistrationHeader(t.Context(), rec, session.GetName()))
+		require.Empty(t, rec.Header().Get(secureSessionRegistrationHeader))
+	})
+}
+
 type dbscProofJWTParams struct {
 	challenge string
 	sessionID string

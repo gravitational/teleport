@@ -36,7 +36,7 @@ import (
 
 const (
 	// secureSessionRegistrationHeader is the header that triggers DBSC registration in the browser.
-	secureSessionRegistrationHeader = "Secure-Session-Registration" //nolint:unused // TODO(avatus) re-enable after spec change
+	secureSessionRegistrationHeader = "Secure-Session-Registration"
 	// secureSessionResponseHeader is the header containing the browser's signed JWT.
 	secureSessionResponseHeader = "Secure-Session-Response"
 	// secureSessionIDHeader is the header containing the session ID for refresh requests.
@@ -49,6 +49,9 @@ const (
 	dbscRegistrationPath = "/x-teleport-dbsc"
 	// dbscRefreshPath is the DBSC refresh endpoint.
 	dbscRefreshPath = "/x-teleport-dbsc/refresh"
+	// dbscDisabledEnv is the environment variable that disables DBSC entirely
+	// when set to any non-empty value.
+	dbscDisabledEnv = "TELEPORT_UNSTABLE_DISABLE_DBSC"
 )
 
 // IsDBSCRequest reports whether the request targets one of the DBSC endpoints.
@@ -82,6 +85,10 @@ type dbscCredential struct {
 // handleDBSCRegistration handles DBSC registration from the browser.
 // The browser POSTs a signed JWT proving possession of the private key.
 func (h *Handler) handleDBSCRegistration(w http.ResponseWriter, r *http.Request, p httprouter.Params) error {
+	if h.dbscDisabled {
+		return trace.NotFound("DBSC support is disabled")
+	}
+
 	ctx := r.Context()
 
 	cookie, err := r.Cookie(CookieName)
@@ -126,6 +133,10 @@ func (h *Handler) handleDBSCRegistration(w http.ResponseWriter, r *http.Request,
 // 1. Browser POSTs with Secure-Session-Id but no response -> return 403 with challenge
 // 2. Browser POSTs with Secure-Session-Response -> verify and re-issue cookies
 func (h *Handler) handleDBSCRefresh(w http.ResponseWriter, r *http.Request, p httprouter.Params) error {
+	if h.dbscDisabled {
+		return trace.NotFound("DBSC support is disabled")
+	}
+
 	ctx := r.Context()
 
 	sessionID, ok, err := getDBSCHeaderString(r, secureSessionIDHeader)
@@ -244,9 +255,11 @@ func (h *Handler) verifyDBSCChallenge(ctx context.Context, challenge string, ses
 
 // setDBSCRegistrationHeader sets the Secure-Session-Registration header to trigger
 // DBSC registration in the browser.
-//
-//nolint:unused // TODO(avatus) re-enable after spec change
 func (h *Handler) setDBSCRegistrationHeader(ctx context.Context, w http.ResponseWriter, sessionID string) error {
+	if h.dbscDisabled {
+		return nil
+	}
+
 	challenge, err := h.c.AuthClient.SignDBSCChallenge(ctx, sessionID)
 	if err != nil {
 		return trace.Wrap(err)
