@@ -507,6 +507,8 @@ type authContext struct {
 	// LockingMode determines the kubernetes' behavior when locks are stale
 	LockingMode constants.LockingMode
 
+	// alpnClient is true when the client negotiated teleport-kube-1.1 ALPN.
+	alpnClient bool
 	// inbandVerified is true when an in-band authentication token was verified.
 	inbandVerified bool
 }
@@ -787,6 +789,16 @@ func (f *Forwarder) writeResponseErrorToBody(rw http.ResponseWriter, respErr err
 // with a Retry-After header set to inform clients that they should retry the request. All
 // other errors are formatted as a [metav1.Status] and written to the [http.ResponseWriter].
 func (f *Forwarder) formatStatusResponseError(rw http.ResponseWriter, respErr error) {
+	if _, ok := errors.AsType[*errInbandAuthRequired](respErr); ok {
+		encoded, err := mfa.MarshalAuthPrompt(mfa.NewAuthPromptWithMFA())
+		if err != nil {
+			trace.WriteError(rw, err)
+			return
+		}
+
+		rw.Header().Set("X-Teleport-Auth-Prompt", encoded)
+	}
+
 	// This detects failed requests that were terminated by the server due to GOAWAY. There
 	// is no direct way to detect these errors. No exported constants or error types exist from the
 	// standard library, so we have to match on the error message. The two error strings come from:
@@ -854,12 +866,24 @@ func kubeStatusCodeAndReason(respErr error) (int, metav1.StatusReason) {
 	if errors.As(respErr, &statusErr) && statusErr.ErrStatus.Code != 0 {
 		return int(statusErr.ErrStatus.Code), statusErr.ErrStatus.Reason
 	}
+
+	if _, ok := errors.AsType[*errInbandAuthRequired](respErr); ok {
+		return http.StatusForbidden, metav1.StatusReasonForbidden
+	}
+
 	code := trace.ErrorToCode(respErr)
 	reason := errorToKubeStatusReason(respErr, code)
 	return code, reason
 }
 
 var errAmbiguousCluster = &trace.AccessDeniedError{Message: "could not disambiguate between two or more scoped kube clusters with the same name, please login with credentials for a narrower scope"}
+
+// errInbandAuthRequired signals that in-band authentication is required.
+type errInbandAuthRequired struct{}
+
+func (e *errInbandAuthRequired) Error() string {
+	return "in-band authentication required"
+}
 
 func (f *Forwarder) setupContext(
 	ctx context.Context,
@@ -1308,6 +1332,18 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 		roleMatchers...,
 	)
 	if errors.Is(err, services.ErrTrustedDeviceRequired) {
+		return trace.Wrap(err)
+	}
+
+	if errors.Is(err, services.ErrSessionMFARequired) {
+		if actx.inbandVerified {
+			return nil
+		}
+
+		if actx.alpnClient {
+			return &errInbandAuthRequired{}
+		}
+
 		return trace.Wrap(err)
 	}
 
@@ -3159,7 +3195,9 @@ func isALPNClient(req *http.Request) bool {
 // verifyInbandToken verifies an in-band authentication token from the request. If the client presents a valid token,
 // marks authContext as verified.
 func (f *Forwarder) verifyInbandToken(req *http.Request, actx *authContext) error {
-	if !isALPNClient(req) || f.cfg.InbandVerifier == nil {
+	actx.alpnClient = isALPNClient(req)
+
+	if !actx.alpnClient || f.cfg.InbandVerifier == nil {
 		return nil
 	}
 

@@ -74,6 +74,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/fixtures"
 	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
+	"github.com/gravitational/teleport/lib/mfa"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/scopes"
@@ -2864,4 +2865,108 @@ func TestIsALPNClient(t *testing.T) {
 			require.Equal(t, tc.want, got)
 		})
 	}
+}
+
+func TestErrInbandAuthRequired(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name       string
+		err        error
+		want403    bool
+		wantHeader bool
+	}{
+		{
+			name:       "in-band auth required",
+			err:        &errInbandAuthRequired{},
+			want403:    true,
+			wantHeader: true,
+		},
+		{
+			name:       "other error",
+			err:        trace.AccessDenied("access denied"),
+			want403:    true,
+			wantHeader: false,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			rw := &recordingResponseWriter{}
+
+			f := &Forwarder{}
+			f.formatStatusResponseError(rw, tc.err)
+
+			if tc.want403 {
+				require.Equal(t, http.StatusForbidden, rw.status)
+			}
+
+			if tc.wantHeader {
+				headerValue := rw.header.Get("X-Teleport-Auth-Prompt")
+				require.NotEmpty(t, headerValue)
+
+				prompt, err := mfa.UnmarshalAuthPrompt(headerValue)
+				require.NoError(t, err)
+				require.Len(t, prompt.GetPrompts(), 1)
+				require.NotNil(t, prompt.GetPrompts()[0].GetMfa())
+			} else {
+				require.Empty(t, rw.header.Get("X-Teleport-Auth-Prompt"))
+			}
+		})
+	}
+}
+
+func TestKubeStatusCodeAndReason(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name     string
+		err      error
+		wantCode int
+	}{
+		{
+			name:     "in-band auth required",
+			err:      &errInbandAuthRequired{},
+			wantCode: http.StatusForbidden,
+		},
+		{
+			name:     "access denied",
+			err:      trace.AccessDenied("denied"),
+			wantCode: http.StatusForbidden,
+		},
+		{
+			name:     "not found",
+			err:      trace.NotFound("not found"),
+			wantCode: http.StatusNotFound,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			code, _ := kubeStatusCodeAndReason(tc.err)
+			require.Equal(t, tc.wantCode, code)
+		})
+	}
+}
+
+type recordingResponseWriter struct {
+	status int
+	header http.Header
+	body   bytes.Buffer
+}
+
+func (r *recordingResponseWriter) Header() http.Header {
+	if r.header == nil {
+		r.header = make(http.Header)
+	}
+
+	return r.header
+}
+
+func (r *recordingResponseWriter) Write(b []byte) (int, error) {
+	return r.body.Write(b)
+}
+
+func (r *recordingResponseWriter) WriteStatus(status int) {
+	r.status = status
+}
+
+func (r *recordingResponseWriter) WriteHeader(status int) {
+	r.status = status
 }
