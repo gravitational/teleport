@@ -325,11 +325,13 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry retryutils.Retry) error
 	// watcher which watches backend events. It is used for driving changes to
 	// scoped role assignments materialized from access lists and their
 	// memberships.
+	// TODO(nklaassen): remove scope filter when materializer supports scoped lists.
+	unscoped := types.ScopeFilterFromProto(scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_UNSCOPED}.Build())
 	aclWatcher, err := c.cfg.AccessListEvents.NewWatcher(ctx, types.Watch{
 		Name: "scoped-access-cache-acl-watcher",
 		Kinds: []types.WatchKind{
-			{Kind: types.KindAccessList},
-			{Kind: types.KindAccessListMember},
+			{Kind: types.KindAccessList, ScopeFilter: unscoped},
+			{Kind: types.KindAccessListMember, ScopeFilter: unscoped},
 		},
 	})
 	if err != nil {
