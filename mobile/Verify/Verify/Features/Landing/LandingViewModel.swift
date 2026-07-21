@@ -29,6 +29,7 @@ final class LandingViewModel {
 	enum Destination {
 		case cameraScanner(EnrollCameraScannerViewModel)
 		case enrollDevice(EnrollDeviceViewModel)
+		case forgetAllClustersAlert(AlertState<ForgetAllClustersAlertAction>)
 		case notice(AlertState<Void>)
 	}
 
@@ -48,11 +49,23 @@ final class LandingViewModel {
 	var sensoryFeedbackTrigger = false
 }
 
+// MARK: - LandingViewModel.ForgetAllClustersAlertAction
+
+extension LandingViewModel {
+	enum ForgetAllClustersAlertAction {
+		case confirm
+	}
+}
+
 // MARK: - UI Helper
 
 extension LandingViewModel {
 	var shouldShowPreEnrollmentLanding: Bool {
 		clusters.isEmpty
+	}
+
+	var shouldShowToolbar: Bool {
+		!shouldShowPreEnrollmentLanding
 	}
 }
 
@@ -79,24 +92,33 @@ extension LandingViewModel {
 	}
 
 	func userDeletedClusters(at indexSet: IndexSet) async {
-		let clustersToDelete = clusters.values(at: indexSet)
-		do {
-			try await database.write { db in
-				for clusterToDelete in clustersToDelete {
-					try Cluster.delete(clusterToDelete).execute(db)
-				}
-			}
-		} catch {
-			Self.logger.warning("Failed to delete clusters: \(error)")
-			destination = .notice(AlertState(
-				title: {
-					TextState("Could Not Delete Clusters")
-				},
-				message: {
-					TextState("An error occurred when trying to deregister the cluster from your device.")
-				},
-			))
+		let idsToDelete = clusters.values(at: indexSet).map(\.id)
+		await deleteClusters {
+			Cluster
+				.delete()
+				.where { idsToDelete.contains($0.id) }
 		}
+	}
+
+	func userTappedForgetAllClusters() {
+		let alertState = AlertState<ForgetAllClustersAlertAction> {
+			TextState("Are you sure you want to forget all clusters?")
+		} actions: {
+			ButtonState(role: .destructive, action: .confirm) { TextState("Confirm") }
+			ButtonState(role: .cancel) { TextState("Cancel") }
+		} message: {
+			TextState(
+				"""
+				This action cannot be undone. You will still be able to authenticate using this device until you \
+				remove it from your trusted devices in Account Settings in the web UI.
+				""",
+			)
+		}
+		destination = .forgetAllClustersAlert(alertState)
+	}
+
+	func userConfirmedForgetAllClusters() async {
+		await deleteClusters { Cluster.delete() }
 	}
 }
 
@@ -137,5 +159,28 @@ extension LandingViewModel: EnrollCameraScannerViewModel.Delegate {
 	) {
 		sensoryFeedbackTrigger.toggle()
 		destination = .enrollDevice(EnrollDeviceViewModel(deepLink: deepLink, delegate: self))
+	}
+}
+
+// MARK: - Private Helpers
+
+extension LandingViewModel {
+	/// A helper function that encapsulates running a cluster deletion and showing an error upon failure.
+	private func deleteClusters(using deleteOperation: @Sendable () -> DeleteOf<Cluster>) async {
+		do {
+			try await database.write { db in
+				try deleteOperation().execute(db)
+			}
+		} catch {
+			Self.logger.warning("Failed to forget clusters: \(error)")
+			destination = .notice(AlertState(
+				title: {
+					TextState("Could Not Forget Clusters")
+				},
+				message: {
+					TextState("An error occurred when trying to forget the cluster on this device.")
+				},
+			))
+		}
 	}
 }

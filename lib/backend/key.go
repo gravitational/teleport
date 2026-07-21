@@ -124,6 +124,22 @@ func (k Key) TrimPrefix(prefix Key) Key {
 	return KeyFromString(key)
 }
 
+// CutPrefix returns the key without the provided leading prefix string
+// and reports whether it found the prefix.
+// If the key doesn't start with prefix, CutPrefix returns k, false.
+// If prefix is the empty string, CutPrefix returns k, true.
+func (k Key) CutPrefix(prefix Key) (after Key, found bool) {
+	key, found := strings.CutPrefix(k.s, prefix.s)
+	if !found {
+		return k, false
+	}
+	if key == "" {
+		return Key{}, true
+	}
+
+	return KeyFromString(key), true
+}
+
 // PrependKey returns a new [Key] that joins p and k
 // with the components of p followed by the components from k.
 func (k Key) PrependKey(p Key) Key {
