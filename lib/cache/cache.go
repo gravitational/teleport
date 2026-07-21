@@ -137,10 +137,6 @@ func makeAllKnownCAsFilter() types.CertAuthorityFilter {
 func ForAuth(cfg Config) Config {
 	cfg.target = "auth"
 	cfg.EnableRelativeExpiry = true
-	// Explicitly filter to only unscoped resources for scope-aware kinds with
-	// scoped events but no cache support yet.
-	// TODO(nklaassen): delete when scoped access lists have cache support.
-	unscoped := types.ScopeFilterFromProto(scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_UNSCOPED}.Build())
 	cfg.Watches = []types.WatchKind{
 		{Kind: types.KindCertAuthority, LoadSecrets: true},
 		{Kind: types.KindCertAuthorityOverride},
@@ -194,9 +190,9 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindAuditQuery},
 		{Kind: types.KindSecurityReport},
 		{Kind: types.KindSecurityReportState},
-		{Kind: types.KindAccessList, ScopeFilter: unscoped},
-		{Kind: types.KindAccessListMember, ScopeFilter: unscoped},
-		{Kind: types.KindAccessListReview, ScopeFilter: unscoped},
+		{Kind: types.KindAccessList},
+		{Kind: types.KindAccessListMember},
+		{Kind: types.KindAccessListReview},
 		{Kind: types.KindKubeWaitingContainer},
 		{Kind: types.KindNotification},
 		{Kind: types.KindGlobalNotification},
