@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/kube/internal"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/scopes"
+	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -381,7 +382,7 @@ func newH2Transport(tlsConfig *tls.Config, dial dialContextFunc) (*http.Transpor
 	if tlsConfig == nil {
 		tlsConfig = &tls.Config{}
 	}
-	tlsConfig.NextProtos = []string{http2.NextProtoTLS, teleport.HTTPNextProtoTLS}
+	tlsConfig.NextProtos = []string{string(common.ProtocolKube), http2.NextProtoTLS, teleport.HTTPNextProtoTLS}
 	h2HTTPTransport := newTransport(dial, tlsConfig)
 	// Upgrade transport to h2 where HTTP_PROXY and HTTPS_PROXY
 	// envs are not take into account purposely.

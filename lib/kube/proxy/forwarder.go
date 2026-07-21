@@ -81,6 +81,7 @@ import (
 	"github.com/gravitational/teleport/lib/kube/internal"
 	"github.com/gravitational/teleport/lib/kube/proxy/responsewriters"
 	"github.com/gravitational/teleport/lib/kube/proxy/streamproto"
+	"github.com/gravitational/teleport/lib/mfa"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -89,6 +90,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
+	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
@@ -189,6 +191,8 @@ type ForwarderConfig struct {
 	Scope string
 	// ScopePin is the scope and scoped role assignments the forwarder is pinned to.
 	ScopePin *scopesv1.Pin
+	// InbandVerifier verifies in-band authentication tokens. Nil disables verification.
+	InbandVerifier *mfa.Verifier
 }
 
 // ClusterFeaturesGetter is a function that returns the Teleport cluster licensed features.
@@ -467,6 +471,7 @@ type authContext struct {
 	kubeClusterName   string
 	teleportCluster   teleportClusterClient
 	recordingConfig   types.SessionRecordingConfig
+
 	// clientIdleTimeout sets information on client idle timeout
 	clientIdleTimeout time.Duration
 	// clientIdleTimeoutMessage is the message to be displayed to the user
@@ -501,6 +506,9 @@ type authContext struct {
 
 	// LockingMode determines the kubernetes' behavior when locks are stale
 	LockingMode constants.LockingMode
+
+	// inbandVerified is true when an in-band authentication token was verified.
+	inbandVerified bool
 }
 
 func (c authContext) String() string {
@@ -719,6 +727,9 @@ func (f *Forwarder) withAuth(handler handlerWithAuthFunc, opts ...authOption) ht
 		defer span.End()
 		authContext, err := f.authenticate(req)
 		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if err := f.verifyInbandToken(req, authContext); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		if err := f.authorize(ctx, authContext); err != nil {
@@ -3134,4 +3145,45 @@ func allHTTPMethods() []string {
 		http.MethodPut,
 		http.MethodTrace,
 	}
+}
+
+// isALPNClient checks if the client negotiated the teleport-kube-1.1 ALPN protocol.
+func isALPNClient(req *http.Request) bool {
+	if req.TLS == nil {
+		return false
+	}
+
+	return req.TLS.NegotiatedProtocol == string(common.ProtocolKube)
+}
+
+// verifyInbandToken verifies an in-band authentication token from the request. If the client presents a valid token,
+// marks authContext as verified.
+func (f *Forwarder) verifyInbandToken(req *http.Request, actx *authContext) error {
+	if !isALPNClient(req) || f.cfg.InbandVerifier == nil {
+		return nil
+	}
+
+	token := req.Header.Get("X-Teleport-Auth-Prompt-Response")
+	if token == "" {
+		return nil
+	}
+
+	raw, err := mfa.UnmarshalPromptResponseToken(token)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	username, err := authz.GetClientUsername(req.Context())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	_, err = f.cfg.InbandVerifier.Verify(raw, username)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	actx.inbandVerified = true
+
+	return nil
 }

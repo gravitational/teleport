@@ -54,7 +54,7 @@ func NewVerifier(ca types.CertAuthority, clock clockwork.Clock) (*Verifier, erro
 
 	pub, err := x509.ParsePKIXPublicKey(block.Bytes)
 	if err != nil {
-		return nil, trace.Wrap(err, "parsing InBandCA public key")
+		return nil, trace.Wrap(err)
 	}
 
 	key, err := jwt.New(

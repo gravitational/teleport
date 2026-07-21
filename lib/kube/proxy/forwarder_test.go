@@ -80,6 +80,7 @@ import (
 	"github.com/gravitational/teleport/lib/scopes/pinning"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
+	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
@@ -2821,5 +2822,46 @@ func (g *goawayServer) handleConn(conn net.Conn) error {
 		default:
 			continue
 		}
+	}
+}
+
+func TestIsALPNClient(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name     string
+		tlsState *tls.ConnectionState
+		want     bool
+	}{
+		{
+			name:     "alpn client",
+			tlsState: &tls.ConnectionState{NegotiatedProtocol: string(common.ProtocolKube)},
+			want:     true,
+		},
+		{
+			name:     "h2 client",
+			tlsState: &tls.ConnectionState{NegotiatedProtocol: "h2"},
+			want:     false,
+		},
+		{
+			name:     "http/1.1 client",
+			tlsState: &tls.ConnectionState{NegotiatedProtocol: "http/1.1"},
+			want:     false,
+		},
+		{
+			name:     "no TLS",
+			tlsState: nil,
+			want:     false,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			req := &http.Request{}
+			if tc.tlsState != nil {
+				req.TLS = tc.tlsState
+			}
+
+			got := isALPNClient(req)
+			require.Equal(t, tc.want, got)
+		})
 	}
 }
