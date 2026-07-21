@@ -94,7 +94,7 @@ export const tcpApp = makeApp({
   clusterId: 'one',
 });
 
-export const llmApp = makeApp({
+export const llmAnthropicApp = makeApp({
   name: 'anthropic',
   subKind: 'llm',
   description: 'Company’s default Anthropic endpoint',
@@ -102,6 +102,21 @@ export const llmApp = makeApp({
   publicAddr: 'anthropic.teleport.example.com',
   fqdn: 'anthropic.teleport.example.com',
   llm: { format: 'anthropic', provider: 'anthropic' },
+  labels: [
+    { name: 'env', value: 'prod' },
+    { name: 'cluster', value: 'one' },
+  ],
+  clusterId: 'one',
+});
+
+export const llmBedrockApp = makeApp({
+  name: 'bedrock',
+  subKind: 'llm',
+  description: 'Anthropic endpoint served by Amazon Bedrock',
+  uri: 'llm://',
+  publicAddr: 'bedrock.teleport.example.com',
+  fqdn: 'bedrock.teleport.example.com',
+  llm: { format: 'anthropic', provider: 'bedrock' },
   labels: [
     { name: 'env', value: 'prod' },
     { name: 'cluster', value: 'one' },

@@ -25,13 +25,10 @@ import Dialog, {
   DialogHeader,
   DialogTitle,
 } from 'design/Dialog';
-import {
-  TextSelectCopy,
-  TextSelectCopyMulti,
-} from 'shared/components/TextSelectCopy';
+import { TextSelectCopyMulti } from 'shared/components/TextSelectCopy';
 
 import { generateTshLoginCommand } from 'teleport/lib/util';
-import { App, LLMFormat } from 'teleport/services/apps';
+import { App, LLMFormat, LLMProvider } from 'teleport/services/apps';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 import useTeleport from 'teleport/useTeleport';
 
@@ -42,43 +39,65 @@ import useTeleport from 'teleport/useTeleport';
 const LOCAL_PROXY_PORT = '3000';
 const localProxyURL = `http://127.0.0.1:${LOCAL_PROXY_PORT}`;
 
-/** Per-provider Step 3 instructions. */
+const apiKeyComment =
+  'Any non-empty value works; Teleport swaps in the real key.';
+
+type EnvLine = { text: string; comment?: string };
+
 type ProviderSpec = {
   /** Bold heading naming the clients these instructions apply to. */
   clientLabel: string;
-  /** `export <VAR>=<url>` line pointing the client at the local proxy. */
-  baseUrlEnv: string;
-  /** `export <VAR>=<placeholder>` line for the (unused) client-side API key. */
-  apiKeyEnv: string;
+  /** Optional comment shown above the environment variables. */
+  description?: string;
+  /** `export <variable>=<value>` lines to set before launching the client. */
+  envLines: EnvLine[];
   /** Prose introducing the command that launches the client. */
   runLabel: string;
-  /** Command that launches the client once the env is set. */
+  /** Command that launches (and, for Codex, configures) the client. */
   runCommand: string;
 };
 
 /**
- * The two providers are structurally identical and differ only in these
- * values, so we keep them as data and render both with the same component.
+ * getProviderSpec returns the Step 3 instructions for an inference endpoint.
+ * They depend on the API format and the provider eg. Codex ignores base-URL
+ * environment variables so it needs the address inline, and the inference endpoint
+ * served by Bedrock needs an extra environment variable to disable beta features.
  */
-const PROVIDER_INSTRUCTIONS: Record<LLMFormat, ProviderSpec> = {
-  anthropic: {
+function getProviderSpec(
+  format: LLMFormat,
+  provider: LLMProvider | undefined
+): ProviderSpec {
+  if (format === 'openai') {
+    return {
+      clientLabel: 'Codex, or any OpenAI client',
+      description: 'Most OpenAI clients read these environment variables:',
+      envLines: [
+        { text: `export OPENAI_BASE_URL=${localProxyURL}/v1` },
+        { text: 'export OPENAI_API_KEY=teleport', comment: apiKeyComment },
+      ],
+      runLabel:
+        'Codex ignores those variables, so start it with the address inline instead:',
+      runCommand: `codex -c openai_base_url=${localProxyURL}/v1`,
+    };
+  }
+
+  const envLines: EnvLine[] = [
+    { text: `export ANTHROPIC_BASE_URL=${localProxyURL}` },
+    { text: 'export ANTHROPIC_API_KEY=teleport', comment: apiKeyComment },
+  ];
+  if (provider === 'bedrock') {
+    envLines.push({
+      text: 'export CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS=1',
+      comment: 'Required when the endpoint is served by Amazon Bedrock.',
+    });
+  }
+  return {
     clientLabel: 'Claude Code, Claude Agent SDK, or any Anthropic client',
-    baseUrlEnv: `export ANTHROPIC_BASE_URL=${localProxyURL}`,
-    apiKeyEnv: 'export ANTHROPIC_API_KEY=teleport',
+    envLines,
     runLabel: 'Then run Claude Code as usual:',
     runCommand: 'claude',
-  },
-  openai: {
-    clientLabel: 'Codex, or any OpenAI client',
-    baseUrlEnv: `export OPENAI_BASE_URL=${localProxyURL}/v1`,
-    apiKeyEnv: 'export OPENAI_API_KEY=teleport',
-    runLabel: 'Then start Codex:',
-    runCommand: 'codex',
-  },
-};
-
-const apiKeyComment =
-  'Any non-empty value works; Teleport swaps in the real key.';
+  };
+}
 
 export function LLMAppConnectDialog(props: { app: App; onClose: () => void }) {
   const { app } = props;
@@ -88,6 +107,7 @@ export function LLMAppConnectDialog(props: { app: App; onClose: () => void }) {
   const accessRequestId = ctx.storeUser.getAccessRequestId();
 
   const format: LLMFormat = app.llmFormat === 'openai' ? 'openai' : 'anthropic';
+  const spec = getProviderSpec(format, app.llmProvider);
 
   return (
     <Dialog
@@ -100,14 +120,14 @@ export function LLMAppConnectDialog(props: { app: App; onClose: () => void }) {
       open={true}
     >
       <DialogHeader mb={4}>
-        <DialogTitle>Use "{app.name}" inference endpoint</DialogTitle>
+        <DialogTitle>Use "{app.name}" inference endpoints</DialogTitle>
       </DialogHeader>
 
       <DialogContent>
         <Stack gap={4} fullWidth>
           <Step number={1} title="Log in to Teleport">
-            <TextSelectCopy
-              text={generateTshLoginCommand({
+            <Command
+              command={generateTshLoginCommand({
                 authType,
                 username,
                 clusterId,
@@ -120,8 +140,8 @@ export function LLMAppConnectDialog(props: { app: App; onClose: () => void }) {
             number={2}
             title="Start a local proxy for the inference endpoint"
           >
-            <TextSelectCopy
-              text={`tsh proxy app ${app.name} --port ${LOCAL_PROXY_PORT}`}
+            <Command
+              command={`tsh proxy app ${app.name} --port ${LOCAL_PROXY_PORT}`}
             />
             <Box>
               This listens on {localProxyURL}. Every request is authenticated
@@ -131,7 +151,7 @@ export function LLMAppConnectDialog(props: { app: App; onClose: () => void }) {
           </Step>
 
           <Step number={3} title="Point your LLM client at the local proxy">
-            <ProviderInstructions spec={PROVIDER_INSTRUCTIONS[format]} />
+            <ProviderInstructions spec={spec} />
           </Step>
         </Stack>
       </DialogContent>
@@ -163,14 +183,14 @@ function ProviderInstructions({ spec }: { spec: ProviderSpec }) {
       <Box>
         <Text bold>{spec.clientLabel}</Text>
       </Box>
-      <TextSelectCopyMulti
-        lines={[
-          { text: spec.baseUrlEnv },
-          { comment: apiKeyComment, text: spec.apiKeyEnv },
-        ]}
-      />
+      {spec.description && <Box>{spec.description}</Box>}
+      <TextSelectCopyMulti lines={spec.envLines} />
       <Box>{spec.runLabel}</Box>
-      <TextSelectCopy text={spec.runCommand} />
+      <Command command={spec.runCommand} />
     </>
   );
+}
+
+function Command({ command }: { command: string }) {
+  return <TextSelectCopyMulti lines={[{ text: command }]} />;
 }
