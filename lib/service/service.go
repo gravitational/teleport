@@ -6180,6 +6180,11 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			return trace.Wrap(err)
 		}
 
+		inbandVerifier, err := newInbandVerifier(process.ExitContext(), conn.Client, clusterName, process.Clock)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
 		kubeServer, err = kubeproxy.NewTLSServer(kubeproxy.TLSServerConfig{
 			ForwarderConfig: kubeproxy.ForwarderConfig{
 				Namespace:                     apidefaults.Namespace,
@@ -6208,6 +6213,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				GetConnTLSRoots:       conn.ClientGetPool,
 				ConnTLSCipherSuites:   cfg.CipherSuites,
 				ClusterFeatures:       process.GetClusterFeatures,
+				InbandVerifier:        inbandVerifier,
 			},
 			TLS:                      serverTLSConfig.Clone(),
 			LimiterConfig:            cfg.Proxy.Limiter,

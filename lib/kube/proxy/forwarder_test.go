@@ -2635,6 +2635,7 @@ func TestForwarderConfig(t *testing.T) {
 		HostID:            "host-id",
 		ClusterFeatures:   fakeClusterFeatures,
 		KubeServiceType:   KubeService,
+		InbandVerifier:    newInbandVerifier(t, "local"),
 	}
 	cases := []struct {
 		name string

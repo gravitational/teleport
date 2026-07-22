@@ -51,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authcatest"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/keygen"
@@ -65,6 +66,7 @@ import (
 	"github.com/gravitational/teleport/lib/kube/proxy/streamproto"
 	kubewatcher "github.com/gravitational/teleport/lib/kube/proxy/watcher"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/mfa"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnel"
@@ -300,6 +302,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 			},
 			Clock:           clockwork.NewRealClock(),
 			ClusterFeatures: features,
+			InbandVerifier:  newInbandVerifier(t, testCtx.ClusterName),
 		},
 		DynamicLabels: nil,
 		TLS:           kubeServiceTLSConfig.Clone(),
@@ -376,6 +379,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 			LockWatcher:       testCtx.lockWatcher,
 			Clock:             clockwork.NewRealClock(),
 			ClusterFeatures:   features,
+			InbandVerifier:    newInbandVerifier(t, testCtx.ClusterName),
 			GetConnTLSCertificate: func() (*tls.Certificate, error) {
 				return &proxyTLSConfig.Certificates[0], nil
 			},
@@ -711,4 +715,16 @@ func (f *fakeCluster) DialTCP(p reversetunnelclient.DialParams) (conn net.Conn, 
 		panic(err)
 	}
 	return conn, nil
+}
+
+func newInbandVerifier(t *testing.T, clusterName string) *mfa.Verifier {
+	t.Helper()
+
+	ca, err := authcatest.NewCA(types.InBandCA, clusterName)
+	require.NoError(t, err)
+
+	verifier, err := mfa.NewVerifier(ca, clockwork.NewFakeClock())
+	require.NoError(t, err)
+
+	return verifier
 }

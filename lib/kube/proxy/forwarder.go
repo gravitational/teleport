@@ -242,6 +242,9 @@ func (f *ForwarderConfig) CheckAndSetDefaults() error {
 	if f.ClusterFeatures == nil {
 		return trace.BadParameter("missing parameter ClusterFeatures")
 	}
+	if f.InbandVerifier == nil {
+		return trace.BadParameter("missing parameter InbandVerifier")
+	}
 	if f.KubeServiceType != KubeService && f.PROXYSigner == nil {
 		return trace.BadParameter("missing parameter PROXYSigner")
 	}
