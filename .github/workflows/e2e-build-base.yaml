@@ -1,0 +1,173 @@
+# Reusable workflow to build and upload teleport binaries. Split out from e2e-tests-base.yaml
+# so multiple test jobs can run in parallel off a single build.
+
+name: E2E Build (Base)
+
+on:
+  workflow_call:
+    inputs:
+      oss-repository:
+        description: 'OSS repository to checkout (leave empty for current repo)'
+        type: string
+        default: ''
+      enterprise-path:
+        description: 'Path to checkout enterprise repo into (leave empty to skip)'
+        type: string
+        default: ''
+      build-dir:
+        description: 'Directory containing built binaries'
+        type: string
+        required: true
+      e2e-dir:
+        description: 'Directory containing e2e tests'
+        type: string
+        required: true
+      build-logs-dir:
+        description: 'Directory containing build logs'
+        type: string
+        required: true
+      type-check-package:
+        description: 'pnpm package name for e2e type-check'
+        type: string
+        required: true
+      build-command:
+        description: 'Command to build Teleport binaries'
+        type: string
+        required: true
+    outputs:
+      playwright-version:
+        description: "Playwright version, for the test jobs container image"
+        value: ${{ jobs.build.outputs.playwright-version }}
+
+jobs:
+  build:
+    name: Build Teleport
+    runs-on: ubuntu-22.04-16core
+    timeout-minutes: 30
+
+    permissions:
+      contents: read
+
+    outputs:
+      playwright-version: ${{ steps.playwright-version.outputs.version }}
+
+    container:
+      image: ghcr.io/gravitational/teleport-buildbox:teleport19
+
+    steps:
+      - name: Checkout OSS
+        uses: actions/checkout@v6
+        with:
+          repository: ${{ inputs.oss-repository || github.repository }}
+          ref: ${{ inputs.oss-repository && (github.event.pull_request.base.ref || github.event.merge_group.base_ref) || '' }}
+          fetch-depth: 1
+
+      - name: Checkout Enterprise
+        if: ${{ inputs.enterprise-path != '' }}
+        uses: actions/checkout@v6
+        with:
+          path: ${{ inputs.enterprise-path }}
+          fetch-depth: 1
+
+      - name: Prepare workspace
+        uses: ./.github/actions/prepare-workspace
+
+      - name: Get go mod cache path
+        id: cache-paths
+        run: echo "go-mod=$(go env GOMODCACHE)" >> $GITHUB_OUTPUT
+
+      - name: Install node modules
+        run: pnpm install --frozen-lockfile
+
+      - name: Type-check e2e tests
+        run: pnpm --filter=${{ inputs.type-check-package }} type-check
+
+      - name: Get Playwright version
+        id: playwright-version
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+        working-directory: e2e
+
+      - name: Restore Go module cache
+        id: go-mod-cache
+        uses: actions/cache/restore@v5
+        with:
+          path: ${{ steps.cache-paths.outputs.go-mod }}
+          key: go-mod-${{ runner.os }}-${{ hashFiles('go.sum') }}
+          restore-keys: go-mod-${{ runner.os }}-
+
+      - name: Check generated files are up to date
+        working-directory: e2e/runner
+        run: |
+          go generate ./...
+          if ! git diff --quiet -- ../helpers/fixtures.ts; then
+            echo "::error::e2e/helpers/fixtures.ts is out of date. Run 'go generate ./...' from e2e/runner and commit the result."
+            git diff -- ../helpers/fixtures.ts
+            exit 1
+          fi
+
+      - name: Restore Rust output cache
+        id: rust-cache
+        uses: actions/cache/restore@v5
+        with:
+          path: |
+            web/packages/shared/libs/ironrdp/pkg
+            target/x86_64-unknown-linux-gnu/release/librdp_client.a
+            lib/srv/desktop/rdp/rdpclient/librdpclient.h
+          key: rust-output-${{ runner.os }}-${{ hashFiles('Cargo.lock', 'Cargo.toml', '**/Cargo.toml', 'Makefile', 'build.assets/Makefile',
+            'build.assets/versions.mk', 'rust-toolchain.toml', 'lib/srv/desktop/rdp/rdpclient/**/*.rs', 'lib/srv/desktop/rdp/decoder/**/*.rs',
+            'crates/**/*.rs', 'web/packages/shared/libs/ironrdp/**/*.rs') }}
+
+      - name: Build Teleport, tctl, and tsh
+        run: ${{ inputs.build-command }}
+        env:
+          IRONRDP_SKIP_BUILD: ${{ steps.rust-cache.outputs.cache-hit == 'true' && '1' || '0' }}
+          RDPCLIENT_SKIP_CARGO: ${{ steps.rust-cache.outputs.cache-hit == 'true' && '1' || '0' }}
+
+      - name: Print build logs
+        if: failure()
+        run: |
+          for log in ${{ inputs.build-logs-dir }}/*.log; do
+            echo "::group::$(basename "$log" .log) build log"
+            cat "$log"
+            echo "::endgroup::"
+          done
+
+      - name: Build e2e runner
+        run: cd e2e/runner && go build -o e2e .
+
+      - name: Build Connect
+        run: pnpm --filter=@gravitational/teleterm build
+        env:
+          IRONRDP_SKIP_BUILD: ${{ steps.rust-cache.outputs.cache-hit == 'true' && '1' || '0' }}
+
+      - name: Upload binaries
+        uses: actions/upload-artifact@v7
+        with:
+          name: teleport-binaries
+          path: |
+            ${{ inputs.build-dir }}/teleport
+            ${{ inputs.build-dir }}/tctl
+            ${{ inputs.build-dir }}/tsh-e2e-webauthnmock
+            e2e/runner/e2e
+            web/packages/teleterm/build/
+          retention-days: 1
+
+      - name: Save Go module cache
+        if: github.event_name == 'push' && steps.go-mod-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v5
+        with:
+          path: ${{ steps.cache-paths.outputs.go-mod }}
+          key: go-mod-${{ runner.os }}-${{ hashFiles('go.sum') }}
+
+      - name: Save Rust output cache
+        if: github.event_name == 'push' && steps.rust-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v5
+        with:
+          path: |
+            web/packages/shared/libs/ironrdp/pkg
+            target/x86_64-unknown-linux-gnu/release/librdp_client.a
+            lib/srv/desktop/rdp/rdpclient/librdpclient.h
+          key:
+            rust-output-${{ runner.os }}-${{ hashFiles('Cargo.lock', 'Cargo.toml', '**/Cargo.toml', 'Makefile', 'build.assets/Makefile',
+            'build.assets/versions.mk', 'rust-toolchain.toml', 'lib/srv/desktop/rdp/rdpclient/**/*.rs', 'lib/srv/desktop/rdp/decoder/**/*.rs',
+            'crates/**/*.rs', 'web/packages/shared/libs/ironrdp/**/*.rs') }}
