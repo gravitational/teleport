@@ -153,8 +153,8 @@ func updateExistingIntegration(ctx context.Context, client *authclient.Client, e
 		existingIntegration.SetAWSOIDCIntegrationSpec(integration.GetAWSOIDCIntegrationSpec())
 	case types.IntegrationSubKindGitHub:
 		existingIntegration.SetGitHubIntegrationSpec(integration.GetGitHubIntegrationSpec())
-		if integration.GetCredentials() != nil {
-			if err := existingIntegration.SetCredentials(integration.GetCredentials()); err != nil {
+		if creds := integration.GetCredentials(); creds != nil {
+			if err := existingIntegration.SetCredentials(creds); err != nil {
 				return trace.Wrap(err)
 			}
 		}
