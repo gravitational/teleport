@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 )
 
 func (process *TeleportProcess) initKubernetes() {
@@ -246,6 +247,7 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	tlsConfig.NextProtos = []string{string(common.ProtocolKube), string(common.ProtocolHTTP2), string(common.ProtocolHTTP)}
 
 	// asyncEmitter makes sure that sessions do not block
 	// in case if connections are slow
