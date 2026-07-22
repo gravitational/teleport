@@ -8219,6 +8219,7 @@ func (a *Server) isMFARequired(ctx context.Context, scopedCtx *authz.ScopedConte
 				return nil, trace.Wrap(err)
 			}
 			app = server.GetApp()
+			// Make sure we only return the app with the matching scope.
 			if server.GetScope() != t.App.Scope {
 				continue
 			}
