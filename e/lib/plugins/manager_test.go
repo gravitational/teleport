@@ -23,6 +23,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/services"
 	"github.com/gravitational/teleport/integrations/lib/testing/integration"
 	"github.com/gravitational/teleport/lib/auth"
+	integrationcred "github.com/gravitational/teleport/lib/auth/integration/credentials"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/cloud/imds"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
@@ -119,6 +120,37 @@ func TestPluginManagerStartStopOAuth(t *testing.T) {
 	}
 	plugin := createSlackPlugin(t, "slack-default").(*types.PluginV1)
 	testPluginStartStop(t, plugin, modifySpec)
+}
+
+func TestDispatchIgnoresIntegrationCredentials(t *testing.T) {
+	t.Parallel()
+
+	m := &Manager{
+		log: slog.With("test", t.Name()),
+	}
+
+	cred, err := types.NewPluginStaticCredentials(
+		types.Metadata{
+			Name: "integration-cred",
+		},
+		types.PluginStaticCredentialsSpecV1{
+			Credentials: &types.PluginStaticCredentialsSpecV1_OAuthClientSecret{
+				OAuthClientSecret: &types.PluginStaticCredentialsOAuthClientSecret{
+					ClientId:     "id",
+					ClientSecret: "secret",
+				},
+			},
+		},
+	)
+	require.NoError(t, err)
+
+	integrationcred.CopyRefLabels(cred, integrationcred.NewRef())
+
+	err = m.dispatchPluginStaticCredentialsEvent(t.Context(), types.Event{
+		Type:     types.OpPut,
+		Resource: cred,
+	})
+	require.NoError(t, err)
 }
 
 func TestPluginManagerStartStopStaticCreds(t *testing.T) {

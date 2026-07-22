@@ -18,6 +18,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/plugins/instance"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	teleclient "github.com/gravitational/teleport/integrations/access/common/teleport"
+	integrationcred "github.com/gravitational/teleport/lib/auth/integration/credentials"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -356,6 +357,12 @@ func (m *Manager) dispatchPluginStaticCredentialsEvent(ctx context.Context, e ty
 
 	pluginCredentialID, ok := updatedCredential.GetLabel(eteleport.PluginLabel)
 	if !ok {
+		// Integration credentials (e.g. GitHub OAuth) use the same resource
+		// type but are not associated with a plugin.
+		if _, isIntegration := updatedCredential.GetLabel(integrationcred.LabelStaticCredentialsIntegration); isIntegration {
+			log.DebugContext(ctx, "Skipping credential update for integration credentials")
+			return nil
+		}
 		return trace.BadParameter("credential missing plugin label")
 	}
 
