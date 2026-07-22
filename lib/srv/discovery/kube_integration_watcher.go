@@ -67,8 +67,8 @@ func (s *Server) startKubeIntegrationWatchers() error {
 	}
 	proxyPublicAddr := pingResponse.GetProxyPublicAddr()
 
-	var versionGetter version.Getter
-	if proxyPublicAddr == "" {
+	versionGetter := s.kubeAgentVersionGetter
+	if versionGetter == nil && proxyPublicAddr == "" {
 		// If there are no proxy services running, we might fail to get the proxy URL and build a client.
 		// In this case we "gracefully" fallback to our own version.
 		// This is not supposed to happen outside of tests as the discovery service must join via a proxy.
@@ -79,7 +79,7 @@ func (s *Server) startKubeIntegrationWatchers() error {
 		if err != nil {
 			return trace.BadParameter("Cannot parse Teleport's self version %q, this is a bug", teleport.Version)
 		}
-	} else {
+	} else if versionGetter == nil {
 		versionGetter, err = versionGetterForProxy(s.ctx, proxyPublicAddr)
 		if err != nil {
 			s.Log.WarnContext(s.ctx,
