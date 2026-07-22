@@ -3084,6 +3084,8 @@ type AppTestCertRequest struct {
 	PinnedIP string
 	// LoginTrait is the login to include in the cert
 	LoginTrait string
+	// Scope is the optional scope of the target application to encode in the route.
+	Scope string
 }
 
 // GenerateUserAppTestCert generates an application specific certificate, used
@@ -3129,6 +3131,7 @@ func (a *Server) GenerateUserAppTestCert(req AppTestCertRequest) ([]byte, error)
 		// Add in the application routing information.
 		AppSessionID:      sessionID,
 		AppPublicAddr:     req.PublicAddr,
+		TargetScope:       req.Scope,
 		AppTargetPort:     req.TargetPort,
 		AppClusterName:    req.ClusterName,
 		AWSRoleARN:        req.AWSRoleARN,
@@ -4037,6 +4040,7 @@ func generateCert(ctx context.Context, a *Server, req cert.Request, caType types
 			PublicAddr:                      req.AppPublicAddr,
 			ClusterName:                     req.AppClusterName,
 			Name:                            req.AppName,
+			Scope:                           req.TargetScope,
 			AWSRoleARN:                      req.AWSRoleARN,
 			AWSCredentialProcessCredentials: awsCredentialProcessCredentials,
 			AzureIdentity:                   req.AzureIdentity,

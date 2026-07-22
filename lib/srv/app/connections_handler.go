@@ -592,6 +592,11 @@ func (c *ConnectionsHandler) authorizeContext(ctx context.Context) (*srv.ScopedS
 		return nil, nil, trace.Wrap(err)
 	}
 
+	if identity.RouteToApp.Scope != app.GetScope() {
+		return nil, nil, trace.AccessDenied("certificate app scope %q does not match application scope %q",
+			identity.RouteToApp.Scope, app.GetScope())
+	}
+
 	// When accessing AWS management console, check permissions to assume
 	// requested IAM role as well.
 	var matchers []services.RoleMatcher

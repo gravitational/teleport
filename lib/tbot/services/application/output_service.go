@@ -239,6 +239,7 @@ func getRouteToApp(
 		Name:        app.GetName(),
 		PublicAddr:  app.GetPublicAddr(),
 		ClusterName: botIdentity.ClusterName,
+		Scope:       app.GetScope(),
 	}
 
 	return routeToApp, app, nil

@@ -1045,6 +1045,7 @@ func (a *AuthCommand) generateUserKeys(ctx context.Context, clusterAPI certifica
 			PublicAddr:  server.GetApp().GetPublicAddr(),
 			ClusterName: a.leafCluster,
 			URI:         server.GetApp().GetURI(),
+			Scope:       server.GetApp().GetScope(),
 		}
 
 		certUsage = proto.UserCertsRequest_App
