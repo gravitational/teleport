@@ -109,11 +109,25 @@ jobs:
         run: |
           corepack enable pnpm
 
+      - name: Install retry from GitHub Release
+        uses: gravitational/shared-workflows/.github/actions/install-gh-release@41eefbdab5c67d8e0169730e999f73cd315a8cb5
+        with:
+          tool-name: retry
+          version: v0.0.2
+          tag-prefix: tools/retry/
+
       # Rust toolchain is used to build Teleport Connect but not Teleport itself.
       # This step is needed to ensure that the toolchain is configured to the correct version for consistency.
       - name: Install Rust Toolchain
         run: |
           make ARCH="${ARCH}" RUST_VERSION="${RUST_VERSION}" rustup-set-version
+
+      # Go toolchain is only used to run release tooling and not to build Teleport itself.
+      - name: Install Go Toolchain
+        uses: actions/setup-go@v6
+        with:
+          cache: false
+          go-version-file: go.mod
 
       - name: Install wasm-pack
         run: make ensure-wasm-deps
@@ -197,7 +211,10 @@ jobs:
           # Make CONNECT_TSH_APP_PATH override CONNECT_TSH_BIN_PATH by unsetting
           # the latter if the former is set (by the previous step).
           [ -n "${CONNECT_TSH_APP_PATH:-}" ] && unset CONNECT_TSH_BIN_PATH
-          make release-connect ARCH=universal ${TELEPORT_VERSION:+VERSION=${TELEPORT_VERSION}}
+          # This will retry in an attempt to resolve mac notarization errors which is the most common error when building connect.
+          # However, some build issues will never succeed after a retry and this could cause unecessarily longer build times in those cases.
+          # If needed we can tune the retries to a lower value or find a more targetted solution that only reruns the notarization itself.
+          retry --retries 3 --initial 30s -- make release-connect ARCH=universal ${TELEPORT_VERSION:+VERSION=${TELEPORT_VERSION}}
 
       # --- Upload ------------------------------------------------------------
       # Generate release server manifests
