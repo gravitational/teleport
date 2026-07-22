@@ -139,6 +139,21 @@ export const llmOpenAIApp = makeApp({
   clusterId: 'one',
 });
 
+export const llmOpenAIBedrockApp = makeApp({
+  name: 'openai-bedrock',
+  subKind: 'llm',
+  description: 'OpenAI endpoint served by Amazon Bedrock',
+  uri: 'llm://',
+  publicAddr: 'openai-bedrock.teleport.example.com',
+  fqdn: 'openai-bedrock.teleport.example.com',
+  llm: { format: 'openai', provider: 'bedrock' },
+  labels: [
+    { name: 'env', value: 'prod' },
+    { name: 'cluster', value: 'one' },
+  ],
+  clusterId: 'one',
+});
+
 export const tlsApp = makeApp({
   name: 'tls-grpc-app',
   uri: 'tls://localhost:9443',
