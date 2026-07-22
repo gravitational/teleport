@@ -71,6 +71,8 @@ func (m *mockTrustBundleCache) GetBundleSet(ctx context.Context) (*workloadident
 }
 
 func newTestSVID(t *testing.T, ca *tlsca.CertAuthority, spiffeID string) (certDER []byte, key crypto.Signer) {
+	t.Helper()
+
 	id, err := spiffeid.FromString(spiffeID)
 	require.NoError(t, err)
 
@@ -103,16 +105,15 @@ func newTestSVID(t *testing.T, ca *tlsca.CertAuthority, spiffeID string) (certDE
 }
 
 func newTestSVIDPEM(t *testing.T, ca *tlsca.CertAuthority, spiffeID string) ([]byte, []byte) {
-	// Borrowed from beam's credentials_test with mild adaptations.
 	t.Helper()
 
 	certDER, key := newTestSVID(t, ca, spiffeID)
 
-	cert, err := x509.ParseCertificate(certDER)
-	require.NoError(t, err)
-
-	certPEM, err := tlsca.MarshalCertificatePEM(cert)
-	require.NoError(t, err)
+	certPEM := pem.EncodeToMemory(&pem.Block{
+		Type:  internal.PEMBlockTypeCertificate,
+		Bytes: certDER,
+	})
+	require.NotNil(t, certPEM)
 
 	keyPEM, err := keys.MarshalPrivateKey(key)
 	require.NoError(t, err)
@@ -464,7 +465,7 @@ func TestNewTLSV3Certificate_PreservesCertChain(t *testing.T) {
 			rootPool := x509.NewCertPool()
 			rootPool.AddCert(root)
 
-			any, err := newTLSV3Certificate(&workloadpb.X509SVID{
+			rawSecret, err := newTLSV3Certificate(&workloadpb.X509SVID{
 				SpiffeId:    spiffeID,
 				X509Svid:    chainDER,
 				X509SvidKey: keyDER,
@@ -472,7 +473,7 @@ func TestNewTLSV3Certificate_PreservesCertChain(t *testing.T) {
 			require.NoError(t, err)
 
 			secret := &tlsv3pb.Secret{}
-			require.NoError(t, any.UnmarshalTo(secret))
+			require.NoError(t, rawSecret.UnmarshalTo(secret))
 			require.Equal(t, spiffeID, secret.Name)
 
 			tlsCert := secret.GetTlsCertificate()
@@ -483,7 +484,8 @@ func TestNewTLSV3Certificate_PreservesCertChain(t *testing.T) {
 			chainBytes := tlsCert.GetCertificateChain().GetInlineBytes()
 			i := 0
 			for {
-				block, remainder := pem.Decode(chainBytes)
+				var block *pem.Block
+				block, chainBytes = pem.Decode(chainBytes)
 				if block == nil {
 					break
 				}
@@ -499,15 +501,14 @@ func TestNewTLSV3Certificate_PreservesCertChain(t *testing.T) {
 				}
 
 				certs = append(certs, cert)
-				chainBytes = remainder
 				i++
 			}
 
-			leaf := certs[0]
-
 			// Should be count+1 (the leaf)
-			require.Empty(t, chainBytes, "all chain bytes should be consumed")
 			require.Len(t, certs, intermediateCount+1, "full chain should be parsed")
+			require.Empty(t, chainBytes, "all chain bytes should be consumed")
+
+			leaf := certs[0]
 			require.Equal(t, spiffeID, leaf.URIs[0].String(), "svid leaf should be first")
 
 			_, err = leaf.Verify(x509.VerifyOptions{
