@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/autoupdate"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/packaging"
+	"github.com/gravitational/teleport/lib/utils/progressbar"
 )
 
 const (
@@ -552,21 +553,31 @@ func (u *Updater) downloadArchive(ctx context.Context, url string, f io.Writer) 
 	if resp.StatusCode != http.StatusOK {
 		return nil, trace.BadParameter("bad status when downloading archive: %v", resp.StatusCode)
 	}
-	pw, finish := newProgressWriter(10)
-	defer finish()
-
 	if resp.ContentLength != -1 {
 		if err := checkFreeSpace(u.toolsDir, uint64(resp.ContentLength)); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
+
+	bar := progressbar.New(resp.ContentLength, "Update progress (Ctrl-C to cancel update)", os.Stdout)
+
 	h := sha256.New()
 	// It is a little inefficient to download the file to disk and then re-load
 	// it into memory to unarchive later, but this is safer as it allows client
 	// tools to validate the hash before trying to operate on the archive.
-	if _, err := pw.CopyLimit(f, io.TeeReader(resp.Body, h), resp.ContentLength); err != nil {
+	dst := io.MultiWriter(f, h, bar)
+	if resp.ContentLength < 0 {
+		_, err = io.Copy(dst, resp.Body)
+	} else {
+		_, err = io.CopyN(dst, resp.Body, resp.ContentLength)
+	}
+	if err != nil {
+		// Finish on a partial line so later output starts fresh, but don't
+		// fill the bar: the download was interrupted, not completed.
+		fmt.Fprintln(os.Stdout)
 		return nil, trace.Wrap(err)
 	}
 
+	bar.Finish()
 	return h.Sum(nil), nil
 }
