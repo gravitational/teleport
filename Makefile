@@ -954,6 +954,13 @@ docs-test-whitespace:
 	fi
 
 #
+# Check the config reference documentation examples for possible coverage gaps
+#
+.PHONY: docs-check-config-coverage
+docs-check-config-coverage:
+	cd build.assets/tooling/cmd/config-doc-check && go run . -config config.yaml
+
+#
 # Builds some tooling for filtering and displaying test progress/output/etc
 #
 # Deprecated: Use gotestsum instead.

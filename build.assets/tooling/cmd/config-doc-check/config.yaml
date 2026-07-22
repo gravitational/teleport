@@ -1,0 +1,50 @@
+source_path: "../../../../"
+service_sections:
+  - name: Instance-wide settings
+    example_path: docs/pages/includes/config-reference/instance-wide.yaml
+    section_key: teleport
+    type_name: Global
+  - name: Auth Service
+    example_path: docs/pages/includes/config-reference/auth-service.yaml
+    section_key: auth_service
+    type_name: Auth
+  - name: SSH Service
+    example_path: docs/pages/includes/config-reference/ssh-service.yaml
+    section_key: ssh_service
+    type_name: SSH
+  - name: Proxy Service
+    example_path: docs/pages/includes/config-reference/proxy-service.yaml
+    section_key: proxy_service
+    type_name: Proxy
+  - name: Kubernetes Service
+    example_path: docs/pages/includes/config-reference/kubernetes-config.yaml
+    section_key: kubernetes_service
+    type_name: Kube
+  - name: Application Service
+    example_path: docs/pages/includes/config-reference/app-service.yaml
+    section_key: app_service
+    type_name: Apps
+  - name: Database Service
+    example_path: docs/pages/includes/config-reference/database-config.yaml
+    section_key: db_service
+    type_name: Databases
+  - name: Discovery Service
+    example_path: docs/pages/includes/discovery/discovery-config.yaml
+    section_key: discovery_service
+    type_name: Discovery
+  - name: Windows Desktop Service
+    example_path: docs/pages/includes/config-reference/desktop-config.yaml
+    section_key: windows_desktop_service
+    type_name: WindowsDesktopService
+  - name: Jamf Service
+    example_path: docs/pages/includes/config-reference/jamf-service.yaml
+    section_key: jamf_service
+    type_name: JamfService
+  - name: Relay Service
+    example_path: docs/pages/includes/config-reference/relay-service.yaml
+    section_key: relay_service
+    type_name: Relay
+  - name: Debug Service
+    example_path: docs/pages/includes/config-reference/debug-service.yaml
+    section_key: debug_service
+    type_name: DebugService
