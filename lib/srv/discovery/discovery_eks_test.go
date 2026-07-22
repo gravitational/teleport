@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/client/proto"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
+	kubev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
@@ -397,11 +398,11 @@ func (m *mockAuthServer) GetKubernetesClusters(ctx context.Context) ([]types.Kub
 	return nil, nil
 }
 
-func (m *mockAuthServer) ListKubernetesClusters(ctx context.Context, limit int, start string) ([]types.KubeCluster, string, error) {
+func (m *mockAuthServer) ListKubeClusters(ctx context.Context, req *kubev1.ListKubeClustersRequest) ([]types.KubeCluster, string, error) {
 	return nil, "", nil
 }
 
-func (m *mockAuthServer) RangeKubernetesClusters(ctx context.Context, start, end string) iter.Seq2[types.KubeCluster, error] {
+func (m *mockAuthServer) RangeKubeClusters(ctx context.Context, req *kubev1.ListKubeClustersRequest, start, end string) iter.Seq2[types.KubeCluster, error] {
 	return func(yield func(types.KubeCluster, error) bool) {}
 }
 
