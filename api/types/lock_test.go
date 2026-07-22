@@ -17,6 +17,7 @@ limitations under the License.
 package types
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -70,4 +71,29 @@ func TestLockTargetMatch(t *testing.T) {
 	// Empty target should match no lock.
 	emptyTarget := LockTarget{}
 	require.False(t, emptyTarget.Match(lock))
+}
+
+func TestLockTargetIsSimple(t *testing.T) {
+	ty := reflect.TypeFor[LockTarget]()
+	for f := range ty.Fields() {
+		// A struct embedded by value that is also "simple" in this sense would
+		// work too, so if we need something like that we can extend this check.
+		// Arrays (of likewise "simple" types) would also work but outside of
+		// nasty gogoproto shenanigans (which we should not make use of) it's
+		// not possible to have an array in a protobuf message struct, so it's a
+		// moot point. Pointers are a no-no, since they are compared by address
+		// rather than by checking the value that they point to.
+		require.Containsf(t, []reflect.Kind{
+			reflect.Bool,
+			reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+			reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64,
+			reflect.Uintptr,
+			reflect.Float32, reflect.Float64, reflect.Complex64, reflect.Complex128,
+			reflect.String,
+		}, f.Type.Kind(), "field %+q (%#d) is not of a scalar kind (%s)", f.Name, f.Index[0], f.Type.Kind())
+		require.NotEqualf(t, "_", f.Name, "field %+q (#%d) is padding", f.Name, f.Index[0])
+		require.Truef(t, f.IsExported(), "field %+q (#%d) is unexported", f.Name, f.Index[0])
+		// embedding scalar newtypes is weird but technically possible
+		require.Falsef(t, f.Anonymous, "field %+q (#%d) is embedded", f.Name, f.Index[0])
+	}
 }
