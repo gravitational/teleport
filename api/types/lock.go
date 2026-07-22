@@ -263,8 +263,10 @@ func (t *LockTarget) FromMap(m map[string]string) error {
 	return trace.Wrap(utils.ObjectToStruct(m, t))
 }
 
-// this asserts that LockTarget hasn't been made non-comparable accidentally
-var _ map[LockTarget]struct{}
+func _() {
+	type assertComparable[T comparable] struct{}
+	var _ assertComparable[LockTarget]
+}
 
 // Match returns true if the lock's target is matched by this target.
 func (t LockTarget) Match(lock Lock) bool {
