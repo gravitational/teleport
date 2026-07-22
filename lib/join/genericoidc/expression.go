@@ -35,7 +35,7 @@ type Environment struct {
 	Claims map[string]any
 }
 
-var booleanExpressionParser = func() *typical.Parser[*Environment, any] {
+var booleanExpressionParser = func() *typical.Parser[*Environment, bool] {
 	spec := expression.DefaultParserSpec[*Environment]()
 	spec.GetUnknownIdentifier = func(env *Environment, fields []string) (any, error) {
 		if len(fields) == 0 {
@@ -67,7 +67,7 @@ var booleanExpressionParser = func() *typical.Parser[*Environment, any] {
 			}),
 	})
 
-	parser, err := typical.NewParser[*Environment, any](spec)
+	parser, err := typical.NewParser[*Environment, bool](spec)
 	if err != nil {
 		panic(fmt.Sprintf("failed to construct parser: %v", err))
 	}
@@ -114,9 +114,5 @@ func evaluateExpression(expr string, env *Environment) (bool, error) {
 		return false, trace.Wrap(err, "evaluating expression: %s", expr)
 	}
 
-	if result, ok := rsp.(bool); ok {
-		return result, nil
-	}
-
-	return false, trace.Errorf("expression evaluated to %T instead of boolean: %s", rsp, expr)
+	return rsp, nil
 }
