@@ -62,14 +62,11 @@ func (c *RoleCache) GetScopedRole(ctx context.Context, req *scopedaccessv1.GetSc
 		return nil, trace.BadParameter("missing scoped role name in get request")
 	}
 
-	role, ok := c.cache.Get(req.GetName())
+	role, ok := c.cache.Get(cache.ScopedKey[string]{
+		Scope: req.GetScope(),
+		Key:   req.GetName(),
+	})
 	if !ok {
-		return nil, trace.NotFound("scoped role %q not found", req.GetName())
-	}
-
-	// emulate namespace-like behavior by treating mismatched scopes as NotFound (prep for the transition
-	// to true namespacing).
-	if scopes.Compare(req.GetScope(), role.GetScope()) != scopes.Equivalent {
 		return nil, trace.NotFound("scoped role %q not found in scope %q", req.GetName(), req.GetScope())
 	}
 
@@ -152,7 +149,10 @@ func (c *RoleCache) Put(role *scopedaccessv1.ScopedRole) error {
 	return nil
 }
 
-// Delete removes a role from the cache by name.
-func (c *RoleCache) Delete(name string) {
-	c.cache.Del(name)
+// Delete removes a role from the cache by its scope-qualified name.
+func (c *RoleCache) Delete(role scopes.QualifiedName) {
+	c.cache.Del(cache.ScopedKey[string]{
+		Scope: role.Scope,
+		Key:   role.Name,
+	})
 }

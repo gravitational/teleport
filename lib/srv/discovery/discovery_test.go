@@ -2949,6 +2949,7 @@ func TestDiscoveryDatabase(t *testing.T) {
 						},
 						gcpClients:                tc.gcpClients,
 						ClusterFeatures:           func() proto.Features { return proto.Features{} },
+						kubeAgentVersionGetter:    staticKubeAgentVersionGetter(t),
 						KubernetesClient:          fake.NewClientset(),
 						AccessPoint:               getDiscoveryAccessPointWithEKSEnroller(tlsServer.Auth(), authClient, noopEKSEnroller),
 						AWSDatabaseFetcherFactory: dbFetcherFactory,
