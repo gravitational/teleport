@@ -263,7 +263,7 @@ func TestValidateOktaImportRuleRegexes(t *testing.T) {
 					},
 				},
 			},
-			wantErr: func(t require.TestingT, err error, i ...interface{}) {
+			wantErr: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "error parsing regexp")
 			},
 		},
@@ -281,7 +281,7 @@ func TestValidateOktaImportRuleRegexes(t *testing.T) {
 					},
 				},
 			},
-			wantErr: func(t require.TestingT, err error, i ...interface{}) {
+			wantErr: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "error parsing regexp")
 			},
 		},
@@ -403,7 +403,8 @@ func TestOktaAssignmentCRUD(t *testing.T) {
 
 	// Fail to update the status because not enough time has passed.
 	err = service.UpdateOktaAssignmentStatus(ctx, assignment1.GetName(), constants.OktaAssignmentStatusPending, time.Hour)
-	require.ErrorIs(t, err, trace.BadParameter("only 0s has passed since last transition"))
+	require.ErrorContains(t, err, "only 0s has passed since last transition")
+	require.True(t, trace.IsBadParameter(err))
 
 	// Successfully update the status for an assignment.
 	require.NoError(t, assignment1.SetStatus(constants.OktaAssignmentStatusSuccessful))
@@ -428,6 +429,17 @@ func TestOktaAssignmentCRUD(t *testing.T) {
 	// Try to delete an assignment that doesn't exist.
 	err = service.DeleteOktaAssignment(ctx, "doesnotexist")
 	require.True(t, trace.IsNotFound(err), "expected not found error, got %v", err)
+
+	// Create a new assignment.
+	assignment, err = service.CreateOktaAssignment(ctx, oktaAssignment(t, "assignment3", "test-user@test.user", constants.OktaAssignmentStatusProcessing, clock.Now()))
+	require.NoError(t, err)
+
+	// Conditionally delete assignment.
+	require.NoError(t, service.ConditionalDeleteOktaAssignment(ctx, assignment.GetName(), assignment.GetRevision()))
+
+	// Verify assignment deleted.
+	_, err = service.GetOktaAssignment(ctx, assignment.GetName())
+	require.ErrorAs(t, err, new(*trace.NotFoundError))
 
 	// Delete all assignments.
 	err = service.DeleteAllOktaAssignments(ctx)
@@ -457,7 +469,6 @@ func oktaAssignment(t *testing.T, name, username, status string, lastTransition 
 
 func oktaTarget(t *testing.T, targetType types.OktaAssignmentTargetV1_OktaAssignmentTargetType,
 	id string) *types.OktaAssignmentTargetV1 {
-
 	target := &types.OktaAssignmentTargetV1{
 		Type: targetType,
 		Id:   id,

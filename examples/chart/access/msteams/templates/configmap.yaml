@@ -11,10 +11,10 @@ metadata:
 data:
   teleport-msteams.toml: |
     preload = true
-    
+
     [teleport]
-    addr = "{{ .Values.teleport.address }}"
-    identity = "/var/lib/teleport/plugins/msteams/teleport-identity/{{ .Values.teleport.identitySecretPath }}"
+    addr = {{ default "" (coalesce .Values.teleport.address .Values.tbot.teleportProxyAddress .Values.tbot.teleportAuthAddress) | quote }}
+    identity = "/var/lib/teleport/plugins/msteams/teleport-identity/{{ include "msteams.identitySecretPath" . }}"
     refresh_identity = true
 
     [msapi]

@@ -20,7 +20,10 @@ package srv
 
 import (
 	"bufio"
+	"context"
+	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/exec"
 	"os/user"
@@ -29,10 +32,9 @@ import (
 	"strings"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/host"
+	"github.com/gravitational/teleport/session/host"
 )
 
 // HostUsersProvisioningBackend is used to implement HostUsersBackend
@@ -50,7 +52,7 @@ type HostSudoersProvisioningBackend struct {
 // newHostUsersBackend initializes a new OS specific HostUsersBackend
 func newHostUsersBackend() (HostUsersBackend, error) {
 	var missing []string
-	for _, requiredBin := range []string{"usermod", "useradd", "getent", "groupadd", "visudo"} {
+	for _, requiredBin := range []string{"usermod", "useradd", "getent", "groupadd", "visudo", "chage"} {
 		if _, err := exec.LookPath(requiredBin); err != nil {
 			missing = append(missing, requiredBin)
 		}
@@ -72,7 +74,16 @@ func newHostSudoersBackend(uuid string) (HostSudoersBackend, error) {
 
 // Lookup implements host user information lookup
 func (*HostUsersProvisioningBackend) Lookup(username string) (*user.User, error) {
-	return user.Lookup(username)
+	usr, err := user.Lookup(username)
+	if err != nil {
+		if !errors.Is(err, user.UnknownUserError(username)) && strings.Contains(err.Error(), "no such file or directory") {
+			return nil, trace.Wrap(err, "looking up user %q, sources configured for passwd in host's /etc/nsswitch.conf may be misconfigured", username)
+		}
+
+		return nil, trace.Wrap(err)
+	}
+
+	return usr, nil
 }
 
 // UserGIDs returns the list of group IDs for a user
@@ -90,9 +101,9 @@ func (*HostUsersProvisioningBackend) LookupGroupByID(gid string) (*user.Group, e
 	return user.LookupGroupId(gid)
 }
 
-// SetUserGroups sets a user's groups, replacing their existing groups.
-func (*HostUsersProvisioningBackend) SetUserGroups(name string, groups []string) error {
-	_, err := host.SetUserGroups(name, groups)
+// UpdateUser sets a user's groups and default shell, replacing their existing groups.
+func (*HostUsersProvisioningBackend) UpdateUser(name string, groups []string, defaultShell string) error {
+	_, err := host.UserUpdate(name, groups, defaultShell)
 	return trace.Wrap(err)
 }
 
@@ -102,6 +113,21 @@ func (*HostUsersProvisioningBackend) GetAllUsers() ([]string, error) {
 	return users, err
 }
 
+// IsUsingShell returns whether or not the given user is already using the given shell.
+func (*HostUsersProvisioningBackend) IsUsingShell(username, shell string) (bool, error) {
+	currentShell, err := host.UserShell(username)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+
+	shellPath, err := exec.LookPath(shell)
+	if err != nil {
+		return false, trace.WrapWithMessage(err, "could not find path for shell %q", shell)
+	}
+
+	return shellPath == currentShell, nil
+}
+
 // CreateGroup creates a group on a host
 func (*HostUsersProvisioningBackend) CreateGroup(name string, gid string) error {
 	_, err := host.GroupAdd(name, gid)
@@ -109,8 +135,8 @@ func (*HostUsersProvisioningBackend) CreateGroup(name string, gid string) error 
 }
 
 // CreateUser creates a user on a host
-func (*HostUsersProvisioningBackend) CreateUser(name string, groups []string, home, uid, gid string) error {
-	_, err := host.UserAdd(name, groups, home, uid, gid)
+func (*HostUsersProvisioningBackend) CreateUser(name string, groups []string, opts host.UserOpts) error {
+	_, err := host.UserAdd(name, groups, opts)
 	return trace.Wrap(err)
 }
 
@@ -176,9 +202,10 @@ func (u *HostSudoersProvisioningBackend) RemoveSudoersFile(username string) erro
 	fileUsername := sanitizeSudoersName(username)
 	sudoersFilePath := filepath.Join(u.SudoersPath, fmt.Sprintf("teleport-%s-%s", u.HostUUID, fileUsername))
 	if _, err := os.Stat(sudoersFilePath); os.IsNotExist(err) {
-		log.Debugf("User %q, did not have sudoers file as it did not exist at path %q",
-			username,
-			sudoersFilePath)
+		slog.DebugContext(context.Background(), "No sudoers file present to remove",
+			"user", username,
+			"sudoers_path", sudoersFilePath,
+		)
 		return nil
 	}
 	return trace.Wrap(os.Remove(sudoersFilePath))
@@ -211,16 +238,16 @@ func readDefaultKey(key string, defaultValue string) (string, error) {
 	return defaultValue, nil
 }
 
-// readDefaultHome reads /etc/default/useradd for the HOME key,
+// GetDefaultHomeDirectory reads /etc/default/useradd for the HOME key,
 // defaulting to "/home" and join it with the user for the user
 // home directory
-func readDefaultHome(user string) (string, error) {
+func (u *HostUsersProvisioningBackend) GetDefaultHomeDirectory(user string) (string, error) {
 	const defaultHome = "/home"
 	home, err := readDefaultKey("HOME", defaultHome)
 	return filepath.Join(home, user), trace.Wrap(err)
 }
 
-// readDefaultHome reads /etc/default/useradd for the SKEL key, defaulting to "/etc/skel"
+// readDefaultSkel reads /etc/default/useradd for the SKEL key, defaulting to "/etc/skel"
 func readDefaultSkel() (string, error) {
 	const defaultSkel = "/etc/skel"
 	skel, err := readDefaultKey("SKEL", defaultSkel)
@@ -239,10 +266,7 @@ func (u *HostUsersProvisioningBackend) CreateHomeDirectory(userHome, uidS, gidS 
 
 	err = os.Mkdir(userHome, 0o700)
 	if err != nil {
-		if os.IsExist(err) {
-			return nil
-		}
-		return trace.Wrap(err)
+		return trace.ConvertSystemError(err)
 	}
 
 	skelDir, err := readDefaultSkel()
@@ -252,7 +276,7 @@ func (u *HostUsersProvisioningBackend) CreateHomeDirectory(userHome, uidS, gidS 
 
 	_, err = os.Stat(skelDir)
 	if err != nil && !os.IsNotExist(err) {
-		return trace.Wrap(err)
+		return trace.ConvertSystemError(err)
 	}
 
 	if !os.IsNotExist(err) {
@@ -275,4 +299,9 @@ func (u *HostUsersProvisioningBackend) CreateHomeDirectory(userHome, uidS, gidS 
 	}
 
 	return nil
+}
+
+func (u *HostUsersProvisioningBackend) RemoveExpirations(username string) error {
+	_, err := host.RemoveUserExpirations(username)
+	return trace.Wrap(err)
 }

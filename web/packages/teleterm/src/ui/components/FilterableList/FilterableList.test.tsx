@@ -16,8 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { screen, within } from '@testing-library/react';
+
 import { fireEvent, render } from 'design/utils/testing';
 
 import { FilterableList } from './FilterableList';
@@ -84,7 +84,7 @@ test('render empty list when search does not match any item', () => {
 });
 
 test('render provided placeholder in the search box', () => {
-  const placeholder = 'Search Connections';
+  const placeholder = 'Search connections';
   render(
     <FilterableList<TestItem>
       items={[]}

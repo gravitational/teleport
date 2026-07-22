@@ -1,10 +1,20 @@
 ---
 title: Automatic User Creation
 description: Using Automatic User Creation with Teleport desktop access.
+tags:
+ - conceptual
+ - zero-trust
+ - infrastructure-identity
+page_type: conceptual
 ---
 
 Teleport's Desktop Service can be configured to automatically create local
-Windows users upon login.
+Windows users upon login. This page describes the configuration options
+available for managing automatic user creation for Teleport-protected Windows
+desktops.
+
+This page describes the configuration options for automatic user creation on
+Teleport-protected Windows desktops.
 
 ## Configuration
 
@@ -68,13 +78,14 @@ spec:
 
 Teleport will never delete users that are created via automatic user
 provisioning. This ensures that the user's profile is preserved for future
-logins. The account will be disabled to ensures that it can only be accessed via Teleport.
+logins. The account will be disabled to ensure that it can only be accessed via Teleport.
 
 ## Stored credentials
 
-<Details title="Version Warning: Before 15.3">
+<details>
+<summary>Version Warning: Before 15.3</summary>
     Teleport versions prior to 15.3 don't support storing credentials.
-</Details>
+</details>
 
 You can store credentials for users created by Teleport using `Control Panel\User Accounts\Credential Manager` or
 using `cmdkey` CLI utility.

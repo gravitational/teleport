@@ -17,6 +17,8 @@
  */
 
 import { GrpcTransport } from '@protobuf-ts/grpc-transport';
+
+import { IAutoUpdateServiceClient } from 'gen-proto-ts/teleport/lib/teleterm/auto_update/v1/auto_update_service_pb.client';
 import {
   ITerminalServiceClient,
   TerminalServiceClient,
@@ -33,6 +35,8 @@ import { CloneableClient, cloneClient } from './cloneableClient';
 export type TshdClient = CloneableClient<ITerminalServiceClient>;
 
 export type VnetClient = CloneableClient<IVnetServiceClient>;
+
+export type AutoUpdateClient = CloneableClient<IAutoUpdateServiceClient>;
 
 export function createTshdClient(transport: GrpcTransport): TshdClient {
   return cloneClient(new TerminalServiceClient(transport));

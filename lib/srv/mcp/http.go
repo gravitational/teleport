@@ -1,0 +1,333 @@
+/*
+ * Teleport
+ * Copyright (C) 2025  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+package mcp
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"io"
+	"log"
+	"net"
+	"net/http"
+	"net/url"
+	"strings"
+	"time"
+
+	"github.com/gravitational/trace"
+	"github.com/mark3labs/mcp-go/mcp"
+
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
+	appcommon "github.com/gravitational/teleport/lib/srv/app/common"
+	"github.com/gravitational/teleport/lib/utils"
+	listenerutils "github.com/gravitational/teleport/lib/utils/listener"
+	"github.com/gravitational/teleport/lib/utils/mcputils"
+)
+
+const (
+	mcpSessionIDHeader = "Mcp-Session-Id"
+)
+
+func (*Server) serveHTTPConn(ctx context.Context, conn net.Conn, handler http.Handler) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	waitConn := utils.NewWaitConn(conn)
+	context.AfterFunc(ctx, func() { waitConn.Close() })
+
+	httpServer := &http.Server{
+		Handler:     handler,
+		BaseContext: func(net.Listener) context.Context { return ctx },
+		// Note: ReadTimeout/WriteTimeout *should not* be set here because it will break
+		// application access.
+		ReadHeaderTimeout: defaults.ReadHeadersTimeout,
+		IdleTimeout:       apidefaults.DefaultIdleTimeout,
+		ErrorLog:          log.Default(),
+	}
+
+	listener := listenerutils.NewSingleUseListener(waitConn)
+	if err := httpServer.Serve(listener); err != nil && !utils.IsOKNetworkError(err) {
+		return trace.Wrap(err)
+	}
+	waitConn.Wait()
+	return nil
+}
+
+func (s *Server) handleAuthErrHTTP(ctx context.Context, clientConn net.Conn, authErr error) error {
+	return trace.Wrap(s.serveHTTPConn(ctx, clientConn, http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		trace.WriteError(w, authErr)
+	})))
+}
+
+func (s *Server) handleStreamableHTTP(ctx context.Context, sessionCtx *SessionCtx) error {
+	session, err := s.getSessionHandlerWithJWT(ctx, sessionCtx)
+	if err != nil {
+		return trace.Wrap(err, "setting up session handler")
+	}
+	defer session.sessionAuditor.flush(s.cfg.ParentContext)
+
+	transport, err := s.makeStreamableHTTPTransport(ctx, session)
+	if err != nil {
+		return trace.Wrap(err, "setting up streamable http transport")
+	}
+
+	session.logger.DebugContext(ctx, "Started handling HTTP request")
+	defer session.logger.DebugContext(ctx, "Completed handling HTTP request")
+
+	delegate := reverseproxy.NewHeaderRewriter()
+	reverseProxy, err := reverseproxy.New(
+		reverseproxy.WithFlushInterval(100*time.Millisecond),
+		reverseproxy.WithRoundTripper(transport),
+		reverseproxy.WithLogger(session.logger),
+		reverseproxy.WithRewriter(appcommon.NewHeaderRewriter(delegate)),
+		reverseproxy.WithResponseModifier(func(resp *http.Response) error {
+			if resp.Request != nil {
+				// Nothing to modify for these.
+				if resp.Request.Method == http.MethodDelete ||
+					isWellKnownPath(resp.Request.URL.Path) {
+					return nil
+				}
+			}
+			return trace.Wrap(mcputils.ReplaceHTTPResponse(ctx, resp, newHTTPResponseReplacer(session)))
+		}),
+	)
+	if err != nil {
+		return trace.Wrap(err, "creating reverse proxy")
+	}
+
+	return trace.Wrap(s.serveHTTPConn(ctx, sessionCtx.ClientConn, reverseProxy))
+}
+
+func (s *Server) makeStreamableHTTPTransport(ctx context.Context, session *sessionHandler) (http.RoundTripper, error) {
+	targetURI, err := url.Parse(session.App.GetURI())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	targetURI.Scheme = strings.TrimPrefix(targetURI.Scheme, "mcp+")
+
+	targetTransport, err := s.makeBasicHTTPTransport(ctx, session.App)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &streamableHTTPTransport{
+		sessionHandler:  session,
+		targetURI:       targetURI,
+		targetTransport: targetTransport,
+	}, nil
+}
+
+type streamableHTTPTransport struct {
+	*sessionHandler
+	targetURI       *url.URL
+	targetTransport http.RoundTripper
+}
+
+func (t *streamableHTTPTransport) RoundTrip(r *http.Request) (*http.Response, error) {
+	t.setExternalSessionID(r.Header)
+
+	switch r.Method {
+	case http.MethodDelete:
+		return t.handleSessionEndRequest(r)
+	case http.MethodGet:
+		if isWellKnownPath(r.URL.Path) {
+			// TODO(greedy52) we don't send audit for this but we should add
+			// this to recording if we support recording one day.
+			t.logger.DebugContext(r.Context(), "Passthrough HTTP request", "path", r.URL.Path)
+			resp, err := t.rewriteAndSendRequest(r)
+			return resp, trace.Wrap(err)
+		}
+
+		return t.handleListenSSEStreamRequest(r)
+	case http.MethodPost:
+		return t.handleMCPMessage(r)
+
+	default:
+		t.emitInvalidHTTPRequest(t.parentCtx, r)
+
+		statusText := http.StatusText(http.StatusMethodNotAllowed)
+		return &http.Response{
+			Request:    r,
+			Status:     statusText,
+			StatusCode: http.StatusMethodNotAllowed,
+			Body:       io.NopCloser(bytes.NewReader(nil)), // Body must not be nil.
+		}, nil
+	}
+}
+
+func (t *streamableHTTPTransport) setExternalSessionID(header http.Header) {
+	if id := header.Get(mcpSessionIDHeader); id != "" {
+		t.updatePendingSessionStartEventWithExternalSessionID(id)
+	}
+}
+
+func (t *streamableHTTPTransport) rewriteAndSendRequest(r *http.Request) (*http.Response, error) {
+	r = r.Clone(r.Context())
+	r.URL.Scheme = t.targetURI.Scheme
+	r.URL.Host = t.targetURI.Host
+
+	// Defaults to the endpoint defined in the app if client is not providing it.
+	// By spec, streamable HTTP should use a single endpoint except the
+	// ".well-known" used for OAuth.
+	// https://modelcontextprotocol.io/specification/2025-06-18/basic/transports#streamable-http
+	if t.targetURI.Path != "" && (r.URL.Path == "" || r.URL.Path == "/") {
+		r.URL.Path = t.targetURI.Path
+	}
+
+	if err := t.rewriteHTTPRequestHeaders(r); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return t.targetTransport.RoundTrip(r)
+}
+
+func (t *streamableHTTPTransport) handleSessionEndRequest(r *http.Request) (*http.Response, error) {
+	resp, err := t.rewriteAndSendRequest(r)
+	t.emitEndEvent(t.parentCtx, eventWithHTTPResponseError(resp, err), eventWithHeader(r.Header))
+	return resp, trace.Wrap(err)
+}
+
+func (t *streamableHTTPTransport) handleListenSSEStreamRequest(r *http.Request) (*http.Response, error) {
+	resp, err := t.rewriteAndSendRequest(r)
+	t.emitListenSSEStreamEvent(t.parentCtx, eventWithHTTPResponseError(resp, err), eventWithHeader(r.Header))
+	return resp, trace.Wrap(err)
+}
+
+func (t *streamableHTTPTransport) handleMCPMessage(r *http.Request) (*http.Response, error) {
+	reqBody, err := utils.GetAndReplaceRequestBody(r)
+	if err != nil {
+		t.emitInvalidHTTPRequest(t.parentCtx, r)
+		return nil, trace.BadParameter("invalid request body %v", err)
+	}
+	reqBody, err = sanitizeRawMCPRequest(reqBody)
+	if err != nil {
+		t.emitInvalidHTTPRequest(t.parentCtx, r)
+		return nil, trace.BadParameter("invalid request body %v", err)
+	}
+	if err := utils.OverwriteRequestBody(r, reqBody); err != nil {
+		return nil, trace.Wrap(err, "overwriting request body with sanitized value")
+	}
+	var baseMessage mcputils.BaseJSONRPCMessage
+	if err := json.Unmarshal(reqBody, &baseMessage); err != nil {
+		t.emitInvalidHTTPRequest(t.parentCtx, r)
+		return nil, trace.BadParameter("invalid request body %v", err)
+	}
+
+	switch {
+	case baseMessage.IsRequest():
+		mcpRequest := baseMessage.MakeRequest()
+		errResp := t.sessionHandler.processClientRequest(r.Context(), mcpRequest)
+		if errResp != nil {
+			t.emitRequestEvent(t.parentCtx, mcpRequest, eventWithError(toError(*errResp)), eventWithHeader(r.Header))
+			return t.handleRequestError(r, *errResp)
+		}
+	case baseMessage.IsNotification():
+		t.sessionHandler.processClientNotification(r.Context(), baseMessage.MakeNotification())
+	default:
+		// Not sending it to the server if we don't understand it.
+		t.emitInvalidHTTPRequest(t.parentCtx, r)
+		return nil, trace.BadParameter("not a MCP request or notification")
+	}
+
+	resp, sendReqErr := t.rewriteAndSendRequest(r)
+	// Prefer session ID from server response if present. For example,
+	// "initialize" request does not have an ID but the server response may have
+	// it.
+	if resp != nil {
+		t.setExternalSessionID(resp.Header)
+	}
+
+	// Take care of audit events after round trip.
+	auditErr := convertHTTPResponseErrorForAudit(resp, sendReqErr)
+	switch {
+	case baseMessage.IsRequest():
+		mcpRequest := baseMessage.MakeRequest()
+		// Only emit session start if "initialize" succeeded.
+		if mcpRequest.Method == mcputils.MethodInitialize && auditErr == nil {
+			t.appendStartEvent(r.Context(), eventWithHeader(r.Header))
+		}
+		t.emitRequestEvent(t.parentCtx, mcpRequest, eventWithError(auditErr), eventWithHeader(r.Header))
+	case baseMessage.IsNotification():
+		t.emitNotificationEvent(r.Context(), baseMessage.MakeNotification(), eventWithError(auditErr), eventWithHeader(r.Header))
+	}
+	return resp, trace.Wrap(sendReqErr)
+}
+
+func (t *streamableHTTPTransport) handleRequestError(r *http.Request, errResp mcp.JSONRPCMessage) (*http.Response, error) {
+	errRespAsBody, err := json.Marshal(errResp)
+	if err != nil {
+		// Should not happen. If it does, we are failing the request either way.
+		return nil, trace.Wrap(err)
+	}
+
+	httpResp := &http.Response{
+		Request:    r,
+		StatusCode: http.StatusOK,
+		Body:       io.NopCloser(bytes.NewReader(errRespAsBody)),
+		Header:     make(http.Header),
+	}
+	httpResp.Header.Set("Content-Type", "application/json")
+	return httpResp, nil
+}
+
+func convertHTTPResponseErrorForAudit(resp *http.Response, err error) error {
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if resp == nil {
+		// Should not happen.
+		return trace.BadParameter("missing response")
+	}
+	if resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusBadRequest {
+		return nil
+	}
+	if resp.Status == "" {
+		return trace.Errorf("HTTP %d %s", resp.StatusCode, http.StatusText(resp.StatusCode))
+	}
+	return trace.Errorf("HTTP %s", resp.Status)
+}
+
+// streamableHTTPResponseReplacer is a wrapper of sessionHandler to satisfy
+// mcputils.ServerMessageProcessor.
+type streamableHTTPResponseReplacer struct {
+	*sessionHandler
+}
+
+func newHTTPResponseReplacer(sessionHandler *sessionHandler) *streamableHTTPResponseReplacer {
+	return &streamableHTTPResponseReplacer{
+		sessionHandler: sessionHandler,
+	}
+}
+
+func (p *streamableHTTPResponseReplacer) ProcessResponse(ctx context.Context, resp *mcputils.JSONRPCResponse) mcp.JSONRPCMessage {
+	method, response := p.processServerResponse(ctx, resp)
+	if method == mcputils.MethodInitialize {
+		p.sessionAuditor.updatePendingSessionStartEventWithInitializeResult(ctx, resp)
+	}
+	return response
+}
+func (p *streamableHTTPResponseReplacer) ProcessNotification(ctx context.Context, notification *mcputils.JSONRPCNotification) mcp.JSONRPCMessage {
+	p.processServerNotification(ctx, notification)
+	return notification
+}
+
+func isWellKnownPath(urlPath string) bool {
+	return strings.HasPrefix(urlPath, "/.well-known/")
+}

@@ -16,5 +16,4 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import UserDelete from './UserDelete';
-export default UserDelete;
+export { UserDelete } from './UserDelete';

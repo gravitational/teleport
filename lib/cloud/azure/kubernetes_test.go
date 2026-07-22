@@ -27,7 +27,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v2"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v6"
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
@@ -219,7 +219,7 @@ func Test_AKSClient_ClusterCredentials(t *testing.T) {
 			c := NewAKSClustersClient(tt.fields.api, func(options *azidentity.DefaultAzureCredentialOptions) (GetToken, error) {
 				return azIdentity, nil
 			})
-			got, _, err := c.ClusterCredentials(context.TODO(), tt.args.cfg)
+			got, _, err := c.ClusterCredentials(t.Context(), tt.args.cfg)
 			tt.checkErr(t, err)
 
 			if tt.validateRestConfig != nil {

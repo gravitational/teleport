@@ -1,0 +1,37 @@
+```hcl
+resource "teleport_provision_token" "iam-token" {
+  version = "v2"
+  metadata = {
+    name = "iam-token"
+  }
+
+  labels = {
+    // This label is added on the Teleport side by default
+    "teleport.dev/origin" = "dynamic"
+  }
+
+  spec = {
+    // use the minimal set of roles required (e.g. Node, Proxy, App, Kube, DB, WindowsDesktop)
+    roles = ["Node"]
+
+    join_method = "iam"
+
+    allow = [
+      {
+        aws_account = "111111111111"             # your AWS account ID
+        aws_regions = ["us-west-1", "us-west-2"] # use the minimal set of AWS regions required
+      },
+      {
+        # multiple allow rules are supported
+        aws_account = "222222222222"
+      },
+      {
+        # aws_arn is optional and allows you to restrict the IAM role of joining
+        # Teleport processes
+        aws_account = "333333333333"
+        aws_arn     = "arn:aws:sts::333333333333:assumed-role/teleport-node-role/i-*"
+      },
+    ]
+  }
+}
+```

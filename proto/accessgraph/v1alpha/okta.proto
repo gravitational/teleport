@@ -1,0 +1,168 @@
+/*
+ * Teleport
+ * Copyright (C) 2025  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+syntax = "proto3";
+
+package accessgraph.v1alpha;
+
+import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha;accessgraphv1alpha";
+
+// OktaEventV1 holds the data for a single audit event that happened in an Okta organization.
+message OktaEventV1 {
+  // The user or application that did the action of the event, ex.: "user_id_123", "OktaMobile".
+  OktaIdentityV1 identity = 1;
+  // The network place (like an IP address) where the event started.
+  OktaLocationV1 location = 2;
+  // The specific type of event that happened, ex.: "user.session.start", "user.lifecycle.create".
+  string event_type = 3;
+  // The time when Okta saved or showed the event.
+  google.protobuf.Timestamp published = 4;
+  // The result of the event, ex.: "SUCCESS", "FAILURE", "ALLOWED", "DENIED".
+  string result = 5;
+  // A list of one or more items (like users or applications) that this event's action changed or affected.
+  repeated OktaTargetV1 targets = 6;
+  // Information about the client app or system part that began the event.
+  string origin = 7;
+  // The actual unstructured, homgeneous event data.
+  google.protobuf.Struct event_data = 8;
+}
+
+// OktaIdentityV1 holds details about an identity (ex.: a user or an application)
+// that is part of an Okta event.
+message OktaIdentityV1 {
+  // The unique ID of this identity, ex.: "00u1a2b3c4d5e6f7g8h9".
+  string id = 1;
+  // The display name or human-readable name of the identity, ex.: "John Doe", "Okta Admin Console".
+  string name = 2;
+  // The kind or type of identity, ex.: "USER", "APP", "CLIENT", "SYSTEM".
+  string kind = 3;
+  // An API token ID or session identifier associated with the identity, if applicable to the event.
+  string token = 4;
+  // The user agent string of the client software used by this identity, ex.: "Mozilla/5.0 (...) Chrome/...".
+  string user_agent = 5;
+}
+
+// OktaLocationV1 holds network location information, like an IP address,
+// related to an Okta event.
+message OktaLocationV1 {
+  // The IP address (IPv4 or IPv6) from which the event originated, ex.: "198.51.100.5", "2001:db8::a:b:c:d".
+  string ip = 1;
+}
+
+// OktaTargetV1 describes a resource or entity (ex.: a user, an application, or a group)
+// that was a target of an action in an Okta event.
+message OktaTargetV1 {
+  // The unique identifier of this target, ex.: "00u1a2b3c4d5e6f7g8h9" (for a user), "appId123".
+  string id = 1;
+  // The human-readable name or display name of the target, ex.: "John Doe", "Okta HR App", "Contractors Group".
+  string name = 2;
+  // The kind or type of the target, ex.: "User", "AppInstance", "Group", "Policy".
+  string kind = 3;
+}
+
+// OktaAuditLogV1Cursor holds the necessary state for resuming Okta audit log collection.
+message OktaAuditLogV1Cursor {
+  // The pagination token or cursor provided by Okta to fetch the next set of audit events.
+  string token = 1;
+  // The ID of the last Okta audit event that was successfully processed or seen.
+  string last_event_id = 2;
+  // The timestamp of the last Okta audit event that was successfully processed or seen.
+  google.protobuf.Timestamp last_event_time = 3;
+}
+
+// OktaAuditLogV1 bundles a batch of Okta audit log events and the client's current resume cursor.
+message OktaAuditLogV1 {
+  // A list of Okta audit log events in this batch.
+  repeated OktaEventV1 events = 1;
+  // The client's current cursor information, sent with this batch of events to allow for resumable log collection.
+  OktaAuditLogV1Cursor cursor = 2;
+}
+
+// OktaConfigV1 specifies configuration settings for Okta audit log exports.
+message OktaConfigV1 {
+  // The desired start date from which to begin exporting Okta audit logs.
+  google.protobuf.Timestamp start_date = 1;
+  // organization is the Okta organization name.
+  string organization = 2;
+}
+
+// OktaTokenV1 holds information about an Okta token (ex.: an API token),
+// such as its ID, owner, and lifecycle dates (created, updated, expires).
+message OktaTokenV1 {
+  // The unique identifier of the Okta token, ex.: "00AbcDefG1hIjKlMnOpQ".
+  string id = 1;
+  // A human-readable name or label given to the Okta token, ex.: "Reporting API Key".
+  string name = 2;
+  // The ID or username of the Okta user or client application that owns this token, ex.: "john.doe@example.com", "00u123abc456".
+  string owner = 3;
+  // The timestamp when this Okta token expires. This may not be set if the token does not expire.
+  google.protobuf.Timestamp expires = 4;
+  // The Okta organization (ex.: "mycompany.okta.com" or an org ID) this token is associated with.
+  string organization = 6;
+  // The timestamp when this Okta token was created.
+  google.protobuf.Timestamp created = 8;
+  // The timestamp when this Okta token was last updated.
+  google.protobuf.Timestamp updated = 9;
+}
+
+// OktaRoleAssignmentV1 links an Okta user to a specific role within an Okta organization.
+message OktaRoleAssignmentV1 {
+  // The unique ID of the Okta role being assigned, ex.: "ORG_ADMIN", "API_ACCESS_MANAGEMENT_ADMIN", "00r1a2b3c4d5e6f7g8h9".
+  string role_id = 1;
+  // The unique ID of the Okta user who is being assigned the role, ex.: "00u1a2b3c4d5e6f7g8h9".
+  string user_id = 3; // Note: Field number 2 appears to be skipped in this definition.
+  // The Okta organization (ex.: "mycompany.okta.com" or an org ID) where this role assignment applies.
+  string organization = 4;
+}
+
+// OktaRoleV1 represents a role (ex.: an administrator role or a custom-defined role)
+// within an Okta organization.
+message OktaRoleV1 {
+  // The unique identifier of the Okta role, ex.: "ORG_ADMIN", "API_ACCESS_MANAGEMENT_ADMIN", "00rCustomRole123xyz".
+  string role_id = 1;
+  // The specific type or classification of the Okta role, ex.: "SUPER_ADMIN", "APP_ADMIN", "CUSTOM_ROLE_TYPE_A".
+  string type = 2;
+  // The Okta organization (ex.: "mycompany.okta.com" or an org ID) where this role is defined.
+  string organization = 3;
+}
+
+// OktaSync is an empty message that signals a synchronization point
+// in an Okta data stream, ex.: indicating the end of an initial full data sync by the client.
+message OktaSync {}
+
+// OktaResourceList contains a list of Okta resources,
+// used for sending multiple resources in a single operation (ex.: batch upsert or delete).
+message OktaResourceList {
+  repeated OktaResource resources = 1;
+}
+
+// OktaResource acts as a container that holds one specific type of Okta resource,
+// such as a token, a role assignment, or a role definition, using a 'oneof'.
+message OktaResource {
+  oneof resource {
+    // An Okta token, like an API token.
+    OktaTokenV1 token = 1;
+    // An assignment of an Okta role to a user.
+    OktaRoleAssignmentV1 role_assignment = 2;
+    // An Okta role definition.
+    OktaRoleV1 role = 3;
+  }
+}

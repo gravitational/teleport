@@ -16,13 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-import { MemoryRouter } from 'react-router-dom';
-import { fireEvent, render, screen } from 'design/utils/testing';
+import { MemoryRouter } from 'react-router';
 
+import { render, screen, userEvent } from 'design/utils/testing';
 import { requestRoleApproved } from 'shared/components/AccessRequests/fixtures';
-import { AccessRequest } from 'shared/services/accessRequests';
 import { RequestFlags } from 'shared/components/AccessRequests/ReviewRequests';
+import { makeSuccessAttempt } from 'shared/hooks/useAsync';
+import { AccessRequest } from 'shared/services/accessRequests';
 
 import { RequestList } from './RequestList';
 
@@ -30,17 +30,18 @@ test('disabled assume button with assume start date', async () => {
   // Set system time before the assume start date.
   jest.useFakeTimers().setSystemTime(new Date('2024-02-16T02:51:12.70087Z'));
 
+  const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+
   render(
     <MemoryRouter>
       <RequestList
-        attempt={{ status: 'success' }}
+        attempt={makeSuccessAttempt([request])}
         assumeRole={() => null}
         assumeRoleAttempt={{ status: '', data: null, statusText: '' }}
         getRequests={() => null}
         viewRequest={() => null}
         assumeAccessList={() => null}
         getFlags={() => flags}
-        requests={[request]}
       />
     </MemoryRouter>
   );
@@ -49,7 +50,7 @@ test('disabled assume button with assume start date', async () => {
   expect(assumeBtn).toBeDisabled();
 
   // Mouse over the disabled button, and expect a popup message.
-  fireEvent.mouseEnter(assumeBtn);
+  await user.hover(assumeBtn);
   expect(
     screen.getByText(/access is not available until the approved time/i)
   ).toBeInTheDocument();
@@ -62,14 +63,13 @@ test('enabled assume button with assume start date', () => {
   render(
     <MemoryRouter>
       <RequestList
-        attempt={{ status: 'success' }}
+        attempt={makeSuccessAttempt([request])}
         assumeRole={() => null}
         assumeRoleAttempt={{ status: '', data: null, statusText: '' }}
         getRequests={() => null}
         viewRequest={() => null}
         assumeAccessList={() => null}
         getFlags={() => flags}
-        requests={[request]}
       />
     </MemoryRouter>
   );
@@ -82,16 +82,15 @@ test('enabled assume button with no assume start date', () => {
   render(
     <MemoryRouter>
       <RequestList
-        attempt={{ status: 'success' }}
+        attempt={makeSuccessAttempt([
+          { ...request, assumeStartTime: null, assumeStartTimeDuration: '' },
+        ])}
         assumeRole={() => null}
         assumeRoleAttempt={{ status: '', data: null, statusText: '' }}
         getRequests={() => null}
         viewRequest={() => null}
         assumeAccessList={() => null}
         getFlags={() => flags}
-        requests={[
-          { ...request, assumeStartTime: null, assumeStartTimeDuration: '' },
-        ]}
       />
     </MemoryRouter>
   );

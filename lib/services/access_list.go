@@ -20,17 +20,20 @@ package services
 
 import (
 	"context"
+	"encoding/base32"
 	"slices"
+	"strings"
 	"time"
 
+	"github.com/charlievieth/strcase"
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
+	"golang.org/x/text/cases"
 
 	accesslistclient "github.com/gravitational/teleport/api/client/accesslist"
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
-	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/accesslists"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -44,10 +47,15 @@ type AccessListsGetter interface {
 	GetAccessLists(context.Context) ([]*accesslist.AccessList, error)
 	// ListAccessLists returns a paginated list of access lists.
 	ListAccessLists(context.Context, int, string) ([]*accesslist.AccessList, string, error)
-	// GetAccessList returns the specified access list resource.
-	GetAccessList(context.Context, string) (*accesslist.AccessList, error)
+	// ListAccessListsV2 returns a filtered and sorted paginated list of access lists.
+	ListAccessListsV2(context.Context, *accesslistv1.ListAccessListsV2Request) ([]*accesslist.AccessList, string, error)
 	// GetAccessListsToReview returns access lists that the user needs to review.
 	GetAccessListsToReview(context.Context) ([]*accesslist.AccessList, error)
+	// GetInheritedGrants returns grants inherited by access list accessListID from parent access lists.
+	GetInheritedGrants(context.Context, string) (*accesslist.Grants, error)
+	// ListUserAccessLists returns a paginated list of all access lists where the
+	// user is explicitly an owner or member.
+	ListUserAccessLists(context.Context, *accesslistv1.ListUserAccessListsRequest) ([]*accesslist.AccessList, string, error)
 }
 
 // AccessListsSuggestionsGetter defines an interface for reading access lists suggestions.
@@ -69,14 +77,57 @@ type AccessLists interface {
 	UpdateAccessList(context.Context, *accesslist.AccessList) (*accesslist.AccessList, error)
 	// DeleteAccessList removes the specified access list resource.
 	DeleteAccessList(context.Context, string) error
-	// DeleteAllAccessLists removes all access lists.
-	DeleteAllAccessLists(context.Context) error
+	// DeleteAccessList removes the specified access list resource.
+	DeleteAccessListV2(context.Context, *accesslistv1.DeleteAccessListRequest) error
 
 	// UpsertAccessListWithMembers creates or updates an access list resource and its members.
 	UpsertAccessListWithMembers(context.Context, *accesslist.AccessList, []*accesslist.AccessListMember) (*accesslist.AccessList, []*accesslist.AccessListMember, error)
 
 	// AccessRequestPromote promotes an access request to an access list.
 	AccessRequestPromote(ctx context.Context, req *accesslistv1.AccessRequestPromoteRequest) (*accesslistv1.AccessRequestPromoteResponse, error)
+}
+
+// AccessListsInternal extends the public AccessList interface with internal-only
+// methods.
+type AccessListsInternal interface {
+	AccessLists
+
+	// UpdateAccessListAndOverwriteMembers conditionally updates the access list,
+	// overwriting the list's members if successful.
+	UpdateAccessListAndOverwriteMembers(context.Context, *accesslist.AccessList, []*accesslist.AccessListMember) (*accesslist.AccessList, []*accesslist.AccessListMember, error)
+
+	// CleanupAccessListStatus removes invalid Status.OwnerOf and Status.MemberOf references.
+	CleanupAccessListStatus(ctx context.Context, accessListName string) (*accesslist.AccessList, error)
+	// CleanupAccessListStatusV2 removes invalid Status.(Scoped)OwnerOf and Status.(Scoped)MemberOf references.
+	CleanupAccessListStatusV2(ctx context.Context, accessListName accesslists.NormalizedSQN) (*accesslist.AccessList, error)
+
+	// EnsureNestedAccessListStatuses goes over all nested owners and nested members of the named
+	// access list and ensures nested lists' statuses owner_of/member_of contain the access list name.
+	EnsureNestedAccessListStatuses(ctx context.Context, accessListName string) error
+	// EnsureNestedAccessListStatusesV2 goes over all nested owners and nested members of the named
+	// access list and ensures nested lists' statuses (scoped_)owner_of/(scoped_)member_of contain
+	// the access list name.
+	EnsureNestedAccessListStatusesV2(ctx context.Context, accessListName accesslists.NormalizedSQN) error
+
+	// InsertAccessListCollection inserts a complete collection of access lists and their members from a single
+	// upstream source (e.g. EntraID) using a batch operation for improved performance.
+	//
+	// This method is designed for bulk import scenarios where an entire access list collection needs to be
+	// synchronized from an external source. All access lists and members in the collection are
+	// inserted using chunked batch operations, minimizing memory allocation while still reducing
+	// the number of write operations. Due to the batch nature of this operation (access list hierarchy
+	// is known upfront), we can avoid per-access-list locking and global locks to improve performance.
+	//
+	// Important: This method assumes the collection is self-contained. Access lists in the collection
+	// cannot reference access lists outside the collection as members or owners. This is intentional for
+	// collections representing a complete snapshot from a single upstream source.
+	// The function should be used only once during initial import where
+	// we are sure that Teleport doesn't have any pre-existing access lists from the upstream and the
+	// internal relation between upstream access lists and internal access lists doesn't exist yet.
+	//
+	// Operation can fail due to backend shutdown. In that case, if partial state was created,
+	// use UpsertAccessListWithMembers/DeleteAccessListMember to reconcile to the desired state.
+	InsertAccessListCollection(ctx context.Context, collection *accesslists.Collection) error
 }
 
 // MarshalAccessList marshals the access list resource to JSON.
@@ -109,7 +160,7 @@ func UnmarshalAccessList(data []byte, opts ...MarshalOption) (*accesslist.Access
 	}
 	var accessList accesslist.AccessList
 	if err := utils.FastUnmarshal(data, &accessList); err != nil {
-		return nil, trace.BadParameter(err.Error())
+		return nil, trace.BadParameter("%s", err)
 	}
 	if err := accessList.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
@@ -136,10 +187,15 @@ func (ImplicitAccessListError) Error() string {
 // AccessListMemberGetter defines an interface that can retrieve access list members.
 type AccessListMemberGetter interface {
 	// GetAccessListMember returns the specified access list member resource.
-	// May return a DynamicAccessListError if the requested access list has an
-	// implicit member list and the underlying implementation does not have
-	// enough information to compute the dynamic member record.
 	GetAccessListMember(ctx context.Context, accessList string, memberName string) (*accesslist.AccessListMember, error)
+	// GetAccessListMemberV2 returns the specified access list member resource.
+	GetAccessListMemberV2(ctx context.Context, req *accesslistv1.GetAccessListMemberRequest) (*accesslist.AccessListMember, error)
+	// GetAccessList returns the specified access list resource.
+	GetAccessList(context.Context, string) (*accesslist.AccessList, error)
+	// GetAccessListV2 returns the specified access list resource.
+	GetAccessListV2(ctx context.Context, req *accesslistv1.GetAccessListRequest) (*accesslist.AccessList, error)
+	// GetAccessLists returns a list of all access lists.
+	GetAccessLists(context.Context) ([]*accesslist.AccessList, error)
 }
 
 // AccessListMembersGetter defines an interface for reading access list members.
@@ -147,15 +203,21 @@ type AccessListMembersGetter interface {
 	AccessListMemberGetter
 
 	// CountAccessListMembers will count all access list members.
-	CountAccessListMembers(ctx context.Context, accessListName string) (uint32, error)
+	CountAccessListMembers(ctx context.Context, accessListName string) (membersCount uint32, listCount uint32, err error)
+	// CountAccessListMembersV2 will count all access list members.
+	CountAccessListMembersV2(ctx context.Context, req *accesslistv1.CountAccessListMembersRequest) (membersCount uint32, listCount uint32, err error)
 	// ListAccessListMembers returns a paginated list of all access list members.
-	// May return a DynamicAccessListError if the requested access list has an
-	// implicit member list and the underlying implementation does not have
-	// enough information to compute the dynamic member list.
 	ListAccessListMembers(ctx context.Context, accessListName string, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error)
+	// ListAccessListMembersV2 returns a paginated list of all access list members.
+	ListAccessListMembersV2(ctx context.Context, req *accesslistv1.ListAccessListMembersRequest) (members []*accesslist.AccessListMember, nextToken string, err error)
 	// ListAllAccessListMembers returns a paginated list of all access list members for all access lists.
 	ListAllAccessListMembers(ctx context.Context, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error)
-	GetAccessListMember(ctx context.Context, accessList string, memberName string) (*accesslist.AccessListMember, error)
+	// ListAllAccessListMembers returns a paginated list of all access list members for all access lists.
+	ListAllAccessListMembersV2(ctx context.Context, req *accesslistv1.ListAllAccessListMembersRequest) (members []*accesslist.AccessListMember, nextToken string, err error)
+	// GetAccessListOwners returns a list of all owners in an Access List, including those inherited from nested Access Lists.
+	GetAccessListOwners(ctx context.Context, accessList string) ([]*accesslist.Owner, error)
+	// GetAccessListOwnersV2 returns a list of all owners in an Access List, including those inherited from nested Access Lists.
+	GetAccessListOwnersV2(ctx context.Context, req *accesslistv1.GetAccessListOwnersRequest) ([]*accesslist.Owner, error)
 }
 
 // AccessListMembers defines an interface for managing AccessListMembers.
@@ -168,10 +230,12 @@ type AccessListMembers interface {
 	UpdateAccessListMember(ctx context.Context, member *accesslist.AccessListMember) (*accesslist.AccessListMember, error)
 	// DeleteAccessListMember hard deletes the specified access list member resource.
 	DeleteAccessListMember(ctx context.Context, accessList string, memberName string) error
+	// DeleteAccessListMemberV2 hard deletes the specified access list member resource.
+	DeleteAccessListMemberV2(ctx context.Context, req *accesslistv1.DeleteAccessListMemberRequest) error
 	// DeleteAllAccessListMembersForAccessList hard deletes all access list members for an access list.
 	DeleteAllAccessListMembersForAccessList(ctx context.Context, accessList string) error
-	// DeleteAllAccessListMembers hard deletes all access list members.
-	DeleteAllAccessListMembers(ctx context.Context) error
+	// DeleteAllAccessListMembersForAccessListV2 hard deletes all access list members for an access list.
+	DeleteAllAccessListMembersForAccessListV2(ctx context.Context, req *accesslistv1.DeleteAllAccessListMembersForAccessListRequest) error
 }
 
 // MarshalAccessListMember marshals the access list member resource to JSON.
@@ -204,7 +268,7 @@ func UnmarshalAccessListMember(data []byte, opts ...MarshalOption) (*accesslist.
 	}
 	var member accesslist.AccessListMember
 	if err := utils.FastUnmarshal(data, &member); err != nil {
-		return nil, trace.BadParameter(err.Error())
+		return nil, trace.BadParameter("%s", err)
 	}
 	if err := member.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
@@ -218,155 +282,25 @@ func UnmarshalAccessListMember(data []byte, opts ...MarshalOption) (*accesslist.
 	return &member, nil
 }
 
-// IsAccessListOwner will return true if the user is an owner for the current list.
-func IsAccessListOwner(identity tlsca.Identity, accessList *accesslist.AccessList) error {
-	// An opaque access denied error.
-	accessDenied := trace.AccessDenied("access denied")
-
-	// Is the supplied identity in the owners list?
-	ownerIdx := slices.IndexFunc(accessList.GetOwners(), func(owner accesslist.Owner) bool {
-		return owner.Name == identity.Username
-	})
-	if ownerIdx == -1 {
-		return accessDenied
-	}
-
-	// Does the supplied Identity meet the ownership requirements?
-	if !UserMeetsRequirements(identity, accessList.Spec.OwnershipRequires) {
-		return accessDenied
-	}
-
-	// We've gotten through all the checks, so the user is an owner.
-	return nil
-}
-
-// AccessListMembershipChecker will check if users are members of an access list and
-// makes sure the user is not locked and meets membership requirements.
-type AccessListMembershipChecker struct {
-	members AccessListMemberGetter
-	locks   LockGetter
-	clock   clockwork.Clock
-}
-
-// NewAccessListMembershipChecker will create a new access list membership checker.
-func NewAccessListMembershipChecker(clock clockwork.Clock, members AccessListMemberGetter, locks LockGetter) *AccessListMembershipChecker {
-	return &AccessListMembershipChecker{
-		members: members,
-		locks:   locks,
-		clock:   clock,
-	}
-}
-
-// IsAccessListMember will return true if the user is a member for the current list.
-func (a AccessListMembershipChecker) IsAccessListMember(ctx context.Context, identity tlsca.Identity, accessList *accesslist.AccessList) error {
-	username := identity.Username
-
-	// Allow for nil locks while we transition away from using `IsAccessListMember` outside of this struct.
-	if a.locks != nil {
-		locks, err := a.locks.GetLocks(ctx, true, types.LockTarget{
-			User: username,
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		if len(locks) > 0 {
-			return trace.AccessDenied("user %s is currently locked", username)
-		}
-	}
-
-	member, err := a.members.GetAccessListMember(ctx, accessList.GetName(), username)
-	if trace.IsNotFound(err) {
-		// The member has not been found, so we know they're not a member of this list.
-		return trace.NotFound("user %s is not a member of the access list", username)
-	} else if err != nil {
-		// Some other error has occurred
-		return trace.Wrap(err)
-	}
-
-	expires := member.Spec.Expires
-	if !expires.IsZero() && !a.clock.Now().Before(expires) {
-		return trace.AccessDenied("user %s's membership has expired in the access list", username)
-	}
-
-	if !UserMeetsRequirements(identity, accessList.Spec.MembershipRequires) {
-		return trace.AccessDenied("user %s is a member, but does not have the roles or traits required to be a member of this list", username)
-	}
-
-	return nil
-}
-
-// TODO(mdwn): Remove this in favor of using the access list membership checker.
-func IsAccessListMember(ctx context.Context, identity tlsca.Identity, clock clockwork.Clock, accessList *accesslist.AccessList, members AccessListMemberGetter) error {
-	// See if the member getter also implements lock getter. If so, use it. Otherwise, nil is fine.
-	lockGetter, _ := members.(LockGetter)
-	return AccessListMembershipChecker{
-		members: members,
-		locks:   lockGetter,
-		clock:   clock,
-	}.IsAccessListMember(ctx, identity, accessList)
-}
-
-// UserMeetsRequirements will return true if the user meets the requirements for the access list.
-func UserMeetsRequirements(identity tlsca.Identity, requires accesslist.Requires) bool {
-	// Assemble the user's roles for easy look up.
-	userRolesMap := map[string]struct{}{}
-	for _, role := range identity.Groups {
-		userRolesMap[role] = struct{}{}
-	}
-
-	// Check that the user meets the role requirements.
-	for _, role := range requires.Roles {
-		if _, ok := userRolesMap[role]; !ok {
-			return false
-		}
-	}
-
-	// Assemble traits for easy lookup.
-	userTraitsMap := map[string]map[string]struct{}{}
-	for k, values := range identity.Traits {
-		if _, ok := userTraitsMap[k]; !ok {
-			userTraitsMap[k] = map[string]struct{}{}
-		}
-
-		for _, v := range values {
-			userTraitsMap[k][v] = struct{}{}
-		}
-	}
-
-	// Check that user meets trait requirements.
-	for k, values := range requires.Traits {
-		if _, ok := userTraitsMap[k]; !ok {
-			return false
-		}
-
-		for _, v := range values {
-			if _, ok := userTraitsMap[k][v]; !ok {
-				return false
-			}
-		}
-	}
-
-	// The user meets all requirements.
-	return true
-}
-
 // AccessListReviews defines an interface for managing Access List reviews.
 type AccessListReviews interface {
 	// ListAccessListReviews will list access list reviews for a particular access list.
 	ListAccessListReviews(ctx context.Context, accessList string, pageSize int, pageToken string) (reviews []*accesslist.Review, nextToken string, err error)
+	// ListAccessListReviewsV2 will list access list reviews for a particular access list.
+	ListAccessListReviewsV2(ctx context.Context, req *accesslistv1.ListAccessListReviewsRequest) (reviews []*accesslist.Review, nextToken string, err error)
 
-	// ListAllAccessListReviews will list access list reviews for all access lists. Only to be used by the cache.
+	// ListAllAccessListReviews will list access list reviews for all unscoped access lists. Only to be used by the cache.
 	ListAllAccessListReviews(ctx context.Context, pageSize int, pageToken string) (reviews []*accesslist.Review, nextToken string, err error)
+	// ListAllAccessListReviewsV2 will list access list reviews for all access lists. Only to be used by the cache.
+	ListAllAccessListReviewsV2(ctx context.Context, req *accesslistv1.ListAllAccessListReviewsRequest) (reviews []*accesslist.Review, nextToken string, err error)
 
 	// CreateAccessListReview will create a new review for an access list.
 	CreateAccessListReview(ctx context.Context, review *accesslist.Review) (updatedReview *accesslist.Review, nextReviewDate time.Time, err error)
 
 	// DeleteAccessListReview will delete an access list review from the backend.
 	DeleteAccessListReview(ctx context.Context, accessListName, reviewName string) error
-
-	// DeleteAllAccessListReviews will delete all access list reviews from all access lists.
-	DeleteAllAccessListReviews(ctx context.Context) error
+	// DeleteAccessListReviewV2 will delete an access list review from the backend.
+	DeleteAccessListReviewV2(ctx context.Context, req *accesslistv1.DeleteAccessListReviewRequest) error
 }
 
 // MarshalAccessListReview marshals the access list review resource to JSON.
@@ -399,7 +333,7 @@ func UnmarshalAccessListReview(data []byte, opts ...MarshalOption) (*accesslist.
 	}
 	var review accesslist.Review
 	if err := utils.FastUnmarshal(data, &review); err != nil {
-		return nil, trace.BadParameter(err.Error())
+		return nil, trace.BadParameter("%s", err)
 	}
 	if err := review.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
@@ -411,4 +345,153 @@ func UnmarshalAccessListReview(data []byte, opts ...MarshalOption) (*accesslist.
 		review.SetExpiry(cfg.Expires)
 	}
 	return &review, nil
+}
+
+// CreateAccessListNextKey creates a pagination token based on the requested sort index name
+func CreateAccessListNextKey(al *accesslist.AccessList, indexName string) (string, error) {
+	switch indexName {
+	case "name":
+		return AccessListNameIndexKey(al), nil
+	case "auditNextDate":
+		return AccessListAuditDateIndexKey(al), nil
+	case "title":
+		return AccessListTitleIndexKey(al), nil
+	default:
+		return "", trace.BadParameter("unsupported sort %s but expected name, title or auditNextDate", indexName)
+	}
+}
+
+// AccessListNameIndexKey returns the resource name returned from GetName().
+func AccessListNameIndexKey(al *accesslist.AccessList) string {
+	return scopes.MakeResourceCursor(al.GetScope(), al.GetName())
+}
+
+// AccessListAuditDateIndexKey returns the DateOnly formatted next audit date
+// followed by the resource name for disambiguation.
+func AccessListAuditDateIndexKey(al *accesslist.AccessList) string {
+	if !al.IsReviewable() || al.Spec.Audit.NextAuditDate.IsZero() {
+		// Use last lexical character to ensure that ACLs without an audit date
+		// appear at the end when sorted. Otherwise we would compare against
+		// `0001-01-01 00:00:00` which would sort first, but actually means
+		// the access list is not eligible for review.
+		return "z/" + AccessListNameIndexKey(al)
+	}
+	return al.Spec.Audit.NextAuditDate.Format(time.DateOnly) + "/" + AccessListNameIndexKey(al)
+}
+
+// AccessListTitleIndexKey returns the access list title base32hex encoded
+// followed by the resource name for disambiguation.
+func AccessListTitleIndexKey(al *accesslist.AccessList) string {
+	title := cases.Fold().String(al.Spec.Title)
+	title = base32.HexEncoding.WithPadding(base32.NoPadding).EncodeToString([]byte(title))
+	return title + "/" + AccessListNameIndexKey(al)
+}
+
+// MatchAccessList returns true if the access list matches the given filter criteria.
+// The function applies filters in sequence: owners, then roles, then search.
+// All provided filters must match for the access list to be included.
+//
+//   - If owners filter is provided, the access list must have at least one matching owner
+//   - If roles filter is provided, the access list must grant at least one matching role
+//   - If search filter is provided, all search terms must be found across the access list's
+//     title, name, owner names, description, granted roles, and origin fields
+//
+// All matching is case-insensitive and supports partial matches.
+func MatchAccessList(al *accesslist.AccessList, req *accesslistv1.AccessListsFilter) bool {
+	if req == nil {
+		return true
+	}
+	search := req.GetSearch()
+	owners := req.GetOwners()
+	roles := req.GetRoles()
+	origin := req.GetOrigin()
+
+	if search == "" && len(owners) == 0 && len(roles) == 0 && origin == "" {
+		return true
+	}
+
+	// Step 1: Check owner filter if provided
+	if len(owners) > 0 {
+		ownerMatched := slices.ContainsFunc(owners, func(filterOwner string) bool {
+			return slices.ContainsFunc(al.Spec.Owners, func(alOwner accesslist.Owner) bool {
+				return strcase.Contains(alOwner.Name, filterOwner)
+			})
+		})
+		if !ownerMatched {
+			return false
+		}
+	}
+
+	// Step 2: Check role filter if provided
+	if len(roles) > 0 {
+		roleMatched := slices.ContainsFunc(roles, func(filterRole string) bool {
+			return slices.ContainsFunc(al.Spec.Grants.Roles, func(alRole string) bool {
+				return strcase.Contains(alRole, filterRole)
+			})
+		})
+		if !roleMatched {
+			return false
+		}
+	}
+
+	// Step 3: check the origin
+	if origin != "" && !strcase.Contains(al.Origin(), origin) {
+		return false
+	}
+
+	// Step 4: Check search filter if provided
+	if searchTerms := strings.Fields(search); len(searchTerms) > 0 {
+		// Check if all search terms are found across the access list fields
+		// without creating an intermediate slice
+		for _, term := range searchTerms {
+			termFound := false
+
+			// Check title
+			if strcase.Contains(al.Spec.Title, term) {
+				termFound = true
+			}
+
+			// Check name
+			if !termFound && strcase.Contains(al.GetName(), term) {
+				termFound = true
+			}
+
+			// Check description
+			if !termFound && strcase.Contains(al.Spec.Description, term) {
+				termFound = true
+			}
+
+			// Check origin
+			if !termFound && strcase.Contains(al.Origin(), term) {
+				termFound = true
+			}
+
+			// Check owner names
+			if !termFound {
+				for _, owner := range al.Spec.Owners {
+					if strcase.Contains(owner.Name, term) {
+						termFound = true
+						break
+					}
+				}
+			}
+
+			// Check roles
+			if !termFound {
+				for _, role := range al.Spec.Grants.Roles {
+					if strcase.Contains(role, term) {
+						termFound = true
+						break
+					}
+				}
+			}
+
+			// If this term wasn't found in any field, the search fails
+			if !termFound {
+				return false
+			}
+		}
+	}
+
+	return true
 }

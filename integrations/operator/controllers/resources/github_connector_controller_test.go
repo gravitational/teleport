@@ -24,12 +24,18 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	apimachinerytypes "k8s.io/apimachinery/pkg/types"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/gravitational/teleport/api/types"
 	resourcesv3 "github.com/gravitational/teleport/integrations/operator/apis/resources/v3"
 	"github.com/gravitational/teleport/integrations/operator/controllers/reconcilers"
+	"github.com/gravitational/teleport/integrations/operator/controllers/resources"
+	"github.com/gravitational/teleport/integrations/operator/controllers/resources/secretlookup"
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources/testlib"
 )
 
@@ -124,15 +130,91 @@ func (g *githubTestingPrimitives) CompareTeleportAndKubernetesResource(tResource
 
 func TestGithubConnectorCreation(t *testing.T) {
 	test := &githubTestingPrimitives{}
-	testlib.ResourceCreationTest[types.GithubConnector, *resourcesv3.TeleportGithubConnector](t, test)
+	testlib.ResourceCreationSynchronousTest(t, resources.NewGithubConnectorReconciler, test)
+}
+
+func TestGithubConnectorDeletion(t *testing.T) {
+	test := &githubTestingPrimitives{}
+	testlib.ResourceDeletionSynchronousTest(t, resources.NewGithubConnectorReconciler, test)
 }
 
 func TestGithubConnectorDeletionDrift(t *testing.T) {
 	test := &githubTestingPrimitives{}
-	testlib.ResourceDeletionDriftTest[types.GithubConnector, *resourcesv3.TeleportGithubConnector](t, test)
+	testlib.ResourceDeletionDriftSynchronousTest(t, resources.NewGithubConnectorReconciler, test)
 }
 
 func TestGithubConnectorUpdate(t *testing.T) {
 	test := &githubTestingPrimitives{}
-	testlib.ResourceUpdateTest[types.GithubConnector, *resourcesv3.TeleportGithubConnector](t, test)
+	testlib.ResourceUpdateTestSynchronous(t, resources.NewGithubConnectorReconciler, test)
+}
+
+func TestGithubConnectorSecretLookup(t *testing.T) {
+	test := &githubTestingPrimitives{}
+	setup := testlib.SetupFakeKubeTestEnv(t)
+	test.Init(setup)
+	ctx := context.Background()
+
+	crName := validRandomResourceName("github")
+	secretName := validRandomResourceName("github-secret")
+	secretKey := "client-secret"
+	secretValue := validRandomResourceName("secret-value")
+
+	secret := &v1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      secretName,
+			Namespace: setup.Namespace.Name,
+			Annotations: map[string]string{
+				secretlookup.AllowLookupAnnotation: crName,
+			},
+		},
+		// Real kube servers convert stringData into data.
+		// The fake client does not, so we must use Data instead.
+		Data: map[string][]byte{
+			secretKey: []byte(secretValue),
+		},
+		StringData: map[string]string{
+			secretKey: secretValue,
+		},
+		Type: v1.SecretTypeOpaque,
+	}
+	kubeClient := setup.K8sClient
+	require.NoError(t, kubeClient.Create(ctx, secret))
+
+	github := &resourcesv3.TeleportGithubConnector{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      crName,
+			Namespace: setup.Namespace.Name,
+		},
+		Spec: resourcesv3.TeleportGithubConnectorSpec(githubSpec),
+	}
+
+	github.Spec.ClientSecret = "secret://" + secretName + "/" + secretKey
+
+	require.NoError(t, kubeClient.Create(ctx, github))
+
+	reconciler, err := resources.NewGithubConnectorReconciler(kubeClient, setup.TeleportClient)
+	require.NoError(t, err)
+	// Test execution: Kick off the reconciliation.
+	req := reconcile.Request{
+		NamespacedName: apimachinerytypes.NamespacedName{
+			Namespace: setup.Namespace.Name,
+			Name:      crName,
+		},
+	}
+	// First reconciliation should set the finalizer and exit.
+	_, err = reconciler.Reconcile(ctx, req)
+	require.NoError(t, err)
+	// Second reconciliation should create the Teleport resource.
+	// In a real cluster we should receive the event of our own finalizer change
+	// and this wakes us for a second round.
+	_, err = reconciler.Reconcile(ctx, req)
+	require.NoError(t, err)
+
+	testlib.FastEventually(t, func() bool {
+		gh, err := test.GetTeleportResource(ctx, crName)
+		if err != nil {
+			return false
+		}
+		return gh.GetClientSecret() == secretValue
+	})
 }

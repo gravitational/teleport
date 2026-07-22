@@ -29,6 +29,7 @@ import (
 	"gopkg.in/dnaeon/go-vcr.v3/recorder"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/modules"
 )
 
 func TestDeployDBService(t *testing.T) {
@@ -69,18 +70,18 @@ func TestDeployDBService(t *testing.T) {
 		return &AWSClientRequest{
 			// To record new fixtures you will need a valid token.
 			// You can get one by getting the generated token in a real cluster.
-			Token:           awsOIDCToken,
-			RoleARN:         awsOIDCRoleARN,
-			Region:          awsRegion,
-			IntegrationName: integrationName,
-			httpClient:      httpClient,
+			Token:      awsOIDCToken,
+			RoleARN:    awsOIDCRoleARN,
+			Region:     awsRegion,
+			httpClient: httpClient,
 		}
 	}
 
 	deployServiceReqFunc := func(clusterName string) DeployServiceRequest {
 		return DeployServiceRequest{
-			Region:    awsRegion,
-			AccountID: awsAccountID,
+			Region:            awsRegion,
+			TeleportBuildType: modules.BuildOSS,
+			AccountID:         awsAccountID,
 			SubnetIDs: []string{
 				"subnet-0b7ab67161173748b",
 				"subnet-0dda93c8621eb2e99",
@@ -135,7 +136,7 @@ func TestDeployDBService(t *testing.T) {
 		defer r.Stop()
 
 		awsClientRecorder := awsClientReqFunc(r.GetDefaultClient())
-		clt, err := NewDeployServiceClient(ctx, awsClientRecorder, &tokenStore)
+		clt, err := NewDeployServiceClient(ctx, awsClientRecorder, &tokenStore, &tokenStore)
 		require.NoError(t, err)
 
 		resp, err := DeployService(ctx, clt, deployServiceReqFunc("cluster1002"))
@@ -152,7 +153,7 @@ func TestDeployDBService(t *testing.T) {
 		defer r.Stop()
 
 		awsClientRecorder := awsClientReqFunc(r.GetDefaultClient())
-		clt, err := NewDeployServiceClient(ctx, awsClientRecorder, &tokenStore)
+		clt, err := NewDeployServiceClient(ctx, awsClientRecorder, &tokenStore, &tokenStore)
 		require.NoError(t, err)
 
 		resp, err := DeployService(ctx, clt, deployServiceReqFunc("cluster1002"))
@@ -169,7 +170,7 @@ func TestDeployDBService(t *testing.T) {
 		defer r.Stop()
 
 		awsClientRecorder := awsClientReqFunc(r.GetDefaultClient())
-		clt, err := NewDeployServiceClient(ctx, awsClientRecorder, &tokenStore)
+		clt, err := NewDeployServiceClient(ctx, awsClientRecorder, &tokenStore, &tokenStore)
 		require.NoError(t, err)
 
 		_, err = DeployService(ctx, clt, deployServiceReqFunc("cluster1002"))
@@ -181,7 +182,7 @@ func TestDeployDBService(t *testing.T) {
 		defer r.Stop()
 
 		awsClientRecorder := awsClientReqFunc(r.GetDefaultClient())
-		clt, err := NewDeployServiceClient(ctx, awsClientRecorder, &tokenStore)
+		clt, err := NewDeployServiceClient(ctx, awsClientRecorder, &tokenStore, &tokenStore)
 		require.NoError(t, err)
 
 		resp, err := DeployService(ctx, clt, deployServiceReqFunc("cluster1002"))
@@ -198,7 +199,7 @@ func TestDeployDBService(t *testing.T) {
 		defer r.Stop()
 
 		awsClientRecorder := awsClientReqFunc(r.GetDefaultClient())
-		clt, err := NewDeployServiceClient(ctx, awsClientRecorder, &tokenStore)
+		clt, err := NewDeployServiceClient(ctx, awsClientRecorder, &tokenStore, &tokenStore)
 		require.NoError(t, err)
 
 		resp, err := DeployService(ctx, clt, deployServiceReqFunc("cluster1002"))
@@ -215,7 +216,7 @@ func TestDeployDBService(t *testing.T) {
 		defer r.Stop()
 
 		awsClientRecorder := awsClientReqFunc(r.GetDefaultClient())
-		clt, err := NewDeployServiceClient(ctx, awsClientRecorder, &tokenStore)
+		clt, err := NewDeployServiceClient(ctx, awsClientRecorder, &tokenStore, &tokenStore)
 		require.NoError(t, err)
 
 		_, err = DeployService(ctx, clt, deployServiceReqFunc("cluster1002"))
@@ -227,7 +228,7 @@ func TestDeployDBService(t *testing.T) {
 		defer r.Stop()
 
 		awsClientRecorder := awsClientReqFunc(r.GetDefaultClient())
-		clt, err := NewDeployServiceClient(ctx, awsClientRecorder, &tokenStore)
+		clt, err := NewDeployServiceClient(ctx, awsClientRecorder, &tokenStore, &tokenStore)
 		require.NoError(t, err)
 
 		_, err = DeployService(ctx, clt, deployServiceReqFunc("cluster1002"))
@@ -239,7 +240,7 @@ func TestDeployDBService(t *testing.T) {
 		defer r.Stop()
 
 		awsClientRecorder := awsClientReqFunc(r.GetDefaultClient())
-		clt, err := NewDeployServiceClient(ctx, awsClientRecorder, &tokenStore)
+		clt, err := NewDeployServiceClient(ctx, awsClientRecorder, &tokenStore, &tokenStore)
 		require.NoError(t, err)
 
 		resp, err := DeployService(ctx, clt, deployServiceReqFunc("tenant-a.teleport.sh"))
@@ -256,7 +257,7 @@ func TestDeployDBService(t *testing.T) {
 		defer r.Stop()
 
 		awsClientRecorder := awsClientReqFunc(r.GetDefaultClient())
-		clt, err := NewDeployServiceClient(ctx, awsClientRecorder, &tokenStore)
+		clt, err := NewDeployServiceClient(ctx, awsClientRecorder, &tokenStore, &tokenStore)
 		require.NoError(t, err)
 
 		deployReq := deployServiceReqFunc("marco-test.teleport.sh")

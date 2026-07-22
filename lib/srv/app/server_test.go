@@ -24,6 +24,7 @@ import (
 	"crypto/x509"
 	"fmt"
 	"io"
+	"maps"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -36,11 +37,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/go-jose/go-jose/v3/jwt"
-	"github.com/google/go-cmp/cmp"
+	gocmp "github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -55,34 +58,42 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/cloud/awsconfig"
+	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/cryptosuites/cryptosuitestest"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
 	"github.com/gravitational/teleport/lib/inventory"
 	libjwt "github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/aws"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestMain(m *testing.M) {
-	utils.InitLoggerForTests()
-	native.PrecomputeTestKeys(m)
+	logtest.InitLogger(testing.Verbose)
+	ctx, cancel := context.WithCancel(context.Background())
+	cryptosuitestest.PrecomputeRSAKeys(ctx)
 	modules.SetInsecureTestMode(true)
-	os.Exit(m.Run())
+	exitCode := m.Run()
+	cancel()
+	os.Exit(exitCode)
 }
 
 type Suite struct {
-	clock        clockwork.FakeClock
+	clock        *clockwork.FakeClock
 	dataDir      string
-	authServer   *auth.TestAuthServer
-	tlsServer    *auth.TestTLSServer
+	authServer   *authtest.AuthServer
+	tlsServer    *authtest.TLSServer
 	authClient   *authclient.Client
 	appServer    *Server
 	hostCertPool *x509.CertPool
@@ -102,9 +113,10 @@ type Suite struct {
 	appAWS                *types.AppV3
 	appAWSWithIntegration *types.AppV3
 
-	user       types.User
-	role       types.Role
-	serverPort string
+	user        types.User
+	role        types.Role
+	serverPort  string
+	lockWatcher *services.LockWatcher
 
 	login string
 }
@@ -150,11 +162,19 @@ type suiteConfig struct {
 	Rewrite *types.Rewrite
 	// Login is used to specify "login" trait in the jwt token
 	Login string
+	// ManualStart skips calling Start() automatically so the
+	// caller can inject state before starting the server.
+	ManualStart bool
+	// OverrideCAs are cert authorities to upsert into the test cluster after
+	// the auth server starts.
+	OverrideCAs []types.CertAuthority
+	// InsecureMode sets service to insecure mode.
+	InsecureMode bool
 }
 
 type fakeConnMonitor struct{}
 
-func (f fakeConnMonitor) MonitorConn(ctx context.Context, authzCtx *authz.Context, conn net.Conn) (context.Context, net.Conn, error) {
+func (f fakeConnMonitor) MonitorConnScoped(ctx context.Context, scopedCtx *srv.ScopedSessionContext, conn net.Conn) (context.Context, net.Conn, error) {
 	return ctx, conn, nil
 }
 
@@ -164,6 +184,7 @@ func SetUpSuite(t *testing.T) *Suite {
 
 func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	s := &Suite{}
+	s.closeContext, s.closeFunc = context.WithCancel(t.Context())
 
 	s.clock = clockwork.NewFakeClock()
 	s.dataDir = t.TempDir()
@@ -172,7 +193,7 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 
 	var err error
 	// Create Auth Server.
-	s.authServer, err = auth.NewTestAuthServer(auth.TestAuthServerConfig{
+	s.authServer, err = authtest.NewAuthServer(authtest.AuthServerConfig{
 		ClusterName: "root.example.com",
 		Dir:         s.dataDir,
 		Clock:       s.clock,
@@ -181,12 +202,15 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	require.NoError(t, err)
 	t.Cleanup(func() { s.authServer.Close() })
 
+	recordingMode := types.RecordOff
 	if config.ServerStreamer != nil {
-		_, err = s.authServer.AuthServer.UpsertSessionRecordingConfig(s.closeContext, &types.SessionRecordingConfigV2{
-			Spec: types.SessionRecordingConfigSpecV2{Mode: types.RecordAtNodeSync},
-		})
-		require.NoError(t, err)
+		recordingMode = types.RecordAtNodeSync
 	}
+
+	_, err = s.authServer.AuthServer.UpsertSessionRecordingConfig(s.closeContext, &types.SessionRecordingConfigV2{
+		Spec: types.SessionRecordingConfigSpecV2{Mode: recordingMode},
+	})
+	require.NoError(t, err)
 
 	s.tlsServer, err = s.authServer.NewTestTLSServer()
 	require.NoError(t, err)
@@ -194,6 +218,10 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	t.Cleanup(func() {
 		s.tlsServer.Close()
 	})
+
+	for _, ca := range config.OverrideCAs {
+		require.NoError(t, s.tlsServer.Auth().UpsertCertAuthority(s.closeContext, ca))
+	}
 
 	// Set up the host cert pool.
 	rootCA, err := s.tlsServer.Auth().GetCertAuthority(context.Background(), types.CertAuthID{
@@ -225,10 +253,8 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 		},
 	}
 	// Create user for regular tests.
-	s.user, err = auth.CreateUser(context.Background(), s.tlsServer.Auth(), "foo", s.role)
+	s.user, err = authtest.CreateUser(context.Background(), s.tlsServer.Auth(), "foo", s.role)
 	require.NoError(t, err)
-
-	s.closeContext, s.closeFunc = context.WithCancel(context.Background())
 
 	// Create a in-memory HTTP server that will respond with a UUID. This value
 	// will be checked in the client later to ensure a connection was made.
@@ -245,6 +271,10 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 
 			err = ws.WriteMessage(websocket.TextMessage, []byte(s.message))
 			require.NoError(t, err)
+
+			// Close the upstream websocket once the message has been written so
+			// the backend->client copy direction reaches EOF promptly.
+			require.NoError(t, ws.Close())
 		} else {
 			fmt.Fprintln(w, s.message)
 		}
@@ -307,14 +337,14 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	require.NoError(t, err)
 
 	// Create a client with a machine role of RoleApp.
-	s.authClient, err = s.tlsServer.NewClient(auth.TestServerID(types.RoleApp, s.hostUUID))
+	s.authClient, err = s.tlsServer.NewClient(authtest.TestServerID(types.RoleApp, s.hostUUID))
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
 		s.authClient.Close()
 	})
 
-	serverIdentity, err := auth.NewServerIdentity(s.authServer.AuthServer, s.hostUUID, types.RoleApp)
+	serverIdentity, err := authtest.NewServerIdentity(s.authServer.AuthServer, s.hostUUID, types.RoleApp)
 	require.NoError(t, err)
 	tlsConfig, err := serverIdentity.TLSConfig(nil)
 	require.NoError(t, err)
@@ -329,22 +359,23 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	// Generate certificate for AWS console application with integration
 	s.awsConsoleCertificateWithIntegration = s.generateCertificate(t, s.user, "aws-integration.example.com", "arn:aws:iam::123456789012:role/readonly")
 
-	lockWatcher, err := services.NewLockWatcher(s.closeContext, services.LockWatcherConfig{
+	s.lockWatcher, err = services.NewLockWatcher(s.closeContext, services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentApp,
 			Client:    s.authClient,
 		},
 	})
 	require.NoError(t, err)
-	authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
-		ClusterName: "cluster-name",
-		AccessPoint: s.authClient,
-		LockWatcher: lockWatcher,
+	authorizer, err := authz.NewScopedAuthorizer(authz.AuthorizerOpts{
+		ClusterName:      "cluster-name",
+		AccessPoint:      s.authClient,
+		ScopedRoleReader: s.authClient.ScopedRoleReader(),
+		LockWatcher:      s.lockWatcher,
 	})
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		lockWatcher.Close()
+		s.lockWatcher.Close()
 	})
 
 	apps := types.Apps{s.appFoo.Copy(), s.appAWS.Copy(), s.appAWSWithIntegration.Copy()}
@@ -353,60 +384,56 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	}
 
 	connectionsHandler, err := NewConnectionsHandler(s.closeContext, &ConnectionsHandlerConfig{
-		Clock:              s.clock,
-		DataDir:            s.dataDir,
-		Emitter:            s.authClient,
-		Authorizer:         authorizer,
-		HostID:             s.hostUUID,
-		AuthClient:         s.authClient,
-		AccessPoint:        s.authClient,
-		Cloud:              &testCloud{},
-		TLSConfig:          tlsConfig,
-		ConnectionMonitor:  fakeConnMonitor{},
-		CipherSuites:       utils.DefaultCipherSuites(),
-		ServiceComponent:   teleport.ComponentApp,
-		AWSSessionProvider: aws.SessionProviderUsingAmbientCredentials(),
+		Clock:             s.clock,
+		DataDir:           s.dataDir,
+		Emitter:           s.authClient,
+		Authorizer:        authorizer,
+		HostID:            s.hostUUID,
+		AuthClient:        s.authClient,
+		AccessPoint:       s.authClient,
+		Cloud:             &testCloud{},
+		TLSConfig:         tlsConfig,
+		ConnectionMonitor: fakeConnMonitor{},
+		CipherSuites:      utils.DefaultCipherSuites(),
+		ServiceComponent:  teleport.ComponentApp,
+		InsecureMode:      config.InsecureMode,
+		AWSConfigOptions: []awsconfig.OptionsFn{
+			awsconfig.WithSTSClientProvider(func(_ aws.Config) awsconfig.STSClient {
+				return &mocks.STSClient{}
+			}),
+		},
 	})
 	require.NoError(t, err)
 
-	inventoryHandle := inventory.NewDownstreamHandle(s.authClient.InventoryControlStream, proto.UpstreamInventoryHello{
-		ServerID: s.hostUUID,
-		Version:  teleport.Version,
-		Services: []types.SystemRole{types.RoleApp},
-		Hostname: "test",
-	})
+	inventoryHandle, err := inventory.NewDownstreamHandle(s.authClient.InventoryControlStream,
+		func(ctx context.Context) (*proto.UpstreamInventoryHello, error) {
+			return proto.UpstreamInventoryHello_builder{
+				ServerID: s.hostUUID,
+				Version:  teleport.Version,
+				Services: types.SystemRoles{types.RoleApp}.StringSlice(),
+				Hostname: "test",
+			}.Build(), nil
+		})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, inventoryHandle.Close()) })
 
 	s.appServer, err = New(s.closeContext, &Config{
-		Clock:              s.clock,
-		AccessPoint:        s.authClient,
-		AuthClient:         s.authClient,
-		HostID:             s.hostUUID,
-		Hostname:           "test",
-		GetRotation:        testRotationGetter,
-		Apps:               apps,
-		OnHeartbeat:        func(err error) {},
-		ResourceMatchers:   config.ResourceMatchers,
-		OnReconcile:        config.OnReconcile,
-		CloudLabels:        config.CloudImporter,
-		ConnectionsHandler: connectionsHandler,
-		InventoryHandle:    inventoryHandle,
+		Clock:                s.clock,
+		AccessPoint:          s.authClient,
+		AuthClient:           s.authClient,
+		HostID:               s.hostUUID,
+		Hostname:             "test",
+		GetRotation:          testRotationGetter,
+		Apps:                 apps,
+		OnHeartbeat:          func(err error) {},
+		ResourceMatchers:     config.ResourceMatchers,
+		OnReconcile:          config.OnReconcile,
+		CloudLabels:          config.CloudImporter,
+		ConnectionsHandler:   connectionsHandler,
+		InventoryHandle:      inventoryHandle,
+		ConnectedProxyGetter: reversetunnel.NewConnectedProxyGetter(),
 	})
 	require.NoError(t, err)
-
-	err = s.appServer.Start(s.closeContext)
-	require.NoError(t, err)
-
-	// Explicitly send a heartbeat for any statically defined apps.
-	for _, app := range apps {
-		select {
-		case sender := <-inventoryHandle.Sender():
-			require.NoError(t, sender.Send(s.closeContext, proto.InventoryHeartbeat{
-				AppServer: s.appServer.getServerInfo(app),
-			}))
-		case <-time.After(20 * time.Second):
-			t.Fatal("timed out waiting for inventory handle sender")
-		}
-	}
 
 	t.Cleanup(func() {
 		s.appServer.Close()
@@ -415,6 +442,27 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 		// actions to proceed
 		s.appServer.Wait()
 	})
+
+	if config.ManualStart {
+		return s
+	}
+
+	err = s.appServer.Start(s.closeContext)
+	require.NoError(t, err)
+
+	// Explicitly send a heartbeat for any statically defined apps.
+	for _, app := range apps {
+		select {
+		case sender := <-inventoryHandle.Sender():
+			appServer, err := s.appServer.getServerInfo(app)
+			require.NoError(t, err)
+			require.NoError(t, sender.Send(s.closeContext, proto.InventoryHeartbeat_builder{
+				AppServer: appServer,
+			}.Build()))
+		case <-time.After(20 * time.Second):
+			t.Fatal("timed out waiting for inventory handle sender")
+		}
+	}
 
 	return s
 }
@@ -453,15 +501,10 @@ func TestStart(t *testing.T) {
 
 	// Fetch the services.App that the service heartbeat.
 	var servers []types.AppServer
-	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		apps, err := s.authServer.AuthServer.GetApplicationServers(s.closeContext, defaults.Namespace)
-		if !assert.NoError(t, err) {
-			return
-		}
-
-		if !assert.Len(t, apps, 3) {
-			return
-		}
+		require.NoError(t, err)
+		require.Len(t, apps, 3)
 		servers = apps
 	}, 10*time.Second, 100*time.Millisecond)
 
@@ -487,8 +530,8 @@ func TestStart(t *testing.T) {
 	require.NoError(t, err)
 
 	sort.Sort(types.AppServers(servers))
-	require.Empty(t, cmp.Diff([]types.AppServer{serverAWS, serverAWSWithIntegration, serverFoo}, servers,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision", "Expires")))
+	require.Empty(t, gocmp.Diff([]types.AppServer{serverAWS, serverAWSWithIntegration, serverFoo}, servers,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision", "Expires"), cmpopts.IgnoreFields(types.AppServerSpecV3{}, "ComponentFeatures")))
 
 	// Check the expiry time is correct.
 	for _, server := range servers {
@@ -539,7 +582,6 @@ func TestShutdown(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -562,7 +604,7 @@ func TestShutdown(t *testing.T) {
 				if !assert.Len(t, appServers, 1) {
 					return
 				}
-				if !assert.Empty(t, cmp.Diff(appServers[0].GetApp(), app0, cmpopts.IgnoreFields(types.Metadata{}, "Revision", "Expires"))) {
+				if !assert.Empty(t, gocmp.Diff(appServers[0].GetApp(), app0, cmpopts.IgnoreFields(types.Metadata{}, "Revision", "Expires"))) {
 					return
 				}
 			}, 10*time.Second, 100*time.Millisecond)
@@ -571,9 +613,9 @@ func TestShutdown(t *testing.T) {
 			require.NoError(t, s.appServer.Shutdown(ctx))
 
 			// Send a Goodbye to simulate process shutdown.
-			if !test.hasForkedChild {
-				require.NoError(t, s.appServer.c.InventoryHandle.SendGoodbye(ctx))
-			}
+			deleteResources := !test.hasForkedChild
+			softReload := test.hasForkedChild
+			require.NoError(t, s.appServer.c.InventoryHandle.SetAndSendGoodbye(ctx, deleteResources, softReload))
 			require.NoError(t, s.appServer.c.InventoryHandle.Close())
 
 			// Validate app servers based on the test.
@@ -581,7 +623,7 @@ func TestShutdown(t *testing.T) {
 				appServersAfterShutdown, err := s.authClient.GetApplicationServers(ctx, defaults.Namespace)
 				require.NoError(t, err)
 				require.Len(t, appServersAfterShutdown, 1)
-				require.Empty(t, cmp.Diff(appServersAfterShutdown[0].GetApp(), app0, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+				require.Empty(t, gocmp.Diff(appServersAfterShutdown[0].GetApp(), app0, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 			} else {
 				require.EventuallyWithT(t, func(t *assert.CollectT) {
 					appServersAfterShutdown, err := s.authClient.GetApplicationServers(ctx, defaults.Namespace)
@@ -700,6 +742,68 @@ func TestAppWithUpdatedLabels(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestGetApp(t *testing.T) {
+	t.Parallel()
+
+	const sharedAddr = "demoqa.com"
+
+	mustNewApp := func(t *testing.T, name, addr string) types.Application {
+		app, err := types.NewAppV3(types.Metadata{
+			Name:   name,
+			Labels: map[string]string{"app_name": name},
+		}, types.AppSpecV3{
+			URI:        "http://localhost:8080",
+			PublicAddr: addr,
+		})
+		require.NoError(t, err)
+		return app
+	}
+
+	appOne := mustNewApp(t, "test-app-1", sharedAddr)
+	appTwo := mustNewApp(t, "test-app-2", sharedAddr)
+	appOther := mustNewApp(t, "other-app", "other.example.com")
+
+	s := &Server{
+		c: &Config{},
+		apps: map[string]types.Application{
+			appOne.GetName():   appOne,
+			appTwo.GetName():   appTwo,
+			appOther.GetName(): appOther,
+		},
+		dynamicLabels: map[string]*labels.Dynamic{},
+	}
+
+	t.Run("disambiguates shared public addr by name", func(t *testing.T) {
+		// Repeat the lookup to ensure the result is deterministic and always
+		// hits the correct app.
+		for range 100 {
+			got, err := s.GetApp(t.Context(), "test-app-1", sharedAddr)
+			require.NoError(t, err)
+			require.Equal(t, "test-app-1", got.GetName())
+
+			got, err = s.GetApp(t.Context(), "test-app-2", sharedAddr)
+			require.NoError(t, err)
+			require.Equal(t, "test-app-2", got.GetName())
+		}
+	})
+
+	t.Run("legacy cert without name falls back to public addr", func(t *testing.T) {
+		got, err := s.GetApp(t.Context(), "", sharedAddr)
+		require.NoError(t, err)
+		require.Equal(t, sharedAddr, got.GetPublicAddr())
+	})
+
+	t.Run("name and addr must both match", func(t *testing.T) {
+		_, err := s.GetApp(t.Context(), "test-app-1", "other.example.com")
+		require.True(t, trace.IsNotFound(err), "expected NotFound, got %v", err)
+	})
+
+	t.Run("unknown app", func(t *testing.T) {
+		_, err := s.GetApp(t.Context(), "nope", "nope.example.com")
+		require.True(t, trace.IsNotFound(err), "expected NotFound, got %v", err)
+	})
 }
 
 // testIMClient is a test instance metadata client for exercising cloud labels.
@@ -902,6 +1006,7 @@ func TestAuthorize(t *testing.T) {
 		roleAppLabels        types.Labels
 		appLabels            map[string]string
 		requireTrustedDevice bool // assigns user to a role that requires trusted devices
+		requireMFADevice     bool // assigns user to a role that requires an enrolled MFA device
 		wantStatus           int
 		assertBody           func(t *testing.T, gotBody string) bool // optional, matched against s.message if nil
 	}{
@@ -945,7 +1050,16 @@ func TestAuthorize(t *testing.T) {
 			requireTrustedDevice: true,
 			wantStatus:           http.StatusForbidden,
 			assertBody: func(t *testing.T, gotBody string) bool {
-				const want = "app requires a trusted device"
+				const want = "trusted device is required to access this resource"
+				return assert.Contains(t, gotBody, want, "response body mismatch")
+			},
+		},
+		{
+			name:             "enrolled MFA device required",
+			requireMFADevice: true,
+			wantStatus:       http.StatusForbidden,
+			assertBody: func(t *testing.T, gotBody string) bool {
+				const want = "Multi-factor authentication (MFA) is required to access this resource"
 				return assert.Contains(t, gotBody, want, "response body mismatch")
 			},
 		},
@@ -960,11 +1074,24 @@ func TestAuthorize(t *testing.T) {
 				RoleAppLabels: test.roleAppLabels,
 			})
 
-			if test.requireTrustedDevice {
+			// Helper to create and assign a role to the user, then refresh certificate.
+			assignRoleAndRefreshCert := func(roleName string, roleSpec types.RoleSpecV6) {
 				authServer := s.authServer.AuthServer
+				role, err := types.NewRole(roleName, roleSpec)
+				require.NoError(t, err, "NewRole")
+				role, err = authServer.CreateRole(ctx, role)
+				require.NoError(t, err, "CreateRole")
 
-				// Create a role that requires a trusted device.
-				requiredDevRole, err := types.NewRole("require-trusted-devices-app", types.RoleSpecV6{
+				user := s.user
+				user.AddRole(role.GetName())
+				user, err = authServer.Services.UpdateUser(ctx, user)
+				require.NoError(t, err, "UpdateUser")
+
+				s.clientCertificate = s.generateCertificate(t, user, s.appFoo.GetPublicAddr(), "" /* awsRoleARN */)
+			}
+
+			if test.requireTrustedDevice {
+				assignRoleAndRefreshCert("require-trusted-devices-app", types.RoleSpecV6{
 					Options: types.RoleOptions{
 						DeviceTrustMode: constants.DeviceTrustModeRequired,
 					},
@@ -972,18 +1099,17 @@ func TestAuthorize(t *testing.T) {
 						AppLabels: types.Labels{"*": []string{"*"}},
 					},
 				})
-				require.NoError(t, err, "NewRole")
-				requiredDevRole, err = authServer.CreateRole(ctx, requiredDevRole)
-				require.NoError(t, err, "CreateRole")
+			}
 
-				// Add role to test user.
-				user := s.user
-				user.AddRole(requiredDevRole.GetName())
-				user, err = authServer.Services.UpdateUser(ctx, user)
-				require.NoError(t, err, "UpdateUser")
-
-				// Refresh user certificate.
-				s.clientCertificate = s.generateCertificate(t, user, s.appFoo.GetPublicAddr(), "" /* awsRoleARN */)
+			if test.requireMFADevice {
+				assignRoleAndRefreshCert("require-mfa-app", types.RoleSpecV6{
+					Options: types.RoleOptions{
+						RequireMFAType: types.RequireMFAType_SESSION,
+					},
+					Allow: types.RoleConditions{
+						AppLabels: types.Labels{"*": []string{"*"}},
+					},
+				})
 			}
 
 			if test.cloudLabels != nil {
@@ -1011,15 +1137,39 @@ func TestAuthorize(t *testing.T) {
 // a matching lock in force.
 func TestAuthorizeWithLocks(t *testing.T) {
 	s := SetUpSuite(t)
+
+	// Subscribe to the lock watcher before upserting so we can wait for the
+	// event deterministically.
+	lockWatch, err := s.lockWatcher.Subscribe(s.closeContext)
+	require.NoError(t, err)
+	defer lockWatch.Close()
+
 	// Create a lock targeting the user.
 	lock, err := types.NewLock("test-lock", types.LockSpecV2{
 		Target: types.LockTarget{User: s.user.GetName()},
 	})
 	require.NoError(t, err)
-	s.tlsServer.Auth().UpsertLock(s.closeContext, lock)
+	err = s.tlsServer.Auth().UpsertLock(s.closeContext, lock)
+	require.NoError(t, err)
 	defer func() {
-		s.tlsServer.Auth().DeleteLock(s.closeContext, lock.GetName())
+		err := s.tlsServer.Auth().DeleteLock(s.closeContext, lock.GetName())
+		assert.NoError(t, err)
 	}()
+
+	// Wait for the lock watcher to process the event before making the
+	// request. This follows the same subscribe-then-wait pattern used in
+	// lib/authz/permissions_test.go (upsertLockWithPutEvent).
+loop:
+	for {
+		select {
+		case event := <-lockWatch.Events():
+			if event.Type == types.OpPut && event.Resource.GetName() == lock.GetName() {
+				break loop
+			}
+		case <-lockWatch.Done():
+			t.Fatal("lock watcher closed while waiting for lock event")
+		}
+	}
 
 	s.checkHTTPResponse(t, s.clientCertificate, func(resp *http.Response) {
 		require.Equal(t, http.StatusForbidden, resp.StatusCode)
@@ -1027,30 +1177,6 @@ func TestAuthorizeWithLocks(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, "Forbidden", strings.TrimSpace(string(buf)))
 	})
-}
-
-// TestGetConfigForClient verifies that only the CAs of the requested cluster are returned.
-func TestGetConfigForClient(t *testing.T) {
-	// TODO(r0mant): Implement this.
-	t.Skip("Not Implemented")
-}
-
-// TestRewriteRequest verifies that requests are rewritten to include JWT headers.
-func TestRewriteRequest(t *testing.T) {
-	// TODO(r0mant): Implement this.
-	t.Skip("Not Implemented")
-}
-
-// TestRewriteResponse verifies that responses are rewritten if rewrite rules are specified.
-func TestRewriteResponse(t *testing.T) {
-	// TODO(r0mant): Implement this.
-	t.Skip("Not Implemented")
-}
-
-// TestSessionClose makes sure sessions are closed after the given session time period.
-func TestSessionClose(t *testing.T) {
-	// TODO(r0mant): Implement this.
-	t.Skip("Not Implemented")
 }
 
 // TestAWSConsoleRedirect verifies AWS management console access.
@@ -1116,7 +1242,7 @@ func TestRequestAuditEvents(t *testing.T) {
 						AppName:       app.Metadata.Name,
 					},
 				}
-				require.Empty(t, cmp.Diff(
+				require.Empty(t, gocmp.Diff(
 					expectedEvent,
 					event,
 					cmpopts.IgnoreTypes(apievents.ServerMetadata{}, apievents.SessionMetadata{}, apievents.UserMetadata{}, apievents.ConnectionMetadata{}),
@@ -1140,7 +1266,7 @@ func TestRequestAuditEvents(t *testing.T) {
 					Method:     "GET",
 					Path:       "/",
 				}
-				require.Empty(t, cmp.Diff(
+				require.Empty(t, gocmp.Diff(
 					expectedEvent,
 					event,
 					cmpopts.IgnoreTypes(apievents.ServerMetadata{}, apievents.SessionMetadata{}, apievents.UserMetadata{}, apievents.ConnectionMetadata{}),
@@ -1193,7 +1319,7 @@ func TestRequestAuditEvents(t *testing.T) {
 			AppName:       app.Metadata.Name,
 		},
 	}
-	require.Empty(t, cmp.Diff(
+	require.Empty(t, gocmp.Diff(
 		expectedEvent,
 		searchEvents[0],
 		cmpopts.IgnoreTypes(apievents.ServerMetadata{}, apievents.SessionMetadata{}, apievents.UserMetadata{}, apievents.ConnectionMetadata{}),
@@ -1324,6 +1450,90 @@ func (c *testCloud) GetAWSSigninURL(_ context.Context, _ AWSSigninRequest) (*AWS
 	return &AWSSigninResponse{
 		SigninURL: "https://signin.aws.amazon.com",
 	}, nil
+}
+
+// TestCleanupOrphanedAppServers verifies that orphaned app server
+// records from a previous instance are deleted on startup.
+func TestCleanupOrphanedAppServers(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name             string
+		resourceMatchers []services.ResourceMatcher
+	}{
+		{
+			name: "static apps only",
+		},
+		{
+			name: "with resource matchers",
+			resourceMatchers: []services.ResourceMatcher{
+				{Labels: types.Labels{"group": []string{"a"}}},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			app0, err := makeStaticApp("app0", maps.Clone(staticLabels))
+			require.NoError(t, err)
+
+			s := SetUpSuiteWithConfig(t, suiteConfig{
+				Apps:             types.Apps{app0},
+				ResourceMatchers: test.resourceMatchers,
+				ManualStart:      true,
+			})
+
+			// Plant an orphaned app server record with this host ID
+			// before starting the server.
+			orphanApp, err := types.NewAppV3(types.Metadata{
+				Name: "orphan",
+			}, types.AppSpecV3{
+				URI: "localhost:9999",
+			})
+			require.NoError(t, err)
+			orphanServer, err := types.NewAppServerV3FromApp(orphanApp, "test", s.hostUUID)
+			require.NoError(t, err)
+			_, err = s.tlsServer.Auth().UpsertApplicationServer(t.Context(), orphanServer)
+			require.NoError(t, err)
+
+			// Plant an app server record for app0 with this host ID
+			// to verify that cleanup preserves running apps' records.
+			app0Server, err := types.NewAppServerV3FromApp(app0, "test", s.hostUUID)
+			require.NoError(t, err)
+			_, err = s.tlsServer.Auth().UpsertApplicationServer(t.Context(), app0Server)
+			require.NoError(t, err)
+
+			// Plant an app server record with a different host ID to
+			// verify that cleanup does not delete other hosts' records.
+			otherServer, err := types.NewAppServerV3FromApp(orphanApp, "test", "other-host-id")
+			require.NoError(t, err)
+			_, err = s.tlsServer.Auth().UpsertApplicationServer(t.Context(), otherServer)
+			require.NoError(t, err)
+
+			// Start the server. The cleanup goroutine runs
+			// asynchronously after Start returns.
+			err = s.appServer.Start(s.closeContext)
+			require.NoError(t, err)
+
+			// The orphaned record for this host should be deleted.
+			// The record for the other host must remain.
+			require.EventuallyWithT(t, func(t *assert.CollectT) {
+				servers, err := s.authClient.GetApplicationServers(s.closeContext, defaults.Namespace)
+				if !assert.NoError(t, err) {
+					return
+				}
+				var names []string
+				for _, srv := range servers {
+					names = append(names, srv.GetHostID()+"/"+srv.GetApp().GetName())
+				}
+				assert.NotContains(t, names, s.hostUUID+"/orphan", "orphan for this host should have been cleaned up")
+				assert.Contains(t, names, s.hostUUID+"/app0", "running app record should be preserved")
+				assert.Contains(t, names, "other-host-id/orphan", "orphan for other host should remain")
+			}, 10*time.Second, 100*time.Millisecond)
+		})
+	}
 }
 
 var (

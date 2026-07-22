@@ -44,15 +44,19 @@
 
 import { spawn } from 'child_process';
 
-import { memoize } from 'shared/utils/highbar';
-
 import Logger from 'teleterm/logger';
 import { unique } from 'teleterm/ui/utils/uid';
 
-const logger = new Logger('resolveShellEnv()');
+const logger = new Logger('resolveShellEnv');
 const resolveShellMaxTime = 10_000; // 10s
 
-export const resolveShellEnvCached = memoize(resolveShellEnv);
+const cache = new Map<string, Promise<typeof process.env | undefined>>();
+export function resolveShellEnvCached(shell: string) {
+  if (!cache.has(shell)) {
+    cache.set(shell, resolveShellEnv(shell));
+  }
+  return cache.get(shell);
+}
 
 export class ResolveShellEnvTimeoutError extends Error {}
 
@@ -97,7 +101,8 @@ async function resolveUnixShellEnv(
     const command = `'${process.execPath}' -p '"${mark}" + JSON.stringify(process.env) + "${mark}"'`;
     // When bash is run with -c, it is considered a non-interactive shell, and it does not read ~/.bashrc, unless is -i specified.
     // https://unix.stackexchange.com/questions/277312/is-the-shell-created-by-bash-i-c-command-interactive
-    const shellArgs = shell === '/bin/tcsh' ? ['-ic'] : ['-ilc'];
+    const shellArgs =
+      shell === '/bin/tcsh' || shell === '/bin/csh' ? ['-ic'] : ['-ilc'];
 
     logger.info(`Reading shell ${shell} ${shellArgs} ${command}`);
 

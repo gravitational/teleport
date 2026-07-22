@@ -33,10 +33,10 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
-	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/lib/utils/parse"
 )
 
 // hostUser is the name of the host user used for tests.
@@ -107,7 +107,7 @@ func mustGetEnv(t *testing.T, key string) string {
 func mustGetDiscoveryMatcherLabels(t *testing.T) types.Labels {
 	t.Helper()
 	labelSpec := mustGetEnv(t, discoveryMatcherLabelsEnv)
-	labels, err := client.ParseLabelSpec(labelSpec)
+	labels, err := parse.LabelSelectorSpec(labelSpec)
 	require.NoError(t, err)
 	out := make(types.Labels)
 	for k, v := range labels {
@@ -159,7 +159,7 @@ func createTeleportCluster(t *testing.T, opts ...testOptionsFunc) *helpers.TeleI
 		teleport.AddUserWithRole(name, roles...)
 	}
 
-	tconf := newTeleportConfig(t)
+	tconf := newTeleportConfig()
 	for _, optFn := range options.serviceConfigFuncs {
 		optFn(tconf)
 	}
@@ -177,7 +177,7 @@ func createTeleportCluster(t *testing.T, opts ...testOptionsFunc) *helpers.TeleI
 
 func newInstanceConfig(t *testing.T) helpers.InstanceConfig {
 	// Create the CA authority that will be used in Auth.
-	priv, pub, err := testauthority.New().GenerateKeyPair()
+	priv, pub, err := testauthority.GenerateKeyPair()
 	require.NoError(t, err)
 	const (
 		host   = helpers.Host
@@ -190,31 +190,31 @@ func newInstanceConfig(t *testing.T) helpers.InstanceConfig {
 		NodeName:    host,
 		Priv:        priv,
 		Pub:         pub,
-		Log:         utils.NewLoggerForTests(),
+		Logger:      logtest.NewLogger(),
 	}
 }
 
-func newTeleportConfig(t *testing.T) *servicecfg.Config {
+func newTeleportConfig() *servicecfg.Config {
 	tconf := servicecfg.MakeDefaultConfig()
 	// Replace the default auth and proxy listeners with the ones so we can
 	// run multiple tests in parallel.
-	tconf.Console = nil
 	tconf.Proxy.DisableWebInterface = true
 	tconf.PollingPeriod = 500 * time.Millisecond
 	tconf.Testing.ClientTimeout = time.Second
 	tconf.Testing.ShutdownTimeout = 2 * tconf.Testing.ClientTimeout
+	tconf.InsecureMode = true
 	return tconf
 }
 
 // withUserRole creates a new role that will be bootstraped and then granted to
 // the Teleport user under test.
-func withUserRole(t *testing.T, user, name string, spec types.RoleSpecV6) testOptionsFunc {
+func withUserRole(t *testing.T, userName, roleName string, spec types.RoleSpecV6) testOptionsFunc {
 	t.Helper()
 	// Create a new role with full access to all databases.
-	role, err := types.NewRole(name, spec)
+	role, err := types.NewRole(roleName, spec)
 	require.NoError(t, err)
 	return func(options *testOptions) {
-		options.userRoles[user] = append(options.userRoles[user], role)
+		options.userRoles[userName] = append(options.userRoles[userName], role)
 	}
 }
 
@@ -241,10 +241,6 @@ func withDiscoveryService(t *testing.T, discoveryGroup string, awsMatchers ...ty
 		options.serviceConfigFuncs = append(options.serviceConfigFuncs, func(cfg *servicecfg.Config) {
 			cfg.Discovery.Enabled = true
 			cfg.Discovery.DiscoveryGroup = discoveryGroup
-			// Reduce the polling interval to speed up the test execution
-			// in the case of a failure of the first attempt.
-			// The default polling interval is 5 minutes.
-			cfg.Discovery.PollInterval = 1 * time.Minute
 			cfg.Discovery.AWSMatchers = append(cfg.Discovery.AWSMatchers, awsMatchers...)
 		})
 	}
@@ -295,4 +291,17 @@ func makeAutoUserDropRoleSpec(roles ...string) types.RoleSpecV6 {
 	spec := makeAutoUserKeepRoleSpec(roles...)
 	spec.Options.CreateDatabaseUserMode = types.CreateDatabaseUserMode_DB_USER_MODE_BEST_EFFORT_DROP
 	return spec
+}
+
+func makeAutoUserDBPermissions(dbPermissions ...types.DatabasePermission) types.RoleSpecV6 {
+	return types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			DatabaseLabels:      types.Labels{types.Wildcard: []string{types.Wildcard}},
+			DatabaseNames:       []string{types.Wildcard},
+			DatabasePermissions: dbPermissions,
+		},
+		Options: types.RoleOptions{
+			CreateDatabaseUserMode: types.CreateDatabaseUserMode_DB_USER_MODE_KEEP,
+		},
+	}
 }

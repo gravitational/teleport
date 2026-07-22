@@ -16,24 +16,26 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import { Integration, IntegrationKind } from 'teleport/services/integrations';
 
-import { Integration } from 'teleport/services/integrations';
-
-import { DeleteIntegrationDialog } from '../RemoveIntegrationDialog';
+import { DeleteAwsOidcIntegrationDialog } from '../DeleteAwsOidcIntegrationDialog';
 import { EditAwsOidcIntegrationDialog } from '../EditAwsOidcIntegrationDialog';
-
+import { DeleteIntegrationDialog } from '../RemoveIntegrationDialog';
 import {
-  OperationType,
   EditableIntegrationFields,
+  OperationType,
 } from './useIntegrationOperation';
 
-type Props = {
+export type DeleteRequestOptions = {
+  deleteAssociatedResources?: boolean;
+};
+
+export type Props<UpdateRequest> = {
   operation: OperationType;
   integration: Integration;
   close(): void;
-  edit(req: EditableIntegrationFields): Promise<void>;
-  remove(): Promise<void>;
+  edit(req: UpdateRequest): Promise<void>;
+  remove(opt?: DeleteRequestOptions): Promise<void>;
 };
 
 export function IntegrationOperations({
@@ -42,7 +44,17 @@ export function IntegrationOperations({
   close,
   edit,
   remove,
-}: Props) {
+}: Props<EditableIntegrationFields>) {
+  if (operation === 'delete' && integration.kind === IntegrationKind.AwsOidc) {
+    return (
+      <DeleteAwsOidcIntegrationDialog
+        integration={integration}
+        close={close}
+        remove={remove}
+      />
+    );
+  }
+
   if (operation === 'delete') {
     return (
       <DeleteIntegrationDialog
@@ -53,7 +65,7 @@ export function IntegrationOperations({
     );
   }
 
-  if (operation === 'edit') {
+  if (operation === 'edit' && integration.kind === IntegrationKind.AwsOidc) {
     return (
       <EditAwsOidcIntegrationDialog
         integration={integration}

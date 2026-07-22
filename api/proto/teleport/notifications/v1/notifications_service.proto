@@ -1,20 +1,16 @@
-/*
- * Teleport
- * Copyright (C) 2024  Gravitational, Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- */
+// Copyright 2026 Gravitational, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 syntax = "proto3";
 
@@ -70,6 +66,20 @@ message ListNotificationsRequest {
   int32 page_size = 1;
   // page_token is the next_page_token value returned from a previous ListUserNotifications request, if any.
   string page_token = 2;
+  // filters specify search criteria to limit which notifications should be returned. If omitted, the default behavior will be to list all notifications.
+  NotificationFilters filters = 3;
+}
+
+// NotificationFilters provide a mechanism to refine ListNotification results.
+message NotificationFilters {
+  // username is the username of the user the notifications being listed are for.
+  string username = 1;
+  // global_only is whether to only list global notifications (notifications capable of targetting multiple users).
+  bool global_only = 2;
+  // user_created_only is whether to only list user-created notifications (ie. notifications created by an admin via the tctl interface).
+  bool user_created_only = 3;
+  // labels is used to request only notifications with specific labels.
+  map<string, string> labels = 4;
 }
 
 // ListNotificationsResponse is the response from listing a user's notifications.

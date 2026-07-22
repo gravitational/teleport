@@ -136,7 +136,7 @@ OnApprove:
 	3. We can then use a policy checker to see if the approvers fulfill any moderation policy on the original requester. We can treat this check the same as the `checkIfStart` conditional for opening a session. If this comes back true, we notify the original requester with an event containing the ID of the `FileTransferRequest`
 
 Once the client receives this final "approved" message, we can automatically send a "normal" SFTP request (over HTTP) with two new optional params, `sessionID` and `commandRequestId` (similar to the new optional `webauthn` param in this same request). The benefits of using the normal SFTP request is that we can conditionally choose to skip this entire approval process flow for non-moderated sessions. 
-If the session is not moderated, just send the SFTP request as usual. If it is, do the song and dance perscribed above.
+If the session is not moderated, just send the SFTP request as usual. If it is, do the song and dance prescribed  above.
 
 ### Updated file transfer api handler
 

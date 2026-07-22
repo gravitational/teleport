@@ -16,8 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-
 import { render, screen, userEvent } from 'design/utils/testing';
 
 import { TextSelectCopyMulti } from './TextSelectCopyMulti';

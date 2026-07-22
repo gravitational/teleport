@@ -16,14 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { MemoryRouter } from 'react-router';
 
-import { initSelectedOptionsHelper } from 'teleport/Discover/Shared/SetupAccess';
+import { DiscoverBox } from 'teleport/Discover/Shared';
+import {
+  initSelectedOptionsHelper,
+  type State,
+} from 'teleport/Discover/Shared/SetupAccess';
 
 import { SetupAccess } from './SetupAccess';
-
-import type { State } from 'teleport/Discover/Shared/SetupAccess';
 
 export default {
   title: 'Teleport/Discover/Server/SetupAccess',
@@ -31,25 +32,33 @@ export default {
 
 export const NoTraits = () => (
   <MemoryRouter>
-    <SetupAccess {...props} initSelectedOptions={() => []} />
+    <DiscoverBox>
+      <SetupAccess {...props} initSelectedOptions={() => []} />
+    </DiscoverBox>
   </MemoryRouter>
 );
 
 export const WithTraits = () => (
   <MemoryRouter>
-    <SetupAccess {...props} />
+    <DiscoverBox>
+      <SetupAccess {...props} />
+    </DiscoverBox>
   </MemoryRouter>
 );
 
 export const NoAccess = () => (
   <MemoryRouter>
-    <SetupAccess {...props} canEditUser={false} />
+    <DiscoverBox>
+      <SetupAccess {...props} canEditUser={false} />
+    </DiscoverBox>
   </MemoryRouter>
 );
 
 export const SsoUser = () => (
   <MemoryRouter>
-    <SetupAccess {...props} isSsoUser={true} />
+    <DiscoverBox>
+      <SetupAccess {...props} isSsoUser={true} />
+    </DiscoverBox>
   </MemoryRouter>
 );
 

@@ -34,7 +34,6 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/integrations/lib/testing/integration"
@@ -42,6 +41,7 @@ import (
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/services"
 
 	"github.com/gravitational/teleport/integrations/terraform/provider"
 )
@@ -72,11 +72,25 @@ type TerraformSuiteOSSWithCache struct {
 type TerraformSuiteOSS struct {
 	TerraformBaseSuite
 }
+type TerraformSuiteOSSScopedResources struct {
+	TerraformBaseSuite
+}
 type TerraformSuiteEnterprise struct {
 	TerraformBaseSuite
 }
 type TerraformSuiteEnterpriseWithCache struct {
 	TerraformBaseSuite
+}
+
+// TerraformSuiteEnterpriseCloud runs enterprise tests for resources that are
+// only available on Teleport Cloud (Cloud mode is enabled in the suite's
+// modules and a fake Cloud API client is wired into the plugin).
+type TerraformSuiteEnterpriseCloud struct {
+	TerraformBaseSuite
+	// userClient is authenticated as the terraform test user. Some Cloud APIs
+	// (e.g. client_ip_restriction) reject non-user identities, so the suite's
+	// builtin-admin client cannot call them; use this for direct API calls.
+	userClient *client.Client
 }
 
 func (s *TerraformBaseSuite) SetupSuite() {
@@ -92,41 +106,13 @@ func (s *TerraformBaseSuite) SetupSuite() {
 	require.NoError(t, err)
 	s.teleportFeatures = pong.GetServerFeatures()
 
-	unrestricted := []string{"list", "create", "read", "update", "delete"}
-	tfRole, err := types.NewRole("terraform", types.RoleSpecV6{
-		Allow: types.RoleConditions{
-			DatabaseLabels: map[string]utils.Strings{"*": []string{"*"}},
-			AppLabels:      map[string]utils.Strings{"*": []string{"*"}},
-			NodeLabels:     map[string]utils.Strings{"*": []string{"*"}},
-			Rules: []types.Rule{
-				types.NewRule("token", unrestricted),
-				types.NewRule("role", unrestricted),
-				types.NewRule("user", unrestricted),
-				types.NewRule("cluster_auth_preference", unrestricted),
-				types.NewRule("cluster_networking_config", unrestricted),
-				types.NewRule("cluster_maintenance_config", unrestricted),
-				types.NewRule("session_recording_config", unrestricted),
-				types.NewRule("db", unrestricted),
-				types.NewRule("app", unrestricted),
-				types.NewRule("github", unrestricted),
-				types.NewRule("oidc", unrestricted),
-				types.NewRule("okta_import_rule", unrestricted),
-				types.NewRule("saml", unrestricted),
-				types.NewRule("login_rule", unrestricted),
-				types.NewRule("device", unrestricted),
-				types.NewRule("access_list", unrestricted),
-				types.NewRule("node", unrestricted),
-				types.NewRule("bot", unrestricted),
-			},
-		},
-	})
+	tfUser, err := types.NewUser("terraform")
 	require.NoError(t, err)
 
+	tfRole := services.NewPresetTerraformProviderRole()
 	tfRole, err = s.client.CreateRole(ctx, tfRole)
 	require.NoError(t, err)
 
-	tfUser, err := types.NewUser("terraform")
-	require.NoError(t, err)
 	tfUser.SetRoles([]string{tfRole.GetName()})
 	tfUser, err = s.client.CreateUser(ctx, tfUser)
 	require.NoError(t, err)
@@ -170,13 +156,12 @@ func (s *TerraformBaseSuite) getTLSCreds(ctx context.Context, user types.User, o
 
 	signer, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 	require.NoError(s.T(), err)
-	privateKeyPEM, err := keys.MarshalPrivateKey(signer)
-	require.NoError(s.T(), err)
 	publicKeyPEM, err := keys.MarshalPublicKey(signer.Public())
 	require.NoError(s.T(), err)
-	privateKey, err := keys.NewPrivateKey(signer, privateKeyPEM)
+	privateKey, err := keys.NewPrivateKey(signer)
 	require.NoError(s.T(), err)
-	keyRing := libclient.NewKey(privateKey)
+	// Identity files only support a single private key for SSH and TLS.
+	keyRing := libclient.NewKeyRing(privateKey, privateKey)
 
 	certs, err := s.client.GenerateUserCerts(ctx, proto.UserCertsRequest{
 		TLSPublicKey: publicKeyPEM,
@@ -194,7 +179,7 @@ func (s *TerraformBaseSuite) getTLSCreds(ctx context.Context, user types.User, o
 	// write the cert+private key to the output:
 	_, err = identityfile.Write(ctx, identityfile.WriteConfig{
 		OutputPath:           outputPath,
-		Key:                  keyRing,
+		KeyRing:              keyRing,
 		Format:               identityfile.FormatTLS,
 		OverwriteDestination: false,
 		Writer:               &identityfile.StandardConfigWriter{},

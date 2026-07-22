@@ -42,6 +42,9 @@ service TransportService {
   // connection is established. After which the connection can be used to construct a new
   // auth.Client to the tunneled cluster.
   rpc ProxyCluster(stream ProxyClusterRequest) returns (stream ProxyClusterResponse);
+
+  // Bidirectional stream for proxying Windows desktop sessions.
+  rpc ProxyWindowsDesktopSession(stream ProxyWindowsDesktopSessionRequest) returns (stream ProxyWindowsDesktopSessionResponse);
 }
 
 // Request for ProxySSH
@@ -129,4 +132,27 @@ message GetClusterDetailsResponse {
 message ClusterDetails {
   // If the cluster is running in FIPS mode
   bool fips_enabled = 1;
+}
+
+// Request message for a proxied Windows desktop session.
+message ProxyWindowsDesktopSessionRequest {
+  // A chunk of data from the connection. Must be empty in the first message and nonempty in subsequent messages.
+  bytes data = 1;
+  // Target cluster and desktop. Must be set in the first message and unset in subsequent messages.
+  TargetWindowsDesktop dial_target = 2;
+}
+
+// Response message for a proxied Windows desktop session.
+message ProxyWindowsDesktopSessionResponse {
+  // A chunk of data from the connection. Can be empty (for example, to send a message
+  // signaling a successful connection even if there's no data available in the connection).
+  bytes data = 1;
+}
+
+// Identifies the destination desktop within a specific cluster.
+message TargetWindowsDesktop {
+  // Name of the desktop to connect to.
+  string desktop_name = 1;
+  // Name of the cluster the desktop belongs to.
+  string cluster = 2;
 }

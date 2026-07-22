@@ -1,12 +1,18 @@
 ---
 title: Manage Access to Windows Resources
+sidebar_label: Introduction
 description: Demonstrates how you can manage access to Windows desktops with Teleport.
 videoBanner: n2h0GisWdss
+tags:
+ - conceptual
+ - zero-trust
+ - privileged-access
+page_type: conceptual
 ---
 
-The topics in this guide describe how to configure Teleport to provide secure, passwordless
-access to Microsoft Windows desktops and servers. For Windows, Teleport provides the
-following key features:
+You can configure Teleport to provide secure, passwordless access to Microsoft
+Windows desktops and servers. For Windows, Teleport provides the following key
+features:
 
 - Passwordless access to Windows hosts backed by secure cryptographic
   authentication and short-lived certificates.
@@ -15,6 +21,9 @@ following key features:
   from remote Windows hosts.
 - Session recording for all desktop activity.
 - Audit logs that track user activity.
+
+This page describes the architecture of Windows desktop enrollment with
+Teleport.
 
 ## How it works
 
@@ -73,12 +82,15 @@ Desktop Service, see the following topics:
 The following topics provide information about performing common tasks and
 Windows-specific configuration settings, role-based permissions, and audit events:
 
+{/* vale messaging.protocol-products = NO */}
 - [Role-Based Access Control for Desktops](./rbac.mdx)
-- [Clipboard Sharing](./reference/clipboard.mdx)
+- [Clipboard Sharing](reference/clipboard.mdx)
 - [Directory Sharing](./directory-sharing.mdx)
-- [Session Recording and Playback](./reference/sessions.mdx)
+- [Dynamic Registration](./dynamic-registration.mdx)
+- [Session Recording and Playback](reference/sessions.mdx)
 - [Troubleshooting Desktop Access](./troubleshooting.mdx)
-- [Desktop Access Audit Events Reference](./reference/audit.mdx)
-- [Desktop Access Configuration Reference](./reference/configuration.mdx)
-- [Desktop Access CLI Reference](./reference/cli.mdx)
+- [Desktop Access Audit Events Reference](reference/audit.mdx)
+- [Desktop Access Configuration Reference](reference/configuration.mdx)
+- [Desktop Access CLI Reference](reference/cli.mdx)
+{/* vale messaging.protocol-products = YES */}
 

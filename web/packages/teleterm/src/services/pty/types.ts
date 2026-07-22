@@ -16,13 +16,18 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { PtyProcessOptions, IPtyProcess } from 'teleterm/sharedProcess/ptyHost';
+import { Shell } from 'teleterm/mainProcess/shell';
+import {
+  PtyProcessOptions,
+  IPtyProcess as SharedProcessIPtyProcess,
+} from 'teleterm/sharedProcess/ptyHost';
 
 import { PtyEventsStreamHandler } from './ptyHost/ptyEventsStreamHandler';
 
 export enum PtyProcessCreationStatus {
   Ok = 'Ok',
   ResolveShellEnvTimeout = 'ResolveShellEnvTimeout',
+  ShellNotResolved = 'ShellNotResolved',
 }
 
 export interface PtyHostClient {
@@ -30,15 +35,37 @@ export interface PtyHostClient {
 
   getCwd(ptyId: string): Promise<string>;
 
-  exchangeEvents(ptyId: string): PtyEventsStreamHandler;
+  managePtyProcess(ptyId: string): PtyEventsStreamHandler;
 }
 
 export type PtyServiceClient = {
   createPtyProcess: (cmd: PtyCommand) => Promise<{
     process: IPtyProcess;
     creationStatus: PtyProcessCreationStatus;
+    windowsPty: WindowsPty;
+    shell: Shell;
   }>;
 };
+
+/**
+ * IPtyProcess is a client-side only interface which extends IPtyProcess from the shared process.
+ */
+export interface IPtyProcess extends SharedProcessIPtyProcess {
+  start(cols: number, rows: number): Promise<void>;
+  write(data: string): Promise<void>;
+  resize(cols: number, rows: number): Promise<void>;
+}
+
+/**
+ * Pty information for Windows.
+ * undefined for non-Windows OS.
+ */
+export type WindowsPty =
+  | {
+      useConpty: boolean;
+      buildNumber: number;
+    }
+  | undefined;
 
 export type ShellCommand = PtyCommandBase & {
   kind: 'pty.shell';
@@ -52,6 +79,8 @@ export type ShellCommand = PtyCommandBase & {
   // The initMessage is rendered on the terminal UI without being written or
   // read by the underlying PTY.
   initMessage?: string;
+  /** Shell identifier. */
+  shellId: string;
 };
 
 export type TshLoginCommand = PtyCommandBase & {
@@ -63,14 +92,6 @@ export type TshLoginCommand = PtyCommandBase & {
   serverId: string;
   rootClusterId: string;
   leafClusterId: string | undefined;
-};
-
-export type TshKubeLoginCommand = PtyCommandBase & {
-  kind: 'pty.tsh-kube-login';
-  kubeId: string;
-  kubeConfigRelativePath: string;
-  rootClusterId: string;
-  leafClusterId?: string;
 };
 
 export type GatewayCliClientCommand = PtyCommandBase & {
@@ -97,7 +118,6 @@ type PtyCommandBase = {
 export type PtyCommand =
   | ShellCommand
   | TshLoginCommand
-  | TshKubeLoginCommand
   | GatewayCliClientCommand;
 
 export type SshOptions = {
@@ -106,4 +126,12 @@ export type SshOptions = {
    * (by adding the `--no-resume` option).
    */
   noResume: boolean;
+  /**
+   * Enables agent forwarding when running `tsh ssh` by adding the --forward-agent option.
+   */
+  forwardAgent: boolean;
+};
+
+export type TerminalOptions = {
+  windowsBackend: 'auto' | 'winpty';
 };

@@ -16,28 +16,19 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import styled from 'styled-components';
 
-import { Card, Box, Text, ButtonPrimary } from 'design';
+import { ButtonPrimary, Card, Text } from 'design';
 
 export function Motd({ message, onClick }: Props) {
   return (
-    <StyledCard bg="levels.surface" my={6} mx="auto">
-      <Box p={6}>
-        <StyledText typography="h5" mb={3} textAlign="left">
-          {message}
-        </StyledText>
-        <ButtonPrimary
-          width="100%"
-          mt={3}
-          size="large"
-          onClick={onClick}
-          align="center"
-        >
-          Acknowledge
-        </ButtonPrimary>
-      </Box>
+    <StyledCard bg="levels.surface" my={6} p={6} mx="auto">
+      <StyledText typography="body1" mb={3} textAlign="left">
+        {message}
+      </StyledText>
+      <ButtonPrimary width="100%" mt={3} size="large" onClick={onClick}>
+        Acknowledge
+      </ButtonPrimary>
     </StyledCard>
   );
 }
@@ -48,12 +39,14 @@ type Props = {
 };
 
 const StyledCard = styled(Card)`
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
   max-width: 600px;
-  max-height: 500px;
-  opacity: 1;
+  max-height: calc(75vh - ${({ theme }) => theme.space[11]}px);
 `;
 
 const StyledText = styled(Text)`
   white-space: pre-wrap;
+  flex: 1 1 auto;
+  overflow-y: auto;
 `;

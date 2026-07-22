@@ -39,9 +39,18 @@ const (
 
 // TokenService defines the required methods to upsert the Provision Token used by the Deploy Service.
 type TokenService interface {
+	TokenGetter
+	TokenCreator
+}
+
+// TokenGetter defines the required method to get a Provision Token.
+type TokenGetter interface {
 	// GetToken returns a provision token by name.
 	GetToken(ctx context.Context, name string) (types.ProvisionToken, error)
+}
 
+// TokenCreator defines the required method to create or update a Provision Token.
+type TokenCreator interface {
 	// UpsertToken creates or updates a provision token.
 	UpsertToken(ctx context.Context, token types.ProvisionToken) error
 }
@@ -77,7 +86,7 @@ func (u *upsertIAMJoinTokenRequest) CheckAndSetDefaults() error {
 	}
 
 	if u.accountID == "" {
-		return trace.BadParameter("accound id is required")
+		return trace.BadParameter("account id is required")
 	}
 
 	if u.region == "" {
@@ -177,14 +186,14 @@ func updateTokenIAMJoin(ctx context.Context, req upsertIAMJoinTokenRequest, rule
 	uniqueRoles := utils.Deduplicate(allRoles)
 	existingToken.SetRoles(uniqueRoles)
 
-	for _, rule := range existingToken.GetAllowRules() {
+	for _, rule := range existingToken.GetAWSAllowRules() {
 		if rule.AWSAccount == req.accountID && rule.AWSARN == req.awsARN {
 
 			return nil, trace.AlreadyExists("rule already exists")
 		}
 	}
 
-	existingToken.SetAllowRules(append(existingToken.GetAllowRules(), rule))
+	existingToken.SetAllowRules(append(existingToken.GetAWSAllowRules(), rule))
 
 	return existingToken, nil
 }

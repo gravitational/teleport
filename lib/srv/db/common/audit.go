@@ -20,16 +20,17 @@ package common
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	libevents "github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 // Audit defines an interface for database access audit events logger.
@@ -118,7 +119,7 @@ type audit struct {
 	// cfg is the audit events emitter configuration.
 	cfg AuditConfig
 	// log is used for logging
-	log logrus.FieldLogger
+	logger *slog.Logger
 }
 
 // NewAudit returns a new instance of the audit events emitter.
@@ -127,13 +128,21 @@ func NewAudit(config AuditConfig) (Audit, error) {
 		return nil, trace.Wrap(err)
 	}
 	return &audit{
-		cfg: config,
-		log: logrus.WithField(teleport.ComponentKey, config.Component),
+		cfg:    config,
+		logger: slog.With(teleport.ComponentKey, config.Component),
 	}, nil
 }
 
 // OnSessionStart emits an audit event when database session starts.
 func (a *audit) OnSessionStart(ctx context.Context, session *Session, sessionErr error) {
+	var caOverrideDetails *events.CAOverrideCertificateDetails
+	if session.caOverrideDetails != nil {
+		caOverrideDetails = &events.CAOverrideCertificateDetails{
+			Active:        true,
+			PublicKeyHash: session.caOverrideDetails.PublicKeyHash,
+		}
+	}
+
 	event := &events.DatabaseSessionStart{
 		Metadata: MakeEventMetadata(session,
 			libevents.DatabaseSessionStartEvent,
@@ -145,6 +154,11 @@ func (a *audit) OnSessionStart(ctx context.Context, session *Session, sessionErr
 		Status: events.Status{
 			Success: true,
 		},
+		PostgresPID: session.PostgresPID,
+		ClientMetadata: events.ClientMetadata{
+			UserAgent: session.UserAgent,
+		},
+		CAOverride: caOverrideDetails,
 	}
 	event.SetTime(session.StartTime)
 
@@ -167,10 +181,20 @@ func (a *audit) OnSessionEnd(ctx context.Context, session *Session) {
 		Metadata: MakeEventMetadata(session,
 			libevents.DatabaseSessionEndEvent,
 			libevents.DatabaseSessionEndCode),
-		UserMetadata:     MakeUserMetadata(session),
-		SessionMetadata:  MakeSessionMetadata(session),
-		DatabaseMetadata: MakeDatabaseMetadata(session),
-		StartTime:        session.StartTime,
+		UserMetadata:       MakeUserMetadata(session),
+		SessionMetadata:    MakeSessionMetadata(session),
+		ConnectionMetadata: MakeConnectionMetadata(session),
+		DatabaseMetadata:   MakeDatabaseMetadata(session),
+		StartTime:          session.StartTime,
+		Participants: []string{
+			services.UsernameForCluster(
+				services.UsernameForClusterConfig{
+					User:              session.Identity.Username,
+					OriginClusterName: session.Identity.OriginClusterName,
+					LocalClusterName:  session.Identity.TeleportCluster,
+				},
+			),
+		},
 	}
 	endTime := a.cfg.Clock.Now()
 	event.SetTime(endTime)
@@ -302,14 +326,26 @@ func (a *audit) EmitEvent(ctx context.Context, event events.AuditEvent) {
 	defer methodCallMetrics("EmitEvent", a.cfg.Component, a.cfg.Database)()
 	preparedEvent, err := a.cfg.Recorder.PrepareSessionEvent(event)
 	if err != nil {
-		a.log.WithError(err).Errorf("Failed to setup event: %s - %s.", event.GetType(), event.GetID())
+		a.logger.ErrorContext(ctx, "Failed to setup event",
+			"error", err,
+			"event_type", event.GetType(),
+			"event_id", event.GetID(),
+		)
 		return
 	}
 	if err := a.cfg.Recorder.RecordEvent(ctx, preparedEvent); err != nil {
-		a.log.WithError(err).Errorf("Failed to record session event: %s - %s.", event.GetType(), event.GetID())
+		a.logger.ErrorContext(ctx, "Failed to record session event",
+			"error", err,
+			"event_type", event.GetType(),
+			"event_id", event.GetID(),
+		)
 	}
 	if err := a.cfg.Emitter.EmitAuditEvent(ctx, preparedEvent.GetAuditEvent()); err != nil {
-		a.log.WithError(err).Errorf("Failed to emit audit event: %s - %s.", event.GetType(), event.GetID())
+		a.logger.ErrorContext(ctx, "Failed to emit audit event",
+			"error", err,
+			"event_type", event.GetType(),
+			"event_id", event.GetID(),
+		)
 	}
 }
 
@@ -318,11 +354,19 @@ func (a *audit) RecordEvent(ctx context.Context, event events.AuditEvent) {
 	defer methodCallMetrics("RecordEvent", a.cfg.Component, a.cfg.Database)()
 	preparedEvent, err := a.cfg.Recorder.PrepareSessionEvent(event)
 	if err != nil {
-		a.log.WithError(err).Errorf("Failed to setup event: %s - %s.", event.GetType(), event.GetID())
+		a.logger.ErrorContext(ctx, "Failed to setup event",
+			"error", err,
+			"event_type", event.GetType(),
+			"event_id", event.GetID(),
+		)
 		return
 	}
 	if err := a.cfg.Recorder.RecordEvent(ctx, preparedEvent); err != nil {
-		a.log.WithError(err).Errorf("Failed to record session event: %s - %s.", event.GetType(), event.GetID())
+		a.logger.ErrorContext(ctx, "Failed to record session event",
+			"error", err,
+			"event_type", event.GetType(),
+			"event_id", event.GetID(),
+		)
 	}
 }
 
@@ -349,6 +393,15 @@ func MakeUserMetadata(session *Session) events.UserMetadata {
 	return session.Identity.GetUserMetadata()
 }
 
+// MakeConnectionMetadata returns common connection metadata for database session.
+func MakeConnectionMetadata(session *Session) events.ConnectionMetadata {
+	return events.ConnectionMetadata{
+		RemoteAddr: session.ClientIP,
+		LocalAddr:  session.Database.GetURI(),
+		Protocol:   libevents.EventProtocolDB,
+	}
+}
+
 // MakeSessionMetadata returns common session metadata for database session.
 func MakeSessionMetadata(session *Session) events.SessionMetadata {
 	return events.SessionMetadata{
@@ -363,6 +416,7 @@ func MakeDatabaseMetadata(session *Session) events.DatabaseMetadata {
 	return events.DatabaseMetadata{
 		DatabaseService:  session.Database.GetName(),
 		DatabaseProtocol: session.Database.GetProtocol(),
+		DatabaseLabels:   session.Database.GetAllLabels(),
 		DatabaseURI:      session.Database.GetURI(),
 		DatabaseName:     session.DatabaseName,
 		DatabaseUser:     session.DatabaseUser,

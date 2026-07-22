@@ -16,30 +16,36 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-
 import { botsFixture } from 'teleport/Bots/fixtures';
 import { BotList } from 'teleport/Bots/List/BotList';
+import { TeleportProviderBasic } from 'teleport/mocks/providers';
+
+import { EmptyState } from './EmptyState/EmptyState';
 
 export default {
-  title: 'Teleport/Bots',
+  title: 'Teleport/Bots/List',
+};
+
+export const Empty = () => {
+  return (
+    <TeleportProviderBasic>
+      <EmptyState />
+    </TeleportProviderBasic>
+  );
 };
 
 export const List = () => {
   return (
     <BotList
-      attempt={{ status: '' }}
       bots={botsFixture}
       disabledEdit={false}
       disabledDelete={false}
       onClose={() => {}}
       onDelete={() => {}}
       onEdit={() => {}}
-      fetchRoles={async () => []}
+      onSelect={() => {}}
       selectedBot={null}
-      selectedRoles={[]}
       setSelectedBot={() => {}}
-      setSelectedRoles={() => {}}
     />
   );
 };

@@ -24,6 +24,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -33,7 +34,6 @@ import (
 
 	"github.com/HdrHistogram/hdrhistogram-go"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/observability/tracing"
@@ -102,7 +102,7 @@ func Run(ctx context.Context, lg *Linear, host, login, proxy string, suite Suite
 		signal.Notify(exitSignals, syscall.SIGTERM, syscall.SIGINT)
 		defer signal.Stop(exitSignals)
 		sig := <-exitSignals
-		logrus.Debugf("signal: %v", sig)
+		slog.DebugContext(ctx, "terminating benchmark due to signal", "signal", sig)
 		cancel()
 	}()
 	var results []Result
@@ -131,7 +131,7 @@ func Run(ctx context.Context, lg *Linear, host, login, proxy string, suite Suite
 }
 
 // ExportLatencyProfile exports the latency profile and returns the path as a string if no errors
-func ExportLatencyProfile(path string, h *hdrhistogram.Histogram, ticks int32, valueScale float64) (string, error) {
+func ExportLatencyProfile(ctx context.Context, path string, h *hdrhistogram.Histogram, ticks int32, valueScale float64) (string, error) {
 	timeStamp := time.Now().Format("2006-01-02_15:04:05")
 	suffix := fmt.Sprintf("latency_profile_%s.txt", timeStamp)
 	if path != "." {
@@ -147,7 +147,7 @@ func ExportLatencyProfile(path string, h *hdrhistogram.Histogram, ticks int32, v
 
 	if _, err := h.PercentilesPrint(fo, ticks, valueScale); err != nil {
 		if err := fo.Close(); err != nil {
-			logrus.WithError(err).Warningf("failed to close file")
+			slog.WarnContext(ctx, "failed to close latency profile file", "error", err)
 		}
 		return "", trace.Wrap(err)
 	}
@@ -201,11 +201,10 @@ func (c *Config) Benchmark(ctx context.Context, tc *client.TeleportClient, suite
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	requestsC := make(chan benchMeasure)
 	resultC := make(chan benchMeasure)
 
 	var wg sync.WaitGroup
-	go func() {
+	wg.Go(func() {
 		interval := time.Duration(1 / float64(c.Rate) * float64(time.Second))
 		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
@@ -221,17 +220,12 @@ func (c *Config) Benchmark(ctx context.Context, tc *client.TeleportClient, suite
 					ResponseStart: t,
 				}
 
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
-					work(ctx, measure, resultC, workload)
-				}()
+				wg.Go(func() { work(ctx, measure, resultC, workload) })
 			case <-ctx.Done():
-				close(requestsC)
 				return
 			}
 		}
-	}()
+	})
 
 	defer wg.Wait()
 
@@ -244,22 +238,24 @@ func (c *Config) Benchmark(ctx context.Context, tc *client.TeleportClient, suite
 		if c.MinimumWindow <= time.Since(start) {
 			timeElapsed = true
 		}
+
 		select {
+		case <-ctx.Done():
+			result.Duration = time.Since(start)
+			return result, nil
 		case measure := <-resultC:
 			result.Histogram.RecordValue(int64(measure.End.Sub(measure.ResponseStart) / time.Millisecond))
 			result.RequestsOriginated++
-			if timeElapsed && result.RequestsOriginated >= c.MinimumMeasurements {
-				cancel()
-			}
 			if measure.Error != nil {
 				result.RequestsFailed++
 				result.LastError = measure.Error
 			}
-		case <-ctx.Done():
-			result.Duration = time.Since(start)
-			return result, nil
 		case <-statusTicker.C:
-			logrus.Infof("working... current observation count: %d", result.RequestsOriginated)
+			slog.InfoContext(ctx, "working...", "current_observation_count", result.RequestsOriginated)
+		}
+
+		if timeElapsed && result.RequestsOriginated >= c.MinimumMeasurements {
+			cancel()
 		}
 	}
 }
@@ -283,8 +279,9 @@ func work(ctx context.Context, m benchMeasure, send chan<- benchMeasure, workloa
 // makeTeleportClient creates an instance of a teleport client
 func makeTeleportClient(host, login, proxy string) (*client.TeleportClient, error) {
 	c := client.Config{
-		Host:   host,
-		Tracer: tracing.NoopProvider().Tracer("test"),
+		Host:        host,
+		Tracer:      tracing.NoopProvider().Tracer("test"),
+		ClientStore: client.NewFSClientStore(""),
 	}
 
 	if login != "" {
@@ -295,8 +292,7 @@ func makeTeleportClient(host, login, proxy string) (*client.TeleportClient, erro
 		c.SSHProxyAddr = proxy
 	}
 
-	profileStore := client.NewFSProfileStore("")
-	if err := c.LoadProfile(profileStore, proxy); err != nil {
+	if err := c.LoadProfile(proxy); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	tc, err := client.NewClient(&c)

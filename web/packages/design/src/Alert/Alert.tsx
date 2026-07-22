@@ -16,12 +16,22 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-import styled from 'styled-components';
-import { style } from 'styled-system';
+import React, { useState } from 'react';
+import { Link } from 'react-router';
+import styled, { useTheme } from 'styled-components';
+import { color, ColorProps, style } from 'styled-system';
 
-import { space, SpaceProps, width, WidthProps } from 'design/system';
-import { fade } from 'design/theme/utils/colorManipulator';
+import { IconProps } from 'design/Icon/Icon';
+import { StatusIcon, StatusKind } from 'design/StatusIcon';
+
+import Box from '../Box';
+import { Button, ButtonFill, ButtonIntent } from '../Button';
+import ButtonIcon from '../ButtonIcon';
+import Flex from '../Flex';
+import * as Icon from '../Icon';
+import { space, SpaceProps, width, WidthProps } from '../system';
+import Text from '../Text';
+import { Theme } from '../theme';
 
 const linkColor = style({
   prop: 'linkColor',
@@ -29,111 +39,576 @@ const linkColor = style({
   key: 'colors',
 });
 
-type Kind =
+export type AlertKind =
+  | 'neutral'
   | 'danger'
   | 'info'
   | 'warning'
   | 'success'
   | 'outline-danger'
   | 'outline-info'
-  | 'outline-warn';
+  | 'outline-warn'
+  | 'cta';
 
-const kind = props => {
+const alertBorder = (
+  props: ThemedAlertProps
+): { borderColor: string; border?: string | number } => {
   const { kind, theme } = props;
   switch (kind) {
-    case 'danger':
-      return {
-        background: theme.colors.error.main,
-        color: theme.colors.buttons.warning.text,
-      };
-    case 'info':
-      return {
-        background: theme.colors.info,
-        color: theme.colors.text.primaryInverse,
-      };
-    case 'warning':
-      return {
-        background: theme.colors.warning.main,
-        color: theme.colors.text.primaryInverse,
-      };
     case 'success':
       return {
-        background: theme.colors.success.main,
-        color: theme.colors.text.primaryInverse,
+        borderColor: theme.colors.interactive.solid.success.default,
       };
+    case 'danger':
     case 'outline-danger':
       return {
-        background: fade(theme.colors.error.main, 0.1),
-        border: `${theme.borders[2]} ${theme.colors.error.main}`,
-        borderRadius: `${theme.radii[3]}px`,
-        boxShadow: 'none',
-        justifyContent: 'normal',
+        borderColor: theme.colors.interactive.solid.danger.default,
       };
+    case 'info':
     case 'outline-info':
       return {
-        background: fade(theme.colors.accent.main, 0.1),
-        border: `${theme.borders[2]} ${theme.colors.accent.main}`,
-        borderRadius: `${theme.radii[3]}px`,
-        boxShadow: 'none',
-        justifyContent: 'normal',
+        borderColor: theme.colors.interactive.solid.accent.default,
       };
+    case 'warning':
     case 'outline-warn':
       return {
-        background: fade(theme.colors.warning.main, 0.1),
-        border: `${theme.borders[2]} ${theme.colors.warning.main}`,
-        borderRadius: `${theme.radii[3]}px`,
-        boxShadow: 'none',
-        justifyContent: 'normal',
+        borderColor: theme.colors.interactive.solid.alert.default,
       };
-    default:
+    case 'neutral':
       return {
-        background: theme.colors.error.main,
-        color: theme.colors.text.primaryInverse,
+        border: theme.borders[1],
+        borderColor: theme.colors.text.disabled,
+      };
+    case 'cta':
+      return {
+        border: theme.borders[2],
+        borderColor: theme.colors.interactive.solid.primary.default,
       };
   }
 };
 
-interface AlertProps extends SpaceProps, WidthProps {
-  kind?: Kind;
-  linkColor?: string;
+const backgroundColor = (
+  props: Pick<ThemedAlertProps, 'kind' | 'theme'>
+): { background: string } => {
+  const { kind, theme } = props;
+  switch (kind) {
+    case 'success':
+      return {
+        background: theme.colors.interactive.tonal.success[0],
+      };
+    case 'danger':
+    case 'outline-danger':
+      return {
+        background: theme.colors.interactive.tonal.danger[0],
+      };
+    case 'info':
+    case 'outline-info':
+      return {
+        background: theme.colors.interactive.tonal.informational[0],
+      };
+    case 'warning':
+    case 'outline-warn':
+      return {
+        background: theme.colors.interactive.tonal.alert[0],
+      };
+    case 'neutral':
+      return {
+        background: theme.colors.interactive.tonal.neutral[0],
+      };
+    case 'cta':
+      return {
+        background: 'inherit',
+      };
+  }
+};
+
+interface Props<K> {
+  kind?: K;
+  /** Additional description to be displayed below the main content. */
+  details?: React.ReactNode;
+  /** Overrides the icon specified by {@link AlertProps.kind}. */
+  icon?: React.ComponentType<IconProps>;
+  /** If specified, causes the alert to display a primary action button. */
+  primaryAction?: Action;
+  /** If specified, causes the alert to display a secondary action button. */
+  secondaryAction?: Action;
+  /** If `true`, the component displays a dismiss button that hides the alert. */
+  dismissible?: boolean;
+  children?: React.ReactNode;
+  style?: React.CSSProperties;
+  onDismiss?: () => void;
+  alignItems?: 'center' | 'flex-start';
 }
 
-const Alert = styled.div<AlertProps>`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: ${p => p.theme.radii[1]}px;
-  box-sizing: border-box;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.24);
-  margin: 0 0 24px 0;
-  min-height: 40px;
-  padding: 8px 16px;
-  overflow: auto;
-  word-break: break-word;
-  line-height: 1.5;
-  ${space}
-  ${kind}
-  ${width}
+/**
+ * Specifies parameters of an action button. If no `href` is specified, the
+ * button is rendered as a regular button; otherwise, a link (with a button
+ * appearance) is used instead, and `href` is used as a link target. A link
+ * button can still have an `onClick` handler, too.
+ */
+export interface Action {
+  content: React.ReactNode;
+  /**
+   * a link that takes user out of the app (new tab)
+   */
+  href?: string;
+  /**
+   * a link that takes you to a different route within the app
+   */
+  linkTo?: string;
+  /**
+   * Adds persistent client side routing state to the next location
+   * defined by field "linkTo".
+   */
+  linkState?: any;
+  onClick?: (event: React.MouseEvent) => void;
+}
 
+export interface AlertProps
+  extends Props<AlertKind>, SpaceProps, WidthProps, ColorProps {
+  linkColor?: string;
+  /**
+   * If specified, the alert's contents will wrap for narrower screens
+   * or vertical layouts.
+   */
+  wrapContents?: boolean;
+}
+
+interface ThemedAlertProps extends AlertPropsWithRequiredKind {
+  theme: Theme;
+}
+
+type WithRequired<T, K extends keyof T> = T & { [P in K]-?: T[P] };
+
+type AlertPropsWithRequiredKind = WithRequired<AlertProps, 'kind'>;
+
+/**
+ * Displays an in-page alert. Component's children are displayed as the alert
+ * title. Use the `details` attribute to display additional information. The
+ * alert may optionally contain up to 2 action buttons and a dismiss button.
+ *
+ * The in-page alert, by default, is semi-transparent. To display it as a
+ * floating element (i.e. as an error indicator above the infinite scroll), you
+ * need to set the `bg` attribute to a solid color; the element's
+ * semi-transparent background will then be overlaid on top of it. Note that
+ * it's not enough to just display it on a background because of the round
+ * corers.
+ */
+export const Alert = ({
+  kind = 'danger',
+  children,
+  details,
+  icon,
+  primaryAction,
+  secondaryAction,
+  dismissible,
+  bg,
+  onDismiss,
+  alignItems = 'center',
+  wrapContents = false,
+  ...otherProps
+}: AlertProps) => {
+  const alertIconSize = 'small';
+  const [dismissed, setDismissed] = useState(false);
+
+  const onDismissClick = () => {
+    setDismissed(true);
+    onDismiss?.();
+  };
+
+  if (dismissed) {
+    return null;
+  }
+
+  return (
+    <OuterContainer bg={bg} kind={kind} {...otherProps}>
+      <InnerContainer
+        kind={kind}
+        alignItems={alignItems}
+        wrapContents={wrapContents}
+      >
+        <IconContainer kind={kind} wrapContents={wrapContents}>
+          <StatusIcon
+            kind={iconKind(kind)}
+            customIcon={icon}
+            size={alertIconSize}
+            color="inherit"
+          />
+        </IconContainer>
+        <Box
+          flex="1"
+          css={`
+            // This preserves white spaces from Go errors (mainly in Teleport Connect).
+            // Thanks to it, each error line is nicely indented with tab,
+            //  instead od being treated as a one, long line.
+            white-space: pre-wrap;
+            flex-shrink: ${wrapContents ? 0 : 1};
+          `}
+        >
+          <Text typography="h3">{children}</Text>
+          {details}
+        </Box>
+        <ActionButtons
+          kind={kind}
+          primaryAction={primaryAction}
+          secondaryAction={secondaryAction}
+          dismissible={dismissible}
+          dismissed={dismissed}
+          onDismiss={onDismissClick}
+          wrapContents={wrapContents}
+        />
+      </InnerContainer>
+    </OuterContainer>
+  );
+};
+
+/** Renders a round border and allows background color customization. */
+const OuterContainer = styled.div<AlertPropsWithRequiredKind>`
+  box-sizing: border-box;
+  margin: 0 0 24px 0;
+
+  border: ${p => p.theme.borders[2]};
+  border-radius: ${p => p.theme.radii[3]}px;
+
+  ${space}
+  ${width}
+  ${alertBorder}
+  ${color}
   a {
-    color: ${({ theme }) => theme.colors.light};
+    // Using the same color as Link (theme.solid.interactive.solid.accent) looks bad in the BBLP
+    // theme, so instead let's default to the color of the text and decorate links only with an
+    // underline.
+    color: inherit;
     ${linkColor}
   }
 `;
 
-Alert.defaultProps = {
-  kind: 'danger',
+/** Renders a transparent color overlay. */
+const InnerContainer = styled.div<
+  Pick<
+    WithRequired<AlertProps, 'kind' | 'alignItems'>,
+    'kind' | 'alignItems' | 'wrapContents'
+  >
+>`
+  padding: 12px 16px;
+  overflow: auto;
+  word-break: break-word;
+  display: flex;
+  align-items: ${p => p.alignItems};
+  gap: ${p => (p.wrapContents ? p.theme.space[3] : 0)}px;
+  flex-wrap: ${p => (p.wrapContents ? 'wrap' : 'initial')};
+
+  ${backgroundColor}
+`;
+
+const iconContainerStyles = ({
+  kind,
+  theme,
+}: {
+  kind: AlertKind;
+  theme: Theme;
+}) => {
+  switch (kind) {
+    case 'success':
+      return {
+        color: theme.colors.text.primaryInverse,
+        background: theme.colors.interactive.solid.success.default,
+        padding: `${theme.space[2]}px`,
+      };
+    case 'danger':
+    case 'outline-danger':
+      return {
+        color: theme.colors.text.primaryInverse,
+        background: theme.colors.interactive.solid.danger.default,
+        padding: `${theme.space[2]}px`,
+      };
+    case 'info':
+    case 'outline-info':
+      return {
+        color: theme.colors.text.primaryInverse,
+        background: theme.colors.interactive.solid.accent.default,
+        padding: `${theme.space[2]}px`,
+      };
+    case 'warning':
+    case 'outline-warn':
+      return {
+        color: theme.colors.text.primaryInverse,
+        background: theme.colors.interactive.solid.alert.default,
+        padding: `${theme.space[2]}px`,
+      };
+    case 'neutral':
+      return {
+        color: theme.colors.text.main,
+        background: theme.colors.interactive.tonal.neutral[0],
+        padding: `${theme.space[2]}px`,
+      };
+    case 'cta':
+      return {
+        color: theme.colors.text.primaryInverse,
+        background: theme.colors.interactive.solid.primary.default,
+        padding: `${theme.space[2]}px`,
+      };
+  }
 };
 
-Alert.displayName = 'Alert';
+const IconContainer = styled.div<{ kind: AlertKind; wrapContents?: boolean }>`
+  border-radius: 50%;
+  line-height: 0;
 
-export default Alert;
-export const Danger = props => <Alert kind="danger" {...props} />;
-export const Info = props => <Alert kind="info" {...props} />;
-export const Warning = props => <Alert kind="warning" {...props} />;
-export const Success = props => <Alert kind="success" {...props} />;
-export const OutlineDanger = props => (
-  <Alert kind="outline-danger" {...props} />
+  ${p =>
+    p.wrapContents
+      ? `
+  align-self: flex-start;
+  margin-right: 0;
+  margin-top: ${p.theme.space[1]}px;
+  flex-shrink: 0;
+  flex-grow: 0;
+`
+      : `
+  margin-right: ${p.theme.space[3]}px;
+`}
+
+  ${iconContainerStyles}
+`;
+
+const primaryButtonProps = (
+  kind: AlertKind | BannerKind
+): { fill: ButtonFill; intent: ButtonIntent } => {
+  return kind === 'neutral' || kind === 'cta'
+    ? { fill: 'filled', intent: 'primary' }
+    : { fill: 'border', intent: 'neutral' };
+};
+
+const ActionButtons = ({
+  kind,
+  primaryAction,
+  secondaryAction,
+  dismissible,
+  dismissed,
+  onDismiss,
+  wrapContents,
+}: {
+  kind: AlertKind | BannerKind;
+  primaryAction?: Action;
+  secondaryAction?: Action;
+  dismissible?: boolean;
+  dismissed: boolean;
+  onDismiss: () => void;
+  wrapContents?: boolean;
+}) => {
+  if (!(primaryAction || secondaryAction || dismissible)) return;
+
+  return (
+    <Flex
+      ml={wrapContents ? 7 : 5}
+      gap={2}
+      flexBasis={wrapContents ? '100%' : 'auto'}
+    >
+      {primaryAction && (
+        <ActionButton {...primaryButtonProps(kind)} action={primaryAction} />
+      )}
+      {secondaryAction && (
+        <ActionButton
+          fill={kind === 'neutral' ? 'filled' : 'minimal'}
+          intent="neutral"
+          action={secondaryAction}
+        />
+      )}
+      {dismissible && !dismissed && (
+        <ButtonIcon aria-label="Dismiss" onClick={onDismiss}>
+          <Icon.Cross size="small" color="text.slightlyMuted" />
+        </ButtonIcon>
+      )}
+    </Flex>
+  );
+};
+
+/** Renders either a regular or a link button, depending on the action. */
+export const ActionButton = ({
+  action: { href, content, onClick, linkTo, linkState },
+  fill,
+  intent,
+  inputAlignment = false,
+  disabled = false,
+  title,
+}: {
+  action: Action;
+  fill?: ButtonFill;
+  intent?: ButtonIntent;
+  inputAlignment?: boolean;
+  disabled?: boolean;
+  title?: string;
+}) => {
+  const sharedProps = {
+    fill,
+    intent,
+    onClick,
+    disabled,
+    title,
+    // Prevent props being passed to underlying React element
+    // and removes "React does not recognize <field> on a DOM element"
+    // error.
+    $inputAlignment: inputAlignment,
+  };
+
+  if (href) {
+    return (
+      <Button {...sharedProps} as="a" href={href} target="_blank">
+        {content}
+      </Button>
+    );
+  }
+
+  if (linkTo) {
+    return (
+      <Button {...sharedProps} as={Link} to={linkTo} state={linkState}>
+        {content}
+      </Button>
+    );
+  }
+  return <Button {...sharedProps}>{content}</Button>;
+};
+
+export const Danger = (props: AlertProps) => <Alert kind="danger" {...props} />;
+export const Info = (props: AlertProps) => <Alert kind="info" {...props} />;
+export const Warning = (props: AlertProps) => (
+  <Alert kind="outline-warn" {...props} />
 );
-export const OutlineInfo = props => <Alert kind="outline-info" {...props} />;
-export const OutlineWarn = props => <Alert kind="outline-warn" {...props} />;
+export const Success = (props: AlertProps) => (
+  <Alert kind="success" {...props} />
+);
+
+/** @deprecated Use {@link Danger} */
+export const OutlineDanger = Danger;
+/** @deprecated Use {@link Info} */
+export const OutlineInfo = Info;
+/** @deprecated Use {@link Warning} */
+export const OutlineWarn = Warning;
+
+type BannerKind =
+  | 'neutral'
+  | 'primary'
+  | 'danger'
+  | 'info'
+  | 'warning'
+  | 'success';
+type BannerProps = Props<BannerKind>;
+
+/**
+ * Renders a page-level banner alert. Use only for product-, cluster-, or
+ * account-level events or states.
+ */
+export const Banner = ({
+  kind = 'danger',
+  children,
+  details,
+  icon,
+  primaryAction,
+  secondaryAction,
+  dismissible,
+  onDismiss,
+}: BannerProps) => {
+  const theme = useTheme();
+  const { backgroundColor, foregroundColor, iconColor } = bannerColors(
+    theme,
+    kind
+  );
+  const [dismissed, setDismissed] = useState(false);
+
+  const onDismissClick = () => {
+    setDismissed(true);
+    onDismiss?.();
+  };
+
+  if (dismissed) {
+    return null;
+  }
+
+  return (
+    <Flex
+      bg={backgroundColor}
+      borderBottom="3px solid"
+      borderColor={foregroundColor}
+      px={4}
+      py={2}
+      gap={3}
+      alignItems="center"
+    >
+      <StatusIcon
+        kind={iconKind(kind)}
+        customIcon={icon}
+        size="large"
+        color={iconColor}
+      />
+      <Box flex="1">
+        <Text typography="h3">{children}</Text>
+        {details}
+      </Box>
+      <ActionButtons
+        kind={kind}
+        primaryAction={primaryAction}
+        secondaryAction={secondaryAction}
+        dismissible={dismissible}
+        dismissed={dismissed}
+        onDismiss={onDismissClick}
+      />
+    </Flex>
+  );
+};
+
+const bannerColors = (theme: Theme, kind: BannerKind) => {
+  switch (kind) {
+    case 'primary':
+      return {
+        backgroundColor: theme.colors.interactive.tonal.primary[2],
+        foregroundColor: theme.colors.interactive.solid.primary.default,
+        iconColor: theme.colors.text.main,
+      };
+    case 'neutral':
+      return {
+        backgroundColor: theme.colors.levels.elevated,
+        foregroundColor: theme.colors.text.main,
+        iconColor: theme.colors.text.main,
+      };
+    case 'danger':
+      return {
+        backgroundColor: theme.colors.interactive.tonal.danger[2],
+        foregroundColor: theme.colors.interactive.solid.danger.default,
+        iconColor: theme.colors.interactive.solid.danger.default,
+      };
+    case 'warning':
+      return {
+        backgroundColor: theme.colors.interactive.tonal.alert[2],
+        foregroundColor: theme.colors.interactive.solid.alert.default,
+        iconColor: theme.colors.interactive.solid.alert.default,
+      };
+    case 'info':
+      return {
+        backgroundColor: theme.colors.interactive.tonal.informational[2],
+        foregroundColor: theme.colors.interactive.solid.accent.default,
+        iconColor: theme.colors.interactive.solid.accent.default,
+      };
+    case 'success':
+      return {
+        backgroundColor: theme.colors.interactive.tonal.success[2],
+        foregroundColor: theme.colors.interactive.solid.success.default,
+        iconColor: theme.colors.interactive.solid.success.default,
+      };
+  }
+};
+
+const iconKind = (kind: AlertKind | BannerKind): StatusKind => {
+  switch (kind) {
+    case 'outline-danger':
+      return 'danger';
+    case 'outline-warn':
+      return 'warning';
+    case 'outline-info':
+      return 'info';
+    case 'primary':
+    case 'cta':
+      return 'neutral';
+    default:
+      return kind;
+  }
+};

@@ -26,28 +26,6 @@ import (
 	"os"
 )
 
-// fileWrapper provides minimal required file interface for SFTP package
-// including WriteTo() method required for concurrent data transfer.
-type fileWrapper struct {
-	file *os.File
-}
-
-func (wt *fileWrapper) Read(p []byte) (n int, err error) {
-	return wt.file.Read(p)
-}
-
-func (wt *fileWrapper) Close() error {
-	return wt.file.Close()
-}
-
-func (wt *fileWrapper) WriteTo(w io.Writer) (n int64, err error) {
-	return io.Copy(w, wt.file)
-}
-
-func (wt *fileWrapper) Stat() (os.FileInfo, error) {
-	return wt.file.Stat()
-}
-
 // fileStreamReader is a thin wrapper around fs.File with additional streams.
 type fileStreamReader struct {
 	ctx     context.Context

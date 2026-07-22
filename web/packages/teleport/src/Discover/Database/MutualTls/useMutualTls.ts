@@ -21,24 +21,23 @@ import { useEffect, useState } from 'react';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
 import cfg from 'teleport/config';
-import TeleportContext from 'teleport/teleportContext';
-import { useJoinTokenSuspender } from 'teleport/Discover/Shared/useJoinTokenSuspender';
 import {
-  resourceKindToJoinRole,
   ResourceKind,
+  resourceKindToJoinRole,
 } from 'teleport/Discover/Shared/ResourceKind';
-
-import { DbMeta, useDiscover } from '../../useDiscover';
+import { useJoinTokenSuspender } from 'teleport/Discover/Shared/useJoinTokenSuspender';
+import TeleportContext from 'teleport/teleportContext';
 
 import type { AgentStepProps } from '../../types';
+import { DbMeta, useDiscover } from '../../useDiscover';
 
 export function useMutualTls({ ctx, props }: Props) {
   const { attempt, run } = useAttempt('');
 
   const { emitErrorEvent } = useDiscover();
-  const { joinToken: prevFetchedJoinToken } = useJoinTokenSuspender([
-    ResourceKind.Database,
-  ]);
+  const { joinToken: prevFetchedJoinToken } = useJoinTokenSuspender({
+    resourceKinds: [ResourceKind.Database],
+  });
   const [joinToken, setJoinToken] = useState(prevFetchedJoinToken);
   const meta = props.agentMeta as DbMeta;
   const clusterId = ctx.storeUser.getClusterId();
@@ -113,7 +112,8 @@ function generateSignCertificateCurlCommand(
   if (!token) return '';
 
   const requestUrl = cfg.getDatabaseSignUrl(clusterId);
-  const requestData = JSON.stringify({ hostname });
+  const ttl = cfg.getDatabaseCertificateTTL();
+  const requestData = JSON.stringify({ hostname, ttl });
 
   // curl flag -OJ  makes curl use the file name
   // defined from the response header.

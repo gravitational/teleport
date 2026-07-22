@@ -19,13 +19,12 @@
 package local
 
 import (
-	"bytes"
 	"context"
+	"log/slog"
 	"slices"
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -39,14 +38,14 @@ import (
 // DynamicAccessService manages dynamic RBAC
 type DynamicAccessService struct {
 	backend.Backend
-	log *logrus.Entry
+	logger *slog.Logger
 }
 
 // NewDynamicAccessService returns new dynamic access service instance
 func NewDynamicAccessService(backend backend.Backend) *DynamicAccessService {
 	return &DynamicAccessService{
 		Backend: backend,
-		log:     logrus.WithFields(logrus.Fields{teleport.ComponentKey: "DynamicAccess"}),
+		logger:  slog.With(teleport.ComponentKey, "DynamicAccess"),
 	}
 }
 
@@ -66,6 +65,9 @@ func (s *DynamicAccessService) CreateAccessRequestV2(ctx context.Context, req ty
 	}
 	if req.GetDryRun() {
 		return nil, trace.BadParameter("dry run access request made it to DynamicAccessService, this is a bug")
+	}
+	if req.GetLongTermResourceGrouping() != nil {
+		return nil, trace.BadParameter("long term resource grouping should not be persisted, this is a bug")
 	}
 	item, err := itemFromAccessRequest(req)
 	if err != nil {
@@ -91,10 +93,9 @@ func (s *DynamicAccessService) SetAccessRequestState(ctx context.Context, params
 		return nil, trace.Wrap(err)
 	}
 	// Setting state is attempted multiple times in the event of concurrent writes.
-	// The reason we bother to re-attempt is because state updates aren't meant
-	// to be "first come first serve".  Denials should overwrite approvals, but
-	// approvals should not overwrite denials.
-	for i := 0; i < maxCmpAttempts; i++ {
+	// The reason we bother to re-attempt is that state updates aren't meant
+	// to be "first come, first served". Approved, denied, and promoted states are terminal.
+	for range maxCmpAttempts {
 		item, err := s.Get(ctx, accessRequestKey(params.RequestID))
 		if err != nil {
 			if trace.IsNotFound(err) {
@@ -106,9 +107,15 @@ func (s *DynamicAccessService) SetAccessRequestState(ctx context.Context, params
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+
+		if req.GetState() == params.State && req.GetState().IsResolved() {
+			return nil, trace.BadParameter("cannot update access request in state %q", req.GetState().String())
+		}
+
 		if err := req.SetState(params.State); err != nil {
 			return nil, trace.Wrap(err)
 		}
+
 		req.SetResolveReason(params.Reason)
 		req.SetResolveAnnotations(params.Annotations)
 		if len(params.Roles) > 0 {
@@ -136,7 +143,7 @@ func (s *DynamicAccessService) SetAccessRequestState(ctx context.Context, params
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if _, err := s.CompareAndSwap(ctx, *item, newItem); err != nil {
+		if _, err := s.ConditionalUpdate(ctx, newItem); err != nil {
 			if trace.IsCompareFailed(err) {
 				select {
 				case <-retry.After():
@@ -166,7 +173,7 @@ func (s *DynamicAccessService) ApplyAccessReview(ctx context.Context, params typ
 		return nil, trace.Wrap(err)
 	}
 	// Review application is attempted multiple times in the event of concurrent writes.
-	for i := 0; i < maxCmpAttempts; i++ {
+	for range maxCmpAttempts {
 		item, err := s.Get(ctx, accessRequestKey(params.RequestID))
 		if err != nil {
 			if trace.IsNotFound(err) {
@@ -196,7 +203,7 @@ func (s *DynamicAccessService) ApplyAccessReview(ctx context.Context, params typ
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if _, err := s.CompareAndSwap(ctx, *item, newItem); err != nil {
+		if _, err := s.ConditionalUpdate(ctx, newItem); err != nil {
 			if trace.IsCompareFailed(err) {
 				select {
 				case <-retry.After():
@@ -261,7 +268,7 @@ func (s *DynamicAccessService) GetAccessRequests(ctx context.Context, filter typ
 	}
 	var requests []types.AccessRequest
 	for _, item := range result.Items {
-		if !bytes.HasSuffix(item.Key, []byte(paramsPrefix)) {
+		if !item.Key.HasSuffix(backend.NewKey(paramsPrefix)) {
 			// Item represents a different resource type in the
 			// same namespace.
 			continue
@@ -280,8 +287,6 @@ func (s *DynamicAccessService) GetAccessRequests(ctx context.Context, filter typ
 
 // ListAccessRequests is an access request getter with pagination and sorting options.
 func (s *DynamicAccessService) ListAccessRequests(ctx context.Context, req *proto.ListAccessRequestsRequest) (*proto.ListAccessRequestsResponse, error) {
-	const maxPageSize = 16_000
-
 	if req.Filter == nil {
 		req.Filter = &types.AccessRequestFilter{}
 	}
@@ -311,16 +316,6 @@ func (s *DynamicAccessService) ListAccessRequests(ctx context.Context, req *prot
 		return &rsp, nil
 	}
 
-	limit := int(req.Limit)
-
-	if limit < 1 {
-		limit = apidefaults.DefaultChunkSize
-	}
-
-	if limit > maxPageSize {
-		return nil, trace.BadParameter("page size of %d is too large", limit)
-	}
-
 	if req.Sort != proto.AccessRequestSort_DEFAULT {
 		return nil, trace.BadParameter("access request sort indexes other than DEFAULT cannot be used to load directly from the backend (expected %v, got %v)", proto.AccessRequestSort_DEFAULT, req.Sort)
 	}
@@ -329,48 +324,78 @@ func (s *DynamicAccessService) ListAccessRequests(ctx context.Context, req *prot
 		return nil, trace.BadParameter("access requests cannot be loaded directly from the backend with descending sort order")
 	}
 
+	// req.Filter.Match takes the AccessRequest interface type so convert to use the
+	// AccessRequestV3 concrete type.
+	filter := func(r *types.AccessRequestV3) bool {
+		return req.Filter.Match(r)
+	}
+
+	var err error
+	rsp.AccessRequests, rsp.NextKey, err = s.collectPage(ctx, int(req.Limit), req.StartKey, filter)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &rsp, nil
+}
+
+// ListExpiredAccessRequests lists all access requests that are expired. This is used by
+// the expiry service. Access requests expiration handling is done outside the backend
+// because we need to emit audit events on the access requests expiry.
+func (s *DynamicAccessService) ListExpiredAccessRequests(ctx context.Context, limit int, pageToken string) ([]*types.AccessRequestV3, string, error) {
+	now := time.Now()
+	return s.collectPage(ctx, limit, pageToken, func(r *types.AccessRequestV3) bool {
+		return now.After(r.Expiry())
+	})
+}
+
+func (s *DynamicAccessService) collectPage(ctx context.Context, limit int, start string, filter func(*types.AccessRequestV3) bool) ([]*types.AccessRequestV3, string, error) {
+	if limit < 1 {
+		limit = apidefaults.DefaultChunkSize
+	}
+	if limit > 16_000 {
+		return nil, "", trace.BadParameter("page size of %d is too large", limit)
+	}
+
 	startKey := backend.ExactKey(accessRequestsPrefix)
-	if req.StartKey != "" {
-		startKey = backend.Key(accessRequestsPrefix, req.StartKey)
+	if start != "" {
+		startKey = backend.NewKey(accessRequestsPrefix, start)
 	}
 	endKey := backend.RangeEnd(backend.ExactKey(accessRequestsPrefix))
 
-	if err := backend.IterateRange(ctx, s.Backend, startKey, endKey, limit+1, func(items []backend.Item) (stop bool, err error) {
-		for _, item := range items {
-			if len(rsp.AccessRequests) > limit {
-				return true, nil
-			}
-
-			if !bytes.HasSuffix(item.Key, []byte(paramsPrefix)) {
-				// Item represents a different resource type in the
-				// same namespace.
-				continue
-			}
-
-			accessRequest, err := itemToAccessRequest(item)
-			if err != nil {
-				s.log.Warnf("Failed to unmarshal access request at %q: %v", item.Key, err)
-				continue
-			}
-
-			if !req.Filter.Match(accessRequest) {
-				continue
-			}
-
-			rsp.AccessRequests = append(rsp.AccessRequests, accessRequest)
+	var res []*types.AccessRequestV3
+	for item, err := range s.Backend.Items(ctx, backend.ItemsParams{
+		StartKey: startKey,
+		EndKey:   endKey,
+	}) {
+		if err != nil {
+			return nil, "", trace.Wrap(err)
 		}
 
-		return len(rsp.AccessRequests) > limit, nil
-	}); err != nil {
-		return nil, trace.Wrap(err)
-	}
+		if !item.Key.HasSuffix(backend.NewKey(paramsPrefix)) {
+			// Item represents a different resource type in the
+			// same namespace.
+			continue
+		}
 
-	if len(rsp.AccessRequests) > limit {
-		rsp.NextKey = rsp.AccessRequests[limit].GetName()
-		rsp.AccessRequests = rsp.AccessRequests[:limit]
-	}
+		accessRequest, err := itemToAccessRequest(item)
+		if err != nil {
+			s.logger.WarnContext(ctx, "Failed to unmarshal access request",
+				"key", item.Key,
+				"error", err,
+			)
+			continue
+		}
 
-	return &rsp, nil
+		if !filter(accessRequest) {
+			continue
+		}
+
+		if len(res) >= limit {
+			return res, accessRequest.GetName(), nil
+		}
+		res = append(res, accessRequest)
+	}
+	return res, "", nil
 }
 
 // DeleteAccessRequest deletes an access request.
@@ -412,10 +437,8 @@ func (s *DynamicAccessService) CreateAccessRequestAllowedPromotions(ctx context.
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// Currently, this logic is used only internally (no API exposed), and
-	// there is only one place that calls it. If this ever changes, we will
-	// need to do a CompareAndSwap here.
-	if _, err := s.Put(ctx, item); err != nil {
+
+	if _, err := s.Create(ctx, item); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -443,7 +466,6 @@ func (s *DynamicAccessService) GetAccessRequestAllowedPromotions(ctx context.Con
 }
 
 func itemFromAccessRequest(req types.AccessRequest) (backend.Item, error) {
-	rev := req.GetRevision()
 	value, err := services.MarshalAccessRequest(req)
 	if err != nil {
 		return backend.Item{}, trace.Wrap(err)
@@ -451,8 +473,7 @@ func itemFromAccessRequest(req types.AccessRequest) (backend.Item, error) {
 	return backend.Item{
 		Key:      accessRequestKey(req.GetName()),
 		Value:    value,
-		Expires:  req.Expiry(),
-		Revision: rev,
+		Revision: req.GetRevision(),
 	}, nil
 }
 
@@ -472,7 +493,6 @@ func itemFromAccessListPromotions(req types.AccessRequest, suggestedItems *types
 func itemToAccessRequest(item backend.Item, opts ...services.MarshalOption) (*types.AccessRequestV3, error) {
 	opts = append(
 		opts,
-		services.WithExpires(item.Expires),
 		services.WithRevision(item.Revision),
 	)
 	req, err := services.UnmarshalAccessRequest(
@@ -485,12 +505,12 @@ func itemToAccessRequest(item backend.Item, opts ...services.MarshalOption) (*ty
 	return req, nil
 }
 
-func accessRequestKey(name string) []byte {
-	return backend.Key(accessRequestsPrefix, name, paramsPrefix)
+func accessRequestKey(name string) backend.Key {
+	return backend.NewKey(accessRequestsPrefix, name, paramsPrefix)
 }
 
-func AccessRequestAllowedPromotionKey(name string) []byte {
-	return backend.Key(accessRequestPromotionPrefix, name, paramsPrefix)
+func AccessRequestAllowedPromotionKey(name string) backend.Key {
+	return backend.NewKey(accessRequestPromotionPrefix, name, paramsPrefix)
 }
 
 const (

@@ -16,12 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import type { LegacyThemeColors } from '@gravitational/design-system';
 import { useTheme } from 'styled-components';
 
-import { H2 } from 'design';
-
-import { Flex, Box, Text, Link, H1 } from '..';
+import Box, { BoxProps } from '../Box';
+import Flex, { FlexProps } from '../Flex';
+import Link from '../Link';
+import Text, { H1, H2 } from '../Text';
+import { Theme } from '../theme';
 
 export default {
   title: 'Design/Theme/Colors',
@@ -69,16 +71,14 @@ const ColorsComponent = () => {
           {Object.entries(theme.colors.interactive.solid).map(
             ([intent, colorGroup]) => (
               <Flex gap={4}>
-                {Object.entries(colorGroup).map(
-                  ([state, { background, text }]) => (
-                    <SingleColorBox
-                      mb="2"
-                      path={`theme.colors.interactive.solid.${intent}.${state}`}
-                      bg={background}
-                      color={text}
-                    />
-                  )
-                )}
+                {Object.entries(colorGroup).map(([state, background]) => (
+                  <SingleColorBox
+                    mb="2"
+                    path={`theme.colors.interactive.solid.${intent}.${state}`}
+                    bg={background}
+                    color={theme.colors.text.primaryInverse}
+                  />
+                ))}
               </Flex>
             )
           )}
@@ -95,12 +95,12 @@ const ColorsComponent = () => {
           {Object.entries(theme.colors.interactive.tonal).map(
             ([intent, colorGroup]) => (
               <Flex gap={4}>
-                {colorGroup.map(({ background, text }, i) => (
+                {Object.entries(colorGroup).map(([i, background]) => (
                   <SingleColorBox
                     mb="2"
                     path={`theme.colors.interactive.tonal.${intent}[${i}]`}
                     bg={background}
-                    color={text}
+                    color={theme.colors.text.main}
                   />
                 ))}
               </Flex>
@@ -191,7 +191,7 @@ const ColorsComponent = () => {
             <Text typography="h4" color={theme.colors.text.main}>
               Primary
             </Text>
-            <Text typography="paragraph" color={theme.colors.text.main}>
+            <Text typography="body1" color={theme.colors.text.main}>
               Primary
             </Text>
           </Flex>
@@ -216,10 +216,7 @@ const ColorsComponent = () => {
             <Text typography="h4" color={theme.colors.text.slightlyMuted}>
               Secondary
             </Text>
-            <Text
-              typography="paragraph"
-              color={theme.colors.text.slightlyMuted}
-            >
+            <Text typography="body1" color={theme.colors.text.slightlyMuted}>
               Secondary
             </Text>
           </Flex>
@@ -244,7 +241,7 @@ const ColorsComponent = () => {
             <Text typography="h4" color={theme.colors.text.muted}>
               Placeholder
             </Text>
-            <Text typography="paragraph" color={theme.colors.text.muted}>
+            <Text typography="body1" color={theme.colors.text.muted}>
               Placeholder
             </Text>
           </Flex>
@@ -269,7 +266,7 @@ const ColorsComponent = () => {
             <Text typography="h4" color={theme.colors.text.disabled}>
               Disabled
             </Text>
-            <Text typography="paragraph" color={theme.colors.text.disabled}>
+            <Text typography="body1" color={theme.colors.text.disabled}>
               Disabled
             </Text>
           </Flex>
@@ -296,10 +293,7 @@ const ColorsComponent = () => {
             <Text typography="h4" color={theme.colors.text.primaryInverse}>
               Primary Inverse
             </Text>
-            <Text
-              typography="paragraph"
-              color={theme.colors.text.primaryInverse}
-            >
+            <Text typography="body1" color={theme.colors.text.primaryInverse}>
               Primary Inverse
             </Text>
           </Flex>
@@ -309,8 +303,15 @@ const ColorsComponent = () => {
   );
 };
 
-function ColorsBox({ colors, themeType = null, ...styles }) {
-  const list = Object.keys(colors).map(key => {
+function ColorsBox({
+  colors,
+  themeType = undefined,
+  ...styles
+}: {
+  colors: LegacyThemeColors['levels'];
+  themeType?: string;
+} & FlexProps) {
+  const list = Object.entries(colors).map(([key, colorsForKey]) => {
     const fullPath = themeType
       ? `theme.colors.${themeType}.${key}`
       : `theme.colors.${key}`;
@@ -319,7 +320,8 @@ function ColorsBox({ colors, themeType = null, ...styles }) {
       <Flex flexWrap="wrap" key={key} width="260px" mb={3}>
         <Box
           css={`
-            color: ${props => props.theme.colors.text.slightlyMuted};
+            color: ${(props: { theme: Theme }) =>
+              props.theme.colors.text.slightlyMuted};
           `}
         >
           {fullPath}
@@ -330,8 +332,10 @@ function ColorsBox({ colors, themeType = null, ...styles }) {
           p={3}
           mr={3}
           css={`
-            background: ${colors[key]};
-            border: 1px solid ${props => props.theme.colors.primaryInverse};
+            background: ${colorsForKey};
+            border: 1px solid
+              ${(props: { theme: Theme }) =>
+                props.theme.colors.text.primaryInverse};
           `}
         />
       </Flex>
@@ -345,7 +349,16 @@ function ColorsBox({ colors, themeType = null, ...styles }) {
   );
 }
 
-function SingleColorBox({ bg, color, path, ...styles }) {
+function SingleColorBox({
+  bg,
+  color,
+  path,
+  ...styles
+}: {
+  bg: string;
+  color: string;
+  path: string;
+} & BoxProps) {
   return (
     <Box width="150px" height="150px" p={3} mr={3} bg={bg} {...styles}>
       <Text color={color}>

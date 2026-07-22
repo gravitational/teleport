@@ -1,0 +1,636 @@
+/*
+ * Teleport
+ * Copyright (C) 2025  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+package mcp
+
+import (
+	"cmp"
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"slices"
+	"strings"
+	"sync"
+	"sync/atomic"
+	"testing"
+	"time"
+
+	"github.com/gravitational/trace"
+	mcpclienttransport "github.com/mark3labs/mcp-go/client/transport"
+	"github.com/mark3labs/mcp-go/mcp"
+	mcpserver "github.com/mark3labs/mcp-go/server"
+	"github.com/moby/moby/api/types/container"
+	docker "github.com/moby/moby/client"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
+
+	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
+	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
+	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/events/eventstest"
+	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/lib/utils/mcputils"
+)
+
+func TestMain(m *testing.M) {
+	logtest.InitLogger(testing.Verbose)
+	os.Exit(m.Run())
+}
+
+type setupTestContextOptions struct {
+	user       types.User
+	roleSet    services.RoleSet
+	app        types.Application
+	clientConn net.Conn
+}
+
+type setupTestContextOptionFunc func(*setupTestContextOptions)
+
+func withApp(app types.Application) setupTestContextOptionFunc {
+	return func(o *setupTestContextOptions) {
+		o.app = app
+	}
+}
+
+func withUser(user types.User) setupTestContextOptionFunc {
+	return func(opts *setupTestContextOptions) {
+		opts.user = user
+	}
+}
+
+func withRole(role types.Role) setupTestContextOptionFunc {
+	return func(opts *setupTestContextOptions) {
+		opts.roleSet = append(opts.roleSet, role)
+	}
+}
+
+func withClientConn(conn net.Conn) setupTestContextOptionFunc {
+	return func(opts *setupTestContextOptions) {
+		opts.clientConn = conn
+	}
+}
+
+// withAdminRole assigns to ai_user a role that allows all MCP servers and their
+// tools.
+func withAdminRole(t *testing.T) setupTestContextOptionFunc {
+	t.Helper()
+	role := services.NewPresetMCPUserRole()
+	require.NoError(t, services.CheckAndSetDefaults(role))
+	return withRole(role)
+}
+
+// withProdReadOnlyRole assigns to the ai_user a role that allows MCP servers
+// with label env=prod and allows read-only tools.
+func withProdReadOnlyRole(t *testing.T) setupTestContextOptionFunc {
+	t.Helper()
+	role, err := types.NewRole("prod-read-only", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			AppLabels: map[string]apiutils.Strings{
+				"env": {"prod"},
+			},
+			MCP: &types.MCPPermissions{
+				Tools: []string{"^(get|read|list|search).*$"},
+			},
+		},
+	})
+	require.NoError(t, err)
+	return withRole(role)
+}
+
+// withDenyToolsRole assigns to the ai_user a role that denies all MCP tools.
+func withDenyToolsRole(t *testing.T) setupTestContextOptionFunc {
+	t.Helper()
+	role, err := types.NewRole("deny-access", types.RoleSpecV6{
+		Deny: types.RoleConditions{
+			MCP: &types.MCPPermissions{
+				Tools: []string{types.Wildcard},
+			},
+		},
+	})
+	require.NoError(t, err)
+	return withRole(role)
+}
+
+func makeDualPipeNetConn(t testing.TB) (net.Conn, net.Conn) {
+	t.Helper()
+	clientSourceConn, clientDestConn, err := utils.DualPipeNetConn(
+		utils.MustParseAddr("127.0.0.1:1111"),
+		utils.MustParseAddr("127.0.0.1:2222"),
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		clientSourceConn.Close()
+		clientDestConn.Close()
+	})
+	return clientSourceConn, clientDestConn
+}
+
+type testContext struct {
+	*SessionCtx
+
+	// clientSourceConn connects to SessionCtx.ClientConn.
+	clientSourceConn net.Conn
+}
+
+func setupTestContext(t testing.TB, applyOpts ...setupTestContextOptionFunc) testContext {
+	t.Helper()
+
+	var opts setupTestContextOptions
+	for _, applyOpt := range applyOpts {
+		applyOpt(&opts)
+	}
+
+	// Fake connection if not passed in.
+	var clientSourceConn, clientDestConn net.Conn
+	if opts.clientConn != nil {
+		clientDestConn = opts.clientConn
+	} else {
+		clientSourceConn, clientDestConn = makeDualPipeNetConn(t)
+	}
+
+	// App.
+	if opts.app == nil {
+		app, err := types.NewAppV3(types.Metadata{
+			Name: "my-mcp-server",
+			Labels: map[string]string{
+				"env": "prod",
+			},
+		}, types.AppSpecV3{
+			MCP: &types.MCP{
+				Command:       "npx",
+				Args:          []string{"my-mcp-server"},
+				RunAsHostUser: "my-user",
+			},
+		})
+		require.NoError(t, err)
+		opts.app = app
+	}
+
+	// SessionCtx.
+	sessionCtx := &SessionCtx{
+		ClientConn: clientDestConn,
+		App:        opts.app,
+		AuthCtx:    makeTestAuthContext(t, opts.user, opts.roleSet, opts.app),
+	}
+	require.NoError(t, sessionCtx.checkAndSetDefaults())
+
+	return testContext{
+		clientSourceConn: clientSourceConn,
+		SessionCtx:       sessionCtx,
+	}
+}
+
+func makeTestAuthContext(t testing.TB, user types.User, roleSet services.RoleSet, app types.Application) *authz.Context {
+	t.Helper()
+	var err error
+
+	if user == nil {
+		user, err = types.NewUser("ai")
+		require.NoError(t, err)
+	}
+	user.SetRoles(slices.Collect(types.ResourceNames(roleSet)))
+
+	identity := authz.LocalUser{
+		Username: user.GetName(),
+		Identity: tlsca.Identity{
+			Username:   user.GetName(),
+			Groups:     user.GetRoles(),
+			Principals: user.GetLogins(),
+			Expires:    time.Now().Add(time.Hour),
+		},
+	}
+	if app != nil {
+		identity.Identity.RouteToApp.Name = app.GetName()
+		identity.Identity.RouteToApp.SessionID = "session-id-for+" + app.GetName()
+	}
+
+	accessInfo, err := services.AccessInfoFromLocalTLSIdentity(identity.Identity)
+	require.NoError(t, err)
+	checker := services.NewAccessCheckerWithRoleSet(accessInfo, "my-cluster", roleSet)
+	return &authz.Context{
+		User:     user,
+		Identity: identity,
+		Checker:  checker,
+	}
+}
+
+type requestBuilder struct {
+	idCounter int64
+}
+
+func (c *requestBuilder) makeRequestID() mcp.RequestId {
+	return mcp.NewRequestId(atomic.AddInt64(&c.idCounter, 1))
+}
+
+func (c *requestBuilder) makeToolsCallRequest(toolName string) *mcputils.JSONRPCRequest {
+	return &mcputils.JSONRPCRequest{
+		JSONRPC: mcp.JSONRPC_VERSION,
+		ID:      c.makeRequestID(),
+		Method:  mcputils.MethodToolsCall,
+		Params: mcputils.JSONRPCParams{
+			"name": toolName,
+		},
+	}
+}
+
+func (c *requestBuilder) makeToolsListRequest() *mcputils.JSONRPCRequest {
+	return &mcputils.JSONRPCRequest{
+		JSONRPC: mcp.JSONRPC_VERSION,
+		ID:      c.makeRequestID(),
+		Method:  mcputils.MethodToolsList,
+	}
+}
+
+func makeToolsCallResponse(t *testing.T, requestID mcp.RequestId, toolNames ...string) *mcputils.JSONRPCResponse {
+	t.Helper()
+	result := mcp.ListToolsResult{}
+	for _, toolName := range toolNames {
+		result.Tools = append(result.Tools, mcp.NewTool(toolName, mcp.WithDescription("description")))
+	}
+	resultJSON, err := json.Marshal(&result)
+	require.NoError(t, err)
+	return &mcputils.JSONRPCResponse{
+		JSONRPC: mcp.JSONRPC_VERSION,
+		ID:      requestID,
+		Result:  resultJSON,
+	}
+}
+
+type fakeAccessPoint struct {
+}
+
+func (f fakeAccessPoint) GetAuthPreference(context.Context) (types.AuthPreference, error) {
+	return types.DefaultAuthPreference(), nil
+}
+func (f fakeAccessPoint) GetClusterName(context.Context) (types.ClusterName, error) {
+	clusterName, err := types.NewClusterName(types.ClusterNameSpecV2{
+		ClusterName: "my-cluster",
+		ClusterID:   "my_cluster_id",
+	})
+	return clusterName, trace.Wrap(err)
+}
+func (f fakeAccessPoint) GetCertAuthority(context.Context, types.CertAuthID, bool) (types.CertAuthority, error) {
+	return nil, trace.NotImplemented("not implemented")
+}
+
+func checkParamsHaveNameField(t *testing.T, params *apievents.Struct, wantName string) {
+	t.Helper()
+	require.NotNil(t, params)
+	require.NotNil(t, params.Fields)
+	value, ok := params.Fields["name"]
+	require.True(t, ok)
+	require.Equal(t, wantName, value.GetStringValue())
+}
+
+func checkToolsListResponse(t *testing.T, response mcp.JSONRPCMessage, wantID mcp.RequestId, wantTools []string) {
+	t.Helper()
+	// assume we don't know the internal type of response.
+	data, err := json.Marshal(response)
+	require.NoError(t, err)
+
+	var mcpResponse mcputils.JSONRPCResponse
+	require.NoError(t, json.Unmarshal(data, &mcpResponse))
+	require.Equal(t, wantID.String(), mcpResponse.ID.String())
+
+	result, err := mcpResponse.GetListToolResult()
+	require.NoError(t, err)
+	checkToolsListResult(t, result, wantTools)
+}
+
+func checkToolsListResult(t *testing.T, result *mcp.ListToolsResult, wantTools []string) {
+	t.Helper()
+	require.NotNil(t, result)
+	var actualNames []string
+	for _, tool := range result.Tools {
+		actualNames = append(actualNames, tool.Name)
+	}
+	require.ElementsMatch(t, wantTools, actualNames)
+}
+
+func newDockerClient(t *testing.T) *docker.Client {
+	t.Helper()
+	dockerClient, err := docker.New(
+		docker.FromEnv,
+		docker.WithTimeout(10*time.Second),
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		dockerClient.Close()
+	})
+	return dockerClient
+}
+
+func findDockerContainer(ctx context.Context, dockerClient *docker.Client, containerName string) container.Summary {
+	res, err := dockerClient.ContainerList(ctx, docker.ContainerListOptions{All: true})
+	if err != nil {
+		return container.Summary{}
+	}
+	for _, c := range res.Items {
+		if slices.Contains(c.Names, "/"+containerName) {
+			return c
+		}
+	}
+	return container.Summary{}
+}
+
+func findDockerContainerID(ctx context.Context, dockerClient *docker.Client, containerName string) string {
+	return findDockerContainer(ctx, dockerClient, containerName).ID
+}
+
+func forceRemoveContainer(t *testing.T, dockerClient *docker.Client, containerName string) {
+	if containerID := findDockerContainerID(context.Background(), dockerClient, containerName); containerID != "" {
+		if _, err := dockerClient.ContainerRemove(context.Background(), containerID, docker.ContainerRemoveOptions{Force: true}); err != nil {
+			t.Log("Failed to remove container", err)
+		}
+	}
+}
+
+type mockAuthClient struct {
+	mu                  sync.Mutex
+	appTokenRequests    []types.GenerateAppTokenRequest
+	workloadIdentityClt workloadidentityv1.WorkloadIdentityIssuanceServiceClient
+}
+
+// WorkloadIdentityIssuanceClient implements [AuthClient].
+func (m *mockAuthClient) WorkloadIdentityIssuanceClient() workloadidentityv1.WorkloadIdentityIssuanceServiceClient {
+	return m.workloadIdentityClt
+}
+
+type fakeIssuanceClient struct {
+	workloadidentityv1.WorkloadIdentityIssuanceServiceClient
+
+	resp *workloadidentityv1.IssueTeleportWorkloadIdentityResponse
+	err  error
+}
+
+func (f *fakeIssuanceClient) IssueTeleportWorkloadIdentity(context.Context, *workloadidentityv1.IssueTeleportWorkloadIdentityRequest, ...grpc.CallOption) (*workloadidentityv1.IssueTeleportWorkloadIdentityResponse, error) {
+	return f.resp, f.err
+}
+
+func (m *mockAuthClient) GenerateAppToken(_ context.Context, req types.GenerateAppTokenRequest) (string, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.appTokenRequests = append(m.appTokenRequests, req)
+	return fmt.Sprintf("app-token-for-%s-by-%s", req.Username, cmp.Or(req.AuthorityType, types.JWTSigner)), nil
+}
+
+func (m *mockAuthClient) getAppTokenRequests() []types.GenerateAppTokenRequest {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return slices.Clone(m.appTokenRequests)
+}
+
+func checkSessionStartAndInitializeEvents(t *testing.T, events []apievents.AuditEvent, extraChecks ...func(*testing.T, *apievents.MCPSessionStart)) {
+	t.Helper()
+	// "notifications/initialized" may or may not slip in so just check the
+	// first two.
+	slices.SortFunc(events, func(a, b apievents.AuditEvent) int {
+		return cmp.Compare(a.GetIndex(), b.GetIndex())
+	})
+	require.GreaterOrEqual(t, len(events), 2)
+	sessionStart, ok := events[0].(*apievents.MCPSessionStart)
+	require.True(t, ok)
+	assert.Equal(t, "test-client/1.0.0", sessionStart.ClientInfo)
+	request, ok := events[1].(*apievents.MCPSessionRequest)
+	require.True(t, ok)
+	assert.Equal(t, string(mcp.MethodInitialize), request.Message.Method)
+
+	for _, check := range extraChecks {
+		check(t, sessionStart)
+	}
+}
+
+func checkSessionStartWithServerInfo(wantName, wantVersion string) func(*testing.T, *apievents.MCPSessionStart) {
+	return func(t *testing.T, sessionStart *apievents.MCPSessionStart) {
+		t.Helper()
+		require.Equal(t, wantName+"/"+wantVersion, sessionStart.ServerInfo)
+	}
+}
+func checkSessionStartWithEgressAuthType(wantEgress string) func(*testing.T, *apievents.MCPSessionStart) {
+	return func(t *testing.T, sessionStart *apievents.MCPSessionStart) {
+		t.Helper()
+		require.Equal(t, wantEgress, sessionStart.EgressAuthType)
+	}
+}
+func checkSessionStartHasExternalSessionID() func(*testing.T, *apievents.MCPSessionStart) {
+	return func(t *testing.T, sessionStart *apievents.MCPSessionStart) {
+		t.Helper()
+		require.NotEmpty(t, sessionStart.SessionID)
+	}
+}
+
+func newStreamableMCPServer(t *testing.T, upstream *mcpserver.MCPServer, role types.Role) (_ *testRecorder, _ *mcpclienttransport.StreamableHTTP, proxyURL string) {
+	t.Helper()
+
+	recorder := newTestRecorders()
+
+	remoteMCPServer := mcpserver.NewStreamableHTTPServer(upstream)
+	remoteHTTPServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		recorder.registerHttpRequest(t, r)
+		if r.URL.Path != "/mcp" {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		remoteMCPServer.ServeHTTP(w, r)
+	}))
+	t.Cleanup(remoteHTTPServer.Close)
+
+	app, err := types.NewAppV3(
+		types.Metadata{
+			Name:   "test-mcp-server",
+			Labels: map[string]string{"env": "prod"},
+		},
+		types.AppSpecV3{
+			URI: fmt.Sprintf("mcp+%s/mcp", remoteHTTPServer.URL),
+		},
+	)
+	require.NoError(t, err)
+
+	s, err := NewServer(ServerConfig{
+		Emitter:       recorder,
+		ParentContext: t.Context(),
+		HostID:        "my-host-id",
+		AccessPoint:   fakeAccessPoint{},
+		CipherSuites:  utils.DefaultCipherSuites(),
+		AuthClient:    &mockAuthClient{},
+	})
+	require.NoError(t, err)
+
+	var wg sync.WaitGroup
+	t.Cleanup(wg.Wait)
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = listener.Close() })
+	go func() {
+		for {
+			conn, err := listener.Accept()
+			if err != nil {
+				assert.True(t, utils.IsOKNetworkError(err))
+				return
+			}
+			wg.Go(func() {
+				defer conn.Close()
+				testCtx := setupTestContext(t,
+					withRole(role),
+					withApp(app),
+					withClientConn(conn),
+				)
+				assert.NoError(t, s.HandleSession(t.Context(), testCtx.SessionCtx))
+			})
+		}
+	}()
+
+	proxyURL = "http://" + listener.Addr().String()
+	mcpClientTransport, err := mcpclienttransport.NewStreamableHTTP(proxyURL)
+	require.NoError(t, err)
+
+	return recorder, mcpClientTransport, proxyURL
+}
+
+func testSendRAWRequest(t *testing.T, method, url, sessionID string, body string) (response []byte) {
+	t.Helper()
+	ctx := t.Context()
+
+	req, err := http.NewRequestWithContext(ctx, method, url, strings.NewReader(body))
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json, text/event-stream")
+	req.Header.Set(mcpclienttransport.HeaderKeySessionID, sessionID)
+
+	resp, err := (&http.Client{Timeout: 5 * time.Second}).Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	require.Contains(t, []int{http.StatusOK, http.StatusAccepted}, resp.StatusCode)
+
+	return respBody
+}
+
+type testRecorder struct {
+	*testHTTPRequestRecorder
+	*eventstest.MockRecorderEmitter
+}
+
+func newTestRecorders() *testRecorder {
+	return &testRecorder{&testHTTPRequestRecorder{}, &eventstest.MockRecorderEmitter{}}
+}
+
+func (r *testRecorder) Reset() {
+	r.testHTTPRequestRecorder.Reset()
+	r.MockRecorderEmitter.Reset()
+}
+
+type testHTTPRequestRecorder struct {
+	mu       sync.RWMutex
+	requests []*http.Request
+}
+
+func (r *testHTTPRequestRecorder) registerHttpRequest(t *testing.T, req *http.Request) {
+	t.Helper()
+
+	data, err := utils.GetAndReplaceRequestBody(req)
+	require.NoError(t, err)
+	req = req.Clone(t.Context())
+	// The requests is now cloned, but it's a shallow clone holding a pointer to the original
+	// body. Let's now set a the cloned body.
+	utils.OverwriteRequestBodyNoDrain(req, data)
+	require.NoError(t, err)
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.requests = append(r.requests, req)
+}
+
+func (r *testHTTPRequestRecorder) Reset() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.requests = r.requests[:0]
+}
+
+func (r *testHTTPRequestRecorder) HTTPRequests() []*http.Request {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.requests
+}
+
+func testGetRequestPayload(t *testing.T, req *http.Request) []byte {
+	t.Helper()
+	defer req.Body.Close()
+	payload, err := io.ReadAll(req.Body)
+	require.NoError(t, err)
+	return payload
+}
+
+func testJSON(t *testing.T, v any) []byte {
+	t.Helper()
+	data, err := json.Marshal(v)
+	require.NoError(t, err)
+	return data
+}
+
+func requireDeniedToolResponse(t *testing.T, respJSON []byte) {
+	t.Helper()
+	requireRequestResponseError(t, respJSON, mcp.INVALID_PARAMS, "User does not have permissions")
+}
+
+func requireToolNameMissingResponse(t *testing.T, respJSON []byte) {
+	t.Helper()
+	requireRequestResponseError(t, respJSON, mcp.INVALID_REQUEST, errInvalidRequestMissingName.Error())
+}
+
+func requireRequestResponseError(t *testing.T, respJSON []byte, expectedCode int, includedData string) {
+	t.Helper()
+
+	var baseMessage mcputils.BaseJSONRPCMessage
+	err := json.Unmarshal(respJSON, &baseMessage)
+	require.NoError(t, err, string(respJSON))
+
+	// Case everything to string so it's displayed nicely in case of error.
+	require.Empty(t, string(baseMessage.Result), string(respJSON))
+	require.NotEmpty(t, baseMessage.ID)
+	require.NotEmpty(t, string(baseMessage.Error))
+
+	var messageErrorDetails map[string]json.RawMessage
+	err = json.Unmarshal(baseMessage.Error, &messageErrorDetails)
+	require.NoError(t, err)
+
+	require.Contains(t, messageErrorDetails, "code")
+	var code int
+	err = json.Unmarshal(messageErrorDetails["code"], &code)
+	require.NoError(t, err)
+	require.Equal(t, expectedCode, code)
+
+	require.Contains(t, messageErrorDetails, "data")
+	escapedIncludedData, err := json.Marshal(includedData)
+	escapedIncludedData = escapedIncludedData[1 : len(escapedIncludedData)-1]
+	require.NoError(t, err)
+	require.Contains(t, string(messageErrorDetails["data"]), string(escapedIncludedData))
+}

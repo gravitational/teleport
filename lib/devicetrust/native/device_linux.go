@@ -26,17 +26,17 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"log/slog"
 	"os"
 	"os/exec"
 	"os/user"
-	"strings"
 	"time"
 
 	"github.com/google/go-attestation/attest"
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/gravitational/teleport"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/lib/linux"
 )
@@ -104,14 +104,14 @@ func rewriteTPMPermissionError(err error) error {
 	if !errors.As(err, &pathErr) || pathErr.Path != "/dev/tpmrm0" {
 		return err
 	}
-	log.
-		WithError(err).
-		Debug("TPM: Replacing TPM permission error with a more friendly one")
+	slog.DebugContext(context.Background(), "Replacing TPM permission error with a more friendly one",
+		teleport.ComponentKey, "TPM",
+		"error", err,
+	)
 
 	return errors.New("" +
-		"Failed to open the TPM device. " +
-		"Consider assigning the user to the `tss` group or creating equivalent udev rules. " +
-		"See https://goteleport.com/docs/access-controls/device-trust/device-management/#troubleshooting.")
+		"failed to open the TPM device, " +
+		"consider assigning the user to the `tss` group or creating equivalent udev rules")
 }
 
 // cddFuncs is used to mock various data collection functions for testing.
@@ -141,7 +141,10 @@ func collectDeviceData(mode CollectDataMode) (*devicepb.DeviceCollectedData, err
 	go func() {
 		osRelease, err := cddFuncs.parseOSRelease()
 		if err != nil {
-			log.WithError(err).Debug("TPM: Failed to parse /etc/os-release file")
+			slog.DebugContext(context.Background(), "Failed to parse /etc/os-release file",
+				teleport.ComponentKey, "TPM",
+				"error", err,
+			)
 			// err swallowed on purpose.
 
 			osRelease = &linux.OSRelease{}
@@ -171,7 +174,13 @@ func collectDeviceData(mode CollectDataMode) (*devicepb.DeviceCollectedData, err
 
 	osRelease := <-osReleaseC
 
-	return &devicepb.DeviceCollectedData{
+	displayName := u.Name
+	const maxUsernameLen = 40 // Matches server-side validation.
+	if len(displayName) > maxUsernameLen {
+		displayName = displayName[:maxUsernameLen]
+	}
+
+	return devicepb.DeviceCollectedData_builder{
 		CollectTime:           timestamppb.Now(),
 		OsType:                devicepb.OSType_OS_TYPE_LINUX,
 		SerialNumber:          firstValidAssetTag(reportedAssetTag, systemSerialNumber, baseBoardSerialNumber),
@@ -179,34 +188,38 @@ func collectDeviceData(mode CollectDataMode) (*devicepb.DeviceCollectedData, err
 		OsId:                  osRelease.ID,
 		OsVersion:             osRelease.VersionID,
 		OsBuild:               osRelease.Version,
-		OsUsername:            u.Name,
+		OsUsername:            displayName, // Wrong, but kept for backwards compatibility.
+		OsLoginUser:           u.Username,
 		ReportedAssetTag:      reportedAssetTag,
 		SystemSerialNumber:    systemSerialNumber,
 		BaseBoardSerialNumber: baseBoardSerialNumber,
-	}, nil
+	}.Build(), nil
 }
 
 func readDMIInfoAccordingToMode(mode CollectDataMode) (*linux.DMIInfo, error) {
+	ctx := context.Background()
+	logger := slog.With(teleport.ComponentKey, "TPM")
+
 	dmiInfo, err := cddFuncs.dmiInfoFromSysfs()
 	if err == nil {
 		return dmiInfo, nil
 	}
 
-	log.WithError(err).Warn("TPM: Failed to read device model and/or serial numbers")
+	logger.WarnContext(ctx, "Failed to read device model and/or serial numbers", "error", err)
 	if !errors.Is(err, fs.ErrPermission) {
 		return dmiInfo, nil // original info
 	}
 
 	switch mode {
 	case CollectedDataNeverEscalate, CollectedDataMaybeEscalate:
-		log.Debug("TPM: Reading cached DMI info")
+		logger.DebugContext(ctx, "Reading cached DMI info")
 
 		dmiCached, err := cddFuncs.readDMIInfoCached()
 		if err == nil {
 			return dmiCached, nil // successful cache hit
 		}
 
-		log.WithError(err).Debug("TPM: Failed to read cached DMI info")
+		logger.DebugContext(ctx, "Failed to read cached DMI info", "error", err)
 		if mode == CollectedDataNeverEscalate {
 			return dmiInfo, nil // original info
 		}
@@ -214,7 +227,7 @@ func readDMIInfoAccordingToMode(mode CollectDataMode) (*linux.DMIInfo, error) {
 		fallthrough
 
 	case CollectedDataAlwaysEscalate:
-		log.Debug("TPM: Running escalated `tsh device dmi-info`")
+		logger.DebugContext(ctx, "Running escalated `tsh device dmi-read`")
 
 		dmiInfo, err = cddFuncs.readDMIInfoEscalated()
 		if err != nil {
@@ -222,7 +235,7 @@ func readDMIInfoAccordingToMode(mode CollectDataMode) (*linux.DMIInfo, error) {
 		}
 
 		if err := cddFuncs.saveDMIInfoToCache(dmiInfo); err != nil {
-			log.WithError(err).Warn("TPM: Failed to write DMI cache")
+			logger.WarnContext(ctx, "Failed to write DMI cache", "error", err)
 			// err swallowed on purpose.
 		}
 	}
@@ -250,9 +263,7 @@ func readDMIInfoCached() (*linux.DMIInfo, error) {
 		return nil, trace.Wrap(err)
 	}
 	if dec.More() {
-		log.
-			WithField("Path", path).
-			Warn("DMI cache file contains multiple JSON entries, only one expected")
+		slog.WarnContext(context.Background(), "DMI cache file contains multiple JSON entries, only one expected", "path", path)
 		// Warn but keep going.
 	}
 
@@ -265,10 +276,12 @@ func readDMIInfoEscalated() (*linux.DMIInfo, error) {
 		return nil, trace.Wrap(err, "reading current executable")
 	}
 
+	sudo := sudoPath()
+
 	// Run `sudo -v` first to re-authenticate, then run the actual tsh command
 	// using `sudo --non-interactive`, so we don't risk getting sudo output
 	// mixed with our desired output.
-	sudoCmd := exec.Command("/usr/bin/sudo", "-v")
+	sudoCmd := exec.Command(sudo, "-v")
 	sudoCmd.Stdout = os.Stdout
 	sudoCmd.Stderr = os.Stderr
 	sudoCmd.Stdin = os.Stdin
@@ -283,23 +296,29 @@ func readDMIInfoEscalated() (*linux.DMIInfo, error) {
 	defer cancel()
 
 	dmiOut := &bytes.Buffer{}
-	dmiCmd := exec.CommandContext(ctx, "/usr/bin/sudo", "-n", tshPath, "device", "dmi-read")
+	dmiCmd := exec.CommandContext(ctx, sudo, "-n", tshPath, "device", "dmi-read")
 	dmiCmd.Stdout = dmiOut
 	if err := dmiCmd.Run(); err != nil {
 		return nil, trace.Wrap(err, "running `sudo tsh device dmi-read`")
 	}
 
-	// Strip any leading output before the first `{`, just in case.
-	val := dmiOut.String()
-	if n := strings.Index(val, "{"); n > 0 {
-		val = val[n-1:]
-	}
-
-	var dmiInfo linux.DMIInfo
-	if err := json.Unmarshal([]byte(val), &dmiInfo); err != nil {
+	dmiInfo, err := parseDMIReadOutput(dmiOut.Bytes())
+	if err != nil {
 		return nil, trace.Wrap(err, "parsing dmi-read output")
 	}
 
+	return dmiInfo, nil
+}
+
+func parseDMIReadOutput(text []byte) (*linux.DMIInfo, error) {
+	if i := bytes.IndexByte(text, '{'); i > 0 {
+		text = text[i:]
+	}
+
+	var dmiInfo linux.DMIInfo
+	if err := json.NewDecoder(bytes.NewReader(text)).Decode(&dmiInfo); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return &dmiInfo, nil
 }
 
@@ -320,7 +339,37 @@ func saveDMIInfoToCache(dmiInfo *linux.DMIInfo) error {
 	if err := f.Close(); err != nil {
 		return trace.Wrap(err, "closing dmi.json after write")
 	}
-	log.Debug("TPM: Saved DMI information to local cache")
+	slog.DebugContext(context.Background(), "Saved DMI information to local cache", teleport.ComponentKey, "TPM")
 
 	return nil
+}
+
+func sudoPath() string {
+	const defaultSudoPath = "/usr/bin/sudo"
+
+	for i, path := range []string{
+		defaultSudoPath, // preferred
+
+		// Fallbacks are only allowed if /usr/bin/sudo does not exist.
+		// If it does exist, then it's used regardless of any other errors that may
+		// happen later.
+		"/run/wrappers/bin/sudo", // NixOS
+	} {
+		if _, err := os.Stat(path); err != nil {
+			slog.DebugContext(
+				context.Background(),
+				"Failed to stat sudo binary",
+				"error", err,
+				"path", path,
+			)
+			continue
+		}
+		if i > 0 {
+			slog.DebugContext(context.Background(), "Using alternative sudo path", "path", path)
+		}
+		return path
+	}
+
+	// If everything fails then use the default and hard-fail later.
+	return defaultSudoPath
 }

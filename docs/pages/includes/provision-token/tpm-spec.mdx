@@ -6,8 +6,8 @@ metadata:
   # token, this name should be specified.
   name: tpm-token
 spec:
-  # For Machine ID and TPM joining, roles will always be "Bot" and
-  # join_method will always be "tpm".
+  # For Machine & Workload Identity via TPM joining, roles will always be "Bot"
+  # and join_method will always be "tpm".
   roles: [Bot]
   join_method: tpm
 
@@ -36,7 +36,7 @@ spec:
     allow:
         # description is a human-readable description of the rule. It has no
         # bearing on whether a TPM is allowed to join, but can be used to
-        # associate a rule with a specific host (e.g the asset tag of the server
+        # associate a rule with a specific host (e.g. the asset tag of the server
         # in which the TPM resides).
       - description: "example-build-server-100"
         # ek_public_hash is the SHA256 hash of the EKPub marshaled in PKIX format
@@ -46,6 +46,9 @@ spec:
         ek_public_hash: "d4b4example6fabfc568d74f2example6c35a05337d7af9a6example6c891aa6"
         # ek_certificate_serial is the serial number of the EKCert in hexadecimal
         # with colon separated nibbles. This value will not be checked when a TPM
-        # does not have an EKCert configured.
+        # does not have an EKCert configured. Setting this field requires that
+        # either ek_public_hash be set or a certificate be configured in
+        # ekcert_allowed_cas so that the integrity of the certificate with the
+        # serial number can be verified.
         ek_certificate_serial: "01:23:45:67:89:ex:am:pl:e0:23:45:67:89:ab:cd:ef"
 ```

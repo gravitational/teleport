@@ -16,15 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { context, trace } from '@opentelemetry/api';
 import { useEffect, useState } from 'react';
+
 import { useAttempt } from 'shared/hooks';
 
-import { context, trace } from '@opentelemetry/api';
-
-import { Session } from 'teleport/services/session';
-
-import Ctx from 'teleport/teleportContext';
 import cfg from 'teleport/config';
+import { Session } from 'teleport/services/session';
+import Ctx from 'teleport/teleportContext';
 
 const tracer = trace.getTracer('userSessions');
 
@@ -58,6 +57,6 @@ export default function useSessions(ctx: Ctx, clusterId: string) {
     sessions,
     // moderated is available with any enterprise editions
     showModeratedSessionsCTA: !ctx.isEnterprise,
-    showActiveSessionsCTA: !cfg.joinActiveSessions,
+    showActiveSessionsCTA: !cfg.entitlements.JoinActiveSessions.enabled,
   };
 }

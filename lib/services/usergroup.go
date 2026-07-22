@@ -79,7 +79,7 @@ func UnmarshalUserGroup(data []byte, opts ...MarshalOption) (types.UserGroup, er
 	case types.V1:
 		var g types.UserGroupV1
 		if err := utils.FastUnmarshal(data, &g); err != nil {
-			return nil, trace.BadParameter(err.Error())
+			return nil, trace.BadParameter("%s", err)
 		}
 		if err := g.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)

@@ -20,20 +20,33 @@ package forward
 
 import (
 	"context"
+	"crypto/ed25519"
 	"crypto/rand"
 	"errors"
+	"net"
 	"os/user"
 	"sync/atomic"
 	"testing"
 
+	"github.com/google/uuid"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/keys"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/lib/agentless"
+	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshutils"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestSignersWithSHA1Fallback(t *testing.T) {
@@ -53,7 +66,7 @@ func TestSignersWithSHA1Fallback(t *testing.T) {
 	assertSHA1Signer := func(t *testing.T, signer ssh.Signer) {
 		require.Equal(t, ssh.CertAlgoRSAv01, signer.PublicKey().Type())
 
-		// We should not be able to case the signer to ssh.AlgorithmSigner.
+		// We should not be able to cast the signer to ssh.AlgorithmSigner.
 		// Otherwise, x/crypto will use SHA-2-512 for signing.
 		_, ok := signer.(ssh.AlgorithmSigner)
 		require.False(t, ok)
@@ -70,13 +83,15 @@ func TestSignersWithSHA1Fallback(t *testing.T) {
 		want      func(t *testing.T, got []ssh.Signer)
 	}{
 		{
-			name: "simple",
+			name: "RSA host certificate",
 			signersCb: func(t *testing.T) []ssh.Signer {
-				signer, err := apisshutils.MakeTestSSHCA()
+				caSigner, err := apisshutils.MakeTestSSHCA()
 				require.NoError(t, err)
-				cert, err := apisshutils.MakeRealHostCert(signer)
+				hostKey, err := keys.ParsePrivateKey(fixtures.PEMBytes["rsa"])
 				require.NoError(t, err)
-				return []ssh.Signer{cert}
+				hostCert, err := apisshutils.MakeRealHostCertWithKey(hostKey.Signer, caSigner)
+				require.NoError(t, err)
+				return []ssh.Signer{hostCert}
 			},
 			want: func(t *testing.T, signers []ssh.Signer) {
 				// We expect 2 certificates, order matters.
@@ -86,11 +101,13 @@ func TestSignersWithSHA1Fallback(t *testing.T) {
 			},
 		},
 		{
-			name: "public key only",
+			name: "RSA host public key",
 			signersCb: func(t *testing.T) []ssh.Signer {
-				signer, err := apisshutils.MakeTestSSHCA()
+				hostKey, err := keys.ParsePrivateKey(fixtures.PEMBytes["rsa"])
 				require.NoError(t, err)
-				return []ssh.Signer{signer}
+				hostSigner, err := ssh.NewSignerFromSigner(hostKey.Signer)
+				require.NoError(t, err)
+				return []ssh.Signer{hostSigner}
 			},
 			want: func(t *testing.T, signers []ssh.Signer) {
 				// public key should not be copied
@@ -98,10 +115,37 @@ func TestSignersWithSHA1Fallback(t *testing.T) {
 				require.Equal(t, ssh.KeyAlgoRSA, signers[0].PublicKey().Type())
 			},
 		},
+		{
+			name: "Ed25519 host certificate",
+			signersCb: func(t *testing.T) []ssh.Signer {
+				caSigner, err := apisshutils.MakeTestSSHCA()
+				require.NoError(t, err)
+				hostCert, err := apisshutils.MakeRealHostCert(caSigner)
+				require.NoError(t, err)
+				return []ssh.Signer{hostCert}
+			},
+			want: func(t *testing.T, signers []ssh.Signer) {
+				require.Len(t, signers, 1)
+				require.Equal(t, ssh.CertAlgoED25519v01, signers[0].PublicKey().Type())
+			},
+		},
+		{
+			name: "Ed25519 host key",
+			signersCb: func(t *testing.T) []ssh.Signer {
+				_, hostKey, err := ed25519.GenerateKey(rand.Reader)
+				require.NoError(t, err)
+				hostSigner, err := ssh.NewSignerFromSigner(hostKey)
+				require.NoError(t, err)
+				return []ssh.Signer{hostSigner}
+			},
+			want: func(t *testing.T, signers []ssh.Signer) {
+				require.Len(t, signers, 1)
+				require.Equal(t, ssh.KeyAlgoED25519, signers[0].PublicKey().Type())
+			},
+		},
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -179,12 +223,11 @@ func TestDirectTCPIP(t *testing.T) {
 	}
 
 	for _, tt := range cases {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
 			s := Server{
-				log:             utils.NewLoggerForTests().WithField(teleport.ComponentKey, "test"),
+				logger:          logtest.NewLogger(),
 				identityContext: srv.IdentityContext{Login: tt.login},
 			}
 
@@ -215,22 +258,23 @@ func TestCheckTCPIPForward(t *testing.T) {
 		},
 	}
 	for _, tt := range cases {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
 			s := Server{
-				log:             utils.NewLoggerForTests().WithField(teleport.ComponentKey, "test"),
+				logger:          logtest.NewLogger(),
 				identityContext: srv.IdentityContext{Login: tt.login},
+				targetServer:    &types.ServerV2{},
 			}
-			err := s.checkTCPIPForwardRequest(&ssh.Request{
-				Type:      teleport.TCPIPForwardRequest,
-				WantReply: false,
-				Payload: ssh.Marshal(sshutils.TCPIPForwardReq{
-					Addr: "localhost",
-					Port: 0,
-				}),
-			})
+			err := s.checkTCPIPForwardRequest(context.Background(),
+				&ssh.Request{
+					Type:      teleport.TCPIPForwardRequest,
+					WantReply: false,
+					Payload: ssh.Marshal(sshutils.TCPIPForwardReq{
+						Addr: "localhost",
+						Port: 0,
+					}),
+				})
 			tt.assert(t, err)
 		})
 	}
@@ -238,3 +282,213 @@ func TestCheckTCPIPForward(t *testing.T) {
 
 // TODO(atburke): Add test for handleForwardedTCPIPRequest once we have
 // infrastructure for higher-level tests here.
+
+func TestEventMetadata(t *testing.T) {
+	nodeID := uuid.NewString()
+	proxyID := uuid.NewString()
+
+	for _, tt := range []struct {
+		name           string
+		subkind        string
+		spec           types.ServerSpecV2
+		labels         map[string]string
+		expectMetadata events.ServerMetadata
+	}{
+		{
+			name: "tunnel node",
+			labels: map[string]string{
+				"stcLabel": "stcResult",
+			},
+			spec: types.ServerSpecV2{
+				Addr: "127.0.0.1:3022",
+				CmdLabels: map[string]types.CommandLabelV2{
+					"cmdLabel": {Result: "cmdResult"},
+				},
+				Hostname:  "server01",
+				UseTunnel: true,
+			},
+			expectMetadata: events.ServerMetadata{
+				ServerVersion:   teleport.Version,
+				ServerID:        nodeID,
+				ServerNamespace: apidefaults.Namespace,
+				ServerAddr:      "",
+				ServerHostname:  "server01",
+				ServerLabels: map[string]string{
+					"stcLabel": "stcResult",
+					"cmdLabel": "cmdResult",
+				},
+				ServerSubKind: types.SubKindTeleportNode,
+				ForwardedBy:   proxyID,
+			},
+		}, {
+			name: "tunnel node",
+			labels: map[string]string{
+				"stcLabel": "stcResult",
+			},
+			spec: types.ServerSpecV2{
+				Addr: "127.0.0.1:3022",
+				CmdLabels: map[string]types.CommandLabelV2{
+					"cmdLabel": {Result: "cmdResult"},
+				},
+				Hostname: "server01",
+			},
+			expectMetadata: events.ServerMetadata{
+				ServerVersion:   teleport.Version,
+				ServerID:        nodeID,
+				ServerNamespace: apidefaults.Namespace,
+				ServerAddr:      "127.0.0.1:3022",
+				ServerHostname:  "server01",
+				ServerLabels: map[string]string{
+					"stcLabel": "stcResult",
+					"cmdLabel": "cmdResult",
+				},
+				ServerSubKind: types.SubKindTeleportNode,
+				ForwardedBy:   proxyID,
+			},
+		}, {
+			name:    "agentless node",
+			subkind: types.SubKindOpenSSHNode,
+			labels: map[string]string{
+				"stcLabel": "stcResult",
+			},
+			spec: types.ServerSpecV2{
+				Addr:     "openssh.example.com:22",
+				Hostname: "agentless-host",
+			},
+			expectMetadata: events.ServerMetadata{
+				ServerVersion:   teleport.Version,
+				ServerID:        nodeID,
+				ServerNamespace: apidefaults.Namespace,
+				ServerAddr:      "openssh.example.com:22",
+				ServerHostname:  "agentless-host",
+				ServerLabels: map[string]string{
+					"stcLabel": "stcResult",
+				},
+				ServerSubKind: types.SubKindOpenSSHNode,
+				ForwardedBy:   proxyID,
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			targetServer, err := types.NewNode(nodeID, tt.subkind, tt.spec, tt.labels)
+			require.NoError(t, err)
+
+			forwardSrv := &Server{
+				proxyUUID:    proxyID,
+				targetServer: targetServer,
+			}
+
+			require.EqualValues(t, tt.expectMetadata, forwardSrv.EventMetadata())
+		})
+	}
+}
+
+func TestServerConfigCheckDefaults(t *testing.T) {
+	teleportNode, err := types.NewNode("teleport-node", "", types.ServerSpecV2{}, nil)
+	require.NoError(t, err)
+
+	openSSHNode, err := types.NewNode("openssh-node", types.SubKindOpenSSHNode, types.ServerSpecV2{
+		Addr:     "openssh.example.com:22",
+		Hostname: "openssh.example.com",
+	}, nil)
+	require.NoError(t, err)
+
+	openSSHEICENode, err := types.NewEICENode(types.ServerSpecV2{
+		Addr:     "openssheice.example.com:22",
+		Hostname: "openssheice.example.com",
+		CloudMetadata: &types.CloudMetadata{
+			AWS: &types.AWSInfo{
+				AccountID:   "123456789012",
+				InstanceID:  "i-123456789012",
+				Region:      "us-east-1",
+				VPCID:       "vpc-abcd",
+				SubnetID:    "subnet-123",
+				Integration: "teleportdev",
+			},
+		},
+	}, nil)
+	require.NoError(t, err)
+
+	for _, tt := range []struct {
+		name           string
+		modifyCfg      func(c *ServerConfig)
+		errorAssertion require.ErrorAssertionFunc
+	}{
+		{
+			name:      "no targetServer",
+			modifyCfg: func(c *ServerConfig) {},
+			errorAssertion: func(tt require.TestingT, err error, i ...interface{}) {
+				require.Error(t, err)
+				require.ErrorContains(t, err, "target server is required")
+			},
+		}, {
+			name: "Teleport Node",
+			modifyCfg: func(c *ServerConfig) {
+				c.TargetServer = teleportNode
+				c.UserAgent = &sshutils.AgentChannel{}
+			},
+			errorAssertion: require.NoError,
+		}, {
+			name: "Teleport Node no agent",
+			modifyCfg: func(c *ServerConfig) {
+				c.TargetServer = teleportNode
+			},
+			errorAssertion: func(tt require.TestingT, err error, i ...interface{}) {
+				require.Error(t, err)
+				require.ErrorContains(t, err, "user agent required")
+			},
+		}, {
+			name: "OpenSSH Node",
+			modifyCfg: func(c *ServerConfig) {
+				c.TargetServer = openSSHNode
+				c.AgentlessSignerCreator = func(_ context.Context, _ agentless.LocalAccessPoint, _ string) (ssh.Signer, error) {
+					return &sshutils.LegacySHA1Signer{}, nil
+				}
+			},
+			errorAssertion: require.NoError,
+		}, {
+			name: "OpenSSH Node no signer creator",
+			modifyCfg: func(c *ServerConfig) {
+				c.TargetServer = openSSHNode
+			},
+			errorAssertion: func(tt require.TestingT, err error, i ...interface{}) {
+				require.Error(t, err)
+				require.ErrorContains(t, err, "agentless signer creator is required")
+			},
+		}, {
+			name: "OpenSSH EICE Node",
+			modifyCfg: func(c *ServerConfig) {
+				c.TargetServer = openSSHEICENode
+			},
+			errorAssertion: require.NoError,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			config := &ServerConfig{
+				LocalAuthClient:          &authclient.Client{},
+				TargetClusterAccessPoint: &authclient.Client{},
+				DataDir:                  "datadir",
+				TargetConn:               &net.UnixConn{},
+				SrcAddr:                  &net.IPAddr{},
+				DstAddr:                  &net.IPAddr{},
+				HostCertificate:          &sshutils.LegacySHA1Signer{},
+				Clock:                    clockwork.NewFakeClock(),
+				Emitter:                  &authclient.Client{},
+				LockWatcher:              &services.LockWatcher{},
+				EICESigner: func(ctx context.Context, target types.Server, integration types.Integration, login, token string, ap cryptosuites.AuthPreferenceGetter) (ssh.Signer, error) {
+					return nil, nil
+				},
+			}
+
+			tt.modifyCfg(config)
+
+			err := config.CheckDefaults()
+			tt.errorAssertion(t, err)
+		})
+	}
+
+	// UserAgent:                userAgent,
+	// AgentlessSigner:          params.AgentlessSigner,
+	// TargetServer:    params.TargetServer,
+
+}

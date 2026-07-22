@@ -29,7 +29,7 @@ Make sure the plugin is installed by running the following command:
 
 ```code
 $ docker run public.ecr.aws/gravitational/teleport-plugin-{{ name }}:(=teleport.plugin.version=) version
-teleport-{{ name }} v(=teleport.plugin.version=) git:teleport-{{ name }}-v(=teleport.plugin.version=)-(=teleport.git=) (=teleport.golang=)
+teleport-{{ name }} v(=teleport.plugin.version=) (=teleport.golang=)
 ```
 
 For a list of available tags, visit [Amazon ECR Public Gallery](https://gallery.ecr.aws/gravitational/teleport-plugin-{{ name }}).
@@ -42,8 +42,8 @@ installed, visit the Go [downloads page](https://go.dev/dl/).
 ```code
 $ git clone https://github.com/gravitational/teleport -b branch/v(=teleport.major_version=)
 $ cd teleport/integrations/access/{{ name }}
-$ git checkout (=teleport.plugin.version=)
-$ make
+$ git checkout v(=teleport.plugin.version=)
+$ make build/teleport-{{ name }}
 ```
 
 Move the `teleport-{{ name }}` binary into your PATH.

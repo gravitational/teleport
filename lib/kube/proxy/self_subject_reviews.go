@@ -25,7 +25,6 @@ import (
 	"io"
 	"net/http"
 	"path"
-	"slices"
 
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
@@ -63,7 +62,7 @@ func (f *Forwarder) selfSubjectAccessReviews(authCtx *authContext, w http.Respon
 	if err != nil {
 		// This error goes to kubernetes client and is not visible in the logs
 		// of the teleport server if not logged here.
-		f.log.Errorf("Failed to create cluster session: %v.", err)
+		f.log.ErrorContext(req.Context(), "Failed to create cluster session", "error", err)
 		return nil, trace.Wrap(err)
 	}
 	// sess.Close cancels the connection monitor context to release it sooner.
@@ -80,7 +79,7 @@ func (f *Forwarder) selfSubjectAccessReviews(authCtx *authContext, w http.Respon
 
 	// only allow self subject access reviews for the service that proxies the
 	// request to the kubernetes API server.
-	if f.isLocalKubeCluster(sess.teleportCluster.isRemote, sess.kubeClusterName) {
+	if sess.isLocalKubernetesCluster {
 		if err := f.validateSelfSubjectAccessReview(sess, w, req); trace.IsAccessDenied(err) {
 			return nil, nil
 		} else if err != nil {
@@ -91,7 +90,7 @@ func (f *Forwarder) selfSubjectAccessReviews(authCtx *authContext, w http.Respon
 	if err := f.setupForwardingHeaders(sess, req, true /* withImpersonationHeaders */); err != nil {
 		// This error goes to kubernetes client and is not visible in the logs
 		// of the teleport server if not logged here.
-		f.log.Errorf("Failed to set up forwarding headers: %v.", err)
+		f.log.ErrorContext(req.Context(), "Failed to set up forwarding headers", "error", err)
 		return nil, trace.Wrap(err)
 	}
 	rw := httplib.NewResponseStatusRecorder(w)
@@ -115,52 +114,77 @@ func (f *Forwarder) validateSelfSubjectAccessReview(sess *clusterSession, w http
 		return trace.Wrap(err)
 	}
 
+	// TODO(@creack): Remove this as part of the RBAC RFC. It grants excessive permissions.
 	if accessReview.Spec.ResourceAttributes == nil {
 		return nil
 	}
 
 	namespace := accessReview.Spec.ResourceAttributes.Namespace
-	resource := sess.rbacSupportedResources.getResourceWithKey(
-		allowedResourcesKey{
-			apiGroup:     accessReview.Spec.ResourceAttributes.Group,
-			resourceKind: accessReview.Spec.ResourceAttributes.Resource,
-		},
-	)
-	// If the request is for a resource that Teleport does not support, return
-	// nil and let the Kubernetes API server handle the request.
-	if resource == "" {
-		return nil
+	group := accessReview.Spec.ResourceAttributes.Group
+	version := accessReview.Spec.ResourceAttributes.Version
+	resourceKind := accessReview.Spec.ResourceAttributes.Resource
+	resource, ok := sess.rbacSupportedResources.getResource(group, resourceKind)
+	if !ok {
+		// Mirror the data path so `kubectl auth can-i` matches a real request:
+		// discover the kind's group-version and, if it's still unknown, report denied.
+		details, derr := f.findKubeDetailsByClusterName(sess.kubeClusterName)
+		if derr != nil {
+			return nil
+		}
+		var found bool
+		resource, found = details.resolveResource(group, version, resourceKind)
+		if !found {
+			accessReview.Status = authv1.SubjectAccessReviewStatus{
+				Allowed: false,
+				Denied:  true,
+				Reason: fmt.Sprintf(
+					"Kubernetes resource kind %q in API group %q is not known to this cluster",
+					resourceKind, group,
+				),
+			}
+			responsewriters.SetContentTypeHeader(w, req.Header)
+			if encodeErr := encoder.Encode(accessReview, w); encodeErr != nil {
+				return trace.Wrap(encodeErr)
+			}
+			// The denied response is already written; signal the caller to stop
+			// forwarding, like the other denial branches below.
+			return trace.AccessDenied("Kubernetes resource kind %q in API group %q is not known to this cluster", resourceKind, group)
+		}
 	}
 	name := accessReview.Spec.ResourceAttributes.Name
 
-	authPref, err := f.cfg.CachingAuthClient.GetAuthPreference(req.Context())
+	actx := sess.authContext
+	ident := actx.Identity.GetIdentity()
+	state, err := actx.CheckerContext.AccessStateFromTLSIdentity(req.Context(), &ident, f.cfg.CachingAuthClient)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	actx := sess.authContext
-	state := actx.GetAccessState(authPref)
+	checker, err := actx.getAccessChecker()
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
-	switch err := actx.Checker.CheckAccess(
+	switch err := checker.Kube().CheckAccessToCluster(
 		actx.kubeCluster,
 		state,
 		services.RoleMatchers{
 			// Append a matcher that validates if the Kubernetes resource is allowed
 			// by the roles that satisfy the Kubernetes Cluster.
 			&kubernetesResourceMatcher{
-				types.KubernetesResource{
-					Kind:      resource,
+				resource: types.KubernetesResource{
+					Kind:      resource.Name,
 					Name:      name,
 					Namespace: namespace,
 					Verbs:     []string{accessReview.Spec.ResourceAttributes.Verb},
+					APIGroup:  accessReview.Spec.ResourceAttributes.Group,
 				},
+				isClusterWideResource: !resource.Namespaced,
 			},
 		}...); {
 	case errors.Is(err, services.ErrTrustedDeviceRequired):
 		return trace.Wrap(err)
-	case err != nil &&
-		!slices.Contains(types.KubernetesClusterWideResourceKinds, resource) &&
-		resource != utils.KubeCustomResource:
+	case err != nil && resource.Namespaced:
 		namespaceNameToString := func(namespace, name string) string {
 			switch {
 			case namespace == "" && name == "":
@@ -183,7 +207,17 @@ func (f *Forwarder) validateSelfSubjectAccessReview(sess *clusterSession, w http
 					"- kind: %s\n"+
 					"  name: %s\n"+
 					"  namespace: %s\n"+
-					"  verbs: [%s]\n", accessReview.Spec.ResourceAttributes.Resource, namespaceNameToString(namespace, name), kubernetesResourcesKey, resource, emptyOrWildcard(name), emptyOrWildcard(namespace), emptyOrWildcard("")),
+					"  verbs: [%s]\n"+
+					"  api_group: %s\n",
+				accessReview.Spec.ResourceAttributes.Resource,
+				namespaceNameToString(namespace, name),
+				kubernetesResourcesKey,
+				resource.Name,
+				emptyOrWildcard(name),
+				emptyOrWildcard(namespace),
+				emptyOrWildcard(""),
+				emptyOrWildcard(accessReview.Spec.ResourceAttributes.Group),
+			),
 		}
 
 		responsewriters.SetContentTypeHeader(w, req.Header)
@@ -191,12 +225,6 @@ func (f *Forwarder) validateSelfSubjectAccessReview(sess *clusterSession, w http
 			return trace.Wrap(encodeErr)
 		}
 		return trace.Wrap(err)
-	case err != nil && resource == utils.KubeCustomResource:
-		// If the request is for a custom resource, we need grant access to the
-		// the namespace that the custom resource is in.
-		resource = types.KindKubeNamespace
-		name = namespace
-		fallthrough
 	case err != nil:
 		// If the request is for a cluster-wide resource, we need to grant access
 		// to it.
@@ -209,16 +237,23 @@ func (f *Forwarder) validateSelfSubjectAccessReview(sess *clusterSession, w http
 					"kubernetes_resources:\n"+
 					"- kind: %s\n"+
 					"  name: %s\n"+
-					"  verbs: [%s]\n", accessReview.Spec.ResourceAttributes.Resource, name, kubernetesResourcesKey, resource, emptyOrWildcard(name), emptyOrWildcard("")),
+					"  verbs: [%s]\n"+
+					"  api_group: %s",
+				accessReview.Spec.ResourceAttributes.Resource,
+				name,
+				kubernetesResourcesKey,
+				resource.Name,
+				emptyOrWildcard(name),
+				emptyOrWildcard(""),
+				emptyOrWildcard(accessReview.Spec.ResourceAttributes.Group),
+			),
 		}
-
 		responsewriters.SetContentTypeHeader(w, req.Header)
 		if encodeErr := encoder.Encode(accessReview, w); encodeErr != nil {
 			return trace.Wrap(encodeErr)
 		}
 		return trace.Wrap(err)
 	}
-
 	return nil
 }
 
@@ -267,7 +302,8 @@ func parseSelfSubjectAccessReviewRequest(decoder runtime.Decoder, req *http.Requ
 // This matcher assumes the role's kubernetes_resources configured eventually
 // match with resources that exist in the cluster.
 type kubernetesResourceMatcher struct {
-	resource types.KubernetesResource
+	resource              types.KubernetesResource
+	isClusterWideResource bool
 }
 
 // Match matches a Kubernetes Resource against provided role and condition.
@@ -280,27 +316,41 @@ func (m *kubernetesResourceMatcher) Match(role types.Role, condition types.RoleC
 	name := m.resource.Name
 	namespace := m.resource.Namespace
 
-	if kind == utils.KubeCustomResource {
-		kind = types.KindKubeNamespace
-		name = m.resource.Namespace
+	// If the resource is global, clear the namespace.
+	// NOTE: kubectl will yield a warning for this case, but we still need to process the request.
+	if m.isClusterWideResource {
 		namespace = ""
+	}
+
+	// If we are dealing with a namespace resource, consider it cluster wide even though it is not.
+	if m.resource.Kind == "namespaces" {
+		m.isClusterWideResource = true
 	}
 
 	for _, resource := range resources {
 		isResourceTheSameKind := kind == resource.Kind || resource.Kind == types.Wildcard
-		namespaceScopeMatch := resource.Kind == types.KindKubeNamespace && !slices.Contains(types.KubernetesClusterWideResourceKinds, kind)
+
+		namespaceScopeMatch := resource.Kind == "namespaces" && !m.isClusterWideResource
 		if !isResourceTheSameKind && !namespaceScopeMatch {
 			continue
 		}
-		if len(m.resource.Verbs) == 1 && !isVerbAllowed(resource.Verbs, m.resource.Verbs[0]) {
+		if len(m.resource.Verbs) == 1 && !utils.IsVerbAllowed(resource.Verbs, m.resource.Verbs[0]) {
 			continue
 		}
+
+		switch ok, err := utils.SliceMatchesRegex(m.resource.APIGroup, []string{resource.APIGroup}); {
+		case err != nil:
+			return false, trace.Wrap(err)
+		case !ok:
+			continue
+		}
+
 		// If the resource name and namespace are empty, it means that the
 		// user wants to match all resources of the specified kind.
 		// We can return true immediately because the user is allowed to get resources
 		// of the specified kind but might not be able to see any if the matchers do not
 		// match with any resource.
-		if name == "" && namespace == "" {
+		if (resource.Namespace == "" || resource.Namespace == types.Wildcard) && name == "" && namespace == "" {
 			return true, nil
 		}
 		// If the resource name isn't empty but the resource kind is a namespace scope
@@ -315,24 +365,16 @@ func (m *kubernetesResourceMatcher) Match(role types.Role, condition types.RoleC
 				continue
 			}
 		}
-		if resource.Kind == types.KindKubeNamespace && namespace != "" {
+		if resource.Kind == "namespaces" && namespace != "" {
 			if ok, err := utils.SliceMatchesRegex(namespace, []string{resource.Name}); err != nil || ok {
 				return ok, trace.Wrap(err)
 			}
 		} else {
-			if ok, err := utils.SliceMatchesRegex(namespace, []string{resource.Namespace}); err != nil || ok || namespace == "" {
-				return ok || namespace == "", trace.Wrap(err)
+			if ok, err := utils.SliceMatchesRegex(namespace, []string{resource.Namespace}); err != nil || ok {
+				return ok, trace.Wrap(err)
 			}
 		}
-
 	}
 
 	return false, nil
-}
-
-// isVerbAllowed returns true if the verb is allowed in the resource.
-// If the resource has a wildcard verb, it matches all verbs, otherwise
-// the resource must have the verb we're looking for.
-func isVerbAllowed(allowedVerbs []string, verb string) bool {
-	return len(allowedVerbs) != 0 && (allowedVerbs[0] == types.Wildcard || slices.Contains(allowedVerbs, verb))
 }

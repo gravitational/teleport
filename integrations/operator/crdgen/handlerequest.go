@@ -16,10 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package main
+package crdgen
 
 import (
-	"fmt"
 	"os"
 
 	gogodesc "github.com/gogo/protobuf/protoc-gen-gogo/descriptor"
@@ -29,12 +28,19 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/pluginpb"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-	"sigs.k8s.io/yaml"
 
 	"github.com/gravitational/teleport/api/types"
 )
 
-func handleRequest(req *gogoplugin.CodeGeneratorRequest) error {
+func HandleCRDRequest(req *gogoplugin.CodeGeneratorRequest) error {
+	return handleRequest(req, formatAsCRD)
+}
+
+func HandleDocsRequest(req *gogoplugin.CodeGeneratorRequest) error {
+	return handleRequest(req, formatAsDocsPage)
+}
+
+func handleRequest(req *gogoplugin.CodeGeneratorRequest, out crdFormatFunc) error {
 	if len(req.FileToGenerate) == 0 {
 		return trace.Errorf("no input file provided")
 	}
@@ -52,7 +58,12 @@ func handleRequest(req *gogoplugin.CodeGeneratorRequest) error {
 	for _, fileDesc := range gen.AllFiles().File {
 		file := gen.addFile(fileDesc)
 		if fileDesc.GetName() == rootFileName {
-			if err := generateSchema(file, "resources.teleport.dev", gen.Response); err != nil {
+			if err := generateSchema(
+				file,
+				"resources.teleport.dev",
+				out,
+				gen.Response,
+			); err != nil {
 				return trace.Wrap(err)
 			}
 		}
@@ -152,22 +163,27 @@ var tokenColumns = []apiextv1.CustomResourceColumnDefinition{
 	},
 }
 
-func generateSchema(file *File, groupName string, resp *gogoplugin.CodeGeneratorResponse) error {
+func generateSchema(file *File, groupName string, format crdFormatFunc, resp *gogoplugin.CodeGeneratorResponse) error {
 	generator := NewSchemaGenerator(groupName)
 
 	resources := []resource{
-		{name: "UserV2", opts: []resourceSchemaOption{withAdditionalColumns(userColumns)}},
+		{name: "UserV2", opts: []resourceSchemaOption{withAdditionalColumns(userColumns), legacyWithoutVersionInKindOverride()}},
 		// Role V5 is using the RoleV6 message
-		{name: "RoleV6", opts: []resourceSchemaOption{withVersionOverride(types.V5)}},
+		{name: "RoleV6", opts: []resourceSchemaOption{withVersionOverride(types.V5), legacyWithoutVersionInKindOverride()}},
 		// For backward compatibility in v15, it actually creates v5 roles though.
-		{name: "RoleV6"},
+		{name: "RoleV6", opts: []resourceSchemaOption{legacyWithoutVersionInKindOverride()}},
 		// Role V6 and V7 have their own Kubernetes kind
-		{name: "RoleV6", opts: []resourceSchemaOption{withVersionInKindOverride()}},
-		// Role V7 is using the RoleV6 message
-		{name: "RoleV6", opts: []resourceSchemaOption{withVersionOverride(types.V7), withVersionInKindOverride()}},
-		{name: "SAMLConnectorV2"},
-		{name: "OIDCConnectorV3"},
-		{name: "GithubConnectorV3"},
+		{name: "RoleV6"},
+		// Role V7 and V8 is using the RoleV6 message
+		{name: "RoleV6", opts: []resourceSchemaOption{withVersionOverride(types.V7)}},
+		{name: "RoleV6", opts: []resourceSchemaOption{withVersionOverride(types.V8)}},
+		{name: "AppV3", opts: []resourceSchemaOption{withVersionOverride(types.V3)}},
+		{name: "DatabaseV3", opts: []resourceSchemaOption{withVersionOverride(types.V3)}},
+		{name: "SAMLConnectorV2", opts: []resourceSchemaOption{legacyWithoutVersionInKindOverride()}},
+		{name: "SAMLIdPServiceProviderV1", opts: []resourceSchemaOption{withVersionOverride(types.V1)}},
+		{name: "OIDCConnectorV3", opts: []resourceSchemaOption{legacyWithoutVersionInKindOverride()}},
+		{name: "GithubConnectorV3", opts: []resourceSchemaOption{legacyWithoutVersionInKindOverride()}},
+		{name: "LockV2"},
 		{
 			name: "LoginRule",
 			opts: []resourceSchemaOption{
@@ -176,20 +192,21 @@ func generateSchema(file *File, groupName string, resp *gogoplugin.CodeGenerator
 				// The LoginRule proto does not have a "spec" field, so force
 				// the CRD spec to include these fields from the root.
 				withCustomSpecFields([]string{"priority", "traits_expression", "traits_map"}),
+				legacyWithoutVersionInKindOverride(),
 			},
 		},
-		{name: "ProvisionTokenV2", opts: []resourceSchemaOption{withAdditionalColumns(tokenColumns)}},
-		{name: "OktaImportRuleV1"},
+		{name: "ProvisionTokenV2", opts: []resourceSchemaOption{withAdditionalColumns(tokenColumns), legacyWithoutVersionInKindOverride()}},
+		{name: "OktaImportRuleV1", opts: []resourceSchemaOption{legacyWithoutVersionInKindOverride()}},
 		{
 			name: "AccessList",
 			opts: []resourceSchemaOption{
 				withVersionOverride(types.V1),
+				legacyWithoutVersionInKindOverride(),
 			},
 		},
 		{
 			name: "ServerV2",
 			opts: []resourceSchemaOption{
-				withVersionInKindOverride(),
 				withNameOverride("OpenSSHServer"),
 				withAdditionalColumns(serverColumns),
 			},
@@ -197,9 +214,91 @@ func generateSchema(file *File, groupName string, resp *gogoplugin.CodeGenerator
 		{
 			name: "ServerV2",
 			opts: []resourceSchemaOption{
-				withVersionInKindOverride(),
 				withNameOverride("OpenSSHEICEServer"),
 				withAdditionalColumns(serverColumns),
+			},
+		},
+		{name: "TrustedClusterV2"},
+		{
+			name: "Bot",
+			opts: []resourceSchemaOption{
+				withVersionOverride(types.V1),
+				withScope(),
+			},
+		},
+		{
+			name: "WorkloadIdentity",
+			opts: []resourceSchemaOption{
+				withVersionOverride(types.V1),
+			},
+		},
+		{
+			name: "AutoUpdateConfig",
+			opts: []resourceSchemaOption{
+				withVersionOverride(types.V1),
+				withNameOverride("AutoupdateConfig"),
+			},
+		},
+		{
+			name: "AutoUpdateVersion",
+			opts: []resourceSchemaOption{
+				withVersionOverride(types.V1),
+				withNameOverride("AutoupdateVersion"),
+			},
+		},
+		{
+			name: "InferenceModel",
+			opts: []resourceSchemaOption{
+				withVersionOverride(types.V1),
+				legacyWithoutVersionInKindOverride(),
+			},
+		},
+		{
+			name: "InferencePolicy",
+			opts: []resourceSchemaOption{
+				withVersionOverride(types.V1),
+				legacyWithoutVersionInKindOverride(),
+			},
+		},
+		{
+			name: "InferenceSecret",
+			opts: []resourceSchemaOption{
+				withVersionOverride(types.V1),
+				legacyWithoutVersionInKindOverride(),
+			},
+		},
+		{
+			name: "RetrievalModel",
+			opts: []resourceSchemaOption{
+				withVersionOverride(types.V1),
+				withSingletonName(types.MetaNameRetrievalModel),
+			},
+		},
+		{
+			name: "AccessMonitoringRule",
+			opts: []resourceSchemaOption{
+				withVersionOverride(types.V1),
+			},
+		},
+		{
+			name: "ScopedToken",
+			opts: []resourceSchemaOption{
+				withVersionOverride(types.V1),
+				withScope(),
+			},
+		},
+		{
+			name: "ScopedRole",
+			opts: []resourceSchemaOption{
+				withVersionOverride(types.V1),
+				withScope(),
+			},
+		},
+		{
+			name: "ScopedRoleAssignment",
+			opts: []resourceSchemaOption{
+				withVersionOverride(types.V1),
+				withScope(),
 			},
 		},
 	}
@@ -211,7 +310,7 @@ func generateSchema(file *File, groupName string, resp *gogoplugin.CodeGenerator
 		}
 		err := generator.addResource(file, resource.name, resource.opts...)
 		if err != nil {
-			return trace.Wrap(err)
+			return trace.Wrap(err, "generating %q", resource.name)
 		}
 	}
 
@@ -220,13 +319,12 @@ func generateSchema(file *File, groupName string, resp *gogoplugin.CodeGenerator
 		if err != nil {
 			return trace.Wrap(err, "generating CRD")
 		}
-		data, err := yaml.Marshal(crd)
+		data, filename, err := format(crd, groupName, root.pluralName)
 		if err != nil {
-			return trace.Wrap(err, "marshaling CRD")
+			return trace.Wrap(err)
 		}
-		name := fmt.Sprintf("%s_%s.yaml", groupName, root.pluralName)
 		content := string(data)
-		resp.File = append(resp.File, &gogoplugin.CodeGeneratorResponse_File{Name: &name, Content: &content})
+		resp.File = append(resp.File, &gogoplugin.CodeGeneratorResponse_File{Name: &filename, Content: &content})
 	}
 
 	return nil

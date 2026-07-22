@@ -1,0 +1,308 @@
+/*
+ * Teleport
+ * Copyright (C) 2025  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+package authz
+
+import (
+	"context"
+	"errors"
+	"time"
+
+	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/scopes/pinning"
+	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/readonly"
+)
+
+// ScopedAuthorizer provides an equivalent to the Authorizer.Authorize method intended for use
+// with scoped identities.
+type ScopedAuthorizer interface {
+	// AuthorizeScoped authorizes a potentially scoped identity and returns a [ScopedContext]. Under the hood, this may
+	// be either a scoped or unscoped authorization depending on the identity provided in the context.
+	// NOTE: the scoped authorization pathway is a prototype and does not yet have feature parity with the
+	// unscoped authorization pathway. this method is intended to be safe to convert existing uses of
+	// Authorizer.Authorize without losing enforcement of controls for unscoped identities, but care must be
+	// taken to ensure that any required controls are implemented for scoped identities before switching
+	// to use of this method.
+	AuthorizeScoped(ctx context.Context) (*ScopedContext, error)
+}
+
+// NewScopedAuthorizer returns a new scoped authorizer
+func NewScopedAuthorizer(opts AuthorizerOpts) (ScopedAuthorizer, error) {
+	// TODO(fspmarshall/scopes): either fully bifurcate the authorizer and scoped authorizer, or
+	// refactor s.t. they share a common builder and implementation.
+	if opts.ScopedRoleReader == nil {
+		return nil, trace.BadParameter("scoped role reader is required to create a scoped authorizer")
+	}
+
+	return newAuthorizer(opts)
+}
+
+func (a *authorizer) AuthorizeScoped(ctx context.Context) (splitCtx *ScopedContext, err error) {
+	authCtx, err := a.Authorize(ctx)
+	if err != nil {
+		if errors.Is(err, services.ErrScopedIdentity) {
+			return a.authorizeScoped(ctx)
+		}
+		return nil, trace.Wrap(err)
+	}
+	return ScopedContextFromUnscopedContext(authCtx), nil
+}
+
+// ScopedContextFromUnscopedContext constructs a ScopedContext from an existing unscoped Context. Useful in places
+// where unscoped logic needs to invoke scoped logic.
+func ScopedContextFromUnscopedContext(authCtx *Context) *ScopedContext {
+	return &ScopedContext{
+		User:            authCtx.User,
+		Identity:        authCtx.Identity,
+		CheckerContext:  services.NewScopedAccessCheckerContextFromUnscoped(authCtx.Checker),
+		unscopedContext: authCtx,
+	}
+}
+
+// authorizeScoped authorizes a scoped identity. This function should generally only be called by methods that
+// implement scoping support, and only if [services.ErrScopedIdentity] is returned by [Authorize].
+// XXX: this is a protoype implementation and does not have feature parity with standard Authorize. Scopes are
+// a work in progress feature. This method does not function without the unstable scope flag being set, and must
+// remain behind the feature flag until core functionality is finalized.
+func (a *authorizer) authorizeScoped(ctx context.Context) (scopedCtx *ScopedContext, err error) {
+	defer func() {
+		if err != nil {
+			err = a.convertAuthorizerError(err)
+		}
+	}()
+
+	if !a.scopesFeatures.Enabled {
+		return nil, trace.AccessDenied("cannot authorize scoped identity, scoping is not enabled for this cluster")
+	}
+
+	if ctx == nil {
+		return nil, trace.AccessDenied("missing authentication context")
+	}
+
+	userI, err := UserFromContext(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	switch user := userI.(type) {
+	case LocalUser:
+		if user.Identity.ScopePin == nil {
+			return nil, trace.AccessDenied("scoped authorization is not supported for unscoped identities")
+		}
+		if a.scopedRoleReader == nil {
+			return nil, trace.AccessDenied("authorizer not configured for scoped authorization")
+		}
+		scopedCtx, err = scopedContextForLocalUser(ctx, user, a.accessPoint, a.scopedRoleReader, a.clusterName)
+	case ScopedBuiltinRole:
+		scopedCtx, err = a.scopedContextForBuiltinRole(ctx, user)
+	default:
+		return nil, trace.AccessDenied("scoped authorization is not supported for identity of type %T", userI)
+	}
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Enforce applicable locks. Scoped identities do not have a means of expressing identity-level locking
+	// mode (though they *can* express locking modes specific to resource access decisions). Since this logic
+	// is dealing with global locks and not specific to any resource access decision, we always use the global
+	// locking mode here.
+	authPref, err := a.readOnlyAccessPoint.GetReadOnlyAuthPreference(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if lockErr := a.lockWatcher.CheckLockInForce(authPref.GetLockingMode(), scopedCtx.LockTargets()...); lockErr != nil {
+		return nil, trace.Wrap(lockErr)
+	}
+
+	// TODO(fspmarshall/scopes): add device enforcement and other controls here or (better), refactor to
+	// have enforcement use a common implementation across scoped/unscoped authorize variants.
+
+	return scopedCtx, nil
+}
+
+// scopedContextForBuiltinRole builds a ScopedContext for a scoped agent identity.
+func (a *authorizer) scopedContextForBuiltinRole(ctx context.Context, role ScopedBuiltinRole) (*ScopedContext, error) {
+	recConfig, err := a.readOnlyAccessPoint.GetReadOnlySessionRecordingConfig(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// scoped agent authorization mirrors scoped user authorization in that it treats each role as an individual
+	// checker. building a scoped access checker context for a scoped agent requires providing per-role checkers
+	// organized by system role name, as they appear in the pin.
+	checkersByRole := make(map[string]*services.ScopedAccessChecker)
+	for sr := range pinning.SystemRoles(role.ScopePin) {
+		// TODO(fspmarshall/scopes): investigate the possibility of initializing checkers lazily.
+		roleSet, err := RoleSetForBuiltinRoles(role.ClusterName, recConfig, true /* isScoped */, sr)
+		if err != nil {
+			// skip system roles we cannot build a checker for. in theory this aught to only happen for unrecognized
+			// roles (e.g. due to the certificate having been issued by a teleport version which supports a system role
+			// that we do not).
+			a.logger.WarnContext(ctx, "skipping system role in scoped agent pin, role will confer no privileges",
+				"role", sr, "error", err)
+			continue
+		}
+		checker := services.NewAccessCheckerWithRoleSet(&services.AccessInfo{
+			Roles: []string{string(sr)},
+		}, role.ClusterName, roleSet)
+		checkersByRole[string(sr)] = services.NewScopedAccessCheckerForSystemRole(string(sr), checker)
+	}
+
+	checkerContext, err := services.NewScopedAccessCheckerContextForAgentPin(role.ScopePin, checkersByRole)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &ScopedContext{
+		Identity:       role,
+		CheckerContext: checkerContext,
+	}, nil
+}
+
+func scopedContextForLocalUser(ctx context.Context, u LocalUser, accessPoint AuthorizerAccessPoint, reader services.ScopedRoleReader, clusterName string) (*ScopedContext, error) {
+	user, accessInfo, err := resolveLocalUser(ctx, u, accessPoint)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	checkerContext, err := services.NewScopedAccessCheckerContext(ctx, accessInfo, clusterName, reader)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &ScopedContext{
+		User:           user,
+		Identity:       u,
+		CheckerContext: checkerContext,
+	}, nil
+}
+
+// ScopedContext is the scoped authorization context returned by [ScopedAuthorizer.AuthorizeScoped]. It provides
+// access-checking materials for use in making authorization decisions in contexts where the caller may be using
+// a scoped identity. This type does not yet have feature parity with the unscoped [Context] type, and should be
+// used with care until scopes as a feature is more mature.
+type ScopedContext struct {
+	// User describes the authenticated user.
+	User types.User
+	// Identity holds the caller identity
+	Identity IdentityGetter
+	// CheckerContext is the top-level access checker for the authenticated identity. This types serves a similar
+	// purpose to [services.AccessChecker] but requires different usage patterns to accommodate the more complex
+	// scoped decision model.
+	CheckerContext *services.ScopedAccessCheckerContext
+	// unscopedContext is the context derived from unscoped authorization, if available. This will be nil
+	// if the calling identity was scoped.
+	unscopedContext *Context
+}
+
+// UnscopedContext returns the unscoped authorization context if available. In general, it is best to avoid
+// relying on this method as it breaks the abstraction of scoped authorization. However, this may be useful
+// for specific features/methods that have not yet been adapted to support scoped identities, but are implemented
+// in a context that has already begun being ported over to being scope-aware.
+func (s *ScopedContext) UnscopedContext() (*Context, bool) {
+	return s.unscopedContext, s.unscopedContext != nil
+}
+
+// RuleContext returns the standard services.Context used for resource-independent rule
+// evaluation. For agent pin identities, User is nil and rule evaluation will rely on
+// system-role permissions which do not use user traits in their where-clauses.
+func (s *ScopedContext) RuleContext() services.Context {
+	return services.Context{
+		User: s.User,
+	}
+}
+
+// GetDisconnectCertExpiry is equivalent to [Context.GetDisconnectCertExpiry], but will
+// defer exclusively to cluster-level configuration if the underlying identity is scoped.
+func (s *ScopedContext) GetDisconnectCertExpiry(authPref readonly.AuthPreference) time.Time {
+	if s.unscopedContext != nil {
+		return s.unscopedContext.GetDisconnectCertExpiry(authPref)
+	}
+	if !authPref.GetDisconnectExpiredCert() {
+		return time.Time{}
+	}
+	return s.GetDisconnectCertExpiryTime()
+}
+
+// GetDisconnectCertExpiryTime returns the timestamp for when the identity expires.
+// It takes in a bool parameter to specify whether to return the expiry time or not.
+func (s *ScopedContext) GetDisconnectCertExpiryTime() time.Time {
+	identity := s.Identity.GetIdentity()
+	if !identity.PreviousIdentityExpires.IsZero() {
+		// If this is a short-lived mfa verified cert, return the certificate extension
+		// that holds its issuing certificates expiry value.
+		return identity.PreviousIdentityExpires
+	}
+	return identity.Expires
+}
+
+// LockTargets returns a list of [types.LockTarget] for scoped and unscoped identities.
+// For unscoped identities, the result is unchanged from [AuthContext.LockTargets()] and relies on
+// assigned roles in addition to identity attributes.
+// For scoped user identities, the result is nearly identical to [services.LockTargetsFromTLSIdentity].
+// The only difference is that the Groups and AccessRequests are not considered
+// when generating the lock targets.
+func (s *ScopedContext) LockTargets() []types.LockTarget {
+	if unscopedCtx, isUnscoped := s.UnscopedContext(); isUnscoped {
+		return unscopedCtx.LockTargets()
+	}
+	id := s.Identity.GetIdentity()
+
+	var lockTargets []types.LockTarget
+	if r, ok := s.Identity.(ScopedBuiltinRole); ok {
+		// Scoped agents are locked via ServerID, not User. This mirrors Context.LockTargets()
+		// for BuiltinRole. Two targets are added for compatibility: the bare UUID and the FQDN.
+		lockTargets = append(lockTargets,
+			types.LockTarget{ServerID: r.GetServerID()},
+			types.LockTarget{ServerID: id.Username},
+		)
+	} else {
+		lockTargets = append(lockTargets, types.LockTarget{User: id.Username})
+	}
+
+	if id.MFAVerified != "" {
+		lockTargets = append(lockTargets, types.LockTarget{MFADevice: id.MFAVerified})
+	}
+	if id.DeviceExtensions.DeviceID != "" {
+		lockTargets = append(lockTargets, types.LockTarget{Device: id.DeviceExtensions.DeviceID})
+	}
+	if id.JoinToken != "" {
+		lockTargets = append(lockTargets, types.LockTarget{JoinToken: id.JoinToken})
+	}
+	if id.BotInstanceID != "" {
+		lockTargets = append(lockTargets, types.LockTarget{BotInstanceID: id.BotInstanceID})
+	}
+	return lockTargets
+}
+
+// DisplayName returns a display name for the calling identity.
+// authzContext.User is nil for non-user (agent/builtin) identities, so fall back to
+// the identity's username.
+// TODO (williamo/scopes) - consider implementing slog.LogValuer if we end up only needing this for logging.
+func (s *ScopedContext) DisplayName() string {
+	if s.User != nil {
+		return s.User.GetName()
+	}
+	if s.Identity != nil {
+		return s.Identity.GetIdentity().Username
+	}
+	return ""
+}

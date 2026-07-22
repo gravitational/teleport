@@ -52,7 +52,7 @@ func ConvertCommandError(cmd *exec.Cmd, err error, peakStderr string) error {
 	if strings.Contains(lowerCaseStderr, "access to db denied") {
 		fmtString := "%v: '%s' exited with the above error. Use 'tsh db ls' to see your available logins, " +
 			"or ask your Teleport administrator to grant you access." +
-			"\nSee https://goteleport.com/docs/database-access/troubleshooting/#access-to-db-denied for more information."
+			"\nSee https://goteleport.com/docs/enroll-resources/database-access/troubleshooting/#access-to-db-denied for more information."
 		return trace.AccessDenied(fmtString, err, cmd.Path)
 	}
 	return trace.Wrap(err)

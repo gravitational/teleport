@@ -28,7 +28,7 @@ service SecReportsService {
   rpc UpsertAuditQuery(UpsertAuditQueryRequest) returns (google.protobuf.Empty);
   // GetAuditQuery returns an audit query.
   rpc GetAuditQuery(GetAuditQueryRequest) returns (AuditQuery);
-  // ListAuditQueries returns a paginated list of all Okta import rule resources.
+  // ListAuditQueries returns a paginated list of audit query resources.
   rpc ListAuditQueries(ListAuditQueriesRequest) returns (ListAuditQueriesResponse);
   // DeleteAuditQuery deletes an audit query.
   rpc DeleteAuditQuery(DeleteAuditQueryRequest) returns (google.protobuf.Empty);
@@ -37,7 +37,7 @@ service SecReportsService {
   rpc UpsertReport(UpsertReportRequest) returns (google.protobuf.Empty);
   // GetReport returns a report.
   rpc GetReport(GetReportRequest) returns (Report);
-  // ListReports returns a paginated list of all Okta import rule resources.
+  // ListReports returns a paginated list of security report resources.
   rpc ListReports(ListReportsRequest) returns (ListReportsResponse);
   // DeleteReport deletes a security report.
   rpc DeleteReport(DeleteReportRequest) returns (google.protobuf.Empty);
@@ -53,6 +53,8 @@ service SecReportsService {
   rpc GetReportResult(GetReportResultRequest) returns (GetReportResultResponse);
   // GetReportState returns a security report state.
   rpc GetReportState(GetReportStateRequest) returns (ReportState);
+  // ListReportStates returns a paginated list of security report state resources.
+  rpc ListReportStates(ListReportStatesRequest) returns (ListReportStatesResponse);
 
   // GetSchema returns a schema of audit query.
   rpc GetSchema(GetSchemaRequest) returns (GetSchemaResponse);
@@ -108,7 +110,7 @@ message RunReportRequest {
   uint32 days = 2;
 }
 
-// GetStateRequest is a request for GetReportState.
+// GetReportStateRequest is a request for GetReportState.
 message GetReportStateRequest {
   // name is a name of the security report.
   string name = 1;
@@ -178,7 +180,15 @@ message ListAuditQueriesRequest {
   string page_token = 2;
 }
 
-// ListAuditQueryResponse is audit query list response.
+// ListReportStatesRequest is a security report state list request.
+message ListReportStatesRequest {
+  // page_size is the number of results to return.
+  int32 page_size = 1;
+  // page_token is the next_token value returned from a previous List request if any.
+  string page_token = 2;
+}
+
+// ListReportStatesRequest is a security report state list request.
 message ListReportsRequest {
   // page_size is the number of results to return.
   int32 page_size = 1;
@@ -227,10 +237,18 @@ message RunAuditQueryResponse {
   string result_id = 1;
 }
 
-// ListReportResponse is security report list response.
+// ListReportsResponse is security report list response.
 message ListReportsResponse {
   // reports is a list of security reports.
   repeated Report reports = 1;
+  // next_page_token is the next page token. If there are no more results, it will be empty.
+  string next_page_token = 2;
+}
+
+// ListReportStatesResponse is security report state list response.
+message ListReportStatesResponse {
+  // report_states is a list of security report states.
+  repeated ReportState report_states = 1;
   // next_page_token is the next page token. If there are no more results, it will be empty.
   string next_page_token = 2;
 }
@@ -241,7 +259,7 @@ message GetReportResultResponse {
   ReportResult result = 1;
 }
 
-// Report is the result of security report.
+// ReportResult is the result of security report.
 message ReportResult {
   // name is a name of the security report.
   string name = 1;
@@ -271,7 +289,7 @@ message ReportResult {
   int64 total_data_scanned_in_bytes = 6;
 }
 
-// Report is a security report.
+// ReportSate is a security report state.
 message ReportSate {
   // name is a name of the security report.
   enum State {

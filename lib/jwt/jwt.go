@@ -20,6 +20,7 @@
 package jwt
 
 import (
+	"cmp"
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/ed25519"
@@ -32,16 +33,17 @@ import (
 	"strings"
 	"time"
 
-	"github.com/coreos/go-oidc"
 	"github.com/go-jose/go-jose/v3"
 	"github.com/go-jose/go-jose/v3/cryptosigner"
 	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
+	"github.com/gravitational/teleport/api/utils/keys"
 )
 
 // Config defines the clock and PEM encoded bytes of a public and private
@@ -145,27 +147,25 @@ func (k *Key) sign(claims any, opts *jose.SignerOptions) (string, error) {
 
 // signAny will return a signed JWT with the passed in claims embedded within; unlike sign it allows more flexibility in the claim data.
 func (k *Key) signAny(claims any, opts *jose.SignerOptions) (string, error) {
-	if k.config.PrivateKey == nil {
-		return "", trace.BadParameter("can not sign token with non-signing key")
-	}
-
-	// Create a signer with configured private key and algorithm.
-	var signer interface{}
-	switch k.config.PrivateKey.(type) {
-	case *rsa.PrivateKey, *ecdsa.PrivateKey, ed25519.PrivateKey:
-		signer = k.config.PrivateKey
-	default:
-		signer = cryptosigner.Opaque(k.config.PrivateKey)
-	}
-
-	algorithm, err := joseAlgorithm(k.config.PrivateKey.Public())
+	sig, err := k.getSigner(opts)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
+	token, err := jwt.Signed(sig).Claims(claims).CompactSerialize()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return token, nil
+}
 
-	signingKey := jose.SigningKey{
-		Algorithm: algorithm,
-		Key:       signer,
+func (k *Key) getSigner(opts *jose.SignerOptions) (jose.Signer, error) {
+	if k.config.PrivateKey == nil {
+		return nil, trace.BadParameter("can not sign token with non-signing key")
+	}
+
+	signingKey, err := SigningKeyFromPrivateKey(k.config.PrivateKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	if opts == nil {
@@ -174,17 +174,13 @@ func (k *Key) signAny(claims any, opts *jose.SignerOptions) (string, error) {
 	opts = opts.WithType("JWT")
 	sig, err := jose.NewSigner(signingKey, opts)
 	if err != nil {
-		return "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-
-	token, err := jwt.Signed(sig).Claims(claims).CompactSerialize()
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	return token, nil
+	return sig, nil
 }
 
-func joseAlgorithm(pub crypto.PublicKey) (jose.SignatureAlgorithm, error) {
+// AlgorithmForPublicKey returns a jose algorithm for the given public key.
+func AlgorithmForPublicKey(pub crypto.PublicKey) (jose.SignatureAlgorithm, error) {
 	switch pub.(type) {
 	case *rsa.PublicKey:
 		return jose.RS256, nil
@@ -196,6 +192,28 @@ func joseAlgorithm(pub crypto.PublicKey) (jose.SignatureAlgorithm, error) {
 	return "", trace.BadParameter("unsupported public key type %T", pub)
 }
 
+// SigningKeyFromPrivateKey creates a jose.SigningKey from the given signer,
+// wrapping it in an opaque signer if necessary.
+func SigningKeyFromPrivateKey(priv crypto.Signer) (jose.SigningKey, error) {
+	// Create a signer with configured private key and algorithm.
+	var signer any
+	switch priv.(type) {
+	case *rsa.PrivateKey, *ecdsa.PrivateKey, ed25519.PrivateKey:
+		signer = priv
+	default:
+		signer = cryptosigner.Opaque(priv)
+	}
+	algorithm, err := AlgorithmForPublicKey(priv.Public())
+	if err != nil {
+		return jose.SigningKey{}, trace.Wrap(err)
+	}
+
+	return jose.SigningKey{
+		Algorithm: algorithm,
+		Key:       signer,
+	}, nil
+}
+
 func (k *Key) Sign(p SignParams) (string, error) {
 	if err := p.Check(); err != nil {
 		return "", trace.Wrap(err)
@@ -205,8 +223,9 @@ func (k *Key) Sign(p SignParams) (string, error) {
 	claims := Claims{
 		Claims: jwt.Claims{
 			Subject:   p.Username,
-			Issuer:    k.config.ClusterName,
+			Issuer:    cmp.Or(p.Issuer, k.config.ClusterName),
 			Audience:  jwt.Audience{p.URI},
+			ID:        uuid.NewString(),
 			NotBefore: jwt.NewNumericDate(k.config.Clock.Now().Add(-10 * time.Second)),
 			IssuedAt:  jwt.NewNumericDate(k.config.Clock.Now()),
 			Expiry:    jwt.NewNumericDate(p.Expires),
@@ -216,7 +235,10 @@ func (k *Key) Sign(p SignParams) (string, error) {
 		Traits:   p.Traits,
 	}
 
-	return k.sign(claims, nil)
+	// RFC 7517 requires that `kid` be present in the JWT header if there are multiple keys in the JWKS.
+	// We ignore the error because go-jose omits the kid if it is empty.
+	kid, _ := KeyID(k.config.PublicKey)
+	return k.sign(claims, (&jose.SignerOptions{}).WithHeader("kid", kid))
 }
 
 // awsOIDCCustomClaims defines the require claims for the JWT token used in AWS OIDC Integration.
@@ -253,6 +275,115 @@ func (k *Key) SignAWSOIDC(p SignParams) (string, error) {
 	// but it seems to (NB: educated guess) require it if JWKS has multiple JWK-s with different `kid`-s.
 	opts := (&jose.SignerOptions{}).
 		WithHeader(jose.HeaderKey("kid"), "")
+
+	return k.sign(claims, opts)
+}
+
+// SignParamsJWTSVID are the parameters needed to sign a JWT SVID token.
+type SignParamsJWTSVID struct {
+	// JTI is the unique JWT ID.
+	JTI string
+	// SPIFFEID is the SPIFFE ID of the workload to which it is issued.
+	SPIFFEID spiffeid.ID
+	// Audiences are the audiences to include in the token as the expected
+	// recipients of the token.
+	Audiences []string
+	// TTL is the time to live for the token.
+	TTL time.Duration
+	// Issuer is the value that should be included in the `iss` claim of the
+	// created token.
+	Issuer string
+
+	// SetExpiry overrides the expiry time of the token. This causes the value
+	// of TTL to be ignored.
+	SetExpiry time.Time
+	// SetIssuedAt overrides the issued at time of the token.
+	SetIssuedAt time.Time
+
+	// PrivateClaims are any additional claims that should be added to the JWT.
+	PrivateClaims map[string]any
+}
+
+// SignJWTSVID signs a JWT SVID token.
+// See https://github.com/spiffe/spiffe/blob/main/standards/JWT-SVID.md
+func (k *Key) SignJWTSVID(p SignParamsJWTSVID) (string, error) {
+	// Record time here for consistency between exp and iat.
+	now := k.config.Clock.Now()
+
+	// We use map[string]any instead of jwt.Claims to avoid a json.Marshal/Unmarshal
+	// round-trip that would convert jwt.NumericDate (int64) to float64, causing
+	// timestamp claims to be serialized in scientific notation (e.g., "exp": 1.7e9).
+	// Using map[string]any preserves the jwt.NumericDate type until final marshaling.
+	claims := map[string]any{
+		// > 3.1. Subject:
+		// > The sub claim MUST be set to the SPIFFE ID of the workload to which it is issued.
+		"sub": p.SPIFFEID.String(),
+
+		// > 3.2. Audience:
+		// > The aud claim MUST be present, containing one or more values.
+		"aud": jwt.Audience(p.Audiences),
+
+		// > 3.3. Expiration Time:
+		// > The exp claim MUST be set
+		"exp": jwt.NewNumericDate(now.Add(p.TTL)),
+
+		// The spec makes no comment on inclusion of `iat`, but the SPIRE
+		// implementation does set this value and it feels like a good idea.
+		"iat": jwt.NewNumericDate(now),
+
+		// > 7.1. Replay Protection
+		// > the jti claim is permitted by this specification, it should be
+		// > noted that JWT-SVID validators are not required to track jti
+		// > uniqueness.
+		"jti": p.JTI,
+
+		// The SPIFFE specification makes no comment on the inclusion of `iss`,
+		// however, we provide this value so that the issued token can be a
+		// valid OIDC ID token and used with non-SPIFFE aware systems that do
+		// understand OIDC.
+		"iss": p.Issuer,
+	}
+
+	if !p.SetIssuedAt.IsZero() {
+		claims["iat"] = jwt.NewNumericDate(p.SetIssuedAt)
+	}
+	if !p.SetExpiry.IsZero() {
+		claims["exp"] = jwt.NewNumericDate(p.SetExpiry)
+	}
+
+	// > 2.2. Key ID:
+	// >The kid header is optional.
+	//
+	// Whilst optional, the SPIRE reference implementation does set this value
+	// and it will be beneficial for compatibility with a range of consumers
+	// which may require this value.
+	kid, err := KeyID(k.config.PublicKey)
+	if err != nil {
+		return "", trace.Wrap(err, "calculating 'kid'")
+	}
+	opts := (&jose.SignerOptions{}).
+		WithHeader("kid", kid)
+
+	// > 2.3. Type
+	// > The typ header is optional. If set, its value MUST be either JWT or
+	// > JOSE.
+	//
+	// We will omit the inclusion of the type header until we can validate the
+	// ramifications of including it.
+
+	// > 3. JWT Claims:
+	//
+	// > Registered claims not described in this document, in addition to
+	// > private claims, MAY be used as implementers see fit.
+	if len(p.PrivateClaims) != 0 {
+		// Only inject claims that don't conflict with an existing primary claim
+		// such as sub or aud.
+		for k, v := range p.PrivateClaims {
+			if _, ok := claims[k]; !ok {
+				claims[k] = v
+			}
+		}
+	}
 
 	return k.sign(claims, opts)
 }
@@ -338,6 +469,133 @@ func (k *Key) SignPROXYJWT(p PROXYSignParams) (string, error) {
 	return k.sign(claims, nil)
 }
 
+const expirationDBSCChallenge = 60 * time.Second
+
+// SignDBSCChallenge creates a signed challenge.
+func (k *Key) SignDBSCChallenge(sessionID string) (string, error) {
+	if sessionID == "" {
+		return "", trace.BadParameter("session ID required")
+	}
+
+	claims := Claims{
+		Claims: jwt.Claims{
+			Subject:   sessionID,
+			Issuer:    k.config.ClusterName,
+			NotBefore: jwt.NewNumericDate(k.config.Clock.Now().Add(-10 * time.Second)),
+			Expiry:    jwt.NewNumericDate(k.config.Clock.Now().Add(expirationDBSCChallenge)),
+			IssuedAt:  jwt.NewNumericDate(k.config.Clock.Now()),
+		},
+	}
+
+	return k.sign(claims, nil)
+}
+
+// DBSCChallengeVerifyParams are the parameters needed to verify a DBSC challenge.
+type DBSCChallengeVerifyParams struct {
+	// RawToken is the challenge JWT.
+	RawToken string
+	// SessionID is the expected session ID.
+	SessionID string
+}
+
+// VerifyDBSCChallenge verifies a DBSC challenge was signed by this cluster.
+func (k *Key) VerifyDBSCChallenge(p DBSCChallengeVerifyParams) error {
+	if p.RawToken == "" {
+		return trace.BadParameter("challenge token required")
+	}
+	if p.SessionID == "" {
+		return trace.BadParameter("session ID required")
+	}
+
+	expectedClaims := jwt.Expected{
+		Issuer:  k.config.ClusterName,
+		Subject: p.SessionID,
+		Time:    k.config.Clock.Now(),
+	}
+
+	_, err := k.verify(p.RawToken, expectedClaims)
+	return trace.Wrap(err)
+}
+
+// ValidateDBSCProofHeader validates the header of a DBSC proof JWT.
+// It checks that there is exactly one header, the algorithm is ES256 or RS256,
+// and the typ header is "dbsc+jwt".
+func ValidateDBSCProofHeader(tok *jwt.JSONWebToken) error {
+	if len(tok.Headers) != 1 {
+		return trace.BadParameter("invalid DBSC response JWT header count")
+	}
+
+	header := tok.Headers[0]
+	if header.Algorithm != string(jose.ES256) && header.Algorithm != string(jose.RS256) {
+		return trace.BadParameter("invalid DBSC response alg %q", header.Algorithm)
+	}
+
+	typ, ok := header.ExtraHeaders[jose.HeaderKey("typ")]
+	if !ok {
+		return trace.BadParameter("missing typ header in DBSC response")
+	}
+
+	typValue, ok := typ.(string)
+	if !ok || typValue != "dbsc+jwt" {
+		return trace.BadParameter("invalid typ header %v in DBSC response", typ)
+	}
+
+	return nil
+}
+
+// VerifyDBSCChallengeParams contains the parameters needed to verify a DBSC challenge
+// against a set of CA key pairs.
+type VerifyDBSCChallengeParams struct {
+	// Challenge is the challenge JWT string (the jti claim from the browser's response).
+	Challenge string
+	// SessionID is the expected session ID.
+	SessionID string
+	// ClusterName is the cluster name used as the issuer.
+	ClusterName string
+	// Clock is used for time validation.
+	Clock clockwork.Clock
+	// KeyPairs are the trusted JWT key pairs from the CA.
+	KeyPairs []*types.JWTKeyPair
+}
+
+// VerifyDBSCChallengeWithCA verifies that a DBSC challenge was signed by one of the
+// cluster's trusted JWT keys.
+func VerifyDBSCChallengeWithCA(p VerifyDBSCChallengeParams) error {
+	if len(p.KeyPairs) == 0 {
+		return trace.BadParameter("no JWT keys found in CA")
+	}
+
+	var errs []error
+	for _, kp := range p.KeyPairs {
+		publicKey, err := keys.ParsePublicKey(kp.PublicKey)
+		if err != nil {
+			errs = append(errs, trace.Wrap(err))
+			continue
+		}
+
+		key, err := New(&Config{
+			Clock:       p.Clock,
+			PublicKey:   publicKey,
+			ClusterName: p.ClusterName,
+		})
+		if err != nil {
+			errs = append(errs, trace.Wrap(err))
+			continue
+		}
+
+		err = key.VerifyDBSCChallenge(DBSCChallengeVerifyParams{
+			RawToken:  p.Challenge,
+			SessionID: p.SessionID,
+		})
+		if err == nil {
+			return nil
+		}
+		errs = append(errs, trace.Wrap(err))
+	}
+
+	return trace.Wrap(trace.NewAggregate(errs...), "challenge verification failed")
+}
+
 // VerifyParams are the parameters needed to pass the token and data needed to verify.
 type VerifyParams struct {
 	// Username is the Teleport identity.
@@ -351,6 +609,9 @@ type VerifyParams struct {
 
 	// Audience is the Audience for the token
 	Audience string
+
+	// Issuer is the Issuer for the token
+	Issuer string
 }
 
 // Check verifies all the values are valid.
@@ -439,7 +700,7 @@ func (k *Key) Verify(p VerifyParams) (*Claims, error) {
 	}
 
 	expectedClaims := jwt.Expected{
-		Issuer:   k.config.ClusterName,
+		Issuer:   cmp.Or(p.Issuer, k.config.ClusterName),
 		Subject:  p.Username,
 		Audience: jwt.Audience{p.URI},
 		Time:     k.config.Clock.Now(),
@@ -561,11 +822,18 @@ type Claims struct {
 	Traits wrappers.Traits `json:"traits"`
 }
 
+// IDToken allows introspecting claims from an OpenID Connect
+// ID Token.
+type IDToken interface {
+	// Claims unmarshals the raw JSON payload of the ID Token into a provided struct.
+	Claims(v any) error
+}
+
 // CheckNotBefore ensures the token was not issued in the future.
 // https://www.rfc-editor.org/rfc/rfc7519#section-4.1.5
 // 4.1.5.  "nbf" (Not Before) Claim
 // TODO(strideynet): upstream support for `nbf` into the go-oidc lib.
-func CheckNotBefore(now time.Time, leeway time.Duration, token *oidc.IDToken) error {
+func CheckNotBefore(now time.Time, leeway time.Duration, token IDToken) error {
 	claims := struct {
 		NotBefore *JSONTime `json:"nbf"`
 	}{}
@@ -606,4 +874,57 @@ func (j *JSONTime) UnmarshalJSON(b []byte) error {
 	}
 	*j = JSONTime(time.Unix(unix, 0))
 	return nil
+}
+
+// SignPayload signs the payload with the key and JSONWebSignature.
+func (k *Key) SignPayload(payload []byte, opts *jose.SignerOptions) (*jose.JSONWebSignature, error) {
+	sig, err := k.getSigner(opts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	signature, err := sig.Sign(payload)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return signature, nil
+}
+
+// PluginTokenParam defines the parameters needed to sign a JWT token for a Teleport plugin.
+type PluginTokenParam struct {
+	// Audience is the Audience for the Token.
+	Audience []string
+	// Issuer is the issuer of the token.
+	Issuer string
+	// Subject is the system that is going to use the token.
+	Subject string
+	// Expires is the time to live for the token.
+	Expires time.Time
+}
+
+// SignPluginToken signs a JWT token for a Teleport plugin.
+func (k *Key) SignPluginToken(p PluginTokenParam) (string, error) {
+	claims := jwt.Claims{
+		Subject:   p.Subject,
+		Issuer:    p.Issuer,
+		Audience:  p.Audience,
+		NotBefore: jwt.NewNumericDate(k.config.Clock.Now().Add(-10 * time.Second)),
+		IssuedAt:  jwt.NewNumericDate(k.config.Clock.Now()),
+		Expiry:    jwt.NewNumericDate(p.Expires),
+	}
+
+	// RFC 7517 requires that `kid` be present in the JWT header if there are multiple keys in the JWKS.
+	// We ignore the error because go-jose omits the kid if it is empty.
+	kid, _ := KeyID(k.config.PublicKey)
+	return k.sign(claims, (&jose.SignerOptions{}).WithHeader("kid", kid))
+}
+
+// VerifyPluginToken verifies a JWT token for a Teleport plugin.
+func (k *Key) VerifyPluginToken(token string, claims PluginTokenParam) (*Claims, error) {
+	expectedClaims := jwt.Expected{
+		Issuer:   claims.Issuer,
+		Subject:  claims.Subject,
+		Audience: claims.Audience,
+		Time:     k.config.Clock.Now(),
+	}
+	return k.verify(token, expectedClaims)
 }

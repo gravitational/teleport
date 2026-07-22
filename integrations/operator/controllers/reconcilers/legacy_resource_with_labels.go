@@ -60,20 +60,33 @@ func (a ResourceWithLabelsAdapter[T]) SetResourceLabels(res T, labels map[string
 // NewTeleportResourceWithLabelsReconciler instantiates a resourceReconciler for a
 // types.ResourceWithLabels resource.
 func NewTeleportResourceWithLabelsReconciler[T types.ResourceWithLabels, K KubernetesCR[T]](
-	client kclient.Client,
+	kubeClient kclient.Client,
 	resourceClient resourceClient[T],
+	config Config,
 ) (controllers.Reconciler, error) {
+	checkFeatures := controllers.AlwaysEnabled
+	if config.CheckFeatures != nil {
+		checkFeatures = config.CheckFeatures
+	}
+
 	gvk, err := gvkFromScheme[K](controllers.Scheme)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	reconciler := &resourceReconciler[T, K]{
-		ResourceBaseReconciler: ResourceBaseReconciler{Client: client},
-		resourceClient:         resourceClient,
-		gvk:                    gvk,
-		adapter:                ResourceWithLabelsAdapter[T]{},
+
+	teleportKind := newKubeResource[K]().ToTeleport().GetKind()
+	if teleportKind == "" {
+		return nil, trace.BadParameter("teleport kind is required, this is a bug")
 	}
-	reconciler.ResourceBaseReconciler.UpsertExternal = reconciler.Upsert
-	reconciler.ResourceBaseReconciler.DeleteExternal = reconciler.Delete
+
+	reconciler := &resourceReconciler[T, K]{
+		kubeClient:     kubeClient,
+		resourceClient: resourceClient,
+		gvk:            gvk,
+		adapter:        ResourceWithLabelsAdapter[T]{},
+		scoped:         config.Scoped,
+		teleportKind:   teleportKind,
+		checkFeatures:  checkFeatures,
+	}
 	return reconciler, nil
 }

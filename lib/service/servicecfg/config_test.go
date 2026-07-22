@@ -22,13 +22,14 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -69,6 +70,7 @@ func TestDefaultConfig(t *testing.T) {
 		"aes256-ctr",
 	})
 	require.ElementsMatch(t, config.KEXAlgorithms, []string{
+		"mlkem768x25519-sha256",
 		"curve25519-sha256",
 		"curve25519-sha256@libssh.org",
 		"ecdh-sha2-nistp256",
@@ -87,23 +89,30 @@ func TestDefaultConfig(t *testing.T) {
 	auth := config.Auth
 	require.Equal(t, localAuthAddr, auth.ListenAddr)
 	require.Equal(t, int64(defaults.LimiterMaxConnections), auth.Limiter.MaxConnections)
-	require.Equal(t, defaults.LimiterMaxConcurrentUsers, auth.Limiter.MaxNumberOfUsers)
 	require.Equal(t, lite.GetName(), config.Auth.StorageConfig.Type)
-	require.Equal(t, filepath.Join(config.DataDir, defaults.BackendDir), auth.StorageConfig.Params[defaults.BackendPath])
+	require.Empty(t, auth.StorageConfig.Params[defaults.BackendPath])
+	require.Equal(t, filepath.Join(defaults.DataDir, defaults.LicenseFile), config.Auth.LicenseFile)
 
 	// SSH section
 	ssh := config.SSH
 	require.Equal(t, int64(defaults.LimiterMaxConnections), ssh.Limiter.MaxConnections)
-	require.Equal(t, defaults.LimiterMaxConcurrentUsers, ssh.Limiter.MaxNumberOfUsers)
 	require.True(t, ssh.AllowTCPForwarding)
 
 	// proxy section
 	proxy := config.Proxy
 	require.Equal(t, int64(defaults.LimiterMaxConnections), proxy.Limiter.MaxConnections)
-	require.Equal(t, defaults.LimiterMaxConcurrentUsers, proxy.Limiter.MaxNumberOfUsers)
 
 	// Misc levers and dials
 	require.Equal(t, defaults.HighResPollingPeriod, config.RotationConnectionInterval)
+
+	// Debug should always be enabled by default.
+	require.True(t, config.DebugService.Enabled)
+
+	// Reconnect section
+	require.Equal(t, defaults.MaxWatcherBackoff, config.AuthConnectionConfig.UpperLimitBetweenRetries)
+	require.Equal(t, 18*time.Second, config.AuthConnectionConfig.BackoffStepDuration)
+	require.Equal(t, 9*time.Second, config.AuthConnectionConfig.InitialConnectionDelay)
+
 }
 
 // TestCheckApp validates application configuration.
@@ -127,7 +136,7 @@ func TestCheckApp(t *testing.T) {
 				Name: "-foo",
 				URI:  "http://localhost",
 			},
-			err: "must be a valid DNS subdomain",
+			err: "must be a valid DNS label",
 		},
 		{
 			desc: `subdomain cannot contain the exclamation mark character "!"`,
@@ -135,7 +144,7 @@ func TestCheckApp(t *testing.T) {
 				Name: "foo!bar",
 				URI:  "http://localhost",
 			},
-			err: "must be a valid DNS subdomain",
+			err: "must be a valid DNS label",
 		},
 		{
 			desc: "subdomain of length 63 characters is valid (maximum length)",
@@ -150,7 +159,121 @@ func TestCheckApp(t *testing.T) {
 				Name: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 				URI:  "http://localhost",
 			},
-			err: "must be a valid DNS subdomain",
+			err: "must be a valid DNS label",
+		},
+		{
+			desc: "leading digit is accepted (RFC 1123)",
+			inApp: App{
+				Name: "1stapp",
+				URI:  "http://localhost",
+			},
+		},
+		{
+			desc: "uppercase is rejected",
+			inApp: App{
+				Name: "MyApp",
+				URI:  "http://localhost",
+			},
+			err: "must be a valid DNS label",
+		},
+		{
+			desc: "public_addr with scheme is rejected",
+			inApp: App{
+				Name:       "foo",
+				URI:        "http://localhost",
+				PublicAddr: "https://foo.example.com",
+			},
+			err: "must be a valid DNS name",
+		},
+		{
+			desc: "public_addr with mixed case is rejected",
+			inApp: App{
+				Name:       "foo",
+				URI:        "http://localhost",
+				PublicAddr: "MyApp.example.com",
+			},
+			err: "must be a valid DNS name",
+		},
+		{
+			desc: "public_addr with port is rejected",
+			inApp: App{
+				Name:       "foo",
+				URI:        "http://localhost",
+				PublicAddr: "foo.example.com:443",
+			},
+			err: "must be a valid DNS name",
+		},
+		{
+			desc: "public_addr with path is rejected",
+			inApp: App{
+				Name:       "foo",
+				URI:        "http://localhost",
+				PublicAddr: "foo.example.com/path",
+			},
+			err: "must be a valid DNS name",
+		},
+		{
+			desc: "public_addr with bracketed IPv6 is rejected",
+			inApp: App{
+				Name:       "foo",
+				URI:        "http://localhost",
+				PublicAddr: "[::1]",
+			},
+			err: "must be a valid DNS name",
+		},
+		{
+			desc: "public_addr with single trailing FQDN dot is rejected",
+			inApp: App{
+				Name:       "foo",
+				URI:        "http://localhost",
+				PublicAddr: "foo.example.com.",
+			},
+			err: "must be a valid DNS name",
+		},
+		{
+			desc: "public_addr with two trailing dots is rejected",
+			inApp: App{
+				Name:       "foo",
+				URI:        "http://localhost",
+				PublicAddr: "foo.example.com..",
+			},
+			err: "must be a valid DNS name",
+		},
+		{
+			desc: "public_addr with query string is rejected",
+			inApp: App{
+				Name:       "foo",
+				URI:        "http://localhost",
+				PublicAddr: "foo.example.com?x=y",
+			},
+			err: "must be a valid DNS name",
+		},
+		{
+			desc: "public_addr with fragment is rejected",
+			inApp: App{
+				Name:       "foo",
+				URI:        "http://localhost",
+				PublicAddr: "foo.example.com#frag",
+			},
+			err: "must be a valid DNS name",
+		},
+		{
+			desc: "public_addr with userinfo is rejected",
+			inApp: App{
+				Name:       "foo",
+				URI:        "http://localhost",
+				PublicAddr: "user@foo.example.com",
+			},
+			err: "must be a valid DNS name",
+		},
+		{
+			desc: "public_addr with empty label is rejected",
+			inApp: App{
+				Name:       "foo",
+				URI:        "http://localhost",
+				PublicAddr: "foo..bar",
+			},
+			err: "must be a valid DNS name",
 		},
 	}
 	for _, h := range common.ReservedHeaders {
@@ -176,9 +299,105 @@ func TestCheckApp(t *testing.T) {
 			err := tt.inApp.CheckAndSetDefaults()
 			if tt.err != "" {
 				require.Contains(t, err.Error(), tt.err)
-			} else {
-				require.NoError(t, err)
+				return
 			}
+			require.NoError(t, err)
+		})
+	}
+}
+
+func TestCheckAppTCPPorts(t *testing.T) {
+	tests := []struct {
+		name     string
+		tcpPorts []PortRange
+		uri      string
+		check    require.ErrorAssertionFunc
+	}{
+		{
+			name: "valid ranges and single ports",
+			tcpPorts: []PortRange{
+				PortRange{Port: 22, EndPort: 25},
+				PortRange{Port: 26},
+				PortRange{Port: 65535},
+			},
+			check: hasNoErr,
+		},
+		{
+			name: "valid overlapping ranges",
+			tcpPorts: []PortRange{
+				PortRange{Port: 100, EndPort: 200},
+				PortRange{Port: 150, EndPort: 175},
+				PortRange{Port: 111},
+				PortRange{Port: 150, EndPort: 210},
+				PortRange{Port: 1, EndPort: 65535},
+			},
+			check: hasNoErr,
+		},
+		{
+			// Ports are validated only for TCP apps to allow for some forwards compatibility.
+			// If HTTP apps support port ranges in the future, old versions of Teleport shouldn't hard
+			// fail to make downgrades easier.
+			name: "valid non-TCP app with invalid ports ignored",
+			uri:  "http://localhost:8000",
+			tcpPorts: []PortRange{
+				PortRange{Port: 0},
+				PortRange{Port: 10, EndPort: 2},
+			},
+			check: hasNoErr,
+		},
+		// Test cases for invalid ports.
+		{
+			name: "port smaller than 1",
+			tcpPorts: []PortRange{
+				PortRange{Port: 0},
+			},
+			check: hasErrTypeBadParameter,
+		},
+		{
+			name: "end port smaller than 2",
+			tcpPorts: []PortRange{
+				PortRange{Port: 5, EndPort: 1},
+			},
+			check: hasErrTypeBadParameterAndContains("end port must be between 6 and 65535"),
+		},
+		{
+			name: "end port smaller than port",
+			tcpPorts: []PortRange{
+				PortRange{Port: 10, EndPort: 5},
+			},
+			check: hasErrTypeBadParameterAndContains("end port must be between 11 and 65535"),
+		},
+		{
+			name: "uri specifies port",
+			uri:  "tcp://localhost:1234",
+			tcpPorts: []PortRange{
+				PortRange{Port: 1000, EndPort: 1500},
+			},
+			check: hasErrTypeBadParameterAndContains("must not include a port number"),
+		},
+		{
+			name: "invalid uri",
+			uri:  "%",
+			tcpPorts: []PortRange{
+				PortRange{Port: 1000, EndPort: 1500},
+			},
+			check: hasErrAndContains("invalid URL escape"),
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			app := App{
+				Name:     "foo",
+				URI:      "tcp://localhost",
+				TCPPorts: tc.tcpPorts,
+			}
+			if tc.uri != "" {
+				app.URI = tc.uri
+			}
+
+			err := app.CheckAndSetDefaults()
+			tc.check(t, err)
 		})
 	}
 }
@@ -359,7 +578,7 @@ func TestValidateConfig(t *testing.T) {
 			config: &Config{
 				Version: defaults.TeleportConfigVersionV2,
 			},
-			wantErr: "config: enable at least one of auth_service, ssh_service, proxy_service, app_service, database_service, kubernetes_service, windows_desktop_service, discovery_service, okta_service ",
+			wantErr: "config: enable at least one of ",
 		},
 		{
 			desc: "no auth_servers or proxy_server specified",
@@ -452,6 +671,11 @@ func TestVerifyEnabledService(t *testing.T) {
 			errAssertionFunc: require.NoError,
 		},
 		{
+			desc:             "relay enabled",
+			config:           &Config{Relay: RelayConfig{Enabled: true}},
+			errAssertionFunc: require.NoError,
+		},
+		{
 			desc:             "kube enabled",
 			config:           &Config{Kube: KubeConfig{Enabled: true}},
 			errAssertionFunc: require.NoError,
@@ -472,6 +696,11 @@ func TestVerifyEnabledService(t *testing.T) {
 			errAssertionFunc: require.NoError,
 		},
 		{
+			desc:             "linux desktop enabled",
+			config:           &Config{LinuxDesktop: LinuxDesktopConfig{Enabled: true}},
+			errAssertionFunc: require.NoError,
+		},
+		{
 			desc:             "discovery enabled",
 			config:           &Config{Discovery: DiscoveryConfig{Enabled: true}},
 			errAssertionFunc: require.NoError,
@@ -488,8 +717,6 @@ func TestVerifyEnabledService(t *testing.T) {
 					Spec: &types.JamfSpecV1{
 						Enabled:     true,
 						ApiEndpoint: "https://example.jamfcloud.com",
-						Username:    "llama",
-						Password:    "supersecret!!1!ONE",
 					},
 				},
 			},
@@ -498,7 +725,7 @@ func TestVerifyEnabledService(t *testing.T) {
 		{
 			desc:   "nothing enabled",
 			config: &Config{},
-			errAssertionFunc: func(t require.TestingT, err error, _ ...interface{}) {
+			errAssertionFunc: func(t require.TestingT, err error, _ ...any) {
 				require.True(t, trace.IsBadParameter(err), "err is not a BadParameter error: %T", err)
 			},
 		},
@@ -542,7 +769,6 @@ func TestWebPublicAddr(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -556,44 +782,155 @@ func TestWebPublicAddr(t *testing.T) {
 
 func TestSetLogLevel(t *testing.T) {
 	for _, test := range []struct {
-		logLevel            slog.Level
-		expectedLogrusLevel logrus.Level
+		logLevel slog.Level
 	}{
 		{
-			logLevel:            logutils.TraceLevel,
-			expectedLogrusLevel: logrus.TraceLevel,
+			logLevel: logutils.TraceLevel,
 		},
 		{
-			logLevel:            slog.LevelDebug,
-			expectedLogrusLevel: logrus.DebugLevel,
+			logLevel: slog.LevelDebug,
 		},
 		{
-			logLevel:            slog.LevelInfo,
-			expectedLogrusLevel: logrus.InfoLevel,
+			logLevel: slog.LevelInfo,
 		},
 		{
-			logLevel:            slog.LevelWarn,
-			expectedLogrusLevel: logrus.WarnLevel,
+			logLevel: slog.LevelWarn,
 		},
 		{
-			logLevel:            slog.LevelError,
-			expectedLogrusLevel: logrus.ErrorLevel,
+			logLevel: slog.LevelError,
 		},
 	} {
 		t.Run(test.logLevel.String(), func(t *testing.T) {
 			// Create a configuration with local loggers to avoid modifying the
 			// global instances.
 			c := &Config{
-				Log:    logrus.New(),
 				Logger: slog.New(logutils.NewSlogTextHandler(io.Discard, logutils.SlogTextHandlerConfig{})),
 			}
 			ApplyDefaults(c)
 
 			c.SetLogLevel(test.logLevel)
 			require.Equal(t, test.logLevel, c.LoggerLevel.Level())
-			require.IsType(t, &logrus.Logger{}, c.Log)
-			l, _ := c.Log.(*logrus.Logger)
-			require.Equal(t, test.expectedLogrusLevel, l.GetLevel())
 		})
+	}
+}
+
+func TestBoundKeypairConfig(t *testing.T) {
+	dir := t.TempDir()
+	regSecretPath := filepath.Join(dir, "reg-secret")
+	staticKeyPath := filepath.Join(dir, "static-key")
+
+	require.NoError(t, os.WriteFile(regSecretPath, []byte("reg-secret"), 0600))
+	require.NoError(t, os.WriteFile(staticKeyPath, []byte("static-key"), 0600))
+
+	tests := []struct {
+		name   string
+		config BoundKeypairParams
+		assert func(cfg BoundKeypairParams)
+	}{
+		{
+			name: "registration secret value",
+			config: BoundKeypairParams{
+				RegistrationSecretValue: "reg-secret",
+			},
+			assert: func(cfg BoundKeypairParams) {
+				secret, err := cfg.RegistrationSecret()
+				require.NoError(t, err)
+				require.Equal(t, "reg-secret", secret)
+			},
+		},
+		{
+			name: "registration secret path",
+			config: BoundKeypairParams{
+				RegistrationSecretPath: regSecretPath,
+			},
+			assert: func(cfg BoundKeypairParams) {
+				secret, err := cfg.RegistrationSecret()
+				require.NoError(t, err)
+				require.Equal(t, "reg-secret", secret)
+			},
+		},
+		{
+			name: "registration secret path does not exist",
+			config: BoundKeypairParams{
+				RegistrationSecretPath: filepath.Join(dir, "invalid-reg-secret"),
+			},
+			assert: func(cfg BoundKeypairParams) {
+				secret, err := cfg.RegistrationSecret()
+				require.ErrorContains(t, err, "no such file")
+				require.Empty(t, secret)
+			},
+		},
+		{
+			name:   "empty",
+			config: BoundKeypairParams{},
+			assert: func(cfg BoundKeypairParams) {
+				secret, err := cfg.RegistrationSecret()
+				require.NoError(t, err)
+				require.Empty(t, secret)
+			},
+		},
+		{
+			name: "error if ambiguous",
+			config: BoundKeypairParams{
+				RegistrationSecretValue: "foo",
+				RegistrationSecretPath:  "bar",
+			},
+			assert: func(cfg BoundKeypairParams) {
+				secret, err := cfg.RegistrationSecret()
+				require.ErrorContains(t, err, "only one")
+				require.Empty(t, secret)
+			},
+		},
+		{
+			name: "static key path",
+			config: BoundKeypairParams{
+				StaticPrivateKeyPath: staticKeyPath,
+			},
+			assert: func(cfg BoundKeypairParams) {
+				secret, err := cfg.StaticPrivateKeyBytes()
+				require.NoError(t, err)
+				require.Equal(t, []byte("static-key"), secret)
+			},
+		},
+		{
+			name: "static key path does not exist",
+			config: BoundKeypairParams{
+				StaticPrivateKeyPath: filepath.Join(dir, "invalid-static-key"),
+			},
+			assert: func(cfg BoundKeypairParams) {
+				secret, err := cfg.StaticPrivateKeyBytes()
+				require.ErrorContains(t, err, "no such file")
+				require.Empty(t, secret)
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			test.assert(test.config)
+		})
+	}
+}
+
+func hasNoErr(t require.TestingT, err error, msgAndArgs ...any) {
+	require.NoError(t, err, msgAndArgs...)
+}
+
+func hasErrTypeBadParameter(t require.TestingT, err error, msgAndArgs ...any) {
+	require.True(t, trace.IsBadParameter(err), "expected bad parameter error, got %+v", err)
+}
+
+func hasErrTypeBadParameterAndContains(msg string) require.ErrorAssertionFunc {
+	return func(t require.TestingT, err error, msgAndArgs ...any) {
+		require.True(t, trace.IsBadParameter(err), "err should be trace.BadParameter")
+		require.ErrorContains(t, err, msg, msgAndArgs...)
+	}
+}
+
+func hasErrAndContains(msg string) require.ErrorAssertionFunc {
+	return func(t require.TestingT, err error, msgAndArgs ...any) {
+		require.ErrorContains(t, err, msg, msgAndArgs...)
 	}
 }

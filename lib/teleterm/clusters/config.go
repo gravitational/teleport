@@ -19,9 +19,10 @@
 package clusters
 
 import (
+	"log/slog"
+
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/client"
@@ -29,31 +30,37 @@ import (
 
 // Config is the cluster service config
 type Config struct {
-	// Dir is the directory to store cluster profiles
-	Dir string
 	// Clock is a clock for time-related operations
 	Clock clockwork.Clock
 	// InsecureSkipVerify is an option to skip TLS cert check
 	InsecureSkipVerify bool
-	// Log is a component logger
-	Log *logrus.Entry
+	// Logger is a component logger
+	Logger *slog.Logger
 	// WebauthnLogin allows tests to override the Webauthn Login func.
 	// Defaults to wancli.Login.
 	WebauthnLogin client.WebauthnLoginFunc
+	// AddKeysToAgent is passed to [client.Config].
+	AddKeysToAgent string
+	// ClientStore stores client data.
+	ClientStore *client.Store
 }
 
 // CheckAndSetDefaults checks the configuration for its validity and sets default values if needed
 func (c *Config) CheckAndSetDefaults() error {
-	if c.Dir == "" {
-		return trace.BadParameter("missing working directory")
+	if c.ClientStore == nil {
+		return trace.BadParameter("missing client store")
 	}
 
 	if c.Clock == nil {
 		c.Clock = clockwork.NewRealClock()
 	}
 
-	if c.Log == nil {
-		c.Log = logrus.WithField(teleport.ComponentKey, "conn:storage")
+	if c.Logger == nil {
+		c.Logger = slog.With(teleport.ComponentKey, "conn:storage")
+	}
+
+	if c.AddKeysToAgent == "" {
+		c.AddKeysToAgent = client.AddKeysToAgentAuto
 	}
 
 	return nil

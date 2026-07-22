@@ -19,7 +19,7 @@ package resumption
 import (
 	"context"
 	"encoding/binary"
-	"math/rand"
+	"math/rand/v2"
 	"net"
 	"net/netip"
 	"os"
@@ -35,7 +35,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/uds"
+	"github.com/gravitational/teleport/session/uds"
 )
 
 func TestHandover(t *testing.T) {
@@ -64,12 +64,12 @@ func TestHandover(t *testing.T) {
 
 		srv := &net.TCPAddr{
 			IP:   net.IPv4(127, 0, 0, 1),
-			Port: 1 + rand.Intn(65535),
+			Port: 1 + rand.N(65536-1),
 		}
 		clt := &net.TCPAddr{
 			IP:   clientAddr.AsSlice(),
 			Zone: clientAddr.Zone(),
-			Port: 1 + rand.Intn(65535),
+			Port: 1 + rand.N(65536-1),
 		}
 
 		go handleConnection(utils.NewConnWithAddr(c2, srv, clt))
@@ -98,19 +98,19 @@ func TestHandover(t *testing.T) {
 
 	require.IsType((*Conn)(nil), wrappedNC)
 
-	clt, err := sshClient(wrappedNC)
+	clt, err := sshClient(t.Context(), wrappedNC)
 	require.NoError(err)
 	defer clt.Close()
 
 	const wantReplyTrue = true
-	_, _, err = clt.SendRequest("foo", wantReplyTrue, nil)
+	_, _, err = clt.SendRequest(t.Context(), "foo", wantReplyTrue, nil)
 	require.NoError(err)
 
 	_ = originalNC.Close()
 	nextNC := dial(s2.HandleConnection, netip.MustParseAddr("127.0.0.1"))
 	redialConns <- nextNC
 
-	_, _, err = clt.SendRequest("foo", wantReplyTrue, nil)
+	_, _, err = clt.SendRequest(t.Context(), "foo", wantReplyTrue, nil)
 	require.NoError(err)
 
 	_ = nextNC.Close()

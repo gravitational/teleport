@@ -16,20 +16,20 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
-import { ButtonBorder } from 'design';
+import { useState } from 'react';
+
+import { ButtonBorder, Flex, Text } from 'design';
 import Table, { Cell } from 'design/DataTable';
-import { dateTimeMatcher } from 'design/utils/match';
 
 import { Event } from 'teleport/services/audit';
 
-import { State } from '../useAuditEvents';
 import EventDialog from '../EventDialog';
-
+import { State } from '../useAuditEvents';
 import renderTypeCell from './EventTypeCell';
+import { ViewInPolicyButton } from './ViewInPolicyButton';
 
 export default function EventList(props: Props) {
-  const { events = [], fetchMore, fetchStatus, pageSize = 50 } = props;
+  const { events = [], sort, setSort } = props;
   const [detailsToShow, setDetailsToShow] = useState<Event>();
   return (
     <>
@@ -38,8 +38,8 @@ export default function EventList(props: Props) {
         columns={[
           {
             key: 'codeDesc',
-            headerText: 'Type',
-            isSortable: true,
+            headerText: 'Event',
+            isSortable: false,
             render: event => renderTypeCell(event),
           },
           {
@@ -59,14 +59,10 @@ export default function EventList(props: Props) {
           },
         ]}
         emptyText={'No Events Found'}
-        isSearchable
-        searchableProps={['code', 'codeDesc', 'time', 'user', 'message', 'id']}
-        customSearchMatchers={[dateTimeMatcher(['time'])]}
-        initialSort={{ key: 'time', dir: 'DESC' }}
-        pagination={{ pageSize }}
-        fetching={{
-          onFetchMore: fetchMore,
-          fetchStatus,
+        customSort={{
+          fieldName: sort.fieldName,
+          dir: sort.dir,
+          onSort: setSort,
         }}
       />
       {detailsToShow && (
@@ -84,27 +80,37 @@ export const renderActionCell = (
   onShowDetails: (e: Event) => void
 ) => (
   <Cell align="right">
-    <ButtonBorder
-      size="small"
-      onClick={() => onShowDetails(event)}
-      width="87px"
-    >
-      Details
-    </ButtonBorder>
+    <Flex gap={2} justifyContent="flex-end">
+      <ViewInPolicyButton event={event} />
+      <ButtonBorder
+        size="medium"
+        onClick={() => onShowDetails(event)}
+        width="87px"
+      >
+        Details
+      </ButtonBorder>
+    </Flex>
   </Cell>
 );
 
 export const renderTimeCell = ({ time }: Event) => (
-  <Cell style={{ minWidth: '120px' }}>{time}</Cell>
+  <Cell style={{ minWidth: '120px' }}>
+    <Text color="text.slightlyMuted">{time.toISOString()}</Text>
+  </Cell>
 );
 
 export function renderDescCell({ message }: Event) {
-  return <Cell style={{ wordBreak: 'break-word' }}>{message}</Cell>;
+  return (
+    <Cell style={{ wordBreak: 'break-word' }}>
+      <Text color="text.slightlyMuted">{message}</Text>
+    </Cell>
+  );
 }
 
 type Props = {
   events: State['events'];
-  fetchMore: State['fetchMore'];
-  fetchStatus: State['fetchStatus'];
-  pageSize?: number;
+  search: State['search'];
+  setSearch: State['setSearch'];
+  sort: State['sort'];
+  setSort: State['setSort'];
 };

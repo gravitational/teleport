@@ -15,23 +15,23 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-import Dialog, { DialogContent } from 'design/DialogConfirmation';
+import { useEffect } from 'react';
+
 import {
+  Alert,
   AnimatedProgressBar,
   Box,
   ButtonPrimary,
-  Text,
   Flex,
   Mark,
+  Text,
 } from 'design';
-import React, { useEffect } from 'react';
-
+import Dialog, { DialogContent } from 'design/DialogConfirmation';
 import * as Icons from 'design/Icon';
 
-import { Kube } from 'teleport/services/kube';
-import { usePingTeleport } from 'teleport/Discover/Shared/PingTeleportContext';
 import { TextIcon, useShowHint } from 'teleport/Discover/Shared';
-import { HintBox } from 'teleport/Discover/Shared/HintBox';
+import { usePingTeleport } from 'teleport/Discover/Shared/PingTeleportContext';
+import { Kube } from 'teleport/services/kube';
 
 type AgentWaitingDialogProps = {
   joinResourceId: string;
@@ -74,34 +74,47 @@ export function AgentWaitingDialog({
   const showHint = useShowHint(active);
 
   function hintMessage() {
+    const details = (
+      <>
+        <Text mb={3}>
+          There are a few of possible reasons for why we haven&apos;t been able
+          to detect your Kubernetes cluster.
+        </Text>
+
+        <ul>
+          <li>
+            <Text mb={1}>The cluster doesn&apos;t have active nodes.</Text>
+          </li>
+          <li>
+            <Text mb={1}>
+              The manual command was not run on the server you were trying to
+              add.
+            </Text>
+          </li>
+          <li>
+            <Text mb={3}>
+              The Teleport Service could not join this Teleport cluster. Check
+              the logs for errors by running
+              <br />
+              <Mark>
+                kubectl logs -l app=teleport-kube-agent -n teleport-agent
+              </Mark>
+            </Text>
+          </li>
+        </ul>
+
+        <Text>
+          We&apos;ll continue to look for your Kubernetes cluster while you
+          diagnose the issue.
+        </Text>
+      </>
+    );
     if (showHint && !result) {
       return (
         <Box textAlign={'left'} mb={3}>
-          <HintBox header="We're still looking for your server">
-            <Text mb={3}>
-              There are a few of possible reasons for why we haven't been able
-              to detect your Kubernetes cluster.
-            </Text>
-
-            <Text mb={1}>- The cluster doesn't have active nodes.</Text>
-
-            <Text mb={1}>
-              - The manual command was not run on the server you were trying to
-              add.
-            </Text>
-
-            <Text mb={3}>
-              - The Teleport Service could not join this Teleport cluster. Check
-              the logs for errors by running
-              <br />
-              <Mark>kubectl logs -l app=teleport-agent -n teleport-agent</Mark>
-            </Text>
-
-            <Text>
-              We'll continue to look for your Kubernetes cluster whilst you
-              diagnose the issue.
-            </Text>
-          </HintBox>
+          <Alert kind="warning" alignItems="flex-start" details={details}>
+            We&apos;re still looking for your Kubernetes cluster
+          </Alert>
         </Box>
       );
     }

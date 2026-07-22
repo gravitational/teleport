@@ -85,25 +85,23 @@ func databaseNameMatcher(dbProtocol, database string) *services.DatabaseNameMatc
 		// databases is different and there's no way to prevent cross-database
 		// queries so only apply RBAC to db_users.
 		defaults.ProtocolCockroachDB,
-		// Redis integration doesn't support schema access control.
+		// Most database protocols do not support schema access control.
 		defaults.ProtocolRedis,
-		// Cassandra integration doesn't support schema access control.
 		defaults.ProtocolCassandra,
-		// Elasticsearch integration doesn't support schema access control.
 		defaults.ProtocolElasticsearch,
-		// OpenSearch integration doesn't support schema access control.
 		defaults.ProtocolOpenSearch,
-		// DynamoDB integration doesn't support schema access control.
 		defaults.ProtocolDynamoDB,
-		// Snowflake integration doesn't support schema access control.
 		defaults.ProtocolSnowflake,
-		// Oracle integration doesn't support schema access control.
 		defaults.ProtocolOracle,
-		// Clickhouse Database Access doesn't support schema access control
 		defaults.ProtocolClickHouse,
-		defaults.ProtocolClickHouseHTTP:
+		defaults.ProtocolClickHouseHTTP,
+		defaults.ProtocolSQLServer:
 		return nil
 	default:
+		// Protocols that do support database name matcher:
+		// - postgres
+		// - mongodb
+		// - cloud spanner
 		return &services.DatabaseNameMatcher{Name: database}
 	}
 }

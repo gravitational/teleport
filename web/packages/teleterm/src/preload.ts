@@ -16,28 +16,32 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { contextBridge } from 'electron';
 import { ChannelCredentials, ServerCredentials } from '@grpc/grpc-js';
 import { GrpcTransport } from '@protobuf-ts/grpc-transport';
+import { contextBridge, webUtils } from 'electron';
 
-import { createTshdClient, createVnetClient } from 'teleterm/services/tshd';
-import { loggingInterceptor } from 'teleterm/services/tshd/interceptors';
-import createMainProcessClient from 'teleterm/mainProcess/mainProcessClient';
-import { createFileLoggerService } from 'teleterm/services/logger';
 import Logger from 'teleterm/logger';
-import { createPtyService } from 'teleterm/services/pty/ptyService';
+import createMainProcessClient from 'teleterm/mainProcess/mainProcessClient';
 import {
-  GrpcCertName,
   createClientCredentials,
-  createServerCredentials,
   createInsecureClientCredentials,
   createInsecureServerCredentials,
+  createServerCredentials,
   generateAndSaveGrpcCert,
+  GrpcCertName,
   readGrpcCert,
   shouldEncryptConnection,
 } from 'teleterm/services/grpcCredentials';
-import { ElectronGlobals, RuntimeSettings } from 'teleterm/types';
+import { createFileLoggerService } from 'teleterm/services/logger';
+import { createPtyService } from 'teleterm/services/pty/ptyService';
+import {
+  createTshdClient,
+  createVnetClient,
+  TshdClient,
+} from 'teleterm/services/tshd';
+import { loggingInterceptor } from 'teleterm/services/tshd/interceptors';
 import { createTshdEventsServer } from 'teleterm/services/tshdEvents';
+import { ElectronGlobals, RuntimeSettings } from 'teleterm/types';
 
 const mainProcessClient = createMainProcessClient();
 const runtimeSettings = mainProcessClient.getRuntimeSettings();
@@ -66,16 +70,17 @@ async function getElectronGlobals(): Promise<ElectronGlobals> {
     host: addresses.tsh,
     channelCredentials: credentials.tshd,
     interceptors: [loggingInterceptor(new Logger('tshd'))],
+    // This gRPC client talks to a localhost endpoint on Windows.
+    // Do not route it through HTTP proxies.
+    clientOptions: { 'grpc.enable_http_proxy': 0 },
   });
-  const tshClient = createTshdClient(tshdTransport);
+  const tshClient = withoutInsecureTshdMethods(createTshdClient(tshdTransport));
   const vnetClient = createVnetClient(tshdTransport);
   const ptyServiceClient = createPtyService(
     addresses.shared,
     credentials.shared,
     runtimeSettings,
-    {
-      noResume: mainProcessClient.configService.get('ssh.noResume').value,
-    }
+    mainProcessClient.configService
   );
   const {
     setupTshdEventContextBridgeService,
@@ -91,9 +96,17 @@ async function getElectronGlobals(): Promise<ElectronGlobals> {
   // All uses of tshClient must wait before updateTshdEventsServerAddress finishes to ensure that
   // the client is ready. Otherwise we run into a risk of causing panics in tshd due to a missing
   // tshd events client.
-  await tshClient.updateTshdEventsServerAddress({
-    address: tshdEventsServerAddress,
-  });
+  await tshClient.updateTshdEventsServerAddress(
+    {
+      address: tshdEventsServerAddress,
+    },
+    {
+      timeout: 15_000,
+      // On Windows, this first local gRPC call has been observed to fail fast
+      // with ETIMEDOUT even though the channel becomes ready shortly after.
+      metadataOptions: { waitForReady: true },
+    }
+  );
 
   return {
     mainProcessClient,
@@ -101,6 +114,14 @@ async function getElectronGlobals(): Promise<ElectronGlobals> {
     vnetClient,
     ptyServiceClient,
     setupTshdEventContextBridgeService,
+    // Ideally, we would call this function only on the preload side,
+    // but there's no easy way to access the file there (constructing the tshd
+    // call for a file transfer happens entirely on the renderer side).
+    //
+    // However, the risk of exposing this API is minimal because the file passed
+    // in cannot be constructed in JS (it must be selected in the file picker).
+    // So an attacker cannot pass a fake file to probe the file system.
+    getPathForFile: file => webUtils.getPathForFile(file),
   };
 }
 
@@ -157,4 +178,23 @@ async function withErrorLogging<ReturnValue>(
     logger.error(e);
     throw e;
   }
+}
+
+/**
+ * Returns a copy of `TshdClient` with insecure methods disabled
+ * to prevent access from the untrusted renderer process.
+ *
+ * As a result, disabled methods are inaccessible in the renderer process
+ * since the prototype of tshdClient is not shared with the renderer process.
+ * The renderer process also does not receive the ability to start a new arbitrary client,
+ * which could then be used to circumvent this protection.
+ */
+function withoutInsecureTshdMethods(client: TshdClient): TshdClient {
+  return {
+    ...client,
+    setSharedDirectoryForDesktopSession: () => {
+      // Prevent the renderer process from sharing directories at arbitrary paths.
+      throw new Error('This method is not permitted in the renderer process.');
+    },
+  };
 }

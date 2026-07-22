@@ -16,14 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import type { JSX } from 'react';
 
 import { Flex } from 'design';
 
 import { BaseView } from '../flow';
-
-import { StepTitle, StepsContainer } from './Shared';
 import { Bullet } from './Bullet';
+import { StepsContainer, StepTitle } from './Shared';
 import { StepList } from './StepList';
 
 export type StepIcon = {
@@ -168,7 +167,7 @@ export function Navigation<T>({
   startWithIcon,
 }: NavigationProps<T>) {
   return (
-    <Flex>
+    <Flex minWidth={0} width="100%">
       {startWithIcon && (
         <StepsContainer>
           <StepTitle css={{ fontWeight: 'bold' }}>
@@ -177,7 +176,9 @@ export function Navigation<T>({
           </StepTitle>
         </StepsContainer>
       )}
-      <StepList views={views} currentStep={currentStep} />
+      <Flex flex={1} css="overflow-x: auto;">
+        <StepList views={views} currentStep={currentStep} />
+      </Flex>
     </Flex>
   );
 }

@@ -1,0 +1,81 @@
+---
+title: TeleportAccessMonitoringRuleV1
+description: Provides a comprehensive list of fields in the TeleportAccessMonitoringRuleV1 resource available through the Teleport Kubernetes operator
+---
+
+{/*Auto-generated file. Do not edit.*/}
+{/*To regenerate, navigate to integrations/operator and run "make crd-docs".*/}
+
+{/* Disable the outdated name check since custom resource fields occasionally
+need to refer to these. */}
+{/* vale 3rd-party-products.former-names = NO */}
+
+This guide is a comprehensive reference to the fields in the `TeleportAccessMonitoringRuleV1`
+resource, which you can apply after installing the Teleport Kubernetes operator.
+
+
+## resources.teleport.dev/v1
+
+**apiVersion:** resources.teleport.dev/v1
+
+|Field|Type|Description|
+|---|---|---|
+|apiVersion|string|APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources|
+|kind|string|Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds|
+|metadata|object||
+|spec|[object](#spec)|AccessMonitoringRule resource definition v1 from Teleport|
+
+### spec
+
+|Field|Type|Description|
+|---|---|---|
+|automatic_review|[object](#specautomatic_review)|automatic_review defines automatic review configurations for Access Requests. Both notification and automatic_review may be set within the same access_monitoring_rule. If both fields are set, the rule will trigger both notifications and automatic reviews for the same set of access events. Separate plugins may be used if both notifications and automatic_reviews is set.|
+|condition|string|condition is a predicate expression that operates on the specified subject resources, and determines whether the subject will be moved into desired state.|
+|desired_state|string|desired_state defines the desired state of the subject. For Access Request subjects, the desired_state may be set to `reviewed` to indicate that the Access Request should be automatically reviewed.|
+|notification|[object](#specnotification)|notification defines the plugin configuration for notifications if rule is triggered. Both notification and automatic_review may be set within the same access_monitoring_rule. If both fields are set, the rule will trigger both notifications and automatic reviews for the same set of access events. Separate plugins may be used if both notifications and automatic_reviews is set.|
+|schedules|[object](#specschedules)|schedules specifies a map of schedules that can be used to configure the access monitoring rule conditions.|
+|states|[]string|states are the desired state which the monitoring rule is attempting to bring the subjects matching the condition to.|
+|subjects|[]string|subjects the rule operates on, can be a resource kind or a particular resource property.|
+
+### spec.automatic_review
+
+|Field|Type|Description|
+|---|---|---|
+|decision|string|decision specifies the proposed state of the access review. This can be either 'APPROVED' or 'DENIED'.|
+|integration|string|integration is the name of the integration that is responsible for monitoring the rule. Set this value to `builtin` to monitor the rule with Teleport.|
+
+### spec.notification
+
+|Field|Type|Description|
+|---|---|---|
+|name|string|name is the name of the plugin to which this configuration should apply.|
+|recipients|[]string|recipients is the list of recipients the plugin should notify.|
+
+### spec.schedules
+
+|Field|Type|Description|
+|---|---|---|
+|key|string||
+|value|[object](#specschedulesvalue)||
+
+### spec.schedules.value
+
+|Field|Type|Description|
+|---|---|---|
+|time|[object](#specschedulesvaluetime)|TimeSchedule specifies an in-line schedule.|
+
+### spec.schedules.value.time
+
+|Field|Type|Description|
+|---|---|---|
+|shifts|[][object](#specschedulesvaluetimeshifts-items)|Shifts contains a set of shifts that make up the schedule.|
+|timezone|string|Timezone specifies the schedule timezone. This field is optional and defaults to "UTC". Accepted values use timezone locations as defined in the IANA Time Zone Database, such as "America/Los_Angeles", "Europe/Lisbon", or "Asia/Singapore".  See https://data.iana.org/time-zones/tzdb/zone1970.tab for a list of supported values.|
+
+### spec.schedules.value.time.shifts items
+
+|Field|Type|Description|
+|---|---|---|
+|end|string||
+|start|string||
+|weekday|string||
+

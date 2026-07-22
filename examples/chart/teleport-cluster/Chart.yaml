@@ -1,8 +1,6 @@
-.version: &version "17.0.0-dev"
-
 name: teleport-cluster
 apiVersion: v2
-version: *version
+version: &version "19.0.0-prealpha.2"
 appVersion: *version
 description: Teleport is an access platform for your infrastructure
 icon: https://goteleport.com/static/teleport-symbol-bimi.svg
@@ -13,3 +11,7 @@ dependencies:
   - name: teleport-operator
     version: *version
     alias: operator
+  - name: teleport-proxy-lib
+    version: *version
+  - name: teleport-util-lib
+    version: *version

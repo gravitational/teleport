@@ -33,13 +33,15 @@ func NewAccessGraphSettings(spec *clusterconfigpb.AccessGraphSettingsSpec) (*clu
 			Name: types.MetaNameAccessGraphSettings,
 		},
 		Spec: spec,
+		Status: &clusterconfigpb.AccessGraphSettingsStatus{
+			InitialSyncComplete: false,
+		},
 	}
 	if err := ValidateAccessGraphSettings(settings); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return settings, nil
-
 }
 
 // ValidateAccessGraphSettings checks that required parameters are set

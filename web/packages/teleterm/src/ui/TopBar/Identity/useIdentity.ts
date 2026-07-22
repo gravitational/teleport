@@ -16,73 +16,92 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { useCallback } from 'react';
+
+import { Cluster } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
+import { getErrorMessage } from 'shared/utils/error';
+
 import { useAppContext } from 'teleterm/ui/appContextProvider';
-import { Cluster, LoggedInUser } from 'teleterm/services/tshd/types';
+import { useStoreSelector } from 'teleterm/ui/hooks/useStoreSelector';
+import { WorkspaceColor } from 'teleterm/ui/services/workspacesService';
+import { Workspace } from 'teleterm/ui/services/workspacesService';
 import { RootClusterUri } from 'teleterm/ui/uri';
 
 export function useIdentity() {
   const ctx = useAppContext();
 
-  ctx.clustersService.useState();
-  ctx.workspacesService.useState();
+  const workspaces = useStoreSelector(
+    'workspacesService',
+    useCallback(state => state.workspaces, [])
+  );
+  const clusters = useStoreSelector(
+    'clustersService',
+    useCallback(state => state.clusters, [])
+  );
+  const activeClusterUri = useStoreSelector(
+    'workspacesService',
+    useCallback(state => state.rootClusterUri, [])
+  );
+  const activeWorkspaceCluster =
+    activeClusterUri && clusters.get(activeClusterUri);
 
-  async function changeRootCluster(clusterUri: RootClusterUri): Promise<void> {
+  async function changeWorkspace(clusterUri: RootClusterUri): Promise<void> {
     await ctx.workspacesService.setActiveWorkspace(clusterUri);
   }
 
-  function addCluster(): void {
+  const addCluster = useCallback(() => {
     ctx.commandLauncher.executeCommand('cluster-connect', {});
+  }, [ctx.commandLauncher]);
+
+  function refreshCluster(clusterUri: RootClusterUri): void {
+    ctx.commandLauncher.executeCommand('cluster-connect', { clusterUri });
   }
 
   function logout(clusterUri: RootClusterUri): void {
     ctx.commandLauncher.executeCommand('cluster-logout', { clusterUri });
   }
 
-  function getActiveRootCluster(): Cluster | undefined {
+  async function forget(clusterUri: RootClusterUri): Promise<void> {
+    try {
+      await ctx.mainProcessClient.forgetCluster(clusterUri);
+    } catch (err) {
+      ctx.notificationsService.notifyError({
+        title: 'Failed to forget cluster',
+        description: getErrorMessage(err),
+      });
+    }
+  }
+
+  function changeColor(color: WorkspaceColor): undefined {
     const clusterUri = ctx.workspacesService.getRootClusterUri();
     if (!clusterUri) {
       return;
     }
-    return ctx.clustersService.findCluster(clusterUri);
+    ctx.workspacesService.changeWorkspaceColor(clusterUri, color);
   }
 
-  function getLoggedInUser(): LoggedInUser | undefined {
-    const clusterUri = ctx.workspacesService.getRootClusterUri();
-    if (!clusterUri) {
-      return;
-    }
-    const cluster = ctx.clustersService.findCluster(clusterUri);
-    if (!cluster) {
-      return;
-    }
-    return cluster.loggedInUser;
-  }
-
-  const rootClusters: IdentityRootCluster[] = ctx.clustersService
-    .getClusters()
-    .filter(c => !c.leaf)
-    .map(cluster => ({
-      active: cluster.uri === ctx.workspacesService.getRootClusterUri(),
-      clusterName: cluster.name,
-      userName: cluster.loggedInUser?.name,
-      uri: cluster.uri,
-      connected: cluster.connected,
+  const otherWorkspaces: IdentityItem[] = Object.entries(workspaces)
+    .filter(([uri]) => uri !== activeClusterUri)
+    .map(([uri, workspace]) => ({
+      uri,
+      workspace: workspace,
+      cluster: clusters.get(uri),
     }));
 
   return {
-    changeRootCluster,
+    changeWorkspace,
     addCluster,
+    refreshCluster,
     logout,
-    loggedInUser: getLoggedInUser(),
-    activeRootCluster: getActiveRootCluster(),
-    rootClusters,
+    forget,
+    changeColor,
+    activeWorkspaceCluster,
+    otherWorkspaces,
   };
 }
 
-export interface IdentityRootCluster {
-  active: boolean;
-  clusterName: string;
-  userName: string;
+export interface IdentityItem {
   uri: RootClusterUri;
-  connected: boolean;
+  workspace: Workspace;
+  cluster: Cluster | undefined;
 }

@@ -16,11 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-import { Box } from 'design';
+import { Flex, Text } from 'design';
+import { AuthProvider } from 'gen-proto-ts/teleport/lib/teleterm/v1/auth_settings_pb';
 import ButtonSso, { guessProviderType } from 'shared/components/ButtonSso';
-
-import * as types from 'teleterm/ui/services/clusters/types';
+import { AuthProviderType } from 'shared/services';
 
 const SSOBtnList = ({
   providers,
@@ -32,15 +31,13 @@ const SSOBtnList = ({
   const $btns = providers.map((item, index) => {
     let { name, type, displayName } = item;
     const title = displayName || `${prefixText} ${name}`;
-    const ssoType = guessProviderType(title, type as types.AuthProviderType);
-    const isLastItem = providers.length - 1 === index;
+    const ssoType = guessProviderType(title, type as AuthProviderType);
     return (
       <ButtonSso
         key={index}
         title={title}
         ssoType={ssoType}
         disabled={isDisabled}
-        mb={isLastItem ? 0 : 3}
         autoFocus={index === 0 && autoFocus}
         onClick={e => {
           e.preventDefault();
@@ -51,17 +48,21 @@ const SSOBtnList = ({
   });
 
   if ($btns.length === 0) {
-    return <h4> You have no SSO providers configured </h4>;
+    return <Text typography="h3">You have no SSO providers configured</Text>;
   }
 
-  return <Box>{$btns}</Box>;
+  return (
+    <Flex flexDirection="column" gap={3}>
+      {$btns}
+    </Flex>
+  );
 };
 
 type Props = {
   prefixText: string;
   isDisabled: boolean;
-  onClick(provider: types.AuthProvider): void;
-  providers: types.AuthProvider[];
+  onClick(provider: AuthProvider): void;
+  providers: AuthProvider[];
   // autoFocus focuses on the first button in list.
   autoFocus?: boolean;
 };

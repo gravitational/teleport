@@ -117,7 +117,7 @@ func TestConvertEventReqToUsageEvent(t *testing.T) {
 					EventData: &eventData,
 				}
 			},
-			errCheck: func(tt require.TestingT, err error, i ...interface{}) {
+			errCheck: func(tt require.TestingT, err error, i ...any) {
 				require.True(tt, trace.IsBadParameter(err), "expected trace.BadParameter error, got: %v", err)
 			},
 		},
@@ -151,6 +151,30 @@ func TestConvertEventReqToUsageEvent(t *testing.T) {
 							Status: usageeventsv1.DiscoverStatus_DISCOVER_STATUS_ERROR,
 							Error:  "someerror",
 						},
+					},
+				}}
+			},
+		},
+		{
+			name: "decodes ui access graph  crown jewel diff view event",
+			reqFn: func() CreateUserEventRequest {
+				eventData := json.RawMessage(`
+				{
+					"affected_resource_source":"TELEPORT",
+					"affected_resource_type":"ssh"
+				}
+				`)
+				return CreateUserEventRequest{
+					Event:     uiAccessGraphCrownJewelDiffViewEvent,
+					EventData: &eventData,
+				}
+			},
+			errCheck: require.NoError,
+			expected: func() *usageeventsv1.UsageEventOneOf {
+				return &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiAccessGraphCrownJewelDiffView{
+					UiAccessGraphCrownJewelDiffView: &usageeventsv1.UIAccessGraphCrownJewelDiffViewEvent{
+						AffectedResourceSource: "TELEPORT",
+						AffectedResourceType:   "ssh",
 					},
 				}}
 			},

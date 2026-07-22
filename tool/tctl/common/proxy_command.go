@@ -26,8 +26,13 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
+	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
+	"github.com/gravitational/teleport/tool/tctl/common/resources"
 )
 
 // ProxyCommand returns information about connected proxies
@@ -39,7 +44,7 @@ type ProxyCommand struct {
 }
 
 // Initialize creates the proxy command and subcommands
-func (p *ProxyCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
+func (p *ProxyCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, config *servicecfg.Config) {
 	p.config = config
 
 	proxyCommand := app.Command("proxy", "Operations with information for cluster proxies.").Hidden()
@@ -50,34 +55,44 @@ func (p *ProxyCommand) Initialize(app *kingpin.Application, config *servicecfg.C
 
 // ListProxies prints currently connected proxies
 func (p *ProxyCommand) ListProxies(ctx context.Context, clusterAPI *authclient.Client) error {
-	proxies, err := clusterAPI.GetProxies()
+	proxies, err := clientutils.CollectWithFallback(ctx, clusterAPI.ListProxyServers, func(context.Context) ([]types.Server, error) {
+		//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
+		return clusterAPI.GetProxies()
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	sc := &serverCollection{proxies}
+	sc := resources.NewServerCollection(proxies)
 
 	switch p.format {
 	case teleport.Text:
 		// proxies don't have labels.
 		verbose := false
-		return sc.writeText(os.Stdout, verbose)
+		return sc.WriteText(os.Stdout, verbose)
 	case teleport.YAML:
-		return writeYAML(sc, os.Stdout)
+		return sc.WriteYAML(os.Stdout)
 	case teleport.JSON:
-		return writeJSON(sc, os.Stdout)
+		return sc.WriteJSON(os.Stdout)
 	}
 
 	return nil
 }
 
 // TryRun runs the proxy command
-func (p *ProxyCommand) TryRun(ctx context.Context, cmd string, client *authclient.Client) (match bool, err error) {
+func (p *ProxyCommand) TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (match bool, err error) {
+	var commandFunc func(ctx context.Context, client *authclient.Client) error
 	switch cmd {
 	case p.lsCmd.FullCommand():
-		err = p.ListProxies(ctx, client)
+		commandFunc = p.ListProxies
 	default:
 		return false, nil
 	}
+	client, closeFn, err := clientFunc(ctx)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	err = commandFunc(ctx, client)
+	closeFn(ctx)
 	return true, trace.Wrap(err)
 }

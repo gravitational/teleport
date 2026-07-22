@@ -87,7 +87,7 @@ spec:
             defaultMode: 0600
         - name: teleport-identity
           secret:
-            secretName: "{{ .Values.teleport.identitySecretName }}"
+            secretName: {{ include "email.identitySecretName" . | quote }}
             defaultMode: 0600
         {{- if or .Values.smtp.enabled .Values.mailgun.enabled }}
         {{- if .Values.smtp.enabled }}

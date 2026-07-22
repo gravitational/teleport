@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["lib/srv/desktop/rdp/rdpclient", "web/packages/teleport/src/ironrdp"]
+members = ["lib/srv/desktop/rdp/rdpclient", "lib/srv/desktop/rdp/decoder", "web/packages/shared/libs/ironrdp"]
 
 [workspace.package]
 edition = "2021"
@@ -16,19 +16,21 @@ lto = "off"
 [profile.release]
 debug = 1
 codegen-units = 1
+lto = "thin"
 
 [workspace.dependencies]
 # Note: To use a local IronRDP repository as a crate (for example, ironrdp-cliprdr), define the dependency as follows:
 # ironrdp-cliprdr = { path = "/path/to/local/IronRDP/crates/ironrdp-cliprdr" }
-ironrdp-cliprdr = { git = "https://github.com/Devolutions/IronRDP", rev = "dfbe947e5b9bd2da06f1e14620ee4d68bca4252f" }
-ironrdp-connector = { git = "https://github.com/Devolutions/IronRDP", rev = "dfbe947e5b9bd2da06f1e14620ee4d68bca4252f" }
-ironrdp-displaycontrol = { git = "https://github.com/Devolutions/IronRDP", rev = "dfbe947e5b9bd2da06f1e14620ee4d68bca4252f" }
-ironrdp-dvc = { git = "https://github.com/Devolutions/IronRDP", rev = "dfbe947e5b9bd2da06f1e14620ee4d68bca4252f" }
-ironrdp-graphics = { git = "https://github.com/Devolutions/IronRDP", rev = "dfbe947e5b9bd2da06f1e14620ee4d68bca4252f" }
-ironrdp-pdu = { git = "https://github.com/Devolutions/IronRDP", rev = "dfbe947e5b9bd2da06f1e14620ee4d68bca4252f" }
-ironrdp-rdpdr = { git = "https://github.com/Devolutions/IronRDP", rev = "dfbe947e5b9bd2da06f1e14620ee4d68bca4252f" }
-ironrdp-rdpsnd = { git = "https://github.com/Devolutions/IronRDP", rev = "dfbe947e5b9bd2da06f1e14620ee4d68bca4252f" }
-ironrdp-session = { git = "https://github.com/Devolutions/IronRDP", rev = "dfbe947e5b9bd2da06f1e14620ee4d68bca4252f" }
-ironrdp-svc = { git = "https://github.com/Devolutions/IronRDP", rev = "dfbe947e5b9bd2da06f1e14620ee4d68bca4252f" }
-ironrdp-tls = { git = "https://github.com/Devolutions/IronRDP", rev = "dfbe947e5b9bd2da06f1e14620ee4d68bca4252f", features = ["rustls" ] }
-ironrdp-tokio = { git = "https://github.com/Devolutions/IronRDP", rev = "dfbe947e5b9bd2da06f1e14620ee4d68bca4252f" }
+ironrdp-cliprdr = "0.7"
+ironrdp-connector = "0.10"
+ironrdp-core = "0.2"
+ironrdp-displaycontrol = "0.8"
+ironrdp-dvc = "0.8"
+ironrdp-graphics = "0.9"
+ironrdp-pdu = "0.9"
+ironrdp-rdpdr = "0.7"
+ironrdp-rdpsnd = "0.9"
+ironrdp-session = "0.11"
+ironrdp-svc = "0.8"
+ironrdp-tls = { version = "0.2", features = ["rustls"] }
+ironrdp-tokio = "0.10"

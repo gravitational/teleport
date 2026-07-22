@@ -31,7 +31,7 @@ import (
 
 // createPreUserEventHandle sends a user event to the UserEvent service
 // this handler is for on-boarding user events pre-session
-func (h *Handler) createPreUserEventHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+func (h *Handler) createPreUserEventHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
 	var req usagereporter.CreatePreUserEventRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -57,12 +57,12 @@ func (h *Handler) createPreUserEventHandle(w http.ResponseWriter, r *http.Reques
 		return nil, trace.Wrap(err)
 	}
 
-	return nil, nil
+	return OK(), nil
 }
 
 // createUserEventHandle sends a user event to the UserEvent service
 // this handler is for user events with a session
-func (h *Handler) createUserEventHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, sctx *SessionContext) (interface{}, error) {
+func (h *Handler) createUserEventHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, sctx *SessionContext) (any, error) {
 	var req usagereporter.CreateUserEventRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -91,5 +91,5 @@ func (h *Handler) createUserEventHandle(w http.ResponseWriter, r *http.Request, 
 		return nil, trace.Wrap(err)
 	}
 
-	return nil, nil
+	return OK(), nil
 }

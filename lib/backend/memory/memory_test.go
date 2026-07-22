@@ -19,10 +19,7 @@
 package memory
 
 import (
-	"context"
-	"fmt"
 	"os"
-	"strings"
 	"testing"
 
 	"github.com/gravitational/trace"
@@ -31,16 +28,17 @@ import (
 
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/test"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/clocki"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestMain(m *testing.M) {
-	utils.InitLoggerForTests()
+	logtest.InitLogger(testing.Verbose)
 	os.Exit(m.Run())
 }
 
 func TestMemory(t *testing.T) {
-	newBackend := func(options ...test.ConstructionOption) (backend.Backend, clockwork.FakeClock, error) {
+	newBackend := func(options ...test.ConstructionOption) (backend.Backend, clocki.FakeClock, error) {
 		cfg, err := test.ApplyOptions(options)
 
 		if err != nil {
@@ -68,62 +66,54 @@ func TestMemory(t *testing.T) {
 	test.RunBackendComplianceSuite(t, newBackend)
 }
 
-func TestIterateRange(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	bk, err := New(Config{})
+func TestMemoryItemOwnership(t *testing.T) {
+	mem, err := New(Config{})
 	require.NoError(t, err)
 
-	// set up a generic bulk range to iterate
-	expectedKeys := make(map[string]struct{})
-	for i := 0; i < 500; i++ {
-		key := fmt.Sprintf("/bulk/%d", i)
-		expectedKeys[key] = struct{}{}
-
-		_, err = bk.Put(ctx, backend.Item{
-			Key:   []byte(key),
-			Value: []byte("v"),
-		})
-		require.NoError(t, err)
-	}
-
-	// check that observed range members match expectations
-	observedKeys := make(map[string]struct{})
-	err = backend.IterateRange(ctx, bk, []byte("/bulk/"), backend.RangeEnd([]byte("/bulk/")), 3, func(items []backend.Item) (stop bool, err error) {
-		for _, item := range items {
-			key := string(item.Key)
-
-			_, dup := observedKeys[key]
-			require.False(t, dup, "duplicate of %q", key)
-
-			_, exp := expectedKeys[key]
-			require.True(t, exp, "unexpected key %q", key)
-
-			observedKeys[key] = struct{}{}
-		}
-
-		return false, nil
+	key := backend.NewKey("testing")
+	value := []byte{0, 1, 2, 3}
+	lease, err := mem.Put(t.Context(), backend.Item{
+		Key:   key,
+		Value: value,
 	})
 	require.NoError(t, err)
-	require.Equal(t, expectedKeys, observedKeys)
 
-	// set up a collection of keys that are suffixes of one another (ensures we aren't suffering from the classic 'pagination bug', where
-	// page breaks landing on some key K skip subsequent keys with prefix K).
-	for i := 0; i < 20; i++ {
-		_, err = bk.Put(ctx, backend.Item{
-			Key:   []byte("/suff/" + strings.Repeat("s", i+1)),
-			Value: []byte("s"),
-		})
+	// Mutating the caller-owned write buffer must not mutate the stored item.
+	copy(value, []byte{9, 8, 7, 6})
 
-		require.NoError(t, err)
-	}
-
-	var scount int
-	err = backend.IterateRange(ctx, bk, []byte("/suff/"), backend.RangeEnd([]byte("/suff/")), 2, func(items []backend.Item) (stop bool, err error) {
-		scount += len(items)
-		return false, nil
-	})
+	got, err := mem.Get(t.Context(), key)
 	require.NoError(t, err)
-	require.Equal(t, 20, scount)
+	require.Equal(t, lease.Revision, got.Revision)
+	require.Equal(t, []byte{0, 1, 2, 3}, got.Value)
+
+	// Mutating the item returned by Get must not mutate the stored item.
+	got.Revision = "tampered"
+	got.Value[0] = 9
+
+	got, err = mem.Get(t.Context(), key)
+	require.NoError(t, err)
+	require.Equal(t, lease.Revision, got.Revision)
+	require.Equal(t, []byte{0, 1, 2, 3}, got.Value)
+
+	var itemsFound bool
+	for item, err := range mem.Items(t.Context(), backend.ItemsParams{
+		StartKey: key,
+		EndKey:   backend.NewKey("zzzz"),
+		Limit:    1,
+	}) {
+		itemsFound = true
+		require.NoError(t, err)
+		require.Equal(t, lease.Revision, item.Revision)
+		require.Equal(t, []byte{0, 1, 2, 3}, item.Value)
+
+		// Mutating the item returned by Items must not mutate the stored item.
+		item.Revision = "tampered"
+		item.Value[0] = 8
+	}
+	require.True(t, itemsFound)
+
+	got, err = mem.Get(t.Context(), key)
+	require.NoError(t, err)
+	require.Equal(t, lease.Revision, got.Revision)
+	require.Equal(t, []byte{0, 1, 2, 3}, got.Value)
 }

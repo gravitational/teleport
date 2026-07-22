@@ -20,20 +20,20 @@ package reversetunnel
 
 import (
 	"context"
-	"crypto/rand"
-	"crypto/rsa"
 	"testing"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
+	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 // TestAgentCertChecker validates that reverse tunnel agents properly validate
@@ -82,16 +82,21 @@ func TestAgentCertChecker(t *testing.T) {
 			t.Cleanup(func() { require.NoError(t, sshServer.Close()) })
 			require.NoError(t, sshServer.Start())
 
-			priv, err := rsa.GenerateKey(rand.Reader, 2048)
+			priv, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.Ed25519)
 			require.NoError(t, err)
 
 			signer, err := ssh.NewSignerFromKey(priv)
 			require.NoError(t, err)
 
 			dialer := agentDialer{
-				client:      &fakeClient{caKey: ca.PublicKey()},
-				authMethods: []ssh.AuthMethod{ssh.PublicKeys(signer)},
-				log:         logrus.New(),
+				client:   &fakeClient{caKey: ca.PublicKey()},
+				username: "alice",
+				publicKeyAuth: apissh.PublicKeyAuthConfig{
+					Signers: func() ([]ssh.Signer, error) {
+						return []ssh.Signer{signer}, nil
+					},
+				},
+				logger: logtest.NewLogger(),
 			}
 
 			_, err = dialer.DialContext(context.Background(), *utils.MustParseAddr(sshServer.Addr()))

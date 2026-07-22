@@ -66,7 +66,7 @@ func ConnectPostgres(ctx context.Context, poolConfig *pgxpool.Config) (*pgx.Conn
 func TryEnsureDatabase(ctx context.Context, poolConfig *pgxpool.Config, log *slog.Logger) {
 	pgConn, err := ConnectPostgres(ctx, poolConfig)
 	if err != nil {
-		log.WarnContext(ctx, "Failed to connect to the \"postgres\" database.", "error", err)
+		log.DebugContext(ctx, "Failed to connect to the \"postgres\" database.", "error", trace.Unwrap(err))
 		return
 	}
 
@@ -131,7 +131,7 @@ func retry[T any](ctx context.Context, log *slog.Logger, isIdempotent bool, f fu
 		First:  0,
 		Step:   100 * time.Millisecond,
 		Max:    750 * time.Millisecond,
-		Jitter: retryutils.NewHalfJitter(),
+		Jitter: retryutils.HalfJitter,
 	})
 	if retryErr != nil {
 		var zeroT T

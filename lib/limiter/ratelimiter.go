@@ -19,26 +19,27 @@
 package limiter
 
 import (
-	"encoding/json"
+	"context"
+	"net"
 	"net/http"
 	"sync"
 	"time"
 
-	"github.com/gravitational/oxy/ratelimit"
-	"github.com/gravitational/oxy/utils"
 	"github.com/gravitational/trace"
-	"github.com/mailgun/timetools"
-	"github.com/mailgun/ttlmap"
+	"github.com/jonboulle/clockwork"
+
+	"github.com/gravitational/teleport/lib/limiter/internal/ratelimit"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
-// RateLimiter controls connection rate, it uses token bucket algo
-// https://en.wikipedia.org/wiki/Token_bucket
+// RateLimiter controls connection rate using the token bucket algorithm.
+// See: https://en.wikipedia.org/wiki/Token_bucket
 type RateLimiter struct {
 	*ratelimit.TokenLimiter
-	rateLimits *ttlmap.TtlMap
-	*sync.Mutex
-	rates *ratelimit.RateSet
-	clock timetools.TimeProvider
+	rateLimits *utils.FnCache
+	mu         sync.Mutex
+	rates      *ratelimit.RateSet
+	clock      clockwork.Clock
 }
 
 // Rate defines connection rate
@@ -48,16 +49,9 @@ type Rate struct {
 	Burst   int64
 }
 
-// NewRateLimiter returns new request rate controller
+// NewRateLimiter returns new request rate limiter.
 func NewRateLimiter(config Config) (*RateLimiter, error) {
-	limiter := RateLimiter{
-		Mutex: &sync.Mutex{},
-	}
-
-	ipExtractor, err := utils.NewExtractor("client.ip")
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	limiter := RateLimiter{}
 
 	limiter.rates = ratelimit.NewRateSet()
 	for _, rate := range config.Rates {
@@ -66,106 +60,110 @@ func NewRateLimiter(config Config) (*RateLimiter, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
-	if len(config.Rates) == 0 {
-		err := limiter.rates.Add(time.Second, DefaultRate, DefaultRate)
+
+	if config.Clock == nil {
+		config.Clock = clockwork.NewRealClock()
+	}
+
+	limiter.clock = config.Clock
+
+	var err error
+	limiter.TokenLimiter, err = ratelimit.New(ratelimit.TokenLimiterConfig{
+		Clock: config.Clock,
+		Rates: limiter.rates,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if limiter.rates.Len() > 0 {
+		limiter.rateLimits, err = utils.NewFnCache(utils.FnCacheConfig{
+			// The default TTL here is not super important because we set
+			// the TTL explicitly for each entry we insert.
+			TTL:   10 * time.Second,
+			Clock: config.Clock,
+		})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
 
-	if config.Clock == nil {
-		config.Clock = &timetools.RealTime{}
-	}
-	limiter.clock = config.Clock
-
-	limiter.TokenLimiter, err = ratelimit.New(nil, ipExtractor,
-		limiter.rates, ratelimit.Clock(config.Clock))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	maxNumberOfUsers := config.MaxNumberOfUsers
-	if maxNumberOfUsers <= 0 {
-		maxNumberOfUsers = DefaultMaxNumberOfUsers
-	}
-	limiter.rateLimits, err = ttlmap.NewMap(
-		maxNumberOfUsers, ttlmap.Clock(config.Clock))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	return &limiter, nil
 }
 
-// RegisterRequest increases number of requests for the provided token
-// Returns error if there are too many requests with the provided token.
-func (l *RateLimiter) RegisterRequest(token string, customRate *ratelimit.RateSet) error {
-	l.Lock()
-	defer l.Unlock()
+// IsRateLimited checks if the provided token is currently
+// rate-limited without consuming any tokens.
+func (l *RateLimiter) IsRateLimited(token string) bool {
+	// No rates configured means no buckets can exist, so skip the
+	// lock entirely.
+	if l.rates.Len() == 0 {
+		return false
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	bucketSet, ok := l.rateLimits.GetIfExists(token)
+	if !ok {
+		return false
+	}
+	bucket, ok := bucketSet.(*ratelimit.TokenBucketSet)
+	if !ok {
+		return false
+	}
+	return bucket.IsRateLimited()
+}
 
-	rate := customRate
-	if rate == nil {
-		// Set rate to default.
-		rate = l.rates
+// RegisterRequest increases number of requests for the provided token.
+// It returns a [*RateLimitExceededError] (which satisfies [trace.IsLimitExceeded])
+// if there are too many requests with the provided token. If no rates are
+// configured, the request passes through without any limiting.
+func (l *RateLimiter) RegisterRequest(token string) error {
+	if l.rates.Len() == 0 {
+		return nil
 	}
 
-	bucketSetI, exists := l.rateLimits.Get(token)
-	var bucketSet *ratelimit.TokenBucketSet
+	l.mu.Lock()
+	defer l.mu.Unlock()
 
-	if exists {
-		bucketSet = bucketSetI.(*ratelimit.TokenBucketSet)
-		bucketSet.Update(rate)
-	} else {
-		bucketSet = ratelimit.NewTokenBucketSet(rate, l.clock)
-		// We set ttl as 10 times rate period. E.g. if rate is 100 requests/second per client ip
-		// the counters for this ip will expire after 10 seconds of inactivity
-		err := l.rateLimits.Set(token, bucketSet, int(bucketSet.GetMaxPeriod()/time.Second)*10+1)
-		if err != nil {
-			return trace.Wrap(err)
-		}
+	// We set the TTL as 10 times the rate period. E.g. if rate is 100 requests/second
+	// per client IP, the counters for this IP will expire after 10 seconds.
+	ttl := l.rates.MaxPeriod()*10 + 1
+	bucketSet, err := utils.FnCacheGetWithTTL(context.TODO(), l.rateLimits, token, ttl,
+		func(ctx context.Context) (*ratelimit.TokenBucketSet, error) {
+			return ratelimit.NewTokenBucketSet(l.rates, l.clock), nil
+		},
+	)
+	if err != nil {
+		return trace.Wrap(err)
 	}
+
+	bucketSet.Update(l.rates)
+
 	delay, err := bucketSet.Consume(1)
 	if err != nil {
 		return err
 	}
 	if delay > 0 {
-		return &ratelimit.MaxRateError{}
+		return &RateLimitExceededError{
+			Delay: delay,
+			err:   trace.LimitExceeded("rate limit exceeded, try again in %v", delay),
+		}
 	}
 	return nil
 }
 
-// Add rate limiter to the handle
+// RegisterRequestFromAddr increases the number of requests coming
+// for the given remote address, returning an error if the address is
+// invalid or if there have been too many requests from that address
+// recently.
+func (l *RateLimiter) RegisterRequestFromAddr(addr net.Addr) error {
+	token, err := utils.ClientIPFromAddr(addr)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return l.RegisterRequest(token)
+}
+
+// WrapHandle wraps the given HTTP handler with the rate limiter.
 func (l *RateLimiter) WrapHandle(h http.Handler) {
 	l.TokenLimiter.Wrap(h)
 }
-
-func (r *Rate) UnmarshalJSON(value []byte) error {
-	type rate struct {
-		Period  string
-		Average int64
-		Burst   int64
-	}
-
-	var x rate
-	err := json.Unmarshal(value, &x)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	period, err := time.ParseDuration(x.Period)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	*r = Rate{
-		Period:  period,
-		Average: x.Average,
-		Burst:   x.Burst,
-	}
-	return nil
-}
-
-const (
-	DefaultMaxNumberOfUsers = 100000
-	DefaultRate             = 100000000
-)

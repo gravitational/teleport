@@ -25,15 +25,18 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
-	"path"
+	"os"
+	"slices"
+	"strings"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/julienschmidt/httprouter"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -42,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -54,15 +58,13 @@ type HandlerConfig struct {
 	AuthClient authclient.ClientI
 	// AccessPoint is caching client to auth.
 	AccessPoint authclient.ProxyAccessPoint
-	// ProxyClient holds connections to leaf clusters.
-	ProxyClient reversetunnelclient.Tunnel
+	// ClusterGetter holds connections to leaf clusters.
+	ClusterGetter reversetunnelclient.ClusterGetter
 	// ProxyPublicAddrs contains web proxy public addresses.
 	ProxyPublicAddrs []utils.NetAddr
 	// CipherSuites is the list of TLS cipher suites that have been configured
 	// for this process.
 	CipherSuites []uint16
-	// WebPublicAddr
-	WebPublicAddr string
 	// IntegrationAppHandler handles App Access requests directly - not requiring an AppService.
 	// Only available for AWS OIDC Integrations.
 	IntegrationAppHandler ServerHandler
@@ -98,11 +100,20 @@ type Handler struct {
 
 	router *httprouter.Router
 
-	cache *sessionCache
+	cache *utils.FnCache
 
 	clusterName string
 
-	log *logrus.Entry
+	logger *slog.Logger
+
+	// cswshAction controls the response to a detected cross-origin WebSocket
+	// upgrade, configured via TELEPORT_UNSTABLE_APP_CSWSH_ACTION. Defaults to
+	// no-op.
+	cswshAction cswshAction
+
+	// dbscDisabled disables all DBSC handling, configured via
+	// TELEPORT_UNSTABLE_DISABLE_DBSC.
+	dbscDisabled bool
 }
 
 // NewHandler returns a new application handler.
@@ -115,20 +126,33 @@ func NewHandler(ctx context.Context, c *HandlerConfig) (*Handler, error) {
 	h := &Handler{
 		c:            c,
 		closeContext: ctx,
-		log: logrus.WithFields(logrus.Fields{
-			teleport.ComponentKey: teleport.ComponentAppProxy,
-		}),
+		logger:       slog.With(teleport.ComponentKey, teleport.ComponentAppProxy),
+		cswshAction:  parseCSWSHAction(os.Getenv(cswshActionEnv)),
+		dbscDisabled: os.Getenv(dbscDisabledEnv) != "",
+	}
+	if h.cswshAction.enabled() {
+		h.logger.InfoContext(ctx, "Application access cross-site WebSocket (CSWSH) guard enabled",
+			"report", h.cswshAction.report, "block", h.cswshAction.block)
+	}
+	if h.dbscDisabled {
+		h.logger.InfoContext(ctx, "Application access DBSC support disabled via TELEPORT_UNSTABLE_DISABLE_DBSC")
 	}
 
 	// Create a new session cache, this holds sessions that can be used to
 	// forward requests.
-	h.cache, err = newSessionCache(ctx, h.log)
+	h.cache, err = utils.NewFnCache(utils.FnCacheConfig{
+		TTL:             time.Second, // Doesn't matter, TTL is always set on an item by item basis.
+		Clock:           h.c.Clock,
+		Context:         ctx,
+		CleanupInterval: time.Second,
+		ReloadOnErr:     true,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Get the name of this cluster.
-	cn, err := h.c.AccessPoint.GetClusterName()
+	cn, err := h.c.AccessPoint.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -139,6 +163,8 @@ func NewHandler(ctx context.Context, c *HandlerConfig) (*Handler, error) {
 	h.router.UseRawPath = true
 	h.router.GET("/x-teleport-auth", makeRouterHandler(h.startAppAuthExchange))
 	h.router.POST("/x-teleport-auth", makeRouterHandler(h.completeAppAuthExchange))
+	h.router.POST(dbscRegistrationPath, makeRouterHandler(h.handleDBSCRegistration))
+	h.router.POST(dbscRefreshPath, makeRouterHandler(h.handleDBSCRefresh))
 	h.router.GET("/teleport-logout", h.withRouterAuth(h.handleLogout))
 	h.router.NotFound = h.withAuth(h.handleHttp)
 
@@ -167,23 +193,20 @@ func (h *Handler) HandleConnection(ctx context.Context, clientConn net.Conn) err
 		return trace.Wrap(err)
 	}
 
-	ws, err := h.c.AccessPoint.GetAppSession(ctx, types.GetAppSessionRequest{
-		SessionID: identity.RouteToApp.SessionID,
-	})
+	ws, err := h.getAppSessionFromAccessPoint(ctx, identity.RouteToApp.SessionID)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	if ws.GetUser() != identity.Username {
 		err := trace.AccessDenied("session owner %q does not match caller %q", ws.GetUser(), identity.Username)
 
-		userMeta := identity.GetUserMetadata()
-		userMeta.Login = ws.GetUser()
-		h.c.AuthClient.EmitAuditEvent(h.closeContext, &apievents.AuthAttempt{
+		h.emitAuditEvent(&apievents.AuthAttempt{
 			Metadata: apievents.Metadata{
 				Type: events.AuthAttemptEvent,
 				Code: events.AuthAttemptFailureCode,
 			},
-			UserMetadata: userMeta,
+			UserMetadata: userMetadata(identity, ws.GetUser()),
+			AppMetadata:  appMetadata(identity),
 			ConnectionMetadata: apievents.ConnectionMetadata{
 				LocalAddr:  clientConn.LocalAddr().String(),
 				RemoteAddr: clientConn.RemoteAddr().String(),
@@ -220,22 +243,28 @@ func (h *Handler) HandleConnection(ctx context.Context, clientConn net.Conn) err
 // HealthCheckAppServer establishes a connection to a AppServer that can handle
 // application requests. Can be used to ensure the proxy can handle application
 // requests before they arrive.
-func (h *Handler) HealthCheckAppServer(ctx context.Context, publicAddr string, clusterName string) error {
-	clusterClient, err := h.c.ProxyClient.GetSite(clusterName)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	accessPoint, err := clusterClient.CachingAccessPoint()
+func (h *Handler) HealthCheckAppServer(ctx context.Context, appName, publicAddr, clusterName string) error {
+	clusterClient, err := h.c.ClusterGetter.Cluster(ctx, clusterName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	// At least one AppServer needs to be present to serve the requests. Using
-	// MatchOne can reduce the amount of work required by the app matcher by not
-	// dialing every AppServer.
-	_, err = MatchOne(ctx, accessPoint, appServerMatcher(h.c.ProxyClient, publicAddr, clusterName))
+	servers, err := MatchUnshuffled(ctx, clusterClient, MatchAppServerForRoute(appName, publicAddr))
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	if len(servers) == 0 {
+		// This error path is unexpected as the healthcheck is typically performed post resolution.
+		return trace.NotFound("failed to match applications with public addr %s", publicAddr)
+	}
+
+	// At least one AppServer needs to be present to serve the requests.
+	i := slices.IndexFunc(servers, func(appServer types.AppServer) bool {
+		return isAppServerDialable(ctx, clusterClient, appServer)
+	})
+	if i < 0 {
+		return trace.NotFound("all app servers unhealthy")
 	}
 
 	return nil
@@ -244,6 +273,12 @@ func (h *Handler) HealthCheckAppServer(ctx context.Context, publicAddr string, c
 // handleHttp forwards the request to the application service or redirects
 // to the application directly.
 func (h *Handler) handleHttp(w http.ResponseWriter, r *http.Request, session *session) error {
+	// Reject (or, in report-only mode, log) cross-site WebSocket upgrades
+	// before forwarding to the application (CSWSH protection).
+	if err := h.guardCrossSiteWebSocket(r); err != nil {
+		return trace.Wrap(err)
+	}
+
 	var redirectURI string
 
 	session.tr.mu.Lock()
@@ -329,7 +364,7 @@ func (h *Handler) handleForwardError(w http.ResponseWriter, req *http.Request, e
 func (h *Handler) authenticate(ctx context.Context, r *http.Request) (*session, error) {
 	ws, err := h.getAppSession(r)
 	if err != nil {
-		h.log.Warnf("Failed to fetch application session: %v.", err)
+		h.logger.WarnContext(ctx, "Failed to fetch application session", "error", err)
 		return nil, trace.AccessDenied("invalid session")
 	}
 
@@ -337,7 +372,7 @@ func (h *Handler) authenticate(ctx context.Context, r *http.Request) (*session, 
 	// process has seen.
 	session, err := h.getSession(ctx, ws)
 	if err != nil {
-		h.log.Warnf("Failed to get session: %v.", err)
+		h.logger.WarnContext(ctx, "Failed to get session", "error", err)
 		return nil, trace.AccessDenied("invalid session")
 	}
 
@@ -350,18 +385,18 @@ func (h *Handler) authenticate(ctx context.Context, r *http.Request) (*session, 
 func (h *Handler) renewSession(r *http.Request) (*session, error) {
 	ws, err := h.getAppSession(r)
 	if err != nil {
-		h.log.Debugf("Failed to fetch application session: not found.")
+		h.logger.DebugContext(r.Context(), "Failed to fetch application session: not found")
 		return nil, trace.AccessDenied("invalid session")
 	}
 
 	// Remove the session from the cache, this will force a new session to be
 	// generated and cached.
-	h.cache.remove(ws.GetName())
+	h.cache.Remove(ws.GetName())
 
 	// Fetches a new session using the same flow as `authenticate`.
 	session, err := h.getSession(r.Context(), ws)
 	if err != nil {
-		h.log.Warnf("Failed to get session: %v.", err)
+		h.logger.WarnContext(r.Context(), "Failed to get session", "error", err)
 		return nil, trace.AccessDenied("invalid session")
 	}
 
@@ -371,16 +406,37 @@ func (h *Handler) renewSession(r *http.Request) (*session, error) {
 // getAppSession retrieves the `types.WebSession` using the provided
 // `http.Request`.
 func (h *Handler) getAppSession(r *http.Request) (ws types.WebSession, err error) {
-	// We have a client certificate with encoded session id in application
-	// access CLI flow i.e. when users log in using "tsh apps login" and
-	// then connect to the apps with the issued certs.
-	if HasClientCert(r) {
+	switch {
+	case IsHTTPSTunnelConn(r):
+		// Special TLS-routing handler where an HTTPS connection is tunneled in
+		// mTLS. Identity comes from outer TLS-routing tunnel. See
+		// NewHTTPSTunnelHandler for more details.
+		ws, err = h.getAppSessionFromHTTPSTunnelConn(r)
+	case HasClientCert(r):
+		// We have a client certificate with encoded session id in application
+		// access CLI flow i.e. when users log in using "tsh apps login" and
+		// then connect to the apps with the issued certs.
 		ws, err = h.getAppSessionFromCert(r)
-	} else {
+	default:
 		ws, err = h.getAppSessionFromCookie(r)
 	}
 	if err != nil {
-		h.log.Warnf("Failed to get session: %v.", err)
+		h.logger.WarnContext(r.Context(), "Failed to get session", "error", err)
+		return nil, trace.AccessDenied("invalid session")
+	}
+	return ws, nil
+}
+
+func (h *Handler) getAppSessionFromAccessPoint(ctx context.Context, sessionID string) (types.WebSession, error) {
+	ws, err := h.c.AccessPoint.GetAppSession(ctx, types.GetAppSessionRequest{
+		SessionID: sessionID,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// Do an extra check in case expired app session is still cached.
+	if ws.Expiry().Before(h.c.Clock.Now()) {
+		h.logger.DebugContext(ctx, "Session expired")
 		return nil, trace.AccessDenied("invalid session")
 	}
 	return ws, nil
@@ -395,12 +451,14 @@ func (h *Handler) getAppSessionFromCert(r *http.Request) (types.WebSession, erro
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	return h.getAppSessionFromIdentity(r, identity)
+}
+
+func (h *Handler) getAppSessionFromIdentity(r *http.Request, identity *tlsca.Identity) (types.WebSession, error) {
 	// Check that the session exists in the backend cache. This allows the user
 	// to logout and invalidate their application session immediately. This
 	// lookup should also be fast because it's in the local cache.
-	ws, err := h.c.AccessPoint.GetAppSession(r.Context(), types.GetAppSessionRequest{
-		SessionID: identity.RouteToApp.SessionID,
-	})
+	ws, err := h.getAppSessionFromAccessPoint(r.Context(), identity.RouteToApp.SessionID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -408,18 +466,14 @@ func (h *Handler) getAppSessionFromCert(r *http.Request) (types.WebSession, erro
 		err := trace.AccessDenied("session owner %q does not match caller %q",
 			ws.GetUser(), identity.Username)
 
-		userMeta := identity.GetUserMetadata()
-		userMeta.Login = ws.GetUser()
-		h.c.AuthClient.EmitAuditEvent(h.closeContext, &apievents.AuthAttempt{
+		h.emitAuditEvent(&apievents.AuthAttempt{
 			Metadata: apievents.Metadata{
 				Type: events.AuthAttemptEvent,
 				Code: events.AuthAttemptFailureCode,
 			},
-			UserMetadata: userMeta,
-			ConnectionMetadata: apievents.ConnectionMetadata{
-				LocalAddr:  r.Host,
-				RemoteAddr: r.RemoteAddr,
-			},
+			UserMetadata:       userMetadata(identity, ws.GetUser()),
+			AppMetadata:        appMetadata(identity),
+			ConnectionMetadata: connectionMetadataFromRequest(r),
 			Status: apievents.Status{
 				Success: false,
 				Error:   err.Error(),
@@ -442,27 +496,20 @@ func (h *Handler) getAppSessionFromCookie(r *http.Request) (types.WebSession, er
 	// Check that the session exists in the backend cache. This allows the user
 	// to logout and invalidate their application session immediately. This
 	// lookup should also be fast because it's in the local cache.
-	ws, err := h.c.AccessPoint.GetAppSession(r.Context(), types.GetAppSessionRequest{
-		SessionID: sessionID,
-	})
+	ws, err := h.getAppSessionFromAccessPoint(r.Context(), sessionID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if ws.GetBearerToken() != subjectValue {
-		err := trace.AccessDenied("subject session token does not match")
-		h.c.AuthClient.EmitAuditEvent(h.closeContext, &apievents.AuthAttempt{
+	if err := checkSubjectToken(subjectValue, ws); err != nil {
+		h.emitAuditEvent(&apievents.AuthAttempt{
 			Metadata: apievents.Metadata{
 				Type: events.AuthAttemptEvent,
 				Code: events.AuthAttemptFailureCode,
 			},
-			UserMetadata: apievents.UserMetadata{
-				Login: ws.GetUser(),
-				User:  "unknown", // we don't have client's username, since this came from an http request with cookies.
-			},
-			ConnectionMetadata: apievents.ConnectionMetadata{
-				LocalAddr:  r.Host,
-				RemoteAddr: r.RemoteAddr,
-			},
+			// Do not use an identity in this event since token cannot be
+			// validated.
+			UserMetadata:       userMetadata(nil, ws.GetUser()),
+			ConnectionMetadata: connectionMetadataFromRequest(r),
 			Status: apievents.Status{
 				Success: false,
 				Error:   err.Error(),
@@ -473,29 +520,97 @@ func (h *Handler) getAppSessionFromCookie(r *http.Request) (types.WebSession, er
 	return ws, nil
 }
 
+func (h *Handler) getAppSessionFromHTTPSTunnelConn(r *http.Request) (types.WebSession, error) {
+	identity, err := getIdentityFromHTTPSTunnelRequest(r)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	ws, err := h.getAppSessionFromIdentity(r, identity)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// TODO(greedy52) add browser support by replacing this with a
+	// Sec-Fetch-Site CSRF check (reject cross-site and same-site)
+	if isBrowserRequest(r) {
+		h.logger.DebugContext(r.Context(), "Browser access through the HTTPS tunnel is not supported", "user", ws.GetUser())
+		return nil, trace.NotImplemented("browser access not supported")
+	}
+
+	// Double-check for dual credentials.
+	switch {
+	case HasClientCert(r):
+		innerWS, err := h.getAppSessionFromCert(r)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if err := h.checkForDualCredentialMismatch(identity, innerWS); err != nil {
+			h.emitAuditEvent(&apievents.AuthAttempt{
+				Metadata: apievents.Metadata{
+					Type: events.AuthAttemptEvent,
+					Code: events.AuthAttemptFailureCode,
+				},
+				UserMetadata:       userMetadata(identity, innerWS.GetUser()),
+				AppMetadata:        appMetadata(identity),
+				ConnectionMetadata: connectionMetadataFromRequest(r),
+				Status: apievents.Status{
+					Success: false,
+					Error:   err.Error(),
+				},
+			})
+			return nil, trace.Wrap(err)
+		}
+
+		h.logger.DebugContext(r.Context(), "Using inner client cert from HTTPS tunnel connection", "user", ws.GetUser())
+		return innerWS, nil
+
+	case HasSessionCookie(r):
+		// TODO(greedy52) add browser support by mirroring the inner cert
+		// branch above against the cookie's WebSession
+		h.logger.DebugContext(r.Context(), "Cookie auth is not supported through the HTTPS tunnel", "user", ws.GetUser())
+		return nil, trace.NotImplemented("cookie auth not supported")
+
+	default:
+		h.logger.DebugContext(r.Context(), "Using outer identity from HTTPS tunnel connection", "user", ws.GetUser())
+		return ws, nil
+	}
+}
+
+func (h *Handler) checkForDualCredentialMismatch(outerIdentity *tlsca.Identity, innerWS types.WebSession) error {
+	if outerIdentity.Username != innerWS.GetUser() {
+		return trace.AccessDenied("user %q does not match session user %q", outerIdentity.Username, innerWS.GetUser())
+	}
+	innerIdentity, err := getIdentityFromWebSession(innerWS)
+	if err != nil {
+		return trace.AccessDenied("cannot extract identity from session: %s", err)
+	}
+	if outerIdentity.Username != innerIdentity.Username {
+		return trace.AccessDenied("user %q does not match session identity %q", outerIdentity.Username, innerIdentity.Username)
+	}
+	if outerIdentity.RouteToApp.ClusterName != innerIdentity.RouteToApp.ClusterName {
+		return trace.AccessDenied("cluster name %q does not match session cluster name %q", outerIdentity.RouteToApp.ClusterName, innerIdentity.RouteToApp.ClusterName)
+	}
+	if innerIdentity.RouteToApp.PublicAddr != "" && outerIdentity.RouteToApp.PublicAddr != innerIdentity.RouteToApp.PublicAddr {
+		return trace.AccessDenied("app public address %q does not match session public app address %q", outerIdentity.RouteToApp.PublicAddr, innerIdentity.RouteToApp.PublicAddr)
+	}
+	// RouteToApp.Name may not be set in web cookie flows.
+	if innerIdentity.RouteToApp.Name != "" && outerIdentity.RouteToApp.Name != innerIdentity.RouteToApp.Name {
+		return trace.AccessDenied("app name %q does not match session app name %q", outerIdentity.RouteToApp.Name, innerIdentity.RouteToApp.Name)
+	}
+	return nil
+}
+
 // getSession returns a request session used to proxy the request to the
 // application service. Always checks if the session is valid first and if so,
 // will return a cached session, otherwise will create one.
 func (h *Handler) getSession(ctx context.Context, ws types.WebSession) (*session, error) {
-	// If a cached session exists, return it right away.
-	session, err := h.cache.get(ws.GetName())
-	if err == nil {
-		return session, nil
-	}
-
-	// Create a new session with a forwarder in it.
-	session, err = h.newSession(ctx, ws)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	// Put the session in the cache so the next request can use it.
-	err = h.cache.set(ws.GetName(), session, ws.Expiry().Sub(h.c.Clock.Now()))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return session, nil
+	ttl := ws.Expiry().Sub(h.c.Clock.Now())
+	sess, err := utils.FnCacheGetWithTTL(ctx, h.cache, ws.GetName(), ttl, func(ctx context.Context) (*session, error) {
+		sess, err := h.newSession(ctx, ws)
+		return sess, trace.Wrap(err)
+	})
+	return sess, trace.Wrap(err)
 }
 
 // extractCookie extracts the cookie from the *http.Request.
@@ -526,6 +641,48 @@ func HasSessionCookie(r *http.Request) bool {
 // HasClientCert checks if the request has a client certificate.
 func HasClientCert(r *http.Request) bool {
 	return r.TLS != nil && len(r.TLS.PeerCertificates) > 0
+}
+
+// appAuthCertificateIdentities returns certificate-backed identities that
+// participate in app auth for the request. HTTPS-tunneled requests validate the
+// outer tunnel identity and, when present, the inner client cert identity.
+// Cookie/browser clients return no identities.
+func appAuthCertificateIdentities(r *http.Request) []*tlsca.Identity {
+	var identities []*tlsca.Identity
+	if IsHTTPSTunnelConn(r) {
+		identity, err := getIdentityFromHTTPSTunnelRequest(r)
+		if err == nil {
+			identities = append(identities, identity)
+		}
+	}
+	if HasClientCert(r) {
+		cert := r.TLS.PeerCertificates[0]
+		identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+		if err == nil {
+			identities = append(identities, identity)
+		}
+	}
+	return identities
+}
+
+// connectionCredentialExpired reports whether a certificate-authenticated
+// request is backed by a credential that has already expired as of now. Returns
+// false for cookie/browser clients, which don't authenticate with a
+// certificate.
+func connectionCredentialExpired(r *http.Request, now time.Time) bool {
+	for _, identity := range appAuthCertificateIdentities(r) {
+		if identity.Expires.Before(now) {
+			return true
+		}
+	}
+	return false
+}
+
+// isBrowserRequest reports whether the request originated from a browser.
+// Sec-Fetch-Site is sent on every request by all modern browsers, and
+// non-browser clients (curl, SDKs) do not send it.
+func isBrowserRequest(r *http.Request) bool {
+	return r.Header.Get("Sec-Fetch-Site") != ""
 }
 
 // HasName checks if the client is attempting to connect to a
@@ -560,6 +717,41 @@ func HasName(r *http.Request, proxyPublicAddrs []utils.NetAddr) (string, bool) {
 
 	urlString := makeAppRedirectURL(r, proxyPublicAddrs[0].String(), raddr.Host(), launcherURLParams{})
 	return urlString, true
+}
+
+func (h *Handler) emitAuditEvent(event apievents.AuditEvent) {
+	if err := h.c.AuthClient.EmitAuditEvent(h.closeContext, event); err != nil {
+		h.logger.WarnContext(h.closeContext, "Failed to emit audit event", "error", err)
+	}
+}
+
+func connectionMetadataFromRequest(r *http.Request) apievents.ConnectionMetadata {
+	return apievents.ConnectionMetadata{
+		LocalAddr:  r.Host,
+		RemoteAddr: r.RemoteAddr,
+	}
+}
+
+func userMetadata(identity *tlsca.Identity, login string) apievents.UserMetadata {
+	if identity == nil {
+		return apievents.UserMetadata{
+			User:  "unknown",
+			Login: login,
+		}
+	}
+	m := identity.GetUserMetadata()
+	m.Login = login
+	return m
+}
+
+func appMetadata(identity *tlsca.Identity) apievents.AppMetadata {
+	if identity == nil {
+		return apievents.AppMetadata{}
+	}
+	return apievents.AppMetadata{
+		AppName:       identity.RouteToApp.Name,
+		AppPublicAddr: identity.RouteToApp.PublicAddr,
+	}
 }
 
 const (
@@ -622,21 +814,27 @@ const (
 //
 // The URL's are formed this way to help isolate the path params reserved for the app
 // launchers route, where order and existence of previous params matter for this route.
-func makeAppRedirectURL(r *http.Request, proxyPublicAddr, hostname string, req launcherURLParams) string {
+func makeAppRedirectURL(r *http.Request, proxyPublicAddr, addr string, req launcherURLParams) string {
+	if req.requiresAppRedirect {
+		addr = req.publicAddr
+	}
 	u := url.URL{
 		Scheme: "https",
 		Host:   proxyPublicAddr,
-		Path:   fmt.Sprintf("/web/launch/%s", hostname),
+		Path:   fmt.Sprintf("/web/launch/%s", addr),
 	}
 
 	// Presence of a stateToken means we are beginning an app auth exchange.
-	if req.stateToken != "" {
+	if req.stateToken != "" || req.requiresAppRedirect {
 		v := url.Values{}
-		v.Add("state", req.stateToken)
+		if req.stateToken != "" {
+			v.Add("state", req.stateToken)
+		}
 		v.Add("path", req.path)
+		v.Add("required-apps", req.requiredAppFQDNs)
 		u.RawQuery = v.Encode()
 
-		urlPath := []string{"web", "launch", hostname}
+		urlPath := []string{"web", "launch", addr}
 
 		// The order and existence of previous params matter.
 		//
@@ -653,7 +851,17 @@ func makeAppRedirectURL(r *http.Request, proxyPublicAddr, hostname string, req l
 			}
 		}
 
-		u.Path = path.Join(urlPath...)
+		// Percent-encode every segment so that slashes in ARNs
+		// are not interpreted as path separators during URL
+		// serialization. Use strings.Join instead of path.Join
+		// to preserve the percent-encoded segments.
+		for i, s := range urlPath {
+			urlPath[i] = url.PathEscape(s)
+		}
+		u.RawPath = "/" + strings.Join(urlPath, "/")
+		// Error is unreachable: RawPath was built from
+		// PathEscape output above.
+		u.Path, _ = url.PathUnescape(u.RawPath)
 
 	} else {
 		// Hitting this case means the user has hit an endpoint directly
@@ -666,6 +874,9 @@ func makeAppRedirectURL(r *http.Request, proxyPublicAddr, hostname string, req l
 		// So Encode() will just encode it once (note that spaces will be convereted to `+`)
 		v := url.Values{}
 		v.Add("path", r.URL.Path)
+		if req.requiredAppFQDNs != "" {
+			v.Add("required-apps", req.requiredAppFQDNs)
+		}
 
 		if len(r.URL.RawQuery) > 0 {
 			v.Add("query", r.URL.RawQuery)
@@ -678,6 +889,6 @@ func makeAppRedirectURL(r *http.Request, proxyPublicAddr, hostname string, req l
 
 // redirectInsteadOfForward returns true if an application shouldn't be forwarded, but
 // should be redirected directly to the public address instead.
-func redirectInsteadOfForward(appServer types.AppServer) bool {
+func redirectInsteadOfForward(appServer readonly.AppServer) bool {
 	return appServer.GetApp().Origin() == types.OriginOkta
 }

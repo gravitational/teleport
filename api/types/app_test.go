@@ -18,6 +18,8 @@ package types
 
 import (
 	"fmt"
+	"slices"
+	"strconv"
 	"testing"
 
 	"github.com/gravitational/trace"
@@ -29,53 +31,45 @@ import (
 // TestAppPublicAddrValidation tests PublicAddr field validation to make sure that
 // an app with internal "kube-teleport-proxy-alpn." ServerName prefix won't be created.
 func TestAppPublicAddrValidation(t *testing.T) {
-	type check func(t *testing.T, err error)
-
-	hasNoErr := func() check {
-		return func(t *testing.T, err error) {
-			require.NoError(t, err)
-		}
-	}
-	hasErrTypeBadParameter := func() check {
-		return func(t *testing.T, err error) {
-			require.True(t, trace.IsBadParameter(err))
-		}
-	}
-
 	tests := []struct {
 		name       string
 		publicAddr string
-		check      check
+		check      require.ErrorAssertionFunc
 	}{
 		{
 			name:       "kubernetes app",
 			publicAddr: "kubernetes.example.com:3080",
-			check:      hasNoErr(),
+			check:      hasNoErr,
 		},
 		{
 			name:       "kubernetes app public addr without port",
 			publicAddr: "kubernetes.example.com",
-			check:      hasNoErr(),
+			check:      hasNoErr,
 		},
 		{
 			name:       "kubernetes app http",
 			publicAddr: "http://kubernetes.example.com:3080",
-			check:      hasNoErr(),
+			check:      hasNoErr,
 		},
 		{
 			name:       "kubernetes app https",
 			publicAddr: "https://kubernetes.example.com:3080",
-			check:      hasNoErr(),
+			check:      hasNoErr,
 		},
 		{
 			name:       "public address with internal kube ServerName prefix",
 			publicAddr: constants.KubeTeleportProxyALPNPrefix + "example.com:3080",
-			check:      hasErrTypeBadParameter(),
+			check:      hasErrTypeBadParameter,
 		},
 		{
 			name:       "https public address with internal kube ServerName prefix",
 			publicAddr: "https://" + constants.KubeTeleportProxyALPNPrefix + "example.com:3080",
-			check:      hasErrTypeBadParameter(),
+			check:      hasErrTypeBadParameter,
+		},
+		{
+			name:       "addr with numbers in the host",
+			publicAddr: "123456789012.teleport.example.com:3080",
+			check:      hasNoErr,
 		},
 	}
 
@@ -87,6 +81,112 @@ func TestAppPublicAddrValidation(t *testing.T) {
 				PublicAddr: tc.publicAddr,
 				URI:        "localhost:3080",
 			})
+			tc.check(t, err)
+		})
+	}
+}
+
+func TestAppPortsValidation(t *testing.T) {
+	tests := []struct {
+		name     string
+		tcpPorts []*PortRange
+		uri      string
+		check    require.ErrorAssertionFunc
+	}{
+		{
+			name: "valid ranges and single ports",
+			tcpPorts: []*PortRange{
+				&PortRange{Port: 22, EndPort: 25},
+				&PortRange{Port: 26},
+				&PortRange{Port: 65535},
+			},
+			check: hasNoErr,
+		},
+		{
+			name: "valid overlapping ranges",
+			tcpPorts: []*PortRange{
+				&PortRange{Port: 100, EndPort: 200},
+				&PortRange{Port: 150, EndPort: 175},
+				&PortRange{Port: 111},
+				&PortRange{Port: 150, EndPort: 210},
+				&PortRange{Port: 1, EndPort: 65535},
+			},
+			check: hasNoErr,
+		},
+		{
+			name: "valid non-TCP app with ports ignored",
+			uri:  "http://localhost:8000",
+			tcpPorts: []*PortRange{
+				&PortRange{Port: 123456789},
+				&PortRange{Port: 10, EndPort: 2},
+			},
+			check: hasNoErr,
+		},
+		// Test cases for invalid ports.
+		{
+			name: "port smaller than 1",
+			tcpPorts: []*PortRange{
+				&PortRange{Port: 0},
+			},
+			check: hasErrTypeBadParameter,
+		},
+		{
+			name: "port bigger than 65535",
+			tcpPorts: []*PortRange{
+				&PortRange{Port: 78787},
+			},
+			check: hasErrTypeBadParameter,
+		},
+		{
+			name: "end port smaller than 2",
+			tcpPorts: []*PortRange{
+				&PortRange{Port: 5, EndPort: 1},
+			},
+			check: hasErrTypeBadParameterAndContains("end port must be between 6 and 65535"),
+		},
+		{
+			name: "end port bigger than 65535",
+			tcpPorts: []*PortRange{
+				&PortRange{Port: 1, EndPort: 78787},
+			},
+			check: hasErrTypeBadParameter,
+		},
+		{
+			name: "end port smaller than port",
+			tcpPorts: []*PortRange{
+				&PortRange{Port: 10, EndPort: 5},
+			},
+			check: hasErrTypeBadParameterAndContains("end port must be between 11 and 65535"),
+		},
+		{
+			name: "uri specifies port",
+			uri:  "tcp://localhost:1234",
+			tcpPorts: []*PortRange{
+				&PortRange{Port: 1000, EndPort: 1500},
+			},
+			check: hasErrTypeBadParameterAndContains("must not include a port number"),
+		},
+		{
+			name: "invalid uri",
+			uri:  "%",
+			tcpPorts: []*PortRange{
+				&PortRange{Port: 1000, EndPort: 1500},
+			},
+			check: hasErrAndContains("invalid URL escape"),
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			spec := AppSpecV3{
+				URI:      "tcp://localhost",
+				TCPPorts: tc.tcpPorts,
+			}
+			if tc.uri != "" {
+				spec.URI = tc.uri
+			}
+
+			_, err := NewAppV3(Metadata{Name: "TestApp"}, spec)
 			tc.check(t, err)
 		})
 	}
@@ -256,6 +356,55 @@ func TestApplicationGetAWSExternalID(t *testing.T) {
 	}
 }
 
+func TestApplicationGetAWSRolesAnywhereProfile(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name                          string
+		appAWS                        *AppAWS
+		expectedProfileARN            string
+		expectedAcceptRoleSessionName bool
+	}{
+		{
+			name: "app aws not configured",
+		},
+		{
+			name: "roles anywhere profile not configured",
+			appAWS: &AppAWS{
+				RolesAnywhereProfile: &AppAWSRolesAnywhereProfile{},
+			},
+			expectedProfileARN:            "",
+			expectedAcceptRoleSessionName: false,
+		},
+		{
+			name: "configured",
+			appAWS: &AppAWS{
+				RolesAnywhereProfile: &AppAWSRolesAnywhereProfile{
+					ProfileARN:            "profile1",
+					AcceptRoleSessionName: true,
+				},
+			},
+			expectedProfileARN:            "profile1",
+			expectedAcceptRoleSessionName: true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			app, err := NewAppV3(Metadata{
+				Name: "aws",
+			}, AppSpecV3{
+				URI: constants.AWSConsoleURL,
+				AWS: test.appAWS,
+			})
+			require.NoError(t, err)
+
+			require.Equal(t, test.expectedProfileARN, app.GetAWSRolesAnywhereProfileARN())
+			require.Equal(t, test.expectedAcceptRoleSessionName, app.GetAWSRolesAnywhereAcceptRoleSessionName())
+		})
+	}
+}
+
 func TestAppIsAzureCloud(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -288,6 +437,7 @@ func TestNewAppV3(t *testing.T) {
 		name    string
 		meta    Metadata
 		spec    AppSpecV3
+		scope   string
 		want    *AppV3
 		wantErr require.ErrorAssertionFunc
 	}{
@@ -384,18 +534,630 @@ func TestNewAppV3(t *testing.T) {
 			wantErr: require.NoError,
 		},
 		{
+			name: "app with required apps list",
+			meta: Metadata{Name: "clientapp"},
+			spec: AppSpecV3{RequiredAppNames: []string{"api22"}, URI: "example.com"},
+			want: &AppV3{
+				Kind:     "app",
+				Version:  "v3",
+				Metadata: Metadata{Name: "clientapp", Namespace: "default"},
+				Spec:     AppSpecV3{RequiredAppNames: []string{"api22"}, URI: "example.com"},
+			},
+			wantErr: require.NoError,
+		},
+		{
+			name: "app with basic CORS policy",
+			meta: Metadata{Name: "api22"},
+			spec: AppSpecV3{
+				URI: "example.com",
+				CORS: &CORSPolicy{
+					AllowedOrigins:   []string{"https://client.example.com"},
+					AllowedMethods:   []string{"GET", "POST"},
+					AllowedHeaders:   []string{"Content-Type", "Authorization"},
+					AllowCredentials: true,
+					MaxAge:           86400,
+				},
+			},
+			want: &AppV3{
+				Kind:    "app",
+				Version: "v3",
+				Metadata: Metadata{
+					Name:      "api22",
+					Namespace: "default",
+				},
+				Spec: AppSpecV3{
+					URI: "example.com",
+					CORS: &CORSPolicy{
+						AllowedOrigins:   []string{"https://client.example.com"},
+						AllowedMethods:   []string{"GET", "POST"},
+						AllowedHeaders:   []string{"Content-Type", "Authorization"},
+						AllowCredentials: true,
+						MaxAge:           86400,
+					},
+				},
+			},
+			wantErr: require.NoError,
+		},
+		{
+			name: "app with no CORS policy",
+			meta: Metadata{Name: "api22"},
+			spec: AppSpecV3{
+				URI: "example.com",
+			},
+			want: &AppV3{
+				Kind:    "app",
+				Version: "v3",
+				Metadata: Metadata{
+					Name:      "api22",
+					Namespace: "default",
+				},
+				Spec: AppSpecV3{
+					URI: "example.com",
+					// CORS is nil, indicating no CORS policy
+				},
+			},
+			wantErr: require.NoError,
+		},
+		{
 			name:    "invalid cloud identifier",
 			meta:    Metadata{Name: "dummy"},
 			spec:    AppSpecV3{Cloud: "dummy"},
 			want:    nil,
 			wantErr: require.Error,
 		},
+		{
+			name: "mcp with command",
+			meta: Metadata{
+				Name: "mcp-everything",
+			},
+			spec: AppSpecV3{
+				MCP: &MCP{
+					Command:       "docker",
+					Args:          []string{"run", "-i", "--rm", "mcp/everything"},
+					RunAsHostUser: "docker",
+				},
+			},
+			want: &AppV3{
+				Kind:    "app",
+				SubKind: "mcp",
+				Version: "v3",
+				Metadata: Metadata{
+					Name:      "mcp-everything",
+					Namespace: "default",
+					Labels:    map[string]string{AppSubKindLabel: "mcp"},
+				},
+				Spec: AppSpecV3{
+					URI: "mcp+stdio://",
+					MCP: &MCP{
+						Command:       "docker",
+						Args:          []string{"run", "-i", "--rm", "mcp/everything"},
+						RunAsHostUser: "docker",
+					},
+				},
+			},
+			wantErr: require.NoError,
+		},
+		{
+			name: "mcp missing spec",
+			meta: Metadata{
+				Name: "mcp-missing-run-as",
+			},
+			spec: AppSpecV3{
+				URI: "mcp+stdio://",
+			},
+			wantErr: require.Error,
+		},
+		{
+			name: "mcp missing run_as_host_user",
+			meta: Metadata{
+				Name: "mcp-missing-spec",
+			},
+			spec: AppSpecV3{
+				MCP: &MCP{
+					Command: "docker",
+					Args:    []string{"run", "-i", "--rm", "mcp/everything"},
+				},
+			},
+			wantErr: require.Error,
+		},
+		{
+			name: "mcp demo",
+			meta: Metadata{
+				Name: "teleport-mcp-demo",
+				Labels: map[string]string{
+					TeleportInternalResourceType: DemoResource,
+				},
+			},
+			spec: AppSpecV3{
+				URI: "mcp+stdio://teleport-mcp-demo",
+			},
+			want: &AppV3{
+				Kind:    "app",
+				SubKind: "mcp",
+				Version: "v3",
+				Metadata: Metadata{
+					Name:      "teleport-mcp-demo",
+					Namespace: "default",
+					Labels: map[string]string{
+						TeleportInternalResourceType: DemoResource,
+						AppSubKindLabel:              "mcp",
+					},
+				},
+				Spec: AppSpecV3{
+					URI: "mcp+stdio://teleport-mcp-demo",
+				},
+			},
+			wantErr: require.NoError,
+		},
+		{
+			name: "mcp with SSE transport",
+			meta: Metadata{
+				Name: "mcp-everything",
+			},
+			spec: AppSpecV3{
+				URI: "mcp+sse+http://localhost:12345/sse",
+			},
+			want: &AppV3{
+				Kind:    "app",
+				SubKind: "mcp",
+				Version: "v3",
+				Metadata: Metadata{
+					Name:      "mcp-everything",
+					Namespace: "default",
+					Labels:    map[string]string{AppSubKindLabel: "mcp"},
+				},
+				Spec: AppSpecV3{
+					URI: "mcp+sse+http://localhost:12345/sse",
+				},
+			},
+			wantErr: require.NoError,
+		},
+		{
+			name: "mcp with streamable HTTP transport",
+			meta: Metadata{
+				Name: "mcp-everything",
+			},
+			spec: AppSpecV3{
+				URI: "mcp+http://localhost:12345/mcp",
+			},
+			want: &AppV3{
+				Kind:    "app",
+				SubKind: "mcp",
+				Version: "v3",
+				Metadata: Metadata{
+					Name:      "mcp-everything",
+					Namespace: "default",
+					Labels:    map[string]string{AppSubKindLabel: "mcp"},
+				},
+				Spec: AppSpecV3{
+					URI: "mcp+http://localhost:12345/mcp",
+				},
+			},
+			wantErr: require.NoError,
+		},
+		{
+			name: "mcp with tcp_ports",
+			meta: Metadata{
+				Name: "teleport-mcp-demo",
+				Labels: map[string]string{
+					TeleportInternalResourceType: DemoResource,
+				},
+			},
+			spec: AppSpecV3{
+				URI: "mcp+stdio://teleport-mcp-demo",
+				TCPPorts: []*PortRange{
+					{Port: 1000, EndPort: 5000},
+				},
+			},
+			wantErr: require.Error,
+		},
+		{
+			name: "mcp with inference",
+			meta: Metadata{
+				Name: "teleport-mcp-demo",
+				Labels: map[string]string{
+					TeleportInternalResourceType: DemoResource,
+				},
+			},
+			spec: AppSpecV3{
+				URI: "mcp+stdio://teleport-mcp-demo",
+				LLM: &LLM{
+					Format:   LLMFormatAnthropic,
+					Provider: LLMProviderAnthropic,
+				},
+			},
+			wantErr: require.Error,
+		},
+		{
+			name:  "set with scope",
+			meta:  Metadata{Name: "myapp"},
+			spec:  AppSpecV3{URI: "https://localhost:1337"},
+			scope: "/staging/test",
+			want: &AppV3{
+				Kind:     "app",
+				Version:  "v3",
+				Metadata: Metadata{Name: "myapp", Namespace: "default"},
+				Spec:     AppSpecV3{URI: "https://localhost:1337"},
+				Scope:    "/staging/test",
+			},
+			wantErr: require.NoError,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			actual, err := NewAppV3(tt.meta, tt.spec)
+			actual, err := NewAppV3(tt.meta, tt.spec, tt.scope)
 			tt.wantErr(t, err)
 			require.Equal(t, tt.want, actual)
+		})
+	}
+
+	// TODO (williamo/scopes) temp test - delete this once we delete the variadic params for scopes.
+	t.Run("set with a multiple scopes", func(t *testing.T) {
+		_, err := NewAppV3(Metadata{Name: "myapp"}, AppSpecV3{URI: "https://localhost:1337"}, "/staging/test", "/prod/test")
+		require.ErrorContains(t, err, "expected at most 1 scope, got 2")
+	})
+}
+
+func TestPortRangesContains(t *testing.T) {
+	portRanges := PortRanges([]*PortRange{
+		&PortRange{Port: 10, EndPort: 20},
+		&PortRange{Port: 42},
+	})
+
+	tests := []struct {
+		port int
+		want require.BoolAssertionFunc
+	}{
+		{port: 10, want: require.True},
+		{port: 20, want: require.True},
+		{port: 15, want: require.True},
+		{port: 42, want: require.True},
+		{port: 30, want: require.False},
+		{port: 0, want: require.False},
+	}
+
+	for _, tt := range tests {
+		t.Run(strconv.Itoa(tt.port), func(t *testing.T) {
+			tt.want(t, portRanges.Contains(tt.port))
+		})
+	}
+}
+
+func hasNoErr(t require.TestingT, err error, msgAndArgs ...interface{}) {
+	require.NoError(t, err, msgAndArgs...)
+}
+
+func hasErrTypeBadParameter(t require.TestingT, err error, msgAndArgs ...interface{}) {
+	require.True(t, trace.IsBadParameter(err), "expected bad parameter error, got %+v", err)
+}
+
+func hasErrTypeBadParameterAndContains(msg string) require.ErrorAssertionFunc {
+	return func(t require.TestingT, err error, msgAndArgs ...interface{}) {
+		require.True(t, trace.IsBadParameter(err), "err should be trace.BadParameter")
+		require.ErrorContains(t, err, msg, msgAndArgs...)
+	}
+}
+
+func hasErrAndContains(msg string) require.ErrorAssertionFunc {
+	return func(t require.TestingT, err error, msgAndArgs ...interface{}) {
+		require.ErrorContains(t, err, msg, msgAndArgs...)
+	}
+}
+
+func TestGetMCPServerTransportType(t *testing.T) {
+	tests := []struct {
+		name string
+		uri  string
+		want string
+	}{
+		{
+			name: "stdio",
+			uri:  "mcp+stdio://",
+			want: MCPTransportStdio,
+		},
+		{
+			name: "unknown",
+			uri:  "http://localhost",
+			want: "",
+		},
+		{
+			name: "SSE HTTP",
+			uri:  "mcp+sse+http://127.0.0.1:12345",
+			want: MCPTransportSSE,
+		},
+		{
+			name: "SSE HTTPS",
+			uri:  "mcp+sse+httpS://some-domain:443",
+			want: MCPTransportSSE,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, GetMCPServerTransportType(tt.uri))
+		})
+	}
+}
+
+func TestDeduplicateApps(t *testing.T) {
+	var apps []Application
+	for _, name := range []string{"a", "b", "c", "b", "a", "d"} {
+		app_, err := NewAppV3(Metadata{
+			Name: name,
+		}, AppSpecV3{
+			URI: "localhost:3080",
+		})
+		require.NoError(t, err)
+		apps = append(apps, app_)
+	}
+
+	deduped := DeduplicateApps(apps)
+	require.Equal(t, []string{"a", "b", "c", "d"}, slices.Collect(ResourceNames(deduped)))
+}
+
+func TestLLMSubKind(t *testing.T) {
+	app, err := NewAppV3(Metadata{
+		Name: "my-app",
+	}, AppSpecV3{
+		LLM: &LLM{
+			Format:   LLMFormatAnthropic,
+			Provider: LLMProviderAnthropic,
+		},
+	})
+	require.NoError(t, err)
+	require.True(t, app.IsLLM())
+	require.Equal(t, SubKindLLM, app.SubKind)
+}
+
+func TestLLMConfiguration(t *testing.T) {
+	// Given an inference endpoint configuration, ensure the selected values for
+	// 'format' and 'provider' are compatible.
+	t.Run("format and provider combination", func(t *testing.T) {
+		for _, format := range SupportedLLMFormats {
+			supportedProviders := supportedFormatInferenceProviders[format]
+			for _, provider := range SupportedLLMProviders {
+				t.Run(format+" "+provider, func(t *testing.T) {
+					_, err := NewAppV3(Metadata{
+						Name: "my-app",
+					}, AppSpecV3{
+						LLM: &LLM{
+							Format:   format,
+							Provider: provider,
+						},
+					})
+					// If it is supported, we don't expect errors.
+					if slices.Contains(supportedProviders, provider) {
+						require.NoError(t, err)
+						return
+					}
+					require.Error(t, err)
+				})
+			}
+		}
+	})
+
+	// Given an inference endpoint configuration, ensure the models list elements
+	// contain at least the model name.
+	t.Run("models element", func(t *testing.T) {
+		for name, tc := range map[string]struct {
+			models    []*LLM_Model
+			expectErr require.ErrorAssertionFunc
+		}{
+			"valid": {
+				models: []*LLM_Model{
+					{Name: "claude-opus-4-6", ProviderName: "opus-4.6"},
+					{Name: "claude-sonnet-4-6"},
+					{Name: "claude-haiku-4-5", ProviderName: "haiku-4.5"},
+				},
+				expectErr: require.NoError,
+			},
+			"invalid": {
+				models: []*LLM_Model{
+					{ProviderName: "opus-4.6"},
+					{Name: "claude-sonnet-4-6"},
+					{Name: "claude-haiku-4-5"},
+				},
+				expectErr: require.Error,
+			},
+		} {
+			t.Run(name, func(t *testing.T) {
+				_, err := NewAppV3(Metadata{
+					Name: "my-app",
+				}, AppSpecV3{
+					LLM: &LLM{
+						Format:   LLMFormatAnthropic,
+						Provider: LLMProviderAnthropic,
+						Models:   tc.models,
+					},
+				})
+				tc.expectErr(t, err)
+			})
+		}
+	})
+
+	// Given an inference endpoint configuration, ensure the fallback model is
+	// present on the models list.
+	t.Run("fallback model", func(t *testing.T) {
+		t.Run("valid", func(t *testing.T) {
+			_, err := NewAppV3(Metadata{
+				Name: "my-app",
+			}, AppSpecV3{
+				LLM: &LLM{
+					Format:   LLMFormatAnthropic,
+					Provider: LLMProviderAnthropic,
+					Models: []*LLM_Model{
+						{Name: "claude-opus-4-6"},
+					},
+					FallbackModel: "claude-opus-4-6",
+				},
+			})
+			require.NoError(t, err)
+		})
+
+		t.Run("invalid", func(t *testing.T) {
+			for name, models := range map[string][]*LLM_Model{
+				"missing": {{Name: "claude-opus-4-6"}},
+				"empty":   nil,
+			} {
+				t.Run(name, func(t *testing.T) {
+					_, err := NewAppV3(Metadata{
+						Name: "my-app",
+					}, AppSpecV3{
+						LLM: &LLM{
+							Format:        LLMFormatAnthropic,
+							Provider:      LLMProviderAnthropic,
+							Models:        models,
+							FallbackModel: "claude-sonnet-4-6",
+						},
+					})
+					require.Error(t, err)
+				})
+			}
+		})
+	})
+
+	t.Run("invalid configurations", func(t *testing.T) {
+		for name, modifySpec := range map[string]func(AppSpecV3) AppSpecV3{
+			"mcp": func(spec AppSpecV3) AppSpecV3 {
+				spec.MCP = &MCP{
+					Command: "docker",
+					Args:    []string{"run", "-i", "--rm", "mcp/everything"},
+				}
+				return spec
+			},
+			"tcp_ports": func(spec AppSpecV3) AppSpecV3 {
+				spec.TCPPorts = []*PortRange{
+					{Port: 1000, EndPort: 5000},
+				}
+				return spec
+			},
+			"rewrite": func(spec AppSpecV3) AppSpecV3 {
+				spec.Rewrite = &Rewrite{
+					Redirect: []string{"localhost"},
+				}
+				return spec
+			},
+			"custom uri": func(spec AppSpecV3) AppSpecV3 {
+				spec.URI = SchemeLLMEndpoint + "://my-inference-endpoint"
+				return spec
+			},
+			"non-bedrock aws configuration": func(spec AppSpecV3) AppSpecV3 {
+				spec.AWS = &AppAWS{Region: "us-west-2"}
+				return spec
+			},
+			"llm provider": func(spec AppSpecV3) AppSpecV3 {
+				spec.LLM.Provider = "random"
+				return spec
+			},
+			"llm format": func(spec AppSpecV3) AppSpecV3 {
+				spec.LLM.Format = "random"
+				return spec
+			},
+		} {
+			t.Run(name, func(t *testing.T) {
+				spec := modifySpec(AppSpecV3{
+					LLM: &LLM{
+						Format:   LLMFormatAnthropic,
+						Provider: LLMFormatAnthropic,
+					},
+				})
+				_, err := NewAppV3(Metadata{Name: "my-app"}, spec)
+				require.Error(t, err)
+			})
+		}
+	})
+}
+
+func TestAppTLSMode(t *testing.T) {
+	for name, tc := range map[string]struct {
+		spec         AppSpecV3
+		expectedMode AppTLSMode
+	}{
+		"unsupported protocol": {
+			spec:         AppSpecV3{URI: "tcp://0.0.0.0:8000"},
+			expectedMode: "",
+		},
+		"https insecure": {
+			spec: AppSpecV3{
+				URI: "https://localhost:443",
+				TLS: &AppTLS{
+					Mode: AppTLSModeInsecure,
+				},
+			},
+			expectedMode: AppTLSModeInsecure,
+		},
+		"insecure skip verify is respected": {
+			spec: AppSpecV3{
+				URI:                "https://localhost:80",
+				InsecureSkipVerify: true,
+			},
+			expectedMode: AppTLSModeInsecure,
+		},
+		"https default": {
+			spec:         AppSpecV3{URI: "https://localhost:443"},
+			expectedMode: AppTLSModeVerifyServerName,
+		},
+		"mcp https default": {
+			spec:         AppSpecV3{URI: "mcp+https://localhost:8080"},
+			expectedMode: AppTLSModeVerifyServerName,
+		},
+		"insecure skip verify with mode insecure": {
+			spec: AppSpecV3{
+				URI:                "https://localhost",
+				InsecureSkipVerify: true,
+				TLS:                &AppTLS{Mode: AppTLSModeInsecure},
+			},
+			expectedMode: AppTLSModeInsecure,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			app, err := NewAppV3(Metadata{Name: "myapp"}, tc.spec)
+			require.NoError(t, err)
+			require.Equal(t, tc.expectedMode, app.GetTLSMode())
+		})
+	}
+}
+
+func TestAppClientCertMode(t *testing.T) {
+	for name, tc := range map[string]struct {
+		spec         AppSpecV3
+		expectedMode AppClientCertMode
+	}{
+		"default disabled": {
+			spec:         AppSpecV3{URI: "https://0.0.0.0:8000"},
+			expectedMode: AppClientCertModeDisabled,
+		},
+		"empty tls block returns disabled": {
+			spec: AppSpecV3{
+				URI: "tls://0.0.0.0:8000",
+				TLS: &AppTLS{},
+			},
+			expectedMode: AppClientCertModeDisabled,
+		},
+		"explicit disable": {
+			spec: AppSpecV3{
+				URI: "tls://0.0.0.0:8000",
+				TLS: &AppTLS{
+					Mode:           AppTLSModeVerifyServerName,
+					ClientCertMode: AppClientCertModeDisabled,
+				},
+			},
+			expectedMode: AppClientCertModeDisabled,
+		},
+		"managed": {
+			spec: AppSpecV3{
+				URI: "tls://0.0.0.0:8000",
+				TLS: &AppTLS{
+					Mode:           AppTLSModeVerifyServerName,
+					ClientCertMode: AppClientCertModeManaged,
+				},
+			},
+			expectedMode: AppClientCertModeManaged,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			app, err := NewAppV3(Metadata{Name: "myapp"}, tc.spec)
+			require.NoError(t, err)
+			require.Equal(t, tc.expectedMode, app.GetClientCertMode())
 		})
 	}
 }

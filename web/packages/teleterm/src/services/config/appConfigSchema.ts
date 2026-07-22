@@ -17,19 +17,41 @@
  */
 
 import { z } from 'zod';
+import { en } from 'zod/locales';
 
-import { Platform } from 'teleterm/mainProcess/types';
+import { Platform, RuntimeSettings } from 'teleterm/mainProcess/types';
 
 import { createKeyboardShortcutSchema } from './keyboardShortcutSchema';
+
+// When adding a new config property, add it to the docs too
+// (teleport-connect.mdx#configuration).
 
 export type AppConfigSchema = ReturnType<typeof createAppConfigSchema>;
 export type AppConfig = z.infer<AppConfigSchema>;
 
-export const createAppConfigSchema = (platform: Platform) => {
-  const defaultKeymap = getDefaultKeymap(platform);
-  const defaultTerminalFont = getDefaultTerminalFont(platform);
+/** ID of the custom shell. When it is set, the shell path should be read from `terminal.customShell`. */
+export const CUSTOM_SHELL_ID = 'custom' as const;
 
-  const shortcutSchema = createKeyboardShortcutSchema(platform);
+/**
+ * List of properties that can be modified from the renderer process.
+ * The motivation for adding this was to make it impossible to change
+ * `terminal.customShell` from the renderer.
+ */
+export const CONFIG_MODIFIABLE_FROM_RENDERER: (keyof AppConfig)[] = [
+  'usageReporting.enabled',
+  'skipVersionCheck',
+];
+
+export const createAppConfigSchema = (settings: RuntimeSettings) => {
+  const defaultKeymap = getDefaultKeymap(settings.platform);
+  const defaultTerminalFont = getDefaultTerminalFont(settings.platform);
+  const availableShellIdsWithCustom = [
+    ...settings.availableShells.map(({ id }) => id),
+    CUSTOM_SHELL_ID,
+  ];
+
+  const pathSchema = tildeExpandingPathSchema(settings.homeDir);
+  const shortcutSchema = createKeyboardShortcutSchema(settings.platform);
 
   // `keymap.` prefix is used in `initUi.ts` in a predicate function.
   return z.object({
@@ -37,6 +59,22 @@ export const createAppConfigSchema = (platform: Platform) => {
       .enum(['light', 'dark', 'system'])
       .default('system')
       .describe('Color theme for the app.'),
+    skipVersionCheck: z
+      .boolean()
+      .default(false)
+      .describe(
+        'Skips the version check and hides the version compatibility warning when logging in to a cluster.'
+      ),
+    runInBackground: z
+      .boolean()
+      .default(settings.platform === 'darwin' || settings.platform === 'win32')
+      .describe(
+        'Keeps the app running in the menu bar/system tray even when the main window is closed. On Linux, displaying the system tray icon may require installing shell extensions.'
+      ),
+    tshHome: pathSchema({
+      defaultPath: settings.tshd.defaultHomeDir,
+      description: 'Home location for tsh configuration and data.',
+    }),
     /**
      * This value can be provided by the user and is unsanitized. This means that it cannot be directly interpolated
      * in a styled component or used in CSS, as it may inject malicious CSS code.
@@ -48,12 +86,54 @@ export const createAppConfigSchema = (platform: Platform) => {
       .default(defaultTerminalFont)
       .describe('Font family for the terminal.'),
     'terminal.fontSize': z
-      .number()
       .int()
       .min(1)
       .max(256)
       .default(15)
       .describe('Font size for the terminal.'),
+    'terminal.windowsBackend': z
+      .enum(['auto', 'winpty'])
+      .default('auto')
+      .describe(
+        '`auto` uses modern ConPTY system if available, which requires Windows 10 (19H1) or above. Set to `winpty` to use winpty even if ConPTY is available.'
+      ),
+    'terminal.shell': z
+      .string()
+      .default(settings.defaultOsShellId)
+      .describe(
+        'A default terminal shell. Can be set to `custom` to take the shell path from `terminal.customShell`. It is best to configure it through UI (right click on a terminal tab > Default Shell).'
+      )
+      .refine(
+        configuredShell =>
+          availableShellIdsWithCustom.some(
+            shellId => shellId === configuredShell
+          ),
+        {
+          error: iss =>
+            `Cannot find the shell "${iss.input}". Available options are: ${availableShellIdsWithCustom.join(', ')}. Using platform default.`,
+        }
+      ),
+    'terminal.customShell': pathSchema({
+      defaultPath: '',
+      description:
+        'Path to the custom shell that is used when `terminal.shell` is set to `custom`. It is best to configure it through UI (right click on a terminal tab > Custom Shell…).',
+    }),
+    'terminal.rightClick': z
+      .enum(['paste', 'copyPaste', 'menu'])
+      .default(settings.platform === 'win32' ? 'copyPaste' : 'menu')
+      .describe(
+        '`paste` pastes clipboard content, `copyPaste` copies if text is selected, otherwise pastes, `menu` shows context menu.'
+      ),
+    'terminal.copyOnSelect': z
+      .boolean()
+      .default(false)
+      .describe('Automatically copies selected text to the clipboard.'),
+    'terminal.setTeleportAuthServerEnvVar': z
+      .boolean()
+      .default(true)
+      .describe(
+        'Whether to set TELEPORT_AUTH_SERVER in local terminal sessions. Setting it helps tctl choose the right profile.'
+      ),
     'usageReporting.enabled': z
       .boolean()
       .default(false)
@@ -94,6 +174,19 @@ export const createAppConfigSchema = (platform: Platform) => {
     'keymap.newTerminalTab': shortcutSchema
       .default(defaultKeymap['newTerminalTab'])
       .describe(getShortcutDesc('open a new terminal tab')),
+    // Even if this is set to a non-default copy shortcut for a given platform,
+    // the default shortcut will still work (for example, Command+C on Macs).
+    'keymap.terminalCopy': shortcutSchema
+      .default(defaultKeymap['terminalCopy'])
+      .describe(getShortcutDesc('copy text in the terminal')),
+    // Even if this is set to a non-default paste shortcut for a given platform,
+    // the default shortcut will still work (for example, Command+V on Macs).
+    'keymap.terminalPaste': shortcutSchema
+      .default(defaultKeymap['terminalPaste'])
+      .describe(getShortcutDesc('paste text in the terminal')),
+    'keymap.terminalSearch': shortcutSchema
+      .default(defaultKeymap['terminalSearch'])
+      .describe(getShortcutDesc('search for text in the terminal')),
     'keymap.previousTab': shortcutSchema
       .default(defaultKeymap['previousTab'])
       .describe(getShortcutDesc('go to the previous tab')),
@@ -122,10 +215,31 @@ export const createAppConfigSchema = (platform: Platform) => {
       .boolean()
       .default(false)
       .describe('Disables SSH connection resumption.'),
-    'feature.vnetDaemon': z
+    'ssh.forwardAgent': z
       .boolean()
       .default(false)
-      .describe('Use daemon instead of osascript for VNet'),
+      .describe(
+        "Enables agent forwarding when connecting to SSH nodes. It's the equivalent of the forward-agent flag in tsh ssh."
+      ),
+    'sshAgent.addKeysToAgent': z
+      .enum(['auto', 'no', 'yes', 'only'])
+      .default('auto')
+      .describe(
+        'Controls how keys are added to a local SSH agent. ' +
+          "'auto' adds the keys only if the agent supports SSH certificates, " +
+          "'no' never attempts to add them, 'yes' always attempts to add them, " +
+          "'only' always attempts to add the keys to the agent but it does not save them on disk."
+      ),
+    // Defaults to true for prod, false for dev. Otherwise dev instances would
+    // claim the hardware key agent runner over prod instances by default.
+    'hardwareKeyAgent.enabled': z
+      .boolean()
+      .default(!settings.dev)
+      .describe('Controls whether the hardware key agent will be started.'),
+    'debug.searchResultsScore': z
+      .boolean()
+      .default(false)
+      .describe('Enables display of scores for search results.'),
   });
 };
 
@@ -147,7 +261,10 @@ export type KeyboardShortcutAction =
   | 'openSearchBar'
   | 'openConnections'
   | 'openClusters'
-  | 'openProfiles';
+  | 'openProfiles'
+  | 'terminalCopy'
+  | 'terminalPaste'
+  | 'terminalSearch';
 
 const getDefaultKeymap = (
   platform: Platform
@@ -173,6 +290,9 @@ const getDefaultKeymap = (
         openConnections: 'Ctrl+Shift+P',
         openClusters: 'Ctrl+Shift+E',
         openProfiles: 'Ctrl+Shift+I',
+        terminalCopy: 'Ctrl+Shift+C',
+        terminalPaste: 'Ctrl+Shift+V',
+        terminalSearch: 'Ctrl+Shift+F',
       };
     case 'linux':
       return {
@@ -194,6 +314,9 @@ const getDefaultKeymap = (
         openConnections: 'Ctrl+Shift+P',
         openClusters: 'Ctrl+Shift+E',
         openProfiles: 'Ctrl+Shift+I',
+        terminalCopy: 'Ctrl+Shift+C',
+        terminalPaste: 'Ctrl+Shift+V',
+        terminalSearch: 'Ctrl+Shift+F',
       };
     case 'darwin':
       return {
@@ -215,6 +338,9 @@ const getDefaultKeymap = (
         openConnections: 'Command+P',
         openClusters: 'Command+E',
         openProfiles: 'Command+I',
+        terminalCopy: 'Command+C',
+        terminalPaste: 'Command+V',
+        terminalSearch: 'Command+F',
       };
   }
 };
@@ -232,4 +358,45 @@ function getDefaultTerminalFont(platform: Platform) {
 
 function getShortcutDesc(actionDesc: string): string {
   return `Shortcut to ${actionDesc}. A valid shortcut contains at least one modifier and a single key code, for example "Shift+Tab". Function keys do not require a modifier.`;
+}
+
+// Explicitly load the English locale to avoid being tree-shaken by Vite
+// https://github.com/colinhacks/zod/issues/4891
+z.config(en());
+
+const optionsFormatter = new Intl.ListFormat('en', {
+  style: 'long',
+  type: 'disjunction',
+});
+
+z.config({
+  customError: iss => {
+    switch (iss.code) {
+      case 'invalid_type':
+        return `Expected ${iss.expected}, received ${typeof iss.input}`;
+      case 'invalid_value':
+        return `Expected ${optionsFormatter.format(iss.values.map(v => `"${String(v)}"`))}, received "${iss.input}"`;
+      default:
+        return undefined;
+    }
+  },
+});
+
+/**
+ * Creates a Zod string schema for filesystem paths that automatically expand
+ * leading "~" to the provided home directory.
+ */
+function tildeExpandingPathSchema(homeDir: string) {
+  return ({
+    defaultPath,
+    description,
+  }: {
+    defaultPath: string;
+    description: string;
+  }) =>
+    z
+      .string()
+      .default(defaultPath)
+      .describe(description)
+      .transform(p => p.replace(/^~/, homeDir));
 }

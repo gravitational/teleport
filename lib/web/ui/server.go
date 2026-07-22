@@ -23,18 +23,22 @@ import (
 	"strings"
 
 	"github.com/gravitational/teleport/api/constants"
+	componentfeaturesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/componentfeatures/v1"
 	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
+	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/ui"
+	"github.com/gravitational/teleport/lib/utils/slices"
 )
 
-// Label describes label for webapp
-type Label struct {
-	// Name is this label name
-	Name string `json:"name"`
-	// Value is this label value
-	Value string `json:"value"`
+// SSHLogin describes an SSH login available on a server.
+type SSHLogin struct {
+	// Login is the SSH login name.
+	Login string `json:"login"`
+	// RequiresRequest indicates whether this login requires an access request to be used.
+	RequiresRequest bool `json:"requiresRequest,omitempty"`
 }
 
 // Server describes a server for webapp
@@ -54,13 +58,21 @@ type Server struct {
 	// Addrr is this server ip address
 	Addr string `json:"addr"`
 	// Labels is this server list of labels
-	Labels []Label `json:"tags"`
-	// SSHLogins is the list of logins this user can use on this server
+	Labels []ui.Label `json:"tags"`
+	// SSHLogins is the list of logins this user can use on this server.
+	// Kept as []string for backwards compatibility with older web UIs.
+	//
+	// TODO(kiosion): DELETE IN 20.0.0
 	SSHLogins []string `json:"sshLogins"`
+	// SSHLoginDetails provides per-login metadata (e.g. whether a login requires an access request).
+	// Only populated when the handler has requestable login info.
+	SSHLoginDetails []SSHLogin `json:"sshLoginDetails,omitempty"`
 	// AWS contains metadata for instances hosted in AWS.
 	AWS *AWSMetadata `json:"aws,omitempty"`
 	// RequireRequest indicates if a returned resource is only accessible after an access request
 	RequiresRequest bool `json:"requiresRequest,omitempty"`
+	// SupportedFeatureIDs contains ComponentFeatureIDs supported by this Server and all other involved components.
+	SupportedFeatureIDs []componentfeaturesv1.ComponentFeatureID `json:"supportedFeatureIds,omitempty"`
 }
 
 // AWSMetadata describes the AWS metadata for instances hosted in AWS.
@@ -74,52 +86,46 @@ type AWSMetadata struct {
 	SubnetID    string `json:"subnetId"`
 }
 
-// sortedLabels is a sort wrapper that sorts labels by name
-type sortedLabels []Label
-
-func (s sortedLabels) Len() int {
-	return len(s)
+// MakeServerConfig contains parameters for converting Servers to UI representation.
+type MakeServerConfig struct {
+	// ClusterName is the name of the local cluster.
+	ClusterName string
+	// Logins is the set of granted and/or requestable logins.
+	Logins *PrincipalSet
+	// RequiresRequest is whether the Server resource requires an Access Request to be usable.
+	RequiresRequest bool
+	// SupportedFeatures contains FeatureIDs supported by the Server.
+	SupportedFeatures *componentfeaturesv1.ComponentFeatures
 }
 
-func (s sortedLabels) Less(i, j int) bool {
-	labelA := strings.ToLower(s[i].Name)
-	labelB := strings.ToLower(s[j].Name)
+// MakeServer creates a server object for the web ui.
+// logins contains the full set of visible logins and the granted subset.
+// SSHLoginDetails is populated with per-login requiresRequest metadata derived
+// from the difference between logins.All and logins.Granted.
+func MakeServer(server types.Server, c MakeServerConfig) Server {
+	uiLabels := ui.MakeLabelsWithoutInternalPrefixes(server.GetAllLabels())
 
-	for _, sortName := range types.BackSortedLabelPrefixes {
-		name := strings.ToLower(sortName)
-		if strings.Contains(labelA, name) && !strings.Contains(labelB, name) {
-			return false // labelA should be at the end
-		}
-		if !strings.Contains(labelA, name) && strings.Contains(labelB, name) {
-			return true // labelB should be at the end
-		}
+	var sshLogins []string
+	if c.Logins != nil {
+		sshLogins = c.Logins.All.Elements()
 	}
-
-	// If neither label contains any of the sendToBackOfSortNames, sort them as usual
-	return labelA < labelB
-}
-
-func (s sortedLabels) Swap(i, j int) {
-	s[i], s[j] = s[j], s[i]
-}
-
-// MakeServer creates a server object for the web ui
-func MakeServer(clusterName string, server types.Server, logins []string, requiresRequest bool) Server {
-	serverLabels := server.GetStaticLabels()
-	serverCmdLabels := server.GetCmdLabels()
-	uiLabels := makeLabels(serverLabels, transformCommandLabels(serverCmdLabels))
 
 	uiServer := Server{
 		Kind:            server.GetKind(),
-		ClusterName:     clusterName,
+		ClusterName:     c.ClusterName,
 		Labels:          uiLabels,
 		Name:            server.GetName(),
 		Hostname:        server.GetHostname(),
 		Addr:            server.GetAddr(),
 		Tunnel:          server.GetUseTunnel(),
 		SubKind:         server.GetSubKind(),
-		RequiresRequest: requiresRequest,
-		SSHLogins:       logins,
+		RequiresRequest: c.RequiresRequest,
+		SSHLogins:       sshLogins,
+		SSHLoginDetails: buildSSHLoginDetails(c.Logins),
+	}
+
+	if f := c.SupportedFeatures.GetFeatures(); len(f) > 0 {
+		uiServer.SupportedFeatureIDs = f
 	}
 
 	if server.GetSubKind() == types.SubKindOpenSSHEICENode {
@@ -137,14 +143,28 @@ func MakeServer(clusterName string, server types.Server, logins []string, requir
 	return uiServer
 }
 
+func buildSSHLoginDetails(logins *PrincipalSet) []SSHLogin {
+	if logins == nil {
+		return nil
+	}
+	return slices.Map(logins.All.Elements(), func(login string) SSHLogin {
+		return SSHLogin{
+			Login:           login,
+			RequiresRequest: !logins.Granted.Contains(login),
+		}
+	})
+}
+
 // EKSCluster represents and EKS cluster, analog of awsoidc.EKSCluster, but used by web ui.
 type EKSCluster struct {
-	Name       string  `json:"name"`
-	Region     string  `json:"region"`
-	Arn        string  `json:"arn"`
-	Labels     []Label `json:"labels"`
-	JoinLabels []Label `json:"joinLabels"`
-	Status     string  `json:"status"`
+	Name                 string     `json:"name"`
+	Region               string     `json:"region"`
+	Arn                  string     `json:"arn"`
+	Labels               []ui.Label `json:"labels"`
+	JoinLabels           []ui.Label `json:"joinLabels"`
+	Status               string     `json:"status"`
+	EndpointPublicAccess bool       `json:"endpointPublicAccess"`
+	AuthenticationMode   string     `json:"authenticationMode"`
 }
 
 // KubeCluster describes a kube cluster.
@@ -154,20 +174,27 @@ type KubeCluster struct {
 	// Name is the name of the kube cluster.
 	Name string `json:"name"`
 	// Labels is a map of static and dynamic labels associated with an kube cluster.
-	Labels []Label `json:"labels"`
+	Labels []ui.Label `json:"labels"`
 	// KubeUsers is the list of allowed Kubernetes RBAC users that the user can impersonate.
 	KubeUsers []string `json:"kubernetes_users"`
 	// KubeGroups is the list of allowed Kubernetes RBAC groups that the user can impersonate.
 	KubeGroups []string `json:"kubernetes_groups"`
 	// RequireRequest indicates if a returned resource is only accessible after an access request
 	RequiresRequest bool `json:"requiresRequest,omitempty"`
+	// TargetHealth describes the health of a Kubernetes cluster
+	// reported from an Teleport Kubernetes agent.
+	//
+	// This field will be empty if Kubernetes was not extracted from
+	// a kube_server resource. The following endpoints will set this field
+	// since these endpoints query for kube_server under the hood and then
+	// extract kube from it:
+	// - webapi/sites/:site/resources (unified resources)
+	TargetHealth types.TargetHealth `json:"targetHealth,omitzero"`
 }
 
 // MakeKubeCluster creates a kube cluster object for the web ui
 func MakeKubeCluster(cluster types.KubeCluster, accessChecker services.AccessChecker, requiresRequest bool) KubeCluster {
-	staticLabels := cluster.GetStaticLabels()
-	dynamicLabels := cluster.GetDynamicLabels()
-	uiLabels := makeLabels(staticLabels, transformCommandLabels(dynamicLabels))
+	uiLabels := ui.MakeLabelsWithoutInternalPrefixes(cluster.GetAllLabels())
 	kubeUsers, kubeGroups := getAllowedKubeUsersAndGroupsForCluster(accessChecker, cluster)
 	return KubeCluster{
 		Kind:            cluster.GetKind(),
@@ -185,12 +212,14 @@ func MakeEKSClusters(clusters []*integrationv1.EKSCluster) []EKSCluster {
 
 	for _, cluster := range clusters {
 		uiEKSClusters = append(uiEKSClusters, EKSCluster{
-			Name:       cluster.Name,
-			Region:     cluster.Region,
-			Arn:        cluster.Arn,
-			Labels:     makeLabels(cluster.Labels),
-			JoinLabels: makeLabels(cluster.JoinLabels),
-			Status:     cluster.Status,
+			Name:                 cluster.GetName(),
+			Region:               cluster.GetRegion(),
+			Arn:                  cluster.GetArn(),
+			Labels:               ui.MakeLabelsWithoutInternalPrefixes(cluster.GetLabels()),
+			JoinLabels:           ui.MakeLabelsWithoutInternalPrefixes(cluster.GetJoinLabels()),
+			Status:               cluster.GetStatus(),
+			EndpointPublicAccess: cluster.GetEndpointPublicAccess(),
+			AuthenticationMode:   cluster.GetAuthenticationMode(),
 		})
 	}
 	return uiEKSClusters
@@ -200,9 +229,7 @@ func MakeEKSClusters(clusters []*integrationv1.EKSCluster) []EKSCluster {
 func MakeKubeClusters(clusters []types.KubeCluster, accessChecker services.AccessChecker) []KubeCluster {
 	uiKubeClusters := make([]KubeCluster, 0, len(clusters))
 	for _, cluster := range clusters {
-		staticLabels := cluster.GetStaticLabels()
-		dynamicLabels := cluster.GetDynamicLabels()
-		uiLabels := makeLabels(staticLabels, transformCommandLabels(dynamicLabels))
+		uiLabels := ui.MakeLabelsWithoutInternalPrefixes(cluster.GetAllLabels())
 
 		kubeUsers, kubeGroups := getAllowedKubeUsersAndGroupsForCluster(accessChecker, cluster)
 
@@ -225,7 +252,7 @@ type KubeResource struct {
 	// Name is the name of the Kubernetes resource.
 	Name string `json:"name"`
 	// Labels is a map of static associated with a Kubernetes resource.
-	Labels []Label `json:"labels"`
+	Labels []ui.Label `json:"labels"`
 	// Namespace is the Kubernetes namespace where the resource is located.
 	Namespace string `json:"namespace"`
 	// KubeCluster is the Kubernetes cluster the resource blongs to.
@@ -237,7 +264,7 @@ func MakeKubeResources(resources []*types.KubernetesResourceV1, cluster string) 
 	uiKubeResources := make([]KubeResource, 0, len(resources))
 	for _, resource := range resources {
 		staticLabels := resource.GetStaticLabels()
-		uiLabels := makeLabels(staticLabels)
+		uiLabels := ui.MakeLabelsWithoutInternalPrefixes(staticLabels)
 
 		uiKubeResources = append(uiKubeResources,
 			KubeResource{
@@ -259,7 +286,7 @@ func MakeKubeResources(resources []*types.KubernetesResourceV1, cluster string) 
 // each Role, and focuses only on listing all users and groups that the user may
 // have access to.
 func getAllowedKubeUsersAndGroupsForCluster(accessChecker services.AccessChecker, kube types.KubeCluster) (kubeUsers []string, kubeGroups []string) {
-	matcher := services.NewKubernetesClusterLabelMatcher(kube.GetAllLabels(), accessChecker.Traits())
+	matcher := services.NewKubernetesClusterLabelMatcher(kube.GetAllLabels(), accessChecker.AccessInfo().Username, accessChecker.Traits())
 	// We ignore the TTL verification because we want to include every possibility.
 	// Later, if the user certificate expiration is longer than the maximum allowed TTL
 	// for the role that defines the `kubernetes_*` principals the request will be
@@ -325,7 +352,7 @@ type Database struct {
 	// Type is the database type, self-hosted or cloud-hosted.
 	Type string `json:"type"`
 	// Labels is a map of static and dynamic labels associated with a database.
-	Labels []Label `json:"labels"`
+	Labels []ui.Label `json:"labels"`
 	// Hostname is the database connection endpoint (URI) hostname (without port and protocol).
 	Hostname string `json:"hostname"`
 	// URI of the database.
@@ -334,10 +361,28 @@ type Database struct {
 	DatabaseUsers []string `json:"database_users,omitempty"`
 	// DatabaseNames is the list of allowed Database RBAC names that the user can login.
 	DatabaseNames []string `json:"database_names,omitempty"`
+	// DatabaseRoles is the list of allowed Database RBAC roles that the user can login.
+	DatabaseRoles []string `json:"database_roles,omitempty"`
 	// AWS contains AWS specific fields.
 	AWS *AWS `json:"aws,omitempty"`
 	// RequireRequest indicates if a returned resource is only accessible after an access request
 	RequiresRequest bool `json:"requiresRequest,omitempty"`
+	// SupportsInteractive is a flag to indicate the database supports
+	// interactive sessions using database REPLs.
+	SupportsInteractive bool `json:"supports_interactive,omitempty"`
+	// AutoUsersEnabled is a flag to indicate the database has user auto
+	// provisioning enabled
+	AutoUsersEnabled bool `json:"auto_users_enabled,omitempty"`
+	// TargetHealth describes the health status of network connectivity
+	// reported from an agent (db_service) that is proxying this database.
+	//
+	// This field will be empty if the database was not extracted from
+	// a db_server resource. The following endpoints will set this field
+	// since these endpoints query for db_server under the hood and then
+	// extract db from it:
+	// - webapi/sites/:site/databases/:database (singular)
+	// - webapi/sites/:site/resources (unified resources)
+	TargetHealth types.TargetHealth `json:"targetHealth,omitzero"`
 }
 
 // AWS contains AWS specific fields.
@@ -354,22 +399,51 @@ const (
 	LabelStatus = "status"
 )
 
+// DatabaseInteractiveChecker is used to check if the database supports
+// interactive sessions using database REPLs.
+type DatabaseInteractiveChecker interface {
+	IsSupported(protocol string) bool
+}
+
 // MakeDatabase creates database objects.
-func MakeDatabase(database types.Database, dbUsers, dbNames []string, requiresRequest bool) Database {
-	uiLabels := makeLabels(database.GetAllLabels())
+func MakeDatabase(database types.Database, accessChecker services.AccessChecker, interactiveChecker DatabaseInteractiveChecker, requiresRequest bool) Database {
+	var (
+		autoUserEnabled bool
+		dbUsers         []string
+		dbRoles         []string
+	)
+	dbNamesResult := accessChecker.EnumerateDatabaseNames(database)
+	dbNames, _ := dbNamesResult.ToEntities()
+	if res, err := accessChecker.EnumerateDatabaseUsers(database); err == nil {
+		dbUsers, _ = res.ToEntities()
+	}
+	if roles, err := accessChecker.CheckDatabaseRoles(database, nil); err == nil {
+		// Avoid assigning empty slice to keep the resulting roles nil.
+		if len(roles) > 0 {
+			dbRoles = roles
+		}
+	}
+	if autoUser, err := accessChecker.DatabaseAutoUserMode(database); err == nil {
+		autoUserEnabled = database.IsAutoUsersEnabled() && autoUser.IsEnabled()
+	}
+
+	uiLabels := ui.MakeLabelsWithoutInternalPrefixes(database.GetAllLabels())
 
 	db := Database{
-		Kind:            database.GetKind(),
-		Name:            database.GetName(),
-		Desc:            database.GetDescription(),
-		Protocol:        database.GetProtocol(),
-		Type:            database.GetType(),
-		Labels:          uiLabels,
-		DatabaseUsers:   dbUsers,
-		DatabaseNames:   dbNames,
-		Hostname:        stripProtocolAndPort(database.GetURI()),
-		URI:             database.GetURI(),
-		RequiresRequest: requiresRequest,
+		Kind:                database.GetKind(),
+		Name:                database.GetName(),
+		Desc:                database.GetDescription(),
+		Protocol:            database.GetProtocol(),
+		Type:                database.GetType(),
+		Labels:              uiLabels,
+		DatabaseUsers:       dbUsers,
+		DatabaseNames:       dbNames,
+		DatabaseRoles:       dbRoles,
+		Hostname:            stripProtocolAndPort(database.GetURI()),
+		URI:                 database.GetURI(),
+		RequiresRequest:     requiresRequest,
+		SupportsInteractive: interactiveChecker.IsSupported(database.GetProtocol()),
+		AutoUsersEnabled:    autoUserEnabled,
 	}
 
 	if database.IsAWSHosted() {
@@ -386,11 +460,18 @@ func MakeDatabase(database types.Database, dbUsers, dbNames []string, requiresRe
 	return db
 }
 
+// MakeDatabaseFromDatabaseServer creates a database object with db_server target health info.
+func MakeDatabaseFromDatabaseServer(dbServer types.DatabaseServer, accessChecker services.AccessChecker, interactiveChecker DatabaseInteractiveChecker, requiresRequest bool) Database {
+	db := MakeDatabase(dbServer.GetDatabase(), accessChecker, interactiveChecker, requiresRequest)
+	db.TargetHealth = dbServer.GetTargetHealth()
+	return db
+}
+
 // MakeDatabases creates database objects.
-func MakeDatabases(databases []*types.DatabaseV3, dbUsers, dbNames []string) []Database {
+func MakeDatabases(databases []*types.DatabaseV3, accessChecker services.AccessChecker, interactiveChecker DatabaseInteractiveChecker) []Database {
 	uiServers := make([]Database, 0, len(databases))
 	for _, database := range databases {
-		db := MakeDatabase(database, dbUsers, dbNames, false /* requiresRequest */)
+		db := MakeDatabase(database, accessChecker, interactiveChecker, false /* requiresRequest */)
 		uiServers = append(uiServers, db)
 	}
 
@@ -435,7 +516,7 @@ type Desktop struct {
 	// Addr is the network address the desktop can be reached at.
 	Addr string `json:"addr"`
 	// Labels is a map of static and dynamic labels associated with a desktop.
-	Labels []Label `json:"labels"`
+	Labels []ui.Label `json:"labels"`
 	// HostID is the ID of the Windows Desktop Service reporting the desktop.
 	HostID string `json:"host_id"`
 	// Logins is the list of logins this user can use on this desktop.
@@ -444,10 +525,25 @@ type Desktop struct {
 	RequiresRequest bool `json:"requiresRequest,omitempty"`
 }
 
-// MakeDesktop converts a desktop from its API form to a type the UI can display.
-func MakeDesktop(windowsDesktop types.WindowsDesktop, logins []string, requiresRequest bool) Desktop {
-	// stripRdpPort strips the default rdp port from an ip address since it is unimportant to display
-	stripRdpPort := func(addr string) string {
+func MakeLinuxDesktop(linuxDesktop *linuxdesktopv1.LinuxDesktop, logins []string, requiresRequest bool) Desktop {
+	uiLabels := ui.MakeLabelsWithoutInternalPrefixes(linuxDesktop.GetMetadata().GetLabels())
+
+	return Desktop{
+		Kind:            linuxDesktop.GetKind(),
+		OS:              constants.LinuxOS,
+		Name:            linuxDesktop.GetSpec().GetHostname(),
+		Addr:            linuxDesktop.GetSpec().GetAddr(),
+		Labels:          uiLabels,
+		HostID:          linuxDesktop.GetMetadata().GetName(),
+		Logins:          logins,
+		RequiresRequest: requiresRequest,
+	}
+}
+
+// MakeWindowsDesktop converts a desktop from its API form to a type the UI can display.
+func MakeWindowsDesktop(windowsDesktop types.WindowsDesktop, logins []string, requiresRequest bool) Desktop {
+	// stripRDPPort strips the default rdp port from an ip address since it is unimportant to display
+	stripRDPPort := func(addr string) string {
 		splitAddr := strings.Split(addr, ":")
 		if len(splitAddr) > 1 && splitAddr[1] == strconv.Itoa(defaults.RDPListenPort) {
 			return splitAddr[0]
@@ -455,13 +551,13 @@ func MakeDesktop(windowsDesktop types.WindowsDesktop, logins []string, requiresR
 		return addr
 	}
 
-	uiLabels := makeLabels(windowsDesktop.GetAllLabels())
+	uiLabels := ui.MakeLabelsWithoutInternalPrefixes(windowsDesktop.GetAllLabels())
 
 	return Desktop{
 		Kind:            windowsDesktop.GetKind(),
 		OS:              constants.WindowsOS,
 		Name:            windowsDesktop.GetName(),
-		Addr:            stripRdpPort(windowsDesktop.GetAddr()),
+		Addr:            stripRDPPort(windowsDesktop.GetAddr()),
 		Labels:          uiLabels,
 		HostID:          windowsDesktop.GetHostID(),
 		Logins:          logins,
@@ -478,12 +574,12 @@ type DesktopService struct {
 	// Addr is the network address the Windows Desktop Service can be reached at.
 	Addr string `json:"addr"`
 	// Labels is a map of static and dynamic labels associated with a desktop.
-	Labels []Label `json:"labels"`
+	Labels []ui.Label `json:"labels"`
 }
 
 // MakeDesktopService converts a desktop from its API form to a type the UI can display.
 func MakeDesktopService(desktopService types.WindowsDesktopService) DesktopService {
-	uiLabels := makeLabels(desktopService.GetAllLabels())
+	uiLabels := ui.MakeLabelsWithoutInternalPrefixes(desktopService.GetAllLabels())
 
 	return DesktopService{
 		Name:     desktopService.GetName(),

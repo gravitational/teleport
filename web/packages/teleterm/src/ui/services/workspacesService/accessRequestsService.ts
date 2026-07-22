@@ -16,16 +16,18 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { ModalsService } from 'teleterm/ui/services/modals';
 import {
+  AppUri,
+  ClusterUri,
+  DatabaseUri,
+  KubeResourceNamespaceUri,
+  KubeUri,
   ResourceUri,
   routing,
-  ClusterUri,
   ServerUri,
-  DatabaseUri,
-  KubeUri,
-  AppUri,
+  WindowsDesktopUri,
 } from 'teleterm/ui/uri';
-import { ModalsService } from 'teleterm/ui/services/modals';
 
 export class AccessRequestsService {
   constructor(
@@ -95,6 +97,68 @@ export class AccessRequestsService {
       } else {
         resources.set(request.resource.uri, getRequiredProperties(request));
       }
+    });
+  }
+
+  updateNamespacesForKubeCluster(
+    namespaceUris: KubeResourceNamespaceUri[],
+    kubeClusterUri: string
+  ) {
+    this.setState(draftState => {
+      if (draftState.pending.kind !== 'resource') {
+        throw new Error('Cannot add a kube namespace to a role access request');
+      }
+
+      const { resources } = draftState.pending;
+
+      // Validate each namespace uri's.
+      namespaceUris.forEach(namespaceUri => {
+        if (!routing.belongsToKube(kubeClusterUri, namespaceUri)) {
+          throw new Error(
+            'Only namespace belonging to the same requested kube cluster can be updated'
+          );
+        }
+      });
+
+      const kubeRequestedResource = resources.get(kubeClusterUri);
+      // This will always be true, since we validated each namespace
+      // URIs before this. Check is required to access namespace field
+      if (kubeRequestedResource.kind === 'kube') {
+        kubeRequestedResource.resource.namespaces = new Set(namespaceUris);
+      }
+    });
+  }
+
+  /**
+   * Removes all requested resources, if all the requested resources were already added
+   * or adds all requested resources, if not all requested resources were added.
+   *
+   * Typically used when user "selects all or deselects all"
+   */
+  async addAllOrRemoveAllResources(requestedResources: ResourceRequest[]) {
+    if (!(await this.canUpdateRequest('resource'))) {
+      return;
+    }
+    this.setState(draftState => {
+      if (draftState.pending.kind !== 'resource') {
+        draftState.pending = {
+          kind: 'resource',
+          resources: new Map(),
+        };
+      }
+
+      const { resources } = draftState.pending;
+      const allAdded = requestedResources.every(r =>
+        resources.has(r.resource.uri)
+      );
+
+      requestedResources.forEach(request => {
+        if (allAdded) {
+          resources.delete(request.resource.uri);
+        } else {
+          resources.set(request.resource.uri, getRequiredProperties(request));
+        }
+      });
     });
   }
 
@@ -176,6 +240,12 @@ function getRequiredProperties({
       resource: { uri: resource.uri, hostname: resource.hostname },
     };
   }
+  if (kind === 'app') {
+    return {
+      kind,
+      resource: { uri: resource.uri, samlApp: resource.samlApp },
+    };
+  }
   return {
     kind,
     resource: { uri: resource.uri },
@@ -225,16 +295,31 @@ export type ResourceRequest =
       kind: 'kube';
       resource: {
         uri: KubeUri;
+        namespaces?: Set<KubeResourceNamespaceUri>;
       };
     }
   | {
       kind: 'app';
       resource: {
         uri: AppUri;
+        samlApp: boolean;
+      };
+    }
+  | {
+      kind: 'windows_desktop';
+      resource: {
+        uri: WindowsDesktopUri;
       };
     };
 
-type SharedResourceAccessRequestKind = 'app' | 'db' | 'node' | 'kube_cluster';
+type SharedResourceAccessRequestKind =
+  | 'app'
+  | 'db'
+  | 'node'
+  | 'kube_cluster'
+  | 'saml_idp_service_provider'
+  | 'aws_ic_account_assignment'
+  | 'windows_desktop';
 
 /**
  * Extracts `kind`, `id` and `name` from the resource request.
@@ -248,14 +333,16 @@ export function extractResourceRequestProperties({
   kind: SharedResourceAccessRequestKind;
   id: string;
   /**
-   * Pretty name of the resource (can be the same as `id`).
-   * For example, for nodes, we want to show hostname instead of its id.
+   * Can refer to a pretty name of the resource (can be the same as `id`)
    */
   name: string;
 } {
   switch (kind) {
     case 'app': {
       const { appId } = routing.parseAppUri(resource.uri).params;
+      if (resource.samlApp) {
+        return { kind: 'saml_idp_service_provider', id: appId, name: appId };
+      }
       return { kind: 'app', id: appId, name: appId };
     }
     case 'server': {
@@ -270,9 +357,55 @@ export function extractResourceRequestProperties({
       const { kubeId } = routing.parseKubeUri(resource.uri).params;
       return { kind: 'kube_cluster', id: kubeId, name: kubeId };
     }
+    case 'windows_desktop': {
+      const { windowsDesktopId } = routing.parseWindowsDesktopUri(
+        resource.uri
+      ).params;
+      return {
+        kind: 'windows_desktop',
+        id: windowsDesktopId,
+        name: windowsDesktopId,
+      };
+    }
     default:
       kind satisfies never;
   }
+}
+
+export function mapRequestToKubeNamespaceUri({
+  clusterUri,
+  id,
+  name,
+}: {
+  clusterUri: ClusterUri;
+  /** kubeId */
+  id: string;
+  /** kubeNamespaceId */
+  name: string;
+}) {
+  const {
+    params: { rootClusterId, leafClusterId },
+  } = routing.parseClusterUri(clusterUri);
+  return routing.getKubeResourceNamespaceUri({
+    rootClusterId,
+    leafClusterId,
+    kubeId: id,
+    kubeNamespaceId: name,
+  });
+}
+
+export function mapKubeNamespaceUriToRequest(
+  kubeNamespaceUri: KubeResourceNamespaceUri
+): {
+  kind: 'namespace';
+  /** kubeId */
+  id: string;
+  /** kubeNamespaceId */
+  name: string;
+} {
+  const { kubeNamespaceId, kubeId } =
+    routing.parseKubeResourceNamespaceUri(kubeNamespaceUri).params;
+  return { kind: 'namespace', id: kubeId, name: kubeNamespaceId };
 }
 
 /**
@@ -303,6 +436,31 @@ export function toResourceRequest({
             leafClusterId,
             appId: resourceId,
           }),
+          samlApp: false,
+        },
+        kind: 'app',
+      };
+    case 'saml_idp_service_provider':
+      return {
+        resource: {
+          uri: routing.getAppUri({
+            rootClusterId,
+            leafClusterId,
+            appId: resourceId,
+          }),
+          samlApp: true,
+        },
+        kind: 'app',
+      };
+    case 'aws_ic_account_assignment':
+      return {
+        resource: {
+          uri: routing.getAppUri({
+            rootClusterId,
+            leafClusterId,
+            appId: resourceId,
+          }),
+          samlApp: false,
         },
         kind: 'app',
       };
@@ -339,6 +497,17 @@ export function toResourceRequest({
           }),
         },
         kind: 'kube',
+      };
+    case 'windows_desktop':
+      return {
+        resource: {
+          uri: routing.getWindowsDesktopUri({
+            rootClusterId,
+            leafClusterId,
+            windowsDesktopId: resourceId,
+          }),
+        },
+        kind: 'windows_desktop',
       };
     default:
       kind satisfies never;

@@ -21,13 +21,14 @@ package common
 import (
 	"bytes"
 	"context"
+	"crypto/ecdsa"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"os"
 	"os/exec"
-	"path"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -44,13 +45,14 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keypaths"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 )
 
 func (p *kubeTestPack) testProxyKube(t *testing.T) {
 	// Set default kubeconfig to a non-exist file to avoid loading other things.
-	t.Setenv("KUBECONFIG", path.Join(os.Getenv(types.HomeEnvVar), uuid.NewString()))
+	t.Setenv("KUBECONFIG", filepath.Join(os.Getenv(types.HomeEnvVar), uuid.NewString()))
 
 	// Test "tsh proxy kube root-cluster1".
 	t.Run("with kube cluster arg", func(t *testing.T) {
@@ -95,6 +97,63 @@ func (p *kubeTestPack) testProxyKube(t *testing.T) {
 	})
 }
 
+func (p *kubeTestPack) testProxyKubeWithExecCmd(t *testing.T) {
+	// Set KUBECONFIG to non-existent file
+	t.Setenv("KUBECONFIG", filepath.Join(os.Getenv(types.HomeEnvVar), uuid.NewString()))
+
+	tests := []struct {
+		name          string
+		args          []string
+		expectedCmd   []string
+		expectError   bool
+		errorContains string
+	}{
+		{
+			name:        "with exec-cmd",
+			args:        []string{"proxy", "kube", p.rootKubeCluster1, "--insecure", "--exec", "--exec-cmd", "whoami"},
+			expectedCmd: []string{"whoami"},
+		},
+		{
+			name:        "with exec-cmd and args",
+			args:        []string{"proxy", "kube", p.rootKubeCluster1, "--insecure", "--exec", "--exec-cmd", "echo", "--exec-arg", "hello", "--exec-arg", "world"},
+			expectedCmd: []string{"echo", "hello", "world"},
+		},
+		{
+			name:        "backward compatibility - no exec-cmd",
+			args:        []string{"proxy", "kube", p.rootKubeCluster1, "--insecure", "--exec"},
+			expectedCmd: []string{getExecCommand("")},
+		},
+		{
+			name:        "exec-cmd without exec flag",
+			args:        []string{"proxy", "kube", p.rootKubeCluster1, "--insecure", "--exec-cmd", "date"},
+			expectedCmd: []string{"date"},
+		},
+		{
+			name:          "exec-arg without exec-cmd should error",
+			args:          []string{"proxy", "kube", p.rootKubeCluster1, "--insecure", "--exec-arg", "test"},
+			expectError:   true,
+			errorContains: "cannot use --exec-arg without --exec-cmd",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.expectError {
+				err := Run(t.Context(), tt.args)
+				require.Error(t, err)
+				require.Contains(t, err.Error(), tt.errorContains)
+			} else {
+				validateCmd := func(cmd *exec.Cmd) error {
+					require.Equal(t, tt.expectedCmd, cmd.Args)
+					return nil
+				}
+				err := Run(t.Context(), tt.args, setCmdRunner(validateCmd))
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
 func kubeConfigFromCmdEnv(t *testing.T, cmd *exec.Cmd) *clientcmdapi.Config {
 	t.Helper()
 
@@ -133,14 +192,19 @@ func sendRequestToKubeLocalProxy(t *testing.T, config *clientcmdapi.Config, tele
 	proxyURL, err := url.Parse(config.Clusters[contextName].ProxyURL)
 	require.NoError(t, err)
 
+	// Sanity check we're using an ECDSA client key.
+	key, err := keys.ParsePrivateKey(config.AuthInfos[contextName].ClientKeyData)
+	require.NoError(t, err)
+	require.IsType(t, (*ecdsa.PrivateKey)(nil), key.Signer)
+
 	tlsClientConfig := rest.TLSClientConfig{
 		CAData:     config.Clusters[contextName].CertificateAuthorityData,
 		CertData:   config.AuthInfos[contextName].ClientCertificateData,
 		KeyData:    config.AuthInfos[contextName].ClientKeyData,
-		ServerName: common.KubeLocalProxySNI(teleportCluster, kubeCluster),
+		ServerName: teleportCluster,
 	}
 	restConfig := &rest.Config{
-		Host:            "https://" + teleportCluster,
+		Host:            "https://" + teleportCluster + common.KubeLocalProxyPathPrefix(teleportCluster, kubeCluster),
 		TLSClientConfig: tlsClientConfig,
 		Proxy:           http.ProxyURL(proxyURL),
 	}

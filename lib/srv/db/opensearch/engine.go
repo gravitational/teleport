@@ -26,16 +26,17 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"strconv"
+	"strings"
 
-	"github.com/aws/aws-sdk-go/service/opensearchservice"
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/gravitational/teleport"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
-	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/srv/db/common"
@@ -61,8 +62,6 @@ type Engine struct {
 	clientConn net.Conn
 	// sessionCtx is current session context.
 	sessionCtx *common.Session
-	// CredentialsGetter is used to obtain STS credentials.
-	CredentialsGetter libaws.CredentialsGetter
 }
 
 // InitializeConnection initializes the engine with the client connection.
@@ -137,24 +136,6 @@ func (e *Engine) HandleConnection(ctx context.Context, _ *common.Session) error 
 		e.Audit.OnSessionStart(e.Context, e.sessionCtx, err)
 		return trace.Wrap(err)
 	}
-
-	meta := e.sessionCtx.Database.GetAWS()
-	awsSession, err := e.CloudClients.GetAWSSession(ctx, meta.Region,
-		cloud.WithAssumeRoleFromAWSMeta(meta),
-		cloud.WithAmbientCredentials(),
-	)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	signer, err := libaws.NewSigningService(libaws.SigningServiceConfig{
-		Clock:             e.Clock,
-		SessionProvider:   libaws.StaticAWSSessionProvider(awsSession),
-		CredentialsGetter: e.CredentialsGetter,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	// TODO(Tener):
 	//  Consider rewriting to support HTTP2 clients.
 	//  Ideally we should have shared middleware for DB clients using HTTP, instead of separate per-engine implementations.
@@ -180,7 +161,7 @@ func (e *Engine) HandleConnection(ctx context.Context, _ *common.Session) error 
 			return trace.Wrap(err)
 		}
 
-		if err := e.process(ctx, tr, signer, req, msgFromClient, msgFromServer); err != nil {
+		if err := e.process(ctx, tr, req, msgFromClient, msgFromServer); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -188,7 +169,7 @@ func (e *Engine) HandleConnection(ctx context.Context, _ *common.Session) error 
 
 // process reads request from connected OpenSearch client, processes the requests/responses and send data back
 // to the client.
-func (e *Engine) process(ctx context.Context, tr *http.Transport, signer *libaws.SigningService, req *http.Request, msgFromClient prometheus.Counter, msgFromServer prometheus.Counter) error {
+func (e *Engine) process(ctx context.Context, tr *http.Transport, req *http.Request, msgFromClient prometheus.Counter, msgFromServer prometheus.Counter) error {
 	msgFromClient.Inc()
 
 	if req.Body != nil {
@@ -207,7 +188,7 @@ func (e *Engine) process(ctx context.Context, tr *http.Transport, signer *libaws
 		e.emitAuditEvent(reqCopy, payload, responseStatusCode, err == nil)
 	}()
 
-	signedReq, err := e.getSignedRequest(signer, reqCopy)
+	signedReq, err := e.getSignedRequest(reqCopy)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -239,22 +220,33 @@ func (e *Engine) getTransport(ctx context.Context) (*http.Transport, error) {
 	return tr, nil
 }
 
-func (e *Engine) getSignedRequest(signer *libaws.SigningService, reqCopy *http.Request) (*http.Request, error) {
+func (e *Engine) getSignedRequest(reqCopy *http.Request) (*http.Request, error) {
 	roleArn, err := libaws.BuildRoleARN(e.sessionCtx.DatabaseUser, e.sessionCtx.Database.GetAWS().Region, e.sessionCtx.Database.GetAWS().AccountID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	meta := e.sessionCtx.Database.GetAWS()
+	awsCfg, err := e.AWSConfigProvider.GetConfig(e.Context, meta.Region,
+		awsconfig.WithAssumeRole(meta.AssumeRoleARN, meta.ExternalID),
+		awsconfig.WithDetailedAssumeRole(awsconfig.AssumeRole{
+			RoleARN:     roleArn,
+			ExternalID:  meta.ExternalID,
+			SessionName: e.sessionCtx.Identity.Username,
+		}),
+		awsconfig.WithAmbientCredentials(),
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	signCtx := &libaws.SigningCtx{
-		SigningName:   opensearchservice.EndpointsID,
+		Clock:         e.Clock,
+		Credentials:   awsCfg.Credentials,
+		SigningName:   "es",
 		SigningRegion: e.sessionCtx.Database.GetAWS().Region,
-		Expiry:        e.sessionCtx.Identity.Expires,
-		SessionName:   e.sessionCtx.Identity.Username,
-		AWSRoleArn:    roleArn,
-		AWSExternalID: e.sessionCtx.Database.GetAWS().ExternalID,
 	}
 
-	signedReq, err := signer.SignRequest(e.Context, reqCopy, signCtx)
+	signedReq, err := libaws.SignRequest(e.Context, reqCopy, signCtx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -275,10 +267,14 @@ func (e *Engine) rewriteRequest(ctx context.Context, req *http.Request) (*http.R
 	// Connection is hop-by-hop header, drop.
 	reqCopy.Header.Del("Connection")
 
-	// force HTTPS, set host URL.
-	reqCopy.URL.Scheme = "https"
-	reqCopy.URL.Host = e.sessionCtx.Database.GetURI()
-	reqCopy.Host = e.sessionCtx.Database.GetURI()
+	// rewrite request URL
+	u, err := parseURI(e.sessionCtx.Database.GetURI())
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	reqCopy.URL.Scheme = u.Scheme
+	reqCopy.URL.Host = u.Host
+	reqCopy.Host = u.Host
 
 	return reqCopy, payload, nil
 }
@@ -386,4 +382,17 @@ func (e *Engine) checkAccess(ctx context.Context) error {
 		dbRoleMatchers...,
 	)
 	return trace.Wrap(err)
+}
+
+func parseURI(uri string) (*url.URL, error) {
+	if !strings.Contains(uri, "://") {
+		uri = "https://" + uri
+	}
+	u, err := url.Parse(uri)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// force HTTPS
+	u.Scheme = "https"
+	return u, nil
 }

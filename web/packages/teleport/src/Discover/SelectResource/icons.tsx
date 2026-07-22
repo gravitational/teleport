@@ -16,14 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-
 import { ResourceIcon, ResourceIconName } from 'design/ResourceIcon';
 
 interface DiscoverIconProps {
   name: ResourceIconName;
+  size?: 'large' | 'small';
 }
 
-export const DiscoverIcon = ({ name }: DiscoverIconProps) => (
-  <ResourceIcon name={name} width="23.9px" height="24px" />
-);
+export const DiscoverIcon = ({ name, size = 'small' }: DiscoverIconProps) => {
+  const width = size === 'small' ? '24px' : '72';
+  const height = size === 'small' ? '24px' : '72';
+  return <ResourceIcon name={name} width={width} height={height} />;
+};

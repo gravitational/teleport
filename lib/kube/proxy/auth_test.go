@@ -25,15 +25,16 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/maps"
 	authzapi "k8s.io/api/authorization/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	apimachineryversion "k8s.io/apimachinery/pkg/version"
 	"k8s.io/client-go/kubernetes"
 	authztypes "k8s.io/client-go/kubernetes/typed/authorization/v1"
 	"k8s.io/client-go/rest"
@@ -42,7 +43,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestCheckImpersonationPermissions(t *testing.T) {
@@ -97,17 +98,11 @@ func (c *mockSARClient) Create(_ context.Context, sar *authzapi.SelfSubjectAcces
 	}
 
 	var verbAllowed, resourceAllowed bool
-	for _, v := range c.allowedVerbs {
-		if v == sar.Spec.ResourceAttributes.Verb {
-			verbAllowed = true
-			break
-		}
+	if slices.Contains(c.allowedVerbs, sar.Spec.ResourceAttributes.Verb) {
+		verbAllowed = true
 	}
-	for _, r := range c.allowedResources {
-		if r == sar.Spec.ResourceAttributes.Resource {
-			resourceAllowed = true
-			break
-		}
+	if slices.Contains(c.allowedResources, sar.Spec.ResourceAttributes.Resource) {
+		resourceAllowed = true
 	}
 
 	sar.Status.Allowed = verbAllowed && resourceAllowed
@@ -130,17 +125,12 @@ func failsForCluster(clusterName string) servicecfg.ImpersonationPermissionsChec
 func TestGetKubeCreds(t *testing.T) {
 	t.Parallel()
 	// kubeMock is a Kubernetes API mock for the session tests.
-	kubeMock, err := testingkubemock.NewKubeAPIMock()
+	kubeMock, err := testingkubemock.NewKubeAPIMock(testingkubemock.WithTeleportRoleCRD)
 	require.NoError(t, err)
 	t.Cleanup(func() { kubeMock.Close() })
 	targetAddr := kubeMock.Address
 
-	rbacSupportedTypes := maps.Clone(defaultRBACResources)
-	rbacSupportedTypes[allowedResourcesKey{apiGroup: "resources.teleport.dev", resourceKind: "teleportroles"}] = utils.KubeCustomResource
-	rbacSupportedTypes[allowedResourcesKey{apiGroup: "resources.teleport.dev", resourceKind: "teleportroles/status"}] = utils.KubeCustomResource
-
-	logger := utils.NewLoggerForTests()
-	ctx := context.TODO()
+	ctx := t.Context()
 	const teleClusterName = "teleport-cluster"
 	dir := t.TempDir()
 	kubeconfigPath := filepath.Join(dir, "kubeconfig")
@@ -212,8 +202,12 @@ current-context: foo
 						kubeClient:      &kubernetes.Clientset{},
 						clientRestCfg:   &rest.Config{},
 					},
-					kubeCluster:        mustCreateKubernetesClusterV3(t, "foo"),
-					rbacSupportedTypes: rbacSupportedTypes,
+					kubeCluster: mustCreateKubernetesClusterV3(t, "foo"),
+					kubeClusterVersion: &apimachineryversion.Info{
+						Major:      "1",
+						Minor:      "20",
+						GitVersion: "1.20.0",
+					},
 				},
 				"bar": {
 					kubeCreds: &staticKubeCreds{
@@ -222,8 +216,12 @@ current-context: foo
 						kubeClient:      &kubernetes.Clientset{},
 						clientRestCfg:   &rest.Config{},
 					},
-					kubeCluster:        mustCreateKubernetesClusterV3(t, "bar"),
-					rbacSupportedTypes: rbacSupportedTypes,
+					kubeClusterVersion: &apimachineryversion.Info{
+						Major:      "1",
+						Minor:      "20",
+						GitVersion: "1.20.0",
+					},
+					kubeCluster: mustCreateKubernetesClusterV3(t, "bar"),
 				},
 				"baz": {
 					kubeCreds: &staticKubeCreds{
@@ -232,8 +230,12 @@ current-context: foo
 						kubeClient:      &kubernetes.Clientset{},
 						clientRestCfg:   &rest.Config{},
 					},
-					kubeCluster:        mustCreateKubernetesClusterV3(t, "baz"),
-					rbacSupportedTypes: rbacSupportedTypes,
+					kubeClusterVersion: &apimachineryversion.Info{
+						Major:      "1",
+						Minor:      "20",
+						GitVersion: "1.20.0",
+					},
+					kubeCluster: mustCreateKubernetesClusterV3(t, "baz"),
 				},
 			},
 			assertErr: require.NoError,
@@ -257,8 +259,12 @@ current-context: foo
 						kubeClient:      &kubernetes.Clientset{},
 						clientRestCfg:   &rest.Config{},
 					},
-					kubeCluster:        mustCreateKubernetesClusterV3(t, teleClusterName),
-					rbacSupportedTypes: rbacSupportedTypes,
+					kubeClusterVersion: &apimachineryversion.Info{
+						Major:      "1",
+						Minor:      "20",
+						GitVersion: "1.20.0",
+					},
+					kubeCluster: mustCreateKubernetesClusterV3(t, teleClusterName),
 				},
 			},
 			assertErr: require.NoError,
@@ -275,8 +281,12 @@ current-context: foo
 						kubeClient:      &kubernetes.Clientset{},
 						clientRestCfg:   &rest.Config{},
 					},
-					kubeCluster:        mustCreateKubernetesClusterV3(t, "foo"),
-					rbacSupportedTypes: rbacSupportedTypes,
+					kubeClusterVersion: &apimachineryversion.Info{
+						Major:      "1",
+						Minor:      "20",
+						GitVersion: "1.20.0",
+					},
+					kubeCluster: mustCreateKubernetesClusterV3(t, "foo"),
 				},
 				"bar": {
 					kubeCreds: &staticKubeCreds{
@@ -285,8 +295,12 @@ current-context: foo
 						kubeClient:      &kubernetes.Clientset{},
 						clientRestCfg:   &rest.Config{},
 					},
-					kubeCluster:        mustCreateKubernetesClusterV3(t, "bar"),
-					rbacSupportedTypes: rbacSupportedTypes,
+					kubeClusterVersion: &apimachineryversion.Info{
+						Major:      "1",
+						Minor:      "20",
+						GitVersion: "1.20.0",
+					},
+					kubeCluster: mustCreateKubernetesClusterV3(t, "bar"),
 				},
 				"baz": {
 					kubeCreds: &staticKubeCreds{
@@ -295,15 +309,18 @@ current-context: foo
 						kubeClient:      &kubernetes.Clientset{},
 						clientRestCfg:   &rest.Config{},
 					},
-					kubeCluster:        mustCreateKubernetesClusterV3(t, "baz"),
-					rbacSupportedTypes: rbacSupportedTypes,
+					kubeClusterVersion: &apimachineryversion.Info{
+						Major:      "1",
+						Minor:      "20",
+						GitVersion: "1.20.0",
+					},
+					kubeCluster: mustCreateKubernetesClusterV3(t, "baz"),
 				},
 			},
 			assertErr: require.NoError,
 		},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
 			t.Parallel()
 			fwd := &Forwarder{
@@ -315,7 +332,7 @@ current-context: foo
 					CheckImpersonationPermissions: tt.impersonationCheck,
 					Clock:                         clockwork.NewFakeClock(),
 				},
-				log: logger,
+				log: logtest.NewLogger(),
 			}
 			err := fwd.getKubeDetails(ctx)
 			tt.assertErr(t, err)
@@ -325,12 +342,13 @@ current-context: foo
 			require.Empty(t, cmp.Diff(fwd.clusterDetails, tt.want,
 				cmp.AllowUnexported(staticKubeCreds{}),
 				cmp.AllowUnexported(kubeDetails{}),
-				cmpopts.IgnoreFields(kubeDetails{}, "rwMu", "kubeCodecs", "wg", "cancelFunc", "gvkSupportedResources"),
+				cmpopts.IgnoreFields(kubeDetails{}, "rwMu", "kubeCodecs", "wg", "cancelFunc", "gvkSupportedResources", "refreshGroup"),
 				cmp.Comparer(func(a, b *transport.Config) bool { return (a == nil) == (b == nil) }),
 				cmp.Comparer(func(a, b *tls.Config) bool { return true }),
 				cmp.Comparer(func(a, b *kubernetes.Clientset) bool { return (a == nil) == (b == nil) }),
 				cmp.Comparer(func(a, b *rest.Config) bool { return (a == nil) == (b == nil) }),
 				cmp.Comparer(func(a, b http.RoundTripper) bool { return true }),
+				cmp.Comparer(func(a, b rbacSupportedResources) bool { return true }),
 			))
 		})
 	}

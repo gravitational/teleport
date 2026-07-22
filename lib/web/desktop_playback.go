@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/lib/player"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/desktop"
 )
 
@@ -37,27 +38,33 @@ func (h *Handler) desktopPlaybackHandle(
 	r *http.Request,
 	p httprouter.Params,
 	sctx *SessionContext,
-	site reversetunnelclient.RemoteSite,
+	cluster reversetunnelclient.Cluster,
 	ws *websocket.Conn,
-) (interface{}, error) {
+) (any, error) {
 	sID := p.ByName("sid")
 	if sID == "" {
 		return nil, trace.BadParameter("missing session ID in request URL")
 	}
 
-	clt, err := sctx.GetUserClient(r.Context(), site)
+	sessionID, err := session.ParseID(sID)
+	if err != nil {
+		return nil, trace.BadParameter("invalid session ID in request URL - %v", err)
+	}
+
+	clt, err := sctx.GetUserClient(r.Context(), cluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	player, err := player.New(&player.Config{
 		Clock:     h.clock,
-		Log:       h.log,
-		SessionID: session.ID(sID),
+		Log:       h.logger,
+		SessionID: *sessionID,
 		Streamer:  clt,
+		Context:   r.Context(),
 	})
 	if err != nil {
-		h.log.Errorf("couldn't create player for session %v: %v", sID, err)
+		h.logger.ErrorContext(r.Context(), "couldn't create player for session", "session_id", sID, "error", err)
 		ws.WriteMessage(websocket.BinaryMessage,
 			[]byte(`{"message": "error", "errorText": "Internal server error"}`))
 		return nil, nil
@@ -70,13 +77,20 @@ func (h *Handler) desktopPlaybackHandle(
 
 	go func() {
 		defer cancel()
-		desktop.ReceivePlaybackActions(h.log, ws, player)
+		err := desktop.ReceivePlaybackActions(ctx, h.logger, ws, player)
+		// Connection close errors are expected if the user closes the tab.
+		// Only log unexpected errors to avoid cluttering the logs.
+		if !utils.IsOKNetworkError(err) {
+			h.logger.WarnContext(ctx, "websocket read error", "error", err)
+		}
 	}()
 
 	go func() {
 		defer cancel()
 		defer ws.Close()
-		desktop.PlayRecording(ctx, h.log, ws, player)
+
+		player.Play()
+		desktop.StreamRecording(ctx, h.logger, ws, player)
 	}()
 
 	<-ctx.Done()

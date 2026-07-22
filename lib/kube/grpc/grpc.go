@@ -21,24 +21,27 @@ package kubev1
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"slices"
+	"strings"
 
 	"github.com/gravitational/trace"
-	"github.com/gravitational/trace/trail"
-	"github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/kubernetes"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/defaults"
 	proto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
+	"github.com/gravitational/teleport/api/trail"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
-	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // errDone indicates that resource iteration is complete
@@ -47,9 +50,11 @@ var errDone = errors.New("done iterating")
 // Server implements KubeService gRPC server.
 type Server struct {
 	proto.UnimplementedKubeServiceServer
-	cfg          Config
-	proxyAddress string
-	kubeProxySNI string
+	cfg               Config
+	proxyAddress      string
+	kubeProxySNI      string
+	kubeClient        kubernetes.Interface
+	kubeDynamicClient *dynamic.DynamicClient
 }
 
 // New creates a new instance of Kube gRPC handler.
@@ -57,25 +62,34 @@ func New(cfg Config) (*Server, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sni, addr, err := getWebAddrAndKubeSNI(cfg.KubeProxyAddr)
-	if err != nil {
-		return nil, trace.Wrap(err)
+
+	var sni, addr string
+	var err error
+	if cfg.KubeProxyAddr != "" {
+		sni, addr, err = getWebAddrAndKubeSNI(cfg.KubeProxyAddr)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
-	return &Server{cfg: cfg, proxyAddress: addr, kubeProxySNI: sni}, nil
+	s := &Server{cfg: cfg, proxyAddress: addr, kubeProxySNI: sni}
+
+	if err := s.buildKubeClient(); err != nil {
+		return nil, trace.Wrap(err, "unable to create kubeClient")
+	}
+
+	return s, nil
 }
 
 // Config specifies configuration for Kube gRPC server.
 type Config struct {
-	// Signer is a auth server client to sign Kubernetes Certificates.
-	Signer CertificateSigner
-	// AccessPoint is caching access point to retrieve search and preview roles
-	// from the backend.
-	AccessPoint services.RoleGetter
+	// AccessPoint is caching access point to retrieve roles and the cluster
+	// auth preference.
+	AccessPoint AccessPoint
 	// Authz authenticates user.
 	Authz authz.Authorizer
 	// Log is the logger function.
-	Log logrus.FieldLogger
+	Log *slog.Logger
 	// Emitter is used to emit audit events.
 	Emitter apievents.Emitter
 	// Component name to include in log output.
@@ -84,19 +98,33 @@ type Config struct {
 	KubeProxyAddr string
 	// ClusterName is the name of the cluster that this server is running in.
 	ClusterName string
+	// GetConnTLSCertificate returns the TLS kubeClient certificate to use when
+	// connecting to the upstream Teleport proxy or Kubernetes service when
+	// forwarding requests using the forward identity (i.e. proxy impersonating
+	// a user) method. Paired with GetConnTLSRoots and ConnTLSCipherSuites to
+	// generate the correct [*tls.Config] on demand.
+	GetConnTLSCertificate utils.GetCertificateFunc
+	// GetConnTLSRoots returns the [*x509.CertPool] used to validate TLS
+	// connections to the upstream Teleport proxy or Kubernetes service.
+	GetConnTLSRoots utils.GetRootsFunc
+	// ConnTLSCipherSuites optionally contains a list of TLS ciphersuites to use
+	// when connecting to the upstream Teleport Proxy or Kubernetes service.
+	ConnTLSCipherSuites []uint16
 }
 
-// CertificateSigner is an interface for signing Kubernetes certificates.
-type CertificateSigner interface {
-	// ProcessKubeCSR processes CSR request against Kubernetes CA, returns
-	// signed certificate if successful.
-	ProcessKubeCSR(req authclient.KubeCSR) (*authclient.KubeCSRResponse, error)
+// AccessPoint is caching access point to retrieve roles and the cluster
+// auth preference.
+type AccessPoint interface {
+	services.RoleGetter
 }
 
 // CheckAndSetDefaults checks and sets default values.
 func (c *Config) CheckAndSetDefaults() error {
-	if c.Signer == nil {
-		return trace.BadParameter("missing parameter Signer")
+	if c.GetConnTLSCertificate == nil {
+		return trace.BadParameter("missing parameter GetConnTLSCertificate")
+	}
+	if c.GetConnTLSRoots == nil {
+		return trace.BadParameter("missing parameter GetConnTLSRoots")
 	}
 	if c.AccessPoint == nil {
 		return trace.BadParameter("missing parameter AccessPoint")
@@ -107,9 +135,7 @@ func (c *Config) CheckAndSetDefaults() error {
 	if c.Emitter == nil {
 		return trace.BadParameter("missing parameter Emitter")
 	}
-	if c.KubeProxyAddr == "" {
-		return trace.BadParameter("missing parameter KubeProxyAddr")
-	}
+
 	if c.ClusterName == "" {
 		return trace.BadParameter("missing parameter ClusterName")
 	}
@@ -117,26 +143,30 @@ func (c *Config) CheckAndSetDefaults() error {
 		c.Component = "kube.grpc"
 	}
 	if c.Log == nil {
-		c.Log = logrus.New()
+		c.Log = slog.Default()
 	}
-	c.Log = c.Log.WithFields(logrus.Fields{teleport.ComponentKey: c.Component})
+	c.Log = c.Log.With(teleport.ComponentKey, c.Component)
 	return nil
 }
 
 // ListKubernetesResources returns the list of resources available for the user for
 // the specified Resource kind, Kubernetes cluster and namespace.
 func (s *Server) ListKubernetesResources(ctx context.Context, req *proto.ListKubernetesResourcesRequest) (*proto.ListKubernetesResourcesResponse, error) {
+	if s.proxyAddress == "" {
+		return nil, trail.ToGRPC(trace.ConnectionProblem(nil, "Kubernetes API is disabled"))
+	}
 	userContext, err := s.authorize(ctx)
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
 
-	if req.UseSearchAsRoles || req.UsePreviewAsRoles {
+	if req.GetUseSearchAsRoles() || req.GetUsePreviewAsRoles() {
 		var extraRoles []string
-		if req.UseSearchAsRoles {
-			extraRoles = append(extraRoles, userContext.Checker.GetAllowedSearchAsRoles()...)
+		if req.GetUseSearchAsRoles() {
+			allowedSearchAsRoles := userContext.Checker.GetAllowedSearchAsRolesForKubeResourceKind(req.GetResourceType())
+			extraRoles = append(extraRoles, allowedSearchAsRoles...)
 		}
-		if req.UsePreviewAsRoles {
+		if req.GetUsePreviewAsRoles() {
 			extraRoles = append(extraRoles, userContext.Checker.GetAllowedPreviewAsRoles()...)
 		}
 
@@ -155,18 +185,20 @@ func (s *Server) ListKubernetesResources(ctx context.Context, req *proto.ListKub
 	// the forwarding of the request to the correct leaf cluster if that's the case
 	// and it handles the mapping of the identity to the leaf cluster.
 	identity := userContext.UnmappedIdentity.GetIdentity()
-	identity.KubernetesCluster = req.KubernetesCluster
+	identity.KubernetesCluster = req.GetKubernetesCluster()
 	identity.Groups = userContext.Checker.RoleNames()
-	identity.RouteToCluster = req.TeleportCluster
+	identity.RouteToCluster = req.GetTeleportCluster()
+	ctx = authz.ContextWithUser(ctx, authz.WrapIdentity(identity)) // wrap the identity in the context
+
 	switch {
 	case requiresFakePagination(req):
-		rsp, err := s.listResourcesUsingFakePagination(ctx, identity, req)
+		rsp, err := s.listResourcesUsingFakePagination(ctx, req)
 		return rsp, trail.ToGRPC(err)
-	case slices.Contains(types.KubernetesResourcesKinds, req.ResourceType):
-		rsp, err := s.listKubernetesResources(ctx, identity, true, req)
+	case slices.Contains(types.KubernetesResourcesKinds, req.GetResourceType()) || strings.HasPrefix(req.GetResourceType(), types.AccessRequestPrefixKindKube):
+		rsp, err := s.listKubernetesResources(ctx, true, req)
 		return rsp, trail.ToGRPC(err)
 	default:
-		return nil, trail.ToGRPC(trace.BadParameter("unsupported resource type %q", req.ResourceType))
+		return nil, trail.ToGRPC(trace.BadParameter("unsupported resource type %q", req.GetResourceType()))
 	}
 }
 
@@ -191,11 +223,11 @@ func (s *Server) emitAuditEvent(ctx context.Context, userContext *authz.Context,
 			},
 			UserMetadata:        authz.ClientUserMetadata(ctx),
 			SearchAsRoles:       userContext.Checker.RoleNames(),
-			ResourceType:        req.ResourceType,
+			ResourceType:        req.GetResourceType(),
 			Namespace:           defaults.Namespace,
-			Labels:              req.Labels,
-			PredicateExpression: req.PredicateExpression,
-			SearchKeywords:      req.SearchKeywords,
+			Labels:              req.GetLabels(),
+			PredicateExpression: req.GetPredicateExpression(),
+			SearchKeywords:      req.GetSearchKeywords(),
 		})
 	return trace.Wrap(err)
 }
@@ -208,26 +240,25 @@ func (s *Server) emitAuditEvent(ctx context.Context, userContext *authz.Context,
 // those that match the search parameters.
 func (s *Server) listKubernetesResources(
 	ctx context.Context,
-	identity tlsca.Identity,
 	respectLimit bool,
 	req *proto.ListKubernetesResourcesRequest,
 ) (*proto.ListKubernetesResourcesResponse, error) {
-	if req.KubernetesCluster == "" {
+	if req.GetKubernetesCluster() == "" {
 		return nil, trace.BadParameter("missing parameter KubernetesCluster")
 	}
-	if req.TeleportCluster == "" {
+	if req.GetTeleportCluster() == "" {
 		return nil, trace.BadParameter("missing parameter TeleportCluster")
 	}
 
-	limit := int(req.Limit)
+	limit := int(req.GetLimit())
 	filter := services.MatchResourceFilter{
-		ResourceKind:   req.ResourceType,
-		Labels:         req.Labels,
-		SearchKeywords: req.SearchKeywords,
+		ResourceKind:   req.GetResourceType(),
+		Labels:         req.GetLabels(),
+		SearchKeywords: req.GetSearchKeywords(),
 	}
 
-	if req.PredicateExpression != "" {
-		expression, err := services.NewResourceExpression(req.PredicateExpression)
+	if req.GetPredicateExpression() != "" {
+		expression, err := services.NewResourceExpression(req.GetPredicateExpression())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -236,23 +267,94 @@ func (s *Server) listKubernetesResources(
 
 	rsp := &proto.ListKubernetesResourcesResponse{}
 	err := s.iterateKubernetesResources(
-		ctx, identity, req, respectLimit,
+		ctx, req, respectLimit,
 		func(r *types.KubernetesResourceV1, continueKey string) (int, error) {
 			switch match, err := services.MatchResourceByFilters(r, filter, nil /* ignore dup matches  */); {
 			case err != nil:
-				return len(rsp.Resources), trace.Wrap(err)
+				return len(rsp.GetResources()), trace.Wrap(err)
 			case match:
-				rsp.Resources = append(rsp.Resources, r)
+				rsp.SetResources(append(rsp.GetResources(), r))
 			}
 			// repectLimit is true only if we do not require the fake pagination field.
-			if len(rsp.Resources) == limit && respectLimit {
-				rsp.NextKey = continueKey
-				return len(rsp.Resources), errDone
+			if len(rsp.GetResources()) == limit && respectLimit {
+				rsp.SetNextKey(continueKey)
+				return len(rsp.GetResources()), errDone
 			}
-			return len(rsp.Resources), nil
+			return len(rsp.GetResources()), nil
 		},
 	)
 	return rsp, trace.Wrap(err)
+}
+
+func fetchAPIGroups(ctx context.Context, clientset kubernetes.Interface) (*metav1.APIGroupList, error) {
+	restClient := clientset.Discovery().RESTClient()
+
+	var groupList metav1.APIGroupList
+	if err := restClient.Get().AbsPath("/apis").Do(ctx).Into(&groupList); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &groupList, nil
+}
+
+func fetchAPIResources(ctx context.Context, clientset kubernetes.Interface, apiGroup, version string) (*metav1.APIResourceList, error) {
+	absPath := ""
+	if apiGroup == "" {
+		absPath = "/api/v1"
+	} else {
+		absPath = "/apis/" + apiGroup + "/" + version
+	}
+	restClient := clientset.Discovery().RESTClient()
+
+	var rsList metav1.APIResourceList
+	if err := restClient.Get().AbsPath(absPath).Do(ctx).Into(&rsList); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &rsList, nil
+}
+
+// lookupAPIGroupVersions looks up the GroupKind in the actual API Group list.
+// Returns the extracted api group name, and the list of versions, starting with the preferred version.
+func lookupAPIGroupVersions(ctx context.Context, kubeClient kubernetes.Interface, gk schema.GroupKind) (apiGroup string, versions []string, err error) {
+	if gk.Group == "" {
+		return "", []string{"v1"}, nil
+	}
+	groupList, err := fetchAPIGroups(ctx, kubeClient)
+	if err != nil {
+		return "", nil, trace.Wrap(err)
+	}
+	for _, g := range groupList.Groups {
+		if g.Name != gk.Group {
+			continue
+		}
+		versions := []string{g.PreferredVersion.Version}
+		for _, elem := range g.Versions {
+			if elem.Version == g.PreferredVersion.Version {
+				continue
+			}
+			versions = append(versions, elem.Version)
+		}
+		return gk.Group, versions, nil
+	}
+	return "", nil, trace.BadParameter("unsupported resource type %q in group %q", gk.Kind, gk.Group)
+}
+
+// lookupAPIResource looks up the given resource kind.apiGroup in the actual API Resource list for the given versions.
+// Expects the versions list to start with the preferred one and returns the first match.
+func lookupAPIResource(ctx context.Context, kubeClient kubernetes.Interface, gk schema.GroupKind, versions []string) (version string, isClusterWide bool, err error) {
+	// Lookup the resource version, starting from the group preferred version.
+	for _, v := range versions {
+		// Lookup the resource within the group/version.
+		// The goal is to 1) validate that the resource exists and 2) get the
+		// namespaced scope of the resource.
+		rs, err := fetchAPIResources(ctx, kubeClient, gk.Group, v)
+		if err != nil {
+			return "", false, trace.Wrap(err)
+		}
+		if idx := slices.IndexFunc(rs.APIResources, func(r metav1.APIResource) bool { return r.Name == gk.Kind }); idx != -1 {
+			return v, !rs.APIResources[idx].Namespaced, nil
+		}
+	}
+	return "", false, trace.BadParameter("unsupported resource type %q in group %q versions %v", gk.Kind, gk.Group, versions)
 }
 
 // iterateKubernetesResources creates a new Kubernetes Client with temporary user
@@ -260,59 +362,66 @@ func (s *Server) listKubernetesResources(
 // For each resources discovered, the fn function is called to decide the action.
 // Kubernetes continue key is a base64 encoded json payload with the resource
 // version of the request. In order to resume the operation when using the paginated
-// mode, Teleport respects the Kubernetes Continue Key and will return it to the client
+// mode, Teleport respects the Kubernetes Continue Key and will return it to the kubeClient
 // as a NextKey.
 // In order to have the expected behavior Teleport must respect the ContinueKey and
 // cannot manipulate it. It means that Teleport needs to manipulate the number of
 // requested items from the Kubernetes Cluster in order to have the expected behavior.
 func (s *Server) iterateKubernetesResources(
 	ctx context.Context,
-	identity tlsca.Identity,
 	req *proto.ListKubernetesResourcesRequest,
 	respectLimit bool,
 	fn func(*types.KubernetesResourceV1, string) (int, error),
 ) error {
-	kubeClient, err := s.newKubernetesClient(s.cfg.ClusterName, identity)
-	if err != nil {
-		s.cfg.Log.WithError(err).Warnf("unable to create a Kubernetes client for user %q", identity.Username)
-		// Hide the root cause of the error from the client.
-		return trace.Errorf("unable to create a Kubernetes client for user %q", identity.Username)
-	}
-	continueKey := req.StartKey
+	kubeClient := s.kubeClient
+	kubeDynamicClient := s.kubeDynamicClient
+
+	// Pagination.
+	continueKey := req.GetStartKey()
 	itemsAppended := 0
+
+	// Unknown resources.
+	resourceType := req.GetResourceType()
+	apiGroup := ""
+	version := ""
+
+	// Flag to format/validate the resourceID.
+	isClusterWide := false
 	for {
 		var (
 			items           []kObject
 			nextContinueKey string
 			listOpts        = metav1.ListOptions{
-				Limit:    decideLimit(int64(req.Limit), int64(itemsAppended), respectLimit),
+				Limit:    decideLimit(int64(req.GetLimit()), int64(itemsAppended), respectLimit),
 				Continue: continueKey,
 			}
 		)
 
-		switch req.ResourceType {
+		// TODO(@creack): DELETE IN v20.0.0 when we no longer support tsh v18.
+		switch req.GetResourceType() {
 		case types.KindKubePod:
-			lItems, err := kubeClient.CoreV1().Pods(req.KubernetesNamespace).List(ctx, listOpts)
+			lItems, err := kubeClient.CoreV1().Pods(req.GetKubernetesNamespace()).List(ctx, listOpts)
 			if err != nil {
 				return trace.Wrap(err)
 			}
 			items = itemListToKObjectList(itemListToItemListPtr(lItems.Items))
 			nextContinueKey = lItems.Continue
 		case types.KindKubeSecret:
-			lItems, err := kubeClient.CoreV1().Secrets(req.KubernetesNamespace).List(ctx, listOpts)
+			lItems, err := kubeClient.CoreV1().Secrets(req.GetKubernetesNamespace()).List(ctx, listOpts)
 			if err != nil {
 				return trace.Wrap(err)
 			}
 			items = itemListToKObjectList(itemListToItemListPtr(lItems.Items))
 			nextContinueKey = lItems.Continue
 		case types.KindKubeConfigmap:
-			lItems, err := kubeClient.CoreV1().ConfigMaps(req.KubernetesNamespace).List(ctx, listOpts)
+			lItems, err := kubeClient.CoreV1().ConfigMaps(req.GetKubernetesNamespace()).List(ctx, listOpts)
 			if err != nil {
 				return trace.Wrap(err)
 			}
 			items = itemListToKObjectList(itemListToItemListPtr(lItems.Items))
 			nextContinueKey = lItems.Continue
 		case types.KindKubeNamespace:
+			isClusterWide = true
 			lItems, err := kubeClient.CoreV1().Namespaces().List(ctx, listOpts)
 			if err != nil {
 				return trace.Wrap(err)
@@ -320,20 +429,21 @@ func (s *Server) iterateKubernetesResources(
 			items = itemListToKObjectList(itemListToItemListPtr(lItems.Items))
 			nextContinueKey = lItems.Continue
 		case types.KindKubeService:
-			lItems, err := kubeClient.CoreV1().Services(req.KubernetesNamespace).List(ctx, listOpts)
+			lItems, err := kubeClient.CoreV1().Services(req.GetKubernetesNamespace()).List(ctx, listOpts)
 			if err != nil {
 				return trace.Wrap(err)
 			}
 			items = itemListToKObjectList(itemListToItemListPtr(lItems.Items))
 			nextContinueKey = lItems.Continue
 		case types.KindKubeServiceAccount:
-			lItems, err := kubeClient.CoreV1().ServiceAccounts(req.KubernetesNamespace).List(ctx, listOpts)
+			lItems, err := kubeClient.CoreV1().ServiceAccounts(req.GetKubernetesNamespace()).List(ctx, listOpts)
 			if err != nil {
 				return trace.Wrap(err)
 			}
 			items = itemListToKObjectList(itemListToItemListPtr(lItems.Items))
 			nextContinueKey = lItems.Continue
 		case types.KindKubeNode:
+			isClusterWide = true
 			lItems, err := kubeClient.CoreV1().Nodes().List(ctx, listOpts)
 			if err != nil {
 				return trace.Wrap(err)
@@ -341,6 +451,7 @@ func (s *Server) iterateKubernetesResources(
 			items = itemListToKObjectList(itemListToItemListPtr(lItems.Items))
 			nextContinueKey = lItems.Continue
 		case types.KindKubePersistentVolume:
+			isClusterWide = true
 			lItems, err := kubeClient.CoreV1().PersistentVolumes().List(ctx, listOpts)
 			if err != nil {
 				return trace.Wrap(err)
@@ -348,41 +459,42 @@ func (s *Server) iterateKubernetesResources(
 			items = itemListToKObjectList(itemListToItemListPtr(lItems.Items))
 			nextContinueKey = lItems.Continue
 		case types.KindKubePersistentVolumeClaim:
-			lItems, err := kubeClient.CoreV1().PersistentVolumeClaims(req.KubernetesNamespace).List(ctx, listOpts)
+			lItems, err := kubeClient.CoreV1().PersistentVolumeClaims(req.GetKubernetesNamespace()).List(ctx, listOpts)
 			if err != nil {
 				return trace.Wrap(err)
 			}
 			items = itemListToKObjectList(itemListToItemListPtr(lItems.Items))
 			nextContinueKey = lItems.Continue
 		case types.KindKubeDeployment:
-			lItems, err := kubeClient.AppsV1().Deployments(req.KubernetesNamespace).List(ctx, listOpts)
+			lItems, err := kubeClient.AppsV1().Deployments(req.GetKubernetesNamespace()).List(ctx, listOpts)
 			if err != nil {
 				return trace.Wrap(err)
 			}
 			items = itemListToKObjectList(itemListToItemListPtr(lItems.Items))
 			nextContinueKey = lItems.Continue
 		case types.KindKubeReplicaSet:
-			lItems, err := kubeClient.AppsV1().ReplicaSets(req.KubernetesNamespace).List(ctx, listOpts)
+			lItems, err := kubeClient.AppsV1().ReplicaSets(req.GetKubernetesNamespace()).List(ctx, listOpts)
 			if err != nil {
 				return trace.Wrap(err)
 			}
 			items = itemListToKObjectList(itemListToItemListPtr(lItems.Items))
 			nextContinueKey = lItems.Continue
 		case types.KindKubeStatefulset:
-			lItems, err := kubeClient.AppsV1().StatefulSets(req.KubernetesNamespace).List(ctx, listOpts)
+			lItems, err := kubeClient.AppsV1().StatefulSets(req.GetKubernetesNamespace()).List(ctx, listOpts)
 			if err != nil {
 				return trace.Wrap(err)
 			}
 			items = itemListToKObjectList(itemListToItemListPtr(lItems.Items))
 			nextContinueKey = lItems.Continue
 		case types.KindKubeDaemonSet:
-			lItems, err := kubeClient.AppsV1().DaemonSets(req.KubernetesNamespace).List(ctx, listOpts)
+			lItems, err := kubeClient.AppsV1().DaemonSets(req.GetKubernetesNamespace()).List(ctx, listOpts)
 			if err != nil {
 				return trace.Wrap(err)
 			}
 			items = itemListToKObjectList(itemListToItemListPtr(lItems.Items))
 			nextContinueKey = lItems.Continue
 		case types.KindKubeClusterRole:
+			isClusterWide = true
 			lItems, err := kubeClient.RbacV1().ClusterRoles().List(ctx, listOpts)
 			if err != nil {
 				return trace.Wrap(err)
@@ -390,13 +502,14 @@ func (s *Server) iterateKubernetesResources(
 			items = itemListToKObjectList(itemListToItemListPtr(lItems.Items))
 			nextContinueKey = lItems.Continue
 		case types.KindKubeRole:
-			lItems, err := kubeClient.RbacV1().Roles(req.KubernetesNamespace).List(ctx, listOpts)
+			lItems, err := kubeClient.RbacV1().Roles(req.GetKubernetesNamespace()).List(ctx, listOpts)
 			if err != nil {
 				return trace.Wrap(err)
 			}
 			items = itemListToKObjectList(itemListToItemListPtr(lItems.Items))
 			nextContinueKey = lItems.Continue
 		case types.KindKubeClusterRoleBinding:
+			isClusterWide = true
 			lItems, err := kubeClient.RbacV1().ClusterRoleBindings().List(ctx, listOpts)
 			if err != nil {
 				return trace.Wrap(err)
@@ -404,27 +517,28 @@ func (s *Server) iterateKubernetesResources(
 			items = itemListToKObjectList(itemListToItemListPtr(lItems.Items))
 			nextContinueKey = lItems.Continue
 		case types.KindKubeRoleBinding:
-			lItems, err := kubeClient.RbacV1().RoleBindings(req.KubernetesNamespace).List(ctx, listOpts)
+			lItems, err := kubeClient.RbacV1().RoleBindings(req.GetKubernetesNamespace()).List(ctx, listOpts)
 			if err != nil {
 				return trace.Wrap(err)
 			}
 			items = itemListToKObjectList(itemListToItemListPtr(lItems.Items))
 			nextContinueKey = lItems.Continue
 		case types.KindKubeCronjob:
-			lItems, err := kubeClient.BatchV1().CronJobs(req.KubernetesNamespace).List(ctx, listOpts)
+			lItems, err := kubeClient.BatchV1().CronJobs(req.GetKubernetesNamespace()).List(ctx, listOpts)
 			if err != nil {
 				return trace.Wrap(err)
 			}
 			items = itemListToKObjectList(itemListToItemListPtr(lItems.Items))
 			nextContinueKey = lItems.Continue
 		case types.KindKubeJob:
-			lItems, err := kubeClient.BatchV1().Jobs(req.KubernetesNamespace).List(ctx, listOpts)
+			lItems, err := kubeClient.BatchV1().Jobs(req.GetKubernetesNamespace()).List(ctx, listOpts)
 			if err != nil {
 				return trace.Wrap(err)
 			}
 			items = itemListToKObjectList(itemListToItemListPtr(lItems.Items))
 			nextContinueKey = lItems.Continue
 		case types.KindKubeCertificateSigningRequest:
+			isClusterWide = true
 			lItems, err := kubeClient.CertificatesV1().CertificateSigningRequests().List(ctx, listOpts)
 			if err != nil {
 				return trace.Wrap(err)
@@ -432,18 +546,57 @@ func (s *Server) iterateKubernetesResources(
 			items = itemListToKObjectList(itemListToItemListPtr(lItems.Items))
 			nextContinueKey = lItems.Continue
 		case types.KindKubeIngress:
-			lItems, err := kubeClient.NetworkingV1().Ingresses(req.KubernetesNamespace).List(ctx, listOpts)
+			lItems, err := kubeClient.NetworkingV1().Ingresses(req.GetKubernetesNamespace()).List(ctx, listOpts)
 			if err != nil {
 				return trace.Wrap(err)
 			}
 			items = itemListToKObjectList(itemListToItemListPtr(lItems.Items))
 			nextContinueKey = lItems.Continue
 		default:
-			return trace.BadParameter("unsupported resource type: %q", req.ResourceType)
+			// If we don't have a known legacy value, we expect a 'kube:' prefix.
+			if !strings.HasPrefix(req.GetResourceType(), types.AccessRequestPrefixKindKube) {
+				return trace.BadParameter("unsupported resource type %q", resourceType)
+			}
+
+			// If the apiGroup var is not set, it is the first time we are here,
+			// Lookup the group versions to validate the requested group actually exists.
+			// The next iteration of paginatin, we don't need to lookup the values again.
+			if apiGroup == "" && version == "" {
+				// TODO(@creack): Consider caching the discovery. Needs to be periodically invalidated.
+				// As it is only for the access request search, it is likely not heavily used and the request
+				// is between us and kube_proxy which is likely on the same host.
+				gk := schema.ParseGroupKind(strings.TrimPrefix(req.GetResourceType(), types.AccessRequestPrefixKindKube))
+				resourceType = gk.Kind
+				g, versions, err := lookupAPIGroupVersions(ctx, kubeClient, gk)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				v, clusterWide, err := lookupAPIResource(ctx, kubeClient, gk, versions)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				apiGroup, version, isClusterWide = g, v, clusterWide
+			}
+
+			// NOTE: The CLI sends the 'default' namespace regardless of the kind. Make sure to clear it out for globals.
+			if req.GetKubernetesNamespace() == defaults.Namespace && isClusterWide {
+				req.SetKubernetesNamespace("")
+			}
+
+			lItems, err := kubeDynamicClient.Resource(schema.GroupVersionResource{
+				Group:    apiGroup,
+				Version:  version,
+				Resource: resourceType,
+			}).Namespace(req.GetKubernetesNamespace()).List(ctx, listOpts)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			items = itemListToKObjectList(itemListToItemListPtr(lItems.Items))
+			nextContinueKey = lItems.GetContinue()
 		}
 
 		for _, resource := range items {
-			resource, err := getKubernetesResourceFromKObject(resource, req.ResourceType)
+			resource, err := getKubernetesResourceFromKObject(resource, !isClusterWide, req.GetResourceType())
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -473,11 +626,19 @@ type kObject interface {
 // getKubernetesResourceFromKObject converts a Kubernetes object to a
 // KubernetesResourceV1.
 func getKubernetesResourceFromKObject(
-	kObj kObject,
+	kObj kObject, namespaced bool,
 	resourceType string,
 ) (*types.KubernetesResourceV1, error) {
+	if strings.HasPrefix(resourceType, types.AccessRequestPrefixKindKube) {
+		if namespaced {
+			resourceType = strings.Replace(resourceType, types.AccessRequestPrefixKindKube, types.AccessRequestPrefixKindKubeNamespaced, 1)
+		} else {
+			resourceType = strings.Replace(resourceType, types.AccessRequestPrefixKindKube, types.AccessRequestPrefixKindKubeClusterWide, 1)
+		}
+	}
 	return types.NewKubernetesResourceV1(
 		resourceType,
+		namespaced,
 		types.Metadata{
 			Name:   kObj.GetName(),
 			Labels: kObj.GetLabels(),
@@ -493,6 +654,9 @@ func getKubernetesResourceFromKObject(
 // This is needed because the Kubernetes API returns a list of items, but
 // only a list of pointers to items satisfies the kObject interface.
 func itemListToItemListPtr[T any](items []T) []*T {
+	if len(items) == 0 {
+		return nil
+	}
 	kObjects := make([]*T, len(items))
 	for i := range items {
 		kObjects[i] = &(items[i])
@@ -503,6 +667,9 @@ func itemListToItemListPtr[T any](items []T) []*T {
 // itemListToKObjectList is a helper function that converts a list of items
 // to a list of kObjects.
 func itemListToKObjectList[T kObject](items []T) []kObject {
+	if len(items) == 0 {
+		return nil
+	}
 	kObjects := make([]kObject, len(items))
 	for i, item := range items {
 		kObjects[i] = item
@@ -511,10 +678,10 @@ func itemListToKObjectList[T kObject](items []T) []kObject {
 }
 
 // listResourcesUsingFakePagination is a helper function that lists Kubernetes
-// resources using fake pagination. It is used when the client requires
+// resources using fake pagination. It is used when the kubeClient requires
 // the total count or sorting.
 func (s *Server) listResourcesUsingFakePagination(
-	ctx context.Context, identity tlsca.Identity,
+	ctx context.Context,
 	req *proto.ListKubernetesResourcesRequest,
 ) (*proto.ListKubernetesResourcesResponse, error) {
 	var (
@@ -522,33 +689,33 @@ func (s *Server) listResourcesUsingFakePagination(
 		err error
 	)
 	switch {
-	case slices.Contains(types.KubernetesResourcesKinds, req.ResourceType):
-		rsp, err = s.listKubernetesResources(ctx, identity, false /* do not respect the limit value */, req)
+	case slices.Contains(types.KubernetesResourcesKinds, req.GetResourceType()) || strings.HasPrefix(req.GetResourceType(), types.AccessRequestPrefixKindKube):
+		rsp, err = s.listKubernetesResources(ctx, false /* do not respect the limit value */, req)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	default:
-		return nil, trace.BadParameter("unsupported resource type %q", req.ResourceType)
+		return nil, trace.BadParameter("unsupported resource type %q", req.GetResourceType())
 	}
 
-	sortedClusters := types.KubeResources(rsp.Resources)
-	if req.SortBy != nil {
-		if err := sortedClusters.SortByCustom(*req.SortBy); err != nil {
+	sortedClusters := types.KubeResources(rsp.GetResources())
+	if req.HasSortBy() {
+		if err := sortedClusters.SortByCustom(*req.GetSortBy()); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
 
 	// map the request to the fake pagination request.
 	params := local.FakePaginateParams{
-		StartKey:       req.StartKey,
-		Limit:          req.Limit,
-		ResourceType:   req.ResourceType,
-		Labels:         req.Labels,
-		SearchKeywords: req.SearchKeywords,
+		StartKey:       req.GetStartKey(),
+		Limit:          req.GetLimit(),
+		ResourceType:   req.GetResourceType(),
+		Labels:         req.GetLabels(),
+		SearchKeywords: req.GetSearchKeywords(),
 	}
 
-	if req.PredicateExpression != "" {
-		expression, err := services.NewResourceExpression(req.PredicateExpression)
+	if req.GetPredicateExpression() != "" {
+		expression, err := services.NewResourceExpression(req.GetPredicateExpression())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -564,16 +731,16 @@ func (s *Server) listResourcesUsingFakePagination(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &proto.ListKubernetesResourcesResponse{
+	return proto.ListKubernetesResourcesResponse_builder{
 		Resources:  resources,
 		NextKey:    fakeRsp.NextKey,
 		TotalCount: int32(fakeRsp.TotalCount),
-	}, nil
+	}.Build(), nil
 }
 
 // requiresFakePagination returns true if the request requires the fake pagination.
 func requiresFakePagination(req *proto.ListKubernetesResourcesRequest) bool {
-	return req.SortBy != nil && req.SortBy.Field != "" || req.NeedTotalCount
+	return req.HasSortBy() && req.GetSortBy().Field != "" || req.GetNeedTotalCount()
 }
 
 // resourcesToKubeResources converts a list of resources to a list of Kubernetes resources.

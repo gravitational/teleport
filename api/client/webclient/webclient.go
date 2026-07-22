@@ -22,10 +22,10 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"log/slog"
+	"mime"
 	"net"
 	"net/http"
 	"net/url"
@@ -45,6 +45,23 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
+)
+
+const (
+	// AgentUpdateGroupParameter is the parameter used to specify the updater
+	// group when doing a Ping() or Find() query.
+	// The proxy server will modulate the auto_update part of the PingResponse
+	// based on the specified group. e.g. some groups might need to update
+	// before others.
+	AgentUpdateGroupParameter = "group"
+
+	// AgentUpdateIDParameter is the parameter used to specify the updater
+	// ID during a Ping() or Find() query.
+	// The proxy server will modulate the auto_update part of the PingResponse
+	// based on the specified update ID. e.g. canary hosts might need to update
+	// before others.
+	AgentUpdateIDParameter = "update_id"
 )
 
 // Config specifies information when building requests with the
@@ -68,6 +85,12 @@ type Config struct {
 	Timeout time.Duration
 	// TraceProvider is used to retrieve a Tracer for creating spans
 	TraceProvider oteltrace.TracerProvider
+	// UpdateGroup is used to vary the webapi response based on the
+	// client's Managed Update group.
+	UpdateGroup string
+	// UpdateID is used to vary the webapi response based on the
+	// client's Managed Update ID.
+	UpdateID string
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -140,7 +163,7 @@ func doWithFallback(clt *http.Client, allowPlainHTTP bool, extraHeaders map[stri
 	// If we're not allowed to try plain HTTP, bail out with whatever error we have.
 	// Note that we're only allowed to try plain HTTP on the loopback address, even
 	// if the caller says its OK
-	if !(allowPlainHTTP && utils.IsLoopback(req.URL.Host)) {
+	if !allowPlainHTTP || !utils.IsLoopback(req.URL.Host) {
 		return nil, trace.Wrap(err)
 	}
 
@@ -166,12 +189,104 @@ func Find(cfg *Config) (*PingResponse, error) {
 	}
 	defer clt.CloseIdleConnections()
 
+	return findWithClient(cfg, clt)
+}
+
+// maxErrorResponseBodyBytes bounds how much of a non-200 response body is read
+// so a misbehaving upstream cannot make the client buffer an arbitrarily large
+// body just to build an error message.
+const maxErrorResponseBodyBytes = 4096
+
+// errorFromUnsuccessfulResponse builds an actionable error describing why a
+// request returned an unsuccessful HTTP status. The HTTP status and the
+// response body are surfaced so the caller can tell whether the proxy,
+// an intermediary, or a wrong address produced the failure.
+func errorFromUnsuccessfulResponse(ctx context.Context, endpoint, proxyAddr string, resp *http.Response) error {
+	slog.DebugContext(ctx, "Received unsuccessful response", "endpoint", endpoint, "code", resp.StatusCode)
+
+	target := "https://" + proxyAddr
+	reqURL := target + endpoint
+
+	var helpMessage string
+	switch {
+	case resp.StatusCode == http.StatusTooManyRequests:
+		helpMessage = "the server is rate-limiting requests, try again shortly"
+	case resp.StatusCode >= 500:
+		helpMessage = "the proxy may be unhealthy or temporarily unavailable"
+	default:
+		// A 4xx (most commonly 404) usually means proxyAddr is not a Teleport
+		// proxy, or something other than the proxy answered.
+		helpMessage = fmt.Sprintf("is %q a Teleport proxy?", target)
+	}
+
+	// A non-200 response is not necessarily from the proxy, something in front
+	// of it (a load balancer, a tunnel like Cloudflare, etc.) can return its own
+	// error page, which is untrusted and may be arbitrarily large.
+	bodyBytes, err := io.ReadAll(io.LimitReader(resp.Body, maxErrorResponseBodyBytes))
+	if err != nil {
+		return trace.Wrap(err, "%s returned HTTP %d but the response body could not be fully read", reqURL, resp.StatusCode)
+	}
+
+	if contentType, _, err := mime.ParseMediaType(resp.Header.Get("Content-Type")); contentType != "application/json" {
+		slog.DebugContext(ctx, "Response is not JSON", "url", reqURL, "content_type", contentType, "body", string(bodyBytes), "error", err)
+		return trace.Errorf("%s returned HTTP %d; %s", reqURL, resp.StatusCode, helpMessage)
+	}
+
+	errResp := &PingErrorResponse{}
+	if err := json.Unmarshal(bodyBytes, errResp); err != nil {
+		slog.DebugContext(ctx, "Could not parse response body", "url", reqURL, "body", string(bodyBytes), "error", err)
+		return trace.Errorf("%s returned an unparseable HTTP %d JSON response; %s%s", reqURL, resp.StatusCode, helpMessage, snippetSuffix(bodyBytes))
+	}
+
+	if errResp.Error.Message == "" {
+		slog.DebugContext(ctx, "Parsed JSON response did not contain an error message", "url", reqURL, "body", string(bodyBytes))
+		return trace.Errorf("%s returned an HTTP %d JSON response with no error message; %s", reqURL, resp.StatusCode, helpMessage)
+	}
+
+	// The message may come from an intermediary rather than the proxy, so route
+	// it through snippetSuffix like any other untrusted text.
+	return trace.Errorf("%s returned HTTP %d%s", reqURL, resp.StatusCode, snippetSuffix([]byte(errResp.Error.Message)))
+}
+
+// snippetSuffix returns a single-line, quoted excerpt of the given text
+// formatted as an appendable error suffix: `: "…"` with the leading delimiter
+// included, or "" for empty text or whitespace only so callers can concatenate
+// it unconditionally.
+func snippetSuffix(text []byte) string {
+	s := strings.Join(strings.Fields(string(text)), " ")
+	if s == "" {
+		return ""
+	}
+	// Long enough to be useful for diagnosis, short enough not to flood the terminal.
+	const maxLen = 256
+	if len(s) > maxLen {
+		s = s[:maxLen] + "…"
+	}
+	// The %q is load-bearing, not cosmetic. The text is untrusted input and the
+	// result is printed to a terminal, so control bytes must be escaped rather
+	// than emitted raw (do not replace it with plain concatenation).
+	return fmt.Sprintf(": %q", s)
+}
+
+func findWithClient(cfg *Config, clt *http.Client) (*PingResponse, error) {
 	ctx, span := cfg.TraceProvider.Tracer("webclient").Start(cfg.Context, "webclient/Find")
 	defer span.End()
 
-	endpoint := fmt.Sprintf("https://%s/webapi/find", cfg.ProxyAddr)
+	endpoint := &url.URL{
+		Scheme: "https",
+		Host:   cfg.ProxyAddr,
+		Path:   "/webapi/find",
+	}
+	query := url.Values{}
+	if cfg.UpdateGroup != "" {
+		query[AgentUpdateGroupParameter] = []string{cfg.UpdateGroup}
+	}
+	if cfg.UpdateID != "" {
+		query[AgentUpdateIDParameter] = []string{cfg.UpdateID}
+	}
+	endpoint.RawQuery = query.Encode()
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint.String(), nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -182,9 +297,19 @@ func Find(cfg *Config) (*PingResponse, error) {
 	}
 
 	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, errorFromUnsuccessfulResponse(req.Context(), endpoint.Path, cfg.ProxyAddr, resp)
+	}
+
+	// In case of a 200 response, findWithClient immediately attempts to parse
+	// the response as JSON. Attempting to check Content-Type before parsing
+	// the response would be a breaking change for Teleport deployments that
+	// sit in front of misbehaving proxies that mangle Content-Type for whatever
+	// reason. Consider introducing that change only in a major release.
 	pr := &PingResponse{}
 	if err := json.NewDecoder(resp.Body).Decode(pr); err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "cannot parse server find response; is %q a Teleport proxy?", "https://"+cfg.ProxyAddr)
 	}
 
 	return pr, nil
@@ -202,15 +327,31 @@ func Ping(cfg *Config) (*PingResponse, error) {
 	}
 	defer clt.CloseIdleConnections()
 
+	return pingWithClient(cfg, clt)
+}
+
+func pingWithClient(cfg *Config, clt *http.Client) (*PingResponse, error) {
 	ctx, span := cfg.TraceProvider.Tracer("webclient").Start(cfg.Context, "webclient/Ping")
 	defer span.End()
 
-	endpoint := fmt.Sprintf("https://%s/webapi/ping", cfg.ProxyAddr)
+	endpoint := &url.URL{
+		Scheme: "https",
+		Host:   cfg.ProxyAddr,
+		Path:   "/webapi/ping",
+	}
+	query := url.Values{}
+	if cfg.UpdateGroup != "" {
+		query[AgentUpdateGroupParameter] = []string{cfg.UpdateGroup}
+	}
+	if cfg.UpdateID != "" {
+		query[AgentUpdateIDParameter] = []string{cfg.UpdateID}
+	}
+	endpoint.RawQuery = query.Encode()
 	if cfg.ConnectorName != "" {
-		endpoint = fmt.Sprintf("%s/%s", endpoint, cfg.ConnectorName)
+		endpoint = endpoint.JoinPath(cfg.ConnectorName)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint.String(), nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -222,30 +363,23 @@ func Ping(cfg *Config) (*PingResponse, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		slog.DebugContext(req.Context(), "Received unsuccessful ping response", "code", resp.StatusCode)
-
-		bodyBytes, err := io.ReadAll(resp.Body)
-		if err != nil {
-			return nil, trace.Wrap(err, "could not read ping response body; check the network connection")
-		}
-
-		errResp := &PingErrorResponse{}
-		if err := json.Unmarshal(bodyBytes, errResp); err != nil {
-			slog.DebugContext(req.Context(), "Could not parse ping response body", "body", string(bodyBytes))
-			return nil, trace.Wrap(err, "cannot parse ping response; is proxy reachable?")
-		}
-
-		return nil, trace.Wrap(errors.New(errResp.Error.Message), "proxy service returned unsuccessful ping response; Teleport cluster auth may be misconfigured")
+		return nil, errorFromUnsuccessfulResponse(req.Context(), endpoint.Path, cfg.ProxyAddr, resp)
 	}
 
+	// In case of a 200 response, pingWithClient immediately attempts to parse
+	// the response as JSON. Attempting to check Content-Type before parsing
+	// the response would be a breaking change for Teleport deployments that
+	// sit in front of misbehaving proxies that mangle Content-Type for whatever
+	// reason. Consider introducing that change only in a major release.
 	pr := &PingResponse{}
 	if err := json.NewDecoder(resp.Body).Decode(pr); err != nil {
-		return nil, trace.Wrap(err, "cannot parse server response; is %q a Teleport server?", "https://"+cfg.ProxyAddr)
+		return nil, trace.Wrap(err, "cannot parse server ping response; is %q a Teleport proxy?", "https://"+cfg.ProxyAddr)
 	}
 
 	return pr, nil
 }
 
+// GetMOTD retrieves the Message Of The Day from the web proxy.
 func GetMOTD(cfg *Config) (*MotD, error) {
 	clt, err := newWebClient(cfg)
 	if err != nil {
@@ -253,6 +387,10 @@ func GetMOTD(cfg *Config) (*MotD, error) {
 	}
 	defer clt.CloseIdleConnections()
 
+	return getMOTDWithClient(cfg, clt)
+}
+
+func getMOTDWithClient(cfg *Config, clt *http.Client) (*MotD, error) {
 	ctx, span := cfg.TraceProvider.Tracer("webclient").Start(cfg.Context, "webclient/GetMOTD")
 	defer span.End()
 
@@ -281,6 +419,60 @@ func GetMOTD(cfg *Config) (*MotD, error) {
 	return motd, nil
 }
 
+// NewReusableClient creates a reusable webproxy client. If you need to do a single call,
+// use the webclient.Ping or webclient.Find functions instead.
+func NewReusableClient(cfg *Config) (*ReusableClient, error) {
+	// no need to check and set config defaults, this happens in newWebClient
+	client, err := newWebClient(cfg)
+	if err != nil {
+		return nil, trace.Wrap(err, "building new web client")
+	}
+
+	return &ReusableClient{
+		client: client,
+		config: cfg,
+	}, nil
+}
+
+// ReusableClient is a webproxy client that allows the caller to make multiple calls
+// without having to buildi a new HTTP client each time.
+// Before retiring the client, you must make sure no calls are still in-flight, then call
+// ReusableClient.CloseIdleConnections().
+type ReusableClient struct {
+	client *http.Client
+	config *Config
+}
+
+// Find fetches discovery data by connecting to the given web proxy address.
+// It is designed to fetch proxy public addresses without any inefficiencies.
+func (c *ReusableClient) Find() (*PingResponse, error) {
+	return findWithClient(c.config, c.client)
+}
+
+// Ping serves two purposes. The first is to validate the HTTP endpoint of a
+// Teleport proxy. This leads to better user experience: users get connection
+// errors before being asked for passwords. The second is to return the form
+// of authentication that the server supports. This also leads to better user
+// experience: users only get prompted for the type of authentication the server supports.
+func (c *ReusableClient) Ping() (*PingResponse, error) {
+	return pingWithClient(c.config, c.client)
+}
+
+// GetMOTD retrieves the Message Of The Day from the web proxy.
+func (c *ReusableClient) GetMOTD() (*MotD, error) {
+	return getMOTDWithClient(c.config, c.client)
+}
+
+// CloseIdleConnections closes any connections on its [Transport] which
+// were previously connected from previous requests but are now
+// sitting idle in a "keep-alive" state. It does not interrupt any
+// connections currently in use.
+//
+// This must be run before retiring the ReusableClient.
+func (c *ReusableClient) CloseIdleConnections() {
+	c.client.CloseIdleConnections()
+}
+
 // MotD holds data about the current message of the day.
 type MotD struct {
 	Text string
@@ -297,12 +489,18 @@ type PingResponse struct {
 	ServerVersion string `json:"server_version"`
 	// MinClientVersion is the minimum client version required by the server.
 	MinClientVersion string `json:"min_client_version"`
+	// AutoUpdateSettings contains the auto update settings.
+	AutoUpdate AutoUpdateSettings `json:"auto_update"`
 	// ClusterName contains the name of the Teleport cluster.
 	ClusterName string `json:"cluster_name"`
 
 	// reserved: license_warnings ([]string)
 	// AutomaticUpgrades describes whether agents should automatically upgrade.
 	AutomaticUpgrades bool `json:"automatic_upgrades"`
+	// Edition represents the Teleport edition. Possible values are "oss", "ent", and "community".
+	Edition string `json:"edition"`
+	// FIPS represents if Teleport is using FIPS-compliant cryptography.
+	FIPS bool `json:"fips"`
 }
 
 // PingErrorResponse contains the error from /webapi/ping.
@@ -326,6 +524,22 @@ type ProxySettings struct {
 	// TLSRoutingEnabled indicates that proxy supports ALPN SNI server where
 	// all proxy services are exposed on a single TLS listener (Proxy Web Listener).
 	TLSRoutingEnabled bool `json:"tls_routing_enabled"`
+	// ScopesEnabled determines if the scoped rbac feature set is enabled.
+	ScopesEnabled bool `json:"scopes_enabled"`
+}
+
+// AutoUpdateSettings contains information about the auto update requirements.
+type AutoUpdateSettings struct {
+	// ToolsVersion defines the version of {tsh, tctl} for client auto update.
+	ToolsVersion string `json:"tools_version"`
+	// ToolsAutoUpdate indicates if the requesting tools client should be updated.
+	ToolsAutoUpdate bool `json:"tools_auto_update"`
+	// AgentVersion defines the version of teleport that agents enrolled into autoupdates should run.
+	AgentVersion string `json:"agent_version"`
+	// AgentAutoUpdate indicates if the requesting agent should attempt to update now.
+	AgentAutoUpdate bool `json:"agent_auto_update"`
+	// AgentUpdateJitterSeconds defines the jitter time an agent should wait before updating.
+	AgentUpdateJitterSeconds int `json:"agent_update_jitter_seconds"`
 }
 
 // KubeProxySettings is kubernetes proxy settings
@@ -360,6 +574,9 @@ type SSHProxySettings struct {
 
 	// TunnelPublicAddr is the public address of the SSH reverse tunnel.
 	TunnelPublicAddr string `json:"ssh_tunnel_public_addr,omitempty"`
+
+	// DialTimeout indicates the SSH timeout clients should use.
+	DialTimeout time.Duration `json:"dial_timeout,omitempty"`
 }
 
 // DBProxySettings contains database access specific proxy settings.
@@ -408,7 +625,9 @@ type AuthenticationSettings struct {
 	// PrivateKeyPolicy contains the cluster-wide private key policy.
 	PrivateKeyPolicy keys.PrivateKeyPolicy `json:"private_key_policy"`
 	// PIVSlot specifies a specific PIV slot to use with hardware key support.
-	PIVSlot keys.PIVSlot `json:"piv_slot"`
+	PIVSlot hardwarekey.PIVSlotKeyString `json:"piv_slot"`
+	// PIVPINCacheTTL specifies how long to cache the user's PIV PIN.
+	PIVPINCacheTTL time.Duration `json:"piv_pin_cache_ttl"`
 	// DeviceTrust holds cluster-wide device trust settings.
 	DeviceTrust DeviceTrustSettings `json:"device_trust,omitempty"`
 	// HasMessageOfTheDay is a flag indicating that the cluster has MOTD
@@ -423,6 +642,10 @@ type AuthenticationSettings struct {
 	// SignatureAlgorithmSuite is the configured signature algorithm suite for
 	// the cluster.
 	SignatureAlgorithmSuite types.SignatureAlgorithmSuite `json:"signature_algorithm_suite,omitempty"`
+	// Scopes reports whether the scopes feature is enabled or not on the auth server.
+	// Possible values: "enabled", "disabled", "unknown".
+	// This value is populated from the auth server's ping endpoint.
+	Scopes string `json:"scopes,omitempty"`
 }
 
 // LocalSettings holds settings for local authentication.
@@ -451,6 +674,8 @@ type SAMLSettings struct {
 	Display string `json:"display"`
 	// SingleLogoutEnabled is whether SAML SLO (single logout) is enabled for this auth connector.
 	SingleLogoutEnabled bool `json:"singleLogoutEnabled,omitempty"`
+	// SSO is the URL of the identity provider's SSO service.
+	SSO string
 }
 
 // OIDCSettings contains the Name and Display string for OIDC.
@@ -459,6 +684,8 @@ type OIDCSettings struct {
 	Name string `json:"name"`
 	// Display is the display name for the connector.
 	Display string `json:"display"`
+	// Issuer URL is the endpoint of the provider
+	IssuerURL string
 }
 
 // GithubSettings contains the Name and Display string for Github connector.
@@ -467,6 +694,8 @@ type GithubSettings struct {
 	Name string `json:"name"`
 	// Display is the connector display name
 	Display string `json:"display"`
+	// EndpointURL is the endpoint URL.
+	EndpointURL string
 }
 
 // DeviceTrustSettings holds cluster-wide device trust settings that are liable

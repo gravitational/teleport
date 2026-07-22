@@ -16,9 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { Platform } from '../../../mainProcess/types';
 import { KeyboardShortcutAction } from '../../../services/config';
 import { useAppContext } from '../../appContextProvider';
-import { Platform } from '../../../mainProcess/types';
 
 interface KeyboardShortcutFormatters {
   getLabelWithAccelerator(

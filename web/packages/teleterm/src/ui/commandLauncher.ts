@@ -17,7 +17,7 @@
  */
 
 import { IAppContext } from 'teleterm/ui/types';
-import { ClusterUri, RootClusterUri } from 'teleterm/ui/uri';
+import { ClusterUri, RootClusterUri, routing } from 'teleterm/ui/uri';
 
 const commands = {
   'tsh-install': {
@@ -90,11 +90,9 @@ const commands = {
     displayName: '',
     description: '',
     run(ctx: IAppContext, args: { clusterUri: RootClusterUri }) {
-      const cluster = ctx.clustersService.findCluster(args.clusterUri);
       ctx.modalsService.openRegularDialog({
         kind: 'cluster-logout',
-        clusterUri: cluster.uri,
-        clusterTitle: cluster.name,
+        clusterUri: args.clusterUri,
       });
     },
   },
@@ -104,11 +102,14 @@ const commands = {
     description: '',
     async run(ctx: IAppContext, args: { clusterUri: ClusterUri }) {
       const { clusterUri } = args;
-      const rootCluster =
-        ctx.clustersService.findRootClusterByResource(clusterUri);
-      await ctx.workspacesService.setActiveWorkspace(rootCluster.uri);
+      const rootClusterUri = routing.ensureRootClusterUri(clusterUri);
+      const { isAtDesiredWorkspace } =
+        await ctx.workspacesService.setActiveWorkspace(rootClusterUri);
+      if (!isAtDesiredWorkspace) {
+        return;
+      }
       const documentsService =
-        ctx.workspacesService.getWorkspaceDocumentService(rootCluster.uri);
+        ctx.workspacesService.getWorkspaceDocumentService(rootClusterUri);
       const doc = documentsService.findClusterDocument(clusterUri);
       if (doc) {
         documentsService.open(doc.uri);

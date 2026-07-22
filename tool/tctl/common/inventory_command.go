@@ -19,7 +19,9 @@
 package common
 
 import (
+	"cmp"
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -35,6 +37,8 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 	vc "github.com/gravitational/teleport/lib/versioncontrol"
+	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
+	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
 
 // InventoryCommand implements the `tctl inventory` family of commands.
@@ -56,7 +60,8 @@ type InventoryCommand struct {
 
 	services string
 
-	upgrader string
+	upgrader    string
+	updateGroup string
 
 	inventoryStatus *kingpin.CmdClause
 	inventoryList   *kingpin.CmdClause
@@ -64,20 +69,22 @@ type InventoryCommand struct {
 }
 
 // Initialize allows AccessRequestCommand to plug itself into the CLI parser
-func (c *InventoryCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
+func (c *InventoryCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, config *servicecfg.Config) {
 	c.config = config
 	inventory := app.Command("inventory", "Manage Teleport instance inventory.").Hidden()
 
 	c.inventoryStatus = inventory.Command("status", "Show inventory status summary.")
 	c.inventoryStatus.Flag("connected", "Show locally connected instances summary").BoolVar(&c.getConnected)
+	c.inventoryStatus.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON, teleport.YAML)
 
 	c.inventoryList = inventory.Command("list", "List Teleport instance inventory.").Alias("ls")
 	c.inventoryList.Flag("older-than", "Filter for older teleport versions").StringVar(&c.olderThan)
 	c.inventoryList.Flag("newer-than", "Filter for newer teleport versions").StringVar(&c.newerThan)
 	c.inventoryList.Flag("exact-version", "Filter output by teleport version").StringVar(&c.version)
 	c.inventoryList.Flag("services", "Filter output by service (node,kube,proxy,etc)").StringVar(&c.services)
-	c.inventoryList.Flag("format", "Output format, 'text' or 'json'").Default(teleport.Text).StringVar(&c.format)
+	c.inventoryList.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON)
 	c.inventoryList.Flag("upgrader", "Filter output by upgrader (kube,unit,none)").StringVar(&c.upgrader)
+	c.inventoryList.Flag("update-group", "Filter output by update group").StringVar(&c.updateGroup)
 
 	c.inventoryPing = inventory.Command("ping", "Ping locally connected instance.")
 	c.inventoryPing.Arg("server-id", "ID of target server").Required().StringVar(&c.serverID)
@@ -85,52 +92,72 @@ func (c *InventoryCommand) Initialize(app *kingpin.Application, config *servicec
 }
 
 // TryRun takes the CLI command as an argument (like "inventory status") and executes it.
-func (c *InventoryCommand) TryRun(ctx context.Context, cmd string, client *authclient.Client) (match bool, err error) {
+func (c *InventoryCommand) TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (match bool, err error) {
+	var commandFunc func(ctx context.Context, client *authclient.Client) error
 	switch cmd {
 	case c.inventoryStatus.FullCommand():
-		err = c.Status(ctx, client)
+		commandFunc = c.Status
 	case c.inventoryList.FullCommand():
-		err = c.List(ctx, client)
+		commandFunc = c.List
 	case c.inventoryPing.FullCommand():
-		err = c.Ping(ctx, client)
+		commandFunc = c.Ping
 	default:
 		return false, nil
 	}
+	client, closeFn, err := clientFunc(ctx)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	err = commandFunc(ctx, client)
+	closeFn(ctx)
+
 	return true, trace.Wrap(err)
 }
 
 func (c *InventoryCommand) Status(ctx context.Context, client *authclient.Client) error {
-	rsp, err := client.GetInventoryStatus(ctx, proto.InventoryStatusRequest{
+	rsp, err := client.GetInventoryStatus(ctx, proto.InventoryStatusRequest_builder{
 		Connected: c.getConnected,
-	})
+	}.Build())
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	if c.getConnected {
-		table := asciitable.MakeTable([]string{"Server ID", "Services", "Version", "Upgrader"})
-		for _, h := range rsp.Connected {
-			services := make([]string, 0, len(h.Services))
-			for _, s := range h.Services {
-				services = append(services, string(s))
+	switch c.format {
+	case teleport.Text:
+		if c.getConnected {
+			table := asciitable.MakeTable([]string{"Server ID", "Services", "Version", "Upgrader"})
+			for _, h := range rsp.GetConnected() {
+				table.AddRow([]string{
+					h.GetServerID(),
+					strings.Join(h.GetServices(), ","),
+					h.GetVersion(),
+					cmp.Or(h.GetExternalUpgrader(), "none"),
+				})
 			}
-			upgrader := h.ExternalUpgrader
-			if upgrader == "" {
-				upgrader = "none"
-			}
-			table.AddRow([]string{h.ServerID, strings.Join(services, ","), h.Version, upgrader})
+
+			_, err := table.AsBuffer().WriteTo(os.Stdout)
+			return trace.Wrap(err)
 		}
 
-		_, err := table.AsBuffer().WriteTo(os.Stdout)
-		return trace.Wrap(err)
+		printHierarchicalData(map[string]any{
+			"Versions":        toAnyMap(rsp.GetVersionCounts()),
+			"Upgraders":       toAnyMap(rsp.GetUpgraderCounts()),
+			"Services":        toAnyMap(rsp.GetServiceCounts()),
+			"Total Instances": rsp.GetInstanceCount(),
+		}, "  ", 0)
+	case teleport.JSON:
+		output, err := json.Marshal(rsp)
+		if err != nil {
+			return trace.Wrap(err, "marshaling inventory status to json")
+		}
+		fmt.Println(string(output))
+	case teleport.YAML:
+		if err := utils.WriteYAML(os.Stdout, rsp); err != nil {
+			return trace.Wrap(err, "marshaling inventory status to yaml")
+		}
+	default:
+		return trace.BadParameter("unknown format %q", c.format)
 	}
-
-	printHierarchicalData(map[string]any{
-		"Versions":        toAnyMap(rsp.VersionCounts),
-		"Upgraders":       toAnyMap(rsp.UpgraderCounts),
-		"Services":        toAnyMap(rsp.ServiceCounts),
-		"Total Instances": rsp.InstanceCount,
-	}, "  ", 0)
 
 	return nil
 }
@@ -206,11 +233,12 @@ func (c *InventoryCommand) List(ctx context.Context, client *authclient.Client) 
 		NewerThanVersion: vc.Normalize(c.newerThan),
 		ExternalUpgrader: upgrader,
 		NoExtUpgrader:    noUpgrader,
+		UpdateGroup:      c.updateGroup,
 	})
 
 	switch c.format {
 	case teleport.Text:
-		table := asciitable.MakeTable([]string{"Server ID", "Hostname", "Services", "Agent Version", "Upgrader", "Upgrader Version"})
+		table := asciitable.MakeTable([]string{"Server ID", "Hostname", "Services", "Agent Version", "Upgrader", "Upgrader Version", "Update Group"})
 		for instances.Next() {
 			instance := instances.Item()
 
@@ -235,6 +263,11 @@ func (c *InventoryCommand) List(ctx context.Context, client *authclient.Client) 
 				upgraderVersion = "none"
 			}
 
+			var updateGroup string
+			if updateInfo := instance.GetUpdaterInfo(); updateInfo != nil {
+				updateGroup = updateInfo.UpdateGroup
+			}
+
 			table.AddRow([]string{
 				instance.GetName(),
 				instance.GetHostname(),
@@ -242,6 +275,7 @@ func (c *InventoryCommand) List(ctx context.Context, client *authclient.Client) 
 				instance.GetTeleportVersion(),
 				upgrader,
 				upgraderVersion,
+				updateGroup,
 			})
 		}
 
@@ -258,7 +292,7 @@ func (c *InventoryCommand) List(ctx context.Context, client *authclient.Client) 
 		fmt.Fprintf(os.Stdout, "\n")
 		return nil
 	default:
-		return trace.BadParameter("unknown format %q, must be one of [%q, %q]", c.format, teleport.Text, teleport.JSON)
+		return trace.BadParameter("unknown format %q", c.format)
 	}
 }
 

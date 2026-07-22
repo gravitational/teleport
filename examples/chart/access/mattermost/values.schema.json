@@ -328,9 +328,9 @@
                 "tokenSecretPath": {
                     "$id": "#/properties/mattermost/properties/tokenSecretPath",
                     "type": "string",
-                    "default": "pagerdutyApiKey",
+                    "default": "mattermostToken",
                     "examples": [
-                        "pagerdutyApiKey"
+                        "mattermostToken"
                     ]
                 },
                 "recipients": {

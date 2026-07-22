@@ -32,7 +32,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
-	"github.com/gravitational/teleport/lib/integrations/awsoidc/tags"
+	"github.com/gravitational/teleport/lib/cloud/aws/tags"
 )
 
 // waitDuration specifies the amount of time to wait for a service to become healthy after an update.
@@ -46,6 +46,8 @@ type UpdateServiceRequest struct {
 	TeleportVersionTag string
 	// OwnershipTags specifies ownership tags
 	OwnershipTags tags.AWSTags
+	// TeleportBuildType specifies the type of teleport build in use.
+	TeleportBuildType string
 }
 
 // CheckAndSetDefaults checks and sets default config values.
@@ -62,6 +64,10 @@ func (req *UpdateServiceRequest) CheckAndSetDefaults() error {
 		return trace.BadParameter("ownership tags required")
 	}
 
+	if req.TeleportBuildType == "" {
+		return trace.BadParameter("teleport build type required")
+	}
+
 	return nil
 }
 
@@ -71,7 +77,10 @@ func UpdateDeployService(ctx context.Context, clt DeployServiceClient, log *slog
 		return trace.Wrap(err)
 	}
 
-	teleportImage := getDistrolessTeleportImage(req.TeleportVersionTag)
+	teleportImage, err := getDistrolessTeleportImage(req.TeleportVersionTag, req.TeleportBuildType)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	services, err := getManagedServices(ctx, clt, log, req.TeleportClusterName, req.OwnershipTags)
 	if err != nil {
 		return trace.Wrap(err)
@@ -105,6 +114,7 @@ func updateServiceContainerImage(ctx context.Context, clt DeployServiceClient, l
 	// There is no need to update the ecs service if the ecs service is already
 	// running the latest stable version of teleport.
 	if currentTeleportImage == teleportImage {
+		log.InfoContext(ctx, "ECS service version already matches, not updating")
 		return nil
 	}
 
@@ -154,7 +164,7 @@ func getAllServiceNamesForCluster(ctx context.Context, clt DeployServiceClient, 
 			NextToken: aws.String(nextToken),
 		})
 		if err != nil {
-			return nil, awslib.ConvertIAMv2Error(err)
+			return nil, awslib.ConvertIAMError(err)
 		}
 
 		ret = append(ret, resp.ServiceArns...)
@@ -191,10 +201,7 @@ func getManagedServices(ctx context.Context, clt DeployServiceClient, log *slog.
 	// According to AWS API docs, a maximum of 10 Services can be queried at the same time when using the ecs:DescribeServices operation.
 	batchSize := 10
 	for batchStart := 0; batchStart < len(ecsServiceNames); batchStart += batchSize {
-		batchEnd := batchStart + batchSize
-		if batchEnd > len(ecsServiceNames) {
-			batchEnd = len(ecsServiceNames)
-		}
+		batchEnd := min(batchStart+batchSize, len(ecsServiceNames))
 
 		describeServicesOut, err := clt.DescribeServices(ctx, &ecs.DescribeServicesInput{
 			Cluster:  wellKnownClusterName,

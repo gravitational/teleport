@@ -1,17 +1,31 @@
 include install.mk
 
 LOCALDIR := $(dir $(CURDIR)/$(word $(words $(MAKEFILE_LIST)),$(MAKEFILE_LIST)))
-GENTERRAFORMPATH := $(shell go env GOPATH)/bin
+PROTOC_GEN_TERRAFORM:= $(shell command -v protoc-gen-terraform)
 
 BUILDDIR ?= build
 TFDIR ?= example
+TEST_LOG_DIR ?= ${abspath ./test-logs}
 
 ADDFLAGS ?=
-BUILDFLAGS ?= $(ADDFLAGS) -ldflags '-w -s'
+BUILDFLAGS ?= $(ADDFLAGS) -trimpath -ldflags '-w -s'
 # CGO must NOT be enabled as hashicorp cloud does not support running providers using on CGO.
 CGOFLAG ?= CGO_ENABLED=0
 
+# base name for release archive (used for .tar.gz packaging across all platforms)
 RELEASE = terraform-provider-teleport-v$(VERSION)-$(OS)-$(ARCH)-bin
+
+# executable extension (.exe) for windows specific builds
+EXEEXT =
+ifeq ($(OS),windows)
+  EXEEXT = .exe
+endif
+
+# filename of the compiled binary $(BUILDDIR)
+BINARY_NAME = terraform-provider-teleport$(EXEEXT)
+
+# windows terraform provider filename as it will appear on downloads page
+WINDOWS_DOWNLOAD_FILENAME := terraform-provider-teleport-v$(VERSION)-windows-$(ARCH)$(EXEEXT)
 
 .PHONY: tfclean
 tfclean:
@@ -25,11 +39,15 @@ clean: tfclean
 	rm -rf $(PROVIDER_PATH)*
 	rm -rf $(BUILDDIR)/*
 	rm -rf $(RELEASE).tar.gz
+	rm -rf $(RELEASE)$(EXEEXT)
 	go clean
 
 .PHONY: build
 build: clean
-	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -o $(BUILDDIR)/terraform-provider-teleport $(BUILDFLAGS)
+# Turning off GOWORK to prevent missing package errors.
+	GOWORK=off GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) \
+		go build -tags "kustomize_disable_go_plugin_support,terraformprovider" \
+		-o $(BUILDDIR)/$(BINARY_NAME) $(BUILDFLAGS)
 
 build-darwin-universal: $(addprefix $(BUILDDIR)/terraform-provider-teleport_,arm64 amd64)
 	lipo -create -output $(BUILDDIR)/terraform-provider-teleport $^
@@ -45,8 +63,9 @@ $(BUILDDIR)/terraform-provider-teleport_%: terraform-provider-teleport-v$(VERSIO
 	mv $(BUILDDIR)/$(OS)/$*/terraform-provider-teleport $@
 
 CUSTOM_IMPORTS_TMP_DIR ?= /tmp/protoc-gen-terraform/custom-imports
-PROTOC_GEN_TERRAFORM_VERSION ?= v2.2.0
-PROTOC_GEN_TERRAFORM_EXISTS := $(shell protoc-gen-terraform version 2>&1 >/dev/null | grep 'protoc-gen-terraform $(PROTOC_GEN_TERRAFORM_VERSION)')
+# This version must match the version installed by .github/workflows/lint.yaml
+PROTOC_GEN_TERRAFORM_VERSION ?= v3.1.0
+PROTOC_GEN_TERRAFORM_EXISTS := $(shell $(PROTOC_GEN_TERRAFORM) version 2>&1 >/dev/null | grep 'protoc-gen-terraform $(PROTOC_GEN_TERRAFORM_VERSION)')
 
 .PHONY: gen-tfschema
 gen-tfschema:
@@ -62,7 +81,7 @@ endif
 	@protoc \
 		-I=../../api/proto \
 		-I=$(PROTOBUF_MOD_PATH) \
-		--plugin=$(GENTERRAFORMPATH)/protoc-gen-terraform \
+		--plugin=$(PROTOC_GEN_TERRAFORM) \
 		--terraform_out=config=protoc-gen-terraform-teleport.yaml:./tfschema \
 		teleport/legacy/types/types.proto
 
@@ -71,74 +90,201 @@ endif
 	@protoc \
 		-I=../../api/proto \
 		-I=$(PROTOBUF_MOD_PATH) \
-		--plugin=$(GENTERRAFORMPATH)/protoc-gen-terraform \
-		--terraform_out=config=protoc-gen-terraform-teleport-token.yaml:./tfschema \
-		teleport/legacy/types/types.proto
-
-	mkdir -p ./tfschema/token
-	mv ./tfschema/github.com/gravitational/teleport/api/types/types_terraform.go ./tfschema/token/
-
-	@protoc \
-		-I=../../api/proto \
-		-I=$(PROTOBUF_MOD_PATH) \
-		--plugin=$(GENTERRAFORMPATH)/protoc-gen-terraform \
+		--plugin=$(PROTOC_GEN_TERRAFORM) \
 		--terraform_out=config=protoc-gen-terraform-loginrule.yaml:./tfschema \
 		teleport/loginrule/v1/loginrule.proto
 
 	@protoc \
 		-I=../../api/proto \
 		-I=$(PROTOBUF_MOD_PATH) \
-		--plugin=$(GENTERRAFORMPATH)/protoc-gen-terraform \
+		--plugin=$(PROTOC_GEN_TERRAFORM) \
 		--terraform_out=config=protoc-gen-terraform-devicetrust.yaml:./tfschema \
 		teleport/legacy/types/device.proto
 
 	@protoc \
 		-I=../../api/proto \
 		-I=$(PROTOBUF_MOD_PATH) \
-		--plugin=$(GENTERRAFORMPATH)/protoc-gen-terraform \
+		--plugin=$(PROTOC_GEN_TERRAFORM) \
 		--terraform_out=config=protoc-gen-terraform-accesslist.yaml:./tfschema \
 		teleport/accesslist/v1/accesslist.proto
 
+	@protoc \
+		-I=../../api/proto \
+		-I=$(PROTOBUF_MOD_PATH) \
+		--plugin=$(PROTOC_GEN_TERRAFORM) \
+		--terraform_out=config=protoc-gen-terraform-accessmonitoringrules.yaml:./tfschema \
+		teleport/accessmonitoringrules/v1/access_monitoring_rules.proto
+
+	@protoc \
+		-I=../../api/proto \
+		-I=$(PROTOBUF_MOD_PATH) \
+		--plugin=$(PROTOC_GEN_TERRAFORM) \
+		--terraform_out=config=protoc-gen-terraform-statichostuser.yaml:./tfschema \
+		teleport/userprovisioning/v2/statichostuser.proto
+
+	@protoc \
+		-I=../../api/proto \
+		-I=$(PROTOBUF_MOD_PATH) \
+		--plugin=$(PROTOC_GEN_TERRAFORM) \
+		--terraform_out=config=protoc-gen-terraform-workloadidentity.yaml:./tfschema \
+		teleport/workloadidentity/v1/resource.proto
+
+	@protoc \
+		-I=../../api/proto \
+		-I=$(PROTOBUF_MOD_PATH) \
+		--plugin=$(PROTOC_GEN_TERRAFORM) \
+		--terraform_out=config=protoc-gen-terraform-autoupdate.yaml:./tfschema \
+		teleport/autoupdate/v1/autoupdate.proto
+
+	@protoc \
+		-I=../../api/proto \
+		-I=$(PROTOBUF_MOD_PATH) \
+		--plugin=$(PROTOC_GEN_TERRAFORM) \
+		--terraform_out=config=protoc-gen-terraform-healthcheckconfig.yaml:./tfschema \
+		teleport/healthcheckconfig/v1/health_check_config.proto
+
+	@protoc \
+		-I=../../api/proto \
+		-I=$(PROTOBUF_MOD_PATH) \
+		--plugin=$(PROTOC_GEN_TERRAFORM) \
+		--terraform_out=config=protoc-gen-terraform-discoveryconfig.yaml:./tfschema \
+		teleport/discoveryconfig/v1/discoveryconfig.proto
+	
+	@protoc \
+		-I=../../api/proto \
+		-I=$(PROTOBUF_MOD_PATH) \
+		--plugin=$(PROTOC_GEN_TERRAFORM) \
+		--terraform_out=config=protoc-gen-terraform-appauthconfig.yaml:./tfschema \
+		teleport/appauthconfig/v1/appauthconfig.proto
+
+	@protoc \
+		-I=../../api/proto \
+		-I=$(PROTOBUF_MOD_PATH) \
+		--plugin=$(PROTOC_GEN_TERRAFORM) \
+		--terraform_out=config=protoc-gen-terraform-summarizer.yaml:./tfschema \
+		teleport/summarizer/v1/summarizer.proto
+
+	@protoc \
+		-I=../../api/proto \
+		-I=$(PROTOBUF_MOD_PATH) \
+		--plugin=$(PROTOC_GEN_TERRAFORM) \
+		--terraform_out=config=protoc-gen-terraform-vnetconfig.yaml:./tfschema \
+		teleport/vnet/v1/vnet_config.proto
+
+	@protoc \
+		-I=../../api/proto \
+		-I=$(PROTOBUF_MOD_PATH) \
+		--plugin=$(PROTOC_GEN_TERRAFORM) \
+		--terraform_out=config=protoc-gen-terraform-scopedtoken.yaml:./tfschema \
+		teleport/scopes/joining/v1/token.proto
+
+	@protoc \
+		-I=../../api/proto \
+		-I=$(PROTOBUF_MOD_PATH) \
+		--plugin=$(PROTOC_GEN_TERRAFORM) \
+		--terraform_out=config=protoc-gen-terraform-workloadcluster.yaml:./tfschema \
+		teleport/workloadcluster/v1/workloadcluster.proto
+
+	@protoc \
+		-I=../../api/proto \
+		-I=$(PROTOBUF_MOD_PATH) \
+		--plugin=$(PROTOC_GEN_TERRAFORM) \
+		--terraform_out=config=protoc-gen-terraform-scopedrole.yaml:./tfschema \
+		teleport/scopes/access/v1/role.proto
+
+	@protoc \
+		-I=../../api/proto \
+		-I=$(PROTOBUF_MOD_PATH) \
+		--plugin=$(PROTOC_GEN_TERRAFORM) \
+		--terraform_out=config=protoc-gen-terraform-scopedroleassignment.yaml:./tfschema \
+		teleport/scopes/access/v1/assignment.proto
+
+	@protoc \
+		-I=../../api/proto \
+		-I=$(PROTOBUF_MOD_PATH) \
+		--plugin=$(PROTOC_GEN_TERRAFORM) \
+		--terraform_out=config=protoc-gen-terraform-dbobjectimportrule.yaml:./tfschema \
+		teleport/dbobjectimportrule/v1/dbobjectimportrule.proto
+
+	@protoc \
+		-I=../../api/proto \
+		-I=$(PROTOBUF_MOD_PATH) \
+		--plugin=$(PROTOC_GEN_TERRAFORM) \
+		--terraform_out=config=protoc-gen-terraform-clientiprestriction.yaml:./tfschema \
+		teleport/clientiprestriction/v1/clientiprestriction.proto
+
 	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1/loginrule_terraform.go ./tfschema/loginrule/v1/
 	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1/accesslist_terraform.go ./tfschema/accesslist/v1/
+	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1/access_monitoring_rules_terraform.go ./tfschema/accessmonitoringrules/v1/
+	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2/statichostuser_terraform.go ./tfschema/userprovisioning/v2/
+	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1/resource_terraform.go ./tfschema/workloadidentity/v1/
+	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1/autoupdate_terraform.go ./tfschema/autoupdate/v1/
+	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1/health_check_config_terraform.go ./tfschema/healthcheckconfig/v1/
+	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1/discoveryconfig_terraform.go ./tfschema/discoveryconfig/v1/
+	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/appauthconfig/v1/appauthconfig_terraform.go ./tfschema/appauthconfig/v1/
+	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1/summarizer_terraform.go ./tfschema/summarizer/v1/
+	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1/vnet_config_terraform.go ./tfschema/vnet/v1/
+	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1/token_terraform.go ./tfschema/scopes/joining/v1/
+	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadcluster/v1/workloadcluster_terraform.go ./tfschema/workloadcluster/v1/
+	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1/role_terraform.go ./tfschema/scopes/access/v1/
+	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1/assignment_terraform.go ./tfschema/scopes/access/assignment/v1/
+	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1/dbobjectimportrule_terraform.go ./tfschema/dbobjectimportrule/v1/
+	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/clientiprestriction/v1/clientiprestriction_terraform.go ./tfschema/clientiprestriction/v1/
 	mv ./tfschema/github.com/gravitational/teleport/api/types/device_terraform.go ./tfschema/devicetrust/v1/
 	rm -r ./tfschema/github.com/
 	@go run ./gen/main.go
 
-.PHONY: release
+# darwin-signed-build is a wrapper around the build target that ensures it is codesigned
+include ../../darwin-signing.mk
+.PHONY: darwin-signed-build
+darwin-signed-build: BINARIES=$(BUILDDIR)/terraform-provider-teleport
 ifeq ($(OS)-$(ARCH),darwin-universal)
-release: build-darwin-universal
+darwin-signed-build: build-darwin-universal
 else
-release: build
+darwin-signed-build: build
 endif
+	$(NOTARIZE_BINARIES)
+
+.PHONY: release
+ifeq ($(OS),darwin)
+release: darwin-signed-build
 	tar -C $(BUILDDIR) -czf $(RELEASE).tar.gz .
+else ifeq ($(OS),linux)
+release: build
+	tar -C $(BUILDDIR) -czf $(RELEASE).tar.gz .
+else ifeq ($(OS),windows)
+release: build
+	# copy the built windows binary to its final release filename for public downloads
+	cp $(BUILDDIR)/$(BINARY_NAME) $(WINDOWS_DOWNLOAD_FILENAME)
+	# package ony the binary file into a .tar.gz archive, the release service will repackage this into a .zip
+	# for the Terraform registry
+	tar -C $(BUILDDIR) -czf $(RELEASE).tar.gz $(BINARY_NAME)
+endif
 
 TERRAFORM_EXISTS := $(shell terraform -version 2>/dev/null | grep 'Terraform v1.')
 CURRENT_ULIMIT := $(shell ulimit -n)
 
 TEST_ARGS?=
 
+
+$(TEST_LOG_DIR):
+	mkdir $(TEST_LOG_DIR)
+
 .PHONY: test
-test: install
+test: install | $(TEST_LOG_DIR)
 ifndef TERRAFORM_EXISTS
 	@echo "Terraform v1.4+ is not installed (tfenv install 1.5.6 && tfenv use 1.5.6)."
 	terraform -version
 	@exit -1
 endif
-# NOTE: This is related to an old bug in Terraform and will be fixed in future releases (possibly, by a workaround on our side)
-ifeq ($(shell expr $(CURRENT_ULIMIT) \< 1024), 1)
-	@echo "ulimit -n is too low ($(CURRENT_ULIMIT)), please set ulimit -n 1024"
-	@exit -1
-endif
-	go test ./testlib -v $(TEST_ARGS)
 
-.PHONY: test-full
-test-full: TEST_ARGS=--tags enterprisetests
-test-full: test
+	gotestsum --junitfile $(TEST_LOG_DIR)/unit-tests-terraform.xml --jsonfile unit-tests-terraform.json -- ./testlib -v $(TEST_ARGS)
+
+testlib/plugin_ent_test.go:
+	go generate testlib/plugin_test.go
 
 .PHONY: test-ent
-test-ent: TEST_ARGS=--tags enterprisetests -run 'TestTerraformEnterprise.*'
-test-ent: test
+test-ent: testlib/plugin_ent_test.go test
 
 .PHONY: apply
 apply: install
@@ -156,15 +302,10 @@ destroy:
 lint:
 	golangci-lint run -c ../../.golangci.yml
 
+.PHONY: fmt
+fmt:
+	terraform fmt -no-color -recursive
+
 .PHONY: docs
-docs: gen-tfschema install bin/tfplugindocs
+docs: gen-tfschema install fmt
 	./gen/docs.sh $(VERSION)
-
-## Location to install dependencies to
-LOCALBIN ?= $(shell pwd)/bin
-$(LOCALBIN):
-	mkdir -p $(LOCALBIN)
-
-bin/tfplugindocs: go.mod $(LOCALBIN)
-	mkdir -p bin
-	GOBIN=$(LOCALBIN) go install github.com/hashicorp/terraform-plugin-docs/cmd/tfplugindocs

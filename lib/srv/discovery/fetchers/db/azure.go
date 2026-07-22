@@ -21,16 +21,16 @@ package db
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	azureutils "github.com/gravitational/teleport/api/utils/azure"
-	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 // azureListClient defines an interface for a common Azure client that can list
@@ -46,11 +46,11 @@ type azureListClient[DBType comparable] interface {
 // functions that can be used by the common Azure fetcher.
 type azureFetcherPlugin[DBType comparable, ListClient azureListClient[DBType]] interface {
 	// GetListClient returns the azureListClient for the provided subscription.
-	GetListClient(cfg *azureFetcherConfig, subID string) (ListClient, error)
+	GetListClient(ctx context.Context, cfg *azureFetcherConfig, subID string) (ListClient, error)
 	// GetServerLocation returns the server location.
 	GetServerLocation(server DBType) string
 	// NewDatabaseFromServer creates a types.Database from provided server.
-	NewDatabaseFromServer(server DBType, log logrus.FieldLogger) types.Database
+	NewDatabaseFromServer(ctx context.Context, server DBType, logger *slog.Logger) types.Database
 }
 
 // newAzureFetcher returns a Azure DB server fetcher for the provided subscription, group, regions, and tags.
@@ -61,14 +61,14 @@ func newAzureFetcher[DBType comparable, ListClient azureListClient[DBType]](conf
 
 	fetcher := &azureFetcher[DBType, ListClient]{
 		cfg: config,
-		log: logrus.WithFields(logrus.Fields{
-			teleport.ComponentKey: "watch:azure",
-			"labels":              config.Labels,
-			"regions":             config.Regions,
-			"group":               config.ResourceGroup,
-			"subscription":        config.Subscription,
-			"type":                config.Type,
-		}),
+		logger: slog.With(
+			teleport.ComponentKey, "watch:azure",
+			"labels", config.Labels,
+			"regions", config.Regions,
+			"group", config.ResourceGroup,
+			"subscription", config.Subscription,
+			"type", config.Type,
+		),
 		azureFetcherPlugin: plugin,
 	}
 	return fetcher, nil
@@ -77,7 +77,7 @@ func newAzureFetcher[DBType comparable, ListClient azureListClient[DBType]](conf
 // azureFetcherConfig is the Azure database servers fetcher configuration.
 type azureFetcherConfig struct {
 	// AzureClients are the Azure API clients.
-	AzureClients cloud.AzureClients
+	AzureClients azure.Clients
 	// Type is the type of DB matcher, such as "mysql" or "postgres"
 	Type string
 	// Subscription is the Azure subscription selector.
@@ -91,6 +91,10 @@ type azureFetcherConfig struct {
 	Regions []string
 	// regionSet is a set of regions, used for efficient region match lookup.
 	regionSet map[string]struct{}
+	// DiscoveryConfigName is the name of the discovery config which originated the resource.
+	DiscoveryConfigName string
+	// Integration is the name of Azure integration used for auth.
+	Integration string
 }
 
 // regionMatches returns whether a given region matches the configured Regions selector
@@ -123,7 +127,7 @@ func (c *azureFetcherConfig) CheckAndSetDefaults() error {
 	if len(c.Regions) == 0 {
 		return trace.BadParameter("missing parameter Regions")
 	}
-	c.regionSet = utils.StringsSet(c.Regions)
+	c.regionSet = set.New(c.Regions...)
 	return nil
 }
 
@@ -131,8 +135,8 @@ func (c *azureFetcherConfig) CheckAndSetDefaults() error {
 type azureFetcher[DBType comparable, ListClient azureListClient[DBType]] struct {
 	azureFetcherPlugin[DBType, ListClient]
 
-	cfg azureFetcherConfig
-	log logrus.FieldLogger
+	cfg    azureFetcherConfig
+	logger *slog.Logger
 }
 
 // Cloud returns the cloud the fetcher is operating.
@@ -148,6 +152,19 @@ func (f *azureFetcher[DBType, ListClient]) ResourceType() string {
 // FetcherType returns the type (`discovery_service.azure.[].types`) of the fetcher.
 func (f *azureFetcher[DBType, ListClient]) FetcherType() string {
 	return f.cfg.Type
+}
+
+// IntegrationName returns the integration name.
+func (f *azureFetcher[DBType, ListClient]) IntegrationName() string {
+	return f.cfg.Integration
+}
+
+// GetDiscoveryConfigName is the name of the discovery config which originated the resource.
+// It is used to report stats for a given discovery config.
+// Might be empty when the fetcher is using static matchers:
+// ie teleport.yaml/discovery_service.<cloud>.<matcher>
+func (f *azureFetcher[DBType, ListClient]) GetDiscoveryConfigName() string {
+	return f.cfg.DiscoveryConfigName
 }
 
 // Get returns Azure DB servers matching the watcher's selectors.
@@ -175,7 +192,7 @@ func (f *azureFetcher[DBType, ListClient]) getSubscriptions(ctx context.Context)
 	if f.cfg.Subscription != types.Wildcard {
 		return []string{f.cfg.Subscription}, nil
 	}
-	client, err := f.cfg.AzureClients.GetAzureSubscriptionClient()
+	client, err := f.cfg.AzureClients.GetSubscriptionClient(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -185,7 +202,7 @@ func (f *azureFetcher[DBType, ListClient]) getSubscriptions(ctx context.Context)
 
 // getDBServersInSubscription fetches Azure DB servers within a given subscription.
 func (f *azureFetcher[DBType, ListClient]) getDBServersInSubscription(ctx context.Context, subID string) ([]DBType, error) {
-	client, err := f.GetListClient(&f.cfg, subID)
+	client, err := f.GetListClient(ctx, &f.cfg, subID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -208,7 +225,7 @@ func (f *azureFetcher[DBType, ListClient]) getAllDBServers(ctx context.Context) 
 		servers, err := f.getDBServersInSubscription(ctx, subID)
 		if err != nil {
 			if trace.IsAccessDenied(err) || trace.IsNotFound(err) {
-				f.log.WithError(err).Debugf("Skipping subscription %q", subID)
+				f.logger.DebugContext(ctx, "Skipping subscription %q", "subscription", subID, "error", err)
 				continue
 			}
 			return nil, trace.Wrap(err)
@@ -236,11 +253,11 @@ func (f *azureFetcher[DBType, ListClient]) getDatabases(ctx context.Context) (ty
 			continue
 		}
 
-		if database := f.NewDatabaseFromServer(server, f.log); database != nil {
+		if database := f.NewDatabaseFromServer(ctx, server, f.logger); database != nil {
 			databases = append(databases, database)
 		}
 	}
-	return filterDatabasesByLabels(databases, f.cfg.Labels, f.log), nil
+	return filterDatabasesByLabels(ctx, databases, f.cfg.Labels, f.logger), nil
 }
 
 // String returns the fetcher's string description.

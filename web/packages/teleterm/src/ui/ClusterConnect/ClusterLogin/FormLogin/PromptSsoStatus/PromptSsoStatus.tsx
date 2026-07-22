@@ -16,24 +16,34 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Box, ButtonSecondary, Text, Flex } from 'design';
+import { Box, ButtonSecondary, Flex, Text } from 'design';
 
-import LinearProgress from 'teleterm/ui/components/LinearProgress';
+import { LinearProgress } from 'teleterm/ui/components/LinearProgress';
 
-export default function PromptSsoStatus(props: Props) {
+import { SsoPrompt } from '../../useClusterLogin';
+
+export default function PromptSsoStatus(props: {
+  onCancel?(): void;
+  ssoPrompt: Exclude<SsoPrompt, 'no-prompt'>;
+}) {
+  const { onCancel, ssoPrompt } = props;
   return (
-    <Flex p={4} gap={4} flexDirection="column" alignItems="flex-start">
-      <Box style={{ position: 'relative' }}>
+    <Flex width="100%" gap={4} flexDirection="column" alignItems="flex-start">
+      <Box width="100%" textAlign="center" style={{ position: 'relative' }}>
         <Text bold mb={2} textAlign="center">
-          Please follow the steps in the new browser window to authenticate.
+          {ssoPrompt === 'follow-browser-steps' && (
+            <>Please follow the steps in the browser to&nbsp;authenticate.</>
+          )}
+
+          {ssoPrompt === 'wait-for-sync' && (
+            <>Login successful, connecting to the cluster…</>
+          )}
         </Text>
         <LinearProgress />
       </Box>
-      <ButtonSecondary onClick={props.onCancel}>Cancel</ButtonSecondary>
+      {ssoPrompt === 'follow-browser-steps' && onCancel && (
+        <ButtonSecondary onClick={onCancel}>Cancel</ButtonSecondary>
+      )}
     </Flex>
   );
 }
-
-export type Props = {
-  onCancel(): void;
-};

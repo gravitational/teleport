@@ -19,13 +19,13 @@
 package app
 
 import (
-	"context"
+	"cmp"
 	"maps"
-	"sort"
+	"slices"
 	"testing"
 	"time"
 
-	"github.com/google/go-cmp/cmp"
+	gocmp "github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/require"
 
@@ -33,10 +33,68 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
+func TestCloudHostedAppServiceRejectsDynamicLabels(t *testing.T) {
+	t.Parallel()
+
+	reconcileCh := make(chan types.Apps)
+
+	s := SetUpSuiteWithConfig(t, suiteConfig{
+		ResourceMatchers: []services.ResourceMatcher{
+			{Labels: types.Labels{"group": []string{"a"}}},
+		},
+		OnReconcile: func(a types.Apps) {
+			reconcileCh <- a
+		},
+	})
+
+	s.appServer.c.IgnoreAppsWithCommandLabels = true
+
+	// Drain the initial event that fires when the watcher starts up
+	// (before we create any dynamic apps).
+	select {
+	case <-reconcileCh:
+	case <-time.After(time.Second):
+		t.Fatal("Didn't receive initial reconcile event after 1s.")
+	}
+
+	// Create app with label group=a and dynamic labels.
+	app, err := makeDynamicApp("app-with-dynamic-labels", map[string]string{"group": "a"})
+	require.NoError(t, err)
+	app.SetDynamicLabels(map[string]types.CommandLabel{
+		"foo": &types.CommandLabelV2{
+			Period:  types.Duration(5 * time.Second),
+			Command: []string{"echo", "bar"},
+		},
+	})
+	err = s.authServer.AuthServer.CreateApp(t.Context(), app)
+	require.NoError(t, err)
+
+	// It should not have been registered.
+	select {
+	case apps := <-reconcileCh:
+		require.Nil(t, apps.Find(app.GetName()), "app with dynamic labels should not have been registered")
+	case <-time.After(time.Second):
+		t.Fatal("Didn't receive reconcile event after 1s.")
+	}
+
+	// Remove the dynamic labels
+	app.SetDynamicLabels(make(map[string]types.CommandLabel))
+	err = s.authServer.AuthServer.UpdateApp(t.Context(), app)
+	require.NoError(t, err)
+
+	// It should now be registered.
+	select {
+	case apps := <-reconcileCh:
+		require.NotNil(t, apps.Find(app.GetName()))
+	case <-time.After(time.Second):
+		t.Fatal("Didn't receive reconcile event after 1s.")
+	}
+}
+
 // TestWatcher verifies that app agent properly detects and applies
 // changes to application resources.
 func TestWatcher(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Make a static configuration app.
 	app0, err := makeStaticApp("app0", nil)
@@ -60,11 +118,28 @@ func TestWatcher(t *testing.T) {
 		},
 	})
 
+	// Create a single Proxy with a PublicAddr to exercise that
+	// apps without a PublicAddr automatically get one specified
+	// by the watcher.
+	_, err = s.authServer.AuthServer.UpsertProxyServer(t.Context(), &types.ServerV2{
+		Kind:    types.KindProxy,
+		Version: types.V2,
+		Metadata: types.Metadata{
+			Name: "FakeProxy",
+		},
+		Spec: types.ServerSpecV2{
+			PublicAddrs: []string{"test.example.com"},
+		},
+	})
+	require.NoError(t, err)
+
 	// Only app0 should be registered initially.
 	select {
 	case a := <-reconcileCh:
-		sort.Sort(a)
-		require.Empty(t, cmp.Diff(types.Apps{app0}, a,
+		slices.SortFunc(a, func(a, b types.Application) int {
+			return cmp.Compare(a.GetName(), b.GetName())
+		})
+		require.Empty(t, gocmp.Diff(types.Apps{app0}, a,
 			cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 		))
 	case <-time.After(time.Second):
@@ -77,11 +152,18 @@ func TestWatcher(t *testing.T) {
 	err = s.authServer.AuthServer.CreateApp(ctx, app1)
 	require.NoError(t, err)
 
+	// Set the PublicAddr _after_ creating the app. The watched apps will
+	// automatically have the address set if empty. In order for the comparisons
+	// below to pass this needs to be set on app1.
+	app1.SetPublicAddr("app1.test.example.com")
+
 	// It should be registered.
 	select {
 	case a := <-reconcileCh:
-		sort.Sort(a)
-		require.Empty(t, cmp.Diff(types.Apps{app0, app1}, a,
+		slices.SortFunc(a, func(a, b types.Application) int {
+			return cmp.Compare(a.GetName(), b.GetName())
+		})
+		require.Empty(t, gocmp.Diff(types.Apps{app0, app1}, a,
 			cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 		))
 	case <-time.After(time.Second):
@@ -97,8 +179,10 @@ func TestWatcher(t *testing.T) {
 	// It should not be registered, old app0 should remain.
 	select {
 	case a := <-reconcileCh:
-		sort.Sort(a)
-		require.Empty(t, cmp.Diff(types.Apps{app0, app1}, a,
+		slices.SortFunc(a, func(a, b types.Application) int {
+			return cmp.Compare(a.GetName(), b.GetName())
+		})
+		require.Empty(t, gocmp.Diff(types.Apps{app0, app1}, a,
 			cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 		))
 	case <-time.After(time.Second):
@@ -108,14 +192,21 @@ func TestWatcher(t *testing.T) {
 	// Create app with label group=b.
 	app2, err := makeDynamicApp("app2", map[string]string{"group": "b"})
 	require.NoError(t, err)
+
+	// Set the PublicAddr _before_ creating the app. The watcher should
+	// not modify apps with an already specified PublicAddr.
+	app2.SetPublicAddr("app2.some.other.addr.example.com")
+
 	err = s.authServer.AuthServer.CreateApp(ctx, app2)
 	require.NoError(t, err)
 
 	// It shouldn't be registered.
 	select {
 	case a := <-reconcileCh:
-		sort.Sort(a)
-		require.Empty(t, cmp.Diff(types.Apps{app0, app1}, a,
+		slices.SortFunc(a, func(a, b types.Application) int {
+			return cmp.Compare(a.GetName(), b.GetName())
+		})
+		require.Empty(t, gocmp.Diff(types.Apps{app0, app1}, a,
 			cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 		))
 	case <-time.After(time.Second):
@@ -130,8 +221,10 @@ func TestWatcher(t *testing.T) {
 	// Both should be registered now.
 	select {
 	case a := <-reconcileCh:
-		sort.Sort(a)
-		require.Empty(t, cmp.Diff(types.Apps{app0, app1, app2}, a,
+		slices.SortFunc(a, func(a, b types.Application) int {
+			return cmp.Compare(a.GetName(), b.GetName())
+		})
+		require.Empty(t, gocmp.Diff(types.Apps{app0, app1, app2}, a,
 			cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 		))
 	case <-time.After(time.Second):
@@ -146,8 +239,10 @@ func TestWatcher(t *testing.T) {
 	// app2 should get updated.
 	select {
 	case a := <-reconcileCh:
-		sort.Sort(a)
-		require.Empty(t, cmp.Diff(types.Apps{app0, app1, app2}, a,
+		slices.SortFunc(a, func(a, b types.Application) int {
+			return cmp.Compare(a.GetName(), b.GetName())
+		})
+		require.Empty(t, gocmp.Diff(types.Apps{app0, app1, app2}, a,
 			cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 		))
 	case <-time.After(time.Second):
@@ -162,8 +257,10 @@ func TestWatcher(t *testing.T) {
 	// Only app0 and app2 should remain registered.
 	select {
 	case a := <-reconcileCh:
-		sort.Sort(a)
-		require.Empty(t, cmp.Diff(types.Apps{app0, app2}, a,
+		slices.SortFunc(a, func(a, b types.Application) int {
+			return cmp.Compare(a.GetName(), b.GetName())
+		})
+		require.Empty(t, gocmp.Diff(types.Apps{app0, app2}, a,
 			cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 		))
 	case <-time.After(time.Second):
@@ -177,7 +274,7 @@ func TestWatcher(t *testing.T) {
 	// Only static app should remain.
 	select {
 	case a := <-reconcileCh:
-		require.Empty(t, cmp.Diff(types.Apps{app0}, a,
+		require.Empty(t, gocmp.Diff(types.Apps{app0}, a,
 			cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 		))
 	case <-time.After(time.Second):

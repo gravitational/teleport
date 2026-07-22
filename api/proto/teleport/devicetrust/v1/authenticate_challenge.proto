@@ -31,6 +31,10 @@ message AuthenticateDeviceChallenge {
 message AuthenticateDeviceChallengeResponse {
   // Signature over the challenge, using the device key.
   bytes signature = 1;
+  // Signature over the challenge, using the SSH key. This is required when the
+  // SSH and TLS public keys do not match, to prove ownership of the private key
+  // associated with the SSH certificate being augmented.
+  bytes ssh_signature = 2;
 }
 
 // TPMAuthenticateDeviceChallenge carries the authentication challenge
@@ -47,4 +51,8 @@ message TPMAuthenticateDeviceChallengeResponse {
   // The result of the client's platform attestation with the nonce provided
   // in `TPMAuthenticateDeviceChallenge`.
   TPMPlatformParameters platform_parameters = 1;
+  // Signature over the attestation_nonce, using the SSH key. This is required
+  // when the SSH and TLS public keys do not match, to prove ownership of the
+  // private key associated with the SSH certificate being augmented.
+  bytes ssh_signature = 2;
 }

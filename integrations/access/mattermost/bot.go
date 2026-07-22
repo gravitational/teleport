@@ -24,12 +24,12 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
-	"text/template"
 	"time"
 
+	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/go-resty/resty/v2"
 	"github.com/gravitational/trace"
-	"github.com/mailgun/holster/v3/collections"
+	lru "github.com/hashicorp/golang-lru/v2"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
@@ -59,8 +59,9 @@ var postTextTemplate = template.Must(template.New("description").Parse(
 {{else if eq .Status "PENDING"}}**Approve**: ` + "`tsh request review --approve {{.ID}}`" + `
 **Deny**: ` + "`tsh request review --deny {{.ID}}`" + `{{end}}`,
 ))
+
 var reviewCommentTemplate = template.Must(template.New("review comment").Parse(
-	`{{.Author}} reviewed the request at {{.Created.Format .TimeFormat}}.
+	`{{.Author}} reviewed the request at {{.CreatedTime}}.
 Resolution: {{.ProposedStateEmoji}} {{.ProposedState}}.
 {{if .Reason}}Reason: {{.Reason}}.{{end}}`,
 ))
@@ -81,11 +82,14 @@ type Bot struct {
 	webProxyURL *url.URL
 }
 
-type getMeKey struct{}
-type getChannelByTeamNameAndNameKey struct {
-	team string
-	name string
-}
+type (
+	getMeKey                       struct{}
+	getChannelByTeamNameAndNameKey struct {
+		team string
+		name string
+	}
+)
+
 type getUserByEmail struct {
 	email string
 }
@@ -94,7 +98,7 @@ type etagCacheCtxKey struct{}
 
 type etagCacheEntry struct {
 	etag  string
-	value interface{}
+	value any
 }
 
 func NewBot(conf Config, clusterName, webProxyAddr string) (Bot, error) {
@@ -108,7 +112,10 @@ func NewBot(conf Config, clusterName, webProxyAddr string) (Bot, error) {
 		}
 	}
 
-	cache := collections.NewLRUCache(mmCacheSize)
+	cache, err := lru.New[any, etagCacheEntry](mmCacheSize)
+	if err != nil {
+		return Bot{}, trace.Wrap(err, "failed to create cache")
+	}
 
 	client := resty.
 		NewWithClient(&http.Client{
@@ -116,6 +123,7 @@ func NewBot(conf Config, clusterName, webProxyAddr string) (Bot, error) {
 			Transport: &http.Transport{
 				MaxConnsPerHost:     mmMaxConns,
 				MaxIdleConnsPerHost: mmMaxConns,
+				Proxy:               http.ProxyFromEnvironment,
 			},
 		}).
 		SetBaseURL(conf.Mattermost.URL).
@@ -142,7 +150,7 @@ func NewBot(conf Config, clusterName, webProxyAddr string) (Bot, error) {
 			ctx, cancel := context.WithTimeout(context.Background(), mmStatusEmitTimeout)
 			defer cancel()
 			if err := sink.Emit(ctx, status); err != nil {
-				log.Errorf("Error while emitting plugin status: %v", err)
+				log.ErrorContext(ctx, "Error while emitting plugin status", "error", err)
 			}
 		}()
 
@@ -173,14 +181,9 @@ func NewBot(conf Config, clusterName, webProxyAddr string) (Bot, error) {
 			return nil
 		}
 
-		val, ok := cache.Get(cacheKey)
+		res, ok := cache.Get(cacheKey)
 		if !ok {
 			return nil
-		}
-
-		res, ok := val.(etagCacheEntry)
-		if !ok {
-			return trace.Errorf("etag cache entry of unknown type %T", val)
 		}
 
 		req.SetHeader("If-None-Match", res.etag)
@@ -220,7 +223,7 @@ func NewBot(conf Config, clusterName, webProxyAddr string) (Bot, error) {
 // SupportedApps are the apps supported by this bot.
 func (b Bot) SupportedApps() []common.App {
 	return []common.App{
-		accessrequest.NewApp(b),
+		accessrequest.NewApp(),
 	}
 }
 
@@ -294,12 +297,12 @@ func (b Bot) PostReviewReply(ctx context.Context, channelID, rootID string, revi
 		types.AccessReview
 		ProposedState      string
 		ProposedStateEmoji string
-		TimeFormat         string
+		CreatedTime        string
 	}{
 		review,
 		review.ProposedState.String(),
 		proposedStateEmoji,
-		time.RFC822,
+		review.Created.Format(time.RFC822),
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -460,14 +463,14 @@ func (b Bot) buildPostText(reqID string, reqData pd.AccessRequestData) (string, 
 }
 
 func (b Bot) tryLookupDirectChannel(ctx context.Context, userEmail string) string {
-	log := logger.Get(ctx).WithField("mm_user_email", userEmail)
+	log := logger.Get(ctx).With("mm_user_email", userEmail)
 	channel, err := b.LookupDirectChannel(ctx, userEmail)
 	if err != nil {
 		var errResult *ErrorResult
 		if errors.As(trace.Unwrap(err), &errResult) {
-			log.Warningf("Failed to lookup direct channel info: %q", errResult.Message)
+			log.WarnContext(ctx, "Failed to lookup direct channel info", "error", errResult.Message)
 		} else {
-			log.WithError(err).Error("Failed to lookup direct channel info")
+			log.ErrorContext(ctx, "Failed to lookup direct channel info", "error", err)
 		}
 		return ""
 	}
@@ -475,17 +478,17 @@ func (b Bot) tryLookupDirectChannel(ctx context.Context, userEmail string) strin
 }
 
 func (b Bot) tryLookupChannel(ctx context.Context, team, name string) string {
-	log := logger.Get(ctx).WithFields(logger.Fields{
-		"mm_team":    team,
-		"mm_channel": name,
-	})
+	log := logger.Get(ctx).With(
+		"mm_team", team,
+		"mm_channel", name,
+	)
 	channel, err := b.LookupChannel(ctx, team, name)
 	if err != nil {
 		var errResult *ErrorResult
 		if errors.As(trace.Unwrap(err), &errResult) {
-			log.Warningf("Failed to lookup channel info: %q", errResult.Message)
+			log.WarnContext(ctx, "Failed to lookup channel info", "error", errResult.Message)
 		} else {
-			log.WithError(err).Error("Failed to lookup channel info")
+			log.ErrorContext(ctx, "Failed to lookup channel info", "error", err)
 		}
 		return ""
 	}
@@ -517,6 +520,11 @@ func (b Bot) FetchRecipient(ctx context.Context, name string) (*common.Recipient
 		Kind: kind,
 		Data: nil,
 	}, nil
+}
+
+// FetchOncallUsers fetches on-call users filtered by the provided annotations.
+func (b Bot) FetchOncallUsers(ctx context.Context, req types.AccessRequest) ([]string, error) {
+	return nil, trace.NotImplemented("fetch oncall users not implemented for plugin")
 }
 
 func userResult(resp *resty.Response) (User, error) {

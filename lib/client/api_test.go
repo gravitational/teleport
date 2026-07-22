@@ -20,17 +20,24 @@ package client
 
 import (
 	"context"
+	"crypto/tls"
 	"crypto/x509"
 	"errors"
 	"fmt"
 	"io"
 	"math"
+	"net"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
@@ -38,21 +45,29 @@ import (
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
+	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/authtest"
+	"github.com/gravitational/teleport/lib/cryptosuites/cryptosuitestest"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/tracing"
-	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestMain(m *testing.M) {
-	utils.InitLoggerForTests()
+	logtest.InitLogger(testing.Verbose)
 	modules.SetInsecureTestMode(true)
-	os.Exit(m.Run())
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cryptosuitestest.PrecomputeRSAKeys(ctx)
+	exitCode := m.Run()
+	cancel()
+	os.Exit(exitCode)
 }
 
 var parseProxyHostTestCases = []struct {
@@ -194,13 +209,13 @@ func TestParseProxyHostString(t *testing.T) {
 
 func TestNew(t *testing.T) {
 	conf := Config{
-		Host:      "localhost",
-		HostLogin: "vincent",
-		HostPort:  22,
-		KeysDir:   t.TempDir(),
-		Username:  "localuser",
-		SiteName:  "site",
-		Tracer:    tracing.NoopProvider().Tracer("test"),
+		Host:        "localhost",
+		HostLogin:   "vincent",
+		HostPort:    22,
+		Username:    "localuser",
+		SiteName:    "site",
+		Tracer:      tracing.NoopProvider().Tracer("test"),
+		ClientStore: NewMemClientStore(),
 	}
 	err := conf.ParseProxyHost("proxy")
 	require.NoError(t, err)
@@ -211,42 +226,6 @@ func TestNew(t *testing.T) {
 
 	la := tc.LocalAgent()
 	require.NotNil(t, la)
-}
-
-func TestParseLabels(t *testing.T) {
-	// simplest case:
-	m, err := ParseLabelSpec("key=value")
-	require.NotNil(t, m)
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(m, map[string]string{
-		"key": "value",
-	}))
-
-	// multiple values:
-	m, err = ParseLabelSpec(`type="database";" role"=master,ver="mongoDB v1,2"`)
-	require.NotNil(t, m)
-	require.NoError(t, err)
-	require.Len(t, m, 3)
-	require.Equal(t, "master", m["role"])
-	require.Equal(t, "database", m["type"])
-	require.Equal(t, "mongoDB v1,2", m["ver"])
-
-	// multiple and unicode:
-	m, err = ParseLabelSpec(`服务器环境=测试,操作系统类别=Linux,机房=华北`)
-	require.NoError(t, err)
-	require.NotNil(t, m)
-	require.Len(t, m, 3)
-	require.Equal(t, "测试", m["服务器环境"])
-	require.Equal(t, "Linux", m["操作系统类别"])
-	require.Equal(t, "华北", m["机房"])
-
-	// invalid specs
-	m, err = ParseLabelSpec(`type="database,"role"=master,ver="mongoDB v1,2"`)
-	require.Nil(t, m)
-	require.Error(t, err)
-	m, err = ParseLabelSpec(`type="database",role,master`)
-	require.Nil(t, m)
-	require.Error(t, err)
 }
 
 func TestPortsParsing(t *testing.T) {
@@ -642,8 +621,12 @@ func TestNewClient_getProxySSHPrincipal(t *testing.T) {
 				WebProxyAddr:      "localhost",
 				ProxySSHPrincipal: "proxy_ssh_principal_override",
 				Agent:             &mockAgent{ValidPrincipals: []string{"key_principal"}},
-				AuthMethods:       []ssh.AuthMethod{ssh.Password("xyz") /* placeholder authmethod */},
-				Tracer:            tracing.NoopProvider().Tracer("test"),
+				PublicKeyAuthConfig: apissh.PublicKeyAuthConfig{
+					Signers: func() ([]ssh.Signer, error) {
+						return []ssh.Signer{&mockSigner{ValidPrincipals: []string{"key_principal"}}}, nil
+					},
+				},
+				Tracer: tracing.NoopProvider().Tracer("test"),
 			},
 			expectPrincipal: "proxy_ssh_principal_override",
 		}, {
@@ -653,8 +636,12 @@ func TestNewClient_getProxySSHPrincipal(t *testing.T) {
 				HostLogin:    "host_login",
 				WebProxyAddr: "localhost",
 				Agent:        &mockAgent{ValidPrincipals: []string{"key_principal"}},
-				AuthMethods:  []ssh.AuthMethod{ssh.Password("xyz") /* placeholder authmethod */},
-				Tracer:       tracing.NoopProvider().Tracer("test"),
+				PublicKeyAuthConfig: apissh.PublicKeyAuthConfig{
+					Signers: func() ([]ssh.Signer, error) {
+						return []ssh.Signer{&mockSigner{ValidPrincipals: []string{"key_principal"}}}, nil
+					},
+				},
+				Tracer: tracing.NoopProvider().Tracer("test"),
 			},
 			expectPrincipal: "key_principal",
 		}, {
@@ -664,8 +651,12 @@ func TestNewClient_getProxySSHPrincipal(t *testing.T) {
 				HostLogin:    "host_login",
 				WebProxyAddr: "localhost",
 				Agent:        &mockAgent{ /* no agent key principals */ },
-				AuthMethods:  []ssh.AuthMethod{ssh.Password("xyz") /* placeholder authmethod */},
-				Tracer:       tracing.NoopProvider().Tracer("test"),
+				PublicKeyAuthConfig: apissh.PublicKeyAuthConfig{
+					Signers: func() ([]ssh.Signer, error) {
+						return []ssh.Signer{&mockSigner{ValidPrincipals: []string{"key_principal"}}}, nil
+					},
+				},
+				Tracer: tracing.NoopProvider().Tracer("test"),
 			},
 			expectPrincipal: "host_login",
 		}, {
@@ -679,9 +670,13 @@ func TestNewClient_getProxySSHPrincipal(t *testing.T) {
 						Username: "jumphost_user",
 					},
 				},
-				Agent:       &mockAgent{ /* no agent key principals */ },
-				AuthMethods: []ssh.AuthMethod{ssh.Password("xyz") /* placeholder authmethod */},
-				Tracer:      tracing.NoopProvider().Tracer("test"),
+				Agent: &mockAgent{ /* no agent key principals */ },
+				PublicKeyAuthConfig: apissh.PublicKeyAuthConfig{
+					Signers: func() ([]ssh.Signer, error) {
+						return []ssh.Signer{&mockSigner{ValidPrincipals: []string{"key_principal"}}}, nil
+					},
+				},
+				Tracer: tracing.NoopProvider().Tracer("test"),
 			},
 			expectPrincipal: "jumphost_user",
 		},
@@ -824,19 +819,39 @@ func TestVirtualPathNames(t *testing.T) {
 		{
 			name:   "database",
 			kind:   VirtualPathDatabase,
-			params: VirtualPathDatabaseParams("foo"),
+			params: VirtualPathDatabaseCertParams("foo"),
 			expected: []string{
 				"TSH_VIRTUAL_PATH_DB_FOO",
 				"TSH_VIRTUAL_PATH_DB",
 			},
 		},
 		{
+			name:   "database key",
+			kind:   VirtualPathKey,
+			params: VirtualPathDatabaseKeyParams("foo"),
+			expected: []string{
+				"TSH_VIRTUAL_PATH_KEY_DB_FOO",
+				"TSH_VIRTUAL_PATH_KEY_DB",
+				"TSH_VIRTUAL_PATH_KEY",
+			},
+		},
+		{
 			name:   "app",
-			kind:   VirtualPathApp,
-			params: VirtualPathAppParams("foo"),
+			kind:   VirtualPathAppCert,
+			params: VirtualPathAppCertParams("foo"),
 			expected: []string{
 				"TSH_VIRTUAL_PATH_APP_FOO",
 				"TSH_VIRTUAL_PATH_APP",
+			},
+		},
+		{
+			name:   "app key",
+			kind:   VirtualPathKey,
+			params: VirtualPathAppKeyParams("foo"),
+			expected: []string{
+				"TSH_VIRTUAL_PATH_KEY_APP_FOO",
+				"TSH_VIRTUAL_PATH_KEY_APP",
+				"TSH_VIRTUAL_PATH_KEY",
 			},
 		},
 		{
@@ -905,174 +920,123 @@ func TestFormatConnectToProxyErr(t *testing.T) {
 	}
 }
 
-func TestGetDesktopEventWebURL(t *testing.T) {
-	initDate := time.Date(2021, 1, 1, 12, 0, 0, 0, time.UTC)
-
-	tt := []struct {
-		name      string
-		proxyHost string
-		cluster   string
-		sid       session.ID
-		events    []events.EventFields
-		expected  string
-	}{
-		{
-			name:     "nil events",
-			events:   nil,
-			expected: "",
-		},
-		{
-			name:     "empty events",
-			events:   make([]events.EventFields, 0),
-			expected: "",
-		},
-		{
-			name:      "two events, 1000 ms duration",
-			proxyHost: "host",
-			cluster:   "cluster",
-			sid:       "session_id",
-			events: []events.EventFields{
-				{
-					"time": initDate,
-				},
-				{
-					"time": initDate.Add(1000 * time.Millisecond),
-				},
-			},
-			expected: "https://host/web/cluster/cluster/session/session_id?recordingType=desktop&durationMs=1000",
-		},
-		{
-			name:      "multiple events",
-			proxyHost: "host",
-			cluster:   "cluster",
-			sid:       "session_id",
-			events: []events.EventFields{
-				{
-					"time": initDate,
-				},
-				{
-					"time": initDate.Add(10 * time.Millisecond),
-				},
-				{
-					"time": initDate.Add(20 * time.Millisecond),
-				},
-				{
-					"time": initDate.Add(30 * time.Millisecond),
-				},
-				{
-					"time": initDate.Add(40 * time.Millisecond),
-				},
-				{
-					"time": initDate.Add(50 * time.Millisecond),
-				},
-			},
-			expected: "https://host/web/cluster/cluster/session/session_id?recordingType=desktop&durationMs=50",
-		},
-	}
-
-	for _, tc := range tt {
-		t.Run(tc.name, func(t *testing.T) {
-			require.Equal(t, tc.expected, getDesktopEventWebURL(tc.proxyHost, tc.cluster, &tc.sid, tc.events))
-		})
-	}
-}
-
 type mockRoleGetter func(ctx context.Context) ([]types.Role, error)
 
-func (m mockRoleGetter) GetRoles(ctx context.Context) ([]types.Role, error) {
+func (m mockRoleGetter) GetCurrentUserRoles(ctx context.Context) ([]types.Role, error) {
 	return m(ctx)
 }
 
 func TestCommandLimit(t *testing.T) {
 	t.Parallel()
+
+	auth, err := authtest.NewTestServer(authtest.ServerConfig{
+		Auth: authtest.AuthServerConfig{
+			ClusterName: "test",
+			ClusterID:   "test",
+			Dir:         t.TempDir(),
+		},
+	})
+	require.NoError(t, err)
+
+	t.Cleanup(func() { require.NoError(t, auth.Close()) })
+
 	cases := []struct {
 		name        string
 		mfaRequired bool
-		getter      roleGetter
+		roleGetter  roleGetter
+		roles       []types.RoleSpecV6
 		expected    int
 	}{
 		{
 			name:        "mfa required",
 			mfaRequired: true,
 			expected:    1,
-			getter: mockRoleGetter(func(ctx context.Context) ([]types.Role, error) {
-				role, err := types.NewRole("test", types.RoleSpecV6{
+			roles: []types.RoleSpecV6{
+				{
 					Options: types.RoleOptions{MaxConnections: 500},
-				})
-				require.NoError(t, err)
-
-				return []types.Role{role}, nil
-			}),
+				},
+			},
 		},
 		{
 			name:     "failure getting roles",
 			expected: 1,
-			getter: mockRoleGetter(func(ctx context.Context) ([]types.Role, error) {
+			roleGetter: mockRoleGetter(func(ctx context.Context) ([]types.Role, error) {
 				return nil, errors.New("fail")
 			}),
 		},
 		{
 			name:     "no roles",
+			expected: 1,
+		},
+		{
+			name:     "max_connections=0",
 			expected: -1,
-			getter: mockRoleGetter(func(ctx context.Context) ([]types.Role, error) {
-				return nil, nil
-			}),
+			roles: []types.RoleSpecV6{
+				{
+					Options: types.RoleOptions{MaxConnections: 0},
+				},
+			},
 		},
 		{
 			name:     "max_connections=1",
 			expected: 1,
-			getter: mockRoleGetter(func(ctx context.Context) ([]types.Role, error) {
-				role, err := types.NewRole("test", types.RoleSpecV6{
+			roles: []types.RoleSpecV6{
+				{
 					Options: types.RoleOptions{MaxConnections: 1},
-				})
-				require.NoError(t, err)
-
-				return []types.Role{role}, nil
-			}),
+				},
+			},
 		},
 		{
 			name:     "max_connections=2",
 			expected: 1,
-			getter: mockRoleGetter(func(ctx context.Context) ([]types.Role, error) {
-				role, err := types.NewRole("test", types.RoleSpecV6{
+			roles: []types.RoleSpecV6{
+				{
 					Options: types.RoleOptions{MaxConnections: 2},
-				})
-				require.NoError(t, err)
-
-				return []types.Role{role}, nil
-			}),
+				},
+			},
 		},
 		{
 			name:     "max_connections=500",
 			expected: 250,
-			getter: mockRoleGetter(func(ctx context.Context) ([]types.Role, error) {
-				role, err := types.NewRole("test", types.RoleSpecV6{
+			roles: []types.RoleSpecV6{
+				{
 					Options: types.RoleOptions{MaxConnections: 500},
-				})
-				require.NoError(t, err)
-
-				return []types.Role{role}, nil
-			}),
+				},
+			},
 		},
 		{
 			name:     "max_connections=max",
 			expected: math.MaxInt64 / 2,
-			getter: mockRoleGetter(func(ctx context.Context) ([]types.Role, error) {
-				role, err := types.NewRole("test", types.RoleSpecV6{
+			roles: []types.RoleSpecV6{
+				{
 					Options: types.RoleOptions{MaxConnections: math.MaxInt64},
-				})
-				require.NoError(t, err)
-
-				return []types.Role{role}, nil
-			}),
+				},
+			},
 		},
 	}
 
 	for _, tt := range cases {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			require.Equal(t, tt.expected, commandLimit(context.Background(), tt.getter, tt.mfaRequired))
+			var getter roleGetter
+			if tt.roleGetter != nil {
+				getter = tt.roleGetter
+			} else {
+				roles := make([]types.Role, 0, len(tt.roles))
+				for _, spec := range tt.roles {
+					role, err := authtest.CreateRole(t.Context(), auth.Auth(), uuid.NewString(), spec)
+					require.NoError(t, err)
+					roles = append(roles, role)
+				}
+
+				user, err := authtest.CreateUser(t.Context(), auth.Auth(), uuid.NewString(), roles...)
+				require.NoError(t, err)
+
+				clt, err := auth.NewClient(authtest.TestUser(user.GetName()))
+				require.NoError(t, err)
+				getter = clt
+			}
+
+			require.Equal(t, tt.expected, commandLimit(t.Context(), getter, tt.mfaRequired))
 		})
 	}
 }
@@ -1083,7 +1047,7 @@ func TestRootClusterName(t *testing.T) {
 
 	rootCluster := ca.trustedCerts.ClusterName
 	leafCluster := "leaf-cluster"
-	key := ca.makeSignedKey(t, KeyIndex{
+	keyRing := ca.makeSignedKeyRing(t, KeyRingIndex{
 		ProxyHost:   "proxy.example.com",
 		ClusterName: leafCluster,
 		Username:    "teleport-user",
@@ -1096,7 +1060,7 @@ func TestRootClusterName(t *testing.T) {
 		{
 			name: "static TLS",
 			modifyCfg: func(c *Config) {
-				tlsConfig, err := key.TeleportClientTLSConfig(nil, []string{leafCluster, rootCluster})
+				tlsConfig, err := keyRing.TeleportClientTLSConfig(nil, []string{leafCluster, rootCluster})
 				require.NoError(t, err)
 				c.TLS = tlsConfig
 			},
@@ -1104,7 +1068,7 @@ func TestRootClusterName(t *testing.T) {
 			name: "key store",
 			modifyCfg: func(c *Config) {
 				c.ClientStore = NewMemClientStore()
-				err := c.ClientStore.AddKey(key)
+				err := c.ClientStore.AddKeyRing(keyRing)
 				require.NoError(t, err)
 			},
 		},
@@ -1131,18 +1095,18 @@ func TestLoadTLSConfigForClusters(t *testing.T) {
 	rootCA := newTestAuthority(t)
 
 	rootCluster := rootCA.trustedCerts.ClusterName
-	key := rootCA.makeSignedKey(t, KeyIndex{
+	keyRing := rootCA.makeSignedKeyRing(t, KeyRingIndex{
 		ProxyHost:   "proxy.example.com",
 		ClusterName: rootCluster,
 		Username:    "teleport-user",
 	}, false)
 
-	tlsCertPoolNoCA, err := key.clientCertPool()
+	tlsCertPoolNoCA, err := keyRing.clientCertPool()
 	require.NoError(t, err)
-	tlsCertPoolRootCA, err := key.clientCertPool(rootCluster)
+	tlsCertPoolRootCA, err := keyRing.clientCertPool(rootCluster)
 	require.NoError(t, err)
 
-	tlsConfig, err := key.TeleportClientTLSConfig(nil, []string{rootCluster})
+	tlsConfig, err := keyRing.TeleportClientTLSConfig(nil, []string{rootCluster})
 	require.NoError(t, err)
 
 	for _, tt := range []struct {
@@ -1163,7 +1127,7 @@ func TestLoadTLSConfigForClusters(t *testing.T) {
 			clusters: []string{},
 			modifyCfg: func(c *Config) {
 				c.ClientStore = NewMemClientStore()
-				err := c.ClientStore.AddKey(key)
+				err := c.ClientStore.AddKeyRing(keyRing)
 				require.NoError(t, err)
 			},
 			expectCAs: tlsCertPoolNoCA,
@@ -1172,7 +1136,7 @@ func TestLoadTLSConfigForClusters(t *testing.T) {
 			clusters: []string{rootCluster},
 			modifyCfg: func(c *Config) {
 				c.ClientStore = NewMemClientStore()
-				err := c.ClientStore.AddKey(key)
+				err := c.ClientStore.AddKeyRing(keyRing)
 				require.NoError(t, err)
 			},
 			expectCAs: tlsCertPoolRootCA,
@@ -1181,7 +1145,7 @@ func TestLoadTLSConfigForClusters(t *testing.T) {
 			clusters: []string{"leaf-1", "leaf-2"},
 			modifyCfg: func(c *Config) {
 				c.ClientStore = NewMemClientStore()
-				err := c.ClientStore.AddKey(key)
+				err := c.ClientStore.AddKeyRing(keyRing)
 				require.NoError(t, err)
 			},
 			expectCAs: tlsCertPoolNoCA,
@@ -1206,14 +1170,16 @@ func TestLoadTLSConfigForClusters(t *testing.T) {
 }
 
 func TestConnectToProxyCancelledContext(t *testing.T) {
-	cfg := MakeDefaultConfig()
-
+	cfg := &Config{}
 	cfg.Agent = &mockAgent{}
-	cfg.AuthMethods = []ssh.AuthMethod{ssh.Password("xyz")}
 	cfg.AddKeysToAgent = AddKeysToAgentNo
 	cfg.WebProxyAddr = "dummy"
-	cfg.KeysDir = t.TempDir()
 	cfg.TLSRoutingEnabled = true
+	cfg.PublicKeyAuthConfig = apissh.PublicKeyAuthConfig{
+		Signers: func() ([]ssh.Signer, error) {
+			return []ssh.Signer{&mockSigner{}}, nil
+		},
+	}
 
 	clt, err := NewClient(cfg)
 	require.NoError(t, err)
@@ -1243,6 +1209,18 @@ func TestIsErrorResolvableWithRelogin(t *testing.T) {
 			},
 			expectResolvable: true,
 		},
+		{
+			name:             "trace.BadParameter should be resolvable",
+			err:              trace.BadParameter("bad"),
+			expectResolvable: true,
+		},
+		{
+			name: "nonRetryableError should not be resolvable",
+			err: trace.Wrap(&NonRetryableError{
+				Err: trace.BadParameter("bad"),
+			}),
+			expectResolvable: false,
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			resolvable := IsErrorResolvableWithRelogin(tt.err)
@@ -1270,6 +1248,15 @@ func (f fakeResourceClient) GetResources(ctx context.Context, req *proto.ListRes
 	return &proto.ListResourcesResponse{Resources: out}, nil
 }
 
+func (f fakeResourceClient) ListUnifiedResources(ctx context.Context, req *proto.ListUnifiedResourcesRequest) (*proto.ListUnifiedResourcesResponse, error) {
+	out := make([]*proto.PaginatedResource, 0, len(f.nodes))
+	for _, n := range f.nodes {
+		out = append(out, &proto.PaginatedResource{Resource: &proto.PaginatedResource_Node{Node: n}})
+	}
+
+	return &proto.ListUnifiedResourcesResponse{Resources: out}, nil
+}
+
 func TestGetTargetNodes(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -1280,37 +1267,37 @@ func TestGetTargetNodes(t *testing.T) {
 		host      string
 		port      int
 		clt       fakeResourceClient
-		expected  []targetNode
+		expected  []TargetNode
 	}{
 		{
 			name: "options override",
 			options: SSHOptions{
 				HostAddress: "test:1234",
 			},
-			expected: []targetNode{{hostname: "test:1234", addr: "test:1234"}},
+			expected: []TargetNode{{Hostname: "test:1234", Addr: "test:1234"}},
 		},
 		{
 			name:     "explicit target",
 			host:     "test",
 			port:     1234,
-			expected: []targetNode{{hostname: "test", addr: "test:1234"}},
+			expected: []TargetNode{{Hostname: "test", Addr: "test:1234"}},
 		},
 		{
 			name:     "labels",
 			labels:   map[string]string{"foo": "bar"},
-			expected: []targetNode{{hostname: "labels", addr: "abcd:0"}},
+			expected: []TargetNode{{Hostname: "labels", Addr: "abcd:0"}},
 			clt:      fakeResourceClient{nodes: []*types.ServerV2{{Metadata: types.Metadata{Name: "abcd"}, Spec: types.ServerSpecV2{Hostname: "labels"}}}},
 		},
 		{
 			name:     "search",
 			search:   []string{"foo", "bar"},
-			expected: []targetNode{{hostname: "search", addr: "abcd:0"}},
+			expected: []TargetNode{{Hostname: "search", Addr: "abcd:0"}},
 			clt:      fakeResourceClient{nodes: []*types.ServerV2{{Metadata: types.Metadata{Name: "abcd"}, Spec: types.ServerSpecV2{Hostname: "search"}}}},
 		},
 		{
 			name:      "predicate",
 			predicate: `resource.spec.hostname == "test"`,
-			expected:  []targetNode{{hostname: "predicate", addr: "abcd:0"}},
+			expected:  []TargetNode{{Hostname: "predicate", Addr: "abcd:0"}},
 			clt:       fakeResourceClient{nodes: []*types.ServerV2{{Metadata: types.Metadata{Name: "abcd"}, Spec: types.ServerSpecV2{Hostname: "predicate"}}}},
 		},
 	}
@@ -1328,9 +1315,624 @@ func TestGetTargetNodes(t *testing.T) {
 				},
 			}
 
-			match, err := clt.getTargetNodes(context.Background(), test.clt, test.options)
+			match, err := clt.GetTargetNodes(context.Background(), test.clt, test.options)
 			require.NoError(t, err)
 			require.EqualValues(t, test.expected, match)
 		})
 	}
+}
+
+type fakeGetTargetNodeClient struct {
+	authclient.ClientI
+
+	nodes             []*types.ServerV2
+	resolved          *types.ServerV2
+	resolveErr        error
+	routeToMostRecent bool
+}
+
+func (f fakeGetTargetNodeClient) ListUnifiedResources(ctx context.Context, req *proto.ListUnifiedResourcesRequest) (*proto.ListUnifiedResourcesResponse, error) {
+	out := make([]*proto.PaginatedResource, 0, len(f.nodes))
+	for _, n := range f.nodes {
+		out = append(out, &proto.PaginatedResource{Resource: &proto.PaginatedResource_Node{Node: n}})
+	}
+
+	return &proto.ListUnifiedResourcesResponse{Resources: out}, nil
+}
+
+func (f fakeGetTargetNodeClient) ResolveSSHTarget(ctx context.Context, req *proto.ResolveSSHTargetRequest) (*proto.ResolveSSHTargetResponse, error) {
+	if f.resolveErr != nil {
+		return nil, f.resolveErr
+	}
+
+	return &proto.ResolveSSHTargetResponse{Server: f.resolved}, nil
+}
+
+func (f fakeGetTargetNodeClient) GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error) {
+	cfg := types.DefaultClusterNetworkingConfig()
+	if f.routeToMostRecent {
+		cfg.SetRoutingStrategy(types.RoutingStrategy_MOST_RECENT)
+	}
+
+	return cfg, nil
+}
+
+func TestGetTargetNode(t *testing.T) {
+	now := time.Now()
+	then := now.Add(-5 * time.Hour)
+
+	tests := []struct {
+		name         string
+		options      *SSHOptions
+		labels       map[string]string
+		search       []string
+		predicate    string
+		host         string
+		port         int
+		clt          fakeGetTargetNodeClient
+		errAssertion require.ErrorAssertionFunc
+		expected     TargetNode
+	}{
+		{
+			name: "options override",
+			options: &SSHOptions{
+				HostAddress: "test:1234",
+			},
+			host:         "llama",
+			port:         56789,
+			errAssertion: require.NoError,
+			expected:     TargetNode{Hostname: "test:1234", Addr: "test:1234"},
+		},
+		{
+			name:         "explicit target",
+			host:         "test",
+			port:         1234,
+			errAssertion: require.NoError,
+			expected:     TargetNode{Hostname: "test", Addr: "test:1234"},
+		},
+		{
+			name:         "resolved labels",
+			labels:       map[string]string{"foo": "bar"},
+			errAssertion: require.NoError,
+			expected:     TargetNode{Hostname: "resolved-labels", Addr: "abcd:0"},
+			clt: fakeGetTargetNodeClient{
+				nodes:    []*types.ServerV2{{Metadata: types.Metadata{Name: "abcd"}, Spec: types.ServerSpecV2{Hostname: "labels"}}},
+				resolved: &types.ServerV2{Metadata: types.Metadata{Name: "abcd"}, Spec: types.ServerSpecV2{Hostname: "resolved-labels"}},
+			},
+		},
+		{
+			name:         "fallback labels",
+			labels:       map[string]string{"foo": "bar"},
+			errAssertion: require.NoError,
+			expected:     TargetNode{Hostname: "labels", Addr: "abcd:0"},
+			clt: fakeGetTargetNodeClient{
+				nodes:      []*types.ServerV2{{Metadata: types.Metadata{Name: "abcd"}, Spec: types.ServerSpecV2{Hostname: "labels"}}},
+				resolved:   &types.ServerV2{Metadata: types.Metadata{Name: "abcd"}, Spec: types.ServerSpecV2{Hostname: "resolved-labels"}},
+				resolveErr: trace.NotImplemented(""),
+			},
+		},
+		{
+			name:         "resolved search",
+			search:       []string{"foo", "bar"},
+			errAssertion: require.NoError,
+			expected:     TargetNode{Hostname: "resolved-search", Addr: "abcd:0"},
+			clt: fakeGetTargetNodeClient{
+				nodes:    []*types.ServerV2{{Metadata: types.Metadata{Name: "abcd"}, Spec: types.ServerSpecV2{Hostname: "search"}}},
+				resolved: &types.ServerV2{Metadata: types.Metadata{Name: "abcd"}, Spec: types.ServerSpecV2{Hostname: "resolved-search"}},
+			},
+		},
+
+		{
+			name:         "fallback search",
+			search:       []string{"foo", "bar"},
+			errAssertion: require.NoError,
+			expected:     TargetNode{Hostname: "search", Addr: "abcd:0"},
+			clt: fakeGetTargetNodeClient{
+				nodes:      []*types.ServerV2{{Metadata: types.Metadata{Name: "abcd"}, Spec: types.ServerSpecV2{Hostname: "search"}}},
+				resolveErr: trace.NotImplemented(""),
+				resolved:   &types.ServerV2{Metadata: types.Metadata{Name: "abcd"}, Spec: types.ServerSpecV2{Hostname: "resolved-search"}},
+			},
+		},
+		{
+			name:         "resolved predicate",
+			predicate:    `resource.spec.hostname == "test"`,
+			errAssertion: require.NoError,
+			expected:     TargetNode{Hostname: "resolved-predicate", Addr: "abcd:0"},
+			clt: fakeGetTargetNodeClient{
+				nodes:    []*types.ServerV2{{Metadata: types.Metadata{Name: "abcd"}, Spec: types.ServerSpecV2{Hostname: "predicate"}}},
+				resolved: &types.ServerV2{Metadata: types.Metadata{Name: "abcd"}, Spec: types.ServerSpecV2{Hostname: "resolved-predicate"}},
+			},
+		},
+		{
+			name:         "fallback predicate",
+			predicate:    `resource.spec.hostname == "test"`,
+			errAssertion: require.NoError,
+			expected:     TargetNode{Hostname: "predicate", Addr: "abcd:0"},
+			clt: fakeGetTargetNodeClient{
+				nodes:      []*types.ServerV2{{Metadata: types.Metadata{Name: "abcd"}, Spec: types.ServerSpecV2{Hostname: "predicate"}}},
+				resolveErr: trace.NotImplemented(""),
+				resolved:   &types.ServerV2{Metadata: types.Metadata{Name: "abcd"}, Spec: types.ServerSpecV2{Hostname: "resolved-predicate"}},
+			},
+		},
+		{
+			name:         "fallback ambiguous hosts",
+			predicate:    `resource.spec.hostname == "test"`,
+			errAssertion: require.Error,
+			clt: fakeGetTargetNodeClient{
+				nodes: []*types.ServerV2{
+					{Metadata: types.Metadata{Name: "abcd-1"}, Spec: types.ServerSpecV2{Hostname: "predicate"}},
+					{Metadata: types.Metadata{Name: "abcd-2"}, Spec: types.ServerSpecV2{Hostname: "predicate"}},
+				},
+				resolveErr: trace.NotImplemented(""),
+				resolved:   &types.ServerV2{Metadata: types.Metadata{Name: "abcd"}, Spec: types.ServerSpecV2{Hostname: "resolved-predicate"}},
+			},
+		},
+		{
+			name:         "fallback and route to recent",
+			predicate:    `resource.spec.hostname == "test"`,
+			errAssertion: require.NoError,
+			expected:     TargetNode{Hostname: "predicate-now", Addr: "abcd-1:0"},
+			clt: fakeGetTargetNodeClient{
+				nodes: []*types.ServerV2{
+					{Metadata: types.Metadata{Name: "abcd-0", Expires: &then}, Spec: types.ServerSpecV2{Hostname: "predicate-then"}},
+					{Metadata: types.Metadata{Name: "abcd-1", Expires: &now}, Spec: types.ServerSpecV2{Hostname: "predicate-now"}},
+					{Metadata: types.Metadata{Name: "abcd-2", Expires: &then}, Spec: types.ServerSpecV2{Hostname: "predicate-then-again"}},
+				},
+				resolveErr:        trace.NotImplemented(""),
+				routeToMostRecent: true,
+				resolved:          &types.ServerV2{Metadata: types.Metadata{Name: "abcd"}, Spec: types.ServerSpecV2{Hostname: "resolved-predicate"}},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			clt := TeleportClient{
+				Config: Config{
+					Tracer:              tracing.NoopTracer(""),
+					Labels:              test.labels,
+					SearchKeywords:      test.search,
+					PredicateExpression: test.predicate,
+					Host:                test.host,
+					HostPort:            test.port,
+				},
+			}
+
+			match, err := clt.GetTargetNode(context.Background(), test.clt, test.options)
+			test.errAssertion(t, err)
+			if match == nil {
+				match = &TargetNode{}
+			}
+			require.EqualValues(t, test.expected, *match)
+		})
+	}
+}
+
+func TestNonRetryableError(t *testing.T) {
+	orgError := trace.AccessDenied("do not enter")
+	err := &NonRetryableError{
+		Err: orgError,
+	}
+	require.Error(t, err)
+	assert.Equal(t, "do not enter", err.Error())
+	assert.True(t, IsNonRetryableError(err))
+	assert.True(t, trace.IsAccessDenied(err))
+	assert.Equal(t, orgError, err.Unwrap())
+}
+
+func TestWarningAboutIncompatibleClientVersion(t *testing.T) {
+	tests := []struct {
+		name            string
+		clientVersion   string
+		serverVersion   string
+		expectedWarning string
+	}{
+		{
+			name:          "client on a higher major version than server triggers a warning",
+			clientVersion: "17.0.0",
+			serverVersion: "16.0.0",
+			expectedWarning: `
+WARNING
+Detected potentially incompatible client and server versions.
+Maximum client version supported by the server is 16.x.x but you are using 17.0.0.
+Please downgrade tsh to 16.x.x or use the --skip-version-check flag to bypass this check.
+Future versions of tsh will fail when incompatible versions are detected.
+
+`,
+		},
+		{
+			name:          "client on a too low major version compared to server triggers a warning",
+			clientVersion: "16.4.0",
+			serverVersion: "18.0.0",
+			expectedWarning: `
+WARNING
+Detected potentially incompatible client and server versions.
+Minimum client version supported by the server is 17.0.0 but you are using 16.4.0.
+Please upgrade tsh to 17.0.0 or newer or use the --skip-version-check flag to bypass this check.
+Future versions of tsh will fail when incompatible versions are detected.
+
+`,
+		},
+		{
+			name:            "client on a higher minor version than server does not trigger a warning",
+			clientVersion:   "17.1.0",
+			serverVersion:   "17.0.0",
+			expectedWarning: "",
+		},
+		{
+			name:            "client on a lower major version than server does not trigger a warning",
+			clientVersion:   "17.0.0",
+			serverVersion:   "18.0.0",
+			expectedWarning: "",
+		},
+		{
+			name:            "client and server on the same version do not trigger a warning",
+			clientVersion:   "18.0.0",
+			serverVersion:   "18.0.0",
+			expectedWarning: "",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			minClientVersion, err := semver.NewVersion(test.serverVersion)
+			require.NoError(t, err)
+			minClientVersion.Major = minClientVersion.Major - 1
+			// Mirror what happens with teleport.MinClientSemVer.
+			minClientVersion.PreRelease = "aa"
+			warning, err := getClientIncompatibilityWarning(Versions{
+				MinClient: minClientVersion.String(),
+				Client:    test.clientVersion,
+				Server:    test.serverVersion,
+			})
+			require.NoError(t, err)
+			require.Equal(t, test.expectedWarning, warning)
+		})
+	}
+}
+
+func TestParsePortMapping(t *testing.T) {
+	tests := []struct {
+		in      string
+		want    PortMapping
+		wantErr bool
+	}{
+		{
+			in:   "",
+			want: PortMapping{},
+		},
+		{
+			in:   "1337",
+			want: PortMapping{LocalPort: 1337},
+		},
+		{
+			in:   "1337:42",
+			want: PortMapping{LocalPort: 1337, TargetPort: 42},
+		},
+		{
+			in:   "0:0",
+			want: PortMapping{},
+		},
+		{
+			in:   "0:42",
+			want: PortMapping{TargetPort: 42},
+		},
+		{
+			in:      " ",
+			wantErr: true,
+		},
+		{
+			in:      "1337:",
+			wantErr: true,
+		},
+		{
+			in:      ":42",
+			wantErr: true,
+		},
+		{
+			in:      "13371337",
+			wantErr: true,
+		},
+		{
+			in:      "42:73317331",
+			wantErr: true,
+		},
+		{
+			in:      "1337:42:42",
+			wantErr: true,
+		},
+		{
+			in:      "1337:42:",
+			wantErr: true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.in, func(t *testing.T) {
+			out, err := ParsePortMapping(test.in)
+			if test.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, test.want, out)
+			}
+		})
+	}
+}
+
+func TestCalculateSSHLogins(t *testing.T) {
+	cases := []struct {
+		name              string
+		allowedLogins     []string
+		grantedPrincipals []string
+		expectedLogins    []string
+	}{
+		{
+			name:              "no matching logins",
+			allowedLogins:     []string{"llama"},
+			grantedPrincipals: []string{"fish"},
+		},
+		{
+			name:              "identical logins",
+			allowedLogins:     []string{"llama", "shark", "goose"},
+			grantedPrincipals: []string{"shark", "goose", "llama"},
+			expectedLogins:    []string{"goose", "shark", "llama"},
+		},
+		{
+			name:              "subset of logins",
+			allowedLogins:     []string{"llama"},
+			grantedPrincipals: []string{"shark", "goose", "llama"},
+			expectedLogins:    []string{"llama"},
+		},
+		{
+			name:              "no allowed logins",
+			grantedPrincipals: []string{"shark", "goose", "llama"},
+		},
+		{
+			name:          "no granted logins",
+			allowedLogins: []string{"shark", "goose", "llama"},
+		},
+	}
+
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			logins, err := CalculateSSHLogins(test.grantedPrincipals, test.allowedLogins)
+			require.NoError(t, err)
+			require.Empty(t, cmp.Diff(logins, test.expectedLogins, cmpopts.SortSlices(func(a, b string) bool {
+				return strings.Compare(a, b) < 0
+			})))
+		})
+	}
+}
+
+func TestGenerateClientConfig(t *testing.T) {
+	t.Parallel()
+
+	const (
+		sshProxyAddr = "ssh.example.com:3023"
+		webProxyAddr = "web.example.com:3080"
+		proxyHost    = "proxy.example.com"
+		username     = "alice"
+		leafCluster  = "leaf-cluster"
+		selectedSite = "selected-cluster"
+	)
+
+	t.Run("loads static signers and prefers web proxy when TLS routing is enabled", func(t *testing.T) {
+		tc := &TeleportClient{
+			Config: Config{
+				SSHProxyAddr:      sshProxyAddr,
+				WebProxyAddr:      webProxyAddr,
+				SiteName:          leafCluster,
+				HostLogin:         username,
+				TLSRoutingEnabled: true,
+				PublicKeyAuthConfig: apissh.PublicKeyAuthConfig{
+					Signers: func() ([]ssh.Signer, error) {
+						return []ssh.Signer{
+							&mockSigner{
+								ValidPrincipals: []string{"static-principal"},
+							},
+						}, nil
+					},
+				},
+				Tracer: tracing.NoopTracer("i-have-no-purpose"),
+			},
+		}
+
+		cfg, err := tc.generateClientConfig(t.Context())
+		require.NoError(t, err)
+		require.Equal(t, webProxyAddr, cfg.proxyAddress)
+		require.Equal(t, username, cfg.User)
+		require.Equal(t, leafCluster, cfg.clusterName())
+
+		signers, err := cfg.PublicKeyAuth.Signers()
+		require.NoError(t, err)
+		require.Len(t, signers, 1)
+	})
+
+	t.Run("uses jump host proxy and cluster specific signers", func(t *testing.T) {
+
+		tc := &TeleportClient{
+			Config: Config{
+				SSHProxyAddr: sshProxyAddr,
+				WebProxyAddr: webProxyAddr,
+				SiteName:     selectedSite,
+				HostLogin:    username,
+				JumpHosts: []utils.JumpHost{
+					{
+						Username: "jump-user",
+						Addr: utils.NetAddr{
+							Addr: "jump.example.com:3022",
+						},
+					},
+				},
+				Tracer: tracing.NoopTracer("i-have-no-purpose"),
+			},
+			localAgent: newTestLocalAgent(t, proxyHost, username, selectedSite),
+		}
+
+		ca := newTestAuthority(t)
+
+		// Root keyring is for the jump host and the leaf keyring is for the target cluster.
+		rootKeyRing := ca.makeSignedKeyRing(
+			t,
+			KeyRingIndex{
+				ProxyHost:   proxyHost,
+				ClusterName: ca.trustedCerts.ClusterName,
+				Username:    username,
+			},
+			false,
+		)
+
+		leafKeyRing := rootKeyRing.Copy()
+		leafKeyRing.KeyRingIndex = KeyRingIndex{
+			ProxyHost:   proxyHost,
+			ClusterName: leafCluster,
+			Username:    username,
+		}
+
+		ca.signKeyRing(t, leafKeyRing, false)
+
+		require.NoError(t, tc.AddKeyRing(rootKeyRing))
+		require.NoError(t, tc.AddKeyRing(leafKeyRing))
+
+		cfg, err := tc.generateClientConfig(t.Context())
+		require.NoError(t, err)
+		require.Equal(t, "jump.example.com:3022", cfg.proxyAddress)
+		require.Empty(t, cfg.clusterName())
+
+		// Simulate the host key callback being called during the SSH handshake with the jump host. This should trigger
+		// the client to select the leaf cluster keyring since it matches the cluster name in the certificate
+		// extensions.
+		err = cfg.HostKeyCallback(
+			"jump.example.com",
+			&net.IPAddr{},
+			&ssh.Certificate{
+				Permissions: ssh.Permissions{
+					Extensions: map[string]string{
+						utils.CertExtensionAuthority: leafCluster,
+					},
+				},
+			},
+		)
+		require.NoError(t, err)
+		require.Equal(t, leafCluster, cfg.clusterName())
+
+		signers, err := cfg.PublicKeyAuth.Signers()
+		require.NoError(t, err)
+		require.Len(t, signers, 1)
+	})
+
+	t.Run("loads local agent signers without jump hosts", func(t *testing.T) {
+		ca := newTestAuthority(t)
+		tc := &TeleportClient{
+			Config: Config{
+				SSHProxyAddr: fmt.Sprintf("%s:3023", proxyHost),
+				SiteName:     leafCluster,
+				HostLogin:    username,
+				Tracer:       tracing.NoopTracer("i-have-no-purpose"),
+			},
+			localAgent: newTestLocalAgent(t, proxyHost, username, leafCluster),
+		}
+
+		require.NoError(
+			t,
+			tc.AddKeyRing(
+				ca.makeSignedKeyRing(
+					t,
+					KeyRingIndex{
+						ProxyHost:   proxyHost,
+						ClusterName: leafCluster,
+						Username:    username,
+					},
+					false,
+				),
+			),
+		)
+
+		cfg, err := tc.generateClientConfig(t.Context())
+		require.NoError(t, err)
+		require.Equal(t, fmt.Sprintf("%s:3023", proxyHost), cfg.proxyAddress)
+		require.Equal(t, leafCluster, cfg.clusterName())
+
+		signers, err := cfg.PublicKeyAuth.Signers()
+		require.NoError(t, err)
+		require.Len(t, signers, 2)
+	})
+
+	t.Run("returns error when no auth methods are loaded", func(t *testing.T) {
+		tc := &TeleportClient{
+			Config: Config{
+				SSHProxyAddr: sshProxyAddr,
+				SiteName:     leafCluster,
+				Tracer:       tracing.NoopTracer("i-have-no-purpose"),
+			},
+		}
+
+		_, err := tc.generateClientConfig(t.Context())
+		require.ErrorIs(t, err, trace.BadParameter("no SSH auth methods loaded, are you logged in?"))
+	})
+}
+
+func newTestLocalAgent(t *testing.T, proxyHost, username, siteName string) *LocalKeyAgent {
+	t.Helper()
+
+	keyring, ok := agent.NewKeyring().(agent.ExtendedAgent)
+	require.True(t, ok)
+
+	localAgent, err := NewLocalAgent(LocalAgentConfig{
+		ClientStore: NewMemClientStore(),
+		Agent:       keyring,
+		ProxyHost:   proxyHost,
+		Username:    username,
+		Site:        siteName,
+	})
+	require.NoError(t, err)
+
+	return localAgent
+}
+
+func TestKeyRing_accessGraphHelpers(t *testing.T) {
+	t.Parallel()
+	a := newTestAuthority(t)
+	idx := KeyRingIndex{
+		ProxyHost:   "proxy.example.com",
+		ClusterName: a.trustedCerts.ClusterName,
+		Username:    "alice",
+	}
+
+	t.Run("missing cert returns NotFound", func(t *testing.T) {
+		t.Parallel()
+		keyRing := a.makeSignedKeyRing(t, idx, false)
+
+		_, err := keyRing.AccessGraphTLSCertificate()
+		require.True(t, trace.IsNotFound(err))
+
+		_, err = keyRing.AccessGraphTLSCertValidBefore()
+		require.True(t, trace.IsNotFound(err))
+
+		_, err = keyRing.AccessGraphClientTLSConfig(nil)
+		require.True(t, trace.IsNotFound(err))
+	})
+
+	t.Run("present cert parses and builds TLS config", func(t *testing.T) {
+		t.Parallel()
+		keyRing := a.makeSignedKeyRing(t, idx, false)
+		keyRing.AccessGraphTLSCert = a.signAccessGraphCert(t, keyRing, false)
+
+		parsed, err := keyRing.AccessGraphTLSCertificate()
+		require.NoError(t, err)
+		require.Equal(t, "alice", parsed.Subject.CommonName)
+
+		notAfter, err := keyRing.AccessGraphTLSCertValidBefore()
+		require.NoError(t, err)
+		require.Equal(t, parsed.NotAfter, notAfter)
+
+		tlsConfig, err := keyRing.AccessGraphClientTLSConfig(nil)
+		require.NoError(t, err)
+		require.Len(t, tlsConfig.Certificates, 1)
+		require.Equal(t, keyRing.ProxyHost, tlsConfig.ServerName)
+		// AccessGraph config talks directly to the public proxy; it relies on system CAs.
+		require.Nil(t, tlsConfig.RootCAs)
+		require.GreaterOrEqual(t, tlsConfig.MinVersion, uint16(tls.VersionTLS12))
+	})
 }

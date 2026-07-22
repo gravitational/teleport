@@ -84,6 +84,22 @@ func TestGCPMatcherCheckAndSetDefaults(t *testing.T) {
 			},
 		},
 		{
+			name: "cloudsql is valid",
+			in: &GCPMatcher{
+				Types:      []string{"cloudsql"},
+				ProjectIDs: []string{"project01"},
+			},
+			errCheck: require.NoError,
+			expected: &GCPMatcher{
+				Types:      []string{"cloudsql"},
+				Locations:  []string{"*"},
+				ProjectIDs: []string{"project01"},
+				Labels: Labels{
+					"*": []string{"*"},
+				},
+			},
+		},
+		{
 			name: "wildcard is invalid for types",
 			in: &GCPMatcher{
 				Types:      []string{"*"},
@@ -92,12 +108,12 @@ func TestGCPMatcherCheckAndSetDefaults(t *testing.T) {
 			errCheck: isBadParameterErr,
 		},
 		{
-			name: "wildcard is invalid for project ids",
+			name: "wildcard is valid for project ids",
 			in: &GCPMatcher{
 				Types:      []string{"gce"},
 				ProjectIDs: []string{"*"},
 			},
-			errCheck: isBadParameterErr,
+			errCheck: require.NoError,
 		},
 		{
 			name: "invalid type",
@@ -144,6 +160,41 @@ func TestGCPMatcherCheckAndSetDefaults(t *testing.T) {
 				},
 				Tags: Labels{
 					"*": []string{"*"},
+				},
+			},
+			errCheck: isBadParameterErr,
+		},
+		{
+			name: "invalid install suffix",
+			in: &GCPMatcher{
+				Types:      []string{"gce"},
+				ProjectIDs: []string{"project001"},
+				Params: &InstallerParams{
+					Suffix: "$SHELL",
+				},
+			},
+			errCheck: isBadParameterErr,
+		},
+		{
+			name: "invalid update groups",
+			in: &GCPMatcher{
+				Types:      []string{"gce"},
+				ProjectIDs: []string{"project001"},
+				Params: &InstallerParams{
+					UpdateGroup: "$SHELL",
+				},
+			},
+			errCheck: isBadParameterErr,
+		},
+		{
+			name: "invalid proxy settings",
+			in: &GCPMatcher{
+				Types:      []string{"gce"},
+				ProjectIDs: []string{"project001"},
+				Params: &InstallerParams{
+					HTTPProxySettings: &HTTPProxySettings{
+						HTTPProxy: "not a valid url",
+					},
 				},
 			},
 			errCheck: isBadParameterErr,

@@ -19,9 +19,11 @@
 package db
 
 import (
+	"context"
+	"log/slog"
+
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/sql/armsql"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud/azure"
@@ -36,8 +38,8 @@ func newAzureSQLServerFetcher(config azureFetcherConfig) (common.Fetcher, error)
 // azureSQLServerFetcher implements azureFetcherPlugin for Azure SQL Servers.
 type azureSQLServerFetcher struct{}
 
-func (f *azureSQLServerFetcher) GetListClient(cfg *azureFetcherConfig, subID string) (azure.SQLServerClient, error) {
-	client, err := cfg.AzureClients.GetAzureSQLServerClient(subID)
+func (f *azureSQLServerFetcher) GetListClient(ctx context.Context, cfg *azureFetcherConfig, subID string) (azure.SQLServerClient, error) {
+	client, err := cfg.AzureClients.GetSQLServerClient(ctx, subID)
 	return client, trace.Wrap(err)
 }
 
@@ -45,10 +47,13 @@ func (f *azureSQLServerFetcher) GetServerLocation(server *armsql.Server) string 
 	return azure.StringVal(server.Location)
 }
 
-func (f *azureSQLServerFetcher) NewDatabaseFromServer(server *armsql.Server, log logrus.FieldLogger) types.Database {
+func (f *azureSQLServerFetcher) NewDatabaseFromServer(ctx context.Context, server *armsql.Server, logger *slog.Logger) types.Database {
 	database, err := common.NewDatabaseFromAzureSQLServer(server)
 	if err != nil {
-		log.Warnf("Could not convert Azure SQL server %q to database resource: %v.", azure.StringVal(server.Name), err)
+		logger.WarnContext(ctx, "Could not convert Azure SQL server to database resource",
+			"server", azure.StringVal(server.Name),
+			"error", err,
+		)
 		return nil
 	}
 

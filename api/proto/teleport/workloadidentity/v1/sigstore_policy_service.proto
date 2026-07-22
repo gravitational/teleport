@@ -1,0 +1,105 @@
+// Copyright 2025 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.workloadidentity.v1;
+
+import "google/protobuf/empty.proto";
+import "teleport/workloadidentity/v1/sigstore_policy_resource.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1;workloadidentityv1";
+
+// SigstorePolicyResourceService provides methods to manage the Sigstore policies
+// used to verify workload artifact integrity and provenance.
+//
+// It's only available in Teleport Enterprise Edition.
+service SigstorePolicyResourceService {
+  // CreateSigstorePolicy creates a new Sigstore policy.
+  rpc CreateSigstorePolicy(CreateSigstorePolicyRequest) returns (SigstorePolicy);
+
+  // UpsertSigstorePolicy creates or updates a Sigstore policy.
+  //
+  // You should prefer to call CreateSigstorePolicy or UpdateSigstorePolicy.
+  rpc UpsertSigstorePolicy(UpsertSigstorePolicyRequest) returns (SigstorePolicy);
+
+  // UpdateSigstorePolicy updates an existing Sigstore policy. It will refuse to
+  // update a Sigstore policy if one does not already exist with the same name.
+  //
+  // ConditionalUpdate semantics are applied, e.g, the update will only succeed
+  // if the revision of the provided SigstorePolicy matches the revision of the
+  // existing SigstorePolicy.
+  rpc UpdateSigstorePolicy(UpdateSigstorePolicyRequest) returns (SigstorePolicy);
+
+  // GetSigstorePolicy retrieves a Sigstore policy by name.
+  rpc GetSigstorePolicy(GetSigstorePolicyRequest) returns (SigstorePolicy);
+
+  // DeleteSigstorePolicy deletes a Sigstore policy by name.
+  rpc DeleteSigstorePolicy(DeleteSigstorePolicyRequest) returns (google.protobuf.Empty);
+
+  // ListSigstorePolicies returns a list of Sigstore policies, pagination
+  // semantics are applied.
+  rpc ListSigstorePolicies(ListSigstorePoliciesRequest) returns (ListSigstorePoliciesResponse);
+}
+
+// The request for CreateSigstorePolicy.
+message CreateSigstorePolicyRequest {
+  // The Sigstore policy to create.
+  SigstorePolicy sigstore_policy = 1;
+}
+
+// The request for UpdateSigstorePolicy.
+message UpdateSigstorePolicyRequest {
+  // The Sigstore policy to update.
+  SigstorePolicy sigstore_policy = 1;
+}
+
+// The request for UpsertSigstorePolicy.
+message UpsertSigstorePolicyRequest {
+  // The Sigstore policy to upsert.
+  SigstorePolicy sigstore_policy = 1;
+}
+
+// The request for GetSigstorePolicy.
+message GetSigstorePolicyRequest {
+  // The name of the Sigstore policy to retrieve.
+  string name = 1;
+}
+
+// The request for DeleteSigstorePolicy.
+message DeleteSigstorePolicyRequest {
+  // The name of the Sigstore policy to delete.
+  string name = 1;
+}
+
+// The request for ListSigstorePolicies.
+message ListSigstorePoliciesRequest {
+  // The maximum number of items to return. The server may impose a different
+  // page size at its discretion.
+  int32 page_size = 1;
+
+  // The page_token value returned from a previous ListSigstorePolicies request,
+  // if any.
+  string page_token = 2;
+}
+
+// The response for ListSigstorePolicies.
+message ListSigstorePoliciesResponse {
+  // The page of Sigstore policies that matched the request.
+  repeated SigstorePolicy sigstore_policies = 1;
+
+  // Token to retrieve the next page of results, or empty if there are no more
+  // results in the list.
+  string next_page_token = 2;
+}

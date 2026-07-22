@@ -1,6 +1,6 @@
 /**
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2026  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -16,17 +16,73 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-import { render } from 'design/utils/testing';
+import { MemoryRouter } from 'react-router';
 
-import { FailedDefault, FailedCustom } from './Login.story';
+import { render, screen } from 'design/utils/testing';
 
-test('default error message', () => {
-  const { container } = render(<FailedDefault />);
-  expect(container).toMatchSnapshot();
+import cfg from 'teleport/config';
+
+import { LoginFailed } from './LoginFailed';
+
+test('callback error path shows callback error', () => {
+  render(
+    <MemoryRouter initialEntries={[cfg.routes.loginErrorCallback]}>
+      <LoginFailed />
+    </MemoryRouter>
+  );
+  expect(
+    screen.getByText('Unable to process SSO callback.')
+  ).toBeInTheDocument();
 });
 
-test('callback error message', () => {
-  const { container } = render(<FailedCustom />);
-  expect(container).toMatchSnapshot();
+test('missing role shows missing role error', () => {
+  render(
+    <MemoryRouter initialEntries={[cfg.routes.loginErrorCallbackMissingRole]}>
+      <LoginFailed />
+    </MemoryRouter>
+  );
+  expect(
+    screen.getByText(
+      'Unable to process SSO callback. The connector has a mapping to a role that does not exist. Please contact your SSO administrator.'
+    )
+  ).toBeInTheDocument();
+});
+
+test('unauthorized error path shows unauthorized error', () => {
+  render(
+    <MemoryRouter initialEntries={[cfg.routes.loginErrorUnauthorized]}>
+      <LoginFailed />
+    </MemoryRouter>
+  );
+  expect(
+    screen.getByText(
+      'You are not authorized, please contact your SSO administrator.'
+    )
+  ).toBeInTheDocument();
+});
+
+test('groups overage error path shows groups overage error', () => {
+  render(
+    <MemoryRouter initialEntries={[cfg.routes.loginErrorEntraIDGroupsOverage]}>
+      <LoginFailed />
+    </MemoryRouter>
+  );
+  expect(
+    screen.getByText(
+      'Your account is a member of more than 150 Entra ID groups. Please contact your SSO administrator to configure Graph API access on the Teleport SAML connector.'
+    )
+  ).toBeInTheDocument();
+});
+
+test('unhandled error path shows generic error', () => {
+  render(
+    <MemoryRouter initialEntries={['/web/msg/error/login/some_unhandled_path']}>
+      <LoginFailed />
+    </MemoryRouter>
+  );
+  expect(
+    screen.getByText(
+      "Unable to log in, please check Teleport's log for details."
+    )
+  ).toBeInTheDocument();
 });

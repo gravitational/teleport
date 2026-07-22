@@ -16,28 +16,32 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-
-import { Switch, Route } from 'teleport/components/Router';
+import { FeatureBox } from 'teleport/components/Layout';
+import { Redirect, useParams } from 'teleport/components/Router';
 import cfg from 'teleport/config';
 
-import { FeatureBox } from 'teleport/components/Layout';
-
 import { BotFlowType } from '../types';
-
-import GitHubActionsFlow from './GitHubActions';
-import { AddBotsPicker } from './AddBotsPicker';
+import { GitHubActionsK8s } from './GitHubActionsK8s/GitHubActionsK8s';
+import GitHubActionsSshFlow from './GitHubActionsSsh';
 
 export function AddBots() {
-  return (
-    <FeatureBox>
-      <Switch>
-        <Route
-          path={cfg.getBotsNewRoute(BotFlowType.GitHubActions)}
-          component={GitHubActionsFlow}
-        />
-        <Route path={cfg.getBotsNewRoute()} component={AddBotsPicker} />
-      </Switch>
-    </FeatureBox>
-  );
+  const { type } = useParams<{ type?: string }>();
+
+  if (type === BotFlowType.GitHubActionsSsh) {
+    return (
+      <FeatureBox>
+        <GitHubActionsSshFlow />
+      </FeatureBox>
+    );
+  }
+
+  if (type === BotFlowType.GitHubActionsK8s) {
+    return (
+      <FeatureBox>
+        <GitHubActionsK8s />
+      </FeatureBox>
+    );
+  }
+
+  return <Redirect to={`${cfg.getIntegrationEnrollRoute()}?tags=bot`} />;
 }

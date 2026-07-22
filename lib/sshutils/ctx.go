@@ -30,34 +30,8 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 
-	"github.com/gravitational/teleport/lib/teleagent"
+	"github.com/gravitational/teleport/session/networking"
 )
-
-// TCPIPForwardDialer represents a dialer used to handle TCPIP forward requests.
-type TCPIPForwardDialer func(string) (net.Conn, error)
-
-// TCPIPForwardProcess represents an instance of a port forwarding process.
-type TCPIPForwardProcess struct {
-	// Conn is the socket used to request a dialer or listener in the process.
-	Conn *net.UnixConn
-	// Done signals when the process completes.
-	Done <-chan struct{}
-	// Closer contains and extra io.Closer to run when the process as a whole
-	// is closed.
-	Closer io.Closer
-}
-
-// Close stops the process and frees up its related resources.
-func (p *TCPIPForwardProcess) Close() error {
-	var errs []error
-	if p.Conn != nil {
-		errs = append(errs, p.Conn.Close())
-	}
-	if p.Closer != nil {
-		errs = append(errs, p.Closer.Close())
-	}
-	return trace.NewAggregate(errs...)
-}
 
 // ConnectionContext manages connection-level state.
 type ConnectionContext struct {
@@ -82,12 +56,9 @@ type ConnectionContext struct {
 	// when handling node-side connections for users with MaxSessions applied.
 	sessions int64
 
-	// tcpipForwardDialer is a lazily initialized dialer used to handle all tcpip
-	// forwarding requests.
-	tcpipForwardDialer TCPIPForwardDialer
-	// tcpipForwardProcess is a lazily initialized connection to the subprocess that
-	// handles remote port forwarding.
-	tcpipForwardProcess *TCPIPForwardProcess
+	// networkingProcess is a lazily initialized connection to the subprocess that
+	// handles connection-level networking requests. e.g. port/agent forwarding.
+	networkingProcess *networking.Process
 
 	// closers is a list of io.Closer that will be called when session closes
 	// this is handy as sometimes client closes session, in this case resources
@@ -102,6 +73,9 @@ type ConnectionContext struct {
 
 	// clientLastActive records the last time there was activity from the client.
 	clientLastActive time.Time
+
+	// UserCreatedByTeleport is true when the system user was created by Teleport user auto-provision.
+	UserCreatedByTeleport bool
 
 	clock clockwork.Clock
 }
@@ -134,16 +108,16 @@ func NewConnectionContext(ctx context.Context, nconn net.Conn, sconn *ssh.Server
 	return ctx, ccx
 }
 
-// agentChannel implements the extended teleteleagent.Agent interface,
-// allowing the underlying ssh.Channel to be closed when the agent
-// is no longer needed.
-type agentChannel struct {
+// AgentChannel implements the [agent.ExtendedAgent] and [io.Closer]
+// interfaces, allowing the underlying ssh.Channel to be closed when
+// the agent is no longer needed.
+type AgentChannel struct {
 	agent.ExtendedAgent
 	ch ssh.Channel
 }
 
 // Close closes the agent channel.
-func (a *agentChannel) Close() error {
+func (a *AgentChannel) Close() error {
 	// For graceful teardown, close the write part of the channel first. This
 	// will send "EOF" packet (type 96) to the other side which will drain and
 	// close the channel.
@@ -164,7 +138,7 @@ func (a *agentChannel) Close() error {
 // StartAgentChannel sets up a new agent forwarding channel against this connection.  The channel
 // is automatically closed when either ConnectionContext, or the supplied context.Context
 // gets canceled.
-func (c *ConnectionContext) StartAgentChannel() (teleagent.Agent, error) {
+func (c *ConnectionContext) StartAgentChannel() (*AgentChannel, error) {
 	// refuse to start an agent if forwardAgent has not yet been set.
 	if !c.GetForwardAgent() {
 		return nil, trace.AccessDenied("agent forwarding has not been requested")
@@ -175,7 +149,8 @@ func (c *ConnectionContext) StartAgentChannel() (teleagent.Agent, error) {
 		return nil, trace.Wrap(err)
 	}
 	go ssh.DiscardRequests(reqC)
-	return &agentChannel{
+	go io.Copy(io.Discard, ch.Stderr())
+	return &AgentChannel{
 		ExtendedAgent: agent.NewClient(ch),
 		ch:            ch,
 	}, nil
@@ -258,25 +233,6 @@ func (c *ConnectionContext) UpdateClientActivity() {
 	c.clientLastActive = c.clock.Now().UTC()
 }
 
-// TrySetDirectTCPIPForwardDialer attempts to registers a DirectTCPIPForwardDialer. If a different dialer was
-// concurrently registered, ok is false and the previously registered dialer is returned.
-func (c *ConnectionContext) TrySetDirectTCPIPForwardDialer(d TCPIPForwardDialer) (registered TCPIPForwardDialer, ok bool) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if c.tcpipForwardDialer != nil {
-		return c.tcpipForwardDialer, false
-	}
-	c.tcpipForwardDialer = d
-	return c.tcpipForwardDialer, true
-}
-
-// GetDirectTCPIPForwardDialer gets the registered DirectTCPIPForwardDialer if one exists.
-func (c *ConnectionContext) GetDirectTCPIPForwardDialer() (d TCPIPForwardDialer, ok bool) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return c.tcpipForwardDialer, c.tcpipForwardDialer != nil
-}
-
 // AddCloser adds any closer in ctx that will be called
 // when the underlying connection is closed.
 func (c *ConnectionContext) AddCloser(closer io.Closer) {
@@ -291,24 +247,24 @@ func (c *ConnectionContext) AddCloser(closer io.Closer) {
 	c.closers = append(c.closers, closer)
 }
 
-// TrySetTCPIPForwardProcess attempts to registers a TCPIPForwardProcess. If a
+// SetNetworkingProcess attempts to registers a networking process. If a
 // different process was concurrently registered, ok is false and the previously
 // registered process is returned.
-func (c *ConnectionContext) TrySetTCPIPForwardProcess(proc *TCPIPForwardProcess) (*TCPIPForwardProcess, bool) {
+func (c *ConnectionContext) SetNetworkingProcess(proc *networking.Process) (*networking.Process, bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if c.tcpipForwardProcess != nil {
-		return c.tcpipForwardProcess, false
+	if c.networkingProcess != nil {
+		return c.networkingProcess, false
 	}
-	c.tcpipForwardProcess = proc
+	c.networkingProcess = proc
 	return proc, true
 }
 
-// GetTCPIPForwardProcess gets the registered TCPIPForwardProcess if one exists.
-func (c *ConnectionContext) GetTCPIPForwardProcess() (*TCPIPForwardProcess, bool) {
+// GetNetworkingProcess gets the registered networking process if one exists.
+func (c *ConnectionContext) GetNetworkingProcess() (*networking.Process, bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	return c.tcpipForwardProcess, c.tcpipForwardProcess != nil
+	return c.networkingProcess, c.networkingProcess != nil
 }
 
 // takeClosers returns all resources that should be closed and sets the properties to null

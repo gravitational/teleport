@@ -1,0 +1,16 @@
+suite: Test Config
+templates:
+  - config.yaml
+tests:
+  - it: should match the snapshot (simple)
+    template: config.yaml
+    values:
+      - ../.lint/simple.yaml
+    asserts:
+      - matchSnapshot: {}
+  - it: should match the snapshot (full)
+    template: config.yaml
+    values:
+      - ../.lint/full.yaml
+    asserts:
+      - matchSnapshot: {}

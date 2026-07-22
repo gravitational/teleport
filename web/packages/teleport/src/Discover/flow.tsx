@@ -18,10 +18,10 @@
 
 import React from 'react';
 
+import { BaseView } from 'teleport/components/Wizard/flow';
 import { ResourceKind } from 'teleport/Discover/Shared';
 import { AgentStepComponent } from 'teleport/Discover/types';
 import { DiscoverEvent } from 'teleport/services/userEvent';
-import { BaseView } from 'teleport/components/Wizard/flow';
 
 import { ResourceSpec } from './SelectResource';
 
@@ -43,14 +43,19 @@ export interface ResourceViewConfig<T = any> {
   wrapper?: (component: React.ReactNode) => React.ReactNode;
   /**
    * shouldPrompt is an optional function that determines if the
-   * react-router-dom's Prompt should be invocated on exit or
+   * react-router's Prompt should be invocated on exit or
    * changing route. We can control when to show the prompt
    * depending on what step in the flow a user is in (indicated
    * by "currentStep" param).
    * Not supplying a function is equivalent to always prompting
-   * on exit or changing route.
+   * on exit or changing route when not on a step with the
+   * eventName `DiscoverEvent.Completed`.
    */
-  shouldPrompt?: (currentStep: number, resourceSpec: ResourceSpec) => boolean;
+  shouldPrompt?: (
+    currentStep: number,
+    currentView: View | undefined,
+    resourceSpec: ResourceSpec
+  ) => boolean;
 }
 
 export type View = BaseView<{

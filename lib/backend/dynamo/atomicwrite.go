@@ -19,7 +19,6 @@
 package dynamo
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"slices"
@@ -35,19 +34,12 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/backend/backendmetrics"
 )
 
 const (
 	maxTxnAttempts        = 32
 	txnAttemptLogInterval = 8
-)
-
-var (
-	existsExpr          = "attribute_exists(FullPath)"
-	notExistsExpr       = "attribute_not_exists(FullPath)"
-	revisionExpr        = "Revision = :rev AND attribute_exists(FullPath)"
-	missingRevisionExpr = "attribute_not_exists(Revision) AND attribute_exists(FullPath)"
 )
 
 func (b *Backend) AtomicWrite(ctx context.Context, condacts []backend.ConditionalAction) (revision string, err error) {
@@ -56,6 +48,7 @@ func (b *Backend) AtomicWrite(ctx context.Context, condacts []backend.Conditiona
 	}
 
 	revision = backend.CreateRevision()
+	now := b.clock.Now()
 
 	tableName := aws.String(b.TableName)
 
@@ -70,9 +63,15 @@ func (b *Backend) AtomicWrite(ctx context.Context, condacts []backend.Conditiona
 		case backend.KindWhatever:
 			// no comparison to assert
 		case backend.KindExists:
-			condExpr = &existsExpr
+			condExpr = aws.String("attribute_exists(FullPath) AND (attribute_not_exists(Expires) OR Expires >= :now)")
+			exprAttrValues = map[string]types.AttributeValue{
+				":now": timeToAttributeValue(now),
+			}
 		case backend.KindNotExists:
-			condExpr = &notExistsExpr
+			condExpr = aws.String("attribute_not_exists(FullPath) OR Expires < :now")
+			exprAttrValues = map[string]types.AttributeValue{
+				":now": timeToAttributeValue(now),
+			}
 		case backend.KindRevision:
 			switch ca.Condition.Revision {
 			case "":
@@ -80,44 +79,39 @@ func (b *Backend) AtomicWrite(ctx context.Context, condacts []backend.Conditiona
 				return "", trace.Wrap(backend.ErrConditionFailed)
 			case backend.BlankRevision:
 				// item has not been modified since the introduction of the revision attr
-				condExpr = &missingRevisionExpr
+				condExpr = aws.String("attribute_exists(FullPath) AND attribute_not_exists(Revision) AND (attribute_not_exists(Expires) OR Expires >= :now)")
+				exprAttrValues = map[string]types.AttributeValue{
+					":now": timeToAttributeValue(now),
+				}
 			default:
 				// revision is expected to be present and well-defined
-				condExpr = &revisionExpr
+				condExpr = aws.String("Revision = :rev AND (attribute_not_exists(Expires) OR Expires >= :now)")
 				exprAttrValues = map[string]types.AttributeValue{
 					":rev": &types.AttributeValueMemberS{Value: ca.Condition.Revision},
+					":now": timeToAttributeValue(now),
 				}
 			}
 		default:
-			return "", trace.BadParameter("unexpected condition kind %v in conditional action against key %q", ca.Condition.Kind, ca.Key)
+			return "", trace.BadParameter("unexpected condition kind %v in conditional action against key %+q", ca.Condition.Kind, ca.Key.String())
 		}
-
-		fullPath := prependPrefix(ca.Key)
 
 		var txnItem types.TransactWriteItem
 
 		switch ca.Action.Kind {
 		case backend.KindNop:
-			av, err := attributevalue.MarshalMap(keyLookup{
-				HashKey:  hashKey,
-				FullPath: fullPath,
-			})
-			if err != nil {
-				return "", trace.Wrap(err)
-			}
-
 			txnItem.ConditionCheck = &types.ConditionCheck{
+				TableName: tableName,
+				Key:       keyToAttributeValueMap(ca.Key),
+
 				ConditionExpression:       condExpr,
 				ExpressionAttributeValues: exprAttrValues,
-				Key:                       av,
-				TableName:                 tableName,
 			}
 
 		case backend.KindPut:
 			includesPut = true
 			r := record{
 				HashKey:   hashKey,
-				FullPath:  fullPath,
+				FullPath:  prependPrefix(ca.Key),
 				Value:     ca.Action.Item.Value,
 				Timestamp: time.Now().UTC().Unix(),
 				Revision:  revision,
@@ -132,29 +126,24 @@ func (b *Backend) AtomicWrite(ctx context.Context, condacts []backend.Conditiona
 			}
 
 			txnItem.Put = &types.Put{
+				TableName: tableName,
+
+				Item: av,
+
 				ConditionExpression:       condExpr,
 				ExpressionAttributeValues: exprAttrValues,
-				Item:                      av,
-				TableName:                 tableName,
 			}
 		case backend.KindDelete:
-			av, err := attributevalue.MarshalMap(keyLookup{
-				HashKey:  hashKey,
-				FullPath: fullPath,
-			})
-			if err != nil {
-				return "", trace.Wrap(err)
-			}
-
 			txnItem.Delete = &types.Delete{
+				TableName: tableName,
+				Key:       keyToAttributeValueMap(ca.Key),
+
 				ConditionExpression:       condExpr,
 				ExpressionAttributeValues: exprAttrValues,
-				Key:                       av,
-				TableName:                 tableName,
 			}
 
 		default:
-			return "", trace.BadParameter("unexpected action kind %v in conditional action against key %q", ca.Action.Kind, ca.Key)
+			return "", trace.BadParameter("unexpected action kind %v in conditional action against key %+q", ca.Action.Kind, ca.Key.String())
 		}
 
 		txnItems = append(txnItems, txnItem)
@@ -167,18 +156,18 @@ func (b *Backend) AtomicWrite(ctx context.Context, condacts []backend.Conditiona
 	// retry is lazily initialized as-needed.
 	var retry *retryutils.RetryV2
 TxnLoop:
-	for i := 0; i < maxTxnAttempts; i++ {
+	for i := range maxTxnAttempts {
 		if i != 0 {
 			if retry == nil {
 				// ideally we want one of the concurrently canceled transactions to retry immediately, with the rest holding back. since we
-				// can't control wether that happens, the next best thing is to configure our backoff to use exponential scaling + full jitter,
+				// can't control whether that happens, the next best thing is to configure our backoff to use exponential scaling + full jitter,
 				// which strikes a nice balance between retrying quickly when under low contention, and rapidly spreading out retries when under
 				// high contention.
 				retry, err = retryutils.NewRetryV2(retryutils.RetryV2Config{
 					First:  time.Millisecond * 16,
 					Driver: retryutils.NewExponentialDriver(time.Millisecond * 16),
 					Max:    time.Millisecond * 1024,
-					Jitter: utils.FullJitter,
+					Jitter: retryutils.FullJitter,
 				})
 
 				if err != nil {
@@ -201,7 +190,7 @@ TxnLoop:
 			var txnErr *types.TransactionCanceledException
 			if !errors.As(err, &txnErr) {
 				if s := err.Error(); strings.Contains(s, "AccessDenied") && strings.Contains(s, "dynamodb:ConditionCheckItem") {
-					b.Warnf("AtomicWrite failed with error that may indicate dynamodb is missing the required dynamodb:ConditionCheckItem permission (this permission is now required for teleport v16 and later). Consider updating your IAM policy to include this permission.  Original error: %v", err)
+					b.logger.WarnContext(ctx, "AtomicWrite failed with error that may indicate dynamodb is missing the required dynamodb:ConditionCheckItem permission (this permission is now required for teleport v16 and later). Consider updating your IAM policy to include this permission.", "error", err)
 					return "", trace.Errorf("teleport is missing required AWS permission dynamodb:ConditionCheckItem, please contact your administrator to update permissions")
 				}
 				return "", trace.Errorf("unexpected error during atomic write: %v", err)
@@ -252,13 +241,13 @@ TxnLoop:
 		}
 
 		if i > 0 {
-			backend.AtomicWriteContention.WithLabelValues(teleport.ComponentDynamoDB).Add(float64(i))
+			backendmetrics.AtomicWriteContention.WithLabelValues(teleport.ComponentDynamoDB).Add(float64(i))
 		}
 
 		if n := i + 1; n > 2 {
 			// if we retried more than once, txn experienced non-trivial conflict and we should warn about it. Infrequent warnings of this kind
 			// are nothing to be concerned about, but high volumes may indicate that an automatic process is creating excessive conflicts.
-			b.Warnf("AtomicWrite retried %d times due to dynamodb transaction conflicts. Some conflict is expected, but persistent conflict warnings may indicate an unhealthy state.", n)
+			b.logger.WarnContext(ctx, "AtomicWrite retried due to dynamodb transaction conflicts. Some conflict is expected, but persistent conflict warnings may indicate an unhealthy state.", "retry_attempts", n)
 		}
 
 		if !includesPut {
@@ -269,12 +258,12 @@ TxnLoop:
 		return revision, nil
 	}
 
-	var keys [][]byte
+	var keys []string
 	for _, ca := range condacts {
-		keys = append(keys, ca.Key)
+		keys = append(keys, ca.Key.String())
 	}
 
-	b.Errorf("AtomicWrite failed, dynamodb transaction experienced too many conflicts. keys=%s", bytes.Join(keys, []byte(",")))
+	b.logger.ErrorContext(ctx, "AtomicWrite failed, dynamodb transaction experienced too many conflicts", "keys", strings.Join(keys, ","))
 
 	return "", trace.Errorf("dynamodb transaction experienced too many conflicts")
 }

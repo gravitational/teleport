@@ -19,12 +19,15 @@
 package services
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"slices"
 	"testing"
 
-	"github.com/coreos/go-oidc/jose"
 	"github.com/google/go-cmp/cmp"
+	"github.com/gravitational/trace"
 	saml2 "github.com/russellhaering/gosaml2"
 	samltypes "github.com/russellhaering/gosaml2/types"
 	"github.com/stretchr/testify/require"
@@ -74,7 +77,7 @@ func TestTraits(t *testing.T) {
 
 type oidcInput struct {
 	comment       string
-	claims        jose.Claims
+	claims        map[string]any
 	expectedRoles []string
 	warnings      []string
 }
@@ -89,7 +92,7 @@ var oidcTestCases = []struct {
 		inputs: []oidcInput{
 			{
 				comment:       "no match",
-				claims:        jose.Claims{"a": "b"},
+				claims:        map[string]any{"a": "b"},
 				expectedRoles: nil,
 			},
 		},
@@ -103,27 +106,27 @@ var oidcTestCases = []struct {
 		inputs: []oidcInput{
 			{
 				comment:       "no match",
-				claims:        jose.Claims{"a": "b"},
+				claims:        map[string]any{"a": "b"},
 				expectedRoles: nil,
 			},
 			{
 				comment:       "no value match",
-				claims:        jose.Claims{"role": "b"},
+				claims:        map[string]any{"role": "b"},
 				expectedRoles: nil,
 			},
 			{
 				comment:       "direct admin value match",
-				claims:        jose.Claims{"role": "admin"},
+				claims:        map[string]any{"role": "admin"},
 				expectedRoles: []string{"admin", "bob"},
 			},
 			{
 				comment:       "direct user value match",
-				claims:        jose.Claims{"role": "user"},
+				claims:        map[string]any{"role": "user"},
 				expectedRoles: []string{"user"},
 			},
 			{
 				comment:       "direct user value match with array",
-				claims:        jose.Claims{"role": []string{"user"}},
+				claims:        map[string]any{"role": []string{"user"}},
 				expectedRoles: []string{"user"},
 			},
 		},
@@ -136,27 +139,27 @@ var oidcTestCases = []struct {
 		inputs: []oidcInput{
 			{
 				comment:       "no match",
-				claims:        jose.Claims{"a": "b"},
+				claims:        map[string]any{"a": "b"},
 				expectedRoles: nil,
 			},
 			{
 				comment:       "no match - subprefix",
-				claims:        jose.Claims{"role": "adminz"},
+				claims:        map[string]any{"role": "adminz"},
 				expectedRoles: nil,
 			},
 			{
 				comment:       "value with capture match",
-				claims:        jose.Claims{"role": "admin-hello"},
+				claims:        map[string]any{"role": "admin-hello"},
 				expectedRoles: []string{"role-hello", "bob"},
 			},
 			{
 				comment:       "multiple value with capture match, deduplication",
-				claims:        jose.Claims{"role": []string{"admin-hello", "admin-ola"}},
+				claims:        map[string]any{"role": []string{"admin-hello", "admin-ola"}},
 				expectedRoles: []string{"role-hello", "bob", "role-ola"},
 			},
 			{
 				comment:       "first matches, second does not",
-				claims:        jose.Claims{"role": []string{"hello", "admin-ola"}},
+				claims:        map[string]any{"role": []string{"hello", "admin-ola"}},
 				expectedRoles: []string{"role-ola", "bob"},
 			},
 		},
@@ -171,7 +174,7 @@ var oidcTestCases = []struct {
 		inputs: []oidcInput{
 			{
 				comment:       "invalid regexp",
-				claims:        jose.Claims{"role": []string{"admin-hello", "dev"}},
+				claims:        map[string]any{"role": []string{"admin-hello", "dev"}},
 				expectedRoles: []string{"role-hello", "bob"},
 				warnings: []string{
 					`case-insensitive expression "^admin-(?!)$" is not a valid regexp`,
@@ -180,7 +183,7 @@ var oidcTestCases = []struct {
 			},
 			{
 				comment:       "regexp are not compiled if not needed",
-				claims:        jose.Claims{},
+				claims:        map[string]any{},
 				expectedRoles: nil,
 				// if the regexp were compiled, we would have the same warnings as above
 				warnings: nil,
@@ -195,7 +198,7 @@ var oidcTestCases = []struct {
 		inputs: []oidcInput{
 			{
 				comment:       "value with capture match",
-				claims:        jose.Claims{"role": "admin-hello"},
+				claims:        map[string]any{"role": "admin-hello"},
 				expectedRoles: []string{"bob"},
 			},
 		},
@@ -208,12 +211,12 @@ var oidcTestCases = []struct {
 		inputs: []oidcInput{
 			{
 				comment:       "empty value match",
-				claims:        jose.Claims{"role": ""},
+				claims:        map[string]any{"role": ""},
 				expectedRoles: []string{"admin"},
 			},
 			{
 				comment:       "any value match",
-				claims:        jose.Claims{"role": "zz"},
+				claims:        map[string]any{"role": "zz"},
 				expectedRoles: []string{"admin"},
 			},
 		},
@@ -229,28 +232,28 @@ var oidcTestCases = []struct {
 		inputs: []oidcInput{
 			{
 				comment: "Matches multiple groups",
-				claims: jose.Claims{
+				claims: map[string]any{
 					"groups": []string{"DemoCorp - Backend Engineers", "DemoCorp Infrastructure"},
 				},
 				expectedRoles: []string{"backend", "approver"},
 			},
 			{
 				comment: "Matches one group",
-				claims: jose.Claims{
+				claims: map[string]any{
 					"groups": []string{"DemoCorp - SRE"},
 				},
 				expectedRoles: []string{"approver"},
 			},
 			{
 				comment: "Matches one group with multiple roles",
-				claims: jose.Claims{
+				claims: map[string]any{
 					"groups": []string{"DemoCorp Infrastructure"},
 				},
 				expectedRoles: []string{"approver", "backend"},
 			},
 			{
 				comment: "No match only due to case-sensitivity",
-				claims: jose.Claims{
+				claims: map[string]any{
 					"groups": []string{"Democorp - SRE"},
 				},
 				expectedRoles: []string(nil),
@@ -273,7 +276,7 @@ func TestOIDCMapping(t *testing.T) {
 		}
 		for _, input := range testCase.inputs {
 			comment := fmt.Sprintf("OIDC Test case %v %q, input %q", i, testCase.comment, input.comment)
-			_, outRoles := TraitsToRoles(conn.GetTraitMappings(), OIDCClaimsToTraits(input.claims))
+			_, outRoles := TraitsToRoles(conn.GetTraitMappings(), oidcClaimsToTraits(input.claims))
 			require.Empty(t, cmp.Diff(outRoles, input.expectedRoles), comment)
 		}
 
@@ -303,7 +306,7 @@ func BenchmarkTraitToRoles(b *testing.B) {
 			traits := SAMLAssertionsToTraits(claimsToAttributes(input.claims))
 
 			b.Run(testCaseInputName, func(b *testing.B) {
-				for i := 0; i < b.N; i++ {
+				for b.Loop() {
 					TraitsToRoles(mappings, traits)
 				}
 			})
@@ -319,14 +322,35 @@ func claimMappingsToAttributeMappings(in []types.ClaimMapping) []types.Attribute
 		out = append(out, types.AttributeMapping{
 			Name:  m.Claim,
 			Value: m.Value,
-			Roles: append([]string{}, m.Roles...),
+			Roles: slices.Clone(m.Roles),
 		})
 	}
 	return out
 }
 
-// claimsToAttributes maps jose.Claims type to attributes for testing
-func claimsToAttributes(claims jose.Claims) saml2.AssertionInfo {
+// oidcClaimsToTraits converts OIDC-style claims into teleport-specific trait format
+func oidcClaimsToTraits(claims map[string]any) map[string][]string {
+	traits := make(map[string][]string)
+
+	for claimName, v := range claims {
+
+		switch claimValue := v.(type) {
+		case string:
+			traits[claimName] = []string{claimValue}
+		case []string:
+			traits[claimName] = claimValue
+		case []any:
+			for _, vv := range claimValue {
+				traits[claimName] = append(traits[claimName], vv.(string))
+			}
+		}
+	}
+
+	return traits
+}
+
+// claimsToAttributes maps map[string]any type to attributes for testing
+func claimsToAttributes(claims map[string]any) saml2.AssertionInfo {
 	info := saml2.AssertionInfo{
 		Values: make(map[string]samltypes.Attribute),
 	}
@@ -347,4 +371,182 @@ func claimsToAttributes(claims jose.Claims) saml2.AssertionInfo {
 		info.Values[claim] = attr
 	}
 	return info
+}
+
+func TestUsernameForCluster(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		username         string
+		originCluster    string
+		localClusterName string
+		expected         string
+	}{
+
+		{
+			username:         "alice",
+			originCluster:    "leaf",
+			localClusterName: "root",
+			expected:         "remote-alice-leaf",
+		},
+		{
+			username:         "bob",
+			originCluster:    "",
+			localClusterName: "root",
+			expected:         "bob",
+		},
+		{
+			username:         "carol",
+			originCluster:    "leaf.cluster",
+			localClusterName: "root.cluster",
+			expected:         "remote-carol-leaf.cluster",
+		},
+		{
+			username:         "dave",
+			originCluster:    "leaf-cluster",
+			localClusterName: "leaf-cluster",
+			expected:         "dave",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.username, func(t *testing.T) {
+			result := UsernameForCluster(
+				UsernameForClusterConfig{
+					User:              test.username,
+					OriginClusterName: test.originCluster,
+					LocalClusterName:  test.localClusterName,
+				},
+			)
+			require.Equal(t, test.expected, result)
+		})
+	}
+}
+
+// fakeUserGetter is a UserGetter backed by an in-memory map. It records lookup
+// counts per username so tests can assert the dedupe behavior.
+type fakeUserGetter struct {
+	users   map[string]types.User
+	failFor map[string]error // username -> error returned instead of a lookup
+
+	calls map[string]int // username -> GetUser call count
+}
+
+func (f *fakeUserGetter) GetUser(_ context.Context, name string, _ bool) (types.User, error) {
+	if f.calls == nil {
+		f.calls = make(map[string]int)
+	}
+	f.calls[name]++
+	if err, ok := f.failFor[name]; ok {
+		return nil, err
+	}
+	user, ok := f.users[name]
+	if !ok {
+		return nil, trace.NotFound("user %q does not exist", name)
+	}
+	return user, nil
+}
+
+func newUserWithTraits(t *testing.T, name string, traits map[string][]string) types.User {
+	t.Helper()
+	user, err := types.NewUser(name)
+	require.NoError(t, err)
+	if traits != nil {
+		user.SetTraits(traits)
+	}
+	return user
+}
+
+func TestResolveUserDisplays(t *testing.T) {
+	t.Parallel()
+
+	t.Run("dedupes and issues one lookup per unique username", func(t *testing.T) {
+		t.Parallel()
+		getter := &fakeUserGetter{users: map[string]types.User{
+			"alice": newUserWithTraits(t, "alice", nil),
+			"bob":   newUserWithTraits(t, "bob", nil),
+		}}
+
+		out, err := ResolveUserDisplays(context.Background(), getter, []string{"alice", "alice", "bob", "alice"})
+		require.NoError(t, err)
+		require.Len(t, out, 2)
+		require.Contains(t, out, "alice")
+		require.Contains(t, out, "bob")
+		require.Equal(t, 1, getter.calls["alice"])
+		require.Equal(t, 1, getter.calls["bob"])
+	})
+
+	t.Run("returns the display value for a found user", func(t *testing.T) {
+		t.Parallel()
+		alice := newUserWithTraits(t, "alice", map[string][]string{
+			"displayName": {"Alice Liddell"},
+			"email":       {"alice@example.com"},
+		})
+
+		want := alice.GetDisplay()
+		// Sanity-check that the chosen traits actually produce a display, so the
+		// assertion below is meaningful.
+		require.NotEqual(t, types.UserDisplay{}, want)
+
+		getter := &fakeUserGetter{users: map[string]types.User{"alice": alice}}
+		out, err := ResolveUserDisplays(context.Background(), getter, []string{"alice"})
+		require.NoError(t, err)
+		require.Equal(t, want, out["alice"])
+	})
+
+	t.Run("found user with no display is present with a zero value", func(t *testing.T) {
+		t.Parallel()
+		getter := &fakeUserGetter{users: map[string]types.User{
+			"plain": newUserWithTraits(t, "plain", nil),
+		}}
+
+		out, err := ResolveUserDisplays(context.Background(), getter, []string{"plain"})
+		require.NoError(t, err)
+
+		// present with the zero value, not missing from the map
+		require.Contains(t, out, "plain")
+		require.Equal(t, types.UserDisplay{}, out["plain"])
+	})
+
+	t.Run("missing users are absent and do not fail resolution", func(t *testing.T) {
+		t.Parallel()
+		getter := &fakeUserGetter{users: map[string]types.User{
+			"alice": newUserWithTraits(t, "alice", nil),
+			"bob":   newUserWithTraits(t, "bob", nil),
+		}}
+
+		out, err := ResolveUserDisplays(context.Background(), getter, []string{"alice", "ghost", "bob"})
+		require.NoError(t, err)
+		require.Len(t, out, 2)
+		require.Contains(t, out, "alice")
+		require.Contains(t, out, "bob")
+		require.NotContains(t, out, "ghost")
+	})
+
+	t.Run("aborts on non-NotFound errors without a partial map", func(t *testing.T) {
+		t.Parallel()
+		for _, errorCase := range []struct {
+			name string
+			err  error
+		}{
+			{"transient backend error", errors.New("backend timeout")},
+			// A canceled/expired context surfaces through the getter as a
+			// non-NotFound error and must abort like any other.
+			{"context cancellation", context.Canceled},
+		} {
+			t.Run(errorCase.name, func(t *testing.T) {
+				t.Parallel()
+				getter := &fakeUserGetter{
+					users:   map[string]types.User{"alice": newUserWithTraits(t, "alice", nil)},
+					failFor: map[string]error{"bob": errorCase.err},
+				}
+
+				out, err := ResolveUserDisplays(context.Background(), getter, []string{"alice", "bob", "carol"})
+				require.Error(t, err)
+				require.ErrorIs(t, err, errorCase.err)  // original error preserved
+				require.Contains(t, err.Error(), "bob") // names the error user
+				require.Nil(t, out)                     // no partial map handed back
+			})
+		}
+	})
 }

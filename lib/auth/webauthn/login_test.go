@@ -34,6 +34,7 @@ import (
 
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/mfatypes"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
@@ -120,8 +121,11 @@ func TestLoginFlow_BeginFinish(t *testing.T) {
 			}
 
 			// 1st step of the login ceremony.
-			assertion, err := webLogin.Begin(ctx, user, &mfav1.ChallengeExtensions{
-				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
+			assertion, err := webLogin.Begin(ctx, wanlib.BeginParams{
+				User: test.user,
+				ChallengeExtensions: &mfav1.ChallengeExtensions{
+					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
+				},
 			})
 			require.NoError(t, err)
 			// We care about a few specific settings, for everything else defaults are
@@ -226,8 +230,11 @@ func TestLoginFlow_Begin_errors(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			_, err := webLogin.Begin(ctx, test.user, &mfav1.ChallengeExtensions{
-				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
+			_, err := webLogin.Begin(ctx, wanlib.BeginParams{
+				User: test.user,
+				ChallengeExtensions: &mfav1.ChallengeExtensions{
+					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
+				},
 			})
 			require.True(t, test.assertErrType(err), "got err = %v, want BadParameter", err)
 			require.Contains(t, err.Error(), test.wantErr)
@@ -266,8 +273,11 @@ func TestLoginFlow_Finish_errors(t *testing.T) {
 		Webauthn: webConfig,
 		Identity: identity,
 	}
-	assertion, err := webLogin.Begin(ctx, user, &mfav1.ChallengeExtensions{
-		Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
+	assertion, err := webLogin.Begin(ctx, wanlib.BeginParams{
+		User: user,
+		ChallengeExtensions: &mfav1.ChallengeExtensions{
+			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
+		},
 	})
 	require.NoError(t, err)
 	okResp, err := key.SignAssertion(webOrigin, assertion)
@@ -297,8 +307,11 @@ func TestLoginFlow_Finish_errors(t *testing.T) {
 			name: "NOK assertion with bad origin",
 			user: user,
 			createResp: func() *wantypes.CredentialAssertionResponse {
-				assertion, err := webLogin.Begin(ctx, user, &mfav1.ChallengeExtensions{
-					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
+				assertion, err := webLogin.Begin(ctx, wanlib.BeginParams{
+					User: user,
+					ChallengeExtensions: &mfav1.ChallengeExtensions{
+						Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
+					},
 				})
 				require.NoError(t, err)
 				resp, err := key.SignAssertion("https://badorigin.com", assertion)
@@ -310,8 +323,11 @@ func TestLoginFlow_Finish_errors(t *testing.T) {
 			name: "NOK assertion with bad RPID",
 			user: user,
 			createResp: func() *wantypes.CredentialAssertionResponse {
-				assertion, err := webLogin.Begin(ctx, user, &mfav1.ChallengeExtensions{
-					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
+				assertion, err := webLogin.Begin(ctx, wanlib.BeginParams{
+					User: user,
+					ChallengeExtensions: &mfav1.ChallengeExtensions{
+						Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
+					},
 				})
 				require.NoError(t, err)
 				assertion.Response.RelyingPartyID = "badrpid.com"
@@ -325,8 +341,11 @@ func TestLoginFlow_Finish_errors(t *testing.T) {
 			name: "NOK assertion signed by unknown device",
 			user: user,
 			createResp: func() *wantypes.CredentialAssertionResponse {
-				assertion, err := webLogin.Begin(ctx, user, &mfav1.ChallengeExtensions{
-					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
+				assertion, err := webLogin.Begin(ctx, wanlib.BeginParams{
+					User: user,
+					ChallengeExtensions: &mfav1.ChallengeExtensions{
+						Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
+					},
 				})
 				require.NoError(t, err)
 
@@ -344,8 +363,11 @@ func TestLoginFlow_Finish_errors(t *testing.T) {
 			name: "NOK assertion with invalid signature",
 			user: user,
 			createResp: func() *wantypes.CredentialAssertionResponse {
-				assertion, err := webLogin.Begin(ctx, user, &mfav1.ChallengeExtensions{
-					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
+				assertion, err := webLogin.Begin(ctx, wanlib.BeginParams{
+					User: user,
+					ChallengeExtensions: &mfav1.ChallengeExtensions{
+						Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
+					},
 				})
 				require.NoError(t, err)
 				// Flip a challenge bit, this should be enough to consistently fail
@@ -441,7 +463,7 @@ func TestPasswordlessFlow_BeginAndFinish(t *testing.T) {
 				AllowCredentials: [][]uint8{}, // aka unset
 				ResidentKey:      false,       // irrelevant for login
 				UserVerification: string(protocol.VerificationRequired),
-				ChallengeExtensions: &mfav1.ChallengeExtensions{
+				ChallengeExtensions: &mfatypes.ChallengeExtensions{
 					Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN,
 					AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_NO,
 				},
@@ -583,8 +605,11 @@ func TestCredentialRPID(t *testing.T) {
 			Identity: identity,
 		}
 
-		_, err := webLogin.Begin(ctx, user, &mfav1.ChallengeExtensions{
-			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
+		_, err := webLogin.Begin(ctx, wanlib.BeginParams{
+			User: user,
+			ChallengeExtensions: &mfav1.ChallengeExtensions{
+				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
+			},
 		})
 		assert.NoError(t, err, "Begin failed, expected assertion for `dev1`")
 	})
@@ -595,8 +620,11 @@ func TestCredentialRPID(t *testing.T) {
 			Identity: identity,
 		}
 
-		assertion, err := webLogin.Begin(ctx, user, &mfav1.ChallengeExtensions{
-			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
+		assertion, err := webLogin.Begin(ctx, wanlib.BeginParams{
+			User: user,
+			ChallengeExtensions: &mfav1.ChallengeExtensions{
+				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
+			},
 		})
 		require.NoError(t, err, "Begin failed")
 
@@ -616,8 +644,11 @@ func TestCredentialRPID(t *testing.T) {
 			Identity: identity,
 		}
 
-		_, err := webLogin.Begin(ctx, user, &mfav1.ChallengeExtensions{
-			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
+		_, err := webLogin.Begin(ctx, wanlib.BeginParams{
+			User: user,
+			ChallengeExtensions: &mfav1.ChallengeExtensions{
+				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
+			},
 		})
 		assert.ErrorIs(t, err, wanlib.ErrInvalidCredentials, "Begin error mismatch")
 	})
@@ -635,8 +666,11 @@ func TestCredentialRPID(t *testing.T) {
 			Webauthn: webOtherRP,
 			Identity: identity,
 		}
-		assertion, err := webLogin.Begin(ctx, user, &mfav1.ChallengeExtensions{
-			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
+		assertion, err := webLogin.Begin(ctx, wanlib.BeginParams{
+			User: user,
+			ChallengeExtensions: &mfav1.ChallengeExtensions{
+				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
+			},
 		})
 		require.NoError(t, err, "Begin failed, expected assertion for device `other1`")
 
@@ -688,7 +722,7 @@ func TestLoginFlow_scopeAndReuse(t *testing.T) {
 			{
 				name:         "NOK challenge extensions not provided",
 				challengeExt: nil,
-				assertErr: func(t require.TestingT, err error, i ...interface{}) {
+				assertErr: func(t require.TestingT, err error, i ...any) {
 					require.True(t, trace.IsBadParameter(err), "expected bad parameter err but got %T", err)
 					require.ErrorContains(t, err, "extensions must be supplied")
 				},
@@ -699,7 +733,7 @@ func TestLoginFlow_scopeAndReuse(t *testing.T) {
 					Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
 					AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
 				},
-				assertErr: func(t require.TestingT, err error, i ...interface{}) {
+				assertErr: func(t require.TestingT, err error, i ...any) {
 					require.True(t, trace.IsBadParameter(err), "expected bad parameter err but got %T", err)
 					require.ErrorContains(t, err, "cannot allow reuse")
 				},
@@ -709,7 +743,7 @@ func TestLoginFlow_scopeAndReuse(t *testing.T) {
 				challengeExt: &mfav1.ChallengeExtensions{
 					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN,
 				},
-				assertErr: func(t require.TestingT, err error, i ...interface{}) {
+				assertErr: func(t require.TestingT, err error, i ...any) {
 					require.True(t, trace.IsBadParameter(err), "expected bad parameter err but got %T", err)
 					require.ErrorContains(t, err, "passwordless challenge scope")
 				},
@@ -724,7 +758,10 @@ func TestLoginFlow_scopeAndReuse(t *testing.T) {
 					Identity: webIdentity,
 				}
 
-				_, err := webLogin.Begin(ctx, user, test.challengeExt)
+				_, err := webLogin.Begin(ctx, wanlib.BeginParams{
+					User:                user,
+					ChallengeExtensions: test.challengeExt,
+				})
 				if test.assertErr != nil {
 					test.assertErr(t, err)
 					return
@@ -747,7 +784,7 @@ func TestLoginFlow_scopeAndReuse(t *testing.T) {
 					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
 				},
 				requiredExt: nil,
-				assertErr: func(t require.TestingT, err error, i ...interface{}) {
+				assertErr: func(t require.TestingT, err error, i ...any) {
 					require.True(t, trace.IsBadParameter(err), "expected bad parameter err but got %T", err)
 					require.ErrorContains(t, err, "extensions must be supplied")
 				},
@@ -759,7 +796,7 @@ func TestLoginFlow_scopeAndReuse(t *testing.T) {
 				requiredExt: &mfav1.ChallengeExtensions{
 					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
 				},
-				assertErr: func(t require.TestingT, err error, i ...interface{}) {
+				assertErr: func(t require.TestingT, err error, i ...any) {
 					require.True(t, trace.IsAccessDenied(err), "expected access denied err but got %T", err)
 					require.ErrorContains(t, err, "is not satisfied")
 				},
@@ -771,7 +808,7 @@ func TestLoginFlow_scopeAndReuse(t *testing.T) {
 				requiredExt: &mfav1.ChallengeExtensions{
 					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
 				},
-				assertErr: func(t require.TestingT, err error, i ...interface{}) {
+				assertErr: func(t require.TestingT, err error, i ...any) {
 					require.True(t, trace.IsAccessDenied(err), "expected access denied err but got %T", err)
 					require.ErrorContains(t, err, "is not satisfied")
 				},
@@ -801,7 +838,7 @@ func TestLoginFlow_scopeAndReuse(t *testing.T) {
 					Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
 					AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_NO,
 				},
-				assertErr: func(t require.TestingT, err error, i ...interface{}) {
+				assertErr: func(t require.TestingT, err error, i ...any) {
 					require.True(t, trace.IsAccessDenied(err), "expected access denied err but got %T", err)
 					require.ErrorContains(t, err, "reuse is not permitted")
 				},
@@ -825,6 +862,16 @@ func TestLoginFlow_scopeAndReuse(t *testing.T) {
 					Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
 					AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
 				},
+			}, {
+				name: "OK reuse requested and allowed for user session",
+				challengeExt: &mfav1.ChallengeExtensions{
+					Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
+					AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
+				},
+				requiredExt: &mfav1.ChallengeExtensions{
+					Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
+					AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
+				},
 			},
 		}
 		for _, test := range tests {
@@ -837,7 +884,10 @@ func TestLoginFlow_scopeAndReuse(t *testing.T) {
 					Identity: webIdentity,
 				}
 
-				assertion, err := webLogin.Begin(ctx, user, test.challengeExt)
+				assertion, err := webLogin.Begin(ctx, wanlib.BeginParams{
+					User:                user,
+					ChallengeExtensions: test.challengeExt,
+				})
 				require.NoError(t, err)
 
 				assertionResp, err := webKey.SignAssertion(webOrigin, assertion)
@@ -981,7 +1031,10 @@ func TestLoginFlow_userVerification(t *testing.T) {
 				Identity: webIdentity,
 			}
 
-			assertion, err := lf.Begin(ctx, user, test.exts)
+			assertion, err := lf.Begin(ctx, wanlib.BeginParams{
+				User:                user,
+				ChallengeExtensions: test.exts,
+			})
 			require.NoError(t, err, "lf.Begin")
 
 			if test.wantAssertionVerification != "" {
@@ -1016,6 +1069,168 @@ func TestLoginFlow_userVerification(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestCredentialBackupFlags(t *testing.T) {
+	t.Parallel()
+
+	key, err := mocku2f.Create()
+	require.NoError(t, err, "Create failed")
+	key.SetPasswordless()
+	key.SetBackupFlags = true // BE=1 and BS=1
+
+	const user = "llama"
+	const origin = "https://example.com"
+	webIdentity := newFakeIdentity(user)
+	webConfig := &types.Webauthn{RPID: "example.com"}
+	ctx := context.Background()
+
+	assertBackupFlags := func(t *testing.T, mfaDev *types.MFADevice, wantBE, wantBS bool) {
+		t.Helper()
+
+		be := mfaDev.GetWebauthn().CredentialBackupEligible
+		require.NotNil(t, be, "CredentialBackupEligible is nil")
+		bs := mfaDev.GetWebauthn().CredentialBackedUp
+		require.NotNil(t, bs, "CredentialBackedUp is nil")
+
+		assert.Equal(t, wantBE, be.Value, "CredentialBackupEligible mismatch")
+		assert.Equal(t, wantBS, bs.Value, "CredentialBackedUp mismatch")
+	}
+
+	t.Run("register", func(t *testing.T) {
+		rf := &wanlib.RegistrationFlow{
+			Webauthn: webConfig,
+			Identity: webIdentity,
+		}
+		cc, err := rf.Begin(ctx, user, true /* passwordless */)
+		require.NoError(t, err, "Begin failed")
+		ccr, err := key.SignCredentialCreation(origin, cc)
+		require.NoError(t, err, "SignCredentialCreation failed")
+		mfaDev, err := rf.Finish(ctx, wanlib.RegisterResponse{
+			User:             user,
+			DeviceName:       "mydevice",
+			CreationResponse: ccr,
+			Passwordless:     true,
+		})
+		require.NoError(t, err, "Finish failed")
+
+		// Assert backup flags after registration.
+		assertBackupFlags(t, mfaDev, true /* wantBE */, true /* wantBS */)
+	})
+
+	// Erase BE/BS from storage device. Simulates a legacy device.
+	require.Len(t,
+		webIdentity.UpdatedDevices, 1,
+		"Unexpected number of registered devices, aborting test",
+	)
+	webIdentity.UpdatedDevices[0].GetWebauthn().CredentialBackupEligible = nil
+	webIdentity.UpdatedDevices[0].GetWebauthn().CredentialBackedUp = nil
+
+	lf := &wanlib.PasswordlessFlow{
+		Webauthn: webConfig,
+		Identity: webIdentity,
+	}
+
+	t.Run("login legacy", func(t *testing.T) {
+		assertion, err := lf.Begin(ctx)
+		require.NoError(t, err, "Begin")
+		assertionResp, err := key.SignAssertion(origin, assertion)
+		require.NoError(t, err, "SignAssertion failed")
+
+		// Sanity check BE/BS in the authenticator response.
+		var ad protocol.AuthenticatorData
+		require.NoError(t,
+			ad.Unmarshal(assertionResp.AssertionResponse.AuthenticatorData),
+			"AuthenticatorData.Unmarshal failed",
+		)
+		require.True(t,
+			ad.Flags.HasBackupEligible() && ad.Flags.HasBackupState(),
+			"AuthenticatorData BE or BS flags not true",
+			ad.Flags.HasBackupEligible(),
+			ad.Flags.HasBackupState())
+
+		loginData, err := lf.Finish(ctx, assertionResp)
+		require.NoError(t, err, "Finish failed")
+
+		// Assert backfill.
+		mfaDev := loginData.Device
+		assertBackupFlags(t, mfaDev, true /* wantBE */, true /* wantBS */)
+	})
+
+	t.Run("login with BE/BS=1", func(t *testing.T) {
+		assertion, err := lf.Begin(ctx)
+		require.NoError(t, err, "Begin")
+		assertionResp, err := key.SignAssertion(origin, assertion)
+		require.NoError(t, err, "SignAssertion failed")
+		loginData, err := lf.Finish(ctx, assertionResp)
+		require.NoError(t, err, "Finish failed")
+
+		// Assert backup flags unchanged.
+		mfaDev := loginData.Device
+		assertBackupFlags(t, mfaDev, true /* wantBE */, true /* wantBS */)
+	})
+}
+
+func TestPasswordlessFlow_backfillResidentKey(t *testing.T) {
+	t.Parallel()
+
+	key, err := mocku2f.Create()
+	require.NoError(t, err, "Create failed")
+	key.SetPasswordless()
+
+	const user = "llama"
+	const origin = "https://example.com"
+	webIdentity := newFakeIdentity(user)
+	webConfig := &types.Webauthn{RPID: "example.com"}
+	ctx := context.Background()
+
+	// Register passwordless device as MFA.
+	// (Providers might make it passwordless regardless.)
+	rf := &wanlib.RegistrationFlow{
+		Webauthn: webConfig,
+		Identity: webIdentity,
+	}
+	cc, err := rf.Begin(ctx, user, false /* passwordless */)
+	require.NoError(t, err, "Begin failed")
+	ccr, err := key.SignCredentialCreation(origin, cc)
+	require.NoError(t, err, "SignCredentialCreation failed")
+	mfaDev, err := rf.Finish(ctx, wanlib.RegisterResponse{
+		User:             user,
+		DeviceName:       "mydevice",
+		CreationResponse: ccr,
+	})
+	require.NoError(t, err, "Finish failed")
+	// Sanity check.
+	require.False(t,
+		mfaDev.GetWebauthn().ResidentKey,
+		"MFA device unexpectedly marked as resident key",
+	)
+
+	// Set the UserHandle in our fake key. A "regular" authenticator would save
+	// the handle during registration, but our fake only does that for
+	// "passwordless" registrations.
+	wla, err := webIdentity.GetWebauthnLocalAuth(ctx, user)
+	require.NoError(t, err, "GetWebauthnLocalAuth failed")
+	key.UserHandle = wla.UserID
+
+	t.Run("ok", func(t *testing.T) {
+		lf := &wanlib.PasswordlessFlow{
+			Webauthn: webConfig,
+			Identity: webIdentity,
+		}
+
+		// Login.
+		assertion, err := lf.Begin(ctx)
+		require.NoError(t, err, "Begin failed")
+		assertionResp, err := key.SignAssertion(origin, assertion)
+		require.NoError(t, err, "SignAssertion failed")
+		loginData, err := lf.Finish(ctx, assertionResp)
+		require.NoError(t, err, "Finish failed")
+
+		// Verify that we corrected the ResidentKey field.
+		mfaDev := loginData.Device
+		assert.True(t, mfaDev.GetWebauthn().ResidentKey, "ResidentKey field not corrected")
+	})
 }
 
 type fakeIdentity struct {

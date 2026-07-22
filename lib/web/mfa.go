@@ -21,8 +21,10 @@ package web
 import (
 	"context"
 	"net/http"
+	"net/url"
 	"strings"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
@@ -30,13 +32,14 @@ import (
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/client/sso"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
 
 // getMFADevicesWithTokenHandle retrieves the list of registered MFA devices for the user defined in token.
-func (h *Handler) getMFADevicesWithTokenHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+func (h *Handler) getMFADevicesWithTokenHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
 	mfas, err := h.cfg.ProxyClient.GetMFADevices(r.Context(), &proto.GetMFADevicesRequest{
 		TokenID: p.ByName("token"),
 	})
@@ -48,7 +51,7 @@ func (h *Handler) getMFADevicesWithTokenHandle(w http.ResponseWriter, r *http.Re
 }
 
 // getMFADevicesHandle retrieves the list of registered MFA devices for the user in context (logged in user).
-func (h *Handler) getMFADevicesHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params, c *SessionContext) (interface{}, error) {
+func (h *Handler) getMFADevicesHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params, c *SessionContext) (any, error) {
 	clt, err := c.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -63,7 +66,7 @@ func (h *Handler) getMFADevicesHandle(w http.ResponseWriter, r *http.Request, p 
 }
 
 // deleteMFADeviceWithTokenHandle deletes a mfa device for the user defined in the `token`, given as a query parameter.
-func (h *Handler) deleteMFADeviceWithTokenHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+func (h *Handler) deleteMFADeviceWithTokenHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
 	if err := h.GetProxyClient().DeleteMFADeviceSync(r.Context(), &proto.DeleteMFADeviceSyncRequest{
 		TokenID:    p.ByName("token"),
 		DeviceName: p.ByName("devicename"),
@@ -90,9 +93,9 @@ type addMFADeviceRequest struct {
 }
 
 // addMFADeviceHandle adds a new mfa device for the user defined in the token.
-func (h *Handler) addMFADeviceHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
+func (h *Handler) addMFADeviceHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (any, error) {
 	var req addMFADeviceRequest
-	if err := httplib.ReadJSON(r, &req); err != nil {
+	if err := httplib.ReadResourceJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -132,18 +135,22 @@ func (h *Handler) addMFADeviceHandle(w http.ResponseWriter, r *http.Request, par
 	return OK(), nil
 }
 
-type createAuthenticateChallengeRequest struct {
-	IsMFARequiredRequest        *isMFARequiredRequest `json:"is_mfa_required_req"`
+type CreateAuthenticateChallengeRequest struct {
+	IsMFARequiredRequest        *IsMFARequiredRequest `json:"is_mfa_required_req"`
 	ChallengeScope              int                   `json:"challenge_scope"`
 	ChallengeAllowReuse         bool                  `json:"challenge_allow_reuse"`
 	UserVerificationRequirement string                `json:"user_verification_requirement"`
+	ProxyAddress                string                `json:"proxy_address"`
+	BrowserMFARequestID         string                `json:"browser_mfa_request_id"`
 }
 
 // createAuthenticateChallengeHandle creates and returns MFA authentication challenges for the user in context (logged in user).
 // Used when users need to re-authenticate their second factors.
-func (h *Handler) createAuthenticateChallengeHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params, c *SessionContext) (interface{}, error) {
-	var req createAuthenticateChallengeRequest
-	if err := httplib.ReadJSON(r, &req); err != nil {
+func (h *Handler) createAuthenticateChallengeHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params, c *SessionContext) (any, error) {
+	ctx := r.Context()
+
+	var req CreateAuthenticateChallengeRequest
+	if err := httplib.ReadResourceJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -154,9 +161,40 @@ func (h *Handler) createAuthenticateChallengeHandle(w http.ResponseWriter, r *ht
 
 	var mfaRequiredCheckProto *proto.IsMFARequiredRequest
 	if req.IsMFARequiredRequest != nil {
-		mfaRequiredCheckProto, err = h.checkAndGetProtoRequest(r.Context(), c, req.IsMFARequiredRequest)
+		mfaRequiredCheckProto, err = h.checkAndGetProtoRequest(ctx, c, req.IsMFARequiredRequest)
 		if err != nil {
 			return nil, trace.Wrap(err)
+		}
+
+		// If this is an mfa required check for a leaf host, we need to check the requirement through
+		// the leaf cluster, rather than through root in the authenticate challenge request below
+		//
+		// TODO(Joerger): Currently, the only leafs hosts that we check mfa requirements for directly
+		// are apps. If we need to check other hosts directly, rather than through websocket flow,
+		// we'll need to include their clusterID in the request like we do for apps.
+		appReq := mfaRequiredCheckProto.GetApp()
+		if appReq != nil && appReq.ClusterName != c.cfg.RootClusterName {
+			site, err := h.getSiteByClusterName(ctx, c, appReq.ClusterName)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			clusterClient, err := c.GetUserClient(ctx, site)
+			if err != nil {
+				return false, trace.Wrap(err)
+			}
+
+			res, err := clusterClient.IsMFARequired(ctx, mfaRequiredCheckProto)
+			if err != nil {
+				return false, trace.Wrap(err)
+			}
+
+			if !res.Required {
+				return &client.MFAAuthenticateChallenge{}, nil
+			}
+
+			// We don't want to check again through the root cluster below.
+			mfaRequiredCheckProto = nil
 		}
 	}
 
@@ -165,37 +203,70 @@ func (h *Handler) createAuthenticateChallengeHandle(w http.ResponseWriter, r *ht
 		allowReuse = mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES
 	}
 
-	chal, err := clt.CreateAuthenticateChallenge(r.Context(), &proto.CreateAuthenticateChallengeRequest{
-		Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
-			ContextUser: &proto.ContextUser{},
-		},
-		MFARequiredCheck: mfaRequiredCheckProto,
-		ChallengeExtensions: &mfav1.ChallengeExtensions{
+	// Prepare an sso client redirect URL in case the user has an SSO MFA device.
+	ssoClientRedirectURL, err := url.Parse(sso.WebMFARedirect)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// id is used by the front end to differentiate between separate ongoing SSO challenges.
+	id, err := uuid.NewRandom()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	channelID := id.String()
+	query := ssoClientRedirectURL.Query()
+	query.Set("channel_id", channelID)
+	ssoClientRedirectURL.RawQuery = query.Encode()
+
+	// If BrowserMFARequestID is set, don't set the challenge extensions.
+	// They will be gotten from the stored MFASession on the backend and
+	// applied to the challenge.
+	var challengeExtensions *mfav1.ChallengeExtensions
+	if req.BrowserMFARequestID == "" {
+		challengeExtensions = &mfav1.ChallengeExtensions{
 			Scope:                       mfav1.ChallengeScope(req.ChallengeScope),
 			AllowReuse:                  allowReuse,
 			UserVerificationRequirement: req.UserVerificationRequirement,
+		}
+	}
+
+	chal, err := clt.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
+		Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
+			ContextUser: &proto.ContextUser{},
 		},
+		MFARequiredCheck:     mfaRequiredCheckProto,
+		ChallengeExtensions:  challengeExtensions,
+		SSOClientRedirectURL: ssoClientRedirectURL.String(),
+		ProxyAddress:         req.ProxyAddress,
+		BrowserMFARequestID:  req.BrowserMFARequestID,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return makeAuthenticateChallenge(chal), nil
+	return makeAuthenticateChallenge(chal, channelID), nil
 }
 
 // createAuthenticateChallengeWithTokenHandle creates and returns MFA authenticate challenges for the user defined in token.
-func (h *Handler) createAuthenticateChallengeWithTokenHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+func (h *Handler) createAuthenticateChallengeWithTokenHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
 	chal, err := h.cfg.ProxyClient.CreateAuthenticateChallenge(r.Context(), &proto.CreateAuthenticateChallengeRequest{
-		Request: &proto.CreateAuthenticateChallengeRequest_RecoveryStartTokenID{RecoveryStartTokenID: p.ByName("token")},
+		Request: &proto.CreateAuthenticateChallengeRequest_RecoveryStartTokenID{
+			RecoveryStartTokenID: p.ByName("token"),
+		},
+		ChallengeExtensions: &mfav1.ChallengeExtensions{
+			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_ACCOUNT_RECOVERY,
+		},
+		SSOClientRedirectURL: sso.WebMFARedirect,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return makeAuthenticateChallenge(chal), nil
+	return makeAuthenticateChallenge(chal, "" /*channelID*/), nil
 }
 
-type createRegisterChallengeRequest struct {
+type createRegisterChallengeWithTokenRequest struct {
 	// DeviceType is the type of MFA device to get a register challenge for.
 	DeviceType string `json:"deviceType"`
 	// DeviceUsage is the intended usage of the device (MFA, Passwordless, etc).
@@ -205,8 +276,8 @@ type createRegisterChallengeRequest struct {
 }
 
 // createRegisterChallengeWithTokenHandle creates and returns MFA register challenges for a new device for the specified device type.
-func (h *Handler) createRegisterChallengeWithTokenHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	var req createRegisterChallengeRequest
+func (h *Handler) createRegisterChallengeWithTokenHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
+	var req createRegisterChallengeWithTokenRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -293,14 +364,21 @@ type isMFARequiredWindowsDesktop struct {
 	Login string `json:"login"`
 }
 
-type isMFARequiredApp struct {
+type isMFARequiredLinuxDesktop struct {
+	// DesktopName is the Linux Desktop server name.
+	DesktopName string `json:"desktop_name"`
+	// Login is the Linux desktop user login.
+	Login string `json:"login"`
+}
+
+type IsMFARequiredApp struct {
 	// ResolveAppParams contains info used to resolve an application
 	ResolveAppParams
 }
 
 type isMFARequiredAdminAction struct{}
 
-type isMFARequiredRequest struct {
+type IsMFARequiredRequest struct {
 	// Database contains fields required to check if target database
 	// requires MFA check.
 	Database *isMFARequiredDatabase `json:"database,omitempty"`
@@ -310,17 +388,20 @@ type isMFARequiredRequest struct {
 	// WindowsDesktop contains fields required to check if target
 	// windows desktop requires MFA check.
 	WindowsDesktop *isMFARequiredWindowsDesktop `json:"windows_desktop,omitempty"`
+	// LinuxDesktop contains fields required to check if target
+	// linux desktop requires MFA check.
+	LinuxDesktop *isMFARequiredLinuxDesktop `json:"linux_desktop,omitempty"`
 	// Kube is the name of the kube cluster to check if target cluster
 	// requires MFA check.
 	Kube *isMFARequiredKube `json:"kube,omitempty"`
 	// App contains fields required to resolve an application and check if
 	// the target application requires MFA check.
-	App *isMFARequiredApp `json:"app,omitempty"`
+	App *IsMFARequiredApp `json:"app,omitempty"`
 	// AdminAction is the name of the admin action RPC to check if MFA is required.
 	AdminAction *isMFARequiredAdminAction `json:"admin_action,omitempty"`
 }
 
-func (h *Handler) checkAndGetProtoRequest(ctx context.Context, scx *SessionContext, r *isMFARequiredRequest) (*proto.IsMFARequiredRequest, error) {
+func (h *Handler) checkAndGetProtoRequest(ctx context.Context, scx *SessionContext, r *IsMFARequiredRequest) (*proto.IsMFARequiredRequest, error) {
 	numRequests := 0
 	var protoReq *proto.IsMFARequiredRequest
 
@@ -377,6 +458,25 @@ func (h *Handler) checkAndGetProtoRequest(ctx context.Context, scx *SessionConte
 		}
 	}
 
+	if r.LinuxDesktop != nil {
+		numRequests++
+		if r.LinuxDesktop.DesktopName == "" {
+			return nil, trace.BadParameter("missing desktop_name for checking linux desktop target")
+		}
+		if r.LinuxDesktop.Login == "" {
+			return nil, trace.BadParameter("missing login for checking linux desktop target")
+		}
+
+		protoReq = &proto.IsMFARequiredRequest{
+			Target: &proto.IsMFARequiredRequest_LinuxDesktop{
+				LinuxDesktop: &proto.RouteToLinuxDesktop{
+					LinuxDesktop: r.LinuxDesktop.DesktopName,
+					Login:        r.LinuxDesktop.Login,
+				},
+			},
+		}
+	}
+
 	if r.Node != nil {
 		numRequests++
 		if r.Node.Login == "" {
@@ -406,7 +506,9 @@ func (h *Handler) checkAndGetProtoRequest(ctx context.Context, scx *SessionConte
 		protoReq = &proto.IsMFARequiredRequest{
 			Target: &proto.IsMFARequiredRequest_App{
 				App: &proto.RouteToApp{
-					Name: resolvedApp.App.GetName(),
+					Name:        resolvedApp.App.GetName(),
+					PublicAddr:  resolvedApp.App.GetPublicAddr(),
+					ClusterName: resolvedApp.ClusterName,
 				},
 			},
 		}
@@ -437,13 +539,13 @@ type isMfaRequiredResponse struct {
 }
 
 // isMFARequired is the [ClusterHandler] implementer for checking if MFA is required for a given target.
-func (h *Handler) isMFARequired(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
-	var httpReq *isMFARequiredRequest
-	if err := httplib.ReadJSON(r, &httpReq); err != nil {
+func (h *Handler) isMFARequired(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
+	var httpReq *IsMFARequiredRequest
+	if err := httplib.ReadResourceJSON(r, &httpReq); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	required, err := h.checkMFARequired(r.Context(), httpReq, sctx, site)
+	required, err := h.checkMFARequired(r.Context(), httpReq, sctx, cluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -452,13 +554,13 @@ func (h *Handler) isMFARequired(w http.ResponseWriter, r *http.Request, p httpro
 }
 
 // checkMFARequired checks if MFA is required for the target specified in the [isMFARequiredRequest].
-func (h *Handler) checkMFARequired(ctx context.Context, req *isMFARequiredRequest, sctx *SessionContext, site reversetunnelclient.RemoteSite) (bool, error) {
+func (h *Handler) checkMFARequired(ctx context.Context, req *IsMFARequiredRequest, sctx *SessionContext, cluster reversetunnelclient.Cluster) (bool, error) {
 	protoReq, err := h.checkAndGetProtoRequest(ctx, sctx, req)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
 
-	clt, err := sctx.GetUserClient(ctx, site)
+	clt, err := sctx.GetUserClient(ctx, cluster)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
@@ -472,12 +574,19 @@ func (h *Handler) checkMFARequired(ctx context.Context, req *isMFARequiredReques
 }
 
 // makeAuthenticateChallenge converts proto to JSON format.
-func makeAuthenticateChallenge(protoChal *proto.MFAAuthenticateChallenge) *client.MFAAuthenticateChallenge {
+func makeAuthenticateChallenge(protoChal *proto.MFAAuthenticateChallenge, ssoChannelID string) *client.MFAAuthenticateChallenge {
 	chal := &client.MFAAuthenticateChallenge{
 		TOTPChallenge: protoChal.GetTOTP() != nil,
 	}
 	if protoChal.GetWebauthnChallenge() != nil {
 		chal.WebauthnChallenge = wantypes.CredentialAssertionFromProto(protoChal.WebauthnChallenge)
+	}
+	if protoChal.GetSSOChallenge() != nil {
+		chal.SSOChallenge = client.SSOChallengeFromProto(protoChal.GetSSOChallenge())
+		chal.SSOChallenge.ChannelID = ssoChannelID
+	}
+	if protoChal.GetBrowserMFAChallenge() != nil {
+		chal.BrowserMFAChallenge = client.BrowserChallengeFromProto(protoChal.GetBrowserMFAChallenge())
 	}
 	return chal
 }

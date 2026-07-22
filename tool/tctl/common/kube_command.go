@@ -21,8 +21,8 @@ package common
 import (
 	"context"
 	"os"
-	"text/template"
 
+	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 
@@ -34,6 +34,10 @@ import (
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/parse"
+	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
+	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
+	"github.com/gravitational/teleport/tool/tctl/common/resources"
 )
 
 // KubeCommand implements "tctl kube" group of commands.
@@ -55,7 +59,7 @@ type KubeCommand struct {
 }
 
 // Initialize allows KubeCommand to plug itself into the CLI parser
-func (c *KubeCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
+func (c *KubeCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, config *servicecfg.Config) {
 	c.config = config
 
 	kube := app.Command("kube", "Operate on registered Kubernetes clusters.")
@@ -68,20 +72,27 @@ func (c *KubeCommand) Initialize(app *kingpin.Application, config *servicecfg.Co
 }
 
 // TryRun attempts to run subcommands like "kube ls".
-func (c *KubeCommand) TryRun(ctx context.Context, cmd string, client *authclient.Client) (match bool, err error) {
+func (c *KubeCommand) TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (match bool, err error) {
+	var commandFunc func(ctx context.Context, client *authclient.Client) error
 	switch cmd {
 	case c.kubeList.FullCommand():
-		err = c.ListKube(ctx, client)
+		commandFunc = c.ListKube
 	default:
 		return false, nil
 	}
+	client, closeFn, err := clientFunc(ctx)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	err = commandFunc(ctx, client)
+	closeFn(ctx)
 	return true, trace.Wrap(err)
 }
 
 // ListKube prints the list of kube clusters that have recently sent heartbeats
 // to the cluster.
 func (c *KubeCommand) ListKube(ctx context.Context, clt *authclient.Client) error {
-	labels, err := libclient.ParseLabelSpec(c.labels)
+	labels, err := parse.LabelSelectorSpec(c.labels)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -99,14 +110,14 @@ func (c *KubeCommand) ListKube(ctx context.Context, clt *authclient.Client) erro
 		return trace.Wrap(err)
 	}
 
-	coll := &kubeServerCollection{servers: kubes}
+	coll := resources.NewKubeServerCollection(kubes)
 	switch c.format {
 	case teleport.Text:
-		return trace.Wrap(coll.writeText(os.Stdout, c.verbose))
+		return trace.Wrap(coll.WriteText(os.Stdout, c.verbose))
 	case teleport.JSON:
-		return trace.Wrap(coll.writeJSON(os.Stdout))
+		return trace.Wrap(writeJSON(coll, os.Stdout))
 	case teleport.YAML:
-		return trace.Wrap(coll.writeYAML(os.Stdout))
+		return trace.Wrap(writeYAML(coll, os.Stdout))
 	default:
 		return trace.BadParameter("unknown format %q", c.format)
 	}
@@ -125,15 +136,17 @@ helm repo update
 > helm install teleport-agent teleport/teleport-kube-agent \
   --set kubeClusterName=cluster ` + "`" + `# Change kubeClusterName variable to your preferred name.` + "`" + ` \
   --set roles="{{.set_roles}}" \
-  --set proxyAddr={{.auth_server}} \
+  --set proxyAddr={{.proxy_server}} \
   --set authToken={{.token}} \
+  --set updater.enabled=true \
   --create-namespace \
-  --namespace=teleport-agent
-        
+  --namespace=teleport-agent \
+  --version={{.version}}
+
 Please note:
-        
+
   - This invitation token will expire in {{.minutes}} minutes.
-  - {{.auth_server}} must be reachable from Kubernetes cluster.
+  - {{.proxy_server}} must be reachable from Kubernetes cluster.
   - The token is usable in a standalone Linux server with kubernetes_service.
   - See https://goteleport.com/docs/kubernetes-access/ for detailed installation information.
 

@@ -16,27 +16,27 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
-import { Text, Box, Link, Mark } from 'design';
-import Select from 'shared/components/Select';
-import { OutlineInfo } from 'design/Alert/Alert';
+import { useState } from 'react';
+
+import { Box, H3, Link, Mark } from 'design';
+import { Info } from 'design/Alert/Alert';
+import { P } from 'design/Text/Text';
+import Select, { type Option } from 'shared/components/Select';
 import { TextSelectCopy } from 'shared/components/TextSelectCopy';
 
 import cfg from 'teleport/config';
-import { generateTshLoginCommand, openNewTab } from 'teleport/lib/util';
 import {
-  Header,
   ActionButtons,
+  Header,
   HeaderSubtitle,
   StyledBox,
 } from 'teleport/Discover/Shared';
-import useTeleport from 'teleport/useTeleport';
-import { splitAwsIamArn } from 'teleport/services/integrations/aws';
 import { AWS_TAG_INFO_LINK } from 'teleport/Discover/Shared/const';
+import { generateTshLoginCommand, openNewTab } from 'teleport/lib/util';
+import { splitAwsIamArn } from 'teleport/services/integrations/aws';
+import useTeleport from 'teleport/useTeleport';
 
 import { AppMeta, useDiscover } from '../../useDiscover';
-
-import type { Option } from 'shared/components/Select';
 
 export function TestConnection() {
   const ctx = useTeleport();
@@ -76,17 +76,13 @@ export function TestConnection() {
         you just added.
       </HeaderSubtitle>
       <StyledBox mb={5}>
-        <Text bold mb={3}>
-          Access the AWS Management Console
-        </Text>
-        <Text typography="subtitle1" mb={2}>
-          Select the AWS role ARN to test.
-        </Text>
-        <Text typography="subtitle1" mb={2}>
+        <H3 mb={3}>Access the AWS Management Console</H3>
+        <P>Select the AWS role ARN to test.</P>
+        <P mb={2}>
           AWS Management Console will launch in another tab. You should see your
           Teleport user name as a federated login with the selected role in the
           top-right corner of the AWS Console.
-        </Text>
+        </P>
         <Box width="500px">
           <Select
             value={selectedOpt}
@@ -99,36 +95,30 @@ export function TestConnection() {
         </Box>
       </StyledBox>
       <StyledBox mb={5}>
-        <Text bold mb={3}>
-          Access the AWS CLI
-        </Text>
-        <Box mb={2}>
-          Log into your Teleport cluster
-          <TextSelectCopy
-            mt="1"
-            text={generateTshLoginCommand({
-              authType,
-              username,
-              clusterId,
-            })}
-          />
-        </Box>
-        <Box mb={2}>
-          Connect to your application
-          <TextSelectCopy mt="1" text={tshCmd} />
-        </Box>
+        <H3 mb={3}>Access the AWS CLI</H3>
+        <P mb={2}>Log into your Teleport cluster:</P>
+        <TextSelectCopy
+          mt="1"
+          text={generateTshLoginCommand({
+            authType,
+            username,
+            clusterId,
+          })}
+        />
+        <P my={2}>Connect to your application:</P>
+        <TextSelectCopy mt="1" text={tshCmd} />
       </StyledBox>
-      <OutlineInfo mb={3} linkColor="buttons.link.default" width="800px">
-        <Text>
-          If the connection can't be established, ensure the IAM role you are
-          trying to assume is{' '}
+      <Info mb={3} linkColor="buttons.link.default">
+        <P>
+          If the connection can&apos;t be established, ensure the IAM role you
+          are trying to assume is{' '}
           <Link target="_blank" href={AWS_TAG_INFO_LINK}>
             tagged
           </Link>{' '}
           with key <Mark>teleport.dev/integration</Mark> and value{' '}
           <Mark>true</Mark>.
-        </Text>
-      </OutlineInfo>
+        </P>
+      </Info>
 
       <ActionButtons onProceed={nextStep} lastStep={true} onPrev={prevStep} />
     </Box>

@@ -20,19 +20,20 @@ import cfg from 'teleport/config';
 import api from 'teleport/services/api';
 import auth, { makeWebauthnCreationResponse } from 'teleport/services/auth';
 
+import makeMfaDevice from './makeMfaDevice';
 import {
-  MfaDevice,
-  AddNewTotpDeviceRequest,
   AddNewHardwareDeviceRequest,
+  AddNewTotpDeviceRequest,
+  MfaDevice,
   SaveNewHardwareDeviceRequest,
 } from './types';
-import makeMfaDevice from './makeMfaDevice';
 
 class MfaService {
   fetchDevicesWithToken(tokenId: string): Promise<MfaDevice[]> {
+    const opts = { isPasswordlessEnabled: cfg.isPasswordlessEnabled() };
     return api
       .get(cfg.getMfaDevicesWithTokenUrl(tokenId))
-      .then(devices => devices.map(makeMfaDevice));
+      .then((devices: any[]) => devices.map(d => makeMfaDevice(d, opts)));
   }
 
   removeDevice(tokenId: string, deviceName: string) {
@@ -40,9 +41,10 @@ class MfaService {
   }
 
   fetchDevices(): Promise<MfaDevice[]> {
+    const opts = { isPasswordlessEnabled: cfg.isPasswordlessEnabled() };
     return api
       .get(cfg.api.mfaDevicesPath)
-      .then(devices => devices.map(makeMfaDevice));
+      .then((devices: any[]) => devices.map(d => makeMfaDevice(d, opts)));
   }
 
   addNewTotpDevice(req: AddNewTotpDeviceRequest) {

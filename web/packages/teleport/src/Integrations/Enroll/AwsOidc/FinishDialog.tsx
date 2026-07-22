@@ -16,24 +16,28 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { Location } from 'history';
-import { useLocation } from 'react-router';
-import { Link } from 'react-router-dom';
-import { CircleCheck } from 'design/Icon';
-import { ButtonPrimary, ButtonSecondary, Text, Flex } from 'design';
+import React from 'react';
+import { Link, useLocation } from 'react-router';
+
+import { ButtonPrimary, ButtonSecondary, Flex, Text } from 'design';
 import Dialog, {
-  DialogHeader,
   DialogContent,
   DialogFooter,
+  DialogHeader,
 } from 'design/Dialog';
+import { CircleCheck } from 'design/Icon';
 
 import cfg from 'teleport/config';
-import { Integration } from 'teleport/services/integrations';
 import { DiscoverUrlLocationState } from 'teleport/Discover/useDiscover';
+import { IntegrationAwsOidc } from 'teleport/services/integrations';
 
-export function FinishDialog({ integration }: { integration: Integration }) {
-  const location = useLocation<DiscoverUrlLocationState>();
+export function FinishDialog({
+  integration,
+}: {
+  integration: IntegrationAwsOidc;
+}) {
+  const location = useLocation() as Location<DiscoverUrlLocationState>;
   return (
     <Dialog
       dialogCss={() => ({ maxWidth: '500px', width: '100%' })}
@@ -61,19 +65,17 @@ function FooterButton({
   integration,
 }: {
   location: Location<any>;
-  integration: Integration;
+  integration: IntegrationAwsOidc;
 }): React.ReactElement {
   if (location.state?.discover) {
     return (
       <ButtonPrimary
         size="large"
         as={Link}
-        to={{
-          pathname: cfg.routes.discover,
-          state: {
-            integration,
-            discover: location.state.discover,
-          },
+        to={cfg.routes.discover}
+        state={{
+          integration,
+          discover: location.state.discover,
         }}
       >
         Begin AWS Resource Enrollment

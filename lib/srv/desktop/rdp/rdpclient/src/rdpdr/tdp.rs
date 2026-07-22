@@ -1,31 +1,36 @@
-// Copyright 2023 Gravitational, Inc
+// Teleport
+// Copyright (C) 2024 Gravitational, Inc.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
 //
-//      http://www.apache.org/licenses/LICENSE-2.0
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
 //
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::{filesystem::FileCacheObject, path::UnixPath};
+use crate::rdpdr::filesystem::cast_length;
 use crate::{
     util::{self, from_c_string, from_go_array},
     CGOSharedDirectoryAnnounce, CGOSharedDirectoryCreateRequest, CGOSharedDirectoryCreateResponse,
     CGOSharedDirectoryDeleteRequest, CGOSharedDirectoryInfoRequest, CGOSharedDirectoryInfoResponse,
     CGOSharedDirectoryListRequest, CGOSharedDirectoryListResponse, CGOSharedDirectoryMoveRequest,
-    CGOSharedDirectoryReadRequest, CGOSharedDirectoryReadResponse,
+    CGOSharedDirectoryReadRequest, CGOSharedDirectoryReadResponse, CGOSharedDirectoryRemove,
     CGOSharedDirectoryTruncateRequest, CGOSharedDirectoryWriteRequest,
 };
-use ironrdp_pdu::{cast_length, custom_err, PduResult};
+
+use ironrdp_pdu::pdu_other_err;
+use ironrdp_pdu::PduResult;
 use ironrdp_rdpdr::pdu::efs::{
     self, DeviceCloseRequest, DeviceCreateRequest, DeviceReadRequest, DeviceWriteRequest,
 };
-use std::convert::TryInto;
+
 use std::ffi::CString;
 
 /// SharedDirectoryAnnounce is sent by the TDP client to the server
@@ -48,6 +53,21 @@ impl From<CGOSharedDirectoryAnnounce> for SharedDirectoryAnnounce {
                 directory_id: cgo.directory_id,
                 name: from_c_string(cgo.name),
             }
+        }
+    }
+}
+
+/// SharedDirectoryAnnounce is sent by the TDP client to the server
+/// to announce a new directory to be shared over TDP.
+#[derive(Debug)]
+pub struct SharedDirectoryRemove {
+    pub directory_id: u32,
+}
+
+impl From<CGOSharedDirectoryRemove> for SharedDirectoryRemove {
+    fn from(cgo: CGOSharedDirectoryRemove) -> SharedDirectoryRemove {
+        SharedDirectoryRemove {
+            directory_id: cgo.directory_id,
         }
     }
 }
@@ -99,6 +119,7 @@ impl From<&DeviceCreateRequest> for SharedDirectoryInfoRequest {
 /// in response to a `Shared Directory Info Request`.
 #[derive(Debug)]
 pub struct SharedDirectoryInfoResponse {
+    pub device_id: u32,
     pub completion_id: u32,
     pub err_code: TdpErrCode,
     pub fso: FileSystemObject,
@@ -112,6 +133,7 @@ impl From<CGOSharedDirectoryInfoResponse> for SharedDirectoryInfoResponse {
         // In other words, all pointer data that needs to persist after this function returns MUST
         // be copied into Rust-owned memory.
         SharedDirectoryInfoResponse {
+            device_id: cgo_res.directory_id,
             completion_id: cgo_res.completion_id,
             err_code: cgo_res.err_code,
             fso: cgo_res.fso.into(),
@@ -135,10 +157,13 @@ impl FileSystemObject {
         if let Some(name) = self.path.last() {
             Ok(name.to_string())
         } else {
-            Err(custom_err!(TdpHandlingError(format!(
-                "failed to extract name from path: {:?}",
-                self.path
-            ))))
+            Err(pdu_other_err!(
+                "",
+                source:TdpHandlingError(format!(
+                    "failed to extract name from path: {:?}",
+                    self.path
+                ))
+            ))
         }
     }
 
@@ -156,10 +181,10 @@ impl FileSystemObject {
             last_modified,
             last_modified,
             last_modified,
-            cast_length!(
+            cast_length(
                 "FileSystemObject::into_both_directory",
                 "self.size",
-                self.size
+                self.size,
             )?,
             file_attributes,
             self.name()?,
@@ -180,10 +205,10 @@ impl FileSystemObject {
             last_modified,
             last_modified,
             last_modified,
-            cast_length!(
+            cast_length(
                 "FileSystemObject::into_both_directory",
                 "self.size",
-                self.size
+                self.size,
             )?,
             file_attributes,
             self.name()?,
@@ -208,7 +233,7 @@ impl FileSystemObject {
             last_modified,
             last_modified,
             last_modified,
-            cast_length!("FileSystemObject::into_directory", "self.size", self.size)?,
+            cast_length("FileSystemObject::into_directory", "self.size", self.size)?,
             file_attributes,
             self.name()?,
         ))
@@ -321,6 +346,7 @@ impl SharedDirectoryReadRequest {
 #[repr(C)]
 pub struct SharedDirectoryReadResponse {
     pub completion_id: u32,
+    pub directory_id: u32,
     pub err_code: TdpErrCode,
     pub read_data: Vec<u8>,
 }
@@ -339,6 +365,7 @@ impl From<CGOSharedDirectoryReadResponse> for SharedDirectoryReadResponse {
     fn from(cgo_response: CGOSharedDirectoryReadResponse) -> SharedDirectoryReadResponse {
         unsafe {
             SharedDirectoryReadResponse {
+                directory_id: cgo_response.directory_id,
                 completion_id: cgo_response.completion_id,
                 err_code: cgo_response.err_code,
                 read_data: from_go_array(cgo_response.read_data, cgo_response.read_data_length),
@@ -353,6 +380,7 @@ impl From<CGOSharedDirectoryReadResponse> for SharedDirectoryReadResponse {
 #[repr(C)]
 pub struct SharedDirectoryWriteResponse {
     pub completion_id: u32,
+    pub directory_id: u32,
     pub err_code: TdpErrCode,
     pub bytes_written: u32,
 }
@@ -397,6 +425,7 @@ impl SharedDirectoryCreateRequest {
 #[derive(Debug)]
 pub struct SharedDirectoryListResponse {
     pub completion_id: u32,
+    pub directory_id: u32,
     pub err_code: TdpErrCode,
     pub fso_list: Vec<FileSystemObject>,
 }
@@ -417,6 +446,7 @@ impl From<CGOSharedDirectoryListResponse> for SharedDirectoryListResponse {
 
             SharedDirectoryListResponse {
                 completion_id: cgo.completion_id,
+                directory_id: cgo.directory_id,
                 err_code: cgo.err_code,
                 fso_list,
             }
@@ -455,6 +485,7 @@ impl SharedDirectoryMoveRequest {
 /// to acknowledge a SharedDirectoryCreateRequest was received and executed.
 #[derive(Debug)]
 pub struct SharedDirectoryCreateResponse {
+    pub directory_id: u32,
     pub completion_id: u32,
     pub err_code: TdpErrCode,
     pub fso: FileSystemObject,
@@ -469,6 +500,7 @@ impl From<CGOSharedDirectoryCreateResponse> for SharedDirectoryCreateResponse {
         // be copied into Rust-owned memory.
         SharedDirectoryCreateResponse {
             completion_id: cgo_res.completion_id,
+            directory_id: cgo_res.directory_id,
             err_code: cgo_res.err_code,
             fso: cgo_res.fso.into(),
         }
@@ -523,6 +555,7 @@ impl From<&DeviceCreateRequest> for SharedDirectoryDeleteRequest {
 #[repr(C)]
 pub struct SharedDirectoryDeleteResponse {
     pub completion_id: u32,
+    pub directory_id: u32,
     pub err_code: TdpErrCode,
 }
 
@@ -532,6 +565,7 @@ pub struct SharedDirectoryDeleteResponse {
 #[repr(C)]
 pub struct SharedDirectoryMoveResponse {
     pub completion_id: u32,
+    pub directory_id: u32,
     pub err_code: TdpErrCode,
 }
 
@@ -566,7 +600,7 @@ pub struct SharedDirectoryTruncateRequest {
     pub completion_id: u32,
     pub directory_id: u32,
     pub path: UnixPath,
-    pub end_of_file: u32,
+    pub end_of_file: u64,
 }
 
 impl SharedDirectoryTruncateRequest {
@@ -591,6 +625,7 @@ impl SharedDirectoryTruncateRequest {
 #[repr(C)]
 pub struct SharedDirectoryTruncateResponse {
     pub completion_id: u32,
+    pub directory_id: u32,
     pub err_code: TdpErrCode,
 }
 
@@ -698,6 +733,7 @@ pub(crate) fn to_windows_time(tdp_time_ms: u64) -> i64 {
 /// A generic error type that can contain any arbitrary error message.
 ///
 /// TODO: This is a temporary solution until we can figure out a better error handling system.
+#[allow(dead_code)]
 #[derive(Debug)]
 pub struct TdpHandlingError(pub String);
 

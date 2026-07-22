@@ -20,6 +20,7 @@ package local
 
 import (
 	"context"
+	"crypto/x509/pkix"
 	"fmt"
 	"testing"
 	"time"
@@ -28,14 +29,209 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
+	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/itertools/stream"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
+
+func TestUpdateCertAuthorityCondActs(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	// setup closure creates our initial state and returns its components
+	setup := func(active bool) (types.TrustedCluster, types.CertAuthority, *CA) {
+		bk, err := memory.New(memory.Config{})
+		require.NoError(t, err)
+		t.Cleanup(func() { require.NoError(t, bk.Close()) })
+		service := NewCAService(bk)
+
+		tc, err := types.NewTrustedCluster("tc", types.TrustedClusterSpecV2{
+			Enabled:              active,
+			Roles:                []string{"rrr"},
+			Token:                "xxx",
+			ProxyAddress:         "xxx",
+			ReverseTunnelAddress: "xxx",
+		})
+		require.NoError(t, err)
+
+		ca := newCertAuthority(t, types.HostCA, "tc")
+		revision, err := service.CreateTrustedCluster(ctx, tc, []types.CertAuthority{ca})
+		require.NoError(t, err)
+		tc.SetRevision(revision)
+		ca.SetRevision(revision)
+		return tc, ca, service
+	}
+
+	// putCA is a helper for injecting a CA into the backend, bypassing atomic condition protections
+	putCA := func(ctx context.Context, service *CA, ca types.CertAuthority, active bool) {
+		key := activeCAKey(ca.GetID())
+		if !active {
+			key = inactiveCAKey(ca.GetID())
+		}
+		item, err := caToItem(key, ca)
+		require.NoError(t, err)
+		_, err = service.Put(ctx, item)
+		require.NoError(t, err)
+	}
+
+	// delCA is a helper for deleting a CA from the backend, bypassing atomic condition protections
+	delCA := func(ctx context.Context, service *CA, ca types.CertAuthority, active bool) {
+		key := activeCAKey(ca.GetID())
+		if !active {
+			key = inactiveCAKey(ca.GetID())
+		}
+		require.NoError(t, service.Delete(ctx, key))
+	}
+
+	// -- update active in place ---
+	tc, ca, service := setup(true /* active */)
+
+	// verify basic update works
+	tc.SetRoles([]string{"rrr", "zzz"})
+	revision, err := service.UpdateTrustedCluster(ctx, tc, []types.CertAuthority{ca})
+	require.NoError(t, err)
+	tc.SetRevision(revision)
+	ca.SetRevision(revision)
+
+	gotTC, err := service.GetTrustedCluster(ctx, tc.GetName())
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(tc, gotTC, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+	_, err = service.GetCertAuthority(ctx, ca.GetID(), true)
+	require.NoError(t, err)
+	_, err = service.GetInactiveCertAuthority(ctx, ca.GetID(), true)
+	require.True(t, trace.IsNotFound(err), "err=%v", err)
+
+	// verify that an inactive CA doesn't prevent update
+	putCA(ctx, service, ca, false /* inactive */)
+	tc.SetRoles([]string{"rrr", "zzz", "aaa"})
+	revision, err = service.UpdateTrustedCluster(ctx, tc, []types.CertAuthority{ca})
+	require.NoError(t, err)
+	tc.SetRevision(revision)
+	ca.SetRevision(revision)
+
+	gotTC, err = service.GetTrustedCluster(ctx, tc.GetName())
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(tc, gotTC, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+	_, err = service.GetCertAuthority(ctx, ca.GetID(), true)
+	require.NoError(t, err)
+	_, err = service.GetInactiveCertAuthority(ctx, ca.GetID(), true)
+	require.True(t, trace.IsNotFound(err), "err=%v", err)
+
+	// verify that concurrent update of the active CA causes update to fail
+	putCA(ctx, service, ca, true /* active */)
+	tc.SetRoles([]string{"rrr", "zzz", "aaa", "bbb"})
+	_, err = service.UpdateTrustedCluster(ctx, tc, []types.CertAuthority{ca})
+	require.True(t, trace.IsCompareFailed(err), "err=%v", err)
+
+	// --- update inactive in place ---
+	tc, ca, service = setup(false /* inactive */)
+
+	// verify basic update works
+	tc.SetRoles([]string{"rrr", "zzz"})
+	revision, err = service.UpdateTrustedCluster(ctx, tc, []types.CertAuthority{ca})
+	require.NoError(t, err)
+	tc.SetRevision(revision)
+	ca.SetRevision(revision)
+
+	gotTC, err = service.GetTrustedCluster(ctx, tc.GetName())
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(tc, gotTC, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+	_, err = service.GetCertAuthority(ctx, ca.GetID(), true)
+	require.True(t, trace.IsNotFound(err), "err=%v", err)
+	_, err = service.GetInactiveCertAuthority(ctx, ca.GetID(), true)
+	require.NoError(t, err)
+
+	// verify that an active CA prevents update
+	putCA(ctx, service, ca, true /* active */)
+	tc.SetRoles([]string{"rrr", "zzz", "aaa"})
+	_, err = service.UpdateTrustedCluster(ctx, tc, []types.CertAuthority{ca})
+	require.True(t, trace.IsCompareFailed(err), "err=%v", err)
+	delCA(ctx, service, ca, true /* active */)
+
+	// verify that concurrent update of the inactive CA causes update to fail
+	putCA(ctx, service, ca, false /* inactive */)
+	tc.SetRoles([]string{"rrr", "zzz", "aaa", "bbb"})
+	_, err = service.UpdateTrustedCluster(ctx, tc, []types.CertAuthority{ca})
+	require.True(t, trace.IsCompareFailed(err), "err=%v", err)
+
+	// --- activate/deactivate ---
+	tc, ca, service = setup(false /* inactive */)
+
+	// verify that activating works
+	tc.SetEnabled(true)
+	revision, err = service.UpdateTrustedCluster(ctx, tc, []types.CertAuthority{ca})
+	require.NoError(t, err)
+	tc.SetRevision(revision)
+	ca.SetRevision(revision)
+
+	gotTC, err = service.GetTrustedCluster(ctx, tc.GetName())
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(tc, gotTC, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+	_, err = service.GetCertAuthority(ctx, ca.GetID(), true)
+	require.NoError(t, err)
+	_, err = service.GetInactiveCertAuthority(ctx, ca.GetID(), true)
+	require.True(t, trace.IsNotFound(err), "err=%v", err)
+
+	// verify that deactivating works
+	tc.SetEnabled(false)
+	revision, err = service.UpdateTrustedCluster(ctx, tc, []types.CertAuthority{ca})
+	require.NoError(t, err)
+	tc.SetRevision(revision)
+	ca.SetRevision(revision)
+
+	gotTC, err = service.GetTrustedCluster(ctx, tc.GetName())
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(tc, gotTC, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+	_, err = service.GetCertAuthority(ctx, ca.GetID(), true)
+	require.True(t, trace.IsNotFound(err), "err=%v", err)
+	_, err = service.GetInactiveCertAuthority(ctx, ca.GetID(), true)
+	require.NoError(t, err)
+
+	// verify that an active CA conflicts with activation
+	putCA(ctx, service, ca, true /* active */)
+	tc.SetEnabled(true)
+	_, err = service.UpdateTrustedCluster(ctx, tc, []types.CertAuthority{ca})
+	require.True(t, trace.IsCompareFailed(err), "err=%v", err)
+	delCA(ctx, service, ca, true /* active */)
+
+	// activation should work after deleting conlicting CA
+	revision, err = service.UpdateTrustedCluster(ctx, tc, []types.CertAuthority{ca})
+	require.NoError(t, err)
+	tc.SetRevision(revision)
+	ca.SetRevision(revision)
+
+	gotTC, err = service.GetTrustedCluster(ctx, tc.GetName())
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(tc, gotTC, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+	_, err = service.GetCertAuthority(ctx, ca.GetID(), true)
+	require.NoError(t, err)
+	_, err = service.GetInactiveCertAuthority(ctx, ca.GetID(), true)
+	require.True(t, trace.IsNotFound(err), "err=%v", err)
+
+	// verify that deactivation works even if there is an inaactive CA present
+	putCA(ctx, service, ca, false /* inactive */)
+	tc.SetEnabled(false)
+	revision, err = service.UpdateTrustedCluster(ctx, tc, []types.CertAuthority{ca})
+	require.NoError(t, err)
+	tc.SetRevision(revision)
+	ca.SetRevision(revision)
+
+	gotTC, err = service.GetTrustedCluster(ctx, tc.GetName())
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(tc, gotTC, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+	_, err = service.GetCertAuthority(ctx, ca.GetID(), true)
+	require.True(t, trace.IsNotFound(err), "err=%v", err)
+	_, err = service.GetInactiveCertAuthority(ctx, ca.GetID(), true)
+	require.NoError(t, err)
+}
 
 func TestRemoteClusterCRUD(t *testing.T) {
 	t.Parallel()
@@ -67,21 +263,37 @@ func TestRemoteClusterCRUD(t *testing.T) {
 	src.SetConnectionStatus(teleport.RemoteClusterStatusOnline)
 	src.SetLastHeartbeat(clock.Now().Add(-time.Hour))
 
-	// create remote clusters
-	gotRC, err := trustService.CreateRemoteCluster(ctx, rc)
+	// set up fake CAs for the remote clusters
+	ca := newCertAuthority(t, types.HostCA, "foo")
+	sca := newCertAuthority(t, types.HostCA, "bar")
+
+	// create remote cluster
+	revision, err := trustService.CreateRemoteClusterInternal(ctx, rc, []types.CertAuthority{ca})
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(rc, gotRC, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
-	gotSRC, err := trustService.CreateRemoteCluster(ctx, src)
+	rc.SetRevision(revision)
+	ca.SetRevision(revision)
+
+	_, err = trustService.CreateRemoteClusterInternal(ctx, rc, []types.CertAuthority{ca})
+	require.True(t, trace.IsAlreadyExists(err), "err=%v", err)
+
+	revision, err = trustService.CreateRemoteClusterInternal(ctx, src, []types.CertAuthority{sca})
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(src, gotSRC, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+	src.SetRevision(revision)
+	sca.SetRevision(revision)
 
 	// get remote cluster make sure it's correct
-	gotRC, err = trustService.GetRemoteCluster(ctx, "foo")
+	gotRC, err := trustService.GetRemoteCluster(ctx, "foo")
 	require.NoError(t, err)
 	require.Equal(t, "foo", gotRC.GetName())
 	require.Equal(t, teleport.RemoteClusterStatusOffline, gotRC.GetConnectionStatus())
 	require.Equal(t, clock.Now().Nanosecond(), gotRC.GetLastHeartbeat().Nanosecond())
 	require.Equal(t, originalLabels, gotRC.GetMetadata().Labels)
+
+	// get remote cluster CA make sure it's correct
+	gotCA, err := trustService.GetCertAuthority(ctx, ca.GetID(), true)
+	require.NoError(t, err)
+
+	require.Empty(t, cmp.Diff(ca, gotCA, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	rc = gotRC
 	updatedLabels := map[string]string{
@@ -99,10 +311,9 @@ func TestRemoteClusterCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(rc, gotRC, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
-	src = gotSRC
 	src.SetConnectionStatus(teleport.RemoteClusterStatusOffline)
 	src.SetLastHeartbeat(clock.Now())
-	gotSRC, err = trustService.UpdateRemoteCluster(ctx, src)
+	gotSRC, err := trustService.UpdateRemoteCluster(ctx, src)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(src, gotSRC, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
@@ -126,13 +337,26 @@ func TestRemoteClusterCRUD(t *testing.T) {
 	require.Len(t, allRC, 2)
 
 	// delete cluster
-	err = trustService.DeleteRemoteCluster(ctx, "foo")
+	err = trustService.DeleteRemoteClusterInternal(ctx, "foo", []types.CertAuthID{ca.GetID()})
 	require.NoError(t, err)
 
 	// make sure it's really gone
-	err = trustService.DeleteRemoteCluster(ctx, "foo")
-	require.Error(t, err)
-	require.ErrorIs(t, err, trace.NotFound("key \"/remoteClusters/foo\" is not found"))
+	_, err = trustService.GetRemoteCluster(ctx, "foo")
+	require.True(t, trace.IsNotFound(err))
+	_, err = trustService.GetCertAuthority(ctx, ca.GetID(), true)
+	require.True(t, trace.IsNotFound(err))
+
+	// make sure we can't create trusted clusters with the same name as an extant remote cluster
+	tc, err := types.NewTrustedCluster("bar", types.TrustedClusterSpecV2{
+		Enabled:              true,
+		Roles:                []string{"bar", "baz"},
+		Token:                "qux",
+		ProxyAddress:         "quux",
+		ReverseTunnelAddress: "quuz",
+	})
+	require.NoError(t, err)
+	_, err = trustService.CreateTrustedCluster(ctx, tc, nil)
+	require.True(t, trace.IsBadParameter(err), "err=%v", err)
 }
 
 func TestPresenceService_PatchRemoteCluster(t *testing.T) {
@@ -222,7 +446,7 @@ func TestPresenceService_ListRemoteClusters(t *testing.T) {
 	require.Empty(t, rcs)
 
 	// Create a few remote clusters
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		rc, err := types.NewRemoteCluster(fmt.Sprintf("rc-%d", i))
 		require.NoError(t, err)
 		_, err = trustService.CreateRemoteCluster(ctx, rc)
@@ -239,7 +463,7 @@ func TestPresenceService_ListRemoteClusters(t *testing.T) {
 	// behaves correctly.
 	rcs = []types.RemoteCluster{}
 	pageToken = ""
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		var got []types.RemoteCluster
 		got, pageToken, err = trustService.ListRemoteClusters(ctx, 1, pageToken)
 		require.NoError(t, err)
@@ -261,11 +485,101 @@ func TestPresenceService_ListRemoteClusters(t *testing.T) {
 	require.Len(t, rcs, 10)
 }
 
+// TestCA_TunnelConnections_CorruptItem ensures that a single malformed tunnel
+// connection in the backend is skipped rather than failing or truncating the
+// read. For List* this means pagination is not cut short; for Get*/GetAll* this
+// means the bad item is skipped instead of erroring the whole call.
+func TestCA_TunnelConnections_CorruptItem(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	bk, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, bk.Close()) })
+
+	trustService := NewCAService(bk)
+
+	const cluster = "leaf.example.com"
+	want := []string{"conn-0", "conn-1", "conn-2", "conn-3", "conn-4"}
+	for _, name := range want {
+		conn, err := types.NewTunnelConnection(name, types.TunnelConnectionSpecV2{
+			ClusterName:   cluster,
+			ProxyName:     "proxy",
+			LastHeartbeat: time.Now().UTC(),
+			Type:          types.ProxyTunnel,
+		})
+		require.NoError(t, err)
+		require.NoError(t, trustService.UpsertTunnelConnection(ctx, conn))
+	}
+
+	// Write an unparseable item whose key sorts in the middle of the set
+	// (between conn-2 and conn-3).
+	_, err = bk.Put(ctx, backend.Item{
+		Key:   backend.NewKey(tunnelConnectionsPrefix, cluster, "conn-2x"),
+		Value: []byte("}not a valid tunnel connection{"),
+	})
+	require.NoError(t, err)
+
+	// Page through with a small page size so the corrupt item lands inside a
+	// page window. Before the fix this dropped every connection after the
+	// corrupt one.
+	var got []string
+	var pageToken string
+	for {
+		page, next, err := trustService.ListTunnelConnections(ctx, 2, pageToken, nil)
+		require.NoError(t, err)
+		for _, c := range page {
+			got = append(got, c.GetName())
+		}
+		if next == "" {
+			break
+		}
+		pageToken = next
+	}
+	require.Equal(t, want, got)
+
+	// The cluster filter path must behave identically.
+	got = nil
+	pageToken = ""
+	for {
+		page, next, err := trustService.ListTunnelConnections(ctx, 2, pageToken, trustpb.ListTunnelConnectionsFilter_builder{
+			ClusterName: cluster,
+		}.Build())
+		require.NoError(t, err)
+		for _, c := range page {
+			got = append(got, c.GetName())
+		}
+		if next == "" {
+			break
+		}
+		pageToken = next
+	}
+	require.Equal(t, want, got)
+
+	// GetTunnelConnections and GetAllTunnelConnections skip the corrupt item
+	// rather than returning an error.
+	conns, err := trustService.GetTunnelConnections(ctx, cluster)
+	require.NoError(t, err)
+	gotNames := make([]string, 0, len(conns))
+	for _, c := range conns {
+		gotNames = append(gotNames, c.GetName())
+	}
+	require.ElementsMatch(t, want, gotNames)
+
+	allConns, err := trustService.GetAllTunnelConnections(ctx)
+	require.NoError(t, err)
+	gotNames = gotNames[:0]
+	for _, c := range allConns {
+		gotNames = append(gotNames, c.GetName())
+	}
+	require.ElementsMatch(t, want, gotNames)
+}
+
 func TestTrustedClusterCRUD(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
-	bk, err := lite.New(ctx, backend.Params{"path": t.TempDir()})
+	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, bk.Close()) })
 
@@ -290,10 +604,13 @@ func TestTrustedClusterCRUD(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	ca := newCertAuthority(t, types.HostCA, "foo")
+	sca := newCertAuthority(t, types.HostCA, "bar")
+
 	// create trusted clusters
-	_, err = trustService.UpsertTrustedCluster(ctx, tc)
+	_, err = trustService.CreateTrustedCluster(ctx, tc, []types.CertAuthority{ca})
 	require.NoError(t, err)
-	_, err = trustService.UpsertTrustedCluster(ctx, stc)
+	_, err = trustService.CreateTrustedCluster(ctx, stc, []types.CertAuthority{sca})
 	require.NoError(t, err)
 
 	// get trusted cluster make sure it's correct
@@ -306,17 +623,189 @@ func TestTrustedClusterCRUD(t *testing.T) {
 	require.Equal(t, "quux", gotTC.GetProxyAddress())
 	require.Equal(t, "quuz", gotTC.GetReverseTunnelAddress())
 
+	// get trusted cluster CA make sure it's correct
+	gotCA, err := trustService.GetCertAuthority(ctx, ca.GetID(), true)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(ca, gotCA, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+	wantTcs := []types.TrustedCluster{tc, stc}
+	compareOpts := []cmp.Option{
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+		cmpopts.SortSlices(func(a, b types.TrustedCluster) bool {
+			return a.GetName() < b.GetName()
+		},
+		)}
+
 	// get all clusters
 	allTC, err := trustService.GetTrustedClusters(ctx)
 	require.NoError(t, err)
 	require.Len(t, allTC, 2)
+	require.Empty(t, cmp.Diff(wantTcs, allTC, compareOpts...))
+
+	// No page limit.
+	allTC, next, err := trustService.ListTrustedClusters(ctx, 0, "")
+	require.NoError(t, err)
+	require.Len(t, allTC, 2)
+	require.Empty(t, next)
+	require.Empty(t, cmp.Diff(wantTcs, allTC, compareOpts...))
+
+	// Check page limits.
+	firstPage, next, err := trustService.ListTrustedClusters(ctx, 1, "")
+	require.NoError(t, err)
+	require.Len(t, firstPage, 1)
+	require.NotEmpty(t, next)
+
+	// Ensure upper limit works.
+	rangeEnd, err := stream.Collect(trustService.RangeTrustedClusters(ctx, "", next))
+	require.NoError(t, err)
+	require.Len(t, rangeEnd, 1)
+	require.NotEmpty(t, next)
+	require.Empty(t, cmp.Diff(firstPage, rangeEnd, compareOpts...))
+
+	// Full range.
+	allTC, err = stream.Collect(trustService.RangeTrustedClusters(ctx, "", ""))
+	require.NoError(t, err)
+	require.Len(t, allTC, 2)
+	require.Empty(t, cmp.Diff(wantTcs, allTC, compareOpts...))
+
+	// Ensure start token work for range.
+	secondPage, err := stream.Collect(trustService.RangeTrustedClusters(ctx, next, ""))
+	require.NoError(t, err)
+	require.Len(t, secondPage, 1)
+	require.Empty(t, cmp.Diff(wantTcs, append(firstPage, secondPage...), compareOpts...))
+
+	// verify that enabling/disabling correctly shows/hides CAs
+	tc.SetEnabled(false)
+	tc.SetRevision(gotTC.GetRevision())
+	ca.SetRevision(gotCA.GetRevision())
+	revision, err := trustService.UpdateTrustedCluster(ctx, tc, []types.CertAuthority{ca})
+	require.NoError(t, err)
+	_, err = trustService.GetCertAuthority(ctx, ca.GetID(), true)
+	require.True(t, trace.IsNotFound(err), "err=%v", err)
+
+	_, err = trustService.GetInactiveCertAuthority(ctx, ca.GetID(), true)
+	require.NoError(t, err)
+
+	tc.SetEnabled(true)
+	tc.SetRevision(revision)
+	ca.SetRevision(revision)
+	_, err = trustService.UpdateTrustedCluster(ctx, tc, []types.CertAuthority{ca})
+	require.NoError(t, err)
+
+	_, err = trustService.GetCertAuthority(ctx, ca.GetID(), true)
+	require.NoError(t, err)
+	_, err = trustService.GetInactiveCertAuthority(ctx, ca.GetID(), true)
+	require.True(t, trace.IsNotFound(err), "err=%v", err)
 
 	// delete cluster
-	err = trustService.DeleteTrustedCluster(ctx, "foo")
+	err = trustService.DeleteTrustedClusterInternal(ctx, "foo", []types.CertAuthID{ca.GetID()})
 	require.NoError(t, err)
 
 	// make sure it's really gone
 	_, err = trustService.GetTrustedCluster(ctx, "foo")
-	require.Error(t, err)
-	require.ErrorIs(t, err, trace.NotFound("key /trustedclusters/foo is not found"))
+	require.True(t, trace.IsNotFound(err), "err=%v", err)
+	_, err = trustService.GetCertAuthority(ctx, ca.GetID(), true)
+	require.True(t, trace.IsNotFound(err), "err=%v", err)
+
+	// make sure we can't create remote clusters with the same name as an extant trusted cluster
+	rc, err := types.NewRemoteCluster("bar")
+	require.NoError(t, err)
+	_, err = trustService.CreateRemoteCluster(ctx, rc)
+	require.True(t, trace.IsBadParameter(err), "err=%v", err)
+}
+
+func newCertAuthority(t *testing.T, caType types.CertAuthType, domain string) types.CertAuthority {
+	t.Helper()
+
+	priv, pub, err := testauthority.GenerateKeyPair()
+	require.NoError(t, err)
+
+	key, cert, err := tlsca.GenerateSelfSignedCA(pkix.Name{CommonName: domain}, nil, time.Hour)
+	require.NoError(t, err)
+
+	ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
+		Type:        caType,
+		ClusterName: domain,
+		ActiveKeys: types.CAKeySet{
+			SSH: []*types.SSHKeyPair{{
+				PrivateKey:     priv,
+				PrivateKeyType: types.PrivateKeyType_RAW,
+				PublicKey:      pub,
+			}},
+			TLS: []*types.TLSKeyPair{{
+				Cert: cert,
+				Key:  key,
+			}},
+			JWT: []*types.JWTKeyPair{{
+				PublicKey:      pub,
+				PrivateKey:     priv,
+				PrivateKeyType: types.PrivateKeyType_RAW,
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	return ca
+}
+
+func TestRemoteCluster_SkipsUnmarshalErrorsHittingPageBoundary(t *testing.T) {
+	ctx := t.Context()
+
+	const pageLimit = 64
+	const numberOfPages = 5
+
+	clock := clockwork.NewFakeClock()
+	mem, err := memory.New(memory.Config{
+		Context: t.Context(),
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+	service := NewCAService(mem)
+
+	createResource := func(name string) {
+		rc, err := types.NewRemoteCluster(name)
+		require.NoError(t, err)
+		_, err = service.CreateRemoteCluster(ctx, rc)
+		require.NoError(t, err)
+	}
+
+	createMalformedApp := func(name string) {
+		_, err := mem.Put(ctx, backend.Item{
+			Key:   backend.NewKey(remoteClustersPrefix, name),
+			Value: []byte("not-valid-json"),
+		})
+		require.NoError(t, err)
+	}
+
+	for i := range pageLimit * numberOfPages {
+		key := fmt.Sprintf("r%d", i)
+		if i%2 == 0 {
+			createMalformedApp(key)
+		} else {
+			createResource(key)
+		}
+	}
+
+	page1, next, err := service.ListRemoteClusters(ctx, pageLimit, "")
+	require.NoError(t, err)
+	require.Len(t, page1, pageLimit)
+	require.NotEmpty(t, next)
+
+	page2, next, err := service.ListRemoteClusters(ctx, pageLimit, next)
+	require.NoError(t, err)
+	require.Len(t, page2, pageLimit)
+	require.NotEmpty(t, next)
+
+	page3, next, err := service.ListRemoteClusters(ctx, pageLimit, next)
+	require.NoError(t, err)
+	require.Len(t, page3, pageLimit/2)
+	require.Empty(t, next)
+
+	slices := [][]types.RemoteCluster{page1, page2, page3}
+	for i := range len(slices) {
+		for j := i + 1; j < len(slices); j++ {
+			assert.NotEqual(t, slices[i], slices[j], "slices %d and %d should differ", i, j)
+		}
+	}
+
 }

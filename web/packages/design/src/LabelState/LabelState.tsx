@@ -16,20 +16,18 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import styled from 'styled-components';
 
 import {
-  fontSize,
-  FontSizeProps,
   color,
   ColorProps,
-  width,
-  WidthProps,
+  fontSize,
+  FontSizeProps,
   space,
   SpaceProps,
+  width,
+  WidthProps,
 } from 'design/system';
-import { fade } from 'design/theme/utils/colorManipulator';
 import { Theme } from 'design/theme/themes/types';
 
 export type LabelKind =
@@ -77,8 +75,8 @@ const kinds = ({ theme, kind, shadow }: ThemedKindsProps) => {
 
   if (shadow) {
     styles.boxShadow = `
-    0 0 8px ${fade(styles.background, 0.24)},
-    0 4px 16px ${fade(styles.background, 0.56)}
+    0 0 8px color-mix(in srgb, ${styles.background} 24%, transparent),
+    0 4px 16px color-mix(in srgb, ${styles.background} 56%, transparent)
     `;
   }
 
@@ -86,11 +84,7 @@ const kinds = ({ theme, kind, shadow }: ThemedKindsProps) => {
 };
 
 interface LabelStateProps
-  extends SpaceProps,
-    KindsProps,
-    WidthProps,
-    ColorProps,
-    FontSizeProps {}
+  extends SpaceProps, KindsProps, WidthProps, ColorProps, FontSizeProps {}
 
 const LabelState = styled.span<LabelStateProps>`
   box-sizing: border-box;
@@ -110,12 +104,20 @@ const LabelState = styled.span<LabelStateProps>`
   ${color}
   ${fontSize}
 `;
-LabelState.defaultProps = {
-  shadow: false,
-};
 
 export default LabelState;
-export const StateDanger = props => <LabelState kind="danger" {...props} />;
-export const StateInfo = props => <LabelState kind="secondary" {...props} />;
-export const StateWarning = props => <LabelState kind="warning" {...props} />;
-export const StateSuccess = props => <LabelState kind="success" {...props} />;
+
+type LabelStatePropsWithoutKind = Omit<LabelStateProps, 'kind'>;
+
+export const StateDanger = (props: LabelStatePropsWithoutKind) => (
+  <LabelState kind="danger" {...props} />
+);
+export const StateInfo = (props: LabelStatePropsWithoutKind) => (
+  <LabelState kind="secondary" {...props} />
+);
+export const StateWarning = (props: LabelStatePropsWithoutKind) => (
+  <LabelState kind="warning" {...props} />
+);
+export const StateSuccess = (props: LabelStatePropsWithoutKind) => (
+  <LabelState kind="success" {...props} />
+);

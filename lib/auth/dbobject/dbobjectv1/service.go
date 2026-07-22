@@ -20,9 +20,9 @@ package dbobjectv1
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/gravitational/teleport"
@@ -43,7 +43,7 @@ type Backend interface {
 type DatabaseObjectServiceConfig struct {
 	Authorizer authz.Authorizer
 	Backend    Backend
-	Logger     logrus.FieldLogger
+	Logger     *slog.Logger
 }
 
 // NewDatabaseObjectService returns a new instance of the DatabaseObjectService.
@@ -55,7 +55,7 @@ func NewDatabaseObjectService(cfg DatabaseObjectServiceConfig) (*DatabaseObjectS
 		return nil, trace.BadParameter("backend service is required")
 	}
 	if cfg.Logger == nil {
-		cfg.Logger = logrus.WithField(teleport.ComponentKey, "db_object")
+		cfg.Logger = slog.With(teleport.ComponentKey, "db_object")
 	}
 	return &DatabaseObjectService{
 		logger:     cfg.Logger,
@@ -72,7 +72,7 @@ type DatabaseObjectService struct {
 
 	backend    Backend
 	authorizer authz.Authorizer
-	logger     logrus.FieldLogger
+	logger     *slog.Logger
 }
 
 func (rs *DatabaseObjectService) authorize(ctx context.Context, adminAction bool, verb string, additionalVerbs ...string) error {
@@ -87,7 +87,7 @@ func (rs *DatabaseObjectService) authorize(ctx context.Context, adminAction bool
 	}
 
 	if adminAction {
-		err = authCtx.AuthorizeAdminAction()
+		err = authCtx.AuthorizeAdminActionAllowReusedMFA()
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -103,11 +103,11 @@ func (rs *DatabaseObjectService) GetDatabaseObject(ctx context.Context, req *pb.
 		return nil, trace.Wrap(err)
 	}
 
-	if req.Name == "" {
+	if req.GetName() == "" {
 		return nil, trace.BadParameter("name: must be non-empty")
 	}
 
-	out, err := rs.backend.GetDatabaseObject(ctx, req.Name)
+	out, err := rs.backend.GetDatabaseObject(ctx, req.GetName())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -123,14 +123,14 @@ func (rs *DatabaseObjectService) ListDatabaseObjects(
 		return nil, trace.Wrap(err)
 	}
 
-	out, next, err := rs.backend.ListDatabaseObjects(ctx, int(req.PageSize), req.PageToken)
+	out, next, err := rs.backend.ListDatabaseObjects(ctx, int(req.GetPageSize()), req.GetPageToken())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &pb.ListDatabaseObjectsResponse{
+	return pb.ListDatabaseObjectsResponse_builder{
 		Objects:       out,
 		NextPageToken: next,
-	}, nil
+	}.Build(), nil
 }
 
 // CreateDatabaseObject creates a new DatabaseObject. It will return an error if the DatabaseObject already
@@ -143,17 +143,16 @@ func (rs *DatabaseObjectService) CreateDatabaseObject(
 		return nil, trace.Wrap(err)
 	}
 
-	err = databaseobject.ValidateDatabaseObject(req.Object)
+	err = databaseobject.ValidateDatabaseObject(req.GetObject())
 	if err != nil {
 		return nil, trace.Wrap(err, "validating object")
 	}
 
-	out, err := rs.backend.CreateDatabaseObject(ctx, req.Object)
+	out, err := rs.backend.CreateDatabaseObject(ctx, req.GetObject())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return out, nil
-
 }
 
 // UpsertDatabaseObject creates a new DatabaseObject or forcefully updates an existing DatabaseObject.
@@ -181,12 +180,12 @@ func (rs *DatabaseObjectService) UpdateDatabaseObject(
 		return nil, trace.Wrap(err)
 	}
 
-	err = databaseobject.ValidateDatabaseObject(req.Object)
+	err = databaseobject.ValidateDatabaseObject(req.GetObject())
 	if err != nil {
 		return nil, trace.Wrap(err, "validating object")
 	}
 
-	object, err := rs.backend.UpdateDatabaseObject(ctx, req.Object)
+	object, err := rs.backend.UpdateDatabaseObject(ctx, req.GetObject())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -216,7 +215,7 @@ func (rs *DatabaseObjectService) DeleteDatabaseObject(
 		return nil, trace.Wrap(err)
 	}
 
-	err = rs.backend.DeleteDatabaseObject(ctx, req.Name)
+	err = rs.backend.DeleteDatabaseObject(ctx, req.GetName())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

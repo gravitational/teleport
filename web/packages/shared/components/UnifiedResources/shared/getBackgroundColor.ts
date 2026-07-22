@@ -23,20 +23,49 @@ export interface BackgroundColorProps {
   selected?: boolean;
   pinned?: boolean;
   theme: Theme;
+  shouldDisplayWarning: boolean;
+  showingStatusInfo: boolean;
+  hidePin?: boolean;
+  hideCheckbox?: boolean;
 }
 
 export const getBackgroundColor = (props: BackgroundColorProps) => {
-  if (props.requiresRequest && props.pinned) {
-    return props.theme.colors.interactive.tonal.primary[0].background;
-  }
-  if (props.requiresRequest) {
-    return props.theme.colors.spotBackground[0];
+  if (props.shouldDisplayWarning) {
+    return 'transparent';
   }
   if (props.selected) {
-    return props.theme.colors.interactive.tonal.primary[2].background;
+    return props.theme.colors.interactive.tonal.primary[2];
   }
   if (props.pinned) {
-    return props.theme.colors.interactive.tonal.primary[1].background;
+    return props.theme.colors.interactive.tonal.primary[1];
   }
   return 'transparent';
+};
+
+export const getStatusBackgroundColor = (props: {
+  showingStatusInfo: boolean;
+  theme: Theme;
+  action: '' | 'hover';
+  viewType: 'card' | 'list';
+}) => {
+  switch (props.action) {
+    case 'hover':
+      return props.theme.colors.interactive.tonal.alert[1];
+    case '':
+      if (props.showingStatusInfo) {
+        return props.theme.colors.interactive.tonal.alert[2];
+      }
+
+      switch (props.viewType) {
+        case 'card':
+          return 'transparent';
+        case 'list':
+          return props.theme.colors.interactive.tonal.alert[0];
+        default:
+          props.viewType satisfies never;
+          return;
+      }
+    default:
+      props.action satisfies never;
+  }
 };

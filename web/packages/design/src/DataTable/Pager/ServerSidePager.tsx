@@ -16,8 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-
 import { Flex } from 'design';
 import { CircleArrowLeft, CircleArrowRight } from 'design/Icon';
 
@@ -57,6 +55,6 @@ export function ServerSidePager({ nextPage, prevPage, isLoading }: Props) {
 
 export type Props = {
   isLoading: boolean;
-  nextPage: (() => void) | null;
-  prevPage: (() => void) | null;
+  nextPage: (() => void) | undefined;
+  prevPage: (() => void) | undefined;
 };

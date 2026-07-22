@@ -21,42 +21,34 @@ package client
 import (
 	"bytes"
 	"context"
-	"crypto/rand"
 	"crypto/x509"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
 	"os"
-	"os/exec"
-	"runtime"
 	"time"
 
 	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/api/utils/prompt"
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
-	libmfa "github.com/gravitational/teleport/lib/client/mfa"
+	"github.com/gravitational/teleport/lib/client/mfatypes"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
-	"github.com/gravitational/teleport/lib/httplib/csrf"
-	"github.com/gravitational/teleport/lib/utils"
 	websession "github.com/gravitational/teleport/lib/web/session"
 )
 
@@ -67,40 +59,51 @@ const (
 	WSS = "wss"
 )
 
-// SSOLoginConsoleReq is used to SSO for tsh
+// SSOLoginConsoleReq is passed by tsh to authenticate an SSO user and receive
+// short-lived certificates.
 type SSOLoginConsoleReq struct {
-	RedirectURL   string        `json:"redirect_url"`
-	PublicKey     []byte        `json:"public_key"`
+	RedirectURL string `json:"redirect_url"`
+	UserPublicKeys
 	CertTTL       time.Duration `json:"cert_ttl"`
 	ConnectorID   string        `json:"connector_id"`
 	Compatibility string        `json:"compatibility,omitempty"`
+	// Scope specifies a target scope for the resulting credentials to be pinned to.
+	Scope string `json:"scope,omitempty"`
 	// RouteToCluster is an optional cluster name to route the response
 	// credentials to.
 	RouteToCluster string
 	// KubernetesCluster is an optional k8s cluster name to route the response
 	// credentials to.
 	KubernetesCluster string
-	// AttestationStatement is an attestation statement associated with the given public key.
-	AttestationStatement *keys.AttestationStatement `json:"attestation_statement,omitempty"`
+	// PKCEVerifier is used to verify a generated code challenge.
+	PKCEVerifier string
+	// ClientVersion specifies version of the client that is sending SSO request.
+	ClientVersion string `json:"client_version,omitempty"`
 }
 
 // CheckAndSetDefaults makes sure that the request is valid
 func (r *SSOLoginConsoleReq) CheckAndSetDefaults() error {
-	if r.RedirectURL == "" {
+	switch {
+	case r.RedirectURL == "":
 		return trace.BadParameter("missing RedirectURL")
-	}
-	if len(r.PublicKey) == 0 {
-		return trace.BadParameter("missing PublicKey")
-	}
-	if r.ConnectorID == "" {
+	case r.ConnectorID == "":
 		return trace.BadParameter("missing ConnectorID")
+	}
+	if err := r.UserPublicKeys.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
 	}
 	return nil
 }
 
-// SSOLoginConsoleResponse is a response to SSO console request
+// SSOLoginConsoleResponse is a response to SSO console request.
+// Only one of the RedirectURL or PostForm field will contain a value.
+// If the preferred_request_binding field in SAMLConnectorSpecV2
+// is configured with "http-post" value, PostForm field will be populated.
+// In any other case, RedirectURL field will be populated.
 type SSOLoginConsoleResponse struct {
 	RedirectURL string `json:"redirect_url"`
+	// PostForm is an auto submittable HTML form.
+	PostForm string `json:"post_form"`
 }
 
 // MFAChallengeRequest is a request from the client for a MFA challenge from the
@@ -110,54 +113,34 @@ type MFAChallengeRequest struct {
 	Pass string `json:"pass"`
 	// Passwordless explicitly requests a passwordless/usernameless challenge.
 	Passwordless bool `json:"passwordless"`
+	// BrowserMFATSHRedirectURL is the redirect url that tsh provides with a
+	// secret key that the server will use to return a WebAuthn response to.
+	// Format: http://localhost:12345/callback?secret_key=X
+	BrowserMFATSHRedirectURL string `json:"browser_mfa_tsh_redirect_url,omitempty"`
 }
 
 // MFAChallengeResponse holds the response to a MFA challenge.
-type MFAChallengeResponse struct {
-	// TOTPCode is a code for a otp device.
-	TOTPCode string `json:"totp_code,omitempty"`
-	// WebauthnResponse is a response from a webauthn device.
-	WebauthnResponse *wantypes.CredentialAssertionResponse `json:"webauthn_response,omitempty"`
-}
+type MFAChallengeResponse = mfatypes.MFAChallengeResponse
 
-// GetOptionalMFAResponseProtoReq converts response to a type proto.MFAAuthenticateResponse,
-// if there were any responses set. Otherwise returns nil.
-func (r *MFAChallengeResponse) GetOptionalMFAResponseProtoReq() (*proto.MFAAuthenticateResponse, error) {
-	if r.TOTPCode != "" && r.WebauthnResponse != nil {
-		return nil, trace.BadParameter("only one MFA response field can be set")
-	}
+// SSOResponse is a json compatible [proto.SSOResponse].
+type SSOResponse = mfatypes.SSOResponse
 
-	if r.TOTPCode != "" {
-		return &proto.MFAAuthenticateResponse{Response: &proto.MFAAuthenticateResponse_TOTP{
-			TOTP: &proto.TOTPResponse{Code: r.TOTPCode},
-		}}, nil
-	}
+// BrowserMFAResponse is a json compatible [proto.BrowserMFAResponse].
+type BrowserMFAResponse = mfatypes.BrowserMFAResponse
 
-	if r.WebauthnResponse != nil {
-		return &proto.MFAAuthenticateResponse{Response: &proto.MFAAuthenticateResponse_Webauthn{
-			Webauthn: wantypes.CredentialAssertionResponseToProto(r.WebauthnResponse),
-		}}, nil
-	}
+// ParseMFAChallengeResponse parses [MFAChallengeResponse] from JSON and returns it as a [proto.MFAAuthenticateResponse].
+var ParseMFAChallengeResponse = mfatypes.ParseMFAChallengeResponse
 
-	return nil, nil
-}
-
-// CreateSSHCertReq are passed by web client
-// to authenticate against teleport server and receive
-// a temporary cert signed by auth server authority
-type CreateSSHCertReq struct {
+// HeadlessLoginReq is a headless login request for /webapi/headless/login.
+type HeadlessLoginReq struct {
 	// User is a teleport username
 	User string `json:"user"`
-	// Password is user's pass
-	Password string `json:"password"`
-	// OTPToken is second factor token
-	OTPToken string `json:"otp_token"`
 	// HeadlessAuthenticationID is a headless authentication resource id.
 	HeadlessAuthenticationID string `json:"headless_id"`
-	// PubKey is a public key user wishes to sign
-	PubKey []byte `json:"pub_key"`
-	// TTL is a desired TTL for the cert (max is still capped by server,
-	// however user can shorten the time)
+	// UserPublicKeys is embedded and holds user SSH and TLS public keys that
+	// should be used as the subject of issued certificates, and optional
+	// hardware key attestation statements for each key.
+	UserPublicKeys
 	TTL time.Duration `json:"ttl"`
 	// Compatibility specifies OpenSSH compatibility flags.
 	Compatibility string `json:"compatibility,omitempty"`
@@ -167,12 +150,44 @@ type CreateSSHCertReq struct {
 	// KubernetesCluster is an optional k8s cluster name to route the response
 	// credentials to.
 	KubernetesCluster string
-	// AttestationStatement is an attestation statement associated with the given public key.
-	AttestationStatement *keys.AttestationStatement `json:"attestation_statement,omitempty"`
 }
 
-// AuthenticateSSHUserRequest are passed by web client to authenticate against
-// teleport server and receive a temporary cert signed by auth server authority.
+// CheckAndSetDefaults checks and sets default values.
+func (r *HeadlessLoginReq) CheckAndSetDefaults() error {
+	if r.HeadlessAuthenticationID == "" {
+		return trace.BadParameter("missing headless authentication id for headless login")
+	}
+	return nil
+}
+
+// UserPublicKeys holds user-submitted public keys and attestation statements
+// used in local login requests.
+type UserPublicKeys struct {
+	// SSHPubKey is an SSH public key the user wants as the subject of their SSH
+	// certificate. It must be in SSH authorized_keys format.
+	SSHPubKey []byte `json:"ssh_pub_key,omitempty"`
+	// TLSPubKey is a TLS public key the user wants as the subject of their TLS
+	// certificate. It must be in PEM-encoded PKCS#1 or PKIX format.
+	TLSPubKey []byte `json:"tls_pub_key,omitempty"`
+
+	// SSHAttestationStatement is an attestation statement associated with the
+	// given SSH public key.
+	SSHAttestationStatement *hardwarekey.AttestationStatement `json:"ssh_attestation_statement,omitempty"`
+	// TLSAttestationStatement is an attestation statement associated with the
+	// given TLS public key.
+	TLSAttestationStatement *hardwarekey.AttestationStatement `json:"tls_attestation_statement,omitempty"`
+}
+
+// CheckAndSetDefaults checks and sets default values.
+func (k *UserPublicKeys) CheckAndSetDefaults() error {
+	if len(k.SSHPubKey) == 0 && len(k.TLSPubKey) == 0 {
+		return trace.BadParameter("'ssh_pub_key' or 'tls_pub_key' must be set")
+	}
+	return nil
+}
+
+// AuthenticateSSHUserRequest is passed by tsh to authenticate a local user with
+// MFA and receive short-lived certificates.
 type AuthenticateSSHUserRequest struct {
 	// User is a teleport username
 	User string `json:"user"`
@@ -183,11 +198,18 @@ type AuthenticateSSHUserRequest struct {
 	WebauthnChallengeResponse *wantypes.CredentialAssertionResponse `json:"webauthn_challenge_response"`
 	// TOTPCode is a code from the TOTP device.
 	TOTPCode string `json:"totp_code"`
-	// PubKey is a public key user wishes to sign
-	PubKey []byte `json:"pub_key"`
+	// BrowserMFAResponse is a response from a Browser MFA flow containing a
+	// webauthn response.
+	BrowserMFAResponse *BrowserMFAResponse `json:"browser_response,omitempty"`
+	// UserPublicKeys is embedded and holds user SSH and TLS public keys that
+	// should be used as the subject of issued certificates, and optional
+	// hardware key attestation statements for each key.
+	UserPublicKeys
 	// TTL is a desired TTL for the cert (max is still capped by server,
 	// however user can shorten the time)
 	TTL time.Duration `json:"ttl"`
+	// Scope specifies a target scope for the resulting credentials to be pinned to.
+	Scope string `json:"scope,omitempty"`
 	// Compatibility specifies OpenSSH compatibility flags.
 	Compatibility string `json:"compatibility,omitempty"`
 	// RouteToCluster is an optional cluster name to route the response
@@ -196,8 +218,10 @@ type AuthenticateSSHUserRequest struct {
 	// KubernetesCluster is an optional k8s cluster name to route the response
 	// credentials to.
 	KubernetesCluster string
-	// AttestationStatement is an attestation statement associated with the given public key.
-	AttestationStatement *keys.AttestationStatement `json:"attestation_statement,omitempty"`
+}
+
+func (r *AuthenticateSSHUserRequest) CheckAndSetDefaults() error {
+	return trace.Wrap(r.UserPublicKeys.CheckAndSetDefaults())
 }
 
 type AuthenticateWebUserRequest struct {
@@ -210,7 +234,10 @@ type AuthenticateWebUserRequest struct {
 type HeadlessRequest struct {
 	// Actions can be either accept or deny.
 	Action string `json:"action"`
+	// MFAResponse is an MFA response used to authenticate the headless request.
+	MFAResponse *MFAChallengeResponse `json:"mfaResponse"`
 	// WebauthnAssertionResponse is a signed WebAuthn credential assertion.
+	// TODO(Joerger): DELETE IN v19.0.0, new clients send mfaResponse
 	WebauthnAssertionResponse *wantypes.CredentialAssertionResponse `json:"webauthnAssertionResponse,omitempty"`
 }
 
@@ -218,14 +245,18 @@ type HeadlessRequest struct {
 type SSHLogin struct {
 	// ProxyAddr is the target proxy address
 	ProxyAddr string
-	// PubKey is SSH public key to sign
-	PubKey []byte
+	// SSHPubKey is SSH public key to sign
+	SSHPubKey []byte
+	// TLSPubKey is TLS public key to sign
+	TLSPubKey []byte
 	// TTL is requested TTL of the client certificates
 	TTL time.Duration
 	// Insecure turns off verification for x509 target proxy
 	Insecure bool
 	// Pool is x509 cert pool to use for server certificate verification
 	Pool *x509.CertPool
+	// Scope specifies a target scope for the resulting credentials to be pinned to.
+	Scope string
 	// Compatibility sets compatibility mode for SSH certificates
 	Compatibility string
 	// RouteToCluster is an optional cluster name to route the response
@@ -234,8 +265,10 @@ type SSHLogin struct {
 	// KubernetesCluster is an optional k8s cluster name to route the response
 	// credentials to.
 	KubernetesCluster string
-	// AttestationStatement is an attestation statement.
-	AttestationStatement *keys.AttestationStatement
+	// SSHAttestationStatement is an attestation statement for SSHPubKey.
+	SSHAttestationStatement *hardwarekey.AttestationStatement
+	// TLSAttestationStatement is an attestation statement for TLSPubKey.
+	TLSAttestationStatement *hardwarekey.AttestationStatement
 	// ExtraHeaders is a map of extra HTTP headers to be included in requests.
 	ExtraHeaders map[string]string
 }
@@ -243,28 +276,12 @@ type SSHLogin struct {
 // SSHLoginSSO contains SSH login parameters for SSO login.
 type SSHLoginSSO struct {
 	SSHLogin
-	// ConnectorID is the OIDC or SAML connector ID to use
+	// ConnectorID is the SSO Auth connector ID to use.
 	ConnectorID string
-	// ConnectorName is the display name of the connector.
+	// ConnectorName is the display name of the SSO Auth connector.
 	ConnectorName string
-	// Protocol is an optional protocol selection
-	Protocol string
-	// BindAddr is an optional host:port address to bind
-	// to for SSO login flows
-	BindAddr string
-	// CallbackAddr is the optional base URL to give to the user when performing
-	// SSO redirect flows.
-	CallbackAddr string
-	// Browser can be used to pass the name of a browser to override the system
-	// default (not currently implemented), or set to 'none' to suppress
-	// browser opening entirely.
-	Browser string
-	// PrivateKeyPolicy is a key policy to follow during login.
-	PrivateKeyPolicy keys.PrivateKeyPolicy
-	// ProxySupportsKeyPolicyMessage lets the tsh redirector give users more
-	// useful messages in the web UI if the proxy supports them.
-	// TODO(atburke): DELETE in v17.0.0
-	ProxySupportsKeyPolicyMessage bool
+	// ConnectorType is the type of SSO Auth connector.
+	ConnectorType string
 }
 
 // SSHLoginDirect contains SSH login parameters for direct (user/pass/OTP)
@@ -282,9 +299,11 @@ type SSHLoginDirect struct {
 // SSHLoginMFA contains SSH login parameters for MFA login.
 type SSHLoginMFA struct {
 	SSHLogin
-	// PromptMFA is a customizable MFA prompt function.
-	// Defaults to [mfa.NewPrompt().Run]
-	PromptMFA mfa.Prompt
+	// MFAPromptConstructor is a custom MFA prompt constructor to use when prompting for MFA.
+	MFAPromptConstructor mfa.PromptConstructor
+	// MFACeremonyConstructor is an optional MFA ceremony constructor.
+	// Currently used for Browser MFA during the login process.
+	MFACeremonyConstructor mfa.MFACeremonyConstructor
 	// User is the login username.
 	User string
 	// Password is the login password.
@@ -325,13 +344,22 @@ type SSHLoginHeadless struct {
 
 // MFAAuthenticateChallenge is an MFA authentication challenge sent on user
 // login / authentication ceremonies.
-type MFAAuthenticateChallenge struct {
-	// WebauthnChallenge contains a WebAuthn credential assertion used for
-	// login/authentication ceremonies.
-	WebauthnChallenge *wantypes.CredentialAssertion `json:"webauthn_challenge"`
-	// TOTPChallenge specifies whether TOTP is supported for this user.
-	TOTPChallenge bool `json:"totp_challenge"`
-}
+type MFAAuthenticateChallenge = mfatypes.MFAAuthenticateChallenge
+
+// SSOChallenge is a json compatible [proto.SSOChallenge].
+type SSOChallenge = mfatypes.SSOChallenge
+
+// SSOMFADevice is a json compatible [proto.SSOMFADevice].
+type SSOMFADevice = mfatypes.SSOMFADevice
+
+// BrowserMFAChallenge is a json compatible [proto.BrowserMFAChallenge].
+type BrowserMFAChallenge = mfatypes.BrowserMFAChallenge
+
+var (
+	SSOChallengeFromProto     = mfatypes.SSOChallengeFromProto
+	BrowserChallengeToProto   = mfatypes.BrowserChallengeToProto
+	BrowserChallengeFromProto = mfatypes.BrowserChallengeFromProto
+)
 
 // MFARegisterChallenge is an MFA register challenge sent on new MFA register.
 type MFARegisterChallenge struct {
@@ -348,16 +376,24 @@ type TOTPRegisterChallenge struct {
 
 // initClient creates a new client to the HTTPS web proxy.
 func initClient(proxyAddr string, insecure bool, pool *x509.CertPool, extraHeaders map[string]string, opts ...roundtrip.ClientParam) (*WebClient, *url.URL, error) {
-	log := logrus.WithFields(logrus.Fields{
-		teleport.ComponentKey: teleport.ComponentClient,
-	})
-	log.Debugf("HTTPS client init(proxyAddr=%v, insecure=%v, extraHeaders=%v)", proxyAddr, insecure, extraHeaders)
+	log := slog.With(teleport.ComponentKey, teleport.ComponentClient)
+	if _, ok := extraHeaders["User-Agent"]; !ok {
+		if extraHeaders == nil {
+			extraHeaders = make(map[string]string)
+		}
+		extraHeaders["User-Agent"] = "api/" + teleport.Version
+	}
+	log.DebugContext(context.Background(), "Initializing proxy HTTPS client",
+		"proxy_addr", proxyAddr,
+		"insecure", insecure,
+		"extra_headers", extraHeaders,
+	)
 
 	// validate proxy address
 	host, port, err := net.SplitHostPort(proxyAddr)
 	if err != nil || host == "" || port == "" {
 		if err != nil {
-			log.Error(err)
+			log.ErrorContext(context.Background(), "invalid proxy address", "error", err)
 		}
 		return nil, nil, trace.BadParameter("'%v' is not a valid proxy address", proxyAddr)
 	}
@@ -377,9 +413,14 @@ func initClient(proxyAddr string, insecure bool, pool *x509.CertPool, extraHeade
 		return nil, nil, trace.Wrap(err)
 	}
 
+	header := make(http.Header)
+	for k, v := range extraHeaders {
+		header.Set(k, v)
+	}
 	opts = append(opts,
 		roundtrip.HTTPClient(newClient(insecure, pool, extraHeaders)),
 		roundtrip.CookieJar(jar),
+		roundtrip.WithHeader(header),
 	)
 	clt, err := NewWebClient(proxyAddr, opts...)
 	if err != nil {
@@ -389,132 +430,8 @@ func initClient(proxyAddr string, insecure bool, pool *x509.CertPool, extraHeade
 	return clt, u, nil
 }
 
-// SSHAgentSSOLogin is used by tsh to fetch user credentials using OpenID Connect (OIDC) or SAML.
-func SSHAgentSSOLogin(ctx context.Context, login SSHLoginSSO, config *RedirectorConfig) (*authclient.SSHLoginResponse, error) {
-	if login.CallbackAddr != "" && !utils.AsBool(os.Getenv("TELEPORT_LOGIN_SKIP_REMOTE_HOST_WARNING")) {
-		const callbackPrompt = "Logging in from a remote host means that credentials will be stored on " +
-			"the remote host. Make sure that you trust the provided callback host " +
-			"(%v) and that it resolves to the provided bind addr (%v). Continue?"
-		ok, err := prompt.Confirmation(ctx, os.Stderr, prompt.NewContextReader(os.Stdin),
-			fmt.Sprintf(callbackPrompt, login.CallbackAddr, login.BindAddr),
-		)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if !ok {
-			return nil, trace.BadParameter("Login canceled.")
-		}
-	}
-	rd, err := NewRedirector(ctx, login, config)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := rd.Start(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rd.Close()
-
-	clickableURL := rd.ClickableURL()
-
-	// If a command was found to launch the browser, create and start it.
-	err = OpenURLInBrowser(login.Browser, clickableURL)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to open a browser window for login: %v\n", err)
-	}
-
-	// Print the URL to the screen, in case the command that launches the browser did not run.
-	// If Browser is set to the special string teleport.BrowserNone, no browser will be opened.
-	if login.Browser == teleport.BrowserNone {
-		fmt.Fprintf(os.Stderr, "Use the following URL to authenticate:\n %v\n", clickableURL)
-	} else {
-		fmt.Fprintf(os.Stderr, "If browser window does not open automatically, open it by ")
-		fmt.Fprintf(os.Stderr, "clicking on the link:\n %v\n", clickableURL)
-	}
-
-	select {
-	case err := <-rd.ErrorC():
-		log.Debugf("Got an error: %v.", err)
-		return nil, trace.Wrap(err)
-	case response := <-rd.ResponseC():
-		log.Debugf("Got response from browser.")
-		return response, nil
-	case <-time.After(defaults.SSOCallbackTimeout):
-		log.Debugf("Timed out waiting for callback after %v.", defaults.SSOCallbackTimeout)
-		return nil, trace.Wrap(trace.Errorf("timed out waiting for callback"))
-	case <-rd.Done():
-		log.Debugf("Canceled by user.")
-		return nil, trace.Wrap(ctx.Err(), "canceled by user")
-	}
-}
-
-// SSHAgentLogin is used by tsh to fetch local user credentials.
-func SSHAgentLogin(ctx context.Context, login SSHLoginDirect) (*authclient.SSHLoginResponse, error) {
-	clt, _, err := initClient(login.ProxyAddr, login.Insecure, login.Pool, login.ExtraHeaders)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	re, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "ssh", "certs"), CreateSSHCertReq{
-		User:                 login.User,
-		Password:             login.Password,
-		OTPToken:             login.OTPToken,
-		PubKey:               login.PubKey,
-		TTL:                  login.TTL,
-		Compatibility:        login.Compatibility,
-		RouteToCluster:       login.RouteToCluster,
-		KubernetesCluster:    login.KubernetesCluster,
-		AttestationStatement: login.AttestationStatement,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var out authclient.SSHLoginResponse
-	err = json.Unmarshal(re.Bytes(), &out)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &out, nil
-}
-
-// OpenURLInBrowser opens a URL in a web browser.
-func OpenURLInBrowser(browser string, URL string) error {
-	var execCmd *exec.Cmd
-	if browser != teleport.BrowserNone {
-		switch runtime.GOOS {
-		// macOS.
-		case constants.DarwinOS:
-			path, err := exec.LookPath(teleport.OpenBrowserDarwin)
-			if err == nil {
-				execCmd = exec.Command(path, URL)
-			}
-		// Windows.
-		case constants.WindowsOS:
-			path, err := exec.LookPath(teleport.OpenBrowserWindows)
-			if err == nil {
-				execCmd = exec.Command(path, "url.dll,FileProtocolHandler", URL)
-			}
-		// Linux or any other operating system.
-		default:
-			path, err := exec.LookPath(teleport.OpenBrowserLinux)
-			if err == nil {
-				execCmd = exec.Command(path, URL)
-			}
-		}
-	}
-	if execCmd != nil {
-		if err := execCmd.Start(); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
 // SSHAgentHeadlessLogin begins the headless login ceremony, returning new user certificates if successful.
-func SSHAgentHeadlessLogin(ctx context.Context, login SSHLoginHeadless) (*authclient.SSHLoginResponse, error) {
+func SSHAgentHeadlessLogin(ctx context.Context, login SSHLoginHeadless) (*authclient.CLILoginResponse, error) {
 	clt, _, err := initClient(login.ProxyAddr, login.Insecure, login.Pool, login.ExtraHeaders)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -523,21 +440,28 @@ func SSHAgentHeadlessLogin(ctx context.Context, login SSHLoginHeadless) (*authcl
 	// This request will block until the headless login is approved.
 	clt.Client.HTTPClient().Timeout = defaults.HeadlessLoginTimeout
 
-	re, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "ssh", "certs"), CreateSSHCertReq{
+	req := HeadlessLoginReq{
 		User:                     login.User,
 		HeadlessAuthenticationID: login.HeadlessAuthenticationID,
-		PubKey:                   login.PubKey,
-		TTL:                      login.TTL,
-		Compatibility:            login.Compatibility,
-		RouteToCluster:           login.RouteToCluster,
-		KubernetesCluster:        login.KubernetesCluster,
-		AttestationStatement:     login.AttestationStatement,
-	})
+		UserPublicKeys: UserPublicKeys{
+			SSHPubKey:               login.SSHPubKey,
+			TLSPubKey:               login.TLSPubKey,
+			SSHAttestationStatement: login.SSHAttestationStatement,
+			TLSAttestationStatement: login.TLSAttestationStatement,
+		},
+		TTL: login.TTL,
+		// TODO(fspmarshall/scopes): add scope support to headless login
+		Compatibility:     login.Compatibility,
+		RouteToCluster:    login.RouteToCluster,
+		KubernetesCluster: login.KubernetesCluster,
+	}
+
+	re, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "headless", "login"), req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	var out authclient.SSHLoginResponse
+	var out authclient.CLILoginResponse
 	err = json.Unmarshal(re.Bytes(), &out)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -551,7 +475,7 @@ func SSHAgentHeadlessLogin(ctx context.Context, login SSHLoginHeadless) (*authcl
 // end user.
 //
 // Returns the SSH certificate if authn is successful or an error.
-func SSHAgentPasswordlessLogin(ctx context.Context, login SSHLoginPasswordless) (*authclient.SSHLoginResponse, error) {
+func SSHAgentPasswordlessLogin(ctx context.Context, login SSHLoginPasswordless) (*authclient.CLILoginResponse, error) {
 	webClient, webURL, err := initClient(login.ProxyAddr, login.Insecure, login.Pool, login.ExtraHeaders)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -605,18 +529,23 @@ func SSHAgentPasswordlessLogin(ctx context.Context, login SSHLoginPasswordless) 
 		&AuthenticateSSHUserRequest{
 			User:                      "", // User carried on WebAuthn assertion.
 			WebauthnChallengeResponse: wantypes.CredentialAssertionResponseFromProto(mfaResp.GetWebauthn()),
-			PubKey:                    login.PubKey,
-			TTL:                       login.TTL,
-			Compatibility:             login.Compatibility,
-			RouteToCluster:            login.RouteToCluster,
-			KubernetesCluster:         login.KubernetesCluster,
-			AttestationStatement:      login.AttestationStatement,
+			UserPublicKeys: UserPublicKeys{
+				SSHPubKey:               login.SSHPubKey,
+				TLSPubKey:               login.TLSPubKey,
+				SSHAttestationStatement: login.SSHAttestationStatement,
+				TLSAttestationStatement: login.TLSAttestationStatement,
+			},
+			TTL:               login.TTL,
+			Compatibility:     login.Compatibility,
+			Scope:             login.Scope,
+			RouteToCluster:    login.RouteToCluster,
+			KubernetesCluster: login.KubernetesCluster,
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	loginResp := &authclient.SSHLoginResponse{}
+	loginResp := &authclient.CLILoginResponse{}
 	if err := json.Unmarshal(loginRespJSON.Bytes(), loginResp); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -627,61 +556,44 @@ func SSHAgentPasswordlessLogin(ctx context.Context, login SSHLoginPasswordless) 
 // If the credentials are valid, the proxy will return a challenge. We then
 // prompt the user to provide 2nd factor and pass the response to the proxy.
 // If the authentication succeeds, we will get a temporary certificate back.
-func SSHAgentMFALogin(ctx context.Context, login SSHLoginMFA) (*authclient.SSHLoginResponse, error) {
+func SSHAgentMFALogin(ctx context.Context, login SSHLoginMFA) (*authclient.CLILoginResponse, error) {
 	clt, _, err := initClient(login.ProxyAddr, login.Insecure, login.Pool, login.ExtraHeaders)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	beginReq := MFAChallengeRequest{
-		User: login.User,
-		Pass: login.Password,
-	}
-	challengeJSON, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "mfa", "login", "begin"), beginReq)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	challenge := &MFAAuthenticateChallenge{}
-	if err := json.Unmarshal(challengeJSON.Bytes(), challenge); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Convert to auth gRPC proto challenge.
-	chal := &proto.MFAAuthenticateChallenge{}
-	if challenge.TOTPChallenge {
-		chal.TOTP = &proto.TOTPChallenge{}
-	}
-	if challenge.WebauthnChallenge != nil {
-		chal.WebauthnChallenge = wantypes.CredentialAssertionToProto(challenge.WebauthnChallenge)
-	}
-
-	promptMFA := login.PromptMFA
-	if promptMFA == nil {
-		promptMFA = libmfa.NewCLIPrompt(libmfa.NewPromptConfig(login.ProxyAddr), os.Stderr)
-	}
-
-	respPB, err := promptMFA.Run(ctx, chal)
+	mfaResp, err := newMFALoginCeremony(clt, login).Run(ctx, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	challengeResp := AuthenticateSSHUserRequest{
-		User:                 login.User,
-		Password:             login.Password,
-		PubKey:               login.PubKey,
-		TTL:                  login.TTL,
-		Compatibility:        login.Compatibility,
-		RouteToCluster:       login.RouteToCluster,
-		KubernetesCluster:    login.KubernetesCluster,
-		AttestationStatement: login.AttestationStatement,
+		User:     login.User,
+		Password: login.Password,
+		UserPublicKeys: UserPublicKeys{
+			SSHPubKey:               login.SSHPubKey,
+			TLSPubKey:               login.TLSPubKey,
+			SSHAttestationStatement: login.SSHAttestationStatement,
+			TLSAttestationStatement: login.TLSAttestationStatement,
+		},
+		TTL:               login.TTL,
+		Compatibility:     login.Compatibility,
+		Scope:             login.Scope,
+		RouteToCluster:    login.RouteToCluster,
+		KubernetesCluster: login.KubernetesCluster,
 	}
+
 	// Convert back from auth gRPC proto response.
-	switch r := respPB.Response.(type) {
+	switch r := mfaResp.Response.(type) {
 	case *proto.MFAAuthenticateResponse_TOTP:
 		challengeResp.TOTPCode = r.TOTP.Code
 	case *proto.MFAAuthenticateResponse_Webauthn:
 		challengeResp.WebauthnChallengeResponse = wantypes.CredentialAssertionResponseFromProto(r.Webauthn)
+	case *proto.MFAAuthenticateResponse_Browser:
+		challengeResp.BrowserMFAResponse = &BrowserMFAResponse{
+			RequestID:        r.Browser.RequestId,
+			WebauthnResponse: wantypes.CredentialAssertionResponseFromProto(r.Browser.WebauthnResponse),
+		}
 	default:
 		// No challenge was sent, so we send back just username/password.
 	}
@@ -691,8 +603,46 @@ func SSHAgentMFALogin(ctx context.Context, login SSHLoginMFA) (*authclient.SSHLo
 		return nil, trace.Wrap(err)
 	}
 
-	loginResp := &authclient.SSHLoginResponse{}
+	loginResp := &authclient.CLILoginResponse{}
 	return loginResp, trace.Wrap(json.Unmarshal(loginRespJSON.Bytes(), loginResp))
+}
+
+func newMFALoginCeremony(clt *WebClient, login SSHLoginMFA) *mfa.Ceremony {
+	return &mfa.Ceremony{
+		CreateAuthenticateChallenge: func(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error) {
+			beginReq := MFAChallengeRequest{
+				User: login.User,
+				Pass: login.Password,
+			}
+			if req != nil && req.BrowserMFATSHRedirectURL != "" {
+				beginReq.BrowserMFATSHRedirectURL = req.BrowserMFATSHRedirectURL
+			}
+			challengeJSON, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "mfa", "login", "begin"), beginReq)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			challenge := &MFAAuthenticateChallenge{}
+			if err := json.Unmarshal(challengeJSON.Bytes(), challenge); err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			// Convert to auth gRPC proto challenge.
+			chal := &proto.MFAAuthenticateChallenge{}
+			if challenge.TOTPChallenge {
+				chal.TOTP = &proto.TOTPChallenge{}
+			}
+			if challenge.WebauthnChallenge != nil {
+				chal.WebauthnChallenge = wantypes.CredentialAssertionToProto(challenge.WebauthnChallenge)
+			}
+			if challenge.BrowserMFAChallenge != nil {
+				chal.BrowserMFAChallenge = BrowserChallengeToProto(challenge.BrowserMFAChallenge)
+			}
+			return chal, nil
+		},
+		PromptConstructor:      login.MFAPromptConstructor,
+		MFACeremonyConstructor: login.MFACeremonyConstructor,
+	}
 }
 
 // HostCredentials is used to fetch host credentials for a node.
@@ -764,26 +714,15 @@ type CreateWebSessionResponse struct {
 	// TokenExpiresIn sets seconds before this token is not valid
 	TokenExpiresIn int `json:"expires_in"`
 	// SessionExpires is when this session expires.
-	SessionExpires time.Time `json:"sessionExpires,omitempty"`
+	SessionExpires time.Time `json:"sessionExpires"`
 	// SessionInactiveTimeoutMS specifies how long in milliseconds
 	// a user WebUI session can be left idle before being logged out
 	// by the server. A zero value means there is no idle timeout set.
 	SessionInactiveTimeoutMS int `json:"sessionInactiveTimeout"`
 }
 
-// SSHAgentLoginWeb is used by tsh to fetch local user credentials via the web api.
-func SSHAgentLoginWeb(ctx context.Context, login SSHLoginDirect) (*WebClient, types.WebSession, error) {
-	clt, _, err := initClient(login.ProxyAddr, login.Insecure, login.Pool, login.ExtraHeaders)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	token := make([]byte, 32)
-	if _, err := rand.Read(token); err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	csrfToken := hex.EncodeToString(token)
+// sshAgentLoginWebCreateSession takes an existing client and login details and attempts to create a web session using OTP token
+func sshAgentLoginWebCreateSession(ctx context.Context, clt *WebClient, login SSHLoginDirect) (types.WebSession, error) {
 	resp, err := httplib.ConvertResponse(clt.RoundTrip(func() (*http.Response, error) {
 		var buf bytes.Buffer
 		if err := json.NewEncoder(&buf).Encode(&CreateWebSessionReq{
@@ -799,22 +738,29 @@ func SSHAgentLoginWeb(ctx context.Context, login SSHLoginDirect) (*WebClient, ty
 			return nil, err
 		}
 
-		cookie := &http.Cookie{
-			Name:  csrf.CookieName,
-			Value: csrfToken,
-		}
-
-		req.AddCookie(cookie)
-
 		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set(csrf.HeaderName, csrfToken)
 		return clt.HTTPClient().Do(req)
 	}))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	session, err := GetSessionFromResponse(resp)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return session, nil
+}
+
+// sshAgentLoginWeb is used by tsh to fetch local user credentials via the web api.
+func sshAgentLoginWeb(ctx context.Context, login SSHLoginDirect) (*WebClient, types.WebSession, error) {
+	clt, _, err := initClient(login.ProxyAddr, login.Insecure, login.Pool, login.ExtraHeaders)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
-	session, err := GetSessionFromResponse(resp)
+	session, err := sshAgentLoginWebCreateSession(ctx, clt, login)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -822,44 +768,16 @@ func SSHAgentLoginWeb(ctx context.Context, login SSHLoginDirect) (*WebClient, ty
 	return clt, session, nil
 }
 
-// SSHAgentMFAWebSessionLogin requests a MFA challenge via the proxy web api.
+// sshAgentMFAWebSessionLogin requests a MFA challenge via the proxy web api.
 // If the credentials are valid, the proxy will return a challenge. We then
 // prompt the user to provide 2nd factor and pass the response to the proxy.
-func SSHAgentMFAWebSessionLogin(ctx context.Context, login SSHLoginMFA) (*WebClient, types.WebSession, error) {
+func sshAgentMFAWebSessionLogin(ctx context.Context, login SSHLoginMFA) (*WebClient, types.WebSession, error) {
 	clt, _, err := initClient(login.ProxyAddr, login.Insecure, login.Pool, login.ExtraHeaders)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
-	beginReq := MFAChallengeRequest{
-		User: login.User,
-		Pass: login.Password,
-	}
-	challengeJSON, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "mfa", "login", "begin"), beginReq)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	challenge := &MFAAuthenticateChallenge{}
-	if err := json.Unmarshal(challengeJSON.Bytes(), challenge); err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	// Convert to auth gRPC proto challenge.
-	chal := &proto.MFAAuthenticateChallenge{}
-	if challenge.TOTPChallenge {
-		chal.TOTP = &proto.TOTPChallenge{}
-	}
-	if challenge.WebauthnChallenge != nil {
-		chal.WebauthnChallenge = wantypes.CredentialAssertionToProto(challenge.WebauthnChallenge)
-	}
-
-	promptMFA := login.PromptMFA
-	if promptMFA == nil {
-		promptMFA = libmfa.NewCLIPrompt(libmfa.NewPromptConfig(login.ProxyAddr), os.Stderr)
-	}
-
-	respPB, err := promptMFA.Run(ctx, chal)
+	mfaResp, err := newMFALoginCeremony(clt, login).Run(ctx, nil)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -867,23 +785,35 @@ func SSHAgentMFAWebSessionLogin(ctx context.Context, login SSHLoginMFA) (*WebCli
 	challengeResp := AuthenticateWebUserRequest{
 		User: login.User,
 	}
+
+	var session types.WebSession
 	// Convert back from auth gRPC proto response.
-	switch r := respPB.Response.(type) {
+	switch r := mfaResp.Response.(type) {
+	case *proto.MFAAuthenticateResponse_TOTP:
+		// If TOTP is configured we have to fallback on direct login
+		session, err = sshAgentLoginWebCreateSession(ctx, clt, SSHLoginDirect{
+			User:     login.User,
+			Password: login.Password,
+			OTPToken: r.TOTP.Code,
+		})
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
 	case *proto.MFAAuthenticateResponse_Webauthn:
 		challengeResp.WebauthnAssertionResponse = wantypes.CredentialAssertionResponseFromProto(r.Webauthn)
+		loginRespJSON, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "mfa", "login", "finishsession"), challengeResp)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+
+		session, err = GetSessionFromResponse(loginRespJSON)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
 	default:
-		// No challenge was sent, so we send back just username/password.
+		return nil, nil, trace.NotImplemented("unsupported MFA challenge for web session login (%T)", r)
 	}
 
-	loginRespJSON, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "mfa", "login", "finishsession"), challengeResp)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	session, err := GetSessionFromResponse(loginRespJSON)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
 	return clt, session, nil
 }
 

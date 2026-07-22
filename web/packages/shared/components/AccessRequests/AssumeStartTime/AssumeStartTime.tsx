@@ -16,26 +16,23 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { addMonths } from 'date-fns';
 import { useState } from 'react';
-import styled from 'styled-components';
 import { DayPicker } from 'react-day-picker';
-import 'react-day-picker/dist/style.css';
-import { addMonths, format } from 'date-fns';
+import 'react-day-picker/style.css';
+import styled from 'styled-components';
 
-import { Flex, Box, LabelInput, ButtonIcon } from 'design';
-import { Calendar as CalendarIcon, Refresh as RefreshIcon } from 'design/Icon';
-import { StyledDateRange } from 'teleport/components/DayPicker/Shared';
+import { Box, ButtonIcon, Flex, LabelInput } from 'design';
 import { ButtonSecondary } from 'design/Button';
-
+import { StyledDateRange } from 'design/DatePicker';
+import { displayShortDate } from 'design/datetime';
+import { Calendar as CalendarIcon, Refresh as RefreshIcon } from 'design/Icon';
+import { FieldSelect } from 'shared/components/FieldSelect';
 import Validation from 'shared/components/Validation';
-import FieldSelect from 'shared/components/FieldSelect';
 import { useRefClickOutside } from 'shared/hooks/useRefClickOutside';
-import cfg from 'shared/config';
-
 import { AccessRequest } from 'shared/services/accessRequests';
 
 import { TimeOption } from '../Shared/types';
-
 import {
   convertStartToTimeOption,
   getMaxAssumableDate,
@@ -118,7 +115,7 @@ export function AssumeStartTime({
 
   const startOrRequestedDate = start || accessRequest.assumeStartTime;
   if (!wantImmediate && startOrRequestedDate) {
-    startDateText = format(startOrRequestedDate, cfg.dateWithFullMonth);
+    startDateText = displayShortDate(startOrRequestedDate);
     startTime = convertStartToTimeOption(
       startOrRequestedDate,
       !start && !!accessRequest.assumeStartTime
@@ -136,15 +133,14 @@ export function AssumeStartTime({
 
   return (
     <Validation>
-      <Flex gap={2} alignItems="end" mb={2}>
+      <Container threeColumns={!!showResetDateTime}>
         <Box css={{ position: 'relative' }} ref={dayPickerRef}>
           <LabelInput>Start Date</LabelInput>
           <CalendarPicker
+            $open={showDayPicker}
             onClick={() => {
               setShowDayPicker(s => !s);
             }}
-            maxWidth="270px"
-            minWidth="200px"
           >
             {startDateText}
             <CalendarIcon ml={3} />
@@ -157,8 +153,10 @@ export function AssumeStartTime({
                 padding: ${p => p.theme.space[1]}px;
                 height: auto;
                 .rdp {
-                  --rdp-cell-size: 30px; /* Size of the day cells. */
-                  --rdp-caption-font-size: 14px; /* Font size for the caption labels. */
+                  --rdp-day-height: 30px;
+                  --rdp-day-width: 30px;
+                  --rdp-day_button-height: 28px;
+                  --rdp-day_button-width: 28px;
                 }
               `}
             >
@@ -167,11 +165,11 @@ export function AssumeStartTime({
                 onDayClick={updateStartDate}
                 defaultMonth={startDate}
                 selected={startOrRequestedDate}
-                fromMonth={startDate}
+                startMonth={startDate}
                 // Incase part of 7 days falls to the next month.
                 // Allows user to select day from next month
                 // and disables navigating rest of month.
-                toMonth={addMonths(startDate, 1)}
+                endMonth={addMonths(startDate, 1)}
                 // Disables before today, and after 7th day.
                 disabled={[
                   {
@@ -199,7 +197,6 @@ export function AssumeStartTime({
             <LabelInput>Start Time</LabelInput>
             <FieldSelect
               mb={0}
-              width="190px"
               isSearchable={true}
               options={startTimeOptions}
               value={startTime}
@@ -217,21 +214,31 @@ export function AssumeStartTime({
             <RefreshIcon size="medium" />
           </ButtonIcon>
         )}
-      </Flex>
+      </Container>
     </Validation>
   );
 }
 
-const CalendarPicker = styled(Flex)`
+const Container = styled(Flex).attrs({ gap: 2, mb: 2, alignItems: 'end' })<{
+  threeColumns: boolean;
+}>`
+  display: grid;
+  grid-template-columns: ${props => (props.threeColumns ? '1fr 1fr auto' : '1fr 1fr')};
+}`;
+
+const CalendarPicker = styled(Flex)<{ $open: boolean }>`
   height: 40px;
-  border: 1px solid ${p => p.theme.colors.text.muted};
+  border: 1px solid ${p => p.theme.colors.interactive.tonal.neutral[2]};
   border-radius: ${p => p.theme.radii[2]}px;
-  padding: 0 ${p => p.theme.space[2]}px;
+  padding-right: ${p => p.theme.space[2]}px;
+  padding-left: ${p => p.theme.space[3]}px;
   align-items: center;
   justify-content: space-between;
   cursor: pointer;
   &:hover {
-    background-color: ${p => p.theme.colors.spotBackground[0]};
-    border: 1px solid ${p => p.theme.colors.text.slightlyMuted};
+    border: 1px solid ${p => p.theme.colors.text.muted};
   }
+  ${p =>
+    p.$open &&
+    `border-color: ${p.theme.colors.interactive.solid.primary.default};`}
 `;

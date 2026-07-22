@@ -16,8 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { KubeUri, routing } from 'teleterm/ui/uri';
 import { IAppContext } from 'teleterm/ui/types';
+import { KubeUri, routing } from 'teleterm/ui/uri';
 
 import { DocumentOrigin } from './types';
 
@@ -34,7 +34,11 @@ export async function connectToKube(
     origin: telemetry.origin,
   });
 
-  await ctx.workspacesService.setActiveWorkspace(rootClusterUri);
+  const { isAtDesiredWorkspace } =
+    await ctx.workspacesService.setActiveWorkspace(rootClusterUri);
+  if (!isAtDesiredWorkspace) {
+    return;
+  }
   documentsService.add(doc);
   documentsService.open(doc.uri);
 }

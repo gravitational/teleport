@@ -16,21 +16,24 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import '@xterm/xterm/css/xterm.css';
-import { ITheme, Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
-import { WebglAddon } from '@xterm/addon-webgl';
+import { ImageAddon } from '@xterm/addon-image';
 import { WebLinksAddon } from '@xterm/addon-web-links';
-import { CanvasAddon } from '@xterm/addon-canvas';
-import { debounce, isInteger } from 'shared/utils/highbar';
+import { WebglAddon } from '@xterm/addon-webgl';
+import { ITheme, Terminal } from '@xterm/xterm';
+import '@xterm/xterm/css/xterm.css';
+
+import {
+  SearchAddon,
+  TerminalSearcher,
+} from 'shared/components/TerminalSearch';
 import Logger from 'shared/libs/logger';
+import { debounce, isInteger, type DebouncedFunc } from 'shared/utils/highbar';
 
 import cfg from 'teleport/config';
 
 import { TermEvent } from './enums';
 import Tty from './tty';
-
-import type { DebouncedFunc } from 'shared/utils/highbar';
 
 const logger = Logger.create('lib/term/terminal');
 const DISCONNECT_TXT = 'disconnected';
@@ -39,10 +42,11 @@ const WINDOW_RESIZE_DEBOUNCE_DELAY = 200;
 /**
  * TtyTerminal is a wrapper on top of xtermjs
  */
-export default class TtyTerminal {
+export default class TtyTerminal implements TerminalSearcher {
   term: Terminal;
   tty: Tty;
 
+  // TODO (avatus): migrate all of these to using `private` instead of underscore
   _el: HTMLElement;
   _scrollBack: number;
   _fontFamily: string;
@@ -50,15 +54,34 @@ export default class TtyTerminal {
   _convertEol: boolean;
   _debouncedResize: DebouncedFunc<() => void>;
   _fitAddon = new FitAddon();
+  _imageAddon: ImageAddon | undefined;
+  _searchAddon = new SearchAddon();
   _webLinksAddon = new WebLinksAddon();
-  _webglAddon: WebglAddon;
-  _canvasAddon = new CanvasAddon();
+  _webglAddon: WebglAddon | undefined;
+
+  private customKeyEventHandlers = new Set<(event: KeyboardEvent) => boolean>();
+
+  private _disableCopy: boolean;
+  private _onCopyBlocked?: () => void;
+  private _blockCopy = (e: ClipboardEvent) => {
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    this._onCopyBlocked?.();
+  };
 
   constructor(
     tty: Tty,
     private options: Options
   ) {
-    const { el, scrollBack, fontFamily, fontSize, convertEol } = options;
+    const {
+      el,
+      scrollBack,
+      fontFamily,
+      fontSize,
+      convertEol,
+      disableCopy,
+      onCopyBlocked,
+    } = options;
     this._el = el;
     this._fontFamily = fontFamily || undefined;
     this._fontSize = fontSize || 14;
@@ -66,12 +89,21 @@ export default class TtyTerminal {
     // Default to the config when not passed anything, which is the normal usecase
     this._scrollBack = scrollBack || cfg.ui.scrollbackLines;
     this._convertEol = convertEol || false;
+    this._disableCopy = !!disableCopy;
+    this._onCopyBlocked = onCopyBlocked;
     this.tty = tty;
     this.term = null;
 
     this._debouncedResize = debounce(() => {
       this._requestResize();
     }, WINDOW_RESIZE_DEBOUNCE_DELAY);
+  }
+
+  registerCustomKeyEventHandler(customHandler: (e: KeyboardEvent) => boolean) {
+    this.customKeyEventHandlers.add(customHandler);
+    return {
+      unregister: () => this.customKeyEventHandlers.delete(customHandler),
+    };
   }
 
   open() {
@@ -83,34 +115,49 @@ export default class TtyTerminal {
       convertEol: this._convertEol,
       cursorBlink: false,
       minimumContrastRatio: 4.5, // minimum for WCAG AA compliance
+      screenReaderMode: true,
       theme: this.options.theme,
+      allowProposedApi: true, // required for customizing SearchAddon properties
     });
 
     this.term.loadAddon(this._fitAddon);
     this.term.loadAddon(this._webLinksAddon);
-    // handle context loss and load webgl addon
+    this.term.loadAddon(this._searchAddon);
+
+    // @xterm/addon-image relies on WebAssembly internally. The vite plugin guard-wasm
+    // rewrites bare WebAssembly references so the module can be statically imported
+    // without crashing; construction will still throw when WebAssembly is genuinely
+    // unavailable, so we catch that here.
     try {
-      // try to create a new WebglAddon. If webgl is not supported, this
-      // constructor will throw an error and fallback to canvas. We also fallback
-      // to canvas if the webgl context is lost after a timeout.
-      // The "wait for context" timeout for the webgl addon doesn't actually start until the app is
-      // able to have it back. For example, if the OS takes the gpu away from the browser, the timeout
-      // wont start looking for the context again until the OS has given the browser the context again.
-      // When the initial context lost event is fired, the webgl addon consumes the event
-      // and waits for a bit to see if it can get the context back. If it fails repeatedly, it
-      // will propagate the context loss event itself in which case we fall back to canvas
+      this._imageAddon = new ImageAddon();
+      this.term.loadAddon(this._imageAddon);
+    } catch (e) {
+      logger.error('Failed to load image addon:', e.message);
+    }
+
+    try {
+      // The constructor may throw if WebGL is not supported.
+      // xterm.js can also asynchronously throw an error in Terminal.prototype.open()
+      // (`Uncaught Error: WebGL2 not supported`) that cannot be caught.
       this._webglAddon = new WebglAddon();
+      // Triggered if the addon fails to recover the WebGL context after multiple retries.
       this._webglAddon.onContextLoss(() => {
-        this.fallbackToCanvas();
+        logger.info('WebGL context lost. Using default renderer.');
+        this._webglAddon?.dispose();
       });
       this.term.loadAddon(this._webglAddon);
-    } catch (err) {
-      this.fallbackToCanvas();
+    } catch {
+      this._webglAddon?.dispose();
+      logger.info('WebGL could not be loaded. Using default renderer.');
     }
 
     this.term.open(this._el);
     this._fitAddon.fit();
-    this.term.focus();
+
+    if (this._disableCopy) {
+      // Intercept copy events if disableCopy is true to block copying to the clipboard.
+      this._el.addEventListener('copy', this._blockCopy, true);
+    }
     this.term.onData(data => {
       this.tty.send(data);
     });
@@ -126,21 +173,61 @@ export default class TtyTerminal {
 
     // subscribe to window resize events
     window.addEventListener('resize', this._debouncedResize);
+
+    // Xterm.js v6 removed the workaround that converted Alt+Arrow to Ctrl+Arrow sequences for word
+    // navigation (https://github.com/xtermjs/xterm.js/pull/5346). Re-add this behavior by sending
+    // the appropriate escape sequences, matching what VS Code does.
+    // https://github.com/microsoft/vscode/blob/5bb327de4bf14578c8c0bd1b553ee14dd2977e18/src/vs/workbench/contrib/terminalContrib/sendSequence/browser/terminal.sendSequence.contribution.ts#L163-L182
+    //
+    // Terminal.app and iTerm2 have bindings only for Alt+Left/Right, so we follow their steps and
+    // send ESC b / ESC f (readline word navigation).
+    this.registerCustomKeyEventHandler(e => {
+      // Only handle pure Alt+Arrow. Other modifier combinations (e.g. Ctrl+Alt+Arrow,
+      // Shift+Alt+Arrow) have their own distinct escape sequences that Xterm.js already handles.
+      if (
+        e.type !== 'keydown' ||
+        !e.altKey ||
+        e.ctrlKey ||
+        e.metaKey ||
+        e.shiftKey
+      ) {
+        return true;
+      }
+
+      let seq: string | undefined;
+      switch (e.key) {
+        case 'ArrowRight':
+          seq = '\x1bf';
+          break;
+        case 'ArrowLeft':
+          seq = '\x1bb';
+          break;
+      }
+
+      if (seq) {
+        this.term.input(seq, false /* wasUserInput */);
+        e.preventDefault();
+        // Event handled, do not process it in xterm.
+        return false;
+      }
+
+      return true;
+    });
+
+    this.term.attachCustomKeyEventHandler(e => {
+      for (const eventHandler of this.customKeyEventHandlers) {
+        if (!eventHandler(e)) {
+          // The event was handled, we can return early.
+          return false;
+        }
+      }
+      // The event wasn't handled, pass it to xterm.
+      return true;
+    });
   }
 
-  fallbackToCanvas() {
-    logger.info('WebGL context lost. Falling back to canvas');
-    this._webglAddon?.dispose();
-    this._webglAddon = undefined;
-    try {
-      this.term.loadAddon(this._canvasAddon);
-    } catch (err) {
-      logger.error(
-        'Canvas renderer could not be loaded. Falling back to default'
-      );
-      this._canvasAddon?.dispose();
-      this._canvasAddon = undefined;
-    }
+  focus() {
+    this.term.focus();
   }
 
   connect() {
@@ -155,12 +242,20 @@ export default class TtyTerminal {
     this._disconnect();
     this._debouncedResize.cancel();
     this._fitAddon.dispose();
+    this._imageAddon?.dispose();
+    this._searchAddon?.dispose();
     this._webglAddon?.dispose();
-    this._canvasAddon?.dispose();
+    if (this._disableCopy) {
+      this._el.removeEventListener('copy', this._blockCopy, true);
+    }
     this._el.innerHTML = null;
     this.term?.dispose();
 
     window.removeEventListener('resize', this._debouncedResize);
+  }
+
+  getSearchAddon() {
+    return this._searchAddon;
   }
 
   reset() {
@@ -237,4 +332,8 @@ type Options = {
   fontFamily?: string;
   fontSize?: number;
   convertEol?: boolean;
+  // disableCopy blocks copying terminal text to clipboard.
+  disableCopy?: boolean;
+  // onCopyBlocked is called whenever a copy attempt is blocked because disableCopy is true.
+  onCopyBlocked?: () => void;
 };

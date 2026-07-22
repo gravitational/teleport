@@ -22,30 +22,33 @@ import (
 	"context"
 	"time"
 
-	"github.com/gravitational/trace"
-
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/session"
 )
 
 // NewFakeStreamer returns a session streamer that streams the provided events, sending one
 // event per interval. An interval of 0 sends the events immediately, throttled only by the
 // ability of the receiver to keep up.
-func NewFakeStreamer(events []apievents.AuditEvent, interval time.Duration) events.SessionStreamer {
-	return fakeStreamer{
+func NewFakeStreamer(events []apievents.AuditEvent, interval time.Duration) *FakeStreamer {
+	return &FakeStreamer{
 		events:   events,
 		interval: interval,
+		errCh:    make(chan error),
 	}
 }
 
-type fakeStreamer struct {
-	events   []apievents.AuditEvent
-	interval time.Duration
+func (e *FakeStreamer) WithErrors(errCh chan error) *FakeStreamer {
+	e.errCh = errCh
+	return e
 }
 
-func (f fakeStreamer) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
-	errors := make(chan error, 1)
+type FakeStreamer struct {
+	events   []apievents.AuditEvent
+	interval time.Duration
+	errCh    chan error
+}
+
+func (f FakeStreamer) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
 	events := make(chan apievents.AuditEvent)
 
 	go func() {
@@ -68,13 +71,5 @@ func (f fakeStreamer) StreamSessionEvents(ctx context.Context, sessionID session
 		}
 	}()
 
-	return events, errors
-}
-
-func (f fakeStreamer) GetSessionChunk(namespace string, sid session.ID, offsetBytes, maxBytes int) ([]byte, error) {
-	return nil, trace.NotImplemented("GetSessionChunk")
-}
-
-func (f fakeStreamer) GetSessionEvents(namespace string, sid session.ID, after int) ([]events.EventFields, error) {
-	return nil, trace.NotImplemented("GetSessionEvents")
+	return events, f.errCh
 }

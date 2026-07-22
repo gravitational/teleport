@@ -1,5 +1,5 @@
 {{ dbName="test" }}
-Install a Teleport agent into your Kubernetes Cluster with the Teleport Database
+Install a Teleport Agent into your Kubernetes Cluster with the Teleport Database
 Service configuration. 
 
 Create a file called `values.yaml` with the following content. Update <Var
@@ -36,10 +36,10 @@ To configure the Teleport Database Service to trust a custom CA:
 
    ```diff
      roles: db
-     proxyAddr: <Var name="example.teleport.sh" />
+     proxyAddr: example.teleport.sh
      # Set to false if using Teleport Community Edition
      enterprise: true
-     authToken: <Var name="JOIN_TOKEN" />
+     authToken: JOIN_TOKEN
      databases:
        - name: {{ dbName }}
          uri: {{ databaseAddress }}
@@ -68,7 +68,7 @@ To configure the Teleport Database Service to trust a custom CA:
      -f values.yaml
    ```
 
-1. Make sure that the Teleport agent pod is running. You should see one
+1. Make sure that the Teleport Agent pod is running. You should see one
 `teleport-kube-agent` pod with a single ready container:
 
    ```code

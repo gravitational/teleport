@@ -22,12 +22,12 @@ import (
 	"context"
 	"errors"
 	"io"
+	"log/slog"
 	"net"
 	"net/netip"
 	"sync"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh/agent"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
@@ -35,20 +35,22 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/gravitational/teleport"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	transportv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
+	"github.com/gravitational/teleport/api/types"
 	streamutils "github.com/gravitational/teleport/api/utils/grpc/stream"
 	"github.com/gravitational/teleport/lib/agentless"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/authz"
-	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/teleagent"
+	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // Dialer is the interface that groups basic dialing methods.
 type Dialer interface {
 	DialSite(ctx context.Context, cluster string, clientSrcAddr, clientDstAddr net.Addr) (net.Conn, error)
-	DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, host, port, cluster string, checker services.AccessChecker, agentGetter teleagent.Getter, singer agentless.SignerCreator) (net.Conn, error)
+	DialHost(ctx context.Context, scopePin *scopesv1.Pin, clientSrcAddr, clientDstAddr net.Addr, host, port, cluster string, clusterAccessChecker func(types.RemoteCluster) error, agentGetter sshagent.ClientGetter, singer agentless.SignerCreator) (net.Conn, error)
+	DialWindowsDesktop(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, desktopName, cluster string, clusterAccessChecker func(types.RemoteCluster) error) (net.Conn, error)
 }
 
 // ConnectionMonitor monitors authorized connections and terminates them when
@@ -63,11 +65,11 @@ type ServerConfig struct {
 	// to run in FIPS mode.
 	FIPS bool
 	// Logger provides a mechanism to log output.
-	Logger logrus.FieldLogger
+	Logger *slog.Logger
 	// Dialer is used to establish remote connections.
 	Dialer Dialer
 	// SignerFn is used to create an [ssh.Signer] for an authenticated connection.
-	SignerFn func(authzCtx *authz.Context, clusterName string) agentless.SignerCreator
+	SignerFn func(ctx context.Context, authzCtx *authz.ScopedContext, clusterName string) (agentless.SignerCreator, error)
 	// ConnectionMonitor is used to monitor the connection for activity and terminate it
 	// when conditions are met.
 	ConnectionMonitor ConnectionMonitor
@@ -75,10 +77,10 @@ type ServerConfig struct {
 	LocalAddr net.Addr
 
 	// agentGetterFn used by tests to serve the agent directly
-	agentGetterFn func(rw io.ReadWriter) teleagent.Getter
+	agentGetterFn func(rw io.ReadWriter) sshagent.ClientGetter
 
 	// authzContextFn used by tests to inject an access checker
-	authzContextFn func(info credentials.AuthInfo) (*authz.Context, error)
+	authzContextFn func(info credentials.AuthInfo) (*authz.ScopedContext, error)
 }
 
 // CheckAndSetDefaults ensures required parameters are set
@@ -93,25 +95,30 @@ func (c *ServerConfig) CheckAndSetDefaults() error {
 	}
 
 	if c.Logger == nil {
-		c.Logger = utils.NewLogger().WithField(teleport.ComponentKey, "transport")
+		c.Logger = slog.With(teleport.ComponentKey, "transport")
 	}
 
 	if c.agentGetterFn == nil {
-		c.agentGetterFn = func(rw io.ReadWriter) teleagent.Getter {
-			return func() (teleagent.Agent, error) {
-				return teleagent.NopCloser(agent.NewClient(rw)), nil
-			}
+		c.agentGetterFn = func(rw io.ReadWriter) sshagent.ClientGetter {
+			return sshagent.NewStaticClientGetter(agent.NewClient(rw))
 		}
 	}
 
 	if c.authzContextFn == nil {
-		c.authzContextFn = func(info credentials.AuthInfo) (*authz.Context, error) {
-			identityInfo, ok := info.(auth.IdentityInfo)
+		c.authzContextFn = func(info credentials.AuthInfo) (*authz.ScopedContext, error) {
+			identityInfo, ok := info.(interface {
+				ScopedAuthzContext() (ctx *authz.ScopedContext, ok bool)
+			})
 			if !ok {
 				return nil, trace.AccessDenied("client is not authenticated")
 			}
 
-			return identityInfo.AuthContext, nil
+			ctx, ok := identityInfo.ScopedAuthzContext()
+			if !ok {
+				return nil, trace.AccessDenied("missing required authz context")
+			}
+
+			return ctx, nil
 		}
 	}
 
@@ -137,7 +144,7 @@ func NewService(cfg ServerConfig) (*Service, error) {
 
 // GetClusterDetails returns the cluster details as seen by this service to the client.
 func (s *Service) GetClusterDetails(context.Context, *transportv1pb.GetClusterDetailsRequest) (*transportv1pb.GetClusterDetailsResponse, error) {
-	return &transportv1pb.GetClusterDetailsResponse{Details: &transportv1pb.ClusterDetails{FipsEnabled: s.cfg.FIPS}}, nil
+	return transportv1pb.GetClusterDetailsResponse_builder{Details: transportv1pb.ClusterDetails_builder{FipsEnabled: s.cfg.FIPS}.Build()}.Build(), nil
 }
 
 // ProxyCluster establishes a connection to a cluster and proxies the connection
@@ -160,16 +167,16 @@ func (s *Service) ProxyCluster(stream transportv1pb.TransportService_ProxyCluste
 		return trace.Wrap(err, "could get not client destination address; listener address %q, client source address %q", s.cfg.LocalAddr.String(), p.Addr.String())
 	}
 
-	conn, err := s.cfg.Dialer.DialSite(ctx, req.Cluster, p.Addr, clientDst)
+	conn, err := s.cfg.Dialer.DialSite(ctx, req.GetCluster(), p.Addr, clientDst)
 	if err != nil {
-		return trace.Wrap(err, "failed dialing cluster %q", req.Cluster)
+		return trace.Wrap(err, "failed dialing cluster %q", req.GetCluster())
 	}
 
 	// A client may provide a frame with the first message. Since the message is
 	// already consumed it won't be copying during the proxying below. In order for
 	// the contents to be copied to the connection it needs to be manually written.
-	if req.Frame != nil {
-		if _, err := conn.Write(req.Frame.Payload); err != nil {
+	if req.HasFrame() {
+		if _, err := conn.Write(req.GetFrame().GetPayload()); err != nil {
 			return trace.Wrap(err, "failed writing payload from first frame")
 		}
 	}
@@ -194,15 +201,15 @@ func (c clusterStream) Recv() ([]byte, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	if req.Frame == nil {
+	if !req.HasFrame() {
 		return nil, trace.BadParameter("received invalid frame")
 	}
 
-	return req.Frame.Payload, nil
+	return req.GetFrame().GetPayload(), nil
 }
 
 func (c clusterStream) Send(frame []byte) error {
-	return trace.Wrap(c.stream.Send(&transportv1pb.ProxyClusterResponse{Frame: &transportv1pb.Frame{Payload: frame}}))
+	return trace.Wrap(c.stream.Send(transportv1pb.ProxyClusterResponse_builder{Frame: transportv1pb.Frame_builder{Payload: frame}.Build()}.Build()))
 }
 
 // ProxySSH establishes a connection to a host and proxies both the SSH and SSH
@@ -228,11 +235,11 @@ func (s *Service) ProxySSH(stream transportv1pb.TransportService_ProxySSHServer)
 	}
 
 	// validate the target
-	if req.DialTarget == nil {
+	if !req.HasDialTarget() {
 		return trace.BadParameter("first frame must contain a dial target")
 	}
 
-	host, port, err := net.SplitHostPort(req.DialTarget.HostPort)
+	host, port, err := net.SplitHostPort(req.GetDialTarget().GetHostPort())
 	if err != nil {
 		return trace.BadParameter("dial target contains an invalid hostport")
 	}
@@ -247,7 +254,7 @@ func (s *Service) ProxySSH(stream transportv1pb.TransportService_ProxySSHServer)
 			req, err := stream.Recv()
 			if err != nil {
 				if !utils.IsOKNetworkError(err) && !errors.Is(err, context.Canceled) && status.Code(err) != codes.Canceled {
-					s.cfg.Logger.Errorf("ssh stream terminated unexpectedly: %v", err)
+					s.cfg.Logger.ErrorContext(ctx, "ssh stream terminated unexpectedly", "error", err)
 				}
 
 				return
@@ -256,13 +263,13 @@ func (s *Service) ProxySSH(stream transportv1pb.TransportService_ProxySSHServer)
 			// The writes to the channels are intentionally not selecting
 			// on `ctx.Done()` to ensure that all data is flushed to the
 			// clients.
-			switch frame := req.Frame.(type) {
-			case *transportv1pb.ProxySSHRequest_Ssh:
-				sshStream.incomingC <- frame.Ssh.Payload
-			case *transportv1pb.ProxySSHRequest_Agent:
-				agentStream.incomingC <- frame.Agent.Payload
+			switch req.WhichFrame() {
+			case transportv1pb.ProxySSHRequest_Ssh_case:
+				sshStream.incomingC <- req.GetSsh().GetPayload()
+			case transportv1pb.ProxySSHRequest_Agent_case:
+				agentStream.incomingC <- req.GetAgent().GetPayload()
 			default:
-				s.cfg.Logger.Errorf("received unexpected ssh frame: %T", frame)
+				s.cfg.Logger.ErrorContext(ctx, "received unexpected ssh frame", "frame", logutils.TypeAttr(req))
 				continue
 			}
 		}
@@ -271,25 +278,46 @@ func (s *Service) ProxySSH(stream transportv1pb.TransportService_ProxySSHServer)
 	// create a reader/writer for SSH Agent protocol
 	agentStreamRW, err := streamutils.NewReadWriter(agentStream)
 	if err != nil {
-		return trace.Wrap(err, "failed constructing ssh agent streamer")
+		return trace.Wrap(err, "creating ssh agent stream")
 	}
 	defer agentStreamRW.Close()
 
 	// create a reader/writer for SSH protocol
 	sshStreamRW, err := streamutils.NewReadWriter(sshStream)
 	if err != nil {
-		return trace.Wrap(err, "failed constructing ssh streamer")
+		return trace.Wrap(err, "creating ssh stream")
 	}
 
 	clientDst, err := getDestinationAddress(p.Addr, s.cfg.LocalAddr)
 	if err != nil {
-		return trace.Wrap(err, "could get not client destination address; listener address %q, client source address %q", s.cfg.LocalAddr.String(), p.Addr.String())
+		return trace.Wrap(err, "retrieving destination address; listener address %q, client source address %q", s.cfg.LocalAddr.String(), p.Addr.String())
 	}
 
-	signer := s.cfg.SignerFn(authzContext, req.DialTarget.Cluster)
-	hostConn, err := s.cfg.Dialer.DialHost(ctx, p.Addr, clientDst, host, port, req.DialTarget.Cluster, authzContext.Checker, s.cfg.agentGetterFn(agentStreamRW), signer)
+	signer, err := s.cfg.SignerFn(ctx, authzContext, req.GetDialTarget().GetCluster())
 	if err != nil {
-		return trace.Wrap(err, "failed to dial target host")
+		return trace.Wrap(err, "setting up SSH credentials for cluster %q", req.GetDialTarget().GetCluster())
+	}
+
+	checkAccessToRemoteCluster := func(types.RemoteCluster) error {
+		return trace.AccessDenied("scoped identities do not support cross-cluster access")
+	}
+
+	if unscopedCtx, ok := authzContext.UnscopedContext(); ok {
+		checkAccessToRemoteCluster = unscopedCtx.Checker.CheckAccessToRemoteCluster
+	}
+
+	var scopePin *scopesv1.Pin
+	if pin, ok := authzContext.CheckerContext.ScopePin(); ok {
+		scopePin = pin
+	}
+
+	hostConn, err := s.cfg.Dialer.DialHost(ctx, scopePin, p.Addr, clientDst, host, port, req.GetDialTarget().GetCluster(), checkAccessToRemoteCluster, s.cfg.agentGetterFn(agentStreamRW), signer)
+	if err != nil {
+		// Return ambiguous errors unadorned so that clients can detect them easily.
+		if errors.Is(err, teleport.ErrNodeIsAmbiguous) {
+			return trace.Wrap(err)
+		}
+		return trace.Wrap(err)
 	}
 
 	// ensure the connection to the target host
@@ -298,23 +326,31 @@ func (s *Service) ProxySSH(stream transportv1pb.TransportService_ProxySSHServer)
 		hostConn.Close()
 	}()
 
-	targetAddr, err := utils.ParseAddr(req.DialTarget.HostPort)
+	targetAddr, err := utils.ParseAddr(req.GetDialTarget().GetHostPort())
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	// monitor the user connection
 	conn := streamutils.NewConn(sshStreamRW, p.Addr, targetAddr)
-	monitorCtx, userConn, err := s.cfg.ConnectionMonitor.MonitorConn(ctx, authzContext, conn)
-	if err != nil {
-		return trace.Wrap(err)
+	var monitorCtx context.Context
+	var userConn net.Conn
+	if unscopedCtx, ok := authzContext.UnscopedContext(); ok {
+		monitorCtx, userConn, err = s.cfg.ConnectionMonitor.MonitorConn(ctx, unscopedCtx, conn)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	} else {
+		// TODO(fspmarshall/scopes): implement connection monitoring for scoped identities
+		userConn = conn
+		monitorCtx = ctx
 	}
 
 	// send back the cluster details to alert the other side that
 	// the connection has been established
-	if err := stream.Send(&transportv1pb.ProxySSHResponse{
-		Details: &transportv1pb.ClusterDetails{FipsEnabled: s.cfg.FIPS},
-	}); err != nil {
+	if err := stream.Send(transportv1pb.ProxySSHResponse_builder{
+		Details: transportv1pb.ClusterDetails_builder{FipsEnabled: s.cfg.FIPS}.Build(),
+	}.Build()); err != nil {
 		return trace.Wrap(err, "failed sending cluster details ")
 	}
 
@@ -376,7 +412,7 @@ func newSSHStreams(stream transportv1pb.TransportService_ProxySSHServer) (ssh *s
 		incomingC: make(chan []byte, 10),
 		stream:    stream,
 		responseFn: func(payload []byte) *transportv1pb.ProxySSHResponse {
-			return &transportv1pb.ProxySSHResponse{Frame: &transportv1pb.ProxySSHResponse_Ssh{Ssh: &transportv1pb.Frame{Payload: payload}}}
+			return transportv1pb.ProxySSHResponse_builder{Ssh: transportv1pb.Frame_builder{Payload: payload}.Build()}.Build()
 		},
 		wLock: mu,
 	}
@@ -385,7 +421,7 @@ func newSSHStreams(stream transportv1pb.TransportService_ProxySSHServer) (ssh *s
 		incomingC: make(chan []byte, 10),
 		stream:    stream,
 		responseFn: func(payload []byte) *transportv1pb.ProxySSHResponse {
-			return &transportv1pb.ProxySSHResponse{Frame: &transportv1pb.ProxySSHResponse_Agent{Agent: &transportv1pb.Frame{Payload: payload}}}
+			return transportv1pb.ProxySSHResponse_builder{Agent: transportv1pb.Frame_builder{Payload: payload}.Build()}.Build()
 		},
 		wLock: mu,
 	}
@@ -410,4 +446,87 @@ func (s *sshStream) Send(frame []byte) error {
 	defer s.wLock.Unlock()
 
 	return trace.Wrap(s.stream.Send(s.responseFn(frame)))
+}
+
+// ProxyWindowsDesktopSession establishes a connection to a desktop service and proxies raw messages over the stream.
+// The first request from the client must contain a valid dial target
+// before the connection can be established.
+func (s *Service) ProxyWindowsDesktopSession(stream transportv1pb.TransportService_ProxyWindowsDesktopSessionServer) (err error) {
+	ctx := stream.Context()
+
+	p, ok := peer.FromContext(ctx)
+	if !ok {
+		return trace.BadParameter("failed to find peer")
+	}
+
+	scopedAuthzContext, err := s.cfg.authzContextFn(p.AuthInfo)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	authzContext, ok := scopedAuthzContext.UnscopedContext()
+	if !ok {
+		return trace.AccessDenied("scoped identities are not supported for windows desktop connections")
+	}
+
+	// Wait for the first request to arrive with the dial request.
+	req, err := stream.Recv()
+	if err != nil {
+		return trace.Wrap(err, "failed receiving first message")
+	}
+
+	desktopName := req.GetDialTarget().GetDesktopName()
+	cluster := req.GetDialTarget().GetCluster()
+
+	// Validate the target.
+	if desktopName == "" || cluster == "" {
+		return trace.BadParameter("first message must contain a dial target")
+	}
+	if req.GetData() != nil {
+		return trace.BadParameter("first message must not contain data")
+	}
+
+	clientDst, err := getDestinationAddress(p.Addr, s.cfg.LocalAddr)
+	if err != nil {
+		return trace.Wrap(err, "could get not client destination address; listener address %q, client source address %q", s.cfg.LocalAddr.String(), p.Addr.String())
+	}
+
+	serviceConn, err := s.cfg.Dialer.DialWindowsDesktop(ctx, p.Addr, clientDst, desktopName, cluster, authzContext.Checker.CheckAccessToRemoteCluster)
+	if err != nil {
+		return trace.Wrap(err, "failed to dial target desktop")
+	}
+
+	clientConn, err := streamutils.NewReadWriter(windowsDesktopStream{stream})
+	if err != nil {
+		return trace.Wrap(err, "failed constructing desktop streamer")
+	}
+
+	return trace.Wrap(utils.ProxyConn(ctx, clientConn, serviceConn))
+}
+
+type windowsDesktopStream struct {
+	stream transportv1pb.TransportService_ProxyWindowsDesktopSessionServer
+}
+
+func (s windowsDesktopStream) Send(p []byte) error {
+	return trace.Wrap(s.stream.Send(transportv1pb.ProxyWindowsDesktopSessionResponse_builder{Data: p}.Build()))
+}
+
+func (s windowsDesktopStream) Recv() ([]byte, error) {
+	message, err := s.stream.Recv()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Dial target must be empty in subsequent messages.
+	if message.GetDialTarget().GetDesktopName() != "" || message.GetDialTarget().GetCluster() != "" {
+		return nil, trace.BadParameter("received invalid message")
+	}
+
+	data := message.GetData()
+	if data == nil {
+		return nil, trace.BadParameter("received invalid message")
+	}
+
+	return data, nil
 }

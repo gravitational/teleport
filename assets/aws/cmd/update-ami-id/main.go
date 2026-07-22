@@ -20,6 +20,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -119,8 +120,12 @@ func main() {
 
 		readme := filepath.Join(tfDir, tfMode, "README.md")
 		b, err := os.ReadFile(readme)
+		if errors.Is(err, os.ErrNotExist) {
+			log.Printf("terraform example directory has no README.md. Skipping: %v", err)
+			continue
+		}
 		if err != nil {
-			log.Fatalf("could not find README.md for terraform mode %q: %v", tfMode, err)
+			log.Fatalf("could not open README.md for terraform example %q: %v", tfMode, err)
 		}
 
 		replaced := re.ReplaceAll(b, []byte(fmt.Sprintf("teleport-%s-%s", *amiType, *version)))

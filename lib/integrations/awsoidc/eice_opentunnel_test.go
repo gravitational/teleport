@@ -211,7 +211,7 @@ func TestOpenTunnelEC2(t *testing.T) {
 		},
 	}
 
-	resp, err := OpenTunnelEC2(ctx, m, OpenTunnelEC2Request{
+	resp, err := openTunnelEC2(ctx, m, OpenTunnelEC2Request{
 		Region:            "us-east-1",
 		VPCID:             "vpc-123",
 		EC2Address:        ec2Listener.Addr().String(),

@@ -1,0 +1,258 @@
+---
+title: Using the AWS CLI tools with Teleport and AWS IAM Identity Center
+sidebar_label: AWS CLI Access
+description: Explains how to use the AWS IAM Identity Center integration to protect AWS CLI tools with Teleport.
+tags:
+ - how-to
+ - identity-governance
+ - privileged-access
+ - aws
+enterprise: Identity Governance
+---
+
+This guide will show you how to configure the `aws` command-line tool to use
+access granted via Teleport and AWS Identity Center.
+
+## How it works
+
+For a deep dive into how Teleport manages AWS Identity Center access works you can
+read the main [AWS IAM Identity Center guide](./aws-iam-identity-center.mdx). For the 
+purposes of this guide, it's enough to understand that Teleport manages the creation
+and deletion of AWS Account Assignments based on a user's Account Assignment grants,
+either from their standing Teleport Roles, Access List membership or approved
+Access Requests. 
+
+You can access these Teleport-managed Accounts and Permission Set assignments
+with the AWS CLI tools by using `sso` login and AWS profiles.
+
+## Prerequisites
+
+Before you begin, you will need:
+
+ * A Teleport-managed AWS Identity Center organization. See our [getting started guide](./guide.mdx)
+   for setting up an Identity Center integration.
+ * The AWS CLI tools, installed as per the AWS [installation guide](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html)
+ * The SSO Start URL and AWS Region for your Identity Center organization. Ask your AWS administrator for the appropriate values.
+
+## Configuration
+
+Choose one of the following setup flows. The `tsh` flow is the recommended
+option.
+
+<Tabs>
+<TabItem label="tsh">
+The `tsh aws-profile` command automatically generates native AWS SSO profiles in
+`~/.aws/config` from your AWS Identity Center integration data.
+It preserves existing non-Teleport entries, updates Teleport-managed AWS Identity Center 
+sections, and removes stale Teleport-managed profiles and SSO sessions that are no longer available from the cluster you are currently logged into.
+
+<Admonition type="tip">
+  Use `tsh aws-profile --dry-run` to preview the changes before they are
+  written to your AWS config file.
+</Admonition>
+
+1. Run the following command to generate the profiles:
+
+  ```shell
+  $ tsh aws-profile
+  AWS configuration updated at: /Users/alice/.aws/config
+
+  Profile                    Account Account ID   Role   SSO Session
+  -------------------------- ------- ------------ ------ ----------------
+  teleport-awsic-dev-admin   dev     123456789012 Admin  teleport-d-12345
+  teleport-awsic-prod-reader prod    098765432109 Reader teleport-d-12345
+  ```
+
+2. Select a profile and export it to the `AWS_PROFILE` environment variable. For example:
+
+  ```shell
+  $ export AWS_PROFILE=teleport-awsic-prod-reader
+  ```
+
+3. Authenticate with AWS SSO:
+
+  ```shell
+  $ aws sso login
+  ```
+
+  This opens a browser window to complete the authentication process via Teleport.
+
+4. Switch to another profile by exporting a different `AWS_PROFILE` value:
+
+  ```shell
+  $ export AWS_PROFILE=teleport-awsic-dev-admin
+  ```
+
+  If the profiles use the same SSO session, you do not need to run `aws sso login`
+  again.
+</TabItem>
+<TabItem label="Wizard">
+Use the AWS CLI wizards if you prefer guided setup.
+
+1. Create an SSO session by running the following command and answering the prompts.
+  For this example we use `my-identity-center` as the SSO session name.
+
+  ```shell
+  $ aws configure sso-session
+  SSO session name: my-identity-center
+  SSO start URL [None]: https://d-12234567890.awsapps.com/start
+  SSO region [None]: us-east-1
+  SSO registration scopes [sso:account:access]:
+  ```
+
+2. Log in to AWS via SSO:
+
+  ```shell
+  $ aws sso login --sso-session my-identity-center
+  ```
+
+  This launches a browser-based flow that logs you into AWS via Teleport.
+
+3. Create a profile that uses the SSO session by running:
+
+  <Admonition type="tip">
+  You can create as many profiles as you like, so repeat this step for as many AWS
+  Account / Permission Set pairs that you need.
+  </Admonition>
+
+  ```shell
+  $ aws configure sso
+  ```
+
+  The wizard asks several questions about the profile to create, but for our
+  purposes, selecting the AWS account and role are the important steps.
+
+  First, select the AWS account this profile will use. The wizard offers a list
+  of available AWS accounts based on your current Account Assignments. If you
+  are only permitted to use a single AWS account, the wizard automatically
+  picks that and skips the question.
+
+  ```shell
+  There are 2 AWS accounts available to you.
+  > Staging, my.login@example.com (058264527036)
+    Production, my.login@example.com (637423191929)
+  ```
+
+  Next, select the AWS role to assume when this profile is active. Identity
+  Center Permission Sets are provisioned onto AWS accounts as roles, so select
+  the role with the same name as the Permission Set you want to use.
+
+  ```shell
+  There are 3 roles available to you.
+    SecurityAudit
+  > AdministratorAccess
+    PowerUserAccess
+  ```
+
+  If only one option is available, the wizard automatically selects it and
+  skips the question.
+
+  After several generic AWS profile questions, the wizard asks for the profile
+  name. For this example, given that the profile will use the
+  `AdministratorAccess` role on the `Staging` account, we call it
+  `admin-on-staging`.
+</TabItem>
+<TabItem label="Manual">
+Configure the SSO session and profile directly in `~/.aws/config` if you need
+full manual control.
+
+1. Add the SSO session configuration:
+
+  ```ini
+  [sso-session my-identity-center]
+  sso_start_url = https://d-12234567890.awsapps.com/start
+  sso_region = us-east-1
+  sso_registration_scopes = sso:account:access
+  ```
+
+2. Log in to AWS via SSO:
+
+  ```shell
+  $ aws sso login --sso-session my-identity-center
+  ```
+
+  This launches a browser-based flow that logs you into AWS via Teleport.
+
+3. Add a profile that references the SSO session. For example, the
+  `admin-on-staging` profile looks like this:
+
+  <Admonition type="tip">
+  You can create as many profiles as you like, so repeat this step for as many AWS
+  Account / Permission Set pairs that you need.
+  </Admonition>
+
+  ```ini
+  [profile admin-on-staging]
+  sso_session = my-identity-center
+  sso_account_id = 058264527036
+  sso_role_name = AdministratorAccess
+  region = us-east-1
+  ```
+</TabItem>
+</Tabs>
+
+### Testing the profile
+
+After completing one of the configuration flows above, test the profile by
+running `aws sts get-caller-identity` and verifying the returned user ID and
+assumed role.
+
+If you have already exported `AWS_PROFILE`, run:
+
+```shell
+$ aws sts get-caller-identity
+```
+
+Or pass the profile explicitly. For example:
+
+```shell
+$ aws sts get-caller-identity --profile admin-on-staging
+{
+    "UserId": "AROA123456789AEXAMPLE:my.login@example.com",
+    "Account": "058264527036",
+    "Arn": "arn:aws:sts::058264527036:assumed-role/AWSReservedSSO_AdministratorAccess_69450ffeac834ef7/my.login@example.com"
+}
+```
+
+Once you have validated that the profile is configured correctly, you can use the
+`--profile` argument in any `aws` subcommand select it and use the corresponding
+Identity Center Account assignment in that operation.
+
+<Admonition type="info">
+You can also use this profile with other tools that support the standard AWS client
+environment variables. Set the profile by setting the `AWS_PROFILE` environment
+variable. For example:
+
+
+```shell
+$ AWS_PROFILE=admin-on-staging ./some-aws-tool
+```
+</Admonition>
+
+## Troubleshooting 
+
+### "Invalid Callback" error
+
+If AWS presents you with an "invalid Callback URL" error message, the most likely 
+problem is an incorrect AWS region in your `sso-session` configuration. 
+
+### "Error loading SSO Token" error
+
+The AWS cache directory has probably been deleted. Log in again with `aws sso login --sso-session ${SSO_SESSION_NAME}`, 
+where `${SSO_SESSION_NAME}` is the name of your configured SSO session.
+
+## Next Steps
+
+- Learn how to request [Just-in-Time access to an Account Assignment](./guide.mdx#just-in-time-access-with-resource-access-requests).
+- Take a deeper dive into fundamental Teleport concepts used in Identity Center
+  integration such as [RBAC](../../../zero-trust-access/authentication/authentication.mdx),
+  [JIT Access Requests](../../access-requests/access-requests.mdx), and
+  [Access Lists](../../access-lists/access-lists.mdx).
+- Learn how Teleport uses RBAC, JIT Access Requests and Access Lists to manage AWS
+  Identity Center Account Assignments in the [AWS IAM Identity Center guide](./aws-iam-identity-center.mdx)
+
+## Further reading
+
+For a broader introduction to using the AWS CLI with IAM Identity Center, see the
+AWS [Configuring IAM Identity Center authentication with the AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-sso.html#cli-configure-sso-configure)
+guide.

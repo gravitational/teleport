@@ -21,17 +21,16 @@ package e2e
 import (
 	"context"
 	"fmt"
-	"sync"
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/config"
+	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/redshift"
-	"github.com/jackc/pgx/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/cloud/aws/config"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -71,10 +70,10 @@ func testRedshiftCluster(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	t.Cleanup(cancel)
 
-	autoUserKeep := "auto_keep_" + randASCII(t, 6)
-	autoUserDrop := "auto_drop_" + randASCII(t, 6)
-	autoRole1 := "auto_role1_" + randASCII(t, 6)
-	autoRole2 := "auto_role2_" + randASCII(t, 6)
+	autoUserKeep := "auto_keep_" + randASCII(t)
+	autoUserDrop := "auto_drop_" + randASCII(t)
+	autoRole1 := "auto_role1_" + randASCII(t)
+	autoRole2 := "auto_role2_" + randASCII(t)
 	opts := []testOptionsFunc{
 		withUserRole(t, autoUserKeep, "db-auto-user-keeper", makeAutoUserKeepRoleSpec(autoRole1, autoRole2)),
 		withUserRole(t, autoUserDrop, "db-auto-user-dropper", makeAutoUserDropRoleSpec(autoRole1, autoRole2)),
@@ -95,8 +94,8 @@ func testRedshiftCluster(t *testing.T) {
 	// schema in its search_path to prevent tests from interfering with
 	// eachother.
 	labels := db.GetStaticLabels()
-	labels[types.DatabaseAdminLabel] = "test_admin_" + randASCII(t, 6)
-	cluster.Process.GetAuthServer().UpdateDatabase(ctx, db)
+	labels[types.DatabaseAdminLabel] = "test_admin_" + randASCII(t)
+	err = cluster.Process.GetAuthServer().UpdateDatabase(ctx, db)
 	require.NoError(t, err)
 	adminUser := mustGetDBAdmin(t, db)
 
@@ -105,7 +104,7 @@ func testRedshiftCluster(t *testing.T) {
 
 	// create a new schema with tables that can only be accessed if the
 	// auto roles are granted by Teleport automatically.
-	testSchema := "test_" + randASCII(t, 8)
+	testSchema := "test_" + randASCII(t)
 	_, err = conn.Exec(ctx, fmt.Sprintf("CREATE SCHEMA %q", testSchema))
 	require.NoError(t, err)
 	// now the admin will install its procedures in the test schema.
@@ -127,7 +126,9 @@ func testRedshiftCluster(t *testing.T) {
 			fmt.Sprintf("DROP USER IF EXISTS %q", adminUser.Name),
 		} {
 			_, err := conn.Exec(ctx, stmt)
-			assert.NoError(t, err, "test cleanup failed, stmt=%q", stmt)
+			if err != nil {
+				t.Logf("test cleanup failed, stmt=%q, err=%v", stmt, err)
+			}
 		}
 	})
 	testTable := "ctf" // capture the flag :)
@@ -148,7 +149,6 @@ func testRedshiftCluster(t *testing.T) {
 	require.NoError(t, err)
 	autoRolesQuery := fmt.Sprintf("select 1 from %q.%q", testSchema, testTable)
 
-	var pgxConnMu sync.Mutex
 	for name, test := range map[string]struct {
 		user            string
 		dbUser          string
@@ -171,8 +171,6 @@ func testRedshiftCluster(t *testing.T) {
 			dbUser: autoUserKeep,
 			query:  autoRolesQuery,
 			afterConnTestFn: func(t *testing.T) {
-				pgxConnMu.Lock()
-				defer pgxConnMu.Unlock()
 				waitForRedshiftAutoUserDeactivate(t, ctx, conn, autoUserKeep)
 			},
 		},
@@ -181,13 +179,10 @@ func testRedshiftCluster(t *testing.T) {
 			dbUser: autoUserDrop,
 			query:  autoRolesQuery,
 			afterConnTestFn: func(t *testing.T) {
-				pgxConnMu.Lock()
-				defer pgxConnMu.Unlock()
 				waitForRedshiftAutoUserDrop(t, ctx, conn, autoUserDrop)
 			},
 		},
 	} {
-		test := test
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			t.Run("connect", func(t *testing.T) {
@@ -198,11 +193,9 @@ func testRedshiftCluster(t *testing.T) {
 					Database:    "dev",
 				}
 				t.Run("via proxy", func(t *testing.T) {
-					t.Parallel()
 					postgresConnTest(t, cluster, test.user, route, test.query)
 				})
 				t.Run("via local proxy", func(t *testing.T) {
-					t.Parallel()
 					postgresLocalProxyConnTest(t, cluster, test.user, route, test.query)
 				})
 			})
@@ -213,7 +206,7 @@ func testRedshiftCluster(t *testing.T) {
 	}
 }
 
-func connectAsRedshiftClusterAdmin(t *testing.T, ctx context.Context, clusterID string) *pgx.Conn {
+func connectAsRedshiftClusterAdmin(t *testing.T, ctx context.Context, clusterID string) *pgConn {
 	t.Helper()
 	info := getRedshiftAdminInfo(t, ctx, clusterID)
 	const dbName = "dev"
@@ -223,7 +216,7 @@ func connectAsRedshiftClusterAdmin(t *testing.T, ctx context.Context, clusterID 
 func getRedshiftAdminInfo(t *testing.T, ctx context.Context, clusterID string) dbUserLogin {
 	t.Helper()
 	cfg, err := config.LoadDefaultConfig(ctx,
-		config.WithRegion(mustGetEnv(t, awsRegionEnv)),
+		awsconfig.WithRegion(mustGetEnv(t, awsRegionEnv)),
 	)
 	require.NoError(t, err)
 	clt := redshift.NewFromConfig(cfg)
@@ -247,7 +240,7 @@ func getRedshiftAdminInfo(t *testing.T, ctx context.Context, clusterID string) d
 
 // provisionRedshiftAutoUsersAdmin provisions an admin user suitable for auto-user
 // provisioning.
-func provisionRedshiftAutoUsersAdmin(t *testing.T, ctx context.Context, conn *pgx.Conn, adminUser string) {
+func provisionRedshiftAutoUsersAdmin(t *testing.T, ctx context.Context, conn *pgConn, adminUser string) {
 	t.Helper()
 	// Don't cleanup the db admin after, because test runs would interfere
 	// with each other.
@@ -261,60 +254,30 @@ func provisionRedshiftAutoUsersAdmin(t *testing.T, ctx context.Context, conn *pg
 	}
 }
 
-func waitForRedshiftAutoUserDeactivate(t *testing.T, ctx context.Context, conn *pgx.Conn, user string) {
+func waitForRedshiftAutoUserDeactivate(t *testing.T, ctx context.Context, conn *pgConn, user string) {
 	t.Helper()
-	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		// `Query` documents that it is always safe to attempt to read from the
-		// returned rows even if an error is returned.
-		// It also documents that the same error will be in rows.Err() and
-		// rows.Err() will also contain any error from executing the query after
-		// closing rows. Hence, we do not check the error until after reading
-		// and closing rows.
-		rows, _ := conn.Query(ctx, "SELECT 1 FROM pg_user_info as a WHERE a.usename = $1", user)
-		gotRow := rows.Next()
-		rows.Close()
-		if !assert.NoError(c, rows.Err()) {
-			return
-		}
-		if !assert.True(c, gotRow, "user %q should not have been dropped after disconnecting", user) {
-			return
-		}
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		values := conn.mustQuery(t, ctx, "SELECT a.usename FROM pg_user_info as a WHERE a.usename = $1", user)
+		require.NotEmpty(t, values, "user %q should not have been dropped after disconnecting", user)
 
-		rows, _ = conn.Query(ctx, "SELECT 1 FROM pg_user_info WHERE usename = $1 AND useconnlimit != 0", user)
-		gotRow = rows.Next()
-		rows.Close()
-		if !assert.NoError(c, rows.Err()) {
-			return
-		}
-		if !assert.False(c, gotRow, "user %q should not be able to login after deactivating", user) {
-			return
-		}
+		values = conn.mustQuery(t, ctx, "SELECT usename, useconnlimit FROM pg_user_info WHERE usename = $1 AND useconnlimit != 0", user)
+		require.Empty(t, values, "user %q should not be able to login after deactivating", user)
 
-		rows, _ = conn.Query(ctx, "SELECT 1 FROM svv_user_grants as a WHERE a.user_name = $1 AND a.role_name != 'teleport-auto-user'", user)
-		gotRow = rows.Next()
-		rows.Close()
-		if !assert.NoError(c, rows.Err()) {
-			return
-		}
-		assert.False(c, gotRow, "user %q should have lost all additional roles after deactivating", user)
+		values = conn.mustQuery(t, ctx, "SELECT a.user_name, a.role_name FROM svv_user_grants as a WHERE a.user_name = $1 AND a.role_name != 'teleport-auto-user'", user)
+		require.Empty(t, values, "user %q should have lost all additional roles after deactivating", user)
 	}, autoUserWaitDur, autoUserWaitStep, "waiting for auto user %q to be deactivated", user)
 }
 
-func waitForRedshiftAutoUserDrop(t *testing.T, ctx context.Context, conn *pgx.Conn, user string) {
+func waitForRedshiftAutoUserDrop(t *testing.T, ctx context.Context, conn *pgConn, user string) {
 	t.Helper()
-	require.EventuallyWithT(t, func(c *assert.CollectT) {
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		// `Query` documents that it is always safe to attempt to read from the
 		// returned rows even if an error is returned.
 		// It also documents that the same error will be in rows.Err() and
 		// rows.Err() will also contain any error from executing the query after
 		// closing rows. Hence, we do not check the error until after reading
 		// and closing rows.
-		rows, _ := conn.Query(ctx, "SELECT 1 FROM pg_user_info WHERE usename=$1", user)
-		gotRow := rows.Next()
-		rows.Close()
-		if !assert.NoError(c, rows.Err()) {
-			return
-		}
-		assert.False(c, gotRow, "user %q should have been dropped automatically after disconnecting", user)
+		rows := conn.mustQuery(t, ctx, "SELECT usename FROM pg_user_info WHERE usename=$1", user)
+		require.Empty(t, rows, "user %q should have been dropped automatically after disconnecting", user)
 	}, autoUserWaitDur, autoUserWaitStep, "waiting for auto user %q to be dropped", user)
 }

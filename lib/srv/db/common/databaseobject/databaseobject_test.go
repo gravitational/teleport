@@ -1,16 +1,20 @@
-// Copyright 2024 Gravitational, Inc.
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2024  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package databaseobject
 
@@ -35,31 +39,31 @@ func TestNewDatabaseObject(t *testing.T) {
 	}{
 		{
 			name: "valid object",
-			spec: &dbobjectv1.DatabaseObjectSpec{
+			spec: dbobjectv1.DatabaseObjectSpec_builder{
 				Protocol:            "postgres",
 				DatabaseServiceName: "test",
 				ObjectKind:          types.KindDatabaseObject,
 				Database:            "test",
 				Schema:              "test",
 				Name:                "test",
-			},
+			}.Build(),
 			expectedError: nil,
-			expectedObj: &dbobjectv1.DatabaseObject{
+			expectedObj: dbobjectv1.DatabaseObject_builder{
 				Kind:    types.KindDatabaseObject,
 				Version: types.V1,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name:      "valid object",
 					Namespace: defaults.Namespace,
-				},
-				Spec: &dbobjectv1.DatabaseObjectSpec{
+				}.Build(),
+				Spec: dbobjectv1.DatabaseObjectSpec_builder{
 					Protocol:            "postgres",
 					DatabaseServiceName: "test",
 					ObjectKind:          types.KindDatabaseObject,
 					Database:            "test",
 					Schema:              "test",
 					Name:                "test",
-				},
-			},
+				}.Build(),
+			}.Build(),
 		},
 		{
 			name:          "missing name",
@@ -85,11 +89,11 @@ func TestValidateDatabaseObject(t *testing.T) {
 	}{
 		{
 			name: "valid object",
-			databaseObject: &dbobjectv1.DatabaseObject{
+			databaseObject: dbobjectv1.DatabaseObject_builder{
 				Kind:     types.KindDatabaseObject,
-				Metadata: &headerv1.Metadata{Name: "test", Namespace: defaults.Namespace},
-				Spec:     &dbobjectv1.DatabaseObjectSpec{Name: "test", Protocol: "test"},
-			},
+				Metadata: headerv1.Metadata_builder{Name: "test", Namespace: defaults.Namespace}.Build(),
+				Spec:     dbobjectv1.DatabaseObjectSpec_builder{Name: "test", Protocol: "test"}.Build(),
+			}.Build(),
 			expectedError: nil,
 		},
 		{
@@ -99,42 +103,42 @@ func TestValidateDatabaseObject(t *testing.T) {
 		},
 		{
 			name:           "nil metadata",
-			databaseObject: &dbobjectv1.DatabaseObject{Metadata: nil},
+			databaseObject: dbobjectv1.DatabaseObject_builder{Metadata: nil}.Build(),
 			expectedError:  trace.BadParameter("metadata: must be non-nil"),
 		},
 		{
 			name: "invalid kind",
-			databaseObject: &dbobjectv1.DatabaseObject{
+			databaseObject: dbobjectv1.DatabaseObject_builder{
 				Kind:     "InvalidKind",
-				Metadata: &headerv1.Metadata{Name: "test", Namespace: defaults.Namespace},
-				Spec:     &dbobjectv1.DatabaseObjectSpec{Name: "test"},
-			},
+				Metadata: headerv1.Metadata_builder{Name: "test", Namespace: defaults.Namespace}.Build(),
+				Spec:     dbobjectv1.DatabaseObjectSpec_builder{Name: "test"}.Build(),
+			}.Build(),
 			expectedError: trace.BadParameter("invalid kind InvalidKind, expected db_object"),
 		},
 		{
 			name: "missing spec",
-			databaseObject: &dbobjectv1.DatabaseObject{
+			databaseObject: dbobjectv1.DatabaseObject_builder{
 				Kind:     types.KindDatabaseObject,
-				Metadata: &headerv1.Metadata{Name: "test", Namespace: defaults.Namespace},
+				Metadata: headerv1.Metadata_builder{Name: "test", Namespace: defaults.Namespace}.Build(),
 				Spec:     nil,
-			},
+			}.Build(),
 			expectedError: trace.BadParameter("spec: must be non-empty"),
 		},
 		{
 			name: "missing object name",
-			databaseObject: &dbobjectv1.DatabaseObject{
+			databaseObject: dbobjectv1.DatabaseObject_builder{
 				Kind:     types.KindDatabaseObject,
-				Metadata: &headerv1.Metadata{Name: "", Namespace: defaults.Namespace},
-			},
+				Metadata: headerv1.Metadata_builder{Name: "", Namespace: defaults.Namespace}.Build(),
+			}.Build(),
 			expectedError: trace.BadParameter("metadata.name: must be non-empty"),
 		},
 		{
 			name: "missing name",
-			databaseObject: &dbobjectv1.DatabaseObject{
+			databaseObject: dbobjectv1.DatabaseObject_builder{
 				Kind:     types.KindDatabaseObject,
-				Metadata: &headerv1.Metadata{Name: "test", Namespace: defaults.Namespace},
-				Spec:     &dbobjectv1.DatabaseObjectSpec{Name: ""},
-			},
+				Metadata: headerv1.Metadata_builder{Name: "test", Namespace: defaults.Namespace}.Build(),
+				Spec:     dbobjectv1.DatabaseObjectSpec_builder{Name: ""}.Build(),
+			}.Build(),
 			expectedError: trace.BadParameter("spec.name: must be non-empty"),
 		},
 	}

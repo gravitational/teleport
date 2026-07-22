@@ -16,29 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-import { MemoryRouter } from 'react-router';
 import { http, HttpResponse } from 'msw';
 
-import { Context as TeleportContext, ContextProvider } from 'teleport';
 import cfg from 'teleport/config';
-import { ResourceKind } from 'teleport/Discover/Shared';
-import { PingTeleportProvider } from 'teleport/Discover/Shared/PingTeleportContext';
-import { getUserContext } from 'teleport/mocks/contexts';
-import { FeaturesContextProvider } from 'teleport/FeaturesContext';
+import { resourceSpecAwsRdsPostgres } from 'teleport/Discover/Fixtures/databases';
+import { RequiredDiscoverProviders } from 'teleport/Discover/Fixtures/fixtures';
 import { INTERNAL_RESOURCE_ID_LABEL_KEY } from 'teleport/services/joinToken';
-import {
-  DatabaseEngine,
-  DatabaseLocation,
-} from 'teleport/Discover/SelectResource';
-import {
-  DiscoverProvider,
-  DiscoverContextState,
-} from 'teleport/Discover/useDiscover';
 
 import ManualDeploy from './ManualDeploy';
-
-const DEFAULT_PING_INTERVAL = 1000 * 100; // 100 seconds
 
 export default {
   title: 'Teleport/Discover/Database/Deploy/Manual',
@@ -54,7 +39,9 @@ export const Init = () => {
 Init.parameters = {
   msw: {
     handlers: [
-      http.post(cfg.api.joinTokenPath, () => HttpResponse.json(rawJoinToken)),
+      http.post(cfg.api.discoveryJoinToken.createV2, () =>
+        HttpResponse.json(rawJoinToken)
+      ),
     ],
   },
 };
@@ -75,70 +62,30 @@ export const InitWithLabels = () => {
 };
 InitWithLabels.parameters = {
   msw: {
-    handlers: [http.post(cfg.api.joinTokenPath, () => HttpResponse.json({}))],
+    handlers: [
+      http.post(cfg.api.discoveryJoinToken.createV2, () =>
+        HttpResponse.json(rawJoinToken)
+      ),
+    ],
   },
 };
 
 const Provider = props => {
-  const ctx = createTeleportContext();
-  const discoverCtx: DiscoverContextState = {
-    agentMeta: {
-      resourceName: 'db-name',
-      agentMatcherLabels: [],
-      db: {} as any,
-      selectedAwsRdsDb: {} as any,
-      ...props.agentMeta,
-    },
-    currentStep: 0,
-    nextStep: () => null,
-    prevStep: () => null,
-    onSelectResource: () => null,
-    resourceSpec: {
-      dbMeta: {
-        location: DatabaseLocation.Aws,
-        engine: DatabaseEngine.AuroraMysql,
-      },
-    } as any,
-    exitFlow: () => null,
-    viewConfig: null,
-    indexedViews: [],
-    setResourceSpec: () => null,
-    updateAgentMeta: () => null,
-    emitErrorEvent: () => null,
-    emitEvent: () => null,
-    eventState: null,
-  };
-
   return (
-    <MemoryRouter
-      initialEntries={[
-        { pathname: cfg.routes.discover, state: { entity: 'database' } },
-      ]}
+    <RequiredDiscoverProviders
+      agentMeta={{
+        resourceName: 'db-name',
+        agentMatcherLabels: [],
+        db: {} as any,
+        selectedAwsRdsDb: {} as any,
+        ...props.agentMeta,
+      }}
+      resourceSpec={resourceSpecAwsRdsPostgres}
     >
-      <ContextProvider ctx={ctx}>
-        <FeaturesContextProvider value={[]}>
-          <DiscoverProvider mockCtx={discoverCtx}>
-            <PingTeleportProvider
-              interval={props.interval || DEFAULT_PING_INTERVAL}
-              resourceKind={ResourceKind.Database}
-            >
-              {props.children}
-            </PingTeleportProvider>
-          </DiscoverProvider>
-        </FeaturesContextProvider>
-      </ContextProvider>
-    </MemoryRouter>
+      {props.children}
+    </RequiredDiscoverProviders>
   );
 };
-
-function createTeleportContext() {
-  const ctx = new TeleportContext();
-
-  ctx.isEnterprise = false;
-  ctx.storeUser.setState(getUserContext());
-
-  return ctx;
-}
 
 const rawJoinToken = {
   id: 'some-id',

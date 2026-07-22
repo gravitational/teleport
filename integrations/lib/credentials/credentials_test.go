@@ -20,7 +20,6 @@ package credentials
 
 import (
 	"crypto/rand"
-	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
@@ -30,9 +29,10 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/ssh"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 )
 
 // mockTLSCredentials mocks insecure Client credentials.
@@ -50,8 +50,8 @@ func (mc *mockTLSCredentials) TLSConfig() (*tls.Config, error) {
 	}}, nil
 }
 
-func (mc *mockTLSCredentials) SSHClientConfig() (*ssh.ClientConfig, error) {
-	return nil, trace.NotImplemented("no ssh config")
+func (mc *mockTLSCredentials) SSHClientConfig() (ssh.ClientConfig, error) {
+	return ssh.ClientConfig{}, trace.NotImplemented("no ssh config")
 }
 
 func (mc *mockTLSCredentials) Expiry() (time.Time, bool) {
@@ -85,13 +85,13 @@ func TestCheckExpiredCredentials(t *testing.T) {
 		NotAfter:  time.Now().Add(1 * time.Hour),
 	}
 
-	caKey, err := rsa.GenerateKey(rand.Reader, 1024)
+	caKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 	require.NoError(t, err)
-	clientKey, err := rsa.GenerateKey(rand.Reader, 1024)
+	clientKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 	require.NoError(t, err)
-	validCertBytes, err := x509.CreateCertificate(rand.Reader, validCert, ca, &clientKey.PublicKey, caKey)
+	validCertBytes, err := x509.CreateCertificate(rand.Reader, validCert, ca, clientKey.Public(), caKey)
 	require.NoError(t, err)
-	invalidCertBytes, err := x509.CreateCertificate(rand.Reader, expiredCert, ca, &clientKey.PublicKey, caKey)
+	invalidCertBytes, err := x509.CreateCertificate(rand.Reader, expiredCert, ca, clientKey.Public(), caKey)
 	require.NoError(t, err)
 
 	expiredCred := &mockTLSCredentials{CertificateChain: &tls.Certificate{Certificate: [][]byte{invalidCertBytes}}}

@@ -1,0 +1,52 @@
+// Copyright 2025 Gravitational, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+// buf:lint:ignore PACKAGE_DIRECTORY_MATCH
+// buf:lint:ignore PACKAGE_VERSION_SUFFIX
+package proto;
+
+option go_package = "github.com/gravitational/teleport/api/client/proto";
+
+// ListRequestableRolesRequest is the request message for AuthService.ListRequestableRoles
+message ListRequestableRolesRequest {
+  // page_size is the maximum number of requestable roles to return per page.
+  int32 page_size = 1;
+
+  // page_token is the next_page_token value returned from a previous List request, if any.
+  string page_token = 2;
+
+  // Filter is the type for the filtering options for the returned roles.
+  message Filter {
+    // a list of search keywords to match against resource field values, if specified
+    repeated string search_keywords = 1;
+  }
+  // filter is the filtering options for the returned roles.
+  Filter filter = 3;
+}
+
+// ListRequestableRolesResponse is the response message for AuthService.ListRequestableRoles
+message ListRequestableRolesResponse {
+  // RequestableRole is the type of a requestable role, containing only its name and description.
+  message RequestableRole {
+    string name = 1;
+    string description = 2;
+  }
+  // roles is the requestable roles.
+  repeated RequestableRole roles = 1;
+
+  // next_page_token is the next page token. If there are no more results, it will be empty.
+  string next_page_token = 2;
+}

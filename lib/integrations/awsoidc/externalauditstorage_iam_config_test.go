@@ -21,11 +21,12 @@ package awsoidc
 import (
 	"context"
 	"fmt"
+	"maps"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
-	iamTypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
+	iamtypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
@@ -280,7 +281,7 @@ type fakeConfigureExternalAuditStorageClient struct {
 func (f *fakeConfigureExternalAuditStorageClient) PutRolePolicy(ctx context.Context, input *iam.PutRolePolicyInput, opts ...func(*iam.Options)) (*iam.PutRolePolicyOutput, error) {
 	roleName := aws.ToString(input.RoleName)
 	if _, roleExists := f.rolePolicies[roleName]; !roleExists {
-		return nil, &iamTypes.NoSuchEntityException{
+		return nil, &iamtypes.NoSuchEntityException{
 			Message: aws.String(fmt.Sprintf("role %q does not exist", roleName)),
 		}
 	}
@@ -303,9 +304,7 @@ func cloneRolePolicies(in map[string]map[string]string) map[string]map[string]st
 	out := make(map[string]map[string]string, len(in))
 	for role, policies := range in {
 		out[role] = make(map[string]string, len(policies))
-		for policyName, policyDoc := range policies {
-			out[role][policyName] = policyDoc
-		}
+		maps.Copy(out[role], policies)
 	}
 	return out
 }

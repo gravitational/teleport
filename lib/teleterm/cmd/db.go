@@ -65,18 +65,20 @@ func newDBCLICommandWithExecer(ctx context.Context, cluster *clusters.Cluster, g
 	var getDatabaseError error
 	var database types.Database
 
+	getDatabaseFunc := func(ctx context.Context, _ *client.TeleportClient, _ string) (types.Database, error) {
+		getDatabaseOnce.Do(func() {
+			database, getDatabaseError = cluster.GetDatabase(ctx, authClient, gateway.TargetURI())
+		})
+		return database, trace.Wrap(getDatabaseError)
+	}
+
 	opts := []dbcmd.ConnectCommandFunc{
 		dbcmd.WithLogger(gateway.Log()),
 		dbcmd.WithLocalProxy(gateway.LocalAddress(), gateway.LocalPortInt(), ""),
 		dbcmd.WithNoTLS(),
 		dbcmd.WithTolerateMissingCLIClient(),
 		dbcmd.WithExecer(execer),
-		dbcmd.WithGetDatabaseFunc(func(ctx context.Context, _ *client.TeleportClient, _ string) (types.Database, error) {
-			getDatabaseOnce.Do(func() {
-				database, getDatabaseError = cluster.GetDatabase(ctx, authClient, gateway.TargetURI())
-			})
-			return database, trace.Wrap(getDatabaseError)
-		}),
+		dbcmd.WithOracleOpts(true /* can use TCP */, true /* has TCP servers */),
 	}
 
 	switch gateway.Protocol() {
@@ -90,12 +92,20 @@ func newDBCLICommandWithExecer(ctx context.Context, cluster *clusters.Cluster, g
 
 	previewOpts := append(opts, dbcmd.WithPrintFormat())
 
-	execCmd, err := clusters.NewDBCLICmdBuilder(cluster, routeToDb, opts...).GetConnectCommand(ctx)
+	execCmdBuilder, err := clusters.NewDBCLICmdBuilder(cluster, routeToDb, getDatabaseFunc, opts...)
+	if err != nil {
+		return Cmds{}, trace.Wrap(err)
+	}
+	execCmd, err := execCmdBuilder.GetConnectCommand(ctx)
 	if err != nil {
 		return Cmds{}, trace.Wrap(err)
 	}
 
-	previewCmd, err := clusters.NewDBCLICmdBuilder(cluster, routeToDb, previewOpts...).GetConnectCommand(ctx)
+	previewCmdBuilder, err := clusters.NewDBCLICmdBuilder(cluster, routeToDb, getDatabaseFunc, previewOpts...)
+	if err != nil {
+		return Cmds{}, trace.Wrap(err)
+	}
+	previewCmd, err := previewCmdBuilder.GetConnectCommand(ctx)
 	if err != nil {
 		return Cmds{}, trace.Wrap(err)
 	}

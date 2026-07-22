@@ -22,11 +22,13 @@ import (
 	"context"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/state"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 )
 
@@ -34,38 +36,51 @@ import (
 // within the same process as the Auth Server and as such, does not need to
 // use provisioning tokens.
 func LocalRegister(id state.IdentityID, authServer *Server, additionalPrincipals, dnsNames []string, remoteAddr string, systemRoles []types.SystemRole) (*state.Identity, error) {
-	priv, pub, err := native.GenerateKeyPair()
+	key, err := cryptosuites.GenerateKey(context.Background(), cryptosuites.GetCurrentSuiteFromAuthPreference(authServer), cryptosuites.HostIdentity)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	tlsPub, err := PrivateKeyToPublicKeyTLS(priv)
+	sshPub, err := ssh.NewPublicKey(key.Public())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	tlsPub, err := keys.MarshalPublicKey(key.Public())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// If local registration is happening and no remote address was passed in
-	// (which means no advertise IP was set), use localhost.
+	// (which means no advertise IP was set), use localhost. This behavior must
+	// be kept consistent with the equivalen behavior in cert rotation/re-register
+	// logic in lib/service.
 	if remoteAddr == "" {
 		remoteAddr = defaults.Localhost
 	}
 	certs, err := authServer.GenerateHostCerts(context.Background(),
-		&proto.HostCertsRequest{
-			HostID:               id.HostUUID,
-			NodeName:             id.NodeName,
-			Role:                 id.Role,
-			AdditionalPrincipals: additionalPrincipals,
-			RemoteAddr:           remoteAddr,
-			DNSNames:             dnsNames,
-			NoCache:              true,
-			PublicSSHKey:         pub,
-			PublicTLSKey:         tlsPub,
-			SystemRoles:          systemRoles,
+		HostCertsParams{
+			Req: &proto.HostCertsRequest{
+				HostID:               id.HostUUID,
+				NodeName:             id.NodeName,
+				Role:                 id.Role,
+				AdditionalPrincipals: additionalPrincipals,
+				RemoteAddr:           remoteAddr,
+				DNSNames:             dnsNames,
+				NoCache:              true,
+				PublicSSHKey:         ssh.MarshalAuthorizedKey(sshPub),
+				PublicTLSKey:         tlsPub,
+				SystemRoles:          systemRoles,
+			},
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	priv, err := keys.MarshalPrivateKey(key)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	identity, err := state.ReadIdentityFromKeyPair(priv, certs)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -89,12 +104,6 @@ type ReRegisterParams struct {
 	// performing re-registration locally (this value has no effect for remote
 	// registration and can be omitted).
 	RemoteAddr string
-	// PrivateKey is a PEM encoded private key (not passed to auth servers)
-	PrivateKey []byte
-	// PublicTLSKey is a server's public key to sign
-	PublicTLSKey []byte
-	// PublicSSHKey is a server's public SSH key to sign
-	PublicSSHKey []byte
 	// Rotation is the rotation state of the certificate authority
 	Rotation types.Rotation
 	// SystemRoles is a set of additional system roles held by the instance.
@@ -108,10 +117,33 @@ type ReRegisterParams struct {
 // performing a re-registration.
 type ReRegisterClient interface {
 	GenerateHostCerts(context.Context, *proto.HostCertsRequest) (*proto.Certs, error)
+	Ping(context.Context) (proto.PingResponse, error)
 }
 
-// ReRegister renews the certificates and private keys based on the client's existing identity.
+// ReRegister renews the certificates based on the client's existing identity.
 func ReRegister(ctx context.Context, params ReRegisterParams) (*state.Identity, error) {
+	key, err := cryptosuites.GenerateKey(ctx, func(ctx context.Context) (types.SignatureAlgorithmSuite, error) {
+		pr, err := params.Client.Ping(ctx)
+		if err != nil {
+			return types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_UNSPECIFIED, trace.Wrap(err, "pinging auth to determine signature algorithm suite")
+		}
+		return pr.GetSignatureAlgorithmSuite(), nil
+	}, cryptosuites.HostIdentity)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	privateKeyPEM, err := keys.MarshalPrivateKey(key)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sshPub, err := ssh.NewPublicKey(key.Public())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	tlsPub, err := keys.MarshalPublicKey(key.Public())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	var rotation *types.Rotation
 	if !params.Rotation.IsZero() {
 		// older auths didn't distinguish between empty and nil rotation
@@ -127,8 +159,8 @@ func ReRegister(ctx context.Context, params ReRegisterParams) (*state.Identity, 
 			AdditionalPrincipals:  params.AdditionalPrincipals,
 			DNSNames:              params.DNSNames,
 			RemoteAddr:            params.RemoteAddr,
-			PublicTLSKey:          params.PublicTLSKey,
-			PublicSSHKey:          params.PublicSSHKey,
+			PublicTLSKey:          tlsPub,
+			PublicSSHKey:          ssh.MarshalAuthorizedKey(sshPub),
 			Rotation:              rotation,
 			SystemRoles:           params.SystemRoles,
 			SystemRoleAssertionID: params.SystemRoleAssertionID,
@@ -137,5 +169,5 @@ func ReRegister(ctx context.Context, params ReRegisterParams) (*state.Identity, 
 		return nil, trace.Wrap(err)
 	}
 
-	return state.ReadIdentityFromKeyPair(params.PrivateKey, certs)
+	return state.ReadIdentityFromKeyPair(privateKeyPEM, certs)
 }

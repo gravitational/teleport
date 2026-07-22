@@ -20,6 +20,7 @@ package clusters
 
 import (
 	"context"
+	"errors"
 	"io"
 	"os"
 	"sync"
@@ -27,23 +28,39 @@ import (
 
 	"github.com/gravitational/trace"
 
+	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/sshutils/sftp"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
+	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/sftputils"
 )
 
 type FileTransferProgressSender = func(progress *api.FileTransferProgress) error
 
-func (c *Cluster) TransferFile(ctx context.Context, request *api.FileTransferRequest, sendProgress FileTransferProgressSender) error {
-	config, err := getSftpConfig(request)
-	if err != nil {
-		return trace.Wrap(err)
+func (c *Cluster) TransferFile(ctx context.Context, clt *client.ClusterClient, request *api.FileTransferRequest, sendProgress FileTransferProgressSender) error {
+	sftpReq := &sftp.FileTransferRequest{
+		Sources: sftp.Sources{
+			Paths: []string{request.GetSource()},
+		},
+		Destination: sftp.Target{
+			Path: request.GetDestination(),
+		},
+		DialHost: func(ctx context.Context, login, addr string) (*tracessh.Client, error) {
+			nodeClient, err := c.clusterClient.ConnectToNode(ctx, clt, client.NodeDetails{
+				Addr:    addr,
+				Cluster: c.Name,
+			}, request.GetLogin())
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return nodeClient.Client, nil
+		},
+		ProgressStream: func(fileInfo os.FileInfo) io.ReadWriter {
+			return newFileTransferProgress(fileInfo.Size(), sendProgress)
+		},
 	}
-
-	config.ProgressStream = func(fileInfo os.FileInfo) io.ReadWriter {
-		return newFileTransferProgress(fileInfo.Size(), sendProgress)
-	}
-
 	// TODO(ravicious): Move URI parsing to the outermost layer.
 	// https://github.com/gravitational/teleport/issues/15953
 	serverURI := uri.New(request.GetServerUri())
@@ -51,23 +68,26 @@ func (c *Cluster) TransferFile(ctx context.Context, request *api.FileTransferReq
 	if serverUUID == "" {
 		return trace.BadParameter("server URI does not include server UUID")
 	}
+	serverAddr := &utils.NetAddr{Addr: serverUUID + ":0"}
+	switch request.GetDirection() {
+	case api.FileTransferDirection_FILE_TRANSFER_DIRECTION_DOWNLOAD:
+		sftpReq.Sources.Addr = serverAddr
+		sftpReq.Sources.Login = request.GetLogin()
+	case api.FileTransferDirection_FILE_TRANSFER_DIRECTION_UPLOAD:
+		sftpReq.Destination.Addr = serverAddr
+		sftpReq.Destination.Login = request.GetLogin()
+	default:
+		return trace.BadParameter("Unexpected file transfer direction: %q", request.GetDirection())
+	}
 
-	err = AddMetadataToRetryableError(ctx, func() error {
-		err := c.clusterClient.TransferFiles(ctx, request.GetLogin(), serverUUID+":0", config)
+	err := AddMetadataToRetryableError(ctx, func() error {
+		err := c.clusterClient.TransferFiles(ctx, sftpReq)
+		if errors.As(err, new(*sftputils.NonRecursiveDirectoryTransferError)) {
+			return trace.Errorf("transferring directories through Teleport Connect is not supported at the moment, please use tsh scp -r")
+		}
 		return trace.Wrap(err)
 	})
 	return trace.Wrap(err)
-}
-
-func getSftpConfig(request *api.FileTransferRequest) (*sftp.Config, error) {
-	switch request.GetDirection() {
-	case api.FileTransferDirection_FILE_TRANSFER_DIRECTION_DOWNLOAD:
-		return sftp.CreateDownloadConfig(request.GetSource(), request.GetDestination(), sftp.Options{})
-	case api.FileTransferDirection_FILE_TRANSFER_DIRECTION_UPLOAD:
-		return sftp.CreateUploadConfig([]string{request.GetSource()}, request.GetDestination(), sftp.Options{})
-	default:
-		return nil, trace.BadParameter("Unexpected file transfer direction: %q", request.GetDirection())
-	}
 }
 
 func newFileTransferProgress(fileSize int64, sendProgress FileTransferProgressSender) io.ReadWriter {
@@ -102,10 +122,10 @@ func (p *fileTransferProgress) maybeUpdateProgress(bytes []byte) (int, error) {
 	defer p.lock.Unlock()
 
 	p.sentSize += int64(bytesLength)
-	percentage := uint32(p.sentSize * 100 / p.fileSize)
+	percentage := calculatePercentage(p.sentSize, p.fileSize)
 
 	if p.shouldSendProgress(percentage) {
-		err := p.sendProgress(&api.FileTransferProgress{Percentage: percentage})
+		err := p.sendProgress(api.FileTransferProgress_builder{Percentage: percentage}.Build())
 		if err != nil {
 			return bytesLength, trace.Wrap(err)
 		}
@@ -114,6 +134,13 @@ func (p *fileTransferProgress) maybeUpdateProgress(bytes []byte) (int, error) {
 	}
 
 	return bytesLength, nil
+}
+
+func calculatePercentage(part, total int64) uint32 {
+	if total <= 0 {
+		return 100
+	}
+	return uint32(part * 100 / total)
 }
 
 func (p *fileTransferProgress) shouldSendProgress(percentage uint32) bool {

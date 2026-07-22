@@ -19,7 +19,6 @@
 package elasticsearch
 
 import (
-	"io"
 	"log/slog"
 	"testing"
 
@@ -41,7 +40,7 @@ func FuzzGetQueryFromRequestBody(f *testing.F) {
 
 	mkEngine := func() *Engine {
 		e := &Engine{}
-		e.Log = slog.New(slog.NewTextHandler(io.Discard, nil))
+		e.Log = slog.New(slog.DiscardHandler)
 		return e
 	}
 

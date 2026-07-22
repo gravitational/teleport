@@ -16,34 +16,35 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState, useEffect } from 'react';
-import { useLocation, useHistory } from 'react-router';
 import { formatRelative } from 'date-fns';
-import { Danger } from 'design/Alert';
+import { Fragment, useEffect, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router';
 
-import Table, { Cell } from 'design/DataTable';
 import { Button, Label as Pill } from 'design';
+import { Danger } from 'design/Alert';
+import Table, { Cell } from 'design/DataTable';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
-import cfg from 'teleport/config';
 import {
   FeatureBox,
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
 import { NavLink } from 'teleport/components/Router';
+import cfg from 'teleport/config';
+import { Lock, lockService, LockTarget } from 'teleport/services/locks';
 import useTeleport from 'teleport/useTeleport';
 
-import { lockService, Lock, LockTarget } from 'teleport/services/locks';
-
 import { TrashButton } from '../common';
-
 import { DeleteLockDialogue } from './DeleteLockDialogue';
 
 export function Locks() {
   const ctx = useTeleport();
-  const history = useHistory();
-  const location = useLocation<{ createdLocks: Lock[] }>();
+  const navigate = useNavigate();
+  const location = useLocation() as {
+    pathname: string;
+    state?: { createdLocks?: Lock[] };
+  };
   const { attempt, run } = useAttempt();
   const [locks, setLocks] = useState<Lock[]>([]);
   const [lockToDelete, setLockToDelete] = useState<Lock>();
@@ -63,7 +64,7 @@ export function Locks() {
               updatedLocks.push(lock);
             }
           });
-          history.replace({ state: {} }); // Clear loc state afterwards.
+          navigate(location.pathname, { replace: true, state: {} }); // Clear loc state afterwards.
         }
         setLocks(updatedLocks);
       })
@@ -183,7 +184,7 @@ export function Locks() {
 function getFormattedDate(d: string): string {
   try {
     return formatRelative(new Date(d), Date.now());
-  } catch (e) {
+  } catch {
     return '';
   }
 }
@@ -207,13 +208,10 @@ export function Pills({ targets }: { targets: LockTarget[] }) {
   const pills = targets.map((target, index) => {
     const labelText = `${target.kind}: ${target.name}`;
     return (
-      <Pill
-        key={`${target.kind}${target.name}${index}`}
-        mr="1"
-        kind="secondary"
-      >
-        {labelText}
-      </Pill>
+      <Fragment key={`${target.kind}${target.name}${index}`}>
+        {index > 0 && ' '}
+        <Pill kind="secondary">{labelText}</Pill>
+      </Fragment>
     );
   });
 

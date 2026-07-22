@@ -16,33 +16,50 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package auth
+package auth_test
 
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
+	"github.com/gravitational/teleport/lib/scopes"
+	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
+	"github.com/gravitational/teleport/lib/scopes/pinning"
+	scopedutils "github.com/gravitational/teleport/lib/scopes/utils"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/sshca"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 func TestServer_CreateAuthenticateChallenge_authPreference(t *testing.T) {
@@ -197,7 +214,6 @@ func TestServer_CreateAuthenticateChallenge_authPreference(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -231,7 +247,7 @@ func TestCreateAuthenticateChallenge_WithAuth(t *testing.T) {
 	u, err := createUserWithSecondFactors(srv)
 	require.NoError(t, err)
 
-	clt, err := srv.NewClient(TestUser(u.username))
+	clt, err := srv.NewClient(authtest.TestUser(u.username))
 	require.NoError(t, err)
 
 	res, err := clt.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
@@ -289,7 +305,6 @@ func TestCreateAuthenticateChallenge_WithUserCredentials(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			res, err := srv.Auth().CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
@@ -327,9 +342,9 @@ func TestCreateAuthenticateChallenge_WithUserCredentials_WithLock(t *testing.T) 
 
 		// Test last attempt returns locked error.
 		if i == defaults.MaxLoginAttempts {
-			require.Equal(t, MaxFailedAttemptsErrMsg, err.Error())
+			require.Equal(t, auth.MaxFailedAttemptsErrMsg, err.Error())
 		} else {
-			require.NotEqual(t, MaxFailedAttemptsErrMsg, err.Error())
+			require.NotEqual(t, auth.MaxFailedAttemptsErrMsg, err.Error())
 		}
 	}
 }
@@ -351,7 +366,7 @@ func TestCreateAuthenticateChallenge_WithRecoveryStartToken(t *testing.T) {
 			name:    "invalid token type",
 			wantErr: true,
 			getRequest: func() *proto.CreateAuthenticateChallengeRequest {
-				wrongToken, err := srv.Auth().createRecoveryToken(ctx, u.username, authclient.UserTokenTypeRecoveryApproved, types.UserTokenUsage_USER_TOKEN_RECOVER_PASSWORD)
+				wrongToken, err := srv.Auth().CreateRecoveryToken(ctx, u.username, authclient.UserTokenTypeRecoveryApproved, types.UserTokenUsage_USER_TOKEN_RECOVER_PASSWORD)
 				require.NoError(t, err)
 
 				return &proto.CreateAuthenticateChallengeRequest{
@@ -371,7 +386,7 @@ func TestCreateAuthenticateChallenge_WithRecoveryStartToken(t *testing.T) {
 		{
 			name: "valid token",
 			getRequest: func() *proto.CreateAuthenticateChallengeRequest {
-				startToken, err := srv.Auth().createRecoveryToken(ctx, u.username, authclient.UserTokenTypeRecoveryStart, types.UserTokenUsage_USER_TOKEN_RECOVER_PASSWORD)
+				startToken, err := srv.Auth().CreateRecoveryToken(ctx, u.username, authclient.UserTokenTypeRecoveryStart, types.UserTokenUsage_USER_TOKEN_RECOVER_PASSWORD)
 				require.NoError(t, err)
 
 				return &proto.CreateAuthenticateChallengeRequest{
@@ -382,7 +397,6 @@ func TestCreateAuthenticateChallenge_WithRecoveryStartToken(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			res, err := srv.Auth().CreateAuthenticateChallenge(ctx, tc.getRequest())
@@ -405,7 +419,7 @@ func TestCreateAuthenticateChallenge_mfaVerification(t *testing.T) {
 	testServer := newTestTLSServer(t)
 	ctx := context.Background()
 
-	adminClient, err := testServer.NewClient(TestBuiltin(types.RoleAdmin))
+	adminClient, err := testServer.NewClient(authtest.TestBuiltin(types.RoleAdmin))
 	require.NoError(t, err, "NewClient(types.RoleAdmin)")
 
 	// Register a couple of SSH nodes.
@@ -507,7 +521,7 @@ func TestCreateAuthenticateChallenge_mfaVerification(t *testing.T) {
 		_, err = adminClient.UpdateUser(ctx, user.(*types.UserV2))
 		require.NoError(t, err, "UpdateUser(%q)", username)
 
-		userClient, err := testServer.NewClient(TestUser(username))
+		userClient, err := testServer.NewClient(authtest.TestUser(username))
 		require.NoError(t, err, "NewClient(%q)", username)
 
 		return userClient
@@ -598,7 +612,6 @@ func TestCreateAuthenticateChallenge_mfaVerification(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -637,7 +650,7 @@ func TestCreateAuthenticateChallenge_failedLoginAudit(t *testing.T) {
 	mfa := configureForMFA(t, testServer)
 
 	// Proxy identity is used during login.
-	proxyClient, err := testServer.NewClient(TestBuiltin(types.RoleProxy))
+	proxyClient, err := testServer.NewClient(authtest.TestBuiltin(types.RoleProxy))
 	require.NoError(t, err, "NewClient(RoleProxy) failed")
 
 	t.Run("emits audit event", func(t *testing.T) {
@@ -671,7 +684,7 @@ func TestCreateRegisterChallenge(t *testing.T) {
 	require.NoError(t, err)
 
 	// Test invalid token type.
-	wrongToken, err := srv.Auth().createRecoveryToken(ctx, u.username, authclient.UserTokenTypeRecoveryStart, types.UserTokenUsage_USER_TOKEN_RECOVER_PASSWORD)
+	wrongToken, err := srv.Auth().CreateRecoveryToken(ctx, u.username, authclient.UserTokenTypeRecoveryStart, types.UserTokenUsage_USER_TOKEN_RECOVER_PASSWORD)
 	require.NoError(t, err)
 	_, err = srv.Auth().CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
 		TokenID:    wrongToken.GetName(),
@@ -680,7 +693,7 @@ func TestCreateRegisterChallenge(t *testing.T) {
 	require.True(t, trace.IsAccessDenied(err))
 
 	// Create a valid token.
-	validToken, err := srv.Auth().createRecoveryToken(ctx, u.username, authclient.UserTokenTypeRecoveryApproved, types.UserTokenUsage_USER_TOKEN_RECOVER_PASSWORD)
+	validToken, err := srv.Auth().CreateRecoveryToken(ctx, u.username, authclient.UserTokenTypeRecoveryApproved, types.UserTokenUsage_USER_TOKEN_RECOVER_PASSWORD)
 	require.NoError(t, err)
 
 	// Test unspecified token returns error.
@@ -704,7 +717,6 @@ func TestCreateRegisterChallenge(t *testing.T) {
 		},
 	}
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			res, err := srv.Auth().CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
@@ -723,7 +735,7 @@ func TestCreateRegisterChallenge(t *testing.T) {
 	}
 
 	t.Run("register using context user", func(t *testing.T) {
-		authClient, err := srv.NewClient(TestUser(u.username))
+		authClient, err := srv.NewClient(authtest.TestUser(u.username))
 		require.NoError(t, err, "NewClient(%q)", u.username)
 
 		// Attempt without a token or a solved authn challenge should fail.
@@ -812,20 +824,20 @@ func TestCreateRegisterChallenge_unusableDevice(t *testing.T) {
 		},
 	}
 
-	devOpts := []TestDeviceOpt{WithTestDeviceClock(clock)}
+	devOpts := []authtest.TestDeviceOpt{authtest.WithTestDeviceClock(clock)}
 	for i, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			setAuthPref(t, initialPref) // restore permissive settings.
 
 			// Create user.
 			username := fmt.Sprintf("llama-%d", i)
-			user, _, err := CreateUserAndRole(authServer, username, []string{username} /* logins */, nil /* allowRules */)
+			user, _, err := authtest.CreateUserAndRole(authServer, username, []string{username} /* logins */, nil /* allowRules */)
 			require.NoError(t, err, "CreateUserAndRole")
-			userClient, err := testServer.NewClient(TestUser(user.GetName()))
+			userClient, err := testServer.NewClient(authtest.TestUser(user.GetName()))
 			require.NoError(t, err, "NewClient")
 
 			// Register initial MFA device.
-			_, err = RegisterTestDevice(
+			_, err = authtest.RegisterTestDevice(
 				ctx,
 				userClient,
 				"existing", test.existingType, nil /* authenticator */, devOpts...)
@@ -873,22 +885,37 @@ func TestCreateRegisterChallenge_unusableDevice(t *testing.T) {
 // -----END PRIVATE KEY-----
 const sshPubKey = `ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBGv+gN2C23P08ieJRA9gU/Ik4bsOh3Kw193UYscJDw41mATj+Kqyf45Rmj8F8rs3i7mYKRXXu1IjNRBzNgpXxqc=`
 
+// tlsPubKey is a randomly-generated public key used for login tests.
+//
+// The corresponding private key is:
+// -----BEGIN EC PRIVATE KEY-----
+// MHcCAQEEINmdcjzor3czsAVpSYFJCjs/623gDfMcFE2AIcGTYZARoAoGCCqGSM49
+// AwEHoUQDQgAE/Jn3tYhc60M2IOen1yRht6r8xX3hv7nNLYBIfxaKxXf+dAFVllYz
+// VUrSzAQxi1LSAplOJVgOtHv0J69dRSUSzA==
+// -----END EC PRIVATE KEY-----
+const tlsPubKey = `-----BEGIN PUBLIC KEY-----
+MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE/Jn3tYhc60M2IOen1yRht6r8xX3h
+v7nNLYBIfxaKxXf+dAFVllYzVUrSzAQxi1LSAplOJVgOtHv0J69dRSUSzA==
+-----END PUBLIC KEY-----`
+
 func TestServer_AuthenticateUser_passwordOnly(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	testServer := newTestTLSServer(t)
-	authServer := testServer.Auth()
+	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, as.Close()) })
+	authServer := as.AuthServer
 
 	const username = "bowman"
 	const password = "it's full of stars!"
-	_, _, err := CreateUserAndRole(authServer, username, nil, nil)
+	_, _, err = authtest.CreateUserAndRole(authServer, username, nil, nil)
 	require.NoError(t, err)
 	require.NoError(t, authServer.UpsertPassword(username, []byte(password)))
 
 	// makeRun is used to test both SSH and Web login by switching the
 	// authenticate function.
-	makeRun := func(authenticate func(*Server, authclient.AuthenticateUserRequest) error) func(t *testing.T) {
+	makeRun := func(authenticate func(*auth.Server, authclient.AuthenticateUserRequest) error) func(t *testing.T) {
 		return func(t *testing.T) {
 			require.NoError(t, authenticate(authServer, authclient.AuthenticateUserRequest{
 				Username: "bowman",
@@ -896,38 +923,234 @@ func TestServer_AuthenticateUser_passwordOnly(t *testing.T) {
 			}))
 		}
 	}
-	t.Run("ssh", makeRun(func(s *Server, req authclient.AuthenticateUserRequest) error {
-		req.PublicKey = []byte(sshPubKey)
+	t.Run("ssh", makeRun(func(s *auth.Server, req authclient.AuthenticateUserRequest) error {
+		req.SSHPublicKey = []byte(sshPubKey)
+		req.TLSPublicKey = []byte(tlsPubKey)
 		_, err := s.AuthenticateSSHUser(ctx, authclient.AuthenticateSSHRequest{
 			AuthenticateUserRequest: req,
 			TTL:                     24 * time.Hour,
 		})
 		return err
 	}))
-	t.Run("web", makeRun(func(s *Server, req authclient.AuthenticateUserRequest) error {
+	t.Run("web", makeRun(func(s *auth.Server, req authclient.AuthenticateUserRequest) error {
 		_, err := s.AuthenticateWebUser(ctx, req)
 		return err
 	}))
+}
+
+// TestBasicSSHScopedLogin verifies the basic expected behavior of a scoped login attempt using password-only
+// auth and a rudimentary set of scoped roles.
+func TestBasicSSHScopedLogin(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	testServer := newTestTLSServer(t, withScopesFeatures(scopes.Features{Enabled: true}))
+	authServer := testServer.Auth()
+
+	adminClient, err := testServer.NewClient(authtest.TestBuiltin(types.RoleAdmin))
+	require.NoError(t, err)
+
+	username := "alice"
+	password := uuid.NewString()
+
+	_, _, err = authtest.CreateUserAndRole(authServer, username, nil, nil)
+	require.NoError(t, err)
+
+	require.NoError(t, authServer.UpsertPassword(username, []byte(password)))
+
+	req := authclient.AuthenticateUserRequest{
+		Username: username,
+		Scope:    "/aa/bb",
+		Pass: &authclient.PassCreds{
+			Password: []byte(password),
+		},
+		SSHPublicKey: []byte(sshPubKey),
+		TLSPublicKey: []byte(tlsPubKey),
+	}
+
+	// user is not assigned any scoped roles applicable to /aa/bb, so login attempt should fail
+	_, err = authServer.AuthenticateSSHUser(ctx, authclient.AuthenticateSSHRequest{
+		AuthenticateUserRequest: req,
+	})
+	require.Error(t, err)
+
+	// set up some scoped roles
+	scopedRoles := []*scopedaccessv1.ScopedRole{
+		scopedaccessv1.ScopedRole_builder{
+			Kind: scopedaccess.KindScopedRole,
+			Metadata: headerv1.Metadata_builder{
+				Name: "role-a",
+			}.Build(),
+			Scope: "/aa",
+			Spec: scopedaccessv1.ScopedRoleSpec_builder{
+				AssignableScopes: []string{"/aa"},
+				Ssh: scopedaccessv1.ScopedRoleSSH_builder{
+					Logins: []string{"login-a"},
+				}.Build(),
+			}.Build(),
+			Version: types.V1,
+		}.Build(),
+		scopedaccessv1.ScopedRole_builder{
+			Kind: scopedaccess.KindScopedRole,
+			Metadata: headerv1.Metadata_builder{
+				Name: "role-b",
+			}.Build(),
+			Scope: "/aa/bb",
+			Spec: scopedaccessv1.ScopedRoleSpec_builder{
+				AssignableScopes: []string{"/aa/bb"},
+				Ssh: scopedaccessv1.ScopedRoleSSH_builder{
+					Logins: []string{"login-b"},
+				}.Build(),
+			}.Build(),
+			Version: types.V1,
+		}.Build(),
+		scopedaccessv1.ScopedRole_builder{
+			Kind: scopedaccess.KindScopedRole,
+			Metadata: headerv1.Metadata_builder{
+				Name: "role-c",
+			}.Build(),
+			Scope: "/aa/bb/cc",
+			Spec: scopedaccessv1.ScopedRoleSpec_builder{
+				AssignableScopes: []string{"/aa/bb/cc"},
+				Ssh: scopedaccessv1.ScopedRoleSSH_builder{
+					Logins: []string{"login-c"},
+				}.Build(),
+			}.Build(),
+			Version: types.V1,
+		}.Build(),
+		scopedaccessv1.ScopedRole_builder{
+			Kind: scopedaccess.KindScopedRole,
+			Metadata: headerv1.Metadata_builder{
+				Name: "role-x",
+			}.Build(),
+			Scope: "/xx",
+			Spec: scopedaccessv1.ScopedRoleSpec_builder{
+				AssignableScopes: []string{"/xx"},
+				Ssh: scopedaccessv1.ScopedRoleSSH_builder{
+					Logins: []string{"login-x"},
+				}.Build(),
+			}.Build(),
+			Version: types.V1,
+		}.Build(),
+	}
+
+	// Create the roles.
+	for _, role := range scopedRoles {
+		_, err := adminClient.ScopedAccessServiceClient().CreateScopedRole(ctx, scopedaccessv1.CreateScopedRoleRequest_builder{
+			Role: role,
+		}.Build())
+		require.NoError(t, err)
+	}
+
+	var assignmentIDs []string
+	for _, role := range scopedRoles {
+		assignmentID := uuid.NewString()
+		assignmentIDs = append(assignmentIDs, assignmentID)
+		_, err = adminClient.ScopedAccessServiceClient().CreateScopedRoleAssignment(ctx, scopedaccessv1.CreateScopedRoleAssignmentRequest_builder{
+			Assignment: scopedaccessv1.ScopedRoleAssignment_builder{
+				Kind:    scopedaccess.KindScopedRoleAssignment,
+				SubKind: scopedaccess.SubKindDynamic,
+				Metadata: headerv1.Metadata_builder{
+					Name: assignmentID,
+				}.Build(),
+				Scope: role.GetScope(),
+				Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
+					User: "alice",
+					Assignments: []*scopedaccessv1.Assignment{
+						scopedaccessv1.Assignment_builder{
+							Role:  scopes.QualifiedName{Scope: role.GetScope(), Name: role.GetMetadata().GetName()}.String(),
+							Scope: role.GetScope(),
+						}.Build(),
+					},
+				}.Build(),
+				Version: types.V1,
+			}.Build(),
+		}.Build())
+		require.NoError(t, err)
+	}
+
+	// wait for assignment cache propagation
+	timeout := time.After(30 * time.Second)
+	for {
+		unseen := slices.Clone(assignmentIDs)
+		for assignment, err := range scopedutils.RangeScopedRoleAssignments(ctx, adminClient.ScopedAccessServiceClient(), scopedaccessv1.ListScopedRoleAssignmentsRequest_builder{
+			ScopeFilter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_ALL}.Build(),
+		}.Build()) {
+			require.NoError(t, err)
+			id := assignment.GetMetadata().GetName()
+			unseen = slices.DeleteFunc(unseen, func(unseenID string) bool { return id == unseenID })
+		}
+		if len(unseen) == 0 {
+			break
+		}
+		select {
+		case <-timeout:
+			t.Fatalf("timed out waiting for scoped role assignments to be visible: %v", unseen)
+		case <-time.After(200 * time.Millisecond):
+			// retry
+		}
+	}
+
+	// the same authentication request should now succeed
+	authrsp, err := authServer.AuthenticateSSHUser(ctx, authclient.AuthenticateSSHRequest{
+		AuthenticateUserRequest: req,
+	})
+	require.NoError(t, err)
+
+	// verify that the expected scope pin is applied to ssh and tls certificates
+	expectedPin := scopesv1.Pin_builder{
+		Kind:  scopesv1.PinKind_PIN_KIND_USER,
+		Scope: "/aa/bb",
+		AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+			"/aa":       {"/aa": {"/aa::role-a"}},
+			"/aa/bb":    {"/aa/bb": {"/aa/bb::role-b"}},
+			"/aa/bb/cc": {"/aa/bb/cc": {"/aa/bb/cc::role-c"}},
+		}),
+	}.Build()
+
+	// parse and examine the ssh cert
+	sshCert, err := sshutils.ParseCertificate(authrsp.Cert)
+	require.NoError(t, err)
+
+	sshIdent, err := sshca.DecodeIdentity(sshCert)
+	require.NoError(t, err)
+
+	require.NotNil(t, sshIdent.ScopePin)
+	require.Empty(t, cmp.Diff(expectedPin, sshIdent.ScopePin, protocmp.Transform()))
+	require.Empty(t, sshIdent.Roles)
+	require.Equal(t, []string{"login-a", "login-b", "login-c", "-teleport-internal-join"}, sshIdent.Principals)
+
+	// parse and examine the tls cert
+	tlsCert, err := tlsca.ParseCertificatePEM(authrsp.TLSCert)
+	require.NoError(t, err)
+
+	tlsIdent, err := tlsca.FromSubject(tlsCert.Subject, tlsCert.NotAfter)
+	require.NoError(t, err)
+
+	require.NotNil(t, tlsIdent.ScopePin)
+	require.Empty(t, cmp.Diff(expectedPin, tlsIdent.ScopePin, protocmp.Transform()))
+	require.Empty(t, tlsIdent.Groups)
 }
 
 func TestServer_AuthenticateUser_passwordOnly_failure(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	testServer := newTestTLSServer(t)
-	authServer := testServer.Auth()
+	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, as.Close()) })
+	authServer := as.AuthServer
 
 	const username = "capybara"
 
-	setPassword := func(pwd string) func(*testing.T, *Server) {
-		return func(t *testing.T, s *Server) {
+	setPassword := func(pwd string) func(*testing.T, *auth.Server) {
+		return func(t *testing.T, s *auth.Server) {
 			require.NoError(t, s.UpsertPassword(username, []byte(pwd)))
 		}
 	}
 
 	tests := []struct {
 		name         string
-		setup        func(*testing.T, *Server)
+		setup        func(*testing.T, *auth.Server)
 		authUser     string
 		authPassword string
 	}{
@@ -945,7 +1168,7 @@ func TestServer_AuthenticateUser_passwordOnly_failure(t *testing.T) {
 		},
 		{
 			name:         "password not found",
-			setup:        func(*testing.T, *Server) {},
+			setup:        func(*testing.T, *auth.Server) {},
 			authUser:     username,
 			authPassword: "secure password",
 		},
@@ -954,9 +1177,9 @@ func TestServer_AuthenticateUser_passwordOnly_failure(t *testing.T) {
 	for _, test := range tests {
 		// makeRun is used to test both SSH and Web login by switching the
 		// authenticate function.
-		makeRun := func(authenticate func(*Server, authclient.AuthenticateUserRequest) error) func(t *testing.T) {
+		makeRun := func(authenticate func(*auth.Server, authclient.AuthenticateUserRequest) error) func(t *testing.T) {
 			return func(t *testing.T) {
-				_, _, err := CreateUserAndRole(authServer, username, nil, nil)
+				_, _, err := authtest.CreateUserAndRole(authServer, username, nil, nil)
 				require.NoError(t, err)
 				t.Cleanup(func() {
 					assert.NoError(t, authServer.DeleteUser(ctx, username), "failed to delete user %s", username)
@@ -971,15 +1194,16 @@ func TestServer_AuthenticateUser_passwordOnly_failure(t *testing.T) {
 				assert.True(t, trace.IsAccessDenied(err), "got %T: %v, want AccessDenied", trace.Unwrap(err), err)
 			}
 		}
-		t.Run(test.name+"/ssh", makeRun(func(s *Server, req authclient.AuthenticateUserRequest) error {
-			req.PublicKey = []byte(sshPubKey)
+		t.Run(test.name+"/ssh", makeRun(func(s *auth.Server, req authclient.AuthenticateUserRequest) error {
+			req.SSHPublicKey = []byte(sshPubKey)
+			req.TLSPublicKey = []byte(tlsPubKey)
 			_, err := s.AuthenticateSSHUser(ctx, authclient.AuthenticateSSHRequest{
 				AuthenticateUserRequest: req,
 				TTL:                     24 * time.Hour,
 			})
 			return err
 		}))
-		t.Run(test.name+"/web", makeRun(func(s *Server, req authclient.AuthenticateUserRequest) error {
+		t.Run(test.name+"/web", makeRun(func(s *auth.Server, req authclient.AuthenticateUserRequest) error {
 			_, err := s.AuthenticateWebUser(ctx, req)
 			return err
 		}))
@@ -990,21 +1214,23 @@ func TestServer_AuthenticateUser_setsPasswordState(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	testServer := newTestTLSServer(t)
-	authServer := testServer.Auth()
+	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, as.Close()) })
+	authServer := as.AuthServer
 
 	const username = "bowman"
 	const password = "it's full of stars!"
-	_, _, err := CreateUserAndRole(authServer, username, nil, nil)
+	_, _, err = authtest.CreateUserAndRole(authServer, username, nil, nil)
 	require.NoError(t, err)
 	require.NoError(t, authServer.UpsertPassword(username, []byte(password)))
 
 	// makeRun is used to test both SSH and Web login by switching the
 	// authenticate function.
-	makeRun := func(authenticate func(*Server, authclient.AuthenticateUserRequest) error) func(t *testing.T) {
+	makeRun := func(authenticate func(*auth.Server, authclient.AuthenticateUserRequest) error) func(t *testing.T) {
 		return func(t *testing.T) {
 			// Enforce unspecified password state.
-			u, err := authServer.Identity.UpdateAndSwapUser(ctx, username, false, /* withSecrets */
+			u, err := authServer.UpdateAndSwapUser(ctx, username, false, /* withSecrets */
 				func(u types.User) (bool, error) {
 					u.SetPasswordState(types.PasswordState_PASSWORD_STATE_UNSPECIFIED)
 					return true, nil
@@ -1026,15 +1252,16 @@ func TestServer_AuthenticateUser_setsPasswordState(t *testing.T) {
 			assert.Equal(t, types.PasswordState_PASSWORD_STATE_SET, u.GetPasswordState())
 		}
 	}
-	t.Run("ssh", makeRun(func(s *Server, req authclient.AuthenticateUserRequest) error {
-		req.PublicKey = []byte(sshPubKey)
+	t.Run("ssh", makeRun(func(s *auth.Server, req authclient.AuthenticateUserRequest) error {
+		req.SSHPublicKey = []byte(sshPubKey)
+		req.TLSPublicKey = []byte(tlsPubKey)
 		_, err := s.AuthenticateSSHUser(ctx, authclient.AuthenticateSSHRequest{
 			AuthenticateUserRequest: req,
 			TTL:                     24 * time.Hour,
 		})
 		return err
 	}))
-	t.Run("web", makeRun(func(s *Server, req authclient.AuthenticateUserRequest) error {
+	t.Run("web", makeRun(func(s *auth.Server, req authclient.AuthenticateUserRequest) error {
 		_, err := s.AuthenticateWebUser(ctx, req)
 		return err
 	}))
@@ -1049,6 +1276,8 @@ func TestServer_AuthenticateUser_mfaDevices(t *testing.T) {
 	mfa := configureForMFA(t, svr)
 	username := mfa.User
 	password := mfa.Password
+	emitter := &eventstest.MockRecorderEmitter{}
+	authServer.SetEmitter(emitter)
 
 	tests := []struct {
 		name           string
@@ -1058,11 +1287,12 @@ func TestServer_AuthenticateUser_mfaDevices(t *testing.T) {
 		{name: "OK Webauthn device", solveChallenge: mfa.WebDev.SolveAuthn},
 	}
 	for _, test := range tests {
-		test := test
 		// makeRun is used to test both SSH and Web login by switching the
 		// authenticate function.
-		makeRun := func(authenticate func(*Server, authclient.AuthenticateUserRequest) error) func(t *testing.T) {
+		makeRun := func(authenticate func(*auth.Server, authclient.AuthenticateUserRequest) error) func(t *testing.T) {
 			return func(t *testing.T) {
+				emitter.Reset()
+
 				// 1st step: acquire challenge
 				challenge, err := authServer.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
 					Request: &proto.CreateAuthenticateChallengeRequest_UserCredentials{UserCredentials: &proto.UserCredentials{
@@ -1075,8 +1305,9 @@ func TestServer_AuthenticateUser_mfaDevices(t *testing.T) {
 				// Solve challenge (client-side)
 				resp, err := test.solveChallenge(challenge)
 				authReq := authclient.AuthenticateUserRequest{
-					Username:  username,
-					PublicKey: []byte(sshPubKey),
+					Username:     username,
+					SSHPublicKey: []byte(sshPubKey),
+					TLSPublicKey: []byte(tlsPubKey),
 				}
 				require.NoError(t, err)
 
@@ -1094,16 +1325,45 @@ func TestServer_AuthenticateUser_mfaDevices(t *testing.T) {
 
 				// 2nd step: finish login - either SSH or Web
 				require.NoError(t, authenticate(authServer, authReq))
+
+				require.True(
+					t,
+					slices.ContainsFunc(emitter.Events(), func(event apievents.AuditEvent) bool {
+						e, ok := event.(*apievents.CreateMFAAuthChallenge)
+						if !ok {
+							return false
+						}
+						return e.FlowType == apievents.MFAFlowType_MFA_FLOW_TYPE_PER_SESSION_CERTIFICATE
+					}),
+					"expected create MFA audit event with flow type %s to be emitted but was not found",
+					apievents.MFAFlowType_MFA_FLOW_TYPE_PER_SESSION_CERTIFICATE,
+				)
+
+				// The TOTP device does not emit the validate event so only check for Webauthn.
+				if resp.GetWebauthn() != nil {
+					require.True(
+						t,
+						slices.ContainsFunc(emitter.Events(), func(event apievents.AuditEvent) bool {
+							e, ok := event.(*apievents.ValidateMFAAuthResponse)
+							if !ok {
+								return false
+							}
+							return e.FlowType == apievents.MFAFlowType_MFA_FLOW_TYPE_PER_SESSION_CERTIFICATE
+						}),
+						"expected validate MFA audit event with flow type %s to be emitted but was not found",
+						apievents.MFAFlowType_MFA_FLOW_TYPE_PER_SESSION_CERTIFICATE,
+					)
+				}
 			}
 		}
-		t.Run(test.name+"/ssh", makeRun(func(s *Server, req authclient.AuthenticateUserRequest) error {
+		t.Run(test.name+"/ssh", makeRun(func(s *auth.Server, req authclient.AuthenticateUserRequest) error {
 			_, err := s.AuthenticateSSHUser(ctx, authclient.AuthenticateSSHRequest{
 				AuthenticateUserRequest: req,
 				TTL:                     24 * time.Hour,
 			})
 			return err
 		}))
-		t.Run(test.name+"/web", makeRun(func(s *Server, req authclient.AuthenticateUserRequest) error {
+		t.Run(test.name+"/web", makeRun(func(s *auth.Server, req authclient.AuthenticateUserRequest) error {
 			_, err := s.AuthenticateWebUser(ctx, req)
 			return err
 		}))
@@ -1132,12 +1392,12 @@ func TestServer_Authenticate_passwordless(t *testing.T) {
 	// Create user and initial WebAuthn device (MFA).
 	const user = "llama"
 	const password = "p@ssw0rd1234"
-	_, _, err = CreateUserAndRole(authServer, user, []string{"llama", "root"}, nil)
+	_, _, err = authtest.CreateUserAndRole(authServer, user, []string{"llama", "root"}, nil)
 	require.NoError(t, err)
 	require.NoError(t, authServer.UpsertPassword(user, []byte(password)))
-	userClient, err := svr.NewClient(TestUser(user))
+	userClient, err := svr.NewClient(authtest.TestUser(user))
 	require.NoError(t, err)
-	webDev, err := RegisterTestDevice(
+	webDev, err := authtest.RegisterTestDevice(
 		ctx, userClient, "web", proto.DeviceType_DEVICE_TYPE_WEBAUTHN, nil /* authenticator */)
 	require.NoError(t, err)
 
@@ -1184,19 +1444,19 @@ func TestServer_Authenticate_passwordless(t *testing.T) {
 	require.NoError(t, err, "Failed to register passwordless device")
 
 	// Use a proxy client for now on; the user's identity isn't established yet.
-	proxyClient, err := svr.NewClient(TestBuiltin(types.RoleProxy))
+	proxyClient, err := svr.NewClient(authtest.TestBuiltin(types.RoleProxy))
 	require.NoError(t, err)
 
 	// used to keep track of calls to login hooks.
 	var loginHookCounter atomic.Int32
-	var loginHook LoginHook = func(_ context.Context, _ types.User) error {
+	var loginHook auth.LoginHook = func(_ context.Context, _ types.User) error {
 		loginHookCounter.Add(1)
 		return nil
 	}
 
 	tests := []struct {
 		name         string
-		loginHooks   []LoginHook
+		loginHooks   []auth.LoginHook
 		authenticate func(t *testing.T, resp *wantypes.CredentialAssertionResponse)
 	}{
 		{
@@ -1204,8 +1464,9 @@ func TestServer_Authenticate_passwordless(t *testing.T) {
 			authenticate: func(t *testing.T, resp *wantypes.CredentialAssertionResponse) {
 				loginResp, err := proxyClient.AuthenticateSSHUser(ctx, authclient.AuthenticateSSHRequest{
 					AuthenticateUserRequest: authclient.AuthenticateUserRequest{
-						Webauthn:  resp,
-						PublicKey: []byte(sshPubKey),
+						Webauthn:     resp,
+						SSHPublicKey: []byte(sshPubKey),
+						TLSPublicKey: []byte(tlsPubKey),
 					},
 					TTL: 24 * time.Hour,
 				})
@@ -1217,15 +1478,16 @@ func TestServer_Authenticate_passwordless(t *testing.T) {
 		},
 		{
 			name: "ssh with login hooks",
-			loginHooks: []LoginHook{
+			loginHooks: []auth.LoginHook{
 				loginHook,
 				loginHook,
 			},
 			authenticate: func(t *testing.T, resp *wantypes.CredentialAssertionResponse) {
 				loginResp, err := proxyClient.AuthenticateSSHUser(ctx, authclient.AuthenticateSSHRequest{
 					AuthenticateUserRequest: authclient.AuthenticateUserRequest{
-						Webauthn:  resp,
-						PublicKey: []byte(sshPubKey),
+						Webauthn:     resp,
+						SSHPublicKey: []byte(sshPubKey),
+						TLSPublicKey: []byte(tlsPubKey),
 					},
 					TTL: 24 * time.Hour,
 				})
@@ -1247,7 +1509,7 @@ func TestServer_Authenticate_passwordless(t *testing.T) {
 		},
 		{
 			name: "web with login hooks",
-			loginHooks: []LoginHook{
+			loginHooks: []auth.LoginHook{
 				loginHook,
 			},
 			authenticate: func(t *testing.T, resp *wantypes.CredentialAssertionResponse) {
@@ -1270,9 +1532,10 @@ func TestServer_Authenticate_passwordless(t *testing.T) {
 			// Fail a login attempt so have a non-empty list of attempts.
 			_, err := proxyClient.AuthenticateSSHUser(ctx, authclient.AuthenticateSSHRequest{
 				AuthenticateUserRequest: authclient.AuthenticateUserRequest{
-					Username:  user,
-					Webauthn:  &wantypes.CredentialAssertionResponse{}, // bad response
-					PublicKey: []byte(sshPubKey),
+					Username:     user,
+					Webauthn:     &wantypes.CredentialAssertionResponse{}, // bad response
+					SSHPublicKey: []byte(sshPubKey),
+					TLSPublicKey: []byte(tlsPubKey),
 				},
 				TTL: 24 * time.Hour,
 			})
@@ -1320,9 +1583,9 @@ func TestPasswordlessProhibitedForSSO(t *testing.T) {
 	ctx := context.Background()
 
 	// Register a passwordless device.
-	userClient, err := testServer.NewClient(TestUser(mfa.User))
+	userClient, err := testServer.NewClient(authtest.TestUser(mfa.User))
 	require.NoError(t, err, "NewClient failed")
-	pwdlessDev, err := RegisterTestDevice(ctx, userClient, "pwdless", proto.DeviceType_DEVICE_TYPE_WEBAUTHN, mfa.WebDev, WithPasswordless())
+	pwdlessDev, err := authtest.RegisterTestDevice(ctx, userClient, "pwdless", proto.DeviceType_DEVICE_TYPE_WEBAUTHN, mfa.WebDev, authtest.WithPasswordless())
 	require.NoError(t, err, "RegisterTestDevice failed")
 
 	// Edit the configured user so it looks like an SSO user attempting local
@@ -1344,7 +1607,7 @@ func TestPasswordlessProhibitedForSSO(t *testing.T) {
 	require.NoError(t, err, "UpdateAndSwapUser failed")
 
 	// Authentication happens through the Proxy identity.
-	proxyClient, err := testServer.NewClient(TestBuiltin(types.RoleProxy))
+	proxyClient, err := testServer.NewClient(authtest.TestBuiltin(types.RoleProxy))
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -1365,8 +1628,9 @@ func TestPasswordlessProhibitedForSSO(t *testing.T) {
 			authenticate: func(car *wantypes.CredentialAssertionResponse) error {
 				_, err := proxyClient.AuthenticateSSHUser(ctx, authclient.AuthenticateSSHRequest{
 					AuthenticateUserRequest: authclient.AuthenticateUserRequest{
-						PublicKey: []byte(sshPubKey),
-						Webauthn:  car,
+						SSHPublicKey: []byte(sshPubKey),
+						TLSPublicKey: []byte(tlsPubKey),
+						Webauthn:     car,
 					},
 					TTL: 12 * time.Hour,
 				})
@@ -1431,7 +1695,7 @@ func TestSSOPasswordBypass(t *testing.T) {
 	// and proceed from there.
 
 	// Authentication happens through the Proxy identity.
-	proxyClient, err := testServer.NewClient(TestBuiltin(types.RoleProxy))
+	proxyClient, err := testServer.NewClient(authtest.TestBuiltin(types.RoleProxy))
 	require.NoError(t, err)
 
 	createAuthenticateChallenge := func(t *testing.T) *proto.MFAAuthenticateChallenge {
@@ -1467,7 +1731,7 @@ func TestSSOPasswordBypass(t *testing.T) {
 		// proxyClient.AuthenticateSSHUser to something else (eg,
 		// proxyClient.AuthenticateWebUser).
 		// Optional.
-		authenticateOverride func(context.Context, authclient.AuthenticateSSHRequest) (*authclient.SSHLoginResponse, error)
+		authenticateOverride func(context.Context, authclient.AuthenticateSSHRequest) (*authclient.CLILoginResponse, error)
 	}{
 		{
 			name: "OTP",
@@ -1489,7 +1753,7 @@ func TestSSOPasswordBypass(t *testing.T) {
 		{
 			name:            "AuthenticateWeb",
 			setSecondFactor: solveWebauthn,
-			authenticateOverride: func(ctx context.Context, req authclient.AuthenticateSSHRequest) (*authclient.SSHLoginResponse, error) {
+			authenticateOverride: func(ctx context.Context, req authclient.AuthenticateSSHRequest) (*authclient.CLILoginResponse, error) {
 				// We only care about the error here, it's OK to swallow the session.
 				_, err := proxyClient.AuthenticateWebUser(ctx, req.AuthenticateUserRequest)
 				return nil, err
@@ -1527,8 +1791,9 @@ func TestSSOPasswordBypass(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			req := authclient.AuthenticateSSHRequest{
 				AuthenticateUserRequest: authclient.AuthenticateUserRequest{
-					Username:  mfa.User,
-					PublicKey: []byte(sshPubKey),
+					Username:     mfa.User,
+					SSHPublicKey: []byte(sshPubKey),
+					TLSPublicKey: []byte(tlsPubKey),
 					// test.setSecondFactor sets either Pass, OTP or Webauthn.
 				},
 				TTL: 12 * time.Hour,
@@ -1557,7 +1822,7 @@ func TestSSOPasswordBypass(t *testing.T) {
 		mfaResp, err := mfa.TOTPDev.SolveAuthn(chal)
 		require.NoError(t, err, "SolveAuthn failed")
 
-		userClient, err := testServer.NewClient(TestUser(mfa.User))
+		userClient, err := testServer.NewClient(authtest.TestUser(mfa.User))
 		require.NoError(t, err, "NewClient failed")
 
 		err = userClient.ChangePassword(ctx, &proto.ChangePasswordRequest{
@@ -1572,7 +1837,7 @@ func TestSSOPasswordBypass(t *testing.T) {
 	t.Run("CreateResetPasswordToken", func(t *testing.T) {
 		t.Parallel()
 
-		adminClient, err := testServer.NewClient(TestBuiltin(types.RoleAdmin))
+		adminClient, err := testServer.NewClient(authtest.TestBuiltin(types.RoleAdmin))
 		require.NoError(t, err, "NewClient failed")
 
 		_, err = adminClient.CreateResetPasswordToken(ctx, authclient.CreateUserTokenRequest{
@@ -1587,19 +1852,15 @@ func TestSSOPasswordBypass(t *testing.T) {
 // TestSSOAccountRecoveryProhibited tests that SSO users cannot perform account
 // recovery.
 func TestSSOAccountRecoveryProhibited(t *testing.T) {
-	// Can't t.Parallel because of modules.SetTestModules.
-
-	testServer := newTestTLSServer(t)
-	authServer := testServer.Auth()
-	clock := testServer.Clock()
-	ctx := context.Background()
-
-	// Enable RecoveryCodes feature.
-	modules.SetTestModules(t, &modules.TestModules{
+	t.Parallel()
+	testServer := newTestTLSServer(t, withModules(&modulestest.Modules{
 		TestFeatures: modules.Features{
 			RecoveryCodes: true,
 		},
-	})
+	}))
+	authServer := testServer.Auth()
+	clock := testServer.Clock()
+	ctx := t.Context()
 
 	// Make second factor mandatory.
 	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
@@ -1616,7 +1877,7 @@ func TestSSOAccountRecoveryProhibited(t *testing.T) {
 	// Create a user that looks like an SSO user. The name must be an e-mail for
 	// account recovery to work.
 	const user = "llama@example.com"
-	_, _, err = CreateUserAndRole(authServer, user, []string{user}, nil /* allowRules */)
+	_, _, err = authtest.CreateUserAndRole(authServer, user, []string{user}, nil /* allowRules */)
 	require.NoError(t, err, "CreateUserAndRole failed")
 	_, err = authServer.UpdateAndSwapUser(ctx, user, false /* withSecrets */, func(u types.User) (changed bool, err error) {
 		u.SetCreatedBy(types.CreatedBy{
@@ -1635,9 +1896,9 @@ func TestSSOAccountRecoveryProhibited(t *testing.T) {
 	require.NoError(t, err, "UpdateAndSwapUser failed")
 
 	// Register an MFA device.
-	userClient, err := testServer.NewClient(TestUser(user))
+	userClient, err := testServer.NewClient(authtest.TestUser(user))
 	require.NoError(t, err, "NewClient failed")
-	totpDev, err := RegisterTestDevice(ctx, userClient, "totp", proto.DeviceType_DEVICE_TYPE_TOTP, nil /* authenticator */, WithTestDeviceClock(clock))
+	totpDev, err := authtest.RegisterTestDevice(ctx, userClient, "totp", proto.DeviceType_DEVICE_TYPE_TOTP, nil /* authenticator */, authtest.WithTestDeviceClock(clock))
 	require.NoError(t, err, "RegisterTestDevice failed")
 
 	t.Run("CreateAccountRecoveryCodes", func(t *testing.T) {
@@ -1687,15 +1948,15 @@ func TestServer_Authenticate_nonPasswordlessRequiresUsername(t *testing.T) {
 	username := mfa.User
 	password := mfa.Password
 
-	userClient, err := svr.NewClient(TestUser(username))
+	userClient, err := svr.NewClient(authtest.TestUser(username))
 	require.NoError(t, err)
-	proxyClient, err := svr.NewClient(TestBuiltin(types.RoleProxy))
+	proxyClient, err := svr.NewClient(authtest.TestBuiltin(types.RoleProxy))
 	require.NoError(t, err)
 
 	ctx := context.Background()
 	tests := []struct {
 		name    string
-		dev     *TestDevice
+		dev     *authtest.Device
 		wantErr string
 	}{
 		{
@@ -1725,7 +1986,8 @@ func TestServer_Authenticate_nonPasswordlessRequiresUsername(t *testing.T) {
 			require.NoError(t, err)
 
 			req := authclient.AuthenticateUserRequest{
-				PublicKey: []byte(sshPubKey),
+				SSHPublicKey: []byte(sshPubKey),
+				TLSPublicKey: []byte(tlsPubKey),
 			}
 			switch {
 			case mfaResp.GetWebauthn() != nil:
@@ -1761,7 +2023,7 @@ func TestServer_Authenticate_nonPasswordlessRequiresUsername(t *testing.T) {
 func TestServer_Authenticate_headless(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	headlessID := services.NewHeadlessAuthenticationID([]byte(sshPubKey))
 
 	for _, tc := range []struct {
@@ -1769,6 +2031,7 @@ func TestServer_Authenticate_headless(t *testing.T) {
 		timeout     time.Duration
 		update      func(*types.HeadlessAuthentication, *types.MFADevice)
 		assertError require.ErrorAssertionFunc
+		assertResp  func(*testing.T, *authclient.CLILoginResponse, *authtest.Device)
 	}{
 		{
 			name:    "OK approved",
@@ -1778,14 +2041,31 @@ func TestServer_Authenticate_headless(t *testing.T) {
 				ha.MfaDevice = mfa
 			},
 			assertError: require.NoError,
+			assertResp: func(t *testing.T, resp *authclient.CLILoginResponse, webDev *authtest.Device) {
+				require.NotNil(t, resp)
+				require.NotNil(t, webDev)
+				require.NotNil(t, webDev.MFA)
+
+				sshCert, err := sshutils.ParseCertificate(resp.Cert)
+				require.NoError(t, err)
+
+				identity, err := sshca.DecodeIdentity(sshCert)
+				require.NoError(t, err)
+
+				assert.Equal(t, webDev.MFA.GetName(), identity.MFAVerified)
+				assert.Equal(t, headlessID, identity.HeadlessAuthenticationID)
+			},
 		}, {
 			name:    "NOK approved without MFA",
 			timeout: 10 * time.Second,
 			update: func(ha *types.HeadlessAuthentication, mfa *types.MFADevice) {
 				ha.State = types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED
 			},
-			assertError: func(t require.TestingT, err error, i ...interface{}) {
-				require.True(t, trace.IsAccessDenied(err), "expected access denied error but got %v", err)
+			assertError: func(t require.TestingT, err error, i ...any) {
+				assert.True(t, trace.IsAccessDenied(err), "expected access denied error but got %v", err)
+			},
+			assertResp: func(t *testing.T, resp *authclient.CLILoginResponse, _ *authtest.Device) {
+				assert.Nil(t, resp)
 			},
 		}, {
 			name:    "NOK denied",
@@ -1793,23 +2073,28 @@ func TestServer_Authenticate_headless(t *testing.T) {
 			update: func(ha *types.HeadlessAuthentication, mfa *types.MFADevice) {
 				ha.State = types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_DENIED
 			},
-			assertError: func(t require.TestingT, err error, i ...interface{}) {
-				require.True(t, trace.IsAccessDenied(err), "expected access denied error but got %v", err)
+			assertError: func(t require.TestingT, err error, i ...any) {
+				assert.True(t, trace.IsAccessDenied(err), "expected access denied error but got %v", err)
+			},
+			assertResp: func(t *testing.T, resp *authclient.CLILoginResponse, _ *authtest.Device) {
+				assert.Nil(t, resp)
 			},
 		}, {
 			name:    "NOK timeout",
 			timeout: 100 * time.Millisecond,
-			assertError: func(t require.TestingT, err error, i ...interface{}) {
-				require.ErrorIs(t, err, context.DeadlineExceeded)
+			assertError: func(t require.TestingT, err error, i ...any) {
+				assert.ErrorIs(t, err, context.DeadlineExceeded)
+			},
+			assertResp: func(t *testing.T, resp *authclient.CLILoginResponse, _ *authtest.Device) {
+				assert.Nil(t, resp)
 			},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			tc := tc
 			t.Parallel()
 
 			srv := newTestTLSServer(t)
-			proxyClient, err := srv.NewClient(TestBuiltin(types.RoleProxy))
+			proxyClient, err := srv.NewClient(authtest.TestBuiltin(types.RoleProxy))
 			require.NoError(t, err)
 
 			// We don't mind about the specifics of the configuration, as long as we have
@@ -1851,14 +2136,15 @@ func TestServer_Authenticate_headless(t *testing.T) {
 				}
 			}()
 
-			_, err = proxyClient.AuthenticateSSHUser(ctx, authclient.AuthenticateSSHRequest{
+			resp, err := proxyClient.AuthenticateSSHUser(ctx, authclient.AuthenticateSSHRequest{
 				AuthenticateUserRequest: authclient.AuthenticateUserRequest{
 					// HeadlessAuthenticationID should take precedence over WebAuthn and OTP fields.
 					HeadlessAuthenticationID: headlessID,
 					Webauthn:                 &wantypes.CredentialAssertionResponse{},
 					OTP:                      &authclient.OTPCreds{},
 					Username:                 username,
-					PublicKey:                []byte(sshPubKey),
+					SSHPublicKey:             []byte(sshPubKey),
+					TLSPublicKey:             []byte(tlsPubKey),
 					ClientMetadata: &authclient.ForwardedClientMetadata{
 						RemoteAddr: "0.0.0.0",
 					},
@@ -1869,17 +2155,18 @@ func TestServer_Authenticate_headless(t *testing.T) {
 			// Use assert so that we also output any test failures below.
 			assert.NoError(t, <-errC, "Failed to get and update headless authentication in background")
 
-			tc.assertError(t, err)
+			tc.assertError(t, err, trace.DebugReport(err))
+			tc.assertResp(t, resp, mfa.WebDev)
 		})
 	}
 }
 
 type configureMFAResp struct {
 	User, Password  string
-	TOTPDev, WebDev *TestDevice
+	TOTPDev, WebDev *authtest.Device
 }
 
-func configureForMFA(t *testing.T, srv *TestTLSServer) *configureMFAResp {
+func configureForMFA(t *testing.T, srv *authtest.TLSServer) *configureMFAResp {
 	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorOptional,
@@ -1897,17 +2184,17 @@ func configureForMFA(t *testing.T, srv *TestTLSServer) *configureMFAResp {
 	// Create user with a default password.
 	const username = "llama@goteleport.com"
 	const password = "supersecurepass"
-	_, _, err = CreateUserAndRole(authServer, username, []string{"llama", "root"}, nil)
+	_, _, err = authtest.CreateUserAndRole(authServer, username, []string{"llama", "root"}, nil)
 	require.NoError(t, err)
 	require.NoError(t, authServer.UpsertPassword(username, []byte(password)))
 
-	clt, err := srv.NewClient(TestUser(username))
+	clt, err := srv.NewClient(authtest.TestUser(username))
 	require.NoError(t, err)
 
-	totpDev, err := RegisterTestDevice(ctx, clt, "totp-1", proto.DeviceType_DEVICE_TYPE_TOTP, nil, WithTestDeviceClock(srv.Clock()))
+	totpDev, err := authtest.RegisterTestDevice(ctx, clt, "totp-1", proto.DeviceType_DEVICE_TYPE_TOTP, nil, authtest.WithTestDeviceClock(srv.Clock()))
 	require.NoError(t, err)
 
-	webDev, err := RegisterTestDevice(ctx, clt, "web-1", proto.DeviceType_DEVICE_TYPE_WEBAUTHN, totpDev)
+	webDev, err := authtest.RegisterTestDevice(ctx, clt, "web-1", proto.DeviceType_DEVICE_TYPE_WEBAUTHN, totpDev)
 	require.NoError(t, err)
 
 	return &configureMFAResp{

@@ -1,0 +1,444 @@
+/**
+ * Teleport
+ * Copyright (C) 2025 Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+import {
+  Cluster,
+  LoggedInUser,
+} from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
+import { ensureError } from 'shared/utils/error';
+
+import Logger from 'teleterm/logger';
+import type { IAwaitableSender } from 'teleterm/mainProcess/awaitableSender';
+import { serializeError } from 'teleterm/mainProcess/ipcSerializer';
+import { RendererIpc } from 'teleterm/mainProcess/types';
+import { AppUpdater } from 'teleterm/services/appUpdater';
+import {
+  isRpcErrorReloginResolvable,
+  TshdClient,
+} from 'teleterm/services/tshd';
+import { mergeClusterProfileWithDetails } from 'teleterm/services/tshd/cluster';
+import { RootClusterUri } from 'teleterm/ui/uri';
+
+import { ClusterStore } from '../clusterStore';
+import { ProfileChange, ProfileChangeSet } from '../profileWatcher';
+
+/** Describes a lifecycle event related to a cluster. */
+export interface ClusterLifecycleEvent {
+  uri: RootClusterUri;
+  /**
+   * The lifecycle operation type.
+   *
+   * Operations prefixed with `will-` occur before the corresponding action
+   * in the main process and can interrupt it when they return an error.
+   *
+   * Operations prefixed with `did-` occur after the action has already happened
+   * in the main process, so they cannot prevent it.
+   *
+   * Operation meanings:
+   * * did-add-cluster - A cluster has been successfully added.
+   * * did-change-access - The logged-in user has changed, or their roles,
+   * or access requests have been updated.
+   * * did-change-proxy-host - The proxy address saved in the profile has changed.
+   * * will-logout - The user is about to be logged out, but Connect should
+   * keep the workspace as remembered cluster state.
+   * * will-forget-cluster - The user is about to forget the cluster in
+   * Connect. Its workspace and profile will be removed.
+   */
+  op:
+    | 'did-add-cluster'
+    | 'did-change-access'
+    | 'did-change-proxy-host'
+    | 'will-logout'
+    | 'will-forget-cluster';
+}
+
+export interface ProfileWatcherError {
+  error: unknown;
+  reason: 'processing-error' | 'exited';
+}
+
+interface WindowsManager {
+  getWindow(): {
+    webContents: { send(channel: string, ...args: any[]): void };
+  };
+}
+
+/**
+ * Manages the lifecycle of clusters by handling both UI actions that update them
+ * (e.g., adding a cluster, logging out) and profile watcher events.
+ *
+ * When handling an action or event requires additional work on the renderer side
+ * (for example, cleaning up before logging out), a handler registered
+ * in `rendererEventHandler` is invoked.
+ * Then, the cluster store is updated (the exact order of these steps depends
+ * on the specific case).
+ *
+ * It is important to always call a method of `ClusterLifecycleManager` rather
+ * than interacting directly with `ClusterStore` whenever the action involves
+ * additional work on the renderer side.
+ */
+export class ClusterLifecycleManager {
+  private readonly logger = new Logger('ClusterLifecycleManager');
+  private rendererEventHandler:
+    | IAwaitableSender<ClusterLifecycleEvent>
+    | undefined;
+  private watcherStarted = false;
+
+  constructor(
+    private readonly clusterStore: ClusterStore,
+    private readonly getTshdClient: () => Promise<TshdClient>,
+    private readonly appUpdater: Pick<AppUpdater, 'maybeRemoveManagingCluster'>,
+    private readonly windowsManager: WindowsManager,
+    private readonly profileWatcher: AsyncIterable<ProfileChangeSet>
+  ) {}
+
+  setRendererEventHandler(
+    handler: IAwaitableSender<ClusterLifecycleEvent>
+  ): void {
+    if (this.rendererEventHandler) {
+      this.logger.error(
+        'Only one renderer lifecycle event handler can be registered at a time'
+      );
+      return;
+    }
+
+    this.logger.info('Renderer lifecycle event handler registered', {
+      senderId: handler.id,
+    });
+    this.rendererEventHandler = handler;
+    this.rendererEventHandler.whenDisposed().then(() => {
+      this.logger.info('Renderer lifecycle event handler unregistered', {
+        senderId: handler.id,
+      });
+      this.rendererEventHandler = undefined;
+    });
+  }
+
+  async addCluster(proxyAddress: string): Promise<Cluster> {
+    this.logger.info('Adding cluster', { proxyAddress });
+    try {
+      const cluster = await this.clusterStore.add(proxyAddress);
+      await this.sendRendererEvent({
+        op: 'did-add-cluster',
+        uri: cluster.uri,
+      });
+      this.logger.info('Cluster added', { uri: cluster.uri });
+      return cluster;
+    } catch (error) {
+      this.logger.error('Failed to add cluster', { proxyAddress }, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Logs out from the cluster without removing the tsh profile.
+   * Session credentials are cleared, but the cluster remains visible in both
+   * Connect and tsh.
+   */
+  async logoutCluster(uri: RootClusterUri): Promise<void> {
+    this.logger.info('Logging out cluster', { uri });
+    try {
+      await this.sendRendererEvent({ op: 'will-logout', uri });
+      await this.clusterStore.logout(uri, { removeProfile: false });
+      this.logger.info('Logged out cluster', { uri });
+    } catch (error) {
+      this.logger.error('Failed to log out cluster', { uri }, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Forgets the cluster in Connect and removes its tsh profile.
+   * If this cluster was selected to manage app updates, clears that selection.
+   */
+  async forgetCluster(uri: RootClusterUri): Promise<void> {
+    this.logger.info('Forgetting cluster', { uri });
+    try {
+      await this.sendRendererEvent({ op: 'will-forget-cluster', uri });
+      // Clear the managing cluster only when the cluster is forgotten in Connect.
+      // If the stored managing cluster is missing, auto-update resolution ignores it.
+      // Once that cluster is added back, the stored selection applies again.
+      //
+      // Do not wait for this promise to finish as we don't want to block logout
+      // on checking app updates.
+      this.appUpdater.maybeRemoveManagingCluster(uri).catch(error => {
+        this.logger.error('Failed to remove managing cluster', { uri }, error);
+      });
+      await this.clusterStore.logout(uri, { removeProfile: true });
+      this.logger.info('Forgot cluster', { uri });
+    } catch (error) {
+      this.logger.error('Failed to forget cluster', { uri }, error);
+      throw error;
+    }
+  }
+
+  async syncCluster(uri: RootClusterUri): Promise<void> {
+    this.logger.info('Syncing cluster', { uri });
+    try {
+      const { previous, next } = await this.clusterStore.sync(uri);
+      await this.emitClusterChangedEvents(previous, next);
+      this.logger.info('Cluster synced', { uri: next.uri });
+    } catch (error) {
+      this.logger.error('Failed to sync cluster', { uri }, error);
+      throw error;
+    }
+  }
+
+  async syncRootClustersAndStartProfileWatcher(): Promise<void> {
+    this.logger.info('Syncing root clusters');
+    try {
+      await this.clusterStore.syncRootClusters();
+      if (!this.watcherStarted) {
+        this.logger.info('Starting profile watcher');
+        this.watcherStarted = true;
+        void this.watchProfileChanges();
+        return;
+      }
+    } catch (error) {
+      this.logger.error('Failed to sync root clusters', error);
+      throw error;
+    }
+  }
+
+  /**
+   * If the cluster is connected, try to sync it to get the full profile with details.
+   * Otherwise, update the cluster with the profile read from disk.
+   */
+  private async syncOrUpdateCluster(cluster: Cluster): Promise<void> {
+    if (cluster.connected) {
+      try {
+        await this.clusterStore.sync(cluster.uri);
+      } catch (e) {
+        // Theoretically, the cert could just expire and result in an error
+        // resolvable with relogin when trying to sync the cluster.
+        // In that case, only update the store.
+        if (!isRpcErrorReloginResolvable(e)) {
+          throw e;
+        }
+      }
+    }
+    const existing = this.clusterStore.getState().get(cluster.uri);
+    await this.clusterStore.set(
+      mergeClusterProfileWithDetails({
+        profile: cluster,
+        details: existing || Cluster.create(),
+      })
+    );
+  }
+
+  /**
+   * Watches for changes in the `tsh` directory.
+   *
+   * Some file system events require notifying the renderer (e.g., to
+   * remove a workspace before a cluster store update is sent).
+   */
+  private async watchProfileChanges(): Promise<void> {
+    try {
+      for await (const changes of this.profileWatcher) {
+        for (const change of changes) {
+          this.logger.info('Processing profile change', {
+            op: change.op,
+            uri: getChangeUri(change),
+          });
+          try {
+            switch (change.op) {
+              case 'added':
+                await this.handleClusterAdded(change.cluster);
+                break;
+              case 'changed':
+                await this.handleClusterChanged(change.previous, change.next);
+                break;
+              case 'removed':
+                await this.handleClusterRemoved(change.cluster);
+                break;
+            }
+            this.logger.info('Processed profile change', {
+              op: change.op,
+              uri: getChangeUri(change),
+            });
+          } catch (error) {
+            this.logger.error(
+              'Error while processing profile change',
+              {
+                op: change.op,
+                uri: getChangeUri(change),
+              },
+              error
+            );
+            this.handleWatcherError({ error, reason: 'processing-error' });
+          }
+        }
+      }
+      this.logger.info('Profile watcher stopped');
+    } catch (error) {
+      this.logger.error('Profile watcher exited with error', { error });
+      this.handleWatcherError({ error, reason: 'exited' });
+    }
+  }
+
+  private async handleClusterAdded(cluster: Cluster): Promise<void> {
+    await this.syncOrUpdateCluster(cluster);
+    await this.sendRendererEvent({
+      op: 'did-add-cluster',
+      uri: cluster.uri,
+    });
+  }
+
+  private async handleClusterChanged(
+    previous: Cluster,
+    next: Cluster
+  ): Promise<void> {
+    const wasLoggedIn = previous.loggedInUser?.name;
+    const isLoggedIn = next.loggedInUser?.name;
+    const hasLoggedOut = wasLoggedIn && !isLoggedIn;
+
+    if (hasLoggedOut) {
+      this.logger.info('Detected cluster logout from profile change', {
+        uri: next.uri,
+      });
+      await this.handleClusterLogout(next);
+      return;
+    }
+
+    const client = await this.getTshdClient();
+    // Only clear clients with outdated certificates.
+    // The watcher 'changed' event may be emitted right after the user logs in
+    // or assumes a role via Connect (which already closes all clients
+    // for the profile), so we avoid closing them again if they're already up to date.
+    //
+    // This needs to be done before the check for changed access. It handles a scenario where the
+    // user logged in again via tsh and the auth server has disconnect_expired_cert enabled.
+    await client.clearStaleClusterClients({ rootClusterUri: next.uri });
+    await this.syncOrUpdateCluster(next);
+    await this.emitClusterChangedEvents(previous, next);
+  }
+
+  private async handleClusterRemoved(cluster: Cluster): Promise<void> {
+    // When a profile disappears externally (for example by running tsh logout),
+    // keep the workspace as Connect's remembered cluster state.
+    await this.sendRendererEvent({
+      op: 'will-logout',
+      uri: cluster.uri,
+    });
+    // Keep the cluster store in sync with the profile state on disk.
+    // Once the profile is gone, we must remove if from the store too; otherwise Connect
+    // could try to use it before recreating the profile and RPCs would fail with errors such
+    // as "~/.tsh/<proxy-name> no such file or directory".
+    await this.clusterStore.logout(cluster.uri, { removeProfile: true });
+  }
+
+  private async handleClusterLogout(cluster: Cluster): Promise<void> {
+    await this.sendRendererEvent({
+      op: 'will-logout',
+      uri: cluster.uri,
+    });
+    const client = await this.getTshdClient();
+    await client.logout({ clusterUri: cluster.uri, removeProfile: false });
+    await this.syncOrUpdateCluster(cluster);
+  }
+
+  private async emitClusterChangedEvents(
+    previous: Cluster | undefined,
+    next: Cluster
+  ): Promise<void> {
+    if (previous?.proxyHost !== next.proxyHost) {
+      await this.sendRendererEvent({
+        op: 'did-change-proxy-host',
+        uri: next.uri,
+      });
+    }
+
+    if (hasAccessChanged(previous?.loggedInUser, next.loggedInUser)) {
+      await this.sendRendererEvent({
+        op: 'did-change-access',
+        uri: next.uri,
+      });
+    }
+  }
+
+  private handleWatcherError(watcherError: ProfileWatcherError): void {
+    this.logger.info(
+      'Reporting profile watcher error to renderer',
+      {
+        reason: watcherError.reason,
+      },
+      watcherError.error
+    );
+    const serialized: ProfileWatcherError = {
+      reason: watcherError.reason,
+      error: serializeError(ensureError(watcherError.error)),
+    };
+    this.windowsManager
+      .getWindow()
+      .webContents.send(RendererIpc.ProfileWatcherError, serialized);
+  }
+
+  private async sendRendererEvent(event: ClusterLifecycleEvent): Promise<void> {
+    if (!this.rendererEventHandler) {
+      this.logger.error(
+        'Skipped renderer lifecycle event because handler is not registered',
+        {
+          op: event.op,
+          uri: event.uri,
+        }
+      );
+    }
+
+    this.logger.info('Sending renderer lifecycle event', {
+      op: event.op,
+      uri: event.uri,
+    });
+    await this.rendererEventHandler.send(event);
+  }
+}
+
+/**
+ * Checks if the username, roles or active requests changed.
+ * If yes, then probably the user has access to different resources.
+ */
+function hasAccessChanged(
+  previousUser: LoggedInUser | undefined,
+  nextUser: LoggedInUser | undefined
+): boolean {
+  // No user, we don't know if access changed.
+  if (!(previousUser?.name && nextUser?.name)) {
+    return false;
+  }
+
+  const hasChangedUsername = previousUser.name !== nextUser.name;
+  const hasChangedRoles = !areArraysEqual(previousUser.roles, nextUser.roles);
+  const hasChangedActiveRequests = !areArraysEqual(
+    previousUser.activeRequests,
+    nextUser.activeRequests
+  );
+
+  return hasChangedUsername || hasChangedRoles || hasChangedActiveRequests;
+}
+
+function areArraysEqual(a: string[], b: string[]): boolean {
+  const aSet = new Set(a);
+  const bSet = new Set(b);
+  return aSet.size === bSet.size && aSet.isSubsetOf(bSet);
+}
+
+function getChangeUri(change: ProfileChange): RootClusterUri {
+  if (change.op === 'changed') {
+    return change.next.uri;
+  }
+  return change.cluster.uri;
+}

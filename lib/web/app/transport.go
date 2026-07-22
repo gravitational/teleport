@@ -21,7 +21,7 @@ package app
 import (
 	"context"
 	"crypto/tls"
-	"fmt"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
@@ -30,7 +30,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
@@ -42,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -55,15 +55,15 @@ type ServerHandler interface {
 
 // transportConfig is configuration for a rewriting transport.
 type transportConfig struct {
-	proxyClient  reversetunnelclient.Tunnel
-	accessPoint  authclient.ReadProxyAccessPoint
-	cipherSuites []uint16
-	identity     *tlsca.Identity
-	servers      []types.AppServer
-	ws           types.WebSession
-	clusterName  string
-	log          logrus.FieldLogger
-	clock        clockwork.Clock
+	clusterGetter reversetunnelclient.ClusterGetter
+	accessPoint   authclient.ReadProxyAccessPoint
+	cipherSuites  []uint16
+	identity      *tlsca.Identity
+	servers       []types.AppServer
+	ws            types.WebSession
+	clusterName   string
+	log           *slog.Logger
+	clock         clockwork.Clock
 
 	// integrationAppHandler is used to handle App proxy requests for Apps that are configured to use an Integration.
 	// Instead of proxying the connection to an AppService, the app is immediately proxied from the Proxy.
@@ -72,7 +72,7 @@ type transportConfig struct {
 
 // Check validates configuration.
 func (c *transportConfig) Check() error {
-	if c.proxyClient == nil {
+	if c.clusterGetter == nil {
 		return trace.BadParameter("proxy client missing")
 	}
 	if c.accessPoint == nil {
@@ -97,7 +97,7 @@ func (c *transportConfig) Check() error {
 		return trace.BadParameter("integration app handler missing")
 	}
 	if c.log == nil {
-		c.log = logrus.New()
+		c.log = slog.Default()
 	}
 	if c.clock == nil {
 		c.clock = clockwork.NewRealClock()
@@ -265,7 +265,7 @@ func (t *transport) rewriteRequest(r *http.Request) error {
 				// Service should fail to parse the JWT and reject the request,
 				// but rejecting here could cause forward compatibility issues,
 				// if for example we add new types of JWT tokens.
-				t.c.log.WithError(err).Debug("failed to re-sign azure JWT")
+				t.c.log.DebugContext(r.Context(), "failed to re-sign azure JWT", "error", err)
 			}
 
 			break
@@ -287,8 +287,10 @@ func (t *transport) resignAzureJWTCookie(r *http.Request) error {
 
 	// Create a new jwt key using the client public key to verify and parse the token.
 	clientJWTKey, err := jwt.New(&jwt.Config{
-		Clock:       t.c.clock,
-		PublicKey:   r.TLS.PeerCertificates[0].PublicKey,
+		Clock:     t.c.clock,
+		PublicKey: r.TLS.PeerCertificates[0].PublicKey,
+		// TODO(gabrielcorado): use the cluster name. This value must match the
+		// one used by the proxy.
 		ClusterName: types.TeleportAzureMSIEndpoint,
 	})
 	if err != nil {
@@ -301,8 +303,10 @@ func (t *transport) resignAzureJWTCookie(r *http.Request) error {
 		return trace.Wrap(err)
 	}
 	wsJWTKey, err := jwt.New(&jwt.Config{
-		Clock:       t.c.clock,
-		PrivateKey:  wsPrivateKey,
+		Clock:      t.c.clock,
+		PrivateKey: wsPrivateKey,
+		// TODO(gabrielcorado): use the cluster name. This value must match the
+		// one used by the proxy.
 		ClusterName: types.TeleportAzureMSIEndpoint,
 	})
 	if err != nil {
@@ -311,15 +315,6 @@ func (t *transport) resignAzureJWTCookie(r *http.Request) error {
 
 	claims, err := clientJWTKey.VerifyAzureToken(token)
 	if err != nil {
-		// If we fail to parse the token using the client's public key,
-		// that likely means the client is on an old version and is
-		// signing the token with the web session key directly, meaning
-		// we don't need to resign it, just let it through.
-		// TODO (Joerger): DELETE IN 17.0.0
-		if _, err := wsJWTKey.VerifyAzureToken(token); err == nil {
-			return nil
-		}
-
 		// jwt signed by unknown key.
 		return trace.Wrap(err, "azure jwt signed by unknown key")
 	}
@@ -359,6 +354,11 @@ func (t *transport) DialContext(ctx context.Context, _, _ string) (conn net.Conn
 	copy(servers, t.c.servers)
 	t.mu.Unlock()
 
+	clusterClient, err := t.c.clusterGetter.Cluster(ctx, t.c.identity.RouteToApp.ClusterName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	var i int
 	for ; i < len(servers); i++ {
 		appServer := servers[i]
@@ -366,14 +366,28 @@ func (t *transport) DialContext(ctx context.Context, _, _ string) (conn net.Conn
 		appIntegration := appServer.GetApp().GetIntegration()
 		if appIntegration != "" {
 			src, dst := net.Pipe()
-			go t.c.integrationAppHandler.HandleConnection(src)
+
+			// Creating the connection using `net.Pipe()` results in both ends having the same local/remote address: "pipe".
+			// This causes IP Pinning checks to fail when validating that the connection remote address matches the certificate pinned IP.
+			//
+			// To fix this, we need to wrap the `src` connection to return the client source address as the remote address.
+			// The client source address is extracted from the context, the same way as in `dialAppServer`.
+			srcWithClientSrcAddr, err := wrapConnWithClientSrcAddrFromContext(ctx, src)
+			if err != nil {
+				// Log a warning and use the original remote address if we fail to extract the client source address from context.
+				// This will result in an error if the flow has pinned IP restrictions.
+				t.c.log.WarnContext(ctx, "Failed to extract client source address from context when proxying access to Application with integration credentials. IP Pinning checks will fail.", "error", err)
+				srcWithClientSrcAddr = src
+			}
+
+			go t.c.integrationAppHandler.HandleConnection(srcWithClientSrcAddr)
 			return dst, nil
 		}
 
-		conn, err = dialAppServer(ctx, t.c.proxyClient, t.c.identity.RouteToApp.ClusterName, appServer)
+		conn, err = dialAppServer(ctx, clusterClient, appServer)
 		if err != nil && isReverseTunnelDownError(err) {
-			t.c.log.WithFields(logrus.Fields{"app_server": appServer.GetName()}).
-				Warnf("Failed to connect to application server: %v", err)
+			t.c.log.WarnContext(ctx, "Failed to connect to application server",
+				"app_server", appServer.GetName(), "host_id", appServer.GetHostID(), "error", err)
 			// Continue to the next server if there is an issue
 			// establishing a connection because the tunnel is not
 			// healthy. Reset the error to avoid returning it if
@@ -385,26 +399,32 @@ func (t *transport) DialContext(ctx context.Context, _, _ string) (conn net.Conn
 		break
 	}
 
-	t.mu.Lock()
-	// Only attempt to tidy up the list of servers if they weren't altered
-	// while the dialing happened. Since the lock is only held initially when
-	// making the servers copy and released during the dials, another dial attempt
-	// may have already happened and modified the list of servers.
-	if len(servers) == len(t.c.servers) {
-		// eliminate any servers from the head of the list that were unreachable
-		if i < len(t.c.servers) {
-			t.c.servers = t.c.servers[i:]
-		} else {
-			t.c.servers = nil
-		}
-	}
-	t.mu.Unlock()
-
 	if conn != nil || err != nil {
 		return conn, trace.Wrap(err)
 	}
 
 	return nil, trace.ConnectionProblem(nil, "no application servers remaining to connect")
+}
+
+type connWithCustomRemoteAddr struct {
+	net.Conn
+	remoteAddr net.Addr
+}
+
+func (w *connWithCustomRemoteAddr) RemoteAddr() net.Addr {
+	return w.remoteAddr
+}
+
+func wrapConnWithClientSrcAddrFromContext(ctx context.Context, conn net.Conn) (net.Conn, error) {
+	clientSrcAddr, err := authz.ClientSrcAddrFromContext(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &connWithCustomRemoteAddr{
+		Conn:       conn,
+		remoteAddr: clientSrcAddr,
+	}, nil
 }
 
 // DialWebsocket dials a websocket connection over the transport's reverse
@@ -420,12 +440,7 @@ func (t *transport) DialWebsocket(network, address string) (net.Conn, error) {
 
 // dialAppServer dial and connect to the application service over the reverse
 // tunnel subsystem.
-func dialAppServer(ctx context.Context, proxyClient reversetunnelclient.Tunnel, clusterName string, server types.AppServer) (net.Conn, error) {
-	clusterClient, err := proxyClient.GetSite(clusterName)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
+func dialAppServer(ctx context.Context, clusterClient reversetunnelclient.Cluster, server readonly.AppServer) (net.Conn, error) {
 	var from net.Addr
 	from = &utils.NetAddr{AddrNetwork: "tcp", Addr: "@web-proxy"}
 	clientSrcAddr, originalDst := authz.ClientAddrsFromContext(ctx)
@@ -437,11 +452,35 @@ func dialAppServer(ctx context.Context, proxyClient reversetunnelclient.Tunnel, 
 		From:                  from,
 		To:                    &utils.NetAddr{AddrNetwork: "tcp", Addr: reversetunnelclient.LocalNode},
 		OriginalClientDstAddr: originalDst,
-		ServerID:              fmt.Sprintf("%v.%v", server.GetHostID(), clusterName),
+		ServerID:              server.GetHostID() + "." + clusterClient.GetName(),
 		ConnType:              server.GetTunnelType(),
 		ProxyIDs:              server.GetProxyIDs(),
+		TargetScope:           server.GetScope(),
 	})
 	return conn, trace.Wrap(err)
+}
+
+// isAppServerDialable tries to establish a connection with the server using the
+// `dialAppServer` function.
+func isAppServerDialable(ctx context.Context, clusterClient reversetunnelclient.Cluster, appServer readonly.AppServer) bool {
+	// Redirected apps don't need to be dialed, as the proxy will redirect to them.
+	if redirectInsteadOfForward(appServer) {
+		return true
+	}
+
+	// Apps that use the Integration should use its credentials which are obtained in Proxy.
+	// There's no need for an ApplicationService in this scenario.
+	if appServer.GetApp().GetIntegration() != "" {
+		return true
+	}
+
+	conn, err := dialAppServer(ctx, clusterClient, appServer)
+	if err != nil {
+		return false
+	}
+
+	conn.Close()
+	return true
 }
 
 // configureTLS creates and configures a *tls.Config that will be used for

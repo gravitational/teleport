@@ -11,6 +11,9 @@ should match the snapshot:
         [slack]
         token = "/var/lib/teleport/plugins/slack/slack-token"
 
+        [review]
+        enabled = false
+
         [role_to_recipients]
         "*" = ["dev-access-requests"]
         "dev" = ["dev-access-requests","example-user@example.com"]
@@ -24,6 +27,41 @@ should match the snapshot:
         app.kubernetes.io/instance: RELEASE-NAME
         app.kubernetes.io/managed-by: Helm
         app.kubernetes.io/name: teleport-plugin-slack
-        app.kubernetes.io/version: 17.0.0-dev
-        helm.sh/chart: teleport-plugin-slack-17.0.0-dev
+        app.kubernetes.io/version: 19.0.0-prealpha.2
+        helm.sh/chart: teleport-plugin-slack-19.0.0-prealpha.2
+      name: RELEASE-NAME-teleport-plugin-slack
+should match the snapshot (review.enabled is true):
+  1: |
+    apiVersion: v1
+    data:
+      teleport-slack.toml: |
+        [teleport]
+        addr = "teleport.example.com:1234"
+        identity = "/var/lib/teleport/plugins/slack/teleport-identity/auth_id"
+        refresh_identity = true
+
+        [slack]
+        token = "/var/lib/teleport/plugins/slack/slack-token"
+
+        [review]
+        enabled = true
+        app_token = "/var/lib/teleport/plugins/slack/slack-app-token"
+        slack_user_id_trait = "slack_uid"
+        allow_email_username_match = false
+
+        [role_to_recipients]
+        "*" = ["dev-access-requests"]
+        "dev" = ["dev-access-requests","example-user@example.com"]
+
+        [log]
+        output = "/var/log/teleport-slack.log"
+        severity = "DEBUG"
+    kind: ConfigMap
+    metadata:
+      labels:
+        app.kubernetes.io/instance: RELEASE-NAME
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: teleport-plugin-slack
+        app.kubernetes.io/version: 19.0.0-prealpha.2
+        helm.sh/chart: teleport-plugin-slack-19.0.0-prealpha.2
       name: RELEASE-NAME-teleport-plugin-slack

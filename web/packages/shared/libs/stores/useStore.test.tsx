@@ -16,12 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import { act, render, screen } from 'design/utils/testing';
 
-import { act, render } from 'design/utils/testing';
-
-import useStore from './useStore';
 import Store from './store';
+import useStore from './useStore';
 
 test('components subscribes to store changes and unsubscribes on unmount', async () => {
   const store = new Store();
@@ -31,9 +29,11 @@ test('components subscribes to store changes and unsubscribes on unmount', async
     lastname: 'smith',
   });
 
-  const { unmount, container } = render(<Component store={store} />);
+  const { unmount } = render(<Component store={store} />);
 
-  expect(container.innerHTML).toBe(JSON.stringify(store.state));
+  expect(screen.getByTestId('state')).toHaveTextContent(
+    JSON.stringify(store.state)
+  );
 
   act(() => {
     store.setState({
@@ -41,7 +41,7 @@ test('components subscribes to store changes and unsubscribes on unmount', async
     });
   });
 
-  expect(container.innerHTML).toBe(
+  expect(screen.getByTestId('state')).toHaveTextContent(
     JSON.stringify({
       firstname: 'alex',
       lastname: 'smith',
@@ -56,5 +56,5 @@ test('components subscribes to store changes and unsubscribes on unmount', async
 function Component({ store }) {
   // subscribes to store updates
   useStore(store);
-  return <>{JSON.stringify(store.state)}</>;
+  return <span data-testid="state">{JSON.stringify(store.state)}</span>;
 }

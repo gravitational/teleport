@@ -18,11 +18,11 @@ package permissions
 
 import (
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 
 	"github.com/gravitational/trace"
-	"golang.org/x/exp/maps"
 
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -40,7 +40,7 @@ type GetDatabasePermissions interface {
 }
 
 func databasePermissionMatch(perm types.DatabasePermission, obj *dbobjectv1.DatabaseObject) bool {
-	ok, _, _ := services.MatchLabels(perm.Match, obj.Metadata.Labels)
+	ok, _, _ := services.MatchLabels(perm.Match, obj.GetMetadata().GetLabels())
 	return ok
 }
 
@@ -49,10 +49,9 @@ func CountObjectKinds(objs []*dbobjectv1.DatabaseObject) (string, map[string]int
 	var fragments []string
 
 	counts := utils.CountBy(objs, func(obj *dbobjectv1.DatabaseObject) string {
-		return obj.GetSpec().ObjectKind
+		return obj.GetSpec().GetObjectKind()
 	})
-	kinds := maps.Keys(counts)
-	slices.Sort(kinds)
+	kinds := slices.Sorted(maps.Keys(counts))
 	for _, kind := range kinds {
 		fragments = append(fragments, fmt.Sprintf("%v:%v", kind, counts[kind]))
 	}
@@ -68,12 +67,11 @@ func SummarizePermissions(perms PermissionSet) (string, []events.DatabasePermiss
 	eventData := map[string]map[string]int{}
 	var fragments []string
 
-	permNames := maps.Keys(perms)
-	slices.Sort(permNames)
+	permNames := slices.Sorted(maps.Keys(perms))
 	for _, perm := range permNames {
 		objects := perms[perm]
 		countText, countMap := CountObjectKinds(objects)
-		fragments = append(fragments, fmt.Sprintf("%q: %v objects (%v)", perm, len(objects), countText))
+		fragments = append(fragments, fmt.Sprintf("%s: %d objects (%v)", perm, len(objects), countText))
 		eventData[perm] = countMap
 	}
 

@@ -22,13 +22,16 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -45,11 +48,11 @@ func (t *testResource153) GetMetadata() *headerv1.Metadata {
 
 func newTestResource153(name string) *testResource153 {
 	tr := &testResource153{
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: name,
-		},
+		}.Build(),
 	}
-	tr.Metadata.Expires = timestamppb.New(time.Now().AddDate(0, 0, 3))
+	tr.Metadata.SetExpires(timestamppb.New(time.Now().AddDate(0, 0, 3)))
 	return tr
 }
 
@@ -70,7 +73,7 @@ func unmarshalResource153(data []byte, opts ...services.MarshalOption) (*testRes
 
 	var r testResource153
 	if err := utils.FastUnmarshal(data, &r); err != nil {
-		return nil, trace.BadParameter(err.Error())
+		return nil, trace.BadParameter("%s", err)
 	}
 
 	if r.Metadata == nil {
@@ -78,10 +81,10 @@ func unmarshalResource153(data []byte, opts ...services.MarshalOption) (*testRes
 	}
 
 	if cfg.Revision != "" {
-		r.Metadata.Revision = cfg.Revision
+		r.Metadata.SetRevision(cfg.Revision)
 	}
 	if !cfg.Expires.IsZero() {
-		r.Metadata.Expires = timestamppb.New(cfg.Expires)
+		r.Metadata.SetExpires(timestamppb.New(cfg.Expires))
 	}
 	return &r, nil
 }
@@ -89,12 +92,6 @@ func unmarshalResource153(data []byte, opts ...services.MarshalOption) (*testRes
 // TestGenericWrapperCRUD tests backend operations with the generic service.
 func TestGenericWrapperCRUD(t *testing.T) {
 	ctx := context.Background()
-
-	ignoreUnexported := cmp.Options{
-		cmpopts.IgnoreUnexported(testResource153{}),
-		cmpopts.IgnoreUnexported(headerv1.Metadata{}),
-		cmpopts.IgnoreUnexported(timestamppb.Timestamp{}),
-	}
 
 	memBackend, err := memory.New(memory.Config{
 		Context: ctx,
@@ -104,11 +101,14 @@ func TestGenericWrapperCRUD(t *testing.T) {
 
 	const backendPrefix = "generic_prefix"
 
-	service, err := NewServiceWrapper[*testResource153](memBackend,
-		"generic resource",
-		backendPrefix,
-		marshalResource153,
-		unmarshalResource153)
+	service, err := NewServiceWrapper(
+		ServiceConfig[*testResource153]{
+			Backend:       memBackend,
+			ResourceKind:  "generic resource",
+			BackendPrefix: backend.NewKey(backendPrefix),
+			MarshalFunc:   marshalResource153,
+			UnmarshalFunc: unmarshalResource153,
+		})
 	require.NoError(t, err)
 
 	// Create a couple test resources.
@@ -157,14 +157,45 @@ func TestGenericWrapperCRUD(t *testing.T) {
 			break
 		}
 	}
-
 	require.Equal(t, 2, numPages)
 	require.Equal(t, []*testResource153{r1, r2}, paginatedOut)
+
+	// Retrieve all resources from the stream
+	var streamedResources []*testResource153
+	for r, err := range service.Resources(ctx, "", "") {
+		require.NoError(t, err)
+		streamedResources = append(streamedResources, r)
+	}
+	require.Empty(t, cmp.Diff(paginatedOut, streamedResources, protocmp.Transform()))
+
+	// Retrieve resources within an exclusive end range from the stream.
+	streamedResources = nil
+	for r, err := range service.Resources(ctx, r1.GetMetadata().GetName(), r2.GetMetadata().GetName()) {
+		require.NoError(t, err)
+		streamedResources = append(streamedResources, r)
+	}
+	require.Empty(t, cmp.Diff([]*testResource153{r1}, streamedResources, protocmp.Transform()))
+
+	// Retrieve a single resource from the stream
+	streamedResources = nil
+	for r, err := range service.Resources(ctx, r2.GetMetadata().GetName(), "") {
+		require.NoError(t, err)
+		streamedResources = append(streamedResources, r)
+	}
+	require.Empty(t, cmp.Diff([]*testResource153{r2}, streamedResources, protocmp.Transform()))
+
+	// An exclusive end equal to the first resource yields nothing.
+	streamedResources = nil
+	for r, err := range service.Resources(ctx, "", r1.GetMetadata().GetName()) {
+		require.NoError(t, err)
+		streamedResources = append(streamedResources, r)
+	}
+	require.Empty(t, streamedResources)
 
 	// Fetch a specific service provider.
 	r, err := service.GetResource(ctx, r2.GetMetadata().GetName())
 	require.NoError(t, err)
-	require.Equal(t, r2, r)
+	require.Empty(t, cmp.Diff(r2, r, protocmp.Transform()))
 
 	// Try to fetch a resource that doesn't exist.
 	_, err = service.GetResource(ctx, "doesnotexist")
@@ -175,26 +206,29 @@ func TestGenericWrapperCRUD(t *testing.T) {
 	require.True(t, trace.IsAlreadyExists(err))
 
 	// Update a resource.
-	r1.Metadata.Labels = map[string]string{"newlabel": "newvalue"}
-	r1, err = service.UpdateResource(ctx, r1)
+	r1.Metadata.SetLabels(map[string]string{"newlabel": "newvalue"})
+	r1, err = service.UnconditionalUpdateResource(ctx, r1)
 	require.NoError(t, err)
 	r, err = service.GetResource(ctx, r1.GetMetadata().GetName())
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(r1, r, cmpopts.IgnoreFields(headerv1.Metadata{}, "Revision"), ignoreUnexported))
+	require.Empty(t, cmp.Diff(r1, r,
+		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
+		protocmp.Transform(),
+	))
 
 	// Conditionally updating a resource fails if revisions do not match
-	r.Metadata.Revision = "fake"
+	r.Metadata.SetRevision("fake")
 	_, err = service.ConditionalUpdateResource(ctx, r)
 	require.True(t, trace.IsCompareFailed(err))
 
 	// Conditionally updating a resource is allowed when revisions match
-	r.Metadata.Revision = r1.Metadata.Revision
+	r.Metadata.SetRevision(r1.Metadata.GetRevision())
 	r1, err = service.ConditionalUpdateResource(ctx, r1)
 	require.NoError(t, err)
 
 	// Update a resource that doesn't exist.
 	doesNotExist := newTestResource153("doesnotexist")
-	_, err = service.UpdateResource(ctx, doesNotExist)
+	_, err = service.UnconditionalUpdateResource(ctx, doesNotExist)
 	require.True(t, trace.IsNotFound(err))
 
 	// Delete a resource.
@@ -203,7 +237,7 @@ func TestGenericWrapperCRUD(t *testing.T) {
 	out, nextToken, err = service.ListResources(ctx, 200, "")
 	require.NoError(t, err)
 	require.Empty(t, nextToken)
-	require.Equal(t, []*testResource153{r2}, out)
+	require.Empty(t, cmp.Diff([]*testResource153{r2}, out, protocmp.Transform()))
 
 	// Upsert a resource (create).
 	r1, err = service.UpsertResource(ctx, r1)
@@ -212,23 +246,82 @@ func TestGenericWrapperCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, nextToken)
 	require.Empty(t, cmp.Diff([]*testResource153{r1, r2}, out,
-		cmpopts.IgnoreFields(headerv1.Metadata{}, "Revision"),
-		ignoreUnexported))
+		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
+		protocmp.Transform(),
+	))
 
 	// Upsert a resource (update).
-	r1.Metadata.Labels = map[string]string{"newerlabel": "newervalue"}
+	r1.Metadata.SetLabels(map[string]string{"newerlabel": "newervalue"})
 	r1, err = service.UpsertResource(ctx, r1)
 	require.NoError(t, err)
 	out, nextToken, err = service.ListResources(ctx, 200, "")
 	require.NoError(t, err)
 	require.Empty(t, nextToken)
 	require.Empty(t, cmp.Diff([]*testResource153{r1, r2}, out,
-		cmpopts.IgnoreFields(headerv1.Metadata{}, "Revision"),
-		ignoreUnexported))
+		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
+		protocmp.Transform(),
+	))
 
 	// Try to delete a resource that doesn't exist.
 	err = service.DeleteResource(ctx, "doesnotexist")
 	require.True(t, trace.IsNotFound(err))
+}
+
+func TestGenericWrapperConditionalDelete(t *testing.T) {
+	t.Parallel()
+
+	memBackend, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+
+	service, err := NewServiceWrapper(
+		ServiceConfig[*testResource153]{
+			Backend:       memBackend,
+			ResourceKind:  "generic resource",
+			BackendPrefix: backend.NewKey("generic_prefix"),
+			MarshalFunc:   marshalResource153,
+			UnmarshalFunc: unmarshalResource153,
+		})
+	require.NoError(t, err)
+
+	// services methods modify their inputs. Take a defensive copy before calling.
+	cloneResource := func(r *testResource153) *testResource153 {
+		return &testResource153{
+			Metadata: proto.Clone(r.Metadata).(*headerv1.Metadata),
+		}
+	}
+
+	// Create a couple revisions of a resource.
+	res := newTestResource153("myresource")
+	res.Metadata.SetExpires(nil)
+	res.Metadata.SetDescription("r1")
+	rev1, err := service.CreateResource(t.Context(), cloneResource(res))
+	require.NoError(t, err)
+
+	res.Metadata.SetDescription("r2")
+	res.Metadata.SetRevision(rev1.Metadata.GetRevision())
+	rev2, err := service.ConditionalUpdateResource(t.Context(), cloneResource(res))
+	require.NoError(t, err)
+
+	t.Run("unknown revision errors", func(t *testing.T) {
+		err := service.ConditionalDeleteResource(
+			t.Context(),
+			rev2.Metadata.GetName(),
+			rev1.Metadata.GetRevision(),
+		)
+		assert.ErrorAs(t, err, new(*trace.CompareFailedError))
+	})
+
+	t.Run("ok", func(t *testing.T) {
+		err := service.ConditionalDeleteResource(
+			t.Context(),
+			rev2.Metadata.GetName(),
+			rev2.Metadata.GetRevision(),
+		)
+		require.NoError(t, err)
+
+		_, err = service.GetResource(t.Context(), rev2.Metadata.GetName())
+		assert.ErrorAs(t, err, new(*trace.NotFoundError), "Get error mismatch after ConditionalDelete")
+	})
 }
 
 // TestGenericWrapperWithPrefix tests the withPrefix method of the generic service wrapper.
@@ -241,14 +334,17 @@ func TestGenericWrapperWithPrefix(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	const initialBackendPrefix = "initial_prefix"
+	initialBackendPrefix := backend.NewKey("initial_prefix")
 	const additionalBackendPrefix = "additional_prefix"
 
-	service, err := NewServiceWrapper[*testResource153](memBackend,
-		"generic resource",
-		initialBackendPrefix,
-		marshalResource153,
-		unmarshalResource153)
+	service, err := NewServiceWrapper(
+		ServiceConfig[*testResource153]{
+			Backend:       memBackend,
+			ResourceKind:  "generic resource",
+			BackendPrefix: initialBackendPrefix,
+			MarshalFunc:   marshalResource153,
+			UnmarshalFunc: unmarshalResource153,
+		})
 	require.NoError(t, err)
 
 	// Verify that the service's backend prefix matches the initial backend prefix.
@@ -256,5 +352,5 @@ func TestGenericWrapperWithPrefix(t *testing.T) {
 
 	// Verify that withPrefix appends the additional prefix.
 	serviceWithPrefix := service.WithPrefix(additionalBackendPrefix)
-	require.Equal(t, "initial_prefix/additional_prefix", serviceWithPrefix.service.backendPrefix)
+	require.Equal(t, backend.NewKey("initial_prefix", "additional_prefix").String(), serviceWithPrefix.service.backendPrefix.String())
 }

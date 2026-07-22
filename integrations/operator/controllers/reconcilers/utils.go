@@ -44,6 +44,7 @@ const (
 	ConditionReasonNewResource            = "NewResource"
 	ConditionReasonNoError                = "NoError"
 	ConditionReasonTeleportError          = "TeleportError"
+	ConditionReasonMutationError          = "MutationError"
 	ConditionTypeTeleportResourceOwned    = "TeleportResourceOwned"
 	ConditionTypeSuccessfullyReconciled   = "SuccessfullyReconciled"
 	ConditionTypeValidStructure           = "ValidStructure"
@@ -75,7 +76,7 @@ func newKubeResource[K any]() K {
 	interfaceType := reflect.TypeOf(resource)
 	// If K is not a pointer we don't need to do anything
 	// If K is a pointer, new(K) is only initializing a nil pointer, we need to manually initialize its destination
-	if interfaceType.Kind() == reflect.Ptr {
+	if interfaceType.Kind() == reflect.Pointer {
 		// We create a new Value of the type pointed by K. reflect.New returns a pointer to this value
 		initializedResource := reflect.New(interfaceType.Elem())
 		// We cast back to K

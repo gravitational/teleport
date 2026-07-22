@@ -29,25 +29,26 @@ import (
 )
 
 /*
-$ go test ./lib/srv/db -bench=. -run=^$ -benchtime=3x
+$ go test ./lib/srv/db -bench=. -run=^$ -benchtime=10x -benchmem
 goos: darwin
 goarch: arm64
 pkg: github.com/gravitational/teleport/lib/srv/db
-BenchmarkPostgresReadLargeTable/size=11-10         	       3	 286618514 ns/op
-BenchmarkPostgresReadLargeTable/size=20-10         	       3	 253457917 ns/op
-BenchmarkPostgresReadLargeTable/size=100-10        	       3	 222804292 ns/op
-BenchmarkPostgresReadLargeTable/size=1000-10       	       3	 216612764 ns/op
-BenchmarkPostgresReadLargeTable/size=2000-10       	       3	 214121861 ns/op
-BenchmarkPostgresReadLargeTable/size=8000-10       	       3	 215046472 ns/op
+cpu: Apple M4 Max
+BenchmarkPostgresReadLargeTable/size=11-16         	      10	 249759500 ns/op	105565490 B/op	   17270 allocs/op
+BenchmarkPostgresReadLargeTable/size=20-16         	      10	 187674904 ns/op	105352029 B/op	   16305 allocs/op
+BenchmarkPostgresReadLargeTable/size=100-16        	      10	 121572583 ns/op	105327536 B/op	   16212 allocs/op
+BenchmarkPostgresReadLargeTable/size=1000-16       	      10	 119509717 ns/op	105316832 B/op	   16170 allocs/op
+BenchmarkPostgresReadLargeTable/size=2000-16       	      10	 119665808 ns/op	105302802 B/op	   16148 allocs/op
+BenchmarkPostgresReadLargeTable/size=8000-16       	      10	 119643325 ns/op	105299297 B/op	   16133 allocs/op
 */
 // BenchmarkPostgresReadLargeTable is a benchmark for read-heavy usage of Postgres.
 // Depending on the message size we may get different performance, due to the way the respective engine is written.
 func BenchmarkPostgresReadLargeTable(b *testing.B) {
-	b.StopTimer()
+	if testing.Short() {
+		b.Skip("skipping heavy benchmark")
+	}
 	ctx := context.Background()
-	testCtx := setupTestContext(ctx, b, withSelfHostedPostgres("postgres", func(db *types.DatabaseV3) {
-		db.SetStaticLabels(map[string]string{"foo": "bar"})
-	}))
+	testCtx := setupTestContext(ctx, b, withSelfHostedPostgres("postgres", withPostgresStaticLabels(map[string]string{"foo": "bar"})))
 	go testCtx.startHandlingConnections()
 
 	user := "alice"
@@ -72,7 +73,7 @@ func BenchmarkPostgresReadLargeTable(b *testing.B) {
 		require.NoError(b, err)
 
 		b.Run(fmt.Sprintf("size=%v", messageSize), func(b *testing.B) {
-			for i := 0; i < b.N; i++ {
+			for b.Loop() {
 				// Execute a query, count results.
 				q := pgConn.Exec(ctx, fmt.Sprintf("SELECT * FROM bench_%v LIMIT %v", messageSize, rowCount))
 

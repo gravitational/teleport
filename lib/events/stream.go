@@ -24,6 +24,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"io"
+	"log/slog"
 	"sort"
 	"strings"
 	"sync"
@@ -32,13 +33,26 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	log "github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport/api/constants"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/lib/auth/recordingencryption"
+	"github.com/gravitational/teleport/lib/auth/recordingmetadata"
+	"github.com/gravitational/teleport/lib/auth/summarizer"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
+)
+
+// ProtoStreamFlag is a bit flag containing options that were used to record the stream, such as whether or not the
+// stream was encrypted. It appears in the header of v2+ proto streams and should be used to construct the correct
+// ProtoReader configuration.
+type ProtoStreamFlag = uint8
+
+const (
+	// ProtoStreamFlagEncrypted flags whether or not a stream was encrypted during recording.
+	ProtoStreamFlagEncrypted = 1 << iota
 )
 
 const (
@@ -52,22 +66,21 @@ const (
 	// per stream
 	ConcurrentUploadsPerStream = 1
 
-	// MaxProtoMessageSizeBytes is maximum protobuf marshaled message size
-	MaxProtoMessageSizeBytes = 64 * 1024
-
-	// MaxUploadParts is the maximum allowed number of parts in a multi-part upload
-	// on Amazon S3.
-	MaxUploadParts = 10000
-
-	// MinUploadPartSizeBytes is the minimum allowed part size when uploading a part to
-	// Amazon S3.
+	// MinUploadPartSizeBytes is the minimum upload part size when uploading session recordings
+	// through a [MultipartUploader]. All uploaded parts are expected to meet this minimum size.
+	// The actual minimum enforced by th external audit storage depends on the provider:
+	// - S3 (AWS):    5MiB
+	// - GCloud:      5MiB
+	// - Azure:       None
+	// - File:        None
+	// - Mem (tests): Configurable
 	MinUploadPartSizeBytes = 1024 * 1024 * 5
-
-	// ReservedParts is the amount of parts reserved by default
-	ReservedParts = 100
 
 	// ProtoStreamV1 is a version of the binary protocol
 	ProtoStreamV1 = 1
+
+	// ProtoStreamV2 is a version of the binary protocol
+	ProtoStreamV2 = 2
 
 	// ProtoStreamV1PartHeaderSize is the size of the part of the protocol stream
 	// on disk format, it consists of
@@ -75,6 +88,14 @@ const (
 	// * 8 bytes for meaningful size of the part
 	// * 8 bytes for optional padding size at the end of the slice
 	ProtoStreamV1PartHeaderSize = Int64Size * 3
+
+	// ProtoStreamV2PartHeaderSize is the size of the part of the protocol stream
+	// on disk format, it consists of
+	// * 8 bytes for the format version
+	// * 8 bytes for meaningful size of the part
+	// * 8 bytes for optional padding size at the end of the slice
+	// * 8 bytes for 1 byte flags and 7 bytes of zero padding reserved for future
+	ProtoStreamV2PartHeaderSize = Int64Size * 4
 
 	// ProtoStreamV1RecordHeaderSize is the size of the header
 	// of the record header, it consists of the record length
@@ -85,6 +106,16 @@ const (
 	uploaderReservePartErrorMessage = "uploader failed to reserve upload part"
 )
 
+// An EncryptionWrapper wraps a given io.WriteCloser with encryption.
+type EncryptionWrapper interface {
+	WithEncryption(context.Context, io.WriteCloser) (io.WriteCloser, error)
+}
+
+// A DecryptionWrapper wraps a given io.Reader with decryption.
+type DecryptionWrapper interface {
+	WithDecryption(context.Context, io.Reader) (io.Reader, error)
+}
+
 // ProtoStreamerConfig specifies configuration for the part
 type ProtoStreamerConfig struct {
 	Uploader MultipartUploader
@@ -93,6 +124,24 @@ type ProtoStreamerConfig struct {
 	MinUploadBytes int64
 	// ConcurrentUploads sets concurrent uploads per stream
 	ConcurrentUploads int
+	// ForceFlush is used in tests to force a flush of an in-progress slice. Note that
+	// sending on this channel just forces a single flush for whichever upload happens
+	// to receive the signal first, so this may not be suitable for concurrent tests.
+	ForceFlush chan struct{}
+	// RetryConfig defines how to retry on a failed upload
+	RetryConfig *retryutils.LinearConfig
+	// Encrypter wraps the final gzip writer with encryption.
+	Encrypter EncryptionWrapper
+	// SessionSummarizerProvider is a provider of the session summarizer service.
+	// It can be nil or provide a nil summarizer if summarization is not needed.
+	// The summarizer itself summarizes session recordings.
+	SessionSummarizerProvider *summarizer.SessionSummarizerProvider
+	// RecordingMetadataProvider is a provider of the recording metadata service.
+	RecordingMetadataProvider *recordingmetadata.Provider
+	// OnUploadComplete is called after an upload completes when no session end event
+	// was observed in the stream. It returns the recovered session end event, if any.
+	// If nil, no recovery is attempted.
+	OnUploadComplete func(ctx context.Context, sessionID session.ID) (apievents.AuditEvent, error)
 }
 
 // CheckAndSetDefaults checks and sets streamer defaults
@@ -119,29 +168,45 @@ func NewProtoStreamer(cfg ProtoStreamerConfig) (*ProtoStreamer, error) {
 		// Min upload bytes + some overhead to prevent buffer growth (gzip writer is not precise)
 		bufferPool: utils.NewBufferSyncPool(cfg.MinUploadBytes + cfg.MinUploadBytes/3),
 		// MaxProtoMessage size + length of the message record
-		slicePool: utils.NewSliceSyncPool(MaxProtoMessageSizeBytes + ProtoStreamV1RecordHeaderSize),
+		slicePool:        utils.NewSliceSyncPool(constants.MaxProtoMessageSizeBytes + ProtoStreamV1RecordHeaderSize),
+		onUploadComplete: cfg.OnUploadComplete,
 	}, nil
 }
 
 // ProtoStreamer creates protobuf-based streams uploaded to the storage
 // backends, for example S3 or GCS
 type ProtoStreamer struct {
-	cfg        ProtoStreamerConfig
-	bufferPool *utils.BufferSyncPool
-	slicePool  *utils.SliceSyncPool
+	cfg              ProtoStreamerConfig
+	onUploadComplete func(ctx context.Context, sessionID session.ID) (apievents.AuditEvent, error)
+	bufferPool       *utils.BufferSyncPool
+	slicePool        *utils.SliceSyncPool
 }
 
 // CreateAuditStreamForUpload creates audit stream for existing upload,
 // this function is useful in tests
 func (s *ProtoStreamer) CreateAuditStreamForUpload(ctx context.Context, sid session.ID, upload StreamUpload) (apievents.Stream, error) {
 	return NewProtoStream(ProtoStreamConfig{
-		Upload:            upload,
-		BufferPool:        s.bufferPool,
-		SlicePool:         s.slicePool,
-		Uploader:          s.cfg.Uploader,
-		MinUploadBytes:    s.cfg.MinUploadBytes,
-		ConcurrentUploads: s.cfg.ConcurrentUploads,
+		Upload:                    upload,
+		BufferPool:                s.bufferPool,
+		SlicePool:                 s.slicePool,
+		Uploader:                  s.cfg.Uploader,
+		MinUploadBytes:            s.cfg.MinUploadBytes,
+		ConcurrentUploads:         s.cfg.ConcurrentUploads,
+		ForceFlush:                s.cfg.ForceFlush,
+		RetryConfig:               s.cfg.RetryConfig,
+		Encrypter:                 s.cfg.Encrypter,
+		SessionSummarizerProvider: s.cfg.SessionSummarizerProvider,
+		RecordingMetadataProvider: s.cfg.RecordingMetadataProvider,
+		OnUploadComplete:          s.onUploadComplete,
 	})
+}
+
+// SetOnUploadComplete sets a callback to be invoked after an upload completes
+// when no session end event was observed in the stream. This allows callers to
+// recover or synthesize the session end event from an external source (e.g.
+// the audit log). It must be called before any streams are created.
+func (s *ProtoStreamer) SetOnUploadComplete(fn func(ctx context.Context, sessionID session.ID) (apievents.AuditEvent, error)) {
+	s.onUploadComplete = fn
 }
 
 // CreateAuditStream creates audit stream and upload
@@ -163,12 +228,17 @@ func (s *ProtoStreamer) ResumeAuditStream(ctx context.Context, sid session.ID, u
 		return nil, trace.Wrap(err)
 	}
 	return NewProtoStream(ProtoStreamConfig{
-		Upload:         upload,
-		BufferPool:     s.bufferPool,
-		SlicePool:      s.slicePool,
-		Uploader:       s.cfg.Uploader,
-		MinUploadBytes: s.cfg.MinUploadBytes,
-		CompletedParts: parts,
+		Upload:                    upload,
+		BufferPool:                s.bufferPool,
+		SlicePool:                 s.slicePool,
+		Uploader:                  s.cfg.Uploader,
+		MinUploadBytes:            s.cfg.MinUploadBytes,
+		CompletedParts:            parts,
+		RetryConfig:               s.cfg.RetryConfig,
+		Encrypter:                 s.cfg.Encrypter,
+		SessionSummarizerProvider: s.cfg.SessionSummarizerProvider,
+		RecordingMetadataProvider: s.cfg.RecordingMetadataProvider,
+		OnUploadComplete:          s.onUploadComplete,
 	})
 }
 
@@ -191,10 +261,28 @@ type ProtoStreamConfig struct {
 	// after which streamer flushes the data to the uploader
 	// to avoid data loss
 	InactivityFlushPeriod time.Duration
+	// ForceFlush is used in tests to force a flush of an in-progress slice. Note that
+	// sending on this channel just forces a single flush for whichever upload happens
+	// to receive the signal first, so this may not be suitable for concurrent tests.
+	ForceFlush chan struct{}
 	// Clock is used to override time in tests
 	Clock clockwork.Clock
 	// ConcurrentUploads sets concurrent uploads per stream
 	ConcurrentUploads int
+	// RetryConfig defines how to retry on a failed upload
+	RetryConfig *retryutils.LinearConfig
+	// Encrypter wraps the final gzip writer with encryption.
+	Encrypter EncryptionWrapper
+	// SessionSummarizerProvider is a provider of the session summarizer service.
+	// It can be nil or provide a nil summarizer if summarization is not needed.
+	// The summarizer itself summarizes session recordings.
+	SessionSummarizerProvider *summarizer.SessionSummarizerProvider
+	// RecordingMetadataProvider is a provider of the recording metadata service.
+	RecordingMetadataProvider *recordingmetadata.Provider
+	// OnUploadComplete is called after an upload completes when no session end event
+	// was observed in the stream. It returns the recovered session end event, if any.
+	// If nil, no recovery is attempted.
+	OnUploadComplete func(ctx context.Context, sessionID session.ID) (apievents.AuditEvent, error)
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -222,6 +310,12 @@ func (cfg *ProtoStreamConfig) CheckAndSetDefaults() error {
 	}
 	if cfg.Clock == nil {
 		cfg.Clock = clockwork.NewRealClock()
+	}
+	if cfg.RetryConfig == nil {
+		cfg.RetryConfig = &retryutils.LinearConfig{
+			Step: NetworkRetryDuration,
+			Max:  NetworkBackoffDuration,
+		}
 	}
 	return nil
 }
@@ -282,6 +376,8 @@ func NewProtoStream(cfg ProtoStreamConfig) (*ProtoStream, error) {
 		completedUploadsC: make(chan *activeUpload, cfg.ConcurrentUploads),
 		semUploads:        make(chan struct{}, cfg.ConcurrentUploads),
 		lastPartNumber:    0,
+		retryConfig:       *cfg.RetryConfig,
+		encrypter:         cfg.Encrypter,
 	}
 	if len(cfg.CompletedParts) > 0 {
 		// skip 2 extra parts as a protection from accidental overwrites.
@@ -315,7 +411,7 @@ func NewProtoStream(cfg ProtoStreamConfig) (*ProtoStream, error) {
 	// Start writer events receiver.
 	go func() {
 		if err := writer.receiveAndUpload(); err != nil {
-			log.WithError(err).Debug("slice writer ended with error")
+			slog.DebugContext(cancelCtx, "slice writer ended with error", "error", err)
 			stream.setCancelError(err)
 		}
 
@@ -389,12 +485,10 @@ func (s *ProtoStream) Done() <-chan struct{} {
 func (s *ProtoStream) RecordEvent(ctx context.Context, pe apievents.PreparedSessionEvent) error {
 	event := pe.GetAuditEvent()
 	messageSize := event.Size()
-	if messageSize > MaxProtoMessageSizeBytes {
-		switch v := event.(type) {
-		case messageSizeTrimmer:
-			event = v.TrimToMaxSize(MaxProtoMessageSizeBytes)
-		default:
-			return trace.BadParameter("record size %v exceeds max message size of %v bytes", messageSize, MaxProtoMessageSizeBytes)
+	if messageSize > constants.MaxProtoMessageSizeBytes {
+		event = event.TrimToMaxSize(constants.MaxProtoMessageSizeBytes)
+		if event.Size() > constants.MaxProtoMessageSizeBytes {
+			return trace.BadParameter("record size %v exceeds max message size of %v bytes", messageSize, constants.MaxProtoMessageSizeBytes)
 		}
 	}
 
@@ -408,7 +502,7 @@ func (s *ProtoStream) RecordEvent(ctx context.Context, pe apievents.PreparedSess
 	case s.eventsCh <- protoEvent{index: event.GetIndex(), oneof: oneof}:
 		diff := time.Since(start)
 		if diff > 100*time.Millisecond {
-			log.Debugf("[SLOW] RecordEvent took %v.", diff)
+			slog.DebugContext(ctx, "[SLOW] RecordEvent took", "duration", diff)
 		}
 		return nil
 	case <-s.cancelCtx.Done():
@@ -488,7 +582,42 @@ type sliceWriter struct {
 	completedParts []StreamPart
 	// emptyHeader is used to write empty header
 	// to preserve some bytes
-	emptyHeader [ProtoStreamV1PartHeaderSize]byte
+	emptyHeader [ProtoStreamV2PartHeaderSize]byte
+	// retryConfig  defines how to retry on a failed upload
+	retryConfig retryutils.LinearConfig
+	// encrypter wraps writes with encryption
+	encrypter EncryptionWrapper
+	// sessionStartTime is the time of the first event in the session
+	sessionStartTime time.Time
+	// sessionEndTime is the time of the last event in the session
+	sessionEndTime time.Time
+	// sessionType is the type of the session, used for recording metadata processing
+	sessionType recordingmetadata.SessionType
+	// shouldProcessMetadata is set to true if the session should be processed
+	// by the recording metadata service (currently, this is true if the session
+	// is a SSH, k8s or desktop session).
+	shouldProcessMetadata bool
+	// sshSessionEndEvent is an event that marked the end of this session if it was
+	// an SSH one. It may be nil if the stream hasn't ended yet, and it may also
+	// be nil if the stream picked up after an auth server start from a point
+	// where the session end event has already been uploaded. If captured, it
+	// will be passed to the summarizer.
+	sshSessionEndEvent *apievents.SessionEnd
+	// dbSessionEndEvent is an event that marked the end of this session if it was
+	// a database one. It may be nil if the stream hasn't ended yet, and it may
+	// also be nil if the stream picked up after an auth server start from a
+	// point where the session end event has already been uploaded. If captured,
+	// it will be passed to the summarizer.
+	dbSessionEndEvent *apievents.DatabaseSessionEnd
+	// desktopSessionEndEvent is an event that marked the end of this session if
+	// it was a Windows desktop one. It may be nil if the stream hasn't ended
+	// yet, and it may also be nil if the stream picked up after an auth server
+	// start from a point where the session end event has already been uploaded.
+	// If captured, it will be passed to the summarizer.
+	desktopSessionEndEvent *apievents.WindowsDesktopSessionEnd
+
+	// hasSessionEnd indicates if the session end event is present.
+	hasSessionEnd bool
 }
 
 func (w *sliceWriter) updateCompletedParts(part StreamPart, lastEventIndex int64) {
@@ -526,7 +655,7 @@ func (w *sliceWriter) receiveAndUpload() error {
 			return nil
 		case <-w.proto.completeCtx.Done():
 			// if present, send remaining data for upload
-			if w.current != nil {
+			if w.current != nil && !w.current.isEmpty() {
 				// mark that the current part is last (last parts are allowed to be
 				// smaller than the certain size, otherwise the padding
 				// have to be added (this is due to S3 API limits)
@@ -548,27 +677,30 @@ func (w *sliceWriter) receiveAndUpload() error {
 
 			delete(w.activeUploads, part.Number)
 			w.updateCompletedParts(*part, upload.lastEventIndex)
+		case <-w.proto.cfg.ForceFlush:
+			if w.current != nil {
+				if err := w.startUploadCurrentSlice(); err != nil {
+					return trace.Wrap(err)
+				}
+			}
 		case <-flushCh:
 			now := clock.Now().UTC()
-			inactivityPeriod := now.Sub(lastEvent)
-			if inactivityPeriod < 0 {
-				inactivityPeriod = 0
-			}
+			inactivityPeriod := max(now.Sub(lastEvent), 0)
 			if inactivityPeriod >= w.proto.cfg.InactivityFlushPeriod {
 				// inactivity period exceeded threshold,
 				// there is no need to schedule a timer until the next
 				// event occurs, set the timer channel to nil
 				flushCh = nil
-				if w.current != nil {
-					log.Debugf("Inactivity timer ticked at %v, inactivity period: %v exceeded threshold and have data. Flushing.", now, inactivityPeriod)
+				if w.current != nil && !w.current.isEmpty() {
+					slog.DebugContext(w.proto.completeCtx, "Inactivity timer ticked and exceeded threshold and have data. Flushing.", "tick", now, "inactivity_period", inactivityPeriod)
 					if err := w.startUploadCurrentSlice(); err != nil {
 						return trace.Wrap(err)
 					}
 				} else {
-					log.Debugf("Inactivity timer ticked at %v, inactivity period: %v exceeded threshold but have no data. Nothing to do.", now, inactivityPeriod)
+					slog.DebugContext(w.proto.completeCtx, "Inactivity timer ticked and exceeded threshold but have no data. Nothing to do.", "tick", now, "inactivity_period", inactivityPeriod)
 				}
 			} else {
-				log.Debugf("Inactivity timer ticked at %v, inactivity period: %v have not exceeded threshold. Set timer to tick after %v.", now, inactivityPeriod, w.proto.cfg.InactivityFlushPeriod-inactivityPeriod)
+				slog.DebugContext(w.proto.completeCtx, "Inactivity timer ticked and did not exceeded threshold. Resetting ticker.", "tick", now, "inactivity_period", inactivityPeriod, "next_tick", w.proto.cfg.InactivityFlushPeriod-inactivityPeriod)
 				flushCh = clock.After(w.proto.cfg.InactivityFlushPeriod - inactivityPeriod)
 			}
 		case event := <-w.proto.eventsCh:
@@ -579,7 +711,7 @@ func (w *sliceWriter) receiveAndUpload() error {
 				flushCh = clock.After(w.proto.cfg.InactivityFlushPeriod)
 			}
 			if err := w.submitEvent(event); err != nil {
-				log.WithError(err).Error("Lost event.")
+				slog.ErrorContext(w.proto.cancelCtx, "Lost event.", "error", err)
 				// Failure on `newSlice` indicates that the streamer won't be
 				// able to process events. Close the streamer and set the
 				// returned error so that event emitters can proceed.
@@ -588,6 +720,49 @@ func (w *sliceWriter) receiveAndUpload() error {
 				}
 
 				continue
+			}
+			// Capture the session start time and the last relevant end event time, and the actual end event.
+			switch e := event.oneof.GetEvent().(type) {
+			case *apievents.OneOf_SessionStart:
+				w.sessionStartTime = e.SessionStart.Time
+				w.sessionType = recordingmetadata.SessionTypeTTY
+				w.shouldProcessMetadata = true
+
+			case *apievents.OneOf_WindowsDesktopSessionStart:
+				w.sessionStartTime = e.WindowsDesktopSessionStart.Time
+				w.sessionType = recordingmetadata.SessionTypeDesktop
+				w.shouldProcessMetadata = true
+
+			case *apievents.OneOf_DesktopRecording:
+				w.sessionEndTime = e.DesktopRecording.Time
+
+			case *apievents.OneOf_SessionPrint:
+				w.sessionEndTime = e.SessionPrint.Time
+
+			case *apievents.OneOf_Resize:
+				w.sessionEndTime = e.Resize.Time
+
+			case *apievents.OneOf_SessionEnd:
+				w.sshSessionEndEvent = e.SessionEnd
+				w.sessionEndTime = e.SessionEnd.Time
+				w.hasSessionEnd = true
+
+			case *apievents.OneOf_DatabaseSessionEnd:
+				w.dbSessionEndEvent = e.DatabaseSessionEnd
+				w.hasSessionEnd = true
+			case *apievents.OneOf_WindowsDesktopSessionEnd:
+				w.desktopSessionEndEvent = e.WindowsDesktopSessionEnd
+				w.sessionEndTime = e.WindowsDesktopSessionEnd.Time
+				w.hasSessionEnd = true
+				w.shouldProcessMetadata = true
+				w.sessionType = recordingmetadata.SessionTypeDesktop
+				if w.sessionStartTime.IsZero() {
+					w.sessionStartTime = e.WindowsDesktopSessionEnd.StartTime
+				}
+			case *apievents.OneOf_AppSessionEnd:
+				w.hasSessionEnd = true
+			case *apievents.OneOf_MCPSessionEnd:
+				w.hasSessionEnd = true
 			}
 			if w.shouldUploadCurrentSlice() {
 				// this logic blocks the EmitAuditEvent in case if the
@@ -632,20 +807,43 @@ func (w *sliceWriter) newSlice() (*slice, error) {
 	// This buffer will be returned to the pool by slice.Close
 	buffer := w.proto.cfg.BufferPool.Get()
 	buffer.Reset()
+
+	var encrypted bool
+	var writer io.WriteCloser = &bufferCloser{Buffer: buffer}
+	if w.encrypter != nil {
+		// we want to encrypt after compression, so gzip needs to be the outermost layer
+		encryptedWriter, err := w.encrypter.WithEncryption(w.proto.completeCtx, writer)
+		switch {
+		case err == nil:
+			encrypted = true
+			writer = encryptedWriter
+		case errors.Is(err, recordingencryption.ErrEncryptionDisabled):
+			// if encryption isn't enabled, do nothing
+		default:
+			return nil, trace.Wrap(err, "fetching recording encrypter")
+		}
+	}
+
 	// reserve bytes for version header
-	buffer.Write(w.emptyHeader[:])
+	headerSize := ProtoStreamV1PartHeaderSize
+	if encrypted {
+		headerSize = ProtoStreamV2PartHeaderSize
+	}
+	buffer.Write(w.emptyHeader[:headerSize])
 
 	err := w.proto.cfg.Uploader.ReserveUploadPart(w.proto.cancelCtx, w.proto.cfg.Upload, w.lastPartNumber)
 	if err != nil {
 		// Return the unused buffer to the pool.
 		w.proto.cfg.BufferPool.Put(buffer)
+		writer.Close()
 		return nil, trace.ConnectionProblem(err, uploaderReservePartErrorMessage)
 	}
 
 	return &slice{
-		proto:  w.proto,
-		buffer: buffer,
-		writer: newGzipWriter(&bufferCloser{Buffer: buffer}),
+		proto:     w.proto,
+		buffer:    buffer,
+		writer:    newGzipWriter(writer),
+		encrypted: encrypted,
 	}, nil
 }
 
@@ -664,15 +862,16 @@ func (w *sliceWriter) submitEvent(event protoEvent) error {
 // completeStream waits for in-flight uploads to finish
 // and completes the stream
 func (w *sliceWriter) completeStream() {
+	log := slog.With(
+		"upload", w.proto.cfg.Upload.ID,
+		"session", w.proto.cfg.Upload.SessionID,
+	)
 	for range w.activeUploads {
 		select {
 		case upload := <-w.completedUploadsC:
 			part, err := upload.getPart()
 			if err != nil {
-				log.WithError(err).
-					WithField("upload", w.proto.cfg.Upload.ID).
-					WithField("session", w.proto.cfg.Upload.SessionID).
-					Warning("Failed to upload part")
+				log.WarnContext(w.proto.cancelCtx, "Failed to upload part", "error", err)
 				continue
 			}
 			w.updateCompletedParts(*part, upload.lastEventIndex)
@@ -688,10 +887,64 @@ func (w *sliceWriter) completeStream() {
 		err := w.proto.cfg.Uploader.CompleteUpload(w.proto.cancelCtx, w.proto.cfg.Upload, w.completedParts)
 		w.proto.setCompleteResult(err)
 		if err != nil {
-			log.WithError(err).
-				WithField("upload", w.proto.cfg.Upload.ID).
-				WithField("session", w.proto.cfg.Upload.SessionID).
-				Warning("Failed to complete upload")
+			slog.WarnContext(w.proto.cancelCtx, "Failed to complete upload", "error", err)
+			return
+		}
+
+		if !w.hasSessionEnd && w.proto.cfg.OnUploadComplete != nil {
+			sessionEndEvent, err := w.proto.cfg.OnUploadComplete(w.proto.cancelCtx, w.proto.cfg.Upload.SessionID)
+			if err != nil {
+				slog.WarnContext(w.proto.cancelCtx, "Failed to complete upload", "error", err)
+				return
+			}
+			switch o := sessionEndEvent.(type) {
+			case *apievents.SessionEnd:
+				w.sshSessionEndEvent = o
+				w.shouldProcessMetadata = true
+				w.sessionEndTime = o.EndTime
+			case *apievents.DatabaseSessionEnd:
+				w.dbSessionEndEvent = o
+			case *apievents.WindowsDesktopSessionEnd:
+				w.desktopSessionEndEvent = o
+				w.shouldProcessMetadata = true
+				w.sessionType = recordingmetadata.SessionTypeDesktop
+				if w.sessionStartTime.IsZero() {
+					w.sessionStartTime = o.StartTime
+				}
+				w.sessionEndTime = o.EndTime
+			}
+		}
+
+		if w.proto.cfg.RecordingMetadataProvider != nil {
+			recordingMetadata := w.proto.cfg.RecordingMetadataProvider.Service()
+
+			if w.shouldProcessMetadata {
+				if !w.sessionStartTime.IsZero() && !w.sessionEndTime.IsZero() {
+					duration := w.sessionEndTime.Sub(w.sessionStartTime)
+
+					if err := recordingMetadata.ProcessSessionRecording(w.proto.cancelCtx, w.proto.cfg.Upload.SessionID, w.sessionType, w.sessionStartTime, duration); err != nil {
+						slog.WarnContext(w.proto.cancelCtx, "Failed to process session recording metadata", "error", err)
+					}
+				} else {
+					slog.WarnContext(w.proto.cancelCtx, "Session start or end time is not set, skipping recording metadata processing")
+				}
+			}
+		}
+
+		summarizer := w.proto.cfg.SessionSummarizerProvider.SessionSummarizer()
+		switch {
+		case w.sshSessionEndEvent != nil:
+			err = summarizer.SummarizeSSH(w.proto.cancelCtx, w.sshSessionEndEvent)
+		case w.dbSessionEndEvent != nil:
+			err = summarizer.SummarizeDatabase(w.proto.cancelCtx, w.dbSessionEndEvent)
+		case w.desktopSessionEndEvent != nil:
+			err = summarizer.SummarizeWindowsDesktop(w.proto.cancelCtx, w.desktopSessionEndEvent)
+		default:
+			err = summarizer.SummarizeWithoutEndEvent(w.proto.cancelCtx, w.proto.cfg.Upload.SessionID)
+		}
+		if err != nil {
+			slog.WarnContext(w.proto.cancelCtx, "Failed to summarize upload", "error", err)
+			return
 		}
 	}
 }
@@ -714,7 +967,7 @@ func (w *sliceWriter) startUpload(partNumber int64, slice *slice) (*activeUpload
 	go func() {
 		defer func() {
 			if err := slice.Close(); err != nil {
-				log.WithError(err).Warningf("Failed to close slice.")
+				slog.WarnContext(w.proto.cancelCtx, "Failed to close slice.", "error", err)
 			}
 		}()
 
@@ -730,57 +983,61 @@ func (w *sliceWriter) startUpload(partNumber int64, slice *slice) (*activeUpload
 			<-w.semUploads
 		}()
 
-		log := log.WithFields(log.Fields{
-			"part":    partNumber,
-			"upload":  w.proto.cfg.Upload.ID,
-			"session": w.proto.cfg.Upload.SessionID,
-		})
+		log := slog.With(
+			"part", partNumber,
+			"upload", w.proto.cfg.Upload.ID,
+			"session", w.proto.cfg.Upload.SessionID,
+		)
 
 		var retry retryutils.Retry
-		for i := 0; i < defaults.MaxIterationLimit; i++ {
-			log := log.WithField("attempt", i)
 
-			reader, err := slice.reader()
-			if err != nil {
-				activeUpload.setError(err)
-				return
-			}
+		// create reader once before the retry loop. in the event of an error, the reader must
+		// be reset via Seek rather than recreated.
+		reader, err := slice.reader()
+		if err != nil {
+			activeUpload.setError(err)
+			return
+		}
+
+		for i := range defaults.MaxIterationLimit {
+			log := log.With("attempt", i)
+
 			part, err := w.proto.cfg.Uploader.UploadPart(w.proto.cancelCtx, w.proto.cfg.Upload, partNumber, reader)
 			if err == nil {
 				activeUpload.setPart(*part)
 				return
 			}
 
-			log.WithError(err).Warn("failed to upload part")
+			log.WarnContext(w.proto.cancelCtx, "failed to upload part", "error", err)
 
 			// upload is not found is not a transient error, so abort the operation
-			if errors.Is(trace.Unwrap(err), context.Canceled) || trace.IsNotFound(err) {
-				log.Info("aborting part upload")
+			if errors.Is(trace.Unwrap(err), context.Canceled) || trace.IsNotFound(err) || trace.IsAlreadyExists(err) {
+				log.InfoContext(w.proto.cancelCtx, "aborting part upload")
 				activeUpload.setError(err)
 				return
 			}
-			log.Info("will retry part upload")
+			log.InfoContext(w.proto.cancelCtx, "will retry part upload")
 
 			// retry is created on the first upload error
 			if retry == nil {
 				var rerr error
-				retry, rerr = retryutils.NewLinear(retryutils.LinearConfig{
-					Step: NetworkRetryDuration,
-					Max:  NetworkBackoffDuration,
-				})
+				retry, rerr = retryutils.NewLinear(w.retryConfig)
 				if rerr != nil {
 					activeUpload.setError(rerr)
 					return
 				}
 			}
 			retry.Inc()
+
+			// reset reader to the beginning of the slice so it can be re-read
 			if _, err := reader.Seek(0, 0); err != nil {
 				activeUpload.setError(err)
 				return
 			}
+
 			select {
 			case <-retry.After():
-				log.WithError(err).Debugf("Back off period for retry has passed. Retrying")
+				log.DebugContext(w.proto.cancelCtx, "Back off period for retry has passed. Retrying", "error", err)
 			case <-w.proto.cancelCtx.Done():
 				return
 			}
@@ -829,14 +1086,17 @@ func (a *activeUpload) getPart() (*StreamPart, error) {
 // slice contains serialized protobuf messages
 type slice struct {
 	proto          *ProtoStream
-	writer         *gzipWriter
+	writer         io.WriteCloser
 	buffer         *bytes.Buffer
 	isLast         bool
 	lastEventIndex int64
+	eventCount     uint64
+	encrypted      bool
 }
 
-// reader returns a reader for the bytes written,
-// no writes should be done after this method is called
+// reader returns a reader for the bytes written, no writes should be done after this
+// method is called and this method should be called at most once per slice, otherwise
+// the resulting recording will be corrupted.
 func (s *slice) reader() (io.ReadSeeker, error) {
 	if err := s.writer.Close(); err != nil {
 		return nil, trace.Wrap(err)
@@ -852,11 +1112,23 @@ func (s *slice) reader() (io.ReadSeeker, error) {
 		s.buffer.Write(padding)
 	}
 	data := s.buffer.Bytes()
+
+	// TODO (eriktate): stop writing new recordings with ProtoStreamV1 in v19
+	partHeader := PartHeader{
+		ProtoVersion: ProtoStreamV1,
+		PartSize:     uint64(wroteBytes - ProtoStreamV1PartHeaderSize),
+		PaddingSize:  uint64(paddingBytes),
+	}
+
+	if s.encrypted {
+		partHeader.ProtoVersion = ProtoStreamV2
+		partHeader.PartSize = uint64(wroteBytes - ProtoStreamV2PartHeaderSize)
+		partHeader.Flags = ProtoStreamFlagEncrypted
+	}
+
 	// when the slice was created, the first bytes were reserved
 	// for the protocol version number and size of the slice in bytes
-	binary.BigEndian.PutUint64(data[0:], ProtoStreamV1)
-	binary.BigEndian.PutUint64(data[Int64Size:], uint64(wroteBytes-ProtoStreamV1PartHeaderSize))
-	binary.BigEndian.PutUint64(data[Int64Size*2:], uint64(paddingBytes))
+	copy(data, partHeader.Bytes())
 	return bytes.NewReader(data), nil
 }
 
@@ -874,10 +1146,18 @@ func (s *slice) shouldUpload() bool {
 	return int64(s.buffer.Len()) >= s.proto.cfg.MinUploadBytes
 }
 
+// isEmpty returns true if the slice hasn't had any events written to
+// it yet.
+func (s *slice) isEmpty() bool {
+	return s.eventCount == 0
+}
+
 // recordEvent emits a single session event to the stream
 func (s *slice) recordEvent(event protoEvent) error {
 	bytes := s.proto.cfg.SlicePool.Get()
 	defer s.proto.cfg.SlicePool.Put(bytes)
+
+	s.eventCount++
 
 	messageSize := event.oneof.Size()
 	recordSize := ProtoStreamV1RecordHeaderSize + messageSize
@@ -886,6 +1166,7 @@ func (s *slice) recordEvent(event protoEvent) error {
 		return trace.BadParameter(
 			"error in buffer allocation, expected size to be >= %v, got %v", recordSize, len(bytes))
 	}
+
 	binary.BigEndian.PutUint32(bytes, uint32(messageSize))
 	_, err := event.oneof.MarshalTo(bytes[Int32Size:])
 	if err != nil {
@@ -905,10 +1186,11 @@ func (s *slice) recordEvent(event protoEvent) error {
 }
 
 // NewProtoReader returns a new proto reader with slice pool
-func NewProtoReader(r io.Reader) *ProtoReader {
+func NewProtoReader(r io.Reader, decrypter DecryptionWrapper) *ProtoReader {
 	return &ProtoReader{
 		reader:    r,
 		lastIndex: -1,
+		decrypter: decrypter,
 	}
 }
 
@@ -934,15 +1216,18 @@ const (
 
 // ProtoReader reads protobuf encoding from reader
 type ProtoReader struct {
-	gzipReader   *gzipReader
-	padding      int64
-	reader       io.Reader
-	sizeBytes    [Int64Size]byte
-	messageBytes [MaxProtoMessageSizeBytes]byte
+	gzipReader *gzipReader
+	padding    int64
+	reader     io.Reader
+	sizeBytes  [Int64Size]byte
+	// Extra metadata added after trimming can slightly increase message size,
+	// so include a little wiggle room.
+	messageBytes [constants.MaxProtoMessageSizeBytes + 4*1024]byte
 	state        int
 	error        error
 	lastIndex    int64
 	stats        ProtoReaderStats
+	decrypter    DecryptionWrapper
 }
 
 // ProtoReaderStats contains some reader statistics
@@ -960,8 +1245,8 @@ type ProtoReaderStats struct {
 }
 
 // ToFields returns a copy of the stats to be used as log fields
-func (p ProtoReaderStats) ToFields() log.Fields {
-	return log.Fields{
+func (p ProtoReaderStats) ToFields() map[string]any {
+	return map[string]any{
 		"skipped-events":      p.SkippedEvents,
 		"out-of-order-events": p.OutOfOrderEvents,
 		"total-events":        p.TotalEvents,
@@ -970,7 +1255,7 @@ func (p ProtoReaderStats) ToFields() log.Fields {
 
 // Close releases reader resources
 func (r *ProtoReader) Close() error {
-	if r.gzipReader != nil {
+	if r != nil && r.gzipReader != nil {
 		return r.gzipReader.Close()
 	}
 	return nil
@@ -1005,6 +1290,65 @@ func (r *ProtoReader) GetStats() ProtoReaderStats {
 	return r.stats
 }
 
+// PartHeader is the structured representation of the binary header prepending each part of a ProtoStream output
+type PartHeader struct {
+	ProtoVersion uint64
+	PartSize     uint64
+	PaddingSize  uint64
+	Flags        ProtoStreamFlag
+}
+
+// Bytes returns the binary representation of a PartHeader formatted to be included in a ProtoStream
+func (h PartHeader) Bytes() []byte {
+	var buf [ProtoStreamV2PartHeaderSize]byte
+	binary.BigEndian.PutUint64(buf[:], h.ProtoVersion)
+	binary.BigEndian.PutUint64(buf[Int64Size:], h.PartSize)
+	binary.BigEndian.PutUint64(buf[Int64Size*2:], h.PaddingSize)
+	if h.ProtoVersion == 1 {
+		return buf[:ProtoStreamV1PartHeaderSize]
+	}
+	binary.BigEndian.PutUint64(buf[Int64Size*3:], 0)
+	buf[Int64Size*3] = h.Flags
+	return buf[:]
+}
+
+// ParsePartHeader parses a PartHeader from the given io.Reader
+func ParsePartHeader(r io.Reader) (PartHeader, error) {
+	var header PartHeader
+	var buf [Int64Size]byte
+	if _, err := io.ReadFull(r, buf[:]); err != nil {
+		if errors.Is(err, io.EOF) {
+			return header, trace.Wrap(err)
+		}
+		return header, trace.ConvertSystemError(err)
+	}
+
+	header.ProtoVersion = binary.BigEndian.Uint64(buf[:])
+	if header.ProtoVersion > ProtoStreamV2 {
+		return PartHeader{}, trace.BadParameter("unsupported protocol version %v", header.ProtoVersion)
+	}
+
+	// read size of this gzipped part as encoded by V1 protocol version
+	if _, err := io.ReadFull(r, buf[:]); err != nil {
+		return header, trace.ConvertSystemError(err)
+	}
+	header.PartSize = binary.BigEndian.Uint64(buf[:])
+	// read padding size (could be 0)
+	if _, err := io.ReadFull(r, buf[:]); err != nil {
+		return header, trace.ConvertSystemError(err)
+	}
+	header.PaddingSize = binary.BigEndian.Uint64(buf[:])
+	if header.ProtoVersion == 1 {
+		return header, nil
+	}
+
+	if _, err := io.ReadFull(r, buf[:]); err != nil {
+		return header, trace.ConvertSystemError(err)
+	}
+	header.Flags = buf[0]
+	return header, nil
+}
+
 // Read returns next event or io.EOF in case of the end of the parts
 func (r *ProtoReader) Read(ctx context.Context) (apievents.AuditEvent, error) {
 	// periodic checks of context after fixed amount of iterations
@@ -1032,7 +1376,7 @@ func (r *ProtoReader) Read(ctx context.Context) (apievents.AuditEvent, error) {
 		case protoReaderStateInit:
 			// read the part header that consists of the protocol version
 			// and the part size (for the V1 version of the protocol)
-			_, err := io.ReadFull(r.reader, r.sizeBytes[:Int64Size])
+			header, err := ParsePartHeader(r.reader)
 			if err != nil {
 				// reached the end of the stream
 				if errors.Is(err, io.EOF) {
@@ -1041,26 +1385,40 @@ func (r *ProtoReader) Read(ctx context.Context) (apievents.AuditEvent, error) {
 				}
 				return nil, r.setError(trace.ConvertSystemError(err))
 			}
-			protocolVersion := binary.BigEndian.Uint64(r.sizeBytes[:Int64Size])
-			if protocolVersion != ProtoStreamV1 {
-				return nil, trace.BadParameter("unsupported protocol version %v", protocolVersion)
+
+			// Empty parts may be created for padding. Just skip them and discard any padding.
+			if header.PartSize == 0 {
+				if header.PaddingSize != 0 {
+					skipped, err := io.CopyBuffer(io.Discard, io.LimitReader(r.reader, int64(header.PaddingSize)), r.messageBytes[:])
+					if err != nil {
+						return nil, r.setError(trace.ConvertSystemError(err))
+					}
+					if skipped != int64(header.PaddingSize) {
+						return nil, r.setError(trace.BadParameter(
+							"data truncated, expected to read %v bytes, but got %v", r.padding, skipped))
+					}
+				}
+				continue
 			}
-			// read size of this gzipped part as encoded by V1 protocol version
-			_, err = io.ReadFull(r.reader, r.sizeBytes[:Int64Size])
-			if err != nil {
-				return nil, r.setError(trace.ConvertSystemError(err))
+
+			r.padding = int64(header.PaddingSize)
+			reader := io.LimitReader(r.reader, int64(header.PartSize))
+			if header.Flags&ProtoStreamFlagEncrypted != 0 {
+				if r.decrypter == nil {
+					return nil, r.setError(trace.Errorf("reading encrypted protos without decrypter"))
+				}
+
+				reader, err = r.decrypter.WithDecryption(ctx, reader)
+				if err != nil {
+					return nil, r.setError(trace.Wrap(err))
+				}
 			}
-			partSize := binary.BigEndian.Uint64(r.sizeBytes[:Int64Size])
-			// read padding size (could be 0)
-			_, err = io.ReadFull(r.reader, r.sizeBytes[:Int64Size])
-			if err != nil {
-				return nil, r.setError(trace.ConvertSystemError(err))
-			}
-			r.padding = int64(binary.BigEndian.Uint64(r.sizeBytes[:Int64Size]))
-			gzipReader, err := newGzipReader(io.NopCloser(io.LimitReader(r.reader, int64(partSize))))
+
+			gzipReader, err := newGzipReader(io.NopCloser(reader))
 			if err != nil {
 				return nil, r.setError(trace.Wrap(err))
 			}
+
 			r.gzipReader = gzipReader
 			r.state = protoReaderStateCurrent
 			continue
@@ -1068,11 +1426,24 @@ func (r *ProtoReader) Read(ctx context.Context) (apievents.AuditEvent, error) {
 		case protoReaderStateCurrent:
 			// the record consists of length of the protobuf encoded
 			// message and the message itself
-			_, err := io.ReadFull(r.gzipReader, r.sizeBytes[:Int32Size])
-			if err != nil {
+			if _, err := io.ReadFull(r.gzipReader, r.sizeBytes[:Int32Size]); err != nil {
 				if !errors.Is(err, io.EOF) {
 					return nil, r.setError(trace.ConvertSystemError(err))
 				}
+
+				// due to a bug in older versions of teleport it was possible that padding
+				// bytes would end up inside of the gzip section of the archive. we should
+				// skip any dangling data in the gzip secion.
+				n, err := io.CopyBuffer(io.Discard, r.gzipReader.inner, r.messageBytes[:])
+				if err != nil {
+					return nil, r.setError(trace.ConvertSystemError(err))
+				}
+
+				if n != 0 {
+					// log the number of bytes that were skipped
+					slog.DebugContext(ctx, "skipped dangling data in session recording section", "length", n)
+				}
+
 				// reached the end of the current part, but not necessarily
 				// the end of the stream
 				if err := r.gzipReader.Close(); err != nil {
@@ -1101,13 +1472,14 @@ func (r *ProtoReader) Read(ctx context.Context) (apievents.AuditEvent, error) {
 			if messageSize == 0 {
 				return nil, r.setError(trace.BadParameter("unexpected message size 0"))
 			}
-			_, err = io.ReadFull(r.gzipReader, r.messageBytes[:messageSize])
-			if err != nil {
+			if messageSize > uint32(cap(r.messageBytes)) {
+				return nil, r.setError(trace.BadParameter("unexpected message size %d", messageSize))
+			}
+			if _, err := io.ReadFull(r.gzipReader, r.messageBytes[:messageSize]); err != nil {
 				return nil, r.setError(trace.ConvertSystemError(err))
 			}
 			oneof := apievents.OneOf{}
-			err = oneof.Unmarshal(r.messageBytes[:messageSize])
-			if err != nil {
+			if err := oneof.Unmarshal(r.messageBytes[:messageSize]); err != nil {
 				return nil, trace.Wrap(err)
 			}
 			event, err := apievents.FromOneOf(oneof)

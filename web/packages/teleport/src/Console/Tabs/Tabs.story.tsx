@@ -16,10 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-
-import Tabs from './Tabs';
 import { TestLayout } from './../Console.story';
+import Tabs from './Tabs';
 
 export default {
   title: 'Teleport/Console',

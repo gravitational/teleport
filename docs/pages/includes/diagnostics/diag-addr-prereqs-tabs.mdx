@@ -27,15 +27,21 @@ them via:
     log:
         severity: DEBUG
     ```
+    Restart the service for the change to take effect:
 
+    ```code
+    $ sudo systemctl restart teleport
+    ```
+    
     </TabItem>
 </Tabs>
 
-<Details title="Ensure you can connect to the diagnostic endpoint">
+<details>
+<summary>Ensure you can connect to the diagnostic endpoint</summary>
 
     Verify that Teleport is now serving the diagnostics endpoint:
 
     ```code
     $ curl http://127.0.0.1:3000/healthz
     ```
-</Details>
+</details>

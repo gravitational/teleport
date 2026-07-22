@@ -16,11 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import PropTypes from 'prop-types';
 import styled from 'styled-components';
 
-import { Text, Alert, Card, H1 } from 'design';
+import { Alert, Card, H1, P1 } from 'design';
 
 export default function CardError(props) {
   return (
@@ -77,13 +76,7 @@ export const Failed = ({ message, ...rest }) => (
 export const Offline = ({ message, title }) => (
   <CardError>
     <Header>{title}</Header>
-    <Content
-      desc={
-        <Text typography="paragraph" textAlign="center">
-          {message}
-        </Text>
-      }
-    />
+    <Content desc={<P1 textAlign="center">{message}</P1>} />
   </CardError>
 );
 
@@ -98,9 +91,9 @@ export const LoginFailed = ({ message, loginUrl }) => (
     <Content
       message={message}
       desc={
-        <Text typography="paragraph" textAlign="center">
+        <P1 textAlign="center">
           <HyperLink href={loginUrl}>Please attempt to log in again.</HyperLink>
-        </Text>
+        </P1>
       }
     />
   </CardError>
@@ -117,9 +110,9 @@ export const LogoutFailed = ({ message, loginUrl }) => (
     <Content
       message={message}
       desc={
-        <Text typography="paragraph" textAlign="center">
+        <P1 textAlign="center">
           <HyperLink href={loginUrl}>Return to login.</HyperLink>
-        </Text>
+        </P1>
       }
     />
   </CardError>
@@ -128,3 +121,10 @@ export const LogoutFailed = ({ message, loginUrl }) => (
 const HyperLink = styled.a`
   color: ${({ theme }) => theme.colors.buttons.link.default};
 `;
+
+export const BadRequest = ({ message, ...rest }) => (
+  <CardError {...rest}>
+    <Header>400 Bad Request</Header>
+    <Content message={message} />
+  </CardError>
+);

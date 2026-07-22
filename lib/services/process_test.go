@@ -31,8 +31,5 @@ func TestShouldDeleteServerHeartbeatsOnShutdown(t *testing.T) {
 
 	require.True(t, ShouldDeleteServerHeartbeatsOnShutdown(ctx))
 	require.True(t, ShouldDeleteServerHeartbeatsOnShutdown(context.WithValue(ctx, contextKey("key"), "value")))
-	require.False(t, ShouldDeleteServerHeartbeatsOnShutdown(ProcessReloadContext(ctx)))
 	require.False(t, ShouldDeleteServerHeartbeatsOnShutdown(ProcessForkedContext(ctx)))
-	require.False(t, ShouldDeleteServerHeartbeatsOnShutdown(ProcessReloadContext(ProcessForkedContext(ctx))))
-	require.False(t, ShouldDeleteServerHeartbeatsOnShutdown(context.WithValue(ProcessReloadContext(ctx), contextKey("key"), "value")))
 }

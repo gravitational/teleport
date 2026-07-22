@@ -23,10 +23,12 @@ import (
 	"bytes"
 	"context"
 	"crypto/x509/pkix"
+	"encoding/binary"
 	"io"
 	"net"
 	"testing"
 	"time"
+	"unsafe"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -57,6 +59,18 @@ var (
 	sampleProxyV2LineEmptyTLV = bytes.Join([][]byte{ProxyV2Prefix, {0x21, 0x11, 0x00, 0x0F}, sampleIPv4Addresses, sampleEmptyTLV}, nil)
 )
 
+func TestPPv2SizeConsts(t *testing.T) {
+	//nolint:staticcheck // the fact that the two types are the same is precisely the point here
+	var (
+		_ [proxyV2Address4Size]struct{} = [unsafe.Sizeof(proxyV2Address4{})]struct{}{}
+		_ [proxyV2Address6Size]struct{} = [unsafe.Sizeof(proxyV2Address6{})]struct{}{}
+	)
+
+	// double-check the runtime size as measured by binary.Size
+	require.Equal(t, proxyV2Address4Size, binary.Size(proxyV2Address4{}))
+	require.Equal(t, proxyV2Address6Size, binary.Size(proxyV2Address6{}))
+}
+
 func TestReadProxyLine(t *testing.T) {
 	t.Parallel()
 
@@ -68,7 +82,7 @@ func TestReadProxyLine(t *testing.T) {
 		_, err := ReadProxyLine(bufio.NewReader(bytes.NewReader([]byte("GIBBERISH\r\n"))))
 		require.ErrorIs(t, err, trace.BadParameter("malformed PROXY line protocol string"))
 	})
-	t.Run("successfully read proxy v1 line", func(t *testing.T) {
+	t.Run("successfully read proxy v1 IPv4 line", func(t *testing.T) {
 		pl, err := ReadProxyLine(bufio.NewReader(bytes.NewReader([]byte(sampleProxyV1Line))))
 		require.NoError(t, err)
 
@@ -77,6 +91,29 @@ func TestReadProxyLine(t *testing.T) {
 		require.Equal(t, "127.0.0.2:42", pl.Destination.String())
 		require.Nil(t, pl.TLVs)
 		require.Equal(t, sampleProxyV1Line, pl.String())
+	})
+	t.Run("successfully read proxy v1 IPv6 line", func(t *testing.T) {
+		line := "PROXY TCP6 fe80::a00:27ff:fe8e:8aa8 fe80::a00:27ff:fe8e:8aa9 12345 42\r\n"
+		pl, err := ReadProxyLine(bufio.NewReader(bytes.NewReader([]byte(line))))
+		require.NoError(t, err)
+
+		require.Equal(t, TCP6, pl.Protocol)
+		require.Equal(t, "[fe80::a00:27ff:fe8e:8aa8]:12345", pl.Source.String())
+		require.Equal(t, "[fe80::a00:27ff:fe8e:8aa9]:42", pl.Destination.String())
+		require.Nil(t, pl.TLVs)
+		require.Equal(t, line, pl.String())
+	})
+	t.Run("IPv6 address with TCP4 protocol is rejected", func(t *testing.T) {
+		line := "PROXY TCP4 fe80::a00:27ff:fe8e:8aa8 fe80::a00:27ff:fe8e:8aa9 12345 42\r\n"
+		_, err := ReadProxyLine(bufio.NewReader(bytes.NewReader([]byte(line))))
+		require.Error(t, err)
+		require.ErrorContains(t, err, "for IPV4 proto")
+	})
+	t.Run("IPv4 address with TCP6 protocol is rejected", func(t *testing.T) {
+		line := "PROXY TCP6 127.0.0.1 127.0.0.2 12345 42\r\n"
+		_, err := ReadProxyLine(bufio.NewReader(bytes.NewReader([]byte(line))))
+		require.Error(t, err)
+		require.ErrorContains(t, err, "for IPV6 proto")
 	})
 }
 
@@ -403,7 +440,7 @@ func TestProxyLine_AddSignature(t *testing.T) {
 				TLVs: tt.inputTLVs,
 			}
 
-			err := pl.AddSignature([]byte(tt.signature), []byte(tt.cert))
+			err := pl.AddTeleportTLVs([]byte(tt.signature), []byte(tt.cert), nil)
 			if tt.wantErr != "" {
 				require.ErrorContains(t, err, tt.wantErr, "Didn't find expected error")
 			} else {
@@ -422,12 +459,33 @@ func TestProxyLine_VerifySignature(t *testing.T) {
 	tlsProxyCert, casGetter, jwtSigner := getTestCertCAsGetterAndSigner(t, clusterName)
 
 	ip := "1.2.3.4"
+	ipV6 := "::1"
 	sAddr := net.TCPAddr{IP: net.ParseIP(ip), Port: 444}
 	dAddr := net.TCPAddr{IP: net.ParseIP(ip), Port: 555}
+
+	sAddrV6 := net.TCPAddr{IP: net.ParseIP(ipV6), Port: 888}
+	dAddrV6 := net.TCPAddr{IP: net.ParseIP(ipV6), Port: 999}
+
+	sAddrPseudo, err := getPseudoIPV4(sAddrV6)
+	require.NoError(t, err)
 
 	signature, err := jwtSigner.SignPROXYJWT(jwt.PROXYSignParams{
 		ClusterName:        clusterName,
 		SourceAddress:      sAddr.String(),
+		DestinationAddress: dAddr.String(),
+	})
+	require.NoError(t, err)
+
+	signatureV6, err := jwtSigner.SignPROXYJWT(jwt.PROXYSignParams{
+		ClusterName:        clusterName,
+		SourceAddress:      sAddrV6.String(),
+		DestinationAddress: dAddrV6.String(),
+	})
+	require.NoError(t, err)
+
+	signatureDowngrade, err := jwtSigner.SignPROXYJWT(jwt.PROXYSignParams{
+		ClusterName:        clusterName,
+		SourceAddress:      sAddrV6.String(),
 		DestinationAddress: dAddr.String(),
 	})
 	require.NoError(t, err)
@@ -462,6 +520,7 @@ func TestProxyLine_VerifySignature(t *testing.T) {
 
 		sAddr            net.TCPAddr
 		dAddr            net.TCPAddr
+		originalSAddr    *net.TCPAddr
 		hostCACert       []byte
 		localClusterName string
 		signature        string
@@ -549,15 +608,48 @@ func TestProxyLine_VerifySignature(t *testing.T) {
 			cert:             tlsProxyCert,
 			wantErr:          "",
 		},
+		{
+			desc:             "success v6",
+			sAddr:            sAddrV6,
+			dAddr:            dAddrV6,
+			hostCACert:       hostCACert,
+			localClusterName: clusterName,
+			signature:        signatureV6,
+			cert:             tlsProxyCert,
+			wantErr:          "",
+		},
+		{
+			desc:             "success ipv6->ipv4 downgrade",
+			sAddr:            sAddrPseudo,
+			dAddr:            dAddr,
+			originalSAddr:    &sAddrV6,
+			hostCACert:       hostCACert,
+			localClusterName: clusterName,
+			signature:        signatureDowngrade,
+			cert:             tlsProxyCert,
+			wantErr:          "",
+		},
+		{
+			desc:             "failure ipv6->ipv4 downgrade, pseudo source address does not match signed ipv6",
+			sAddr:            sAddr,
+			dAddr:            dAddr,
+			originalSAddr:    &sAddrV6,
+			hostCACert:       hostCACert,
+			localClusterName: clusterName,
+			signature:        signatureDowngrade,
+			cert:             tlsProxyCert,
+			wantErr:          "mismatched pseudo IPv4 source and original IPv6 in proxy line",
+		},
 	}
 
 	for _, tt := range testCases {
 		t.Run(tt.desc, func(t *testing.T) {
 			pl := ProxyLine{
-				Source:      sAddr,
-				Destination: dAddr,
+				Source:      tt.sAddr,
+				Destination: tt.dAddr,
 			}
-			err := pl.AddSignature([]byte(tt.signature), tt.cert)
+
+			err := pl.AddTeleportTLVs([]byte(tt.signature), tt.cert, tt.originalSAddr)
 			require.NoError(t, err)
 
 			ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{

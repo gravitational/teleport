@@ -21,6 +21,7 @@ package gateway
 import (
 	"bytes"
 	"context"
+	"crypto/ecdsa"
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
@@ -67,7 +68,7 @@ func TestKubeGateway(t *testing.T) {
 		KubernetesCluster: kubeClusterName,
 	}
 	clock := clockwork.NewFakeClock()
-	proxy := mustStartMockProxyWithKubeAPI(t, identity)
+	proxy := mustStartMockProxyWithKubeAPI(t, identity, teleportClusterName, kubeClusterName)
 	gateway, err := New(
 		Config{
 			Clock:          clock,
@@ -142,14 +143,24 @@ func kubeClientForLocalProxy(t *testing.T, kubeconfigPath, teleportCluster, kube
 	proxyURL, err := url.Parse(config.Clusters[contextName].ProxyURL)
 	require.NoError(t, err)
 
+	// Sanity check the CA and client cert both use ECDSA keys.
+	kubeCAPEM := config.Clusters[contextName].CertificateAuthorityData
+	kubeCA, err := tlsca.ParseCertificatePEM(kubeCAPEM)
+	require.NoError(t, err)
+	require.IsType(t, (*ecdsa.PublicKey)(nil), kubeCA.PublicKey)
+	clientCertPEM := config.AuthInfos[contextName].ClientCertificateData
+	clientCert, err := tlsca.ParseCertificatePEM(clientCertPEM)
+	require.NoError(t, err)
+	require.IsType(t, (*ecdsa.PublicKey)(nil), clientCert.PublicKey)
+
 	tlsClientConfig := rest.TLSClientConfig{
-		CAData:     config.Clusters[contextName].CertificateAuthorityData,
-		CertData:   config.AuthInfos[contextName].ClientCertificateData,
+		CAData:     kubeCAPEM,
+		CertData:   clientCertPEM,
 		KeyData:    config.AuthInfos[contextName].ClientKeyData,
-		ServerName: common.KubeLocalProxySNI(teleportCluster, kubeCluster),
+		ServerName: teleportCluster,
 	}
 	client, err := kubernetes.NewForConfig(&rest.Config{
-		Host:            "https://" + teleportCluster,
+		Host:            "https://" + teleportCluster + common.KubeLocalProxyPathPrefix(teleportCluster, kubeCluster),
 		TLSClientConfig: tlsClientConfig,
 		Proxy:           http.ProxyURL(proxyURL),
 	})
@@ -193,7 +204,7 @@ func (m *mockProxyWithKubeAPI) certPool() *x509.CertPool {
 	return certPool
 }
 
-func mustStartMockProxyWithKubeAPI(t *testing.T, identity tlsca.Identity) *mockProxyWithKubeAPI {
+func mustStartMockProxyWithKubeAPI(t *testing.T, identity tlsca.Identity, teleportCluster, kubeCluster string) *mockProxyWithKubeAPI {
 	t.Helper()
 
 	netListener, err := net.Listen("tcp", "localhost:0")
@@ -220,7 +231,11 @@ func mustStartMockProxyWithKubeAPI(t *testing.T, identity tlsca.Identity) *mockP
 		ClientCAs:        m.certPool(),
 	})
 	go func() {
-		err := http.Serve(tlsListener, mockKubeAPIHandler(t))
+		// Stand in for the Teleport proxy's singleCertHandler route, which
+		// consumes the /v1/teleport/<b64>/<b64> prefix before dispatching to
+		// the kube API handlers.
+		handler := http.StripPrefix(common.KubeLocalProxyPathPrefix(teleportCluster, kubeCluster), mockKubeAPIHandler(t))
+		err := http.Serve(tlsListener, handler)
 		if err != nil && !errors.Is(err, net.ErrClosed) {
 			assert.NoError(t, err)
 		}

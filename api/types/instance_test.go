@@ -26,26 +26,30 @@ import (
 
 func TestInstanceFilter(t *testing.T) {
 	iis := []struct {
-		id       string
-		version  string
-		services []SystemRole
-		upgrader string
+		id          string
+		version     string
+		services    []SystemRole
+		upgrader    string
+		updateGroup string
 	}{
 		{
-			id:       "a1",
-			version:  "v1.2.3",
-			services: []SystemRole{RoleAuth},
+			id:          "a1",
+			version:     "v1.2.3",
+			services:    []SystemRole{RoleAuth},
+			updateGroup: "default",
 		},
 		{
-			id:       "a2",
-			version:  "v2.3.4",
-			services: []SystemRole{RoleAuth, RoleNode},
-			upgrader: "kube",
+			id:          "a2",
+			version:     "v2.3.4",
+			services:    []SystemRole{RoleAuth, RoleNode},
+			upgrader:    "kube",
+			updateGroup: "default",
 		},
 		{
-			id:       "p1",
-			version:  "v1.2.1",
-			services: []SystemRole{RoleProxy},
+			id:          "p1",
+			version:     "v1.2.1",
+			services:    []SystemRole{RoleProxy},
+			updateGroup: "foobar",
 		},
 		{
 			id:       "p2",
@@ -58,10 +62,18 @@ func TestInstanceFilter(t *testing.T) {
 	// set up group of test instances
 	var instances []Instance
 	for _, ii := range iis {
+		var UpdaterInfo *UpdaterV2Info
+		if ii.updateGroup != "" {
+			UpdaterInfo = &UpdaterV2Info{
+				UpdateGroup: ii.updateGroup,
+			}
+		}
+
 		ins, err := NewInstance(ii.id, InstanceSpecV1{
 			Version:          ii.version,
 			Services:         ii.services,
 			ExternalUpgrader: ii.upgrader,
+			UpdaterInfo:      UpdaterInfo,
 		})
 
 		require.NoError(t, err, "id=%s", ii.id)
@@ -146,17 +158,29 @@ func TestInstanceFilter(t *testing.T) {
 				"p1",
 			},
 		},
+		{
+			desc: "match-update-group",
+			filter: InstanceFilter{
+				UpdateGroup: "default",
+			},
+			matches: []string{
+				"a1",
+				"a2",
+			},
+		},
 	}
 
 	for _, tt := range tts {
-		var matches []string
-		for _, ins := range instances {
-			if tt.filter.Match(ins) {
-				matches = append(matches, ins.GetName())
+		t.Run(tt.desc, func(t *testing.T) {
+			var matches []string
+			for _, ins := range instances {
+				if tt.filter.Match(ins) {
+					matches = append(matches, ins.GetName())
+				}
 			}
-		}
 
-		require.Equal(t, tt.matches, matches)
+			require.Equal(t, tt.matches, matches)
+		})
 	}
 }
 

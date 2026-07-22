@@ -20,7 +20,7 @@ package benchmark
 
 import (
 	"context"
-	"math/rand"
+	"math/rand/v2"
 
 	"github.com/gravitational/trace"
 
@@ -81,7 +81,7 @@ func chooseRandomHost(hosts []types.Server) string {
 		name := hosts[0].GetName()
 		return name + ":0"
 	default:
-		name := hosts[rand.Intn(len(hosts))].GetName()
+		name := hosts[rand.N(len(hosts))].GetName()
 		return name + ":0"
 	}
 }

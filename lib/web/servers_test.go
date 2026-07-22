@@ -29,7 +29,8 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/web/ui"
+	"github.com/gravitational/teleport/lib/ui"
+	webui "github.com/gravitational/teleport/lib/web/ui"
 )
 
 func TestCreateNode(t *testing.T) {
@@ -47,7 +48,7 @@ func TestCreateNode(t *testing.T) {
 			Hostname: "myhostname",
 			Addr:     "172.31.1.1:22",
 			Labels:   []ui.Label{},
-			AWSInfo: &ui.AWSMetadata{
+			AWSInfo: &webui.AWSMetadata{
 				AccountID:   "123456789012",
 				InstanceID:  "i-123",
 				Region:      "us-east-1",
@@ -117,7 +118,7 @@ func TestCreateNode(t *testing.T) {
 					cnr.Name = ""
 				}),
 				expectedStatus: http.StatusBadRequest,
-				errAssert: func(tt require.TestingT, err error, i ...interface{}) {
+				errAssert: func(tt require.TestingT, err error, i ...any) {
 					require.ErrorContains(tt, err, "missing node name")
 				},
 			},
@@ -127,7 +128,7 @@ func TestCreateNode(t *testing.T) {
 					cnr.AWSInfo.AccountID = ""
 				}),
 				expectedStatus: http.StatusBadRequest,
-				errAssert: func(tt require.TestingT, err error, i ...interface{}) {
+				errAssert: func(tt require.TestingT, err error, i ...any) {
 					require.ErrorContains(tt, err, `missing AWS Account ID (required for "openssh-ec2-ice" SubKind)`)
 				},
 			},
@@ -137,7 +138,7 @@ func TestCreateNode(t *testing.T) {
 					cnr.SubKind = types.SubKindOpenSSHNode
 				}),
 				expectedStatus: http.StatusBadRequest,
-				errAssert: func(tt require.TestingT, err error, i ...interface{}) {
+				errAssert: func(tt require.TestingT, err error, i ...any) {
 					require.ErrorContains(tt, err, `invalid subkind "openssh", only "openssh-ec2-ice" is supported`)
 				},
 			},

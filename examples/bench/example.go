@@ -35,8 +35,9 @@ func main() {
 	}
 
 	// Run Linear generator
+	ctx := context.Background()
 	results, err := benchmark.Run(
-		context.TODO(),
+		ctx,
 		linear,
 		"host",
 		"username",
@@ -59,7 +60,7 @@ func main() {
 
 	// Export latency profile
 	responseHistogram := results[0].Histogram
-	_, err = benchmark.ExportLatencyProfile("profiles/", responseHistogram, 1, 1.0)
+	_, err = benchmark.ExportLatencyProfile(ctx, "profiles/", responseHistogram, 1, 1.0)
 	if err != nil {
 		fmt.Println(err)
 	}

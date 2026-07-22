@@ -20,83 +20,36 @@ package utils
 
 import (
 	"bytes"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/utils/cert"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestMain(m *testing.M) {
-	InitLoggerForTests()
+	logtest.InitLogger(testing.Verbose)
 	os.Exit(m.Run())
-}
-
-func TestHostUUIDIdempotent(t *testing.T) {
-	t.Parallel()
-
-	// call twice, get same result
-	dir := t.TempDir()
-	id, err := ReadOrMakeHostUUID(dir)
-	require.Len(t, id, 36)
-	require.NoError(t, err)
-	uuidCopy, err := ReadOrMakeHostUUID(dir)
-	require.NoError(t, err)
-	require.Equal(t, id, uuidCopy)
-}
-
-func TestHostUUIDBadLocation(t *testing.T) {
-	t.Parallel()
-
-	// call with a read-only dir, make sure to get an error
-	id, err := ReadOrMakeHostUUID("/bad-location")
-	require.Empty(t, id)
-	require.Error(t, err)
-	require.Regexp(t, "^.*no such file or directory.*$", err.Error())
-}
-
-func TestHostUUIDIgnoreWhitespace(t *testing.T) {
-	t.Parallel()
-
-	// newlines are getting ignored
-	dir := t.TempDir()
-	id := fmt.Sprintf("%s\n", uuid.NewString())
-	err := os.WriteFile(filepath.Join(dir, HostUUIDFile), []byte(id), 0666)
-	require.NoError(t, err)
-	out, err := ReadHostUUID(dir)
-	require.NoError(t, err)
-	require.Equal(t, strings.TrimSpace(id), out)
-}
-
-func TestHostUUIDRegenerateEmpty(t *testing.T) {
-	t.Parallel()
-
-	// empty UUID in file is regenerated
-	dir := t.TempDir()
-	err := os.WriteFile(filepath.Join(dir, HostUUIDFile), nil, 0666)
-	require.NoError(t, err)
-	out, err := ReadOrMakeHostUUID(dir)
-	require.NoError(t, err)
-	require.Len(t, out, 36)
 }
 
 func TestSelfSignedCert(t *testing.T) {
 	t.Parallel()
 
-	creds, err := cert.GenerateSelfSignedCert([]string{"example.com"}, nil)
+	creds, err := cert.GenerateSelfSignedCert([]string{"example.com"}, nil, nil, time.Now)
 	require.NoError(t, err)
-	require.NotNil(t, creds)
-	require.Equal(t, 4, len(creds.PublicKey)/100)
-	require.Equal(t, 16, len(creds.PrivateKey)/100)
+	signer, err := keys.ParsePrivateKey(creds.PrivateKey)
+	require.NoError(t, err)
+	pub, err := keys.ParsePublicKey(creds.PublicKey)
+	require.NoError(t, err)
+	require.Equal(t, signer.Public(), pub)
 }
 
 func TestRandomDuration(t *testing.T) {
@@ -104,7 +57,7 @@ func TestRandomDuration(t *testing.T) {
 
 	expectedMin := time.Duration(0)
 	expectedMax := time.Second * 10
-	for i := 0; i < 50; i++ {
+	for range 50 {
 		dur := RandomDuration(expectedMax)
 		require.GreaterOrEqual(t, dur, expectedMin)
 		require.Less(t, dur, expectedMax)
@@ -133,8 +86,8 @@ func TestRemoveFromSlice(t *testing.T) {
 	}
 }
 
-// TestVersions tests versions compatibility checking
-func TestVersions(t *testing.T) {
+// TestMinVersions tests versions compatibility checking
+func TestMinVersions(t *testing.T) {
 	t.Parallel()
 
 	type tc struct {
@@ -149,8 +102,8 @@ func TestVersions(t *testing.T) {
 	}
 	for _, testCase := range successTestCases {
 		t.Run(testCase.info, func(t *testing.T) {
-			require.NoError(t, CheckVersion(testCase.client, testCase.minClient))
-			assert.True(t, MeetsVersion(testCase.client, testCase.minClient), "MeetsVersion expected to succeed")
+			require.NoError(t, CheckMinVersion(testCase.client, testCase.minClient))
+			assert.True(t, MeetsMinVersion(testCase.client, testCase.minClient), "MeetsMinVersion expected to succeed")
 		})
 	}
 
@@ -160,32 +113,41 @@ func TestVersions(t *testing.T) {
 	}
 	for _, testCase := range failTestCases {
 		t.Run(testCase.info, func(t *testing.T) {
-			fixtures.AssertBadParameter(t, CheckVersion(testCase.client, testCase.minClient))
-			assert.False(t, MeetsVersion(testCase.client, testCase.minClient), "MeetsVersion expected to fail")
+			require.True(t, trace.IsBadParameter(CheckMinVersion(testCase.client, testCase.minClient)))
+			assert.False(t, MeetsMinVersion(testCase.client, testCase.minClient), "MeetsMinVersion expected to fail")
 		})
 	}
 }
 
-// TestClickableURL tests clickable URL conversions
-func TestClickableURL(t *testing.T) {
+// TestMaxVersions tests versions compatibility checking
+func TestMaxVersions(t *testing.T) {
 	t.Parallel()
 
-	testCases := []struct {
-		info string
-		in   string
-		out  string
-	}{
-		{info: "original URL is OK", in: "http://127.0.0.1:3000/hello", out: "http://127.0.0.1:3000/hello"},
-		{info: "unspecified IPV6", in: "http://[::]:5050/howdy", out: "http://127.0.0.1:5050/howdy"},
-		{info: "unspecified IPV4", in: "http://0.0.0.0:5050/howdy", out: "http://127.0.0.1:5050/howdy"},
-		{info: "specified IPV4", in: "http://192.168.1.1:5050/howdy", out: "http://192.168.1.1:5050/howdy"},
-		{info: "specified IPV6", in: "http://[2001:0db8:85a3:0000:0000:8a2e:0370:7334]:5050/howdy", out: "http://[2001:0db8:85a3:0000:0000:8a2e:0370:7334]:5050/howdy"},
-		{info: "hostname", in: "http://example.com:3000/howdy", out: "http://example.com:3000/howdy"},
+	type tc struct {
+		info      string
+		client    string
+		maxClient string
 	}
-	for _, testCase := range testCases {
+	successTestCases := []tc{
+		{info: "client same as max version", client: "1.0.0", maxClient: "1.0.0"},
+		{info: "client older than max version", client: "1.1.0", maxClient: "1.2.0"},
+		{info: "pre-releases clients are ok", client: "1.0.0-alpha.1", maxClient: "1.0.0"},
+	}
+	for _, testCase := range successTestCases {
 		t.Run(testCase.info, func(t *testing.T) {
-			out := ClickableURL(testCase.in)
-			require.Equal(t, testCase.out, out)
+			require.NoError(t, CheckMaxVersion(testCase.client, testCase.maxClient))
+			assert.True(t, MeetsMaxVersion(testCase.client, testCase.maxClient), "MeetsMinVersion expected to succeed")
+		})
+	}
+
+	failTestCases := []tc{
+		{info: "client newer than max version", client: "1.3.0", maxClient: "1.1.0"},
+		{info: "newer pre-releases are no ok", client: "1.1.0", maxClient: "1.1.0-alpha.1"},
+	}
+	for _, testCase := range failTestCases {
+		t.Run(testCase.info, func(t *testing.T) {
+			require.True(t, trace.IsBadParameter(CheckMaxVersion(testCase.client, testCase.maxClient)))
+			assert.False(t, MeetsMaxVersion(testCase.client, testCase.maxClient), "MeetsMinVersion expected to fail")
 		})
 	}
 }
@@ -228,7 +190,7 @@ func TestParseAdvertiseAddr(t *testing.T) {
 	for _, testCase := range failTestCases {
 		t.Run(testCase.info, func(t *testing.T) {
 			_, _, err := ParseAdvertiseAddr(testCase.in)
-			fixtures.AssertBadParameter(t, err)
+			require.True(t, trace.IsBadParameter(err))
 		})
 	}
 }
@@ -283,6 +245,16 @@ func TestIsValidHostname(t *testing.T) {
 			name:     "normal hostname",
 			hostname: "some-host-1.example.com",
 			assert:   require.True,
+		},
+		{
+			name:     "only lower case works",
+			hostname: "only-lower-case-works",
+			assert:   require.True,
+		},
+		{
+			name:     "mixed upper case fails",
+			hostname: "mixed-UPPER-CASE-fails",
+			assert:   require.False,
 		},
 		{
 			name:     "one component",
@@ -346,21 +318,21 @@ func TestReplaceRegexp(t *testing.T) {
 			expr:    "value",
 			replace: "value",
 			in:      "val",
-			err:     trace.NotFound(""),
+			err:     ErrReplaceRegexNotFound,
 		},
 		{
 			comment: "empty value is no match",
 			expr:    "",
 			replace: "value",
 			in:      "value",
-			err:     trace.NotFound(""),
+			err:     ErrReplaceRegexNotFound,
 		},
 		{
 			comment: "bad regexp results in bad parameter error",
 			expr:    "^(($",
 			replace: "value",
 			in:      "val",
-			err:     trace.BadParameter(""),
+			err:     &trace.BadParameterError{Message: "error parsing regexp: missing closing ): `^(($`"},
 		},
 		{
 			comment: "full match is supported",
@@ -419,7 +391,7 @@ func TestReplaceRegexp(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, testCase.out, out)
 			} else {
-				require.IsType(t, testCase.err, err)
+				require.ErrorIs(t, err, testCase.err)
 			}
 		})
 	}
@@ -482,8 +454,8 @@ func TestMarshalYAML(t *testing.T) {
 	}
 	testCases := []struct {
 		comment  string
-		val      interface{}
-		expected interface{}
+		val      any
+		expected any
 		isDoc    bool
 	}{
 		{
@@ -492,23 +464,23 @@ func TestMarshalYAML(t *testing.T) {
 		},
 		{
 			comment: "list of yaml types",
-			val:     []interface{}{"hello", "there"},
+			val:     []any{"hello", "there"},
 		},
 		{
 			comment:  "list of yaml documents",
-			val:      []interface{}{kv{Key: "a"}, kv{Key: "b"}},
-			expected: []interface{}{map[string]interface{}{"Key": "a"}, map[string]interface{}{"Key": "b"}},
+			val:      []any{kv{Key: "a"}, kv{Key: "b"}},
+			expected: []any{map[string]any{"Key": "a"}, map[string]any{"Key": "b"}},
 			isDoc:    true,
 		},
 		{
 			comment:  "list of pointers to yaml docs",
-			val:      []interface{}{kv{Key: "a"}, &kv{Key: "b"}},
-			expected: []interface{}{map[string]interface{}{"Key": "a"}, map[string]interface{}{"Key": "b"}},
+			val:      []any{kv{Key: "a"}, &kv{Key: "b"}},
+			expected: []any{map[string]any{"Key": "a"}, map[string]any{"Key": "b"}},
 			isDoc:    true,
 		},
 		{
 			comment: "list of maps",
-			val:     []interface{}{map[string]interface{}{"Key": "a"}, map[string]interface{}{"Key": "b"}},
+			val:     []any{map[string]any{"Key": "a"}, map[string]any{"Key": "b"}},
 			isDoc:   true,
 		},
 	}
@@ -540,7 +512,7 @@ func TestTryReadValueAsFile(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = TryReadValueAsFile("/tmp/non-existent-token-for-teleport-tests-not-found")
-	fixtures.AssertNotFound(t, err)
+	require.True(t, trace.IsNotFound(err))
 
 	dir := t.TempDir()
 	tokenPath := filepath.Join(dir, "token")
@@ -550,15 +522,6 @@ func TestTryReadValueAsFile(t *testing.T) {
 	tok, err = TryReadValueAsFile(tokenPath)
 	require.NoError(t, err)
 	require.Equal(t, "shmoken", tok)
-}
-
-// TestStringsSet makes sure that nil slice returns empty set (less error prone)
-func TestStringsSet(t *testing.T) {
-	t.Parallel()
-
-	out := StringsSet(nil)
-	require.Empty(t, out)
-	require.NotNil(t, out)
 }
 
 func TestReadAtMost(t *testing.T) {
@@ -581,56 +544,6 @@ func TestReadAtMost(t *testing.T) {
 			data, err := ReadAtMost(r, tc.limit)
 			require.Equal(t, []byte(tc.data), data)
 			require.ErrorIs(t, err, tc.err)
-		})
-	}
-}
-
-func TestByteCount(t *testing.T) {
-	tt := []struct {
-		name     string
-		size     int64
-		expected string
-	}{
-		{
-			name:     "1 byte",
-			size:     1,
-			expected: "1 B",
-		},
-		{
-			name:     "2 byte2",
-			size:     2,
-			expected: "2 B",
-		},
-		{
-			name:     "1kb",
-			size:     1000,
-			expected: "1.0 kB",
-		},
-		{
-			name:     "1mb",
-			size:     1000_000,
-			expected: "1.0 MB",
-		},
-		{
-			name:     "1gb",
-			size:     1000_000_000,
-			expected: "1.0 GB",
-		},
-		{
-			name:     "1tb",
-			size:     1000_000_000_000,
-			expected: "1.0 TB",
-		},
-		{
-			name:     "1.6 kb",
-			size:     1600,
-			expected: "1.6 kB",
-		},
-	}
-
-	for _, tc := range tt {
-		t.Run(tc.name, func(t *testing.T) {
-			assert.Equal(t, tc.expected, ByteCount(tc.size))
 		})
 	}
 }

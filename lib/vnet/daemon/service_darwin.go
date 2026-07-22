@@ -15,12 +15,9 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 //go:build vnetdaemon
-// +build vnetdaemon
 
 package daemon
 
-// #cgo CFLAGS: -Wall -xobjective-c -fblocks -fobjc-arc -mmacosx-version-min=10.15
-// #cgo LDFLAGS: -framework Foundation
 // #include <stdlib.h>
 // #include "service_darwin.h"
 import "C"
@@ -32,22 +29,41 @@ import (
 	"unsafe"
 
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/utils/darwinbundle"
 )
 
 // Start starts an XPC listener and waits for it to receive a message with VNet config.
 // Once the message is received, it executes [workFn] with that config.
 func Start(ctx context.Context, workFn func(context.Context, Config) error) error {
-	bundlePath, err := bundlePath()
+	bundlePath, err := darwinbundle.Path()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	log.InfoContext(ctx, "Starting daemon", "bundle_path", bundlePath)
+	log.InfoContext(ctx, "Starting daemon", "version", teleport.Version, "bundle_path", bundlePath)
 
 	cBundlePath := C.CString(bundlePath)
 	defer C.free(unsafe.Pointer(cBundlePath))
 
-	C.DaemonStart(cBundlePath)
+	var result C.DaemonStartResult
+	defer func() {
+		C.free(unsafe.Pointer(result.error_domain))
+		C.free(unsafe.Pointer(result.error_description))
+	}()
+	C.DaemonStart(cBundlePath, &result)
+	if !result.ok {
+		errorDomain := C.GoString(result.error_domain)
+		errorCode := int(result.error_code)
+
+		if errorDomain == vnetErrorDomain && errorCode == errorCodeMissingCodeSigningIdentifiers {
+			return trace.Wrap(errMissingCodeSigningIdentifiers)
+		}
+
+		return trace.Errorf("could not start daemon: %s", C.GoString(result.error_description))
+	}
+
 	defer func() {
 		log.InfoContext(ctx, "Stopping daemon")
 		C.DaemonStop()
@@ -59,10 +75,8 @@ func Start(ctx context.Context, workFn func(context.Context, Config) error) erro
 	}
 
 	log.InfoContext(ctx, "Received VNet config",
-		"socket_path", config.SocketPath,
-		"ipv6_prefix", config.IPv6Prefix,
-		"dns_addr", config.DNSAddr,
-		"home_path", config.HomePath,
+		"service_credential_path", config.ServiceCredentialPath,
+		"client_application_service_addr", config.ClientApplicationServiceAddr,
 	)
 
 	return trace.Wrap(workFn(ctx, config))
@@ -81,10 +95,8 @@ func waitForVnetConfig(ctx context.Context) (Config, error) {
 		var result C.VnetConfigResult
 		defer func() {
 			C.free(unsafe.Pointer(result.error_description))
-			C.free(unsafe.Pointer(result.socket_path))
-			C.free(unsafe.Pointer(result.ipv6_prefix))
-			C.free(unsafe.Pointer(result.dns_addr))
-			C.free(unsafe.Pointer(result.home_path))
+			C.free(unsafe.Pointer(result.service_credential_path))
+			C.free(unsafe.Pointer(result.client_application_service_addr))
 		}()
 
 		// This call gets unblocked when the daemon gets stopped through C.DaemonStop.
@@ -95,10 +107,8 @@ func waitForVnetConfig(ctx context.Context) (Config, error) {
 		}
 
 		config = Config{
-			SocketPath: C.GoString(result.socket_path),
-			IPv6Prefix: C.GoString(result.ipv6_prefix),
-			DNSAddr:    C.GoString(result.dns_addr),
-			HomePath:   C.GoString(result.home_path),
+			ServiceCredentialPath:        C.GoString(result.service_credential_path),
+			ClientApplicationServiceAddr: C.GoString(result.client_application_service_addr),
 		}
 		errC <- nil
 	}()

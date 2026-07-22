@@ -1,10 +1,17 @@
 ---
 title: Register a Kubernetes Cluster using IAM Joining
 description: Connecting a Kubernetes cluster to Teleport with IAM joining.
+tags:
+ - how-to
+ - zero-trust
+ - infrastructure-identity
+page_type: how-to
 ---
 
-In this guide, we will show you how to register a Kubernetes cluster with
-Teleport by using the agent's IAM identity to automatically join the Teleport cluster.
+In this guide, you will register a Kubernetes cluster with Teleport by using a
+Teleport Agent's IAM identity to automatically join the Teleport cluster.
+
+## How it works
 
 You can register multiple Kubernetes clusters with Teleport by deploying the
 Teleport Kubernetes Service on each cluster you want to register without having
@@ -13,9 +20,6 @@ to distribute a joining secret to the Kubernetes cluster.
 Once the Kubernetes cluster is registered for the first time, the agent will store
 its Teleport identity in a Kubernetes secret. The agent will use this identity
 to automatically join the cluster on subsequent restarts.
-
-Support for joining a cluster with the Proxy Service behind a layer 7 load
-balancer or reverse proxy is available in Teleport 13.0+.
 
 ## Prerequisites
 
@@ -38,7 +42,7 @@ IAM identity they are running as. It allows you to register Kubernetes
 clusters running in AWS without having to distribute a joining secret to the
 Kubernetes cluster.
 
-To securely join the cluster without relying on the EKS node's Identity, a Teleport agent
+To securely join the cluster without relying on the EKS node's Identity, a Teleport Agent
 must run as a separate Kubernetes service account with an attached IAM role. Relying
 on the node's identity is not recommended as it can be easily compromised since every
 pod running on the node has access to the node's identity if IAM Roles for Service Accounts
@@ -75,7 +79,7 @@ $ aws iam create-policy --policy-name <Var name="kube-iam-policy"/> --policy-doc
     "Policy": {
         "PolicyName": "<Var name="kube-iam-policy"/>",
         "PolicyId": "ANPAW2Y2Q2Y2Y2Y2Y2Y2Y",
-        "Arn": "arn:aws:iam::aws:policy/<Var name="kube-iam-policy"/>",
+        "Arn": "arn:aws:iam::123456789012:policy/<Var name="kube-iam-policy"/>",
         "Path": "/",
         "DefaultVersionId": "v1",
         "AttachmentCount": 0,
@@ -94,8 +98,10 @@ using it or you can use the AWS CLI method.
 
 <Tabs>
 <TabItem label="Using eksctl">
-`eksctl` supports automatic creation of new IAM roles and mapping it into the Kubernetes Service
-  Account in the target namespace.
+
+`eksctl` supports automatic creation of new IAM roles and mapping it into the
+Kubernetes Service Account in the target namespace. Make sure to assign
+<Var name="aws-account-id" /> to your AWS account ID:
 
 ```code
 $ eksctl create iamserviceaccount \
@@ -103,7 +109,7 @@ $ eksctl create iamserviceaccount \
     --namespace <Var name="teleport-agent"/> \
     --cluster <Var name="kube-cluster"/> \
     --region <Var name="aws-region"/> \
-    --attach-policy-arn arn:aws:iam::aws:policy/<Var name="kube-iam-policy"/> \
+    --attach-policy-arn arn:aws:iam::<Var name="aws-account-id" />:policy/<Var name="kube-iam-policy"/> \
     --role-name <Var name="kube-iam-role"/> \
     --approve
 ```
@@ -250,7 +256,7 @@ $ PROXY=tele.example.com:443
 #   service account. See serviceAccount.create and serviceAccount.name parameters.
 $ helm install teleport-agent teleport/teleport-kube-agent \
   --set kubeClusterName=${CLUSTER?} \
-  --set roles="kube\,app\,discovery" \
+  --set roles="kube" \
   --set proxyAddr=${PROXY?} \
   --set joinParams.method=iam \
   --set joinParams.tokenName=<Var name="kube-iam-token"/> \
@@ -261,8 +267,8 @@ $ helm install teleport-agent teleport/teleport-kube-agent \
   --version (=teleport.version=)
 ```
 
-Make sure that the Teleport agent pod is running. You should see one Teleport
-agent pod pod with a single ready container:
+Make sure that the Teleport Agent pod is running. You should see one Teleport
+agent pod with a single ready container:
 
 ```code
 $ kubectl -n <Var name="teleport-agent"/> get pods
@@ -294,11 +300,12 @@ On the other hand, if you can see your Kubernetes cluster but unable to see any 
 it's likely that your Teleport role does not allow access to pods in the Kubernetes cluster.
 For both cases, please refer to the section below.
 
-<Details title="Not seeing Kubernetes clusters?">
+<details>
+<summary>Not seeing Kubernetes clusters?</summary>
 
 (!docs/pages/includes/kubernetes-access/rbac.mdx!)
 
-</Details>
+</details>
 
 ## Next steps
 

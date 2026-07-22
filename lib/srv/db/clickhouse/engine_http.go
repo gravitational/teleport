@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/utils"
@@ -170,13 +171,13 @@ func (e *Engine) writeResp(resp *http.Response) error {
 }
 
 func (e *Engine) rewriteRequest(req *http.Request, sessionCtx *common.Session) error {
-	uri, err := url.Parse(sessionCtx.Database.GetURI())
+	u, err := getURL(sessionCtx.Database)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	req.URL.Scheme = "https"
-	req.URL.Host = uri.Host
+	req.URL.Scheme = u.Scheme
+	req.URL.Host = u.Host
 
 	// Delete Headers set by a ClickHouse client.
 	req.Header.Del("Authorization")
@@ -185,7 +186,6 @@ func (e *Engine) rewriteRequest(req *http.Request, sessionCtx *common.Session) e
 	req.Header.Set(headerClickHouseSSLAuth, enableVal)
 	req.Header.Set(headerClickHouseUser, sessionCtx.DatabaseUser)
 	return nil
-
 }
 
 func (e *Engine) sendErrorHTTP(err error) {
@@ -217,4 +217,13 @@ func (e *Engine) getTransport(ctx context.Context) (*http.Transport, error) {
 
 	transport.TLSClientConfig = tlsConfig
 	return transport, nil
+}
+
+func getURL(db types.Database) (*url.URL, error) {
+	u, err := url.Parse(db.GetURI())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	u.Scheme = "https"
+	return u, nil
 }

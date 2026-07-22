@@ -1,4 +1,4 @@
-{{ client="plugin" secret="plugin-identity" }}
+{{ user="access-plugin" secret="plugin-identity" }}
 
 Like all Teleport users, `{{ user }}` needs signed credentials in order to
 connect to your Teleport cluster. You will use the `tctl auth sign` command to
@@ -12,23 +12,22 @@ directory:
 $ tctl auth sign --user={{ user }} --out=identity
 ```
 
-The {{ client }} connects to the Teleport Auth Service's gRPC endpoint over TLS.
+The plugin connects to the Teleport Auth Service's gRPC endpoint over TLS.
 
 The identity file, `identity`, includes both TLS and SSH credentials. The
-{{ client }} uses the SSH credentials to connect to the Proxy Service, which
-establishes a reverse tunnel connection to the Auth Service. The {{ client }}
+plugin uses the SSH credentials to connect to the Proxy Service, which
+establishes a reverse tunnel connection to the Auth Service. The plugin
 uses this reverse tunnel, along with your TLS credentials, to connect to the
 Auth Service's gRPC endpoint.
 
-<Details
-  title="Certificate Lifetime"
->
+<details>
+<summary>Certificate Lifetime</summary>
 
   By default, `tctl auth sign` produces certificates with a relatively short
   lifetime. For production deployments, we suggest using [Machine
-  ID](../../enroll-resources/machine-id/introduction.mdx) to programmatically issue and renew
-  certificates for your plugin. See our Machine ID [getting started
-  guide](../../enroll-resources/machine-id/getting-started.mdx) to learn more.
+  & Workload Identity](../../machine-workload-identity/introduction.mdx) to programmatically issue and renew
+  certificates for your plugin. See our Machine & Workload Identity [getting started
+  guide](../../machine-workload-identity/getting-started.mdx) to learn more.
 
   Note that you cannot issue certificates that are valid longer than your existing credentials.
   For example, to issue certificates with a 1000-hour TTL, you must be logged in with a session that is
@@ -40,17 +39,17 @@ Auth Service's gRPC endpoint.
   $ tsh login --proxy=teleport.example.com --ttl=60060
   ```
 
-</Details>
+</details>
 
-If you are running the {{ client }} on a Linux server, create a data directory
-to hold certificate files for the {{ client }}:
+If you are running the plugin on a Linux server, create a data directory
+to hold certificate files for the plugin:
 
 ```code
-$ sudo mkdir -p /var/lib/teleport/api-credentials
-$ sudo mv identity /var/lib/teleport/plugins/api-credentials
+$ sudo mkdir -p /var/lib/teleport/plugins/{{ plugin }}
+$ sudo mv identity /var/lib/teleport/plugins/{{ plugin }}
 ```
 
-If you are running the {{ client }} on Kubernetes, Create a Kubernetes secret
+If you are running the plugin on Kubernetes, create a Kubernetes secret
 that contains the Teleport identity file:
 
 ```code

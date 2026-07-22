@@ -16,13 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package auth
+package auth_test
 
 import (
 	"context"
 	"encoding/base32"
 	"fmt"
-	"math/rand"
+	"math/rand/v2"
 	"testing"
 	"time"
 
@@ -31,101 +31,36 @@ import (
 	"github.com/pquerna/otp/totp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/crypto/bcrypt"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/types/header"
 	wanpb "github.com/gravitational/teleport/api/types/webauthn"
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authcatest"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	authority "github.com/gravitational/teleport/lib/auth/testauthority"
-	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/services/suite"
-	"github.com/gravitational/teleport/lib/utils"
 )
-
-type passwordSuite struct {
-	bk          backend.Backend
-	a           *Server
-	mockEmitter *eventstest.MockRecorderEmitter
-}
-
-func setupPasswordSuite(t *testing.T) *passwordSuite {
-	s := passwordSuite{}
-
-	ctx := context.Background()
-	clock := clockwork.NewFakeClockAt(time.Now())
-
-	var err error
-
-	s.bk, err = memory.New(memory.Config{
-		Context: ctx,
-		Clock:   clock,
-	})
-	require.NoError(t, err)
-
-	// set cluster name
-	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
-		ClusterName: "me.localhost",
-	})
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		s.bk.Close()
-	})
-
-	authConfig := &InitConfig{
-		ClusterName:            clusterName,
-		Backend:                s.bk,
-		VersionStorage:         NewFakeTeleportVersion(),
-		Authority:              authority.New(),
-		SkipPeriodicOperations: true,
-	}
-	s.a, err = NewServer(authConfig)
-	require.NoError(t, err)
-
-	err = s.a.SetClusterName(clusterName)
-	require.NoError(t, err)
-
-	// set lock watcher
-	lockWatcher, err := services.NewLockWatcher(ctx, services.LockWatcherConfig{
-		ResourceWatcherConfig: services.ResourceWatcherConfig{
-			Component: teleport.ComponentAuth,
-			Client:    s.a,
-		},
-	})
-	require.NoError(t, err, "NewLockWatcher")
-	s.a.SetLockWatcher(lockWatcher)
-
-	// set static tokens
-	staticTokens, err := types.NewStaticTokens(types.StaticTokensSpecV2{
-		StaticTokens: []types.ProvisionTokenV1{},
-	})
-	require.NoError(t, err)
-	err = s.a.SetStaticTokens(staticTokens)
-	require.NoError(t, err)
-
-	s.mockEmitter = &eventstest.MockRecorderEmitter{}
-	s.a.emitter = s.mockEmitter
-	return &s
-}
 
 func TestUserNotFound(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	s := setupPasswordSuite(t)
+	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, as.Close()) })
 	username := "unknown-user"
 	password := "feefiefoefum"
 
-	err := s.a.checkPasswordWOToken(ctx, username, []byte(password))
+	err = as.AuthServer.CheckPasswordWOToken(ctx, username, []byte(password))
 	require.Error(t, err)
 	// Make sure the error is not a NotFound. That would be a username oracle.
 	require.True(t, trace.IsBadParameter(err))
@@ -134,98 +69,109 @@ func TestUserNotFound(t *testing.T) {
 func TestPasswordLengthChange(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	srv := newTestTLSServer(t)
-	authServer := srv.Auth()
-
-	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
-		Type:         constants.Local,
-		SecondFactor: constants.SecondFactorOff,
+	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{
+		Dir: t.TempDir(),
+		AuthPreferenceSpec: &types.AuthPreferenceSpecV2{
+			Type:         constants.Local,
+			SecondFactor: constants.SecondFactorOff,
+		},
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, as.Close()) })
 
-	_, err = authServer.UpsertAuthPreference(ctx, ap)
-	require.NoError(t, err)
+	const (
+		username = "llama@goteleport.com"
+		password = "a"
+		// Pre-calculated bcrypt hash of "a" at minimum cost.
+		passwordHash = `$2a$10$xyxHFtG04s0kegyq1jwGB.faThKRIzDTCArbvKPxH6UKHriWz79H6`
+	)
 
-	username := fmt.Sprintf("llama%v@goteleport.com", rand.Int())
-	password := []byte("a")
-	u, _, err := CreateUserAndRole(authServer, username, []string{username}, nil)
-	require.NoError(t, err)
-
-	hash, err := utils.BcryptFromPassword(password, bcrypt.DefaultCost)
+	u, _, err := authtest.CreateUserAndRole(as.AuthServer, username, []string{username}, nil)
 	require.NoError(t, err)
 
 	// Set an initial password that is shorter than minimum length
-	u.SetLocalAuth(&types.LocalAuthSecrets{PasswordHash: hash})
-	authServer.UpsertUser(ctx, u)
+	u.SetLocalAuth(&types.LocalAuthSecrets{PasswordHash: []byte(passwordHash)})
+	_, err = as.AuthServer.UpsertUser(ctx, u)
 	require.NoError(t, err)
 
 	// Ensure that a shorter password still works for auth
-	err = authServer.checkPasswordWOToken(ctx, username, password)
+	err = as.AuthServer.CheckPasswordWOToken(ctx, username, []byte(password))
 	require.NoError(t, err)
 }
 
 func TestChangePassword(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
-	s := setupPasswordSuite(t)
-	req, err := s.prepareForPasswordChange("user1", []byte("abcdef123456"), constants.SecondFactorOff)
+	clock := clockwork.NewFakeClock()
+	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{
+		Dir:   t.TempDir(),
+		Clock: clock,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, as.Close()) })
+	mockEmitter := &eventstest.MockRecorderEmitter{}
+	as.AuthServer.SetEmitter(mockEmitter)
+
+	req, err := prepareForPasswordChange(as.AuthServer, "user1", []byte("abcdef123456"), constants.SecondFactorOff)
 	require.NoError(t, err)
 
-	fakeClock := clockwork.NewFakeClock()
-	s.a.SetClock(fakeClock)
 	req.NewPassword = []byte("defceba654321")
 
-	err = s.a.ChangePassword(ctx, req)
+	err = as.AuthServer.ChangePassword(ctx, req)
 	require.NoError(t, err)
-	require.Equal(t, events.UserPasswordChangeEvent, s.mockEmitter.LastEvent().GetType())
-	require.Equal(t, "user1", s.mockEmitter.LastEvent().(*apievents.UserPasswordChange).User)
-	s.shouldLockAfterFailedAttempts(t, req)
+	require.Equal(t, events.UserPasswordChangeEvent, mockEmitter.LastEvent().GetType())
+	require.Equal(t, "user1", mockEmitter.LastEvent().(*apievents.UserPasswordChange).User)
+	shouldLockAfterFailedAttempts(t, as.AuthServer, req)
 
 	// advance time and make sure we can login again
-	fakeClock.Advance(defaults.AccountLockInterval + time.Second)
+	clock.Advance(defaults.AccountLockInterval + time.Second)
 	req.OldPassword = req.NewPassword
 	req.NewPassword = []byte("123456abcdef")
-	err = s.a.ChangePassword(ctx, req)
+	err = as.AuthServer.ChangePassword(ctx, req)
 	require.NoError(t, err)
 }
 
 func TestChangePasswordWithOTP(t *testing.T) {
 	t.Parallel()
 
-	s := setupPasswordSuite(t)
-	req, err := s.prepareForPasswordChange("user2", []byte("abcdef123456"), constants.SecondFactorOTP)
+	clock := clockwork.NewFakeClock()
+	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{
+		Dir:   t.TempDir(),
+		Clock: clock,
+	})
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, as.Close()) })
 
-	fakeClock := clockwork.NewFakeClock()
-	s.a.SetClock(fakeClock)
+	req, err := prepareForPasswordChange(as.AuthServer, "user2", []byte("abcdef123456"), constants.SecondFactorOTP)
+	require.NoError(t, err)
 
 	otpSecret := base32.StdEncoding.EncodeToString([]byte("def456"))
-	dev, err := services.NewTOTPDevice("otp", otpSecret, fakeClock.Now())
+	dev, err := services.NewTOTPDevice("otp", otpSecret, clock.Now())
 	require.NoError(t, err)
 	ctx := context.Background()
-	err = s.a.UpsertMFADevice(ctx, req.User, dev)
+	err = as.AuthServer.UpsertMFADevice(ctx, req.User, dev)
 	require.NoError(t, err)
 
-	validToken, err := totp.GenerateCode(otpSecret, s.a.GetClock().Now())
+	validToken, err := totp.GenerateCode(otpSecret, clock.Now())
 	require.NoError(t, err)
 
 	// change password
 	req.NewPassword = []byte("defceba654321")
 	req.SecondFactorToken = validToken
-	err = s.a.ChangePassword(ctx, req)
+	err = as.AuthServer.ChangePassword(ctx, req)
 	require.NoError(t, err)
 
-	s.shouldLockAfterFailedAttempts(t, req)
+	shouldLockAfterFailedAttempts(t, as.AuthServer, req)
 
 	// advance time and make sure we can login again
-	fakeClock.Advance(defaults.AccountLockInterval + time.Second)
+	clock.Advance(defaults.AccountLockInterval + time.Second)
 
-	validToken, _ = totp.GenerateCode(otpSecret, s.a.GetClock().Now())
+	validToken, _ = totp.GenerateCode(otpSecret, clock.Now())
 	req.OldPassword = req.NewPassword
 	req.NewPassword = []byte("123456abcdef")
 	req.SecondFactorToken = validToken
-	err = s.a.ChangePassword(ctx, req)
+	err = as.AuthServer.ChangePassword(ctx, req)
 	require.NoError(t, err)
 }
 
@@ -237,22 +183,22 @@ func TestServer_ChangePassword(t *testing.T) {
 	mfa := configureForMFA(t, srv)
 	username := mfa.User
 	password := mfa.Password
-	userClient, err := srv.NewClient(TestUser(username))
+	userClient, err := srv.NewClient(authtest.TestUser(username))
 	require.NoError(t, err)
-	passwordlessDev, err := RegisterTestDevice(
+	passwordlessDev, err := authtest.RegisterTestDevice(
 		context.Background(),
 		userClient,
 		"passwordless-1",
 		proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
 		mfa.TOTPDev,
-		WithPasswordless())
+		authtest.WithPasswordless())
 	require.NoError(t, err)
 
 	tests := []struct {
 		name             string
 		oldPass          string
 		newPass          string
-		device           *TestDevice
+		device           *authtest.Device
 		challengeRequest *proto.CreateAuthenticateChallengeRequest
 	}{
 		{
@@ -358,7 +304,7 @@ func TestServer_ChangePassword(t *testing.T) {
 			require.NoError(t, userClient.ChangePassword(ctx, req), "changing password")
 
 			// Did the password change take effect?
-			require.NoError(t, authServer.checkPasswordWOToken(ctx, username, newPass), "password change didn't take effect")
+			require.NoError(t, authServer.CheckPasswordWOToken(ctx, username, newPass), "password change didn't take effect")
 		})
 	}
 }
@@ -379,10 +325,11 @@ func TestServer_ChangePassword_Fails(t *testing.T) {
 	password := mfa.Password
 
 	tests := []struct {
-		name             string
-		oldPass          string
-		device           *TestDevice
-		challengeRequest *proto.CreateAuthenticateChallengeRequest
+		name                     string
+		oldPass                  string
+		device                   *authtest.Device
+		challengeRequest         *proto.CreateAuthenticateChallengeRequest
+		createChallengeAssertion require.ErrorAssertionFunc
 	}{
 		{
 			name:    "No old password, TOTP challenge",
@@ -397,6 +344,7 @@ func TestServer_ChangePassword_Fails(t *testing.T) {
 					Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_CHANGE_PASSWORD,
 				},
 			},
+			createChallengeAssertion: require.NoError,
 		},
 		{
 			name:    "No old password, WebAuthn challenge",
@@ -411,12 +359,14 @@ func TestServer_ChangePassword_Fails(t *testing.T) {
 					Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_CHANGE_PASSWORD,
 				},
 			},
+			createChallengeAssertion: require.NoError,
 		},
 		{
-			name:             "Empty challenge request",
-			oldPass:          password,
-			device:           mfa.WebDev,
-			challengeRequest: &proto.CreateAuthenticateChallengeRequest{},
+			name:                     "Empty challenge request",
+			oldPass:                  password,
+			device:                   mfa.WebDev,
+			challengeRequest:         &proto.CreateAuthenticateChallengeRequest{},
+			createChallengeAssertion: require.Error,
 		},
 		{
 			name:    "Unspecified challenge scope",
@@ -428,6 +378,7 @@ func TestServer_ChangePassword_Fails(t *testing.T) {
 				},
 				ChallengeExtensions: &mfav1.ChallengeExtensions{},
 			},
+			createChallengeAssertion: require.Error,
 		},
 		{
 			name:    "Illegal challenge scope",
@@ -441,6 +392,7 @@ func TestServer_ChangePassword_Fails(t *testing.T) {
 					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
 				},
 			},
+			createChallengeAssertion: require.NoError,
 		},
 	}
 
@@ -449,13 +401,16 @@ func TestServer_ChangePassword_Fails(t *testing.T) {
 			newPass := []byte("capybarasarecool123")
 			oldPass := []byte(test.oldPass)
 
-			userClient, err := server.NewClient(TestUser(username))
+			userClient, err := server.NewClient(authtest.TestUser(username))
 			require.NoError(t, err)
 			defer userClient.Close()
 
 			// Acquire and solve an MFA challenge.
 			mfaChallenge, err := userClient.CreateAuthenticateChallenge(ctx, test.challengeRequest)
-			require.NoError(t, err, "creating challenge")
+			test.createChallengeAssertion(t, err, "creating challenge")
+			if err != nil {
+				return
+			}
 			mfaResp, err := test.device.SolveAuthn(mfaChallenge)
 			require.NoError(t, err, "solving challenge with device")
 
@@ -478,7 +433,7 @@ func TestServer_ChangePassword_Fails(t *testing.T) {
 				err, trace.Unwrap(err))
 
 			// Did the password change take effect?
-			assert.Error(t, authServer.checkPasswordWOToken(ctx, username, newPass), "password was changed")
+			assert.Error(t, authServer.CheckPasswordWOToken(ctx, username, newPass), "password was changed")
 		})
 	}
 }
@@ -486,9 +441,11 @@ func TestServer_ChangePassword_Fails(t *testing.T) {
 func TestChangeUserAuthentication(t *testing.T) {
 	t.Parallel()
 
-	testServer := newTestTLSServer(t)
-	authServer := testServer.Auth()
-	clock := testServer.Clock()
+	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, as.Close()) })
+	authServer := as.AuthServer
+	clock := as.Clock()
 	ctx := context.Background()
 
 	tests := []struct {
@@ -533,7 +490,7 @@ func TestChangeUserAuthentication(t *testing.T) {
 				})
 				require.NoError(t, err, "CreateRegisterChallenge")
 
-				_, registerSolved, err := NewTestDeviceFromChallenge(registerChal, WithTestDeviceClock(clock))
+				_, registerSolved, err := authtest.NewTestDeviceFromChallenge(registerChal, authtest.WithTestDeviceClock(clock))
 				require.NoError(t, err, "NewTestDeviceFromChallenge")
 
 				return &proto.ChangeUserAuthenticationRequest{
@@ -577,7 +534,7 @@ func TestChangeUserAuthentication(t *testing.T) {
 				})
 				require.NoError(t, err, "CreateRegisterChallenge")
 
-				_, registerSolved, err := NewTestDeviceFromChallenge(registerChal)
+				_, registerSolved, err := authtest.NewTestDeviceFromChallenge(registerChal)
 				require.NoError(t, err, "NewTestDeviceFromChallenge")
 
 				return &proto.ChangeUserAuthenticationRequest{
@@ -619,7 +576,7 @@ func TestChangeUserAuthentication(t *testing.T) {
 				})
 				require.NoError(t, err, "CreateRegisterChallenge")
 
-				_, registerSolved, err := NewTestDeviceFromChallenge(registerChal, WithPasswordless())
+				_, registerSolved, err := authtest.NewTestDeviceFromChallenge(registerChal, authtest.WithPasswordless())
 				require.NoError(t, err, "NewTestDeviceFromChallenge")
 
 				return &proto.ChangeUserAuthenticationRequest{
@@ -659,7 +616,7 @@ func TestChangeUserAuthentication(t *testing.T) {
 				})
 				require.NoError(t, err, "CreateRegisterChallenge")
 
-				_, registerSolved, err := NewTestDeviceFromChallenge(registerChal)
+				_, registerSolved, err := authtest.NewTestDeviceFromChallenge(registerChal)
 				require.NoError(t, err, "NewTestDeviceFromChallenge")
 
 				return &proto.ChangeUserAuthenticationRequest{
@@ -702,7 +659,7 @@ func TestChangeUserAuthentication(t *testing.T) {
 	for _, c := range tests {
 		t.Run(c.name, func(t *testing.T) {
 			username := fmt.Sprintf("llama%v@goteleport.com", rand.Int())
-			_, _, err := CreateUserAndRole(authServer, username, []string{username}, nil)
+			_, _, err := authtest.CreateUserAndRole(authServer, username, []string{username}, nil)
 			require.NoError(t, err)
 
 			c.setAuthPreference(t)
@@ -715,17 +672,17 @@ func TestChangeUserAuthentication(t *testing.T) {
 
 			if c.getInvalidReq != nil {
 				invalidReq := c.getInvalidReq(t, token)
-				_, err := authServer.changeUserAuthentication(ctx, invalidReq)
+				_, err := auth.ChangeUserAuthentication(ctx, authServer, invalidReq)
 				require.True(t, trace.IsBadParameter(err))
 			}
 
 			validReq := c.getReq(t, token)
-			_, err = authServer.changeUserAuthentication(ctx, validReq)
+			_, err = auth.ChangeUserAuthentication(ctx, authServer, validReq)
 			require.NoError(t, err)
 
 			// Test password is updated.
 			if len(validReq.NewPassword) != 0 {
-				err := authServer.checkPasswordWOToken(ctx, username, validReq.NewPassword)
+				err := authServer.CheckPasswordWOToken(ctx, username, validReq.NewPassword)
 				require.NoError(t, err)
 			}
 
@@ -752,22 +709,120 @@ func TestChangeUserAuthentication(t *testing.T) {
 	}
 }
 
-func TestChangeUserAuthenticationWithErrors(t *testing.T) {
+// TestChangeUserAuthentication_AccessListRolesApplied verifies that roles
+// granted via Access Lists are included in the web session created by the
+// password-reset flow (ChangeUserAuthentication).
+//
+// Regression test for: https://github.com/gravitational/teleport/issues/65722
+func TestChangeUserAuthentication_AccessListRolesApplied(t *testing.T) {
 	t.Parallel()
+	ctx := t.Context()
 
-	s := setupPasswordSuite(t)
-	ctx := context.Background()
-	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, as.Close()) })
+	authServer := as.AuthServer
+
+	// Disable second factor so the reset request only needs a password.
+	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
-		SecondFactor: constants.SecondFactorOTP,
+		SecondFactor: constants.SecondFactorOff,
+	})
+	require.NoError(t, err)
+	_, err = authServer.UpsertAuthPreference(ctx, authPref)
+	require.NoError(t, err)
+
+	// Create the role that the access list will grant.
+	grantedRole, err := types.NewRole("al-granted-role", types.RoleSpecV6{})
+	require.NoError(t, err)
+	_, err = authServer.UpsertRole(ctx, grantedRole)
+	require.NoError(t, err)
+
+	// Create a user with a single static role only.
+	username := "reset-al-test@goteleport.com"
+	_, _, err = authtest.CreateUserAndRole(authServer, username, []string{"access"}, nil)
+	require.NoError(t, err)
+
+	user, err := authServer.GetUser(ctx, username, false)
+	require.NoError(t, err)
+
+	// Create an access list that grants al-granted-role to its members.
+	al, err := accesslist.NewAccessList(header.Metadata{
+		Name: "test-access-list",
+	}, accesslist.Spec{
+		Title: "Test Access List",
+		Owners: []accesslist.Owner{
+			{Name: username, Description: "owner"},
+		},
+		Audit: accesslist.Audit{
+			NextAuditDate: authServer.GetClock().Now().Add(24 * time.Hour),
+		},
+		Grants: accesslist.Grants{
+			Roles: []string{"al-granted-role"},
+		},
+	})
+	require.NoError(t, err)
+	_, err = authServer.UpsertAccessList(ctx, al)
+	require.NoError(t, err)
+
+	// Add the user as a member of the access list.
+	member, err := accesslist.NewAccessListMember(header.Metadata{
+		Name: username,
+	}, accesslist.AccessListMemberSpec{
+		AccessList: al.GetName(),
+		Name:       username,
+		Joined:     authServer.GetClock().Now(),
+		Expires:    authServer.GetClock().Now().Add(24 * time.Hour),
+		Reason:     "test",
+		AddedBy:    user.GetName(),
+	})
+	require.NoError(t, err)
+	_, err = authServer.UpsertAccessListMember(ctx, member)
+	require.NoError(t, err)
+
+	// Create a reset password token and call ChangeUserAuthentication.
+	resetToken, err := authServer.CreateResetPasswordToken(ctx, authclient.CreateUserTokenRequest{
+		Name: username,
 	})
 	require.NoError(t, err)
 
-	username := "joe@example.com"
-	_, _, err = CreateUserAndRole(s.a, username, []string{username}, nil)
+	resp, err := authServer.ChangeUserAuthentication(ctx, &proto.ChangeUserAuthenticationRequest{
+		TokenID:     resetToken.GetName(),
+		NewPassword: []byte("newpassword123!"),
+	})
+	require.NoError(t, err)
+	require.NotNil(t, resp.WebSession)
+
+	// Parse the TLS certificate from the web session and verify it contains
+	// the Access List-granted role.
+	_, identity := parseX509PEMAndIdentity(t, resp.WebSession.GetTLSCert())
+	require.Contains(t, identity.Groups, "al-granted-role",
+		"expected Access List-granted role in session certificate, got roles: %v", identity.Groups)
+}
+
+func TestChangeUserAuthenticationWithErrors(t *testing.T) {
+	t.Parallel()
+
+	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type:          constants.Local,
+		SecondFactors: []types.SecondFactorType{types.SecondFactorType_SECOND_FACTOR_TYPE_OTP},
+	})
 	require.NoError(t, err)
 
-	token, err := s.a.CreateResetPasswordToken(ctx, authclient.CreateUserTokenRequest{
+	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{
+		Dir:                t.TempDir(),
+		AuthPreferenceSpec: &authPreference.(*types.AuthPreferenceV2).Spec,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, as.Close()) })
+
+	ctx := context.Background()
+
+	username := "joe@example.com"
+	_, _, err = authtest.CreateUserAndRole(as.AuthServer, username, []string{username}, nil)
+	require.NoError(t, err)
+
+	token, err := as.AuthServer.CreateResetPasswordToken(ctx, authclient.CreateUserTokenRequest{
 		Name: username,
 	})
 	require.NoError(t, err)
@@ -822,25 +877,25 @@ func TestChangeUserAuthenticationWithErrors(t *testing.T) {
 	for _, tc := range testCases {
 		// set new auth preference settings
 		authPreference.SetSecondFactor(tc.secondFactor)
-		authPreference, err = s.a.UpsertAuthPreference(ctx, authPreference)
+		authPreference, err = as.AuthServer.UpsertAuthPreference(ctx, authPreference)
 		require.NoError(t, err)
 
-		_, err = s.a.changeUserAuthentication(ctx, tc.req)
+		_, err = auth.ChangeUserAuthentication(ctx, as.AuthServer, tc.req)
 		require.Error(t, err, "test case %q", tc.desc)
 	}
 
 	authPreference.SetSecondFactor(constants.SecondFactorOff)
-	_, err = s.a.UpsertAuthPreference(ctx, authPreference)
+	_, err = as.AuthServer.UpsertAuthPreference(ctx, authPreference)
 	require.NoError(t, err)
 
-	_, err = s.a.changeUserAuthentication(ctx, &proto.ChangeUserAuthenticationRequest{
+	_, err = auth.ChangeUserAuthentication(ctx, as.AuthServer, &proto.ChangeUserAuthenticationRequest{
 		TokenID:     validTokenID,
 		NewPassword: validPassword,
 	})
 	require.NoError(t, err)
 
 	// invite token cannot be reused
-	_, err = s.a.changeUserAuthentication(ctx, &proto.ChangeUserAuthenticationRequest{
+	_, err = auth.ChangeUserAuthentication(ctx, as.AuthServer, &proto.ChangeUserAuthenticationRequest{
 		TokenID:     validTokenID,
 		NewPassword: validPassword,
 	})
@@ -849,62 +904,72 @@ func TestChangeUserAuthenticationWithErrors(t *testing.T) {
 
 func TestResetPassword(t *testing.T) {
 	t.Parallel()
-	s := setupPasswordSuite(t)
 
-	_, _, err := CreateUserAndRole(s.a, "dave", []string{"dave"}, nil)
+	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{
+		Dir: t.TempDir(),
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, as.Close()) })
+
+	_, _, err = authtest.CreateUserAndRole(as.AuthServer, "dave", []string{"dave"}, nil)
 	require.NoError(t, err)
 
 	// Using the Identity service makes it easier to set up the test case.
-	err = s.a.Identity.UpsertPassword("dave", []byte("it's full of stars!"))
+	err = as.AuthServer.UpsertPassword("dave", []byte("it's full of stars!"))
 	require.NoError(t, err)
 
 	// Reset password.
 	ctx := context.Background()
-	err = s.a.resetPassword(ctx, "dave")
+	err = as.AuthServer.ResetPassword(ctx, "dave")
 	require.NoError(t, err)
 
 	// Make sure that the password has been reset.
-	u, err := s.a.Identity.GetUser(ctx, "dave", true /* withSecrets */)
+	u, err := as.AuthServer.IdentityInternal.GetUser(ctx, "dave", true /* withSecrets */)
 	require.NoError(t, err)
 	assert.Nil(t, u.GetLocalAuth(), "user LocalAuth not nil")
 	assert.Equal(t, types.PasswordState_PASSWORD_STATE_UNSET, u.GetPasswordState())
 
 	// Make sure that we can reset once again (i.e. we don't complain if there's
 	// no password).
-	err = s.a.resetPassword(ctx, "dave")
+	err = as.AuthServer.ResetPassword(ctx, "dave")
 	require.NoError(t, err)
 }
 
-func (s *passwordSuite) shouldLockAfterFailedAttempts(t *testing.T, req *proto.ChangePasswordRequest) {
-	ctx := context.Background()
-	loginAttempts, _ := s.a.GetUserLoginAttempts(req.User)
+func shouldLockAfterFailedAttempts(t *testing.T, as *auth.Server, req *proto.ChangePasswordRequest) {
+	loginAttempts, _ := as.GetUserLoginAttempts(req.User)
 	require.Empty(t, loginAttempts)
-	for i := 0; i < defaults.MaxLoginAttempts; i++ {
-		err := s.a.ChangePassword(ctx, req)
+	for i := range defaults.MaxLoginAttempts {
+		err := as.ChangePassword(t.Context(), req)
 		require.Error(t, err)
-		loginAttempts, _ = s.a.GetUserLoginAttempts(req.User)
+		loginAttempts, _ = as.GetUserLoginAttempts(req.User)
 		require.Len(t, loginAttempts, i+1)
 	}
 
-	err := s.a.ChangePassword(ctx, req)
+	err := as.ChangePassword(t.Context(), req)
 	require.True(t, trace.IsAccessDenied(err))
 }
 
-func (s *passwordSuite) prepareForPasswordChange(user string, pass []byte, secondFactorType constants.SecondFactorType) (*proto.ChangePasswordRequest, error) {
+func prepareForPasswordChange(as *auth.Server, user string, pass []byte, secondFactorType constants.SecondFactorType) (*proto.ChangePasswordRequest, error) {
 	ctx := context.Background()
 	req := &proto.ChangePasswordRequest{
 		User:        user,
 		OldPassword: pass,
 	}
 
-	err := s.a.UpsertCertAuthority(ctx, suite.NewTestCA(types.UserCA, "me.localhost"))
+	userCA, err := authcatest.NewCA(types.UserCA, "me.localhost")
 	if err != nil {
-		return req, err
+		return nil, trace.Wrap(err)
+	}
+	if err := as.UpsertCertAuthority(ctx, userCA); err != nil {
+		return nil, err
 	}
 
-	err = s.a.UpsertCertAuthority(ctx, suite.NewTestCA(types.HostCA, "me.localhost"))
+	hostCA, err := authcatest.NewCA(types.HostCA, "me.localhost")
 	if err != nil {
-		return req, err
+		return nil, err
+	}
+	if err := as.UpsertCertAuthority(ctx, hostCA); err != nil {
+		return nil, err
 	}
 
 	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
@@ -912,21 +977,18 @@ func (s *passwordSuite) prepareForPasswordChange(user string, pass []byte, secon
 		SecondFactor: secondFactorType,
 	})
 	if err != nil {
-		return req, err
+		return nil, err
 	}
 
-	_, err = s.a.UpsertAuthPreference(ctx, ap)
-	if err != nil {
-		return req, err
+	if _, err := as.UpsertAuthPreference(ctx, ap); err != nil {
+		return nil, err
 	}
 
-	_, _, err = CreateUserAndRole(s.a, user, []string{user}, nil)
-	if err != nil {
-		return req, err
+	if _, _, err := authtest.CreateUserAndRole(as, user, []string{user}, nil); err != nil {
+		return nil, err
 	}
-	err = s.a.UpsertPassword(user, pass)
-	if err != nil {
-		return req, err
+	if err := as.UpsertPassword(user, pass); err != nil {
+		return nil, err
 	}
 
 	return req, nil

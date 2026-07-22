@@ -17,23 +17,24 @@
  */
 
 import {
+  iconNames,
   ResourceIconName,
   resourceIconSpecs,
-  iconNames,
 } from 'design/ResourceIcon';
+import { AppSubKind } from 'shared/services';
 
 import { UnifiedResourceApp } from '../types';
 
 export function guessAppIcon(resource: UnifiedResourceApp): ResourceIconName {
-  const { awsConsole = false, name, friendlyName, labels } = resource;
-
-  if (awsConsole) {
-    return 'aws';
-  }
+  const { awsConsole = false, name, friendlyName, labels, subKind } = resource;
 
   // Label matching takes precedence and we can assume it can be a direct lookup
   // since we expect a certain format.
   const labelIconValue = labels?.find(l => l.name === 'teleport.icon')?.value;
+  if (labelIconValue === 'default') {
+    // Allow opting out of a specific icon.
+    return 'application';
+  }
   if (labelIconValue && resourceIconSpecs[labelIconValue]) {
     return labelIconValue as ResourceIconName;
   }
@@ -42,6 +43,16 @@ export function guessAppIcon(resource: UnifiedResourceApp): ResourceIconName {
     name: withoutWhiteSpaces(name)?.toLocaleLowerCase(),
     friendlyName: withoutWhiteSpaces(friendlyName)?.toLocaleLowerCase(),
   };
+
+  if (awsConsole) {
+    if (match('quick', app) && (match('sight', app) || match('suite', app))) {
+      return 'awsquicksight';
+    }
+    return 'awsidentityandaccessmanagementiam';
+  }
+  if (subKind === AppSubKind.AwsIcAccount) {
+    return 'awsaccount';
+  }
 
   // Try a direct lookup first.
   if (resourceIconSpecs[app.name]) {
@@ -52,7 +63,6 @@ export function guessAppIcon(resource: UnifiedResourceApp): ResourceIconName {
   }
 
   // Help match brands with sub brands:
-
   if (match('adobe', app)) {
     if (match('creative', app)) return 'adobecreativecloud';
     if (match('marketo', app)) return 'adobemarketo';
@@ -69,11 +79,17 @@ export function guessAppIcon(resource: UnifiedResourceApp): ResourceIconName {
     if (match('calendar', app)) return 'googlecalendar';
     if (match('cloud', app)) return 'googlecloud';
     if (match('drive', app)) return 'googledrive';
+    if (match('gemini', app)) return 'gemini';
     if (match('tag', app)) return 'googletag';
     if (match('voice', app)) return 'googlevoice';
     return 'google'; // generic
   }
   if (match('microsoft', app)) {
+    if (match('active', app)) return 'microsoftactivedirectory';
+    if (match('ads', app)) return 'microsoftadvertising';
+    if (match('advertising', app)) return 'microsoftadvertising';
+    if (match('ad', app)) return 'microsoftactivedirectory';
+    if (match('code', app)) return 'microsoftvisualstudiocode';
     if (match('excel', app)) return 'microsoftexcel';
     if (match('drive', app)) return 'microsoftonedrive';
     if (match('note', app)) return 'microsoftonenote';
@@ -82,6 +98,12 @@ export function guessAppIcon(resource: UnifiedResourceApp): ResourceIconName {
     if (match('team', app)) return 'microsoftteams';
     if (match('word', app)) return 'microsoftword';
     return 'microsoft'; // generic
+  }
+  if (match('gcp', app)) {
+    return 'googlecloud';
+  }
+  if (match('azure', app)) {
+    return 'azure';
   }
 
   // Try matching by iterating through all the icon names
@@ -104,9 +126,26 @@ function match(
 }
 
 /**
- * Dashes may be a common separator for the app `name` field.
- * White spaces may be a common separator for `friendlyName` field.
+ * Strips characters like dashes and white space and strips
+ * paranthesis and brackets and whatever words were inside of them.
+ *
+ * - Dashes may be a common separator for the app `name` field.
+ * - White spaces may be a common separator for `friendlyName` field.
+ * - Words inside paranthesis/brackets may contain other unrelated
+ *   keywords eg: "Clearfeed (Google Auth)"
  */
 function withoutWhiteSpaces(text?: string) {
-  return text?.replace(/-|\s/g, '');
+  if (!text) {
+    return '';
+  }
+
+  // Remove paranthesis and brackets and words inside them.
+  let modifiedText = text.replace(/\[[^\]]*\]|\([^)]*\)/g, '');
+  // If for whatever reason the whole text begain
+  // with a paranthesis or bracket.
+  if (!modifiedText) {
+    modifiedText = text;
+  }
+  // Remove rest of characters.
+  return modifiedText.replace(/-|\s/g, '');
 }

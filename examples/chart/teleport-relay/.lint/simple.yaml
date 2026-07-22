@@ -1,0 +1,11 @@
+joinParams:
+  tokenName: token-name
+  method: join-method
+
+proxyAddr: proxy.example.com:443
+
+relayGroup: relay-group
+
+publicHostnames:
+  - public-hostname-1.example.com
+  - public-hostname-2.example.com

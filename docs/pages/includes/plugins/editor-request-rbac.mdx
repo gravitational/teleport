@@ -6,7 +6,7 @@ Create a file called `editor-request-rbac.yaml` with the following content:
 
 ```yaml
 kind: role
-version: v5
+version: v7
 metadata:
   name: editor-reviewer
 spec:
@@ -15,7 +15,7 @@ spec:
       roles: ['editor']
 ---
 kind: role
-version: v5
+version: v7
 metadata:
   name: editor-requester
 spec:
@@ -34,6 +34,8 @@ $ tctl create -f editor-request-rbac.yaml
 role 'editor-reviewer' has been created
 role 'editor-requester' has been created
 ```
+
+(!docs/pages/includes/create-role-using-web.mdx!)
 
 Allow yourself to review requests by users with the `editor-requester` role by
 assigning yourself the `editor-reviewer` role. 

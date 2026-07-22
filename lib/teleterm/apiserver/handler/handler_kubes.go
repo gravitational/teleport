@@ -20,53 +20,96 @@ package handler
 
 import (
 	"context"
-	"sort"
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/types"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
+	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
+	"github.com/gravitational/teleport/lib/ui"
 )
 
-// GetKubes accepts parameterized input to enable searching, sorting, and pagination
-func (s *Handler) GetKubes(ctx context.Context, req *api.GetKubesRequest) (*api.GetKubesResponse, error) {
-	resp, err := s.DaemonService.GetKubes(ctx, req)
+// ListKubernetesResourcesRequest defines a request to retrieve kube resources paginated.
+// Only one type of kube resource can be retrieved per request (eg: namespace, pods, secrets, etc.)
+func (s *Handler) ListKubernetesResources(ctx context.Context, req *api.ListKubernetesResourcesRequest) (*api.ListKubernetesResourcesResponse, error) {
+	clusterURI, err := uri.Parse(req.GetClusterUri())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	response := &api.GetKubesResponse{
-		TotalCount: int32(resp.TotalCount),
-		StartKey:   resp.StartKey,
+	resources, err := s.DaemonService.ListKubernetesResources(ctx, clusterURI, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-	for _, kube := range resp.Kubes {
-		response.Agents = append(response.Agents, newAPIKube(kube))
+
+	response := &api.ListKubernetesResourcesResponse{}
+
+	for _, resource := range resources {
+		kubeResource, ok := resource.(*types.KubernetesResourceV1)
+		if !ok {
+			return nil, trace.BadParameter("expected resource type %T, got %T", types.KubernetesResourceV1{}, resource)
+		}
+		response.SetResources(append(response.GetResources(), newApiKubeResource(kubeResource, req.GetKubernetesCluster(), clusterURI)))
 	}
 
 	return response, nil
 }
 
+// ListKubernetesServers returns a paginated list of Kubernetes servers (resource kind "kube_server").
+func (s *Handler) ListKubernetesServers(ctx context.Context, req *api.ListKubernetesServersRequest) (*api.ListKubernetesServersResponse, error) {
+	resp, err := s.DaemonService.ListKubernetesServers(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	response := api.ListKubernetesServersResponse_builder{
+		NextPageToken: resp.NextKey,
+	}.Build()
+	for _, server := range resp.Servers {
+		response.SetResources(append(response.GetResources(), newAPIKubeServer(server)))
+	}
+	return response, nil
+}
+
 func newAPIKube(kube clusters.Kube) *api.Kube {
-	apiLabels := APILabels{}
-	for name, value := range kube.KubernetesCluster.GetStaticLabels() {
-		apiLabels = append(apiLabels, &api.Label{
-			Name:  name,
-			Value: value,
-		})
-	}
+	apiLabels := makeAPILabels(
+		ui.MakeLabelsWithoutInternalPrefixes(kube.KubernetesCluster.GetAllLabels()),
+	)
 
-	for name, cmd := range kube.KubernetesCluster.GetDynamicLabels() {
-		apiLabels = append(apiLabels, &api.Label{
-			Name:  name,
-			Value: cmd.GetResult(),
-		})
-	}
-
-	sort.Sort(apiLabels)
-
-	return &api.Kube{
+	return api.Kube_builder{
 		Name:   kube.KubernetesCluster.GetName(),
 		Uri:    kube.URI.String(),
 		Labels: apiLabels,
-	}
+		TargetHealth: api.TargetHealth_builder{
+			Status:  kube.TargetHealth.Status,
+			Error:   kube.TargetHealth.TransitionError,
+			Message: kube.TargetHealth.Message,
+		}.Build(),
+	}.Build()
+}
+
+func newApiKubeResource(resource *types.KubernetesResourceV1, kubeCluster string, resourceURI uri.ResourceURI) *api.KubeResource {
+	apiLabels := makeAPILabels(ui.MakeLabelsWithoutInternalPrefixes(resource.GetStaticLabels()))
+
+	return api.KubeResource_builder{
+		Uri:       resourceURI.AppendKube(kubeCluster).AppendKubeResourceNamespace(resource.GetName()).String(),
+		Kind:      resource.GetKind(),
+		Name:      resource.GetName(),
+		Labels:    apiLabels,
+		Namespace: resource.Spec.Namespace,
+		Cluster:   kubeCluster,
+	}.Build()
+}
+
+func newAPIKubeServer(server clusters.KubeServer) *api.KubeServer {
+	return api.KubeServer_builder{
+		Uri:      server.URI.String(),
+		Hostname: server.GetHostname(),
+		HostId:   server.GetHostID(),
+		TargetHealth: api.TargetHealth_builder{
+			Status:  server.GetTargetHealth().Status,
+			Error:   server.GetTargetHealth().TransitionError,
+			Message: server.GetTargetHealth().Message,
+		}.Build(),
+	}.Build()
 }

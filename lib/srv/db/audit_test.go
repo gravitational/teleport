@@ -35,8 +35,10 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
+	clickhouse "github.com/gravitational/teleport/lib/srv/db/clickhouse/protocoltest"
+	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
-	"github.com/gravitational/teleport/lib/srv/db/redis"
+	redis "github.com/gravitational/teleport/lib/srv/db/redis/protocoltest"
 )
 
 // TestAuditPostgres verifies proper audit events are emitted for Postgres
@@ -59,9 +61,14 @@ func TestAuditPostgres(t *testing.T) {
 	requireEvent(t, testCtx, libevents.DatabaseSessionStartFailureCode)
 
 	// Connect should trigger successful session start event.
-	psql, err := testCtx.postgresClient(ctx, "alice", "postgres", "postgres", "postgres")
+	userAgent := "psql"
+	psql, err := testCtx.postgresClient(ctx, "alice", "postgres", "postgres", "postgres", common.WithUserAgent(userAgent))
 	require.NoError(t, err)
-	requireEvent(t, testCtx, libevents.DatabaseSessionStartCode)
+	startEvt, ok := requireEvent(t, testCtx, libevents.DatabaseSessionStartCode).(*events.DatabaseSessionStart)
+	require.True(t, ok)
+	require.NotNil(t, startEvt)
+	require.NotZero(t, startEvt.PostgresPID)
+	require.Equal(t, userAgent, startEvt.ClientMetadata.UserAgent)
 
 	// Simple query should trigger the query event.
 	_, err = psql.Exec(ctx, "select 1").ReadAll()
@@ -329,12 +336,11 @@ func TestAuditClickHouseHTTP(t *testing.T) {
 		})
 
 		requireEvent(t, testCtx, libevents.DatabaseSessionStartCode)
-		// Select timezone.
 		event := waitForEvent(t, testCtx, libevents.DatabaseSessionQueryCode)
-		assertDatabaseQueryFromAuditEvent(t, event, "SELECT timezone()")
+		assertDatabaseQueryFromAuditEvent(t, event, clickhouse.HelloQuery)
 
 		event = waitForEvent(t, testCtx, libevents.DatabaseSessionQueryCode)
-		assertDatabaseQueryFromAuditEvent(t, event, "SELECT 1")
+		assertDatabaseQueryFromAuditEvent(t, event, clickhouse.PingQuery)
 
 		require.NoError(t, conn.Close())
 		requireEvent(t, testCtx, libevents.DatabaseSessionEndCode)
@@ -386,8 +392,10 @@ func requireBindEvent(t *testing.T, testCtx *testContext) *events.PostgresBind {
 	return bindEvent
 }
 
-func requireEvent(t *testing.T, testCtx *testContext, code string) events.AuditEvent {
-	t.Helper()
+func requireEvent(t require.TestingT, testCtx *testContext, code string) events.AuditEvent {
+	if h, ok := t.(interface{ Helper() }); ok {
+		h.Helper()
+	}
 	event := waitForAnyEvent(t, testCtx)
 	require.Equal(t, code, event.GetCode())
 	return event
@@ -411,13 +419,15 @@ func requireQueryEventWithDBName(t *testing.T, testCtx *testContext, code, query
 	require.Equal(t, dbName, queryEvent.DatabaseName)
 }
 
-func waitForAnyEvent(t *testing.T, testCtx *testContext) events.AuditEvent {
-	t.Helper()
+func waitForAnyEvent(t require.TestingT, testCtx *testContext) events.AuditEvent {
+	if h, ok := t.(interface{ Helper() }); ok {
+		h.Helper()
+	}
 	select {
 	case event := <-testCtx.emitter.C():
 		return event
-	case <-time.After(time.Second):
-		require.FailNow(t, "timed out waiting for an audit event", "didn't receive any event after 1 second")
+	case <-time.After(3 * time.Second):
+		require.FailNow(t, "timed out waiting for an audit event", "didn't receive any event in time")
 	}
 	return nil
 }
@@ -463,8 +473,8 @@ func waitForEvent(t *testing.T, testCtx *testContext, code string) events.AuditE
 				continue
 			}
 			return event
-		case <-time.After(time.Second):
-			require.FailNow(t, "timed out waiting for an audit event", "didn't receive %v event after 1 second", code)
+		case <-time.After(3 * time.Second):
+			require.FailNow(t, "timed out waiting for an audit event", "didn't receive %v event in time", code)
 		}
 	}
 }

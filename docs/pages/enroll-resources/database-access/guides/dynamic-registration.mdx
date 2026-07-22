@@ -1,15 +1,24 @@
 ---
 title: Dynamic Database Registration
+sidebar_label: Dynamic Registration
 description: Register/unregister databases without restarting Teleport.
+tags:
+ - conceptual
+ - zero-trust
+ - infrastructure-identity
+page_type: conceptual
 ---
 
 Dynamic database registration allows Teleport administrators to register new
 databases (or update/unregister existing ones) without having to update the
 static configuration and restart Teleport Database Service instances. 
 
+This page describes the Teleport configuration options that allow you to enable
+and customize dynamic database registration.
+
 Dynamic registration also enables administrators to deploy multiple Database
-Service instances for [high availability](./ha.mdx) by configuring Database
-Service replicas to watch for the same database resources.
+Service instances for [high availability](../../../installation/agents/high-availability.mdx) by
+configuring Database Service replicas to watch for the same database resources.
 
 To enable dynamic registration, include a `resources` section in your Teleport
 Database Service configuration with a list of resource label selectors you'd like this
@@ -17,13 +26,13 @@ service to monitor for registering:
 
 ```yaml
 db_service:
-  enabled: "yes"
+  enabled: true
   resources:
   - labels:
       "*": "*"
 ```
 
-You can use a wildcard selector to register all dynamic app resources in the cluster
+You can use a wildcard selector to register all dynamic database resources in the cluster
 on the Database Service or provide a specific set of labels for a subset:
 
 ```yaml
@@ -35,6 +44,27 @@ resources:
     "env": "test"
     "engine": "mysql"
 ```
+
+To see the currently running Database Services, run `tctl get db_services`:
+
+```yaml
+kind: db_service
+metadata:
+  expires: "2024-08-27T11:38:10.207175Z"
+  name: 2b5207e3-a258-423e-a41d-e50ea2f0dfdc
+spec:
+  hostname: my-host
+  resources:
+  - labels:
+      env: prod
+      engine: postgres
+  - labels:
+      env: test
+      engine: mysql
+version: v1
+```
+
+The `name` within a `db_service` matches to the host ID of the agent running the Teleport Database Service.
 
 Next define a database resource:
 
@@ -76,7 +106,7 @@ spec:
 version: v5
 ```
 
-See the full database resource spec [reference](../reference/configuration.mdx#database-resource).
+See the full database resource [reference](../../../reference/infrastructure-as-code/teleport-resources/database-v3.mdx).
 
 To create a database resource, run:
 
@@ -106,11 +136,11 @@ $ tctl rm db/example
 ```
 
 Aside from `tctl`, dynamic resources can also be added by:
-- [Auto-Discovery](../../auto-discovery/databases.mdx)
-- [Terraform Provider](../../../management/dynamic-resources/terraform-provider.mdx)
-- [Kubernetes Operator](../../../management/dynamic-resources/teleport-operator.mdx)
-- [Teleport API](../../../api/introduction.mdx)
+- [Auto-Discovery](../../auto-discovery/databases/databases.mdx)
+- [Terraform Provider](../../../configuration/terraform-provider/terraform-provider.mdx)
+- [Kubernetes Operator](../../../configuration/teleport-operator/teleport-operator.mdx)
+- [Teleport API](../../../zero-trust-access/api/api.mdx)
 
-See [Using Dynamic Resources](../../../management/dynamic-resources.mdx) to learn
+See [Using Dynamic Resources](../../../configuration/configuration.mdx) to learn
 more about managing Teleport's dynamic resources in general.
 

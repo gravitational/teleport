@@ -16,12 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { AutoUserProvisioning } from 'gen-proto-ts/teleport/lib/teleterm/v1/database_pb';
+
 import {
+  AppUri,
   DatabaseUri,
-  GatewayUri,
+  DesktopUri,
   KubeUri,
   ServerUri,
-  AppUri,
 } from 'teleterm/ui/uri';
 
 type TrackedConnectionBase = {
@@ -43,23 +45,27 @@ export interface TrackedGatewayConnection extends TrackedConnectionBase {
   targetName: string;
   targetUser?: string;
   port?: string;
-  gatewayUri: GatewayUri;
   targetSubresourceName?: string;
+  targetProtocol?: string;
+  autoUserProvisioning: AutoUserProvisioning | undefined;
 }
 
 export interface TrackedKubeConnection extends TrackedConnectionBase {
   kind: 'connection.kube';
-  /**
-   * @deprecated Used only by connections created by doc.terminal_tsh_kube.
-   */
-  kubeConfigRelativePath?: string;
   kubeUri: KubeUri;
+}
+
+export interface TrackedDesktopConnection extends TrackedConnectionBase {
+  kind: 'connection.desktop';
+  desktopUri: DesktopUri;
+  login: string;
 }
 
 export type TrackedConnection =
   | TrackedServerConnection
   | TrackedGatewayConnection
-  | TrackedKubeConnection;
+  | TrackedKubeConnection
+  | TrackedDesktopConnection;
 
 export type ExtendedTrackedConnection = TrackedConnection & {
   clusterName: string;

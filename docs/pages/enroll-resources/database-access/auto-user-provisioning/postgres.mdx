@@ -1,15 +1,25 @@
 ---
 title: PostgreSQL Automatic User Provisioning
+sidebar_label: PostgreSQL
 description: Configure automatic user provisioning for PostgreSQL.
+tags:
+ - how-to
+ - zero-trust
+ - infrastructure-identity
+page_type: how-to
 ---
+
+{/* lint disable page-structure remark-lint */}
 
 (!docs/pages/includes/database-access/auto-user-provisioning/intro.mdx!)
 
 ## Prerequisites
 
-- Teleport cluster v13.1 or above with a configured [self-hosted
-  PostgreSQL](../enroll-self-hosted-databases/postgres-self-hosted.mdx) or [RDS
-  PostgreSQL](../enroll-aws-databases/rds.mdx) database.
+- Teleport cluster with a configured [self-hosted
+  PostgreSQL](../enrollment/self-hosted/postgres-self-hosted.mdx) or [RDS
+  PostgreSQL](../enrollment/aws/rds/mysql-postgres-mariadb.mdx) database. To configure
+  permissions for database objects like tables, your cluster must be on version
+  v15.2 or above.
 - Ability to connect to and create user accounts in the target database.
 
 <Admonition type="warning" title="RDS compatibility">
@@ -37,14 +47,33 @@ GRANT rds_iam TO "teleport-admin" WITH ADMIN OPTION;
 
 Note that the RDS database must have IAM authentication enabled.
 
-Refer to the [AWS documentation](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/UsingWithRDS.IAMDBAuth.DBAccounts.html) to make sure you are using the `rds_iam` role correctly.
-for more information.
+Refer to the [AWS documentation](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/UsingWithRDS.IAMDBAuth.DBAccounts.html) to make sure you are using the `rds_iam` role correctly for more information.
+
+If the admin user needs to grant the `rds_superuser` role to auto-provisioned
+users, the admin user must also be a `rds_superuser`:
+```sql
+GRANT rds_superuser TO "teleport-admin";
+```
+
+For PostgreSQL 16+, you must grant the `ADMIN` option to the admin user for each
+PostgreSQL role that Teleport will assign to your Teleport user. For example, to
+allow the admin user to grant and revoke role `reader`:
+```sql
+GRANT reader TO "teleport-admin" WITH ADMIN OPTION;
+```
 </TabItem>
 <TabItem label="Self-hosted PostgreSQL">
 The self-hosted PostgreSQL admin user must have X.509 authentication configured.
 
 ```sql
 CREATE USER "teleport-admin" login createrole;
+```
+
+For PostgreSQL 16+, you must grant the `ADMIN` option to the admin user for each
+PostgreSQL role that Teleport will assign to your Teleport user. For example, to
+allow the admin user to grant and revoke role `reader`:
+```sql
+GRANT reader TO "teleport-admin" WITH ADMIN OPTION;
 ```
 
 Note that the database must be configured to accept client certificate auth
@@ -55,13 +84,19 @@ hostssl all             all             ::/0                    cert
 hostssl all             all             0.0.0.0/0               cert
 ```
 
-Refer to the [self-hosted PostgreSQL guide](../enroll-self-hosted-databases/postgres-self-hosted.mdx#step-35-configure-your-postgresql-server)
+Refer to the [self-hosted PostgreSQL guide](../enrollment/self-hosted/postgres-self-hosted.mdx#step-35-configure-your-postgresql-server)
 to ensure that your configuration is correct.
 </TabItem>
 </Tabs>
 
 <Admonition type="note" title="Database Access Controls for `teleport-admin`">
-When [Database Access Controls](../rbac.mdx) feature is in use, the `teleport-admin` should have permissions to relevant database objects. For example:
+When [Database Access Controls](../rbac.mdx) feature is in use, the
+`teleport-admin` should have permissions to relevant database objects. You can
+grant `teleport-admin` the `SUPERUSER` option for self-hosted databases, or the
+`rds_superuser` role for RDS databases.
+
+For improved security through the principle of least privilege, you can also
+assign permissions directly to specific database objects. For example:
 
 ```sql
 GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA schema1, schema2, schema3 TO "teleport-admin";
@@ -73,10 +108,6 @@ the database, which will be created automatically if it doesn't exist.
 
 (!docs/pages/includes/database-access/auto-user-provisioning/db-definition-default-dbname.mdx protocol="postgres" uri="localhost:5432" default="the same database that the user is accessing" !)
 
-<Admonition type="warning" title="Procedure Privileges in PostgreSQL 15+">
-(!docs/pages/includes/database-access/auto-user-provisioning/postgres15-grant-create.mdx!)
-</Admonition>
-
 ## Step 2/3. Configure a Teleport role
 
 Database permissions are associated with a Teleport role, which can either allocate predefined database roles (configured in each database) or define specific database object permissions directly. Teleport grants these permissions for the duration of the connection.
@@ -87,14 +118,16 @@ Database permissions are associated with a Teleport role, which can either alloc
 
 <Tabs>
 <TabItem label="Database roles">
+
 To specify the database roles a user should be assigned within the database,
-use the `db_roles` role option:
+use the `db_roles` role option. To create the role below, open a file called
+`db-user-creator.yaml` with the following content:
 
 ```yaml
 kind: role
 version: v7
 metadata:
-  name: auto-db-users
+  name: db-user-creator
 spec:
   options:
     # create_db_user_mode enables automatic user provisioning for matching databases
@@ -111,6 +144,12 @@ spec:
     - "{{external.db_roles}}"
 ```
 
+Create the role:
+
+```code
+$ tctl create -f db-user-creator.yaml
+```
+
 The provisioned database user will be assigned all roles from the Teleport user's role set that match the database.
 The role names must be valid and exist in the database.
 See PostgreSQL [CREATE ROLE](https://www.postgresql.org/docs/current/sql-createrole.html) for information on how to create database roles.
@@ -120,12 +159,14 @@ See PostgreSQL [CREATE ROLE](https://www.postgresql.org/docs/current/sql-creater
 
 Required Teleport version: v15.2 or above.
 
-Use `spec.allow.db_permissions` section in a user role to specify object permissions given user should have.
+Use `spec.allow.db_permissions` section in a user role to specify object
+permissions given user should have. To create the role below, open a file called
+`all-table-reader.yaml` with the following content:
 
 ```yaml
 kind: role
 metadata:
-  name: read_all_tables
+  name: all-table-reader
 spec:
   options:
     # create_db_user_mode enables automatic user provisioning for matching databases
@@ -144,6 +185,12 @@ spec:
       permissions:
       - SELECT
 version: v7
+```
+
+Create the role:
+
+```code
+$ tctl create -f all-table-reader.yaml
 ```
 
 You can define your own labels for database objects, applying them based on customizable import rules. These custom labels, such as `owner` or `environment`, can then be utilized when granting permissions.
@@ -165,11 +212,9 @@ Users created within the database will:
 
 (!docs/pages/includes/database-access/auto-user-provisioning/connect.mdx gui="pgAdmin"!)
 
+(!docs/pages/includes/database-access/db-access-webui-ad.mdx dbType="PostgreSQL"!)
+
 ## Troubleshooting
-
-### Permission denied for schema public error
-
-(!docs/pages/includes/database-access/auto-user-provisioning/postgres15-grant-create.mdx!)
 
 ### User does not have CONNECT privilege error
 
@@ -177,7 +222,7 @@ You may encounter the following error when the admin user or the roles assigned
 to the auto-provisioned user do not have permission to connect to the target
 database:
 
-```shell
+```code
 $ tsh db connect --db-name <database> example
 ...
 FATAL: permission denied for database "<database>"
@@ -194,7 +239,7 @@ GRANT CONNECT ON DATABASE <database> to "reader";
 
 You may encounter the following error when connecting to an Amazon RDS Aurora
 reader endpoint:
-```shell
+```code
 $ tsh db connect --db-name <database> example
 psql: error: connection to server at "localhost" (::1), port 12345 failed: Connection refused
 ...
@@ -208,7 +253,7 @@ endpoints. Please use auto-user provisioning on the primary endpoints.
 
 You may encounter the following error when connecting if the admin user does
 not have `USAGE` permission on the schema:
-```shell
+```code
 $ tsh db connect --db-name <database> example
 psql: error: connection to server at "localhost" (::1), port 12345 failed: Connection refused
 ...
@@ -225,7 +270,7 @@ GRANT CREATE ON SCHEMA public TO "teleport-admin";
 ### Permission denied to grant role "rds_iam"
 
 You may encounter the following error when connecting to an RDS database:
-```shell
+```code
 $ tsh db connect --db-name <database> example
 psql: error: connection to server at "localhost" (::1), port 12345 failed: Connection refused
 ...
@@ -272,13 +317,13 @@ admin user through Teleport.
 ## Next steps
 
 - Connect using your [GUI database
-  client](../../../connect-your-client/gui-clients.mdx).
+  client](../../../connect-your-client/third-party/gui-clients.mdx).
 - Learn about [role
-  templating](../../../access-controls/guides/role-templates.mdx#interpolation-rules).
+  templating](../../../zero-trust-access/rbac-get-started/role-templates.mdx).
 - Read automatic user provisioning [RFD](https://github.com/gravitational/teleport/blob/master/rfd/0113-automatic-database-users.md).
 - Read database permission management [RFD](https://github.com/gravitational/teleport/blob/master/rfd/0151-database-permission-management.md).
 - The `internal.db_roles` traits we illustrated in this guide
   are replaced with values from the Teleport local user database. For full
   details on how variable expansion works in Teleport roles, see the [Teleport
-  Access Controls Reference](../../../access-controls/reference.mdx).
+  Access Controls Reference](../../../reference/access-controls/roles.mdx).
 

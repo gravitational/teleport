@@ -1,16 +1,20 @@
-// Copyright 2023 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2024  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package latency
 
@@ -24,17 +28,17 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestMain(m *testing.M) {
-	utils.InitLoggerForTests()
+	logtest.InitLogger(testing.Verbose)
 
 	os.Exit(m.Run())
 }
 
 type fakePinger struct {
-	clock   clockwork.FakeClock
+	clock   *clockwork.FakeClock
 	latency time.Duration
 	pingC   chan struct{}
 }
@@ -97,7 +101,7 @@ func TestMonitor(t *testing.T) {
 	assert.Equal(t, Statistics{}, monitor.GetStats(), "expected initial latency stats to be zero got %v", stats)
 
 	// Simulate a few ping loops to validate the pingers are activated appropriately.
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		// Wait for the ping timers and reporting timer to block.
 		clock.BlockUntil(3)
 		// Advance the clock enough to trigger a ping.
@@ -105,7 +109,7 @@ func TestMonitor(t *testing.T) {
 
 		pingTimeout := time.After(15 * time.Second)
 		// Wait for both pings to return a response.
-		for i := 0; i < 2; i++ {
+		for range 2 {
 			// Wait for the fake pingers to sleep and the reporting timer to block.
 			clock.BlockUntil(3)
 			// Advance the clock in intervals of 5s to wake up the pingers one at a time.

@@ -212,7 +212,7 @@ A rotation of either CA requires customers reconfigure their self-hosted
 databases to maintain access, so after rotating either DatabaseCA or
 DBUserCA the security vulnerability will be resolved.
 
-If we did not rotate both CAs when they are equal to eachother, then
+If we did not rotate both CAs when they are equal to each other, then
 rotating just the DatabaseCA would be pointless and pose a security risk:
 
 Imagine you are a customer and have determined that a cert/key signed

@@ -16,9 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import styled from 'styled-components';
-
 import React, { forwardRef } from 'react';
+import styled from 'styled-components';
 
 import * as Icon from 'design/Icon';
 
@@ -34,11 +33,14 @@ interface CheckboxInputProps {
   disabled?: boolean;
   id?: string;
   name?: string;
-  placeholder?: string;
-  readonly?: boolean;
   role?: string;
   type?: 'checkbox' | 'radio';
   value?: string;
+
+  // TODO: remove field.
+  // Checkbox does not have a readonly property
+  // and this field is equivalent to field "disabled".
+  readOnly?: boolean;
 
   // TODO(bl-nero): Support the "indeterminate" property.
 
@@ -64,7 +66,12 @@ export const CheckboxInput = forwardRef<HTMLInputElement, CheckboxInputProps>(
             because we want to be able to use this component both with and
             without surrounding labels. Instead, we use absolute positioning and
             an actually rendered input with a custom appearance. */}
-          <CheckboxInternal ref={ref} cbSize={size} {...inputProps} />
+          <CheckboxInternal
+            ref={ref}
+            cbSize={size}
+            {...inputProps}
+            disabled={inputProps.disabled || inputProps.readOnly}
+          />
           <Checkmark />
         </InnerWrapper>
       </OuterWrapper>
@@ -73,6 +80,7 @@ export const CheckboxInput = forwardRef<HTMLInputElement, CheckboxInputProps>(
 );
 
 const OuterWrapper = styled.span`
+  display: inline-block;
   line-height: 0;
   margin: 3px;
 `;
@@ -137,7 +145,7 @@ const CheckboxInternal = styled.input.attrs(props => ({
     &:hover,
     .teleport-checkbox__force-hover & {
       background-color: ${props =>
-        props.theme.colors.interactive.tonal.neutral[0].background};
+        props.theme.colors.interactive.tonal.neutral[0]};
       border-color: ${props => props.theme.colors.text.slightlyMuted};
 
       &:checked {
@@ -153,7 +161,7 @@ const CheckboxInternal = styled.input.attrs(props => ({
     &:focus-visible,
     .teleport-checkbox__force-focus-visible & {
       background-color: ${props =>
-        props.theme.colors.interactive.tonal.neutral[0].background};
+        props.theme.colors.interactive.tonal.neutral[0]};
       border-color: ${props => props.theme.colors.buttons.primary.default};
       outline: none;
       border-width: 2px;
@@ -171,7 +179,7 @@ const CheckboxInternal = styled.input.attrs(props => ({
     &:active,
     .teleport-checkbox__force-active & {
       background-color: ${props =>
-        props.theme.colors.interactive.tonal.neutral[1].background};
+        props.theme.colors.interactive.tonal.neutral[1]};
       border-color: ${props => props.theme.colors.text.slightlyMuted};
 
       &:checked {
@@ -183,7 +191,7 @@ const CheckboxInternal = styled.input.attrs(props => ({
 
   &:disabled {
     background-color: ${props =>
-      props.theme.colors.interactive.tonal.neutral[0].background};
+      props.theme.colors.interactive.tonal.neutral[0]};
     border-color: transparent;
   }
 

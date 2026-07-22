@@ -24,21 +24,23 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/durationpb"
 
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/auth/authtest"
+	"github.com/gravitational/teleport/lib/cryptosuites"
+	libjwt "github.com/gravitational/teleport/lib/jwt"
 )
 
 // TestWorkloadIdentityService_SignX509SVIDs is an integration test that uses a
 // real gRPC client/server.
 func TestWorkloadIdentityService_SignX509SVIDs(t *testing.T) {
 	t.Parallel()
-	srv := newTestTLSServer(t)
+	srv, _ := newTestTLSServer(t)
 	ctx := context.Background()
 
 	nothingRole, err := types.NewRole("nothing", types.RoleSpecV6{})
@@ -65,24 +67,20 @@ func TestWorkloadIdentityService_SignX509SVIDs(t *testing.T) {
 		Deny: types.RoleConditions{
 			SPIFFE: []*types.SPIFFERoleCondition{
 				{
-					Path:    "/alpha/forbidden",
-					DNSSANs: []string{"*"},
-					IPSANs: []string{
-						"0.0.0.0/0",
-					},
+					Path: "/alpha/forbidden",
 				},
 			},
 		},
 	})
 	require.NoError(t, err)
-	authorizedUser, err := auth.CreateUser(
+	authorizedUser, err := authtest.CreateUser(
 		ctx,
 		srv.Auth(),
 		"authorized",
 		role,
 	)
 	require.NoError(t, err)
-	unauthorizedUser, err := auth.CreateUser(
+	unauthorizedUser, err := authtest.CreateUser(
 		ctx,
 		srv.Auth(),
 		"unauthorized",
@@ -91,7 +89,7 @@ func TestWorkloadIdentityService_SignX509SVIDs(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	privateKey, err := native.GenerateRSAPrivateKey()
+	privateKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 	require.NoError(t, err)
 	pubBytes, err := x509.MarshalPKIXPublicKey(privateKey.Public())
 	require.NoError(t, err)
@@ -106,9 +104,9 @@ func TestWorkloadIdentityService_SignX509SVIDs(t *testing.T) {
 		{
 			name: "success",
 			user: authorizedUser.GetName(),
-			req: &machineidv1pb.SignX509SVIDsRequest{
+			req: machineidv1pb.SignX509SVIDsRequest_builder{
 				Svids: []*machineidv1pb.SVIDRequest{
-					{
+					machineidv1pb.SVIDRequest_builder{
 						SpiffeIdPath: "/alpha/foo",
 						PublicKey:    pubBytes,
 						Hint:         "llamas",
@@ -118,23 +116,23 @@ func TestWorkloadIdentityService_SignX509SVIDs(t *testing.T) {
 							"bar.alpha.example.com",
 						},
 						IpSans: []string{"10.42.42.42"},
-					},
+					}.Build(),
 				},
-			},
+			}.Build(),
 			requireError: require.NoError,
 			assertResponse: func(t *testing.T, resp *machineidv1pb.SignX509SVIDsResponse) {
 				wantSPIFFEID := "spiffe://localhost/alpha/foo"
 
 				// Parse response
-				require.Len(t, resp.Svids, 1)
-				svid := resp.Svids[0]
-				require.Equal(t, "llamas", svid.Hint)
-				require.Equal(t, wantSPIFFEID, svid.SpiffeId)
-				cert, err := x509.ParseCertificate(svid.Certificate)
+				require.Len(t, resp.GetSvids(), 1)
+				svid := resp.GetSvids()[0]
+				require.Equal(t, "llamas", svid.GetHint())
+				require.Equal(t, wantSPIFFEID, svid.GetSpiffeId())
+				cert, err := x509.ParseCertificate(svid.GetCertificate())
 				require.NoError(t, err)
 
 				// Check TTL
-				require.WithinDuration(t, time.Now().Add(30*time.Minute), cert.NotAfter, 5*time.Second)
+				require.WithinDuration(t, srv.Clock().Now().Add(30*time.Minute), cert.NotAfter, 5*time.Second)
 
 				// Check included public key matches
 				require.Equal(t, privateKey.Public(), cert.PublicKey)
@@ -172,20 +170,20 @@ func TestWorkloadIdentityService_SignX509SVIDs(t *testing.T) {
 		{
 			name: "forbidden svid",
 			user: authorizedUser.GetName(),
-			req: &machineidv1pb.SignX509SVIDsRequest{
+			req: machineidv1pb.SignX509SVIDsRequest_builder{
 				Svids: []*machineidv1pb.SVIDRequest{
 					// Include an ok SVID first to ensure we check perms for all
 					// SVIDs.
-					{
+					machineidv1pb.SVIDRequest_builder{
 						SpiffeIdPath: "/alpha/foo",
 						PublicKey:    pubBytes,
-					},
-					{
+					}.Build(),
+					machineidv1pb.SVIDRequest_builder{
 						SpiffeIdPath: "/alpha/forbidden",
 						PublicKey:    pubBytes,
-					},
+					}.Build(),
 				},
-			},
+			}.Build(),
 			requireError: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsAccessDenied(err))
 			},
@@ -202,14 +200,14 @@ func TestWorkloadIdentityService_SignX509SVIDs(t *testing.T) {
 		{
 			name: "no permissions",
 			user: unauthorizedUser.GetName(),
-			req: &machineidv1pb.SignX509SVIDsRequest{
+			req: machineidv1pb.SignX509SVIDsRequest_builder{
 				Svids: []*machineidv1pb.SVIDRequest{
-					{
+					machineidv1pb.SVIDRequest_builder{
 						SpiffeIdPath: "/alpha/foo",
 						PublicKey:    pubBytes,
-					},
+					}.Build(),
 				},
-			},
+			}.Build(),
 			requireError: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsAccessDenied(err))
 			},
@@ -217,11 +215,182 @@ func TestWorkloadIdentityService_SignX509SVIDs(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			client, err := srv.NewClient(auth.TestUser(tt.user))
+			client, err := srv.NewClient(authtest.TestUser(tt.user))
 			require.NoError(t, err)
 
-			res, err := client.WorkloadIdentityServiceClient().
+			res, err := machineidv1pb.NewWorkloadIdentityServiceClient(client.GetConnection()).
 				SignX509SVIDs(ctx, tt.req)
+			tt.requireError(t, err)
+			if tt.assertResponse != nil {
+				tt.assertResponse(t, res)
+			}
+		})
+	}
+}
+
+// TestWorkloadIdentityService_SignJWTSVIDs is an integration test that uses a
+// real gRPC client/server.
+func TestWorkloadIdentityService_SignJWTSVIDs(t *testing.T) {
+	t.Parallel()
+	srv, _ := newTestTLSServer(t)
+	ctx := context.Background()
+
+	nothingRole, err := types.NewRole("nothing", types.RoleSpecV6{})
+	require.NoError(t, err)
+	role, err := types.NewRole("svid-issuer", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			SPIFFE: []*types.SPIFFERoleCondition{
+				{
+					Path: "/alpha/*",
+				},
+				{
+					Path: "/bravo/foo",
+				},
+			},
+		},
+		Deny: types.RoleConditions{
+			SPIFFE: []*types.SPIFFERoleCondition{
+				{
+					Path: "/alpha/forbidden",
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	authorizedUser, err := authtest.CreateUser(
+		ctx,
+		srv.Auth(),
+		"authorized",
+		role,
+	)
+	require.NoError(t, err)
+	unauthorizedUser, err := authtest.CreateUser(
+		ctx,
+		srv.Auth(),
+		"unauthorized",
+		// Nothing role necessary as otherwise authz engine gets confused.
+		nothingRole,
+	)
+	require.NoError(t, err)
+
+	// Fetch JWT CA to validate JWTs
+	jwtCA, err := srv.Auth().GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.SPIFFECA,
+		DomainName: "localhost",
+	}, true)
+	require.NoError(t, err)
+	jwtSigner, err := srv.Auth().GetKeyStore().GetJWTSigner(ctx, jwtCA)
+	require.NoError(t, err)
+
+	kid, err := libjwt.KeyID(jwtSigner.Public())
+	require.NoError(t, err)
+
+	// Upsert a fake proxy to ensure we have a public address to use for the
+	// issuer.
+	proxy, err := types.NewServer("proxy", types.KindProxy, types.ServerSpecV2{
+		PublicAddrs: []string{"teleport.example.com"},
+	})
+	require.NoError(t, err)
+	_, err = srv.Auth().UpsertProxyServer(ctx, proxy)
+	require.NoError(t, err)
+	wantIssuer := "https://teleport.example.com/workload-identity"
+
+	tests := []struct {
+		name           string
+		user           string
+		req            *machineidv1pb.SignJWTSVIDsRequest
+		requireError   require.ErrorAssertionFunc
+		assertResponse func(*testing.T, *machineidv1pb.SignJWTSVIDsResponse)
+	}{
+		{
+			name: "success",
+			user: authorizedUser.GetName(),
+			req: machineidv1pb.SignJWTSVIDsRequest_builder{
+				Svids: []*machineidv1pb.JWTSVIDRequest{
+					machineidv1pb.JWTSVIDRequest_builder{
+						SpiffeIdPath: "/alpha/foo",
+						Hint:         "llamas",
+						Ttl:          durationpb.New(30 * time.Minute),
+						Audiences:    []string{"example.com"},
+					}.Build(),
+				},
+			}.Build(),
+			requireError: require.NoError,
+			assertResponse: func(t *testing.T, resp *machineidv1pb.SignJWTSVIDsResponse) {
+				require.Len(t, resp.GetSvids(), 1)
+
+				svid := resp.GetSvids()[0]
+				wantSPIFFEID := "spiffe://localhost/alpha/foo"
+				require.Equal(t, wantSPIFFEID, svid.GetSpiffeId())
+				require.Equal(t, "llamas", svid.GetHint())
+				require.Equal(t, []string{"example.com"}, svid.GetAudiences())
+				require.NotEmpty(t, svid.GetJti())
+				require.NotEmpty(t, svid.GetJwt())
+
+				parsed, err := jwt.ParseSigned(svid.GetJwt())
+				require.NoError(t, err)
+
+				claims := jwt.Claims{}
+				err = parsed.Claims(jwtSigner.Public(), &claims)
+				require.NoError(t, err)
+
+				// Check headers
+				require.Len(t, parsed.Headers, 1)
+				require.Equal(t, kid, parsed.Headers[0].KeyID)
+
+				// Check claims
+				require.Equal(t, wantSPIFFEID, claims.Subject)
+				require.Equal(t, svid.GetJti(), claims.ID)
+				require.Equal(t, "example.com", claims.Audience[0])
+				require.Equal(t, wantIssuer, claims.Issuer)
+				require.WithinDuration(t, srv.Clock().Now().Add(30*time.Minute), claims.Expiry.Time(), 5*time.Second)
+				require.WithinDuration(t, srv.Clock().Now(), claims.IssuedAt.Time(), 5*time.Second)
+			},
+		},
+		{
+			name: "forbidden svid",
+			user: authorizedUser.GetName(),
+			req: machineidv1pb.SignJWTSVIDsRequest_builder{
+				Svids: []*machineidv1pb.JWTSVIDRequest{
+					// Include an ok SVID first to ensure we check perms for all
+					// SVIDs.
+					machineidv1pb.JWTSVIDRequest_builder{
+						SpiffeIdPath: "/alpha/foo",
+						Audiences:    []string{"example.com"},
+					}.Build(),
+					machineidv1pb.JWTSVIDRequest_builder{
+						SpiffeIdPath: "/alpha/forbidden",
+						Audiences:    []string{"example.com"},
+					}.Build(),
+				},
+			}.Build(),
+			requireError: func(t require.TestingT, err error, i ...any) {
+				require.True(t, trace.IsAccessDenied(err))
+			},
+		},
+		{
+			name: "no permissions",
+			user: unauthorizedUser.GetName(),
+			req: machineidv1pb.SignJWTSVIDsRequest_builder{
+				Svids: []*machineidv1pb.JWTSVIDRequest{
+					machineidv1pb.JWTSVIDRequest_builder{
+						SpiffeIdPath: "/alpha/foo",
+						Audiences:    []string{"example.com"},
+					}.Build(),
+				},
+			}.Build(),
+			requireError: func(t require.TestingT, err error, i ...any) {
+				require.True(t, trace.IsAccessDenied(err))
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client, err := srv.NewClient(authtest.TestUser(tt.user))
+			require.NoError(t, err)
+
+			res, err := machineidv1pb.NewWorkloadIdentityServiceClient(client.GetConnection()).
+				SignJWTSVIDs(ctx, tt.req)
 			tt.requireError(t, err)
 			if tt.assertResponse != nil {
 				tt.assertResponse(t, res)

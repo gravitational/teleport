@@ -19,25 +19,33 @@
 package common
 
 import (
+	"cmp"
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
+	"log/slog"
+	"os"
 	"sort"
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/gravitational/trace/trail"
-	log "github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/gravitational/teleport"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	"github.com/gravitational/teleport/api/trail"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/devicetrust"
 	dtnative "github.com/gravitational/teleport/lib/devicetrust/native"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/utils"
+	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
+	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
 
 // DevicesCommand implements the `tctl devices` command.
@@ -49,6 +57,9 @@ type DevicesCommand struct {
 	rm     deviceRemoveCommand
 	enroll deviceEnrollCommand
 	lock   deviceLockCommand
+
+	// stdout allows to switch the standard output source. Used in tests.
+	Stdout io.Writer
 }
 
 type osType = string
@@ -67,8 +78,10 @@ var osTypeToEnum = map[osType]devicepb.OSType{
 	windowsType: devicepb.OSType_OS_TYPE_WINDOWS,
 }
 
-func (c *DevicesCommand) Initialize(app *kingpin.Application, cfg *servicecfg.Config) {
+func (c *DevicesCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, cfg *servicecfg.Config) {
 	devicesCmd := app.Command("devices", "Register and manage trusted devices").Hidden()
+
+	formats := []string{teleport.Text, teleport.JSON, teleport.YAML}
 
 	addCmd := devicesCmd.Command("add", "Register managed devices.")
 	addCmd.Flag("os", "Operating system").
@@ -81,8 +94,10 @@ func (c *DevicesCommand) Initialize(app *kingpin.Application, cfg *servicecfg.Co
 		BoolVar(&c.add.enroll)
 	addCmd.Flag("enroll-ttl", "Time duration for the enrollment token").
 		DurationVar(&c.add.enrollTTL)
+	addCmd.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&c.add.format, formats...)
 
-	_ = devicesCmd.Command("ls", "Lists managed devices.")
+	lsCmd := devicesCmd.Command("ls", "Lists managed devices.")
+	lsCmd.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&c.ls.format, formats...)
 
 	rmCmd := devicesCmd.Command("rm", "Removes a managed device.")
 	rmCmd.Flag("device-id", "Device identifier").StringVar(&c.rm.deviceID)
@@ -96,6 +111,7 @@ func (c *DevicesCommand) Initialize(app *kingpin.Application, cfg *servicecfg.Co
 	enrollCmd.Flag("current-device", "Enrolls the current device. Overrides --device-id and --asset-tag.").
 		BoolVar(&c.enroll.currentDevice)
 	enrollCmd.Flag("ttl", "Time duration for the enrollment token").DurationVar(&c.enroll.ttl)
+	enrollCmd.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&c.enroll.format, formats...)
 
 	lockCmd := devicesCmd.Command("lock", "Locks a device.")
 	lockCmd.Flag("device-id", "Device identifier").StringVar(&c.lock.deviceID)
@@ -105,6 +121,16 @@ func (c *DevicesCommand) Initialize(app *kingpin.Application, cfg *servicecfg.Co
 	lockCmd.Flag("message", "Message to display to locked-out users").StringVar(&c.lock.message)
 	lockCmd.Flag("expires", "Time point (RFC3339) when the lock expires").StringVar(&c.lock.expires)
 	lockCmd.Flag("ttl", "Time duration after which the lock expires").DurationVar(&c.lock.ttl)
+	lockCmd.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&c.lock.format, formats...)
+
+	if c.Stdout == nil {
+		c.Stdout = os.Stdout
+	}
+	c.add.stdout = c.Stdout
+	c.rm.stdout = c.Stdout
+	c.ls.stdout = c.Stdout
+	c.enroll.stdout = c.Stdout
+	c.lock.stdout = c.Stdout
 }
 
 // runner is used as a simple interface for subcommands.
@@ -112,19 +138,24 @@ type runner interface {
 	Run(context.Context, *authclient.Client) error
 }
 
-func (c *DevicesCommand) TryRun(ctx context.Context, selectedCommand string, authClient *authclient.Client) (match bool, err error) {
+func (c *DevicesCommand) TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (match bool, err error) {
 	innerCmd, ok := map[string]runner{
 		"devices add":    &c.add,
 		"devices ls":     &c.ls,
 		"devices rm":     &c.rm,
 		"devices enroll": &c.enroll,
 		"devices lock":   &c.lock,
-	}[selectedCommand]
+	}[cmd]
 	if !ok {
 		return false, nil
 	}
+	client, closeFn, err := clientFunc(ctx)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	defer closeFn(ctx)
 
-	switch err := trail.FromGRPC(innerCmd.Run(ctx, authClient)); {
+	switch err := trail.FromGRPC(innerCmd.Run(ctx, client)); {
 	case trace.IsNotImplemented(err):
 		return true, trace.AccessDenied("Device Trust requires a Teleport Enterprise Auth Server running v12 or later.")
 	default:
@@ -138,6 +169,10 @@ type deviceAddCommand struct {
 	os        string // string from command line, distinct from inherited osType!
 	enroll    bool
 	enrollTTL time.Duration
+
+	format string
+	// stdout allows to switch the standard output source. Used in tests.
+	stdout io.Writer
 }
 
 func (c *deviceAddCommand) Run(ctx context.Context, authClient *authclient.Client) error {
@@ -169,52 +204,69 @@ func (c *deviceAddCommand) Run(ctx context.Context, authClient *authclient.Clien
 	if c.enrollTTL > 0 {
 		enrollExpireTime = timestamppb.New(time.Now().Add(c.enrollTTL))
 	}
-	created, err := authClient.DevicesClient().CreateDevice(ctx, &devicepb.CreateDeviceRequest{
-		Device: &devicepb.Device{
+	created, err := authClient.DevicesClient().CreateDevice(ctx, devicepb.CreateDeviceRequest_builder{
+		Device: devicepb.Device_builder{
 			OsType:   c.osType,
 			AssetTag: c.assetTag,
-		},
+		}.Build(),
 		CreateEnrollToken:     c.enroll,
 		EnrollTokenExpireTime: enrollExpireTime,
-	})
+	}.Build())
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	fmt.Printf(
-		"Device %v/%v added to the inventory\n",
-		created.AssetTag,
-		devicetrust.FriendlyOSType(created.OsType))
-	printEnrollMessage(created.AssetTag, created.EnrollToken)
+	switch c.format {
+	case teleport.Text:
+		fmt.Fprintf(c.stdout,
+			"Device %v/%v added to the inventory\n",
+			created.GetAssetTag(),
+			devicetrust.FriendlyOSType(created.GetOsType()))
+		printEnrollMessage(created.GetAssetTag(), created.GetEnrollToken(), c.stdout)
+	case teleport.JSON:
+		out, err := json.MarshalIndent(created, "", "  ")
+		if err != nil {
+			return trace.Wrap(err, "failed to marshal added device")
+		}
+		fmt.Fprint(c.stdout, string(out))
+	case teleport.YAML:
+		return trace.Wrap(utils.WriteYAML(c.stdout, created), "failed to marshal added device")
+	default:
+		return trace.BadParameter("invalid format %q", c.format)
+	}
 
 	return nil
 }
 
-func printEnrollMessage(name string, token *devicepb.DeviceEnrollToken) {
+func printEnrollMessage(name string, token *devicepb.DeviceEnrollToken, stdout io.Writer) {
 	if token.GetToken() == "" {
 		return
 	}
-	expireTime := token.ExpireTime.AsTime()
+	expireTime := token.GetExpireTime().AsTime()
 
-	fmt.Printf(`The enrollment token: %v
+	fmt.Fprintf(stdout, `The enrollment token: %v
 This token will expire in %v.
 
 Run the command below on device %q to enroll it:
 tsh device enroll --token=%v
 `,
-		token.Token, time.Until(expireTime).Round(time.Second), name, token.Token,
+		token.GetToken(), time.Until(expireTime).Round(time.Second), name, token.GetToken(),
 	)
 }
 
-type deviceListCommand struct{}
+type deviceListCommand struct {
+	format string
+	// stdout allows to switch the standard output source. Used in tests.
+	stdout io.Writer
+}
 
 func (c *deviceListCommand) Run(ctx context.Context, authClient *authclient.Client) error {
 	devices := authClient.DevicesClient()
 
 	// List all devices.
-	req := &devicepb.ListDevicesRequest{
+	req := devicepb.ListDevicesRequest_builder{
 		View: devicepb.DeviceView_DEVICE_VIEW_LIST,
-	}
+	}.Build()
 	var devs []*devicepb.Device
 	for {
 		resp, err := devices.ListDevices(ctx, req)
@@ -222,15 +274,15 @@ func (c *deviceListCommand) Run(ctx context.Context, authClient *authclient.Clie
 			return trace.Wrap(err)
 		}
 
-		devs = append(devs, resp.Devices...)
+		devs = append(devs, resp.GetDevices()...)
 
-		if resp.NextPageToken == "" {
+		if resp.GetNextPageToken() == "" {
 			break
 		}
-		req.PageToken = resp.NextPageToken
+		req.SetPageToken(resp.GetNextPageToken())
 	}
 	if len(devs) == 0 {
-		fmt.Println("No devices found")
+		fmt.Fprintln(c.stdout, "No devices found")
 		return nil
 	}
 
@@ -239,32 +291,69 @@ func (c *deviceListCommand) Run(ctx context.Context, authClient *authclient.Clie
 		d1 := devs[i]
 		d2 := devs[j]
 
-		if d1.AssetTag == d2.AssetTag {
-			return d1.OsType < d2.OsType
+		if d1.GetAssetTag() == d2.GetAssetTag() {
+			return d1.GetOsType() < d2.GetOsType()
 		}
 
-		return d1.AssetTag < d2.AssetTag
+		return d1.GetAssetTag() < d2.GetAssetTag()
 	})
 
 	// Print devices.
-	table := asciitable.MakeTable([]string{"Asset Tag", "OS", "Enroll Status", "Device ID"})
-	for _, dev := range devs {
-		table.AddRow([]string{
-			dev.AssetTag,
-			devicetrust.FriendlyOSType(dev.OsType),
-			devicetrust.FriendlyDeviceEnrollStatus(dev.EnrollStatus),
-			dev.Id,
-		})
+	switch c.format {
+	case teleport.Text:
+		table := asciitable.MakeTable([]string{"Asset Tag", "OS", "Source", "Enroll Status", "Owner", "Device ID"})
+		for _, dev := range devs {
+			table.AddRow([]string{
+				dev.GetAssetTag(),
+				devicetrust.FriendlyOSType(dev.GetOsType()),
+				deviceSourceToString(dev.GetSource()),
+				devicetrust.FriendlyDeviceEnrollStatus(dev.GetEnrollStatus()),
+				dev.GetOwner(),
+				dev.GetId(),
+			})
+		}
+		fmt.Fprintln(c.stdout, table.AsBuffer().String())
+	case teleport.JSON:
+		return trace.Wrap(utils.WriteJSONArray(c.stdout, devs), "failed to marshal devices list")
+	case teleport.YAML:
+		return trace.Wrap(utils.WriteYAML(c.stdout, devs), "failed to marshal devices list")
+	default:
+		return trace.BadParameter("invalid format %q", c.format)
 	}
-	fmt.Println(table.AsBuffer().String())
 
 	return nil
+}
+
+var (
+	deviceOriginToDefaultName = map[devicepb.DeviceOrigin]string{
+		devicepb.DeviceOrigin_DEVICE_ORIGIN_JAMF:   "jamf",
+		devicepb.DeviceOrigin_DEVICE_ORIGIN_INTUNE: "intune",
+	}
+	deviceOriginToPrettyName = map[devicepb.DeviceOrigin]string{
+		devicepb.DeviceOrigin_DEVICE_ORIGIN_JAMF:   "Jamf",
+		devicepb.DeviceOrigin_DEVICE_ORIGIN_INTUNE: "Intune",
+	}
+)
+
+func deviceSourceToString(source *devicepb.DeviceSource) string {
+	if source == nil {
+		return ""
+	}
+
+	if defaultName, found := deviceOriginToDefaultName[source.GetOrigin()]; found && source.GetName() == defaultName {
+		return cmp.Or(deviceOriginToPrettyName[source.GetOrigin()], defaultName)
+	}
+
+	return source.GetName()
 }
 
 type deviceRemoveCommand struct {
 	canOperateOnCurrentDevice
 
 	deviceID string
+
+	// stdout allows to switch the standard output source. Used in tests.
+	stdout io.Writer
 }
 
 func (c *deviceRemoveCommand) Run(ctx context.Context, authClient *authclient.Client) error {
@@ -290,13 +379,13 @@ func (c *deviceRemoveCommand) Run(ctx context.Context, authClient *authclient.Cl
 		return trace.Wrap(err)
 	}
 
-	if _, err := devices.DeleteDevice(ctx, &devicepb.DeleteDeviceRequest{
+	if _, err := devices.DeleteDevice(ctx, devicepb.DeleteDeviceRequest_builder{
 		DeviceId: deviceID,
-	}); err != nil {
+	}.Build()); err != nil {
 		return trace.Wrap(err)
 	}
 
-	fmt.Printf("Device %q removed\n", name)
+	fmt.Fprintf(c.stdout, "Device %q removed\n", name)
 	return nil
 }
 
@@ -305,6 +394,10 @@ type deviceEnrollCommand struct {
 
 	deviceID string
 	ttl      time.Duration
+	format   string
+
+	// stdout allows to switch the standard output source. Used in tests.
+	stdout io.Writer
 }
 
 func (c *deviceEnrollCommand) Run(ctx context.Context, authClient *authclient.Client) error {
@@ -334,16 +427,53 @@ func (c *deviceEnrollCommand) Run(ctx context.Context, authClient *authclient.Cl
 	if c.ttl > 0 {
 		expireTime = timestamppb.New(time.Now().Add(c.ttl))
 	}
-	token, err := devices.CreateDeviceEnrollToken(ctx, &devicepb.CreateDeviceEnrollTokenRequest{
+	token, err := devices.CreateDeviceEnrollToken(ctx, devicepb.CreateDeviceEnrollTokenRequest_builder{
 		DeviceId:   deviceID,
 		ExpireTime: expireTime,
-	})
+	}.Build())
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	printEnrollMessage(name, token)
-	return nil
+	return trace.Wrap(writeEnrollToken(c.format, deviceID, name, c.assetTag, token, c.stdout))
+}
+
+// deviceEnrollTokenOutput is the stable structured-output shape for a device
+// enrollment token. Device enrollment tokens are an RPC result with no
+// `tctl get`/`ls` equivalent, so we define an explicit DTO rather than leaking
+// the internal proto. The token is the intended output of the command (the
+// text format already prints it); no other secret material is exposed.
+type deviceEnrollTokenOutput struct {
+	DeviceID string     `json:"device_id,omitempty"`
+	AssetTag string     `json:"asset_tag,omitempty"`
+	Token    string     `json:"token"`
+	Expires  *time.Time `json:"expires,omitempty"`
+}
+
+func newDeviceEnrollTokenOutput(deviceID, assetTag string, token *devicepb.DeviceEnrollToken) deviceEnrollTokenOutput {
+	return deviceEnrollTokenOutput{
+		DeviceID: deviceID,
+		AssetTag: assetTag,
+		Token:    token.GetToken(),
+		Expires:  protoTimePtr(token.GetExpireTime().AsTime()),
+	}
+}
+
+// writeEnrollToken renders a freshly created device enrollment token in the
+// requested output format. For text it preserves the existing human-readable
+// enroll instructions; for json/yaml it serializes a stable DTO.
+func writeEnrollToken(format, deviceID, name, assetTag string, token *devicepb.DeviceEnrollToken, stdout io.Writer) error {
+	switch format {
+	case teleport.Text:
+		printEnrollMessage(name, token, stdout)
+		return nil
+	case teleport.JSON:
+		return trace.Wrap(utils.WriteJSON(stdout, newDeviceEnrollTokenOutput(deviceID, assetTag, token)), "failed to marshal enrollment token")
+	case teleport.YAML:
+		return trace.Wrap(utils.WriteYAML(stdout, newDeviceEnrollTokenOutput(deviceID, assetTag, token)), "failed to marshal enrollment token")
+	default:
+		return trace.BadParameter("invalid format %q", format)
+	}
 }
 
 type deviceLockCommand struct {
@@ -353,6 +483,10 @@ type deviceLockCommand struct {
 	message  string
 	expires  string
 	ttl      time.Duration
+	format   string
+
+	// stdout allows to switch the standard output source. Used in tests.
+	stdout io.Writer
 }
 
 func (c *deviceLockCommand) Run(ctx context.Context, authClient *authclient.Client) error {
@@ -364,7 +498,9 @@ func (c *deviceLockCommand) Run(ctx context.Context, authClient *authclient.Clie
 		// Print here, otherwise device information isn't apparent.
 		// In other command modes the user just wrote the ID or asset tag in the
 		// command line.
-		fmt.Printf("Locking device %q.\n", c.assetTag)
+		if c.format == teleport.Text {
+			fmt.Fprintf(c.stdout, "Locking device %q.\n", c.assetTag)
+		}
 	}
 
 	switch {
@@ -408,8 +544,7 @@ func (c *deviceLockCommand) Run(ctx context.Context, authClient *authclient.Clie
 		return trace.Wrap(err)
 	}
 
-	fmt.Printf("Created a lock with name %q.\n", lock.GetName())
-	return nil
+	return trace.Wrap(writeCreatedLock(c.format, lock, c.stdout))
 }
 
 // findDeviceID finds the device ID when supplied with either a deviceID or
@@ -433,15 +568,15 @@ func findDeviceID(
 		return deviceID, deviceID, nil
 	}
 
-	resp, err := devices.FindDevices(ctx, &devicepb.FindDevicesRequest{
+	resp, err := devices.FindDevices(ctx, devicepb.FindDevicesRequest_builder{
 		IdOrTag: assetTag,
-	})
+	}.Build())
 	if err != nil {
 		return "", "", trace.Wrap(err)
 	}
-	for _, found := range resp.Devices {
+	for _, found := range resp.GetDevices() {
 		// Skip ID matches and unexpected osTypes.
-		if found.AssetTag != assetTag || (osType != devicepb.OSType_OS_TYPE_UNSPECIFIED && found.OsType != osType) {
+		if found.GetAssetTag() != assetTag || (osType != devicepb.OSType_OS_TYPE_UNSPECIFIED && found.GetOsType() != osType) {
 			continue
 		}
 
@@ -451,7 +586,7 @@ func findDeviceID(
 				"found multiple devices for asset tag %q, please retry using the device ID instead", assetTag)
 		}
 
-		deviceID = found.Id
+		deviceID = found.GetId()
 	}
 	if deviceID == "" {
 		return "", "", trace.NotFound("device %q not found", assetTag)
@@ -481,12 +616,13 @@ func (c *canOperateOnCurrentDevice) setCurrentDevice() (bool, error) {
 		return false, trace.Wrap(err)
 	}
 
-	c.osType = cdd.OsType
-	c.assetTag = cdd.SerialNumber
-	log.Debugf(
-		"Running device command against current device: %q/%v",
-		c.assetTag,
-		devicetrust.FriendlyOSType(c.osType),
+	c.osType = cdd.GetOsType()
+	c.assetTag = cdd.GetSerialNumber()
+	slog.DebugContext(
+		context.Background(),
+		"Running device command against current device",
+		"asset_tag", c.assetTag,
+		"os_type", devicetrust.FriendlyOSType(c.osType),
 	)
 	return true, nil
 }

@@ -23,9 +23,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/secreports"
 	"github.com/gravitational/teleport/lib/backend"
@@ -33,20 +31,19 @@ import (
 	"github.com/gravitational/teleport/lib/services/local/generic"
 )
 
-const (
+var (
 	// AuditQueryPrefix is the prefix for audit queries.
-	AuditQueryPrefix = "security_report/audit_query"
+	AuditQueryPrefix = backend.NewKey("security_report", "audit_query")
 	// SecurityReportPrefix is the prefix for security reports.
-	SecurityReportPrefix = "security_report/report"
+	SecurityReportPrefix = backend.NewKey("security_report", "report")
 	// SecurityReportStatePrefix  is the prefix for security report states.
-	SecurityReportStatePrefix = "security_report/state"
+	SecurityReportStatePrefix = backend.NewKey("security_report", "state")
 	// SecurityReportCostLimiterPrefix is the prefix for security report cost limiter.
-	SecurityReportCostLimiterPrefix = "security_report/cost_limiter"
+	SecurityReportCostLimiterPrefix = backend.NewKey("security_report", "cost_limiter")
 )
 
 // SecReportsService is the local implementation of the SecReports service.
 type SecReportsService struct {
-	log                              logrus.FieldLogger
 	clock                            clockwork.Clock
 	auditQuerySvc                    *generic.Service[*secreports.AuditQuery]
 	securityReportSvc                *generic.Service[*secreports.Report]
@@ -99,7 +96,6 @@ func NewSecReportsService(backend backend.Backend, clock clockwork.Clock) (*SecR
 	}
 
 	return &SecReportsService{
-		log:                              logrus.WithFields(logrus.Fields{teleport.ComponentKey: "secreports:local-service"}),
 		clock:                            clock,
 		auditQuerySvc:                    auditQuerySvc,
 		securityReportSvc:                securityReportSvc,
@@ -124,12 +120,6 @@ func (s *SecReportsService) GetSecurityAuditQueries(ctx context.Context) ([]*sec
 func (s *SecReportsService) GetSecurityReports(ctx context.Context) ([]*secreports.Report, error) {
 	reports, err := s.securityReportSvc.GetResources(ctx)
 	return reports, trace.Wrap(err)
-}
-
-// GetSecurityReportsStates returns security report states.
-func (s *SecReportsService) GetSecurityReportsStates(ctx context.Context) ([]*secreports.ReportState, error) {
-	states, err := s.securityReportStateSvc.GetResources(ctx)
-	return states, trace.Wrap(err)
 }
 
 // GetSecurityAuditQuery returns audit query by name.

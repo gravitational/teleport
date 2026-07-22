@@ -22,42 +22,136 @@ import (
 	"bytes"
 	"context"
 	"io"
-	"os"
 	"slices"
+	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
+	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/teleport/lib/events/export"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // UploadDownload tests uploads and downloads
 func UploadDownload(t *testing.T, handler events.MultipartHandler) {
 	val := "hello, how is it going? this is the uploaded file"
+	ctx := t.Context()
 	id := session.NewID()
-	_, err := handler.Upload(context.TODO(), id, bytes.NewBuffer([]byte(val)))
+
+	_, err := handler.Upload(ctx, id, strings.NewReader(val))
 	require.NoError(t, err)
 
-	f, err := os.CreateTemp("", string(id))
-	require.NoError(t, err)
-	defer os.Remove(f.Name())
-	defer f.Close()
+	// Attempt to overwrite an existing file. This should fail.
+	_, err = handler.Upload(ctx, id, strings.NewReader("impostor"))
+	require.Error(t, err)
 
-	err = handler.Download(context.TODO(), id, f)
+	rc, err := handler.StreamSessionRecording(ctx, id)
+	require.NoError(t, err)
+	defer rc.Close()
+
+	data, err := io.ReadAll(rc)
+	require.NoError(t, err)
+	require.Equal(t, val, string(data))
+}
+
+// UploadDownloadSummary tests summary uploads and downloads
+func UploadDownloadSummary(t *testing.T, handler events.MultipartHandler) {
+	ctx := t.Context()
+	id := session.NewID()
+
+	_, err := handler.UploadPendingSummary(ctx, id, strings.NewReader("pending summary"))
 	require.NoError(t, err)
 
-	_, err = f.Seek(0, 0)
+	pendingRC, err := handler.StreamSessionSummary(ctx, id)
+	require.NoError(t, err)
+	pendingData, err := io.ReadAll(pendingRC)
+	require.NoError(t, pendingRC.Close())
+	require.NoError(t, err)
+	assert.Equal(t, "pending summary", string(pendingData))
+
+	// Override previous pending state.
+	_, err = handler.UploadPendingSummary(ctx, id, strings.NewReader("updated pending summary"))
 	require.NoError(t, err)
 
-	data, err := io.ReadAll(f)
+	// Download the pending version.
+	pendingRC2, err := handler.StreamSessionSummary(ctx, id)
+	require.NoError(t, err)
+	pendingData2, err := io.ReadAll(pendingRC2)
+	require.NoError(t, pendingRC2.Close())
+	require.NoError(t, err)
+	assert.Equal(t, "updated pending summary", string(pendingData2))
+
+	// Upload the final version.
+	_, err = handler.UploadSummary(ctx, id, strings.NewReader("final summary"))
+	require.NoError(t, err)
+
+	// Attempt to overwrite an existing file. This should fail.
+	_, err = handler.UploadSummary(ctx, id, strings.NewReader("impostor"))
+	require.Error(t, err)
+
+	// Download the final version.
+	finalRC, err := handler.StreamSessionSummary(ctx, id)
+	require.NoError(t, err)
+	finalData, err := io.ReadAll(finalRC)
+	require.NoError(t, finalRC.Close())
+	require.NoError(t, err)
+	assert.Equal(t, "final summary", string(finalData))
+
+	// Upload one more file, this time right to the final state (test if it's
+	// possible to upload one without a pending state).
+	id2 := session.NewID()
+	_, err = handler.UploadSummary(ctx, id2, strings.NewReader("final summary 2"))
+	require.NoError(t, err)
+
+	// Download the final version of the second file.
+	finalRC2, err := handler.StreamSessionSummary(ctx, id2)
+	require.NoError(t, err)
+	finalData2, err := io.ReadAll(finalRC2)
+	require.NoError(t, finalRC2.Close())
+	require.NoError(t, err)
+	assert.Equal(t, "final summary 2", string(finalData2))
+}
+
+// UploadDownloadMetadata tests metadata uploads and downloads
+func UploadDownloadMetadata(t *testing.T, handler events.MultipartHandler) {
+	val := "this is the metadata file"
+	id := session.NewID()
+	_, err := handler.UploadMetadata(t.Context(), id, bytes.NewBuffer([]byte(val)))
+	require.NoError(t, err)
+
+	rc, err := handler.StreamSessionMetadata(t.Context(), id)
+	require.NoError(t, err)
+	defer rc.Close()
+
+	data, err := io.ReadAll(rc)
+	require.NoError(t, err)
+	require.Equal(t, string(data), val)
+}
+
+// UploadDownloadThumbnail tests thumbnail uploads and downloads
+func UploadDownloadThumbnail(t *testing.T, handler events.MultipartHandler) {
+	val := "thumbnail"
+	id := session.NewID()
+	_, err := handler.UploadThumbnail(t.Context(), id, bytes.NewBuffer([]byte(val)))
+	require.NoError(t, err)
+
+	rc, err := handler.StreamSessionThumbnail(t.Context(), id)
+	require.NoError(t, err)
+	defer rc.Close()
+
+	data, err := io.ReadAll(rc)
 	require.NoError(t, err)
 	require.Equal(t, string(data), val)
 }
@@ -66,13 +160,8 @@ func UploadDownload(t *testing.T, handler events.MultipartHandler) {
 func DownloadNotFound(t *testing.T, handler events.MultipartHandler) {
 	id := session.NewID()
 
-	f, err := os.CreateTemp("", string(id))
-	require.NoError(t, err)
-	defer os.Remove(f.Name())
-	defer f.Close()
-
-	err = handler.Download(context.TODO(), id, f)
-	fixtures.AssertNotFound(t, err)
+	_, err := handler.StreamSessionRecording(t.Context(), id)
+	require.True(t, trace.IsNotFound(err))
 }
 
 // EventsSuite is a conformance test suite to verify external event backends
@@ -84,6 +173,158 @@ type EventsSuite struct {
 	// SearchSessionEvensBySessionIDTimeout is used to specify timeout on query
 	// in SearchSessionEvensBySessionID test case.
 	SearchSessionEvensBySessionIDTimeout time.Duration
+}
+
+func (s *EventsSuite) EventExport(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	baseTime := time.Now().UTC()
+
+	// initial state should contain no chunks
+	chunks := s.Log.GetEventExportChunks(ctx, auditlogpb.GetEventExportChunksRequest_builder{
+		Date: timestamppb.New(baseTime),
+	}.Build())
+
+	require.False(t, chunks.Next())
+	require.NoError(t, chunks.Done())
+
+	names := []string{"bob", "jack", "daisy", "evan"}
+
+	// create an initial set of events that should all end up in the same chunk
+	for i, name := range names {
+		err := s.Log.EmitAuditEvent(context.Background(), &apievents.UserLogin{
+			Method:       events.LoginMethodSAML,
+			Status:       apievents.Status{Success: true},
+			UserMetadata: apievents.UserMetadata{User: name},
+			Metadata: apievents.Metadata{
+				ID:   uuid.NewString(),
+				Type: events.UserLoginEvent,
+				Time: baseTime.Add(time.Duration(i)),
+			},
+		})
+		require.NoError(t, err)
+	}
+
+	// wait for the events to be processed
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		chunks := s.Log.GetEventExportChunks(ctx, auditlogpb.GetEventExportChunksRequest_builder{
+			Date: timestamppb.New(baseTime),
+		}.Build())
+
+		var chunkCount, eventCount int
+
+		for chunks.Next() {
+			chunkCount++
+
+			events := s.Log.ExportUnstructuredEvents(ctx, auditlogpb.ExportUnstructuredEventsRequest_builder{
+				Date:  timestamppb.New(baseTime),
+				Chunk: chunks.Item().GetChunk(),
+			}.Build())
+
+			for events.Next() {
+				eventCount++
+			}
+			require.NoError(t, events.Done())
+		}
+
+		require.NoError(t, chunks.Done())
+
+		require.Equal(t, 1, chunkCount)
+		require.Equal(t, 4, eventCount)
+	}, 30*time.Second, 500*time.Millisecond)
+
+	// add more events that should end up in a new chunk
+	for i, name := range names {
+		err := s.Log.EmitAuditEvent(context.Background(), &apievents.UserLogin{
+			Method:       events.LoginMethodSAML,
+			Status:       apievents.Status{Success: true},
+			UserMetadata: apievents.UserMetadata{User: name},
+			Metadata: apievents.Metadata{
+				ID:   uuid.NewString(),
+				Type: events.UserLoginEvent,
+				Time: baseTime.Add(time.Duration(i + 4)),
+			},
+		})
+		require.NoError(t, err)
+	}
+
+	// wait for the events to be processed
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		chunks := s.Log.GetEventExportChunks(ctx, auditlogpb.GetEventExportChunksRequest_builder{
+			Date: timestamppb.New(baseTime),
+		}.Build())
+
+		var chunkCount, eventCount int
+
+		for chunks.Next() {
+			chunkCount++
+
+			events := s.Log.ExportUnstructuredEvents(ctx, auditlogpb.ExportUnstructuredEventsRequest_builder{
+				Date:  timestamppb.New(baseTime),
+				Chunk: chunks.Item().GetChunk(),
+			}.Build())
+
+			for events.Next() {
+				eventCount++
+			}
+			require.NoError(t, events.Done())
+		}
+
+		require.NoError(t, chunks.Done())
+
+		require.Equal(t, 2, chunkCount)
+		require.Equal(t, 8, eventCount)
+	}, 30*time.Second, 500*time.Millisecond)
+
+	// generate a random chunk and verify that it is not found
+	events := s.Log.ExportUnstructuredEvents(ctx, auditlogpb.ExportUnstructuredEventsRequest_builder{
+		Date:  timestamppb.New(baseTime),
+		Chunk: uuid.New().String(),
+	}.Build())
+
+	require.False(t, events.Next())
+	require.True(t, trace.IsNotFound(events.Done()))
+
+	// try a different day and verify that no chunks are found
+	chunks = s.Log.GetEventExportChunks(ctx, auditlogpb.GetEventExportChunksRequest_builder{
+		Date: timestamppb.New(baseTime.AddDate(0, 0, 1)),
+	}.Build())
+
+	require.False(t, chunks.Next())
+
+	require.NoError(t, chunks.Done())
+
+	// as a sanity check, try pulling events using the exporter helper (should be
+	// equivalent to the above behavior)
+	var exportedEvents atomic.Uint64
+	var exporter *export.DateExporter
+	var err error
+	exporter, err = export.NewDateExporter(export.DateExporterConfig{
+		Client: s.Log,
+		Date:   baseTime,
+		Export: func(ctx context.Context, event *auditlogpb.ExportEventUnstructured) error {
+			exportedEvents.Add(1)
+			return nil
+		},
+		OnIdle: func(ctx context.Context) {
+			// only exporting extant events, so we can close as soon as we're caught up.
+			exporter.Close()
+		},
+		Concurrency:  3,
+		MaxBackoff:   time.Millisecond * 600,
+		PollInterval: time.Millisecond * 200,
+	})
+	require.NoError(t, err)
+	defer exporter.Close()
+
+	select {
+	case <-exporter.Done():
+	case <-time.After(30 * time.Second):
+		require.FailNow(t, "timeout waiting for exporter to finish")
+	}
+
+	require.Equal(t, uint64(8), exportedEvents.Load())
 }
 
 // EventPagination covers event search pagination.
@@ -122,10 +363,10 @@ func (s *EventsSuite) EventPagination(t *testing.T) {
 			StartKey: checkpoint,
 		})
 
-		assert.NoError(t, err)
-		assert.Len(t, arr, 4)
-		assert.Empty(t, checkpoint)
-	}, 10*time.Second, 500*time.Millisecond)
+		require.NoError(t, err)
+		require.Len(t, arr, 4)
+		require.Empty(t, checkpoint)
+	}, 30*time.Second, 500*time.Millisecond)
 
 	for _, name := range names {
 		arr, checkpoint, err = s.Log.SearchEvents(ctx, events.SearchEventsRequest{
@@ -231,7 +472,7 @@ func (s *EventsSuite) EventPagination(t *testing.T) {
 	}
 
 Outer:
-	for i := 0; i < len(names); i++ {
+	for range names {
 		arr, checkpoint, err = s.Log.SearchEvents(ctx, events.SearchEventsRequest{
 			From:     baseTime2,
 			To:       baseTime2.Add(time.Second),
@@ -257,6 +498,57 @@ Outer:
 
 		t.Fatalf("unexpected event: %#v", event)
 	}
+}
+
+func (s *EventsSuite) SearchEventsBySearchTerm(t *testing.T) {
+	ctx := t.Context()
+	baseTime := time.Now().UTC()
+
+	testUsers := []string{"alice-search-target", "bob-search-target"}
+	for i, user := range testUsers {
+		err := s.Log.EmitAuditEvent(ctx, &apievents.UserLogin{
+			Method:       events.LoginMethodSAML,
+			Status:       apievents.Status{Success: true},
+			UserMetadata: apievents.UserMetadata{User: user},
+			Metadata: apievents.Metadata{
+				ID:   uuid.NewString(),
+				Type: events.UserLoginEvent,
+				Time: baseTime.Add(time.Second * time.Duration(i)),
+			},
+		})
+		require.NoError(t, err)
+	}
+
+	if s.QueryDelay != 0 {
+		time.Sleep(s.QueryDelay)
+	}
+
+	searchAndAssertUsers := func(search string, wantUsers ...string) {
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			history, _, err := s.Log.SearchEvents(ctx, events.SearchEventsRequest{
+				From:   baseTime.Add(-1 * time.Minute),
+				To:     baseTime.Add(time.Hour),
+				Limit:  100,
+				Order:  types.EventOrderAscending,
+				Search: search,
+			})
+			require.NoError(t, err)
+
+			gotUsers := make([]string, 0, len(history))
+			for _, event := range history {
+				loginEvent, ok := event.(*apievents.UserLogin)
+				require.True(t, ok)
+				gotUsers = append(gotUsers, loginEvent.User)
+			}
+
+			require.ElementsMatch(t, wantUsers, gotUsers)
+		}, 30*time.Second, 500*time.Millisecond)
+	}
+
+	searchAndAssertUsers("alice-search-target", "alice-search-target")
+	searchAndAssertUsers("search-target alice", "alice-search-target")
+	searchAndAssertUsers("search-target", "alice-search-target", "bob-search-target")
+	searchAndAssertUsers("search-target carol")
 }
 
 // SessionEventsCRUD covers session events
@@ -289,9 +581,9 @@ func (s *EventsSuite) SessionEventsCRUD(t *testing.T) {
 			Limit: 100,
 			Order: types.EventOrderAscending,
 		})
-		assert.NoError(t, err)
-		assert.Len(t, history, 1)
-	}, 10*time.Second, 500*time.Millisecond)
+		require.NoError(t, err)
+		require.Len(t, history, 1)
+	}, 30*time.Second, 500*time.Millisecond)
 
 	// start the session and emit data stream to it and wrap it up
 	sessionID := session.NewID()
@@ -326,6 +618,10 @@ func (s *EventsSuite) SessionEventsCRUD(t *testing.T) {
 		UserMetadata: apievents.UserMetadata{
 			Login: "bob",
 		},
+		ServerMetadata: apievents.ServerMetadata{
+			ServerNamespace: "telport",
+			ServerLabels:    map[string]string{"env": "prod"},
+		},
 		SessionMetadata: apievents.SessionMetadata{
 			SessionID: string(sessionID),
 		},
@@ -342,9 +638,9 @@ func (s *EventsSuite) SessionEventsCRUD(t *testing.T) {
 			Order: types.EventOrderAscending,
 		})
 
-		assert.NoError(t, err)
-		assert.Len(t, history, 3)
-	}, 10*time.Second, 500*time.Millisecond)
+		require.NoError(t, err)
+		require.Len(t, history, 3)
+	}, 30*time.Second, 500*time.Millisecond)
 
 	require.Equal(t, events.SessionStartEvent, history[1].GetType())
 	require.Equal(t, events.SessionEndEvent, history[2].GetType())
@@ -365,12 +661,35 @@ func (s *EventsSuite) SessionEventsCRUD(t *testing.T) {
 		}}
 	}
 
+	withServerLabelsExpr := func(key, value string) *types.WhereExpr {
+		return &types.WhereExpr{
+			And: types.WhereExpr2{
+				L: &types.WhereExpr{
+					CanView: &types.WhereNoExpr{},
+				},
+				R: &types.WhereExpr{
+					Equals: types.WhereExpr2{
+						L: &types.WhereExpr{
+							MapRef: &types.WhereExpr2{
+								L: &types.WhereExpr{Field: "server_labels"},
+								R: &types.WhereExpr{Literal: key},
+							},
+						},
+						R: &types.WhereExpr{Literal: value},
+					},
+				},
+			},
+		}
+	}
+
 	history, _, err = s.Log.SearchSessionEvents(ctx, events.SearchSessionEventsRequest{
 		From:  s.Clock.Now().UTC().Add(-1 * time.Hour),
 		To:    s.Clock.Now().UTC().Add(2 * time.Hour),
 		Limit: 100,
 		Order: types.EventOrderAscending,
-		Cond:  withParticipant("alice"),
+		Cond: &utils.ToFieldsConditionConfig{
+			Expr: withParticipant("alice"),
+		},
 	})
 	require.NoError(t, err)
 	require.Len(t, history, 1)
@@ -380,7 +699,48 @@ func (s *EventsSuite) SessionEventsCRUD(t *testing.T) {
 		To:    s.Clock.Now().UTC().Add(2 * time.Hour),
 		Limit: 100,
 		Order: types.EventOrderAscending,
-		Cond:  withParticipant("cecile"),
+		Cond: &utils.ToFieldsConditionConfig{
+			Expr: withParticipant("cecile"),
+		},
+	})
+	require.NoError(t, err)
+	require.Empty(t, history)
+
+	history, _, err = s.Log.SearchSessionEvents(ctx, events.SearchSessionEventsRequest{
+		From:  s.Clock.Now().UTC().Add(-1 * time.Hour),
+		To:    s.Clock.Now().UTC().Add(2 * time.Hour),
+		Limit: 100,
+		Order: types.EventOrderAscending,
+		Cond: &utils.ToFieldsConditionConfig{
+			Expr:    withServerLabelsExpr("env", "prod"),
+			CanView: func(f utils.Fields) bool { return true },
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, history, 1)
+
+	history, _, err = s.Log.SearchSessionEvents(ctx, events.SearchSessionEventsRequest{
+		From:  s.Clock.Now().UTC().Add(-1 * time.Hour),
+		To:    s.Clock.Now().UTC().Add(2 * time.Hour),
+		Limit: 100,
+		Order: types.EventOrderAscending,
+		Cond: &utils.ToFieldsConditionConfig{
+			Expr:    withServerLabelsExpr("env", "prod"),
+			CanView: func(f utils.Fields) bool { return false },
+		},
+	})
+	require.NoError(t, err)
+	require.Empty(t, history)
+
+	history, _, err = s.Log.SearchSessionEvents(ctx, events.SearchSessionEventsRequest{
+		From:  s.Clock.Now().UTC().Add(-1 * time.Hour),
+		To:    s.Clock.Now().UTC().Add(2 * time.Hour),
+		Limit: 100,
+		Order: types.EventOrderAscending,
+		Cond: &utils.ToFieldsConditionConfig{
+			Expr:    withServerLabelsExpr("env", "dev"),
+			CanView: func(f utils.Fields) bool { return true },
+		},
 	})
 	require.NoError(t, err)
 	require.Empty(t, history)

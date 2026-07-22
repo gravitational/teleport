@@ -24,9 +24,10 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client"
-	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
+	"github.com/gravitational/teleport/api/client/accesslist"
+	"github.com/gravitational/teleport/api/client/accessmonitoringrules"
+	"github.com/gravitational/teleport/api/client/userloginstate"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/integrations/access/common/teleport"
 	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/integrations/lib/logger"
@@ -37,6 +38,9 @@ type PluginConfiguration interface {
 	GetRecipients() RawRecipientsMap
 	NewBot(clusterName string, webProxyAddr string) (MessagingBot, error)
 	GetPluginType() types.PluginType
+	// GetTeleportUser returns the name of the teleport user that acts as the
+	// access request approver.
+	GetTeleportUser() string
 }
 
 type BaseConfig struct {
@@ -44,29 +48,35 @@ type BaseConfig struct {
 	Recipients RawRecipientsMap   `toml:"role_to_recipients"`
 	Log        logger.Config      `toml:"log"`
 	PluginType types.PluginType
+	// TeleportUser is the name of the teleport user that acts as the
+	// access request approver.
+	TeleportUser string
 }
 
 func (c BaseConfig) GetRecipients() RawRecipientsMap {
 	return c.Recipients
 }
 
+// client type alias are used to embed the types in the wrappedClient
+
+type accessListClient = *accesslist.Client
+type accessMonitoringRulesClient = *accessmonitoringrules.Client
+type userLoginStateClient = *userloginstate.Client
+
 type wrappedClient struct {
 	*client.Client
-}
-
-func (w *wrappedClient) ListAccessLists(ctx context.Context, pageSize int, pageToken string) ([]*accesslist.AccessList, string, error) {
-	return w.Client.AccessListClient().ListAccessLists(ctx, pageSize, pageToken)
-}
-
-// ListAccessMonitoringRulesWithFilter lists current access monitoring rules.
-func (w *wrappedClient) ListAccessMonitoringRulesWithFilter(ctx context.Context, pageSize int, pageToken string, subjects []string, notificationName string) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error) {
-	return w.Client.AccessMonitoringRulesClient().ListAccessMonitoringRulesWithFilter(ctx, pageSize, pageToken, subjects, notificationName)
+	accessListClient
+	accessMonitoringRulesClient
+	userLoginStateClient
 }
 
 // wrapAPIClient will wrap the API client such that it conforms to the Teleport plugin client interface.
 func wrapAPIClient(clt *client.Client) teleport.Client {
 	return &wrappedClient{
-		Client: clt,
+		Client:                      clt,
+		accessListClient:            clt.AccessListClient(),
+		accessMonitoringRulesClient: clt.AccessMonitoringRulesClient(),
+		userLoginStateClient:        clt.UserLoginStateClient(),
 	}
 }
 
@@ -88,6 +98,12 @@ func (c BaseConfig) GetTeleportClient(ctx context.Context) (teleport.Client, err
 // GetPluginType returns the type of plugin this config is for.
 func (c BaseConfig) GetPluginType() types.PluginType {
 	return c.PluginType
+}
+
+// GetTeleportUser returns the name of the teleport user that acts as the
+// access request approver.
+func (c BaseConfig) GetTeleportUser() string {
+	return c.TeleportUser
 }
 
 // GenericAPIConfig holds common configuration use by a messaging service.

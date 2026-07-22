@@ -1,9 +1,13 @@
-name: Lint (Go)
-run-name: Lint (Go and Rust)
+name: Lint
 on:
   pull_request:
-
   merge_group:
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.event.merge_group.head_sha || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  GOFLAGS: '-buildvcs=false'
 
 jobs:
   changes:
@@ -15,21 +19,29 @@ jobs:
       has_go: ${{ steps.changes.outputs.has_go }}
       has_rust: ${{ steps.changes.outputs.has_rust }}
       has_proto: ${{ steps.changes.outputs.has_proto }}
+      has_rfd: ${{ steps.changes.outputs.has_rfd }}
+      has_ui: ${{ steps.changes.outputs.has_ui }}
+      has_bpf: ${{ steps.changes.outputs.has_bpf }}
+      has_cli: ${{ steps.changes.outputs.has_cli }}
     steps:
       - name: Checkout
         if: ${{ github.event_name == 'merge_group' }}
-        uses: actions/checkout@v4
-      - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        uses: actions/checkout@v6
+      - uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
         id: changes
         with:
           base: ${{ github.event.pull_request.base.ref || github.event.merge_group.base_ref }}
           ref: ${{ github.event.pull_request.head.ref || github.event.merge_group.head_ref }}
           filters: |
+            has_rfd:
+              - '.github/workflows/lint.yaml'
+              - 'rfd/**.md'
+              - 'rfd/cspell.json'
             has_go:
               - '.github/workflows/lint.yaml'
               - '**.go'
-              - 'go.mod'
-              - 'go.sum'
+              - '**/go.mod'
+              - '**/go.sum'
               - 'build.assets/Makefile'
               - 'build.assets/Dockerfile*'
               - 'Makefile'
@@ -58,8 +70,48 @@ jobs:
               - 'integrations/terraform/Makefile'
               - 'integrations/terraform/examples/**'
               - 'integrations/terraform/templates/**'
+              - 'integrations/terraform/provider/**'
+              # terraform modules generator changes
+              - 'integrations/terraform-modules/.terraform-docs.yml'
+              - 'integrations/terraform-modules/Makefile'
+              - 'integrations/terraform-modules/teleport/**'
+              - 'integrations/terraform-modules/gen/docs.sh'
               # rendered doc changes
-              - 'docs/pages/reference/terraform-provider/**'
+              - 'docs/pages/reference/infrastructure-as-code/operator-resources/**'
+              - 'docs/pages/reference/infrastructure-as-code/terraform-provider/**'
+              - 'docs/pages/reference/infrastructure-as-code/teleport-resources/**'
+              - 'docs/pages/reference/infrastructure-as-code/terraform-modules/**'
+              - 'examples/chart/teleport-cluster/charts/teleport-operator/operator-crds'
+              - 'build.assets/tooling/cmd/resource-ref-generator/**'
+              - 'buf-go.gen.yaml'
+              - 'buf.yaml'
+            has_ui:
+              - '.github/workflows/lint.yaml'
+              - 'web/**'
+              - 'e2e/**'
+              - 'gen/proto/js/**'
+              - 'gen/proto/ts/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'tsconfig.json'
+              - 'tsconfig.node.json'
+              - 'docs/pages/reference/audit-events.mdx'
+            has_bpf:
+              - '.github/workflows/lint.yaml'
+              - 'bpf/**.c'
+              - 'bpf/**.h'
+              - 'lib/bpf/*'
+            has_cli:
+              - '.github/workflows/lint.yaml'
+              - 'tool/tsh/**'
+              - 'tool/tctl/**'
+              - 'tool/tbot/**'
+              - 'tool/teleport/**'
+              - 'lib/utils/usage_docs.go'
+              - 'lib/utils/usage_docs_test.go'
+              - 'lib/utils/docs-usage.md.tmpl'
+              - 'lib/utils/docsconfigs/**'
+              - 'docs/pages/reference/cli/**'
 
   lint-go:
     name: Lint (Go)
@@ -71,24 +123,36 @@ jobs:
       contents: read
 
     container:
-      image: ghcr.io/gravitational/teleport-buildbox:teleport17
+      image: ghcr.io/gravitational/teleport-buildbox:teleport19
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Check for untidy go modules
         shell: bash
         run: |
-          find . -path ./e -prune -o -name go.mod -print | while read f; do 
+          find . -path ./e -prune -o -name go.mod -print | while read f; do
             echo "checking $f"
-            pushd $(dirname "$f") > /dev/null; 
-            go mod tidy;
+            pushd $(dirname "$f") > /dev/null;
+            go mod tidy -diff || (echo "Run 'make go-mod-tidy-all' to resolve" && exit 1);
             popd > /dev/null;
           done
 
+      # Prevent any new uses of the Open API from being added until teleport is converted
+      # to exclusively use the Opaque API.
+      - name: Check for Open API usage
+        run: |
           # We have to add the current directory as a safe directory or else git commands will not work as expected.
-          git config --global --add safe.directory $( realpath . ) && git diff --exit-code;
+          git config --global --add safe.directory "$(realpath .)"
+          go install golang.org/x/tools/cmd/goimports@v0.46.0
+          go run google.golang.org/open2opaque@v0.1.7 rewrite -levels=red ./...
+          if ! git diff --quiet --exit-code -- '*.go'; then
+            echo "Detected Open API usage - Update code to use the Opaque API manually or run go run google.golang.org/open2opaque@v0.1.7 rewrite -levels=red ./..."
+            git diff --stat -- '*.go'
+            git diff -- '*.go'
+            exit 1
+          fi
 
       - name: Set linter versions
         run: |
@@ -101,45 +165,58 @@ jobs:
       # Run various golangci-lint checks.
       # TODO(codingllama): Using go.work could save a bunch of repetition here.
       - name: golangci-lint (api)
-        uses: golangci/golangci-lint-action@a4f60bb28d35aeee14e6880718e0c85ff1882e64 # v6.0.1
+        uses: golangci/golangci-lint-action@1e7e51e771db61008b38414a730f564565cf7c20 # v9.2.0
         with:
+          # Disable verify as it downloads a json schema from an external CDN.
+          # If the config is not valid, golangci-lint will fail.
+          verify: false
           version: ${{ env.GOLANGCI_LINT_VERSION }}
           working-directory: api
-          args: --out-format=colored-line-number
           skip-cache: true
       - name: golangci-lint (teleport)
-        uses: golangci/golangci-lint-action@a4f60bb28d35aeee14e6880718e0c85ff1882e64 # v6.0.1
+        uses: golangci/golangci-lint-action@1e7e51e771db61008b38414a730f564565cf7c20 # v9.2.0
         with:
+          # Disable verify as it downloads a json schema from an external CDN.
+          # If the config is not valid, golangci-lint will fail.
+          verify: false
           version: ${{ env.GOLANGCI_LINT_VERSION }}
-          args: --out-format=colored-line-number --build-tags libfido2,piv
+          args: --build-tags bpf,libfido2,piv,tpmsimulator
           skip-cache: true
       - name: golangci-lint (assets/backport)
-        uses: golangci/golangci-lint-action@a4f60bb28d35aeee14e6880718e0c85ff1882e64 # v6.0.1
+        uses: golangci/golangci-lint-action@1e7e51e771db61008b38414a730f564565cf7c20 # v9.2.0
         with:
+          # Disable verify as it downloads a json schema from an external CDN.
+          # If the config is not valid, golangci-lint will fail.
+          verify: false
           version: ${{ env.GOLANGCI_LINT_VERSION }}
           working-directory: assets/backport
-          args: --out-format=colored-line-number
           skip-cache: true
       - name: golangci-lint (build.assets/tooling)
-        uses: golangci/golangci-lint-action@a4f60bb28d35aeee14e6880718e0c85ff1882e64 # v6.0.1
+        uses: golangci/golangci-lint-action@1e7e51e771db61008b38414a730f564565cf7c20 # v9.2.0
         with:
+          # Disable verify as it downloads a json schema from an external CDN.
+          # If the config is not valid, golangci-lint will fail.
+          verify: false
           version: ${{ env.GOLANGCI_LINT_VERSION }}
           working-directory: build.assets/tooling
-          args: --out-format=colored-line-number
           skip-cache: true
       - name: golangci-lint (integrations/terraform)
-        uses: golangci/golangci-lint-action@a4f60bb28d35aeee14e6880718e0c85ff1882e64 # v6.0.1
+        uses: golangci/golangci-lint-action@1e7e51e771db61008b38414a730f564565cf7c20 # v9.2.0
         with:
+          # Disable verify as it downloads a json schema from an external CDN.
+          # If the config is not valid, golangci-lint will fail.
+          verify: false
           version: ${{ env.GOLANGCI_LINT_VERSION }}
           working-directory: integrations/terraform
-          args: --out-format=colored-line-number
           skip-cache: true
       - name: golangci-lint (integrations/event-handler)
-        uses: golangci/golangci-lint-action@a4f60bb28d35aeee14e6880718e0c85ff1882e64 # v6.0.1
+        uses: golangci/golangci-lint-action@1e7e51e771db61008b38414a730f564565cf7c20 # v9.2.0
         with:
+          # Disable verify as it downloads a json schema from an external CDN.
+          # If the config is not valid, golangci-lint will fail.
+          verify: false
           version: ${{ env.GOLANGCI_LINT_VERSION }}
           working-directory: integrations/event-handler
-          args: --out-format=colored-line-number
           skip-cache: true
 
       - name: Run (non-action) linters
@@ -148,6 +225,12 @@ jobs:
       - name: Check if derived functions are up to date
         # We have to add the current directory as a safe directory or else git commands will not work as expected.
         run: git config --global --add safe.directory $(realpath .) && make derive-up-to-date
+
+      - name: Check if go generated files are up to date
+        run: make go-generate-up-to-date
+
+      - name: Check if test symbols are included in binaries
+        run: make lint-test-symbols
 
   lint-rust:
     name: Lint (Rust)
@@ -160,7 +243,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set Rust version
         run: echo "RUST_VERSION=$(make -s -C build.assets print-rust-version)" >> $GITHUB_ENV
@@ -168,8 +251,7 @@ jobs:
       - name: Set up Rust
         run: |
           echo "Setting up Rust version ${RUST_VERSION}"
-          rustup toolchain install ${RUST_VERSION} --component rustfmt,clippy
-          rustup override set ${RUST_VERSION}
+          rustup component add rustfmt clippy
           rustc --version
           cargo --version
           rustfmt --version
@@ -188,11 +270,11 @@ jobs:
       contents: read
 
     container:
-      image: ghcr.io/gravitational/teleport-buildbox:teleport17
+      image: ghcr.io/gravitational/teleport-buildbox:teleport19
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set linter versions
         run: |
@@ -201,7 +283,7 @@ jobs:
       - name: Print linter versions
         run: |
           echo "BUF_VERSION=$BUF_VERSION"
-      - uses: bufbuild/buf-setup-action@35c243d7f2a909b1d4e40399b348a7fdab27d78d # v1.34.0
+      - uses: bufbuild/buf-setup-action@a47c93e0b1648d5651a065437926377d060baa99 # v1.50.0
         with:
           github_token: ${{ github.token }}
           version: ${{ env.BUF_VERSION }}
@@ -210,9 +292,11 @@ jobs:
         uses: bufbuild/buf-breaking-action@c57b3d842a5c3f3b454756ef65305a50a587c5ba # v1.1.4
         with:
           against: 'https://github.com/${GITHUB_REPOSITORY}.git#branch=${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}'
+      # Release branches must not add new fields to protos with respect to
+      # master, new fields should be added to master first.
       - name: buf breaking from self to master
         uses: bufbuild/buf-breaking-action@c57b3d842a5c3f3b454756ef65305a50a587c5ba # v1.1.4
-        if: ${{ github.base_ref != 'master' && github.event.merge_group.base_ref != 'refs/heads/master' }}
+        if: startsWith(github.base_ref, 'branch/v') || startsWith(github.event.merge_group.base_ref, 'refs/heads/branch/v')
         with:
           input: 'https://github.com/${GITHUB_REPOSITORY}.git#branch=master'
           against: '.'
@@ -221,10 +305,143 @@ jobs:
         # We have to add the current directory as a safe directory or else git commands will not work as expected.
         run: git config --global --add safe.directory $(realpath .) && make protos-up-to-date/host
 
+      - name: Check if resource reference docs are up to date
+        # We have to add the current directory as a safe directory or else git commands will not work as expected.
+        run: git config --global --add safe.directory $(realpath .) && make resource-docs-up-to-date
+
       - name: Check if Operator CRDs are up to date
         # We have to add the current directory as a safe directory or else git commands will not work as expected.
         run: git config --global --add safe.directory $(realpath .) && make crds-up-to-date
 
       - name: Check if Terraform resources are up to date
         # We have to add the current directory as a safe directory or else git commands will not work as expected.
-        run: git config --global --add safe.directory $(realpath .) && go install github.com/gravitational/protoc-gen-terraform@main && make terraform-resources-up-to-date
+        # The protoc-gen-terraform version must match the version in integrations/terraform/Makefile
+        run: git config --global --add safe.directory $(realpath .) && go install github.com/gravitational/protoc-gen-terraform/v3@v3.1.0 && make terraform-resources-up-to-date
+
+      - name: Check if Terraform module reference docs are up to date
+        # We have to add the current directory as a safe directory or else git commands will not work as expected.
+        # terraform-docs version must match the version in integrations/terraform-modules/.terraform-docs.yml
+        run: |
+          git config --global --add safe.directory $(realpath .)
+          go install github.com/terraform-docs/terraform-docs@v0.22.0
+          make terraform-module-docs-up-to-date
+
+      - name: Check if the Access Monitoring reference is up to date
+        # We have to add the current directory as a safe directory or else git commands will not work as expected.
+        # The protoc-gen-terraform version must match the version in integrations/terraform/Makefile
+        run: git config --global --add safe.directory $(realpath .) && make access-monitoring-reference-up-to-date
+
+  lint-rfd:
+    name: Lint (RFD)
+    needs: changes
+    if: ${{ !startsWith(github.head_ref, 'dependabot/') && needs.changes.outputs.has_rfd == 'true' }}
+    runs-on: ubuntu-22.04
+
+    permissions:
+      contents: read
+
+    container:
+      image: ghcr.io/gravitational/teleport-buildbox:teleport19
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install JS dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check spelling
+        run: pnpm cspell -c ./rfd/cspell.json rfd
+
+  lint-ui:
+    name: Prettier, ESLint, & TSC
+    needs: changes
+    if: ${{ !startsWith(github.head_ref, 'dependabot/') && needs.changes.outputs.has_ui == 'true' }}
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    container:
+      image: ghcr.io/gravitational/teleport-buildbox:teleport19
+
+    steps:
+      - name: Checkout OSS Teleport
+        uses: actions/checkout@v6
+
+      - name: Print Node version
+        run: |
+          node --version
+
+      - name: Install JS dependencies
+        run: |
+          pnpm install --frozen-lockfile
+
+      - name: Install WASM deps
+        run: make ensure-wasm-deps
+
+      - name: Build WASM
+        run: pnpm build-wasm
+
+      - name: Run Type Check
+        run: pnpm type-check
+
+      - name: Run oxlint
+        run: pnpm oxlint --format github
+
+      - name: Check formatting
+        run: pnpm format-check
+
+      - name: Run Storybook smoke test
+        run: pnpm storybook-smoke-test
+
+      - name: Lint licenses
+        run: make lint-license
+
+      - name: Check icons
+        # We have to add the current directory as a safe directory or else git commands will not work as expected.
+        run: git config --global --add safe.directory $(realpath .) && make icons-up-to-date
+
+      - name: Check audit event reference docs
+        # We have to add the current directory as a safe directory or else git commands will not work as expected.
+        run: git config --global --add safe.directory $(realpath .) && make audit-event-reference-up-to-date
+
+  lint-bpf:
+    name: BPF Generated Files
+    needs: changes
+    if: ${{ !startsWith(github.head_ref, 'dependabot/') && needs.changes.outputs.has_bpf == 'true' }}
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    container:
+      image: ghcr.io/gravitational/teleport-buildbox:teleport19
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Check if BPF generated files are up to date
+        # We have to add the current directory as a safe directory or else git commands will not work as expected.
+        run: git config --global --add safe.directory $(realpath .) && make bpf-up-to-date
+
+  lint-cli:
+    name: CLI Reference Docs
+    needs: changes
+    if: ${{ !startsWith(github.head_ref, 'dependabot/') && needs.changes.outputs.has_cli == 'true' }}
+    runs-on: ubuntu-22.04-16core
+
+    permissions:
+      contents: read
+
+    container:
+      image: ghcr.io/gravitational/teleport-buildbox:teleport19
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Check if CLI reference docs are up to date
+        # We have to add the current directory as a safe directory or else git commands will not work as expected.
+        run: git config --global --add safe.directory $(realpath .) && make cli-docs-up-to-date

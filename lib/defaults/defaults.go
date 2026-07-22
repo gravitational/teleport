@@ -90,6 +90,13 @@ const (
 	// RDPListenPort is the standard port for RDP servers.
 	RDPListenPort = 3389
 
+	// CloudProxyListenPort is the Proxy Service port when running in Teleport Cloud.
+	CloudProxyListenPort = 443
+
+	// CloudDomainSuffix can be used to identify when an address is a Teleport Cloud domain
+	// and provide helpful Cloud-specific instructions.
+	CloudDomainSuffix = "teleport.sh"
+
 	// BackendDir is a default backend subdirectory
 	BackendDir = "backend"
 
@@ -166,10 +173,14 @@ const (
 
 	// MaxRenewableCertTTL is the maximum TTL that a certificate renewal bot
 	// can request for a renewable user certificate.
-	MaxRenewableCertTTL = 24 * time.Hour
+	MaxRenewableCertTTL = 7 * 24 * time.Hour
 
 	// DefaultBotJoinTTL is the default TTL for bot join tokens.
 	DefaultBotJoinTTL = 1 * time.Hour
+
+	// DefaultBotMaxSessionTTL is the default max_session_ttl on generated bot
+	// roles, unless overridden during bot creation.
+	DefaultBotMaxSessionTTL = 12 * time.Hour
 
 	// RecoveryStartTokenTTL is a default expiry time for a recovery start token.
 	RecoveryStartTokenTTL = 3 * time.Hour
@@ -335,6 +346,9 @@ const (
 	// ProxyQueueSize is proxy service queue size
 	ProxyQueueSize = 8192
 
+	// RelayQueueSize is the watcher queue size for the relay cache.
+	RelayQueueSize = 8192
+
 	// UnifiedResourcesQueueSize is the unified resource watcher queue size
 	UnifiedResourcesQueueSize = 8192
 
@@ -353,6 +367,9 @@ const (
 	// WindowsDesktopQueueSize is windows_desktop service watch queue size.
 	WindowsDesktopQueueSize = 128
 
+	// LinuxDesktopQueueSize is linux_desktop service watch queue size.
+	LinuxDesktopQueueSize = 128
+
 	// DiscoveryQueueSize is discovery service queue size.
 	DiscoveryQueueSize = 128
 )
@@ -370,9 +387,6 @@ var (
 const (
 	// LimiterMaxConnections Number of max. simultaneous connections to a service
 	LimiterMaxConnections = 15000
-
-	// LimiterMaxConcurrentUsers Number of max. simultaneous connected users/logins
-	LimiterMaxConcurrentUsers = 250
 
 	// LimiterMaxConcurrentSignatures limits maximum number of concurrently
 	// generated signatures by the auth server
@@ -436,6 +450,8 @@ const (
 	RoleDatabase = "db"
 	// RoleWindowsDesktop is a Windows desktop service.
 	RoleWindowsDesktop = "windowsdesktop"
+	// RoleLinuxDesktop is a Linux desktop service.
+	RoleLinuxDesktop = "linuxdesktop"
 	// RoleDiscovery is a discovery service
 	RoleDiscovery = "discovery"
 )
@@ -538,14 +554,18 @@ func ReadableDatabaseProtocol(p string) string {
 }
 
 const (
-	// PerfBufferPageCount is the size of the perf ring buffer in number of pages.
-	// Must be power of 2.
-	PerfBufferPageCount = 8
+	// CmdPerfBufferPageCount is the size of buffered channel that receives
+	// eBPF command event messages.
+	CmdPerfBufferPageCount = 64
 
-	// OpenPerfBufferPageCount is the page count for the perf buffer. Open
-	// events generate many events so this buffer needs to be extra large.
-	// Must be power of 2.
+	// OpenPerfBufferPageCount is the size of buffered channel that receives
+	// eBPF disk event messages. Open events generate many events so this
+	// buffer needs to be extra large.
 	OpenPerfBufferPageCount = 128
+
+	// NetPerfBufferPageCount is the size of the buffered channel that receives
+	// eBPF network event messages.
+	NetPerfBufferPageCount = 64
 
 	// CgroupPath is where the cgroupv2 hierarchy will be mounted.
 	CgroupPath = "/cgroup2"
@@ -626,7 +646,6 @@ const (
 // ConfigureLimiter assigns the default parameters to a connection throttler (AKA limiter)
 func ConfigureLimiter(lc *limiter.Config) {
 	lc.MaxConnections = LimiterMaxConnections
-	lc.MaxNumberOfUsers = LimiterMaxConcurrentUsers
 }
 
 // AuthListenAddr returns the default listening address for the Auth service
@@ -664,11 +683,6 @@ func SSHServerListenAddr() *utils.NetAddr {
 // blocks inbound connecions to ssh_nodes
 func ReverseTunnelListenAddr() *utils.NetAddr {
 	return makeAddr(BindIP, SSHProxyTunnelListenPort)
-}
-
-// MetricsServiceListenAddr returns the default listening address for the metrics service
-func MetricsServiceListenAddr() *utils.NetAddr {
-	return makeAddr(BindIP, MetricsListenPort)
 }
 
 func ProxyPeeringListenAddr() *utils.NetAddr {
@@ -711,8 +725,8 @@ const (
 	// made for an existing file transfer request
 	WebsocketFileTransferDecision = "t"
 
-	// WebsocketWebauthnChallenge is sending a webauthn challenge.
-	WebsocketWebauthnChallenge = "n"
+	// WebsocketMFAChallenge is sending an MFA challenge. Only supports WebAuthn and SSO MFA.
+	WebsocketMFAChallenge = "n"
 
 	// WebsocketSessionMetadata is sending the data for a ssh session.
 	WebsocketSessionMetadata = "s"
@@ -725,10 +739,14 @@ const (
 
 	// WebsocketKubeExec provides latency information for a session.
 	WebsocketKubeExec = "k"
+
+	// WebsocketDatabaseSessionRequest is received when a new database session
+	// is requested.
+	WebsocketDatabaseSessionRequest = "d"
 )
 
 // The following are cryptographic primitives Teleport does not support in
-// it's default configuration.
+// its default configuration.
 const (
 	DiffieHellmanGroup14SHA1 = "diffie-hellman-group14-sha1"
 	DiffieHellmanGroup1SHA1  = "diffie-hellman-group1-sha1"
@@ -809,12 +827,53 @@ var (
 	}
 )
 
+// HTTPClientOption is an option for configuring the HTTP client.
+type HTTPClientOption func(*httpClientOptions) *httpClientOptions
+
+type httpClientOptions struct {
+	useProxyFromEnvironment *bool
+}
+
+// UseProxyFromEnvironment configures the HTTP client to use proxy
+// settings from the environment variables HTTP_PROXY, HTTPS_PROXY, and NO_PROXY.
+func UseProxyFromEnvironment() HTTPClientOption {
+	return func(opts *httpClientOptions) *httpClientOptions {
+		enable := true
+		opts.useProxyFromEnvironment = &enable
+		return opts
+	}
+}
+
+// DisableProxyFromEnvironment configures the HTTP client to ignore proxy
+// settings from the environment variables HTTP_PROXY, HTTPS_PROXY, and NO_PROXY.
+func DisableProxyFromEnvironment() HTTPClientOption {
+	return func(opts *httpClientOptions) *httpClientOptions {
+		enable := false
+		opts.useProxyFromEnvironment = &enable
+		return opts
+	}
+}
+
 // HTTPClient returns a new http.Client with sensible defaults.
-func HTTPClient() (*http.Client, error) {
+func HTTPClient(opts ...HTTPClientOption) (*http.Client, error) {
 	transport, err := Transport()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	httpOpts := &httpClientOptions{}
+	for _, o := range opts {
+		httpOpts = o(httpOpts)
+	}
+
+	switch {
+	case httpOpts.useProxyFromEnvironment == nil:
+	case *httpOpts.useProxyFromEnvironment == true:
+		transport.Proxy = http.ProxyFromEnvironment
+	case *httpOpts.useProxyFromEnvironment == false:
+		transport.Proxy = nil
+	}
+
 	return &http.Client{
 		Transport: transport,
 	}, nil
@@ -883,7 +942,7 @@ var DefaultFormats = []string{teleport.Text, teleport.JSON, teleport.YAML}
 
 // FormatFlagDescription creates the description for the --format flag.
 func FormatFlagDescription(formats ...string) string {
-	return fmt.Sprintf("Format output (%s)", strings.Join(formats, ", "))
+	return fmt.Sprintf("Format output (%s).", strings.Join(formats, ", "))
 }
 
 func SearchSessionRange(clock clockwork.Clock, fromUTC, toUTC, recordingsSince string) (from time.Time, to time.Time, err error) {

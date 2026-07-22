@@ -69,7 +69,7 @@ ARG BUILDARCH
 ARG GOLANG_VERSION
 # Set BUILDARCH if not set when not using buildkit. Only works for arm64 and amd64.
 RUN BUILDARCH=${BUILDARCH:-$(uname -m | sed 's/aarch64/arm64/g; s/x86_64/amd64/g')}; \
-	curl -fsSL https://storage.googleapis.com/golang/${GOLANG_VERSION}.linux-${BUILDARCH}.tar.gz | \
+	curl -fsSL https://go.dev/dl/${GOLANG_VERSION}.linux-${BUILDARCH}.tar.gz | \
 	tar -C /opt -xz && \
 	/opt/go/bin/go version
 
@@ -101,6 +101,55 @@ RUN curl --proto =https --tlsv1.2 -fsSL https://sh.rustup.rs | \
 		wasm32-unknown-unknown
 
 # ----------------------------------------------------------------------------
+# Install node
+
+FROM base AS node
+
+RUN apt-get update \
+    && apt-get install -y xz-utils \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN install -d -m 0775 -o buildbox -g buildbox /opt/node
+USER buildbox
+
+ARG NODE_VERSION
+RUN \
+	case "$(uname -m)" in \
+		aarch64|arm64) NARCH=arm64 ;; \
+		x86_64|amd64) NARCH=x64 ;; \
+		*) echo "Unsupported architecture for node: $(uname -m)" >&2; exit 1 ;; \
+	esac; \
+	curl -fsSL "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-${NARCH}.tar.xz" | \
+	tar -C /opt/node -xJ --strip-components=1 && \
+	/opt/node/bin/node --version
+RUN PATH=/opt/node/bin corepack enable yarn pnpm
+
+# ----------------------------------------------------------------------------
+# Clang 12.0.0 for FIPS builds of boring-rs
+
+FROM base AS clang
+
+# libtinfo5 required to run clang to test it works.
+# xz-utils for decompressing the clang tarball.
+RUN apt-get update \
+    && apt-get install -y libtinfo5 xz-utils \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN install -d -m 0775 -o buildbox -g buildbox /opt/clang
+USER buildbox
+
+# TODO(camscale): Verify signature of download.
+RUN \
+	case "$(uname -m)" in \
+		aarch64|arm64) SUFFIX='aarch64-linux-gnu.tar.xz' ;; \
+		x86_64|amd64) SUFFIX='x86_64-linux-gnu-ubuntu-20.04.tar.xz' ;; \
+		*) echo "Unsupported architecture for clang: $(uname -m)" >&2; exit 1 ;; \
+	esac; \
+	curl -fsSL "https://github.com/llvm/llvm-project/releases/download/llvmorg-12.0.0/clang+llvm-12.0.0-${SUFFIX}" | \
+	tar -C /opt/clang -xJ --strip-components=1 && \
+	/opt/clang/bin/clang --version
+
+# ----------------------------------------------------------------------------
 # buildbox image
 #
 # Build the final buildbox image by installing required packages and copying
@@ -113,15 +162,21 @@ RUN apt-get update && apt-get install -y \
     automake \
     autopoint \
     bison \
-    clang-12 \
+    binaryen \
     cmake \
     flex \
     gettext \
     git \
+    libtinfo5 \
     libtool \
     make \
     ninja-build \
     pkg-config \
+    python3-pip \
+    python3-setuptools \
+    python3-wheel \
+    ruby \
+    rpm \
     sed \
     w3m \
     wget \
@@ -131,6 +186,21 @@ RUN apt-get update && apt-get install -y \
 
 RUN install -d -m 1777 -o teleport -g teleport /tmp/build
 
+# Install the FPM ruby gem as electron-builder only uses x86{,_64} versions
+# which do not work on arm64. We set USE_SYSTEM_FPM to ensure it uses this
+# version.
+# TODO(camscale): Change build.assets/build-package.sh to use this FPM instead
+# of the docker image we produce.
+RUN gem install fpm
+ENV USE_SYSTEM_FPM=true
+
+# The boring-rs build wants llvm-{ar,ranlib}-12 in /usr/bin. The
+# clang install has /opt/clang/bin/llvm-{ar,ranlib}. Create /usr/bin
+# symlinks while we're still root
+RUN \
+	ln -nsf /opt/clang/bin/llvm-ar /usr/bin/llvm-ar-12 && \
+	ln -nsf /opt/clang/bin/llvm-ranlib /usr/bin/llvm-ranlib-12
+
 USER buildbox
 
 # Copy compilers from other images
@@ -138,13 +208,27 @@ ARG THIRDPARTY_DIR=/opt/thirdparty
 COPY --from=thirdparty ${THIRDPARTY_DIR} ${THIRDPARTY_DIR}
 COPY --from=rust /opt/rust /opt/rust
 COPY --from=go /opt/go /opt/go
+COPY --from=node /opt/node /opt/node
+COPY --from=clang /opt/clang /opt/clang
+
+# The boring-rs build uses cmake which wants clang++ to be called clang++-12.
+RUN ln -nsf clang /opt/clang/bin/clang++-12
+
+# We need a clang front-end script to set some command line args to properly
+# find/use the appropriate cross-compiling gcc toolchain, to build boring-rs
+# in FIPS mode.
+COPY clang-12.sh /opt/clang/bin
+RUN \
+	cd /opt/clang/bin && \
+	mv clang-12 clang-12.bin && \
+	ln -s clang-12.sh clang-12
 
 # Set RUSTUP_HOME so cargo does not warn/error about not finding it at ~/.cargo
 ENV RUSTUP_HOME=/opt/rust
 
-ENV PATH=/opt/go/bin:/opt/rust/bin:${THIRDPARTY_DIR}/host/bin:${PATH}
+ENV PATH=/opt/go/bin:/opt/rust/bin:/opt/node/bin:${THIRDPARTY_DIR}/host/bin:${PATH}
 
-# Ensure THIRDPARTY_DIR gets propagated to the makefiles if the provided arg
+# Ensure THIRDPARTY_DIR gets propagated to the makefiles in case the provided arg
 # is not the default value.
 ENV THIRDPARTY_DIR=${THIRDPARTY_DIR}
 
@@ -166,10 +250,12 @@ ENV CARGO_TARGET_ARM_UNKNOWN_LINUX_GNUEABIHF_LINKER=arm-unknown-linux-gnueabihf-
 ENV CARGO_HOME=/tmp/build/rust
 ENV GOPATH=/tmp/build/go
 ENV GOCACHE=/tmp/build/go/build
+ENV COREPACK_HOME=/tmp/build/node
+ENV HOME=/tmp/build
 
 # Add the writable cargo and go bin directories to the path so we will find
 # binaries build with `cargo install` and `go install` during a build.
-ENV PATH=${CARGO_HOME}/bin:${GOPATH}/bin:${PATH}
+ENV PATH=${CARGO_HOME}/bin:${GOPATH}/bin:/opt/clang/bin:${PATH}
 
 # Set a var so the build system can know it's running in this buildbox.
 ENV BUILDBOX_MODE=cross

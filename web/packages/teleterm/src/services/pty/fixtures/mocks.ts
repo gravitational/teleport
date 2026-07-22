@@ -16,20 +16,20 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { IPtyProcess } from 'teleterm/sharedProcess/ptyHost';
 import {
+  IPtyProcess,
   PtyProcessCreationStatus,
   PtyServiceClient,
 } from 'teleterm/services/pty';
 
 export class MockPtyProcess implements IPtyProcess {
-  start() {}
+  async start() {}
 
-  write() {}
+  async write() {}
 
-  resize() {}
+  async resize() {}
 
-  dispose() {}
+  async dispose() {}
 
   onData() {
     return () => {};
@@ -61,13 +61,17 @@ export class MockPtyProcess implements IPtyProcess {
 }
 
 export class MockPtyServiceClient implements PtyServiceClient {
-  createPtyProcess(): Promise<{
-    process: IPtyProcess;
-    creationStatus: PtyProcessCreationStatus;
-  }> {
+  createPtyProcess() {
     return Promise.resolve({
       process: new MockPtyProcess(),
       creationStatus: PtyProcessCreationStatus.Ok,
+      windowsPty: undefined,
+      shell: {
+        id: 'zsh',
+        friendlyName: 'zsh',
+        binPath: '/bin/zsh',
+        binName: 'zsh',
+      },
     });
   }
 }

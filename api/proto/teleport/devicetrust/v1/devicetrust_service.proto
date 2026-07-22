@@ -27,8 +27,9 @@ import "teleport/devicetrust/v1/device_confirmation_token.proto";
 import "teleport/devicetrust/v1/device_enroll_token.proto";
 import "teleport/devicetrust/v1/device_source.proto";
 import "teleport/devicetrust/v1/device_web_token.proto";
+import "teleport/devicetrust/v1/enroll_pairing.proto";
+import "teleport/devicetrust/v1/os_type.proto";
 import "teleport/devicetrust/v1/tpm.proto";
-import "teleport/devicetrust/v1/usage.proto";
 import "teleport/devicetrust/v1/user_certificates.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1;devicetrustv1";
@@ -98,6 +99,9 @@ service DeviceTrustService {
   // ListDevices lists all registered devices.
   rpc ListDevices(ListDevicesRequest) returns (ListDevicesResponse);
 
+  // ListDevicesByUser lists all devices owned by the user
+  rpc ListDevicesByUser(ListDevicesByUserRequest) returns (ListDevicesByUserResponse);
+
   // BulkCreateDevices is a bulk variant of CreateDevice.
   //
   // Unlike CreateDevice, it does not support creation of enrollment tokens, as
@@ -164,10 +168,22 @@ service DeviceTrustService {
   // "device" permissions (create/update/delete).
   rpc SyncInventory(stream SyncInventoryRequest) returns (stream SyncInventoryResponse);
 
-  // Superseded by ResourceUsageService.GetUsage.
-  rpc GetDevicesUsage(GetDevicesUsageRequest) returns (DevicesUsage) {
-    option deprecated = true;
-  }
+  // CreateEnrollPairing creates an enroll pairing for the calling user. The
+  // returned EnrollPairing carries the pairing token that the Web UI encodes
+  // into a QR code.
+  //
+  // Each user can have only one EnrollPairing at a time. The server overwrites
+  // metadata.name with the caller's username.
+  //
+  // Returns AlreadyExists if an EnrollPairing already exists for the caller.
+  //
+  // Requires the "mobile_device.create_enroll_token" permission.
+  rpc CreateEnrollPairing(CreateEnrollPairingRequest) returns (CreateEnrollPairingResponse);
+
+  // GetCurrentEnrollPairing returns the EnrollPairing for the calling user.
+  //
+  // Returns NotFound if the caller has no EnrollPairing.
+  rpc GetCurrentEnrollPairing(GetCurrentEnrollPairingRequest) returns (GetCurrentEnrollPairingResponse);
 }
 
 // Request for CreateDevice.
@@ -259,6 +275,31 @@ message ListDevicesRequest {
 // Response for ListDevices.
 message ListDevicesResponse {
   // Devices that matched the search.
+  repeated Device devices = 1;
+
+  // Token to retrieve the next page of results, or empty if there are no
+  // more results in the list.
+  string next_page_token = 2;
+}
+
+// Request for ListDevicesByUser.
+//
+// Follows the pagination semantics of
+// https://cloud.google.com/apis/design/standard_methods#list.
+message ListDevicesByUserRequest {
+  reserved 3;
+  reserved "view";
+  // The maximum number of items to return.
+  // The server may impose a different page size at its discretion.
+  int32 page_size = 1;
+
+  // The next_page_token value returned from a previous List request, if any.
+  string page_token = 2;
+}
+
+// Response for ListDevicesByUser.
+message ListDevicesByUserResponse {
+  // Devices owned by the user.
   repeated Device devices = 1;
 
   // Token to retrieve the next page of results, or empty if there are no
@@ -513,8 +554,11 @@ message AuthenticateDeviceInit {
   // - The x509 certificate is acquired from the mTLS connection, thus the
   //   in-band certificate is ignored.
   // - All certificates must be valid and issued by the Teleport CA.
-  // - All certificates must match (same public key, same Teleport user, plus
-  //   whatever additional checks the backend sees fit).
+  // - TLS and SSH certificates must match (same Teleport user, plus whatever
+  //   additional checks the backend sees fit).
+  // - TLS and SSH certificates must either have matching public keys, or
+  //   (TPM)AuthenticateDeviceChallengeResponse.SshSignature must be a valid
+  //   signature over the challenge by the SSH private key.
   // - Augmented certificates have the same expiration as the original
   //   certificates.
   UserCertificates user_certificates = 1;
@@ -605,6 +649,16 @@ message SyncInventoryStart {
   // upserts.
   // See [SyncInventoryRequest] and [SyncInventoryMissingDevices] for details.
   bool track_missing_devices = 4;
+
+  // os_types declares the OS types this sync covers.
+  //
+  // track_missing_devices only reports devices whose os_type is in this list.
+  // Upserts and removals whose os_type is not in this list are rejected with a
+  // per-device error.
+  //
+  // Empty is treated as [OS_TYPE_MACOS, OS_TYPE_WINDOWS, OS_TYPE_LINUX] for
+  // backwards compatibility.
+  repeated OSType os_types = 5;
 }
 
 // SyncInventoryEnd ends the inventory sync, signaling that no more
@@ -648,5 +702,19 @@ message SyncInventoryMissingDevices {
   repeated Device devices = 1;
 }
 
-// Superseded by ResourceUsageService.GetUsage.
-message GetDevicesUsageRequest {}
+// Request for CreateEnrollPairing.
+message CreateEnrollPairingRequest {}
+
+// Response for CreateEnrollPairing.
+message CreateEnrollPairingResponse {
+  EnrollPairing enroll_pairing = 1;
+}
+
+// Request for GetCurrentEnrollPairing.
+message GetCurrentEnrollPairingRequest {}
+
+// Response for GetCurrentEnrollPairing.
+message GetCurrentEnrollPairingResponse {
+  // Current EnrollPairing for the calling user.
+  EnrollPairing enroll_pairing = 1;
+}

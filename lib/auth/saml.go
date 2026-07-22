@@ -23,6 +23,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -44,28 +45,26 @@ var ErrSAMLRequiresEnterprise = &trace.AccessDeniedError{Message: "SAML is only 
 // authentication - the connector CRUD operations and Get methods are
 // implemented in auth.Server and provide no connector-specific logic.
 type SAMLService interface {
-	// CreateSAMLAuthRequest creates SAML AuthnRequest
 	CreateSAMLAuthRequest(ctx context.Context, req types.SAMLAuthRequest) (*types.SAMLAuthRequest, error)
-	// ValidateSAMLResponse validates SAML auth response
+	CreateSAMLAuthRequestForMFA(ctx context.Context, req types.SAMLAuthRequest) (*types.SAMLAuthRequest, error)
 	ValidateSAMLResponse(ctx context.Context, samlResponse, connectorID, clientIP string) (*authclient.SAMLAuthResponse, error)
 }
 
 // UpsertSAMLConnector creates or updates a SAML connector.
 func (a *Server) UpsertSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error) {
-	// Validate the SAML connector here, because even though Services.UpsertSAMLConnector
-	// also validates, it does not have a RoleGetter to use to validate the roles, so
-	// has to pass `nil` for the second argument.
-	if err := services.ValidateSAMLConnector(connector, a); err != nil {
+	if len(connector.GetName()) > constants.MaxAuthConnectorNameLength {
+		return nil, trace.BadParameter("connector name %s exceeds maximum length of %d bytes", trimStr(connector.GetName(), 24), constants.MaxAuthConnectorNameLength)
+	}
+
+	if err := services.FillSAMLSecretFieldsFromExistingConnector(ctx, connector, a.Services); err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
 
-	// If someone is applying a SAML Connector obtained with `tctl get` without secrets, the signing key pair is
-	// not empty (cert is set) but the private key is missing. Such a SAML resource is invalid and not usable.
-	if connector.GetSigningKeyPair().PrivateKey == "" {
-		err := services.FillSAMLSigningKeyFromExisting(ctx, connector, a.Services)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+	// Validate the SAML connector here, because even though Services.UpsertSAMLConnector
+	// also validates, it does not have a RoleGetter to use to validate the roles, so
+	// has to pass `nil` for the second argument.
+	if err := services.ValidateSAMLConnector(connector, a, types.SAMLConnectorValidationWithSecrets(true)); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	upserted, err := a.Services.UpsertSAMLConnector(ctx, connector)
@@ -88,7 +87,7 @@ func (a *Server) UpsertSAMLConnector(ctx context.Context, connector types.SAMLCo
 		},
 		Connector: upsertedConnector,
 	}); err != nil {
-		log.WithError(err).Warn("Failed to emit SAML connector create event.")
+		a.logger.WarnContext(ctx, "Failed to emit SAML connector create event", "error", err)
 	}
 
 	return upserted, nil
@@ -96,22 +95,19 @@ func (a *Server) UpsertSAMLConnector(ctx context.Context, connector types.SAMLCo
 
 // UpdateSAMLConnector updates an existing SAML connector.
 func (a *Server) UpdateSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error) {
-	// Validate the SAML connector here, because even though Services.UpsertSAMLConnector
-	// also validates, it does not have a RoleGetter to use to validate the roles, so
-	// has to pass `nil` for the second argument.
-	if err := services.ValidateSAMLConnector(connector, a); err != nil {
+	if len(connector.GetName()) > constants.MaxAuthConnectorNameLength {
+		return nil, trace.BadParameter("connector name %s exceeds maximum length of %d bytes", trimStr(connector.GetName(), 24), constants.MaxAuthConnectorNameLength)
+	}
+
+	if err := services.FillSAMLSecretFieldsFromExistingConnector(ctx, connector, a.Services); err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
 
-	// If someone is applying a SAML Connector obtained with `tctl get` without secrets, the signing key pair is
-	// not empty (cert is set) but the private key is missing. In this case we want to look up the existing SAML
-	// connector and populate the singing key from it if it's the same certificate. This avoids accidentally clearing
-	// the private key and creating an unusable connector.
-	if connector.GetSigningKeyPair().PrivateKey == "" {
-		err := services.FillSAMLSigningKeyFromExisting(ctx, connector, a.Services)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+	// Validate the SAML connector here, because even though Services.UpsertSAMLConnector
+	// also validates, it does not have a RoleGetter to use to validate the roles, so
+	// has to pass `nil` for the second argument.
+	if err := services.ValidateSAMLConnector(connector, a, types.SAMLConnectorValidationWithSecrets(true)); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	updated, err := a.Services.UpdateSAMLConnector(ctx, connector)
@@ -134,7 +130,7 @@ func (a *Server) UpdateSAMLConnector(ctx context.Context, connector types.SAMLCo
 		},
 		Connector: updatedConnector,
 	}); err != nil {
-		log.WithError(err).Warn("Failed to emit SAML connector update event.")
+		a.logger.WarnContext(ctx, "Failed to emit SAML connector update event", "error", err)
 	}
 
 	return updated, nil
@@ -142,18 +138,15 @@ func (a *Server) UpdateSAMLConnector(ctx context.Context, connector types.SAMLCo
 
 // CreateSAMLConnector creates a new SAML connector.
 func (a *Server) CreateSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error) {
+	if len(connector.GetName()) > constants.MaxAuthConnectorNameLength {
+		return nil, trace.BadParameter("connector name %s exceeds maximum length of %d bytes", trimStr(connector.GetName(), 24), constants.MaxAuthConnectorNameLength)
+	}
+
 	// Validate the SAML connector here, because even though Services.UpsertSAMLConnector
 	// also validates, it does not have a RoleGetter to use to validate the roles, so
 	// has to pass `nil` for the second argument.
-	if err := services.ValidateSAMLConnector(connector, a); err != nil {
+	if err := services.ValidateSAMLConnector(connector, a, types.SAMLConnectorValidationWithSecrets(true)); err != nil {
 		return nil, trace.Wrap(err)
-	}
-
-	// If someone is applying a SAML Connector obtained with `tctl get` without secrets, the signing key pair is
-	// not empty (cert is set) but the private key is missing. This SAML Connector is invalid, we must reject it
-	// with an actionable message.
-	if connector.GetSigningKeyPair().PrivateKey == "" {
-		return nil, trace.BadParameter("Missing private key for signing connector. " + services.ErrMsgHowToFixMissingPrivateKey)
 	}
 
 	created, err := a.Services.CreateSAMLConnector(ctx, connector)
@@ -176,7 +169,7 @@ func (a *Server) CreateSAMLConnector(ctx context.Context, connector types.SAMLCo
 		},
 		Connector: newConnector,
 	}); err != nil {
-		log.WithError(err).Warn("Failed to emit SAML connector create event.")
+		a.logger.WarnContext(ctx, "Failed to emit SAML connector create event", "error", err)
 	}
 
 	return created, nil
@@ -197,7 +190,7 @@ func (a *Server) DeleteSAMLConnector(ctx context.Context, connectorID string) er
 			Name: connectorID,
 		},
 	}); err != nil {
-		log.WithError(err).Warn("Failed to emit SAML connector delete event.")
+		a.logger.WarnContext(ctx, "Failed to emit SAML connector delete event", "error", err)
 	}
 
 	return nil
@@ -211,6 +204,17 @@ func (a *Server) CreateSAMLAuthRequest(ctx context.Context, req types.SAMLAuthRe
 	}
 
 	rq, err := a.samlAuthService.CreateSAMLAuthRequest(ctx, req)
+	return rq, trace.Wrap(err)
+}
+
+// CreateSAMLAuthRequestForMFA delegates the method call to the samlAuthService if present,
+// or returns a NotImplemented error if not present.
+func (a *Server) CreateSAMLAuthRequestForMFA(ctx context.Context, req types.SAMLAuthRequest) (*types.SAMLAuthRequest, error) {
+	if a.samlAuthService == nil {
+		return nil, trace.Wrap(ErrSAMLRequiresEnterprise)
+	}
+
+	rq, err := a.samlAuthService.CreateSAMLAuthRequestForMFA(ctx, req)
 	return rq, trace.Wrap(err)
 }
 

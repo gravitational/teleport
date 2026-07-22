@@ -1,0 +1,80 @@
+// Teleport
+// Copyright (C) 2025 Gravitational, Inc.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+syntax = "proto3";
+
+package bad;
+
+message Foo {
+  string kind = 1;
+  string sub_kind = 2;
+  string version = 3;
+}
+
+service FooService {
+  rpc ListMissingPageReqFoos(ListMissingPageReqFoosRequest) returns (ListMissingPageReqFoosResponse);
+  rpc ListMissingPageSizeFoos(ListMissingPageSizeFoosRequest) returns (ListMissingPageSizeFoosResponse);
+  rpc ListMissingNextpageFoos(ListMissingNextpageFoosRequest) returns (ListMissingNextpageFoosResponse);
+  rpc ListMissingAllFoos(ListMissingAllFoosRequest) returns (ListMissingAllFoosResponse);
+  rpc ListWithoutRepeat(ListWithoutRepeatRequest) returns (ListWithoutRepeatResponse);
+}
+
+message ListMissingPageReqFoosRequest {
+  int32 page_size = 1;
+}
+
+message ListMissingPageReqFoosResponse {
+  repeated Foo foos = 1;
+  string next_page_token = 2;
+}
+
+message ListMissingPageSizeFoosRequest {
+  int32 page_size = 1;
+}
+
+message ListMissingPageSizeFoosResponse {
+  repeated Foo foos = 1;
+  string next_page_token = 2;
+}
+
+
+message ListMissingNextpageFoosRequest {
+  int32 page_size = 1;
+  string page_token = 2;
+}
+
+message ListMissingNextpageFoosResponse {
+  repeated Foo foos = 1;
+}
+
+
+message ListMissingAllFoosRequest {
+}
+
+message ListMissingAllFoosResponse {
+  repeated Foo foos = 1;
+}
+
+message ListWithoutRepeatRequest {
+  int32 page_size = 1;
+  string page_token = 2;
+}
+
+message ListWithoutRepeatResponse {
+  Foo foos = 1;
+  string next_page_token = 2;
+}
+
+

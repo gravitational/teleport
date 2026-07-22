@@ -65,7 +65,7 @@ ensure backward compatibility with the already established workflows.
 #### Choice 2.A
 
 In this option, dynamic-configuration resources are understood to exist only
-if they have been comitted as a result of having been specified in static
+if they have been committed as a result of having been specified in static
 configuration or via `tctl create`.
 
 3. The command `tctl get cap` would therefore return an error saying

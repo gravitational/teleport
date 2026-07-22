@@ -16,38 +16,96 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import { Meta } from '@storybook/react-vite';
+
+import { ButtonPrimary, Text } from 'design';
 
 import Validation from '../../components/Validation';
+import { requiredField } from '../Validation/rules';
+import { FieldTextArea as Component } from './FieldTextArea';
 
-import { FieldTextArea } from './FieldTextArea';
-
-export default {
-  title: 'Shared/FieldTextArea',
+type StoryProps = {
+  readonly?: boolean;
+  disabled?: boolean;
 };
 
-export const Fields = () => (
-  <Validation>
-    {() => (
-      <>
-        <FieldTextArea
-          mb="6"
-          label="Label"
-          labelTip="Optional label tip"
-          name="optional name"
-          onChange={() => {}}
-          value={'value'}
-        />
-        <FieldTextArea
-          mb="6"
-          label="Label with placeholder"
-          name="optional name"
-          onChange={() => {}}
-          placeholder="placeholder"
-          value={''}
-        />
-        <FieldTextArea mb="6" placeholder="without label" onChange={() => {}} />
-      </>
-    )}
-  </Validation>
-);
+const meta: Meta<StoryProps> = {
+  title: 'Shared',
+  component: FieldTextArea,
+  args: {
+    readonly: false,
+    disabled: false,
+  },
+};
+export default meta;
+
+export function FieldTextArea(props: StoryProps) {
+  return (
+    <Validation>
+      {({ validator }) => (
+        <>
+          <Component
+            label="Label"
+            helperText="Optional helper text"
+            name="optional name"
+            onChange={() => {}}
+            value={'some value lorem ipsum dolores'}
+            size="large"
+            disabled={props.disabled}
+            readonly={props.readonly}
+          />
+          <Component
+            label="Label with placeholder"
+            name="optional name"
+            onChange={() => {}}
+            placeholder="placeholder"
+            value={''}
+            rule={requiredField('So required. Much mandatory.')}
+            required
+            disabled={props.disabled}
+            readonly={props.readonly}
+          />
+          <Component
+            label="Label with tooltip"
+            name="optional name"
+            onChange={() => {}}
+            placeholder="placeholder"
+            value={''}
+            tooltipContent={<Text>Hello world</Text>}
+            disabled={props.disabled}
+            readonly={props.readonly}
+          />
+          <Component
+            label="Label with helper text and tooltip"
+            helperText="Helper text"
+            tooltipContent={<Text>Hello world</Text>}
+            name="optional name"
+            onChange={() => {}}
+            placeholder="placeholder"
+            value={''}
+            disabled={props.disabled}
+            readonly={props.readonly}
+          />
+          <Component
+            placeholder="without label"
+            onChange={() => {}}
+            disabled={props.disabled}
+            readonly={props.readonly}
+          />
+          <Component
+            label="Required"
+            required
+            rule={requiredField('So required. Much mandatory.')}
+            onChange={() => {}}
+            value=""
+            disabled={props.disabled}
+            readonly={props.readonly}
+          />
+          <ButtonPrimary onClick={() => validator.validate()}>
+            Validate
+          </ButtonPrimary>
+        </>
+      )}
+    </Validation>
+  );
+}

@@ -26,14 +26,14 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v3"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v2"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v6"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/msi/armmsi"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysql"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysqlflexibleservers"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresql/armpostgresql"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresql/armpostgresqlflexibleservers"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redis/armredis/v2"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redis/armredis/v3"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redisenterprise/armredisenterprise"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/sql/armsql"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/subscription/armsubscription"
@@ -536,6 +536,55 @@ func (m *ARMComputeMock) Get(_ context.Context, _ string, _ string, _ *armcomput
 	return armcompute.VirtualMachinesClientGetResponse{
 		VirtualMachine: m.GetResult,
 	}, m.GetErr
+}
+
+// ARMScaleSetVMsMock mocks armcompute.VirtualMachineScaleSetVMsClient.
+type ARMScaleSetVMsMock struct {
+	GetResult armcompute.VirtualMachineScaleSetVM
+	GetErr    error
+	ListErr   error
+}
+
+func (m *ARMScaleSetVMsMock) Get(ctx context.Context, resourceGroupName string, vmScaleSetName string, instanceID string, options *armcompute.VirtualMachineScaleSetVMsClientGetOptions) (armcompute.VirtualMachineScaleSetVMsClientGetResponse, error) {
+	return armcompute.VirtualMachineScaleSetVMsClientGetResponse{
+		VirtualMachineScaleSetVM: m.GetResult,
+	}, m.GetErr
+}
+
+func (m *ARMScaleSetVMsMock) NewListPager(resourceGroupName string, virtualMachineScaleSetName string, options *armcompute.VirtualMachineScaleSetVMsClientListOptions) *runtime.Pager[armcompute.VirtualMachineScaleSetVMsClientListResponse] {
+	return newPagerHelper(m.ListErr != nil, func() (armcompute.VirtualMachineScaleSetVMsClientListResponse, error) {
+		return armcompute.VirtualMachineScaleSetVMsClientListResponse{
+			VirtualMachineScaleSetVMListResult: armcompute.VirtualMachineScaleSetVMListResult{
+				Value: []*armcompute.VirtualMachineScaleSetVM{&m.GetResult},
+			},
+		}, m.ListErr
+	})
+}
+
+// ARMScaleSetsMock mocks armcompute.VirtualMachineScaleSetsClient.
+type ARMScaleSetsMock struct {
+	ScaleSetRecords []*armcompute.VirtualMachineScaleSet
+	ListErr         error
+}
+
+func (m *ARMScaleSetsMock) NewListPager(resourceGroupName string, options *armcompute.VirtualMachineScaleSetsClientListOptions) *runtime.Pager[armcompute.VirtualMachineScaleSetsClientListResponse] {
+	return newPagerHelper(m.ListErr != nil, func() (armcompute.VirtualMachineScaleSetsClientListResponse, error) {
+		return armcompute.VirtualMachineScaleSetsClientListResponse{
+			VirtualMachineScaleSetListResult: armcompute.VirtualMachineScaleSetListResult{
+				Value: m.ScaleSetRecords,
+			},
+		}, m.ListErr
+	})
+}
+
+func (m *ARMScaleSetsMock) NewListAllPager(options *armcompute.VirtualMachineScaleSetsClientListAllOptions) *runtime.Pager[armcompute.VirtualMachineScaleSetsClientListAllResponse] {
+	return newPagerHelper(m.ListErr != nil, func() (armcompute.VirtualMachineScaleSetsClientListAllResponse, error) {
+		return armcompute.VirtualMachineScaleSetsClientListAllResponse{
+			VirtualMachineScaleSetListWithLinkResult: armcompute.VirtualMachineScaleSetListWithLinkResult{
+				Value: m.ScaleSetRecords,
+			},
+		}, m.ListErr
+	})
 }
 
 // ARMSQLServerMock mocks armSQLServerClient

@@ -16,9 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useCallback, useState, useRef, useEffect } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 /**
+ * @deprecated Use TanStack Query (useQuery/useMutation) instead. See RFD 197.
+ *
  * `useAsync` lets you represent the state of an async operation as data. It accepts an async function
  * that you want to execute. Calling the hook returns an array of three elements:
  *
@@ -89,9 +91,9 @@ export function useAsync<Args extends unknown[], AttemptData>(
 ) {
   const [state, setState] = useState<Attempt<AttemptData>>(makeEmptyAttempt);
   const isMounted = useIsMounted();
-  const asyncTask = useRef<Promise<AttemptData>>();
+  const asyncTask = useRef<Promise<AttemptData>>(undefined);
 
-  const run = useCallback(
+  const run: (...args: Args) => RunFuncReturnValue<AttemptData> = useCallback(
     (...args: Args) => {
       setState(prevState => ({
         status: 'processing',
@@ -105,10 +107,10 @@ export function useAsync<Args extends unknown[], AttemptData>(
       return promise.then(
         data => {
           if (!isMounted()) {
-            return [null, new CanceledError()] as [AttemptData, Error];
+            return [null, new CanceledError(promise)] as [AttemptData, Error];
           }
           if (asyncTask.current !== promise) {
-            return [null, new CanceledError()] as [AttemptData, Error];
+            return [null, new CanceledError(promise)] as [AttemptData, Error];
           }
 
           setState(prevState => ({
@@ -121,10 +123,10 @@ export function useAsync<Args extends unknown[], AttemptData>(
         },
         err => {
           if (!isMounted()) {
-            return [null, new CanceledError()] as [AttemptData, Error];
+            return [null, new CanceledError(promise)] as [AttemptData, Error];
           }
           if (asyncTask.current !== promise) {
-            return [null, new CanceledError()] as [AttemptData, Error];
+            return [null, new CanceledError(promise)] as [AttemptData, Error];
           }
 
           setState(() => ({
@@ -158,8 +160,15 @@ function useIsMounted() {
   return useCallback(() => isMounted.current, []);
 }
 
-export class CanceledError extends Error {
-  constructor() {
+export class CanceledError<AttemptData> extends Error {
+  constructor(
+    /**
+     * stalePromise is the promise which result was ignored because another useAsync run was
+     * started. This gives the callsite a chance to use a result from this stale run, even after
+     * another run was started.
+     */
+    public stalePromise?: Promise<AttemptData>
+  ) {
     super('Ignored response from stale useAsync request');
     this.name = 'CanceledError';
   }
@@ -255,22 +264,25 @@ export function makeErrorAttemptWithStatusText<T>(
 }
 
 /**
- * mapAttempt maps attempt data but only if the attempt is successful.
+ * mapAttempt maps attempt data if the attempt is successful or in progress and contains data.
  */
 export function mapAttempt<A, B>(
   attempt: Attempt<A>,
   mapFunction: (attemptData: A) => B
 ): Attempt<B> {
-  if (attempt.status !== 'success') {
+  if (
+    attempt.status === 'success' ||
+    (attempt.status === 'processing' && attempt.data)
+  ) {
     return {
       ...attempt,
-      data: null,
+      data: mapFunction(attempt.data),
     };
   }
 
   return {
     ...attempt,
-    data: mapFunction(attempt.data),
+    data: null,
   };
 }
 
@@ -311,3 +323,5 @@ export function useDelayedRepeatedAttempt<Data>(
 
   return currentAttempt;
 }
+
+export type RunFuncReturnValue<AttemptData> = Promise<[AttemptData, Error]>;

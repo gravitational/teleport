@@ -24,6 +24,7 @@ import (
 	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/go-webauthn/webauthn/protocol/webauthncose"
 
+	webauthnv2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/webauthn/v2"
 	wanpb "github.com/gravitational/teleport/api/types/webauthn"
 )
 
@@ -196,7 +197,10 @@ func inputExtensionsToProto(exts AuthenticationExtensions) *wanpb.Authentication
 	if len(exts) == 0 {
 		return nil
 	}
+
 	res := &wanpb.AuthenticationExtensionsClientInputs{}
+
+	// appid (string).
 	if value, ok := exts[AppIDExtension]; ok {
 		// Type should always be string, since we are the ones setting it, but let's
 		// play it safe and check anyway.
@@ -204,6 +208,13 @@ func inputExtensionsToProto(exts AuthenticationExtensions) *wanpb.Authentication
 			res.AppId = appID
 		}
 	}
+
+	// credProps (bool).
+	if val, ok := exts[CredPropsExtension]; ok {
+		b, ok := val.(bool)
+		res.CredProps = ok && b
+	}
+
 	return res
 }
 
@@ -211,9 +222,19 @@ func outputExtensionsToProto(exts *AuthenticationExtensionsClientOutputs) *wanpb
 	if exts == nil {
 		return nil
 	}
-	return &wanpb.AuthenticationExtensionsClientOutputs{
+
+	res := &wanpb.AuthenticationExtensionsClientOutputs{
 		AppId: exts.AppID,
 	}
+
+	// credProps.
+	if credProps := exts.CredProps; credProps != nil {
+		res.CredProps = &wanpb.CredentialPropertiesOutput{
+			Rk: credProps.RK,
+		}
+	}
+
+	return res
 }
 
 func rpEntityToProto(rp RelyingPartyEntity) *wanpb.RelyingPartyEntity {
@@ -301,9 +322,12 @@ func inputExtensionsFromProto(exts *wanpb.AuthenticationExtensionsClientInputs) 
 	if exts == nil {
 		return nil
 	}
-	res := make(map[string]interface{})
+	res := make(map[string]any)
 	if exts.AppId != "" {
 		res[AppIDExtension] = exts.AppId
+	}
+	if exts.CredProps {
+		res[CredPropsExtension] = true
 	}
 	return res
 }
@@ -312,9 +336,19 @@ func outputExtensionsFromProto(exts *wanpb.AuthenticationExtensionsClientOutputs
 	if exts == nil {
 		return nil
 	}
-	return &AuthenticationExtensionsClientOutputs{
+
+	res := &AuthenticationExtensionsClientOutputs{
 		AppID: exts.AppId,
 	}
+
+	// credProps.
+	if credProps := exts.CredProps; credProps != nil {
+		res.CredProps = &CredentialPropertiesOutput{
+			RK: credProps.Rk,
+		}
+	}
+
+	return res
 }
 
 func publicKeyCredentialCreationOptionsFromProto(pubKey *wanpb.PublicKeyCredentialCreationOptions) PublicKeyCredentialCreationOptions {
@@ -371,4 +405,107 @@ func userEntityFromProto(user *wanpb.UserEntity) UserEntity {
 		DisplayName: user.DisplayName,
 		ID:          user.Id,
 	}
+}
+
+// CredentialAssertionToProtoV2 converts a CredentialAssertion to its v2 proto counterpart.
+func CredentialAssertionToProtoV2(in *CredentialAssertion) *webauthnv2.CredentialAssertion {
+	if in == nil {
+		return nil
+	}
+
+	return webauthnv2.CredentialAssertion_builder{
+		PublicKey: webauthnv2.PublicKeyCredentialRequestOptions_builder{
+			Challenge:        in.Response.Challenge,
+			TimeoutMs:        int64(in.Response.Timeout),
+			RpId:             in.Response.RelyingPartyID,
+			AllowCredentials: credentialDescriptorsToProtoV2(in.Response.AllowedCredentials),
+			Extensions:       inputExtensionsToProtoV2(in.Response.Extensions),
+			UserVerification: string(in.Response.UserVerification),
+		}.Build(),
+	}.Build()
+}
+
+// CredentialAssertionResponseFromProtoV2 converts a CredentialAssertionResponse proto to its lib counterpart.
+func CredentialAssertionResponseFromProtoV2(in *webauthnv2.CredentialAssertionResponse) *CredentialAssertionResponse {
+	if in == nil {
+		return nil
+	}
+
+	return &CredentialAssertionResponse{
+		PublicKeyCredential: PublicKeyCredential{
+			Credential: Credential{
+				ID:   base64.RawURLEncoding.EncodeToString(in.GetRawId()),
+				Type: in.GetType(),
+			},
+			RawID:      in.GetRawId(),
+			Extensions: outputExtensionsFromProtoV2(in.GetExtensions()),
+		},
+		AssertionResponse: AuthenticatorAssertionResponse{
+			AuthenticatorResponse: AuthenticatorResponse{
+				ClientDataJSON: in.GetResponse().GetClientDataJson(),
+			},
+			AuthenticatorData: in.GetResponse().GetAuthenticatorData(),
+			Signature:         in.GetResponse().GetSignature(),
+			UserHandle:        in.GetResponse().GetUserHandle(),
+		},
+	}
+}
+
+func credentialDescriptorsToProtoV2(in []CredentialDescriptor) []*webauthnv2.CredentialDescriptor {
+	out := make([]*webauthnv2.CredentialDescriptor, len(in))
+
+	for i, cred := range in {
+		out[i] = webauthnv2.CredentialDescriptor_builder{
+			Type: string(cred.Type),
+			Id:   cred.CredentialID,
+		}.Build()
+	}
+
+	return out
+}
+
+func inputExtensionsToProtoV2(in AuthenticationExtensions) *webauthnv2.AuthenticationExtensionsClientInputs {
+	if len(in) == 0 {
+		return nil
+	}
+
+	var (
+		appId     string
+		credProps bool
+	)
+
+	if value, ok := in[AppIDExtension]; ok {
+		if s, ok := value.(string); ok {
+			appId = s
+		}
+	}
+
+	if val, ok := in[CredPropsExtension]; ok {
+		if b, ok := val.(bool); ok {
+			credProps = b
+		}
+	}
+
+	return webauthnv2.AuthenticationExtensionsClientInputs_builder{
+		AppId:     appId,
+		CredProps: credProps,
+	}.Build()
+}
+
+func outputExtensionsFromProtoV2(in *webauthnv2.AuthenticationExtensionsClientOutputs) *AuthenticationExtensionsClientOutputs {
+	if in == nil {
+		return nil
+	}
+
+	out := &AuthenticationExtensionsClientOutputs{
+		AppID: in.GetAppId(),
+	}
+
+	if credProps := in.GetCredProps(); credProps != nil {
+		out.CredProps = &CredentialPropertiesOutput{
+			RK: credProps.GetRk(),
+		}
+	}
+
+	return out
 }

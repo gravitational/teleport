@@ -25,14 +25,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
+	"slices"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
@@ -51,17 +51,19 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/session"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
+	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // SessionContext is a context associated with a user's
@@ -75,7 +77,7 @@ type SessionContext struct {
 	// session.
 	remoteClientCache
 	// remoteClientGroup prevents duplicate requests to create remote clients
-	// for a given site
+	// for a given cluster
 	remoteClientGroup singleflight.Group
 
 	// mu guards kubeGRPCServiceConn.
@@ -86,7 +88,7 @@ type SessionContext struct {
 
 type SessionContextConfig struct {
 	// Log is used to emit logs
-	Log *logrus.Entry
+	Log *slog.Logger
 	// User is the name of the current user
 	User string
 
@@ -113,8 +115,8 @@ type SessionContextConfig struct {
 	// Session refers the web session created for the user.
 	Session types.WebSession
 
-	// newRemoteClient is used by tests to override how remote clients are constructed to allow for fake sites
-	newRemoteClient func(ctx context.Context, sessionContext *SessionContext, site reversetunnelclient.RemoteSite) (authclient.ClientI, error)
+	// newRemoteClient is used by tests to override how remote clients are constructed to allow for fake clusters
+	newRemoteClient func(ctx context.Context, sessionContext *SessionContext, cluster reversetunnelclient.Cluster) (authclient.ClientI, error)
 }
 
 func (c *SessionContextConfig) CheckAndSetDefaults() error {
@@ -139,10 +141,10 @@ func (c *SessionContextConfig) CheckAndSetDefaults() error {
 	}
 
 	if c.Log == nil {
-		c.Log = log.WithFields(logrus.Fields{
-			"user":    c.User,
-			"session": c.Session.GetShortName(),
-		})
+		c.Log = slog.With(
+			"user", c.User,
+			"session", c.Session.GetShortName(),
+		)
 	}
 
 	if c.newRemoteClient == nil {
@@ -202,8 +204,12 @@ func (c *SessionContext) validateBearerToken(ctx context.Context, token string) 
 	}
 
 	if fetchedToken.GetUser() != c.cfg.User {
-		c.cfg.Log.Warnf("Failed validating bearer token: the user[%s] in bearer token[%s] did not match the user[%s] for session[%s]",
-			fetchedToken.GetUser(), token, c.cfg.User, c.GetSessionID())
+		c.cfg.Log.WarnContext(ctx, "Failed validating bearer token: the user in bearer token did not match the user for session",
+			"token_user", fetchedToken.GetUser(),
+			"token", token,
+			"session_user", c.cfg.User,
+			"session_id", c.GetSessionID(),
+		)
 		return trace.AccessDenied("access denied")
 	}
 
@@ -221,36 +227,36 @@ func (c *SessionContext) GetClientConnection() *grpc.ClientConn {
 }
 
 // GetUserClient will return an [authclient.ClientI]  with the role of the user at
-// the requested site. If the site is local a client with the users local role
-// is returned. If the site is remote a client with the users remote role is
+// the requested cluster. If the cluster is local a client with the users local role
+// is returned. If the cluster is remote a client with the users remote role is
 // returned.
-func (c *SessionContext) GetUserClient(ctx context.Context, site reversetunnelclient.RemoteSite) (authclient.ClientI, error) {
+func (c *SessionContext) GetUserClient(ctx context.Context, cluster reversetunnelclient.Cluster) (authclient.ClientI, error) {
 	// if we're trying to access the local cluster, pass back the local client.
-	if c.cfg.RootClusterName == site.GetName() {
+	if c.cfg.RootClusterName == cluster.GetName() {
 		return c.cfg.RootClient, nil
 	}
 
-	// return the client for the requested remote site
-	clt, err := c.remoteClient(ctx, site)
+	// return the client for the requested remote cluster
+	clt, err := c.remoteClient(ctx, cluster)
 	return clt, trace.Wrap(err)
 }
 
 // remoteClient returns an [authclient.ClientI]  with the role of the user at
-// the requested [site]. All remote clients are lazily created
+// the requested [cluster]. All remote clients are lazily created
 // when they are first requested and then cached. Subsequent requests
 // will return the previously created client to prevent having more than
-// a single [authclient.ClientI]  per site for a user.
+// a single [authclient.ClientI]  per cluster for a user.
 //
 // A [singleflight.Group] is leveraged to prevent duplicate requests for remote
 // clients at the same time to race.
-func (c *SessionContext) remoteClient(ctx context.Context, site reversetunnelclient.RemoteSite) (authclient.ClientI, error) {
-	cltI, err, _ := c.remoteClientGroup.Do(site.GetName(), func() (interface{}, error) {
+func (c *SessionContext) remoteClient(ctx context.Context, cluster reversetunnelclient.Cluster) (authclient.ClientI, error) {
+	cltI, err, _ := c.remoteClientGroup.Do(cluster.GetName(), func() (any, error) {
 		// check if we already have a connection to this cluster
-		if clt, ok := c.remoteClientCache.getRemoteClient(site); ok {
+		if clt, ok := c.remoteClientCache.getRemoteClient(cluster); ok {
 			return clt, nil
 		}
 
-		rClt, err := c.cfg.newRemoteClient(ctx, c, site)
+		rClt, err := c.cfg.newRemoteClient(ctx, c, cluster)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -258,9 +264,12 @@ func (c *SessionContext) remoteClient(ctx context.Context, site reversetunnelcli
 		// we'll save the remote client in our session context so we don't have to
 		// build a new connection next time. all remote clients will be closed when
 		// the session context is closed.
-		err = c.remoteClientCache.addRemoteClient(site, rClt)
+		err = c.remoteClientCache.addRemoteClient(cluster, rClt)
 		if err != nil {
-			c.cfg.Log.WithError(err).Info("Failed closing stale remote client for site: ", site.GetName())
+			c.cfg.Log.InfoContext(ctx, "Failed closing stale remote client for cluster",
+				"remote_cluster", cluster.GetName(),
+				"error", err,
+			)
 		}
 
 		return rClt, nil
@@ -279,8 +288,8 @@ func (c *SessionContext) remoteClient(ctx context.Context, site reversetunnelcli
 }
 
 // newRemoteClient returns a client to a remote cluster with the role of current user.
-func newRemoteClient(ctx context.Context, sctx *SessionContext, site reversetunnelclient.RemoteSite) (authclient.ClientI, error) {
-	clt, err := sctx.newRemoteTLSClient(ctx, site)
+func newRemoteClient(ctx context.Context, sctx *SessionContext, cluster reversetunnelclient.Cluster) (authclient.ClientI, error) {
+	clt, err := sctx.newRemoteTLSClient(ctx, cluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -296,7 +305,7 @@ func newRemoteClient(ctx context.Context, sctx *SessionContext, site reversetunn
 }
 
 // clusterDialer returns DialContext function using cluster's dial function
-func clusterDialer(remoteCluster reversetunnelclient.RemoteSite, src, dst net.Addr) apiclient.ContextDialer {
+func clusterDialer(remoteCluster reversetunnelclient.Cluster, src, dst net.Addr) apiclient.ContextDialer {
 	return apiclient.ContextDialerFunc(func(in context.Context, network, _ string) (net.Conn, error) {
 		dialParams := reversetunnelclient.DialParams{
 			From:                  src,
@@ -308,7 +317,7 @@ func clusterDialer(remoteCluster reversetunnelclient.RemoteSite, src, dst net.Ad
 			dialParams.From = clientSrcAddr
 		}
 		if dialParams.OriginalClientDstAddr == nil && clientDstAddr != nil {
-			dialParams.OriginalClientDstAddr = clientSrcAddr
+			dialParams.OriginalClientDstAddr = clientDstAddr
 		}
 
 		return remoteCluster.DialAuthServer(dialParams)
@@ -334,16 +343,11 @@ func (c *SessionContext) NewKubernetesServiceClient(ctx context.Context, addr st
 		ctx,
 		addr,
 		grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
+		grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
 		grpc.WithChainUnaryInterceptor(
-			//nolint:staticcheck // SA1019. There is a data race in the stats.Handler that is replacing
-			// the interceptor. See https://github.com/open-telemetry/opentelemetry-go-contrib/issues/4576.
-			otelgrpc.UnaryClientInterceptor(),
 			metadata.UnaryClientInterceptor,
 		),
 		grpc.WithChainStreamInterceptor(
-			//nolint:staticcheck // SA1019. There is a data race in the stats.Handler that is replacing
-			// the interceptor. See https://github.com/open-telemetry/opentelemetry-go-contrib/issues/4576.
-			otelgrpc.StreamClientInterceptor(),
 			metadata.StreamClientInterceptor,
 		),
 	)
@@ -395,7 +399,7 @@ func (c *SessionContext) ClientTLSConfig(ctx context.Context, clusterName ...str
 	return tlsConfig, nil
 }
 
-func (c *SessionContext) newRemoteTLSClient(ctx context.Context, cluster reversetunnelclient.RemoteSite) (authclient.ClientI, error) {
+func (c *SessionContext) newRemoteTLSClient(ctx context.Context, cluster reversetunnelclient.Cluster) (authclient.ClientI, error) {
 	tlsConfig, err := c.ClientTLSConfig(ctx, cluster.GetName())
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -503,12 +507,14 @@ func (c *SessionContext) GetUserAccessChecker() (services.AccessChecker, error) 
 		return nil, trace.Wrap(err)
 	}
 
-	accessInfo, err := services.AccessInfoFromLocalCertificate(cert)
+	ident, err := sshca.DecodeIdentity(cert)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	accessChecker, err := services.NewAccessChecker(accessInfo, c.cfg.RootClusterName, c.cfg.UnsafeCachedAuthClient)
+	accessInfo := services.AccessInfoFromLocalSSHIdentity(ident)
+
+	accessChecker, err := services.NewAccessCheckerForUserSession(accessInfo, c.cfg.RootClusterName, c.cfg.UnsafeCachedAuthClient)
 	return accessChecker, trace.Wrap(err)
 }
 
@@ -595,12 +601,13 @@ func (c *SessionContext) expired(ctx context.Context) bool {
 		// was removed during user logout, expire the session immediately.
 		return true
 	default:
-		c.cfg.Log.WithError(err).Debug("Failed to query web session.")
+		c.cfg.Log.DebugContext(ctx, "Failed to query web session", "error", err)
 	}
+
+	expiry := c.cfg.Session.GetEarliestExpiry()
 
 	// If the session has no expiry time, then also by definition it
 	// cannot be expired
-	expiry := c.cfg.Session.GetBearerTokenExpiryTime()
 	if expiry.IsZero() {
 		return false
 	}
@@ -608,7 +615,7 @@ func (c *SessionContext) expired(ctx context.Context) bool {
 	// Give the session some time to linger so existing users of the context
 	// have successfully disposed of them.
 	// If we remove the session immediately, a stale copy might still use the
-	// cached site clients.
+	// cached cluster clients.
 	// This is a cheaper way to avoid race without introducing object
 	// reference counters.
 	return c.cfg.Parent.clock.Since(expiry) > c.cfg.Parent.sessionLingeringThreshold
@@ -632,15 +639,19 @@ type sessionCacheOptions struct {
 	proxySigner multiplexer.PROXYHeaderSigner
 	// See [sessionCache.sessionWatcherStartImmediately]. Used for testing.
 	sessionWatcherStartImmediately bool
+	// See [sessionCache.sessionWatcherInitializedChannel]. Used for testing.
+	sessionWatcherInitializedChannel chan struct{}
 	// See [sessionCache.sessionWatcherEventProcessedChannel]. Used for testing.
 	sessionWatcherEventProcessedChannel chan struct{}
+	logger                              *slog.Logger
+	buildType                           string
 }
 
 // newSessionCache creates a [sessionCache] from the provided [config] and
 // launches a goroutine that runs until [ctx] is completed which
 // periodically purges invalid sessions.
 func newSessionCache(ctx context.Context, config sessionCacheOptions) (*sessionCache, error) {
-	clusterName, err := config.proxyClient.GetClusterName()
+	clusterName, err := config.proxyClient.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -649,21 +660,33 @@ func newSessionCache(ctx context.Context, config sessionCacheOptions) (*sessionC
 		config.clock = clockwork.NewRealClock()
 	}
 
+	if config.logger == nil {
+		config.logger = slog.Default()
+	}
+
 	cache := &sessionCache{
-		clusterName:                         clusterName.GetClusterName(),
-		proxyClient:                         config.proxyClient,
-		accessPoint:                         config.accessPoint,
-		sessions:                            make(map[string]*SessionContext),
-		resources:                           make(map[string]*sessionResources),
-		authServers:                         config.servers,
-		closer:                              utils.NewCloseBroadcaster(),
-		cipherSuites:                        config.cipherSuites,
-		log:                                 newPackageLogger(),
-		clock:                               config.clock,
-		sessionLingeringThreshold:           config.sessionLingeringThreshold,
-		proxySigner:                         config.proxySigner,
-		sessionWatcherStartImmediately:      config.sessionWatcherStartImmediately,
+		clusterName:                      clusterName.GetClusterName(),
+		proxyClient:                      config.proxyClient,
+		accessPoint:                      config.accessPoint,
+		sessions:                         make(map[string]*SessionContext),
+		resources:                        make(map[string]*sessionResources),
+		authServers:                      config.servers,
+		closer:                           utils.NewCloseBroadcaster(),
+		cipherSuites:                     config.cipherSuites,
+		log:                              config.logger,
+		clock:                            config.clock,
+		sessionLingeringThreshold:        config.sessionLingeringThreshold,
+		proxySigner:                      config.proxySigner,
+		sessionWatcherStartImmediately:   config.sessionWatcherStartImmediately,
+		sessionWatcherInitializedChannel: config.sessionWatcherInitializedChannel,
+		sessionWatcherMarkInitialized: sync.OnceFunc(func() {
+			c := config.sessionWatcherInitializedChannel
+			if c != nil {
+				close(c)
+			}
+		}),
 		sessionWatcherEventProcessedChannel: config.sessionWatcherEventProcessedChannel,
+		buildType:                           config.buildType,
 	}
 
 	// periodically close expired and unused sessions
@@ -678,7 +701,7 @@ func newSessionCache(ctx context.Context, config sessionCacheOptions) (*sessionC
 // sessionCache handles web session authentication,
 // and holds in-memory contexts associated with each session
 type sessionCache struct {
-	log         logrus.FieldLogger
+	log         *slog.Logger
 	proxyClient authclient.ClientI
 	authServers []utils.NetAddr
 	accessPoint authclient.ReadProxyAccessPoint
@@ -690,6 +713,7 @@ type sessionCache struct {
 	sessionLingeringThreshold time.Duration
 	// cipherSuites is the list of supported TLS cipher suites.
 	cipherSuites []uint16
+	buildType    string
 
 	mu sync.RWMutex
 	// sessions maps user/sessionID to an active web session value between renewals.
@@ -714,7 +738,14 @@ type sessionCache struct {
 	// backoff used to start the WebSession watcher.
 	// Used for testing.
 	sessionWatcherStartImmediately bool
-
+	// sessionWatcherInitializedChannel is used to signal that the sessionWatcher
+	// received its first OpInit event and is ready to observe updates.
+	// May be nil.
+	// Used for testing.
+	sessionWatcherInitializedChannel chan struct{}
+	// sessionWatcherMarkInitialized safely closes
+	// sessionWatcherInitializedChannel.
+	sessionWatcherMarkInitialized func()
 	// sessionWatcherEventProcessedChannel is used to signal that the
 	// sessionWatcher processed an event.
 	// May be nil.
@@ -724,7 +755,7 @@ type sessionCache struct {
 
 // Close closes all allocated resources and stops goroutines
 func (s *sessionCache) Close() error {
-	s.log.Info("Closing session cache.")
+	s.log.InfoContext(context.Background(), "Closing session cache")
 	return s.closer.Close()
 }
 
@@ -757,8 +788,8 @@ func (s *sessionCache) clearExpiredSessions(ctx context.Context) {
 		if !c.expired(ctx) {
 			continue
 		}
-		s.removeSessionContextLocked(c.cfg.Session.GetUser(), c.cfg.Session.GetName())
-		s.log.WithField("ctx", c.String()).Debug("Context expired.")
+		s.removeSessionContextLocked(ctx, c.cfg.Session.GetUser(), c.cfg.Session.GetName())
+		s.log.DebugContext(ctx, "Context expired", "context", logutils.StringerAttr(c))
 	}
 }
 
@@ -766,21 +797,21 @@ func (s *sessionCache) clearExpiredSessions(ctx context.Context) {
 // It only stops when ctx is done.
 func (s *sessionCache) watchWebSessions(ctx context.Context) {
 	// Watcher not necessary for OSS.
-	if modules.GetModules().BuildType() != modules.BuildEnterprise {
+	if s.buildType != modules.BuildEnterprise {
 		return
 	}
 
-	linear := utils.NewDefaultLinear()
+	linear := utils.NewDefaultLinear(s.clock)
 	if s.sessionWatcherStartImmediately {
 		linear.First = 0
 	}
 
-	s.log.Debug("sessionCache: Starting WebSession watcher")
+	s.log.DebugContext(ctx, "sessionCache: Starting WebSession watcher")
 	for {
 		select {
 		// Stop when the context tells us to.
 		case <-ctx.Done():
-			s.log.Debug("sessionCache: Stopping WebSession watcher")
+			s.log.DebugContext(ctx, "sessionCache: Stopping WebSession watcher")
 			return
 
 		case <-linear.After():
@@ -790,8 +821,8 @@ func (s *sessionCache) watchWebSessions(ctx context.Context) {
 		if err := s.watchWebSessionsOnce(ctx, linear.Reset); err != nil && !errors.Is(err, context.Canceled) {
 			const msg = "" +
 				"sessionCache: WebSession watcher aborted, re-connecting. " +
-				"This may have an impact in device trust web sessions."
-			s.log.WithError(err).Warn(msg)
+				"This may have an impact on Device Trust web sessions."
+			s.log.WarnContext(ctx, msg, "error", err)
 		}
 	}
 }
@@ -812,7 +843,7 @@ func (s *sessionCache) watchWebSessionsOnce(ctx context.Context, reset func()) e
 			{
 				Kind: types.KindWebSession,
 				// Watch only for KindWebSession.
-				// SubKinds include KindAppSession, KindSAMLIdPSession, etc.
+				// SubKinds include KindAppSession, KindSnowflakeSession, etc.
 				SubKind: types.KindWebSession,
 			},
 		},
@@ -840,35 +871,39 @@ func (s *sessionCache) watchWebSessionsOnce(ctx context.Context, reset func()) e
 		case event := <-watcher.Events():
 			reset() // Reset linear backoff attempts.
 
-			s.log.
-				WithField("event", event).
-				Trace("sessionCache: Received watcher event")
+			s.log.Log(ctx, logutils.TraceLevel, "sessionCache: Received watcher event",
+				"event", logutils.StringerAttr(event),
+			)
 
+			if event.Type == types.OpInit {
+				s.sessionWatcherMarkInitialized()
+				continue
+			}
 			if event.Type != types.OpPut {
 				continue // We only care about OpPut at the moment.
 			}
 
 			session, ok := event.Resource.(types.WebSession)
 			if !ok {
-				s.log.
-					WithField("resource_type", fmt.Sprintf("%T", event.Resource)).
-					Warn("sessionCache: Received unexpected resource type")
+				s.log.WarnContext(ctx, "sessionCache: Received unexpected resource type",
+					"resource_type", logutils.TypeAttr(event.Resource),
+				)
 				continue
 			}
 			if !session.GetHasDeviceExtensions() {
-				s.log.
-					WithField("session_id", session.GetName()).
-					Debug("sessionCache: Updated session doesn't have device extensions, skipping")
+				s.log.DebugContext(ctx, "sessionCache: Updated session doesn't have device extensions, skipping",
+					"session_id", session.GetName(),
+				)
 				notifyProcessed()
 				continue
 			}
 
 			// Release existing and non-device-aware session.
-			if err := s.releaseResourcesIfNoDeviceExtensions(session.GetUser(), session.GetName()); err != nil {
-				s.log.
-					WithError(err).
-					WithField("session_id", session.GetName()).
-					Debug("sessionCache: Failed to release updated session")
+			if err := s.releaseResourcesIfNoDeviceExtensions(ctx, session.GetUser(), session.GetName()); err != nil {
+				s.log.DebugContext(ctx, "sessionCache: Failed to release updated session",
+					"error", err,
+					"session_id", session.GetName(),
+				)
 			}
 
 			notifyProcessed()
@@ -876,7 +911,7 @@ func (s *sessionCache) watchWebSessionsOnce(ctx context.Context, reset func()) e
 	}
 }
 
-func (s *sessionCache) releaseResourcesIfNoDeviceExtensions(user, sessionID string) error {
+func (s *sessionCache) releaseResourcesIfNoDeviceExtensions(ctx context.Context, user, sessionID string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -885,16 +920,16 @@ func (s *sessionCache) releaseResourcesIfNoDeviceExtensions(user, sessionID stri
 	case !ok:
 		return nil // Session not found
 	case sessionCtx.cfg.Session.GetHasDeviceExtensions():
-		s.log.
-			WithField("session_id", sessionID).
-			Debug("sessionCache: Session already has device extensions, skipping")
+		s.log.DebugContext(ctx, "sessionCache: Session already has device extensions, skipping",
+			"session_id", sessionID,
+		)
 		return nil
 	}
 
-	s.log.
-		WithField("session_id", sessionID).
-		Debug("sessionCache: Releasing session resources due to device extensions upgrade")
-	return s.releaseResourcesLocked(user, sessionID)
+	s.log.DebugContext(ctx, "sessionCache: Releasing session resources due to device extensions upgrade",
+		"session_id", sessionID,
+	)
+	return s.releaseResourcesLocked(ctx, user, sessionID)
 }
 
 // AuthWithOTP authenticates the specified user with the given password and OTP token.
@@ -944,11 +979,13 @@ func (s *sessionCache) AuthenticateWebUser(
 
 func (s *sessionCache) AuthenticateSSHUser(
 	ctx context.Context, c client.AuthenticateSSHUserRequest, clientMeta *authclient.ForwardedClientMetadata,
-) (*authclient.SSHLoginResponse, error) {
+) (*authclient.CLILoginResponse, error) {
 	authReq := authclient.AuthenticateUserRequest{
 		Username:       c.User,
+		Scope:          c.Scope,
 		ClientMetadata: clientMeta,
-		PublicKey:      c.PubKey,
+		SSHPublicKey:   c.UserPublicKeys.SSHPubKey,
+		TLSPublicKey:   c.UserPublicKeys.TLSPubKey,
 	}
 	if c.Password != "" {
 		authReq.Pass = &authclient.PassCreds{Password: []byte(c.Password)}
@@ -962,13 +999,20 @@ func (s *sessionCache) AuthenticateSSHUser(
 			Token:    c.TOTPCode,
 		}
 	}
+	if c.BrowserMFAResponse != nil {
+		authReq.BrowserMFA = &proto.BrowserMFAResponse{
+			RequestId:        c.BrowserMFAResponse.RequestID,
+			WebauthnResponse: webauthntypes.CredentialAssertionResponseToProto(c.BrowserMFAResponse.WebauthnResponse),
+		}
+	}
 	return s.proxyClient.AuthenticateSSHUser(ctx, authclient.AuthenticateSSHRequest{
 		AuthenticateUserRequest: authReq,
 		CompatibilityMode:       c.Compatibility,
 		TTL:                     c.TTL,
 		RouteToCluster:          c.RouteToCluster,
 		KubernetesCluster:       c.KubernetesCluster,
-		AttestationStatement:    c.AttestationStatement,
+		SSHAttestationStatement: c.UserPublicKeys.SSHAttestationStatement,
+		TLSAttestationStatement: c.UserPublicKeys.TLSAttestationStatement,
 	})
 }
 
@@ -1005,6 +1049,21 @@ func (s *sessionCache) getOrCreateSession(ctx context.Context, user, sessionID s
 		return nil, trace.BadParameter("expected SessionContext, got %T", i)
 	}
 
+	identity, err := sctx.GetIdentity()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Enforce IP Pinning if it is present in the user's certificate.
+	var clientAddr string
+	if clientSrcAddr, err := authz.ClientSrcAddrFromContext(ctx); err == nil {
+		clientAddr = clientSrcAddr.String()
+	}
+
+	if err := authz.CheckIPPinning(ctx, clientAddr, identity.PinnedIP, false, s.log); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return sctx, nil
 }
 
@@ -1022,13 +1081,7 @@ func (s *sessionCache) invalidateSession(ctx context.Context, sctx *SessionConte
 	if err := clt.DeleteUserAppSessions(ctx, &proto.DeleteUserAppSessionsRequest{Username: sctx.GetUser()}); err != nil {
 		sessionDeletionErrs = err
 	}
-	if samlSession := sctx.cfg.Session.GetSAMLSession(); samlSession != nil && samlSession.ID != "" {
-		if err := clt.DeleteSAMLIdPSession(ctx, types.DeleteSAMLIdPSessionRequest{
-			SessionID: samlSession.ID,
-		}); err != nil && !trace.IsNotFound(err) {
-			sessionDeletionErrs = errors.Join(sessionDeletionErrs, err)
-		}
-	}
+
 	// Delete just the session - leave the bearer token to linger to avoid
 	// failing a client query still using the old token.
 	if err := clt.WebSessions().Delete(ctx, types.DeleteWebSessionRequest{
@@ -1059,40 +1112,40 @@ func (s *sessionCache) insertContext(user string, sctx *SessionContext) (exists 
 	return false
 }
 
-func (s *sessionCache) releaseResources(user, sessionID string) error {
+func (s *sessionCache) releaseResources(ctx context.Context, user, sessionID string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.releaseResourcesLocked(user, sessionID)
+	return s.releaseResourcesLocked(ctx, user, sessionID)
 }
 
-func (s *sessionCache) removeSessionContextLocked(user, sessionID string) error {
+func (s *sessionCache) removeSessionContextLocked(ctx context.Context, user, sessionID string) error {
 	id := sessionKey(user, sessionID)
-	ctx, ok := s.sessions[id]
+	sess, ok := s.sessions[id]
 	if !ok {
 		return nil
 	}
 	delete(s.sessions, id)
-	err := ctx.Close()
+	err := sess.Close()
 	if err != nil {
-		s.log.WithFields(logrus.Fields{
-			"ctx":           ctx.String(),
-			logrus.ErrorKey: err,
-		}).Warn("Failed to close session context.")
+		s.log.WarnContext(ctx, "Failed to close session context",
+			"context", logutils.StringerAttr(sess),
+			"error", err,
+		)
 		return trace.Wrap(err)
 	}
 	return nil
 }
 
-func (s *sessionCache) releaseResourcesLocked(user, sessionID string) error {
+func (s *sessionCache) releaseResourcesLocked(ctx context.Context, user, sessionID string) error {
 	var errors []error
-	err := s.removeSessionContextLocked(user, sessionID)
+	err := s.removeSessionContextLocked(ctx, user, sessionID)
 	if err != nil {
 		errors = append(errors, err)
 	}
-	if ctx, ok := s.resources[user]; ok {
+	if sess, ok := s.resources[user]; ok {
 		delete(s.resources, user)
-		if err := ctx.Close(); err != nil {
-			s.log.WithError(err).Warn("Failed to clean up session context.")
+		if err := sess.Close(); err != nil {
+			s.log.WarnContext(ctx, "Failed to clean up session context", "error", err)
 			errors = append(errors, err)
 		}
 	}
@@ -1106,10 +1159,10 @@ func (s *sessionCache) upsertSessionContext(user string) *sessionResources {
 		return ctx
 	}
 	ctx := &sessionResources{
-		log: s.log.WithFields(logrus.Fields{
-			teleport.ComponentKey: "user-session",
-			"user":                user,
-		}),
+		log: s.log.With(
+			teleport.ComponentKey, "user-session",
+			"user", user,
+		),
 	}
 	s.resources[user] = ctx
 	return ctx
@@ -1136,6 +1189,26 @@ func (s *sessionCache) newSessionContextFromSession(ctx context.Context, session
 		return nil, trace.Wrap(err)
 	}
 
+	// Enforce IP Pinning if it is present in the user's certificate.
+	cert, err := tlsca.ParseCertificatePEM(session.GetTLSCert())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var clientAddr string
+	if clientSrcAddr, err := authz.ClientSrcAddrFromContext(ctx); err == nil {
+		clientAddr = clientSrcAddr.String()
+	}
+
+	if err := authz.CheckIPPinning(ctx, clientAddr, identity.PinnedIP, false, s.log); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	userClient, err := authclient.NewClient(apiclient.Config{
 		Addrs:                utils.NetAddrsToStrings(s.authServers),
 		Credentials:          []apiclient.Credentials{apiclient.LoadTLS(tlsConfig)},
@@ -1147,10 +1220,10 @@ func (s *sessionCache) newSessionContextFromSession(ctx context.Context, session
 	}
 
 	sctx, err := NewSessionContext(SessionContextConfig{
-		Log: s.log.WithFields(logrus.Fields{
-			"user":    session.GetUser(),
-			"session": session.GetShortName(),
-		}),
+		Log: s.log.With(
+			"user", session.GetUser(),
+			"session", session.GetShortName(),
+		),
 		User:                   session.GetUser(),
 		RootClient:             userClient,
 		UnsafeCachedAuthClient: s.accessPoint,
@@ -1221,7 +1294,6 @@ func (c *sessionResources) Close() error {
 	closers := c.transferClosers()
 	var errors []error
 	for _, closer := range closers {
-		c.log.Debugf("Closing %v.", closer)
 		if err := closer.Close(); err != nil {
 			errors = append(errors, err)
 		}
@@ -1232,7 +1304,7 @@ func (c *sessionResources) Close() error {
 // sessionResources persists resources initiated by a web session
 // but which might outlive the session.
 type sessionResources struct {
-	log logrus.FieldLogger
+	log *slog.Logger
 
 	mu      sync.Mutex
 	closers []io.Closer
@@ -1251,7 +1323,7 @@ func (c *sessionResources) removeCloser(closer io.Closer) {
 	defer c.mu.Unlock()
 	for i, cls := range c.closers {
 		if cls == closer {
-			c.closers = append(c.closers[:i], c.closers[i+1:]...)
+			c.closers = slices.Delete(c.closers, i, i+1)
 			return
 		}
 	}
@@ -1269,43 +1341,43 @@ func sessionKey(user, sessionID string) string {
 	return user + sessionID
 }
 
-// remoteClientCache stores remote clients keyed by site name while also keeping
-// track of the actual remote site associated with the client (in case the
-// remote site has changed). Safe for concurrent access. Closes all clients and
+// remoteClientCache stores remote clients keyed by cluster name while also keeping
+// track of the actual remote cluster associated with the client (in case the
+// remote cluster has changed). Safe for concurrent access. Closes all clients and
 // wipes the cache on Close.
 type remoteClientCache struct {
 	sync.Mutex
 	clients map[string]struct {
 		authclient.ClientI
-		reversetunnelclient.RemoteSite
+		reversetunnelclient.Cluster
 	}
 }
 
-func (c *remoteClientCache) addRemoteClient(site reversetunnelclient.RemoteSite, remoteClient authclient.ClientI) error {
+func (c *remoteClientCache) addRemoteClient(cluster reversetunnelclient.Cluster, remoteClient authclient.ClientI) error {
 	c.Lock()
 	defer c.Unlock()
 	if c.clients == nil {
 		c.clients = make(map[string]struct {
 			authclient.ClientI
-			reversetunnelclient.RemoteSite
+			reversetunnelclient.Cluster
 		})
 	}
 	var err error
-	if c.clients[site.GetName()].ClientI != nil {
-		err = c.clients[site.GetName()].ClientI.Close()
+	if c.clients[cluster.GetName()].ClientI != nil {
+		err = c.clients[cluster.GetName()].ClientI.Close()
 	}
-	c.clients[site.GetName()] = struct {
+	c.clients[cluster.GetName()] = struct {
 		authclient.ClientI
-		reversetunnelclient.RemoteSite
-	}{remoteClient, site}
+		reversetunnelclient.Cluster
+	}{remoteClient, cluster}
 	return err
 }
 
-func (c *remoteClientCache) getRemoteClient(site reversetunnelclient.RemoteSite) (authclient.ClientI, bool) {
+func (c *remoteClientCache) getRemoteClient(cluster reversetunnelclient.Cluster) (authclient.ClientI, bool) {
 	c.Lock()
 	defer c.Unlock()
-	remoteClt, ok := c.clients[site.GetName()]
-	return remoteClt.ClientI, ok && remoteClt.RemoteSite == site
+	remoteClt, ok := c.clients[cluster.GetName()]
+	return remoteClt.ClientI, ok && remoteClt.Cluster == cluster
 }
 
 func (c *remoteClientCache) Close() error {
@@ -1319,85 +1391,4 @@ func (c *remoteClientCache) Close() error {
 	c.clients = nil
 
 	return trace.NewAggregate(errors...)
-}
-
-// sessionIDStatus indicates whether the session ID was received from
-// the server or not, and if not why
-type sessionIDStatus int
-
-const (
-	// sessionIDReceived indicates the the session ID was received
-	sessionIDReceived sessionIDStatus = iota + 1
-	// sessionIDNotSent indicates that the server set the session ID
-	// but didn't send it to us
-	sessionIDNotSent
-	// sessionIDNotModified indicates that the server used the session
-	// ID that was set by us
-	sessionIDNotModified
-)
-
-// prepareToReceiveSessionID configures the TeleportClient to listen for
-// the server to send the session ID it's using. The returned function
-// will return the current session ID from the server or a reason why
-// one wasn't received.
-func prepareToReceiveSessionID(ctx context.Context, log *logrus.Entry, nc *client.NodeClient) func() (session.ID, sessionIDStatus) {
-	// send the session ID received from the server
-	var gotSessionID atomic.Bool
-	sessionIDFromServer := make(chan session.ID, 1)
-	nc.TC.OnChannelRequest = func(req *ssh.Request) *ssh.Request {
-		// ignore unrelated requests and handle only the first session
-		// ID request
-		if req.Type != teleport.CurrentSessionIDRequest || gotSessionID.Load() {
-			return req
-		}
-
-		sid, err := session.ParseID(string(req.Payload))
-		if err != nil {
-			log.WithError(err).Warn("Unable to parse session ID.")
-			return nil
-		}
-
-		if gotSessionID.CompareAndSwap(false, true) {
-			sessionIDFromServer <- *sid
-		}
-
-		return nil
-	}
-
-	// If the session is about to close and we haven't received a session
-	// ID yet, ask if the server even supports sending one. Send the
-	// request in a new goroutine so session establishment won't be
-	// blocked on making this request
-	serverWillSetSessionID := make(chan bool, 1)
-	go func() {
-		resp, _, err := nc.Client.SendRequest(ctx, teleport.SessionIDQueryRequest, true, nil)
-		if err != nil {
-			log.WithError(err).Warn("Failed to send session ID query request")
-			serverWillSetSessionID <- false
-		} else {
-			serverWillSetSessionID <- resp
-		}
-	}()
-
-	return func() (session.ID, sessionIDStatus) {
-		timer := time.NewTimer(10 * time.Second)
-		defer timer.Stop()
-
-		for {
-			select {
-			case sessionID := <-sessionIDFromServer:
-				return sessionID, sessionIDReceived
-			case sessionIDIsComing := <-serverWillSetSessionID:
-				if !sessionIDIsComing {
-					return session.ID(""), sessionIDNotModified
-				}
-				// the server will send the session ID, continue
-				// waiting for it
-			case <-ctx.Done():
-				return session.ID(""), sessionIDNotSent
-			case <-timer.C:
-				return session.ID(""), sessionIDNotSent
-			}
-		}
-	}
 }

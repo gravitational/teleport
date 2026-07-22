@@ -19,13 +19,13 @@
 package automaticupgrades
 
 import (
-	"bytes"
 	"context"
+	"log/slog"
 	"os"
 	"os/exec"
 	"strconv"
 
-	log "github.com/sirupsen/logrus"
+	"github.com/coreos/go-semver/semver"
 
 	"github.com/gravitational/teleport/lib/automaticupgrades/version"
 )
@@ -60,7 +60,7 @@ func IsEnabled() bool {
 
 	automaticUpgrades, err := strconv.ParseBool(autoUpgradesEnv)
 	if err != nil {
-		log.Warnf("unexpected value for ENV:%s: %v", automaticUpgradesEnvar, err)
+		slog.WarnContext(context.Background(), "unexpected value for TELEPORT_AUTOMATIC_UPGRADES environment variable", "error", err)
 		return false
 	}
 
@@ -75,19 +75,32 @@ func GetChannel() string {
 }
 
 // GetUpgraderVersion returns the teleport upgrader version
-func GetUpgraderVersion(ctx context.Context) string {
+func GetUpgraderVersion(ctx context.Context) *semver.Version {
 	if os.Getenv(EnvUpgrader) == "unit" {
 		out, err := exec.CommandContext(ctx, teleportUpgradeScript, "version").Output()
 		if err != nil {
-			log.WithError(err).Debug("Failed to exec /usr/sbin/teleport-upgrade version command.")
-			return ""
+			slog.DebugContext(ctx, "Failed to exec /usr/sbin/teleport-upgrade version command", "error", err)
+			return nil
 		}
-		ver, err := version.EnsureSemver(string(bytes.TrimSpace(out)))
+		ver, err := version.EnsureSemver(string(out))
 		if err != nil {
-			log.WithError(err).Debug("Unexpected teleport-upgrade version.")
-			return ""
+			slog.DebugContext(ctx, "Unexpected teleport-upgrade version", "error", err)
+			return nil
 		}
 		return ver
 	}
-	return os.Getenv(EnvUpgraderVersion)
+	env := os.Getenv(EnvUpgraderVersion)
+	if env == "" {
+		return nil
+	}
+
+	ver, err := version.EnsureSemver(env)
+	if err != nil {
+		slog.WarnContext(ctx, "Unexpected updater version in env var",
+			"error", err,
+			"env_name", os.Getenv(EnvUpgraderVersion),
+			"env_value", env)
+		return nil
+	}
+	return ver
 }

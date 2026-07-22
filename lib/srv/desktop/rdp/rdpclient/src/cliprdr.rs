@@ -22,17 +22,13 @@ use ironrdp_cliprdr::pdu::{
     FileContentsResponse, FormatDataRequest, FormatDataResponse, LockDataId,
 };
 use ironrdp_cliprdr::{Client, CliprdrClient as Cliprdr, CliprdrSvcMessages};
+use ironrdp_core::impl_as_any;
 use ironrdp_pdu::PduResult;
-use ironrdp_svc::impl_as_any;
 use log::{debug, error, info, trace, warn};
-use static_init::dynamic;
 use std::fmt::{Debug, Formatter};
 
-#[dynamic]
-static CF_UNICODETEXT: ClipboardFormat = ClipboardFormat::new(ClipboardFormatId::CF_UNICODETEXT);
-
-#[dynamic]
-static CF_TEXT: ClipboardFormat = ClipboardFormat::new(ClipboardFormatId::CF_TEXT);
+const CF_UNICODETEXT: ClipboardFormat = ClipboardFormat::new(ClipboardFormatId::CF_UNICODETEXT);
+const CF_TEXT: ClipboardFormat = ClipboardFormat::new(ClipboardFormatId::CF_TEXT);
 
 #[derive(Debug)]
 pub struct TeleportCliprdrBackend {
@@ -57,7 +53,7 @@ impl TeleportCliprdrBackend {
 
     fn send<F>(&self, name: &'static str, f: F)
     where
-        F: Fn(&Cliprdr) -> PduResult<CliprdrSvcMessages<Client>> + Send + 'static,
+        F: Fn(&mut Cliprdr) -> PduResult<CliprdrSvcMessages<Client>> + Send + 'static,
     {
         let res = self
             .client_handle
@@ -72,6 +68,8 @@ impl CliprdrBackend for TeleportCliprdrBackend {
     fn temporary_directory(&self) -> &str {
         ".cliprdr"
     }
+
+    fn on_ready(&mut self) {}
 
     fn client_capabilities(&self) -> ClipboardGeneralCapabilityFlags {
         trace!("CLIPRDR: client_capabilities");
@@ -189,21 +187,21 @@ impl CliprdrBackend for TeleportCliprdrBackend {
 impl_as_any!(TeleportCliprdrBackend);
 
 pub trait ClipboardFn: Send + Debug + 'static {
-    fn call(&self, cliprdr: &Cliprdr) -> PduResult<CliprdrSvcMessages<Client>>;
+    fn call(&self, cliprdr: &mut Cliprdr) -> PduResult<CliprdrSvcMessages<Client>>;
 }
 
 impl<F> ClipboardFn for F
 where
-    F: Fn(&Cliprdr) -> PduResult<CliprdrSvcMessages<Client>> + Send + Debug + 'static,
+    F: Fn(&mut Cliprdr) -> PduResult<CliprdrSvcMessages<Client>> + Send + Debug + 'static,
 {
-    fn call(&self, cliprdr: &Cliprdr) -> PduResult<CliprdrSvcMessages<Client>> {
+    fn call(&self, cliprdr: &mut Cliprdr) -> PduResult<CliprdrSvcMessages<Client>> {
         (self)(cliprdr)
     }
 }
 
 struct ClipboardFnInternal<F>
 where
-    F: Fn(&Cliprdr) -> PduResult<CliprdrSvcMessages<Client>> + Send + 'static,
+    F: Fn(&mut Cliprdr) -> PduResult<CliprdrSvcMessages<Client>> + Send + 'static,
 {
     name: &'static str,
     closure: F,
@@ -211,7 +209,7 @@ where
 
 impl<F> ClipboardFnInternal<F>
 where
-    F: Fn(&Cliprdr) -> PduResult<CliprdrSvcMessages<Client>> + Send + 'static,
+    F: Fn(&mut Cliprdr) -> PduResult<CliprdrSvcMessages<Client>> + Send + 'static,
 {
     fn new(name: &'static str, closure: F) -> Self {
         Self { name, closure }
@@ -220,7 +218,7 @@ where
 
 impl<F> Debug for ClipboardFnInternal<F>
 where
-    F: Fn(&Cliprdr) -> PduResult<CliprdrSvcMessages<Client>> + Send + 'static,
+    F: Fn(&mut Cliprdr) -> PduResult<CliprdrSvcMessages<Client>> + Send + 'static,
 {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", &self.name)
@@ -229,18 +227,18 @@ where
 
 impl<F> ClipboardFn for ClipboardFnInternal<F>
 where
-    F: Fn(&Cliprdr) -> PduResult<CliprdrSvcMessages<Client>> + Send + 'static,
+    F: Fn(&mut Cliprdr) -> PduResult<CliprdrSvcMessages<Client>> + Send + 'static,
 {
-    fn call(&self, cliprdr: &Cliprdr) -> PduResult<CliprdrSvcMessages<Client>> {
+    fn call(&self, cliprdr: &mut Cliprdr) -> PduResult<CliprdrSvcMessages<Client>> {
         (self.closure)(cliprdr)
     }
 }
 
 pub fn available_formats(data: &Option<String>) -> Vec<ClipboardFormat> {
     if let Some(s) = data {
-        let mut formats = vec![CF_UNICODETEXT.to_owned()];
+        let mut formats = vec![CF_UNICODETEXT];
         if s.is_ascii() {
-            formats.push(CF_TEXT.to_owned())
+            formats.push(CF_TEXT)
         }
         return formats;
     }

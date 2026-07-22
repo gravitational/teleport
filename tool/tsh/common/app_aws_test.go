@@ -19,22 +19,31 @@
 package common
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
+	"encoding/json"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v3"
 
-	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib"
+	"github.com/gravitational/teleport/lib/auth/mocku2f"
+	"github.com/gravitational/teleport/lib/integrations/awsra/createsession"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
+	testserver "github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
 func TestAWS(t *testing.T) {
@@ -44,17 +53,30 @@ func TestAWS(t *testing.T) {
 
 	connector := mockConnector(t)
 	user, awsRole := makeUserWithAWSRole(t)
-
-	authProcess, proxyProcess := makeTestServers(t, withBootstrap(connector, user, awsRole))
-	makeTestApplicationServer(t, proxyProcess, servicecfg.App{
-		Name: "aws-app",
-		URI:  constants.AWSConsoleURL,
+	authProcess, err := testserver.NewTeleportProcess(
+		t.TempDir(),
+		testserver.WithBootstrap(connector, user, awsRole),
+		testserver.WithConfig(func(cfg *servicecfg.Config) {
+			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+			cfg.Apps.Enabled = true
+			cfg.Apps.Apps = []servicecfg.App{
+				{
+					Name: "aws-app",
+					URI:  constants.AWSConsoleURL,
+				},
+			}
+		}),
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, authProcess.Close())
+		require.NoError(t, authProcess.Wait())
 	})
 
 	authServer := authProcess.GetAuthServer()
 	require.NotNil(t, authServer)
 
-	proxyAddr, err := proxyProcess.ProxyWebAddr()
+	proxyAddr, err := authProcess.ProxyWebAddr()
 	require.NoError(t, err)
 
 	// Log into Teleport cluster.
@@ -75,8 +97,8 @@ func TestAWS(t *testing.T) {
 		// Validate AWS credentials are set.
 		getEnvValue := func(key string) string {
 			for _, env := range cmd.Env {
-				if strings.HasPrefix(env, key+"=") {
-					return strings.TrimPrefix(env, key+"=")
+				if after, ok := strings.CutPrefix(env, key+"="); ok {
+					return after
 				}
 			}
 			return ""
@@ -100,7 +122,7 @@ func TestAWS(t *testing.T) {
 	// Log into the "aws-app" app.
 	err = Run(
 		context.Background(),
-		[]string{"app", "login", "--aws-role", "some-aws-role", "aws-app"},
+		[]string{"app", "login", "--insecure", "--aws-role", "some-aws-role", "aws-app"},
 		setHomePath(tmpHomePath),
 	)
 	require.NoError(t, err)
@@ -110,7 +132,7 @@ func TestAWS(t *testing.T) {
 		setHomePath(tmpHomePath),
 		setCmdRunner(validateCmd),
 	)
-	require.NoError(t, err)
+	require.Error(t, err)
 
 	// Log out from "aws-app" app. The app should be logged-in automatically as needed.
 	err = Run(
@@ -121,11 +143,11 @@ func TestAWS(t *testing.T) {
 	require.NoError(t, err)
 	err = Run(
 		context.Background(),
-		[]string{"aws", "--aws-role", "some-aws-role", "--app", "aws-app", "--endpoint-url", "s3", "ls", "--page-size", "100"},
+		[]string{"aws", "--insecure", "--aws-role", "some-aws-role", "--app", "aws-app", "--endpoint-url", "s3", "ls", "--page-size", "100"},
 		setHomePath(tmpHomePath),
 		setCmdRunner(validateCmd),
 	)
-	require.NoError(t, err)
+	require.Error(t, err)
 
 	validateCmd = func(cmd *exec.Cmd) error {
 		// Validate composed AWS CLI command.
@@ -136,44 +158,461 @@ func TestAWS(t *testing.T) {
 	}
 	err = Run(
 		context.Background(),
-		[]string{"aws", "--app", "aws-app", "--exec", "terraform", "plan"},
+		[]string{"aws", "--insecure", "--aws-role", "some-aws-role", "--app", "aws-app", "--exec", "terraform", "plan"},
 		setHomePath(tmpHomePath),
 		setCmdRunner(validateCmd),
 	)
 	require.NoError(t, err)
+}
 
-	t.Run("aws ssm start-session", func(t *testing.T) {
-		// Validate --endpoint-url 127.0.0.1:<port> is added to the command.
-		validateCmd := func(cmd *exec.Cmd) error {
-			require.Len(t, cmd.Args, 9)
-			require.Equal(t, []string{"aws", "ssm", "--region", "us-west-1", "start-session", "--target", "target-id", "--endpoint-url"}, cmd.Args[:8])
-			require.Contains(t, cmd.Args[8], "127.0.0.1:")
-			return nil
-		}
-		err = Run(
-			context.Background(),
-			[]string{"aws", "ssm", "--region", "us-west-1", "start-session", "--target", "target-id"},
-			setHomePath(tmpHomePath),
-			setCmdRunner(validateCmd),
-		)
-		require.NoError(t, err)
+const (
+	promptAlphaRoleARN = "arn:aws:iam::123456789012:role/Alpha"
+	promptBetaRoleARN  = "arn:aws:iam::123456789012:role/Beta"
+)
+
+func promptTestAWSApp(t *testing.T) types.Application {
+	t.Helper()
+
+	app, err := types.NewAppV3(types.Metadata{Name: "aws-test"}, types.AppSpecV3{
+		URI: constants.AWSConsoleURL,
 	})
-	t.Run("aws ecs execute-command", func(t *testing.T) {
-		// Validate --endpoint-url 127.0.0.1:<port> is added to the command.
-		validateCmd := func(cmd *exec.Cmd) error {
-			require.Len(t, cmd.Args, 13)
-			require.Equal(t, []string{"aws", "ecs", "execute-command", "--debug", "--cluster", "cluster-name", "--task", "task-name", "--command", "/bin/bash", "--interactive", "--endpoint-url"}, cmd.Args[:12])
-			require.Contains(t, cmd.Args[12], "127.0.0.1:")
-			return nil
-		}
-		err = Run(
-			context.Background(),
-			[]string{"aws", "ecs", "execute-command", "--debug", "--cluster", "cluster-name", "--task", "task-name", "--command", "/bin/bash", "--interactive"},
-			setHomePath(tmpHomePath),
-			setCmdRunner(validateCmd),
-		)
-		require.NoError(t, err)
+	require.NoError(t, err)
+	return app
+}
+
+func TestGetARNFromFlagsInteractive(t *testing.T) {
+	t.Parallel()
+
+	testRoleARNs := []string{
+		promptAlphaRoleARN,
+		promptBetaRoleARN,
+	}
+
+	tests := []struct {
+		name          string
+		logins        []string
+		cancelContext bool
+		wantARN       string
+		wantAWSRole   string
+		wantPrompt    bool
+		wantErr       error
+	}{
+		{
+			name:          "multiple roles prompts interactively",
+			logins:        testRoleARNs,
+			cancelContext: true,
+			wantPrompt:    true,
+			wantErr:       context.Canceled,
+		},
+		{
+			name:    "single role skips prompt",
+			logins:  []string{promptAlphaRoleARN},
+			wantARN: promptAlphaRoleARN,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := t.Context()
+			if tt.cancelContext {
+				canceledCtx, cancel := context.WithCancel(ctx)
+				cancel()
+				ctx = canceledCtx
+			}
+
+			stdout := new(bytes.Buffer)
+			cf := &CLIConf{
+				Context:        ctx,
+				Interactive:    true,
+				OverrideStdout: stdout,
+			}
+
+			arn, err := getARNFromFlags(cf, promptTestAWSApp(t), tt.logins)
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+			} else {
+				require.NoError(t, err)
+			}
+			require.Equal(t, tt.wantARN, arn)
+			require.Equal(t, tt.wantAWSRole, cf.AWSRole)
+			if tt.wantPrompt {
+				require.Contains(t, stdout.String(), "Available AWS roles:")
+				return
+			}
+			require.NotContains(t, stdout.String(), "Select AWS role number")
+		})
+	}
+}
+
+func TestAWSRolesAnywhereBasedAccess(t *testing.T) {
+	ctx := context.Background()
+
+	tmpHomePath := t.TempDir()
+
+	awsConfigFile := filepath.Join(tmpHomePath, "aws_config")
+	t.Setenv("AWS_CONFIG_FILE", awsConfigFile)
+
+	connector := mockConnector(t)
+	user, awsRole := makeUserWithAWSRole(t)
+	authProcess, err := testserver.NewTeleportProcess(
+		t.TempDir(),
+		testserver.WithBootstrap(connector, user, awsRole),
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, authProcess.Close())
+		require.NoError(t, authProcess.Wait())
 	})
+
+	expectedAWSCredentials := `{"Version":1,"AccessKeyId":"aki","SecretAccessKey":"sak","SessionToken":"st","Expiration":"2025-06-25T12:07:02.474135Z"}`
+	authProcess.GetAuthServer().AWSRolesAnywhereCreateSessionOverride = func(ctx context.Context, req createsession.CreateSessionRequest) (*createsession.CreateSessionResponse, error) {
+		return &createsession.CreateSessionResponse{
+			Version:         1,
+			AccessKeyID:     "aki",
+			SecretAccessKey: "sak",
+			SessionToken:    "st",
+			Expiration:      "2025-06-25T12:07:02.474135Z",
+		}, nil
+	}
+
+	integrationName := "aws-app"
+	profileName := "aws-profile"
+	integration, err := types.NewIntegrationAWSRA(
+		types.Metadata{Name: integrationName},
+		&types.AWSRAIntegrationSpecV1{
+			TrustAnchorARN: "arn:aws:rolesanywhere:eu-west-2:123456789012:trust-anchor/12345678-1234-1234-1234-123456789012",
+		},
+	)
+	require.NoError(t, err)
+	_, err = authProcess.GetAuthServer().CreateIntegration(ctx, integration)
+	require.NoError(t, err)
+
+	awsAppUsingRolesAnywhere, err := types.NewAppServerV3(types.Metadata{
+		Name: profileName,
+	}, types.AppServerSpecV3{
+		HostID: authProcess.GetID(),
+		App: &types.AppV3{Metadata: types.Metadata{
+			Name: profileName,
+		}, Spec: types.AppSpecV3{
+			URI:         constants.AWSConsoleURL,
+			Integration: integrationName,
+			AWS: &types.AppAWS{
+				RolesAnywhereProfile: &types.AppAWSRolesAnywhereProfile{
+					ProfileARN:            "arn:aws:rolesanywhere:eu-west-2:123456789012:profile/12345678-1234-1234-1234-123456789012",
+					AcceptRoleSessionName: true,
+				},
+			},
+			PublicAddr: "example.com",
+		}},
+	})
+	require.NoError(t, err)
+
+	_, err = authProcess.GetAuthServer().UpsertApplicationServer(ctx, awsAppUsingRolesAnywhere)
+	require.NoError(t, err)
+
+	authServer := authProcess.GetAuthServer()
+	require.NotNil(t, authServer)
+
+	proxyAddr, err := authProcess.ProxyWebAddr()
+	require.NoError(t, err)
+
+	// Log into Teleport cluster.
+	err = Run(ctx, []string{
+		"login", "--insecure", "--debug", "--proxy", proxyAddr.String(),
+	}, setHomePath(tmpHomePath), setMockSSOLogin(authServer, user, connector.GetName()))
+	require.NoError(t, err)
+
+	// Log into the "aws-profile" app.
+	err = Run(
+		ctx,
+		[]string{"apps", "login", "--insecure", "--aws-role", "some-aws-role", profileName},
+		setHomePath(tmpHomePath),
+	)
+	require.NoError(t, err)
+
+	// check if external files were set correctly
+	require.FileExists(t, awsConfigFile)
+
+	// check if certificate file was written
+	expectedCredentialFilePath := filepath.Join(tmpHomePath, "keys", proxyAddr.Host(), user.GetName()+"-app", "server01", profileName+".crt")
+	require.FileExists(t, expectedCredentialFilePath)
+
+	awsConfigContents, err := os.ReadFile(awsConfigFile)
+	require.NoError(t, err)
+
+	expectedProfileConfig := `; Do not edit. Section managed by Teleport.
+[profile aws-profile]
+credential_process=tsh apps config --format aws-credential-process aws-profile
+`
+	require.Equal(t, expectedProfileConfig, string(awsConfigContents))
+
+	// Running the tsh apps config command should return the credentials
+	appsConfigcommandOutput := &bytes.Buffer{}
+	err = Run(
+		ctx,
+		[]string{"apps", "config", "--format", "aws-credential-process", profileName},
+		setHomePath(tmpHomePath),
+		setCopyStdout(appsConfigcommandOutput),
+	)
+	require.NoError(t, err)
+	require.JSONEq(t, expectedAWSCredentials, appsConfigcommandOutput.String())
+
+	// Profile is removed after logout.
+	err = Run(
+		ctx,
+		[]string{"apps", "logout", "--insecure"},
+		setHomePath(tmpHomePath),
+	)
+	require.NoError(t, err)
+
+	awsConfigContents, err = os.ReadFile(awsConfigFile)
+	require.NoError(t, err)
+	require.Empty(t, awsConfigContents)
+}
+
+func TestAWSRolesAnywhereBasedAccess_usingMFA(t *testing.T) {
+	tmpHomePath := t.TempDir()
+
+	awsConfigFile := filepath.Join(tmpHomePath, "aws_config")
+	t.Setenv("AWS_CONFIG_FILE", awsConfigFile)
+
+	connector := mockConnector(t)
+
+	user, awsRole := makeUserWithAWSRole(t)
+	awsRoleOptions := awsRole.GetOptions()
+	awsRoleOptions.RequireMFAType = types.RequireMFAType_SESSION
+	awsRole.SetOptions(awsRoleOptions)
+
+	authProcess, err := testserver.NewTeleportProcess(
+		t.TempDir(),
+		testserver.WithBootstrap(connector, user, awsRole),
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, authProcess.Close())
+		require.NoError(t, authProcess.Wait())
+	})
+
+	authServer := authProcess.GetAuthServer()
+	proxyAddr, err := authProcess.ProxyWebAddr()
+	require.NoError(t, err)
+
+	// Set up MFA device for the user.
+	origin := "https://127.0.0.1"
+	device, err := mocku2f.Create()
+	require.NoError(t, err)
+	device.SetPasswordless()
+	webauthnLoginOpt := setupWebAuthnChallengeSolver(device, true /* success */)
+
+	_, err = authProcess.GetAuthServer().UpsertAuthPreference(t.Context(), &types.AuthPreferenceV2{
+		Spec: types.AuthPreferenceSpecV2{
+			SecondFactor: constants.SecondFactorOptional,
+			Webauthn: &types.Webauthn{
+				RPID: "127.0.0.1",
+			},
+			RequireMFAType: types.RequireMFAType_SESSION,
+		},
+	})
+	require.NoError(t, err)
+	registerDeviceForUser(t, authServer, device, user.GetName(), origin)
+
+	authServer.AWSRolesAnywhereCreateSessionOverride = func(ctx context.Context, req createsession.CreateSessionRequest) (*createsession.CreateSessionResponse, error) {
+		return &createsession.CreateSessionResponse{
+			Version:         1,
+			AccessKeyID:     "aki",
+			SecretAccessKey: "sak",
+			SessionToken:    "st",
+			Expiration:      "2025-06-25T12:07:02.474135Z",
+		}, nil
+	}
+
+	integrationName := "aws-app"
+	profileName := "aws-profile"
+	integration, err := types.NewIntegrationAWSRA(
+		types.Metadata{Name: integrationName},
+		&types.AWSRAIntegrationSpecV1{
+			TrustAnchorARN: "arn:aws:rolesanywhere:eu-west-2:123456789012:trust-anchor/12345678-1234-1234-1234-123456789012",
+		},
+	)
+	require.NoError(t, err)
+	_, err = authProcess.GetAuthServer().CreateIntegration(t.Context(), integration)
+	require.NoError(t, err)
+
+	awsAppUsingRolesAnywhere, err := types.NewAppServerV3(types.Metadata{
+		Name: profileName,
+	}, types.AppServerSpecV3{
+		HostID: authProcess.GetID(),
+		App: &types.AppV3{Metadata: types.Metadata{
+			Name: profileName,
+		}, Spec: types.AppSpecV3{
+			URI:         constants.AWSConsoleURL,
+			Integration: integrationName,
+			AWS: &types.AppAWS{
+				RolesAnywhereProfile: &types.AppAWSRolesAnywhereProfile{
+					ProfileARN:            "arn:aws:rolesanywhere:eu-west-2:123456789012:profile/12345678-1234-1234-1234-123456789012",
+					AcceptRoleSessionName: true,
+				},
+			},
+			PublicAddr: "example.com",
+		}},
+	})
+	require.NoError(t, err)
+
+	_, err = authServer.UpsertApplicationServer(t.Context(), awsAppUsingRolesAnywhere)
+	require.NoError(t, err)
+
+	// Log into Teleport cluster.
+	err = Run(t.Context(), []string{
+		"login", "--insecure", "--debug", "--proxy", proxyAddr.String(),
+	}, setHomePath(tmpHomePath), setMockSSOLogin(authServer, user, connector.GetName()))
+	require.NoError(t, err)
+
+	// Log into the "aws-profile" app.
+	err = Run(
+		t.Context(),
+		[]string{"apps", "login", "--insecure", "--aws-role", "some-aws-role", profileName},
+		setHomePath(tmpHomePath),
+		webauthnLoginOpt,
+	)
+	require.ErrorContains(t, err, "AWS access is configured to use per-session MFA")
+
+	// Log in again but now use the `--env` flag to export the credentials to the shell.
+	output := &bytes.Buffer{}
+	err = Run(
+		t.Context(),
+		[]string{"apps", "login", "--insecure", "--aws-role", "some-aws-role", profileName, "--env"},
+		setHomePath(tmpHomePath),
+		setOverrideStdout(output),
+		webauthnLoginOpt,
+	)
+	require.NoError(t, err)
+
+	require.Equal(t, `export AWS_ACCESS_KEY_ID=aki
+export AWS_SECRET_ACCESS_KEY=sak
+export AWS_SESSION_TOKEN=st
+# Export the above variables in your current shell to start using the AWS credentials.
+`, output.String())
+
+	// Verify that the AWS config file was not created.
+	require.NoFileExists(t, awsConfigFile)
+
+	// Verify that the certificate file was not created.
+	expectedCredentialFilePath := filepath.Join(tmpHomePath, "keys", proxyAddr.Host(), user.GetName()+"-app", "server01", profileName+".crt")
+	require.NoFileExists(t, expectedCredentialFilePath)
+}
+
+// TestAWSConsoleLogins given a AWS console application, execute a app login
+// without proving a role ARN and verify the provided list of available logins
+// is correct.
+func TestAWSConsoleLogins(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	tmpHomePath := t.TempDir()
+	connector := mockConnector(t)
+
+	userARNs := []string{"arn:aws:iam::111111111111:role/user-1", "arn:aws:iam::111111111111:role/user-2"}
+	rootARNs := []string{"arn:aws:iam::111111111111:role/root-1", "arn:aws:iam::111111111111:role/root-2"}
+	rootAWSRole, err := types.NewRole("aws", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			AppLabels:   types.Labels{types.Wildcard: apiutils.Strings{types.Wildcard}},
+			AWSRoleARNs: rootARNs,
+		},
+	})
+	require.NoError(t, err)
+	user, err := types.NewUser("alice@example.com")
+	require.NoError(t, err)
+	user.SetRoles([]string{"access", rootAWSRole.GetName()})
+	user.SetAWSRoleARNs(userARNs)
+	rootServer, err := testserver.NewTeleportProcess(
+		t.TempDir(),
+		testserver.WithClusterName("root"),
+		testserver.WithBootstrap(connector, user, rootAWSRole),
+		testserver.WithConfig(func(cfg *servicecfg.Config) {
+			cfg.InsecureMode = true
+			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+			cfg.Apps.Enabled = true
+			cfg.Apps.Apps = []servicecfg.App{
+				{
+					Name: "awsconsole",
+					URI:  constants.AWSConsoleURL,
+				},
+			}
+		}),
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, rootServer.Close())
+		require.NoError(t, rootServer.Wait())
+	})
+
+	leafARNs := []string{"arn:aws:iam::999999999999:role/leaf-1", "arn:aws:iam::999999999999:role/leaf-2"}
+	leafAWSRole, err := types.NewRole("aws", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			AppLabels:   types.Labels{types.Wildcard: apiutils.Strings{types.Wildcard}},
+			AWSRoleARNs: leafARNs,
+		},
+	})
+	require.NoError(t, err)
+	leafServer, err := testserver.NewTeleportProcess(
+		t.TempDir(),
+		testserver.WithClusterName("leaf"),
+		testserver.WithBootstrap(leafAWSRole),
+		testserver.WithConfig(func(cfg *servicecfg.Config) {
+			cfg.InsecureMode = true
+			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+			cfg.Apps.Enabled = true
+			cfg.Apps.Apps = []servicecfg.App{
+				{
+					Name: "awsconsole",
+					URI:  constants.AWSConsoleURL,
+				},
+			}
+		}),
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, leafServer.Close())
+		require.NoError(t, leafServer.Wait())
+	})
+	SetupTrustedCluster(ctx, t, rootServer, leafServer, types.RoleMapping{Remote: "aws", Local: []string{"aws"}})
+
+	authServer := rootServer.GetAuthServer()
+	require.NotNil(t, authServer)
+
+	proxyAddr, err := rootServer.ProxyWebAddr()
+	require.NoError(t, err)
+
+	// Log into Teleport cluster.
+	err = Run(context.Background(), []string{
+		"login", "--insecure", "--debug", "--proxy", proxyAddr.String(),
+	}, setHomePath(tmpHomePath), setMockSSOLogin(authServer, user, connector.GetName()))
+	require.NoError(t, err)
+
+	for cluster, expectedARNs := range map[string][]string{
+		"root": append(userARNs, rootARNs...),
+		"leaf": append(leafARNs, append(userARNs, rootARNs...)...),
+	} {
+		t.Run(cluster, func(t *testing.T) {
+			commandOutput := new(bytes.Buffer)
+			// Don't provide the `--aws-role`. We expect a failure since there
+			// are multiple ARN roles.
+			err := Run(
+				context.Background(),
+				[]string{"app", "login", "--insecure", "--cluster", cluster, "--no-interactive", "awsconsole"},
+				setCopyStdout(commandOutput), setHomePath(tmpHomePath),
+				// TODO(gabrielcorado): Given the `RetryWithRerlLogin` is going
+				//   to perform a relogin for BadParameter error, we need to
+				//   provide login mock here. Once the function is fixed and
+				//   only retry `Retry` errors, this can be removed.
+				setMockSSOLogin(authServer, user, connector.GetName()),
+			)
+			require.ErrorContains(t, err, "--aws-role flag is required")
+			require.Regexp(t, strings.Join(expectedARNs, "|"), commandOutput.String(), "mismatch on expected roles")
+		})
+	}
 }
 
 func makeUserWithAWSRole(t *testing.T) (types.User, types.Role) {
@@ -197,31 +636,248 @@ func makeUserWithAWSRole(t *testing.T) (types.User, types.Role) {
 	return alice, awsRole
 }
 
-// deprecated: Use `tools/teleport/testenv.MakeTestServer` instead.
-func makeTestApplicationServer(t *testing.T, proxy *service.TeleportProcess, apps ...servicecfg.App) *service.TeleportProcess {
-	// Proxy uses self-signed certificates in tests.
-	lib.SetInsecureDevMode(true)
-
-	cfg := servicecfg.MakeDefaultConfig()
-	cfg.Hostname = "localhost"
-	cfg.DataDir = t.TempDir()
-	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
-
-	proxyAddr, err := proxy.ProxyWebAddr()
+func SetupTrustedCluster(ctx context.Context, t *testing.T, rootServer, leafServer *service.TeleportProcess, additionalRoleMappings ...types.RoleMapping) {
+	rootProxyAddr, err := rootServer.ProxyWebAddr()
+	require.NoError(t, err)
+	rootProxyTunnelAddr, err := rootServer.ProxyTunnelAddr()
 	require.NoError(t, err)
 
-	cfg.SetAuthServerAddress(*proxyAddr)
-
-	token, err := proxy.Config.Token()
+	tc, err := types.NewTrustedCluster(rootServer.Config.Auth.ClusterName.GetClusterName(), types.TrustedClusterSpecV2{
+		Enabled:              true,
+		Token:                testserver.StaticToken,
+		ProxyAddress:         rootProxyAddr.String(),
+		ReverseTunnelAddress: rootProxyTunnelAddr.String(),
+		RoleMap: append(additionalRoleMappings,
+			types.RoleMapping{
+				Remote: "access",
+				Local:  []string{"access"},
+			},
+		),
+	})
 	require.NoError(t, err)
 
-	cfg.SetToken(token)
-	cfg.SSH.Enabled = false
-	cfg.Auth.Enabled = false
-	cfg.Proxy.Enabled = false
-	cfg.Apps.Enabled = true
-	cfg.Apps.Apps = apps
-	cfg.Log = utils.NewLoggerForTests()
+	_, err = leafServer.GetAuthServer().UpsertTrustedClusterV2(ctx, tc)
+	require.NoError(t, err)
 
-	return runTeleport(t, cfg)
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		rt, err := rootServer.GetAuthServer().GetTunnelConnections(ctx, leafServer.Config.Auth.ClusterName.GetClusterName())
+		assert.NoError(t, err)
+		assert.Len(t, rt, 1)
+	}, time.Second*10, time.Second)
+
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		rts, err := rootServer.GetAuthServer().GetRemoteClusters(ctx)
+		require.NoError(t, err)
+		require.Len(t, rts, 1)
+	}, time.Second*10, time.Second)
+
+	tsrv, err := rootServer.GetReverseTunnelServer()
+	require.NoError(t, err)
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		rts, err := tsrv.Cluster(ctx, leafServer.Config.Auth.ClusterName.GetClusterName())
+		require.NoError(t, err)
+		require.NotNil(t, rts)
+
+		require.Equal(t, 1, rts.GetTunnelsCount())
+	}, time.Second*10, time.Second)
+}
+
+// TestAppLogins tests the "tsh app logins" command.
+func TestAppLogins(t *testing.T) {
+	ctx := t.Context()
+
+	tmpHomePath := t.TempDir()
+	connector := mockConnector(t)
+
+	// Create user with multiple AWS roles
+	userARNs := []string{
+		"arn:aws:iam::123456789012:role/admin-role",
+		"arn:aws:iam::123456789012:role/readonly-role",
+	}
+	user, err := types.NewUser("alice@example.com")
+	require.NoError(t, err)
+
+	awsRole, err := types.NewRole("aws", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			AppLabels:   types.Labels{"env": apiutils.Strings{"dev"}},
+			AWSRoleARNs: userARNs,
+		},
+	})
+	require.NoError(t, err)
+
+	user.SetRoles([]string{"access", awsRole.GetName()})
+
+	// Create Teleport server with AWS Console app
+	authProcess, err := testserver.NewTeleportProcess(
+		t.TempDir(),
+		testserver.WithBootstrap(connector, user, awsRole),
+		testserver.WithConfig(func(cfg *servicecfg.Config) {
+			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+			cfg.Apps.Enabled = true
+			cfg.Apps.Apps = []servicecfg.App{
+				{
+					Name: "aws-console",
+					URI:  constants.AWSConsoleURL,
+					StaticLabels: map[string]string{
+						"env": "dev",
+					},
+				},
+				{
+					Name: "aws-console-special",
+					URI:  constants.AWSConsoleURL,
+					StaticLabels: map[string]string{
+						"env": "special",
+					},
+				},
+				{
+					Name: "not-aws-app",
+					URI:  "http://localhost:8080",
+				},
+			}
+		}),
+	)
+
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, authProcess.Close())
+		require.NoError(t, authProcess.Wait())
+	})
+
+	authServer := authProcess.GetAuthServer()
+	require.NotNil(t, authServer)
+
+	proxyAddr, err := authProcess.ProxyWebAddr()
+	require.NoError(t, err)
+
+	// Log into Teleport cluster
+	err = Run(ctx, []string{
+		"login", "--insecure", "--debug", "--proxy", proxyAddr.String(),
+	}, setHomePath(tmpHomePath), setMockSSOLogin(authServer, user, connector.GetName()))
+	require.NoError(t, err)
+
+	t.Run("show logins for AWS app (text format)", func(t *testing.T) {
+		commandOutput := new(bytes.Buffer)
+		err := Run(
+			ctx,
+			[]string{"app", "logins", "aws-console"},
+			setCopyStdout(commandOutput),
+			setHomePath(tmpHomePath),
+		)
+		require.NoError(t, err)
+
+		output := commandOutput.String()
+		require.Contains(t, output, "Available AWS roles:")
+		require.Contains(t, output, "admin-role")
+		require.Contains(t, output, "readonly-role")
+		require.Contains(t, output, "arn:aws:iam::123456789012:role/admin-role")
+		require.Contains(t, output, "arn:aws:iam::123456789012:role/readonly-role")
+	})
+
+	t.Run("show logins for AWS app (JSON format)", func(t *testing.T) {
+		commandOutput := new(bytes.Buffer)
+		err := Run(
+			ctx,
+			[]string{"app", "logins", "--format", "json", "aws-console"},
+			setCopyStdout(commandOutput),
+			setHomePath(tmpHomePath),
+		)
+		require.NoError(t, err)
+
+		want := map[string]any{
+			"app_name": "aws-console",
+			"logins": map[string][]map[string]string{
+				"aws_roles": {
+					{
+						"name":       "admin-role",
+						"display":    "admin-role",
+						"arn":        "arn:aws:iam::123456789012:role/admin-role",
+						"account_id": "123456789012",
+					},
+					{
+						"name":       "readonly-role",
+						"display":    "readonly-role",
+						"arn":        "arn:aws:iam::123456789012:role/readonly-role",
+						"account_id": "123456789012",
+					},
+				},
+			},
+		}
+
+		wantBytes, err := json.Marshal(want)
+		require.NoError(t, err)
+		require.JSONEq(t, string(wantBytes), commandOutput.String())
+	})
+
+	t.Run("show logins for AWS app (YAML format)", func(t *testing.T) {
+		commandOutput := new(bytes.Buffer)
+		err := Run(
+			ctx,
+			[]string{"app", "logins", "--format", "yaml", "aws-console"},
+			setCopyStdout(commandOutput),
+			setHomePath(tmpHomePath),
+		)
+		require.NoError(t, err)
+
+		want := map[string]any{
+			"app_name": "aws-console",
+			"logins": map[string][]map[string]string{
+				"aws_roles": {
+					{
+						"name":       "admin-role",
+						"display":    "admin-role",
+						"arn":        "arn:aws:iam::123456789012:role/admin-role",
+						"account_id": "123456789012",
+					},
+					{
+						"name":       "readonly-role",
+						"display":    "readonly-role",
+						"arn":        "arn:aws:iam::123456789012:role/readonly-role",
+						"account_id": "123456789012",
+					},
+				},
+			},
+		}
+
+		wantBytes, err := yaml.Marshal(want)
+		require.NoError(t, err)
+		require.YAMLEq(t, string(wantBytes), commandOutput.String())
+	})
+
+	t.Run("no AWS roles for non-AWS app", func(t *testing.T) {
+		commandOutput := new(bytes.Buffer)
+		err := Run(
+			ctx,
+			[]string{"app", "logins", "not-aws-app"},
+			setCopyStdout(commandOutput),
+			setHomePath(tmpHomePath),
+		)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "only AWS apps are supported at the moment")
+		require.NotContains(t, commandOutput.String(), "Available AWS roles:")
+	})
+
+	t.Run("no AWS roles for AWS app", func(t *testing.T) {
+		commandOutput := new(bytes.Buffer)
+		err := Run(
+			ctx,
+			[]string{"app", "logins", "aws-console-special"},
+			setCopyStdout(commandOutput),
+			setHomePath(tmpHomePath),
+		)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "could not determine any allowed IAM role ARNs for \"aws-console-special\": this can indicate lack of permissions or app misconfiguration")
+		require.True(t, trace.IsNotFound(err))
+	})
+
+	t.Run("error for non-existent app", func(t *testing.T) {
+		commandOutput := new(bytes.Buffer)
+		err := Run(
+			ctx,
+			[]string{"app", "logins", "non-existent-app"},
+			setCopyStdout(commandOutput),
+			setHomePath(tmpHomePath),
+		)
+		require.Error(t, err)
+		require.True(t, trace.IsNotFound(err))
+	})
 }

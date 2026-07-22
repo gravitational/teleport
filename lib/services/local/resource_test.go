@@ -30,10 +30,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/bcrypt"
 
+	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/authcatest"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/services/suite"
 )
 
 func TestCreateResourcesProvisionToken(t *testing.T) {
@@ -53,6 +54,34 @@ func TestCreateResourcesProvisionToken(t *testing.T) {
 	fetchedToken, err := s.GetToken(ctx, "foo")
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(token, fetchedToken, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+}
+
+func TestCreateResource(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	tt := setupServicesContext(ctx, t)
+	cap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type: constants.Local,
+	})
+	require.NoError(t, err)
+
+	// Check that the initial call to CreateResources creates the given resources.
+	s, err := NewClusterConfigurationService(tt.bk)
+	require.NoError(t, err)
+	err = CreateResources(ctx, tt.bk, cap)
+	require.NoError(t, err)
+	got, err := s.GetAuthPreference(ctx)
+	require.NoError(t, err)
+	require.Equal(t, cap.GetType(), got.GetType())
+
+	// Check that already exists errors are ignored and the resource is not
+	// updated.
+	cap.SetType(constants.SAML)
+	err = CreateResources(ctx, tt.bk, cap)
+	require.NoError(t, err)
+	got, err = s.GetAuthPreference(ctx)
+	require.NoError(t, err)
+	require.NotEqual(t, cap.GetType(), got.GetType())
 }
 
 func TestUserResource(t *testing.T) {
@@ -85,26 +114,27 @@ func runUserResourceTest(
 	require.NoError(t, err)
 
 	// Check that dynamically created item is compatible with service
-	s := NewTestIdentityService(tt.bk)
+	s, err := NewTestIdentityService(tt.bk)
+	require.NoError(t, err)
 	b, err := s.GetUser(ctx, "bob", withSecrets)
 	require.NoError(t, err)
-	require.True(t, services.UsersEquals(bob, b), "dynamically inserted user does not match")
+	require.True(t, bob.IsEqual(b), "dynamically inserted user does not match")
 	allUsers, err := s.GetUsers(ctx, withSecrets)
 	require.NoError(t, err)
 	require.Len(t, allUsers, 2, "expected exactly two users")
 	for _, user := range allUsers {
 		switch user.GetName() {
 		case "alice":
-			require.True(t, services.UsersEquals(alice, user), "alice does not match")
+			require.True(t, alice.IsEqual(user), "alice does not match")
 		case "bob":
-			require.True(t, services.UsersEquals(bob, user), "bob does not match")
+			require.True(t, bob.IsEqual(user), "bob does not match")
 		default:
 			t.Errorf("Unexpected user %q", user.GetName())
 		}
 	}
 
 	// Advance the clock to let the users to expire.
-	tt.bk.Clock().(clockwork.FakeClock).Advance(2 * time.Minute)
+	tt.bk.Clock().(*clockwork.FakeClock).Advance(2 * time.Minute)
 	allUsers, err = s.GetUsers(ctx, withSecrets)
 	require.NoError(t, err)
 	require.Empty(t, allUsers, "expected all users to expire")
@@ -115,17 +145,17 @@ func TestCertAuthorityResource(t *testing.T) {
 	ctx := context.Background()
 	tt := setupServicesContext(ctx, t)
 
-	userCA := suite.NewTestCA(types.UserCA, "example.com")
-	hostCA := suite.NewTestCA(types.HostCA, "example.com")
+	userCA, err := authcatest.NewCA(types.UserCA, "example.com")
+	require.NoError(t, err)
+	hostCA, err := authcatest.NewCA(types.HostCA, "example.com")
+	require.NoError(t, err)
 
 	// Check basic dynamic item creation
-	err := CreateResources(ctx, tt.bk, userCA, hostCA)
-	require.NoError(t, err)
+	require.NoError(t, CreateResources(ctx, tt.bk, userCA, hostCA))
 
 	// Check that dynamically created item is compatible with service
 	s := NewCAService(tt.bk)
-	err = s.CompareAndSwapCertAuthority(userCA, userCA)
-	require.NoError(t, err)
+	require.NoError(t, s.CompareAndSwapCertAuthority(userCA, userCA))
 }
 
 func TestTrustedClusterResource(t *testing.T) {
@@ -196,7 +226,8 @@ func TestGithubConnectorResource(t *testing.T) {
 	err := CreateResources(ctx, tt.bk, connector)
 	require.NoError(t, err)
 
-	s := NewTestIdentityService(tt.bk)
+	s, err := NewTestIdentityService(tt.bk)
+	require.NoError(t, err)
 	_, err = s.GetGithubConnector(ctx, "github", true)
 	require.NoError(t, err)
 }
@@ -230,6 +261,7 @@ func newUserTestCase(t *testing.T, name string, roles []string, withSecrets bool
 	if withSecrets {
 		auth := localAuthSecretsTestCase(t)
 		user.SetLocalAuth(&auth)
+		user.SetWeakestDevice(types.MFADeviceKind_MFA_DEVICE_KIND_TOTP)
 	}
 	return &user
 }

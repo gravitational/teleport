@@ -20,6 +20,7 @@ tests:
   - it: creates a role by default
     asserts:
       - containsDocument:
+          any: true
           kind: Role
           apiVersion: rbac.authorization.k8s.io/v1
           name: RELEASE-NAME-teleport-operator
@@ -29,6 +30,7 @@ tests:
       name: teleport-operator
     asserts:
       - containsDocument:
+          any: true
           kind: Role
           apiVersion: rbac.authorization.k8s.io/v1
           name: teleport-operator
@@ -38,6 +40,16 @@ tests:
       nameOverride: operator
     asserts:
       - containsDocument:
+          any: true
           kind: Role
           apiVersion: rbac.authorization.k8s.io/v1
           name: RELEASE-NAME-operator
+
+  - it: grants access to secret in the namespace
+    asserts:
+      - contains:
+          path: rules
+          content:
+            apiGroups: [""]
+            resources: ["secrets"]
+            verbs: ["get", "list", "watch"]

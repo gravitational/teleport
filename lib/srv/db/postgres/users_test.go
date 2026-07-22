@@ -120,7 +120,7 @@ func TestCheckPgPermission(t *testing.T) {
 			name:    "invalid permission",
 			perm:    "INVALID",
 			objKind: databaseobjectimportrule.ObjectKindTable,
-			checkErr: func(t require.TestingT, err error, i ...interface{}) {
+			checkErr: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "unrecognized \"table\" Postgres permission: \"INVALID\"")
 			},
 		},
@@ -128,7 +128,7 @@ func TestCheckPgPermission(t *testing.T) {
 			name:    "multiple permissions not allowed",
 			perm:    "SELECT, UPDATE",
 			objKind: databaseobjectimportrule.ObjectKindTable,
-			checkErr: func(t require.TestingT, err error, i ...interface{}) {
+			checkErr: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "unrecognized \"table\" Postgres permission: \"SELECT, UPDATE\"")
 			},
 		},
@@ -149,12 +149,12 @@ func TestCheckPgPermission(t *testing.T) {
 
 func TestConvertPermissions(t *testing.T) {
 	mkObject := func(name, schema, kind string) *dbobjectv1.DatabaseObject {
-		obj, err := databaseobject.NewDatabaseObject(name, &dbobjectv1.DatabaseObjectSpec{
+		obj, err := databaseobject.NewDatabaseObject(name, dbobjectv1.DatabaseObjectSpec_builder{
 			ObjectKind: kind,
 			Schema:     schema,
 			Name:       name,
 			Protocol:   "postgres",
-		})
+		}.Build())
 		require.NoError(t, err)
 		return obj
 	}

@@ -1,0 +1,15 @@
+resource "teleport_access_list_member" "alpaca" {
+  header = {
+    kind = "access_list_member"
+    metadata = {
+      name = "alpaca"
+    }
+  }
+
+  spec = {
+    access_list     = "some-access-list"
+    name            = "alpaca"
+    joined          = "2023-02-02T00:00:00Z"
+    membership_kind = "1"
+  }
+}

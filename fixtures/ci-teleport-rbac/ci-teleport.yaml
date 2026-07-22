@@ -47,7 +47,7 @@ rules:
   resourceNames: ["test-pod"]
 - apiGroups: [""]
   resources: ["pods/portforward"]
-  verbs: ["create"]
+  verbs: ["create", "get"]
   resourceNames: ["test-pod"]
 - apiGroups: [""]
   resources: ["pods/ephemeralcontainers"]

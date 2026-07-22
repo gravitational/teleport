@@ -1,7 +1,18 @@
 ---
-title: Application Access Reference Documentation
+title: Teleport Application Service Reference
+sidebar_label: Reference
 description: Configuration and CLI reference documentation for Teleport application access.
+sidebar_position: 8
+tags:
+ - reference
+ - zero-trust
+ - infrastructure-identity
+page_type: reference
 ---
+
+This page lists the interfaces and options for interacting with the Teleport
+Application Service, including the static configuration file for the `teleport`
+binary, the dynamic `app` resource, and `tsh apps` commands.
 
 ## Configuration
 
@@ -13,7 +24,7 @@ appearing in the `teleport.yaml` configuration file:
 ```yaml
 app_service:
   # Enables application proxy service.
-  enabled: yes
+  enabled: true
   # Teleport provides a small debug app called "dumper" that can be used
   # to make sure application access is working correctly. It outputs JWTs,
   #  so it can be useful when extending your application.
@@ -35,6 +46,14 @@ app_service:
     public_addr: "grafana.teleport.example.com"
     # Rewrites section.
     rewrite:
+      # Specify whether to include roles or traits in the JWT.
+      # Options:
+      # - roles-and-traits: include both roles and traits
+      # - roles: include only roles
+      # - traits: include only traits
+      # - none: exclude both roles and traits from the JWT token
+      # Default: roles-and-traits
+      jwt_claims: roles-and-traits
       # Rewrite the "Location" header on redirect responses replacing the
       # host with the public address of this application.
       redirect:
@@ -64,8 +83,8 @@ app_service:
 ```
 
 For full details on configuring Teleport roles, including how Teleport
-populates the `external` traits, see the [Teleport Access Controls
-Reference](../../access-controls/reference.mdx).
+populates the `external` traits, see the [Access Controls
+Reference](../../reference/access-controls/roles.mdx).
 
 ## Application resource
 
@@ -103,9 +122,12 @@ spec:
       value: "{{external.env}}"
   # Optional dynamic labels.
   dynamic_labels:
-  - name: "hostname"
-    command: ["hostname"]
-    period: 1m0s
+    hostname:
+      command: ["hostname"]
+      period: 1m0s
+    uname:
+      command: ["uname", "-a"]
+      period: 5m0s
 ```
 
 You can create a new `app` resource by running the following commands, which
@@ -216,5 +238,4 @@ To run this command, one of the user's roles must include the
 `spec.allow.azure_identities` field with one of the identities used by the
 Application Service. To learn how to set up secure access to Azure via Teleport,
 read [Protect the Azure CLI with Teleport Application
-Access](cloud-apis/azure.mdx).
-
+Access](../../enroll-resources/application-access/cloud-apis/azure.mdx).

@@ -18,19 +18,20 @@
 
 import React, { useRef, useState } from 'react';
 import styled from 'styled-components';
+
 import { Text } from 'design';
 import { NoteAdded } from 'design/Icon';
 
-import { PathInput, Form } from '../CommonElements';
+import { Form, PathInput } from '../CommonElements';
 
 interface UploadFormProps {
   onAddUpload(destinationPath: string, file: File): void;
 }
 
 export function UploadForm(props: UploadFormProps) {
-  const dropzoneRef = useRef<HTMLButtonElement>();
-  const fileSelectorRef = useRef<HTMLInputElement>();
-  const [destinationPath, setDestinationPath] = useState('~/');
+  const dropzoneRef = useRef<HTMLButtonElement>(null);
+  const fileSelectorRef = useRef<HTMLInputElement>(null);
+  const [destinationPath, setDestinationPath] = useState('/');
 
   function onFileSelected(e: React.ChangeEvent<HTMLInputElement>): void {
     upload(Array.from(e.target.files));
@@ -110,9 +111,11 @@ export function UploadForm(props: UploadFormProps) {
           openFilePicker();
         }}
       >
-        <NoteAdded size="extraLarge" mb={2} />
-        <Text typography="h6">Drag your files here</Text>
-        <Text typography="body2">
+        <NoteAdded size="extra-large" mb={2} />
+        <Text typography="body2" bold>
+          Drag your files here
+        </Text>
+        <Text typography="body3">
           or Browse your computer to start uploading
         </Text>
       </Dropzone>

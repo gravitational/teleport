@@ -1,0 +1,19 @@
+resource "teleport_oidc" "connector" {
+  version = "v3"
+
+  metadata = {
+    name = "connector"
+  }
+
+  spec = {
+    client_id     = "some-client"
+    client_secret = "some-secret"
+    claims_to_roles = [{
+      claim = "foo"
+      roles = ["baz"]
+      value = "bar"
+    }]
+    redirect_url = ["https://some-url"]
+    max_age      = "1s"
+  }
+}

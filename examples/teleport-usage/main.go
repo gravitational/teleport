@@ -17,25 +17,24 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"crypto/sha256"
 	"errors"
 	"fmt"
 	"log"
 	"math"
-	"math/rand"
+	"math/rand/v2"
 	"os"
 	"reflect"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/awserr"
-	"github.com/aws/aws-sdk-go/aws/endpoints"
-	awsrequest "github.com/aws/aws-sdk-go/aws/request"
-	awssession "github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/dynamodb"
-	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbattribute"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 )
 
 const (
@@ -60,39 +59,33 @@ func main() {
 
 	fmt.Println("Gathering data, this may take a moment")
 
-	// Assume a base read capacity of 25 units per second to start off.
-	// If this is too high and we encounter throttling that could impede Teleport, it will be adjusted automatically.
-	limiter := newAdaptiveRateLimiter(25)
+	ctx := context.Background()
+
+	configOpts := []func(*config.LoadOptions) error{config.WithRegion(params.awsRegion)}
 
 	// Check the package name for one of the boring primitives. If the package
 	// path is from BoringCrypto, we know this binary was compiled using
 	// `GOEXPERIMENT=boringcrypto`.
 	hash := sha256.New()
-	useFIPSEndpoint := endpoints.FIPSEndpointStateUnset
 	if reflect.TypeOf(hash).Elem().PkgPath() == "crypto/internal/boring" {
-		useFIPSEndpoint = endpoints.FIPSEndpointStateEnabled
+		configOpts = append(configOpts, config.WithUseFIPSEndpoint(aws.FIPSEndpointStateEnabled))
 	}
 
-	// create an AWS session using default SDK behavior, i.e. it will interpret
-	// the environment and ~/.aws directory just like an AWS CLI tool would:
-	session, err := awssession.NewSessionWithOptions(awssession.Options{
-		SharedConfigState: awssession.SharedConfigEnable,
-		Config: aws.Config{
-			Retryer:                       limiter,
-			Region:                        aws.String(params.awsRegion),
-			CredentialsChainVerboseErrors: aws.Bool(true),
-			UseFIPSEndpoint:               useFIPSEndpoint,
-		},
-	})
+	awsConfig, err := config.LoadDefaultConfig(ctx, configOpts...)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	// Reduce internal retry count so throttling errors bubble up to our rate limiter with less delay.
-	svc := dynamodb.New(session)
+	// Assume a base read capacity of 25 units per second to start off.
+	// If this is too high and we encounter throttling that could impede Teleport, it will be adjusted automatically.
+	limiter := newAdaptiveRateLimiter(25)
+
+	svc := dynamodb.NewFromConfig(awsConfig, func(o *dynamodb.Options) {
+		o.Retryer = aws.NopRetryer{}
+	})
 
 	for _, date := range daysBetween(params.startDate, params.startDate.Add(scanDuration)) {
-		err := scanDay(svc, limiter, params.tableName, date, state)
+		err := scanDay(ctx, svc, limiter, params.tableName, date, state)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -123,7 +116,7 @@ func displayProductResults(name string, users map[string]struct{}, showUsers boo
 }
 
 // scanDay scans a single day of events from the audit log table.
-func scanDay(svc *dynamodb.DynamoDB, limiter *adaptiveRateLimiter, tableName string, date string, state *trackedState) error {
+func scanDay(ctx context.Context, svc dynamodb.QueryAPIClient, limiter *adaptiveRateLimiter, tableName string, date string, state *trackedState) error {
 	attributes := map[string]interface{}{
 		":date": date,
 		":e1":   "session.start",
@@ -133,31 +126,32 @@ func scanDay(svc *dynamodb.DynamoDB, limiter *adaptiveRateLimiter, tableName str
 		":e5":   "kube.request",
 	}
 
-	attributeValues, err := dynamodbattribute.MarshalMap(attributes)
+	attributeValues, err := attributevalue.MarshalMap(attributes)
 	if err != nil {
 		return err
 	}
 
-	var paginationKey map[string]*dynamodb.AttributeValue
+	var paginationKey map[string]types.AttributeValue
 	pageCount := 1
 
 outer:
 	for {
 		fmt.Printf("  scanning date %v page %v...\n", date, pageCount)
-		scanOut, err := svc.Query(&dynamodb.QueryInput{
+		scanOut, err := svc.Query(ctx, &dynamodb.QueryInput{
 			TableName:                 aws.String(tableName),
 			IndexName:                 aws.String(indexName),
 			KeyConditionExpression:    aws.String("CreatedAtDate = :date"),
 			ExpressionAttributeValues: attributeValues,
 			FilterExpression:          aws.String("EventType IN (:e1, :e2, :e3, :e4, :e5)"),
 			ExclusiveStartKey:         paginationKey,
-			ReturnConsumedCapacity:    aws.String(dynamodb.ReturnConsumedCapacityTotal),
+			ReturnConsumedCapacity:    types.ReturnConsumedCapacityTotal,
 			// We limit the number of items returned to the current capacity to minimize any usage spikes
 			// that could affect Teleport as RCUs may be consumed for multiple seconds if the response is large, slowing down Teleport significantly.
-			Limit: aws.Int64(int64(limiter.currentCapacity())),
+			Limit: aws.Int32(int32(limiter.currentCapacity())),
 		})
 		if err != nil {
-			if aerr, ok := err.(awserr.Error); ok && aerr.Code() == dynamodb.ErrCodeProvisionedThroughputExceededException {
+			var throughputExceededError *types.ProvisionedThroughputExceededException
+			if errors.As(err, &throughputExceededError) {
 				fmt.Println("  throttled by DynamoDB, adjusting request rate...")
 				limiter.reportThrottleError()
 				continue outer
@@ -191,10 +185,10 @@ type event struct {
 }
 
 // applies a set of scanned raw events onto the tracked state.
-func reduceEvents(rawEvents []map[string]*dynamodb.AttributeValue, state *trackedState) error {
+func reduceEvents(rawEvents []map[string]types.AttributeValue, state *trackedState) error {
 	for _, rawEvent := range rawEvents {
 		var event event
-		err := dynamodbattribute.UnmarshalMap(rawEvent, &event)
+		err := attributevalue.UnmarshalMap(rawEvent, &event)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -334,7 +328,7 @@ func (a *adaptiveRateLimiter) wait(permits float64) {
 	durationToWait := time.Duration(permits / a.permitCapacity * float64(time.Second))
 	time.Sleep(durationToWait)
 
-	if rand.Intn(10) == 0 {
+	if rand.N(10) == 0 {
 		a.adjustUp()
 	}
 }
@@ -352,18 +346,6 @@ func (a *adaptiveRateLimiter) adjustUp() {
 
 func (a *adaptiveRateLimiter) currentCapacity() float64 {
 	return a.permitCapacity
-}
-
-func (a *adaptiveRateLimiter) RetryRules(r *awsrequest.Request) time.Duration {
-	return 0
-}
-
-func (a *adaptiveRateLimiter) ShouldRetry(*awsrequest.Request) bool {
-	return false
-}
-
-func (a *adaptiveRateLimiter) MaxRetries() int {
-	return 0
 }
 
 func newAdaptiveRateLimiter(permitsPerSecond float64) *adaptiveRateLimiter {

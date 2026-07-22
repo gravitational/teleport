@@ -16,22 +16,25 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { MemoryRouter } from 'react-router';
+
 import { render, screen } from 'design/utils/testing';
 
-import { createTeleportContext, getAcl } from 'teleport/mocks/contexts';
-
-import { ContextProvider } from 'teleport/index';
-import cfg from 'teleport/config';
 import { clusters } from 'teleport/Clusters/fixtures';
-
+import cfg from 'teleport/config';
+import { ContextProvider } from 'teleport/index';
+import { createTeleportContext, getAcl } from 'teleport/mocks/contexts';
 import { storageService } from 'teleport/services/storageService';
 
 import { ExternalAuditStorageCta } from './ExternalAuditStorageCta';
 
+const defaultExternalAuditStorageEntitlement =
+  cfg.entitlements.ExternalAuditStorage;
+
 describe('externalAuditStorageCta', () => {
   afterEach(() => {
+    cfg.entitlements.ExternalAuditStorage =
+      defaultExternalAuditStorageEntitlement;
     jest.clearAllMocks();
   });
 
@@ -49,7 +52,10 @@ describe('externalAuditStorageCta', () => {
     });
 
     cfg.isCloud = isCloud;
-    cfg.externalAuditStorage = !lockedFeature;
+    cfg.entitlements.ExternalAuditStorage = {
+      enabled: !lockedFeature,
+      limit: 0,
+    };
 
     jest
       .spyOn(storageService, 'getExternalAuditStorageCtaDisabled')
@@ -73,12 +79,14 @@ describe('externalAuditStorageCta', () => {
   });
 
   test('renders nothing on cfg.isCloud=false', () => {
-    const { container } = setup({
+    setup({
       isCloud: false,
       lockedFeature: true,
       hasPermission: true,
     });
-    expect(container).toBeEmptyDOMElement();
+    expect(
+      screen.queryByText(/External Audit Storage/)
+    ).not.toBeInTheDocument();
   });
 
   test('renders button based on lockedFeatures', () => {

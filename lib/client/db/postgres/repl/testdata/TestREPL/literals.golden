@@ -1,0 +1,206 @@
+Teleport PostgreSQL interactive shell (v19.0.0-dev)
+Connected to "postgres-test-container" instance as "postgres" user.
+Type \? for help.
+
+postgres=> -- simple literals
+postgres=> SELECT 'thing';
+?column?
+--------
+thing
+(1 row)
+
+postgres=> SELECT 'thing'; ;;
+?column?
+--------
+thing
+(1 row)
+
+postgres=> 
+postgres=> -- multiline query
+postgres=> SELECT
+           1
+           ;
+?column?
+--------
+1
+(1 row)
+
+postgres=> 
+postgres=> -- query with special characters
+postgres=> SELECT 'special_chars_!@#$%^&*()';
+?column?
+--------
+special_chars_!@#$%^&*()
+(1 row)
+
+postgres=> 
+postgres=> -- leading and trailing whitespace
+postgres=>    SELECT 1;
+?column?
+--------
+1
+(1 row)
+
+postgres=> 
+postgres=> -- multiline with excessive whitespace
+postgres=>    SELECT
+              1
+              ;
+?column?
+--------
+1
+(1 row)
+
+postgres=> 
+postgres=> -- with command in the middle treats the command as a literal
+postgres=> SELECT \? 1;
+ERR ERROR: syntax error at or near "\" (SQLSTATE 42601)
+
+postgres=> 
+postgres=> -- multiline with command in the middle treats the command as a liter
+al
+postgres=> SELECT
+           \?
+           1;
+ERR ERROR: syntax error at or near "\" (SQLSTATE 42601)
+
+postgres=> 
+postgres=> -- multiline with command in the last line is not supported
+postgres=> SELECT
+           1
+           \?;
+ERR ERROR: syntax error at or near "\" (SQLSTATE 42601)
+
+postgres=> 
+postgres=> SELECT 1, -1, 1.24, -1.24, 'foo', NULL, 'null' ORDER BY 1;
+?column? | ?column? | ?column? | ?column? | ?column? | ?column? | ?column?
+-------- | -------- | -------- | -------- | -------- | -------- | --------
+1        | -1       | 1.24     | -1.24    | foo      |          | null
+(1 row)
+
+postgres=> 
+postgres=> -- aliases
+postgres=> SELECT
+               1     AS "unsigned int",
+               -1    AS "negative int",
+               1.24  AS "float",
+               -1.24 AS "negative float",
+               'foo' AS "string",
+               NULL  AS "actual NULL",
+               'null' AS "string null"
+               ORDER BY 1;
+unsigned int | negative int | float | negative float | string | actual NULL | string null
+------------ | ------------ | ----- | -------------- | ------ | ----------- | -----------
+1            | -1           | 1.24  | -1.24          | foo    |             | null
+(1 row)
+
+postgres=> 
+postgres=> SELECT '1'::text AS "multiple rows of literals"
+           UNION
+           SELECT '-1'
+           UNION
+           SELECT '1.24'
+           UNION
+           SELECT '-1.24'
+           UNION
+           SELECT 'foo'
+           UNION
+           SELECT NULL
+           UNION
+           SELECT 'null' ORDER BY 1;
+multiple rows of literals
+-------------------------
+-1
+1
+-1.24
+1.24
+foo
+null
+
+(7 rows)
+
+postgres=> 
+postgres=> -- multiline strings
+postgres=> SELECT 'a
+           b
+           c' AS "multiline-string";
+multiline-string
+----------------
+a
+b
+c
+(1 row)
+
+postgres=> 
+postgres=> /* foo bar */
+           SELECT 1;
+?column?
+--------
+1
+(1 row)
+
+postgres=> /* foo bar */ SELECT /* baz */ 42;
+?column?
+--------
+42
+(1 row)
+
+postgres=> 
+postgres=> SELECT '$$1$$';
+?column?
+--------
+$$1$$
+(1 row)
+
+postgres=> SELECT '$$;$$';
+?column?
+--------
+$$;$$
+(1 row)
+
+postgres=> 
+postgres=> SHOW search_path;
+search_path
+-----------
+"$user", public
+(1 row)
+
+postgres=> EXPLAIN select 1;
+QUERY PLAN
+----------
+Result  (cost=0.00..0.01 rows=1 width=4)
+(1 row)
+
+postgres=> 
+postgres=> -- TODO(gavin): fix the parser to handle trailing comments
+postgres=> SELECT 'thing'; ;;  -- a trailing space and comment
+           
+           ;
+?column?
+--------
+thing
+(1 row)
+
+postgres=> 
+postgres=> -- this fails to parse because delimiters are in the string literal
+postgres=> -- TODO(gavin): fix the parser to handle delimiter quotation properly
+
+postgres=> SELECT 'a
+               ;
+ERR ERROR: unterminated quoted string at or near "'a
+;" (SQLSTATE 42601)
+
+postgres=>     b
+               ;
+ERR ERROR: syntax error at or near "b" (SQLSTATE 42601)
+
+postgres=> c' AS "multiline with delimiters";
+ERR ERROR: syntax error at or near "c" (SQLSTATE 42601)
+
+postgres=> 
+postgres=> -- TODO(gavin): fix the parser to handle command/query mixed usage (d
+elimited by semicolons)
+postgres=> -- with command following a statement
+postgres=> SELECT 1;\?
+           
+           

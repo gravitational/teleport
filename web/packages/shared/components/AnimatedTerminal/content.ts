@@ -63,7 +63,6 @@ export async function* createTerminalContent(
     yield buffer;
   }
 
-  // eslint-disable-next-line no-constant-condition
   while (true) {
     if (lineIndex < lines.length) {
       if (!lines[lineIndex].isCommand) {

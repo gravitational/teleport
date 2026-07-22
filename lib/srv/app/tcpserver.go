@@ -20,49 +20,108 @@ package app
 
 import (
 	"context"
+	"crypto/tls"
 	"log/slog"
 	"net"
+	"strconv"
+	"strings"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	apitypes "github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/srv/app/common"
+	"github.com/gravitational/teleport/lib/srv/app/upstreamtls"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
 type tcpServer struct {
-	newAudit func(ctx context.Context, sessionID string) (common.Audit, error)
-	hostID   string
-	log      *slog.Logger
+	clock        clockwork.Clock
+	emitter      apievents.Emitter
+	hostID       string
+	log          *slog.Logger
+	accessPoint  authclient.AppsAccessPoint
+	authClient   authclient.ClientI
+	clusterName  string
+	cipherSuites []uint16
+	insecureMode bool
 }
 
 // handleConnection handles connection from a TCP application.
 func (s *tcpServer) handleConnection(ctx context.Context, clientConn net.Conn, identity *tlsca.Identity, app apitypes.Application) error {
-	addr, err := utils.ParseAddr(app.GetURI())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if addr.AddrNetwork != "tcp" {
-		return trace.BadParameter(`unexpected app %q address network, expected "tcp": %+v`, app.GetName(), addr)
-	}
-	dialer := net.Dialer{
-		Timeout: apidefaults.DefaultIOTimeout,
-	}
-	serverConn, err := dialer.DialContext(ctx, addr.AddrNetwork, addr.String())
+	// Validates the app is TCP.
+	uriAddr, isTLS, err := tcpAppAddr(app)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	audit, err := s.newAudit(ctx, identity.RouteToApp.SessionID)
+	dialer := net.Dialer{
+		Timeout: apidefaults.DefaultIOTimeout,
+	}
+	dialTarget, err := pickDialTarget(app, uriAddr, identity.RouteToApp.TargetPort)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	var serverConn net.Conn
+	switch {
+	case isTLS:
+		tlsConfig, err := upstreamtls.Configure(ctx, upstreamtls.Options{
+			Logger:                       s.log,
+			AccessPoint:                  s.accessPoint,
+			ClusterName:                  s.clusterName,
+			App:                          app,
+			CipherSuites:                 s.cipherSuites,
+			InsecureMode:                 s.insecureMode,
+			Clock:                        s.clock,
+			WorkloadIdentityClientGetter: s.authClient,
+			GetUserCertFunc: func() ([]byte, error) {
+				userCert, err := authz.UserCertificateFromContext(ctx)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				return userCert.Raw, nil
+			},
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		tlsDialer := tls.Dialer{
+			NetDialer: &dialer,
+			Config:    tlsConfig,
+		}
+		serverConn, err = tlsDialer.DialContext(ctx, uriAddr.AddrNetwork, dialTarget)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	default:
+		serverConn, err = dialer.DialContext(ctx, uriAddr.AddrNetwork, dialTarget)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	audit, err := common.NewAudit(common.AuditConfig{
+		Emitter:  s.emitter,
+		Recorder: events.WithNoOpPreparer(events.NewDiscardRecorder()),
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	if err := audit.OnSessionStart(ctx, s.hostID, identity, app); err != nil {
 		return trace.Wrap(err)
 	}
 	defer func() {
+		// The connection context may be closed once the connection is closed.
+		ctx := context.Background()
 		if err := audit.OnSessionEnd(ctx, s.hostID, identity, app); err != nil {
 			s.log.WarnContext(ctx, "Failed to emit session end event for app.", "app", app.GetName(), "error", err)
 		}
@@ -72,4 +131,92 @@ func (s *tcpServer) handleConnection(ctx context.Context, clientConn net.Conn, i
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+// pickDialTarget returns the address to dial based on the type of the app (single-port vs
+// multi-port) and targetPort included in the cert.
+//
+// For single-port apps it returns the address from the URI field. For multi-port apps, it checks if
+// targetPort is included in TCP port ranges from the app spec.
+func pickDialTarget(app apitypes.Application, uriAddr *utils.NetAddr, targetPort int) (string, error) {
+	switch {
+	// Regular TCP app with port in URI in app spec.
+	case len(app.GetTCPPorts()) < 1:
+		if err := ensureZeroTargetPortOrEqualToPortFromURI(uriAddr, targetPort); err != nil {
+			return "", trace.Wrap(err, "comparing target port against port from URI of app %q", app.GetName())
+		}
+
+		return uriAddr.String(), nil
+	// Multi-port TCP app but target port was not provided.
+	case targetPort == 0:
+		// If the client didn't supply a target port, use the first port found in TCP ports. This is to
+		// provide backwards compatibility.
+		//
+		// In theory, this behavior could be removed in the future if we guarantee that all clients
+		// always send a target port when connecting to multi-port apps, but no such effort was
+		// undertaken so far.
+		firstPort := int(app.GetTCPPorts()[0].Port)
+		return net.JoinHostPort(uriAddr.Host(), strconv.Itoa(firstPort)), nil
+	// Multi-port TCP app with target port specified in cert.
+	default:
+		if !app.GetTCPPorts().Contains(targetPort) {
+			// This is not treated as an access denied error since there's no RBAC on TCP ports.
+			return "", trace.BadParameter("port %d is not in TCP ports of app %q", targetPort, app.GetName())
+		}
+
+		return net.JoinHostPort(uriAddr.Host(), strconv.Itoa(targetPort)), nil
+	}
+}
+
+// ensureZeroTargetPortOrEqualToPortFromURI handles an esoteric edge case where a connection to a
+// single-port TCP app was made with a cert that includes TargetPort meant for multi-port apps.
+//
+// This can happen when the cert was generated before the app spec was changed in a way that
+// transitioned the app from multi-port to single-port. It can also happen due to a programmer error
+// where TargetPort is provided despite the app being single-port.
+func ensureZeroTargetPortOrEqualToPortFromURI(uriAddr *utils.NetAddr, targetPort int) error {
+	if targetPort == 0 {
+		return nil
+	}
+
+	uriPort := uriAddr.Port(0)
+	if uriPort == 0 {
+		return trace.Errorf("missing or invalid port number in URI %q", uriAddr.String())
+	}
+
+	if targetPort != uriPort {
+		return trace.BadParameter("attempt to connect to a TCP app with a multi-port cert where the target port from the cert does not match the port from the app URI target_port=%d uri_port=%d", targetPort, uriPort)
+	}
+
+	return nil
+}
+
+// tcpAppAddr this function validates the app is a TCP app, and parses its URI.
+//
+// Note, instead of changing the `utils.ParseAddr` (which is widely used across
+// Teleport) to include an internal scheme/protocol we handle this here,
+// avoiding introducing any regression.
+func tcpAppAddr(app apitypes.Application) (*utils.NetAddr, bool, error) {
+	uri := app.GetURI()
+	if !app.IsTCP() {
+		return nil, false, trace.BadParameter(`unexpected app %q address network, expected "tcp" or %q: %s`, app.GetName(), apitypes.SchemeTLS, uri)
+	}
+
+	uriAddr, err := utils.ParseAddr(uri)
+	if err == nil {
+		return uriAddr, false, nil
+	}
+
+	tlsScheme := apitypes.SchemeTLS + "://"
+	if !strings.HasPrefix(uri, tlsScheme) {
+		return nil, false, trace.Wrap(err)
+	}
+
+	// Replaces the "tls://" scheme with "tcp://" and try parsing again.
+	uriAddr, err = utils.ParseAddr(strings.Replace(uri, tlsScheme, "tcp://", 1))
+	if err != nil {
+		return nil, false, trace.Wrap(err)
+	}
+
+	return uriAddr, true, nil
 }

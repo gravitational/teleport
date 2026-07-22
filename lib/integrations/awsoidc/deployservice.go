@@ -29,14 +29,15 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws/retry"
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
 	ecsTypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
-	"github.com/aws/aws-sdk-go-v2/service/sts"
+	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	apiaws "github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/lib/integrations/awsoidc/tags"
-	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/cloud/aws/tags"
+	"github.com/gravitational/teleport/lib/utils/teleportassets"
 )
 
 var (
@@ -56,11 +57,6 @@ var (
 )
 
 const (
-	// distrolessTeleportOSS is the distroless image of the OSS version of Teleport
-	distrolessTeleportOSS = "public.ecr.aws/gravitational/teleport-distroless"
-	// distrolessTeleportEnt is the distroless image of the Enterprise version of Teleport
-	distrolessTeleportEnt = "public.ecr.aws/gravitational/teleport-ent-distroless"
-
 	// clusterStatusActive is the string representing an ACTIVE ECS Cluster.
 	clusterStatusActive = "ACTIVE"
 	// clusterStatusInactive is the string representing an INACTIVE ECS Cluster.
@@ -157,6 +153,9 @@ type DeployServiceRequest struct {
 	// TeleportConfigString is the `teleport.yaml` configuration for the service to be deployed.
 	// It should be base64 encoded as is expected by the `--config-string` param of `teleport start`.
 	TeleportConfigString string
+
+	// TeleportBuildType specifies the type of teleport build in use.
+	TeleportBuildType string
 }
 
 // normalizeECSResourceName converts a name into a valid ECS Resource Name.
@@ -227,6 +226,10 @@ func (r *DeployServiceRequest) CheckAndSetDefaults() error {
 		return trace.BadParameter("at least one subnet id is required")
 	}
 
+	if r.TeleportBuildType == "" {
+		return trace.BadParameter("build type is required")
+	}
+
 	if r.TaskRoleARN == "" {
 		return trace.BadParameter("task role arn is required")
 	}
@@ -251,7 +254,7 @@ func (r *DeployServiceRequest) CheckAndSetDefaults() error {
 	}
 
 	if r.ResourceCreationTags == nil {
-		r.ResourceCreationTags = tags.DefaultResourceCreationTags(r.TeleportClusterName, r.IntegrationName)
+		r.ResourceCreationTags = defaultResourceCreationTags(r.TeleportClusterName, r.IntegrationName)
 	}
 
 	if r.TeleportConfigString == "" {
@@ -323,33 +326,28 @@ type DeployServiceClient interface {
 	// Before deploying the service, it must ensure that the token exists and has the appropriate token rul.
 	TokenService
 
-	// GetCallerIdentity returns details about the IAM user or role whose credentials are used to call the operation.
-	GetCallerIdentity(ctx context.Context, params *sts.GetCallerIdentityInput, optFns ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error)
+	CallerIdentityGetter
 }
 
 type defaultDeployServiceClient struct {
+	CallerIdentityGetter
 	*ecs.Client
-	stsClient          *sts.Client
-	tokenServiceClient TokenService
+	tokenGetter  TokenGetter
+	tokenCreator TokenCreator
 }
 
 // GetToken returns a provision token by name.
 func (d *defaultDeployServiceClient) GetToken(ctx context.Context, name string) (types.ProvisionToken, error) {
-	return d.tokenServiceClient.GetToken(ctx, name)
+	return d.tokenGetter.GetToken(ctx, name)
 }
 
 // UpsertToken creates or updates a provision token.
 func (d *defaultDeployServiceClient) UpsertToken(ctx context.Context, token types.ProvisionToken) error {
-	return d.tokenServiceClient.UpsertToken(ctx, token)
-}
-
-// GetCallerIdentity returns details about the IAM user or role whose credentials are used to call the operation.
-func (d defaultDeployServiceClient) GetCallerIdentity(ctx context.Context, params *sts.GetCallerIdentityInput, optFns ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error) {
-	return d.stsClient.GetCallerIdentity(ctx, params, optFns...)
+	return d.tokenCreator.UpsertToken(ctx, token)
 }
 
 // NewDeployServiceClient creates a new DeployServiceClient using a AWSClientRequest.
-func NewDeployServiceClient(ctx context.Context, clientReq *AWSClientRequest, tokenServiceClient TokenService) (DeployServiceClient, error) {
+func NewDeployServiceClient(ctx context.Context, clientReq *AWSClientRequest, tokenGetter TokenGetter, tokenCreator TokenCreator) (DeployServiceClient, error) {
 	ecsClient, err := newECSClient(ctx, clientReq)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -361,9 +359,10 @@ func NewDeployServiceClient(ctx context.Context, clientReq *AWSClientRequest, to
 	}
 
 	return &defaultDeployServiceClient{
-		Client:             ecsClient,
-		stsClient:          stsClient,
-		tokenServiceClient: tokenServiceClient,
+		Client:               ecsClient,
+		CallerIdentityGetter: stsClient,
+		tokenGetter:          tokenGetter,
+		tokenCreator:         tokenCreator,
 	}, nil
 }
 
@@ -432,6 +431,7 @@ func DeployService(ctx context.Context, clt DeployServiceClient, req DeployServi
 		ResourceCreationTags: req.ResourceCreationTags,
 		Region:               req.Region,
 		TeleportConfigB64:    req.TeleportConfigString,
+		TeleportBuildType:    req.TeleportBuildType,
 	}
 	taskDefinition, err := upsertTask(ctx, clt, upsertTaskReq)
 	if err != nil {
@@ -456,14 +456,22 @@ func DeployService(ctx context.Context, clt DeployServiceClient, req DeployServi
 		return nil, trace.Wrap(err)
 	}
 
-	serviceDashboardURL := fmt.Sprintf("https://%s.console.aws.amazon.com/ecs/v2/clusters/%s/services/%s", req.Region, aws.ToString(req.ClusterName), aws.ToString(req.ServiceName))
-
 	return &DeployServiceResponse{
 		ClusterARN:          aws.ToString(cluster.ClusterArn),
 		ServiceARN:          aws.ToString(service.ServiceArn),
 		TaskDefinitionARN:   taskDefinitionARN,
-		ServiceDashboardURL: serviceDashboardURL,
+		ServiceDashboardURL: serviceDashboardURL(req.Region, aws.ToString(req.ClusterName), aws.ToString(service.ServiceName)),
 	}, nil
+}
+
+// serviceDashboardURL builds the ECS Service dashboard URL using the AWS Region, the ECS Cluster and Service Names.
+// It returns an empty string if region is not valid.
+func serviceDashboardURL(region, clusterName, serviceName string) string {
+	if err := apiaws.IsValidRegion(region); err != nil {
+		return ""
+	}
+
+	return fmt.Sprintf("https://%s.console.aws.amazon.com/ecs/v2/clusters/%s/services/%s", region, clusterName, serviceName)
 }
 
 type upsertTaskRequest struct {
@@ -475,11 +483,15 @@ type upsertTaskRequest struct {
 	ResourceCreationTags tags.AWSTags
 	Region               string
 	TeleportConfigB64    string
+	TeleportBuildType    string
 }
 
 // upsertTask ensures a TaskDefinition with TaskName exists
 func upsertTask(ctx context.Context, clt DeployServiceClient, req upsertTaskRequest) (*ecsTypes.TaskDefinition, error) {
-	taskAgentContainerImage := getDistrolessTeleportImage(req.TeleportVersionTag)
+	taskAgentContainerImage, err := getDistrolessTeleportImage(req.TeleportVersionTag, req.TeleportBuildType)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	taskDefIn := &ecs.RegisterTaskDefinitionInput{
 		Family: aws.String(req.TaskName),
@@ -767,10 +779,11 @@ func upsertService(ctx context.Context, clt DeployServiceClient, req upsertServi
 }
 
 // getDistrolessTeleportImage returns the distroless teleport image string
-func getDistrolessTeleportImage(version string) string {
-	teleportImage := distrolessTeleportOSS
-	if modules.GetModules().BuildType() == modules.BuildEnterprise {
-		teleportImage = distrolessTeleportEnt
+func getDistrolessTeleportImage(version string, buildType string) (string, error) {
+	semVer, err := semver.NewVersion(version)
+	if err != nil {
+		return "", trace.BadParameter("invalid version tag %s", version)
 	}
-	return fmt.Sprintf("%s:%s", teleportImage, version)
+
+	return teleportassets.DistrolessImage(*semVer, buildType), nil
 }

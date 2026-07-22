@@ -21,17 +21,22 @@ package integrationv1
 import (
 	"context"
 	"log/slog"
+	"slices"
+	"strings"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/defaults"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
+	awsutils "github.com/gravitational/teleport/api/utils/aws"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/services"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
@@ -44,7 +49,7 @@ func (s *Service) GenerateAWSOIDCToken(ctx context.Context, req *integrationpb.G
 
 	for _, allowedRole := range []types.SystemRole{types.RoleDiscovery, types.RoleAuth, types.RoleProxy} {
 		if authz.HasBuiltinRole(*authCtx, string(allowedRole)) {
-			return s.generateAWSOIDCTokenWithoutAuthZ(ctx, req.Integration)
+			return s.generateAWSOIDCTokenWithoutAuthZ(ctx, req.GetIntegration())
 		}
 	}
 
@@ -69,9 +74,9 @@ func (s *Service) generateAWSOIDCTokenWithoutAuthZ(ctx context.Context, integrat
 		return nil, trace.Wrap(err)
 	}
 
-	return &integrationpb.GenerateAWSOIDCTokenResponse{
+	return integrationpb.GenerateAWSOIDCTokenResponse_builder{
 		Token: token,
-	}, nil
+	}.Build(), nil
 }
 
 // AWSOIDCServiceConfig holds configuration options for the AWSOIDC Integration gRPC service.
@@ -79,9 +84,104 @@ type AWSOIDCServiceConfig struct {
 	IntegrationService    *Service
 	Authorizer            authz.Authorizer
 	Cache                 CacheAWSOIDC
+	TokenCreator          TokenCreator
 	Clock                 clockwork.Clock
-	ProxyPublicAddrGetter func() string
+	ProxyPublicAddrGetter func(context.Context) string
 	Logger                *slog.Logger
+	Modules               modules.Modules
+}
+
+// deleteAWSOIDCAssociatedResources deletes associated discovery_configs and
+// app_servers created by the integration being deleted.  Should only be used by
+// methods that check access for VerbDelete on KindIntegration
+func (s *Service) deleteAWSOIDCAssociatedResources(ctx context.Context, authCtx *authz.Context, ig types.Integration) error {
+	// TODO(alexhemard): follow up work needed to add explicit labels for
+	// resources created by integration rather than rely on implicit rules
+
+	// Delete discovery_configs created by this integration
+	var configsRequireCleanup []string
+	var configsToDelete []string
+
+	for config, err := range clientutils.Resources(ctx, s.cache.ListDiscoveryConfigs) {
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		awsMatchers := config.Spec.AWS
+
+		config.Spec.AWS = slices.DeleteFunc(config.Spec.AWS, func(matcher types.AWSMatcher) bool {
+			return matcher.Integration == ig.GetName()
+		})
+
+		if len(awsMatchers) == len(config.Spec.AWS) {
+			continue
+		}
+
+		// discovery_configs can be assumed to be created by the integration
+		// and deleted if
+		// 1. only has matchers referencing this integration
+		// 2. has valid uuid name
+		if config.IsMatchersEmpty() {
+			_, err := uuid.Parse(config.GetName())
+
+			if err == nil {
+				configsToDelete = append(configsToDelete, config.GetName())
+				continue
+			}
+		}
+
+		configsRequireCleanup = append(configsRequireCleanup, config.GetName())
+	}
+
+	if len(configsRequireCleanup) > 0 {
+		var qualifiedConfigs []string
+		for _, config := range configsRequireCleanup {
+			qualifiedConfigs = append(qualifiedConfigs, "discovery_config/"+config)
+		}
+
+		return trace.BadParameter("cannot delete integration, "+
+			"Discovery Configs referencing this integration must be removed first: %s\n\n"+
+			"Use `tsh rm %s` to remove them.",
+			strings.Join(configsRequireCleanup, ", "),
+			strings.Join(qualifiedConfigs, " "))
+	}
+
+	for _, configName := range configsToDelete {
+		s.logger.DebugContext(ctx, "Deleting discovery_config associated with integration",
+			"discovery_config", configName,
+			"integration", ig.GetName())
+
+		err := s.backend.DeleteDiscoveryConfig(ctx, configName)
+
+		if err != nil && !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+	}
+
+	// Delete AWS access app_server associated with this integration
+	appServers, err := s.cache.GetApplicationServers(ctx, defaults.Namespace)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	for _, appServer := range appServers {
+		if appServer.GetApp().GetIntegration() == ig.GetName() {
+			s.logger.DebugContext(ctx, "Deleting app_server associated with integration",
+				"app_server", appServer.GetName(),
+				"integration", ig.GetName())
+
+			err := s.backend.DeleteApplicationServer(ctx,
+				appServer.GetNamespace(), appServer.GetHostID(), appServer.GetName())
+
+			if err != nil && !trace.IsNotFound(err) {
+				return trace.Wrap(err)
+			}
+
+			break
+		}
+	}
+
+	return nil
 }
 
 // CheckAndSetDefaults checks the AWSOIDCServiceConfig fields and returns an error if a required param is not provided.
@@ -99,12 +199,20 @@ func (s *AWSOIDCServiceConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("cache is required")
 	}
 
+	if s.TokenCreator == nil {
+		return trace.BadParameter("token creator is required")
+	}
+
 	if s.Clock == nil {
 		s.Clock = clockwork.NewRealClock()
 	}
 
 	if s.ProxyPublicAddrGetter == nil {
 		return trace.BadParameter("proxyPublicAddrGetter is required")
+	}
+
+	if s.Modules == nil {
+		return trace.BadParameter("modules is required")
 	}
 
 	if s.Logger == nil {
@@ -122,8 +230,10 @@ type AWSOIDCService struct {
 	authorizer            authz.Authorizer
 	logger                *slog.Logger
 	clock                 clockwork.Clock
-	proxyPublicAddrGetter func() string
+	proxyPublicAddrGetter func(context.Context) string
 	cache                 CacheAWSOIDC
+	tokenCreator          TokenCreator
+	modules               modules.Modules
 }
 
 // CacheAWSOIDC is the subset of the cached resources that the Service queries.
@@ -131,11 +241,14 @@ type CacheAWSOIDC interface {
 	// GetToken returns a provision token by name.
 	GetToken(ctx context.Context, name string) (types.ProvisionToken, error)
 
+	// GetClusterName returns the current cluster name.
+	GetClusterName(ctx context.Context) (types.ClusterName, error)
+}
+
+// TokenCreator is a subset of the auth server methods used to create tokens.
+type TokenCreator interface {
 	// UpsertToken creates or updates a provision token.
 	UpsertToken(ctx context.Context, token types.ProvisionToken) error
-
-	// GetClusterName returns the current cluster name.
-	GetClusterName(...services.MarshalOption) (types.ClusterName, error)
 }
 
 // NewAWSOIDCService returns a new AWSOIDCService.
@@ -151,41 +264,58 @@ func NewAWSOIDCService(cfg *AWSOIDCServiceConfig) (*AWSOIDCService, error) {
 		proxyPublicAddrGetter: cfg.ProxyPublicAddrGetter,
 		clock:                 cfg.Clock,
 		cache:                 cfg.Cache,
+		tokenCreator:          cfg.TokenCreator,
+		modules:               cfg.Modules,
 	}, nil
 }
 
 var _ integrationpb.AWSOIDCServiceServer = (*AWSOIDCService)(nil)
 
-func (s *AWSOIDCService) awsClientReq(ctx context.Context, integrationName, region string) (*awsoidc.AWSClientRequest, error) {
-	integration, err := s.integrationService.GetIntegration(ctx, &integrationpb.GetIntegrationRequest{
+func (s *AWSOIDCService) roleARNForIntegration(ctx context.Context, integrationName string) (string, error) {
+	integration, err := s.integrationService.GetIntegration(ctx, integrationpb.GetIntegrationRequest_builder{
 		Name: integrationName,
-	})
+	}.Build())
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return "", trace.Wrap(err)
 	}
 
 	if integration.GetSubKind() != types.IntegrationSubKindAWSOIDC {
-		return nil, trace.BadParameter("integration subkind (%s) mismatch", integration.GetSubKind())
+		return "", trace.BadParameter("integration subkind (%s) mismatch", integration.GetSubKind())
 	}
 
 	if integration.GetAWSOIDCIntegrationSpec() == nil {
-		return nil, trace.BadParameter("missing spec fields for %q (%q) integration", integration.GetName(), integration.GetSubKind())
+		return "", trace.BadParameter("missing spec fields for %q (%q) integration", integration.GetName(), integration.GetSubKind())
 	}
 
+	return integration.GetAWSOIDCIntegrationSpec().RoleARN, nil
+}
+
+func (s *AWSOIDCService) awsClientReqWithARN(ctx context.Context, integrationName, region, arn string) (*awsoidc.AWSClientRequest, error) {
 	token, err := s.integrationService.generateAWSOIDCTokenWithoutAuthZ(ctx, integrationName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return &awsoidc.AWSClientRequest{
-		IntegrationName: integrationName,
-		Token:           token.Token,
-		RoleARN:         integration.GetAWSOIDCIntegrationSpec().RoleARN,
-		Region:          region,
+		Token:   token.GetToken(),
+		RoleARN: arn,
+		Region:  region,
 	}, nil
 }
 
+func (s *AWSOIDCService) awsClientReq(ctx context.Context, integrationName, region string) (*awsoidc.AWSClientRequest, error) {
+	roleARN, err := s.roleARNForIntegration(ctx, integrationName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return s.awsClientReqWithARN(ctx, integrationName, region, roleARN)
+
+}
+
 // ListEICE returns a paginated list of EC2 Instance Connect Endpoints.
+//
+// Deprecated: Marked as deprecated in teleport/integration/v1/awsoidc_service.proto.
 func (s *AWSOIDCService) ListEICE(ctx context.Context, req *integrationpb.ListEICERequest) (*integrationpb.ListEICEResponse, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
@@ -196,7 +326,7 @@ func (s *AWSOIDCService) ListEICE(ctx context.Context, req *integrationpb.ListEI
 		return nil, trace.Wrap(err)
 	}
 
-	awsClientReq, err := s.awsClientReq(ctx, req.Integration, req.Region)
+	awsClientReq, err := s.awsClientReq(ctx, req.GetIntegration(), req.GetRegion())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -207,9 +337,9 @@ func (s *AWSOIDCService) ListEICE(ctx context.Context, req *integrationpb.ListEI
 	}
 
 	listResp, err := awsoidc.ListEC2ICE(ctx, listClient, awsoidc.ListEC2ICERequest{
-		Region:    req.Region,
-		VPCIDs:    req.VpcIds,
-		NextToken: req.NextToken,
+		Region:    req.GetRegion(),
+		VPCIDs:    req.GetVpcIds(),
+		NextToken: req.GetNextToken(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -217,24 +347,26 @@ func (s *AWSOIDCService) ListEICE(ctx context.Context, req *integrationpb.ListEI
 
 	eiceList := make([]*integrationpb.EC2InstanceConnectEndpoint, 0, len(listResp.EC2ICEs))
 	for _, e := range listResp.EC2ICEs {
-		eiceList = append(eiceList, &integrationpb.EC2InstanceConnectEndpoint{
+		eiceList = append(eiceList, integrationpb.EC2InstanceConnectEndpoint_builder{
 			Name:          e.Name,
 			State:         e.State,
 			StateMessage:  e.StateMessage,
 			DashboardLink: e.DashboardLink,
 			SubnetId:      e.SubnetID,
 			VpcId:         e.VPCID,
-		})
+		}.Build())
 	}
 
-	return &integrationpb.ListEICEResponse{
+	return integrationpb.ListEICEResponse_builder{
 		NextToken:     listResp.NextToken,
 		Ec2Ices:       eiceList,
 		DashboardLink: listResp.DashboardLink,
-	}, nil
+	}.Build(), nil
 }
 
 // CreateEICE creates multiple EC2 Instance Connect Endpoint using the provided Subnets and Security Group IDs.
+//
+// Deprecated: Marked as deprecated in teleport/integration/v1/awsoidc_service.proto.
 func (s *AWSOIDCService) CreateEICE(ctx context.Context, req *integrationpb.CreateEICERequest) (*integrationpb.CreateEICEResponse, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
@@ -245,7 +377,7 @@ func (s *AWSOIDCService) CreateEICE(ctx context.Context, req *integrationpb.Crea
 		return nil, trace.Wrap(err)
 	}
 
-	awsClientReq, err := s.awsClientReq(ctx, req.Integration, req.Region)
+	awsClientReq, err := s.awsClientReq(ctx, req.GetIntegration(), req.GetRegion())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -255,23 +387,23 @@ func (s *AWSOIDCService) CreateEICE(ctx context.Context, req *integrationpb.Crea
 		return nil, trace.Wrap(err)
 	}
 
-	clusterName, err := s.cache.GetClusterName()
+	clusterName, err := s.cache.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	endpoints := make([]awsoidc.EC2ICEEndpoint, 0, len(req.Endpoints))
-	for _, endpoint := range req.Endpoints {
+	endpoints := make([]awsoidc.EC2ICEEndpoint, 0, len(req.GetEndpoints()))
+	for _, endpoint := range req.GetEndpoints() {
 		endpoints = append(endpoints, awsoidc.EC2ICEEndpoint{
-			Name:             endpoint.Name,
-			SubnetID:         endpoint.SubnetId,
-			SecurityGroupIDs: endpoint.SecurityGroupIds,
+			Name:             endpoint.GetName(),
+			SubnetID:         endpoint.GetSubnetId(),
+			SecurityGroupIDs: endpoint.GetSecurityGroupIds(),
 		})
 	}
 
 	createResp, err := awsoidc.CreateEC2ICE(ctx, createClient, awsoidc.CreateEC2ICERequest{
 		Cluster:         clusterName.GetClusterName(),
-		IntegrationName: req.Integration,
+		IntegrationName: req.GetIntegration(),
 		Endpoints:       endpoints,
 	})
 	if err != nil {
@@ -280,17 +412,17 @@ func (s *AWSOIDCService) CreateEICE(ctx context.Context, req *integrationpb.Crea
 
 	eiceList := make([]*integrationpb.EC2ICEndpoint, 0, len(createResp.CreatedEndpoints))
 	for _, e := range createResp.CreatedEndpoints {
-		eiceList = append(eiceList, &integrationpb.EC2ICEndpoint{
+		eiceList = append(eiceList, integrationpb.EC2ICEndpoint_builder{
 			Name:             e.Name,
 			SubnetId:         e.SubnetID,
 			SecurityGroupIds: e.SecurityGroupIDs,
-		})
+		}.Build())
 	}
 
-	return &integrationpb.CreateEICEResponse{
+	return integrationpb.CreateEICEResponse_builder{
 		Name:             createResp.Name,
 		CreatedEndpoints: eiceList,
-	}, nil
+	}.Build(), nil
 }
 
 // ListDatabases returns a paginated list of Databases.
@@ -304,7 +436,7 @@ func (s *AWSOIDCService) ListDatabases(ctx context.Context, req *integrationpb.L
 		return nil, trace.Wrap(err)
 	}
 
-	awsClientReq, err := s.awsClientReq(ctx, req.Integration, req.Region)
+	awsClientReq, err := s.awsClientReq(ctx, req.GetIntegration(), req.GetRegion())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -314,12 +446,12 @@ func (s *AWSOIDCService) ListDatabases(ctx context.Context, req *integrationpb.L
 		return nil, trace.Wrap(err)
 	}
 
-	listDBsResp, err := awsoidc.ListDatabases(ctx, listDBsClient, awsoidc.ListDatabasesRequest{
-		Region:    req.Region,
-		RDSType:   req.RdsType,
-		Engines:   req.Engines,
-		NextToken: req.NextToken,
-		VpcId:     req.VpcId,
+	listDBsResp, err := awsoidc.ListDatabases(ctx, listDBsClient, s.logger, awsoidc.ListDatabasesRequest{
+		Region:    req.GetRegion(),
+		RDSType:   req.GetRdsType(),
+		Engines:   req.GetEngines(),
+		NextToken: req.GetNextToken(),
+		VpcId:     req.GetVpcId(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -339,10 +471,10 @@ func (s *AWSOIDCService) ListDatabases(ctx context.Context, req *integrationpb.L
 		dbList = append(dbList, dbV3)
 	}
 
-	return &integrationpb.ListDatabasesResponse{
+	return integrationpb.ListDatabasesResponse_builder{
 		Databases: dbList,
 		NextToken: listDBsResp.NextToken,
-	}, nil
+	}.Build(), nil
 }
 
 // ListSecurityGroups returns a paginated list of SecurityGroups.
@@ -356,7 +488,7 @@ func (s *AWSOIDCService) ListSecurityGroups(ctx context.Context, req *integratio
 		return nil, trace.Wrap(err)
 	}
 
-	awsClientReq, err := s.awsClientReq(ctx, req.Integration, req.Region)
+	awsClientReq, err := s.awsClientReq(ctx, req.GetIntegration(), req.GetRegion())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -367,8 +499,8 @@ func (s *AWSOIDCService) ListSecurityGroups(ctx context.Context, req *integratio
 	}
 
 	listSGsResp, err := awsoidc.ListSecurityGroups(ctx, listSGsClient, awsoidc.ListSecurityGroupsRequest{
-		VPCID:     req.VpcId,
-		NextToken: req.NextToken,
+		VPCID:     req.GetVpcId(),
+		NextToken: req.GetNextToken(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -376,37 +508,52 @@ func (s *AWSOIDCService) ListSecurityGroups(ctx context.Context, req *integratio
 
 	sgList := make([]*integrationpb.SecurityGroup, 0, len(listSGsResp.SecurityGroups))
 	for _, sg := range listSGsResp.SecurityGroups {
-		sgList = append(sgList, &integrationpb.SecurityGroup{
+		sgList = append(sgList, integrationpb.SecurityGroup_builder{
 			Name:          sg.Name,
 			Id:            sg.ID,
 			Description:   sg.Description,
 			InboundRules:  convertSecurityGroupRulesToProto(sg.InboundRules),
 			OutboundRules: convertSecurityGroupRulesToProto(sg.OutboundRules),
-		})
+		}.Build())
 	}
 
-	return &integrationpb.ListSecurityGroupsResponse{
+	return integrationpb.ListSecurityGroupsResponse_builder{
 		SecurityGroups: sgList,
 		NextToken:      listSGsResp.NextToken,
-	}, nil
+	}.Build(), nil
 }
 
 func convertSecurityGroupRulesToProto(inRules []awsoidc.SecurityGroupRule) []*integrationpb.SecurityGroupRule {
 	out := make([]*integrationpb.SecurityGroupRule, 0, len(inRules))
 	for _, r := range inRules {
-		cidrs := make([]*integrationpb.SecurityGroupRuleCIDR, 0, len(r.CIDRs))
+		var cidrs []*integrationpb.SecurityGroupRuleCIDR
+		if len(r.CIDRs) > 0 {
+			cidrs = make([]*integrationpb.SecurityGroupRuleCIDR, 0, len(r.CIDRs))
+		}
 		for _, cidr := range r.CIDRs {
-			cidrs = append(cidrs, &integrationpb.SecurityGroupRuleCIDR{
+			cidrs = append(cidrs, integrationpb.SecurityGroupRuleCIDR_builder{
 				Cidr:        cidr.CIDR,
 				Description: cidr.Description,
-			})
+			}.Build())
 		}
-		out = append(out, &integrationpb.SecurityGroupRule{
+
+		var groupIDs []*integrationpb.SecurityGroupRuleGroupID
+		if len(r.Groups) > 0 {
+			groupIDs = make([]*integrationpb.SecurityGroupRuleGroupID, 0, len(r.Groups))
+		}
+		for _, group := range r.Groups {
+			groupIDs = append(groupIDs, integrationpb.SecurityGroupRuleGroupID_builder{
+				GroupId:     group.GroupId,
+				Description: group.Description,
+			}.Build())
+		}
+		out = append(out, integrationpb.SecurityGroupRule_builder{
 			IpProtocol: r.IPProtocol,
 			FromPort:   int32(r.FromPort),
 			ToPort:     int32(r.ToPort),
 			Cidrs:      cidrs,
-		})
+			GroupIds:   groupIDs,
+		}.Build())
 	}
 	return out
 }
@@ -422,48 +569,101 @@ func (s *AWSOIDCService) DeployDatabaseService(ctx context.Context, req *integra
 		return nil, trace.Wrap(err)
 	}
 
-	clusterName, err := s.cache.GetClusterName()
+	clusterName, err := s.cache.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	awsClientReq, err := s.awsClientReq(ctx, req.Integration, req.Region)
+	awsClientReq, err := s.awsClientReq(ctx, req.GetIntegration(), req.GetRegion())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	deployServiceClient, err := awsoidc.NewDeployServiceClient(ctx, awsClientReq, s.cache)
+	deployServiceClient, err := awsoidc.NewDeployServiceClient(ctx, awsClientReq, s.cache, s.tokenCreator)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	deployments := make([]awsoidc.DeployDatabaseServiceRequestDeployment, 0, len(req.Deployments))
-	for _, d := range req.Deployments {
+	deployments := make([]awsoidc.DeployDatabaseServiceRequestDeployment, 0, len(req.GetDeployments()))
+	for _, d := range req.GetDeployments() {
 		deployments = append(deployments, awsoidc.DeployDatabaseServiceRequestDeployment{
-			VPCID:               d.VpcId,
-			SubnetIDs:           d.SubnetIds,
-			SecurityGroupIDs:    d.SecurityGroups,
-			DeployServiceConfig: d.TeleportConfigString,
+			VPCID:               d.GetVpcId(),
+			SubnetIDs:           d.GetSubnetIds(),
+			SecurityGroupIDs:    d.GetSecurityGroups(),
+			DeployServiceConfig: d.GetTeleportConfigString(),
 		})
 	}
 
 	deployDBResp, err := awsoidc.DeployDatabaseService(ctx, deployServiceClient, awsoidc.DeployDatabaseServiceRequest{
-		Region:                  req.Region,
-		TaskRoleARN:             req.TaskRoleArn,
-		TeleportVersionTag:      req.TeleportVersion,
-		DeploymentJoinTokenName: req.DeploymentJoinTokenName,
+		Region:                  req.GetRegion(),
+		TaskRoleARN:             req.GetTaskRoleArn(),
+		TeleportVersionTag:      req.GetTeleportVersion(),
+		DeploymentJoinTokenName: req.GetDeploymentJoinTokenName(),
 		Deployments:             deployments,
 		TeleportClusterName:     clusterName.GetClusterName(),
-		IntegrationName:         req.Integration,
+		IntegrationName:         req.GetIntegration(),
+		TeleportBuildType:       s.modules.BuildType(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return &integrationpb.DeployDatabaseServiceResponse{
+	return integrationpb.DeployDatabaseServiceResponse_builder{
 		ClusterArn:          deployDBResp.ClusterARN,
 		ClusterDashboardUrl: deployDBResp.ClusterDashboardURL,
-	}, nil
+	}.Build(), nil
+}
+
+// ListDeployedDatabaseServices lists Database Services deployed into Amazon ECS.
+func (s *AWSOIDCService) ListDeployedDatabaseServices(ctx context.Context, req *integrationpb.ListDeployedDatabaseServicesRequest) (*integrationpb.ListDeployedDatabaseServicesResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(types.KindIntegration, types.VerbUse); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clusterName, err := s.cache.GetClusterName(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	awsClientReq, err := s.awsClientReq(ctx, req.GetIntegration(), req.GetRegion())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	listDatabaseServicesClient, err := awsoidc.NewListDeployedDatabaseServicesClient(ctx, awsClientReq)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	listDatabaseServicesResponse, err := awsoidc.ListDeployedDatabaseServices(ctx, listDatabaseServicesClient, awsoidc.ListDeployedDatabaseServicesRequest{
+		Integration:         req.GetIntegration(),
+		TeleportClusterName: clusterName.GetClusterName(),
+		Region:              req.GetRegion(),
+		NextToken:           req.GetNextToken(),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	deployedDatabaseServices := make([]*integrationpb.DeployedDatabaseService, 0, len(listDatabaseServicesResponse.DeployedDatabaseServices))
+	for _, deployedService := range listDatabaseServicesResponse.DeployedDatabaseServices {
+		deployedDatabaseServices = append(deployedDatabaseServices, integrationpb.DeployedDatabaseService_builder{
+			Name:                deployedService.Name,
+			ServiceDashboardUrl: deployedService.ServiceDashboardURL,
+			ContainerEntryPoint: deployedService.ContainerEntryPoint,
+			ContainerCommand:    deployedService.ContainerCommand,
+		}.Build())
+	}
+
+	return integrationpb.ListDeployedDatabaseServicesResponse_builder{
+		DeployedDatabaseServices: deployedDatabaseServices,
+		NextToken:                listDatabaseServicesResponse.NextToken,
+	}.Build(), nil
 }
 
 // EnrollEKSClusters enrolls EKS clusters into Teleport by installing teleport-kube-agent chart on the clusters.
@@ -477,35 +677,37 @@ func (s *AWSOIDCService) EnrollEKSClusters(ctx context.Context, req *integration
 		return nil, trace.Wrap(err)
 	}
 
-	publicProxyAddr := s.proxyPublicAddrGetter()
+	publicProxyAddr := s.proxyPublicAddrGetter(ctx)
 	if publicProxyAddr == "" {
 		return nil, trace.BadParameter("could not get public proxy address.")
 	}
 
-	awsClientReq, err := s.awsClientReq(ctx, req.Integration, req.Region)
+	awsClientReq, err := s.awsClientReq(ctx, req.GetIntegration(), req.GetRegion())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	credsProvider, err := awsoidc.NewAWSCredentialsProvider(ctx, awsClientReq)
+	enrollEKSClient, err := awsoidc.NewEnrollEKSClustersClient(ctx, awsClientReq, s.tokenCreator.UpsertToken)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	enrollEKSClient, err := awsoidc.NewEnrollEKSClustersClient(ctx, awsClientReq, s.cache.UpsertToken)
+	clusterName, err := s.cache.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	features := modules.GetModules().Features()
-
-	enrollmentResponse, err := awsoidc.EnrollEKSClusters(ctx, s.logger, s.clock, publicProxyAddr, credsProvider, enrollEKSClient, awsoidc.EnrollEKSClustersRequest{
-		Region:             req.Region,
-		ClusterNames:       req.GetEksClusterNames(),
-		EnableAppDiscovery: req.EnableAppDiscovery,
-		EnableAutoUpgrades: features.AutomaticUpgrades,
-		IsCloud:            features.Cloud,
-		AgentVersion:       req.AgentVersion,
+	features := s.modules.Features()
+	enrollmentResponse, err := awsoidc.EnrollEKSClusters(ctx, s.logger, s.clock, publicProxyAddr, enrollEKSClient, awsoidc.EnrollEKSClustersRequest{
+		Region:              req.GetRegion(),
+		ClusterNames:        req.GetEksClusterNames(),
+		EnableAppDiscovery:  req.GetEnableAppDiscovery(),
+		EnableAutoUpgrades:  features.AutomaticUpgrades,
+		IsCloud:             features.Cloud,
+		AgentVersion:        req.GetAgentVersion(),
+		TeleportClusterName: clusterName.GetClusterName(),
+		IntegrationName:     req.GetIntegration(),
+		ExtraLabels:         req.GetExtraLabels(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -513,16 +715,17 @@ func (s *AWSOIDCService) EnrollEKSClusters(ctx context.Context, req *integration
 
 	results := make([]*integrationpb.EnrollEKSClusterResult, 0, len(enrollmentResponse.Results))
 	for _, r := range enrollmentResponse.Results {
-		results = append(results, &integrationpb.EnrollEKSClusterResult{
+		results = append(results, integrationpb.EnrollEKSClusterResult_builder{
 			EksClusterName: r.ClusterName,
 			ResourceId:     r.ResourceId,
 			Error:          trace.UserMessage(r.Error),
-		})
+			IssueType:      r.IssueType,
+		}.Build())
 	}
 
-	return &integrationpb.EnrollEKSClustersResponse{
+	return integrationpb.EnrollEKSClustersResponse_builder{
 		Results: results,
-	}, nil
+	}.Build(), nil
 }
 
 // DeployService deploys Services into Amazon ECS.
@@ -536,46 +739,49 @@ func (s *AWSOIDCService) DeployService(ctx context.Context, req *integrationpb.D
 		return nil, trace.Wrap(err)
 	}
 
-	clusterName, err := s.cache.GetClusterName()
+	clusterName, err := s.cache.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	awsClientReq, err := s.awsClientReq(ctx, req.Integration, req.Region)
+	awsClientReq, err := s.awsClientReq(ctx, req.GetIntegration(), req.GetRegion())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	deployServiceClient, err := awsoidc.NewDeployServiceClient(ctx, awsClientReq, s.cache)
+	deployServiceClient, err := awsoidc.NewDeployServiceClient(ctx, awsClientReq, s.cache, s.tokenCreator)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	deployServiceResp, err := awsoidc.DeployService(ctx, deployServiceClient, awsoidc.DeployServiceRequest{
-		DeploymentJoinTokenName: req.DeploymentJoinTokenName,
-		DeploymentMode:          req.DeploymentMode,
-		TeleportConfigString:    req.TeleportConfigString,
-		IntegrationName:         req.Integration,
-		Region:                  req.Region,
-		SecurityGroups:          req.SecurityGroups,
-		SubnetIDs:               req.SubnetIds,
-		TaskRoleARN:             req.TaskRoleArn,
+		DeploymentJoinTokenName: req.GetDeploymentJoinTokenName(),
+		DeploymentMode:          req.GetDeploymentMode(),
+		TeleportConfigString:    req.GetTeleportConfigString(),
+		IntegrationName:         req.GetIntegration(),
+		Region:                  req.GetRegion(),
+		SecurityGroups:          req.GetSecurityGroups(),
+		SubnetIDs:               req.GetSubnetIds(),
+		TaskRoleARN:             req.GetTaskRoleArn(),
 		TeleportClusterName:     clusterName.GetClusterName(),
-		TeleportVersionTag:      req.TeleportVersion,
+		TeleportVersionTag:      req.GetTeleportVersion(),
+		TeleportBuildType:       s.modules.BuildType(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return &integrationpb.DeployServiceResponse{
+	return integrationpb.DeployServiceResponse_builder{
 		ClusterArn:          deployServiceResp.ClusterARN,
 		ServiceArn:          deployServiceResp.ServiceARN,
 		TaskDefinitionArn:   deployServiceResp.TaskDefinitionARN,
 		ServiceDashboardUrl: deployServiceResp.ServiceDashboardURL,
-	}, nil
+	}.Build(), nil
 }
 
 // ListEC2 returns a paginated list of AWS EC2 instances.
+//
+// Deprecated: Marked as deprecated in teleport/integration/v1/awsoidc_service.proto.
 func (s *AWSOIDCService) ListEC2(ctx context.Context, req *integrationpb.ListEC2Request) (*integrationpb.ListEC2Response, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
@@ -586,7 +792,7 @@ func (s *AWSOIDCService) ListEC2(ctx context.Context, req *integrationpb.ListEC2
 		return nil, trace.Wrap(err)
 	}
 
-	awsClientReq, err := s.awsClientReq(ctx, req.Integration, req.Region)
+	awsClientReq, err := s.awsClientReq(ctx, req.GetIntegration(), req.GetRegion())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -597,9 +803,9 @@ func (s *AWSOIDCService) ListEC2(ctx context.Context, req *integrationpb.ListEC2
 	}
 
 	listEC2Resp, err := awsoidc.ListEC2(ctx, listEC2Client, awsoidc.ListEC2Request{
-		Region:      req.Region,
-		Integration: req.Integration,
-		NextToken:   req.NextToken,
+		Region:      req.GetRegion(),
+		Integration: req.GetIntegration(),
+		NextToken:   req.GetNextToken(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -619,10 +825,10 @@ func (s *AWSOIDCService) ListEC2(ctx context.Context, req *integrationpb.ListEC2
 		serverList = append(serverList, serverV2)
 	}
 
-	return &integrationpb.ListEC2Response{
+	return integrationpb.ListEC2Response_builder{
 		Servers:   serverList,
 		NextToken: listEC2Resp.NextToken,
-	}, nil
+	}.Build(), nil
 }
 
 // ListEKSCluster returns a paginated list of AWS EKS Clusters.
@@ -636,7 +842,7 @@ func (s *AWSOIDCService) ListEKSClusters(ctx context.Context, req *integrationpb
 		return nil, trace.Wrap(err)
 	}
 
-	awsClientReq, err := s.awsClientReq(ctx, req.Integration, req.Region)
+	awsClientReq, err := s.awsClientReq(ctx, req.GetIntegration(), req.GetRegion())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -647,8 +853,8 @@ func (s *AWSOIDCService) ListEKSClusters(ctx context.Context, req *integrationpb
 	}
 
 	listEKSClustersResp, err := awsoidc.ListEKSClusters(ctx, listEKSClustersClient, awsoidc.ListEKSClustersRequest{
-		Region:    req.Region,
-		NextToken: req.NextToken,
+		Region:    req.GetRegion(),
+		NextToken: req.GetNextToken(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -656,21 +862,26 @@ func (s *AWSOIDCService) ListEKSClusters(ctx context.Context, req *integrationpb
 
 	clustersList := make([]*integrationpb.EKSCluster, 0, len(listEKSClustersResp.Clusters))
 	for _, cluster := range listEKSClustersResp.Clusters {
-		clusterPb := &integrationpb.EKSCluster{
-			Name:       cluster.Name,
-			Region:     cluster.Region,
-			Arn:        cluster.Arn,
-			Labels:     cluster.Labels,
-			JoinLabels: cluster.JoinLabels,
-			Status:     cluster.Status,
-		}
-		clustersList = append(clustersList, clusterPb)
+		clustersList = append(clustersList, convertEKSCluster(cluster))
 	}
 
-	return &integrationpb.ListEKSClustersResponse{
+	return integrationpb.ListEKSClustersResponse_builder{
 		Clusters:  clustersList,
 		NextToken: listEKSClustersResp.NextToken,
-	}, nil
+	}.Build(), nil
+}
+
+func convertEKSCluster(clusterService awsoidc.EKSCluster) *integrationpb.EKSCluster {
+	return integrationpb.EKSCluster_builder{
+		Name:                 clusterService.Name,
+		Region:               clusterService.Region,
+		Arn:                  clusterService.Arn,
+		Labels:               clusterService.Labels,
+		JoinLabels:           clusterService.JoinLabels,
+		Status:               clusterService.Status,
+		EndpointPublicAccess: clusterService.EndpointPublicAccess,
+		AuthenticationMode:   clusterService.AuthenticationMode,
+	}.Build()
 }
 
 // ListSubnets returns a list of AWS VPC subnets.
@@ -684,7 +895,7 @@ func (s *AWSOIDCService) ListSubnets(ctx context.Context, req *integrationpb.Lis
 		return nil, trace.Wrap(err)
 	}
 
-	awsClientReq, err := s.awsClientReq(ctx, req.Integration, req.Region)
+	awsClientReq, err := s.awsClientReq(ctx, req.GetIntegration(), req.GetRegion())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -695,8 +906,8 @@ func (s *AWSOIDCService) ListSubnets(ctx context.Context, req *integrationpb.Lis
 	}
 
 	resp, err := awsoidc.ListSubnets(ctx, awsClient, awsoidc.ListSubnetsRequest{
-		VPCID:     req.VpcId,
-		NextToken: req.NextToken,
+		VPCID:     req.GetVpcId(),
+		NextToken: req.GetNextToken(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -704,17 +915,17 @@ func (s *AWSOIDCService) ListSubnets(ctx context.Context, req *integrationpb.Lis
 
 	subnets := make([]*integrationpb.Subnet, 0, len(resp.Subnets))
 	for _, s := range resp.Subnets {
-		subnets = append(subnets, &integrationpb.Subnet{
+		subnets = append(subnets, integrationpb.Subnet_builder{
 			Name:             s.Name,
 			Id:               s.ID,
 			AvailabilityZone: s.AvailabilityZone,
-		})
+		}.Build())
 	}
 
-	return &integrationpb.ListSubnetsResponse{
+	return integrationpb.ListSubnetsResponse_builder{
 		Subnets:   subnets,
 		NextToken: resp.NextToken,
-	}, nil
+	}.Build(), nil
 }
 
 // ListVPCs returns a list of AWS VPCs.
@@ -728,7 +939,7 @@ func (s *AWSOIDCService) ListVPCs(ctx context.Context, req *integrationpb.ListVP
 		return nil, trace.Wrap(err)
 	}
 
-	awsClientReq, err := s.awsClientReq(ctx, req.Integration, req.Region)
+	awsClientReq, err := s.awsClientReq(ctx, req.GetIntegration(), req.GetRegion())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -739,7 +950,7 @@ func (s *AWSOIDCService) ListVPCs(ctx context.Context, req *integrationpb.ListVP
 	}
 
 	resp, err := awsoidc.ListVPCs(ctx, awsClient, awsoidc.ListVPCsRequest{
-		NextToken: req.NextToken,
+		NextToken: req.GetNextToken(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -747,14 +958,58 @@ func (s *AWSOIDCService) ListVPCs(ctx context.Context, req *integrationpb.ListVP
 
 	vpcs := make([]*integrationpb.VPC, 0, len(resp.VPCs))
 	for _, s := range resp.VPCs {
-		vpcs = append(vpcs, &integrationpb.VPC{
+		vpcs = append(vpcs, integrationpb.VPC_builder{
 			Name: s.Name,
 			Id:   s.ID,
-		})
+		}.Build())
 	}
 
-	return &integrationpb.ListVPCsResponse{
+	return integrationpb.ListVPCsResponse_builder{
 		Vpcs:      vpcs,
 		NextToken: resp.NextToken,
-	}, nil
+	}.Build(), nil
+}
+
+// Ping does a health check for an integration.
+func (s *AWSOIDCService) Ping(ctx context.Context, req *integrationpb.PingRequest) (*integrationpb.PingResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := authCtx.CheckAccessToKind(types.KindIntegration, types.VerbUse); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var awsClientReq *awsoidc.AWSClientRequest
+	switch {
+	case req.GetRoleArn() != "":
+		awsClientReq, err = s.awsClientReqWithARN(ctx, req.GetIntegration(), awsutils.AWSGlobalRegion, req.GetRoleArn())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	case req.GetIntegration() != "":
+		awsClientReq, err = s.awsClientReq(ctx, req.GetIntegration(), awsutils.AWSGlobalRegion)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	default:
+		return nil, trace.BadParameter("one of arn and integration is required")
+	}
+
+	awsClient, err := awsoidc.NewPingClient(ctx, awsClientReq)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := awsoidc.Ping(ctx, awsClient)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return integrationpb.PingResponse_builder{
+		AccountId: resp.AccountID,
+		Arn:       resp.ARN,
+		UserId:    resp.UserID,
+	}.Build(), nil
 }

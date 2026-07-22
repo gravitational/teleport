@@ -16,13 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import * as whatwg from 'whatwg-url';
 import {
-  CUSTOM_PROTOCOL,
-  Path,
-  DeepURL,
-  ConnectMyComputerDeepURL,
   AuthenticateWebDeviceDeepURL,
+  ConnectMyComputerDeepURL,
+  CUSTOM_PROTOCOL,
+  DeepURL,
+  Path,
+  VnetDeepURL,
 } from 'shared/deepLinks';
 
 export type DeepLinkParseResult =
@@ -65,36 +65,35 @@ type ParseError<Reason, AdditionalData = void> = AdditionalData extends void
  * have to be parsed on both ends.
  */
 export function parseDeepLink(rawUrl: string): DeepLinkParseResult {
-  let whatwgURL: whatwg.URL;
+  let parsedURL: URL;
   try {
-    whatwgURL = new whatwg.URL(rawUrl);
+    parsedURL = new URL(rawUrl);
   } catch (error) {
-    if (error instanceof TypeError) {
-      // Invalid URL.
-      return { status: 'error', reason: 'malformed-url', error };
-    }
-    throw error;
+    // `error instanceof TypeError` doesn't work in tests. The URL constructor shouldn't throw other
+    // errors anyway.
+    return { status: 'error', reason: 'malformed-url', error };
   }
 
-  if (whatwgURL.protocol !== `${CUSTOM_PROTOCOL}:`) {
+  if (parsedURL.protocol !== `${CUSTOM_PROTOCOL}:`) {
     return {
       status: 'error',
       reason: 'unknown-protocol',
-      protocol: whatwgURL.protocol,
+      protocol: parsedURL.protocol,
     };
   }
 
-  const { host, hostname, port, username, pathname, searchParams } = whatwgURL;
+  const { host, hostname, port, username, pathname, searchParams } = parsedURL;
   const baseUrl = {
     host,
     hostname,
     port,
-    // whatwg-url percent-encodes usernames. We decode them here so that the rest of the app doesn't
-    // have to do this. https://url.spec.whatwg.org/#set-the-username
+    // The URL API percent-encodes usernames. We decode them here so that the rest of the app
+    // doesn't have to do this. https://url.spec.whatwg.org/#set-the-username
     username: decodeURIComponent(username),
   };
 
-  switch (pathname as Path) {
+  const pathnameAsPath = pathname as Path;
+  switch (pathnameAsPath) {
     case '/connect_my_computer': {
       const url: ConnectMyComputerDeepURL = {
         ...baseUrl,
@@ -106,6 +105,7 @@ export function parseDeepLink(rawUrl: string): DeepLinkParseResult {
     case '/authenticate_web_device': {
       const id = searchParams.get('id');
       const token = searchParams.get('token');
+      const redirect_uri = searchParams.get('redirect_uri');
       if (!(id && token)) {
         return {
           status: 'error',
@@ -122,11 +122,21 @@ export function parseDeepLink(rawUrl: string): DeepLinkParseResult {
         searchParams: {
           id,
           token,
+          redirect_uri,
         },
       };
       return { status: 'success', url };
     }
+    case '/vnet': {
+      const url: VnetDeepURL = {
+        ...baseUrl,
+        pathname: '/vnet',
+        searchParams: {},
+      };
+      return { status: 'success', url };
+    }
     default:
+      pathnameAsPath satisfies never;
       return { status: 'error', reason: 'unsupported-url' };
   }
 }

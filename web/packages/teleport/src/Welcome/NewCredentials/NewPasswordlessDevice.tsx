@@ -17,15 +17,15 @@
  */
 
 import React, { useState } from 'react';
+
 import { Box, ButtonPrimary, ButtonText, H2 } from 'design';
-import { Danger, Info } from 'design/Alert';
+import { Danger } from 'design/Alert';
 import FieldInput from 'shared/components/FieldInput';
 import Validation, { Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
 import { useRefAutoFocus } from 'shared/hooks';
 
-import { OnboardCard } from 'design/Onboard/OnboardCard';
-
+import { OnboardCard } from 'teleport/components/Onboard';
 import { PasskeyBlurb } from 'teleport/components/Passkeys/PasskeyBlurb';
 
 import { SliderProps, UseTokenState } from './types';
@@ -73,15 +73,6 @@ export function NewPasswordlessDevice(props: UseTokenState & SliderProps) {
     changeFlow({ flow: 'local', applyNextAnimation });
   }
 
-  // Firefox currently does not support passwordless and when
-  // registering, users will 'soft lock' where firefox prompts
-  // but when touching the device, it does not do anything.
-  // We display a soft warning because firefox may provide
-  // support in the near future: https://github.com/gravitational/webapps/pull/876
-  const isFirefox = window.navigator?.userAgent
-    ?.toLowerCase()
-    .includes('firefox');
-
   return (
     <Validation>
       {({ validator }) => (
@@ -90,13 +81,7 @@ export function NewPasswordlessDevice(props: UseTokenState & SliderProps) {
           {submitAttempt.status === 'failed' && (
             <Danger children={submitAttempt.statusText} />
           )}
-          {isFirefox && (
-            <Info mt={3}>
-              Firefox may not support passwordless register. Please try Chrome
-              or Safari.
-            </Info>
-          )}
-          Setting up account for: {resetToken.user}
+          Setting up an account for: {resetToken.user}
           <Box mb={3}>
             <PasskeyBlurb />
           </Box>

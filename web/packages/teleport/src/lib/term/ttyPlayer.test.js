@@ -16,12 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import '@gravitational/shared/libs/polyfillFinally';
-
 import WS from 'jest-websocket-mock';
 
-import { TermEvent } from 'teleport/lib/term/enums';
 import { StatusEnum } from 'teleport/lib/player';
+import { TermEvent } from 'teleport/lib/term/enums';
 
 import TtyPlayer from './ttyPlayer';
 

@@ -16,21 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-export { AnsibleIcon } from './Ansible';
-export { AWSIcon } from './AWS';
-export { AzureIcon } from './Azure';
-export { ChevronRightIcon } from './ChevronRight';
-export { CircleCIIcon } from './CircleCI';
-export { ExternalLinkIcon } from './ExternalLink';
-export { GCPIcon } from './GCP';
-export { GitHubIcon } from './GitHub';
-export { GitLabIcon } from './GitLab';
-export { JenkinsIcon } from './Jenkins';
-export { KubernetesIcon } from './Kubernetes';
-export { LockIcon } from './Lock';
-export { OktaIcon } from './Okta';
-export { ServersIcon } from './Servers';
-export { SpaceliftIcon } from './Spacelift';
 export { TeleportGearIcon } from './TeleportGearIcon';
 
 export { SVGIcon } from './SVGIcon';

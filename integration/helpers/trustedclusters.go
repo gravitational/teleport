@@ -25,14 +25,11 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 )
@@ -41,9 +38,9 @@ import (
 func WaitForTunnelConnections(t *testing.T, authServer *auth.Server, clusterName string, expectedCount int) {
 	t.Helper()
 	var conns []types.TunnelConnection
-	for i := 0; i < 30; i++ {
+	for range 30 {
 		// to speed things up a bit, bypass the auth cache
-		conns, err := authServer.Services.GetTunnelConnections(clusterName)
+		conns, err := authServer.Services.GetTunnelConnections(t.Context(), clusterName)
 		require.NoError(t, err)
 		if len(conns) == expectedCount {
 			return
@@ -60,20 +57,70 @@ func WaitForTunnelConnections(t *testing.T, authServer *auth.Server, clusterName
 // Duplicated in tool/tsh/tsh_test.go
 func TryCreateTrustedCluster(t *testing.T, authServer *auth.Server, trustedCluster types.TrustedCluster) {
 	t.Helper()
-	ctx := context.TODO()
-	for i := 0; i < 10; i++ {
-		log.Debugf("Will create trusted cluster %v, attempt %v.", trustedCluster, i)
-		_, err := authServer.UpsertTrustedCluster(ctx, trustedCluster)
+	ctx := t.Context()
+	for range 10 {
+		_, err := authServer.CreateTrustedCluster(ctx, trustedCluster)
 		if err == nil {
 			return
 		}
 		if trace.IsConnectionProblem(err) {
-			log.Debugf("Retrying on connection problem: %v.", err)
 			time.Sleep(500 * time.Millisecond)
 			continue
 		}
 		if trace.IsAccessDenied(err) {
-			log.Debugf("Retrying on access denied: %v.", err)
+			time.Sleep(500 * time.Millisecond)
+			continue
+		}
+		require.FailNow(t, "Terminating on unexpected problem", "%v.", err)
+	}
+	require.FailNow(t, "Timeout creating trusted cluster")
+}
+
+// TryUpdateTrustedCluster performs several attempts to update a trusted cluster,
+// retries on connection problems and access denied errors to let caches
+// propagate and services to start
+func TryUpdateTrustedCluster(t *testing.T, authServer *auth.Server, trustedCluster types.TrustedCluster) {
+	t.Helper()
+	ctx := t.Context()
+	for range 10 {
+		_, err := authServer.UpdateTrustedCluster(ctx, trustedCluster)
+		if err == nil {
+			return
+		}
+		if trace.IsConnectionProblem(err) {
+			time.Sleep(500 * time.Millisecond)
+			continue
+		}
+		if trace.IsAccessDenied(err) {
+			time.Sleep(500 * time.Millisecond)
+			continue
+		}
+		require.FailNow(t, "Terminating on unexpected problem", "%v.", err)
+	}
+	require.FailNow(t, "Timeout creating trusted cluster")
+}
+
+// TryUpdateTrustedCluster performs several attempts to upsert a trusted cluster,
+// retries on connection problems and access denied errors to let caches
+// propagate and services to start
+func TryUpsertTrustedCluster(t *testing.T, authServer *auth.Server, trustedCluster types.TrustedCluster, skipNameValidation bool) {
+	t.Helper()
+	ctx := t.Context()
+	for range 10 {
+		var err error
+		if skipNameValidation {
+			_, err = authServer.UpsertTrustedCluster(ctx, trustedCluster)
+		} else {
+			_, err = authServer.UpsertTrustedClusterV2(ctx, trustedCluster)
+		}
+		if err == nil {
+			return
+		}
+		if trace.IsConnectionProblem(err) {
+			time.Sleep(500 * time.Millisecond)
+			continue
+		}
+		if trace.IsAccessDenied(err) {
 			time.Sleep(500 * time.Millisecond)
 			continue
 		}
@@ -83,11 +130,11 @@ func TryCreateTrustedCluster(t *testing.T, authServer *auth.Server, trustedClust
 }
 
 func WaitForClusters(tun reversetunnelclient.Server, expected int) func() bool {
-	// GetSites will always return the local site
+	// Clusters will always return the local site
 	expected++
 
 	return func() (ok bool) {
-		clusters, err := tun.GetSites()
+		clusters, err := tun.Clusters(context.Background())
 		if err != nil {
 			return false
 		}
@@ -112,51 +159,19 @@ func WaitForClusters(tun reversetunnelclient.Server, expected int) func() bool {
 	}
 }
 
-// WaitForNodeCount waits for a certain number of nodes to show up in the remote site.
-func WaitForNodeCount(ctx context.Context, t *TeleInstance, clusterName string, count int) error {
-	const (
-		deadline     = time.Second * 30
-		iterWaitTime = time.Second
-	)
-
-	err := retryutils.RetryStaticFor(deadline, iterWaitTime, func() error {
-		remoteSite, err := t.Tunnel.GetSite(clusterName)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		accessPoint, err := remoteSite.CachingAccessPoint()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		nodes, err := accessPoint.GetNodes(ctx, defaults.Namespace)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if len(nodes) == count {
-			return nil
-		}
-		return trace.BadParameter("found %v nodes, but wanted to find %v nodes", len(nodes), count)
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
 // WaitForActiveTunnelConnections waits for remote cluster to report a minimum number of active connections
 func WaitForActiveTunnelConnections(t *testing.T, tunnel reversetunnelclient.Server, clusterName string, expectedCount int) {
+	ctx := t.Context()
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		cluster, err := tunnel.GetSite(clusterName)
-		if !assert.NoError(t, err, "site not found") {
-			return
-		}
+		cluster, err := tunnel.Cluster(ctx, clusterName)
+		require.NoError(t, err, "site not found")
 
-		assert.GreaterOrEqual(t, cluster.GetTunnelsCount(), expectedCount, "missing tunnels for site")
+		require.GreaterOrEqual(t, cluster.GetTunnelsCount(), expectedCount, "missing tunnels for site")
 
-		assert.Equal(t, teleport.RemoteClusterStatusOnline, cluster.GetStatus(), "cluster not online")
+		require.Equal(t, teleport.RemoteClusterStatusOnline, cluster.GetStatus(), "cluster not online")
 
 		_, err = cluster.GetClient()
-		assert.NoError(t, err, "cluster not yet available")
+		require.NoError(t, err, "cluster not yet available")
 	},
 		90*time.Second,
 		time.Second,

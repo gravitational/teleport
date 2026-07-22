@@ -27,5 +27,6 @@ export type BearerToken = {
   expiresIn: string;
   created: number;
   sessionExpires: Date;
+  sessionExpiresIn: number;
   sessionInactiveTimeout: number;
 };

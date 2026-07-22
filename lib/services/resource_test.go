@@ -29,6 +29,7 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 	"github.com/gravitational/teleport/api/types"
+	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 )
 
 // TestParseShortcut will test parsing of shortcuts.
@@ -69,6 +70,11 @@ func TestParseShortcut(t *testing.T) {
 		"cert_authority":   {expectedOutput: types.KindCertAuthority},
 		"cert_authorities": {expectedOutput: types.KindCertAuthority},
 		"cas":              {expectedOutput: types.KindCertAuthority},
+
+		"cert_authority_override":  {expectedOutput: types.KindCertAuthorityOverride},
+		"cert_authority_overrides": {expectedOutput: types.KindCertAuthorityOverride},
+		"ca_override":              {expectedOutput: types.KindCertAuthorityOverride},
+		"ca_overrides":             {expectedOutput: types.KindCertAuthorityOverride},
 
 		"tunnel":          {expectedOutput: types.KindReverseTunnel},
 		"reverse_tunnels": {expectedOutput: types.KindReverseTunnel},
@@ -177,6 +183,12 @@ func TestParseShortcut(t *testing.T) {
 		"accessrequest":   {expectedOutput: types.KindAccessRequest},
 		"accessrequests":  {expectedOutput: types.KindAccessRequest},
 
+		"scoped_role_assignment":  {expectedOutput: scopedaccess.KindScopedRoleAssignment},
+		"scoped_role_assignments": {expectedOutput: scopedaccess.KindScopedRoleAssignment},
+		"scopedroleassignment":    {expectedOutput: scopedaccess.KindScopedRoleAssignment},
+		"scopedroleassignments":   {expectedOutput: scopedaccess.KindScopedRoleAssignment},
+		"sra":                     {expectedOutput: scopedaccess.KindScopedRoleAssignment},
+
 		"unknown_type": {expectedErr: true},
 	}
 
@@ -253,14 +265,14 @@ func Test_setResourceName(t *testing.T) {
 func TestProtoResourceRoundtrip(t *testing.T) {
 	t.Parallel()
 
-	resource := &vnet.VnetConfig{
-		Metadata: &headerv1.Metadata{
+	resource := vnet.VnetConfig_builder{
+		Metadata: headerv1.Metadata_builder{
 			Name: "vnet_config",
-		},
-		Spec: &vnet.VnetConfigSpec{
+		}.Build(),
+		Spec: vnet.VnetConfigSpec_builder{
 			Ipv4CidrRange: "100.64.0.0/10",
-		},
-	}
+		}.Build(),
+	}.Build()
 
 	for _, tc := range []struct {
 		desc          string

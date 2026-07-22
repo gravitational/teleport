@@ -1,0 +1,388 @@
+// Copyright 2025 Gravitational, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package summarizer
+
+import (
+	"slices"
+	"strings"
+
+	"github.com/gravitational/trace"
+
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	summarizerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/aws"
+)
+
+const (
+	// CloudDefaultInferenceModelName is the name of the built-in Bedrock inference
+	// model used by Teleport Cloud.
+	CloudDefaultInferenceModelName = "teleport-cloud-default"
+	// BedrockModelExpansionPlaceholder is a placeholder value for Bedrock model IDs
+	// that indicates the model ID should be expanded based on the TELEPORT_BEDROCK_MODEL
+	// environment variable.
+	BedrockModelExpansionPlaceholder = "{{env.bedrock_model_id}}"
+	// BedrockRegionExpansionPlaceholder is a placeholder value for Bedrock regions
+	// that indicates the region should be expanded based on the TELEPORT_BEDROCK_REGION
+	// environment variable.
+	BedrockRegionExpansionPlaceholder = "{{env.bedrock_region}}"
+)
+
+// NewInferenceModel creates a new InferenceModel resource with the given name
+// and spec.
+func NewInferenceModel(name string, spec *summarizerv1.InferenceModelSpec) *summarizerv1.InferenceModel {
+	return &summarizerv1.InferenceModel{
+		Kind:    types.KindInferenceModel,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: name,
+		},
+		Spec: spec,
+	}
+}
+
+// ValidateInferenceModel validates an InferenceModel.
+func ValidateInferenceModel(m *summarizerv1.InferenceModel) error {
+	switch {
+	case m == nil:
+		return trace.BadParameter("inference model is nil")
+	case m.GetKind() != types.KindInferenceModel:
+		return trace.BadParameter("kind must be %s, got %s", types.KindInferenceModel, m.GetKind())
+	case m.GetSubKind() != "":
+		return trace.BadParameter("subkind must be empty")
+	case m.GetVersion() == "":
+		return trace.BadParameter("version is required")
+	case m.GetVersion() != types.V1:
+		return trace.BadParameter("unsupported version %s, supported: %s", m.GetVersion(), types.V1)
+
+	case m.GetMetadata() == nil:
+		return trace.BadParameter("metadata is required")
+	case m.GetMetadata().GetName() == "":
+		return trace.BadParameter("metadata.name is required")
+
+	case m.GetSpec() == nil:
+		return trace.BadParameter("spec is required")
+	}
+
+	provider := m.GetSpec().GetProvider()
+	switch p := provider.(type) {
+	case nil:
+		return trace.BadParameter(
+			// Unfortunately, there's no way to tell between a missing and
+			// unsupported one once the object is parsed from YAML. There may be a
+			// way to do it if it was created from binary wire format, but it's not
+			// worth the effort.
+			"missing or unsupported inference provider in spec, supported providers: openai, bedrock",
+		)
+	case *summarizerv1.InferenceModelSpec_Openai:
+		if p.Openai.GetOpenaiModelId() == "" {
+			return trace.BadParameter("spec.openai.openai_model_id is required")
+		}
+	case *summarizerv1.InferenceModelSpec_Bedrock:
+		if p.Bedrock.GetBedrockModelId() == "" {
+			return trace.BadParameter("spec.bedrock.bedrock_model_id is required")
+		}
+
+		if containsPlaceholderInstruction(p.Bedrock.GetBedrockModelId()) &&
+			strings.ReplaceAll(p.Bedrock.GetBedrockModelId(), " ", "") != BedrockModelExpansionPlaceholder {
+			return trace.BadParameter("spec.bedrock.bedrock_model_id contains invalid placeholder instructions. Valid placeholder: %s; got %s", BedrockModelExpansionPlaceholder, p.Bedrock.GetBedrockModelId())
+		}
+
+		if p.Bedrock.GetRegion() == "" {
+			return trace.BadParameter("spec.bedrock.region is required")
+		}
+
+		switch {
+		case containsPlaceholderInstruction(p.Bedrock.GetRegion()):
+			if strings.ReplaceAll(p.Bedrock.GetRegion(), " ", "") != BedrockRegionExpansionPlaceholder {
+				return trace.BadParameter("spec.bedrock.region contains invalid placeholder instructions. Valid placeholder: %s; got %s", BedrockRegionExpansionPlaceholder, p.Bedrock.GetRegion())
+			}
+		case aws.IsValidRegion(p.Bedrock.GetRegion()) != nil:
+			return trace.BadParameter("invalid spec.bedrock.region: %q", p.Bedrock.GetRegion())
+		}
+	}
+
+	return nil
+}
+
+// containsPlaceholderInstruction returns true if the given string contains
+// any placeholder instructions (e.g., "{placeholder}").
+func containsPlaceholderInstruction(s string) bool {
+	return strings.Contains(s, "{") ||
+		strings.Contains(s, "}")
+}
+
+// NewInferenceSecret creates a new InferenceSecret resource with the given name
+// and spec.
+func NewInferenceSecret(name string, spec *summarizerv1.InferenceSecretSpec) *summarizerv1.InferenceSecret {
+	return &summarizerv1.InferenceSecret{
+		Kind:    types.KindInferenceSecret,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: name,
+		},
+		Spec: spec,
+	}
+}
+
+// ValidateInferenceSecret validates an inference secret.
+func ValidateInferenceSecret(s *summarizerv1.InferenceSecret) error {
+	switch {
+	case s == nil:
+		return trace.BadParameter("inference secret is nil")
+	case s.GetKind() != types.KindInferenceSecret:
+		return trace.BadParameter("kind must be %s, got %s", types.KindInferenceSecret, s.GetKind())
+	case s.GetSubKind() != "":
+		return trace.BadParameter("subkind must be empty")
+	case s.GetVersion() == "":
+		return trace.BadParameter("version is required")
+	case s.GetVersion() != types.V1:
+		return trace.BadParameter("unsupported version %s, supported: %s", s.GetVersion(), types.V1)
+
+	case s.GetMetadata() == nil:
+		return trace.BadParameter("metadata is required")
+	case s.GetMetadata().GetName() == "":
+		return trace.BadParameter("metadata.name is required")
+
+	case s.GetSpec() == nil:
+		return trace.BadParameter("spec is required")
+	case s.GetSpec().GetValue() == "":
+		return trace.BadParameter("spec.value is required")
+	}
+
+	return nil
+}
+
+// NewInferencePolicy creates a new InferencePolicy resource with the given name
+// and spec.
+func NewInferencePolicy(name string, spec *summarizerv1.InferencePolicySpec) *summarizerv1.InferencePolicy {
+	return &summarizerv1.InferencePolicy{
+		Kind:    types.KindInferencePolicy,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: name,
+		},
+		Spec: spec,
+	}
+}
+
+// ValidateInferencePolicy validates an InferencePolicy. This function doesn't
+// validate the Filter field, as it's unable to access the lib/services
+// package; to fully validate a policy, use
+// lib/services.ValidateInferencePolicy.
+func ValidateInferencePolicy(p *summarizerv1.InferencePolicy) error {
+	switch {
+	case p == nil:
+		return trace.BadParameter("inference policy is nil")
+	case p.GetKind() != types.KindInferencePolicy:
+		return trace.BadParameter("kind must be %s, got %s", types.KindInferencePolicy, p.GetKind())
+	case p.GetSubKind() != "":
+		return trace.BadParameter("subkind must be empty")
+	case p.GetVersion() == "":
+		return trace.BadParameter("version is required")
+	case p.GetVersion() != types.V1:
+		return trace.BadParameter("unsupported version %s, supported: %s", p.GetVersion(), types.V1)
+
+	case p.GetMetadata() == nil:
+		return trace.BadParameter("metadata is required")
+	case p.GetMetadata().GetName() == "":
+		return trace.BadParameter("metadata.name is required")
+
+	case p.GetSpec() == nil:
+		return trace.BadParameter("spec is required")
+	case p.GetSpec().GetModel() == "":
+		return trace.BadParameter("spec.model is required")
+	}
+
+	kinds := p.GetSpec().GetKinds()
+	if len(kinds) == 0 {
+		return trace.BadParameter("spec.kinds are required")
+	}
+	supportedKinds := []string{
+		string(types.SSHSessionKind),
+		string(types.KubernetesSessionKind),
+		string(types.DatabaseSessionKind),
+		string(types.WindowsDesktopSessionKind),
+	}
+	for _, kind := range kinds {
+		if !slices.Contains(supportedKinds, kind) {
+			return trace.BadParameter(
+				"unsupported kind in spec.kinds: %s, supported: %v",
+				kind, strings.Join(supportedKinds, ", "),
+			)
+		}
+	}
+
+	return nil
+}
+
+// NewClassifier creates a new Classifier resource with the given name and
+// spec.
+func NewClassifier(name string, spec *summarizerv1.ClassifierSpec) *summarizerv1.Classifier {
+	return &summarizerv1.Classifier{
+		Kind:    types.KindClassifier,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: name,
+		},
+		Spec: spec,
+	}
+}
+
+// ValidateClassifier validates a Classifier. This function doesn't validate
+// the Filter field, as it's unable to access the lib/services package; to
+// fully validate a classifier, use lib/services.ValidateClassifier.
+func ValidateClassifier(c *summarizerv1.Classifier) error {
+	switch {
+	case c == nil:
+		return trace.BadParameter("classifier is nil")
+	case c.GetKind() != types.KindClassifier:
+		return trace.BadParameter("kind must be %s, got %s", types.KindClassifier, c.GetKind())
+	case c.GetSubKind() != "":
+		return trace.BadParameter("subkind must be empty")
+	case c.GetVersion() == "":
+		return trace.BadParameter("version is required")
+	case c.GetVersion() != types.V1:
+		return trace.BadParameter("unsupported version %s, supported: %s", c.GetVersion(), types.V1)
+
+	case c.GetMetadata() == nil:
+		return trace.BadParameter("metadata is required")
+	case c.GetMetadata().GetName() == "":
+		return trace.BadParameter("metadata.name is required")
+
+	case c.GetSpec() == nil:
+		return trace.BadParameter("spec is required")
+	}
+
+	kinds := c.GetSpec().GetKinds()
+	if len(kinds) == 0 {
+		return trace.BadParameter("spec.kinds are required")
+	}
+	supportedKinds := []string{
+		string(types.SSHSessionKind),
+		string(types.KubernetesSessionKind),
+		string(types.DatabaseSessionKind),
+	}
+	for _, kind := range kinds {
+		if !slices.Contains(supportedKinds, kind) {
+			return trace.BadParameter(
+				"unsupported kind in spec.kinds: %s, supported: %v",
+				kind, strings.Join(supportedKinds, ", "),
+			)
+		}
+	}
+
+	if strings.TrimSpace(c.GetSpec().GetCriteria()) == "" {
+		return trace.BadParameter("spec.criteria is required")
+	}
+
+	if a := c.GetSpec().GetActions(); a != nil {
+		if _, ok := summarizerv1.ClassifierActionMode_name[int32(a.GetEmitAuditEvent())]; !ok {
+			return trace.BadParameter(
+				"spec.actions.emit_audit_event has an unsupported value %d",
+				a.GetEmitAuditEvent(),
+			)
+		}
+		if _, ok := summarizerv1.RiskLevel_name[int32(a.GetRiskLevelFloor())]; !ok {
+			return trace.BadParameter(
+				"spec.actions.risk_level_floor has an unsupported value %d",
+				a.GetRiskLevelFloor(),
+			)
+		}
+		if _, ok := summarizerv1.ClassifierActionMode_name[int32(a.GetFlagForReview())]; !ok {
+			return trace.BadParameter(
+				"spec.actions.flag_for_review has an unsupported value %d",
+				a.GetFlagForReview(),
+			)
+		}
+	}
+
+	return nil
+}
+
+// NewRetrievalModel creates a new RetrievalModel resource with the given spec.
+// Since only one RetrievalModel can exist per cluster, a fixed name is used.
+func NewRetrievalModel(spec *summarizerv1.RetrievalModelSpec) *summarizerv1.RetrievalModel {
+	return &summarizerv1.RetrievalModel{
+		Kind:    types.KindRetrievalModel,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: types.MetaNameRetrievalModel,
+		},
+		Spec: spec,
+	}
+}
+
+// ValidateRetrievalModel validates a RetrievalModel.
+func ValidateRetrievalModel(m *summarizerv1.RetrievalModel) error {
+	switch {
+	case m == nil:
+		return trace.BadParameter("retrieval model is nil")
+	case m.GetKind() != types.KindRetrievalModel:
+		return trace.BadParameter("kind must be %s, got %s", types.KindRetrievalModel, m.GetKind())
+	case m.GetSubKind() != "":
+		return trace.BadParameter("subkind must be empty")
+	case m.GetVersion() == "":
+		return trace.BadParameter("version is required")
+	case m.GetVersion() != types.V1:
+		return trace.BadParameter("unsupported version %s, supported: %s", m.GetVersion(), types.V1)
+
+	case m.GetMetadata() == nil:
+		return trace.BadParameter("metadata is required")
+	case m.GetMetadata().GetName() != types.MetaNameRetrievalModel:
+		return trace.BadParameter("metadata.name must be %q, got %q", types.MetaNameRetrievalModel, m.GetMetadata().GetName())
+
+	case m.GetSpec() == nil:
+		return trace.BadParameter("spec is required")
+	}
+
+	provider := m.GetSpec().GetEmbeddingsProvider()
+	switch p := provider.(type) {
+	case *summarizerv1.RetrievalModelSpec_Openai:
+		if p.Openai.GetOpenaiModelId() == "" {
+			return trace.BadParameter("spec.embeddings_provider.openai.openai_model_id is required")
+		}
+		if p.Openai.GetApiKeySecretRef() == "" {
+			return trace.BadParameter("spec.embeddings_provider.openai.api_key_secret_ref is required")
+		}
+	case *summarizerv1.RetrievalModelSpec_Bedrock:
+		if p.Bedrock.GetBedrockModelId() == "" {
+			return trace.BadParameter("spec.embeddings_provider.bedrock.bedrock_model_id is required")
+		}
+		if containsPlaceholderInstruction(p.Bedrock.GetBedrockModelId()) {
+			return trace.BadParameter("spec.embeddings_provider.bedrock.bedrock_model_id does not support model expansion")
+		}
+
+		if p.Bedrock.GetRegion() == "" {
+			return trace.BadParameter("spec.embeddings_provider.bedrock.region is required")
+		}
+		switch {
+		case containsPlaceholderInstruction(p.Bedrock.GetRegion()):
+			if strings.ReplaceAll(p.Bedrock.GetRegion(), " ", "") != BedrockRegionExpansionPlaceholder {
+				return trace.BadParameter("spec.embeddings_provider.bedrock.region contains invalid placeholder instructions. Valid placeholder: %s; got %s", BedrockRegionExpansionPlaceholder, p.Bedrock.GetRegion())
+			}
+		case aws.IsValidRegion(p.Bedrock.GetRegion()) != nil:
+			return trace.BadParameter("invalid spec.embeddings_provider.bedrock.region: %q", p.Bedrock.GetRegion())
+		}
+	default:
+		return trace.BadParameter("invalid embeddings_provider specified")
+	}
+
+	if m.GetSpec().GetInferenceModelName() == "" {
+		return trace.BadParameter("spec.inference_model_name is required")
+	}
+
+	return nil
+}

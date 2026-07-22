@@ -19,31 +19,35 @@
 package azsessions
 
 import (
+	"bytes"
 	"cmp"
 	"context"
 	"encoding/base64"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/url"
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/streaming"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
+	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blob"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blockblob"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/container"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/utils/downloadretrier"
 )
 
 // sessionContainerParam and inprogressContainerParam are the parameters in the
@@ -66,6 +70,24 @@ const (
 // given session.
 func sessionName(sid session.ID) string {
 	return sid.String()
+}
+
+// summaryName returns the name of the blob that contains the summary for a
+// given session.
+func summaryName(sid session.ID) string {
+	return sid.String() + ".summary.json"
+}
+
+// metadataName returns the name of the blob that contains the metadata for a
+// given session.
+func metadataName(sid session.ID) string {
+	return sid.String() + ".metadata"
+}
+
+// thumbnailName returns the name of the blob that contains the thumbnail for a
+// given session.
+func thumbnailName(sid session.ID) string {
+	return sid.String() + ".thumbnail"
 }
 
 // uploadMarkerPrefix is the prefix of the names of the upload marker blobs.
@@ -113,7 +135,7 @@ type Config struct {
 
 	// Log is the logger to use. If unset, it will default to the global logger
 	// with a component of "azblob".
-	Log logrus.FieldLogger
+	Log *slog.Logger
 }
 
 // SetFromURL sets values in Config based on the passed in URL: the fragment of
@@ -160,7 +182,7 @@ func (c *Config) CheckAndSetDefaults() error {
 	}
 
 	if c.Log == nil {
-		c.Log = logrus.WithField(teleport.ComponentKey, "azblob")
+		c.Log = slog.With(teleport.ComponentKey, "azblob")
 	}
 
 	return nil
@@ -193,7 +215,10 @@ func NewHandler(ctx context.Context, cfg Config) (*Handler, error) {
 			return nil, trace.Wrap(err)
 		}
 
-		cfg.Log.WithError(err).Debugf("Failed to confirm that the %v container exists, attempting creation.", name)
+		cfg.Log.DebugContext(ctx, "Failed to confirm that the container exists, attempting creation.",
+			"container", name,
+			"error", err,
+		)
 		// someone else might've created the container between GetProperties and
 		// Create, so we ignore AlreadyExists
 		_, err = cErr(cntClient.Create(ctx, nil))
@@ -203,8 +228,11 @@ func NewHandler(ctx context.Context, cfg Config) (*Handler, error) {
 		if trace.IsAccessDenied(err) {
 			// we might not have permissions to read the container or to create
 			// it, but we might have permissions to use it
-			cfg.Log.WithError(err).Warnf(
-				"Could not create the %v container, please ensure it exists or session recordings will not be stored correctly.", name)
+			cfg.Log.WarnContext(ctx,
+				"Could not create container, please ensure it exists or session recordings will not be stored correctly.",
+				"container", name,
+				"error", err,
+			)
 			return cntClient, nil
 		}
 		return nil, trace.Wrap(err)
@@ -230,7 +258,7 @@ func NewHandler(ctx context.Context, cfg Config) (*Handler, error) {
 
 // Handler is a MultipartHandler that stores data in Azure Blob Storage.
 type Handler struct {
-	log        logrus.FieldLogger
+	log        *slog.Logger
 	cred       azcore.TokenCredential
 	session    *container.Client
 	inprogress *container.Client
@@ -242,6 +270,27 @@ var _ events.MultipartHandler = (*Handler)(nil)
 // session.
 func (h *Handler) sessionBlob(sessionID session.ID) *blockblob.Client {
 	return h.session.NewBlockBlobClient(sessionName(sessionID))
+}
+
+// pendingSummaryBlob returns a BlockBlobClient for the blob of the a pending
+// session summary.
+func (h *Handler) pendingSummaryBlob(sessionID session.ID) *blockblob.Client {
+	return h.inprogress.NewBlockBlobClient(summaryName(sessionID))
+}
+
+// summaryBlob returns a BlockBlobClient for the blob of the session summary.
+func (h *Handler) summaryBlob(sessionID session.ID) *blockblob.Client {
+	return h.session.NewBlockBlobClient(summaryName(sessionID))
+}
+
+// metadataBlob returns a BlockBlobClient for the blob of the session metadata.
+func (h *Handler) metadataBlob(sessionID session.ID) *blockblob.Client {
+	return h.session.NewBlockBlobClient(metadataName(sessionID))
+}
+
+// thumbnailBlob returns a BlockBlobClient for the blob of the session thumbnail.
+func (h *Handler) thumbnailBlob(sessionID session.ID) *blockblob.Client {
+	return h.session.NewBlockBlobClient(thumbnailName(sessionID))
 }
 
 // uploadMarkerBlob returns a BlockBlobClient for the marker blob of the stream
@@ -256,44 +305,171 @@ func (h *Handler) partBlob(upload events.StreamUpload, partNumber int64) *blockb
 	return h.inprogress.NewBlockBlobClient(partName(upload, partNumber))
 }
 
-// Upload implements [events.UploadHandler].
+// Upload implements [events.UploadHandler] and uploads a session recording.
 func (h *Handler) Upload(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
-	sessionBlob := h.sessionBlob(sessionID)
-
-	if _, err := cErr(sessionBlob.UploadStream(ctx, reader, &blockblob.UploadStreamOptions{
-		AccessConditions: &blobDoesNotExist,
-	})); err != nil {
-		return "", trace.Wrap(err)
-	}
-	h.log.WithField(fieldSessionID, sessionID).Debug("Uploaded session.")
-
-	return sessionBlob.URL(), nil
+	path, err := h.uploadBlob(ctx, sessionID, h.sessionBlob(sessionID), reader)
+	return path, trace.Wrap(err)
 }
 
-// Download implements [events.UploadHandler].
-func (h *Handler) Download(ctx context.Context, sessionID session.ID, writerAt io.WriterAt) error {
-	resp, err := cErr(h.sessionBlob(sessionID).DownloadStream(ctx, nil))
+// UploadPendingSummary implements [events.UploadHandler] and uploads a pending
+// session summary. This function can be called multiple times for a given
+// sessionID to update the state.
+func (h *Handler) UploadPendingSummary(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
+	path, err := h.uploadBlob(ctx, sessionID, h.pendingSummaryBlob(sessionID), reader, withOverwrite())
+	return path, trace.Wrap(err)
+}
+
+// UploadSummary implements [events.UploadHandler] and uploads a final version
+// of session summary and deletes the pending one. This function can be called
+// only once for a given sessionID; subsequent calls will return an error.
+func (h *Handler) UploadSummary(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
+	path, err := h.uploadBlob(ctx, sessionID, h.summaryBlob(sessionID), reader)
 	if err != nil {
-		return trace.Wrap(err)
+		return "", trace.Wrap(err)
 	}
 
-	defer func() {
-		if err := resp.Body.Close(); err != nil {
-			h.log.WithError(err).WithField(fieldSessionID, sessionID).Warn("Error closing downloaded session blob.")
+	_, err = cErr(h.pendingSummaryBlob(sessionID).Delete(ctx, nil))
+	if err != nil && !trace.IsNotFound(err) {
+		return "", trace.Wrap(err)
+	}
+
+	return path, nil
+}
+
+// UploadMetadata implements [events.UploadHandler] and uploads the session
+// metadata.
+func (h *Handler) UploadMetadata(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
+	path, err := h.uploadBlob(ctx, sessionID, h.metadataBlob(sessionID), reader)
+	return path, trace.Wrap(err)
+}
+
+// UploadThumbnail implements [events.UploadHandler] and uploads the session
+// thumbnail.
+func (h *Handler) UploadThumbnail(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
+	path, err := h.uploadBlob(ctx, sessionID, h.thumbnailBlob(sessionID), reader)
+	return path, trace.Wrap(err)
+}
+
+type blobUploadConfig struct {
+	overwrite bool
+}
+
+type blobUploadOption func(*blobUploadConfig)
+
+func withOverwrite() blobUploadOption {
+	return func(cfg *blobUploadConfig) {
+		cfg.overwrite = true
+	}
+}
+
+func (h *Handler) uploadBlob(
+	ctx context.Context, sessionID session.ID, blob *blockblob.Client, reader io.Reader, opts ...blobUploadOption,
+) (string, error) {
+	cfg := blobUploadConfig{}
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+
+	usOpts := blockblob.UploadStreamOptions{}
+	if !cfg.overwrite {
+		usOpts.AccessConditions = &blobDoesNotExist
+	}
+	if _, err := cErr(blob.UploadStream(ctx, reader, &usOpts)); err != nil {
+		return "", trace.Wrap(err)
+	}
+	h.log.DebugContext(ctx, "Blob uploaded.", fieldSessionID, sessionID)
+
+	return blob.URL(), nil
+}
+
+// StreamSessionRecording implements [events.UploadHandler] and downloads a session recording.
+func (h *Handler) StreamSessionRecording(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
+	return h.blobRetrier(ctx, sessionID, h.sessionBlob(sessionID))
+}
+
+// StreamSessionSummary implements [events.UploadHandler] and downloads a final
+// session summary.
+func (h *Handler) StreamSessionSummary(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
+	// Happy path: the final summary exists.
+	rc, err := h.blobRetrier(ctx, sessionID, h.summaryBlob(sessionID))
+	if trace.IsNotFound(err) {
+		// Final summary doesn't exist, try the pending one. We don't retry
+		// here since the pending summary can be overwritten at any time.
+		rc, err = h.blobStream(ctx, h.pendingSummaryBlob(sessionID))
+		if trace.IsNotFound(err) {
+			// One more check for the final summary to prevent a race condition where
+			// the final one got created and the pending one got removed between the
+			// two checks above.
+			rc, err = h.blobRetrier(ctx, sessionID, h.summaryBlob(sessionID))
 		}
-	}()
+	}
+	return rc, trace.Wrap(err)
+}
 
-	writer, ok := writerAt.(io.Writer)
-	if !ok {
-		writer = io.NewOffsetWriter(writerAt, 0)
+// blobStream downloads a blob in a single shot without retry logic.
+func (h *Handler) blobStream(ctx context.Context, blobClient *blockblob.Client) (io.ReadCloser, error) {
+	resp, err := cErr(blobClient.DownloadStream(ctx, nil))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp.Body, nil
+}
+
+// StreamSessionMetadata implements [events.UploadHandler] and downloads a session's metadata.
+func (h *Handler) StreamSessionMetadata(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
+	return h.blobRetrier(ctx, sessionID, h.metadataBlob(sessionID))
+}
+
+// StreamSessionThumbnail implements [events.UploadHandler] and downloads a session's thumbnail.
+func (h *Handler) StreamSessionThumbnail(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
+	return h.blobRetrier(ctx, sessionID, h.thumbnailBlob(sessionID))
+}
+
+// blobRetrier checks that the blob exists and returns a downloadretrier.Retrier
+// whose DownloadFunc issues a range download starting at the given offset.
+func (h *Handler) blobRetrier(ctx context.Context, sessionID session.ID, blobClient *blockblob.Client) (io.ReadCloser, error) {
+	// Check existence upfront so NotFound is returned before any reads.
+	props, err := cErr(blobClient.GetProperties(ctx, nil))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var size int64
+	if props.ContentLength != nil {
+		size = *props.ContentLength
+	}
+	if size == 0 {
+		return io.NopCloser(bytes.NewBuffer(nil)), nil
+	}
+	var accessConditions *azblob.AccessConditions
+	if props.VersionID != nil {
+		blobClient, err = blobClient.WithVersionID(*props.VersionID)
+		if err != nil {
+			return nil, trace.Wrap(err, "applying blob version from properties")
+		}
+	} else if props.ETag != nil {
+		// if versioning isn't enabled, we can still get some protection against
+		// concurrent writes by using the ETag as an If-Match condition
+		// if the blob gets modified between the GetProperties call and the download,
+		// the ETag will change and the download will fail instead of returning potentially
+		// inconsistent data
+		accessConditions = &azblob.AccessConditions{
+			ModifiedAccessConditions: &blob.ModifiedAccessConditions{
+				IfMatch: props.ETag,
+			},
+		}
 	}
 
-	if _, err := io.Copy(writer, resp.Body); err != nil {
-		return trace.ConvertSystemError(cErr0(err))
-	}
-
-	h.log.WithField(fieldSessionID, sessionID).Debug("Downloaded session.")
-	return nil
+	return downloadretrier.New(ctx, size, func(ctx context.Context, offset int64) (io.ReadCloser, error) {
+		resp, err := cErr(blobClient.DownloadStream(ctx, &azblob.DownloadStreamOptions{
+			Range:            azblob.HTTPRange{Offset: offset},
+			AccessConditions: accessConditions,
+		}))
+		if err != nil {
+			return nil, trace.Wrap(trace.ConvertSystemError(err))
+		}
+		h.log.DebugContext(ctx, "Blob download started.", fieldSessionID, sessionID, "offset", offset)
+		return resp.Body, nil
+	}), nil
 }
 
 // CreateUpload implements [events.MultipartUploader].
@@ -308,7 +484,7 @@ func (h *Handler) CreateUpload(ctx context.Context, sessionID session.ID) (*even
 	})); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	h.log.WithField(fieldSessionID, sessionID).Debug("Created upload marker.")
+	h.log.DebugContext(ctx, "Created upload marker.", fieldSessionID, sessionID)
 
 	return &upload, nil
 }
@@ -343,15 +519,16 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 		CopySourceAuthorization: &copySourceAuthorization,
 	}
 
-	log := h.log.WithFields(logrus.Fields{
-		fieldSessionID: upload.SessionID,
-		fieldUploadID:  upload.ID,
-	})
+	log := h.log.With(
+		fieldSessionID, upload.SessionID,
+		fieldUploadID, upload.ID,
+		fieldPartCount, len(parts),
+	)
 
 	eg, egCtx := errgroup.WithContext(ctx)
 	eg.SetLimit(5) // default parallelism as used by azblob.DoBatchTransfer
 
-	log.WithField(fieldPartCount, len(parts)).Debug("Beginning upload completion.")
+	log.DebugContext(ctx, "Beginning upload completion.")
 	blockNames := make([]string, len(parts))
 	// TODO(espadolini): use stable names (upload id, part number and then some
 	// hash maybe) to avoid re-staging parts more than once across multiple
@@ -368,7 +545,7 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 			if _, err := cErr(sessionBlob.StageBlockFromURL(egCtx, blockNames[ii], partURLs[ii], stageOptions)); err != nil {
 				return trace.Wrap(err)
 			}
-			log.WithField(fieldPartNumber, ii).Debug("Staged part.")
+			log.DebugContext(egCtx, "Staged part.", fieldPartNumber, ii)
 			return nil
 		})
 	}
@@ -376,23 +553,23 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 		return trace.Wrap(err)
 	}
 
-	log.Debug("Committing part list.")
+	log.DebugContext(ctx, "Committing part list.")
 	if _, err := cErr(sessionBlob.CommitBlockList(ctx, blockNames, &blockblob.CommitBlockListOptions{
 		AccessConditions: &blobDoesNotExist,
 	})); err != nil {
 		if !trace.IsAlreadyExists(err) {
 			return trace.Wrap(err)
 		}
-		log.Warn("Session upload already exists, cleaning up marker.")
+		log.WarnContext(ctx, "Session upload already exists, cleaning up marker.")
 		parts = nil // don't delete parts that we didn't persist
 	} else {
-		log.Debug("Completed session upload.")
+		log.DebugContext(ctx, "Completed session upload.")
 	}
 
 	// TODO(espadolini): should the cleanup run in its own goroutine? What
 	// should the cancellation context for the cleanup be in that case?
 	if _, err := cErr(h.uploadMarkerBlob(upload).Delete(ctx, nil)); err != nil && !trace.IsNotFound(err) {
-		log.WithError(err).WithField(fieldPartCount, len(parts)).Warn("Failed to clean up upload marker.")
+		log.WarnContext(ctx, "Failed to clean up upload marker.", "error", err, fieldPartCount, len(parts))
 		return nil
 	}
 
@@ -403,10 +580,7 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 			return trace.Wrap(err)
 		}
 
-		m := batchSize
-		if len(parts[i:]) < batchSize {
-			m = len(parts[i:])
-		}
+		m := min(len(parts[i:]), batchSize)
 
 		for _, part := range parts[i : i+m] {
 			if err := batch.Delete(partName(upload, part.Number), nil); err != nil {
@@ -416,7 +590,7 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 
 		resp, err := cErr(h.inprogress.SubmitBatch(ctx, batch, nil))
 		if err != nil {
-			log.WithField(fieldPartNumber, parts[i].Number).WithError(err).Warn("Failed to clean up part batch.")
+			log.WarnContext(ctx, "Failed to clean up part batch.", "error", err, fieldPartNumber, parts[i].Number)
 			continue
 		}
 
@@ -428,11 +602,11 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 			}
 		}
 		if errs > 0 {
-			log.WithFields(logrus.Fields{
-				fieldPartNumber: parts[i].Number,
-				"errors":        errs,
-				"last_error":    err,
-			}).Warn("Failed to clean up part batch.")
+			log.WarnContext(ctx, "Failed to clean up part batch.",
+				fieldPartNumber, parts[i].Number,
+				"errors", errs,
+				"last_error", err,
+			)
 		}
 	}
 
@@ -448,18 +622,23 @@ func (*Handler) ReserveUploadPart(ctx context.Context, upload events.StreamUploa
 func (h *Handler) UploadPart(ctx context.Context, upload events.StreamUpload, partNumber int64, partBody io.ReadSeeker) (*events.StreamPart, error) {
 	partBlob := h.partBlob(upload, partNumber)
 
-	// our parts are just over 5 MiB (events.MinUploadPartSizeBytes) so we can
+	// our parts are just over 5 MiB [events.MinUploadPartSizeBytes] so we can
 	// upload them in one shot
-	if _, err := cErr(partBlob.Upload(ctx, streaming.NopCloser(partBody), nil)); err != nil {
+	response, err := cErr(partBlob.Upload(ctx, streaming.NopCloser(partBody), nil))
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	h.log.WithFields(logrus.Fields{
-		fieldSessionID:  upload.SessionID,
-		fieldUploadID:   upload.ID,
-		fieldPartNumber: partNumber,
-	}).Debug("Uploaded part.")
+	h.log.DebugContext(ctx, "Uploaded part.",
+		fieldSessionID, upload.SessionID,
+		fieldUploadID, upload.ID,
+		fieldPartNumber, partNumber,
+	)
 
-	return &events.StreamPart{Number: partNumber}, nil
+	var lastModified time.Time
+	if response.LastModified != nil {
+		lastModified = *response.LastModified
+	}
+	return &events.StreamPart{Number: partNumber, LastModified: lastModified}, nil
 }
 
 // ListParts implements [events.MultipartUploader].
@@ -492,8 +671,15 @@ func (h *Handler) ListParts(ctx context.Context, upload events.StreamUpload) ([]
 			if err != nil {
 				continue
 			}
-
-			parts = append(parts, events.StreamPart{Number: partNumber})
+			var lastModified time.Time
+			if b.Properties != nil &&
+				b.Properties.LastModified != nil {
+				lastModified = *b.Properties.LastModified
+			}
+			parts = append(parts, events.StreamPart{
+				Number:       partNumber,
+				LastModified: lastModified,
+			})
 		}
 	}
 

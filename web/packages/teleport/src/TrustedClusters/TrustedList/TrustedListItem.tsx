@@ -16,8 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-import { Text, Flex, ButtonPrimary } from 'design';
+import { ButtonPrimary, Flex, Text } from 'design';
 import * as Icons from 'design/Icon';
 import { MenuIcon, MenuItem } from 'shared/components/MenuAction';
 
@@ -63,7 +62,7 @@ export default function TrustedListItem(props: Props) {
           color="text.main"
         />
         <Text
-          bold
+          typography="h3"
           mb="1"
           textAlign="center"
           title={name}

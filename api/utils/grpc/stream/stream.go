@@ -47,17 +47,45 @@ type ReadWriter struct {
 	wLock  sync.Mutex
 	rLock  sync.Mutex
 	rBytes []byte
+
+	options *Options
+}
+
+// Options is NewReadWriter config options.
+type Options struct {
+	// DisableChunking disables automatic splitting of data messages
+	// that exceed MaxChunkSize during writes.
+	// This is useful when the receiver does not support chunked reads.
+	DisableChunking bool
+}
+
+// Option allows setting options as functional arguments to NewReadWriter.
+type Option func(s *Options)
+
+// WithDisabledChunking	disables automatic splitting of data messages
+// that exceed MaxChunkSize during writes.
+// This is useful when the receiver does not support chunked reads.
+func WithDisabledChunking() Option {
+	return func(s *Options) {
+		s.DisableChunking = true
+	}
 }
 
 // NewReadWriter creates a new ReadWriter that leverages the provided
 // source to retrieve data from and write data to.
-func NewReadWriter(source Source) (*ReadWriter, error) {
+func NewReadWriter(source Source, opts ...Option) (*ReadWriter, error) {
 	if source == nil {
 		return nil, trace.BadParameter("parameter source required")
 	}
 
+	options := &Options{}
+	for _, opt := range opts {
+		opt(options)
+	}
+
 	return &ReadWriter{
-		source: source,
+		source:  source,
+		options: options,
 	}, nil
 }
 
@@ -102,7 +130,7 @@ func (c *ReadWriter) Read(b []byte) (n int, err error) {
 // the grpc stream. To prevent exhausting the stream all
 // sends on the stream are limited to be at most MaxChunkSize.
 // If the data exceeds the MaxChunkSize it will be sent in
-// batches.
+// batches. This behavior can be disabled by using WithDisabledChunking.
 func (c *ReadWriter) Write(b []byte) (int, error) {
 	c.wLock.Lock()
 	defer c.wLock.Unlock()
@@ -110,7 +138,7 @@ func (c *ReadWriter) Write(b []byte) (int, error) {
 	var sent int
 	for len(b) > 0 {
 		chunk := b
-		if len(chunk) > MaxChunkSize {
+		if !c.options.DisableChunking && len(chunk) > MaxChunkSize {
 			chunk = chunk[:MaxChunkSize]
 		}
 

@@ -1,5 +1,4 @@
 //go:build linux
-// +build linux
 
 /*
  * Teleport
@@ -64,7 +63,7 @@ func memFile(name string, fileContent []byte) (int, error) {
 	return fd, nil
 }
 
-func reexecToShell(ctx context.Context, kubeconfigData []byte) (err error) {
+func reexecToShell(ctx context.Context, kubeconfigData []byte, command string, args []string) (err error) {
 	// Create in-memory file containing kubeconfig and return file descriptor.
 	fd, err := memFile("proxy-kubeconfig", kubeconfigData)
 	if err != nil {
@@ -78,18 +77,19 @@ func reexecToShell(ctx context.Context, kubeconfigData []byte) (err error) {
 	f := os.NewFile(uintptr(fd), fp)
 	defer func() { err = trace.NewAggregate(err, f.Close()) }()
 
-	// Prepare to re-exec shell
-	command := "/bin/bash"
-	if shell, ok := os.LookupEnv("SHELL"); ok {
-		command = shell
-	}
+	command = getExecCommand(command)
 
-	cmd := exec.CommandContext(ctx, command)
+	cmd := exec.CommandContext(ctx, command, args...)
 	cmd.Stderr = os.Stderr
 	cmd.Stdout = os.Stdout
 	cmd.Stdin = os.Stdin
 	// Set KUBECONFIG in the environment. Even if it was already set, we override it.
-	cmd.Env = append(os.Environ(), fmt.Sprintf("%s=%s", teleport.EnvKubeConfig, "/proc/self/fd/3"))
+	// Also mark the shell as a live local-proxy session so `tsh kube credentials`
+	// can detect a Kubernetes client that bypasses the local proxy.
+	cmd.Env = append(os.Environ(),
+		fmt.Sprintf("%s=%s", teleport.EnvKubeConfig, "/proc/self/fd/3"),
+		fmt.Sprintf("%s=%s", kubeLocalProxyEnvVar, "/proc/self/fd/3"),
+	)
 	// Pass the file descriptor to the child process as an extra file
 	// descriptor. It will be available as fd 3 in "/proc/self/fd/3".
 	cmd.ExtraFiles = []*os.File{f}

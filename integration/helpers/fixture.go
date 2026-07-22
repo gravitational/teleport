@@ -19,6 +19,7 @@
 package helpers
 
 import (
+	"log/slog"
 	"os"
 	"os/user"
 	"testing"
@@ -28,7 +29,6 @@ import (
 
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
@@ -44,17 +44,16 @@ type Fixture struct {
 	Pub  []byte
 
 	// Log defines the test-specific logger
-	Log utils.Logger
+	Log *slog.Logger
 }
 
 func NewFixture(t *testing.T) *Fixture {
 	fixture := &Fixture{}
 
 	var err error
-	fixture.Priv, fixture.Pub, err = testauthority.New().GenerateKeyPair()
+	fixture.Priv, fixture.Pub, err = testauthority.GenerateKeyPair()
 	require.NoError(t, err)
 
-	// Find AllocatePortsNum free listening ports to use.
 	fixture.Me, err = user.Current()
 	require.NoError(t, err)
 
@@ -112,7 +111,7 @@ func (s *Fixture) DefaultInstanceConfig(t *testing.T) InstanceConfig {
 		NodeName:    Host,
 		Priv:        s.Priv,
 		Pub:         s.Pub,
-		Log:         s.Log,
+		Logger:      s.Log,
 	}
 	cfg.Listeners = StandardListenerSetup(t, &cfg.Fds)
 	return cfg

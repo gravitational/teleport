@@ -17,36 +17,219 @@
  */
 
 import { generatePath } from 'react-router';
-import { mergeDeep } from 'shared/utils/highbar';
+
 import { IncludedResourceMode } from 'shared/components/UnifiedResources';
-
-import generateResourcePath from './generateResourcePath';
-
-import { defaultEntitlements } from './entitlement';
-
 import type {
   Auth2faType,
   AuthProvider,
   AuthType,
   PreferredMfaType,
   PrimaryAuthType,
+  SecondFactor,
 } from 'shared/services';
+import {
+  legacySecondFactorToSecondFactors,
+  secondFactorsToLegacySecondFactor,
+} from 'shared/services';
+import { mergeDeep } from 'shared/utils/highbar';
 
+import { AwsResource } from 'teleport/Integrations/status/AwsOidc/Cards/StatCard';
+import { TaskState } from 'teleport/Integrations/status/AwsOidc/Tasks/constants';
 import type { SortType } from 'teleport/services/agents';
+import {
+  AwsOidcPolicyPreset,
+  AzureResource,
+  IntegrationDeleteRequest,
+  IntegrationKind,
+  PluginKind,
+  Regions,
+} from 'teleport/services/integrations';
+import type { KubeResourceKind } from 'teleport/services/kube/types';
+import type { GroupAction } from 'teleport/services/managedUpdates';
 import type { RecordingType } from 'teleport/services/recordings';
-import type { WebauthnAssertionResponse } from './services/auth';
-import type { Regions } from './services/integrations';
 import type { ParticipantMode } from 'teleport/services/session';
-import type { YamlSupportedResourceKind } from './services/yaml/types';
+import type { YamlSupportedResourceKind } from 'teleport/services/yaml/types';
 
+import { defaultEntitlements } from './entitlement';
+import generateResourcePath from './generateResourcePath';
+import { IntegrationTag } from './Integrations/Enroll/Shared';
+import type { MfaChallengeResponse } from './services/mfa';
+import { KindAuthConnectors } from './services/resources';
+
+/**
+ * Generates a URL path by substituting named parameters.
+ * Unlike react-router's generatePath, this function also supports
+ * parameters in query strings (e.g., `?param=:value`).
+ *
+ * Parameters can be optional by adding a `?` suffix (e.g., `:param?`).
+ * If an optional parameter's value is undefined, the parameter and its
+ * value are removed from the URL.
+ *
+ * @param pattern - The URL pattern with named parameters (e.g., `/path/:id?query=:value`)
+ * @param params - An object containing the parameter values
+ * @returns The URL with parameters substituted
+ */
+function generateFullPath(
+  pattern: string,
+  params: Record<string, string | number | boolean | undefined>
+): string {
+  // Split into path and query parts to handle encoding correctly.
+  const queryStart = pattern.indexOf('?');
+  const hasQuery = queryStart !== -1;
+  const pathPart = hasQuery ? pattern.slice(0, queryStart) : pattern;
+  const queryPart = hasQuery ? pattern.slice(queryStart) : '';
+
+  // Let react-router handle path parameter interpolation.
+  const pathParams = Object.fromEntries(
+    Object.entries(params).map(([key, value]) => [
+      key,
+      value === undefined || value === '' ? null : String(value),
+    ])
+  ) as Record<string, string | null>;
+  const processedPath = generatePath(pathPart, pathParams);
+
+  // Process query placeholders in a single pass to avoid
+  // partial/prefix matches (e.g. :start and :startKey).
+  const processedQuery = queryPart.replace(
+    /:([A-Za-z_][A-Za-z0-9_]*)(\?)?/g,
+    (fullMatch, key: string, optional: string | undefined) => {
+      const value = params[key];
+      if (value === undefined || value === '') {
+        return optional ? '' : fullMatch;
+      }
+      return encodeURIComponent(String(value));
+    }
+  );
+
+  return processedPath + processedQuery;
+}
+
+export const consoleRoutePatterns = {
+  consoleNodes: '/web/cluster/:clusterId/console/nodes',
+  consoleConnect: '/web/cluster/:clusterId/console/node/:serverId/:login',
+  consoleSession: '/web/cluster/:clusterId/console/session/:sid',
+  kubeExec: '/web/cluster/:clusterId/console/kube/exec/:kubeId/',
+  kubeExecSession: '/web/cluster/:clusterId/console/kube/session/:sid',
+  dbConnect: '/web/cluster/:clusterId/console/db/connect/:serviceName',
+} as const;
+
+export const ossRoutes = {
+  root: '/web',
+  discover: '/web/discover',
+  accessRequest: '/web/accessrequest',
+  apps: '/web/cluster/:clusterId/apps',
+  appLauncher: '/web/launch/:fqdn/:clusterId?/:publicAddr?/:arn?',
+  support: '/web/support',
+  settings: '/web/settings',
+  account: '/web/account',
+  accountPassword: '/web/account/password',
+  accountMfaDevices: '/web/account/twofactor',
+  accountSecurity: '/web/account/security',
+  accountPreferences: '/web/account/preferences',
+  roles: '/web/roles',
+  joinTokens: '/web/tokens',
+  deviceTrust: `/web/devices`,
+  deviceTrustAuthorize: '/web/device/authorize/:id?/:token?',
+  sso: '/web/sso',
+  cluster: '/web/cluster/:clusterId/',
+  clusters: '/web/clusters',
+
+  trustedClusters: '/web/trust',
+  audit: '/web/cluster/:clusterId/audit',
+  unifiedResources: '/web/cluster/:clusterId/resources',
+  nodes: '/web/cluster/:clusterId/nodes',
+  sessions: '/web/cluster/:clusterId/sessions',
+  recordings: '/web/cluster/:clusterId/recordings',
+  databases: '/web/cluster/:clusterId/databases',
+  desktops: '/web/cluster/:clusterId/desktops',
+  desktop: '/web/cluster/:clusterId/desktops/:desktopName/:username',
+  linuxDesktop: '/web/cluster/:clusterId/linux_desktops/:desktopName/:username',
+  users: '/web/users',
+  bots: '/web/bots',
+  bot: '/web/bot/:botName',
+  botInstances: '/web/bots/instances',
+  instances: '/web/instances',
+  botsNew: '/web/bots/new/:type?',
+  workloadIdentities: '/web/workloadidentities',
+  console: '/web/cluster/:clusterId/console',
+  consoleNodes: consoleRoutePatterns.consoleNodes,
+  consoleConnect: consoleRoutePatterns.consoleConnect,
+  consoleSession: consoleRoutePatterns.consoleSession,
+  kubeExec: consoleRoutePatterns.kubeExec,
+  kubeExecSession: consoleRoutePatterns.kubeExecSession,
+  dbConnect: consoleRoutePatterns.dbConnect,
+  player: '/web/cluster/:clusterId/session/:sid', // ?recordingType=ssh|desktop|k8s&durationMs=1234
+  login: '/web/login',
+  loginSuccess: '/web/msg/info/login_success',
+  loginTerminalRedirect: '/web/msg/info/login_terminal',
+  loginClose: '/web/msg/info/login_close',
+  loginErrorLegacy: '/web/msg/error/login_failed',
+  loginError: '/web/msg/error/login',
+  loginErrorCallback: '/web/msg/error/login/callback',
+  loginErrorCallbackMissingRole: '/web/msg/error/login/callback_missing_role',
+  loginErrorUnauthorized: '/web/msg/error/login/auth',
+  loginErrorEntraIDGroupsOverage: '/web/msg/error/login/entra_groups_overage',
+  scopePicker: '/web/scope_picker',
+  samlSloFailed: '/web/msg/error/slo',
+  userInvite: '/web/invite/:tokenId',
+  userInviteContinue: '/web/invite/:tokenId/continue',
+  userReset: '/web/reset/:tokenId',
+  userResetContinue: '/web/reset/:tokenId/continue',
+  kubernetes: '/web/cluster/:clusterId/kubernetes',
+  headlessSso: `/web/headless/:requestId`,
+  browserMfa: `/web/mfa/browser/:requestId?`,
+  integrations: '/web/integrations',
+  integrationOverview: '/web/integrations/overview/:type/:name',
+  integrationOverviewSettings:
+    '/web/integrations/overview/:type/:name/settings',
+  integrationStatus: '/web/integrations/status/:type/:name',
+  integrationTasks: '/web/integrations/status/:type/:name/tasks',
+  integrationStatusResources:
+    '/web/integrations/status/:type/:name/resources/:resourceKind',
+  integrationEnroll: '/web/integrations/new/:type?',
+  integrationEnrollNew: '/web/integrations/new',
+  locks: '/web/locks',
+  newLock: '/web/locks/new',
+  requests: '/web/requests/:requestId?',
+
+  downloadCenter: '/web/downloads',
+  managedUpdates: '/web/managedupdates',
+
+  // sso routes
+  ssoConnector: {
+    /**
+     * create is the dedicated page for creating a new auth connector.
+     */
+    create: '/web/sso/new/:connectorType',
+    edit: '/web/sso/edit/:connectorType/:connectorName?',
+  },
+
+  // whitelist sso handlers
+  oidcHandler: '/v1/webapi/oidc/*',
+  samlHandler: '/v1/webapi/saml/*',
+  githubHandler: '/v1/webapi/github/*',
+
+  // Access Graph is part of enterprise, but we need to generate links in the audit log,
+  // which is in OSS.
+  accessGraph: {
+    crownJewelAccessPath: '/web/accessgraph/crownjewels/access/:id',
+  },
+
+  /** samlIdpSso is an exact path of the service provider initiated SAML SSO endpoint. */
+  samlIdpSso: '/enterprise/saml-idp/sso',
+};
+
+export type Cfg = typeof cfg;
 const cfg = {
-  /**
-   * @deprecated use cfg.edition instead
-   */
+  /** @deprecated Use cfg.edition instead. */
   isEnterprise: false,
-  edition: 'oss',
+  edition: 'oss', // oss, community, ent
   isCloud: false,
   automaticUpgrades: false,
+  // TODO (avatus) this is a temporary escape hatch. Delete in v18
+  // The role diff visualizer can be disabled by setting TELEPORT_UNSTABLE_DISABLE_ROLE_VISUALIZER=true
+  // in the proxy service
+  isPolicyRoleVisualizerEnabled: true,
   automaticUpgradesTargetVersion: '',
   // isDashboard is used generally when we want to hide features that can't be hidden by RBAC in
   // the case of a self-hosted license tenant dashboard.
@@ -62,46 +245,45 @@ const cfg = {
   isUsageBasedBilling: false,
   hideInaccessibleFeatures: false,
   customTheme: '',
-  /**
-   * isTeam is true if [Features.ProductType] == Team
-   * @deprecated use other flags do determine cluster features istead of relying on isTeam
-   * TODO(mcbattirola): remove isTeam when it is no longer used
-   */
-  isTeam: false,
   isStripeManaged: false,
   hasQuestionnaire: false,
-  externalAuditStorage: false,
   premiumSupport: false,
-  accessRequests: false,
-  trustedDevices: false,
-  oidc: false,
-  saml: false,
-  joinActiveSessions: false,
-  mobileDeviceManagement: false,
 
-  // isIgsEnabled refers to Identity Governance & Security product.
-  // It refers to a group of features: access request, device trust,
-  // access list, and access monitoring.
-  isIgsEnabled: false,
+  // sessionSummarizerEnabled refers to the AI session summary feature
+  sessionSummarizerEnabled: false,
 
-  // isPolicyEnabled refers to the Teleport Policy product
-  isPolicyEnabled: false,
+  // beamsUI indicates whether the Beams lite-mode UI is enabled
+  beamsUi: false,
 
-  configDir: '$HOME/.config',
+  // scopesEnabled indicates whether authorization scopes are enabled.
+  scopesEnabled: false,
+
+  configDir: '$HOME/.config/teleport',
 
   baseUrl: window.location.origin,
 
-  // featureLimits define limits for features.
-  // Typically used with feature teasers if feature is not enabled for the
-  // product type eg: Team product contains teasers to upgrade to Enterprise.
-  featureLimits: {
-    accessListCreateLimit: 0,
-    accessMonitoringMaxReportRangeLimit: 0,
-    AccessRequestMonthlyRequestLimit: 0,
+  // terraform contains terraform related configuration
+  terraform: {
+    registry: 'terraform.releases.teleport.dev',
+    stagingRegistry: 'terraform-staging.releases.development.teleport.dev',
   },
+
+  // enterprise non-exact routes will be merged into this
+  // see `getNonExactRoutes` for details about non-exact routes
+  nonExactRoutes: [],
 
   // default entitlements to false
   entitlements: defaultEntitlements,
+
+  /** @deprecated Use entitlements instead; remove in v20 */
+  accessRequests: false,
+  /** @deprecated Use entitlements instead; remove in v20 */
+  oidc: false,
+  /** @deprecated Use entitlements instead; remove in v20 */
+  saml: false,
+  // isPolicyEnabled refers to the Teleport Policy product
+  /** @deprecated Use entitlements.Policy.enabled instead;*/
+  isPolicyEnabled: false,
 
   ui: {
     scrollbackLines: 1000,
@@ -118,10 +300,14 @@ const cfg = {
     localConnectorName: '',
     providers: [] as AuthProvider[],
     second_factor: 'off' as Auth2faType,
+    second_factors: [] as SecondFactor[],
     authType: 'local' as AuthType,
+    /** defaultConnectorName is the name of the default connector from the cluster's auth preferences. This will empty if the auth type is "local" */
+    defaultConnectorName: '',
     preferredLocalMfa: '' as PreferredMfaType,
     // motd is the message of the day, displayed to users before login.
     motd: '',
+    identifierFirstLoginEnabled: false,
   },
 
   proxyCluster: 'localhost',
@@ -131,84 +317,30 @@ const cfg = {
     dateFormat: 'YYYY-MM-DD',
   },
 
-  routes: {
-    root: '/web',
-    discover: '/web/discover',
-    accessRequest: '/web/accessrequest',
-    apps: '/web/cluster/:clusterId/apps',
-    appLauncher: '/web/launch/:fqdn/:clusterId?/:publicAddr?/:arn?',
-    support: '/web/support',
-    settings: '/web/settings',
-    account: '/web/account',
-    accountPassword: '/web/account/password',
-    accountMfaDevices: '/web/account/twofactor',
-    roles: '/web/roles',
-    joinTokens: '/web/tokens',
-    deviceTrust: `/web/devices`,
-    deviceTrustAuthorize: '/web/device/authorize/:id?/:token?',
-    sso: '/web/sso',
-    cluster: '/web/cluster/:clusterId/',
-    clusters: '/web/clusters',
-    trustedClusters: '/web/trust',
-    audit: '/web/cluster/:clusterId/audit',
-    unifiedResources: '/web/cluster/:clusterId/resources',
-    nodes: '/web/cluster/:clusterId/nodes',
-    sessions: '/web/cluster/:clusterId/sessions',
-    recordings: '/web/cluster/:clusterId/recordings',
-    databases: '/web/cluster/:clusterId/databases',
-    desktops: '/web/cluster/:clusterId/desktops',
-    desktop: '/web/cluster/:clusterId/desktops/:desktopName/:username',
-    users: '/web/users',
-    bots: '/web/bots',
-    botsNew: '/web/bots/new/:type?',
-    console: '/web/cluster/:clusterId/console',
-    consoleNodes: '/web/cluster/:clusterId/console/nodes',
-    consoleConnect: '/web/cluster/:clusterId/console/node/:serverId/:login',
-    consoleSession: '/web/cluster/:clusterId/console/session/:sid',
-    kubeExec: '/web/cluster/:clusterId/console/kube/exec/:kubeId/',
-    kubeExecSession: '/web/cluster/:clusterId/console/kube/exec/:sid',
-    player: '/web/cluster/:clusterId/session/:sid', // ?recordingType=ssh|desktop|k8s&durationMs=1234
-    login: '/web/login',
-    loginSuccess: '/web/msg/info/login_success',
-    loginTerminalRedirect: '/web/msg/info/login_terminal',
-    loginClose: '/web/msg/info/login_close',
-    loginErrorLegacy: '/web/msg/error/login_failed',
-    loginError: '/web/msg/error/login',
-    loginErrorCallback: '/web/msg/error/login/callback',
-    loginErrorUnauthorized: '/web/msg/error/login/auth',
-    samlSloFailed: '/web/msg/error/slo',
-    userInvite: '/web/invite/:tokenId',
-    userInviteContinue: '/web/invite/:tokenId/continue',
-    userReset: '/web/reset/:tokenId',
-    userResetContinue: '/web/reset/:tokenId/continue',
-    kubernetes: '/web/cluster/:clusterId/kubernetes',
-    headlessSso: `/web/headless/:requestId`,
-    integrations: '/web/integrations',
-    integrationEnroll: '/web/integrations/new/:type?',
-    locks: '/web/locks',
-    newLock: '/web/locks/new',
-    requests: '/web/requests/:requestId?',
+  defaultDatabaseTTL: '2190h',
 
-    downloadCenter: '/web/downloads',
-
-    // whitelist sso handlers
-    oidcHandler: '/v1/webapi/oidc/*',
-    samlHandler: '/v1/webapi/saml/*',
-    githubHandler: '/v1/webapi/github/*',
+  identitySecurity: {
+    accessGraphConfigSet: false,
+    licensed: false,
+    sessionSummarizationEnabled: false,
   },
+
+  routes: { ...ossRoutes },
 
   api: {
     appSession: '/v1/webapi/sessions/app',
-    appFqdnPath: '/v1/webapi/apps/:fqdn/:clusterId?/:publicAddr?',
+    appDetailsPath: '/v1/webapi/apps/:fqdn/:clusterId?/:publicAddr?',
     applicationsPath:
       '/v1/webapi/sites/:clusterId/apps?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?',
     clustersPath: '/v1/webapi/sites',
+    clusterInfoPath: '/v1/webapi/sites/:clusterId/info',
     clusterAlertsPath: '/v1/webapi/sites/:clusterId/alerts',
+    // TODO (avatus): Delete in v21.0.0
     clusterEventsPath: `/v1/webapi/sites/:clusterId/events/search?from=:start?&to=:end?&limit=:limit?&startKey=:startKey?&include=:include?`,
-    clusterEventsRecordingsPath: `/v1/webapi/sites/:clusterId/events/search/sessions?from=:start?&to=:end?&limit=:limit?&startKey=:startKey?`,
+    clusterEventsPathV2: `/v2/webapi/sites/:clusterId/events/search?from=:start?&to=:end?&limit=:limit?&startKey=:startKey?&include=:include?&search=:search?&order=:order?`,
+    clusterEventsRecordingsPath: `/v1/webapi/sites/:clusterId/events/search/sessions`,
 
     connectionDiagnostic: `/v1/webapi/sites/:clusterId/diagnostics/connections`,
-    checkAccessToRegisteredResource: `/v1/webapi/sites/:clusterId/resources/check`,
 
     scp: '/v1/webapi/sites/:clusterId/nodes/:serverId/:login/scp?location=:location&filename=:filename&moderatedSessionId=:moderatedSessionId?&fileTransferRequestId=:fileTransferRequestId?',
     webRenewTokenPath: '/v1/webapi/sessions/web/renew',
@@ -219,52 +351,96 @@ const cfg = {
     passwordTokenPath: '/v1/webapi/users/password/token/:tokenId?',
     changeUserPasswordPath: '/v1/webapi/users/password',
     unifiedResourcesPath:
-      '/v1/webapi/sites/:clusterId/resources?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&kinds=:kinds?&query=:query?&search=:search?&sort=:sort?&pinnedOnly=:pinnedOnly?&includedResourceMode=:includedResourceMode?',
+      '/v1/webapi/sites/:clusterId/resources?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&kinds=:kinds?&query=:query?&search=:search?&sort=:sort?&pinnedOnly=:pinnedOnly?&includedResourceMode=:includedResourceMode?&status=:status?',
     nodesPath:
       '/v1/webapi/sites/:clusterId/nodes?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?',
     nodesPathNoParams: '/v1/webapi/sites/:clusterId/nodes',
+
+    gitServer: {
+      createOrOverwrite: '/v1/webapi/sites/:clusterId/gitservers',
+      delete: '/v1/webapi/sites/:clusterId/gitservers/:name',
+    },
 
     databaseServicesPath: `/v1/webapi/sites/:clusterId/databaseservices`,
     databaseIamPolicyPath: `/v1/webapi/sites/:clusterId/databases/:database/iam/policy`,
     databasePath: `/v1/webapi/sites/:clusterId/databases/:database`,
     databasesPath: `/v1/webapi/sites/:clusterId/databases?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?`,
 
+    databaseServer: {
+      list: `/v1/webapi/sites/:clusterId/databaseservers?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?`,
+    },
+
+    instancesPath: `/v1/webapi/sites/:clusterId/instances?limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?&types=:types?&services=:services?&upgraders=:upgraders?`,
+
     desktopsPath: `/v1/webapi/sites/:clusterId/desktops?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?`,
-    desktopServicesPath: `/v1/webapi/sites/:clusterId/desktopservices?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?`,
     desktopPath: `/v1/webapi/sites/:clusterId/desktops/:desktopName`,
     desktopWsAddr:
-      'wss://:fqdn/v1/webapi/sites/:clusterId/desktops/:desktopName/connect/ws?username=:username',
+      'wss://:fqdn/v1/webapi/sites/:clusterId/desktops/:desktopName/connect/ws?username=:username&tdpb=:version',
     desktopPlaybackWsAddr:
       'wss://:fqdn/v1/webapi/sites/:clusterId/desktopplayback/:sid/ws',
     desktopIsActive: '/v1/webapi/sites/:clusterId/desktops/:desktopName/active',
+    linuxDesktopWsAddr:
+      'wss://:fqdn/v1/webapi/sites/:clusterId/linuxdesktops/:desktopName/connect/ws?username=:username&tdpb=:version',
     ttyWsAddr:
       'wss://:fqdn/v1/webapi/sites/:clusterId/connect/ws?params=:params&traceparent=:traceparent',
     ttyKubeExecWsAddr:
       'wss://:fqdn/v1/webapi/sites/:clusterId/kube/exec/ws?params=:params&traceparent=:traceparent',
+    ttyDbWsAddr:
+      'wss://:fqdn/v1/webapi/sites/:clusterId/db/exec/ws?params=:params',
     ttyPlaybackWsAddr:
       'wss://:fqdn/v1/webapi/sites/:clusterId/ttyplayback/:sid?access_token=:token', // TODO(zmb3): get token out of URL
     activeAndPendingSessionsPath: '/v1/webapi/sites/:clusterId/sessions',
+    sessionDurationPath: '/v1/webapi/sites/:clusterId/sessionlength/:sid',
 
-    // TODO(zmb3): remove this when Assist is no longer using it
-    sshPlaybackPrefix: '/v1/webapi/sites/:clusterId/sessions/:sid', // prefix because this is eventually concatenated with "/stream" or "/events"
     kubernetesPath:
       '/v1/webapi/sites/:clusterId/kubernetes?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?',
+    kubernetesResourcesPath:
+      '/v1/webapi/sites/:clusterId/kubernetes/resources?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?&kubeCluster=:kubeCluster?&kubeNamespace=:kubeNamespace?&kind=:kind?',
+    kubernetesServer: {
+      list: `/v1/webapi/sites/:clusterId/kubernetesservers?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?`,
+    },
 
+    // TODO(rudream): DELETE IN V21.0.0
     usersPath: '/v1/webapi/users',
+    usersPathV2:
+      '/v2/webapi/users?startKey=:startKey?&search=:search?&limit=:limit?',
     userWithUsernamePath: '/v1/webapi/users/:username',
     createPrivilegeTokenPath: '/v1/webapi/users/privilege/token',
 
-    listRolesPath:
-      '/v1/webapi/roles?startKey=:startKey?&search=:search?&limit=:limit?',
-    rolePath: '/v1/webapi/roles/:name?',
+    role: {
+      create: '/v1/webapi/roles',
+      get: '/v1/webapi/roles/:name',
+      delete: '/v1/webapi/roles/:name',
+      update: '/v1/webapi/roles/:name',
+      // TODO(kimlisa): DELETE IN 20.0 along with its backend endpoint in `apiserver.go`
+      list: '/v1/webapi/roles?startKey=:startKey?&search=:search?&limit=:limit?',
+      listV2:
+        '/v2/webapi/roles?startKey=:startKey?&search=:search?&limit=:limit?&includeSystemRoles=:includeSystemRoles?&includeObject=:includeObject?',
+      listWithoutQueryParam: '/v1/webapi/roles',
+    },
+
     presetRolesPath: '/v1/webapi/presetroles',
+    listRequestableRolesPath:
+      '/v1/webapi/requestableroles?startKey=:startKey?&search=:search?&limit=:limit?',
     githubConnectorsPath: '/v1/webapi/github/:name?',
+    githubConnectorPath: '/v1/webapi/github/connector/:name',
     trustedClustersPath: '/v1/webapi/trustedcluster/:name?',
     connectMyComputerLoginsPath: '/v1/webapi/connectmycomputer/logins',
 
-    joinTokenPath: '/v1/webapi/token',
+    discoveryJoinToken: {
+      // TODO(kimlisa): DELETE IN 19.0 - replaced by /v2/webapi/token
+      create: '/v1/webapi/token',
+      createV2: '/v2/webapi/token',
+    },
     joinTokenYamlPath: '/v1/webapi/tokens/yaml',
-    joinTokensPath: '/v1/webapi/tokens',
+
+    joinToken: {
+      create: '/v1/webapi/tokens',
+      update: '/v1/webapi/tokens',
+      list: '/v1/webapi/tokens',
+      listV2: '/v2/webapi/tokens',
+    },
+
     dbScriptPath: '/scripts/:token/install-database.sh',
     nodeScriptPath: '/scripts/:token/install-node.sh',
     appNodeScriptPath: '/scripts/:token/install-app.sh?name=:name&uri=:uri',
@@ -274,9 +450,10 @@ const cfg = {
     mfaRequired: '/v1/webapi/sites/:clusterId/mfa/required',
     mfaLoginBegin: '/v1/webapi/mfa/login/begin', // creates authnenticate challenge with user and password
     mfaLoginFinish: '/v1/webapi/mfa/login/finishsession', // creates a web session
-    mfaChangePasswordBegin: '/v1/webapi/mfa/authenticatechallenge/password',
 
     headlessSsoPath: `/v1/webapi/headless/:requestId`,
+
+    browserMfaPath: `/v1/webapi/mfa/browser/:requestId`,
 
     mfaCreateRegistrationChallengePath:
       '/v1/webapi/mfa/token/:tokenId/registerchallenge',
@@ -290,8 +467,13 @@ const cfg = {
     mfaDevicesPath: '/v1/webapi/mfa/devices',
     mfaDevicePath: '/v1/webapi/mfa/token/:tokenId/devices/:deviceName',
 
-    locksPath: '/v1/webapi/sites/:clusterId/locks',
-    locksPathWithUuid: '/v1/webapi/sites/:clusterId/locks/:uuid',
+    locks: {
+      create: '/v1/webapi/sites/:clusterId/locks',
+      delete: '/v1/webapi/sites/:clusterId/locks/:uuid',
+      read: '/v1/webapi/sites/:clusterId/locks/:uuid',
+      update: '/v1/webapi/sites/:clusterId/locks/:uuid',
+      listV2: '/v2/webapi/sites/:clusterId/locks',
+    },
 
     dbSign: 'v1/webapi/sites/:clusterId/sign/db',
 
@@ -302,51 +484,88 @@ const cfg = {
 
     headlessLogin: '/v1/webapi/headless/:headless_authentication_id',
 
+    integrationCa: {
+      export: '/v1/webapi/sites/:clusterId/integrations/:name/ca',
+    },
+
+    // TODO(kimlisa): move integrationsPath into integration: {...}
     integrationsPath: '/v1/webapi/sites/:clusterId/integrations/:name?',
+    integration: {
+      deleteV2:
+        '/v2/webapi/sites/:clusterId/integrations/:name?associatedresources=:associatedresources',
+    },
+
+    integrationStatsPath:
+      '/v1/webapi/sites/:clusterId/integrations/:name/stats',
+    integrationRulesPath:
+      '/v1/webapi/sites/:clusterId/integrations/:name/discoveryrules?resourceType=:resourceType?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?&limit=:limit?&regions=:regions?',
+    awsOidcDatabaseServicesPath:
+      '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/listdeployeddatabaseservices?resourceType=:resourceType?&regions=:regions?',
+    userTaskListByIntegrationPath:
+      '/v1/webapi/sites/:clusterId/usertask?integration=:name?&state=:state?',
+    userTaskPath: '/v1/webapi/sites/:clusterId/usertask/:name',
+    resolveUserTaskPath: '/v1/webapi/sites/:clusterId/usertask/:name/state',
+
+    awsRolesAnywhere: {
+      validate:
+        '/v1/webapi/sites/:clusterId/integrations/aws-ra/:integrationName/validate',
+      generate:
+        '/v1/webapi/scripts/integrations/configure/awsra-trust-anchor.sh?integrationName=:integrationName?&trustAnchor=:trustAnchor?&syncRole=:syncRole?&syncProfile=:syncProfile',
+      ping: '/v1/webapi/sites/:clusterId/integrations/aws-ra/:integrationName/ping',
+      profiles:
+        '/v1/webapi/sites/:clusterId/integrations/aws-ra/:integrationName/listprofiles',
+    },
+
     thumbprintPath: '/v1/webapi/thumbprint',
+    pingAwsOidcIntegrationPath:
+      '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/ping',
 
     awsConfigureIamScriptOidcIdpPath:
-      '/v1/webapi/scripts/integrations/configure/awsoidc-idp.sh?integrationName=:integrationName&role=:roleName',
+      '/v1/webapi/scripts/integrations/configure/awsoidc-idp.sh?integrationName=:integrationName&role=:roleName&policyPreset=:policyPreset?',
     awsConfigureIamScriptDeployServicePath:
-      '/v1/webapi/scripts/integrations/configure/deployservice-iam.sh?integrationName=:integrationName&awsRegion=:region&role=:awsOidcRoleArn&taskRole=:taskRoleArn',
+      '/v1/webapi/scripts/integrations/configure/deployservice-iam.sh?integrationName=:integrationName&awsRegion=:region&role=:awsOidcRoleArn&taskRole=:taskRoleArn&awsAccountID=:accountID',
     awsConfigureIamScriptListDatabasesPath:
-      '/v1/webapi/scripts/integrations/configure/listdatabases-iam.sh?awsRegion=:region&role=:iamRoleName',
-    awsConfigureIamScriptEc2InstanceConnectPath:
-      '/v1/webapi/scripts/integrations/configure/eice-iam.sh?awsRegion=:region&role=:iamRoleName',
+      '/v1/webapi/scripts/integrations/configure/listdatabases-iam.sh?awsRegion=:region&role=:iamRoleName&awsAccountID=:accountID',
     awsConfigureIamEksScriptPath:
-      '/v1/webapi/scripts/integrations/configure/eks-iam.sh?awsRegion=:region&role=:iamRoleName',
+      '/v1/webapi/scripts/integrations/configure/eks-iam.sh?awsRegion=:region&role=:iamRoleName&awsAccountID=:accountID',
 
     awsRdsDbDeployServicesPath:
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/deploydatabaseservices',
     awsRdsDbRequiredVpcsPath:
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/requireddatabasesvpcs',
+    awsDatabaseVpcsPath:
+      '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/databasevpcs',
     awsRdsDbListPath:
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/databases',
     awsDeployTeleportServicePath:
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/deployservice',
     awsSecurityGroupsListPath:
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/securitygroups',
+    awsSubnetListPath:
+      '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/subnets',
 
-    awsAppAccessPath:
-      '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/aws-app-access',
+    awsAppAccess: {
+      create:
+        '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/aws-app-access',
+      createV2:
+        '/v2/webapi/sites/:clusterId/integrations/aws-oidc/:name/aws-app-access',
+    },
     awsConfigureIamAppAccessPath:
-      '/v1/webapi/scripts/integrations/configure/aws-app-access-iam.sh?role=:iamRoleName',
+      '/v1/webapi/scripts/integrations/configure/aws-app-access-iam.sh?role=:iamRoleName&awsAccountID=:accountID',
 
     awsConfigureIamEc2AutoDiscoverWithSsmPath:
-      '/v1/webapi/scripts/integrations/configure/ec2-ssm-iam.sh?role=:iamRoleName&awsRegion=:region&ssmDocument=:ssmDocument',
+      '/v1/webapi/scripts/integrations/configure/ec2-ssm-iam.sh?role=:iamRoleName&awsRegion=:region&ssmDocument=:ssmDocument&integrationName=:integrationName&awsAccountID=:accountID',
 
     eksClustersListPath:
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/eksclusters',
-    eksEnrollClustersPath:
-      '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/enrolleksclusters',
 
-    ec2InstancesListPath:
-      '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/ec2',
-    ec2InstanceConnectEndpointsListPath:
-      '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/ec2ice',
-    // Returns a script that configures the required IAM permissions to enable the usage of EC2 Instance Connect Endpoint to access EC2 instances.
-    ec2InstanceConnectDeployPath:
-      '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/deployec2ice',
+    eks: {
+      // TODO(kimlisa): DELETE IN 19.0 - replaced by /v2/webapi/sites/:clusterId/integrations/aws-oidc/:name/enrolleksclusters
+      enroll:
+        '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/enrolleksclusters',
+      enrollV2:
+        '/v2/webapi/sites/:clusterId/integrations/aws-oidc/:name/enrolleksclusters',
+    },
 
     userGroupsListPath:
       '/v1/webapi/sites/:clusterId/user-groups?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?',
@@ -359,11 +578,31 @@ const cfg = {
 
     accessGraphFeatures: '/v1/enterprise/accessgraph/static/features.json',
 
-    botsPath: '/v1/webapi/sites/:clusterId/machine-id/bot/:name?',
     botsTokenPath: '/v1/webapi/sites/:clusterId/machine-id/token',
+    bot: {
+      read: '/v1/webapi/sites/:clusterId/machine-id/bot/:botName',
+      list: '/v1/webapi/sites/:clusterId/machine-id/bot',
+      create: '/v1/webapi/sites/:clusterId/machine-id/bot',
+      update: '/v1/webapi/sites/:clusterId/machine-id/bot/:botName',
+      updateV2: '/v2/webapi/sites/:clusterId/machine-id/bot/:botName',
+      updateV3: '/v3/webapi/sites/:clusterId/machine-id/bot/:botName',
+      delete: '/v1/webapi/sites/:clusterId/machine-id/bot/:botName',
+      genWizardCiCd: '/v1/webapi/sites/:clusterId/machine-id/wizards/ci-cd',
+    },
+
+    botInstance: {
+      read: '/v1/webapi/sites/:clusterId/machine-id/bot/:botName/bot-instance/:instanceId',
+      list: '/v1/webapi/sites/:clusterId/machine-id/bot-instance',
+      listV2: '/v2/webapi/sites/:clusterId/machine-id/bot-instance',
+      metrics: '/v1/webapi/sites/:clusterId/machine-id/bot-instance/metrics',
+    },
+
+    workloadIdentity: {
+      list: '/v1/webapi/sites/:clusterId/workload-identity',
+    },
 
     gcpWorkforceConfigurePath:
-      '/webapi/scripts/integrations/configure/gcp-workforce-saml.sh?orgId=:orgId&poolName=:poolName&poolProviderName=:poolProviderName',
+      '/v1/webapi/scripts/integrations/configure/gcp-workforce-saml.sh?orgId=:orgId&poolName=:poolName&poolProviderName=:poolProviderName',
 
     notificationsPath:
       '/v1/webapi/sites/:clusterId/notifications?limit=:limit?&startKey=:startKey?',
@@ -371,16 +610,59 @@ const cfg = {
       '/v1/webapi/sites/:clusterId/lastseennotification',
     notificationStatePath: '/v1/webapi/sites/:clusterId/notificationstate',
 
+    msTeamsAppZipPath:
+      '/v1/webapi/sites/:clusterId/plugins/:plugin/files/msteams_app.zip',
+
+    defaultConnectorPath: '/v1/webapi/authconnector/default',
+
+    authConnectorsPath: '/v1/webapi/authconnectors',
+
     yaml: {
       parse: '/v1/webapi/yaml/parse/:kind',
       stringify: '/v1/webapi/yaml/stringify/:kind',
+    },
+
+    sessionRecording: {
+      metadata:
+        '/v1/webapi/sites/:clusterId/sessionrecording/:sessionId/metadata/ws',
+      playback:
+        '/v1/webapi/sites/:clusterId/sessionrecording/:sessionId/playback/ws',
+      thumbnail: '/v1/webapi/sites/:clusterId/sessionthumbnail/:sessionId',
+    },
+
+    managedUpdates: {
+      details: '/v1/webapi/managedupdates',
+      groupAction: '/v1/webapi/managedupdates/groups/:groupName/:action',
     },
   },
 
   playable_db_protocols: [],
 
+  getNonExactRoutes() {
+    // These routes will not be exact matched when deciding if it is a valid route
+    // to redirect to when a user is unauthenticated.
+    // This is useful for routes that can be infinitely nested, e.g. `
+    // /web/accessgraph` and `/web/accessgraph/integrations/new`
+    // (`/web/accessgraph/*` wouldn't work as it doesn't match `/web/accessgraph`)
+
+    return [
+      // at the moment, only `e` has an exempt route, which is merged in on `cfg.init()`
+      ...this.nonExactRoutes,
+    ];
+  },
+
   getPlayableDatabaseProtocols() {
     return cfg.playable_db_protocols;
+  },
+
+  getBeamsUi() {
+    return cfg.beamsUi;
+  },
+
+  getClusterInfoPath(clusterId: string) {
+    return generatePath(cfg.api.clusterInfoPath, {
+      clusterId,
+    });
   },
 
   getUserClusterPreferencesUrl(clusterId: string) {
@@ -389,8 +671,8 @@ const cfg = {
     });
   },
 
-  getAppFqdnUrl(params: UrlAppParams) {
-    return generatePath(cfg.api.appFqdnPath, { ...params });
+  getAppDetailsUrl(params: UrlAppParams) {
+    return generatePath(cfg.api.appDetailsPath, { ...params });
   },
 
   getClusterAlertsUrl(clusterId: string) {
@@ -399,8 +681,15 @@ const cfg = {
     });
   },
 
+  getClusterEventsUrlV2(clusterId: string, params: UrlClusterEventsParams) {
+    return generateFullPath(cfg.api.clusterEventsPathV2, {
+      clusterId,
+      ...params,
+    });
+  },
+
   getClusterEventsUrl(clusterId: string, params: UrlClusterEventsParams) {
-    return generatePath(cfg.api.clusterEventsPath, {
+    return generateFullPath(cfg.api.clusterEventsPath, {
       clusterId,
       ...params,
     });
@@ -410,18 +699,69 @@ const cfg = {
     clusterId: string,
     params: UrlSessionRecordingsParams
   ) {
-    return generatePath(cfg.api.clusterEventsRecordingsPath, {
+    const searchParams = new URLSearchParams();
+
+    if (params.start) {
+      searchParams.append('from', params.start);
+    }
+
+    if (params.end) {
+      searchParams.append('to', params.end);
+    }
+
+    if (params.limit) {
+      searchParams.append('limit', params.limit.toString());
+    }
+
+    if (params.startKey) {
+      searchParams.append('startKey', params.startKey);
+    }
+
+    const paramsString = searchParams.toString();
+    const queryString = paramsString ? `?${paramsString}` : '';
+
+    const path = generatePath(cfg.api.clusterEventsRecordingsPath, {
       clusterId,
-      ...params,
     });
+
+    return `${path}${queryString}`;
   },
 
   getAuthProviders() {
     return cfg.auth && cfg.auth.providers ? cfg.auth.providers : [];
   },
 
+  // auth2faType is derived from second_factors. Prefer calling secondFactors directly.
   getAuth2faType() {
-    return cfg.auth ? cfg.auth.second_factor : null;
+    if (!cfg.auth) {
+      return null;
+    }
+
+    // If second_factors isn't set, use second_factor to determine the auth2faType.
+    // TODO(Joerger): DELETE in v20 - v19 server sets second_factors.
+    if (!cfg.auth.second_factors?.length) {
+      return cfg.auth.second_factor;
+    }
+
+    return secondFactorsToLegacySecondFactor(cfg.auth.second_factors);
+  },
+
+  secondFactors(): SecondFactor[] {
+    if (!cfg.auth) {
+      return null;
+    }
+
+    if (cfg.auth.second_factors?.length) {
+      return cfg.auth.second_factors;
+    }
+
+    // If second_factors isn't set, use second_factor to populate it.
+    // TODO(Joerger): DELETE IN v20 - v19 server sets second_factors.
+    return legacySecondFactorToSecondFactors(cfg.auth.second_factor);
+  },
+
+  getDefaultConnectorName() {
+    return cfg.auth ? cfg.auth.defaultConnectorName : '';
   },
 
   getPreferredMfaType() {
@@ -440,12 +780,28 @@ const cfg = {
     return cfg.auth.allowPasswordless;
   },
 
-  isMfaEnabled() {
-    return cfg.auth.second_factor !== 'off';
+  isMfaUserConfigurable() {
+    // Users can add/remove MFA devices when at least one non-SSO factor is allowed.
+    // (SSO MFA is managed by the auth connector, not by the user.)
+    return cfg.secondFactors().some(f => f !== 'sso');
   },
 
-  isAdminActionMfaEnforced() {
-    return cfg.auth.second_factor === 'webauthn';
+  // Mirrors authpref.IsAdminActionMFAEnforced server-side. Returns undefined
+  // when the answer is unknowable from the webcfg (older proxy/auth with an
+  // SSO-only cluster), signaling callers to fall back to a server-side check.
+  isAdminActionMfaEnforced(): boolean | undefined {
+    const factors = cfg.secondFactors();
+
+    // If second_factors is empty, it could mean that `second_factors: ["sso"]`,
+    // but the old server only sent us `second_factor: "off"`.
+    // TODO(Joerger): DELETE IN v20 - v19 server sets second_factors.
+    if (factors.length === 0) {
+      return undefined;
+    }
+
+    // OTP is not supported for admin actions, so admin MFA is only enforced
+    // when every configured factor can satisfy an admin action.
+    return !factors.includes('otp');
   },
 
   getPrimaryAuthType(): PrimaryAuthType {
@@ -458,32 +814,136 @@ const cfg = {
     return 'sso';
   },
 
-  // isLegacyEnterprise describes product that should have legacy support
-  // where certain features access remain unlimited. This was before
-  // product EUB (enterprise usage based) was introduced.
-  // eg: access request and device trust.
-  isLegacyEnterprise() {
-    return cfg.isEnterprise && !cfg.isUsageBasedBilling;
+  getDeviceTrustAuthorizeRoute(id: string, token: string, redirect?: string) {
+    const path = generatePath(cfg.routes.deviceTrustAuthorize, {
+      id,
+      token,
+    });
+
+    const searchParams = new URLSearchParams();
+
+    if (redirect) {
+      searchParams.append('redirect_uri', redirect);
+    }
+
+    const searchString = searchParams.toString();
+    return searchString ? `${path}?${searchString}` : path;
   },
 
-  getAuthType() {
-    return cfg.auth.authType;
-  },
+  getSsoUrl(providerUrl, providerName, redirect, loginHint) {
+    loginHint = loginHint === '' ? undefined : loginHint;
+    let basePath =
+      cfg.baseUrl +
+      generateFullPath(providerUrl, { redirect, providerName, loginHint });
 
-  getDeviceTrustAuthorizeRoute(id: string, token: string) {
-    return generatePath(cfg.routes.deviceTrustAuthorize, { id, token });
-  },
-
-  getSsoUrl(providerUrl, providerName, redirect) {
-    return cfg.baseUrl + generatePath(providerUrl, { redirect, providerName });
+    if (!loginHint) {
+      const url = new URL(basePath);
+      url.searchParams.delete('login_hint', '');
+      basePath = url.toString();
+    }
+    return basePath;
   },
 
   getAuditRoute(clusterId: string) {
     return generatePath(cfg.routes.audit, { clusterId });
   },
 
-  getIntegrationEnrollRoute(type?: string) {
-    return generatePath(cfg.routes.integrationEnroll, { type });
+  getManagedUpdatesRoute() {
+    return cfg.routes.managedUpdates;
+  },
+
+  getManagedUpdatesUrl() {
+    return cfg.api.managedUpdates.details;
+  },
+
+  getManagedUpdatesGroupActionUrl(groupName: string, action: GroupAction) {
+    return generatePath(cfg.api.managedUpdates.groupAction, {
+      groupName,
+      action,
+    });
+  },
+
+  /**
+   * getIntegrationsEnrollRoute returns a path to the page which lists all integrations.
+   */
+  getIntegrationsEnrollRoute({
+    tags = [],
+    searchFilter = '',
+  }: {
+    tags?: IntegrationTag[];
+    searchFilter?: string;
+  } = {}) {
+    const searchParams = new URLSearchParams();
+    tags.forEach(tag => {
+      searchParams.append('tags', tag);
+    });
+    if (searchFilter) {
+      searchParams.set('search', searchFilter);
+    }
+    const queryString = searchParams.toString();
+    const path = generatePath(cfg.routes.integrationEnroll);
+
+    return queryString ? `${path}?${queryString}` : path;
+  },
+
+  /**
+   * Generates a route for an Integration's enrolment page
+   *
+   * @param {string} [type] - The integration type (e.g. "okta", "aws-oidc")
+   * @param {string} [subPage] - Optional subpage within the enrollment flow (currently Okta-specific)
+   * @returns {string} Generated enrollment route
+   */
+  getIntegrationEnrollRoute(type?: string, subPage?: string) {
+    const base = generatePath(cfg.routes.integrationEnroll, { type });
+    return subPage ? `${base}/${subPage}` : base;
+  },
+
+  /**
+   * Generates a route for an Integration's status page
+   *
+   * @param {PluginKind | IntegrationKind} type - The integration type (e.g. "okta", "aws-oidc")
+   * @param {string} name - The integration name
+   * @param {string} [subPage] - Optional subpage within the status view (currently Okta-specific)
+   * @returns {string} Generated status route
+   */
+  getIntegrationStatusRoute(
+    type: PluginKind | IntegrationKind,
+    name: string,
+    subPage?: string
+  ) {
+    const base = generatePath(cfg.routes.integrationStatus, { type, name });
+    return subPage ? `${base}/${subPage}` : base;
+  },
+
+  getIaCIntegrationRoute(type: PluginKind | IntegrationKind, name: string) {
+    return generatePath(cfg.routes.integrationOverview, { type, name });
+  },
+
+  getIaCIntegrationSettingsRoute(
+    type: PluginKind | IntegrationKind,
+    name: string
+  ) {
+    return generatePath(cfg.routes.integrationOverviewSettings, { type, name });
+  },
+
+  getIntegrationStatusResourcesRoute(
+    type: PluginKind | IntegrationKind,
+    name: string,
+    resourceKind: AwsResource
+  ) {
+    return generatePath(cfg.routes.integrationStatusResources, {
+      type,
+      name,
+      resourceKind,
+    });
+  },
+
+  getIntegrationTasksRoute(type: PluginKind | IntegrationKind, name: string) {
+    return generatePath(cfg.routes.integrationTasks, { type, name });
+  },
+
+  getMsTeamsAppZipRoute(clusterId: string, plugin: string) {
+    return generatePath(cfg.api.msTeamsAppZipPath, { clusterId, plugin });
   },
 
   getNodesRoute(clusterId: string) {
@@ -506,12 +966,20 @@ const cfg = {
     return cfg.routes.joinTokens;
   },
 
-  getJoinTokensUrl() {
-    return cfg.api.joinTokensPath;
-  },
-
-  getJoinTokenUrl() {
-    return cfg.api.joinTokenPath;
+  getJoinTokenUrl(req: { action: 'list' | 'listV2' | 'create' | 'update' }) {
+    switch (req.action) {
+      case 'create':
+        return generatePath(cfg.api.joinToken.create);
+      case 'update':
+        return generatePath(cfg.api.joinToken.update);
+      case 'list':
+        return generatePath(cfg.api.joinToken.list);
+      case 'listV2':
+        return generatePath(cfg.api.joinToken.listV2);
+      default:
+        req.action satisfies never;
+        return '';
+    }
   },
 
   getJoinTokenYamlUrl() {
@@ -527,13 +995,19 @@ const cfg = {
   ) {
     return (
       cfg.baseUrl +
-      generatePath(cfg.api.awsConfigureIamScriptDeployServicePath, { ...p })
+      generateFullPath(cfg.api.awsConfigureIamScriptDeployServicePath, { ...p })
     );
   },
 
   getAwsOidcConfigureIdpScriptUrl(p: UrlAwsOidcConfigureIdp) {
     const path = cfg.api.awsConfigureIamScriptOidcIdpPath;
-    return cfg.baseUrl + generatePath(path, { ...p });
+    return (
+      cfg.baseUrl +
+      generateFullPath(path, {
+        ...p,
+        policyPreset: p.policyPreset || undefined,
+      })
+    );
   },
 
   getDbScriptUrl(token: string) {
@@ -543,17 +1017,60 @@ const cfg = {
   getAppNodeScriptUrl(token: string, name: string, uri: string) {
     return (
       cfg.baseUrl +
-      generatePath(cfg.api.appNodeScriptPath, { token, name, uri })
+      generateFullPath(cfg.api.appNodeScriptPath, { token, name, uri })
     );
   },
 
   getUsersRoute() {
-    const clusterId = cfg.proxyCluster;
-    return generatePath(cfg.routes.users, { clusterId });
+    return cfg.routes.users;
   },
 
   getBotsRoute() {
     return generatePath(cfg.routes.bots);
+  },
+
+  getBotDetailsRoute(botName: string) {
+    return generatePath(cfg.routes.bot, { botName });
+  },
+
+  getBotInstancesRoute(
+    options?: Partial<{
+      query: string;
+      isAdvancedQuery: boolean;
+      sortField: string;
+      sortDir: 'ASC' | 'DESC';
+      selectedItemId: string;
+      activeTab: 'info' | 'health' | 'yaml';
+    }>
+  ) {
+    const search = new URLSearchParams(location.search);
+    if (options?.query) {
+      search.set('query', options.query);
+    }
+    if (options?.isAdvancedQuery) {
+      search.set('is_advanced', '1');
+    }
+    if (options?.sortField) {
+      search.set('sort_field', options.sortField);
+    }
+    if (options?.sortDir) {
+      search.set('sort_dir', options.sortDir);
+    }
+    if (options?.selectedItemId) {
+      search.set('selected', options.selectedItemId);
+    }
+    if (options?.activeTab) {
+      search.set('tab', options.activeTab);
+    }
+    return `${generatePath(cfg.routes.botInstances)}?${search.toString()}`;
+  },
+
+  getInstancesRoute() {
+    return generatePath(cfg.routes.instances);
+  },
+
+  getWorkloadIdentitiesRoute() {
+    return generatePath(cfg.routes.workloadIdentities);
   },
 
   getBotsNewRoute(type?: string) {
@@ -596,6 +1113,18 @@ const cfg = {
       desktopName,
       username,
     });
+  },
+
+  getLinuxDesktopRoute({ clusterId, username, desktopName }) {
+    return generatePath(cfg.routes.linuxDesktop, {
+      clusterId,
+      desktopName,
+      username,
+    });
+  },
+
+  getDbConnectRoute(params: UrlDbConnectParams) {
+    return generatePath(cfg.routes.dbConnect, { ...params });
   },
 
   getKubeExecSessionRoute(
@@ -650,21 +1179,39 @@ const cfg = {
     return route;
   },
 
+  getSessionRecordingMetadataUrl(
+    clusterId: string,
+    sessionId: string,
+    fqdn: string
+  ) {
+    return generatePath(cfg.api.sessionRecording.metadata, {
+      clusterId,
+      sessionId,
+      fqdn,
+    });
+  },
+
+  getSessionRecordingPlaybackUrl(clusterId: string, sessionId: string) {
+    return generatePath(cfg.api.sessionRecording.playback, {
+      clusterId,
+      sessionId,
+    });
+  },
+
+  getSessionRecordingThumbnailUrl(clusterId: string, sessionId: string) {
+    return generatePath(cfg.api.sessionRecording.thumbnail, {
+      clusterId,
+      sessionId,
+    });
+  },
+
   getConnectionDiagnosticUrl() {
     const clusterId = cfg.proxyCluster;
     return generatePath(cfg.api.connectionDiagnostic, { clusterId });
   },
 
-  getMfaRequiredUrl() {
-    const clusterId = cfg.proxyCluster;
+  getMfaRequiredUrl(clusterId: string) {
     return generatePath(cfg.api.mfaRequired, { clusterId });
-  },
-
-  getCheckAccessToRegisteredResourceUrl() {
-    const clusterId = cfg.proxyCluster;
-    return generatePath(cfg.api.checkAccessToRegisteredResource, {
-      clusterId,
-    });
   },
 
   getUserContextUrl() {
@@ -685,6 +1232,10 @@ const cfg = {
     return generatePath(cfg.api.headlessSsoPath, { requestId });
   },
 
+  getBrowserMfaPath(requestId: string) {
+    return generatePath(cfg.api.browserMfaPath, { requestId });
+  },
+
   getUserInviteTokenRoute(tokenId = '') {
     return generatePath(cfg.routes.userInvite, { tokenId });
   },
@@ -697,21 +1248,54 @@ const cfg = {
     return generatePath(cfg.routes.kubernetes, { clusterId });
   },
 
+  getEditAuthConnectorRoute(
+    connectorType: KindAuthConnectors,
+    connectorName?: string
+  ) {
+    return generatePath(cfg.routes.ssoConnector.edit, {
+      connectorType,
+      connectorName,
+    });
+  },
+
+  getCreateAuthConnectorRoute(connectorType: KindAuthConnectors) {
+    return generatePath(cfg.routes.ssoConnector.create, { connectorType });
+  },
+
+  // TODO(rudream): DELETE IN V21.0.0
   getUsersUrl() {
     return cfg.api.usersPath;
+  },
+
+  getUsersUrlV2(params?: UrlListUsersParams) {
+    return generateFullPath(cfg.api.usersPathV2, {
+      search: params?.search || undefined,
+      startKey: params?.startKey || undefined,
+      limit: params?.limit || undefined,
+    });
   },
 
   getUserWithUsernameUrl(username: string) {
     return generatePath(cfg.api.userWithUsernamePath, { username });
   },
 
-  getSshPlaybackPrefixUrl({ clusterId, sid }: UrlParams) {
-    // TODO(zmb3): remove this when Assist is no longer using it
-    return generatePath(cfg.api.sshPlaybackPrefix, { clusterId, sid });
+  // TODO(kimlisa): DELETE IN v21 and replace with getUserWithUsernameUrl.
+  // React Router v7 auto encodes dynamic segments in path (v5 version did not).
+  // The upgrade surfaced a backend bug where path params were not getting auto decoded which
+  // is the default behavior of go's httprouter.Params.ByName() b/c path params for this
+  // particular endpoint are being manually set.
+  // This is a temporary patch that does not encode segments (same behavior pre-React Router v7)
+  // to provide backwards compatibility.
+  getUserWithUsernameTemporaryPatchedUrl(username: string) {
+    return cfg.api.userWithUsernamePath.replace(':username', username);
   },
 
   getActiveAndPendingSessionsUrl({ clusterId }: UrlParams) {
     return generatePath(cfg.api.activeAndPendingSessionsPath, { clusterId });
+  },
+
+  getSessionDurationUrl(clusterId: string, sid: string) {
+    return generatePath(cfg.api.sessionDurationPath, { clusterId, sid });
   },
 
   getUnifiedResourcesUrl(clusterId: string, params: UrlResourcesParams) {
@@ -730,6 +1314,20 @@ const cfg = {
 
   getClusterNodesUrlNoParams(clusterId: string) {
     return generatePath(cfg.api.nodesPathNoParams, { clusterId });
+  },
+
+  getGitServerUrl(
+    params: { clusterId: string; name?: string },
+    action: 'createOrOverwrite' | 'delete'
+  ) {
+    if (action === 'createOrOverwrite') {
+      return generatePath(cfg.api.gitServer.createOrOverwrite, {
+        clusterId: params.clusterId,
+      });
+    }
+    if (action === 'delete') {
+      return generatePath(cfg.api.gitServer.delete, params);
+    }
   },
 
   getDatabaseServicesUrl(clusterId: string) {
@@ -759,6 +1357,20 @@ const cfg = {
     });
   },
 
+  getDatabaseServerUrl(clusterId: string, params?: UrlResourcesParams) {
+    return generateResourcePath(cfg.api.databaseServer.list, {
+      clusterId,
+      ...params,
+    });
+  },
+
+  getInstancesUrl(clusterId: string, params?: UrlResourcesParams) {
+    return generateResourcePath(cfg.api.instancesPath, {
+      clusterId,
+      ...params,
+    });
+  },
+
   getYamlParseUrl(kind: YamlSupportedResourceKind) {
     return generatePath(cfg.api.yaml.parse, { kind });
   },
@@ -775,31 +1387,54 @@ const cfg = {
     return cfg.routes.newLock;
   },
 
-  getLocksUrl() {
-    // Currently only support get/create locks in root cluster.
-    const clusterId = cfg.proxyCluster;
-    return generatePath(cfg.api.locksPath, { clusterId });
-  },
-
-  getLocksUrlWithUuid(uuid: string) {
-    // Currently only support delete/lookup locks in root cluster.
-    const clusterId = cfg.proxyCluster;
-    return generatePath(cfg.api.locksPathWithUuid, { clusterId, uuid });
+  getLockUrl(
+    req: (
+      | { action: 'list-v2' | 'create' }
+      | { action: 'read' | 'delete' | 'update'; uuid: string }
+    ) & { clusterId?: string }
+  ) {
+    const { clusterId = cfg.proxyCluster } = req;
+    switch (req.action) {
+      case 'list-v2':
+        return generatePath(cfg.api.locks.listV2, {
+          clusterId,
+        });
+      case 'read':
+        return generatePath(cfg.api.locks.read, {
+          clusterId,
+          uuid: req.uuid,
+        });
+      case 'create':
+        return generatePath(cfg.api.locks.create, {
+          clusterId,
+        });
+      case 'update':
+        return generatePath(cfg.api.locks.update, {
+          clusterId,
+          uuid: req.uuid,
+        });
+      case 'delete':
+        return generatePath(cfg.api.locks.delete, {
+          clusterId,
+          uuid: req.uuid,
+        });
+      default:
+        req satisfies never;
+        return '';
+    }
   },
 
   getDatabaseSignUrl(clusterId: string) {
     return generatePath(cfg.api.dbSign, { clusterId });
   },
 
-  getDesktopsUrl(clusterId: string, params: UrlResourcesParams) {
-    return generateResourcePath(cfg.api.desktopsPath, {
-      clusterId,
-      ...params,
-    });
+  getDatabaseCertificateTTL() {
+    // the length of the certificate to request for the database
+    return cfg.defaultDatabaseTTL;
   },
 
-  getDesktopServicesUrl(clusterId: string, params: UrlResourcesParams) {
-    return generateResourcePath(cfg.api.desktopServicesPath, {
+  getDesktopsUrl(clusterId: string, params: UrlResourcesParams) {
+    return generateResourcePath(cfg.api.desktopsPath, {
       clusterId,
       ...params,
     });
@@ -820,20 +1455,25 @@ const cfg = {
     });
   },
 
-  getScpUrl({ webauthn, ...params }: UrlScpParams) {
-    let path = generatePath(cfg.api.scp, {
+  getScpUrl({ mfaResponse, ...params }: UrlScpParams) {
+    let path = generateFullPath(cfg.api.scp, {
       ...params,
     });
 
-    if (!webauthn) {
+    if (!mfaResponse) {
       return path;
     }
     // non-required MFA will mean this param is undefined and generatePath doesn't like undefined
     // or optional params. So we append it ourselves here. Its ok to be undefined when sent to the server
     // as the existence of this param is what will issue certs
-    return `${path}&webauthn=${JSON.stringify({
-      webauthnAssertionResponse: webauthn,
+
+    // TODO(Joerger): DELETE IN v19.0.0
+    // We include webauthn for backwards compatibility.
+    path = `${path}&webauthn=${JSON.stringify({
+      webauthnAssertionResponse: mfaResponse.webauthn_response,
     })}`;
+
+    return `${path}&mfaResponse=${JSON.stringify(mfaResponse)}`;
   },
 
   getRenewTokenUrl() {
@@ -844,20 +1484,59 @@ const cfg = {
     return generatePath(cfg.api.githubConnectorsPath, { name });
   },
 
+  getGithubConnectorUrl(name: string) {
+    return generatePath(cfg.api.githubConnectorPath, { name });
+  },
+
   getTrustedClustersUrl(name?: string) {
     return generatePath(cfg.api.trustedClustersPath, { name });
   },
 
-  getListRolesUrl(params?: UrlListRolesParams) {
-    return generatePath(cfg.api.listRolesPath, {
+  getRoleUrl(
+    req:
+      | {
+          action: 'get' | 'delete' | 'update';
+          name: string;
+        }
+      | { action: 'list' | 'listv2'; params?: UrlListRolesParams }
+  ) {
+    const action = req.action;
+    switch (action) {
+      case 'get':
+        return generatePath(cfg.api.role.get, { name: req.name });
+      case 'delete':
+        return generatePath(cfg.api.role.delete, { name: req.name });
+      case 'update':
+        return generatePath(cfg.api.role.update, { name: req.name });
+      case 'list': {
+        const params = req.params;
+        return generateFullPath(cfg.api.role.list, {
+          search: params?.search || undefined,
+          startKey: params?.startKey || undefined,
+          limit: params?.limit || undefined,
+        });
+      }
+      case 'listv2': {
+        const params = req.params;
+        return generateFullPath(cfg.api.role.listV2, {
+          search: params?.search || undefined,
+          startKey: params?.startKey || undefined,
+          limit: params?.limit || undefined,
+          includeSystemRoles: params?.includeSystemRoles || undefined,
+          includeObject: params?.includeObject || undefined,
+        });
+      }
+      default:
+        action satisfies never;
+    }
+  },
+
+  getListRequestableRolesUrl(params?: UrlListRolesParams) {
+    return generateFullPath(cfg.api.listRequestableRolesPath, {
       search: params?.search || undefined,
       startKey: params?.startKey || undefined,
       limit: params?.limit || undefined,
     });
-  },
-
-  getRoleUrl(name?: string) {
-    return generatePath(cfg.api.rolePath, { name });
   },
 
   getDiscoveryConfigUrl(clusterId: string) {
@@ -874,6 +1553,20 @@ const cfg = {
 
   getKubernetesUrl(clusterId: string, params: UrlResourcesParams) {
     return generateResourcePath(cfg.api.kubernetesPath, {
+      clusterId,
+      ...params,
+    });
+  },
+
+  getKubernetesResourcesUrl(clusterId: string, params: UrlKubeResourcesParams) {
+    return generateResourcePath(cfg.api.kubernetesResourcesPath, {
+      clusterId,
+      ...params,
+    });
+  },
+
+  getKubernetesServerUrl(clusterId: string, params?: UrlResourcesParams) {
+    return generateResourcePath(cfg.api.kubernetesServer.list, {
       clusterId,
       ...params,
     });
@@ -899,10 +1592,117 @@ const cfg = {
     });
   },
 
-  getIntegrationsUrl(integrationName?: string) {
+  getIntegrationCaUrl(clusterId: string, name: string) {
+    return generatePath(cfg.api.integrationCa.export, {
+      clusterId,
+      name,
+    });
+  },
+
+  getIntegrationsUrl(integrationName?: string, withSummaries: boolean = false) {
     // Currently you can only create integrations at the root cluster.
     const clusterId = cfg.proxyCluster;
-    return generatePath(cfg.api.integrationsPath, {
+    let url = generatePath(cfg.api.integrationsPath, {
+      clusterId,
+      name: integrationName,
+    });
+    if (withSummaries) {
+      url += `?withSummaries=true`;
+    }
+    return url;
+  },
+
+  getDeleteIntegrationUrlV2(req: IntegrationDeleteRequest) {
+    // Not using generatePath here because it doesn't work
+    // when a dynamic path and a query param is next to each other.
+    // eg: some/path/:name?queryParmKey=queryParamValue it will
+    // remove the required ? in the path.
+    return cfg.api.integration.deleteV2
+      .replace(':clusterId', req.clusterId)
+      .replace(':name', req.name)
+      .replace(
+        ':associatedresources',
+        req.deleteAssociatedResources ? 'true' : 'false'
+      );
+  },
+
+  getIntegrationStatsUrl(name: string) {
+    const clusterId = cfg.proxyCluster;
+    return generatePath(cfg.api.integrationStatsPath, {
+      clusterId,
+      name,
+    });
+  },
+
+  getIntegrationRulesUrl(
+    name: string,
+    resourceType: AwsResource | AzureResource,
+    regions?: string[]
+  ) {
+    const clusterId = cfg.proxyCluster;
+    return generateResourcePath(cfg.api.integrationRulesPath, {
+      clusterId,
+      name,
+      resourceType,
+      regions,
+    });
+  },
+
+  getAwsOidcDatabaseServices(
+    name: string,
+    resourceType: AwsResource,
+    regions: string[]
+  ) {
+    const clusterId = cfg.proxyCluster;
+    return generateResourcePath(cfg.api.awsOidcDatabaseServicesPath, {
+      clusterId,
+      name,
+      resourceType,
+      regions,
+    });
+  },
+
+  getIntegrationUserTasksListUrl(name: string, state: TaskState) {
+    const clusterId = cfg.proxyCluster;
+    return generateFullPath(cfg.api.userTaskListByIntegrationPath, {
+      clusterId,
+      name,
+      state,
+    });
+  },
+
+  getUserTaskUrl(name: string) {
+    const clusterId = cfg.proxyCluster;
+    return generatePath(cfg.api.userTaskPath, {
+      clusterId,
+      name,
+    });
+  },
+
+  getResolveUserTaskUrl(name: string) {
+    const clusterId = cfg.proxyCluster;
+    return generatePath(cfg.api.resolveUserTaskPath, {
+      clusterId,
+      name,
+    });
+  },
+
+  getValidateAWSRolesAnywhereIntegrationUrl(integrationName: string) {
+    const clusterId = cfg.proxyCluster;
+    return generatePath(cfg.api.awsRolesAnywhere.validate, {
+      clusterId,
+      integrationName,
+    });
+  },
+
+  getPingAwsOidcIntegrationUrl({
+    integrationName,
+    clusterId,
+  }: {
+    integrationName: string;
+    clusterId: string;
+  }) {
+    return generatePath(cfg.api.pingAwsOidcIntegrationPath, {
       clusterId,
       name: integrationName,
     });
@@ -921,6 +1721,13 @@ const cfg = {
     const clusterId = cfg.proxyCluster;
 
     return generatePath(cfg.api.awsRdsDbRequiredVpcsPath, {
+      clusterId,
+      name: integrationName,
+    });
+  },
+
+  getAwsDatabaseVpcsUrl(integrationName: string, clusterId: string) {
+    return generatePath(cfg.api.awsDatabaseVpcsPath, {
       clusterId,
       name: integrationName,
     });
@@ -947,7 +1754,16 @@ const cfg = {
   getAwsAppAccessUrl(integrationName: string) {
     const clusterId = cfg.proxyCluster;
 
-    return generatePath(cfg.api.awsAppAccessPath, {
+    return generatePath(cfg.api.awsAppAccess.create, {
+      clusterId,
+      name: integrationName,
+    });
+  },
+
+  getAwsAppAccessUrlV2(integrationName: string) {
+    const clusterId = cfg.proxyCluster;
+
+    return generatePath(cfg.api.awsAppAccess.createV2, {
       clusterId,
       name: integrationName,
     });
@@ -979,7 +1795,16 @@ const cfg = {
   getEnrollEksClusterUrl(integrationName: string): string {
     const clusterId = cfg.proxyCluster;
 
-    return generatePath(cfg.api.eksEnrollClustersPath, {
+    return generatePath(cfg.api.eks.enroll, {
+      clusterId,
+      name: integrationName,
+    });
+  },
+
+  getEnrollEksClusterUrlV2(integrationName: string): string {
+    const clusterId = cfg.proxyCluster;
+
+    return generatePath(cfg.api.eks.enrollV2, {
       clusterId,
       name: integrationName,
     });
@@ -994,33 +1819,6 @@ const cfg = {
     });
   },
 
-  getListEc2InstancesUrl(integrationName: string) {
-    const clusterId = cfg.proxyCluster;
-
-    return generatePath(cfg.api.ec2InstancesListPath, {
-      clusterId,
-      name: integrationName,
-    });
-  },
-
-  getListEc2InstanceConnectEndpointsUrl(integrationName: string) {
-    const clusterId = cfg.proxyCluster;
-
-    return generatePath(cfg.api.ec2InstanceConnectEndpointsListPath, {
-      clusterId,
-      name: integrationName,
-    });
-  },
-
-  getDeployEc2InstanceConnectEndpointUrl(integrationName: string) {
-    const clusterId = cfg.proxyCluster;
-
-    return generatePath(cfg.api.ec2InstanceConnectDeployPath, {
-      clusterId,
-      name: integrationName,
-    });
-  },
-
   getListSecurityGroupsUrl(integrationName: string) {
     const clusterId = cfg.proxyCluster;
 
@@ -1030,21 +1828,17 @@ const cfg = {
     });
   },
 
-  getEc2InstanceConnectIAMConfigureScriptUrl(
-    params: UrlAwsConfigureIamScriptParams
-  ) {
-    return (
-      cfg.baseUrl +
-      generatePath(cfg.api.awsConfigureIamScriptEc2InstanceConnectPath, {
-        ...params,
-      })
-    );
+  getAwsSubnetListUrl(integrationName: string, clusterId: string) {
+    return generatePath(cfg.api.awsSubnetListPath, {
+      clusterId,
+      name: integrationName,
+    });
   },
 
   getEksIamConfigureScriptUrl(params: UrlAwsConfigureIamScriptParams) {
     return (
       cfg.baseUrl +
-      generatePath(cfg.api.awsConfigureIamEksScriptPath, {
+      generateFullPath(cfg.api.awsConfigureIamEksScriptPath, {
         ...params,
       })
     );
@@ -1055,7 +1849,7 @@ const cfg = {
   ) {
     return (
       cfg.baseUrl +
-      generatePath(cfg.api.awsConfigureIamAppAccessPath, {
+      generateFullPath(cfg.api.awsConfigureIamAppAccessPath, {
         ...params,
       })
     );
@@ -1066,7 +1860,7 @@ const cfg = {
   ) {
     return (
       cfg.baseUrl +
-      generatePath(cfg.api.awsConfigureIamEc2AutoDiscoverWithSsmPath, {
+      generateFullPath(cfg.api.awsConfigureIamEc2AutoDiscoverWithSsmPath, {
         ...params,
       })
     );
@@ -1077,10 +1871,46 @@ const cfg = {
   ) {
     return (
       cfg.baseUrl +
-      generatePath(cfg.api.awsConfigureIamScriptListDatabasesPath, {
+      generateFullPath(cfg.api.awsConfigureIamScriptListDatabasesPath, {
         ...params,
       })
     );
+  },
+
+  getAwsRolesAnywhereGenerateUrl(
+    integrationName: string,
+    trustAnchor: string,
+    syncRole: string,
+    syncProfile: string
+  ) {
+    const path = cfg.api.awsRolesAnywhere.generate;
+    return (
+      cfg.baseUrl +
+      generateFullPath(path, {
+        integrationName,
+        trustAnchor,
+        syncRole,
+        syncProfile,
+      })
+    );
+  },
+
+  getAwsRolesAnywherePingUrl(integrationName: string) {
+    const path = cfg.api.awsRolesAnywhere.ping;
+    const clusterId = cfg.proxyCluster;
+    return generatePath(path, {
+      clusterId,
+      integrationName,
+    });
+  },
+
+  getAwsRolesAnywhereProfilesUrl(integrationName: string) {
+    const path = cfg.api.awsRolesAnywhere.profiles;
+    const clusterId = cfg.proxyCluster;
+    return generatePath(path, {
+      clusterId,
+      integrationName,
+    });
   },
 
   getBotTokenUrl() {
@@ -1088,14 +1918,119 @@ const cfg = {
     return generatePath(cfg.api.botsTokenPath, { clusterId });
   },
 
-  getBotsUrl() {
-    const clusterId = cfg.proxyCluster;
-    return generatePath(cfg.api.botsPath, { clusterId });
+  getBotUrl(
+    req: (
+      | { action: 'list' | 'create' | 'gen-wizard-cicd' }
+      | {
+          action: 'read' | 'update' | 'update-v2' | 'update-v3' | 'delete';
+          botName: string;
+        }
+    ) & { clusterId?: string }
+  ) {
+    const { clusterId = cfg.proxyCluster } = req;
+    switch (req.action) {
+      case 'list':
+        return generatePath(cfg.api.bot.list, {
+          clusterId,
+        });
+      case 'read':
+        return generatePath(cfg.api.bot.read, {
+          clusterId,
+          botName: req.botName,
+        });
+      case 'create':
+        return generatePath(cfg.api.bot.create, {
+          clusterId,
+        });
+      case 'update':
+        return generatePath(cfg.api.bot.update, {
+          clusterId,
+          botName: req.botName,
+        });
+      case 'update-v2':
+        return generatePath(cfg.api.bot.updateV2, {
+          clusterId,
+          botName: req.botName,
+        });
+      case 'update-v3':
+        return generatePath(cfg.api.bot.updateV3, {
+          clusterId,
+          botName: req.botName,
+        });
+      case 'delete':
+        return generatePath(cfg.api.bot.delete, {
+          clusterId,
+          botName: req.botName,
+        });
+      case 'gen-wizard-cicd':
+        return generatePath(cfg.api.bot.genWizardCiCd, {
+          clusterId,
+        });
+      default:
+        req satisfies never;
+        return '';
+    }
   },
 
-  getBotUrlWithName(name: string) {
-    const clusterId = cfg.proxyCluster;
-    return generatePath(cfg.api.botsPath, { clusterId, name });
+  getBotInstanceUrl(
+    req: (
+      | {
+          action: 'list';
+        }
+      | {
+          action: 'listV2';
+        }
+      | {
+          action: 'read';
+          botName: string;
+          instanceId: string;
+        }
+      | {
+          action: 'metrics';
+        }
+    ) & { clusterId?: string }
+  ) {
+    const { clusterId = cfg.proxyCluster } = req;
+    switch (req.action) {
+      case 'list':
+        return generatePath(cfg.api.botInstance.list, {
+          clusterId,
+        });
+      case 'listV2':
+        return generatePath(cfg.api.botInstance.listV2, {
+          clusterId,
+        });
+      case 'read':
+        return generatePath(cfg.api.botInstance.read, {
+          clusterId,
+          botName: req.botName,
+          instanceId: req.instanceId,
+        });
+      case 'metrics':
+        return generatePath(cfg.api.botInstance.metrics, {
+          clusterId,
+        });
+      default:
+        req satisfies never;
+        return '';
+    }
+  },
+
+  getWorkloadIdentityUrl(
+    req: {
+      action: 'list';
+    } & { clusterId?: string }
+  ) {
+    const { clusterId = cfg.proxyCluster } = req;
+    switch (req.action) {
+      case 'list':
+        return generatePath(cfg.api.workloadIdentity.list, {
+          clusterId,
+        });
+      default:
+        req.action satisfies never;
+        return '';
+    }
   },
 
   getGcpWorkforceConfigScriptUrl(p: UrlGcpWorkforceConfigParam) {
@@ -1105,7 +2040,7 @@ const cfg = {
   },
 
   getNotificationsUrl(params: UrlNotificationParams) {
-    return generatePath(cfg.api.notificationsPath, { ...params });
+    return generateFullPath(cfg.api.notificationsPath, { ...params });
   },
 
   getNotificationLastSeenUrl(clusterId: string) {
@@ -1114,6 +2049,10 @@ const cfg = {
 
   getNotificationStateUrl(clusterId: string) {
     return generatePath(cfg.api.notificationStatePath, { clusterId });
+  },
+
+  getAccessGraphCrownJewelAccessPathUrl(id: string) {
+    return generatePath(cfg.routes.accessGraph.crownJewelAccessPath, { id });
   },
 
   init(backendConfig = {}) {
@@ -1135,6 +2074,15 @@ export interface UrlAppParams {
   arn?: string;
 }
 
+export interface CreateAppSessionParams {
+  fqdn: string;
+  // This API requires cluster_name and public_addr with underscores.
+  cluster_name?: string;
+  public_addr?: string;
+  arn?: string;
+  mfaResponse?: MfaChallengeResponse;
+}
+
 export interface UrlScpParams {
   clusterId: string;
   serverId: string;
@@ -1143,7 +2091,7 @@ export interface UrlScpParams {
   filename: string;
   moderatedSessionId?: string;
   fileTransferRequestId?: string;
-  webauthn?: WebauthnAssertionResponse;
+  mfaResponse?: MfaChallengeResponse;
 }
 
 export interface UrlSshParams {
@@ -1157,6 +2105,13 @@ export interface UrlSshParams {
 export interface UrlKubeExecParams {
   clusterId: string;
   kubeId: string;
+  sid?: string;
+  mode?: ParticipantMode;
+}
+
+export interface UrlDbConnectParams {
+  clusterId: string;
+  serviceName: string;
 }
 
 export interface UrlSessionRecordingsParams {
@@ -1172,33 +2127,52 @@ export interface UrlClusterEventsParams {
   limit?: number;
   include?: string;
   startKey?: string;
+  search?: string;
+  order?: string;
 }
 
-export interface UrlLauncherParams {
+export type UrlLauncherParams = {
   fqdn: string;
   clusterId?: string;
   publicAddr?: string;
   arn?: string;
-}
+};
 
-export interface UrlPlayerParams {
+export type UrlPlayerParams = {
   clusterId: string;
   sid: string;
-}
+};
 
 export interface UrlPlayerSearch {
   recordingType: RecordingType;
   durationMs?: number;
 }
 
-// /web/cluster/:clusterId/desktops/:desktopName/:username
-export interface UrlDesktopParams {
+export type UrlDesktopParams = {
   username?: string;
   desktopName?: string;
   clusterId: string;
-}
+};
 
 export interface UrlListRolesParams {
+  search?: string;
+  limit?: number;
+  startKey?: string;
+  /**
+   * default is without system roles.
+   * Only supported with v2 endpoint.
+   */
+  includeSystemRoles?: 'yes' | '';
+  /**
+   * default is without the object.
+   * (only a string content of the resource for yaml purposes)
+   *
+   * Only supported with v2 endpoint and role resource.
+   */
+  includeObject?: 'yes' | '';
+}
+
+export interface UrlListUsersParams {
   search?: string;
   limit?: number;
   startKey?: string;
@@ -1217,29 +2191,50 @@ export interface UrlResourcesParams {
   kinds?: string[];
 }
 
+export interface UrlKubeResourcesParams {
+  query?: string;
+  search?: string;
+  sort?: SortType;
+  limit?: number;
+  startKey?: string;
+  searchAsRoles?: 'yes' | '';
+  kubeNamespace?: string;
+  kubeCluster: string;
+  kind: Omit<KubeResourceKind, '*'>;
+}
+
+export interface UrlIntegrationParams {
+  name?: string;
+  resourceType?: string;
+  regions?: string[];
+}
+
 export interface UrlDeployServiceIamConfigureScriptParams {
   integrationName: string;
   region: Regions;
   awsOidcRoleArn: string;
   taskRoleArn: string;
+  accountID: string;
 }
 
 export interface UrlAwsOidcConfigureIdp {
   integrationName: string;
   roleName: string;
-  s3Bucket?: string;
-  s3Prefix?: string;
+  policyPreset?: AwsOidcPolicyPreset;
 }
 
 export interface UrlAwsConfigureIamScriptParams {
   region: Regions;
   iamRoleName: string;
+  accountID: string;
 }
 
 export interface UrlAwsConfigureIamEc2AutoDiscoverWithSsmScriptParams {
   region: Regions;
   iamRoleName: string;
   ssmDocument: string;
+  integrationName: string;
+  accountID: string;
 }
 
 export interface UrlGcpWorkforceConfigParam {

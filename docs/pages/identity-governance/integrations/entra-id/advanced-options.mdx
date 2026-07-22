@@ -1,0 +1,271 @@
+---
+title: Advanced Entra ID Integration Options
+sidebar_label: Advanced Options
+description: Advanced Teleport Entra ID integration configuration options.
+sidebar_position: 4
+tags:
+ - identity-governance
+ - azure
+ - privileged-access
+enterprise: Identity Governance
+---
+
+This page lists advanced configuration options related to the
+Teleport Entra ID integration. 
+
+## Sync mode and intervals 
+
+Teleport supports two sync modes: full and delta sync.
+
+Full sync is the default sync mode in which Teleport syncs full sets of users, 
+groups, group members, and group owners that exist in your Microsoft Entra ID 
+directory. It runs every five minutes. 
+
+In delta sync mode, Teleport only tracks incremental changes made in your Microsoft
+Entra ID directory and syncs them to Teleport. Delta sync is not enabled by default. 
+It is an opt-in feature available only in Teleport `v18.9.2` and above.
+
+### Configuring sync mode and intervals
+
+By default, the plugin runs full sync at a five-minute interval. 
+Configuring a positive duration for the `full` and `delta` fields of the plugin's
+`sync_intervals` setting enables the respective sync mode. 
+
+The following example configures `delta` sync at a two-minute interval and `full` sync 
+at a one-hour interval.
+
+First, open the Entra ID plugin spec in edit mode using `tctl`:
+```code
+$ tctl edit plugins/entra-id-default
+```
+Next, update the plugin spec with `sync_intervals` fields:
+```yaml
+kind: plugin
+metadata:
+  name: entra-id-default
+spec:
+  Settings:
+    entra_id:
+      sync_settings:
+       sync_intervals:
+         delta: "2m"
+         full: "1h"
+       # Other settings omitted for brevity
+version: v1
+```
+
+Both `delta` and `full` accept a [Go](https://pkg.go.dev/time#Duration.String) 
+time duration string such as `2m` for two minutes or `1h` for one hour.
+
+A zero (`0`) interval value disables the respective sync mode. 
+If both delta and full sync are disabled, the plugin falls back to using full sync 
+with a five-minute interval. 
+
+When both delta and full sync intervals are configured, delta sync runs between 
+two consecutive full sync intervals. 
+```code
+T+0m   FULL   (initial one)
+T+2m   DELTA
+T+4m   DELTA
+T+6m   DELTA
+...
+T+60m  FULL
+T+62m  DELTA
+T+64m  DELTA
+T+66m  DELTA
+...
+T+120m  FULL
+```
+
+### Choosing between `full` and `delta` sync
+
+The primary consideration when choosing between full sync and delta sync is how 
+susceptible your Graph API tenant is to throttling.
+
+The [Graph API quota](https://learn.microsoft.com/en-us/graph/throttling-limits#identity-and-access-service-limits) 
+is based on the number of resources queried per API call and the frequency of those calls. 
+For example, in a large Entra ID directory with 1,000+ users, 50,000+ groups with varying 
+100-1,000 group members each, Teleport's frequent full scans are susceptible to throttling.
+
+Further, the Graph API quota is shared among all clients configured in the Entra ID 
+tenant. An unrelated third-party application could consume the entire Graph API quota, 
+causing Teleport to be throttled as well.
+
+If you are integrating with a smaller directory or if Teleport is the only API 
+consumer querying the directory, use the default full sync. To reduce the risk of 
+throttling, you may increase the full sync interval if an instant sync is not required. 
+
+For a large directory, configure both delta and full sync where delta sync runs 
+on a shorter sync interval (e.g., 2 minutes) and full sync runs on a longer sync 
+interval (e.g., 1 hour).
+
+If your tenant is sensitive to throttling due to multiple clients frequently polling
+large datasets, you can disable the full sync and run the delta sync only. However,
+configuring both the full and delta sync as described above, offers the best balance 
+between efficient API usage and integration functionality.
+
+### Delta sync limitations
+
+#### Processing delays
+
+Delta sync generally discovers Entra ID changes immediately. However, the delta 
+API is known to have [processing delays](https://learn.microsoft.com/en-us/graph/delta-query-overview#processing-delays).
+
+While uncommon, processing delay is worth noting to avoid confusion emerging from 
+a delayed resource discovery. Running delta sync at a shorter interval (e.g., 2 
+minutes) can reduce the impact.
+
+#### Group owners
+
+If you are using Entra ID as the source of the Access List owners, but the Entra ID
+group does not have any owners, Teleport falls back to using default owners configured 
+in the plugin. 
+
+In a subsequent delta sync, Teleport will not remove such default owners. 
+
+A subsequent `full` sync will reconcile these default owners for integrations 
+running both `delta` and `full` sync.
+
+#### Sync status 
+
+The Entra ID integration status page does not yet display delta sync status.
+Support for delta sync status will be added in a future release.
+
+## Group filters
+
+By default, all the groups that exists in the Microsoft Entra ID directory gets 
+imported to Teleport. 
+
+This import behavior can be controlled by using the group filters, which can 
+include or exclude certain groups based on their matching group object ID or group 
+display name. 
+
+Group filter can only be configured using `tctl` and the ability to configure it 
+using Teleport Web UI is in the works.
+
+
+### Group filter precedence
+
+- If no filters are configured, all the groups are imported (default behavior).
+- If an include filter is defined, only the matching group is imported. 
+- If a group is matched in both the include filter and exclude filter, exclude 
+filter gets precedence. 
+
+
+### Configure group filters during installation
+
+Example to configure group filters during installation:
+```code
+$ tctl plugins install entraid \
+    --name entra-id-default \
+    --auth-connector-name entra-id \
+    --default-owner=admin \
+    --no-access-graph \
+    --use-system-credentials \
+    --manual-setup \
+    --group-id 25f9c527-2314-414c-a75d-ef7efabcc99b \
+    --group-name "admin*" \
+    --exclude-group-id 080b50c3-1c98-4d8e-a54e-20143dbd4f99 \
+    --exclude-group-name "fin*" 
+```
+- `--group-id`: Include group matching the specified group ID. 
+  Multiple flags allowed.
+- `--group-name`: Include groups matching the specified group name regex. 
+  Multiple flags allowed.
+- `--exclude-group-id`. Exclude group matching the specified group ID. 
+  Multiple flags allowed.
+- `--exclude-group-name`. Exclude groups matching the specified group name regex. 
+  Multiple flags allowed.
+
+### Updating group filters
+Group filters can be updated using `group_filters` flag, which is available in 
+the `sync_settings` of the Teleport Entra ID plugin resource spec. 
+
+Reference configuration spec:
+```yaml
+kind: plugin
+metadata:
+  name: entra-id
+spec:
+  Settings:
+    entra_id:
+      sync_settings:
+        ... # other settings omitted for brevity
+        group_filters:
+        - id: 080b50c3-1c98-4d8e-a54e-20143dbd4f99
+        - id: 45f9c527-2314-414c-a75d-ef7efabcc99b
+        - id: 35f9c527-2314-414c-a75d-ef7efabcc99b
+        - nameRegex: 'admin*'
+        - excludeId: 080b50c52-1c98-4d8e-a54e-20143dbd4f99
+        - excludeNameRegex: 'finance*'
+version: v1
+```
+
+The plugin spec can be edited using the `tctl edit plugins/entra-id` command.
+
+## Access List owners
+
+Access List owners have a permission to manage Access Lists in Teleport and are 
+analogous to the Microsoft Entra ID group owners.
+
+You can configure the source of Access List owners to control how the Teleport 
+Entra ID plugin chooses owners for the Access Lists created for the Microsoft Entra 
+ID groups.
+
+The following options are supported:
+
+1. Source `plugin`: Use default owners configured in the plugin sync settings.
+   This is the default option.
+2. Source `entraid`: Use Microsoft Entra ID group owners as Access List owners. 
+  Only the group owner of user type is supported. Service principals as group owners
+  are not supported and will be filtered. Teleport may fall back to using 
+  `plugin` source on the following conditions:
+   - Microsoft Entra ID group has zero configured owners.
+   - Microsoft Entra ID group owner is not supported, resulting in a zero supported 
+   owners.
+3. Source `plugin-and-entraid`: Use both the `plugin` and `entraid` source to 
+   configure Access List owners.  
+
+
+### Configuring source during installation
+
+Example to configure the source of Access List owners during installation:
+```code
+$ tctl plugins install entraid \
+    --name entra-id-default \
+    --auth-connector-name entra-id \
+    --default-owner admin \
+    --no-access-graph \
+    --use-system-credentials \
+    --manual-setup \
+    --access-list-owners-source entraid
+```
+
+- `--access-list-owners-source` flag configures source for the Access List owners. 
+  Value can be `plugin`, `entraid`, or `plugin-and-entraid`.
+
+### Updating the source of Access List owners
+
+You can update the source of the Access List owners using `access_list_owners_source` 
+field, which is available in the `sync_settings` of the Teleport Entra ID plugin 
+resource spec. 
+
+The `access_list_owners_source` field supports one of the following values: 
+- Integer value `1` to configure "plugin" source. 
+- Integer value `2` to configure "entraid" source.
+- Integer value `3` to configure "plugin-and-entraid" source.
+
+You can use the `tctl edit plugins/entra-id` command to update the plugin spec.
+A reference to the plugin resource spec is provided below:
+```yaml
+kind: plugin
+metadata:
+  name: entra-id
+spec:
+  Settings:
+    entra_id:
+      sync_settings:
+        ... # other settings omitted for brevity
+        access_list_owners_source: 3
+version: v1
+```

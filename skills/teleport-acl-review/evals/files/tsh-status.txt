@@ -1,0 +1,7 @@
+> Profile URL:        https://root.gravitational.io:3080
+  Logged in as:       alice
+  Cluster:            root
+  Roles:              access, editor
+  Logins:             root
+  Kubernetes:         enabled
+  Valid until:        2026-03-19 23:09:27 -0700 PDT [valid for 11h52m]

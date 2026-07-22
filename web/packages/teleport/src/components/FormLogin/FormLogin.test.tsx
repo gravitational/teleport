@@ -16,11 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import { fireEvent, render, screen } from 'design/utils/testing';
 
-import { render, fireEvent, screen } from 'design/utils/testing';
+import history from 'teleport/services/history';
 
 import FormLogin, { Props } from './FormLogin';
+
+beforeEach(() => {
+  jest.restoreAllMocks();
+  jest.spyOn(history, 'hasAccessChangedParam').mockImplementation(() => false);
+});
 
 test('primary username and password with mfa off', () => {
   const onLogin = jest.fn();
@@ -181,6 +186,53 @@ test('primary passwordless', () => {
   expect(screen.queryByTestId('passwordless')).toBeVisible();
   expect(screen.queryByTestId('sso-list')).not.toBeInTheDocument();
   expect(screen.queryByTestId('userpassword')).not.toBeInTheDocument();
+});
+
+test('focuses the username input', () => {
+  render(<FormLogin {...props} isPasswordlessEnabled />);
+
+  expect(screen.getByLabelText(/username/i)).toHaveFocus();
+  expect(
+    screen.getByRole('button', { name: /sign in with a passkey/i })
+  ).not.toHaveFocus();
+});
+
+test('focuses the passkey button', () => {
+  render(
+    <FormLogin
+      {...props}
+      isPasswordlessEnabled
+      primaryAuthType="passwordless"
+      authProviders={[
+        { name: 'github', type: 'github', url: '' },
+        { name: 'google', type: 'saml', url: '' },
+      ]}
+    />
+  );
+
+  expect(
+    screen.getByRole('button', { name: /sign in with a passkey/i })
+  ).toHaveFocus();
+  expect(screen.getByRole('button', { name: 'github' })).not.toHaveFocus();
+});
+
+test('focuses the first SSO button', () => {
+  render(
+    <FormLogin
+      {...props}
+      authProviders={[
+        { name: 'github', type: 'github', url: '' },
+        { name: 'google', type: 'saml', url: '' },
+      ]}
+      isPasswordlessEnabled
+      primaryAuthType="sso"
+    />
+  );
+
+  expect(screen.getByRole('button', { name: 'github' })).toHaveFocus();
+  expect(
+    screen.getByRole('button', { name: /sign in with a passkey/i })
+  ).not.toHaveFocus();
 });
 
 const props: Props = {

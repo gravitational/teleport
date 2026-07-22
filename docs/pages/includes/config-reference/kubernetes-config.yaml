@@ -1,5 +1,5 @@
 kubernetes_service:
-    enabled: "yes"
+    enabled: true
     # Optional Public & Listen Addr: Set these if you are connecting to
     # Teleport running inside a Kubernetes cluster instead of using a
     # reverse tunnel.
@@ -38,8 +38,8 @@ kubernetes_service:
     # Optional Dynamic Labels
     commands:
     - name: "os"
-       command: ["/usr/bin/uname"]
-       period: "5s"
+      command: ["/usr/bin/uname"]
+      period: "5s"
     # Get cluster name on GKE.
     - name: cluster-name
       command: 

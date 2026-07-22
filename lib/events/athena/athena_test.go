@@ -30,8 +30,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
-	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
@@ -42,11 +41,11 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestMain(m *testing.M) {
-	utils.InitLoggerForTests()
+	logtest.InitLogger(testing.Verbose)
 	os.Exit(m.Run())
 }
 
@@ -93,13 +92,15 @@ func TestConfig_SetFromURL(t *testing.T) {
 		},
 		{
 			name: "params to batcher",
-			url:  "athena://db.tbl/?queueURL=https://queueURL&batchMaxItems=1000&batchMaxInterval=10s",
+			url:  "athena://db.tbl/?queueURL=https://queueURL&batchMaxItems=1000&batchMaxInterval=10s&consumerLockName=mylock&consumerDisabled=true",
 			want: Config{
 				TableName:        "tbl",
 				Database:         "db",
 				QueueURL:         "https://queueURL",
 				BatchMaxItems:    1000,
 				BatchMaxInterval: 10 * time.Second,
+				ConsumerLockName: "mylock",
+				ConsumerDisabled: true,
 			},
 		},
 		{
@@ -187,6 +188,7 @@ func TestConfig_CheckAndSetDefaults(t *testing.T) {
 				GetQueryResultsInterval:    100 * time.Millisecond,
 				BatchMaxItems:              20000,
 				BatchMaxInterval:           1 * time.Minute,
+				ConsumerLockName:           "",
 				PublisherConsumerAWSConfig: dummyAWSCfg,
 				StorerQuerierAWSConfig:     dummyAWSCfg,
 				Backend:                    mockBackend{},
@@ -212,6 +214,7 @@ func TestConfig_CheckAndSetDefaults(t *testing.T) {
 				GetQueryResultsInterval:    100 * time.Millisecond,
 				BatchMaxItems:              20000,
 				BatchMaxInterval:           1 * time.Minute,
+				ConsumerLockName:           "",
 				PublisherConsumerAWSConfig: dummyAWSCfg,
 				StorerQuerierAWSConfig:     dummyAWSCfg,
 				Backend:                    mockBackend{},
@@ -310,7 +313,7 @@ func TestConfig_CheckAndSetDefaults(t *testing.T) {
 			err := cfg.CheckAndSetDefaults(context.Background())
 			if tt.wantErr == "" {
 				require.NoError(t, err, "CheckAndSetDefaults return unexpected err")
-				require.Empty(t, cmp.Diff(tt.want, cfg, cmpopts.EquateApprox(0, 0.0001), cmpopts.IgnoreFields(Config{}, "Clock", "UIDGenerator", "LogEntry", "Tracer", "metrics", "ObserveWriteEventsError"), cmp.AllowUnexported(Config{})))
+				require.Empty(t, cmp.Diff(tt.want, cfg, cmpopts.EquateApprox(0, 0.0001), cmpopts.IgnoreFields(Config{}, "Clock", "UIDGenerator", "Logger", "Tracer", "metrics", "ObserveWriteEventsError"), cmp.AllowUnexported(Config{})))
 			} else {
 				require.ErrorContains(t, err, tt.wantErr)
 			}
@@ -335,7 +338,7 @@ func TestPublisherConsumer(t *testing.T) {
 			ID:   uuid.NewString(),
 			Time: time.Now().UTC(),
 			Type: events.AppCreateEvent,
-			Code: strings.Repeat("d", 2*maxDirectMessageSize),
+			Code: strings.Repeat("d", 2*maxSNSDirectMessageSize),
 		},
 		AppMetadata: apievents.AppMetadata{
 			AppName: "app-large",
@@ -416,12 +419,10 @@ func TestPublisherConsumer(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			fS3 := newFakeS3manager()
 			fq := newFakeQueue()
-			p := &publisher{
-				PublisherConfig: PublisherConfig{
-					MessagePublisher: fq,
-					Uploader:         fS3,
-				},
-			}
+			p := NewPublisher(PublisherConfig{
+				MessagePublisher: fq,
+				Uploader:         fS3,
+			})
 			cfg := validCollectCfgForTests(t)
 			cfg.sqsReceiver = fq
 			cfg.payloadDownloader = fS3
@@ -480,24 +481,25 @@ func newFakeS3manager() *fakeS3manager {
 	}
 }
 
-func (f *fakeS3manager) Upload(ctx context.Context, input *s3.PutObjectInput, opts ...func(*manager.Uploader)) (*manager.UploadOutput, error) {
+func (f *fakeS3manager) UploadObject(ctx context.Context, input *transfermanager.UploadObjectInput, opts ...func(*transfermanager.Options)) (*transfermanager.UploadObjectOutput, error) {
 	data, err := io.ReadAll(input.Body)
 	if err != nil {
 		return nil, err
 	}
 	f.objects[*input.Key] = data
 	f.uploadCount++
-	return &manager.UploadOutput{Key: input.Key}, nil
+	return &transfermanager.UploadObjectOutput{Key: input.Key}, nil
 }
 
-func (f *fakeS3manager) Download(ctx context.Context, w io.WriterAt, input *s3.GetObjectInput, options ...func(*manager.Downloader)) (int64, error) {
+func (f *fakeS3manager) DownloadObject(ctx context.Context, input *transfermanager.DownloadObjectInput, opts ...func(*transfermanager.Options)) (*transfermanager.DownloadObjectOutput, error) {
 	data, ok := f.objects[*input.Key]
 	if !ok {
-		return 0, errors.New("object not found")
+		return nil, errors.New("object not found")
 	}
-	n, err := w.WriteAt(data, 0)
+	n, err := input.WriterAt.WriteAt(data, 0)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
-	return int64(n), nil
+	contentLength := int64(n)
+	return &transfermanager.DownloadObjectOutput{ContentLength: &contentLength}, nil
 }

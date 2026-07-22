@@ -21,7 +21,6 @@ package client_test
 import (
 	"context"
 	"errors"
-	"os"
 	"testing"
 	"time"
 
@@ -66,14 +65,15 @@ func TestPromptMFAChallenge_usingNonRegisteredDevice(t *testing.T) {
 	}
 
 	challengeWebauthnOTP := &proto.MFAAuthenticateChallenge{
-		TOTP:              &proto.TOTPChallenge{}, // non-nil enables OTP prompt
-		WebauthnChallenge: challengeWebauthnOnly.WebauthnChallenge,
+		TOTP:                &proto.TOTPChallenge{}, // non-nil enables OTP prompt
+		WebauthnChallenge:   challengeWebauthnOnly.WebauthnChallenge,
+		BrowserMFAChallenge: nil,
 	}
 
 	tests := []struct {
 		name            string
 		challenge       *proto.MFAAuthenticateChallenge
-		customizePrompt func(p *mfa.PromptConfig)
+		customizePrompt func(p *mfa.CLIPromptConfig)
 	}{
 		{
 			name:      "webauthn only",
@@ -82,8 +82,9 @@ func TestPromptMFAChallenge_usingNonRegisteredDevice(t *testing.T) {
 		{
 			name:      "webauthn and OTP",
 			challenge: challengeWebauthnOTP,
-			customizePrompt: func(p *mfa.PromptConfig) {
-				p.AllowStdinHijack = true // required for OTP+WebAuthn prompt.
+			customizePrompt: func(p *mfa.CLIPromptConfig) {
+				// Specify cross-platform WebAuthn to prevent fallback to Browser MFA.
+				p.AuthenticatorAttachment = wancli.AttachmentCrossPlatform
 			},
 		},
 	}
@@ -109,11 +110,15 @@ func TestPromptMFAChallenge_usingNonRegisteredDevice(t *testing.T) {
 				return nil, "", wancli.ErrUsingNonRegisteredDevice
 			}
 
-			if test.customizePrompt != nil {
-				test.customizePrompt(promptConfig)
+			cliConfig := &mfa.CLIPromptConfig{
+				PromptConfig: *promptConfig,
 			}
 
-			_, err := mfa.NewCLIPrompt(promptConfig, os.Stderr).Run(ctx, test.challenge)
+			if test.customizePrompt != nil {
+				test.customizePrompt(cliConfig)
+			}
+
+			_, err := mfa.NewCLIPrompt(cliConfig).Run(ctx, test.challenge)
 			if !errors.Is(err, wancli.ErrUsingNonRegisteredDevice) {
 				t.Errorf("PromptMFAChallenge returned err=%q, want %q", err, wancli.ErrUsingNonRegisteredDevice)
 			}

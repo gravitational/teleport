@@ -115,7 +115,7 @@ func (k Key) Open(ciphertext []byte) ([]byte, error) {
 	// (for example, for legacy secret package or attacker controlled data),
 	// reject invalid sized nonces.
 	if len(data.Nonce) != aesgcm.NonceSize() {
-		return nil, trace.BadParameter("invalid nonce sice, only %v supported", aesgcm.NonceSize())
+		return nil, trace.BadParameter("invalid nonce size, only %v supported", aesgcm.NonceSize())
 	}
 
 	plaintext, err := aesgcm.Open(nil, data.Nonce, data.Ciphertext, nil)

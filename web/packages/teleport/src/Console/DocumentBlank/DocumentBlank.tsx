@@ -16,8 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-import { Flex, ButtonPrimary } from 'design';
+import { ButtonPrimary, Flex } from 'design';
 import * as Icons from 'design/Icon';
 
 import { useConsoleContext } from 'teleport/Console/consoleContextProvider';

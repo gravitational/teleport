@@ -32,6 +32,8 @@ import (
 type CertAuthority interface {
 	// ResourceWithSecrets sets common resource properties
 	ResourceWithSecrets
+	// IsEqual determines if two [CertAuthority] objects are equivalent.
+	IsEqual(CertAuthority) bool
 	// SetMetadata sets CA metadata
 	SetMetadata(meta Metadata)
 	// GetID returns certificate authority ID -
@@ -124,6 +126,15 @@ func (ca *CertAuthorityV2) SetRotation(r Rotation) {
 	ca.Spec.Rotation = &r
 }
 
+func (ca *CertAuthorityV2) IsEqual(other CertAuthority) bool {
+	caV2, ok := other.(*CertAuthorityV2)
+	if !ok {
+		return false
+	}
+
+	return deriveTeleportEqualCertAuthorityV2(ca, caV2)
+}
+
 // SetMetadata sets object metadata
 func (ca *CertAuthorityV2) SetMetadata(meta Metadata) {
 	ca.Metadata = meta
@@ -156,7 +167,7 @@ func (ca *CertAuthorityV2) SetRevision(rev string) {
 
 // WithoutSecrets returns an instance of resource without secrets.
 func (ca *CertAuthorityV2) WithoutSecrets() Resource {
-	ca2 := ca.Clone().(*CertAuthorityV2)
+	ca2 := ca.Clone()
 	RemoveCASecrets(ca2)
 	return ca2
 }
@@ -463,16 +474,20 @@ func (r *Rotation) String() string {
 	switch r.State {
 	case "", RotationStateStandby:
 		if r.LastRotated.IsZero() {
-			return "never updated"
+			return "standby (never rotated)"
 		}
-		return fmt.Sprintf("rotated %v", r.LastRotated.Format(constants.HumanDateFormatSeconds))
+		return fmt.Sprintf("standby (last rotated: %v)", r.LastRotated.Format(constants.HumanDateFormatSeconds))
 	case RotationStateInProgress:
-		return fmt.Sprintf("%v (mode: %v, started: %v, ending: %v)",
-			r.PhaseDescription(),
-			r.Mode,
-			r.Started.Format(constants.HumanDateFormatSeconds),
-			r.Started.Add(r.GracePeriod.Duration()).Format(constants.HumanDateFormatSeconds),
-		)
+		switch r.Mode {
+		case RotationModeManual:
+			return fmt.Sprintf("in progress (mode: manual, phase: %s)", r.Phase)
+		default:
+			return fmt.Sprintf("in progress (mode: automatic, phase: %s, started: %v, ending: %v)",
+				r.Phase,
+				r.Started.Format(constants.HumanDateFormatSeconds),
+				r.Started.Add(r.GracePeriod.Duration()).Format(constants.HumanDateFormatSeconds),
+			)
+		}
 	default:
 		return "unknown"
 	}
@@ -545,14 +560,6 @@ func (s *RotationSchedule) CheckAndSetDefaults(now time.Time) error {
 	return nil
 }
 
-// CertRoles defines certificate roles
-type CertRoles struct {
-	// Version is current version of the roles
-	Version string `json:"version"`
-	// Roles is a list of roles
-	Roles []string `json:"roles"`
-}
-
 // Clone returns a deep copy of TLSKeyPair that can be mutated without
 // modifying the original.
 func (k *TLSKeyPair) Clone() *TLSKeyPair {
@@ -560,6 +567,7 @@ func (k *TLSKeyPair) Clone() *TLSKeyPair {
 		KeyType: k.KeyType,
 		Key:     slices.Clone(k.Key),
 		Cert:    slices.Clone(k.Cert),
+		CRL:     slices.Clone(k.CRL),
 	}
 }
 

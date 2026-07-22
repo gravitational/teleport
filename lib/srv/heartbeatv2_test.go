@@ -117,13 +117,12 @@ func (h *fakeHeartbeatDriver) newStream(ctx context.Context, t *testing.T) clien
 		t.Fatalf("context canceled during fake stream recv")
 	}
 
-	_, ok := msg.(proto.UpstreamInventoryHello)
-	require.True(t, ok)
+	require.IsType(t, *new(*proto.UpstreamInventoryHello), msg)
 
-	err := upstream.Send(ctx, proto.DownstreamInventoryHello{
+	err := upstream.Send(ctx, proto.DownstreamInventoryHello_builder{
 		ServerID: "test-auth",
 		Version:  teleport.Version,
-	})
+	}.Build())
 	require.NoError(t, err)
 
 	return upstream
@@ -133,13 +132,13 @@ func newFakeHeartbeatDriver(t *testing.T) *fakeHeartbeatDriver {
 	// streamC is used to pass a fake control stream to the downstream handle's create func.
 	streamC := make(chan client.DownstreamInventoryControlStream)
 
-	hello := proto.UpstreamInventoryHello{
+	hello := proto.UpstreamInventoryHello_builder{
 		ServerID: "test-node",
 		Version:  teleport.Version,
-		Services: []types.SystemRole{types.RoleNode},
-	}
+		Services: types.SystemRoles{types.RoleNode}.StringSlice(),
+	}.Build()
 
-	handle := inventory.NewDownstreamHandle(func(ctx context.Context) (client.DownstreamInventoryControlStream, error) {
+	handle, err := inventory.NewDownstreamHandle(func(ctx context.Context) (client.DownstreamInventoryControlStream, error) {
 		// we're emulating an inventory.DownstreamCreateFunc here, but those are typically
 		// expected to return an error if no stream can be acquired. we're deliberately going
 		// with a blocking strategy instead here to avoid dealing w/ backoff that could make the
@@ -150,7 +149,8 @@ func newFakeHeartbeatDriver(t *testing.T) *fakeHeartbeatDriver {
 		case stream := <-streamC:
 			return stream, nil
 		}
-	}, hello)
+	}, func(ctx context.Context) (*proto.UpstreamInventoryHello, error) { return hello, nil })
+	require.NoError(t, err)
 
 	t.Cleanup(func() {
 		handle.Close()
@@ -169,8 +169,7 @@ func newFakeHeartbeatDriver(t *testing.T) *fakeHeartbeatDriver {
 func TestHeartbeatV2Basics(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	// set up fake hb driver that lets us easily inject failures for
 	// the diff steps and assists w/ faking inventory control handles.
@@ -296,8 +295,7 @@ func TestHeartbeatV2Basics(t *testing.T) {
 func TestHeartbeatV2NoFallbackUnchecked(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	// set up fake hb driver that lets us easily inject failures for
 	// the diff steps and assists w/ faking inventory control handles.
@@ -353,8 +351,7 @@ func TestHeartbeatV2NoFallbackUnchecked(t *testing.T) {
 func TestHeartbeatV2NoFallbackChecked(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	// set up fake hb driver that lets us easily inject failures for
 	// the diff steps and assists w/ faking inventory control handles.
@@ -514,10 +511,10 @@ func TestNewHeartbeatFetchMetadata(t *testing.T) {
 
 	heartbeat, err := NewSSHServerHeartbeat(HeartbeatV2Config[*types.ServerV2]{
 		InventoryHandle: &fakeDownstreamHandle{},
-		GetResource: func() *types.ServerV2 {
+		GetResource: func(context.Context) (*types.ServerV2, error) {
 			return &types.ServerV2{
 				Spec: types.ServerSpecV2{},
-			}
+			}, nil
 		},
 	})
 	require.NoError(t, err)
@@ -527,18 +524,23 @@ func TestNewHeartbeatFetchMetadata(t *testing.T) {
 	inner.getMetadata = metadataGetter
 
 	// Metadata won't be set before metadata getter returns.
-	server := inner.getServer(ctx)
+	server, err := inner.getServer(ctx)
+	require.NoError(t, err)
 	assert.Nil(t, server.GetCloudMetadata(), "Metadata was set before background process returned")
 
 	// Metadata won't be set if the getter fails.
 	metaCh <- nil
 	time.Sleep(100 * time.Millisecond) // Wait for goroutines to complete
-	assert.Nil(t, inner.getServer(ctx).GetCloudMetadata(), "Metadata was set despite metadata getter failing")
+	server, err = inner.getServer(ctx)
+	require.NoError(t, err)
+	assert.Nil(t, server.GetCloudMetadata(), "Metadata was set despite metadata getter failing")
 
 	// getServer gets updated metadata value.
 	metaCh <- makeMetadata("foo")
 	time.Sleep(100 * time.Millisecond) // Wait for goroutines to complete
-	meta := inner.getServer(ctx).GetCloudMetadata()
+	server, err = inner.getServer(ctx)
+	require.NoError(t, err)
+	meta := server.GetCloudMetadata()
 	assert.NotNil(t, meta, "Heartbeat never got metadata")
 	assert.Equal(t, "foo", meta.AWS.InstanceID)
 }

@@ -16,8 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { routing, ServerUri } from 'teleterm/ui/uri';
 import { IAppContext } from 'teleterm/ui/types';
+import { routing, ServerUri } from 'teleterm/ui/uri';
 
 import { DocumentOrigin } from './types';
 
@@ -42,7 +42,11 @@ export async function connectToServer(
   doc.title = `${target.login}@${target.hostname}`;
   doc.login = target.login;
 
-  await ctx.workspacesService.setActiveWorkspace(rootClusterUri);
+  const { isAtDesiredWorkspace } =
+    await ctx.workspacesService.setActiveWorkspace(rootClusterUri);
+  if (!isAtDesiredWorkspace) {
+    return;
+  }
   documentsService.add(doc);
   documentsService.open(doc.uri);
 }

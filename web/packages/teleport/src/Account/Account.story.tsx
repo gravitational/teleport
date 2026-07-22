@@ -16,11 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useEffect } from 'react';
-
-import { PasswordState } from 'teleport/services/user';
+import { useEffect } from 'react';
 
 import cfg from 'teleport/config';
+import { TeleportProviderBasic } from 'teleport/mocks/providers';
+import { PasswordState } from 'teleport/services/user';
+import { UserContextProvider } from 'teleport/User';
 
 import { Account, AccountProps } from './Account';
 
@@ -37,7 +38,13 @@ export default {
           cfg.auth.second_factor = defaultSecondFactor;
         };
       }, []);
-      return <Story />;
+      return (
+        <TeleportProviderBasic initialEntries={['/web/account']}>
+          <UserContextProvider>
+            <Story />
+          </UserContextProvider>
+        </TeleportProviderBasic>
+      );
     },
   ],
 };
@@ -87,7 +94,7 @@ export const LoadingDevicesFailed = () => (
 );
 
 export const RemoveDialog = () => (
-  <Account {...props} token="123" deviceToRemove={props.devices[0]} />
+  <Account {...props} deviceToRemove={props.devices[0]} />
 );
 
 export const RestrictedTokenCreateProcessing = () => (
@@ -110,7 +117,6 @@ export const RestrictedTokenCreateFailed = () => (
 );
 
 const props: AccountProps = {
-  token: '',
   onAddDevice: () => null,
   fetchDevicesAttempt: { status: 'success' },
   createRestrictedTokenAttempt: { status: '' },
@@ -179,7 +185,6 @@ const props: AccountProps = {
     },
   ],
   onDeviceAdded: () => {},
-  isReauthenticationRequired: false,
   addDeviceWizardVisible: false,
   closeAddDeviceWizard: () => {},
   passwordState: PasswordState.PASSWORD_STATE_SET,

@@ -18,24 +18,26 @@
 
 import React, { useState } from 'react';
 import styled from 'styled-components';
-import { ButtonPrimary, Text, Box, Alert, Flex, Label } from 'design';
+
+import { Alert, Box, ButtonPrimary, Flex, H3, Label, Text } from 'design';
 import { Warning } from 'design/Icon';
 import { Radio } from 'design/RadioGroup';
-
-import Validation, { Validator } from 'shared/components/Validation';
-import FieldSelect from 'shared/components/FieldSelect';
-import { Option } from 'shared/components/Select';
-import { Attempt } from 'shared/hooks/useAsync';
-import { requiredField } from 'shared/components/Validation/rules';
-import { HoverTooltip } from 'shared/components/ToolTip';
+import { HoverTooltip } from 'design/Tooltip';
+import { FieldSelect } from 'shared/components/FieldSelect';
 import { FieldTextArea } from 'shared/components/FieldTextArea';
+import { Option } from 'shared/components/Select';
+import Validation, { Validator } from 'shared/components/Validation';
+import { requiredField } from 'shared/components/Validation/rules';
+import { Attempt } from 'shared/hooks/useAsync';
+import {
+  AccessRequest,
+  RequestKind,
+  RequestState,
+} from 'shared/services/accessRequests';
 
-import { AccessRequest, RequestState } from 'shared/services/accessRequests';
-
-import { AssumeStartTime } from '../../../AssumeStartTime/AssumeStartTime';
 import { AccessDurationReview } from '../../../AccessDuration';
-
-import { SuggestedAccessList, SubmitReview } from '../types';
+import { AssumeStartTime } from '../../../AssumeStartTime/AssumeStartTime';
+import { SubmitReview, SuggestedAccessList } from '../types';
 
 type ReviewStateOption = Option<RequestState, React.ReactElement> & {
   disabled?: boolean;
@@ -109,6 +111,10 @@ export default function RequestReview({
     return state !== undefined ? state === currentOptionState : undefined;
   }
 
+  const someResourcesConstrained = request.resources?.some(
+    r => !!r.constraints
+  );
+
   return (
     <Validation>
       {({ validator }) => (
@@ -119,9 +125,7 @@ export default function RequestReview({
           style={{ position: 'relative' }}
         >
           <Box bg="levels.sunken" py={1} px={3}>
-            <Text typography="h6" mr={3}>
-              {user} - add a review
-            </Text>
+            <H3 mr={3}>{user} - add a review</H3>
           </Box>
           <Box p={3} bg="levels.elevated">
             {submitReviewAttempt.status === 'error' && (
@@ -168,25 +172,48 @@ export default function RequestReview({
                     <React.Fragment key={index}>
                       {radio}
                       <Box ml={4} mt={2} css={{ position: 'relative' }}>
-                        <HorizontalLine />
-                        <FieldSelect
+                        <HorizontalLine
+                          height={92 + (someResourcesConstrained ? 24 : 0)}
+                        />
+                        <FieldSelect<SuggestedAcessListOption>
                           ml={1}
                           maxWidth="600px"
                           label={`Select a suggested Access List to add ${request.user} as a member to:`}
                           rule={requiredField('Required')}
                           value={
-                            selectedAccessList
+                            // TODO(bl-nero): The type casting here is a hack.
+                            // This code actually works, but it doesn't work in
+                            // a way supported by type bindings. The type of
+                            // this value is deliberately different from the
+                            // options array element type. This is because we
+                            // want to visualize the options differently on the
+                            // option face and inside the options list. The
+                            // correct way of doing it would be to provide a
+                            // custom option component.
+                            (selectedAccessList
                               ? {
-                                  value: selectedAccessList,
+                                  value: selectedAccessList.value,
                                   label: selectedAccessList.value.title,
                                 }
-                              : undefined
+                              : undefined) as any as SuggestedAcessListOption
                           }
                           onChange={(o: SuggestedAcessListOption) =>
                             setSelectedAccessList(o)
                           }
                           options={suggestedAccessListOptions}
                         />
+                        {someResourcesConstrained && (
+                          <Text
+                            ml={1}
+                            mt={2}
+                            fontSize={1}
+                            color="text.slightlyMuted"
+                          >
+                            Requested resource(s) include Constraints; access
+                            granted via membership in an Access List will be
+                            broader than requested.
+                          </Text>
+                        )}
                       </Box>
                     </React.Fragment>
                   );
@@ -202,7 +229,6 @@ export default function RequestReview({
               mb={4}
               maxWidth="500px"
               textAreaCss={`
-                  font-size: 14px;
                   min-height: 100px;
                 `}
               onChange={e => setReason(e.target.value)}
@@ -276,27 +302,42 @@ function makeReviewStateOptions(
   ) {
     promotedContent = <Text>{promotedTxt}</Text>;
   } else {
-    let msg = 'No Access Lists will grant the requested resources';
+    let msg =
+      'To approve long-term access, you must own an Access List that grants every requested resource, ' +
+      'including any resources automatically added to the request. None you own covers them all.';
     if (fetchSuggestedAccessListsAttempt.status === 'error') {
-      msg = fetchSuggestedAccessListsAttempt.statusText;
+      // A permission failure (HTTP 403 in the web UI, gRPC PERMISSION_DENIED in
+      // Connect) means the reviewer can't see the eligible Access Lists, which
+      // is distinct from there being none. Detect it by status code rather than
+      // message text so it survives across versions; surface other errors as-is.
+      const err = fetchSuggestedAccessListsAttempt.error;
+      const isPermissionError =
+        err?.response?.status === 403 || err?.code === 'PERMISSION_DENIED';
+      msg = isPermissionError
+        ? "You don't have permission to view the Access Lists eligible for long-term approval of this request. You can still reject it."
+        : fetchSuggestedAccessListsAttempt.statusText;
     } else if (request.resources.length === 0) {
       msg = 'Only supported for resource based access requests';
     }
     promotedContent = (
       <HoverTooltip tipContent={msg}>
-        <Flex alignItems="center">
+        <Flex alignItems="center" gap={2}>
           <Text>{promotedTxt}</Text>
           {fetchSuggestedAccessListsAttempt.status === 'error' && (
-            <Warning color="warning.active" ml={1} size={20} />
+            <Warning color="warning.active" size={20} />
           )}
         </Flex>
       </HoverTooltip>
     );
   }
 
-  return [
+  const opts: ReviewStateOption[] = [
     { value: 'DENIED', label: <>Reject request</> },
-    {
+  ];
+
+  // Don't allow approving short-term access for long-term requests.
+  if (request.requestKind !== RequestKind.LongTerm) {
+    opts.push({
       value: 'APPROVED',
       label: (
         <>
@@ -304,16 +345,19 @@ function makeReviewStateOptions(
           {shortTermDuration ? ` (${shortTermDuration})` : ''}
         </>
       ),
-    },
-    {
-      value: 'PROMOTED',
-      disabled:
-        fetchSuggestedAccessListsAttempt.status === 'error' ||
-        (fetchSuggestedAccessListsAttempt.status === 'success' &&
-          fetchSuggestedAccessListsAttempt.data.length === 0),
-      label: <>{promotedContent}</>,
-    },
-  ];
+    });
+  }
+
+  opts.push({
+    value: 'PROMOTED',
+    disabled:
+      fetchSuggestedAccessListsAttempt.status === 'error' ||
+      (fetchSuggestedAccessListsAttempt.status === 'success' &&
+        fetchSuggestedAccessListsAttempt.data.length === 0),
+    label: <>{promotedContent}</>,
+  });
+
+  return opts;
 }
 
 const TextMutedNoEllipsis = styled.div`

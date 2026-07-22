@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package auth
+package auth_test
 
 import (
 	"context"
@@ -37,6 +37,8 @@ import (
 	"github.com/gravitational/teleport/api/types/accesslist"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/header"
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
@@ -45,9 +47,7 @@ import (
 func TestUpsertDeleteRoleEventsEmitted(t *testing.T) {
 	t.Parallel()
 	clientAddr := &net.TCPAddr{IP: net.IPv4(10, 255, 0, 0)}
-	ctx := authz.ContextWithClientSrcAddr(context.Background(), clientAddr)
-	p, err := newTestPack(ctx, t.TempDir())
-	require.NoError(t, err)
+	p := newAuthSuite(t)
 
 	// test create new role
 	role, err := types.NewRole("test-role", types.RoleSpecV6{
@@ -57,6 +57,7 @@ func TestUpsertDeleteRoleEventsEmitted(t *testing.T) {
 	require.NoError(t, err)
 
 	// Creating a role should emit a RoleCreatedEvent.
+	ctx := authz.ContextWithClientSrcAddr(t.Context(), clientAddr)
 	role, err = p.a.CreateRole(ctx, role)
 	require.NoError(t, err)
 	require.Equal(t, events.RoleCreatedEvent, p.mockEmitter.LastEvent().GetType())
@@ -101,9 +102,8 @@ func TestUpsertDeleteRoleEventsEmitted(t *testing.T) {
 
 func TestUpsertDeleteDependentRoles(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
-	p, err := newTestPack(ctx, t.TempDir())
-	require.NoError(t, err)
+	ctx := t.Context()
+	p := newAuthSuite(t)
 
 	// test create new role
 	role, err := types.NewRole("test-role", types.RoleSpecV6{
@@ -122,10 +122,10 @@ func TestUpsertDeleteDependentRoles(t *testing.T) {
 	require.NoError(t, err)
 
 	// Deletion should fail.
-	require.ErrorIs(t, p.a.DeleteRole(ctx, role.GetName()), errDeleteRoleUser)
+	require.ErrorIs(t, p.a.DeleteRole(ctx, role.GetName()), auth.ErrDeleteRoleUser)
 	require.NoError(t, p.a.DeleteUser(ctx, user.GetName()))
 
-	clusterName, err := p.a.GetClusterName()
+	clusterName, err := p.a.GetClusterName(ctx)
 	require.NoError(t, err)
 
 	// Update the user CA with the role.
@@ -135,7 +135,7 @@ func TestUpsertDeleteDependentRoles(t *testing.T) {
 	require.NoError(t, p.a.UpsertCertAuthority(ctx, ca))
 
 	// Deletion should fail.
-	require.ErrorIs(t, p.a.DeleteRole(ctx, role.GetName()), errDeleteRoleCA)
+	require.ErrorIs(t, p.a.DeleteRole(ctx, role.GetName()), auth.ErrDeleteRoleCA)
 
 	// Clear out the roles for the CA.
 	ca.SetRoles([]string{})
@@ -167,21 +167,21 @@ func TestUpsertDeleteDependentRoles(t *testing.T) {
 	require.NoError(t, err)
 
 	// Deletion should fail due to the grant.
-	require.ErrorIs(t, p.a.DeleteRole(ctx, role.GetName()), errDeleteRoleAccessList)
+	require.ErrorIs(t, p.a.DeleteRole(ctx, role.GetName()), auth.ErrDeleteRoleAccessList)
 
 	accessList.Spec.Grants.Roles = []string{"non-existent-role"}
 	_, err = p.a.UpsertAccessList(ctx, accessList)
 	require.NoError(t, err)
 
 	// Deletion should fail due to membership requires.
-	require.ErrorIs(t, p.a.DeleteRole(ctx, role.GetName()), errDeleteRoleAccessList)
+	require.ErrorIs(t, p.a.DeleteRole(ctx, role.GetName()), auth.ErrDeleteRoleAccessList)
 
 	accessList.Spec.MembershipRequires.Roles = []string{"non-existent-role"}
 	_, err = p.a.UpsertAccessList(ctx, accessList)
 	require.NoError(t, err)
 
 	// Deletion should fail due to ownership requires.
-	require.ErrorIs(t, p.a.DeleteRole(ctx, role.GetName()), errDeleteRoleAccessList)
+	require.ErrorIs(t, p.a.DeleteRole(ctx, role.GetName()), auth.ErrDeleteRoleAccessList)
 
 	accessList.Spec.OwnershipRequires.Roles = []string{"non-existent-role"}
 	_, err = p.a.UpsertAccessList(ctx, accessList)
@@ -243,7 +243,7 @@ func TestCreateRole(t *testing.T) {
 			name:       "create role denied",
 			userRole:   newRole(t, "urole", nil, types.RoleConditions{}, types.RoleConditions{}),
 			createRole: newRole(t, "create", nil, rcWithRoleRule(services.RW()...), types.RoleConditions{}),
-			wantErr: func(t require.TestingT, err error, i ...interface{}) {
+			wantErr: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsAccessDenied(err))
 			},
 		},
@@ -252,7 +252,7 @@ func TestCreateRole(t *testing.T) {
 			userRole:     newRole(t, "urole", nil, rcWithRoleRule(types.VerbCreate), types.RoleConditions{}),
 			startingRole: newRole(t, "create", nil, rcWithRoleRule(services.RW()...), types.RoleConditions{}),
 			createRole:   newRole(t, "create", nil, rcWithRoleRule(services.RW()...), types.RoleConditions{}),
-			wantErr: func(t require.TestingT, err error, i ...interface{}) {
+			wantErr: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsAlreadyExists(err))
 			},
 		},
@@ -261,7 +261,7 @@ func TestCreateRole(t *testing.T) {
 			userRole:     newRole(t, "urole", nil, types.RoleConditions{}, types.RoleConditions{}),
 			startingRole: newRole(t, "create", nil, rcWithRoleRule(services.RW()...), types.RoleConditions{}),
 			createRole:   newRole(t, "create", nil, rcWithRoleRule(services.RW()...), types.RoleConditions{}),
-			wantErr: func(t require.TestingT, err error, i ...interface{}) {
+			wantErr: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsAccessDenied(err))
 			},
 		},
@@ -290,14 +290,13 @@ func TestCreateRole(t *testing.T) {
 				).String(),
 			), types.RoleConditions{}),
 			createRole: newRole(t, "create", nil, rcWithRoleRule(services.RW()...), types.RoleConditions{}),
-			wantErr: func(t require.TestingT, err error, i ...interface{}) {
+			wantErr: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsAccessDenied(err))
 			},
 		},
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			ctx := context.Background()
@@ -319,7 +318,7 @@ func TestCreateRole(t *testing.T) {
 			require.NoError(t, err)
 			_, err = as.CreateUser(ctx, user)
 			require.NoError(t, err)
-			clt, err := srv.NewClient(TestUser(user.GetName()))
+			clt, err := srv.NewClient(authtest.TestUser(user.GetName()))
 			require.NoError(t, err)
 
 			got, err := clt.CreateRole(ctx, test.createRole)
@@ -359,7 +358,7 @@ func TestUpdateRole(t *testing.T) {
 			userRole:     newRole(t, "urole", nil, types.RoleConditions{}, types.RoleConditions{}),
 			startingRole: newRole(t, "update", nil, types.RoleConditions{}, types.RoleConditions{}),
 			updateRole:   newRole(t, "update", nil, rcWithRoleRule(services.RW()...), types.RoleConditions{}),
-			wantErr: func(t require.TestingT, err error, i ...interface{}) {
+			wantErr: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsAccessDenied(err))
 			},
 		},
@@ -367,7 +366,7 @@ func TestUpdateRole(t *testing.T) {
 			name:       "update role not found",
 			userRole:   newRole(t, "urole", nil, rcWithRoleRule(types.VerbUpdate), types.RoleConditions{}),
 			updateRole: newRole(t, "update", nil, rcWithRoleRule(services.RW()...), types.RoleConditions{}),
-			wantErr: func(t require.TestingT, err error, i ...interface{}) {
+			wantErr: func(t require.TestingT, err error, i ...any) {
 				// This returns a compare failed instead of a NotFound. In the interests of not breaking anything,
 				// I'll maintain this for now.
 				require.True(t, trace.IsCompareFailed(err))
@@ -377,7 +376,7 @@ func TestUpdateRole(t *testing.T) {
 			name:       "update role not found with access denied",
 			userRole:   newRole(t, "urole", nil, types.RoleConditions{}, types.RoleConditions{}),
 			updateRole: newRole(t, "update", nil, rcWithRoleRule(services.RW()...), types.RoleConditions{}),
-			wantErr: func(t require.TestingT, err error, i ...interface{}) {
+			wantErr: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsAccessDenied(err))
 			},
 		},
@@ -410,7 +409,7 @@ func TestUpdateRole(t *testing.T) {
 			), types.RoleConditions{}),
 			startingRole: newRole(t, "update", nil, types.RoleConditions{}, types.RoleConditions{}),
 			updateRole:   newRole(t, "update", nil, rcWithRoleRule(services.RW()...), types.RoleConditions{}),
-			wantErr: func(t require.TestingT, err error, i ...interface{}) {
+			wantErr: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsAccessDenied(err))
 			},
 		},
@@ -426,7 +425,7 @@ func TestUpdateRole(t *testing.T) {
 			updateRole: newRole(t, "update", map[string]string{
 				"label": "value",
 			}, rcWithRoleRule(services.RW()...), types.RoleConditions{}),
-			wantErr: func(t require.TestingT, err error, i ...interface{}) {
+			wantErr: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsAccessDenied(err))
 			},
 		},
@@ -442,14 +441,13 @@ func TestUpdateRole(t *testing.T) {
 				"label": "value",
 			}, types.RoleConditions{}, types.RoleConditions{}),
 			updateRole: newRole(t, "update", nil, rcWithRoleRule(services.RW()...), types.RoleConditions{}),
-			wantErr: func(t require.TestingT, err error, i ...interface{}) {
+			wantErr: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsAccessDenied(err))
 			},
 		},
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			ctx := context.Background()
@@ -473,7 +471,7 @@ func TestUpdateRole(t *testing.T) {
 			require.NoError(t, err)
 			_, err = as.CreateUser(ctx, user)
 			require.NoError(t, err)
-			clt, err := srv.NewClient(TestUser(user.GetName()))
+			clt, err := srv.NewClient(authtest.TestUser(user.GetName()))
 			require.NoError(t, err)
 			test.updateRole.SetRevision(revision)
 
@@ -521,7 +519,7 @@ func TestUpsertRole(t *testing.T) {
 			userRole:     newRole(t, "urole", nil, types.RoleConditions{}, types.RoleConditions{}),
 			startingRole: newRole(t, "upsert", nil, types.RoleConditions{}, types.RoleConditions{}),
 			upsertRole:   newRole(t, "upsert", nil, rcWithRoleRule(services.RW()...), types.RoleConditions{}),
-			wantErr: func(t require.TestingT, err error, i ...interface{}) {
+			wantErr: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsAccessDenied(err))
 			},
 		},
@@ -554,7 +552,7 @@ func TestUpsertRole(t *testing.T) {
 			), types.RoleConditions{}),
 			startingRole: newRole(t, "upsert", nil, types.RoleConditions{}, types.RoleConditions{}),
 			upsertRole:   newRole(t, "upsert", nil, rcWithRoleRule(services.RW()...), types.RoleConditions{}),
-			wantErr: func(t require.TestingT, err error, i ...interface{}) {
+			wantErr: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsAccessDenied(err))
 			},
 		},
@@ -570,7 +568,7 @@ func TestUpsertRole(t *testing.T) {
 			upsertRole: newRole(t, "upsert", map[string]string{
 				"label": "value",
 			}, rcWithRoleRule(services.RW()...), types.RoleConditions{}),
-			wantErr: func(t require.TestingT, err error, i ...interface{}) {
+			wantErr: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsAccessDenied(err))
 			},
 		},
@@ -586,14 +584,13 @@ func TestUpsertRole(t *testing.T) {
 				"label": "value",
 			}, types.RoleConditions{}, types.RoleConditions{}),
 			upsertRole: newRole(t, "upsert", nil, rcWithRoleRule(services.RW()...), types.RoleConditions{}),
-			wantErr: func(t require.TestingT, err error, i ...interface{}) {
+			wantErr: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsAccessDenied(err))
 			},
 		},
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			ctx := context.Background()
@@ -617,7 +614,7 @@ func TestUpsertRole(t *testing.T) {
 			require.NoError(t, err)
 			_, err = as.CreateUser(ctx, user)
 			require.NoError(t, err)
-			clt, err := srv.NewClient(TestUser(user.GetName()))
+			clt, err := srv.NewClient(authtest.TestUser(user.GetName()))
 			require.NoError(t, err)
 			test.upsertRole.SetRevision(revision)
 
@@ -658,7 +655,7 @@ func TestGetRole(t *testing.T) {
 			userRole:     newRole(t, "urole", nil, types.RoleConditions{}, types.RoleConditions{}),
 			roleToCreate: newRole(t, "get", nil, types.RoleConditions{}, types.RoleConditions{}),
 			roleToGet:    "get",
-			wantErr: func(t require.TestingT, err error, i ...interface{}) {
+			wantErr: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsAccessDenied(err))
 			},
 		},
@@ -666,7 +663,7 @@ func TestGetRole(t *testing.T) {
 			name:      "get role does not exist",
 			userRole:  newRole(t, "urole", nil, rcWithRoleRule(types.VerbRead), types.RoleConditions{}),
 			roleToGet: "get",
-			wantErr: func(t require.TestingT, err error, i ...interface{}) {
+			wantErr: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsNotFound(err))
 			},
 		},
@@ -675,7 +672,7 @@ func TestGetRole(t *testing.T) {
 			userRole:     newRole(t, "urole", nil, types.RoleConditions{}, types.RoleConditions{}),
 			roleToCreate: newRole(t, "get", nil, types.RoleConditions{}, types.RoleConditions{}),
 			roleToGet:    "get",
-			wantErr: func(t require.TestingT, err error, i ...interface{}) {
+			wantErr: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsAccessDenied(err))
 			},
 		},
@@ -706,14 +703,13 @@ func TestGetRole(t *testing.T) {
 			), types.RoleConditions{}),
 			roleToCreate: newRole(t, "get", nil, types.RoleConditions{}, types.RoleConditions{}),
 			roleToGet:    "get",
-			wantErr: func(t require.TestingT, err error, i ...interface{}) {
+			wantErr: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsAccessDenied(err))
 			},
 		},
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			ctx := context.Background()
@@ -735,7 +731,7 @@ func TestGetRole(t *testing.T) {
 			require.NoError(t, err)
 			_, err = as.CreateUser(ctx, user)
 			require.NoError(t, err)
-			clt, err := srv.NewClient(TestUser(user.GetName()))
+			clt, err := srv.NewClient(authtest.TestUser(user.GetName()))
 			require.NoError(t, err)
 
 			got, err := clt.GetRole(ctx, test.roleToGet)
@@ -786,7 +782,7 @@ func TestGetRoles(t *testing.T) {
 			name:          "get roles access denied",
 			userRole:      newRole(t, "urole", nil, types.RoleConditions{}, types.RoleConditions{}),
 			rolesToCreate: allRoles(),
-			wantErr: func(t require.TestingT, err error, i ...interface{}) {
+			wantErr: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsAccessDenied(err))
 			},
 		},
@@ -818,14 +814,13 @@ func TestGetRoles(t *testing.T) {
 				).String(),
 			), types.RoleConditions{}),
 			rolesToCreate: allRoles(),
-			wantErr: func(t require.TestingT, err error, i ...interface{}) {
+			wantErr: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsAccessDenied(err))
 			},
 		},
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			ctx := context.Background()
@@ -847,7 +842,7 @@ func TestGetRoles(t *testing.T) {
 			require.NoError(t, err)
 			_, err = as.CreateUser(ctx, user)
 			require.NoError(t, err)
-			clt, err := srv.NewClient(TestUser(user.GetName()))
+			clt, err := srv.NewClient(authtest.TestUser(user.GetName()))
 			require.NoError(t, err)
 
 			got, err := clt.GetRoles(ctx)
@@ -979,7 +974,7 @@ func TestListRolesFiltering(t *testing.T) {
 			t.Parallel()
 			srv := newTestTLSServer(t)
 
-			clt, err := srv.NewClient(TestAdmin())
+			clt, err := srv.NewClient(authtest.TestAdmin())
 			require.NoError(t, err)
 
 			// Only create the role if it's been supplied.
@@ -1040,7 +1035,7 @@ func TestDeleteRole(t *testing.T) {
 			userRole:     newRole(t, "urole", nil, types.RoleConditions{}, types.RoleConditions{}),
 			roleToCreate: newRole(t, "delete", nil, types.RoleConditions{}, types.RoleConditions{}),
 			roleToDelete: "delete",
-			wantErr: func(t require.TestingT, err error, i ...interface{}) {
+			wantErr: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsAccessDenied(err))
 			},
 		},
@@ -1048,7 +1043,7 @@ func TestDeleteRole(t *testing.T) {
 			name:         "delete role does not exist",
 			userRole:     newRole(t, "urole", nil, rcWithRoleRule(types.VerbDelete), types.RoleConditions{}),
 			roleToDelete: "delete",
-			wantErr: func(t require.TestingT, err error, i ...interface{}) {
+			wantErr: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsNotFound(err))
 			},
 		},
@@ -1057,7 +1052,7 @@ func TestDeleteRole(t *testing.T) {
 			userRole:     newRole(t, "urole", nil, types.RoleConditions{}, types.RoleConditions{}),
 			roleToCreate: newRole(t, "delete", nil, types.RoleConditions{}, types.RoleConditions{}),
 			roleToDelete: "delete",
-			wantErr: func(t require.TestingT, err error, i ...interface{}) {
+			wantErr: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsAccessDenied(err))
 			},
 		},
@@ -1085,14 +1080,13 @@ func TestDeleteRole(t *testing.T) {
 			), types.RoleConditions{}),
 			roleToCreate: newRole(t, "delete", nil, types.RoleConditions{}, types.RoleConditions{}),
 			roleToDelete: "delete",
-			wantErr: func(t require.TestingT, err error, i ...interface{}) {
+			wantErr: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsAccessDenied(err))
 			},
 		},
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			ctx := context.Background()
@@ -1114,7 +1108,7 @@ func TestDeleteRole(t *testing.T) {
 			require.NoError(t, err)
 			_, err = as.CreateUser(ctx, user)
 			require.NoError(t, err)
-			clt, err := srv.NewClient(TestUser(user.GetName()))
+			clt, err := srv.NewClient(authtest.TestUser(user.GetName()))
 			require.NoError(t, err)
 
 			test.wantErr(t, clt.DeleteRole(ctx, test.roleToDelete))
@@ -1124,9 +1118,8 @@ func TestDeleteRole(t *testing.T) {
 
 func TestUpsertDeleteLockEventsEmitted(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
-	p, err := newTestPack(ctx, t.TempDir())
-	require.NoError(t, err)
+	ctx := t.Context()
+	p := newAuthSuite(t)
 
 	lock, err := types.NewLock("test-lock", types.LockSpecV2{
 		Target: types.LockTarget{MFADevice: "mfa-device-id"},

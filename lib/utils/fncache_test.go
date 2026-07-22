@@ -29,6 +29,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -101,8 +102,7 @@ func TestFnCacheConcurrentReads(t *testing.T) {
 	const workers = 100
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	// set up a chage that won't ttl out values during the test
 	cache, err := NewFnCache(FnCacheConfig{TTL: time.Hour})
@@ -110,7 +110,7 @@ func TestFnCacheConcurrentReads(t *testing.T) {
 
 	results := make(chan result, workers)
 
-	for i := 0; i < workers; i++ {
+	for i := range workers {
 		go func(n int) {
 			val, err := FnCacheGet(ctx, cache, "key", func(context.Context) (any, error) {
 				// return a unique value for each worker so that we can verify whether
@@ -125,9 +125,9 @@ func TestFnCacheConcurrentReads(t *testing.T) {
 	require.NoError(t, first.err)
 
 	val := first.val.(string)
-	require.NotZero(t, val)
+	require.NotEmpty(t, val)
 
-	for i := 0; i < (workers - 1); i++ {
+	for range workers - 1 {
 		r := <-results
 		require.NoError(t, r.err)
 		require.Equal(t, val, r.val.(string))
@@ -138,8 +138,7 @@ func TestFnCacheConcurrentReads(t *testing.T) {
 func TestFnCacheExpiry(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	clock := clockwork.NewFakeClock()
 
@@ -171,7 +170,7 @@ func TestFnCacheExpiry(t *testing.T) {
 	require.True(t, get())
 
 	// subsequent gets use the cached value
-	for i := 0; i < 20; i++ {
+	for range 20 {
 		require.False(t, get())
 	}
 
@@ -252,7 +251,7 @@ func testFnCacheFuzzy(t *testing.T, ttl time.Duration, delay time.Duration) {
 	var wg sync.WaitGroup
 
 	// spawn workers
-	for w := int64(0); w < workers; w++ {
+	for range workers {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -376,8 +375,7 @@ func TestFnCacheContext(t *testing.T) {
 
 func TestFnCacheReloadOnErr(t *testing.T) {
 	t.Parallel()
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	cache, err := NewFnCache(FnCacheConfig{
 		TTL:         time.Minute,
@@ -389,7 +387,7 @@ func TestFnCacheReloadOnErr(t *testing.T) {
 
 	// test synchronous case, all sad path loads should result in
 	// calls to loadfn.
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		FnCacheGet(ctx, cache, "happy", func(ctx context.Context) (string, error) {
 			happy.Add(1)
 			return "yay!", nil
@@ -405,7 +403,7 @@ func TestFnCacheReloadOnErr(t *testing.T) {
 
 	// test concurrent case. some "sad" loads should overlap now.
 	var wg sync.WaitGroup
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		wg.Add(2)
 		go func() {
 			defer wg.Done()
@@ -430,8 +428,7 @@ func TestFnCacheReloadOnErr(t *testing.T) {
 func TestFnCacheEviction(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	clock := clockwork.NewFakeClock()
 
@@ -464,7 +461,7 @@ func TestFnCacheEviction(t *testing.T) {
 	require.Equal(t, "test", out2)
 
 	// Assert that eviction does not occur prematurely.
-	for i := 0; i < 6; i++ {
+	for range 6 {
 		clock.Advance(10 * time.Minute)
 		cache.RemoveExpired()
 
@@ -507,7 +504,7 @@ func TestFnCacheEviction(t *testing.T) {
 	// Shutdown the cache and validate all items are expired.
 	cache.Shutdown(context.Background())
 	timeout := time.After(10 * time.Second)
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		select {
 		case expired := <-expiredC:
 			switch k := expired.k.(type) {
@@ -533,4 +530,380 @@ func TestFnCacheEviction(t *testing.T) {
 		return 100, nil
 	})
 	require.ErrorIs(t, err, ErrFnCacheClosed)
+}
+
+func TestFnCacheOnExpiryReloadReplace(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	clock := clockwork.NewFakeClock()
+
+	type item struct {
+		k any
+		v any
+	}
+	expiredC := make(chan item, 5)
+	cache, err := NewFnCache(FnCacheConfig{
+		TTL:             time.Hour,
+		Context:         ctx,
+		Clock:           clock,
+		CleanupInterval: 24 * time.Hour,
+		OnExpiry: func(ctx context.Context, key, expired any) {
+			expiredC <- item{k: key, v: expired}
+		},
+	})
+	require.NoError(t, err)
+
+	// Populate the cache.
+	val, err := FnCacheGet(ctx, cache, "key1", func(ctx context.Context) (string, error) {
+		return "old-value", nil
+	})
+	require.NoError(t, err)
+	require.Equal(t, "old-value", val)
+
+	// Advance past TTL but do NOT call RemoveExpired. The long CleanupInterval
+	// ensures the lazy cleanup in get() does not run either. The next
+	// FnCacheGet for the same key triggers a reload, which should call
+	// OnExpiry for the old entry.
+	clock.Advance(2 * time.Hour)
+
+	val, err = FnCacheGet(ctx, cache, "key1", func(ctx context.Context) (string, error) {
+		return "new-value", nil
+	})
+	require.NoError(t, err)
+	require.Equal(t, "new-value", val)
+
+	// Verify OnExpiry was called with the old value.
+	select {
+	case expired := <-expiredC:
+		require.Equal(t, "key1", expired.k)
+		require.Equal(t, "old-value", expired.v)
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for OnExpiry callback")
+	}
+
+	// Verify no extra OnExpiry calls.
+	select {
+	case extra := <-expiredC:
+		t.Fatalf("unexpected extra OnExpiry call for key %v", extra.k)
+	default:
+	}
+}
+
+func TestFnCacheRemove(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+
+	type item struct {
+		k any
+		v any
+	}
+	expiredC := make(chan item, 5)
+	cache, err := NewFnCache(FnCacheConfig{
+		TTL:     time.Hour,
+		Context: ctx,
+		OnExpiry: func(ctx context.Context, key, expired any) {
+			expiredC <- item{k: key, v: expired}
+		},
+	})
+	require.NoError(t, err)
+
+	// Populate an entry in the cache.
+	out, err := FnCacheGet(ctx, cache, "test", func(ctx context.Context) (int, error) {
+		return 100, nil
+	})
+	require.NoError(t, err)
+	require.Equal(t, 100, out)
+
+	// Retrieve the entry and validate the loadFn isn't called
+	// and that the previously stored value is returned instead.
+	out, err = FnCacheGet(ctx, cache, "test", func(ctx context.Context) (int, error) {
+		return 0, nil
+	})
+	require.NoError(t, err)
+	require.Equal(t, 100, out)
+
+	// Remove the entry explicitly.
+	cache.Remove("test")
+
+	// Retrieve the entry again, this time the loadFn should
+	// be called because the item was explicitly removed.
+	out, err = FnCacheGet(ctx, cache, "test", func(ctx context.Context) (int, error) {
+		return 0, nil
+	})
+	require.NoError(t, err)
+	require.Equal(t, 0, out)
+}
+
+func TestFnCacheSet(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+
+	clock := clockwork.NewFakeClock()
+	type item struct {
+		k any
+		v any
+	}
+	expiredC := make(chan item, 5)
+	cache, err := NewFnCache(FnCacheConfig{
+		TTL:     time.Hour,
+		Context: ctx,
+		Clock:   clock,
+		OnExpiry: func(ctx context.Context, key, expired any) {
+			expiredC <- item{k: key, v: expired}
+		},
+	})
+	require.NoError(t, err)
+
+	// Populate an entry in the cache.
+	out, err := FnCacheGet(ctx, cache, "test", func(ctx context.Context) (int, error) {
+		return 100, nil
+	})
+	require.NoError(t, err)
+	require.Equal(t, 100, out)
+
+	// Manually override the value.
+	cache.Set("test", 500)
+
+	// Retrieve the item again and validate the loadFn isn't called
+	// and our manually set value is returned.
+	out, err = FnCacheGet(ctx, cache, "test", func(ctx context.Context) (int, error) {
+		return 100, nil
+	})
+	require.NoError(t, err)
+	require.Equal(t, 500, out)
+
+	// Time travel to expire the item from the cache.
+	clock.Advance(2 * time.Hour)
+
+	// Retrieve the item again and validate the loadFn is called
+	// since the old item should have expired
+	out, err = FnCacheGet(ctx, cache, "test", func(ctx context.Context) (int, error) {
+		return 100, nil
+	})
+	require.NoError(t, err)
+	require.Equal(t, 100, out)
+
+	// Manually override the value with a TTL this time.
+	cache.SetWithTTL("test", 999, time.Minute)
+
+	// Retrieve the item again and validate the loadFn isn't called
+	// and our manually set value is returned.
+	out, err = FnCacheGet(ctx, cache, "test", func(ctx context.Context) (int, error) {
+		return 100, nil
+	})
+	require.NoError(t, err)
+	require.Equal(t, 999, out)
+
+	// Time travel to expire the item from the cache.
+	clock.Advance(2 * time.Minute)
+
+	// Retrieve the item again and validate the loadFn is called
+	// since the old item should have expired
+	out, err = FnCacheGet(ctx, cache, "test", func(ctx context.Context) (int, error) {
+		return 100, nil
+	})
+	require.NoError(t, err)
+	require.Equal(t, 100, out)
+}
+
+// TestGetIfExists tests the GetIfExists method which retrieves values without triggering loads.
+func TestGetIfExists(t *testing.T) {
+	t.Parallel()
+
+	t.Run("non-existent key", func(t *testing.T) {
+		t.Parallel()
+		cache, err := NewFnCache(FnCacheConfig{
+			TTL:   time.Hour,
+			Clock: clockwork.NewFakeClock(),
+		})
+		require.NoError(t, err)
+
+		val, ok := cache.GetIfExists("nonexistent")
+		require.False(t, ok)
+		require.Empty(t, val)
+	})
+
+	t.Run("existing valid entry", func(t *testing.T) {
+		t.Parallel()
+		cache, err := NewFnCache(FnCacheConfig{
+			TTL:   time.Hour,
+			Clock: clockwork.NewFakeClock(),
+		})
+		require.NoError(t, err)
+
+		cache.Set("test-key", "test-value")
+
+		val, ok := cache.GetIfExists("test-key")
+		require.True(t, ok)
+		require.Equal(t, "test-value", val)
+	})
+
+	t.Run("expired entry", func(t *testing.T) {
+		t.Parallel()
+		clock := clockwork.NewFakeClock()
+		cache, err := NewFnCache(FnCacheConfig{
+			TTL:   time.Hour,
+			Clock: clock,
+		})
+		require.NoError(t, err)
+
+		cache.SetWithTTL("test-key", "test-value", time.Minute)
+
+		val, ok := cache.GetIfExists("test-key")
+		require.True(t, ok)
+		require.Equal(t, "test-value", val)
+
+		// Advance time past the TTL
+		clock.Advance(2 * time.Minute)
+
+		// Entry should now be expired and not returned
+		val, ok = cache.GetIfExists("test-key")
+		require.False(t, ok)
+		require.Empty(t, val)
+	})
+
+	t.Run("entry with different TTL", func(t *testing.T) {
+		t.Parallel()
+		clock := clockwork.NewFakeClock()
+		cache, err := NewFnCache(FnCacheConfig{
+			TTL:   time.Hour,
+			Clock: clock,
+		})
+		require.NoError(t, err)
+
+		// Set entries with different TTLs
+		cache.SetWithTTL("short-ttl", "short-value", 30*time.Minute)
+		cache.SetWithTTL("long-ttl", "long-value", 2*time.Hour)
+
+		// Both should be accessible initially
+		val, ok := cache.GetIfExists("short-ttl")
+		require.True(t, ok)
+		require.Equal(t, "short-value", val)
+
+		val, ok = cache.GetIfExists("long-ttl")
+		require.True(t, ok)
+		require.Equal(t, "long-value", val)
+
+		// Advance time to expire only the short TTL entry
+		clock.Advance(45 * time.Minute)
+
+		// Short TTL entry should be expired
+		val, ok = cache.GetIfExists("short-ttl")
+		require.False(t, ok)
+		require.Empty(t, val)
+
+		// Long TTL entry should still be accessible
+		val, ok = cache.GetIfExists("long-ttl")
+		require.True(t, ok)
+		require.Equal(t, "long-value", val)
+	})
+
+	t.Run("entry loaded with error via FnCacheGet", func(t *testing.T) {
+		t.Parallel()
+		cache, err := NewFnCache(FnCacheConfig{
+			TTL:   time.Hour,
+			Clock: clockwork.NewFakeClock(),
+		})
+		require.NoError(t, err)
+		ctx := context.Background()
+
+		// Load an entry that results in an error
+		_, err = FnCacheGet(ctx, cache, "error-key", func(ctx context.Context) (string, error) {
+			return "", fmt.Errorf("load error")
+		})
+		require.Error(t, err)
+
+		// GetIfExists should not return the error entry
+		val, ok := cache.GetIfExists("error-key")
+		require.False(t, ok)
+		require.Empty(t, val)
+	})
+
+	t.Run("get after remove", func(t *testing.T) {
+		t.Parallel()
+		cache, err := NewFnCache(FnCacheConfig{
+			TTL:   time.Hour,
+			Clock: clockwork.NewFakeClock(),
+		})
+		require.NoError(t, err)
+
+		cache.Set("remove-test-key", "test-value")
+		val, ok := cache.GetIfExists("remove-test-key")
+		require.True(t, ok)
+		require.Equal(t, "test-value", val)
+
+		cache.Remove("remove-test-key")
+
+		val, ok = cache.GetIfExists("remove-test-key")
+		require.False(t, ok)
+		require.Empty(t, val)
+	})
+
+	t.Run("non-blocking while entry is loading", func(t *testing.T) {
+		t.Parallel()
+		cache, err := NewFnCache(FnCacheConfig{
+			TTL:   time.Hour,
+			Clock: clockwork.NewFakeClock(),
+		})
+		require.NoError(t, err)
+
+		loadStarted := make(chan struct{})
+		loadContinue := make(chan struct{})
+
+		// Start a load operation that will block
+		go func() {
+			_, err := FnCacheGet(context.Background(), cache, "loading-key", func(ctx context.Context) (string, error) {
+				close(loadStarted)
+				<-loadContinue
+				return "loaded-value", nil
+			})
+			assert.NoError(t, err)
+		}()
+
+		<-loadStarted
+
+		// GetIfExists should return immediately with false, not block
+		val, ok := cache.GetIfExists("loading-key")
+		require.False(t, ok)
+		require.Empty(t, val)
+
+		close(loadContinue)
+
+		// Now it should be available
+		require.Eventually(t, func() bool {
+			val, ok := cache.GetIfExists("loading-key")
+			return ok && val == "loaded-value"
+		}, time.Second, 10*time.Millisecond)
+	})
+
+	t.Run("concurrent GetIfExists Remove/Set on same key", func(t *testing.T) {
+		t.Parallel()
+		cache, err := NewFnCache(FnCacheConfig{
+			TTL:   time.Hour,
+			Clock: clockwork.NewFakeClock(),
+		})
+		require.NoError(t, err)
+
+		var wg sync.WaitGroup
+		for i := 0; i < 100; i++ {
+			wg.Add(3)
+			go func() {
+				defer wg.Done()
+				cache.GetIfExists("key")
+			}()
+			go func() {
+				defer wg.Done()
+				cache.Remove("key")
+			}()
+
+			go func() {
+				defer wg.Done()
+				cache.Set("key", "value")
+			}()
+		}
+		wg.Wait()
+	})
 }

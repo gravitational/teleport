@@ -15,6 +15,7 @@
 package proxy
 
 import (
+	"cmp"
 	"context"
 	"crypto/tls"
 	"encoding/asn1"
@@ -25,7 +26,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
-	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -37,6 +37,8 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	transportv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
 	"github.com/gravitational/teleport/api/metadata"
+	"github.com/gravitational/teleport/api/ssh"
+	grpcutils "github.com/gravitational/teleport/api/utils/grpc"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 )
 
@@ -45,6 +47,8 @@ import (
 type ClientConfig struct {
 	// ProxyAddress is the address of the Proxy server.
 	ProxyAddress string
+	// RelayAddress is the address of the relay in use, if any.
+	RelayAddress string
 	// TLSRoutingEnabled indicates if the cluster is using TLS Routing.
 	TLSRoutingEnabled bool
 	// TLSConfigFunc produces the [tls.Config] required for mTLS connections to a specific cluster.
@@ -56,7 +60,7 @@ type ClientConfig struct {
 	// to the gRPC client.
 	StreamInterceptors []grpc.StreamClientInterceptor
 	// SSHConfig is the [ssh.ClientConfig] used to connect to the Proxy SSH server.
-	SSHConfig *ssh.ClientConfig
+	SSHConfig ssh.ClientConfig
 	// DialTimeout defines how long to attempt dialing before timing out.
 	DialTimeout time.Duration
 	// DialOpts define options for dialing the client connection.
@@ -74,20 +78,23 @@ type ClientConfig struct {
 	PROXYHeaderGetter client.PROXYHeaderGetter
 
 	// The below items are intended to be used by tests to connect without mTLS.
-	// The gRPC transport credentials to use when establishing the connection to proxy.
+
+	// creds returns gRPC transport credentials to use with the proxy sshgrpc
+	// server.
 	creds func(cluster string) (credentials.TransportCredentials, error)
-	// The client credentials to use when establishing the connection to auth.
+	// relayCreds returns gRPC transport credentials to use with the relay
+	// transport server.
+	relayCreds func() (credentials.TransportCredentials, error)
+	// clientCreds returns the api client credentials to use when establishing
+	// the connection to auth.
 	clientCreds func(cluster string) (client.Credentials, error)
 }
 
 // CheckAndSetDefaults ensures required options are present and
 // sets the default value of any that are omitted.
-func (c *ClientConfig) CheckAndSetDefaults() error {
+func (c *ClientConfig) CheckAndSetDefaults(ctx context.Context) error {
 	if c.ProxyAddress == "" {
 		return trace.BadParameter("missing required parameter ProxyAddress")
-	}
-	if c.SSHConfig == nil {
-		return trace.BadParameter("missing required parameter SSHConfig")
 	}
 	if c.DialTimeout <= 0 {
 		c.DialTimeout = defaults.DefaultIOTimeout
@@ -115,6 +122,21 @@ func (c *ClientConfig) CheckAndSetDefaults() error {
 			// not to send the client certificate by looking at certificate request.
 			if len(tlsCfg.Certificates) > 0 {
 				cert := tlsCfg.Certificates[0]
+
+				// When a hardware key is used to store the private key, the user may fail to provide
+				// a PIN or touch before a gRPC dial timeout occurs.
+				// The resulting "dial timeout" error is generic and doesn't indicate an issue with the
+				// hardware key itself (since YubiKey is treated like any other key).
+				// To avoid this, we perform a "warm-up" call to the key, ensuring it is ready
+				// before initiating the gRPC dial.
+				// This approach works because the connection is cached for a few seconds,
+				// allowing subsequent calls without requiring additional user action.
+				if priv, ok := cert.PrivateKey.(hardwareKeyWarmer); ok {
+					err := priv.WarmupHardwareKey(ctx)
+					if err != nil {
+						return nil, trace.Wrap(err)
+					}
+				}
 				tlsCfg.Certificates = nil
 				tlsCfg.GetClientCertificate = func(_ *tls.CertificateRequestInfo) (*tls.Certificate, error) {
 					return &cert, nil
@@ -123,11 +145,28 @@ func (c *ClientConfig) CheckAndSetDefaults() error {
 
 			return credentials.NewTLS(tlsCfg), nil
 		}
+		c.relayCreds = func() (credentials.TransportCredentials, error) {
+			const localCluster = ""
+			tlsCfg, err := c.TLSConfigFunc(localCluster)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			// the [credentials.NewTLS] transport credentials will take care of SNI
+			// and ALPN
+			tlsCfg.NextProtos = nil
+			tlsCfg.ServerName = ""
+
+			return credentials.NewTLS(tlsCfg), nil
+		}
 	} else {
 		c.clientCreds = func(cluster string) (client.Credentials, error) {
 			return insecureCredentials{}, nil
 		}
 		c.creds = func(cluster string) (credentials.TransportCredentials, error) {
+			return insecure.NewCredentials(), nil
+		}
+		c.relayCreds = func() (credentials.TransportCredentials, error) {
 			return insecure.NewCredentials(), nil
 		}
 	}
@@ -143,8 +182,8 @@ func (mc insecureCredentials) TLSConfig() (*tls.Config, error) {
 	return nil, nil
 }
 
-func (mc insecureCredentials) SSHClientConfig() (*ssh.ClientConfig, error) {
-	return nil, trace.NotImplemented("no ssh config")
+func (mc insecureCredentials) SSHClientConfig() (ssh.ClientConfig, error) {
+	return ssh.ClientConfig{}, trace.NotImplemented("no ssh config")
 }
 
 // Expiry returns the credential expiry. insecureCredentials never expire.
@@ -168,6 +207,12 @@ type Client struct {
 	// clusterName as determined by inspecting the certificate presented by
 	// the Proxy during the connection handshake.
 	clusterName *clusterName
+
+	// relayGrpcConn, if set, is the gRPC client to the relay transport server.
+	relayGrpcConn *grpc.ClientConn
+	// relayTransport, if set, is a [transportv1.Client] for the relay transport
+	// service. Should be used over the standard one, if set.
+	relayTransport *transportv1.Client
 }
 
 // protocolProxySSHGRPC is TLS ALPN protocol value used to indicate gRPC
@@ -183,7 +228,7 @@ const protocolProxySSHGRPC string = "teleport-proxy-ssh-grpc"
 // of the caller, then prefer to use NewSSHClient instead which omits
 // the gRPC dialing altogether.
 func NewClient(ctx context.Context, cfg ClientConfig) (*Client, error) {
-	if err := cfg.CheckAndSetDefaults(); err != nil {
+	if err := cfg.CheckAndSetDefaults(ctx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -275,7 +320,8 @@ func newGRPCClient(ctx context.Context, cfg *ClientConfig) (_ *Client, err error
 
 	c := &clusterName{}
 
-	creds, err := cfg.creds("")
+	const localCluster = ""
+	creds, err := cfg.creds(localCluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -284,25 +330,23 @@ func newGRPCClient(ctx context.Context, cfg *ClientConfig) (_ *Client, err error
 		dialCtx,
 		cfg.ProxyAddress,
 		append([]grpc.DialOption{
+			grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
 			grpc.WithContextDialer(newDialerForGRPCClient(ctx, cfg)),
 			grpc.WithTransportCredentials(&clusterCredentials{TransportCredentials: creds, clusterName: c}),
 			grpc.WithChainUnaryInterceptor(
 				append(cfg.UnaryInterceptors,
-					//nolint:staticcheck // SA1019. There is a data race in the stats.Handler that is replacing
-					// the interceptor. See https://github.com/open-telemetry/opentelemetry-go-contrib/issues/4576.
-					otelgrpc.UnaryClientInterceptor(),
 					metadata.UnaryClientInterceptor,
 					interceptors.GRPCClientUnaryErrorInterceptor,
 				)...,
 			),
 			grpc.WithChainStreamInterceptor(
 				append(cfg.StreamInterceptors,
-					//nolint:staticcheck // SA1019. There is a data race in the stats.Handler that is replacing
-					// the interceptor. See https://github.com/open-telemetry/opentelemetry-go-contrib/issues/4576.
-					otelgrpc.StreamClientInterceptor(),
 					metadata.StreamClientInterceptor,
 					interceptors.GRPCClientStreamErrorInterceptor,
 				)...,
+			),
+			grpc.WithDefaultCallOptions(
+				grpc.MaxCallRecvMsgSize(grpcutils.MaxClientRecvMsgSize()),
 			),
 		}, cfg.DialOpts...)...,
 	)
@@ -321,11 +365,47 @@ func newGRPCClient(ctx context.Context, cfg *ClientConfig) (_ *Client, err error
 		return nil, trace.Wrap(err)
 	}
 
+	var relayGrpcConn *grpc.ClientConn
+	var relayTransport *transportv1.Client
+	if cfg.RelayAddress != "" {
+		relayCreds, err := cfg.relayCreds()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		cc, err := grpc.NewClient(cfg.RelayAddress,
+			grpc.WithTransportCredentials(relayCreds),
+			grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
+			grpc.WithChainUnaryInterceptor(
+				metadata.UnaryClientInterceptor,
+				interceptors.GRPCClientUnaryErrorInterceptor,
+			),
+			grpc.WithChainStreamInterceptor(
+				metadata.StreamClientInterceptor,
+				interceptors.GRPCClientStreamErrorInterceptor,
+			),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		r, err := transportv1.NewClient(transportv1pb.NewTransportServiceClient(cc))
+		if err != nil {
+			_ = cc.Close()
+			return nil, trace.Wrap(err)
+		}
+
+		relayGrpcConn = cc
+		relayTransport = r
+	}
+
 	return &Client{
 		cfg:         cfg,
 		grpcConn:    conn,
 		transport:   transport,
 		clusterName: c,
+
+		relayGrpcConn:  relayGrpcConn,
+		relayTransport: relayTransport,
 	}, nil
 }
 
@@ -346,20 +426,23 @@ func (c *Client) ClusterName() string {
 
 // Close attempts to close both the gRPC and SSH connections.
 func (c *Client) Close() error {
+	if c.relayGrpcConn != nil {
+		return trace.NewAggregate(c.relayGrpcConn.Close(), c.grpcConn.Close())
+	}
 	return trace.Wrap(c.grpcConn.Close())
 }
 
 // SSHConfig returns the [ssh.ClientConfig] for the provided user which
 // should be used when creating a [tracessh.Client] with the returned
 // [net.Conn] from [Client.DialHost].
-func (c *Client) SSHConfig(user string) *ssh.ClientConfig {
-	return &ssh.ClientConfig{
-		Config:            c.cfg.SSHConfig.Config,
+func (c *Client) SSHConfig(user string) ssh.ClientConfig {
+	return ssh.ClientConfig{
+		SSHConfig:         c.cfg.SSHConfig.SSHConfig,
 		User:              user,
-		Auth:              c.cfg.SSHConfig.Auth,
+		PublicKeyAuth:     c.cfg.SSHConfig.PublicKeyAuth,
+		AuthCallback:      c.cfg.SSHConfig.AuthCallback,
 		HostKeyCallback:   c.cfg.SSHConfig.HostKeyCallback,
 		BannerCallback:    c.cfg.SSHConfig.BannerCallback,
-		ClientVersion:     c.cfg.SSHConfig.ClientVersion,
 		HostKeyAlgorithms: c.cfg.SSHConfig.HostKeyAlgorithms,
 		Timeout:           c.cfg.SSHConfig.Timeout,
 	}
@@ -413,9 +496,13 @@ func (c *Client) ClientConfig(ctx context.Context, cluster string) (client.Confi
 // DialHost establishes a connection to the `target` in cluster named `cluster`. If a keyring
 // is provided it will only be forwarded if proxy recording mode is enabled in the cluster.
 func (c *Client) DialHost(ctx context.Context, target, cluster string, keyring agent.ExtendedAgent) (net.Conn, ClusterDetails, error) {
-	conn, details, err := c.transport.DialHost(ctx, target, cluster, nil, keyring)
+	conn, details, err := cmp.Or(c.relayTransport, c.transport).DialHost(ctx, target, cluster, nil, keyring)
 	if err != nil {
-		return nil, ClusterDetails{}, trace.ConnectionProblem(err, "failed connecting to host %s: %v", target, err)
+		host := target
+		if h, _, err := net.SplitHostPort(target); err == nil {
+			host = h
+		}
+		return nil, ClusterDetails{}, trace.ConnectionProblem(err, "failed connecting to host %s: %v", host, err)
 	}
 
 	return conn, ClusterDetails{FIPS: details.FipsEnabled}, nil
@@ -423,7 +510,7 @@ func (c *Client) DialHost(ctx context.Context, target, cluster string, keyring a
 
 // ClusterDetails retrieves cluster information as seen by the Proxy.
 func (c *Client) ClusterDetails(ctx context.Context) (ClusterDetails, error) {
-	details, err := c.transport.ClusterDetails(ctx)
+	details, err := cmp.Or(c.relayTransport, c.transport).ClusterDetails(ctx)
 	if err != nil {
 		return ClusterDetails{}, trace.Wrap(err)
 	}
@@ -431,11 +518,28 @@ func (c *Client) ClusterDetails(ctx context.Context) (ClusterDetails, error) {
 	return ClusterDetails{FIPS: details.FipsEnabled}, nil
 }
 
+// ProxyWindowsDesktopSession establishes a connection to the target desktop over a bidirectional stream.
+// The caller is required to pass a valid desktop certificate.
+func (c *Client) ProxyWindowsDesktopSession(ctx context.Context, config transportv1.WindowsDesktopSessionConfig) (*tls.Conn, error) {
+	session, err := c.transport.ProxyWindowsDesktopSession(ctx, config)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return session, nil
+}
+
 // Ping measures the round trip latency of sending a message to the Proxy.
 func (c *Client) Ping(ctx context.Context) error {
 	// TODO(tross): Update to call Ping when it is added to the transport service.
 	// For now we don't really care what method is used we just want to measure
 	// how long it takes to get a reply.
-	_, _ = c.transport.ClusterDetails(ctx)
+	_, _ = cmp.Or(c.relayTransport, c.transport).ClusterDetails(ctx)
 	return nil
+}
+
+// hardwareKeyWarmer performs a bogus call to the hardware key,
+// to proactively prompt the user for a PIN/touch (if needed).
+type hardwareKeyWarmer interface {
+	WarmupHardwareKey(ctx context.Context) error
 }

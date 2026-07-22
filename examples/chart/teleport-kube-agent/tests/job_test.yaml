@@ -5,21 +5,32 @@ templates:
 release:
   upgrade: true
 tests:
+  - it: should not run deletion hook if skipHooks is set
+    template: delete_hook.yaml
+    values:
+      - ../.lint/no-hooks.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
   - it: should create ServiceAccount, Role, RoleBinding and Job for post-delete hook by default
     template: delete_hook.yaml
     values:
       - ../.lint/backwards-compatibility.yaml
-    assets:
+    asserts:
       - containsDocument:
+          any: true
           kind: ServiceAccount
           apiVersion: v1
       - containsDocument:
+          any: true
           kind: Role
           apiVersion: rbac.authorization.k8s.io/v1
       - containsDocument:
+          any: true
           kind: RoleBinding
           apiVersion: rbac.authorization.k8s.io/v1
       - containsDocument:
+          any: true
           kind: Job
           apiVersion: batch/v1
 
@@ -78,6 +89,7 @@ tests:
       - ../.lint/backwards-compatibility.yaml
     asserts:
       - containsDocument:
+          any: true
           kind: ServiceAccount
           apiVersion: v1
       - equal:
@@ -98,6 +110,7 @@ tests:
         name: lint-serviceaccount
     asserts:
       - containsDocument:
+          any: true
           kind: ServiceAccount
           apiVersion: v1
       - equal:
@@ -123,6 +136,7 @@ tests:
       - ../.lint/backwards-compatibility.yaml
     asserts:
       - containsDocument:
+          any: true
           kind: Role
           apiVersion: rbac.authorization.k8s.io/v1
 
@@ -145,6 +159,7 @@ tests:
       - ../.lint/backwards-compatibility.yaml
     asserts:
       - containsDocument:
+          any: true
           kind: RoleBinding
           apiVersion: rbac.authorization.k8s.io/v1
 
@@ -172,6 +187,7 @@ tests:
     asserts:
       - not: true
         containsDocument:
+          any: true
           kind: ServiceAccount
           apiVersion: v1
       - matchSnapshot:
@@ -188,6 +204,7 @@ tests:
     asserts:
       - not: true
         containsDocument:
+          any: true
           kind: ServiceAccount
           apiVersion: v1
       # ServiceAccount is not created in this mode
@@ -210,6 +227,7 @@ tests:
     asserts:
       - not: true
         containsDocument:
+          any: true
           kind: Role
           apiVersion: rbac.authorization.k8s.io/v1
 
@@ -223,6 +241,7 @@ tests:
     asserts:
       - not: true
         containsDocument:
+          any: true
           kind: RoleBinding
           apiVersion: rbac.authorization.k8s.io/v1
 
@@ -239,15 +258,67 @@ tests:
     asserts:
       - not: true
         containsDocument:
+          any: true
           kind: ServiceAccount
           apiVersion: v1
       - not: true
         containsDocument:
+          any: true
           kind: Role
           apiVersion: rbac.authorization.k8s.io/v1
       - not: true
         containsDocument:
+          any: true
           kind: RoleBinding
           apiVersion: rbac.authorization.k8s.io/v1
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should contain pod labels in the Job's pod spec if extraLabels.pod is set
+    template: delete_hook.yaml
+    # documentIndex: 0=ServiceAccount 1=Role 2=RoleBinding 3=Job
+    documentIndex: 3
+    values:
+      - ../.lint/backwards-compatibility.yaml
+    set:
+      extraLabels:
+        pod:
+          testLabel: testValue
+    asserts:
+      - equal:
+          path: spec.template.metadata.labels
+          value:
+            app: RELEASE-NAME
+            testLabel: testValue
+
+  - it: should set resources in the Job's pod spec if resources is set in values
+    template: delete_hook.yaml
+    # documentIndex: 0=ServiceAccount 1=Role 2=RoleBinding 3=Job
+    documentIndex: 3
+    values:
+      - ../.lint/backwards-compatibility.yaml
+    set:
+      # These are just sample values to test the chart.
+      # They are not intended to be guidelines or suggestions for running teleport.
+      resources:
+        limits:
+          cpu: 2
+          memory: 4Gi
+        requests:
+          cpu: 1
+          memory: 2Gi
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.cpu
+          value: 2
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.memory
+          value: 4Gi
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.cpu
+          value: 1
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.memory
+          value: 2Gi
       - matchSnapshot:
           path: spec.template.spec

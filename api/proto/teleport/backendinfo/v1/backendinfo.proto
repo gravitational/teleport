@@ -1,0 +1,40 @@
+// Copyright 2025 Gravitational, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.backendinfo.v1;
+
+import "teleport/header/v1/metadata.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/backendinfo/v1;backendinfov1";
+
+// BackendInfo is a singleton resource that holds meta-information for the cluster's auth service.
+// It is used to store the auth instance last known version and is managed by the major version
+// check validator. After a cluster upgrade with a new version of the auth service, this
+// information is overridden with data from the new auth instance.
+message BackendInfo {
+  string kind = 1;
+  string sub_kind = 2;
+  string version = 3;
+  teleport.header.v1.Metadata metadata = 4;
+
+  BackendInfoSpec spec = 5;
+}
+
+// BackendInfoSpec encodes the parameters auth server meta-information.
+message BackendInfoSpec {
+  // teleport_version advertises the version of the auth server, e.g., "17.3.3" (without the leading "v").
+  string teleport_version = 1;
+}

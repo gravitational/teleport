@@ -19,7 +19,6 @@ package vnet
 import (
 	"crypto/rand"
 	"encoding/binary"
-	"fmt"
 	mathrand "math/rand/v2"
 	"net"
 
@@ -27,9 +26,9 @@ import (
 	"gvisor.dev/gvisor/pkg/tcpip"
 )
 
-// NewIPv6Prefix returns a Unique Local IPv6 Unicast Address which will be used as a 64-bit prefix for all v6
+// newIPv6Prefix returns a Unique Local IPv6 Unicast Address which will be used as a 64-bit prefix for all v6
 // IP addresses in the VNet.
-func NewIPv6Prefix() (tcpip.Address, error) {
+func newIPv6Prefix() (tcpip.Address, error) {
 	// |   8 bits   |  40 bits   |  16 bits  |          64 bits           |
 	// +------------+------------+-----------+----------------------------+
 	// | ULA Prefix | Global ID  | Subnet ID |        Interface ID        |
@@ -41,7 +40,7 @@ func NewIPv6Prefix() (tcpip.Address, error) {
 	var bytes [16]byte
 	bytes[0] = 0xfd
 	if _, err := rand.Read(bytes[1:6]); err != nil {
-		return tcpip.Address{}, trace.Wrap(err)
+		return tcpip.Address{}, trace.Wrap(err, "reading random bytes")
 	}
 	return tcpip.AddrFrom16(bytes), nil
 }
@@ -101,7 +100,7 @@ func randomFreeIPv4InNet(ipNet *net.IPNet, free func(ipv4) bool) (ipv4, error) {
 			break
 		}
 	}
-	return 0, trace.Wrap(fmt.Errorf("Exhausted all IPs in range %q", ipNet.String()))
+	return 0, trace.Errorf("exhausted all IPs in range %q", ipNet.String())
 }
 
 // ipv4 holds a v4 IP address as a uint32 so we can do math on it.

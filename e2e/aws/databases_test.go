@@ -22,18 +22,24 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"log/slog"
 	"net"
 	"os"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/config"
+	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/secretsmanager"
 	mysqlclient "github.com/go-mysql-org/go-mysql/client"
-	"github.com/jackc/pgconn"
-	"github.com/jackc/pgx/v4"
+	"github.com/gravitational/trace"
+	"github.com/jackc/pgerrcode"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -41,8 +47,10 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/cloud/aws/config"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
@@ -50,6 +58,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestDatabases(t *testing.T) {
@@ -113,7 +122,7 @@ func awsDBDiscoveryUnmatched(t *testing.T) {
 }
 
 const (
-	waitForConnTimeout = 60 * time.Second
+	waitForConnTimeout = 90 * time.Second
 	connRetryTick      = 10 * time.Second
 )
 
@@ -122,12 +131,8 @@ const (
 func postgresConnTest(t *testing.T, cluster *helpers.TeleInstance, user string, route tlsca.RouteToDatabase, query string) {
 	t.Helper()
 	var pgConn *pgconn.PgConn
-	// retry for a while, the database service might need time to give
-	// itself IAM rds:connect permissions.
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
+	waitForDBConnection(t, func(ctx context.Context) error {
 		var err error
-		ctx, cancel := context.WithTimeout(context.Background(), connRetryTick)
-		defer cancel()
 		pgConn, err = postgres.MakeTestClient(ctx, common.TestClientConfig{
 			AuthClient:      cluster.GetSiteAPI(cluster.Secrets.SiteName),
 			AuthServer:      cluster.Process.GetAuthServer(),
@@ -136,83 +141,62 @@ func postgresConnTest(t *testing.T, cluster *helpers.TeleInstance, user string, 
 			Username:        user,
 			RouteToDatabase: route,
 		})
-		assert.NoError(t, err)
-		assert.NotNil(t, pgConn)
-	}, waitForConnTimeout, connRetryTick, "connecting to postgres")
-
-	// dont wait forever on the exec or close.
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	// Execute a query.
-	results, err := pgConn.Exec(ctx, query).ReadAll()
-	require.NoError(t, err)
-	for i, r := range results {
-		require.NoError(t, r.Err, "error in result %v", i)
-	}
-
-	// Disconnect.
-	err = pgConn.Close(ctx)
-	require.NoError(t, err)
+		return err
+	})
+	execPGTestQuery(t, pgConn, query)
 }
 
 // postgresLocalProxyConnTest tests connection to a postgres database via
 // local proxy tunnel.
 func postgresLocalProxyConnTest(t *testing.T, cluster *helpers.TeleInstance, user string, route tlsca.RouteToDatabase, query string) {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 2*waitForConnTimeout)
-	defer cancel()
-	lp := startLocalALPNProxy(t, ctx, user, cluster, route)
+	lp := startLocalALPNProxy(t, user, cluster, route)
 
 	pgconnConfig, err := pgconn.ParseConfig(fmt.Sprintf("postgres://%v/", lp.GetAddr()))
 	require.NoError(t, err)
 	pgconnConfig.User = route.Username
 	pgconnConfig.Database = route.Database
 	var pgConn *pgconn.PgConn
-	// retry for a while, the database service might need time to give
-	// itself IAM rds:connect permissions.
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
+	waitForDBConnection(t, func(ctx context.Context) error {
 		var err error
-		ctx, cancel := context.WithTimeout(context.Background(), connRetryTick)
-		defer cancel()
 		pgConn, err = pgconn.ConnectConfig(ctx, pgconnConfig)
-		assert.NoError(t, err)
-		assert.NotNil(t, pgConn)
-	}, waitForConnTimeout, connRetryTick, "connecting to postgres")
+		return err
+	})
+	execPGTestQuery(t, pgConn, query)
+}
 
-	// dont wait forever on the exec or close.
-	ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
+func execPGTestQuery(t *testing.T, conn *pgconn.PgConn, query string) {
+	t.Helper()
+	defer func() {
+		// dont wait forever to gracefully terminate.
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		// Disconnect.
+		assert.NoError(t, conn.Close(ctx))
+	}()
+
+	// dont wait forever on the exec.
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	// Execute a query.
-	results, err := pgConn.Exec(ctx, query).ReadAll()
+	results, err := conn.Exec(ctx, query).ReadAll()
 	require.NoError(t, err)
 	for i, r := range results {
 		require.NoError(t, r.Err, "error in result %v", i)
 	}
-
-	// Disconnect.
-	err = pgConn.Close(ctx)
-	require.NoError(t, err)
 }
 
 // mysqlLocalProxyConnTest tests connection to a MySQL database via
 // local proxy tunnel.
 func mysqlLocalProxyConnTest(t *testing.T, cluster *helpers.TeleInstance, user string, route tlsca.RouteToDatabase, query string) {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 2*waitForConnTimeout)
-	defer cancel()
-
-	lp := startLocalALPNProxy(t, ctx, user, cluster, route)
+	lp := startLocalALPNProxy(t, user, cluster, route)
 
 	var conn *mysqlclient.Conn
-	// retry for a while, the database service might need time to give
-	// itself IAM rds:connect permissions.
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
+	waitForDBConnection(t, func(ctx context.Context) error {
 		var err error
 		var nd net.Dialer
-		ctx, cancel := context.WithTimeout(context.Background(), connRetryTick)
-		defer cancel()
 		conn, err = mysqlclient.ConnectWithDialer(ctx, "tcp",
 			lp.GetAddr(),
 			route.Username,
@@ -220,22 +204,24 @@ func mysqlLocalProxyConnTest(t *testing.T, cluster *helpers.TeleInstance, user s
 			route.Database,
 			nd.DialContext,
 		)
-		assert.NoError(t, err)
-		assert.NotNil(t, conn)
-	}, waitForConnTimeout, connRetryTick, "connecting to mysql")
+		return err
+	})
+	defer func() {
+		// Disconnect.
+		assert.NoError(t, conn.Close())
+	}()
 
 	// Execute a query.
 	require.NoError(t, conn.SetDeadline(time.Now().Add(10*time.Second)))
 	_, err := conn.Execute(query)
 	require.NoError(t, err)
-
-	// Disconnect.
-	require.NoError(t, conn.Close())
 }
 
 // startLocalALPNProxy starts local ALPN proxy for the specified database.
-func startLocalALPNProxy(t *testing.T, ctx context.Context, user string, cluster *helpers.TeleInstance, route tlsca.RouteToDatabase) *alpnproxy.LocalProxy {
+func startLocalALPNProxy(t *testing.T, user string, cluster *helpers.TeleInstance, route tlsca.RouteToDatabase) *alpnproxy.LocalProxy {
 	t.Helper()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
 	proto, err := alpncommon.ToALPNProtocol(route.Protocol)
 	require.NoError(t, err)
 
@@ -272,7 +258,7 @@ func generateClientDBCert(t *testing.T, authSrv *auth.Server, user string, route
 	key, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 	require.NoError(t, err)
 
-	clusterName, err := authSrv.GetClusterName()
+	clusterName, err := authSrv.GetClusterName(t.Context())
 	require.NoError(t, err)
 
 	publicKeyPEM, err := keys.MarshalPublicKey(key.Public())
@@ -299,7 +285,7 @@ func waitForDatabases(t *testing.T, auth *service.TeleportProcess, wantNames ...
 		defer cancel()
 
 		databases, err := auth.GetAuthServer().GetDatabases(ctx)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		// map the registered "db" resource names.
 		seen := map[string]struct{}{}
@@ -307,7 +293,7 @@ func waitForDatabases(t *testing.T, auth *service.TeleportProcess, wantNames ...
 			seen[db.GetName()] = struct{}{}
 		}
 		for _, name := range wantNames {
-			assert.Contains(t, seen, name)
+			require.Contains(t, seen, name)
 		}
 	}, 3*time.Minute, 3*time.Second, "waiting for the discovery service to create db resources")
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
@@ -315,7 +301,7 @@ func waitForDatabases(t *testing.T, auth *service.TeleportProcess, wantNames ...
 		defer cancel()
 
 		servers, err := auth.GetAuthServer().GetDatabaseServers(ctx, apidefaults.Namespace)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		// map the registered "db_server" resource names.
 		seen := map[string]struct{}{}
@@ -323,7 +309,7 @@ func waitForDatabases(t *testing.T, auth *service.TeleportProcess, wantNames ...
 			seen[s.GetName()] = struct{}{}
 		}
 		for _, name := range wantNames {
-			assert.Contains(t, seen, name)
+			require.Contains(t, seen, name)
 		}
 	}, 1*time.Minute, time.Second, "waiting for the database service to heartbeat the databases")
 }
@@ -337,23 +323,26 @@ type dbUserLogin struct {
 	port     int
 }
 
-func connectPostgres(t *testing.T, ctx context.Context, info dbUserLogin, dbName string) *pgx.Conn {
-	pgCfg, err := pgx.ParseConfig(fmt.Sprintf("postgres://%s:%d/?sslmode=verify-full", info.address, info.port))
+func connectPostgres(t *testing.T, ctx context.Context, info dbUserLogin, dbName string) *pgConn {
+	pgCfg, err := pgxpool.ParseConfig(fmt.Sprintf("postgres://%s:%d/?sslmode=verify-full", info.address, info.port))
 	require.NoError(t, err)
-	pgCfg.User = info.username
-	pgCfg.Password = info.password
-	pgCfg.Database = dbName
-	pgCfg.TLSConfig = &tls.Config{
+	pgCfg.ConnConfig.User = info.username
+	pgCfg.ConnConfig.Password = info.password
+	pgCfg.ConnConfig.Database = dbName
+	pgCfg.ConnConfig.TLSConfig = &tls.Config{
 		ServerName: info.address,
 		RootCAs:    awsCertPool.Clone(),
 	}
 
-	conn, err := pgx.ConnectConfig(ctx, pgCfg)
+	pool, err := pgxpool.NewWithConfig(ctx, pgCfg)
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		_ = conn.Close(ctx)
-	})
-	return conn
+	t.Cleanup(pool.Close)
+
+	require.NoError(t, pool.Ping(ctx))
+	return &pgConn{
+		logger: logtest.With("test_name", t.Name()),
+		pool:   pool,
+	}
 }
 
 // secretPassword is used to unmarshal an AWS Secrets Manager
@@ -383,7 +372,7 @@ func getMasterUserPassword(t *testing.T, ctx context.Context, secretID string) s
 func getSecretValue(t *testing.T, ctx context.Context, secretID string) secretsmanager.GetSecretValueOutput {
 	t.Helper()
 	cfg, err := config.LoadDefaultConfig(ctx,
-		config.WithRegion(mustGetEnv(t, awsRegionEnv)),
+		awsconfig.WithRegion(mustGetEnv(t, awsRegionEnv)),
 	)
 	require.NoError(t, err)
 
@@ -394,4 +383,147 @@ func getSecretValue(t *testing.T, ctx context.Context, secretID string) secretsm
 	require.NoError(t, err)
 	require.NotNil(t, secretVal)
 	return *secretVal
+}
+
+// pgConn wraps a [pgxpool.Pool] and adds retries to all Exec calls.
+type pgConn struct {
+	logger *slog.Logger
+	pool   *pgxpool.Pool
+}
+
+func (c *pgConn) Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error) {
+	var out pgconn.CommandTag
+	err := withRetry(ctx, c.logger, func() error {
+		var err error
+		out, err = c.pool.Exec(ctx, sql, args...)
+		return trace.Wrap(err)
+	})
+	if err != nil {
+		c.logger.WarnContext(ctx, "Failed to execute SQL statement",
+			"sql", sql,
+			"error", err,
+		)
+	} else {
+		c.logger.InfoContext(ctx, "Executed SQL statement", "sql", sql)
+	}
+	return out, trace.Wrap(err)
+}
+
+func (c *pgConn) Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error) {
+	rows, err := c.pool.Query(ctx, sql, args...)
+	if err != nil {
+		c.logger.WarnContext(ctx, "Failed to execute query",
+			"sql", sql,
+			"error", err,
+		)
+	} else {
+		c.logger.InfoContext(ctx, "Executed query", "sql", sql)
+	}
+	return rows, trace.Wrap(err)
+}
+
+func (c *pgConn) mustQuery(t require.TestingT, ctx context.Context, sql string, args ...any) []any {
+	if h, ok := t.(interface{ Helper() }); ok {
+		h.Helper()
+	}
+	var out []any
+	rows, _ := c.Query(ctx, sql, args...)
+	defer rows.Close()
+	for rows.Next() {
+		vals, err := rows.Values()
+		if assert.NoError(t, err, "failed to read row values") {
+			out = append(out, vals...)
+		}
+	}
+	// `Query` documents that it is always safe to attempt to read from the
+	// returned rows even if an error is returned.
+	// It also documents that the same error will be in rows.Err() and
+	// rows.Err() will also contain any error from executing the query after
+	// closing rows. Hence, we do not check the error until after reading
+	// and closing rows.
+	assert.NoError(t, rows.Err())
+	return out
+}
+
+// withRetry runs a given func a finite number of times until it returns nil
+// error or the given context is done.
+func withRetry(ctx context.Context, log *slog.Logger, f func() error) error {
+	linear, err := retryutils.NewLinear(retryutils.LinearConfig{
+		First:  0,
+		Step:   500 * time.Millisecond,
+		Max:    5 * time.Second,
+		Jitter: retryutils.HalfJitter,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// retry a finite number of times before giving up.
+	const retries = 10
+	for range retries {
+		err := f()
+		if err == nil {
+			return nil
+		}
+
+		if isRetryable(err) {
+			log.DebugContext(ctx, "operation failed, retrying", "error", err)
+		} else {
+			return trace.Wrap(err)
+		}
+
+		linear.Inc()
+		select {
+		case <-linear.After():
+		case <-ctx.Done():
+			return trace.Wrap(ctx.Err())
+		}
+	}
+	return trace.Wrap(err, "too many retries")
+}
+
+// isRetryable returns true if an error can be retried.
+func isRetryable(err error) bool {
+	var pgErr *pgconn.PgError
+	err = trace.Unwrap(err)
+	if errors.As(err, &pgErr) {
+		// https://www.postgresql.org/docs/current/mvcc-serialization-failure-handling.html
+		switch pgErr.Code {
+		case pgerrcode.DeadlockDetected, pgerrcode.SerializationFailure,
+			pgerrcode.UniqueViolation, pgerrcode.ExclusionViolation:
+			return true
+		}
+	}
+	// Redshift reports this with a vague SQLSTATE XX000, which is the internal
+	// error code, but this is a serialization error that rolls back the
+	// transaction, so it should be retried.
+	if strings.Contains(err.Error(), "conflict with concurrent transaction") {
+		return true
+	}
+	return pgconn.SafeToRetry(err)
+}
+
+func waitForDBConnection(t *testing.T, connectFn func(context.Context) error) {
+	t.Helper()
+	// retry for a while, the database service might need time to give itself
+	// IAM permissions.
+	waitForSuccess(t, func() error {
+		ctx, cancel := context.WithTimeout(context.Background(), connRetryTick)
+		defer cancel()
+		return connectFn(ctx)
+	}, waitForConnTimeout, connRetryTick, "connecting to database")
+}
+
+// waitForSuccess is a test helper that wraps require.EventuallyWithT but runs
+// the given fn first to avoid waiting for the first timer tick.
+func waitForSuccess(t *testing.T, fn func() error, waitDur, tick time.Duration, msgAndArgs ...any) {
+	t.Helper()
+	// EventuallyWithT waits for the first tick before it makes the first
+	// attempt, so to speed things up we check for fn success first.
+	if err := fn(); err == nil {
+		return
+	}
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		require.NoError(t, fn())
+	}, waitDur, tick, msgAndArgs...)
 }

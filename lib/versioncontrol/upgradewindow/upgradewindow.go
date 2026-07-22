@@ -20,12 +20,12 @@ package upgradewindow
 
 import (
 	"context"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"time"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -34,7 +34,6 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/kubernetes"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
 	"github.com/gravitational/teleport/lib/versioncontrol"
 )
@@ -51,7 +50,7 @@ const (
 type ExportFunc func(ctx context.Context, req proto.ExportUpgradeWindowsRequest) (proto.ExportUpgradeWindowsResponse, error)
 
 // contextLike lets us abstract over the difference between basic contexts and context-like values such
-// as control stream senders or resource watchers. the exporter uses a contextLike value to decide wether
+// as control stream senders or resource watchers. the exporter uses a contextLike value to decide whether
 // or not auth connectivity appears healthy. during normal runtime, we end up using the inventory control
 // stream send handle.
 type contextLike interface {
@@ -145,7 +144,7 @@ func (c *ExporterConfig[C]) CheckAndSetDefaults() error {
 		// note: we add an extra millisecond since FullJitter can sometimes return 0, but our interval helpers interpret FirstDuration=0
 		// as meaning that we don't want a custom first duration. this is usually fine, but since the actual export interval is so long,
 		// it is important that a shorter first duration is always observed.
-		c.FirstExport = time.Millisecond + utils.FullJitter(c.UnhealthyThreshold/2)
+		c.FirstExport = time.Millisecond + retryutils.FullJitter(c.UnhealthyThreshold/2)
 	}
 
 	return nil
@@ -168,7 +167,7 @@ func NewExporter[C contextLike](cfg ExporterConfig[C]) (*Exporter[C], error) {
 	retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
 		Driver: retryutils.NewExponentialDriver(cfg.UnhealthyThreshold / 16),
 		Max:    cfg.UnhealthyThreshold,
-		Jitter: retryutils.NewHalfJitter(),
+		Jitter: retryutils.HalfJitter,
 	})
 
 	if err != nil {
@@ -204,9 +203,9 @@ func (e *Exporter[C]) event(event testEvent) {
 
 func (e *Exporter[C]) run(ctx context.Context) {
 	exportInterval := interval.New(interval.Config{
-		FirstDuration: utils.FullJitter(e.cfg.FirstExport),
+		FirstDuration: retryutils.FullJitter(e.cfg.FirstExport),
 		Duration:      e.cfg.ExportInterval,
-		Jitter:        retryutils.NewSeventhJitter(),
+		Jitter:        retryutils.SeventhJitter,
 	})
 	defer exportInterval.Stop()
 
@@ -233,7 +232,7 @@ Outer:
 			// if we lose connectivity with auth for too long, forcibly reset any existing schedule.
 			// this frees up the upgrader to attempt an upgrade at its discretion.
 			if err := e.cfg.Driver.Reset(ctx); err != nil {
-				log.Warnf("Failed to perform %q maintenance window reset: %v", e.cfg.Driver.Kind(), err)
+				slog.WarnContext(ctx, "Failed to perform maintenance window reset", "upgrader_kind", e.cfg.Driver.Kind(), "error", err)
 			}
 			e.event(resetFromRun)
 		case <-ctx.Done():
@@ -253,7 +252,7 @@ func (e *Exporter[C]) exportWithRetry(ctx context.Context) {
 			// failure state appears persistent. reset and yield back
 			// to outer loop to wait for our next scheduled attempt.
 			if err := e.cfg.Driver.Reset(ctx); err != nil {
-				log.Warnf("Failed to perform %q maintenance window reset: %v", e.cfg.Driver.Kind(), err)
+				slog.WarnContext(ctx, "Failed to perform maintenance window reset", "upgrader_kind", e.cfg.Driver.Kind(), "error", err)
 			}
 			e.event(resetFromExport)
 			e.event(exportFailure)
@@ -279,7 +278,7 @@ func (e *Exporter[C]) exportWithRetry(ctx context.Context) {
 		})
 
 		if err != nil {
-			log.Warnf("Failed to import %q maintenance window from auth: %v", e.cfg.Driver.Kind(), err)
+			slog.WarnContext(ctx, "Failed to import maintenance window from auth", "upgrader_kind", e.cfg.Driver.Kind(), "error", err)
 			e.retry.Inc()
 			e.event(getExportErr)
 			continue
@@ -287,13 +286,13 @@ func (e *Exporter[C]) exportWithRetry(ctx context.Context) {
 
 		// sync exported windows out to our upgrader
 		if err := e.cfg.Driver.Sync(ctx, rsp); err != nil {
-			log.Warnf("Failed to sync %q maintenance window: %v", e.cfg.Driver.Kind(), err)
+			slog.WarnContext(ctx, "Failed to sync %q maintenance window", "upgrader_kind", e.cfg.Driver.Kind(), "error", err)
 			e.retry.Inc()
 			e.event(syncExportErr)
 			continue
 		}
 
-		log.Infof("Successfully synced %q upgrader maintenance window value.", e.cfg.Driver.Kind())
+		slog.InfoContext(ctx, "Successfully synced upgrader maintenance window value", "upgrader_kind", e.cfg.Driver.Kind())
 		e.event(exportSuccess)
 		return
 	}
@@ -317,10 +316,10 @@ type Driver interface {
 }
 
 // NewDriver sets up a new export driver corresponding to the specified upgrader kind.
-func NewDriver(kind string) (Driver, error) {
+func NewDriver(ctx context.Context, kind string) (Driver, error) {
 	switch kind {
 	case types.UpgraderKindKubeController:
-		return NewKubeControllerDriver(KubeControllerDriverConfig{})
+		return NewKubeControllerDriver(ctx, KubeControllerDriverConfig{})
 	case types.UpgraderKindSystemdUnit:
 		return NewSystemdUnitDriver(SystemdUnitDriverConfig{})
 	default:
@@ -345,10 +344,10 @@ type kubeDriver struct {
 	cfg KubeControllerDriverConfig
 }
 
-func NewKubeControllerDriver(cfg KubeControllerDriverConfig) (Driver, error) {
+func NewKubeControllerDriver(ctx context.Context, cfg KubeControllerDriverConfig) (Driver, error) {
 	if cfg.Backend == nil {
 		var err error
-		cfg.Backend, err = kubernetes.NewShared()
+		cfg.Backend, err = kubernetes.NewShared(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -362,13 +361,19 @@ func (e *kubeDriver) Kind() string {
 }
 
 func (e *kubeDriver) Sync(ctx context.Context, rsp proto.ExportUpgradeWindowsResponse) error {
-	if rsp.KubeControllerSchedule == "" {
+	return trace.Wrap(e.setSchedule(ctx, rsp.KubeControllerSchedule))
+}
+
+func (e *kubeDriver) setSchedule(ctx context.Context, schedule string) error {
+	if schedule == "" {
 		return e.Reset(ctx)
 	}
 
 	_, err := e.cfg.Backend.Put(ctx, backend.Item{
-		Key:   []byte(kubeSchedKey),
-		Value: []byte(rsp.KubeControllerSchedule),
+		// backend.KeyFromString is intentionally used here instead of backend.NewKey
+		// because existing backend items were persisted without the leading /.
+		Key:   backend.KeyFromString(kubeSchedKey),
+		Value: []byte(schedule),
 	})
 
 	return trace.Wrap(err)
@@ -378,7 +383,9 @@ func (e *kubeDriver) Reset(ctx context.Context) error {
 	// kube backend doesn't support deletes right now, so just set
 	// the key to empty.
 	_, err := e.cfg.Backend.Put(ctx, backend.Item{
-		Key:   []byte(kubeSchedKey),
+		// backend.KeyFromString is intentionally used here instead of backend.NewKey
+		// because existing backend items were persisted without the leading /.
+		Key:   backend.KeyFromString(kubeSchedKey),
 		Value: []byte{},
 	})
 
@@ -408,7 +415,11 @@ func (e *systemdDriver) Kind() string {
 }
 
 func (e *systemdDriver) Sync(ctx context.Context, rsp proto.ExportUpgradeWindowsResponse) error {
-	if len(rsp.SystemdUnitSchedule) == 0 {
+	return trace.Wrap(e.setSchedule(ctx, rsp.SystemdUnitSchedule))
+}
+
+func (e *systemdDriver) setSchedule(ctx context.Context, schedule string) error {
+	if len(schedule) == 0 {
 		// treat an empty schedule value as equivalent to a reset
 		return e.Reset(ctx)
 	}
@@ -420,7 +431,7 @@ func (e *systemdDriver) Sync(ctx context.Context, rsp proto.ExportUpgradeWindows
 	}
 
 	// export schedule file. if created it is set to 644, which is reasonable for a sensitive but non-secret config value.
-	if err := os.WriteFile(e.scheduleFile(), []byte(rsp.SystemdUnitSchedule), defaults.FilePermissions); err != nil {
+	if err := os.WriteFile(e.scheduleFile(), []byte(schedule), defaults.FilePermissions); err != nil {
 		return trace.Errorf("failed to write schedule file: %v", err)
 	}
 

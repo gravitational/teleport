@@ -17,6 +17,8 @@ limitations under the License.
 package types
 
 import (
+	"math"
+	"strings"
 	"testing"
 	"time"
 
@@ -57,4 +59,16 @@ func TestDurationUnmarshal(t *testing.T) {
 			require.Equal(t, testCase.expectedValue, duration)
 		})
 	}
+}
+
+func TestParseDurationRejectsOversizedInput(t *testing.T) {
+	overlong := strings.Repeat("1", maxDurationLen) + "s"
+	_, err := ParseDuration(overlong)
+	require.Error(t, err)
+
+	// The longest legitimate duration string - "2562047h47m16.854775807s"
+	longestValid := time.Duration(math.MaxInt64).String()
+	require.LessOrEqual(t, len(longestValid), maxDurationLen)
+	_, err = ParseDuration(longestValid)
+	require.NoError(t, err)
 }

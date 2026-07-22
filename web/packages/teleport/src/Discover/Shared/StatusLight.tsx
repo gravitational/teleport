@@ -16,8 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Box } from 'design';
 import styled from 'styled-components';
+
+import { Box } from 'design';
 
 export enum ItemStatus {
   Success,
@@ -40,6 +41,6 @@ export const StatusLight = styled(Box)<{ status: ItemStatus }>`
     if (status === ItemStatus.Warning) {
       return theme.colors.warning;
     }
-    return theme.colors.grey[300]; // Unknown
+    return theme.colors.blueGrey[300]; // Unknown
   }};
 `;

@@ -53,7 +53,7 @@ read our [Getting Started Guide](https://goteleport.com/docs/get-started).
 You can use your Teleport AMI to deploy EC2 instances running any Teleport
 service. To read how to join your instance to a Teleport cluster in order to
 protect resources in your infrastructure, see our [Joining Services to a
-Cluster](https://goteleport.com/docs/management/join-services-to-your-cluster/)
+Cluster](https://goteleport.com/docs/enroll-resources/agents/join-services-to-your-cluster/)
 guides. 
 
 If you are hosting the Teleport Auth and Proxy Services yourself, [read our

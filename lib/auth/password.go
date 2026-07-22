@@ -31,7 +31,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/constants"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -41,10 +40,8 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
-
-// This is bcrypt hash for password "barbaz".
-var fakePasswordHash = []byte(`$2a$10$Yy.e6BmS2SrGbBDsyDLVkOANZmvjjMR890nUGSXFJHBXWzxe7T44m`)
 
 // ChangeUserAuthentication implements AuthService.ChangeUserAuthentication.
 func (a *Server) ChangeUserAuthentication(ctx context.Context, req *proto.ChangeUserAuthenticationRequest) (*proto.ChangeUserAuthenticationResponse, error) {
@@ -68,7 +65,16 @@ func (a *Server) ChangeUserAuthentication(ctx context.Context, req *proto.Change
 		}
 	}
 
-	webSession, err := a.createUserWebSession(ctx, user, req.LoginIP)
+	// Compute a UserLoginState to include Access List grants in the session.
+	// We intentionally do not persist the ULS here (unlike the normal login
+	// path) to avoid leaving stale state if the user's roles are modified
+	// after the reset.
+	userState, err := a.ulsGenerator.GeneratePureULS(ctx, user)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	webSession, err := a.createUserWebSession(ctx, userState, req.LoginIP)
 	if err != nil {
 		if keys.IsPrivateKeyPolicyError(err) {
 			// Do not return an error, otherwise
@@ -165,7 +171,7 @@ func (a *Server) ChangePassword(ctx context.Context, req *proto.ChangePasswordRe
 		UserMetadata:       authz.ClientUserMetadataWithUser(ctx, user),
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 	}); err != nil {
-		log.WithError(err).Warn("Failed to emit password change event.")
+		a.logger.WarnContext(ctx, "Failed to emit password change event", "error", err)
 	}
 	return nil
 }
@@ -183,19 +189,19 @@ func (a *Server) checkPasswordWOToken(ctx context.Context, user string, password
 	userFound := true
 	if trace.IsNotFound(err) {
 		userFound = false
-		log.Debugf("Password for username %q not found, using fake hash to mitigate timing attacks.", user)
-		hash = fakePasswordHash
+		a.logger.DebugContext(ctx, "Password for username not found, using fake hash to mitigate timing attacks", "user", user)
+		hash = a.fakePasswordHash
 	}
 
 	if err = bcrypt.CompareHashAndPassword(hash, password); err != nil {
-		log.Debugf("Password for %q does not match", user)
-		return trace.BadParameter(errMsg)
+		a.logger.DebugContext(ctx, "Password for user does not match", "user", user)
+		return trace.BadParameter("%s", errMsg)
 	}
 
 	// Careful! The bcrypt check above may succeed for an unknown user when the
 	// provided password is "barbaz", which is what fakePasswordHash hashes to.
 	if !userFound {
-		return trace.BadParameter(errMsg)
+		return trace.BadParameter("%s", errMsg)
 	}
 
 	// At this point, we know that the user provided a correct password, so we may
@@ -211,10 +217,10 @@ func (a *Server) checkPasswordWOToken(ctx context.Context, user string, password
 	})
 	if err != nil {
 		// Don't let the password state flag change fail the entire operation.
-		log.
-			WithError(err).
-			WithField("user", user).
-			Warn("Failed to set password state")
+		a.logger.WarnContext(ctx, "Failed to set password state",
+			"error", err,
+			"user", user,
+		)
 	}
 
 	return nil
@@ -231,7 +237,7 @@ func (a *Server) checkPassword(ctx context.Context, user string, password []byte
 		return nil, trace.Wrap(err)
 	}
 
-	mfaDev, err := a.checkOTP(user, otpToken)
+	mfaDev, err := a.checkOTP(ctx, user, otpToken)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -239,7 +245,7 @@ func (a *Server) checkPassword(ctx context.Context, user string, password []byte
 }
 
 // checkOTP checks if the OTP token is valid.
-func (a *Server) checkOTP(user string, otpToken string) (*types.MFADevice, error) {
+func (a *Server) checkOTP(ctx context.Context, user string, otpToken string) (*types.MFADevice, error) {
 	// get the previously used token to mitigate token replay attacks
 	usedToken, err := a.GetUsedTOTPToken(user)
 	if err != nil {
@@ -250,7 +256,6 @@ func (a *Server) checkOTP(user string, otpToken string) (*types.MFADevice, error
 		return nil, trace.BadParameter("previously used totp token")
 	}
 
-	ctx := context.TODO()
 	devs, err := a.Services.GetMFADevices(ctx, user, true)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -263,10 +268,10 @@ func (a *Server) checkOTP(user string, otpToken string) (*types.MFADevice, error
 		}
 
 		if err := a.checkTOTP(ctx, user, otpToken, dev); err != nil {
-			log.
-				WithError(err).
-				WithField("device", dev.GetName()).
-				Debug("TOTP device failed verification. This is expected if the user has multiple TOTP devices.")
+			a.logger.DebugContext(ctx, "TOTP device failed verification, this is expected if the user has multiple TOTP devices",
+				"error", err,
+				"device", dev.GetName(),
+			)
 			continue
 		}
 		return dev, nil
@@ -316,7 +321,7 @@ func (a *Server) changeUserAuthentication(ctx context.Context, req *proto.Change
 		return nil, trace.Wrap(err)
 	}
 	if !authPref.GetAllowLocalAuth() {
-		return nil, trace.AccessDenied(noLocalAuth)
+		return nil, trace.AccessDenied("%s", noLocalAuth)
 	}
 
 	reqPasswordless := len(req.GetNewPassword()) == 0 && authPref.GetAllowPasswordless()
@@ -386,10 +391,10 @@ func (a *Server) changeUserSecondFactor(ctx context.Context, req *proto.ChangeUs
 		return trace.Wrap(err)
 	}
 
-	switch sf := cap.GetSecondFactor(); {
-	case sf == constants.SecondFactorOff:
+	switch {
+	case !cap.IsSecondFactorEnabled():
 		return nil
-	case req.GetNewMFARegisterResponse() == nil && sf == constants.SecondFactorOptional:
+	case req.GetNewMFARegisterResponse() == nil && !cap.IsSecondFactorEnforced():
 		// Optional second factor does not enforce users to add a MFA device.
 		// No need to check if a user already has registered devices since we expect
 		// users to have no devices at this point.
@@ -415,7 +420,9 @@ func (a *Server) changeUserSecondFactor(ctx context.Context, req *proto.ChangeUs
 			// Fallback to something reasonable while letting verifyMFARespAndAddDevice
 			// worry about the "unknown" response type.
 			deviceName = "mfa"
-			log.Warnf("Unexpected MFA register response type, setting device name to %q: %T", deviceName, req.GetNewMFARegisterResponse().Response)
+			a.logger.WarnContext(ctx, "Unexpected MFA register response type, setting device name to mfa",
+				"response_type", logutils.TypeAttr(req.GetNewMFARegisterResponse().Response),
+			)
 		}
 	}
 

@@ -17,17 +17,19 @@
  */
 
 import { PropsWithChildren } from 'react';
+
 import renderHook from 'design/utils/renderHook';
 
-import { useTabShortcuts } from 'teleterm/ui/TabHost/useTabShortcuts';
-import { Document } from 'teleterm/ui/services/workspacesService/documentsService';
+import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
+import AppContextProvider from 'teleterm/ui/appContextProvider';
+import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import {
   KeyboardShortcutEvent,
   KeyboardShortcutEventSubscriber,
 } from 'teleterm/ui/services/keyboardShortcuts';
-import AppContextProvider from 'teleterm/ui/appContextProvider';
+import { Document } from 'teleterm/ui/services/workspacesService/documentsService';
 import { makeDocumentCluster } from 'teleterm/ui/services/workspacesService/documentsService/testHelpers';
-import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
+import { useTabShortcuts } from 'teleterm/ui/TabHost/useTabShortcuts';
 
 function getMockDocuments(): Document[] {
   return [
@@ -54,8 +56,10 @@ function getMockDocuments(): Document[] {
       targetUri: '/clusters/bar/dbs/foobar',
       targetName: 'foobar',
       targetUser: 'foo',
+      targetSubresourceName: undefined,
       origin: 'resource_table',
       status: '',
+      autoUserProvisioning: undefined,
     },
     {
       kind: 'doc.gateway',
@@ -65,8 +69,10 @@ function getMockDocuments(): Document[] {
       targetUri: '/clusters/bar/dbs/foobar',
       targetName: 'foobar',
       targetUser: 'bar',
+      targetSubresourceName: undefined,
       origin: 'resource_table',
       status: '',
+      autoUserProvisioning: undefined,
     },
     makeDocumentCluster({
       uri: '/docs/test_uri_6',
@@ -104,15 +110,7 @@ function getTestSetup({ documents }: { documents: Document[] }) {
       eventEmitter = null;
     });
 
-  appContext.workspacesService.setState(draft => {
-    draft.rootClusterUri = rootClusterUri;
-    draft.workspaces[rootClusterUri] = {
-      documents,
-      location: documents[0]?.uri,
-      localClusterUri: rootClusterUri,
-      accessRequests: undefined,
-    };
-  });
+  appContext.addRootClusterWithDoc(makeRootCluster(), documents);
 
   const docsService =
     appContext.workspacesService.getActiveWorkspaceDocumentService();

@@ -76,5 +76,16 @@ func newDiscoveryConfig(t *testing.T, name string) *discoveryconfig.DiscoveryCon
 	discoveryConfig.Status.LastSyncTime = now
 	errMsg := "error message"
 	discoveryConfig.Status.ErrorMessage = &errMsg
+	discoveryConfig.Status.IntegrationDiscoveredResources = map[string]*discoveryconfig.IntegrationDiscoveredSummary{
+		"my-integration": {
+			IntegrationDiscoveredSummary: &discoveryconfigv1.IntegrationDiscoveredSummary{
+				AwsEc2: &discoveryconfigv1.ResourcesDiscoveredSummary{
+					Found:    4,
+					Enrolled: 2,
+					Failed:   1,
+				},
+			},
+		},
+	}
 	return discoveryConfig
 }

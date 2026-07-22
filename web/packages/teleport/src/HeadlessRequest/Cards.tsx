@@ -18,7 +18,6 @@
 
 import { Card, CardSuccess, H1 } from 'design';
 import { CircleStop } from 'design/Icon';
-import React from 'react';
 
 export function CardDenied({ title, children }) {
   return (

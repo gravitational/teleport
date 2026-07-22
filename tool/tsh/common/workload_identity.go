@@ -24,88 +24,105 @@ import (
 	"encoding/pem"
 	"fmt"
 	"os"
-	"path"
+	"path/filepath"
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
-	"google.golang.org/protobuf/types/known/durationpb"
 
 	"github.com/gravitational/teleport"
-	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
+	"github.com/gravitational/teleport/lib/utils/parse"
 )
 
-type svidCommands struct {
-	issue *svidIssueCommand
+// Based on the default paths listed in
+// https://github.com/spiffe/spiffe-helper/blob/v0.7.0/README.md
+const (
+	svidPEMPath            = "svid.pem"
+	svidKeyPEMPath         = "svid_key.pem"
+	svidTrustBundlePEMPath = "svid_bundle.pem"
+	jwtSVIDPath            = "jwt_svid"
+)
+
+type workloadIdentityCommands struct {
+	issueX509 *issueX509Command
+	issueJWT  *issueJWTCommand
 }
 
-func newSVIDCommands(app *kingpin.Application) svidCommands {
-	cmd := app.Command("svid", "Manage Teleport Workload Identity SVIDs.")
-	cmds := svidCommands{
-		issue: newSVIDIssueCommand(cmd),
+func newWorkloadIdentityCommands(
+	app *kingpin.Application,
+) workloadIdentityCommands {
+	cmd := app.Command("workload-identity", "Issue Workload Identity credentials.")
+	cmds := workloadIdentityCommands{
+		issueX509: newIssueX509Command(cmd),
+		issueJWT:  newIssueJWTCommand(cmd),
 	}
 	return cmds
 }
 
-const (
-	// Based on the default paths listed in
-	// https://github.com/spiffe/spiffe-helper/blob/v0.7.0/README.md
-	svidPEMPath            = "svid.pem"
-	svidKeyPEMPath         = "svid_key.pem"
-	svidTrustBundlePEMPath = "svid_bundle.pem"
-
-	svidTypeX509 = "x509"
-)
-
-type svidIssueCommand struct {
+type issueX509Command struct {
 	*kingpin.CmdClause
-	svidSPIFFEIDPath string
-	svidType         string
-	svidDNSSANs      []string
-	svidIPSANs       []string
-	svidTTL          time.Duration
-	outputDirectory  string
+	nameSelector    string
+	labelSelector   string
+	ttl             time.Duration
+	outputDirectory string
 }
 
-func newSVIDIssueCommand(parent *kingpin.CmdClause) *svidIssueCommand {
-	cmd := &svidIssueCommand{
-		CmdClause: parent.Command("issue", "Issue a SPIFFE SVID using Teleport Workload Identity and write it to a local directory."),
+func newIssueX509Command(parent *kingpin.CmdClause) *issueX509Command {
+	cmd := &issueX509Command{
+		CmdClause: parent.Command("issue-x509", "Use Teleport Workload Identity to issue an X509 credential and write it to a local directory."),
 	}
-	cmd.Arg("path", "Path to use for the SVID SPIFFE ID. Must have a preceding '/'.").
-		Required().
-		StringVar(&cmd.svidSPIFFEIDPath)
-	cmd.Flag("type", "Type of the SVID to issue (x509). Defaults to x509.").
-		Default(svidTypeX509).
-		EnumVar(&cmd.svidType, svidTypeX509)
+
+	cmd.Flag(
+		"name-selector",
+		"The name of the workload identity to issue.",
+	).StringVar(&cmd.nameSelector)
+	cmd.Flag(
+		"label-selector",
+		"A label-based selector for which workload identities to issue. Multiple labels can be provided using ','.",
+	).StringVar(&cmd.labelSelector)
+	cmd.Flag("credential-ttl", "Sets the time to live for the credential.").
+		Default("1h").
+		DurationVar(&cmd.ttl)
 	cmd.Flag("output", "Path to the directory to write the SVID into.").
 		Required().
 		StringVar(&cmd.outputDirectory)
-	cmd.Flag("dns-san", "DNS SANs to include in the SVID. By default, none are included.").
-		StringsVar(&cmd.svidDNSSANs)
-	cmd.Flag("ip-san", "IP SANs to include in the SVID. By default, none are included.").
-		StringsVar(&cmd.svidIPSANs)
-	cmd.Flag("svid-ttl", "Sets the time to live for the SVID.").
-		Default("1h").
-		DurationVar(&cmd.svidTTL)
+
 	return cmd
 }
 
-func (c *svidIssueCommand) run(cf *CLIConf) error {
+func (c *issueX509Command) run(cf *CLIConf) error {
 	ctx := cf.Context
-	// Validate flags
-	if c.svidType != svidTypeX509 {
-		return trace.BadParameter("unsupported SVID type: %v", c.svidType)
-	}
 
 	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	tc.AllowHeadless = true
+
+	selector := bot.WorkloadIdentitySelector{}
+	switch {
+	case c.nameSelector != "" && c.labelSelector != "":
+		return trace.BadParameter("cannot specify both name and label selectors")
+	case c.nameSelector != "":
+		selector.Name = c.nameSelector
+	case c.labelSelector != "":
+		labels, err := parse.LabelSelectorSpec(c.labelSelector)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		selector.Labels = map[string][]string{}
+		for k, v := range labels {
+			selector.Labels[k] = []string{v}
+		}
+	default:
+		return trace.BadParameter("name-selector or label-selector must be specified")
+	}
 
 	return client.RetryWithRelogin(ctx, tc, func() error {
 		clusterClient, err := tc.ConnectToCluster(ctx)
@@ -114,35 +131,44 @@ func (c *svidIssueCommand) run(cf *CLIConf) error {
 		}
 		defer clusterClient.Close()
 
-		// Generate keypair to use in SVID
-		privateKey, err := native.GenerateRSAPrivateKey()
+		credentials, privateKey, err := workloadidentity.IssueX509WorkloadIdentity(
+			ctx,
+			logger,
+			clusterClient.AuthClient,
+			selector,
+			c.ttl,
+			nil,
+		)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		pubBytes, err := x509.MarshalPKIXPublicKey(privateKey.Public())
-		if err != nil {
-			return trace.Wrap(err)
+		var x509Credential *workloadidentityv1pb.Credential
+		switch len(credentials) {
+		case 0:
+			return trace.BadParameter("no X509 SVIDs returned")
+		case 1:
+			x509Credential = credentials[0]
+		default:
+			// We could eventually implement some kind of hint selection mechanism
+			// to pick the "right" one.
+			received := make([]string, 0, len(credentials))
+			for _, cred := range credentials {
+				received = append(received,
+					fmt.Sprintf(
+						"%s:%s",
+						cred.GetWorkloadIdentityName(),
+						cred.GetSpiffeId(),
+					),
+				)
+			}
+			return trace.BadParameter(
+				"multiple X509 SVIDs received: %v", received,
+			)
 		}
 
-		res, err := clusterClient.AuthClient.WorkloadIdentityServiceClient().
-			SignX509SVIDs(ctx,
-				&machineidv1pb.SignX509SVIDsRequest{
-					Svids: []*machineidv1pb.SVIDRequest{
-						{
-							SpiffeIdPath: c.svidSPIFFEIDPath,
-							PublicKey:    pubBytes,
-							DnsSans:      c.svidDNSSANs,
-							IpSans:       c.svidIPSANs,
-							Ttl:          durationpb.New(c.svidTTL),
-						},
-					},
-				},
-			)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if len(res.Svids) != 1 {
-			return trace.BadParameter("expected 1 SVID, got %v", len(res.Svids))
+		// Create directory if it does not exist.
+		if err := os.MkdirAll(c.outputDirectory, teleport.PrivateDirMode); err != nil {
+			return trace.Wrap(err, "creating output directory")
 		}
 
 		// Write private key
@@ -150,7 +176,7 @@ func (c *svidIssueCommand) run(cf *CLIConf) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		keyPath := path.Join(c.outputDirectory, svidKeyPEMPath)
+		keyPath := filepath.Join(c.outputDirectory, svidKeyPEMPath)
 		err = os.WriteFile(
 			keyPath,
 			pem.EncodeToMemory(&pem.Block{
@@ -164,13 +190,21 @@ func (c *svidIssueCommand) run(cf *CLIConf) error {
 		}
 
 		// Write SVID
-		svidPath := path.Join(c.outputDirectory, svidPEMPath)
+		svidPath := filepath.Join(c.outputDirectory, svidPEMPath)
+		var svidPEM bytes.Buffer
+		pem.Encode(&svidPEM, &pem.Block{
+			Type:  "CERTIFICATE",
+			Bytes: x509Credential.GetX509Svid().GetCert(),
+		})
+		for _, c := range x509Credential.GetX509Svid().GetChain() {
+			pem.Encode(&svidPEM, &pem.Block{
+				Type:  "CERTIFICATE",
+				Bytes: c,
+			})
+		}
 		err = os.WriteFile(
 			svidPath,
-			pem.EncodeToMemory(&pem.Block{
-				Type:  "CERTIFICATE",
-				Bytes: res.Svids[0].Certificate,
-			}),
+			svidPEM.Bytes(),
 			teleport.FileMaskOwnerOnly,
 		)
 		if err != nil {
@@ -193,7 +227,7 @@ func (c *svidIssueCommand) run(cf *CLIConf) error {
 				}
 			}
 		}
-		trustBundlePath := path.Join(c.outputDirectory, svidTrustBundlePEMPath)
+		trustBundlePath := filepath.Join(c.outputDirectory, svidTrustBundlePEMPath)
 		err = os.WriteFile(
 			trustBundlePath,
 			trustBundleBytes.Bytes(),
@@ -206,10 +240,141 @@ func (c *svidIssueCommand) run(cf *CLIConf) error {
 		fmt.Fprintf(
 			cf.Stdout(),
 			"SVID %q issued. Files written to: \n - %s\n - %s\n - %s\n",
-			res.Svids[0].SpiffeId,
+			x509Credential.GetSpiffeId(),
 			keyPath,
 			svidPath,
 			trustBundlePath,
+		)
+
+		return nil
+	})
+}
+
+type issueJWTCommand struct {
+	*kingpin.CmdClause
+	nameSelector    string
+	labelSelector   string
+	ttl             time.Duration
+	outputDirectory string
+	audiences       []string
+}
+
+func newIssueJWTCommand(parent *kingpin.CmdClause) *issueJWTCommand {
+	cmd := &issueJWTCommand{
+		CmdClause: parent.Command("issue-jwt", "Use Teleport Workload Identity to issue a JWT credential and write it to a local directory."),
+	}
+
+	cmd.Flag(
+		"name-selector",
+		"The name of the workload identity to issue.",
+	).StringVar(&cmd.nameSelector)
+	cmd.Flag(
+		"label-selector",
+		"A label-based selector for which workload identities to issue. Multiple labels can be provided using ','.",
+	).StringVar(&cmd.labelSelector)
+	cmd.Flag("credential-ttl", "Sets the time to live for the credential.").
+		Default("1h").
+		DurationVar(&cmd.ttl)
+	cmd.Flag("output", "Path to the directory to write the SVID into.").
+		Required().
+		StringVar(&cmd.outputDirectory)
+	cmd.Flag("audience", "The audience to include in the JWT. Can be specified multiple times.").
+		Required().
+		StringsVar(&cmd.audiences)
+
+	return cmd
+}
+
+func (c *issueJWTCommand) run(cf *CLIConf) error {
+	ctx := cf.Context
+
+	tc, err := makeClient(cf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	tc.AllowHeadless = true
+
+	selector := bot.WorkloadIdentitySelector{}
+	switch {
+	case c.nameSelector != "" && c.labelSelector != "":
+		return trace.BadParameter("cannot specify both name and label selectors")
+	case c.nameSelector != "":
+		selector.Name = c.nameSelector
+	case c.labelSelector != "":
+		labels, err := parse.LabelSelectorSpec(c.labelSelector)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		selector.Labels = map[string][]string{}
+		for k, v := range labels {
+			selector.Labels[k] = []string{v}
+		}
+	default:
+		return trace.BadParameter("name-selector or label-selector must be specified")
+	}
+
+	return client.RetryWithRelogin(ctx, tc, func() error {
+		clusterClient, err := tc.ConnectToCluster(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer clusterClient.Close()
+
+		credentials, err := workloadidentity.IssueJWTWorkloadIdentity(
+			ctx,
+			logger,
+			clusterClient.AuthClient,
+			selector,
+			c.audiences,
+			c.ttl,
+			nil,
+		)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		var jwtCredential *workloadidentityv1pb.Credential
+		switch len(credentials) {
+		case 0:
+			return trace.BadParameter("no JWT SVIDs returned")
+		case 1:
+			jwtCredential = credentials[0]
+		default:
+			// We could eventually implement some kind of hint selection mechanism
+			// to pick the "right" one.
+			received := make([]string, 0, len(credentials))
+			for _, cred := range credentials {
+				received = append(received,
+					fmt.Sprintf(
+						"%s:%s",
+						cred.GetWorkloadIdentityName(),
+						cred.GetSpiffeId(),
+					),
+				)
+			}
+			return trace.BadParameter(
+				"multiple JWT SVIDs received: %v", received,
+			)
+		}
+
+		// Create directory if it does not exist.
+		if err := os.MkdirAll(c.outputDirectory, teleport.PrivateDirMode); err != nil {
+			return trace.Wrap(err, "creating output directory")
+		}
+
+		jwtPath := filepath.Join(c.outputDirectory, jwtSVIDPath)
+		if err := os.WriteFile(
+			jwtPath,
+			[]byte(jwtCredential.GetJwtSvid().GetJwt()),
+			teleport.FileMaskOwnerOnly,
+		); err != nil {
+			return trace.Wrap(err)
+		}
+
+		fmt.Fprintf(
+			cf.Stdout(),
+			"SVID %q issued. File written to: \n - %s\n",
+			jwtCredential.GetSpiffeId(),
+			jwtPath,
 		)
 
 		return nil

@@ -1,0 +1,15 @@
+- expires: "2026-01-02T03:04:05Z"
+  id: alpha
+  owner: alice
+  url: https://alpha-app.proxy.example.com
+  uuid: 11111111-1111-1111-1111-111111111111
+- expires: "2026-01-02T04:05:06Z"
+  id: bravo
+  owner: alice
+  uuid: 22222222-2222-2222-2222-222222222222
+- expires: "2026-01-02T05:06:07Z"
+  id: charlie
+  owner: bob
+  url: tcp://charlie-app.proxy.example.com:5432
+  uuid: 33333333-3333-3333-3333-333333333333
+

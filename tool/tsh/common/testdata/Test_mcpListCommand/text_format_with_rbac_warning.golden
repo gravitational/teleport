@@ -1,0 +1,8 @@
+Name      Description Type  Allowed Tools Labels  
+--------- ----------- ----- ------------- ------- 
+no-access description stdio (none) [!]    env=dev 
+
+[!] Warning: you do not have access to any tools on the MCP server.
+Please contact your Teleport administrator to ensure your Teleport role has
+appropriate 'allow.mcp.tools' set. For details on MCP access RBAC, see:
+https://goteleport.com/docs/enroll-resources/mcp-access/rbac/

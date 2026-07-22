@@ -21,7 +21,7 @@ package authclient
 import (
 	"context"
 	"errors"
-	"fmt"
+	"iter"
 	"net"
 	"net/url"
 	"time"
@@ -33,29 +33,45 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/crownjewel"
 	"github.com/gravitational/teleport/api/client/databaseobject"
+	"github.com/gravitational/teleport/api/client/dynamicwindows"
 	"github.com/gravitational/teleport/api/client/externalauditstorage"
+	"github.com/gravitational/teleport/api/client/gitserver"
+	"github.com/gravitational/teleport/api/client/linuxdesktop"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/secreport"
+	"github.com/gravitational/teleport/api/client/usertask"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	accessgraphsecretsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessgraph/v1"
+	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
+	beamsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
+	delegationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
+	inventoryv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/inventory/v1"
+	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	mfav2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
+	recordingmetadatav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingmetadata/v1"
 	resourceusagepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/resourceusage/v1"
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
+	sessionsearchv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/sessionsearch/v1"
+	stableunixusersv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/stableunixusers/v1"
+	summarizerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
+	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	userpreferencesv1 "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	accessgraphv1 "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -78,7 +94,7 @@ var (
 	// ErrNoMFADevices is returned when an MFA ceremony is performed without possible devices to
 	// complete the challenge with.
 	ErrNoMFADevices = &trace.AccessDeniedError{
-		Message: "MFA is required to access this resource but user has no MFA devices; use 'tsh mfa add' to register MFA devices",
+		Message: "Multi-factor authentication (MFA) is required to access this resource but the current user has no supported MFA devices enrolled; see Account Settings in the Web UI or use 'tsh mfa add' to register an MFA device",
 	}
 	// InvalidUserPassError is the error for when either the provided username or
 	// password is incorrect.
@@ -92,11 +108,6 @@ var (
 // password, or second factor.
 func IsInvalidLocalCredentialError(err error) bool {
 	return errors.Is(err, InvalidUserPassError) || errors.Is(err, InvalidUserPass2FError)
-}
-
-// HostFQDN consists of host UUID and cluster name joined via '.'.
-func HostFQDN(hostUUID, clusterName string) string {
-	return fmt.Sprintf("%v.%v", hostUUID, clusterName)
 }
 
 // APIClient is aliased here so that it can be embedded in Client.
@@ -155,7 +166,7 @@ func NewClient(cfg client.Config, params ...roundtrip.ClientParam) (*Client, err
 		httpDialer = client.ContextDialerFunc(func(ctx context.Context, network, _ string) (conn net.Conn, err error) {
 			for _, addr := range cfg.Addrs {
 				contextDialer := client.NewDialer(cfg.Context, cfg.KeepAlivePeriod, cfg.DialTimeout,
-					client.WithInsecureSkipVerify(httpTLS.InsecureSkipVerify),
+					client.WithInsecureSkipVerify(cfg.InsecureAddressDiscovery),
 					client.WithALPNConnUpgrade(cfg.ALPNConnUpgradeRequired),
 					client.WithPROXYHeaderGetter(cfg.PROXYHeaderGetter),
 				)
@@ -172,6 +183,11 @@ func NewClient(cfg client.Config, params ...roundtrip.ClientParam) (*Client, err
 		TLS:                        httpTLS,
 		Dialer:                     httpDialer,
 		ALPNSNIAuthDialClusterName: cfg.ALPNSNIAuthDialClusterName,
+		// we are ok with the HTTP client using a separate circuit breaker with
+		// the same configuration, since there's so few auth API calls using
+		// HTTP and most of them are used by the Proxy, which is going to have a
+		// no-op circuit breaker to begin with
+		CircuitBreakerConfig: cfg.CircuitBreakerConfig,
 	}
 	httpClient, err := NewHTTPClient(httpClientCfg, params...)
 	if err != nil {
@@ -293,13 +309,17 @@ func (c *Client) KeepAliveServer(ctx context.Context, keepAlive types.KeepAlive)
 }
 
 // GetReverseTunnel not implemented: can only be called locally.
-func (c *Client) GetReverseTunnel(name string, opts ...services.MarshalOption) (types.ReverseTunnel, error) {
+func (c *Client) GetReverseTunnel(ctx context.Context, name string) (types.ReverseTunnel, error) {
 	return nil, trace.NotImplemented(notImplementedMessage)
 }
 
-// DeleteAllTokens not implemented: can only be called locally.
-func (c *Client) DeleteAllTokens() error {
-	return trace.NotImplemented(notImplementedMessage)
+// PatchToken not implemented: can only be called locally
+func (c *Client) PatchToken(
+	ctx context.Context,
+	token string,
+	updateFn func(types.ProvisionToken) (types.ProvisionToken, error),
+) (types.ProvisionToken, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
 }
 
 // AddUserLoginAttempt logs user login attempt
@@ -310,11 +330,6 @@ func (c *Client) AddUserLoginAttempt(user string, attempt services.LoginAttempt,
 // GetUserLoginAttempts returns user login attempts
 func (c *Client) GetUserLoginAttempts(user string) ([]services.LoginAttempt, error) {
 	panic("not implemented")
-}
-
-// DeleteAllAuthServers not implemented: can only be called locally.
-func (c *Client) DeleteAllAuthServers() error {
-	return trace.NotImplemented(notImplementedMessage)
 }
 
 // DeleteAuthServer not implemented: can only be called locally.
@@ -341,7 +356,7 @@ func (c *Client) StreamSessionEvents(ctx context.Context, sessionID session.ID, 
 
 // SearchEvents allows searching for audit events with pagination support.
 func (c *Client) SearchEvents(ctx context.Context, req events.SearchEventsRequest) ([]apievents.AuditEvent, string, error) {
-	events, lastKey, err := c.APIClient.SearchEvents(ctx, req.From, req.To, apidefaults.Namespace, req.EventTypes, req.Limit, req.Order, req.StartKey)
+	events, lastKey, err := c.APIClient.SearchEvents(ctx, req.From, req.To, apidefaults.Namespace, req.EventTypes, req.Limit, req.Order, req.StartKey, req.Search)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -359,6 +374,24 @@ func (c *Client) SearchSessionEvents(ctx context.Context, req events.SearchSessi
 	return events, lastKey, nil
 }
 
+// SearchUnstructuredEvents allows searching for audit events with pagination support and returns unstructured events.
+func (c *Client) SearchUnstructuredEvents(ctx context.Context, req events.SearchEventsRequest) ([]*auditlogpb.EventUnstructured, string, error) {
+	events, lastKey, err := c.APIClient.SearchUnstructuredEvents(
+		ctx,
+		req.From,
+		req.To,
+		apidefaults.Namespace,
+		req.EventTypes,
+		req.Limit,
+		req.Order,
+		req.StartKey,
+	)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	return events, lastKey, nil
+}
+
 // UpsertClusterName not implemented: can only be called locally.
 func (c *Client) UpsertClusterName(cn types.ClusterName) error {
 	return trace.NotImplemented(notImplementedMessage)
@@ -366,21 +399,6 @@ func (c *Client) UpsertClusterName(cn types.ClusterName) error {
 
 // DeleteClusterName not implemented: can only be called locally.
 func (c *Client) DeleteClusterName() error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
-// DeleteAllCertAuthorities not implemented: can only be called locally.
-func (c *Client) DeleteAllCertAuthorities(caType types.CertAuthType) error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
-// DeleteAllReverseTunnels not implemented: can only be called locally.
-func (c *Client) DeleteAllReverseTunnels() error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
-// DeleteAllRemoteClusters not implemented: can only be called locally.
-func (c *Client) DeleteAllRemoteClusters(ctx context.Context) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
@@ -392,31 +410,6 @@ func (c *Client) CreateRemoteCluster(ctx context.Context, rc types.RemoteCluster
 // PatchRemoteCluster not implemented: can only be called locally.
 func (c *Client) PatchRemoteCluster(ctx context.Context, name string, updateFn func(rc types.RemoteCluster) (types.RemoteCluster, error)) (types.RemoteCluster, error) {
 	return nil, trace.NotImplemented(notImplementedMessage)
-}
-
-// DeleteAllNamespaces not implemented: can only be called locally.
-func (c *Client) DeleteAllNamespaces() error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
-// DeleteAllRoles not implemented: can only be called locally.
-func (c *Client) DeleteAllRoles(context.Context) error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
-// ListWindowsDesktops not implemented: can only be called locally.
-func (c *Client) ListWindowsDesktops(ctx context.Context, req types.ListWindowsDesktopsRequest) (*types.ListWindowsDesktopsResponse, error) {
-	return nil, trace.NotImplemented(notImplementedMessage)
-}
-
-// ListWindowsDesktopServices not implemented: can only be called locally.
-func (c *Client) ListWindowsDesktopServices(ctx context.Context, req types.ListWindowsDesktopServicesRequest) (*types.ListWindowsDesktopServicesResponse, error) {
-	return nil, trace.NotImplemented(notImplementedMessage)
-}
-
-// DeleteAllUsers not implemented: can only be called locally.
-func (c *Client) DeleteAllUsers(ctx context.Context) error {
-	return trace.NotImplemented(notImplementedMessage)
 }
 
 const (
@@ -528,18 +521,8 @@ func (c *Client) GetDatabaseServers(ctx context.Context, namespace string, opts 
 	return c.APIClient.GetDatabaseServers(ctx, namespace)
 }
 
-// UpsertAppSession not implemented: can only be called locally.
-func (c *Client) UpsertAppSession(ctx context.Context, session types.WebSession) error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
 // UpsertSnowflakeSession not implemented: can only be called locally.
 func (c *Client) UpsertSnowflakeSession(_ context.Context, _ types.WebSession) error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
-// UpsertSAMLIdPSession not implemented: can only be called locally.
-func (c *Client) UpsertSAMLIdPSession(_ context.Context, _ types.WebSession) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
@@ -602,12 +585,7 @@ func (c *Client) DeleteClusterAuditConfig(ctx context.Context) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
-// DeleteAllLocks not implemented: can only be called locally.
-func (c *Client) DeleteAllLocks(context.Context) error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
-func (c *Client) UpdatePresence(ctx context.Context, sessionID, user string) error {
+func (c *Client) UpdatePresence(ctx context.Context, _, _, _ string) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
@@ -661,8 +639,29 @@ func (c *Client) IntegrationAWSOIDCClient() integrationv1.AWSOIDCServiceClient {
 	return integrationv1.NewAWSOIDCServiceClient(c.APIClient.GetConnection())
 }
 
+func (c *Client) IntegrationAWSRolesAnywhereClient() integrationv1.AWSRolesAnywhereServiceClient {
+	return integrationv1.NewAWSRolesAnywhereServiceClient(c.APIClient.GetConnection())
+}
+
+// UserTasksClient returns a client for managing User Task resources.
+func (c *Client) UserTasksClient() services.UserTasks {
+	return c.APIClient.UserTasksServiceClient()
+}
+
 func (c *Client) NotificationServiceClient() notificationsv1.NotificationServiceClient {
 	return notificationsv1.NewNotificationServiceClient(c.APIClient.GetConnection())
+}
+
+// MFAServiceClient returns a client for the MFA v1 service.
+//
+// Deprecated: Use MFAServiceClientV2 for new code.
+func (c *Client) MFAServiceClient() mfav1.MFAServiceClient { //nolint:staticcheck // TODO(danielashare): Remove once all clients have migrated to MFAServiceClientV2.
+	return mfav1.NewMFAServiceClient(c.APIClient.GetConnection())
+}
+
+// MFAServiceClientV2 returns a client for the MFA v2 service.
+func (c *Client) MFAServiceClientV2() mfav2.MFAServiceClient {
+	return mfav2.NewMFAServiceClient(c.APIClient.GetConnection())
 }
 
 // DatabaseObjectsClient returns a client for managing the DatabaseObject resource.
@@ -680,14 +679,19 @@ func (c *Client) CrownJewelsClient() services.CrownJewels {
 	return c.APIClient.CrownJewelServiceClient()
 }
 
+// StaticHostUserClient returns a client for managing static host user resources.
+func (c *Client) StaticHostUserClient() services.StaticHostUser {
+	return c.APIClient.StaticHostUserClient()
+}
+
 // DeleteStaticTokens deletes static tokens
 func (c *Client) DeleteStaticTokens() error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
 // GetStaticTokens returns a list of static register tokens
-func (c *Client) GetStaticTokens() (types.StaticTokens, error) {
-	return nil, trace.NotImplemented(notImplementedMessage)
+func (c *Client) GetStaticTokens(ctx context.Context) (types.StaticTokens, error) {
+	return c.APIClient.GetStaticTokens(ctx)
 }
 
 // SetStaticTokens sets a list of static register tokens
@@ -695,67 +699,63 @@ func (c *Client) SetStaticTokens(st types.StaticTokens) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
+// ScopedRoleReader returns a read-only scoped role client. Having this method lets us reduce the surface
+// are of the scoped access API available in agent access points to only what is necessary.
+func (c *Client) ScopedRoleReader() services.ScopedRoleReader {
+	return c.APIClient.ScopedAccessServiceClient()
+}
+
 // UpsertUserNotificationState creates or updates a user notification state which records whether the user has clicked on or dismissed a notification.
 func (c *Client) UpsertUserNotificationState(ctx context.Context, username string, uns *notificationsv1.UserNotificationState) (*notificationsv1.UserNotificationState, error) {
-	return c.APIClient.UpsertUserNotificationState(ctx, &notificationsv1.UpsertUserNotificationStateRequest{
+	return c.APIClient.UpsertUserNotificationState(ctx, notificationsv1.UpsertUserNotificationStateRequest_builder{
 		Username:              username,
 		UserNotificationState: uns,
-	})
+	}.Build())
 }
 
 // UpsertUserLastSeenNotification creates or updates a user's last seen notification item.
 func (c *Client) UpsertUserLastSeenNotification(ctx context.Context, username string, ulsn *notificationsv1.UserLastSeenNotification) (*notificationsv1.UserLastSeenNotification, error) {
-	return c.APIClient.UpsertUserLastSeenNotification(ctx, &notificationsv1.UpsertUserLastSeenNotificationRequest{
+	return c.APIClient.UpsertUserLastSeenNotification(ctx, notificationsv1.UpsertUserLastSeenNotificationRequest_builder{
 		Username:                 username,
 		UserLastSeenNotification: ulsn,
-	})
+	}.Build())
 }
 
 // CreateGlobalNotification creates a global notification.
-func (c *Client) CreateGlobalNotification(ctx context.Context, globalNotification *notificationsv1.GlobalNotification) (*notificationsv1.GlobalNotification, error) {
-	// TODO(rudream): implement client methods for notifications
-	return nil, trace.NotImplemented(notImplementedMessage)
+func (c *Client) CreateGlobalNotification(ctx context.Context, gn *notificationsv1.GlobalNotification) (*notificationsv1.GlobalNotification, error) {
+	rsp, err := c.APIClient.CreateGlobalNotification(ctx, notificationsv1.CreateGlobalNotificationRequest_builder{
+		GlobalNotification: gn,
+	}.Build())
+	return rsp, trace.Wrap(err)
 }
 
 // CreateUserNotification creates a user-specific notification.
 func (c *Client) CreateUserNotification(ctx context.Context, notification *notificationsv1.Notification) (*notificationsv1.Notification, error) {
-	// TODO(rudream): implement client methods for notifications
-	return nil, trace.NotImplemented(notImplementedMessage)
+	rsp, err := c.APIClient.CreateUserNotification(ctx, notificationsv1.CreateUserNotificationRequest_builder{
+		Notification: notification,
+	}.Build())
+	return rsp, trace.Wrap(err)
 }
 
 // DeleteGlobalNotification deletes a global notification.
 func (c *Client) DeleteGlobalNotification(ctx context.Context, notificationId string) error {
-	// TODO(rudream): implement client methods for notifications
-	return trace.NotImplemented(notImplementedMessage)
-}
-
-// DeleteAllGlobalNotifications not implemented: can only be called locally.
-func (c *Client) DeleteAllGlobalNotifications(ctx context.Context) error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
-// DeleteAllUserNotificationStatesForUser not implemented: can only be called locally.
-func (c *Client) DeleteAllUserNotificationStatesForUser(ctx context.Context, username string) error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
-// DeleteAllUserNotifications not implemented: can only be called locally.
-func (c *Client) DeleteAllUserNotifications(ctx context.Context) error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
-// DeleteAllUserNotificationsForUser not implemented: can only be called locally.
-func (c *Client) DeleteAllUserNotificationsForUser(ctx context.Context, username string) error {
-	return trace.NotImplemented(notImplementedMessage)
-}
-
-// DeleteUserLastSeenNotification not implemented: can only be called locally.
-func (c *Client) DeleteUserLastSeenNotification(ctx context.Context, username string) error {
-	return trace.NotImplemented(notImplementedMessage)
+	err := c.APIClient.DeleteGlobalNotification(ctx, notificationsv1.DeleteGlobalNotificationRequest_builder{
+		NotificationId: notificationId,
+	}.Build())
+	return trace.Wrap(err)
 }
 
 // DeleteUserNotification not implemented: can only be called locally.
 func (c *Client) DeleteUserNotification(ctx context.Context, username string, notificationId string) error {
+	err := c.APIClient.DeleteUserNotification(ctx, notificationsv1.DeleteUserNotificationRequest_builder{
+		Username:       username,
+		NotificationId: notificationId,
+	}.Build())
+	return trace.Wrap(err)
+}
+
+// DeleteUserLastSeenNotification not implemented: can only be called locally.
+func (c *Client) DeleteUserLastSeenNotification(ctx context.Context, username string) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
@@ -794,6 +794,31 @@ func (c *Client) UpsertUserNotification(ctx context.Context, notification *notif
 	return nil, trace.NotImplemented(notImplementedMessage)
 }
 
+// ListUserNotificationStatesForAllUsers not implemented: can only be called locally.
+func (c *Client) ListNotificationStatesForAllUsers(ctx context.Context, pageSize int, nextToken string) ([]*notificationsv1.UserNotificationState, string, error) {
+	return nil, "", trace.NotImplemented(notImplementedMessage)
+}
+
+// CreateUniqueNotificationIdentifier not implemented: can only be called locally.
+func (c *Client) CreateUniqueNotificationIdentifier(ctx context.Context, prefix string, identifier string) (*notificationsv1.UniqueNotificationIdentifier, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+// GetUniqueNotificationIdentifier not implemented: can only be called locally.
+func (c *Client) GetUniqueNotificationIdentifier(ctx context.Context, prefix string, identifier string) (*notificationsv1.UniqueNotificationIdentifier, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+// DeleteUniqueNotificationIdentifier not implemented: can only be called locally.
+func (c *Client) DeleteUniqueNotificationIdentifier(ctx context.Context, prefix string, identifier string) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
+// ListUniqueNotificationIdentifiersForPrefix not implemented: can only be called locally.
+func (c *Client) ListUniqueNotificationIdentifiersForPrefix(ctx context.Context, prefix string, pageSize int, startKey string) ([]*notificationsv1.UniqueNotificationIdentifier, string, error) {
+	return nil, "", trace.NotImplemented(notImplementedMessage)
+}
+
 // GetAccessGraphSettings gets the access graph settings from the backend.
 func (c *Client) GetAccessGraphSettings(context.Context) (*clusterconfigpb.AccessGraphSettings, error) {
 	return nil, trace.NotImplemented(notImplementedMessage)
@@ -819,6 +844,11 @@ func (c *Client) DeleteAccessGraphSettings(context.Context) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
+// UpsertAuthServer is used by auth servers to report their presence.
+func (c *Client) UpsertAuthServer(ctx context.Context, s types.Server) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
 type WebSessionReq struct {
 	// User is the user name associated with the session id.
 	User string `json:"user"`
@@ -836,19 +866,20 @@ type WebSessionReq struct {
 
 // WebService implements features used by Web UI clients
 type WebService interface {
-	// GetWebSessionInfo checks if a web session is valid, returns session id in case if
-	// it is valid, or error otherwise.
-	GetWebSessionInfo(ctx context.Context, user, sessionID string) (types.WebSession, error)
 	// ExtendWebSession creates a new web session for a user based on another
 	// valid web session
 	ExtendWebSession(ctx context.Context, req WebSessionReq) (types.WebSession, error)
-	// CreateWebSession creates a new web session for a user
-	CreateWebSession(ctx context.Context, user string) (types.WebSession, error)
 
-	// AppSession defines application session features.
-	services.AppSession
+	// AppSessionReader defines application session features available to remote clients.
+	services.AppSessionReader
 	// SnowflakeSession defines Snowflake session features.
 	services.SnowflakeSession
+
+	// SetAppSessionDBSCPublicKey verifies a browser DBSC response and binds the
+	// resulting public key to an application web session.
+	SetAppSessionDBSCPublicKey(ctx context.Context, sessionID string, responseJWT []byte) error
+	// SignDBSCChallenge signs a DBSC challenge for app-session registration or refresh.
+	SignDBSCChallenge(ctx context.Context, sessionID string) (string, error)
 }
 
 // OIDCAuthResponse is returned when auth server validated callback parameters
@@ -869,6 +900,11 @@ type OIDCAuthResponse struct {
 	// HostSigners is a list of signing host public keys
 	// trusted by proxy, used in console login
 	HostSigners []types.CertAuthority `json:"host_signers"`
+	// MFAToken is an SSO MFA token.
+	MFAToken string `json:"mfa_token"`
+	// ClientOptions contains some options that the cluster wants the client to
+	// use.
+	ClientOptions ClientOptions `json:"client_options"`
 }
 
 // OIDCAuthRequest is an OIDC auth request that supports standard json marshaling.
@@ -877,10 +913,17 @@ type OIDCAuthRequest struct {
 	ConnectorID string `json:"connector_id"`
 	// CSRFToken is associated with user web session token
 	CSRFToken string `json:"csrf_token"`
-	// PublicKey is an optional public key, users want these
-	// keys to be signed by auth servers user CA in case
-	// of successful auth
-	PublicKey []byte `json:"public_key"`
+	// PublicKey is a public key the user wants as the subject of their SSH and TLS
+	// certificates. It must be in SSH authorized_keys format.
+	//
+	// Deprecated: prefer SSHPubKey and/or TLSPubKey.
+	PublicKey []byte `json:"public_key,omitempty"`
+	// SSHPubKey is an SSH public key the user wants as the subject of their SSH
+	// certificate. It must be in SSH authorized_keys format.
+	SSHPubKey []byte `json:"ssh_pub_key,omitempty"`
+	// TLSPubKey is a TLS public key the user wants as the subject of their TLS
+	// certificate. It must be in PEM-encoded PKCS#1 or PKIX format.
+	TLSPubKey []byte `json:"tls_pub_key,omitempty"`
 	// CreateWebSession indicates if user wants to generate a web
 	// session after successful authentication
 	CreateWebSession bool `json:"create_web_session"`
@@ -907,16 +950,23 @@ type SAMLAuthResponse struct {
 	// HostSigners is a list of signing host public keys
 	// trusted by proxy, used in console login
 	HostSigners []types.CertAuthority `json:"host_signers"`
+	// MFAToken is an SSO MFA token.
+	MFAToken string `json:"mfa_token"`
+	// ClientOptions contains some options that the cluster wants the client to
+	// use.
+	ClientOptions ClientOptions `json:"client_options"`
 }
 
 // SAMLAuthRequest is a SAML auth request that supports standard json marshaling.
 type SAMLAuthRequest struct {
 	// ID is a unique request ID.
 	ID string `json:"id"`
-	// PublicKey is an optional public key, users want these
-	// keys to be signed by auth servers user CA in case
-	// of successful auth.
-	PublicKey []byte `json:"public_key"`
+	// SSHPubKey is an SSH public key the user wants as the subject of their SSH
+	// certificate. It must be in SSH authorized_keys format.
+	SSHPubKey []byte `json:"ssh_pub_key,omitempty"`
+	// TLSPubKey is a TLS public key the user wants as the subject of their TLS
+	// certificate. It must be in PEM-encoded PKCS#1 or PKIX format.
+	TLSPubKey []byte `json:"tls_pub_key,omitempty"`
 	// CSRFToken is associated with user web session token.
 	CSRFToken string `json:"csrf_token"`
 	// CreateWebSession indicates if user wants to generate a web
@@ -944,6 +994,9 @@ type GithubAuthResponse struct {
 	// HostSigners is a list of signing host public keys
 	// trusted by proxy, used in console login
 	HostSigners []types.CertAuthority `json:"host_signers"`
+	// ClientOptions contains some options that the cluster wants the client to
+	// use.
+	ClientOptions ClientOptions `json:"client_options"`
 }
 
 // GithubAuthRequest is an Github auth request that supports standard json marshaling
@@ -952,8 +1005,17 @@ type GithubAuthRequest struct {
 	ConnectorID string `json:"connector_id"`
 	// CSRFToken is used to protect against CSRF attacks.
 	CSRFToken string `json:"csrf_token"`
-	// PublicKey is an optional public key to sign in case of successful auth.
-	PublicKey []byte `json:"public_key"`
+	// PublicKey is a public key the user wants as the subject of their SSH and TLS
+	// certificates. It must be in SSH authorized_keys format.
+	//
+	// Deprecated: prefer SSHPubKey and/or TLSPubKey.
+	PublicKey []byte `json:"public_key,omitempty"`
+	// SSHPubKey is an SSH public key the user wants as the subject of their SSH
+	// certificate. It must be in SSH authorized_keys format.
+	SSHPubKey []byte `json:"ssh_pub_key,omitempty"`
+	// TLSPubKey is a TLS public key the user wants as the subject of their TLS
+	// certificate. It must be in PEM-encoded PKCS#1 or PKIX format.
+	TLSPubKey []byte `json:"tls_pub_key,omitempty"`
 	// CreateWebSession indicates that a user wants to generate a web session
 	// after successful authentication.
 	CreateWebSession bool `json:"create_web_session"`
@@ -974,6 +1036,12 @@ type IdentityService interface {
 	GetOIDCConnector(ctx context.Context, id string, withSecrets bool) (types.OIDCConnector, error)
 	// GetOIDCConnectors gets valid OIDC connectors list
 	GetOIDCConnectors(ctx context.Context, withSecrets bool) ([]types.OIDCConnector, error)
+	// ListOIDCConnectors returns a page of valid registered connectors.
+	// withSecrets adds or removes client secret from return results.
+	ListOIDCConnectors(ctx context.Context, limit int, start string, withSecrets bool) ([]types.OIDCConnector, string, error)
+	// RangeOIDCConnectors returns valid registered connectors within the range [start, end).
+	// withSecrets adds or removes client secret from return results.
+	RangeOIDCConnectors(ctx context.Context, start, end string, withSecrets bool) iter.Seq2[types.OIDCConnector, error]
 	// DeleteOIDCConnector deletes OIDC connector by ID
 	DeleteOIDCConnector(ctx context.Context, connectorID string) error
 	// CreateOIDCAuthRequest creates OIDCAuthRequest
@@ -991,8 +1059,19 @@ type IdentityService interface {
 	UpsertSAMLConnector(ctx context.Context, connector types.SAMLConnector) (types.SAMLConnector, error)
 	// GetSAMLConnector returns SAML connector information by id
 	GetSAMLConnector(ctx context.Context, id string, withSecrets bool) (types.SAMLConnector, error)
+	// GetSAMLConnectorWithValidationOptions returns SAML connector information
+	GetSAMLConnectorWithValidationOptions(ctx context.Context, id string, withSecrets bool, opts ...types.SAMLConnectorValidationOption) (types.SAMLConnector, error)
 	// GetSAMLConnectors gets valid SAML connectors list
 	GetSAMLConnectors(ctx context.Context, withSecrets bool) ([]types.SAMLConnector, error)
+	// GetSAMLConnectorsWithValidationOptions gets valid SAML connectors list
+	GetSAMLConnectorsWithValidationOptions(ctx context.Context, withSecrets bool, opts ...types.SAMLConnectorValidationOption) ([]types.SAMLConnector, error)
+	// ListSAMLConnectorsWithOptions returns a page of valid registered SAML connectors.
+	// withSecrets adds or removes client secret from return results.
+	ListSAMLConnectorsWithOptions(ctx context.Context, limit int, start string, withSecrets bool, opts ...types.SAMLConnectorValidationOption) ([]types.SAMLConnector, string, error)
+	// RangeSAMLConnectorsWithOptions returns valid registered SAML connectors within the range [start, end).
+	// withSecrets adds or removes client secret from return results.
+	RangeSAMLConnectorsWithOptions(ctx context.Context, start, end string, withSecrets bool, opts ...types.SAMLConnectorValidationOption) iter.Seq2[types.SAMLConnector, error]
+
 	// DeleteSAMLConnector deletes SAML connector by ID
 	DeleteSAMLConnector(ctx context.Context, connectorID string) error
 	// CreateSAMLAuthRequest creates SAML AuthnRequest
@@ -1010,6 +1089,12 @@ type IdentityService interface {
 	UpsertGithubConnector(ctx context.Context, connector types.GithubConnector) (types.GithubConnector, error)
 	// GetGithubConnectors returns valid Github connectors
 	GetGithubConnectors(ctx context.Context, withSecrets bool) ([]types.GithubConnector, error)
+	// ListGithubConnectors returns a page of valid registered Github connectors.
+	// withSecrets adds or removes client secret from return results.
+	ListGithubConnectors(ctx context.Context, limit int, start string, withSecrets bool) ([]types.GithubConnector, string, error)
+	// RangeGithubConnectors returns valid registered Github connectors within the range [start, end).
+	// withSecrets adds or removes client secret from return results.
+	RangeGithubConnectors(ctx context.Context, start, end string, withSecrets bool) iter.Seq2[types.GithubConnector, error]
 	// GetGithubConnector returns the specified Github connector
 	GetGithubConnector(ctx context.Context, id string, withSecrets bool) (types.GithubConnector, error)
 	// DeleteGithubConnector deletes the specified Github connector
@@ -1074,9 +1159,6 @@ type IdentityService interface {
 	// access the Target.
 	IsMFARequired(ctx context.Context, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error)
 
-	// DeleteAllUsers deletes all users
-	DeleteAllUsers(ctx context.Context) error
-
 	// CreateResetPasswordToken creates a new user reset token
 	CreateResetPasswordToken(ctx context.Context, req CreateUserTokenRequest) (types.UserToken, error)
 
@@ -1086,6 +1168,8 @@ type IdentityService interface {
 
 	// GetResetPasswordToken returns a reset password token.
 	GetResetPasswordToken(ctx context.Context, username string) (types.UserToken, error)
+	// ListResetPasswordTokens returns a page of user tokens.
+	ListResetPasswordTokens(ctx context.Context, pageSize int, nextKey string) ([]types.UserToken, string, error)
 
 	// GetMFADevices fetches all MFA devices registered for the calling user.
 	GetMFADevices(ctx context.Context, in *proto.GetMFADevicesRequest) (*proto.GetMFADevicesResponse, error)
@@ -1138,6 +1222,8 @@ type IdentityService interface {
 // of adding new nodes, auth servers and proxies to the cluster
 type ProvisioningService interface {
 	// GetTokens returns a list of active invitation tokens for nodes and users
+	// Deprecated: use [ListProvisionTokens] istead.
+	// TODO(hugoShaka): DELETE IN 19.0.0
 	GetTokens(ctx context.Context) (tokens []types.ProvisionToken, err error)
 
 	// GetToken returns provisioning token
@@ -1147,18 +1233,26 @@ type ProvisioningService interface {
 	// could be a reset password token or a machine token
 	DeleteToken(ctx context.Context, token string) error
 
-	// DeleteAllTokens deletes all provisioning tokens
-	DeleteAllTokens() error
-
 	// UpsertToken adds provisioning tokens for the auth server
 	UpsertToken(ctx context.Context, token types.ProvisionToken) error
 
 	// CreateToken creates a new provision token for the auth server
 	CreateToken(ctx context.Context, token types.ProvisionToken) error
 
+	// PatchToken performs a conditional update on the named token using
+	// `updateFn`, retrying internally if a comparison failure occurs.
+	PatchToken(
+		ctx context.Context,
+		token string,
+		updateFn func(types.ProvisionToken) (types.ProvisionToken, error),
+	) (types.ProvisionToken, error)
+
 	// RegisterUsingToken calls the auth service API to register a new node via registration token
 	// which has been previously issued via GenerateToken
 	RegisterUsingToken(ctx context.Context, req *types.RegisterUsingTokenRequest) (*proto.Certs, error)
+
+	// ListProvisionTokens retrieves a paginated list of provision tokens.
+	ListProvisionTokens(ctx context.Context, pageSize int, pageToken string, anyRoles types.SystemRoles, botName string) ([]types.ProvisionToken, string, error)
 }
 
 type ValidateTrustedClusterRequest struct {
@@ -1184,6 +1278,41 @@ func (v *ValidateTrustedClusterRequest) ToRaw() (*ValidateTrustedClusterRequestR
 		CAs:             cas,
 		TeleportVersion: v.TeleportVersion,
 	}, nil
+}
+
+func (v *ValidateTrustedClusterRequest) ToProto() (*proto.ValidateTrustedClusterRequest, error) {
+	// Convert from interface type.
+	cas := make([]*types.CertAuthorityV2, 0, len(v.CAs))
+	for _, certAuthority := range v.CAs {
+		cast, ok := certAuthority.(*types.CertAuthorityV2)
+		if !ok {
+			return nil, trace.BadParameter(
+				"expected certificate authority to be of type types.CertAuthorityV2, got %T",
+				certAuthority,
+			)
+		}
+		cas = append(cas, cast)
+	}
+
+	return &proto.ValidateTrustedClusterRequest{
+		Token:           v.Token,
+		TeleportVersion: v.TeleportVersion,
+		CertAuthorities: cas,
+	}, nil
+}
+
+func ValidateTrustedClusterRequestFromProto(
+	req *proto.ValidateTrustedClusterRequest,
+) *ValidateTrustedClusterRequest {
+	cas := make([]types.CertAuthority, 0, len(req.CertAuthorities))
+	for _, certAuthority := range req.CertAuthorities {
+		cas = append(cas, certAuthority)
+	}
+	return &ValidateTrustedClusterRequest{
+		Token:           req.Token,
+		CAs:             cas,
+		TeleportVersion: req.TeleportVersion,
+	}
 }
 
 type ValidateTrustedClusterRequestRaw struct {
@@ -1232,6 +1361,39 @@ func (v *ValidateTrustedClusterResponse) ToRaw() (*ValidateTrustedClusterRespons
 	}, nil
 }
 
+// ToProto converts ValidateTrustedClusterResponse to its proto representation.
+func (v *ValidateTrustedClusterResponse) ToProto() (*proto.ValidateTrustedClusterResponse, error) {
+	// Cast interface to underlying type.
+	cas := make([]*types.CertAuthorityV2, 0, len(v.CAs))
+	for _, certAuthority := range v.CAs {
+		cast, ok := certAuthority.(*types.CertAuthorityV2)
+		if !ok {
+			return nil, trace.BadParameter(
+				"expected certificate authority to be of type types.CertAuthorityV2, got %T",
+				certAuthority,
+			)
+		}
+		cas = append(cas, cast)
+	}
+	return &proto.ValidateTrustedClusterResponse{
+		CertAuthorities: cas,
+	}, nil
+}
+
+// ValidateTrustedClusterResponseFromProto converts the proto representation of
+// ValidateTrustedClusterResponse to its native representation.
+func ValidateTrustedClusterResponseFromProto(
+	resp *proto.ValidateTrustedClusterResponse,
+) *ValidateTrustedClusterResponse {
+	cas := make([]types.CertAuthority, 0, len(resp.CertAuthorities))
+	for _, certAuthority := range resp.CertAuthorities {
+		cas = append(cas, certAuthority)
+	}
+	return &ValidateTrustedClusterResponse{
+		CAs: cas,
+	}
+}
+
 type ValidateTrustedClusterResponseRaw struct {
 	CAs [][]byte `json:"certificate_authorities"`
 }
@@ -1257,14 +1419,26 @@ func (v *ValidateTrustedClusterResponseRaw) ToNative() (*ValidateTrustedClusterR
 type AuthenticateUserRequest struct {
 	// Username is a username
 	Username string `json:"username"`
-	// PublicKey is a public key in ssh authorized_keys format
-	PublicKey []byte `json:"public_key"`
+
+	// Scope, if non-empty, makes the authentication scoped. Scoping does not change core authentication
+	// behavior, but results in a more limited (scoped) set of credentials being issued upon successful
+	// authentication and some differences in locking behavior.
+	Scope string `json:"scope,omitempty"`
+
+	// SSHPublicKey is a public key in ssh authorized_keys format.
+	SSHPublicKey []byte `json:"ssh_public_key,omitempty"`
+	// TLSPublicKey is a public key in PEM-encoded PKCS#1 or PKIX format.
+	TLSPublicKey []byte `json:"tls_public_key,omitempty"`
+
 	// Pass is a password used in local authentication schemes
 	Pass *PassCreds `json:"pass,omitempty"`
 	// Webauthn is a signed credential assertion, used in MFA authentication
 	Webauthn *wantypes.CredentialAssertionResponse `json:"webauthn,omitempty"`
 	// OTP is a password and second factor, used for MFA authentication
 	OTP *OTPCreds `json:"otp,omitempty"`
+	// BrowserMFA is a Browser MFA message that a CLI client has sent to the proxy
+	// containing a WebAuthn response for auth
+	BrowserMFA *proto.BrowserMFAResponse `json:"browser,omitempty"`
 	// Session is a web session credential used to authenticate web sessions
 	Session *SessionCreds `json:"session,omitempty"`
 	// ClientMetadata includes forwarded information about a client
@@ -1281,6 +1455,17 @@ type ForwardedClientMetadata struct {
 	// either from a direct client connection, or from a PROXY protocol header
 	// if the connection is forwarded through a load balancer.
 	RemoteAddr string `json:"remote_addr,omitempty"`
+	// ProxyGroupID is reverse tunnel group ID, used by reverse tunnel agents
+	// in proxy peering mode.
+	ProxyGroupID string `json:"proxy_group_id,omitempty"`
+	// MaxTouchPoints indicates whether the client device supports touch controls. It is reported by
+	// JavaScript in the browser and sent by the frontend app through the Max-Touch-Points header. It
+	// differentiates iPadOS from macOS since they both use the same user agent otherwise. This
+	// information is needed to decide whether to show the Device Trust prompt in the Web UI after a
+	// successful login.
+	//
+	// Available only in select endpoints which lead to the Device Trust prompt in the Web UI.
+	MaxTouchPoints int `json:"max_touch_points,omitempty"`
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -1289,7 +1474,7 @@ func (a *AuthenticateUserRequest) CheckAndSetDefaults() error {
 	case a.Username == "" && a.Webauthn != nil: // OK, passwordless.
 	case a.Username == "":
 		return trace.BadParameter("missing parameter 'username'")
-	case a.Pass == nil && a.Webauthn == nil && a.OTP == nil && a.Session == nil && a.HeadlessAuthenticationID == "":
+	case a.Pass == nil && a.Webauthn == nil && a.OTP == nil && a.Session == nil && a.HeadlessAuthenticationID == "" && a.BrowserMFA == nil:
 		return trace.BadParameter("at least one authentication method is required")
 	}
 	return nil
@@ -1327,8 +1512,13 @@ type AuthenticateSSHRequest struct {
 	// KubernetesCluster sets the target kubernetes cluster for the TLS
 	// certificate. This can be empty on older clients.
 	KubernetesCluster string `json:"kubernetes_cluster"`
-	// AttestationStatement is an attestation statement associated with the given public key.
-	AttestationStatement *keys.AttestationStatement `json:"attestation_statement,omitempty"`
+
+	// SSHAttestationStatement is an attestation statement associated with the
+	// given SSH public key.
+	SSHAttestationStatement *hardwarekey.AttestationStatement `json:"ssh_attestation_statement,omitempty"`
+	// TLSAttestationStatement is an attestation statement associated with the
+	// given TLS public key.
+	TLSAttestationStatement *hardwarekey.AttestationStatement `json:"tls_attestation_statement,omitempty"`
 }
 
 // CheckAndSetDefaults checks and sets default certificate values
@@ -1336,8 +1526,8 @@ func (a *AuthenticateSSHRequest) CheckAndSetDefaults() error {
 	if err := a.AuthenticateUserRequest.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
-	if len(a.PublicKey) == 0 {
-		return trace.BadParameter("missing parameter 'public_key'")
+	if len(a.SSHPublicKey) == 0 && len(a.TLSPublicKey) == 0 {
+		return trace.BadParameter("'ssh_public_key' or 'tls_public_key' must be set")
 	}
 	certificateFormat, err := utils.CheckCertificateFormatFlag(a.CompatibilityMode)
 	if err != nil {
@@ -1347,9 +1537,9 @@ func (a *AuthenticateSSHRequest) CheckAndSetDefaults() error {
 	return nil
 }
 
-// SSHLoginResponse is a response returned by web proxy, it preserves backwards compatibility
+// CLILoginResponse is a response returned by web proxy, it preserves backwards compatibility
 // on the wire, which is the primary reason for non-matching json tags
-type SSHLoginResponse struct {
+type CLILoginResponse struct {
 	// User contains a logged-in user information
 	Username string `json:"username"`
 	// Cert is a PEM encoded  signed certificate
@@ -1360,6 +1550,26 @@ type SSHLoginResponse struct {
 	HostSigners []TrustedCerts `json:"host_signers"`
 	// SAMLSingleLogoutEnabled is whether SAML SLO (single logout) is enabled for the SAML auth connector being used, if applicable.
 	SAMLSingleLogoutEnabled bool `json:"samlSingleLogoutEnabled"`
+	// MFAToken is an SSO MFA token.
+	MFAToken string `json:"mfa_token"`
+	// ClientOptions contains some options that the cluster wants the client to
+	// use.
+	ClientOptions ClientOptions `json:"client_options"`
+	// BrowserMFAWebauthnResponse is a webauthn response for the browser MFA flow
+	// Exists in SSHLoginResponse as this is the payload used by the SSO redirector
+	// (lib/client/sso/redirector.go).
+	BrowserMFAWebauthnResponse *wantypes.CredentialAssertionResponse `json:"browser_mfa_webauthn_response,omitempty"`
+}
+
+// TODO(danielashare): Remove this alias once e no longer references it
+type SSHLoginResponse = CLILoginResponse
+
+// ClientOptions contains options passed from the control plane to the client at
+// login time.
+type ClientOptions struct {
+	// DefaultRelayAddr is the cluster-specified address of the relay in use, to
+	// be used if the client does not otherwise specify a relay.
+	DefaultRelayAddr string `json:"default_relay_addr"`
 }
 
 // TrustedCerts contains host certificates, it preserves backwards compatibility
@@ -1403,36 +1613,6 @@ func AuthoritiesToTrustedCerts(authorities []types.CertAuthority) []TrustedCerts
 	return out
 }
 
-// KubeCSR is a kubernetes CSR request
-type KubeCSR struct {
-	// Username of user's certificate
-	Username string `json:"username"`
-	// ClusterName is a name of the target cluster to generate certificate for
-	ClusterName string `json:"cluster_name"`
-	// CSR is a kubernetes CSR
-	CSR []byte `json:"csr"`
-}
-
-// CheckAndSetDefaults checks and sets defaults
-func (a *KubeCSR) CheckAndSetDefaults() error {
-	if len(a.CSR) == 0 {
-		return trace.BadParameter("missing parameter 'csr'")
-	}
-	return nil
-}
-
-// KubeCSRResponse is a response to kubernetes CSR request
-type KubeCSRResponse struct {
-	// Cert is a signed certificate PEM block
-	Cert []byte `json:"cert"`
-	// CertAuthorities is a list of PEM block with trusted cert authorities
-	CertAuthorities [][]byte `json:"cert_authorities"`
-	// TargetAddr is an optional target address
-	// of the kubernetes API server that can be set
-	// in the kubeconfig
-	TargetAddr string `json:"target_addr"`
-}
-
 // ClientI is a client to Auth service
 type ClientI interface {
 	IdentityService
@@ -1446,7 +1626,7 @@ type ClientI interface {
 	services.DynamicAccess
 	services.DynamicAccessOracle
 	services.Restrictions
-	services.Apps
+	services.Applications
 	services.Databases
 	services.DatabaseServices
 	services.Kubernetes
@@ -1456,17 +1636,40 @@ type ClientI interface {
 	WebService
 	services.Status
 	services.ClusterConfiguration
+	services.AutoUpdateServiceGetter
 	services.SessionTrackerService
 	services.ConnectionsDiagnostic
-	services.SAMLIdPSession
 	services.Integrations
 	services.KubeWaitingContainer
 	services.Notifications
 	services.VnetConfigGetter
+	services.HealthCheckConfig
+	services.AppAuthConfig
+	services.AppAuthConfigSessions
 	types.Events
+	services.ScopedAccessClientGetter
+	services.SubCAServiceGetter
+
+	// ListUnifiedInstances returns a paginated list of unified instances (teleport instances and bot instances).
+	ListUnifiedInstances(ctx context.Context, req *inventoryv1.ListUnifiedInstancesRequest) (*inventoryv1.ListUnifiedInstancesResponse, error)
+
+	// UpsertProxyServerWithoutReturn registers a proxy server heartbeat.
+	// The upserted server is not returned because the HTTP fallback path
+	// cannot provide it.
+	//
+	// TODO(noah): DELETE IN v20.0.0 — replace with a returning variant once
+	// the HTTP fallback is removed.
+	UpsertProxyServerWithoutReturn(ctx context.Context, s types.Server) error
 
 	types.WebSessionsGetter
-	types.WebTokensGetter
+	services.WebToken
+
+	DynamicDesktopClient() *dynamicwindows.Client
+	GetDynamicWindowsDesktop(ctx context.Context, name string) (types.DynamicWindowsDesktop, error)
+	ListDynamicWindowsDesktops(ctx context.Context, pageSize int, pageToken string) ([]types.DynamicWindowsDesktop, string, error)
+
+	LinuxDesktopClient() *linuxdesktop.Client
+	GetLinuxDesktop(ctx context.Context, name string) (*linuxdesktopv1.LinuxDesktop, error)
 
 	// TrustClient returns a client to the Trust service.
 	TrustClient() trustpb.TrustServiceClient
@@ -1490,6 +1693,12 @@ type ClientI interface {
 
 	// IntegrationAWSOIDCClient returns a client to the Integration AWS OIDC gRPC service.
 	IntegrationAWSOIDCClient() integrationv1.AWSOIDCServiceClient
+
+	// IntegrationAWSRolesAnywhereClient returns a client to the Integration AWS OIDC gRPC service.
+	IntegrationAWSRolesAnywhereClient() integrationv1.AWSRolesAnywhereServiceClient
+
+	// UserTasksServiceClient returns an User Task service client.
+	UserTasksServiceClient() *usertask.Client
 
 	// NewKeepAliver returns a new instance of keep aliver
 	NewKeepAliver(ctx context.Context) (types.KeepAliver, error)
@@ -1525,11 +1734,7 @@ type ClientI interface {
 	AuthenticateWebUser(ctx context.Context, req AuthenticateUserRequest) (types.WebSession, error)
 	// AuthenticateSSHUser authenticates SSH console user, creates and  returns a pair of signed TLS and SSH
 	// short-lived certificates as a result
-	AuthenticateSSHUser(ctx context.Context, req AuthenticateSSHRequest) (*SSHLoginResponse, error)
-
-	// ProcessKubeCSR processes CSR request against Kubernetes CA, returns
-	// signed certificate if successful.
-	ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error)
+	AuthenticateSSHUser(ctx context.Context, req AuthenticateSSHRequest) (*CLILoginResponse, error)
 
 	// Ping gets basic info about the auth server.
 	Ping(ctx context.Context) (proto.PingResponse, error)
@@ -1541,10 +1746,6 @@ type ClientI interface {
 	// CreateSnowflakeSession creates a Snowflake web session. Snowflake web
 	// sessions represent Database Access Snowflake session the client holds.
 	CreateSnowflakeSession(context.Context, types.CreateSnowflakeSessionRequest) (types.WebSession, error)
-
-	// CreateSAMLIdPSession creates a SAML IdP. SAML IdP sessions represent
-	// sessions created by the SAML identity provider.
-	CreateSAMLIdPSession(context.Context, types.CreateSAMLIdPSessionRequest) (types.WebSession, error)
 
 	// GenerateDatabaseCert generates a client certificate used by a database
 	// service to authenticate with the database instance, or a server certificate
@@ -1562,6 +1763,9 @@ type ClientI interface {
 	// GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.
 	GenerateAWSOIDCToken(ctx context.Context, integration string) (string, error)
 
+	// GenerateAzureOIDCToken generates a token to be used to execute an Azure OIDC Integration action.
+	GenerateAzureOIDCToken(ctx context.Context, integration string) (string, error)
+
 	// ResetAuthPreference resets cluster auth preference to defaults.
 	ResetAuthPreference(ctx context.Context) error
 
@@ -1578,7 +1782,7 @@ type ClientI interface {
 	GenerateCertAuthorityCRL(context.Context, types.CertAuthType) ([]byte, error)
 
 	// GetInventoryStatus gets basic status info about instance inventory.
-	GetInventoryStatus(ctx context.Context, req proto.InventoryStatusRequest) (proto.InventoryStatusSummary, error)
+	GetInventoryStatus(ctx context.Context, req *proto.InventoryStatusRequest) (*proto.InventoryStatusSummary, error)
 
 	// PingInventory attempts to trigger a downstream ping against a connected instance.
 	PingInventory(ctx context.Context, req proto.InventoryPingRequest) (proto.InventoryPingResponse, error)
@@ -1653,6 +1857,13 @@ type ClientI interface {
 	// (as per the default gRPC behavior).
 	BotInstanceServiceClient() machineidv1pb.BotInstanceServiceClient
 
+	// WorkloadIdentityResourceServiceClient returns a client for interacting
+	// with workload identity resources.
+	// Clients connecting to  older Teleport versions, still get an access list
+	// client when calling this method, but all RPCs will return "not
+	// implemented" errors (as per the default gRPC behavior).
+	WorkloadIdentityResourceServiceClient() workloadidentityv1pb.WorkloadIdentityResourceServiceClient
+
 	// UserLoginStateClient returns a user login state client.
 	// Clients connecting to older Teleport versions still get a user login state client
 	// when calling this method, but all RPCs will return "not implemented" errors
@@ -1680,11 +1891,11 @@ type ClientI interface {
 	// "not implemented" errors (as per the default gRPC behavior).
 	ExternalAuditStorageClient() *externalauditstorage.Client
 
-	// WorkloadIdentityServiceClient returns a workload identity service client.
+	// WorkloadIdentityIssuanceClient returns a workload identity issuance service client.
 	// Clients connecting to  older Teleport versions, still get a client
 	// when calling this method, but all RPCs will return "not implemented" errors
 	// (as per the default gRPC behavior).
-	WorkloadIdentityServiceClient() machineidv1pb.WorkloadIdentityServiceClient
+	WorkloadIdentityIssuanceClient() workloadidentityv1pb.WorkloadIdentityIssuanceServiceClient
 
 	// NotificationServiceClient returns a notification service client.
 	// Clients connecting to  older Teleport versions, still get a client
@@ -1702,6 +1913,20 @@ type ClientI interface {
 	// Clients connecting to older Teleport versions still get a client when calling this method, but all RPCs
 	// will return "not implemented" errors (as per the default gRPC behavior).
 	VnetConfigServiceClient() vnet.VnetConfigServiceClient
+
+	// StaticHostUserClient returns a StaticHostUser client.
+	// Clients connecting to older Teleport versions still get a client when calling this method, but all RPCs
+	// will return "not implemented" errors (as per the default gRPC behavior).
+	StaticHostUserClient() services.StaticHostUser
+
+	// StableUNIXUsersClient returns a client for the stable UNIX users API.
+	StableUNIXUsersClient() stableunixusersv1.StableUNIXUsersServiceClient
+
+	// MFAServiceClient returns a client for the MFA service.
+	MFAServiceClient() mfav1.MFAServiceClient //nolint:staticcheck // TODO(danielashare): Remove once all clients have migrated to MFAServiceClientV2.
+
+	// MFAServiceClientV2 returns a client for the MFA v2 service.
+	MFAServiceClientV2() mfav2.MFAServiceClient
 
 	// CloneHTTPClient creates a new HTTP client with the same configuration.
 	CloneHTTPClient(params ...roundtrip.ClientParam) (*HTTPClient, error)
@@ -1729,6 +1954,9 @@ type ClientI interface {
 	// but may result in confusing behavior if it is used outside of those contexts.
 	GetSSHTargets(ctx context.Context, req *proto.GetSSHTargetsRequest) (*proto.GetSSHTargetsResponse, error)
 
+	// ResolveSSHTarget returns the server that would be resolved in an equivalent ssh dial request.
+	ResolveSSHTarget(ctx context.Context, req *proto.ResolveSSHTargetRequest) (*proto.ResolveSSHTargetResponse, error)
+
 	// PerformMFACeremony retrieves an MFA challenge from the server with the given challenge extensions
 	// and prompts the user to answer the challenge with the given promptOpts, and ultimately returning
 	// an MFA challenge response for the user.
@@ -1739,40 +1967,39 @@ type ClientI interface {
 
 	// GenerateAppToken creates a JWT token with application access.
 	GenerateAppToken(ctx context.Context, req types.GenerateAppTokenRequest) (string, error)
-}
 
-type CreateAppSessionForV15Client interface {
-	Ping(ctx context.Context) (proto.PingResponse, error)
-	CreateAppSession(ctx context.Context, req *proto.CreateAppSessionRequest) (types.WebSession, error)
-}
+	// IntegrationsClient returns integrations client.
+	IntegrationsClient() integrationv1.IntegrationServiceClient
 
-// TryCreateAppSessionForClientCertV15 creates an app session if the auth
-// server is pre-v16 and returns the app session ID. This app session ID
-// is needed for user app certs requests before v16.
-// TODO (Joerger): DELETE IN v17.0.0
-func TryCreateAppSessionForClientCertV15(ctx context.Context, client CreateAppSessionForV15Client, username string, routeToApp proto.RouteToApp) (string, error) {
-	pingResp, err := client.Ping(ctx)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
+	// GitServerClient returns git server client.
+	GitServerClient() *gitserver.Client
 
-	// If the auth server is v16+, the client does not need to provide a pre-created app session.
-	const minServerVersion = "16.0.0-aa" // "-aa" matches all development versions
-	if utils.MeetsVersion(pingResp.ServerVersion, minServerVersion) {
-		return "", nil
-	}
+	// GitServerReadOnlyClient returns the read-only client for Git servers.
+	GitServerReadOnlyClient() gitserver.ReadOnlyClient
 
-	ws, err := client.CreateAppSession(ctx, &proto.CreateAppSessionRequest{
-		Username:          username,
-		PublicAddr:        routeToApp.PublicAddr,
-		ClusterName:       routeToApp.ClusterName,
-		AWSRoleARN:        routeToApp.AWSRoleARN,
-		AzureIdentity:     routeToApp.AzureIdentity,
-		GCPServiceAccount: routeToApp.GCPServiceAccount,
-	})
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
+	// ListRequestableRoles is a paginated requestable role getter.
+	ListRequestableRoles(ctx context.Context, req *proto.ListRequestableRolesRequest) (*proto.ListRequestableRolesResponse, error)
 
-	return ws.GetName(), nil
+	// RecordingMetadataServiceClient returns a client for the session recording
+	// metadata service.
+	RecordingMetadataServiceClient() recordingmetadatav1.RecordingMetadataServiceClient
+
+	// SummarizerServiceClient returns a client for the session recording
+	// summarizer service.
+	SummarizerServiceClient() summarizerv1.SummarizerServiceClient
+
+	// ScopedRoleReader returns a read-only scoped role client. Having this method lets us reduce the surface
+	// are of the scoped access API available in agent access points to only what is necessary.
+	ScopedRoleReader() services.ScopedRoleReader
+
+	// DelegationSessionServiceClient returns a client for the delegation
+	// session service.
+	DelegationSessionServiceClient() delegationv1.DelegationSessionServiceClient
+
+	// SessionSearchServiceClient returns a client for the session search
+	// service.
+	SessionSearchServiceClient() sessionsearchv1pb.SessionSearchServiceClient
+
+	// BeamServiceClient returns a client for the beam service.
+	BeamServiceClient() beamsv1.BeamServiceClient
 }

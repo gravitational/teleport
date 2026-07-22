@@ -22,8 +22,8 @@
 import childProcess from 'node:child_process';
 import fs from 'node:fs/promises';
 
-import { RootClusterUri } from 'teleterm/ui/uri';
 import { makeRuntimeSettings } from 'teleterm/mainProcess/fixtures/mocks';
+import { RootClusterUri } from 'teleterm/ui/uri';
 
 import {
   createAgentConfigFile,

@@ -21,8 +21,8 @@ package common
 import (
 	"context"
 	"os"
-	"text/template"
 
+	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 
@@ -30,6 +30,11 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils"
+	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
+	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
+	"github.com/gravitational/teleport/tool/tctl/common/resources"
 )
 
 // DesktopCommand implements "tctl desktop" group of commands.
@@ -50,7 +55,7 @@ type DesktopCommand struct {
 }
 
 // Initialize allows DesktopCommand to plug itself into the CLI parser
-func (c *DesktopCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
+func (c *DesktopCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, config *servicecfg.Config) {
 	c.config = config
 
 	desktop := app.Command("desktop", "Operate on registered desktops.").Alias("desktops").Alias("windows_desktop").Alias("windows_desktops")
@@ -63,37 +68,44 @@ func (c *DesktopCommand) Initialize(app *kingpin.Application, config *servicecfg
 }
 
 // TryRun attempts to run subcommands like "desktop ls".
-func (c *DesktopCommand) TryRun(ctx context.Context, cmd string, client *authclient.Client) (match bool, err error) {
+func (c *DesktopCommand) TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (match bool, err error) {
+	var commandFunc func(ctx context.Context, client *authclient.Client) error
 	switch cmd {
 	case c.desktopList.FullCommand():
-		err = c.ListDesktop(ctx, client)
+		commandFunc = c.ListDesktop
 	case c.desktopBootstrap.FullCommand():
-		err = c.BootstrapAD(ctx, client)
+		commandFunc = c.BootstrapAD
 	default:
 		return false, nil
 	}
+	client, closeFn, err := clientFunc(ctx)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	err = commandFunc(ctx, client)
+	closeFn(ctx)
 	return true, trace.Wrap(err)
 }
 
 // ListDesktop prints the list of desktops that have recently sent heartbeats
 // to the cluster.
-func (c *DesktopCommand) ListDesktop(ctx context.Context, client *authclient.Client) error {
-	desktops, err := client.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{})
+func (c *DesktopCommand) ListDesktop(ctx context.Context, clt *authclient.Client) error {
+	// delegate to `tctl get windows_desktop`
+	handler := resources.Handlers()[types.KindWindowsDesktop]
+	coll, err := handler.Get(ctx, clt, services.Ref{Kind: types.KindWindowsDesktop}, resources.GetOpts{})
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	coll := windowsDesktopCollection{
-		desktops: desktops,
-	}
+
 	switch c.format {
 	case teleport.Text:
-		return trace.Wrap(coll.writeText(os.Stdout, c.verbose))
-	case teleport.JSON:
-		return trace.Wrap(coll.writeJSON(os.Stdout))
+		return trace.Wrap(coll.WriteText(os.Stdout, c.verbose))
 	case teleport.YAML:
-		return trace.Wrap(coll.writeYAML(os.Stdout))
+		return trace.Wrap(utils.WriteYAML(os.Stdout, coll.Resources()))
+	case teleport.JSON:
+		return trace.Wrap(utils.WriteJSONArray(os.Stdout, coll.Resources()))
 	default:
-		return trace.BadParameter("unknown format %q", c.format)
+		return trace.BadParameter("unsupported format %q", c.format)
 	}
 }
 

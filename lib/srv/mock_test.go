@@ -1,0 +1,480 @@
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+package srv
+
+import (
+	"bytes"
+	"context"
+	"io"
+	"log/slog"
+	"net"
+	"os"
+	"os/user"
+	"testing"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ssh"
+
+	"github.com/gravitational/teleport"
+	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
+	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
+	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authtest"
+	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/bpf"
+	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/events/eventstest"
+	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/services"
+	rsession "github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/sshca"
+	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/clocki"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/session/pam/pamcfg"
+	"github.com/gravitational/teleport/session/reexec"
+)
+
+func newTestServerContext(t *testing.T, srv Server, sessionJoiningRoleSet services.RoleSet, accessPermit *decisionpb.SSHAccessPermit) *ServerContext {
+	usr, err := user.Current()
+	require.NoError(t, err)
+
+	cert, err := apisshutils.ParseCertificate([]byte(fixtures.UserCertificateStandard))
+	require.NoError(t, err)
+
+	ident, err := sshca.DecodeIdentity(cert)
+	require.NoError(t, err)
+
+	sshConn := &mockSSHConn{}
+	sshConn.localAddr, _ = utils.ParseAddr("127.0.0.1:3022")
+	sshConn.remoteAddr, _ = utils.ParseAddr("10.0.0.5:4817")
+
+	ctx, cancel := context.WithCancel(context.Background())
+	recConfig := types.DefaultSessionRecordingConfig()
+	recConfig.SetMode(types.RecordOff)
+	clusterName := "localhost"
+	_, connCtx := sshutils.NewConnectionContext(ctx, nil, &ssh.ServerConn{Conn: sshConn})
+	scx := &ServerContext{
+		newSessionID:           rsession.NewID(),
+		Logger:                 logtest.NewLogger(),
+		ConnectionContext:      connCtx,
+		env:                    make(map[string]string),
+		SessionRecordingConfig: recConfig,
+		IsTestStub:             true,
+		ClusterName:            clusterName,
+		srv:                    srv,
+		Identity: IdentityContext{
+			UnmappedIdentity: ident,
+			Login:            usr.Username,
+			TeleportUser:     "teleportUser",
+			AccessPermit:     accessPermit,
+			// roles do not actually exist in mock backend, just need a non-nil
+			// session joining access checker to avoid panic
+			UnstableSessionJoiningAccessChecker: services.NewAccessCheckerWithRoleSet(
+				&services.AccessInfo{Roles: sessionJoiningRoleSet.RoleNames()}, clusterName, sessionJoiningRoleSet),
+		},
+		cancelContext: ctx,
+		cancel:        cancel,
+		// If proxy forwarding is being used (proxy recording, agentless), then remote session must be set.
+		// Otherwise, this field is ignored.
+		RemoteSession: mockSSHSession(t),
+	}
+
+	err = scx.SetExecRequest(&localExec{Ctx: scx})
+	require.NoError(t, err)
+
+	// TODO (joerger): check the error coming from Close once the logic around
+	// closing open files has been fixed to fail with "close |1: file already closed".
+	// Note that outside of tests, we never check the error form scx.Close because this
+	// error is a part of normal execution currently.
+	t.Cleanup(func() { scx.Close() })
+
+	return scx
+}
+
+func newMockServer(t *testing.T) *mockServer {
+	clock := clockwork.NewFakeClock()
+
+	bk, err := memory.New(memory.Config{
+		Clock: clock,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = bk.Close()
+	})
+
+	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
+		ClusterName: "localhost",
+	})
+	require.NoError(t, err)
+
+	staticTokens, err := types.NewStaticTokens(types.StaticTokensSpecV2{
+		StaticTokens: []types.ProvisionTokenV1{},
+	})
+	require.NoError(t, err)
+
+	authority, err := testauthority.NewKeygen(modules.BuildOSS, clock.Now)
+	require.NoError(t, err)
+
+	authServer, err := auth.NewServer(&auth.InitConfig{
+		Backend:        bk,
+		VersionStorage: authtest.NewFakeTeleportVersion(),
+		Authority:      authority,
+		ClusterName:    clusterName,
+		StaticTokens:   staticTokens,
+		HostUUID:       uuid.NewString(),
+		Clock:          clock,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, authServer.Close())
+	})
+
+	return &mockServer{
+		auth:                authServer,
+		datadir:             t.TempDir(),
+		MockRecorderEmitter: &eventstest.MockRecorderEmitter{},
+		clock:               clock,
+		component:           teleport.ComponentNode,
+	}
+}
+
+type mockServer struct {
+	*eventstest.MockRecorderEmitter
+	info      types.Server
+	datadir   string
+	auth      *auth.Server
+	component string
+	clock     clocki.FakeClock
+	bpf       bpf.BPF
+	pamCfg    *pamcfg.PAMConfig
+}
+
+// ID is the unique ID of the server.
+func (m *mockServer) ID() string {
+	return "testID"
+}
+
+// HostUUID is the UUID of the underlying host. For the forwarding
+// server this is the proxy the forwarding server is running in.
+func (m *mockServer) HostUUID() string {
+	return "testHostUUID"
+}
+
+// GetNamespace returns the namespace the server was created in.
+func (m *mockServer) GetNamespace() string {
+	return "testNamespace"
+}
+
+// AdvertiseAddr is the publicly addressable address of this server.
+func (m *mockServer) AdvertiseAddr() string {
+	return "testAdvertiseAddr"
+}
+
+// Component is the type of server, forwarding or regular.
+func (m *mockServer) Component() string {
+	return m.component
+}
+
+// PermitUserEnvironment returns if reading environment variables upon
+// startup is allowed.
+func (m *mockServer) PermitUserEnvironment() bool {
+	return false
+}
+
+// GetAccessPoint returns an AccessPoint for this cluster.
+func (m *mockServer) GetAccessPoint() AccessPoint {
+	return m.auth
+}
+
+// GetDataDir returns data directory of the server
+func (m *mockServer) GetDataDir() string {
+	return m.datadir
+}
+
+// GetPAM returns PAM configuration for this server.
+func (m *mockServer) GetPAM() *pamcfg.PAMConfig {
+	if m.pamCfg != nil {
+		return m.pamCfg
+	}
+	return new(pamcfg.PAMConfig)
+}
+
+// GetClock returns a clock setup for the server
+func (m *mockServer) GetClock() clockwork.Clock {
+	if m.clock != nil {
+		return m.clock
+	}
+	return clockwork.NewRealClock()
+}
+
+// setInfo overrides the default result of [mockServer.GetInfo]. Necessary in order to
+// correctly test the behavior of local node rbac that expects specific server attributes.
+func (m *mockServer) setInfo(server types.Server) {
+	m.info = server
+}
+
+// GetInfo returns a services.Server that represents this server.
+func (m *mockServer) GetInfo() types.Server {
+	if m.info != nil {
+		return m.info
+	}
+
+	hostname, err := os.Hostname()
+	if err != nil {
+		hostname = "localhost"
+	}
+
+	return &types.ServerV2{
+		Kind:    types.KindNode,
+		Version: types.V2,
+		Metadata: types.Metadata{
+			Name:      "",
+			Namespace: "",
+			Labels:    make(map[string]string),
+		},
+		Spec: types.ServerSpecV2{
+			CmdLabels: make(map[string]types.CommandLabelV2),
+			Addr:      "",
+			Hostname:  hostname,
+			UseTunnel: false,
+			Version:   teleport.Version,
+		},
+	}
+}
+
+func (m *mockServer) EventMetadata() apievents.ServerMetadata {
+	return apievents.ServerMetadata{
+		ServerID:        "123",
+		ForwardedBy:     "abc",
+		ServerHostname:  "testHost",
+		ServerNamespace: "testNamespace",
+	}
+}
+
+// UseTunnel used to determine if this node has connected to this cluster
+// using reverse tunnel.
+func (m *mockServer) UseTunnel() bool {
+	return false
+}
+
+// GetBPF returns the BPF service used for enhanced session recording.
+func (m *mockServer) GetBPF() bpf.BPF {
+	if m.bpf != nil {
+		return m.bpf
+	}
+
+	return &bpf.NOP{}
+}
+
+// Context returns server shutdown context
+func (m *mockServer) Context() context.Context {
+	return context.Background()
+}
+
+// GetUserAccountingPaths returns the path of the user accounting database and log. Returns empty for system defaults.
+func (m *mockServer) GetUserAccountingPaths() (utmp, wtmp, btmp, wtmpdb string) {
+	return "test", "test", "test", "test"
+}
+
+// GetLockWatcher gets the server's lock watcher.
+func (m *mockServer) GetLockWatcher() *services.LockWatcher {
+	return nil
+}
+
+// GetCreateHostUser gets whether the server allows host user creation
+// or not
+func (m *mockServer) GetCreateHostUser() bool {
+	return false
+}
+
+// GetHostUsers
+func (m *mockServer) GetHostUsers() HostUsers {
+	return nil
+}
+
+// GetHostSudoers
+func (m *mockServer) GetHostSudoers() HostSudoers {
+	return &HostSudoersNotImplemented{}
+}
+
+// GetSELinuxEnabled
+func (m *mockServer) GetSELinuxEnabled() bool {
+	return false
+}
+
+// ChildLogConfig returns a noop log configuration.
+func (m *mockServer) ChildLogConfig() ChildLogConfig {
+	return ChildLogConfig{
+		ExecLogConfig: reexec.ExecLogConfig{
+			Level:  slog.LevelDebug,
+			Format: "json",
+		},
+		Writer: os.Stdout,
+	}
+}
+
+func (m *mockServer) GetPresenceMaxDuration() time.Duration {
+	return client.DefaultPresenceMaxDuration
+}
+
+// Implementation of ssh.Conn interface.
+type mockSSHConn struct {
+	remoteAddr net.Addr
+	localAddr  net.Addr
+}
+
+func (c *mockSSHConn) User() string {
+	return ""
+}
+
+func (c *mockSSHConn) SessionID() []byte {
+	return []byte{1, 2, 3}
+}
+
+func (c *mockSSHConn) ClientVersion() []byte {
+	return []byte{1}
+}
+
+func (c *mockSSHConn) ServerVersion() []byte {
+	return []byte{1}
+}
+
+func (c *mockSSHConn) RemoteAddr() net.Addr {
+	return c.remoteAddr
+}
+
+func (c *mockSSHConn) LocalAddr() net.Addr {
+	return c.localAddr
+}
+
+func (c *mockSSHConn) Close() error {
+	return nil
+}
+
+func (c *mockSSHConn) SendRequest(string, bool, []byte) (bool, []byte, error) {
+	return false, nil, nil
+}
+
+func (c *mockSSHConn) OpenChannel(string, []byte) (ssh.Channel, <-chan *ssh.Request, error) {
+	return nil, nil, nil
+}
+
+func (c *mockSSHConn) Wait() error {
+	return nil
+}
+
+// mockSSHChannel is one side of a mocked ssh channel.
+type mockSSHChannel struct {
+	reader io.ReadCloser
+	writer io.WriteCloser
+}
+
+// newMockSSHChannel creates a mock ssh channel and returns both the client and server side.
+// When the server side is handed to a running session, the client side must be drained
+// so the session's stdout writes don't block on the unread pipe.
+func newMockSSHChannel(t *testing.T) (client *mockSSHChannel, server *mockSSHChannel) {
+	stdinReader, stdinWriter := io.Pipe()
+	stdoutReader, stdoutWriter := io.Pipe()
+
+	client = &mockSSHChannel{
+		reader: stdoutReader,
+		writer: stdinWriter,
+	}
+	t.Cleanup(func() { client.Close() })
+
+	server = &mockSSHChannel{
+		reader: stdinReader,
+		writer: stdoutWriter,
+	}
+	t.Cleanup(func() { server.Close() })
+
+	return client, server
+}
+
+// Read up to len(data) bytes from the channel.
+func (c *mockSSHChannel) Read(data []byte) (int, error) {
+	return c.reader.Read(data)
+}
+
+// Write len(data) bytes to the channel.
+func (c *mockSSHChannel) Write(data []byte) (int, error) {
+	return c.writer.Write(data)
+}
+
+// Drain the reader in a goroutine until it is closed.
+func (c *mockSSHChannel) Drain() {
+	go io.ReadAll(c.reader)
+}
+
+// Close signals end of channel use. No data may be sent after this
+// call.
+func (c *mockSSHChannel) Close() error {
+	return trace.NewAggregate(c.reader.Close(), c.writer.Close())
+}
+
+// CloseWrite signals the end of sending in-band
+// data. Requests may still be sent, and the other side may
+// still send data
+func (c *mockSSHChannel) CloseWrite() error {
+	return trace.NewAggregate(c.writer.Close())
+}
+
+func (c *mockSSHChannel) SendRequest(name string, wantReply bool, payload []byte) (bool, error) {
+	return true, nil
+}
+
+// Stderr is not modeled by this mock yet. Return a sink so tests that only
+// write stderr do not panic.
+func (c *mockSSHChannel) Stderr() io.ReadWriter {
+	return new(bytes.Buffer)
+}
+
+type fakeBPF struct {
+	bpf bpf.NOP
+}
+
+func (f fakeBPF) OpenSession(ctx *bpf.SessionContext) error {
+	return f.bpf.OpenSession(ctx)
+}
+
+func (f fakeBPF) CloseSession(ctx *bpf.SessionContext) error {
+	return f.bpf.CloseSession(ctx)
+}
+
+func (f fakeBPF) Close(restarting bool) error {
+	return f.bpf.Close(restarting)
+}
+
+func (f fakeBPF) Enabled() bool {
+	return true
+}
+
+func (f fakeBPF) LostEvents() bpf.EventCount {
+	return bpf.EventCount{}
+}

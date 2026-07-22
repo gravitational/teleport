@@ -19,11 +19,15 @@
 package services
 
 import (
+	"bytes"
+	"cmp"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
 	"net"
+	"os"
 	"path"
 	"regexp"
 	"slices"
@@ -31,27 +35,30 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws/arn"
+	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	jsoniter "github.com/json-iterator/go"
-	log "github.com/sirupsen/logrus"
 	"github.com/vulcand/predicate"
-	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
+	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
+	"github.com/gravitational/teleport/lib/services/label"
 	"github.com/gravitational/teleport/lib/services/readonly"
+	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/utils/parse"
+	setutils "github.com/gravitational/teleport/lib/utils/set"
 )
 
 // DefaultImplicitRules provides access to the default set of implicit rules
@@ -73,9 +80,15 @@ var DefaultImplicitRules = []types.Rule{
 	types.NewRule(types.KindApp, RO()),
 	types.NewRule(types.KindWindowsDesktopService, RO()),
 	types.NewRule(types.KindWindowsDesktop, RO()),
+	types.NewRule(types.KindDynamicWindowsDesktop, RO()),
+	types.NewRule(types.KindLinuxDesktop, RO()),
 	types.NewRule(types.KindKubernetesCluster, RO()),
 	types.NewRule(types.KindUsageEvent, []string{types.VerbCreate}),
 	types.NewRule(types.KindVnetConfig, RO()),
+	types.NewRule(types.KindSPIFFEFederation, RO()),
+	types.NewRule(types.KindSAMLIdPServiceProvider, RO()),
+	types.NewRule(types.KindIdentityCenter, RO()),
+	types.NewRule(types.KindGitServer, RO()),
 }
 
 // DefaultCertAuthorityRules provides access the minimal set of resources
@@ -129,9 +142,6 @@ func NewImplicitRole() types.Role {
 		Spec: types.RoleSpecV6{
 			Options: types.RoleOptions{
 				MaxSessionTTL: types.MaxDuration(),
-				// Explicitly disable options that default to true, otherwise the option
-				// will always be enabled, as this implicit role is part of every role set.
-				PortForwarding: types.NewBoolOption(false),
 				RecordSession: &types.RecordSession{
 					Desktop: types.NewBoolOption(false),
 				},
@@ -148,7 +158,14 @@ func NewImplicitRole() types.Role {
 //
 // Used in tests only.
 func RoleForUser(u types.User) types.Role {
-	role, _ := types.NewRole(RoleNameForUser(u.GetName()), types.RoleSpecV6{
+	return RoleWithVersionForUser(u, types.DefaultRoleVersion)
+}
+
+// RoleWithVersionForUser creates an admin role for a services.User.
+//
+// Used in tests only.
+func RoleWithVersionForUser(u types.User, v string) types.Role {
+	role, _ := types.NewRoleWithVersion(RoleNameForUser(u.GetName()), v, types.RoleSpecV6{
 		Options: types.RoleOptions{
 			CertificateFormat: constants.CertificateFormatStandard,
 			MaxSessionTTL:     types.NewDuration(defaults.MaxCertDuration),
@@ -164,6 +181,9 @@ func RoleForUser(u types.User) types.Role {
 			KubernetesLabels:      types.Labels{types.Wildcard: []string{types.Wildcard}},
 			DatabaseServiceLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 			DatabaseLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
+			MCP: &types.MCPPermissions{
+				Tools: []string{types.Wildcard},
+			},
 			Rules: []types.Rule{
 				types.NewRule(types.KindRole, RW()),
 				types.NewRule(types.KindAuthConnector, RW()),
@@ -218,58 +238,38 @@ func RoleForCertAuthority(ca types.CertAuthority) types.Role {
 // ValidateRoleName checks that the role name is allowed to be created.
 func ValidateRoleName(role types.Role) error {
 	// System role names are not allowed.
-	systemRoles := types.SystemRoles([]types.SystemRole{
-		types.SystemRole(role.GetMetadata().Name),
-	})
-	if err := systemRoles.Check(); err == nil {
-		return trace.BadParameter("reserved role: %s", role.GetMetadata().Name)
+	if types.SystemRole(role.GetMetadata().Name).IsValid() {
+		return trace.BadParameter("reserved role: %+q", role.GetMetadata().Name)
 	}
 	return nil
 }
 
-type validateRoleOptions struct {
-	warningReporter func(error)
-}
-
-func defaultValidateRoleOptions() validateRoleOptions {
-	return validateRoleOptions{
-		warningReporter: func(error) {},
-	}
-}
-
-type validateRoleOption func(*validateRoleOptions)
-
-// withWarningReporter is meant for tests to assert the presence of expected
-// warnings.
-func withWarningReporter(f func(error)) validateRoleOption {
-	return func(opts *validateRoleOptions) {
-		opts.warningReporter = f
-	}
-}
-
-// ValidateRole parses validates the role, and sets default values.
-func ValidateRole(r types.Role, opts ...validateRoleOption) error {
-	options := defaultValidateRoleOptions()
-	for _, opt := range opts {
-		opt(&options)
-	}
-
+// ValidateRole checks and sets defaults for role fields and validates
+// expression syntax.
+//
+// This function should be called on the write path (role create/update)
+// and NOT on read paths to avoid bricking clusters with existing roles
+// that may not parse with newer parsers. Read paths should call plain
+// CheckAndSetDefaults to reject truly unusable roles.
+func ValidateRole(r types.Role) error {
 	if err := CheckAndSetDefaults(r); err != nil {
 		return trace.Wrap(err)
 	}
 
-	// Expression parsers in new versions sometimes get smarter/more strict and
-	// catch more syntax or type errors that previously would only be caught
-	// when they were evaluated. To avoid any possibility of bricking a cluster
-	// by making all roles invalid due to a buggy expression that may not even
-	// be used, only log expression parse errors as a warning.
+	var errs []error
 	if err := validateRoleExpressions(r); err != nil {
-		options.warningReporter(err)
-		slog.WarnContext(context.Background(), "Detected invalid role", "role", r.GetName(), "error", err)
+		errs = append(errs, err)
 	}
-	return nil
+	if err := validateRoleWildcards(r); err != nil {
+		errs = append(errs, err)
+	}
+	if err := validateSessionPolicies(r); err != nil {
+		errs = append(errs, err)
+	}
+	return trace.NewAggregate(errs...)
 }
 
+// validateRoleExpressions validates all expression and predicate syntax in a role.
 func validateRoleExpressions(r types.Role) error {
 	var errs []error
 	for _, condition := range []struct {
@@ -279,19 +279,21 @@ func validateRoleExpressions(r types.Role) error {
 		{"allow", types.Allow},
 		{"deny", types.Deny},
 	} {
-		for _, rule := range r.GetRules(condition.condition) {
+		// Rules
+		for i, rule := range r.GetRules(condition.condition) {
 			if err := validateRule(rule); err != nil {
-				err = trace.BadParameter("parsing %s rule: %v", condition.name, err)
-				errs = append(errs, err)
+				errs = append(errs, trace.BadParameter("parsing %s.rules[%d]: %v", condition.name, i, err))
 			}
 		}
 
+		// Trait templates in slice fields
 		for _, values := range []struct {
 			name   string
 			values []string
 		}{
 			{"logins", r.GetLogins(condition.condition)},
 			{"windows_desktop_logins", r.GetWindowsLogins(condition.condition)},
+			{"linux_desktop_logins", r.GetLinuxDesktopLogins(condition.condition)},
 			{"aws_role_arns", r.GetAWSRoleARNs(condition.condition)},
 			{"azure_identities", r.GetAzureIdentities(condition.condition)},
 			{"gcp_service_accounts", r.GetGCPServiceAccounts(condition.condition)},
@@ -299,6 +301,7 @@ func validateRoleExpressions(r types.Role) error {
 			{"kubernetes_users", r.GetKubeUsers(condition.condition)},
 			{"db_names", r.GetDatabaseNames(condition.condition)},
 			{"db_users", r.GetDatabaseUsers(condition.condition)},
+			{"db_roles", r.GetDatabaseRoles(condition.condition)},
 			{"host_groups", r.GetHostGroups(condition.condition)},
 			{"host_sudoers", r.GetHostSudoers(condition.condition)},
 			{"desktop_groups", r.GetDesktopGroups(condition.condition)},
@@ -306,14 +309,44 @@ func validateRoleExpressions(r types.Role) error {
 			{"impersonate.roles", r.GetImpersonateConditions(condition.condition).Roles},
 		} {
 			for _, value := range values.values {
-				_, err := parse.NewTraitsTemplateExpression(value)
-				if err != nil {
-					err = trace.BadParameter("parsing %s.%s expression: %v", condition.name, values.name, err)
-					errs = append(errs, err)
+				if _, err := parse.NewTraitsTemplateExpression(value); err != nil {
+					errs = append(errs, trace.BadParameter("parsing %s.%s expression: %v", condition.name, values.name, err))
 				}
 			}
 		}
 
+		// Impersonate where clause
+		if where := r.GetImpersonateConditions(condition.condition).Where; where != "" {
+			// Stub the context, the predicate parser resolves identifiers at parse
+			// time, so a nil context rejects valid expressions.
+			parser, err := newImpersonateWhereParser(&impersonateContext{
+				user:            emptyUser,
+				impersonateUser: emptyUser,
+				impersonateRole: &types.RoleV6{},
+			})
+			if err != nil {
+				errs = append(errs, trace.BadParameter("%s.impersonate.where: failed to create parser: %v", condition.name, err))
+			} else if _, err = parser.Parse(where); err != nil {
+				errs = append(errs, trace.BadParameter("%s.impersonate.where: invalid expression %q: %v", condition.name, where, err))
+			}
+		}
+
+		// Trait templates in kubernetes_resources
+		for i, ks := range r.GetKubeResources(condition.condition) {
+			if _, err := parse.NewTraitsTemplateExpression(ks.Namespace); err != nil {
+				errs = append(errs, trace.BadParameter("parsing %s.kubernetes_resources[%d].namespace expression: %v", condition.name, i, err))
+			}
+			if _, err := parse.NewTraitsTemplateExpression(ks.Name); err != nil {
+				errs = append(errs, trace.BadParameter("parsing %s.kubernetes_resources[%d].name expression: %v", condition.name, i, err))
+			}
+			for _, verb := range ks.Verbs {
+				if _, err := parse.NewTraitsTemplateExpression(verb); err != nil {
+					errs = append(errs, trace.BadParameter("parsing %s.kubernetes_resources[%d].verbs expression: %v", condition.name, i, err))
+				}
+			}
+		}
+
+		// Label value trait templates and label expressions
 		for _, labels := range []struct {
 			name string
 			kind string
@@ -322,10 +355,14 @@ func validateRoleExpressions(r types.Role) error {
 			{"node_labels", types.KindNode},
 			{"kubernetes_labels", types.KindKubernetesCluster},
 			{"app_labels", types.KindApp},
+			{"saml_idp_service_provider", types.KindSAMLIdPServiceProvider},
 			{"db_labels", types.KindDatabase},
 			{"db_service_labels", types.KindDatabaseService},
 			{"windows_desktop_labels", types.KindWindowsDesktop},
+			{"windows_desktop_labels", types.KindDynamicWindowsDesktop},
 			{"group_labels", types.KindUserGroup},
+			{"workload_identity_labels", types.KindWorkloadIdentity},
+			{"beam_labels", types.KindBeam},
 		} {
 			labelMatchers, err := r.GetLabelMatchers(condition.condition, labels.kind)
 			if err != nil {
@@ -333,28 +370,206 @@ func validateRoleExpressions(r types.Role) error {
 			}
 			for _, labelValues := range labelMatchers.Labels {
 				for _, label := range labelValues {
-					_, err := parse.NewTraitsTemplateExpression(label)
-					if err != nil {
-						err = trace.BadParameter("parsing %s.%s template expression: %v", condition.name, labels.name, err)
-						errs = append(errs, err)
+					if _, err := parse.NewTraitsTemplateExpression(label); err != nil {
+						errs = append(errs, trace.BadParameter("parsing %s.%s template expression: %v", condition.name, labels.name, err))
 					}
 				}
 			}
 			if len(labelMatchers.Expression) > 0 {
-				if _, err := parseLabelExpression(labelMatchers.Expression); err != nil {
-					err = trace.BadParameter("parsing %s.%s_expression: %v", condition.name, labels.name, err)
-					errs = append(errs, err)
+				if _, err := label.ParseExpression(labelMatchers.Expression); err != nil {
+					errs = append(errs, trace.BadParameter("parsing %s.%s_expression: %v", condition.name, labels.name, err))
 				}
+			}
+		}
+
+		// Trait templates in github_permissions.organizations
+		for i, perm := range r.GetGitHubPermissions(condition.condition) {
+			for _, org := range perm.Organizations {
+				if _, err := parse.NewTraitsTemplateExpression(org); err != nil {
+					errs = append(errs, trace.BadParameter("parsing %s.github_permissions[%d].organizations expression: %v", condition.name, i, err))
+				}
+			}
+		}
+
+		// Trait templates in mcp.tools
+		if mcp := r.GetMCPPermissions(condition.condition); mcp != nil {
+			for i, tool := range mcp.Tools {
+				if _, err := parse.NewTraitsTemplateExpression(tool); err != nil {
+					errs = append(errs, trace.BadParameter("parsing %s.mcp.tools[%d] %q: %v", condition.name, i, tool, err))
+				}
+			}
+		}
+	}
+
+	// Trait templates in options.cert_extensions.value
+	for i, ext := range r.GetOptions().CertExtensions {
+		if ext == nil {
+			continue
+		}
+		if _, err := parse.NewTraitsTemplateExpression(ext.Value); err != nil {
+			errs = append(errs, trace.BadParameter("parsing options.cert_extensions[%d].value expression: %v", i, err))
+		}
+	}
+
+	// Session require policy expressions
+	for i, policy := range r.GetSessionRequirePolicies() {
+		if policy == nil || policy.Filter == "" {
+			continue
+		}
+		parser, err := NewWhereParser(sessionFilterValidationContext{})
+		if err != nil {
+			errs = append(errs, trace.BadParameter("require_session_join[%d]: failed to create where parser: %v", i, err))
+			continue
+		}
+		if _, err = parser.Parse(policy.Filter); err != nil {
+			errs = append(errs, trace.BadParameter("require_session_join[%d]: invalid filter %q: %v", i, policy.Filter, err))
+		}
+	}
+
+	// Access predicates
+	if err := ValidateAccessPredicates(r); err != nil {
+		errs = append(errs, err)
+	}
+
+	return trace.NewAggregate(errs...)
+}
+
+// sessionFilterValidationContext validates require_session_join filters using
+// the same identifiers as moderation.SessionAccessContext at runtime including
+// the legacy user.roles alias for user.spec.roles.
+//
+// Keep in sync with moderation.SessionAccessContext.GetIdentifier in
+// lib/auth/moderation/session_access.go.
+type sessionFilterValidationContext struct{}
+
+func (sessionFilterValidationContext) GetIdentifier(fields []string) (any, error) {
+	if fields[0] == "user" && (len(fields) == 2 || len(fields) == 3) {
+		idx := 1
+		if len(fields) == 3 && fields[1] == "spec" {
+			idx = 2
+		}
+		switch fields[idx] {
+		case "name":
+			return "", nil
+		case "roles":
+			return []string{}, nil
+		}
+	}
+	return nil, trace.NotFound("%v is not defined", strings.Join(fields, "."))
+}
+
+func (sessionFilterValidationContext) GetResource() (types.Resource, error) {
+	return nil, trace.NotFound("resource is not used in session filter validation")
+}
+
+func (sessionFilterValidationContext) GetAccessChecker() (AccessChecker, error) {
+	return nil, trace.NotFound("access checker is not used in session filter validation")
+}
+
+// validateRoleWildcards rejects wildcards in fields that don't support them.
+func validateRoleWildcards(r types.Role) error {
+	var errs []error
+	for _, side := range []struct {
+		name string
+		rct  types.RoleConditionType
+	}{
+		{"allow", types.Allow},
+		{"deny", types.Deny},
+	} {
+		for _, field := range []struct {
+			name   string
+			values []string
+		}{
+			{"request.search_as_roles", r.GetSearchAsRoles(side.rct)},
+			{"review_requests.preview_as_roles", r.GetPreviewAsRoles(side.rct)},
+		} {
+			if slices.Contains(field.values, types.Wildcard) {
+				errs = append(errs, trace.BadParameter("wildcard is not allowed in %s.%s", side.name, field.name))
 			}
 		}
 	}
 	return trace.NewAggregate(errs...)
 }
 
+// validateSessionPolicies validates fields (kinds, modes,
+// on_leave) on require_session_join join_sessions policies.
+func validateSessionPolicies(r types.Role) error {
+	var errs []error
+
+	// require_session_join
+	for i, p := range r.GetSessionRequirePolicies() {
+		if p == nil {
+			continue
+		}
+		if p.Count < 0 {
+			errs = append(errs, trace.BadParameter("require_session_join[%d]: count cannot be negative, got %d", i, p.Count))
+		}
+		if err := validateSessionKinds(p.Kinds); err != nil {
+			errs = append(errs, trace.BadParameter("require_session_join[%d]: %v", i, err))
+		}
+		if err := validateSessionParticipantModes(p.Modes); err != nil {
+			errs = append(errs, trace.BadParameter("require_session_join[%d]: %v", i, err))
+		}
+		switch types.OnSessionLeaveAction(p.OnLeave) {
+		case "", types.OnSessionLeaveTerminate, types.OnSessionLeavePause:
+		default:
+			errs = append(errs, trace.BadParameter("require_session_join[%d]: invalid on_leave action %q, expected one of %q, %q",
+				i, p.OnLeave, types.OnSessionLeaveTerminate, types.OnSessionLeavePause))
+		}
+	}
+
+	// join_sessions
+	for i, p := range r.GetSessionJoinPolicies() {
+		if p == nil {
+			continue
+		}
+		if err := validateSessionKinds(p.Kinds); err != nil {
+			errs = append(errs, trace.BadParameter("join_sessions[%d]: %v", i, err))
+		}
+		if err := validateSessionParticipantModes(p.Modes); err != nil {
+			errs = append(errs, trace.BadParameter("join_sessions[%d]: %v", i, err))
+		}
+	}
+
+	return trace.NewAggregate(errs...)
+}
+
+func validateSessionKinds(kinds []string) error {
+	for _, kind := range kinds {
+		// "*" is accepted by SessionAccessEvaluator.matchesKind at runtime
+		if kind == types.Wildcard {
+			continue
+		}
+		switch types.SessionKind(kind) {
+		case types.SSHSessionKind, types.KubernetesSessionKind, types.DatabaseSessionKind,
+			types.AppSessionKind, types.WindowsDesktopSessionKind, types.GitSessionKind:
+		default:
+			return trace.BadParameter("invalid session kind %q", kind)
+		}
+	}
+	return nil
+}
+
+func validateSessionParticipantModes(modes []string) error {
+	for _, mode := range modes {
+		switch types.SessionParticipantMode(mode) {
+		case types.SessionObserverMode, types.SessionModeratorMode, types.SessionPeerMode:
+		default:
+			return trace.BadParameter("invalid participant mode %q", mode)
+		}
+	}
+	return nil
+}
+
 // validateRule parses the where and action fields to validate the rule.
 func validateRule(r types.Rule) error {
 	if len(r.Where) != 0 {
-		parser, err := NewWhereParser(&Context{})
+		parser, err := NewWhereParser(&Context{},
+			ConditionalOption(
+				slices.Contains(r.Resources, types.KindSession),
+				WithCanViewFunction(),
+			),
+		)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -435,58 +650,117 @@ func MatchValidAzureIdentity(identity string) bool {
 	return azureIdentityPattern.MatchString(identity)
 }
 
+// RoleTemplateContext is the runtime context used to evaluate role template
+// expressions.
+type RoleTemplateContext struct {
+	Username string
+	Traits   map[string][]string
+}
+
 // ApplyTraits applies the passed in traits to any variables within the role
 // and returns itself.
 func ApplyTraits(r types.Role, traits map[string][]string) (types.Role, error) {
+	return ApplyTraitsWithContext(r, RoleTemplateContext{Traits: traits})
+}
+
+// ApplyTraitsWithContext applies the passed in role template context to any
+// variables within the role and returns itself.
+//
+// Keep in sync with validateRoleExpressions.
+func ApplyTraitsWithContext(r types.Role, ctx RoleTemplateContext) (types.Role, error) {
 	for _, condition := range []types.RoleConditionType{types.Allow, types.Deny} {
 
 		inLogins := r.GetLogins(condition)
-		outLogins := applyValueTraitsSlice(inLogins, traits, "login")
+		outLogins := applyValueTraitsSlice(inLogins, ctx, "login")
 		outLogins = filterInvalidUnixLogins(outLogins)
 		r.SetLogins(condition, apiutils.Deduplicate(outLogins))
 
 		inWindowsLogins := r.GetWindowsLogins(condition)
-		outWindowsLogins := applyValueTraitsSlice(inWindowsLogins, traits, "windows_login")
+		outWindowsLogins := applyValueTraitsSlice(inWindowsLogins, ctx, "windows_login")
 		outWindowsLogins = filterInvalidWindowsLogins(outWindowsLogins)
 		r.SetWindowsLogins(condition, apiutils.Deduplicate(outWindowsLogins))
 
+		inLinuxDesktopLogins := r.GetLinuxDesktopLogins(condition)
+		outLinuxDesktopLogins := applyValueTraitsSlice(inLinuxDesktopLogins, ctx, "linux_desktop_login")
+		outLinuxDesktopLogins = filterInvalidUnixLogins(outLinuxDesktopLogins)
+		r.SetLinuxDesktopLogins(condition, apiutils.Deduplicate(outLinuxDesktopLogins))
+
 		inRoleARNs := r.GetAWSRoleARNs(condition)
-		outRoleARNs := applyValueTraitsSlice(inRoleARNs, traits, "AWS role ARN")
+		outRoleARNs := applyValueTraitsSlice(inRoleARNs, ctx, "AWS role ARN")
 		r.SetAWSRoleARNs(condition, apiutils.Deduplicate(outRoleARNs))
 
 		inAzureIdentities := r.GetAzureIdentities(condition)
-		outAzureIdentities := applyValueTraitsSlice(inAzureIdentities, traits, "Azure identity")
+		outAzureIdentities := applyValueTraitsSlice(inAzureIdentities, ctx, "Azure identity")
 		warnInvalidAzureIdentities(outAzureIdentities)
 		r.SetAzureIdentities(condition, apiutils.Deduplicate(outAzureIdentities))
 
 		inGCPAccounts := r.GetGCPServiceAccounts(condition)
-		outGCPAccounts := applyValueTraitsSlice(inGCPAccounts, traits, "GCP service account")
+		outGCPAccounts := applyValueTraitsSlice(inGCPAccounts, ctx, "GCP service account")
 		r.SetGCPServiceAccounts(condition, apiutils.Deduplicate(outGCPAccounts))
 
 		// apply templates to kubernetes groups
 		inKubeGroups := r.GetKubeGroups(condition)
-		outKubeGroups := applyValueTraitsSlice(inKubeGroups, traits, "kube group")
+		outKubeGroups := applyValueTraitsSlice(inKubeGroups, ctx, "kube group")
 		r.SetKubeGroups(condition, apiutils.Deduplicate(outKubeGroups))
 
 		// apply templates to kubernetes users
 		inKubeUsers := r.GetKubeUsers(condition)
-		outKubeUsers := applyValueTraitsSlice(inKubeUsers, traits, "kube user")
+		outKubeUsers := applyValueTraitsSlice(inKubeUsers, ctx, "kube user")
 		r.SetKubeUsers(condition, apiutils.Deduplicate(outKubeUsers))
 
 		// apply templates to database names
 		inDbNames := r.GetDatabaseNames(condition)
-		outDbNames := applyValueTraitsSlice(inDbNames, traits, "database name")
+		outDbNames := applyValueTraitsSlice(inDbNames, ctx, "database name")
 		r.SetDatabaseNames(condition, apiutils.Deduplicate(outDbNames))
 
 		// apply templates to database users
 		inDbUsers := r.GetDatabaseUsers(condition)
-		outDbUsers := applyValueTraitsSlice(inDbUsers, traits, "database user")
+		outDbUsers := applyValueTraitsSlice(inDbUsers, ctx, "database user")
 		r.SetDatabaseUsers(condition, apiutils.Deduplicate(outDbUsers))
 
 		// apply templates to database roles
 		inDbRoles := r.GetDatabaseRoles(condition)
-		outDbRoles := applyValueTraitsSlice(inDbRoles, traits, "database role")
+		outDbRoles := applyValueTraitsSlice(inDbRoles, ctx, "database role")
 		r.SetDatabaseRoles(condition, apiutils.Deduplicate(outDbRoles))
+
+		githubPermissions := r.GetGitHubPermissions(condition)
+		for i, perm := range githubPermissions {
+			githubPermissions[i].Organizations = applyValueTraitsSlice(perm.Organizations, ctx, "github organizations")
+		}
+		r.SetGitHubPermissions(condition, githubPermissions)
+
+		var out []types.KubernetesResource
+		// we access the resources in the role using the role conditions
+		// to avoid receiving the compatibility resources added in GetKubernetesResources
+		// for roles <v7
+		for _, rec := range r.GetRoleConditions(condition).KubernetesResources {
+			namespaces := applyValueTraitsSlice([]string{rec.Namespace}, ctx, "kubernetes resource namespace")
+			if rec.Namespace == "" {
+				namespaces = []string{""}
+			}
+			names := applyValueTraitsSlice([]string{rec.Name}, ctx, "kubernetes resource name")
+			if rec.Name == "" {
+				names = []string{""}
+			}
+			verbs := applyValueTraitsSlice(rec.Verbs, ctx, "kubernetes resource verb")
+			// A trait can reintroduce a wildcard alongside other verbs after
+			// validation has run, so collapse to just the wildcard.
+			if slices.Contains(verbs, types.Wildcard) {
+				verbs = []string{types.Wildcard}
+			}
+			for _, namespace := range namespaces {
+				for _, name := range names {
+					out = append(out, types.KubernetesResource{
+						Kind:      rec.Kind,
+						Namespace: namespace,
+						Name:      name,
+						Verbs:     verbs,
+						APIGroup:  rec.APIGroup,
+					})
+				}
+			}
+		}
+		r.SetKubeResources(condition, out)
 
 		for _, kind := range []string{
 			types.KindRemoteCluster,
@@ -497,6 +771,9 @@ func ApplyTraits(r types.Role, traits map[string][]string) (types.Role, error) {
 			types.KindDatabaseService,
 			types.KindWindowsDesktop,
 			types.KindUserGroup,
+			types.KindSAMLIdPServiceProvider,
+			types.KindWorkloadIdentity,
+			types.KindBeam,
 		} {
 			labelMatchers, err := r.GetLabelMatchers(condition, kind)
 			if err != nil {
@@ -509,24 +786,24 @@ func ApplyTraits(r types.Role, traits map[string][]string) (types.Role, error) {
 			if len(labelMatchers.Labels) == 0 {
 				continue
 			}
-			labelMatchers.Labels = applyLabelsTraits(labelMatchers.Labels, traits)
+			labelMatchers.Labels = applyLabelsTraits(labelMatchers.Labels, ctx)
 			if err := r.SetLabelMatchers(condition, kind, labelMatchers); err != nil {
 				return nil, trace.Wrap(err)
 			}
 		}
 
 		r.SetHostGroups(condition,
-			applyValueTraitsSlice(r.GetHostGroups(condition), traits, "host_groups"))
+			applyValueTraitsSlice(r.GetHostGroups(condition), ctx, "host_groups"))
 
 		r.SetHostSudoers(condition,
-			applyValueTraitsSlice(r.GetHostSudoers(condition), traits, "host_sudoers"))
+			applyValueTraitsSlice(r.GetHostSudoers(condition), ctx, "host_sudoers"))
 
 		r.SetDesktopGroups(condition,
-			applyValueTraitsSlice(r.GetDesktopGroups(condition), traits, "desktop_groups"))
+			applyValueTraitsSlice(r.GetDesktopGroups(condition), ctx, "desktop_groups"))
 
 		options := r.GetOptions()
 		for i, ext := range options.CertExtensions {
-			vals, err := ApplyValueTraits(ext.Value, traits)
+			vals, err := ApplyValueTraitsWithContext(ext.Value, ctx)
 			if err != nil && !trace.IsNotFound(err) {
 				slog.WarnContext(context.Background(), "Failed to apply trait to cert_extensions.value", "error", err)
 				continue
@@ -539,23 +816,28 @@ func ApplyTraits(r types.Role, traits map[string][]string) (types.Role, error) {
 		// apply templates to impersonation conditions
 		inCond := r.GetImpersonateConditions(condition)
 		var outCond types.ImpersonateConditions
-		outCond.Users = applyValueTraitsSlice(inCond.Users, traits, "impersonate user")
-		outCond.Roles = applyValueTraitsSlice(inCond.Roles, traits, "impersonate role")
+		outCond.Users = applyValueTraitsSlice(inCond.Users, ctx, "impersonate user")
+		outCond.Roles = applyValueTraitsSlice(inCond.Roles, ctx, "impersonate role")
 		outCond.Users = apiutils.Deduplicate(outCond.Users)
 		outCond.Roles = apiutils.Deduplicate(outCond.Roles)
 		outCond.Where = inCond.Where
 		r.SetImpersonateConditions(condition, outCond)
+
+		if mcp := r.GetMCPPermissions(condition); mcp != nil {
+			mcp.Tools = applyValueTraitsSlice(mcp.Tools, ctx, "mcp.tools")
+			r.SetMCPPermissions(condition, mcp)
+		}
 	}
 
 	return r, nil
 }
 
 // applyValueTraitsSlice iterates over a slice of input strings, calling
-// ApplyValueTraits on each.
-func applyValueTraitsSlice(inputs []string, traits map[string][]string, fieldName string) []string {
+// ApplyValueTraitsWithContext on each.
+func applyValueTraitsSlice(inputs []string, ctx RoleTemplateContext, fieldName string) []string {
 	var output []string
 	for _, value := range inputs {
-		outputs, err := ApplyValueTraits(value, traits)
+		outputs, err := ApplyValueTraitsWithContext(value, ctx)
 		if err != nil {
 			if !trace.IsNotFound(err) {
 				slog.DebugContext(context.Background(), "Skipping trait value.", "field", fieldName, "value", value, "error", err)
@@ -581,11 +863,11 @@ func applyValueTraitsSlice(inputs []string, traits map[string][]string, fieldNam
 // cluster_labels:
 //
 //	env: ['admins', 'devs']
-func applyLabelsTraits(inLabels types.Labels, traits map[string][]string) types.Labels {
+func applyLabelsTraits(inLabels types.Labels, ctx RoleTemplateContext) types.Labels {
 	outLabels := make(types.Labels, len(inLabels))
 	// every key will be mapped to the first value
 	for key, vals := range inLabels {
-		keyVars, err := ApplyValueTraits(key, traits)
+		keyVars, err := ApplyValueTraitsWithContext(key, ctx)
 		if err != nil {
 			// empty key will not match anything
 			slog.DebugContext(context.Background(), "Setting empty node label pair", "key", key, "values", vals, "error", err)
@@ -594,7 +876,7 @@ func applyLabelsTraits(inLabels types.Labels, traits map[string][]string) types.
 
 		var values []string
 		for _, val := range vals {
-			valVars, err := ApplyValueTraits(val, traits)
+			valVars, err := ApplyValueTraitsWithContext(val, ctx)
 			if err != nil {
 				slog.DebugContext(context.Background(), "Setting empty node label value", "key", key, "value", val, "error", err)
 				// empty value will not match anything
@@ -613,6 +895,12 @@ func applyLabelsTraits(inLabels types.Labels, traits map[string][]string) types.
 // mapped list of values otherwise, the function guarantees to return
 // at least one value in case if return value is nil
 func ApplyValueTraits(val string, traits map[string][]string) ([]string, error) {
+	return ApplyValueTraitsWithContext(val, RoleTemplateContext{Traits: traits})
+}
+
+// ApplyValueTraitsWithContext applies the passed in role template context to
+// the variable.
+func ApplyValueTraitsWithContext(val string, ctx RoleTemplateContext) ([]string, error) {
 	// Extract the variable from the role variable.
 	expr, err := parse.NewTraitsTemplateExpression(val)
 	if err != nil {
@@ -623,26 +911,33 @@ func ApplyValueTraits(val string, traits map[string][]string) ([]string, error) 
 		// verify that internal traits match the supported variables
 		if namespace == teleport.TraitInternalPrefix {
 			switch name {
-			case constants.TraitLogins, constants.TraitWindowsLogins,
+			case constants.TraitLogins, constants.TraitWindowsLogins, constants.TraitLinuxDesktopLogins,
 				constants.TraitKubeGroups, constants.TraitKubeUsers,
 				constants.TraitDBNames, constants.TraitDBUsers, constants.TraitDBRoles,
 				constants.TraitAWSRoleARNs, constants.TraitAzureIdentities,
-				constants.TraitGCPServiceAccounts, teleport.TraitJWT:
+				constants.TraitGCPServiceAccounts, constants.TraitJWT,
+				constants.TraitGitHubOrgs, constants.TraitMCPTools,
+				constants.TraitDefaultRelayAddr, constants.TraitIDToken:
 			default:
 				return trace.BadParameter("unsupported variable %q", name)
 			}
 		}
-		// TODO: return a not found error if the variable namespace is not
-		// the namespace of `traits`.
-		// If e.g. the `traits` belong to the "internal" namespace (as the
-		// validation above suggests), and "foo" is a key in `traits`, then
-		// "external.foo" will return the value of "internal.foo". This is
-		// incorrect, and a not found error should be returned instead.
-		// This would be similar to the var validation done in getPAMConfig
-		// (lib/srv/ctx.go).
+		// The "external" trait namespace is explicitly allowed to reference
+		// "internal" traits listed above. This is for multiple reasons:
+		// - back compat, it's always been this way
+		// - IdPs are allowed to set those trait names so it wouldn't make
+		//   sense to block them when referenced via "external"
+		// - The user resource spec.traits can include the "internal" trait
+		//   names listed above, as well as any other trait name - but other
+		//   trait names must be referenced in the "external" namespace. It
+		//   wouldn't make a lot of sense to change the namespace
+		//   based only on the trait name, especially given that we tend to
+		//   expand the list of "internal" traits, and that would be a breaking
+		//   change if someone already referred to one of the "new" internal
+		//   traits in the "external" namespace.
 		return nil
 	}
-	interpolated, err := expr.Interpolate(varValidation, traits)
+	interpolated, err := expr.InterpolateWithUser(varValidation, ctx.Username, ctx.Traits)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -822,6 +1117,12 @@ func RoleSetFromSpec(name string, spec types.RoleSpecV6) (RoleSet, error) {
 	return NewRoleSet(role), nil
 }
 
+// WO is a shortcut that returns create and update verbs, granting the ability
+// to emit/write resources but not list, read, or delete them.
+func WO() []string {
+	return []string{types.VerbCreate, types.VerbUpdate}
+}
+
 // RW is a shortcut that returns all CRUD verbs.
 func RW() []string {
 	return []string{types.VerbList, types.VerbCreate, types.VerbRead, types.VerbUpdate, types.VerbDelete}
@@ -842,20 +1143,6 @@ func ReadNoSecrets() []string {
 type RoleGetter interface {
 	// GetRole returns role by name
 	GetRole(ctx context.Context, name string) (types.Role, error)
-}
-
-// ExtractFromCertificate will extract roles and traits from a *ssh.Certificate.
-func ExtractFromCertificate(cert *ssh.Certificate) ([]string, wrappers.Traits, error) {
-	roles, err := ExtractRolesFromCert(cert)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-	traits, err := ExtractTraitsFromCert(cert)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	return roles, traits, nil
 }
 
 // ExtractFromIdentity will extract roles and traits from the *x509.Certificate
@@ -885,6 +1172,12 @@ func ExtractFromIdentity(ctx context.Context, access UserGetter, identity tlsca.
 // FetchRoleList fetches roles by their names, applies the traits to role
 // variables, and returns the list
 func FetchRoleList(roleNames []string, access RoleGetter, traits map[string][]string) (RoleSet, error) {
+	return FetchRoleListWithContext(roleNames, access, RoleTemplateContext{Traits: traits})
+}
+
+// FetchRoleListWithContext fetches roles by their names, applies the role
+// template context to role variables, and returns the list.
+func FetchRoleListWithContext(roleNames []string, access RoleGetter, ctx RoleTemplateContext) (RoleSet, error) {
 	var roles []types.Role
 
 	for _, roleName := range roleNames {
@@ -892,7 +1185,7 @@ func FetchRoleList(roleNames []string, access RoleGetter, traits map[string][]st
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		role, err = ApplyTraits(role, traits)
+		role, err = ApplyTraitsWithContext(role, ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -906,44 +1199,27 @@ func FetchRoleList(roleNames []string, access RoleGetter, traits map[string][]st
 // variables, and returns the RoleSet. Adds runtime roles like the default
 // implicit role to RoleSet.
 func FetchRoles(roleNames []string, access RoleGetter, traits map[string][]string) (RoleSet, error) {
-	roles, err := FetchRoleList(roleNames, access, traits)
+	return FetchRolesWithContext(roleNames, access, RoleTemplateContext{Traits: traits})
+}
+
+// FetchRolesWithContext fetches roles by their names, applies the role
+// template context to role variables, and returns the RoleSet. Adds runtime
+// roles like the default implicit role to RoleSet.
+func FetchRolesWithContext(roleNames []string, access RoleGetter, ctx RoleTemplateContext) (RoleSet, error) {
+	roles, err := FetchRoleListWithContext(roleNames, access, ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return NewRoleSet(roles...), nil
 }
 
-// ExtractRolesFromCert extracts roles from certificate metadata extensions.
-func ExtractRolesFromCert(cert *ssh.Certificate) ([]string, error) {
-	data, ok := cert.Extensions[teleport.CertExtensionTeleportRoles]
-	if !ok {
-		return nil, trace.NotFound("no roles found")
-	}
-	return UnmarshalCertRoles(data)
-}
-
-// ExtractTraitsFromCert extracts traits from the certificate extensions.
-func ExtractTraitsFromCert(cert *ssh.Certificate) (wrappers.Traits, error) {
-	rawTraits, ok := cert.Extensions[teleport.CertExtensionTeleportTraits]
-	if !ok {
-		return nil, trace.NotFound("no traits found")
-	}
-	var traits wrappers.Traits
-	err := wrappers.UnmarshalTraits([]byte(rawTraits), &traits)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return traits, nil
-}
-
-func ExtractAllowedResourcesFromCert(cert *ssh.Certificate) ([]types.ResourceID, error) {
-	allowedResourcesStr, ok := cert.Extensions[teleport.CertExtensionAllowedResources]
-	if !ok {
-		// if not present in the cert, there are no resource-based restrictions
-		return nil, nil
-	}
-	allowedResources, err := types.ResourceIDsFromString(allowedResourcesStr)
-	return allowedResources, trace.Wrap(err)
+// FetchRolesForUser fetches a user's roles using their username and traits as
+// role template context.
+func FetchRolesForUser(user UserAccessState, access RoleGetter) (RoleSet, error) {
+	return FetchRolesWithContext(user.GetRoles(), access, RoleTemplateContext{
+		Username: user.GetName(),
+		Traits:   user.GetTraits(),
+	})
 }
 
 // NewRoleSet returns new RoleSet based on the roles
@@ -1003,12 +1279,56 @@ func (result *EnumerationResult) WildcardDenied() bool {
 	return result.wildcardDenied
 }
 
+// ToEntities converts result back to allowed and denied entity slices.
+//
+// If wildcard is denied, only "*" is returned for the denied slice.
+// If wildcard is allowed, allowed entities will be appended to the allowed
+// slice after the "*" as a hint for users to select.
+// Denied entities is only included if the wildcard is allowed.
+func (result *EnumerationResult) ToEntities() (allowed, denied []string) {
+	if result.wildcardDenied {
+		return nil, []string{types.Wildcard}
+	}
+	if result.wildcardAllowed {
+		return append([]string{types.Wildcard}, result.Allowed()...), result.Denied()
+	}
+	return result.Allowed(), nil
+}
+
 // NewEnumerationResult returns new EnumerationResult.
 func NewEnumerationResult() EnumerationResult {
 	return EnumerationResult{
 		allowedDeniedMap: map[string]bool{},
 		wildcardAllowed:  false,
 		wildcardDenied:   false,
+	}
+}
+
+// NewEnumerationResultFromEntities creates a new EnumerationResult and
+// populates the result with provided allowed and denied entries.
+func NewEnumerationResultFromEntities(allowed, denied []string) EnumerationResult {
+	var wildcardAllowed bool
+	var wildcardDenied bool
+	allowedDeniedMap := make(map[string]bool)
+	for _, allow := range allowed {
+		if allow == types.Wildcard {
+			wildcardAllowed = true
+		} else {
+			allowedDeniedMap[allow] = true
+		}
+	}
+	for _, deny := range denied {
+		if deny == types.Wildcard {
+			wildcardDenied = true
+			wildcardAllowed = false
+			break
+		}
+		allowedDeniedMap[deny] = false
+	}
+	return EnumerationResult{
+		allowedDeniedMap: allowedDeniedMap,
+		wildcardAllowed:  wildcardAllowed,
+		wildcardDenied:   wildcardDenied,
 	}
 }
 
@@ -1025,10 +1345,8 @@ func MatchNamespace(selectors []string, namespace string) (bool, string) {
 
 // MatchAWSRoleARN returns true if provided role ARN matches selectors.
 func MatchAWSRoleARN(selectors []string, roleARN string) (bool, string) {
-	for _, l := range selectors {
-		if l == roleARN {
-			return true, "matched"
-		}
+	if slices.Contains(selectors, roleARN) {
+		return true, "matched"
 	}
 	return false, fmt.Sprintf("no match, role selectors %v, role ARN: %v", selectors, roleARN)
 }
@@ -1090,31 +1408,15 @@ func MatchDatabaseUser(selectors []string, user string, matchWildcard, caseFold 
 // MatchLabels matches selector against target. Empty selector matches
 // nothing, wildcard matches everything.
 func MatchLabels(selector types.Labels, target map[string]string) (bool, string, error) {
-	return MatchLabelGetter(selector, mapLabelGetter(target))
-}
-
-// LabelGetter allows retrieving a particular label by name or retreiving all
-// labels at once. Prefer to use GetLabel when possible to avoid unnecessary
-// copies.
-type LabelGetter interface {
-	GetLabel(key string) (value string, ok bool)
-	GetAllLabels() map[string]string
-}
-
-type mapLabelGetter map[string]string
-
-func (m mapLabelGetter) GetLabel(key string) (value string, ok bool) {
-	v, ok := m[key]
-	return v, ok
-}
-
-func (m mapLabelGetter) GetAllLabels() map[string]string {
-	return map[string]string(m)
+	return MatchLabelGetter(selector, label.MapLabelGetter(target))
 }
 
 // MatchLabelGetter matches selector against labelGetter. Empty selector matches
 // nothing, wildcard matches everything.
-func MatchLabelGetter(selector types.Labels, labelGetter LabelGetter) (bool, string, error) {
+//
+// Keep in sync with front-end implementation;
+//   - web/packages/teleport/src/Bots/Add/Shared/kubernetes.ts:34
+func MatchLabelGetter(selector types.Labels, labelGetter label.LabelGetter) (bool, string, error) {
 	// Empty selector matches nothing.
 	if len(selector) == 0 {
 		return false, "no match, empty selector", nil
@@ -1163,7 +1465,7 @@ func (set RoleSet) RoleNames() []string {
 
 // Roles returns the list underlying roles this RoleSet is based on.
 func (set RoleSet) Roles() []types.Role {
-	return append([]types.Role{}, set...)
+	return slices.Clone(set)
 }
 
 // HasRole checks if the role set has the role
@@ -1251,6 +1553,21 @@ func (set RoleSet) AdjustSessionTTL(ttl time.Duration) time.Duration {
 		maxSessionTTL := role.GetOptions().MaxSessionTTL.Value()
 		if maxSessionTTL != 0 && ttl > maxSessionTTL {
 			ttl = maxSessionTTL
+		}
+	}
+	return ttl
+}
+
+// AdjustMFAVerificationInterval will reduce the requested ttl to the lowest mfa verification interval
+// for this role set if the role forces MFA tap, otherwise it returns ttl unchanged
+func (set RoleSet) AdjustMFAVerificationInterval(ttl time.Duration, enforce bool) time.Duration {
+	for _, role := range set {
+		mfaVerificationInterval := role.GetOptions().MFAVerificationInterval
+		if role.GetOptions().RequireMFAType == types.RequireMFAType_OFF && !enforce {
+			continue
+		}
+		if mfaVerificationInterval != 0 && ttl > mfaVerificationInterval {
+			ttl = mfaVerificationInterval
 		}
 	}
 	return ttl
@@ -1345,8 +1662,8 @@ func (set RoleSet) AdjustDisconnectExpiredCert(disconnect bool) bool {
 // CheckKubeGroupsAndUsers check if role can login into kubernetes
 // and returns two lists of allowed groups and users
 func (set RoleSet) CheckKubeGroupsAndUsers(ttl time.Duration, overrideTTL bool, matchers ...RoleMatcher) ([]string, []string, error) {
-	groups := make(map[string]struct{})
-	users := make(map[string]struct{})
+	groups := setutils.New[string]()
+	users := setutils.New[string]()
 	var matchedTTL bool
 	for _, role := range set {
 		ok, err := RoleMatchers(matchers).MatchAll(role, types.Allow)
@@ -1361,10 +1678,10 @@ func (set RoleSet) CheckKubeGroupsAndUsers(ttl time.Duration, overrideTTL bool, 
 		if overrideTTL || (ttl <= maxSessionTTL && maxSessionTTL != 0) {
 			matchedTTL = true
 			for _, group := range role.GetKubeGroups(types.Allow) {
-				groups[group] = struct{}{}
+				groups.Add(group)
 			}
 			for _, user := range role.GetKubeUsers(types.Allow) {
-				users[user] = struct{}{}
+				users.Add(user)
 			}
 		}
 	}
@@ -1377,10 +1694,10 @@ func (set RoleSet) CheckKubeGroupsAndUsers(ttl time.Duration, overrideTTL bool, 
 			continue
 		}
 		for _, group := range role.GetKubeGroups(types.Deny) {
-			delete(groups, group)
+			groups.Remove(group)
 		}
 		for _, user := range role.GetKubeUsers(types.Deny) {
-			delete(users, user)
+			users.Remove(user)
 		}
 	}
 	if !matchedTTL {
@@ -1389,33 +1706,33 @@ func (set RoleSet) CheckKubeGroupsAndUsers(ttl time.Duration, overrideTTL bool, 
 	if len(groups) == 0 && len(users) == 0 {
 		return nil, nil, trace.NotFound("this user cannot request kubernetes access, has no assigned groups or users")
 	}
-	return utils.StringsSliceFromSet(groups), utils.StringsSliceFromSet(users), nil
+	return groups.Elements(), users.Elements(), nil
 }
 
 // CheckDatabaseNamesAndUsers checks if the role has any allowed database
 // names or users.
 func (set RoleSet) CheckDatabaseNamesAndUsers(ttl time.Duration, overrideTTL bool) ([]string, []string, error) {
-	names := make(map[string]struct{})
-	users := make(map[string]struct{})
+	names := setutils.New[string]()
+	users := setutils.New[string]()
 	var matchedTTL bool
 	for _, role := range set {
 		maxSessionTTL := role.GetOptions().MaxSessionTTL.Value()
 		if overrideTTL || (ttl <= maxSessionTTL && maxSessionTTL != 0) {
 			matchedTTL = true
 			for _, name := range role.GetDatabaseNames(types.Allow) {
-				names[name] = struct{}{}
+				names.Add(name)
 			}
 			for _, user := range role.GetDatabaseUsers(types.Allow) {
-				users[user] = struct{}{}
+				users.Add(user)
 			}
 		}
 	}
 	for _, role := range set {
 		for _, name := range role.GetDatabaseNames(types.Deny) {
-			delete(names, name)
+			names.Remove(name)
 		}
 		for _, user := range role.GetDatabaseUsers(types.Deny) {
-			delete(users, user)
+			users.Remove(user)
 		}
 	}
 	if !matchedTTL {
@@ -1424,25 +1741,25 @@ func (set RoleSet) CheckDatabaseNamesAndUsers(ttl time.Duration, overrideTTL boo
 	if len(names) == 0 && len(users) == 0 {
 		return nil, nil, trace.NotFound("this user cannot request database access, has no assigned database names or users")
 	}
-	return utils.StringsSliceFromSet(names), utils.StringsSliceFromSet(users), nil
+	return names.Elements(), users.Elements(), nil
 }
 
 // CheckAWSRoleARNs returns a list of AWS role ARNs this role set is allowed to assume.
 func (set RoleSet) CheckAWSRoleARNs(ttl time.Duration, overrideTTL bool) ([]string, error) {
-	arns := make(map[string]struct{})
+	arns := setutils.New[string]()
 	var matchedTTL bool
 	for _, role := range set {
 		maxSessionTTL := role.GetOptions().MaxSessionTTL.Value()
 		if overrideTTL || (ttl <= maxSessionTTL && maxSessionTTL != 0) {
 			matchedTTL = true
 			for _, arn := range role.GetAWSRoleARNs(types.Allow) {
-				arns[arn] = struct{}{}
+				arns.Add(arn)
 			}
 		}
 	}
 	for _, role := range set {
 		for _, arn := range role.GetAWSRoleARNs(types.Deny) {
-			delete(arns, arn)
+			arns.Remove(arn)
 		}
 	}
 	if !matchedTTL {
@@ -1451,7 +1768,7 @@ func (set RoleSet) CheckAWSRoleARNs(ttl time.Duration, overrideTTL bool) ([]stri
 	if len(arns) == 0 {
 		return nil, trace.NotFound("this user cannot request AWS management console, has no assigned role ARNs")
 	}
-	return utils.StringsSliceFromSet(arns), nil
+	return arns.Elements(), nil
 }
 
 // CheckAzureIdentities returns a list of Azure identities the user is allowed to assume.
@@ -1494,14 +1811,14 @@ func (set RoleSet) CheckAzureIdentities(ttl time.Duration, overrideTTL bool) ([]
 
 // CheckGCPServiceAccounts returns a list of GCP service accounts this role set is allowed to assume.
 func (set RoleSet) CheckGCPServiceAccounts(ttl time.Duration, overrideTTL bool) ([]string, error) {
-	accounts := make(map[string]struct{})
+	accounts := setutils.New[string]()
 	var matchedTTL bool
 	for _, role := range set {
 		maxSessionTTL := role.GetOptions().MaxSessionTTL.Value()
 		if overrideTTL || (ttl <= maxSessionTTL && maxSessionTTL != 0) {
 			matchedTTL = true
 			for _, account := range role.GetGCPServiceAccounts(types.Allow) {
-				accounts[strings.ToLower(account)] = struct{}{}
+				accounts.Add(strings.ToLower(account))
 			}
 		}
 	}
@@ -1509,10 +1826,10 @@ func (set RoleSet) CheckGCPServiceAccounts(ttl time.Duration, overrideTTL bool) 
 		for _, account := range role.GetGCPServiceAccounts(types.Deny) {
 			// deny * removes all accounts
 			if account == types.Wildcard {
-				accounts = make(map[string]struct{})
+				accounts = setutils.New[string]()
 			}
 			// remove particular account
-			delete(accounts, strings.ToLower(account))
+			accounts.Remove(strings.ToLower(account))
 		}
 	}
 	if !matchedTTL {
@@ -1521,52 +1838,80 @@ func (set RoleSet) CheckGCPServiceAccounts(ttl time.Duration, overrideTTL bool) 
 	if len(accounts) == 0 {
 		return nil, trace.NotFound("this user cannot request GCP API access, has no assigned service accounts")
 	}
-	return utils.StringsSliceFromSet(accounts), nil
+	return accounts.Elements(), nil
 }
 
-// CheckAccessToSAMLIdP checks access to the SAML IdP.
-//
-// TODO(Joerger): make Access state non-variadic once /e is updated to provide it.
-//
-//nolint:revive // Because we want this to be IdP.
-func (set RoleSet) CheckAccessToSAMLIdP(authPref readonly.AuthPreference, states ...AccessState) error {
-	_, debugf := rbacDebugLogger()
+// checkAccessToSAMLIdPLegacy checks access to the SAML IdP based on
+// IDP enabled/disabled in role option and MFA. The IDP option is enforced
+// in Teleport role version v7 and below.
+func checkAccessToSAMLIdPLegacy(state AccessState, role types.Role) error {
+	ctx := context.Background()
 
+	if state.MFARequired == MFARequiredAlways && !state.MFAVerified {
+		rbacLogger.LogAttrs(ctx, logutils.TraceLevel, "Access to SAML IdP denied, cluster requires per-session MFA")
+		return trace.Wrap(ErrSessionMFARequired)
+	}
+
+	mfaAllowed := state.MFAVerified || state.MFARequired == MFARequiredNever
+	options := role.GetOptions()
+	// This should never happen, but we should make sure that we don't get a nil pointer error here.
+	if options.IDP == nil || options.IDP.SAML == nil || options.IDP.SAML.Enabled == nil {
+		return nil
+	}
+	// If any role specifically denies access to the IdP, we'll return AccessDenied.
+	if !options.IDP.SAML.Enabled.Value {
+		return trace.AccessDenied("user has been denied access to the SAML IdP by role %s", role.GetName())
+	}
+
+	if !mfaAllowed && options.RequireMFAType.IsSessionMFARequired() {
+		rbacLogger.LogAttrs(ctx, logutils.TraceLevel, "Access to SAML IdP denied, role requires per-session MFA",
+			slog.String("role", role.GetName()),
+		)
+		return trace.Wrap(ErrSessionMFARequired)
+	}
+
+	return nil
+}
+
+// CheckAccessToSAMLIdP checks access to SAML service provider resource.
+// For Teleport role version v7 and below (legacy SAML IdP RBAC), only MFA
+// and IDP role option is checked.
+// For Teleport role version v8 and above (non-legacy SAML IdP RBAC),
+// labels, MFA and Device Trust is checked.
+// IDP option in the auth preference is checked in both the cases.
+func (set RoleSet) CheckAccessToSAMLIdP(r AccessCheckable, username string, traits wrappers.Traits, authPref readonly.AuthPreference, state AccessState, matchers ...RoleMatcher) error {
 	if authPref != nil {
 		if !authPref.IsSAMLIdPEnabled() {
 			return trace.AccessDenied("SAML IdP is disabled at the cluster level")
 		}
 	}
 
-	var state AccessState
-	if len(states) == 1 {
-		state = states[0]
+	if len(set) == 0 {
+		return trace.AccessDenied("access to %v denied. User does not have permissions. %v",
+			r.GetKind(), "No roles assigned to user")
 	}
 
-	if state.MFARequired == MFARequiredAlways && !state.MFAVerified {
-		debugf("Access to SAML IdP denied, cluster requires per-session MFA")
-		return trace.Wrap(ErrSessionMFARequired)
-	}
-
-	mfaAllowed := state.MFAVerified || state.MFARequired == MFARequiredNever
-
+	var v8RoleSet RoleSet
 	for _, role := range set {
-		options := role.GetOptions()
-
-		// This should never happen, but we should make sure that we don't get a nil pointer error here.
-		if options.IDP == nil || options.IDP.SAML == nil || options.IDP.SAML.Enabled == nil {
+		if !types.IsLegacySAMLRBAC(role.GetVersion()) {
+			v8RoleSet = append(v8RoleSet, role)
 			continue
 		}
-
-		// If any role specifically denies access to the IdP, we'll return AccessDenied.
-		if !options.IDP.SAML.Enabled.Value {
-			return trace.AccessDenied("user has been denied access to the SAML IdP by role %s", role.GetName())
+		if err := checkAccessToSAMLIdPLegacy(state, role); err != nil {
+			return trace.Wrap(err)
 		}
+	}
 
-		if !mfaAllowed && options.RequireMFAType.IsSessionMFARequired() {
-			debugf("Access to SAML IdP denied, role %q requires per-session MFA", role.GetName())
-			return trace.Wrap(ErrSessionMFARequired)
-		}
+	// We checked for empty roleset early on this method. Reaching this part
+	// and zero non-legacy roleset means that the user was allowed access
+	// with legacy roles. We'll honor that and return, otherwise, checkAccess
+	// will deny access on empty role set.
+	if len(v8RoleSet) == 0 {
+		return nil
+	}
+
+	if _, err := v8RoleSet.checkAccess(r, username, traits, state, matchers...); err != nil {
+		return trace.Wrap(err)
 	}
 
 	return nil
@@ -1750,8 +2095,7 @@ func (set RoleSet) CheckImpersonateRoles(currentUser types.User, impersonateRole
 
 	// check deny: a single match on a deny rule prohibits access
 	for _, role := range set {
-		cond := role.GetImpersonateConditions(types.Deny)
-		matched, err := matchDenyRoleImpersonateCondition(cond, impersonateRoles)
+		matched, err := matchDenyRoleImpersonateCondition(role, impersonateRoles)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1762,8 +2106,7 @@ func (set RoleSet) CheckImpersonateRoles(currentUser types.User, impersonateRole
 
 	// check allow: if any one Role satisfies all the role requests, allow impersonation
 	for _, role := range set {
-		cond := role.GetImpersonateConditions(types.Allow)
-		matched, err := matchAllowRoleImpersonateCondition(ctx, whereParser, cond, impersonateRoles)
+		matched, err := matchAllowRoleImpersonateCondition(ctx, whereParser, role, impersonateRoles)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1773,6 +2116,33 @@ func (set RoleSet) CheckImpersonateRoles(currentUser types.User, impersonateRole
 	}
 
 	return trace.AccessDenied("access denied to '%s' to impersonate roles '%s'", currentUser.GetName(), roleNames(impersonateRoles))
+}
+
+// CheckSubmitForUser checks whether the current user is allowed to
+// submit reviews for other users, to be used by plugins.
+func (set RoleSet) CheckSubmitForUser(currentUser, submitForUser types.User) error {
+	for _, role := range set {
+		denyUsers := role.GetSubmitForUsers(types.Deny)
+		anyDenyUser, err := parse.NewAnyMatcher(denyUsers)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if anyDenyUser.Match(submitForUser.GetName()) {
+			return trace.AccessDenied("access denied for '%s' to submit for user '%s'", currentUser.GetName(), submitForUser.GetName())
+		}
+	}
+
+	for _, role := range set {
+		allowUsers := role.GetSubmitForUsers(types.Allow)
+		anyAllowUser, err := parse.NewAnyMatcher(allowUsers)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if anyAllowUser.Match(submitForUser.GetName()) {
+			return nil
+		}
+	}
+	return trace.AccessDenied("access denied for '%s' to submit for user '%s'", currentUser.GetName(), submitForUser.GetName())
 }
 
 // LockingMode returns the locking mode to apply with this RoleSet.
@@ -1848,10 +2218,71 @@ func contains[S ~[]E, E any](s S, f func(E) (bool, error)) (bool, error) {
 	return false, nil
 }
 
-// matchSPIFFESVIDConditions compares a slice of SPIFFE Role Conditions against
+// matchSPIFFESVIDDenyConditions compares a slice of SPIFFE Role Conditions against
+// a requested SPIFFE SVID generation. Any field within a condition must match,
+// and any condition in the slice can match for the function to return true.
+func matchSPIFFESVIDDenyConditions(
+	conds []*types.SPIFFERoleCondition,
+	spiffeIDPath string,
+	dnsSANs []string,
+	ipSANs []net.IP,
+) (bool, error) {
+	return contains(conds, func(cond *types.SPIFFERoleCondition) (bool, error) {
+		// Match SPIFFE ID path.
+		isPathMatch, err := utils.MatchString(spiffeIDPath, cond.Path)
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+		if !isPathMatch {
+			return false, nil
+		}
+
+		// if any DNS SAN in the condition matches, we say the DNS SAN part
+		// of the condition matches
+		isDNSMatch := true
+		for _, dnsSANMatcher := range cond.DNSSANs {
+			isDNSMatch, err = contains(dnsSANs, func(reqDNSSAN string) (bool, error) {
+				return utils.MatchString(reqDNSSAN, dnsSANMatcher)
+			})
+			if err != nil {
+				return false, trace.Wrap(err)
+			}
+			if isDNSMatch {
+				break
+			}
+		}
+		if !isDNSMatch {
+			return false, nil
+		}
+
+		// Any IP SAN requested can match one of the IP SAN matchers in the
+		// condition.
+		isIPMatch := true
+		for _, ipSANMatcher := range cond.IPSANs {
+			isIPMatch, err = contains(ipSANs, func(reqIPSAN net.IP) (bool, error) {
+				_, cidr, err := net.ParseCIDR(ipSANMatcher)
+				if err != nil {
+					return false, trace.Wrap(err, "parsing cidr")
+				}
+				return cidr.Contains(reqIPSAN), nil
+			})
+			if err != nil {
+				return false, trace.Wrap(err)
+			}
+			if isIPMatch {
+				break
+			}
+		}
+
+		// all other conditions met
+		return isIPMatch, nil
+	})
+}
+
+// matchSPIFFESVIDAllowConditions compares a slice of SPIFFE Role Conditions against
 // a requested SPIFFE SVID generation. All fields within a condition must match,
 // but any condition in the slice can match for the function to return true.
-func matchSPIFFESVIDConditions(
+func matchSPIFFESVIDAllowConditions(
 	conds []*types.SPIFFERoleCondition,
 	spiffeIDPath string,
 	dnsSANs []string,
@@ -1919,7 +2350,7 @@ func (set RoleSet) CheckSPIFFESVID(spiffeIDPath string, dnsSANs []string, ipSANs
 	// check deny: a single match on a deny rule prohibits generation
 	for _, role := range set {
 		cond := role.GetSPIFFEConditions(types.Deny)
-		matched, err := matchSPIFFESVIDConditions(cond, spiffeIDPath, dnsSANs, ipSANs)
+		matched, err := matchSPIFFESVIDDenyConditions(cond, spiffeIDPath, dnsSANs, ipSANs)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1931,7 +2362,7 @@ func (set RoleSet) CheckSPIFFESVID(spiffeIDPath string, dnsSANs []string, ipSANs
 	// check allow: if a single condition matches, allow generation
 	for _, role := range set {
 		cond := role.GetSPIFFEConditions(types.Allow)
-		matched, err := matchSPIFFESVIDConditions(cond, spiffeIDPath, dnsSANs, ipSANs)
+		matched, err := matchSPIFFESVIDAllowConditions(cond, spiffeIDPath, dnsSANs, ipSANs)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -2033,7 +2464,8 @@ func matchDenyImpersonateCondition(cond types.ImpersonateConditions, impersonate
 
 // matchAllowRoleImpersonateCondition matches an allow impersonate condition
 // specifically for role-only impersonation, where only roles are matched.
-func matchAllowRoleImpersonateCondition(ctx *impersonateContext, whereParser predicate.Parser, cond types.ImpersonateConditions, impersonateRoles []types.Role) (bool, error) {
+func matchAllowRoleImpersonateCondition(ctx *impersonateContext, whereParser predicate.Parser, role types.Role, impersonateRoles []types.Role) (bool, error) {
+	cond := role.GetImpersonateConditions(types.Allow)
 	// an empty set matches nothing
 	if len(cond.Users) == 0 && len(cond.Roles) == 0 {
 		return false, nil
@@ -2041,6 +2473,10 @@ func matchAllowRoleImpersonateCondition(ctx *impersonateContext, whereParser pre
 
 	// Role impersonation can never apply to users.
 	if len(cond.Users) != 0 {
+		slog.WarnContext(context.Background(),
+			"Allow rule did not match due to users being set. For role-only impersonation, only roles should be set in allow/deny rules.",
+			"role", role.GetName(),
+		)
 		return false, nil
 	}
 
@@ -2074,15 +2510,23 @@ func matchAllowRoleImpersonateCondition(ctx *impersonateContext, whereParser pre
 
 // matchDenyRoleImpersonateCondition matches a deny impersonate condition
 // specifically for role impersonation, where only roles are matched.
-func matchDenyRoleImpersonateCondition(cond types.ImpersonateConditions, impersonateRoles []types.Role) (bool, error) {
+func matchDenyRoleImpersonateCondition(role types.Role, impersonateRoles []types.Role) (bool, error) {
+	cond := role.GetImpersonateConditions(types.Deny)
 	// an empty set matches nothing
 	if len(cond.Users) == 0 && len(cond.Roles) == 0 {
 		return false, nil
 	}
 
-	// Role impersonation can never apply to users.
+	// If any users are defined in a role-impersonation deny rule, it always
+	// matches. This functionally disables role impersonation for rules
+	// containing a `users` deny entry, which is acceptable because only bots
+	// should ever use role impersonation.
 	if len(cond.Users) != 0 {
-		return false, nil
+		slog.WarnContext(context.Background(),
+			"Deny rule matched due to users being set. For role-only impersonation, only roles should be set in allow/deny rules.",
+			"role", role.GetName(),
+		)
+		return true, nil
 	}
 
 	// By this point, at least 1 role is guaranteed.
@@ -2143,6 +2587,14 @@ func (m RoleMatchers) MatchAny(role types.Role, condition types.RoleConditionTyp
 		}
 	}
 	return false, nil, nil
+}
+
+// AnyOf returns a RoleMatcher that succeeds if ANY of the underlying matchers match.
+func (m RoleMatchers) AnyOf() RoleMatcher {
+	return RoleMatcherFunc(func(r types.Role, cond types.RoleConditionType) (bool, error) {
+		ok, _, err := m.MatchAny(r, cond)
+		return ok, err
+	})
 }
 
 // databaseUserMatcher matches a role against database account name.
@@ -2280,10 +2732,8 @@ func NewLoginMatcher(login string) RoleMatcher {
 // Match matches a login against a role.
 func (l *loginMatcher) Match(role types.Role, typ types.RoleConditionType) (bool, error) {
 	logins := role.GetLogins(typ)
-	for _, login := range logins {
-		if l.login == login {
-			return true, nil
-		}
+	if slices.Contains(logins, l.login) {
+		return true, nil
 	}
 	return false, nil
 }
@@ -2301,12 +2751,26 @@ func NewWindowsLoginMatcher(login string) RoleMatcher {
 // Match matches a Windows Desktop login against a role.
 func (l *windowsLoginMatcher) Match(role types.Role, typ types.RoleConditionType) (bool, error) {
 	logins := role.GetWindowsLogins(typ)
-	for _, login := range logins {
-		if l.login == login {
-			return true, nil
-		}
+	if slices.Contains(logins, l.login) {
+		return true, nil
 	}
 	return false, nil
+}
+
+type linuxDesktopLoginMatcher struct {
+	login string
+}
+
+// NewLinuxDesktopLoginMatcher creates a RoleMatcher that checks whether the role's
+// Linux desktop logins match the specified condition.
+func NewLinuxDesktopLoginMatcher(login string) RoleMatcher {
+	return &linuxDesktopLoginMatcher{login: login}
+}
+
+// Match matches a Linux Desktop login against a role.
+func (l *linuxDesktopLoginMatcher) Match(role types.Role, typ types.RoleConditionType) (bool, error) {
+	logins := role.GetLinuxDesktopLogins(typ)
+	return slices.Contains(logins, l.login), nil
 }
 
 type awsAppLoginMatcher struct {
@@ -2322,16 +2786,15 @@ func NewAppAWSLoginMatcher(awsRole string) RoleMatcher {
 // Match matches an AWS Role ARN login against a role.
 func (l *awsAppLoginMatcher) Match(role types.Role, typ types.RoleConditionType) (bool, error) {
 	awsRoles := role.GetAWSRoleARNs(typ)
-	for _, awsRole := range awsRoles {
-		if l.awsRole == awsRole {
-			return true, nil
-		}
+	if slices.Contains(awsRoles, l.awsRole) {
+		return true, nil
 	}
 	return false, nil
 }
 
 type kubernetesClusterLabelMatcher struct {
 	clusterLabels map[string]string
+	username      string
 	userTraits    wrappers.Traits
 }
 
@@ -2408,21 +2871,22 @@ func (m *KubeResourcesMatcher) Unmatched() []string {
 // KubernetesResourceMatcher matches a role against a Kubernetes Resource.
 // Kind is must be stricly equal but namespace and name allow wildcards.
 type KubernetesResourceMatcher struct {
-	resource types.KubernetesResource
+	resource              types.KubernetesResource
+	isClusterWideResource bool
 }
 
 // NewKubernetesResourceMatcher creates a KubernetesResourceMatcher that checks
 // whether the role's KubeResources match the specified condition.
-func NewKubernetesResourceMatcher(resource types.KubernetesResource) *KubernetesResourceMatcher {
+func NewKubernetesResourceMatcher(resource types.KubernetesResource, isClusterWideResource bool) *KubernetesResourceMatcher {
 	return &KubernetesResourceMatcher{
-		resource: resource,
+		resource:              resource,
+		isClusterWideResource: isClusterWideResource,
 	}
 }
 
 // Match matches a Kubernetes Resource against provided role and condition.
 func (m *KubernetesResourceMatcher) Match(role types.Role, condition types.RoleConditionType) (bool, error) {
-	result, err := utils.KubeResourceMatchesRegex(m.resource, role.GetKubeResources(condition))
-
+	result, err := utils.KubeResourceMatchesRegex(m.resource, m.isClusterWideResource, role.GetKubeResources(condition), condition)
 	return result, trace.Wrap(err)
 }
 
@@ -2433,8 +2897,8 @@ func (m *KubernetesResourceMatcher) String() string {
 
 // NewKubernetesClusterLabelMatcher creates a RoleMatcher that checks whether a role's
 // Kubernetes service labels match.
-func NewKubernetesClusterLabelMatcher(clustersLabels map[string]string, userTraits wrappers.Traits) RoleMatcher {
-	return &kubernetesClusterLabelMatcher{clusterLabels: clustersLabels, userTraits: userTraits}
+func NewKubernetesClusterLabelMatcher(clustersLabels map[string]string, username string, userTraits wrappers.Traits) RoleMatcher {
+	return &kubernetesClusterLabelMatcher{clusterLabels: clustersLabels, username: username, userTraits: userTraits}
 }
 
 // Match matches a Kubernetes cluster labels against a role.
@@ -2443,7 +2907,7 @@ func (l *kubernetesClusterLabelMatcher) Match(role types.Role, typ types.RoleCon
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
-	ok, _, err := checkLabelsMatch(typ, labelMatchers, l.userTraits, mapLabelGetter(l.clusterLabels), false)
+	ok, _, err := CheckLabelsMatch(typ, labelMatchers, l.username, l.userTraits, label.MapLabelGetter(l.clusterLabels), false)
 	return ok, trace.Wrap(err)
 }
 
@@ -2470,37 +2934,74 @@ func (l kubernetesClusterLabelMatcher) getKubeLabelMatchers(role types.Role, typ
 // AccessCheckable is the subset of types.Resource required for the RBAC checks.
 type AccessCheckable interface {
 	GetKind() string
+	GetSubKind() string
 	GetName() string
 	GetMetadata() types.Metadata
 	GetLabel(key string) (value string, ok bool)
 	GetAllLabels() map[string]string
 }
 
-// rbacDebugLogger creates a debug logger for Teleport's RBAC component.
-// It also returns a flag indicating whether debug logging is enabled,
-// allowing the RBAC system to generate more verbose errors in debug mode.
-func rbacDebugLogger() (debugEnabled bool, debugf func(format string, args ...interface{})) {
-	debugEnabled = log.IsLevelEnabled(log.TraceLevel)
-	debugf = func(format string, args ...interface{}) {}
+var rbacLogger = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentRBAC)
 
-	if debugEnabled {
-		debugf = log.WithField(teleport.ComponentKey, teleport.ComponentRBAC).Tracef
+// resourceRequiresLabelMatching decides if a resource requires label matching
+// when making RBAC access decisions.
+func resourceRequiresLabelMatching(r AccessCheckable) bool {
+	// Some resources do not need label matching when assessing whether the user
+	// should be granted access. Enable it by default, but turn it off in the
+	// special cases.
+	switch r.GetKind() {
+	case types.KindIdentityCenterAccount, types.KindIdentityCenterAccountAssignment:
+		return false
+	case types.KindApp, types.KindAppServer:
+		return r.GetSubKind() != types.KindIdentityCenterAccount
 	}
 
-	return
+	return true
 }
 
-func (set RoleSet) checkAccess(r AccessCheckable, traits wrappers.Traits, state AccessState, matchers ...RoleMatcher) error {
-	// Note: logging in this function only happens in debug mode. This is because
+// checkAccess determines whether access should be granted to a resource based on the provided roles, resource
+// attributes, user traits, access state (MFA, device trust, etc.), and optional matchers. If state.ReturnPreconditions
+// is true, it returns a list of preconditions (e.g., MFA required) that must be satisfied for access. If
+// state.ReturnPreconditions is false, it returns an error immediately if access is denied.
+func (set RoleSet) checkAccess(
+	r AccessCheckable,
+	username string,
+	traits wrappers.Traits,
+	state AccessState,
+	matchers ...RoleMatcher,
+) ([]*decisionpb.Precondition, error) {
+	// Note: logging in this function only happens in trace mode. This is because
 	// adding logging to this function (which is called on every resource returned
 	// by the backend) can slow down this function by 50x for large clusters!
-	isDebugEnabled, debugf := rbacDebugLogger()
-
-	if !state.MFAVerified && state.MFARequired == MFARequiredAlways {
-		debugf("Access to %v %q denied, cluster requires per-session MFA", r.GetKind(), r.GetName())
-		return ErrSessionMFARequired
+	ctx := context.Background()
+	logger := rbacLogger
+	isLoggingEnabled := logger.Handler().Enabled(ctx, logutils.TraceLevel)
+	if isLoggingEnabled {
+		logger = logger.With("resource_kind", r.GetKind(), "resource_name", r.GetName())
 	}
 
+	// Collect preconditions to return to the caller.
+	var preconds []*decisionpb.Precondition
+
+	// If the cluster requires per-session MFA and it hasn't been verified yet, add an MFA precondition or deny access early.
+	// If the legacy out-of-band MFA flow is allowed (see below) and MFA has already been verified for this session, skip this check.
+	//
+	// The legacy out-of-band MFA flow is allowed as long as TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA is not set to "yes".
+	// When TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA is set to "yes", only in-band MFA is allowed and enforced.
+	//
+	// TODO(cthach): Remove in v20.0 when the legacy out-of-band MFA flow is removed.
+	if state.MFARequired == MFARequiredAlways && (os.Getenv("TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA") == "yes" || !state.MFAVerified) {
+		// If the caller doesn't want preconditions returned, deny access early to avoid unnecessary work.
+		if !state.ReturnPreconditions {
+			logger.LogAttrs(ctx, logutils.TraceLevel, "Access to resource denied, cluster requires per-session MFA")
+			return nil, ErrSessionMFARequired
+		}
+
+		// Mark that MFA is required and continue evaluating access.
+		preconds = append(preconds, decisionpb.Precondition_builder{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA}.Build())
+	}
+
+	requiresLabelMatching := resourceRequiresLabelMatching(r)
 	namespace := types.ProcessNamespace(r.GetMetadata().Namespace)
 
 	// Additional message depending on kind of resource
@@ -2515,6 +3016,8 @@ func (set RoleSet) checkAccess(r AccessCheckable, traits wrappers.Traits, state 
 		additionalDeniedMessage = "Confirm Kubernetes user or group."
 	case types.KindWindowsDesktop:
 		additionalDeniedMessage = "Confirm Windows user."
+	case types.KindSAMLIdPServiceProvider:
+		additionalDeniedMessage = "Confirm app_labels."
 	}
 
 	// Check deny rules.
@@ -2523,37 +3026,57 @@ func (set RoleSet) checkAccess(r AccessCheckable, traits wrappers.Traits, state 
 		if !matchNamespace {
 			continue
 		}
-
-		matchLabels, labelsMessage, err := checkRoleLabelsMatch(types.Deny, role, traits, r, isDebugEnabled)
-		if err != nil {
-			return trace.Wrap(err)
+		if requiresLabelMatching {
+			matchLabels, labelsMessage, err := checkRoleLabelsMatch(types.Deny, role, username, traits, r, isLoggingEnabled)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			if matchLabels {
+				logger.LogAttrs(ctx, logutils.TraceLevel, "Access to resource denied, deny rule in role matched",
+					slog.String("role", role.GetName()),
+					slog.String("namespace_message", namespaceMessage),
+					slog.String("label_message", labelsMessage),
+				)
+				return nil, trace.AccessDenied("access to %v denied. User does not have permissions. %v",
+					r.GetKind(), additionalDeniedMessage)
+			}
+		} else {
+			logger.LogAttrs(ctx, logutils.TraceLevel, "Role label matching skipped")
 		}
-		if matchLabels {
-			debugf("Access to %v %q denied, deny rule in role %q matched; match(namespace=%v, %s)",
-				r.GetKind(), r.GetName(), role.GetName(), namespaceMessage, labelsMessage)
-			return trace.AccessDenied("access to %v denied. User does not have permissions. %v",
-				r.GetKind(), additionalDeniedMessage)
-		}
-
 		// Deny rules are greedy on purpose. They will always match if
 		// at least one of the matchers returns true.
 		matchMatchers, matchersMessage, err := RoleMatchers(matchers).MatchAny(role, types.Deny)
 		if err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 		if matchMatchers {
-			debugf("Access to %v %q denied, deny rule in role %q matched; match(matcher=%v)",
-				r.GetKind(), r.GetName(), role.GetName(), matchersMessage)
-			return trace.AccessDenied("access to %v denied. User does not have permissions. %v",
+			logger.LogAttrs(ctx, logutils.TraceLevel, "Access to resource denied, deny rule in role matched",
+				slog.String("role", role.GetName()),
+				slog.Any("matcher_message", matchersMessage),
+			)
+			return nil, trace.AccessDenied("access to %v denied. User does not have permissions. %v",
 				r.GetKind(), additionalDeniedMessage)
 		}
 	}
 
-	mfaAllowed := state.MFAVerified || state.MFARequired == MFARequiredNever
+	// MFA checks can be bypassed if either:
+	//  1. The cluster doesn't require per-session MFA (MFARequiredNever), OR
+	//  2. Legacy out-of-band MFA has already been verified for the session AND
+	//     a. The legacy out-of-band MFA flow is allowed (TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA is not set to "yes") OR
+	//     b. The caller doesn't want preconditions returned (state.ReturnPreconditions is false)
+	//
+	// Listing resources sets state.MFAVerified to true and state.ReturnPreconditions to false to allow bypassing MFA
+	// checks for resources that require per-session MFA. This is because listing resources is a read-only operation and
+	// MFA is not required to list resources, even if MFA is required to access the resource. The actual enforcement
+	// will happen at connection time, so this is not a concern from a security perspective.
+	//
+	// TODO(cthach): Remove in v20.0 when the legacy out-of-band MFA flow is removed.
+	bypassMFAChecks := state.MFARequired == MFARequiredNever ||
+		(state.MFAVerified && (os.Getenv("TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA") != "yes" || !state.ReturnPreconditions))
 
 	// TODO(codingllama): Consider making EnableDeviceVerification opt-out instead
 	//  of opt-in.
-	deviceAllowed := !state.EnableDeviceVerification || state.DeviceVerified
+	deviceTrusted := !state.EnableDeviceVerification || state.DeviceVerified
 
 	var errs []error
 	allowed := false
@@ -2561,34 +3084,38 @@ func (set RoleSet) checkAccess(r AccessCheckable, traits wrappers.Traits, state 
 	for _, role := range set {
 		matchNamespace, namespaceMessage := MatchNamespace(role.GetNamespaces(types.Allow), namespace)
 		if !matchNamespace {
-			if isDebugEnabled {
+			if isLoggingEnabled {
 				errs = append(errs, trace.AccessDenied("role=%v, match(namespace=%v)",
 					role.GetName(), namespaceMessage))
 			}
 			continue
 		}
 
-		matchLabels, labelsMessage, err := checkRoleLabelsMatch(types.Allow, role, traits, r, isDebugEnabled)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		if !matchLabels {
-			if isDebugEnabled {
-				errs = append(errs, trace.AccessDenied("role=%v, match(%s)",
-					role.GetName(), labelsMessage))
+		if requiresLabelMatching {
+			matchLabels, labelsMessage, err := checkRoleLabelsMatch(types.Allow, role, username, traits, r, isLoggingEnabled)
+			if err != nil {
+				return nil, trace.Wrap(err)
 			}
-			continue
+
+			if !matchLabels {
+				if isLoggingEnabled {
+					errs = append(errs, trace.AccessDenied("role=%v, match(%s)",
+						role.GetName(), labelsMessage))
+				}
+				continue
+			}
+		} else {
+			logger.LogAttrs(ctx, logutils.TraceLevel, "Role label matching skipped for resource")
 		}
 
 		// Allow rules are not greedy. They will match only if all of the
 		// matchers return true.
 		matchMatchers, err := RoleMatchers(matchers).MatchAll(role, types.Allow)
 		if err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 		if !matchMatchers {
-			if isDebugEnabled {
+			if isLoggingEnabled {
 				errs = append(errs, fmt.Errorf("role=%v, match(matchers=%v)",
 					role.GetName(), matchers))
 			}
@@ -2605,40 +3132,79 @@ func (set RoleSet) checkAccess(r AccessCheckable, traits wrappers.Traits, state 
 		// (and gets an early exit) or we need to check every applicable role to
 		// ensure the access is permitted.
 
-		if mfaAllowed && deviceAllowed {
-			debugf("Access to %v %q granted, allow rule in role %q matched.",
-				r.GetKind(), r.GetName(), role.GetName())
-			return nil
+		if bypassMFAChecks && deviceTrusted {
+			logger.LogAttrs(ctx, logutils.TraceLevel, "Access to resource granted, allow rule in role matched",
+
+				slog.String("role", role.GetName()),
+			)
+			return deduplicateAndSortPreconditions(preconds), nil
 		}
 
-		// MFA verification.
-		if !mfaAllowed && role.GetOptions().RequireMFAType.IsSessionMFARequired() {
-			debugf("Access to %v %q denied, role %q requires per-session MFA",
-				r.GetKind(), r.GetName(), role.GetName())
-			return ErrSessionMFARequired
+		// Check if MFA is required at the role-level.
+		if !bypassMFAChecks && role.GetOptions().RequireMFAType.IsSessionMFARequired() {
+			// If the caller doesn't want preconditions returned, deny access early to avoid unnecessary work.
+			if !state.ReturnPreconditions {
+				logger.LogAttrs(ctx, logutils.TraceLevel, "Access to resource denied, role requires per-session MFA",
+					slog.String("role", role.GetName()),
+				)
+				return nil, ErrSessionMFARequired
+			}
+
+			// Mark that MFA is required and continue evaluating access.
+			preconds = append(preconds, decisionpb.Precondition_builder{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA}.Build())
 		}
 
 		// Device verification.
-		if !deviceAllowed && role.GetOptions().DeviceTrustMode == constants.DeviceTrustModeRequired {
-			debugf("Access to %v %q denied, role %q requires a trusted device",
-				r.GetKind(), r.GetName(), role.GetName())
-			return ErrTrustedDeviceRequired
+		if err := dtauthz.VerifyTrustedDeviceMode(
+			role.GetOptions().DeviceTrustMode,
+			dtauthz.VerifyTrustedDeviceModeParams{
+				IsTrustedDevice: deviceTrusted,
+				IsBot:           state.IsBot,
+				AllowEmptyMode:  true, // Empty mode on roles is equivalent to "off".
+			},
+		); err != nil {
+			logger.LogAttrs(ctx, logutils.TraceLevel, "Access to resource denied, role requires a trusted device",
+				slog.String("role", role.GetName()),
+			)
+			return nil, trace.Wrap(err)
 		}
 
 		// Current role allows access, but keep looking for a more restrictive
 		// setting.
 		allowed = true
-		debugf("Access to %v %q granted, allow rule in role %q matched.",
-			r.GetKind(), r.GetName(), role.GetName())
+		logger.LogAttrs(ctx, logutils.TraceLevel, "Access to resource granted, allow rule in role matched",
+			slog.String("role", role.GetName()),
+		)
 	}
 
 	if allowed {
-		return nil
+		return deduplicateAndSortPreconditions(preconds), nil
 	}
 
-	debugf("Access to %v %q denied, no allow rule matched; %v", r.GetKind(), r.GetName(), errs)
-	return trace.AccessDenied("access to %v denied. User does not have permissions. %v",
+	logger.LogAttrs(ctx, logutils.TraceLevel, "Access to resource denied, no allow rule matched",
+		slog.Any("errors", errs),
+	)
+	return nil, trace.AccessDenied("access to %v denied. User does not have permissions. %v",
 		r.GetKind(), additionalDeniedMessage)
+}
+
+func deduplicateAndSortPreconditions(preconds []*decisionpb.Precondition) []*decisionpb.Precondition {
+	// Deduplicate preconditions by kind.
+	preconds = slices.CompactFunc(
+		preconds, func(a, b *decisionpb.Precondition) bool {
+			return a.GetKind() == b.GetKind()
+		},
+	)
+
+	// Sort by kind for deterministic ordering during enforcement.
+	slices.SortFunc(
+		preconds,
+		func(a, b *decisionpb.Precondition) int {
+			return cmp.Compare(a.GetKind(), b.GetKind())
+		},
+	)
+
+	return preconds
 }
 
 // checkRoleLabelsMatch checks if the [role] matches the labels of [resource]
@@ -2658,6 +3224,7 @@ func (set RoleSet) checkAccess(r AccessCheckable, traits wrappers.Traits, state 
 func checkRoleLabelsMatch(
 	condition types.RoleConditionType,
 	role types.Role,
+	username string,
 	userTraits wrappers.Traits,
 	resource AccessCheckable,
 	debug bool,
@@ -2666,10 +3233,10 @@ func checkRoleLabelsMatch(
 	if err != nil {
 		return false, "", trace.Wrap(err)
 	}
-	return checkLabelsMatch(condition, labelMatchers, userTraits, resource, debug)
+	return CheckLabelsMatch(condition, labelMatchers, username, userTraits, resource, debug)
 }
 
-// checkLabelsMatch checks if the [labelMatchers] match the labels of [resource]
+// CheckLabelsMatch checks if the [labelMatchers] match the labels of [resource]
 // for [condition].
 // It considers both [labelMatchers.Labels] and [labelMatchers.Expression].
 //
@@ -2682,11 +3249,12 @@ func checkRoleLabelsMatch(
 // match it's not considered a match.
 //
 // If neither is set, it's not a match in either case.
-func checkLabelsMatch(
+func CheckLabelsMatch(
 	condition types.RoleConditionType,
 	labelMatchers types.LabelMatchers,
+	username string,
 	userTraits wrappers.Traits,
-	resource LabelGetter,
+	resource label.LabelGetter,
 	debug bool,
 ) (bool, string, error) {
 	if labelMatchers.Empty() {
@@ -2712,7 +3280,7 @@ func checkLabelsMatch(
 	}
 
 	if len(labelMatchers.Expression) > 0 {
-		match, msg, err := matchLabelExpression(labelMatchers.Expression, resource, userTraits)
+		match, msg, err := matchLabelExpression(labelMatchers.Expression, resource, username, userTraits)
 		if err != nil {
 			return false, "", trace.Wrap(err)
 		}
@@ -2735,14 +3303,15 @@ func checkLabelsMatch(
 	return labelsUnsetOrMatch && expressionUnsetOrMatch, message, nil
 }
 
-func matchLabelExpression(labelExpression string, resource LabelGetter, userTraits wrappers.Traits) (bool, string, error) {
-	parsedExpr, err := parseLabelExpression(labelExpression)
+func matchLabelExpression(labelExpression string, resource label.LabelGetter, username string, userTraits wrappers.Traits) (bool, string, error) {
+	parsedExpr, err := label.ParseExpression(labelExpression)
 	if err != nil {
 		return false, "", trace.Wrap(err)
 	}
-	match, err := parsedExpr.Evaluate(labelExpressionEnv{
-		resourceLabelGetter: resource,
-		userTraits:          userTraits,
+	match, err := parsedExpr.Evaluate(label.ExpressionEnv{
+		ResourceLabelGetter: resource,
+		Username:            username,
+		UserTraits:          userTraits,
 	})
 	if err != nil {
 		return false, "", trace.Wrap(err, "evaluating label expression %q", labelExpression)
@@ -2763,14 +3332,65 @@ func (set RoleSet) CanForwardAgents() bool {
 	return false
 }
 
-// CanPortForward returns true if a role in the RoleSet allows port forwarding.
-func (set RoleSet) CanPortForward() bool {
+// SSHPortForwardMode returns the SSHPortForwardMode permitted by a RoleSet. Port forwarding is implicitly allowed, but explicit denies take
+// precedence of explicit allows when using SSHPortForwarding. The legacy PortForwarding field prefers explicit allows for backwards
+// compatibility reasons, but is only evaluated in the absence of an SSHPortForwarding config on the same role.
+func (set RoleSet) SSHPortForwardMode() decisionpb.SSHPortForwardMode {
+	var denyRemote, denyLocal, legacyDeny bool
+	legacyCanDeny := true
+
 	for _, role := range set {
-		if types.BoolDefaultTrue(role.GetOptions().PortForwarding) {
-			return true
+		config := role.GetOptions().SSHPortForwarding
+		// only consider legacy allows when config isn't provided on the same role
+		if config == nil {
+			//nolint:staticcheck // this field is preserved for backwards compatibility, but shouldn't be used going forward
+			if legacy := role.GetOptions().PortForwarding; legacy != nil {
+				if legacy.Value {
+					return decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_ON
+				}
+				legacyDeny = true
+			}
+
+			continue
+		}
+
+		if config.Remote != nil && config.Remote.Enabled != nil {
+			if !config.Remote.Enabled.Value {
+				denyRemote = true
+			}
+
+			// an explicit legacy deny is only possible if no explicit SSHPortForwarding config has been provided
+			legacyCanDeny = false
+		}
+
+		if config.Local != nil && config.Local.Enabled != nil {
+			if !config.Local.Enabled.Value {
+				denyLocal = true
+			}
+
+			// an explicit legacy deny is only possible if no explicit SSHPortForwarding config has been provided
+			legacyCanDeny = false
 		}
 	}
-	return false
+
+	// enforcing implicit allow and preferring allow over explicit deny
+	switch {
+	case denyRemote && denyLocal:
+		return decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_OFF
+	case legacyDeny && legacyCanDeny:
+		return decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_OFF
+	case denyRemote:
+		return decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_LOCAL
+	case denyLocal:
+		return decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_REMOTE
+	default:
+		return decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_ON
+	}
+}
+
+// CanPortForward returns true if the RoleSet allows both local and remote port forwarding.
+func (set RoleSet) CanPortForward() bool {
+	return set.SSHPortForwardMode() == decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_ON
 }
 
 // RecordDesktopSession returns true if the role set has enabled desktop
@@ -2847,6 +3467,21 @@ func (set RoleSet) CanCopyFiles() bool {
 		}
 	}
 	return true
+}
+
+// GetWebTerminalClipboardMode returns the Web UI terminal clipboard mode from the role set.
+func (set RoleSet) GetWebTerminalClipboardMode() types.WebTerminalClipboardMode {
+	var mode types.WebTerminalClipboardMode
+	for _, r := range set {
+		switch r.GetOptions().WebTerminalClipboardMode {
+		// Return immediately if any role has explicitly set the clipboard mode to no-copy, as that should take precedence over any unrestricted's.
+		case types.WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_NO_COPY:
+			return types.WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_NO_COPY
+		case types.WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_UNRESTRICTED:
+			mode = types.WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_UNRESTRICTED
+		}
+	}
+	return mode
 }
 
 // CanJoinSessions returns true if at least one role in the role set
@@ -2965,7 +3600,7 @@ func (set RoleSet) GuessIfAccessIsPossible(ctx RuleContext, namespace string, re
 
 type boolParser bool
 
-func (p boolParser) Parse(string) (interface{}, error) {
+func (p boolParser) Parse(string) (any, error) {
 	return predicate.BoolPredicate(func() bool {
 		return bool(p)
 	}), nil
@@ -2975,7 +3610,11 @@ func (p boolParser) Parse(string) (interface{}, error) {
 // namespace to the specified resource and verb.
 // silent controls whether the access violations are logged.
 func (set RoleSet) CheckAccessToRule(ctx RuleContext, namespace string, resource string, verb string) error {
-	whereParser, err := NewWhereParser(ctx)
+	whereParser, err := NewWhereParser(
+		ctx,
+		// register can_view function if the resource is a session.
+		ConditionalOption(resource == types.KindSession, WithCanViewFunction()),
+	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2991,9 +3630,9 @@ func (set RoleSet) CheckAccessToRule(ctx RuleContext, namespace string, resource
 }
 
 // GetKubeResources returns allowed and denied list of Kubernetes Resources configured in the RoleSet.
-func (set RoleSet) GetKubeResources(cluster types.KubeCluster, userTraits wrappers.Traits) (allowed, denied []types.KubernetesResource) {
+func (set RoleSet) GetKubeResources(cluster types.KubeCluster, username string, userTraits wrappers.Traits) (allowed, denied []types.KubernetesResource) {
 	for _, role := range set {
-		matchLabels, _, err := checkRoleLabelsMatch(types.Allow, role, userTraits, cluster, false)
+		matchLabels, _, err := checkRoleLabelsMatch(types.Allow, role, username, userTraits, cluster, false)
 		if err != nil || !matchLabels {
 			continue
 		}
@@ -3014,12 +3653,12 @@ func (set RoleSet) GetKubeResources(cluster types.KubeCluster, userTraits wrappe
 }
 
 func deduplicateKubeResources(resources []types.KubernetesResource) []types.KubernetesResource {
-	allKeys := make(map[string]struct{})
+	allKeys := setutils.New[string]()
 	copy := make([]types.KubernetesResource, 0, len(resources))
 	for _, item := range resources {
 		key := item.String()
-		if _, value := allKeys[key]; !value {
-			allKeys[key] = struct{}{}
+		if !allKeys.Contains(key) {
+			allKeys.Add(key)
 			copy = append(copy, item)
 		}
 	}
@@ -3062,6 +3701,8 @@ func (a *accessExplicitlyDenied) Unwrap() error {
 }
 
 func (set RoleSet) checkAccessToRuleImpl(p checkAccessParams) (err error) {
+	ctx := context.Background()
+
 	// Every unknown error, which could be due to a bad role or an expression
 	// that can't parse, should be considered an explicit denial.
 	explicitDeny := true
@@ -3085,10 +3726,13 @@ func (set RoleSet) checkAccessToRuleImpl(p checkAccessParams) (err error) {
 				return trace.Wrap(err)
 			}
 			if matched {
-				log.WithFields(log.Fields{
-					teleport.ComponentKey: teleport.ComponentRBAC,
-				}).Tracef("Access to %v %v in namespace %v denied to %v: deny rule matched.",
-					p.verb, p.resource, p.namespace, role.GetName())
+				rbacLogger.LogAttrs(ctx, logutils.TraceLevel, "Access denied, deny rule matched",
+					slog.String("verb", p.verb),
+					slog.String("resource", p.resource),
+					slog.String("namespace", p.namespace),
+					slog.String("role", role.GetName()),
+				)
+
 				return trace.AccessDenied("access denied to perform action %q on %q", p.verb, p.resource)
 			}
 		}
@@ -3108,10 +3752,12 @@ func (set RoleSet) checkAccessToRuleImpl(p checkAccessParams) (err error) {
 		}
 	}
 
-	log.WithFields(log.Fields{
-		teleport.ComponentKey: teleport.ComponentRBAC,
-	}).Tracef("Access to %v %v in namespace %v denied to %v: no allow rule matched.",
-		p.verb, p.resource, p.namespace, set)
+	rbacLogger.LogAttrs(ctx, logutils.TraceLevel, "Access denied, no allow rule matched",
+		slog.String("verb", p.verb),
+		slog.String("resource", p.resource),
+		slog.String("namespace", p.namespace),
+		slog.Any("set", set),
+	)
 
 	// At this point no deny rule has matched and there are no more unknown
 	// errors, so this is only an implicit denial.
@@ -3213,8 +3859,11 @@ func (set RoleSet) ExtractConditionForIdentifier(ctx RuleContext, namespace, res
 	return &types.WhereExpr{And: types.WhereExpr2{L: denyCond, R: allowCond}}, nil
 }
 
+// SearchAsRolesOption is a functional option for filtering SearchAsRoles.
+type SearchAsRolesOption func(role types.Role) bool
+
 // GetSearchAsRoles returns all SearchAsRoles for this RoleSet.
-func (set RoleSet) GetAllowedSearchAsRoles() []string {
+func (set RoleSet) GetAllowedSearchAsRoles(allowFilters ...SearchAsRolesOption) []string {
 	denied := make(map[string]struct{})
 	var allowed []string
 	for _, role := range set {
@@ -3223,13 +3872,141 @@ func (set RoleSet) GetAllowedSearchAsRoles() []string {
 		}
 	}
 	for _, role := range set {
+		if slices.ContainsFunc(allowFilters, func(filter SearchAsRolesOption) bool {
+			return !filter(role)
+		}) {
+			// Don't consider this base role if it's filtered out.
+			continue
+		}
 		for _, a := range role.GetSearchAsRoles(types.Allow) {
-			if _, ok := denied[a]; !ok {
-				allowed = append(allowed, a)
+			if _, isDenied := denied[a]; isDenied {
+				continue
 			}
+			allowed = append(allowed, a)
 		}
 	}
 	return apiutils.Deduplicate(allowed)
+}
+
+type gk struct{ group, kind string }
+
+// noramlize the give kube kind. Maps legacy values to plural+group, trim the kube: prefix.
+// Returns <kind>[.<group>].
+func normalizeKubernetesKind(in string) (out gk) {
+	// Check if we have a legacy kind.
+	out.group = types.KubernetesResourcesV7KindGroups[in]
+	out.kind = types.KubernetesResourcesKindsPlurals[in]
+	if out.kind == "" {
+		switch {
+		case in == types.KindKubeNamespace:
+			out.kind = "namespaces"
+			return out
+		case strings.HasPrefix(in, types.AccessRequestPrefixKindKubeNamespaced):
+			out.kind = strings.TrimPrefix(in, types.AccessRequestPrefixKindKubeNamespaced)
+		case strings.HasPrefix(in, types.AccessRequestPrefixKindKubeClusterWide):
+			out.kind = strings.TrimPrefix(in, types.AccessRequestPrefixKindKubeClusterWide)
+			// Subset if the two first used in search. Must be last.
+		case strings.HasPrefix(in, types.AccessRequestPrefixKindKube):
+			out.kind = strings.TrimPrefix(in, types.AccessRequestPrefixKindKube)
+		}
+	}
+	if out.group != "" { // If we have a group, we are dealing with legacy value, we have the noramlized version.
+		return out
+	}
+
+	// Otherwise, parse the group from the trimmed input.
+	if i := strings.Index(out.kind, "."); i != -1 {
+		out.group = out.kind[i+1:]
+		out.kind = out.kind[:i]
+		return out
+	}
+	return out
+}
+
+// matchRequestKubernetesResources checks if the input matches the reference
+// based on the condition type.
+//
+// Similar logic as utils.KubeResourceMatchesRegex(), but with support for wildcard input
+// and without support for verbs/names/namespaces.
+//
+// Examples:
+// Request: *.apps        Deny: deployments.apps -> match.
+// Request: *.apps        Deny: deployments.*    -> match. (*.apps could be deployments.apps which matches deployments.*)
+// Request: *.apps        Deny: *.*	         -> match.
+// Request: deployments.* Deny: deployments.apps -> match.
+// Request: deployments.* Deny: deployments.*    -> match.
+// Request: deployments.* Deny: *.*	         -> match.
+// Request: *.*           Deny: deployments.apps -> match.
+// Request: *.*           Deny: deployments.*    -> match.
+// Request: *.*           Deny: *.*	         -> match.
+func matchRequestKubernetesResources(input gk, reference types.RequestKubernetesResource, cond types.RoleConditionType) bool {
+	// If we have an exact match, we are done.
+	if input.kind == reference.Kind && input.group == reference.APIGroup {
+		return true
+	}
+	// If the reference is a wildcard and the input kube_cluster, we don't match allow, but we match deny.
+	// Ref:
+	//  https://github.com/gravitational/teleport/blob/master/rfd/0183-access-request-kube-resource-allow-list.md#as-an-admin-i-want-to-require-users-to-request-for-kubernetes-subresources-instead-of-the-whole-kubernetes-cluster
+	if reference.Kind == types.Wildcard && input.kind == types.KindKubernetesCluster {
+		return cond == types.Deny
+	}
+
+	if cond == types.Allow {
+		// In allow mode, if the reference kind is not a wildcard and doesn't match exactly, we reject.
+		if reference.Kind != types.Wildcard && input.kind != reference.Kind {
+			return false
+		}
+
+		// If the reference api group is a wildcard or is an exact match, we are done.
+		if reference.APIGroup == types.Wildcard || input.group == reference.APIGroup {
+			return true
+		}
+
+		// Otherwise, attempt to match the api group pattern.
+		ok, _ := utils.MatchString(input.group, reference.APIGroup)
+		return ok
+	}
+	// In deny mode, we reject only if both input/ref are not wildcard and are not equal.
+	if reference.Kind != types.Wildcard && input.kind != types.Wildcard && input.kind != reference.Kind {
+		return false
+	}
+	// If there is no conflict on the kind, check the group. As we support pattern matching, check both sides.
+	ok1, _ := utils.MatchString(input.group, reference.APIGroup)
+	ok2, _ := utils.MatchString(reference.APIGroup, input.group)
+	return ok1 || ok2
+}
+
+// GetAllowedSearchAsRolesForKubeResourceKind returns all of the allowed SearchAsRoles
+// that allowed requesting to the requested Kubernetes resource kind.
+func (set RoleSet) GetAllowedSearchAsRolesForKubeResourceKind(requestedKubeResourceKind string) []string {
+	// Return no results if encountering any denies since its globally matched.
+	for _, role := range set {
+		for _, kr := range role.GetRequestKubernetesResources(types.Deny) {
+			if matchRequestKubernetesResources(normalizeKubernetesKind(requestedKubeResourceKind), kr, types.Deny) {
+				return nil
+			}
+		}
+	}
+	return set.GetAllowedSearchAsRoles(WithAllowedKubernetesResourceKindFilter(requestedKubeResourceKind))
+}
+
+// WithAllowedKubernetesResourceKindFilter returns a SearchAsRolesOption func
+// that will check that the requestedKubeResourceKind exists in the allow list
+// for the current role.
+func WithAllowedKubernetesResourceKindFilter(requestedKubeResourceKind string) SearchAsRolesOption {
+	return func(role types.Role) bool {
+		allowed := role.GetAccessRequestConditions(types.Allow).KubernetesResources
+		// Any kind is allowed if nothing was configured.
+		if len(allowed) == 0 {
+			return true
+		}
+		for _, kr := range role.GetRequestKubernetesResources(types.Allow) {
+			if matchRequestKubernetesResources(normalizeKubernetesKind(requestedKubeResourceKind), kr, types.Allow) {
+				return true
+			}
+		}
+		return false
+	}
 }
 
 // GetAllowedPreviewAsRoles returns all PreviewAsRoles for this RoleSet.
@@ -3285,6 +4062,13 @@ type AccessState struct {
 	// It's recommended to set this in tandem with EnableDeviceVerification.
 	// See [dtauthz.IsTLSDeviceVerified] and [dtauthz.IsSSHDeviceVerified].
 	DeviceVerified bool
+	// IsBot determines whether the user certificate belongs to a bot. It's used
+	// when deciding whether to enforce device verification.
+	IsBot bool
+	// ReturnPreconditions, when set to true, causes access checks to return a set of preconditions (such as MFA or
+	// device verification requirements) instead of immediately returning an access error. This allows callers to
+	// programmatically determine what additional steps are required for access, rather than failing outright.
+	ReturnPreconditions bool
 }
 
 // MFARequired determines when MFA is required for a user to access a resource.
@@ -3303,6 +4087,13 @@ const (
 	MFARequiredPerRole MFARequired = "per-role"
 )
 
+// UserSessionRoleNotFoundErrorMsg is added to "role not found" errors when they occur
+// during user session roles validation. This allows the Web UI to distinguish between
+// a user session role lookup error (which should prompt the user to re-login) vs. other role lookup
+// failures.
+// Keep in sync with teleport/src/services/api/api.ts(isUserSessionRoleNotFoundError)
+const UserSessionRoleNotFoundErrorMsg = "user session role not found"
+
 // UnmarshalRole unmarshals the Role resource from JSON.
 func UnmarshalRole(bytes []byte, opts ...MarshalOption) (types.Role, error) {
 	return UnmarshalRoleV6(bytes, opts...)
@@ -3318,20 +4109,26 @@ func UnmarshalRoleV6(bytes []byte, opts ...MarshalOption) (*types.RoleV6, error)
 	version := jsoniter.Get(bytes, "version").ToString()
 	switch version {
 	// these are all backed by the same shape of data, they just have different semantics and defaults
-	case types.V3, types.V4, types.V5, types.V6, types.V7:
+	case types.V3, types.V4, types.V5, types.V6, types.V7, types.V8:
 	default:
 		return nil, trace.BadParameter("role version %q is not supported", version)
 	}
 
 	var role types.RoleV6
 	if err := utils.FastUnmarshal(bytes, &role); err != nil {
-		return nil, trace.BadParameter(err.Error())
+		return nil, trace.BadParameter("%s", err)
 	}
 	if role.Version != version {
 		return nil, trace.BadParameter("inconsistent version in role data, got %q and %q", role.Version, version)
 	}
 
-	if err := ValidateRole(&role); err != nil {
+	if cfg.DisallowUnknown {
+		if err := checkUnknownFields(bytes); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	if err := CheckAndSetDefaults(&role); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3346,7 +4143,7 @@ func UnmarshalRoleV6(bytes []byte, opts ...MarshalOption) (*types.RoleV6, error)
 
 // MarshalRole marshals the Role resource to JSON.
 func MarshalRole(role types.Role, opts ...MarshalOption) ([]byte, error) {
-	if err := ValidateRole(role); err != nil {
+	if err := CheckAndSetDefaults(role); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3361,4 +4158,82 @@ func MarshalRole(role types.Role, opts ...MarshalOption) ([]byte, error) {
 	default:
 		return nil, trace.BadParameter("unrecognized role version %T", role)
 	}
+}
+
+// checkUnknownFields rejects JSON with fields not defined in the RoleV6 struct.
+func checkUnknownFields(data []byte) error {
+	var unused types.RoleV6
+	dec := json.NewDecoder(bytes.NewReader(data))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&unused); err != nil {
+		return trace.BadParameter("role has unknown or misspelled fields: %v", err)
+	}
+	return nil
+}
+
+// AuthPreferenceGetter defines an interface for getting the authentication
+// preferences.
+type AuthPreferenceGetter interface {
+	// GetAuthPreference fetches the cluster authentication preferences.
+	GetAuthPreference(ctx context.Context) (types.AuthPreference, error)
+}
+
+// AccessStateFromSSHIdentity populates access state based on user's SSH
+// identity and auth preference.
+func AccessStateFromSSHIdentity(ctx context.Context, ident *sshca.Identity, checker AccessChecker, authPrefGetter AuthPreferenceGetter) (AccessState, error) {
+	authPref, err := authPrefGetter.GetAuthPreference(ctx)
+	if err != nil {
+		return AccessState{}, trace.Wrap(err)
+	}
+	state := checker.GetAccessState(authPref)
+	state.MFAVerified = ident.MFAVerified != ""
+	// Certain hardware-key based private key policies are treated as MFA verification.
+	if ident.PrivateKeyPolicy.MFAVerified() {
+		state.MFAVerified = true
+	}
+
+	state.EnableDeviceVerification = true
+	state.DeviceVerified = dtauthz.IsSSHDeviceVerified(ident)
+	state.IsBot = ident.IsBot()
+	return state, nil
+}
+
+// AccessStateFromTLSIdentity populates access state based on user's TLS
+// identity and auth preference.
+func AccessStateFromTLSIdentity(ctx context.Context, ident *tlsca.Identity, checker AccessChecker, authPrefGetter AuthPreferenceGetter) (AccessState, error) {
+	authPref, err := authPrefGetter.GetAuthPreference(ctx)
+	if err != nil {
+		return AccessState{}, trace.Wrap(err)
+	}
+	state := checker.GetAccessState(authPref)
+	state.MFAVerified = ident.MFAVerified != ""
+	// Certain hardware-key based private key policies are treated as MFA verification.
+	if ident.PrivateKeyPolicy.MFAVerified() {
+		state.MFAVerified = true
+	}
+
+	state.EnableDeviceVerification = true
+	state.DeviceVerified = dtauthz.IsTLSDeviceVerified(&ident.DeviceExtensions)
+	state.IsBot = ident.IsBot()
+	return state, nil
+}
+
+// MCPToolMatcher matches a role against MCP tool.
+type MCPToolMatcher struct {
+	Name string
+}
+
+// Match matches MCP tool name against provided role and condition.
+func (m *MCPToolMatcher) Match(role types.Role, condition types.RoleConditionType) (bool, error) {
+	mcpSpec := role.GetMCPPermissions(condition)
+	if mcpSpec == nil {
+		return false, nil
+	}
+	match, err := utils.SliceMatchesRegex(m.Name, mcpSpec.Tools)
+	return match, trace.Wrap(err)
+}
+
+// String returns the matcher's string representation.
+func (m *MCPToolMatcher) String() string {
+	return fmt.Sprintf("MCPToolMatcher(Name=%v)", m.Name)
 }

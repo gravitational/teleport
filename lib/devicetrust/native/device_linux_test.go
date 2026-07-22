@@ -28,7 +28,6 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
@@ -39,9 +38,6 @@ import (
 )
 
 func TestCollectDeviceData_linux(t *testing.T) {
-	// Silence logging for tests.
-	log.SetLevel(log.PanicLevel)
-
 	// Do not cache data during testing.
 	skipCacheBefore := cachedDeviceData.skipCache
 	cachedDeviceData.skipCache = true
@@ -52,7 +48,7 @@ func TestCollectDeviceData_linux(t *testing.T) {
 	u, err := user.Current()
 	require.NoError(t, err, "reading current user")
 
-	wantCD := &devicepb.DeviceCollectedData{
+	wantCD := devicepb.DeviceCollectedData_builder{
 		CollectTime:           nil, // Verified by test body.
 		OsType:                devicepb.OSType_OS_TYPE_LINUX,
 		SerialNumber:          "PF0A0AAA",
@@ -60,18 +56,19 @@ func TestCollectDeviceData_linux(t *testing.T) {
 		OsVersion:             "22.04",
 		OsBuild:               "22.04.3 LTS (Jammy Jellyfish)",
 		OsUsername:            u.Name,
+		OsLoginUser:           u.Username,
 		ReportedAssetTag:      "No Asset Information",
 		SystemSerialNumber:    "PF0A0AAA",
 		BaseBoardSerialNumber: "L1AA00A00A0",
 		OsId:                  "ubuntu",
-	}
+	}.Build()
 
 	dmiInfoSuccess := func() (*linux.DMIInfo, error) {
 		return &linux.DMIInfo{
-			ProductName:     wantCD.ModelIdentifier,
-			ProductSerial:   wantCD.SystemSerialNumber,
-			BoardSerial:     wantCD.BaseBoardSerialNumber,
-			ChassisAssetTag: wantCD.ReportedAssetTag,
+			ProductName:     wantCD.GetModelIdentifier(),
+			ProductSerial:   wantCD.GetSystemSerialNumber(),
+			BoardSerial:     wantCD.GetBaseBoardSerialNumber(),
+			ChassisAssetTag: wantCD.GetReportedAssetTag(),
 		}, nil
 	}
 	dmiInfoPermissionError := func() (*linux.DMIInfo, error) {
@@ -84,9 +81,9 @@ func TestCollectDeviceData_linux(t *testing.T) {
 	// Default configuration reflects a successful DMI read with an empty cache.
 	cddFuncs.parseOSRelease = func() (*linux.OSRelease, error) {
 		return &linux.OSRelease{
-			VersionID: wantCD.OsVersion,
-			Version:   wantCD.OsBuild,
-			ID:        wantCD.OsId,
+			VersionID: wantCD.GetOsVersion(),
+			Version:   wantCD.GetOsBuild(),
+			ID:        wantCD.GetOsId(),
 		}, nil
 	}
 	cddFuncs.dmiInfoFromSysfs = dmiInfoSuccess
@@ -155,7 +152,7 @@ func TestCollectDeviceData_linux(t *testing.T) {
 			mode: CollectedDataNeverEscalate,
 			dmiFromSysfsOverride: func() (*linux.DMIInfo, error) {
 				return &linux.DMIInfo{
-					ProductName: wantCD.ModelIdentifier,
+					ProductName: wantCD.GetModelIdentifier(),
 				}, fs.ErrPermission
 			},
 			dmiFromCacheOverride: dmiInfoCacheNotFound,
@@ -164,10 +161,10 @@ func TestCollectDeviceData_linux(t *testing.T) {
 			},
 			want: func() *devicepb.DeviceCollectedData {
 				cp := proto.Clone(wantCD).(*devicepb.DeviceCollectedData)
-				cp.SerialNumber = ""
-				cp.ReportedAssetTag = ""
-				cp.SystemSerialNumber = ""
-				cp.BaseBoardSerialNumber = ""
+				cp.SetSerialNumber("")
+				cp.SetReportedAssetTag("")
+				cp.SetSystemSerialNumber("")
+				cp.SetBaseBoardSerialNumber("")
 				return cp
 			}(),
 		},
@@ -197,13 +194,71 @@ func TestCollectDeviceData_linux(t *testing.T) {
 
 			got, err := CollectDeviceData(test.mode)
 			require.NoError(t, err, "CollectDeviceData")
-			assert.NotNil(t, got.CollectTime, "CollectTime must not be nil")
+			assert.NotNil(t, got.GetCollectTime(), "CollectTime must not be nil")
 
 			want := test.want
-			want.CollectTime = got.CollectTime
+			want.SetCollectTime(got.GetCollectTime())
 			if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
 				t.Errorf("CollectDeviceData mismatch (-want +got)\n%s", diff)
 			}
+		})
+	}
+}
+
+func TestParseDMIReadOutput(t *testing.T) {
+	const validJSON = `{"ProductName":"21J50013US","ProductSerial":"PF0A0AAA","BoardSerial":"L1AA00A00A0","ChassisAssetTag":"SomeAssetTag"}`
+	dmiFromValidJSON := &linux.DMIInfo{
+		ProductName:     "21J50013US",
+		ProductSerial:   "PF0A0AAA",
+		BoardSerial:     "L1AA00A00A0",
+		ChassisAssetTag: "SomeAssetTag",
+	}
+
+	testCases := []struct {
+		name       string
+		input      []byte
+		checkError require.ErrorAssertionFunc
+		expected   *linux.DMIInfo
+	}{
+		{
+			name:       "clean",
+			input:      []byte(validJSON),
+			checkError: require.NoError,
+			expected:   dmiFromValidJSON,
+		}, {
+			name:       "prefixed",
+			input:      []byte("somerandomgibberish" + validJSON),
+			checkError: require.NoError,
+			expected:   dmiFromValidJSON,
+		}, {
+			name:       "suffixed",
+			input:      []byte(validJSON + "morerandomgibberish"),
+			checkError: require.NoError,
+			expected:   dmiFromValidJSON,
+		}, {
+			name:       "invalid utf8 prefix",
+			input:      []byte("\xe2\x80\x83" + validJSON),
+			checkError: require.NoError,
+			expected:   dmiFromValidJSON,
+		}, {
+			name:       "invalid json",
+			input:      []byte("{" + validJSON),
+			checkError: require.Error,
+		}, {
+			name:       "empty input",
+			input:      []byte{},
+			checkError: require.Error,
+		}, {
+			name:       "nil input",
+			input:      nil,
+			checkError: require.Error,
+		},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			out, err := parseDMIReadOutput(testCase.input)
+			testCase.checkError(t, err)
+			require.Equal(t, testCase.expected, out)
 		})
 	}
 }

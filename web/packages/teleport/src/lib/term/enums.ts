@@ -36,7 +36,7 @@ export enum TermEvent {
   SESSION = 'terminal.new_session',
   DATA = 'terminal.data',
   CONN_CLOSE = 'connection.close',
-  WEBAUTHN_CHALLENGE = 'terminal.webauthn',
+  MFA_CHALLENGE = 'terminal.webauthn',
   LATENCY = 'terminal.latency',
   KUBE_EXEC = 'terminal.kube_exec',
 }

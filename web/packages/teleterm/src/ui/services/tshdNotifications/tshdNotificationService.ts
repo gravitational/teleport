@@ -16,17 +16,25 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { NotificationItemContent } from 'shared/components/Notification';
-
-import { getTargetNameFromUri } from 'teleterm/services/tshd/gateway';
-import { SendNotificationRequest } from 'teleterm/services/tshdEvents';
-import { ClustersService } from 'teleterm/ui/services/clusters';
-import { NotificationsService } from 'teleterm/ui/services/notifications';
-import { routing } from 'teleterm/ui/uri';
 import {
+  cannotProxyVnetConnectionReasonIsCertReissueError,
+  cannotProxyVnetConnectionReasonIsInvalidLocalPort,
   notificationRequestOneOfIsCannotProxyGatewayConnection,
   notificationRequestOneOfIsCannotProxyVnetConnection,
 } from 'teleterm/helpers';
+import {
+  formatPortRange,
+  publicAddrWithTargetPort,
+} from 'teleterm/services/tshd/app';
+import { getTargetNameFromUri } from 'teleterm/services/tshd/gateway';
+import { SendNotificationRequest } from 'teleterm/services/tshdEvents';
+import { ClustersService } from 'teleterm/ui/services/clusters';
+import {
+  NotificationContent,
+  NotificationKey,
+  NotificationsService,
+} from 'teleterm/ui/services/notifications';
+import { ResourceUri, routing } from 'teleterm/ui/uri';
 
 export class TshdNotificationsService {
   constructor(
@@ -39,9 +47,14 @@ export class TshdNotificationsService {
     this.notificationsService.notifyError(notificationContent);
   }
 
+  // All returned notification contents should include a key that limits the notification to a
+  // single kind per root cluster. This is to avoid spamming the user with notifications if a
+  // 3rd-party client is trying to, say, reconnect through a gateway connection.
   private getNotificationContent(
     request: SendNotificationRequest
-  ): NotificationItemContent {
+  ): NotificationContent & {
+    key: NotificationKey;
+  } {
     const { subject } = request;
     // switch followed by a type guard is awkward, but it helps with ensuring that we get type
     // errors whenever a new request reason is added.
@@ -55,7 +68,8 @@ export class TshdNotificationsService {
         const { gatewayUri, targetUri, error } =
           subject.cannotProxyGatewayConnection;
         const gateway = this.clustersService.findGateway(gatewayUri);
-        const clusterName = routing.parseClusterName(targetUri);
+        const clusterName = this.getClusterName(targetUri);
+        const rootClusterUri = routing.ensureRootClusterUri(targetUri);
         let targetName: string;
         let targetUser: string;
         let targetDesc: string;
@@ -76,25 +90,84 @@ export class TshdNotificationsService {
         return {
           title: `Cannot connect to ${targetDesc} (${clusterName})`,
           description: `A connection attempt to ${targetDesc} failed due to an unexpected error: ${error}`,
+          key: ['cannotProxyGatewayConnection', rootClusterUri],
         };
       }
       case 'cannotProxyVnetConnection': {
         if (!notificationRequestOneOfIsCannotProxyVnetConnection(subject)) {
           return;
         }
-        const { publicAddr, targetUri, error } =
+        const { routeToApp, targetUri, reason } =
           subject.cannotProxyVnetConnection;
-        const clusterName = routing.parseClusterName(targetUri);
+        const clusterName = this.getClusterName(targetUri);
+        const rootClusterUri = routing.ensureRootClusterUri(targetUri);
 
-        return {
-          title: `Cannot connect to ${publicAddr}`,
-          description: `A connection attempt to the app in the cluster ${clusterName} failed due to an unexpected error: ${error}`,
-        };
+        switch (reason.oneofKind) {
+          case 'certReissueError': {
+            if (!cannotProxyVnetConnectionReasonIsCertReissueError(reason)) {
+              return;
+            }
+            const { error } = reason.certReissueError;
+
+            return {
+              title: `Cannot connect to ${publicAddrWithTargetPort(routeToApp)}`,
+              description: `A connection attempt to the app in the cluster ${clusterName} failed due to an unexpected error: ${error}`,
+              key: [
+                'cannotProxyVnetConnection',
+                'certReissueError',
+                rootClusterUri,
+              ],
+            };
+          }
+          case 'invalidLocalPort': {
+            if (!cannotProxyVnetConnectionReasonIsInvalidLocalPort(reason)) {
+              return;
+            }
+
+            // Ports are not present if there's more than 10 port ranges defined on an app.
+            const ports = reason.invalidLocalPort.tcpPorts
+              .map(portRange => formatPortRange(portRange))
+              .join(', ');
+
+            let description =
+              `A connection attempt on the port ${routeToApp.targetPort} was refused ` +
+              `as that port is not included in the target ports of the app ${routeToApp.clusterName} in the cluster ${clusterName}.`;
+
+            if (ports) {
+              description += ` Valid ports: ${ports}.`;
+            }
+
+            return {
+              title: `Invalid port for ${publicAddrWithTargetPort(routeToApp)}`,
+              description,
+              // 3rd-party clients can potentially make dozens of attempts to connect to an invalid
+              // port within a short time. As all notifications from this service go as errors, we
+              // don't want to force the user to manually close each notification.
+              isAutoRemovable: true,
+              key: [
+                'cannotProxyVnetConnection',
+                'invalidLocalPort',
+                rootClusterUri,
+              ],
+            };
+          }
+          default: {
+            reason satisfies never;
+            return;
+          }
+        }
       }
       default: {
         subject satisfies never;
         return;
       }
     }
+  }
+
+  private getClusterName(uri: ResourceUri): string {
+    const clusterUri = routing.ensureClusterUri(uri);
+    const cluster = this.clustersService.findCluster(clusterUri);
+
+    return cluster?.name || routing.parseClusterName(clusterUri);
   }
 }

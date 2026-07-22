@@ -1,0 +1,45 @@
+// Copyright 2025 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.ssh.v1;
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/ssh/v1;sshpb";
+
+// AuthPrompt is shown to the user during SSH keyboard-interactive authentication.
+message AuthPrompt {
+  oneof prompt {
+    MFAPrompt mfa_prompt = 1;
+  }
+}
+
+// MFAPrompt indicates MFA is required for SSH keyboard-interactive authentication.
+message MFAPrompt {
+  // Message to display to the user.
+  string message = 1;
+}
+
+// MFAPromptResponse is the user's response to an MFA prompt.
+message MFAPromptResponse {
+  oneof response {
+    MFAPromptResponseReference reference = 1;
+  }
+}
+
+// MFAPromptResponseReference instructs the SSH service to retrieve the MFA response from the MFA service.
+message MFAPromptResponseReference {
+  // challenge_name is the name of the MFA challenge created by the client.
+  string challenge_name = 1;
+}

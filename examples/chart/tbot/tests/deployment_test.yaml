@@ -1,0 +1,17 @@
+suite: Test Deployment
+templates:
+  - deployment.yaml
+  - config.yaml
+tests:
+  - it: should match the snapshot (simple)
+    template: deployment.yaml
+    values:
+      - ../.lint/simple.yaml
+    asserts:
+      - matchSnapshot: {}
+  - it: should match the snapshot (full)
+    template: deployment.yaml
+    values:
+      - ../.lint/full.yaml
+    asserts:
+      - matchSnapshot: {}

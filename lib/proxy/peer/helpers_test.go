@@ -23,7 +23,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
-	"encoding/pem"
 	"net"
 	"sync/atomic"
 	"testing"
@@ -37,8 +36,9 @@ import (
 	clientapi "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -57,6 +57,7 @@ type mockProxyAccessPoint struct {
 }
 
 type mockProxyService struct {
+	clientapi.UnimplementedProxyServiceServer
 	mockDialNode func(stream clientapi.ProxyService_DialNodeServer) error
 }
 
@@ -126,13 +127,17 @@ func (s *mockProxyService) defaultDialNode(stream clientapi.ProxyService_DialNod
 }
 
 // newSelfSignedCA creates a new CA for testing.
-func newSelfSignedCA(t *testing.T) *tlsca.CertAuthority {
+func newSelfSignedCA(t *testing.T, clock clockwork.Clock) *tlsca.CertAuthority {
 	rsaKey, err := ssh.ParseRawPrivateKey(fixtures.PEMBytes["rsa"])
 	require.NoError(t, err)
 
-	cert, err := tlsca.GenerateSelfSignedCAWithSigner(
-		rsaKey.(*rsa.PrivateKey), pkix.Name{}, nil, defaults.CATTL,
-	)
+	cert, err := tlsca.GenerateSelfSignedCAWithConfig(tlsca.GenerateCAConfig{
+		Signer:   rsaKey.(*rsa.PrivateKey),
+		Entity:   pkix.Name{},
+		DNSNames: nil,
+		TTL:      defaults.CATTL,
+		Clock:    clock,
+	})
 	require.NoError(t, err)
 
 	ca, err := tlsca.FromCertAndSigner(cert, rsaKey.(*rsa.PrivateKey))
@@ -148,7 +153,7 @@ func newAtomicCA(ca *tlsca.CertAuthority) *atomic.Pointer[tlsca.CertAuthority] {
 }
 
 // certFromIdentity creates a tls config for a given CA and identity.
-func certFromIdentity(t *testing.T, ca *tlsca.CertAuthority, ident tlsca.Identity) tls.Certificate {
+func certFromIdentity(t *testing.T, ca *tlsca.CertAuthority, ident tlsca.Identity, clock clockwork.Clock) tls.Certificate {
 	if ident.Username == "" {
 		ident.Username = "test-user"
 	}
@@ -156,10 +161,8 @@ func certFromIdentity(t *testing.T, ca *tlsca.CertAuthority, ident tlsca.Identit
 	subj, err := ident.Subject()
 	require.NoError(t, err)
 
-	privateKey, err := native.GenerateRSAPrivateKey()
+	privateKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 	require.NoError(t, err)
-
-	clock := clockwork.NewRealClock()
 
 	request := tlsca.CertificateRequest{
 		Clock:     clock,
@@ -171,7 +174,8 @@ func certFromIdentity(t *testing.T, ca *tlsca.CertAuthority, ident tlsca.Identit
 	certBytes, err := ca.GenerateCertificate(request)
 	require.NoError(t, err)
 
-	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(privateKey)})
+	keyPEM, err := keys.MarshalPrivateKey(privateKey)
+	require.NoError(t, err)
 	cert, err := tls.X509KeyPair(certBytes, keyPEM)
 	require.NoError(t, err)
 
@@ -179,10 +183,15 @@ func certFromIdentity(t *testing.T, ca *tlsca.CertAuthority, ident tlsca.Identit
 }
 
 // setupClients return a Client object.
-func setupClient(t *testing.T, clientCA *tlsca.CertAuthority, serverCA *atomic.Pointer[tlsca.CertAuthority], role types.SystemRole) *Client {
-	tlsCert := certFromIdentity(t, clientCA, tlsca.Identity{
-		Groups: []string{string(role)},
-	})
+func setupClient(t *testing.T, clientCA *tlsca.CertAuthority, serverCA *atomic.Pointer[tlsca.CertAuthority], role types.SystemRole, clock clockwork.Clock) *Client {
+	tlsCert := certFromIdentity(
+		t,
+		clientCA,
+		tlsca.Identity{
+			Groups: []string{string(role)},
+		},
+		clock,
+	)
 
 	client, err := NewClient(ClientConfig{
 		ID:          "client-proxy",
@@ -198,7 +207,7 @@ func setupClient(t *testing.T, clientCA *tlsca.CertAuthority, serverCA *atomic.P
 			pool.AddCert(ca.Cert)
 			return pool, nil
 		},
-		Clock:                   clockwork.NewFakeClock(),
+		Clock:                   clock,
 		GracefulShutdownTimeout: time.Second,
 		sync:                    func() {},
 		connShuffler:            noopConnShuffler(),
@@ -214,27 +223,31 @@ func setupClient(t *testing.T, clientCA *tlsca.CertAuthority, serverCA *atomic.P
 type serverTestOption func(*ServerConfig)
 
 // setupServer return a Server object.
-func setupServer(t *testing.T, name string, serverCA, clientCA *tlsca.CertAuthority, role types.SystemRole, options ...serverTestOption) (*Server, types.Server) {
-	tlsCert := certFromIdentity(t, serverCA, tlsca.Identity{
-		Username: name + ".test",
-		Groups:   []string{string(role)},
-	})
-	tlsConf := &tls.Config{
-		Certificates: []tls.Certificate{tlsCert},
-	}
-	tlsConf.ClientCAs = x509.NewCertPool()
-	tlsConf.ClientCAs.AddCert(clientCA.Cert)
-
-	listener, err := net.Listen("tcp", "localhost:0")
-	require.NoError(t, err)
+func setupServer(t *testing.T, name string, serverCA, clientCA *tlsca.CertAuthority, role types.SystemRole, clock clockwork.Clock, options ...serverTestOption) (*Server, types.Server) {
+	tlsCert := certFromIdentity(
+		t,
+		serverCA,
+		tlsca.Identity{
+			Username: name + ".test",
+			Groups:   []string{string(role)},
+		},
+		clock,
+	)
+	clientCAs := x509.NewCertPool()
+	clientCAs.AddCert(clientCA.Cert)
 
 	config := ServerConfig{
-		Listener:      listener,
-		TLSConfig:     tlsConf,
-		ClusterDialer: &mockClusterDialer{},
-		service:       &mockProxyService{},
-		ClusterName:   "test",
+		Dialer: &mockClusterDialer{},
+		GetCertificate: func(*tls.ClientHelloInfo) (*tls.Certificate, error) {
+			return &tlsCert, nil
+		},
+		GetClientCAs: func(*tls.ClientHelloInfo) (*x509.CertPool, error) {
+			return clientCAs, nil
+		},
+
+		service: &mockProxyService{},
 	}
+
 	for _, option := range options {
 		option(&config)
 	}
@@ -242,21 +255,24 @@ func setupServer(t *testing.T, name string, serverCA, clientCA *tlsca.CertAuthor
 	server, err := NewServer(config)
 	require.NoError(t, err)
 
+	listener, err := net.Listen("tcp", "localhost:0")
+	require.NoError(t, err)
+
+	go server.Serve(listener)
+	t.Cleanup(func() {
+		require.NoError(t, server.Close())
+	})
+
 	ts, err := types.NewServer(
 		name, types.KindProxy,
 		types.ServerSpecV2{PeerAddr: listener.Addr().String()},
 	)
 	require.NoError(t, err)
 
-	go server.Serve()
-	t.Cleanup(func() {
-		require.NoError(t, server.Close())
-	})
-
 	return server, ts
 }
 
-func sendMsg(t *testing.T, stream frameStream) {
-	err := stream.Send([]byte("ping"))
+func sendMsg(t *testing.T, stream net.Conn) {
+	_, err := stream.Write([]byte("ping"))
 	require.NoError(t, err)
 }

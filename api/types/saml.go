@@ -17,6 +17,8 @@ limitations under the License.
 package types
 
 import (
+	"encoding/json"
+	"net/http"
 	"slices"
 	"strings"
 	"time"
@@ -104,6 +106,40 @@ type SAMLConnector interface {
 	GetSingleLogoutURL() string
 	// SetSingleLogoutURL sets the SAML SLO (single logout) URL for the identity provider.
 	SetSingleLogoutURL(string)
+	// GetMFASettings returns the connector's MFA settings.
+	GetMFASettings() *SAMLConnectorMFASettings
+	// SetMFASettings sets the connector's MFA settings.
+	SetMFASettings(s *SAMLConnectorMFASettings)
+	// IsMFAEnabled returns whether the connector has MFA enabled.
+	IsMFAEnabled() bool
+	// WithMFASettings returns the connector will some settings overwritten set from MFA settings.
+	WithMFASettings() error
+	// GetForceAuthn returns ForceAuthn
+	GetForceAuthn() bool
+	// GetPreferredRequestBinding returns PreferredRequestBinding.
+	GetPreferredRequestBinding() string
+	// GetUserMatchers returns the set of glob patterns to narrow down which username(s) this auth connector should
+	// match for identifier-first login.
+	GetUserMatchers() []string
+	// SetUserMatchers sets the set of glob patterns to narrow down which username(s) this auth connector should match
+	// for identifier-first login.
+	SetUserMatchers([]string)
+	// GetIncludeSubject returns true if the Subject element should be included in the AuthnRequest.
+	GetIncludeSubject() bool
+	// SetIncludeSubject sets whether the Subject element should be included.
+	SetIncludeSubject(bool)
+	// IsEqual determines if two connectors are equivalent to one another.
+	IsEqual(SAMLConnector) bool
+	// GetEntraIDGroupsProvider returns Entra ID groups provider.
+	GetEntraIDGroupsProvider() *EntraIDGroupsProvider
+	// IsEntraIDGroupsProviderDisabled checks if the Entra ID groups provider is disabled.
+	IsEntraIDGroupsProviderDisabled() bool
+	// GetOAuthClientCredentials returns the OAuth client credentials.
+	GetOAuthClientCredentials() *OAuthClientCredentials
+	// SetOAuthClientCredentials sets the OAuth client credentials.
+	SetOAuthClientCredentials(*OAuthClientCredentials)
+	// GetCredentials returns the credentials.
+	GetCredentials() *SAMLConnectorCredentials
 }
 
 // NewSAMLConnector returns a new SAMLConnector based off a name and SAMLConnectorSpecV2.
@@ -118,6 +154,15 @@ func NewSAMLConnector(name string, spec SAMLConnectorSpecV2) (SAMLConnector, err
 		return nil, trace.Wrap(err)
 	}
 	return o, nil
+}
+
+func (o *SAMLConnectorV2) IsEqual(other SAMLConnector) bool {
+	otherv2, ok := other.(*SAMLConnectorV2)
+	if !ok {
+		return false
+	}
+
+	return deriveTeleportEqualSAMLConnectorV2(o, otherv2)
 }
 
 // GetVersion returns resource version
@@ -154,6 +199,7 @@ func (o *SAMLConnectorV2) SetRevision(rev string) {
 func (o *SAMLConnectorV2) WithoutSecrets() Resource {
 	k1 := o.GetSigningKeyPair()
 	k2 := o.GetEncryptionKeyPair()
+	k3 := o.GetOAuthClientCredentials()
 	o2 := *o
 	if k1 != nil {
 		q1 := *k1
@@ -164,6 +210,11 @@ func (o *SAMLConnectorV2) WithoutSecrets() Resource {
 		q2 := *k2
 		q2.PrivateKey = ""
 		o2.SetEncryptionKeyPair(&q2)
+	}
+	if k3 != nil {
+		q3 := *k3
+		q3.ClientSecret = ""
+		o2.SetOAuthClientCredentials(&q3)
 	}
 	return &o2
 }
@@ -391,6 +442,166 @@ func (o *SAMLConnectorV2) SetSingleLogoutURL(url string) {
 	o.Spec.SingleLogoutURL = url
 }
 
+// GetMFASettings returns the connector's MFA settings.
+func (o *SAMLConnectorV2) GetMFASettings() *SAMLConnectorMFASettings {
+	return o.Spec.MFASettings
+}
+
+// SetMFASettings sets the connector's MFA settings.
+func (o *SAMLConnectorV2) SetMFASettings(s *SAMLConnectorMFASettings) {
+	o.Spec.MFASettings = s
+}
+
+// IsMFAEnabled returns whether the connector has MFA enabled.
+func (o *SAMLConnectorV2) IsMFAEnabled() bool {
+	mfa := o.GetMFASettings()
+	return mfa != nil && mfa.Enabled
+}
+
+// WithMFASettings returns the connector will some settings overwritten set from MFA settings.
+func (o *SAMLConnectorV2) WithMFASettings() error {
+	if !o.IsMFAEnabled() {
+		return trace.BadParameter("this connector does not have MFA enabled")
+	}
+
+	o.Spec.EntityDescriptor = o.Spec.MFASettings.EntityDescriptor
+	o.Spec.EntityDescriptorURL = o.Spec.MFASettings.EntityDescriptorUrl
+	o.Spec.Issuer = o.Spec.MFASettings.Issuer
+	o.Spec.SSO = o.Spec.MFASettings.Sso
+	o.Spec.Cert = o.Spec.MFASettings.Cert
+
+	switch o.Spec.MFASettings.ForceAuthn {
+	case SAMLForceAuthn_FORCE_AUTHN_UNSPECIFIED:
+		// Default to YES.
+		o.Spec.ForceAuthn = SAMLForceAuthn_FORCE_AUTHN_YES
+	default:
+		o.Spec.ForceAuthn = o.Spec.MFASettings.ForceAuthn
+	}
+
+	return nil
+}
+
+// GetForceAuthn returns ForceAuthn
+func (o *SAMLConnectorV2) GetForceAuthn() bool {
+	return o.Spec.ForceAuthn == SAMLForceAuthn_FORCE_AUTHN_YES
+}
+
+// GetUserMatchers returns the set of glob patterns to narrow down which username(s) this auth connector should
+// match for identifier-first login.
+func (r *SAMLConnectorV2) GetUserMatchers() []string {
+	if r.Spec.UserMatchers == nil {
+		return nil
+	}
+	return r.Spec.UserMatchers
+}
+
+// SetUserMatchers sets the set of glob patterns to narrow down which username(s) this auth connector should match
+// for identifier-first login.
+func (r *SAMLConnectorV2) SetUserMatchers(userMatchers []string) {
+	r.Spec.UserMatchers = userMatchers
+}
+
+func (r *SAMLConnectorV2) GetIncludeSubject() bool {
+	return r.Spec.IncludeSubject
+}
+
+func (r *SAMLConnectorV2) SetIncludeSubject(includeSubject bool) {
+	r.Spec.IncludeSubject = includeSubject
+}
+
+// GetOAuthClientCredentials returns the OAuth client credentials.
+func (r *SAMLConnectorV2) GetOAuthClientCredentials() *OAuthClientCredentials {
+	if r.Spec.Credentials == nil {
+		return nil
+	}
+	return r.Spec.Credentials.Oauth
+}
+
+// SetOAuthClientCredentials sets the OAuth client credentials. If any other type of credentials is set,
+// they'll be overwritten, ensuring only one credentials type is set.
+func (r *SAMLConnectorV2) SetOAuthClientCredentials(creds *OAuthClientCredentials) {
+	if creds == nil {
+		r.Spec.Credentials = nil
+		return
+	}
+	r.Spec.Credentials = &SAMLConnectorCredentials{Oauth: creds}
+}
+
+// GetCredentials returns the credentials.
+func (r *SAMLConnectorV2) GetCredentials() *SAMLConnectorCredentials {
+	return r.Spec.Credentials
+}
+
+// GetEntraIDGroupsProvider returns Entra ID groups provider.
+func (r *SAMLConnectorV2) GetEntraIDGroupsProvider() *EntraIDGroupsProvider {
+	return r.Spec.EntraIdGroupsProvider
+}
+
+// IsEntraIDGroupsProviderDisabled checks if the Entra ID groups provider is disabled.
+func (r *SAMLConnectorV2) IsEntraIDGroupsProviderDisabled() bool {
+	entra := r.Spec.EntraIdGroupsProvider
+	return entra != nil && entra.Disabled
+}
+
+// Validate checks that the required fields are present on the key pair.
+// cert is required, private_key is required if withSecrets=true.
+func (k *AsymmetricKeyPair) Validate(withSecrets bool) error {
+	if k == nil {
+		return nil
+	}
+
+	if k.Cert == "" {
+		return trace.BadParameter("missing required cert in signing_key_pair")
+	}
+
+	if withSecrets && k.PrivateKey == "" {
+		return trace.BadParameter("missing required private_key in signing_key_pair")
+	}
+
+	return nil
+}
+
+// Validate checks that the type of credentials configured is valid.
+//
+// For OAuth, client_id is required, client_secret is required if withSecrets=true.
+func (c *SAMLConnectorCredentials) Validate(withSecrets bool) error {
+	if c == nil {
+		return nil
+	}
+	// NOTE: Due to inability to use oneof with gogoproto (see https://github.com/gogo/protobuf/issues/623),
+	// the 'one of' invariant needs to be maintained here.
+	// When adding credential types, a mutual exclusion check must be added,
+	// e.g. if c.NewType != nil && c.Oauth != nil { return trace.BadParameter("only a single credential type may be specified") }
+
+	switch {
+	case c.Oauth != nil:
+		if c.Oauth.ClientId == "" {
+			return trace.BadParameter("missing required client_id in credentials.oauth")
+		}
+		if withSecrets && c.Oauth.ClientSecret == "" {
+			return trace.BadParameter("missing required client_secret in credentials.oauth")
+		}
+		return nil
+	default:
+		return trace.BadParameter("missing required credential type in credentials")
+	}
+}
+
+const (
+	// SAMLRequestHTTPRedirectBinding is the SAML http-redirect binding request name.
+	SAMLRequestHTTPRedirectBinding = "http-redirect"
+	// SAMLRequestHTTPPostBinding is the SAML http-post binding request name.
+	SAMLRequestHTTPPostBinding = "http-post"
+)
+
+// SAMLRequestBindingValues includes supported SAML request binding values.
+var SAMLRequestBindingValues = []string{SAMLRequestHTTPRedirectBinding, SAMLRequestHTTPPostBinding}
+
+// GetPreferredRequestBinding returns PreferredRequestBinding.
+func (o *SAMLConnectorV2) GetPreferredRequestBinding() string {
+	return o.Spec.PreferredRequestBinding
+}
+
 // setStaticFields sets static resource header and metadata fields.
 func (o *SAMLConnectorV2) setStaticFields() {
 	o.Kind = KindSAMLConnector
@@ -411,7 +622,7 @@ func (o *SAMLConnectorV2) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing acs - assertion consumer service parameter, set service URL that will receive POST requests from SAML")
 	}
 	if o.Spec.AllowIDPInitiated && !strings.HasSuffix(o.Spec.AssertionConsumerService, "/"+o.Metadata.Name) {
-		return trace.BadParameter("acs - assertion consumer service parameter must end with /%v when allow_idp_initiated is set to true, eg https://cluster.domain/webapi/v1/saml/acs/%v. Ensure this URI matches the one configured at the identity provider.", o.Metadata.Name, o.Metadata.Name)
+		return trace.BadParameter("acs - assertion consumer service parameter must end with /%v when allow_idp_initiated is set to true, eg https://cluster.domain/v1/webapi/saml/acs/%v. Ensure this URI matches the one configured at the identity provider.", o.Metadata.Name, o.Metadata.Name)
 	}
 	if o.Spec.ServiceProviderIssuer == "" {
 		o.Spec.ServiceProviderIssuer = o.Spec.AssertionConsumerService
@@ -423,38 +634,193 @@ func (o *SAMLConnectorV2) CheckAndSetDefaults() error {
 	if o.Spec.EntityDescriptorURL == "" && o.Spec.EntityDescriptor == "" && (o.Spec.Issuer == "" || o.Spec.SSO == "") {
 		return trace.BadParameter("no entity_descriptor set, either provide entity_descriptor or entity_descriptor_url in spec")
 	}
+	if o.IsMFAEnabled() && o.Spec.MFASettings.EntityDescriptorUrl == "" && o.Spec.MFASettings.EntityDescriptor == "" && (o.Spec.MFASettings.Issuer == "" || o.Spec.MFASettings.Sso == "") {
+		return trace.BadParameter("no entity_descriptor set for mfa settings, either provide entity_descriptor or entity_descriptor_url in spec")
+	}
 	// make sure claim mappings have either roles or a role template
 	for _, v := range o.Spec.AttributesToRoles {
 		if len(v.Roles) == 0 {
 			return trace.BadParameter("need roles field in attributes_to_roles")
 		}
 	}
+
+	if creds := o.Spec.Credentials; creds != nil {
+		if err := creds.Validate(false); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	if entra := o.GetEntraIDGroupsProvider(); entra != nil {
+		if err := entra.checkAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	return nil
 }
 
 // Check returns nil if all parameters are great, err otherwise
-func (i *SAMLAuthRequest) Check() error {
-	if i.ConnectorID == "" {
+func (r *SAMLAuthRequest) Check() error {
+	switch {
+	case r.ConnectorID == "":
 		return trace.BadParameter("ConnectorID: missing value")
-	}
-	if len(i.PublicKey) != 0 {
-		_, _, _, _, err := ssh.ParseAuthorizedKey(i.PublicKey)
-		if err != nil {
-			return trace.BadParameter("PublicKey: bad key: %v", err)
-		}
-		if (i.CertTTL > defaults.MaxCertDuration) || (i.CertTTL < defaults.MinCertDuration) {
-			return trace.BadParameter("CertTTL: wrong certificate TTL")
-		}
-	}
-
 	// we could collapse these two checks into one, but the error message would become ambiguous.
-	if i.SSOTestFlow && i.ConnectorSpec == nil {
+	case r.SSOTestFlow && r.ConnectorSpec == nil:
 		return trace.BadParameter("ConnectorSpec cannot be nil when SSOTestFlow is true")
-	}
-
-	if !i.SSOTestFlow && i.ConnectorSpec != nil {
+	case !r.SSOTestFlow && r.ConnectorSpec != nil:
 		return trace.BadParameter("ConnectorSpec must be nil when SSOTestFlow is false")
 	}
-
+	if len(r.SshPublicKey) > 0 {
+		_, _, _, _, err := ssh.ParseAuthorizedKey(r.SshPublicKey)
+		if err != nil {
+			return trace.BadParameter("bad SSH public key: %v", err)
+		}
+	}
+	if (len(r.SshPublicKey) != 0 || len(r.TlsPublicKey) != 0) &&
+		(r.CertTTL > defaults.MaxCertDuration || r.CertTTL < defaults.MinCertDuration) {
+		return trace.BadParameter("wrong CertTTL")
+	}
 	return nil
+}
+
+// MarshalJSON marshals SAMLForceAuthn to string.
+func (s SAMLForceAuthn) MarshalYAML() (interface{}, error) {
+	val, err := s.encode()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return val, nil
+}
+
+// UnmarshalYAML supports parsing SAMLForceAuthn from string.
+func (s *SAMLForceAuthn) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var val any
+	if err := unmarshal(&val); err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(s.decode(val))
+}
+
+// MarshalJSON marshals SAMLForceAuthn to string.
+func (s SAMLForceAuthn) MarshalJSON() ([]byte, error) {
+	val, err := s.encode()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	out, err := json.Marshal(val)
+	return out, trace.Wrap(err)
+}
+
+// UnmarshalJSON supports parsing SAMLForceAuthn from string.
+func (s *SAMLForceAuthn) UnmarshalJSON(data []byte) error {
+	var val any
+	if err := json.Unmarshal(data, &val); err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(s.decode(val))
+}
+
+func (s *SAMLForceAuthn) encode() (string, error) {
+	switch *s {
+	case SAMLForceAuthn_FORCE_AUTHN_UNSPECIFIED:
+		return "", nil
+	case SAMLForceAuthn_FORCE_AUTHN_NO:
+		return "no", nil
+	case SAMLForceAuthn_FORCE_AUTHN_YES:
+		return "yes", nil
+	default:
+		return "", trace.BadParameter("SAMLForceAuthn invalid value %v", *s)
+	}
+}
+
+func (s *SAMLForceAuthn) decode(val any) error {
+	switch v := val.(type) {
+	case string:
+		// try parsing as a boolean
+		switch strings.ToLower(v) {
+		case "":
+			*s = SAMLForceAuthn_FORCE_AUTHN_UNSPECIFIED
+		case "yes", "yeah", "y", "true", "1", "on":
+			*s = SAMLForceAuthn_FORCE_AUTHN_YES
+		case "no", "nope", "n", "false", "0", "off":
+			*s = SAMLForceAuthn_FORCE_AUTHN_NO
+		default:
+			return trace.BadParameter("SAMLForceAuthn invalid value %v", val)
+		}
+	case bool:
+		if v {
+			*s = SAMLForceAuthn_FORCE_AUTHN_YES
+		} else {
+			*s = SAMLForceAuthn_FORCE_AUTHN_NO
+		}
+	case int32:
+		return trace.Wrap(s.setFromEnum(v))
+	case int64:
+		return trace.Wrap(s.setFromEnum(int32(v)))
+	case int:
+		return trace.Wrap(s.setFromEnum(int32(v)))
+	case float64:
+		return trace.Wrap(s.setFromEnum(int32(v)))
+	case float32:
+		return trace.Wrap(s.setFromEnum(int32(v)))
+	default:
+		return trace.BadParameter("SAMLForceAuthn invalid type %T", val)
+	}
+	return nil
+}
+
+// setFromEnum sets the value from enum value as int32.
+func (s *SAMLForceAuthn) setFromEnum(val int32) error {
+	if _, ok := SAMLForceAuthn_name[val]; !ok {
+		return trace.BadParameter("invalid SAMLForceAuthn enum %v", val)
+	}
+	*s = SAMLForceAuthn(val)
+	return nil
+}
+
+// SAMLConnectorValidationOptions are options for SAML connector validation.
+type SAMLConnectorValidationOptions struct {
+	// NoFollowURLs disables following of URLs to populate SAML connector
+	// metadata. Useful when full metadata is not necessary, especially for
+	// endpoints like /webapi/ping which must not hang or fail.
+	NoFollowURLs bool
+	WithSecrets  bool
+	// Transport used to fetch entity descriptor during the validation.
+	Transport http.RoundTripper
+}
+
+// NewSAMLConnectorValidationOptions creates SAMLConnectorValidationOptions from provided options.
+func NewSAMLConnectorValidationOptions(opts []SAMLConnectorValidationOption) SAMLConnectorValidationOptions {
+	options := SAMLConnectorValidationOptions{}
+	for _, o := range opts {
+		o(&options)
+	}
+	return options
+}
+
+// SAMLConnectorValidationOption is an option for validation of SAML connectors.
+type SAMLConnectorValidationOption func(*SAMLConnectorValidationOptions)
+
+// SAMLConnectorValidationFollowURLs returns a SAMLConnectorValidationOptions
+// that sets whether URLs should be followed while validating the connector.
+func SAMLConnectorValidationFollowURLs(follow bool) SAMLConnectorValidationOption {
+	return func(opts *SAMLConnectorValidationOptions) {
+		opts.NoFollowURLs = !follow
+	}
+}
+
+// SAMLConnectorValidationWithSecrets returns a SAMLConnectorValidation that sets whether to
+// include secrets when validating the connector.
+func SAMLConnectorValidationWithSecrets(withSecrets bool) SAMLConnectorValidationOption {
+	return func(opts *SAMLConnectorValidationOptions) {
+		opts.WithSecrets = withSecrets
+	}
+}
+
+// SAMLConnectorValidationHTTPTransport sets HTTP transport used to fetch entity descriptor during
+// the validation.
+func SAMLConnectorValidationHTTPTransport(transport http.RoundTripper) SAMLConnectorValidationOption {
+	return func(opts *SAMLConnectorValidationOptions) {
+		opts.Transport = transport
+	}
 }

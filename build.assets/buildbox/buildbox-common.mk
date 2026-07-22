@@ -48,23 +48,25 @@ $(THIRDPARTY_SRCDIR) $(THIRDPARTY_HOST_SRCDIR) $(THIRDPARTY_DLDIR):
 tp-git-ref = $($*_GIT_REF)
 tp-git-repo = $($*_GIT_REPO)
 tp-git-ref-hash = $($*_GIT_REF_HASH)
+tp-git-dl-dir = $(THIRDPARTY_DLDIR)/$*-$($*_VERSION)
 tp-git-src-dir = $($*_SRCDIR)
 define tp-git-fetch-cmd
-	git -C "$(dir $(tp-git-src-dir))" \
+	git -C "$(dir $(tp-git-dl-dir))" \
 		-c advice.detachedHead=false clone --depth=1 \
-		--branch=$(tp-git-ref) $(tp-git-repo) "$(tp-git-src-dir)"
+		--branch=$(tp-git-ref) $(tp-git-repo) "$(tp-git-dl-dir)"
 endef
 
 # Fetch source via git.
 fetch-git-%:
-	mkdir -p $(dir $(tp-git-src-dir))
-	$(if $(wildcard $(tp-git-src-dir)),,$(tp-git-fetch-cmd))
-	@if [ "$$(git -C "$(tp-git-src-dir)" rev-parse HEAD)" != "$(tp-git-ref-hash)" ]; then \
+	mkdir -p $(dir $(tp-git-src-dir)) $(tp-git-dl-dir)
+	$(if $(wildcard $(tp-git-dl-dir)),,$(tp-git-fetch-cmd))
+	@if [ "$$(git -C "$(tp-git-dl-dir)" rev-parse HEAD)" != "$(tp-git-ref-hash)" ]; then \
 		echo "Found unexpected HEAD commit for $(1)"; \
 		echo "Expected: $(tp-git-ref-hash)"; \
-		echo "Got: $$(git -C "$(tp-git-src-dir)" rev-parse HEAD)"; \
+		echo "Got: $$(git -C "$(tp-git-dl-dir)" rev-parse HEAD)"; \
 		exit 1; \
 	fi
+	git clone $(tp-git-dl-dir) "$(tp-git-src-dir)"
 
 # vars for fetch-https-%. `$*` represents the `%` match.
 tp-download-url = $($*_DOWNLOAD_URL)

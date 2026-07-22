@@ -29,26 +29,26 @@ import (
 	"strconv"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/remotecommand"
 
-	"github.com/gravitational/teleport"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/moderation"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestSessionEndError(t *testing.T) {
@@ -93,7 +93,6 @@ func TestSessionEndError(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			var (
@@ -183,19 +182,19 @@ func TestSessionEndError(t *testing.T) {
 						}
 
 						execEvent, ok := event.(*apievents.Exec)
-						assert.True(t, ok)
-						assert.Equal(t, events.ExecFailureCode, execEvent.GetCode())
+						require.True(t, ok)
+						require.Equal(t, events.ExecFailureCode, execEvent.GetCode())
 						if tt.recordingErr == nil {
-							assert.Equal(t, strconv.Itoa(errorCode), execEvent.ExitCode)
-							assert.Equal(t, errorMessage, execEvent.Error)
+							require.Equal(t, strconv.Itoa(errorCode), execEvent.ExitCode)
+							require.Equal(t, errorMessage, execEvent.Error)
 						} else {
-							assert.Empty(t, execEvent.ExitCode)
-							assert.Equal(t, tt.recordingErr.Error(), execEvent.Error)
+							require.Empty(t, execEvent.ExitCode)
+							require.Equal(t, tt.recordingErr.Error(), execEvent.Error)
 						}
 						hasSessionExecEvent = true
 					}
-					assert.Truef(t, hasSessionEndEvent, "session end event not found in audit log")
-					assert.Truef(t, hasSessionExecEvent, "session exec event not found in audit log")
+					require.Truef(t, hasSessionEndEvent, "session end event not found in audit log")
+					require.Truef(t, hasSessionExecEvent, "session exec event not found in audit log")
 				}, 10*time.Second, 1*time.Second)
 			} else {
 				require.Never(t, func() bool {
@@ -284,7 +283,7 @@ func Test_session_trackSession(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			sess := &session{
-				log: logrus.New().WithField(teleport.ComponentKey, "test"),
+				log: logtest.NewLogger(),
 				id:  uuid.New(),
 				req: &http.Request{
 					URL: &url.URL{
@@ -293,15 +292,15 @@ func Test_session_trackSession(t *testing.T) {
 				},
 				podName:         "podName",
 				podNamespace:    "podNamespace",
-				accessEvaluator: auth.NewSessionAccessEvaluator(tt.args.policies, types.KubernetesSessionKind, "username"),
+				accessEvaluator: moderation.NewSessionAccessEvaluator(tt.args.policies, types.KubernetesSessionKind, "username"),
 				ctx: authContext{
-					Context: authz.Context{
+					ScopedContext: authz.ScopedContextFromUnscopedContext(&authz.Context{
 						User: &types.UserV2{
 							Metadata: types.Metadata{
 								Name: "username",
 							},
 						},
-					},
+					}),
 					teleportCluster: teleportClusterClient{
 						name: "name",
 					},
@@ -353,4 +352,154 @@ func (m *mockSessionTrackerService) CreateSessionTracker(_ context.Context, trac
 
 func (m *mockSessionTrackerService) ListKubernetesWaitingContainers(ctx context.Context, pageSize int, pageToken string) ([]*kubewaitingcontainerpb.KubernetesWaitingContainer, string, error) {
 	return nil, "", nil
+}
+
+// TestMultiResizeQueueNextEvictsClosedChannel is a regression test for the CPU hot-spin in (*multiResizeQueue).Next():
+// a closed party channel must be dropped from the select set, not re-selected forever, and must not wedge other parties.
+// See https://github.com/gravitational/teleport/issues/68140.
+func TestMultiResizeQueueNextEvictsClosedChannel(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		q := newMultiResizeQueue(t.Context())
+		q.callback = func(terminalResizeMessage) {}
+
+		// A disconnected party: its resize channel is closed but never removed.
+		closedCh := make(chan terminalResizeMessage)
+		close(closedCh)
+		q.add("disconnected-party", closedCh)
+
+		// A live party's resize must still come through with the dead channel present.
+		live := make(chan terminalResizeMessage, 1)
+		q.add("live-party", live)
+		size := &remotecommand.TerminalSize{Width: 80, Height: 24}
+		live <- terminalResizeMessage{size: size, source: uuid.New()}
+		require.Equal(t, size, q.Next())
+
+		// The closed channel's forwarder cleaned itself up; only the live party remains.
+		synctest.Wait()
+		q.mutex.Lock()
+		defer q.mutex.Unlock()
+		require.Len(t, q.cancels, 1)
+	})
+}
+
+// TestMultiResizeQueueDeliversResize verifies a resize sent by a party is
+// returned by Next(), recorded as the last size, and passed to the callback.
+func TestMultiResizeQueueDeliversResize(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+
+		q := newMultiResizeQueue(ctx)
+		var got terminalResizeMessage
+		q.callback = func(m terminalResizeMessage) { got = m }
+
+		require.Nil(t, q.getLastSize())
+
+		ch := make(chan terminalResizeMessage, 1)
+		q.add("party", ch)
+
+		source := uuid.New()
+		size := &remotecommand.TerminalSize{Width: 80, Height: 24}
+		ch <- terminalResizeMessage{size: size, source: source}
+
+		require.Equal(t, size, q.Next())
+		require.Equal(t, size, q.getLastSize())
+		require.Equal(t, size, got.size)
+		require.Equal(t, source, got.source)
+	})
+}
+
+// TestMultiResizeQueueMultipleParties verifies resizes from several parties are
+// all delivered.
+func TestMultiResizeQueueMultipleParties(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+
+		q := newMultiResizeQueue(ctx)
+		q.callback = func(terminalResizeMessage) {}
+
+		chA := make(chan terminalResizeMessage, 1)
+		chB := make(chan terminalResizeMessage, 1)
+		q.add("a", chA)
+		q.add("b", chB)
+
+		sizeA := &remotecommand.TerminalSize{Width: 80, Height: 24}
+		sizeB := &remotecommand.TerminalSize{Width: 120, Height: 40}
+		chA <- terminalResizeMessage{size: sizeA, source: uuid.New()}
+		chB <- terminalResizeMessage{size: sizeB, source: uuid.New()}
+
+		got := []*remotecommand.TerminalSize{q.Next(), q.Next()}
+		require.ElementsMatch(t, []*remotecommand.TerminalSize{sizeA, sizeB}, got)
+	})
+}
+
+// TestMultiResizeQueueDynamicAdd verifies Next() picks up a channel added while
+// it is already blocked waiting.
+func TestMultiResizeQueueDynamicAdd(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+
+		q := newMultiResizeQueue(ctx)
+		q.callback = func(terminalResizeMessage) {}
+
+		// An existing party with no pending resize: Next() blocks on it.
+		q.add("existing", make(chan terminalResizeMessage))
+
+		result := make(chan *remotecommand.TerminalSize, 1)
+		go func() { result <- q.Next() }()
+		synctest.Wait()
+
+		// A second party joins mid-session and sends a resize.
+		ch := make(chan terminalResizeMessage, 1)
+		size := &remotecommand.TerminalSize{Width: 100, Height: 40}
+		ch <- terminalResizeMessage{size: size, source: uuid.New()}
+		q.add("late", ch)
+
+		require.Equal(t, size, <-result)
+	})
+}
+
+// TestMultiResizeQueueRemove verifies a removed party leaves the queue while the
+// remaining parties keep delivering.
+func TestMultiResizeQueueRemove(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+
+		q := newMultiResizeQueue(ctx)
+		q.callback = func(terminalResizeMessage) {}
+
+		chA := make(chan terminalResizeMessage, 1)
+		chB := make(chan terminalResizeMessage, 1)
+		q.add("a", chA)
+		q.add("b", chB)
+		q.remove("a")
+
+		sizeB := &remotecommand.TerminalSize{Width: 120, Height: 40}
+		chB <- terminalResizeMessage{size: sizeB, source: uuid.New()}
+
+		require.Equal(t, sizeB, q.Next())
+	})
+}
+
+// TestMultiResizeQueueCancelReturnsNil verifies Next() returns nil once the
+// parent context is canceled.
+func TestMultiResizeQueueCancelReturnsNil(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+
+		q := newMultiResizeQueue(ctx)
+		q.callback = func(terminalResizeMessage) {}
+		q.add("party", make(chan terminalResizeMessage))
+
+		result := make(chan *remotecommand.TerminalSize, 1)
+		go func() { result <- q.Next() }()
+		synctest.Wait()
+
+		cancel()
+		require.Nil(t, <-result)
+	})
 }

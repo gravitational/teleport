@@ -19,46 +19,8 @@
 package services
 
 import (
-	"github.com/gravitational/teleport/api/client/secreport"
 	"github.com/gravitational/teleport/api/types"
 )
-
-// Services collects all services
-type Services interface {
-	UsersService
-	Provisioner
-	Trust
-	types.Events
-	ClusterConfiguration
-	Access
-	DynamicAccessCore
-	Presence
-	Restrictions
-	Apps
-	Databases
-	DatabaseServices
-	Kubernetes
-	AppSession
-	SnowflakeSession
-	SAMLIdPSession
-	types.WebSessionsGetter
-	types.WebTokensGetter
-	WindowsDesktops
-	SAMLIdPServiceProviders
-	UserGroups
-	Integrations
-	KubeWaitingContainer
-	Notifications
-
-	OktaClient() Okta
-	AccessListClient() AccessLists
-	AccessMonitoringRuleClient() AccessMonitoringRules
-	UserLoginStateClient() UserLoginStates
-	DiscoveryConfigClient() DiscoveryConfigs
-	SecReportsClient() *secreport.Client
-	CrownJewelClient() CrownJewels
-	DatabaseObjectsClient() DatabaseObjects
-}
 
 // RotationGetter returns the rotation state.
 type RotationGetter func(role types.SystemRole) (*types.Rotation, error)

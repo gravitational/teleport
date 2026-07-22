@@ -1,5 +1,6 @@
 authToken: auth-token
 proxyAddr: proxy.example.com:3080
+relayAddr: relay.example.com:3024
 roles: kube,app,db,jamf
 kubeClusterName: test-kube-cluster-name
 labels:

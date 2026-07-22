@@ -20,6 +20,7 @@ package backend
 
 import (
 	"context"
+	"iter"
 	"sync"
 	"time"
 
@@ -28,6 +29,8 @@ import (
 )
 
 var _ Backend = (*Wrapper)(nil)
+var _ BatchDeleter = (*Wrapper)(nil)
+var _ BatchPutter = (*Wrapper)(nil)
 
 // Wrapper wraps a Backend implementation that can fail
 // on demand.
@@ -66,11 +69,15 @@ func (s *Wrapper) SetReadError(err error) {
 }
 
 // GetRange returns query range
-func (s *Wrapper) GetRange(ctx context.Context, startKey []byte, endKey []byte, limit int) (*GetResult, error) {
+func (s *Wrapper) GetRange(ctx context.Context, startKey, endKey Key, limit int) (*GetResult, error) {
 	if err := s.GetReadError(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return s.backend.GetRange(ctx, startKey, endKey, limit)
+}
+
+func (s *Wrapper) Items(ctx context.Context, params ItemsParams) iter.Seq2[Item, error] {
+	return s.backend.Items(ctx, params)
 }
 
 // Create creates item if it does not exist
@@ -95,7 +102,7 @@ func (s *Wrapper) ConditionalUpdate(ctx context.Context, i Item) (*Lease, error)
 }
 
 // Get returns a single item or not found error
-func (s *Wrapper) Get(ctx context.Context, key []byte) (*Item, error) {
+func (s *Wrapper) Get(ctx context.Context, key Key) (*Item, error) {
 	if err := s.GetReadError(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -108,18 +115,28 @@ func (s *Wrapper) CompareAndSwap(ctx context.Context, expected Item, replaceWith
 	return s.backend.CompareAndSwap(ctx, expected, replaceWith)
 }
 
+// PutBatch puts multiple values into backend.
+func (s *Wrapper) PutBatch(ctx context.Context, items []Item) ([]string, error) {
+	return PutBatch(ctx, s.backend, items)
+}
+
 // Delete deletes item by key
-func (s *Wrapper) Delete(ctx context.Context, key []byte) error {
+func (s *Wrapper) Delete(ctx context.Context, key Key) error {
 	return s.backend.Delete(ctx, key)
 }
 
+// DeleteBatch deletes multiple items from the backend.
+func (s *Wrapper) DeleteBatch(ctx context.Context, keys []Key) error {
+	return trace.Wrap(DeleteBatch(ctx, s.backend, keys))
+}
+
 // ConditionalDelete deletes item by key if revisions match.
-func (s *Wrapper) ConditionalDelete(ctx context.Context, key []byte, revision string) error {
+func (s *Wrapper) ConditionalDelete(ctx context.Context, key Key, revision string) error {
 	return s.backend.ConditionalDelete(ctx, key, revision)
 }
 
 // DeleteRange deletes range of items
-func (s *Wrapper) DeleteRange(ctx context.Context, startKey []byte, endKey []byte) error {
+func (s *Wrapper) DeleteRange(ctx context.Context, startKey, endKey Key) error {
 	return s.backend.DeleteRange(ctx, startKey, endKey)
 }
 

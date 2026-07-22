@@ -28,48 +28,55 @@ import (
 	traitv1 "github.com/gravitational/teleport/api/types/trait/convert/v1"
 )
 
+type ReviewOption func(msg *accesslistv1.Review, review *accesslist.Review)
+
 // FromReviewProto converts a v1 access list review into an internal access list review object.
-func FromReviewProto(msg *accesslistv1.Review) (*accesslist.Review, error) {
+func FromReviewProto(msg *accesslistv1.Review, opts ...ReviewOption) (*accesslist.Review, error) {
 	if msg == nil {
 		return nil, trace.BadParameter("access list review message is nil")
 	}
 
-	if msg.Spec == nil {
+	if msg.GetSpec() == nil {
 		return nil, trace.BadParameter("spec is missing")
 	}
 
 	// Manually check for the presence of the time so that we can be sure that the review date is
 	// zero if the proto message's review date is nil.
 	var reviewDate time.Time
-	if msg.Spec.ReviewDate != nil {
-		reviewDate = msg.Spec.ReviewDate.AsTime()
+	if msg.GetSpec().GetReviewDate() != nil {
+		reviewDate = msg.GetSpec().GetReviewDate().AsTime()
 	}
 
 	var reviewChanges accesslist.ReviewChanges
-	if msg.Spec.Changes != nil {
-		if msg.Spec.Changes.MembershipRequirementsChanged != nil {
+	if msg.GetSpec().GetChanges() != nil {
+		if msg.GetSpec().GetChanges().GetMembershipRequirementsChanged() != nil {
 			reviewChanges.MembershipRequirementsChanged = &accesslist.Requires{
-				Roles:  msg.Spec.Changes.MembershipRequirementsChanged.Roles,
-				Traits: traitv1.FromProto(msg.Spec.Changes.MembershipRequirementsChanged.Traits),
+				Roles:  msg.GetSpec().GetChanges().GetMembershipRequirementsChanged().GetRoles(),
+				Traits: traitv1.FromProto(msg.GetSpec().GetChanges().GetMembershipRequirementsChanged().GetTraits()),
 			}
 		}
-		reviewChanges.RemovedMembers = msg.Spec.Changes.RemovedMembers
-		reviewChanges.ReviewFrequencyChanged = accesslist.ReviewFrequency(msg.Spec.Changes.ReviewFrequencyChanged)
-		reviewChanges.ReviewDayOfMonthChanged = accesslist.ReviewDayOfMonth(msg.Spec.Changes.ReviewDayOfMonthChanged)
+		reviewChanges.RemovedMembers = msg.GetSpec().GetChanges().GetRemovedMembers()
+		reviewChanges.ScopedRemovedMembers = msg.GetSpec().GetChanges().GetScopedRemovedMembers()
+		reviewChanges.ReviewFrequencyChanged = accesslist.ReviewFrequency(msg.GetSpec().GetChanges().GetReviewFrequencyChanged())
+		reviewChanges.ReviewDayOfMonthChanged = accesslist.ReviewDayOfMonth(msg.GetSpec().GetChanges().GetReviewDayOfMonthChanged())
 	}
 
-	member, err := accesslist.NewReview(headerv1.FromMetadataProto(msg.Header.Metadata), accesslist.ReviewSpec{
-		AccessList: msg.Spec.AccessList,
-		Reviewers:  msg.Spec.Reviewers,
+	review, err := accesslist.NewReviewWithScope(headerv1.FromMetadataProto(msg.GetHeader().GetMetadata()), accesslist.ReviewSpec{
+		AccessList: msg.GetSpec().GetAccessList(),
+		Reviewers:  msg.GetSpec().GetReviewers(),
 		ReviewDate: reviewDate,
-		Notes:      msg.Spec.Notes,
+		Notes:      msg.GetSpec().GetNotes(),
 		Changes:    reviewChanges,
-	})
+	}, msg.Scope)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return member, nil
+	for _, opt := range opts {
+		opt(msg, review)
+	}
+
+	return review, nil
 }
 
 // ToReviewProto converts an internal access list review into a v1 access list review object.
@@ -90,6 +97,13 @@ func ToReviewProto(review *accesslist.Review) *accesslistv1.Review {
 
 		reviewChanges.RemovedMembers = review.Spec.Changes.RemovedMembers
 	}
+	if len(review.Spec.Changes.ScopedRemovedMembers) > 0 {
+		if reviewChanges == nil {
+			reviewChanges = &accesslistv1.ReviewChanges{}
+		}
+
+		reviewChanges.ScopedRemovedMembers = review.Spec.Changes.ScopedRemovedMembers
+	}
 	if review.Spec.Changes.ReviewFrequencyChanged > 0 {
 		if reviewChanges == nil {
 			reviewChanges = &accesslistv1.ReviewChanges{}
@@ -107,6 +121,7 @@ func ToReviewProto(review *accesslist.Review) *accesslistv1.Review {
 
 	return &accesslistv1.Review{
 		Header: headerv1.ToResourceHeaderProto(review.ResourceHeader),
+		Scope:  review.Scope,
 		Spec: &accesslistv1.ReviewSpec{
 			AccessList: review.Spec.AccessList,
 			Reviewers:  review.Spec.Reviewers,
@@ -114,5 +129,31 @@ func ToReviewProto(review *accesslist.Review) *accesslistv1.Review {
 			Notes:      review.Spec.Notes,
 			Changes:    reviewChanges,
 		},
+		Status: toReviewStatusProto(review.Status),
+	}
+}
+
+func toReviewStatusProto(status *accesslist.ReviewStatus) *accesslistv1.ReviewStatus {
+	if status == nil {
+		return nil
+	}
+	return &accesslistv1.ReviewStatus{
+		ReviewerDisplays: ToUserDisplaysProto(status.ReviewerDisplays),
+	}
+}
+
+func fromReviewStatusProto(status *accesslistv1.ReviewStatus) *accesslist.ReviewStatus {
+	if status == nil {
+		return nil
+	}
+	return &accesslist.ReviewStatus{
+		ReviewerDisplays: FromUserDisplaysProto(status.GetReviewerDisplays()),
+	}
+}
+
+// WithReviewStatus copies the status field from the source proto message.
+func WithReviewStatus() ReviewOption {
+	return func(msg *accesslistv1.Review, review *accesslist.Review) {
+		review.Status = fromReviewStatusProto(msg.GetStatus())
 	}
 }

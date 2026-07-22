@@ -20,6 +20,7 @@ package proxy
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"net/http"
 	"strings"
@@ -53,15 +54,24 @@ func (f *Forwarder) listResources(sess *clusterSession, w http.ResponseWriter, r
 
 	req = req.WithContext(ctx)
 
-	isLocalKubeCluster := f.isLocalKubeCluster(sess.teleportCluster.isRemote, sess.kubeClusterName)
+	isLocalKubeCluster := sess.isLocalKubernetesCluster
 	supportsType := false
-	resourceKind := ""
 	if isLocalKubeCluster {
-		resourceKind, supportsType = sess.rbacSupportedResources.getTeleportResourceKindFromAPIResource(sess.apiResource)
+		_, supportsType = sess.rbacSupportedResources.getTeleportResourceKindFromAPIResource(sess.metaResource.requestedResource)
 	}
 
 	// status holds the returned response code.
 	var status int
+	defer func() {
+		if err != nil {
+			return
+		}
+		if status == 0 {
+			// Preserve pre-streaming behavior: treat unset status as 200 OK.
+			status = http.StatusOK
+		}
+		f.emitAuditEvent(req, sess, status)
+	}()
 	// Check if the target Kubernetes cluster is not served by the current service.
 	// If it's the case, forward the request to the target Kube Service where the
 	// filtering logic will be applied.
@@ -70,24 +80,28 @@ func (f *Forwarder) listResources(sess *clusterSession, w http.ResponseWriter, r
 		sess.forwarder.ServeHTTP(rw, req)
 		status = rw.Status()
 	} else {
-		allowedResources, deniedResources := sess.Checker.GetKubeResources(sess.kubeCluster)
+		checker, err := sess.authContext.getAccessChecker()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 
-		shouldBeAllowed, err := matchListRequestShouldBeAllowed(sess, resourceKind, allowedResources, deniedResources)
+		allowedResources, deniedResources := checker.Kube().GetResources(sess.kubeCluster)
+
+		shouldBeAllowed, err := matchListRequestShouldBeAllowed(sess.metaResource, allowedResources, deniedResources)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		if !shouldBeAllowed {
 			notFoundMessage := f.kubeResourceDeniedAccessMsg(
 				sess.User.GetName(),
-				sess.requestVerb,
-				sess.apiResource,
+				sess.metaResource.verb,
+				sess.metaResource.requestedResource,
 			)
-			return nil, trace.AccessDenied(notFoundMessage)
+			return nil, trace.AccessDenied("%s", notFoundMessage)
 		}
-		// isWatch identifies if the request is long-lived watch stream based on
+		// Identify if the request is long-lived watch stream based on
 		// HTTP connection.
-		isWatch := isKubeWatchRequest(req, sess.authContext.apiResource)
-		if !isWatch {
+		if !isKubeWatchRequest(req, sess.authContext.metaResource.requestedResource) {
 			// List resources.
 			status, err = f.listResourcesList(req, w, sess, allowedResources, deniedResources)
 		} else {
@@ -101,7 +115,6 @@ func (f *Forwarder) listResources(sess *clusterSession, w http.ResponseWriter, r
 		}
 	}
 
-	f.emitAuditEvent(req, sess, status)
 	return nil, nil
 }
 
@@ -111,29 +124,41 @@ func (f *Forwarder) listResources(sess *clusterSession, w http.ResponseWriter, r
 // the response. Finally, the filtered response is serialized and sent back to
 // the user with the appropriate headers.
 func (f *Forwarder) listResourcesList(req *http.Request, w http.ResponseWriter, sess *clusterSession, allowedResources, deniedResources []types.KubernetesResource) (int, error) {
-	// Creates a memory response writer that collects the response status, headers
-	// and payload into memory.
-	memBuffer := responsewriters.NewMemoryResponseWriter()
-	// Forward the request to the target cluster.
-	sess.forwarder.ServeHTTP(memBuffer, req)
-	resourceKind, ok := sess.rbacSupportedResources.getTeleportResourceKindFromAPIResource(sess.apiResource)
-	if !ok {
-		return http.StatusBadRequest, trace.BadParameter("unknown resource kind %q", sess.apiResource.resourceKind)
-	}
-	verb := sess.requestVerb
-	// filterBuffer filters the response to exclude resources the user doesn't have access to.
-	// The filtered payload will be written into memBuffer again.
-	if err := filterBuffer(
-		newResourceFilterer(resourceKind, verb, sess.codecFactory, allowedResources, deniedResources, f.log),
-		memBuffer,
-	); err != nil {
-		return memBuffer.Status(), trace.Wrap(err)
-	}
-	// Copy the filtered payload into target http.ResponseWriter.
-	err := memBuffer.CopyInto(w)
+	ctx, span := f.cfg.tracer.Start(
+		req.Context(),
+		"kube.Forwarder/listResourcesList",
+		oteltrace.WithSpanKind(oteltrace.SpanKindServer),
+		oteltrace.WithAttributes(
+			semconv.RPCServiceKey.String(f.cfg.KubeServiceType),
+			semconv.RPCSystemKey.String("kube"),
+		),
+	)
+	defer span.End()
+	req = req.WithContext(ctx)
 
-	// Returns the status and any filter error.
-	return memBuffer.Status(), trace.Wrap(err)
+	if _, ok := sess.rbacSupportedResources.getTeleportResourceKindFromAPIResource(sess.metaResource.requestedResource); !ok {
+		return http.StatusBadRequest, trace.BadParameter("unknown resource kind %q", sess.metaResource.requestedResource.resourceKind)
+	}
+
+	// Check if filtering is needed before buffering the entire response.
+	// If the user has wildcard access and no denied resources, we can skip
+	// buffering and directly forward the response for better performance.
+	if !needsFiltering(allowedResources, deniedResources) {
+		// No filtering needed - use direct forwarding with status recording only.
+		// This avoids buffering the entire response in memory and the subsequent
+		// deserialization/re-serialization overhead.
+		rw := httplib.NewResponseStatusRecorder(w)
+		sess.forwarder.ServeHTTP(rw, req)
+		return rw.Status(), nil
+	}
+
+	// Filtering is needed. Use a filtering response writer that inspects headers
+	// and routes the body to either the streaming or buffered filter path.
+	matcher := newMatcher(sess.metaResource, allowedResources, deniedResources, f.log)
+	filterWrapper := newResourceFilterer(sess.metaResource, sess.codecFactory, matcher, f.log)
+	fw := newFilteringResponseWriter(w, matcher, filterWrapper, f.log, ctx, f.cfg.tracer, f.cfg.KubeServiceType)
+	sess.forwarder.ServeHTTP(fw, req)
+	return fw.Finish()
 }
 
 // matchListRequestShouldBeAllowed assess whether the user is permitted to perform its request
@@ -141,20 +166,21 @@ func (f *Forwarder) listResourcesList(req *http.Request, w http.ResponseWriter, 
 // has no access and present then a more user-friendly error message instead of returning
 // an empty list.
 // This function is not responsible for enforcing access rules.
-func matchListRequestShouldBeAllowed(sess *clusterSession, resourceKind string, allowedResources, deniedResources []types.KubernetesResource) (bool, error) {
-	resource := types.KubernetesResource{
-		Kind:      resourceKind,
-		Namespace: sess.apiResource.namespace,
-		Verbs:     []string{sess.requestVerb},
+func matchListRequestShouldBeAllowed(mr metaResource, allowedResources, deniedResources []types.KubernetesResource) (bool, error) {
+	resource := mr.rbacResource()
+	if resource == nil {
+		// Cluster is offline.
+		return false, nil
 	}
-	result, err := utils.KubeResourceCouldMatchRules(resource, deniedResources, types.Deny)
+
+	result, err := utils.KubeResourceCouldMatchRules(*resource, mr.isClusterWideResource(), deniedResources, types.Deny)
 	if err != nil {
 		return false, trace.Wrap(err)
 	} else if result {
 		return false, nil
 	}
 
-	result, err = utils.KubeResourceCouldMatchRules(resource, allowedResources, types.Allow)
+	result, err = utils.KubeResourceCouldMatchRules(*resource, mr.isClusterWideResource(), allowedResources, types.Allow)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
@@ -172,23 +198,38 @@ func matchListRequestShouldBeAllowed(sess *clusterSession, resourceKind string, 
 // If it does not match, the watcher ignores the event and continues waiting
 // for the next event.
 func (f *Forwarder) listResourcesWatcher(req *http.Request, w http.ResponseWriter, sess *clusterSession, allowedResources, deniedResources []types.KubernetesResource) (int, error) {
+	ctx, span := f.cfg.tracer.Start(
+		req.Context(),
+		"kube.Forwarder/listResourcesWatcher",
+		oteltrace.WithSpanKind(oteltrace.SpanKindServer),
+		oteltrace.WithAttributes(
+			semconv.RPCServiceKey.String(f.cfg.KubeServiceType),
+			semconv.RPCSystemKey.String("kube"),
+		),
+	)
+	defer span.End()
+	req = req.WithContext(ctx)
+
 	negotiator := newClientNegotiator(sess.codecFactory)
-	resourceKind, ok := sess.rbacSupportedResources.getTeleportResourceKindFromAPIResource(sess.apiResource)
+	_, ok := sess.rbacSupportedResources.getTeleportResourceKindFromAPIResource(sess.metaResource.requestedResource)
 	if !ok {
-		return http.StatusBadRequest, trace.BadParameter("unknown resource kind %q", sess.apiResource.resourceKind)
+		return http.StatusBadRequest, trace.BadParameter("unknown resource kind %q", sess.metaResource.requestedResource.resourceKind)
 	}
-	verb := sess.requestVerb
+
+	var filter responsewriters.FilterWrapper
+	if needsFiltering(allowedResources, deniedResources) {
+		filter = newResourceFilterer(
+			sess.metaResource,
+			sess.codecFactory,
+			newMatcher(sess.metaResource, allowedResources, deniedResources, f.log),
+			f.log,
+		)
+	}
+
 	rw, err := responsewriters.NewWatcherResponseWriter(
 		w,
 		negotiator,
-		newResourceFilterer(
-			resourceKind,
-			verb,
-			sess.codecFactory,
-			allowedResources,
-			deniedResources,
-			f.log,
-		),
+		filter,
 	)
 	if err != nil {
 		return http.StatusInternalServerError, trace.Wrap(err)
@@ -198,22 +239,22 @@ func (f *Forwarder) listResourcesWatcher(req *http.Request, w http.ResponseWrite
 	// push events that show ephemeral containers were started if there
 	// are any ephemeral containers waiting to be created for this pod
 	// by this user
-	done := make(chan struct{})
 	var wg sync.WaitGroup
-	if podName := isRequestTargetedToPod(req, sess.apiResource); podName != "" && ok {
+	ctx, cancel := context.WithCancel(req.Context())
+	if podName := isRequestTargetedToPod(req, sess.metaResource.requestedResource); podName != "" && ok {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 
-			f.sendEphemeralContainerEvents(done, req, rw, sess, podName)
+			f.sendEphemeralContainerEvents(ctx, rw, sess, podName)
 		}()
 	}
-
 	// Forwards the request to the target cluster.
 	sess.forwarder.ServeHTTP(rw, req)
 	// Wait for the fake event pushing goroutine to finish
-	close(done)
+	cancel()
 	wg.Wait()
+
 	// Once the request terminates, close the watcher and waits for resources
 	// cleanup.
 	err = rw.Close()
@@ -224,46 +265,44 @@ func (f *Forwarder) listResourcesWatcher(req *http.Request, w http.ResponseWrite
 // each 5s from cache and see if they match the user and pod and namespace.
 // If any match exists, it will push a fake event to the watcher stream to trick
 // kubectl into creating the exec session.
-func (f *Forwarder) sendEphemeralContainerEvents(done <-chan struct{}, req *http.Request, rw *responsewriters.WatcherResponseWriter, sess *clusterSession, podName string) {
+func (f *Forwarder) sendEphemeralContainerEvents(ctx context.Context, rw *responsewriters.WatcherResponseWriter, sess *clusterSession, podName string) {
 	const backoff = 5 * time.Second
 	sentDebugContainers := map[string]struct{}{}
 	ticker := time.NewTicker(backoff)
 	defer ticker.Stop()
 	for {
 		wcs, err := f.getUserEphemeralContainersForPod(
-			req.Context(),
+			ctx,
 			sess.User.GetName(),
 			sess.kubeClusterName,
-			sess.apiResource.namespace,
+			sess.metaResource.requestedResource.namespace,
 			podName,
 		)
 		if err != nil {
-			f.log.WithError(err).Warn("error getting user ephemeral containers")
+			f.log.WarnContext(ctx, "error getting user ephemeral containers", "error", err)
 			return
 		}
 
 		for _, wc := range wcs {
-			if _, ok := sentDebugContainers[wc.Spec.ContainerName]; ok {
+			if _, ok := sentDebugContainers[wc.GetSpec().GetContainerName()]; ok {
 				continue
 			}
-			evt, err := f.getPatchedPodEvent(req.Context(), sess, wc)
+			evt, err := f.getPatchedPodEvent(ctx, sess, wc)
 			if err != nil {
-				f.log.WithError(err).Warn("error pushing pod event")
+				f.log.WarnContext(ctx, "error pushing pod event", "error", err)
 				continue
 			}
-			sentDebugContainers[wc.Spec.ContainerName] = struct{}{}
+			sentDebugContainers[wc.GetSpec().GetContainerName()] = struct{}{}
 			// push the event to the client
 			// this will lock until the event is pushed or the
 			// request context is done.
-			rw.PushVirtualEventToClient(req.Context(), evt)
+			rw.PushVirtualEventToClient(ctx, evt)
 		}
 
 		// wait a bit before querying the cache again, or return
 		// if the request has finished
 		select {
-		case <-req.Context().Done():
-			return
-		case <-done:
+		case <-ctx.Done():
 			return
 		case <-ticker.C:
 		}

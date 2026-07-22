@@ -184,6 +184,11 @@ func TestIsValidRegion(t *testing.T) {
 			errCheck: require.NoError,
 		},
 		{
+			name:     "aws global sentinel value",
+			region:   "aws-global",
+			errCheck: require.NoError,
+		},
+		{
 			name:     "eu region",
 			region:   "eu-west-1",
 			errCheck: require.NoError,
@@ -216,6 +221,89 @@ func TestIsValidRegion(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.errCheck(t, IsValidRegion(tt.region))
+		})
+	}
+}
+
+func TestIsValidRegionWithWeakCheck(t *testing.T) {
+	for _, tt := range []struct {
+		name     string
+		region   string
+		errCheck require.ErrorAssertionFunc
+	}{
+		{
+			name:     "standard us region",
+			region:   "us-east-1",
+			errCheck: require.NoError,
+		},
+		{
+			name:     "aws global sentinel value",
+			region:   "aws-global",
+			errCheck: require.NoError,
+		},
+		{
+			name:     "eu region",
+			region:   "eu-west-1",
+			errCheck: require.NoError,
+		},
+		{
+			name:     "us gov",
+			region:   "us-gov-east-1",
+			errCheck: require.NoError,
+		},
+		{
+			name:     "unknown region with valid chars accepted by weak check",
+			region:   "xx-newpartition-99",
+			errCheck: require.NoError,
+		},
+		{
+			name:     "digits only accepted by weak check",
+			region:   "123",
+			errCheck: require.NoError,
+		},
+		{
+			name:     "empty",
+			region:   "",
+			errCheck: isBadParamErrFn,
+		},
+		{
+			name:     "uppercase letters",
+			region:   "US-EAST-1",
+			errCheck: require.NoError,
+		},
+		{
+			name:     "underscores",
+			region:   "US_EAST_1",
+			errCheck: require.NoError,
+		},
+		{
+			name:     "special symbols",
+			region:   "us@east-1",
+			errCheck: isBadParamErrFn,
+		},
+		{
+			name:     "spaces",
+			region:   "us east-1",
+			errCheck: isBadParamErrFn,
+		},
+		{
+			name:     "unicode digit",
+			region:   "us-east-৩",
+			errCheck: isBadParamErrFn,
+		},
+		{
+			name:     "/ char",
+			region:   "us-east/",
+			errCheck: isBadParamErrFn,
+		},
+		{
+			name:     "? char",
+			region:   "us-east?",
+			errCheck: isBadParamErrFn,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.errCheck(t, IsValidRegionWithWeakCheck(tt.region))
 		})
 	}
 }
@@ -383,6 +471,72 @@ func TestIsValidGlueResourceName(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.errCheck(t, IsValidGlueResourceName(tt.resourceName))
+		})
+	}
+}
+
+func TestIsValidIAMRolesAnywhereTrustAnchorName(t *testing.T) {
+	for _, tt := range []struct {
+		name            string
+		trustAnchorName string
+		errCheck        require.ErrorAssertionFunc
+	}{
+		{
+			name:            "valid",
+			trustAnchorName: "aA0-_",
+			errCheck:        require.NoError,
+		},
+		{
+			name:            "empty",
+			trustAnchorName: "",
+			errCheck:        require.Error,
+		},
+		{
+			name:            "too long",
+			trustAnchorName: strings.Repeat("a", 256),
+			errCheck:        require.Error,
+		},
+		{
+			name:            "invalid chars",
+			trustAnchorName: "+",
+			errCheck:        require.Error,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.errCheck(t, IsValidIAMRolesAnywhereTrustAnchorName(tt.trustAnchorName))
+		})
+	}
+}
+
+func TestIsValidIAMRolesAnywhereProfileName(t *testing.T) {
+	for _, tt := range []struct {
+		name        string
+		profileName string
+		errCheck    require.ErrorAssertionFunc
+	}{
+		{
+			name:        "valid",
+			profileName: "aA0-_",
+			errCheck:    require.NoError,
+		},
+		{
+			name:        "empty",
+			profileName: "",
+			errCheck:    require.Error,
+		},
+		{
+			name:        "too long",
+			profileName: strings.Repeat("a", 256),
+			errCheck:    require.Error,
+		},
+		{
+			name:        "invalid chars",
+			profileName: "+",
+			errCheck:    require.Error,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.errCheck(t, IsValidIAMRolesAnywhereProfileName(tt.profileName))
 		})
 	}
 }

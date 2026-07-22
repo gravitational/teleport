@@ -22,9 +22,9 @@
 /* eslint jest/no-conditional-expect: 0 */
 
 import childProcess from 'node:child_process';
-import { PassThrough } from 'node:stream';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
+import { PassThrough } from 'node:stream';
 import zlib from 'node:zlib';
 
 import tarFs from 'tar-fs';
@@ -32,9 +32,7 @@ import tarFs from 'tar-fs';
 import Logger, { NullService } from 'teleterm/logger';
 
 import { makeRuntimeSettings } from '../fixtures/mocks';
-
 import { downloadAgent } from './agentDownloader';
-
 import type { IFileDownloader } from './fileDownloader';
 
 jest.mock('node:child_process');
@@ -65,7 +63,6 @@ const LATEST_TELEPORT_VERSIONS_MOCK = [
 beforeAll(() => {
   Logger.init(new NullService());
   // (Cannot spy the fetch property because it is not a function; undefined given instead)
-  // eslint-disable-next-line jest/prefer-spy-on
   global.fetch = jest.fn().mockImplementation(() =>
     Promise.resolve({
       ok: true,
@@ -158,6 +155,7 @@ test.each(testCases)(
     const call = downloadAgent(fileDownloader, runtimeSettings, env);
     await expect(call).resolves.toBeUndefined();
 
+    /* oxlint-disable jest/no-conditional-expect */
     if (shouldDownloadBinary) {
       expect(fileDownloader.run).toHaveBeenCalledWith(
         `https://cdn.teleport.dev/${shouldDownloadBinary}`,
@@ -179,6 +177,7 @@ test.each(testCases)(
       expect(tarFs.extract).not.toHaveBeenCalled();
       expect(fsPromises.rm).not.toHaveBeenCalled();
     }
+    /* oxlint-enable jest/no-conditional-expect */
   }
 );
 

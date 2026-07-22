@@ -29,16 +29,18 @@ import (
 	resourcesv3 "github.com/gravitational/teleport/integrations/operator/apis/resources/v3"
 	"github.com/gravitational/teleport/integrations/operator/controllers"
 	"github.com/gravitational/teleport/integrations/operator/controllers/reconcilers"
+	"github.com/gravitational/teleport/integrations/operator/controllers/resources/secretlookup"
 )
 
 // githubConnectorClient implements TeleportResourceClient and offers CRUD methods needed to reconcile github_connectors
 type githubConnectorClient struct {
 	teleportClient *client.Client
+	kubeClient     kclient.Client
 }
 
 // Get gets the Teleport github_connector of a given name
-func (r githubConnectorClient) Get(ctx context.Context, name string) (types.GithubConnector, error) {
-	github, err := r.teleportClient.GetGithubConnector(ctx, name, false /* with secrets*/)
+func (r githubConnectorClient) Get(ctx context.Context, key reconcilers.ResourceKey) (types.GithubConnector, error) {
+	github, err := r.teleportClient.GetGithubConnector(ctx, key.Name, false /* with secrets*/)
 	return github, trace.Wrap(err)
 }
 
@@ -55,19 +57,33 @@ func (r githubConnectorClient) Update(ctx context.Context, github types.GithubCo
 }
 
 // Delete deletes a Teleport github_connector
-func (r githubConnectorClient) Delete(ctx context.Context, name string) error {
-	return trace.Wrap(r.teleportClient.DeleteGithubConnector(ctx, name))
+func (r githubConnectorClient) Delete(ctx context.Context, key reconcilers.ResourceKey) error {
+	return trace.Wrap(r.teleportClient.DeleteGithubConnector(ctx, key.Name))
+}
+
+func (r githubConnectorClient) Mutate(ctx context.Context, new, _ types.GithubConnector, crKey kclient.ObjectKey) error {
+	secret := new.GetClientSecret()
+	if secretlookup.IsNeeded(secret) {
+		resolvedSecret, err := secretlookup.Try(ctx, r.kubeClient, crKey.Name, crKey.Namespace, secret)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		new.SetClientSecret(resolvedSecret)
+	}
+	return nil
 }
 
 // NewGithubConnectorReconciler instantiates a new Kubernetes controller reconciling github_connector resources
 func NewGithubConnectorReconciler(client kclient.Client, tClient *client.Client) (controllers.Reconciler, error) {
 	githubClient := &githubConnectorClient{
 		teleportClient: tClient,
+		kubeClient:     client,
 	}
 
 	resourceReconciler, err := reconcilers.NewTeleportResourceWithoutLabelsReconciler[types.GithubConnector, *resourcesv3.TeleportGithubConnector](
 		client,
 		githubClient,
+		reconcilers.Config{},
 	)
 
 	return resourceReconciler, trace.Wrap(err, "building teleport resource reconciler")

@@ -16,9 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import { useMemo, useState } from 'react';
 
 import Logger from 'shared/libs/logger';
+
 const logger = Logger.create('shared/hooks/useAttempt');
 
 const defaultState = {
@@ -28,14 +29,17 @@ const defaultState = {
   message: '',
 };
 
+/**
+ * @deprecated Use TanStack Query (useQuery/useMutation) instead. See RFD 197.
+ */
 export default function useAttempt(
   initialState: Partial<State>
 ): [State, Actions] {
-  const [attempt, setState] = React.useState(() => ({
+  const [attempt, setState] = useState(() => ({
     ...defaultState,
     ...initialState,
   }));
-  const actions = React.useMemo(() => makeActions(setState), [setState]);
+  const actions = useMemo(() => makeActions(setState), [setState]);
   return [attempt, actions];
 }
 

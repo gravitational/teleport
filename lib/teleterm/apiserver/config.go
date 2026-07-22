@@ -19,9 +19,10 @@
 package apiserver
 
 import (
+	"log/slog"
+
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport"
@@ -39,8 +40,8 @@ type Config struct {
 	Daemon         *daemon.Service
 	ClusterIDCache *clusteridcache.Cache
 	InstallationID string
-	// Log is a component logger
-	Log             logrus.FieldLogger
+	// Logger is a component logger
+	Logger          *slog.Logger
 	TshdServerCreds grpc.ServerOption
 	Clock           clockwork.Clock
 	// ListeningC propagates the address on which the gRPC server listens. Mostly useful in tests, as
@@ -66,8 +67,8 @@ func (c *Config) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing TshdServerCreds")
 	}
 
-	if c.Log == nil {
-		c.Log = logrus.WithField(teleport.ComponentKey, "conn:apiserver")
+	if c.Logger == nil {
+		c.Logger = slog.With(teleport.ComponentKey, "conn:apiserver")
 	}
 
 	if c.InstallationID == "" {

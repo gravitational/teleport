@@ -21,27 +21,39 @@ package inventory
 import (
 	"context"
 	"fmt"
+	"io"
+	"math/rand/v2"
 	"os"
-	"slices"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/testing/protocmp"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/inventory/metadata"
+	scopedapp "github.com/gravitational/teleport/lib/scopes/app"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestMain(m *testing.M) {
-	utils.InitLoggerForTests()
+	logtest.InitLogger(testing.Verbose)
 	os.Exit(m.Run())
 }
 
@@ -49,9 +61,11 @@ type fakeAuth struct {
 	mu             sync.Mutex
 	failUpserts    int
 	failKeepAlives int
+	failDeletes    int
 
 	upserts    int
 	keepalives int
+	deletes    int
 	err        error
 
 	expectAddr      string
@@ -61,6 +75,14 @@ type fakeAuth struct {
 
 	lastInstance    types.Instance
 	lastRawInstance []byte
+
+	lastServerExpiry time.Time
+}
+
+func (a *fakeAuth) getLastServerExpiry() time.Time {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.lastServerExpiry
 }
 
 func (a *fakeAuth) UpsertNode(_ context.Context, server types.Server) (*types.KeepAlive, error) {
@@ -76,6 +98,7 @@ func (a *fakeAuth) UpsertNode(_ context.Context, server types.Server) (*types.Ke
 		a.failUpserts--
 		return nil, trace.Errorf("upsert failed as test condition")
 	}
+	a.lastServerExpiry = server.Expiry()
 	return &types.KeepAlive{}, a.err
 }
 
@@ -88,14 +111,70 @@ func (a *fakeAuth) UpsertApplicationServer(_ context.Context, server types.AppSe
 		a.failUpserts--
 		return nil, trace.Errorf("upsert failed as test condition")
 	}
+	a.lastServerExpiry = server.Expiry()
 	return &types.KeepAlive{}, a.err
+}
+
+func (a *fakeAuth) UnconditionalUpdateApplicationServer(_ context.Context, server types.AppServer) (types.AppServer, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.keepalives++
+
+	if a.failKeepAlives > 0 {
+		a.failKeepAlives--
+		return nil, trace.Errorf("unconditional update failed as test condition")
+	}
+	a.lastServerExpiry = server.Expiry()
+	return server, a.err
 }
 
 func (a *fakeAuth) DeleteApplicationServer(ctx context.Context, namespace, hostID, name string) error {
 	return nil
 }
 
-func (a *fakeAuth) KeepAliveServer(_ context.Context, _ types.KeepAlive) error {
+func (a *fakeAuth) UpsertDatabaseServer(_ context.Context, server types.DatabaseServer) (*types.KeepAlive, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.upserts++
+
+	if a.failUpserts > 0 {
+		a.failUpserts--
+		return nil, trace.Errorf("upsert failed as test condition")
+	}
+	a.lastServerExpiry = server.Expiry()
+	return &types.KeepAlive{}, a.err
+}
+
+func (a *fakeAuth) DeleteDatabaseServer(ctx context.Context, namespace, hostID, name string) error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.deletes++
+
+	if a.failDeletes > 0 {
+		a.failDeletes--
+		return trace.Errorf("delete failed as test condition")
+	}
+	return nil
+}
+
+func (a *fakeAuth) UpsertKubernetesServer(_ context.Context, server types.KubeServer) (*types.KeepAlive, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.upserts++
+
+	if a.failUpserts > 0 {
+		a.failUpserts--
+		return nil, trace.Errorf("upsert failed as test condition")
+	}
+	a.lastServerExpiry = server.Expiry()
+	return &types.KeepAlive{}, a.err
+}
+
+func (a *fakeAuth) DeleteKubernetesServer(ctx context.Context, hostID, name string) error {
+	return nil
+}
+
+func (a *fakeAuth) KeepAliveServer(_ context.Context, ka types.KeepAlive) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.keepalives++
@@ -103,7 +182,45 @@ func (a *fakeAuth) KeepAliveServer(_ context.Context, _ types.KeepAlive) error {
 		a.failKeepAlives--
 		return trace.Errorf("keepalive failed as test condition")
 	}
+	a.lastServerExpiry = ka.Expires
 	return a.err
+}
+
+func (a *fakeAuth) UpsertLinuxDesktop(_ context.Context, desktop *linuxdesktopv1.LinuxDesktop) (*linuxdesktopv1.LinuxDesktop, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.upserts++
+
+	if a.failUpserts > 0 {
+		a.failUpserts--
+		return nil, trace.Errorf("upsert failed as test condition")
+	}
+	if desktop.GetMetadata() != nil {
+		a.lastServerExpiry = desktop.GetMetadata().GetExpires().AsTime()
+	}
+	return desktop, a.err
+}
+
+func (a *fakeAuth) DeleteLinuxDesktop(ctx context.Context, name string) error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.deletes++
+
+	if a.failDeletes > 0 {
+		a.failDeletes--
+		return trace.Errorf("delete failed as test condition")
+	}
+	return nil
+}
+
+// UpsertRelayServer implements [Auth].
+func (a *fakeAuth) UpsertRelayServer(ctx context.Context, relayServer *presencev1.RelayServer) (*presencev1.RelayServer, error) {
+	panic("unimplemented")
+}
+
+// DeleteRelayServer implements [Auth].
+func (a *fakeAuth) DeleteRelayServer(ctx context.Context, name string) error {
+	panic("unimplemented")
 }
 
 func (a *fakeAuth) UpsertInstance(ctx context.Context, instance types.Instance) error {
@@ -128,15 +245,19 @@ func (a *fakeAuth) UpsertInstance(ctx context.Context, instance types.Instance) 
 // TestSSHServerBasics verifies basic expected behaviors for a single control stream heartbeating
 // an ssh service.
 func TestSSHServerBasics(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, testSSHServerBasics)
+	synctest.Test(t, testSSHServerScope)
+	synctest.Test(t, testSSHServerImmutableLabels)
+}
+
+func testSSHServerScope(t *testing.T) {
 	const serverID = "test-server"
 	const zeroAddr = "0.0.0.0:123"
 	const peerAddr = "1.2.3.4:456"
 	const wantAddr = "1.2.3.4:123"
 
-	t.Parallel()
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	events := make(chan testEvent, 1024)
 
@@ -144,22 +265,287 @@ func TestSSHServerBasics(t *testing.T) {
 		expectAddr: wantAddr,
 	}
 
+	rc := &resourceCounter{}
 	controller := NewController(
 		auth,
 		usagereporter.DiscardUsageReporter{},
 		withServerKeepAlive(time.Millisecond*200),
 		withTestEventsChannel(events),
+		WithOnConnect(rc.onConnect),
+		WithOnDisconnect(rc.onDisconnect),
 	)
 	defer controller.Close()
 
 	// set up fake in-memory control stream
 	upstream, downstream := client.InventoryControlStreamPipe(client.ICSPipePeerAddr(peerAddr))
+	t.Cleanup(func() {
+		controller.Close()
+		downstream.Close()
+		upstream.Close()
+	})
 
-	controller.RegisterControlStream(upstream, proto.UpstreamInventoryHello{
+	// launch goroutine to respond to ping requests
+	go func() {
+		for {
+			select {
+			case msg := <-downstream.Recv():
+				downstream.Send(ctx, proto.UpstreamInventoryPong_builder{
+					ID: msg.(*proto.DownstreamInventoryPing).GetID(),
+				}.Build())
+			case <-downstream.Done():
+				return
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	controller.RegisterControlStream(upstream, proto.UpstreamInventoryHello_builder{
 		ServerID: serverID,
 		Version:  teleport.Version,
-		Services: []types.SystemRole{types.RoleNode},
+		Services: types.SystemRoles{types.RoleNode}.StringSlice(),
+		Scope:    "/aa/bb",
+	}.Build())
+
+	// verify that control stream handle is now accessible
+	handle, ok := controller.GetControlStream(serverID)
+	require.True(t, ok)
+
+	// verify that hb counter has been incremented
+	require.Equal(t, int64(1), controller.instanceHBVariableDuration.Count())
+
+	// send a fake ssh server heartbeat with a scope matching registration
+	err := downstream.Send(ctx, proto.InventoryHeartbeat_builder{
+		SSHServer: &types.ServerV2{
+			Metadata: types.Metadata{
+				Name: serverID,
+			},
+			Spec: types.ServerSpecV2{
+				Addr: zeroAddr,
+			},
+			Scope: "/aa/bb",
+		},
+	}.Build())
+	require.NoError(t, err)
+
+	// verify that heartbeat creates both an upsert and a keepalive
+	awaitEvents(t, events,
+		expect(sshUpsertOk, sshKeepAliveOk),
+		deny(sshUpsertErr, sshKeepAliveErr, handlerClose),
+	)
+
+	// send an ssh server heartbeat with a scope different from registration
+	err = downstream.Send(ctx, proto.InventoryHeartbeat_builder{
+		SSHServer: &types.ServerV2{
+			Metadata: types.Metadata{
+				Name: serverID,
+			},
+			Spec: types.ServerSpecV2{
+				Addr: zeroAddr,
+			},
+			Scope: "/aa/bb/cc",
+		},
+	}.Build())
+	require.NoError(t, err)
+
+	// verify that the handler closes
+	awaitEvents(t, events,
+		expect(handlerClose),
+		deny(sshUpsertOk, sshKeepAliveOk),
+	)
+
+	// verify that closure propagates to server and client side interfaces
+	closeTimeout := time.After(time.Second * 10)
+	select {
+	case <-handle.Done():
+	case <-closeTimeout:
+		t.Fatal("timeout waiting for handle closure")
+	}
+	select {
+	case <-downstream.Done():
+	case <-closeTimeout:
+		t.Fatal("timeout waiting for handle closure")
+	}
+}
+
+func testSSHServerImmutableLabels(t *testing.T) {
+	const serverID = "test-server"
+	const zeroAddr = "0.0.0.0:123"
+	const peerAddr = "1.2.3.4:456"
+	const wantAddr = "1.2.3.4:123"
+
+	ctx := t.Context()
+
+	events := make(chan testEvent, 1024)
+
+	auth := &fakeAuth{
+		expectAddr: wantAddr,
+	}
+
+	rc := &resourceCounter{}
+	controller := NewController(
+		auth,
+		usagereporter.DiscardUsageReporter{},
+		withServerKeepAlive(time.Millisecond*200),
+		withTestEventsChannel(events),
+		WithOnConnect(rc.onConnect),
+		WithOnDisconnect(rc.onDisconnect),
+	)
+	defer controller.Close()
+
+	// set up fake in-memory control stream
+	upstream, downstream := client.InventoryControlStreamPipe(client.ICSPipePeerAddr(peerAddr))
+	t.Cleanup(func() {
+		controller.Close()
+		downstream.Close()
+		upstream.Close()
 	})
+
+	// launch goroutine to respond to ping requests
+	go func() {
+		for {
+			select {
+			case msg := <-downstream.Recv():
+				downstream.Send(ctx, proto.UpstreamInventoryPong_builder{
+					ID: msg.(*proto.DownstreamInventoryPing).GetID(),
+				}.Build())
+			case <-downstream.Done():
+				return
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	immutableLabels := joiningv1.ImmutableLabels_builder{
+		Ssh: map[string]string{
+			"foo": "bar",
+		},
+	}.Build()
+	controller.RegisterControlStream(upstream, proto.UpstreamInventoryHello_builder{
+		ServerID:        serverID,
+		Version:         teleport.Version,
+		Services:        types.SystemRoles{types.RoleNode}.StringSlice(),
+		ImmutableLabels: immutableLabels,
+	}.Build())
+
+	// verify that control stream handle is now accessible
+	handle, ok := controller.GetControlStream(serverID)
+	require.True(t, ok)
+
+	// verify that hb counter has been incremented
+	require.Equal(t, int64(1), controller.instanceHBVariableDuration.Count())
+
+	// send a fake ssh server heartbeat with a scope matching registration
+	err := downstream.Send(ctx, proto.InventoryHeartbeat_builder{
+		SSHServer: &types.ServerV2{
+			Metadata: types.Metadata{
+				Name: serverID,
+			},
+			Spec: types.ServerSpecV2{
+				Addr:            zeroAddr,
+				ImmutableLabels: immutableLabels.GetSsh(),
+			},
+		},
+	}.Build())
+	require.NoError(t, err)
+
+	// verify that heartbeat creates both an upsert and a keepalive
+	awaitEvents(t, events,
+		expect(sshUpsertOk, sshKeepAliveOk),
+		deny(sshUpsertErr, sshKeepAliveErr, handlerClose),
+	)
+
+	// send an ssh server heartbeat with immutable labels different from registration
+	err = downstream.Send(ctx, proto.InventoryHeartbeat_builder{
+		SSHServer: &types.ServerV2{
+			Metadata: types.Metadata{
+				Name: serverID,
+			},
+			Spec: types.ServerSpecV2{
+				Addr: zeroAddr,
+				ImmutableLabels: map[string]string{
+					"foo": "baz",
+				},
+			},
+		},
+	}.Build())
+	require.NoError(t, err)
+
+	// verify that the handler closes
+	awaitEvents(t, events,
+		expect(handlerClose),
+		deny(sshUpsertOk, sshKeepAliveOk),
+	)
+
+	// verify that closure propagates to server and client side interfaces
+	closeTimeout := time.After(time.Second * 10)
+	select {
+	case <-handle.Done():
+	case <-closeTimeout:
+		t.Fatal("timeout waiting for handle closure")
+	}
+	select {
+	case <-downstream.Done():
+	case <-closeTimeout:
+		t.Fatal("timeout waiting for handle closure")
+	}
+}
+
+func testSSHServerBasics(t *testing.T) {
+	const serverID = "test-server"
+	const zeroAddr = "0.0.0.0:123"
+	const peerAddr = "1.2.3.4:456"
+	const wantAddr = "1.2.3.4:123"
+
+	ctx := t.Context()
+
+	events := make(chan testEvent, 1024)
+
+	auth := &fakeAuth{
+		expectAddr: wantAddr,
+	}
+
+	rc := &resourceCounter{}
+	controller := NewController(
+		auth,
+		usagereporter.DiscardUsageReporter{},
+		withServerKeepAlive(time.Millisecond*200),
+		withTestEventsChannel(events),
+		WithOnConnect(rc.onConnect),
+		WithOnDisconnect(rc.onDisconnect),
+	)
+	defer controller.Close()
+
+	// set up fake in-memory control stream
+	upstream, downstream := client.InventoryControlStreamPipe(client.ICSPipePeerAddr(peerAddr))
+	t.Cleanup(func() {
+		controller.Close()
+		downstream.Close()
+		upstream.Close()
+	})
+
+	// launch goroutine to respond to ping requests
+	go func() {
+		for {
+			select {
+			case msg := <-downstream.Recv():
+				downstream.Send(ctx, proto.UpstreamInventoryPong_builder{
+					ID: msg.(*proto.DownstreamInventoryPing).GetID(),
+				}.Build())
+			case <-downstream.Done():
+				return
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	controller.RegisterControlStream(upstream, proto.UpstreamInventoryHello_builder{
+		ServerID: serverID,
+		Version:  teleport.Version,
+		Services: types.SystemRoles{types.RoleNode}.StringSlice(),
+	}.Build())
 
 	// verify that control stream handle is now accessible
 	handle, ok := controller.GetControlStream(serverID)
@@ -169,7 +555,7 @@ func TestSSHServerBasics(t *testing.T) {
 	require.Equal(t, int64(1), controller.instanceHBVariableDuration.Count())
 
 	// send a fake ssh server heartbeat
-	err := downstream.Send(ctx, proto.InventoryHeartbeat{
+	err := downstream.Send(ctx, proto.InventoryHeartbeat_builder{
 		SSHServer: &types.ServerV2{
 			Metadata: types.Metadata{
 				Name: serverID,
@@ -178,7 +564,7 @@ func TestSSHServerBasics(t *testing.T) {
 				Addr: zeroAddr,
 			},
 		},
-	})
+	}.Build())
 	require.NoError(t, err)
 
 	// verify that heartbeat creates both an upsert and a keepalive
@@ -187,21 +573,24 @@ func TestSSHServerBasics(t *testing.T) {
 		deny(sshUpsertErr, sshKeepAliveErr, handlerClose),
 	)
 
+	// we will check that the expiration time will grow after keepalives and new
+	// server announces
+	expiry := auth.getLastServerExpiry()
+
 	// set up to induce some failures, but not enough to cause the control
 	// stream to be closed.
 	auth.mu.Lock()
-	auth.failUpserts = 1
-	auth.failKeepAlives = 2
+	auth.failUpserts = 2
 	auth.mu.Unlock()
 
 	// keepalive should fail twice, but since the upsert is already known
 	// to have succeeded, we should not see an upsert failure yet.
 	awaitEvents(t, events,
-		expect(sshKeepAliveErr, sshKeepAliveErr),
+		expect(sshKeepAliveErr, sshKeepAliveErr, sshKeepAliveOk),
 		deny(sshUpsertErr, handlerClose),
 	)
 
-	err = downstream.Send(ctx, proto.InventoryHeartbeat{
+	err = downstream.Send(ctx, proto.InventoryHeartbeat_builder{
 		SSHServer: &types.ServerV2{
 			Metadata: types.Metadata{
 				Name: serverID,
@@ -210,7 +599,36 @@ func TestSSHServerBasics(t *testing.T) {
 				Addr: zeroAddr,
 			},
 		},
-	})
+	}.Build())
+	require.NoError(t, err)
+
+	// this explicit upsert will not happen since the server is the same, but
+	// keepalives should work
+	awaitEvents(t, events,
+		expect(sshKeepAliveOk),
+		deny(sshKeepAliveErr, sshUpsertErr, sshUpsertRetryOk, handlerClose),
+	)
+
+	oldExpiry, expiry := expiry, auth.getLastServerExpiry()
+	require.Greater(t, expiry, oldExpiry)
+
+	auth.mu.Lock()
+	auth.failUpserts = 1
+	auth.mu.Unlock()
+
+	err = downstream.Send(ctx, proto.InventoryHeartbeat_builder{
+		SSHServer: &types.ServerV2{
+			Metadata: types.Metadata{
+				Name: serverID,
+				Labels: map[string]string{
+					"changed": "changed",
+				},
+			},
+			Spec: types.ServerSpecV2{
+				Addr: zeroAddr,
+			},
+		},
+	}.Build())
 	require.NoError(t, err)
 
 	// we should now see an upsert failure, but no additional
@@ -220,17 +638,8 @@ func TestSSHServerBasics(t *testing.T) {
 		deny(sshKeepAliveErr, handlerClose),
 	)
 
-	// launch goroutine to respond to a single ping
-	go func() {
-		select {
-		case msg := <-downstream.Recv():
-			downstream.Send(ctx, proto.UpstreamInventoryPong{
-				ID: msg.(proto.DownstreamInventoryPing).ID,
-			})
-		case <-downstream.Done():
-		case <-ctx.Done():
-		}
-	}()
+	oldExpiry, expiry = expiry, auth.getLastServerExpiry()
+	require.Greater(t, expiry, oldExpiry)
 
 	// limit time of ping call
 	pingCtx, cancel := context.WithTimeout(ctx, time.Second*10)
@@ -245,7 +654,7 @@ func TestSSHServerBasics(t *testing.T) {
 	auth.failUpserts = 5
 	auth.mu.Unlock()
 
-	err = downstream.Send(ctx, proto.InventoryHeartbeat{
+	err = downstream.Send(ctx, proto.InventoryHeartbeat_builder{
 		SSHServer: &types.ServerV2{
 			Metadata: types.Metadata{
 				Name: serverID,
@@ -254,7 +663,7 @@ func TestSSHServerBasics(t *testing.T) {
 				Addr: zeroAddr,
 			},
 		},
-	})
+	}.Build())
 	require.NoError(t, err)
 
 	// both the initial upsert and the retry should fail, then the handle should
@@ -282,6 +691,9 @@ func TestSSHServerBasics(t *testing.T) {
 	// here).
 	require.Equal(t, int64(0), controller.instanceHBVariableDuration.Count())
 
+	// verify that metrics have been updated correctly
+	require.Zero(t, 0, rc.count())
+
 	// verify that the peer address of the control stream was used to override
 	// zero-value IPs for heartbeats.
 	auth.mu.Lock()
@@ -290,37 +702,62 @@ func TestSSHServerBasics(t *testing.T) {
 	require.Zero(t, unexpectedAddrs)
 }
 
-// TestSSHServerBasics verifies basic expected behaviors for a single control stream heartbeating
+// TestAppServerBasics verifies basic expected behaviors for a single control stream heartbeating
 // an app service.
 func TestAppServerBasics(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, testAppServerBasics)
+}
+func testAppServerBasics(t *testing.T) {
 	const serverID = "test-server"
 	const appCount = 3
 
-	t.Parallel()
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	events := make(chan testEvent, 1024)
 
 	auth := &fakeAuth{}
 
+	rc := &resourceCounter{}
 	controller := NewController(
 		auth,
 		usagereporter.DiscardUsageReporter{},
 		withServerKeepAlive(time.Millisecond*200),
 		withTestEventsChannel(events),
+		WithOnConnect(rc.onConnect),
+		WithOnDisconnect(rc.onDisconnect),
 	)
 	defer controller.Close()
 
 	// set up fake in-memory control stream
 	upstream, downstream := client.InventoryControlStreamPipe()
+	t.Cleanup(func() {
+		controller.Close()
+		upstream.Close()
+		downstream.Close()
+	})
 
-	controller.RegisterControlStream(upstream, proto.UpstreamInventoryHello{
+	// launch goroutine to respond to ping requests
+	go func() {
+		for {
+			select {
+			case msg := <-downstream.Recv():
+				downstream.Send(ctx, proto.UpstreamInventoryPong_builder{
+					ID: msg.(*proto.DownstreamInventoryPing).GetID(),
+				}.Build())
+			case <-downstream.Done():
+				return
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	controller.RegisterControlStream(upstream, proto.UpstreamInventoryHello_builder{
 		ServerID: serverID,
 		Version:  teleport.Version,
-		Services: []types.SystemRole{types.RoleApp},
-	})
+		Services: types.SystemRoles{types.RoleApp}.StringSlice(),
+	}.Build())
 
 	// verify that control stream handle is now accessible
 	handle, ok := controller.GetControlStream(serverID)
@@ -330,11 +767,11 @@ func TestAppServerBasics(t *testing.T) {
 	require.Equal(t, int64(1), controller.instanceHBVariableDuration.Count())
 
 	// send a fake app server heartbeat
-	for i := 0; i < appCount; i++ {
-		err := downstream.Send(ctx, proto.InventoryHeartbeat{
+	for i := range appCount {
+		err := downstream.Send(ctx, proto.InventoryHeartbeat_builder{
 			AppServer: &types.AppServerV3{
 				Metadata: types.Metadata{
-					Name: serverID,
+					Name: fmt.Sprintf("app-%d", i),
 				},
 				Spec: types.AppServerSpecV3{
 					HostID: serverID,
@@ -348,7 +785,7 @@ func TestAppServerBasics(t *testing.T) {
 					},
 				},
 			},
-		})
+		}.Build())
 		require.NoError(t, err)
 	}
 
@@ -372,11 +809,24 @@ func TestAppServerBasics(t *testing.T) {
 		deny(appUpsertErr, handlerClose),
 	)
 
-	for i := 0; i < appCount; i++ {
-		err := downstream.Send(ctx, proto.InventoryHeartbeat{
+	// jitter can sometimes cause one app to keepalive twice before another has completed one keepalive. for that
+	// reason, we want 2x the number of apps worth of keepalives to ensure that the failed keepalive counts associated
+	// with each app have been reset. otherwise, later parts of this test become flaky.
+	var keepaliveEvents []testEvent
+	for range appCount {
+		keepaliveEvents = append(keepaliveEvents, []testEvent{appKeepAliveOk, appKeepAliveOk}...)
+	}
+
+	awaitEvents(t, events,
+		expect(keepaliveEvents...),
+		deny(appKeepAliveErr, handlerClose),
+	)
+
+	for i := range appCount {
+		err := downstream.Send(ctx, proto.InventoryHeartbeat_builder{
 			AppServer: &types.AppServerV3{
 				Metadata: types.Metadata{
-					Name: serverID,
+					Name: fmt.Sprintf("app-%d", i),
 				},
 				Spec: types.AppServerSpecV3{
 					HostID: serverID,
@@ -385,33 +835,24 @@ func TestAppServerBasics(t *testing.T) {
 						Version: types.V3,
 						Metadata: types.Metadata{
 							Name: fmt.Sprintf("app-%d", i),
+							Labels: map[string]string{
+								"foo": uuid.NewString(),
+							},
 						},
 						Spec: types.AppSpecV3{},
 					},
 				},
 			},
-		})
+		}.Build())
 		require.NoError(t, err)
 	}
 
 	// we should now see an upsert failure, but no additional
 	// keepalive failures, and the upsert should succeed on retry.
 	awaitEvents(t, events,
-		expect(appKeepAliveOk, appKeepAliveOk, appKeepAliveOk, appUpsertErr, appUpsertRetryOk),
+		expect(appUpsertErr, appUpsertRetryOk),
 		deny(appKeepAliveErr, handlerClose),
 	)
-
-	// launch goroutine to respond to a single ping
-	go func() {
-		select {
-		case msg := <-downstream.Recv():
-			downstream.Send(ctx, proto.UpstreamInventoryPong{
-				ID: msg.(proto.DownstreamInventoryPing).ID,
-			})
-		case <-downstream.Done():
-		case <-ctx.Done():
-		}
-	}()
 
 	// limit time of ping call
 	pingCtx, cancel := context.WithTimeout(ctx, time.Second*10)
@@ -424,7 +865,7 @@ func TestAppServerBasics(t *testing.T) {
 	// ensure that local app keepalive states have reset to healthy by waiting
 	// on a full cycle+ worth of keepalives without errors.
 	awaitEvents(t, events,
-		expect(keepAliveTick, keepAliveTick),
+		expect(keepAliveAppTick, keepAliveAppTick),
 		deny(appKeepAliveErr, handlerClose),
 	)
 
@@ -436,7 +877,7 @@ func TestAppServerBasics(t *testing.T) {
 
 	// expect that all app keepalives fail, then the app is removed.
 	var expectedEvents []testEvent
-	for i := 0; i < appCount; i++ {
+	for range appCount {
 		expectedEvents = append(expectedEvents, []testEvent{appKeepAliveErr, appKeepAliveErr, appKeepAliveErr, appKeepAliveDel}...)
 	}
 
@@ -446,34 +887,33 @@ func TestAppServerBasics(t *testing.T) {
 		deny(handlerClose),
 	)
 
-	// verify that further keepalive ticks to not result in attempts to keepalive
-	// apps (successful or not).
-	awaitEvents(t, events,
-		expect(keepAliveTick, keepAliveTick, keepAliveTick),
-		deny(appKeepAliveOk, appKeepAliveErr, handlerClose),
-	)
-
 	// set up to induce enough consecutive errors to cause stream closure
 	auth.mu.Lock()
 	auth.failUpserts = 5
+	auth.failKeepAlives = 5
 	auth.mu.Unlock()
 
-	err = downstream.Send(ctx, proto.InventoryHeartbeat{
+	err = downstream.Send(ctx, proto.InventoryHeartbeat_builder{
 		AppServer: &types.AppServerV3{
 			Metadata: types.Metadata{
-				Name: serverID,
+				Name: "app-0",
 			},
 			Spec: types.AppServerSpecV3{
 				HostID: serverID,
 				App: &types.AppV3{
-					Kind:     types.KindApp,
-					Version:  types.V3,
-					Metadata: types.Metadata{},
-					Spec:     types.AppSpecV3{},
+					Kind:    types.KindApp,
+					Version: types.V3,
+					Metadata: types.Metadata{
+						Name: "app-0",
+						Labels: map[string]string{
+							"foo": uuid.NewString(),
+						},
+					},
+					Spec: types.AppSpecV3{},
 				},
 			},
 		},
-	})
+	}.Build())
 	require.NoError(t, err)
 
 	// both the initial upsert and the retry should fail, then the handle should
@@ -500,10 +940,557 @@ func TestAppServerBasics(t *testing.T) {
 	// always *before* closure is propagated to downstream handle, hence being safe to load
 	// here).
 	require.Equal(t, int64(0), controller.instanceHBVariableDuration.Count())
+
+	// verify that metrics have been updated correctly
+	require.Zero(t, rc.count())
+}
+
+// TestAppServerHeartbeatNormalization verifies handleAppServerHB calls
+// services.NormalizeAppServerForHeartbeat on the inventory control
+// stream path so an older agent that heartbeats a mixed-case name and
+// URL-shaped public_addr lands the same lowercased, bare-hostname
+// resource as the gRPC handler would. A regression that dropped the
+// normalize call would still leave the gRPC test passing.
+func TestAppServerHeartbeatNormalization(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, testAppServerHeartbeatNormalization)
+}
+
+func TestScopedAppServer(t *testing.T) {
+	t.Parallel()
+
+	// happy path: server and app scopes match the hello scope (static registration).
+	synctest.Test(t, testAppServerScoped("/test", "/test", "/test", "", true))
+	// embedded app scope is different from the server scope.
+	synctest.Test(t, testAppServerScoped("/test", "/test", "/test/child", "", false))
+	// add incorrect app computed public addr
+	synctest.Test(t, testAppServerScoped("/test", "/test", "/test", "overridenpublicaddr.com", false))
+}
+
+// appTestController bundles the pieces an app-server heartbeat test needs from a
+// controller wired to an in-memory control stream.
+type appTestController struct {
+	ctx        context.Context
+	serverID   string
+	downstream client.DownstreamInventoryControlStream
+	events     chan testEvent
+	handle     *upstreamHandle
+}
+
+// newAppTestController starts a controller and registers an app agent control
+// stream pinned to the given scope (pass "" for an unscoped agent). It launches
+// a goroutine that answers pings and registers cleanup for the stream and
+// controller. Use the returned handle/downstream/events to drive heartbeats and
+// assert on emitted events.
+func newAppTestController(t *testing.T, scope string) appTestController {
+	t.Helper()
+	const serverID = "test-server"
+	ctx := t.Context()
+	events := make(chan testEvent, 1024)
+
+	controller := NewController(
+		&fakeAuth{},
+		usagereporter.DiscardUsageReporter{},
+		withServerKeepAlive(time.Millisecond*200),
+		withTestEventsChannel(events),
+	)
+	upstream, downstream := client.InventoryControlStreamPipe()
+	t.Cleanup(func() {
+		upstream.Close()
+		downstream.Close()
+		controller.Close()
+	})
+
+	go func() {
+		for {
+			select {
+			case msg := <-downstream.Recv():
+				downstream.Send(ctx, proto.UpstreamInventoryPong_builder{
+					ID: msg.(*proto.DownstreamInventoryPing).GetID(),
+				}.Build())
+			case <-downstream.Done():
+				return
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	controller.RegisterControlStream(upstream, proto.UpstreamInventoryHello_builder{
+		ServerID: serverID,
+		Version:  teleport.Version,
+		Services: types.SystemRoles{types.RoleApp}.StringSlice(),
+		Scope:    scope,
+	}.Build())
+
+	h, ok := controller.GetControlStream(serverID)
+	require.True(t, ok)
+
+	return appTestController{
+		ctx:        ctx,
+		serverID:   serverID,
+		downstream: downstream,
+		events:     events,
+		handle:     h.(*upstreamHandle),
+	}
+}
+
+func testAppServerHeartbeatNormalization(t *testing.T) {
+	c := newAppTestController(t, "")
+
+	err := c.downstream.Send(c.ctx, proto.InventoryHeartbeat_builder{
+		AppServer: &types.AppServerV3{
+			Metadata: types.Metadata{
+				Name: "MixedCaseApp",
+			},
+			Spec: types.AppServerSpecV3{
+				HostID: c.serverID,
+				App: &types.AppV3{
+					Kind:    types.KindApp,
+					Version: types.V3,
+					Metadata: types.Metadata{
+						Name: "MixedCaseApp",
+					},
+					Spec: types.AppSpecV3{
+						URI:        "http://localhost:8080",
+						PublicAddr: "https://mixedcaseapp.example.com:8443/start",
+					},
+				},
+			},
+		},
+	}.Build())
+	require.NoError(t, err)
+
+	awaitEvents(t, c.events,
+		expect(appUpsertOk),
+		deny(appUpsertErr, handlerClose),
+	)
+	synctest.Wait()
+
+	expectedKey := resourceKey{hostID: c.serverID, name: "mixedcaseapp"}
+	srv, ok := c.handle.appServers[expectedKey]
+	require.True(t, ok, "expected handle.appServers key %+v; got %+v", expectedKey, c.handle.appServers)
+	require.Equal(t, "mixedcaseapp", srv.resource.GetApp().GetName())
+	require.Equal(t, "mixedcaseapp", srv.resource.GetName())
+	require.Equal(t, "mixedcaseapp.example.com", srv.resource.GetApp().GetPublicAddr())
+}
+
+func testAppServerScoped(initialScope, serverScope, appScope, publicAddrOverride string, expectOK bool) func(t *testing.T) {
+	return func(t *testing.T) {
+		c := newAppTestController(t, initialScope)
+
+		pubAddr := scopedapp.ScopedAppPublicAddr(appScope, "app", "teleport.example.com")
+		if publicAddrOverride != "" {
+			pubAddr = publicAddrOverride
+		}
+
+		err := c.downstream.Send(c.ctx, proto.InventoryHeartbeat_builder{
+			AppServer: &types.AppServerV3{
+				Metadata: types.Metadata{Name: c.serverID},
+				Scope:    serverScope,
+				Spec: types.AppServerSpecV3{
+					HostID: c.serverID,
+					App: &types.AppV3{
+						Kind:     types.KindApp,
+						Version:  types.V3,
+						Scope:    appScope,
+						Metadata: types.Metadata{Name: "app"},
+						Spec: types.AppSpecV3{
+							URI:        "http://localhost:8080",
+							PublicAddr: pubAddr,
+						},
+					},
+				},
+			},
+		}.Build())
+		require.NoError(t, err)
+
+		if !expectOK {
+			// A scope violation is rejected before upsert and closes the stream.
+			awaitEvents(t, c.events,
+				expect(handlerClose),
+				deny(appUpsertOk, appUpsertErr, appKeepAliveErr),
+			)
+			return
+		}
+		awaitEvents(t, c.events,
+			expect(appUpsertOk, appKeepAliveOk),
+			deny(appUpsertErr, appKeepAliveErr, handlerClose),
+		)
+	}
+}
+
+// TestAppKeepAliveRetryRoutesThroughUpsert asserts a retry tick
+// re-runs Upsert while steady-state uses UnconditionalUpdate.
+func TestAppKeepAliveRetryRoutesThroughUpsert(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, testAppKeepAliveRetryRoutesThroughUpsert)
+}
+
+func testAppKeepAliveRetryRoutesThroughUpsert(t *testing.T) {
+	const serverID = "test-server"
+	ctx := t.Context()
+	events := make(chan testEvent, 1024)
+
+	auth := &fakeAuth{}
+	controller := NewController(
+		auth,
+		usagereporter.DiscardUsageReporter{},
+		withServerKeepAlive(time.Millisecond*200),
+		withTestEventsChannel(events),
+	)
+	upstream, downstream := client.InventoryControlStreamPipe()
+	t.Cleanup(func() {
+		upstream.Close()
+		downstream.Close()
+		controller.Close()
+	})
+
+	go func() {
+		for {
+			select {
+			case msg := <-downstream.Recv():
+				downstream.Send(ctx, proto.UpstreamInventoryPong_builder{
+					ID: msg.(*proto.DownstreamInventoryPing).GetID(),
+				}.Build())
+			case <-downstream.Done():
+				return
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	controller.RegisterControlStream(upstream, proto.UpstreamInventoryHello_builder{
+		ServerID: serverID,
+		Version:  teleport.Version,
+		Services: types.SystemRoles{types.RoleApp}.StringSlice(),
+	}.Build())
+
+	auth.mu.Lock()
+	auth.failUpserts = 1
+	auth.mu.Unlock()
+
+	err := downstream.Send(ctx, proto.InventoryHeartbeat_builder{
+		AppServer: &types.AppServerV3{
+			Metadata: types.Metadata{Name: "app-retry"},
+			Spec: types.AppServerSpecV3{
+				HostID: serverID,
+				App: &types.AppV3{
+					Kind:    types.KindApp,
+					Version: types.V3,
+					Metadata: types.Metadata{
+						Name:   "app-retry",
+						Labels: map[string]string{"foo": uuid.NewString()},
+					},
+					Spec: types.AppSpecV3{},
+				},
+			},
+		},
+	}.Build())
+	require.NoError(t, err)
+
+	awaitEvents(t, events,
+		expect(appUpsertErr, appUpsertRetryOk),
+		deny(appKeepAliveErr, handlerClose),
+	)
+
+	auth.mu.Lock()
+	upserts := auth.upserts
+	keepalives := auth.keepalives
+	auth.mu.Unlock()
+
+	require.Equal(t, 2, upserts, "retry tick must route through Upsert")
+	require.Zero(t, keepalives, "retry tick must not use UnconditionalUpdate")
+
+	awaitEvents(t, events,
+		expect(appKeepAliveOk),
+		deny(appKeepAliveErr, handlerClose),
+	)
+
+	auth.mu.Lock()
+	upsertsAfter := auth.upserts
+	keepalivesAfter := auth.keepalives
+	auth.mu.Unlock()
+
+	require.Equal(t, 2, upsertsAfter, "steady-state keepalive must not call Upsert")
+	require.Positive(t, keepalivesAfter, "steady-state keepalive must call UnconditionalUpdate")
+}
+
+// TestDatabaseServerBasics verifies basic expected behaviors for a single control stream heartbeating
+// a database server.
+func TestDatabaseServerBasics(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, testDatabaseServerBasics)
+}
+func testDatabaseServerBasics(t *testing.T) {
+	const serverID = "test-server"
+	const dbCount = 3
+
+	ctx := t.Context()
+
+	events := make(chan testEvent, 1024)
+
+	auth := &fakeAuth{}
+
+	rc := &resourceCounter{}
+	controller := NewController(
+		auth,
+		usagereporter.DiscardUsageReporter{},
+		withServerKeepAlive(time.Millisecond*200),
+		withTestEventsChannel(events),
+		WithOnConnect(rc.onConnect),
+		WithOnDisconnect(rc.onDisconnect),
+	)
+	defer controller.Close()
+
+	// set up fake in-memory control stream
+	upstream, downstream := client.InventoryControlStreamPipe()
+	t.Cleanup(func() {
+		controller.Close()
+		upstream.Close()
+		downstream.Close()
+	})
+
+	// launch goroutine to respond to ping requests
+	go func() {
+		for {
+			select {
+			case msg := <-downstream.Recv():
+				downstream.Send(ctx, proto.UpstreamInventoryPong_builder{
+					ID: msg.(*proto.DownstreamInventoryPing).GetID(),
+				}.Build())
+			case <-downstream.Done():
+				return
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	controller.RegisterControlStream(upstream, proto.UpstreamInventoryHello_builder{
+		ServerID: serverID,
+		Version:  teleport.Version,
+		Services: types.SystemRoles{types.RoleDatabase}.StringSlice(),
+	}.Build())
+
+	// verify that control stream handle is now accessible
+	handle, ok := controller.GetControlStream(serverID)
+	require.True(t, ok)
+
+	// verify that hb counter has been incremented
+	require.Equal(t, int64(1), controller.instanceHBVariableDuration.Count())
+
+	// send a fake db server heartbeat
+	for i := range dbCount {
+		err := downstream.Send(ctx, proto.InventoryHeartbeat_builder{
+			DatabaseServer: &types.DatabaseServerV3{
+				Metadata: types.Metadata{
+					Name: serverID,
+				},
+				Spec: types.DatabaseServerSpecV3{
+					HostID:   serverID,
+					Hostname: serverID,
+					Database: &types.DatabaseV3{
+						Kind:    types.KindDatabase,
+						Version: types.V3,
+						Metadata: types.Metadata{
+							Name: fmt.Sprintf("db-%d", i),
+						},
+						Spec: types.DatabaseSpecV3{},
+					},
+				},
+			},
+		}.Build())
+		require.NoError(t, err)
+	}
+
+	// verify that heartbeat creates both an upsert and a keepalive
+	awaitEvents(t, events,
+		expect(dbUpsertOk, dbKeepAliveOk, dbUpsertOk, dbKeepAliveOk, dbUpsertOk, dbKeepAliveOk),
+		deny(dbUpsertErr, dbKeepAliveErr, handlerClose),
+	)
+
+	// set up to induce delete failure
+	auth.mu.Lock()
+	auth.failDeletes = 1
+	auth.mu.Unlock()
+
+	// stop a heartbeat
+	err := downstream.Send(ctx, proto.UpstreamInventoryStopHeartbeat_builder{
+		Kind: proto.StopHeartbeatKind_STOP_HEARTBEAT_KIND_DATABASE_SERVER,
+		Name: "db-1",
+	}.Build())
+	require.NoError(t, err)
+
+	// verify that keep alive stops, even if the heartbeat couldn't be deleted
+	awaitEvents(t, events,
+		expect(dbKeepAliveDel, dbDelErr),
+		deny(dbDelOk, dbUpsertErr, dbKeepAliveErr, handlerClose),
+	)
+	require.Equal(t, dbCount-1, rc.count())
+
+	// verify heartbeat stop keepalive idempotency
+	err = downstream.Send(ctx, proto.UpstreamInventoryStopHeartbeat_builder{
+		Kind: proto.StopHeartbeatKind_STOP_HEARTBEAT_KIND_DATABASE_SERVER,
+		Name: "db-1",
+	}.Build())
+	require.NoError(t, err)
+	require.Equal(t, dbCount-1, rc.count())
+
+	awaitEvents(t, events,
+		expect(dbStopErr),
+		deny(dbKeepAliveDel, dbDelOk, dbDelErr, dbUpsertErr, dbKeepAliveErr, handlerClose),
+	)
+	require.Equal(t, dbCount-1, rc.count())
+
+	// set up to induce some failures, but not enough to cause the control
+	// stream to be closed.
+	auth.mu.Lock()
+	auth.failUpserts = 1
+	auth.failKeepAlives = 2
+	auth.mu.Unlock()
+
+	// keepalive should fail twice, but since the upsert is already known
+	// to have succeeded, we should not see an upsert failure yet.
+	awaitEvents(t, events,
+		expect(dbKeepAliveErr, dbKeepAliveErr),
+		deny(dbUpsertErr, handlerClose),
+	)
+
+	// jitter can sometimes cause one app to keepalive twice before another has completed one keepalive. for that
+	// reason, we want 2x the number of apps worth of keepalives to ensure that the failed keepalive counts associated
+	// with each app have been reset. otherwise, later parts of this test become flaky.
+	var keepaliveEvents []testEvent
+	for range dbCount {
+		keepaliveEvents = append(keepaliveEvents, []testEvent{dbKeepAliveOk, dbKeepAliveOk}...)
+	}
+
+	awaitEvents(t, events,
+		expect(keepaliveEvents...),
+		deny(appKeepAliveErr, handlerClose),
+	)
+
+	for i := range dbCount {
+		err := downstream.Send(ctx, proto.InventoryHeartbeat_builder{
+			DatabaseServer: &types.DatabaseServerV3{
+				Metadata: types.Metadata{
+					Name: serverID,
+				},
+				Spec: types.DatabaseServerSpecV3{
+					HostID: serverID,
+					Database: &types.DatabaseV3{
+						Kind:    types.KindDatabase,
+						Version: types.V3,
+						Metadata: types.Metadata{
+							Name: fmt.Sprintf("db-%d", i),
+						},
+						Spec: types.DatabaseSpecV3{},
+					},
+				},
+			},
+		}.Build())
+		require.NoError(t, err)
+	}
+
+	// we should now see an upsert failure, but no additional
+	// keepalive failures, and the upsert should succeed on retry.
+	awaitEvents(t, events,
+		expect(dbUpsertErr, dbUpsertRetryOk),
+		deny(dbKeepAliveErr, handlerClose),
+	)
+
+	// limit time of ping call
+	pingCtx, cancel := context.WithTimeout(ctx, time.Second*10)
+	defer cancel()
+
+	// execute ping
+	_, err = handle.Ping(pingCtx, 1)
+	require.NoError(t, err)
+
+	// ensure that local db keepalive states have reset to healthy by waiting
+	// on a full cycle+ worth of keepalives without errors.
+	awaitEvents(t, events,
+		expect(keepAliveDatabaseTick, keepAliveDatabaseTick),
+		deny(dbKeepAliveErr, handlerClose),
+	)
+
+	// set up to induce enough consecutive keepalive errors to cause removal
+	// of server-side keepalive state.
+	auth.mu.Lock()
+	auth.failKeepAlives = 3 * dbCount
+	auth.mu.Unlock()
+
+	// expect that all db keepalives fail, then the db is removed.
+	var expectedEvents []testEvent
+	for range dbCount {
+		expectedEvents = append(expectedEvents, []testEvent{dbKeepAliveErr, dbKeepAliveErr, dbKeepAliveErr, dbKeepAliveDel}...)
+	}
+
+	// wait for failed keepalives to trigger removal
+	awaitEvents(t, events,
+		expect(expectedEvents...),
+		deny(handlerClose),
+	)
+
+	// set up to induce enough consecutive errors to cause stream closure
+	auth.mu.Lock()
+	auth.failUpserts = 5
+	auth.mu.Unlock()
+
+	err = downstream.Send(ctx, proto.InventoryHeartbeat_builder{
+		DatabaseServer: &types.DatabaseServerV3{
+			Metadata: types.Metadata{
+				Name: serverID,
+			},
+			Spec: types.DatabaseServerSpecV3{
+				HostID: serverID,
+				Database: &types.DatabaseV3{
+					Kind:     types.KindDatabase,
+					Version:  types.V3,
+					Metadata: types.Metadata{},
+					Spec:     types.DatabaseSpecV3{},
+				},
+			},
+		},
+	}.Build())
+	require.NoError(t, err)
+
+	// both the initial upsert and the retry should fail, then the handle should
+	// close.
+	awaitEvents(t, events,
+		expect(dbUpsertErr, dbUpsertRetryErr, handlerClose),
+		deny(dbUpsertOk),
+	)
+
+	// verify that closure propagates to server and client side interfaces
+	closeTimeout := time.After(time.Second * 10)
+	select {
+	case <-handle.Done():
+	case <-closeTimeout:
+		t.Fatal("timeout waiting for handle closure")
+	}
+	select {
+	case <-downstream.Done():
+	case <-closeTimeout:
+		t.Fatal("timeout waiting for handle closure")
+	}
+
+	// verify that hb counter has been decremented (counter is decremented concurrently, but
+	// always *before* closure is propagated to downstream handle, hence being safe to load
+	// here).
+	require.Equal(t, int64(0), controller.instanceHBVariableDuration.Count())
+
+	// verify that metrics have been updated correctly
+	require.Zero(t, rc.count())
 }
 
 // TestInstanceHeartbeat verifies basic expected behaviors for instance heartbeat.
 func TestInstanceHeartbeat_Disabled(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, testInstanceHeartbeat_Disabled)
+}
+func testInstanceHeartbeat_Disabled(t *testing.T) {
 	const serverID = "test-instance"
 	const peerAddr = "1.2.3.4:456"
 
@@ -522,11 +1509,11 @@ func TestInstanceHeartbeat_Disabled(t *testing.T) {
 	// set up fake in-memory control stream
 	upstream, _ := client.InventoryControlStreamPipe(client.ICSPipePeerAddr(peerAddr))
 
-	controller.RegisterControlStream(upstream, proto.UpstreamInventoryHello{
+	controller.RegisterControlStream(upstream, proto.UpstreamInventoryHello_builder{
 		ServerID: serverID,
 		Version:  teleport.Version,
-		Services: []types.SystemRole{types.RoleNode},
-	})
+		Services: types.SystemRoles{types.RoleNode}.StringSlice(),
+	}.Build())
 
 	// verify that control stream handle is now accessible
 	_, ok := controller.GetControlStream(serverID)
@@ -550,20 +1537,12 @@ func TestInstanceHeartbeatDisabledEnv(t *testing.T) {
 	require.False(t, controller.instanceHBEnabled)
 }
 
-func TestServerKeepaliveDisabledEnv(t *testing.T) {
-	t.Setenv("TELEPORT_UNSTABLE_DISABLE_SERVER_KEEPALIVE", "yes")
-
-	controller := NewController(
-		&fakeAuth{},
-		usagereporter.DiscardUsageReporter{},
-	)
-	defer controller.Close()
-
-	require.False(t, controller.serverKeepAliveEnabled)
-}
-
 // TestInstanceHeartbeat verifies basic expected behaviors for instance heartbeat.
 func TestInstanceHeartbeat(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, testInstanceHeartbeat)
+}
+func testInstanceHeartbeat(t *testing.T) {
 	const serverID = "test-instance"
 	const peerAddr = "1.2.3.4:456"
 
@@ -577,16 +1556,31 @@ func TestInstanceHeartbeat(t *testing.T) {
 		withInstanceHBInterval(time.Millisecond*200),
 		withTestEventsChannel(events),
 	)
-	defer controller.Close()
 
 	// set up fake in-memory control stream
 	upstream, downstream := client.InventoryControlStreamPipe(client.ICSPipePeerAddr(peerAddr))
+	t.Cleanup(func() {
+		controller.Close()
+		downstream.Close()
+		upstream.Close()
+	})
 
-	controller.RegisterControlStream(upstream, proto.UpstreamInventoryHello{
+	// Launch goroutine to consume downstream request and don't block control steam handler.
+	go func() {
+		for {
+			select {
+			case <-downstream.Recv():
+			case <-downstream.Done():
+				return
+			}
+		}
+	}()
+
+	controller.RegisterControlStream(upstream, proto.UpstreamInventoryHello_builder{
 		ServerID: serverID,
 		Version:  teleport.Version,
-		Services: []types.SystemRole{types.RoleNode, types.RoleApp},
-	})
+		Services: types.SystemRoles{types.RoleNode, types.RoleApp}.StringSlice(),
+	}.Build())
 
 	// verify that control stream handle is now accessible
 	handle, ok := controller.GetControlStream(serverID)
@@ -666,6 +1660,9 @@ func TestInstanceHeartbeat(t *testing.T) {
 // inventory control stream.
 func TestUpdateLabels(t *testing.T) {
 	t.Parallel()
+	synctest.Test(t, testUpdateLabels)
+}
+func testUpdateLabels(t *testing.T) {
 	const serverID = "test-instance"
 	const peerAddr = "1.2.3.4:456"
 
@@ -683,21 +1680,31 @@ func TestUpdateLabels(t *testing.T) {
 
 	// Set up fake in-memory control stream.
 	upstream, downstream := client.InventoryControlStreamPipe(client.ICSPipePeerAddr(peerAddr))
-	upstreamHello := proto.UpstreamInventoryHello{
+	upstreamHello := proto.UpstreamInventoryHello_builder{
 		ServerID: serverID,
 		Version:  teleport.Version,
-		Services: []types.SystemRole{types.RoleNode},
-	}
-	downstreamHello := proto.DownstreamInventoryHello{
+		Services: types.SystemRoles{types.RoleNode}.StringSlice(),
+	}.Build()
+	downstreamHello := proto.DownstreamInventoryHello_builder{
 		Version:  teleport.Version,
 		ServerID: "auth",
-	}
+	}.Build()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
-	downstreamHandle := NewDownstreamHandle(func(ctx context.Context) (client.DownstreamInventoryControlStream, error) {
-		return downstream, nil
-	}, upstreamHello)
+	downstreamHandle, err := NewDownstreamHandle(
+		func(ctx context.Context) (client.DownstreamInventoryControlStream, error) {
+			return downstream, nil
+		},
+		func(_ context.Context) (*proto.UpstreamInventoryHello, error) {
+			return upstreamHello, nil
+		},
+		withMetadataGetter(func(ctx context.Context) (*metadata.Metadata, error) {
+			return nil, context.Canceled
+		}),
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, downstreamHandle.Close()) })
 
 	// Wait for upstream hello.
 	select {
@@ -717,30 +1724,18 @@ func TestUpdateLabels(t *testing.T) {
 	labels := map[string]string{"a": "1", "b": "2"}
 	require.NoError(t, upstreamHandle.UpdateLabels(ctx, proto.LabelUpdateKind_SSHServerCloudLabels, labels))
 
-	require.Eventually(t, func() bool {
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		require.Equal(t, labels, downstreamHandle.GetUpstreamLabels(proto.LabelUpdateKind_SSHServerCloudLabels))
-		return true
-	}, time.Second, 100*time.Millisecond)
+	}, 5*time.Second, 100*time.Millisecond)
 }
 
 // TestAgentMetadata verifies that an instance's agent metadata is received in
 // inventory control stream.
 func TestAgentMetadata(t *testing.T) {
-	// set the install method to validate it was returned as agent metadata
-	t.Setenv("TELEPORT_INSTALL_METHOD_AWSOIDC_DEPLOYSERVICE", "true")
-	metadataGetter = func(ctx context.Context) (*metadata.Metadata, error) {
-		return &metadata.Metadata{
-			OS:                    "llamaOS",
-			OSVersion:             "1.2.3",
-			HostArchitecture:      "llama",
-			GlibcVersion:          "llama.5.6.7",
-			InstallMethods:        []string{"llama", "alpaca"},
-			ContainerRuntime:      "test",
-			ContainerOrchestrator: "test",
-			CloudEnvironment:      "llama-cloud",
-		}, nil
-	}
-
+	t.Parallel()
+	synctest.Test(t, testAgentMetadata)
+}
+func testAgentMetadata(t *testing.T) {
 	const serverID = "test-instance"
 	const peerAddr = "1.2.3.4:456"
 
@@ -758,21 +1753,40 @@ func TestAgentMetadata(t *testing.T) {
 
 	// Set up fake in-memory control stream.
 	upstream, downstream := client.InventoryControlStreamPipe(client.ICSPipePeerAddr(peerAddr))
-	upstreamHello := proto.UpstreamInventoryHello{
+	upstreamHello := proto.UpstreamInventoryHello_builder{
 		ServerID: serverID,
 		Version:  teleport.Version,
-		Services: []types.SystemRole{types.RoleNode},
-	}
-	downstreamHello := proto.DownstreamInventoryHello{
+		Services: types.SystemRoles{types.RoleNode}.StringSlice(),
+	}.Build()
+	downstreamHello := proto.DownstreamInventoryHello_builder{
 		Version:  teleport.Version,
 		ServerID: "auth",
-	}
+	}.Build()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
-	NewDownstreamHandle(func(ctx context.Context) (client.DownstreamInventoryControlStream, error) {
-		return downstream, nil
-	}, upstreamHello)
+	inventoryHandle, err := NewDownstreamHandle(
+		func(ctx context.Context) (client.DownstreamInventoryControlStream, error) {
+			return downstream, nil
+		},
+		func(ctx context.Context) (*proto.UpstreamInventoryHello, error) {
+			return upstreamHello, nil
+		},
+		withMetadataGetter(func(ctx context.Context) (*metadata.Metadata, error) {
+			return &metadata.Metadata{
+				OS:                    "llamaOS",
+				OSVersion:             "1.2.3",
+				HostArchitecture:      "llama",
+				GlibcVersion:          "llama.5.6.7",
+				InstallMethods:        []string{"llama", "alpaca"},
+				ContainerRuntime:      "test",
+				ContainerOrchestrator: "test",
+				CloudEnvironment:      "llama-cloud",
+			}, nil
+		}),
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, inventoryHandle.Close()) })
 
 	// Wait for upstream hello.
 	select {
@@ -789,64 +1803,86 @@ func TestAgentMetadata(t *testing.T) {
 	require.True(t, ok)
 
 	// Validate that the agent's metadata ends up in the auth server.
-	require.Eventually(t, func() bool {
-		return slices.Equal([]string{"llama", "alpaca"}, upstreamHandle.AgentMetadata().InstallMethods) &&
-			upstreamHandle.AgentMetadata().OS == "llamaOS"
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		md := upstreamHandle.AgentMetadata()
+		require.NotNil(t, md)
+		require.ElementsMatch(t, []string{"llama", "alpaca"}, md.GetInstallMethods())
+		require.Equal(t, "llamaOS", md.GetOS())
 	}, 10*time.Second, 200*time.Millisecond)
 }
 
 func TestGoodbye(t *testing.T) {
-	t.Parallel()
-
 	tests := []struct {
 		name            string
 		supportsGoodbye bool
+		deleteResources bool
+		softReload      bool
 	}{
 		{
 			name: "no goodbye",
 		},
 		{
-			name:            "goodbye",
+			name:            "goodbye termination",
+			deleteResources: true,
 			supportsGoodbye: true,
+		},
+		{
+			name:            "goodbye soft-reload",
+			supportsGoodbye: true,
+			softReload:      true,
 		},
 	}
 
-	upstreamHello := proto.UpstreamInventoryHello{
+	upstreamHello := proto.UpstreamInventoryHello_builder{
 		ServerID: "llama",
 		Version:  teleport.Version,
-		Services: []types.SystemRole{types.RoleNode, types.RoleApp},
-	}
+		Services: types.SystemRoles{types.RoleNode, types.RoleApp}.StringSlice(),
+	}.Build()
 
 	for _, test := range tests {
-		test := test
-		t.Run(test.name, func(t *testing.T) {
+		inner := func(t *testing.T) {
+			// Test Setup: crafting a controller and an upstream/downstream stream pipe
 			controller := NewController(
 				&fakeAuth{},
 				usagereporter.DiscardUsageReporter{},
 				withInstanceHBInterval(time.Millisecond*200),
 			)
 			defer controller.Close()
-
-			// Set up fake in-memory control stream.
 			upstream, downstream := client.InventoryControlStreamPipe(client.ICSPipePeerAddr("127.0.0.1:8090"))
 
-			downstreamHello := proto.DownstreamInventoryHello{
+			currentDownstream := downstream
+			downstreamHello := proto.DownstreamInventoryHello_builder{
 				Version:  teleport.Version,
 				ServerID: "auth",
-				Capabilities: &proto.DownstreamInventoryHello_SupportedCapabilities{
+				Capabilities: proto.DownstreamInventoryHello_SupportedCapabilities_builder{
 					AppCleanup:     test.supportsGoodbye,
 					AppHeartbeats:  true,
 					NodeHeartbeats: true,
+				}.Build(),
+			}.Build()
+
+			// Test setup: creating downstream handler
+			clock := clockwork.NewFakeClock()
+			handle, err := NewDownstreamHandle(
+				func(ctx context.Context) (client.DownstreamInventoryControlStream, error) {
+					return currentDownstream, nil
 				},
-			}
+				func(ctx context.Context) (*proto.UpstreamInventoryHello, error) {
+					return upstreamHello, nil
+				},
+				WithDownstreamClock(clock),
+				withMetadataGetter(func(ctx context.Context) (*metadata.Metadata, error) {
+					return nil, context.Canceled
+				}),
+			)
+			require.NoError(t, err)
+			t.Cleanup(func() {
+				require.NoError(t, handle.Close())
+			})
 
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			// Test setup: wait for the downstream handler to finish its startup and respond to its hello
+			ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 			defer cancel()
-			handle := NewDownstreamHandle(func(ctx context.Context) (client.DownstreamInventoryControlStream, error) {
-				return downstream, nil
-			}, upstreamHello)
-
-			// Wait for upstream hello.
 			select {
 			case msg := <-upstream.Recv():
 				require.Equal(t, upstreamHello, msg)
@@ -855,47 +1891,475 @@ func TestGoodbye(t *testing.T) {
 			}
 			require.NoError(t, upstream.Send(ctx, downstreamHello))
 
-			// Attempt to send a goodbye.
+			// Test execution part 1: Validating that calling SetAndSendGoodbye does
+			// cause the downstream handler t send a goodbye.
+
+			// Fire a routine that will call SetAndSendGoodbye
+			// Then send a Pong message to indicate the test is done.
+			nonce := rand.Int()
 			go func() {
-				ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
+				ctx, cancel = context.WithTimeout(t.Context(), 10*time.Second)
 				defer cancel()
-				assert.NoError(t, handle.SendGoodbye(ctx))
-				// Close the handle to unblock receive below.
-				assert.NoError(t, handle.Close())
+				handle.SetAndSendGoodbye(ctx, test.deleteResources, test.softReload)
+
+				// After calling the goodbye, we do a little hack by sending a pong
+				// This will allow us to know that this routine is done on the other side of the test
+				// while making sure we are strictly after the goodbye message
+				// (SendGoodBye is synchronous, and we send messages over the same channel)
+				select {
+				case sender := <-handle.Sender():
+					sender.Send(ctx, proto.UpstreamInventoryPong_builder{ID: uint64(nonce)}.Build())
+				case <-ctx.Done():
+					assert.Fail(t, "never got downstream sender, was not able to send 'end-of-test pong'")
+				}
 			}()
 
-			// Wait to see if a goodbye is received.
+			// Wait until we receive the pong.
+			var receivedGoodbye *proto.UpstreamInventoryGoodbye
 			timeoutC := time.After(10 * time.Second)
+		OuterLoop:
 			for {
 				select {
 				case msg := <-upstream.Recv():
-					switch msg.(type) {
-					case proto.UpstreamInventoryHello, proto.InventoryHeartbeat,
-						proto.UpstreamInventoryPong, proto.UpstreamInventoryAgentMetadata:
-					case proto.UpstreamInventoryGoodbye:
-						if test.supportsGoodbye {
-							require.Equal(t, proto.UpstreamInventoryGoodbye{DeleteResources: true}, msg)
-						} else {
-							t.Fatalf("received an unexpected message %v", msg)
-						}
-						return
+					switch msg := msg.(type) {
+					case *proto.UpstreamInventoryHello, *proto.InventoryHeartbeat,
+						*proto.UpstreamInventoryAgentMetadata:
+						// We skip all usual messages
+					case *proto.UpstreamInventoryGoodbye:
+						// We register the goodbye
+						receivedGoodbye = msg
+					case *proto.UpstreamInventoryPong:
+						// The emitter routine is done with its part, we stop waiting for events
+						require.Equal(t, nonce, int(msg.GetID()), "received pong message without the 'end-of-test ID'")
+						break OuterLoop
+					default:
+						require.Fail(t, "unexpected message type", msg)
 					}
 				case <-upstream.Done():
-					return
+					require.Fail(t, "upstream unexpectedly closed")
 				case <-timeoutC:
-					if test.supportsGoodbye {
-						require.FailNow(t, "timeout waiting for goodbye message")
-					} else {
-						return
-					}
+					require.Fail(t, "timed out waiting for 'end-of-test pong'")
 				}
 			}
+
+			// Test validation pt.1: Check if we received a pong
+			if test.supportsGoodbye {
+				require.NotNil(t, receivedGoodbye)
+				require.Equal(t, test.deleteResources, receivedGoodbye.GetDeleteResources())
+				require.Equal(t, test.softReload, receivedGoodbye.GetSoftReload())
+			} else {
+				require.Nil(t, receivedGoodbye)
+			}
+
+			// Don't test further if we don't support goodbye
+			if !test.supportsGoodbye {
+				return
+			}
+
+			// Test execution pt.2: See that the downstreamHandler sends back the goodbye
+			// when the stream is re-established.
+
+			newUpstream, newDownstream := client.InventoryControlStreamPipe(client.ICSPipePeerAddr("127.0.0.1:8090"))
+			currentDownstream = newDownstream
+
+			// Simulating a failure on the old control stream, asking for a reconnection
+			require.NoError(t, downstream.CloseWithError(io.EOF))
+
+			ctx, cancel = context.WithTimeout(t.Context(), 10*time.Second)
+			defer cancel()
+			// Wait to hit the handle linear retry, then jump into the future
+			require.NoError(t, clock.BlockUntilContext(ctx, 1))
+			select {
+			case <-ctx.Done():
+				require.Fail(t, "upstream never waited")
+			default:
+				clock.Advance(time.Minute)
+			}
+
+			// Test setup: wait for the downstream handler to finish its startup and respond to its hello
+			select {
+			case msg := <-newUpstream.Recv():
+				require.Equal(t, upstreamHello, msg)
+			case <-ctx.Done():
+				require.Fail(t, "never got upstream hello")
+			}
+			require.NoError(t, newUpstream.Send(ctx, downstreamHello))
+
+			// Test execution: wait until we receive at least 1 goodbye.
+			timeoutC = time.After(10 * time.Second)
+			for {
+				select {
+				case msg := <-newUpstream.Recv():
+					switch msg := msg.(type) {
+					case *proto.UpstreamInventoryHello, *proto.InventoryHeartbeat,
+						*proto.UpstreamInventoryPong, *proto.UpstreamInventoryAgentMetadata:
+					case *proto.UpstreamInventoryGoodbye:
+						require.Empty(t, cmp.Diff(receivedGoodbye, msg, protocmp.Transform()), "re-emitted goodbye should be identical")
+						return
+					default:
+						require.Fail(t, "unexpected message type", msg)
+					}
+
+				case <-newUpstream.Done():
+					require.Fail(t, "upstream unexpectedly closed")
+				case <-timeoutC:
+					require.Fail(t, "timeout waiting for goodbye message")
+				}
+			}
+
+		}
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			synctest.Test(t, inner)
 		})
 	}
 }
 
-func TestGetSender(t *testing.T) {
+func TestKubernetesServerBasics(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, testKubernetesServerBasics)
+	// happy path, scopes always match
+	synctest.Test(t, testKubernetesServerScoped("/test", "/test", "/test"))
+	// server scope differs from scope given during control stream registration
+	synctest.Test(t, testKubernetesServerScoped("/test", "/other", "/test"))
+	// cluster scope differs from the server scope
+	synctest.Test(t, testKubernetesServerScoped("/test", "/test", "/other"))
+}
 
+func testKubernetesServerScoped(initialScope, serverScope, clusterScope string) func(t *testing.T) {
+	return func(t *testing.T) {
+		const serverID = "test-server"
+
+		ctx := t.Context()
+
+		events := make(chan testEvent, 1024)
+
+		auth := &fakeAuth{}
+
+		rc := &resourceCounter{}
+		controller := NewController(
+			auth,
+			usagereporter.DiscardUsageReporter{},
+			withServerKeepAlive(time.Millisecond*200),
+			withTestEventsChannel(events),
+			WithOnConnect(rc.onConnect),
+			WithOnDisconnect(rc.onDisconnect),
+		)
+		defer controller.Close()
+
+		// set up fake in-memory control stream
+		upstream, downstream := client.InventoryControlStreamPipe()
+		// launch goroutine to respond to ping requests
+		go func() {
+			for {
+				select {
+				case msg := <-downstream.Recv():
+					downstream.Send(ctx, proto.UpstreamInventoryPong_builder{
+						ID: msg.(*proto.DownstreamInventoryPing).GetID(),
+					}.Build())
+				case <-downstream.Done():
+					return
+				case <-ctx.Done():
+					return
+				}
+			}
+		}()
+
+		controller.RegisterControlStream(upstream, proto.UpstreamInventoryHello_builder{
+			ServerID: serverID,
+			Version:  teleport.Version,
+			Services: types.SystemRoles{types.RoleKube}.StringSlice(),
+			Scope:    initialScope,
+		}.Build())
+
+		// verify that control stream handle is now accessible
+		_, ok := controller.GetControlStream(serverID)
+		require.True(t, ok)
+
+		// verify that hb counter has been incremented
+		require.Equal(t, int64(1), controller.instanceHBVariableDuration.Count())
+
+		// send server heartbeat with scopes applied
+		err := downstream.Send(ctx, proto.InventoryHeartbeat_builder{
+			KubernetesServer: &types.KubernetesServerV3{
+				Metadata: types.Metadata{
+					Name: serverID,
+				},
+				Scope: serverScope,
+				Spec: types.KubernetesServerSpecV3{
+					HostID:   serverID,
+					Hostname: serverID,
+					Cluster: &types.KubernetesClusterV3{
+						Kind:    types.KindKubernetesCluster,
+						Version: types.V3,
+						Scope:   clusterScope,
+						Metadata: types.Metadata{
+							Name: "cluster",
+						},
+						Spec: types.KubernetesClusterSpecV3{},
+					},
+				},
+			},
+		}.Build())
+		require.NoError(t, err)
+
+		if serverScope != initialScope {
+			// scope mismatch between server scope and initial scope should close
+			// the stream
+			awaitEvents(t, events,
+				expect(handlerClose),
+				deny(kubeKeepAliveErr, kubeUpsertErr),
+			)
+			return
+		}
+		if clusterScope != serverScope {
+			// scope mismatch between server scope and cluster scope should close
+			// the stream
+			awaitEvents(t, events,
+				expect(handlerClose),
+				deny(kubeKeepAliveErr, kubeUpsertErr),
+			)
+			return
+		}
+		awaitEvents(t, events,
+			expect(kubeUpsertOk, kubeKeepAliveOk),
+			deny(kubeKeepAliveErr, kubeUpsertErr, handlerClose),
+		)
+	}
+}
+
+func testKubernetesServerBasics(t *testing.T) {
+	const serverID = "test-server"
+	const kubeCount = 3
+
+	ctx := t.Context()
+
+	events := make(chan testEvent, 1024)
+
+	auth := &fakeAuth{}
+
+	rc := &resourceCounter{}
+	controller := NewController(
+		auth,
+		usagereporter.DiscardUsageReporter{},
+		withServerKeepAlive(time.Millisecond*200),
+		withTestEventsChannel(events),
+		WithOnConnect(rc.onConnect),
+		WithOnDisconnect(rc.onDisconnect),
+	)
+	defer controller.Close()
+
+	// set up fake in-memory control stream
+	upstream, downstream := client.InventoryControlStreamPipe()
+	// launch goroutine to respond to ping requests
+	go func() {
+		for {
+			select {
+			case msg := <-downstream.Recv():
+				downstream.Send(ctx, proto.UpstreamInventoryPong_builder{
+					ID: msg.(*proto.DownstreamInventoryPing).GetID(),
+				}.Build())
+			case <-downstream.Done():
+				return
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	controller.RegisterControlStream(upstream, proto.UpstreamInventoryHello_builder{
+		ServerID: serverID,
+		Version:  teleport.Version,
+		Services: types.SystemRoles{types.RoleKube}.StringSlice(),
+	}.Build())
+
+	// verify that control stream handle is now accessible
+	handle, ok := controller.GetControlStream(serverID)
+	require.True(t, ok)
+
+	// verify that hb counter has been incremented
+	require.Equal(t, int64(1), controller.instanceHBVariableDuration.Count())
+
+	// send a fake kube server heartbeat
+	for i := range kubeCount {
+		err := downstream.Send(ctx, proto.InventoryHeartbeat_builder{
+			KubernetesServer: &types.KubernetesServerV3{
+				Metadata: types.Metadata{
+					Name: serverID,
+				},
+				Spec: types.KubernetesServerSpecV3{
+					HostID:   serverID,
+					Hostname: serverID,
+					Cluster: &types.KubernetesClusterV3{
+						Kind:    types.KindKubernetesCluster,
+						Version: types.V3,
+						Metadata: types.Metadata{
+							Name: fmt.Sprintf("cluster-%d", i),
+						},
+						Spec: types.KubernetesClusterSpecV3{},
+					},
+				},
+			},
+		}.Build())
+		require.NoError(t, err)
+	}
+
+	// verify that heartbeat creates both an upsert and a keepalive
+	awaitEvents(t, events,
+		expect(kubeUpsertOk, kubeKeepAliveOk, kubeUpsertOk, kubeKeepAliveOk, kubeUpsertOk, kubeKeepAliveOk),
+		deny(kubeUpsertErr, kubeKeepAliveErr, handlerClose),
+	)
+
+	// set up to induce some failures, but not enough to cause the control
+	// stream to be closed.
+	auth.mu.Lock()
+	auth.failUpserts = 1
+	auth.failKeepAlives = 2
+	auth.mu.Unlock()
+
+	// keepalive should fail twice, but since the upsert is already known
+	// to have succeeded, we should not see an upsert failure yet.
+	awaitEvents(t, events,
+		expect(kubeKeepAliveErr, kubeKeepAliveErr),
+		deny(kubeUpsertErr, handlerClose),
+	)
+
+	// jitter can sometimes cause one app to keepalive twice before another has completed one keepalive. for that
+	// reason, we want 2x the number of apps worth of keepalives to ensure that the failed keepalive counts associated
+	// with each app have been reset. otherwise, later parts of this test become flaky.
+	var keepaliveEvents []testEvent
+	for range kubeCount {
+		keepaliveEvents = append(keepaliveEvents, []testEvent{kubeKeepAliveOk, kubeKeepAliveOk}...)
+	}
+
+	awaitEvents(t, events,
+		expect(keepaliveEvents...),
+		deny(appKeepAliveErr, handlerClose),
+	)
+
+	for i := range kubeCount {
+		err := downstream.Send(ctx, proto.InventoryHeartbeat_builder{
+			KubernetesServer: &types.KubernetesServerV3{
+				Metadata: types.Metadata{
+					Name: serverID,
+				},
+				Spec: types.KubernetesServerSpecV3{
+					HostID:   serverID,
+					Hostname: serverID,
+					Cluster: &types.KubernetesClusterV3{
+						Kind:    types.KindKubernetesCluster,
+						Version: types.V3,
+						Metadata: types.Metadata{
+							Name: fmt.Sprintf("cluster-%d", i),
+						},
+						Spec: types.KubernetesClusterSpecV3{},
+					},
+				},
+			},
+		}.Build())
+		require.NoError(t, err)
+	}
+
+	// we should now see an upsert failure, but no additional
+	// keepalive failures, and the upsert should succeed on retry.
+	awaitEvents(t, events,
+		expect(kubeUpsertErr, kubeUpsertRetryOk),
+		deny(kubeKeepAliveErr, handlerClose),
+	)
+
+	// limit time of ping call
+	pingCtx, cancel := context.WithTimeout(ctx, time.Second*10)
+	defer cancel()
+
+	// execute ping
+	_, err := handle.Ping(pingCtx, 1)
+	require.NoError(t, err)
+
+	// ensure that local app keepalive states have reset to healthy by waiting
+	// on a full cycle+ worth of keepalives without errors.
+	awaitEvents(t, events,
+		expect(keepAliveKubeTick, keepAliveKubeTick),
+		deny(kubeKeepAliveErr, handlerClose),
+	)
+
+	// set up to induce enough consecutive keepalive errors to cause removal
+	// of server-side keepalive state.
+	auth.mu.Lock()
+	auth.failKeepAlives = 3 * kubeCount
+	auth.mu.Unlock()
+
+	// expect that all app keepalives fail, then the app is removed.
+	var expectedEvents []testEvent
+	for range kubeCount {
+		expectedEvents = append(expectedEvents, []testEvent{kubeKeepAliveErr, kubeKeepAliveErr, kubeKeepAliveErr, kubeKeepAliveDel}...)
+	}
+
+	// wait for failed keepalives to trigger removal
+	awaitEvents(t, events,
+		expect(expectedEvents...),
+		deny(handlerClose),
+	)
+
+	// set up to induce enough consecutive errors to cause stream closure
+	auth.mu.Lock()
+	auth.failUpserts = 5
+	auth.mu.Unlock()
+
+	err = downstream.Send(ctx, proto.InventoryHeartbeat_builder{
+		KubernetesServer: &types.KubernetesServerV3{
+			Metadata: types.Metadata{
+				Name: serverID,
+			},
+			Spec: types.KubernetesServerSpecV3{
+				HostID:   serverID,
+				Hostname: serverID,
+				Cluster: &types.KubernetesClusterV3{
+					Kind:    types.KindKubernetesCluster,
+					Version: types.V3,
+					Metadata: types.Metadata{
+						Name: "cluster-1",
+					},
+					Spec: types.KubernetesClusterSpecV3{},
+				},
+			},
+		},
+	}.Build())
+	require.NoError(t, err)
+
+	// both the initial upsert and the retry should fail, then the handle should
+	// close.
+	awaitEvents(t, events,
+		expect(kubeUpsertErr, kubeUpsertRetryErr, handlerClose),
+		deny(kubeUpsertOk),
+	)
+
+	// verify that closure propagates to server and client side interfaces
+	closeTimeout := time.After(time.Second * 10)
+	select {
+	case <-handle.Done():
+	case <-closeTimeout:
+		t.Fatal("timeout waiting for handle closure")
+	}
+	select {
+	case <-downstream.Done():
+	case <-closeTimeout:
+		t.Fatal("timeout waiting for handle closure")
+	}
+
+	// verify that hb counter has been decremented (counter is decremented concurrently, but
+	// always *before* closure is propagated to downstream handle, hence being safe to load
+	// here).
+	require.Equal(t, int64(0), controller.instanceHBVariableDuration.Count())
+
+	// verify that metrics have been updated correctly
+	require.Zero(t, rc.count())
+}
+
+func TestGetSender(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, testGetSender)
+}
+func testGetSender(t *testing.T) {
 	controller := NewController(
 		&fakeAuth{},
 		usagereporter.DiscardUsageReporter{},
@@ -906,25 +2370,35 @@ func TestGetSender(t *testing.T) {
 	// Set up fake in-memory control stream.
 	upstream, downstream := client.InventoryControlStreamPipe(client.ICSPipePeerAddr("127.0.0.1:8090"))
 
-	downstreamHello := proto.DownstreamInventoryHello{
+	downstreamHello := proto.DownstreamInventoryHello_builder{
 		Version:  teleport.Version,
 		ServerID: "auth",
-		Capabilities: &proto.DownstreamInventoryHello_SupportedCapabilities{
+		Capabilities: proto.DownstreamInventoryHello_SupportedCapabilities_builder{
 			AppCleanup:     true,
 			AppHeartbeats:  true,
 			NodeHeartbeats: true,
-		},
-	}
+		}.Build(),
+	}.Build()
 
-	upstreamHello := proto.UpstreamInventoryHello{
+	upstreamHello := proto.UpstreamInventoryHello_builder{
 		ServerID: "llama",
 		Version:  teleport.Version,
-		Services: []types.SystemRole{types.RoleNode, types.RoleApp},
-	}
+		Services: types.SystemRoles{types.RoleNode, types.RoleApp}.StringSlice(),
+	}.Build()
 
-	handle := NewDownstreamHandle(func(ctx context.Context) (client.DownstreamInventoryControlStream, error) {
-		return downstream, nil
-	}, upstreamHello)
+	handle, err := NewDownstreamHandle(
+		func(ctx context.Context) (client.DownstreamInventoryControlStream, error) {
+			return downstream, nil
+		},
+		func(ctx context.Context) (*proto.UpstreamInventoryHello, error) {
+			return upstreamHello, nil
+		},
+		withMetadataGetter(func(ctx context.Context) (*metadata.Metadata, error) {
+			return nil, context.Canceled
+		}),
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, handle.Close()) })
 
 	// Validate that the sender is not present prior to
 	// the stream becoming healthy.
@@ -941,16 +2415,89 @@ func TestGetSender(t *testing.T) {
 	}
 	// Send the downstream hello so that the
 	// sender becomes available.
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
 	require.NoError(t, upstream.Send(ctx, downstreamHello))
 
 	// Validate that once healthy the sender is provided.
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		s, ok = handle.GetSender()
-		assert.True(t, ok)
-		assert.NotNil(t, s)
+		require.True(t, ok)
+		require.NotNil(t, s)
 	}, 10*time.Second, 100*time.Millisecond)
+}
+
+// TestTimeReconciliation verifies basic behavior of the time reconciliation check.
+func TestTimeReconciliation(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, testTimeReconciliation)
+}
+func testTimeReconciliation(t *testing.T) {
+	const serverID = "test-server"
+	const peerAddr = "1.2.3.4:456"
+	const wantAddr = "1.2.3.4:123"
+
+	ctx := t.Context()
+	events := make(chan testEvent, 1024)
+	auth := &fakeAuth{
+		expectAddr: wantAddr,
+	}
+
+	clock := clockwork.NewRealClock()
+	controller := NewController(
+		auth,
+		usagereporter.DiscardUsageReporter{},
+		withInstanceHBInterval(time.Millisecond*200),
+		withTestEventsChannel(events),
+		WithClock(clock),
+	)
+
+	// Set up fake in-memory control stream.
+	upstream, downstream := client.InventoryControlStreamPipe(client.ICSPipePeerAddr(peerAddr))
+
+	t.Cleanup(func() {
+		require.NoError(t, downstream.Close())
+		require.NoError(t, upstream.Close())
+		require.NoError(t, controller.Close())
+	})
+
+	// Launch goroutine to respond to clock request.
+	go func() {
+		for {
+			select {
+			case msg := <-downstream.Recv():
+				downstream.Send(ctx, proto.UpstreamInventoryPong_builder{
+					ID:          msg.(*proto.DownstreamInventoryPing).GetID(),
+					SystemClock: timestamppb.New(clock.Now().Add(-time.Minute)),
+				}.Build())
+			case <-downstream.Done():
+				return
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	controller.RegisterControlStream(upstream, proto.UpstreamInventoryHello_builder{
+		ServerID: serverID,
+		Version:  teleport.Version,
+		Services: types.SystemRoles{types.RoleNode}.StringSlice(),
+	}.Build())
+
+	_, ok := controller.GetControlStream(serverID)
+	require.True(t, ok)
+
+	awaitEvents(t, events, expect(pongOk))
+	awaitEvents(t, events,
+		expect(instanceHeartbeatOk),
+		deny(instanceHeartbeatErr, instanceCompareFailed, handlerClose),
+	)
+	auth.mu.Lock()
+	m := auth.lastInstance.GetLastMeasurement()
+	auth.mu.Unlock()
+
+	require.NotNil(t, m)
+	require.InDelta(t, time.Minute, m.ControllerSystemClock.Sub(m.SystemClock)-m.RequestDuration/2, float64(time.Second))
 }
 
 type eventOpts struct {
@@ -977,6 +2524,7 @@ func deny(events ...testEvent) eventOption {
 }
 
 func awaitEvents(t *testing.T, ch <-chan testEvent, opts ...eventOption) {
+	t.Helper()
 	options := eventOpts{
 		expect: make(map[testEvent]int),
 		deny:   make(map[testEvent]struct{}),
@@ -985,7 +2533,7 @@ func awaitEvents(t *testing.T, ch <-chan testEvent, opts ...eventOption) {
 		opt(&options)
 	}
 
-	timeout := time.After(time.Second * 30)
+	timeout := time.After(time.Second * 300)
 	for {
 		if len(options.expect) == 0 {
 			return
@@ -1005,4 +2553,38 @@ func awaitEvents(t *testing.T, ch <-chan testEvent, opts ...eventOption) {
 			require.Failf(t, "timeout waiting for events", "expect=%+v", options.expect)
 		}
 	}
+}
+
+type resourceCounter struct {
+	mu sync.Mutex
+	c  map[string]int
+}
+
+func (r *resourceCounter) onConnect(typ string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.c == nil {
+		r.c = make(map[string]int)
+	}
+	r.c[typ]++
+}
+
+func (r *resourceCounter) onDisconnect(typ string, amount int) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.c == nil {
+		r.c = make(map[string]int)
+	}
+	r.c[typ] -= amount
+}
+
+func (r *resourceCounter) count() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	var count int
+	for _, v := range r.c {
+		count += v
+	}
+	return count
 }

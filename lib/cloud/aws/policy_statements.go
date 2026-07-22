@@ -21,34 +21,16 @@ package aws
 import (
 	"fmt"
 
-	"github.com/aws/aws-sdk-go/aws/arn"
+	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
 )
 
-var wildcard = "*"
-var allResources = []string{wildcard}
-
-// StatementForIAMEditRolePolicy returns a IAM Policy Statement which allows editting Role Policy
-// of the resources.
-func StatementForIAMEditRolePolicy(resources ...string) *Statement {
-	return &Statement{
-		Effect:    EffectAllow,
-		Actions:   []string{"iam:GetRolePolicy", "iam:PutRolePolicy", "iam:DeleteRolePolicy"},
-		Resources: resources,
-	}
-}
-
-// StatementForIAMEditUserPolicy returns a IAM Policy Statement which allows editting User Policy
-// of the resources.
-func StatementForIAMEditUserPolicy(resources ...string) *Statement {
-	return &Statement{
-		Effect:    EffectAllow,
-		Actions:   []string{"iam:GetUserPolicy", "iam:PutUserPolicy", "iam:DeleteUserPolicy"},
-		Resources: resources,
-	}
-}
+var (
+	wildcard     = "*"
+	allResources = []string{wildcard}
+)
 
 // StatementForECSManageService returns the statement that allows managing the ECS Service deployed
 // by DeployService (AWS OIDC Integration).
@@ -118,6 +100,20 @@ func StatementForRDSDBConnect() *Statement {
 	}
 }
 
+// StatementForRDSMetadata returns a statement that allows describing RDS
+// instances and clusters for metadata import, as in monitoring AWS tags and
+// whether IAM auth is enabled.
+func StatementForRDSMetadata() *Statement {
+	return &Statement{
+		Effect: EffectAllow,
+		Actions: SliceOrString{
+			"rds:DescribeDBInstances",
+			"rds:DescribeDBClusters",
+		},
+		Resources: allResources,
+	}
+}
+
 // StatementForEC2InstanceConnectEndpoint returns the statement that allows the flow for accessing
 // an EC2 instance using its private IP, using EC2 Instance Connect Endpoint.
 func StatementForEC2InstanceConnectEndpoint() *Statement {
@@ -147,6 +143,7 @@ func StatementForEC2SSMAutoDiscover() *Statement {
 	return &Statement{
 		Effect: EffectAllow,
 		Actions: []string{
+			"account:ListRegions",
 			"ec2:DescribeInstances",
 			"ssm:DescribeInstanceInformation",
 			"ssm:GetCommandInvocation",
@@ -167,7 +164,7 @@ func StatementForAWSAppAccess() *Statement {
 			"sts:AssumeRole",
 		},
 		Resources: allResources,
-		Conditions: map[string]map[string]SliceOrString{
+		Conditions: map[string]StringOrMap{
 			"StringEquals": {
 				"iam:ResourceTag/" + requiredTag: SliceOrString{"true"},
 			},
@@ -186,6 +183,7 @@ func StatementForEKSAccess() *Statement {
 			"eks:CreateAccessEntry",
 			"eks:DeleteAccessEntry",
 			"eks:AssociateAccessPolicy",
+			"eks:TagResource",
 		},
 		Resources: allResources,
 	}
@@ -203,7 +201,7 @@ func StatementForAWSOIDCRoleTrustRelationship(accountID, providerURL string, aud
 		Principals: map[string]SliceOrString{
 			"Federated": []string{federatedARN},
 		},
-		Conditions: map[string]map[string]SliceOrString{
+		Conditions: map[string]StringOrMap{
 			"StringEquals": {
 				federatedAudience: audiences,
 			},
@@ -219,6 +217,8 @@ func StatementForListRDSDatabases() *Statement {
 			"rds:DescribeDBInstances",
 			"rds:DescribeDBClusters",
 			"ec2:DescribeSecurityGroups",
+			"ec2:DescribeSubnets",
+			"ec2:DescribeVpcs",
 		},
 		Resources: allResources,
 	}
@@ -259,7 +259,7 @@ type ExternalAuditStoragePolicyConfig struct {
 	AthenaWorkgroupName string
 	// GlueDatabaseName is the name of the AWS Glue database.
 	GlueDatabaseName string
-	// GlueTabelName is the name of the AWS Glue table.
+	// GlueTableName is the name of the AWS Glue table.
 	GlueTableName string
 }
 
@@ -408,6 +408,10 @@ func StatementAccessGraphAWSSync() *Statement {
 			"s3:GetBucketPolicy",
 			"s3:ListBucket",
 			"s3:GetBucketLocation",
+			"s3:GetBucketTagging",
+			"s3:GetBucketPolicyStatus",
+			"s3:GetBucketAcl",
+
 			// IAM IAM
 			"iam:ListUsers",
 			"iam:GetUser",
@@ -431,7 +435,199 @@ func StatementAccessGraphAWSSync() *Statement {
 			"iam:GetSAMLProvider",
 			"iam:ListOpenIDConnectProviders",
 			"iam:GetOpenIDConnectProvider",
+
+			// KMS IAM
+			// If keys disallow IAM policy delegations, these fields need to be
+			// added to the Key policy.
+			"kms:ListKeys",
+			"kms:DescribeKey",
+			"kms:GetKeyPolicy",
+			"kms:ListAliases",
+			"kms:ListResourceTags",
 		},
 		Resources: allResources,
+	}
+}
+
+// StatementAccessGraphAWSSyncSQS returns the statement that allows
+// receiving, deleting, and sending messages to the specified SQS queue.
+// This is used for receiving and processing AWS cloud trail logs notifications
+// from SQS.
+func StatementAccessGraphAWSSyncSQS(sqsQueueARN string) *Statement {
+	return &Statement{
+		Effect: EffectAllow,
+		Actions: []string{
+			"sqs:ReceiveMessage",
+			"sqs:DeleteMessage",
+		},
+		Resources: []string{sqsQueueARN},
+	}
+}
+
+// StatementsAccessGraphAWSSyncS3BucketDownload returns the statements that allows downloading
+// objects from the specified S3 bucket. This is used for downloading AWS cloud trail logs.
+func StatementsAccessGraphAWSSyncS3BucketDownload(s3BucketARN string) []*Statement {
+	return []*Statement{
+		{
+			Effect: EffectAllow,
+			Actions: []string{
+				"s3:GetObject",
+				"s3:GetObjectVersion",
+			},
+			Resources: []string{s3BucketARN + "/*"},
+		},
+		{
+			Effect: EffectAllow,
+			Actions: []string{
+				"s3:ListBucket",
+				"s3:ListBucketVersions",
+				"s3:GetBucketLocation",
+				"s3:GetBucketVersioning",
+			},
+			Resources: []string{s3BucketARN},
+		},
+	}
+}
+
+// StatementAccessGraphAWSSyncKMSDecrypt returns the statement that allows decrypting
+// KMS encrypted data. This is used for decrypting AWS cloud trail logs from S3
+// and decrypting SQS messages that are encrypted with KMS.
+// It allows the following actions:
+// - `kms:Decrypt` to decrypt data.
+// - `kms:DescribeKey` to get information about the KMS key.
+// - `kms:GenerateDataKey` to generate a data key for encryption.
+// - `kms:GenerateDataKeyWithoutPlaintext` to generate a data key without plaintext.
+func StatementKMSDecrypt(kmsKeysARNs []string) *Statement {
+	return &Statement{
+		Effect: EffectAllow,
+		Actions: []string{
+			"kms:Decrypt",
+			"kms:DescribeKey",
+			"kms:GenerateDataKey",
+			"kms:GenerateDataKeyWithoutPlaintext",
+		},
+		Resources: kmsKeysARNs,
+	}
+}
+
+// StatementEnableEKSAuditLogs returns the statement that allows fetching EKS
+// API server audit logs from CloudWatch Logs.
+func StatementAccessGraphAWSSyncEKSAuditLogs() *Statement {
+	return &Statement{
+		Effect: EffectAllow,
+		Actions: []string{
+			"logs:FilterLogEvents",
+		},
+		Resources: []string{"arn:aws:logs:*:*:log-group:/aws/eks/*"},
+	}
+}
+
+// StatementForAWSIdentityCenterAccess returns AWS IAM policy statement that grants
+// permissions required for Teleport identity center client.
+// TODO(sshah): make the roles more granular by restricting resources scoped to
+// particular AWS identity center region+arn.
+func StatementForAWSIdentityCenterAccess() *Statement {
+	return &Statement{
+		StatementID: "TeleportIdentityCenterClient",
+		Effect:      EffectAllow,
+		Actions: []string{
+			// ListAccounts
+			"organizations:ListAccounts",
+			"organizations:ListAccountsForParent",
+
+			// ListGroupsAndMembers
+			"identitystore:ListUsers",
+			"identitystore:ListGroups",
+			"identitystore:ListGroupMemberships",
+
+			// ListPermissionSetsAndAssignments
+			"sso:DescribeInstance",
+			"sso:DescribePermissionSet",
+			"sso:ListPermissionSets",
+			"sso:ListAccountAssignmentsForPrincipal",
+			"sso:ListPermissionSetsProvisionedToAccount",
+
+			// CreateAndDeleteAccountAssignment
+			"sso:CreateAccountAssignment",
+			"sso:DescribeAccountAssignmentCreationStatus",
+			"sso:DeleteAccountAssignment",
+			"sso:DescribeAccountAssignmentDeletionStatus",
+			"iam:AttachRolePolicy",
+			"iam:CreateRole",
+			"iam:GetRole",
+			"iam:ListAttachedRolePolicies",
+			"iam:ListRolePolicies",
+
+			// AllowAccountAssignmentOnOwner
+			"iam:GetSAMLProvider",
+			"iam:CreateSAMLProvider",
+
+			// ListProvisionedRoles
+			"iam:ListRoles",
+		},
+		Resources: allResources,
+	}
+}
+
+// StatementForAWSRolesAnywhereSyncRoleTrustRelationship returns the Trust Relationship which allows its usage from the given Trust Anchor ARN.
+// See https://docs.aws.amazon.com/rolesanywhere/latest/userguide/getting-started.html#getting-started-step2
+func StatementForAWSRolesAnywhereSyncRoleTrustRelationship(region, accountID, trustAnchorID string) *Statement {
+	return &Statement{
+		Effect: EffectAllow,
+		Actions: SliceOrString{
+			"sts:AssumeRole",
+			"sts:SetSourceIdentity",
+			"sts:TagSession",
+		},
+		Principals: map[string]SliceOrString{
+			"Service": []string{"rolesanywhere.amazonaws.com"},
+		},
+		Conditions: map[string]StringOrMap{
+			"ArnEquals": {
+				"aws:SourceArn": []string{
+					fmt.Sprintf("arn:aws:rolesanywhere:%s:%s:trust-anchor/%s", region, accountID, trustAnchorID),
+				},
+			},
+		},
+	}
+}
+
+// StatementForAWSRolesAnywhereSyncRolePolicy returns the policy required to perform the sync operation, which imports Roles Anywhere Profiles into Teleport AWS Apps.
+func StatementForAWSRolesAnywhereSyncRolePolicy() *Statement {
+	return &Statement{
+		Effect: EffectAllow,
+		Actions: SliceOrString{
+			"rolesanywhere:ListProfiles",
+			"rolesanywhere:ListTagsForResource",
+			"rolesanywhere:ImportCrl",
+			"iam:GetRole",
+		},
+		Resources: allResources,
+	}
+}
+
+// StatementForBedrockSessionSummaries returns the statement that allows invoking AWS Bedrock models
+// for the Session Summaries feature. The resource parameter can be either:
+// - A full ARN (e.g., "arn:aws:bedrock:us-east-1:123456789012:foundation-model/anthropic.claude-v2" or app inference profile)
+// - A model ID (e.g., "anthropic.claude-v2" or "*"), which will be converted to an ARN with wildcard region
+func StatementForBedrockSessionSummaries(accountID, resource string) *Statement {
+	var resourceARN string
+
+	// Check if the resource is already an ARN
+	if parsedARN, err := arn.Parse(resource); err == nil && parsedARN.Service == "bedrock" || resource == types.Wildcard {
+		resourceARN = resource
+	} else {
+		// If it's a model ID, create an ARN with wildcard region
+		resourceARN = fmt.Sprintf("arn:aws:bedrock:*:%s:foundation-model/%s", accountID, resource)
+	}
+
+	return &Statement{
+		Effect: EffectAllow,
+		Actions: SliceOrString{
+			"bedrock:InvokeModel",
+			// we don't use it yet, but we might in the future
+			"bedrock:InvokeModelWithResponseStream",
+		},
+		Resources: SliceOrString{resourceARN},
 	}
 }

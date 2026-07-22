@@ -16,11 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-import { Flex } from 'design';
-import { createMemoryHistory } from 'history';
-import { Router, Route } from 'react-router';
 import { http, HttpResponse } from 'msw';
+import { useState } from 'react';
+import { MemoryRouter, Route, Routes } from 'react-router';
+
+import { Flex } from 'design';
 
 import cfg from 'teleport/config';
 
@@ -60,41 +60,37 @@ ConsoleStory.parameters = {
 };
 
 export function TestLayout(props: PropType) {
-  const [context] = React.useState((): ConsoleContext => {
+  const [context] = useState((): ConsoleContext => {
     return props.ctx || new ConsoleContext();
   });
 
-  const [history] = React.useState((): any => {
-    const history =
-      props.history ||
-      createMemoryHistory({
-        initialEntries: ['/clusterX'],
-        initialIndex: 0,
-      });
-
-    return history;
-  });
+  const initialEntries = props.initialEntries || ['/clusterX'];
 
   return (
-    <Router history={history}>
-      <Route path="/:clusterId">
-        <ConsoleContextProvider value={context}>
-          <Flex
-            m={-3}
-            style={{ position: 'absolute' }}
-            width="100%"
-            height="100%"
-          >
-            {props.children}
-          </Flex>
-        </ConsoleContextProvider>
-      </Route>
-    </Router>
+    <MemoryRouter initialEntries={initialEntries}>
+      <Routes>
+        <Route
+          path="/:clusterId"
+          element={
+            <ConsoleContextProvider value={context}>
+              <Flex
+                m={-3}
+                style={{ position: 'absolute' }}
+                width="100%"
+                height="100%"
+              >
+                {props.children}
+              </Flex>
+            </ConsoleContextProvider>
+          }
+        />
+      </Routes>
+    </MemoryRouter>
   );
 }
 
 type PropType = {
   children: any;
   ctx?: ConsoleContext;
-  history?: History;
+  initialEntries?: string[];
 };

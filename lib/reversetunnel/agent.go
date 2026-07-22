@@ -16,10 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// Package reversetunnel sets up persistent reverse tunnel
-// between remote site and teleport proxy, when site agents
-// dial to teleport proxy's socket and teleport proxy can connect
-// to any server through this tunnel.
+// Package reversetunnel sets up persistent reverse tunnels
+// from proxies in leaf clusters and agents in the local cluster
+// with the local cluster proxy.
 package reversetunnel
 
 import (
@@ -27,21 +26,25 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/defaults"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnel/track"
 	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 type AgentState string
@@ -90,6 +93,10 @@ type SSHClient interface {
 	GlobalRequests() <-chan *ssh.Request
 	HandleChannelOpen(channelType string) <-chan ssh.NewChannel
 	Reply(*ssh.Request, bool, []byte) error
+
+	// TODO(okraport): DELETE IN v21.0.0 This callback is a temporary workaround during the migration while
+	// older Teleport versions do not support keepalive messages on reverse tunnel servers.
+	EnableWatchdog(timeout time.Duration)
 }
 
 // agentConfig represents an agent configuration.
@@ -98,6 +105,9 @@ type agentConfig struct {
 	addr utils.NetAddr
 	// keepAlive is the interval at which the agent will send heartbeats.
 	keepAlive time.Duration
+	// keepAliveCount specifies the amount of missed ping heartbeats
+	// to wait for before declaring the connection as broken.
+	keepAliveCount int
 	// stateCallback is called each time the state changes.
 	stateCallback AgentStateCallback
 	// sshDialer creates a new ssh connection.
@@ -113,13 +123,15 @@ type agentConfig struct {
 	// clock is use to get the current time. Mock clocks can be used for
 	// testing.
 	clock clockwork.Clock
-	// log is an optional logger.
-	log logrus.FieldLogger
+	// logger is an optional logger.
+	logger *slog.Logger
 	// localAuthAddresses is a list of auth servers to use when dialing back to
 	// the local cluster.
 	localAuthAddresses []string
 	// proxySigner is used to sign PROXY headers for securely propagating client IP address
 	proxySigner multiplexer.PROXYHeaderSigner
+	// staleConnTimeoutDisabled is true if connection timeouts are disabled.
+	staleConnTimeoutDisabled bool
 }
 
 // checkAndSetDefaults ensures an agentConfig contains required parameters.
@@ -145,12 +157,20 @@ func (c *agentConfig) checkAndSetDefaults() error {
 	if c.clock == nil {
 		c.clock = clockwork.NewRealClock()
 	}
-	if c.log == nil {
-		c.log = logrus.New()
+	if c.logger == nil {
+		c.logger = slog.Default()
 	}
-	c.log = c.log.
-		WithField("leaseID", c.lease.ID()).
-		WithField("target", c.addr.String())
+	if c.keepAliveCount == 0 {
+		c.keepAliveCount = defaults.KeepAliveCountMax
+	}
+	if c.keepAlive == 0 {
+		c.keepAlive = defaults.KeepAliveInterval()
+	}
+
+	c.logger = c.logger.With(
+		"lease_id", c.lease.ID(),
+		"target", c.addr.String(),
+	)
 
 	return nil
 }
@@ -171,8 +191,6 @@ type agent struct {
 	doneConnecting chan struct{}
 	// hbChannel is the channel heartbeats are sent over.
 	hbChannel *tracessh.Channel
-	// hbRequests are requests going over the heartbeat channel.
-	hbRequests <-chan *ssh.Request
 	// discoveryC receives new discovery channels.
 	discoveryC <-chan ssh.NewChannel
 	// transportC receives new tranport channels.
@@ -192,6 +210,9 @@ type agent struct {
 	drainWG sync.WaitGroup
 	// proxySigner is used to sign PROXY headers for securely propagating client IP address
 	proxySigner multiplexer.PROXYHeaderSigner
+	// smoothedRTT estimates the roundtrip time for keep alive requests using
+	// rolling average weighted towards more recent measurements.
+	smoothedRTT time.Duration
 }
 
 // newAgent intializes a reverse tunnel agent.
@@ -229,6 +250,15 @@ func (a *agent) GetProxyID() (string, bool) {
 		return "", false
 	}
 	return proxyIDFromPrincipals(a.client.Principals())
+}
+
+func (a *agent) RTT() (time.Duration, bool) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.smoothedRTT == 0 {
+		return 0, false
+	}
+	return a.smoothedRTT, true
 }
 
 // proxyIDFromPrincipals gets the proxy id from a list of principals.
@@ -284,7 +314,10 @@ func (a *agent) updateState(state AgentState) (AgentState, error) {
 
 	prevState := a.state
 	a.state = state
-	a.log.Debugf("Changing state %s -> %s.", prevState, state)
+	a.logger.DebugContext(a.ctx, "Agent state updated",
+		"previous_state", prevState,
+		"current_state", state,
+	)
 
 	if a.agentConfig.stateCallback != nil {
 		go a.agentConfig.stateCallback(a.state)
@@ -296,7 +329,7 @@ func (a *agent) updateState(state AgentState) (AgentState, error) {
 // Start starts an agent returning after successfully connecting and sending
 // the first heartbeat.
 func (a *agent) Start(ctx context.Context) error {
-	a.log.Debugf("Starting agent %v", a.addr)
+	a.logger.DebugContext(ctx, "Starting agent", "addr", a.addr.FullAddress())
 
 	var err error
 	defer func() {
@@ -325,7 +358,7 @@ func (a *agent) Start(ctx context.Context) error {
 	a.wg.Add(1)
 	go func() {
 		if err := a.handleGlobalRequests(a.ctx, a.client.GlobalRequests()); err != nil {
-			a.log.WithError(err).Debug("Failed to handle global requests.")
+			a.logger.DebugContext(a.ctx, "Failed to handle global requests", "error", err)
 		}
 		a.wg.Done()
 		a.Stop()
@@ -335,9 +368,11 @@ func (a *agent) Start(ctx context.Context) error {
 	a.drainWG.Add(1)
 	a.wg.Add(1)
 	go func() {
-		if err := a.handleDrainChannels(); err != nil {
-			a.log.WithError(err).Debug("Failed to handle drainable channels.")
+		drainWGDone := sync.OnceFunc(a.drainWG.Done)
+		if err := a.handleDrainChannels(drainWGDone); err != nil {
+			a.logger.DebugContext(a.ctx, "Failed to handle drainable channels", "error", err)
 		}
+		drainWGDone()
 		a.wg.Done()
 		a.Stop()
 	}()
@@ -345,7 +380,16 @@ func (a *agent) Start(ctx context.Context) error {
 	a.wg.Add(1)
 	go func() {
 		if err := a.handleChannels(); err != nil {
-			a.log.WithError(err).Debug("Failed to handle channels.")
+			a.logger.DebugContext(a.ctx, "Failed to handle channels", "error", err)
+		}
+		a.wg.Done()
+		a.Stop()
+	}()
+
+	a.wg.Add(1)
+	go func() {
+		if err := a.sendKeepalives(); err != nil {
+			a.logger.DebugContext(a.ctx, "Failed to send keepalive", "error", err)
 		}
 		a.wg.Done()
 		a.Stop()
@@ -399,6 +443,13 @@ func (a *agent) connect() error {
 	return nil
 }
 
+// sendHeartbeat sends a ping message to the configured heartbeat channel.
+func (a *agent) sendHeartbeat(ctx context.Context) error {
+	bytes, _ := a.clock.Now().UTC().MarshalText()
+	_, err := a.hbChannel.SendRequest(ctx, "ping", false, bytes)
+	return trace.Wrap(err)
+}
+
 // sendFirstHeartbeat opens the heartbeat channel and sends the first
 // heartbeat.
 func (a *agent) sendFirstHeartbeat(ctx context.Context) error {
@@ -406,13 +457,14 @@ func (a *agent) sendFirstHeartbeat(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	sshutils.DiscardChannelData(channel)
+	go ssh.DiscardRequests(requests)
 
 	a.hbChannel = channel
-	a.hbRequests = requests
 
 	// Send the first ping right away.
-	if _, err := a.hbChannel.SendRequest(ctx, "ping", false, nil); err != nil {
+	if err := a.sendHeartbeat(ctx); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -450,9 +502,8 @@ func (a *agent) Stop() error {
 func (a *agent) handleGlobalRequests(ctx context.Context, requests <-chan *ssh.Request) error {
 	for {
 		select {
-		case r := <-requests:
-			// The request will be nil when the request channel is closing.
-			if r == nil {
+		case r, ok := <-requests:
+			if !ok {
 				return trace.Errorf("global request channel is closing")
 			}
 
@@ -460,23 +511,23 @@ func (a *agent) handleGlobalRequests(ctx context.Context, requests <-chan *ssh.R
 			case versionRequest:
 				version, err := a.versionGetter.getVersion(ctx)
 				if err != nil {
-					a.log.WithError(err).Warnf("Failed to retrieve auth version in response to %v request.", r.Type)
+					a.logger.WarnContext(ctx, "Failed to retrieve auth version in response to x-teleport-version request", "error", err)
 					if err := a.client.Reply(r, false, []byte("Failed to retrieve auth version")); err != nil {
-						a.log.Debugf("Failed to reply to %v request: %v.", r.Type, err)
+						a.logger.DebugContext(ctx, "Failed to reply to x-teleport-version request", "error", err)
 						continue
 					}
 				}
 
 				if err := a.client.Reply(r, true, []byte(version)); err != nil {
-					a.log.Debugf("Failed to reply to %v request: %v.", r.Type, err)
+					a.logger.DebugContext(ctx, "Failed to reply to x-teleport-version request", "error", err)
 					continue
 				}
 			case reconnectRequest:
-				a.log.Debugf("Received reconnect advisory request from proxy.")
+				a.logger.DebugContext(ctx, "Received reconnect advisory request from proxy")
 				if r.WantReply {
 					err := a.client.Reply(r, true, nil)
 					if err != nil {
-						a.log.Debugf("Failed to reply to %v request: %v.", r.Type, err)
+						a.logger.DebugContext(ctx, "Failed to reply to reconnect@goteleport.com request", "error", err)
 					}
 				}
 
@@ -487,7 +538,7 @@ func (a *agent) handleGlobalRequests(ctx context.Context, requests <-chan *ssh.R
 				// This handles keep-alive messages and matches the behavior of OpenSSH.
 				err := a.client.Reply(r, false, nil)
 				if err != nil {
-					a.log.Debugf("Failed to reply to %v request: %v.", r.Type, err)
+					a.logger.DebugContext(ctx, "Failed to reply to global request", "request_type", r.Type, "error", err)
 					continue
 				}
 			}
@@ -497,85 +548,58 @@ func (a *agent) handleGlobalRequests(ctx context.Context, requests <-chan *ssh.R
 	}
 }
 
-func (a *agent) isDraining() bool {
-	return a.drainCtx.Err() != nil
-}
-
-// signalDraining will signal one time when the draining context is canceled.
-func (a *agent) signalDraining() <-chan struct{} {
-	c := make(chan struct{})
-	a.wg.Add(1)
-	go func() {
-		<-a.drainCtx.Done()
-		close(c)
-		a.wg.Done()
-	}()
-
-	return c
-}
-
 // handleDrainChannels handles channels that should be stopped when the agent is draining.
-func (a *agent) handleDrainChannels() error {
-	ticker := time.NewTicker(a.keepAlive)
+func (a *agent) handleDrainChannels(drainWGDone func()) error {
+	ticker := a.clock.NewTicker(a.keepAlive)
 	defer ticker.Stop()
 
-	// once ensures drainWG.Done() is called one more time
-	// after no more transports will be created.
-	once := &sync.Once{}
-	drainWGDone := func() {
-		once.Do(func() {
-			a.drainWG.Done()
-		})
-	}
-	defer drainWGDone()
-	drainSignal := a.signalDraining()
+	drainCtxDone := a.drainCtx.Done()
 
 	for {
-		if a.isDraining() {
-			drainWGDone()
-		}
-
 		select {
 		case <-a.ctx.Done():
 			return nil
-		// Signal once when the drain context is canceled to ensure we unblock
-		// to call drainWG.Done().
-		case <-drainSignal:
-			continue
-		// Handle closed heartbeat channel.
-		case req := <-a.hbRequests:
-			if req == nil {
-				return trace.ConnectionProblem(nil, "heartbeat: connection closed")
-			}
+		case <-drainCtxDone:
+			// we synchronously do this here rather than using
+			// [context.AfterFunc] so we don't accidentally increase drainWG
+			// from 0 while something else might already be waiting
+			drainWGDone()
+			// don't re-enter this case of the select
+			drainCtxDone = nil
+			// for good measure
+			ticker.Stop()
 		// Send ping over heartbeat channel.
-		case <-ticker.C:
-			if a.isDraining() {
+		case <-ticker.Chan():
+			if a.drainCtx.Err() != nil {
 				continue
 			}
-			bytes, _ := a.clock.Now().UTC().MarshalText()
-			_, err := a.hbChannel.SendRequest(a.ctx, "ping", false, bytes)
-			if err != nil {
-				a.log.Error(err)
+			if err := a.sendHeartbeat(a.ctx); err != nil {
+				a.logger.ErrorContext(a.ctx, "failed to send ping request", "error", err)
 				return trace.Wrap(err)
 			}
-			a.log.Debugf("Ping -> %v.", a.client.RemoteAddr())
+			a.logger.DebugContext(a.ctx, "Sent ping request", "target_addr", logutils.StringerAttr(a.client.RemoteAddr()))
 		// Handle transport requests.
-		case nch := <-a.transportC:
-			if nch == nil {
-				continue
+		case nch, ok := <-a.transportC:
+			if !ok {
+				return trace.ConnectionProblem(nil, "transport: connection closed")
 			}
-			if a.isDraining() {
+
+			// once drainWGDone is called we can't add to the drain waitgroup so
+			// we have to reject transport requests beforehand; it gets called
+			// in this loop after drainCtx is done, so checking for the context
+			// error here is a stronger condition
+			if a.drainCtx.Err() != nil {
 				err := nch.Reject(ssh.ConnectionFailed, "agent connection is draining")
 				if err != nil {
-					a.log.WithError(err).Warningf("Failed to reject transport channel.")
+					a.logger.WarnContext(a.ctx, "Failed to reject transport channel", "error", err)
 				}
 				continue
 			}
 
-			a.log.Debugf("Transport request: %v.", nch.ChannelType())
+			a.logger.DebugContext(a.ctx, "Received transport request", "channel_type", nch.ChannelType())
 			ch, req, err := nch.Accept()
 			if err != nil {
-				a.log.Warningf("Failed to accept transport request: %v.", err)
+				a.logger.WarnContext(a.ctx, "Failed to accept transport request", "error", err)
 				continue
 			}
 
@@ -597,14 +621,14 @@ func (a *agent) handleChannels() error {
 		case <-a.ctx.Done():
 			return nil
 		// new discovery request channel
-		case nch := <-a.discoveryC:
-			if nch == nil {
-				continue
+		case nch, ok := <-a.discoveryC:
+			if !ok {
+				return nil
 			}
-			a.log.Debugf("Discovery request channel opened: %v.", nch.ChannelType())
+			a.logger.DebugContext(a.ctx, "Discovery request channel opened", "channel_type", nch.ChannelType())
 			ch, req, err := nch.Accept()
 			if err != nil {
-				a.log.Warningf("Failed to accept discovery channel request: %v.", err)
+				a.logger.WarnContext(a.ctx, "Failed to accept discovery channel request", "error", err)
 				continue
 			}
 
@@ -617,6 +641,71 @@ func (a *agent) handleChannels() error {
 	}
 }
 
+// sendKeepalives sends keepalive requests to the server at regular intervals configured by [agent.keepAlive].
+//
+// It's possible on older servers that the keepalive request is not supported, the SendRequest will block until until
+// connection is destroyed. If the server responds successfully and the watchdog is configured, the watchdog will then
+// be enabled.
+func (a *agent) sendKeepalives() error {
+	first := true
+	ticker := a.clock.NewTimer(0)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-a.ctx.Done():
+			return nil
+		case <-ticker.Chan():
+		}
+
+		const wantReplyTrue = true
+		now := a.clock.Now()
+		_, _, err := a.client.SendRequest(a.ctx, teleport.KeepAliveReqType, wantReplyTrue, nil)
+		ticker.Reset(retryutils.SeventhJitter(a.keepAlive))
+		if err != nil {
+			if !utils.IsOKNetworkError(err) {
+				a.logger.WarnContext(
+					a.ctx,
+					"Failed to send keepalive request",
+					"target_addr",
+					logutils.StringerAttr(a.client.RemoteAddr()),
+					"error",
+					err,
+				)
+			}
+			return trace.Wrap(err, "failed to send keepalive request")
+		}
+
+		a.mu.Lock()
+		a.smoothedRTT = calculateSmoothedRTT(a.smoothedRTT, a.clock.Since(now))
+		a.logger.DebugContext(a.ctx, "Computed new SRTT", "srtt", a.smoothedRTT.String())
+		a.mu.Unlock()
+
+		if !first {
+			continue
+		}
+		first = false
+
+		if a.staleConnTimeoutDisabled {
+			continue
+		}
+
+		// If the connection has no activity within [a.keepAliveCount] heartbeat intervals, then the connection
+		// will be terminated.
+		timeout := a.keepAlive * time.Duration(a.keepAliveCount)
+		a.client.EnableWatchdog(timeout)
+		a.logger.InfoContext(
+			a.ctx,
+			"Keepalive successful, arming watchdog",
+			"target_addr",
+			logutils.StringerAttr(a.client.RemoteAddr()),
+			"timeout",
+			logutils.StringerAttr(timeout),
+		)
+
+	}
+}
+
 // handleDiscovery receives discovery requests from the reverse tunnel
 // server, that informs agent about proxies registered in the remote
 // cluster and the reverse tunnels already established
@@ -624,11 +713,11 @@ func (a *agent) handleChannels() error {
 // ch   : SSH channel which received "teleport-transport" out-of-band request
 // reqC : request payload
 func (a *agent) handleDiscovery(ch ssh.Channel, reqC <-chan *ssh.Request) {
-	a.log.Debugf("handleDiscovery requests channel.")
+	a.logger.DebugContext(a.ctx, "handleDiscovery requests channel")
 	sshutils.DiscardChannelData(ch)
 	defer func() {
 		if err := ch.Close(); err != nil {
-			a.log.Warnf("Failed to close discovery channel: %v", err)
+			a.logger.WarnContext(a.ctx, "Failed to close discovery channel", "error", err)
 		}
 	}()
 
@@ -639,20 +728,34 @@ func (a *agent) handleDiscovery(ch ssh.Channel, reqC <-chan *ssh.Request) {
 			return
 		case req = <-reqC:
 			if req == nil {
-				a.log.Infof("Connection closed, returning")
+				a.logger.InfoContext(a.ctx, "Connection closed, returning")
 				return
 			}
 
 			var r discoveryRequest
 			if err := json.Unmarshal(req.Payload, &r); err != nil {
-				a.log.WithError(err).Warn("Bad payload")
+				a.logger.WarnContext(a.ctx, "Received discovery request with bad payload", "error", err)
 				return
 			}
 
-			a.log.Debugf("Received discovery request: %s", &r)
+			a.logger.DebugContext(a.ctx, "Received discovery request", "discovery_request", logutils.StringerAttr(&r))
 			a.tracker.TrackExpected(r.TrackProxies()...)
 		}
 	}
+}
+
+// calculateSmoothedRTT computes a weighted average of the previous smoothed
+// round trip time and a new round trip time measurement. The new measurement
+// has a weight of 1/8 to avoid overreacting to temporary network jitter.
+func calculateSmoothedRTT(srtt time.Duration, rtt time.Duration) time.Duration {
+	if srtt == 0 {
+		return rtt
+	}
+	const (
+		newRttWeight    = 1
+		smoothingFactor = 8
+	)
+	return ((smoothingFactor-newRttWeight)*srtt + newRttWeight*rtt) / smoothingFactor
 }
 
 const (

@@ -108,6 +108,19 @@ proxy cluster1 db2  describe db2 mysql    self-hosted localhost:3306 [alice]    
 
 `,
 		},
+		{
+			name: "tsh db exec search results",
+			cfg: printDatabaseTableConfig{
+				rows:           rows,
+				includeColumns: []string{"Name", "Protocol", "Description", "Labels"},
+			},
+			expect: `Name Description  Protocol Labels   
+---- ------------ -------- -------- 
+db1  describe db1 postgres Env=dev  
+db2  describe db2 mysql    Env=prod 
+
+`,
+		},
 	}
 
 	for _, test := range tests {

@@ -1,0 +1,240 @@
+/*
+ * Teleport
+ * Copyright (C) 2025  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+package recordingmetadatav1
+
+import (
+	"bufio"
+	"bytes"
+	"context"
+	"errors"
+	"io"
+	"log/slog"
+
+	"github.com/gravitational/trace"
+	"google.golang.org/grpc"
+	"google.golang.org/protobuf/proto"
+
+	"github.com/gravitational/teleport"
+	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingmetadata/v1"
+	"github.com/gravitational/teleport/lib/auth/recordingencryption"
+	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/player"
+	"github.com/gravitational/teleport/lib/session"
+)
+
+// Service implements the RecordingMetadataServiceServer interface, providing methods to retrieve session recording
+// metadata and thumbnails.
+type Service struct {
+	pb.UnimplementedRecordingMetadataServiceServer
+
+	authorizer      Authorizer
+	streamer        player.Streamer
+	downloadHandler DownloadHandler
+	decrypter       events.DecryptionWrapper
+	logger          *slog.Logger
+}
+
+// Authorizer is an interface that defines the method for authorizing access to session recordings.
+type Authorizer interface {
+	// Authorize checks if the user has permission to access the session recording, called with the session ID.
+	Authorize(context.Context, string) error
+}
+
+// DownloadHandler downloads session recording metadata and thumbnails.
+type DownloadHandler interface {
+	// StreamSessionMetadata downloads session metadata and returns a ReadCloser for the content.
+	StreamSessionMetadata(ctx context.Context, sessionID session.ID) (io.ReadCloser, error)
+	// StreamSessionThumbnail downloads a session thumbnail and returns a ReadCloser for the content.
+	StreamSessionThumbnail(ctx context.Context, sessionID session.ID) (io.ReadCloser, error)
+}
+
+// ServiceConfig holds the configuration for the recording metadata service.
+type ServiceConfig struct {
+	// Authorizer is used to check if the user has permission to access the session recording.
+	Authorizer Authorizer
+	// Streamer is used to stream session recordings.
+	Streamer player.Streamer
+	// DownloadHandler is used to handle uploads and downloads of session recording metadata and thumbnails.
+	DownloadHandler DownloadHandler
+	// Decrypter is used to decrypt session metadata and thumbnails.
+	Decrypter events.DecryptionWrapper
+}
+
+// NewService creates a new instance of the recording metadata service.
+func NewService(cfg ServiceConfig) (*Service, error) {
+	if cfg.Authorizer == nil {
+		return nil, trace.BadParameter("authorizer is required")
+	}
+	if cfg.DownloadHandler == nil {
+		return nil, trace.BadParameter("upload handler is required")
+	}
+
+	return &Service{
+		authorizer:      cfg.Authorizer,
+		streamer:        cfg.Streamer,
+		downloadHandler: cfg.DownloadHandler,
+		logger:          slog.With(teleport.ComponentKey, "recording_metadata"),
+		decrypter:       cfg.Decrypter,
+	}, nil
+}
+
+// GetThumbnail retrieves the thumbnail for a session recording.
+func (r *Service) GetThumbnail(ctx context.Context, req *pb.GetThumbnailRequest) (*pb.GetThumbnailResponse, error) {
+	// Authorize will have checked the session end event to ensure the user has access to the session recording.
+	if err := r.authorizer.Authorize(ctx, req.GetSessionId()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	rc, err := r.downloadHandler.StreamSessionThumbnail(ctx, session.ID(req.GetSessionId()))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rc.Close()
+
+	payload, err := r.decryptIfNeeded(ctx, rc)
+	if err != nil {
+		return nil, trace.Wrap(err, "decrypting session recording thumbnail")
+	}
+
+	thumbnail := &pb.SessionRecordingThumbnail{}
+	err = proto.Unmarshal(payload, thumbnail)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return pb.GetThumbnailResponse_builder{Thumbnail: thumbnail}.Build(), nil
+}
+
+// GetMetadata retrieves the metadata for a session recording, streaming it back in chunks (one for metadata and one
+// for each frame).
+func (r *Service) GetMetadata(req *pb.GetMetadataRequest, stream grpc.ServerStreamingServer[pb.GetMetadataResponseChunk]) error {
+	// Authorize will have checked the session end event to ensure the user has access to the session recording.
+	if err := r.authorizer.Authorize(stream.Context(), req.GetSessionId()); err != nil {
+		return trace.Wrap(err)
+	}
+
+	rc, err := r.downloadHandler.StreamSessionMetadata(stream.Context(), session.ID(req.GetSessionId()))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer rc.Close()
+
+	payload, err := r.decryptIfNeeded(stream.Context(), rc)
+	if err != nil {
+		return trace.Wrap(err, "decrypting session recording thumbnail")
+	}
+	reader := bufio.NewReader(bytes.NewReader(payload))
+
+	for {
+		msgBytes, err := readDelimitedMessage(reader)
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				break
+			}
+			r.logger.ErrorContext(stream.Context(), "Failed to read delimited message",
+				"session_id", req.GetSessionId(), "error", err)
+			return trace.Wrap(err)
+		}
+
+		// Try to decode as metadata
+		metadata := &pb.SessionRecordingMetadata{}
+		if err := proto.Unmarshal(msgBytes, metadata); err == nil {
+			metadataChunk := pb.GetMetadataResponseChunk_builder{
+				Metadata: proto.ValueOrDefault(metadata),
+			}.Build()
+
+			if err := stream.Send(metadataChunk); err != nil {
+				if !errors.Is(err, io.EOF) {
+					r.logger.ErrorContext(stream.Context(), "Failed to send session recording metadata",
+						"session_id", req.GetSessionId(), "error", err)
+				}
+				return trace.Wrap(err)
+			}
+
+			continue
+		}
+
+		// Try to decode as thumbnail
+		thumbnail := &pb.SessionRecordingThumbnail{}
+		if err := proto.Unmarshal(msgBytes, thumbnail); err == nil {
+			frameChunk := pb.GetMetadataResponseChunk_builder{
+				Frame: proto.ValueOrDefault(thumbnail),
+			}.Build()
+
+			if err := stream.Send(frameChunk); err != nil {
+				if !errors.Is(err, io.EOF) {
+					r.logger.ErrorContext(stream.Context(), "Failed to send session recording thumbnail",
+						"session_id", req.GetSessionId(), "error", err)
+				}
+				return trace.Wrap(err)
+			}
+
+			continue
+		}
+
+		r.logger.ErrorContext(stream.Context(), "Failed to parse message as metadata or thumbnail",
+			"session_id", req.GetSessionId())
+
+		return trace.Errorf("unable to parse message as metadata or thumbnail")
+	}
+
+	return nil
+}
+
+// readDelimitedMessage reads a varint-prefixed protobuf message from the reader
+// and returns the raw message bytes.
+func readDelimitedMessage(r *bufio.Reader) ([]byte, error) {
+	var length uint64
+
+	// Read varint length prefix
+	for shift := uint(0); ; shift += 7 {
+		if shift >= 64 {
+			return nil, trace.BadParameter("varint too long")
+		}
+
+		b, err := r.ReadByte()
+		if err != nil {
+			return nil, err
+		}
+
+		length |= uint64(b&0x7F) << shift // Append 7 bits to length
+
+		if b&0x80 == 0 {
+			// MSB not set, end of varint
+			break
+		}
+	}
+
+	msgBytes := make([]byte, length)
+	if _, err := io.ReadFull(r, msgBytes); err != nil {
+		return nil, err
+	}
+
+	return msgBytes, nil
+}
+
+// decryptIfNeeded decrypts the reader if it is encrypted. If the data is not encrypted, it is returned as-is.
+func (r *Service) decryptIfNeeded(ctx context.Context, reader io.ReadCloser) ([]byte, error) {
+	decrypted, err := recordingencryption.DecryptReaderIfEncrypted(ctx, reader, r.decrypter)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to create decrypt reader")
+	}
+	decryptedData, err := io.ReadAll(decrypted)
+	return decryptedData, trace.Wrap(err)
+}

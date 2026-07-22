@@ -1,8 +1,0 @@
-extends: substitution
-message: "Incorrect example of a Teleport account URL. Use %s instead of %s."
-level: error
-scope:
- - raw
-ignorecase: true
-swap:
-  - 'https://(?!status|example)\w+.teleport\.sh': 'example.teleport.sh (or status.teleport.sh for the status page)'

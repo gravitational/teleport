@@ -32,6 +32,7 @@ func TestIssuerFromPublicAddress(t *testing.T) {
 	for _, tt := range []struct {
 		name     string
 		addr     string
+		path     string
 		expected string
 	}{
 		{
@@ -40,9 +41,21 @@ func TestIssuerFromPublicAddress(t *testing.T) {
 			expected: "https://127.0.0.1.nip.io:3080",
 		},
 		{
+			name:     "valid host:port with path",
+			addr:     "127.0.0.1.nip.io:3080",
+			path:     "/workload-identity",
+			expected: "https://127.0.0.1.nip.io:3080/workload-identity",
+		},
+		{
 			name:     "valid ip:port",
 			addr:     "127.0.0.1:3080",
 			expected: "https://127.0.0.1:3080",
+		},
+		{
+			name:     "valid ip:port with path",
+			addr:     "127.0.0.1:3080",
+			path:     "/workload-identity",
+			expected: "https://127.0.0.1:3080/workload-identity",
 		},
 		{
 			name:     "removes 443 port",
@@ -54,9 +67,15 @@ func TestIssuerFromPublicAddress(t *testing.T) {
 			addr:     "localhost",
 			expected: "https://localhost",
 		},
+		{
+			name:     "only host with path",
+			addr:     "localhost",
+			path:     "/workload-identity",
+			expected: "https://localhost/workload-identity",
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := IssuerFromPublicAddress(tt.addr)
+			got, err := IssuerFromPublicAddress(tt.addr, tt.path)
 			require.NoError(t, err)
 			require.Equal(t, tt.expected, got)
 		})
@@ -75,10 +94,18 @@ func (m *mockProxyGetter) GetProxies() ([]types.Server, error) {
 	return m.proxies, nil
 }
 
+func (m *mockProxyGetter) ListProxyServers(_ context.Context, _ int, _ string) ([]types.Server, string, error) {
+	if m.returnErr != nil {
+		return nil, "", m.returnErr
+	}
+	return m.proxies, "", nil
+}
+
 func TestIssuerForCluster(t *testing.T) {
 	ctx := context.Background()
 	for _, tt := range []struct {
 		name           string
+		paths          []string
 		mockProxies    []types.Server
 		mockErr        error
 		checkErr       require.ErrorAssertionFunc
@@ -92,6 +119,26 @@ func TestIssuerForCluster(t *testing.T) {
 				}},
 			},
 			expectedIssuer: "https://127.0.0.1.nip.io",
+		},
+		{
+			name:  "valid with subpath",
+			paths: []string{"/workload-identity"},
+			mockProxies: []types.Server{
+				&types.ServerV2{Spec: types.ServerSpecV2{
+					PublicAddrs: []string{"127.0.0.1.nip.io"},
+				}},
+			},
+			expectedIssuer: "https://127.0.0.1.nip.io/workload-identity",
+		},
+		{
+			name:  "valid with multiple subpath",
+			paths: []string{"aaa", "/bbb", "ccc"},
+			mockProxies: []types.Server{
+				&types.ServerV2{Spec: types.ServerSpecV2{
+					PublicAddrs: []string{"127.0.0.1.nip.io"},
+				}},
+			},
+			expectedIssuer: "https://127.0.0.1.nip.io/aaa/bbb/ccc",
 		},
 		{
 			name: "only the second server has a valid public address",
@@ -121,7 +168,7 @@ func TestIssuerForCluster(t *testing.T) {
 				proxies:   tt.mockProxies,
 				returnErr: tt.mockErr,
 			}
-			issuer, err := IssuerForCluster(ctx, clt)
+			issuer, err := IssuerForCluster(ctx, clt, tt.paths...)
 			if tt.checkErr != nil {
 				tt.checkErr(t, err)
 			}
@@ -132,10 +179,10 @@ func TestIssuerForCluster(t *testing.T) {
 	}
 }
 
-func badParameterCheck(t require.TestingT, err error, msgAndArgs ...interface{}) {
+func badParameterCheck(t require.TestingT, err error, msgAndArgs ...any) {
 	require.True(t, trace.IsBadParameter(err), `expected "bad parameter", but got %v`, err)
 }
 
-func notFoundCheck(t require.TestingT, err error, msgAndArgs ...interface{}) {
+func notFoundCheck(t require.TestingT, err error, msgAndArgs ...any) {
 	require.True(t, trace.IsNotFound(err), `expected "not found", but got %v`, err)
 }

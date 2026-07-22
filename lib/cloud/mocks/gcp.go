@@ -20,7 +20,8 @@ package mocks
 
 import (
 	"context"
-	"crypto/tls"
+	"crypto"
+	"slices"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -38,10 +39,15 @@ var _ gcp.SQLAdminClient = (*GCPSQLAdminClientMock)(nil)
 type GCPSQLAdminClientMock struct {
 	// DatabaseInstance is returned from GetDatabaseInstance.
 	DatabaseInstance *sqladmin.DatabaseInstance
+	// GetDatabaseInstanceError is returned from GetDatabaseInstance.
+	GetDatabaseInstanceError error
 	// EphemeralCert is returned from GenerateEphemeralCert.
-	EphemeralCert *tls.Certificate
+	EphemeralCert string
 	// DatabaseUser is returned from GetUser.
 	DatabaseUser *sqladmin.User
+	// DatabaseInstances is the set of instances; ListDatabaseInstances returns
+	// those whose Project matches the requested project ID.
+	DatabaseInstances []*sqladmin.DatabaseInstance
 }
 
 func (g *GCPSQLAdminClientMock) GetUser(ctx context.Context, db types.Database, dbUser string) (*sqladmin.User, error) {
@@ -56,11 +62,35 @@ func (g *GCPSQLAdminClientMock) UpdateUser(ctx context.Context, db types.Databas
 }
 
 func (g *GCPSQLAdminClientMock) GetDatabaseInstance(ctx context.Context, db types.Database) (*sqladmin.DatabaseInstance, error) {
-	return g.DatabaseInstance, nil
+	return g.DatabaseInstance, g.GetDatabaseInstanceError
 }
 
-func (g *GCPSQLAdminClientMock) GenerateEphemeralCert(ctx context.Context, db types.Database, certExpiry time.Time) (*tls.Certificate, error) {
+func (g *GCPSQLAdminClientMock) GenerateEphemeralCert(_ context.Context, _ types.Database, _ time.Time, _ crypto.PublicKey) (string, error) {
 	return g.EphemeralCert, nil
+}
+
+func (g *GCPSQLAdminClientMock) ListDatabaseInstances(ctx context.Context, projectID string, regions []string) ([]*sqladmin.DatabaseInstance, error) {
+	var instances []*sqladmin.DatabaseInstance
+	for _, instance := range g.DatabaseInstances {
+		if len(regions) == 0 || slices.Contains(regions, instance.Region) {
+			if instance.Project == projectID {
+				instances = append(instances, instance)
+			}
+		}
+	}
+	return instances, nil
+}
+
+var _ gcp.ProjectsClient = (*GCPProjectsClientMock)(nil)
+
+// GCPProjectsClientMock implements the gcp.ProjectsClient interface for tests.
+type GCPProjectsClientMock struct {
+	// Projects is returned from ListProjects.
+	Projects []gcp.Project
+}
+
+func (m *GCPProjectsClientMock) ListProjects(ctx context.Context) ([]gcp.Project, error) {
+	return m.Projects, nil
 }
 
 // GKEClusterEntry is an entry in the GKEMock.Clusters list.

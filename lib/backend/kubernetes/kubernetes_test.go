@@ -19,7 +19,6 @@
 package kubernetes
 
 import (
-	"context"
 	"testing"
 
 	"github.com/gravitational/trace"
@@ -47,16 +46,6 @@ func TestBackend_Exists(t *testing.T) {
 		want    bool
 		wantErr bool
 	}{
-		{
-			name: "secret does not exist",
-			fields: fields{
-				objects:     nil,
-				namespace:   "test",
-				replicaName: "agent-0",
-			},
-			want:    false,
-			wantErr: false,
-		},
 		{
 			name: "secret exists",
 			fields: fields{
@@ -94,6 +83,8 @@ func TestBackend_Exists(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			ctx := t.Context()
+
 			// set namespace env variable
 			if len(tt.fields.namespace) > 0 {
 				t.Setenv(NamespaceEnv, tt.fields.namespace)
@@ -104,15 +95,15 @@ func TestBackend_Exists(t *testing.T) {
 				t.Setenv(teleportReplicaNameEnv, tt.fields.replicaName)
 			}
 
-			k8sClient := fake.NewSimpleClientset(tt.fields.objects...)
-			b, err := NewWithClient(k8sClient)
+			k8sClient := fake.NewClientset(tt.fields.objects...)
+			b, err := NewWithClient(ctx, k8sClient)
 			if err != nil && !tt.wantErr {
 				require.NoError(t, err)
 			} else if err != nil && tt.wantErr {
 				return
 			}
 
-			require.Equal(t, tt.want, b.Exists(context.TODO()))
+			require.Equal(t, tt.want, b.Exists(ctx))
 		})
 	}
 }
@@ -142,7 +133,7 @@ func TestBackend_Get(t *testing.T) {
 	}
 
 	type args struct {
-		key []byte
+		key backend.Key
 	}
 
 	tests := []struct {
@@ -160,7 +151,7 @@ func TestBackend_Get(t *testing.T) {
 				replicaName: "agent-0",
 			},
 			args: args{
-				key: backend.Key("ids", "kube", "current"),
+				key: backend.NewKey("ids", "kube", "current"),
 			},
 			want: nil,
 
@@ -169,7 +160,7 @@ func TestBackend_Get(t *testing.T) {
 		{
 			name: "secret exists and key is present",
 			args: args{
-				key: backend.Key("ids", "kube", "current"),
+				key: backend.NewKey("ids", "kube", "current"),
 			},
 			fields: fields{
 				objects: []runtime.Object{
@@ -177,7 +168,7 @@ func TestBackend_Get(t *testing.T) {
 						"agent-0-state",
 						"test",
 						map[string][]byte{
-							backendKeyToSecret(backend.Key("ids", "kube", "current")): payloadTestData,
+							backendKeyToSecret(backend.NewKey("ids", "kube", "current")): payloadTestData,
 						},
 					),
 				},
@@ -189,7 +180,7 @@ func TestBackend_Get(t *testing.T) {
 		{
 			name: "secret exists and key is present but empty",
 			args: args{
-				key: backend.Key("ids", "kube", "current"),
+				key: backend.NewKey("ids", "kube", "current"),
 			},
 			fields: fields{
 				objects: []runtime.Object{
@@ -197,7 +188,7 @@ func TestBackend_Get(t *testing.T) {
 						"agent-0-state",
 						"test",
 						map[string][]byte{
-							backendKeyToSecret(backend.Key("ids", "kube", "current")): payloadEmpty,
+							backendKeyToSecret(backend.NewKey("ids", "kube", "current")): payloadEmpty,
 						},
 					),
 				},
@@ -210,7 +201,7 @@ func TestBackend_Get(t *testing.T) {
 		{
 			name: "secret exists but key not present",
 			args: args{
-				key: backend.Key("ids", "kube", "replacement"),
+				key: backend.NewKey("ids", "kube", "replacement"),
 			},
 			fields: fields{
 				objects: []runtime.Object{
@@ -218,7 +209,7 @@ func TestBackend_Get(t *testing.T) {
 						"agent-0-state",
 						"test",
 						map[string][]byte{
-							backendKeyToSecret(backend.Key("ids", "kube", "current")): payloadTestData,
+							backendKeyToSecret(backend.NewKey("ids", "kube", "current")): payloadTestData,
 						},
 					),
 				},
@@ -231,6 +222,8 @@ func TestBackend_Get(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			ctx := t.Context()
+
 			if len(tt.fields.namespace) > 0 {
 				t.Setenv(NamespaceEnv, tt.fields.namespace)
 			}
@@ -239,11 +232,11 @@ func TestBackend_Get(t *testing.T) {
 				t.Setenv(teleportReplicaNameEnv, tt.fields.replicaName)
 			}
 
-			k8sClient := fake.NewSimpleClientset(tt.fields.objects...)
-			b, err := NewWithClient(k8sClient)
+			k8sClient := fake.NewClientset(tt.fields.objects...)
+			b, err := NewWithClient(ctx, k8sClient)
 			require.NoError(t, err)
 
-			got, err := b.Get(context.TODO(), tt.args.key)
+			got, err := b.Get(ctx, tt.args.key)
 			if (err != nil) && (!trace.IsNotFound(err) || !tt.wantNotFound) {
 				require.NoError(t, err)
 				return
@@ -275,31 +268,10 @@ func TestBackend_Put(t *testing.T) {
 		want   *corev1.Secret
 	}{
 		{
-			name: "secret does not exist and should be created",
-			fields: fields{
-				objects:     nil,
-				namespace:   "test",
-				replicaName: "agent-0",
-			},
-			args: args{
-				item: backend.Item{
-					Key:   backend.Key("ids", "kube", "current"),
-					Value: payloadTestData,
-				},
-			},
-			want: newSecret(
-				"agent-0-state",
-				"test",
-				map[string][]byte{
-					backendKeyToSecret(backend.Key("ids", "kube", "current")): payloadTestData,
-				},
-			),
-		},
-		{
 			name: "secret exists and has keys",
 			args: args{
 				item: backend.Item{
-					Key:   backend.Key("ids", "kube", "current2"),
+					Key:   backend.NewKey("ids", "kube", "current2"),
 					Value: payloadTestData,
 				},
 			},
@@ -309,7 +281,7 @@ func TestBackend_Put(t *testing.T) {
 						"agent-0-state",
 						"test",
 						map[string][]byte{
-							backendKeyToSecret(backend.Key("ids", "kube", "current")): payloadTestData,
+							backendKeyToSecret(backend.NewKey("ids", "kube", "current")): payloadTestData,
 						},
 					),
 				},
@@ -320,14 +292,16 @@ func TestBackend_Put(t *testing.T) {
 				"agent-0-state",
 				"test",
 				map[string][]byte{
-					backendKeyToSecret(backend.Key("ids", "kube", "current")):  payloadTestData,
-					backendKeyToSecret(backend.Key("ids", "kube", "current2")): payloadTestData,
+					backendKeyToSecret(backend.NewKey("ids", "kube", "current")):  payloadTestData,
+					backendKeyToSecret(backend.NewKey("ids", "kube", "current2")): payloadTestData,
 				},
 			),
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			ctx := t.Context()
+
 			// set namespace env var
 			if len(tt.fields.namespace) > 0 {
 				t.Setenv(NamespaceEnv, tt.fields.namespace)
@@ -338,9 +312,12 @@ func TestBackend_Put(t *testing.T) {
 				t.Setenv(teleportReplicaNameEnv, tt.fields.replicaName)
 			}
 
-			k8sClient := fake.NewSimpleClientset(tt.fields.objects...)
+			for _, o := range tt.fields.objects {
+				o.(*corev1.Secret).ResourceVersion = "1"
+			}
+			k8sClient := fake.NewClientset(tt.fields.objects...)
 
-			b, err := NewWithClient(k8sClient)
+			b, err := NewWithClient(ctx, k8sClient)
 			require.NoError(t, err)
 
 			// k8s fake client does not support apply operations,
@@ -386,12 +363,14 @@ func TestBackend_Put(t *testing.T) {
 				},
 			)
 			// Put upserts the content in the secret
-			_, err = b.Put(context.TODO(), tt.args.item)
+			_, err = b.Put(ctx, tt.args.item)
 			require.NoError(t, err)
 
 			// get secret loads the kubernetes secret to compare.
-			got, err := b.getSecret(context.TODO())
+			got, err := b.getSecret(ctx)
 			require.NoError(t, err)
+			got.ResourceVersion = tt.want.ResourceVersion // ignore resource version
+			got.ManagedFields = tt.want.ManagedFields     // ignore ManagedFields
 			require.Equal(t, tt.want, got)
 		})
 	}

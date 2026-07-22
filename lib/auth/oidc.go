@@ -33,6 +33,7 @@ import (
 
 type OIDCService interface {
 	CreateOIDCAuthRequest(ctx context.Context, req types.OIDCAuthRequest) (*types.OIDCAuthRequest, error)
+	CreateOIDCAuthRequestForMFA(ctx context.Context, req types.OIDCAuthRequest) (*types.OIDCAuthRequest, error)
 	ValidateOIDCAuthCallback(ctx context.Context, q url.Values) (*authclient.OIDCAuthResponse, error)
 }
 
@@ -54,7 +55,7 @@ func (a *Server) UpsertOIDCConnector(ctx context.Context, connector types.OIDCCo
 			Name: connector.GetName(),
 		},
 	}); err != nil {
-		log.WithError(err).Warn("Failed to emit OIDC connector create event.")
+		a.logger.WarnContext(ctx, "Failed to emit OIDC connector create event", "error", err)
 	}
 
 	return upserted, nil
@@ -76,7 +77,7 @@ func (a *Server) UpdateOIDCConnector(ctx context.Context, connector types.OIDCCo
 			Name: connector.GetName(),
 		},
 	}); err != nil {
-		log.WithError(err).Warn("Failed to emit OIDC connector update event.")
+		a.logger.WarnContext(ctx, "Failed to emit OIDC connector update event", "error", err)
 	}
 
 	return updated, nil
@@ -98,7 +99,7 @@ func (a *Server) CreateOIDCConnector(ctx context.Context, connector types.OIDCCo
 			Name: connector.GetName(),
 		},
 	}); err != nil {
-		log.WithError(err).Warn("Failed to emit OIDC connector create event.")
+		a.logger.WarnContext(ctx, "Failed to emit OIDC connector create event", "error", err)
 	}
 
 	return created, nil
@@ -119,11 +120,13 @@ func (a *Server) DeleteOIDCConnector(ctx context.Context, connectorName string) 
 			Name: connectorName,
 		},
 	}); err != nil {
-		log.WithError(err).Warn("Failed to emit OIDC connector delete event.")
+		a.logger.WarnContext(ctx, "Failed to emit OIDC connector delete event", "error", err)
 	}
 	return nil
 }
 
+// CreateOIDCAuthRequest delegates the method call to the oidcAuthService if present,
+// or returns a NotImplemented error if not present.
 func (a *Server) CreateOIDCAuthRequest(ctx context.Context, req types.OIDCAuthRequest) (*types.OIDCAuthRequest, error) {
 	if a.oidcAuthService == nil {
 		return nil, errOIDCNotImplemented
@@ -133,6 +136,19 @@ func (a *Server) CreateOIDCAuthRequest(ctx context.Context, req types.OIDCAuthRe
 	return rq, trace.Wrap(err)
 }
 
+// CreateOIDCAuthRequestForMFA delegates the method call to the oidcAuthService if present,
+// or returns a NotImplemented error if not present.
+func (a *Server) CreateOIDCAuthRequestForMFA(ctx context.Context, req types.OIDCAuthRequest) (*types.OIDCAuthRequest, error) {
+	if a.oidcAuthService == nil {
+		return nil, errOIDCNotImplemented
+	}
+
+	rq, err := a.oidcAuthService.CreateOIDCAuthRequestForMFA(ctx, req)
+	return rq, trace.Wrap(err)
+}
+
+// ValidateOIDCAuthCallback delegates the method call to the oidcAuthService if present,
+// or returns a NotImplemented error if not present.
 func (a *Server) ValidateOIDCAuthCallback(ctx context.Context, q url.Values) (*authclient.OIDCAuthResponse, error) {
 	if a.oidcAuthService == nil {
 		return nil, errOIDCNotImplemented

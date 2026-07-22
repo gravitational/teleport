@@ -16,18 +16,18 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { SubmitConnectEventRequest } from 'gen-proto-ts/prehog/v1alpha/connect_pb';
 import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
+import { SubmitConnectEventRequest } from 'gen-proto-ts/prehog/v1alpha/connect_pb';
 import { Cluster } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
 
-import { ClusterOrResourceUri, ClusterUri, routing } from 'teleterm/ui/uri';
-import { TshdClient } from 'teleterm/services/tshd';
+import Logger from 'teleterm/logger';
 import { RuntimeSettings } from 'teleterm/mainProcess/types';
 import { ConfigService } from 'teleterm/services/config';
-import Logger from 'teleterm/logger';
+import { TshdClient } from 'teleterm/services/tshd';
 import { staticConfig } from 'teleterm/staticConfig';
 import { NotificationsService } from 'teleterm/ui/services/notifications';
 import { DocumentOrigin } from 'teleterm/ui/services/workspacesService';
+import { ClusterOrResourceUri, ClusterUri, routing } from 'teleterm/ui/uri';
 
 type PrehogEventReq = Omit<
   SubmitConnectEventRequest,
@@ -63,6 +63,11 @@ export class UsageService {
     private runtimeSettings: RuntimeSettings
   ) {}
 
+  /**
+   * Should be called only after a successful cluster sync.
+   * Otherwise, details of the root cluster (`authClusterId` and `name`)
+   * will be empty and this event won't be captured.
+   */
   captureUserLogin(uri: ClusterOrResourceUri, connectorType: string): void {
     const clusterProperties = this.getClusterProperties(uri);
     if (!clusterProperties) {
@@ -99,7 +104,7 @@ export class UsageService {
      * belonging to a root cluster or one of its leaves.
      */
     uri: ClusterOrResourceUri;
-    protocol: 'ssh' | 'kube' | 'db' | 'app';
+    protocol: 'ssh' | 'kube' | 'db' | 'app' | 'desktop';
     /**
      * origin denotes which part of Connect UI was used to access a resource.
      */
@@ -308,7 +313,14 @@ export class UsageService {
   private getClusterProperties(uri: ClusterOrResourceUri) {
     const rootClusterUri = routing.ensureRootClusterUri(uri);
     const cluster = this.findCluster(rootClusterUri);
-    if (!(cluster && cluster.loggedInUser && cluster.authClusterId)) {
+    if (
+      !(
+        cluster &&
+        cluster.loggedInUser &&
+        cluster.authClusterId &&
+        cluster.name
+      )
+    ) {
       return;
     }
 

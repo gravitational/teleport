@@ -16,17 +16,23 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
-import { MemoryRouter, Link } from 'react-router-dom';
+import { useState } from 'react';
+import { Link, MemoryRouter } from 'react-router';
 
 import { Box, ButtonPrimary, ButtonText } from 'design';
-
+import { UNSUPPORTED_KINDS } from 'shared/components/AccessRequests/NewRequest/RequestCheckout/LongTerm';
 import { Option } from 'shared/components/Select';
+import {
+  AccessRequest,
+  getResourceIDString,
+  RequestKind,
+  ResourceConstraintsMap,
+} from 'shared/services/accessRequests';
 
 import { dryRunResponse } from '../../fixtures';
 import { useSpecifiableFields } from '../useSpecifiableFields';
-
 import {
+  PendingListItem,
   RequestCheckoutWithSlider,
   RequestCheckoutWithSliderProps,
 } from './RequestCheckout';
@@ -72,6 +78,7 @@ export const Loaded = () => {
     </MemoryRouter>
   );
 };
+
 export const Empty = () => {
   const [selectedReviewers, setSelectedReviewers] = useState([]);
   const [maxDuration, setMaxDuration] = useState<Option<number>>();
@@ -81,7 +88,7 @@ export const Empty = () => {
     <MemoryRouter>
       <RequestCheckoutWithSlider
         {...baseProps}
-        data={[]}
+        pendingAccessRequests={[]}
         selectedReviewers={selectedReviewers}
         setSelectedReviewers={setSelectedReviewers}
         maxDuration={maxDuration}
@@ -129,6 +136,217 @@ export const LoadedResourceRequest = () => {
   );
 };
 
+export const LoadedResourceRequestWithConstraints = () => {
+  const pendingAccessRequests = [
+    {
+      kind: 'app',
+      id: 'aws-console',
+      name: 'AWS Console App',
+      clusterName: 'localhost',
+    },
+  ] satisfies RequestCheckoutWithSliderProps['pendingAccessRequests'];
+  const addedResourceConstraints = {
+    [getResourceIDString({
+      kind: 'app',
+      name: 'aws-console',
+      cluster: 'localhost',
+    })]: {
+      aws_console: {
+        role_arns: [
+          'arn:aws:iam::123456789012:role/Viewer',
+          'arn:aws:iam::123456789012:role/Admin',
+          'arn:aws:iam::123456789012:role/DevOps',
+        ],
+      },
+    },
+  } satisfies ResourceConstraintsMap;
+
+  return (
+    <MemoryRouter>
+      <RequestCheckoutWithSlider
+        {...baseProps}
+        isResourceRequest={true}
+        fetchResourceRequestRolesAttempt={{ status: 'success' }}
+        pendingAccessRequests={pendingAccessRequests}
+        addedResourceConstraints={addedResourceConstraints}
+        setResourceConstraints={() => {}}
+      />
+    </MemoryRouter>
+  );
+};
+
+export const LoadedResourceRequestWithSSHConstraints = () => {
+  const pendingAccessRequests = [
+    {
+      kind: 'node',
+      id: 'test-node',
+      name: 'test-node.example.com',
+      clusterName: 'localhost',
+    },
+  ] satisfies RequestCheckoutWithSliderProps['pendingAccessRequests'];
+  const addedResourceConstraints = {
+    [getResourceIDString({
+      kind: 'node',
+      name: 'test-node',
+      cluster: 'localhost',
+    })]: {
+      ssh: {
+        logins: ['root', 'ubuntu', 'admin'],
+      },
+    },
+  } satisfies ResourceConstraintsMap;
+
+  return (
+    <MemoryRouter>
+      <RequestCheckoutWithSlider
+        {...baseProps}
+        isResourceRequest={true}
+        fetchResourceRequestRolesAttempt={{ status: 'success' }}
+        pendingAccessRequests={pendingAccessRequests}
+        addedResourceConstraints={addedResourceConstraints}
+        setResourceConstraints={() => {}}
+      />
+    </MemoryRouter>
+  );
+};
+
+export const LoadedLongTermRequest = () => {
+  const dryRunResponseWithLongTerm = {
+    ...dryRunResponse,
+    requestKind: RequestKind.LongTerm,
+    longTermResourceGrouping: {
+      accessListToResources: {
+        'some-list-uuid': baseProps.pendingAccessRequests
+          .filter(r => !UNSUPPORTED_KINDS.includes(r.kind))
+          .map(r => ({
+            kind: r.kind,
+            name: r.id,
+            clusterName: 'cluster-name',
+          })),
+      },
+      canProceed: true,
+      recommendedAccessList: 'some-list-uuid',
+      validationMessage: '',
+    },
+  } satisfies AccessRequest;
+
+  return (
+    <MemoryRouter>
+      <RequestCheckoutWithSlider
+        {...baseProps}
+        isResourceRequest={true}
+        pendingAccessRequests={baseProps.pendingAccessRequests.filter(
+          r => r.kind !== 'windows_desktop'
+        )}
+        fetchResourceRequestRolesAttempt={{ status: 'success' }}
+        requestKind={RequestKind.LongTerm}
+        dryRunResponse={dryRunResponseWithLongTerm}
+      />
+    </MemoryRouter>
+  );
+};
+
+export const LoadedLongTermRequestWithGroupingErrors = () => {
+  const dryRunResponseWithLongTermGroupingErrors = {
+    ...dryRunResponse,
+    requestKind: RequestKind.LongTerm,
+    longTermResourceGrouping: {
+      accessListToResources: {
+        'some-list-uuid': baseProps.pendingAccessRequests
+          .slice(0, 3)
+          .map(r => ({
+            kind: r.kind,
+            name: r.id,
+            clusterName: 'cluster-name',
+          })),
+        'another-list-uuid': baseProps.pendingAccessRequests
+          .slice(3)
+          .map(r => ({
+            kind: r.kind,
+            name: r.id,
+            clusterName: 'cluster-name',
+          })),
+      },
+      canProceed: false,
+      recommendedAccessList: 'some-list-uuid',
+      validationMessage:
+        'Selected resources cannot be grouped for long-term access',
+    },
+  } satisfies AccessRequest;
+
+  return (
+    <MemoryRouter>
+      <RequestCheckoutWithSlider
+        {...baseProps}
+        isResourceRequest={true}
+        fetchResourceRequestRolesAttempt={{ status: 'success' }}
+        requestKind={RequestKind.LongTerm}
+        dryRunResponse={dryRunResponseWithLongTermGroupingErrors}
+      />
+    </MemoryRouter>
+  );
+};
+
+export const LoadedLongTermRequestWithUnsupportedResources = () => {
+  const unsupportedResources = [
+    {
+      kind: 'windows_desktop',
+      name: 'desktop-name',
+      id: 'desktop-id',
+    },
+    {
+      kind: 'namespace',
+      name: 'kube-name',
+      id: 'kube-id',
+      subResourceName: 'kube-namespace-name',
+    },
+  ] satisfies PendingListItem[];
+
+  const dryRunResponseWithLongTermAndUnsupportedResources = {
+    ...dryRunResponse,
+    requestKind: RequestKind.LongTerm,
+    resources: [
+      ...baseProps.pendingAccessRequests.map(r => ({
+        id: { ...r, clusterName: 'cluster-name' },
+      })),
+      ...unsupportedResources.map(r => ({
+        id: { ...r, clusterName: 'cluster-name' },
+      })),
+    ],
+    longTermResourceGrouping: {
+      accessListToResources: {
+        'list-uuid': baseProps.pendingAccessRequests
+          .filter(r => !UNSUPPORTED_KINDS.includes(r.kind))
+          .map(r => ({
+            kind: r.kind,
+            name: r.id,
+            clusterName: 'cluster-name',
+          })),
+      },
+      canProceed: false,
+      recommendedAccessList: 'list-uuid',
+      validationMessage:
+        'Long-term access is not available for some selected resources',
+    },
+  } satisfies AccessRequest;
+
+  return (
+    <MemoryRouter>
+      <RequestCheckoutWithSlider
+        {...baseProps}
+        isResourceRequest={true}
+        pendingAccessRequests={[
+          ...baseProps.pendingAccessRequests,
+          ...unsupportedResources,
+        ]}
+        fetchResourceRequestRolesAttempt={{ status: 'success' }}
+        requestKind={RequestKind.LongTerm}
+        dryRunResponse={dryRunResponseWithLongTermAndUnsupportedResources}
+      />
+    </MemoryRouter>
+  );
+};
+
 export const ProcessingResourceRequest = () => (
   <MemoryRouter>
     <RequestCheckoutWithSlider
@@ -152,6 +370,32 @@ export const FailedResourceRequest = () => (
   </MemoryRouter>
 );
 
+export const FailedUnsupportedKubeResourceKindWithTooltip = () => (
+  <MemoryRouter>
+    <RequestCheckoutWithSlider
+      {...baseProps}
+      isResourceRequest={true}
+      fetchResourceRequestRolesAttempt={{
+        status: 'failed',
+        statusText: `your Teleport role's "request.kubernetes_resources" field did not allow requesting to some or all of the requested Kubernetes resources. allowed kinds for each requestable roles: test-role-1: [deployment], test-role-2: [pod secret configmap service serviceaccount kube_node persistentvolume persistentvolumeclaim deployment replicaset statefulset daemonset clusterrole kube_role clusterrolebinding rolebinding cronjob job certificatesigningrequest ingress]`,
+      }}
+    />
+  </MemoryRouter>
+);
+
+export const FailedUnsupportedKubeResourceKindWithoutTooltip = () => (
+  <MemoryRouter>
+    <RequestCheckoutWithSlider
+      {...baseProps}
+      isResourceRequest={true}
+      fetchResourceRequestRolesAttempt={{
+        status: 'failed',
+        statusText: `your Teleport role's "request.kubernetes_resources" field did not allow requesting to some or all of the requested Kubernetes resources. allowed kinds for each requestable roles: test-role-1: [deployment]`,
+      }}
+    />
+  </MemoryRouter>
+);
+
 export const Success = () => (
   <MemoryRouter initialEntries={['']}>
     <RequestCheckoutWithSlider
@@ -164,10 +408,18 @@ export const Success = () => (
 );
 
 const baseProps: RequestCheckoutWithSliderProps = {
+  fetchKubeNamespaces: async () => [
+    'namespace1',
+    'namespace2',
+    'namespace3',
+    'namespace4',
+  ],
+  updateNamespacesForKubeCluster: () => null,
   createAttempt: { status: '' },
   fetchResourceRequestRolesAttempt: { status: '' },
   isResourceRequest: false,
   requireReason: true,
+  reasonPrompts: [],
   selectedReviewers: [
     {
       value: 'george washington',
@@ -177,36 +429,47 @@ const baseProps: RequestCheckoutWithSliderProps = {
   ],
   setSelectedReviewers: () => null,
   createRequest: () => null,
-  data: [
+  pendingAccessRequests: [
     {
       kind: 'app',
       name: 'app-name',
-      id: 'app-name',
+      id: 'app-id',
     },
     {
       kind: 'db',
-      name: 'app-name',
-      id: 'app-name',
+      name: 'db-name',
+      id: 'db-id',
     },
     {
       kind: 'kube_cluster',
       name: 'kube-name',
-      id: 'app-name',
+      id: 'kube-id',
     },
     {
       kind: 'user_group',
       name: 'user-group-name',
-      id: 'app-name',
+      id: 'user-group-id',
     },
     {
       kind: 'windows_desktop',
       name: 'desktop-name',
-      id: 'app-name',
+      id: 'desktop-id',
+    },
+    {
+      kind: 'saml_idp_service_provider',
+      name: 'app-saml',
+      id: 'saml-id',
+    },
+    {
+      kind: 'aws_ic_account_assignment',
+      name: 'account1',
+      id: 'aws-id',
     },
   ],
   clearAttempt: () => null,
   onClose: () => null,
   toggleResource: () => null,
+  toggleResources: () => null,
   reset: () => null,
   transitionState: 'entered',
   numRequestedResources: 4,
@@ -222,5 +485,9 @@ const baseProps: RequestCheckoutWithSliderProps = {
   pendingRequestTtlOptions: [],
   dryRunResponse,
   startTime: null,
+  requestKind: RequestKind.ShortTerm,
+  setRequestKind: () => null,
   onStartTimeChange: () => null,
+  addedResourceConstraints: {},
+  setResourceConstraints: () => null,
 };

@@ -19,28 +19,18 @@
 package services
 
 import (
-	"context"
 	"testing"
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
+	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/trait"
-	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-)
-
-const (
-	ownerUser = "owner-user"
-	member1   = "member1"
-	member2   = "member2"
-	member3   = "member3"
-	member4   = "member4"
 )
 
 // TestAccessListUnmarshal verifies an access list resource can be unmarshaled.
@@ -84,6 +74,16 @@ func TestAccessListUnmarshal(t *testing.T) {
 				Traits: map[string][]string{
 					"gtrait1": {"gvalue1", "gvalue2"},
 					"gtrait2": {"gvalue3", "gvalue4"},
+				},
+				ScopedRoles: []accesslist.ScopedRoleGrant{
+					{
+						Role:  "scoped-role-1",
+						Scope: "/foo",
+					},
+					{
+						Role:  "scoped-role-2",
+						Scope: "/bar",
+					},
 				},
 			},
 		},
@@ -137,6 +137,16 @@ func TestAccessListMarshal(t *testing.T) {
 				Traits: map[string][]string{
 					"gtrait1": {"gvalue1", "gvalue2"},
 					"gtrait2": {"gvalue3", "gvalue4"},
+				},
+				ScopedRoles: []accesslist.ScopedRoleGrant{
+					{
+						Role:  "scoped-role-1",
+						Scope: "/foo",
+					},
+					{
+						Role:  "scoped-role-2",
+						Scope: "/bar",
+					},
 				},
 			},
 		},
@@ -197,302 +207,9 @@ func TestAccessListMemberMarshal(t *testing.T) {
 	require.Equal(t, expected, actual)
 }
 
-func TestIsAccessListOwner(t *testing.T) {
-	tests := []struct {
-		name             string
-		identity         tlsca.Identity
-		errAssertionFunc require.ErrorAssertionFunc
-	}{
-		{
-			name: "is owner",
-			identity: tlsca.Identity{
-				Username: ownerUser,
-				Groups:   []string{"orole1", "orole2"},
-				Traits: map[string][]string{
-					"otrait1": {"ovalue1", "ovalue2"},
-					"otrait2": {"ovalue3", "ovalue4"},
-				},
-			},
-			errAssertionFunc: require.NoError,
-		},
-		{
-			name: "is not an owner",
-			identity: tlsca.Identity{
-				Username: "not-owner",
-				Groups:   []string{"orole1", "orole2"},
-				Traits: map[string][]string{
-					"otrait1": {"ovalue1", "ovalue2"},
-					"otrait2": {"ovalue3", "ovalue4"},
-				},
-			},
-			errAssertionFunc: requireAccessDenied,
-		},
-		{
-			name: "is owner with missing roles",
-			identity: tlsca.Identity{
-				Username: "not-owner",
-				Groups:   []string{"orole1"},
-				Traits: map[string][]string{
-					"otrait1": {"ovalue1", "ovalue2"},
-					"otrait2": {"ovalue3", "ovalue4"},
-				},
-			},
-			errAssertionFunc: requireAccessDenied,
-		},
-		{
-			name: "is owner with missing traits",
-			identity: tlsca.Identity{
-				Username: "not-owner",
-				Groups:   []string{"orole1", "orole2"},
-				Traits: map[string][]string{
-					"otrait1": {"ovalue1"},
-					"otrait2": {"ovalue3"},
-				},
-			},
-			errAssertionFunc: requireAccessDenied,
-		},
-	}
-
-	for _, test := range tests {
-		test := test
-		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
-
-			accessList := newAccessList(t)
-
-			test.errAssertionFunc(t, IsAccessListOwner(test.identity, accessList))
-		})
-	}
-}
-
-// testMembersAndLockGetter implements AccessListMembersGetter and LockGetter for testing.
-type testMembersAndLockGetter struct {
-	members map[string]map[string]*accesslist.AccessListMember
-	locks   map[string]types.Lock
-}
-
-// ListAccessListMembers returns a paginated list of all access list members.
-func (t *testMembersAndLockGetter) ListAccessListMembers(ctx context.Context, accessList string, _ int, _ string) (members []*accesslist.AccessListMember, nextToken string, err error) {
-	for _, member := range t.members[accessList] {
-		members = append(members, member)
-	}
-	return members, "", nil
-}
-
-// ListAllAccessListMembers returns a paginated list of all access list members for all access lists.
-func (t *testMembersAndLockGetter) ListAllAccessListMembers(ctx context.Context, pageSize int, pageToken string) ([]*accesslist.AccessListMember, string, error) {
-	var allMembers []*accesslist.AccessListMember
-	for _, members := range t.members {
-		for _, member := range members {
-			allMembers = append(allMembers, member)
-		}
-	}
-
-	return allMembers, "", nil
-}
-
-// GetAccessListMember returns the specified access list member resource.
-func (t *testMembersAndLockGetter) GetAccessListMember(ctx context.Context, accessList string, memberName string) (*accesslist.AccessListMember, error) {
-	members, ok := t.members[accessList]
-	if !ok {
-		return nil, trace.NotFound("not found")
-	}
-
-	member, ok := members[memberName]
-	if !ok {
-		return nil, trace.NotFound("not found")
-	}
-
-	return member, nil
-}
-
-// GetLock gets a lock by name.
-func (t *testMembersAndLockGetter) GetLock(_ context.Context, name string) (types.Lock, error) {
-	if t.locks == nil {
-		return nil, trace.NotFound("not found")
-	}
-
-	lock, ok := t.locks[name]
-	if !ok {
-		return nil, trace.NotFound("not found")
-	}
-
-	return lock, nil
-}
-
-// GetLocks gets all/in-force locks that match at least one of the targets when specified.
-func (t *testMembersAndLockGetter) GetLocks(ctx context.Context, inForceOnly bool, targets ...types.LockTarget) ([]types.Lock, error) {
-	locks := make([]types.Lock, 0, len(t.locks))
-	for _, lock := range t.locks {
-		locks = append(locks, lock)
-	}
-	return locks, nil
-}
-
-func requireAccessDenied(t require.TestingT, err error, i ...interface{}) {
+func requireAccessDenied(t require.TestingT, err error, i ...any) {
 	require.Error(t, err)
 	require.True(t, trace.IsAccessDenied(err), "expected AccessDenied, got %T: %s", err, err.Error())
-}
-
-func TestIsAccessListMemberChecker(t *testing.T) {
-	tests := []struct {
-		name             string
-		identity         tlsca.Identity
-		memberCtx        context.Context
-		currentTime      time.Time
-		locks            map[string]types.Lock
-		errAssertionFunc require.ErrorAssertionFunc
-	}{
-		{
-			name: "is member",
-			identity: tlsca.Identity{
-				Username: member1,
-				Groups:   []string{"mrole1", "mrole2"},
-				Traits: map[string][]string{
-					"mtrait1": {"mvalue1", "mvalue2"},
-					"mtrait2": {"mvalue3", "mvalue4"},
-				},
-			},
-			currentTime:      time.Date(2023, 2, 1, 0, 0, 0, 0, time.UTC),
-			errAssertionFunc: require.NoError,
-		},
-		{
-			name: "is locked member",
-			identity: tlsca.Identity{
-				Username: member1,
-				Groups:   []string{"mrole1", "mrole2"},
-				Traits: map[string][]string{
-					"mtrait1": {"mvalue1", "mvalue2"},
-					"mtrait2": {"mvalue3", "mvalue4"},
-				},
-			},
-			locks: map[string]types.Lock{
-				"test-lock": newUserLock(t, "test-lock", member1),
-			},
-			currentTime: time.Date(2023, 2, 1, 0, 0, 0, 0, time.UTC),
-			errAssertionFunc: func(t require.TestingT, err error, i ...interface{}) {
-				require.ErrorIs(t, err, trace.AccessDenied("user %s is currently locked", member1))
-			},
-		},
-		{
-			name: "is not a member",
-			identity: tlsca.Identity{
-				Username: member4,
-				Groups:   []string{"mrole1", "mrole2"},
-				Traits: map[string][]string{
-					"mtrait1": {"mvalue1", "mvalue2"},
-					"mtrait2": {"mvalue3", "mvalue4"},
-				},
-			},
-			currentTime: time.Date(2023, 2, 1, 0, 0, 0, 0, time.UTC),
-			errAssertionFunc: func(t require.TestingT, err error, i ...interface{}) {
-				require.True(t, trace.IsNotFound(err))
-			},
-		},
-		{
-			name: "is expired member",
-			identity: tlsca.Identity{
-				Username: member2,
-				Groups:   []string{"mrole1", "mrole2"},
-				Traits: map[string][]string{
-					"mtrait1": {"mvalue1", "mvalue2"},
-					"mtrait2": {"mvalue3", "mvalue4"},
-				},
-			},
-			currentTime:      time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC),
-			errAssertionFunc: requireAccessDenied,
-		},
-		{
-			name: "member has no expiration",
-			identity: tlsca.Identity{
-				Username: member3,
-				Groups:   []string{"mrole1", "mrole2"},
-				Traits: map[string][]string{
-					"mtrait1": {"mvalue1", "mvalue2"},
-					"mtrait2": {"mvalue3", "mvalue4"},
-				},
-			},
-			currentTime:      time.Date(2030, 7, 1, 0, 0, 0, 0, time.UTC),
-			errAssertionFunc: require.NoError,
-		},
-		{
-			name: "is member with missing roles",
-			identity: tlsca.Identity{
-				Username: member1,
-				Groups:   []string{"mrole1"},
-				Traits: map[string][]string{
-					"mtrait1": {"mvalue1", "mvalue2"},
-					"mtrait2": {"mvalue3", "mvalue4"},
-				},
-			},
-			currentTime:      time.Date(2023, 2, 1, 0, 0, 0, 0, time.UTC),
-			errAssertionFunc: requireAccessDenied,
-		},
-		{
-			name: "is member with no expiration and missing roles",
-			identity: tlsca.Identity{
-				Username: member3,
-				Groups:   []string{"mrole1"},
-				Traits: map[string][]string{
-					"mtrait1": {"mvalue1", "mvalue2"},
-					"mtrait2": {"mvalue3", "mvalue4"},
-				},
-			},
-			currentTime:      time.Date(2023, 2, 1, 0, 0, 0, 0, time.UTC),
-			errAssertionFunc: requireAccessDenied,
-		},
-		{
-			name: "is member with missing traits",
-			identity: tlsca.Identity{
-				Username: member1,
-				Groups:   []string{"mrole1", "mrole2"},
-				Traits: map[string][]string{
-					"mtrait1": {"mvalue1"},
-					"mtrait2": {"mvalue3"},
-				},
-			},
-			currentTime:      time.Date(2023, 2, 1, 0, 0, 0, 0, time.UTC),
-			errAssertionFunc: requireAccessDenied,
-		},
-		{
-			name: "is member with no expiration and missing traits",
-			identity: tlsca.Identity{
-				Username: member3,
-				Groups:   []string{"mrole1", "mrole2"},
-				Traits: map[string][]string{
-					"mtrait1": {"mvalue1"},
-					"mtrait2": {"mvalue3"},
-				},
-			},
-			currentTime:      time.Date(2023, 2, 1, 0, 0, 0, 0, time.UTC),
-			errAssertionFunc: requireAccessDenied,
-		},
-	}
-
-	for _, test := range tests {
-		test := test
-		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
-
-			ctx := context.Background()
-
-			accessList := newAccessList(t)
-			members := newAccessListMembers(t)
-
-			memberMap := map[string]map[string]*accesslist.AccessListMember{}
-			for _, member := range members {
-				accessListName := member.Spec.AccessList
-				if _, ok := memberMap[accessListName]; !ok {
-					memberMap[accessListName] = map[string]*accesslist.AccessListMember{}
-				}
-				memberMap[accessListName][member.Spec.Name] = member
-			}
-			getter := &testMembersAndLockGetter{members: memberMap, locks: test.locks}
-
-			checker := NewAccessListMembershipChecker(clockwork.NewFakeClockAt(test.currentTime), getter, getter)
-			test.errAssertionFunc(t, checker.IsAccessListMember(ctx, test.identity, accessList))
-		})
-	}
 }
 
 // TestAccessListReviewUnmarshal verifies an access list review resource can be unmarshaled.
@@ -541,6 +258,153 @@ func TestAccessListReviewUnmarshal(t *testing.T) {
 	actual, err := UnmarshalAccessListReview(data)
 	require.NoError(t, err)
 	require.Equal(t, expected, actual)
+}
+
+func TestMatchAccessList(t *testing.T) {
+	al := &accesslist.AccessList{
+		Spec: accesslist.Spec{
+			Title:       "Production Database Access",
+			Description: "Access to production MySQL and PostgreSQL databases",
+			Owners: []accesslist.Owner{
+				{Name: "john.doe"},
+				{Name: "jane.smith"},
+			},
+			Grants: accesslist.Grants{
+				Roles: []string{"db-admin", "db-readonly", "backup-operator"},
+			},
+		},
+	}
+	al.SetName("prod-db-access")
+	al.SetOrigin(types.OriginOkta)
+
+	tests := []struct {
+		name     string
+		search   string
+		owners   []string
+		roles    []string
+		origin   string
+		expected bool
+	}{
+		{
+			name:     "empty search matches all",
+			expected: true,
+		},
+		{
+			name:     "whitespace only search matches all",
+			search:   "   ",
+			expected: true,
+		},
+		{
+			name:     "origin matches",
+			origin:   "okta",
+			expected: true,
+		},
+		{
+			name:     "origin does not match",
+			origin:   "teleport",
+			expected: false,
+		},
+		{
+			name:     "case insensitive title match",
+			search:   "database",
+			expected: true,
+		},
+		{
+			name:     "partial name match",
+			search:   "prod-db",
+			expected: true,
+		},
+		{
+			name:     "case insensitive owner match",
+			search:   "JANE",
+			expected: true,
+		},
+		{
+			name:     "case insensitive description match",
+			search:   "postgresql",
+			expected: true,
+		},
+		{
+			name:     "case insensitive role match",
+			search:   "BACKUP",
+			expected: true,
+		},
+		{
+			name:     "multiple terms all found",
+			search:   "Production db",
+			expected: true,
+		},
+		{
+			name:     "no match found",
+			search:   "nonexistent",
+			expected: false,
+		},
+		{
+			name:     "partial match but not all terms",
+			search:   "Production nonexistent",
+			expected: false,
+		},
+		{
+			name:     "single owner match",
+			owners:   []string{"john.doe"},
+			expected: true,
+		},
+		{
+			name:     "no owner match",
+			owners:   []string{"nonexistent.user"},
+			expected: false,
+		},
+		{
+			name:     "mixed owner match and no match",
+			owners:   []string{"john.doe", "nonexistent.user"},
+			expected: true,
+		},
+		{
+			name:     "single role match",
+			roles:    []string{"db-admin"},
+			expected: true,
+		},
+		{
+			name:     "no role match",
+			roles:    []string{"nonexistent-role"},
+			expected: false,
+		},
+		{
+			name:     "all filters match",
+			search:   "Production",
+			owners:   []string{"john.doe"},
+			roles:    []string{"db-admin"},
+			expected: true,
+		},
+		{
+			name:     "search matches but owner does not",
+			search:   "Production",
+			owners:   []string{"nonexistent.user"},
+			expected: false,
+		},
+		{
+			name:     "owner matches but search does not",
+			search:   "nonexistent",
+			owners:   []string{"john.doe"},
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			filter := accesslistv1.AccessListsFilter_builder{
+				Search: tt.search,
+				Owners: tt.owners,
+				Roles:  tt.roles,
+				Origin: tt.origin,
+			}.Build()
+			result := MatchAccessList(al, filter)
+			if result != tt.expected {
+				t.Errorf("MatchAccessList(search: %q, owners: %v, roles: %v) = %v, want %v",
+					tt.search, tt.owners, tt.roles, result, tt.expected)
+			}
+		})
+	}
 }
 
 // TestAccessListReviewMarshal verifies a marshaled access list review resource can be unmarshaled back.
@@ -596,102 +460,6 @@ func TestAccessListReviewMarshal(t *testing.T) {
 	require.Equal(t, expected, actual)
 }
 
-func newAccessList(t *testing.T) *accesslist.AccessList {
-	t.Helper()
-
-	accessList, err := accesslist.NewAccessList(
-		header.Metadata{
-			Name: "test",
-		},
-		accesslist.Spec{
-			Title:       "title",
-			Description: "test access list",
-			Owners: []accesslist.Owner{
-				{
-					Name:        ownerUser,
-					Description: "owner user",
-				},
-				{
-					Name:        "test-user2",
-					Description: "test user 2",
-				},
-			},
-			Audit: accesslist.Audit{
-				NextAuditDate: time.Date(2024, 6, 1, 0, 0, 0, 0, time.UTC),
-				Recurrence: accesslist.Recurrence{
-					Frequency:  accesslist.ThreeMonths,
-					DayOfMonth: accesslist.FifteenthDayOfMonth,
-				},
-			},
-			MembershipRequires: accesslist.Requires{
-				Roles: []string{"mrole1", "mrole2"},
-				Traits: map[string][]string{
-					"mtrait1": {"mvalue1", "mvalue2"},
-					"mtrait2": {"mvalue3", "mvalue4"},
-				},
-			},
-			OwnershipRequires: accesslist.Requires{
-				Roles: []string{"orole1", "orole2"},
-				Traits: map[string][]string{
-					"otrait1": {"ovalue1", "ovalue2"},
-					"otrait2": {"ovalue3", "ovalue4"},
-				},
-			},
-			Grants: accesslist.Grants{
-				Roles: []string{"grole1", "grole2"},
-				Traits: map[string][]string{
-					"gtrait1": {"gvalue1", "gvalue2"},
-					"gtrait2": {"gvalue3", "gvalue4"},
-				},
-			},
-		},
-	)
-	require.NoError(t, err)
-
-	return accessList
-}
-
-func newAccessListMembers(t *testing.T) []*accesslist.AccessListMember {
-	t.Helper()
-
-	member1, err := accesslist.NewAccessListMember(header.Metadata{
-		Name: member1,
-	}, accesslist.AccessListMemberSpec{
-		AccessList: "test",
-		Name:       member1,
-		Joined:     time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
-		Expires:    time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
-		Reason:     "because",
-		AddedBy:    ownerUser,
-	})
-	require.NoError(t, err)
-
-	member2, err := accesslist.NewAccessListMember(header.Metadata{
-		Name: member2,
-	}, accesslist.AccessListMemberSpec{
-		AccessList: "test",
-		Name:       member2,
-		Joined:     time.Date(2022, 1, 1, 0, 0, 0, 0, time.UTC),
-		Expires:    time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
-		Reason:     "because again",
-		AddedBy:    ownerUser,
-	})
-	require.NoError(t, err)
-
-	member3, err := accesslist.NewAccessListMember(header.Metadata{
-		Name: member3,
-	}, accesslist.AccessListMemberSpec{
-		AccessList: "test",
-		Name:       member3,
-		Joined:     time.Date(2022, 1, 1, 0, 0, 0, 0, time.UTC),
-		Reason:     "because for the third time",
-		AddedBy:    ownerUser,
-	})
-	require.NoError(t, err)
-
-	return []*accesslist.AccessListMember{member1, member2, member3}
-}
-
 var accessListYAML = `---
 kind: access_list
 version: v1
@@ -741,6 +509,11 @@ spec:
       gtrait2:
       - gvalue3
       - gvalue4
+    scoped_roles:
+    - role: scoped-role-1
+      scope: /foo
+    - role: scoped-role-2
+      scope: /bar
 `
 
 var accessListMemberYAML = `---
@@ -756,6 +529,82 @@ spec:
   reason: "because"
   added_by: "test-user1"
 `
+
+func TestCreateAccessListNextKey(t *testing.T) {
+	al, err := accesslist.NewAccessList(
+		header.Metadata{
+			Name: "test-access-list",
+		},
+		accesslist.Spec{
+			Title: "zephyr",
+			Audit: accesslist.Audit{
+				NextAuditDate: time.Date(2025, 9, 11, 0, 0, 0, 0, time.UTC),
+			},
+		},
+	)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name          string
+		indexName     string
+		expected      string
+		expectError   bool
+		withNoAudit   bool
+		notReviewable bool
+	}{
+		{
+			name:      "name index",
+			indexName: "name",
+			expected:  "test-access-list",
+		},
+		{
+			name:      "auditNextDate index",
+			indexName: "auditNextDate",
+			expected:  "2025-09-11/test-access-list",
+		},
+		{
+			name:        "auditNextDate index without review",
+			indexName:   "auditNextDate",
+			expected:    "z/test-access-list",
+			withNoAudit: true,
+		},
+		{
+			name:          "auditNextDate non-reviewable",
+			indexName:     "auditNextDate",
+			expected:      "z/test-access-list",
+			notReviewable: true,
+		},
+		{
+			name:      "title index",
+			indexName: "title",
+			expected:  "F9IN0Q3PE8/test-access-list",
+		},
+		{
+			name:        "unsupported index",
+			indexName:   "unsupported",
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.withNoAudit {
+				al.Spec.Audit.NextAuditDate = time.Time{}
+			}
+			if tt.notReviewable {
+				al.Spec.Type = accesslist.Static
+			}
+			result, err := CreateAccessListNextKey(al, tt.indexName)
+			if tt.expectError {
+				require.Error(t, err)
+				require.True(t, trace.IsBadParameter(err))
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, tt.expected, result)
+			}
+		})
+	}
+}
 
 var accessListReviewYAML = `---
 kind: access_list_review
@@ -787,16 +636,3 @@ spec:
     review_frequency_changed: 3 months
     review_day_of_month_changed: "15"
 `
-
-func newUserLock(t *testing.T, name, user string) types.Lock {
-	t.Helper()
-
-	lock, err := types.NewLock(name, types.LockSpecV2{
-		Target: types.LockTarget{
-			User: user,
-		},
-	})
-	require.NoError(t, err)
-
-	return lock
-}

@@ -32,10 +32,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/integrations/access/servicenow"
-	"github.com/gravitational/teleport/integrations/lib/stringset"
+	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 // FakeServiceNow implements a mock ServiceNow for testing purposes.
@@ -59,15 +58,15 @@ type FakeServiceNow struct {
 
 type QueryValues url.Values
 
-func (q QueryValues) GetAsSet(name string) stringset.StringSet {
+func (q QueryValues) GetAsSet(name string) set.Set[string] {
 	values := q[name]
-	result := stringset.NewWithCap(len(values))
+	result := set.NewWithCapacity[string](len(values))
 	for _, v := range values {
 		if v != "" {
-			result[v] = struct{}{}
+			result.Add(v)
 		}
 	}
-	if len(result) == 0 {
+	if result.Len() == 0 {
 		return nil
 	}
 	return result
@@ -284,6 +283,6 @@ func (s *FakeServiceNow) getOnCall(rotationName string) []string {
 
 func panicIf(err error) {
 	if err != nil {
-		log.Panicf("%v at %v", err, string(debug.Stack()))
+		panic(fmt.Sprintf("%v at %v", err, string(debug.Stack())))
 	}
 }

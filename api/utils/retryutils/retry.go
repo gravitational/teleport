@@ -190,12 +190,20 @@ func (r *Linear) For(ctx context.Context, retryFn func() error) error {
 		if errors.As(trace.Unwrap(err), &permanentRetryError) {
 			return trace.Wrap(err)
 		}
-		slog.DebugContext(ctx, "Waiting to retry operation again", "wait", r.Duration(), "error", err)
+		slog.DebugContext(ctx,
+			"Waiting to retry operation again",
+			"wait", r.Duration().String(),
+
+			// Unwrap the error so we do not log the stack trace, which can make
+			// a totally benign/expected error (e.g. failing to acquire a leader
+			// lock) appear more serious.
+			"error", trace.Unwrap(err),
+		)
 		select {
 		case <-r.After():
 			r.Inc()
 		case <-ctx.Done():
-			return trace.LimitExceeded(ctx.Err().Error())
+			return trace.LimitExceeded("%s", ctx.Err())
 		}
 	}
 }
@@ -215,7 +223,7 @@ func (e *permanentRetryError) Error() string {
 	return e.err.Error()
 }
 
-// RetryFastFor retries a function repeatedly for a set amount of
+// RetryStaticFor retries a function repeatedly for a set amount of
 // time before returning an error.
 //
 // Intended mostly for tests.

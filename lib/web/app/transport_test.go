@@ -39,15 +39,18 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func Test_transport_rewriteRedirect(t *testing.T) {
@@ -84,14 +87,14 @@ func Test_transport_rewriteRedirect(t *testing.T) {
 			identity:    identity,
 			servers:     []types.AppServer{server},
 
-			cipherSuites: utils.DefaultCipherSuites(),
-			proxyClient:  &mockProxyClient{},
+			cipherSuites:  utils.DefaultCipherSuites(),
+			clusterGetter: &mockClusterGetter{},
 			accessPoint: &mockAuthClient{
 				caKey:       caKey,
 				caCert:      caCert,
 				clusterName: clusterName,
 			},
-			ws:                    createAppSession(t, clock, caKey, caCert, clusterName, clusterName),
+			ws:                    createAppSession(t, clock, caKey, caCert, clusterName, clusterName, "testapp"),
 			integrationAppHandler: &mockIntegrationAppHandler{},
 		}
 	}
@@ -217,20 +220,20 @@ func Test_transport_rewriteRedirect(t *testing.T) {
 }
 
 type fakeTunnel struct {
-	reversetunnelclient.Tunnel
+	reversetunnelclient.ClusterGetter
 
-	fakeSite *reversetunnelclient.FakeRemoteSite
-	err      error
+	fakeCluster *reversetunnelclient.FakeCluster
+	err         error
 }
 
-func (f fakeTunnel) GetSite(domainName string) (reversetunnelclient.RemoteSite, error) {
-	return f.fakeSite, f.err
+func (f fakeTunnel) Cluster(context.Context, string) (reversetunnelclient.Cluster, error) {
+	return f.fakeCluster, f.err
 }
 
 func TestTransport_DialContextNoServersAvailable(t *testing.T) {
 	tp := transport{
 		c: &transportConfig{
-			proxyClient: fakeTunnel{
+			clusterGetter: fakeTunnel{
 				err: trace.ConnectionProblem(errors.New(reversetunnelclient.NoApplicationTunnel), ""),
 			},
 			identity: &tlsca.Identity{},
@@ -239,7 +242,7 @@ func TestTransport_DialContextNoServersAvailable(t *testing.T) {
 				&types.AppServerV3{Spec: types.AppServerSpecV3{App: &types.AppV3{}}},
 				&types.AppServerV3{Spec: types.AppServerSpecV3{App: &types.AppV3{}}},
 			},
-			log: utils.NewLoggerForTests(),
+			log: logtest.NewLogger(),
 		},
 	}
 
@@ -252,7 +255,7 @@ func TestTransport_DialContextNoServersAvailable(t *testing.T) {
 	count := len(tp.c.servers) + 1
 	resC := make(chan dialRes, count)
 
-	for i := 0; i < count; i++ {
+	for range count {
 		go func() {
 			conn, err := tp.DialContext(ctx, "", "")
 			resC <- dialRes{
@@ -262,7 +265,7 @@ func TestTransport_DialContextNoServersAvailable(t *testing.T) {
 		}()
 	}
 
-	for i := 0; i < count; i++ {
+	for range count {
 		res := <-resC
 		require.Error(t, res.err)
 		require.Nil(t, res.conn)
@@ -294,7 +297,7 @@ func Test_transport_rewriteRequest(t *testing.T) {
 
 	clock := clockwork.NewFakeClock()
 
-	appSession := createAppSession(t, clock, caKey, caCert, rootCluster, rootCluster)
+	appSession := createAppSession(t, clock, caKey, caCert, rootCluster, rootCluster, "testapp")
 	tr, err := newTransport(&transportConfig{
 		clock:       clock,
 		clusterName: rootCluster,
@@ -304,9 +307,9 @@ func Test_transport_rewriteRequest(t *testing.T) {
 				AzureIdentity: "azure-identity",
 			},
 		},
-		servers:      []types.AppServer{azureAppServer},
-		cipherSuites: utils.DefaultCipherSuites(),
-		proxyClient:  &mockProxyClient{},
+		servers:       []types.AppServer{azureAppServer},
+		cipherSuites:  utils.DefaultCipherSuites(),
+		clusterGetter: &mockClusterGetter{},
 		accessPoint: &mockAuthClient{
 			caKey:       caKey,
 			caCert:      caCert,
@@ -347,7 +350,7 @@ func Test_transport_rewriteRequest(t *testing.T) {
 			Resource: "root",
 		}
 
-		clientKey, clientCertPEM := createAppKeyCertPair(t, clock, caKey, caCert, rootCluster, rootCluster)
+		clientKey, clientCertPEM := createAppKeyCertPair(t, clock, caKey, caCert, rootCluster, rootCluster, "testapp")
 		b, _ := pem.Decode(clientCertPEM)
 		clientCert, err := x509.ParseCertificate(b.Bytes)
 		require.NoError(t, err)
@@ -470,7 +473,7 @@ func Test_transport_with_integration(t *testing.T) {
 
 	integrationAppHandler := &mockIntegrationAppHandler{}
 
-	appSession := createAppSession(t, clock, caKey, caCert, rootCluster, rootCluster)
+	appSession := createAppSession(t, clock, caKey, caCert, rootCluster, rootCluster, "testapp")
 	tr, err := newTransport(&transportConfig{
 		clock:       clock,
 		clusterName: rootCluster,
@@ -480,9 +483,9 @@ func Test_transport_with_integration(t *testing.T) {
 				AWSRoleARN:  "MyAWSRole",
 			},
 		},
-		servers:      []types.AppServer{awsAppServer},
-		cipherSuites: utils.DefaultCipherSuites(),
-		proxyClient:  &mockProxyClient{},
+		servers:       []types.AppServer{awsAppServer},
+		cipherSuites:  utils.DefaultCipherSuites(),
+		clusterGetter: &mockClusterGetter{},
 		accessPoint: &mockAuthClient{
 			caKey:       caKey,
 			caCert:      caCert,
@@ -493,12 +496,19 @@ func Test_transport_with_integration(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	conn, err := tr.DialContext(context.Background(), "", "")
+	ctxWithClientSrcAddr := authz.ContextWithClientSrcAddr(t.Context(), &utils.NetAddr{
+		AddrNetwork: "tcp",
+		Addr:        net.JoinHostPort("127.0.0.1", "55555"),
+	})
+
+	conn, err := tr.DialContext(ctxWithClientSrcAddr, "", "")
 	require.NoError(t, err)
 
 	require.Eventually(t, func() bool {
 		return integrationAppHandler.getConnection() != nil
 	}, 100*time.Millisecond, 10*time.Millisecond)
+
+	require.Equal(t, "127.0.0.1:55555", integrationAppHandler.getConnection().RemoteAddr().String())
 
 	message := "hello world"
 	messageSize := len(message)
@@ -512,4 +522,163 @@ func Test_transport_with_integration(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, message, string(bs))
+}
+
+func Test_isAppServerDialable(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string // description of this test case
+		dialErr error
+		match   bool
+		app     func() types.AppServer
+	}{
+		{
+			name:  "WithHealthyApp",
+			match: true,
+			app:   mustNewAppServer(t, types.OriginDynamic),
+		},
+		{
+			name:    "WithUnhealthyApp",
+			dialErr: errors.New("failed to connect"),
+			match:   false,
+			app:     mustNewAppServer(t, types.OriginDynamic),
+		},
+		{
+			name:    "WithUnhealthyOktaApp",
+			dialErr: errors.New("failed to connect"),
+			match:   true,
+			app:     mustNewAppServer(t, types.OriginOkta),
+		},
+		{
+			name:    "WithIntegrationApp",
+			dialErr: errors.New("failed to connect"),
+			match:   true,
+			app: func() types.AppServer {
+				appServer := mustNewAppServer(t, types.OriginDynamic)()
+				app := appServer.GetApp().Copy()
+				app.Spec.Integration = "my-integration"
+				appServer.SetApp(app)
+
+				return appServer
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := t.Context()
+			clusterGetter := &mockClusterGetter{
+				cluster: &mockCluster{
+					dialErr: tt.dialErr,
+				},
+			}
+
+			clusterClient, _ := clusterGetter.Cluster(ctx, "")
+			got := isAppServerDialable(ctx, clusterClient, tt.app())
+			require.Equal(t, tt.match, got, tt.app())
+		})
+	}
+}
+
+func mustNewAppServer(t *testing.T, origin string) func() types.AppServer {
+	t.Helper()
+	return func() types.AppServer {
+		app, err := types.NewAppV3(
+			types.Metadata{
+				Name:      "test-app",
+				Namespace: apidefaults.Namespace,
+				Labels: map[string]string{
+					types.OriginLabel: origin,
+				},
+			},
+			types.AppSpecV3{
+				URI: "https://app.localhost",
+			},
+		)
+		require.NoError(t, err)
+
+		appServer, err := types.NewAppServerV3FromApp(app, "localhost", "123")
+		require.NoError(t, err)
+
+		return appServer
+	}
+}
+
+type mockClusterGetter struct {
+	reversetunnelclient.ClusterGetter
+	cluster *mockCluster
+}
+
+func (p *mockClusterGetter) Cluster(context.Context, string) (reversetunnelclient.Cluster, error) {
+	return p.cluster, nil
+}
+
+type mockCluster struct {
+	reversetunnelclient.Cluster
+	dialErr            error
+	dialParamsReceived reversetunnelclient.DialParams
+}
+
+func (r *mockCluster) Dial(params reversetunnelclient.DialParams) (net.Conn, error) {
+	r.dialParamsReceived = params
+	if r.dialErr != nil {
+		return nil, r.dialErr
+	}
+
+	return &mockDialConn{}, nil
+}
+
+func (r *mockCluster) GetName() string {
+	return "mockCluster"
+}
+
+type mockDialConn struct {
+	net.Conn
+}
+
+func (c *mockDialConn) Close() error {
+	return nil
+}
+
+func Test_dialAppServer_setsTargetScope(t *testing.T) {
+	t.Parallel()
+
+	app, err := types.NewAppV3(
+		types.Metadata{Name: "test-app"},
+		types.AppSpecV3{URI: "https://app.localhost"},
+	)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name      string
+		scope     string
+		wantScope string
+	}{
+		{
+			name:      "scope threaded into dial params",
+			scope:     "/staging/test",
+			wantScope: "/staging/test",
+		},
+		{
+			name:      "empty scope by default",
+			scope:     "",
+			wantScope: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			appServer, err := types.NewAppServerV3(
+				types.Metadata{Name: "test-app"},
+				types.AppServerSpecV3{HostID: "host-1", App: app},
+				tt.scope,
+			)
+			require.NoError(t, err)
+
+			cluster := &mockCluster{}
+			_, err = dialAppServer(t.Context(), cluster, appServer)
+			require.NoError(t, err)
+			require.Equal(t, tt.wantScope, cluster.dialParamsReceived.TargetScope)
+		})
+	}
 }

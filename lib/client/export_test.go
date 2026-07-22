@@ -18,8 +18,6 @@
 
 package client
 
-var HasTouchIDCredentials = &hasTouchIDCredentials
-
 func (tc *TeleportClient) SetDTAttemptLoginIgnorePing(val bool) {
 	tc.dtAttemptLoginIgnorePing = val
 }

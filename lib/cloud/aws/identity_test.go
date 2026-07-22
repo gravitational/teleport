@@ -22,10 +22,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/request"
-	"github.com/aws/aws-sdk-go/service/sts"
-	"github.com/aws/aws-sdk-go/service/sts/stsiface"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/stretchr/testify/require"
 )
 
@@ -79,7 +77,7 @@ func TestGetIdentity(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.description, func(t *testing.T) {
-			identity, err := GetIdentityWithClient(context.Background(), &stsMock{arn: test.inARN})
+			identity, err := GetIdentityWithClient(context.Background(), &STSClient{ARN: test.inARN})
 			require.NoError(t, err)
 			require.IsType(t, test.outIdentity, identity)
 			require.Equal(t, test.outName, identity.GetName())
@@ -90,13 +88,12 @@ func TestGetIdentity(t *testing.T) {
 	}
 }
 
-type stsMock struct {
-	stsiface.STSAPI
-	arn string
+type STSClient struct {
+	ARN string
 }
 
-func (m *stsMock) GetCallerIdentityWithContext(aws.Context, *sts.GetCallerIdentityInput, ...request.Option) (*sts.GetCallerIdentityOutput, error) {
+func (m *STSClient) GetCallerIdentity(ctx context.Context, params *sts.GetCallerIdentityInput, optFns ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error) {
 	return &sts.GetCallerIdentityOutput{
-		Arn: aws.String(m.arn),
+		Arn: aws.String(m.ARN),
 	}, nil
 }

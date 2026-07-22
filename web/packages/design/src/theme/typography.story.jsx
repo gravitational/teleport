@@ -16,10 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-
-import { Text, Box } from '..';
-
+import { Box, Text } from '..';
 import typography from './typography';
 
 export default {
@@ -85,24 +82,6 @@ const Specs = () => (
         </tr>
         <tr>
           <td>
-            <Text typography="h5">H5</Text>
-          </td>
-          <td>
-            {typography.h5.fontSize}/{typography.h5.lineHeight}
-          </td>
-          <td>{typography.h5.fontWeight}</td>
-        </tr>
-        <tr>
-          <td>
-            <Text typography="h6">H6</Text>
-          </td>
-          <td>
-            {typography.h6.fontSize}/{typography.h6.lineHeight}
-          </td>
-          <td>{typography.h6.fontWeight}</td>
-        </tr>
-        <tr>
-          <td>
             <Text typography="body1">Body1</Text>
           </td>
           <td>
@@ -121,24 +100,6 @@ const Specs = () => (
         </tr>
         <tr>
           <td>
-            <Text typography="paragraph">Paragraph</Text>
-          </td>
-          <td>
-            {typography.paragraph.fontSize}/{typography.paragraph.lineHeight}
-          </td>
-          <td>{typography.paragraph.fontWeight}</td>
-        </tr>
-        <tr>
-          <td>
-            <Text typography="paragraph2">Paragraph2</Text>
-          </td>
-          <td>
-            {typography.paragraph2.fontSize}/{typography.paragraph2.lineHeight}
-          </td>
-          <td>{typography.paragraph2.fontWeight}</td>
-        </tr>
-        <tr>
-          <td>
             <Text typography="subtitle1">SubTitle1</Text>
           </td>
           <td>
@@ -154,6 +115,15 @@ const Specs = () => (
             {typography.subtitle2.fontSize}/{typography.subtitle2.lineHeight}
           </td>
           <td>{typography.subtitle2.fontWeight}</td>
+        </tr>
+        <tr>
+          <td>
+            <Text typography="subtitle3">subtitle3</Text>
+          </td>
+          <td>
+            {typography.subtitle3.fontSize}/{typography.subtitle3.lineHeight}
+          </td>
+          <td>{typography.subtitle3.fontWeight}</td>
         </tr>
       </tbody>
     </table>
@@ -207,22 +177,6 @@ const Example = () => (
         </tr>
         <tr>
           <td>
-            <Text typography="h5">H5</Text>
-          </td>
-          <td>
-            <Text typography="h5">{sample}</Text>
-          </td>
-        </tr>
-        <tr>
-          <td>
-            <Text typography="h6">H6</Text>
-          </td>
-          <td>
-            <Text typography="h6">{sample}</Text>
-          </td>
-        </tr>
-        <tr>
-          <td>
             <Text typography="body1">Body1</Text>
           </td>
           <td>
@@ -239,22 +193,6 @@ const Example = () => (
         </tr>
         <tr>
           <td>
-            <Text typography="paragraph">Paragraph</Text>
-          </td>
-          <td>
-            <Text typography="paragraph">{sample}</Text>
-          </td>
-        </tr>
-        <tr>
-          <td>
-            <Text typography="paragraph2">Paragraph2</Text>
-          </td>
-          <td>
-            <Text typography="paragraph2">{sample}</Text>
-          </td>
-        </tr>
-        <tr>
-          <td>
             <Text typography="subtitle1">SubTitle1</Text>
           </td>
           <td>
@@ -267,6 +205,14 @@ const Example = () => (
           </td>
           <td>
             <Text typography="subtitle2">{sample}</Text>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <Text typography="subtitle3">subtitle3</Text>
+          </td>
+          <td>
+            <Text typography="subtitle3">{sample}</Text>
           </td>
         </tr>
       </tbody>

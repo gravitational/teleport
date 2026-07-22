@@ -1,34 +1,39 @@
-// Copyright 2023 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2024  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package latency
 
 import (
 	"context"
+	"errors"
 	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/utils/retryutils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
-var log = logrus.WithField(teleport.ComponentKey, "latency")
+var logger = logutils.NewPackageLogger(teleport.ComponentKey, "latency")
 
 // Statistics contain latency measurements for both
 // legs of a proxied connection.
@@ -47,7 +52,7 @@ type Reporter interface {
 
 // ReporterFunc type is an adapter to allow the use of
 // ordinary functions as a Reporter. If f is a function
-// with the appropriate signature, Reporter(f) is a
+// with the appropriate signature, ReporterFunc(f) is a
 // Reporter that calls f.
 type ReporterFunc func(ctx context.Context, stats Statistics) error
 
@@ -61,6 +66,17 @@ func (f ReporterFunc) Report(ctx context.Context, stats Statistics) error {
 // from [Pinger.Ping].
 type Pinger interface {
 	Ping(ctx context.Context) error
+}
+
+// PingerFunc type is an adapter to allow the use of
+// ordinary functions as a Pinger. If p is a function
+// with the appropriate signature, PingerFunc(p) is a
+// Pinger that calls p.
+type PingerFunc func(ctx context.Context) error
+
+// Ping calls p(ctx).
+func (p PingerFunc) Ping(ctx context.Context) error {
+	return p(ctx)
 }
 
 // Monitor periodically pings both legs of a proxied connection and records
@@ -123,7 +139,7 @@ func (c *MonitorConfig) CheckAndSetDefaults() error {
 	}
 
 	if c.InitialPingInterval <= 0 {
-		c.InitialReportInterval = fullJitter(500 * time.Millisecond)
+		c.InitialReportInterval = retryutils.FullJitter(500 * time.Millisecond)
 	}
 
 	if c.ReportInterval <= 0 {
@@ -131,7 +147,7 @@ func (c *MonitorConfig) CheckAndSetDefaults() error {
 	}
 
 	if c.InitialReportInterval <= 0 {
-		c.InitialReportInterval = halfJitter(1500 * time.Millisecond)
+		c.InitialReportInterval = retryutils.HalfJitter(1500 * time.Millisecond)
 	}
 
 	if c.Clock == nil {
@@ -140,12 +156,6 @@ func (c *MonitorConfig) CheckAndSetDefaults() error {
 
 	return nil
 }
-
-var (
-	seventhJitter = retryutils.NewSeventhJitter()
-	fullJitter    = retryutils.NewFullJitter()
-	halfJitter    = retryutils.NewHalfJitter()
-)
 
 // NewMonitor creates an unstarted [Monitor] with the provided configuration. To
 // begin sampling connection latencies [Monitor.Run] must be called.
@@ -190,10 +200,10 @@ func (m *Monitor) Run(ctx context.Context) {
 	for {
 		select {
 		case <-m.reportTimer.Chan():
-			if err := m.reporter.Report(ctx, m.GetStats()); err != nil {
-				log.WithError(err).Warn("failed to report latency stats")
+			if err := m.reporter.Report(ctx, m.GetStats()); err != nil && !errors.Is(err, context.Canceled) {
+				logger.WarnContext(ctx, "failed to report latency stats", "error", err)
 			}
-			m.reportTimer.Reset(seventhJitter(m.reportInterval))
+			m.reportTimer.Reset(retryutils.SeventhJitter(m.reportInterval))
 		case <-ctx.Done():
 			return
 		}
@@ -207,12 +217,12 @@ func (m *Monitor) pingLoop(ctx context.Context, pinger Pinger, timer clockwork.T
 			return
 		case <-timer.Chan():
 			then := m.clock.Now()
-			if err := pinger.Ping(ctx); err != nil {
-				log.WithError(err).Warn("unexpected failure sending ping")
+			if err := pinger.Ping(ctx); err != nil && !errors.Is(err, context.Canceled) {
+				logger.WarnContext(ctx, "unexpected failure sending ping", "error", err)
 			} else {
 				latency.Store(m.clock.Now().Sub(then).Milliseconds())
 			}
-			timer.Reset(seventhJitter(m.pingInterval))
+			timer.Reset(retryutils.SeventhJitter(m.pingInterval))
 		}
 	}
 }

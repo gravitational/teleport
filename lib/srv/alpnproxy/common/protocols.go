@@ -24,6 +24,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	apiconstants "github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/defaults"
 )
@@ -79,13 +80,13 @@ const (
 	ProtocolProxySSHGRPC Protocol = "teleport-proxy-ssh-grpc"
 
 	// ProtocolReverseTunnel is TLS ALPN protocol value used to indicate Proxy reversetunnel protocol.
-	ProtocolReverseTunnel Protocol = "teleport-reversetunnel"
+	ProtocolReverseTunnel Protocol = apiconstants.ALPNSNIProtocolReverseTunnel
 
 	// ProtocolReverseTunnelV2 is TLS ALPN protocol value used to indicate reversetunnel clients
 	// that are aware of proxy peering. This is only used on the client side to allow intermediate
 	// load balancers to make decisions based on the ALPN header. ProtocolReverseTunnel should still
 	// be included in the list of ALPN header for the proxy server to handle the connection properly.
-	ProtocolReverseTunnelV2 Protocol = "teleport-reversetunnelv2"
+	ProtocolReverseTunnelV2 Protocol = apiconstants.ALPNSNIProtocolReverseTunnelV2
 
 	// ProtocolHTTP is TLS ALPN protocol value used to indicate HTTP 1.1 protocol
 	ProtocolHTTP Protocol = "http/1.1"
@@ -118,6 +119,15 @@ const (
 	// ProtocolPingSuffix is TLS ALPN suffix used to wrap connections with
 	// Ping.
 	ProtocolPingSuffix Protocol = "-ping"
+
+	// ProtocolMCP is TLS ALPN protocol value used to indicate MCP connections.
+	ProtocolMCP Protocol = "teleport-mcp"
+
+	// ProtocolAppHTTPS tunnels HTTPS (currently http/1.1) inside a mTLS tunnel
+	// for HTTP apps, mainly for VNet. This tunnel always uses ping protocol so
+	// it always has the "-ping" suffix. See callers to IsPingProtocol for more
+	// details on ping handling.
+	ProtocolAppHTTPS Protocol = "teleport-app-https-ping"
 )
 
 // SupportedProtocols is the list of supported ALPN protocols.
@@ -138,6 +148,8 @@ var SupportedProtocols = WithPingProtocols(
 		ProtocolProxySSHGRPC,
 		ProtocolProxyGRPCInsecure,
 		ProtocolProxyGRPCSecure,
+		ProtocolMCP,
+		ProtocolAppHTTPS,
 	}, DatabaseProtocols...),
 )
 
@@ -148,6 +160,18 @@ func ProtocolsToString(protocols []Protocol) []string {
 		out = append(out, string(v))
 	}
 	return out
+}
+
+// ProtocolToStringsWithPing converts Protocol to a list of strings, adding the
+// ping version if the protocol supports it.
+func ProtocolToStringsWithPing(protocol Protocol) []string {
+	if !IsPingProtocol(protocol) && HasPingSupport(protocol) {
+		return []string{
+			string(ProtocolWithPing(protocol)),
+			string(protocol),
+		}
+	}
+	return []string{string(protocol)}
 }
 
 // ToALPNProtocol maps provided database protocol to ALPN protocol.
@@ -227,10 +251,12 @@ var DatabaseProtocols = []Protocol{
 }
 
 // ProtocolsWithPingSupport is the list of protocols that Ping connection is
-// supported. For now, only database protocols are supported.
+// supported.
 var ProtocolsWithPingSupport = append(
 	DatabaseProtocols,
 	ProtocolTCP,
+	ProtocolMCP,
+	ProtocolAppHTTPS,
 )
 
 // WithPingProtocols adds Ping protocols to the list for each protocol that
@@ -248,6 +274,9 @@ func WithPingProtocols(protocols []Protocol) []Protocol {
 // ProtocolWithPing receives a protocol and returns it with the Ping protocol
 // suffix.
 func ProtocolWithPing(protocol Protocol) Protocol {
+	if IsPingProtocol(protocol) {
+		return protocol
+	}
 	return Protocol(string(protocol) + string(ProtocolPingSuffix))
 }
 

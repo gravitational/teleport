@@ -16,10 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import makeUserContext from 'teleport/services/user/makeUserContext';
 import { Context as TeleportContext } from 'teleport';
 import { makeAcl } from 'teleport/services/user/makeAcl';
-
+import makeUserContext from 'teleport/services/user/makeUserContext';
 import type { Access, Acl } from 'teleport/services/user/types';
 
 export const noAccess: Access = {
@@ -59,6 +58,9 @@ export const allAccessAcl: Acl = {
   clipboardSharingEnabled: true,
   desktopSessionRecordingEnabled: true,
   directorySharingEnabled: true,
+  reviewRequests: true,
+  fileTransferAccess: true,
+  webTerminalClipboardMode: '',
   license: fullAccess,
   download: fullAccess,
   plugins: fullAccess,
@@ -73,6 +75,24 @@ export const allAccessAcl: Acl = {
   accessGraph: fullAccess,
   bots: fullAccess,
   accessMonitoringRule: fullAccess,
+  discoverConfigs: fullAccess,
+  contacts: fullAccess,
+  gitServers: fullAccess,
+  accessGraphSettings: fullAccess,
+  instances: fullAccess,
+  botInstances: fullAccess,
+  workloadIdentity: fullAccess,
+  clientIpRestriction: fullAccess,
+  autoUpdateConfig: fullAccess,
+  autoUpdateVersion: fullAccess,
+  autoUpdateAgentRollout: fullAccess,
+  autoUpdateAgentReport: fullAccess,
+  inferencePolicy: fullAccess,
+  inferenceModel: fullAccess,
+  inferenceSecret: fullAccess,
+  beam: fullAccess,
+  classifier: fullAccess,
+  mobileDevice: { createEnrollToken: true },
 };
 
 export function getAcl(cfg?: { noAccess: boolean }) {
@@ -85,6 +105,8 @@ export function getAcl(cfg?: { noAccess: boolean }) {
 export const baseContext = {
   authType: 'local',
   userName: 'llama',
+  displayPrimary: '',
+  displaySecondary: '',
   accessCapabilities: {
     suggestedReviewers: ['george_washington@gmail.com', 'alpha'],
     requestableRoles: ['dev-a', 'dev-b', 'dev-c', 'dev-d'],

@@ -18,7 +18,7 @@ package main
 
 import (
 	"os"
-	"path"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -45,25 +45,28 @@ func TestStartCmdConfig(t *testing.T) {
 				Debug: false,
 				Start: StartCmdConfig{
 					FluentdConfig: FluentdConfig{
-						FluentdURL:        "https://localhost:8888/test.log",
-						FluentdSessionURL: "https://localhost:8888/session",
-						FluentdCert:       path.Join(wd, "testdata", "fake-file"),
-						FluentdKey:        path.Join(wd, "testdata", "fake-file"),
-						FluentdCA:         path.Join(wd, "testdata", "fake-file"),
+						FluentdURL:            "https://localhost:8888/test.log",
+						FluentdSessionURL:     "https://localhost:8888/session",
+						FluentdCert:           filepath.Join(wd, "testdata", "fake-file"),
+						FluentdKey:            filepath.Join(wd, "testdata", "fake-file"),
+						FluentdCA:             filepath.Join(wd, "testdata", "fake-file"),
+						FluentdMaxConnections: 10,
 					},
 					TeleportConfig: TeleportConfig{
 						TeleportAddr:            "localhost:3025",
-						TeleportIdentityFile:    path.Join(wd, "testdata", "fake-file"),
+						TeleportIdentityFile:    filepath.Join(wd, "testdata", "fake-file"),
 						TeleportRefreshEnabled:  true,
 						TeleportRefreshInterval: 2 * time.Minute,
 					},
 					IngestConfig: IngestConfig{
 						StorageDir:          "./storage",
 						BatchSize:           20,
+						Types:               map[string]struct{}{},
 						SkipEventTypes:      map[string]struct{}{},
-						SkipSessionTypesRaw: []string{"print"},
+						SkipSessionTypesRaw: []string{"print", "desktop.recording"},
 						SkipSessionTypes: map[string]struct{}{
-							"print": {},
+							"print":             {},
+							"desktop.recording": {},
 						},
 						Timeout:     10 * time.Second,
 						Concurrency: 5,
@@ -83,25 +86,28 @@ func TestStartCmdConfig(t *testing.T) {
 				Debug: true,
 				Start: StartCmdConfig{
 					FluentdConfig: FluentdConfig{
-						FluentdURL:        "https://localhost:8888/test.log",
-						FluentdSessionURL: "https://localhost:8888/session",
-						FluentdCert:       path.Join(wd, "testdata", "fake-file"),
-						FluentdKey:        path.Join(wd, "testdata", "fake-file"),
-						FluentdCA:         path.Join(wd, "testdata", "fake-file"),
+						FluentdURL:            "https://localhost:8888/test.log",
+						FluentdSessionURL:     "https://localhost:8888/session",
+						FluentdCert:           filepath.Join(wd, "testdata", "fake-file"),
+						FluentdKey:            filepath.Join(wd, "testdata", "fake-file"),
+						FluentdCA:             filepath.Join(wd, "testdata", "fake-file"),
+						FluentdMaxConnections: 10,
 					},
 					TeleportConfig: TeleportConfig{
 						TeleportAddr:            "localhost:3025",
-						TeleportIdentityFile:    path.Join(wd, "testdata", "fake-file"),
+						TeleportIdentityFile:    filepath.Join(wd, "testdata", "fake-file"),
 						TeleportRefreshEnabled:  true,
 						TeleportRefreshInterval: 2 * time.Minute,
 					},
 					IngestConfig: IngestConfig{
 						StorageDir:          "./storage",
 						BatchSize:           20,
+						Types:               map[string]struct{}{},
 						SkipEventTypes:      map[string]struct{}{},
-						SkipSessionTypesRaw: []string{"print"},
+						SkipSessionTypesRaw: []string{"print", "desktop.recording"},
 						SkipSessionTypes: map[string]struct{}{
-							"print": {},
+							"print":             {},
+							"desktop.recording": {},
 						},
 						Timeout:     10 * time.Second,
 						Concurrency: 5,
@@ -121,25 +127,28 @@ func TestStartCmdConfig(t *testing.T) {
 				Debug: true,
 				Start: StartCmdConfig{
 					FluentdConfig: FluentdConfig{
-						FluentdURL:        "https://localhost:8888/test.log",
-						FluentdSessionURL: "https://localhost:8888/session",
-						FluentdCert:       path.Join(wd, "testdata", "fake-file"),
-						FluentdKey:        path.Join(wd, "testdata", "fake-file"),
-						FluentdCA:         path.Join(wd, "testdata", "fake-file"),
+						FluentdURL:            "https://localhost:8888/test.log",
+						FluentdSessionURL:     "https://localhost:8888/session",
+						FluentdCert:           filepath.Join(wd, "testdata", "fake-file"),
+						FluentdKey:            filepath.Join(wd, "testdata", "fake-file"),
+						FluentdCA:             filepath.Join(wd, "testdata", "fake-file"),
+						FluentdMaxConnections: 10,
 					},
 					TeleportConfig: TeleportConfig{
 						TeleportAddr:            "localhost:3025",
-						TeleportIdentityFile:    path.Join(wd, "testdata", "fake-file"),
+						TeleportIdentityFile:    filepath.Join(wd, "testdata", "fake-file"),
 						TeleportRefreshEnabled:  true,
 						TeleportRefreshInterval: 2 * time.Minute,
 					},
 					IngestConfig: IngestConfig{
 						StorageDir:          "./storage",
 						BatchSize:           20,
+						Types:               map[string]struct{}{},
 						SkipEventTypes:      map[string]struct{}{},
-						SkipSessionTypesRaw: []string{"print"},
+						SkipSessionTypesRaw: []string{"print", "desktop.recording"},
 						SkipSessionTypes: map[string]struct{}{
-							"print": {},
+							"print":             {},
+							"desktop.recording": {},
 						},
 						Timeout:     10 * time.Second,
 						Concurrency: 5,

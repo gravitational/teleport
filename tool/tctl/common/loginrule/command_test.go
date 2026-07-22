@@ -55,7 +55,7 @@ spec:
 	require.NoError(t, err)
 
 	makeRule := func(name, login string, priority int32) *loginrulepb.LoginRule {
-		return &loginrulepb.LoginRule{
+		return loginrulepb.LoginRule_builder{
 			Metadata: &types.Metadata{
 				Name:      name,
 				Namespace: "default",
@@ -67,7 +67,7 @@ spec:
 					Values: []string{login},
 				},
 			},
-		}
+		}.Build()
 	}
 
 	require.Equal(t, []*loginrulepb.LoginRule{

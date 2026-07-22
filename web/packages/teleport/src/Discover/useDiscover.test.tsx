@@ -16,12 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-import { MemoryRouter } from 'react-router';
-import { renderHook, act } from '@testing-library/react';
+import { act, renderHook } from '@testing-library/react';
 
-import { createTeleportContext } from 'teleport/mocks/contexts';
-import { ContextProvider } from 'teleport';
+import api from 'teleport/services/api';
 import {
   DiscoverEvent,
   DiscoverEventResource,
@@ -30,15 +27,12 @@ import {
   DiscoverServiceDeployType,
   userEventService,
 } from 'teleport/services/userEvent';
-import { FeaturesContextProvider } from 'teleport/FeaturesContext';
-import api from 'teleport/services/api';
-import cfg from 'teleport/config';
 
-import { useDiscover, DiscoverProvider } from './useDiscover';
+import { RequiredDiscoverProviders } from './Fixtures/fixtures';
 import { SERVERS } from './SelectResource/resources';
+import { useDiscover } from './useDiscover';
 
 describe('emitting events', () => {
-  const ctx = createTeleportContext();
   let wrapper;
 
   beforeEach(() => {
@@ -48,13 +42,9 @@ describe('emitting events', () => {
       .mockResolvedValue(null as never); // return value does not matter but required by ts
 
     wrapper = ({ children }) => (
-      <MemoryRouter initialEntries={[{ pathname: cfg.routes.discover }]}>
-        <ContextProvider ctx={ctx}>
-          <FeaturesContextProvider value={[]}>
-            <DiscoverProvider>{children}</DiscoverProvider>
-          </FeaturesContextProvider>
-        </ContextProvider>
-      </MemoryRouter>
+      <RequiredDiscoverProviders agentMeta={undefined} resourceSpec={undefined}>
+        {children}
+      </RequiredDiscoverProviders>
     );
   });
 

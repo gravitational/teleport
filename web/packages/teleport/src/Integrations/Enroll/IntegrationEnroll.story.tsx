@@ -16,14 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { MemoryRouter } from 'react-router';
 
+import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
+
 import { ContextProvider } from 'teleport';
-
-import { createTeleportContext } from 'teleport/mocks/contexts';
-
 import cfg from 'teleport/config';
+import { ContentMinWidth } from 'teleport/Main/Main';
+import { createTeleportContext } from 'teleport/mocks/contexts';
 
 import { IntegrationEnroll } from './IntegrationEnroll';
 
@@ -36,9 +36,13 @@ export const Picker = () => {
 
   return (
     <MemoryRouter initialEntries={[cfg.routes.integrationEnroll]}>
-      <ContextProvider ctx={ctx}>
-        <IntegrationEnroll />
-      </ContextProvider>
+      <InfoGuidePanelProvider>
+        <ContentMinWidth>
+          <ContextProvider ctx={ctx}>
+            <IntegrationEnroll />
+          </ContextProvider>
+        </ContentMinWidth>
+      </InfoGuidePanelProvider>
     </MemoryRouter>
   );
 };

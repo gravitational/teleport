@@ -11,8 +11,6 @@ Restart=always
 RestartSec=5
 RuntimeDirectory=teleport
 EnvironmentFile=-/etc/default/teleport
-# TODO(gus): REMOVE IN 17.0.0 - /etc/default/teleport should be used instead
-EnvironmentFile=/etc/teleport.d/conf
 ExecStartPre=/usr/local/bin/teleport-ssm-get-token
 ExecStart=/usr/local/bin/teleport start --config=/etc/teleport.yaml --diag-addr=127.0.0.1:3000 --pid-file=/run/teleport/teleport.pid
 # systemd before 239 needs an absolute path

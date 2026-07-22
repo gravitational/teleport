@@ -203,6 +203,16 @@ func FSTryWriteLock(filePath string) (unlock func() error, err error) {
 	return fileLock.Unlock, nil
 }
 
+// FSWriteLock tries to grab write lock and block if lock is already acquired by someone else.
+func FSWriteLock(filePath string) (unlock func() error, err error) {
+	fileLock := flock.New(getPlatformLockFilePath(filePath))
+	if err := fileLock.Lock(); err != nil {
+		return nil, trace.ConvertSystemError(err)
+	}
+
+	return fileLock.Unlock, nil
+}
+
 // FSTryWriteLockTimeout tries to grab write lock, it's doing it until locks is acquired, or timeout is expired,
 // or context is expired.
 func FSTryWriteLockTimeout(ctx context.Context, filePath string, timeout time.Duration) (unlock func() error, err error) {
@@ -216,7 +226,7 @@ func FSTryWriteLockTimeout(ctx context.Context, filePath string, timeout time.Du
 	return fileLock.Unlock, nil
 }
 
-// FSTryReadLock tries to grab write lock, returns ErrUnsuccessfulLockTry
+// FSTryReadLock tries to grab shared lock, returns ErrUnsuccessfulLockTry
 // if lock is already acquired by someone else
 func FSTryReadLock(filePath string) (unlock func() error, err error) {
 	fileLock := flock.New(getPlatformLockFilePath(filePath))
@@ -226,6 +236,16 @@ func FSTryReadLock(filePath string) (unlock func() error, err error) {
 	}
 	if !locked {
 		return nil, trace.Retry(ErrUnsuccessfulLockTry, "")
+	}
+
+	return fileLock.Unlock, nil
+}
+
+// FSReadLock tries to grab shared lock and block if lock is already acquired by someone else.
+func FSReadLock(filePath string) (unlock func() error, err error) {
+	fileLock := flock.New(getPlatformLockFilePath(filePath))
+	if err := fileLock.RLock(); err != nil {
+		return nil, trace.ConvertSystemError(err)
 	}
 
 	return fileLock.Unlock, nil
@@ -245,7 +265,7 @@ func FSTryReadLockTimeout(ctx context.Context, filePath string, timeout time.Dur
 }
 
 // RemoveAllSecure is similar to [os.RemoveAll] but leverages [RemoveSecure] to delete files so that they are
-// overwritten.  This helps guard against hardware attacks on magnetic disks.
+// overwritten. This helps guard against hardware attacks on magnetic disks.
 func RemoveAllSecure(path string) error {
 	if path == "" {
 		// match behavior from os.RemoveAll
@@ -317,22 +337,16 @@ func removeSecure(filePath string, fi os.FileInfo) error {
 	defer f.Close()
 
 	if runtime.GOOS == "windows" {
-		// Windows can't unlink the file before overwriting.
-		if f != nil {
-			for i := 0; i < 3; i++ {
-				if err := overwriteFile(f, fi); err != nil {
-					break
-				}
-			}
-		}
-		// The file should be closed before removing it on Windows.
+		// On windows, os.Remove() will fail if there are any open handles to the
+		// file, including in other processes. Skip overwrite to avoid leaving
+		// files in a broken state.
 		closeErr := trace.ConvertSystemError(f.Close())
 		removeErr := trace.ConvertSystemError(os.Remove(filePath))
 		return trace.NewAggregate(closeErr, removeErr)
 	} else {
 		removeErr := os.Remove(filePath)
 		if f != nil {
-			for i := 0; i < 3; i++ {
+			for range 3 {
 				if err := overwriteFile(f, fi); err != nil {
 					break
 				}
@@ -402,15 +416,19 @@ func RecursiveChown(dir string, uid, gid int) error {
 	return nil
 }
 
-func CopyFile(src, dest string, perm os.FileMode) error {
+func CopyFile(src, dest string, perm os.FileMode) (err error) {
 	srcFile, err := os.Open(src)
 	if err != nil {
 		return trace.ConvertSystemError(err)
 	}
+	defer srcFile.Close()
 	destFile, err := os.OpenFile(dest, os.O_RDWR|os.O_CREATE|os.O_TRUNC, perm)
 	if err != nil {
 		return trace.ConvertSystemError(err)
 	}
+	defer func() {
+		err = trace.NewAggregate(err, trace.Wrap(destFile.Close()))
+	}()
 	_, err = destFile.ReadFrom(srcFile)
 	if err != nil {
 		return trace.ConvertSystemError(err)
@@ -474,4 +492,14 @@ func RecursiveCopy(src, dest string, skip func(src, dest string) (bool, error)) 
 
 		return nil
 	}))
+}
+
+// CreateExclusiveFile creates a file only if it does not exist to prevent overwriting
+// existing files.
+func CreateExclusiveFile(path string, mode os.FileMode) (*os.File, error) {
+	out, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, mode)
+	if err != nil {
+		return nil, trace.ConvertSystemError(err)
+	}
+	return out, nil
 }

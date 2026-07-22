@@ -20,18 +20,18 @@ package gcp
 
 import (
 	"context"
-	"crypto/rand"
+	"crypto"
 	"crypto/rsa"
-	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
+	"regexp"
+	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
 	sqladmin "google.golang.org/api/sqladmin/v1beta4"
 
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 )
@@ -45,12 +45,14 @@ type SQLAdminClient interface {
 	// GetDatabaseInstance returns database instance details for the project/instance
 	// configured in a session.
 	GetDatabaseInstance(ctx context.Context, db types.Database) (*sqladmin.DatabaseInstance, error)
-	// GenerateEphemeralCert returns a new client certificate with RSA key for the
-	// project/instance configured in a session.
-	GenerateEphemeralCert(ctx context.Context, db types.Database, certExpiry time.Time) (*tls.Certificate, error)
+	// ListDatabaseInstances lists all Cloud SQL instances in the given project, with optional region filter.
+	ListDatabaseInstances(ctx context.Context, projectID string, regions []string) ([]*sqladmin.DatabaseInstance, error)
+	// GenerateEphemeralCert returns a new PEM-encoded client certificate for
+	// the project/instance configured in a session.
+	GenerateEphemeralCert(ctx context.Context, db types.Database, certExpiry time.Time, pubKey crypto.PublicKey) (string, error)
 }
 
-// NewGCPSQLAdminClient returns a GCPSQLAdminClient interface wrapping sqladmin.Service.
+// NewSQLAdminClient returns a [SQLAdminClient] interface wrapping [sqladmin.Service].
 func NewSQLAdminClient(ctx context.Context) (SQLAdminClient, error) {
 	service, err := sqladmin.NewService(ctx)
 	if err != nil {
@@ -99,42 +101,93 @@ func (g *gcpSQLAdminClient) GetDatabaseInstance(ctx context.Context, db types.Da
 	return dbi, nil
 }
 
-// GenerateEphemeralCert returns a new client certificate with RSA key created
-// using the GenerateEphemeralCertRequest Cloud SQL API. Client certificates are
-// required when enabling SSL in Cloud SQL.
-func (g *gcpSQLAdminClient) GenerateEphemeralCert(ctx context.Context, db types.Database, certExpiry time.Time) (*tls.Certificate, error) {
-	// TODO(jimbishopp): cache database certificates to avoid expensive generate
-	// operation on each connection.
+func regionsFilter(regions []string) (string, error) {
+	if len(regions) == 0 {
+		return "", nil
+	}
+	var parts []string
+	for _, region := range regions {
+		part, err := oneRegionFilter(region)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+		parts = append(parts, part)
+	}
+	return strings.Join(parts, " OR "), nil
+}
 
-	// Generate RSA private key, x509 encoded public key, and append to certificate request.
-	pkey, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
+var regionRe = regexp.MustCompile(`^[a-z]+-[a-z]+\d+$`)
+
+func oneRegionFilter(region string) (string, error) {
+	region = strings.TrimSpace(region)
+
+	if len(region) == 0 {
+		return "", trace.BadParameter("region cannot be blank")
+	}
+	if !regionRe.MatchString(region) {
+		return "", trace.BadParameter("invalid region: %q", region)
+	}
+
+	return fmt.Sprintf("region=%q", region), nil
+}
+
+// ListDatabaseInstances lists all Cloud SQL instances in the given project,
+// following pagination, with optional region filter.
+func (g *gcpSQLAdminClient) ListDatabaseInstances(ctx context.Context, projectID string, regions []string) ([]*sqladmin.DatabaseInstance, error) {
+	filter, err := regionsFilter(regions)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	pkix, err := x509.MarshalPKIXPublicKey(pkey.Public())
+	call := g.service.Instances.List(projectID)
+	if filter != "" {
+		call = call.Filter(filter)
+	}
+	var instances []*sqladmin.DatabaseInstance
+	err = call.Pages(ctx, func(page *sqladmin.InstancesListResponse) error {
+		instances = append(instances, page.Items...)
+		return nil
+	})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(convertAPIError(err))
+	}
+	return instances, nil
+}
+
+// GenerateEphemeralCert returns a new client certificate created using the
+// GenerateEphemeralCertRequest Cloud SQL API. Client certificates are required
+// when enabling SSL in Cloud SQL.
+func (g *gcpSQLAdminClient) GenerateEphemeralCert(ctx context.Context, db types.Database, certExpiry time.Time, pubKey crypto.PublicKey) (string, error) {
+	// TODO(jimbishopp): cache database certificates to avoid expensive generate
+	// operation on each connection.
+
+	var keyPEM []byte
+	switch pubKey.(type) {
+	case *rsa.PublicKey:
+		// keys.MarshalPublicKey would use PKCS#1 format for an RSA public key,
+		// we specifically want PKIX here.
+		pkix, err := x509.MarshalPKIXPublicKey(pubKey)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+		keyPEM = pem.EncodeToMemory(&pem.Block{Bytes: pkix, Type: "RSA PUBLIC KEY"})
+	default:
+		var err error
+		keyPEM, err = keys.MarshalPublicKey(pubKey)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
 	}
 
 	// Make API call.
 	gcp := db.GetGCP()
 	req := g.service.Connect.GenerateEphemeralCert(gcp.ProjectID, gcp.InstanceID, &sqladmin.GenerateEphemeralCertRequest{
-		PublicKey:     string(pem.EncodeToMemory(&pem.Block{Bytes: pkix, Type: "RSA PUBLIC KEY"})),
+		PublicKey:     string(keyPEM),
 		ValidDuration: fmt.Sprintf("%ds", int(time.Until(certExpiry).Seconds())),
 	})
 	resp, err := req.Context(ctx).Do()
 	if err != nil {
-		return nil, trace.Wrap(convertAPIError(err))
+		return "", trace.Wrap(convertAPIError(err))
 	}
 
-	// Create TLS certificate from returned ephemeral certificate and private key.
-	keyPEM, err := keys.MarshalPrivateKey(pkey)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	cert, err := tls.X509KeyPair([]byte(resp.EphemeralCert.Cert), keyPEM)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &cert, nil
+	return resp.EphemeralCert.Cert, nil
 }

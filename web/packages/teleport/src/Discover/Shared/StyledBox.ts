@@ -17,12 +17,19 @@
  */
 
 import styled from 'styled-components';
+
 import { Box } from 'design';
 
-export const StyledBox = styled(Box).attrs({
+const maxWidth = 880;
+
+export const DiscoverBox = styled(Box).attrs({
+  maxWidth: `${maxWidth}px`,
+  width: '100%',
+})``;
+
+export const StyledBox = styled(DiscoverBox).attrs({
   p: 4,
   borderRadius: 3,
-  maxWidth: '800px',
 })`
   background-color: ${props => props.theme.colors.spotBackground[0]};
 `;

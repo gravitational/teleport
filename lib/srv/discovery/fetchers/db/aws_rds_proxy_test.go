@@ -21,11 +21,10 @@ package db
 import (
 	"testing"
 
-	"github.com/aws/aws-sdk-go/service/rds"
+	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
@@ -41,10 +40,12 @@ func TestRDSDBProxyFetcher(t *testing.T) {
 	tests := []awsFetcherTest{
 		{
 			name: "fetch all",
-			inputClients: &cloud.TestCloudClients{
-				RDS: &mocks.RDSMock{
-					DBProxies:        []*rds.DBProxy{rdsProxyVpc1, rdsProxyVpc2},
-					DBProxyEndpoints: []*rds.DBProxyEndpoint{rdsProxyEndpointVpc1, rdsProxyEndpointVpc2},
+			fetcherCfg: AWSFetcherFactoryConfig{
+				AWSClients: fakeAWSClients{
+					rdsClient: &mocks.RDSClient{
+						DBProxies:        []rdstypes.DBProxy{*rdsProxyVpc1, *rdsProxyVpc2},
+						DBProxyEndpoints: []rdstypes.DBProxyEndpoint{*rdsProxyEndpointVpc1, *rdsProxyEndpointVpc2},
+					},
 				},
 			},
 			inputMatchers: makeAWSMatchersForType(types.AWSMatcherRDSProxy, "us-east-1", wildcardLabels),
@@ -52,10 +53,12 @@ func TestRDSDBProxyFetcher(t *testing.T) {
 		},
 		{
 			name: "fetch vpc1",
-			inputClients: &cloud.TestCloudClients{
-				RDS: &mocks.RDSMock{
-					DBProxies:        []*rds.DBProxy{rdsProxyVpc1, rdsProxyVpc2},
-					DBProxyEndpoints: []*rds.DBProxyEndpoint{rdsProxyEndpointVpc1, rdsProxyEndpointVpc2},
+			fetcherCfg: AWSFetcherFactoryConfig{
+				AWSClients: fakeAWSClients{
+					rdsClient: &mocks.RDSClient{
+						DBProxies:        []rdstypes.DBProxy{*rdsProxyVpc1, *rdsProxyVpc2},
+						DBProxyEndpoints: []rdstypes.DBProxyEndpoint{*rdsProxyEndpointVpc1, *rdsProxyEndpointVpc2},
+					},
 				},
 			},
 			inputMatchers: makeAWSMatchersForType(types.AWSMatcherRDSProxy, "us-east-1", map[string]string{"vpc-id": "vpc1"}),
@@ -65,7 +68,7 @@ func TestRDSDBProxyFetcher(t *testing.T) {
 	testAWSFetchers(t, tests...)
 }
 
-func makeRDSProxy(t *testing.T, name, region, vpcID string) (*rds.DBProxy, types.Database) {
+func makeRDSProxy(t *testing.T, name, region, vpcID string) (*rdstypes.DBProxy, types.Database) {
 	rdsProxy := mocks.RDSProxy(name, region, vpcID)
 	rdsProxyDatabase, err := common.NewDatabaseFromRDSProxy(rdsProxy, nil)
 	require.NoError(t, err)
@@ -73,7 +76,7 @@ func makeRDSProxy(t *testing.T, name, region, vpcID string) (*rds.DBProxy, types
 	return rdsProxy, rdsProxyDatabase
 }
 
-func makeRDSProxyCustomEndpoint(t *testing.T, rdsProxy *rds.DBProxy, name, region string) (*rds.DBProxyEndpoint, types.Database) {
+func makeRDSProxyCustomEndpoint(t *testing.T, rdsProxy *rdstypes.DBProxy, name, region string) (*rdstypes.DBProxyEndpoint, types.Database) {
 	rdsProxyEndpoint := mocks.RDSProxyCustomEndpoint(rdsProxy, name, region)
 	rdsProxyEndpointDatabase, err := common.NewDatabaseFromRDSProxyCustomEndpoint(rdsProxy, rdsProxyEndpoint, nil)
 	require.NoError(t, err)

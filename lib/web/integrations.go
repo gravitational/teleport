@@ -19,23 +19,38 @@
 package web
 
 import (
+	"context"
+	"iter"
+	"log/slog"
 	"net/http"
 	"net/url"
+	"slices"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
+	discoveryconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
+	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
+	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
+	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/discoveryconfig"
+	"github.com/gravitational/teleport/api/types/usertasks"
+	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/integrations/access/msteams"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	libui "github.com/gravitational/teleport/lib/ui"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
 
 // integrationsCreate creates an Integration
-func (h *Handler) integrationsCreate(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
-	var req *ui.Integration
-	if err := httplib.ReadJSON(r, &req); err != nil {
+func (h *Handler) integrationsCreate(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
+	var req *ui.CreateIntegrationRequest
+	if err := httplib.ReadResourceJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -57,14 +72,52 @@ func (h *Handler) integrationsCreate(w http.ResponseWriter, r *http.Request, p h
 			}
 			s3Location = issuerS3URI.String()
 		}
+		metadata := types.Metadata{Name: req.Name}
 		ig, err = types.NewIntegrationAWSOIDC(
-			types.Metadata{Name: req.Name},
+			metadata,
 			&types.AWSOIDCIntegrationSpecV1{
 				RoleARN:     req.AWSOIDC.RoleARN,
 				IssuerS3URI: s3Location,
+				Audience:    req.AWSOIDC.Audience,
 			},
 		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 
+	case types.IntegrationSubKindGitHub:
+		ig, err = types.NewIntegrationGitHub(types.Metadata{
+			Name: req.Name,
+		}, &types.GitHubIntegrationSpecV1{
+			Organization: req.Integration.GitHub.Organization,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		cred := types.PluginCredentialsV1{
+			Credentials: &types.PluginCredentialsV1_IdSecret{
+				IdSecret: &types.PluginIdSecretCredential{
+					Id:     req.OAuth.ID,
+					Secret: req.OAuth.Secret,
+				},
+			},
+		}
+		if err := ig.SetCredentials(&cred); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+	case types.IntegrationSubKindAWSRolesAnywhere:
+		ig, err = types.NewIntegrationAWSRA(types.Metadata{
+			Name: req.Name,
+		}, &types.AWSRAIntegrationSpecV1{
+			TrustAnchorARN: req.Integration.AWSRA.TrustAnchorARN,
+			ProfileSyncConfig: &types.AWSRolesAnywhereProfileSyncConfig{
+				Enabled:            req.Integration.AWSRA.ProfileSyncConfig.Enabled,
+				ProfileARN:         req.Integration.AWSRA.ProfileSyncConfig.ProfileARN,
+				RoleARN:            req.Integration.AWSRA.ProfileSyncConfig.RoleARN,
+				ProfileNameFilters: req.Integration.AWSRA.ProfileSyncConfig.ProfileNameFilters,
+			},
+		})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -73,7 +126,7 @@ func (h *Handler) integrationsCreate(w http.ResponseWriter, r *http.Request, p h
 		return nil, trace.BadParameter("subkind %q is not supported", req.SubKind)
 	}
 
-	clt, err := sctx.GetUserClient(r.Context(), site)
+	clt, err := sctx.GetUserClient(r.Context(), cluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -95,14 +148,14 @@ func (h *Handler) integrationsCreate(w http.ResponseWriter, r *http.Request, p h
 }
 
 // integrationsUpdate updates the Integration based on its name
-func (h *Handler) integrationsUpdate(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+func (h *Handler) integrationsUpdate(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
 	integrationName := p.ByName("name")
 	if integrationName == "" {
-		return nil, trace.BadParameter("an integration name is required")
+		return nil, trace.BadParameter("integration name is required")
 	}
 
 	var req *ui.UpdateIntegrationRequest
-	if err := httplib.ReadJSON(r, &req); err != nil {
+	if err := httplib.ReadResourceJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -110,7 +163,7 @@ func (h *Handler) integrationsUpdate(w http.ResponseWriter, r *http.Request, p h
 		return nil, trace.Wrap(err)
 	}
 
-	clt, err := sctx.GetUserClient(r.Context(), site)
+	clt, err := sctx.GetUserClient(r.Context(), cluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -137,6 +190,40 @@ func (h *Handler) integrationsUpdate(w http.ResponseWriter, r *http.Request, p h
 		integration.SetAWSOIDCIssuerS3URI(s3Location)
 		integration.SetAWSOIDCRoleARN(req.AWSOIDC.RoleARN)
 	}
+	if req.OAuth != nil {
+		if integration.GetSubKind() != types.IntegrationSubKindGitHub {
+			return nil, trace.BadParameter("cannot update %q fields for a %q integration", types.IntegrationSubKindGitHub, integration.GetSubKind())
+		}
+		cred := types.PluginCredentialsV1{
+			Credentials: &types.PluginCredentialsV1_IdSecret{
+				IdSecret: &types.PluginIdSecretCredential{
+					Id:     req.OAuth.ID,
+					Secret: req.OAuth.Secret,
+				},
+			},
+		}
+		if err := integration.SetCredentials(&cred); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	if req.AWSRA != nil {
+		if integration.GetSubKind() != types.IntegrationSubKindAWSRolesAnywhere {
+			return nil, trace.BadParameter("cannot update %q fields for a %q integration", types.IntegrationSubKindAWSRolesAnywhere, integration.GetSubKind())
+		}
+
+		spec := integration.GetAWSRolesAnywhereIntegrationSpec()
+		spec.TrustAnchorARN = req.AWSRA.TrustAnchorARN
+		spec.ProfileSyncConfig = &types.AWSRolesAnywhereProfileSyncConfig{
+			Enabled:            req.AWSRA.ProfileSyncConfig.Enabled,
+			ProfileARN:         req.AWSRA.ProfileSyncConfig.ProfileARN,
+			RoleARN:            req.AWSRA.ProfileSyncConfig.RoleARN,
+			ProfileNameFilters: req.AWSRA.ProfileSyncConfig.ProfileNameFilters,
+
+			ProfileAcceptsRoleSessionName: spec.ProfileSyncConfig.ProfileAcceptsRoleSessionName,
+		}
+		integration.SetAWSRolesAnywhereIntegrationSpec(spec)
+	}
 
 	if _, err := clt.UpdateIntegration(r.Context(), integration); err != nil {
 		return nil, trace.Wrap(err)
@@ -151,18 +238,22 @@ func (h *Handler) integrationsUpdate(w http.ResponseWriter, r *http.Request, p h
 }
 
 // integrationsDelete removes an Integration based on its name
-func (h *Handler) integrationsDelete(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+func (h *Handler) integrationsDelete(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
 	integrationName := p.ByName("name_or_subkind")
 	if integrationName == "" {
-		return nil, trace.BadParameter("an integration name is required")
+		return nil, trace.BadParameter("integration name is required")
 	}
 
-	clt, err := sctx.GetUserClient(r.Context(), site)
+	clt, err := sctx.GetUserClient(r.Context(), cluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := clt.DeleteIntegration(r.Context(), integrationName); err != nil {
+	deleteAssociatedResources, _ := apiutils.ParseBool(r.URL.Query().Get("associatedresources"))
+	if _, err := clt.IntegrationsClient().DeleteIntegration(r.Context(), integrationv1.DeleteIntegrationRequest_builder{
+		Name:                      integrationName,
+		DeleteAssociatedResources: deleteAssociatedResources,
+	}.Build()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -170,13 +261,13 @@ func (h *Handler) integrationsDelete(w http.ResponseWriter, r *http.Request, p h
 }
 
 // integrationsGet returns an Integration based on its name
-func (h *Handler) integrationsGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
+func (h *Handler) integrationsGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
 	integrationName := p.ByName("name")
 	if integrationName == "" {
-		return nil, trace.BadParameter("an integration name is required")
+		return nil, trace.BadParameter("integration name is required")
 	}
 
-	clt, err := sctx.GetUserClient(r.Context(), site)
+	clt, err := sctx.GetUserClient(r.Context(), cluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -194,9 +285,579 @@ func (h *Handler) integrationsGet(w http.ResponseWriter, r *http.Request, p http
 	return uiIg, nil
 }
 
+// integrationStats returns the integration stats.
+func (h *Handler) integrationStats(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
+	integrationName := p.ByName("name")
+	if integrationName == "" {
+		return nil, trace.BadParameter("integration name is required")
+	}
+
+	clt, err := sctx.GetUserClient(r.Context(), cluster)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ig, err := clt.GetIntegration(r.Context(), integrationName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	req := collectIntegrationStatsRequest{
+		logger:                h.logger,
+		integration:           ig,
+		discoveryConfigLister: clt.DiscoveryConfigClient(),
+		databaseGetter:        clt,
+		awsOIDCClient:         clt.IntegrationAWSOIDCClient(),
+		userTasksClient:       clt.UserTasksServiceClient(),
+	}
+	summary, err := collectIntegrationStats(r.Context(), req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return summary, nil
+}
+
+type userTasksLister interface {
+	ListUserTasks(ctx context.Context, pageSize int64, nextToken string, filters *usertasksv1.ListUserTasksFilters) ([]*usertasksv1.UserTask, string, error)
+}
+
+type collectIntegrationStatsRequest struct {
+	logger                *slog.Logger
+	integration           types.Integration
+	discoveryConfigLister discoveryConfigLister
+	databaseGetter        databaseGetter
+	awsOIDCClient         deployedDatabaseServiceLister
+	userTasksClient       userTasksLister
+}
+
+func collectIntegrationStats(ctx context.Context, req collectIntegrationStatsRequest) (*ui.IntegrationWithSummary, error) {
+	ret := &ui.IntegrationWithSummary{}
+
+	uiIg, err := ui.MakeIntegration(req.integration)
+	if err != nil {
+		return nil, err
+	}
+	ret.Integration = uiIg
+
+	if req.integration != nil {
+		if val, ok := req.integration.GetLabel(types.CreatedByIaCLabel); ok && val == ui.IaCTerraformLabel {
+			ret.IsManagedByTerraform = true
+		}
+	}
+
+	tasks := allUserTasks(ctx, req.userTasksClient, usertasksv1.ListUserTasksFilters_builder{
+		Integration: req.integration.GetName(),
+		TaskState:   usertasks.TaskStateOpen,
+	}.Build())
+	for task, err := range tasks {
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		ret.UserTasks = append(ret.UserTasks, ui.MakeUserTask(task))
+
+		switch task.GetSpec().GetTaskType() {
+		case usertasks.TaskTypeDiscoverEC2:
+			ret.AWSEC2.UnresolvedUserTasks++
+		case usertasks.TaskTypeDiscoverEKS:
+			ret.AWSEKS.UnresolvedUserTasks++
+		case usertasks.TaskTypeDiscoverRDS:
+			ret.AWSRDS.UnresolvedUserTasks++
+		case usertasks.TaskTypeDiscoverAzureVM:
+			ret.AzureVM.UnresolvedUserTasks++
+		}
+	}
+	ret.UnresolvedUserTasks = len(ret.UserTasks)
+
+	// Track whether any resource type is currently being scanned.
+	// If any are scanning, we set SyncEnd to nil after all iterations.
+	// TODO (avatus) might need to make this a bit more scalable in the
+	// future if we have a bunch of types but this is ok for now
+	var ec2Scanning, rdsScanning, eksScanning, azureVMScanning bool
+
+	for cfg, err := range allDiscoveryConfigs(ctx, req.discoveryConfigLister) {
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		summary := integrationSummaryForConfig(cfg, req.integration.GetName())
+		if summary == nil {
+			continue
+		}
+
+		ec2Matchers := rulesWithIntegration(cfg, types.AWSMatcherEC2, req.integration.GetName())
+		rdsMatchers := rulesWithIntegration(cfg, types.AWSMatcherRDS, req.integration.GetName())
+		eksMatchers := rulesWithIntegration(cfg, types.AWSMatcherEKS, req.integration.GetName())
+		azureVMMatchers := rulesWithIntegration(cfg, types.AzureMatcherVM, req.integration.GetName())
+
+		ret.AWSEC2.RulesCount += ec2Matchers
+		ret.AWSRDS.RulesCount += rdsMatchers
+		ret.AWSEKS.RulesCount += eksMatchers
+		ret.AzureVM.RulesCount += azureVMMatchers
+
+		if ec2Matchers != 0 {
+			ec2Scanning = mergeResourceTypeSummary(&ret.AWSEC2, summary.summary.GetAwsEc2(), summary.pollInterval) || ec2Scanning
+		}
+		if rdsMatchers != 0 {
+			rdsScanning = mergeResourceTypeSummary(&ret.AWSRDS, summary.summary.GetAwsRds(), summary.pollInterval) || rdsScanning
+		}
+		if eksMatchers != 0 {
+			eksScanning = mergeResourceTypeSummary(&ret.AWSEKS, summary.summary.GetAwsEks(), summary.pollInterval) || eksScanning
+		}
+		if azureVMMatchers != 0 {
+			azureVMScanning = mergeResourceTypeSummary(&ret.AzureVM, summary.summary.GetAzureVms(), summary.pollInterval) || azureVMScanning
+		}
+	}
+
+	// If any resource type is currently scanning, set SyncEnd to nil.
+	if ec2Scanning {
+		ret.AWSEC2.SyncEnd = nil
+	}
+	if rdsScanning {
+		ret.AWSRDS.SyncEnd = nil
+	}
+	if eksScanning {
+		ret.AWSEKS.SyncEnd = nil
+	}
+	if azureVMScanning {
+		ret.AzureVM.SyncEnd = nil
+	}
+
+	switch req.integration.GetSubKind() {
+	case types.IntegrationSubKindAWSRolesAnywhere:
+		ret.RolesAnywhereProfileSync = &ui.RolesAnywhereProfileSync{}
+
+		awsRolesAnywhereSpec := req.integration.GetAWSRolesAnywhereIntegrationSpec()
+		if awsRolesAnywhereSpec != nil {
+			ret.RolesAnywhereProfileSync.Enabled = awsRolesAnywhereSpec.ProfileSyncConfig.Enabled
+		}
+
+		integrationStatus := req.integration.GetStatus()
+		if integrationStatus.AWSRolesAnywhere != nil {
+			ret.RolesAnywhereProfileSync.Status = integrationStatus.AWSRolesAnywhere.LastProfileSync.Status
+			ret.RolesAnywhereProfileSync.ErrorMessage = integrationStatus.AWSRolesAnywhere.LastProfileSync.ErrorMessage
+			ret.RolesAnywhereProfileSync.SyncedProfiles = int(integrationStatus.AWSRolesAnywhere.LastProfileSync.SyncedProfiles)
+			ret.RolesAnywhereProfileSync.SyncStartTime = integrationStatus.AWSRolesAnywhere.LastProfileSync.StartTime
+			ret.RolesAnywhereProfileSync.SyncEndTime = integrationStatus.AWSRolesAnywhere.LastProfileSync.EndTime
+		}
+
+	case types.IntegrationSubKindAWSOIDC:
+		// For now, Deploying Database Services is only possible using the AWS OIDC Integration.
+		// When/if more integrations (eg, AWS IAM Roles Anywhere) support it, this must be updated.
+		ecsCount, err := countAWSOIDCDeployedDatabaseServices(ctx, req)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		ret.AWSRDS.ECSDatabaseServiceCount = ecsCount
+	}
+
+	return ret, nil
+}
+
+func buildBriefSummaries(ctx context.Context, igs []types.Integration, uclt userTasksLister, dclt discoveryConfigLister) (map[string]*ui.BriefSummary, error) {
+	summaries := make(map[string]*ui.BriefSummary, len(igs))
+	for _, ig := range igs {
+		if !ig.SupportsDiscoveryResources() {
+			continue
+		}
+		summaries[ig.GetName()] = &ui.BriefSummary{
+			UnresolvedUserTasks: []ui.UserTask{},
+		}
+	}
+
+	if len(summaries) == 0 {
+		return summaries, nil
+	}
+
+	for name := range summaries {
+		tasks := allUserTasks(ctx, uclt, usertasksv1.ListUserTasksFilters_builder{
+			Integration: name,
+			TaskState:   usertasks.TaskStateOpen,
+		}.Build())
+		for task, err := range tasks {
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			summaries[name].UnresolvedUserTasks = append(summaries[name].UnresolvedUserTasks, ui.MakeUserTask(task))
+		}
+	}
+
+	for cfg, err := range allDiscoveryConfigs(ctx, dclt) {
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		for name, rscs := range cfg.Status.IntegrationDiscoveredResources {
+			if _, ok := summaries[name]; !ok {
+				continue
+			}
+
+			if summaries[name].ResourcesCount == nil {
+				summaries[name].ResourcesCount = &ui.ResourcesCount{}
+			}
+			addResourceCounts(summaries[name].ResourcesCount, rscs.AwsEc2)
+			addResourceCounts(summaries[name].ResourcesCount, rscs.AwsEks)
+			addResourceCounts(summaries[name].ResourcesCount, rscs.AwsRds)
+			addResourceCounts(summaries[name].ResourcesCount, rscs.AzureVms)
+		}
+	}
+
+	return summaries, nil
+}
+
+func addResourceCounts(rc *ui.ResourcesCount, dr *discoveryconfigv1.ResourcesDiscoveredSummary) {
+	if rc == nil || dr == nil {
+		return
+	}
+	rc.Found += int(dr.GetFound())
+	rc.Enrolled += int(dr.GetEnrolled())
+	rc.Failed += int(dr.GetFailed())
+}
+
+func allUserTasks(
+	ctx context.Context,
+	lister userTasksLister,
+	filters *usertasksv1.ListUserTasksFilters,
+) iter.Seq2[*usertasksv1.UserTask, error] {
+	return clientutils.Resources(ctx,
+		func(ctx context.Context, pageSize int, nextToken string) ([]*usertasksv1.UserTask, string, error) {
+			return lister.ListUserTasks(ctx, int64(pageSize), nextToken, filters)
+		})
+}
+
+func allDiscoveryConfigs(
+	ctx context.Context,
+	lister discoveryConfigLister,
+) iter.Seq2[*discoveryconfig.DiscoveryConfig, error] {
+	return clientutils.Resources(ctx,
+		func(ctx context.Context, pageSize int, nextToken string) ([]*discoveryconfig.DiscoveryConfig, string, error) {
+			return lister.ListDiscoveryConfigs(ctx, pageSize, nextToken)
+		})
+}
+
+func countAWSOIDCDeployedDatabaseServices(ctx context.Context, req collectIntegrationStatsRequest) (int, error) {
+	regions, err := fetchRelevantAWSRegions(ctx, req.databaseGetter, req.discoveryConfigLister)
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+
+	services, err := listDeployedDatabaseServices(ctx, req.logger, req.integration.GetName(), regions, req.awsOIDCClient)
+	if err != nil {
+		// The number of ECS Database Services is shown when listing the integration status.
+		// However, listing ECS Services is only possible after the user goes through the RDS enrollment flows, which adds the required policy to the IAM Role.
+		// If this calls returns an access denied, we assume the user doesn't have the required IAM Policies in their IAM Role and show 0 instead.
+		if trace.IsAccessDenied(err) {
+			return 0, nil
+		}
+
+		return 0, trace.Wrap(err)
+	}
+
+	return len(services), nil
+}
+
+type integrationSummaryWithPollInterval struct {
+	summary      *discoveryconfigv1.DiscoverSummary
+	pollInterval time.Duration
+}
+
+// integrationSummaryForConfig returns the most recently updated server's summary
+// for the given integration. In HA deployments, multiple Discovery Services may
+// report summaries for the same resources, so we use only the most recent one
+// to avoid double-counting.
+func integrationSummaryForConfig(cfg *discoveryconfig.DiscoveryConfig, integrationName string) *integrationSummaryWithPollInterval {
+	var mostRecent *integrationSummaryWithPollInterval
+	var mostRecentTime time.Time
+
+	for _, serverStatus := range cfg.Status.ServerStatus {
+		if serverStatus == nil || serverStatus.DiscoveryStatusServer == nil {
+			continue
+		}
+		discoverSummary, ok := serverStatus.GetIntegrationSummaries()[integrationName]
+		if !ok {
+			continue
+		}
+
+		lastUpdate := serverStatus.GetLastUpdate().AsTime()
+		if mostRecent == nil || lastUpdate.After(mostRecentTime) {
+			mostRecent = &integrationSummaryWithPollInterval{
+				summary:      discoverSummary,
+				pollInterval: serverStatus.GetPollInterval().AsDuration(),
+			}
+			mostRecentTime = lastUpdate
+		}
+	}
+	return mostRecent
+}
+
+// mergeResourceTypeSummary merges resource summary data into the aggregated summary.
+// It returns true if the resource is currently being scanned (has no SyncEnd time yet).
+func mergeResourceTypeSummary(in *ui.ResourceTypeSummary, resourceSummary *discoveryconfigv1.ResourceSummary, pollInterval time.Duration) bool {
+	if resourceSummary == nil {
+		return false
+	}
+
+	previous := resourceSummary.GetPrevious()
+	if previous != nil {
+		in.ResourcesFound += int(previous.GetFound())
+		in.ResourcesEnrollmentSuccess += int(previous.GetEnrolled())
+		in.ResourcesEnrollmentFailed += int(previous.GetFailed())
+
+		in.DiscoverLastSync = latestTime(in.DiscoverLastSync, previous.GetSyncEnd().AsTime())
+	}
+
+	isScanning := false
+	syncEndUpdated := false
+	current := resourceSummary.GetCurrent()
+	if current != nil {
+		in.SyncStart = latestTime(in.SyncStart, current.GetSyncStart().AsTime())
+		if current.GetSyncEnd().AsTime().IsZero() {
+			isScanning = true
+		} else {
+			prevSyncEnd := in.SyncEnd
+			in.SyncEnd = latestTime(in.SyncEnd, current.GetSyncEnd().AsTime())
+			syncEndUpdated = in.SyncEnd != prevSyncEnd
+		}
+	} else if previous != nil {
+		in.SyncStart = latestTime(in.SyncStart, previous.GetSyncStart().AsTime())
+		prevSyncEnd := in.SyncEnd
+		in.SyncEnd = latestTime(in.SyncEnd, previous.GetSyncEnd().AsTime())
+		syncEndUpdated = in.SyncEnd != prevSyncEnd
+	}
+
+	if pollInterval > 0 && (in.PollIntervalSeconds == 0 || syncEndUpdated) {
+		in.PollIntervalSeconds = int(pollInterval.Seconds())
+	}
+
+	return isScanning
+}
+
+func latestTime(current *time.Time, new time.Time) *time.Time {
+	if new.IsZero() {
+		return current
+	}
+
+	if current == nil {
+		return &new
+	}
+
+	if current.Before(new) {
+		return &new
+	}
+
+	return current
+}
+
+// rulesWithIntegration returns the number of Rules for a given integration and matcher type in the DiscoveryConfig.
+// A Rule is similar to a DiscoveryConfig's Matcher, eg DiscoveryConfig.Spec.AWS.[<Matcher>], however, a Rule has a single region.
+// This means that the number of Rules for a given Matcher is equal to the number of regions on that Matcher.
+func rulesWithIntegration(dc *discoveryconfig.DiscoveryConfig, matcherType string, integration string) int {
+	ret := 0
+
+	for _, matcher := range dc.Spec.AWS {
+		if matcher.Integration != integration {
+			continue
+		}
+		if !slices.Contains(matcher.Types, matcherType) {
+			continue
+		}
+		ret += len(matcher.Regions)
+	}
+
+	for _, matcher := range dc.Spec.Azure {
+		if matcher.Integration != integration {
+			continue
+		}
+		if !slices.Contains(matcher.Types, matcherType) {
+			continue
+		}
+		ret += len(matcher.Regions)
+	}
+	return ret
+}
+
+// integrationDiscoveryRules returns the Discovery Rules that are using a given integration.
+// A Discovery Rule is just like a DiscoveryConfig Matcher, except that it breaks down by region.
+// So, if a Matcher exists for two regions, that will be represented as two Rules.
+// Accepts the following query params:
+// startKey: indicator for pagination, should be the value of the last reponse's `nextItem`, or absent for a the starting page
+// resourceType: which resource type to return, one of ec2, eks, rds
+// regions: only rules for regions listed are returned (omit query to include all regions)
+func (h *Handler) integrationDiscoveryRules(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
+	integrationName := p.ByName("name")
+	if integrationName == "" {
+		return nil, trace.BadParameter("integration name is required")
+	}
+
+	values := r.URL.Query()
+	startKey := values.Get("startKey")
+	resourceType := values.Get("resourceType")
+	regionsFilter := values["regions"]
+	// the regions key is always sent as a query param but is not always populated (&regions=)
+	// this results in a slice containing a single empty string
+	if len(regionsFilter) == 1 && regionsFilter[0] == "" {
+		regionsFilter = nil
+	}
+
+	clt, err := sctx.GetUserClient(r.Context(), cluster)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ig, err := clt.GetIntegration(r.Context(), integrationName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	rules, err := collectAutoDiscoveryRules(r.Context(), ig.GetName(), startKey, resourceType, regionsFilter, clt.DiscoveryConfigClient())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return rules, nil
+}
+
+// collectAutoDiscoveryRules will iterate over all DiscoveryConfigs's Matchers and collect the Discovery Rules that exist in them for the given integration.
+// It can also be filtered by Matcher Type (eg ec2, rds, eks) and a regionsFilter list (eg, us-east-1, us-east-2)
+// A Discovery Rule is a close match to a DiscoveryConfig's Matcher, except that it will count as many rules as regions exist.
+// Eg if a DiscoveryConfig's Matcher has two regions, then it will output two (almost equal) Rules, one for each Region.
+func collectAutoDiscoveryRules(
+	ctx context.Context,
+	integrationName string,
+	nextPage string,
+	resourceTypeFilter string,
+	regionsFilter []string,
+	clt interface {
+		ListDiscoveryConfigs(ctx context.Context, pageSize int, nextToken string) ([]*discoveryconfig.DiscoveryConfig, string, error)
+	},
+) (ui.IntegrationDiscoveryRules, error) {
+	const (
+		maxPerPage = 100
+	)
+	var ret ui.IntegrationDiscoveryRules
+	for {
+		discoveryConfigs, nextToken, err := clt.ListDiscoveryConfigs(ctx, 0, nextPage)
+		if err != nil {
+			return ret, trace.Wrap(err)
+		}
+		for _, dc := range discoveryConfigs {
+			ret.Rules = append(ret.Rules,
+				collectAutoDiscoveryRulesFromDiscoveryConfig(dc, integrationName, resourceTypeFilter, regionsFilter)...,
+			)
+		}
+
+		ret.NextKey = nextToken
+		if nextToken == "" || len(ret.Rules) > maxPerPage {
+			break
+		}
+
+		nextPage = nextToken
+	}
+
+	return ret, nil
+}
+
+func collectAutoDiscoveryRulesFromDiscoveryConfig(dc *discoveryconfig.DiscoveryConfig, integrationName, resourceTypeFilter string, regionsFilter []string) []ui.IntegrationDiscoveryRule {
+	lastSync := &dc.Status.LastSyncTime
+	if lastSync.IsZero() {
+		lastSync = nil
+	}
+
+	awsRules := collectAWSAutoDiscoveryRulesFromDiscoveryConfig(dc, integrationName, resourceTypeFilter, regionsFilter, lastSync)
+	azureRules := collectAzureAutoDiscoveryRulesFromDiscoveryConfig(dc, integrationName, resourceTypeFilter, regionsFilter, lastSync)
+
+	return append(awsRules, azureRules...)
+}
+
+func collectAWSAutoDiscoveryRulesFromDiscoveryConfig(dc *discoveryconfig.DiscoveryConfig, integrationName, resourceTypeFilter string, regionsFilter []string, lastSync *time.Time) (ret []ui.IntegrationDiscoveryRule) {
+	for _, matcher := range dc.Spec.AWS {
+		if matcher.Integration != integrationName {
+			continue
+		}
+
+		for _, resourceType := range matcher.Types {
+			if resourceTypeFilter != "" && resourceType != resourceTypeFilter {
+				continue
+			}
+
+			for _, region := range matcher.Regions {
+				if len(regionsFilter) > 0 && !slices.Contains(regionsFilter, region) {
+					continue
+				}
+
+				uiLabels := make([]libui.Label, 0, len(matcher.Tags))
+				for labelKey, labelValues := range matcher.Tags {
+					for _, labelValue := range labelValues {
+						uiLabels = append(uiLabels, libui.Label{
+							Name:  labelKey,
+							Value: labelValue,
+						})
+					}
+				}
+				rule := ui.IntegrationDiscoveryRule{
+					ResourceType:    resourceType,
+					Region:          region,
+					LabelMatcher:    uiLabels,
+					DiscoveryConfig: dc.GetName(),
+					LastSync:        lastSync,
+				}
+				if resourceType == "eks" {
+					kubeAppDiscovery := matcher.KubeAppDiscovery
+					rule.KubeAppDiscovery = &kubeAppDiscovery
+				}
+				ret = append(ret, rule)
+			}
+		}
+	}
+
+	return
+}
+
+func collectAzureAutoDiscoveryRulesFromDiscoveryConfig(dc *discoveryconfig.DiscoveryConfig, integrationName, resourceTypeFilter string, regionsFilter []string, lastSync *time.Time) (ret []ui.IntegrationDiscoveryRule) {
+	for _, matcher := range dc.Spec.Azure {
+		if matcher.Integration != integrationName {
+			continue
+		}
+
+		for _, resourceType := range matcher.Types {
+			if resourceTypeFilter != "" && resourceType != resourceTypeFilter {
+				continue
+			}
+
+			for _, region := range matcher.Regions {
+				if len(regionsFilter) > 0 && !slices.Contains(regionsFilter, region) {
+					continue
+				}
+
+				uiLabels := make([]libui.Label, 0, len(matcher.ResourceTags))
+				for labelKey, labelValues := range matcher.ResourceTags {
+					for _, labelValue := range labelValues {
+						uiLabels = append(uiLabels, libui.Label{
+							Name:  labelKey,
+							Value: labelValue,
+						})
+					}
+				}
+
+				ret = append(ret, ui.IntegrationDiscoveryRule{
+					ResourceType:    resourceType,
+					Region:          region,
+					LabelMatcher:    uiLabels,
+					Subscriptions:   matcher.Subscriptions,
+					ResourceGroups:  matcher.ResourceGroups,
+					DiscoveryConfig: dc.GetName(),
+					LastSync:        lastSync,
+				})
+			}
+		}
+	}
+
+	return
+}
+
 // integrationsList returns a page of Integrations
-func (h *Handler) integrationsList(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
-	clt, err := sctx.GetUserClient(r.Context(), site)
+func (h *Handler) integrationsList(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
+	clt, err := sctx.GetUserClient(r.Context(), cluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -214,13 +875,80 @@ func (h *Handler) integrationsList(w http.ResponseWriter, r *http.Request, p htt
 		return nil, trace.Wrap(err)
 	}
 
+	var summaries map[string]*ui.BriefSummary
+	withSummaries, err := parseBoolWithDefault(values.Get("withSummaries"), false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if withSummaries {
+		summaries, err = buildBriefSummaries(r.Context(), igs, clt.UserTasksServiceClient(), clt.DiscoveryConfigClient())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	items, err := ui.MakeIntegrations(igs)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return ui.IntegrationsListResponse{
-		Items:   items,
-		NextKey: nextKey,
+		Items:     items,
+		NextKey:   nextKey,
+		Summaries: summaries,
 	}, nil
+}
+
+// integrationsMsTeamsAppZipGet generates and returns the app.zip required for the MsTeams plugin with the given name.
+func (h *Handler) integrationsMsTeamsAppZipGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
+	clt, err := sctx.GetUserClient(r.Context(), cluster)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	plugin, err := clt.PluginsClient().GetPlugin(r.Context(), pluginspb.GetPluginRequest_builder{
+		Name:        p.ByName("plugin"),
+		WithSecrets: false,
+	}.Build())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	spec, ok := plugin.Spec.Settings.(*types.PluginSpecV1_Msteams)
+	if !ok {
+		return nil, trace.BadParameter("plugin specified was not of type MsTeams")
+	}
+
+	w.Header().Add("Content-Type", "application/zip")
+	w.Header().Add("Content-Disposition", "attachment; filename=app.zip")
+	err = msteams.WriteAppZipTo(w, msteams.ConfigTemplatePayload{
+		AppID:      spec.Msteams.AppId,
+		TenantID:   spec.Msteams.TenantId,
+		TeamsAppID: spec.Msteams.TeamsAppId,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return nil, nil
+}
+
+func (h *Handler) integrationsExportCA(_ http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
+	integrationName := p.ByName("name")
+	if integrationName == "" {
+		return nil, trace.BadParameter("integration name is required")
+	}
+
+	clt, err := sctx.GetUserClient(r.Context(), cluster)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := clt.IntegrationsClient().ExportIntegrationCertAuthorities(r.Context(), integrationv1.ExportIntegrationCertAuthoritiesRequest_builder{
+		Integration: integrationName,
+	}.Build())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	uiCAKeySet, err := ui.MakeCAKeySet(resp.GetCertAuthorities())
+	return uiCAKeySet, trace.Wrap(err)
 }

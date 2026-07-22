@@ -21,19 +21,37 @@ package reconcilers
 import (
 	"context"
 	"fmt"
+	"maps"
 	"reflect"
 
 	"github.com/gravitational/trace"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	ctrl "sigs.k8s.io/controller-runtime"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/integrations/operator/controllers"
+	"github.com/gravitational/teleport/lib/scopes"
+)
+
+const (
+	// DeletionFinalizer is a name of finalizer added to Resource's 'finalizers' field
+	// for tracking deletion events.
+	DeletionFinalizer = "resources.teleport.dev/deletion"
+	// AnnotationFlagIgnore is the Kubernetes annotation containing the "ignore" flag.
+	// When set to true, the operator will not reconcile the CR.
+	AnnotationFlagIgnore = "teleport.dev/ignore"
+	// AnnotationFlagKeep is the Kubernetes annotation containing the "keep" flag.
+	// When set to true, the operator will not delete the Teleport Resource if the
+	// CR is deleted.
+	AnnotationFlagKeep = "teleport.dev/keep"
 )
 
 // Resource is any Teleport Resource the controller manages.
@@ -51,43 +69,101 @@ type Adapter[T Resource] interface {
 	SetResourceLabels(T, map[string]string)
 }
 
+// ScopedResource153 extends [types.Resource153] for Teleport
+// resources that are scoped.
+type ScopedResource153 interface {
+	types.Resource153
+	GetScope() string
+}
+
+type ScopedResource153Adapter[T ScopedResource153] struct {
+	Resource153Adapter[T]
+}
+
+func (a ScopedResource153Adapter[T]) GetResourceScope(res T) string {
+	return res.GetScope()
+}
+
 // KubernetesCR is a Kubernetes CustomResource representing a Teleport Resource.
 type KubernetesCR[T Resource] interface {
 	kclient.Object
 	ToTeleport() T
-	StatusConditions() *[]v1.Condition
+	StatusConditions() *[]metav1.Condition
+}
+
+// ResourceKey identifies a Teleport resource. Unscoped resources use an empty
+// scope. Scoped resources are identified by the pair of name and scope.
+type ResourceKey struct {
+	Name  string
+	Scope string
+}
+
+// String produces either the Scope Qualified Name if the resource is
+// scoped, or the resource name if unscoped.
+func (r ResourceKey) String() string {
+	if r.Scope != "" {
+		return scopes.QualifiedName{Scope: r.Scope, Name: r.Name}.String()
+	}
+	return r.Name
 }
 
 // resourceClient is a CRUD client for a specific Teleport Resource.
 // Implementing this interface allows to be reconciled by the resourceReconciler
 // instead of writing a new specific reconciliation loop.
 // resourceClient implementations can optionally implement the resourceMutator
-// and existingResourceMutator interfaces.
+// and resourceMutator interfaces.
 type resourceClient[T Resource] interface {
-	Get(context.Context, string) (T, error)
+	Get(context.Context, ResourceKey) (T, error)
 	Create(context.Context, T) error
 	Update(context.Context, T) error
-	Delete(context.Context, string) error
+	Delete(context.Context, ResourceKey) error
 }
 
-// resourceMutator can be implemented by resourceClients
-// to edit a Resource before its creation/update.
+// resourceMutator can be implemented by TeleportResourceClients
+// to edit a Resource before its creation, or before its update based on the existing one.
 type resourceMutator[T Resource] interface {
-	Mutate(new T)
+	Mutate(ctx context.Context, new, existing T, crKey kclient.ObjectKey) error
 }
 
-// existingResourceMutator can be implemented by TeleportResourceClients
-// to edit a Resource before its update based on the existing one.
-type existingResourceMutator[T Resource] interface {
-	MutateExisting(new, existing T)
+type Config struct {
+	// Scoped represents if the controller reconciles scoped resources.
+	// Scoped controllers always run.
+	// Unscoped controllers don't run when the controller runs in scoped mode.
+	// TODO(hugoShaka): Separate scoped config to distinguish is a resource scoped from
+	// is the operator itself scoped.
+	// Deprecated: Don't rely on this it is overloaded and will be refactored later.
+	Scoped bool
+	// CheckFeatures checks if the reconciler should run against the cluster given its features.
+	// This is used to disable controllers if the cluster doesn't support their resource (e.g.
+	// OSS clusters might not support enterprise resources).
+	CheckFeatures controllers.CheckFeaturesFunc
 }
 
 // resourceReconciler is a Teleport generic reconciler.
 type resourceReconciler[T any, K KubernetesCR[T]] struct {
-	ResourceBaseReconciler
+	kubeClient     kclient.Client
 	resourceClient resourceClient[T]
 	gvk            schema.GroupVersionKind
 	adapter        Adapter[T]
+	scoped         bool
+	teleportKind   string
+	checkFeatures  controllers.CheckFeaturesFunc
+}
+
+func (r resourceReconciler[T, K]) GVK() schema.GroupVersionKind {
+	return r.gvk
+}
+
+func (r resourceReconciler[T, K]) Scoped() bool {
+	return r.scoped
+}
+
+func (r resourceReconciler[T, K]) CheckFeatures(features *proto.Features) bool {
+	return r.checkFeatures(features)
+}
+
+func (r resourceReconciler[T, K]) TeleportKind() string {
+	return r.teleportKind
 }
 
 // Upsert is the resourceReconciler of the ResourceBaseReconciler UpsertExternal
@@ -110,7 +186,7 @@ func (r resourceReconciler[T, K]) Upsert(ctx context.Context, obj kclient.Object
 	)
 	updateErr := updateStatus(updateStatusConfig{
 		ctx:         ctx,
-		client:      r.Client,
+		client:      r.kubeClient,
 		k8sResource: k8sResource,
 		condition:   getStructureConditionFromError(err),
 	})
@@ -121,11 +197,11 @@ func (r resourceReconciler[T, K]) Upsert(ctx context.Context, obj kclient.Object
 	teleportResource := k8sResource.ToTeleport()
 
 	debugLog.Info("Converting resource to teleport")
-	name := r.adapter.GetResourceName(teleportResource)
-	existingResource, err := r.resourceClient.Get(ctx, name)
+	key := r.resourceKey(teleportResource)
+	existingResource, err := r.resourceClient.Get(ctx, key)
 	updateErr = updateStatus(updateStatusConfig{
 		ctx:         ctx,
-		client:      r.Client,
+		client:      r.kubeClient,
 		k8sResource: k8sResource,
 		condition:   getReconciliationConditionFromError(err, true /* ignoreNotFound */),
 	})
@@ -142,20 +218,20 @@ func (r resourceReconciler[T, K]) Upsert(ctx context.Context, obj kclient.Object
 		debugLog.Info("Resource is owned")
 		if updateErr = updateStatus(updateStatusConfig{
 			ctx:         ctx,
-			client:      r.Client,
+			client:      r.kubeClient,
 			k8sResource: k8sResource,
 			condition:   newOwnershipCondition,
 		}); updateErr != nil {
 			return trace.Wrap(updateErr)
 		}
 		if !isOwned {
-			return trace.AlreadyExists("unowned Resource '%s' already exists", name)
+			return trace.AlreadyExists("unowned Resource %q already exists", key)
 		}
 	} else {
 		debugLog.Info("Resource does not exist yet")
 		if updateErr = updateStatus(updateStatusConfig{
 			ctx:         ctx,
-			client:      r.Client,
+			client:      r.kubeClient,
 			k8sResource: k8sResource,
 			condition:   newResourceCondition,
 		}); updateErr != nil {
@@ -165,37 +241,47 @@ func (r resourceReconciler[T, K]) Upsert(ctx context.Context, obj kclient.Object
 
 	kubeLabels := obj.GetLabels()
 	teleportLabels := make(map[string]string, len(kubeLabels)+1) // +1 because we'll add the origin label
-	for k, v := range kubeLabels {
-		teleportLabels[k] = v
-	}
+	maps.Copy(teleportLabels, kubeLabels)
 	teleportLabels[types.OriginLabel] = types.OriginKubernetes
 	r.adapter.SetResourceLabels(teleportResource, teleportLabels)
 	debugLog.Info("Propagating labels from kube resource", "kubeLabels", kubeLabels, "teleportLabels", teleportLabels)
 
+	if mutator, ok := r.resourceClient.(resourceMutator[T]); ok {
+		debugLog.Info("Mutating resource")
+		objKey := kclient.ObjectKeyFromObject(k8sResource)
+		if err := mutator.Mutate(ctx, teleportResource, existingResource, objKey); err != nil {
+			// If an error happens we want to put it in status.conditions before returning.
+			updateErr = updateStatus(updateStatusConfig{
+				ctx:         ctx,
+				client:      r.kubeClient,
+				k8sResource: k8sResource,
+				condition: metav1.Condition{
+					Type:    ConditionTypeSuccessfullyReconciled,
+					Status:  metav1.ConditionFalse,
+					Reason:  ConditionReasonMutationError,
+					Message: fmt.Sprintf("The reconciliation failed, the operator failed to mutate the resource before creating it in Teleport. Mutation failed with error: %s", err),
+				},
+			})
+
+			return trace.NewAggregate(err, updateErr)
+		}
+	}
+
 	if !exists {
 		// This is a new Resource
-		if mutator, ok := r.resourceClient.(resourceMutator[T]); ok {
-			debugLog.Info("Mutating new resource")
-			mutator.Mutate(teleportResource)
-		}
-
 		err = r.resourceClient.Create(ctx, teleportResource)
 	} else {
 		// This is a Resource update, we must propagate the revision
 		currentRevision := r.adapter.GetResourceRevision(existingResource)
 		r.adapter.SetResourceRevision(teleportResource, currentRevision)
 		debugLog.Info("Propagating revision", "currentRevision", currentRevision)
-		if mutator, ok := r.resourceClient.(existingResourceMutator[T]); ok {
-			debugLog.Info("Mutating existing resource")
-			mutator.MutateExisting(teleportResource, existingResource)
-		}
 
 		err = r.resourceClient.Update(ctx, teleportResource)
 	}
 	// If an error happens we want to put it in status.conditions before returning.
 	updateErr = updateStatus(updateStatusConfig{
 		ctx:         ctx,
-		client:      r.Client,
+		client:      r.kubeClient,
 		k8sResource: k8sResource,
 		condition:   getReconciliationConditionFromError(err, false /* ignoreNotFound */),
 	})
@@ -203,11 +289,36 @@ func (r resourceReconciler[T, K]) Upsert(ctx context.Context, obj kclient.Object
 	return trace.NewAggregate(err, updateErr)
 }
 
+func (r resourceReconciler[T, K]) resourceKey(resource T) ResourceKey {
+	key := ResourceKey{Name: r.adapter.GetResourceName(resource)}
+
+	if scopedAdapter, ok := r.adapter.(interface{ GetResourceScope(T) string }); ok {
+		key.Scope = scopedAdapter.GetResourceScope(resource)
+	}
+	return key
+}
+
 // Delete is the resourceReconciler of the ResourceBaseReconciler DeleteExertal
 func (r resourceReconciler[T, K]) Delete(ctx context.Context, obj kclient.Object) error {
+	key := ResourceKey{Name: obj.GetName()}
+	if r.scoped {
+		// Unmarshaling is avoided by pulling the scope directly out of the Object.
+		u, ok := obj.(*unstructured.Unstructured)
+		if !ok {
+			return trace.BadParameter("failed to convert Object into Resource object: %T", obj)
+		}
+
+		scope, _, err := unstructured.NestedString(u.Object, "scope")
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		key.Scope = scope
+	}
+
 	// This call catches non-existing resources or subkind mismatch (e.g. openssh nodes)
 	// We can then check that we own the Resource before deleting it.
-	resource, err := r.resourceClient.Get(ctx, obj.GetName())
+	resource, err := r.resourceClient.Get(ctx, key)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -220,16 +331,94 @@ func (r resourceReconciler[T, K]) Delete(ctx context.Context, obj kclient.Object
 	// This GET->check->DELETE dance is race-prone, but it's good enough for what
 	// we want to do. No one should reconcile the same Resource as the operator.
 	// If they do, it's their fault as the Resource was clearly flagged as belonging to us.
-	return r.resourceClient.Delete(ctx, obj.GetName())
+	return r.resourceClient.Delete(ctx, key)
 }
 
-// Reconcile implements the controllers.Reconciler interface.
+// Reconcile receives an update request and reconcile the Resource,
+// it implements the controllers.Reconciler interface.
+//
+// When an event arrives we must propagate that change into the Teleport cluster.
+// We have two types of events: update/create and delete.
+//
+// For creating/updating we check if the Resource exists in Teleport
+// - if it does, we update it
+// - otherwise we create it
+// Always using the state of the Resource in the cluster as the source of truth.
+//
+// For deleting, the recommendation is to use finalizers.
+// Finalizers allow us to map an external Resource to a kubernetes Resource.
+// So, when we create or update a Resource, we add our own finalizer to the kubernetes Resource list of finalizers.
+//
+// For a delete event which has our finalizer: the Resource is deleted in Teleport.
+// If it doesn't have the finalizer, we do nothing.
+//
+// ----
+//
+// Every time we update a Resource in Kubernetes (adding finalizers or the OriginLabel), we end the reconciliation process.
+// Afterwards, we receive the request again and we progress to the next step.
+// This allow us to progress with smaller changes and avoid a long-running reconciliation.
+// */
 func (r resourceReconciler[T, K]) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	obj, err := GetUnstructuredObjectFromGVK(r.gvk)
 	if err != nil {
 		return ctrl.Result{}, trace.Wrap(err, "creating object in which the CR will be unmarshalled")
 	}
-	return r.Do(ctx, req, obj)
+	// https://sdk.operatorframework.io/docs/building-operators/golang/advanced-topics/#external-resources
+	log := ctrllog.FromContext(ctx).WithValues("namespacedname", req.NamespacedName)
+
+	if err := r.kubeClient.Get(ctx, req.NamespacedName, obj); err != nil {
+		if apierrors.IsNotFound(err) {
+			log.Info("not found")
+			return ctrl.Result{}, nil
+		}
+		log.Error(err, "failed to get Resource")
+		return ctrl.Result{}, trace.Wrap(err)
+	}
+
+	if isIgnored(obj) {
+		log.Info(fmt.Sprintf("Resource is flagged with annotation %q, it will not be reconciled.", AnnotationFlagIgnore))
+		return ctrl.Result{}, nil
+	}
+
+	hasDeletionFinalizer := controllerutil.ContainsFinalizer(obj, DeletionFinalizer)
+	isMarkedToBeDeleted := !obj.GetDeletionTimestamp().IsZero()
+
+	// Delete
+	if isMarkedToBeDeleted {
+		if hasDeletionFinalizer {
+			if isKept(obj) {
+				log.Info(fmt.Sprintf("Resource is flagged with annotation %q, it will not be deleted in Teleport.", AnnotationFlagKeep))
+			} else {
+				log.Info("deleting object in Teleport")
+				if err := r.Delete(ctx, obj); err != nil && !trace.IsNotFound(err) {
+					return ctrl.Result{}, trace.Wrap(err)
+				}
+			}
+
+			log.Info("removing finalizer")
+			controllerutil.RemoveFinalizer(obj, DeletionFinalizer)
+			if err := r.kubeClient.Update(ctx, obj); err != nil {
+				return ctrl.Result{}, trace.Wrap(err, "failed to remove finalizer after deleting in teleport")
+			}
+		}
+
+		// marked to be deleted without finalizer
+		return ctrl.Result{}, nil
+	}
+
+	if !hasDeletionFinalizer {
+		log.Info("adding finalizer")
+		controllerutil.AddFinalizer(obj, DeletionFinalizer)
+
+		err := r.kubeClient.Update(ctx, obj)
+
+		return ctrl.Result{}, trace.Wrap(err, "failed to add finalizer")
+	}
+
+	// Create or update
+	log.Info("upsert object in Teleport")
+	err = r.Upsert(ctx, obj)
+	return ctrl.Result{}, trace.Wrap(err)
 }
 
 // SetupWithManager implements the controllers.Reconciler interface.
@@ -249,6 +438,16 @@ func (r resourceReconciler[T, K]) SetupWithManager(mgr ctrl.Manager) error {
 			buildPredicate(),
 		).
 		Complete(r)
+}
+
+// isIgnored checks if the CR should be ignored
+func isIgnored(obj kclient.Object) bool {
+	return checkAnnotationFlag(obj, AnnotationFlagIgnore, false /* defaults to false */)
+}
+
+// isKept checks if the Teleport Resource should be kept if the CR is deleted
+func isKept(obj kclient.Object) bool {
+	return checkAnnotationFlag(obj, AnnotationFlagKeep, false /* defaults to false */)
 }
 
 // isResourceOriginKubernetes reads a teleport Resource metadata, searches for the origin label and checks its

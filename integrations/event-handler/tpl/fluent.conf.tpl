@@ -36,10 +36,12 @@
     </buffer>
 </source>
 
-<match test.log>
+<match events.log>
   @type stdout
 </match>
 
+# The Event Handler appends .<session-id>.log to the configured session URL,
+# so session events arrive with tags like session.<session-id>.log.
 <match session.*.log>
   @type stdout
 </match>

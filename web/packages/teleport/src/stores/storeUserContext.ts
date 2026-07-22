@@ -19,7 +19,6 @@
 import { Store } from 'shared/libs/stores';
 
 import cfg from 'teleport/config';
-
 import { UserContext } from 'teleport/services/user';
 
 export default class StoreUserContext extends Store<UserContext> {
@@ -39,6 +38,14 @@ export default class StoreUserContext extends Store<UserContext> {
 
   getClusterId() {
     return this.state.cluster.clusterId;
+  }
+
+  getClusterAuthVersion() {
+    return this.state.cluster.authVersion;
+  }
+
+  getClusterPublicUrl() {
+    return this.state.cluster.publicURL;
   }
 
   getEventAccess() {
@@ -125,6 +132,10 @@ export default class StoreUserContext extends Store<UserContext> {
     return this.state.acl.clipboardSharingEnabled;
   }
 
+  getReviewRequests() {
+    return this.state.acl.reviewRequests;
+  }
+
   getNodeAccess() {
     return this.state.acl.nodes;
   }
@@ -155,6 +166,14 @@ export default class StoreUserContext extends Store<UserContext> {
 
   getSamlIdPServiceProviderAccess() {
     return this.state.acl.samlIdpServiceProvider;
+  }
+
+  hasFileTransferAccess() {
+    return this.state.acl.fileTransferAccess;
+  }
+
+  isWebTerminalCopyBlocked() {
+    return this.state.acl.webTerminalClipboardMode === 'no-copy';
   }
 
   // hasPrereqAccessToAddAgents checks if user meets the prerequisite
@@ -208,6 +227,10 @@ export default class StoreUserContext extends Store<UserContext> {
     );
   }
 
+  getDiscoveryConfigAccess() {
+    return this.state.acl.discoverConfigs;
+  }
+
   getPluginsAccess() {
     return this.state.acl.plugins;
   }
@@ -242,5 +265,69 @@ export default class StoreUserContext extends Store<UserContext> {
 
   getBotsAccess() {
     return this.state.acl.bots;
+  }
+
+  getBotInstancesAccess() {
+    return this.state.acl.botInstances;
+  }
+
+  getInstancesAccess() {
+    return this.state.acl.instances;
+  }
+
+  getContactsAccess() {
+    return this.state.acl.contacts;
+  }
+
+  getGitServersAccess() {
+    return this.state.acl.gitServers;
+  }
+
+  getWorkloadIdentityAccess() {
+    return this.state.acl.workloadIdentity;
+  }
+
+  geClientIpRestrictionAccess() {
+    return this.state.acl.clientIpRestriction;
+  }
+
+  getAutoUpdateConfigAccess() {
+    return this.state.acl.autoUpdateConfig;
+  }
+
+  getAutoUpdateVersionAccess() {
+    return this.state.acl.autoUpdateVersion;
+  }
+
+  getAutoUpdateAgentRolloutAccess() {
+    return this.state.acl.autoUpdateAgentRollout;
+  }
+
+  getAutoUpdateAgentReportAccess() {
+    return this.state.acl.autoUpdateAgentReport;
+  }
+
+  getInferencePolicyAccess() {
+    return this.state.acl.inferencePolicy;
+  }
+
+  getInferenceModelAccess() {
+    return this.state.acl.inferenceModel;
+  }
+
+  getInferenceSecretAccess() {
+    return this.state.acl.inferenceSecret;
+  }
+
+  getBeamAccess() {
+    return this.state.acl.beam;
+  }
+
+  getMobileDeviceAccess() {
+    return this.state.acl.mobileDevice;
+  }
+
+  getAvailableScopes() {
+    return this.state.availableScopes;
   }
 }

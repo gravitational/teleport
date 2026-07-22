@@ -16,8 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import Select, { SelectAsync, SelectCreatable, StyledSelect } from './Select';
+import Select, { SelectAsync, SelectCreatable } from './Select';
 
 export * from './types';
 export default Select;
-export { SelectAsync, SelectCreatable, StyledSelect };
+export { SelectAsync, SelectCreatable };

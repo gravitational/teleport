@@ -27,7 +27,6 @@ import (
 	"log"
 	"math/big"
 	"os"
-	"path"
 	"path/filepath"
 	"testing"
 	"time"
@@ -35,12 +34,12 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/identityfile"
 	"github.com/gravitational/teleport/api/profile"
+	"github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 )
@@ -286,7 +285,8 @@ func writeProfile(t *testing.T, p *profile.Profile) {
 	require.NoError(t, os.MkdirAll(p.KeyDir(), 0700))
 	require.NoError(t, os.MkdirAll(p.ProxyKeyDir(), 0700))
 	require.NoError(t, os.MkdirAll(p.TLSClusterCASDir(), 0700))
-	require.NoError(t, os.WriteFile(p.UserKeyPath(), keyPEM, 0600))
+	require.NoError(t, os.WriteFile(p.UserSSHKeyPath(), keyPEM, 0600))
+	require.NoError(t, os.WriteFile(p.UserTLSKeyPath(), keyPEM, 0600))
 	require.NoError(t, os.WriteFile(p.TLSCertPath(), tlsCert, 0600))
 	require.NoError(t, os.WriteFile(p.TLSCAPathCluster(p.SiteName), tlsCACert, 0600))
 	require.NoError(t, os.WriteFile(p.KnownHostsPath(), sshCACert, 0600))
@@ -308,7 +308,7 @@ func getExpectedTLSConfig(t *testing.T) *tls.Config {
 	})
 }
 
-func getExpectedSSHConfig(t *testing.T) *ssh.ClientConfig {
+func getExpectedSSHConfig(t *testing.T) ssh.ClientConfig {
 	cert, err := sshutils.ParseCertificate(sshCert)
 	require.NoError(t, err)
 
@@ -328,9 +328,9 @@ func requireEqualTLSConfig(t *testing.T, expected *tls.Config, actual *tls.Confi
 	))
 }
 
-func requireEqualSSHConfig(t *testing.T, expected *ssh.ClientConfig, actual *ssh.ClientConfig) {
+func requireEqualSSHConfig(t *testing.T, expected ssh.ClientConfig, actual ssh.ClientConfig) {
 	require.Empty(t, cmp.Diff(expected, actual,
-		cmpopts.IgnoreFields(ssh.ClientConfig{}, "Auth", "HostKeyCallback"),
+		cmpopts.IgnoreFields(ssh.ClientConfig{}, "PublicKeyAuth", "HostKeyCallback"),
 	))
 }
 
@@ -444,7 +444,7 @@ Private-MAC: 8951bbe929e0714a61df01bc8fbc5223e3688f174aee29339931984fb9224c7d`)
 
 func TestDynamicIdentityFileCreds(t *testing.T) {
 	dir := t.TempDir()
-	identityPath := path.Join(dir, "identity")
+	identityPath := filepath.Join(dir, "identity")
 
 	idFile := &identityfile.IdentityFile{
 		PrivateKey: keyPEM,
@@ -471,6 +471,7 @@ func TestDynamicIdentityFileCreds(t *testing.T) {
 	require.NoError(t, err)
 	wantTLSCert, err := tls.X509KeyPair(tlsCert, keyPEM)
 	require.NoError(t, err)
+	wantTLSCert.Leaf = nil
 	require.Equal(t, wantTLSCert, *gotTLSCert)
 
 	expiry, ok := cred.Expiry()
@@ -529,6 +530,7 @@ func TestDynamicIdentityFileCreds(t *testing.T) {
 	require.NoError(t, err)
 	wantTLSCert, err = tls.X509KeyPair(secondTLSCertPem, keyPEM)
 	require.NoError(t, err)
+	wantTLSCert.Leaf = nil
 	require.Equal(t, wantTLSCert, *gotTLSCert)
 
 	expiry, ok = cred.Expiry()

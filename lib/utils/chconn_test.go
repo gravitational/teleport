@@ -19,8 +19,6 @@
 package utils
 
 import (
-	"crypto/rand"
-	"crypto/rsa"
 	"io"
 	"net"
 	"os"
@@ -30,9 +28,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
-	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/utils/keys"
+	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 )
 
 // TestChConn validates that reads from the channel connection can be
@@ -48,13 +46,19 @@ func TestChConn(t *testing.T) {
 
 	go startSSHServer(t, listener, sshConnCh)
 
-	client, err := ssh.Dial("tcp", listener.Addr().String(), &ssh.ClientConfig{
+	client, err := apissh.Dial(t.Context(), "tcp", listener.Addr().String(), apissh.ClientConfig{
+		User: "alice",
+		PublicKeyAuth: apissh.PublicKeyAuthConfig{
+			Signers: func() ([]ssh.Signer, error) {
+				return []ssh.Signer{mockSigner{}}, nil
+			},
+		},
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 		Timeout:         time.Second,
 	})
 	require.NoError(t, err)
 
-	_, _, err = client.OpenChannel("test", []byte("hello ssh"))
+	_, _, err = client.OpenChannel(t.Context(), "test", []byte("hello ssh"))
 	require.NoError(t, err)
 
 	select {
@@ -92,13 +96,10 @@ func startSSHServer(t *testing.T, listener net.Listener, sshConnCh chan<- sshCon
 	require.NoError(t, err)
 	t.Cleanup(func() { nConn.Close() })
 
-	privateKey, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
+	privateKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.Ed25519)
 	require.NoError(t, err)
 
-	private, err := keys.MarshalPrivateKey(privateKey)
-	require.NoError(t, err)
-
-	signer, err := ssh.ParsePrivateKey(private)
+	signer, err := ssh.NewSignerFromSigner(privateKey)
 	require.NoError(t, err)
 
 	config := &ssh.ServerConfig{NoClientAuth: true}
@@ -119,4 +120,8 @@ func startSSHServer(t *testing.T, listener net.Listener, sshConnCh chan<- sshCon
 			}
 		}
 	}()
+}
+
+type mockSigner struct {
+	ssh.Signer
 }

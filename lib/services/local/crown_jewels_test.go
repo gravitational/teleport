@@ -26,7 +26,6 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/jonboulle/clockwork"
-	"github.com/mailgun/holster/v3/clock"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -45,14 +44,14 @@ func TestCreateCrownJewel(t *testing.T) {
 	ctx := context.Background()
 	service := getService(t)
 
-	obj, err := crownjewel.NewCrownJewel("obj", &crownjewelv1.CrownJewelSpec{
+	obj, err := crownjewel.NewCrownJewel("obj", crownjewelv1.CrownJewelSpec_builder{
 		TeleportMatchers: []*crownjewelv1.TeleportMatcher{
-			{
+			crownjewelv1.TeleportMatcher_builder{
 				Kinds: []string{"node"},
 				Names: []string{"test"},
-			},
+			}.Build(),
 		},
-	})
+	}.Build())
 	require.NoError(t, err)
 
 	// first attempt should succeed
@@ -71,14 +70,14 @@ func TestUpsertCrownJewel(t *testing.T) {
 	ctx := context.Background()
 	service := getService(t)
 
-	obj, err := crownjewel.NewCrownJewel("obj", &crownjewelv1.CrownJewelSpec{
+	obj, err := crownjewel.NewCrownJewel("obj", crownjewelv1.CrownJewelSpec_builder{
 		TeleportMatchers: []*crownjewelv1.TeleportMatcher{
-			{
+			crownjewelv1.TeleportMatcher_builder{
 				Kinds: []string{"node"},
 				Names: []string{"test"},
-			},
+			}.Build(),
 		},
-	})
+	}.Build())
 	require.NoError(t, err)
 
 	// the first attempt should succeed
@@ -133,7 +132,7 @@ func TestGetCrownJewel(t *testing.T) {
 				protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 				protocmp.Transform(),
 			}
-			require.Equal(t, "", cmp.Diff(tt.wantObj, obj, cmpOpts...))
+			require.Empty(t, cmp.Diff(tt.wantObj, obj, cmpOpts...))
 		})
 	}
 }
@@ -145,21 +144,21 @@ func TestUpdateCrownJewel(t *testing.T) {
 	service := getService(t)
 	prepopulate(t, service, 1)
 
-	expiry := timestamppb.New(clock.Now().Add(30 * time.Minute))
+	expiry := timestamppb.New(time.Now().Add(30 * time.Minute))
 
 	// Fetch the object from the backend so the revision is populated.
 	obj, err := service.GetCrownJewel(ctx, getObject(t, 0).GetMetadata().GetName())
 	require.NoError(t, err)
 	// update the expiry time
-	obj.Metadata.Expires = expiry
+	obj.GetMetadata().SetExpires(expiry)
 
 	objUpdated, err := service.UpdateCrownJewel(ctx, obj)
 	require.NoError(t, err)
-	require.Equal(t, expiry, objUpdated.Metadata.Expires)
+	require.Equal(t, expiry, objUpdated.GetMetadata().GetExpires())
 
-	objFresh, err := service.GetCrownJewel(ctx, obj.Metadata.Name)
+	objFresh, err := service.GetCrownJewel(ctx, obj.GetMetadata().GetName())
 	require.NoError(t, err)
-	require.Equal(t, expiry, objFresh.Metadata.Expires)
+	require.Equal(t, expiry, objFresh.GetMetadata().GetExpires())
 }
 
 func TestUpdateCrownJewelMissingRevision(t *testing.T) {
@@ -169,10 +168,10 @@ func TestUpdateCrownJewelMissingRevision(t *testing.T) {
 	service := getService(t)
 	prepopulate(t, service, 1)
 
-	expiry := timestamppb.New(clock.Now().Add(30 * time.Minute))
+	expiry := timestamppb.New(time.Now().Add(30 * time.Minute))
 
 	obj := getObject(t, 0)
-	obj.Metadata.Expires = expiry
+	obj.GetMetadata().SetExpires(expiry)
 
 	// Update should be rejected as the revision is missing.
 	_, err := service.UpdateCrownJewel(ctx, obj)
@@ -234,12 +233,12 @@ func TestListCrownJewel(t *testing.T) {
 				require.Empty(t, nextToken)
 				require.Len(t, elements, count)
 
-				for i := 0; i < count; i++ {
+				for i := range count {
 					cmpOpts := []cmp.Option{
 						protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 						protocmp.Transform(),
 					}
-					require.Equal(t, "", cmp.Diff(getObject(t, i), elements[i], cmpOpts...))
+					require.Empty(t, cmp.Diff(getObject(t, i), elements[i], cmpOpts...))
 				}
 			})
 
@@ -258,12 +257,12 @@ func TestListCrownJewel(t *testing.T) {
 					}
 				}
 
-				for i := 0; i < count; i++ {
+				for i := range count {
 					cmpOpts := []cmp.Option{
 						protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 						protocmp.Transform(),
 					}
-					require.Equal(t, "", cmp.Diff(getObject(t, i), elements[i], cmpOpts...))
+					require.Empty(t, cmp.Diff(getObject(t, i), elements[i], cmpOpts...))
 				}
 			})
 		})
@@ -284,21 +283,21 @@ func getService(t *testing.T) services.CrownJewels {
 
 func getObject(t *testing.T, index int) *crownjewelv1.CrownJewel {
 	name := fmt.Sprintf("obj%v", index)
-	obj, err := crownjewel.NewCrownJewel(name, &crownjewelv1.CrownJewelSpec{
+	obj, err := crownjewel.NewCrownJewel(name, crownjewelv1.CrownJewelSpec_builder{
 		TeleportMatchers: []*crownjewelv1.TeleportMatcher{
-			{
+			crownjewelv1.TeleportMatcher_builder{
 				Kinds: []string{"node"},
 				Names: []string{"test"},
-			},
+			}.Build(),
 		},
-	})
+	}.Build())
 	require.NoError(t, err)
 
 	return obj
 }
 
 func prepopulate(t *testing.T, service services.CrownJewels, count int) {
-	for i := 0; i < count; i++ {
+	for i := range count {
 		_, err := service.CreateCrownJewel(context.Background(), getObject(t, i))
 		require.NoError(t, err)
 	}

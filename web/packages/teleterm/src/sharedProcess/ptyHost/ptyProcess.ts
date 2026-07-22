@@ -16,17 +16,19 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { readlink } from 'node:fs';
-import { exec } from 'node:child_process';
-import { promisify } from 'node:util';
+import { execFile } from 'node:child_process';
 import { EventEmitter } from 'node:events';
+import { readlink } from 'node:fs';
+import { promisify } from 'node:util';
 
 import * as nodePTY from 'node-pty';
 import which from 'which';
 
+import { wait } from 'shared/utils/wait';
+
 import Logger from 'teleterm/logger';
 
-import { PtyProcessOptions, IPtyProcess } from './types';
+import { IPtyProcess, PtyProcessOptions } from './types';
 
 type Status = 'open' | 'not_initialized' | 'terminated';
 
@@ -40,6 +42,7 @@ export class PtyProcess extends EventEmitter implements IPtyProcess {
   private _logger: Logger;
   private _status: Status = 'not_initialized';
   private _disposed = false;
+  private _lastInputWasCtrlD = false;
 
   constructor(private options: PtyProcessOptions & { ptyId: string }) {
     super();
@@ -59,6 +62,12 @@ export class PtyProcess extends EventEmitter implements IPtyProcess {
    * It emits TermEventEnum.StartError on error. start itself always returns a fulfilled promise.
    */
   async start(cols: number, rows: number) {
+    if (process.platform === 'win32') {
+      this._logger.info(
+        this.options.useConpty ? 'ConPTY enabled' : 'ConPTY disabled'
+      );
+    }
+
     try {
       // which throws an error if the argument is not found in path.
       // TODO(ravicious): Remove the manual check for the existence of the executable after node-pty
@@ -76,8 +85,10 @@ export class PtyProcess extends EventEmitter implements IPtyProcess {
         // https://unix.stackexchange.com/questions/123858
         cwd: this.options.cwd || getDefaultCwd(this.options.env),
         env: this.options.env,
-        // Turn off ConPTY due to an uncaught exception being thrown when a PTY is closed.
-        useConpty: false,
+        useConpty: this.options.useConpty,
+        // Do not clear the terminal on launch when using ConPTY.
+        conptyInheritCursor:
+          this.options.useConpty && !!this.options.initMessage,
       });
     } catch (error) {
       this._logger.error(error);
@@ -105,6 +116,7 @@ export class PtyProcess extends EventEmitter implements IPtyProcess {
       return;
     }
 
+    this._lastInputWasCtrlD = data === '\x04'; // Ctrl+D
     this._process.write(data);
   }
 
@@ -132,10 +144,38 @@ export class PtyProcess extends EventEmitter implements IPtyProcess {
     }
   }
 
-  dispose() {
+  async dispose() {
+    if (this._disposed) {
+      this._logger.info(`PTY process is not running. Nothing to kill`);
+      return;
+    }
+    const controller = new AbortController();
+    const processExit = promisifyProcessExit(this._process);
+
     this.removeAllListeners();
-    this._process?.kill();
-    this._disposed = true;
+    this._process.kill();
+
+    // Wait for the process to exit.
+    // It's needed for ssh sessions on Windows with ConPTY enabled.
+    // When we didn't wait, conhost.exe processes started by node-pty
+    // were left running after closing the app.
+    // Killing a process doesn't happen immediately, but instead appears to be
+    // queued, so we need to give it time to execute.
+    //
+    // Although this was added specifically for Windows,
+    // we run the same cleanup code for all platforms.
+    const hasExited = await Promise.race([
+      processExit.then(() => controller.abort()).then(() => true),
+      // timeout for killing the shared process is 5 seconds
+      wait(4_000, controller.signal)
+        .catch(() => {}) // ignore abort errors
+        .then(() => false),
+    ]);
+    if (hasExited) {
+      this._disposed = true;
+    } else {
+      this._logger.error('Failed to dispose PTY process within the timeout');
+    }
   }
 
   onData(cb: (data: string) => void) {
@@ -146,7 +186,13 @@ export class PtyProcess extends EventEmitter implements IPtyProcess {
     return this.addListenerAndReturnRemovalFunction(TermEventEnum.Open, cb);
   }
 
-  onExit(cb: (ev: { exitCode: number; signal?: number }) => void) {
+  onExit(
+    cb: (ev: {
+      exitCode: number;
+      signal?: number;
+      lastInputWasCtrlD: boolean;
+    }) => void
+  ) {
     return this.addListenerAndReturnRemovalFunction(TermEventEnum.Exit, cb);
   }
 
@@ -191,7 +237,10 @@ export class PtyProcess extends EventEmitter implements IPtyProcess {
   }
 
   private _handleExit(e: { exitCode: number; signal?: number }) {
-    this.emit(TermEventEnum.Exit, e);
+    this.emit(TermEventEnum.Exit, {
+      ...e,
+      lastInputWasCtrlD: this._lastInputWasCtrlD,
+    });
     this._logger.info(`pty has been terminated with exit code: ${e.exitCode}`);
     this._setStatus('terminated');
   }
@@ -234,12 +283,20 @@ export enum TermEventEnum {
 async function getWorkingDirectory(pid: number): Promise<string> {
   switch (process.platform) {
     case 'darwin':
-      const asyncExec = promisify(exec);
+      const asyncExec = promisify(execFile);
       // -a: join using AND instead of OR for the -p and -d options
       // -p: PID
       // -d: only include the file descriptor, cwd
       // -F: fields to output (the n character outputs 3 things, the last one is cwd)
-      const { stdout } = await asyncExec(`lsof -a -p ${pid} -d cwd -F n`);
+      const { stdout } = await asyncExec('lsof', [
+        '-a',
+        '-p',
+        String(pid),
+        '-d',
+        'cwd',
+        '-F',
+        'n',
+      ]);
       return stdout.split('\n').filter(Boolean).reverse()[0].substring(1);
     case 'linux':
       const asyncReadlink = promisify(readlink);
@@ -253,4 +310,8 @@ function getDefaultCwd(env: Record<string, string>): string {
   const userDir = process.platform === 'win32' ? env.USERPROFILE : env.HOME;
 
   return userDir || process.cwd();
+}
+
+function promisifyProcessExit(childProcess: nodePTY.IPty): Promise<void> {
+  return new Promise(resolve => childProcess.onExit(() => resolve()));
 }

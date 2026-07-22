@@ -19,7 +19,7 @@
 /**
  * `StaticConfig` allows providing different values between the dev build and
  * the packaged app.
- * The proper config is resolved by webpack at compile time.
+ * The proper config is resolved by Vite at compile time.
  * This differs from `RuntimeSettings`, where properties are resolved during
  * the app's runtime.
  */

@@ -17,4 +17,5 @@
  */
 
 import AjaxPoller from './AjaxPoller';
+
 export default AjaxPoller;

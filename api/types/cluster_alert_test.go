@@ -84,32 +84,53 @@ func TestAlertSorting(t *testing.T) {
 	}
 }
 
-// TestCheckAndSetDefaults verifies that only valid URLs are set on the link label.
+// TestCheckAndSetDefaults verifies that only valid URLs are set on the link
+// label and that only valid link text can be used.
 func TestCheckAndSetDefaultsWithLink(t *testing.T) {
 	tests := []struct {
-		link   string
-		assert require.ErrorAssertionFunc
+		options []AlertOption
+		name    string
+		assert  require.ErrorAssertionFunc
 	}{
 		{
-			link:   "https://goteleport.com/docs",
+			name:    "valid link",
+			options: []AlertOption{WithAlertLabel(AlertLink, "https://goteleport.com/docs")},
+			assert:  require.NoError,
+		},
+		{
+			name: "valid link with link text",
+			options: []AlertOption{
+				WithAlertLabel(AlertLink, "https://goteleport.com/support"),
+				WithAlertLabel(AlertLinkText, "Contact Support"),
+			},
 			assert: require.NoError,
 		},
 		{
-			link:   "h{t}tps://goteleport.com/docs",
-			assert: require.Error,
+			name:    "invalid link",
+			options: []AlertOption{WithAlertLabel(AlertLink, "h{t}tps://goteleport.com/docs")},
+			assert:  require.Error,
 		},
 		{
-			link:   "https://google.com",
+			name:    "external link",
+			options: []AlertOption{WithAlertLabel(AlertLink, "https://google.com")},
+			assert:  require.Error,
+		},
+		{
+			name: "valid link with invalid link text",
+			options: []AlertOption{
+				WithAlertLabel(AlertLink, "https://goteleport.com/support"),
+				WithAlertLabel(AlertLinkText, "Contact!Support"),
+			},
 			assert: require.Error,
 		},
 	}
 
 	for i, tt := range tests {
-		t.Run(tt.link, func(t *testing.T) {
+		t.Run(tt.name, func(t *testing.T) {
 			_, err := NewClusterAlert(
 				fmt.Sprintf("name-%d", i),
 				fmt.Sprintf("message-%d", i),
-				WithAlertLabel(AlertLink, tt.link),
+				tt.options...,
 			)
 			tt.assert(t, err)
 		})

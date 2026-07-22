@@ -16,12 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { makeRuntimeSettings } from 'teleterm/mainProcess/fixtures/mocks';
 import { AppConfig, ConfigService } from 'teleterm/services/config';
+import { createAppConfigSchema } from 'teleterm/services/config/appConfigSchema';
 
 export function createMockConfigService(
-  providedValues: AppConfig
+  providedValues: Partial<AppConfig>
 ): ConfigService {
-  const values = { ...providedValues };
+  const schema = createAppConfigSchema(makeRuntimeSettings());
+  const values = schema.parse(providedValues);
   return {
     get(key) {
       return { value: values[key], metadata: { isStored: false } };

@@ -1,0 +1,167 @@
+/*
+ * Teleport
+ * Copyright (C) 2025  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+package clientcredentials
+
+import (
+	"cmp"
+	"context"
+	"log/slog"
+
+	"github.com/gravitational/trace"
+
+	apiclient "github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/internal"
+	"github.com/gravitational/teleport/lib/tbot/readyz"
+)
+
+// ServiceBuilder creates a new client credential service with the given
+// configuration.
+//
+// Note: when using the client credentials service to provide credentials to
+// another service (e.g. the SPIFFE Workload API service) use NewSidecar instead.
+func ServiceBuilder(cfg *UnstableConfig, credentialLifetime bot.CredentialLifetime) bot.ServiceBuilder {
+	buildFn := func(deps bot.ServiceDependencies) (bot.Service, error) {
+		if err := cfg.CheckAndSetDefaults(deps.Scoped); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		svc := &Service{
+			botAuthClient:      deps.Client,
+			botIdentityReadyCh: deps.BotIdentityReadyCh,
+			credentialLifetime: credentialLifetime,
+			cfg:                cfg,
+			reloadCh:           deps.ReloadCh,
+			identityGenerator:  deps.IdentityGenerator,
+			log:                deps.Logger,
+			statusReporter:     deps.GetStatusReporter(),
+			scoped:             deps.Scoped,
+		}
+		return svc, nil
+	}
+	return bot.NewServiceBuilder(ServiceType, cfg.Name, buildFn)
+}
+
+// NewSidecar creates a client credential service intended to provide credentials
+// to another service.
+func NewSidecar(deps bot.ServiceDependencies, credentialLifetime bot.CredentialLifetime) (*Service, *UnstableConfig) {
+	cfg := &UnstableConfig{}
+	svc := &Service{
+		botAuthClient:      deps.Client,
+		botIdentityReadyCh: deps.BotIdentityReadyCh,
+		credentialLifetime: credentialLifetime,
+		cfg:                cfg,
+		reloadCh:           deps.ReloadCh,
+		identityGenerator:  deps.IdentityGenerator,
+		statusReporter:     readyz.NoopReporter(),
+		log:                deps.Logger,
+		scoped:             deps.Scoped,
+	}
+	return svc, cfg
+}
+
+// Service produces credentials which can be used to connect to Teleport's API or SSH.
+type Service struct {
+	// botAuthClient should be an auth client using the bots internal identity.
+	// This will not have any roles impersonated and should only be used to
+	// fetch CAs.
+	botAuthClient      *apiclient.Client
+	botIdentityReadyCh <-chan struct{}
+	credentialLifetime bot.CredentialLifetime
+	cfg                *UnstableConfig
+	log                *slog.Logger
+	statusReporter     readyz.Reporter
+	reloadCh           <-chan struct{}
+	identityGenerator  *identity.Generator
+	scoped             bool
+}
+
+func (s *Service) String() string {
+	return cmp.Or(
+		s.cfg.Name,
+		"client-credential-output",
+	)
+}
+
+func (s *Service) OneShot(ctx context.Context) error {
+	if s.scoped {
+		return s.generateScoped(ctx)
+	}
+	return s.generate(ctx)
+}
+
+func (s *Service) Run(ctx context.Context) error {
+	f := s.generate
+	if s.scoped {
+		f = s.generateScoped
+	}
+	err := internal.RunOnInterval(ctx, internal.RunOnIntervalConfig{
+		Service:         s.String(),
+		Name:            "output-renewal",
+		F:               f,
+		Interval:        s.credentialLifetime.RenewalInterval,
+		RetryLimit:      internal.RenewalRetryLimit,
+		Log:             s.log,
+		ReloadCh:        s.reloadCh,
+		IdentityReadyCh: s.botIdentityReadyCh,
+		StatusReporter:  s.statusReporter,
+	})
+	return trace.Wrap(err)
+}
+
+func (s *Service) generate(ctx context.Context) error {
+	ctx, span := tracer.Start(
+		ctx,
+		"Service/generate",
+	)
+	defer span.End()
+	s.log.InfoContext(ctx, "Generating output")
+
+	opts := []identity.GenerateOption{
+		identity.WithLifetime(s.credentialLifetime.TTL, s.credentialLifetime.RenewalInterval),
+		identity.WithLogger(s.log),
+	}
+	if s.cfg.DelegationSessionID != "" {
+		opts = append(opts, identity.WithDelegation(s.cfg.DelegationSessionID))
+	}
+	id, err := s.identityGenerator.Generate(ctx, opts...)
+	if err != nil {
+		return trace.Wrap(err, "generating identity")
+	}
+
+	s.cfg.SetOrUpdateFacade(id)
+	return nil
+}
+
+func (s *Service) generateScoped(ctx context.Context) error {
+	ctx, span := tracer.Start(
+		ctx,
+		"Service/generateScoped",
+	)
+	defer span.End()
+	s.log.InfoContext(ctx, "Generating scoped output")
+
+	id, err := s.identityGenerator.GenerateScoped(ctx, s.credentialLifetime.TTL, s.credentialLifetime.RenewalInterval)
+	if err != nil {
+		return trace.Wrap(err, "generating scoped identity")
+	}
+
+	s.cfg.SetOrUpdateFacade(id)
+	return nil
+}

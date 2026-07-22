@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// package accesspoint provides helpers for configuring caches in the context of
+// Package accesspoint provides helpers for configuring caches in the context of
 // setting up service-level auth access points. this logic has been moved out of
 // lib/service in order to facilitate better testing practices.
 package accesspoint
@@ -27,33 +27,29 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
+	"github.com/prometheus/client_golang/prometheus"
 	oteltrace "go.opentelemetry.io/otel/trace"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cache"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/services"
 )
 
-// AccessCacheConfig holds parameters used to confiure a cache to
+// Config holds parameters used to configure a cache to
 // serve as an auth access point for a teleport service.
-type AccessCacheConfig struct {
+type Config struct {
 	// Context is the base context used to propagate closure to
 	// cache components.
 	Context context.Context
-	// Services is a collection of upstream services from which
-	// the access cache will derive its state.
-	Services services.Services
 	// Setup is a function that takes cache configuration and
 	// modifies it to support a specific teleport service.
 	Setup cache.SetupConfigFn
 	// CacheName identifies the cache in logs.
 	CacheName []string
-	// Events is true if cache should have the events system enabled.
-	Events bool
+	// EventsSystem is true if cache should have the events system enabled.
+	EventsSystem bool
 	// Unstarted is true if the cache should not be started.
 	Unstarted bool
 	// MaxRetryPeriod is the max retry period between connection attempts
@@ -65,12 +61,70 @@ type AccessCacheConfig struct {
 	// TracingProvider is the provider to be used for exporting
 	// traces. No-op tracers will be used if no provider is set.
 	TracingProvider *tracing.Provider
+	// Registerer is used to register prometheus metrics.
+	Registerer prometheus.Registerer
+
+	// The following services are provided to the Cache to allow it to
+	// populate its resource collections. They will either be the local service
+	// directly or a client that can be used to fetch the resources from the
+	// remote service.
+
+	Access                  services.Access
+	AccessLists             services.AccessLists
+	AccessMonitoringRules   services.AccessMonitoringRules
+	AppSession              services.AppSessionReader
+	Applications            services.Applications
+	Beams                   services.BeamReader
+	BeamsConfig             services.BeamsConfigGetter
+	BotInstance             services.BotInstance
+	ClusterConfig           services.ClusterConfiguration
+	StaticScopedToken       services.StaticScopedTokenService
+	CrownJewels             services.CrownJewels
+	DatabaseObjects         services.DatabaseObjects
+	DatabaseServices        services.DatabaseServices
+	Databases               services.Databases
+	DelegationSessions      services.DelegationSessions
+	DiscoveryConfigs        services.DiscoveryConfigs
+	DynamicAccess           services.DynamicAccessCore
+	Events                  types.Events
+	Integrations            services.Integrations
+	KubeWaitingContainers   services.KubeWaitingContainer
+	Kubernetes              services.Kubernetes
+	Notifications           services.Notifications
+	Okta                    services.Okta
+	Presence                services.Presence
+	Provisioner             services.Provisioner
+	Restrictions            services.Restrictions
+	SAMLIdPServiceProviders services.SAMLIdPServiceProviders
+	SecReports              services.SecReports
+	SnowflakeSession        services.SnowflakeSession
+	SPIFFEFederations       services.SPIFFEFederations
+	StaticHostUsers         services.StaticHostUser
+	Trust                   services.Trust
+	UserGroups              services.UserGroups
+	UserTasks               services.UserTasks
+	UserLoginStates         services.UserLoginStates
+	Users                   services.UsersService
+	WebSession              types.WebSessionInterface
+	WebToken                services.WebToken
+	WorkloadIdentity        services.WorkloadIdentities
+	DynamicWindowsDesktops  services.DynamicWindowsDesktops
+	WindowsDesktops         services.WindowsDesktops
+	LinuxDesktops           services.LinuxDesktops
+	AutoUpdateService       services.AutoUpdateServiceGetter
+	ProvisioningStates      services.ProvisioningStates
+	IdentityCenter          services.IdentityCenter
+	PluginStaticCredentials services.PluginStaticCredentials
+	GitServers              services.GitServers
+	HealthCheckConfig       services.HealthCheckConfigReader
+	RecordingEncryption     services.RecordingEncryption
+	Plugin                  services.Plugins
+	AppAuthConfig           services.AppAuthConfigReader
+	Summarizer              services.Summarizer
+	SubCAService            services.SubCAServiceGetter
 }
 
-func (c *AccessCacheConfig) CheckAndSetDefaults() error {
-	if c.Services == nil {
-		return trace.BadParameter("missing parameter Services")
-	}
+func (c *Config) CheckAndSetDefaults() error {
 	if c.Setup == nil {
 		return trace.BadParameter("missing parameter Setup")
 	}
@@ -83,32 +137,14 @@ func (c *AccessCacheConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
-// NewAccessCache builds a cache.Cache instance for a teleport service. This logic has been
-// broken out of lib/service in order to support easier unit testing of process components.
-func NewAccessCache(cfg AccessCacheConfig) (*cache.Cache, error) {
+func NewCache(cfg Config) (*cache.Cache, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	log.Debugf("Creating in-memory backend for %v.", cfg.CacheName)
-	mem, err := memory.New(memory.Config{
-		Context:   cfg.Context,
-		EventsOff: !cfg.Events,
-		Mirror:    true,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+
 	var tracer oteltrace.Tracer
 	if cfg.TracingProvider != nil {
 		tracer = cfg.TracingProvider.Tracer(teleport.ComponentCache)
-	}
-	reporter, err := backend.NewReporter(backend.ReporterConfig{
-		Component: teleport.ComponentCache,
-		Backend:   mem,
-		Tracer:    tracer,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
 	}
 
 	component := slices.Clone(cfg.CacheName)
@@ -119,45 +155,67 @@ func NewAccessCache(cfg AccessCacheConfig) (*cache.Cache, error) {
 	component = append(component, teleport.ComponentCache)
 	metricComponent := append(slices.Clone(cfg.CacheName), teleport.ComponentCache)
 
-	return cache.New(cfg.Setup(cache.Config{
+	cacheCfg := cache.Config{
 		Context:                 cfg.Context,
-		Backend:                 reporter,
-		Events:                  cfg.Services,
-		ClusterConfig:           cfg.Services,
-		Provisioner:             cfg.Services,
-		Trust:                   cfg.Services,
-		Users:                   cfg.Services,
-		Access:                  cfg.Services,
-		DynamicAccess:           cfg.Services,
-		Presence:                cfg.Services,
-		Restrictions:            cfg.Services,
-		Apps:                    cfg.Services,
-		Kubernetes:              cfg.Services,
-		CrownJewels:             cfg.Services.CrownJewelClient(),
-		DatabaseServices:        cfg.Services,
-		Databases:               cfg.Services,
-		DatabaseObjects:         cfg.Services.DatabaseObjectsClient(),
-		AppSession:              cfg.Services,
-		SnowflakeSession:        cfg.Services,
-		SAMLIdPSession:          cfg.Services,
-		WindowsDesktops:         cfg.Services,
-		SAMLIdPServiceProviders: cfg.Services,
-		UserGroups:              cfg.Services,
-		Notifications:           cfg.Services,
-		Okta:                    cfg.Services.OktaClient(),
-		AccessLists:             cfg.Services.AccessListClient(),
-		AccessMonitoringRules:   cfg.Services.AccessMonitoringRuleClient(),
-		SecReports:              cfg.Services.SecReportsClient(),
-		UserLoginStates:         cfg.Services.UserLoginStateClient(),
-		Integrations:            cfg.Services,
-		DiscoveryConfigs:        cfg.Services.DiscoveryConfigClient(),
-		WebSession:              cfg.Services.WebSessions(),
-		WebToken:                cfg.Services.WebTokens(),
-		KubeWaitingContainers:   cfg.Services,
 		Component:               teleport.Component(component...),
 		MetricComponent:         teleport.Component(metricComponent...),
 		Tracer:                  tracer,
+		Registerer:              cfg.Registerer,
 		MaxRetryPeriod:          cfg.MaxRetryPeriod,
 		Unstarted:               cfg.Unstarted,
-	}))
+		Access:                  cfg.Access,
+		AccessLists:             cfg.AccessLists,
+		AccessMonitoringRules:   cfg.AccessMonitoringRules,
+		AppSession:              cfg.AppSession,
+		Apps:                    cfg.Applications,
+		Beams:                   cfg.Beams,
+		BeamsConfig:             cfg.BeamsConfig,
+		ClusterConfig:           cfg.ClusterConfig,
+		StaticScopedToken:       cfg.StaticScopedToken,
+		AutoUpdateService:       cfg.AutoUpdateService,
+		CrownJewels:             cfg.CrownJewels,
+		DatabaseObjects:         cfg.DatabaseObjects,
+		DatabaseServices:        cfg.DatabaseServices,
+		Databases:               cfg.Databases,
+		DiscoveryConfigs:        cfg.DiscoveryConfigs,
+		DynamicAccess:           cfg.DynamicAccess,
+		Events:                  cfg.Events,
+		Integrations:            cfg.Integrations,
+		KubeWaitingContainers:   cfg.KubeWaitingContainers,
+		Kubernetes:              cfg.Kubernetes,
+		Notifications:           cfg.Notifications,
+		Okta:                    cfg.Okta,
+		Presence:                cfg.Presence,
+		Provisioner:             cfg.Provisioner,
+		Restrictions:            cfg.Restrictions,
+		SAMLIdPServiceProviders: cfg.SAMLIdPServiceProviders,
+		SecReports:              cfg.SecReports,
+		SnowflakeSession:        cfg.SnowflakeSession,
+		SPIFFEFederations:       cfg.SPIFFEFederations,
+		StaticHostUsers:         cfg.StaticHostUsers,
+		Trust:                   cfg.Trust,
+		UserGroups:              cfg.UserGroups,
+		UserLoginStates:         cfg.UserLoginStates,
+		UserTasks:               cfg.UserTasks,
+		Users:                   cfg.Users,
+		WebSession:              cfg.WebSession,
+		WebToken:                cfg.WebToken,
+		WorkloadIdentity:        cfg.WorkloadIdentity,
+		WindowsDesktops:         cfg.WindowsDesktops,
+		LinuxDesktops:           cfg.LinuxDesktops,
+		DynamicWindowsDesktops:  cfg.DynamicWindowsDesktops,
+		ProvisioningStates:      cfg.ProvisioningStates,
+		IdentityCenter:          cfg.IdentityCenter,
+		PluginStaticCredentials: cfg.PluginStaticCredentials,
+		GitServers:              cfg.GitServers,
+		HealthCheckConfig:       cfg.HealthCheckConfig,
+		BotInstanceService:      cfg.BotInstance,
+		RecordingEncryption:     cfg.RecordingEncryption,
+		Plugin:                  cfg.Plugin,
+		AppAuthConfig:           cfg.AppAuthConfig,
+		Summarizer:              cfg.Summarizer,
+		SubCAService:            cfg.SubCAService,
+	}
+
+	return cache.New(cfg.Setup(cacheCfg))
 }

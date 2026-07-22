@@ -40,4 +40,6 @@ message Server {
   repeated Label labels = 6;
   // node sub kind: teleport, openssh, openssh-ec2-ice
   string sub_kind = 7;
+  // Subset of logins allowed by the certificate and RBAC rules.
+  repeated string logins = 8;
 }

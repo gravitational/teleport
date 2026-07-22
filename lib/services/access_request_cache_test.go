@@ -18,11 +18,13 @@
 package services_test
 
 import (
-	"context"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
@@ -34,6 +36,8 @@ import (
 type accessRequestServices struct {
 	types.Events
 	services.DynamicAccessExt
+
+	bk *memory.Memory
 }
 
 func newAccessRequestPack(t *testing.T) (accessRequestServices, *services.AccessRequestCache) {
@@ -43,11 +47,13 @@ func newAccessRequestPack(t *testing.T) (accessRequestServices, *services.Access
 	svcs := accessRequestServices{
 		Events:           local.NewEventsService(bk),
 		DynamicAccessExt: local.NewDynamicAccessService(bk),
+		bk:               bk,
 	}
 
 	cache, err := services.NewAccessRequestCache(services.AccessRequestCacheConfig{
-		Events: svcs,
-		Getter: svcs,
+		Events:         svcs,
+		Getter:         svcs,
+		MaxRetryPeriod: time.Millisecond * 100,
 	})
 	require.NoError(t, err)
 
@@ -60,6 +66,107 @@ func newAccessRequestPack(t *testing.T) (accessRequestServices, *services.Access
 	return svcs, cache
 }
 
+func TestAccessRequestCacheResets(t *testing.T) {
+	const (
+		requestCount = 100
+		workers      = 20
+		resets       = 3
+	)
+
+	t.Parallel()
+
+	svcs, cache := newAccessRequestPack(t)
+	defer cache.Close()
+
+	ctx := t.Context()
+
+	for range requestCount {
+		r, err := types.NewAccessRequest(uuid.New().String(), "alice@example.com", "some-role")
+		require.NoError(t, err)
+
+		_, err = svcs.CreateAccessRequestV2(ctx, r)
+		require.NoError(t, err)
+	}
+
+	timeout := time.After(time.Second * 30)
+
+	for {
+		rsp, err := cache.ListAccessRequests(ctx, &proto.ListAccessRequestsRequest{
+			Limit: requestCount,
+		})
+		require.NoError(t, err)
+		if len(rsp.AccessRequests) == requestCount {
+			break
+		}
+
+		select {
+		case <-timeout:
+			require.FailNow(t, "timeout waiting for access request cache to populate")
+		case <-time.After(time.Millisecond * 200):
+		}
+	}
+
+	doneC := make(chan struct{})
+	reads := make(chan struct{}, workers)
+	var eg errgroup.Group
+
+	for range workers {
+		eg.Go(func() error {
+			for {
+				select {
+				case <-doneC:
+					return nil
+				case <-time.After(time.Millisecond * 20):
+				}
+
+				rsp, err := cache.ListAccessRequests(ctx, &proto.ListAccessRequestsRequest{
+					Limit: int32(requestCount),
+				})
+				if err != nil {
+					return trace.Errorf("unexpected read failure: %v", err)
+				}
+
+				select {
+				case reads <- struct{}{}:
+				default:
+				}
+
+				if len(rsp.AccessRequests) != requestCount {
+					return trace.Errorf("unexpected number of access requests: %d (expected %d)", len(rsp.AccessRequests), requestCount)
+				}
+			}
+		})
+	}
+
+	inits := make(chan struct{}, resets+1)
+	cache.SetInitCallback(func() {
+		inits <- struct{}{}
+	})
+
+	timeout = time.After(time.Second * 30)
+	for i := range resets {
+		svcs.bk.CloseWatchers()
+		select {
+		case <-inits:
+		case <-timeout:
+			require.FailNowf(t, "timeout waiting for access request cache to reset", "reset=%d", i)
+		}
+
+		for range workers {
+			// ensure that we're not racing ahead of worker reads too
+			// much if inits are happening quickly.
+			select {
+			case <-reads:
+			case <-timeout:
+				require.FailNowf(t, "timeout waiting for worker reads to catch up", "reset=%d", i)
+			}
+		}
+	}
+
+	close(doneC)
+	require.NoError(t, eg.Wait())
+}
+
 // TestAccessRequestCacheBasics verifies the basic expected behaviors of the access request cache,
 // including correct sorting and handling of put/delete events.
 func TestAccessRequestCacheBasics(t *testing.T) {
@@ -68,8 +175,7 @@ func TestAccessRequestCacheBasics(t *testing.T) {
 	svcs, cache := newAccessRequestPack(t)
 	defer cache.Close()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	// describe a set of basic test resources that we can use to
 	// verify various sort scenarios (request are inserted with
@@ -281,8 +387,7 @@ func TestAccessRequestCacheBasics(t *testing.T) {
 func TestAccessRequestCacheExpiryFiltering(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	bk, err := memory.New(memory.Config{
 		// set backend into mirror mode so that it does not expire items

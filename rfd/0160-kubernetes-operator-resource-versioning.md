@@ -95,7 +95,7 @@ or multiple controllers if we need it.
   kubectl get teleportrolev6
   
   # get roles v7
-  kubeclt get teleportrolev7
+  kubectl get teleportrolev7
   
   # get roles v5, we could remove it but it would break
   kubectl get teleportrole

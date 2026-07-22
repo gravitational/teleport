@@ -53,7 +53,7 @@ variable "workgroup_max_scanned_bytes_per_query" {
 # search events API to prevent increasing costs in case of aggressive use of API.
 # In current version Athena Audit logger is not prepared for polling of API.
 # Burst=20, time=1m and amount=5, means that you can do 20 requests without any
-# throtling, next requests will be thottled, and tokens will be filled to
+# throttling, next requests will be throttled, and tokens will be filled to
 # rate limit bucket at amount 5 every 1m.
 variable "search_event_limiter_burst" {
   description = "Number of tokens available for rate limit used on top of search event API"

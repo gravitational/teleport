@@ -1,0 +1,158 @@
+/*
+ * Teleport
+ * Copyright (C) 2025  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+package roles
+
+import (
+	"context"
+
+	"github.com/charlievieth/strcase"
+	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/proto"
+
+	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	"github.com/gravitational/teleport/lib/scopes"
+	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
+	"github.com/gravitational/teleport/lib/scopes/cache"
+)
+
+const (
+	defaultPageSize = 256
+	maxPageSize     = 1024
+)
+
+// RoleCache is a cache for scoped role roles.
+type RoleCache struct {
+	cache *cache.Cache[*scopedaccessv1.ScopedRole, string]
+}
+
+// NewRoleCache creates a new role cache instance.
+func NewRoleCache() *RoleCache {
+	return &RoleCache{
+		cache: cache.Must(cache.Config[*scopedaccessv1.ScopedRole, string]{
+			Scope: func(role *scopedaccessv1.ScopedRole) string {
+				return role.GetScope()
+			},
+			Key: func(role *scopedaccessv1.ScopedRole) string {
+				return role.GetMetadata().GetName()
+			},
+			Clone: proto.CloneOf[*scopedaccessv1.ScopedRole],
+		}),
+	}
+}
+
+// GetScopedRole gets a scoped role by name.
+func (c *RoleCache) GetScopedRole(ctx context.Context, req *scopedaccessv1.GetScopedRoleRequest) (*scopedaccessv1.GetScopedRoleResponse, error) {
+	if req.GetName() == "" {
+		return nil, trace.BadParameter("missing scoped role name in get request")
+	}
+
+	role, ok := c.cache.Get(cache.ScopedKey[string]{
+		Scope: req.GetScope(),
+		Key:   req.GetName(),
+	})
+	if !ok {
+		return nil, trace.NotFound("scoped role %q not found in scope %q", req.GetName(), req.GetScope())
+	}
+
+	return scopedaccessv1.GetScopedRoleResponse_builder{
+		Role: role,
+	}.Build(), nil
+}
+
+// ListScopedRoles returns a paginated list of scoped roles.
+func (c *RoleCache) ListScopedRoles(ctx context.Context, req *scopedaccessv1.ListScopedRolesRequest) (*scopedaccessv1.ListScopedRolesResponse, error) {
+	return c.ListScopedRolesWithFilter(ctx, req, func(role *scopedaccessv1.ScopedRole) bool { return true })
+}
+
+// ListScopedRolesWithFilter returns a paginated list of scoped roles filtered by the provided filter function. This
+// method is used internally to implement access-controls on the ListScopedRoles grpc method.
+func (c *RoleCache) ListScopedRolesWithFilter(ctx context.Context, req *scopedaccessv1.ListScopedRolesRequest, filter func(*scopedaccessv1.ScopedRole) bool) (*scopedaccessv1.ListScopedRolesResponse, error) {
+	pageSize := int(req.GetPageSize())
+	if pageSize <= 0 {
+		pageSize = defaultPageSize
+	}
+	if pageSize > maxPageSize {
+		pageSize = maxPageSize
+	}
+
+	cursor, err := cache.DecodeStringCursor(req.GetPageToken())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	finalFilter := filter
+	if nameFilter := req.GetNameFilter(); nameFilter != "" {
+		finalFilter = func(role *scopedaccessv1.ScopedRole) bool {
+			return strcase.Contains(role.GetMetadata().GetName(), nameFilter) && filter(role)
+		}
+	}
+
+	// the primary scope filter selects the cache traversal strategy.
+	resources, err := c.cache.ResourcesMatchingScopeFilter(req.GetScopeFilter(), c.cache.WithCursor(cursor), c.cache.WithFilter(finalFilter))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var out []*scopedaccessv1.ScopedRole
+	var nextCursor cache.Cursor[string]
+Outer:
+	for scope := range resources {
+		for role := range scope.Items() {
+			if len(out) == pageSize {
+				nextCursor = cache.Cursor[string]{
+					Scope: scope.Scope(),
+					Key:   role.GetMetadata().GetName(),
+				}
+				break Outer
+			}
+			out = append(out, role)
+		}
+	}
+
+	var nextPageToken string
+	if !nextCursor.IsZero() {
+		nextPageToken, err = cache.EncodeStringCursor(nextCursor)
+		if err != nil {
+			return nil, trace.Errorf("failed to encode cursor %+v: %w (this is a bug)", nextCursor, err)
+		}
+	}
+
+	return scopedaccessv1.ListScopedRolesResponse_builder{
+		Roles:         out,
+		NextPageToken: nextPageToken,
+	}.Build(), nil
+}
+
+// Put adds a new role to the cache. It will overwrite any existing role with the same name.
+func (c *RoleCache) Put(role *scopedaccessv1.ScopedRole) error {
+	if err := scopedaccess.WeakValidateRole(role); err != nil {
+		return trace.Wrap(err)
+	}
+
+	c.cache.Put(role)
+	return nil
+}
+
+// Delete removes a role from the cache by its scope-qualified name.
+func (c *RoleCache) Delete(role scopes.QualifiedName) {
+	c.cache.Del(cache.ScopedKey[string]{
+		Scope: role.Scope,
+		Key:   role.Name,
+	})
+}

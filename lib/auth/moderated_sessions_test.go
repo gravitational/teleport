@@ -16,31 +16,29 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package auth
+package auth_test
 
 import (
-	"context"
 	"testing"
 
-	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services/local"
 )
 
 // TestUnmoderatedSessionsAllowed tests that we allow creating unmoderated sessions even if the
 // license does not support the moderated sessions feature.
 func TestUnmoderatedSessionsAllowed(t *testing.T) {
-	// Use OSS License (which doesn't support moderated sessions).
-	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildOSS})
+	t.Parallel()
 
-	srv := &Server{
-		clock:    clockwork.NewRealClock(),
-		Services: &Services{},
-	}
+	// Use OSS License (which doesn't support moderated sessions).
+	srv := auth.ServerWithModules(&modulestest.Modules{TestBuildType: modules.BuildOSS})
+	srv.Services = &auth.Services{}
 
 	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
@@ -54,7 +52,7 @@ func TestUnmoderatedSessionsAllowed(t *testing.T) {
 	require.NoError(t, err)
 	tracker.AddParticipant(types.Participant{})
 
-	_, err = srv.CreateSessionTracker(context.Background(), tracker)
+	_, err = srv.CreateSessionTracker(t.Context(), tracker)
 	require.NoError(t, err)
 	require.NotNil(t, tracker)
 }
@@ -62,13 +60,11 @@ func TestUnmoderatedSessionsAllowed(t *testing.T) {
 // TestModeratedSessionsDisabled makes sure moderated sessions are disabled when the license does not support it.
 // Since moderated sessions require trackers, we mediate this in the tracker creation function.
 func TestModeratedSessionsDisabled(t *testing.T) {
-	// Use OSS License (which doesn't support moderated sessions).
-	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildOSS})
+	t.Parallel()
 
-	srv := &Server{
-		clock:    clockwork.NewRealClock(),
-		Services: &Services{},
-	}
+	// Use OSS License (which doesn't support moderated sessions)
+	srv := auth.ServerWithModules(&modulestest.Modules{TestBuildType: modules.BuildOSS})
+	srv.Services = &auth.Services{}
 
 	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
@@ -93,22 +89,20 @@ func TestModeratedSessionsDisabled(t *testing.T) {
 	require.NoError(t, err)
 	tracker.AddParticipant(types.Participant{})
 
-	tracker, err = srv.CreateSessionTracker(context.Background(), tracker)
+	tracker, err = srv.CreateSessionTracker(t.Context(), tracker)
 	require.Error(t, err)
 	require.Nil(t, tracker)
-	require.ErrorIs(t, err, ErrRequiresEnterprise)
+	require.ErrorIs(t, err, auth.ErrRequiresEnterprise)
 }
 
 // TestModeratedSessionsEnabled verifies that we can create session trackers with moderation
 // requirements when the license supports it.
 func TestModeratedSesssionsEnabled(t *testing.T) {
-	// Use Enterprise License (which supports moderated sessions).
-	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+	t.Parallel()
 
-	srv := &Server{
-		clock:    clockwork.NewRealClock(),
-		Services: &Services{},
-	}
+	// Use Enterprise License (which supports moderated sessions).
+	srv := auth.ServerWithModules(modulestest.EnterpriseModules())
+	srv.Services = &auth.Services{}
 
 	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
@@ -133,7 +127,7 @@ func TestModeratedSesssionsEnabled(t *testing.T) {
 	require.NoError(t, err)
 	tracker.AddParticipant(types.Participant{})
 
-	_, err = srv.CreateSessionTracker(context.Background(), tracker)
+	_, err = srv.CreateSessionTracker(t.Context(), tracker)
 	require.NoError(t, err)
 	require.NotNil(t, tracker)
 }

@@ -50,9 +50,14 @@ spec:
               subPath: teleport-slack.toml
             - name: teleport-identity
               mountPath: /var/lib/teleport/plugins/slack/teleport-identity
-            - name: {{ .Values.secretVolumeName }}
+            - name: {{ .Values.secretVolumeName }}-bot-token
               mountPath: /var/lib/teleport/plugins/slack/slack-token
               subPath: {{ .Values.slack.tokenSecretPath }}
+            {{- if .Values.review.enabled }}
+            - name: {{ .Values.secretVolumeName }}-app-token
+              mountPath: /var/lib/teleport/plugins/slack/slack-app-token
+              subPath: {{ .Values.review.appTokenSecretPath }}
+            {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
@@ -72,9 +77,15 @@ spec:
             defaultMode: 0600
         - name: teleport-identity
           secret:
-            secretName: "{{ .Values.teleport.identitySecretName }}"
+            secretName: {{ include "slack.identitySecretName" . | quote }}
             defaultMode: 0600
-        - name: {{ .Values.secretVolumeName }}
+        - name: {{ .Values.secretVolumeName }}-bot-token
           secret:
             secretName: "{{ coalesce .Values.slack.tokenFromSecret (printf "%s-secret" (include "slack.fullname" .)) }}"
             defaultMode: 0600
+        {{- if .Values.review.enabled }}
+        - name: {{ .Values.secretVolumeName }}-app-token
+          secret:
+            secretName: "{{ coalesce .Values.review.appTokenFromSecret (printf "%s-app-token-secret" (include "slack.fullname" .)) }}"
+            defaultMode: 0600
+        {{- end }}

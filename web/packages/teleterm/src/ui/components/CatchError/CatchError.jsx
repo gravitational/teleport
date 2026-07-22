@@ -16,14 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import { Component } from 'react';
 
 import { UnhandledCaseError } from 'shared/utils/assertUnreachable';
 
-import { FailedApp } from 'teleterm/ui/components/App';
 import Logger from 'teleterm/logger';
+import { FailedApp } from 'teleterm/ui/components/App';
 
-export class CatchError extends React.Component {
+export class CatchError extends Component {
   logger = new Logger('CatchError');
 
   static getDerivedStateFromError(error) {

@@ -50,7 +50,8 @@ import (
 //
 // Error from server (Forbidden): "GKE Autopilot denied the request because it impersonates the "system:masters" group.
 // Your Teleport Roles [role1,role2] have given access to the "system:masters" group for the cluster "<cluster>".
-// For additional information and resolution, please visit https://goteleport.com/docs/kubernetes-access/troubleshooting/#unable-to-connect-to-gke-autopilot-clusters
+// For additional information and resolution, please visit
+// https://goteleport.com/docs/enroll-resources/kubernetes-access/troubleshooting/#unable-to-connect-to-gke-autopilot-clusters
 func (f *Forwarder) rewriteResponseForbidden(s *clusterSession) func(r *http.Response) error {
 	return func(r *http.Response) error {
 		const (
@@ -87,7 +88,7 @@ func (f *Forwarder) rewriteResponseForbidden(s *clusterSession) func(r *http.Res
 				newClientNegotiator(&globalKubeCodecs),
 			)
 			if err != nil {
-				f.log.WithError(err).Error("Failed to create encoder")
+				f.log.ErrorContext(r.Request.Context(), "Failed to create encoder", "error", err)
 				return nil
 			}
 
@@ -100,14 +101,14 @@ func (f *Forwarder) rewriteResponseForbidden(s *clusterSession) func(r *http.Res
 						"Your Teleport Roles %v have given access to the \"system:masters\" group "+
 							"for the cluster %q.\n", collectSystemMastersTeleportRoles(s), s.kubeClusterName) +
 					"For additional information and resolution, " +
-					"please visit https://goteleport.com/docs/kubernetes-access/troubleshooting/#unable-to-connect-to-gke-autopilot-clusters\n",
+					"please visit https://goteleport.com/docs/enroll-resources/kubernetes-access/troubleshooting/#unable-to-connect-to-gke-autopilot-clusters\n",
 			}
 			// Reset the buffer to write the new response.
 			b.Reset()
 
 			// Encode the new response.
 			if err = encoder.Encode(status, b); err != nil {
-				f.log.WithError(err).Error("Failed to encode response")
+				f.log.ErrorContext(r.Request.Context(), "Failed to encode response", "error", err)
 				return trace.Wrap(err)
 			}
 
@@ -128,13 +129,17 @@ func collectSystemMastersTeleportRoles(s *clusterSession) []string {
 	const (
 		systemMastersGroup = "system:masters"
 	)
-	accessChecker := s.authContext.Checker
+	accessChecker, err := s.authContext.getAccessChecker()
+	if err != nil {
+		return nil
+	}
+
 	matchers := make([]services.RoleMatcher, 0, 3)
 	// Creates a matcher that matches the cluster labels against `kubernetes_labels`
 	// defined for each user's role.
 	matchers = append(
 		matchers,
-		services.NewKubernetesClusterLabelMatcher(s.kubeClusterLabels, accessChecker.Traits()),
+		services.NewKubernetesClusterLabelMatcher(s.kubeClusterLabels, accessChecker.AccessInfo().Username, accessChecker.Traits()),
 	)
 
 	// If the kubeResource is available, append an extra matcher that validates
@@ -147,10 +152,10 @@ func collectSystemMastersTeleportRoles(s *clusterSession) []string {
 	// results in the intersection of roles that match the "kubernetes_labels" and
 	// roles that allow access to the desired "kubernetes_resource".
 	// If from the intersection results an empty set, the request is denied.
-	if s.kubeResource != nil {
+	if rbacRes := s.metaResource.rbacResource(); rbacRes != nil && !s.metaResource.isList {
 		matchers = append(
 			matchers,
-			services.NewKubernetesResourceMatcher(*s.kubeResource),
+			services.NewKubernetesResourceMatcher(*rbacRes, s.metaResource.isClusterWideResource()),
 		)
 	}
 	var rolesWithSystemMasters []string
@@ -170,6 +175,6 @@ func collectSystemMastersTeleportRoles(s *clusterSession) []string {
 		}),
 	)
 
-	_, _, _ = accessChecker.CheckKubeGroupsAndUsers(s.sessionTTL, false /* overrideTTL */, matchers...)
+	_, _, _ = accessChecker.Kube().GetGroupsAndUsers(s.sessionTTL, false /* overrideTTL */, matchers...)
 	return rolesWithSystemMasters
 }

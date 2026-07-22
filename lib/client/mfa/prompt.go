@@ -21,8 +21,8 @@ package mfa
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"strings"
-	"sync"
 
 	"github.com/gravitational/trace"
 
@@ -32,24 +32,26 @@ import (
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 )
 
-// PromptConfig contains common mfa prompt config options.
+// WebauthnLoginFunc is a function that performs WebAuthn login.
+// Mimics the signature of [wancli.Login].
+type WebauthnLoginFunc func(
+	ctx context.Context,
+	origin string,
+	assertion *wantypes.CredentialAssertion,
+	prompt wancli.LoginPrompt,
+	opts *wancli.LoginOpts,
+) (*proto.MFAAuthenticateResponse, string, error)
+
+// PromptConfig contains common mfa prompt config options shared by
+// different implementations of [mfa.Prompt].
 type PromptConfig struct {
 	mfa.PromptConfig
 	// ProxyAddress is the address of the authenticating proxy. required.
 	ProxyAddress string
 	// WebauthnLoginFunc performs client-side Webauthn login.
-	WebauthnLoginFunc func(ctx context.Context, origin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt, opts *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error)
-	// AllowStdinHijack allows stdin hijack during MFA prompts.
-	// Stdin hijack provides a better login UX, but it can be difficult to reason
-	// about and is often a source of bugs.
-	// Do not set this options unless you deeply understand what you are doing.
-	// If false then only the strongest auth method is prompted.
-	AllowStdinHijack bool
+	WebauthnLoginFunc WebauthnLoginFunc
 	// AuthenticatorAttachment specifies the desired authenticator attachment.
 	AuthenticatorAttachment wancli.AuthenticatorAttachment
-	// PreferOTP favors OTP challenges, if applicable.
-	// Takes precedence over AuthenticatorAttachment settings.
-	PreferOTP bool
 	// WebauthnSupported indicates whether Webauthn is supported.
 	WebauthnSupported bool
 }
@@ -69,41 +71,6 @@ func NewPromptConfig(proxyAddr string, opts ...mfa.PromptOpt) *PromptConfig {
 	return cfg
 }
 
-// RunOpts are mfa prompt run options.
-type RunOpts struct {
-	PromptTOTP     bool
-	PromptWebauthn bool
-}
-
-// GetRunOptions gets mfa prompt run options by cross referencing the mfa challenge with prompt configuration.
-func (c PromptConfig) GetRunOptions(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (RunOpts, error) {
-	promptTOTP := chal.TOTP != nil
-	promptWebauthn := chal.WebauthnChallenge != nil
-
-	// Does the current platform support hardware MFA? Adjust accordingly.
-	switch {
-	case !promptTOTP && !c.WebauthnSupported:
-		return RunOpts{}, trace.BadParameter("hardware device MFA not supported by your platform, please register an OTP device")
-	case !c.WebauthnSupported:
-		// Do not prompt for hardware devices, it won't work.
-		promptWebauthn = false
-	}
-
-	// Tweak enabled/disabled methods according to opts.
-	switch {
-	case promptTOTP && c.PreferOTP:
-		promptWebauthn = false
-	case promptWebauthn && c.AuthenticatorAttachment != wancli.AttachmentAuto:
-		// Prefer Webauthn if an specific attachment was requested.
-		promptTOTP = false
-	case promptWebauthn && !c.AllowStdinHijack:
-		// Use strongest auth if hijack is not allowed.
-		promptTOTP = false
-	}
-
-	return RunOpts{promptTOTP, promptWebauthn}, nil
-}
-
 func (c PromptConfig) GetWebauthnOrigin() string {
 	if !strings.HasPrefix(c.ProxyAddress, "https://") {
 		return "https://" + c.ProxyAddress
@@ -111,52 +78,55 @@ func (c PromptConfig) GetWebauthnOrigin() string {
 	return c.ProxyAddress
 }
 
-// MFAGoroutineResponse is an MFA goroutine response.
-type MFAGoroutineResponse struct {
-	Resp *proto.MFAAuthenticateResponse
-	Err  error
-}
-
-// HandleMFAPromptGoroutines spawns MFA prompt goroutines and returns the first successful response,
+// HandleConcurrentMFAPrompts handles concurrently prompting for MFA with all
+// of the given promptFuncs and returning the the first successful response,
 // terminating error, or an aggregated error if they all fail.
-func HandleMFAPromptGoroutines(ctx context.Context, startGoroutines func(context.Context, *sync.WaitGroup, chan<- MFAGoroutineResponse)) (*proto.MFAAuthenticateResponse, error) {
-	respC := make(chan MFAGoroutineResponse, 2)
-	var wg sync.WaitGroup
-
+func HandleConcurrentMFAPrompts(ctx context.Context, chal *proto.MFAAuthenticateChallenge, promptFuncs ...mfa.PromptFunc) (*proto.MFAAuthenticateResponse, error) {
 	ctx, cancel := context.WithCancel(ctx)
-	defer func() {
-		cancel()
-		// wait for all goroutines to complete to ensure there are no leaks.
-		wg.Wait()
-	}()
+	defer cancel()
 
-	startGoroutines(ctx, &wg, respC)
+	type promptResponse struct {
+		resp *proto.MFAAuthenticateResponse
+		err  error
+	}
 
-	// Wait for spawned goroutines above to complete, then close respC.
-	go func() {
-		wg.Wait()
-		close(respC)
-	}()
+	respC := make(chan promptResponse, len(promptFuncs))
+	for _, prompt := range promptFuncs {
+		go func() {
+			resp, err := prompt(ctx, chal)
+			respC <- promptResponse{
+				resp: resp,
+				err:  err,
+			}
+		}()
+	}
 
 	// Wait for a successful response, or terminating error, from the spawned goroutines.
-	// The goroutine above will ensure the response channel is closed once all goroutines are done.
 	var errs []error
-	for resp := range respC {
-		switch err := resp.Err; {
+	for range len(promptFuncs) {
+		resp := <-respC
+
+		switch err := resp.err; {
 		case errors.Is(err, wancli.ErrUsingNonRegisteredDevice):
 			// Surface error immediately.
-			return nil, trace.Wrap(resp.Err)
+			return nil, trace.Wrap(resp.err)
 		case err != nil:
+			slog.DebugContext(ctx, "MFA goroutine failed, continuing so other goroutines have a chance to succeed", "error", err)
 			errs = append(errs, err)
 			// Continue to give the other authn goroutine a chance to succeed.
 			// If both have failed, this will exit the loop.
 			continue
 		}
 
+		if resp.resp == nil {
+			continue
+		}
+
 		// Return successful response.
-		return resp.Resp, nil
+		return resp.resp, nil
 	}
 
+	// If the prompts result in no response or error, it's a no-op.
 	if len(errs) == 0 {
 		return &proto.MFAAuthenticateResponse{}, nil
 	}

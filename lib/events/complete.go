@@ -19,25 +19,24 @@
 package events
 
 import (
+	"cmp"
 	"context"
-	"fmt"
-	"os"
+	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/events"
-	apiutils "github.com/gravitational/teleport/api/utils"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/lib/auth/recordingmetadata"
+	"github.com/gravitational/teleport/lib/auth/summarizer"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
 )
 
@@ -59,10 +58,24 @@ type UploadCompleterConfig struct {
 	Component string
 	// CheckPeriod is a period for checking the upload
 	CheckPeriod time.Duration
+	// GracePeriod is the period after which an upload's session tracker will be
+	// checked to see if it's an abandoned upload. A duration of zero will
+	// result in a sensible default, any negative value will result in no grace
+	// period.
+	GracePeriod time.Duration
 	// Clock is used to override clock in tests
 	Clock clockwork.Clock
 	// ClusterName identifies the originating teleport cluster
 	ClusterName string
+	// SessionSummarizerProvider is a provider of the session summarizer service.
+	// It can be nil or provide a nil summarizer if summarization is not needed.
+	// The summarizer itself summarizes session recordings.
+	SessionSummarizerProvider *summarizer.SessionSummarizerProvider
+	// RecordingMetadataProvider is a provider of the recording metadata service.
+	RecordingMetadataProvider *recordingmetadata.Provider
+	// EnsureSessionEndEvent determines whether or not the UploadCompleter should
+	// detect missing session end events and attempt to emit them.
+	EnsureSessionEndEvent bool
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -88,6 +101,12 @@ func (cfg *UploadCompleterConfig) CheckAndSetDefaults() error {
 	if cfg.Clock == nil {
 		cfg.Clock = clockwork.NewRealClock()
 	}
+	if cfg.RecordingMetadataProvider == nil {
+		cfg.RecordingMetadataProvider = &recordingmetadata.Provider{}
+	}
+	if cfg.SessionSummarizerProvider == nil {
+		cfg.SessionSummarizerProvider = &summarizer.SessionSummarizerProvider{}
+	}
 	return nil
 }
 
@@ -105,10 +124,8 @@ func NewUploadCompleter(cfg UploadCompleterConfig) (*UploadCompleter, error) {
 		return nil, trace.Wrap(err)
 	}
 	u := &UploadCompleter{
-		cfg: cfg,
-		log: log.WithFields(log.Fields{
-			teleport.ComponentKey: teleport.Component(cfg.Component, "completer"),
-		}),
+		cfg:    cfg,
+		log:    slog.With(teleport.ComponentKey, teleport.Component(cfg.Component, "completer")),
 		closeC: make(chan struct{}),
 	}
 
@@ -135,7 +152,7 @@ func StartNewUploadCompleter(ctx context.Context, cfg UploadCompleterConfig) err
 // and completes them
 type UploadCompleter struct {
 	cfg    UploadCompleterConfig
-	log    *log.Entry
+	log    *slog.Logger
 	closeC chan struct{}
 }
 
@@ -154,11 +171,11 @@ func (u *UploadCompleter) Serve(ctx context.Context) error {
 	periodic := interval.New(interval.Config{
 		Clock:         u.cfg.Clock,
 		Duration:      u.cfg.CheckPeriod,
-		FirstDuration: utils.HalfJitter(u.cfg.CheckPeriod),
-		Jitter:        retryutils.NewSeventhJitter(),
+		FirstDuration: retryutils.HalfJitter(u.cfg.CheckPeriod),
+		Jitter:        retryutils.SeventhJitter,
 	})
 	defer periodic.Stop()
-	u.log.Infof("upload completer will run every %v", u.cfg.CheckPeriod.String())
+	u.log.InfoContext(ctx, "upload completer starting", "check_interval", u.cfg.CheckPeriod.String())
 
 	for {
 		select {
@@ -176,10 +193,7 @@ func (u *UploadCompleter) PerformPeriodicCheck(ctx context.Context) {
 	// If configured with a server ID, then acquire a semaphore prior to completing uploads.
 	// This is used for auth's upload completer and ensures that multiple auth servers do not
 	// attempt to complete the same uploads at the same time.
-	// TODO(zmb3): remove the env var check once the semaphore is proven to be reliable
-	if u.cfg.Semaphores != nil && os.Getenv("TELEPORT_DISABLE_UPLOAD_COMPLETER_SEMAPHORE") == "" {
-		u.log.Debugf("%v: acquiring semaphore in order to complete uploads", u.cfg.ServerID)
-
+	if u.cfg.ServerID != "" && u.cfg.Semaphores != nil {
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
 
@@ -195,15 +209,14 @@ func (u *UploadCompleter) PerformPeriodicCheck(ctx context.Context) {
 			},
 		})
 		if err != nil {
-			u.log.Debugf("%v did not acquire semaphore, will skip this round of uploads", u.cfg.ServerID)
+			u.log.DebugContext(ctx, "unable to acquire semaphore, will skip this round of uploads", "server_id", u.cfg.ServerID)
 			return
 		}
 	}
 	if err := u.CheckUploads(ctx); trace.IsAccessDenied(err) {
-		u.log.Warn("Teleport does not have permission to list uploads. " +
-			"The upload completer will be unable to complete uploads of partial session recordings.")
+		u.log.WarnContext(ctx, "Teleport does not have permission to list uploads. The upload completer will be unable to complete uploads of partial session recordings.")
 	} else if err != nil {
-		u.log.WithError(err).Warn("Failed to check uploads.")
+		u.log.WarnContext(ctx, "Failed to check uploads.", "error", err)
 	}
 }
 
@@ -217,46 +230,66 @@ func (u *UploadCompleter) CheckUploads(ctx context.Context) error {
 	completed := 0
 	defer func() {
 		if completed > 0 {
-			u.log.Debugf("Found %v active uploads, completed %v.", len(uploads), completed)
+			u.log.DebugContext(ctx, "Found active uploads", "active", len(uploads), "completed", completed)
 		}
 	}()
 
+	gracePeriod := cmp.Or(u.cfg.GracePeriod, UploadCompleterGracePeriod)
 	incompleteSessionUploads.Set(float64(len(uploads)))
 	// Complete upload for any uploads without an active session tracker
 	for _, upload := range uploads {
-		log := u.log.WithField("upload", upload.ID).WithField("session", upload.SessionID)
+		log := u.log.With("upload", upload.ID, "session", upload.SessionID)
+
+		if gracePeriod > 0 && u.cfg.Clock.Since(upload.Initiated) <= gracePeriod {
+			log.DebugContext(ctx, "Found incomplete upload within grace period, terminating check early.")
+			// not only we can skip this upload, but since uploads are sorted by
+			// Initiated oldest-to-newest, we can actually just stop checking as
+			// all further uploads will be closer in time to now and thus they
+			// will all be within the grace period
+			break
+		}
 
 		switch _, err := u.cfg.SessionTracker.GetSessionTracker(ctx, upload.SessionID.String()); {
 		case err == nil: // session is still in progress, continue to other uploads
-			log.Debug("session has active tracker and is not ready to be uploaded")
+			log.DebugContext(ctx, "session has active tracker and is not ready to be uploaded")
 			continue
 		case trace.IsNotFound(err): // upload abandoned, complete upload
 		default: // aka err != nil
-			log.Warn("could not get session tracker, skipping upload")
+			log.WarnContext(ctx, "could not get session tracker, skipping upload")
 			continue
 		}
 
-		log.Debug("Upload was abandoned, trying to complete")
+		log.DebugContext(ctx, "Upload was abandoned, trying to complete")
 
 		parts, err := u.cfg.Uploader.ListParts(ctx, upload)
 		if err != nil {
 			if trace.IsNotFound(err) {
-				log.WithError(err).Warn("Missing parts, moving on to next upload")
+				log.WarnContext(ctx, "Missing parts, moving on to next upload", "error", err)
 				incompleteSessionUploads.Dec()
 				continue
 			}
 			return trace.Wrap(err, "listing parts")
 		}
+		var lastModified time.Time
+		for _, part := range parts {
+			if part.LastModified.After(lastModified) {
+				lastModified = part.LastModified
+			}
+		}
+		if u.cfg.Clock.Since(lastModified) <= gracePeriod {
+			log.DebugContext(ctx, "Found incomplete upload with recently uploaded part, skipping.")
+			continue
+		}
 
-		log.Debugf("upload has %d parts", len(parts))
+		log.DebugContext(ctx, "found upload with parts", "part_count", len(parts))
 
 		if err := u.cfg.Uploader.CompleteUpload(ctx, upload, parts); trace.IsNotFound(err) {
-			log.WithError(err).Debug("Upload not found, moving on to next upload")
+			log.DebugContext(ctx, "Upload not found, moving on to next upload", "error", err)
 			continue
 		} else if err != nil {
 			return trace.Wrap(err, "completing upload %v for session %v", upload.ID, upload.SessionID)
 		}
-		log.Debug("Completed upload")
+		log.DebugContext(ctx, "Completed upload")
 		completed++
 		incompleteSessionUploads.Dec()
 
@@ -274,7 +307,7 @@ func (u *UploadCompleter) CheckUploads(ctx context.Context) error {
 		// If this is the case, there's no work left to do, and we can
 		// proceed to the next upload.
 		if uploadData.SessionID == "" {
-			log.Debug("No session ID in metadata skipping session end check")
+			log.DebugContext(ctx, "No session ID in metadata skipping session end check")
 			continue
 		}
 
@@ -282,19 +315,21 @@ func (u *UploadCompleter) CheckUploads(ctx context.Context) error {
 		// This is necessary because we'll need to download the session in order to
 		// enumerate its events, and the S3 API takes a little while after the upload
 		// is completed before version metadata becomes available.
-		go func() {
-			select {
-			case <-ctx.Done():
-				return
-			case <-u.cfg.Clock.After(2 * time.Minute):
-				log.Debug("checking for session end event")
-				if err := u.ensureSessionEndEvent(ctx, uploadData); err != nil {
-					log.WithError(err).Warning("failed to ensure session end event")
+		if u.cfg.EnsureSessionEndEvent {
+			go func() {
+				select {
+				case <-ctx.Done():
+					return
+				case <-u.cfg.Clock.After(2 * time.Minute):
+					log.DebugContext(ctx, "checking for session end event")
+					if err := u.ensureSessionEndEvent(ctx, uploadData); err != nil {
+						log.WarnContext(ctx, "failed to ensure session end event", "error", err)
+					}
 				}
-			}
-		}()
-		session := &events.SessionUpload{
-			Metadata: events.Metadata{
+			}()
+		}
+		session := &apievents.SessionUpload{
+			Metadata: apievents.Metadata{
 				Type:        SessionUploadEvent,
 				Code:        SessionUploadCode,
 				Time:        u.cfg.Clock.Now().UTC(),
@@ -302,7 +337,7 @@ func (u *UploadCompleter) CheckUploads(ctx context.Context) error {
 				Index:       SessionUploadIndex,
 				ClusterName: u.cfg.ClusterName,
 			},
-			SessionMetadata: events.SessionMetadata{
+			SessionMetadata: apievents.SessionMetadata{
 				SessionID: string(uploadData.SessionID),
 			},
 			SessionURL: uploadData.URL,
@@ -316,105 +351,81 @@ func (u *UploadCompleter) CheckUploads(ctx context.Context) error {
 }
 
 func (u *UploadCompleter) ensureSessionEndEvent(ctx context.Context, uploadData UploadMetadata) error {
-	// at this point, we don't know whether we'll need to emit a session.end or a
-	// windows.desktop.session.end, but as soon as we see the session start we'll
-	// be able to start filling in the details
-	var sshSessionEnd events.SessionEnd
-	var desktopSessionEnd events.WindowsDesktopSessionEnd
-
-	// We use the streaming events API to search through the session events, because it works
-	// for both Desktop and SSH sessions, where as the GetSessionEvents API relies on downloading
-	// a copy of the session and using the SSH-specific index to iterate through events.
-	var lastEvent events.AuditEvent
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-	evts, errors := u.cfg.AuditLog.StreamSessionEvents(ctx, uploadData.SessionID, 0)
-
-loop:
-	for {
-		select {
-		case evt, more := <-evts:
-			if !more {
-				break loop
-			}
-
-			lastEvent = evt
-
-			switch e := evt.(type) {
-			// Return if session end event already exists
-			case *events.SessionEnd, *events.WindowsDesktopSessionEnd:
-				return nil
-
-			case *events.WindowsDesktopSessionStart:
-				desktopSessionEnd.Type = WindowsDesktopSessionEndEvent
-				desktopSessionEnd.Code = DesktopSessionEndCode
-				desktopSessionEnd.ClusterName = e.ClusterName
-				desktopSessionEnd.StartTime = e.Time
-				desktopSessionEnd.Participants = append(desktopSessionEnd.Participants, e.User)
-				desktopSessionEnd.Recorded = true
-				desktopSessionEnd.UserMetadata = e.UserMetadata
-				desktopSessionEnd.SessionMetadata = e.SessionMetadata
-				desktopSessionEnd.WindowsDesktopService = e.WindowsDesktopService
-				desktopSessionEnd.Domain = e.Domain
-				desktopSessionEnd.DesktopAddr = e.DesktopAddr
-				desktopSessionEnd.DesktopLabels = e.DesktopLabels
-				desktopSessionEnd.DesktopName = fmt.Sprintf("%v (recovered)", e.DesktopName)
-
-			case *events.SessionStart:
-				sshSessionEnd.Type = SessionEndEvent
-				sshSessionEnd.Code = SessionEndCode
-				sshSessionEnd.ClusterName = e.ClusterName
-				sshSessionEnd.StartTime = e.Time
-				sshSessionEnd.UserMetadata = e.UserMetadata
-				sshSessionEnd.SessionMetadata = e.SessionMetadata
-				sshSessionEnd.ServerMetadata = e.ServerMetadata
-				sshSessionEnd.ConnectionMetadata = e.ConnectionMetadata
-				sshSessionEnd.KubernetesClusterMetadata = e.KubernetesClusterMetadata
-				sshSessionEnd.KubernetesPodMetadata = e.KubernetesPodMetadata
-				sshSessionEnd.InitialCommand = e.InitialCommand
-				sshSessionEnd.SessionRecording = e.SessionRecording
-				sshSessionEnd.Interactive = e.TerminalSize != ""
-				sshSessionEnd.Participants = append(sshSessionEnd.Participants, e.User)
-
-			case *events.SessionJoin:
-				sshSessionEnd.Participants = append(sshSessionEnd.Participants, e.User)
-			}
-
-		case err := <-errors:
-			return trace.Wrap(err)
-		case <-ctx.Done():
-			return ctx.Err()
-		}
-	}
-
-	if lastEvent == nil {
-		return trace.Errorf("could not find any events for session %v", uploadData.SessionID)
-	}
-
-	sshSessionEnd.Participants = apiutils.Deduplicate(sshSessionEnd.Participants)
-	sshSessionEnd.EndTime = lastEvent.GetTime()
-	desktopSessionEnd.EndTime = lastEvent.GetTime()
-
-	var sessionEndEvent events.AuditEvent
-	switch {
-	case sshSessionEnd.Code != "":
-		sessionEndEvent = &sshSessionEnd
-	case desktopSessionEnd.Code != "":
-		sessionEndEvent = &desktopSessionEnd
-	default:
-		return trace.BadParameter("invalid session, could not find session start")
-	}
-
-	u.log.Infof("emitting %T event for completed session %v", sessionEndEvent, uploadData.SessionID)
-
-	sessionEndEvent.SetTime(lastEvent.GetTime())
-
-	// Check and set event fields
-	if err := checkAndSetEventFields(sessionEndEvent, u.cfg.Clock, utils.NewRealUID(), sessionEndEvent.GetClusterName()); err != nil {
+	sessionEndEvent, err := FindOrRecoverSessionEnd(
+		ctx,
+		FindOrRecoverSessionEndConfig{
+			ClusterName: u.cfg.ClusterName,
+			Streamer:    u.cfg.AuditLog,
+			SessionID:   uploadData.SessionID,
+			AuditLog:    u.cfg.AuditLog,
+			Log:         u.log,
+			Clock:       u.cfg.Clock,
+		},
+	)
+	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := u.cfg.AuditLog.EmitAuditEvent(ctx, sessionEndEvent); err != nil {
+
+	// For PTY and Desktop sessions, process recording metadata.
+	recordingMetadata := u.cfg.RecordingMetadataProvider.Service()
+	if startTime, duration, sessionType := metadataParamsForSessionEnd(sessionEndEvent); duration > 0 {
+		if err := recordingMetadata.ProcessSessionRecording(ctx, uploadData.SessionID, sessionType, startTime, duration); err != nil {
+			slog.WarnContext(ctx, "Failed to process session recording metadata", "error", err)
+		}
+	} else if sessionType == recordingmetadata.SessionTypeTTY || sessionType == recordingmetadata.SessionTypeDesktop {
+		slog.WarnContext(ctx, "Session start or end time is not set, skipping recording metadata processing")
+	}
+
+	summarizer := u.cfg.SessionSummarizerProvider.SessionSummarizer()
+	switch o := sessionEndEvent.(type) {
+	case *apievents.SessionEnd:
+		err = summarizer.SummarizeSSH(ctx, o)
+	case *apievents.DatabaseSessionEnd:
+		err = summarizer.SummarizeDatabase(ctx, o)
+	case *apievents.WindowsDesktopSessionEnd:
+		err = summarizer.SummarizeWindowsDesktop(ctx, o)
+	}
+	if err != nil {
+		slog.WarnContext(ctx, "Failed to summarize upload", "error", err)
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+func transformedUsername(u apievents.UserMetadata, localCluster string) string {
+	return services.UsernameForCluster(
+		services.UsernameForClusterConfig{
+			User:              u.User,
+			OriginClusterName: u.UserClusterName,
+			LocalClusterName:  localCluster,
+		},
+	)
+}
+
+// metadataParamsForSessionEnd returns the duration and session type used to
+// gate and parameterize recording metadata generation for a session end event.
+// Returns (>0, sessionType) for sessions whose recordings should be processed
+// (SSH/PTY and Windows Desktop). Returns (-1, sessionType) when the session is
+// eligible but its start or end time is missing, signaling the caller to warn.
+// Returns (0, SessionTypeUnspecified) for session types that don't produce
+// recording metadata.
+func metadataParamsForSessionEnd(sessionEnd apievents.AuditEvent) (time.Time, time.Duration, recordingmetadata.SessionType) {
+	switch evt := sessionEnd.(type) {
+	case *apievents.SessionEnd:
+		if evt.EndTime.IsZero() || evt.StartTime.IsZero() {
+			return time.Time{}, -1, recordingmetadata.SessionTypeTTY
+		}
+		return evt.StartTime, evt.EndTime.Sub(evt.StartTime), recordingmetadata.SessionTypeTTY
+	case *apievents.DatabaseSessionEnd:
+		if evt.EndTime.IsZero() || evt.StartTime.IsZero() {
+			return time.Time{}, -1, recordingmetadata.SessionTypeUnspecified
+		}
+		return evt.StartTime, evt.EndTime.Sub(evt.StartTime), recordingmetadata.SessionTypeUnspecified
+	case *apievents.WindowsDesktopSessionEnd:
+		if evt.EndTime.IsZero() || evt.StartTime.IsZero() {
+			return time.Time{}, -1, recordingmetadata.SessionTypeDesktop
+		}
+		return evt.StartTime, evt.EndTime.Sub(evt.StartTime), recordingmetadata.SessionTypeDesktop
+	}
+	return time.Time{}, 0, recordingmetadata.SessionTypeUnspecified
 }

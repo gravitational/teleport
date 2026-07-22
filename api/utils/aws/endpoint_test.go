@@ -24,6 +24,28 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestIsAWSEndpoint(t *testing.T) {
+	t.Run("valid", func(t *testing.T) {
+		for _, endpoint := range []string{
+			"aurora-instance-1.abcdefghijklmnop.us-west-1.rds.amazonaws.com",
+			"example.amazonaws.com",
+			"foo.amazonaws.com.cn",
+			"example.amazonaws.com:12345", // port numbers must be allowed here
+		} {
+			require.True(t, IsAWSEndpoint(endpoint))
+		}
+	})
+	t.Run("invalid", func(t *testing.T) {
+		for _, endpoint := range []string{
+			"example.com",
+			"foo.amazonaws.com.cn.example.com",
+			"bad.amazonaws.com.example.com",
+		} {
+			require.False(t, IsAWSEndpoint(endpoint))
+		}
+	})
+}
+
 func TestParseRDSEndpoint(t *testing.T) {
 	tests := []struct {
 		name                string
@@ -322,6 +344,73 @@ func TestParseElastiCacheEndpoint(t *testing.T) {
 	}
 }
 
+func TestParseElastiCacheServerlessEndpoint(t *testing.T) {
+	tests := []struct {
+		name        string
+		inputURI    string
+		expectInfo  *RedisEndpointInfo
+		expectError bool
+	}{
+		{
+			name:     "normal endpoint",
+			inputURI: "example-asdf123.serverless.cac1.cache.amazonaws.com:6379",
+			expectInfo: &RedisEndpointInfo{
+				ID:                       "example",
+				Region:                   "ca-central-1",
+				TransitEncryptionEnabled: true,
+				EndpointType:             ElastiCacheConfigurationEndpoint,
+			},
+		},
+		{
+			name:     "CN endpoint",
+			inputURI: "example-asdf123.serverless.cnn1.cache.amazonaws.com.cn:6379",
+			expectInfo: &RedisEndpointInfo{
+				ID:                       "example",
+				Region:                   "cn-north-1",
+				TransitEncryptionEnabled: true,
+				EndpointType:             ElastiCacheConfigurationEndpoint,
+			},
+		},
+		{
+			name:     "endpoint with schema and parameters",
+			inputURI: "redis://example-asdf123.serverless.cac1.cache.amazonaws.com:6379?a=b&c=d",
+			expectInfo: &RedisEndpointInfo{
+				ID:                       "example",
+				Region:                   "ca-central-1",
+				TransitEncryptionEnabled: true,
+				EndpointType:             ElastiCacheConfigurationEndpoint,
+			},
+		},
+		{
+			name:        "invalid suffix",
+			inputURI:    "example.serverless.cac1.cache.amazonaws.io:6379",
+			expectError: true,
+		},
+		{
+			name:        "invalid url",
+			inputURI:    "://example.serverless.cac1.cache.amazonaws.com:6379",
+			expectError: true,
+		},
+		{
+			name:        "invalid format",
+			inputURI:    "example.serverless.cache.amazonaws.com:6379",
+			expectError: true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			actualInfo, err := ParseElastiCacheServerlessEndpoint(test.inputURI)
+			if test.expectError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, test.expectInfo, actualInfo)
+			}
+		})
+	}
+}
+
 func TestParseMemoryDBEndpoint(t *testing.T) {
 	t.Parallel()
 
@@ -468,7 +557,6 @@ func TestCassandraEndpointRegion(t *testing.T) {
 			}
 		})
 	}
-
 }
 
 func TestRedshiftServerlessEndpoint(t *testing.T) {

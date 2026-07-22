@@ -35,6 +35,16 @@ type Report struct {
 	Spec ReportSpec `json:"spec" yaml:"spec"`
 }
 
+func (a *Report) Clone() *Report {
+	if a == nil {
+		return nil
+	}
+	return &Report{
+		ResourceHeader: *a.ResourceHeader.Clone(),
+		Spec:           *a.Spec.Clone(),
+	}
+}
+
 // ReportSpec is the security report spec.
 type ReportSpec struct {
 	// Name is the Report name.
@@ -49,12 +59,42 @@ type ReportSpec struct {
 	Version string `json:"version,omitempty" yaml:"version,omitempty"`
 }
 
+func (s *ReportSpec) Clone() *ReportSpec {
+	if s == nil {
+		return nil
+	}
+	var auditQueries []*AuditQuerySpec
+	if s.AuditQueries != nil {
+		auditQueries = make([]*AuditQuerySpec, 0, len(s.AuditQueries))
+		for _, auditQuery := range s.AuditQueries {
+			auditQueries = append(auditQueries, auditQuery.Clone())
+		}
+	}
+	return &ReportSpec{
+		Name:         s.Name,
+		Title:        s.Title,
+		Description:  s.Description,
+		AuditQueries: auditQueries,
+		Version:      s.Version,
+	}
+}
+
 // AuditQuery is the audit query resource.
 type AuditQuery struct {
 	// ResourceHeader is the resource header.
 	header.ResourceHeader
 	// Spec is the audit query specification.
 	Spec AuditQuerySpec `json:"spec" yaml:"spec"`
+}
+
+func (a *AuditQuery) Clone() *AuditQuery {
+	if a == nil {
+		return nil
+	}
+	return &AuditQuery{
+		ResourceHeader: *a.ResourceHeader.Clone(),
+		Spec:           *a.Spec.Clone(),
+	}
 }
 
 // AuditQuerySpec is the audit query specification.
@@ -67,6 +107,18 @@ type AuditQuerySpec struct {
 	Description string `json:"description,omitempty" yaml:"description,omitempty"`
 	// Query is the AuditQuery query.
 	Query string `json:"query,omitempty" yaml:"query,omitempty"`
+}
+
+func (s *AuditQuerySpec) Clone() *AuditQuerySpec {
+	if s == nil {
+		return nil
+	}
+	return &AuditQuerySpec{
+		Name:        s.Name,
+		Title:       s.Title,
+		Description: s.Description,
+		Query:       s.Query,
+	}
 }
 
 // CheckAndSetDefaults validates fields and populates empty fields with default values.
@@ -147,12 +199,33 @@ type ReportState struct {
 	Spec ReportStateSpec `json:"spec,omitempty" yaml:"spec,omitempty"`
 }
 
+func (a *ReportState) Clone() *ReportState {
+	if a == nil {
+		return nil
+	}
+
+	return &ReportState{
+		ResourceHeader: *a.ResourceHeader.Clone(),
+		Spec:           *a.Spec.Clone(),
+	}
+}
+
 // ReportStateSpec is the security report state specification.
 type ReportStateSpec struct {
 	// Name is the Report name.
 	Status Status `json:"status,omitempty" yaml:"status,omitempty"`
 	// UpdatedAt is the time the report was updated.
 	UpdatedAt time.Time `json:"updated_at,omitempty" yaml:"updated_at,omitempty"`
+}
+
+func (s *ReportStateSpec) Clone() *ReportStateSpec {
+	if s == nil {
+		return nil
+	}
+	return &ReportStateSpec{
+		Status:    s.Status,
+		UpdatedAt: s.UpdatedAt,
+	}
 }
 
 // GetMetadata returns metadata. This is specifically for conforming to the Resource interface,

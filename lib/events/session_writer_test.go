@@ -28,7 +28,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -75,7 +74,7 @@ func TestSessionWriter(t *testing.T) {
 		require.NoError(t, err)
 
 		for _, part := range parts {
-			reader := events.NewProtoReader(bytes.NewReader(part))
+			reader := events.NewProtoReader(bytes.NewReader(part), nil)
 			out, err := reader.ReadAll(test.ctx)
 			require.NoError(t, err, "part crash %#v", part)
 			outEvents = append(outEvents, out...)
@@ -95,7 +94,7 @@ func TestSessionWriter(t *testing.T) {
 				OnRecordEvent: func(ctx context.Context, sid session.ID, pe apievents.PreparedSessionEvent) error {
 					event := pe.GetAuditEvent()
 					if event.GetIndex() > 1 && terminateConnection.CompareAndSwap(1, 0) == true {
-						log.Debugf("Terminating connection at event %v", event.GetIndex())
+						t.Logf("Terminating connection at event %v", event.GetIndex())
 						return trace.ConnectionProblem(nil, "connection terminated")
 					}
 					return nil
@@ -107,7 +106,7 @@ func TestSessionWriter(t *testing.T) {
 						// simulate status update loss
 						select {
 						case <-stream.Status():
-							log.Debugf("Stealing status update.")
+							t.Log("Stealing status update.")
 						case <-time.After(time.Second):
 							return nil, trace.BadParameter("timeout")
 						}
@@ -137,13 +136,13 @@ func TestSessionWriter(t *testing.T) {
 			err = test.writer.RecordEvent(test.ctx, event)
 			require.NoError(t, err)
 		}
-		log.Debugf("Emitted %v events in %v.", len(inEvents), time.Since(start))
+		t.Logf("Emitted %v events in %v.", len(inEvents), time.Since(start))
 		err := test.writer.Complete(test.ctx)
 		require.NoError(t, err)
 
 		outEvents := test.collectEvents(t)
 
-		require.Equal(t, len(inEvents), len(outEvents))
+		require.Len(t, inEvents, len(outEvents))
 		require.Equal(t, inEvents, outEvents)
 		require.Equal(t, 0, int(streamResumed.Load()), "Stream not resumed.")
 		require.Equal(t, 2, int(streamCreated.Load()), "Stream created twice.")
@@ -160,7 +159,7 @@ func TestSessionWriter(t *testing.T) {
 				OnRecordEvent: func(ctx context.Context, sid session.ID, pe apievents.PreparedSessionEvent) error {
 					event := pe.GetAuditEvent()
 					if event.GetIndex() > 600 && terminateConnection.CompareAndSwap(1, 0) == true {
-						log.Debugf("Terminating connection at event %v", event.GetIndex())
+						t.Logf("Terminating connection at event %v", event.GetIndex())
 						return trace.ConnectionProblem(nil, "connection terminated")
 					}
 					return nil
@@ -194,13 +193,13 @@ func TestSessionWriter(t *testing.T) {
 			err = test.writer.RecordEvent(test.ctx, event)
 			require.NoError(t, err)
 		}
-		log.Debugf("Emitted all events in %v.", time.Since(start))
+		t.Logf("Emitted all events in %v.", time.Since(start))
 		err := test.writer.Complete(test.ctx)
 		require.NoError(t, err)
 
 		outEvents := test.collectEvents(t)
 
-		require.Equal(t, len(inEvents), len(outEvents))
+		require.Len(t, inEvents, len(outEvents))
 		require.Equal(t, inEvents, outEvents)
 		require.Equal(t, 1, int(streamResumed.Load()), "Stream resumed once.")
 		require.Equal(t, 1, int(streamCreated.Load()), "Stream created once.")
@@ -212,7 +211,7 @@ func TestSessionWriter(t *testing.T) {
 		terminateConnection.Store(1)
 
 		submitEvents := 600
-		hangCtx, hangCancel := context.WithCancel(context.TODO())
+		hangCtx, hangCancel := context.WithCancel(t.Context())
 		defer hangCancel()
 
 		test := newSessionWriterTest(t, func(streamer events.Streamer) (*events.CallbackStreamer, error) {
@@ -221,7 +220,7 @@ func TestSessionWriter(t *testing.T) {
 				OnRecordEvent: func(ctx context.Context, sid session.ID, pe apievents.PreparedSessionEvent) error {
 					event := pe.GetAuditEvent()
 					if event.GetIndex() >= int64(submitEvents-1) && terminateConnection.CompareAndSwap(1, 0) == true {
-						log.Debugf("Locking connection at event %v", event.GetIndex())
+						t.Logf("Locking connection at event %v", event.GetIndex())
 						<-hangCtx.Done()
 						return trace.ConnectionProblem(hangCtx.Err(), "stream hangs")
 					}
@@ -257,7 +256,7 @@ func TestSessionWriter(t *testing.T) {
 			require.NoError(t, err)
 		}
 		elapsedTime := time.Since(start)
-		log.Debugf("Emitted all events in %v.", elapsedTime)
+		t.Logf("Emitted all events in %v.", elapsedTime)
 		require.Less(t, elapsedTime, time.Second)
 		hangCancel()
 		err := test.writer.Complete(test.ctx)
@@ -292,7 +291,7 @@ func TestSessionWriter(t *testing.T) {
 			require.NoError(t, test.writer.RecordEvent(test.ctx, event))
 		}
 		test.Close(context.Background())
-		require.Equal(t, len(inEvents), len(emittedEvents))
+		require.Len(t, inEvents, len(emittedEvents))
 		for _, event := range emittedEvents {
 			require.Equal(t, "cluster", event.GetClusterName())
 		}
@@ -353,7 +352,9 @@ func withBackoff(timeout, dur time.Duration) sessionWriterOption {
 
 func newSessionWriterTest(t *testing.T, newStreamer newStreamerFn, opts ...sessionWriterOption) *sessionWriterTest {
 	eventsCh := make(chan events.UploadEvent, 1)
-	uploader := eventstest.NewMemoryUploader(eventsCh)
+	uploader := eventstest.NewMemoryUploader(eventstest.MemoryUploaderConfig{
+		EventsC: eventsCh,
+	})
 	protoStreamer, err := events.NewProtoStreamer(events.ProtoStreamerConfig{
 		Uploader: uploader,
 	})
@@ -368,7 +369,7 @@ func newSessionWriterTest(t *testing.T, newStreamer newStreamerFn, opts ...sessi
 		streamer = protoStreamer
 	}
 
-	ctx, cancel := context.WithTimeout(context.TODO(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 
 	sid := session.NewID()
 	preparer, err := events.NewPreparer(events.PreparerConfig{
@@ -406,7 +407,7 @@ func (a *sessionWriterTest) collectEvents(t *testing.T) []apievents.AuditEvent {
 	var uploadID string
 	select {
 	case event := <-a.eventsCh:
-		log.Debugf("Got status update, upload %v in %v.", event.UploadID, time.Since(start))
+		t.Logf("Got status update, upload %v in %v.", event.UploadID, time.Since(start))
 		require.Equal(t, string(a.sid), event.SessionID)
 		require.NoError(t, event.Error)
 		uploadID = event.UploadID
@@ -421,10 +422,10 @@ func (a *sessionWriterTest) collectEvents(t *testing.T) []apievents.AuditEvent {
 	for _, part := range parts {
 		readers = append(readers, bytes.NewReader(part))
 	}
-	reader := events.NewProtoReader(io.MultiReader(readers...))
+	reader := events.NewProtoReader(io.MultiReader(readers...), nil)
 	outEvents, err := reader.ReadAll(a.ctx)
 	require.NoError(t, err, "failed to read")
-	log.WithFields(reader.GetStats().ToFields()).Debugf("Reader stats.")
+	t.Logf("Reader stats :%v", reader.GetStats().ToFields())
 
 	return outEvents
 }

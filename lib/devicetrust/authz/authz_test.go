@@ -19,17 +19,20 @@
 package authz_test
 
 import (
+	"context"
+	"fmt"
 	"testing"
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
-	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/devicetrust/authz"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
+	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -39,19 +42,34 @@ func TestIsTLSDeviceVerified(t *testing.T) {
 
 func TestIsSSHDeviceVerified(t *testing.T) {
 	testIsDeviceVerified(t, "IsSSHDeviceVerified", func(ext *tlsca.DeviceExtensions) bool {
-		var cert *ssh.Certificate
+		var ident *sshca.Identity
 		if ext != nil {
-			cert = &ssh.Certificate{
-				Permissions: ssh.Permissions{
-					Extensions: map[string]string{
-						teleport.CertExtensionDeviceID:           ext.DeviceID,
-						teleport.CertExtensionDeviceAssetTag:     ext.AssetTag,
-						teleport.CertExtensionDeviceCredentialID: ext.CredentialID,
-					},
-				},
+			ident = &sshca.Identity{
+				DeviceID:           ext.DeviceID,
+				DeviceAssetTag:     ext.AssetTag,
+				DeviceCredentialID: ext.CredentialID,
 			}
 		}
-		return authz.IsSSHDeviceVerified(cert)
+		return authz.IsSSHDeviceVerified(ident)
+	})
+}
+
+func TestHasDeviceTrustExtensions(t *testing.T) {
+	testIsDeviceVerified(t, "HasDeviceTrustExtensions", func(ext *tlsca.DeviceExtensions) bool {
+		if ext == nil {
+			return authz.HasDeviceTrustExtensions(nil)
+		}
+		var extensions []string
+		if ext.DeviceID != "" {
+			extensions = append(extensions, teleport.CertExtensionDeviceID)
+		}
+		if ext.AssetTag != "" {
+			extensions = append(extensions, teleport.CertExtensionDeviceAssetTag)
+		}
+		if ext.CredentialID != "" {
+			extensions = append(extensions, teleport.CertExtensionDeviceCredentialID)
+		}
+		return authz.HasDeviceTrustExtensions(extensions)
 	})
 }
 
@@ -100,7 +118,6 @@ func testIsDeviceVerified(t *testing.T, name string, fn func(ext *tlsca.DeviceEx
 		},
 	}
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			got := fn(test.ext)
 			if got != test.want {
@@ -111,30 +128,27 @@ func testIsDeviceVerified(t *testing.T, name string, fn func(ext *tlsca.DeviceEx
 }
 
 func TestVerifyTLSUser(t *testing.T) {
-	runVerifyUserTest(t, "VerifyTLSUser", func(dt *types.DeviceTrust, ext *tlsca.DeviceExtensions) error {
-		return authz.VerifyTLSUser(dt, tlsca.Identity{
+	runVerifyUserTest(t, "VerifyTLSUser", func(dt *types.DeviceTrust, ext *tlsca.DeviceExtensions, botName string) error {
+		return authz.VerifyTLSUser(context.Background(), dt, tlsca.Identity{
 			Username:         "llama",
 			DeviceExtensions: *ext,
+			BotName:          botName,
 		})
 	})
 }
 
 func TestVerifySSHUser(t *testing.T) {
-	runVerifyUserTest(t, "VerifySSHUser", func(dt *types.DeviceTrust, ext *tlsca.DeviceExtensions) error {
-		return authz.VerifySSHUser(dt, &ssh.Certificate{
-			KeyId: "llama",
-			Permissions: ssh.Permissions{
-				Extensions: map[string]string{
-					teleport.CertExtensionDeviceID:           ext.DeviceID,
-					teleport.CertExtensionDeviceAssetTag:     ext.AssetTag,
-					teleport.CertExtensionDeviceCredentialID: ext.CredentialID,
-				},
-			},
+	runVerifyUserTest(t, "VerifySSHUser", func(dt *types.DeviceTrust, ext *tlsca.DeviceExtensions, botName string) error {
+		return authz.VerifySSHUser(context.Background(), dt, &sshca.Identity{
+			DeviceID:           ext.DeviceID,
+			DeviceAssetTag:     ext.AssetTag,
+			DeviceCredentialID: ext.CredentialID,
+			BotName:            botName,
 		})
 	})
 }
 
-func runVerifyUserTest(t *testing.T, method string, verify func(dt *types.DeviceTrust, ext *tlsca.DeviceExtensions) error) {
+func runVerifyUserTest(t *testing.T, method string, verify func(dt *types.DeviceTrust, ext *tlsca.DeviceExtensions, botName string) error) {
 	assertNoErr := func(t *testing.T, err error) {
 		assert.NoError(t, err, "%v mismatch", method)
 	}
@@ -155,6 +169,7 @@ func runVerifyUserTest(t *testing.T, method string, verify func(dt *types.Device
 		buildType string
 		dt        *types.DeviceTrust
 		ext       *tlsca.DeviceExtensions
+		isBot     bool
 		assertErr func(t *testing.T, err error)
 	}{
 		{
@@ -174,13 +189,13 @@ func runVerifyUserTest(t *testing.T, method string, verify func(dt *types.Device
 			assertErr: assertNoErr,
 		},
 		{
-			name:      "OSS mode never enforced",
+			name:      "OSS mode=required (Enterprise Auth)",
 			buildType: modules.BuildOSS,
 			dt: &types.DeviceTrust{
-				Mode: constants.DeviceTrustModeRequired, // Invalid for OSS, treated as "off".
+				Mode: constants.DeviceTrustModeRequired,
 			},
 			ext:       userWithoutExtensions,
-			assertErr: assertNoErr,
+			assertErr: assertDeniedErr,
 		},
 		{
 			name:      "Enterprise mode=off",
@@ -219,6 +234,16 @@ func runVerifyUserTest(t *testing.T, method string, verify func(dt *types.Device
 			assertErr: assertDeniedErr,
 		},
 		{
+			name:      "nok: Enterprise mode=required with bot",
+			buildType: modules.BuildEnterprise,
+			dt: &types.DeviceTrust{
+				Mode: constants.DeviceTrustModeRequired,
+			},
+			ext:       userWithoutExtensions,
+			isBot:     true,
+			assertErr: assertDeniedErr,
+		},
+		{
 			name:      "Enterprise mode=required with extensions",
 			buildType: modules.BuildEnterprise,
 			dt: &types.DeviceTrust{
@@ -227,14 +252,171 @@ func runVerifyUserTest(t *testing.T, method string, verify func(dt *types.Device
 			ext:       userWithExtensions,
 			assertErr: assertNoErr,
 		},
+		{
+			name:      "ok: Enterprise mode=required-for-humans with bot",
+			buildType: modules.BuildEnterprise,
+			dt: &types.DeviceTrust{
+				Mode: constants.DeviceTrustModeRequiredForHumans,
+			},
+			ext:       userWithoutExtensions,
+			isBot:     true,
+			assertErr: assertNoErr,
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			modules.SetTestModules(t, &modules.TestModules{
+			modulestest.SetTestModules(t, modulestest.Modules{
 				TestBuildType: test.buildType,
 			})
 
-			test.assertErr(t, verify(test.dt, test.ext))
+			var botName string
+			if test.isBot {
+				botName = "wall-e"
+			}
+
+			test.assertErr(t, verify(test.dt, test.ext, botName))
+		})
+	}
+}
+
+func TestVerifyTrustedDeviceMode(t *testing.T) {
+	t.Parallel()
+
+	type testCase struct {
+		name    string
+		mode    constants.DeviceTrustMode
+		params  authz.VerifyTrustedDeviceModeParams
+		wantErr bool
+	}
+
+	var tests []testCase
+
+	// Mode "off"/"optional" matrix. Always passes.
+	for _, mode := range []constants.DeviceTrustMode{
+		constants.DeviceTrustModeOff,
+		constants.DeviceTrustModeOptional,
+	} {
+		for _, trusted := range []bool{false, true} {
+			for _, bot := range []bool{false, true} {
+				tests = append(tests, testCase{
+					name: fmt.Sprintf("%s: trusted=%v bot=%v", mode, trusted, bot),
+					mode: mode,
+					params: authz.VerifyTrustedDeviceModeParams{
+						IsTrustedDevice: trusted,
+						IsBot:           bot,
+					},
+					wantErr: false, // Allowed.
+				})
+			}
+		}
+	}
+
+	// Mode "required" matrix.
+	tests = append(tests,
+		testCase{
+			name:    "required: untrusted human",
+			mode:    constants.DeviceTrustModeRequired,
+			wantErr: true,
+		},
+		testCase{
+			name: "required: untrusted bot",
+			mode: constants.DeviceTrustModeRequired,
+			params: authz.VerifyTrustedDeviceModeParams{
+				IsBot: true,
+			},
+			wantErr: true,
+		},
+		testCase{
+			name: "required: trusted human",
+			mode: constants.DeviceTrustModeRequired,
+			params: authz.VerifyTrustedDeviceModeParams{
+				IsTrustedDevice: true,
+			},
+		},
+		testCase{
+			name: "required: trusted bot",
+			mode: constants.DeviceTrustModeRequired,
+			params: authz.VerifyTrustedDeviceModeParams{
+				IsTrustedDevice: true,
+				IsBot:           true,
+			},
+		},
+	)
+
+	// Mode "required-for-humans" matrix.
+	tests = append(tests,
+		testCase{
+			name:    "required-for-humans: untrusted human",
+			mode:    constants.DeviceTrustModeRequiredForHumans,
+			wantErr: true,
+		},
+		testCase{
+			name: "required-for-humans: untrusted bot",
+			mode: constants.DeviceTrustModeRequiredForHumans,
+			params: authz.VerifyTrustedDeviceModeParams{
+				IsBot: true,
+			},
+			wantErr: false, // Allowed because bot.
+		},
+		testCase{
+			name: "required-for-humans: trusted human",
+			mode: constants.DeviceTrustModeRequiredForHumans,
+			params: authz.VerifyTrustedDeviceModeParams{
+				IsTrustedDevice: true,
+			},
+		},
+		testCase{
+			name: "required-for-humans: trusted bot",
+			mode: constants.DeviceTrustModeRequiredForHumans,
+			params: authz.VerifyTrustedDeviceModeParams{
+				IsTrustedDevice: true,
+				IsBot:           true,
+			},
+		},
+	)
+
+	// mode="".
+	tests = append(tests,
+		testCase{
+			name:    "empty mode: AllowEmptyMode=false",
+			wantErr: true, // Unknown mode always errors.
+		},
+		testCase{
+			name: "empty mode: AllowEmptyMode=true",
+			params: authz.VerifyTrustedDeviceModeParams{
+				AllowEmptyMode: true,
+			},
+			wantErr: false, // Treated as mode="off".
+		},
+	)
+
+	// Unknown modes.
+	tests = append(tests,
+		testCase{
+			name:    "unknown mode: untrusted human",
+			mode:    "llama",
+			wantErr: true, // Unknown mode always errors.
+		},
+		testCase{
+			name: "unknown mode: trusted human",
+			mode: "llama",
+			params: authz.VerifyTrustedDeviceModeParams{
+				IsTrustedDevice: true,
+			},
+			wantErr: true, // Unknown mode always errors.
+		},
+	)
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := authz.VerifyTrustedDeviceMode(test.mode, test.params)
+			if test.wantErr {
+				assert.ErrorIs(t, got, authz.ErrTrustedDeviceRequired)
+				return
+			}
+			assert.NoError(t, got)
 		})
 	}
 }

@@ -15,42 +15,35 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 //go:build vnetdaemon
-// +build vnetdaemon
 
 package daemon
 
-// #cgo CFLAGS: -Wall -xobjective-c -fblocks -fobjc-arc -mmacosx-version-min=10.15
-// #cgo LDFLAGS: -framework Foundation -framework ServiceManagement
 // #include <stdlib.h>
 // #include "client_darwin.h"
-// #include "protocol_darwin.h"
+// #include "common_darwin.h"
 import "C"
 
 import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
-	"runtime"
 	"strconv"
-	"strings"
 	"time"
 	"unsafe"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/darwinbundle"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
-var log = logutils.NewPackageLogger(teleport.ComponentKey, "vnet:daemon")
+var log = logutils.NewPackageLogger(teleport.ComponentKey, teleport.Component("vnet", "daemon"))
 
 // RegisterAndCall attempts to register the daemon as a login item, waits for the user to enable it
 // and then starts it by sending a message through XPC.
 func RegisterAndCall(ctx context.Context, config Config) error {
-	bundlePath, err := bundlePath()
+	bundlePath, err := darwinbundle.Path()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -65,7 +58,9 @@ func RegisterAndCall(ctx context.Context, config Config) error {
 		C.OpenSystemSettingsLoginItems()
 	}
 
+	requiredEnablement := false
 	if initialStatus != ServiceStatusEnabled {
+		requiredEnablement = true
 		status, err := register(ctx, bundlePath)
 		if err != nil {
 			return trace.Wrap(err)
@@ -80,27 +75,40 @@ func RegisterAndCall(ctx context.Context, config Config) error {
 		}
 	}
 
-	if err = startByCalling(ctx, bundlePath, config); err != nil {
-		if !errors.Is(err, errAlreadyRunning) {
+	err = startByCalling(ctx, bundlePath, config)
+
+	// On the very first launch after the user enables the login item, the XPC connection can fail
+	// with NSXPCConnectionInvalid ("No such process") because SMAppService.status can report
+	// "enabled" before launchd has finished submitting the job and registering the XPC service.
+	// Retry a few times with a short delay to let launchd catch up.
+	for retries := 0; requiredEnablement && errors.Is(err, errXPCConnectionInvalid) && retries < 3; retries++ {
+		log.DebugContext(ctx, "XPC connection invalid, retrying after a short delay",
+			"retries", retries, "error", err)
+		const connInvalidInterval = 500 * time.Millisecond
+		if err := sleepOrDone(ctx, connInvalidInterval); err != nil {
 			return trace.Wrap(err)
 		}
+		err = startByCalling(ctx, bundlePath, config)
+	}
 
-		// If the daemon was already running, it might mean two things:
-		//
-		// 1. The user attempted to start a second instance of VNet.
-		// 2. The user has stopped the previous instance of VNet and immediately started a new one,
-		// before the daemon had a chance to notice that the previous instance was stopped and exit too.
-		//
-		// In the second case, we want to wait and repeat the call to the daemon, in case the daemon was
-		// just about to quit.
+	// If the daemon was already running, it might mean two things:
+	//
+	// 1. The user attempted to start a second instance of VNet.
+	// 2. The user has stopped the previous instance of VNet and immediately started a new one,
+	// before the daemon had a chance to notice that the previous instance was stopped and exit too.
+	//
+	// In the second case, we want to wait and repeat the call to the daemon, in case the daemon was
+	// just about to quit.
+	if errors.Is(err, errAlreadyRunning) {
 		log.DebugContext(ctx, "VNet daemon is already running, waiting to see if it's going to shut down")
 		if err := sleepOrDone(ctx, 2*CheckUnprivilegedProcessInterval); err != nil {
 			return trace.Wrap(err)
 		}
+		err = startByCalling(ctx, bundlePath, config)
+	}
 
-		if err := startByCalling(ctx, bundlePath, config); err != nil {
-			return trace.Wrap(err)
-		}
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
 	// TODO(ravicious): Implement monitoring the state of the daemon.
@@ -180,7 +188,7 @@ func waitForEnablement(ctx context.Context, bundlePath string) error {
 
 // DaemonStatus returns the status of the background item responsible for launching the daemon.
 func DaemonStatus() (ServiceStatus, error) {
-	bundlePath, err := bundlePath()
+	bundlePath, err := darwinbundle.Path()
 	if err != nil {
 		return 0, trace.Wrap(err)
 	}
@@ -203,6 +211,8 @@ const (
 	ServiceStatusEnabled          ServiceStatus = 1
 	ServiceStatusRequiresApproval ServiceStatus = 2
 	ServiceStatusNotFound         ServiceStatus = 3
+	// ServiceStatusNotSupported is returned by us when macOS version is < 13.0.
+	ServiceStatusNotSupported ServiceStatus = -1
 )
 
 func (s ServiceStatus) String() string {
@@ -215,40 +225,11 @@ func (s ServiceStatus) String() string {
 		return "requires approval"
 	case ServiceStatusNotFound:
 		return "not found"
+	case ServiceStatusNotSupported:
+		return "not supported"
 	default:
 		return strconv.Itoa(int(s))
 	}
-}
-
-// bundlePath returns a path to the bundle that the current executable comes from.
-// If the current executable is a symlink, it resolves the symlink. This is to address a scenario
-// where tsh is installed from tsh.pkg and symlinked to /usr/local/bin/tsh, in which case the
-// mainBundle function from NSBundle incorrectly points to /usr/local/bin as the bundle path.
-// https://developer.apple.com/documentation/foundation/nsbundle/1410786-mainbundle
-//
-// Returns an error if the dir of the current executable doesn't end with "/Contents/MacOS", likely
-// because the executable is not in an app bundle.
-func bundlePath() (string, error) {
-	exe, err := os.Executable()
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	absExe, err := utils.NormalizePath(exe, true /* evaluateSymlinks */)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	dir := filepath.Dir(absExe)
-
-	const appBundleSuffix = "/Contents/MacOS"
-	if !strings.HasSuffix(dir, appBundleSuffix) {
-		exeName := filepath.Base(exe)
-		log.DebugContext(context.Background(), "Current executable is likely outside of app bundle", "exe", absExe)
-		return "", trace.NotFound("%s is not in an app bundle", exeName)
-	}
-
-	return strings.TrimSuffix(dir, appBundleSuffix), nil
 }
 
 func startByCalling(ctx context.Context, bundlePath string, config Config) error {
@@ -263,28 +244,16 @@ func startByCalling(ctx context.Context, bundlePath string, config Config) error
 	errC := make(chan error, 1)
 
 	go func() {
-		var pinner runtime.Pinner
-		defer pinner.Unpin()
-
 		req := C.StartVnetRequest{
-			bundle_path: C.CString(bundlePath),
-			vnet_config: &C.VnetConfig{
-				socket_path: C.CString(config.SocketPath),
-				ipv6_prefix: C.CString(config.IPv6Prefix),
-				dns_addr:    C.CString(config.DNSAddr),
-				home_path:   C.CString(config.HomePath),
-			},
+			bundle_path:                     C.CString(bundlePath),
+			service_credential_path:         C.CString(config.ServiceCredentialPath),
+			client_application_service_addr: C.CString(config.ClientApplicationServiceAddr),
 		}
 		defer func() {
 			C.free(unsafe.Pointer(req.bundle_path))
-			C.free(unsafe.Pointer(req.vnet_config.socket_path))
-			C.free(unsafe.Pointer(req.vnet_config.ipv6_prefix))
-			C.free(unsafe.Pointer(req.vnet_config.dns_addr))
-			C.free(unsafe.Pointer(req.vnet_config.home_path))
+			C.free(unsafe.Pointer(req.service_credential_path))
+			C.free(unsafe.Pointer(req.client_application_service_addr))
 		}()
-		// Structs passed directly as arguments to cgo functions are automatically pinned.
-		// However, structs within structs have to be pinned by hand.
-		pinner.Pin(req.vnet_config)
 
 		var res C.StartVnetResult
 		defer func() {
@@ -304,6 +273,41 @@ func startByCalling(ctx context.Context, bundlePath string, config Config) error
 				return
 			}
 
+			if errorDomain == nsCocoaErrorDomain && errorCode == errorCodeNSXPCConnectionInterrupted {
+				const clientNSXPCConnectionInterruptedDebugMsg = "The connection was interrupted when trying to " +
+					"reach the XPC service. If there's no clear error logs on the daemon side, it might mean that " +
+					"the client does not satisfy the code signing requirement enforced by the daemon. " +
+					"Start capturing logs in Console.app and repeat the scenario. Look for " +
+					"\"xpc_support_check_token: <private> error: <private> status: -67050\" in the logs to verify " +
+					"that the connection was interrupted due to the code signing requirement."
+				log.DebugContext(ctx, clientNSXPCConnectionInterruptedDebugMsg)
+				errC <- trace.Wrap(errXPCConnectionInterrupted)
+				return
+			}
+
+			if errorDomain == vnetErrorDomain && errorCode == errorCodeMissingCodeSigningIdentifiers {
+				errC <- trace.Wrap(errMissingCodeSigningIdentifiers)
+				return
+			}
+
+			if errorDomain == nsCocoaErrorDomain && errorCode == errorCodeNSXPCConnectionCodeSigningRequirementFailure {
+				// If the client submits TELEPORT_HOME to which the user doesn't have access, the daemon is
+				// going to shut down with an error soon after starting. Because of that, macOS won't have
+				// enough time to perform the verification of the code signing requirement of the daemon, as
+				// requested by the client.
+				//
+				// In that scenario, macOS is going to simply error that connection with
+				// NSXPCConnectionCodeSigningRequirementFailure. Without looking at logs, it's not possible
+				// to differentiate that from a "legitimate" failure caused by an incorrect requirement.
+				errC <- trace.Wrap(errXPCConnectionCodeSigningRequirementFailure, "either daemon is not signed correctly or it shut down before signature could be verified")
+				return
+			}
+
+			if errorDomain == nsCocoaErrorDomain && errorCode == errorCodeNSXPCConnectionInvalid {
+				errC <- trace.Wrap(errXPCConnectionInvalid, "%v", C.GoString(res.error_description))
+				return
+			}
+
 			errC <- trace.Errorf("could not start VNet daemon: %v", C.GoString(res.error_description))
 			return
 		}
@@ -318,15 +322,6 @@ func startByCalling(ctx context.Context, bundlePath string, config Config) error
 		return trace.Wrap(err, "connecting to the VNet daemon")
 	}
 }
-
-var (
-	// vnetErrorDomain is a custom error domain used for Objective-C errors that pertain to VNet.
-	vnetErrorDomain = C.GoString(C.VNEErrorDomain)
-	// errorCodeAlreadyRunning is returned within [vnetErrorDomain] errors to indicate that the daemon
-	// received a message to start after it was already running.
-	errorCodeAlreadyRunning = int(C.VNEAlreadyRunningError)
-	errAlreadyRunning       = errors.New("VNet is already running")
-)
 
 func sleepOrDone(ctx context.Context, d time.Duration) error {
 	timer := time.NewTimer(d)

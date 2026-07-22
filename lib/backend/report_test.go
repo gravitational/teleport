@@ -19,6 +19,7 @@
 package backend
 
 import (
+	"context"
 	"strconv"
 	"sync/atomic"
 	"testing"
@@ -27,6 +28,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/backend/backendmetrics"
 )
 
 func TestReporterTopRequestsLimit(t *testing.T) {
@@ -43,7 +45,7 @@ func TestReporterTopRequestsLimit(t *testing.T) {
 	countTopRequests := func() int {
 		ch := make(chan prometheus.Metric)
 		go func() {
-			requests.Collect(ch)
+			backendmetrics.Requests.Collect(ch)
 			close(ch)
 		}()
 
@@ -53,14 +55,14 @@ func TestReporterTopRequestsLimit(t *testing.T) {
 		}
 		return int(count)
 	}
-	t.Cleanup(requests.Reset)
+	t.Cleanup(backendmetrics.Requests.Reset)
 
 	// At first, the metric should have no values.
 	require.Equal(t, 0, countTopRequests())
 
 	// Run through 1000 unique keys.
-	for i := 0; i < 1000; i++ {
-		r.trackRequest(types.OpGet, []byte(strconv.Itoa(i)), nil)
+	for i := range 1000 {
+		r.trackRequest(context.Background(), types.OpGet, NewKey(strconv.Itoa(i)), Key{})
 	}
 
 	// Now the metric should have only 10 of the keys above.

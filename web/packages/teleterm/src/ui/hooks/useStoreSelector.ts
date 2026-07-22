@@ -16,11 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useSyncExternalStore, useCallback } from 'react';
+import { useCallback, useSyncExternalStore } from 'react';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
-import { IAppContext } from 'teleterm/ui/types';
 import { ImmutableStore } from 'teleterm/ui/services/immutableStore';
+import { IAppContext } from 'teleterm/ui/types';
 
 /**
  * useStoreSelector selects a value out of a store and triggers a component update whenever that
@@ -70,3 +70,15 @@ export const useStoreSelector = <
 type ImmutableStoreKeys<T> = {
   [K in keyof T]: T[K] extends ImmutableStore<any> ? K : never;
 }[keyof T];
+
+/**
+ * identitySelector returns the whole state of the given store.
+ *
+ * Useful during refactorings of legacy code which depends on the useStore which triggers a
+ * re-render on any change to the store.
+ *
+ * Should be used sparingly. It's often a better idea to make the selector as narrow as possible.
+ */
+export function identitySelector<Value>(state: Value): Value {
+  return state;
+}

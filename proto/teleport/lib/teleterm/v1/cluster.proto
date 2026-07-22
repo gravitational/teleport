@@ -20,6 +20,9 @@ syntax = "proto3";
 
 package teleport.lib.teleterm.v1;
 
+import "google/protobuf/timestamp.proto";
+import "teleport/legacy/types/trusted_device_requirement.proto";
+
 option go_package = "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1;teletermv1";
 
 // Cluster describes cluster fields.
@@ -32,7 +35,9 @@ message Cluster {
   // For leaf clusters, it has the form of /clusters/:rootClusterId/leaves/:leafClusterId where
   // leafClusterId is equal to the name property of the cluster.
   string uri = 1;
-  // name is used throughout the Teleport Connect codebase as the cluster name.
+  // name is the site name of Teleport cluster.
+  // Only present in root clusters if the user has logged in (the name comes from the certificate).
+  // Always available for leaf clusters.
   string name = 2;
   // proxy_host is address of the proxy used to connect to this cluster.
   // Always includes port number. Present only for root clusters.
@@ -61,6 +66,11 @@ message Cluster {
   // show_resources tells if the cluster can show requestable resources on the resources page.
   // Controlled by the cluster config.
   ShowResources show_resources = 11;
+  // profile_status_error is set if there was an error when reading the profile.
+  // This allows the app to be usable, when one or more profiles cannot be read.
+  string profile_status_error = 12;
+  // sso_host is the host of the SSO provider used to log in.
+  string sso_host = 13;
 }
 
 // ShowResources tells if the cluster can show requestable resources on the resources page.
@@ -76,8 +86,9 @@ message LoggedInUser {
   string name = 1;
   // roles is the user roles
   repeated string roles = 2;
-  // ssh_logins is the user ssh logins
-  repeated string ssh_logins = 3;
+
+  reserved "ssh_logins";
+  reserved 3;
   // acl is a user access control list.
   // It is available only after the cluster details are fetched, as it is not stored on disk.
   ACL acl = 4;
@@ -97,6 +108,12 @@ message LoggedInUser {
     USER_TYPE_SSO = 2;
   }
   UserType user_type = 8;
+  // Indicates if the profile contains all required device extensions.
+  bool is_device_trusted = 9;
+  // Indicates whether access may be hindered by the lack of a trusted device.
+  types.TrustedDeviceRequirement trusted_device_requirement = 10;
+  // Expiration time of the certificate.
+  google.protobuf.Timestamp valid_until = 11;
 }
 
 // ACL is the access control list of the user
@@ -130,6 +147,12 @@ message ACL {
   ResourceAccess recorded_sessions = 13;
   // active_sessions defines access to active sessions.
   ResourceAccess active_sessions = 14;
+  // review_requests defines the ability to review requests
+  bool review_requests = 15;
+  // Indicates whether the user can share a local directory with the remote machine during desktop sessions.
+  bool directory_sharing_enabled = 16;
+  // Indicates whether the user can share their clipboard with the remote machine during desktop sessions.
+  bool clipboard_sharing_enabled = 17;
 }
 
 // ResourceAccess describes access verbs

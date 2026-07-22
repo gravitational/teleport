@@ -16,46 +16,53 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import styled from 'styled-components';
+import { addHours, isAfter } from 'date-fns';
 import { useEffect, useState } from 'react';
-import { isAfter, addHours } from 'date-fns';
+import styled, { useTheme } from 'styled-components';
+
 import {
+  Alert,
   Box,
-  Text,
+  Button,
+  ButtonSecondary,
+  ButtonWarning,
   Flex,
   Indicator,
   Label,
-  Alert,
   Link,
+  Mark,
   MenuItem,
-  ButtonWarning,
-  ButtonSecondary,
-  Button,
+  Text,
 } from 'design';
 import Table, { Cell } from 'design/DataTable';
-import { Warning } from 'design/Icon';
 import Dialog, {
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from 'design/Dialog';
+import { Warning } from 'design/Icon';
+import { HoverTooltip } from 'design/Tooltip';
+import { CopyButton } from 'shared/components/CopyButton/CopyButton';
 import { MenuButton } from 'shared/components/MenuAction';
+import {
+  InfoExternalTextLink,
+  InfoGuideButton,
+  InfoParagraph,
+  ReferenceLinks,
+} from 'shared/components/SlidingSidePanel/InfoGuide';
 import { Attempt, useAsync } from 'shared/hooks/useAsync';
-import { HoverTooltip } from 'shared/components/ToolTip';
-import { CopyButton } from 'shared/components/UnifiedResources/shared/CopyButton';
 
 import { useTeleport } from 'teleport';
-import useResources from 'teleport/components/useResources';
-
 import {
   FeatureBox,
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
-import { JoinToken } from 'teleport/services/joinToken';
-import { Resource, KindJoinToken } from 'teleport/services/resources';
 import ResourceEditor from 'teleport/components/ResourceEditor';
+import useResources from 'teleport/components/useResources';
+import { JoinToken } from 'teleport/services/joinToken';
+import { KindJoinToken, Resource } from 'teleport/services/resources';
 
 import { UpsertJoinTokenDialog } from './UpsertJoinTokenDialog';
 
@@ -70,6 +77,8 @@ function makeTokenResource(token: JoinToken): Resource<KindJoinToken> {
 
 export const JoinTokens = () => {
   const ctx = useTeleport();
+  const theme = useTheme();
+
   const [creatingToken, setCreatingToken] = useState(false);
   const [editingToken, setEditingToken] = useState<JoinToken | null>(null);
   const [tokenToDelete, setTokenToDelete] = useState<JoinToken | null>(null);
@@ -81,8 +90,19 @@ export const JoinTokens = () => {
     { join_token: '' } // we are only editing for now, so template can be empty
   );
 
+  function getRowStyle(row: JoinToken): React.CSSProperties {
+    if (row.isCloudSystem) {
+      return {
+        background: theme.colors.interactive.tonal.neutral[0],
+        color: theme.colors.text.muted,
+      };
+    }
+  }
+
   function updateTokenList(token: JoinToken): JoinToken[] {
-    let items = [...joinTokensAttempt.data.items];
+    let items = joinTokensAttempt.data?.items
+      ? [...joinTokensAttempt.data.items]
+      : [];
     if (creatingToken) {
       items.push(token);
     } else {
@@ -117,7 +137,7 @@ export const JoinTokens = () => {
         status: 'success',
         statusText: '',
         data: {
-          items: joinTokensAttempt.data.items.filter(t => t.id !== token),
+          items: joinTokensAttempt.data?.items.filter(t => t.id !== token),
         },
       });
       setTokenToDelete(null);
@@ -127,6 +147,9 @@ export const JoinTokens = () => {
 
   useEffect(() => {
     runJoinTokensAttempt();
+
+    // runJoinTokensAttempt is not stable and causes a render loop
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
@@ -137,21 +160,24 @@ export const JoinTokens = () => {
           border-bottom: none;
         `}
         alignItems="center"
+        justifyContent="space-between"
       >
         <FeatureHeaderTitle>Join Tokens</FeatureHeaderTitle>
         {!creatingToken && !editingToken && (
-          <Button
-            intent="primary"
-            fill="border"
-            ml="auto"
-            width="240px"
-            onClick={() => setCreatingToken(true)}
-          >
-            Create new Token
-          </Button>
+          <InfoGuideButton config={{ guide: <InfoGuide /> }}>
+            <Button
+              intent="primary"
+              fill="border"
+              ml="auto"
+              width="240px"
+              onClick={() => setCreatingToken(true)}
+            >
+              Create New Token
+            </Button>
+          </InfoGuideButton>
         )}
       </FeatureHeader>
-      <Flex>
+      <Flex gap={24}>
         <Box
           css={`
             flex-grow: 1;
@@ -161,9 +187,13 @@ export const JoinTokens = () => {
             <Alert kind="danger">{joinTokensAttempt.statusText}</Alert>
           )}
           {joinTokensAttempt.status === 'success' && (
-            <Table
+            <JoinTokenTable
               isSearchable
               data={joinTokensAttempt.data.items}
+              row={{
+                getStyle: getRowStyle,
+                getKey: token => token.id,
+              }}
               columns={[
                 {
                   key: 'id',
@@ -221,7 +251,9 @@ export const JoinTokens = () => {
                         if (
                           token.method === 'iam' ||
                           token.method === 'gcp' ||
-                          token.method === 'token'
+                          token.method === 'token' ||
+                          (token.method === 'github' && token.github) ||
+                          (token.method === 'gitlab' && token.gitlab)
                         ) {
                           setEditingToken(token);
                           return;
@@ -271,7 +303,7 @@ export const JoinTokens = () => {
             setDeleteTokenAttempt({
               status: 'success',
               statusText: '',
-              data: null,
+              data: undefined,
             });
             setTokenToDelete(null);
           }}
@@ -295,6 +327,15 @@ export const JoinTokens = () => {
     </FeatureBox>
   );
 };
+
+// This is necessary because the Table component styles
+// hard-code the text color for the <td> element, preventing
+// our row style from being applied.
+const JoinTokenTable = styled(Table)`
+  & > tbody > tr > td {
+    color: inherit;
+  }
+` as typeof Table;
 
 export function searchMatcher(
   targetValue: any,
@@ -325,11 +366,8 @@ const NameCell = ({ token }: { token: JoinToken }) => {
     <Cell
       align="left"
       style={{
-        minWidth: '320px',
+        maxWidth: '320px',
         fontFamily: 'monospace',
-        whiteSpace: 'nowrap',
-        overflow: 'hidden',
-        textOverflow: 'ellipsis',
       }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
@@ -337,13 +375,18 @@ const NameCell = ({ token }: { token: JoinToken }) => {
       <Flex alignItems="center" gap={2}>
         <Text
           css={`
-            text-overflow: clip;
-            overflow-x: auto;
+            overflow-wrap: break-word;
           `}
         >
           {method !== 'token' ? id : safeName}
         </Text>
-        {hovered && <CopyButton name={id} />}
+        <Box
+          css={`
+            visibility: ${hovered ? 'visible' : 'hidden'};
+          `}
+        >
+          <CopyButton value={id} />
+        </Box>
       </Flex>
     </Cell>
   );
@@ -354,7 +397,7 @@ const StyledLabel = styled(Label)`
   margin: 1px 0;
   margin-right: ${props => props.theme.space[2]}px;
   background-color: ${props => props.theme.colors.interactive.tonal.neutral[0]};
-  color: ${props => props.theme.colors.text.main};
+  color: inherit;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -368,7 +411,7 @@ function TokenDelete({
   attempt,
 }: {
   token: JoinToken;
-  onDelete: (token: string) => Promise<any>;
+  onDelete: () => void;
   onClose: () => void;
   attempt: Attempt<void>;
 }) {
@@ -383,15 +426,16 @@ function TokenDelete({
         <DialogTitle>Delete Join Token?</DialogTitle>
       </DialogHeader>
       <DialogContent>
-        {attempt.status === 'error' && <Alert children={attempt.statusText} />}
+        {attempt.status === 'error' && <Alert>{attempt.statusText}</Alert>}
         <Text mb={4}>
           You are about to delete join token
           <Text bold as="span">
             {` ${token.safeName}`}
           </Text>
           . This will not remove any resources that used this token to join the
-          cluster. This will remove the ability for any new resources to join
-          with this token and any non-renewable resource from renewing.
+          cluster. This will remove the ability for any new resources or
+          resources using non-renewable certificates from joining with this
+          token.
         </Text>
       </DialogContent>
       <DialogFooter>
@@ -417,12 +461,12 @@ const ActionCell = ({
   onDelete(): void;
   token: JoinToken;
 }) => {
-  const buttonProps = { width: '100px' };
+  const buttonProps = { width: '100px', disabled: false };
   if (token.isStatic) {
     return (
       <Cell align="right">
         <HoverTooltip
-          justifyContentProps={{ justifyContent: 'end' }}
+          placement="top-end"
           tipContent="You cannot configure or delete static tokens via the web UI. Static tokens should be removed from your Teleport configuration file."
         >
           <MenuButton buttonProps={{ disabled: true, ...buttonProps }} />
@@ -430,12 +474,29 @@ const ActionCell = ({
       </Cell>
     );
   }
+  if (token.isCloudSystem) {
+    buttonProps.disabled = true;
+  }
+
+  const Button = (
+    <MenuButton buttonProps={buttonProps}>
+      <MenuItem onClick={onEdit}>View/Edit...</MenuItem>
+      <MenuItem onClick={onDelete}>Delete...</MenuItem>
+    </MenuButton>
+  );
+
   return (
     <Cell align="right">
-      <MenuButton buttonProps={buttonProps}>
-        <MenuItem onClick={onEdit}>View/Edit...</MenuItem>
-        <MenuItem onClick={onDelete}>Delete...</MenuItem>
-      </MenuButton>
+      {token.isCloudSystem ? (
+        <HoverTooltip
+          placement="top-end"
+          tipContent="This token is managed by Teleport Cloud."
+        >
+          {Button}
+        </HoverTooltip>
+      ) : (
+        <>{Button}</>
+      )}
     </Cell>
   );
 };
@@ -443,7 +504,7 @@ const ActionCell = ({
 function Directions() {
   return (
     <>
-      WARNING Roles are defined using{' '}
+      WARNING Tokens are defined using{' '}
       <Link
         color="text.main"
         target="_blank"
@@ -455,3 +516,57 @@ function Directions() {
     </>
   );
 }
+
+const InfoGuideReferenceLinks = {
+  JoinTokens: {
+    title: 'Join Tokens',
+    href: 'https://goteleport.com/docs/reference/join-methods/',
+  },
+  DelegatedJoinMethods: {
+    title: 'Delegated Join Methods',
+    href: 'https://goteleport.com/docs/reference/join-methods/#delegated-join-methods',
+  },
+  SecretBasedJoinMethods: {
+    title: 'Secret-based Join Methods',
+    href: 'https://goteleport.com/docs/reference/join-methods/#secret-based-join-methods',
+  },
+};
+
+const InfoGuide = () => (
+  <Box>
+    <InfoParagraph>
+      <InfoExternalTextLink href={InfoGuideReferenceLinks.JoinTokens.href}>
+        Join Tokens
+      </InfoExternalTextLink>{' '}
+      are how a Teleport agent authenticates itself to the Teleport cluster.
+    </InfoParagraph>
+    <InfoParagraph>
+      There are Join Tokens for most types of infrastructure you can connect to
+      Teleport that establish an identity for that infrastructure using
+      metadata, such as AWS role, GitHub organization or TPM hash. These are
+      called{' '}
+      <InfoExternalTextLink
+        href={InfoGuideReferenceLinks.DelegatedJoinMethods.href}
+      >
+        delegated join methods
+      </InfoExternalTextLink>
+      . We recommend you use these methods whenever possible. When they are not
+      available, there are{' '}
+      <InfoExternalTextLink
+        href={InfoGuideReferenceLinks.SecretBasedJoinMethods.href}
+      >
+        secret-based join methods
+      </InfoExternalTextLink>{' '}
+      to fall back on.
+    </InfoParagraph>
+    <InfoParagraph>
+      Agents’ permission to provide different connection services are limited by
+      the system role of their join token. For example, if you want to provide
+      access to a HTTP application running on a server, but also want to provide
+      SSH access to that server, the join token it uses must have both the{' '}
+      <Mark>node</Mark>
+      and <Mark>app</Mark> permissions.
+    </InfoParagraph>
+    <ReferenceLinks links={Object.values(InfoGuideReferenceLinks)} />
+  </Box>
+);

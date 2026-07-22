@@ -24,6 +24,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 )
 
@@ -39,7 +40,7 @@ func TestMultiIntervalReset(t *testing.T) {
 
 	var wg sync.WaitGroup
 
-	for i := 0; i < iterations; i++ {
+	for range iterations {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -47,15 +48,17 @@ func TestMultiIntervalReset(t *testing.T) {
 			resetTimer := time.NewTimer(duration / 3)
 			defer resetTimer.Stop()
 
-			interval := NewMulti[string](SubInterval[string]{
-				Key:      "key",
-				Duration: duration,
-			})
+			interval := NewMulti[string](
+				clockwork.NewRealClock(),
+				SubInterval[string]{
+					Key:      "key",
+					Duration: duration,
+				})
 			defer interval.Stop()
 
 			start := time.Now()
 
-			for i := 0; i < 6; i++ {
+			for range 6 {
 				select {
 				case <-interval.Next():
 					failure.Add(1)
@@ -92,6 +95,7 @@ func TestMultiIntervalReset(t *testing.T) {
 func TestMultiIntervalBasics(t *testing.T) {
 	t.Parallel()
 	interval := NewMulti[string](
+		clockwork.NewRealClock(),
 		SubInterval[string]{
 			Key:      "fast",
 			Duration: time.Millisecond * 8,
@@ -110,10 +114,10 @@ func TestMultiIntervalBasics(t *testing.T) {
 
 	var fast, slow, once int
 	var prevT time.Time
-	for i := 0; i < 60; i++ {
+	for range 60 {
 		tick := <-interval.Next()
 		require.False(t, tick.Time.IsZero())
-		require.True(t, tick.Time.After(prevT) || tick.Time == prevT)
+		require.True(t, tick.Time.After(prevT) || tick.Time.Equal(prevT))
 		prevT = tick.Time
 		switch tick.Key {
 		case "fast":
@@ -151,6 +155,7 @@ func TestMultiIntervalVariableDuration(t *testing.T) {
 	bar.counter.Store(1)
 
 	interval := NewMulti[string](
+		clockwork.NewRealClock(),
 		SubInterval[string]{
 			Key:              "foo",
 			VariableDuration: foo,
@@ -164,10 +169,10 @@ func TestMultiIntervalVariableDuration(t *testing.T) {
 
 	var fooct, barct int
 	var prevT time.Time
-	for i := 0; i < 60; i++ {
+	for range 60 {
 		tick := <-interval.Next()
 		require.False(t, tick.Time.IsZero())
-		require.True(t, tick.Time.After(prevT) || tick.Time == prevT)
+		require.True(t, tick.Time.After(prevT) || tick.Time.Equal(prevT))
 		prevT = tick.Time
 		switch tick.Key {
 		case "foo":
@@ -192,7 +197,7 @@ func TestMultiIntervalVariableDuration(t *testing.T) {
 
 	fooct = 0
 	barct = 0
-	for i := 0; i < 60; i++ {
+	for range 60 {
 		tick := <-interval.Next()
 		switch tick.Key {
 		case "foo":
@@ -216,6 +221,7 @@ func TestMultiIntervalVariableDuration(t *testing.T) {
 func TestMultiIntervalPush(t *testing.T) {
 	t.Parallel()
 	interval := NewMulti[string](
+		clockwork.NewRealClock(),
 		SubInterval[string]{
 			Key:      "foo",
 			Duration: time.Millisecond * 6,
@@ -224,7 +230,7 @@ func TestMultiIntervalPush(t *testing.T) {
 	defer interval.Stop()
 
 	// verify that single-interval is working
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		tick := <-interval.Next()
 		require.Equal(t, "foo", tick.Key)
 	}
@@ -237,7 +243,7 @@ func TestMultiIntervalPush(t *testing.T) {
 
 	// aggregate rates of both sub-intervals
 	var foo, bar int
-	for i := 0; i < 60; i++ {
+	for range 60 {
 		tick := <-interval.Next()
 		switch tick.Key {
 		case "foo":
@@ -266,7 +272,7 @@ func TestMultiIntervalPush(t *testing.T) {
 	// aggregate new rates for both sub-intervals
 	foo = 0
 	bar = 0
-	for i := 0; i < 60; i++ {
+	for range 60 {
 		tick := <-interval.Next()
 		switch tick.Key {
 		case "foo":
@@ -289,6 +295,7 @@ func TestMultiIntervalFireNow(t *testing.T) {
 	// set up one sub-interval that fires frequently, and another that will never
 	// fire during this test unless we trigger with FireNow.
 	interval := NewMulti[string](
+		clockwork.NewRealClock(),
 		SubInterval[string]{
 			Key:      "slow",
 			Duration: time.Hour,
@@ -301,7 +308,7 @@ func TestMultiIntervalFireNow(t *testing.T) {
 	defer interval.Stop()
 
 	// verify that only the 'fast' interval is firing
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		tick := <-interval.Next()
 		require.Equal(t, "fast", tick.Key)
 	}
@@ -311,7 +318,7 @@ func TestMultiIntervalFireNow(t *testing.T) {
 
 	// make sure that we observe slow interval firing
 	var seenSlow bool
-	for i := 0; i < 60; i++ {
+	for range 60 {
 		tick := <-interval.Next()
 		if tick.Key == "slow" {
 			seenSlow = true

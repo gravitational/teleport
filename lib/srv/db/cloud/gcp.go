@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 )
@@ -52,11 +53,25 @@ or "cloudsql.instances.get" IAM permission.`, err)
 	return dbi.Settings.IpConfiguration.RequireSsl, nil
 }
 
+// AppendGPCClientCertRequest is a request to update [TLSConfig] with an
+// ephemeral GCP client certificate.
+type AppendGCPClientCertRequest struct {
+	GCPClient   gcp.SQLAdminClient
+	GenerateKey func(context.Context) (*keys.PrivateKey, error)
+	Expiry      time.Time
+	Database    types.Database
+	TLSConfig   *tls.Config
+}
+
 // AppendGCPClientCert calls the GCP API to generate an ephemeral certificate
 // and adds it to the TLS config. An access denied error is returned when the
 // generate call fails.
-func AppendGCPClientCert(ctx context.Context, certExpiry time.Time, database types.Database, gcpClient gcp.SQLAdminClient, tlsConfig *tls.Config) error {
-	cert, err := gcpClient.GenerateEphemeralCert(ctx, database, certExpiry)
+func AppendGCPClientCert(ctx context.Context, req *AppendGCPClientCertRequest) error {
+	privateKey, err := req.GenerateKey(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	certPEM, err := req.GCPClient.GenerateEphemeralCert(ctx, req.Database, req.Expiry, privateKey.Public())
 	if err != nil {
 		err = common.ConvertError(err)
 		if trace.IsAccessDenied(err) {
@@ -67,8 +82,12 @@ func AppendGCPClientCert(ctx context.Context, certExpiry time.Time, database typ
 Make sure Teleport db service has "Cloud SQL Admin" GCP IAM role,
 or "cloudsql.sslCerts.createEphemeral" IAM permission.`, err)
 		}
-		return trace.Wrap(err, "Failed to generate GCP ephemeral client certificate for %q.", database.GetGCP().GetServerName())
+		return trace.Wrap(err, "Failed to generate GCP ephemeral client certificate for %q.", req.Database.GetGCP().GetServerName())
 	}
-	tlsConfig.Certificates = []tls.Certificate{*cert}
+	tlsCert, err := privateKey.TLSCertificate([]byte(certPEM))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	req.TLSConfig.Certificates = []tls.Certificate{tlsCert}
 	return nil
 }

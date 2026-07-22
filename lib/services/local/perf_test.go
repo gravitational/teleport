@@ -36,6 +36,9 @@ import (
 // BenchmarkGetNodes verifies the performance of the GetNodes operation
 // on local (sqlite) databases (as used by the cache system).
 func BenchmarkGetNodes(b *testing.B) {
+	if testing.Short() {
+		b.Skip("skipping heavy benchmark")
+	}
 	ctx := context.Background()
 
 	type testCase struct {
@@ -60,9 +63,6 @@ func BenchmarkGetNodes(b *testing.B) {
 
 		// run the sub benchmark
 		b.Run(name, func(sb *testing.B) {
-
-			sb.StopTimer() // stop timer while running setup
-
 			// configure the backend instance
 			var bk backend.Backend
 			var err error
@@ -72,7 +72,7 @@ func BenchmarkGetNodes(b *testing.B) {
 			} else {
 				dir := b.TempDir()
 
-				bk, err = lite.NewWithConfig(context.TODO(), lite.Config{
+				bk, err = lite.NewWithConfig(b.Context(), lite.Config{
 					Path: dir,
 				})
 				require.NoError(b, err)
@@ -83,11 +83,7 @@ func BenchmarkGetNodes(b *testing.B) {
 			// seed the test nodes
 			insertNodes(ctx, b, svc, tt.nodes)
 
-			sb.StartTimer() // restart timer for benchmark operations
-
 			benchmarkGetNodes(ctx, sb, svc, tt.nodes)
-
-			sb.StopTimer() // stop timer to exclude deferred cleanup
 		})
 	}
 }
@@ -96,10 +92,10 @@ func BenchmarkGetNodes(b *testing.B) {
 func insertNodes(ctx context.Context, b *testing.B, svc services.Presence, nodeCount int) {
 	const labelCount = 10
 	labels := make(map[string]string, labelCount)
-	for i := 0; i < labelCount; i++ {
+	for i := range labelCount {
 		labels[fmt.Sprintf("label-key-%d", i)] = fmt.Sprintf("label-val-%d", i)
 	}
-	for i := 0; i < nodeCount; i++ {
+	for i := range nodeCount {
 		name, addr := fmt.Sprintf("node-%d", i), fmt.Sprintf("node%d.example.com", i)
 		node := &types.ServerV2{
 			Kind:    types.KindNode,
@@ -122,7 +118,7 @@ func insertNodes(ctx context.Context, b *testing.B, svc services.Presence, nodeC
 func benchmarkGetNodes(ctx context.Context, b *testing.B, svc services.Presence, nodeCount int) {
 	var nodes []types.Server
 	var err error
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		nodes, err = svc.GetNodes(ctx, apidefaults.Namespace)
 		require.NoError(b, err)
 	}

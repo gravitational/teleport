@@ -26,6 +26,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype/zeronull"
 
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/backend/backendmetrics"
 	pgcommon "github.com/gravitational/teleport/lib/backend/pgbk/common"
 )
 
@@ -50,12 +51,12 @@ func (b *Backend) AtomicWrite(ctx context.Context, condacts []backend.Conditiona
 		case backend.KindExists:
 			condBatchItems = append(condBatchItems, batchItem{
 				"SELECT EXISTS (SELECT FROM kv WHERE key = $1 AND (expires IS NULL OR expires >= now()))",
-				[]any{nonNil(ca.Key)},
+				[]any{nonNilKey(ca.Key)},
 			})
 		case backend.KindNotExists:
 			condBatchItems = append(condBatchItems, batchItem{
 				"SELECT NOT EXISTS (SELECT FROM kv WHERE key = $1 AND (expires IS NULL OR expires >= now()))",
-				[]any{nonNil(ca.Key)},
+				[]any{nonNilKey(ca.Key)},
 			})
 		case backend.KindRevision:
 			expectedRevision, ok := revisionFromString(ca.Condition.Revision)
@@ -64,7 +65,7 @@ func (b *Backend) AtomicWrite(ctx context.Context, condacts []backend.Conditiona
 			}
 			condBatchItems = append(condBatchItems, batchItem{
 				"SELECT EXISTS (SELECT FROM kv WHERE key = $1 AND revision = $2 AND (expires IS NULL OR expires >= now()))",
-				[]any{nonNil(ca.Key), expectedRevision},
+				[]any{nonNilKey(ca.Key), expectedRevision},
 			})
 		default:
 			// condacts was already checked for validity
@@ -80,12 +81,12 @@ func (b *Backend) AtomicWrite(ctx context.Context, condacts []backend.Conditiona
 				"INSERT INTO kv (key, value, expires, revision) VALUES ($1, $2, $3, $4)" +
 					" ON CONFLICT (key) DO UPDATE SET" +
 					" value = excluded.value, expires = excluded.expires, revision = excluded.revision",
-				[]any{nonNil(ca.Key), nonNil(ca.Action.Item.Value), zeronull.Timestamptz(ca.Action.Item.Expires.UTC()), newRevision},
+				[]any{nonNilKey(ca.Key), nonNil(ca.Action.Item.Value), zeronull.Timestamptz(ca.Action.Item.Expires.UTC()), newRevision},
 			})
 		case backend.KindDelete:
 			actBatchItems = append(actBatchItems, batchItem{
 				"DELETE FROM kv WHERE kv.key = $1 AND (kv.expires IS NULL OR kv.expires > now())",
-				[]any{nonNil(ca.Key)},
+				[]any{nonNilKey(ca.Key)},
 			})
 		default:
 			// condacts was already checked for validity
@@ -131,7 +132,7 @@ func (b *Backend) AtomicWrite(ctx context.Context, condacts []backend.Conditiona
 	})
 
 	if attempts > 1 {
-		backend.AtomicWriteContention.WithLabelValues(b.GetName()).Add(float64(attempts - 1))
+		backendmetrics.AtomicWriteContention.WithLabelValues(b.GetName()).Add(float64(attempts - 1))
 	}
 
 	if attempts > 2 {

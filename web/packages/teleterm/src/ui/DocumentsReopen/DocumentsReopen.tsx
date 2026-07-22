@@ -16,39 +16,34 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import { ButtonIcon, ButtonPrimary, ButtonSecondary, H2 } from 'design';
 import DialogConfirmation, {
   DialogContent,
   DialogFooter,
   DialogHeader,
 } from 'design/DialogConfirmation';
-import { ButtonIcon, ButtonPrimary, ButtonSecondary, H2, Text } from 'design';
 import { Cross } from 'design/Icon';
+import { P } from 'design/Text/Text';
 import { pluralize } from 'shared/utils/text';
 
 import { RootClusterUri, routing } from 'teleterm/ui/uri';
-import { useAppContext } from 'teleterm/ui/appContextProvider';
 
-interface DocumentsReopenProps {
+export function DocumentsReopen(props: {
   rootClusterUri: RootClusterUri;
   numberOfDocuments: number;
-  onCancel(): void;
+  onDiscard(): void;
   onConfirm(): void;
-}
-
-export function DocumentsReopen(props: DocumentsReopenProps) {
+  hidden?: boolean;
+}) {
   const { rootClusterUri } = props;
-  const { clustersService } = useAppContext();
-  // TODO(ravicious): Use a profile name here from the URI and remove the dependency on
-  // clustersService. https://github.com/gravitational/teleport/issues/33733
-  const clusterName =
-    clustersService.findCluster(rootClusterUri)?.name ||
-    routing.parseClusterName(rootClusterUri);
+  const clusterName = routing.parseClusterName(rootClusterUri);
 
   return (
     <DialogConfirmation
-      open={true}
-      onClose={props.onCancel}
+      open={!props.hidden}
+      keepInDOMAfterClose
+      trapFocus
+      onClose={props.onDiscard}
       dialogCss={() => ({
         maxWidth: '400px',
         width: '100%',
@@ -60,32 +55,26 @@ export function DocumentsReopen(props: DocumentsReopenProps) {
           props.onConfirm();
         }}
       >
-        <DialogHeader
-          justifyContent="space-between"
-          mb={0}
-          alignItems="baseline"
-        >
-          <H2 mb={4}>Reopen previous session</H2>
+        <DialogHeader justifyContent="space-between" alignItems="baseline">
+          <H2>Reopen previous session</H2>
           <ButtonIcon
             type="button"
-            onClick={props.onCancel}
+            onClick={props.onDiscard}
+            title="Close"
             color="text.slightlyMuted"
           >
             <Cross size="medium" />
           </ButtonIcon>
         </DialogHeader>
         <DialogContent mb={4}>
-          <Text typography="body1" color="text.slightlyMuted">
-            Do you want to reopen tabs from the previous session?
-          </Text>
-          <Text
-            typography="body1"
-            color="text.slightlyMuted"
+          <P
             // Split long continuous cluster names into separate lines.
             css={`
               word-wrap: break-word;
             `}
           >
+            Do you want to reopen tabs from the previous session?
+            <br />
             {/*
               We show this mostly because we needed to show the cluster name somewhere during UI
               initialization. When you open the app and have some tabs to restore, the UI will show
@@ -98,13 +87,13 @@ export function DocumentsReopen(props: DocumentsReopenProps) {
               {pluralize(props.numberOfDocuments, 'tab')}
             </strong>{' '}
             open in <strong>{clusterName}</strong>.
-          </Text>
+          </P>
         </DialogContent>
         <DialogFooter>
           <ButtonPrimary autoFocus mr={3} type="submit">
             Reopen
           </ButtonPrimary>
-          <ButtonSecondary type="button" onClick={props.onCancel}>
+          <ButtonSecondary type="button" onClick={props.onDiscard}>
             Start New Session
           </ButtonSecondary>
         </DialogFooter>

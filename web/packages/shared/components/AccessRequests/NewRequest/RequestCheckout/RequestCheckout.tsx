@@ -16,113 +16,270 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useRef, useState } from 'react';
-import styled from 'styled-components';
+import React, {
+  forwardRef,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type JSX,
+} from 'react';
+import type { TransitionStatus } from 'react-transition-group';
+import styled, { useTheme } from 'styled-components';
+
 import {
   Alert,
   Box,
+  ButtonBorder,
   ButtonIcon,
   ButtonPrimary,
   ButtonSecondary,
+  ButtonSelect,
+  Link as ExternalLink,
   Flex,
   H2,
   Image,
   Indicator,
   LabelInput,
+  P3,
+  Subtitle2,
   Text,
+  TextArea,
 } from 'design';
+import { Danger } from 'design/Alert';
+import Table, { Cell } from 'design/DataTable';
 import {
   ArrowBack,
   ChevronDown,
   ChevronRight,
-  Warning,
   Cross,
+  Warning,
 } from 'design/Icon';
-import Table, { Cell } from 'design/DataTable';
-import { Danger } from 'design/Alert';
-
+import { HoverTooltip } from 'design/Tooltip';
+import {
+  LongTermGroupingErrors,
+  shouldShowLongTermGroupingErrors,
+  UNSUPPORTED_KINDS,
+} from 'shared/components/AccessRequests/NewRequest/RequestCheckout/LongTerm';
+import { RequestableResourceKind } from 'shared/components/AccessRequests/NewRequest/resource';
+import {
+  formatAWSRoleARNForDisplay,
+  toggleAWSConsoleConstraint,
+  toggleSSHConstraint,
+} from 'shared/components/AccessRequests/Shared/utils';
+import { FieldCheckbox } from 'shared/components/FieldCheckbox';
+import { Option } from 'shared/components/Select';
+import { TextSelectCopyMulti } from 'shared/components/TextSelectCopy';
 import Validation, { useRule, Validator } from 'shared/components/Validation';
 import { Attempt } from 'shared/hooks/useAttemptNext';
+import { mergeRefs } from 'shared/libs/mergeRefs';
+import {
+  AccessRequest,
+  getResourceIDString,
+  hasResourceConstraints,
+  RequestKind,
+  ResourceConstraints,
+  ResourceConstraintsMap,
+  ResourceIDString,
+  WithResourceConstraints,
+} from 'shared/services/accessRequests';
 import { pluralize } from 'shared/utils/text';
-import { Option } from 'shared/components/Select';
 
-import { FieldCheckbox } from 'shared/components/FieldCheckbox';
-
-import { CreateRequest } from '../../Shared/types';
-import { AssumeStartTime } from '../../AssumeStartTime/AssumeStartTime';
 import { AccessDurationRequest } from '../../AccessDuration';
-
+import { AssumeStartTime } from '../../AssumeStartTime/AssumeStartTime';
+import { CreateRequest } from '../../Shared/types';
+import {
+  checkSupportForKubeResources,
+  isKubeClusterWithNamespaces,
+} from '../kube';
+import { AdditionalOptions } from './AdditionalOptions';
+import { CrossIcon } from './CrossIcon';
+import { KubeNamespaceSelector } from './KubeNamespaceSelector';
+import { SelectReviewers } from './SelectReviewers';
+import shieldCheck from './shield-check.png';
 import { ReviewerOption } from './types';
 
-import shieldCheck from './shield-check.png';
-import { SelectReviewers } from './SelectReviewers';
-import { AdditionalOptions } from './AdditionalOptions';
+export const RequestCheckoutWithSlider = forwardRef<
+  HTMLDivElement,
+  RequestCheckoutWithSliderProps<PendingListItem>
+>(
+  (
+    { transitionState, ...props },
+    /**
+     * ref is extra ref that can be passed to RequestCheckoutWithSlider, at the moment used for
+     * animations.
+     */
+    ref
+  ) => {
+    const wrapperRef = useRef<HTMLDivElement>(null);
 
-import type { TransitionStatus } from 'react-transition-group';
+    // Listeners are attached to enable overflow on the wrapper div after
+    // transitioning ends (entered) or starts (exits). Enables vertical scrolling
+    // when content gets too big.
+    //
+    // Overflow is initially hidden to prevent
+    // brief flashing of horizontal scroll bar resulting from positioning
+    // the container off screen to the right for the slide affect.
+    useEffect(() => {
+      function applyOverflowAutoStyle(e: TransitionEvent) {
+        if (e.propertyName === 'right') {
+          wrapperRef.current.style.overflow = `auto`;
+          // There will only ever be one 'end right' transition invoked event, so we remove it
+          // afterwards, and listen for the 'start right' transition which is only invoked
+          // when user exits this component.
+          window.removeEventListener('transitionend', applyOverflowAutoStyle);
+          window.addEventListener('transitionstart', applyOverflowHiddenStyle);
+        }
+      }
 
-import type { AccessRequest } from 'shared/services/accessRequests';
-import type { ResourceKind } from '../resource';
+      function applyOverflowHiddenStyle(e: TransitionEvent) {
+        if (e.propertyName === 'right') {
+          wrapperRef.current.style.overflow = `hidden`;
+        }
+      }
 
-export function RequestCheckoutWithSlider<
-  T extends PendingListItem = PendingListItem,
->({ transitionState, ...props }: RequestCheckoutWithSliderProps<T>) {
-  const ref = useRef<HTMLDivElement>();
+      window.addEventListener('transitionend', applyOverflowAutoStyle);
 
-  // Listeners are attached to enable overflow on the parent container after
-  // transitioning ends (entered) or starts (exits). Enables vertical scrolling
-  // when content gets too big.
-  //
-  // Overflow is initially hidden to prevent
-  // brief flashing of horizontal scroll bar resulting from positioning
-  // the container off screen to the right for the slide affect.
-  React.useEffect(() => {
-    function applyOverflowAutoStyle(e: TransitionEvent) {
-      if (e.propertyName === 'right') {
-        ref.current.style.overflow = `auto`;
-        // There will only ever be one 'end right' transition invoked event, so we remove it
-        // afterwards, and listen for the 'start right' transition which is only invoked
-        // when user exits this component.
+      return () => {
         window.removeEventListener('transitionend', applyOverflowAutoStyle);
-        window.addEventListener('transitionstart', applyOverflowHiddenStyle);
-      }
-    }
+        window.removeEventListener('transitionstart', applyOverflowHiddenStyle);
+      };
+    }, []);
 
-    function applyOverflowHiddenStyle(e: TransitionEvent) {
-      if (e.propertyName === 'right') {
-        ref.current.style.overflow = `hidden`;
-      }
-    }
+    return (
+      <div
+        ref={mergeRefs([wrapperRef, ref])}
+        data-testid="request-checkout"
+        css={`
+          position: absolute;
+          width: 100vw;
+          height: 100vh;
+          top: 0;
+          left: 0;
+          overflow: hidden;
+        `}
+      >
+        <Dimmer className={transitionState} />
+        <SidePanel className={transitionState}>
+          <RequestCheckout {...props} />
+        </SidePanel>
+      </div>
+    );
+  }
+);
 
-    window.addEventListener('transitionend', applyOverflowAutoStyle);
+type DisplayRow<T extends PendingListItem> = T & {
+  constraints?: ResourceConstraints;
+};
 
-    return () => {
-      window.removeEventListener('transitionend', applyOverflowAutoStyle);
-      window.removeEventListener('transitionstart', applyOverflowHiddenStyle);
-    };
-  }, []);
+const StyledAWSRoleARNDisplayRow = styled(Flex).attrs({
+  flexDirection: 'row',
+  justifyContent: 'space-between',
+  gap: 2,
+})<{ $idx: number; $len: number }>`
+  border-radius: ${({ theme }) => theme.radii[1]}px;
+  border-bottom: ${({ theme, $idx, $len }) =>
+    theme.borders[$idx !== $len - 1 ? 1 : 0]};
+  border-bottom-color: ${({ theme }) =>
+    theme.colors.interactive.tonal.neutral[0]};
+  margin: 0 -${({ theme }) => theme.space[1]}px;
+  padding: ${({ theme }) => theme.space[1] + theme.space[1] / 2}px;
+  transition: all 150ms;
 
-  return (
-    <div
-      ref={ref}
-      css={`
-        position: absolute;
-        width: 100vw;
-        height: 100vh;
-        top: 0;
-        left: 0;
-        overflow: hidden;
-      `}
-    >
-      <Dimmer className={transitionState} />
-      <SidePanel className={transitionState}>
-        <RequestCheckout {...props} />
-      </SidePanel>
-    </div>
-  );
-}
+  &:hover,
+  &:focus-visible {
+    background-color: ${({ theme }) => theme.colors.levels.sunken};
+    border-bottom-color: transparent;
+  }
+`;
+
+const AWSConsoleConstraintsList = <T extends PendingListItem>({
+  item,
+  createAttempt,
+  clearAttempt,
+  setResourceConstraints,
+}: {
+  item: WithResourceConstraints<'aws_console', DisplayRow<T>>;
+  createAttempt: RequestCheckoutProps<T>['createAttempt'];
+  clearAttempt: RequestCheckoutProps<T>['clearAttempt'];
+  setResourceConstraints: RequestCheckoutProps<T>['setResourceConstraints'];
+}) => (
+  <Flex flexDirection="column" gap={1} mt={1} width="100%">
+    <Text bold>Role ARNs</Text>
+    <Flex flexDirection="column" width="100%">
+      {item.constraints.aws_console.role_arns.map((arn, idx) => (
+        <StyledAWSRoleARNDisplayRow
+          key={arn}
+          $idx={idx}
+          $len={item.constraints.aws_console.role_arns.length}
+        >
+          <Text style={{ alignContent: 'center' }}>
+            {formatAWSRoleARNForDisplay(arn)}
+          </Text>
+          <ButtonIcon
+            size={0}
+            title="Remove Role ARN"
+            onClick={() => {
+              clearAttempt();
+              toggleAWSConsoleConstraint(item, arn, setResourceConstraints);
+            }}
+            disabled={createAttempt.status === 'processing'}
+            css={`
+              border-radius: ${({ theme }) => theme.radii[2]}px;
+            `}
+          >
+            <Cross size="small" />
+          </ButtonIcon>
+        </StyledAWSRoleARNDisplayRow>
+      ))}
+    </Flex>
+  </Flex>
+);
+
+const SSHConstraintsList = <T extends PendingListItem>({
+  item,
+  createAttempt,
+  clearAttempt,
+  setResourceConstraints,
+}: {
+  item: WithResourceConstraints<'ssh', DisplayRow<T>>;
+  createAttempt: RequestCheckoutProps<T>['createAttempt'];
+  clearAttempt: RequestCheckoutProps<T>['clearAttempt'];
+  setResourceConstraints: RequestCheckoutProps<T>['setResourceConstraints'];
+}) => (
+  <Flex flexDirection="column" gap={1} mt={1} width="100%">
+    <Text bold>SSH Logins</Text>
+    <Flex flexDirection="column" width="100%">
+      {item.constraints.ssh.logins.map((login, idx) => (
+        <StyledAWSRoleARNDisplayRow
+          key={login}
+          $idx={idx}
+          $len={item.constraints.ssh.logins.length}
+        >
+          <Text style={{ alignContent: 'center' }}>{login}</Text>
+          <ButtonIcon
+            size={0}
+            title="Remove Login"
+            onClick={() => {
+              clearAttempt();
+              toggleSSHConstraint(item, login, setResourceConstraints);
+            }}
+            disabled={createAttempt.status === 'processing'}
+            css={`
+              border-radius: ${({ theme }) => theme.radii[2]}px;
+            `}
+          >
+            <Cross size="small" />
+          </ButtonIcon>
+        </StyledAWSRoleARNDisplayRow>
+      ))}
+    </Flex>
+  </Flex>
+);
 
 export function RequestCheckout<T extends PendingListItem>({
   toggleResource,
+  toggleResources,
   onClose,
   reset,
   appsGrantedByUserGroup = [],
@@ -131,6 +288,7 @@ export function RequestCheckout<T extends PendingListItem>({
   setSelectedReviewers,
   SuccessComponent,
   requireReason,
+  reasonPrompts,
   numRequestedResources,
   setSelectedResourceRequestRoles,
   fetchStatus,
@@ -139,7 +297,7 @@ export function RequestCheckout<T extends PendingListItem>({
   setPendingRequestTtl,
   pendingRequestTtlOptions,
   dryRunResponse,
-  data,
+  pendingAccessRequests,
   showClusterNameColumn,
   createAttempt,
   fetchResourceRequestRolesAttempt,
@@ -153,8 +311,37 @@ export function RequestCheckout<T extends PendingListItem>({
   Header,
   startTime,
   onStartTimeChange,
+  fetchKubeNamespaces,
+  updateNamespacesForKubeCluster,
+  requestKind = RequestKind.ShortTerm,
+  setRequestKind,
+  addedResourceConstraints,
+  setResourceConstraints,
 }: RequestCheckoutProps<T>) {
+  const theme = useTheme();
   const [reason, setReason] = useState('');
+  // TODO(kiosion): Remove once Teleterm's RequestCheckout supports LongTerm requests.
+  const supportsLongTerm =
+    setRequestKind !== undefined && toggleResources !== undefined;
+  const isLongTerm = requestKind === RequestKind.LongTerm;
+
+  const displayRows = useMemo<DisplayRow<T>[]>(() => {
+    // Kube namespaces are displayed as part of their parent kube_cluster.
+    const base = pendingAccessRequests.filter(d => d.kind !== 'namespace');
+
+    if (!addedResourceConstraints) return base;
+
+    return base.map(row => {
+      const rcId = getResourceIDString({
+        cluster: row.clusterName,
+        kind: row.kind,
+        name: row.id,
+      });
+      const rc = addedResourceConstraints[rcId];
+      return rc ? { ...row, constraints: rc } : row;
+    });
+  }, [pendingAccessRequests, addedResourceConstraints]);
+
   function updateReason(reason: string) {
     setReason(reason);
   }
@@ -170,20 +357,88 @@ export function RequestCheckout<T extends PendingListItem>({
       maxDuration: maxDuration ? new Date(maxDuration.value) : null,
       requestTTL: pendingRequestTtl ? new Date(pendingRequestTtl.value) : null,
       start: startTime,
+      requestKind,
     });
   }
+
+  const { requestKubeResourceSupported, isRequestKubeResourceError } =
+    checkSupportForKubeResources(fetchResourceRequestRolesAttempt);
+  const hasUnsupporteKubeResourceKinds =
+    !requestKubeResourceSupported && isRequestKubeResourceError;
 
   const isInvalidRoleSelection =
     resourceRequestRoles.length > 0 &&
     isResourceRequest &&
     selectedResourceRequestRoles.length < 1;
 
-  const submitBtnDisabled =
-    data.length === 0 ||
+  const submitBtnDisabled = useMemo(() => {
+    if (
+      pendingAccessRequests.length === 0 ||
+      createAttempt.status === 'processing' ||
+      isInvalidRoleSelection
+    ) {
+      return true;
+    }
+    if (
+      fetchResourceRequestRolesAttempt.status === 'failed' &&
+      hasUnsupporteKubeResourceKinds
+    ) {
+      return true;
+    }
+    if (fetchResourceRequestRolesAttempt.status === 'processing') {
+      return true;
+    }
+    if (isLongTerm) {
+      return !dryRunResponse?.longTermResourceGrouping?.canProceed;
+    }
+    return false;
+  }, [
+    createAttempt,
+    fetchResourceRequestRolesAttempt,
+    hasUnsupporteKubeResourceKinds,
+    isInvalidRoleSelection,
+    isLongTerm,
+    dryRunResponse?.longTermResourceGrouping,
+    pendingAccessRequests,
+  ]);
+
+  const cancelBtnDisabled =
     createAttempt.status === 'processing' ||
-    isInvalidRoleSelection ||
-    fetchResourceRequestRolesAttempt.status === 'failed' ||
     fetchResourceRequestRolesAttempt.status === 'processing';
+
+  const [longTermDisabled, longTermDisabledReason] = useMemo(() => {
+    // If long-term is already enabled, don't block toggling it off
+    if (isLongTerm || dryRunResponse?.longTermResourceGrouping?.canProceed) {
+      return [false, undefined];
+    }
+    if (!isResourceRequest) {
+      return [
+        true,
+        'Permanent access is only supported for resource-based requests.',
+      ];
+    }
+    // If canProceed is false on initial dryRun, show validation msg and disable until req is re-run.
+    if (dryRunResponse?.longTermResourceGrouping?.canProceed === false) {
+      return [
+        true,
+        'Permanent access is unavailable. ' +
+          dryRunResponse.longTermResourceGrouping.validationMessage || '',
+      ];
+    }
+    return [false, undefined];
+  }, [isResourceRequest, isLongTerm, dryRunResponse?.longTermResourceGrouping]);
+
+  const longTermButtonTooltipText =
+    longTermDisabledReason ||
+    (addedResourceConstraints &&
+    Object.entries(addedResourceConstraints).length &&
+    !isLongTerm
+      ? 'Selecting Permanent access will remove added resource constraints'
+      : undefined);
+
+  const numPendingAccessRequests = pendingAccessRequests.filter(
+    item => !isKubeClusterWithNamespaces(item, pendingAccessRequests)
+  ).length;
 
   const DefaultHeader = () => {
     return (
@@ -191,138 +446,351 @@ export function RequestCheckout<T extends PendingListItem>({
         <ArrowBack
           size="large"
           mr={3}
+          data-testid="close-checkout"
           onClick={onClose}
           style={{ cursor: 'pointer' }}
         />
         <Box>
           <H2>
-            {data.length} {pluralize(data.length, 'Resource')} Selected
+            {numPendingAccessRequests}{' '}
+            {pluralize(numPendingAccessRequests, 'Resource')} Selected
           </H2>
         </Box>
       </Flex>
     );
   };
 
-  return (
-    <>
-      {fetchResourceRequestRolesAttempt.status === 'failed' && (
-        <Alert
-          kind="danger"
-          children={fetchResourceRequestRolesAttempt.statusText}
-        />
-      )}
-      {fetchStatus === 'loading' && (
-        <Box mt={5} textAlign="center">
-          <Indicator />
-        </Box>
-      )}
-
-      {fetchStatus === 'loaded' && (
-        <div>
-          {createAttempt.status === 'success' ? (
-            <>
-              <Box>
-                <Box mt={2} mb={7} textAlign="center">
-                  <H2 mb={1}>Resources Requested Successfully</H2>
-                  <Text typography="subtitle1" color="text.slightlyMuted">
-                    You've successfully requested {numRequestedResources}{' '}
-                    {pluralize(numRequestedResources, 'resource')}
-                  </Text>
-                </Box>
-                <Flex justifyContent="center" mb={3}>
-                  <Image src={shieldCheck} width="250px" height="179px" />
-                </Flex>
-              </Box>
-              <SuccessComponent onClose={onClose} reset={reset} />
-            </>
-          ) : (
-            <>
-              {Header?.() || DefaultHeader()}
-              {createAttempt.status === 'failed' && (
-                <Alert kind="danger" children={createAttempt.statusText} />
-              )}
-              <StyledTable
-                data={data}
-                columns={[
-                  {
-                    key: 'clusterName',
-                    headerText: 'Cluster Name',
-                    isNonRender: !showClusterNameColumn,
-                  },
-                  {
-                    key: 'kind',
-                    headerText: 'Type',
-                    render: item => (
-                      <Cell>{getPrettyResourceKind(item.kind)}</Cell>
-                    ),
-                  },
-                  {
-                    key: 'name',
-                    headerText: 'Name',
-                  },
-                  {
-                    altKey: 'delete-btn',
-                    render: resource => (
-                      <Cell align="right">
-                        <Cross
-                          size="small"
-                          borderRadius={2}
-                          p={2}
-                          onClick={() => {
-                            clearAttempt();
-                            toggleResource(resource);
-                          }}
-                          disabled={createAttempt.status === 'processing'}
-                          css={`
-                            cursor: pointer;
-
-                            background-color: ${({ theme }) =>
-                              theme.colors.buttons.trashButton.default};
-                            border-radius: 2px;
-
-                            &:hover {
-                              background-color: ${({ theme }) =>
-                                theme.colors.buttons.trashButton.hover};
-                            }
-                          `}
-                        />
-                      </Cell>
-                    ),
-                  },
-                ]}
-                emptyText="No resources are selected"
+  const renderAfter = (item: DisplayRow<T>) => {
+    if (hasResourceConstraints(item, 'aws_console')) {
+      return (
+        <tr style={{ borderTop: 'none' }} data-render-after-row>
+          <td colSpan={showClusterNameColumn ? 4 : 3}>
+            <Flex justifyContent="space-between" alignItems="center" mt={-2}>
+              <AWSConsoleConstraintsList
+                item={item}
+                setResourceConstraints={setResourceConstraints}
+                clearAttempt={clearAttempt}
+                createAttempt={createAttempt}
               />
-              {userGroupFetchAttempt?.status === 'processing' && (
-                <Flex mt={4} alignItems="center" justifyContent="center">
-                  <Indicator size="small" />
+            </Flex>
+          </td>
+        </tr>
+      );
+    }
+    if (hasResourceConstraints(item, 'ssh')) {
+      return (
+        <tr style={{ borderTop: 'none' }} data-render-after-row>
+          <td colSpan={showClusterNameColumn ? 4 : 3}>
+            <Flex justifyContent="space-between" alignItems="center" mt={-2}>
+              <SSHConstraintsList
+                item={item}
+                setResourceConstraints={setResourceConstraints}
+                clearAttempt={clearAttempt}
+                createAttempt={createAttempt}
+              />
+            </Flex>
+          </td>
+        </tr>
+      );
+    }
+  };
+
+  function customRow(item: DisplayRow<T>) {
+    if (item.kind === 'kube_cluster') {
+      const unsupported =
+        requestKind === RequestKind.LongTerm &&
+        !!isKubeClusterWithNamespaces(item, pendingAccessRequests);
+
+      return (
+        <td
+          colSpan={showClusterNameColumn ? 4 : 3}
+          style={
+            unsupported
+              ? {
+                  background: theme.colors.interactive.tonal.danger[0],
+                  borderTopColor: theme.colors.interactive.tonal.danger[2],
+                }
+              : {}
+          }
+        >
+          <Flex>
+            <Flex flexWrap="wrap">
+              <Flex
+                gap={2}
+                justifyContent="space-between"
+                width="100%"
+                alignItems="center"
+              >
+                <Flex gap={5}>
+                  {showClusterNameColumn && <Box>{item.clusterName}</Box>}
+                  <Box>{getPrettyResourceKind(item.kind)}</Box>
+                  <Box>{item.name}</Box>
                 </Flex>
-              )}
-              {userGroupFetchAttempt?.status === 'failed' && (
-                <Danger mt={4}>{userGroupFetchAttempt.statusText}</Danger>
-              )}
-              {userGroupFetchAttempt?.status === 'success' &&
-                appsGrantedByUserGroup.length > 0 && (
-                  <AppsGrantedAccess apps={appsGrantedByUserGroup} />
-                )}
-              {isResourceRequest && (
-                <ResourceRequestRoles
-                  roles={resourceRequestRoles}
-                  selectedRoles={selectedResourceRequestRoles}
-                  setSelectedRoles={setSelectedResourceRequestRoles}
-                  fetchAttempt={fetchResourceRequestRolesAttempt}
+                <CrossIcon
+                  clearAttempt={clearAttempt}
+                  item={item}
+                  toggleResource={toggleResource}
+                  createAttempt={createAttempt}
                 />
-              )}
-              <Box mt={6} mb={1}>
-                <SelectReviewers
-                  reviewers={dryRunResponse?.reviewers.map(r => r.name) ?? []}
-                  selectedReviewers={selectedReviewers}
-                  setSelectedReviewers={setSelectedReviewers}
+              </Flex>
+              <KubeNamespaceSelector
+                kubeClusterItem={item}
+                savedResourceItems={pendingAccessRequests}
+                fetchKubeNamespaces={fetchKubeNamespaces}
+                updateNamespacesForKubeCluster={updateNamespacesForKubeCluster}
+              />
+            </Flex>
+          </Flex>
+        </td>
+      );
+    }
+  }
+
+  const getStyle = useMemo(
+    () => (item: DisplayRow<T>) => {
+      if (
+        !shouldShowLongTermGroupingErrors({
+          requestKind,
+          pendingAccessRequests,
+          dryRunResponse,
+        })
+      ) {
+        return;
+      }
+
+      const isInAnyGrouping = Object.values(
+        dryRunResponse.longTermResourceGrouping.accessListToResources
+      ).some(g => g.some(i => i.name === item.id));
+      const grouping =
+        dryRunResponse.longTermResourceGrouping.accessListToResources?.[
+          dryRunResponse.longTermResourceGrouping.recommendedAccessList
+        ] || [];
+
+      const isInOptimalGrouping = grouping.some(i => i.name === item.id);
+
+      if (!isInAnyGrouping || UNSUPPORTED_KINDS.includes(item.kind)) {
+        return {
+          background: theme.colors.interactive.tonal.danger[0],
+          borderTopColor: theme.colors.interactive.tonal.danger[2],
+        };
+      }
+      if (!isInOptimalGrouping) {
+        return {
+          background: theme.colors.interactive.tonal.alert[0],
+          borderTopColor: theme.colors.interactive.tonal.alert[2],
+        };
+      }
+    },
+    [requestKind, pendingAccessRequests, dryRunResponse, theme]
+  );
+
+  return (
+    <Validation>
+      {({ validator }) => (
+        <>
+          {!isRequestKubeResourceError &&
+            createAttempt.status !== 'failed' &&
+            fetchResourceRequestRolesAttempt.status === 'failed' && (
+              <Alert kind="danger">
+                {fetchResourceRequestRolesAttempt.statusText}
+              </Alert>
+            )}
+          {hasUnsupporteKubeResourceKinds && (
+            <Alert kind="danger">
+              <HoverTooltip
+                placement="left"
+                tipContent={
+                  fetchResourceRequestRolesAttempt.statusText.length > 248
+                    ? fetchResourceRequestRolesAttempt.statusText
+                    : null
+                }
+              >
+                <ShortenedText mb={2}>
+                  {fetchResourceRequestRolesAttempt.statusText}
+                </ShortenedText>
+              </HoverTooltip>
+              <Text mb={2}>
+                The listed allowed kinds are currently only supported through
+                the{' '}
+                <ExternalLink
+                  target="_blank"
+                  href="https://goteleport.com/docs/connect-your-client/tsh/#installing-tsh"
+                >
+                  tsh CLI tool
+                </ExternalLink>
+                . Use the{' '}
+                <ExternalLink
+                  target="_blank"
+                  href="https://goteleport.com/docs/admin-guides/access-controls/access-requests/resource-requests/#search-for-kubernetes-resources"
+                >
+                  tsh request search
+                </ExternalLink>{' '}
+                that will help you construct the request.
+              </Text>
+              <Box width="325px">
+                Example:
+                <TextSelectCopyMulti
+                  lines={[
+                    {
+                      text: `tsh request search --kind=ALLOWED_KIND --kube-cluster=CLUSTER_NAME --all-kube-namespaces`,
+                    },
+                  ]}
                 />
               </Box>
-              <Validation>
-                {({ validator }) => (
-                  <Flex mt={6} flexDirection="column" gap={1}>
-                    {dryRunResponse && (
+            </Alert>
+          )}
+          {fetchStatus === 'loading' ? (
+            <Box
+              textAlign="center"
+              // roughly align with the 'normal' height of the side-panel
+              // and prevent jitter from Indicator sub-pixel rendering
+              css={`
+                min-height: 30vh;
+                display: grid;
+                place-items: center;
+              `}
+            >
+              <Indicator delay="none" />
+            </Box>
+          ) : (
+            <div>
+              {createAttempt.status === 'success' ? (
+                <>
+                  <Box>
+                    <Box as="header" mt={2} mb={7} textAlign="center">
+                      <H2 mb={1}>Resources Requested Successfully</H2>
+                      <Subtitle2 color="text.slightlyMuted">
+                        You've successfully requested {numRequestedResources}{' '}
+                        {pluralize(numRequestedResources, 'resource')}
+                      </Subtitle2>
+                    </Box>
+                    <Flex justifyContent="center" mb={3}>
+                      <Image src={shieldCheck} width="250px" height="179px" />
+                    </Flex>
+                  </Box>
+                  <SuccessComponent onClose={onClose} reset={reset} />
+                </>
+              ) : (
+                <>
+                  {Header?.() || DefaultHeader()}
+                  {createAttempt.status === 'failed' && (
+                    <Alert kind="danger">{createAttempt.statusText}</Alert>
+                  )}
+                  {shouldShowLongTermGroupingErrors({
+                    requestKind,
+                    dryRunResponse,
+                    pendingAccessRequests,
+                  }) && (
+                    <LongTermGroupingErrors
+                      grouping={dryRunResponse?.longTermResourceGrouping}
+                      toggleResources={toggleResources}
+                      pendingAccessRequests={pendingAccessRequests}
+                    />
+                  )}
+                  <StyledTable
+                    data={displayRows}
+                    row={{
+                      customRow,
+                      renderAfter,
+                      getStyle,
+                    }}
+                    columns={[
+                      {
+                        key: 'clusterName',
+                        headerText: 'Cluster Name',
+                        isNonRender: !showClusterNameColumn,
+                      },
+                      {
+                        key: 'kind',
+                        headerText: 'Type',
+                        render: item => (
+                          <Cell>{getPrettyResourceKind(item.kind)}</Cell>
+                        ),
+                      },
+                      {
+                        key: 'name',
+                        headerText: 'Name',
+                      },
+                      {
+                        altKey: 'delete-btn',
+                        render: resource => (
+                          <Cell align="right">
+                            <CrossIcon
+                              clearAttempt={clearAttempt}
+                              item={resource}
+                              toggleResource={toggleResource}
+                              createAttempt={createAttempt}
+                            />
+                          </Cell>
+                        ),
+                      },
+                    ]}
+                    emptyText="No resources are selected"
+                  />
+                  {userGroupFetchAttempt?.status === 'processing' && (
+                    <Flex mt={4} alignItems="center" justifyContent="center">
+                      <Indicator size="small" />
+                    </Flex>
+                  )}
+                  {userGroupFetchAttempt?.status === 'failed' && (
+                    <Danger mt={4}>{userGroupFetchAttempt.statusText}</Danger>
+                  )}
+                  {userGroupFetchAttempt?.status === 'success' &&
+                    appsGrantedByUserGroup.length > 0 && (
+                      <AppsGrantedAccess apps={appsGrantedByUserGroup} />
+                    )}
+                  {supportsLongTerm && (
+                    <>
+                      <Flex flexDirection="column" gap={2} mt={4}>
+                        <Text bold>Request Type</Text>
+                        <ButtonSelect
+                          options={[
+                            {
+                              value: RequestKind.ShortTerm,
+                              label: 'Temporary',
+                            },
+                            {
+                              value: RequestKind.LongTerm,
+                              label: 'Permanent',
+                              disabled: longTermDisabled,
+                              tooltip: longTermButtonTooltipText,
+                            },
+                          ]}
+                          activeValue={
+                            isLongTerm
+                              ? RequestKind.LongTerm
+                              : RequestKind.ShortTerm
+                          }
+                          onChange={setRequestKind}
+                          fullWidth
+                        />
+                      </Flex>
+                      <Divider />
+                    </>
+                  )}
+                  {!isLongTerm && isResourceRequest && (
+                    <ResourceRequestRoles
+                      roles={resourceRequestRoles}
+                      selectedRoles={selectedResourceRequestRoles}
+                      setSelectedRoles={setSelectedResourceRequestRoles}
+                      fetchAttempt={fetchResourceRequestRolesAttempt}
+                    />
+                  )}
+                  {/* Selecting reviewers not available for long-term requests */}
+                  {!isLongTerm && (
+                    <Box my={4}>
+                      <SelectReviewers
+                        reviewers={
+                          dryRunResponse?.reviewers.map(r => r.name) ?? []
+                        }
+                        selectedReviewers={selectedReviewers}
+                        setSelectedReviewers={setSelectedReviewers}
+                      />
+                    </Box>
+                  )}
+                  <Flex flexDirection="column" gap={1}>
+                    {/* Start time / max duration are only valid for non-Long-Term requests */}
+                    {!isLongTerm && dryRunResponse && (
                       <Box mb={1}>
                         <AssumeStartTime
                           start={startTime}
@@ -340,8 +808,10 @@ export function RequestCheckout<T extends PendingListItem>({
                       reason={reason}
                       updateReason={updateReason}
                       requireReason={requireReason}
+                      reasonPrompts={reasonPrompts}
+                      numPendingAccessRequests={numPendingAccessRequests}
                     />
-                    {dryRunResponse && maxDuration && (
+                    {!isLongTerm && dryRunResponse && maxDuration && (
                       <AdditionalOptions
                         selectedMaxDurationTimestamp={maxDuration.value}
                         setPendingRequestTtl={setPendingRequestTtl}
@@ -352,6 +822,7 @@ export function RequestCheckout<T extends PendingListItem>({
                     )}
                     <Flex
                       py={4}
+                      mt={1}
                       gap={2}
                       css={`
                         position: sticky;
@@ -379,21 +850,30 @@ export function RequestCheckout<T extends PendingListItem>({
                           reset();
                           onClose();
                         }}
-                        disabled={submitBtnDisabled}
+                        disabled={cancelBtnDisabled}
                       >
                         Cancel
                       </ButtonSecondary>
                     </Flex>
                   </Flex>
-                )}
-              </Validation>
-            </>
+                </>
+              )}
+            </div>
           )}
-        </div>
+        </>
       )}
-    </>
+    </Validation>
   );
 }
+
+const Divider = styled.div`
+  width: 100%;
+  height: 1px;
+  pointer-events: none;
+  background-color: ${props => props.theme.colors.spotBackground[1]};
+  margin-top: ${props => props.theme.space[4]}px;
+  margin-bottom: ${props => props.theme.space[4]}px;
+`;
 
 function AppsGrantedAccess({ apps }: { apps: string[] }) {
   const [expanded, setExpanded] = useState(true);
@@ -468,13 +948,14 @@ function ResourceRequestRoles({
     }
     setSelectedRoles(selectedRoles.filter(role => role !== roleName));
   }
+
   // only show the role selector if there is more than one role that can be selected
   if (roles.length < 2) {
     return;
   }
 
   return (
-    <Box mt={7} width="100%">
+    <Box width="100%">
       <Box style={{ cursor: 'pointer' }}>
         <Flex
           justifyContent="space-between"
@@ -485,14 +966,25 @@ function ResourceRequestRoles({
             border-color: ${props => props.theme.colors.spotBackground[1]};
           `}
         >
-          <Flex flexDirection="column" width="100%">
-            <LabelInput mb={0} style={{ cursor: 'pointer' }}>
-              Roles
-            </LabelInput>
-            <Text typography="subtitle2" mb={2}>
-              {selectedRoles.length} role{selectedRoles.length !== 1 ? 's' : ''}{' '}
-              selected
-            </Text>
+          <Flex alignItems="center" gap={2}>
+            <Flex flexDirection="column" width="100%">
+              <LabelInput mb={0} style={{ cursor: 'pointer' }}>
+                Roles
+              </LabelInput>
+              <Text typography="body4" mb={2}>
+                {selectedRoles.length} role
+                {selectedRoles.length !== 1 ? 's' : ''} selected
+              </Text>
+            </Flex>
+            {selectedRoles.length ? (
+              <ButtonBorder
+                onClick={() => setSelectedRoles([])}
+                size="small"
+                width="50px"
+              >
+                Clear
+              </ButtonBorder>
+            ) : null}
           </Flex>
           {fetchAttempt.status === 'processing' ? (
             <Flex
@@ -523,7 +1015,7 @@ function ResourceRequestRoles({
           {roles.map((roleName, index) => {
             const checked = selectedRoles.includes(roleName);
             return (
-              <RoleRowContainer checked={checked}>
+              <RoleRowContainer checked={checked} key={index}>
                 <StyledFieldCheckbox
                   key={index}
                   name={roleName}
@@ -551,10 +1043,10 @@ function ResourceRequestRoles({
               `}
             >
               <Warning mr={3} size="medium" color="warning.main" />
-              <Text typography="subtitle2">
+              <P3>
                 Modifying this role set may disable access to some of the above
                 resources. Use with caution.
-              </Text>
+              </P3>
             </Flex>
           )}
         </Box>
@@ -569,11 +1061,13 @@ const RoleRowContainer = styled.div<{ checked?: boolean }>`
 
   // TODO(bl-nero): That's the third place where we're copying these
   // definitions. We need to make them reusable.
+
   &:hover {
     background-color: ${props => props.theme.colors.levels.surface};
 
     // We use a pseudo element for the shadow with position: absolute in order to prevent
     // the shadow from increasing the size of the layout and causing scrollbar flicker.
+
     &:after {
       box-shadow: ${props => props.theme.boxShadow[3]};
       content: '';
@@ -606,53 +1100,39 @@ function TextBox({
   reason,
   updateReason,
   requireReason,
+  reasonPrompts,
+  numPendingAccessRequests,
 }: {
   reason: string;
   updateReason(reason: string): void;
   requireReason: boolean;
+  reasonPrompts: string[];
+  numPendingAccessRequests: number;
 }) {
   const { valid, message } = useRule(requireText(reason, requireReason));
   const hasError = !valid;
   const labelText = hasError ? message : 'Request Reason';
 
-  const optionalText = requireReason ? '' : ' (optional)';
-  const placeholder = `Describe your request...${optionalText}`;
+  const placeholderText =
+    reasonPrompts && reasonPrompts.length && numPendingAccessRequests > 0
+      ? reasonPrompts.filter(s => s.length > 0).join('\n')
+      : 'Describe your request…';
 
   return (
     <LabelInput hasError={hasError}>
-      {labelText}
-      <Box
-        as="textarea"
-        height="80px"
-        width="100%"
-        borderRadius={2}
-        p={2}
-        color="text.main"
-        border={hasError ? '2px solid' : '1px solid'}
-        borderColor={hasError ? 'error.main' : 'text.muted'}
-        placeholder={placeholder}
+      <Text mb={1}>{labelText}</Text>
+      <TextArea
+        resizable
+        hasError={hasError}
+        placeholder={placeholderText.replaceAll(/\\n/g, '\n')}
         value={reason}
         onChange={e => updateReason(e.target.value)}
-        css={`
-          outline: none;
-          background: transparent;
-
-          &::placeholder {
-            color: ${({ theme }) => theme.colors.text.muted};
-          }
-
-          &:hover,
-          &:focus,
-          &:active {
-            border: 1px solid ${props => props.theme.colors.text.slightlyMuted};
-          }
-        `}
       />
     </LabelInput>
   );
 }
 
-function getPrettyResourceKind(kind: ResourceKind): string {
+function getPrettyResourceKind(kind: RequestableResourceKind): string {
   switch (kind) {
     case 'role':
       return 'Role';
@@ -670,6 +1150,16 @@ function getPrettyResourceKind(kind: ResourceKind): string {
       return 'User Group';
     case 'windows_desktop':
       return 'Desktop';
+    case 'linux_desktop':
+      return 'Desktop';
+    case 'saml_idp_service_provider':
+      return 'SAML Application';
+    case 'namespace':
+      return 'Namespace';
+    case 'aws_ic_account_assignment':
+      return 'AWS IAM Identity Center Account Assignment';
+    case 'git_server':
+      return 'Git';
     default:
       kind satisfies never;
       return kind;
@@ -688,7 +1178,10 @@ const requireText = (value: string, requireReason: boolean) => () => {
 
 const SidePanel = styled(Box)`
   position: absolute;
-  z-index: 11;
+  // This z-index must be a higher value than the top bar z-index defined for
+  // Teleport web UI navigation found in teleport/src/Navigation/zIndexMap.ts.
+  // It prevents this SidePanel from rendering underneath the navigation bits.
+  z-index: 100;
   top: 0px;
   right: 0px;
   background: ${({ theme }) => theme.colors.levels.sunken};
@@ -738,7 +1231,30 @@ const StyledTable = styled(Table)`
   border-radius: 8px;
   box-shadow: ${props => props.theme.boxShadow[0]};
   overflow: hidden;
+
+  tr,
+  [data-render-after-row] {
+    transition: background-color 150ms ease;
+  }
+
+  // Handle hovering/focusing constraint rows / their parent row the same.
+  tr:hover:has(+ [data-render-after-row]) + [data-render-after-row],
+  tr:focus-visible:has(+ [data-render-after-row]) + [data-render-after-row],
+  [data-render-after-row]:hover,
+  [data-render-after-row]:focus-visible,
+  tr:hover:has(+ [data-render-after-row]),
+  tr:focus-visible:has(+ [data-render-after-row]),
+  tr:has(+ [data-render-after-row]:hover),
+  tr:has(+ [data-render-after-row]:focus-visible) {
+    background-color: ${({ theme }) => theme.colors.levels.surface};
+  }
 ` as typeof Table;
+
+const ShortenedText = styled(Text)`
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 6;
+`;
 
 export type RequestCheckoutWithSliderProps<
   T extends PendingListItem = PendingListItem,
@@ -747,26 +1263,52 @@ export type RequestCheckoutWithSliderProps<
 } & RequestCheckoutProps<T>;
 
 export interface PendingListItem {
-  kind: ResourceKind;
+  kind: RequestableResourceKind;
   /** Name of the resource, for presentation purposes only. */
   name: string;
   /** Identifier of the resource. Should be sent in requests. */
   id: string;
   clusterName?: string;
+  /**
+   * This field must be defined if a user is requesting subresources.
+   *
+   * Example:
+   * "kube_cluster" resource can have subresources such as "namespace".
+   * Example PendingListItem values if user is requesting a kubes namespace:
+   *   - kind: const "namespace"
+   *   - id: name of the kube_cluster
+   *   - subResourceName: name of the kube_cluster's namespace
+   *   - clusterName: name of teleport cluster where kube_cluster is located
+   *   - name: same as subResourceName as this is what we want to display to user
+   * */
+  subResourceName?: string;
 }
+
+export type PendingKubeResourceItem = Omit<PendingListItem, 'kind'> & {
+  kind: Extract<RequestableResourceKind, 'namespace'>;
+};
 
 export type RequestCheckoutProps<T extends PendingListItem = PendingListItem> =
   {
     onClose(): void;
     toggleResource: (resource: T) => void;
+    toggleResources?: (
+      resources: {
+        kind: T['kind'];
+        resourceId: T['id'];
+        resourceName: T['name'];
+      }[],
+      action?: 'add' | 'remove'
+    ) => void;
     appsGrantedByUserGroup?: string[];
     userGroupFetchAttempt?: Attempt;
     reset: () => void;
     SuccessComponent?: (params: SuccessComponentParams) => JSX.Element;
     isResourceRequest: boolean;
     requireReason: boolean;
+    reasonPrompts: string[];
     selectedReviewers: ReviewerOption[];
-    data: T[];
+    pendingAccessRequests: T[];
     showClusterNameColumn?: boolean;
     createRequest: (req: CreateRequest) => void;
     fetchStatus: 'loading' | 'loaded';
@@ -787,7 +1329,19 @@ export type RequestCheckoutProps<T extends PendingListItem = PendingListItem> =
     dryRunResponse: AccessRequest;
     Header?: () => JSX.Element;
     startTime: Date;
+    requestKind?: RequestKind;
+    setRequestKind?: React.Dispatch<React.SetStateAction<RequestKind>>;
+    addedResourceConstraints: ResourceConstraintsMap;
+    setResourceConstraints: (
+      key: ResourceIDString,
+      rc?: ResourceConstraints
+    ) => void;
     onStartTimeChange(t?: Date): void;
+    fetchKubeNamespaces(search: string, kubeCluster: T): Promise<string[]>;
+    updateNamespacesForKubeCluster(
+      kubeResources: PendingKubeResourceItem[],
+      kubeCluster: T
+    ): void;
   };
 
 type SuccessComponentParams = {

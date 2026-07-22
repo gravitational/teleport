@@ -18,67 +18,113 @@ package vnet
 
 import (
 	"bufio"
+	"bytes"
 	"context"
-	"log/slog"
 	"os"
-	"os/exec"
 	"path/filepath"
+	"slices"
 
+	"github.com/google/renameio/v2"
 	"github.com/gravitational/trace"
 )
 
-// configureOS configures the host OS according to [cfg]. It is safe to call repeatedly, and it is meant to be
-// called with an empty [osConfig] to deconfigure anything necessary before exiting.
-func configureOS(ctx context.Context, cfg *osConfig) error {
-	// There is no need to remove IP addresses or routes, they will automatically be cleaned up when the
-	// process exits and the TUN is deleted.
+// platformOSConfigState caches applied calls so the reconcile loop
+// can skip unchanged ones. macOS SIOCSIFADDR is delete-then-add, so
+// re-issuing ifconfig flaps the alias and trips linkmon subscribers.
+type platformOSConfigState struct {
+	configuredIPv4       bool
+	configuredIPv6       bool
+	configuredIPv6Route  bool
+	configuredCidrRanges []string
+}
 
-	if cfg.tunIPv4 != "" {
-		slog.InfoContext(ctx, "Setting IPv4 address for the TUN device.", "device", cfg.tunName, "address", cfg.tunIPv4)
-		cmd := exec.CommandContext(ctx, "ifconfig", cfg.tunName, cfg.tunIPv4, cfg.tunIPv4, "up")
-		if err := cmd.Run(); err != nil {
-			return trace.Wrap(err, "running %v", cmd.Args)
+// platformConfigureOS reconciles host OS state for cfg. It is safe
+// to call repeatedly. An empty cfg deconfigures by resetting the
+// cached state so the next call re-applies.
+func platformConfigureOS(ctx context.Context, cfg *osConfig, state *platformOSConfigState) error {
+	// IPs and routes are cleaned up when the TUN is deleted on exit,
+	// so no removal is needed.
+	if cfg.tunName == "" {
+		if err := configureDNS(ctx, cfg.dnsAddrs, cfg.dnsZones); err != nil {
+			return trace.Wrap(err, "configuring DNS")
 		}
+		*state = platformOSConfigState{}
+		return nil
+	}
+
+	if cfg.tunIPv4 != "" && !state.configuredIPv4 {
+		log.InfoContext(ctx, "Setting IPv4 address for the TUN device.",
+			"device", cfg.tunName, "address", cfg.tunIPv4)
+		if err := runCommand(ctx,
+			"ifconfig", cfg.tunName, cfg.tunIPv4, cfg.tunIPv4, "up",
+		); err != nil {
+			return trace.Wrap(err)
+		}
+		state.configuredIPv4 = true
 	}
 	for _, cidrRange := range cfg.cidrRanges {
-		slog.InfoContext(ctx, "Setting an IP route for the VNet.", "netmask", cidrRange)
-		cmd := exec.CommandContext(ctx, "route", "add", "-net", cidrRange, "-interface", cfg.tunName)
-		if err := cmd.Run(); err != nil {
-			return trace.Wrap(err, "running %v", cmd.Args)
+		if slices.Contains(state.configuredCidrRanges, cidrRange) {
+			continue
 		}
+		log.InfoContext(ctx, "Setting an IP route for the VNet.", "netmask", cidrRange)
+		if err := runCommand(ctx,
+			"route", "add", "-net", cidrRange, "-interface", cfg.tunName,
+		); err != nil {
+			return trace.Wrap(err)
+		}
+		state.configuredCidrRanges = append(state.configuredCidrRanges, cidrRange)
 	}
 
-	if cfg.tunIPv6 != "" {
-		slog.InfoContext(ctx, "Setting IPv6 address for the TUN device.", "device", cfg.tunName, "address", cfg.tunIPv6)
-		cmd := exec.CommandContext(ctx, "ifconfig", cfg.tunName, "inet6", cfg.tunIPv6, "prefixlen", "64")
-		if err := cmd.Run(); err != nil {
-			return trace.Wrap(err, "running %v", cmd.Args)
+	if cfg.tunIPv6 != "" && !state.configuredIPv6 {
+		log.InfoContext(ctx, "Setting IPv6 address for the TUN device.",
+			"device", cfg.tunName, "address", cfg.tunIPv6)
+		if err := runCommand(ctx,
+			"ifconfig", cfg.tunName, "inet6", cfg.tunIPv6, "prefixlen", "64",
+		); err != nil {
+			return trace.Wrap(err)
 		}
-
-		slog.InfoContext(ctx, "Setting an IPv6 route for the VNet.")
-		cmd = exec.CommandContext(ctx, "route", "add", "-inet6", cfg.tunIPv6, "-prefixlen", "64", "-interface", cfg.tunName)
-		if err := cmd.Run(); err != nil {
-			return trace.Wrap(err, "running %v", cmd.Args)
-		}
+		state.configuredIPv6 = true
 	}
 
-	if err := configureDNS(ctx, cfg.dnsAddr, cfg.dnsZones); err != nil {
+	// Track the IPv6 route separately from the alias so a transient
+	// route-add failure can be retried on the next tick without
+	// re-running the ifconfig (which would re-trigger the alias flap
+	// this gating exists to prevent).
+	if cfg.tunIPv6 != "" && !state.configuredIPv6Route {
+		log.InfoContext(ctx, "Setting an IPv6 route for the VNet.")
+		if err := runCommand(ctx,
+			"route", "add", "-inet6", cfg.tunIPv6, "-prefixlen", "64", "-interface", cfg.tunName,
+		); err != nil {
+			return trace.Wrap(err)
+		}
+		state.configuredIPv6Route = true
+	}
+
+	if err := configureDNS(ctx, cfg.dnsAddrs, cfg.dnsZones); err != nil {
 		return trace.Wrap(err, "configuring DNS")
 	}
 
 	return nil
 }
 
+// hostIPv6Disabled always returns false on macOS, there is no system-wide way
+// to disable IPv6 on macOS, it can only be turned off per link.
+func hostIPv6Disabled(_ /*tunName*/ string) (bool, error) {
+	return false, nil
+}
+
 const resolverFileComment = "# automatically installed by Teleport VNet"
 
 var resolverPath = filepath.Join("/", "etc", "resolver")
 
-func configureDNS(ctx context.Context, nameserver string, zones []string) error {
-	if len(nameserver) == 0 && len(zones) > 0 {
-		return trace.BadParameter("empty nameserver with non-empty zones")
+func configureDNS(ctx context.Context, nameservers []string, zones []string) error {
+	if len(nameservers) == 0 {
+		// There are no nameservers so VNet can't handle any DNS zones. Continue
+		// so that any VNet-managed resolver files can be deleted.
+		zones = nil
 	}
 
-	slog.DebugContext(ctx, "Configuring DNS.", "nameserver", nameserver, "zones", zones)
+	log.DebugContext(ctx, "Configuring DNS.", "nameservers", nameservers, "zones", zones)
 	if err := os.MkdirAll(resolverPath, os.FileMode(0755)); err != nil {
 		return trace.Wrap(err, "creating %s", resolverPath)
 	}
@@ -88,14 +134,22 @@ func configureDNS(ctx context.Context, nameserver string, zones []string) error 
 		return trace.Wrap(err, "finding VNet managed files in /etc/resolver")
 	}
 
-	// Always attempt to write or clean up all files below, even if encountering errors with one or more of
-	// them.
+	// Always attempt to write or clean up all files below, even if encountering
+	// errors with one or more of them.
 	var allErrors []error
+
+	var fileContents bytes.Buffer
+	fileContents.WriteString(resolverFileComment)
+	fileContents.WriteByte('\n')
+	for _, nameserver := range nameservers {
+		fileContents.WriteString("nameserver ")
+		fileContents.WriteString(nameserver)
+		fileContents.WriteByte('\n')
+	}
 
 	for _, zone := range zones {
 		fileName := filepath.Join(resolverPath, zone)
-		contents := resolverFileComment + "\nnameserver " + nameserver
-		if err := os.WriteFile(fileName, []byte(contents), 0644); err != nil {
+		if err := renameio.WriteFile(fileName, fileContents.Bytes(), 0644); err != nil {
 			allErrors = append(allErrors, trace.Wrap(err, "writing DNS configuration file %s", fileName))
 		} else {
 			// Successfully wrote this file, don't clean it up below.

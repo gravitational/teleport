@@ -16,16 +16,19 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import styled from 'styled-components';
-import { typography } from 'design/system';
-import { Box } from 'design';
 
+import { Box } from 'design';
+import { typography } from 'design/system';
 import { TypographyProps } from 'design/system/typography';
 
-import { Document } from 'teleterm/ui/services/workspacesService';
+import {
+  Document,
+  getStaticNameAndIcon,
+} from 'teleterm/ui/services/workspacesService';
 
-import { TabItem, NewTabItem } from './TabItem';
+import { tabHeight } from './constants';
+import { NewTabItem, TabItem } from './TabItem';
 
 export function Tabs(props: Props) {
   const {
@@ -50,7 +53,9 @@ export function Tabs(props: Props) {
           key={item.uri}
           index={index}
           name={item.title}
+          docKind={item.kind}
           active={active}
+          Icon={getStaticNameAndIcon(item)?.Icon}
           nextActive={nextActive}
           onClick={() => onSelect(item)}
           onClose={() => onClose(item)}
@@ -66,7 +71,7 @@ export function Tabs(props: Props) {
   );
 
   return (
-    <StyledTabs as="nav" typography="h5" bold {...styledProps}>
+    <StyledTabs role="tablist" {...styledProps}>
       {$items}
       <NewTabItem tooltip={newTabTooltip} onClick={onNew} />
     </StyledTabs>
@@ -90,9 +95,9 @@ type Props = {
 };
 
 // TODO(bl-nero): Typography should have a more restrictive type.
-const StyledTabs = styled(Box)<TypographyProps>`
+export const StyledTabs = styled(Box)<TypographyProps>`
   background-color: ${props => props.theme.colors.levels.surface};
-  min-height: 32px;
+  min-height: ${tabHeight}px;
   display: flex;
   flex-wrap: nowrap;
   align-items: center;

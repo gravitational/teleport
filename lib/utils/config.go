@@ -19,12 +19,13 @@
 package utils
 
 import (
+	"context"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 )
 
 // TryReadValueAsFile is a utility function to read a value
@@ -44,7 +45,7 @@ func TryReadValueAsFile(value string) (string, error) {
 	out := strings.TrimSpace(string(contents))
 
 	if out == "" {
-		log.Warnf("Empty config value file: %v", value)
+		slog.WarnContext(context.Background(), "Empty config value file", "file", value)
 	}
 	return out, nil
 }

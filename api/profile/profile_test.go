@@ -26,7 +26,9 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/profile"
+	"github.com/gravitational/teleport/api/utils/keys"
 )
 
 // TestProfileBasics verifies basic profile operations such as
@@ -45,6 +47,7 @@ func TestProfileBasics(t *testing.T) {
 		SiteName:              "example.com",
 		AuthConnector:         "passwordless",
 		MFAMode:               "auto",
+		Scope:                 "/team-a",
 	}
 
 	// verify that profile name is proxy host component
@@ -75,6 +78,10 @@ func TestProfileBasics(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, p.Name(), name)
 
+	// Update the dial timeout because when the profile is loaded, an
+	// empty timeout is implicitly set to match the default value.
+	p.SSHDialTimeout = defaults.DefaultIOTimeout
+
 	// load and verify current profile
 	clone, err := profile.FromDir(dir, "")
 	require.NoError(t, err)
@@ -99,8 +106,10 @@ func TestAppPath(t *testing.T) {
 		SiteName:     "example.com",
 	}
 
-	expected := filepath.Join(dir, "keys", "proxy", "testuser-app", "example.com", "banana-x509.pem")
-	require.Equal(t, expected, p.AppCertPath("banana"))
+	expectCertPath := filepath.Join(dir, "keys", "proxy", "testuser-app", "example.com", "banana.crt")
+	require.Equal(t, expectCertPath, p.AppCertPath("banana"))
+	expectKeyPath := filepath.Join(dir, "keys", "proxy", "testuser-app", "example.com", "banana.key")
+	require.Equal(t, expectKeyPath, p.AppKeyPath("banana"))
 }
 
 func TestProfilePath(t *testing.T) {
@@ -159,6 +168,17 @@ func TestRequireKubeLocalProxy(t *testing.T) {
 				KubeProxyAddr:                 "example.com:443",
 				TLSRoutingEnabled:             true,
 				TLSRoutingConnUpgradeRequired: true,
+			},
+			checkResult: require.True,
+		},
+		{
+			// A hardware-key policy requires the local proxy even without a TLS
+			// routing connection upgrade (the exec-plugin path can't serialize the key).
+			name: "hardware key policy requires local proxy",
+			inputProfile: &profile.Profile{
+				WebProxyAddr:     "example.com:443",
+				KubeProxyAddr:    "example.com:3026",
+				PrivateKeyPolicy: keys.PrivateKeyPolicyHardwareKeyTouch,
 			},
 			checkResult: require.True,
 		},

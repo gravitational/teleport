@@ -1,0 +1,308 @@
+// Teleport
+// Copyright (C) 2025 Gravitational, Inc.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+package workloadidentity
+
+import (
+	"context"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/pem"
+	"os"
+	"path"
+	"path/filepath"
+	"testing"
+	"time"
+
+	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
+	"github.com/spiffe/go-spiffe/v2/bundle/x509bundle"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/go-spiffe/v2/svid/x509svid"
+	"github.com/stretchr/testify/require"
+
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
+	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/keys"
+	apiworkloadidentity "github.com/gravitational/teleport/api/workloadidentity"
+	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/bot/connection"
+	"github.com/gravitational/teleport/lib/tbot/bot/destination"
+	"github.com/gravitational/teleport/lib/tbot/internal"
+	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
+	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/tool/teleport/testenv"
+)
+
+func TestBotWorkloadIdentityX509(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	log := logtest.NewLogger()
+
+	process, err := testenv.NewTeleportProcess(t.TempDir(), defaultTestServerOpts(log))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
+	setWorkloadIdentityX509CAOverride(ctx, t, process)
+	rootClient, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = rootClient.Close() })
+
+	role, err := types.NewRole("issue-foo", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			WorkloadIdentityLabels: map[string]apiutils.Strings{
+				"foo": []string{"bar"},
+			},
+			Rules: []types.Rule{
+				{
+					Resources: []string{types.KindWorkloadIdentity},
+					Verbs:     []string{types.VerbRead, types.VerbList},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	role, err = rootClient.UpsertRole(ctx, role)
+	require.NoError(t, err)
+
+	workloadIdentity := workloadidentityv1pb.WorkloadIdentity_builder{
+		Kind:    types.KindWorkloadIdentity,
+		Version: types.V1,
+		Metadata: headerv1.Metadata_builder{
+			Name: "foo-bar-bizz",
+			Labels: map[string]string{
+				"foo": "bar",
+			},
+		}.Build(),
+		Spec: workloadidentityv1pb.WorkloadIdentitySpec_builder{
+			Spiffe: workloadidentityv1pb.WorkloadIdentitySPIFFE_builder{
+				Id: "/valid/{{ user.bot_name }}",
+			}.Build(),
+		}.Build(),
+	}.Build()
+	workloadIdentity, err = rootClient.WorkloadIdentityResourceServiceClient().
+		CreateWorkloadIdentity(ctx, workloadidentityv1pb.CreateWorkloadIdentityRequest_builder{
+			WorkloadIdentity: workloadIdentity,
+		}.Build())
+	require.NoError(t, err)
+
+	checkCRL := func(t *testing.T, tmpDir string, bundle *x509bundle.Bundle) {
+		crlPEM, err := os.ReadFile(filepath.Join(tmpDir, internal.SVIDCRLPemPath))
+		require.NoError(t, err)
+		crlBytes, _ := pem.Decode(crlPEM)
+		crl, err := x509.ParseRevocationList(crlBytes.Bytes)
+		require.NoError(t, err)
+		require.NoError(t, crl.CheckSignatureFrom(bundle.X509Authorities()[0]))
+	}
+
+	t.Run("By Name", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		onboarding, _ := makeBot(t, rootClient, "by-name", role.GetName())
+
+		proxyAddr, err := process.ProxyWebAddr()
+		require.NoError(t, err)
+
+		connCfg := connection.Config{
+			Address:     proxyAddr.Addr,
+			AddressKind: connection.AddressKindProxy,
+			Insecure:    true,
+		}
+
+		b, err := bot.New(bot.Config{
+			Connection: connCfg,
+			Logger:     log,
+			Onboarding: *onboarding,
+			Services: []bot.ServiceBuilder{
+				X509OutputServiceBuilder(
+					&X509OutputConfig{
+						Selector: bot.WorkloadIdentitySelector{
+							Name: workloadIdentity.GetMetadata().GetName(),
+						},
+						Destination: &destination.Directory{
+							Path: tmpDir,
+						},
+					},
+					nil, // trustBundleCache
+					nil, // crlCache
+					bot.DefaultCredentialLifetime,
+				),
+			},
+		})
+		require.NoError(t, err)
+
+		// Run Bot with 10 second timeout to catch hangs.
+		ctx, cancel := context.WithTimeout(ctx, time.Second*10)
+		defer cancel()
+		require.NoError(t, b.OneShot(ctx))
+
+		svid, err := x509svid.Load(
+			path.Join(tmpDir, internal.SVIDPEMPath),
+			path.Join(tmpDir, internal.SVIDKeyPEMPath),
+		)
+		require.NoError(t, err)
+		require.Equal(t, "spiffe://root/valid/by-name", svid.ID.String())
+		// the override includes a chain with a single certificate
+		require.Len(t, svid.Certificates, 2)
+
+		// Validate the trust bundle was written to disk, and, that our SVID
+		// appears valid according to the trust bundle.
+		td := spiffeid.RequireTrustDomainFromString("root")
+		bundle, err := x509bundle.Load(
+			td, filepath.Join(tmpDir, internal.SVIDTrustBundlePEMPath),
+		)
+		require.NoError(t, err)
+		_, _, err = x509svid.Verify(svid.Certificates, bundle)
+		require.NoError(t, err)
+
+		checkCRL(t, tmpDir, bundle)
+	})
+	t.Run("By Labels", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		onboarding, _ := makeBot(t, rootClient, "by-labels", role.GetName())
+
+		proxyAddr, err := process.ProxyWebAddr()
+		require.NoError(t, err)
+
+		connCfg := connection.Config{
+			Address:     proxyAddr.Addr,
+			AddressKind: connection.AddressKindProxy,
+			Insecure:    true,
+		}
+
+		b, err := bot.New(bot.Config{
+			Connection: connCfg,
+			Logger:     log,
+			Onboarding: *onboarding,
+			Services: []bot.ServiceBuilder{
+				X509OutputServiceBuilder(
+					&X509OutputConfig{
+						Selector: bot.WorkloadIdentitySelector{
+							Labels: map[string][]string{
+								"foo": {"bar"},
+							},
+						},
+						Destination: &destination.Directory{
+							Path: tmpDir,
+						},
+					},
+					nil,                           // trustBundleCache
+					nil,                           // crlCache
+					bot.DefaultCredentialLifetime, // defaultCredentialLifetime
+				),
+			},
+		})
+		require.NoError(t, err)
+
+		// Run Bot with 10 second timeout to catch hangs.
+		ctx, cancel := context.WithTimeout(ctx, time.Second*10)
+		defer cancel()
+		require.NoError(t, b.OneShot(ctx))
+
+		svid, err := x509svid.Load(
+			path.Join(tmpDir, internal.SVIDPEMPath),
+			path.Join(tmpDir, internal.SVIDKeyPEMPath),
+		)
+		require.NoError(t, err)
+		require.Equal(t, "spiffe://root/valid/by-labels", svid.ID.String())
+
+		// Validate the trust bundle was written to disk, and, that our SVID
+		// appears valid according to the trust bundle.
+		td := spiffeid.RequireTrustDomainFromString("root")
+		bundle, err := x509bundle.Load(
+			td, filepath.Join(tmpDir, internal.SVIDTrustBundlePEMPath),
+		)
+		require.NoError(t, err)
+		_, _, err = x509svid.Verify(svid.Certificates, bundle)
+		require.NoError(t, err)
+
+		checkCRL(t, tmpDir, bundle)
+	})
+}
+
+func TestX509OutputService_render_TrustDomains(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	keyPEM, certPEM, err := tlsca.GenerateSelfSignedCA(pkix.Name{}, nil, time.Hour)
+	require.NoError(t, err)
+	cert, err := tlsca.ParseCertificatePEM(certPEM)
+	require.NoError(t, err)
+	parsedKey, err := keys.ParsePrivateKey(keyPEM)
+	require.NoError(t, err)
+	signer := parsedKey.Signer
+
+	localBundle := spiffebundle.New(spiffeid.RequireTrustDomainFromString("example.com"))
+	localBundle.AddX509Authority(cert)
+
+	appClientBundle := spiffebundle.New(spiffeid.RequireTrustDomainFromString(
+		apiworkloadidentity.NewInternalAppTrustDomain("example.com"),
+	))
+	appClientBundle.AddX509Authority(cert)
+
+	x509Cred := workloadidentityv1pb.Credential_builder{
+		X509Svid: workloadidentityv1pb.X509SVIDCredential_builder{Cert: cert.Raw}.Build(),
+	}.Build()
+
+	newService := func(dest destination.Destination) *X509OutputService {
+		return &X509OutputService{
+			cfg: &X509OutputConfig{
+				Destination:         dest,
+				TrustDomainSelector: bot.TrustDomainsSelector{bot.TrustDomainAppClient},
+			},
+			log: logtest.NewLogger(),
+		}
+	}
+
+	t.Run("app_client included when available", func(t *testing.T) {
+		dest := destination.NewMemory()
+		svc := newService(dest)
+		bundleSet := &workloadidentity.BundleSet{
+			Local:     localBundle,
+			AppClient: appClientBundle,
+		}
+
+		require.NoError(t, svc.render(ctx, bundleSet, x509Cred, signer, &workloadidentity.CRLSet{}))
+
+		gotBundle, err := dest.Read(ctx, internal.SVIDTrustBundlePEMPath)
+		require.NoError(t, err)
+
+		// Trust bundle file is the local bundle bytes followed by the
+		// requested trust-domain bundle bytes (raw concatenation, see
+		// X509OutputService.render).
+		wantLocal, err := localBundle.X509Bundle().Marshal()
+		require.NoError(t, err)
+		wantAppClient, err := appClientBundle.X509Bundle().Marshal()
+		require.NoError(t, err)
+		require.Equal(t, append(wantLocal, wantAppClient...), gotBundle)
+	})
+
+	t.Run("app_client unavailable doesn't return error", func(t *testing.T) {
+		dest := destination.NewMemory()
+		svc := newService(dest)
+		bundleSet := &workloadidentity.BundleSet{
+			Local:     localBundle,
+			AppClient: nil,
+		}
+
+		err := svc.render(ctx, bundleSet, x509Cred, signer, &workloadidentity.CRLSet{})
+		require.NoError(t, err)
+	})
+}

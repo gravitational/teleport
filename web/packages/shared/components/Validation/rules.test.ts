@@ -17,13 +17,19 @@
  */
 
 import {
-  requiredToken,
-  requiredPassword,
+  arrayOf,
+  requiredAzureSubscriptionId,
   requiredConfirmedPassword,
-  requiredField,
-  requiredRoleArn,
   requiredEmailLike,
+  requiredField,
   requiredIamRoleName,
+  requiredIntegrationName,
+  requiredMaxLength,
+  requiredPassword,
+  requiredPort,
+  requiredRoleArn,
+  requiredToken,
+  runRules,
 } from './rules';
 
 describe('requiredField', () => {
@@ -102,6 +108,23 @@ describe('requiredIamRoleName', () => {
   });
 });
 
+describe('requiredIntegrationName', () => {
+  test.each`
+    name                     | expected
+    ${''}                    | ${{ valid: false, message: 'Integration name is required' }}
+    ${'zero_cool'}           | ${{ valid: false, message: "Name must only contain lowercase alphanumeric characters or '-'" }}
+    ${'ZeroKewl'}            | ${{ valid: false, message: "Name must only contain lowercase alphanumeric characters or '-'" }}
+    ${'0cool'}               | ${{ valid: false, message: 'Name must start with an alphabetic character' }}
+    ${'zero-cool-'}          | ${{ valid: false, message: 'Name must end with an alphanumeric character' }}
+    ${'my-cool-integration'} | ${{ valid: true }}
+    ${'my-integration-1'}    | ${{ valid: true }}
+  `('name: $name', ({ name, expected }) => {
+    expect(requiredIntegrationName(name)()).toEqual(
+      expect.objectContaining(expected)
+    );
+  });
+});
+
 describe('requiredConfirmedPassword', () => {
   const mismatchError = 'Password does not match';
   const confirmError = 'Please confirm your password';
@@ -136,5 +159,108 @@ describe('requiredEmailLike', () => {
     expect(requiredEmailLike(email)()).toEqual(
       expect.objectContaining(expected)
     );
+  });
+});
+
+describe('requiredPort', () => {
+  const errMsg = 'Port required [1-65535]';
+  test.each`
+    port       | expected
+    ${''}      | ${{ valid: false, message: errMsg }}
+    ${'alice'} | ${{ valid: false, message: errMsg }}
+    ${'99999'} | ${{ valid: false, message: errMsg }}
+    ${'1'}     | ${{ valid: true }}
+    ${'65535'} | ${{ valid: true }}
+  `('port: $port', ({ port, expected }) => {
+    expect(requiredPort(port)()).toEqual(expected);
+  });
+});
+
+describe('requiredMaxLength', () => {
+  const errMsg = 'message goes here';
+  const validator = requiredMaxLength(errMsg, 10);
+  test.each`
+    value                         | expected
+    ${'Lorem ipsum'}              | ${{ valid: false, message: errMsg }}
+    ${'Lorem ipsu'}               | ${{ valid: true }}
+    ${'   Lorem ipsu   '}         | ${{ valid: true }}
+    ${''}                         | ${{ valid: true }}
+    ${Array.from({ length: 11 })} | ${{ valid: false, message: errMsg }}
+    ${Array.from({ length: 10 })} | ${{ valid: true }}
+    ${[]}                         | ${{ valid: true }}
+    ${1}                          | ${{ valid: false, message: 'value must be a string or an array' }}
+    ${true}                       | ${{ valid: false, message: 'value must be a string or an array' }}
+  `('value: $value', ({ value, expected }) => {
+    expect(validator(value)()).toEqual(expected);
+  });
+});
+
+test('runRules', () => {
+  expect(
+    runRules(
+      { foo: 'val1', bar: 'val2', irrelevant: undefined },
+      { foo: requiredField('no foo'), bar: requiredField('no bar') }
+    )
+  ).toEqual({
+    valid: true,
+    fields: {
+      foo: { valid: true, message: '' },
+      bar: { valid: true, message: '' },
+    },
+  });
+
+  expect(
+    runRules(
+      { foo: '', bar: 'val2', irrelevant: undefined },
+      { foo: requiredField('no foo'), bar: requiredField('no bar') }
+    )
+  ).toEqual({
+    valid: false,
+    fields: {
+      foo: { valid: false, message: 'no foo' },
+      bar: { valid: true, message: '' },
+    },
+  });
+});
+
+test.each([
+  {
+    name: 'invalid',
+    items: ['a', '', 'c'],
+    expected: {
+      valid: false,
+      results: [
+        { valid: true, message: '' },
+        { valid: false, message: 'required' },
+        { valid: true, message: '' },
+      ],
+    },
+  },
+  {
+    name: 'valid',
+    items: ['a', 'b', 'c'],
+    expected: {
+      valid: true,
+      results: [
+        { valid: true, message: '' },
+        { valid: true, message: '' },
+        { valid: true, message: '' },
+      ],
+    },
+  },
+])('arrayOf: $name', ({ items, expected }) => {
+  expect(arrayOf(requiredField('required'))(items)()).toEqual(expected);
+});
+
+describe('requiredAzureSubscriptionId', () => {
+  test.each`
+    id                                        | valid
+    ${'550e8400-e29b-41d4-a716-446655440000'} | ${true}
+    ${'6ba7b810-9dad-11d1-80b4-00c04fd430c8'} | ${true}
+    ${'not-a-uuid'}                           | ${false}
+    ${'550e8400-e29b-41d4-a716'}              | ${false}
+    ${''}                                     | ${false}
+  `('id: "$id" → valid: $valid', ({ id, valid }) => {
+    expect(requiredAzureSubscriptionId(id)().valid).toBe(valid);
   });
 });

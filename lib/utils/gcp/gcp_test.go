@@ -130,7 +130,7 @@ func TestProjectIDFromServiceAccountName(t *testing.T) {
 			name:           "empty string",
 			serviceAccount: "",
 			want:           "",
-			wantErr: func(t require.TestingT, err error, i ...interface{}) {
+			wantErr: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "invalid service account format: empty string received")
 			},
 		},
@@ -138,7 +138,7 @@ func TestProjectIDFromServiceAccountName(t *testing.T) {
 			name:           "missing @",
 			serviceAccount: "test",
 			want:           "",
-			wantErr: func(t require.TestingT, err error, i ...interface{}) {
+			wantErr: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "invalid service account format: missing @")
 			},
 		},
@@ -146,7 +146,7 @@ func TestProjectIDFromServiceAccountName(t *testing.T) {
 			name:           "missing domain after @",
 			serviceAccount: "test@",
 			want:           "",
-			wantErr: func(t require.TestingT, err error, i ...interface{}) {
+			wantErr: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "invalid service account format: missing <project-id>.iam.gserviceaccount.com after @")
 			},
 		},
@@ -154,7 +154,7 @@ func TestProjectIDFromServiceAccountName(t *testing.T) {
 			name:           "missing user before @",
 			serviceAccount: "@project",
 			want:           "",
-			wantErr: func(t require.TestingT, err error, i ...interface{}) {
+			wantErr: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "invalid service account format: empty user")
 			},
 		},
@@ -162,7 +162,7 @@ func TestProjectIDFromServiceAccountName(t *testing.T) {
 			name:           "missing domain",
 			serviceAccount: "test@myproject-123456",
 			want:           "",
-			wantErr: func(t require.TestingT, err error, i ...interface{}) {
+			wantErr: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "invalid service account format: missing <project-id>.iam.gserviceaccount.com after @")
 			},
 		},
@@ -170,7 +170,7 @@ func TestProjectIDFromServiceAccountName(t *testing.T) {
 			name:           "wrong domain suffix",
 			serviceAccount: "test@myproject-123456.iam.gserviceaccount",
 			want:           "",
-			wantErr: func(t require.TestingT, err error, i ...interface{}) {
+			wantErr: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "invalid service account format: expected suffix \"iam.gserviceaccount.com\", got \"iam.gserviceaccount\"")
 			},
 		},
@@ -178,7 +178,7 @@ func TestProjectIDFromServiceAccountName(t *testing.T) {
 			name:           "missing project id",
 			serviceAccount: "test@.iam.gserviceaccount.com",
 			want:           "",
-			wantErr: func(t require.TestingT, err error, i ...interface{}) {
+			wantErr: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "invalid service account format: missing project ID")
 			},
 		},

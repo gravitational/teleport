@@ -1,0 +1,5 @@
+ID      URL                                      Expires          Owner 
+------- ---------------------------------------- ---------------- ----- 
+alpha   https://alpha-app.proxy.example.com      3 hours from now alice 
+bravo                                            4 hours from now alice 
+charlie tcp://charlie-app.proxy.example.com:5432 5 hours from now bob   

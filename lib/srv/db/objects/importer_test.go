@@ -19,13 +19,14 @@ package objects
 import (
 	"context"
 	"log/slog"
+	"maps"
+	"slices"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/maps"
 	"google.golang.org/protobuf/testing/protocmp"
 
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
@@ -86,14 +87,14 @@ func TestCalculateUpdates(t *testing.T) {
 	clock := clockwork.NewFakeClock()
 
 	mkObjectLabel := func(name string, label string) *dbobjectv1.DatabaseObject {
-		out, err := databaseobject.NewDatabaseObjectWithLabels(name, map[string]string{"custom": label}, &dbobjectv1.DatabaseObjectSpec{
+		out, err := databaseobject.NewDatabaseObjectWithLabels(name, map[string]string{"custom": label}, dbobjectv1.DatabaseObjectSpec_builder{
 			Protocol:            types.DatabaseProtocolPostgreSQL,
 			DatabaseServiceName: "dummy",
 			ObjectKind:          databaseobjectimportrule.ObjectKindTable,
 			Database:            "dummy",
 			Schema:              "public",
 			Name:                name,
-		})
+		}.Build())
 
 		require.NoError(t, err)
 		return out
@@ -171,20 +172,20 @@ func TestCalculateUpdates(t *testing.T) {
 			}
 
 			freshObjects := utils.FromSlice(tt.objsNew, func(object *dbobjectv1.DatabaseObject) string {
-				return object.GetMetadata().Name
+				return object.GetMetadata().GetName()
 			})
 
 			initialState := utils.FromSlice(tt.objects, func(object *objWithExpiry) string {
-				return object.obj.GetMetadata().Name
+				return object.obj.GetMetadata().GetName()
 			})
 
 			expectedState := utils.FromSlice(tt.expected, func(object *objWithExpiry) string {
-				return object.obj.GetMetadata().Name
+				return object.obj.GetMetadata().GetName()
 			})
 
 			result := calculateUpdates(context.Background(), cfg, initialState, freshObjects)
 
-			require.ElementsMatch(t, maps.Keys(expectedState), maps.Keys(result))
+			require.ElementsMatch(t, slices.Collect(maps.Keys(expectedState)), slices.Collect(maps.Keys(result)))
 			for key, elem := range expectedState {
 				require.Equal(t, elem.expiry, result[key].expiry)
 				require.Empty(t, cmp.Diff(elem.obj, result[key].obj, protocmp.Transform()))

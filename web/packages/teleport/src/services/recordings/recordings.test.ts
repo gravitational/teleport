@@ -32,7 +32,7 @@ test('fetch session recordings, response formatting', async () => {
   expect(response).toEqual({
     recordings: [
       {
-        createdDate: '2022-07-19T17:53:50.512Z',
+        createdDate: new Date('2022-07-19T17:53:50.512Z'),
         description: 'play',
         duration: 7535,
         durationText: '8 seconds',
@@ -40,10 +40,11 @@ test('fetch session recordings, response formatting', async () => {
         playable: true,
         recordingType: 'ssh',
         sid: 'c21c6c34-c282-51ae-9e29-4e642d8c70ae',
+        user: 'fuwa@obiki.ve',
         users: 'fuwa@obiki.ve, ha@fokveh.mc',
       },
       {
-        createdDate: '2022-07-19T17:47:39.317Z',
+        createdDate: new Date('2022-07-19T17:47:39.317Z'),
         description: 'non-interactive',
         duration: 85,
         durationText: '0 seconds',
@@ -51,7 +52,8 @@ test('fetch session recordings, response formatting', async () => {
         playable: false,
         recordingType: 'k8s',
         sid: '456b933c-4ec4-59f1-862c-90ca9f7648b1',
-        users: [],
+        user: 'onuweeme@wiuke.mh',
+        users: 'onuweeme@wiuke.mh',
       },
     ],
     startKey: '',

@@ -1,0 +1,694 @@
+/*
+ * Teleport
+ * Copyright (C) 2024 Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+package sso
+
+import (
+	"context"
+	"encoding/base64"
+	"encoding/json"
+	"fmt"
+	"io"
+	"log/slog"
+	"net"
+	"net/http"
+	"net/http/httptest"
+	"net/netip"
+	"net/url"
+	"os"
+	"os/exec"
+	"runtime"
+	"slices"
+	"strings"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/saml"
+	"github.com/gravitational/teleport/lib/secret"
+	"github.com/gravitational/teleport/lib/utils"
+)
+
+const (
+	// LoginSuccessRedirectURL is a redirect URL when login was successful without errors.
+	LoginSuccessRedirectURL = "/web/msg/info/login_success"
+
+	// LoginTerminalRedirectURL is a redirect URL when login requires extra
+	// action in the terminal, but was otherwise successful in the browser (ex.
+	// need a hardware key tap).
+	LoginTerminalRedirectURL = "/web/msg/info/login_terminal"
+
+	// LoginFailedRedirectURL is the default redirect URL when an SSO error was encountered.
+	LoginFailedRedirectURL = "/web/msg/error/login"
+
+	// LoginFailedBadCallbackRedirectURL is a redirect URL when an SSO error specific to
+	// auth connector's callback was encountered.
+	LoginFailedBadCallbackRedirectURL = "/web/msg/error/login/callback"
+
+	// LoginFailedBadCallbackMissingRoleRedirectURL is a redirect URL when an auth connector
+	// callback failed because it couldn't find the user's calculated role (from auth connector
+	// mapping) in the backend.
+	LoginFailedBadCallbackMissingRoleRedirectURL = "/web/msg/error/login/callback_missing_role"
+
+	// LoginFailedUnauthorizedRedirectURL is a redirect URL for when an SSO authenticates successfully,
+	// but the user has no matching roles in Teleport.
+	LoginFailedUnauthorizedRedirectURL = "/web/msg/error/login/auth"
+
+	// LoginFailedEntraIDGroupsOverageRedirectURL is a redirect URL for when an Entra SAML authentication
+	// is unable to process groups overage.
+	LoginFailedEntraIDGroupsOverageRedirectURL = "/web/msg/error/login/entra_groups_overage"
+
+	// LoginClose is a redirect URL that will close the tab performing the SSO
+	// login. It's used when a second tab will be opened due to the first
+	// failing (such as an unmet hardware key policy) and the first should be
+	// ignored.
+	LoginClose = "/web/msg/info/login_close"
+
+	// SAMLSingleLogoutFailedRedirectURL is the default redirect URL when an error was encountered during SAML Single Logout.
+	SAMLSingleLogoutFailedRedirectURL = "/web/msg/error/slo"
+
+	// DefaultLoginURL is the default login page.
+	DefaultLoginURL = "/web/login"
+
+	// WebMFARedirect is the landing page for SSO MFA in the WebUI. The WebUI set up a listener
+	// on this page in order to capture the SSO MFA response regardless of what page the challenge
+	// was requested from.
+	WebMFARedirect = "/web/sso_confirm"
+
+	// WebBrowserMFAPath is the path for browser-based MFA flows.
+	WebBrowserMFAPath = "/web/mfa/browser/"
+)
+
+// RedirectorConfig is configuration for an sso redirector.
+type RedirectorConfig struct {
+	// ProxyAddr is the Teleport proxy address to use as the base redirect address
+	// at the end of an SSO ceremony. e.g. https://<proxy_addr>/web/msg/info/login_success
+	// required.
+	ProxyAddr string
+
+	// BindAddr is an optional host:port address to bind the local callback listener
+	// to instead of localhost:<random_port>
+	BindAddr string
+	// CallbackAddr is an optional base URL to use as a callback address for the
+	// local callback listener instead of localhost. If supplied, BindAddr must
+	// be set to match it.
+	CallbackAddr string
+	// Browser can be used to pass the name of a browser to override the system
+	// default (not currently implemented), or set to 'none' to suppress
+	// browser opening entirely.
+	Browser string
+	// PrivateKeyPolicy is a key policy to follow during login.
+	PrivateKeyPolicy keys.PrivateKeyPolicy
+	// ConnectorDisplayName is an optional display name which may be used in some
+	// redirect URL pages.
+	ConnectorDisplayName string
+	// Stderr is used output a clickable redirect URL for the user to complete login.
+	Stderr io.Writer
+}
+
+// Redirector handles SSH redirect flow with the Teleport server
+type Redirector struct {
+	RedirectorConfig
+
+	server *httptest.Server
+	mux    *http.ServeMux
+
+	// ClientCallbackURL is set once the redirector's local http server is running.
+	ClientCallbackURL string
+
+	// key is a secret key used to encode/decode
+	// the data with the server, it is used so that other
+	// programs running on the same computer can't easilly sniff
+	// the data
+	key secret.Key
+	// responseC is a channel to receive responses
+	responseC chan *authclient.CLILoginResponse
+	// errorC will contain errors
+	errorC chan error
+	// doneC will be closed when the redirector is closed.
+	doneC chan struct{}
+	// proxyURL is a URL to the Teleport Proxy
+	proxyURL *url.URL
+}
+
+// NewRedirector returns new local web server redirector
+func NewRedirector(config RedirectorConfig) (*Redirector, error) {
+	if config.ProxyAddr == "" {
+		return nil, trace.BadParameter("missing required field ProxyAddr")
+	}
+
+	// Add protocol if it's not present.
+	proxyAddr := config.ProxyAddr
+	if !strings.HasPrefix(proxyAddr, "https://") && !strings.HasPrefix(proxyAddr, "http://") {
+		proxyAddr = "https://" + proxyAddr
+	}
+
+	proxyURL, err := url.Parse(proxyAddr)
+	if err != nil {
+		return nil, trace.Wrap(err, "'%v' is not a valid proxy address", config.ProxyAddr)
+	}
+
+	if config.Stderr == nil {
+		config.Stderr = os.Stderr
+	}
+
+	// Create secret key that will be sent with the request and then used the
+	// decrypt the response from the server.
+	key, err := secret.NewKey()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// parse and format CallbackAddr.
+	if config.CallbackAddr != "" {
+		callbackURL, err := apiutils.ParseURL(config.CallbackAddr)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		// Default to HTTPS if no scheme is specified.
+		// This will allow users to specify an insecure HTTP URL but
+		// the backend will verify if the callback URL is allowed.
+		if callbackURL.Scheme == "" {
+			callbackURL.Scheme = "https"
+		}
+		config.CallbackAddr = callbackURL.String()
+	}
+
+	rd := &Redirector{
+		RedirectorConfig: config,
+		proxyURL:         proxyURL,
+		mux:              http.NewServeMux(),
+		key:              key,
+		responseC:        make(chan *authclient.CLILoginResponse, 1),
+		errorC:           make(chan error, 1),
+		doneC:            make(chan struct{}),
+	}
+
+	// callback is a callback URL communicated to the Teleport proxy,
+	// after SAML/OIDC login, the teleport will redirect user's browser
+	// to this laptop-local URL
+	rd.mux.Handle("/callback", rd.wrapCallback(rd.callback))
+
+	if err := rd.startServer(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return rd, nil
+}
+
+// startServer starts an http server to handle the sso client callback.
+func (rd *Redirector) startServer() error {
+	if rd.BindAddr != "" {
+		slog.DebugContext(context.Background(), "Binding to provided bind address.", "addr", rd.BindAddr)
+		listener, err := net.Listen("tcp", rd.BindAddr)
+		if err != nil {
+			return trace.Wrap(err, "%v: could not bind to %v, make sure the address is host:port format for ipv4 and [ipv6]:port format for ipv6, and the address is not in use", err, rd.BindAddr)
+		}
+		rd.server = &httptest.Server{
+			Listener: listener,
+			Config: &http.Server{
+				Handler:           rd.mux,
+				ReadTimeout:       apidefaults.DefaultIOTimeout,
+				ReadHeaderTimeout: defaults.ReadHeadersTimeout,
+				WriteTimeout:      apidefaults.DefaultIOTimeout,
+				IdleTimeout:       apidefaults.DefaultIdleTimeout,
+			},
+		}
+		rd.server.Start()
+	} else {
+		rd.server = httptest.NewServer(rd.mux)
+	}
+
+	// Prepare callback URL.
+	u, err := url.Parse(rd.baseURL() + "/callback")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	u.RawQuery = url.Values{"secret_key": {rd.key.String()}}.Encode()
+	rd.ClientCallbackURL = u.String()
+
+	return nil
+}
+
+// OpenRedirect opens the redirect URL in a new browser window.
+func (rd *Redirector) OpenRedirect(ctx context.Context, redirectURL string) error {
+	return trace.Wrap(rd.processLoginURL(redirectURL, ""))
+}
+
+// OpenLoginURL opens the redirector served redirect URL in a new browser window, suitable for
+// both SAML http-redirect and http-post binding SSO authentication request.
+func (rd *Redirector) OpenLoginURL(ctx context.Context, redirectURL, postForm string) error {
+	return trace.Wrap(rd.processLoginURL(redirectURL, postForm))
+}
+
+func (rd *Redirector) processLoginURL(redirectURL, postForm string) error {
+	if redirectURL == "" && postForm == "" {
+		// This is not expected as either one of the param will always be populated
+		// but we should return with an error to indicate a bug.
+		return trace.BadParameter("either redirectURL or postForm value must be configured")
+	}
+	clickableURL := rd.clickableURL(redirectURL, postForm)
+
+	// If a command was found to launch the browser, create and start it.
+	if err := OpenURLInBrowser(rd.Browser, clickableURL); err != nil {
+		fmt.Fprintf(rd.Stderr, "Failed to open a browser window for login: %v\r\n", err)
+	}
+
+	// Print the URL to the screen, in case the command that launches the browser did not run.
+	// If Browser is set to the special string teleport.BrowserNone, no browser will be opened.
+	if rd.Browser == teleport.BrowserNone {
+		fmt.Fprintf(rd.Stderr, "Use the following URL to authenticate:\r\n %v\r\n", clickableURL)
+	} else {
+		fmt.Fprintf(rd.Stderr, "If browser window does not open automatically, open it by ")
+		fmt.Fprintf(rd.Stderr, "clicking on the link:\r\n %v\r\n", clickableURL)
+	}
+
+	return nil
+}
+
+// clickableURL returns a short, clickable URL that will redirect
+// the browser to the SSO redirect URL.
+func (rd *Redirector) clickableURL(redirectURL, postForm string) string {
+	// shortPath is a link-shortener path presented to the user
+	// it is used to open up the browser window, notice
+	// that redirectURL will be set later
+	shortPath := "/" + uuid.New().String()
+
+	// short path is a link-shortener style URL
+	// that will redirect to the Teleport-Proxy supplied address
+	rd.mux.HandleFunc(shortPath, func(w http.ResponseWriter, r *http.Request) {
+		if postForm != "" {
+			form, err := base64.StdEncoding.DecodeString(postForm)
+			if err != nil {
+				http.Error(w, err.Error(), trace.ErrorToCode(err))
+				return
+			}
+			if err := saml.WriteSAMLPostRequestWithHeaders(w, form); err != nil {
+				http.Error(w, err.Error(), trace.ErrorToCode(err))
+				return
+			}
+		} else {
+			http.Redirect(w, r, redirectURL, http.StatusFound)
+			return
+		}
+	})
+
+	return clickableURL(rd.baseURL() + shortPath)
+}
+
+// clickableURL fixes the address in a URL to make sure
+// it's clickable, e.g. it replaces "undefined" addresses like
+// 0.0.0.0 used in network listeners with the loopback address.
+func clickableURL(in string) string {
+	out, err := url.Parse(in)
+	if err != nil {
+		return in
+	}
+	host, port, err := net.SplitHostPort(out.Host)
+	if err != nil {
+		return in
+	}
+	ip := net.ParseIP(host)
+	// If address is not an IP address, return it unchanged.
+	if ip == nil && out.Host != "" {
+		return out.String()
+	}
+	// if address is unspecified, e.g. all interfaces 0.0.0.0 or multicast,
+	// replace with localhost that is clickable
+	if len(ip) == 0 || ip.IsUnspecified() || ip.IsMulticast() {
+		out.Host = fmt.Sprintf("127.0.0.1:%v", port)
+	}
+	return out.String()
+}
+
+func (rd *Redirector) baseURL() string {
+	if rd.CallbackAddr != "" {
+		return rd.CallbackAddr
+	}
+	return rd.server.URL
+}
+
+// OpenURLInBrowser opens a URL in a web browser.
+func OpenURLInBrowser(browser string, URL string) error {
+	var execCmd *exec.Cmd
+	if browser != teleport.BrowserNone {
+		switch runtime.GOOS {
+		// macOS.
+		case constants.DarwinOS:
+			path, err := exec.LookPath(teleport.OpenBrowserDarwin)
+			if err == nil {
+				execCmd = exec.Command(path, URL)
+			}
+		// Windows.
+		case constants.WindowsOS:
+			path, err := exec.LookPath(teleport.OpenBrowserWindows)
+			if err == nil {
+				execCmd = exec.Command(path, "url.dll,FileProtocolHandler", URL)
+			}
+		// Linux or any other operating system.
+		default:
+			path, err := exec.LookPath(teleport.OpenBrowserLinux)
+			if err == nil {
+				execCmd = exec.Command(path, URL)
+			}
+		}
+	}
+	if execCmd != nil {
+		if err := execCmd.Start(); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// WaitForResponse waits for a response from the callback handler.
+func (rd *Redirector) WaitForResponse(ctx context.Context) (*authclient.CLILoginResponse, error) {
+	slog.InfoContext(ctx, "Waiting for response", "callback_url", rd.server.URL)
+	select {
+	case err := <-rd.ErrorC():
+		slog.DebugContext(ctx, "Got an error", "err", err)
+		return nil, trace.Wrap(err)
+	case response := <-rd.ResponseC():
+		slog.DebugContext(ctx, "Got response from browser.")
+		return response, nil
+	case <-time.After(defaults.SSOCallbackTimeout):
+		slog.DebugContext(ctx, "Timed out waiting for callback", "timeout", defaults.SSOCallbackTimeout)
+		return nil, trace.Wrap(trace.Errorf("timed out waiting for callback"))
+	case <-rd.Done():
+		slog.DebugContext(ctx, "Redirector closed")
+		return nil, trace.Errorf("redirector closed")
+	case <-ctx.Done():
+		slog.DebugContext(ctx, "Canceled by user.")
+		return nil, trace.Wrap(ctx.Err(), "canceled by user")
+	}
+}
+
+// Done is called when redirector is closed
+// or parent context is closed
+func (rd *Redirector) Done() <-chan struct{} {
+	return rd.doneC
+}
+
+// ResponseC returns a channel with response
+func (rd *Redirector) ResponseC() <-chan *authclient.CLILoginResponse {
+	return rd.responseC
+}
+
+// ErrorC returns a channel with error
+func (rd *Redirector) ErrorC() <-chan error {
+	return rd.errorC
+}
+
+// callback is used by Teleport proxy to send back credentials
+// issued by Teleport proxy
+func (rd *Redirector) callback(w http.ResponseWriter, r *http.Request) (*authclient.CLILoginResponse, error) {
+	if r.URL.Path != "/callback" {
+		return nil, trace.NotFound("path not found")
+	}
+
+	r.ParseForm()
+	if r.Form.Has("err") {
+		err := r.Form.Get("err")
+		return nil, trace.Errorf("identity provider callback failed with error: %v", err)
+	}
+
+	// Decrypt ciphertext to get login response.
+	plaintext, err := rd.key.Open([]byte(r.Form.Get("response")))
+	if err != nil {
+		return nil, trace.BadParameter("failed to decrypt response: in %v, err: %v", r.URL.String(), err)
+	}
+
+	var re authclient.CLILoginResponse
+	err = json.Unmarshal(plaintext, &re)
+	if err != nil {
+		return nil, trace.BadParameter("failed to decrypt response: in %v, err: %v", r.URL.String(), err)
+	}
+
+	return &re, nil
+}
+
+// Close closes redirector and releases all resources
+func (rd *Redirector) Close() {
+	close(rd.doneC)
+	rd.server.Close()
+}
+
+// wrapCallback is a helper wrapper method that wraps callback HTTP handler
+// and sends a result to the channel and redirect users to error page
+func (rd *Redirector) wrapCallback(fn func(http.ResponseWriter, *http.Request) (*authclient.CLILoginResponse, error)) http.Handler {
+	// Generate possible redirect URLs from the proxy URL.
+	clone := *rd.proxyURL
+	clone.Path = LoginFailedRedirectURL
+	errorURL := clone.String()
+	clone.Path = LoginSuccessRedirectURL
+	successURL := clone.String()
+	clone.Path = LoginClose
+	closeURL := clone.String()
+
+	clone.Path = LoginTerminalRedirectURL
+	if rd.ConnectorDisplayName != "" {
+		query := clone.Query()
+		query.Set("auth", rd.ConnectorDisplayName)
+		clone.RawQuery = query.Encode()
+	}
+	terminalRedirectURL := clone.String()
+
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Add("Allow", "GET, OPTIONS, POST")
+		// CORS protects the _response_, and our response is always just a
+		// redirect to info/login_success or error/login so it's fine to share
+		// with the world; we could use the proxy URL as the origin, but that
+		// would break setups where the proxy public address that tsh is using
+		// is not the "main" one that ends up being used for the redirect after
+		// the IdP login
+		w.Header().Add("Access-Control-Allow-Origin", "*")
+		switch r.Method {
+		default:
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		case http.MethodOptions:
+			w.WriteHeader(http.StatusOK)
+			return
+		case http.MethodGet, http.MethodPost:
+		}
+
+		response, err := fn(w, r)
+		if err != nil {
+			if trace.IsNotFound(err) {
+				http.NotFound(w, r)
+				return
+			}
+			select {
+			case rd.errorC <- err:
+			case <-rd.Done():
+			}
+			redirectURL := errorURL
+			// A second SSO login attempt will be initiated if a key policy requirement was not satisfied.
+			if requiredPolicy, err := keys.ParsePrivateKeyPolicyError(err); err == nil {
+				switch requiredPolicy {
+				case keys.PrivateKeyPolicyHardwareKey, keys.PrivateKeyPolicyHardwareKeyTouch:
+					// No user interaction required.
+					redirectURL = closeURL
+				case keys.PrivateKeyPolicyHardwareKeyPIN, keys.PrivateKeyPolicyHardwareKeyTouchAndPIN:
+					// The user is prompted to enter their PIN in terminal.
+					redirectURL = terminalRedirectURL
+				}
+			}
+			http.Redirect(w, r, redirectURL, http.StatusFound)
+			return
+		}
+		select {
+		case rd.responseC <- response:
+			redirectURL := successURL
+			switch rd.PrivateKeyPolicy {
+			case keys.PrivateKeyPolicyHardwareKey:
+				// login should complete without user interaction, success.
+			case keys.PrivateKeyPolicyHardwareKeyPIN:
+				// The user is prompted to enter their PIN before this step,
+				// so we can go straight to success screen.
+			case keys.PrivateKeyPolicyHardwareKeyTouch, keys.PrivateKeyPolicyHardwareKeyTouchAndPIN:
+				// The user is prompted to touch their hardware key after
+				// this redirect, so display the terminal redirect screen.
+				redirectURL = terminalRedirectURL
+			}
+			http.Redirect(w, r, redirectURL, http.StatusFound)
+		case <-rd.Done():
+			http.Redirect(w, r, errorURL, http.StatusFound)
+		}
+	})
+}
+
+// CeremonyType is the type of SSO ceremony.
+type CeremonyType int
+
+const (
+	// CeremonyTypeLogin ceremonies are performed during standard SSO login flows.
+	CeremonyTypeLogin CeremonyType = iota
+	// CeremonyTypeMFA ceremonies are performed during MFA flows for SSO users if SSO MFA
+	// is enabled for their origin SSO connector.
+	CeremonyTypeMFA
+	// CeremonyTypeTest ceremonies are performed by administrators with "tctl sso test".
+	CeremonyTypeTest
+)
+
+// ValidateClientRedirect validates a redirect URL provided by the client to
+// consume the SSO response at the end of the SSO Ceremony. This validation
+// differs depending on the ceremony type. Some checks are auth connector
+// specific and others depend on the ceremony type (MFA, Login, or Test).
+//
+// For Web MFA ceremonies, the redirect URL should be [WebMFARedirect] as a relative
+// path with no custom values outside of query parameters.
+//
+// For Login, Test, and non-web MFA ceremonies, the redirect URL should have:
+// - a path of "/callback"
+// - "http" scheme
+// - a hostname of "localhost", "127.0.0.1", or "::1"
+// - any port
+//
+// For non test ceremonies, If "allowed_https_hostnames" list is non-empty,
+// the redirect URL can instead have:
+// - a path of "/callback"
+// - "https" scheme
+// - a hostname that matches one in the "allowed_https_hostnames" list
+// - either empty or 443 port
+//
+// For non test ceremonies, If the "insecure_allowed_cidr_ranges" list is non-empty, URLs in both the
+// "http" and "https" schema are allowed if the hostname is an IP address that is contained in a
+// specified CIDR range on any port.
+func ValidateClientRedirect(clientRedirect string, ceremonyType CeremonyType, settings *types.SSOClientRedirectSettings) error {
+	// Warning to developers and reviewers: this validation function is critical to SSO security
+	// and any changes to it should be carefully considered from a vulnerability point of view.
+
+	if clientRedirect == "" {
+		// empty redirects are non-functional and harmless, so we allow them as
+		// they're used a lot in test code
+		return nil
+	}
+
+	u, err := url.Parse(clientRedirect)
+	if err != nil {
+		return trace.Wrap(err, "parsing client redirect URL")
+	}
+
+	if u.Opaque != "" {
+		return trace.BadParameter("unexpected opaque client redirect URL")
+	}
+	if u.User != nil {
+		return trace.BadParameter("unexpected userinfo in client redirect URL")
+	}
+	if u.Fragment != "" || u.RawFragment != "" {
+		return trace.BadParameter("unexpected fragment in client redirect URL")
+	}
+
+	// For Web MFA redirect, we expect a relative path. The proxy handling the SSO callback
+	// will redirect to itself with this relative path.
+	if u.Path == WebMFARedirect {
+		if ceremonyType != CeremonyTypeMFA {
+			return trace.BadParameter("the web mfa redirect path, \"/web/sso_confirm\", cannot be used for non-MFA flows")
+		}
+		if u.IsAbs() {
+			return trace.BadParameter("invalid client redirect URL for SSO MFA")
+		}
+		if u.Hostname() != "" {
+			return trace.BadParameter("invalid client redirect URL for SSO MFA")
+		}
+		if q, err := url.ParseQuery(u.RawQuery); err != nil {
+			return trace.Wrap(err, "parsing query in client redirect URL")
+		} else if len(q) != 1 || len(q["channel_id"]) != 1 {
+			return trace.BadParameter("malformed query parameters in client redirect URL")
+		}
+		return nil
+	}
+
+	if u.EscapedPath() != "/callback" {
+		return trace.BadParameter("invalid path in client redirect URL")
+	}
+	if q, err := url.ParseQuery(u.RawQuery); err != nil {
+		return trace.Wrap(err, "parsing query in client redirect URL")
+	} else if len(q) != 1 || len(q["secret_key"]) != 1 {
+		return trace.BadParameter("malformed query parameters in client redirect URL")
+	}
+
+	// we checked everything but u.Scheme and u.Host now
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return trace.BadParameter("invalid scheme in client redirect URL")
+	}
+
+	// allow HTTP redirects to local addresses
+	allowedHTTPLocalAddrs := []string{"localhost", "127.0.0.1", "::1"}
+	if u.Scheme == "http" && slices.Contains(allowedHTTPLocalAddrs, u.Hostname()) {
+		return nil
+	}
+
+	if ceremonyType == CeremonyTypeTest {
+		return trace.AccessDenied("custom client redirect URLs are not allowed in SSO test")
+	}
+
+	const unknownRedirectHostnameErrMsg = "unknown custom client redirect URL hostname"
+	if settings == nil {
+		return trace.AccessDenied("%s", unknownRedirectHostnameErrMsg)
+	}
+
+	// allow HTTP or HTTPS redirects from IPs in specified CIDR ranges
+	hostIP, err := netip.ParseAddr(u.Hostname())
+	if err == nil {
+		hostIP = hostIP.Unmap()
+
+		for _, cidrStr := range settings.InsecureAllowedCidrRanges {
+			cidr, err := netip.ParsePrefix(cidrStr)
+			if err != nil {
+				slog.WarnContext(context.Background(), "error parsing OIDC connector CIDR prefix", "cidr", cidrStr, "err", err)
+				continue
+			}
+			if cidr.Contains(hostIP) {
+				return nil
+			}
+		}
+	}
+
+	if u.Scheme == "https" {
+		switch u.Port() {
+		default:
+			return trace.BadParameter("invalid port in client redirect URL")
+		case "", "443":
+		}
+
+		for _, expression := range settings.AllowedHttpsHostnames {
+			ok, err := utils.MatchString(u.Hostname(), expression)
+			if err != nil {
+				slog.WarnContext(context.Background(), "error compiling OIDC connector allowed HTTPS hostname regex", "regex", expression, "err", err)
+				continue
+			}
+			if ok {
+				return nil
+			}
+		}
+	}
+
+	return trace.AccessDenied("%s", unknownRedirectHostnameErrMsg)
+}

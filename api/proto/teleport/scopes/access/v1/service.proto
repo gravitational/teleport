@@ -1,0 +1,284 @@
+// Copyright 2025 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.scopes.access.v1;
+
+import "teleport/scopes/access/v1/assignment.proto";
+import "teleport/scopes/access/v1/role.proto";
+import "teleport/scopes/v1/scopes.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1;accessv1";
+
+// ScopedAccessService provides an API for managing scoped access-control resources.
+service ScopedAccessService {
+  // GetScopedRole gets a scoped role by name.
+  rpc GetScopedRole(GetScopedRoleRequest) returns (GetScopedRoleResponse);
+
+  // ListScopedRoles returns a paginated list of scoped roles.
+  rpc ListScopedRoles(ListScopedRolesRequest) returns (ListScopedRolesResponse);
+
+  // CreateScopedRole creates a new scoped role.
+  rpc CreateScopedRole(CreateScopedRoleRequest) returns (CreateScopedRoleResponse);
+
+  // UpdateScopedRole updates a scoped role.
+  rpc UpdateScopedRole(UpdateScopedRoleRequest) returns (UpdateScopedRoleResponse);
+
+  // UpsertScopedRole creates or updates a scoped role.
+  rpc UpsertScopedRole(UpsertScopedRoleRequest) returns (UpsertScopedRoleResponse);
+
+  // DeleteScopedRole deletes a scoped role. Note that scoped role deletion is always
+  // conditional and may fail due to concurrent modification.
+  rpc DeleteScopedRole(DeleteScopedRoleRequest) returns (DeleteScopedRoleResponse);
+
+  // GetScopedRoleAssignment gets a scoped role assignment by name.
+  rpc GetScopedRoleAssignment(GetScopedRoleAssignmentRequest) returns (GetScopedRoleAssignmentResponse);
+
+  // ListScopedRoleAssignments returns a paginated list of scoped role assignments.
+  rpc ListScopedRoleAssignments(ListScopedRoleAssignmentsRequest) returns (ListScopedRoleAssignmentsResponse);
+
+  // CreateScopedRoleAssignment creates a new scoped role assignment.
+  rpc CreateScopedRoleAssignment(CreateScopedRoleAssignmentRequest) returns (CreateScopedRoleAssignmentResponse);
+
+  // UpdateScopedRoleAssignment updates a scoped role assignment.
+  rpc UpdateScopedRoleAssignment(UpdateScopedRoleAssignmentRequest) returns (UpdateScopedRoleAssignmentResponse);
+
+  // UpsertScopedRoleAssignment creates or updates a scoped role assignment.
+  rpc UpsertScopedRoleAssignment(UpsertScopedRoleAssignmentRequest) returns (UpsertScopedRoleAssignmentResponse);
+
+  // DeleteScopedRoleAssignment deletes a scoped role assignment.
+  rpc DeleteScopedRoleAssignment(DeleteScopedRoleAssignmentRequest) returns (DeleteScopedRoleAssignmentResponse);
+}
+
+// GetScopedRoleRequest is the request to get a scoped role.
+message GetScopedRoleRequest {
+  // Name is the name of the scoped role.
+  string name = 1;
+
+  // Scope is the resource scope of the scoped role (required).
+  string scope = 2;
+}
+
+// GetScopedRoleResponse is the response to get a scoped role.
+message GetScopedRoleResponse {
+  // Role is the scoped role.
+  ScopedRole role = 1;
+}
+
+// ListScopedRolesRequest is the request to list scoped roles.
+message ListScopedRolesRequest {
+  reserved 4;
+  reserved "assignable_scope";
+
+  // PageSize is the maximum number of results to return.
+  int32 page_size = 1;
+
+  // PageToken is the pagination cursor used to start from where a previous request left off.
+  string page_token = 2;
+
+  // ResourceScope filters roles by their resource scope if specified.
+  teleport.scopes.v1.Filter resource_scope = 3 [deprecated = true];
+
+  // NameFilter filters roles by their name using a case-insensitive substring
+  // match if specified.
+  string name_filter = 5;
+
+  // ScopeFilter is the primary scope filter. Filtering is performed against the scope of the
+  // resource itself. Defaults to one of EXACT or UNSCOPED depending on wether the caller is
+  // a scoped or unscoped identity. Exhaustive user-facing views (e.g. `tctl get`) should
+  // specify mode ALL.
+  teleport.scopes.v1.Filter scope_filter = 6;
+}
+
+// ListScopedRolesResponse is the response to list scoped roles.
+message ListScopedRolesResponse {
+  // Roles is the list of scoped roles.
+  repeated ScopedRole roles = 1;
+
+  // NextPageToken is a pagination cursor usable to fetch the next page of results.
+  string next_page_token = 2;
+}
+
+// CreateScopedRoleRequest is the request to create a scoped role.
+message CreateScopedRoleRequest {
+  // Role is the scoped role to create.
+  ScopedRole role = 1;
+}
+
+// CreateScopedRoleResponse is the response to create a scoped role.
+message CreateScopedRoleResponse {
+  // Role is the scoped role that was created.
+  ScopedRole role = 1;
+}
+
+// UpdateScopedRoleRequest is the request to update a scoped role.
+message UpdateScopedRoleRequest {
+  // Role is the scoped role to update.
+  ScopedRole role = 1;
+}
+
+// UpdateScopedRoleResponse is the response to update a scoped role.
+message UpdateScopedRoleResponse {
+  // Role is the post-update scoped role.
+  ScopedRole role = 1;
+}
+
+// UpsertScopedRoleRequest is the request to upsert a scoped role.
+message UpsertScopedRoleRequest {
+  // Role is the scoped role to upsert.
+  ScopedRole role = 1;
+}
+
+// UpsertScopedRoleResponse is the response to upsert a scoped role.
+message UpsertScopedRoleResponse {
+  // Role is the post-upsert scoped role.
+  ScopedRole role = 1;
+}
+
+// DeleteScopedRoleRequest is the request to delete a scoped role.
+message DeleteScopedRoleRequest {
+  // Name is the name of the scoped role to delete.
+  string name = 1;
+
+  // Revision asserts the revision of the scoped role to delete (optional).
+  string revision = 2;
+
+  // Scope is the resource scope of the scoped role to delete (required).
+  string scope = 3;
+}
+
+// DeleteScopedRoleResponse is the response to delete a scoped role.
+message DeleteScopedRoleResponse {}
+
+// GetScopedRoleAssignmentRequest is the request to get a scoped role assignment.
+message GetScopedRoleAssignmentRequest {
+  // Name is the name of the scoped role assignment.
+  string name = 1;
+
+  // SubKind is the sub kind of the scoped role assignment.
+  string sub_kind = 2;
+
+  // Scope is the resource scope of the scoped role assignment (required).
+  string scope = 3;
+}
+
+// GetScopedRoleAssignmentResponse is the response to get a scoped role assignment.
+message GetScopedRoleAssignmentResponse {
+  // Assignment is the scoped role assignment.
+  ScopedRoleAssignment assignment = 1;
+}
+
+// ListScopedRoleAssignmentsRequest is the request to list scoped role assignments.
+message ListScopedRoleAssignmentsRequest {
+  reserved 3, 4;
+  reserved "resource_scope", "assigned_scope";
+
+  // PageSize is the maximum number of results to return.
+  int32 page_size = 1;
+
+  // PageToken is the pagination cursor used to start from where a previous request left off.
+  string page_token = 2;
+
+  // User optionally limits the list to assignments for a specific user.
+  string user = 5;
+
+  // Role optionally limits the list to assignments for a specific role.
+  string role = 6;
+
+  // AllCallerAssignments, if set to true, overrides the default behavior in favor of returning all
+  // assignments that apply to the caller, including those assigned in parent/orthogonal scopes. This flag
+  // is specifically used to support users discovering where they have been granted privileges across scopes,
+  // and is not intended for general use.
+  bool all_caller_assignments = 7;
+
+  // ScopeFilter is the primary scope filter. Filtering is performed against the scope of the
+  // resource itself. Defaults to one of EXACT or UNSCOPED depending on wether the caller is
+  // a scoped or unscoped identity. Exhaustive user-facing views (e.g. `tctl get`) should
+  // specify mode ALL.
+  teleport.scopes.v1.Filter scope_filter = 8;
+
+  // AssignedScopeFilter filters assignments by the scopes they assign to if specified (note: matches
+  // assignment resources with 1 or more matching scopes, not all scopes within the assignment will
+  // necessarily match).
+  teleport.scopes.v1.Filter assigned_scope_filter = 9;
+}
+
+// ListScopedRoleAssignmentsResponse is the response to list scoped role assignments.
+message ListScopedRoleAssignmentsResponse {
+  // Assignments is the list of scoped role assignments.
+  repeated ScopedRoleAssignment assignments = 1;
+
+  // NextPageToken is a pagination cursor usable to fetch the next page of results.
+  string next_page_token = 2;
+}
+
+// CreateScopedRoleAssignmentRequest is the request to create a scoped role assignment.
+message CreateScopedRoleAssignmentRequest {
+  // role revisions was used during early unstable builds, but was never part
+  // of any stable release and can likely be "un-reserved" in the future.
+  reserved 2;
+  reserved "role_revisions";
+
+  // Assignment is the scoped role assignment to create.
+  ScopedRoleAssignment assignment = 1;
+}
+
+// CreateScopedRoleAssignmentResponse is the response to create a scoped role assignment.
+message CreateScopedRoleAssignmentResponse {
+  // Assignment is the scoped role assignment that was created.
+  ScopedRoleAssignment assignment = 1;
+}
+
+// UpdateScopedRoleAssignmentRequest is the request to update a scoped role assignment.
+message UpdateScopedRoleAssignmentRequest {
+  // Assignment is the scoped role assignment to update.
+  ScopedRoleAssignment assignment = 1;
+}
+
+// UpdateScopedRoleAssignmentResponse is the response to update a scoped role assignment.
+message UpdateScopedRoleAssignmentResponse {
+  // Assignment is the post-update scoped role assignment.
+  ScopedRoleAssignment assignment = 1;
+}
+
+// UpsertScopedRoleAssignmentRequest is the request to upsert a scoped role assignment.
+message UpsertScopedRoleAssignmentRequest {
+  // Assignment is the scoped role assignment to upsert.
+  ScopedRoleAssignment assignment = 1;
+}
+
+// UpsertScopedRoleAssignmentResponse is the response to upsert a scoped role assignment.
+message UpsertScopedRoleAssignmentResponse {
+  // Assignment is the post-upsert scoped role assignment.
+  ScopedRoleAssignment assignment = 1;
+}
+
+// DeleteScopedRoleAssignmentRequest is the request to delete a scoped role assignment.
+message DeleteScopedRoleAssignmentRequest {
+  // Name is the name of the scoped role assignment to delete.
+  string name = 1;
+
+  // Revision asserts the revision of the scoped role assignment to delete (optional).
+  string revision = 2;
+
+  // SubKind is the sub kind of the scoped role assignment.
+  string sub_kind = 3;
+
+  // Scope is the resource scope of the scoped role assignment to delete (required).
+  string scope = 4;
+}
+
+// DeleteScopedRoleAssignmentResponse is the response to delete a scoped role assignment.
+message DeleteScopedRoleAssignmentResponse {}

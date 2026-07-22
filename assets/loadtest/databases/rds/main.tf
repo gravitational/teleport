@@ -5,10 +5,9 @@ locals {
   account_id = data.aws_caller_identity.current.account_id
   partition  = data.aws_partition.current.partition
 
-  iam_role_name            = "${var.prefix}-database-access"
-  iam_policy_name          = "${var.prefix}-database-access"
-  iam_policy_name_boundary = "${var.prefix}-database-access-boundary"
-  iam_role_arn             = "arn:${local.partition}:iam::${local.account_id}:role/${local.iam_role_name}"
+  iam_role_name   = "${var.prefix}-database-access"
+  iam_policy_name = "${var.prefix}-database-access"
+  iam_role_arn    = "arn:${local.partition}:iam::${local.account_id}:role/${local.iam_role_name}"
 
   pg_proxy_name    = "${var.prefix}-postgres-proxy"
   mysql_proxy_name = "${var.prefix}-mysql-proxy"
@@ -189,55 +188,10 @@ module "database_agent_policy" {
                 "rds:DescribeDBProxies",
                 "rds:DescribeDBProxyEndpoints",
                 "rds:DescribeDBProxyTargets",
-                "rds:ListTagsForResource"
-            ],
-            "Resource": "*"
-        },
-        {
-            "Effect": "Allow",
-            "Action": [
-                "iam:GetRolePolicy",
-                "iam:PutRolePolicy",
-                "iam:DeleteRolePolicy"
-            ],
-            "Resource": "${local.iam_role_arn}"
-        }
-    ]
-}
-EOF
-}
-
-module "database_agent_policy_boundary" {
-  source  = "terraform-aws-modules/iam/aws//modules/iam-policy"
-  version = "~> 5.28"
-
-  name        = local.iam_policy_name_boundary
-  path        = "/"
-  description = "Teleport load test policy for acessing RDS databases."
-
-  policy = <<EOF
-{
-    "Version": "2012-10-17",
-    "Statement": [
-        {
-            "Effect": "Allow",
-            "Action": [
-                "rds:DescribeDBProxies",
-                "rds:DescribeDBProxyEndpoints",
-                "rds:DescribeDBProxyTargets",
                 "rds:ListTagsForResource",
                 "rds-db:connect"
             ],
             "Resource": "*"
-        },
-        {
-            "Effect": "Allow",
-            "Action": [
-                "iam:GetRolePolicy",
-                "iam:PutRolePolicy",
-                "iam:DeleteRolePolicy"
-            ],
-            "Resource": "${local.iam_role_arn}"
         }
     ]
 }
@@ -252,7 +206,6 @@ module "iam_eks_role" {
   role_policy_arns = {
     policy = module.database_agent_policy.arn
   }
-  role_permissions_boundary_arn = module.database_agent_policy_boundary.arn
   cluster_service_accounts = {
     "${var.eks_cluster_name}" = ["${var.database_access_namespace}:${var.database_access_svc_account_name}"]
   }

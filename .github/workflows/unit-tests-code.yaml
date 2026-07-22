@@ -25,6 +25,10 @@ on:
       - 'build.assets/Dockerfile*'
       - 'Makefile'
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.event.merge_group.head_sha || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   test:
     name: Unit Tests (Go)
@@ -34,20 +38,20 @@ jobs:
     permissions:
       contents: read
       packages: read
+      id-token: write # required for AWS credentials
 
     container:
-      image: ghcr.io/gravitational/teleport-buildbox:teleport17
+      image: ghcr.io/gravitational/teleport-buildbox:teleport19
       env:
         TELEPORT_ETCD_TEST: yes
         TELEPORT_ETCD_TEST_ENDPOINT: https://etcd0:2379
         TELEPORT_XAUTH_TEST: yes
-        TELEPORT_BPF_TEST: yes
         WEBASSETS_SKIP_BUILD: 1
       options: --cap-add=SYS_ADMIN --privileged
 
     services:
       etcd0:
-        image: ghcr.io/gravitational/ci-etcd:3.3.9
+        image: ghcr.io/gravitational/ci-etcd:3.3.27
         options: >-
           --health-interval 10s
           --health-timeout 5s
@@ -60,14 +64,20 @@ jobs:
 
     steps:
       - name: Checkout Teleport
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Prepare workspace
+        id: prepare
         uses: ./.github/actions/prepare-workspace
 
       - name: Mount debugfs
         run: mount -t debugfs none /sys/kernel/debug/
 
       - name: Run tests
-        timeout-minutes: 20
+        timeout-minutes: 30
         run: make -j"$(nproc)" test-go test-sh test-api
+
+      - name: Upload test metrics
+        if: always()
+        continue-on-error: true # Do not fail the workflow
+        uses: ./.github/actions/upload-test-metrics

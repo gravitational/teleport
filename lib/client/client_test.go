@@ -28,51 +28,39 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/lib/observability/tracing"
-	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 func TestHelperFunctions(t *testing.T) {
-	assert.Equal(t, "one", nodeName(targetNode{addr: "one"}))
-	assert.Equal(t, "one", nodeName(targetNode{addr: "one:22"}))
-	assert.Equal(t, "example.com", nodeName(targetNode{addr: "one", hostname: "example.com"}))
+	assert.Equal(t, "one", nodeName(TargetNode{Addr: "one"}))
+	assert.Equal(t, "one", nodeName(TargetNode{Addr: "one:22"}))
+	assert.Equal(t, "example.com", nodeName(TargetNode{Addr: "one", Hostname: "example.com"}))
 }
 
 func TestNewSession(t *testing.T) {
 	nc := &NodeClient{
-		Namespace: "blue",
-		Tracer:    tracing.NoopProvider().Tracer("test"),
+		TC:     &TeleportClient{},
+		Tracer: tracing.NoopProvider().Tracer("test"),
 	}
 
 	ctx := context.Background()
 	// defaults:
-	ses, err := newSession(ctx, nc, nil, nil, nil, nil, nil, true)
+	ses, err := newSession(ctx, nc, nil, nil, nil, nil, true)
 	require.NoError(t, err)
 	require.NotNil(t, ses)
 	require.Equal(t, nc, ses.NodeClient())
-	require.Equal(t, nc.Namespace, ses.namespace)
 	require.NotNil(t, ses.env)
 	require.Equal(t, os.Stderr, ses.terminal.Stderr())
 	require.Equal(t, os.Stdout, ses.terminal.Stdout())
 	require.Equal(t, os.Stdin, ses.terminal.Stdin())
-
-	// pass environ map
-	env := map[string]string{
-		sshutils.SessionEnvVar: "session-id",
-	}
-	ses, err = newSession(ctx, nc, nil, env, nil, nil, nil, true)
-	require.NoError(t, err)
-	require.NotNil(t, ses)
-	require.Empty(t, cmp.Diff(ses.env, env))
-	// the session ID must be taken from tne environ map, if passed:
-	require.Equal(t, "session-id", string(ses.id))
 }
 
 // TestProxyConnection verifies that client or server-side disconnect
@@ -128,7 +116,7 @@ func TestProxyConnection(t *testing.T) {
 	err = localCon.Close()
 	require.NoError(t, err)
 
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		select {
 		case err := <-proxyErrCh:
 			require.NoError(t, err)
@@ -160,7 +148,7 @@ func TestProxyConnection(t *testing.T) {
 	err = remoteCon.Close()
 	require.NoError(t, err)
 
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		select {
 		case err := <-proxyErrCh:
 			require.NoError(t, err)
@@ -304,14 +292,15 @@ func (l wrappedListener) Accept() (net.Conn, error) {
 func TestLineLabeledWriter(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name     string
-		inputs   []string
-		expected string
+		name       string
+		inputs     []string
+		lineLength int
+		expected   string
 	}{
 		{
 			name:     "typical input",
 			inputs:   []string{"this is\nsome test\ninput"},
-			expected: "[label] this is\n[label] some test\n[label] input",
+			expected: "[label] this is\n[label] some test\n[label] input\n",
 		},
 		{
 			name:     "don't add empty line at end",
@@ -321,7 +310,7 @@ func TestLineLabeledWriter(t *testing.T) {
 		{
 			name:     "blank lines in middle",
 			inputs:   []string{"this\n\nis\n\nsome input"},
-			expected: "[label] this\n[label] \n[label] is\n[label] \n[label] some input",
+			expected: "[label] this\n[label] \n[label] is\n[label] \n[label] some input\n",
 		},
 		{
 			name:     "line break between writes",
@@ -331,18 +320,31 @@ func TestLineLabeledWriter(t *testing.T) {
 		{
 			name:     "line break immediately on second write",
 			inputs:   []string{"line 1", "\nline 2"},
-			expected: "[label] line 1\n[label] line 2",
+			expected: "[label] line 1\n[label] line 2\n",
 		},
 		{
 			name:     "line continues between writes",
-			inputs:   []string{"this is all ", "one continuous line"},
-			expected: "[label] this is all one continuous line",
+			inputs:   []string{"this is all ", "one continuous line ", "until\nnow"},
+			expected: "[label] this is all one continuous line until\n[label] now\n",
+		},
+		{
+			name:       "long lines wrapped",
+			inputs:     []string{"1234\nabcdefghijklmnopqrstuvwxyz\n1234"},
+			lineLength: 16,
+			expected:   "[label] 1234\n[label] abcdefgh\n[label] ijklmnop\n[label] qrstuvwx\n[label] yz\n[label] 1234\n",
+		},
+		{
+			name:       "exact length lines",
+			inputs:     []string{"abcdefgh", "\nijklmnop"},
+			lineLength: 16,
+			expected:   "[label] abcdefgh\n[label] ijklmnop\n",
 		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			var buf bytes.Buffer
-			w := newLineLabeledWriter(&buf, "label")
+			w, err := newLineLabeledWriter(&buf, "label", tc.lineLength)
+			require.NoError(t, err)
 
 			totalBytes := 0
 			expectedBytes := 0
@@ -352,8 +354,27 @@ func TestLineLabeledWriter(t *testing.T) {
 				totalBytes += n
 				expectedBytes += len(line)
 			}
+			assert.NoError(t, w.Close())
 			assert.Equal(t, expectedBytes, totalBytes)
 			assert.Equal(t, tc.expected, buf.String())
 		})
 	}
+}
+
+func TestRouteToDatabaseToProto(t *testing.T) {
+	input := tlsca.RouteToDatabase{
+		ServiceName: "db-service",
+		Database:    "db-name",
+		Username:    "db-user",
+		Protocol:    "db-protocol",
+		Roles:       []string{"db-role1", "db-role2"},
+	}
+	expected := proto.RouteToDatabase{
+		ServiceName: "db-service",
+		Database:    "db-name",
+		Username:    "db-user",
+		Protocol:    "db-protocol",
+		Roles:       []string{"db-role1", "db-role2"},
+	}
+	require.Equal(t, expected, RouteToDatabaseToProto(input))
 }

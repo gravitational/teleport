@@ -20,25 +20,50 @@ package common
 
 import (
 	"bytes"
+	"context"
 	"fmt"
+	"log/slog"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/srv/server/installer"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
+const initTestSentinel = "init_test"
+
 func TestMain(m *testing.M) {
-	utils.InitLoggerForTests()
+	if slices.Contains(os.Args, initTestSentinel) {
+		os.Exit(0)
+	}
+
+	logtest.InitLogger(testing.Verbose)
 	os.Exit(m.Run())
+}
+
+func BenchmarkInit(b *testing.B) {
+	if testing.Short() {
+		b.Skip("skipping heavy benchmark")
+	}
+	executable, err := os.Executable()
+	require.NoError(b, err)
+
+	for b.Loop() {
+		cmd := exec.Command(executable, initTestSentinel)
+		err := cmd.Run()
+		assert.NoError(b, err)
+	}
 }
 
 // bootstrap check
@@ -53,15 +78,37 @@ func TestTeleportMain(t *testing.T) {
 	require.NoError(t, os.WriteFile(configFile, []byte(configData), 0660))
 
 	// generate the fixture bootstrap file
-	bootstrapEntries := []struct{ fileName, kind, name string }{
-		{"role.yaml", types.KindRole, "role_name"},
-		{"github.yaml", types.KindGithubConnector, "github"},
-		{"user.yaml", types.KindRole, "user"},
+	bootstrapEntries := []struct {
+		fileName string
+		kind     string
+		name     string
+		content  string
+	}{
+		{fileName: "role.yaml", kind: types.KindRole, name: "role_name"},
+		{fileName: "github.yaml", kind: types.KindGithubConnector, name: "github"},
+		{fileName: "user.yaml", kind: types.KindRole, name: "user"},
+		{
+			fileName: "workload-identity.yaml",
+			kind:     types.KindWorkloadIdentity,
+			name:     "example-workload-identity",
+			content: `kind: workload_identity
+version: v1
+metadata:
+  name: example-workload-identity
+spec:
+  spiffe:
+    id: /svc/example
+`,
+		},
 	}
 	var bootstrapData []byte
 	for _, entry := range bootstrapEntries {
-		data, err := os.ReadFile(filepath.Join("..", "..", "..", "examples", "resources", entry.fileName))
-		require.NoError(t, err)
+		data := []byte(entry.content)
+		if entry.content == "" {
+			fileData, err := os.ReadFile(filepath.Join("..", "..", "..", "examples", "resources", entry.fileName))
+			require.NoError(t, err)
+			data = fileData
+		}
 		bootstrapData = append(bootstrapData, data...)
 		bootstrapData = append(bootstrapData, "\n---\n"...)
 	}
@@ -83,8 +130,7 @@ func TestTeleportMain(t *testing.T) {
 		require.True(t, conf.Auth.Enabled)
 		require.True(t, conf.SSH.Enabled)
 		require.True(t, conf.Proxy.Enabled)
-		require.Equal(t, os.Stdout, conf.Console)
-		require.Equal(t, log.ErrorLevel, log.GetLevel())
+		require.True(t, slog.Default().Handler().Enabled(context.Background(), slog.LevelError))
 	})
 
 	t.Run("RolesFlag", func(t *testing.T) {
@@ -125,7 +171,7 @@ func TestTeleportMain(t *testing.T) {
 		require.True(t, conf.SSH.Enabled)
 		require.False(t, conf.Auth.Enabled)
 		require.False(t, conf.Proxy.Enabled)
-		require.Equal(t, log.DebugLevel, conf.Log.GetLevel())
+		require.True(t, slog.Default().Handler().Enabled(context.Background(), slog.LevelDebug))
 		require.Equal(t, "hvostongo.example.org", conf.Hostname)
 
 		token, err := conf.Token()
@@ -141,7 +187,7 @@ func TestTeleportMain(t *testing.T) {
 			InitOnly: true,
 		})
 		require.Equal(t, "start", cmd)
-		require.Equal(t, len(bootstrapEntries), len(conf.Auth.BootstrapResources))
+		require.Len(t, bootstrapEntries, len(conf.Auth.BootstrapResources))
 		for i, entry := range bootstrapEntries {
 			require.Equal(t, entry.kind, conf.Auth.BootstrapResources[i].GetKind(), entry.fileName)
 			require.Equal(t, entry.name, conf.Auth.BootstrapResources[i].GetName(), entry.fileName)
@@ -154,7 +200,7 @@ func TestTeleportMain(t *testing.T) {
 			InitOnly: true,
 		})
 		require.Equal(t, "start", cmd)
-		require.Equal(t, len(bootstrapEntries), len(conf.Auth.ApplyOnStartupResources))
+		require.Len(t, bootstrapEntries, len(conf.Auth.ApplyOnStartupResources))
 		for i, entry := range bootstrapEntries {
 			require.Equal(t, entry.kind, conf.Auth.ApplyOnStartupResources[i].GetKind(), entry.fileName)
 			require.Equal(t, entry.name, conf.Auth.ApplyOnStartupResources[i].GetName(), entry.fileName)
@@ -169,7 +215,7 @@ func TestConfigure(t *testing.T) {
 			// typo
 			output: "sddout",
 		})
-		require.IsType(t, trace.BadParameter(""), err)
+		require.ErrorAs(t, err, new(*trace.BadParameterError))
 
 		err = onConfigDump(dumpFlags{
 			output: "file://" + filepath.Join(t.TempDir(), "test"),
@@ -233,6 +279,56 @@ func TestDumpConfigFile(t *testing.T) {
 			tc.assert(t, err)
 		})
 	}
+}
+
+func TestWriteInstallJoinFailureError(t *testing.T) {
+	t.Parallel()
+
+	t.Run("all fields populated", func(t *testing.T) {
+		t.Parallel()
+
+		var stderr bytes.Buffer
+		writeInstallJoinFailureError(&stderr, &installer.JoinFailureError{
+			Message:            "node did not become ready (join cluster) within 5m0s",
+			ServiceDiagnostics: `systemd service state: ActiveState="failed"`,
+			JournalOutput:      "error: token expired",
+		})
+
+		out := stderr.String()
+		require.Contains(t, out, "ERROR: agent failed to join the cluster\n")
+		require.Contains(t, out, "node did not become ready (join cluster) within 5m0s\n")
+		require.Contains(t, out, `systemd service state: ActiveState="failed"`)
+		require.Contains(t, out, "Journal output:\nerror: token expired\n")
+	})
+
+	t.Run("message only", func(t *testing.T) {
+		t.Parallel()
+
+		var stderr bytes.Buffer
+		writeInstallJoinFailureError(&stderr, &installer.JoinFailureError{
+			Message: "node did not become ready (join cluster) within 5m0s",
+		})
+
+		out := stderr.String()
+		require.Contains(t, out, "ERROR: agent failed to join the cluster\n")
+		require.Contains(t, out, "node did not become ready (join cluster) within 5m0s\n")
+	})
+
+	t.Run("no journal output", func(t *testing.T) {
+		t.Parallel()
+
+		var stderr bytes.Buffer
+		writeInstallJoinFailureError(&stderr, &installer.JoinFailureError{
+			Message:            "node did not become ready (join cluster) within 5m0s",
+			ServiceDiagnostics: "systemd service state: unavailable",
+		})
+
+		out := stderr.String()
+		require.Contains(t, out, "ERROR: agent failed to join the cluster\n")
+		require.Contains(t, out, "node did not become ready (join cluster) within 5m0s\n")
+		require.Contains(t, out, "systemd service state: unavailable\n")
+		require.NotContains(t, out, "Journal output:")
+	})
 }
 
 const configData = `

@@ -16,66 +16,97 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import { Meta } from '@storybook/react-vite';
 
-import { Text } from 'design';
+import { ButtonPrimary, Text } from 'design';
+import { EmailSolid } from 'design/Icon';
 
 import Validation from '../../components/Validation';
+import { requiredEmailLike, requiredField } from '../Validation/rules';
+import FieldInputComponent from './FieldInput';
 
-import FieldInput from './FieldInput';
-
-export default {
-  title: 'Shared',
+type StoryProps = {
+  readOnly?: boolean;
+  disabled?: boolean;
 };
 
-export const Fields = () => (
-  <Validation>
-    {() => (
-      <>
-        <FieldInput
-          mb="6"
-          label="Label"
-          labelTip="Optional tabel tip"
-          name="optional name"
-          onChange={() => {}}
-          value={'value'}
-        />
-        <FieldInput
-          mb="6"
-          label="Label with placeholder"
-          name="optional name"
-          onChange={() => {}}
-          placeholder="placeholder"
-          value={''}
-        />
-        <FieldInput
-          mb="6"
-          label="Label with tooltip"
-          name="optional name"
-          onChange={() => {}}
-          placeholder="placeholder"
-          value={''}
-          toolTipContent={<Text>Hello world</Text>}
-        />
-        <FieldInput
-          mb="6"
-          label="Label with labeltip and tooltip"
-          labelTip="the label tip"
-          toolTipContent={<Text>Hello world</Text>}
-          name="optional name"
-          onChange={() => {}}
-          placeholder="placeholder"
-          value={''}
-        />
-        <FieldInput
-          mb="6"
-          placeholder="without label"
-          validator={() => false}
-          onChange={() => {}}
-        />
-      </>
-    )}
-  </Validation>
-);
+const meta: Meta<StoryProps> = {
+  title: 'Shared',
+  component: FieldInput,
+  args: {
+    readOnly: false,
+    disabled: false,
+  },
+};
+export default meta;
 
-Fields.storyName = 'FieldInput';
+export function FieldInput(props: StoryProps) {
+  return (
+    <Validation>
+      {({ validator }) => (
+        <>
+          <FieldInputComponent
+            label="Label"
+            helperText="Optional bottom helper text"
+            name="optional name"
+            onChange={() => {}}
+            value={'value'}
+            icon={EmailSolid}
+            size="large"
+            rule={requiredEmailLike}
+            disabled={props.disabled}
+            readonly={props.readOnly}
+          />
+          <FieldInputComponent
+            label="Label with placeholder"
+            name="optional name"
+            onChange={() => {}}
+            placeholder="placeholder"
+            value={''}
+            disabled={props.disabled}
+            readonly={props.readOnly}
+          />
+          <FieldInputComponent
+            label="Label with tooltip"
+            name="optional name"
+            onChange={() => {}}
+            placeholder="placeholder"
+            value={''}
+            toolTipContent={<Text>Hello world</Text>}
+            disabled={props.disabled}
+            readonly={props.readOnly}
+          />
+          <FieldInputComponent
+            label="Label with helper text and tooltip"
+            helperText="Bottom helper text"
+            toolTipContent={<Text>Hello world</Text>}
+            name="optional name"
+            onChange={() => {}}
+            placeholder="placeholder"
+            value={''}
+            disabled={props.disabled}
+            readonly={props.readOnly}
+          />
+          <FieldInputComponent
+            placeholder="without label"
+            onChange={() => {}}
+            disabled={props.disabled}
+            readonly={props.readOnly}
+          />
+          <FieldInputComponent
+            label="Required"
+            rule={requiredField('So required. Much mandatory.')}
+            required
+            onChange={() => {}}
+            value=""
+            disabled={props.disabled}
+            readonly={props.readOnly}
+          />
+          <ButtonPrimary onClick={() => validator.validate()}>
+            Validate
+          </ButtonPrimary>
+        </>
+      )}
+    </Validation>
+  );
+}

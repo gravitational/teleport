@@ -1,16 +1,20 @@
-// Copyright 2024 Gravitational, Inc.
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2024  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package databaseobject
 
@@ -30,16 +34,16 @@ func NewDatabaseObject(name string, spec *dbobjectv1.DatabaseObjectSpec) (*dbobj
 
 // NewDatabaseObjectWithLabels creates a new dbobjectv1.DatabaseObject with specified labels.
 func NewDatabaseObjectWithLabels(name string, labels map[string]string, spec *dbobjectv1.DatabaseObjectSpec) (*dbobjectv1.DatabaseObject, error) {
-	databaseObject := &dbobjectv1.DatabaseObject{
+	databaseObject := dbobjectv1.DatabaseObject_builder{
 		Kind:    types.KindDatabaseObject,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name:      name,
 			Namespace: defaults.Namespace,
 			Labels:    labels,
-		},
+		}.Build(),
 		Spec: spec,
-	}
+	}.Build()
 
 	err := ValidateDatabaseObject(databaseObject)
 	if err != nil {
@@ -53,22 +57,22 @@ func ValidateDatabaseObject(obj *dbobjectv1.DatabaseObject) error {
 	if obj == nil {
 		return trace.BadParameter("database object must be non-nil")
 	}
-	if obj.Metadata == nil {
+	if !obj.HasMetadata() {
 		return trace.BadParameter("metadata: must be non-nil")
 	}
-	if obj.Metadata.Name == "" {
+	if obj.GetMetadata().GetName() == "" {
 		return trace.BadParameter("metadata.name: must be non-empty")
 	}
-	if obj.Kind != types.KindDatabaseObject {
-		return trace.BadParameter("invalid kind %v, expected %v", obj.Kind, types.KindDatabaseObject)
+	if obj.GetKind() != types.KindDatabaseObject {
+		return trace.BadParameter("invalid kind %v, expected %v", obj.GetKind(), types.KindDatabaseObject)
 	}
-	if obj.Spec == nil {
+	if !obj.HasSpec() {
 		return trace.BadParameter("spec: must be non-empty")
 	}
-	if obj.Spec.Name == "" {
+	if obj.GetSpec().GetName() == "" {
 		return trace.BadParameter("spec.name: must be non-empty")
 	}
-	if obj.Spec.Protocol == "" {
+	if obj.GetSpec().GetProtocol() == "" {
 		return trace.BadParameter("spec.protocol: must be non-empty")
 	}
 	return nil

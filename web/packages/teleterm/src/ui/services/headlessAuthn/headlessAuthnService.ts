@@ -16,13 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { ConfigService } from 'teleterm/services/config';
+import type { CloneableAbortSignal, TshdClient } from 'teleterm/services/tshd';
+import type * as types from 'teleterm/services/tshd/types';
 import { SendPendingHeadlessAuthenticationRequest } from 'teleterm/services/tshdEvents';
 import { MainProcessClient } from 'teleterm/types';
 import { ModalsService } from 'teleterm/ui/services/modals';
-import { ConfigService } from 'teleterm/services/config';
-
-import type { TshdClient, CloneableAbortSignal } from 'teleterm/services/tshd';
-import type * as types from 'teleterm/services/tshd/types';
 
 export class HeadlessAuthenticationService {
   constructor(
@@ -32,7 +31,7 @@ export class HeadlessAuthenticationService {
     private configService: ConfigService
   ) {}
 
-  sendPendingHeadlessAuthentication(
+  async sendPendingHeadlessAuthentication(
     request: SendPendingHeadlessAuthenticationRequest,
     onRequestCancelled: (callback: () => void) => void
   ): Promise<void> {
@@ -41,7 +40,7 @@ export class HeadlessAuthenticationService {
     // If the user wants to skip the confirmation step, then don't force the window.
     // Instead, they can just tap their blinking yubikey with the window in the background.
     if (!skipConfirm) {
-      this.mainProcessClient.forceFocusWindow();
+      await this.mainProcessClient.forceFocusWindow();
     }
 
     return new Promise(resolve => {

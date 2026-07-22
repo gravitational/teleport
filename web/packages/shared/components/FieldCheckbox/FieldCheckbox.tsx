@@ -16,14 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import Box from 'design/Box';
-import { CheckboxSize, CheckboxInput } from 'design/Checkbox';
-import Flex from 'design/Flex';
-import LabelInput from 'design/LabelInput';
-import Text from 'design/Text';
-import { SpaceProps } from 'design/system';
 import React, { forwardRef } from 'react';
 import styled from 'styled-components';
+
+import Box from 'design/Box';
+import { CheckboxInput, CheckboxSize } from 'design/Checkbox';
+import Flex from 'design/Flex';
+import LabelInput from 'design/LabelInput';
+import { SpaceProps } from 'design/system';
+import Text from 'design/Text';
 
 interface FieldCheckboxProps extends SpaceProps {
   name?: string;
@@ -31,7 +32,15 @@ interface FieldCheckboxProps extends SpaceProps {
   helperText?: React.ReactNode;
   checked?: boolean;
   defaultChecked?: boolean;
+  /**
+   * Disables and mutes all values.
+   */
   disabled?: boolean;
+  /**
+   * Disables checkbox but does not mute values
+   * to remain readable.
+   */
+  readOnly?: boolean;
   size?: CheckboxSize;
   onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
 }
@@ -46,6 +55,7 @@ export const FieldCheckbox = forwardRef<HTMLInputElement, FieldCheckboxProps>(
       checked,
       defaultChecked,
       disabled,
+      readOnly,
       size,
       onChange,
       ...styles
@@ -54,21 +64,26 @@ export const FieldCheckbox = forwardRef<HTMLInputElement, FieldCheckboxProps>(
   ) => {
     const labelColor = disabled ? 'text.disabled' : 'text.main';
     const helperColor = disabled ? 'text.disabled' : 'text.slightlyMuted';
-    const labelTypography = size === 'small' ? 'newBody2' : 'newBody1';
-    const helperTypography = size === 'small' ? 'newBody3' : 'newBody2';
+    const labelTypography = size === 'small' ? 'body2' : 'body1';
+    const helperTypography = size === 'small' ? 'body3' : 'body2';
     return (
-      <Box mb={3} {...styles}>
-        <StyledLabel disabled={disabled}>
+      <Box mb={3} lineHeight={0} {...styles}>
+        <StyledLabel disabled={disabled} readOnly={readOnly}>
           <Flex flexDirection="row" gap={2}>
-            <CheckboxInput
-              size={size}
-              ref={ref}
-              checked={checked}
-              defaultChecked={defaultChecked}
-              disabled={disabled}
-              name={name}
-              onChange={onChange}
-            />
+            {/* Nudge the small-size checkbox to better align with the
+                label. */}
+            <Box mt={size === 'small' ? '2px' : '0px'}>
+              <CheckboxInput
+                size={size}
+                ref={ref}
+                checked={checked}
+                defaultChecked={defaultChecked}
+                disabled={disabled}
+                name={name}
+                onChange={onChange}
+                readOnly={readOnly}
+              />
+            </Box>
             <Box>
               <Text typography={labelTypography} color={labelColor}>
                 {label}
@@ -84,7 +99,10 @@ export const FieldCheckbox = forwardRef<HTMLInputElement, FieldCheckboxProps>(
   }
 );
 
-const StyledLabel = styled(LabelInput)<{ disabled?: boolean }>`
+const StyledLabel = styled(LabelInput)<{
+  disabled?: boolean;
+  readOnly?: boolean;
+}>`
   // Typically, a short label in a wide container means a lot of whitespace that
   // acts as a click target for a checkbox. To avoid this, we use inline-flex to
   // wrap the label around its content.
@@ -93,5 +111,6 @@ const StyledLabel = styled(LabelInput)<{ disabled?: boolean }>`
   gap: ${props => props.theme.space[2]}px;
   margin-bottom: 0;
   line-height: 0;
-  cursor: ${props => (props.disabled ? 'not-allowed' : 'pointer')};
+  cursor: ${props =>
+    props.disabled || props.readOnly ? 'not-allowed' : 'pointer'};
 `;

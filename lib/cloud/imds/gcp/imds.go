@@ -50,7 +50,9 @@ func (rt contextRoundTripper) RoundTrip(req *http.Request) (*http.Response, erro
 	return resp, trace.Wrap(err)
 }
 
-type metadataGetter func(ctx context.Context, path string) (string, error)
+// MetadataGetter defines a function that is used to get InstanceMetadata.
+// Receives the metadata path and returns the value or an error.
+type MetadataGetter func(ctx context.Context, path string) (string, error)
 
 // InstanceRequest contains parameters for making a request to a specific instance.
 type InstanceRequest struct {
@@ -117,16 +119,32 @@ type InstanceGetter interface {
 
 // InstanceMetadataClient is a client for GCP instance metadata.
 type InstanceMetadataClient struct {
-	getMetadata    metadataGetter
+	getMetadata    MetadataGetter
 	instanceGetter InstanceGetter
 }
 
 // NewInstanceMetadataClient creates a new instance metadata client.
-func NewInstanceMetadataClient(getter InstanceGetter) (*InstanceMetadataClient, error) {
-	return &InstanceMetadataClient{
+func NewInstanceMetadataClient(getter InstanceGetter, opts ...ClientOption) (*InstanceMetadataClient, error) {
+	ret := &InstanceMetadataClient{
 		getMetadata:    getMetadata,
 		instanceGetter: getter,
-	}, nil
+	}
+
+	for _, opt := range opts {
+		opt(ret)
+	}
+
+	return ret, nil
+}
+
+// ClientOption is used to customize the InstanceMetadataClient.
+type ClientOption func(*InstanceMetadataClient)
+
+// WithMetadataClient replaces the metadata getter with a custom one.
+func WithMetadataClient(getter MetadataGetter) func(*InstanceMetadataClient) {
+	return func(imc *InstanceMetadataClient) {
+		imc.getMetadata = getter
+	}
 }
 
 // IsAvailable checks if instance metadata is available.
@@ -260,6 +278,13 @@ func getMetadataClient(ctx context.Context) (*metadata.Client, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// Per GCP docs at https://docs.cloud.google.com/compute/docs/troubleshooting/troubleshoot-metadata-server#failed-proxy
+	//
+	// > If the VM is behind a proxy, you must set the NO_PROXY configuration for both the IP address and Hostname.
+	//
+	// This specific HTTP Client is only used to fetch instance metadata, so removing the usage of Proxy settings is safe.
+	transport.Proxy = nil
 	return metadata.NewClient(&http.Client{
 		Transport: contextRoundTripper{
 			ctx:       ctx,

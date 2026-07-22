@@ -106,6 +106,24 @@ export const KeyboardArrowsNavigation: FC<PropsWithChildren> = props => {
   );
 };
 
+export const NullKeyboardArrowsNavigation: FC<PropsWithChildren> = props => {
+  const value = useMemo(
+    () => ({
+      addItem: () => {},
+      removeItem: () => {},
+      activeIndex: -1,
+      setActiveIndex: () => {},
+    }),
+    []
+  );
+
+  return (
+    <KeyboardArrowsNavigationContext.Provider value={value}>
+      <div>{props.children}</div>
+    </KeyboardArrowsNavigationContext.Provider>
+  );
+};
+
 function getNextIndex(
   items: RunActiveItemHandler[],
   currentIndex: number

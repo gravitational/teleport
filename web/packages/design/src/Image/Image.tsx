@@ -18,7 +18,6 @@
 
 import React from 'react';
 import styled from 'styled-components';
-import PropTypes from 'prop-types';
 
 import {
   alignSelf,
@@ -38,7 +37,8 @@ import {
 } from 'design/system';
 
 interface ImageProps
-  extends SpaceProps,
+  extends
+    SpaceProps,
     ColorProps,
     WidthProps,
     HeightProps,
@@ -47,24 +47,12 @@ interface ImageProps
     AlignSelfProps {
   alt?: string;
   style?: React.CSSProperties;
+  src?: string;
 }
 
 const Image = (props: ImageProps) => {
   return <StyledImg {...props} />;
 };
-
-Image.propTypes = {
-  /** Image Src */
-  src: PropTypes.string,
-  ...space.propTypes,
-  ...color.propTypes,
-  ...width.propTypes,
-  ...height.propTypes,
-  ...maxWidth.propTypes,
-  ...maxHeight.propTypes,
-};
-
-Image.displayName = 'Logo';
 
 export default Image;
 

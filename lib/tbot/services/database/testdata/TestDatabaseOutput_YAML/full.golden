@@ -1,0 +1,12 @@
+type: database
+destination:
+  type: memory
+roles:
+  - access
+format: tls
+service: my-database-service
+database: my-database
+username: my-username
+delegation_session_id: 8a50ba48-2fad-4c2c-a8ce-f48bc18db9ee
+credential_ttl: 1m0s
+renewal_interval: 30s

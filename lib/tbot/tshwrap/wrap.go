@@ -32,9 +32,10 @@ import (
 	"github.com/gravitational/teleport/api/identityfile"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tlsca"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
@@ -127,34 +128,40 @@ func (w *Wrapper) Exec(env map[string]string, args ...string) error {
 }
 
 type destinationHolder interface {
-	GetDestination() bot.Destination
+	GetDestination() destination.Destination
 }
 
-// GetDestinationDirectory attempts to select an unambiguous destination, either from
-// CLI or YAML config. It returns an error if the selected destination is
-// invalid.
-func GetDestinationDirectory(botConfig *config.BotConfig) (*config.DestinationDirectory, error) {
+// GetDestinationDirectory attempts to select an unambiguous destination, either
+// from CLI or YAML config. It returns an error if the selected destination is
+// invalid. Note that CLI destinations will not be validated.
+func GetDestinationDirectory(cliDestinationPath string, botConfig *config.BotConfig) (*destination.Directory, error) {
+	if cliDestinationPath != "" {
+		d := &destination.Directory{
+			Path: cliDestinationPath,
+		}
+		if err := d.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return d, nil
+	}
+
 	var destinationHolders []destinationHolder
 	for _, svc := range botConfig.Services {
 		if v, ok := svc.(destinationHolder); ok {
 			destinationHolders = append(destinationHolders, v)
 		}
 	}
-	// WARNING:
-	// This code is dependent on some unexpected "behavior" in
-	// config.FromCLIConf() - when users provide --destination-dir then all
-	// outputs configured in the YAML file are overwritten by an identity
-	// output with a directory destination with a path of --destination-dir.
-	// See: https://github.com/gravitational/teleport/issues/27206
+
 	if len(destinationHolders) == 0 {
 		return nil, trace.BadParameter("either --destination-dir or a config file containing an output or service must be specified")
 	} else if len(destinationHolders) > 1 {
 		return nil, trace.BadParameter("the config file contains multiple outputs and services; a --destination-dir must be specified")
 	}
-	destination := destinationHolders[0].GetDestination()
-	destinationDir, ok := destination.(*config.DestinationDirectory)
+	dest := destinationHolders[0].GetDestination()
+	destinationDir, ok := dest.(*destination.Directory)
 	if !ok {
-		return nil, trace.BadParameter("destination %s must be a directory", destination)
+		return nil, trace.BadParameter("destination %s must be a directory", dest)
 	}
 
 	return destinationDir, nil
@@ -181,13 +188,13 @@ func GetEnvForTSH(destPath string) (map[string]string, error) {
 	// automate later. (I don't think tsh handles this perfectly today anyway).
 	mergeEnv(env, filepath.Join(destPath, identity.TLSCertKey), client.VirtualPathEnvNames(client.VirtualPathDatabase, nil))
 
-	mergeEnv(env, filepath.Join(destPath, identity.TLSCertKey), client.VirtualPathEnvNames(client.VirtualPathApp, nil))
+	mergeEnv(env, filepath.Join(destPath, identity.TLSCertKey), client.VirtualPathEnvNames(client.VirtualPathAppCert, nil))
 
 	// We don't want to provide a fallback for CAs since it would be ambiguous,
 	// so we'll specify them exactly.
-	env[client.VirtualPathEnvName(client.VirtualPathCA, client.VirtualPathCAParams(types.UserCA))] = filepath.Join(destPath, config.UserCAPath)
-	env[client.VirtualPathEnvName(client.VirtualPathCA, client.VirtualPathCAParams(types.HostCA))] = filepath.Join(destPath, config.HostCAPath)
-	env[client.VirtualPathEnvName(client.VirtualPathCA, client.VirtualPathCAParams(types.DatabaseCA))] = filepath.Join(destPath, config.DatabaseCAPath)
+	env[client.VirtualPathEnvName(client.VirtualPathCA, client.VirtualPathCAParams(types.UserCA))] = filepath.Join(destPath, internal.UserCAPath)
+	env[client.VirtualPathEnvName(client.VirtualPathCA, client.VirtualPathCAParams(types.HostCA))] = filepath.Join(destPath, internal.HostCAPath)
+	env[client.VirtualPathEnvName(client.VirtualPathCA, client.VirtualPathCAParams(types.DatabaseCA))] = filepath.Join(destPath, internal.DatabaseCAPath)
 
 	return env, nil
 }

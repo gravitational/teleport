@@ -16,7 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+// eslint-disable-next-line no-restricted-imports -- FIXME
 import { App } from 'teleport/services/apps';
+// eslint-disable-next-line no-restricted-imports -- FIXME
 import makeApp from 'teleport/services/apps/makeApps';
 
 import { guessAppIcon } from './guessAppIcon';
@@ -66,6 +68,14 @@ const testCases: { name: string; app: App; expectedIcon: string }[] = [
     expectedIcon: 'outreach.io',
   },
   {
+    name: 'match by label - default value',
+    app: makeApp({
+      name: 'no-match',
+      labels: [{ name: 'teleport.icon', value: 'default' }],
+    }),
+    expectedIcon: 'application',
+  },
+  {
     name: 'no matches',
     app: makeApp({
       name: 'no-match',
@@ -78,6 +88,27 @@ const testCases: { name: string; app: App; expectedIcon: string }[] = [
       name: 'Something MicroSoft and stuff',
     }),
     expectedIcon: 'microsoft',
+  },
+  {
+    name: 'match by name with paranthesis and brackets',
+    app: makeApp({
+      name: 'Clearfeed (adobe) [adobe]',
+    }),
+    expectedIcon: 'clearfeed',
+  },
+  {
+    name: 'match by name if whole text starts and ends with paranthesis',
+    app: makeApp({
+      name: '(clearfeed)',
+    }),
+    expectedIcon: 'clearfeed',
+  },
+  {
+    name: 'match by name if whole text starts and ends with bracket',
+    app: makeApp({
+      name: '[clearfeed]',
+    }),
+    expectedIcon: 'clearfeed',
   },
 ];
 

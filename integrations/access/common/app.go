@@ -88,7 +88,7 @@ func (a *BaseApp) WaitReady(ctx context.Context) (bool, error) {
 
 func (a *BaseApp) checkTeleportVersion(ctx context.Context) (proto.PingResponse, error) {
 	log := logger.Get(ctx)
-	log.Debug("Checking Teleport server version")
+	log.DebugContext(ctx, "Checking Teleport server version")
 
 	pong, err := a.APIClient.Ping(ctx)
 	if err != nil {
@@ -97,7 +97,7 @@ func (a *BaseApp) checkTeleportVersion(ctx context.Context) (proto.PingResponse,
 		}
 		return pong, trace.Wrap(err, "Unable to get Teleport server version")
 	}
-	err = utils.CheckVersion(pong.ServerVersion, minServerVersion)
+	err = utils.CheckMinVersion(pong.ServerVersion, minServerVersion)
 	return pong, trace.Wrap(err)
 }
 
@@ -156,9 +156,9 @@ func (a *BaseApp) run(ctx context.Context) error {
 
 	a.mainJob.SetReady(allOK)
 	if allOK {
-		log.Info("Plugin is ready")
+		log.InfoContext(ctx, "Plugin is ready")
 	} else {
-		log.Error("Plugin is not ready")
+		log.ErrorContext(ctx, "Plugin is not ready")
 	}
 
 	for _, app := range a.apps {
@@ -203,11 +203,11 @@ func (a *BaseApp) init(ctx context.Context) error {
 		}
 	}
 
-	log.Debug("Starting API health check...")
+	log.DebugContext(ctx, "Starting API health check")
 	if err = a.Bot.CheckHealth(ctx); err != nil {
 		return trace.Wrap(err, "API health check failed")
 	}
 
-	log.Debug("API health check finished ok")
+	log.DebugContext(ctx, "API health check finished ok")
 	return nil
 }

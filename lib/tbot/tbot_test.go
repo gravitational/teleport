@@ -21,54 +21,115 @@ package tbot
 import (
 	"bytes"
 	"context"
+	"crypto/ecdsa"
 	"crypto/rand"
+	"crypto/rsa"
+	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"log/slog"
+	"maps"
 	"net"
+	"net/http"
+	"net/url"
 	"os"
 	"os/user"
-	"path"
 	"path/filepath"
+	"slices"
 	"strconv"
+	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
-	"github.com/jackc/pgconn"
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/spiffe/go-spiffe/v2/svid/jwtsvid"
+	"github.com/spiffe/go-spiffe/v2/svid/x509svid"
 	"github.com/spiffe/go-spiffe/v2/workloadapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 	"golang.org/x/crypto/ssh/knownhosts"
+	"google.golang.org/protobuf/testing/protocmp"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/clientcmd"
+	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
+	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/constants"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
+	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
+	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/integration/helpers"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/auth/native"
+	libclient "github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/cryptosuites/cryptosuitestest"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/kube/kubeconfig"
+	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
+	"github.com/gravitational/teleport/lib/observability/tracing"
+	"github.com/gravitational/teleport/lib/scopes"
+	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
+	jointoken "github.com/gravitational/teleport/lib/scopes/joining"
+	"github.com/gravitational/teleport/lib/scopes/pinning"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
+	"github.com/gravitational/teleport/lib/sshca"
 	apisshutils "github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/bot/connection"
+	"github.com/gravitational/teleport/lib/tbot/bot/destination"
+	"github.com/gravitational/teleport/lib/tbot/bot/onboarding"
 	"github.com/gravitational/teleport/lib/tbot/botfs"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/internal"
+	"github.com/gravitational/teleport/lib/tbot/readyz"
+	"github.com/gravitational/teleport/lib/tbot/services/application"
+	"github.com/gravitational/teleport/lib/tbot/services/database"
+	identitysvc "github.com/gravitational/teleport/lib/tbot/services/identity"
+	"github.com/gravitational/teleport/lib/tbot/services/k8s"
+	sshsvc "github.com/gravitational/teleport/lib/tbot/services/ssh"
+	workloadidentitysvc "github.com/gravitational/teleport/lib/tbot/services/workloadidentity"
+	"github.com/gravitational/teleport/lib/tbot/workloadidentity/workloadattest"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/session/reexec"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
 func TestMain(m *testing.M) {
-	utils.InitLoggerForTests()
-	native.PrecomputeTestKeys(m)
-	os.Exit(m.Run())
+	reexec.MaybeReexec()
+	logtest.InitLogger(testing.Verbose)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cryptosuitestest.PrecomputeRSAKeys(ctx)
+	exitCode := m.Run()
+	cancel()
+	os.Exit(exitCode)
 }
 
 type defaultBotConfigOpts struct {
@@ -78,9 +139,9 @@ type defaultBotConfigOpts struct {
 	insecure bool
 }
 
-func defaultTestServerOpts(t *testing.T, log *slog.Logger) testenv.TestServerOptFunc {
-	return func(o *testenv.TestServersOpts) {
-		testenv.WithClusterName(t, "root")(o)
+func defaultTestServerOpts(log *slog.Logger) testenv.TestServerOptFunc {
+	return func(o *testenv.TestServersOpts) error {
+		testenv.WithClusterName("root")(o)
 		testenv.WithConfig(func(cfg *servicecfg.Config) {
 			cfg.Logger = log
 			cfg.Proxy.PublicAddrs = []utils.NetAddr{
@@ -90,24 +151,28 @@ func defaultTestServerOpts(t *testing.T, log *slog.Logger) testenv.TestServerOpt
 				cfg.Proxy.ReverseTunnelListenAddr,
 			}
 		})(o)
+
+		return nil
 	}
 }
 
 // makeBot creates a server-side bot and returns joining parameters.
-func makeBot(t *testing.T, client *authclient.Client, name string, roles ...string) (*config.OnboardingConfig, *machineidv1pb.Bot) {
-	ctx := context.TODO()
+func makeBot(t *testing.T, client *authclient.Client, name string, roles ...string) (*onboarding.Config, *machineidv1pb.Bot) {
+	ctx := t.Context()
 	t.Helper()
 
-	b, err := client.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
-		Bot: &machineidv1pb.Bot{
-			Metadata: &headerv1.Metadata{
+	b, err := client.BotServiceClient().CreateBot(ctx, machineidv1pb.CreateBotRequest_builder{
+		Bot: machineidv1pb.Bot_builder{
+			Kind:    types.KindBot,
+			Version: types.V1,
+			Metadata: headerv1.Metadata_builder{
 				Name: name,
-			},
-			Spec: &machineidv1pb.BotSpec{
+			}.Build(),
+			Spec: machineidv1pb.BotSpec_builder{
 				Roles: roles,
-			},
-		},
-	})
+			}.Build(),
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 
 	tokenName, err := utils.CryptoRandomHex(defaults.TokenLenBytes)
@@ -117,13 +182,13 @@ func makeBot(t *testing.T, client *authclient.Client, name string, roles ...stri
 		time.Now().Add(10*time.Minute),
 		types.ProvisionTokenSpecV2{
 			Roles:   []types.SystemRole{types.RoleBot},
-			BotName: b.Metadata.Name,
+			BotName: b.GetMetadata().GetName(),
 		})
 	require.NoError(t, err)
 	err = client.CreateToken(ctx, tok)
 	require.NoError(t, err)
 
-	return &config.OnboardingConfig{
+	return &onboarding.Config{
 		TokenValue: tok.GetName(),
 		JoinMethod: types.JoinMethodToken,
 	}, b
@@ -138,7 +203,7 @@ func makeBot(t *testing.T, client *authclient.Client, name string, roles ...stri
 func defaultBotConfig(
 	t *testing.T,
 	process *service.TeleportProcess,
-	onboarding *config.OnboardingConfig,
+	onboarding *onboarding.Config,
 	serviceConfigs config.ServiceConfigs,
 	opts defaultBotConfigOpts,
 ) *config.BotConfig {
@@ -150,16 +215,18 @@ func defaultBotConfig(
 	}
 
 	cfg := &config.BotConfig{
-		AuthServer: authServer,
-		Onboarding: *onboarding,
+		AuthServer:            authServer,
+		AuthServerAddressMode: connection.WarnIfAuthServerIsProxy,
+		Onboarding:            *onboarding,
 		Storage: &config.StorageConfig{
-			Destination: &config.DestinationMemory{},
+			Destination: &destination.Memory{},
 		},
 		Oneshot: true,
 		// Set insecure so the bot will trust the Proxy's webapi default signed
 		// certs.
 		Insecure: opts.insecure,
 		Services: serviceConfigs,
+		Testing:  true,
 	}
 
 	require.NoError(t, cfg.CheckAndSetDefaults())
@@ -177,7 +244,7 @@ func defaultBotConfig(
 func TestBot(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	log := utils.NewSlogLoggerForTests()
+	log := logtest.NewLogger()
 
 	// Make a new auth server.
 	const (
@@ -193,12 +260,20 @@ func TestBot(t *testing.T) {
 		kubeClusterDiscoveredName     = "test-kube-cluster"
 	)
 
-	process := testenv.MakeTestServer(
-		t,
-		defaultTestServerOpts(t, log),
-		testenv.WithProxyKube(t),
+	process, err := testenv.NewTeleportProcess(
+		t.TempDir(),
+		defaultTestServerOpts(log),
+		testenv.WithProxyKube(),
 	)
-	rootClient := testenv.MakeDefaultAuthClient(t, process)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
+
+	rootClient, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = rootClient.Close() })
 	clusterName := process.Config.Auth.ClusterName.GetClusterName()
 
 	// Register an application server so the bot can request certs for it.
@@ -299,45 +374,49 @@ func TestBot(t *testing.T) {
 		t, rootClient, "test", defaultRoles...,
 	)
 
-	identityOutput := &config.IdentityOutput{
-		Destination: &config.DestinationMemory{},
+	identityOutput := &identitysvc.OutputConfig{
+		Destination: &destination.Memory{},
 	}
-	identityOutputWithRoles := &config.IdentityOutput{
-		Destination: &config.DestinationMemory{},
+	identityOutputWithRoles := &identitysvc.OutputConfig{
+		Destination: &destination.Memory{},
 		Roles:       []string{mainRole},
 	}
-	appOutput := &config.ApplicationOutput{
-		Destination: &config.DestinationMemory{},
+	identityOutputWithReissue := &identitysvc.OutputConfig{
+		Destination:  &destination.Memory{},
+		AllowReissue: true,
+	}
+	appOutput := &application.OutputConfig{
+		Destination: &destination.Memory{},
 		AppName:     appName,
 	}
-	dbOutput := &config.DatabaseOutput{
-		Destination: &config.DestinationMemory{},
+	dbOutput := &database.OutputConfig{
+		Destination: &destination.Memory{},
 		Service:     databaseServiceName,
 		Database:    databaseName,
 		Username:    databaseUsername,
 	}
-	dbDiscoveredNameOutput := &config.DatabaseOutput{
-		Destination: &config.DestinationMemory{},
+	dbDiscoveredNameOutput := &database.OutputConfig{
+		Destination: &destination.Memory{},
 		Service:     databaseServiceDiscoveredName,
 		Database:    databaseName,
 		Username:    databaseUsername,
 	}
-	kubeOutput := &config.KubernetesOutput{
+	kubeOutput := &k8s.OutputV1Config{
 		// DestinationDirectory required or output will fail.
-		Destination: &config.DestinationDirectory{
+		Destination: &destination.Directory{
 			Path: t.TempDir(),
 		},
 		KubernetesCluster: kubeClusterName,
 	}
-	kubeDiscoveredNameOutput := &config.KubernetesOutput{
+	kubeDiscoveredNameOutput := &k8s.OutputV1Config{
 		// DestinationDirectory required or output will fail.
-		Destination: &config.DestinationDirectory{
+		Destination: &destination.Directory{
 			Path: t.TempDir(),
 		},
 		KubernetesCluster: kubeClusterDiscoveredName,
 	}
-	sshHostOutput := &config.SSHHostOutput{
-		Destination: &config.DestinationMemory{},
+	sshHostOutput := &sshsvc.HostOutputConfig{
+		Destination: &destination.Memory{},
 		Principals:  []string{hostPrincipal},
 	}
 	botConfig := defaultBotConfig(
@@ -350,6 +429,7 @@ func TestBot(t *testing.T) {
 			sshHostOutput,
 			kubeOutput,
 			kubeDiscoveredNameOutput,
+			identityOutputWithReissue,
 		},
 		defaultBotConfigOpts{
 			useAuthServer: true,
@@ -362,7 +442,7 @@ func TestBot(t *testing.T) {
 	t.Run("bot identity", func(t *testing.T) {
 		// Some rough checks to ensure the bot identity used follows our
 		// expected rules for bot identities.
-		botIdent := b.BotIdentity()
+		botIdent := b.getBotIdentity()
 		tlsIdent, err := tlsca.FromSubject(
 			botIdent.X509Cert.Subject, botIdent.X509Cert.NotAfter,
 		)
@@ -370,22 +450,38 @@ func TestBot(t *testing.T) {
 		require.True(t, tlsIdent.Renewable)
 		require.False(t, tlsIdent.DisallowReissue)
 		require.Equal(t, uint64(1), tlsIdent.Generation)
-		require.ElementsMatch(t, []string{botResource.Status.RoleName}, tlsIdent.Groups)
+		require.ElementsMatch(t, []string{botResource.GetStatus().GetRoleName()}, tlsIdent.Groups)
+		// testenv cluster uses balanced-v1 suite, sanity check we generated an
+		// ECDSA key.
+		require.IsType(t, &ecdsa.PublicKey{}, botIdent.PrivateKey.Public())
 	})
 
 	t.Run("output: identity", func(t *testing.T) {
 		tlsIdent := tlsIdentFromDest(ctx, t, identityOutput.GetDestination())
-		requireValidOutputTLSIdent(t, tlsIdent, defaultRoles, botResource.Status.UserName)
+		requireValidOutputTLSIdent(
+			t, tlsIdent, defaultRoles, botResource.GetStatus().GetUserName(), false,
+		)
 	})
 
 	t.Run("output: identity with role specified", func(t *testing.T) {
 		tlsIdent := tlsIdentFromDest(ctx, t, identityOutputWithRoles.GetDestination())
-		requireValidOutputTLSIdent(t, tlsIdent, []string{mainRole}, botResource.Status.UserName)
+		requireValidOutputTLSIdent(
+			t, tlsIdent, []string{mainRole}, botResource.GetStatus().GetUserName(), false,
+		)
+	})
+
+	t.Run("output: identity with allow reissue", func(t *testing.T) {
+		tlsIdent := tlsIdentFromDest(ctx, t, identityOutputWithReissue.GetDestination())
+		requireValidOutputTLSIdent(
+			t, tlsIdent, defaultRoles, botResource.GetStatus().GetUserName(), true,
+		)
 	})
 
 	t.Run("output: kubernetes", func(t *testing.T) {
 		tlsIdent := tlsIdentFromDest(ctx, t, kubeOutput.GetDestination())
-		requireValidOutputTLSIdent(t, tlsIdent, defaultRoles, botResource.Status.UserName)
+		requireValidOutputTLSIdent(
+			t, tlsIdent, defaultRoles, botResource.GetStatus().GetUserName(), false,
+		)
 		require.Equal(t, kubeClusterName, tlsIdent.KubernetesCluster)
 		require.Equal(t, kubeGroups, tlsIdent.KubernetesGroups)
 		require.Equal(t, kubeUsers, tlsIdent.KubernetesUsers)
@@ -393,7 +489,9 @@ func TestBot(t *testing.T) {
 
 	t.Run("output: kubernetes discovered name", func(t *testing.T) {
 		tlsIdent := tlsIdentFromDest(ctx, t, kubeDiscoveredNameOutput.GetDestination())
-		requireValidOutputTLSIdent(t, tlsIdent, defaultRoles, botResource.Status.UserName)
+		requireValidOutputTLSIdent(
+			t, tlsIdent, defaultRoles, botResource.GetStatus().GetUserName(), false,
+		)
 		require.Equal(t, kubeClusterName, tlsIdent.KubernetesCluster)
 		require.Equal(t, kubeGroups, tlsIdent.KubernetesGroups)
 		require.Equal(t, kubeUsers, tlsIdent.KubernetesUsers)
@@ -401,7 +499,9 @@ func TestBot(t *testing.T) {
 
 	t.Run("output: application", func(t *testing.T) {
 		tlsIdent := tlsIdentFromDest(ctx, t, appOutput.GetDestination())
-		requireValidOutputTLSIdent(t, tlsIdent, defaultRoles, botResource.Status.UserName)
+		requireValidOutputTLSIdent(
+			t, tlsIdent, defaultRoles, botResource.GetStatus().GetUserName(), false,
+		)
 		route := tlsIdent.RouteToApp
 		require.Equal(t, appName, route.Name)
 		require.Equal(t, "test-app.example.com", route.PublicAddr)
@@ -410,17 +510,27 @@ func TestBot(t *testing.T) {
 
 	t.Run("output: database", func(t *testing.T) {
 		tlsIdent := tlsIdentFromDest(ctx, t, dbOutput.GetDestination())
-		requireValidOutputTLSIdent(t, tlsIdent, defaultRoles, botResource.Status.UserName)
+		requireValidOutputTLSIdent(
+			t, tlsIdent, defaultRoles, botResource.GetStatus().GetUserName(), false,
+		)
 		route := tlsIdent.RouteToDatabase
 		require.Equal(t, databaseServiceName, route.ServiceName)
 		require.Equal(t, databaseName, route.Database)
 		require.Equal(t, databaseUsername, route.Username)
 		require.Equal(t, "mysql", route.Protocol)
+		// Sanity check we generated an RSA key.
+		keyBytes, err := dbOutput.GetDestination().Read(ctx, identity.PrivateKeyKey)
+		require.NoError(t, err)
+		key, err := keys.ParsePrivateKey(keyBytes)
+		require.NoError(t, err)
+		require.IsType(t, &rsa.PublicKey{}, key.Public())
 	})
 
 	t.Run("output: database discovered name", func(t *testing.T) {
 		tlsIdent := tlsIdentFromDest(ctx, t, dbDiscoveredNameOutput.GetDestination())
-		requireValidOutputTLSIdent(t, tlsIdent, defaultRoles, botResource.Status.UserName)
+		requireValidOutputTLSIdent(
+			t, tlsIdent, defaultRoles, botResource.GetStatus().GetUserName(), false,
+		)
 		route := tlsIdent.RouteToDatabase
 		require.Equal(t, databaseServiceName, route.ServiceName)
 		require.Equal(t, databaseName, route.Database)
@@ -436,6 +546,9 @@ func TestBot(t *testing.T) {
 		require.NoError(t, err)
 		hostKey, err := ssh.ParsePrivateKey(hostKeyBytes)
 		require.NoError(t, err)
+		// testenv cluster uses balanced-v1 suite, sanity check we generated an
+		// Ed25519 key.
+		require.Equal(t, ssh.KeyAlgoED25519, hostKey.PublicKey().Type())
 		testData := []byte("test-data")
 		signedTestData, err := hostKey.Sign(rand.Reader, testData)
 		require.NoError(t, err)
@@ -482,21 +595,21 @@ func TestBot(t *testing.T) {
 // requireValidOutputTLSIdent runs general validation against the TLS identity
 // created by a normal output. This ensures several key parts of the identity
 // have sane values.
-func requireValidOutputTLSIdent(t *testing.T, ident *tlsca.Identity, wantRoles []string, botUsername string) {
-	require.True(t, ident.DisallowReissue)
+func requireValidOutputTLSIdent(t *testing.T, ident *tlsca.Identity, wantRoles []string, botUsername string, allowReissue bool) {
+	require.Equal(t, !allowReissue, ident.DisallowReissue)
 	require.False(t, ident.Renewable)
 	require.Equal(t, botUsername, ident.Impersonator)
 	require.Equal(t, botUsername, ident.Username)
 	require.Equal(t, wantRoles, ident.Groups)
 }
 
-func tlsIdentFromDest(ctx context.Context, t *testing.T, dest bot.Destination) *tlsca.Identity {
+func tlsIdentFromDest(ctx context.Context, t *testing.T, dest destination.Destination) *tlsca.Identity {
 	t.Helper()
 	keyBytes, err := dest.Read(ctx, identity.PrivateKeyKey)
 	require.NoError(t, err)
 	certBytes, err := dest.Read(ctx, identity.TLSCertKey)
 	require.NoError(t, err)
-	hostCABytes, err := dest.Read(ctx, config.HostCAPath)
+	hostCABytes, err := dest.Read(ctx, internal.HostCAPath)
 	require.NoError(t, err)
 	_, tlsIdent, _, _, _, err := identity.ParseTLSIdentity(keyBytes, certBytes, [][]byte{hostCABytes})
 	require.NoError(t, err)
@@ -510,11 +623,18 @@ func tlsIdentFromDest(ctx context.Context, t *testing.T, dest bot.Destination) *
 func TestBot_ResumeFromStorage(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	log := utils.NewSlogLoggerForTests()
+	log := logtest.NewLogger()
 
 	// Make a new auth server.
-	process := testenv.MakeTestServer(t, defaultTestServerOpts(t, log))
-	rootClient := testenv.MakeDefaultAuthClient(t, process)
+	process, err := testenv.NewTeleportProcess(t.TempDir(), defaultTestServerOpts(log))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
+	rootClient, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = rootClient.Close() })
 
 	// Create bot user and join token
 	botParams, _ := makeBot(t, rootClient, "test", "access")
@@ -528,7 +648,7 @@ func TestBot_ResumeFromStorage(t *testing.T) {
 
 	// Use a destination directory to ensure locking behaves correctly and
 	// the bot isn't left in a locked state.
-	directoryDest := &config.DestinationDirectory{
+	directoryDest := &destination.Directory{
 		Path:     t.TempDir(),
 		Symlinks: botfs.SymlinksInsecure,
 		ACLs:     botfs.ACLOff,
@@ -551,14 +671,297 @@ func TestBot_ResumeFromStorage(t *testing.T) {
 	require.NoError(t, thirdBot.Run(ctx))
 }
 
+func TestBot_IdentityRenewalFails(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	log := logtest.NewLogger()
+
+	// This test asserts that we can continue running (and recover) even when
+	// identity renewal fails on-startup.
+	//
+	// How it works:
+	//
+	// We run a TCP proxy in front of the real Teleport proxy that can be set to
+	// immediately close connections.
+	//
+	// We publish that address in TunnelPublicAddrs but put the *real* address
+	// in tbot's config so that we allow requests to the `/webapi/find` endpoint
+	// through as-is, without needing to sniff the ALPN protocols or something.
+	//
+	// This is necessary because tbot's resolver caches errors, so if we blocked
+	// the connection to that HTTP endpoint, we'd need to wait for the cache to
+	// expire.
+	proxy := newFailureProxy(t)
+
+	// Make a new auth server.
+	process, err := testenv.NewTeleportProcess(t.TempDir(),
+		func(o *testenv.TestServersOpts) error {
+			defaultTestServerOpts(log)(o)
+
+			testenv.WithConfig(func(cfg *servicecfg.Config) {
+				cfg.Proxy.TunnelPublicAddrs = []utils.NetAddr{*utils.MustParseAddr(proxy.addr())}
+			})(o)
+			return nil
+		},
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
+	rootClient, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = rootClient.Close() })
+
+	// Create bot user and join token
+	botParams, _ := makeBot(t, rootClient, "test", "access")
+	botConfig := defaultBotConfig(t,
+		process,
+		botParams,
+		config.ServiceConfigs{},
+		defaultBotConfigOpts{insecure: true},
+	)
+
+	dest := &destination.Directory{
+		Path:     t.TempDir(),
+		Symlinks: botfs.SymlinksInsecure,
+		ACLs:     botfs.ACLOff,
+	}
+	botConfig.Storage.Destination = dest
+
+	// Configure our failure proxy to send traffic to the real proxy
+	tunnelAddr, err := process.ProxyTunnelAddr()
+	require.NoError(t, err)
+	proxy.dst = tunnelAddr.String()
+	go proxy.run(t)
+
+	botConfig.ProxyServer = tunnelAddr.String()
+	botConfig.AuthServer = ""
+
+	// Run the bot a first time
+	firstBot := New(botConfig, log)
+	require.NoError(t, firstBot.Run(ctx))
+
+	// Block connections. Running the bot should now fail.
+	proxy.setFailing(true)
+	secondBot := New(botConfig, log)
+	require.ErrorContains(t, secondBot.Run(ctx), "Error while dialing")
+
+	// Drain the notification channel so we can listen for new connections.
+	select {
+	case <-proxy.notif:
+	default:
+	}
+
+	// Run it again in long-running mode, and it should eventually succeed once
+	// the network partition has healed.
+	botConfig.Oneshot = false
+	outputDest := newWriteNotifier(&destination.Memory{})
+	require.NoError(t, outputDest.CheckAndSetDefaults())
+	botConfig.Services = append(botConfig.Services, &identitysvc.OutputConfig{
+		Destination: outputDest,
+	})
+	diagSocketPath := filepath.Join(os.TempDir(), "tbot-diag.sock")
+	botConfig.DiagSocketForUpdater = diagSocketPath
+	thirdBot := New(botConfig, log)
+
+	ctx, cancel := context.WithCancel(ctx)
+	t.Cleanup(cancel)
+	go thirdBot.Run(ctx)
+
+	// Wait for at least one failed connection, then heal the network partition.
+	select {
+	case <-proxy.notif:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timeout waiting for connection")
+	}
+
+	// Wait for the client to be available.
+	var client *client.Client
+	require.Eventually(t, func() bool {
+		client = thirdBot.getClient()
+		return client != nil
+	}, 5*time.Second, 100*time.Millisecond, "timeout waiting for client to become available")
+
+	diagClient := &http.Client{
+		Transport: &http.Transport{
+			DialContext: func(ctx context.Context, network, _ string) (net.Conn, error) {
+				var d net.Dialer
+				return d.DialContext(ctx, "unix", diagSocketPath)
+			},
+		},
+	}
+	t.Cleanup(diagClient.CloseIdleConnections)
+
+	readIdentityReadyz := func() (readyz.Status, error) {
+		resp, err := diagClient.Get("http://unix/readyz/identity")
+		if err != nil {
+			return readyz.Initializing, err
+		}
+		defer resp.Body.Close()
+
+		var payload struct {
+			Status readyz.Status `json:"status"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+			return readyz.Initializing, err
+		}
+		return payload.Status, nil
+	}
+
+	// Check identity service status is not healthy before the network heals.
+	require.Eventually(t, func() bool {
+		status, err := readIdentityReadyz()
+		return err == nil && status != readyz.Healthy
+	}, 5*time.Second, 100*time.Millisecond, "timeout waiting for pre-heal readyz status")
+
+	t.Log("Healing network partition")
+	proxy.setFailing(false)
+
+	// We must reset gRPC's connection backoff, otherwise it'll keep returning
+	// the cached error.
+	client.GetConnection().ResetConnectBackoff()
+
+	// Wait for the destination to be written to.
+	select {
+	case <-outputDest.ch:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timeout waiting for output to be written")
+	}
+
+	// Check identity service status becomes healthy after the network heals.
+	require.Eventually(t, func() bool {
+		status, err := readIdentityReadyz()
+		return err == nil && status == readyz.Healthy
+	}, 5*time.Second, 100*time.Millisecond, "timeout waiting for identity readyz to become healthy")
+}
+
+func newWriteNotifier(dst destination.Destination) *writeNotifier {
+	return &writeNotifier{
+		Destination: dst,
+		ch:          make(chan struct{}, 1),
+	}
+}
+
+type writeNotifier struct {
+	destination.Destination
+
+	ch chan struct{}
+}
+
+func (w writeNotifier) Write(ctx context.Context, name string, data []byte) error {
+	if name != identity.WriteTestKey {
+		defer func() {
+			select {
+			case w.ch <- struct{}{}:
+			default:
+			}
+		}()
+	}
+	return w.Destination.Write(ctx, name, data)
+}
+
+type failureProxy struct {
+	dst     string
+	lis     net.Listener
+	failing atomic.Bool
+	notif   chan struct{}
+}
+
+func newFailureProxy(t *testing.T) *failureProxy {
+	t.Helper()
+
+	lis, err := net.Listen("tcp", ":0")
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		if err := lis.Close(); err != nil {
+			t.Logf("failed to close listener: %v", err)
+		}
+	})
+
+	return &failureProxy{
+		lis:   lis,
+		notif: make(chan struct{}, 1),
+	}
+}
+
+func (f *failureProxy) run(t *testing.T) {
+	t.Helper()
+
+	for {
+		conn, err := f.lis.Accept()
+		if errors.Is(err, net.ErrClosed) {
+			return
+		}
+		if err != nil {
+			t.Logf("accept failed: %v", err)
+			continue
+		}
+
+		select {
+		case f.notif <- struct{}{}:
+		default:
+		}
+
+		go f.handleConn(t, conn)
+	}
+}
+
+func (f *failureProxy) handleConn(t *testing.T, conn net.Conn) {
+	defer func() {
+		if err := conn.Close(); err != nil {
+			t.Logf("failed to close connection: %v", err)
+		}
+	}()
+
+	// If we're failing, just close the connection immediately.
+	if f.failing.Load() {
+		return
+	}
+
+	upstream, err := net.Dial("tcp", f.dst)
+	if err != nil {
+		t.Logf("failed to dial upstream: %v", err)
+		return
+	}
+
+	done := make(chan struct{}, 1)
+	pipe := func(dst io.Writer, src io.Reader) {
+		_, _ = io.Copy(dst, src)
+		done <- struct{}{}
+	}
+
+	go pipe(upstream, conn)
+	go pipe(conn, upstream)
+
+	<-done
+}
+
+func (f *failureProxy) addr() string {
+	return f.lis.Addr().String()
+}
+
+func (f *failureProxy) setFailing(failing bool) {
+	f.failing.Store(failing)
+}
+
 func TestBot_InsecureViaProxy(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	log := utils.NewSlogLoggerForTests()
+	log := logtest.NewLogger()
 
 	// Make a new auth server.
-	process := testenv.MakeTestServer(t, defaultTestServerOpts(t, log))
-	rootClient := testenv.MakeDefaultAuthClient(t, process)
+	process, err := testenv.NewTeleportProcess(t.TempDir(), defaultTestServerOpts(log))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
+	rootClient, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = rootClient.Close() })
 
 	// Create bot user and join token
 	botParams, _ := makeBot(t, rootClient, "test", "access")
@@ -571,7 +974,7 @@ func TestBot_InsecureViaProxy(t *testing.T) {
 	)
 	// Use a destination directory to ensure locking behaves correctly and
 	// the bot isn't left in a locked state.
-	directoryDest := &config.DestinationDirectory{
+	directoryDest := &destination.Directory{
 		Path:     t.TempDir(),
 		Symlinks: botfs.SymlinksInsecure,
 		ACLs:     botfs.ACLOff,
@@ -581,111 +984,6 @@ func TestBot_InsecureViaProxy(t *testing.T) {
 	// Run the bot a first time
 	firstBot := New(botConfig, log)
 	require.NoError(t, firstBot.Run(ctx))
-}
-
-func TestChooseOneResource(t *testing.T) {
-	t.Parallel()
-	t.Run("database", testChooseOneDatabase)
-	t.Run("kube cluster", testChooseOneKubeCluster)
-}
-
-func testChooseOneDatabase(t *testing.T) {
-	t.Parallel()
-	fooDB1 := newMockDiscoveredDB(t, "foo-rds-us-west-1-123456789012", "foo")
-	fooDB2 := newMockDiscoveredDB(t, "foo-rds-us-west-2-123456789012", "foo")
-	barDB := newMockDiscoveredDB(t, "bar-rds-us-west-1-123456789012", "bar")
-	tests := []struct {
-		desc      string
-		databases []types.Database
-		dbSvc     string
-		wantDB    types.Database
-		wantErr   string
-	}{
-		{
-			desc:      "by exact name match",
-			databases: []types.Database{fooDB1, fooDB2, barDB},
-			dbSvc:     "bar-rds-us-west-1-123456789012",
-			wantDB:    barDB,
-		},
-		{
-			desc:      "by unambiguous discovered name match",
-			databases: []types.Database{fooDB1, fooDB2, barDB},
-			dbSvc:     "bar",
-			wantDB:    barDB,
-		},
-		{
-			desc:      "ambiguous discovered name matches is an error",
-			databases: []types.Database{fooDB1, fooDB2, barDB},
-			dbSvc:     "foo",
-			wantErr:   `"foo" matches multiple auto-discovered databases`,
-		},
-		{
-			desc:      "no match is an error",
-			databases: []types.Database{fooDB1, fooDB2, barDB},
-			dbSvc:     "xxx",
-			wantErr:   `database "xxx" not found`,
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.desc, func(t *testing.T) {
-			gotDB, err := chooseOneDatabase(test.databases, test.dbSvc)
-			if test.wantErr != "" {
-				require.ErrorContains(t, err, test.wantErr)
-				return
-			}
-			require.NoError(t, err)
-			require.Equal(t, test.wantDB, gotDB)
-		})
-	}
-}
-
-func testChooseOneKubeCluster(t *testing.T) {
-	fooKube1 := newMockDiscoveredKubeCluster(t, "foo-eks-us-west-1-123456789012", "foo")
-	fooKube2 := newMockDiscoveredKubeCluster(t, "foo-eks-us-west-2-123456789012", "foo")
-	barKube := newMockDiscoveredKubeCluster(t, "bar-eks-us-west-1-123456789012", "bar")
-	tests := []struct {
-		desc            string
-		clusters        []types.KubeCluster
-		kubeSvc         string
-		wantKubeCluster types.KubeCluster
-		wantErr         string
-	}{
-		{
-			desc:            "by exact name match",
-			clusters:        []types.KubeCluster{fooKube1, fooKube2, barKube},
-			kubeSvc:         "bar-eks-us-west-1-123456789012",
-			wantKubeCluster: barKube,
-		},
-		{
-			desc:            "by unambiguous discovered name match",
-			clusters:        []types.KubeCluster{fooKube1, fooKube2, barKube},
-			kubeSvc:         "bar",
-			wantKubeCluster: barKube,
-		},
-		{
-			desc:     "ambiguous discovered name matches is an error",
-			clusters: []types.KubeCluster{fooKube1, fooKube2, barKube},
-			kubeSvc:  "foo",
-			wantErr:  `"foo" matches multiple auto-discovered kubernetes clusters`,
-		},
-		{
-			desc:     "no match is an error",
-			clusters: []types.KubeCluster{fooKube1, fooKube2, barKube},
-			kubeSvc:  "xxx",
-			wantErr:  `kubernetes cluster "xxx" not found`,
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.desc, func(t *testing.T) {
-			gotKube, err := chooseOneKubeCluster(test.clusters, test.kubeSvc)
-			if test.wantErr != "" {
-				require.ErrorContains(t, err, test.wantErr)
-				return
-			}
-			require.NoError(t, err)
-			require.Equal(t, test.wantKubeCluster, gotKube)
-		})
-	}
 }
 
 func newMockDiscoveredDB(t *testing.T, name, discoveredName string) *types.DatabaseV3 {
@@ -720,140 +1018,21 @@ func newMockDiscoveredKubeCluster(t *testing.T, name, discoveredName string) *ty
 	return kubeCluster
 }
 
-// TestBotSPIFFEWorkloadAPI is an end-to-end test of Workload ID's ability to
-// issue a SPIFFE SVID to a workload connecting via the SPIFFE Workload API.
-func TestBotSPIFFEWorkloadAPI(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-	log := utils.NewSlogLoggerForTests()
-
-	// Make a new auth server.
-	process := testenv.MakeTestServer(t, defaultTestServerOpts(t, log))
-	rootClient := testenv.MakeDefaultAuthClient(t, process)
-
-	// Create a role that allows the bot to issue a SPIFFE SVID.
-	role, err := types.NewRole("spiffe-issuer", types.RoleSpecV6{
-		Allow: types.RoleConditions{
-			SPIFFE: []*types.SPIFFERoleCondition{
-				{
-					Path: "/*",
-					DNSSANs: []string{
-						"*",
-					},
-					IPSANs: []string{
-						"0.0.0.0/0",
-					},
-				},
-			},
-		},
-	})
-	require.NoError(t, err)
-	role, err = rootClient.UpsertRole(ctx, role)
-	require.NoError(t, err)
-
-	pid := os.Getpid()
-
-	tempDir := t.TempDir()
-	socketPath := "unix://" + path.Join(tempDir, "spiffe.sock")
-	onboarding, _ := makeBot(t, rootClient, "test", role.GetName())
-	botConfig := defaultBotConfig(
-		t, process, onboarding, config.ServiceConfigs{
-			&config.SPIFFEWorkloadAPIService{
-				Listen: socketPath,
-				SVIDs: []config.SVIDRequestWithRules{
-					// Intentionally unmatching PID to ensure this SVID
-					// is not issued.
-					{
-						SVIDRequest: config.SVIDRequest{
-							Path: "/bar",
-						},
-						Rules: []config.SVIDRequestRule{
-							{
-								Unix: config.SVIDRequestRuleUnix{
-									PID: ptr(0),
-								},
-							},
-						},
-					},
-					// SVID with rule that matches on PID.
-					{
-						SVIDRequest: config.SVIDRequest{
-							Path: "/foo",
-							Hint: "hint",
-							SANS: config.SVIDRequestSANs{
-								DNS: []string{"example.com"},
-								IP:  []string{"10.0.0.1"},
-							},
-						},
-						Rules: []config.SVIDRequestRule{
-							{
-								Unix: config.SVIDRequestRuleUnix{
-									PID: &pid,
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-		defaultBotConfigOpts{
-			useAuthServer: true,
-			insecure:      true,
-		},
-	)
-	botConfig.Oneshot = false
-	b := New(botConfig, log)
-
-	// Spin up goroutine for bot to run in
-	botCtx, cancelBot := context.WithCancel(ctx)
-	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		err := b.Run(botCtx)
-		assert.NoError(t, err, "bot should not exit with error")
-		cancelBot()
-	}()
-	t.Cleanup(func() {
-		// Shut down bot and make sure it exits.
-		cancelBot()
-		wg.Wait()
-	})
-
-	// This has a little flexibility internally in terms of waiting for the
-	// socket to come up, so we don't need a manual sleep/retry here.
-	source, err := workloadapi.NewX509Source(
-		ctx,
-		workloadapi.WithClientOptions(workloadapi.WithAddr(socketPath)),
-	)
-	require.NoError(t, err)
-	defer source.Close()
-
-	svid, err := source.GetX509SVID()
-	require.NoError(t, err)
-
-	// SVID has successfully been issued. We can now assert that it's correct.
-	require.Equal(t, "spiffe://root/foo", svid.ID.String())
-	cert := svid.Certificates[0]
-	require.Equal(t, "spiffe://root/foo", cert.URIs[0].String())
-	require.True(t, net.IPv4(10, 0, 0, 1).Equal(cert.IPAddresses[0]))
-	require.Equal(t, []string{"example.com"}, cert.DNSNames)
-	require.WithinRange(
-		t,
-		cert.NotAfter,
-		cert.NotBefore.Add(time.Hour-time.Minute),
-		cert.NotBefore.Add(time.Hour+time.Minute),
-	)
-}
-
 func TestBotDatabaseTunnel(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	log := utils.NewSlogLoggerForTests()
+	log := logtest.NewLogger()
 
 	// Make a new auth server.
-	process := testenv.MakeTestServer(t, defaultTestServerOpts(t, log))
-	rootClient := testenv.MakeDefaultAuthClient(t, process)
+	process, err := testenv.NewTeleportProcess(t.TempDir(), defaultTestServerOpts(log))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
+	rootClient, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = rootClient.Close() })
 
 	// Make fake postgres server and add a database access instance to expose
 	// it.
@@ -901,7 +1080,7 @@ func TestBotDatabaseTunnel(t *testing.T) {
 	onboarding, _ := makeBot(t, rootClient, "test", role.GetName())
 	botConfig := defaultBotConfig(
 		t, process, onboarding, config.ServiceConfigs{
-			&config.DatabaseTunnelService{
+			&database.TunnelConfig{
 				Listener: botListener,
 				Service:  "test-database",
 				Database: "mydb",
@@ -933,14 +1112,12 @@ func TestBotDatabaseTunnel(t *testing.T) {
 	// EventuallyWithT to retry.
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		conn, err := pgconn.Connect(ctx, fmt.Sprintf("postgres://%s/mydb?user=llama", botListener.Addr().String()))
-		if !assert.NoError(t, err) {
-			return
-		}
+		require.NoError(t, err)
 		defer func() {
 			conn.Close(ctx)
 		}()
 		_, err = conn.Exec(ctx, "SELECT 1;").ReadAll()
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	}, 10*time.Second, 100*time.Millisecond)
 
 	// Shut down bot and make sure it exits.
@@ -951,13 +1128,13 @@ func TestBotDatabaseTunnel(t *testing.T) {
 func TestBotSSHMultiplexer(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	log := utils.NewSlogLoggerForTests()
+	log := logtest.NewLogger()
 
 	currentUser, err := user.Current()
 	require.NoError(t, err)
 
-	// 104 length limit on UDS on MacOS forces us to use a custom tmpdir.
-	tmpDir := path.Join(os.TempDir(), t.Name())
+	// 104 length limit on UDS on macOS forces us to use a custom tmpdir.
+	tmpDir := filepath.Join(os.TempDir(), t.Name())
 	require.NoError(t, os.RemoveAll(tmpDir))
 	require.NoError(t, os.Mkdir(tmpDir, 0777))
 	t.Cleanup(func() {
@@ -965,18 +1142,22 @@ func TestBotSSHMultiplexer(t *testing.T) {
 	})
 
 	// Make a new auth server with SSH agent
-	process := testenv.MakeTestServer(
-		t,
-		defaultTestServerOpts(t, log),
+	process, err := testenv.NewTeleportProcess(
+		t.TempDir(),
+		defaultTestServerOpts(log),
 		testenv.WithConfig(func(cfg *servicecfg.Config) {
 			cfg.SSH.Enabled = true
-			cfg.SSH.Addr = utils.NetAddr{
-				AddrNetwork: "tcp",
-				Addr:        testenv.NewTCPListener(t, service.ListenerNodeSSH, &cfg.FileDescriptors),
-			}
 		}),
 	)
-	rootClient := testenv.MakeDefaultAuthClient(t, process)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
+
+	rootClient, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = rootClient.Close() })
 
 	// Create role that allows the bot to access the database.
 	role, err := types.NewRole("ssh-access", types.RoleSpecV6{
@@ -995,8 +1176,8 @@ func TestBotSSHMultiplexer(t *testing.T) {
 	onboarding, _ := makeBot(t, rootClient, "test", role.GetName())
 	botConfig := defaultBotConfig(
 		t, process, onboarding, config.ServiceConfigs{
-			&config.SSHMultiplexerService{
-				Destination: &config.DestinationDirectory{
+			&sshsvc.MultiplexerConfig{
+				Destination: &destination.Directory{
 					Path: tmpDir,
 				},
 			},
@@ -1032,8 +1213,26 @@ func TestBotSSHMultiplexer(t *testing.T) {
 			"ssh_config",
 		} {
 			_, err := os.Stat(filepath.Join(tmpDir, fileName))
-			assert.NoError(t, err)
+			require.NoError(t, err)
 		}
+	}, 10*time.Second, 100*time.Millisecond)
+
+	// We need to wait for the agent to be fully connected to the Proxy
+	// (e.g. visible in the reverse tunnel server) otherwise dials to it may
+	// result in "direct dialing to nodes not found in inventory is not
+	// supported".
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		rts, err := process.GetReverseTunnelServer()
+		require.NoError(t, err)
+		cluster, err := rts.Cluster(ctx, "root")
+		require.NoError(t, err)
+		nw, err := cluster.NodeWatcher()
+		require.NoError(t, err)
+		got, err := nw.CurrentResourcesWithFilter(ctx, func(r readonly.Server) bool {
+			return r.GetHostname() == "server01"
+		})
+		require.NoError(t, err)
+		require.Len(t, got, 1)
 	}, 10*time.Second, 100*time.Millisecond)
 
 	targets := []string{
@@ -1041,7 +1240,6 @@ func TestBotSSHMultiplexer(t *testing.T) {
 		"server01.root:0|root\x00", // New style target with cluster
 	}
 	for _, target := range targets {
-		target := target
 		t.Run(target, func(t *testing.T) {
 			t.Parallel()
 
@@ -1053,9 +1251,11 @@ func TestBotSSHMultiplexer(t *testing.T) {
 			agentClient := agent.NewClient(agentConn)
 			callback, err := knownhosts.New(filepath.Join(tmpDir, "known_hosts"))
 			require.NoError(t, err)
-			sshConfig := &ssh.ClientConfig{
-				Auth: []ssh.AuthMethod{
-					ssh.PublicKeysCallback(agentClient.Signers),
+			sshConfig := apissh.ClientConfig{
+				PublicKeyAuth: apissh.PublicKeyAuthConfig{
+					Signers: func() ([]ssh.Signer, error) {
+						return agentClient.Signers()
+					},
 				},
 				User:            currentUser.Username,
 				HostKeyCallback: callback,
@@ -1067,18 +1267,19 @@ func TestBotSSHMultiplexer(t *testing.T) {
 			})
 			_, err = fmt.Fprint(conn, target)
 			require.NoError(t, err)
-			sshConn, sshChan, sshReq, err := ssh.NewClientConn(conn, "server01.root:22", sshConfig)
+
+			sshClient, err := apissh.NewClient(ctx, conn, "server01.root:22", sshConfig)
 			require.NoError(t, err)
-			sshClient := ssh.NewClient(sshConn, sshChan, sshReq)
 			t.Cleanup(func() {
 				sshClient.Close()
 			})
-			sshSess, err := sshClient.NewSession()
+
+			sshSess, err := sshClient.NewSession(ctx)
 			require.NoError(t, err)
 			t.Cleanup(func() {
 				sshSess.Close()
 			})
-			out, err := sshSess.CombinedOutput("echo hello")
+			out, err := sshSess.CombinedOutput(ctx, "echo hello")
 			require.NoError(t, err)
 			require.Equal(t, "hello\n", string(out))
 
@@ -1089,4 +1290,910 @@ func TestBotSSHMultiplexer(t *testing.T) {
 			require.Len(t, keys, 2)
 		})
 	}
+}
+
+func TestBotDeviceTrust(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	log := logtest.NewLogger()
+
+	// Start a test server with `device.trust.mode="required-for-humans"`.
+	process, err := testenv.NewTeleportProcess(t.TempDir(),
+		defaultTestServerOpts(log),
+		testenv.WithAuthConfig(func(cfg *servicecfg.AuthConfig) {
+			cfg.Preference.SetDeviceTrust(&types.DeviceTrust{
+				Mode: constants.DeviceTrustModeRequiredForHumans,
+			})
+		}),
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
+	rootClient, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = rootClient.Close() })
+
+	// Run a bot with an identity output.
+	onboarding, _ := makeBot(t, rootClient, "test", "access")
+	botConfig := defaultBotConfig(
+		t, process, onboarding,
+		config.ServiceConfigs{
+			&identitysvc.OutputConfig{
+				Destination: &destination.Memory{},
+			},
+		},
+		defaultBotConfigOpts{
+			useAuthServer: true,
+			insecure:      true,
+		},
+	)
+
+	// If we're able to successfully run the bot, it means we could:
+	//
+	// 	1. Join the cluster
+	// 	2. Request an user certificate to "impersonate" the bot's roles
+	b := New(botConfig, log)
+	require.NoError(t, b.Run(ctx))
+
+	// Run it again to check renewing the bot's internal identity works too.
+	b = New(botConfig, log)
+	require.NoError(t, b.Run(ctx))
+}
+
+// TestBotJoiningURI ensures configured joining URIs work in place of
+// traditional YAML onboarding config.
+func TestBotJoiningURI(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	log := logtest.NewLogger()
+
+	process, err := testenv.NewTeleportProcess(
+		t.TempDir(),
+		defaultTestServerOpts(log),
+		testenv.WithProxyKube(),
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
+	rootClient, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = rootClient.Close() })
+
+	role, err := types.NewRole("role", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			AppLabels: types.Labels{
+				"*": apiutils.Strings{"*"},
+			},
+		},
+	})
+	require.NoError(t, err)
+	_, err = rootClient.UpsertRole(ctx, role)
+	require.NoError(t, err)
+
+	botParams, _ := makeBot(t, rootClient, "test", "role")
+	cfg := &config.BotConfig{
+		JoinURI: fmt.Sprintf(
+			"tbot+proxy+%s://%s@%s",
+			botParams.JoinMethod,
+			botParams.TokenValue,
+			process.Config.Proxy.WebAddr.String(),
+		),
+		Storage: &config.StorageConfig{
+			Destination: &destination.Memory{},
+		},
+		Services: config.ServiceConfigs{
+			&identitysvc.OutputConfig{
+				Destination: &destination.Memory{},
+			},
+		},
+		Oneshot:  true,
+		Insecure: true,
+		Testing:  true,
+	}
+	require.NoError(t, cfg.CheckAndSetDefaults())
+
+	bot := New(cfg, log)
+	require.NoError(t, bot.Run(ctx))
+
+	// Perform some cursory checks on the identity to make sure a cert bundle
+	// was actually produced.
+	id := bot.getBotIdentity()
+	tlsIdent, err := tlsca.FromSubject(
+		id.X509Cert.Subject, id.X509Cert.NotAfter,
+	)
+	require.NoError(t, err)
+	require.Equal(t, "test", tlsIdent.BotName)
+}
+
+// TestScopedBotSSH tests that a scoped bot can produce an identity output
+// with scope pins, and that the identity can be used to SSH to a scoped node.
+func TestScopedBotSSH(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	log := logtest.NewLogger()
+
+	currentUser, err := user.Current()
+	require.NoError(t, err)
+
+	const (
+		scopeName      = "/test-scope"
+		scopedRoleName = "scoped-ssh-access"
+		botName        = "scoped-ssh-bot"
+		nodeHostname   = "scoped-node"
+	)
+
+	// Start the main Teleport process (auth + proxy, no SSH).
+	process, err := testenv.NewTeleportProcess(
+		t.TempDir(),
+		defaultTestServerOpts(log),
+		testenv.WithScopesFeatures(scopes.Features{Enabled: true}),
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
+
+	rootClient, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = rootClient.Close() })
+
+	clusterName := process.Config.Auth.ClusterName.GetClusterName()
+
+	// Create a scoped role that grants SSH access.
+	scopedSvc := rootClient.ScopedAccessServiceClient()
+	_, err = scopedSvc.CreateScopedRole(ctx, scopedaccessv1.CreateScopedRoleRequest_builder{
+		Role: scopedaccessv1.ScopedRole_builder{
+			Kind:    scopedaccess.KindScopedRole,
+			Version: types.V1,
+			Metadata: headerv1.Metadata_builder{
+				Name: scopedRoleName,
+			}.Build(),
+			Scope: scopeName,
+			Spec: scopedaccessv1.ScopedRoleSpec_builder{
+				AssignableScopes: []string{scopeName},
+				Ssh: scopedaccessv1.ScopedRoleSSH_builder{
+					Logins: []string{currentUser.Username},
+					Labels: []*labelv1.Label{
+						labelv1.Label_builder{
+							Name:   "*",
+							Values: []string{"*"},
+						}.Build(),
+					},
+				}.Build(),
+			}.Build(),
+		}.Build(),
+	}.Build())
+	require.NoError(t, err)
+
+	botOnboarding := createScopedBot(t, process, rootClient, botName, scopeName, scopedRoleName)
+	nodeTokenResp := createScopedJoinToken(t, process, "node-token", scopeName, types.RoleNode)
+
+	// Start a second Teleport process as an SSH-only node, joining with the
+	// scoped token so the node gets scope "/test-scope".
+	nodeCfg := servicecfg.MakeDefaultConfig()
+	nodeCfg.ScopesFeatures = scopes.Features{Enabled: true}
+	nodeCfg.Hostname = nodeHostname
+	nodeCfg.DataDir = t.TempDir()
+	nodeCfg.SetToken(jointoken.EncodeScopedToken(nodeTokenResp.GetToken().GetMetadata().GetName(), nodeTokenResp.GetToken().GetStatus().GetSecret()))
+	nodeCfg.SetAuthServerAddress(process.Config.Auth.ListenAddr)
+	nodeCfg.Auth.Enabled = false
+	nodeCfg.Proxy.Enabled = false
+	nodeCfg.SSH.Enabled = true
+	nodeCfg.SSH.Addr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
+	nodeCfg.SSH.DisableCreateHostUser = true
+	nodeCfg.CachePolicy.Enabled = false
+	nodeCfg.InstanceMetadataClient = nil
+	nodeCfg.DebugService.Enabled = false
+	nodeCfg.Logger = log
+
+	nodeProcess, err := service.NewTeleport(nodeCfg)
+	require.NoError(t, err)
+	require.NoError(t, nodeProcess.Start())
+	t.Cleanup(func() {
+		require.NoError(t, nodeProcess.Close())
+		require.NoError(t, nodeProcess.Wait())
+	})
+
+	// Wait for the SSH node to be ready.
+	_, err = nodeProcess.WaitForEvent(ctx, service.NodeSSHReady)
+	require.NoError(t, err)
+
+	// Wait for the scoped SSH node to be visible in the reverse tunnel.
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		rts, err := process.GetReverseTunnelServer()
+		require.NoError(t, err)
+		cluster, err := rts.Cluster(ctx, clusterName)
+		require.NoError(t, err)
+		nw, err := cluster.NodeWatcher()
+		require.NoError(t, err)
+		got, err := nw.CurrentResourcesWithFilter(ctx, func(r readonly.Server) bool {
+			return r.GetHostname() == nodeHostname
+		})
+		require.NoError(t, err)
+		require.Len(t, got, 1)
+	}, 10*time.Second, 100*time.Millisecond)
+
+	// Configure and run tbot with an identity output.
+	identityOutput := &identitysvc.OutputConfig{
+		Destination: &destination.Memory{},
+	}
+	botConfig := defaultBotConfig(
+		t, process, botOnboarding,
+		config.ServiceConfigs{
+			identityOutput,
+		},
+		defaultBotConfigOpts{
+			useAuthServer: true,
+			insecure:      true,
+		},
+	)
+	botConfig.Scoped = true
+	b := New(botConfig, log)
+	require.NoError(t, b.Run(ctx))
+
+	t.Run("identity certificates have scope pins", func(t *testing.T) {
+		expectedPin := scopesv1.Pin_builder{
+			Kind:  scopesv1.PinKind_PIN_KIND_USER,
+			Scope: scopeName,
+			AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+				scopeName: {scopeName: {scopes.QualifiedName{Scope: scopeName, Name: scopedRoleName}.String()}},
+			}),
+		}.Build()
+
+		// Check TLS certificate.
+		tlsIdent := tlsIdentFromDest(ctx, t, identityOutput.GetDestination())
+		require.NotNil(t, tlsIdent.ScopePin, "TLS identity should have a scope pin")
+		require.Empty(t, cmp.Diff(expectedPin, tlsIdent.ScopePin, protocmp.Transform()))
+		require.Empty(t, tlsIdent.Groups, "scoped identity should not have groups/roles")
+
+		// Check SSH certificate.
+		certBytes, err := identityOutput.GetDestination().Read(ctx, identity.SSHCertKey)
+		require.NoError(t, err)
+		sshCert, err := sshutils.ParseCertificate(certBytes)
+		require.NoError(t, err)
+		sshIdent, err := sshca.DecodeIdentity(sshCert)
+		require.NoError(t, err)
+		require.NotNil(t, sshIdent.ScopePin, "SSH identity should have a scope pin")
+		require.Empty(t, cmp.Diff(expectedPin, sshIdent.ScopePin, protocmp.Transform()))
+		require.Empty(t, sshIdent.Roles, "scoped SSH identity should not have roles")
+	})
+
+	t.Run("ssh connection succeeds", func(t *testing.T) {
+		ctx := t.Context()
+		dest := identityOutput.GetDestination()
+
+		// Read individual artifacts from the destination.
+		keyBytes, err := dest.Read(ctx, identity.PrivateKeyKey)
+		require.NoError(t, err)
+		sshCertBytes, err := dest.Read(ctx, identity.SSHCertKey)
+		require.NoError(t, err)
+		tlsCertBytes, err := dest.Read(ctx, identity.TLSCertKey)
+		require.NoError(t, err)
+
+		privKey, err := keys.ParsePrivateKey(keyBytes)
+		require.NoError(t, err)
+
+		// Get host CA for trusted cert verification.
+		hostCA, err := rootClient.GetCertAuthority(ctx, types.CertAuthID{
+			Type:       types.HostCA,
+			DomainName: clusterName,
+		}, false)
+		require.NoError(t, err)
+
+		proxyHost, err := utils.Host(process.Config.Proxy.WebAddr.String())
+		require.NoError(t, err)
+
+		// Parse the TLS cert to extract the username.
+		x509Cert, err := tlsca.ParseCertificatePEM(tlsCertBytes)
+		require.NoError(t, err)
+		tlsIdent, err := tlsca.FromSubject(x509Cert.Subject, x509Cert.NotAfter)
+		require.NoError(t, err)
+
+		// Build a KeyRing from the identity output.
+		keyRing := libclient.NewKeyRing(privKey, privKey)
+		keyRing.Cert = sshCertBytes
+		keyRing.TLSCert = tlsCertBytes
+		keyRing.KeyRingIndex = libclient.KeyRingIndex{
+			ProxyHost:   proxyHost,
+			ClusterName: clusterName,
+			Username:    tlsIdent.Username,
+		}
+
+		// Create a TeleportClient configured with the scoped bot identity.
+		var stdout bytes.Buffer
+		tc, err := libclient.NewClient(&libclient.Config{
+			Username:           tlsIdent.Username,
+			Host:               nodeHostname,
+			HostLogin:          currentUser.Username,
+			WebProxyAddr:       process.Config.Proxy.WebAddr.String(),
+			SSHProxyAddr:       process.Config.Proxy.SSHAddr.String(),
+			SiteName:           clusterName,
+			InsecureSkipVerify: true,
+			NonInteractive:     true,
+			ClientStore:        libclient.NewFSClientStore(t.TempDir()),
+			Stdout:             &stdout,
+			Stderr:             io.Discard,
+			Stdin:              &bytes.Buffer{},
+			Tracer:             tracing.NoopProvider().Tracer("test"),
+			AddKeysToAgent:     libclient.AddKeysToAgentNo,
+		})
+		require.NoError(t, err)
+
+		require.NoError(t, tc.AddKeyRing(keyRing))
+		require.NoError(t, tc.AddTrustedCA(ctx, hostCA))
+
+		startTime := time.Now()
+
+		require.NoError(t, tc.SSH(ctx, []string{"echo hello"}))
+		require.Equal(t, "hello\n", stdout.String())
+
+		auditEvents := helpers.WaitForAuditEventTypeWithBackoff(
+			t,
+			process.GetAuthServer(),
+			startTime,
+			events.SessionStartEvent,
+		)
+
+		require.Len(t, auditEvents, 1)
+		auditEvent := auditEvents[0]
+
+		require.IsType(t, &apievents.SessionStart{}, auditEvent)
+		sessionStart := auditEvent.(*apievents.SessionStart)
+
+		assert.Equal(t, botName, sessionStart.BotName)
+
+		expectedScopePin := apievents.ScopePin{
+			Scope: scopeName,
+			Assignments: map[string]*apievents.ScopePinnedAssignments{
+				scopeName: {
+					Roles: []string{scopedRoleName},
+				},
+			},
+		}
+		assert.Equal(t, &expectedScopePin, sessionStart.ScopePin)
+	})
+}
+
+// TestScopedBotKubernetes tests that a scoped bot can produce a kubernetes/v2
+// output: that the scoped credentials carry scope pins, that the bot can
+// discover a scoped Kubernetes cluster via selectors, and that a valid
+// kubeconfig is rendered.
+func TestScopedBotKubernetes(t *testing.T) {
+	// TODO(eriktate): remove this skip once scoped kube agents work with agent scope pins
+	t.Skip("scoped kube currently requires agent scope pins which are not fully supported yet")
+	ctx := t.Context()
+	log := logtest.NewLogger()
+
+	const (
+		scopeName       = "/test-scope"
+		scopedRoleName  = "scoped-kube-access"
+		botName         = "scoped-kube-bot"
+		kubeClusterName = "scoped-kube-cluster"
+	)
+
+	// Start the main Teleport process (auth + proxy, no kube).
+	process, err := testenv.NewTeleportProcess(
+		t.TempDir(),
+		defaultTestServerOpts(log),
+		testenv.WithProxyKube(),
+		testenv.WithScopesFeatures(scopes.Features{Enabled: true, AgentPinEnabled: true}),
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
+
+	rootClient, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = rootClient.Close() })
+
+	// Create a scoped role that grants kube access (all clusters, system:masters).
+	scopedSvc := rootClient.ScopedAccessServiceClient()
+	_, err = scopedSvc.CreateScopedRole(ctx, scopedaccessv1.CreateScopedRoleRequest_builder{
+		Role: scopedaccessv1.ScopedRole_builder{
+			Kind:    scopedaccess.KindScopedRole,
+			Version: types.V1,
+			Metadata: headerv1.Metadata_builder{
+				Name: scopedRoleName,
+			}.Build(),
+			Scope: scopeName,
+			Spec: scopedaccessv1.ScopedRoleSpec_builder{
+				AssignableScopes: []string{scopeName},
+				Kube: scopedaccessv1.ScopedRoleKube_builder{
+					Labels: []*labelv1.Label{
+						labelv1.Label_builder{Name: "*", Values: []string{"*"}}.Build(),
+					},
+					Groups: []string{"system:masters"},
+				}.Build(),
+			}.Build(),
+		}.Build(),
+	}.Build())
+	require.NoError(t, err)
+
+	botOnboarding := createScopedBot(t, process, rootClient, botName, scopeName, scopedRoleName)
+	kubeTokenResp := createScopedJoinToken(t, process, "kube-token", scopeName, types.RoleKube)
+
+	// Stand up a fake Kubernetes API server. The kube_service agent will
+	// forward to this when proxying Kubernetes requests.
+	kubeMock, err := testingkubemock.NewKubeAPIMock()
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = kubeMock.Close() })
+
+	// Write a kubeconfig for the kube_service that references the mock.
+	kubeConfigPath := filepath.Join(t.TempDir(), "kube_config")
+	require.NoError(t, kubeconfig.Save(kubeConfigPath, clientcmdapi.Config{
+		Clusters: map[string]*clientcmdapi.Cluster{
+			kubeClusterName: {
+				Server:                kubeMock.URL,
+				InsecureSkipTLSVerify: true,
+			},
+		},
+		AuthInfos: map[string]*clientcmdapi.AuthInfo{
+			kubeClusterName: {},
+		},
+		Contexts: map[string]*clientcmdapi.Context{
+			kubeClusterName: {
+				Cluster:  kubeClusterName,
+				AuthInfo: kubeClusterName,
+			},
+		},
+	}))
+
+	// Start a second Teleport process as a kube_service-only agent, joining
+	// with the scoped kube token.
+	kubeNodeCfg := servicecfg.MakeDefaultConfig()
+	kubeNodeCfg.ScopesFeatures = scopes.Features{Enabled: true, AgentPinEnabled: true}
+	kubeNodeCfg.DataDir = t.TempDir()
+	kubeNodeCfg.SetToken(jointoken.EncodeScopedToken(kubeTokenResp.GetToken().GetMetadata().GetName(), kubeTokenResp.GetToken().GetStatus().GetSecret()))
+	kubeNodeCfg.SetAuthServerAddress(process.Config.Auth.ListenAddr)
+	kubeNodeCfg.Auth.Enabled = false
+	kubeNodeCfg.Proxy.Enabled = false
+	kubeNodeCfg.SSH.Enabled = false
+	kubeNodeCfg.Kube.Enabled = true
+	kubeNodeCfg.Kube.KubeconfigPath = kubeConfigPath
+	kubeNodeCfg.Kube.ListenAddr = &utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
+	kubeNodeCfg.CachePolicy.Enabled = false
+	kubeNodeCfg.InstanceMetadataClient = nil
+	kubeNodeCfg.DebugService.Enabled = false
+	kubeNodeCfg.Logger = log
+
+	kubeNodeProcess, err := service.NewTeleport(kubeNodeCfg)
+	require.NoError(t, err)
+	require.NoError(t, kubeNodeProcess.Start())
+	t.Cleanup(func() {
+		require.NoError(t, kubeNodeProcess.Close())
+		require.NoError(t, kubeNodeProcess.Wait())
+	})
+	_, err = kubeNodeProcess.WaitForEvent(ctx, service.KubernetesReady)
+	require.NoError(t, err)
+
+	// Wait for the kube cluster to be visible through the auth server.
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		servers, err := rootClient.GetKubernetesServers(ctx)
+		require.NoError(t, err)
+		found := false
+		for _, srv := range servers {
+			if srv.GetCluster().GetName() == kubeClusterName {
+				found = true
+				break
+			}
+		}
+		require.True(t, found, "kube cluster %q not yet visible", kubeClusterName)
+	}, 10*time.Second, 100*time.Millisecond)
+
+	// Configure and run tbot with a kubernetes/v2 output in scoped mode.
+	kubeOutput := &k8s.OutputV2Config{
+		Destination:       &destination.Memory{},
+		DisableExecPlugin: true,
+		Selectors: []*k8s.KubernetesSelector{
+			{Name: kubeClusterName},
+		},
+	}
+	botConfig := defaultBotConfig(
+		t, process, botOnboarding,
+		config.ServiceConfigs{
+			kubeOutput,
+		},
+		defaultBotConfigOpts{
+			useAuthServer: true,
+			insecure:      true,
+		},
+	)
+	botConfig.Scoped = true
+	b := New(botConfig, log)
+	require.NoError(t, b.Run(ctx))
+
+	t.Run("identity certificate has scope pins", func(t *testing.T) {
+		expectedPin := scopesv1.Pin_builder{
+			Kind:  scopesv1.PinKind_PIN_KIND_USER,
+			Scope: scopeName,
+			AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+				scopeName: {scopeName: {scopes.QualifiedName{Scope: scopeName, Name: scopedRoleName}.String()}},
+			}),
+		}.Build()
+
+		tlsIdent := tlsIdentFromDest(ctx, t, kubeOutput.GetDestination())
+		require.NotNil(t, tlsIdent.ScopePin, "TLS identity should have a scope pin")
+		require.Empty(t, cmp.Diff(expectedPin, tlsIdent.ScopePin, protocmp.Transform()))
+		require.Empty(t, tlsIdent.Groups, "scoped identity should not have groups/roles")
+	})
+
+	t.Run("kubeconfig and call", func(t *testing.T) {
+		dest := kubeOutput.GetDestination()
+		raw, err := dest.Read(ctx, "kubeconfig.yaml")
+		require.NoError(t, err)
+
+		cfg, err := clientcmd.Load(raw)
+		require.NoError(t, err)
+		require.NotEmpty(t, cfg.Contexts, "kubeconfig should contain at least one context")
+
+		// Check our cluster is included.
+		// Kubernetes cluster name is prefixed by Teleport cluster name.
+		wantName := "root-" + kubeClusterName
+		clusters := slices.Collect(maps.Keys(cfg.Clusters))
+		gotCluster := slices.Contains(clusters, wantName)
+		require.True(
+			t,
+			gotCluster,
+			"kubeconfig clusters should reference %q",
+			wantName,
+		)
+
+		// Use the rendered kubeconfig to drive a real kube client through
+		// the Teleport proxy and into the mock kube API server.
+		restCfg, err := clientcmd.NewDefaultClientConfig(*cfg, nil).ClientConfig()
+		require.NoError(t, err)
+
+		clientset, err := kubernetes.NewForConfig(restCfg)
+		require.NoError(t, err)
+
+		nsList, err := clientset.CoreV1().Namespaces().List(ctx, metav1.ListOptions{})
+		require.NoError(t, err)
+
+		gotNamespaces := make([]string, 0, len(nsList.Items))
+		for _, ns := range nsList.Items {
+			gotNamespaces = append(gotNamespaces, ns.Name)
+		}
+		require.ElementsMatch(t, []string{"default", "test", "dev", "prod"}, gotNamespaces)
+	})
+}
+
+// TestScopedBotWorkloadIdentity tests that a scoped bot can issue X.509 and
+// JWT SVIDs for a scoped WorkloadIdentity addressed by a scope-qualified name
+// selector ("<scope>::<name>"), via the x509/jwt file outputs and the SPIFFE
+// workload API. In scoped mode these services use the bot's internal scoped
+// identity (rather than a role-impersonated identity, which scoped bots cannot
+// mint) to call the issuance RPCs.
+func TestScopedBotWorkloadIdentity(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	log := logtest.NewLogger()
+
+	const (
+		scopeName      = "/test-scope"
+		scopedRoleName = "scoped-wi-issuer"
+		botName        = "scoped-wi-bot"
+		wiName         = "scoped-svc"
+		audience       = "example.com"
+	)
+
+	// Start the main Teleport process (auth + proxy).
+	process, err := testenv.NewTeleportProcess(
+		t.TempDir(),
+		defaultTestServerOpts(log),
+		testenv.WithScopesFeatures(scopes.Features{Enabled: true}),
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
+
+	rootClient, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = rootClient.Close() })
+
+	clusterName := process.Config.Auth.ClusterName.GetClusterName()
+
+	// Create a scoped role granting issuance using prod-labeled WorkloadIdentities.
+	scopedSvc := rootClient.ScopedAccessServiceClient()
+	_, err = scopedSvc.CreateScopedRole(ctx, scopedaccessv1.CreateScopedRoleRequest_builder{
+		Role: scopedaccessv1.ScopedRole_builder{
+			Kind:    scopedaccess.KindScopedRole,
+			Version: types.V1,
+			Metadata: headerv1.Metadata_builder{
+				Name: scopedRoleName,
+			}.Build(),
+			Scope: scopeName,
+			Spec: scopedaccessv1.ScopedRoleSpec_builder{
+				AssignableScopes: []string{scopeName},
+				Rules: []*scopedaccessv1.ScopedRule{
+					scopedaccessv1.ScopedRule_builder{
+						Resources: []string{types.KindWorkloadIdentity},
+						Verbs:     []string{types.VerbReadNoSecrets, types.VerbList},
+					}.Build(),
+				},
+				WorkloadIdentity: scopedaccessv1.ScopedRoleWorkloadIdentity_builder{
+					Labels: []*labelv1.Label{
+						labelv1.Label_builder{Name: "env", Values: []string{"prod"}}.Build(),
+					},
+				}.Build(),
+			}.Build(),
+		}.Build(),
+	}.Build())
+	require.NoError(t, err)
+
+	botOnboarding := createScopedBot(t, process, rootClient, botName, scopeName, scopedRoleName)
+
+	// Create a scoped WorkloadIdentity at the backend.
+	_, err = process.GetAuthServer().CreateWorkloadIdentity(ctx, workloadidentityv1pb.WorkloadIdentity_builder{
+		Kind:    types.KindWorkloadIdentity,
+		Version: types.V1,
+		Metadata: headerv1.Metadata_builder{
+			Name:   wiName,
+			Labels: map[string]string{"env": "prod"},
+		}.Build(),
+		Scope: scopeName,
+		Spec: workloadidentityv1pb.WorkloadIdentitySpec_builder{
+			Spiffe: workloadidentityv1pb.WorkloadIdentitySPIFFE_builder{
+				Id: scopeName + "/_/" + wiName,
+			}.Build(),
+		}.Build(),
+	}.Build())
+	require.NoError(t, err)
+
+	// Configure tbot with workload-identity x509 and jwt outputs and a
+	// workload API listening on a unix socket, all addressing the
+	// WorkloadIdentity by scope-qualified name. The workload API is a
+	// long-running service, so the bot runs in daemon mode rather than oneshot.
+	tmpDir := t.TempDir()
+	jwtDir := t.TempDir()
+	listenURL := url.URL{
+		Scheme: "unix",
+		Path:   filepath.Join(t.TempDir(), "workload.sock"),
+	}
+	selector := bot.WorkloadIdentitySelector{
+		Name: scopes.QualifiedName{Scope: scopeName, Name: wiName}.String(),
+	}
+	botConfig := defaultBotConfig(
+		t, process, botOnboarding,
+		config.ServiceConfigs{
+			&workloadidentitysvc.X509OutputConfig{
+				Selector: selector,
+				Destination: &destination.Directory{
+					Path: tmpDir,
+				},
+			},
+			&workloadidentitysvc.JWTOutputConfig{
+				Selector: selector,
+				Destination: &destination.Directory{
+					Path: jwtDir,
+				},
+				Audiences: []string{audience},
+			},
+			&workloadidentitysvc.WorkloadAPIConfig{
+				Selector: selector,
+				Listen:   listenURL.String(),
+				Attestors: workloadattest.Config{
+					Unix: workloadattest.UnixAttestorConfig{
+						BinaryHashMaxSizeBytes: workloadattest.TestBinaryHashMaxBytes,
+					},
+				},
+			},
+		},
+		defaultBotConfigOpts{
+			useAuthServer: true,
+			insecure:      true,
+		},
+	)
+	botConfig.Scoped = true
+	botConfig.Oneshot = false
+	b := New(botConfig, log)
+
+	botCtx, cancelBot := context.WithCancel(ctx)
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		assert.NoError(t, b.Run(botCtx), "bot should not exit with error")
+	}()
+	t.Cleanup(func() {
+		cancelBot()
+		wg.Wait()
+	})
+
+	expectedSPIFFEID := "spiffe://" + clusterName + scopeName + "/_/" + wiName
+
+	t.Run("x509 output", func(t *testing.T) {
+		// The x509 output should write an SVID with a SPIFFE ID inside the
+		// bot's scope.
+		var svid *x509svid.SVID
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			var err error
+			svid, err = x509svid.Load(
+				filepath.Join(tmpDir, internal.SVIDPEMPath),
+				filepath.Join(tmpDir, internal.SVIDKeyPEMPath),
+			)
+			require.NoError(t, err)
+		}, 10*time.Second, 100*time.Millisecond)
+		require.Equal(t, expectedSPIFFEID, svid.ID.String())
+	})
+
+	t.Run("jwt output", func(t *testing.T) {
+		// The jwt output should write a JWT SVID with the same scoped SPIFFE
+		// ID.
+		var jwt *jwtsvid.SVID
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			jwtBytes, err := os.ReadFile(filepath.Join(jwtDir, internal.JWTSVIDPath))
+			require.NoError(t, err)
+			jwt, err = jwtsvid.ParseInsecure(string(jwtBytes), []string{audience})
+			require.NoError(t, err)
+		}, 10*time.Second, 100*time.Millisecond)
+		require.Equal(t, expectedSPIFFEID, jwt.ID.String())
+	})
+
+	t.Run("workload api", func(t *testing.T) {
+		ctx := t.Context()
+
+		// X.509 and JWT SVIDs fetched over the workload API socket should
+		// carry the same scoped SPIFFE ID.
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			_, err := os.Stat(listenURL.Path)
+			require.NoError(t, err)
+		}, 10*time.Second, 100*time.Millisecond)
+		apiClient, err := workloadapi.New(ctx, workloadapi.WithAddr(listenURL.String()))
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = apiClient.Close() })
+
+		source, err := workloadapi.NewX509Source(ctx, workloadapi.WithClient(apiClient))
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = source.Close() })
+		apiSVID, err := source.GetX509SVID()
+		require.NoError(t, err)
+		require.Equal(t, expectedSPIFFEID, apiSVID.ID.String())
+
+		apiJWTSVID, err := apiClient.FetchJWTSVID(ctx, jwtsvid.Params{
+			Audience: audience,
+		})
+		require.NoError(t, err)
+		require.Equal(t, expectedSPIFFEID, apiJWTSVID.ID.String())
+	})
+}
+
+func waitForSRACache(t *testing.T, authServer *auth.Server, resps ...*scopedaccessv1.CreateScopedRoleAssignmentResponse) {
+	t.Helper()
+	ctx := t.Context()
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		for _, resp := range resps {
+			_, err := authServer.ScopedAccessCache.GetScopedRoleAssignment(ctx, scopedaccessv1.GetScopedRoleAssignmentRequest_builder{
+				Name:    resp.GetAssignment().GetMetadata().GetName(),
+				SubKind: resp.GetAssignment().GetSubKind(),
+				Scope:   resp.GetAssignment().GetScope(),
+			}.Build())
+			require.NoError(t, err)
+		}
+	}, 10*time.Second, 100*time.Millisecond)
+}
+
+// createScopedBot creates a scoped bot, its bound-keypair join token, and a
+// scoped role assignment linking it to scopedRoleName. It waits for the SRA
+// cache to catch up before returning. The returned onboarding.Config is
+// suitable to plug into defaultBotConfig for a bot that runs with
+// botConfig.Scoped = true.
+func createScopedBot(
+	t *testing.T,
+	process *service.TeleportProcess,
+	rootClient *authclient.Client,
+	botName, scopeName, scopedRoleName string,
+) *onboarding.Config {
+	t.Helper()
+	ctx := t.Context()
+
+	_, err := rootClient.BotServiceClient().CreateBot(ctx, machineidv1pb.CreateBotRequest_builder{
+		Bot: machineidv1pb.Bot_builder{
+			Metadata: headerv1.Metadata_builder{Name: botName}.Build(),
+			Scope:    scopeName,
+			Spec:     &machineidv1pb.BotSpec{},
+		}.Build(),
+	}.Build())
+	require.NoError(t, err)
+
+	botKey, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+	botPublicKey := strings.TrimSpace(string(botKey.MarshalSSHPublicKey()))
+	botKeyPath := filepath.Join(t.TempDir(), "bot_key.pem")
+	require.NoError(t, os.WriteFile(botKeyPath, botKey.PrivateKeyPEM(), 0600))
+
+	botTokenResp, err := process.GetAuthServer().ScopedTokenService.CreateScopedToken(ctx, joiningv1.CreateScopedTokenRequest_builder{
+		Token: joiningv1.ScopedToken_builder{
+			Kind:     types.KindScopedToken,
+			Version:  types.V1,
+			Metadata: headerv1.Metadata_builder{Name: botName + "-token"}.Build(),
+			Scope:    scopeName,
+			Spec: joiningv1.ScopedTokenSpec_builder{
+				Roles:      []string{types.RoleBot.String()},
+				JoinMethod: string(types.JoinMethodBoundKeypair),
+				UsageMode:  jointoken.TokenUsageModeBot,
+				Bot:        scopes.QualifiedName{Scope: scopeName, Name: botName}.String(),
+				BoundKeypair: joiningv1.BoundKeypairSpec_builder{
+					Onboarding: joiningv1.BoundKeypairSpec_OnboardingSpec_builder{
+						InitialPublicKey: botPublicKey,
+					}.Build(),
+					Recovery: joiningv1.BoundKeypairSpec_RecoverySpec_builder{
+						Limit: 10,
+						Mode:  "insecure",
+					}.Build(),
+				}.Build(),
+			}.Build(),
+			Status: joiningv1.ScopedTokenStatus_builder{
+				Usage: joiningv1.UsageStatus_builder{
+					BoundKeypair: &joiningv1.BoundKeypairStatus{},
+				}.Build(),
+			}.Build(),
+		}.Build(),
+	}.Build())
+	require.NoError(t, err)
+
+	sraResp, err := rootClient.ScopedAccessServiceClient().CreateScopedRoleAssignment(ctx, scopedaccessv1.CreateScopedRoleAssignmentRequest_builder{
+		Assignment: scopedaccessv1.ScopedRoleAssignment_builder{
+			Kind:     scopedaccess.KindScopedRoleAssignment,
+			Version:  types.V1,
+			SubKind:  scopedaccess.SubKindDynamic,
+			Metadata: headerv1.Metadata_builder{Name: uuid.NewString()}.Build(),
+			Scope:    scopeName,
+			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
+				Bot: scopes.QualifiedName{Scope: scopeName, Name: botName}.String(),
+				Assignments: []*scopedaccessv1.Assignment{
+					scopedaccessv1.Assignment_builder{Role: scopes.QualifiedName{Scope: scopeName, Name: scopedRoleName}.String(), Scope: scopeName}.Build(),
+				},
+			}.Build(),
+		}.Build(),
+	}.Build())
+	require.NoError(t, err)
+	waitForSRACache(t, process.GetAuthServer(), sraResp)
+
+	return &onboarding.Config{
+		TokenValue: botTokenResp.GetToken().GetMetadata().GetName(),
+		JoinMethod: types.JoinMethodBoundKeypair,
+		BoundKeypair: onboarding.BoundKeypairOnboardingConfig{
+			StaticPrivateKeyPath: botKeyPath,
+		},
+	}
+}
+
+// createScopedJoinToken creates a scoped join token for a service-side process
+// (e.g. an SSH node or kube_service) joining within scopeName as the given
+// system role.
+func createScopedJoinToken(
+	t *testing.T,
+	process *service.TeleportProcess,
+	name, scopeName string,
+	role types.SystemRole,
+) *joiningv1.CreateScopedTokenResponse {
+	t.Helper()
+	resp, err := process.GetAuthServer().ScopedTokenService.CreateScopedToken(t.Context(), joiningv1.CreateScopedTokenRequest_builder{
+		Token: joiningv1.ScopedToken_builder{
+			Kind:     types.KindScopedToken,
+			Version:  types.V1,
+			Metadata: headerv1.Metadata_builder{Name: name}.Build(),
+			Scope:    scopeName,
+			Spec: joiningv1.ScopedTokenSpec_builder{
+				AssignedScope: scopeName,
+				Roles:         []string{role.String()},
+				JoinMethod:    string(types.JoinMethodToken),
+				UsageMode:     string(jointoken.TokenUsageModeUnlimited),
+			}.Build(),
+		}.Build(),
+	}.Build())
+	require.NoError(t, err)
+	return resp
 }

@@ -17,9 +17,10 @@
  */
 
 import React, { useState } from 'react';
-import { Box, Flex, ButtonSecondary, LabelInput } from 'design';
-import Select, { Option } from 'shared/components/Select';
+
+import { Box, ButtonSecondary, Flex, LabelInput } from 'design';
 import { Refresh as RefreshIcon } from 'design/Icon';
+import Select, { Option } from 'shared/components/Select';
 
 import { awsRegionMap, Regions } from 'teleport/services/integrations';
 
@@ -62,7 +63,7 @@ export function AwsRegionSelector({
           <ButtonSecondary
             onClick={onRefresh}
             mt={1}
-            title="Refresh database table"
+            title="Refresh"
             height="40px"
             width="40px"
             p={0}

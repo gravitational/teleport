@@ -16,10 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Kube } from './types';
+import { Kube, KubeResource, KubeServer } from './types';
 
-export default function makeKube(json): Kube {
-  const { name, requiresRequest } = json;
+export function makeKube(json): Kube {
+  const { name, requiresRequest, targetHealth } = json;
   const labels = json.labels || [];
 
   return {
@@ -29,5 +29,38 @@ export default function makeKube(json): Kube {
     users: json.kubernetes_users || [],
     groups: json.kubernetes_groups || [],
     requiresRequest,
+    targetHealth: targetHealth && {
+      status: targetHealth.status,
+      error: targetHealth.transition_error,
+      message: targetHealth.message,
+    },
+  };
+}
+
+export function makeKubeResource(json): KubeResource {
+  const { kind, name, namespace, cluster } = json;
+  const labels = json.labels || [];
+
+  return {
+    kind,
+    name,
+    namespace,
+    labels,
+    cluster,
+  };
+}
+
+export function makeKubeServer(json: any): KubeServer {
+  const { spec, status } = json;
+
+  return {
+    hostname: spec?.hostname,
+    hostId: spec?.host_id,
+    targetHealth: status &&
+      status.target_health && {
+        status: status.target_health.status,
+        message: status.target_health.message,
+        error: status.target_health.transition_error,
+      },
   };
 }

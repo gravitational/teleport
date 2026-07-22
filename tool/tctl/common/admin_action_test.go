@@ -44,19 +44,21 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
-	"github.com/gravitational/teleport/lib/auth/native"
-	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/storage"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	libclient "github.com/gravitational/teleport/lib/client"
 	libmfa "github.com/gravitational/teleport/lib/client/mfa"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	tctl "github.com/gravitational/teleport/tool/tctl/common"
+	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 	testserver "github.com/gravitational/teleport/tool/teleport/testenv"
 	tsh "github.com/gravitational/teleport/tool/tsh/common"
 )
@@ -138,16 +140,18 @@ func (s *adminActionTestSuite) testBots(t *testing.T) {
 	ctx := context.Background()
 
 	botName := "bot"
-	botReq := &machineidv1pb.CreateBotRequest{
-		Bot: &machineidv1pb.Bot{
-			Metadata: &headerv1.Metadata{
+	botReq := machineidv1pb.CreateBotRequest_builder{
+		Bot: machineidv1pb.Bot_builder{
+			Kind:    types.KindBot,
+			Version: types.V1,
+			Metadata: headerv1.Metadata_builder{
 				Name: botName,
-			},
-			Spec: &machineidv1pb.BotSpec{
+			}.Build(),
+			Spec: machineidv1pb.BotSpec_builder{
 				Roles: []string{teleport.PresetAccessRoleName},
-			},
-		},
-	}
+			}.Build(),
+		}.Build(),
+	}.Build()
 
 	createBot := func() error {
 		_, err := s.localAdminClient.BotServiceClient().CreateBot(ctx, botReq)
@@ -155,9 +159,9 @@ func (s *adminActionTestSuite) testBots(t *testing.T) {
 	}
 
 	deleteBot := func() error {
-		_, err := s.localAdminClient.BotServiceClient().DeleteBot(ctx, &machineidv1pb.DeleteBotRequest{
+		_, err := s.localAdminClient.BotServiceClient().DeleteBot(ctx, machineidv1pb.DeleteBotRequest_builder{
 			BotName: botName,
-		})
+		}.Build())
 		return trace.Wrap(err)
 	}
 
@@ -170,6 +174,12 @@ func (s *adminActionTestSuite) testBots(t *testing.T) {
 			},
 			"tctl bots rm": {
 				command:    fmt.Sprintf("bots rm %v", botName),
+				cliCommand: &tctl.BotsCommand{},
+				setup:      createBot,
+				cleanup:    deleteBot,
+			},
+			"tctl bots instance add": {
+				command:    fmt.Sprintf("bots instance add %v", botName),
 				cliCommand: &tctl.BotsCommand{},
 				setup:      createBot,
 				cleanup:    deleteBot,
@@ -294,7 +304,8 @@ func (s *adminActionTestSuite) testAccessRequests(t *testing.T) {
 	}})
 
 	createAccessRequest := func() error {
-		return s.authServer.CreateAccessRequest(ctx, accessRequest)
+		_, err := s.authServer.CreateAccessRequestV2(ctx, accessRequest, tlsca.Identity{})
+		return trace.Wrap(err)
 	}
 
 	deleteAllAccessRequests := func() error {
@@ -364,6 +375,9 @@ func (s *adminActionTestSuite) testTokens(t *testing.T) {
 	token, err := types.NewProvisionToken("teletoken", []types.SystemRole{types.RoleNode}, time.Time{})
 	require.NoError(t, err)
 
+	token2, err := types.NewProvisionToken("teletoken2", []types.SystemRole{types.RoleNode}, time.Time{})
+	require.NoError(t, err)
+
 	createToken := func() error {
 		return s.authServer.CreateToken(ctx, token)
 	}
@@ -374,6 +388,20 @@ func (s *adminActionTestSuite) testTokens(t *testing.T) {
 
 	deleteToken := func() error {
 		return s.authServer.DeleteToken(ctx, token.GetName())
+	}
+
+	createTokens := func() error {
+		return trace.NewAggregate(
+			s.authServer.CreateToken(ctx, token),
+			s.authServer.CreateToken(ctx, token2),
+		)
+	}
+
+	deleteTokens := func() error {
+		return trace.NewAggregate(
+			s.authServer.DeleteToken(ctx, token.GetName()),
+			s.authServer.DeleteToken(ctx, token2.GetName()),
+		)
 	}
 
 	t.Run("TokensCommands", func(t *testing.T) {
@@ -402,10 +430,13 @@ func (s *adminActionTestSuite) testTokens(t *testing.T) {
 
 	t.Run("ResourceCommands", func(t *testing.T) {
 		s.testResourceCommand(t, ctx, resourceCommandTestCase{
-			resource:        token,
-			resourceCreate:  createToken,
-			resourceCleanup: deleteToken,
-			testGetList:     true,
+			resource:         token,
+			resourceCreate:   createToken,
+			resourceCleanup:  deleteToken,
+			testGetList:      true,
+			resource2:        token2,
+			resourcesCreate:  createTokens,
+			resourcesCleanup: deleteTokens,
 		})
 	})
 
@@ -446,10 +477,10 @@ func (s *adminActionTestSuite) testUserGroups(t *testing.T) {
 func (s *adminActionTestSuite) testCertAuthority(t *testing.T) {
 	ctx := context.Background()
 
-	priv, pub, err := native.GenerateKeyPair()
+	sshKey, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.Ed25519)
 	require.NoError(t, err)
 
-	key, cert, err := tlsca.GenerateSelfSignedCA(pkix.Name{CommonName: "Host"}, nil, time.Minute)
+	tlsKey, cert, err := tlsca.GenerateSelfSignedCA(pkix.Name{CommonName: "Host"}, nil, time.Minute)
 	require.NoError(t, err)
 
 	ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
@@ -457,13 +488,28 @@ func (s *adminActionTestSuite) testCertAuthority(t *testing.T) {
 		ClusterName: "clustername",
 		ActiveKeys: types.CAKeySet{
 			SSH: []*types.SSHKeyPair{{
-				PrivateKey:     priv,
-				PrivateKeyType: types.PrivateKeyType_RAW,
-				PublicKey:      pub,
+				PrivateKey: sshKey.PrivateKeyPEM(),
+				PublicKey:  sshKey.MarshalSSHPublicKey(),
 			}},
 			TLS: []*types.TLSKeyPair{{
 				Cert: cert,
-				Key:  key,
+				Key:  tlsKey,
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	ca2, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
+		Type:        types.HostCA,
+		ClusterName: "clustername2",
+		ActiveKeys: types.CAKeySet{
+			SSH: []*types.SSHKeyPair{{
+				PrivateKey: sshKey.PrivateKeyPEM(),
+				PublicKey:  sshKey.MarshalSSHPublicKey(),
+			}},
+			TLS: []*types.TLSKeyPair{{
+				Cert: cert,
+				Key:  tlsKey,
 			}},
 		},
 	})
@@ -481,11 +527,28 @@ func (s *adminActionTestSuite) testCertAuthority(t *testing.T) {
 		return s.authServer.DeleteCertAuthority(ctx, ca.GetID())
 	}
 
+	createCertAuthorities := func() error {
+		return trace.NewAggregate(
+			s.authServer.CreateCertAuthority(ctx, ca),
+			s.authServer.CreateCertAuthority(ctx, ca2),
+		)
+	}
+
+	deleteCertAuthorities := func() error {
+		return trace.NewAggregate(
+			s.authServer.DeleteCertAuthority(ctx, ca.GetID()),
+			s.authServer.DeleteCertAuthority(ctx, ca2.GetID()),
+		)
+	}
+
 	s.testResourceCommand(t, ctx, resourceCommandTestCase{
-		resource:        ca,
-		resourceCreate:  createCertAuthority,
-		resourceCleanup: deleteCertAuthority,
-		testGetList:     true,
+		resource:         ca,
+		resourceCreate:   createCertAuthority,
+		resourceCleanup:  deleteCertAuthority,
+		testGetList:      true,
+		resource2:        ca2,
+		resourcesCreate:  createCertAuthorities,
+		resourcesCleanup: deleteCertAuthorities,
 	})
 
 	s.testEditCommand(t, ctx, editCommandTestCase{
@@ -514,6 +577,21 @@ func (s *adminActionTestSuite) testOIDCConnector(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	connector2, err := types.NewOIDCConnector("oidc-2", types.OIDCConnectorSpecV3{
+		ClientID:     "12345",
+		ClientSecret: "678910",
+		RedirectURLs: []string{"https://proxy.example.com/v1/webapi/oidc/callback"},
+		Display:      "OIDC",
+		ClaimsToRoles: []types.ClaimMapping{
+			{
+				Claim: "test",
+				Value: "test",
+				Roles: []string{"access", "editor", "auditor"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
 	createOIDCConnector := func() error {
 		_, err := s.authServer.CreateOIDCConnector(ctx, connector)
 		return trace.Wrap(err)
@@ -527,11 +605,30 @@ func (s *adminActionTestSuite) testOIDCConnector(t *testing.T) {
 		return s.authServer.DeleteOIDCConnector(ctx, connector.GetName())
 	}
 
+	createOIDCConnectors := func() error {
+		if _, err := s.authServer.CreateOIDCConnector(ctx, connector); err != nil {
+			return trace.Wrap(err)
+		}
+		_, err := s.authServer.CreateOIDCConnector(ctx, connector2)
+		return trace.Wrap(err)
+	}
+
+	deleteOIDCConnectors := func() error {
+		return trace.NewAggregate(
+			s.authServer.DeleteOIDCConnector(ctx, connector.GetName()),
+			s.authServer.DeleteOIDCConnector(ctx, connector2.GetName()),
+		)
+	}
+
 	t.Run("ResourceCommands", func(t *testing.T) {
 		s.testResourceCommand(t, ctx, resourceCommandTestCase{
-			resource:        connector,
-			resourceCreate:  createOIDCConnector,
-			resourceCleanup: deleteOIDCConnector,
+			resource:         connector,
+			resourceCreate:   createOIDCConnector,
+			resourceCleanup:  deleteOIDCConnector,
+			testGetList:      true,
+			resource2:        connector2,
+			resourcesCreate:  createOIDCConnectors,
+			resourcesCleanup: deleteOIDCConnectors,
 		})
 	})
 
@@ -559,6 +656,17 @@ func (s *adminActionTestSuite) testSAMLConnector(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	connector2, err := types.NewSAMLConnector("saml-2", types.SAMLConnectorSpecV2{
+		AssertionConsumerService: "http://localhost:65535/acs", // not called
+		Issuer:                   "test",
+		SSO:                      "https://localhost:65535/sso", // not called
+		AttributesToRoles: []types.AttributeMapping{
+			// not used. can be any name, value but role must exist
+			{Name: "groups", Value: "admin", Roles: []string{"access"}},
+		},
+	})
+	require.NoError(t, err)
+
 	createSAMLConnector := func() error {
 		_, err := s.authServer.CreateSAMLConnector(ctx, connector)
 		return trace.Wrap(err)
@@ -572,11 +680,30 @@ func (s *adminActionTestSuite) testSAMLConnector(t *testing.T) {
 		return s.authServer.DeleteSAMLConnector(ctx, connector.GetName())
 	}
 
+	createSAMLConnectors := func() error {
+		if _, err := s.authServer.CreateSAMLConnector(ctx, connector); err != nil {
+			return trace.Wrap(err)
+		}
+		_, err := s.authServer.CreateSAMLConnector(ctx, connector2)
+		return trace.Wrap(err)
+	}
+
+	deleteSAMLConnectors := func() error {
+		return trace.NewAggregate(
+			s.authServer.DeleteSAMLConnector(ctx, connector.GetName()),
+			s.authServer.DeleteSAMLConnector(ctx, connector2.GetName()),
+		)
+	}
+
 	t.Run("ResourceCommands", func(t *testing.T) {
 		s.testResourceCommand(t, ctx, resourceCommandTestCase{
-			resource:        connector,
-			resourceCreate:  createSAMLConnector,
-			resourceCleanup: deleteSAMLConnector,
+			resource:         connector,
+			resourceCreate:   createSAMLConnector,
+			resourceCleanup:  deleteSAMLConnector,
+			testGetList:      true,
+			resource2:        connector2,
+			resourcesCreate:  createSAMLConnectors,
+			resourcesCleanup: deleteSAMLConnectors,
 		})
 	})
 
@@ -608,6 +735,21 @@ func (s *adminActionTestSuite) testGithubConnector(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	connector2, err := types.NewGithubConnector("github-2", types.GithubConnectorSpecV3{
+		ClientID:     "12345",
+		ClientSecret: "678910",
+		RedirectURL:  "https://proxy.example.com/v1/webapi/github/callback",
+		Display:      "Github",
+		TeamsToRoles: []types.TeamRolesMapping{
+			{
+				Organization: "acme",
+				Team:         "users",
+				Roles:        []string{"access", "editor", "auditor"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
 	createGithubConnector := func() error {
 		_, err := s.authServer.CreateGithubConnector(ctx, connector)
 		return trace.Wrap(err)
@@ -621,11 +763,30 @@ func (s *adminActionTestSuite) testGithubConnector(t *testing.T) {
 		return s.authServer.DeleteGithubConnector(ctx, connector.GetName())
 	}
 
+	createGithubConnectors := func() error {
+		if _, err := s.authServer.CreateGithubConnector(ctx, connector); err != nil {
+			return trace.Wrap(err)
+		}
+		_, err := s.authServer.CreateGithubConnector(ctx, connector2)
+		return trace.Wrap(err)
+	}
+
+	deleteGithubConnectors := func() error {
+		return trace.NewAggregate(
+			s.authServer.DeleteGithubConnector(ctx, connector.GetName()),
+			s.authServer.DeleteGithubConnector(ctx, connector2.GetName()),
+		)
+	}
+
 	t.Run("ResourceCommands", func(t *testing.T) {
 		s.testResourceCommand(t, ctx, resourceCommandTestCase{
-			resource:        connector,
-			resourceCreate:  createGithubConnector,
-			resourceCleanup: deleteGithubConnector,
+			resource:         connector,
+			resourceCreate:   createGithubConnector,
+			resourceCleanup:  deleteGithubConnector,
+			testGetList:      true,
+			resource2:        connector2,
+			resourcesCreate:  createGithubConnectors,
+			resourcesCleanup: deleteGithubConnectors,
 		})
 	})
 
@@ -717,6 +878,7 @@ func (s *adminActionTestSuite) testClusterAuthPreference(t *testing.T) {
 
 	t.Run("ResourceCommands", func(t *testing.T) {
 		s.testResourceCommand(t, ctx, resourceCommandTestCase{
+			skipBulk:        true,
 			resource:        originalAuthPref,
 			resourceCreate:  createAuthPref,
 			resourceCleanup: resetAuthPref,
@@ -849,9 +1011,18 @@ type resourceCommandTestCase struct {
 	resourceCreate  func() error
 	resourceCleanup func() error
 
+	// skip bulk create tests. Used by cluster auth preference tests which
+	// would break down after the first creation.
+	skipBulk bool
+
 	// Tests get/list resource, for privileged resources
-	// like tokens that should require MFA to be seen.
+	// like CAs that should require MFA to be seen with secrets.
 	testGetList bool
+
+	// Used to test listing resources when testGetList is true
+	resource2        types.Resource
+	resourcesCreate  func() error
+	resourcesCleanup func() error
 }
 
 func (s *adminActionTestSuite) testResourceCommand(t *testing.T, ctx context.Context, tc resourceCommandTestCase) {
@@ -878,6 +1049,18 @@ func (s *adminActionTestSuite) testResourceCommand(t *testing.T, ctx context.Con
 		})
 	})
 
+	if !tc.skipBulk {
+		require.NoError(t, utils.WriteYAML(f, []types.Resource{tc.resource, tc.resource, tc.resource}))
+		t.Run("tctl create -f bulk", func(t *testing.T) {
+			s.testCommand(t, ctx, adminActionTestCase{
+				command:    fmt.Sprintf("create -f %v", f.Name()),
+				cliCommand: &tctl.ResourceCommand{},
+				setup:      tc.resourceCreate,
+				cleanup:    tc.resourceCleanup,
+			})
+		})
+	}
+
 	t.Run("tctl rm", func(t *testing.T) {
 		s.testCommand(t, ctx, adminActionTestCase{
 			command:    fmt.Sprintf("rm %v", getResourceRef(tc.resource)),
@@ -888,21 +1071,36 @@ func (s *adminActionTestSuite) testResourceCommand(t *testing.T, ctx context.Con
 	})
 
 	if tc.testGetList {
+		command := "get --with-secrets"
+		if tc.resource.GetKind() == types.KindToken {
+			// tokens are inherently secrets, so the flag is implicit.
+			command = "get"
+		}
+
 		t.Run("tctl get", func(t *testing.T) {
 			s.testCommand(t, ctx, adminActionTestCase{
-				command:    fmt.Sprintf("get --with-secrets %v", getResourceRef(tc.resource)),
+				command:    fmt.Sprintf("%v %v", command, getResourceRef(tc.resource)),
 				cliCommand: &tctl.ResourceCommand{},
 				setup:      tc.resourceCreate,
 				cleanup:    tc.resourceCleanup,
 			})
 		})
 
-		t.Run("tctl list", func(t *testing.T) {
+		t.Run("tctl get many", func(t *testing.T) {
 			s.testCommand(t, ctx, adminActionTestCase{
-				command:    fmt.Sprintf("get --with-secrets %v", tc.resource.GetKind()),
+				command:    fmt.Sprintf("%v %v,%v", command, getResourceRef(tc.resource), getResourceRef(tc.resource2)),
 				cliCommand: &tctl.ResourceCommand{},
-				setup:      tc.resourceCreate,
-				cleanup:    tc.resourceCleanup,
+				setup:      tc.resourcesCreate,
+				cleanup:    tc.resourcesCleanup,
+			})
+		})
+
+		t.Run("tctl get all", func(t *testing.T) {
+			s.testCommand(t, ctx, adminActionTestCase{
+				command:    fmt.Sprintf("%v %v", command, tc.resource.GetKind()),
+				cliCommand: &tctl.ResourceCommand{},
+				setup:      tc.resourcesCreate,
+				cleanup:    tc.resourcesCleanup,
 			})
 		})
 	}
@@ -942,6 +1140,9 @@ func (s *adminActionTestSuite) testEditCommand(t *testing.T, ctx context.Context
 
 type adminActionTestSuite struct {
 	authServer *auth.Server
+	// wanLoginCount tracks the number of webauthn login prompts. Should be
+	// reset between tests.
+	wanLoginCount int
 	// userClientWithMFA supports MFA prompt for admin actions.
 	userClientWithMFA *authclient.Client
 	// userClientWithMFA does not support MFA prompt for admin actions.
@@ -950,17 +1151,10 @@ type adminActionTestSuite struct {
 }
 
 func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
+	s := &adminActionTestSuite{}
+
 	t.Helper()
 	ctx := context.Background()
-	modules.SetTestModules(t, &modules.TestModules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.OIDC: {Enabled: true},
-				entitlements.SAML: {Enabled: true},
-			},
-		},
-	})
 
 	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
@@ -973,17 +1167,31 @@ func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 	authPref.SetOrigin(types.OriginDefaults)
 
 	var proxyPublicAddr utils.NetAddr
-	process := testserver.MakeTestServer(t,
+	process, err := testserver.NewTeleportProcess(t.TempDir(),
 		testserver.WithAuthPreference(authPref),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
+			cfg.Modules = &modulestest.Modules{
+				TestBuildType: modules.BuildEnterprise,
+				TestFeatures: modules.Features{
+					Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+						entitlements.OIDC: {Enabled: true},
+						entitlements.SAML: {Enabled: true},
+					},
+				},
+			}
 			proxyPublicAddr = cfg.Proxy.WebAddr
 			proxyPublicAddr.Addr = fmt.Sprintf("localhost:%v", proxyPublicAddr.Port(0))
 			cfg.Proxy.PublicAddrs = []utils.NetAddr{proxyPublicAddr}
 		}),
 	)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
 	authAddr, err := process.AuthAddr()
 	require.NoError(t, err)
-	authServer := process.GetAuthServer()
+	s.authServer = process.GetAuthServer()
 
 	// create admin role and user.
 	username := "admin"
@@ -1010,21 +1218,28 @@ func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 		},
 	})
 	require.NoError(t, err)
-	adminRole, err = authServer.CreateRole(ctx, adminRole)
+	adminRole, err = s.authServer.CreateRole(ctx, adminRole)
 	require.NoError(t, err)
 
 	user, err := types.NewUser(username)
 	user.SetRoles([]string{adminRole.GetName()})
 	require.NoError(t, err)
-	_, err = authServer.CreateUser(ctx, user)
+	_, err = s.authServer.CreateUser(ctx, user)
 	require.NoError(t, err)
 
-	mockWebauthnLogin := setupWebAuthn(t, authServer, username)
+	mockWebauthnLogin := setupWebAuthn(t, s.authServer, username)
+	mockWebauthnLoginWithCount := func(ctx context.Context, origin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt, opts *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error) {
+		s.wanLoginCount++
+		return mockWebauthnLogin(ctx, origin, assertion, prompt, opts)
+	}
+
 	mockMFAPromptConstructor := func(opts ...mfa.PromptOpt) mfa.Prompt {
 		promptCfg := libmfa.NewPromptConfig(proxyPublicAddr.String(), opts...)
-		promptCfg.WebauthnLoginFunc = mockWebauthnLogin
+		promptCfg.WebauthnLoginFunc = mockWebauthnLoginWithCount
 		promptCfg.WebauthnSupported = true
-		return libmfa.NewCLIPrompt(promptCfg, os.Stderr)
+		return libmfa.NewCLIPrompt(&libmfa.CLIPromptConfig{
+			PromptConfig: *promptCfg,
+		})
 	}
 
 	// Login as the admin user.
@@ -1046,7 +1261,7 @@ func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 	)
 	require.NoError(t, err)
 
-	userClientNoMFA, err := authclient.NewClient(client.Config{
+	s.userClientNoMFA, err = authclient.NewClient(client.Config{
 		Addrs: []string{authAddr.String()},
 		Credentials: []client.Credentials{
 			client.LoadProfile(tshHome, ""),
@@ -1060,7 +1275,7 @@ func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 	})
 	require.NoError(t, err)
 
-	userClientWithMFA, err := authclient.NewClient(client.Config{
+	s.userClientWithMFA, err = authclient.NewClient(client.Config{
 		Addrs: []string{authAddr.String()},
 		Credentials: []client.Credentials{
 			client.LoadProfile(tshHome, ""),
@@ -1069,28 +1284,22 @@ func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 	})
 	require.NoError(t, err)
 
-	hostUUID, err := utils.ReadHostUUID(process.Config.DataDir)
-	require.NoError(t, err)
-	localAdmin, err := storage.ReadLocalIdentity(
+	localAdmin, err := storage.ReadLocalIdentityForRole(
+		ctx,
 		filepath.Join(process.Config.DataDir, teleport.ComponentProcess),
-		state.IdentityID{Role: types.RoleAdmin, HostUUID: hostUUID},
+		types.RoleAdmin,
 	)
 	require.NoError(t, err)
 	localAdminTLS, err := localAdmin.TLSConfig(nil)
 	require.NoError(t, err)
-	localAdminClient, err := authclient.Connect(ctx, &authclient.Config{
+	s.localAdminClient, err = authclient.Connect(ctx, &authclient.Config{
 		TLS:         localAdminTLS,
 		AuthServers: []utils.NetAddr{*authAddr},
-		Log:         utils.NewLoggerForTests(),
+		Log:         logtest.NewLogger(),
 	})
 	require.NoError(t, err)
 
-	return &adminActionTestSuite{
-		authServer:        authServer,
-		userClientNoMFA:   userClientNoMFA,
-		userClientWithMFA: userClientWithMFA,
-		localAdminClient:  localAdminClient,
-	}
+	return s
 }
 
 type adminActionTestCase struct {
@@ -1104,8 +1313,10 @@ func (s *adminActionTestSuite) testCommand(t *testing.T, ctx context.Context, tc
 	t.Helper()
 
 	t.Run("OK with MFA", func(t *testing.T) {
+		s.wanLoginCount = 0
 		err := runTestCase(t, ctx, s.userClientWithMFA, tc)
 		require.NoError(t, err)
+		require.Equal(t, 1, s.wanLoginCount)
 	})
 
 	t.Run("NOK without MFA", func(t *testing.T) {
@@ -1148,13 +1359,15 @@ func runTestCase(t *testing.T, ctx context.Context, client *authclient.Client, t
 
 	app := utils.InitCLIParser("tctl", tctl.GlobalHelpString)
 	cfg := servicecfg.MakeDefaultConfig()
-	tc.cliCommand.Initialize(app, cfg)
+	tc.cliCommand.Initialize(app, &tctlcfg.GlobalCLIFlags{}, cfg)
 
 	args := strings.Split(tc.command, " ")
 	commandName, err := app.Parse(args)
 	require.NoError(t, err)
 
-	match, err := tc.cliCommand.TryRun(ctx, commandName, client)
+	match, err := tc.cliCommand.TryRun(ctx, commandName, func(context.Context) (*authclient.Client, func(context.Context), error) {
+		return client, func(context.Context) {}, nil
+	})
 	require.True(t, match)
 	return err
 }

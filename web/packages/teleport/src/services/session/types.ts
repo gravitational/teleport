@@ -23,14 +23,14 @@ export interface Participant {
 export interface Session {
   kind: SessionKind;
   sid: string;
-  namespace: string;
-  login: string;
-  created: Date;
-  durationText: string;
-  serverId: string;
+  namespace?: string;
+  login?: string;
+  created?: Date;
+  durationText?: string;
+  serverId?: string;
   clusterId: string;
-  parties: Participant[];
-  addr: string;
+  parties?: Participant[];
+  addr?: string;
   // resourceName depending on the "kind" field, is the name
   // of resource that the session is running in:
   //  - ssh: is referring to the hostname
@@ -40,11 +40,11 @@ export interface Session {
   //  - app: is referring to the app
   resourceName: string;
   // participantModes are the participant modes that are available to the user listing this session.
-  participantModes: ParticipantMode[];
+  participantModes?: ParticipantMode[];
   // whether this session requires moderation or not. this is NOT if the session is currently being actively moderated
-  moderated: boolean;
+  moderated?: boolean;
   // command is the command that was run to start this session.
-  command: string;
+  command?: string;
 }
 
 export type SessionMetadata = {
@@ -75,4 +75,10 @@ export type ParticipantMode = 'observer' | 'moderator' | 'peer';
 
 export type ParticipantList = Record<string, Participant[]>;
 
-export type SessionKind = 'ssh' | 'k8s' | 'db' | 'app' | 'desktop';
+export type SessionKind =
+  | 'ssh'
+  | 'k8s'
+  | 'db'
+  | 'app'
+  | 'desktop'
+  | 'linuxdesktop';

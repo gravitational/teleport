@@ -31,21 +31,24 @@ import (
 	"github.com/gravitational/teleport/api/mfa"
 )
 
+const (
+	// DefaultPresenceMaxDuration is the default max duration that a moderated session
+	// can continue between presence verifications.
+	DefaultPresenceMaxDuration = time.Minute
+)
+
 // PresenceMaintainer allows maintaining presence with the Auth service.
 type PresenceMaintainer interface {
 	MaintainSessionPresence(ctx context.Context) (proto.AuthService_MaintainSessionPresenceClient, error)
 }
 
-const mfaChallengeInterval = time.Second * 30
-
-// presenceOptions allows passing optional overrides
-// to RunPresenceTask. Mainly used by tests.
+// presenceOptions allows passing optional overrides to RunPresenceTask.
 type presenceOptions struct {
 	Clock clockwork.Clock
 }
 
-// PresenceOption a functional option for RunPresenceTask.
-type PresenceOption func(p *presenceOptions)
+// PresenceOption is a functional option for RunPresenceTask.
+type PresenceOption func(*presenceOptions)
 
 // WithPresenceClock sets the clock to be used by RunPresenceTask.
 func WithPresenceClock(clock clockwork.Clock) PresenceOption {
@@ -54,20 +57,25 @@ func WithPresenceClock(clock clockwork.Clock) PresenceOption {
 	}
 }
 
+// RunDefaultPresenceTask performs an MFA ceremony every 30 seconds to detect that a user is
+// still present and attentive.
+func RunDefaultPresenceTask(ctx context.Context, term io.Writer, maintainer PresenceMaintainer, sessionID string, baseCeremony *mfa.Ceremony, opts ...PresenceOption) error {
+	return RunPresenceTask(ctx, term, maintainer, sessionID, baseCeremony, DefaultPresenceMaxDuration/2, opts...)
+}
+
 // RunPresenceTask periodically performs and MFA ceremony to detect that a user is
 // still present and attentive.
-func RunPresenceTask(ctx context.Context, term io.Writer, maintainer PresenceMaintainer, sessionID string, mfaPrompt mfa.Prompt, opts ...PresenceOption) error {
+func RunPresenceTask(ctx context.Context, term io.Writer, maintainer PresenceMaintainer, sessionID string, baseCeremony *mfa.Ceremony, interval time.Duration, opts ...PresenceOption) error {
 	fmt.Fprintf(term, "\r\nTeleport > MFA presence enabled\r\n")
 
 	o := &presenceOptions{
 		Clock: clockwork.NewRealClock(),
 	}
-
 	for _, opt := range opts {
 		opt(o)
 	}
 
-	ticker := o.Clock.NewTicker(mfaChallengeInterval)
+	ticker := o.Clock.NewTicker(interval)
 	defer ticker.Stop()
 
 	stream, err := maintainer.MaintainSessionPresence(ctx)
@@ -76,46 +84,69 @@ func RunPresenceTask(ctx context.Context, term io.Writer, maintainer PresenceMai
 		return trace.Wrap(err)
 	}
 
-	for {
-		select {
-		case <-ticker.Chan():
+	presenceCeremony := &mfa.Ceremony{
+		MFACeremonyConstructor: baseCeremony.MFACeremonyConstructor,
+		PromptConstructor: func(opts ...mfa.PromptOpt) mfa.Prompt {
+			return mfa.PromptFunc(func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+				// Replace normal output with terminal messages specific to moderated sessions.
+				opts = append(opts, mfa.WithQuiet())
+
+				fmt.Fprint(term, "\r\nTeleport > Please tap your MFA key\r\n")
+
+				mfaResp, err := baseCeremony.PromptConstructor(opts...).Run(ctx, chal)
+				if err != nil {
+					fmt.Fprintf(term, "\r\nTeleport > Failed to confirm presence: %v\r\n", err)
+					return nil, trace.Wrap(err)
+				}
+
+				fmt.Fprint(term, "\r\nTeleport > Received MFA presence confirmation\r\n")
+				return mfaResp, nil
+			})
+		},
+		CreateAuthenticateChallenge: func(ctx context.Context, chalReq *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error) {
 			req := &proto.PresenceMFAChallengeSend{
 				Request: &proto.PresenceMFAChallengeSend_ChallengeRequest{
-					ChallengeRequest: &proto.PresenceMFAChallengeRequest{SessionID: sessionID},
+					ChallengeRequest: &proto.PresenceMFAChallengeRequest{
+						SessionID:                sessionID,
+						SSOClientRedirectURL:     chalReq.SSOClientRedirectURL,
+						BrowserMFATSHRedirectURL: chalReq.BrowserMFATSHRedirectURL,
+						ProxyAddress:             chalReq.ProxyAddress,
+					},
 				},
 			}
 
-			err = stream.Send(req)
-			if err != nil {
-				return trace.Wrap(err)
+			if err := stream.Send(req); err != nil {
+				return nil, trace.Wrap(err)
 			}
 
 			challenge, err := stream.Recv()
 			if err != nil {
-				return trace.Wrap(err)
+				return nil, trace.Wrap(err)
 			}
-
-			fmt.Fprint(term, "\r\nTeleport > Please tap your MFA key\r\n")
 
 			// This is here to enforce the usage of a MFA device.
 			// We don't support TOTP for live presence.
 			challenge.TOTP = nil
 
-			solution, err := mfaPrompt.Run(ctx, challenge)
+			return challenge, nil
+		},
+	}
+
+	for {
+		select {
+		case <-ticker.Chan():
+			mfaResp, err := presenceCeremony.Run(ctx, &proto.CreateAuthenticateChallengeRequest{})
 			if err != nil {
-				fmt.Fprintf(term, "\r\nTeleport > Failed to confirm presence: %v\r\n", err)
 				return trace.Wrap(err)
 			}
 
-			fmt.Fprint(term, "\r\nTeleport > Received MFA presence confirmation\r\n")
-
-			req = &proto.PresenceMFAChallengeSend{
+			resp := &proto.PresenceMFAChallengeSend{
 				Request: &proto.PresenceMFAChallengeSend_ChallengeResponse{
-					ChallengeResponse: solution,
+					ChallengeResponse: mfaResp,
 				},
 			}
 
-			err = stream.Send(req)
+			err = stream.Send(resp)
 			if err != nil {
 				return trace.Wrap(err)
 			}

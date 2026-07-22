@@ -34,7 +34,7 @@ func TestRoleParsing(t *testing.T) {
 
 	testCases := []struct {
 		roleMap types.RoleMap
-		err     error
+		err     any
 	}{
 		{
 			roleMap: nil,
@@ -54,14 +54,14 @@ func TestRoleParsing(t *testing.T) {
 				{Remote: "remote-devs", Local: []string{"local-devs"}},
 				{Remote: "remote-devs", Local: []string{"local-devs"}},
 			},
-			err: trace.BadParameter(""),
+			err: &trace.BadParameterError{},
 		},
 		{
 			roleMap: types.RoleMap{
 				{Remote: types.Wildcard, Local: []string{"local-devs"}},
 				{Remote: types.Wildcard, Local: []string{"local-devs"}},
 			},
-			err: trace.BadParameter(""),
+			err: &trace.BadParameterError{},
 		},
 	}
 
@@ -70,7 +70,7 @@ func TestRoleParsing(t *testing.T) {
 			_, err := parseRoleMap(tc.roleMap)
 			if tc.err != nil {
 				require.Error(t, err)
-				require.IsType(t, err, tc.err)
+				require.ErrorAs(t, err, &tc.err)
 			} else {
 				require.NoError(t, err)
 			}
@@ -86,7 +86,6 @@ func TestRoleMap(t *testing.T) {
 		local   []string
 		roleMap types.RoleMap
 		name    string
-		err     error
 	}{
 		{
 			name:    "all empty",
@@ -199,13 +198,8 @@ func TestRoleMap(t *testing.T) {
 		t.Run(fmt.Sprintf("test case '%v'", tc.name), func(t *testing.T) {
 
 			local, err := MapRoles(tc.roleMap, tc.remote)
-			if tc.err != nil {
-				require.Error(t, err)
-				require.IsType(t, err, tc.err)
-			} else {
-				require.NoError(t, err)
-				require.ElementsMatch(t, tc.local, local)
-			}
+			require.NoError(t, err)
+			require.ElementsMatch(t, tc.local, local)
 		})
 	}
 }

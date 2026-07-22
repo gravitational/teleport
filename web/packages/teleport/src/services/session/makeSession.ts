@@ -18,7 +18,7 @@
 
 import { formatDistanceStrict } from 'date-fns';
 
-import { Session, SessionKind, Participant } from './types';
+import { Participant, Session, SessionKind } from './types';
 
 const nameField: { [kind in SessionKind]: string } = {
   ssh: 'server_hostname',
@@ -26,6 +26,7 @@ const nameField: { [kind in SessionKind]: string } = {
   db: 'database_name',
   app: 'app_name',
   desktop: 'desktop_name',
+  linuxdesktop: 'desktop_name',
 };
 
 export default function makeSession(json): Session {

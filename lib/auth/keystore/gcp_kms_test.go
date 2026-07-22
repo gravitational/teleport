@@ -21,11 +21,12 @@ package keystore
 import (
 	"context"
 	"crypto"
+	"crypto/rsa"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"math/big"
-	"math/rand"
+	mathrandv1 "math/rand" //nolint:depguard // only used for deterministic output
 	"net"
 	"strings"
 	"sync"
@@ -48,7 +49,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/keystore/internal/faketime"
-	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -111,7 +111,9 @@ func (f *fakeGCPKMSServer) CreateCryptoKey(ctx context.Context, req *kmspb.Creat
 	var pem []byte
 	switch cryptoKey.VersionTemplate.Algorithm {
 	case kmspb.CryptoKeyVersion_RSA_SIGN_PKCS1_2048_SHA256, kmspb.CryptoKeyVersion_RSA_SIGN_PKCS1_4096_SHA512:
-		pem = testRSAPrivateKeyPEM
+		pem = testRSA2048PrivateKeyPEM
+	case kmspb.CryptoKeyVersion_RSA_DECRYPT_OAEP_4096_SHA256:
+		pem = testRSA4096PrivateKeyPEM
 	case kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256:
 		signer, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 		if err != nil {
@@ -207,7 +209,7 @@ func (f *fakeGCPKMSServer) AsymmetricSign(ctx context.Context, req *kmspb.Asymme
 		return nil, trace.BadParameter("unsupported digest type %T", typedDigest)
 	}
 
-	testRand := rand.New(rand.NewSource(0))
+	testRand := mathrandv1.New(mathrandv1.NewSource(0))
 	sig, err := signer.Sign(testRand, digest, alg)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -215,6 +217,40 @@ func (f *fakeGCPKMSServer) AsymmetricSign(ctx context.Context, req *kmspb.Asymme
 
 	resp := &kmspb.AsymmetricSignResponse{
 		Signature: sig,
+	}
+
+	return resp, nil
+}
+
+func (f *fakeGCPKMSServer) AsymmetricDecrypt(ctx context.Context, req *kmspb.AsymmetricDecryptRequest) (*kmspb.AsymmetricDecryptResponse, error) {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	keyState, ok := f.keyVersions[req.Name]
+	if !ok {
+		return nil, trace.NotFound("no such key")
+	}
+	if keyState.cryptoKeyVersion.State != kmspb.CryptoKeyVersion_ENABLED {
+		return nil, trace.BadParameter("cannot fetch key, state has value %s", keyState.cryptoKeyVersion.State)
+	}
+
+	signer, err := keys.ParsePrivateKey(keyState.pem)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	decrypter, ok := signer.Signer.(crypto.Decrypter)
+	if !ok {
+		return nil, trace.Errorf("private key is not a valid decrypter")
+	}
+
+	testRand := mathrandv1.New(mathrandv1.NewSource(0))
+	plaintext, err := decrypter.Decrypt(testRand, req.Ciphertext, &rsa.OAEPOptions{Hash: crypto.SHA256})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp := &kmspb.AsymmetricDecryptResponse{
+		Plaintext: plaintext,
 	}
 
 	return resp, nil
@@ -372,7 +408,6 @@ func TestGCPKMSKeystore(t *testing.T) {
 			expectSignError: true,
 		},
 	} {
-		tc := tc
 		t.Run(tc.desc, func(t *testing.T) {
 			t.Parallel()
 
@@ -406,7 +441,6 @@ func TestGCPKMSKeystore(t *testing.T) {
 				ClusterName:          clusterName,
 				HostUUID:             "test-host-id",
 				AuthPreferenceGetter: &fakeAuthPreferenceGetter{types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_HSM_V1},
-				CloudClients:         &cloud.TestCloudClients{},
 				kmsClient:            kmsClient,
 				faketimeOverride:     clock,
 			})
@@ -499,7 +533,7 @@ func TestGCPKMSKeystore(t *testing.T) {
 			require.NoError(t, err, "unexpected error creating CA")
 
 			// Client private key that will be the basis of test certs to be signed.
-			clientPrivKey, err := keys.ParsePrivateKey(testRSAPrivateKeyPEM)
+			clientPrivKey, err := keys.ParsePrivateKey(testRSA2048PrivateKeyPEM)
 			require.NoError(t, err)
 
 			// Test signing an SSH certificate.
@@ -519,7 +553,7 @@ func TestGCPKMSKeystore(t *testing.T) {
 					Key:             clientPrivKey.SSHPublicKey(),
 					CertType:        ssh.HostCert,
 				}
-				err = cert.SignCert(rand.New(rand.NewSource(0)), sshSigner)
+				err = cert.SignCert(mathrandv1.New(mathrandv1.NewSource(0)), sshSigner)
 				if tc.expectSignError {
 					require.Error(t, err, "expected to get error signing SSH cert")
 					return
@@ -547,7 +581,7 @@ func TestGCPKMSKeystore(t *testing.T) {
 					},
 				}
 				_, err = x509.CreateCertificate(
-					rand.New(rand.NewSource(0)),
+					mathrandv1.New(mathrandv1.NewSource(0)),
 					template,
 					tlsCA.Cert,
 					clientPrivKey.Public(),
@@ -591,8 +625,7 @@ func TestGCPKMSKeystore(t *testing.T) {
 
 func TestGCPKMSDeleteUnusedKeys(t *testing.T) {
 	t.Parallel()
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
 		ClusterName: "test-cluster",
@@ -684,7 +717,6 @@ func TestGCPKMSDeleteUnusedKeys(t *testing.T) {
 				ClusterName:          clusterName,
 				HostUUID:             localHostID,
 				AuthPreferenceGetter: &fakeAuthPreferenceGetter{types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_HSM_V1},
-				CloudClients:         &cloud.TestCloudClients{},
 				kmsClient:            kmsClient,
 			})
 			require.NoError(t, err, "error while creating test keystore manager")

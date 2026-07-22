@@ -21,10 +21,11 @@ package v3
 import (
 	"encoding/json"
 
+	"github.com/gravitational/trace"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/integrations/operator/apis/resources"
+	"github.com/gravitational/teleport/integrations/operator/apis/resources/teleportcr"
 )
 
 func init() {
@@ -40,10 +41,10 @@ type TeleportOIDCConnectorSpec types.OIDCConnectorSpecV3
 // TeleportOIDCConnector is the Schema for the OIDCConnector API
 type TeleportOIDCConnector struct {
 	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty"`
+	metav1.ObjectMeta `json:"metadata"`
 
-	Spec   TeleportOIDCConnectorSpec `json:"spec,omitempty"`
-	Status resources.Status          `json:"status,omitempty"`
+	Spec   TeleportOIDCConnectorSpec `json:"spec"`
+	Status teleportcr.Status         `json:"status"`
 }
 
 //+kubebuilder:object:root=true
@@ -51,7 +52,7 @@ type TeleportOIDCConnector struct {
 // TeleportOIDCConnectorList contains a list of TeleportOIDCConnector
 type TeleportOIDCConnectorList struct {
 	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata,omitempty"`
+	metav1.ListMeta `json:"metadata"`
 	Items           []TeleportOIDCConnector `json:"items"`
 }
 
@@ -62,7 +63,7 @@ func (c TeleportOIDCConnector) ToTeleport() types.OIDCConnector {
 		Metadata: types.Metadata{
 			Name:        c.Name,
 			Labels:      c.Labels,
-			Description: c.Annotations[resources.DescriptionKey],
+			Description: c.Annotations[teleportcr.DescriptionKey],
 		},
 		Spec: types.OIDCConnectorSpecV3(c.Spec),
 	}
@@ -97,14 +98,49 @@ func (spec *TeleportOIDCConnectorSpec) DeepCopyInto(out *TeleportOIDCConnectorSp
 	}
 }
 
+// Custom json.Marshaller and json.Unmarshaler are here to cope with inconsistencies between our CRD and go types.
+// They are invoked when the kubernetes client converts the unstructured object into a typed resource.
+// We have two inconsistencies:
+// - the utils.Strings typr that marshals inconsistently: single elements are strings, multiple elements are lists
+// - the max_age setting which is an embedded pointer to another single-value message, which breaks JSON parsing
+
 // MarshalJSON serializes a spec into a JSON string
 func (spec TeleportOIDCConnectorSpec) MarshalJSON() ([]byte, error) {
 	type Alias TeleportOIDCConnectorSpec
+
+	var maxAge types.Duration
+	if spec.MaxAge != nil {
+		maxAge = spec.MaxAge.Value
+	}
+
 	return json.Marshal(&struct {
-		RedirectURLs []string `json:"redirect_url"`
+		RedirectURLs []string       `json:"redirect_url,omitempty"`
+		MaxAge       types.Duration `json:"max_age,omitempty"`
 		Alias
 	}{
 		RedirectURLs: spec.RedirectURLs,
+		MaxAge:       maxAge,
 		Alias:        (Alias)(spec),
 	})
+}
+
+// UnmarshalJSON serializes a JSON string into a spec. This override is required to deal with the
+// MaxAge field which is special case because it' an object embedded into the spec.
+func (spec *TeleportOIDCConnectorSpec) UnmarshalJSON(data []byte) error {
+	*spec = *new(TeleportOIDCConnectorSpec)
+	type Alias TeleportOIDCConnectorSpec
+
+	temp := &struct {
+		MaxAge types.Duration `json:"max_age"`
+		*Alias
+	}{
+		Alias: (*Alias)(spec),
+	}
+	if err := json.Unmarshal(data, &temp); err != nil {
+		return trace.Wrap(err, "unmarshalling custom teleport oidc connector spec")
+	}
+	if temp.MaxAge != 0 {
+		spec.MaxAge = &types.MaxAge{Value: temp.MaxAge}
+	}
+	return nil
 }

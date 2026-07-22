@@ -16,39 +16,56 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import {
+  resolveColorTokens,
+  useDesignSystemContext,
+} from '@gravitational/design-system';
+import { ITheme } from '@xterm/xterm';
 import React, {
   forwardRef,
   useEffect,
   useImperativeHandle,
+  useMemo,
   useRef,
 } from 'react';
+import styled, { useTheme } from 'styled-components';
+
 import { Flex } from 'design';
-import { ITheme } from '@xterm/xterm';
-
 import { getPlatformType } from 'design/platform';
+import { useToastNotifications } from 'shared/components/ToastNotification';
 
-import Tty from 'teleport/lib/term/tty';
-import XTermCtrl from 'teleport/lib/term/terminal';
 import { getMappedAction } from 'teleport/Console/useKeyboardNav';
+import XTermCtrl from 'teleport/lib/term/terminal';
+import Tty from 'teleport/lib/term/tty';
 
 import StyledXterm from '../../StyledXterm';
 
-export interface TerminalRef {
-  focus(): void;
-}
-
 export interface TerminalProps {
   tty: Tty;
-  fontFamily: string;
-  theme: ITheme;
   // convertEol when set to true cursor will be set to the beginning of the next line with every received new line symbol.
   // This is equivalent to replacing each '\n' with '\r\n'.
   convertEol?: boolean;
+  // terminalAddons is used to pass the tty to the parent component to enable any optional components like search or filetransfers.
+  terminalAddons?: (terminalRef: XTermCtrl) => React.JSX.Element;
+  disableCtrlC?: boolean;
+  disableAutoFocus?: boolean;
+  // disableCopy blocks copying terminal text to clipboard.
+  disableCopy?: boolean;
 }
 
 export const Terminal = forwardRef<TerminalRef, TerminalProps>((props, ref) => {
-  const termCtrlRef = useRef<XTermCtrl>();
-  const elementRef = useRef<HTMLDivElement>();
+  const termCtrlRef = useRef<XTermCtrl>(undefined);
+  const elementRef = useRef<HTMLDivElement>(null);
+  const toastNotifications = useToastNotifications();
+  // Keeps track of the notification id so that we can ensure there is only maximum one copy block notification showing at a time.
+  const copyBlockedToastIdRef = useRef<string>(undefined);
+  const theme = useTheme();
+  const system = useDesignSystemContext();
+
+  const xtermTheme = useMemo<ITheme>(
+    () => resolveColorTokens(system, theme.colors.terminal, theme.type),
+    [system, theme.colors.terminal, theme.type]
+  );
 
   useImperativeHandle(
     ref,
@@ -64,30 +81,62 @@ export const Terminal = forwardRef<TerminalRef, TerminalProps>((props, ref) => {
 
     const termCtrl = new XTermCtrl(props.tty, {
       el: elementRef.current,
-      fontFamily: props.fontFamily,
+      fontFamily: theme.fonts.mono,
       fontSize,
-      theme: props.theme,
+      theme: xtermTheme,
       convertEol: props.convertEol,
+      disableCopy: props.disableCopy,
+      onCopyBlocked: () => {
+        // Remove the previous notification before creating the new one so there's only one showing at at time.
+        if (copyBlockedToastIdRef.current) {
+          toastNotifications.remove(copyBlockedToastIdRef.current);
+        }
+        copyBlockedToastIdRef.current = toastNotifications.add({
+          severity: 'warn',
+          content: {
+            title: 'Copy attempt blocked',
+            description:
+              "Your role doesn't permit you to copy content from the terminal.",
+            isAutoRemovable: true,
+          },
+        });
+      },
     });
+
     termCtrlRef.current = termCtrl;
 
     termCtrl.open();
 
-    termCtrl.term.attachCustomKeyEventHandler(event => {
+    const { unregister } = termCtrl.registerCustomKeyEventHandler(event => {
+      if (props.disableCtrlC && event.ctrlKey && event.key === 'c') {
+        return false;
+      }
+
       const { tabSwitch } = getMappedAction(event);
       if (tabSwitch) {
         return false;
       }
+
+      return true;
     });
 
-    return () => termCtrl.destroy();
+    return () => {
+      unregister();
+      termCtrl.destroy();
+    };
     // do not re-initialize xterm when theme changes, use specialized handlers.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
-    termCtrlRef.current?.updateTheme(props.theme);
-  }, [props.theme]);
+    termCtrlRef.current?.updateTheme(xtermTheme);
+  }, [xtermTheme]);
+
+  useEffect(() => {
+    if (!props.disableAutoFocus) {
+      termCtrlRef.current?.focus();
+    }
+  }, []);
 
   return (
     <Flex
@@ -98,7 +147,27 @@ export const Terminal = forwardRef<TerminalRef, TerminalProps>((props, ref) => {
       style={{ overflow: 'auto' }}
       data-testid="terminal"
     >
+      <TerminalAddonsContainer>
+        {termCtrlRef.current && props.terminalAddons?.(termCtrlRef.current)}
+      </TerminalAddonsContainer>
       <StyledXterm ref={elementRef} />
     </Flex>
   );
 });
+
+const TerminalAddonsContainer = styled.div`
+  position: absolute;
+  right: 8px;
+  top: 8px;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  width: 100%;
+  max-width: 500px;
+`;
+
+export interface TerminalRef {
+  focus(): void;
+}

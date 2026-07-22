@@ -21,29 +21,29 @@ package accessrequest
 import (
 	"context"
 	"fmt"
-	"maps"
+	"log/slog"
 	"slices"
-	"sync"
+	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/accessrequest"
-	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/integrations/access/accessmonitoring"
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/access/common/teleport"
 	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/integrations/lib/logger"
 	pd "github.com/gravitational/teleport/integrations/lib/plugindata"
 	"github.com/gravitational/teleport/integrations/lib/watcherjob"
+	"github.com/gravitational/teleport/lib/services"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 const (
 	// handlerTimeout is used to bound the execution time of watcher event handler.
 	handlerTimeout = time.Second * 5
-	// defaultAccessMonitoringRulePageSize is the default number of rules to retrieve per request.
-	defaultAccessMonitoringRulePageSize = 10
 )
 
 // App is the access request application for plugins. This will notify when access requests
@@ -57,19 +57,15 @@ type App struct {
 	bot        MessagingBot
 	job        lib.ServiceJob
 
-	accessMonitoringRules amrMap
-}
-
-type amrMap struct {
-	sync.RWMutex
-	rules map[string]*accessmonitoringrulesv1.AccessMonitoringRule
+	accessMonitoringRules *accessmonitoring.RuleHandler
+	// teleportUser is the name of the Teleport user that will act as the
+	// access request approver.
+	teleportUser string
 }
 
 // NewApp will create a new access request application.
-func NewApp(bot MessagingBot) common.App {
-	app := &App{accessMonitoringRules: amrMap{
-		rules: make(map[string]*accessmonitoringrulesv1.AccessMonitoringRule),
-	}}
+func NewApp() common.App {
+	app := &App{}
 	app.job = lib.NewServiceJob(app.run)
 	return app
 }
@@ -92,6 +88,14 @@ func (a *App) Init(baseApp *common.BaseApp) error {
 	if !ok {
 		return trace.BadParameter("bot does not implement access request bot methods")
 	}
+
+	a.accessMonitoringRules = accessmonitoring.NewRuleHandler(accessmonitoring.RuleHandlerConfig{
+		Client:                 a.apiClient,
+		PluginType:             a.pluginType,
+		PluginName:             a.pluginName,
+		FetchRecipientCallback: a.bot.FetchRecipient,
+	})
+	a.teleportUser = baseApp.Conf.GetTeleportUser()
 
 	return nil
 }
@@ -159,9 +163,11 @@ func (a *App) run(ctx context.Context) error {
 	// Check if KindAccessMonitoringRule resources are being watched,
 	// the role the plugin is running as may not have access.
 	if slices.Contains(acceptedWatchKinds, types.KindAccessMonitoringRule) {
-		if err := a.initAccessMonitoringRulesCache(ctx); err != nil {
+		if err := a.accessMonitoringRules.InitAccessMonitoringRulesCache(ctx); err != nil {
 			return trace.Wrap(err, "initializing Access Monitoring Rule cache")
 		}
+	} else {
+		logger.Get(ctx).WarnContext(ctx, "Failed to watch access_monitoring_rule events. Allow access_monitoring_rule read permissions in the plugin role.")
 	}
 
 	a.job.SetReady(ok)
@@ -173,40 +179,31 @@ func (a *App) run(ctx context.Context) error {
 	return nil
 }
 
-func (a *App) amrAppliesToThisPlugin(amr *accessmonitoringrulesv1.AccessMonitoringRule) bool {
-	if amr.Spec.Notification.Name != a.pluginName {
-		return false
-	}
-	return slices.ContainsFunc(amr.Spec.Subjects, func(subject string) bool {
-		return subject == types.KindAccessRequest
-	})
-}
-
 // onWatcherEvent is called for every cluster Event. It will filter out non-access-request events and
-// call onPendingRequest, onResolvedRequest and on DeletedRequest depending on the event.
+// call onPendingRequest, onResolvedRequest and onDeletedRequest depending on the event.
 func (a *App) onWatcherEvent(ctx context.Context, event types.Event) error {
 	switch event.Resource.GetKind() {
 	case types.KindAccessMonitoringRule:
-		return trace.Wrap(a.handleAccessMonitoringRule(ctx, event))
+		return trace.Wrap(a.accessMonitoringRules.HandleAccessMonitoringRule(ctx, event))
 	case types.KindAccessRequest:
-		return trace.Wrap(a.handleAcessRequest(ctx, event))
+		return trace.Wrap(a.handleAccessRequest(ctx, event))
 	}
 	return trace.BadParameter("unexpected kind %s", event.Resource.GetKind())
 }
 
-func (a *App) handleAcessRequest(ctx context.Context, event types.Event) error {
+func (a *App) handleAccessRequest(ctx context.Context, event types.Event) error {
 	op := event.Type
 	reqID := event.Resource.GetName()
-	ctx, _ = logger.WithField(ctx, "request_id", reqID)
+	ctx, _ = logger.With(ctx, "request_id", reqID)
 
 	switch op {
 	case types.OpPut:
-		ctx, _ = logger.WithField(ctx, "request_op", "put")
+		ctx, _ = logger.With(ctx, "request_op", "put")
 		req, ok := event.Resource.(types.AccessRequest)
 		if !ok {
 			return trace.BadParameter("unexpected resource type %T", event.Resource)
 		}
-		ctx, log := logger.WithField(ctx, "request_state", req.GetState().String())
+		ctx, log := logger.With(ctx, "request_state", req.GetState().String())
 
 		var err error
 		switch {
@@ -215,56 +212,31 @@ func (a *App) handleAcessRequest(ctx context.Context, event types.Event) error {
 		case req.GetState().IsResolved():
 			err = a.onResolvedRequest(ctx, req)
 		default:
-			log.WithField("event", event).Warn("Unknown request state")
+			log.WarnContext(ctx, "Unknown request state",
+				slog.Group("event",
+					slog.Any("type", logutils.StringerAttr(event.Type)),
+					slog.Group("resource",
+						"kind", event.Resource.GetKind(),
+						"name", event.Resource.GetName(),
+					),
+				),
+			)
 			return nil
 		}
 
 		if err != nil {
-			log.WithError(err).Errorf("Failed to process request")
+			log.ErrorContext(ctx, "Failed to process request", "error", err)
 			return trace.Wrap(err)
 		}
 
 		return nil
 	case types.OpDelete:
-		ctx, log := logger.WithField(ctx, "request_op", "delete")
+		ctx, log := logger.With(ctx, "request_op", "delete")
 
 		if err := a.onDeletedRequest(ctx, reqID); err != nil {
-			log.WithError(err).Errorf("Failed to process deleted request")
+			log.ErrorContext(ctx, "Failed to process deleted request", "error", err)
 			return trace.Wrap(err)
 		}
-		return nil
-	default:
-		return trace.BadParameter("unexpected event operation %s", op)
-	}
-}
-
-func (a *App) handleAccessMonitoringRule(ctx context.Context, event types.Event) error {
-	if kind := event.Resource.GetKind(); kind != types.KindAccessMonitoringRule {
-		return trace.BadParameter("expected %s resource kind, got %s", types.KindAccessMonitoringRule, kind)
-	}
-
-	a.accessMonitoringRules.Lock()
-	defer a.accessMonitoringRules.Unlock()
-	switch op := event.Type; op {
-	case types.OpPut:
-		e, ok := event.Resource.(types.Resource153Unwrapper)
-		if !ok {
-			return trace.BadParameter("expected Resource153Unwrapper resource type, got %T", event.Resource)
-		}
-		req, ok := e.Unwrap().(*accessmonitoringrulesv1.AccessMonitoringRule)
-		if !ok {
-			return trace.BadParameter("expected AccessMonitoringRule resource type, got %T", event.Resource)
-		}
-
-		// In the event an existing rule no longer applies we must remove it.
-		if !a.amrAppliesToThisPlugin(req) {
-			delete(a.accessMonitoringRules.rules, event.Resource.GetName())
-			return nil
-		}
-		a.accessMonitoringRules.rules[req.Metadata.Name] = req
-		return nil
-	case types.OpDelete:
-		delete(a.accessMonitoringRules.rules, event.Resource.GetName())
 		return nil
 	default:
 		return trace.BadParameter("unexpected event operation %s", op)
@@ -281,12 +253,19 @@ func (a *App) onPendingRequest(ctx context.Context, req types.AccessRequest) err
 		return trace.Wrap(err)
 	}
 
+	loginsByRole, err := a.getLoginsByRole(ctx, req)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	reqData := pd.AccessRequestData{
 		User:              req.GetUser(),
 		Roles:             req.GetRoles(),
+		RequestKind:       req.GetRequestKind().String(),
 		RequestReason:     req.GetRequestReason(),
 		SystemAnnotations: req.GetSystemAnnotations(),
 		Resources:         resourceNames,
+		LoginsByRole:      loginsByRole,
 	}
 
 	_, err = a.pluginData.Create(ctx, reqID, PluginData{AccessRequestData: reqData})
@@ -298,7 +277,12 @@ func (a *App) onPendingRequest(ctx context.Context, req types.AccessRequest) err
 				return trace.Wrap(err)
 			}
 		} else {
-			log.Warning("No channel to post")
+			log.WarnContext(ctx, "No channel to post")
+		}
+
+		// Try to approve the request if user is currently on-call.
+		if err := a.tryApproveRequest(ctx, reqID, req); err != nil {
+			log.WarnContext(ctx, "Failed to auto approve request", "error", err)
 		}
 	case trace.IsAlreadyExists(err):
 		// The messages were already sent, nothing to do, we can update the reviews
@@ -339,7 +323,7 @@ func (a *App) onResolvedRequest(ctx context.Context, req types.AccessRequest) er
 	case types.RequestState_PROMOTED:
 		tag = pd.ResolvedPromoted
 	default:
-		logger.Get(ctx).Warningf("Unknown state %v (%s)", state, state.String())
+		logger.Get(ctx).WarnContext(ctx, "Unknown state", "state", logutils.StringerAttr(state))
 		return replyErr
 	}
 	err := trace.Wrap(a.updateMessages(ctx, req.GetName(), tag, reason, req.GetReviews()))
@@ -358,13 +342,13 @@ func (a *App) broadcastAccessRequestMessages(ctx context.Context, recipients []c
 		return trace.Wrap(err)
 	}
 	for _, data := range sentMessages {
-		logger.Get(ctx).WithFields(logger.Fields{
-			"channel_id": data.ChannelID,
-			"message_id": data.MessageID,
-		}).Info("Successfully posted messages")
+		logger.Get(ctx).InfoContext(ctx, "Successfully posted messages",
+			"channel_id", data.ChannelID,
+			"message_id", data.MessageID,
+		)
 	}
 	if err != nil {
-		logger.Get(ctx).WithError(err).Error("Failed to post one or more messages")
+		logger.Get(ctx).ErrorContext(ctx, "Failed to post one or more messages", "error", err)
 	}
 
 	_, err = a.pluginData.Update(ctx, reqID, func(existing PluginData) (PluginData, error) {
@@ -397,7 +381,7 @@ func (a *App) postReviewReplies(ctx context.Context, reqID string, reqReviews []
 		return existing, nil
 	})
 	if trace.IsAlreadyExists(err) {
-		logger.Get(ctx).Debug("Failed to post reply: replies are already sent")
+		logger.Get(ctx).DebugContext(ctx, "Failed to post reply: replies are already sent")
 		return nil
 	}
 	if err != nil {
@@ -411,7 +395,7 @@ func (a *App) postReviewReplies(ctx context.Context, reqID string, reqReviews []
 
 	errors := make([]error, 0, len(slice))
 	for _, data := range pd.SentMessages {
-		ctx, _ = logger.WithFields(ctx, logger.Fields{"channel_id": data.ChannelID, "message_id": data.MessageID})
+		ctx, _ = logger.With(ctx, "channel_id", data.ChannelID, "message_id", data.MessageID)
 		for _, review := range slice {
 			if err := a.bot.PostReviewReply(ctx, data.ChannelID, data.MessageID, review); err != nil {
 				errors = append(errors, err)
@@ -431,7 +415,7 @@ func (a *App) getMessageRecipients(ctx context.Context, req types.AccessRequest)
 	// This can happen if this set contains the channel `C` and the email for channel `C`.
 	recipientSet := common.NewRecipientSet()
 
-	recipients := a.recipientsFromAccessMonitoringRules(ctx, req)
+	recipients := a.accessMonitoringRules.RecipientsFromAccessMonitoringRules(ctx, req)
 	recipients.ForEach(func(r common.Recipient) {
 		recipientSet.Add(r)
 	})
@@ -453,7 +437,7 @@ func (a *App) getMessageRecipients(ctx context.Context, req types.AccessRequest)
 		for _, recipient := range recipients {
 			rec, err := a.bot.FetchRecipient(ctx, recipient)
 			if err != nil {
-				log.Warningf("Failed to fetch Opsgenie recipient: %v", err)
+				log.WarnContext(ctx, "Failed to fetch Opsgenie recipient", "error", err)
 				continue
 			}
 			recipientSet.Add(*rec)
@@ -464,7 +448,7 @@ func (a *App) getMessageRecipients(ctx context.Context, req types.AccessRequest)
 	validEmailSuggReviewers := []string{}
 	for _, reviewer := range req.GetSuggestedReviewers() {
 		if !lib.IsEmail(reviewer) {
-			log.Warningf("Failed to notify a suggested reviewer: %q does not look like a valid email", reviewer)
+			log.WarnContext(ctx, "Failed to notify a suggested reviewer with an invalid email address", "reviewer", reviewer)
 			continue
 		}
 
@@ -474,47 +458,13 @@ func (a *App) getMessageRecipients(ctx context.Context, req types.AccessRequest)
 	for _, rawRecipient := range rawRecipients {
 		recipient, err := a.bot.FetchRecipient(ctx, rawRecipient)
 		if err != nil {
-			log.WithError(err).Warn("Failure when fetching recipient, continuing anyway")
+			log.WarnContext(ctx, "Failure when fetching recipient, continuing anyway", "error", err)
 		} else {
 			recipientSet.Add(*recipient)
 		}
 	}
 
 	return recipientSet.ToSlice()
-}
-
-func (a *App) recipientsFromAccessMonitoringRules(ctx context.Context, req types.AccessRequest) *common.RecipientSet {
-	log := logger.Get(ctx)
-	recipientSet := common.NewRecipientSet()
-
-	// This switch is used to determine which plugins we are enabling access monitoring notification rules for.
-	switch a.pluginType {
-	// Enabled plugins are added to this case.
-	case types.PluginTypeSlack, types.PluginTypeMattermost:
-		log.Debug("Applying access monitoring rules to request")
-	default:
-		return &recipientSet
-	}
-
-	for _, rule := range a.getAccessMonitoringRules() {
-		match, err := matchAccessRequest(rule.Spec.Condition, req)
-		if err != nil {
-			log.WithError(err).WithField("rule", rule.Metadata.Name).
-				Warn("Failed to parse access monitoring notification rule")
-		}
-		if !match {
-			continue
-		}
-		for _, recipient := range rule.Spec.Notification.Recipients {
-			rec, err := a.bot.FetchRecipient(ctx, recipient)
-			if err != nil {
-				log.WithError(err).Warn("Failed to fetch plugin recipients based on Access moniotring rule recipients")
-				continue
-			}
-			recipientSet.Add(*rec)
-		}
-	}
-	return &recipientSet
 }
 
 // updateMessages updates the messages status and adds the resolve reason.
@@ -527,8 +477,11 @@ func (a *App) updateMessages(ctx context.Context, reqID string, tag pd.Resolutio
 		}
 
 		// If resolution field is not empty then we already resolved the incident before. In this case we just quit.
-		if existing.AccessRequestData.ResolutionTag != pd.Unresolved {
-			return PluginData{}, trace.AlreadyExists("request is already resolved")
+		if existing.ResolutionTag != pd.Unresolved {
+			return PluginData{},
+				trace.WrapWithMessage(trace.AlreadyExists("request is already resolved"),
+					"cannot change the resolution tag of an already resolved request, existing: %s, event: %s",
+					existing.ResolutionTag, tag)
 		}
 
 		// Mark plugin data as resolved.
@@ -538,16 +491,11 @@ func (a *App) updateMessages(ctx context.Context, reqID string, tag pd.Resolutio
 		return existing, nil
 	})
 	if trace.IsNotFound(err) {
-		log.Debug("Failed to update messages: plugin data is missing")
+		log.DebugContext(ctx, "Failed to update messages: plugin data is missing")
 		return nil
 	}
 	if trace.IsAlreadyExists(err) {
-		if tag != pluginData.ResolutionTag {
-			return trace.WrapWithMessage(err,
-				"cannot change the resolution tag of an already resolved request, existing: %s, event: %s",
-				pluginData.ResolutionTag, tag)
-		}
-		log.Debug("Request is already resolved, ignoring event")
+		log.DebugContext(ctx, "Request is already resolved, ignoring event")
 		return nil
 	}
 	if err != nil {
@@ -558,19 +506,80 @@ func (a *App) updateMessages(ctx context.Context, reqID string, tag pd.Resolutio
 	if err := a.bot.UpdateMessages(ctx, reqID, reqData, sentMessages, reviews); err != nil {
 		return trace.Wrap(err)
 	}
-	log.Infof("Successfully marked request as %s in all messages", tag)
+
+	log.InfoContext(ctx, "Marked request with resolution and sent emails!", "resolution", tag)
 
 	if err := a.bot.NotifyUser(ctx, reqID, reqData); err != nil && !trace.IsNotImplemented(err) {
 		return trace.Wrap(err)
 	}
 
-	log.Infof("Successfully notified user %s request marked as %s", reqData.User, tag)
+	log.InfoContext(ctx, "Successfully notified user",
+		"user", reqData.User,
+		"resolution", tag,
+	)
 
 	return nil
 }
 
+func getRoles(ctx context.Context, client services.RoleGetter, roleNames []string) ([]types.Role, error) {
+	var roles []types.Role
+	for _, roleName := range roleNames {
+		role, err := client.GetRole(ctx, roleName)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		roles = append(roles, role)
+	}
+	return roles, nil
+}
+
+func getAllowedLogins(roles []types.Role) map[string][]string {
+	allowedLogins := make(map[string][]string, len(roles))
+	for _, role := range roles {
+		logins := role.GetLogins(types.Allow)
+		if logins == nil {
+			logins = []string{}
+		}
+		allowedLogins[role.GetName()] = logins
+	}
+	return allowedLogins
+}
+
+func (a *App) getLoginsByRole(ctx context.Context, req types.AccessRequest) (map[string][]string, error) {
+	log := logger.Get(ctx)
+
+	roles, err := getRoles(ctx, a.apiClient, req.GetRoles())
+	switch {
+	case trace.IsAccessDenied(err):
+		// Return an empty map if missing roles read permissions.
+		log.WarnContext(ctx, `Missing permissions to read user.roles, please use the preset "access-plugin" role`, "error", err)
+		return map[string][]string{}, nil
+	case err != nil:
+		return nil, trace.Wrap(err)
+	}
+
+	userState, err := services.GetUserOrLoginState(ctx, a.apiClient, req.GetUser())
+	switch {
+	case trace.IsAccessDenied(err):
+		// Return un-applied logins if missing user_login_state and user read permissions.
+		log.WarnContext(ctx, `Missing permissions to read user.traits, please use the preset "access-plugin" role`, "error", err)
+		return getAllowedLogins(roles), nil
+	case err != nil:
+		return nil, trace.Wrap(err)
+	}
+
+	userTraits := userState.GetTraits()
+	for _, role := range roles {
+		_, err := services.ApplyTraits(role, userTraits)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	return getAllowedLogins(roles), nil
+}
+
 func (a *App) getResourceNames(ctx context.Context, req types.AccessRequest) ([]string, error) {
-	resourceNames := make([]string, 0, len(req.GetRequestedResourceIDs()))
+	resourceNames := make([]string, 0, len(req.GetAllRequestedResourceIDs()))
 	resourcesByCluster := accessrequest.GetResourceIDsByCluster(req)
 
 	for cluster, resources := range resourcesByCluster {
@@ -590,44 +599,46 @@ func (a *App) getResourceNames(ctx context.Context, req types.AccessRequest) ([]
 	return resourceNames, nil
 }
 
-func (a *App) initAccessMonitoringRulesCache(ctx context.Context) error {
-	accessMonitoringRules, err := a.getAllAccessMonitoringRules(ctx)
+// tryApproveRequest attempts to automatically approve the access request if the
+// user is on call for the configured service/team.
+func (a *App) tryApproveRequest(ctx context.Context, reqID string, req types.AccessRequest) error {
+	log := logger.Get(ctx).With("req_id", reqID, "user", req.GetUser())
+
+	oncallUsers, err := a.bot.FetchOncallUsers(ctx, req)
+	if trace.IsNotImplemented(err) {
+		log.DebugContext(ctx, "Skipping auto-approval because bot does not support automatic approvals", "bot", a.pluginName)
+		return nil
+	}
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	a.accessMonitoringRules.Lock()
-	defer a.accessMonitoringRules.Unlock()
-	for _, amr := range accessMonitoringRules {
-		if !a.amrAppliesToThisPlugin(amr) {
-			continue
-		}
-		a.accessMonitoringRules.rules[amr.GetMetadata().Name] = amr
+
+	// Ignore casing when matching users.
+	for index, oncallUser := range oncallUsers {
+		oncallUsers[index] = strings.ToLower(oncallUser)
 	}
+
+	if !slices.Contains(oncallUsers, strings.ToLower(req.GetUser())) {
+		log.DebugContext(ctx, "Skipping approval because user is not on-call")
+		return nil
+	}
+
+	if _, err := a.apiClient.SubmitAccessReview(ctx, types.AccessReviewSubmission{
+		RequestID: reqID,
+		Review: types.AccessReview{
+			Author:        a.teleportUser,
+			ProposedState: types.RequestState_APPROVED,
+			Reason:        fmt.Sprintf("Access request has been automatically approved by %q plugin because user %q is on-call.", a.pluginName, req.GetUser()),
+			Created:       time.Now(),
+		},
+	}); err != nil {
+		if strings.HasSuffix(err.Error(), "has already reviewed this request") {
+			log.DebugContext(ctx, "Request has already been reviewed")
+			return nil
+		}
+		return trace.Wrap(err)
+	}
+
+	log.InfoContext(ctx, "Successfully submitted a request approval")
 	return nil
-}
-
-func (a *App) getAllAccessMonitoringRules(ctx context.Context) ([]*accessmonitoringrulesv1.AccessMonitoringRule, error) {
-	var resources []*accessmonitoringrulesv1.AccessMonitoringRule
-	var nextToken string
-	for {
-		var page []*accessmonitoringrulesv1.AccessMonitoringRule
-		var err error
-		page, nextToken, err = a.apiClient.ListAccessMonitoringRulesWithFilter(ctx, defaultAccessMonitoringRulePageSize, nextToken, []string{types.KindAccessRequest}, a.pluginName)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		resources = append(resources, page...)
-
-		if nextToken == "" {
-			break
-		}
-	}
-	return resources, nil
-}
-
-func (a *App) getAccessMonitoringRules() map[string]*accessmonitoringrulesv1.AccessMonitoringRule {
-	a.accessMonitoringRules.RLock()
-	defer a.accessMonitoringRules.RUnlock()
-	return maps.Clone(a.accessMonitoringRules.rules)
 }

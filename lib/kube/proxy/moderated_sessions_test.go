@@ -34,6 +34,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sync/errgroup"
 	"k8s.io/client-go/rest"
@@ -42,19 +43,15 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/entitlements"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/events"
 	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
-	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
+	sessionpkg "github.com/gravitational/teleport/lib/session"
 )
 
 func TestModeratedSessions(t *testing.T) {
-	// enable enterprise features to have access to ModeratedSessions.
-	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise, TestFeatures: modules.Features{
-		Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-			entitlements.K8s: {Enabled: true},
-		},
-	}})
+	t.Parallel()
 	const (
 		moderatorUsername       = "moderator_user"
 		moderatorRoleName       = "mod_role"
@@ -86,6 +83,7 @@ func TestModeratedSessions(t *testing.T) {
 		context.Background(),
 		t,
 		TestConfig{
+			Modules:  modulestest.EnterpriseModules(),
 			Clusters: []KubeClusterConfig{{Name: kubeCluster, APIEndpoint: kubeMock.URL}},
 			// onEvent is called each time a new event is produced. We only care about
 			// sessionEnd events.
@@ -246,7 +244,6 @@ func TestModeratedSessions(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		tt := tt
 		if tt.want.sessionEndEvent {
 			numberOfExpectedSessionEnds++
 		}
@@ -296,6 +293,7 @@ func TestModeratedSessions(t *testing.T) {
 			// moderatorJoined is used to syncronize when the moderator joins the session.
 			moderatorJoined := make(chan struct{})
 			once := sync.Once{}
+			var sessionID string
 			if tt.args.moderator != nil {
 				// generate moderator certs
 				_, config := testCtx.GenTestKubeClientTLSCert(
@@ -307,7 +305,7 @@ func TestModeratedSessions(t *testing.T) {
 				// Simulate a moderator joining the session.
 				group.Go(func() error {
 					// waits for user to send the sessionID of his exec request.
-					sessionID := <-sessionIDC
+					sessionID = <-sessionIDC
 					// validate that the sessionID is valid and the reason is the one we expect.
 					if err := validateSessionTracker(testCtx, sessionID, tt.args.reason, tt.args.invite); err != nil {
 						return trace.Wrap(err)
@@ -471,6 +469,14 @@ func TestModeratedSessions(t *testing.T) {
 			})
 			// wait for every go-routine to finish without errors returned.
 			require.NoError(t, group.Wait())
+
+			if sessionID == "" || !tt.want.sessionEndEvent {
+				// if sessionID is empty, it means that the session never started
+				// (moderated session without the moderator joining)
+				return
+			}
+
+			validateSessionRecordingEvents(t, testCtx, sessionID)
 		})
 	}
 }
@@ -500,12 +506,7 @@ func validateSessionTracker(testCtx *TestContext, sessionID string, reason strin
 // covered by the integration test mentioned above because we need to fake the
 // Lock watcher connection to be stale and it takes ~5 minutes to happen.
 func TestInteractiveSessionsNoAuth(t *testing.T) {
-	// enable enterprise features to have access to ModeratedSessions.
-	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise, TestFeatures: modules.Features{
-		Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-			entitlements.K8s: {Enabled: true},
-		},
-	}})
+	t.Parallel()
 	const (
 		moderatorUsername       = "moderator_user"
 		moderatorRoleName       = "mod_role"
@@ -526,12 +527,21 @@ func TestInteractiveSessionsNoAuth(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { kubeMock.Close() })
 
+	authClient := &fakeClient{
+		// ClientI is left nil intentionally because we to set it via AuthClientWrapper.
+		closeC: make(chan struct{}),
+	}
 	// creates a Kubernetes service with a configured cluster pointing to mock api server
 	testCtx := SetupTestContext(
 		context.Background(),
 		t,
 		TestConfig{
+			Modules:  modulestest.EnterpriseModules(),
 			Clusters: []KubeClusterConfig{{Name: kubeCluster, APIEndpoint: kubeMock.URL}},
+			WrapAuthClient: func(client authclient.ClientI) authclient.ClientI {
+				authClient.ClientI = client
+				return authClient
+			},
 		},
 	)
 	// close tests
@@ -619,7 +629,7 @@ func TestInteractiveSessionsNoAuth(t *testing.T) {
 	// Mark the lock as stale so that the session with strict locking is denied.
 	close(testCtx.lockWatcher.StaleC)
 	// force the auth client to return an error when trying to create a session.
-	close(testCtx.closeSessionTrackers)
+	close(authClient.closeC)
 
 	require.Eventually(t, func() bool {
 		return testCtx.lockWatcher.IsStale()
@@ -649,7 +659,6 @@ func TestInteractiveSessionsNoAuth(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -679,8 +688,51 @@ func TestInteractiveSessionsNoAuth(t *testing.T) {
 
 			exec, err := remotecommand.NewSPDYExecutor(tt.config, http.MethodPost, req.URL())
 			require.NoError(t, err)
-			err = exec.StreamWithContext(context.TODO(), streamOpts)
+			err = exec.StreamWithContext(t.Context(), streamOpts)
 			tt.assertErr(t, err)
 		})
 	}
+}
+
+func validateSessionRecordingEvents(t *testing.T, testCtx *TestContext, sessionID string) {
+	t.Helper()
+
+	// validate that session recording was correctly uploaded.
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		rc, err := testCtx.UploadHandler.StreamSessionRecording(testCtx.Context, sessionpkg.ID(sessionID))
+		if assert.NoError(t, err) {
+			rc.Close()
+		}
+	}, 10*time.Second, 50*time.Millisecond, "session recording was not uploaded")
+
+	auditsC, errC := testCtx.AuthServer.StreamSessionEvents(testCtx.Context, sessionpkg.ID(sessionID), 0)
+
+	var foundJoinEvent bool
+	var foundLeaveEvent bool
+	var foundEndEvent bool
+loop:
+	for {
+		select {
+		case event, ok := <-auditsC:
+			if !ok {
+				break loop
+			}
+			switch event.GetType() {
+			case events.SessionJoinEvent:
+				foundJoinEvent = true
+			case events.SessionLeaveEvent:
+				foundLeaveEvent = true
+			case events.SessionEndEvent:
+				foundEndEvent = true
+			}
+		case err, ok := <-errC:
+			if !ok {
+				break loop
+			}
+			require.NoError(t, err)
+		}
+	}
+	require.True(t, foundJoinEvent, "session join event not found")
+	require.True(t, foundLeaveEvent, "session leave event not found")
+	require.True(t, foundEndEvent, "session end event not found")
 }

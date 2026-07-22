@@ -15,12 +15,12 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 //go:build darwin
-// +build darwin
 
 package dns
 
 import (
 	"context"
+	"log/slog"
 	"net"
 	"testing"
 
@@ -28,6 +28,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/testutils"
 )
 
 // TestOSUpstreamNameservers configures the DNS server to forward requests for all addresses to the OS's real
@@ -39,15 +40,15 @@ func TestOSUpstreamNameservers(t *testing.T) {
 	t.Cleanup(cancel)
 
 	resolver := &stubResolver{}
-	upstreams, err := NewOSUpstreamNameserverSource()
+	upstreams, err := NewOSUpstreamNameserverSource(slog.Default())
 	require.NoError(t, err)
-	server, err := NewServer(resolver, upstreams)
+	server, err := NewServer(resolver, upstreams, slog.Default())
 	require.NoError(t, err)
 
 	conn, err := net.ListenUDP("udp", udpLocalhost)
 	require.NoError(t, err)
 
-	utils.RunTestBackgroundTask(ctx, t, &utils.TestBackgroundTask{
+	testutils.RunTestBackgroundTask(ctx, t, &testutils.TestBackgroundTask{
 		Name: "nameserver",
 		Task: func(ctx context.Context) error {
 			err := server.ListenAndServeUDP(ctx, conn)

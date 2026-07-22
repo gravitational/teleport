@@ -71,7 +71,6 @@ func TestIPv6Fix(t *testing.T) {
 	}
 
 	for _, test := range testCases {
-		test := test
 		t.Run(test.desc, func(t *testing.T) {
 			t.Parallel()
 
@@ -150,7 +149,6 @@ func TestRewriter(t *testing.T) {
 	rewriter.Hostname = hostname
 
 	for _, test := range testCases {
-		test := test
 		t.Run(test.desc, func(t *testing.T) {
 			t.Parallel()
 

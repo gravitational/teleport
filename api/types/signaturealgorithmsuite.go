@@ -20,21 +20,33 @@ import (
 	"github.com/gravitational/trace"
 )
 
+// SignatureAlgorithmSuiteToString converts a [SignatureAlgorithmSuite] to a user-friendly string.
+func SignatureAlgorithmSuiteToString(s SignatureAlgorithmSuite) string {
+	switch s {
+	case SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_LEGACY:
+		return "legacy"
+	case SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1:
+		return "balanced-v1"
+	case SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_FIPS_V1:
+		return "fips-v1"
+	case SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_HSM_V1:
+		return "hsm-v1"
+	default:
+		return s.String()
+	}
+}
+
+// SignatureAlgorithmSuiteFromString parses a string to return a [SignatureAlgorithmSuite].
+func SignatureAlgorithmSuiteFromString(str string) (SignatureAlgorithmSuite, error) {
+	var suite SignatureAlgorithmSuite
+	err := suite.UnmarshalText([]byte(str))
+	return suite, trace.Wrap(err)
+}
+
 // MarshalText marshals a SignatureAlgorithmSuite value to text. This gets used
 // by json.Marshal.
 func (s SignatureAlgorithmSuite) MarshalText() ([]byte, error) {
-	switch s {
-	case SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_LEGACY:
-		return []byte("legacy"), nil
-	case SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1:
-		return []byte("balanced-v1"), nil
-	case SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_FIPS_V1:
-		return []byte("fips-v1"), nil
-	case SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_HSM_V1:
-		return []byte("hsm-v1"), nil
-	default:
-		return []byte(s.String()), nil
-	}
+	return []byte(SignatureAlgorithmSuiteToString(s)), nil
 }
 
 // UnmarshalJSON unmarshals a SignatureAlgorithmSuite and supports the custom
@@ -46,7 +58,7 @@ func (s *SignatureAlgorithmSuite) UnmarshalJSON(data []byte) error {
 	}
 	switch v := val.(type) {
 	case string:
-		return trace.Wrap(s.setFromString(v))
+		return trace.Wrap(s.UnmarshalText([]byte(v)))
 	case float64:
 		// json.Unmarshal is documented to unmarshal any JSON number into an
 		// int64 when unmarshaling into an interface.
@@ -56,7 +68,11 @@ func (s *SignatureAlgorithmSuite) UnmarshalJSON(data []byte) error {
 	}
 }
 
-func (s *SignatureAlgorithmSuite) setFromString(str string) error {
+// UnmarshalText unmarshals a SignatureAlgorithmSuite from text and supports the
+// custom string format or the proto enum values. This is used by JSON and YAML
+// unmarshallers.
+func (s *SignatureAlgorithmSuite) UnmarshalText(text []byte) error {
+	str := string(text)
 	switch str {
 	case "":
 		*s = SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_UNSPECIFIED

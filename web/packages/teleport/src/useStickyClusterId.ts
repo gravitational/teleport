@@ -16,11 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useRouteMatch } from 'react-router';
 import { useRef } from 'react';
+import { useMatch } from 'react-router';
 
-import { StickyCluster } from 'teleport/types';
 import cfg from 'teleport/config';
+import { StickyCluster } from 'teleport/types';
 
 // useStickyClusterId determines the current :clusterId in the URL.
 // When a route contains `:clusterId` it can refer to the root or the leaf cluster.
@@ -32,7 +32,8 @@ export default function useStickyClusterId(): StickyCluster {
     isLeafCluster: false,
   });
 
-  const match = useRouteMatch<{ clusterId: string }>(cfg.routes.cluster);
+  // useMatch replaces useRouteMatch. Use end: false to match prefix paths.
+  const match = useMatch({ path: cfg.routes.cluster, end: false });
   const clusterId = match?.params?.clusterId;
   if (clusterId) {
     stickyCluster.current.clusterId = clusterId;

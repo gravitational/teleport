@@ -34,14 +34,22 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/testing/protocmp"
 	"k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
+	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
+	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
+	apicommon "github.com/gravitational/teleport/api/types/common"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/entitlements"
@@ -51,12 +59,42 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
+	"github.com/gravitational/teleport/lib/scopes"
+	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/tool/tctl/common/databaseobject"
 	"github.com/gravitational/teleport/tool/tctl/common/databaseobjectimportrule"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
+
+func TestListKindsStructuredOutput(t *testing.T) {
+	rows := resourceKindRows()
+	require.NotEmpty(t, rows)
+
+	var jsonBuf bytes.Buffer
+	rc := ResourceCommand{
+		Stdout: &jsonBuf,
+		format: "json",
+	}
+	require.NoError(t, rc.listKinds())
+	gotJSON := mustDecodeJSON[[]resourceKindRow](t, &jsonBuf)
+	require.Equal(t, rows, gotJSON)
+
+	var yamlBuf bytes.Buffer
+	rc = ResourceCommand{
+		Stdout: &yamlBuf,
+		format: "yaml",
+	}
+	require.NoError(t, rc.listKinds())
+	yamlJSON, err := utils.ToJSON(yamlBuf.Bytes())
+	require.NoError(t, err)
+	gotYAML := mustDecodeJSON[[]resourceKindRow](t, bytes.NewReader(yamlJSON))
+	require.Equal(t, rows, gotYAML)
+}
 
 // TestDatabaseServerResource tests tctl db_server rm/get commands.
 func TestDatabaseServerResource(t *testing.T) {
@@ -196,7 +234,9 @@ func TestDatabaseServerResource(t *testing.T) {
 	require.NoError(t, err)
 
 	process := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
-	clt := testenv.MakeDefaultAuthClient(t, process)
+	clt, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = clt.Close() })
 
 	// get all database servers
 	buff, err := runResourceCommand(t, clt, []string{"get", types.KindDatabaseServer, "--format=json"})
@@ -261,7 +301,9 @@ func TestDatabaseServiceResource(t *testing.T) {
 	}
 
 	auth := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
-	clt := testenv.MakeDefaultAuthClient(t, auth)
+	clt, err := testenv.NewDefaultAuthClient(auth)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = clt.Close() })
 
 	// Add a lot of DatabaseServices to test pagination
 	dbS, err := types.NewDatabaseServiceV1(
@@ -276,7 +318,7 @@ func TestDatabaseServiceResource(t *testing.T) {
 
 	randomDBServiceName := ""
 	totalDBServices := apidefaults.DefaultChunkSize*2 + 20 // testing partial pages
-	for i := 0; i < totalDBServices; i++ {
+	for i := range totalDBServices {
 		dbS.SetName(uuid.NewString())
 		if i == apidefaults.DefaultChunkSize { // A "random" database service name
 			randomDBServiceName = dbS.GetName()
@@ -317,6 +359,801 @@ func TestDatabaseServiceResource(t *testing.T) {
 	})
 }
 
+func TestScopedRoleAndAssignmentResource(t *testing.T) {
+	t.Parallel()
+
+	const scopedRoleYAML = `kind: scoped_role
+metadata:
+  name: some-role
+scope: "/"
+spec:
+  assignable_scopes: ["/foo"]
+version: v1
+`
+	const scopedRoleAssignmentYAML = `kind: scoped_role_assignment
+sub_kind: dynamic
+scope: "/"
+spec:
+  user: "bob"
+  assignments:
+    - role: /::some-role
+      scope: /foo
+version: v1
+`
+
+	dynAddr := helpers.NewDynamicServiceAddr(t)
+
+	fileConfig := &config.FileConfig{
+		Global: config.Global{
+			DataDir: t.TempDir(),
+		},
+		Proxy: config.Proxy{
+			Service: config.Service{
+				EnabledFlag: "true",
+			},
+			WebAddr: dynAddr.WebAddr,
+			TunAddr: dynAddr.TunnelAddr,
+		},
+		Auth: config.Auth{
+			Service: config.Service{
+				EnabledFlag:   "true",
+				ListenAddress: dynAddr.AuthAddr,
+			},
+		},
+	}
+
+	auth := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors), withScopesFeatures(scopes.Features{Enabled: true}))
+	clt, err := testenv.NewDefaultAuthClient(auth)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = clt.Close() })
+
+	scopedRoleYAMLPath := filepath.Join(t.TempDir(), "some-role.yaml")
+	require.NoError(t, os.WriteFile(scopedRoleYAMLPath, []byte(scopedRoleYAML), 0644))
+
+	// Create the scoped role
+	_, err = runResourceCommand(t, clt, []string{"create", scopedRoleYAMLPath})
+	require.NoError(t, err)
+
+	// wait for cache propagation
+	timeout := time.After(time.Second * 30)
+	var raw []byte
+	for {
+		// Get the scoped role
+		buff, err := runResourceCommand(t, clt, []string{"get", "scoped_role", "/::some-role", "--format=json"})
+		if err == nil {
+			raw = buff.Bytes()
+			break
+		}
+
+		require.True(t, trace.IsNotFound(err), "expected a NotFound error, got %v", err)
+
+		select {
+		case <-timeout:
+			require.FailNow(t, "Timed out waiting for scoped role cache propagation")
+		case <-time.After(time.Millisecond * 100):
+		}
+	}
+
+	// Unmarshal the response into a ScopedRole object
+	rs, err := services.UnmarshalProtoResourceArray[*scopedaccessv1.ScopedRole](raw, services.DisallowUnknown())
+	require.NoError(t, err)
+	require.Len(t, rs, 1)
+
+	// Compare with expected value
+	expected := scopedaccessv1.ScopedRole_builder{
+		Kind: scopedaccess.KindScopedRole,
+		Metadata: headerv1.Metadata_builder{
+			Name: "some-role",
+		}.Build(),
+		Scope: "/",
+		Spec: scopedaccessv1.ScopedRoleSpec_builder{
+			AssignableScopes: []string{"/foo"},
+		}.Build(),
+		Version: types.V1,
+	}.Build()
+
+	require.Empty(t, cmp.Diff(expected, rs[0], protocmp.Transform(), protocmp.IgnoreFields(&headerv1.Metadata{}, "revision")))
+
+	// list-all for scoped_role (no SQN)
+	buff, err := runResourceCommand(t, clt, []string{"get", "scoped_role", "--format=json"})
+	require.NoError(t, err)
+	allRoles, err := services.UnmarshalProtoResourceArray[*scopedaccessv1.ScopedRole](buff.Bytes(), services.DisallowUnknown())
+	require.NoError(t, err)
+	require.Len(t, allRoles, 1)
+	require.Equal(t, "some-role", allRoles[0].GetMetadata().GetName())
+
+	// bare name without SQN separator should require a scope-qualified name
+	_, err = runResourceCommand(t, clt, []string{"get", "scoped_role", "some-role"})
+	require.True(t, trace.IsBadParameter(err), "expected BadParameter for bare name, got %v", err)
+	require.ErrorContains(t, err, "scope-qualified name")
+
+	// sub-kind segment on a type with no sub-kinds should be rejected on get
+	_, err = runResourceCommand(t, clt, []string{"get", "scoped_role/badsubkind", "/::some-role"})
+	require.True(t, trace.IsBadParameter(err), "expected BadParameter for invalid sub-kind on get, got %v", err)
+	require.ErrorContains(t, err, "does not support sub-kinds")
+
+	// sub-kind segment on a type with no sub-kinds should be rejected on delete
+	_, err = runResourceCommand(t, clt, []string{"rm", "scoped_role/badsubkind", "/::some-role"})
+	require.True(t, trace.IsBadParameter(err), "expected BadParameter for invalid sub-kind on delete, got %v", err)
+	require.ErrorContains(t, err, "does not support sub-kinds")
+
+	// scope mismatch on delete should return NotFound (role lives at "/", not "/wrong")
+	_, err = runResourceCommand(t, clt, []string{"rm", "scoped_role", "/wrong::some-role"})
+	require.True(t, trace.IsNotFound(err), "expected NotFound for scope mismatch on delete, got %v", err)
+
+	// now that a role exists, test commands for assignment creation
+
+	// Can't create an assignment without a subkind.
+	scopedRoleAssignmentYAMLPath := filepath.Join(t.TempDir(), "some-role-assignment.yaml")
+	require.NoError(t, os.WriteFile(
+		scopedRoleAssignmentYAMLPath,
+		[]byte(strings.ReplaceAll(scopedRoleAssignmentYAML, "sub_kind: dynamic\n", "")),
+		0644,
+	))
+	_, err = runResourceCommand(t, clt, []string{"create", scopedRoleAssignmentYAMLPath})
+	require.True(t, trace.IsBadParameter(err), "expected BadParameter error, got %v", err)
+	require.ErrorContains(t, err, "has empty sub_kind")
+
+	// Create the valid scoped role assignment
+	require.NoError(t, os.WriteFile(scopedRoleAssignmentYAMLPath, []byte(scopedRoleAssignmentYAML), 0644))
+	_, err = runResourceCommand(t, clt, []string{"create", scopedRoleAssignmentYAMLPath})
+	require.NoError(t, err)
+
+	// wait for cache propagation
+	timeout = time.After(time.Second * 30)
+	var rawAssignment []byte
+	var as []*scopedaccessv1.ScopedRoleAssignment
+	for {
+		// Get the scoped role assignment.
+		buff, err := runResourceCommand(t, clt, []string{"get", "scoped_role_assignment", "--format=json"})
+		if err == nil {
+			rawAssignment = buff.Bytes()
+			// Unmarshal the response into a ScopedRoleAssignment object
+			as, err = services.UnmarshalProtoResourceArray[*scopedaccessv1.ScopedRoleAssignment](rawAssignment, services.DisallowUnknown())
+			require.NoError(t, err)
+			if len(as) > 0 {
+				break
+			}
+		}
+
+		select {
+		case <-timeout:
+			require.FailNow(t, "Timed out waiting for scoped role assignment cache propagation")
+		case <-time.After(time.Millisecond * 100):
+		}
+	}
+
+	require.Len(t, as, 1)
+	assignmentName := as[0].GetMetadata().GetName()
+
+	// Ensure that retrieving the scoped role assignment with incorrect sub_kind fails.
+	_, err = runResourceCommand(t, clt, []string{"get", "scoped_role_assignment/materialized", scopes.QualifiedName{
+		Scope: "/",
+		Name:  assignmentName,
+	}.String(), "--format=json"})
+	require.True(t, trace.IsNotFound(err), "expected NotFound error, got %v", err)
+
+	// Ensure that trying to retrieve the scoped role assignment without a subkind fails.
+	_, err = runResourceCommand(t, clt, []string{"get", "scoped_role_assignment", scopes.QualifiedName{
+		Scope: "/",
+		Name:  assignmentName,
+	}.String(), "--format=json"})
+	require.ErrorContains(t, err, "requires a sub-kind")
+
+	// Ensure that retrieving the scoped role assignment by name with explicit sub_kind works.
+	buff, err = runResourceCommand(t, clt, []string{"get", "scoped_role_assignment/dynamic", scopes.QualifiedName{
+		Scope: "/",
+		Name:  assignmentName,
+	}.String(), "--format=json"})
+	require.NoError(t, err)
+	var asByName []*scopedaccessv1.ScopedRoleAssignment
+	err = json.Unmarshal(buff.Bytes(), &asByName)
+	require.NoError(t, err)
+	require.Len(t, asByName, 1)
+	require.Equal(t, assignmentName, asByName[0].GetMetadata().GetName())
+
+	// Compare with expected value
+	expectedAssignment := scopedaccessv1.ScopedRoleAssignment_builder{
+		Kind:    scopedaccess.KindScopedRoleAssignment,
+		SubKind: scopedaccess.SubKindDynamic,
+		Metadata: headerv1.Metadata_builder{
+			Name: assignmentName,
+		}.Build(),
+		Scope: "/",
+		Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
+			User: "bob",
+			Assignments: []*scopedaccessv1.Assignment{
+				scopedaccessv1.Assignment_builder{
+					Role:  "/::some-role",
+					Scope: "/foo",
+				}.Build(),
+			},
+		}.Build(),
+		Version: types.V1,
+	}.Build()
+
+	require.Empty(t, cmp.Diff(expectedAssignment, as[0], protocmp.Transform(), protocmp.IgnoreFields(&headerv1.Metadata{}, "revision")))
+
+	// a bare segment for a scoped-only resource (previously treated as a name)
+	// should now be an explicit error rather than silently returning all resources.
+	_, err = runResourceCommand(t, clt, []string{"get", "scoped_role_assignment/dynamic"})
+	require.True(t, trace.IsBadParameter(err), "expected BadParameter for old-format subkind filter, got %v", err)
+	require.ErrorContains(t, err, "scope-qualified name")
+
+	// scope mismatch on delete should return NotFound (assignment lives at "/", not "/wrong")
+	_, err = runResourceCommand(t, clt, []string{"rm", "scoped_role_assignment/dynamic", scopes.QualifiedName{
+		Scope: "/wrong",
+		Name:  assignmentName,
+	}.String()})
+	require.True(t, trace.IsNotFound(err), "expected NotFound for scope mismatch on assignment delete, got %v", err)
+
+	// verify delete of assignment fails without subkind
+	_, err = runResourceCommand(t, clt, []string{"rm", "scoped_role_assignment", scopes.QualifiedName{
+		Scope: "/",
+		Name:  assignmentName,
+	}.String()})
+	require.ErrorContains(t, err, "requires a sub-kind")
+
+	// verify delete of assignment fails without materialized subkind.
+	_, err = runResourceCommand(t, clt, []string{"rm", "scoped_role_assignment/materialized", scopes.QualifiedName{
+		Scope: "/",
+		Name:  assignmentName,
+	}.String()})
+	require.ErrorContains(t, err, "cannot be deleted")
+
+	// verify delete of assignment
+	_, err = runResourceCommand(t, clt, []string{"rm", "scoped_role_assignment/dynamic", scopes.QualifiedName{
+		Scope: "/",
+		Name:  assignmentName,
+	}.String()})
+	require.NoError(t, err)
+
+	// wait for delete cache propagation
+	timeout = time.After(time.Second * 30)
+	for {
+		// verify assignment is gone
+		_, err = runResourceCommand(t, clt, []string{"get", "scoped_role_assignment/dynamic", scopes.QualifiedName{
+			Scope: "/",
+			Name:  assignmentName,
+		}.String(), "--format=json"})
+		if err != nil {
+			require.True(t, trace.IsNotFound(err), "expected a NotFound error, got %v", err)
+			break
+		}
+
+		select {
+		case <-timeout:
+			require.FailNow(t, "Timed out waiting for scoped role assignment cache propagation")
+		case <-time.After(time.Millisecond * 100):
+		}
+	}
+
+	// verify delete of role
+	_, err = runResourceCommand(t, clt, []string{"rm", "scoped_role", "/::some-role"})
+	require.NoError(t, err)
+
+	// wait for delete cache propagation
+	timeout = time.After(time.Second * 30)
+	for {
+		// verify role is gone
+		_, err = runResourceCommand(t, clt, []string{"get", "scoped_role", "/::some-role", "--format=json"})
+		if err != nil {
+			require.True(t, trace.IsNotFound(err), "expected a NotFound error, got %v", err)
+			break
+		}
+
+		select {
+		case <-timeout:
+			require.FailNow(t, "Timed out waiting for scoped role cache propagation")
+		case <-time.After(time.Millisecond * 100):
+		}
+	}
+}
+
+func TestScopedToken(t *testing.T) {
+	t.Parallel()
+
+	const scopedTokenYAML = `kind: scoped_token
+version: v1
+metadata:
+  name: test-token
+scope: "/"
+spec:
+  roles:
+    - Node
+  assigned_scope: "/foo"
+  join_method: "token"
+  usage_mode: "unlimited"
+`
+
+	const gcpScopedTokenYAML = `kind: scoped_token
+version: v1
+metadata:
+  name: gcp-test-token
+scope: "/"
+spec:
+  roles:
+    - Node
+  assigned_scope: "/foo"
+  join_method: "gcp"
+  usage_mode: "unlimited"
+  gcp:
+    allow:
+      - project_ids:
+          - example-project-123456
+        locations:
+          - us-west1
+        service_accounts:
+          - 123456789-compute@developer.gserviceaccount.com
+`
+
+	dynAddr := helpers.NewDynamicServiceAddr(t)
+
+	fileConfig := &config.FileConfig{
+		Global: config.Global{
+			DataDir: t.TempDir(),
+		},
+		Proxy: config.Proxy{
+			Service: config.Service{
+				EnabledFlag: "true",
+			},
+			WebAddr: dynAddr.WebAddr,
+			TunAddr: dynAddr.TunnelAddr,
+		},
+		Auth: config.Auth{
+			Service: config.Service{
+				EnabledFlag:   "true",
+				ListenAddress: dynAddr.AuthAddr,
+			},
+		},
+	}
+
+	auth := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors), withScopesFeatures(scopes.Features{Enabled: true}))
+	clt, err := testenv.NewDefaultAuthClient(auth)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = clt.Close() })
+
+	scopedTokenYAMLPath := filepath.Join(t.TempDir(), "test-token.yaml")
+	require.NoError(t, os.WriteFile(scopedTokenYAMLPath, []byte(scopedTokenYAML), 0644))
+
+	// Create the scoped token
+	_, err = runResourceCommand(t, clt, []string{"create", scopedTokenYAMLPath})
+	require.NoError(t, err)
+
+	// wait for cache propagation
+	var raw []byte
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		// Get the scoped token by name
+		buff, err := runResourceCommand(t, clt, []string{"get", "scoped_token", "/::test-token", "--format=json"})
+		require.NoError(t, err)
+		raw = buff.Bytes()
+	}, time.Second*30, time.Millisecond*100, "Timed out waiting for scoped token cache propagation")
+
+	tokens, err := services.UnmarshalProtoResourceArray[*joiningv1.ScopedToken](raw, services.DisallowUnknown())
+	require.NoError(t, err)
+	require.Len(t, tokens, 1)
+
+	// Compare with expected value
+	token := tokens[0]
+	require.Equal(t, types.KindScopedToken, token.GetKind())
+	require.Equal(t, "test-token", token.GetMetadata().GetName())
+	require.Equal(t, "/", token.GetScope())
+	require.Equal(t, []string{"Node"}, token.GetSpec().GetRoles())
+	require.Equal(t, "/foo", token.GetSpec().GetAssignedScope())
+	require.Equal(t, "token", token.GetSpec().GetJoinMethod())
+	require.Equal(t, "unlimited", token.GetSpec().GetUsageMode())
+	// Secret is stripped server-side when not requested with --with-secrets.
+	require.Empty(t, token.GetStatus().GetSecret())
+
+	// A bare name (no :: separator) should produce a helpful "scope-qualified name" error.
+	_, err = runResourceCommand(t, clt, []string{"get", "scoped_token", "test-token"})
+	require.ErrorContains(t, err, "scope-qualified name")
+	_, err = runResourceCommand(t, clt, []string{"rm", "scoped_token", "test-token"})
+	require.ErrorContains(t, err, "scope-qualified name")
+
+	// sub-kind segment on a type with no sub-kinds should be rejected on get
+	_, err = runResourceCommand(t, clt, []string{"get", "scoped_token/badsubkind", "/::test-token"})
+	require.True(t, trace.IsBadParameter(err), "expected BadParameter for invalid sub-kind on get, got %v", err)
+	require.ErrorContains(t, err, "does not support sub-kinds")
+
+	// sub-kind segment on a type with no sub-kinds should be rejected on delete
+	_, err = runResourceCommand(t, clt, []string{"rm", "scoped_token/badsubkind", "/::test-token"})
+	require.True(t, trace.IsBadParameter(err), "expected BadParameter for invalid sub-kind on delete, got %v", err)
+	require.ErrorContains(t, err, "does not support sub-kinds")
+
+	// scope mismatch on delete should return NotFound (token lives at "/", not "/wrong")
+	_, err = runResourceCommand(t, clt, []string{"rm", "scoped_token", "/wrong::test-token"})
+	require.True(t, trace.IsNotFound(err), "expected NotFound for scope mismatch on delete, got %v", err)
+
+	// Get all scoped tokens
+	buff, err := runResourceCommand(t, clt, []string{"get", "scoped_token", "--format=json", "--with-secrets"})
+	require.NoError(t, err)
+	var allTokens []*joiningv1.ScopedToken
+	err = json.Unmarshal(buff.Bytes(), &allTokens)
+	require.NoError(t, err)
+	require.Len(t, allTokens, 1)
+	require.Equal(t, "test-token", allTokens[0].GetMetadata().GetName())
+	// Secret should be populated
+	require.NotEmpty(t, allTokens[0].GetStatus().GetSecret())
+	require.NotContains(t, allTokens[0].GetStatus().GetSecret(), "******")
+
+	// Overwrite scopedTokenYAMLPath with the retrieved token
+	retrievedBytes, err := services.MarshalProtoResource(allTokens[0])
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(scopedTokenYAMLPath, retrievedBytes, 0644))
+
+	// Create with --force for upsert
+	// Duplicate create without --force should fail
+	_, err = runResourceCommand(t, clt, []string{"create", scopedTokenYAMLPath})
+	require.True(t, trace.IsAlreadyExists(err), "expected already exists error, got %v", err)
+
+	// Using --force should succeed and act as an upsert
+	allTokens[0].GetMetadata().SetLabels(map[string]string{"env": "staging"})
+	allTokens[0].GetSpec().SetAssignedScope("/bar")
+	updatedBytes, err := services.MarshalProtoResource(allTokens[0])
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(scopedTokenYAMLPath, updatedBytes, 0644))
+
+	_, err = runResourceCommand(t, clt, []string{"create", "--force", scopedTokenYAMLPath})
+	require.NoError(t, err)
+
+	// Wait for cache propagation and verify the update took effect
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		buff, err := runResourceCommand(t, clt, []string{"get", "scoped_token", "/::test-token", "--format=json"})
+		require.NoError(t, err)
+		updated, err := services.UnmarshalProtoResourceArray[*joiningv1.ScopedToken](buff.Bytes(), services.DisallowUnknown())
+		require.NoError(t, err)
+		require.Len(t, updated, 1)
+		require.Equal(t, "test-token", updated[0].GetMetadata().GetName())
+		require.Equal(ct, "/bar", updated[0].GetSpec().GetAssignedScope())
+		require.Equal(ct, "staging", updated[0].GetMetadata().GetLabels()["env"])
+	}, time.Second*30, time.Millisecond*100, "Timed out waiting for upserted scoped token cache propagation")
+
+	// verify delete of token
+	_, err = runResourceCommand(t, clt, []string{"rm", "scoped_token", "/::test-token"})
+	require.NoError(t, err)
+
+	// wait for delete cache propagation
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		_, err = runResourceCommand(t, clt, []string{"get", "scoped_token", "/::test-token", "--format=json"})
+		require.True(ct, trace.IsNotFound(err))
+	}, time.Second*30, time.Millisecond*100, "Timed out waiting for scoped token cache propagation")
+
+	// Create a GCP scoped token and verify it appears in listings.
+	gcpScopedTokenYAMLPath := filepath.Join(t.TempDir(), "gcp-test-token.yaml")
+	require.NoError(t, os.WriteFile(gcpScopedTokenYAMLPath, []byte(gcpScopedTokenYAML), 0644))
+
+	_, err = runResourceCommand(t, clt, []string{"create", gcpScopedTokenYAMLPath})
+	require.NoError(t, err)
+
+	// Wait for cache propagation.
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		_, err := runResourceCommand(t, clt, []string{"get", "scoped_token", "/::gcp-test-token", "--format=json"})
+		require.NoError(ct, err)
+	}, time.Second*30, time.Millisecond*100, "Timed out waiting for GCP scoped token cache propagation")
+
+	// Verify GCP token fields outside the retry loop.
+	buff, err = runResourceCommand(t, clt, []string{"get", "scoped_token", "--format=json"})
+	require.NoError(t, err)
+	gcpTokens, err := services.UnmarshalProtoResourceArray[*joiningv1.ScopedToken](buff.Bytes(), services.DisallowUnknown())
+	require.NoError(t, err)
+	require.Len(t, gcpTokens, 1)
+	require.Equal(t, "gcp-test-token", gcpTokens[0].GetMetadata().GetName())
+	require.Equal(t, "gcp", gcpTokens[0].GetSpec().GetJoinMethod())
+	require.Len(t, gcpTokens[0].GetSpec().GetGcp().GetAllow(), 1)
+	require.Equal(t, []string{"example-project-123456"}, gcpTokens[0].GetSpec().GetGcp().GetAllow()[0].GetProjectIds())
+
+	// Verify scope mismatch: name exists at "/" but a different scope is requested. Must produce
+	// a NotFound error to comply with namespacing behavior. Future iterations may not be able
+	// to provide hints as namespacing may prevent it.
+	_, err = runResourceCommand(t, clt, []string{"get", "scoped_token", "/other-scope::gcp-test-token", "--format=json"})
+	require.True(t, trace.IsNotFound(err), "expected NotFound for scope mismatch, got: %v", err)
+	require.ErrorContains(t, err, "tctl get scoped_token /::gcp-test-token")
+}
+
+// TestScopedAndUnscopedNodeResource exercises tctl get/rm on nodes which are double
+// registered as both a scoped and unscoped resource handler in order to support a
+// mix of scope and classic style interactions. This test is intended specifically
+// to help verify that we are handling double-registration sensibly.
+func TestScopedAndUnscopedNodeResource(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	dynAddr := helpers.NewDynamicServiceAddr(t)
+	fileConfig := &config.FileConfig{
+		Global: config.Global{DataDir: t.TempDir()},
+		Proxy: config.Proxy{
+			Service: config.Service{EnabledFlag: "true"},
+			WebAddr: dynAddr.WebAddr,
+			TunAddr: dynAddr.TunnelAddr,
+		},
+		Auth: config.Auth{
+			Service: config.Service{
+				EnabledFlag:   "true",
+				ListenAddress: dynAddr.AuthAddr,
+			},
+		},
+	}
+	auth := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
+	clt, err := testenv.NewDefaultAuthClient(auth)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = clt.Close() })
+
+	// classicNode has no explicit scope (scope == "").
+	classicNode, err := types.NewServer("unscoped-node", types.KindNode, types.ServerSpecV2{
+		Hostname: "unscoped-host",
+		Addr:     "127.0.0.1:22",
+	})
+	require.NoError(t, err)
+	_, err = clt.UpsertNode(ctx, classicNode)
+	require.NoError(t, err)
+
+	// scopedNode has scope "/" so SQN lookups with "/::scoped-node" succeed.
+	scopedNode, err := types.NewServer("scoped-node", types.KindNode, types.ServerSpecV2{
+		Hostname: "scoped-host",
+		Addr:     "127.0.0.1:23",
+	})
+	require.NoError(t, err)
+	scopedNode.(*types.ServerV2).Scope = "/staging"
+	_, err = clt.UpsertNode(ctx, scopedNode)
+	require.NoError(t, err)
+
+	// Poll until both nodes appear via the unified-resource list (cache propagation).
+	timeout := time.After(30 * time.Second)
+	for {
+		buf, err := runResourceCommand(t, clt, []string{"get", "node", "--format=json"})
+		if err == nil && strings.Contains(buf.String(), "scoped-node") && strings.Contains(buf.String(), "unscoped-node") {
+			break
+		}
+		select {
+		case <-timeout:
+			require.FailNow(t, "timed out waiting for nodes to appear in list")
+		case <-time.After(100 * time.Millisecond):
+		}
+	}
+
+	t.Run("list all", func(t *testing.T) {
+		buf, err := runResourceCommand(t, clt, []string{"get", "node", "--format=json"})
+		require.NoError(t, err)
+		out := buf.String()
+		require.Contains(t, out, "unscoped-node")
+		require.Contains(t, out, "scoped-node")
+	})
+
+	t.Run("single-arg unscoped get", func(t *testing.T) {
+		buf, err := runResourceCommand(t, clt, []string{"get", "node/unscoped-node", "--format=json"})
+		require.NoError(t, err)
+		require.Contains(t, buf.String(), "unscoped-node")
+	})
+
+	t.Run("two-arg unscoped get", func(t *testing.T) {
+		buf, err := runResourceCommand(t, clt, []string{"get", "node", "unscoped-node", "--format=json"})
+		require.NoError(t, err)
+		require.Contains(t, buf.String(), "unscoped-node")
+	})
+
+	t.Run("scope-qualified get", func(t *testing.T) {
+		buf, err := runResourceCommand(t, clt, []string{"get", "node", "/staging::scoped-node", "--format=json"})
+		require.NoError(t, err)
+		require.Contains(t, buf.String(), "scoped-node")
+	})
+
+	t.Run("scope-qualified get with scope mismatch", func(t *testing.T) {
+		_, err := runResourceCommand(t, clt, []string{"get", "node", "/prod::scoped-node", "--format=json"})
+		require.True(t, trace.IsNotFound(err), "expected NotFound on scope mismatch, got: %v", err)
+	})
+
+	t.Run("scope-qualified delete with scope mismatch", func(t *testing.T) {
+		_, err := runResourceCommand(t, clt, []string{"rm", "node", "/prod::scoped-node"})
+		require.True(t, trace.IsNotFound(err), "expected NotFound on scope mismatch delete, got: %v", err)
+	})
+
+	t.Run("edit via single-arg classic form", func(t *testing.T) {
+		editor := func(name string) error {
+			data, err := os.ReadFile(name)
+			if err != nil {
+				return err
+			}
+			data = bytes.ReplaceAll(data, []byte("unscoped-host"), []byte("unscoped-host-edited"))
+			return os.WriteFile(name, data, 0600)
+		}
+		_, err := runEditCommand(t, clt, []string{"edit", "node/unscoped-node"}, withEditor(editor))
+		require.NoError(t, err)
+
+		timeout := time.After(30 * time.Second)
+		for {
+			node, err := clt.GetNode(ctx, apidefaults.Namespace, "unscoped-node")
+			if err == nil && node.GetHostname() == "unscoped-host-edited" {
+				break
+			}
+			require.NoError(t, err, "unexpected error waiting for unscoped-node edit")
+			select {
+			case <-timeout:
+				require.FailNow(t, "timed out waiting for unscoped-node hostname edit")
+			case <-time.After(100 * time.Millisecond):
+			}
+		}
+	})
+
+	t.Run("edit via two-arg SQN form", func(t *testing.T) {
+		editor := func(name string) error {
+			data, err := os.ReadFile(name)
+			if err != nil {
+				return err
+			}
+			data = bytes.ReplaceAll(data, []byte("scoped-host"), []byte("scoped-host-edited"))
+			return os.WriteFile(name, data, 0600)
+		}
+		_, err := runEditCommand(t, clt, []string{"edit", "node", "/staging::scoped-node"}, withEditor(editor))
+		require.NoError(t, err)
+
+		timeout := time.After(30 * time.Second)
+		for {
+			node, err := clt.GetNode(ctx, apidefaults.Namespace, "scoped-node")
+			if err == nil && node.GetHostname() == "scoped-host-edited" {
+				break
+			}
+			require.NoError(t, err, "unexpected error waiting for scoped-node edit")
+			select {
+			case <-timeout:
+				require.FailNow(t, "timed out waiting for scoped-node hostname edit")
+			case <-time.After(100 * time.Millisecond):
+			}
+		}
+	})
+
+	t.Run("scope-qualified delete", func(t *testing.T) {
+		_, err := runResourceCommand(t, clt, []string{"rm", "node", "/staging::scoped-node"})
+		require.NoError(t, err)
+
+		timeout := time.After(30 * time.Second)
+		for {
+			_, err = clt.GetNode(ctx, apidefaults.Namespace, "scoped-node")
+			if trace.IsNotFound(err) {
+				break
+			}
+			require.NoError(t, err, "unexpected error waiting for scoped-node deletion")
+			select {
+			case <-timeout:
+				require.FailNow(t, "timed out waiting for scoped-node to be deleted")
+			case <-time.After(100 * time.Millisecond):
+			}
+		}
+	})
+
+	t.Run("two-arg unscoped delete", func(t *testing.T) {
+		_, err := runResourceCommand(t, clt, []string{"rm", "node", "unscoped-node"})
+		require.NoError(t, err)
+
+		timeout := time.After(30 * time.Second)
+		for {
+			_, err = clt.GetNode(ctx, apidefaults.Namespace, "unscoped-node")
+			if trace.IsNotFound(err) {
+				break
+			}
+			require.NoError(t, err, "unexpected error waiting for unscoped-node deletion")
+			select {
+			case <-timeout:
+				require.FailNow(t, "timed out waiting for unscoped-node to be deleted")
+			case <-time.After(100 * time.Millisecond):
+			}
+		}
+	})
+}
+
+// TestScopedAndUnscopedWorkloadIdentityResource exercises tctl get/rm on workload
+// identities, which are double-registered as both a scoped and unscoped resource
+// handler to support a mix of scope-qualified and classic interactions.
+func TestScopedAndUnscopedWorkloadIdentityResource(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	dynAddr := helpers.NewDynamicServiceAddr(t)
+	fileConfig := &config.FileConfig{
+		Global: config.Global{DataDir: t.TempDir()},
+		Proxy: config.Proxy{
+			Service: config.Service{EnabledFlag: "true"},
+			WebAddr: dynAddr.WebAddr,
+			TunAddr: dynAddr.TunnelAddr,
+		},
+		Auth: config.Auth{
+			Service: config.Service{
+				EnabledFlag:   "true",
+				ListenAddress: dynAddr.AuthAddr,
+			},
+		},
+	}
+	auth := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors), withScopesFeatures(scopes.Features{Enabled: true}))
+	clt, err := testenv.NewDefaultAuthClient(auth)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = clt.Close() })
+
+	wiClient := clt.WorkloadIdentityResourceServiceClient()
+
+	// unscopedWI has no scope (classic behavior).
+	_, err = wiClient.UpsertWorkloadIdentity(ctx, workloadidentityv1pb.UpsertWorkloadIdentityRequest_builder{
+		WorkloadIdentity: workloadidentityv1pb.WorkloadIdentity_builder{
+			Kind:     types.KindWorkloadIdentity,
+			Version:  types.V1,
+			Metadata: headerv1.Metadata_builder{Name: "classic-wi"}.Build(),
+			Spec: workloadidentityv1pb.WorkloadIdentitySpec_builder{
+				Spiffe: workloadidentityv1pb.WorkloadIdentitySPIFFE_builder{Id: "/unscoped"}.Build(),
+			}.Build(),
+		}.Build(),
+	}.Build())
+	require.NoError(t, err)
+
+	// scopedWI lives in scope "/staging" so SQN lookups with "/staging::staging-wi" succeed.
+	_, err = wiClient.UpsertWorkloadIdentity(ctx, workloadidentityv1pb.UpsertWorkloadIdentityRequest_builder{
+		WorkloadIdentity: workloadidentityv1pb.WorkloadIdentity_builder{
+			Kind:     types.KindWorkloadIdentity,
+			Version:  types.V1,
+			Metadata: headerv1.Metadata_builder{Name: "staging-wi"}.Build(),
+			Scope:    "/staging",
+			Spec: workloadidentityv1pb.WorkloadIdentitySpec_builder{
+				Spiffe: workloadidentityv1pb.WorkloadIdentitySPIFFE_builder{Id: "/staging/_/svc"}.Build(),
+			}.Build(),
+		}.Build(),
+	}.Build())
+	require.NoError(t, err)
+
+	// Wait until both workload identities appear via the list (cache propagation).
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		buf, err := runResourceCommand(t, clt, []string{"get", types.KindWorkloadIdentity, "--format=json"})
+		require.NoError(t, err)
+		require.Contains(t, buf.String(), "classic-wi")
+		require.Contains(t, buf.String(), "staging-wi")
+	}, 30*time.Second, 100*time.Millisecond)
+
+	t.Run("list all shows scope-qualified name for scoped identities", func(t *testing.T) {
+		buf, err := runResourceCommand(t, clt, []string{"get", types.KindWorkloadIdentity, "--format=text"})
+		require.NoError(t, err)
+		out := buf.String()
+		// Scoped identities are shown as a scope-qualified name; unscoped ones
+		// keep their bare name.
+		require.Contains(t, out, "/staging::staging-wi")
+		require.Contains(t, out, "classic-wi")
+	})
+
+	t.Run("single-arg unscoped get", func(t *testing.T) {
+		buf, err := runResourceCommand(t, clt, []string{"get", "workload_identity/classic-wi", "--format=json"})
+		require.NoError(t, err)
+		require.Contains(t, buf.String(), "classic-wi")
+	})
+
+	t.Run("two-arg unscoped get", func(t *testing.T) {
+		buf, err := runResourceCommand(t, clt, []string{"get", types.KindWorkloadIdentity, "classic-wi", "--format=json"})
+		require.NoError(t, err)
+		require.Contains(t, buf.String(), "classic-wi")
+	})
+
+	t.Run("scope-qualified get", func(t *testing.T) {
+		buf, err := runResourceCommand(t, clt, []string{"get", types.KindWorkloadIdentity, "/staging::staging-wi", "--format=json"})
+		require.NoError(t, err)
+		require.Contains(t, buf.String(), "staging-wi")
+	})
+
+	t.Run("scope-qualified get with scope mismatch", func(t *testing.T) {
+		_, err := runResourceCommand(t, clt, []string{"get", types.KindWorkloadIdentity, "/prod::staging-wi", "--format=json"})
+		require.True(t, trace.IsNotFound(err), "expected NotFound on scope mismatch, got: %v", err)
+	})
+
+	t.Run("scope-qualified delete", func(t *testing.T) {
+		_, err := runResourceCommand(t, clt, []string{"rm", types.KindWorkloadIdentity, "/staging::staging-wi"})
+		require.NoError(t, err)
+
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			_, err := runResourceCommand(t, clt, []string{"get", types.KindWorkloadIdentity, "/staging::staging-wi", "--format=json"})
+			require.True(t, trace.IsNotFound(err), "expected NotFound waiting for staging-wi deletion, got: %v", err)
+		}, 30*time.Second, 100*time.Millisecond)
+	})
+
+	t.Run("unscoped delete", func(t *testing.T) {
+		_, err := runResourceCommand(t, clt, []string{"rm", "workload_identity/classic-wi"})
+		require.NoError(t, err)
+	})
+}
+
 // TestIntegrationResource tests tctl integration commands.
 func TestIntegrationResource(t *testing.T) {
 	dynAddr := helpers.NewDynamicServiceAddr(t)
@@ -342,7 +1179,9 @@ func TestIntegrationResource(t *testing.T) {
 	}
 
 	auth := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
-	clt := testenv.MakeDefaultAuthClient(t, auth)
+	clt, err := testenv.NewDefaultAuthClient(auth)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = clt.Close() })
 
 	t.Run("get", func(t *testing.T) {
 
@@ -357,7 +1196,7 @@ func TestIntegrationResource(t *testing.T) {
 
 		randomIntegrationName := ""
 		totalIntegrations := apidefaults.DefaultChunkSize*2 + 20 // testing partial pages
-		for i := 0; i < totalIntegrations; i++ {
+		for i := range totalIntegrations {
 			ig1.SetName(uuid.NewString())
 			if i == apidefaults.DefaultChunkSize { // A "random" integration name
 				randomIntegrationName = ig1.GetName()
@@ -455,7 +1294,9 @@ func TestDiscoveryConfigResource(t *testing.T) {
 	}
 
 	auth := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
-	clt := testenv.MakeDefaultAuthClient(t, auth)
+	clt, err := testenv.NewDefaultAuthClient(auth)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = clt.Close() })
 
 	t.Run("get", func(t *testing.T) {
 		// Add a lot of DiscoveryConfigs to test pagination
@@ -471,7 +1312,7 @@ func TestDiscoveryConfigResource(t *testing.T) {
 
 		randomDiscoveryConfigName := ""
 		totalDiscoveryConfigs := apidefaults.DefaultChunkSize*2 + 20 // testing partial pages
-		for i := 0; i < totalDiscoveryConfigs; i++ {
+		for i := range totalDiscoveryConfigs {
 			dc.SetName(uuid.NewString())
 			if i == apidefaults.DefaultChunkSize { // A "random" discoveryConfig name
 				randomDiscoveryConfigName = dc.GetName()
@@ -568,9 +1409,11 @@ func TestCreateLock(t *testing.T) {
 	timeNow := time.Now().UTC()
 	fakeClock := clockwork.NewFakeClockAt(timeNow)
 	process := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors), withFakeClock(fakeClock))
-	clt := testenv.MakeDefaultAuthClient(t, process)
+	clt, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = clt.Close() })
 
-	_, err := types.NewLock("test-lock", types.LockSpecV2{
+	_, err = types.NewLock("test-lock", types.LockSpecV2{
 		Target: types.LockTarget{
 			User: "bad@actor",
 		},
@@ -640,13 +1483,15 @@ func TestCreateDatabaseInInsecureMode(t *testing.T) {
 	}
 
 	process := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
-	clt := testenv.MakeDefaultAuthClient(t, process)
+	clt, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = clt.Close() })
 
 	// Create the databases yaml file.
 	dbYAMLPath := filepath.Join(t.TempDir(), "db.yaml")
 	require.NoError(t, os.WriteFile(dbYAMLPath, []byte(dbYAML), 0644))
 
-	_, err := runResourceCommand(t, clt, []string{"create", dbYAMLPath})
+	_, err = runResourceCommand(t, clt, []string{"create", dbYAMLPath})
 	require.NoError(t, err)
 }
 
@@ -688,7 +1533,11 @@ version: v3
 metadata:
   name: foo
 spec:
-  uri: "localhost1"
+  uri: "tcp://localhost1"
+  tcp_ports:
+  - port: 1234
+  - port: 30000
+    end_port: 30768
 ---
 kind: app
 version: v3
@@ -777,7 +1626,9 @@ func TestCreateClusterAuthPreference_WithSupportForSecondFactorWithoutQuotes(t *
 	}
 
 	process := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
-	clt := testenv.MakeDefaultAuthClient(t, process)
+	clt, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = clt.Close() })
 
 	tests := []struct {
 		desc               string
@@ -840,7 +1691,7 @@ version: v2`,
 				buf, err := runResourceCommand(t, clt, []string{"get", "cap", "--format=json"})
 				require.NoError(t, err)
 				authPreferences := mustDecodeJSON[[]types.AuthPreferenceV2](t, buf)
-				require.NotZero(t, len(authPreferences))
+				require.NotEmpty(t, authPreferences)
 				tt.expectSecondFactor(t, authPreferences[0].Spec.SecondFactor)
 			}
 		})
@@ -862,7 +1713,9 @@ func TestCreateSAMLIdPServiceProvider(t *testing.T) {
 	}
 
 	process := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
-	clt := testenv.MakeDefaultAuthClient(t, process)
+	clt, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = clt.Close() })
 
 	tests := []struct {
 		desc           string
@@ -1029,7 +1882,9 @@ func (test *dynamicResourceTest[T]) setup(t *testing.T) *authclient.Client {
 		},
 	}
 	process := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
-	clt := testenv.MakeDefaultAuthClient(t, process)
+	clt, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = clt.Close() })
 	return clt
 }
 
@@ -1147,7 +2002,6 @@ func TestDatabaseResource(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	require.NoError(t, err)
 	test := dynamicResourceTest[*types.DatabaseV3]{
 		kind:                    types.KindDatabase,
 		resourceYAML:            dbYAML,
@@ -1195,7 +2049,11 @@ func TestAppResource(t *testing.T) {
 		Name:   "foo",
 		Labels: map[string]string{types.OriginLabel: types.OriginDynamic},
 	}, types.AppSpecV3{
-		URI: "localhost1",
+		URI: "tcp://localhost1",
+		TCPPorts: []*types.PortRange{
+			&types.PortRange{Port: 1234},
+			&types.PortRange{Port: 30000, EndPort: 30768},
+		},
 	})
 	require.NoError(t, err)
 	appFooBar1, err := types.NewAppV3(types.Metadata{
@@ -1222,117 +2080,10 @@ func TestAppResource(t *testing.T) {
 	test.run(t)
 }
 
-func TestGetOneResourceNameToDelete(t *testing.T) {
-	foo1 := mustCreateNewKubeServer(t, "foo-eks", "host-foo1", "foo", nil)
-	foo2 := mustCreateNewKubeServer(t, "foo-eks", "host-foo2", "foo", nil)
-	fooBar1 := mustCreateNewKubeServer(t, "foo-bar-eks-us-west-1", "host-foo-bar1", "foo-bar", nil)
-	fooBar2 := mustCreateNewKubeServer(t, "foo-bar-eks-us-west-2", "host-foo-bar2", "foo-bar", nil)
-	tests := []struct {
-		desc            string
-		refName         string
-		wantErrContains string
-		resources       []types.KubeServer
-		wantName        string
-	}{
-		{
-			desc:      "one resource is ok",
-			refName:   "foo-bar-eks-us-west-1",
-			resources: []types.KubeServer{fooBar1},
-			wantName:  "foo-bar-eks-us-west-1",
-		},
-		{
-			desc:      "multiple resources with same name is ok",
-			refName:   "foo",
-			resources: []types.KubeServer{foo1, foo2},
-			wantName:  "foo-eks",
-		},
-		{
-			desc:            "zero resources is an error",
-			refName:         "xxx",
-			wantErrContains: `kubernetes server "xxx" not found`,
-		},
-		{
-			desc:            "multiple resources with different names is an error",
-			refName:         "foo-bar",
-			resources:       []types.KubeServer{fooBar1, fooBar2},
-			wantErrContains: "matches multiple",
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.desc, func(t *testing.T) {
-			ref := services.Ref{Kind: types.KindKubeServer, Name: test.refName}
-			resDesc := "kubernetes server"
-			name, err := getOneResourceNameToDelete(test.resources, ref, resDesc)
-			if test.wantErrContains != "" {
-				require.ErrorContains(t, err, test.wantErrContains)
-				return
-			}
-			require.Equal(t, test.wantName, name)
-		})
-	}
-}
-
-func TestFilterByNameOrDiscoveredName(t *testing.T) {
-	foo1 := mustCreateNewKubeServer(t, "foo-eks-us-west-1", "host-foo", "foo", nil)
-	foo2 := mustCreateNewKubeServer(t, "foo-eks-us-west-2", "host-foo", "foo", nil)
-	fooBar1 := mustCreateNewKubeServer(t, "foo-bar", "host-foo-bar1", "", nil)
-	fooBar2 := mustCreateNewKubeServer(t, "foo-bar-eks-us-west-2", "host-foo-bar2", "foo-bar", nil)
-	resources := []types.KubeServer{
-		foo1, foo2, fooBar1, fooBar2,
-	}
-	hostNameGetter := func(ks types.KubeServer) string { return ks.GetHostname() }
-	tests := []struct {
-		desc           string
-		filter         string
-		altNameGetters []altNameFn[types.KubeServer]
-		want           []types.KubeServer
-	}{
-		{
-			desc:   "filters by exact name",
-			filter: "foo-eks-us-west-1",
-			want:   []types.KubeServer{foo1},
-		},
-		{
-			desc:   "filters by exact name over discovered names",
-			filter: "foo-bar",
-			want:   []types.KubeServer{fooBar1},
-		},
-		{
-			desc:   "filters by discovered name",
-			filter: "foo",
-			want:   []types.KubeServer{foo1, foo2},
-		},
-		{
-			desc:           "checks alt names for exact matches",
-			filter:         "host-foo",
-			altNameGetters: []altNameFn[types.KubeServer]{hostNameGetter},
-			want:           []types.KubeServer{foo1, foo2},
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.desc, func(t *testing.T) {
-			got := filterByNameOrDiscoveredName(resources, test.filter, test.altNameGetters...)
-			require.Empty(t, cmp.Diff(test.want, got))
-		})
-	}
-}
-
-func TestFormatAmbiguousDeleteMessage(t *testing.T) {
-	ref := services.Ref{Kind: types.KindDatabase, Name: "x"}
-	resDesc := "database"
-	names := []string{"xbbb", "xaaa", "xccc", "xb"}
-	got := formatAmbiguousDeleteMessage(ref, resDesc, names)
-	require.Contains(t, got, "db/x matches multiple auto-discovered databases",
-		"should have formatted the ref used and pluralized the resource description")
-	wantSortedNames := strings.Join([]string{"xaaa", "xb", "xbbb", "xccc"}, "\n")
-	require.Contains(t, got, wantSortedNames, "should have sorted the matching names")
-	require.Contains(t, got, "$ tctl rm db/xaaa", "should have contained an example command")
-}
-
 // requireEqual creates an assertion function with a bound `expected` value
 // for use with table-driven tests
-func requireEqual(expected interface{}) require.ValueAssertionFunc {
-	return func(t require.TestingT, actual interface{}, msgAndArgs ...interface{}) {
+func requireEqual(expected any) require.ValueAssertionFunc {
+	return func(t require.TestingT, actual any, msgAndArgs ...any) {
 		require.Equal(t, expected, actual, msgAndArgs...)
 	}
 }
@@ -1349,6 +2100,7 @@ func requireGotDatabaseServers(t *testing.T, buf *bytes.Buffer, want ...types.Da
 	}
 	require.Empty(t, cmp.Diff(types.Databases(want).ToMap(), databases.ToMap(),
 		cmpopts.IgnoreFields(types.Metadata{}, "Namespace", "Expires"),
+		cmpopts.IgnoreFields(types.DatabaseStatusV3{}, "VNetDNSName"),
 	))
 }
 
@@ -1357,20 +2109,39 @@ func requireGotDatabaseServers(t *testing.T, buf *bytes.Buffer, want ...types.Da
 func TestCreateResources(t *testing.T) {
 	t.Parallel()
 
-	process := testenv.MakeTestServer(t, testenv.WithLogger(utils.NewSlogLoggerForTests()))
-	rootClient := testenv.MakeDefaultAuthClient(t, process)
+	process, err := testenv.NewTeleportProcess(t.TempDir(), testenv.WithLogger(logtest.NewLogger()))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
+	rootClient, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = rootClient.Close() })
+
+	// tctlGetAllValidations allows tests to register post-test validations to validate
+	// that their resource is present in "tctl get all" output.
+	// This allows running test rows instead of the whole test table.
+	var tctlGetAllValidations []func(t *testing.T, out string)
 
 	tests := []struct {
-		kind   string
-		create func(t *testing.T, clt *authclient.Client)
+		kind        string
+		create      func(t *testing.T, clt *authclient.Client)
+		getAllCheck func(t *testing.T, out string)
 	}{
 		{
 			kind:   types.KindGithubConnector,
 			create: testCreateGithubConnector,
+			getAllCheck: func(t *testing.T, s string) {
+				assert.Contains(t, s, "kind: github")
+			},
 		},
 		{
 			kind:   types.KindRole,
 			create: testCreateRole,
+			getAllCheck: func(t *testing.T, s string) {
+				assert.Contains(t, s, "kind: role")
+			},
 		},
 		{
 			kind:   types.KindServerInfo,
@@ -1379,6 +2150,13 @@ func TestCreateResources(t *testing.T) {
 		{
 			kind:   types.KindUser,
 			create: testCreateUser,
+			getAllCheck: func(t *testing.T, s string) {
+				assert.Contains(t, s, "kind: user")
+			},
+		},
+		{
+			kind:   "empty-doc",
+			create: testCreateWithEmptyDocument,
 		},
 		{
 			kind:   types.KindDatabaseObjectImportRule,
@@ -1391,10 +2169,16 @@ func TestCreateResources(t *testing.T) {
 		{
 			kind:   types.KindClusterNetworkingConfig,
 			create: testCreateClusterNetworkingConfig,
+			getAllCheck: func(t *testing.T, s string) {
+				assert.Contains(t, s, "kind: cluster_networking_config")
+			},
 		},
 		{
 			kind:   types.KindClusterAuthPreference,
 			create: testCreateAuthPreference,
+			getAllCheck: func(t *testing.T, s string) {
+				assert.Contains(t, s, "kind: cluster_auth_preference")
+			},
 		},
 		{
 			kind:   types.KindSessionRecordingConfig,
@@ -1404,12 +2188,50 @@ func TestCreateResources(t *testing.T) {
 			kind:   types.KindAppServer,
 			create: testCreateAppServer,
 		},
+		{
+			kind:   types.KindStaticHostUser,
+			create: testCreateStaticHostUser,
+		},
+		{
+			kind:   types.KindAutoUpdateConfig,
+			create: testCreateAutoUpdateConfig,
+		},
+		{
+			kind:   types.KindAutoUpdateVersion,
+			create: testCreateAutoUpdateVersion,
+		},
+		{
+			kind:   types.KindAutoUpdateAgentRollout,
+			create: testCreateAutoUpdateAgentRollout,
+		},
+		{
+			kind:   types.KindDynamicWindowsDesktop,
+			create: testCreateDynamicWindowsDesktop,
+		},
+		{
+			kind:   types.KindHealthCheckConfig,
+			create: testCreateHealthCheckConfig,
+			getAllCheck: func(t *testing.T, s string) {
+				assert.Contains(t, s, "kind: health_check_config")
+			},
+		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.kind, func(t *testing.T) {
 			test.create(t, rootClient)
+			if test.getAllCheck != nil {
+				tctlGetAllValidations = append(tctlGetAllValidations, test.getAllCheck)
+			}
 		})
+	}
+
+	// Verify that the created resources appear in tctl get all
+	out, err := runResourceCommand(t, rootClient, []string{"get", "all"})
+	require.NoError(t, err)
+	s := out.String()
+	for _, validateGetAll := range tctlGetAllValidations {
+		validateGetAll(t, s)
 	}
 }
 
@@ -1611,6 +2433,22 @@ spec:
 	require.NoError(t, err)
 }
 
+func testCreateWithEmptyDocument(t *testing.T, clt *authclient.Client) {
+	const userYAML = `
+---
+kind: user
+version: v2
+metadata:
+  name: llama2
+spec:
+  roles: ["access"]
+`
+	userYAMLPath := filepath.Join(t.TempDir(), "user.yaml")
+	require.NoError(t, os.WriteFile(userYAMLPath, []byte(userYAML), 0644))
+	_, err := runResourceCommand(t, clt, []string{"create", userYAMLPath})
+	require.NoError(t, err)
+}
+
 func testCreateUser(t *testing.T, clt *authclient.Client) {
 	// Ensure that our test user does not exist
 	_, err := runResourceCommand(t, clt, []string{"get", types.KindUser + "/llama", "--format=json"})
@@ -1729,8 +2567,8 @@ version: v1
 	var expected databaseobjectimportrule.Resource
 	require.NoError(t, yaml.Unmarshal([]byte(resourceYAML), &expected))
 
-	require.Equal(t, "", cmp.Diff(expected, resources[0], cmpOpts...))
-	require.Equal(t, "", cmp.Diff(databaseobjectimportrule.ResourceToProto(&expected), databaseobjectimportrule.ResourceToProto(&resources[0]), cmpOpts...))
+	require.Empty(t, cmp.Diff(expected, resources[0], cmpOpts...))
+	require.Empty(t, cmp.Diff(databaseobjectimportrule.ResourceToProto(&expected), databaseobjectimportrule.ResourceToProto(&resources[0]), cmpOpts...))
 }
 
 func testCreateClusterNetworkingConfig(t *testing.T, clt *authclient.Client) {
@@ -1806,7 +2644,7 @@ func testCreateAuthPreference(t *testing.T, clt *authclient.Client) {
 metadata:
   name: cluster-auth-preference
 spec:
-  second_factor: off
+  second_factors: [otp, sso]
   type: local
 version: v2
 `
@@ -1823,16 +2661,18 @@ version: v2
 	cap = mustDecodeJSON[[]*types.AuthPreferenceV2](t, buf)
 	require.Len(t, cap, 1)
 
-	var expected types.AuthPreferenceV2
-	require.NoError(t, yaml.Unmarshal([]byte(capYAML), &expected))
+	expectInitialSecondFactors := []types.SecondFactorType{types.SecondFactorType_SECOND_FACTOR_TYPE_OTP} // second factors defaults to [otp]
+	require.Equal(t, expectInitialSecondFactors, initial.GetSecondFactors())
 
-	require.NotEqual(t, constants.SecondFactorOff, initial.GetSecondFactor())
-	require.Equal(t, constants.SecondFactorOff, expected.GetSecondFactor())
+	var revised types.AuthPreferenceV2
+	require.NoError(t, yaml.Unmarshal([]byte(capYAML), &revised))
+	expectRevisedSecondFactors := []types.SecondFactorType{types.SecondFactorType_SECOND_FACTOR_TYPE_OTP, types.SecondFactorType_SECOND_FACTOR_TYPE_SSO}
+	require.Equal(t, expectRevisedSecondFactors, revised.GetSecondFactors())
 
 	// Explicitly change the revision and try creating the cap with and without
 	// the force flag.
-	expected.SetRevision(uuid.NewString())
-	raw, err := services.MarshalAuthPreference(&expected, services.PreserveRevision())
+	revised.SetRevision(uuid.NewString())
+	raw, err := services.MarshalAuthPreference(&revised, services.PreserveRevision())
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(capYAMLPath, raw, 0644))
 
@@ -1899,11 +2739,15 @@ func testCreateAppServer(t *testing.T, clt *authclient.Client) {
 kind: app_server
 metadata:
   name: my-integration
+  labels:
+    account_id: "123456789012"
 spec:
   app:
     kind: app
     metadata:
       name: my-integration
+      labels:
+        account_id: "123456789012"
     spec:
       uri: https://console.aws.amazon.com
       integration: my-integration
@@ -1947,7 +2791,7 @@ version: v3
 	appServers := mustDecodeJSON[[]*types.AppServerV3](t, buf)
 	require.Len(t, appServers, 1)
 
-	expectedAppServer, err := types.NewAppServerForAWSOIDCIntegration("my-integration", "c6cfe5c2-653f-4e5d-a914-bfac5a7baf38", "integration.example.com")
+	expectedAppServer, err := types.NewAppServerForAWSOIDCIntegration("my-integration", "c6cfe5c2-653f-4e5d-a914-bfac5a7baf38", "integration.example.com", map[string]string{"account_id": "123456789012"})
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(
 		expectedAppServer,
@@ -2008,28 +2852,35 @@ version: v1
 	var expected databaseobject.Resource
 	require.NoError(t, yaml.Unmarshal([]byte(resourceYAML), &expected))
 
-	require.Equal(t, "", cmp.Diff(expected, resources[0], cmpOpts...))
-	require.Equal(t, "", cmp.Diff(databaseobject.ResourceToProto(&expected), databaseobject.ResourceToProto(&resources[0]), cmpOpts...))
+	require.Empty(t, cmp.Diff(expected, resources[0], cmpOpts...))
+	require.Empty(t, cmp.Diff(databaseobject.ResourceToProto(&expected), databaseobject.ResourceToProto(&resources[0]), cmpOpts...))
 }
 
 // TestCreateEnterpriseResources asserts that tctl create
-// behaves as expected for enterprise resources. These resources cannot
-// be tested in parallel because they alter the modules to enable features.
-// The tests are grouped to amortize the cost of creating and auth server since
+// behaves as expected for enterprise resources. The tests are
+// grouped to amortize the cost of creating and auth server since
 // that is the most expensive part of testing editing the resource.
 func TestCreateEnterpriseResources(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.OIDC: {Enabled: true},
-				entitlements.SAML: {Enabled: true},
+	t.Parallel()
+	process, err := testenv.NewTeleportProcess(t.TempDir(), testenv.WithConfig(func(cfg *servicecfg.Config) {
+		cfg.Modules = &modulestest.Modules{
+			TestBuildType: modules.BuildEnterprise,
+			TestFeatures: modules.Features{
+				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+					entitlements.OIDC: {Enabled: true},
+					entitlements.SAML: {Enabled: true},
+				},
 			},
-		},
+		}
+	}))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
 	})
-
-	process := testenv.MakeTestServer(t)
-	clt := testenv.MakeDefaultAuthClient(t, process)
+	clt, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = clt.Close() })
 
 	tests := []struct {
 		kind   string
@@ -2051,6 +2902,13 @@ func TestCreateEnterpriseResources(t *testing.T) {
 		})
 	}
 
+	// Verify that the created resources appear in tctl get all
+	out, err := runResourceCommand(t, clt, []string{"get", "all"})
+	require.NoError(t, err)
+	s := out.String()
+	require.NotEmpty(t, s)
+	assert.Contains(t, s, "kind: saml")
+	assert.Contains(t, s, "kind: oidc")
 }
 
 func testCreateOIDCConnector(t *testing.T, clt *authclient.Client) {
@@ -2069,6 +2927,7 @@ spec:
   client_id: "12345"
   client_secret: "678910"
   display: OIDC
+  pkce_mode: "enabled"
   scope: [roles]
   claims_to_roles:
     - {claim: "test", value: "test", roles: ["access", "editor", "auditor"]}`
@@ -2124,7 +2983,7 @@ spec:
   acs: test
   audience: test
   issuer: test
-  sso: test
+  sso: https://example.com
   service_provider_issuer: test
   display: SAML
   attributes_to_roles:
@@ -2145,8 +3004,8 @@ spec:
         </md:KeyDescriptor>
         <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress</md:NameIDFormat>
         <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified</md:NameIDFormat>
-        <md:SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="test" />
-        <md:SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="test" />
+        <md:SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://example.com" />
+        <md:SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="https://example.com" />
       </md:IDPSSODescriptor>
     </md:EntityDescriptor>` + "\n"
 
@@ -2186,6 +3045,247 @@ spec:
 	require.NoError(t, err)
 }
 
+func testCreateStaticHostUser(t *testing.T, clt *authclient.Client) {
+	// Ensure that our test user does not exist
+	resourceName := "alice"
+	resourceKey := types.KindStaticHostUser + "/" + resourceName
+	_, err := runResourceCommand(t, clt, []string{"get", resourceKey, "--format=json"})
+	require.Error(t, err)
+	require.True(t, trace.IsNotFound(err), "unexpected error: %v", err)
+
+	const userYAML = `kind: static_host_user
+version: v2
+metadata:
+  name: alice
+spec:
+  matchers:
+    - node_labels:
+      - name: foo
+        values: ["bar"]
+      groups:
+        - foo
+        - bar
+      uid: 1234
+      gid: 5678
+    - node_labels_expression: 'labels["foo"] == labels["bar"]'
+      groups:
+        - baz
+        - quux
+      sudoers: ["abc1234"]
+`
+
+	// Create the host user
+	userYAMLPath := filepath.Join(t.TempDir(), "host_user.yaml")
+	require.NoError(t, os.WriteFile(userYAMLPath, []byte(userYAML), 0644))
+	_, err = runResourceCommand(t, clt, []string{"create", userYAMLPath})
+	require.NoError(t, err)
+
+	// Fetch the user
+	buf, err := runResourceCommand(t, clt, []string{"get", resourceKey, "--format=json"})
+	require.NoError(t, err)
+	hostUsers := mustDecodeJSON[[]*userprovisioningpb.StaticHostUser](t, buf)
+	require.Len(t, hostUsers, 1)
+
+	var expected userprovisioningpb.StaticHostUser
+	require.NoError(t, yaml.Unmarshal([]byte(userYAML), &expected))
+
+	require.Empty(t, cmp.Diff(
+		[]*userprovisioningpb.StaticHostUser{&expected},
+		hostUsers,
+		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
+		protocmp.Transform(),
+	))
+
+	// Explicitly change the revision and try creating the user with and without
+	// the force flag.
+	expected.GetMetadata().SetRevision(uuid.NewString())
+	hostUserBytes, err := services.MarshalProtoResource(&expected, services.PreserveRevision())
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(userYAMLPath, hostUserBytes, 0644))
+
+	_, err = runResourceCommand(t, clt, []string{"create", userYAMLPath})
+	require.Error(t, err)
+	require.True(t, trace.IsAlreadyExists(err), "unexpected error: %v", err)
+
+	_, err = runResourceCommand(t, clt, []string{"create", "-f", userYAMLPath})
+	require.NoError(t, err)
+}
+
+func testCreateAutoUpdateConfig(t *testing.T, clt *authclient.Client) {
+	const resourceYAML = `kind: autoupdate_config
+metadata:
+  name: autoupdate-config
+  revision: 3a43b44a-201e-4d7f-aef1-ae2f6d9811ed
+spec:
+  tools:
+    mode: enabled
+version: v1
+`
+	_, err := runResourceCommand(t, clt, []string{"get", types.KindAutoUpdateConfig, "--format=json"})
+	require.ErrorContains(t, err, "doesn't exist")
+
+	// Create the resource.
+	resourceYAMLPath := filepath.Join(t.TempDir(), "resource.yaml")
+	require.NoError(t, os.WriteFile(resourceYAMLPath, []byte(resourceYAML), 0644))
+	_, err = runResourceCommand(t, clt, []string{"create", resourceYAMLPath})
+	require.NoError(t, err)
+
+	buf, err := runResourceCommand(t, clt, []string{"get", types.KindAutoUpdateConfig, "--format=json"})
+	require.NoError(t, err)
+
+	rawResources := mustDecodeJSON[[]services.UnknownResource](t, buf)
+	require.Len(t, rawResources, 1)
+	var resource autoupdate.AutoUpdateConfig
+	require.NoError(t, protojson.UnmarshalOptions{}.Unmarshal(rawResources[0].Raw, &resource))
+
+	var expected autoupdate.AutoUpdateConfig
+	expectedJSON := mustTranscodeYAMLToJSON(t, bytes.NewReader([]byte(resourceYAML)))
+	require.NoError(t, protojson.UnmarshalOptions{}.Unmarshal(expectedJSON, &expected))
+
+	require.Empty(t, cmp.Diff(
+		&expected,
+		&resource,
+		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
+		protocmp.Transform(),
+	))
+
+	// Delete the resource
+	_, err = runResourceCommand(t, clt, []string{"rm", types.KindAutoUpdateConfig})
+	require.NoError(t, err)
+	_, err = runResourceCommand(t, clt, []string{"get", types.KindAutoUpdateConfig})
+	require.ErrorContains(t, err, "autoupdate_config \"autoupdate-config\" doesn't exist")
+}
+
+func testCreateAutoUpdateVersion(t *testing.T, clt *authclient.Client) {
+	const resourceYAML = `kind: autoupdate_version
+metadata:
+  name: autoupdate-version
+  revision: 3a43b44a-201e-4d7f-aef1-ae2f6d9811ed
+spec:
+  tools:
+    target_version: 1.2.3
+version: v1
+`
+	_, err := runResourceCommand(t, clt, []string{"get", types.KindAutoUpdateVersion, "--format=json"})
+	require.ErrorContains(t, err, "doesn't exist")
+
+	// Create the resource.
+	resourceYAMLPath := filepath.Join(t.TempDir(), "resource.yaml")
+	require.NoError(t, os.WriteFile(resourceYAMLPath, []byte(resourceYAML), 0644))
+	_, err = runResourceCommand(t, clt, []string{"create", resourceYAMLPath})
+	require.NoError(t, err)
+
+	buf, err := runResourceCommand(t, clt, []string{"get", types.KindAutoUpdateVersion, "--format=json"})
+	require.NoError(t, err)
+
+	rawResources := mustDecodeJSON[[]services.UnknownResource](t, buf)
+	require.Len(t, rawResources, 1)
+	var resource autoupdate.AutoUpdateVersion
+	require.NoError(t, protojson.UnmarshalOptions{}.Unmarshal(rawResources[0].Raw, &resource))
+
+	var expected autoupdate.AutoUpdateVersion
+	expectedJSON := mustTranscodeYAMLToJSON(t, bytes.NewReader([]byte(resourceYAML)))
+	require.NoError(t, protojson.UnmarshalOptions{}.Unmarshal(expectedJSON, &expected))
+
+	require.Empty(t, cmp.Diff(
+		&expected,
+		&resource,
+		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
+		protocmp.Transform(),
+	))
+
+	// Delete the resource
+	_, err = runResourceCommand(t, clt, []string{"rm", types.KindAutoUpdateVersion})
+	require.NoError(t, err)
+	_, err = runResourceCommand(t, clt, []string{"get", types.KindAutoUpdateVersion})
+	require.ErrorContains(t, err, "autoupdate_version \"autoupdate-version\" doesn't exist")
+}
+
+func testCreateAutoUpdateAgentRollout(t *testing.T, clt *authclient.Client) {
+	const resourceYAML = `kind: autoupdate_agent_rollout
+metadata:
+  name: autoupdate-agent-rollout
+  revision: 3a43b44a-201e-4d7f-aef1-ae2f6d9811ed
+spec:
+  start_version: 1.2.3
+  target_version: 1.2.3
+  autoupdate_mode: "suspended"
+  schedule: "regular"
+  strategy: "halt-on-error"
+status:
+  groups:
+    - name: my-group
+      state: 1
+      config_days: ["*"]
+      config_start_hour: 12
+      config_wait_hours: 0
+version: v1
+`
+	_, err := runResourceCommand(t, clt, []string{"get", types.KindAutoUpdateAgentRollout, "--format=json"})
+	require.ErrorContains(t, err, "doesn't exist")
+
+	// Create the resource.
+	resourceYAMLPath := filepath.Join(t.TempDir(), "resource.yaml")
+	require.NoError(t, os.WriteFile(resourceYAMLPath, []byte(resourceYAML), 0644))
+	_, err = runResourceCommand(t, clt, []string{"create", resourceYAMLPath})
+	require.NoError(t, err)
+
+	// Get the resource
+	buf, err := runResourceCommand(t, clt, []string{"get", types.KindAutoUpdateAgentRollout, "--format=json"})
+	require.NoError(t, err)
+
+	rawResources := mustDecodeJSON[[]services.UnknownResource](t, buf)
+	require.Len(t, rawResources, 1)
+	var resource autoupdate.AutoUpdateAgentRollout
+	require.NoError(t, protojson.UnmarshalOptions{}.Unmarshal(rawResources[0].Raw, &resource))
+
+	var expected autoupdate.AutoUpdateAgentRollout
+	expectedJSON := mustTranscodeYAMLToJSON(t, bytes.NewReader([]byte(resourceYAML)))
+	require.NoError(t, protojson.UnmarshalOptions{}.Unmarshal(expectedJSON, &expected))
+
+	require.Empty(t, cmp.Diff(
+		&expected,
+		&resource,
+		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
+		protocmp.Transform(),
+	))
+
+	// Delete the resource
+	_, err = runResourceCommand(t, clt, []string{"rm", types.KindAutoUpdateAgentRollout})
+	require.NoError(t, err)
+	_, err = runResourceCommand(t, clt, []string{"get", types.KindAutoUpdateAgentRollout})
+	require.ErrorContains(t, err, "autoupdate_agent_rollout \"autoupdate-agent-rollout\" doesn't exist")
+}
+
+func testCreateDynamicWindowsDesktop(t *testing.T, clt *authclient.Client) {
+	const resourceYAML = `kind: dynamic_windows_desktop
+metadata:
+  name: test
+  revision: 3a43b44a-201e-4d7f-aef1-ae2f6d9811ed
+spec:
+  addr: test
+version: v1
+`
+
+	// Create the resource.
+	resourceYAMLPath := filepath.Join(t.TempDir(), "resource.yaml")
+	require.NoError(t, os.WriteFile(resourceYAMLPath, []byte(resourceYAML), 0644))
+	_, err := runResourceCommand(t, clt, []string{"create", resourceYAMLPath})
+	require.NoError(t, err)
+
+	// Get the resource
+	buf, err := runResourceCommand(t, clt, []string{"get", types.KindDynamicWindowsDesktop, "--format=json"})
+	require.NoError(t, err)
+	resources := mustDecodeJSON[[]types.DynamicWindowsDesktopV1](t, buf)
+	require.Len(t, resources, 1)
+
+	var expected types.DynamicWindowsDesktopV1
+	require.NoError(t, yaml.Unmarshal([]byte(resourceYAML), &expected))
+	expected.SetRevision(resources[0].GetRevision())
+
+	require.Empty(t, cmp.Diff([]types.DynamicWindowsDesktopV1{expected}, resources, protocmp.Transform()))
+}
+
 func TestPluginResourceWrapper(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -2194,6 +3294,8 @@ func TestPluginResourceWrapper(t *testing.T) {
 		{
 			name: "okta",
 			plugin: types.PluginV1{
+				Kind:    types.KindPlugin,
+				Version: types.V1,
 				Metadata: types.Metadata{
 					Name: "okta",
 				},
@@ -2219,6 +3321,8 @@ func TestPluginResourceWrapper(t *testing.T) {
 		{
 			name: "slack",
 			plugin: types.PluginV1{
+				Kind:    types.KindPlugin,
+				Version: types.V1,
 				Metadata: types.Metadata{
 					Name: "okta",
 				},
@@ -2239,6 +3343,118 @@ func TestPluginResourceWrapper(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "identity center",
+			plugin: types.PluginV1{
+				Kind:    types.KindPlugin,
+				Version: types.V1,
+				Metadata: types.Metadata{
+					Name: apicommon.OriginAWSIdentityCenter,
+					Labels: map[string]string{
+						"teleport.dev/hosted-plugin": "true",
+					},
+				},
+				Spec: types.PluginSpecV1{
+					Settings: &types.PluginSpecV1_AwsIc{
+						AwsIc: &types.PluginAWSICSettings{
+							Credentials: &types.AWSICCredentials{
+								Source: &types.AWSICCredentials_System{
+									System: &types.AWSICCredentialSourceSystem{},
+								},
+							},
+							Region: "ap-south-2",
+							Arn:    "some:arn",
+							ProvisioningSpec: &types.AWSICProvisioningSpec{
+								BaseUrl: "https://scim.example.com/v2",
+							},
+							AccessListDefaultOwners: []string{"root"},
+							UserSyncFilters: []*types.AWSICUserSyncFilter{
+								{Labels: map[string]string{types.OriginLabel: types.OriginOkta}},
+								{Labels: map[string]string{types.OriginLabel: types.OriginEntraID}},
+							},
+							GroupSyncFilters: []*types.AWSICResourceFilter{
+								{Include: &types.AWSICResourceFilter_NameRegex{NameRegex: `^Group #\\d+$`}},
+								{Include: &types.AWSICResourceFilter_Id{Id: "42"}},
+							},
+							AwsAccountsFilters: []*types.AWSICResourceFilter{
+								{Include: &types.AWSICResourceFilter_Id{Id: "314159"}},
+								{Include: &types.AWSICResourceFilter_NameRegex{NameRegex: `^Account #\\d+$`}},
+							},
+						},
+					},
+				},
+				Status: types.PluginStatusV1{
+					Code: types.PluginStatusCode_RUNNING,
+					Details: &types.PluginStatusV1_AwsIc{
+						AwsIc: &types.PluginAWSICStatusV1{
+							GroupImportStatus: &types.AWSICGroupImportStatus{
+								StatusCode: types.AWSICGroupImportStatusCode_DONE,
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "entra_id",
+			plugin: types.PluginV1{
+				Kind:    types.KindPlugin,
+				Version: types.V1,
+				Metadata: types.Metadata{
+					Name: "entra_id",
+				},
+				Spec: types.PluginSpecV1{
+					Settings: &types.PluginSpecV1_EntraId{
+						EntraId: &types.PluginEntraIDSettings{},
+					},
+				},
+				Status: types.PluginStatusV1{
+					Details: &types.PluginStatusV1_EntraId{
+						EntraId: &types.PluginEntraIDStatusV1{},
+					},
+				},
+			},
+		},
+		{
+			name: "gitlab",
+			plugin: types.PluginV1{
+				Kind:    types.KindPlugin,
+				Version: types.V1,
+				Metadata: types.Metadata{
+					Name: "gitlab",
+				},
+				Spec: types.PluginSpecV1{
+					Settings: &types.PluginSpecV1_Gitlab{
+						Gitlab: &types.PluginGitlabSettings{},
+					},
+				},
+				Status: types.PluginStatusV1{
+					Details: &types.PluginStatusV1_Gitlab{
+						Gitlab: &types.PluginGitlabStatusV1{},
+					},
+				},
+			},
+		},
+		{
+			name: "net_iq",
+			plugin: types.PluginV1{
+				Kind:    types.KindPlugin,
+				Version: types.V1,
+				Metadata: types.Metadata{
+					Name: "net_iq",
+				},
+				Spec: types.PluginSpecV1{
+					Settings: &types.PluginSpecV1_NetIq{
+						NetIq: &types.PluginNetIQSettings{},
+					},
+				},
+				Status: types.PluginStatusV1{
+					Details: &types.PluginStatusV1_NetIq{
+						NetIq: &types.PluginNetIQStatusV1{},
+					},
+				},
+			},
+		},
 	}
 
 	for _, tc := range tests {
@@ -2252,6 +3468,92 @@ func TestPluginResourceWrapper(t *testing.T) {
 			err = json.Unmarshal(buff, &item)
 			require.NoError(t, err)
 			require.Empty(t, cmp.Diff(tc.plugin, item.PluginV1))
+		})
+	}
+}
+
+func TestParseScopedRef(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		ref     string
+		id      string
+		want    ScopedRef
+		wantErr bool
+	}{
+		{
+			name: "empty id returns ref unchanged",
+			ref:  "role/myrole",
+			id:   "",
+			want: ScopedRef{Kind: "role", Name: "myrole"},
+		},
+		{
+			name: "bare name, no subkind",
+			ref:  "scoped_role",
+			id:   "myrole",
+			want: ScopedRef{Kind: "scoped_role", Name: "myrole"},
+		},
+		{
+			name: "bare name with subkind promotion",
+			ref:  "scoped_role_assignment/dynamic",
+			id:   "myassignment",
+			want: ScopedRef{Kind: "scoped_role_assignment", SubKind: "dynamic", Name: "myassignment"},
+		},
+		{
+			name: "SQN, no subkind",
+			ref:  "scoped_role",
+			id:   "/staging/west::myrole",
+			want: ScopedRef{Kind: "scoped_role", Scope: "/staging/west", Name: "myrole"},
+		},
+		{
+			name: "SQN with subkind promotion",
+			ref:  "scoped_role_assignment/dynamic",
+			id:   "/staging/west::myassignment",
+			want: ScopedRef{Kind: "scoped_role_assignment", SubKind: "dynamic", Scope: "/staging/west", Name: "myassignment"},
+		},
+		{
+			name: "root scope SQN",
+			ref:  "scoped_token",
+			id:   "/::test-token",
+			want: ScopedRef{Kind: "scoped_token", Scope: "/", Name: "test-token"},
+		},
+		{
+			name:    "three-segment first arg with second arg is an error",
+			ref:     "scoped_role_assignment/dynamic/myassignment",
+			id:      "/staging::extra",
+			wantErr: true,
+		},
+		{
+			name:    "invalid SQN is an error",
+			ref:     "scoped_role",
+			id:      "/staging::my role",
+			wantErr: true,
+		},
+		{
+			name: "scoped token with only name",
+			ref:  "scoped_token",
+			id:   "/test::test-token",
+			want: ScopedRef{Kind: "scoped_token", Scope: "/test", Name: "test-token"},
+		},
+		{
+			name: "scoped token with name and secret",
+			ref:  "scoped_token",
+			id:   "/test::test-token:YzZlYzdlYTg1YTZjZTEwZjVjYjAxMTc3Mjc2NTk3NGY",
+			want: ScopedRef{Kind: "scoped_token", Scope: "/test", Name: "test-token"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got, err := ParseScopedRef(tt.ref, tt.id)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.want, got)
 		})
 	}
 }

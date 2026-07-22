@@ -25,70 +25,177 @@ import (
 
 	"github.com/gravitational/trace"
 
-	presencepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
+	"github.com/gravitational/teleport/api/client/proto"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
+	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/services"
 )
 
 // httpfallback.go holds endpoints that have been converted to gRPC
 // but still need http fallback logic in the old client.
 
-// TODO(Joerger): DELETE IN 16.0.0
-func (c *Client) RotateCertAuthority(ctx context.Context, req types.RotateRequest) error {
-	err := c.APIClient.RotateCertAuthority(ctx, req)
-	if trace.IsNotImplemented(err) {
-		// Fall back to HTTP implementation.
-		_, err := c.PostJSON(ctx, c.Endpoint("authorities", string(req.Type), "rotate"), req)
-		return trace.Wrap(err)
+// ValidateTrustedCluster is called by the proxy on behalf of a cluster that
+// wishes to join another as a leaf cluster.
+func (c *Client) ValidateTrustedCluster(ctx context.Context, validateRequest *ValidateTrustedClusterRequest) (*ValidateTrustedClusterResponse, error) {
+	protoReq, err := validateRequest.ToProto()
+	if err != nil {
+		return nil, trace.Wrap(err, "converting native ValidateTrustedClusterRequest to proto")
 	}
-
-	return trace.Wrap(err)
-}
-
-type rotateExternalCertAuthorityRawReq struct {
-	CA json.RawMessage `json:"ca"`
-}
-
-// TODO(Joerger): DELETE IN 16.0.0
-func (c *Client) RotateExternalCertAuthority(ctx context.Context, ca types.CertAuthority) error {
-	err := c.APIClient.RotateExternalCertAuthority(ctx, ca)
-	if trace.IsNotImplemented(err) {
-		// Fall back to HTTP implementation.
-		data, err := services.MarshalCertAuthority(ca)
-		if err != nil {
-			return trace.Wrap(err)
+	protoResp, err := c.APIClient.ValidateTrustedCluster(ctx, protoReq)
+	if err != nil {
+		if trace.IsNotImplemented(err) {
+			return c.HTTPClient.validateTrustedCluster(ctx, validateRequest)
 		}
-		_, err = c.PostJSON(ctx, c.Endpoint("authorities", string(ca.GetType()), "rotate", "external"),
-			&rotateExternalCertAuthorityRawReq{CA: data})
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err, "calling ValidateTrustedCluster on gRPC client")
+	}
+	return ValidateTrustedClusterResponseFromProto(protoResp), nil
+}
+
+// TODO(noah): DELETE IN 21.0.0
+func (c *HTTPClient) validateTrustedCluster(ctx context.Context, validateRequest *ValidateTrustedClusterRequest) (*ValidateTrustedClusterResponse, error) {
+	validateRequestRaw, err := validateRequest.ToRaw()
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
+	out, err := c.PostJSON(ctx, c.Endpoint("trustedclusters", "validate"), validateRequestRaw)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var validateResponseRaw ValidateTrustedClusterResponseRaw
+	err = json.Unmarshal(out.Bytes(), &validateResponseRaw)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	validateResponse, err := validateResponseRaw.ToNative()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return validateResponse, nil
+}
+
+// UpsertTunnelConnection creates or updates a tunnel connection record.
+//
+// TODO(strideynet): DELETE IN v20.0.0
+func (c *Client) UpsertTunnelConnection(ctx context.Context, conn types.TunnelConnection) error {
+	connV2, ok := conn.(*types.TunnelConnectionV2)
+	if !ok {
+		return trace.BadParameter("unsupported tunnel connection type %T", conn)
+	}
+	_, err := c.TrustClient().UpsertTunnelConnection(ctx, trustpb.UpsertTunnelConnectionRequest_builder{
+		TunnelConnection: connV2,
+	}.Build())
+	if err != nil {
+		if trace.IsNotImplemented(err) {
+			return trace.Wrap(c.HTTPClient.upsertTunnelConnection(ctx, conn))
+		}
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// TODO(strideynet): DELETE IN v20.0.0
+func (c *HTTPClient) upsertTunnelConnection(ctx context.Context, conn types.TunnelConnection) error {
+	data, err := services.MarshalTunnelConnection(conn)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	args := &struct {
+		TunnelConnection json.RawMessage `json:"tunnel_connection"`
+	}{
+		TunnelConnection: data,
+	}
+	_, err = c.PostJSON(ctx, c.Endpoint("tunnelconnections"), args)
 	return trace.Wrap(err)
 }
 
-func (c *Client) deleteRemoteClusterLegacy(ctx context.Context, clusterName string) error {
+// DeleteTunnelConnection removes a tunnel connection by cluster and connection name.
+//
+// TODO(strideynet): DELETE IN v20.0.0
+func (c *Client) DeleteTunnelConnection(ctx context.Context, clusterName, connName string) error {
+	_, err := c.TrustClient().DeleteTunnelConnection(ctx, trustpb.DeleteTunnelConnectionRequest_builder{
+		ClusterName:    clusterName,
+		ConnectionName: connName,
+	}.Build())
+	if err != nil {
+		if trace.IsNotImplemented(err) {
+			return trace.Wrap(c.HTTPClient.deleteTunnelConnection(ctx, clusterName, connName))
+		}
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// TODO(strideynet): DELETE IN v20.0.0
+func (c *HTTPClient) deleteTunnelConnection(ctx context.Context, clusterName, connName string) error {
 	if clusterName == "" {
 		return trace.BadParameter("missing parameter cluster name")
 	}
-	_, err := c.Delete(ctx, c.Endpoint("remoteclusters", clusterName))
+	if connName == "" {
+		return trace.BadParameter("missing parameter connection name")
+	}
+	_, err := c.Delete(ctx, c.Endpoint("tunnelconnections", clusterName, connName))
 	return trace.Wrap(err)
 }
 
-// DeleteRemoteCluster deletes remote cluster by name
-// TODO(noah): DELETE IN 17.0.0
-func (c *Client) DeleteRemoteCluster(ctx context.Context, name string) error {
-	err := c.APIClient.DeleteRemoteCluster(ctx, name)
-	if err == nil {
-		return nil
+// GetTunnelConnections returns all tunnel connections for a given cluster.
+//
+// TODO(noah): DELETE IN 20.0.0 — inline the gRPC page-loop directly once the
+// HTTP fallback is removed; keep the method signature.
+func (c *Client) GetTunnelConnections(ctx context.Context, clusterName string) ([]types.TunnelConnection, error) {
+	if clusterName == "" {
+		return nil, trace.BadParameter("missing cluster name parameter")
 	}
-	if !trace.IsNotImplemented(err) {
-		return trace.Wrap(err)
-	}
-	return c.deleteRemoteClusterLegacy(ctx, name)
+	return c.listAllTunnelConnections(ctx, clusterName)
 }
 
-func (c *Client) getRemoteClustersLegacy(ctx context.Context) ([]types.RemoteCluster, error) {
-	out, err := c.Get(ctx, c.Endpoint("remoteclusters"), url.Values{})
+// GetAllTunnelConnections returns all tunnel connections across all clusters.
+//
+// TODO(noah): DELETE IN 20.0.0
+func (c *Client) GetAllTunnelConnections(ctx context.Context) ([]types.TunnelConnection, error) {
+	return c.listAllTunnelConnections(ctx, "")
+}
+
+// TODO(noah): DELETE IN 20.0.0
+func (c *Client) listAllTunnelConnections(ctx context.Context, clusterName string) ([]types.TunnelConnection, error) {
+	var filter *trustpb.ListTunnelConnectionsFilter
+	if clusterName != "" {
+		filter = trustpb.ListTunnelConnectionsFilter_builder{ClusterName: clusterName}.Build()
+	}
+
+	items, err := clientutils.CollectWithFallback(
+		ctx,
+		func(
+			ctx context.Context, pageSize int, pageToken string,
+		) ([]types.TunnelConnection, string, error) {
+			return c.APIClient.ListTunnelConnections(ctx, pageSize, pageToken, filter)
+		},
+		func(ctx context.Context) ([]types.TunnelConnection, error) {
+			if clusterName != "" {
+				return c.HTTPClient.getTunnelConnectionsLegacy(ctx, clusterName)
+			}
+			return c.HTTPClient.getAllTunnelConnectionsLegacy(ctx)
+		},
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return items, nil
+}
+
+// getTunnelConnectionsLegacy returns tunnel connections for a given cluster.
+//
+// TODO(noah): DELETE IN 20.0.0
+func (c *HTTPClient) getTunnelConnectionsLegacy(ctx context.Context, clusterName string) ([]types.TunnelConnection, error) {
+	if clusterName == "" {
+		return nil, trace.BadParameter("missing cluster name parameter")
+	}
+	out, err := c.Get(ctx, c.Endpoint("tunnelconnections", clusterName), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -96,88 +203,196 @@ func (c *Client) getRemoteClustersLegacy(ctx context.Context) ([]types.RemoteClu
 	if err := json.Unmarshal(out.Bytes(), &items); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	conns := make([]types.RemoteCluster, 0, len(items))
-	for _, raw := range items {
-		conn, err := services.UnmarshalRemoteCluster(raw)
+	conns := make([]types.TunnelConnection, len(items))
+	for i, raw := range items {
+		conn, err := services.UnmarshalTunnelConnection(raw)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		conns = append(conns, conn)
+		conns[i] = conn
 	}
 	return conns, nil
 }
 
-// GetRemoteClusters returns a list of remote clusters
-// Prefer using ListRemoteClusters.
-// TODO(noah): DELETE IN 17.0.0
-func (c *Client) GetRemoteClusters(ctx context.Context) ([]types.RemoteCluster, error) {
-	var rcs []types.RemoteCluster
-	pageToken := ""
-	for {
-		page, nextToken, err := c.APIClient.ListRemoteClusters(ctx, 0, pageToken)
+// getAllTunnelConnectionsLegacy returns all tunnel connections.
+//
+// TODO(noah): DELETE IN 20.0.0
+func (c *HTTPClient) getAllTunnelConnectionsLegacy(ctx context.Context) ([]types.TunnelConnection, error) {
+	out, err := c.Get(ctx, c.Endpoint("tunnelconnections"), url.Values{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var items []json.RawMessage
+	if err := json.Unmarshal(out.Bytes(), &items); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	conns := make([]types.TunnelConnection, len(items))
+	for i, raw := range items {
+		conn, err := services.UnmarshalTunnelConnection(raw)
 		if err != nil {
-			if trace.IsNotImplemented(err) {
-				return c.getRemoteClustersLegacy(ctx)
-			}
 			return nil, trace.Wrap(err)
 		}
-		rcs = append(rcs, page...)
-		if nextToken == "" {
-			return rcs, nil
+		conns[i] = conn
+	}
+	return conns, nil
+}
+
+// GetAuthServers returns the list of auth servers registered in the cluster.
+//
+// Deprecated: Prefer paginated variant [APIClient.ListAuthServers].
+//
+// TODO(kiosion): DELETE IN 21.0.0
+func (c *HTTPClient) GetAuthServers() ([]types.Server, error) {
+	out, err := c.Get(context.TODO(), c.Endpoint("authservers"), url.Values{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var items []json.RawMessage
+	if err := json.Unmarshal(out.Bytes(), &items); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	re := make([]types.Server, len(items))
+	for i, raw := range items {
+		server, err := services.UnmarshalServer(raw, types.KindAuthServer)
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
-		pageToken = nextToken
+		re[i] = server
 	}
+	return re, nil
 }
 
-func (c *Client) getRemoteClusterLegacy(ctx context.Context, clusterName string) (types.RemoteCluster, error) {
-	if clusterName == "" {
-		return nil, trace.BadParameter("missing cluster name")
-	}
-	out, err := c.Get(ctx, c.Endpoint("remoteclusters", clusterName), url.Values{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return services.UnmarshalRemoteCluster(out.Bytes())
-}
-
-// GetRemoteCluster returns remote cluster by name
-// TODO(noah): DELETE IN 17.0.0
-func (c *Client) GetRemoteCluster(ctx context.Context, name string) (types.RemoteCluster, error) {
-	res, err := c.APIClient.GetRemoteCluster(ctx, name)
-	if err == nil {
-		return res, nil
-	}
-	if !trace.IsNotImplemented(err) {
-		return nil, trace.Wrap(err)
-	}
-	return c.getRemoteClusterLegacy(ctx, name)
-}
-
-// UpdateRemoteCluster updates a remote cluster.
-// TODO(noah): DELETE IN 17.0.0 and update api/client.go to call new endpoint
-func (c *Client) UpdateRemoteCluster(ctx context.Context, rc types.RemoteCluster) (types.RemoteCluster, error) {
-	rcV3, ok := rc.(*types.RemoteClusterV3)
+// UpsertProxyServerWithoutReturn registers a proxy server heartbeat. It calls
+// the gRPC PresenceService and falls back to the legacy HTTP endpoint if the
+// server does not yet implement the gRPC RPC. The upserted proxy server is not
+// returned because the HTTP fallback path cannot provide it; once the fallback
+// is removed in v20 this can be replaced with a method that returns the
+// upserted server.
+//
+// TODO(noah): DELETE IN v20.0.0
+func (c *Client) UpsertProxyServerWithoutReturn(ctx context.Context, s types.Server) error {
+	serverV2, ok := s.(*types.ServerV2)
 	if !ok {
-		return nil, trace.BadParameter("unsupported remote cluster type %T", rcV3)
+		return trace.BadParameter("unsupported proxy server type %T", s)
 	}
-	out, err := c.APIClient.PresenceServiceClient().UpdateRemoteCluster(ctx, &presencepb.UpdateRemoteClusterRequest{
-		RemoteCluster: rcV3,
-	})
+	_, err := c.APIClient.PresenceServiceClient().UpsertProxyServer(ctx, presencev1.UpsertProxyServerRequest_builder{
+		Server: serverV2,
+	}.Build())
 	if err == nil {
-		return out, nil
+		return nil
 	}
 	if !trace.IsNotImplemented(err) {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
+	return c.HTTPClient.upsertProxyServerLegacy(ctx, s)
+}
 
-	// This is a little weird during the migration period of the old endpoints
-	// to grpc. Here, we need to call Update via gRPC and Get via HTTP.
-	if err := c.APIClient.UpdateRemoteCluster(ctx, rc); err != nil {
+// upsertProxyServerLegacy registers a proxy server heartbeat via the legacy
+// HTTP endpoint.
+//
+// TODO(noah): DELETE IN v20.0.0
+func (c *HTTPClient) upsertProxyServerLegacy(ctx context.Context, s types.Server) error {
+	data, err := services.MarshalServer(s)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	args := &upsertServerRawReq{
+		Server: data,
+	}
+	_, err = c.PostJSON(ctx, c.Endpoint("proxies"), args)
+	return trace.Wrap(err)
+}
+
+// DeleteProxyServer deletes a proxy server heartbeat by name. It calls the
+// gRPC PresenceService and falls back to the legacy HTTP endpoint if the
+// server does not yet implement the gRPC RPC.
+//
+// TODO(noah): DELETE IN v20.0.0
+func (c *Client) DeleteProxyServer(ctx context.Context, name string) error {
+	_, err := c.APIClient.PresenceServiceClient().DeleteProxyServer(ctx, presencev1.DeleteProxyServerRequest_builder{
+		Name: name,
+	}.Build())
+	if err == nil {
+		return nil
+	}
+	if !trace.IsNotImplemented(err) {
+		return trace.Wrap(err)
+	}
+	return c.HTTPClient.deleteProxyServerLegacy(ctx, name)
+}
+
+// deleteProxyServerLegacy deletes proxy by name via the legacy HTTP endpoint.
+//
+// TODO(noah): DELETE IN v20.0.0
+func (c *HTTPClient) deleteProxyServerLegacy(ctx context.Context, name string) error {
+	if name == "" {
+		return trace.BadParameter("missing parameter name")
+	}
+	_, err := c.Delete(ctx, c.Endpoint("proxies", name))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// ExtendWebSession creates a new web session for a user based on a valid
+// existing web session, e.g. to apply an approved access request, switch back
+// to default roles, or pick up recent user changes. It calls the gRPC
+// AuthService and falls back to the legacy HTTP endpoint if the server does
+// not yet implement the gRPC RPC.
+//
+// TODO(strideynet): DELETE IN v20.0.0 - remove the fallback and call the gRPC
+// RPC directly.
+func (c *Client) ExtendWebSession(ctx context.Context, req WebSessionReq) (types.WebSession, error) {
+	resp, err := c.APIClient.ExtendWebSession(ctx, &proto.ExtendWebSessionRequest{
+		User:            req.User,
+		PrevSessionId:   req.PrevSessionID,
+		AccessRequestId: req.AccessRequestID,
+		Switchback:      req.Switchback,
+		ReloadUser:      req.ReloadUser,
+	})
+	if err != nil {
+		if trace.IsNotImplemented(err) {
+			return c.HTTPClient.extendWebSessionLegacy(ctx, req)
+		}
 		return nil, trace.Wrap(err)
 	}
-	fetchedRC, err := c.getRemoteClusterLegacy(ctx, rc.GetName())
+	return resp.GetSession(), nil
+}
+
+// extendWebSessionLegacy creates a new web session for a user based on a
+// valid existing web session via the legacy HTTP endpoint.
+//
+// TODO(strideynet): DELETE IN v20.0.0
+func (c *HTTPClient) extendWebSessionLegacy(ctx context.Context, req WebSessionReq) (types.WebSession, error) {
+	out, err := c.PostJSON(ctx, c.Endpoint("users", req.User, "web", "sessions"), req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return fetchedRC, nil
+	return services.UnmarshalWebSession(out.Bytes())
+}
+
+// GetProxies returns the list of auth servers registered in the cluster.
+//
+// Deprecated: Prefer paginated variant [APIClient.ListProxyServers].
+//
+// TODO(kiosion): DELETE IN 21.0.0
+func (c *HTTPClient) GetProxies() ([]types.Server, error) {
+	out, err := c.Get(context.TODO(), c.Endpoint("proxies"), url.Values{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var items []json.RawMessage
+	if err := json.Unmarshal(out.Bytes(), &items); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	re := make([]types.Server, len(items))
+	for i, raw := range items {
+		server, err := services.UnmarshalServer(raw, types.KindProxy)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		re[i] = server
+	}
+	return re, nil
 }

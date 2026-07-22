@@ -18,7 +18,11 @@
 
 package servicecfg
 
-import "github.com/gravitational/teleport/lib/defaults"
+import (
+	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/lib/defaults"
+)
 
 // BPFConfig holds configuration for the BPF service.
 type BPFConfig struct {
@@ -43,17 +47,28 @@ type BPFConfig struct {
 
 // CheckAndSetDefaults checks BPF configuration.
 func (c *BPFConfig) CheckAndSetDefaults() error {
-	var perfBufferPageCount = defaults.PerfBufferPageCount
-	var openPerfBufferPageCount = defaults.OpenPerfBufferPageCount
+	cmdBufferPageCount := defaults.CmdPerfBufferPageCount
+	openPerfBufferPageCount := defaults.OpenPerfBufferPageCount
+	netPerfBufferPageCount := defaults.NetPerfBufferPageCount
 
-	if c.CommandBufferSize == nil {
-		c.CommandBufferSize = &perfBufferPageCount
+	// Set defaults for buffer sizes if they are unset or zero.
+	// A zero value was accepted before but is undesirable now as it
+	// will result in blocking event channels, so we set it to a sane
+	// default to maintain backwards compatibility.
+	if c.CommandBufferSize == nil || *c.CommandBufferSize == 0 {
+		c.CommandBufferSize = &cmdBufferPageCount
+	} else if *c.CommandBufferSize < 0 {
+		return trace.BadParameter("CommandBufferSize must not be negative")
 	}
-	if c.DiskBufferSize == nil {
+	if c.DiskBufferSize == nil || *c.DiskBufferSize == 0 {
 		c.DiskBufferSize = &openPerfBufferPageCount
+	} else if *c.DiskBufferSize < 0 {
+		return trace.BadParameter("DiskBufferSize must not be negative")
 	}
-	if c.NetworkBufferSize == nil {
-		c.NetworkBufferSize = &perfBufferPageCount
+	if c.NetworkBufferSize == nil || *c.NetworkBufferSize == 0 {
+		c.NetworkBufferSize = &netPerfBufferPageCount
+	} else if *c.NetworkBufferSize < 0 {
+		return trace.BadParameter("NetworkBufferSize must not be negative")
 	}
 	if c.CgroupPath == "" {
 		c.CgroupPath = defaults.CgroupPath

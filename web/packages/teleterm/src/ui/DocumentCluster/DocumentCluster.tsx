@@ -16,20 +16,20 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import styled from 'styled-components';
-import { Box, ButtonPrimary, Flex, Text, Alert, H2 } from 'design';
-import { useAsync, Attempt } from 'shared/hooks/useAsync';
 
+import { Alert, Box, ButtonPrimary, Flex, H2, Text } from 'design';
+import { Attempt, useAsync } from 'shared/hooks/useAsync';
+
+import { Cluster } from 'teleterm/services/tshd/types';
+import { useAppContext } from 'teleterm/ui/appContextProvider';
+import Document from 'teleterm/ui/Document';
 import * as types from 'teleterm/ui/services/workspacesService';
 import { DocumentClusterQueryParams } from 'teleterm/ui/services/workspacesService';
-import Document from 'teleterm/ui/Document';
-import { useAppContext } from 'teleterm/ui/appContextProvider';
-import { retryWithRelogin } from 'teleterm/ui/utils';
-import { Cluster } from 'teleterm/services/tshd/types';
-
 import * as uri from 'teleterm/ui/uri';
 import { routing } from 'teleterm/ui/uri';
+import { retryWithRelogin } from 'teleterm/ui/utils';
 
 import { UnifiedResources } from './UnifiedResources';
 
@@ -90,16 +90,6 @@ function ClusterState(props: {
   queryParams: DocumentClusterQueryParams;
   docUri: uri.DocumentUri;
 }) {
-  if (!props.rootCluster.connected) {
-    return (
-      <RequiresLogin
-        clusterName={props.clusterName}
-        syncCluster={props.syncCluster}
-        clusterSyncAttempt={props.clusterSyncAttempt}
-      />
-    );
-  }
-
   if (!props.cluster) {
     return <NotFound clusterName={props.clusterName} />;
   }
@@ -122,24 +112,6 @@ function ClusterState(props: {
         queryParams={props.queryParams}
       />
     </Layout>
-  );
-}
-
-function RequiresLogin(props: {
-  clusterName: string;
-  syncCluster(): void;
-  clusterSyncAttempt: Attempt<void>;
-}) {
-  return (
-    <PrintState
-      clusterName={props.clusterName}
-      clusterState="Cluster is offline."
-      action={{
-        attempt: props.clusterSyncAttempt,
-        label: 'Connect',
-        run: props.syncCluster,
-      }}
-    />
   );
 }
 
@@ -185,6 +157,7 @@ function PrintState(props: {
       mx="auto"
       mb="auto"
       alignItems="center"
+      px={4}
       css={`
         top: 11%;
         position: relative;

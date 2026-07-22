@@ -25,6 +25,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"slices"
 	"strings"
@@ -36,18 +37,18 @@ import (
 	"cloud.google.com/go/resourcemanager/apiv3/resourcemanagerpb"
 	"github.com/googleapis/gax-go/v2/apierror"
 	"github.com/gravitational/trace"
-	"github.com/gravitational/trace/trail"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/api/googleapi"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 
 	"github.com/gravitational/teleport/api/internalutils/stream"
+	apissh "github.com/gravitational/teleport/api/ssh"
+	"github.com/gravitational/teleport/api/trail"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/lib/auth/native"
 	gcpimds "github.com/gravitational/teleport/lib/cloud/imds/gcp"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 )
 
 // sshUser is the user to log in as on GCP VMs.
@@ -263,7 +264,7 @@ func (clt *instancesClient) getHostKeys(ctx context.Context, req *gcpimds.Instan
 	keys := make([]ssh.PublicKey, 0, len(items))
 	var errs []error
 	for _, item := range items {
-		key, _, _, _, err := ssh.ParseAuthorizedKey([]byte(fmt.Sprintf("%v %v", item.GetKey(), item.GetValue())))
+		key, _, _, _, err := ssh.ParseAuthorizedKey(fmt.Appendf(nil, "%v %v", item.GetKey(), item.GetValue()))
 		if err == nil {
 			keys = append(keys, key)
 		} else {
@@ -473,6 +474,8 @@ type RunCommandRequest struct {
 	Script string
 	// SSHPort is the ssh server port to connect to. Defaults to 22.
 	SSHPort string
+	// SSHKeyAlgo is the algorithm to use for generated SSH keys.
+	SSHKeyAlgo cryptosuites.Algorithm
 
 	dialContext func(ctx context.Context, network, addr string) (net.Conn, error)
 }
@@ -487,6 +490,9 @@ func (req *RunCommandRequest) CheckAndSetDefaults() error {
 	if req.SSHPort == "" {
 		req.SSHPort = "22"
 	}
+	if req.SSHKeyAlgo == cryptosuites.Algorithm(0) {
+		return trace.BadParameter("ssh key algorithm must be set")
+	}
 	if req.dialContext == nil {
 		dialer := net.Dialer{
 			Timeout: sshDefaultTimeout,
@@ -496,20 +502,13 @@ func (req *RunCommandRequest) CheckAndSetDefaults() error {
 	return nil
 }
 
-func generateKeyPair() (ssh.Signer, ssh.PublicKey, error) {
-	rawPriv, rawPub, err := native.GenerateKeyPair()
+func generateKeyPair(keyAlgo cryptosuites.Algorithm) (ssh.Signer, error) {
+	signer, err := cryptosuites.GenerateKeyWithAlgorithm(keyAlgo)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	signer, err := ssh.ParsePrivateKey(rawPriv)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-	publicKey, _, _, _, err := ssh.ParseAuthorizedKey(rawPub)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-	return signer, publicKey, nil
+	sshSigner, err := ssh.NewSignerFromSigner(signer)
+	return sshSigner, trace.Wrap(err)
 }
 
 // RunCommand runs a command on an instance.
@@ -519,7 +518,7 @@ func RunCommand(ctx context.Context, req *RunCommandRequest) error {
 	}
 
 	// Generate keys and add them to the instance.
-	signer, publicKey, err := generateKeyPair()
+	signer, err := generateKeyPair(req.SSHKeyAlgo)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -543,7 +542,7 @@ https://cloud.google.com/solutions/connecting-securely#storing_host_keys_by_enab
 	}
 	keyReq := &SSHKeyRequest{
 		Instance:  instance,
-		PublicKey: publicKey,
+		PublicKey: signer.PublicKey(),
 	}
 	if err := req.Client.AddSSHKey(ctx, keyReq); err != nil {
 		return trace.Wrap(err)
@@ -555,11 +554,11 @@ https://cloud.google.com/solutions/connecting-securely#storing_host_keys_by_enab
 		var err error
 		// Fetch the instance first to get the most up-to-date metadata hash.
 		if keyReq.Instance, err = req.Client.GetInstance(ctx, &req.InstanceRequest); err != nil {
-			logrus.WithError(err).Warn("Error fetching instance.")
+			slog.WarnContext(ctx, "Error fetching instance", "error", err)
 			return
 		}
 		if err := req.Client.RemoveSSHKey(ctx, keyReq); err != nil {
-			logrus.WithError(err).Warn("Error deleting SSH Key.")
+			slog.WarnContext(ctx, "Error deleting SSH Key", "error", err)
 		}
 	}()
 
@@ -568,23 +567,37 @@ https://cloud.google.com/solutions/connecting-securely#storing_host_keys_by_enab
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	config := &ssh.ClientConfig{
+	config := apissh.ClientConfig{
 		User: sshUser,
-		Auth: []ssh.AuthMethod{
-			ssh.PublicKeys(signer),
+		PublicKeyAuth: apissh.PublicKeyAuthConfig{
+			Signers: func() ([]ssh.Signer, error) {
+				return []ssh.Signer{signer}, nil
+			},
 		},
 		HostKeyCallback: callback,
 	}
+
+	loggerWithVMMetadata := slog.With(
+		"project_id", req.ProjectID,
+		"zone", req.Zone,
+		"vm_name", req.Name,
+		"ips", ipAddrs,
+	)
 
 	var errs []error
 	for _, ip := range ipAddrs {
 		addr := net.JoinHostPort(ip, req.SSHPort)
 		stdout, stderr, err := sshutils.RunSSH(ctx, addr, req.Script, config, sshutils.WithDialer(req.dialContext))
-		logrus.Debug(string(stdout))
-		logrus.Debug(string(stderr))
 		if err == nil {
 			return nil
 		}
+
+		loggerWithVMMetadata.ErrorContext(ctx, "Installing teleport in GCP VM failed",
+			"ip", ip,
+			"error", err,
+			"stdout", string(stdout),
+			"stderr", string(stderr),
+		)
 
 		// An exit error means the connection was successful, so don't try another address.
 		if errors.Is(err, &ssh.ExitError{}) {
@@ -594,6 +607,6 @@ https://cloud.google.com/solutions/connecting-securely#storing_host_keys_by_enab
 	}
 
 	err = trace.NewAggregate(errs...)
-	logrus.WithError(err).Debug("Command exited with error.")
+	loggerWithVMMetadata.ErrorContext(ctx, "Installing teleport in GCP VM failed", "error", err)
 	return err
 }

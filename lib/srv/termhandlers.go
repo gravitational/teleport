@@ -26,6 +26,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	tracingssh "github.com/gravitational/teleport/api/observability/tracing/ssh"
+	"github.com/gravitational/teleport/api/types"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
 )
@@ -77,7 +78,7 @@ func (t *TermHandlers) HandlePTYReq(ctx context.Context, ch ssh.Channel, req *ss
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	scx.Debugf("Requested terminal %q of size %v", ptyRequest.Env, *params)
+	scx.Logger.DebugContext(ctx, "Terminal has been requested", "terminal", ptyRequest.Env, "width", params.W, "height", params.H)
 
 	// get an existing terminal or create a new one
 	term := scx.GetTerm()
@@ -89,19 +90,17 @@ func (t *TermHandlers) HandlePTYReq(ctx context.Context, ch ssh.Channel, req *ss
 		}
 		scx.SetTerm(term)
 		scx.termAllocated = true
-		if term.TTY() != nil {
-			scx.ttyName = term.TTY().Name()
-		}
+		scx.ttyName = term.TTYName()
 	}
 	if err := term.SetWinSize(ctx, *params); err != nil {
-		scx.Errorf("Failed setting window size: %v", err)
+		scx.Logger.ErrorContext(ctx, "Failed setting window size", "error", err)
 	}
 	term.SetTermType(ptyRequest.Env)
 	term.SetTerminalModes(termModes)
 
 	// update the session
 	if err := t.SessionRegistry.NotifyWinChange(ctx, *params, scx); err != nil {
-		scx.Errorf("Unable to update session: %v", err)
+		scx.Logger.ErrorContext(ctx, "Unable to update session", "error", err)
 	}
 
 	return nil
@@ -125,11 +124,19 @@ func (t *TermHandlers) HandleShell(ctx context.Context, ch ssh.Channel, req *ssh
 	if err := scx.SetExecRequest(execRequest); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := t.SessionRegistry.OpenSession(ctx, ch, scx); err != nil {
-		return trace.Wrap(err)
+
+	if joinSid := scx.GetSessionParams().JoinSessionID; joinSid != "" {
+		err := t.SessionRegistry.JoinSession(ctx, ch, scx, joinSid, scx.GetSessionParams().JoinMode)
+
+		// TODO(Joerger): DELETE IN 20.0.0 - v19+ only set TELEPORT_SESSION
+		// when they want to join a session. Always return an error instead
+		// of ignoring the client provided session ID and creating a new session.
+		if !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
 	}
 
-	return nil
+	return t.SessionRegistry.OpenSession(ctx, ch, scx)
 }
 
 // HandleFileTransferDecision handles requests of type "file-transfer-decision@goteleport.com" which will
@@ -143,7 +150,7 @@ func (t *TermHandlers) HandleFileTransferDecision(ctx context.Context, ch ssh.Ch
 
 	session := scx.getSession()
 	if session == nil {
-		t.SessionRegistry.log.Debug("Unable to create file transfer Request, no session found in context.")
+		t.SessionRegistry.logger.DebugContext(ctx, "Unable to create file transfer Request, no session found in context.")
 		return nil
 	}
 
@@ -166,7 +173,7 @@ func (t *TermHandlers) HandleFileTransferRequest(ctx context.Context, ch ssh.Cha
 
 	session := scx.getSession()
 	if session == nil {
-		t.SessionRegistry.log.Debug("Unable to create file transfer Request, no session found in context.")
+		t.SessionRegistry.logger.DebugContext(ctx, "Unable to create file transfer Request, no session found in context.")
 		return nil
 	}
 
@@ -192,8 +199,18 @@ func (t *TermHandlers) HandleWinChange(ctx context.Context, ch ssh.Channel, req 
 	return nil
 }
 
-func (t *TermHandlers) HandleForceTerminate(ch ssh.Channel, req *ssh.Request, ctx *ServerContext) error {
-	err := t.SessionRegistry.ForceTerminate(ctx)
+func (t *TermHandlers) HandleForceTerminate(_ ssh.Channel, _ *ssh.Request, ctx *ServerContext) error {
+	p := ctx.getParty()
+	if p == nil {
+		t.SessionRegistry.logger.DebugContext(t.SessionRegistry.Srv.Context(), "Unable to terminate session, not party to a session.")
+		return nil
+	}
+
+	if p.mode != types.SessionModeratorMode {
+		return trace.AccessDenied("only moderators can force terminate a session")
+	}
+
+	err := t.SessionRegistry.ForceTerminate(p.s)
 	return trace.Wrap(err)
 }
 

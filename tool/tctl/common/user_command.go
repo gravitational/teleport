@@ -23,15 +23,16 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/url"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
@@ -44,6 +45,8 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/gcp"
+	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
+	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
 
 // UserCommand implements `tctl users` set of commands
@@ -53,6 +56,7 @@ type UserCommand struct {
 	login                     string
 	allowedLogins             []string
 	allowedWindowsLogins      []string
+	allowedLinuxDesktopLogins []string
 	allowedKubeUsers          []string
 	allowedKubeGroups         []string
 	allowedDatabaseUsers      []string
@@ -62,14 +66,17 @@ type UserCommand struct {
 	allowedAzureIdentities    []string
 	allowedGCPServiceAccounts []string
 	allowedRoles              []string
+	allowedMCPTools           []string
 	hostUserUID               string
 	hostUserUIDProvided       bool
 	hostUserGID               string
 	hostUserGIDProvided       bool
+	defaultRelayAddr          string
+	defaultRelayAddrProvided  bool
 
 	ttl time.Duration
 
-	// format is the output format, e.g. text or json
+	// format is the output format, e.g. text, json, or yaml.
 	format string
 
 	userAdd           *kingpin.CmdClause
@@ -80,8 +87,8 @@ type UserCommand struct {
 }
 
 // Initialize allows UserCommand to plug itself into the CLI parser
-func (u *UserCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
-	const helpPrefix string = "[Teleport DB users only]"
+func (u *UserCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, config *servicecfg.Config) {
+	const helpPrefix string = "[Teleport local users only]"
 
 	u.config = config
 	users := app.Command("users", "Manage user accounts.")
@@ -91,6 +98,7 @@ func (u *UserCommand) Initialize(app *kingpin.Application, config *servicecfg.Co
 
 	u.userAdd.Flag("logins", "List of allowed SSH logins for the new user").StringsVar(&u.allowedLogins)
 	u.userAdd.Flag("windows-logins", "List of allowed Windows logins for the new user").StringsVar(&u.allowedWindowsLogins)
+	u.userAdd.Flag("linux-desktop-logins", "List of allowed Linux desktop logins for the new user").StringsVar(&u.allowedLinuxDesktopLogins)
 	u.userAdd.Flag("kubernetes-users", "List of allowed Kubernetes users for the new user").StringsVar(&u.allowedKubeUsers)
 	u.userAdd.Flag("kubernetes-groups", "List of allowed Kubernetes groups for the new user").StringsVar(&u.allowedKubeGroups)
 	u.userAdd.Flag("db-users", "List of allowed database users for the new user").StringsVar(&u.allowedDatabaseUsers)
@@ -101,13 +109,15 @@ func (u *UserCommand) Initialize(app *kingpin.Application, config *servicecfg.Co
 	u.userAdd.Flag("gcp-service-accounts", "List of allowed GCP service accounts for the new user").StringsVar(&u.allowedGCPServiceAccounts)
 	u.userAdd.Flag("host-user-uid", "UID for auto provisioned host users to use").IsSetByUser(&u.hostUserUIDProvided).StringVar(&u.hostUserUID)
 	u.userAdd.Flag("host-user-gid", "GID for auto provisioned host users to use").IsSetByUser(&u.hostUserGIDProvided).StringVar(&u.hostUserGID)
+	u.userAdd.Flag("mcp-tools", "List of allowed MCP tools for the new user").StringsVar(&u.allowedMCPTools)
+	u.userAdd.Flag("default-relay-addr", "Relay address that clients should use by default").StringVar(&u.defaultRelayAddr)
 
 	u.userAdd.Flag("roles", "List of roles for the new user to assume").Required().StringsVar(&u.allowedRoles)
 
 	u.userAdd.Flag("ttl", fmt.Sprintf("Set expiration time for token, default is %v, maximum is %v",
 		defaults.SignupTokenTTL, defaults.MaxSignupTokenTTL)).
 		Default(fmt.Sprintf("%v", defaults.SignupTokenTTL)).DurationVar(&u.ttl)
-	u.userAdd.Flag("format", "Output format, 'text' or 'json'").Hidden().Default(teleport.Text).StringVar(&u.format)
+	u.userAdd.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&u.format, teleport.Text, teleport.JSON, teleport.YAML)
 	u.userAdd.Alias(AddUserHelp)
 
 	u.userUpdate = users.Command("update", "Update user account.")
@@ -118,6 +128,8 @@ func (u *UserCommand) Initialize(app *kingpin.Application, config *servicecfg.Co
 		StringsVar(&u.allowedLogins)
 	u.userUpdate.Flag("set-windows-logins", "List of allowed Windows logins for the user, replaces current Windows logins").
 		StringsVar(&u.allowedWindowsLogins)
+	u.userUpdate.Flag("set-linux-desktop-logins", "List of allowed Linux desktop logins for the user, replaces current Linux logins").
+		StringsVar(&u.allowedLinuxDesktopLogins)
 	u.userUpdate.Flag("set-kubernetes-users", "List of allowed Kubernetes users for the user, replaces current Kubernetes users").
 		StringsVar(&u.allowedKubeUsers)
 	u.userUpdate.Flag("set-kubernetes-groups", "List of allowed Kubernetes groups for the user, replaces current Kubernetes groups").
@@ -136,9 +148,11 @@ func (u *UserCommand) Initialize(app *kingpin.Application, config *servicecfg.Co
 		StringsVar(&u.allowedGCPServiceAccounts)
 	u.userUpdate.Flag("set-host-user-uid", "UID for auto provisioned host users to use. Value can be reset by providing an empty string").IsSetByUser(&u.hostUserUIDProvided).StringVar(&u.hostUserUID)
 	u.userUpdate.Flag("set-host-user-gid", "GID for auto provisioned host users to use. Value can be reset by providing an empty string").IsSetByUser(&u.hostUserGIDProvided).StringVar(&u.hostUserGID)
+	u.userUpdate.Flag("set-mcp-tools", "List of allowed MCP tools for the user, replaces current allowed MCP tools.").StringsVar(&u.allowedMCPTools)
+	u.userUpdate.Flag("set-default-relay-addr", "Relay address that clients should use by default. Value can be reset by providing an empty string").IsSetByUser(&u.defaultRelayAddrProvided).StringVar(&u.defaultRelayAddr)
 
 	u.userList = users.Command("ls", "Lists all user accounts.")
-	u.userList.Flag("format", "Output format, 'text' or 'json'").Hidden().Default(teleport.Text).StringVar(&u.format)
+	u.userList.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&u.format, teleport.Text, teleport.JSON, teleport.YAML)
 
 	u.userDelete = users.Command("rm", "Deletes user accounts.").Alias("del")
 	u.userDelete.Arg("logins", "Comma-separated list of user logins to delete").
@@ -149,25 +163,33 @@ func (u *UserCommand) Initialize(app *kingpin.Application, config *servicecfg.Co
 	u.userResetPassword.Flag("ttl", fmt.Sprintf("Set expiration time for token, default is %v, maximum is %v",
 		defaults.ChangePasswordTokenTTL, defaults.MaxChangePasswordTokenTTL)).
 		Default(fmt.Sprintf("%v", defaults.ChangePasswordTokenTTL)).DurationVar(&u.ttl)
-	u.userResetPassword.Flag("format", "Output format, 'text' or 'json'").Hidden().Default(teleport.Text).StringVar(&u.format)
+	u.userResetPassword.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&u.format, teleport.Text, teleport.JSON, teleport.YAML)
 }
 
 // TryRun takes the CLI command as an argument (like "users add") and executes it.
-func (u *UserCommand) TryRun(ctx context.Context, cmd string, client *authclient.Client) (match bool, err error) {
+func (u *UserCommand) TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (match bool, err error) {
+	var commandFunc func(ctx context.Context, client *authclient.Client) error
 	switch cmd {
 	case u.userAdd.FullCommand():
-		err = u.Add(ctx, client)
+		commandFunc = u.Add
 	case u.userUpdate.FullCommand():
-		err = u.Update(ctx, client)
+		commandFunc = u.Update
 	case u.userList.FullCommand():
-		err = u.List(ctx, client)
+		commandFunc = u.List
 	case u.userDelete.FullCommand():
-		err = u.Delete(ctx, client)
+		commandFunc = u.Delete
 	case u.userResetPassword.FullCommand():
-		err = u.ResetPassword(ctx, client)
+		commandFunc = u.ResetPassword
 	default:
 		return false, nil
 	}
+	client, closeFn, err := clientFunc(ctx)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	err = commandFunc(ctx, client)
+	closeFn(ctx)
+
 	return true, trace.Wrap(err)
 }
 
@@ -219,10 +241,12 @@ func (u *UserCommand) printResetPasswordToken(token types.UserToken, messageForm
 	switch strings.ToLower(u.format) {
 	case teleport.JSON:
 		err = printTokenAsJSON(token)
+	case teleport.YAML:
+		err = printTokenAsYAML(token)
 	case teleport.Text:
 		err = printTokenAsText(token, messageFormat)
 	default:
-		err = printTokenAsText(token, messageFormat)
+		err = trace.BadParameter("unknown format %q", u.format)
 	}
 
 	if err != nil {
@@ -238,6 +262,7 @@ func (u *UserCommand) Add(ctx context.Context, client *authclient.Client) error 
 	u.allowedRoles = flattenSlice(u.allowedRoles)
 	u.allowedLogins = flattenSlice(u.allowedLogins)
 	u.allowedWindowsLogins = flattenSlice(u.allowedWindowsLogins)
+	u.allowedLinuxDesktopLogins = flattenSlice(u.allowedLinuxDesktopLogins)
 
 	// Validate roles (server does not do this yet).
 	for _, roleName := range u.allowedRoles {
@@ -277,6 +302,7 @@ func (u *UserCommand) Add(ctx context.Context, client *authclient.Client) error 
 	traits := map[string][]string{
 		constants.TraitLogins:             u.allowedLogins,
 		constants.TraitWindowsLogins:      u.allowedWindowsLogins,
+		constants.TraitLinuxDesktopLogins: u.allowedLinuxDesktopLogins,
 		constants.TraitKubeUsers:          flattenSlice(u.allowedKubeUsers),
 		constants.TraitKubeGroups:         flattenSlice(u.allowedKubeGroups),
 		constants.TraitDBUsers:            flattenSlice(u.allowedDatabaseUsers),
@@ -287,6 +313,11 @@ func (u *UserCommand) Add(ctx context.Context, client *authclient.Client) error 
 		constants.TraitGCPServiceAccounts: gcpServiceAccounts,
 		constants.TraitHostUserUID:        {u.hostUserUID},
 		constants.TraitHostUserGID:        {u.hostUserGID},
+		constants.TraitMCPTools:           flattenSlice(u.allowedMCPTools),
+	}
+
+	if u.defaultRelayAddr != "" {
+		traits[constants.TraitDefaultRelayAddr] = []string{u.defaultRelayAddr}
 	}
 
 	user, err := types.NewUser(u.login)
@@ -335,7 +366,7 @@ func (u *UserCommand) Add(ctx context.Context, client *authclient.Client) error 
 // ["one", "two", "three"]
 func flattenSlice(slice []string) (retval []string) {
 	for i := range slice {
-		for _, role := range strings.Split(slice[i], ",") {
+		for role := range strings.SplitSeq(slice[i], ",") {
 			retval = append(retval, strings.TrimSpace(role))
 		}
 	}
@@ -349,6 +380,10 @@ func printTokenAsJSON(token types.UserToken) error {
 	}
 	fmt.Print(string(out))
 	return nil
+}
+
+func printTokenAsYAML(token types.UserToken) error {
+	return trace.Wrap(utils.WriteYAML(os.Stdout, token), "failed to marshal reset password token")
 }
 
 func printTokenAsText(token types.UserToken, messageFormat string) error {
@@ -391,6 +426,11 @@ func (u *UserCommand) Update(ctx context.Context, client *authclient.Client) err
 		user.SetWindowsLogins(windowsLogins)
 		updateMessages["Windows logins"] = windowsLogins
 	}
+	if len(u.allowedLinuxDesktopLogins) > 0 {
+		linuxDesktopLogins := flattenSlice(u.allowedLinuxDesktopLogins)
+		user.SetLinuxDesktopLogins(linuxDesktopLogins)
+		updateMessages["Linux desktop logins"] = linuxDesktopLogins
+	}
 	if len(u.allowedKubeUsers) > 0 {
 		kubeUsers := flattenSlice(u.allowedKubeUsers)
 		user.SetKubeUsers(kubeUsers)
@@ -413,10 +453,8 @@ func (u *UserCommand) Update(ctx context.Context, client *authclient.Client) err
 	}
 	if len(u.allowedDatabaseRoles) > 0 {
 		dbRoles := flattenSlice(u.allowedDatabaseRoles)
-		for _, role := range dbRoles {
-			if role == types.Wildcard {
-				return trace.BadParameter("database role can't be a wildcard")
-			}
+		if slices.Contains(dbRoles, types.Wildcard) {
+			return trace.BadParameter("database role can't be a wildcard")
 		}
 		user.SetDatabaseRoles(dbRoles)
 		updateMessages["database roles"] = dbRoles
@@ -466,13 +504,28 @@ func (u *UserCommand) Update(ctx context.Context, client *authclient.Client) err
 		updateMessages["Host user GID"] = []string{u.hostUserGID}
 	}
 
+	if len(u.allowedMCPTools) > 0 {
+		mcpTools := flattenSlice(u.allowedMCPTools)
+		user.SetMCPTools(mcpTools)
+		updateMessages["MCP tools"] = mcpTools
+	}
+
+	if u.defaultRelayAddrProvided {
+		user.SetDefaultRelayAddr(u.defaultRelayAddr)
+		updateMessages["default relay address"] = []string{u.defaultRelayAddr}
+	}
+
 	if len(updateMessages) == 0 {
 		return trace.BadParameter("Nothing to update. Please provide at least one --set flag.")
 	}
 
 	for _, roleName := range user.GetRoles() {
 		if _, err := client.GetRole(ctx, roleName); err != nil {
-			log.Warnf("Error checking role %q when upserting user %q: %v", roleName, user.GetName(), err)
+			slog.WarnContext(ctx, "Error checking role when upserting user",
+				"role", roleName,
+				"user", user.GetName(),
+				"error", err,
+			)
 		}
 	}
 	if _, err := client.UpsertUser(ctx, user); err != nil {
@@ -492,7 +545,8 @@ func (u *UserCommand) List(ctx context.Context, client *authclient.Client) error
 		return trace.Wrap(err)
 	}
 
-	if u.format == teleport.Text {
+	switch u.format {
+	case teleport.Text:
 		if len(users) == 0 {
 			fmt.Println("No users found")
 			return nil
@@ -504,11 +558,18 @@ func (u *UserCommand) List(ctx context.Context, client *authclient.Client) error
 			})
 		}
 		fmt.Println(t.AsBuffer().String())
-	} else {
+	case teleport.JSON:
 		err := utils.WriteJSONArray(os.Stdout, users)
 		if err != nil {
 			return trace.Wrap(err, "failed to marshal users")
 		}
+	case teleport.YAML:
+		err := utils.WriteYAML(os.Stdout, users)
+		if err != nil {
+			return trace.Wrap(err, "failed to marshal users")
+		}
+	default:
+		return trace.BadParameter("unknown format %q", u.format)
 	}
 	return nil
 }
@@ -516,7 +577,7 @@ func (u *UserCommand) List(ctx context.Context, client *authclient.Client) error
 // Delete deletes teleport user(s). User IDs are passed as a comma-separated
 // list in UserCommand.login
 func (u *UserCommand) Delete(ctx context.Context, client *authclient.Client) error {
-	for _, l := range strings.Split(u.login, ",") {
+	for l := range strings.SplitSeq(u.login, ",") {
 		if err := client.DeleteUser(ctx, l); err != nil {
 			return trace.Wrap(err)
 		}

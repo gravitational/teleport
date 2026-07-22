@@ -16,9 +16,17 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ComponentType, ReactElement, useRef, useState } from 'react';
+import {
+  ComponentPropsWithoutRef,
+  ComponentType,
+  ElementType,
+  ReactElement,
+  useRef,
+  useState,
+} from 'react';
 
 import { ButtonBorder, Flex, Menu, MenuItem } from 'design';
+import { ButtonSize } from 'design/Button';
 import * as icons from 'design/Icon';
 import { IconProps } from 'design/Icon/Icon';
 
@@ -45,37 +53,53 @@ import { IconProps } from 'design/Icon/Icon';
  *   <MenuItem>Bar</MenuItem>
  * </ButtonWithMenu>
  */
-export const ButtonWithMenu = (props: {
-  text: string;
-  children: MenuItemComponent | MenuItemComponent[];
-  MenuIcon?: ComponentType<IconProps>;
-  [buttonBorderProp: string]: any;
-}) => {
+export const ButtonWithMenu = <Element extends ElementType = 'button'>(
+  props: {
+    text: string;
+    children: MenuItemComponent | MenuItemComponent[];
+    MenuIcon?: ComponentType<IconProps>;
+    size?: ButtonSize;
+    forwardedAs?: Element;
+    /**
+     * Width of just the Button part of the component. Ignored if width is set.
+     */
+    buttonWidth?: ComponentPropsWithoutRef<typeof Flex>['width'];
+    /**
+     * Width of the whole component (Button + menu Button). buttonWidth is ignored if width is set.
+     */
+    width?: ComponentPropsWithoutRef<typeof Flex>['width'];
+  } & ComponentPropsWithoutRef<typeof ButtonBorder<Element>>
+) => {
   const {
     text,
     MenuIcon = icons.MoreVert,
     children,
+    size = 'medium',
+    width,
+    buttonWidth,
     ...buttonBorderProps
   } = props;
 
-  const moreButtonRef = useRef<HTMLButtonElement>();
+  const moreButtonRef = useRef<HTMLButtonElement>(null);
   const [isOpen, setIsOpen] = useState(false);
 
   return (
-    <Flex>
+    <Flex width={width}>
       <ButtonBorder
         css={`
           border-top-right-radius: 0;
           border-bottom-right-radius: 0;
         `}
+        size={size}
         {...buttonBorderProps}
+        width={width ? '100%' : buttonWidth}
       >
         {text}
       </ButtonBorder>
       <ButtonBorder
-        setRef={moreButtonRef}
+        ref={moreButtonRef}
         px={1}
-        size={buttonBorderProps.size}
+        size={size}
         onClick={() => setIsOpen(true)}
         css={`
           border-left: none;
@@ -84,10 +108,7 @@ export const ButtonWithMenu = (props: {
         `}
         title="Open menu"
       >
-        <MenuIcon
-          size={menuIconSize[buttonBorderProps.size]}
-          color="text.slightlyMuted"
-        />
+        <MenuIcon size={size} color="text.slightlyMuted" />
       </ButtonBorder>
       <Menu
         anchorEl={moreButtonRef.current}
@@ -109,12 +130,6 @@ export const ButtonWithMenu = (props: {
       </Menu>
     </Flex>
   );
-};
-
-const menuIconSize = {
-  large: 28,
-  medium: 24,
-  small: 16,
 };
 
 // TODO(ravicious): At the moment, this doesn't accomplish much – it only prevents ButtonWithMenu

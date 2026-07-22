@@ -27,7 +27,6 @@ import (
 // into a slice of pods.
 func PodListToListOfPods(list *v1.PodList) (pods []*v1.Pod) {
 	for _, pod := range list.Items {
-		pod := pod
 		pods = append(pods, &pod)
 	}
 	return

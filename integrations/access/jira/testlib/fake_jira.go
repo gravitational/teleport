@@ -30,7 +30,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/integrations/access/jira"
 )
@@ -107,7 +106,7 @@ func NewFakeJira(author jira.UserDetails, concurrency int) *FakeJira {
 				Description: issueInput.Fields.Description,
 				Type:        *issueInput.Fields.Type,
 			},
-			Properties: make(map[string]interface{}),
+			Properties: make(map[string]any),
 		}
 		if issueInput.Fields.Project != nil {
 			issue.Fields.Project = *issueInput.Fields.Project
@@ -304,6 +303,6 @@ func (s *FakeJira) CheckIssueTransition(ctx context.Context) (jira.Issue, error)
 
 func panicIf(err error) {
 	if err != nil {
-		log.Panicf("%v at %v", err, string(debug.Stack()))
+		panic(fmt.Sprintf("%v at %v", err, string(debug.Stack())))
 	}
 }

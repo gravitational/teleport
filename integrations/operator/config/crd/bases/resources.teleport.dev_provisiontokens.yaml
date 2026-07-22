@@ -1,7 +1,8 @@
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
-  creationTimestamp: null
+  annotations:
+    resources.teleport.dev/scoped: "false"
   name: teleportprovisiontokens.resources.teleport.dev
 spec:
   group: resources.teleport.dev
@@ -61,6 +62,37 @@ spec:
                         identity of joining nodes must match this ARN. Supports wildcards
                         "*" and "?".
                       type: string
+                    aws_organization_id:
+                      description: AWSOrganizationID is used for the IAM join method,
+                        the AWS identity of joining nodes must belong to this organization.
+                      type: string
+                    aws_organizational_units:
+                      description: AWSOrganizationalUnits contains rules for matching
+                        AWS accounts based on their Organizational Units. Requires
+                        AWS Organization ID to be specified. The account's root ID
+                        is considered an Organizational Unit when validating the rule.
+                      nullable: true
+                      properties:
+                        exclude:
+                          description: Exclude is a list of AWS Organizational Unit
+                            IDs and children OUs to exclude. Accounts that belong
+                            to these OUs, and their children, will be excluded, even
+                            if they were included. Only exact matches are supported.
+                            Optional. If empty, no OUs are excluded.
+                          items:
+                            type: string
+                          nullable: true
+                          type: array
+                        include:
+                          description: Include is a list of AWS Organizational Unit
+                            IDs and children OUs to include. Accounts that belong
+                            to these OUs, and their children, will be included. Only
+                            exact matches or wildcard (*) are supported. Required.
+                          items:
+                            type: string
+                          nullable: true
+                          type: array
+                      type: object
                     aws_regions:
                       description: AWSRegions is used for the EC2 join method and
                         is a list of AWS regions a node is allowed to join from.
@@ -70,8 +102,8 @@ spec:
                       type: array
                     aws_role:
                       description: AWSRole is used for the EC2 join method and is
-                        the ARN of the AWS role that the auth server will assume in
-                        order to call the ec2 API.
+                        the ARN of the AWS role that the Auth Service will assume
+                        in order to call the ec2 API.
                       type: string
                   type: object
                 nullable: true
@@ -98,14 +130,126 @@ spec:
                           type: array
                         subscription:
                           type: string
+                        tenant:
+                          type: string
                       type: object
                     nullable: true
                     type: array
+                type: object
+              azure_devops:
+                description: AzureDevops allows the configuration of options specific
+                  to the "azure_devops" join method.
+                nullable: true
+                properties:
+                  allow:
+                    description: Allow is a list of TokenRules, nodes using this token
+                      must match one allow rule to use this token. At least one allow
+                      rule must be specified.
+                    items:
+                      properties:
+                        definition_id:
+                          type: string
+                        pipeline_name:
+                          type: string
+                        project_id:
+                          type: string
+                        project_name:
+                          type: string
+                        repository_ref:
+                          type: string
+                        repository_uri:
+                          type: string
+                        repository_version:
+                          type: string
+                        sub:
+                          type: string
+                      type: object
+                    nullable: true
+                    type: array
+                  organization_id:
+                    description: OrganizationID specifies the UUID of the Azure DevOps
+                      organization that this join token will grant access to. This
+                      is used to identify the correct issuer verification of the ID
+                      token. This is a required field.
+                    type: string
+                type: object
+              bitbucket:
+                description: Bitbucket allows the configuration of options specific
+                  to the "bitbucket" join method.
+                nullable: true
+                properties:
+                  allow:
+                    description: Allow is a list of Rules, nodes using this token
+                      must match one allow rule to use this token.
+                    items:
+                      properties:
+                        branch_name:
+                          type: string
+                        deployment_environment_uuid:
+                          type: string
+                        repository_uuid:
+                          type: string
+                        workspace_uuid:
+                          type: string
+                      type: object
+                    nullable: true
+                    type: array
+                  audience:
+                    description: Audience is a Bitbucket-specified audience value
+                      for this token. It is unique to each Bitbucket repository, and
+                      must be set to the value as written in the Pipelines -> OpenID
+                      Connect section of the repository settings.
+                    type: string
+                  identity_provider_url:
+                    description: IdentityProviderURL is a Bitbucket-specified issuer
+                      URL for incoming OIDC tokens. It is unique to each Bitbucket
+                      repository, and must be set to the value as written in the Pipelines
+                      -> OpenID Connect section of the repository settings.
+                    type: string
                 type: object
               bot_name:
                 description: BotName is the name of the bot this token grants access
                   to, if any
                 type: string
+              bound_keypair:
+                description: BoundKeypair allows the configuration of options specific
+                  to the "bound_keypair" join method.
+                nullable: true
+                properties:
+                  onboarding:
+                    description: Onboarding contains parameters related to initial
+                      onboarding and keypair registration.
+                    nullable: true
+                    properties:
+                      initial_public_key:
+                        type: string
+                      must_register_before:
+                        format: date-time
+                        type: string
+                      registration_secret:
+                        type: string
+                    type: object
+                  recovery:
+                    description: Recovery contains parameters related to recovery
+                      after identity expiration.
+                    nullable: true
+                    properties:
+                      limit:
+                        format: int32
+                        type: integer
+                      mode:
+                        type: string
+                    type: object
+                  rotate_after:
+                    description: RotateAfter is an optional timestamp that forces
+                      clients to perform a keypair rotation on the next join or recovery
+                      attempt after the given date. If `LastRotatedAt` is unset or
+                      before this timestamp, a rotation will be requested. It is recommended
+                      to set this value to the current timestamp if a rotation should
+                      be triggered on the next join attempt.
+                    format: date-time
+                    type: string
+                type: object
               circleci:
                 description: CircleCI allows the configuration of options specific
                   to the "circleci" join method.
@@ -125,6 +269,42 @@ spec:
                     type: array
                   organization_id:
                     type: string
+                type: object
+              env0:
+                description: Env0 allows the configuration of options specific to
+                  the "env0" join method.
+                nullable: true
+                properties:
+                  allow:
+                    description: Allow is a list of Rules, jobs using this token must
+                      match at least one allow rule to use this token.
+                    items:
+                      properties:
+                        deployer_email:
+                          type: string
+                        deployment_type:
+                          type: string
+                        env0_tag:
+                          type: string
+                        environment_id:
+                          type: string
+                        environment_name:
+                          type: string
+                        organization_id:
+                          type: string
+                        project_id:
+                          type: string
+                        project_name:
+                          type: string
+                        template_id:
+                          type: string
+                        template_name:
+                          type: string
+                        workspace_name:
+                          type: string
+                      type: object
+                    nullable: true
+                    type: array
                 type: object
               gcp:
                 description: GCP allows the configuration of options specific to the
@@ -155,6 +335,130 @@ spec:
                     nullable: true
                     type: array
                 type: object
+              generic_oidc:
+                description: GenericOIDC allows the configuration of generic OIDC
+                  join tokens.
+                nullable: true
+                properties:
+                  allow_any:
+                    description: AllowAny evaluates complex rules using "OR" semantics.
+                      If any rules are specified, at least one rule must evaluate
+                      to `true` for the join attempt to be allowed. These rules are
+                      evaluated after `must_match_fields`, if any field matchers are
+                      specified in that block.  Note that at least one rule, either
+                      in `must_match_fields` or `allow_any`, must be specified for
+                      any join attempts to succeed.
+                    items:
+                      properties:
+                        conditions:
+                          items:
+                            properties:
+                              attribute:
+                                type: string
+                              eq:
+                                nullable: true
+                                properties:
+                                  value:
+                                    type: string
+                                type: object
+                              in:
+                                nullable: true
+                                properties:
+                                  values:
+                                    items:
+                                      type: string
+                                    nullable: true
+                                    type: array
+                                type: object
+                              not_eq:
+                                nullable: true
+                                properties:
+                                  value:
+                                    type: string
+                                type: object
+                              not_in:
+                                nullable: true
+                                properties:
+                                  values:
+                                    items:
+                                      type: string
+                                    nullable: true
+                                    type: array
+                                type: object
+                            type: object
+                          nullable: true
+                          type: array
+                        expression:
+                          type: string
+                      type: object
+                    nullable: true
+                    type: array
+                  audience:
+                    description: 'Audience is the expected audience value (required).
+                      This must match or be included in the list of `aud` values in
+                      the JWT provided by the client when joining. For providers that
+                      do not allow you to configure this value yourself (this is technically
+                      an OIDC spec violation, but is common), use the value they provide.
+                      Otherwise, we recommend using a value that uniquely identifies
+                      the Teleport cluster and join token. For example, you can use
+                      this scheme: $clusterName/$tokenName For a cluster named `example.teleport.sh`
+                      and a token named `example`, this would result in an audience
+                      of `example.teleport.sh/example`. If you prefer, you can also
+                      use a UUID instead of the token name. Note that you will need
+                      to configure the matching value with the issuer, usually at
+                      request time.'
+                    type: string
+                  insecure_allow_http_issuer:
+                    description: InsecureAllowHTTPIssuer is a flag that, if set, disables
+                      the requirement that the issuer must use HTTPS.
+                    type: boolean
+                  issuer:
+                    description: Issuer contains the expected `iss` value as written
+                      in the JWT you wish to trust. Unless `static_jwks` is configured,
+                      this issuer must be accessible over HTTPS to the Teleport cluster
+                      and must serve valid OIDC metadata, including discovery configuration
+                      and JWKS keys.
+                    type: string
+                  must_match_fields:
+                    additionalProperties: true
+                    description: 'MustMatchFields perform simple comparison matches
+                      using "AND" semantics. Rules are specified by mirroring the
+                      structure of the JWT, using values that are expected to be equal
+                      to those on the incoming token. These field matching rules can
+                      only be used to compare simple values: strings, numbers, booleans,
+                      and nested fields. Complex values, including lists, will need
+                      to use `allow_any` expression rules instead.  If any field match
+                      rules are specified, all must be equal to corresponding JWT
+                      fields for the join attempt to succeed. If complex rules are
+                      specified in `allow_any`, those are evaluated after `must_match_fields`.
+                      If `must_match_fields` is not specified or is empty, only rules
+                      in `allow_any` are evaluated.  These rules can be used as "global"
+                      rules that apply to all join attempts. For example, you can
+                      use these to ensure all attempts originate from your organization,
+                      then use `allow_any` rules to allow individual repositories,
+                      pipelines, or workspaces.  Note that at least one rule, either
+                      in `must_match_fields` or `allow_any`, must be specified for
+                      any join attempts to succeed.'
+                    nullable: true
+                    type: object
+                  static_jwks:
+                    description: StaticJWKS is an optional static JWKS value that
+                      can be used to specify JWKS keys when either OIDC discovery
+                      is either not supported by the provider or the discovery configuration
+                      is not accessible to Teleport. When set, configuration and JWKS
+                      keys will not be fetched from the URL contained in `issuer`
+                      and JWTs will be validated using the key set specified here.
+                    type: string
+                  tls_ca:
+                    description: TLSCA is a TLS CA certificate that should be used
+                      to verify requests for OIDC metadata from the issuer instead
+                      of Teleport's CA store, useful if the issuer is not public or
+                      otherwise uses a self-signed certificate. Note that this value
+                      only applies to requests using this token, and will be used
+                      instead of and not in addition to the system CA store, and will
+                      need to be updated manually if the remote CA is updated.
+                    type: string
+                type: object
               github:
                 description: GitHub allows the configuration of options specific to
                   the "github" join method.
@@ -166,6 +470,10 @@ spec:
                     items:
                       properties:
                         actor:
+                          type: string
+                        enterprise:
+                          type: string
+                        enterprise_id:
                           type: string
                         environment:
                           type: string
@@ -192,7 +500,7 @@ spec:
                       against host.  This value should be the hostname of the GHES
                       instance, and should not include the scheme or a path. The instance
                       must be accessible over HTTPS at this hostname and the certificate
-                      must be trusted by the Auth Server.
+                      must be trusted by the Auth Service.
                     type: string
                   enterprise_slug:
                     description: EnterpriseSlug allows the slug of a GitHub Enterprise
@@ -203,6 +511,12 @@ spec:
                       this field must be left empty. This field cannot be specified
                       if `enterprise_server_host` is specified.  See https://docs.github.com/en/enterprise-cloud@latest/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect#customizing-the-issuer-value-for-an-enterprise
                       for more information about customized issuer values.
+                    type: string
+                  static_jwks:
+                    description: StaticJWKS disables fetching of the GHES signing
+                      keys via the JWKS/OIDC endpoints, and allows them to be directly
+                      specified. This allows joining from GitHub Actions in GHES instances
+                      that are not reachable by the Teleport Auth Service.
                     type: string
                 type: object
               gitlab:
@@ -255,7 +569,18 @@ spec:
                       will default to `gitlab.com` - but can be set to the domain
                       of your self-hosted GitLab e.g `gitlab.example.com`.
                     type: string
+                  static_jwks:
+                    description: StaticJWKS disables fetching of the GitLab signing
+                      keys via the JWKS/OIDC endpoints, and allows them to be directly
+                      specified. This allows joining from GitLab CI instances that
+                      are not reachable by the Teleport Auth Service.
+                    type: string
                 type: object
+              integration:
+                description: Integration name which provides credentials for validating
+                  join attempts. Currently only in use for validating the AWS Organization
+                  ID in the IAM Join method.
+                type: string
               join_method:
                 description: 'JoinMethod is the joining method required in order to
                   use this token. Supported joining methods include: azure, circleci,
@@ -273,9 +598,22 @@ spec:
                       properties:
                         service_account:
                           type: string
+                        service_account_name:
+                          type: string
+                        service_account_namespace:
+                          type: string
                       type: object
                     nullable: true
                     type: array
+                  oidc:
+                    description: OIDCConfig configures the `oidc` type.
+                    nullable: true
+                    properties:
+                      insecure_allow_http_issuer:
+                        type: boolean
+                      issuer:
+                        type: string
+                    type: object
                   static_jwks:
                     description: StaticJWKS is the configuration specific to the `static_jwks`
                       type.
@@ -287,8 +625,40 @@ spec:
                   type:
                     description: 'Type controls which behavior should be used for
                       validating the Kubernetes Service Account token. Support values:
-                      - `in_cluster` - `static_jwks` If unset, this defaults to `in_cluster`.'
+                      - `in_cluster` - `static_jwks` - `oidc` If unset, this defaults
+                      to `in_cluster`.'
                     type: string
+                type: object
+              oracle:
+                description: Oracle allows the configuration of options specific to
+                  the "oracle" join method.
+                nullable: true
+                properties:
+                  allow:
+                    description: Allow is a list of Rules, nodes using this token
+                      must match one allow rule to use this token.
+                    items:
+                      properties:
+                        instances:
+                          items:
+                            type: string
+                          nullable: true
+                          type: array
+                        parent_compartments:
+                          items:
+                            type: string
+                          nullable: true
+                          type: array
+                        regions:
+                          items:
+                            type: string
+                          nullable: true
+                          type: array
+                        tenancy:
+                          type: string
+                      type: object
+                    nullable: true
+                    type: array
                 type: object
               roles:
                 description: Roles is a list of roles associated with the token, that
@@ -319,6 +689,10 @@ spec:
                       type: object
                     nullable: true
                     type: array
+                  enable_glob_matching:
+                    description: EnableGlobMatching enables glob-style matching for
+                      the space_id and caller_id fields in the rules.
+                    type: boolean
                   hostname:
                     description: Hostname is the hostname of the Spacelift tenant
                       that tokens will originate from. E.g `example.app.spacelift.io`
@@ -340,6 +714,51 @@ spec:
                 description: SuggestedLabels is a set of labels that resources should
                   set when using this token to enroll themselves in the cluster. Currently,
                   only node-join scripts create a configuration according to the suggestion.
+                type: object
+              terraform_cloud:
+                description: TerraformCloud allows the configuration of options specific
+                  to the "terraform_cloud" join method.
+                nullable: true
+                properties:
+                  allow:
+                    description: Allow is a list of Rules, nodes using this token
+                      must match one allow rule to use this token.
+                    items:
+                      properties:
+                        organization_id:
+                          type: string
+                        organization_name:
+                          type: string
+                        project_id:
+                          type: string
+                        project_name:
+                          type: string
+                        run_phase:
+                          type: string
+                        workspace_id:
+                          type: string
+                        workspace_name:
+                          type: string
+                      type: object
+                    nullable: true
+                    type: array
+                  audience:
+                    description: Audience is the JWT audience as configured in the
+                      TFC_WORKLOAD_IDENTITY_AUDIENCE(_$TAG) variable in Terraform
+                      Cloud. If unset, defaults to the Teleport cluster name. For
+                      example, if `TFC_WORKLOAD_IDENTITY_AUDIENCE_TELEPORT=foo` is
+                      set in Terraform Cloud, this value should be `foo`. If the variable
+                      is set to match the cluster name, it does not need to be set
+                      here.
+                    type: string
+                  hostname:
+                    description: Hostname is the hostname of the Terraform Enterprise
+                      instance expected to issue JWTs allowed by this token. This
+                      may be unset for regular Terraform Cloud use, in which case
+                      it will be assumed to be `app.terraform.io`. Otherwise, it must
+                      both match the `iss` (issuer) field included in JWTs, and provide
+                      standard JWKS endpoints.
+                    type: string
                 type: object
               tpm:
                 description: TPM allows the configuration of options specific to the
@@ -380,16 +799,8 @@ spec:
                 description: Conditions represent the latest available observations
                   of an object's state
                 items:
-                  description: "Condition contains details for one aspect of the current
-                    state of this API Resource.\n---\nThis struct is intended for
-                    direct use as an array at the field path .status.conditions.  For
-                    example,\n\n\n\ttype FooStatus struct{\n\t    // Represents the
-                    observations of a foo's current state.\n\t    // Known .status.conditions.type
-                    are: \"Available\", \"Progressing\", and \"Degraded\"\n\t    //
-                    +patchMergeKey=type\n\t    // +patchStrategy=merge\n\t    // +listType=map\n\t
-                    \   // +listMapKey=type\n\t    Conditions []metav1.Condition `json:\"conditions,omitempty\"
-                    patchStrategy:\"merge\" patchMergeKey:\"type\" protobuf:\"bytes,1,rep,name=conditions\"`\n\n\n\t
-                    \   // other fields\n\t}"
+                  description: Condition contains details for one aspect of the current
+                    state of this API Resource.
                   properties:
                     lastTransitionTime:
                       description: |-
@@ -430,12 +841,7 @@ spec:
                       - Unknown
                       type: string
                     type:
-                      description: |-
-                        type of condition in CamelCase or in foo.example.com/CamelCase.
-                        ---
-                        Many .condition.type values are consistent across resources like Available, but because arbitrary conditions can be
-                        useful (see .node.status.conditions), the ability to deconflict is important.
-                        The regex it matches is (dns1123SubdomainFmt/)?(qualifiedNameFmt)
+                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
                       maxLength: 316
                       pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
                       type: string

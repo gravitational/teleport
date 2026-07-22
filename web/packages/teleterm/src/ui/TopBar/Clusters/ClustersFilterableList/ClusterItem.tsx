@@ -16,14 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useRef, useEffect } from 'react';
-import { Flex, Label, Text } from 'design';
-
+import { useEffect, useRef } from 'react';
 import styled from 'styled-components';
 
-import { ListItem } from 'teleterm/ui/components/ListItem';
-import { useKeyboardArrowsNavigation } from 'teleterm/ui/components/KeyboardArrowsNavigation';
+import { Flex, Text } from 'design';
+import { Status } from 'design/Status';
+
 import { Cluster } from 'teleterm/services/tshd/types';
+import { useKeyboardArrowsNavigation } from 'teleterm/ui/components/KeyboardArrowsNavigation';
+import { ListItem } from 'teleterm/ui/components/ListItem';
 
 interface ClusterItemProps {
   index: number;
@@ -37,7 +38,7 @@ export function ClusterItem(props: ClusterItemProps) {
     index: props.index,
     onRun: props.onSelect,
   });
-  const ref = useRef<HTMLLIElement>();
+  const ref = useRef<HTMLLIElement>(null);
 
   const clusterName = props.item.name;
 
@@ -59,20 +60,20 @@ export function ClusterItem(props: ClusterItemProps) {
         width="100%"
         minWidth="0"
       >
-        <Text typography="body1" title={clusterName}>
+        <Text typography="body2" title={clusterName}>
           {clusterName}
         </Text>
         <Flex>
-          {!props.item.leaf ? (
-            <Label ml={1} kind="primary">
+          {!props.item.leaf && (
+            <Status ml={1} kind="primary" variant="filled" icon={false}>
               root
-            </Label>
-          ) : null}
-          {props.isSelected ? (
-            <Label ml={1} kind="success">
+            </Status>
+          )}
+          {props.isSelected && (
+            <Status ml={1} kind="success" variant="filled" icon={false}>
               active
-            </Label>
-          ) : null}
+            </Status>
+          )}
         </Flex>
       </Flex>
     </StyledListItem>

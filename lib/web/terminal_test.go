@@ -20,10 +20,13 @@ package web
 
 import (
 	"context"
+	"crypto/ed25519"
+	"crypto/rand"
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -32,15 +35,20 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/proto"
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ssh"
 
+	mfav2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
+	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/lib/web/terminal"
 )
 
@@ -77,7 +85,7 @@ func TestTerminalReadFromClosedConn(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
-	stream := terminal.NewStream(ctx, terminal.StreamConfig{WS: conn, Logger: utils.NewLoggerForTests()})
+	stream := terminal.NewStream(ctx, terminal.StreamConfig{WS: conn, Logger: logtest.NewLogger()})
 
 	// close the stream before we attempt to read from it,
 	// this will produce a net.ErrClosed error on the read
@@ -85,6 +93,74 @@ func TestTerminalReadFromClosedConn(t *testing.T) {
 
 	_, err = io.Copy(io.Discard, stream)
 	require.NoError(t, err)
+}
+
+func TestGenerateClientConfig(t *testing.T) {
+	t.Parallel()
+
+	_, privateKey, err := ed25519.GenerateKey(rand.Reader)
+	require.NoError(t, err)
+
+	signer, err := ssh.NewSignerFromSigner(privateKey)
+	require.NoError(t, err)
+
+	handler := &sshBaseHandler{
+		userAuthClient:  mockAuthClient{},
+		proxyPublicAddr: "proxy.example.com",
+		sshDialTimeout:  5 * time.Second,
+	}
+
+	tc := &client.TeleportClient{
+		Config: client.Config{
+			HostLogin: "alice",
+			SiteName:  "leaf-cluster",
+			PublicKeyAuthConfig: apissh.PublicKeyAuthConfig{
+				Signers: func() ([]ssh.Signer, error) {
+					return []ssh.Signer{signer}, nil
+				},
+			},
+			HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		},
+	}
+
+	cfg, err := handler.generateClientConfig(t.Context(), &terminal.Stream{}, tc)
+	require.NoError(t, err)
+
+	want := apissh.ClientConfig{
+		User:    "alice",
+		Timeout: 5 * time.Second,
+	}
+
+	require.Empty(
+		t,
+		cmp.Diff(
+			want,
+			cfg,
+			cmpopts.IgnoreFields(
+				apissh.ClientConfig{},
+				"PublicKeyAuth", "HostKeyCallback", "BannerCallback", "AuthCallback", // Must be asserted separately.
+			),
+		),
+		"generateClientConfig mismatch (-want +got)",
+	)
+	require.NotNil(t, cfg.PublicKeyAuth)
+	require.NotNil(t, cfg.HostKeyCallback)
+	require.Nil(t, cfg.BannerCallback)
+	require.NotNil(t, cfg.AuthCallback)
+
+	signers, err := cfg.PublicKeyAuth.Signers()
+	require.NoError(t, err)
+	require.Len(t, signers, 1)
+}
+
+type mockAuthClient struct {
+	authProviderMock
+}
+
+func (m mockAuthClient) MFAServiceClientV2() mfav2.MFAServiceClient {
+	return struct {
+		mfav2.MFAServiceClient
+	}{}
 }
 
 type testTerminal struct {
@@ -114,7 +190,7 @@ func connectToHost(ctx context.Context, cfg connectConfig) (*testTerminal, error
 			W: 100,
 			H: 100,
 		},
-		SessionID:         cfg.sessionID,
+		JoinSessionID:     cfg.sessionID,
 		ParticipantMode:   cfg.participantMode,
 		KeepAliveInterval: cfg.keepAliveInterval,
 	}
@@ -203,7 +279,7 @@ func connectToHost(ctx context.Context, cfg connectConfig) (*testTerminal, error
 
 	t.stream = terminal.NewStream(ctx, terminal.StreamConfig{
 		WS:       ws,
-		Logger:   utils.NewLogger(),
+		Logger:   slog.Default(),
 		Handlers: cfg.handlers,
 	})
 

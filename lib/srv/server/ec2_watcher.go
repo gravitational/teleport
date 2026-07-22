@@ -20,20 +20,24 @@ package server
 
 import (
 	"context"
+	"log/slog"
+	"strings"
 	"sync"
-	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/ec2"
-	"github.com/aws/aws-sdk-go/service/ec2/ec2iface"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/aws/arn"
+	"github.com/aws/aws-sdk-go-v2/service/ec2"
+	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/cloud"
-	awslib "github.com/gravitational/teleport/lib/cloud/aws"
+	"github.com/gravitational/teleport/api/types/usertasks"
+	libcloudaws "github.com/gravitational/teleport/lib/cloud/aws"
+	awsregions "github.com/gravitational/teleport/lib/cloud/aws/regions"
+	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/labels"
+	"github.com/gravitational/teleport/lib/utils/aws/organizations"
 )
 
 const (
@@ -66,6 +70,14 @@ type EC2Instances struct {
 	// Integration is the integration used to fetch the Instance and should be used to access it.
 	// Might be empty for instances that didn't use an Integration.
 	Integration string
+	// AssumeRoleARN is the ARN of the role to assume while installing.
+	AssumeRoleARN string
+	// ExternalID is the external ID to use when assuming a role.
+	ExternalID string
+
+	// DiscoveryConfigName is the DiscoveryConfig name which originated this Run Request.
+	// Empty if using static matchers (coming from the `teleport.yaml`).
+	DiscoveryConfigName string
 
 	// EnrollMode is the mode used to enroll the instance into Teleport.
 	EnrollMode types.InstallParamEnrollMode
@@ -75,32 +87,51 @@ type EC2Instances struct {
 // discovered.
 type EC2Instance struct {
 	InstanceID       string
+	InstanceName     string
 	Tags             map[string]string
-	OriginalInstance ec2.Instance
+	OriginalInstance ec2types.Instance
 }
 
-func toEC2Instance(originalInst *ec2.Instance) EC2Instance {
+func toEC2Instance(originalInst ec2types.Instance) EC2Instance {
 	inst := EC2Instance{
-		InstanceID:       aws.StringValue(originalInst.InstanceId),
+		InstanceID:       aws.ToString(originalInst.InstanceId),
 		Tags:             make(map[string]string, len(originalInst.Tags)),
-		OriginalInstance: *originalInst,
+		OriginalInstance: originalInst,
 	}
 	for _, tag := range originalInst.Tags {
-		if key := aws.StringValue(tag.Key); key != "" {
-			inst.Tags[key] = aws.StringValue(tag.Value)
+		if key := aws.ToString(tag.Key); key != "" {
+			inst.Tags[key] = aws.ToString(tag.Value)
+			if key == "Name" {
+				inst.InstanceName = aws.ToString(tag.Value)
+			}
 		}
 	}
 	return inst
 }
 
 // ToEC2Instances converts aws []*ec2.Instance to []EC2Instance
-func ToEC2Instances(insts []*ec2.Instance) []EC2Instance {
+func ToEC2Instances(insts []ec2types.Instance) []EC2Instance {
 	var ec2Insts []EC2Instance
 
 	for _, inst := range insts {
 		ec2Insts = append(ec2Insts, toEC2Instance(inst))
 	}
 	return ec2Insts
+}
+
+func (i *EC2Instances) LogValue() slog.Value {
+	if i == nil {
+		return slog.StringValue("<nil>")
+	}
+	return slog.GroupValue(
+		slog.Int("total_instances", len(i.Instances)),
+		slog.String("account_id", i.AccountID),
+		slog.String("assume_role_arn", i.AssumeRoleARN),
+		slog.String("discovery_config", i.DiscoveryConfigName),
+		slog.String("integration", i.Integration),
+		slog.String("region", i.Region),
+		slog.String("ssm_document", i.DocumentName),
+	)
 }
 
 // ServerInfos creates a ServerInfo resource for each discovered instance.
@@ -126,17 +157,6 @@ func (i *EC2Instances) ServerInfos() ([]types.ServerInfo, error) {
 	return serverInfos, nil
 }
 
-// Option is a functional option for the Watcher.
-type Option func(*Watcher)
-
-// WithPollInterval sets the interval at which the watcher will fetch
-// instances from AWS.
-func WithPollInterval(interval time.Duration) Option {
-	return func(w *Watcher) {
-		w.pollInterval = interval
-	}
-}
-
 // MakeEvents generates ResourceCreateEvents for these instances.
 func (instances *EC2Instances) MakeEvents() map[string]*usageeventsv1.ResourceCreateEvent {
 	resourceType := types.DiscoveredResourceNode
@@ -154,78 +174,111 @@ func (instances *EC2Instances) MakeEvents() map[string]*usageeventsv1.ResourceCr
 	events := make(map[string]*usageeventsv1.ResourceCreateEvent, len(instances.Instances))
 	for _, inst := range instances.Instances {
 		events[awsEventPrefix+inst.InstanceID] = &usageeventsv1.ResourceCreateEvent{
-			ResourceType:   resourceType,
-			ResourceOrigin: types.OriginCloud,
-			CloudProvider:  types.CloudAWS,
+			ResourceType:        resourceType,
+			ResourceOrigin:      types.OriginCloud,
+			CloudProvider:       types.CloudAWS,
+			DiscoveryConfigName: instances.DiscoveryConfigName,
 		}
 	}
 	return events
 }
 
-// NewEC2Watcher creates a new EC2 watcher instance.
-func NewEC2Watcher(ctx context.Context, fetchersFn func() []Fetcher, missedRotation <-chan []types.Server, opts ...Option) (*Watcher, error) {
-	cancelCtx, cancelFn := context.WithCancel(ctx)
-	watcher := Watcher{
-		fetchersFn:     fetchersFn,
-		ctx:            cancelCtx,
-		cancel:         cancelFn,
-		pollInterval:   time.Minute,
-		triggerFetchC:  make(<-chan struct{}),
-		InstancesC:     make(chan Instances),
-		missedRotation: missedRotation,
-	}
-	for _, opt := range opts {
-		opt(&watcher)
-	}
-	return &watcher, nil
+// EC2ClientGetter gets an AWS EC2 client for the given region.
+type EC2ClientGetter func(ctx context.Context, region string, opts ...awsconfig.OptionsFn) (ec2.DescribeInstancesAPIClient, error)
+
+// AWSOrganizationsGetter gets an AWS Organizations client used for listing accounts.
+type AWSOrganizationsGetter func(ctx context.Context, opts ...awsconfig.OptionsFn) (organizations.OrganizationsClient, error)
+
+// MatcherToEC2FetcherParams contains parameters for converting AWS EC2 Matchers
+// into AWS EC2 Fetchers.
+type MatcherToEC2FetcherParams struct {
+	// Matchers is a list of AWS EC2 Matchers.
+	Matchers []types.AWSMatcher
+	// EC2ClientGetter gets an AWS EC2.
+	EC2ClientGetter EC2ClientGetter
+	// RegionsListerGetter gets a client that is capable of listing AWS regions.
+	RegionsListerGetter awsregions.ListerGetter
+	// AWSOrganizationsGetter gets a client that is capable of listing AWS organizations.
+	AWSOrganizationsGetter AWSOrganizationsGetter
+	// DiscoveryConfigName is the name of the DiscoveryConfig that contains the matchers.
+	// Empty if using static matchers (coming from the `teleport.yaml`).
+	DiscoveryConfigName string
+	// PublicProxyAddrGetter returns the public proxy address to use for installation scripts.
+	// This is only used if the matcher does not specify a ProxyAddress.
+	// Example: proxy.example.com:3080 or proxy.example.com
+	PublicProxyAddrGetter func(context.Context) (string, error)
+	// Logger is the logger to use for the fetchers.
+	Logger *slog.Logger
 }
 
 // MatchersToEC2InstanceFetchers converts a list of AWS EC2 Matchers into a list of AWS EC2 Fetchers.
-func MatchersToEC2InstanceFetchers(ctx context.Context, matchers []types.AWSMatcher, clients cloud.Clients) ([]Fetcher, error) {
-	ret := []Fetcher{}
-	for _, matcher := range matchers {
-		for _, region := range matcher.Regions {
-			// TODO(gavin): support assume_role_arn for ec2.
-			ec2Client, err := clients.GetAWSEC2Client(ctx, region,
-				cloud.WithCredentialsMaybeIntegration(matcher.Integration),
-			)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			fetcher := newEC2InstanceFetcher(ec2FetcherConfig{
-				Matcher:     matcher,
-				Region:      region,
-				Document:    matcher.SSM.DocumentName,
-				EC2Client:   ec2Client,
-				Labels:      matcher.Tags,
-				Integration: matcher.Integration,
-				EnrollMode:  matcher.Params.EnrollMode,
-			})
-			ret = append(ret, fetcher)
-		}
+func MatchersToEC2InstanceFetchers(ctx context.Context, matcherParams MatcherToEC2FetcherParams) ([]Fetcher[*EC2Instances], error) {
+	var ret []Fetcher[*EC2Instances]
+	for _, matcher := range matcherParams.Matchers {
+		fetcher := newEC2InstanceFetcher(ec2FetcherConfig{
+			Matcher:                matcher,
+			ProxyPublicAddrGetter:  matcherParams.PublicProxyAddrGetter,
+			EC2ClientGetter:        matcherParams.EC2ClientGetter,
+			RegionsListerGetter:    matcherParams.RegionsListerGetter,
+			AWSOrganizationsGetter: matcherParams.AWSOrganizationsGetter,
+			DiscoveryConfigName:    matcherParams.DiscoveryConfigName,
+			Logger:                 matcherParams.Logger,
+		})
+		ret = append(ret, fetcher)
 	}
 	return ret, nil
 }
 
+func (f *ec2InstanceFetcher) permissionErrorOrWarn(ctx context.Context, err error, region, assumeRoleARN string) error {
+	if len(EC2IAMPermissionErrors(err)) > 0 {
+		return trace.Wrap(err)
+	}
+
+	logAttrs := []any{
+		"assume_role_arn", assumeRoleARN,
+		"error", err,
+	}
+	if region != "" {
+		logAttrs = append(logAttrs, "region", region)
+	}
+
+	f.Logger.WarnContext(ctx, "Failed to discover EC2 instances", logAttrs...)
+	return nil
+}
+
+func (f *ec2InstanceFetcher) wrapEC2DiscoveryPermissionError(err error, issueType, assumeRoleARN, region string) error {
+	convertedErr := libcloudaws.ConvertRequestFailureError(err)
+	if !isEC2DiscoveryPermissionError(convertedErr) {
+		return trace.Wrap(convertedErr)
+	}
+
+	accountID := accountIDFromRoleARN(assumeRoleARN)
+	return trace.Wrap(&EC2IAMPermissionError{
+		Integration:         f.Matcher.Integration,
+		Region:              region,
+		IssueType:           issueType,
+		DiscoveryConfigName: f.DiscoveryConfigName,
+		AccountID:           accountID,
+		Err:                 convertedErr,
+	})
+}
+
 type ec2FetcherConfig struct {
-	Matcher     types.AWSMatcher
-	Region      string
-	Document    string
-	EC2Client   ec2iface.EC2API
-	Labels      types.Labels
-	Integration string
-	EnrollMode  types.InstallParamEnrollMode
+	Matcher types.AWSMatcher
+	// ProxyPublicAddrGetter returns the public proxy address to use for installation scripts.
+	// This is only used if the matcher does not specify a ProxyAddress.
+	// Example: proxy.example.com:3080 or proxy.example.com
+	ProxyPublicAddrGetter  func(ctx context.Context) (string, error)
+	EC2ClientGetter        EC2ClientGetter
+	RegionsListerGetter    awsregions.ListerGetter
+	AWSOrganizationsGetter AWSOrganizationsGetter
+	DiscoveryConfigName    string
+	Logger                 *slog.Logger
 }
 
 type ec2InstanceFetcher struct {
-	Filters      []*ec2.Filter
-	EC2          ec2iface.EC2API
-	Region       string
-	DocumentName string
-	Parameters   map[string]string
-	Integration  string
-	EnrollMode   types.InstallParamEnrollMode
+	ec2FetcherConfig
+	Filters []ec2types.Filter
 
 	// cachedInstances keeps all of the ec2 instances that were matched
 	// in the last run of GetInstances for use as a cache with
@@ -234,25 +287,25 @@ type ec2InstanceFetcher struct {
 }
 
 type instancesCache struct {
-	sync.Mutex
+	mu        sync.Mutex
 	instances map[cachedInstanceKey]struct{}
 }
 
 func (ic *instancesCache) add(accountID, instanceID string) {
-	ic.Lock()
-	defer ic.Unlock()
+	ic.mu.Lock()
+	defer ic.mu.Unlock()
 	ic.instances[cachedInstanceKey{accountID: accountID, instanceID: instanceID}] = struct{}{}
 }
 
 func (ic *instancesCache) clear() {
-	ic.Lock()
-	defer ic.Unlock()
+	ic.mu.Lock()
+	defer ic.mu.Unlock()
 	ic.instances = make(map[cachedInstanceKey]struct{})
 }
 
 func (ic *instancesCache) exists(accountID, instanceID string) bool {
-	ic.Lock()
-	defer ic.Unlock()
+	ic.mu.Lock()
+	defer ic.mu.Unlock()
 	_, ok := ic.instances[cachedInstanceKey{accountID: accountID, instanceID: instanceID}]
 	return ok
 }
@@ -262,6 +315,7 @@ type cachedInstanceKey struct {
 	instanceID string
 }
 
+// SSM Run Command parameters for the TeleportDiscoveryInstaller SSM Document.
 const (
 	// ParamToken is the name of the invite token parameter sent in the SSM Document
 	ParamToken = "token"
@@ -269,6 +323,15 @@ const (
 	ParamScriptName = "scriptName"
 	// ParamSSHDConfigPath is the path to the OpenSSH config file sent in the SSM Document
 	ParamSSHDConfigPath = "sshdConfigPath"
+	// ParamEnvVars is a parameter that contains environment variables to set before running the installation script.
+	ParamEnvVars = "env"
+)
+
+// SSM Run Command parameters for the AWS-RunShellScript managed SSM Document.
+const (
+	// ParamCommands is the name of the commands parameter sent in the SSM Document.
+	// This is a list of strings, which contain the command to execute.
+	ParamCommands = "commands"
 )
 
 // awsEC2APIChunkSize is the max number of instances SSM will send commands to at a time
@@ -278,62 +341,88 @@ const (
 const awsEC2APIChunkSize = 50
 
 func newEC2InstanceFetcher(cfg ec2FetcherConfig) *ec2InstanceFetcher {
-	tagFilters := []*ec2.Filter{{
+	tagFilters := []ec2types.Filter{{
 		Name:   aws.String(AWSInstanceStateName),
-		Values: aws.StringSlice([]string{ec2.InstanceStateNameRunning}),
+		Values: []string{string(ec2types.InstanceStateNameRunning)},
 	}}
 
-	if _, ok := cfg.Labels["*"]; !ok {
-		for key, val := range cfg.Labels {
-			tagFilters = append(tagFilters, &ec2.Filter{
+	if _, ok := cfg.Matcher.Tags[types.Wildcard]; !ok {
+		for key, val := range cfg.Matcher.Tags {
+			tagFilters = append(tagFilters, ec2types.Filter{
 				Name:   aws.String("tag:" + key),
-				Values: aws.StringSlice(val),
+				Values: val,
 			})
 		}
 	} else {
-		log.Debug("Not setting any tag filters as there is a '*:...' tag present and AWS doesnt allow globbing on keys")
-	}
-	var parameters map[string]string
-	if cfg.Matcher.Params == nil {
-		cfg.Matcher.Params = &types.InstallerParams{}
-	}
-	if cfg.Matcher.Params.InstallTeleport {
-		parameters = map[string]string{
-			ParamToken:      cfg.Matcher.Params.JoinToken,
-			ParamScriptName: cfg.Matcher.Params.ScriptName,
-		}
-	} else {
-		parameters = map[string]string{
-			ParamToken:          cfg.Matcher.Params.JoinToken,
-			ParamScriptName:     cfg.Matcher.Params.ScriptName,
-			ParamSSHDConfigPath: cfg.Matcher.Params.SSHDConfig,
-		}
+		slog.DebugContext(context.Background(), "Not setting any tag filters as there is a '*:...' tag present and AWS doesn't allow globbing on keys")
 	}
 
-	fetcherConfig := ec2InstanceFetcher{
-		EC2:          cfg.EC2Client,
-		Filters:      tagFilters,
-		Region:       cfg.Region,
-		DocumentName: cfg.Document,
-		Parameters:   parameters,
-		Integration:  cfg.Integration,
-		EnrollMode:   cfg.EnrollMode,
+	if cfg.Matcher.AssumeRole == nil {
+		cfg.Matcher.AssumeRole = &types.AssumeRole{}
+	}
+
+	if cfg.Logger == nil {
+		cfg.Logger = slog.Default()
+	}
+
+	return &ec2InstanceFetcher{
+		ec2FetcherConfig: cfg,
+		Filters:          tagFilters,
 		cachedInstances: &instancesCache{
 			instances: map[cachedInstanceKey]struct{}{},
 		},
 	}
-	return &fetcherConfig
+}
+
+func ssmRunCommandParametersForCustomDocuments(cfg ec2FetcherConfig) map[string]string {
+	if cfg.Matcher.Params == nil {
+		cfg.Matcher.Params = &types.InstallerParams{}
+	}
+
+	parameters := map[string]string{
+		ParamToken:      cfg.Matcher.Params.JoinToken,
+		ParamScriptName: cfg.Matcher.Params.ScriptName,
+	}
+
+	envVars := envVarsFromInstallerParams(cfg.Matcher.Params)
+	if len(envVars) > 0 {
+		parameters[ParamEnvVars] = strings.Join(envVars, " ")
+	}
+
+	if !cfg.Matcher.Params.InstallTeleport {
+		parameters[ParamSSHDConfigPath] = cfg.Matcher.Params.SSHDConfig
+	}
+
+	return parameters
+}
+
+func ssmRunCommandParameters(ctx context.Context, cfg ec2FetcherConfig) (map[string]string, error) {
+	if cfg.Matcher.SSM.DocumentName == types.AWSSSMDocumentRunShellScript {
+		// When using the pre-defined SSM Document AWS-RunShellScript, only the commands parameter is required.
+		// It contains the full installation script that will be executed on the instance.
+		script, err := installerScript(ctx, cfg.Matcher.Params, withProxyAddrGetter(cfg.ProxyPublicAddrGetter))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return map[string]string{
+			ParamCommands: script,
+		}, nil
+	}
+
+	// For custom SSM Documents, scriptName, token and env are required.
+	return ssmRunCommandParametersForCustomDocuments(cfg), nil
 }
 
 // GetMatchingInstances returns a list of EC2 instances from a list of matching Teleport nodes
-func (f *ec2InstanceFetcher) GetMatchingInstances(nodes []types.Server, rotation bool) ([]Instances, error) {
-	insts := EC2Instances{
-		Region:       f.Region,
-		DocumentName: f.DocumentName,
-		Parameters:   f.Parameters,
-		Rotation:     rotation,
-		Integration:  f.Integration,
+func (f *ec2InstanceFetcher) GetMatchingInstances(ctx context.Context, nodes []types.Server, rotation bool) ([]*EC2Instances, error) {
+	ssmRunParams, err := ssmRunCommandParameters(ctx, f.ec2FetcherConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
+
+	instancesByRegion := make(map[string]EC2Instances)
+
 	for _, node := range nodes {
 		// Heartbeating and expiration keeps Teleport Agents up to date, no need to consider those nodes.
 		// Agentless and EICE Nodes don't heartbeat, so they must be manually managed by the DiscoveryService.
@@ -341,7 +430,7 @@ func (f *ec2InstanceFetcher) GetMatchingInstances(nodes []types.Server, rotation
 			continue
 		}
 		region, ok := node.GetLabel(types.AWSInstanceRegion)
-		if !ok || region != f.Region {
+		if !ok {
 			continue
 		}
 		instID, ok := node.GetLabel(types.AWSInstanceIDLabel)
@@ -356,83 +445,297 @@ func (f *ec2InstanceFetcher) GetMatchingInstances(nodes []types.Server, rotation
 		if !f.cachedInstances.exists(accountID, instID) {
 			continue
 		}
-		if insts.AccountID == "" {
-			insts.AccountID = accountID
-		}
 
+		if _, ok := instancesByRegion[region]; !ok {
+			instancesByRegion[region] = EC2Instances{
+				Region:              region,
+				DocumentName:        f.Matcher.SSM.DocumentName,
+				Parameters:          ssmRunParams,
+				Rotation:            rotation,
+				Integration:         f.Matcher.Integration,
+				DiscoveryConfigName: f.DiscoveryConfigName,
+				AccountID:           accountID,
+			}
+		}
+		insts := instancesByRegion[region]
 		insts.Instances = append(insts.Instances, EC2Instance{
 			InstanceID: instID,
 		})
+
+		instancesByRegion[region] = insts
 	}
 
-	if len(insts.Instances) == 0 {
+	if len(instancesByRegion) == 0 {
 		return nil, trace.NotFound("no ec2 instances found")
 	}
 
-	return chunkInstances(insts), nil
+	return chunkInstances(instancesByRegion), nil
 }
 
-func chunkInstances(insts EC2Instances) []Instances {
-	var instColl []Instances
-	for i := 0; i < len(insts.Instances); i += awsEC2APIChunkSize {
-		end := i + awsEC2APIChunkSize
-		if end > len(insts.Instances) {
-			end = len(insts.Instances)
+// chunkInstances splits instances into chunks of 50.
+// This is required because SSM SendCommand API calls only accept up to 50 instance IDs at a time.
+func chunkInstances(instancesByRegion map[string]EC2Instances) []*EC2Instances {
+	var instColl []*EC2Instances
+	for _, insts := range instancesByRegion {
+		for i := 0; i < len(insts.Instances); i += awsEC2APIChunkSize {
+			end := min(i+awsEC2APIChunkSize, len(insts.Instances))
+			inst := &EC2Instances{
+				AccountID:           insts.AccountID,
+				Region:              insts.Region,
+				DocumentName:        insts.DocumentName,
+				Parameters:          insts.Parameters,
+				Instances:           insts.Instances[i:end],
+				Rotation:            insts.Rotation,
+				Integration:         insts.Integration,
+				DiscoveryConfigName: insts.DiscoveryConfigName,
+			}
+			instColl = append(instColl, inst)
 		}
-		inst := EC2Instances{
-			AccountID:    insts.AccountID,
-			Region:       insts.Region,
-			DocumentName: insts.DocumentName,
-			Parameters:   insts.Parameters,
-			Instances:    insts.Instances[i:end],
-			Rotation:     insts.Rotation,
-			Integration:  insts.Integration,
-		}
-		instColl = append(instColl, Instances{EC2: &inst})
 	}
 	return instColl
 }
 
-// GetInstances fetches all EC2 instances matching configured filters.
-func (f *ec2InstanceFetcher) GetInstances(ctx context.Context, rotation bool) ([]Instances, error) {
-	var instances []Instances
-	f.cachedInstances.clear()
-	err := f.EC2.DescribeInstancesPagesWithContext(ctx, &ec2.DescribeInstancesInput{
-		Filters: f.Filters,
-	},
-		func(dio *ec2.DescribeInstancesOutput, b bool) bool {
-			for _, res := range dio.Reservations {
-				for i := 0; i < len(res.Instances); i += awsEC2APIChunkSize {
-					end := i + awsEC2APIChunkSize
-					if end > len(res.Instances) {
-						end = len(res.Instances)
-					}
-					ownerID := aws.StringValue(res.OwnerId)
-					inst := EC2Instances{
-						AccountID:    ownerID,
-						Region:       f.Region,
-						DocumentName: f.DocumentName,
-						Instances:    ToEC2Instances(res.Instances[i:end]),
-						Parameters:   f.Parameters,
-						Rotation:     rotation,
-						Integration:  f.Integration,
-						EnrollMode:   f.EnrollMode,
-					}
-					for _, ec2inst := range res.Instances[i:end] {
-						f.cachedInstances.add(ownerID, aws.StringValue(ec2inst.InstanceId))
-					}
-					instances = append(instances, Instances{EC2: &inst})
-				}
-			}
-			return true
-		})
-	if err != nil {
-		return nil, awslib.ConvertRequestFailureError(err)
+type matcherRegionsParams struct {
+	awsOpts       []awsconfig.OptionsFn
+	assumeRoleARN string
+}
+
+func (f *ec2InstanceFetcher) matcherRegions(ctx context.Context, params matcherRegionsParams) ([]string, error) {
+	if !f.Matcher.IsRegionWildcard() {
+		return f.Matcher.Regions, nil
 	}
 
-	if len(instances) == 0 {
+	regions, err := awsregions.ListEnabledRegions(ctx, f.RegionsListerGetter, params.awsOpts...)
+	if err != nil {
+		return nil, f.wrapEC2DiscoveryPermissionError(err, usertasks.AutoDiscoverEC2IssuePermAccountDenied, params.assumeRoleARN, "")
+	}
+
+	return regions, nil
+}
+
+func (f *ec2InstanceFetcher) fetchAccountIDsUnderOrganization(ctx context.Context) ([]string, error) {
+	awsOpts := []awsconfig.OptionsFn{
+		awsconfig.WithCredentialsMaybeIntegration(awsconfig.IntegrationMetadata{Name: f.Matcher.Integration}),
+	}
+
+	var organizationID string
+	var includeOUs []string
+	var excludeOUs []string
+	organizationID = f.Matcher.Organization.OrganizationID
+	if f.Matcher.Organization.OrganizationalUnits != nil {
+		includeOUs = f.Matcher.Organization.OrganizationalUnits.Include
+		excludeOUs = f.Matcher.Organization.OrganizationalUnits.Exclude
+	}
+
+	orgsClient, err := f.AWSOrganizationsGetter(ctx, awsOpts...)
+	if err != nil {
+		return nil, f.wrapEC2DiscoveryPermissionError(err, usertasks.AutoDiscoverEC2IssuePermOrgDenied, f.Matcher.AssumeRole.RoleARN, "")
+	}
+
+	accountIDs, err := organizations.MatchingAccounts(ctx, f.Logger, orgsClient, organizations.MatchingAccountsFilter{
+		IncludeOUs:     includeOUs,
+		ExcludeOUs:     excludeOUs,
+		OrganizationID: organizationID,
+	})
+	if err != nil {
+		return nil, f.wrapEC2DiscoveryPermissionError(err, usertasks.AutoDiscoverEC2IssuePermOrgDenied, f.Matcher.AssumeRole.RoleARN, "")
+	}
+
+	return accountIDs, nil
+}
+
+type assumeRoleWithExternalID struct {
+	RoleARN    string
+	ExternalID string
+}
+
+// allAssumeRoles returns a list of all the AWS Assume Roles that must be assumed.
+// There's a special case when there is no Role to Assume, in this case an empty string is returned.
+// In this situation no AssumeRole should be passed to the AWS client.
+func (f *ec2InstanceFetcher) allAssumeRoles(ctx context.Context) ([]assumeRoleWithExternalID, error) {
+	if !f.Matcher.HasOrganizationMatcher() {
+		// When targeting a single Account (ie, no account discovery / no organization account matcher)
+		// the discovery service can either use the current IAM Role or assume another IAM Role.
+		// If defined, then the Assume Role ARN is returned, otherwise an empty string is returned.
+		// An empty string is used to indicate that no Assume Role should be used.
+		var roleARN string
+		var externalID string
+		if f.Matcher.AssumeRole != nil {
+			roleARN = f.Matcher.AssumeRole.RoleARN
+			externalID = f.Matcher.AssumeRole.ExternalID
+		}
+		return []assumeRoleWithExternalID{{RoleARN: roleARN, ExternalID: externalID}}, nil
+	}
+
+	if f.Matcher.AssumeRole == nil || f.Matcher.AssumeRole.RoleName == "" {
+		return nil, trace.BadParameter("assume role name is required when using AWS organization discovery")
+	}
+
+	accountIDs, err := f.fetchAccountIDsUnderOrganization(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var allAssumeRoles []assumeRoleWithExternalID
+	for _, accountID := range accountIDs {
+		assumeRoleARN := arn.ARN{
+			Partition: "aws",
+			Service:   "iam",
+			Region:    "",
+			AccountID: accountID,
+			Resource:  "role/" + f.Matcher.AssumeRole.RoleName,
+		}
+
+		allAssumeRoles = append(allAssumeRoles, assumeRoleWithExternalID{
+			RoleARN:    assumeRoleARN.String(),
+			ExternalID: f.Matcher.AssumeRole.ExternalID,
+		})
+	}
+
+	return allAssumeRoles, nil
+}
+
+// GetInstances fetches all EC2 instances matching configured filters.
+func (f *ec2InstanceFetcher) GetInstances(ctx context.Context, rotation bool) ([]*EC2Instances, error) {
+	ssmRunParams, err := ssmRunCommandParameters(ctx, f.ec2FetcherConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	f.cachedInstances.clear()
+	var allInstances []*EC2Instances
+	var permissionErrors []error
+
+	accountRolesToAssume, err := f.allAssumeRoles(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	for _, assumeRole := range accountRolesToAssume {
+		awsOpts := []awsconfig.OptionsFn{
+			awsconfig.WithCredentialsMaybeIntegration(awsconfig.IntegrationMetadata{Name: f.Matcher.Integration}),
+			awsconfig.WithAssumeRole(assumeRole.RoleARN, assumeRole.ExternalID),
+		}
+
+		regions, err := f.matcherRegions(ctx, matcherRegionsParams{
+			awsOpts:       awsOpts,
+			assumeRoleARN: assumeRole.RoleARN,
+		})
+		if err != nil {
+			permissionErrors = append(permissionErrors,
+				f.permissionErrorOrWarn(ctx, err, "", assumeRole.RoleARN),
+			)
+			continue
+		}
+
+		for _, region := range regions {
+			regionInstances, err := f.getInstancesInRegion(ctx, getInstancesInRegionParams{
+				rotation:     rotation,
+				region:       region,
+				assumeRole:   assumeRole,
+				awsOpts:      awsOpts,
+				ssmRunParams: ssmRunParams,
+			})
+			if err != nil {
+				permissionErrors = append(permissionErrors,
+					f.permissionErrorOrWarn(ctx, err, region, assumeRole.RoleARN),
+				)
+				continue
+			}
+
+			allInstances = append(allInstances, regionInstances...)
+		}
+	}
+
+	permissionErr := trace.NewAggregate(permissionErrors...)
+	if len(allInstances) == 0 {
+		if permissionErr != nil {
+			return nil, trace.Wrap(permissionErr)
+		}
 		return nil, trace.NotFound("no ec2 instances found")
 	}
 
+	return allInstances, trace.Wrap(permissionErr)
+}
+
+type getInstancesInRegionParams struct {
+	rotation     bool
+	region       string
+	assumeRole   assumeRoleWithExternalID
+	awsOpts      []awsconfig.OptionsFn
+	ssmRunParams map[string]string
+}
+
+// getInstancesInRegion fetches all EC2 instances in a given region.
+func (f *ec2InstanceFetcher) getInstancesInRegion(ctx context.Context, params getInstancesInRegionParams) ([]*EC2Instances, error) {
+	ec2Client, err := f.EC2ClientGetter(ctx, params.region, params.awsOpts...)
+	if err != nil {
+		return nil, f.wrapEC2DiscoveryPermissionError(err, usertasks.AutoDiscoverEC2IssuePermAccountDenied, params.assumeRole.RoleARN, params.region)
+	}
+
+	var instances []*EC2Instances
+
+	paginator := ec2.NewDescribeInstancesPaginator(ec2Client, &ec2.DescribeInstancesInput{
+		Filters: f.Filters,
+	})
+
+	for paginator.HasMorePages() {
+		page, err := paginator.NextPage(ctx)
+		if err != nil {
+			return nil, f.wrapEC2DiscoveryPermissionError(err, usertasks.AutoDiscoverEC2IssuePermAccountDenied, params.assumeRole.RoleARN, params.region)
+		}
+
+		pageInstancesPerOwnerID := make(map[string][]ec2types.Instance)
+
+		for _, res := range page.Reservations {
+			pageInstancesPerOwnerID[aws.ToString(res.OwnerId)] = append(pageInstancesPerOwnerID[aws.ToString(res.OwnerId)], res.Instances...)
+		}
+
+		for ownerID, pageInstances := range pageInstancesPerOwnerID {
+			for i := 0; i < len(pageInstances); i += awsEC2APIChunkSize {
+				end := min(i+awsEC2APIChunkSize, len(pageInstances))
+				inst := &EC2Instances{
+					AccountID:           ownerID,
+					Region:              params.region,
+					DocumentName:        f.Matcher.SSM.DocumentName,
+					Instances:           ToEC2Instances(pageInstances[i:end]),
+					Parameters:          params.ssmRunParams,
+					Rotation:            params.rotation,
+					Integration:         f.Matcher.Integration,
+					AssumeRoleARN:       params.assumeRole.RoleARN,
+					ExternalID:          params.assumeRole.ExternalID,
+					DiscoveryConfigName: f.DiscoveryConfigName,
+					EnrollMode:          f.Matcher.Params.EnrollMode,
+				}
+				for _, ec2inst := range pageInstances[i:end] {
+					f.cachedInstances.add(ownerID, aws.ToString(ec2inst.InstanceId))
+				}
+				instances = append(instances, inst)
+			}
+		}
+	}
+
 	return instances, nil
+}
+
+// GetDiscoveryConfigName returns the discovery config name that created this fetcher.
+func (f *ec2InstanceFetcher) GetDiscoveryConfigName() string {
+	return f.DiscoveryConfigName
+}
+
+// IntegrationName identifies the integration name whose credentials were used to fetch the resources.
+// Might be empty when the fetcher is using ambient credentials.
+func (f *ec2InstanceFetcher) IntegrationName() string {
+	return f.Matcher.Integration
+}
+
+// LogValue implements [slog.LogValuer].
+func (f *ec2InstanceFetcher) LogValue() slog.Value {
+	return slog.GroupValue(
+		slog.Any("organization", f.Matcher.Organization),
+		slog.Any("regions", f.Matcher.Regions),
+		slog.Any("tags", f.Matcher.Tags),
+		slog.String("discovery_config", f.GetDiscoveryConfigName()),
+		slog.String("integration", f.IntegrationName()),
+	)
 }

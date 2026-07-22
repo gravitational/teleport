@@ -16,22 +16,28 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import {
+  resolveColorTokens,
+  useDesignSystemContext,
+} from '@gravitational/design-system';
 import React, { useEffect, useRef, useState } from 'react';
 import styled, { useTheme } from 'styled-components';
+
 import { Box, Flex } from 'design';
-import { debounce } from 'shared/utils/highbar';
 import {
   Attempt,
   makeEmptyAttempt,
   makeErrorAttemptWithStatusText,
   makeSuccessAttempt,
 } from 'shared/hooks/useAsync';
+import { debounce } from 'shared/utils/highbar';
 
-import { IPtyProcess } from 'teleterm/sharedProcess/ptyHost';
+import { ConfigService } from 'teleterm/services/config';
+import { IPtyProcess, WindowsPty } from 'teleterm/services/pty';
+import { KeyboardShortcutsService } from 'teleterm/ui/services/keyboardShortcuts';
 import { DocumentTerminal } from 'teleterm/ui/services/workspacesService';
 
 import { Reconnect } from '../Reconnect';
-
 import XTermCtrl from './ctrl';
 
 type TerminalProps = {
@@ -48,14 +54,21 @@ type TerminalProps = {
   unsanitizedFontFamily: string;
   fontSize: number;
   onEnterKey?(): void;
+  windowsPty: WindowsPty;
+  openContextMenu(): void;
+  configService: ConfigService;
+  keyboardShortcutsService: KeyboardShortcutsService;
+  // terminalAddons is used to pass the tty to the parent component to enable any optional components like search or filetransfers.
+  terminalAddons?: (terminalRef: XTermCtrl) => React.JSX.Element;
 };
 
 export function Terminal(props: TerminalProps) {
-  const refElement = useRef<HTMLDivElement>();
-  const refCtrl = useRef<XTermCtrl>();
+  const refElement = useRef<HTMLDivElement>(null);
+  const refCtrl = useRef<XTermCtrl>(undefined);
   const [startPtyProcessAttempt, setStartPtyProcessAttempt] =
     useState<Attempt<void>>(makeEmptyAttempt());
   const theme = useTheme();
+  const system = useDesignSystemContext();
 
   useEffect(() => {
     const removeOnStartErrorListener = props.ptyProcess.onStartError(
@@ -68,11 +81,18 @@ export function Terminal(props: TerminalProps) {
       setStartPtyProcessAttempt(makeSuccessAttempt(undefined));
     });
 
-    const ctrl = new XTermCtrl(props.ptyProcess, {
-      el: refElement.current,
-      fontSize: props.fontSize,
-      theme: theme.colors.terminal,
-    });
+    const ctrl = new XTermCtrl(
+      props.ptyProcess,
+      {
+        el: refElement.current,
+        fontSize: props.fontSize,
+        theme: resolveColorTokens(system, theme.colors.terminal, theme.type),
+        windowsPty: props.windowsPty,
+        openContextMenu: props.openContextMenu,
+      },
+      props.configService,
+      props.keyboardShortcutsService
+    );
 
     // Start the PTY process.
     ctrl.open();
@@ -108,9 +128,13 @@ export function Terminal(props: TerminalProps) {
 
   useEffect(() => {
     if (refCtrl.current) {
-      refCtrl.current.term.options.theme = theme.colors.terminal;
+      refCtrl.current.term.options.theme = resolveColorTokens(
+        system,
+        theme.colors.terminal,
+        theme.type
+      );
     }
-  }, [theme]);
+  }, [system, theme]);
 
   return (
     <Flex
@@ -126,7 +150,11 @@ export function Terminal(props: TerminalProps) {
           reconnect={props.reconnect}
         />
       )}
+      <TerminalAddonsContainer>
+        {refCtrl.current && props.terminalAddons?.(refCtrl.current)}
+      </TerminalAddonsContainer>
       <StyledXterm
+        data-testid="terminal-container"
         ref={refElement}
         style={{
           fontFamily: props.unsanitizedFontFamily,
@@ -137,6 +165,19 @@ export function Terminal(props: TerminalProps) {
     </Flex>
   );
 }
+
+const TerminalAddonsContainer = styled.div`
+  position: absolute;
+  right: 8px;
+  top: 8px;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  width: 100%;
+  max-width: 500px;
+`;
 
 const StyledXterm = styled(Box)`
   height: 100%;

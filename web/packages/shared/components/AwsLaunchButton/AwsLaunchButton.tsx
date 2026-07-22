@@ -16,13 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import React, { ComponentPropsWithRef } from 'react';
 import styled from 'styled-components';
-import { space, SpaceProps } from 'design/system';
-import { ButtonBorder, Flex, Text, Box } from 'design';
-import Menu, { MenuItem } from 'design/Menu';
-import { ChevronDown } from 'design/Icon';
 
+import { Box, ButtonBorder, Flex, Text } from 'design';
+import { ChevronDown } from 'design/Icon';
+import Menu, { MenuItem } from 'design/Menu';
+import { space, SpaceProps } from 'design/system';
 import { AwsRole } from 'shared/services/apps';
 
 export class AwsLaunchButton extends React.Component<Props> {
@@ -48,14 +48,17 @@ export class AwsLaunchButton extends React.Component<Props> {
 
   render() {
     const { open } = this.state;
-    const { awsRoles, getLaunchUrl, onLaunchUrl } = this.props;
+    const { awsRoles, getLaunchUrl, onLaunchUrl, isAwsIdentityCenterApp } =
+      this.props;
     return (
       <>
         <ButtonBorder
           textTransform="none"
           width={this.props.width || '90px'}
           size="small"
-          setRef={e => (this.anchorEl.current = e)}
+          ref={e => {
+            this.anchorEl.current = e;
+          }}
           onClick={this.onOpen}
         >
           Launch
@@ -94,6 +97,7 @@ export class AwsLaunchButton extends React.Component<Props> {
             onLaunchUrl={onLaunchUrl}
             closeMenu={this.onClose}
             onChange={this.onChange}
+            isAwsIdentityCenterApp={isAwsIdentityCenterApp}
           />
         </Menu>
       </>
@@ -107,6 +111,7 @@ function RoleItemList({
   closeMenu,
   onChange,
   onLaunchUrl,
+  isAwsIdentityCenterApp,
 }: Props & {
   closeMenu: () => void;
   onChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
@@ -117,6 +122,9 @@ function RoleItemList({
     let text = `${accountId}: ${display}`;
     if (display !== name) {
       text = `${text} (${name})`;
+    }
+    if (isAwsIdentityCenterApp) {
+      text = name;
     }
     return (
       <StyledMenuItem
@@ -137,17 +145,24 @@ function RoleItemList({
     );
   });
 
+  let selectLabel = 'Select IAM Role';
+  let placeholder = 'Search IAM roles...';
+  if (isAwsIdentityCenterApp) {
+    selectLabel = 'Select Permission Sets';
+    placeholder = 'Search Permission Sets...';
+  }
+
   return (
     <Flex flexDirection="column">
       <Text
         px="2"
-        fontSize="11px"
+        typography="body3"
         css={`
           color: ${props => props.theme.colors.text.main};
           background: ${props => props.theme.colors.spotBackground[2]};
         `}
       >
-        Select IAM Role
+        {selectLabel}
       </Text>
       <StyledInput
         p="2"
@@ -155,7 +170,7 @@ function RoleItemList({
         type="text"
         onChange={onChange}
         autoFocus
-        placeholder={'Search IAM roles...'}
+        placeholder={placeholder}
         autoComplete="off"
       />
       <Box
@@ -180,7 +195,8 @@ type Props = {
   awsRoles: AwsRole[];
   getLaunchUrl(arn: string): string;
   onLaunchUrl?(arn: string): void;
-  width?: string;
+  width?: ComponentPropsWithRef<typeof ButtonBorder>['width'];
+  isAwsIdentityCenterApp?: boolean;
 };
 
 const StyledMenuItem = styled(MenuItem)(

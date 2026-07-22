@@ -18,11 +18,13 @@ package accesslist
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/trait"
 )
 
@@ -67,7 +69,7 @@ func TestReviewSpecMarshaling(t *testing.T) {
 	require.Equal(t, `{"review_date":"2023-01-01T00:00:00Z","access_list":"access-list","reviewers":["user1","user2"],`+
 		`"notes":"Some notes","changes":{"review_frequency_changed":"6 months","review_day_of_month_changed":"1",`+
 		`"membership_requirements_changed":{"roles":["member1","member2"],"traits":{"trait1":["value1","value2"],"trait2":["value1","value2"]}},`+
-		`"removed_members":["member1","member2"]}}`, string(data))
+		`"removed_members":["member1","member2"],"scoped_removed_members":null}}`, string(data))
 
 	raw := map[string]interface{}{}
 	require.NoError(t, json.Unmarshal(data, &raw))
@@ -121,4 +123,16 @@ func TestReviewSpecUnmarshaling(t *testing.T) {
 	require.Equal(t, time.Date(2023, 01, 01, 0, 0, 0, 0, time.UTC), reviewSpec.ReviewDate)
 	require.Equal(t, OneMonth, reviewSpec.Changes.ReviewFrequencyChanged)
 	require.Equal(t, FirstDayOfMonth, reviewSpec.Changes.ReviewDayOfMonthChanged)
+}
+
+// TestNewReviewNotesLimit verifies notes are truncated to max size when creating a new review.
+func TestNewReviewNotesLimit(t *testing.T) {
+	review, err := NewReview(header.Metadata{Name: "example"}, ReviewSpec{
+		AccessList: "access-list",
+		Reviewers:  []string{"user1"},
+		ReviewDate: time.Date(2023, 01, 01, 0, 0, 0, 0, time.UTC),
+		Notes:      strings.Repeat("a", reviewNotesMaxSizeBytes+1),
+	})
+	require.NoError(t, err)
+	require.Len(t, review.Spec.Notes, reviewNotesMaxSizeBytes)
 }

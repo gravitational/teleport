@@ -1,6 +1,6 @@
 ---
 authors: Nic Klaassen (nic@goteleport.com)
-state: draft
+state: implemented
 ---
 
 # RFD 136 - Modern Signature Algorithms
@@ -51,14 +51,16 @@ key types and algorithms Teleport uses today (2048-bit RSA everywhere).
 
 The `balanced-v1` suite will use a modern set of algorithms selected to
 balance security, compatibility, and performance.
-The proposed selection for this suite is to use Ed25519 as the default choice,
-and ECDSA with the NIST P-256 curve in cases where Teleport is likely to
-interact with third-party software that does not support Ed25519.
-The exception is the database CA, where it looks like it will be necessary to
-continue using RSA in order to continue supporting our current Snowflake
-integration.
-We will continue using 2048-bit keys wherever RSA is used, to avoid the
-performance penalty of using larger keys.
+The proposed selection for this suite is to use Ed25519 for SSH keys,
+and ECDSA with the NIST P-256 curve for TLS keys.
+Exceptions:
+- The `db` and `db_client` CAs will continue using RSA for compatibility with
+  certain databases (Snowflake) that don't support ECDSA.
+- The `saml_idp` and `oidc_idp` CAs with continue using RSA because their
+  specifications require RSA support, and many integrations only support RSA.
+  In the future we may add support for optional RSA and ECDSA simultaneously.
+
+We will continue using 2048-bit keys wherever RSA is used.
 
 The `fips-v1` suite will only use key types and signature algorithms that are
 approved by FIPS 186-5 *and* are supported in Go's `GOEXPERIMENT=boringcrypto`
@@ -73,7 +75,7 @@ is selected.
 The `fips-v1` algorithm suite will be available without FIPS mode, to enable
 migration to FIPS mode.
 
-The `hsm-v1` suite will be based off of the `balanced-v1` suite, but all uses of
+The `hsm-v1` suite will be based off of the `balanced-v1` suite, but uses of
 Ed25519 *for CA keys only* will be replaced by ECDSA with the NIST P-256 curve.
 This is necessary and sufficient for all of the HSMs and KMSs we currently
 support and test for (YubiHSM2, AWS CloudHSM, and GCP KMS).
@@ -83,19 +85,18 @@ to the algorithms supported by the HSM.
 
 ### Default suite
 
-For all Teleport clusters where the Auth server's teleport.yaml config file has
-`version: v3` (the current latest version), the default suite will be `legacy`.
-Changing the default will be a breaking change, so we will introduce a config v4
-to change the default.
+For all existing clusters before this change is released in v17.0.0, the default
+suite will remain `legacy`.
+It will not be updated unless a cluster admin manually updates the configuration
+to use a new suite.
 
-In config v4 the default suite will be:
-
+For all new clusters deployed on v17.0.0+, the default suite will be:
 * `fips-v1` if the Auth server was started in FIPS mode
 * `hsm-v1` if the Auth server has any HSM or KMS configured (and is not in FIPS mode)
 * `balanced-v1` otherwise
 
-If the suite is explicitly set in the teleport.yaml or
-`cluster_auth_preference`, it will be honoured and no default will be necessary.
+If the suite is explicitly set in the configuration, it will be honoured and no
+default will be necessary.
 
 ### Configuration
 
@@ -120,8 +121,9 @@ teleport:
   auth_service:
     enabled: true
 
-    # supported values are balanced-v1, fips-v1, hsm-v1, and legacy
-    signature_algorithm_suite: balanced-v1
+    authentication:
+      # supported values are balanced-v1, fips-v1, hsm-v1, and legacy
+      signature_algorithm_suite: balanced-v1
 ```
 
 ```yaml
@@ -132,6 +134,12 @@ spec:
   # supported values are balanced-v1, fips-v1, hsm-v1, and legacy
   signature_algorithm_suite: balanced-v1
 ```
+
+Cloud users will only be allowed to configure the `legacy`, `hsm-v1`, or
+`fips-v1` suite.
+The `balanced-v1` suite will not be allowed, so that all CA key algorithms will
+remain compatible with our HSM and KMS integrations, to give Cloud the option to
+import keys into an HSM or KMS in the future.
 
 ### `balanced-v1` suite
 
@@ -145,17 +153,29 @@ The following key types will be used when the configured algorithm suite is
   * host CA
     * SSH: Ed25519
     * TLS: ECDSA with NIST P-256
+  * database client CA
+    * TLS: 2048-bit RSA
+      * some databases (snowflake) can only trust RSA CAs.
   * database CA
     * TLS: 2048-bit RSA
-      * it's necessary to use RSA for our Snowflake integration, maybe others
+      * not clear if all our supported databases can load certs signed by an
+        ECDSA CA - with testing maybe we can update this.
   * OpenSSH CA
     * SSH: Ed25519
   * JWT CA
     * JWT: ECDSA with NIST P-256
   * OIDC IdP CA
-    * JWT: ECDSA with NIST P-256
+    * JWT: 2048-bit RSA
+      * the OIDC spec requires RSA support
   * SAML IdP CA
+    * TLS: 2048-bit RSA
+      * much of the SAML ecosystem still only supports RSA
+  * SPIFFE CA
     * TLS: ECDSA with NIST P-256
+    * JWT: 2048-bit RSA
+      * should be OIDC-compatible, the OIDC spec requires RSA support
+  * Okta CA
+    * JWT: ECDSA with NIST P-256
 * Subject key types
   * users via `tsh login`
     * SSH: Ed25519 (SSH cert signed by user CA)
@@ -165,25 +185,39 @@ The following key types will be used when the configured algorithm suite is
     * SSH: Ed25519 (SSH cert signed by user CA)
     * TLS: ECDSA with NIST P-256 (X.509 cert signed by user CA)
   * Teleport hosts
-    * SSH: Ed25519 (SSH cert signed by host CA)
-    * TLS: ECDSA with NIST P-256 (X.509 cert signed by host CA)
+    * SSH+TLS: ECDSA with NIST P-256 (SSH and X.509 certs signed by host CA)
   * OpenSSH hosts
     * SSH: Ed25519 (SSH cert signed by host CA)
   * proxy -> Agentless/OpenSSH certs
     * SSH: Ed25519 (SSH certs signed by OpenSSH CA)
   * proxy -> database agent
     * ECDSA with NIST P-256 (X.509 cert signed by Host CA)
+  * proxy kubernetes client
+    * ECDSA with NIST P-256 (X.509 cert signed by Host CA)
   * database agent -> self-hosted database
     * 2048-bit RSA (X.509 cert signed by Database Client CA)
-    * for Snowflake access this is a JWT signed by the Database Client CA
-    * maybe we could choose the subject key algorithm per-database
+      * not clear if all our supported databases can support ECDSA client - with
+        testing maybe we can update this.
+      * we could potentially switch to ECDSA by default and special case RSA only for specific databases.
+      * for Snowflake access this is a JWT signed by the Database Client CA and
+        there is no subject key.
   * self-hosted database
     * 2048-bit RSA (X.509 cert signed by Database CA)
+      * not clear if all our supported databases can load ECDSA keys - with
+        testing maybe we can update this.
+      * we could potentially switch to ECDSA by default and special case RSA only for specific databases.
   * windows desktop service -> RDP server
     * 2048-bit RSA (X.509 cert signed by user CA)
     * this is a current limitation of our rdpclient implementation, we could
       change this with some effort, and I don't think it would be a breaking
       change (we could do it within `balanced-v1`).
+  * tbot identity
+    * SSH+TLS: ECDSA with NIST P-256 (SSH and X.509 certs signed by host CA)
+  * tbot impersonated identities
+    * SSH+TLS: ECDSA with NIST P-256 (SSH and X.509 certs signed by host CA)
+  * tbot SPIFFE SVIDs
+    * TLS: ECDSA with NIST P-256 (X.509 cert signed by spiffe CA)
+    * JWT: 2048-bit RSA (JWT signed by spiffe CA)
 
 This suite will *not* be compatible with clusters running in FIPS mode and/or
 configured to use an HSM or KMS for CAs.
@@ -285,6 +319,7 @@ uses:
 * signs host ssh certs
 * signs host tls certs
 * ssh clients trust this CA
+* signs short-lived cert used to authenticate proxy to database service
 
 * current/`legacy` SSH key type: 2048-bit RSA
 * proposed `balanced-v1` key type: Ed25519
@@ -313,15 +348,15 @@ keys: tls
 uses:
 
 * signs (often) long-lived db cert used to authenticate db to database service
-* signs short-lived proxy cert used to authenticate proxy to database service
 
 * current/`legacy` TLS key type: 2048-bit RSA
 * proposed `balanced-v1` key type: 2048-bit RSA
 * proposed `fips-v1` key type: 2048-bit RSA
 * proposed `hsm-v1` key type: 2048-bit RSA
 * reasoning:
-  * some database protocols still require RSA, reduce friction by keeping it as
-    the default
+  * not clear if all our supported databases can load certs signed by an ECDSA
+    CA - with testing maybe we can update this.
+  * we could potentially switch to ECDSA by default and special case RSA only for specific databases.
 
 #### Database Client CA
 
@@ -338,8 +373,7 @@ uses:
 * proposed `fips-v1` key type: 2048-bit RSA
 * proposed `hsm-v1` key type: 2048-bit RSA
 * reasoning:
-  * some database protocols still require RSA, reduce friction by keeping it as
-    the default
+  * Snowflake only supports RSA JWTs
 
 #### OpenSSH CA
 
@@ -383,13 +417,11 @@ keys: jwt
 uses: signing JWTs as an OIDC provider.
 
 * current/`legacy` key type: `RS256` (2048-bit RSA with PKCS#1 v1.5 and SHA256)
-* proposed `balanced-v1` key type: `ES256` (ECDSA with NIST P-256 and SHA256)
-* proposed `fips-v1` key type: `ES256` (ECDSA with NIST P-256 and SHA256)
+* proposed `balanced-v1` key type: `RS256` (2048-bit RSA with PKCS#1 v1.5 and SHA256)
+* proposed `fips-v1` key type: `RS256` (2048-bit RSA with PKCS#1 v1.5 and SHA256)
 * reasoning:
-  * `ES256` is `Recommended+` for JWS implementations by RFC 7518,
-    this is stronger than `RS256` which is only `Recommended`
-    * <https://datatracker.ietf.org/doc/html/rfc7518#section-3>
-  * `Ed25519` is not mentioned in RFC 7518
+  * `RS256` MUST be included in `id_token_signing_alg_values_supported`
+    * <https://openid.net/specs/openid-connect-discovery-1_0.html#ProviderMetadata>
 
 #### SAML IdP CA
 
@@ -398,21 +430,29 @@ keys: tls
 uses: signing SAML assertions as a SAML provider.
 
 * current/`legacy` TLS key type: 2048-bit RSA
-* proposed `balanced-v1` key type: ECDSA with NIST P-256
-* proposed `fips-v1` key type: ECDSA with NIST P-256
-* proposed `hsm-v1` key type: ECDSA with NIST P-256
+* proposed `balanced-v1` key type: 2048-bit RSA
+* proposed `fips-v1` key type: 2048-bit RSA
+* proposed `hsm-v1` key type: 2048-bit RSA
 * reasoning:
-  * external software needs to trust certs signed by this CA, and support for
-    Ed25519 X.509 certs is generally spotty
+  * much of the SAML ecosystem still only supports RSA
 
 ### Splitting user SSH and TLS private keys
 
-In order to support the use of different key types for SSH and TLS, as well as
-possible a different algorithm for some protocols (DB access will use RSA)
-we will begin to use a brand new key for each certificate generated instead of
+Our goals include using Ed25519 for SSH and ECDSA for TLS, with the potential to
+use a different algorithm for some specific protocols including database
+access.
+This is incompatible with the way clients currently use a single RSA keypair
+associated with every certificate they are issued.
+We will begin to use a brand new key unique key for most certificates instead of
 reusing a single private key for all.
 
-This will change the disk layout of the ~/.tsh directory:
+RPCs such as `GenerateUserCerts` will need to change to support passing both the
+SSH and TLS public keys, along with attestation statements if hardware keys are
+being used.
+These will remain backward compatible by continuing to use the single public key
+for both protocols if both are not passed.
+
+We will also have to change the disk layout of the ~/.tsh directory:
 
 ```diff
   ~/.tsh/                             --> default base directory
@@ -430,8 +470,8 @@ This will change the disk layout of the ~/.tsh directory:
      │   ├── foo.ppk                  --> PuTTY PPK-formatted keypair for user "foo"
      │   ├── kube_credentials.lock    --> Kube credential lockfile, used to prevent excessive relogin attempts
 -    │   ├── foo-x509.pem             --> TLS client certificate for Auth Server
-+    │   ├── foo-privkey.pem          --> TLS client private key
-+    │   ├── foo-cert.pem             --> TLS client certificate for Auth Server
++    │   ├── foo.key                  --> TLS client private key
++    │   ├── foo.crt                  --> TLS client certificate for Auth Server
      │   ├── foo-ssh                  --> SSH certs for user "foo"
      │   │   ├── root-cert.pub        --> SSH cert for Teleport cluster "root"
      │   │   └── leaf-cert.pub        --> SSH cert for Teleport cluster "leaf"
@@ -439,40 +479,38 @@ This will change the disk layout of the ~/.tsh directory:
      │   │   ├── root                 --> App access certs for cluster "root"
 -    │   │   │   ├── appA-x509.pem    --> TLS cert for app service "appA"
 -    │   │   │   ├── appB-x509.pem    --> TLS cert for app service "appB"
-+    │   │   │   ├── appA-privkey.pem --> TLS private key for app service "appA"
-+    │   │   │   ├── appA-cert.pem    --> TLS cert for app service "appA"
-+    │   │   │   ├── appB-privkey.pem --> TLS private key for app service "appB"
-+    │   │   │   └── appB-cert.pem    --> TLS cert for app service "appB"
++    │   │   │   ├── appA.key         --> TLS private key for app service "appA"
++    │   │   │   ├── appA.crt         --> TLS cert for app service "appA"
++    │   │   │   ├── appB.key         --> TLS private key for app service "appB"
++    │   │   │   └── appB.crt         --> TLS cert for app service "appB"
      │   │   └── leaf                 --> App access certs for cluster "leaf"
 -    │   │       ├── appC-x509.pem    --> TLS cert for app service "appC"
-+    │   │       ├── appC-privkey.pem --> TLS private key for app service "appC"
-+    │   │       └── appC-cert.pem    --> TLS cert for app service "appC"
++    │   │       ├── appC.key         --> TLS private key for app service "appC"
++    │   │       └── appC.crt         --> TLS cert for app service "appC"
      │   ├── foo-db                   --> Database access certs for user "foo"
      │   │   ├── root                 --> Database access certs for cluster "root"
 -    │   │   │   ├── dbA-x509.pem     --> TLS cert for database service "dbA"
 -    │   │   │   ├── dbB-x509.pem     --> TLS cert for database service "dbB"
-+    │   │   │   ├── dbA-privkey.pem  --> TLS private key for database service "dbA"
-+    │   │   │   ├── dbA-cert.pem     --> TLS cert for database service "dbA"
-+    │   │   │   ├── dbB-privkey.pem  --> TLS private key for database service "dbB"
-+    │   │   │   ├── dbB-cert.pem     --> TLS cert for database service "dbA"
++    │   │   │   ├── dbA.key          --> TLS private key for database service "dbA"
++    │   │   │   ├── dbA.crt          --> TLS cert for database service "dbA"
++    │   │   │   ├── dbB.key          --> TLS private key for database service "dbB"
++    │   │   │   ├── dbB.crt          --> TLS cert for database service "dbA"
      │   │   │   └── dbC-wallet       --> Oracle Client wallet Configuration directory.
      │   │   ├── leaf                 --> Database access certs for cluster "leaf"
 -    │   │   │   ├── dbC-x509.pem     --> TLS cert for database service "dbC"
-+    │   │   │   ├── dbC-privkey.pem  --> TLS private key for database service "dbC"
-+    │   │   │   └── dbC-cert.pem     --> TLS cert for database service "dbC"
++    │   │   │   ├── dbC.key          --> TLS private key for database service "dbC"
++    │   │   │   └── dbC.crt          --> TLS cert for database service "dbC"
      │   │   └── proxy-localca.pem    --> Self-signed TLS Routing local proxy CA
      │   ├── foo-kube                 --> Kubernetes certs for user "foo"
      │   |    ├── root                 --> Kubernetes certs for Teleport cluster "root"
      │   |    │   ├── kubeA-kubeconfig --> standalone kubeconfig for Kubernetes cluster "kubeA"
 -    │   |    │   ├── kubeA-x509.pem   --> TLS cert for Kubernetes cluster "kubeA"
-+    │   |    │   ├── kubeA-privkey.pem --> TLS private key for Kubernetes cluster "kubeA"
-+    │   |    │   ├── kubeA-cert.pem   --> TLS cert for Kubernetes cluster "kubeA"
++    │   |    │   ├── kubeA.cred       --> TLS private key and certificate for Kubernetes cluster "kubeA"
      │   |    │   └── localca.pem      --> Self-signed localhost CA cert for Teleport cluster "root"
      │   |    └── leaf                 --> Kubernetes certs for Teleport cluster "leaf"
      │   |        ├── kubeC-kubeconfig --> standalone kubeconfig for Kubernetes cluster "kubeC"
--    │   |        └── kubeC-x509.pem   --> TLS cert for Kubernetes cluster "kubeC"
-+    │   |        └── kubeC-privkey.pem --> TLS cert for Kubernetes cluster "kubeC"
-+    │   |        └── kubeC-cert.pem --> TLS cert for Kubernetes cluster "kubeC"
+-    │   |        ├── kubeC-x509.pem   --> TLS cert for Kubernetes cluster "kubeC"
++    │   |        └── kubeC.cred       --> TLS private key and cert for Kubernetes cluster "kubeC"
      |   └── cas                       --> Trusted clusters certificates
      |        ├── root.pem             --> TLS CA for teleport cluster "root"
      |        ├── leaf1.pem            --> TLS CA for teleport cluster "leaf1"
@@ -489,48 +527,96 @@ the TLS cert held in `foo-x509.pem`.
 App, Database, and K8s certs use the same private key and are held under the
 `foo-app`, `foo-db`, and `foo-kube` directories.
 
-To avoid breaking user OpenSSH config files that rely on the location of the ssh
-keys, they will not be moved.
+#### SSH
+
+Because the private key, SSH public key, and SSH cert (`foo`, `foo.pub`, and `foo-ssh/root-cert.pub`)
+are all currently in formats compatible with SSH tools, these same file names
+will still be used for the SSH keys and certs.
+Third party SSH client configurations referencing these files will continue to
+work (OpenSSH client usage is relatively common).
+
+We will continue to use a single private key for root and leaf cluster SSH
+certs.
+Because they are all SSH certs we don't need to worry about differentiating the
+algorithm by protocol, and keeping the same private key avoids a breaking
+change.
+
+#### TLS
+
+We are forced to make a breaking change to the TLS file paths because each cert
+must be associated with a new unique key.
 The TLS keys and certs are often used automatically by `tsh` e.g. in `tsh proxy
-app`, `tsh db connect`, `tsh kube login`, so it is less likely for users to have
-to make a manual fix if we move the TLS files.
+app`, `tsh db connect`, `tsh kube login`, and VNet, so it's possible that users won't
+notice this change.
+They will notice it if they have statically configured any third party tools to
+reference the current key/cert paths, this is likely to apply to database
+clients.
+The `tsh db config` and `tsh app config` commands can be used to print the
+correct paths to these files in various formats.
+If users saved the output of this somewhere, they will need to update it by
+re-running the command so that it prints the correct updated paths.
 
-The main TLS private key will now be held in
-`~/.tsh/keys/one.example.com/foo-privkey.pem`
+The main TLS private key used to authenticate to cluster APIs will now be held
+in `~/.tsh/keys/one.example.com/foo.key`.
 
-All TLS x509 cert files will be renamed from `<name>-x509.pem` to
-`<name>-cert.pem` so that any software trying to use the old `<name>-x509.pem`
-along with the outdated private key location will fail to load both files,
-instead of successfully opening the files but failing with some confusing error
-when the private key does not match the certificate.
+All TLS x509 cert files (except for k8s) will be renamed from `<name>-x509.pem`
+to `<name>.crt`.
+This may seem like an unnecessary breaking change, but it has a benefit that any
+software trying to use the old `<name>-x509.pem` along with the outdated private
+key location will fail to load both files, instead of successfully opening the
+cert but failing with some confusing error when the private key does not match.
 
-RPCs such as `GenerateUserCerts` will also need to change to support passing
-both the SSH and TLS public keys along, possibly along with attestation
-statements if hardware keys are being used.
-These will remain backward compatible by continuing to use the single public key
-for both protocols if both are not passed.
+Because app and db logins will now cause the private key AND cert to be
+overwritten, we will use an OS file lock on the key file whenever reading or
+writing the pair of files, to avoid a race condition that could cause key/cert
+pair that don't match to be read or written.
+
+#### Identity files
+
+Our current identity file format only supports a single private key used for
+both the SSH and TLS certificate.
+When a user requests an identity file, we will use the UserTLS key algorithm for
+the current suite when generated the key, and use it for both SSH and TLS.
+Identity files are becoming less relevant as Machine ID replaces their usecases.
+
+#### Kubernetes
+
+In the interest of keeping `tsh kube credentials` performant for cases where it
+is called tens of times per second, instead of storing the key and cert in
+separate files, they are both combined into a single file `<cluster>.cred`.
+The requires only a single file read, instead of 2 file reads plus an OS file
+lock/unlock.
+
+We don't do this for app and db key/certs because those are often read by third
+party clients.
+For kubectl, we don't have to worry about this, because it always gets the
+current credentials by calling `tsh kube credentials`.
 
 ### HSMs and KMS
 
-Admins should configure the `hsm-v1` suite when using any HSM or KMS.
+Admins should configure the `hsm-v1` suite when using any HSM or KMS. The
+`fips-v1` and `legacy` suites are also valid.
 
-When the default suite is changed in config v4, it will default to `hsm-v1` if
+When the default suite is changed in v17.0.0, it will default to `hsm-v1` if
 any HSM or KMS is configured.
 If a specific PKCS#11 HSM does not support one of the algorithms, we will do our
 best to return an informative error message to the user and block the CA
 rotation before the misconfigured algorithm could take effect.
 
-If a cluster has an HSM and an admin explicitly configures the `balanced-v1`
-suite, we can warn but try to support it in case their PKCS#11 HSM supports
-Ed25519, and fail early with explicit logs if there's an error.
+The `balanced-v1` suite will not be supported when an HSM is configured.
+Our PKCS#11 library does not support generating Ed25519 keys.
+AWS KMS does not support Ed25519 keys.
 
 #### Cloud
 
 Cloud will be able to select their preferred default suite by configuring it in
-the `teleport.yaml`.
+the `teleport.yaml` or a bootstrap `cluster_auth_preference` resource.
+We should update the default to `hsm-v1` when v17.0.0 is released.
 Cloud users will be able to change the CA algorithms by modifying the
 `cluster_auth_preference` and performing the necessary CA rotations.
-We should update the default to `balanced-v1` when config v4 is released.
+Only the `legacy`, `hsm-v1`, and `fips-v1` suites will be allowed for cloud
+tenants to support to possibility of importing CA keys into an HSM or KMS in the
+future.
 
 ### Backward Compatibility
 
@@ -758,7 +844,7 @@ happening in the future.
 
 ## Rejected alternatives
 
-### Configurable algorithms per protocol
+### Configurable algorithms per protocol (rejected)
 
 Introduce a new config to `teleport.yaml` and `cluster_auth_preference`
 to control the key types and signature algorithms used by Teleport CAs and all

@@ -16,22 +16,17 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import type { JSX } from 'react';
+import { useLocation, useParams } from 'react-router';
 
-import { WelcomeWrapper } from 'design/Onboard/WelcomeWrapper';
-
-import {
-  Route,
-  Switch,
-  useParams,
-  useLocation,
-} from 'teleport/components/Router';
-import history from 'teleport/services/history';
+import { WelcomeWrapper } from 'teleport/components/Onboard';
+import { Route, Switch } from 'teleport/components/Router';
 import cfg from 'teleport/config';
+import history from 'teleport/services/history';
 import { NewCredentialsContainerProps } from 'teleport/Welcome/NewCredentials';
 
-import { CLOUD_INVITE_URL_PARAM } from './const';
 import { CardWelcome } from './CardWelcome';
+import { CLOUD_INVITE_URL_PARAM } from './const';
 
 type WelcomeProps = {
   NewCredentials: (props: NewCredentialsContainerProps) => JSX.Element;
@@ -56,12 +51,14 @@ export function Welcome({ NewCredentials }: WelcomeProps) {
     history.push(cfg.getUserResetTokenContinueRoute(tokenId));
   };
 
+  const productName = cfg.getBeamsUi() ? 'Beams' : 'Teleport';
+
   return (
     <Switch>
       <Route exact path={cfg.routes.userInvite}>
         <WelcomeWrapper>
           <CardWelcome
-            title="Welcome to Teleport"
+            title={`Welcome to ${productName}`}
             subTitle="Please click the button below to create an account"
             btnText="Get started"
             onClick={handleOnInviteContinue}

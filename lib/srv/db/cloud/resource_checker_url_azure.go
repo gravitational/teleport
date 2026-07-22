@@ -33,7 +33,7 @@ func (c *urlChecker) checkAzure(ctx context.Context, database types.Database) er
 	if err := c.checkIsAzureEndpoint(ctx, database); err != nil {
 		return trace.Wrap(err)
 	}
-	c.log.Debugf("Azure database %q URL validated.", database.GetName())
+	c.logger.DebugContext(ctx, "Azure database URL validated", "database", database.GetName())
 	return nil
 }
 
@@ -48,6 +48,9 @@ func (c *urlChecker) checkIsAzureEndpoint(ctx context.Context, database types.Da
 	case defaults.ProtocolSQLServer:
 		return trace.Wrap(requireDatabaseIsEndpoint(ctx, database, azure.IsMSSQLServerEndpoint))
 	}
-	c.log.Debugf("URL checker does not support Azure database type %q protocol %q.", database.GetType(), database.GetProtocol())
+	c.logger.DebugContext(ctx, "URL checker does not support Azure database protocol",
+		"database_type", database.GetType(),
+		"database_protocol", database.GetProtocol(),
+	)
 	return nil
 }

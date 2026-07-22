@@ -22,7 +22,7 @@ import (
 	"fmt"
 	"hash/fnv"
 	"os"
-	"path"
+	"path/filepath"
 
 	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
@@ -104,14 +104,14 @@ func WriteConfig(baseDir string, cfg Config) (string, error) {
 	hash := h.Sum32()
 
 	// create config directory if it doesn't exist
-	configDir := path.Join(baseDir, "opensearch-cli")
+	configDir := filepath.Join(baseDir, "opensearch-cli")
 	err = os.MkdirAll(configDir, 0700)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
 
 	// write config to file
-	fn := path.Join(configDir, fmt.Sprintf("%x.yml", hash))
+	fn := filepath.Join(configDir, fmt.Sprintf("%x.yml", hash))
 	err = os.WriteFile(fn, bytes, 0600)
 	if err != nil {
 		return "", trace.Wrap(err)

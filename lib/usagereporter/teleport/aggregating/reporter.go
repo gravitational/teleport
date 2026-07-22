@@ -21,13 +21,15 @@ package aggregating
 import (
 	"context"
 	"encoding/binary"
+	"log/slog"
+	"maps"
+	"slices"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	prehogv1 "github.com/gravitational/teleport/gen/proto/go/prehog/v1"
@@ -39,10 +41,13 @@ import (
 )
 
 const (
-	userActivityReportGranularity = 15 * time.Minute
-	resourceReportGranularity     = time.Hour
-	rollbackGrace                 = time.Minute
-	reportTTL                     = 60 * 24 * time.Hour
+	userActivityReportGranularity        = 15 * time.Minute
+	resourceReportGranularity            = time.Hour
+	botInstanceActivityReportGranularity = 15 * time.Minute
+	sessionSummaryReportGranularity      = 15 * time.Minute
+	identitySecurityReportGranularity    = 24 * time.Hour
+	rollbackGrace                        = time.Minute
+	reportTTL                            = 60 * 24 * time.Hour
 
 	checkInterval = time.Minute
 )
@@ -51,20 +56,19 @@ const (
 type ReporterConfig struct {
 	// Backend is the backend used to store reports. Required
 	Backend backend.Backend
-	// Log is the logger used for logging. Required.
-	Log logrus.FieldLogger
+	// Logger is the used for emitting log messages.
+	Logger *slog.Logger
 	// Clock is the clock used for timestamping reports and deciding when to
 	// persist them to the backend. Optional, defaults to the real clock.
 	Clock clockwork.Clock
-
 	// ClusterName is the ClusterName resource for the current cluster, used for
 	// anonymization and to report the cluster name itself. Required.
 	ClusterName types.ClusterName
 	// HostID is the host ID of the current Teleport instance, added to reports
 	// for auditing purposes. Required.
 	HostID string
-	// AnonymizationKey is the key used to anonymize data user or resource names. Optional.
-	AnonymizationKey string
+	// Anonymizer is used to anonymize data user or resource names. Required.
+	Anonymizer utils.Anonymizer
 }
 
 // CheckAndSetDefaults checks the [ReporterConfig] for validity, returning nil
@@ -73,9 +77,6 @@ type ReporterConfig struct {
 func (cfg *ReporterConfig) CheckAndSetDefaults() error {
 	if cfg.Backend == nil {
 		return trace.BadParameter("missing Backend")
-	}
-	if cfg.Log == nil {
-		return trace.BadParameter("missing Log")
 	}
 	if cfg.Clock == nil {
 		cfg.Clock = clockwork.NewRealClock()
@@ -86,8 +87,12 @@ func (cfg *ReporterConfig) CheckAndSetDefaults() error {
 	if cfg.HostID == "" {
 		return trace.BadParameter("missing HostID")
 	}
-	if cfg.AnonymizationKey == "" {
-		return trace.BadParameter("missing AnonymizationKey")
+	if cfg.Anonymizer == nil {
+		return trace.BadParameter("missing Anonymizer")
+	}
+
+	if cfg.Logger == nil {
+		cfg.Logger = slog.Default()
 	}
 	return nil
 }
@@ -100,25 +105,20 @@ func NewReporter(ctx context.Context, cfg ReporterConfig) (*Reporter, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	anonymizer, err := utils.NewHMACAnonymizer(cfg.AnonymizationKey)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	baseCtx, baseCancel := context.WithCancel(ctx)
 
 	r := &Reporter{
-		anonymizer: anonymizer,
+		anonymizer: cfg.Anonymizer,
 		svc:        reportService{cfg.Backend},
-		log:        cfg.Log,
+		logger:     cfg.Logger,
 		clock:      cfg.Clock,
 
 		ingest:  make(chan usagereporter.Anonymizable),
 		closing: make(chan struct{}),
 		done:    make(chan struct{}),
 
-		clusterName: anonymizer.AnonymizeNonEmpty(cfg.ClusterName.GetClusterName()),
-		hostID:      anonymizer.AnonymizeNonEmpty(cfg.HostID),
+		clusterName: cfg.ClusterName.GetClusterName(),
+		hostID:      cfg.HostID,
 
 		baseCancel: baseCancel,
 	}
@@ -128,11 +128,17 @@ func NewReporter(ctx context.Context, cfg ReporterConfig) (*Reporter, error) {
 	return r, nil
 }
 
+// sessionSummariesGeneratedKey uniquely identifies a session summary by session type and resource name
+type sessionSummariesGeneratedKey struct {
+	sessionType  string
+	resourceName string
+}
+
 // Reporter aggregates and persists usage events to the backend.
 type Reporter struct {
 	anonymizer utils.Anonymizer
 	svc        reportService
-	log        logrus.FieldLogger
+	logger     *slog.Logger
 	clock      clockwork.Clock
 
 	// ingest collects events from calls to [AnonymizeAndSubmit] to the
@@ -145,10 +151,10 @@ type Reporter struct {
 	// done is closed at the end of the background goroutine.
 	done chan struct{}
 
-	// clusterName is the anonymized cluster name.
-	clusterName []byte
-	// hostID is the anonymized host ID of the reporter (this instance).
-	hostID []byte
+	// clusterName is the un-anonymized cluster name.
+	clusterName string
+	// hostID is the un-anonymized host ID of the reporter (this instance).
+	hostID string
 
 	// baseCancel cancels the context used by the background goroutine.
 	baseCancel context.CancelFunc
@@ -190,7 +196,17 @@ func (r *Reporter) AnonymizeAndSubmit(events ...usagereporter.Anonymizable) {
 			*usagereporter.ResourceHeartbeatEvent,
 			*usagereporter.UserCertificateIssuedEvent,
 			*usagereporter.BotJoinEvent,
-			*usagereporter.SPIFFESVIDIssuedEvent:
+			*usagereporter.SPIFFESVIDIssuedEvent,
+			*usagereporter.AccessRequestCreateEvent,
+			*usagereporter.AccessRequestReviewEvent,
+			*usagereporter.AccessListReviewCreateEvent,
+			*usagereporter.AccessListGrantsToUserEvent,
+			*usagereporter.TagExecuteQueryEvent,
+			*usagereporter.SessionSummaryCreateEvent,
+			*usagereporter.SessionSummaryAccessEvent,
+			*usagereporter.SessionSummarySearchEvent,
+			*usagereporter.IdentitySecurityGraphSizeEvent,
+			*usagereporter.IdentitySecurityAuditLogsIngestedEvent:
 			filtered = append(filtered, event)
 		}
 	}
@@ -209,6 +225,8 @@ func convertUserKind(v1AlphaUserKind prehogv1alpha.UserKind) prehogv1.UserKind {
 		return prehogv1.UserKind_USER_KIND_BOT
 	case prehogv1alpha.UserKind_USER_KIND_HUMAN:
 		return prehogv1.UserKind_USER_KIND_HUMAN
+	case prehogv1alpha.UserKind_USER_KIND_SYSTEM:
+		return prehogv1.UserKind_USER_KIND_SYSTEM
 	default:
 		return prehogv1.UserKind_USER_KIND_UNSPECIFIED
 	}
@@ -240,7 +258,6 @@ func (r *Reporter) run(ctx context.Context) {
 	userActivityWindowEnd := userActivityStartTime.Add(userActivityReportGranularity)
 
 	userActivity := make(map[string]*prehogv1.UserActivityRecord)
-
 	userRecord := func(userName string, v1AlphaUserKind prehogv1alpha.UserKind) *prehogv1.UserActivityRecord {
 		v1UserKind := convertUserKind(v1AlphaUserKind)
 
@@ -269,14 +286,113 @@ func (r *Reporter) run(ctx context.Context) {
 			default:
 				// Otherwise, update and log a warning. Flipping between
 				// bot/human is a programming error.
-				r.log.WithFields(logrus.Fields{
-					"from": record.UserKind,
-					"to":   v1UserKind,
-				}).Warn("Record user_kind has changed unexpectedly")
+				r.logger.WarnContext(ctx, "Record user_kind has changed unexpectedly", "from", record.UserKind, "to", v1UserKind)
 				record.UserKind = v1UserKind
 			}
 		}
 
+		return record
+	}
+	userRecordWithOrigin := func(userName string, v1AlphaUserKind prehogv1alpha.UserKind, v1AlphaUserOrigin prehogv1alpha.UserOrigin) *prehogv1.UserActivityRecord {
+		record := userRecord(userName, v1AlphaUserKind)
+		if v1AlphaUserOrigin == prehogv1alpha.UserOrigin_USER_ORIGIN_UNSPECIFIED {
+			// Ignore unspecified value cause the request may be coming from an
+			// older auth that does not process user_origin.
+			return record
+		}
+		// Allow overriding origin value with a new value.
+		record.UserOrigin = prehogv1.UserOrigin(v1AlphaUserOrigin)
+		return record
+	}
+	// userSPIFFEIDActivity is map[username]map[spiffeid]count
+	userSPIFFEIDActivity := make(map[string]map[string]uint32)
+	incrementUserSPIFFEIDActivity := func(userName string, spiffeID string) {
+		user := userSPIFFEIDActivity[userName]
+		if user == nil {
+			user = make(map[string]uint32)
+			userSPIFFEIDActivity[userName] = user
+		}
+		user[spiffeID]++
+	}
+
+	incrementUserSessionSummariesAccessed := func(userRecord *prehogv1.UserActivityRecord, sessionType string, resourceName string) {
+		for _, rec := range userRecord.SessionSummariesAccessed {
+			if rec.SessionType == sessionType && rec.ResourceName == resourceName {
+				rec.Count++
+				return
+			}
+		}
+		userRecord.SessionSummariesAccessed = append(userRecord.SessionSummariesAccessed, &prehogv1.SessionSummariesAccessedRecord{
+			SessionType:  sessionType,
+			ResourceName: resourceName,
+			Count:        1,
+		})
+	}
+
+	// sessionSummariesGenerated tracks AI-generated session summaries with token usage
+	// map[key]*SessionSummariesGeneratedRecord
+	sessionSummariesGenerated := make(map[sessionSummariesGeneratedKey]*prehogv1.SessionSummariesGeneratedRecord)
+	sessionSummariesStartTime := r.clock.Now().UTC().Truncate(userActivityReportGranularity)
+	sessionSummariesWindowStart := sessionSummariesStartTime.Add(-rollbackGrace)
+	sessionSummariesWindowEnd := sessionSummariesStartTime.Add(userActivityReportGranularity)
+
+	incrementSessionSummariesGenerated := func(sessionType string, resourceName string, inputTokens uint64, outputTokens uint64) {
+		key := sessionSummariesGeneratedKey{
+			sessionType:  sessionType,
+			resourceName: resourceName,
+		}
+		record := sessionSummariesGenerated[key]
+		if record == nil {
+			record = &prehogv1.SessionSummariesGeneratedRecord{
+				SessionType:  sessionType,
+				ResourceName: resourceName,
+			}
+			sessionSummariesGenerated[key] = record
+		}
+		record.TotalInputTokens += inputTokens
+		record.TotalOutputTokens += outputTokens
+		record.SummariesGenerated++
+	}
+
+	// identitySecurityGraphSize tracks the size of access graphs by provider.
+	identitySecurityGraphSize := make(map[string]*prehogv1.IdentitySecurityGraphSize)
+	// identitySecurityAuditLogsIngested tracks the count of audit logs ingested by provider.
+	identitySecurityAuditLogsIngested := make(map[string]*prehogv1.IdentitySecurityAuditLogsIngested)
+	identitySecurityStartTime := r.clock.Now().UTC().Truncate(identitySecurityReportGranularity)
+	identitySecurityWindowStart := identitySecurityStartTime.Add(-rollbackGrace)
+	identitySecurityWindowEnd := identitySecurityStartTime.Add(identitySecurityReportGranularity)
+
+	recordIdentitySecurityGraphSize := func(provider string, identities, resources uint64) {
+		// Store the latest received graph size for the provider, overwriting any previous ones.
+		identitySecurityGraphSize[provider] = &prehogv1.IdentitySecurityGraphSize{
+			Provider:        provider,
+			TotalIdentities: identities,
+			TotalResources:  resources,
+		}
+	}
+	incrementIdentitySecurityAuditLogsIngested := func(provider string, count uint64) {
+		record := identitySecurityAuditLogsIngested[provider]
+		if record == nil {
+			record = &prehogv1.IdentitySecurityAuditLogsIngested{Provider: provider}
+			identitySecurityAuditLogsIngested[provider] = record
+		}
+		record.LogsIngested += count
+	}
+
+	botInstanceActivityStartTime := r.clock.Now().UTC().Truncate(botInstanceActivityReportGranularity)
+	botInstanceActivityWindowStart := botInstanceActivityStartTime.Add(-rollbackGrace)
+	botInstanceActivityWindowEnd := botInstanceActivityStartTime.Add(botInstanceActivityReportGranularity)
+	botInstanceActivity := make(map[botInstanceActivityKey]*prehogv1.BotInstanceActivityRecord)
+	botInstanceRecord := func(botUserName string, botInstanceID string) *prehogv1.BotInstanceActivityRecord {
+		key := botInstanceActivityKey{
+			botUserName:   botUserName,
+			botInstanceID: botInstanceID,
+		}
+		record := botInstanceActivity[key]
+		if record == nil {
+			record = &prehogv1.BotInstanceActivityRecord{}
+			botInstanceActivity[key] = record
+		}
 		return record
 	}
 
@@ -303,7 +419,6 @@ Ingest:
 		select {
 		case <-ticker.Chan():
 		case ae = <-r.ingest:
-
 		case <-ctx.Done():
 			r.closingOnce.Do(func() { close(r.closing) })
 			break Ingest
@@ -314,16 +429,41 @@ Ingest:
 		if now := r.clock.Now().UTC(); now.Before(userActivityWindowStart) || !now.Before(userActivityWindowEnd) {
 			if len(userActivity) > 0 {
 				wg.Add(1)
-				go func(ctx context.Context, startTime time.Time, userActivity map[string]*prehogv1.UserActivityRecord) {
+				go func(
+					ctx context.Context,
+					startTime time.Time,
+					userActivity map[string]*prehogv1.UserActivityRecord,
+					userSPIFFEIDActivity map[string]map[string]uint32,
+				) {
 					defer wg.Done()
-					r.persistUserActivity(ctx, startTime, userActivity)
-				}(ctx, userActivityStartTime, userActivity)
+					r.persistUserActivity(ctx, startTime, userActivity, userSPIFFEIDActivity)
+				}(ctx, userActivityStartTime, userActivity, userSPIFFEIDActivity)
 			}
 
 			userActivityStartTime = now.Truncate(userActivityReportGranularity)
 			userActivityWindowStart = userActivityStartTime.Add(-rollbackGrace)
 			userActivityWindowEnd = userActivityStartTime.Add(userActivityReportGranularity)
 			userActivity = make(map[string]*prehogv1.UserActivityRecord, len(userActivity))
+			userSPIFFEIDActivity = make(map[string]map[string]uint32, len(userSPIFFEIDActivity))
+		}
+
+		if now := r.clock.Now().UTC(); now.Before(botInstanceActivityWindowStart) || !now.Before(botInstanceActivityWindowEnd) {
+			if len(botInstanceActivity) > 0 {
+				wg.Add(1)
+				go func(
+					ctx context.Context,
+					startTime time.Time,
+					botInstanceActivity map[botInstanceActivityKey]*prehogv1.BotInstanceActivityRecord,
+				) {
+					defer wg.Done()
+					r.persistBotInstanceActivity(ctx, startTime, botInstanceActivity)
+				}(ctx, botInstanceActivityStartTime, botInstanceActivity)
+			}
+
+			botInstanceActivityStartTime = now.Truncate(botInstanceActivityReportGranularity)
+			botInstanceActivityWindowStart = botInstanceActivityStartTime.Add(-rollbackGrace)
+			botInstanceActivityWindowEnd = botInstanceActivityStartTime.Add(botInstanceActivityReportGranularity)
+			botInstanceActivity = make(map[botInstanceActivityKey]*prehogv1.BotInstanceActivityRecord, len(botInstanceActivity))
 		}
 
 		if now := r.clock.Now().UTC(); now.Before(resourceUsageWindowStart) || !now.Before(resourceUsageWindowEnd) {
@@ -341,10 +481,50 @@ Ingest:
 			resourcePresences = make(map[prehogv1.ResourceKind]map[string]struct{}, len(resourcePresences))
 		}
 
+		if now := r.clock.Now().UTC(); now.Before(sessionSummariesWindowStart) || !now.Before(sessionSummariesWindowEnd) {
+			if len(sessionSummariesGenerated) > 0 {
+				wg.Add(1)
+				go func(
+					ctx context.Context,
+					startTime time.Time,
+					summaries map[sessionSummariesGeneratedKey]*prehogv1.SessionSummariesGeneratedRecord,
+				) {
+					defer wg.Done()
+					r.persistIdentitySecuritySummariesGenerated(ctx, startTime, summaries)
+				}(ctx, sessionSummariesStartTime, sessionSummariesGenerated)
+			}
+
+			sessionSummariesStartTime = now.Truncate(sessionSummaryReportGranularity)
+			sessionSummariesWindowStart = sessionSummariesStartTime.Add(-rollbackGrace)
+			sessionSummariesWindowEnd = sessionSummariesStartTime.Add(sessionSummaryReportGranularity)
+			sessionSummariesGenerated = make(map[sessionSummariesGeneratedKey]*prehogv1.SessionSummariesGeneratedRecord, len(sessionSummariesGenerated))
+		}
+
+		if now := r.clock.Now().UTC(); now.Before(identitySecurityWindowStart) || !now.Before(identitySecurityWindowEnd) {
+			if len(identitySecurityGraphSize) > 0 || len(identitySecurityAuditLogsIngested) > 0 {
+				wg.Add(1)
+				go func(
+					ctx context.Context,
+					startTime time.Time,
+					graphSizes map[string]*prehogv1.IdentitySecurityGraphSize,
+					logsIngested map[string]*prehogv1.IdentitySecurityAuditLogsIngested,
+				) {
+					defer wg.Done()
+					r.persistIdentitySecurity(ctx, startTime, graphSizes, logsIngested)
+				}(ctx, identitySecurityStartTime, identitySecurityGraphSize, identitySecurityAuditLogsIngested)
+			}
+
+			identitySecurityStartTime = now.Truncate(identitySecurityReportGranularity)
+			identitySecurityWindowStart = identitySecurityStartTime.Add(-rollbackGrace)
+			identitySecurityWindowEnd = identitySecurityStartTime.Add(identitySecurityReportGranularity)
+			identitySecurityGraphSize = make(map[string]*prehogv1.IdentitySecurityGraphSize, len(identitySecurityGraphSize))
+			identitySecurityAuditLogsIngested = make(map[string]*prehogv1.IdentitySecurityAuditLogsIngested, len(identitySecurityAuditLogsIngested))
+		}
+
 		switch te := ae.(type) {
 		case *usagereporter.UserLoginEvent:
 			// Bots never generate tp.user.login events.
-			userRecord(te.UserName, prehogv1alpha.UserKind_USER_KIND_HUMAN).Logins++
+			userRecordWithOrigin(te.UserName, prehogv1alpha.UserKind_USER_KIND_HUMAN, te.UserOrigin).Logins++
 		case *usagereporter.SessionStartEvent:
 			switch te.SessionType {
 			case string(types.SSHSessionKind):
@@ -357,12 +537,19 @@ Ingest:
 				userRecord(te.UserName, te.UserKind).DbSessions++
 			case string(types.WindowsDesktopSessionKind):
 				userRecord(te.UserName, te.UserKind).DesktopSessions++
+			case string(types.LinuxDesktopSessionKind):
+				userRecord(te.UserName, te.UserKind).LinuxDesktopSessions++
 			case usagereporter.PortSSHSessionType:
 				userRecord(te.UserName, te.UserKind).SshPortV2Sessions++
 			case usagereporter.PortKubeSessionType:
 				userRecord(te.UserName, te.UserKind).KubePortSessions++
 			case usagereporter.TCPSessionType:
 				userRecord(te.UserName, te.UserKind).AppTcpSessions++
+			case usagereporter.SAMLIdPSessionType:
+				userRecord(te.UserName, prehogv1alpha.UserKind_USER_KIND_HUMAN).SamlIdpSessions++
+			case usagereporter.MCPAppSessionType:
+				// TODO(greedy52) switch to MCPSessions when it's available.
+				userRecord(te.UserName, te.UserKind).AppSessions++
 			}
 		case *usagereporter.KubeRequestEvent:
 			userRecord(te.UserName, te.UserKind).KubeRequests++
@@ -373,9 +560,16 @@ Ingest:
 			resourcePresence(prehogv1.ResourceKind(te.Kind))[te.Name] = struct{}{}
 		case *usagereporter.SPIFFESVIDIssuedEvent:
 			userRecord(te.UserName, te.UserKind).SpiffeSvidsIssued++
+			incrementUserSPIFFEIDActivity(te.UserName, te.SpiffeId)
+			if te.BotInstanceId != "" {
+				botInstanceRecord(te.UserName, te.BotInstanceId).SpiffeSvidsIssued++
+			}
 		case *usagereporter.BotJoinEvent:
 			botUserName := machineidv1.BotResourceName(te.BotName)
 			userRecord(botUserName, prehogv1alpha.UserKind_USER_KIND_BOT).BotJoins++
+			if te.BotInstanceId != "" {
+				botInstanceRecord(botUserName, te.BotInstanceId).BotJoins++
+			}
 		case *usagereporter.UserCertificateIssuedEvent:
 			// Note: kind is poorly defined for this event type, so we'll assume
 			// unspecified even though non-bot users are almost certainly human.
@@ -385,6 +579,36 @@ Ingest:
 			}
 
 			userRecord(te.UserName, kind).CertificatesIssued++
+			if te.BotInstanceId != "" {
+				botInstanceRecord(te.UserName, te.BotInstanceId).CertificatesIssued++
+			}
+		case *usagereporter.AccessRequestCreateEvent:
+			userRecord(te.UserName, prehogv1alpha.UserKind_USER_KIND_HUMAN).AccessRequestsCreated++
+		case *usagereporter.AccessRequestReviewEvent:
+			userRecord(te.UserName, prehogv1alpha.UserKind_USER_KIND_HUMAN).AccessRequestsReviewed++
+		case *usagereporter.AccessListReviewCreateEvent:
+			userRecord(te.UserName, prehogv1alpha.UserKind_USER_KIND_HUMAN).AccessListsReviewed++
+		case *usagereporter.AccessListGrantsToUserEvent:
+			userRecord(te.UserName, prehogv1alpha.UserKind_USER_KIND_HUMAN).AccessListsGrants++
+		case *usagereporter.SessionSummaryAccessEvent:
+			incrementUserSessionSummariesAccessed(userRecord(te.UserName, te.UserKind), te.SessionType, te.ResourceName)
+		case *usagereporter.SessionSummarySearchEvent:
+			record := userRecord(te.UserName, te.UserKind)
+			record.SessionSummarySearchQueries++
+			if te.HasFilters {
+				record.SessionSummarySearchQueriesWithFilters++
+			}
+		case *usagereporter.SessionSummaryCreateEvent:
+			// Only track successful session summary creation
+			if te.Success {
+				incrementSessionSummariesGenerated(te.SessionType, te.ResourceName, te.TotalInputTokens, te.TotalOutputTokens)
+			}
+		case *usagereporter.TagExecuteQueryEvent:
+			userRecord(te.UserName, prehogv1alpha.UserKind_USER_KIND_HUMAN).AccessGraphQueries++
+		case *usagereporter.IdentitySecurityGraphSizeEvent:
+			recordIdentitySecurityGraphSize(te.Provider, te.TotalIdentities, te.TotalResources)
+		case *usagereporter.IdentitySecurityAuditLogsIngestedEvent:
+			incrementIdentitySecurityAuditLogsIngested(te.Provider, te.LogsIngested)
 		}
 
 		if ae != nil && r.ingested != nil {
@@ -393,47 +617,135 @@ Ingest:
 	}
 
 	if len(userActivity) > 0 {
-		r.persistUserActivity(ctx, userActivityStartTime, userActivity)
+		r.persistUserActivity(ctx, userActivityStartTime, userActivity, userSPIFFEIDActivity)
+	}
+
+	if len(botInstanceActivity) > 0 {
+		r.persistBotInstanceActivity(ctx, botInstanceActivityStartTime, botInstanceActivity)
 	}
 
 	if len(resourcePresences) > 0 {
 		r.persistResourcePresence(ctx, resourceUsageStartTime, resourcePresences)
 	}
 
+	if len(sessionSummariesGenerated) > 0 {
+		r.persistIdentitySecuritySummariesGenerated(ctx, sessionSummariesStartTime, sessionSummariesGenerated)
+	}
+
+	if len(identitySecurityGraphSize) > 0 || len(identitySecurityAuditLogsIngested) > 0 {
+		r.persistIdentitySecurity(ctx, identitySecurityStartTime, identitySecurityGraphSize, identitySecurityAuditLogsIngested)
+	}
+
 	wg.Wait()
 }
 
-func (r *Reporter) persistUserActivity(ctx context.Context, startTime time.Time, userActivity map[string]*prehogv1.UserActivityRecord) {
-	records := make([]*prehogv1.UserActivityRecord, 0, len(userActivity))
-	for userName, record := range userActivity {
-		record.UserName = r.anonymizer.AnonymizeNonEmpty(userName)
+type botInstanceActivityKey struct {
+	botUserName   string
+	botInstanceID string
+}
+
+func (r *Reporter) persistBotInstanceActivity(
+	ctx context.Context,
+	startTime time.Time,
+	botInstanceActivity map[botInstanceActivityKey]*prehogv1.BotInstanceActivityRecord,
+) {
+	records := make([]*prehogv1.BotInstanceActivityRecord, 0, len(botInstanceActivity))
+	for key, record := range botInstanceActivity {
+		record.BotUserName = r.anonymizer.AnonymizeNonEmpty(key.botUserName)
+		record.BotInstanceId = r.anonymizer.AnonymizeNonEmpty(key.botInstanceID)
 		records = append(records, record)
 	}
 
-	reports, err := prepareUserActivityReports(r.clusterName, r.hostID, startTime, records)
+	anonymizedClusterName := r.anonymizer.AnonymizeNonEmpty(r.clusterName)
+	anonymizedHostID := r.anonymizer.AnonymizeNonEmpty(r.hostID)
+
+	reports, err := prepareBotInstanceActivityReports(
+		anonymizedClusterName, anonymizedHostID, startTime, records,
+	)
 	if err != nil {
-		r.log.WithError(err).WithFields(logrus.Fields{
-			"start_time":   startTime,
-			"lost_records": len(records),
-		}).Error("Failed to prepare user activity report, dropping data.")
+		r.logger.ErrorContext(ctx, "Failed to prepare bot instance activity report, dropping data.",
+			"start_time", startTime,
+			"lost_records", len(records),
+			"error", err,
+		)
+		return
+	}
+
+	for _, report := range reports {
+		if err := r.svc.upsertBotInstanceActivityReport(ctx, report, reportTTL); err != nil {
+			r.logger.ErrorContext(ctx, "Failed to persist bot instance activity report, dropping data.",
+				"start_time", startTime,
+				"lost_records", len(report.Records),
+				"error", err,
+			)
+			continue
+		}
+
+		reportUUID, _ := uuid.FromBytes(report.ReportUuid)
+		r.logger.DebugContext(ctx, "Persisted bot instance activity report.",
+			"report_uuid", reportUUID,
+			"start_time", startTime,
+			"records", len(report.Records),
+		)
+	}
+}
+
+func (r *Reporter) persistUserActivity(
+	ctx context.Context,
+	startTime time.Time,
+	userActivity map[string]*prehogv1.UserActivityRecord,
+	issuedSPIFFEIDs map[string]map[string]uint32,
+) {
+	records := make([]*prehogv1.UserActivityRecord, 0, len(userActivity))
+	for userName, record := range userActivity {
+		record.UserName = r.anonymizer.AnonymizeNonEmpty(userName)
+
+		spiffeIDRecords := make([]*prehogv1.SPIFFEIDRecord, 0, len(issuedSPIFFEIDs[userName]))
+		for spiffeID, count := range issuedSPIFFEIDs[userName] {
+			spiffeIDRecords = append(spiffeIDRecords, &prehogv1.SPIFFEIDRecord{
+				SpiffeId:    r.anonymizer.AnonymizeNonEmpty(spiffeID),
+				SvidsIssued: count,
+			})
+		}
+		record.SpiffeIdsIssued = spiffeIDRecords
+
+		for _, sessionSummariesAccessedRecord := range record.SessionSummariesAccessed {
+			// Anonymize resource name in session summaries accessed records
+			sessionSummariesAccessedRecord.ResourceName = r.anonymizer.AnonymizeString(sessionSummariesAccessedRecord.ResourceName)
+		}
+
+		records = append(records, record)
+	}
+
+	anonymizedClusterName := r.anonymizer.AnonymizeNonEmpty(r.clusterName)
+	anonymizedHostID := r.anonymizer.AnonymizeNonEmpty(r.hostID)
+
+	reports, err := prepareUserActivityReports(anonymizedClusterName, anonymizedHostID, startTime, records)
+	if err != nil {
+		r.logger.ErrorContext(ctx, "Failed to prepare user activity report, dropping data.",
+			"start_time", startTime,
+			"lost_records", len(records),
+			"error", err,
+		)
 		return
 	}
 
 	for _, report := range reports {
 		if err := r.svc.upsertUserActivityReport(ctx, report, reportTTL); err != nil {
-			r.log.WithError(err).WithFields(logrus.Fields{
-				"start_time":   startTime,
-				"lost_records": len(report.Records),
-			}).Error("Failed to persist user activity report, dropping data.")
+			r.logger.ErrorContext(ctx, "Failed to persist user activity report, dropping data.",
+				"start_time", startTime,
+				"lost_records", len(report.Records),
+				"error", err,
+			)
 			continue
 		}
 
 		reportUUID, _ := uuid.FromBytes(report.ReportUuid)
-		r.log.WithFields(logrus.Fields{
-			"report_uuid": reportUUID,
-			"start_time":  startTime,
-			"records":     len(report.Records),
-		}).Debug("Persisted user activity report.")
+		r.logger.DebugContext(ctx, "Persisted user activity report.",
+			"report_uuid", reportUUID,
+			"start_time", startTime,
+			"records", len(report.Records),
+		)
 	}
 }
 
@@ -452,26 +764,106 @@ func (r *Reporter) persistResourcePresence(ctx context.Context, startTime time.T
 		records = append(records, record)
 	}
 
-	reports, err := prepareResourcePresenceReports(r.clusterName, r.hostID, startTime, records)
+	anonymizedClusterName := r.anonymizer.AnonymizeNonEmpty(r.clusterName)
+	anonymizedHostID := r.anonymizer.AnonymizeNonEmpty(r.hostID)
+
+	reports, err := prepareResourcePresenceReports(anonymizedClusterName, anonymizedHostID, startTime, records)
 	if err != nil {
-		r.log.WithError(err).WithFields(logrus.Fields{
-			"start_time": startTime,
-		}).Error("Failed to prepare resource presence report, dropping data.")
+		r.logger.ErrorContext(ctx, "Failed to prepare resource presence report, dropping data.", "start_time", startTime, "error", err)
 		return
 	}
 
 	for _, report := range reports {
 		if err := r.svc.upsertResourcePresenceReport(ctx, report, reportTTL); err != nil {
-			r.log.WithError(err).WithFields(logrus.Fields{
-				"start_time": startTime,
-			}).Error("Failed to persist resource presence report, dropping data.")
+			r.logger.ErrorContext(ctx, "Failed to persist resource presence report, dropping data.", "start_time", startTime, "error", err)
 			continue
 		}
 
 		reportUUID, _ := uuid.FromBytes(report.ReportUuid)
-		r.log.WithFields(logrus.Fields{
-			"report_uuid": reportUUID,
-			"start_time":  startTime,
-		}).Debug("Persisted resource presence report.")
+		r.logger.DebugContext(ctx, "Persisted resource presence report.", "report_uuid", reportUUID, "start_time", startTime)
+	}
+}
+
+func (r *Reporter) persistIdentitySecuritySummariesGenerated(
+	ctx context.Context,
+	startTime time.Time,
+	sessionSummariesGenerated map[sessionSummariesGeneratedKey]*prehogv1.SessionSummariesGeneratedRecord,
+) {
+	records := make([]*prehogv1.SessionSummariesGeneratedRecord, 0, len(sessionSummariesGenerated))
+	for _, record := range sessionSummariesGenerated {
+		// Anonymize the resource name before adding to records
+		record.ResourceName = r.anonymizer.AnonymizeString(record.ResourceName)
+		records = append(records, record)
+	}
+
+	anonymizedClusterName := r.anonymizer.AnonymizeNonEmpty(r.clusterName)
+	anonymizedHostID := r.anonymizer.AnonymizeNonEmpty(r.hostID)
+
+	reports, err := prepareIdentitySecuritySummariesGeneratedReports(anonymizedClusterName, anonymizedHostID, startTime, records)
+	if err != nil {
+		r.logger.ErrorContext(ctx, "Failed to prepare identity security summaries generated report, dropping data.",
+			"start_time", startTime,
+			"lost_records", len(records),
+			"error", err,
+		)
+		return
+	}
+
+	for _, report := range reports {
+		if err := r.svc.upsertIdentitySecuritySummariesGeneratedReport(ctx, report, reportTTL); err != nil {
+			r.logger.ErrorContext(ctx, "Failed to persist identity security summaries generated report, dropping data.",
+				"start_time", startTime,
+				"lost_records", len(report.Records),
+				"error", err,
+			)
+			continue
+		}
+
+		reportUUID, _ := uuid.FromBytes(report.ReportUuid)
+		r.logger.DebugContext(ctx, "Persisted identity security summaries generated report.",
+			"report_uuid", reportUUID,
+			"start_time", startTime,
+			"records", len(report.Records),
+		)
+	}
+}
+
+func (r *Reporter) persistIdentitySecurity(
+	ctx context.Context,
+	startTime time.Time,
+	graphSizes map[string]*prehogv1.IdentitySecurityGraphSize,
+	logsIngested map[string]*prehogv1.IdentitySecurityAuditLogsIngested,
+) {
+	graphSizeRecords := slices.Collect(maps.Values(graphSizes))
+	logsIngestedRecords := slices.Collect(maps.Values(logsIngested))
+	anonymizedClusterName := r.anonymizer.AnonymizeNonEmpty(r.clusterName)
+	anonymizedHostID := r.anonymizer.AnonymizeNonEmpty(r.hostID)
+
+	reports, err := prepareIdentitySecurityReports(anonymizedClusterName, anonymizedHostID, startTime, graphSizeRecords, logsIngestedRecords)
+	if err != nil {
+		r.logger.ErrorContext(ctx, "Failed to prepare identity security report, dropping data.",
+			"start_time", startTime,
+			"lost_records", len(graphSizeRecords)+len(logsIngestedRecords),
+			"error", err,
+		)
+		return
+	}
+
+	for _, report := range reports {
+		if err := r.svc.upsertIdentitySecurityReport(ctx, report, reportTTL); err != nil {
+			r.logger.ErrorContext(ctx, "Failed to persist identity security report, dropping data.",
+				"start_time", startTime,
+				"lost_records", len(report.GraphSizeRecords)+len(report.AuditLogRecords),
+				"error", err,
+			)
+			continue
+		}
+
+		reportUUID, _ := uuid.FromBytes(report.ReportUuid)
+		r.logger.DebugContext(ctx, "Persisted identity security report.",
+			"report_uuid", reportUUID,
+			"start_time", startTime,
+			"records", len(report.GraphSizeRecords)+len(report.AuditLogRecords),
+		)
 	}
 }

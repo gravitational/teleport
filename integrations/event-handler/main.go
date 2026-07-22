@@ -19,6 +19,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"strings"
 	"time"
@@ -35,7 +36,7 @@ var cli CLI
 
 const (
 	// pluginName is the plugin name
-	pluginName = "Teleport event handler"
+	pluginName = "teleport-event-handler"
 
 	// pluginDescription is the plugin description
 	pluginDescription = "Forwards Teleport AuditLog to external sources"
@@ -55,8 +56,18 @@ func main() {
 		kong.Description(pluginDescription),
 	)
 
+	logCfg := logger.Config{
+		Severity: "info",
+		Output:   "stderr",
+		Format:   "text",
+	}
 	if cli.Debug {
-		enableLogDebug()
+		logCfg.Severity = "debug"
+	}
+
+	if err := logger.Setup(logCfg); err != nil {
+		fmt.Println(trace.DebugReport(err))
+		os.Exit(-1)
 	}
 
 	switch {
@@ -69,28 +80,19 @@ func main() {
 			os.Exit(-1)
 		}
 	case ctx.Command() == "start":
-		err := start()
+		err := start(slog.Default())
 
 		if err != nil {
 			lib.Bail(err)
 		} else {
-			logger.Standard().Info("Successfully shut down")
+			slog.InfoContext(context.TODO(), "Successfully shut down")
 		}
 	}
 }
 
-// turn on log debugging
-func enableLogDebug() {
-	err := logger.Setup(logger.Config{Severity: "debug", Output: "stderr"})
-	if err != nil {
-		fmt.Println(trace.DebugReport(err))
-		os.Exit(-1)
-	}
-}
-
 // start spawns the main process
-func start() error {
-	app, err := NewApp(&cli.Start)
+func start(log *slog.Logger) error {
+	app, err := NewApp(&cli.Start, log)
 	if err != nil {
 		return trace.Wrap(err)
 	}

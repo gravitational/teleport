@@ -23,27 +23,28 @@ import (
 	"context"
 	"errors"
 	"net"
+	"strings"
 	"time"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
+	"github.com/prometheus/client_golang/prometheus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
-	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/internal/cert"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
-	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -58,10 +59,82 @@ const (
 	maxUserAgentLen = 2048
 )
 
+func (a *Server) AccessCheckerForScope(ctx context.Context, scope string, userState services.UserState, allowedResourceAccessIDs []types.ResourceAccessID) (*services.ScopedAccessCheckerContext, error) {
+	clusterName, err := a.GetClusterName(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// scoped and unscoped logins use different access checkers and different underlying role types. the scope
+	// parameter is untrusted user input, but we reject attempts to login to a scope for which a user has no
+	// assigned privileges.
+	if scope == "" {
+		// this is an unscoped login attempt, so the user's capabilities are determined solely by their user state.
+		accessInfo := services.AccessInfoFromUserState(userState)
+		if len(allowedResourceAccessIDs) > 0 {
+			accessInfo.AllowedResourceAccessIDs = allowedResourceAccessIDs
+		}
+
+		unscopedChecker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), a)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return services.NewScopedAccessCheckerContextFromUnscoped(unscopedChecker), nil
+	}
+
+	// req.Scope is untrusted user input, so perform strong validation before proceeding.
+	if err := scopes.StrongValidate(scope); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// set up scope pin (invalid until populated)
+	scopePin := scopesv1.Pin_builder{
+		Kind:  scopesv1.PinKind_PIN_KIND_USER,
+		Scope: scope,
+	}.Build()
+
+	if userState.IsBot() {
+		botScope, _ := userState.GetLabel(types.BotScopeLabel)
+		botName, _ := userState.GetLabel(types.BotLabel)
+		if botScope == "" {
+			return nil, trace.BadParameter("unscoped bot may not generate scoped certs")
+		}
+		if err := a.ScopedAccessCache.PopulatePinnedAssignmentsForBot(
+			ctx, botName, botScope, scopePin,
+		); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		if err := a.ScopedAccessCache.PopulatePinnedAssignmentsForUser(
+			ctx, userState.GetName(), scopePin,
+		); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	// build the user's access info based on the scope pin and userState
+	accessInfo := services.ScopePinnedAccessInfoFromUserState(userState, scopePin)
+	if len(allowedResourceAccessIDs) > 0 {
+		accessInfo.AllowedResourceAccessIDs = allowedResourceAccessIDs
+	}
+
+	// create a scoped access checker context. Note that scoped certificate parameters differ from unscoped
+	// certificate parameters in that they are generally not role-determined. We still need to create the full
+	// checker context as there are select exceptions where scoped roles do matter, and because the checker context
+	// abstraction also handles non-role-determined certificate perameter calculation.
+	scopedCheckerContext, err := services.NewScopedAccessCheckerContext(ctx, accessInfo, clusterName.GetClusterName(), a.ScopedAccessCache)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return scopedCheckerContext, nil
+}
+
 // authenticateUserLogin implements the bulk of user login authentication.
 // Used by the top-level local login methods, [Server.AuthenticateSSHUser] and
 // [Server.AuthenticateWebUser]
-func (a *Server) authenticateUserLogin(ctx context.Context, req authclient.AuthenticateUserRequest) (services.UserState, services.AccessChecker, error) {
+func (a *Server) authenticateUserLogin(ctx context.Context, req authclient.AuthenticateUserRequest) (services.UserState, *services.ScopedAccessCheckerContext, error) {
 	username := req.Username
 
 	requiredExt := mfav1.ChallengeExtensions{
@@ -76,16 +149,19 @@ func (a *Server) authenticateUserLogin(ctx context.Context, req authclient.Authe
 			clientMetadata: req.ClientMetadata,
 			authErr:        err,
 		}); err != nil {
-			log.WithError(err).Warn("Failed to emit login event")
+			a.logger.WarnContext(ctx, "Failed to emit login event", "error", err)
 		}
 		return nil, nil, trace.Wrap(err)
 	}
 
 	switch {
 	case username != "" && actualUsername != "" && username != actualUsername:
-		log.Warnf("Authenticate user mismatch (%q vs %q). Using request user (%q)", username, actualUsername, username)
+		a.logger.WarnContext(ctx, "Authenticate user mismatch, using request user",
+			"username", username,
+			"request_user", actualUsername,
+		)
 	case username == "" && actualUsername != "":
-		log.Debugf("User %q authenticated via passwordless", actualUsername)
+		a.logger.DebugContext(ctx, "User authenticated via passwordless", "username", actualUsername)
 		username = actualUsername
 	}
 
@@ -106,29 +182,24 @@ func (a *Server) authenticateUserLogin(ctx context.Context, req authclient.Authe
 		return nil, nil, trace.Wrap(err)
 	}
 
-	clusterName, err := a.GetClusterName()
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-	accessInfo := services.AccessInfoFromUserState(userState)
-	checker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), a)
+	checker, err := a.AccessCheckerForScope(ctx, req.Scope, userState, nil)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
 	// Verify if the MFA device is locked.
 	if err := verifyMFALocks(verifyMFADeviceLocksParams{
-		Checker: checker,
+		CheckerContext: checker,
 	}); err != nil {
 		// Log MFA lock failure as an authn failure.
 		if err := a.emitAuthAuditEvent(ctx, authAuditProps{
 			username:       req.Username,
 			clientMetadata: req.ClientMetadata,
 			mfaDevice:      mfaDev,
-			checker:        checker,
+			checkerContext: checker,
 			authErr:        err,
 		}); err != nil {
-			log.WithError(err).Warn("Failed to emit login event")
+			a.logger.WarnContext(ctx, "Failed to emit login event", "error", err)
 		}
 		return nil, nil, trace.Wrap(err)
 	}
@@ -138,9 +209,10 @@ func (a *Server) authenticateUserLogin(ctx context.Context, req authclient.Authe
 		username:       username,
 		clientMetadata: req.ClientMetadata,
 		mfaDevice:      mfaDev,
-		checker:        checker,
+		checkerContext: checker,
+		userOrigin:     userOrigin(user),
 	}); err != nil {
-		log.WithError(err).Warn("Failed to emit login event")
+		a.logger.WarnContext(ctx, "Failed to emit login event", "error", err)
 	}
 
 	return userState, checker, trace.Wrap(err)
@@ -150,8 +222,20 @@ type authAuditProps struct {
 	username       string
 	clientMetadata *authclient.ForwardedClientMetadata
 	mfaDevice      *types.MFADevice
-	checker        services.AccessChecker
+	checkerContext *services.ScopedAccessCheckerContext
 	authErr        error
+	userOrigin     apievents.UserOrigin
+}
+
+// trimStr truncates the length of a string, appending '...' for strings
+// that are truncated. If the string is truncated, the result will have
+// len of max + 3 (for the ellipsis).
+func trimStr(str string, max int) string {
+	if len(str) <= max {
+		return str
+	}
+
+	return str[:max] + "..."
 }
 
 func (a *Server) emitAuthAuditEvent(ctx context.Context, props authAuditProps) error {
@@ -164,7 +248,8 @@ func (a *Server) emitAuthAuditEvent(ctx context.Context, props authAuditProps) e
 			Success: true,
 		},
 		UserMetadata: apievents.UserMetadata{
-			User: props.username,
+			User:       trimStr(props.username, teleport.MaxUsernameLength),
+			UserOrigin: props.userOrigin,
 		},
 		Method: events.LoginMethodLocal,
 	}
@@ -186,12 +271,15 @@ func (a *Server) emitAuthAuditEvent(ctx context.Context, props authAuditProps) e
 	}
 
 	// Add required key policy to the event.
-	if props.checker != nil {
+	if props.checkerContext != nil {
 		authPref, err := a.GetAuthPreference(ctx)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		privateKeyPolicy, err := props.checker.PrivateKeyPolicy(authPref.GetPrivateKeyPolicy())
+		// TODO(fspmarshall/scopes): its a little strange to use CertParams here as this isn't really a certificate
+		// specific calculation. Once we have a clearer idea of what PrivateKeyPolicy means in a scoped context,
+		// consider moving this method to a more appropriate location.
+		privateKeyPolicy, err := props.checkerContext.CertParams().PrivateKeyPolicy(authPref.GetPrivateKeyPolicy())
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -213,9 +301,10 @@ var (
 )
 
 type verifyMFADeviceLocksParams struct {
-	// Checker used to verify locks.
-	// Optional, created via a [UserState] fetch if nil.
-	Checker services.AccessChecker
+	// CheckerContext is used to verify locks. Lock verification varies depending on whether the context is
+	// scoped or unscoped. If no context is provided, a default unscoped checker context is created from
+	// the user backend state.
+	CheckerContext *services.ScopedAccessCheckerContext
 
 	// ClusterLockingMode used to verify locks.
 	// Optional, acquired from [Server.GetAuthPreference] if nil.
@@ -252,21 +341,21 @@ func (a *Server) authenticateUser(
 	}
 
 	verifyLocks = func(p verifyMFADeviceLocksParams) error {
-		if p.Checker == nil {
+		if p.CheckerContext == nil {
 			userState, err := a.GetUserOrLoginState(ctx, user)
 			if err != nil {
 				return trace.Wrap(err)
 			}
 			accessInfo := services.AccessInfoFromUserState(userState)
-			clusterName, err := a.GetClusterName()
+			clusterName, err := a.GetClusterName(ctx)
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			checker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), a)
+			unscopedChecker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), a)
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			p.Checker = checker
+			p.CheckerContext = services.NewScopedAccessCheckerContextFromUnscoped(unscopedChecker)
 		}
 
 		if p.ClusterLockingMode == "" {
@@ -281,10 +370,10 @@ func (a *Server) authenticateUser(
 		// as part of certificate issuance in various scenarios (password change,
 		// non-session certificates, etc)
 		return a.verifyLocksForUserCerts(verifyLocksForUserCertsReq{
-			checker:     p.Checker,
-			defaultMode: p.ClusterLockingMode,
-			username:    user,
-			mfaVerified: mfaDev.Id,
+			checkerContext: p.CheckerContext,
+			defaultMode:    p.ClusterLockingMode,
+			username:       user,
+			mfaVerified:    mfaDev.Id,
 		})
 	}
 	return verifyLocks, mfaDev, user, nil
@@ -308,7 +397,10 @@ func (a *Server) authenticateUserInternal(
 	if req.HeadlessAuthenticationID != "" {
 		mfaDev, err = a.authenticateHeadless(ctx, req)
 		if err != nil {
-			log.Debugf("Headless Authentication for user %q failed while waiting for approval: %v", user, err)
+			a.logger.DebugContext(ctx, "Headless authenticate failed while waiting for approval",
+				"user", user,
+				"error", err,
+			)
 			return nil, "", trace.Wrap(err)
 		}
 		return mfaDev, user, nil
@@ -332,10 +424,10 @@ func (a *Server) authenticateUserInternal(
 	case err != nil:
 		return nil, "", trace.Wrap(err)
 	case u.GetUserType() != types.UserTypeLocal:
-		log.WithFields(logrus.Fields{
-			"user":      user,
-			"user_type": u.GetUserType(),
-		}).Warn("Non-local user attempted local authentication")
+		a.logger.WarnContext(ctx, "Non-local user attempted local authentication",
+			"user", user,
+			"user_type", u.GetUserType(),
+		)
 		return nil, "", trace.Wrap(errSSOUserLocalAuth)
 	}
 
@@ -354,6 +446,25 @@ func (a *Server) authenticateUserInternal(
 			mfaResponse := &proto.MFAAuthenticateResponse{
 				Response: &proto.MFAAuthenticateResponse_Webauthn{
 					Webauthn: wantypes.CredentialAssertionResponseToProto(req.Webauthn),
+				},
+			}
+			mfaData, err := a.ValidateMFAAuthResponse(ctx, mfaResponse, user, &requiredExt)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return mfaData.Device, nil
+		}
+		authErr = authenticateWebauthnError
+	case req.BrowserMFA != nil:
+		authenticateFn = func() (*types.MFADevice, error) {
+			if req.Pass != nil {
+				if err = a.checkPasswordWOToken(ctx, user, req.Pass.Password); err != nil {
+					return nil, trace.Wrap(err)
+				}
+			}
+			mfaResponse := &proto.MFAAuthenticateResponse{
+				Response: &proto.MFAAuthenticateResponse_Browser{
+					Browser: req.BrowserMFA,
 				},
 			}
 			mfaData, err := a.ValidateMFAAuthResponse(ctx, mfaResponse, user, &requiredExt)
@@ -383,16 +494,22 @@ func (a *Server) authenticateUserInternal(
 		})
 		switch {
 		case err != nil:
-			log.Debugf("User %v failed to authenticate: %v.", user, err)
+			a.logger.DebugContext(ctx, "User failed to authenticate",
+				"user", user,
+				"error", err,
+			)
 			if fieldErr := getErrorByTraceField(err); fieldErr != nil {
 				return nil, "", trace.Wrap(fieldErr)
 			}
 
 			return nil, "", trace.Wrap(authErr)
 		case mfaDev == nil:
-			log.Debugf(
-				"MFA authentication returned nil device (Webauthn = %v, TOTP = %v, Headless = %v): %v.",
-				req.Webauthn != nil, req.OTP != nil, req.HeadlessAuthenticationID != "", err)
+			a.logger.DebugContext(ctx, "MFA authentication returned nil device",
+				"webauthn", req.Webauthn != nil,
+				"totp", req.OTP != nil,
+				"headless", req.HeadlessAuthenticationID != "",
+				"error", err,
+			)
 			return nil, "", trace.Wrap(authErr)
 		default:
 			return mfaDev, user, nil
@@ -411,10 +528,14 @@ func (a *Server) authenticateUserInternal(
 
 	// When using password only make sure that auth preference does not require
 	// second factor, otherwise users could bypass it.
-	switch authPreference.GetSecondFactor() {
-	case constants.SecondFactorOff:
-		// No 2FA required, check password only.
-	case constants.SecondFactorOptional:
+	switch {
+	case authPreference.IsSecondFactorEnforced():
+		// Some form of MFA is required but none provided. Either client is
+		// buggy (didn't send MFA response) or someone is trying to bypass
+		// MFA.
+		a.logger.WarnContext(ctx, "MFA bypass attempt, access denied", "user", user)
+		return nil, "", trace.AccessDenied("missing second factor")
+	case authPreference.IsSecondFactorEnabled():
 		// 2FA is optional. Make sure that a user does not have MFA devices
 		// registered.
 		devs, err := a.Services.GetMFADevices(ctx, user, false /* withSecrets */)
@@ -422,15 +543,11 @@ func (a *Server) authenticateUserInternal(
 			return nil, "", trace.Wrap(err)
 		}
 		if len(devs) != 0 {
-			log.Warningf("MFA bypass attempt by user %q, access denied.", user)
+			a.logger.WarnContext(ctx, "MFA bypass attempt, access denied", "user", user)
 			return nil, "", trace.AccessDenied("missing second factor authentication")
 		}
 	default:
-		// Some form of MFA is required but none provided. Either client is
-		// buggy (didn't send MFA response) or someone is trying to bypass
-		// MFA.
-		log.Warningf("MFA bypass attempt by user %q, access denied.", user)
-		return nil, "", trace.AccessDenied("missing second factor")
+		// No 2FA required, check password only.
 	}
 	if err = a.WithUserLock(ctx, user, func() error {
 		return a.checkPasswordWOToken(ctx, user, req.Pass.Password)
@@ -440,7 +557,10 @@ func (a *Server) authenticateUserInternal(
 		}
 		// provide obscure message on purpose, while logging the real
 		// error server side
-		log.Debugf("User %v failed to authenticate: %v.", user, err)
+		a.logger.DebugContext(ctx, "User failed to authenticate",
+			"user", user,
+			"error", err,
+		)
 		return nil, "", trace.Wrap(authclient.InvalidUserPassError)
 	}
 	return nil, user, nil
@@ -460,7 +580,7 @@ func (a *Server) authenticatePasswordless(ctx context.Context, req authclient.Au
 	case errors.Is(err, types.ErrPassswordlessLoginBySSOUser):
 		return nil, "", trace.Wrap(err)
 	case err != nil:
-		log.Debugf("Passwordless authentication failed: %v", err)
+		a.logger.DebugContext(ctx, "Passwordless authentication failed", "error", err)
 		return nil, "", trace.Wrap(authenticateWebauthnError)
 	}
 
@@ -468,7 +588,10 @@ func (a *Server) authenticatePasswordless(ctx context.Context, req authclient.Au
 	// acquire the user lock beforehand (or at all on failures!)
 	// We do grab it here so successful logins go through the regular process.
 	if err := a.WithUserLock(ctx, mfaData.User, func() error { return nil }); err != nil {
-		log.Debugf("WithUserLock for user %q failed during passwordless authentication: %v", mfaData.User, err)
+		a.logger.DebugContext(ctx, "WithUserLock failed during passwordless authentication",
+			"user", mfaData.User,
+			"error", err,
+		)
 		return nil, mfaData.User, trace.Wrap(authenticateWebauthnError)
 	}
 
@@ -480,7 +603,7 @@ func (a *Server) authenticateHeadless(ctx context.Context, req authclient.Authen
 	defer func() {
 		if err != nil {
 			if err := a.DeleteHeadlessAuthentication(a.CloseContext(), req.Username, req.HeadlessAuthenticationID); err != nil && !trace.IsNotFound(err) {
-				log.Debugf("Failed to delete headless authentication: %v", err)
+				a.logger.DebugContext(ctx, "Failed to delete headless authentication", "error", err)
 			}
 		}
 	}()
@@ -500,7 +623,8 @@ func (a *Server) authenticateHeadless(ctx context.Context, req authclient.Authen
 	}
 
 	ha.State = types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_PENDING
-	ha.PublicKey = req.PublicKey
+	ha.SshPublicKey = req.SSHPublicKey
+	ha.TlsPublicKey = req.TLSPublicKey
 	ha.ClientIpAddress = req.ClientMetadata.RemoteAddr
 	if err := services.ValidateHeadlessAuthentication(ha); err != nil {
 		return nil, trace.Wrap(err)
@@ -537,8 +661,11 @@ func (a *Server) authenticateHeadless(ctx context.Context, req authclient.Authen
 	if approvedHeadlessAuthn.User != req.Username {
 		return nil, trace.AccessDenied("headless authentication user mismatch")
 	}
-	if !bytes.Equal(req.PublicKey, ha.PublicKey) {
-		return nil, trace.AccessDenied("headless authentication public key mismatch")
+	if !bytes.Equal(req.SSHPublicKey, ha.SshPublicKey) {
+		return nil, trace.AccessDenied("headless authentication SSH public key mismatch")
+	}
+	if !bytes.Equal(req.TLSPublicKey, ha.TlsPublicKey) {
+		return nil, trace.AccessDenied("headless authentication TLS public key mismatch")
 	}
 
 	return approvedHeadlessAuthn.MfaDevice, nil
@@ -603,7 +730,7 @@ func (a *Server) AuthenticateWebUser(ctx context.Context, req authclient.Authent
 	// to the local auth will be disabled by default.
 	if !authPref.GetAllowLocalAuth() && req.Session == nil {
 		a.emitNoLocalAuthEvent(username)
-		return nil, trace.AccessDenied(noLocalAuth)
+		return nil, trace.AccessDenied("%s", noLocalAuth)
 	}
 
 	if req.Session != nil {
@@ -622,102 +749,44 @@ func (a *Server) AuthenticateWebUser(ctx context.Context, req authclient.Authent
 		return nil, trace.Wrap(err)
 	}
 
-	var loginIP, userAgent string
+	var loginIP, userAgent, proxyGroupID string
+	var maxTouchPoints int
 	if cm := req.ClientMetadata; cm != nil {
 		loginIP, _, err = net.SplitHostPort(cm.RemoteAddr)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		userAgent = cm.UserAgent
+		proxyGroupID = cm.ProxyGroupID
+		maxTouchPoints = cm.MaxTouchPoints
 	}
 
 	sess, err := a.CreateWebSessionFromReq(ctx, NewWebSessionRequest{
-		User:             user.GetName(),
-		LoginIP:          loginIP,
-		Roles:            user.GetRoles(),
-		Traits:           user.GetTraits(),
-		LoginTime:        a.clock.Now().UTC(),
-		AttestWebSession: true,
+		User:                 user.GetName(),
+		LoginIP:              loginIP,
+		LoginUserAgent:       userAgent,
+		LoginMaxTouchPoints:  maxTouchPoints,
+		ProxyGroupID:         proxyGroupID,
+		Roles:                user.GetRoles(),
+		Traits:               user.GetTraits(),
+		LoginTime:            a.clock.Now().UTC(),
+		AttestWebSession:     true,
+		CreateDeviceWebToken: true,
+		Scope:                req.Scope,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	// Create the device trust DeviceWebToken.
-	// We only get a token if the server is enabled for Device Trust and the user
-	// has a suitable trusted device.
-	if loginIP != "" && userAgent != "" {
-		webToken, err := a.createDeviceWebToken(ctx, &devicepb.DeviceWebToken{
-			WebSessionId:     sess.GetName(),
-			BrowserUserAgent: userAgent,
-			BrowserIp:        loginIP,
-			User:             sess.GetUser(),
-		})
-		switch {
-		case err != nil:
-			log.WithError(err).Warn("Failed to create DeviceWebToken for user")
-		case webToken != nil: // May be nil even if err==nil.
-			sess.SetDeviceWebToken(&types.DeviceWebToken{
-				Id:    webToken.Id,
-				Token: webToken.Token,
-			})
-		}
-	}
-
-	// Calculate the trusted device requirement for the session. Helps inform the
-	// frontend if the user might run into access problems without a trusted
-	// device.
-	trustedDeviceRequirement, err := a.calculateTrustedDeviceMode(ctx, func() ([]types.Role, error) {
-		// TODO(codingllama): Levegare the checker inside CreateWebSessionFromReq to
-		//  avoid duplicate work here.
-		roles, err := services.FetchRoles(user.GetRoles(), a, user.GetTraits())
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return roles, nil
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	sess.SetTrustedDeviceRequirement(trustedDeviceRequirement)
 
 	return sess, nil
 }
 
-func (a *Server) calculateTrustedDeviceMode(ctx context.Context, getRoles func() ([]types.Role, error)) (types.TrustedDeviceRequirement, error) {
-	const unspecified = types.TrustedDeviceRequirement_TRUSTED_DEVICE_REQUIREMENT_UNSPECIFIED
-
-	// Don't evaluate for OSS.
-	if !modules.GetModules().IsEnterpriseBuild() {
-		return unspecified, nil
-	}
-
-	// Required by cluster mode?
-	ap, err := a.GetAuthPreference(ctx)
-	if err != nil {
-		return unspecified, trace.Wrap(err)
-	}
-	if dtconfig.GetEffectiveMode(ap.GetDeviceTrust()) == constants.DeviceTrustModeRequired {
-		return types.TrustedDeviceRequirement_TRUSTED_DEVICE_REQUIREMENT_REQUIRED, nil
-	}
-
-	// Required by roles?
-	roles, err := getRoles()
-	if err != nil {
-		return unspecified, trace.Wrap(err)
-	}
-	for _, role := range roles {
-		if role.GetOptions().DeviceTrustMode == constants.DeviceTrustModeRequired {
-			return types.TrustedDeviceRequirement_TRUSTED_DEVICE_REQUIREMENT_REQUIRED, nil
-		}
-	}
-
-	return types.TrustedDeviceRequirement_TRUSTED_DEVICE_REQUIREMENT_NOT_REQUIRED, nil
-}
-
 // AuthenticateSSHUser authenticates an SSH user and returns SSH and TLS
 // certificates for the public key in req.
-func (a *Server) AuthenticateSSHUser(ctx context.Context, req authclient.AuthenticateSSHRequest) (*authclient.SSHLoginResponse, error) {
+func (a *Server) AuthenticateSSHUser(ctx context.Context, req authclient.AuthenticateSSHRequest) (*authclient.CLILoginResponse, error) {
+	if err := req.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	username := req.Username // Empty if passwordless.
 
 	authPref, err := a.GetAuthPreference(ctx)
@@ -728,10 +797,10 @@ func (a *Server) AuthenticateSSHUser(ctx context.Context, req authclient.Authent
 	// Disable all local auth requests, except headless requests.
 	if !authPref.GetAllowLocalAuth() && req.HeadlessAuthenticationID == "" {
 		a.emitNoLocalAuthEvent(username)
-		return nil, trace.AccessDenied(noLocalAuth)
+		return nil, trace.AccessDenied("%s", noLocalAuth)
 	}
 
-	clusterName, err := a.GetClusterName()
+	clusterName, err := a.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -763,36 +832,24 @@ func (a *Server) AuthenticateSSHUser(ctx context.Context, req authclient.Authent
 		}
 		clientIP = host
 	}
-	if checker.PinSourceIP() && clientIP == "" {
+
+	if checker.CertParams().PinSourceIP() && clientIP == "" {
 		return nil, trace.BadParameter("source IP pinning is enabled but client IP is unknown")
 	}
 
-	// TODO(nklaassen): separate SSH and TLS keys. For now they are the same.
-	sshPublicKey := req.PublicKey
-	publicKey, err := sshutils.CryptoPublicKey(req.PublicKey)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	tlsPublicKey, err := keys.MarshalPublicKey(publicKey)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	sshPublicKeyAttestationStatement := req.AttestationStatement
-	tlsPublicKeyAttestationStatement := req.AttestationStatement
-
-	certReq := certRequest{
-		user:                             user,
-		ttl:                              req.TTL,
-		sshPublicKey:                     sshPublicKey,
-		tlsPublicKey:                     tlsPublicKey,
-		compatibility:                    req.CompatibilityMode,
-		checker:                          checker,
-		traits:                           user.GetTraits(),
-		routeToCluster:                   req.RouteToCluster,
-		kubernetesCluster:                req.KubernetesCluster,
-		loginIP:                          clientIP,
-		sshPublicKeyAttestationStatement: sshPublicKeyAttestationStatement,
-		tlsPublicKeyAttestationStatement: tlsPublicKeyAttestationStatement,
+	certReq := cert.Request{
+		User:                             user,
+		TTL:                              req.TTL,
+		SSHPublicKey:                     req.SSHPublicKey,
+		TLSPublicKey:                     req.TLSPublicKey,
+		Compatibility:                    req.CompatibilityMode,
+		CheckerContext:                   checker,
+		Traits:                           user.GetTraits(),
+		RouteToCluster:                   req.RouteToCluster,
+		KubernetesCluster:                req.KubernetesCluster,
+		LoginIP:                          clientIP,
+		SSHPublicKeyAttestationStatement: req.SSHAttestationStatement,
+		TLSPublicKeyAttestationStatement: req.TLSAttestationStatement,
 	}
 
 	// For headless authentication, a short-lived mfa-verified cert should be generated.
@@ -801,24 +858,61 @@ func (a *Server) AuthenticateSSHUser(ctx context.Context, req authclient.Authent
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if !bytes.Equal(req.PublicKey, ha.PublicKey) {
-			return nil, trace.AccessDenied("headless authentication public key mismatch")
+		if !bytes.Equal(req.SSHPublicKey, ha.SshPublicKey) {
+			return nil, trace.AccessDenied("headless authentication SSH public key mismatch")
 		}
-		certReq.mfaVerified = ha.MfaDevice.Metadata.Name
-		certReq.ttl = time.Minute
+		if !bytes.Equal(req.TLSPublicKey, ha.TlsPublicKey) {
+			return nil, trace.AccessDenied("headless authentication TLS public key mismatch")
+		}
+		certReq.MFAVerified = ha.MfaDevice.Metadata.Name
+		certReq.TTL = time.Minute
+		certReq.HeadlessAuthenticationID = req.HeadlessAuthenticationID
 	}
 
-	certs, err := a.generateUserCert(ctx, certReq)
+	certs, err := a.GenerateUserCerts(ctx, certReq)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	var userAgent, proxyGroupID string
+	if req.ClientMetadata != nil {
+		userAgent = req.ClientMetadata.UserAgent
+		proxyGroupID = req.ClientMetadata.ProxyGroupID
+	}
 	UserLoginCount.Inc()
-	return &authclient.SSHLoginResponse{
-		Username:    user.GetName(),
-		Cert:        certs.SSH,
-		TLSCert:     certs.TLS,
-		HostSigners: authclient.AuthoritiesToTrustedCerts(hostCertAuthorities),
+	userAgentType, userAgentVersion := splitClientUserAgent(userAgent)
+	userLoginCountPerClient.With(prometheus.Labels{
+		tagUserAgentType: userAgentType,
+		tagVersion:       userAgentVersion,
+		tagProxyGroupID:  proxyGroupID,
+	}).Inc()
+
+	var clientOptions authclient.ClientOptions
+	if o, err := a.ClientOptionsForLogin(user); err == nil {
+		clientOptions = o
+	} else {
+		a.logger.WarnContext(ctx, "Failed to calculate client options for local login", "username", user.GetName(), "error", err)
+	}
+
+	return &authclient.CLILoginResponse{
+		Username:      user.GetName(),
+		Cert:          certs.SSH,
+		TLSCert:       certs.TLS,
+		HostSigners:   authclient.AuthoritiesToTrustedCerts(hostCertAuthorities),
+		ClientOptions: clientOptions,
 	}, nil
+}
+
+// ClientOptionsForLogin returns the client options for a user that has just
+// logged in.
+func (a *Server) ClientOptionsForLogin(userState services.UserState) (authclient.ClientOptions, error) {
+	var opts authclient.ClientOptions
+
+	if t := userState.GetTraits()[constants.TraitDefaultRelayAddr]; len(t) > 0 {
+		opts.DefaultRelayAddr = t[0]
+	}
+
+	return opts, nil
 }
 
 // emitNoLocalAuthEvent creates and emits a local authentication is disabled message.
@@ -836,7 +930,7 @@ func (a *Server) emitNoLocalAuthEvent(username string) {
 			Error:   noLocalAuth,
 		},
 	}); err != nil {
-		log.WithError(err).Warn("Failed to emit no local auth event.")
+		a.logger.WarnContext(a.closeCtx, "Failed to emit no local auth event", "error", err)
 	}
 }
 
@@ -857,10 +951,10 @@ func getErrorByTraceField(err error) error {
 	ok := errors.As(err, &traceErr)
 	switch {
 	case !ok:
-		log.WithError(err).Warn("Unexpected error type, wanted TraceError")
+		logger.WarnContext(context.Background(), "Unexpected error type, wanted TraceError", "error", err)
 		return trace.AccessDenied("an error has occurred")
 	case traceErr.GetFields()[ErrFieldKeyUserMaxedAttempts] != nil:
-		return trace.AccessDenied(MaxFailedAttemptsErrMsg)
+		return trace.AccessDenied("%s", MaxFailedAttemptsErrMsg)
 	}
 
 	return nil
@@ -873,4 +967,27 @@ func trimUserAgent(userAgent string) string {
 	return userAgent
 }
 
+// splitClientUserAgent strictly splits the user agent into a type and a semantic version.
+// Any other formatting is not allowed and is treated as a third-party client (to be ignored).
+func splitClientUserAgent(userAgent string) (string, string) {
+	agent := strings.SplitN(userAgent, "/", 2)
+	if len(agent) != 2 {
+		return "", ""
+	}
+	ver, err := semver.NewVersion(agent[1])
+	if err != nil {
+		return "", ""
+	}
+
+	return agent[0], ver.String()
+}
+
 const noLocalAuth = "local auth disabled"
+
+func userOrigin(user types.User) apievents.UserOrigin {
+	userOrigin := apievents.UserOriginFromOriginLabel(user.Origin())
+	if userOrigin == apievents.UserOrigin_USER_ORIGIN_UNSPECIFIED {
+		userOrigin = apievents.UserOriginFromUserType(user.GetUserType())
+	}
+	return userOrigin
+}

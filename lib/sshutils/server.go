@@ -25,6 +25,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -33,7 +34,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/sirupsen/logrus"
 	semconv "go.opentelemetry.io/otel/semconv/v1.10.0"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
@@ -61,7 +61,7 @@ var proxyConnectionLimitHitCount = prometheus.NewCounter(
 type Server struct {
 	sync.RWMutex
 
-	log logrus.FieldLogger
+	logger *slog.Logger
 	// component is a name of the facility which uses this server,
 	// used for logging/debugging. typically it's "proxy" or "auth api", etc
 	component string
@@ -92,7 +92,7 @@ type Server struct {
 	// they are a valid certificate. Used in tests.
 	insecureSkipHostValidation bool
 
-	// fips means Teleport started in a FedRAMP/FIPS 140-2 compliant
+	// fips means Teleport started in a FedRAMP/FIPS compliant
 	// configuration.
 	fips bool
 
@@ -136,9 +136,9 @@ func SetIngressReporter(service string, r *ingress.Reporter) ServerOption {
 }
 
 // SetLogger sets the logger for the server
-func SetLogger(logger logrus.FieldLogger) ServerOption {
+func SetLogger(logger *slog.Logger) ServerOption {
 	return func(s *Server) error {
-		s.log = logger.WithField(teleport.ComponentKey, "ssh:"+s.component)
+		s.logger = logger.With(teleport.ComponentKey, teleport.Component("ssh", s.component))
 		return nil
 	}
 }
@@ -148,6 +148,15 @@ func SetLimiter(limiter *limiter.Limiter) ServerOption {
 		s.limiter = limiter
 		return nil
 	}
+}
+
+// ConnectionLimitExceededCallback records connection limit hits rejected by a
+// limiter.Listener before they reach this server's accept loop.
+func ConnectionLimitExceededCallback(ctx context.Context, logger *slog.Logger) limiter.ListenerOption {
+	return limiter.WithLimitExceededCallback(func(remoteAddr string, err error) {
+		proxyConnectionLimitHitCount.Inc()
+		logger.ErrorContext(ctx, "connection limit exceeded", "client_ip", remoteAddr, "error", err)
+	})
 }
 
 // SetShutdownPollPeriod sets a polling period for graceful shutdowns of SSH servers
@@ -205,9 +214,7 @@ func NewServer(
 
 	closeContext, cancel := context.WithCancel(context.TODO())
 	s := &Server{
-		log: logrus.WithFields(logrus.Fields{
-			teleport.ComponentKey: "ssh:" + component,
-		}),
+		logger:         slog.With(teleport.ComponentKey, teleport.Component("ssh", component)),
 		addr:           a,
 		newChanHandler: h,
 		getHostSigners: getHostSigners,
@@ -239,6 +246,7 @@ func NewServer(
 	}
 
 	s.cfg.PublicKeyCallback = ah.PublicKey
+	s.cfg.VerifiedPublicKeyCallback = ah.VerifiedPublicKey
 	s.cfg.PasswordCallback = ah.Password
 	s.cfg.NoClientAuth = ah.NoClient
 
@@ -276,7 +284,7 @@ func SetNewConnHandler(handler NewConnHandler) ServerOption {
 
 func SetCiphers(ciphers []string) ServerOption {
 	return func(s *Server) error {
-		s.log.Debugf("Supported ciphers: %q.", ciphers)
+		s.logger.DebugContext(context.Background(), "Supported ciphers updated", "ciphers", ciphers)
 		if ciphers != nil {
 			s.cfg.Ciphers = ciphers
 		}
@@ -286,7 +294,7 @@ func SetCiphers(ciphers []string) ServerOption {
 
 func SetKEXAlgorithms(kexAlgorithms []string) ServerOption {
 	return func(s *Server) error {
-		s.log.Debugf("Supported KEX algorithms: %q.", kexAlgorithms)
+		s.logger.DebugContext(context.Background(), "Supported KEX algorithms updated", "kex_algorithms", kexAlgorithms)
 		if kexAlgorithms != nil {
 			s.cfg.KeyExchanges = kexAlgorithms
 		}
@@ -296,7 +304,7 @@ func SetKEXAlgorithms(kexAlgorithms []string) ServerOption {
 
 func SetMACAlgorithms(macAlgorithms []string) ServerOption {
 	return func(s *Server) error {
-		s.log.Debugf("Supported MAC algorithms: %q.", macAlgorithms)
+		s.logger.DebugContext(context.Background(), "Supported MAC algorithms updated", "mac_algorithms", macAlgorithms)
 		if macAlgorithms != nil {
 			s.cfg.MACs = macAlgorithms
 		}
@@ -320,9 +328,11 @@ func (s *Server) Addr() string {
 	return s.listener.Addr().String()
 }
 
-func (s *Server) Serve(listener net.Listener) error {
-	if err := s.SetListener(listener); err != nil {
-		return trace.Wrap(err)
+// Serve serves SSH connections using an already configured listener and blocks
+// until the listener is closed.
+func (s *Server) Serve() error {
+	if s.Addr() == "" {
+		return trace.BadParameter("listener is not set")
 	}
 	s.acceptConnections()
 	return nil
@@ -335,7 +345,10 @@ func (s *Server) Start() error {
 			return trace.ConvertSystemError(err)
 		}
 
-		listener, err = s.limiter.WrapListener(listener)
+		listener, err = s.limiter.WrapListener(listener, ConnectionLimitExceededCallback(
+			s.closeContext,
+			s.logger.With("listen_addr", listener.Addr().String()),
+		))
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -344,7 +357,7 @@ func (s *Server) Start() error {
 			return trace.Wrap(err)
 		}
 	}
-	s.log.WithField("addr", s.listener.Addr().String()).Debug("Server start.")
+	s.logger.DebugContext(s.closeContext, "Starting server", "addr", s.listener.Addr().String())
 	go s.acceptConnections()
 	return nil
 }
@@ -352,6 +365,9 @@ func (s *Server) Start() error {
 func (s *Server) SetListener(l net.Listener) error {
 	s.Lock()
 	defer s.Unlock()
+	if l == nil {
+		return trace.BadParameter("listener is nil")
+	}
 	if s.listener != nil {
 		return trace.BadParameter("listener is already set to %v", s.listener.Addr())
 	}
@@ -380,7 +396,7 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	}
 	minReportInterval := 10 * s.shutdownPollPeriod
 	maxReportInterval := 600 * s.shutdownPollPeriod
-	s.log.Infof("Shutdown: waiting for %v connections to finish.", activeConnections)
+	s.logger.InfoContext(ctx, "Shutdown: waiting for active connections to finish", "active_connections", activeConnections)
 	reportedConnections := activeConnections
 	lastReport := time.Now()
 	reportInterval := minReportInterval
@@ -394,7 +410,7 @@ func (s *Server) Shutdown(ctx context.Context) error {
 				return err
 			}
 			if activeConnections != reportedConnections || now.Sub(lastReport) > reportInterval {
-				s.log.Infof("Shutdown: waiting for %v connections to finish.", activeConnections)
+				s.logger.InfoContext(ctx, "Shutdown: waiting for active connections to finish", "active_connections", activeConnections)
 				lastReport = now
 				if activeConnections == reportedConnections {
 					reportInterval = min(reportInterval*2, maxReportInterval)
@@ -404,7 +420,7 @@ func (s *Server) Shutdown(ctx context.Context) error {
 				}
 			}
 		case <-ctx.Done():
-			s.log.Infof("Context canceled wait, returning.")
+			s.logger.InfoContext(ctx, "Context canceled wait, returning")
 			return trace.ConnectionProblem(err, "context canceled")
 		}
 	}
@@ -429,27 +445,27 @@ func (s *Server) Close() error {
 
 func (s *Server) acceptConnections() {
 	defer s.closeFunc()
-	addr := s.Addr()
-	s.log.Debugf("Listening on %v.", addr)
+	logger := s.logger.With("listen_addr", s.Addr())
+	logger.DebugContext(s.closeContext, "Listening for connections")
 	for {
 		conn, err := s.listener.Accept()
 		if err != nil {
 			if trace.IsLimitExceeded(err) {
 				proxyConnectionLimitHitCount.Inc()
-				s.log.Error(err.Error())
+				logger.ErrorContext(s.closeContext, "connection limit exceeded", "error", err)
 				continue
 			}
 
 			if utils.IsUseOfClosedNetworkError(err) {
-				s.log.Debugf("Server %v has closed.", addr)
+				logger.DebugContext(s.closeContext, "Server has closed")
 				return
 			}
 			select {
 			case <-s.closeContext.Done():
-				s.log.Debugf("Server %v has closed.", addr)
+				logger.DebugContext(s.closeContext, "Server has closed")
 				return
 			case <-time.After(5 * time.Second):
-				s.log.Debugf("Backoff on network error: %v.", err)
+				logger.DebugContext(s.closeContext, "Applying backoff in response to network error", "error", err)
 			}
 		} else {
 			go s.HandleConnection(conn)
@@ -492,10 +508,10 @@ func (s *Server) HandleConnection(conn net.Conn) {
 
 	hostSigners := s.getHostSigners()
 	if err := s.validateHostSigners(hostSigners); err != nil {
-		s.log.
-			WithError(err).
-			WithField("remote_addr", conn.RemoteAddr()).
-			Error("Error during server setup for a new SSH connection (this is a bug).")
+		s.logger.ErrorContext(s.closeContext, "Error during server setup for a new SSH connection (this is a bug)",
+			"error", err,
+			"remote_addr", conn.RemoteAddr(),
+		)
 		conn.Close()
 		return
 	}
@@ -518,10 +534,10 @@ func (s *Server) HandleConnection(conn net.Conn) {
 	if err != nil {
 		// Ignore EOF as these are triggered by loadbalancer health checks
 		if !errors.Is(err, io.EOF) {
-			s.log.
-				WithError(err).
-				WithField("remote_addr", conn.RemoteAddr()).
-				Warn("Error occurred in handshake for new SSH conn")
+			s.logger.WarnContext(s.closeContext, "Error occurred in handshake for new SSH conn",
+				"error", err,
+				"remote_addr", conn.RemoteAddr(),
+			)
 		}
 		conn.Close()
 		return
@@ -544,18 +560,22 @@ func (s *Server) HandleConnection(conn net.Conn) {
 
 	user := sconn.User()
 	if err := s.limiter.RegisterRequest(user); err != nil {
-		s.log.Errorf(err.Error())
+		s.logger.ErrorContext(s.closeContext, "user connection rate limit exceeded", "user", user, "error", err)
 		sconn.Close()
 		conn.Close()
 		return
 	}
 	// Connection successfully initiated
-	s.log.Debugf("Incoming connection %v -> %v version: %v, certtype: %q",
-		sconn.RemoteAddr(), sconn.LocalAddr(), string(sconn.ClientVersion()), certType)
+	s.logger.DebugContext(s.closeContext, "handling incoming connection",
+		"remote_addr", sconn.RemoteAddr(),
+		"local_addr", sconn.LocalAddr(),
+		"version", string(sconn.ClientVersion()),
+		"cert_type", certType,
+	)
 
 	// will be called when the connection is closed
 	connClosed := func() {
-		s.log.Debugf("Closed connection %v.", sconn.RemoteAddr())
+		s.logger.DebugContext(s.closeContext, "Closed connection", "remote_addr", sconn.RemoteAddr())
 	}
 
 	// The keepalive ticket will ensure that SSH keepalive requests are being sent
@@ -577,7 +597,7 @@ func (s *Server) HandleConnection(conn net.Conn) {
 		// from a NewConnHandler are rejections.
 		ctx, err = s.newConnHandler.HandleNewConn(ctx, ccx)
 		if err != nil {
-			s.log.Warnf("Dropping inbound ssh connection due to error: %v", err)
+			s.logger.WarnContext(ctx, "Dropping inbound ssh connection due to error", "error", err)
 			// Immediately dropping the ssh connection results in an
 			// EOF error for the client.  We therefore wait briefly
 			// to see if the client opens a channel or sends any global
@@ -598,7 +618,7 @@ func (s *Server) HandleConnection(conn net.Conn) {
 					}
 
 					if err := req.Reply(false, []byte(err.Error())); err != nil {
-						s.log.WithError(err).Warnf("failed to reply to request %s", req.Type)
+						s.logger.WarnContext(ctx, "failed to reply to request", "request_type", req.Type, "error", err)
 					}
 				case firstChan := <-chans:
 					// channel was closed, terminate the connection
@@ -607,7 +627,7 @@ func (s *Server) HandleConnection(conn net.Conn) {
 					}
 
 					if err := firstChan.Reject(ssh.Prohibited, err.Error()); err != nil {
-						s.log.WithError(err).Warnf("failed to reject channel %s", firstChan.ChannelType())
+						s.logger.WarnContext(ctx, "failed to reject channel", "channel_type", firstChan.ChannelType(), "error", err)
 					}
 				case <-waitCtx.Done():
 				}
@@ -616,10 +636,10 @@ func (s *Server) HandleConnection(conn net.Conn) {
 			}
 
 			if err := sconn.Close(); err != nil && !utils.IsOKNetworkError(err) {
-				s.log.WithError(err).Warn("failed to close ssh server connection")
+				s.logger.WarnContext(ctx, "failed to close ssh server connection", "error", err)
 			}
 			if err := conn.Close(); err != nil && !utils.IsOKNetworkError(err) {
-				s.log.WithError(err).Warn("failed to close ssh client connection")
+				s.logger.WarnContext(ctx, "failed to close ssh client connection", "error", err)
 			}
 			return
 		}
@@ -633,7 +653,7 @@ func (s *Server) HandleConnection(conn net.Conn) {
 				connClosed()
 				return
 			}
-			s.log.Debugf("Received out-of-band request: %+v.", req)
+			s.logger.DebugContext(ctx, "Received out-of-band request", "request_type", req.Type)
 
 			reqCtx := tracessh.ContextFromRequest(req)
 			ctx, span := s.tracerProvider.Tracer("ssh").Start(
@@ -683,10 +703,10 @@ func (s *Server) HandleConnection(conn net.Conn) {
 			const wantReply = true
 			_, _, err = sconn.SendRequest(teleport.KeepAliveReqType, wantReply, keepAlivePayload[:])
 			if err != nil {
-				s.log.Errorf("Failed sending keepalive request: %v", err)
+				s.logger.ErrorContext(ctx, "Failed sending keepalive request", "error", err)
 			}
 		case <-ctx.Done():
-			s.log.Debugf("Connection context canceled: %v -> %v", conn.RemoteAddr(), conn.LocalAddr())
+			s.logger.DebugContext(ctx, "Connection context canceled", "remote_addr", conn.RemoteAddr(), "local_addr", conn.LocalAddr())
 			return
 		}
 	}
@@ -713,10 +733,18 @@ type NewConnHandler interface {
 	HandleNewConn(ctx context.Context, ccx *ConnectionContext) (context.Context, error)
 }
 
+// NewConnHandlerFunc wraps a function to satisfy NewConnHandler interface.
+type NewConnHandlerFunc func(ctx context.Context, ccx *ConnectionContext) (context.Context, error)
+
+func (f NewConnHandlerFunc) HandleNewConn(ctx context.Context, ccx *ConnectionContext) (context.Context, error) {
+	return f(ctx, ccx)
+}
+
 type AuthMethods struct {
-	PublicKey PublicKeyFunc
-	Password  PasswordFunc
-	NoClient  bool
+	PublicKey         PublicKeyFunc
+	VerifiedPublicKey VerifiedPublicKeyFunc
+	Password          PasswordFunc
+	NoClient          bool
 }
 
 // GetHostSignersFunc is an infallible function that returns host signers for
@@ -792,8 +820,9 @@ func validateHostSigner(fips bool, signer ssh.Signer) error {
 }
 
 type (
-	PublicKeyFunc func(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error)
-	PasswordFunc  func(conn ssh.ConnMetadata, password []byte) (*ssh.Permissions, error)
+	PublicKeyFunc         func(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error)
+	VerifiedPublicKeyFunc func(conn ssh.ConnMetadata, key ssh.PublicKey, permissions *ssh.Permissions, signatureAlgorithm string) (*ssh.Permissions, error)
+	PasswordFunc          func(conn ssh.ConnMetadata, password []byte) (*ssh.Permissions, error)
 )
 
 // ClusterDetails specifies information about a cluster

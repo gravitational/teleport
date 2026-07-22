@@ -16,219 +16,315 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import type { Meta, StoryObj } from '@storybook/react-vite';
+import { action } from 'storybook/actions';
 
 import {
-  makeSuccessAttempt,
+  Attempt,
   makeEmptyAttempt,
-  makeProcessingAttempt,
   makeErrorAttempt,
+  makeProcessingAttempt,
+  makeSuccessAttempt,
 } from 'shared/hooks/useAsync';
+import { AccessRequest, RequestKind } from 'shared/services/accessRequests';
 
 import {
+  requestResourceApprovedWithConstraints,
+  requestResourcePendingWithConstraints,
+  requestResourceWithConstraintsSuggestedAccessLists,
   requestRoleApproved,
-  requestRoleDenied,
-  requestRolePending,
-  requestSearchPending,
-  requestRoleEmpty,
-  requestRolePromoted,
   requestRoleApprovedWithStartTime,
+  requestRoleDenied,
+  requestRoleEmpty,
+  requestRolePending,
+  requestRolePromoted,
+  requestSearchPending,
 } from '../../fixtures';
-
 import { RequestView, RequestViewProps } from './RequestView';
-import { RequestFlags, SuggestedAccessList } from './types';
+import { SuggestedAccessList } from './types';
 
-export default {
+type RequestState =
+  | 'searchPending'
+  | 'rolePending'
+  | 'roleDenied'
+  | 'roleApproved'
+  | 'roleApprovedWithStartTime'
+  | 'resourcePendingWithConstraints'
+  | 'resourceApprovedWithConstraints'
+  | 'rolePromoted'
+  | 'roleEmpty'
+  | 'shortTermResource'
+  | 'longTermResource'
+  | 'processing'
+  | 'failed';
+
+type SuggestionsState =
+  | 'empty'
+  | 'lists'
+  | 'constraintLists'
+  | 'permissionDenied'
+  | 'error'
+  | 'processing';
+
+type StoryArgs = {
+  request: RequestState;
+  suggestions: SuggestionsState;
+  canReview: boolean;
+  canDelete: boolean;
+  canAssume: boolean;
+  isAssumed: boolean;
+  isPromoted: boolean;
+  ownRequest: boolean;
+};
+
+function requestAttempt(r: RequestState): Attempt<AccessRequest> {
+  switch (r) {
+    case 'processing':
+      return makeProcessingAttempt();
+    case 'failed':
+      return makeErrorAttempt(new Error('some error message'));
+    case 'searchPending':
+      return makeSuccessAttempt(requestSearchPending);
+    case 'rolePending':
+      return makeSuccessAttempt(requestRolePending);
+    case 'roleDenied':
+      return makeSuccessAttempt(requestRoleDenied);
+    case 'roleApproved':
+      return makeSuccessAttempt(requestRoleApproved);
+    case 'roleApprovedWithStartTime':
+      return makeSuccessAttempt(requestRoleApprovedWithStartTime);
+    case 'resourcePendingWithConstraints':
+      return makeSuccessAttempt(requestResourcePendingWithConstraints);
+    case 'resourceApprovedWithConstraints':
+      return makeSuccessAttempt(requestResourceApprovedWithConstraints);
+    case 'rolePromoted':
+      return makeSuccessAttempt(requestRolePromoted);
+    case 'roleEmpty':
+      return makeSuccessAttempt(requestRoleEmpty);
+    case 'shortTermResource':
+      return makeSuccessAttempt({
+        ...requestResourcePendingWithConstraints,
+        requestKind: RequestKind.ShortTerm,
+      });
+    case 'longTermResource':
+      return makeSuccessAttempt({
+        ...requestResourcePendingWithConstraints,
+        requestKind: RequestKind.LongTerm,
+      });
+  }
+}
+
+function suggestionsAttempt(
+  s: SuggestionsState
+): Attempt<SuggestedAccessList[]> {
+  switch (s) {
+    case 'empty':
+      return makeSuccessAttempt([]);
+    case 'lists':
+      return makeSuccessAttempt(suggestedAccessLists);
+    case 'constraintLists':
+      return makeSuccessAttempt(
+        requestResourceWithConstraintsSuggestedAccessLists
+      );
+    case 'permissionDenied':
+      // Mirrors a backend RBAC error
+      return makeErrorAttempt(
+        Object.assign(
+          new Error('access denied to perform action "read" on access list'),
+          { response: { status: 403 } }
+        )
+      );
+    case 'error':
+      return makeErrorAttempt(
+        new Error('some kind of error came back from the backend')
+      );
+    case 'processing':
+      return makeProcessingAttempt();
+  }
+}
+
+const meta = {
   title: 'Shared/AccessRequests/RequestView',
+  argTypes: {
+    request: {
+      control: 'select',
+      options: [
+        'searchPending',
+        'rolePending',
+        'roleDenied',
+        'roleApproved',
+        'roleApprovedWithStartTime',
+        'resourcePendingWithConstraints',
+        'resourceApprovedWithConstraints',
+        'rolePromoted',
+        'roleEmpty',
+        'shortTermResource',
+        'longTermResource',
+        'processing',
+        'failed',
+      ],
+      description:
+        'The request being reviewed. Long-term resource requests hide short-term approval, leaving only Access List promotion and reject.',
+    },
+    suggestions: {
+      control: 'select',
+      options: [
+        'empty',
+        'lists',
+        'constraintLists',
+        'permissionDenied',
+        'error',
+        'processing',
+      ],
+      description:
+        'State of the suggested Access Lists fetch that gates the long-term promote option.',
+    },
+    canReview: { control: 'boolean' },
+    canDelete: { control: 'boolean' },
+    canAssume: { control: 'boolean' },
+    isAssumed: { control: 'boolean' },
+    isPromoted: { control: 'boolean' },
+    ownRequest: { control: 'boolean' },
+  },
+  args: {
+    request: 'rolePending',
+    suggestions: 'empty',
+    canReview: false,
+    canDelete: false,
+    canAssume: false,
+    isAssumed: false,
+    isPromoted: false,
+    ownRequest: false,
+  },
+  render: (args: StoryArgs) => {
+    const props: RequestViewProps = {
+      user: 'loggedInUsername',
+      fetchRequestAttempt: requestAttempt(args.request),
+      submitReviewAttempt: makeEmptyAttempt(),
+      getFlags: () => ({
+        canReview: args.canReview,
+        canDelete: args.canDelete,
+        canAssume: args.canAssume,
+        isAssumed: args.isAssumed,
+        isPromoted: args.isPromoted,
+        ownRequest: args.ownRequest,
+      }),
+      confirmDelete: false,
+      toggleConfirmDelete: action('toggleConfirmDelete'),
+      submitReview: action('submitReview'),
+      assumeRole: action('assumeRole'),
+      fetchSuggestedAccessListsAttempt: suggestionsAttempt(args.suggestions),
+      assumeRoleAttempt: makeEmptyAttempt(),
+      assumeAccessList: action('assumeAccessList'),
+      deleteRequestAttempt: makeEmptyAttempt(),
+      deleteRequest: action('deleteRequest'),
+    };
+    return (
+      <RequestView key={`${args.request}-${args.suggestions}`} {...props} />
+    );
+  },
+} satisfies Meta<StoryArgs>;
+
+export default meta;
+
+type Story = StoryObj<StoryArgs>;
+
+export const LoadedSearchPending: Story = {
+  args: { request: 'searchPending', canReview: true, canDelete: true },
 };
 
-export const LoadedSearchPending = () => {
-  const flags = {
-    ...sampleFlags,
+export const LoadedRolePending: Story = {
+  args: { request: 'rolePending', canReview: true, canDelete: true },
+};
+
+export const LoadedRoleDenied: Story = {
+  args: { request: 'roleDenied', canDelete: true },
+};
+
+export const LoadedRoleApproved: Story = {
+  args: { request: 'roleApproved', canDelete: true, canAssume: true },
+};
+
+export const LoadedRoleApprovedWithStartTime: Story = {
+  args: { request: 'roleApprovedWithStartTime', canAssume: true },
+};
+
+export const LoadedResourcePendingWithConstraints: Story = {
+  args: {
+    request: 'resourcePendingWithConstraints',
+    suggestions: 'constraintLists',
     canReview: true,
     canDelete: true,
-  };
-  return (
-    <RequestView
-      {...sample}
-      fetchRequestAttempt={makeSuccessAttempt(requestSearchPending)}
-      getFlags={() => flags}
-    />
-  );
+  },
 };
 
-export const LoadedRolePending = () => {
-  const flags = {
-    ...sampleFlags,
-    canReview: true,
-    canDelete: true,
-  };
-  return <RequestView {...sample} getFlags={() => flags} />;
+export const LoadedResourceApprovedWithConstraints: Story = {
+  args: { request: 'resourceApprovedWithConstraints', canAssume: true },
 };
 
-export const LoadedRoleDenied = () => {
-  const flags = {
-    ...sampleFlags,
-    canDelete: true,
-  };
-  return (
-    <RequestView
-      {...sample}
-      fetchRequestAttempt={makeSuccessAttempt(requestRoleDenied)}
-      getFlags={() => flags}
-    />
-  );
+export const AccessListPromoted: Story = {
+  args: { request: 'rolePromoted', suggestions: 'lists', isPromoted: true },
 };
 
-export const LoadedRoleApproved = () => {
-  const flags = {
-    ...sampleFlags,
-    canDelete: true,
-    canAssume: true,
-  };
-  return (
-    <RequestView
-      {...sample}
-      fetchRequestAttempt={makeSuccessAttempt(requestRoleApproved)}
-      getFlags={() => flags}
-    />
-  );
-};
-
-export const LoadedRoleApprovedWithStartTime = () => {
-  const flags = {
-    ...sampleFlags,
-    canAssume: true,
-  };
-  return (
-    <RequestView
-      {...sample}
-      fetchRequestAttempt={makeSuccessAttempt(requestRoleApprovedWithStartTime)}
-      getFlags={() => flags}
-    />
-  );
-};
-
-export const AccessListPromoted = () => {
-  const flags = {
-    ...sampleFlags,
-    isPromoted: true,
-  };
-  return (
-    <RequestView
-      {...sample}
-      fetchRequestAttempt={makeSuccessAttempt(requestRolePromoted)}
-      getFlags={() => flags}
-      fetchSuggestedAccessListsAttempt={makeSuccessAttempt(
-        suggestedAccessLists
-      )}
-    />
-  );
-};
-
-export const AccessListPromotedOwnRequest = () => {
-  const flags = {
-    ...sampleFlags,
+export const AccessListPromotedOwnRequest: Story = {
+  args: {
+    request: 'rolePromoted',
+    suggestions: 'lists',
     isPromoted: true,
     ownRequest: true,
-  };
-  return (
-    <RequestView
-      {...sample}
-      fetchRequestAttempt={makeSuccessAttempt(requestRolePromoted)}
-      getFlags={() => flags}
-      fetchSuggestedAccessListsAttempt={makeSuccessAttempt(
-        suggestedAccessLists
-      )}
-    />
-  );
+  },
 };
 
-export const AccessListPending = () => {
-  const flags = {
-    ...sampleFlags,
+export const AccessListPending: Story = {
+  args: { request: 'rolePending', suggestions: 'lists', canReview: true },
+};
+
+export const AccessListPendingWithError: Story = {
+  args: { request: 'rolePending', suggestions: 'error', canReview: true },
+};
+
+export const LongTermWithSuggestedAccessLists: Story = {
+  args: {
+    request: 'longTermResource',
+    suggestions: 'constraintLists',
     canReview: true,
-  };
-  return (
-    <RequestView
-      {...sample}
-      getFlags={() => flags}
-      fetchSuggestedAccessListsAttempt={makeSuccessAttempt(
-        suggestedAccessLists
-      )}
-    />
-  );
+  },
 };
 
-export const AccessListPendingWithError = () => {
-  const flags = {
-    ...sampleFlags,
+export const LongTermNoEligibleAccessList: Story = {
+  args: {
+    request: 'longTermResource',
+    suggestions: 'empty',
     canReview: true,
-  };
-  return (
-    <RequestView
-      {...sample}
-      getFlags={() => flags}
-      fetchSuggestedAccessListsAttempt={makeErrorAttempt(
-        new Error('some kind of error came back from the backend')
-      )}
-    />
-  );
+  },
 };
 
-export const LoadedEmpty = () => {
-  const flags = {
-    ...sampleFlags,
-    canAssume: true,
-    isAssumed: true,
-  };
-  return (
-    <RequestView
-      {...sample}
-      fetchRequestAttempt={makeSuccessAttempt(requestRoleEmpty)}
-      getFlags={() => flags}
-    />
-  );
+export const LongTermSuggestionsPermissionDenied: Story = {
+  args: {
+    request: 'longTermResource',
+    suggestions: 'permissionDenied',
+    canReview: true,
+  },
 };
 
-export const Processing = () => {
-  return (
-    <RequestView {...sample} fetchRequestAttempt={makeProcessingAttempt()} />
-  );
+export const LongTermSuggestionsError: Story = {
+  args: {
+    request: 'longTermResource',
+    suggestions: 'error',
+    canReview: true,
+  },
 };
 
-export const Failed = () => {
-  return (
-    <RequestView
-      {...sample}
-      fetchRequestAttempt={makeErrorAttempt(new Error('some error message'))}
-    />
-  );
+export const LoadedEmpty: Story = {
+  args: { request: 'roleEmpty', canAssume: true, isAssumed: true },
 };
 
-const sample: RequestViewProps = {
-  user: 'loggedInUsername',
-  fetchRequestAttempt: makeSuccessAttempt(requestRolePending),
-  submitReviewAttempt: makeEmptyAttempt(),
-  getFlags: () => sampleFlags,
-  confirmDelete: false,
-  toggleConfirmDelete: () => null,
-  submitReview: () => null,
-  assumeRole: () => null,
-  fetchSuggestedAccessListsAttempt: makeSuccessAttempt([]),
-  assumeRoleAttempt: makeEmptyAttempt(),
-  assumeAccessList: () => null,
-  deleteRequestAttempt: makeEmptyAttempt(),
-  deleteRequest: () => null,
+export const Processing: Story = {
+  args: { request: 'processing' },
 };
 
-const sampleFlags: RequestFlags = {
-  canAssume: false,
-  isAssumed: false,
-  canDelete: false,
-  canReview: false,
-  ownRequest: false,
-  isPromoted: false,
+export const Failed: Story = {
+  args: { request: 'failed' },
 };
 
 const suggestedAccessLists: SuggestedAccessList[] = [

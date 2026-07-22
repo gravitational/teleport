@@ -20,38 +20,59 @@ package app
 
 import (
 	"context"
-	"crypto/tls"
+	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
 	"path"
 	"slices"
+	"strings"
+	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
+	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
-	"github.com/gravitational/teleport/lib"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/app/common"
+	"github.com/gravitational/teleport/lib/srv/app/upstreamtls"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+// responseHeaderTimeout caps how long to wait for an upstream to start
+// sending response headers, so a wedged upstream does not hold the
+// connection indefinitely.
+const responseHeaderTimeout = time.Hour
+
 // transportConfig is configuration for a rewriting transport.
 type transportConfig struct {
-	app          types.Application
-	publicPort   string
-	cipherSuites []uint16
-	jwt          string
-	traits       wrappers.Traits
-	log          logrus.FieldLogger
+	clock         clockwork.Clock
+	app           types.Application
+	publicPort    string
+	cipherSuites  []uint16
+	jwt           string
+	rewriteTraits wrappers.Traits
+	log           *slog.Logger
+	// hostID is purely for troubleshooting purposes (put in the error messages)
+	hostID       string
+	insecureMode bool
+	clusterName  string
+	accessPoint  authclient.AppsAccessPoint
+	authClient   authclient.ClientI
+	// getUserCertFunc is the function used to retrieve session user certificate.
+	getUserCertFunc func() ([]byte, error)
 }
 
 // Check validates configuration.
 func (c *transportConfig) Check() error {
+	if c.clock == nil {
+		c.clock = clockwork.NewRealClock()
+	}
 	if c.app == nil {
 		return trace.BadParameter("app missing")
 	}
@@ -62,7 +83,19 @@ func (c *transportConfig) Check() error {
 		return trace.BadParameter("jwt missing")
 	}
 	if c.log == nil {
-		c.log = logrus.WithField(teleport.ComponentKey, "transport")
+		c.log = slog.With(teleport.ComponentKey, "transport")
+	}
+	if c.clusterName == "" {
+		return trace.BadParameter("cluster name missing")
+	}
+	if c.accessPoint == nil {
+		return trace.BadParameter("access point missing")
+	}
+	if c.authClient == nil {
+		return trace.BadParameter("auth client missing")
+	}
+	if c.getUserCertFunc == nil {
+		return trace.BadParameter("get user cert function missing")
 	}
 
 	return nil
@@ -97,7 +130,20 @@ func newTransport(ctx context.Context, c *transportConfig) (*transport, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	tr.TLSClientConfig, err = configureTLS(c)
+
+	tr.ResponseHeaderTimeout = responseHeaderTimeout
+
+	tr.TLSClientConfig, err = upstreamtls.Configure(ctx, upstreamtls.Options{
+		Logger:                       c.log,
+		AccessPoint:                  c.accessPoint,
+		Clock:                        c.clock,
+		WorkloadIdentityClientGetter: c.authClient,
+		ClusterName:                  c.clusterName,
+		App:                          c.app,
+		CipherSuites:                 c.cipherSuites,
+		InsecureMode:                 c.insecureMode,
+		GetUserCertFunc:              c.getUserCertFunc,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -143,15 +189,39 @@ func (t *transport) RoundTrip(r *http.Request) (*http.Response, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// Forward the request to the target application and emit an audit event.
+	// Forward the request to the target application.
+	//
+	// If a network error occurred when connecting to the target application,
+	// log and return a helpful error message to the user and Teleport
+	// administrator.
 	resp, err := t.tr.RoundTrip(r)
+	if message, ok := utils.CanExplainNetworkError(err); ok {
+		if t.log.Enabled(r.Context(), slog.LevelDebug) {
+			t.log.DebugContext(r.Context(), "application request failed with a network error",
+				"raw_error", err, "human_error", strings.Join(strings.Fields(message), " "))
+		}
+
+		if t.hostID != "" {
+			message = message + "\n\nThe ID of the Teleport Application Service instance that generated this error is " + t.hostID + "."
+		}
+
+		code := trace.ErrorToCode(err)
+		return &http.Response{
+			StatusCode: code,
+			Status:     http.StatusText(code),
+			Proto:      r.Proto,
+			ProtoMajor: r.ProtoMajor,
+			ProtoMinor: r.ProtoMinor,
+			Body:       io.NopCloser(strings.NewReader(charWrap(message))),
+			TLS:        r.TLS,
+		}, nil
+	}
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	status := uint32(resp.StatusCode)
 
 	// Emit the event to the audit log.
-	if err := sessCtx.Audit.OnRequest(t.closeContext, sessCtx, r, status, nil /*aws endpoint*/); err != nil {
+	if err := sessCtx.Audit.OnRequest(t.closeContext, sessCtx, r, uint32(resp.StatusCode), nil /*aws endpoint*/); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -169,40 +239,12 @@ func (t *transport) rewriteRequest(r *http.Request) error {
 	r.URL.Scheme = t.uri.Scheme
 	r.URL.Host = t.uri.Host
 
-	// Add headers from rewrite configuration.
-	rewriteHeaders(r, t.transportConfig)
-
-	return nil
-}
-
-// rewriteHeaders applies headers rewrites from the application configuration.
-func rewriteHeaders(r *http.Request, c *transportConfig) {
 	// Add in JWT headers.
-	r.Header.Set(teleport.AppJWTHeader, c.jwt)
-
-	if c.app.GetRewrite() == nil || len(c.app.GetRewrite().Headers) == 0 {
-		return
-	}
-	for _, header := range c.app.GetRewrite().Headers {
-		if common.IsReservedHeader(header.Name) {
-			c.log.Debugf("Not rewriting Teleport header %q.", header.Name)
-			continue
-		}
-		values, err := services.ApplyValueTraits(header.Value, c.traits)
-		if err != nil {
-			c.log.Debugf("Failed to apply traits to %q: %v.", header.Value, err)
-			continue
-		}
-		r.Header.Del(header.Name)
-		for _, value := range values {
-			switch http.CanonicalHeaderKey(header.Name) {
-			case teleport.HostHeader:
-				r.Host = value
-			default:
-				r.Header.Add(header.Name, value)
-			}
-		}
-	}
+	r.Header.Set(teleport.AppJWTHeader, t.jwt)
+	// Add headers from rewrite configuration.
+	rewriteHeaders := common.AppRewriteHeaders(r.Context(), t.app.GetRewrite(), t.log)
+	services.RewriteHeadersAndApplyValueTraits(r, rewriteHeaders, t.rewriteTraits, t.log)
+	return nil
 }
 
 // needsPathRedirect checks if the request should be redirected to a different path.
@@ -213,6 +255,12 @@ func (t *transport) needsPathRedirect(r *http.Request) (string, bool) {
 	uriPath := path.Clean(t.uri.Path)
 	if uriPath == "." {
 		uriPath = "/"
+	}
+	// path.Clean strips trailing slashes, but administrators may configure
+	// URIs like http://backend:9000/dashboard/ where the trailing slash is
+	// significant. Preserve it when the original URI had one.
+	if uriPath != "/" && strings.HasSuffix(t.uri.Path, "/") {
+		uriPath += "/"
 	}
 	if uriPath == "/" {
 		return "", false
@@ -269,19 +317,6 @@ func (t *transport) rewriteRedirect(resp *http.Response) error {
 	return nil
 }
 
-// configureTLS creates and configures a *tls.Config that will be used for
-// mutual authentication.
-func configureTLS(c *transportConfig) (*tls.Config, error) {
-	tlsConfig := utils.TLSConfig(c.cipherSuites)
-
-	// Don't verify the server's certificate if Teleport was started with
-	// the --insecure flag, or 'insecure_skip_verify' was specifically requested in
-	// the application config.
-	tlsConfig.InsecureSkipVerify = (lib.IsInsecureDevMode() || c.app.GetInsecureSkipVerify())
-
-	return tlsConfig, nil
-}
-
 // host returns the host from a host:port string.
 func host(addr string) string {
 	host, _, err := net.SplitHostPort(addr)
@@ -289,4 +324,24 @@ func host(addr string) string {
 		return addr
 	}
 	return host
+}
+
+// charWrap wraps a line to about 80 characters to make it easier to read.
+func charWrap(message string) string {
+	var sb strings.Builder
+	for line := range strings.SplitSeq(message, "\n") {
+		var n int
+		for word := range strings.FieldsSeq(line) {
+			sb.WriteString(word)
+			sb.WriteString(" ")
+
+			n += len(word) + 1
+			if n > 80 {
+				sb.WriteString("\n")
+				n = 0
+			}
+		}
+		sb.WriteString("\n")
+	}
+	return sb.String()
 }

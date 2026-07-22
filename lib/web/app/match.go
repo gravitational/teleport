@@ -20,171 +20,170 @@ package app
 
 import (
 	"context"
-	"math/rand"
-	"slices"
+	"fmt"
+	"math/rand/v2"
 	"strings"
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
-	"github.com/gravitational/teleport/lib/services"
+	scopedapp "github.com/gravitational/teleport/lib/scopes/app"
+	"github.com/gravitational/teleport/lib/services/readonly"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
-// Getter returns a list of registered apps and the local cluster name.
-type Getter interface {
-	// GetApplicationServers returns registered application servers.
-	GetApplicationServers(context.Context, string) ([]types.AppServer, error)
-
-	// GetClusterName returns cluster name
-	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
-}
-
-// Match will match a list of applications with the passed in matcher function. Matcher
-// functions that can match on public address and name are available. The
-// resulting list is shuffled before it is returned.
-func Match(ctx context.Context, authClient Getter, fn Matcher) ([]types.AppServer, error) {
-	servers, err := authClient.GetApplicationServers(ctx, defaults.Namespace)
+// MatchUnshuffled will match a list of applications with the passed in matcher
+// function. Matcher functions that can match on public address and name are
+// available.
+func MatchUnshuffled(ctx context.Context, cluster reversetunnelclient.Cluster, fn Matcher) ([]types.AppServer, error) {
+	watcher, err := cluster.AppServerWatcher()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	var as []types.AppServer
-	for _, server := range servers {
-		if fn(ctx, server) {
-			as = append(as, server)
-		}
-	}
-
-	rand.Shuffle(len(as), func(i, j int) {
-		as[i], as[j] = as[j], as[i]
-	})
-
-	return as, nil
+	servers, err := watcher.CurrentResourcesWithFilter(ctx, fn)
+	return servers, trace.Wrap(err)
 }
 
-// MatchOne will match a single AppServer with the provided matcher function.
-// If no AppServer are matched, it will return an error.
-func MatchOne(ctx context.Context, authClient Getter, fn Matcher) (types.AppServer, error) {
-	servers, err := authClient.GetApplicationServers(ctx, defaults.Namespace)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+// Matcher allows matching on different properties of an app server.
+type Matcher func(readonly.AppServer) bool
 
-	for _, server := range servers {
-		if fn(ctx, server) {
-			return server, nil
+// MatchAppServerForRoute matches an app server against routing information,
+// typically from a certificate. It matches on whichever of name and public
+// address are provided:
+//
+//   - When both are set both must match. This is what disambiguates multiple apps
+//     that share a public address: the app name uniquely identifies an app within
+//     the cluster, and the public address is also verified as a safety check.
+//   - An empty field is not checked, so this both supports name-only and addr-only
+//     resolution.
+//   - If both are empty, nothing matches.
+func MatchAppServerForRoute(name, publicAddr string) Matcher {
+	return func(appServer readonly.AppServer) bool {
+		app := appServer.GetApp()
+		if publicAddr != "" && !appMatchesPublicAddr(app, publicAddr) {
+			return false
 		}
+		if name != "" && app.GetName() != name {
+			return false
+		}
+		return name != "" || publicAddr != ""
 	}
-
-	return nil, trace.NotFound("couldn't match any types.AppServer")
 }
-
-// Matcher allows matching on different properties of an application.
-type Matcher func(context.Context, types.AppServer) bool
 
 // MatchPublicAddr matches on the public address of an application.
 func MatchPublicAddr(publicAddr string) Matcher {
-	return func(_ context.Context, appServer types.AppServer) bool {
-		return appServer.GetApp().GetPublicAddr() == publicAddr
+	return func(appServer readonly.AppServer) bool {
+		return appMatchesPublicAddr(appServer.GetApp(), publicAddr)
 	}
+}
+
+// appMatchesPublicAddr reports whether the app should answer for the requested
+// public address.
+// Scoped apps match on the computed subdomain only,
+// so the app resolves regardless of which proxy the FQDN was assembled under.
+// Unscoped apps require an exact public_addr match.
+func appMatchesPublicAddr(app readonly.Application, publicAddr string) bool {
+	if scope := app.GetScope(); scope != "" {
+		return scopedapp.ScopedAppPublicAddrValid(scope, app.GetName(), publicAddr)
+	}
+
+	return app.GetPublicAddr() == publicAddr
 }
 
 // MatchName matches on the name of an application.
 func MatchName(name string) Matcher {
-	return func(_ context.Context, appServer types.AppServer) bool {
+	return func(appServer readonly.AppServer) bool {
 		return appServer.GetApp().GetName() == name
-	}
-}
-
-// MatchHealthy tries to establish a connection with the server using the
-// `dialAppServer` function. The app server is matched if the function call
-// doesn't return any error.
-func MatchHealthy(proxyClient reversetunnelclient.Tunnel, clusterName string) Matcher {
-	return func(ctx context.Context, appServer types.AppServer) bool {
-		// Redirected apps don't need to be dialed, as the proxy will redirect to them.
-		if redirectInsteadOfForward(appServer) {
-			return true
-		}
-
-		// Apps that use the Integration should use its credentials which are obtained in Proxy.
-		// There's no need for an ApplicationService in this scenario.
-		if appServer.GetApp().GetIntegration() != "" {
-			return true
-		}
-
-		conn, err := dialAppServer(ctx, proxyClient, clusterName, appServer)
-		if err != nil {
-			return false
-		}
-
-		conn.Close()
-		return true
-	}
-}
-
-// MatchAll matches if all the Matcher functions return true.
-func MatchAll(matchers ...Matcher) Matcher {
-	return func(ctx context.Context, appServer types.AppServer) bool {
-		for _, fn := range matchers {
-			if !fn(ctx, appServer) {
-				return false
-			}
-		}
-
-		return true
 	}
 }
 
 // ResolveFQDN makes a best effort attempt to resolve FQDN to an application
 // running a root or leaf cluster.
 //
+// canAccess, when specified, reports whether the requesting user is permitted to
+// access a given application. It is used to disambiguate when an FQDN matches
+// more than one application. When no match is accessible, or canAccess is nil,
+// it falls back to a plain best-effort pick and leaves the final access decision
+// to the application service.
+//
 // Note: This function can incorrectly resolve application names. For example,
 // if you have an application named "acme" within both the root and leaf
 // cluster, this method will always return "acme" running within the root
 // cluster. Always supply public address and cluster name to deterministically
 // resolve an application.
-func ResolveFQDN(ctx context.Context, clt Getter, tunnel reversetunnelclient.Tunnel, proxyDNSNames []string, fqdn string) (types.AppServer, string, error) {
-	// Try and match FQDN to public address of application within cluster.
-	servers, err := Match(ctx, clt, MatchPublicAddr(fqdn))
-	if err == nil && len(servers) > 0 {
-		clusterName, err := clt.GetClusterName()
-		if err != nil {
-			return nil, "", trace.Wrap(err)
-		}
-		return servers[0], clusterName.GetClusterName(), nil
+func ResolveFQDN(
+	ctx context.Context,
+	clusterGetter reversetunnelclient.ClusterGetter,
+	localClusterName string,
+	proxyDNSNames []string,
+	fqdn string,
+	canAccess func(types.Application) bool,
+) (types.AppServer, string, error) {
+	clusterClient, err := clusterGetter.Cluster(ctx, localClusterName)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
 	}
 
-	// Extract the first subdomain from the FQDN and attempt to use this as the
-	// application name. The rest of the FQDN must match one of the local
-	// cluster's proxy DNS names.
-	fqdnParts := strings.SplitN(fqdn, ".", 2)
-	if len(fqdnParts) != 2 {
-		return nil, "", trace.BadParameter("invalid FQDN: %v", fqdn)
+	// Try and match FQDN to public address of application within cluster.
+	servers, err := MatchUnshuffled(ctx, clusterClient, MatchPublicAddr(fqdn))
+	if err == nil && len(servers) > 0 {
+		srv := pickAppServer(servers, canAccess)
+		// A scoped app is addressed as <hash>.<proxy> and its hashed subdomain matches regardless of the
+		// suffix, so confirm the FQDN actually sits under a configured proxy DNS name before trusting a
+		// scoped match, otherwise "<hash>.somewebsite.com" resolves.
+		if srv.GetApp().GetScope() != "" {
+			host := strings.Split(fqdn, ":")[0]
+			// In the case where FindMatchingProxyDNS finds an actual found proxy match, this check is redundant.
+			// In the case where it finds no matches, FindMatchingProxyDNS returns the first element of proxyDNSNames,
+			// we must recheck to make sure that the proxy found matches, and reject if it doesn't.
+			proxyMatch := strings.Split(utils.FindMatchingProxyDNS(fqdn, proxyDNSNames), ":")[0]
+			if host != proxyMatch && !strings.HasSuffix(host, "."+proxyMatch) {
+				return nil, "", trace.BadParameter("FQDN %q is not a subdomain of the proxy", fqdn)
+			}
+		}
+		return srv, localClusterName, nil
 	}
-	if !slices.Contains(proxyDNSNames, fqdnParts[1]) {
+
+	proxyPublicAddr := utils.FindMatchingProxyDNS(fqdn, proxyDNSNames)
+	if !strings.HasSuffix(fqdn, proxyPublicAddr) {
 		return nil, "", trace.BadParameter("FQDN %q is not a subdomain of the proxy", fqdn)
 	}
-	appName := fqdnParts[0]
+	appName := strings.TrimSuffix(fqdn, fmt.Sprintf(".%s", proxyPublicAddr))
 
 	// Loop over all clusters and try and match application name to an
 	// application within the cluster. This also includes the local cluster.
-	clusterClients, err := tunnel.GetSites()
+	clusterClients, err := clusterGetter.Clusters(ctx)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 	for _, clusterClient := range clusterClients {
-		authClient, err := clusterClient.CachingAccessPoint()
-		if err != nil {
-			return nil, "", trace.Wrap(err)
-		}
-
-		servers, err = Match(ctx, authClient, MatchName(appName))
+		servers, err = MatchUnshuffled(ctx, clusterClient, MatchName(appName))
 		if err == nil && len(servers) > 0 {
-			return servers[0], clusterClient.GetName(), nil
+			return pickAppServer(servers, canAccess), clusterClient.GetName(), nil
 		}
 	}
 
 	return nil, "", trace.NotFound("failed to resolve %v to any application within any cluster", fqdn)
+}
+
+// pickAppServer chooses one app server from a set of matches. When canAccess is
+// provided it prefers servers the user is allowed to access.
+//
+// If no apps are accessible or canAccess is nil it falls back to a random match,
+// leaving the final access decision to the app_service.
+func pickAppServer(servers []types.AppServer, canAccess func(types.Application) bool) types.AppServer {
+	if canAccess != nil {
+		accessible := make([]types.AppServer, 0, len(servers))
+		for _, s := range servers {
+			if canAccess(s.GetApp()) {
+				accessible = append(accessible, s)
+			}
+		}
+		if len(accessible) > 0 {
+			return accessible[rand.N(len(accessible))]
+		}
+	}
+	return servers[rand.N(len(servers))]
 }

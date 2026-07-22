@@ -17,13 +17,13 @@
  */
 
 import { createGlobalStyle } from 'styled-components';
-import './../assets/ubuntu/style.css';
+import '@gravitational/design-system/ubuntu.css';
 
 const GlobalStyle = createGlobalStyle`
 
   html {
     font-family: ${props => props.theme.font};
-    ${props => props.theme.typography.body1};
+    ${props => props.theme.typography.body2};
   }
 
   body {
@@ -33,30 +33,16 @@ const GlobalStyle = createGlobalStyle`
     padding: 0;
   }
 
-  input, textarea {
+  input, textarea, button {
     font-family: ${props => props.theme.font};
   }
 
   input {
     accent-color: ${props => props.theme.colors.brand};
 
-    ::placeholder {
+    &::placeholder {
       color: ${props => props.theme.colors.text.muted};
     }
-  }
-
-  // custom scrollbars with the ability to use the default scrollbar behavior via adding the attribute [data-scrollbar=default]
-  :not([data-scrollbar="default"])::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
-  }
-
-  :not([data-scrollbar="default"])::-webkit-scrollbar-thumb {
-    background: #757575;
-  }
-
-  :not([data-scrollbar="default"])::-webkit-scrollbar-corner {
-    background: rgba(0,0,0,0.5);
   }
 
   :root {
@@ -65,11 +51,14 @@ const GlobalStyle = createGlobalStyle`
         .name}; // this ensures Chrome's scrollbars are set to the right color depending on the theme
   }
 
-  // remove dotted Firefox outline
-  button, a {
-    outline: 0;
-    ::-moz-focus-inner {
-      border: 0;
+  @layer reset {
+    // remove dotted Firefox outline
+    button, a {
+      outline: 0;
+
+      ::-moz-focus-inner {
+        border: 0;
+      }
     }
   }
 `;

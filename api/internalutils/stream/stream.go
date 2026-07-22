@@ -408,6 +408,116 @@ func Take[T any](stream Stream[T], n int) ([]T, bool) {
 	return items, true
 }
 
+type skip[T any] struct {
+	inner Stream[T]
+	skip  int
+}
+
+func (s *skip[T]) Next() bool {
+	for i := 0; i < s.skip; i++ {
+		if !s.inner.Next() {
+			return false
+		}
+	}
+	s.skip = 0
+	return s.inner.Next()
+}
+
+func (s *skip[T]) Item() T {
+	return s.inner.Item()
+}
+
+func (s *skip[T]) Done() error {
+	return s.inner.Done()
+}
+
+// Skip skips the first n items from a stream. Zero/negative values of n
+// have no effect.
+func Skip[T any](stream Stream[T], n int) Stream[T] {
+	return &skip[T]{
+		inner: stream,
+		skip:  n,
+	}
+}
+
+type flatten[T any] struct {
+	inner   Stream[Stream[T]]
+	current Stream[T]
+	err     error
+}
+
+func (stream *flatten[T]) Next() bool {
+	for {
+		if stream.current != nil {
+			if stream.current.Next() {
+				return true
+			}
+			stream.err = stream.current.Done()
+			stream.current = nil
+			if stream.err != nil {
+				return false
+			}
+		}
+
+		if !stream.inner.Next() {
+			return false
+		}
+
+		stream.current = stream.inner.Item()
+	}
+}
+
+func (stream *flatten[T]) Item() T {
+	return stream.current.Item()
+}
+
+func (stream *flatten[T]) Done() error {
+	if stream.current != nil {
+		stream.err = stream.current.Done()
+		stream.current = nil
+	}
+
+	ierr := stream.inner.Done()
+	if stream.err != nil {
+		return stream.err
+	}
+	return ierr
+}
+
+// Flatten flattens a stream of streams into a single stream of items.
+func Flatten[T any](stream Stream[Stream[T]]) Stream[T] {
+	return &flatten[T]{
+		inner: stream,
+	}
+}
+
+type mapErr[T any] struct {
+	inner Stream[T]
+	fn    func(error) error
+}
+
+func (stream *mapErr[T]) Next() bool {
+	return stream.inner.Next()
+}
+
+func (stream *mapErr[T]) Item() T {
+	return stream.inner.Item()
+}
+
+func (stream *mapErr[T]) Done() error {
+	return stream.fn(stream.inner.Done())
+}
+
+// MapErr maps over the error returned by Done(). The supplied function is called
+// for all invocations of Done(), meaning that it can change, suppress, or create
+// errors as needed.
+func MapErr[T any](stream Stream[T], fn func(error) error) Stream[T] {
+	return &mapErr[T]{
+		inner: stream,
+		fn:    fn,
+	}
+}
+
 type rateLimit[T any] struct {
 	inner   Stream[T]
 	wait    func() error

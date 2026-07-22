@@ -16,26 +16,27 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { act } from '@testing-library/react';
-import { render, screen } from 'design/utils/testing';
+import userEvent from '@testing-library/user-event';
 import { mockIntersectionObserver } from 'jsdom-testing-mocks';
 
-import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
-import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
-import { MockWorkspaceContextProvider } from 'teleterm/ui/fixtures/MockWorkspaceContextProvider';
+import { render, screen } from 'design/utils/testing';
+
 import {
-  makeRootCluster,
+  makeAcl,
+  makeDatabase,
   makeLoggedInUser,
+  makeRootCluster,
 } from 'teleterm/services/tshd/testHelpers';
 import * as tsh from 'teleterm/services/tshd/types';
 import { ConnectMyComputerContextProvider } from 'teleterm/ui/ConnectMyComputer';
+import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
+import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
+import { MockWorkspaceContextProvider } from 'teleterm/ui/fixtures/MockWorkspaceContextProvider';
 import { makeDocumentCluster } from 'teleterm/ui/services/workspacesService/documentsService/testHelpers';
-import { getEmptyPendingAccessRequest } from 'teleterm/ui/services/workspacesService/accessRequestsService';
-
-import { ResourcesContextProvider } from './resourcesContext';
 
 import DocumentCluster from './DocumentCluster';
+import { ResourcesContextProvider } from './resourcesContext';
 
 const mio = mockIntersectionObserver();
 
@@ -43,41 +44,25 @@ it('displays a button for Connect My Computer in the empty state if the user can
   const doc = makeDocumentCluster();
 
   const appContext = new MockAppContext({ platform: 'darwin' });
-  appContext.clustersService.setState(draft => {
-    draft.clusters.set(
-      doc.clusterUri,
-      makeRootCluster({
-        uri: doc.clusterUri,
-        loggedInUser: makeLoggedInUser({
-          userType: tsh.LoggedInUser_UserType.LOCAL,
-          acl: {
-            tokens: {
-              create: true,
-              list: true,
-              edit: true,
-              delete: true,
-              read: true,
-              use: true,
-            },
+  appContext.addRootClusterWithDoc(
+    makeRootCluster({
+      uri: doc.clusterUri,
+      loggedInUser: makeLoggedInUser({
+        userType: tsh.LoggedInUser_UserType.LOCAL,
+        acl: makeAcl({
+          tokens: {
+            create: true,
+            list: true,
+            edit: true,
+            delete: true,
+            read: true,
+            use: true,
           },
         }),
-      })
-    );
-  });
-
-  appContext.workspacesService.setState(draftState => {
-    const rootClusterUri = doc.clusterUri;
-    draftState.rootClusterUri = rootClusterUri;
-    draftState.workspaces[rootClusterUri] = {
-      localClusterUri: doc.clusterUri,
-      documents: [doc],
-      location: doc.uri,
-      accessRequests: {
-        pending: getEmptyPendingAccessRequest(),
-        isBarCollapsed: true,
-      },
-    };
-  });
+      }),
+    }),
+    doc
+  );
 
   const emptyResponse = {
     resources: [],
@@ -116,41 +101,25 @@ it('does not display a button for Connect My Computer in the empty state if the 
   });
 
   const appContext = new MockAppContext({ platform: 'linux' });
-  appContext.clustersService.setState(draft => {
-    draft.clusters.set(
-      doc.clusterUri,
-      makeRootCluster({
-        uri: doc.clusterUri,
-        loggedInUser: makeLoggedInUser({
-          userType: tsh.LoggedInUser_UserType.LOCAL,
-          acl: {
-            tokens: {
-              create: false,
-              list: true,
-              edit: true,
-              delete: true,
-              read: true,
-              use: true,
-            },
+  appContext.addRootClusterWithDoc(
+    makeRootCluster({
+      uri: doc.clusterUri,
+      loggedInUser: makeLoggedInUser({
+        userType: tsh.LoggedInUser_UserType.LOCAL,
+        acl: makeAcl({
+          tokens: {
+            create: false,
+            list: true,
+            edit: true,
+            delete: true,
+            read: true,
+            use: true,
           },
         }),
-      })
-    );
-  });
-
-  appContext.workspacesService.setState(draftState => {
-    const rootClusterUri = doc.clusterUri;
-    draftState.rootClusterUri = rootClusterUri;
-    draftState.workspaces[rootClusterUri] = {
-      localClusterUri: doc.clusterUri,
-      documents: [doc],
-      location: doc.uri,
-      accessRequests: {
-        pending: getEmptyPendingAccessRequest(),
-        isBarCollapsed: true,
-      },
-    };
-  });
+      }),
+    }),
+    doc
+  );
 
   const emptyResponse = {
     resources: [],
@@ -182,4 +151,120 @@ it('does not display a button for Connect My Computer in the empty state if the 
   expect(
     screen.queryByRole('button', { name: 'Connect My Computer' })
   ).not.toBeInTheDocument();
+});
+
+it('displays a simple Connect button for databases with auto-user provisioning enabled', async () => {
+  const doc = makeDocumentCluster();
+
+  const appContext = new MockAppContext();
+  const cluster = makeRootCluster({
+    uri: doc.clusterUri,
+    loggedInUser: makeLoggedInUser({ name: 'alice' }),
+  });
+  appContext.addRootClusterWithDoc(cluster, doc);
+
+  jest
+    .spyOn(appContext.clustersService, 'findClusterByResource')
+    .mockReturnValue(cluster);
+
+  const database = makeDatabase({
+    name: 'auto-user-db',
+    autoUserProvisioning: { databaseRoles: [] },
+  });
+
+  const responseWithDatabase = {
+    resources: [
+      {
+        kind: 'database' as const,
+        resource: database,
+        requiresRequest: false,
+      },
+    ],
+    totalCount: 1,
+    nextKey: '',
+  };
+
+  jest
+    .spyOn(appContext.resourcesService, 'listUnifiedResources')
+    .mockResolvedValue(responseWithDatabase);
+
+  render(
+    <MockAppContextProvider appContext={appContext}>
+      <MockWorkspaceContextProvider>
+        <ResourcesContextProvider>
+          <ConnectMyComputerContextProvider rootClusterUri={doc.clusterUri}>
+            <DocumentCluster doc={doc} visible={true} />
+          </ConnectMyComputerContextProvider>
+        </ResourcesContextProvider>
+      </MockWorkspaceContextProvider>
+    </MockAppContextProvider>
+  );
+
+  act(mio.enterAll);
+
+  await expect(
+    screen.findByRole('button', { name: 'Connect' })
+  ).resolves.toBeInTheDocument();
+});
+
+it('displays a user dropdown for databases without auto-user provisioning', async () => {
+  const user = userEvent.setup();
+  const doc = makeDocumentCluster();
+
+  const appContext = new MockAppContext();
+  const cluster = makeRootCluster({
+    uri: doc.clusterUri,
+    loggedInUser: makeLoggedInUser({ name: 'alice' }),
+  });
+  appContext.addRootClusterWithDoc(cluster, doc);
+
+  jest
+    .spyOn(appContext.clustersService, 'findClusterByResource')
+    .mockReturnValue(cluster);
+
+  const database = makeDatabase({
+    name: 'regular-db',
+    protocol: 'postgres',
+    wildcardUserAllowed: true,
+  });
+
+  const responseWithDatabase = {
+    resources: [
+      {
+        kind: 'database' as const,
+        resource: database,
+        requiresRequest: false,
+      },
+    ],
+    totalCount: 1,
+    nextKey: '',
+  };
+
+  jest
+    .spyOn(appContext.resourcesService, 'listUnifiedResources')
+    .mockResolvedValue(responseWithDatabase);
+
+  render(
+    <MockAppContextProvider appContext={appContext}>
+      <MockWorkspaceContextProvider>
+        <ResourcesContextProvider>
+          <ConnectMyComputerContextProvider rootClusterUri={doc.clusterUri}>
+            <DocumentCluster doc={doc} visible={true} />
+          </ConnectMyComputerContextProvider>
+        </ResourcesContextProvider>
+      </MockWorkspaceContextProvider>
+    </MockAppContextProvider>
+  );
+
+  act(mio.enterAll);
+
+  const connectButton = await screen.findByRole('button', {
+    name: 'Connect',
+  });
+
+  await user.click(connectButton);
+
+  await expect(
+    screen.findByPlaceholderText(/Enter username/i)
+  ).resolves.toBeInTheDocument();
 });

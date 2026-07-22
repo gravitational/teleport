@@ -24,8 +24,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/url"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/gravitational/roundtrip"
@@ -35,17 +33,13 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client"
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	tracehttp "github.com/gravitational/teleport/api/observability/tracing/http"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 // HTTPClientConfig contains configuration for an HTTP client.
@@ -297,12 +291,12 @@ func getHTTPTransport(c *roundtrip.Client) (*http.Transport, error) {
 }
 
 // PostJSON is a generic method that issues http POST request to the server
-func (c *HTTPClient) PostJSON(ctx context.Context, endpoint string, val interface{}) (*roundtrip.Response, error) {
+func (c *HTTPClient) PostJSON(ctx context.Context, endpoint string, val any) (*roundtrip.Response, error) {
 	return httplib.ConvertResponse(c.Client.PostJSON(ctx, endpoint, val))
 }
 
 // PutJSON is a generic method that issues http PUT request to the server
-func (c *HTTPClient) PutJSON(ctx context.Context, endpoint string, val interface{}) (*roundtrip.Response, error) {
+func (c *HTTPClient) PutJSON(ctx context.Context, endpoint string, val any) (*roundtrip.Response, error) {
 	return httplib.ConvertResponse(c.Client.PutJSON(ctx, endpoint, val))
 }
 
@@ -321,308 +315,18 @@ func (c *HTTPClient) Delete(ctx context.Context, u string) (*roundtrip.Response,
 	return httplib.ConvertResponse(c.Client.Delete(ctx, u))
 }
 
-// ProcessKubeCSR processes CSR request against Kubernetes CA, returns
-// signed certificate if successful.
-func (c *HTTPClient) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) {
-	if err := req.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	out, err := c.PostJSON(context.TODO(), c.Endpoint("kube", "csr"), req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var re KubeCSRResponse
-	if err := json.Unmarshal(out.Bytes(), &re); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &re, nil
-}
-
-// RegisterUsingToken calls the auth service API to register a new node using a registration token
-// which was previously issued via CreateToken/UpsertToken.
-func (c *HTTPClient) RegisterUsingToken(ctx context.Context, req *types.RegisterUsingTokenRequest) (*proto.Certs, error) {
-	if err := req.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	out, err := c.PostJSON(ctx, c.Endpoint("tokens", "register"), req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var certs proto.Certs
-	if err := json.Unmarshal(out.Bytes(), &certs); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &certs, nil
-}
-
-type upsertReverseTunnelRawReq struct {
-	ReverseTunnel json.RawMessage `json:"reverse_tunnel"`
-	TTL           time.Duration   `json:"ttl"`
-}
-
-// UpsertReverseTunnel is used by admins to create a new reverse tunnel
-// to the remote proxy to bypass firewall restrictions
-func (c *HTTPClient) UpsertReverseTunnel(tunnel types.ReverseTunnel) error {
-	data, err := services.MarshalReverseTunnel(tunnel)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	args := &upsertReverseTunnelRawReq{
-		ReverseTunnel: data,
-	}
-	_, err = c.PostJSON(context.TODO(), c.Endpoint("reversetunnels"), args)
-	return trace.Wrap(err)
-}
-
-// GetReverseTunnels returns the list of created reverse tunnels
-func (c *HTTPClient) GetReverseTunnels(ctx context.Context, opts ...services.MarshalOption) ([]types.ReverseTunnel, error) {
-	out, err := c.Get(ctx, c.Endpoint("reversetunnels"), url.Values{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var items []json.RawMessage
-	if err := json.Unmarshal(out.Bytes(), &items); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	tunnels := make([]types.ReverseTunnel, len(items))
-	for i, raw := range items {
-		tunnel, err := services.UnmarshalReverseTunnel(raw)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		tunnels[i] = tunnel
-	}
-	return tunnels, nil
-}
-
-// DeleteReverseTunnel deletes reverse tunnel by domain name
-func (c *HTTPClient) DeleteReverseTunnel(domainName string) error {
-	// this is to avoid confusing error in case if domain empty for example
-	// HTTP route will fail producing generic not found error
-	// instead we catch the error here
-	if strings.TrimSpace(domainName) == "" {
-		return trace.BadParameter("empty domain name")
-	}
-	_, err := c.Delete(context.TODO(), c.Endpoint("reversetunnels", domainName))
-	return trace.Wrap(err)
-}
-
-type upsertTunnelConnectionRawReq struct {
-	TunnelConnection json.RawMessage `json:"tunnel_connection"`
-}
-
-// UpsertTunnelConnection upserts tunnel connection
-func (c *HTTPClient) UpsertTunnelConnection(conn types.TunnelConnection) error {
-	data, err := services.MarshalTunnelConnection(conn)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	args := &upsertTunnelConnectionRawReq{
-		TunnelConnection: data,
-	}
-	_, err = c.PostJSON(context.TODO(), c.Endpoint("tunnelconnections"), args)
-	return trace.Wrap(err)
-}
-
-// GetTunnelConnections returns tunnel connections for a given cluster
-func (c *HTTPClient) GetTunnelConnections(clusterName string, opts ...services.MarshalOption) ([]types.TunnelConnection, error) {
-	if clusterName == "" {
-		return nil, trace.BadParameter("missing cluster name parameter")
-	}
-	out, err := c.Get(context.TODO(), c.Endpoint("tunnelconnections", clusterName), url.Values{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var items []json.RawMessage
-	if err := json.Unmarshal(out.Bytes(), &items); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	conns := make([]types.TunnelConnection, len(items))
-	for i, raw := range items {
-		conn, err := services.UnmarshalTunnelConnection(raw)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		conns[i] = conn
-	}
-	return conns, nil
-}
-
-// GetAllTunnelConnections returns all tunnel connections
-func (c *HTTPClient) GetAllTunnelConnections(opts ...services.MarshalOption) ([]types.TunnelConnection, error) {
-	out, err := c.Get(context.TODO(), c.Endpoint("tunnelconnections"), url.Values{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var items []json.RawMessage
-	if err := json.Unmarshal(out.Bytes(), &items); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	conns := make([]types.TunnelConnection, len(items))
-	for i, raw := range items {
-		conn, err := services.UnmarshalTunnelConnection(raw)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		conns[i] = conn
-	}
-	return conns, nil
-}
-
-// DeleteTunnelConnection deletes tunnel connection by name
-func (c *HTTPClient) DeleteTunnelConnection(clusterName string, connName string) error {
-	if clusterName == "" {
-		return trace.BadParameter("missing parameter cluster name")
-	}
-	if connName == "" {
-		return trace.BadParameter("missing parameter connection name")
-	}
-	_, err := c.Delete(context.TODO(), c.Endpoint("tunnelconnections", clusterName, connName))
-	return trace.Wrap(err)
-}
-
-// DeleteTunnelConnections deletes all tunnel connections for cluster
-func (c *HTTPClient) DeleteTunnelConnections(clusterName string) error {
-	if clusterName == "" {
-		return trace.BadParameter("missing parameter cluster name")
-	}
-	_, err := c.Delete(context.TODO(), c.Endpoint("tunnelconnections", clusterName))
-	return trace.Wrap(err)
-}
-
-// DeleteAllTunnelConnections deletes all tunnel connections
-func (c *HTTPClient) DeleteAllTunnelConnections() error {
-	_, err := c.Delete(context.TODO(), c.Endpoint("tunnelconnections"))
-	return trace.Wrap(err)
-}
-
 type upsertServerRawReq struct {
 	Server json.RawMessage `json:"server"`
 	TTL    time.Duration   `json:"ttl"`
 }
 
-// UpsertAuthServer is used by auth servers to report their presence
-// to other auth servers in form of hearbeat expiring after ttl period.
-func (c *HTTPClient) UpsertAuthServer(ctx context.Context, s types.Server) error {
-	data, err := services.MarshalServer(s)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	args := &upsertServerRawReq{
-		Server: data,
-	}
-	_, err = c.PostJSON(ctx, c.Endpoint("authservers"), args)
-	return trace.Wrap(err)
-}
-
-// GetAuthServers returns the list of auth servers registered in the cluster.
-func (c *HTTPClient) GetAuthServers() ([]types.Server, error) {
-	out, err := c.Get(context.TODO(), c.Endpoint("authservers"), url.Values{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var items []json.RawMessage
-	if err := json.Unmarshal(out.Bytes(), &items); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	re := make([]types.Server, len(items))
-	for i, raw := range items {
-		server, err := services.UnmarshalServer(raw, types.KindAuthServer)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		re[i] = server
-	}
-	return re, nil
-}
-
-// UpsertProxy is used by proxies to report their presence
-// to other auth servers in form of heartbeat expiring after ttl period.
-func (c *HTTPClient) UpsertProxy(ctx context.Context, s types.Server) error {
-	data, err := services.MarshalServer(s)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	args := &upsertServerRawReq{
-		Server: data,
-	}
-	_, err = c.PostJSON(ctx, c.Endpoint("proxies"), args)
-	return trace.Wrap(err)
-}
-
-// GetProxies returns the list of auth servers registered in the cluster.
-func (c *HTTPClient) GetProxies() ([]types.Server, error) {
-	out, err := c.Get(context.TODO(), c.Endpoint("proxies"), url.Values{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var items []json.RawMessage
-	if err := json.Unmarshal(out.Bytes(), &items); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	re := make([]types.Server, len(items))
-	for i, raw := range items {
-		server, err := services.UnmarshalServer(raw, types.KindProxy)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		re[i] = server
-	}
-	return re, nil
-}
-
-// DeleteAllProxies deletes all proxies
-func (c *HTTPClient) DeleteAllProxies() error {
-	_, err := c.Delete(context.TODO(), c.Endpoint("proxies"))
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-// DeleteProxy deletes proxy by name
-func (c *HTTPClient) DeleteProxy(ctx context.Context, name string) error {
-	if name == "" {
-		return trace.BadParameter("missing parameter name")
-	}
-	_, err := c.Delete(ctx, c.Endpoint("proxies", name))
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-// ExtendWebSession creates a new web session for a user based on another
-// valid web session
-func (c *HTTPClient) ExtendWebSession(ctx context.Context, req WebSessionReq) (types.WebSession, error) {
-	out, err := c.PostJSON(ctx, c.Endpoint("users", req.User, "web", "sessions"), req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return services.UnmarshalWebSession(out.Bytes())
-}
-
-// CreateWebSession creates a new web session for a user
-func (c *HTTPClient) CreateWebSession(ctx context.Context, user string) (types.WebSession, error) {
-	out, err := c.PostJSON(
-		ctx,
-		c.Endpoint("users", user, "web", "sessions"),
-		WebSessionReq{User: user},
-	)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return services.UnmarshalWebSession(out.Bytes())
-}
-
 // AuthenticateWebUser authenticates web user, creates and  returns web session
 // in case if authentication is successful
 func (c *HTTPClient) AuthenticateWebUser(ctx context.Context, req AuthenticateUserRequest) (types.WebSession, error) {
+
 	out, err := c.PostJSON(
 		ctx,
-		c.Endpoint("users", req.Username, "web", "authenticate"),
+		c.Endpoint("users", url.PathEscape(req.Username), "web", "authenticate"),
 		req,
 	)
 	if err != nil {
@@ -633,38 +337,20 @@ func (c *HTTPClient) AuthenticateWebUser(ctx context.Context, req AuthenticateUs
 
 // AuthenticateSSHUser authenticates SSH console user, creates and  returns a pair of signed TLS and SSH
 // short lived certificates as a result
-func (c *HTTPClient) AuthenticateSSHUser(ctx context.Context, req AuthenticateSSHRequest) (*SSHLoginResponse, error) {
+func (c *HTTPClient) AuthenticateSSHUser(ctx context.Context, req AuthenticateSSHRequest) (*CLILoginResponse, error) {
 	out, err := c.PostJSON(
 		ctx,
-		c.Endpoint("users", req.Username, "ssh", "authenticate"),
+		c.Endpoint("users", url.PathEscape(req.Username), "ssh", "authenticate"),
 		req,
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var re SSHLoginResponse
+	var re CLILoginResponse
 	if err := json.Unmarshal(out.Bytes(), &re); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &re, nil
-}
-
-// GetWebSessionInfo checks if a web sesion is valid, returns session id in case if
-// it is valid, or error otherwise.
-func (c *HTTPClient) GetWebSessionInfo(ctx context.Context, user, sessionID string) (types.WebSession, error) {
-	out, err := c.Get(
-		ctx,
-		c.Endpoint("users", user, "web", "sessions", sessionID), url.Values{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return services.UnmarshalWebSession(out.Bytes())
-}
-
-// DeleteWebSession deletes the web session specified with sid for the given user
-func (c *HTTPClient) DeleteWebSession(ctx context.Context, user string, sid string) error {
-	_, err := c.Delete(ctx, c.Endpoint("users", user, "web", "sessions", sid))
-	return trace.Wrap(err)
 }
 
 // ValidateOIDCAuthCallbackReq is the request made by the proxy to validate
@@ -691,6 +377,11 @@ type OIDCAuthRawResponse struct {
 	// HostSigners is a list of signing host public keys
 	// trusted by proxy, used in console login
 	HostSigners []json.RawMessage `json:"host_signers"`
+	// MFAToken is an SSO MFA token.
+	MFAToken string `json:"mfa_token"`
+	// ClientOptions contains some options that the cluster wants the client to
+	// use.
+	ClientOptions ClientOptions `json:"client_options"`
 }
 
 // ValidateOIDCAuthCallback validates OIDC auth callback returned from redirect
@@ -706,11 +397,13 @@ func (c *HTTPClient) ValidateOIDCAuthCallback(ctx context.Context, q url.Values)
 		return nil, trace.Wrap(err)
 	}
 	response := OIDCAuthResponse{
-		Username: rawResponse.Username,
-		Identity: rawResponse.Identity,
-		Cert:     rawResponse.Cert,
-		Req:      rawResponse.Req,
-		TLSCert:  rawResponse.TLSCert,
+		Username:      rawResponse.Username,
+		Identity:      rawResponse.Identity,
+		Cert:          rawResponse.Cert,
+		Req:           rawResponse.Req,
+		TLSCert:       rawResponse.TLSCert,
+		MFAToken:      rawResponse.MFAToken,
+		ClientOptions: rawResponse.ClientOptions,
 	}
 	if len(rawResponse.Session) != 0 {
 		session, err := services.UnmarshalWebSession(rawResponse.Session)
@@ -760,6 +453,11 @@ type SAMLAuthRawResponse struct {
 	HostSigners []json.RawMessage `json:"host_signers"`
 	// TLSCert is TLS certificate authority certificate
 	TLSCert []byte `json:"tls_cert,omitempty"`
+	// MFAToken is an SSO MFA token.
+	MFAToken string `json:"mfa_token"`
+	// ClientOptions contains some options that the cluster wants the client to
+	// use.
+	ClientOptions ClientOptions `json:"client_options"`
 }
 
 // ValidateSAMLResponse validates response returned by SAML identity provider
@@ -777,11 +475,13 @@ func (c *HTTPClient) ValidateSAMLResponse(ctx context.Context, samlResponse, con
 		return nil, trace.Wrap(err)
 	}
 	response := SAMLAuthResponse{
-		Username: rawResponse.Username,
-		Identity: rawResponse.Identity,
-		Cert:     rawResponse.Cert,
-		Req:      rawResponse.Req,
-		TLSCert:  rawResponse.TLSCert,
+		Username:      rawResponse.Username,
+		Identity:      rawResponse.Identity,
+		Cert:          rawResponse.Cert,
+		Req:           rawResponse.Req,
+		TLSCert:       rawResponse.TLSCert,
+		MFAToken:      rawResponse.MFAToken,
+		ClientOptions: rawResponse.ClientOptions,
 	}
 	if len(rawResponse.Session) != 0 {
 		session, err := services.UnmarshalWebSession(rawResponse.Session)
@@ -825,6 +525,9 @@ type githubAuthRawResponse struct {
 	// HostSigners is a list of signing host public keys
 	// trusted by proxy, used in console login
 	HostSigners []json.RawMessage `json:"host_signers"`
+	// ClientOptions contains some options that the cluster wants the client to
+	// use.
+	ClientOptions ClientOptions `json:"client_options"`
 }
 
 // ValidateGithubAuthCallback validates Github auth callback returned from redirect
@@ -839,11 +542,12 @@ func (c *HTTPClient) ValidateGithubAuthCallback(ctx context.Context, q url.Value
 		return nil, trace.Wrap(err)
 	}
 	response := GithubAuthResponse{
-		Username: rawResponse.Username,
-		Identity: rawResponse.Identity,
-		Cert:     rawResponse.Cert,
-		Req:      rawResponse.Req,
-		TLSCert:  rawResponse.TLSCert,
+		Username:      rawResponse.Username,
+		Identity:      rawResponse.Identity,
+		Cert:          rawResponse.Cert,
+		Req:           rawResponse.Req,
+		TLSCert:       rawResponse.TLSCert,
+		ClientOptions: rawResponse.ClientOptions,
 	}
 	if len(rawResponse.Session) != 0 {
 		session, err := services.UnmarshalWebSession(
@@ -862,147 +566,4 @@ func (c *HTTPClient) ValidateGithubAuthCallback(ctx context.Context, q url.Value
 		response.HostSigners[i] = ca
 	}
 	return &response, nil
-}
-
-// GetSessionChunk allows clients to receive a byte array (chunk) from a recorded
-// session stream, starting from 'offset', up to 'max' in length. The upper bound
-// of 'max' is set to events.MaxChunkBytes
-//
-// Deprecated: use StreamSessionEvents API instead
-func (c *HTTPClient) GetSessionChunk(namespace string, sid session.ID, offsetBytes, maxBytes int) ([]byte, error) {
-	// DELETE IN 16(zmb3): v15 web UIs stopped calling this
-	if namespace == "" {
-		return nil, trace.BadParameter(MissingNamespaceError)
-	}
-	response, err := c.Get(context.TODO(), c.Endpoint("namespaces", namespace, "sessions", string(sid), "stream"), url.Values{
-		"offset": []string{strconv.Itoa(offsetBytes)},
-		"bytes":  []string{strconv.Itoa(maxBytes)},
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return response.Bytes(), nil
-}
-
-// Deprecated: use StreamSessionEvents API instead.
-// TODO(zmb3): remove from ClientI interface
-func (c *HTTPClient) GetSessionEvents(namespace string, sid session.ID, afterN int) (retval []events.EventFields, err error) {
-	// DELETE IN 16(zmb3): v15 web UIs stopped calling this
-	if namespace == "" {
-		return nil, trace.BadParameter(MissingNamespaceError)
-	}
-	query := make(url.Values)
-	if afterN > 0 {
-		query.Set("after", strconv.Itoa(afterN))
-	}
-	response, err := c.Get(context.TODO(), c.Endpoint("namespaces", namespace, "sessions", string(sid), "events"), query)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	retval = make([]events.EventFields, 0)
-	if err := json.Unmarshal(response.Bytes(), &retval); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return retval, nil
-}
-
-// GetNamespaces returns a list of namespaces
-func (c *HTTPClient) GetNamespaces() ([]types.Namespace, error) {
-	out, err := c.Get(context.TODO(), c.Endpoint("namespaces"), url.Values{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var re []types.Namespace
-	if err := utils.FastUnmarshal(out.Bytes(), &re); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return re, nil
-}
-
-// GetNamespace returns namespace by name
-func (c *HTTPClient) GetNamespace(name string) (*types.Namespace, error) {
-	if name == "" {
-		return nil, trace.BadParameter("missing namespace name")
-	}
-	out, err := c.Get(context.TODO(), c.Endpoint("namespaces", name), url.Values{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return services.UnmarshalNamespace(out.Bytes())
-}
-
-type upsertNamespaceReq struct {
-	Namespace types.Namespace `json:"namespace"`
-}
-
-// UpsertNamespace upserts namespace
-func (c *HTTPClient) UpsertNamespace(ns types.Namespace) error {
-	_, err := c.PostJSON(context.TODO(), c.Endpoint("namespaces"), upsertNamespaceReq{Namespace: ns})
-	return trace.Wrap(err)
-}
-
-// DeleteNamespace deletes namespace by name
-func (c *HTTPClient) DeleteNamespace(name string) error {
-	_, err := c.Delete(context.TODO(), c.Endpoint("namespaces", name))
-	return trace.Wrap(err)
-}
-
-// GetClusterName returns a cluster name
-func (c *HTTPClient) GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error) {
-	out, err := c.Get(context.TODO(), c.Endpoint("configuration", "name"), url.Values{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	cn, err := services.UnmarshalClusterName(out.Bytes())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return cn, err
-}
-
-type setClusterNameReq struct {
-	ClusterName json.RawMessage `json:"cluster_name"`
-}
-
-// SetClusterName sets cluster name once, will
-// return Already Exists error if the name is already set
-func (c *HTTPClient) SetClusterName(cn types.ClusterName) error {
-	data, err := services.MarshalClusterName(cn)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	_, err = c.PostJSON(context.TODO(), c.Endpoint("configuration", "name"), &setClusterNameReq{ClusterName: data})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
-func (c *HTTPClient) ValidateTrustedCluster(ctx context.Context, validateRequest *ValidateTrustedClusterRequest) (*ValidateTrustedClusterResponse, error) {
-	validateRequestRaw, err := validateRequest.ToRaw()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	out, err := c.PostJSON(ctx, c.Endpoint("trustedclusters", "validate"), validateRequestRaw)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var validateResponseRaw ValidateTrustedClusterResponseRaw
-	err = json.Unmarshal(out.Bytes(), &validateResponseRaw)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	validateResponse, err := validateResponseRaw.ToNative()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return validateResponse, nil
 }

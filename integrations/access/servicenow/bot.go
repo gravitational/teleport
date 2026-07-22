@@ -44,7 +44,7 @@ type Bot struct {
 // SupportedApps are the apps supported by this bot.
 func (b *Bot) SupportedApps() []common.App {
 	return []common.App{
-		accessrequest.NewApp(b),
+		accessrequest.NewApp(),
 	}
 }
 
@@ -119,4 +119,9 @@ func (b *Bot) UpdateMessages(ctx context.Context, reqID string, data pd.AccessRe
 // FetchRecipient isn't used by the ServicenoPlugin
 func (b *Bot) FetchRecipient(ctx context.Context, recipient string) (*common.Recipient, error) {
 	return nil, trace.NotImplemented("ServiceNow plugin does not use recipients")
+}
+
+// FetchOncallUsers fetches on-call users filtered by the provided annotations.
+func (b Bot) FetchOncallUsers(ctx context.Context, req types.AccessRequest) ([]string, error) {
+	return nil, trace.NotImplemented("fetch oncall users not implemented for plugin")
 }

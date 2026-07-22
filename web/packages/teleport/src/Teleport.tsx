@@ -16,75 +16,116 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { Suspense } from 'react';
-import ThemeProvider from 'design/ThemeProvider';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import React, { Suspense, useEffect } from 'react';
 
-import { Route, Router, Switch } from 'teleport/components/Router';
-import { CatchError } from 'teleport/components/CatchError';
+import { ToastNotificationProvider } from 'shared/components/ToastNotification';
+
 import Authenticated from 'teleport/components/Authenticated';
-
+import { CatchError } from 'teleport/components/CatchError';
+import { Route, Router, Switch } from 'teleport/components/Router';
 import { getOSSFeatures } from 'teleport/features';
-
 import { LayoutContextProvider } from 'teleport/Main/LayoutContext';
+import { ViewSessionRecordingRoute } from 'teleport/SessionRecordings/view/ViewSessionRecordingRoute';
+import { ThemeProvider, updateFavicon } from 'teleport/ThemeProvider';
 import { UserContextProvider } from 'teleport/User';
 import { NewCredentials } from 'teleport/Welcome/NewCredentials';
 
-import TeleportContextProvider from './TeleportContextProvider';
-import TeleportContext from './teleportContext';
-import cfg from './config';
 import { AppLauncher } from './AppLauncher';
-import { LoginFailedComponent as LoginFailed } from './Login/LoginFailed';
+import { BrowserMfa } from './BrowserMFA/BrowserMFA';
+import cfg from './config';
+import { ConsoleWithContext as Console } from './Console';
+import { DesktopSessionContainer as DesktopSession } from './DesktopSession';
+import { HeadlessRequest } from './HeadlessRequest';
+import { Login } from './Login';
+import { LoginClose } from './Login/LoginClose';
+import { LoginFailed } from './Login/LoginFailed';
 import { LoginSuccess } from './Login/LoginSuccess';
 import { LoginTerminalRedirect } from './Login/LoginTerminalRedirect';
-import { LoginClose } from './Login/LoginClose';
-import { Login } from './Login';
-import { Welcome } from './Welcome';
-import { SingleLogoutFailed } from './SingleLogoutFailed';
-
-import { ConsoleWithContext as Console } from './Console';
-import { Player } from './Player';
-import { DesktopSessionContainer as DesktopSession } from './DesktopSession';
-
-import { HeadlessRequest } from './HeadlessRequest';
-
 import { Main } from './Main';
+import { SingleLogoutFailed } from './SingleLogoutFailed';
+import TeleportContext from './teleportContext';
+import TeleportContextProvider from './TeleportContextProvider';
+import { Welcome } from './Welcome';
 
-import type { History } from 'history';
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      networkMode: 'always',
+      refetchOnWindowFocus: false,
+      retry: false,
+    },
+    mutations: {
+      networkMode: 'always',
+      retry: false,
+    },
+  },
+});
 
 const Teleport: React.FC<Props> = props => {
-  const { ctx, history } = props;
+  const { ctx } = props;
   const createPublicRoutes = props.renderPublicRoutes || publicOSSRoutes;
   const createPrivateRoutes = props.renderPrivateRoutes || privateOSSRoutes;
 
+  // update the favicon based on the system pref, and listen if it changes
+  // overtime.
+  // TODO(avatus) this can be expanded upon eventually to handle the entire theme
+  // once we have a user settings page that allows users to properly set their theme
+  // to respect the system prefs. We only update the favicon here because the selected theme
+  // of the page doesn't necessarily match the theme of the browser, which is what we
+  // are trying to match.
+  useEffect(() => {
+    updateFavicon();
+
+    const colorSchemeQueryList = window.matchMedia(
+      '(prefers-color-scheme: dark)'
+    );
+
+    const colorSchemeListener = () => {
+      updateFavicon();
+    };
+
+    colorSchemeQueryList.addEventListener('change', colorSchemeListener);
+
+    return () => {
+      colorSchemeQueryList.removeEventListener('change', colorSchemeListener);
+    };
+  }, []);
+
   return (
-    <CatchError>
+    <QueryClientProvider client={queryClient}>
       <ThemeProvider>
-        <LayoutContextProvider>
-          <Router history={history}>
-            <Suspense fallback={null}>
-              <Switch>
-                {createPublicRoutes()}
-                <Route path={cfg.routes.root}>
-                  <Authenticated>
-                    <UserContextProvider>
-                      <TeleportContextProvider ctx={ctx}>
-                        <Switch>
-                          <Route
-                            path={cfg.routes.appLauncher}
-                            component={AppLauncher}
-                          />
-                          <Route>{createPrivateRoutes()}</Route>
-                        </Switch>
-                      </TeleportContextProvider>
-                    </UserContextProvider>
-                  </Authenticated>
-                </Route>
-              </Switch>
-            </Suspense>
-          </Router>
-        </LayoutContextProvider>
+        <CatchError>
+          <LayoutContextProvider>
+            <Router>
+              <Suspense fallback={null}>
+                <Switch>
+                  {createPublicRoutes()}
+                  <Route path={cfg.routes.root}>
+                    <Authenticated>
+                      <UserContextProvider>
+                        <ToastNotificationProvider>
+                          <TeleportContextProvider ctx={ctx}>
+                            <Switch>
+                              <Route
+                                exact={false}
+                                path={cfg.routes.appLauncher}
+                                element={<AppLauncher />}
+                              />
+                              <Route>{createPrivateRoutes()}</Route>
+                            </Switch>
+                          </TeleportContextProvider>
+                        </ToastNotificationProvider>
+                      </UserContextProvider>
+                    </Authenticated>
+                  </Route>
+                </Switch>
+              </Suspense>
+            </Router>
+          </LayoutContextProvider>
+        </CatchError>
       </ThemeProvider>
-    </CatchError>
+    </QueryClientProvider>
   );
 };
 
@@ -93,7 +134,7 @@ function publicOSSRoutes() {
     <Route
       title="Login"
       path={cfg.routes.login}
-      component={Login}
+      element={<Login />}
       key="login"
     />,
     ...getSharedPublicRoutes(),
@@ -106,49 +147,49 @@ export function getSharedPublicRoutes() {
       key="login-failed"
       title="Login Failed"
       path={cfg.routes.loginError}
-      component={LoginFailed}
+      element={<LoginFailed />}
     />,
     <Route
       key="login-failed-legacy"
       title="Login Failed"
       path={cfg.routes.loginErrorLegacy}
-      component={LoginFailed}
+      element={<LoginFailed />}
     />,
     <Route
       key="success"
       title="Success"
       path={cfg.routes.loginSuccess}
-      component={LoginSuccess}
+      element={<LoginSuccess />}
     />,
     <Route
       key="terminal"
       title="Finish Login in Terminal"
       path={cfg.routes.loginTerminalRedirect}
-      component={LoginTerminalRedirect}
+      element={<LoginTerminalRedirect />}
     />,
     <Route
       key="autoclose"
       title="Working on SSO login"
       path={cfg.routes.loginClose}
-      component={LoginClose}
+      element={<LoginClose />}
     />,
     <Route
       key="invite"
       title="Invite"
       path={cfg.routes.userInvite}
-      render={() => <Welcome NewCredentials={NewCredentials} />}
+      element={<Welcome NewCredentials={NewCredentials} />}
     />,
     <Route
       key="password-reset"
       title="Password Reset"
       path={cfg.routes.userReset}
-      render={() => <Welcome NewCredentials={NewCredentials} />}
+      element={<Welcome NewCredentials={NewCredentials} />}
     />,
     <Route
       key="saml-slo-failed"
       title="SAML Single Logout Failed"
       path={cfg.routes.samlSloFailed}
-      component={SingleLogoutFailed}
+      element={<SingleLogoutFailed />}
     />,
   ];
 }
@@ -158,8 +199,13 @@ function privateOSSRoutes() {
     <Switch>
       {getSharedPrivateRoutes()}
       <Route
+        key="player"
+        path={cfg.routes.player}
+        element={<ViewSessionRecordingRoute />}
+      />
+      <Route
         path={cfg.routes.root}
-        render={() => <Main features={getOSSFeatures()} />}
+        element={<Main features={getOSSFeatures()} />}
       />
     </Switch>
   );
@@ -170,14 +216,23 @@ export function getSharedPrivateRoutes() {
     <Route
       key="desktop"
       path={cfg.routes.desktop}
-      component={DesktopSession}
+      element={<DesktopSession />}
     />,
-    <Route key="console" path={cfg.routes.console} component={Console} />,
-    <Route key="player" path={cfg.routes.player} component={Player} />,
+    <Route
+      key="linuxDesktop"
+      path={cfg.routes.linuxDesktop}
+      element={<DesktopSession />}
+    />,
+    <Route key="console" path={cfg.routes.console} element={<Console />} />,
     <Route
       key="headlessSSO"
       path={cfg.routes.headlessSso}
-      component={HeadlessRequest}
+      element={<HeadlessRequest />}
+    />,
+    <Route
+      key="browserMFA"
+      path={cfg.routes.browserMfa}
+      element={<BrowserMfa />}
     />,
   ];
 }
@@ -186,7 +241,6 @@ export default Teleport;
 
 export type Props = {
   ctx: TeleportContext;
-  history: History;
   renderPublicRoutes?: () => React.ReactNode[];
   renderPrivateRoutes?: () => React.ReactNode;
 };

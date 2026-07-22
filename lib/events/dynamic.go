@@ -1,5 +1,4 @@
-/*
- * Teleport
+/** Teleport
  * Copyright (C) 2023  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
@@ -19,11 +18,16 @@
 package events
 
 import (
+	"context"
 	"encoding/json"
+	"log/slog"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
+	"google.golang.org/protobuf/types/known/structpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
+	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	"github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/utils"
@@ -105,12 +109,38 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.Subsystem{}
 	case X11ForwardEvent:
 		e = &events.X11Forward{}
+	case AgentForwardEvent:
+		e = &events.AgentForward{}
 	case PortForwardEvent:
+		e = &events.PortForward{}
+	case PortForwardLocalEvent:
+		e = &events.PortForward{}
+	case PortForwardRemoteEvent:
+		e = &events.PortForward{}
+	case PortForwardRemoteConnEvent:
 		e = &events.PortForward{}
 	case AuthAttemptEvent:
 		e = &events.AuthAttempt{}
 	case SCPEvent:
 		e = &events.SCP{}
+		if err := utils.FastUnmarshal(data, e); err == nil {
+			return e, nil
+		}
+		// Some SFTP events may have been incorrectly marshaled as SCP events;
+		// check for them and fix.
+		// https://github.com/gravitational/teleport/issues/59469
+		if code := getFieldEmpty(EventCode); code == SCPDisallowedCode {
+			sftpEvent := &events.SFTP{}
+			if err := utils.FastUnmarshal(data, sftpEvent); err != nil {
+				// If that didn't work, leave type/code as-is and return UnknownEvent
+				// down below.
+				e = nil
+				break
+			}
+			sftpEvent.Type = SFTPEvent
+			sftpEvent.Code = SFTPDisallowedCode
+			return sftpEvent, nil
+		}
 	case ResizeEvent:
 		e = &events.Resize{}
 	case SessionCommandEvent:
@@ -165,6 +195,16 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.AppSessionRequest{}
 	case AppSessionDynamoDBRequestEvent:
 		e = &events.AppSessionDynamoDBRequest{}
+	case AppSessionLLMRequestSuccessEvent, AppSessionLLMRequestFailureEvent:
+		e = &events.AppSessionLLMRequest{}
+	case AppSessionHTTPRequestEvent:
+		e = &events.AppSessionHTTPRequest{}
+	case AppSessionHTTPRequestBodyChunkEvent:
+		e = &events.AppSessionHTTPRequestBodyChunk{}
+	case AppSessionHTTPResponseEvent:
+		e = &events.AppSessionHTTPResponse{}
+	case AppSessionHTTPResponseBodyChunkEvent:
+		e = &events.AppSessionHTTPResponseBodyChunk{}
 	case AppCreateEvent:
 		e = &events.AppCreate{}
 	case AppUpdateEvent:
@@ -183,6 +223,8 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.DatabaseSessionEnd{}
 	case DatabaseSessionQueryEvent, DatabaseSessionQueryFailedEvent:
 		e = &events.DatabaseSessionQuery{}
+	case DatabaseSessionCommandResultEvent:
+		e = &events.DatabaseSessionCommandResult{}
 	case DatabaseSessionMalformedPacketEvent:
 		e = &events.DatabaseSessionMalformedPacket{}
 	case DatabaseSessionPermissionsUpdateEvent:
@@ -270,6 +312,12 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.WindowsDesktopSessionStart{}
 	case WindowsDesktopSessionEndEvent:
 		e = &events.WindowsDesktopSessionEnd{}
+	case LinuxDesktopSessionStartEvent:
+		e = &events.LinuxDesktopSessionStart{}
+	case LinuxDesktopSessionEndEvent:
+		e = &events.LinuxDesktopSessionEnd{}
+	case DesktopRecordingEvent:
+		e = &events.DesktopRecording{}
 	case DesktopClipboardSendEvent:
 		e = &events.DesktopClipboardSend{}
 	case DesktopClipboardReceiveEvent:
@@ -278,6 +326,8 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.SessionConnect{}
 	case AccessRequestDeleteEvent:
 		e = &events.AccessRequestDelete{}
+	case AccessRequestExpireEvent:
+		e = &events.AccessRequestExpire{}
 	case CertificateCreateEvent:
 		e = &events.CertificateCreate{}
 	case RenewableCertificateGenerationMismatchEvent:
@@ -286,10 +336,14 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.SFTP{}
 	case UpgradeWindowStartUpdateEvent:
 		e = &events.UpgradeWindowStartUpdate{}
+	case EnvironmentProfileUpdateEvent:
+		e = &events.EnvironmentProfileUpdate{}
 	case SessionRecordingAccessEvent:
 		e = &events.SessionRecordingAccess{}
 	case SSMRunEvent:
 		e = &events.SSMRun{}
+	case AzureRunEvent:
+		e = &events.AzureRun{}
 	case KubernetesClusterCreateEvent:
 		e = &events.KubernetesClusterCreate{}
 	case KubernetesClusterUpdateEvent:
@@ -358,6 +412,8 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.AccessListMemberDelete{}
 	case AccessListMemberDeleteAllForAccessListEvent:
 		e = &events.AccessListMemberDeleteAllForAccessList{}
+	case UserLoginAccessListInvalidEvent:
+		e = &events.UserLoginAccessListInvalid{}
 	case SecReportsAuditQueryRunEvent:
 		e = &events.AuditQueryRun{}
 	case SecReportsReportRunEvent:
@@ -382,47 +438,268 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.AccessGraphSettingsUpdate{}
 	case DatabaseSessionSpannerRPCEvent:
 		e = &events.SpannerRPC{}
+	case GitCommandEvent:
+		e = &events.GitCommand{}
 	case UnknownEvent:
 		e = &events.Unknown{}
 
-	case CassandraBatchEventCode:
+	case DatabaseSessionCassandraBatchEvent:
 		e = &events.CassandraBatch{}
-	case CassandraRegisterEventCode:
+	case DatabaseSessionCassandraRegisterEvent:
 		e = &events.CassandraRegister{}
-	case CassandraPrepareEventCode:
+	case DatabaseSessionCassandraPrepareEvent:
 		e = &events.CassandraPrepare{}
-	case CassandraExecuteEventCode:
+	case DatabaseSessionCassandraExecuteEvent:
 		e = &events.CassandraExecute{}
 
-	case DiscoveryConfigCreateCode:
+	case DiscoveryConfigCreateEvent:
 		e = &events.DiscoveryConfigCreate{}
-	case DiscoveryConfigUpdateCode:
+	case DiscoveryConfigUpdateEvent:
 		e = &events.DiscoveryConfigUpdate{}
-	case DiscoveryConfigDeleteCode:
+	case DiscoveryConfigDeleteEvent:
 		e = &events.DiscoveryConfigDelete{}
-	case DiscoveryConfigDeleteAllCode:
+	case DiscoveryConfigDeleteAllEvent:
 		e = &events.DiscoveryConfigDeleteAll{}
 
-	default:
-		log.Errorf("Attempted to convert dynamic event of unknown type %q into protobuf event.", eventType)
-		unknown := &events.Unknown{}
-		if err := utils.FastUnmarshal(data, unknown); err != nil {
-			return nil, trace.Wrap(err)
-		}
+	case SPIFFEFederationCreateEvent:
+		e = &events.SPIFFEFederationCreate{}
+	case SPIFFEFederationDeleteEvent:
+		e = &events.SPIFFEFederationDelete{}
+	case IntegrationCreateEvent:
+		e = &events.IntegrationCreate{}
+	case IntegrationUpdateEvent:
+		e = &events.IntegrationUpdate{}
+	case IntegrationDeleteEvent:
+		e = &events.IntegrationDelete{}
 
-		unknown.Type = UnknownEvent
-		unknown.Code = UnknownCode
-		unknown.UnknownType = eventType
-		unknown.UnknownCode = getFieldEmpty(EventCode)
-		unknown.Data = string(data)
-		return unknown, nil
+	case PluginCreateEvent:
+		e = &events.PluginCreate{}
+	case PluginUpdateEvent:
+		e = &events.PluginUpdate{}
+	case PluginDeleteEvent:
+		e = &events.PluginDelete{}
+
+	case StaticHostUserCreateEvent:
+		e = &events.StaticHostUserCreate{}
+	case StaticHostUserUpdateEvent:
+		e = &events.StaticHostUserUpdate{}
+	case StaticHostUserDeleteEvent:
+		e = &events.StaticHostUserDelete{}
+
+	case CrownJewelCreateEvent:
+		e = &events.CrownJewelCreate{}
+	case CrownJewelUpdateEvent:
+		e = &events.CrownJewelUpdate{}
+	case CrownJewelDeleteEvent:
+		e = &events.CrownJewelDelete{}
+
+	case UserTaskCreateEvent:
+		e = &events.UserTaskCreate{}
+	case UserTaskUpdateEvent:
+		e = &events.UserTaskUpdate{}
+	case UserTaskDeleteEvent:
+		e = &events.UserTaskDelete{}
+
+	case SFTPSummaryEvent:
+		e = &events.SFTPSummary{}
+
+	case AutoUpdateConfigCreateEvent:
+		e = &events.AutoUpdateConfigCreate{}
+	case AutoUpdateConfigUpdateEvent:
+		e = &events.AutoUpdateConfigUpdate{}
+	case AutoUpdateConfigDeleteEvent:
+		e = &events.AutoUpdateConfigDelete{}
+
+	case AutoUpdateVersionCreateEvent:
+		e = &events.AutoUpdateVersionCreate{}
+	case AutoUpdateVersionUpdateEvent:
+		e = &events.AutoUpdateVersionUpdate{}
+	case AutoUpdateVersionDeleteEvent:
+		e = &events.AutoUpdateVersionDelete{}
+
+	case AutoUpdateAgentRolloutTriggerEvent:
+		e = &events.AutoUpdateAgentRolloutTrigger{}
+	case AutoUpdateAgentRolloutForceDoneEvent:
+		e = &events.AutoUpdateAgentRolloutForceDone{}
+	case AutoUpdateAgentRolloutRollbackEvent:
+		e = &events.AutoUpdateAgentRolloutRollback{}
+
+	case ContactCreateEvent:
+		e = &events.ContactCreate{}
+	case ContactDeleteEvent:
+		e = &events.ContactDelete{}
+
+	case WorkloadIdentityCreateEvent:
+		e = &events.WorkloadIdentityCreate{}
+	case WorkloadIdentityUpdateEvent:
+		e = &events.WorkloadIdentityUpdate{}
+	case WorkloadIdentityDeleteEvent:
+		e = &events.WorkloadIdentityDelete{}
+
+	case WorkloadIdentityX509RevocationCreateEvent:
+		e = &events.WorkloadIdentityX509RevocationCreate{}
+	case WorkloadIdentityX509RevocationUpdateEvent:
+		e = &events.WorkloadIdentityX509RevocationUpdate{}
+	case WorkloadIdentityX509RevocationDeleteEvent:
+		e = &events.WorkloadIdentityX509RevocationDelete{}
+
+	case StableUNIXUserCreateEvent:
+		e = &events.StableUNIXUserCreate{}
+
+	case AWSICResourceSyncSuccessEvent,
+		AWSICResourceSyncFailureEvent:
+		e = &events.AWSICResourceSync{}
+
+	case HealthCheckConfigCreateEvent:
+		e = &events.HealthCheckConfigCreate{}
+	case HealthCheckConfigUpdateEvent:
+		e = &events.HealthCheckConfigUpdate{}
+	case HealthCheckConfigDeleteEvent:
+		e = &events.HealthCheckConfigDelete{}
+
+	case WorkloadIdentityX509IssuerOverrideCreateEvent:
+		e = &events.WorkloadIdentityX509IssuerOverrideCreate{}
+	case WorkloadIdentityX509IssuerOverrideDeleteEvent:
+		e = &events.WorkloadIdentityX509IssuerOverrideDelete{}
+
+	case SigstorePolicyCreateEvent:
+		e = &events.SigstorePolicyCreate{}
+	case SigstorePolicyUpdateEvent:
+		e = &events.SigstorePolicyUpdate{}
+	case SigstorePolicyDeleteEvent:
+		e = &events.SigstorePolicyDelete{}
+
+	case MCPSessionStartEvent:
+		e = &events.MCPSessionStart{}
+	case MCPSessionEndEvent:
+		e = &events.MCPSessionEnd{}
+	case MCPSessionRequestEvent:
+		e = &events.MCPSessionRequest{}
+	case MCPSessionNotificationEvent:
+		e = &events.MCPSessionNotification{}
+	case MCPSessionListenSSEStream:
+		e = &events.MCPSessionListenSSEStream{}
+	case MCPSessionInvalidHTTPRequest:
+		e = &events.MCPSessionInvalidHTTPRequest{}
+
+	case BoundKeypairRecovery:
+		e = &events.BoundKeypairRecovery{}
+	case BoundKeypairRotation:
+		e = &events.BoundKeypairRotation{}
+	case BoundKeypairJoinStateVerificationFailed:
+		e = &events.BoundKeypairJoinStateVerificationFailed{}
+
+	case SCIMListingEvent:
+		e = &events.SCIMListingEvent{}
+	case SCIMGetEvent, SCIMCreateEvent, SCIMUpdateEvent, SCIMDeleteEvent, SCIMPatchEvent:
+		e = &events.SCIMResourceEvent{}
+
+	case ClientIPRestrictionsUpdateEvent:
+		e = &events.ClientIPRestrictionsUpdate{}
+
+	case AppAuthConfigCreateEvent:
+		e = &events.AppAuthConfigCreate{}
+	case AppAuthConfigUpdateEvent:
+		e = &events.AppAuthConfigUpdate{}
+	case AppAuthConfigDeleteEvent:
+		e = &events.AppAuthConfigDelete{}
+	case AppAuthConfigVerifySuccessCode:
+		e = &events.AppAuthConfigVerify{}
+	case AppAuthConfigVerifyFailureEvent:
+		e = &events.AppAuthConfigVerify{}
+	case VnetConfigCreateEvent:
+		e = &events.VnetConfigCreate{}
+	case VnetConfigUpdateEvent:
+		e = &events.VnetConfigUpdate{}
+	case VnetConfigDeleteEvent:
+		e = &events.VnetConfigDelete{}
+
+	case WorkloadClusterCreateEvent:
+		e = &events.WorkloadClusterCreate{}
+	case WorkloadClusterUpdateEvent:
+		e = &events.WorkloadClusterUpdate{}
+	case WorkloadClusterDeleteEvent:
+		e = &events.WorkloadClusterDelete{}
+
+	case InferenceModelCreateEvent:
+		e = &events.InferenceModelCreate{}
+	case InferenceModelUpdateEvent:
+		e = &events.InferenceModelUpdate{}
+	case InferenceModelDeleteEvent:
+		e = &events.InferenceModelDelete{}
+
+	case InferenceSecretCreateEvent:
+		e = &events.InferenceSecretCreate{}
+	case InferenceSecretUpdateEvent:
+		e = &events.InferenceSecretUpdate{}
+	case InferenceSecretDeleteEvent:
+		e = &events.InferenceSecretDelete{}
+
+	case InferencePolicyCreateEvent:
+		e = &events.InferencePolicyCreate{}
+	case InferencePolicyUpdateEvent:
+		e = &events.InferencePolicyUpdate{}
+	case InferencePolicyDeleteEvent:
+		e = &events.InferencePolicyDelete{}
+	case RetrievalModelCreateEvent:
+		e = &events.RetrievalModelCreate{}
+	case RetrievalModelUpdateEvent:
+		e = &events.RetrievalModelUpdate{}
+	case RetrievalModelDeleteEvent:
+		e = &events.RetrievalModelDelete{}
+
+	case ClassifierCreateEvent:
+		e = &events.ClassifierCreate{}
+	case ClassifierUpdateEvent:
+		e = &events.ClassifierUpdate{}
+	case ClassifierDeleteEvent:
+		e = &events.ClassifierDelete{}
+
+	case SessionSummarizedEvent:
+		e = &events.SessionSummarized{}
+
+	case CertAuthOverrideCreateEvent,
+		CertAuthOverrideUpdateEvent,
+		CertAuthOverrideUpsertEvent,
+		CertAuthOverrideDeleteEvent:
+		e = &events.CertAuthorityOverrideEvent{}
+	case ScopedTokenCreateEvent:
+		e = &events.ScopedTokenCreate{}
+	case ScopedTokenUpsertEvent:
+		e = &events.ScopedTokenCreate{}
+	case ScopedTokenUpdateEvent:
+		e = &events.ScopedTokenUpdate{}
+	case ScopedTokenDeleteEvent:
+		e = &events.ScopedTokenDelete{}
+	case BeamsConfigCreateEvent:
+		e = &events.BeamsConfigCreate{}
+	case BeamsConfigUpdateEvent:
+		e = &events.BeamsConfigUpdate{}
+	case BeamsConfigDeleteEvent:
+		e = &events.BeamsConfigDelete{}
+	default:
+		slog.ErrorContext(context.Background(), "Attempted to convert dynamic event of unknown type into protobuf event.", "event_type", eventType)
 	}
 
-	if err := utils.FastUnmarshal(data, e); err != nil {
+	if e != nil {
+		if err := utils.FastUnmarshal(data, e); err == nil {
+			return e, nil
+		} else {
+			slog.ErrorContext(context.Background(), "failed to unmarshal event", "event_type", eventType, "error", err)
+		}
+	}
+
+	unknown := &events.Unknown{}
+	if err := utils.FastUnmarshal(data, unknown); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return e, nil
+	unknown.Type = UnknownEvent
+	unknown.Code = UnknownCode
+	unknown.UnknownType = eventType
+	unknown.UnknownCode = getFieldEmpty(EventCode)
+	unknown.Data = string(data)
+	return unknown, nil
 }
 
 // GetSessionID pulls the session ID from the events that have a
@@ -459,4 +736,59 @@ func ToEventFields(event events.AuditEvent) (EventFields, error) {
 	}
 
 	return fields, nil
+}
+
+// FromEventFieldsSlice converts an array of EventFields to an array of AuditEvent.
+func FromEventFieldsSlice(fieldsArray []EventFields) ([]events.AuditEvent, error) {
+	events := make([]events.AuditEvent, 0, len(fieldsArray))
+	for _, fields := range fieldsArray {
+		event, err := FromEventFields(fields)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		events = append(events, event)
+	}
+	return events, nil
+}
+
+// EventFieldsToUnstructured converts an EventFields to an EventUnstructured.
+func FromEventFieldsSliceToUnstructured(fieldsArray []EventFields) ([]*auditlogpb.EventUnstructured, error) {
+	events := make([]*auditlogpb.EventUnstructured, 0, len(fieldsArray))
+	for _, fields := range fieldsArray {
+		event, err := EventFieldsToUnstructured(fields)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		events = append(events, event)
+	}
+	return events, nil
+}
+
+// EventFieldsToUnstructured converts the raw event fields stored to unstructured.
+func EventFieldsToUnstructured(evt EventFields) (*auditlogpb.EventUnstructured, error) {
+	str, err := structpb.NewStruct(evt)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to convert event fields to structpb.Struct")
+	}
+
+	id := getOrComputeEventID(evt)
+
+	return auditlogpb.EventUnstructured_builder{
+		Type:         evt.GetType(),
+		Index:        int64(evt.GetInt(EventIndex)),
+		Time:         timestamppb.New(evt.GetTime(EventTime)),
+		Id:           id,
+		Unstructured: str,
+	}.Build(), nil
+}
+
+// getOrComputeEventID computes the ID of the event. If the event already has an ID, it is returned.
+// Otherwise, the event is marshaled to JSON and the SHA256 hash of the JSON is returned.
+func getOrComputeEventID(evt EventFields) string {
+	id := evt.GetID()
+	if id != "" {
+		return id
+	}
+
+	return uuid.NewString()
 }

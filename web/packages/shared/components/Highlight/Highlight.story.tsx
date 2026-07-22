@@ -16,8 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import styled from 'styled-components';
+
 import { Flex, Text } from 'design';
 
 import { Highlight } from './Highlight';

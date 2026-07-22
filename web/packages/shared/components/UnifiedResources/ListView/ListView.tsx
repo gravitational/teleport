@@ -16,17 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-
 import { Flex } from 'design';
 
+import { LoadingSkeleton } from '../shared/LoadingSkeleton';
 import { ResourceViewProps } from '../types';
 import { FETCH_MORE_SIZE } from '../UnifiedResources';
-
-import { LoadingSkeleton } from '../shared/LoadingSkeleton';
-
-import { ResourceListItem } from './ResourceListItem';
 import { LoadingListItem } from './LoadingListItem';
+import { ResourceListItem } from './ResourceListItem';
 
 export function ListView({
   mappedResources,
@@ -38,28 +34,32 @@ export function ListView({
   pinningSupport,
   isProcessing,
   expandAllLabels,
+  visibleInputFields,
+  showResourceSelectedIcon,
+  resourceLabelConfig,
 }: ResourceViewProps) {
   return (
     <Flex className="ListContainer">
-      {mappedResources.map(({ item, key }) => (
-        <ResourceListItem
-          key={key}
-          name={item.name}
-          ActionButton={item.ActionButton}
-          primaryIconName={item.primaryIconName}
-          onLabelClick={onLabelClick}
-          SecondaryIcon={item.SecondaryIcon}
-          listViewProps={item.listViewProps}
-          labels={item.labels}
-          pinned={pinnedResources.includes(key)}
-          pinningSupport={pinningSupport}
-          requiresRequest={item.requiresRequest}
-          selected={selectedResources.includes(key)}
-          selectResource={() => onSelectResource(key)}
-          pinResource={() => onPinResource(key)}
-          expandAllLabels={expandAllLabels}
-        />
-      ))}
+      {mappedResources.map(
+        ({ item, key, onShowStatusInfo, showingStatusInfo }) => (
+          <ResourceListItem
+            key={key}
+            viewItem={item}
+            onLabelClick={onLabelClick}
+            pinned={pinnedResources.includes(key)}
+            pinningSupport={pinningSupport}
+            selected={selectedResources.includes(key)}
+            selectResource={() => onSelectResource(key)}
+            pinResource={() => onPinResource(key)}
+            expandAllLabels={expandAllLabels}
+            onShowStatusInfo={onShowStatusInfo}
+            showingStatusInfo={showingStatusInfo}
+            visibleInputFields={visibleInputFields}
+            resourceLabelConfig={resourceLabelConfig}
+            showResourceSelectedIcon={showResourceSelectedIcon}
+          />
+        )
+      )}
       {isProcessing && (
         <LoadingSkeleton
           count={FETCH_MORE_SIZE}

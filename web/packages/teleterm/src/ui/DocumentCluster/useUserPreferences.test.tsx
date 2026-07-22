@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { renderHook, act } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 
 import {
   AvailableResourceMode,
@@ -25,16 +25,15 @@ import {
   ViewMode,
 } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
 
-import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
 import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
-import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
-
-import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
+import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
 import {
-  UserPreferences,
   GetUserPreferencesResponse,
   UpdateUserPreferencesResponse,
+  UserPreferences,
 } from 'teleterm/services/tshd/types';
+import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
+import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 
 import { useUserPreferences } from './useUserPreferences';
 
@@ -51,6 +50,7 @@ const preferences: UserPreferences = {
 
 test('user preferences are fetched', async () => {
   const appContext = new MockAppContext();
+  appContext.addRootCluster(cluster);
   const getUserPreferencesPromise = new MockedUnaryCall({
     userPreferences: preferences,
   });
@@ -84,8 +84,56 @@ test('user preferences are fetched', async () => {
   ).toHaveBeenCalledWith(cluster.uri, preferences.unifiedResourcePreferences);
 });
 
+test('user preferences are not fetched until cluster is connected', async () => {
+  const appContext = new MockAppContext();
+  const offlineCluster = makeRootCluster({ connected: false });
+  appContext.addRootCluster(offlineCluster);
+  const getUserPreferencesPromise = new MockedUnaryCall({
+    userPreferences: preferences,
+  });
+
+  jest
+    .spyOn(appContext.tshd, 'getUserPreferences')
+    .mockImplementation(() => getUserPreferencesPromise);
+  jest
+    .spyOn(appContext.workspacesService, 'getUnifiedResourcePreferences')
+    .mockReturnValue(undefined);
+  jest
+    .spyOn(appContext.workspacesService, 'setUnifiedResourcePreferences')
+    .mockImplementation();
+
+  const { result } = renderHook(() => useUserPreferences(offlineCluster.uri), {
+    wrapper: ({ children }) => (
+      <MockAppContextProvider appContext={appContext}>
+        {children}
+      </MockAppContextProvider>
+    ),
+  });
+
+  // Initial render while the cluster is offline.
+  await waitFor(() => {
+    expect(result.current.userPreferencesAttempt.status).toBe('');
+  });
+  expect(appContext.tshd.getUserPreferences).not.toHaveBeenCalled();
+
+  // Flip the cluster to connected state.
+  await act(async () => {
+    appContext.clustersService.setState(draft => {
+      draft.clusters.get(offlineCluster.uri).connected = true;
+    });
+  });
+
+  // Verify that the preferences were fetched.
+  await waitFor(() => {
+    expect(result.current.userPreferencesAttempt.status).toBe('success');
+  });
+  expect(result.current.userPreferences).toEqual(preferences);
+  expect(appContext.tshd.getUserPreferences).toHaveBeenCalled();
+});
+
 test('unified resources fallback preferences are taken from a workspace', async () => {
   const appContext = new MockAppContext();
+  appContext.addRootCluster(cluster);
   let resolveGetUserPreferencesPromise: (u: GetUserPreferencesResponse) => void;
   const getUserPreferencesPromise = new Promise<GetUserPreferencesResponse>(
     resolve => {
@@ -123,6 +171,7 @@ test('unified resources fallback preferences are taken from a workspace', async 
 
 describe('updating preferences', () => {
   const appContext = new MockAppContext();
+  appContext.addRootCluster(cluster);
   beforeEach(() => {
     jest
       .spyOn(appContext.workspacesService, 'getUnifiedResourcePreferences')

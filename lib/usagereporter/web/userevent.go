@@ -58,20 +58,39 @@ const (
 	uiDiscoverDesktopActiveDirectoryToolsInstallEvent = "tp.ui.discover.desktop.activeDirectory.tools.install"
 	uiDiscoverDesktopActiveDirectoryConfigureEvent    = "tp.ui.discover.desktop.activeDirectory.configure"
 	uiDiscoverAutoDiscoveredResourcesEvent            = "tp.ui.discover.autoDiscoveredResources"
-	uiDiscoverEC2InstanceSelectionEvent               = "tp.ui.discover.selectedEC2Instance"
-	uiDiscoverDeployEICEEvent                         = "tp.ui.discover.deployEICE"
-	uiDiscoverCreateNodeEvent                         = "tp.ui.discover.createNode"
+	uiDiscoverCreateAppServerEvent                    = "tp.ui.discover.createAppServer"
 	uiDiscoverCreateDiscoveryConfigEvent              = "tp.ui.discover.createDiscoveryConfig"
 	uiDiscoverPrincipalsConfigureEvent                = "tp.ui.discover.principals.configure"
 	uiDiscoverTestConnectionEvent                     = "tp.ui.discover.testConnection"
 	uiDiscoverCompletedEvent                          = "tp.ui.discover.completed"
 
-	uiIntegrationEnrollStartEvent    = "tp.ui.integrationEnroll.start"
-	uiIntegrationEnrollCompleteEvent = "tp.ui.integrationEnroll.complete"
+	uiAccessListStartEvent            = "tp.ui.access_list.start"
+	uiAccessListCompleteEvent         = "tp.ui.access_list.complete"
+	uiAccessListDefineAccessEvent     = "tp.ui.access_list.define.access"
+	uiAccessListDefineIdentitiesEvent = "tp.ui.access_list.define.identities"
+	uiAccessListDefineBasicInfoEvent  = "tp.ui.access_list.define.basicinfo"
+	uiAccessListDefineMembersEvent    = "tp.ui.access_list.define.members"
+	uiAccessListDefineOwnersEvent     = "tp.ui.access_list.define.owners"
+	uiAccessListIntegrateEvent        = "tp.ui.access_list.integrate"
+	uiAccessListCustomEvent           = "tp.ui.access_list.custom"
+
+	uiIntegrationEnrollStartEvent         = "tp.ui.integrationEnroll.start"
+	uiIntegrationEnrollCompleteEvent      = "tp.ui.integrationEnroll.complete"
+	uiIntegrationEnrollStepEvent          = "tp.ui.integrationEnroll.step"
+	uiIntegrationEnrollSectionOpenEvent   = "tp.ui.integrationEnroll.sectionOpen"
+	uiIntegrationEnrollFieldCompleteEvent = "tp.ui.integrationEnroll.fieldComplete"
+	uiIntegrationEnrollCodeCopyEvent      = "tp.ui.integrationEnroll.codeCopy"
+	uiIntegrationEnrollLinkClickEvent     = "tp.ui.integrationEnroll.linkClick"
 
 	uiCallToActionClickEvent = "tp.ui.callToAction.click"
 
+	uiAccessGraphCrownJewelDiffViewEvent = "tp.ui.accessGraph.crownJewelDiffView"
+
 	featureRecommendationEvent = "tp.ui.feature.recommendation"
+
+	uiPageViewEvent                    = "tp.ui.page_view"
+	uiUsageReportingAlertCtaClickEvent = "tp.ui.usage_reporting.alert_cta_click"
+	uiInteractionEvent                 = "tp.ui.interaction"
 )
 
 // Events that require extra metadata.
@@ -93,7 +112,21 @@ var eventsWithDataRequired = []string{
 	uiDiscoverKubeEKSEnrollEvent,
 	uiIntegrationEnrollStartEvent,
 	uiIntegrationEnrollCompleteEvent,
+	uiIntegrationEnrollStepEvent,
+	uiIntegrationEnrollSectionOpenEvent,
+	uiIntegrationEnrollFieldCompleteEvent,
 	uiDiscoverCreateDiscoveryConfigEvent,
+	uiAccessGraphCrownJewelDiffViewEvent,
+	uiAccessListCompleteEvent,
+	uiAccessListDefineAccessEvent,
+	uiAccessListDefineBasicInfoEvent,
+	uiAccessListDefineIdentitiesEvent,
+	uiAccessListDefineMembersEvent,
+	uiAccessListDefineOwnersEvent,
+	uiAccessListIntegrateEvent,
+	uiAccessListStartEvent,
+	uiAccessListCustomEvent,
+	uiInteractionEvent,
 }
 
 // CreatePreUserEventRequest contains the event and properties associated with a user event
@@ -193,6 +226,13 @@ type CreateUserEventRequest struct {
 	// Alert is a banner click event property
 	Alert string `json:"alert"`
 
+	// Path is the route template for page view events, e.g. "/web/cluster/:clusterId/usage-summary"
+	Path string `json:"path"`
+	// UtmSource is the UTM source parameter (e.g. "email")
+	UtmSource string `json:"utmSource"`
+	// UtmCampaign is the UTM campaign parameter (e.g. "overage_80")
+	UtmCampaign string `json:"utmCampaign"`
+
 	// EventData contains the event's metadata.
 	// This field dependes on the Event name, hence the json.RawMessage
 	EventData *json.RawMessage `json:"eventData"`
@@ -283,6 +323,163 @@ func ConvertUserEventRequestToUsageEvent(req CreateUserEventRequest) (*usageeven
 				},
 			}}, nil
 		}
+	case uiIntegrationEnrollStepEvent:
+		eventData := struct {
+			ID     string `json:"id"`
+			Kind   string `json:"kind"`
+			Step   string `json:"step"`
+			Status struct {
+				Code  string `json:"code"`
+				Error string `json:"error"`
+			} `json:"status"`
+		}{}
+		if err := json.Unmarshal([]byte(*req.EventData), &eventData); err != nil {
+			return nil, trace.BadParameter("eventData is invalid: %v", err)
+		}
+
+		kindEnum, ok := usageeventsv1.IntegrationEnrollKind_value[eventData.Kind]
+		if !ok {
+			return nil, trace.BadParameter("invalid integration enroll kind %s", eventData.Kind)
+		}
+
+		return &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiIntegrationEnrollStepEvent{
+			UiIntegrationEnrollStepEvent: &usageeventsv1.UIIntegrationEnrollStepEvent{
+				Metadata: &usageeventsv1.IntegrationEnrollMetadata{
+					Id:   eventData.ID,
+					Kind: usageeventsv1.IntegrationEnrollKind(kindEnum),
+				},
+				Step: usageeventsv1.IntegrationEnrollStep(usageeventsv1.IntegrationEnrollStep_value[eventData.Step]),
+				Status: &usageeventsv1.IntegrationEnrollStepStatus{
+					Code:  usageeventsv1.IntegrationEnrollStatusCode(usageeventsv1.IntegrationEnrollStatusCode_value[eventData.Status.Code]),
+					Error: eventData.Status.Error,
+				},
+			},
+		}}, nil
+	case uiIntegrationEnrollSectionOpenEvent:
+		eventData := struct {
+			ID      string `json:"id"`
+			Kind    string `json:"kind"`
+			Step    string `json:"step"`
+			Section string `json:"section"`
+		}{}
+		if err := json.Unmarshal([]byte(*req.EventData), &eventData); err != nil {
+			return nil, trace.BadParameter("eventData is invalid: %v", err)
+		}
+
+		kindEnum, ok := usageeventsv1.IntegrationEnrollKind_value[eventData.Kind]
+		if !ok {
+			return nil, trace.BadParameter("invalid integration enroll kind %s", eventData.Kind)
+		}
+
+		return &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiIntegrationEnrollSectionOpenEvent{
+			UiIntegrationEnrollSectionOpenEvent: &usageeventsv1.UIIntegrationEnrollSectionOpenEvent{
+				Metadata: &usageeventsv1.IntegrationEnrollMetadata{
+					Id:   eventData.ID,
+					Kind: usageeventsv1.IntegrationEnrollKind(kindEnum),
+				},
+				Step:    usageeventsv1.IntegrationEnrollStep(usageeventsv1.IntegrationEnrollStep_value[eventData.Step]),
+				Section: usageeventsv1.IntegrationEnrollSection(usageeventsv1.IntegrationEnrollSection_value[eventData.Section]),
+			},
+		}}, nil
+	case uiIntegrationEnrollFieldCompleteEvent:
+		eventData := struct {
+			ID    string `json:"id"`
+			Kind  string `json:"kind"`
+			Step  string `json:"step"`
+			Field string `json:"field"`
+		}{}
+		if err := json.Unmarshal([]byte(*req.EventData), &eventData); err != nil {
+			return nil, trace.BadParameter("eventData is invalid: %v", err)
+		}
+
+		kindEnum, ok := usageeventsv1.IntegrationEnrollKind_value[eventData.Kind]
+		if !ok {
+			return nil, trace.BadParameter("invalid integration enroll kind %s", eventData.Kind)
+		}
+
+		return &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiIntegrationEnrollFieldCompleteEvent{
+			UiIntegrationEnrollFieldCompleteEvent: &usageeventsv1.UIIntegrationEnrollFieldCompleteEvent{
+				Metadata: &usageeventsv1.IntegrationEnrollMetadata{
+					Id:   eventData.ID,
+					Kind: usageeventsv1.IntegrationEnrollKind(kindEnum),
+				},
+				Step:  usageeventsv1.IntegrationEnrollStep(usageeventsv1.IntegrationEnrollStep_value[eventData.Step]),
+				Field: usageeventsv1.IntegrationEnrollField(usageeventsv1.IntegrationEnrollField_value[eventData.Field]),
+			},
+		}}, nil
+	case uiIntegrationEnrollCodeCopyEvent:
+		eventData := struct {
+			ID       string `json:"id"`
+			Kind     string `json:"kind"`
+			Step     string `json:"step"`
+			CodeType string `json:"codeType"`
+		}{}
+		if err := json.Unmarshal([]byte(*req.EventData), &eventData); err != nil {
+			return nil, trace.BadParameter("eventData is invalid: %v", err)
+		}
+
+		kindEnum, ok := usageeventsv1.IntegrationEnrollKind_value[eventData.Kind]
+		if !ok {
+			return nil, trace.BadParameter("invalid integration enroll kind %s", eventData.Kind)
+		}
+
+		return &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiIntegrationEnrollCodeCopyEvent{
+			UiIntegrationEnrollCodeCopyEvent: &usageeventsv1.UIIntegrationEnrollCodeCopyEvent{
+				Metadata: &usageeventsv1.IntegrationEnrollMetadata{
+					Id:   eventData.ID,
+					Kind: usageeventsv1.IntegrationEnrollKind(kindEnum),
+				},
+				Step: usageeventsv1.IntegrationEnrollStep(usageeventsv1.IntegrationEnrollStep_value[eventData.Step]),
+				Type: usageeventsv1.IntegrationEnrollCodeType(usageeventsv1.IntegrationEnrollCodeType_value[eventData.CodeType]),
+			},
+		}}, nil
+	case uiIntegrationEnrollLinkClickEvent:
+		eventData := struct {
+			ID   string `json:"id"`
+			Kind string `json:"kind"`
+			Step string `json:"step"`
+			Link string `json:"link"`
+		}{}
+		if err := json.Unmarshal([]byte(*req.EventData), &eventData); err != nil {
+			return nil, trace.BadParameter("eventData is invalid: %v", err)
+		}
+
+		kindEnum, ok := usageeventsv1.IntegrationEnrollKind_value[eventData.Kind]
+		if !ok {
+			return nil, trace.BadParameter("invalid integration enroll kind %s", eventData.Kind)
+		}
+
+		return &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiIntegrationEnrollLinkClickEvent{
+			UiIntegrationEnrollLinkClickEvent: &usageeventsv1.UIIntegrationEnrollLinkClickEvent{
+				Metadata: &usageeventsv1.IntegrationEnrollMetadata{
+					Id:   eventData.ID,
+					Kind: usageeventsv1.IntegrationEnrollKind(kindEnum),
+				},
+				Step: usageeventsv1.IntegrationEnrollStep(usageeventsv1.IntegrationEnrollStep_value[eventData.Step]),
+				Link: eventData.Link,
+			},
+		}}, nil
+
+	case uiAccessListCompleteEvent,
+		uiAccessListDefineAccessEvent,
+		uiAccessListDefineBasicInfoEvent,
+		uiAccessListDefineIdentitiesEvent,
+		uiAccessListDefineMembersEvent,
+		uiAccessListDefineOwnersEvent,
+		uiAccessListIntegrateEvent,
+		uiAccessListStartEvent,
+		uiAccessListCustomEvent:
+
+		var accessListEvent AccessListEventData
+		if err := json.Unmarshal([]byte(*req.EventData), &accessListEvent); err != nil {
+			return nil, trace.BadParameter("eventData is invalid: %v", err)
+		}
+
+		event, err := accessListEvent.ToUsageEvent(req.Event)
+		if err != nil {
+			return nil, trace.BadParameter("failed to convert eventData: %v", err)
+		}
+		return event, nil
 
 	case uiDiscoverStartedEvent,
 		uiDiscoverResourceSelectionEvent,
@@ -298,9 +495,7 @@ func ConvertUserEventRequestToUsageEvent(req CreateUserEventRequest) (*usageeven
 		uiDiscoverAutoDiscoveredResourcesEvent,
 		uiDiscoverPrincipalsConfigureEvent,
 		uiDiscoverTestConnectionEvent,
-		uiDiscoverEC2InstanceSelectionEvent,
-		uiDiscoverDeployEICEEvent,
-		uiDiscoverCreateNodeEvent,
+		uiDiscoverCreateAppServerEvent,
 		uiDiscoverCreateDiscoveryConfigEvent,
 		uiDiscoverCompletedEvent:
 
@@ -322,8 +517,22 @@ func ConvertUserEventRequestToUsageEvent(req CreateUserEventRequest) (*usageeven
 			nil
 
 	case createNewRoleSaveClickEvent:
+		roleEvent := struct {
+			StandardUsed               bool     `json:"standardUsed"`
+			YAMLUsed                   bool     `json:"yamlUsed"`
+			ModeWhenSaved              string   `json:"modeWhenSaved"`
+			FieldsWithConversionErrors []string `json:"fieldsWithConversionErrors"`
+		}{}
+		if err := json.Unmarshal([]byte(*req.EventData), &roleEvent); err != nil {
+			return nil, trace.BadParameter("eventData is invalid: %v", err)
+		}
 		return &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiCreateNewRoleSaveClick{
-				UiCreateNewRoleSaveClick: &usageeventsv1.UICreateNewRoleSaveClickEvent{},
+				UiCreateNewRoleSaveClick: &usageeventsv1.UICreateNewRoleSaveClickEvent{
+					StandardUsed:               roleEvent.StandardUsed,
+					YamlUsed:                   roleEvent.YAMLUsed,
+					ModeWhenSaved:              roleEvent.ModeWhenSaved,
+					FieldsWithConversionErrors: roleEvent.FieldsWithConversionErrors,
+				},
 			}},
 			nil
 
@@ -374,6 +583,69 @@ func ConvertUserEventRequestToUsageEvent(req CreateUserEventRequest) (*usageeven
 				},
 			}},
 			nil
+	case uiAccessGraphCrownJewelDiffViewEvent:
+		event := struct {
+			AffectedResourceSource string `json:"affected_resource_source,omitempty"`
+			AffectedResourceType   string `json:"affected_resource_type,omitempty"`
+		}{}
+		if err := json.Unmarshal(*req.EventData, &event); err != nil {
+			return nil, trace.BadParameter("eventData is invalid: %v", err)
+		}
+		if event.AffectedResourceType == "" {
+			return nil, trace.BadParameter("affected resource type is empty")
+		}
+		if event.AffectedResourceSource == "" {
+			return nil, trace.BadParameter("affected resource source is empty")
+		}
+		return &usageeventsv1.UsageEventOneOf{
+			Event: &usageeventsv1.UsageEventOneOf_UiAccessGraphCrownJewelDiffView{
+				UiAccessGraphCrownJewelDiffView: &usageeventsv1.UIAccessGraphCrownJewelDiffViewEvent{
+					AffectedResourceSource: event.AffectedResourceSource,
+					AffectedResourceType:   event.AffectedResourceType,
+				},
+			},
+		}, nil
+
+	case uiPageViewEvent:
+		return &usageeventsv1.UsageEventOneOf{
+			Event: &usageeventsv1.UsageEventOneOf_UiPageViewEvent{
+				UiPageViewEvent: &usageeventsv1.UIPageViewEvent{
+					Path:        req.Path,
+					UtmSource:   req.UtmSource,
+					UtmCampaign: req.UtmCampaign,
+				},
+			},
+		}, nil
+
+	case uiUsageReportingAlertCtaClickEvent:
+		return &usageeventsv1.UsageEventOneOf{
+			Event: &usageeventsv1.UsageEventOneOf_UiUsageReportingAlertCtaClickEvent{
+				UiUsageReportingAlertCtaClickEvent: &usageeventsv1.UIUsageReportingAlertCtaClickEvent{
+					Alert:       req.Alert,
+					UtmSource:   req.UtmSource,
+					UtmCampaign: req.UtmCampaign,
+				},
+			},
+		}, nil
+
+	case uiInteractionEvent:
+		event := struct {
+			Path   string            `json:"path"`
+			PageID string            `json:"page_id"`
+			Params map[string]string `json:"params"`
+		}{}
+		if err := json.Unmarshal(*req.EventData, &event); err != nil {
+			return nil, trace.BadParameter("eventData is invalid: %v", err)
+		}
+		return &usageeventsv1.UsageEventOneOf{
+			Event: &usageeventsv1.UsageEventOneOf_UiInteraction{
+				UiInteraction: &usageeventsv1.UIInteractionEvent{
+					Path:   event.Path,
+					PageId: event.PageID,
+					Params: event.Params,
+				},
+			},
+		}, nil
 	}
 
 	return nil, trace.BadParameter("invalid event %s", req.Event)

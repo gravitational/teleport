@@ -76,8 +76,11 @@ type FnCacheConfig struct {
 	// caches where keys are unlikely to become orphaned. Shorter cleanup
 	// intervals should be used when keys regularly become orphaned.
 	CleanupInterval time.Duration
-	// OnExpiry is an optional callback that will be executed any time
-	// an item is expired and removed from the cache.
+	// OnExpiry is an optional callback that will be executed any time an
+	// item is expired and removed from the cache, or replaced by a reload
+	// in get() when the entry's TTL has elapsed. The callback must not call
+	// any method on the same FnCache instance because the cache mutex may
+	// be held when the callback is invoked.
 	OnExpiry func(ctx context.Context, key any, value any)
 }
 
@@ -128,7 +131,7 @@ type fnCacheEntry struct {
 	loaded chan struct{}
 }
 
-// Shutdown expires all items in the cache. If the OnExpires
+// Shutdown expires all items in the cache. If the OnExpiry
 // callback was set in the FnCacheConfig it will be called once
 // per item in the cache.
 func (c *FnCache) Shutdown(ctx context.Context) {
@@ -170,6 +173,68 @@ func (c *FnCache) Shutdown(ctx context.Context) {
 	}
 }
 
+// Remove purges a specific item in the cache.
+func (c *FnCache) Remove(key any) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	delete(c.entries, key)
+}
+
+// Set places an item in the cache using the default TTL.
+func (c *FnCache) Set(key, value any) {
+	c.SetWithTTL(key, value, c.cfg.TTL)
+}
+
+// GetIfExists retrieves a value from the cache without triggering a load operation.
+// It returns (value, true) if a valid, non-expired entry exists, or (nil, false)
+// otherwise. If an entry is currently being loaded by FnCacheGet, Get will
+// return false immediately without blocking. Get returns false for entries that
+// contain errors.
+// For most of the cases the FnCacheGet function should be used instead.
+func (c *FnCache) GetIfExists(key any) (any, bool) {
+	c.mu.Lock()
+	if c.closed {
+		c.mu.Unlock()
+		return nil, false
+	}
+	entry := c.entries[key]
+	c.mu.Unlock()
+
+	if entry == nil {
+		return nil, false
+	}
+
+	select {
+	case <-entry.loaded:
+		if c.cfg.Clock.Now().After(entry.t.Add(entry.ttl)) {
+			return nil, false
+		}
+		if entry.e != nil {
+			return nil, false
+		}
+		return entry.v, true
+	default:
+		// Entry still loading - treat as cache miss
+		return nil, false
+	}
+}
+
+// SetWithTTL places an item in the cache with an explicit TTL.
+func (c *FnCache) SetWithTTL(key, value any, ttl time.Duration) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	loaded := make(chan struct{})
+	close(loaded)
+
+	c.entries[key] = &fnCacheEntry{
+		v:      value,
+		t:      c.cfg.Clock.Now(),
+		ttl:    ttl,
+		loaded: loaded,
+	}
+}
+
 // RemoveExpired purges any items from the cache which have exceeded their TTL.
 func (c *FnCache) RemoveExpired() {
 	c.mu.Lock()
@@ -186,7 +251,7 @@ func (c *FnCache) removeExpiredLocked(now time.Time) {
 		case <-entry.loaded:
 			if now.After(entry.t.Add(entry.ttl)) {
 				if c.cfg.OnExpiry != nil && entry.e == nil {
-					c.cfg.OnExpiry(c.cfg.Context, key, entry.v)
+					c.cfg.OnExpiry(context.WithoutCancel(c.cfg.Context), key, entry.v)
 				}
 
 				delete(c.entries, key)
@@ -202,13 +267,13 @@ func (c *FnCache) removeExpiredLocked(now time.Time) {
 // block until the first call updates the entry. Note that the supplied context can cancel the call to Get, but will
 // not cancel loading. The supplied loadfn should not be canceled just because the specific request happens to have
 // been canceled.
-func FnCacheGet[T any](ctx context.Context, cache *FnCache, key any, loadfn func(ctx context.Context) (T, error)) (T, error) {
+func FnCacheGet[K comparable, T any](ctx context.Context, cache *FnCache, key K, loadfn func(ctx context.Context) (T, error)) (T, error) {
 	return FnCacheGetWithTTL(ctx, cache, key, cache.cfg.TTL, loadfn)
 }
 
 // FnCacheGetWithTTL is identical to FnCacheGet except that it allows individual keys to specify
 // a TTL that is used instead of the configured TTL for the FnCache.
-func FnCacheGetWithTTL[T any](ctx context.Context, cache *FnCache, key any, ttl time.Duration, loadfn func(ctx context.Context) (T, error)) (T, error) {
+func FnCacheGetWithTTL[K comparable, T any](ctx context.Context, cache *FnCache, key K, ttl time.Duration, loadfn func(ctx context.Context) (T, error)) (T, error) {
 	t, err := cache.get(ctx, key, ttl, func(ctx context.Context) (any, error) {
 		return loadfn(ctx)
 	})
@@ -217,6 +282,8 @@ func FnCacheGetWithTTL[T any](ctx context.Context, cache *FnCache, key any, ttl 
 	switch {
 	case err != nil:
 		return ret, err
+	case t == nil:
+		return ret, nil
 	case !ok:
 		return ret, trace.BadParameter("value retrieved was %T, expected %T", t, ret)
 	}
@@ -269,6 +336,13 @@ func (c *FnCache) get(ctx context.Context, key any, ttl time.Duration, loadfn fu
 	}
 
 	if needsReload {
+		// If we are replacing a loaded, successful entry, call OnExpiry so
+		// the old value is properly cleaned up. Without this, entries that
+		// expire between cleanup intervals are silently dropped when a new
+		// request triggers a reload, skipping the OnExpiry callback.
+		if entry != nil && entry.e == nil && c.cfg.OnExpiry != nil {
+			c.cfg.OnExpiry(context.WithoutCancel(c.cfg.Context), key, entry.v)
+		}
 		// Insert a new entry with a new loaded channel. This channel will
 		// block subsequent reads, and serve as a memory barrier for the results.
 		entry = &fnCacheEntry{

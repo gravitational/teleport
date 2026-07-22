@@ -23,32 +23,30 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strings"
 	"testing"
 	"time"
 
-	"github.com/go-mysql-org/go-mysql/client"
 	"github.com/gravitational/trace"
-	"github.com/jackc/pgconn"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
+	"golang.org/x/sync/errgroup"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db"
-	"github.com/gravitational/teleport/lib/srv/db/cassandra"
+	cassandra "github.com/gravitational/teleport/lib/srv/db/cassandra/protocoltest"
 	"github.com/gravitational/teleport/lib/srv/db/common"
+	dbconnect "github.com/gravitational/teleport/lib/srv/db/common/connect"
 	"github.com/gravitational/teleport/lib/srv/db/mongodb"
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
@@ -63,10 +61,12 @@ func TestDatabaseAccess(t *testing.T) {
 	pack := SetupDatabaseTest(t,
 		// set tighter rotation intervals
 		WithLeafConfig(func(config *servicecfg.Config) {
+			config.Modules = modulestest.EnterpriseModules()
 			config.PollingPeriod = 5 * time.Second
 			config.RotationConnectionInterval = 2 * time.Second
 		}),
 		WithRootConfig(func(config *servicecfg.Config) {
+			config.Modules = modulestest.EnterpriseModules()
 			config.PollingPeriod = 5 * time.Second
 			config.RotationConnectionInterval = 2 * time.Second
 			config.Proxy.MySQLServerVersion = "8.0.1"
@@ -89,9 +89,6 @@ func TestDatabaseAccess(t *testing.T) {
 	t.Run("CassandraLeafCluster", pack.testCassandraLeafCluster)
 
 	t.Run("IPPinning", pack.testIPPinning)
-
-	// This test should go last because it rotates the Database CA.
-	t.Run("RotateTrustedCluster", pack.testRotateTrustedCluster)
 }
 
 // TestDatabaseAccessSeparateListeners tests the Mongo and Postgres separate port setup.
@@ -107,15 +104,6 @@ func TestDatabaseAccessSeparateListeners(t *testing.T) {
 // testIPPinning tests a scenario where a user with IP pinning
 // connects to a database
 func (p *DatabasePack) testIPPinning(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.DB: {Enabled: true},
-			},
-		},
-	})
-
 	type testCase struct {
 		desc          string
 		targetCluster databaseClusterPack
@@ -262,184 +250,6 @@ func (p *DatabasePack) testPostgresLeafCluster(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func (p *DatabasePack) testRotateTrustedCluster(t *testing.T) {
-	// TODO(jakule): Fix flaky test
-	t.Skip("flaky test, skip for now")
-
-	var (
-		ctx             = context.Background()
-		rootCluster     = p.Root.Cluster
-		authServer      = rootCluster.Process.GetAuthServer()
-		clusterRootName = rootCluster.Secrets.SiteName
-		clusterLeafName = p.Leaf.Cluster.Secrets.SiteName
-	)
-
-	pw := phaseWatcher{
-		clusterRootName: clusterRootName,
-		pollingPeriod:   rootCluster.Process.Config.PollingPeriod,
-		clock:           p.clock,
-		siteAPI:         rootCluster.GetSiteAPI(clusterLeafName),
-		certType:        types.DatabaseCA,
-	}
-
-	currentDbCA, err := p.Root.dbAuthClient.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       types.DatabaseCA,
-		DomainName: clusterRootName,
-	}, false)
-	require.NoError(t, err)
-
-	rotationPhases := []string{
-		types.RotationPhaseInit, types.RotationPhaseUpdateClients,
-		types.RotationPhaseUpdateServers, types.RotationPhaseStandby,
-	}
-
-	waitForEvent := func(process *service.TeleportProcess, event string) {
-		_, err := process.WaitForEventTimeout(20*time.Second, event)
-		require.NoError(t, err, "timeout waiting for service to broadcast event %s", event)
-	}
-
-	for _, phase := range rotationPhases {
-		errChan := make(chan error, 1)
-
-		go func() {
-			errChan <- pw.waitForPhase(phase, func() error {
-				return authServer.RotateCertAuthority(ctx, types.RotateRequest{
-					Type:        types.DatabaseCA,
-					TargetPhase: phase,
-					Mode:        types.RotationModeManual,
-				})
-			})
-		}()
-
-		err = <-errChan
-
-		if err != nil && strings.Contains(err.Error(), "context deadline exceeded") {
-			// TODO(jakule): Workaround for CertAuthorityWatcher failing to get the correct rotation status.
-			// Query auth server directly to see if the incorrect rotation status is a rotation or watcher problem.
-			dbCA, err := p.Leaf.Cluster.Process.GetAuthServer().GetCertAuthority(ctx, types.CertAuthID{
-				Type:       types.DatabaseCA,
-				DomainName: clusterRootName,
-			}, false)
-			require.NoError(t, err)
-			require.Equal(t, dbCA.GetRotation().Phase, phase)
-		} else {
-			require.NoError(t, err)
-		}
-
-		// Reload doesn't happen on Init
-		if phase == types.RotationPhaseInit {
-			continue
-		}
-
-		waitForEvent(p.Root.Cluster.Process, service.TeleportReloadEvent)
-		waitForEvent(p.Leaf.Cluster.Process, service.TeleportReadyEvent)
-
-		p.WaitForLeaf(t)
-	}
-
-	rotatedDbCA, err := authServer.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       types.DatabaseCA,
-		DomainName: clusterRootName,
-	}, false)
-	require.NoError(t, err)
-
-	// Sanity check. Check if the CA was rotated.
-	require.NotEqual(t, currentDbCA.GetActiveKeys(), rotatedDbCA.GetActiveKeys())
-
-	// Connect to the database service in leaf cluster via root cluster.
-	dbClient, err := postgres.MakeTestClient(context.Background(), common.TestClientConfig{
-		AuthClient: p.Root.Cluster.GetSiteAPI(p.Root.Cluster.Secrets.SiteName),
-		AuthServer: p.Root.Cluster.Process.GetAuthServer(),
-		Address:    p.Root.Cluster.Web, // Connecting via root cluster.
-		Cluster:    p.Leaf.Cluster.Secrets.SiteName,
-		Username:   p.Root.User.GetName(),
-		RouteToDatabase: tlsca.RouteToDatabase{
-			ServiceName: p.Leaf.PostgresService.Name,
-			Protocol:    p.Leaf.PostgresService.Protocol,
-			Username:    "postgres",
-			Database:    "test",
-		},
-	})
-	require.NoError(t, err)
-
-	wantLeafQueryCount := p.Leaf.postgres.QueryCount() + 1
-	wantRootQueryCount := p.Root.postgres.QueryCount()
-
-	result, err := dbClient.Exec(context.Background(), "select 1").ReadAll()
-	require.NoError(t, err)
-	require.Equal(t, []*pgconn.Result{postgres.TestQueryResponse}, result)
-	require.Equal(t, wantLeafQueryCount, p.Leaf.postgres.QueryCount())
-	require.Equal(t, wantRootQueryCount, p.Root.postgres.QueryCount())
-
-	// Disconnect.
-	err = dbClient.Close(context.Background())
-	require.NoError(t, err)
-}
-
-// phaseWatcher holds all arguments required by rotation watcher.
-type phaseWatcher struct {
-	clusterRootName string
-	pollingPeriod   time.Duration
-	clock           clockwork.Clock
-	siteAPI         types.Events
-	certType        types.CertAuthType
-}
-
-// waitForPhase waits until rootCluster cluster detects the rotation. fn is a rotation function that is called after
-// watcher is created.
-func (p *phaseWatcher) waitForPhase(phase string, fn func() error) error {
-	ctx, cancel := context.WithTimeout(context.Background(), p.pollingPeriod*10)
-	defer cancel()
-
-	watcher, err := services.NewCertAuthorityWatcher(ctx, services.CertAuthorityWatcherConfig{
-		ResourceWatcherConfig: services.ResourceWatcherConfig{
-			Component: teleport.ComponentProxy,
-			Clock:     p.clock,
-			Client:    p.siteAPI,
-		},
-		Types: []types.CertAuthType{p.certType},
-	})
-	if err != nil {
-		return err
-	}
-	defer watcher.Close()
-
-	if err := fn(); err != nil {
-		return trace.Wrap(err)
-	}
-
-	sub, err := watcher.Subscribe(ctx, types.CertAuthorityFilter{
-		p.certType: p.clusterRootName,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer sub.Close()
-
-	var lastPhase string
-	for i := 0; i < 10; i++ {
-		select {
-		case <-ctx.Done():
-			return trace.CompareFailed("failed to converge to phase %q, last phase %q certType: %v err: %v", phase, lastPhase, p.certType, ctx.Err())
-		case <-sub.Done():
-			return trace.CompareFailed("failed to converge to phase %q, last phase %q certType: %v err: %v", phase, lastPhase, p.certType, sub.Error())
-		case evt := <-sub.Events():
-			switch evt.Type {
-			case types.OpPut:
-				ca, ok := evt.Resource.(types.CertAuthority)
-				if !ok {
-					return trace.BadParameter("expected a ca got type %T", evt.Resource)
-				}
-				if ca.GetRotation().Phase == phase {
-					return nil
-				}
-				lastPhase = ca.GetRotation().Phase
-			}
-		}
-	}
-	return trace.CompareFailed("failed to converge to phase %q, last phase %q", phase, lastPhase)
-}
-
 // testMySQLRootCluster tests a scenario where a user connects
 // to a MySQL database running in a root cluster.
 func (p *DatabasePack) testMySQLRootCluster(t *testing.T) {
@@ -541,9 +351,8 @@ func (p *DatabasePack) testMongoRootCluster(t *testing.T) {
 // testMongoConnectionCount tests if mongo service releases
 // resource after a mongo client disconnect.
 func (p *DatabasePack) testMongoConnectionCount(t *testing.T) {
-	connectMongoClient := func(t *testing.T) (serverConnectionCount int32) {
-		// Connect to the database service in root cluster.
-		client, err := mongodb.MakeTestClient(context.Background(), common.TestClientConfig{
+	makeClient := func(t *testing.T, dbUser string) (*mongo.Client, error) {
+		return mongodb.MakeTestClient(t.Context(), common.TestClientConfig{
 			AuthClient: p.Root.Cluster.GetSiteAPI(p.Root.Cluster.Secrets.SiteName),
 			AuthServer: p.Root.Cluster.Process.GetAuthServer(),
 			Address:    p.Root.Cluster.Web,
@@ -552,50 +361,91 @@ func (p *DatabasePack) testMongoConnectionCount(t *testing.T) {
 			RouteToDatabase: tlsca.RouteToDatabase{
 				ServiceName: p.Root.MongoService.Name,
 				Protocol:    p.Root.MongoService.Protocol,
-				Username:    "admin",
+				Username:    dbUser,
 			},
 		})
+	}
+
+	connectMongoClient := func(t *testing.T, dbUser string) (serverConnectionCount int32) {
+		client, err := makeClient(t, dbUser)
 		require.NoError(t, err)
 
 		// Execute a query.
-		_, err = client.Database("test").Collection("test").Find(context.Background(), bson.M{})
+		_, err = client.Database("test").Collection("test").Find(t.Context(), bson.M{})
 		require.NoError(t, err)
 
 		// Get a server connection count before disconnect.
 		serverConnectionCount = p.Root.mongo.GetActiveConnectionsCount()
 
 		// Disconnect.
-		err = client.Disconnect(context.Background())
+		err = client.Disconnect(t.Context())
 		require.NoError(t, err)
 
 		return serverConnectionCount
 	}
 
 	// Get connection count while the first client is connected.
-	initialConnectionCount := connectMongoClient(t)
+	initialConnectionCount := connectMongoClient(t, "admin")
 
 	// Check if active connections count is not growing over time when new
 	// clients connect to the mongo server.
 	clientCount := 8
-	for i := 0; i < clientCount; i++ {
+	for range clientCount {
 		// Note that connection count per client fluctuates between 6 and 9.
 		// Use InDelta to avoid flaky test.
-		require.InDelta(t, initialConnectionCount, connectMongoClient(t), 3)
+		got := connectMongoClient(t, "admin")
+		require.InDelta(t, initialConnectionCount, got, 3)
 	}
+
+	client, err := makeClient(t, "nonexistent")
+	if !assert.Error(t, err) {
+		require.NoError(t, client.Disconnect(t.Context()))
+		return
+	}
+	require.ErrorContains(t, err, "does not exist")
+
+	t.Run("Connection pool is shared", func(t *testing.T) {
+		var eg errgroup.Group
+		for i := range 100 {
+			eg.Go(func() error {
+				client, err := makeClient(t, "admin")
+				if err != nil {
+					return trace.Wrap(err, "failed to create client %d", i)
+				}
+				t.Cleanup(func() {
+					assert.NoError(t, client.Disconnect(t.Context()))
+				})
+				return nil
+			})
+		}
+		require.NoError(t, eg.Wait())
+		require.LessOrEqual(t, int32(9), p.Root.mongo.GetActiveConnectionsCount())
+	})
 
 	// Wait until the server reports no more connections. This usually happens
 	// really quick but wait a little longer just in case.
-	waitUntilNoConnections := func() bool {
-		return p.Root.mongo.GetActiveConnectionsCount() == 0
-	}
-	require.Eventually(t, waitUntilNoConnections, 5*time.Second, 100*time.Millisecond)
+	var activeConns int32
+	require.Eventually(t, func() bool {
+		conns := p.Root.mongo.GetActiveConnectionsCount()
+		if conns != activeConns {
+			t.Logf("active connections to MongoDB changed from %d to %d", activeConns, conns)
+			activeConns = conns
+		}
+		return activeConns == 0
+	}, 5*time.Second, 100*time.Millisecond)
+
+	start := time.Now()
+	require.Never(t, func() bool {
+		return p.Root.mongo.GetActiveConnectionsCount() > 0
+	}, time.Second*5, time.Millisecond*100, "no connections should be left open. Found after %v", time.Since(start))
 }
 
 // testMongoLeafCluster tests a scenario where a user connects
 // to a Mongo database running in a leaf cluster.
 func (p *DatabasePack) testMongoLeafCluster(t *testing.T) {
+	ctx := t.Context()
 	// Connect to the database service in root cluster.
-	client, err := mongodb.MakeTestClient(context.Background(), common.TestClientConfig{
+	client, err := mongodb.MakeTestClient(ctx, common.TestClientConfig{
 		AuthClient: p.Root.Cluster.GetSiteAPI(p.Root.Cluster.Secrets.SiteName),
 		AuthServer: p.Root.Cluster.Process.GetAuthServer(),
 		Address:    p.Root.Cluster.Web, // Connecting via root cluster.
@@ -610,18 +460,18 @@ func (p *DatabasePack) testMongoLeafCluster(t *testing.T) {
 	require.NoError(t, err)
 
 	// Execute a query.
-	_, err = client.Database("test").Collection("test").Find(context.Background(), bson.M{})
+	_, err = client.Database("test").Collection("test").Find(ctx, bson.M{})
 	require.NoError(t, err)
 
 	// Disconnect.
-	err = client.Disconnect(context.Background())
+	err = client.Disconnect(ctx)
 	require.NoError(t, err)
 }
 
 // TestRootLeafIdleTimeout tests idle client connection termination by proxy and DB services in
 // trusted cluster setup.
 func TestDatabaseRootLeafIdleTimeout(t *testing.T) {
-	clock := clockwork.NewFakeClockAt(time.Now())
+	clock := clockwork.NewFakeClock()
 	pack := SetupDatabaseTest(t, WithClock(clock))
 	pack.WaitForLeaf(t)
 
@@ -634,10 +484,7 @@ func TestDatabaseRootLeafIdleTimeout(t *testing.T) {
 		idleTimeout = time.Minute
 	)
 
-	rootAuthServer.SetClock(clockwork.NewFakeClockAt(time.Now()))
-	leafAuthServer.SetClock(clockwork.NewFakeClockAt(time.Now()))
-
-	mkMySQLLeafDBClient := func(t *testing.T) *client.Conn {
+	mkMySQLLeafDBClient := func(t *testing.T) mysql.TestClientConn {
 		// Connect to the database service in leaf cluster via root cluster.
 		client, err := mysql.MakeTestClient(common.TestClientConfig{
 			AuthClient: pack.Root.Cluster.GetSiteAPI(pack.Root.Cluster.Secrets.SiteName),
@@ -793,7 +640,7 @@ func TestDatabaseAccessPostgresSeparateListenerTLSDisabled(t *testing.T) {
 func init() {
 	// Override database agents shuffle behavior to ensure they're always
 	// tried in the same order during tests. Used for HA tests.
-	db.SetShuffleFunc(db.ShuffleSort)
+	db.SetShuffleFunc(dbconnect.ShuffleSort)
 }
 
 // testHARootCluster verifies that proxy falls back to a healthy

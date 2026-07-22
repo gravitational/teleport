@@ -22,13 +22,13 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"log/slog"
 	"net"
 	"runtime"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -69,8 +69,11 @@ type Config struct {
 	Username string
 	// WebProxyAddr
 	WebProxyAddr string
-	// Log is a component logger
-	Log *logrus.Entry
+	// RelayAddr, if set, is the address of the Relay service that should be
+	// used by protocols that support using a Relay.
+	RelayAddr string
+	// Logger is a component logger
+	Logger *slog.Logger
 	// TCPPortAllocator creates listeners on the given ports. This interface lets us avoid occupying
 	// hardcoded ports in tests.
 	TCPPortAllocator TCPPortAllocator
@@ -91,6 +94,11 @@ type Config struct {
 	RootClusterCACertPoolFunc alpnproxy.GetClusterCACertPoolFunc
 	// KubeconfigsDir is the directory containing kubeconfigs for kube gateways.
 	KubeconfigsDir string
+	// ClearCertsOnTargetSubresourceNameChange is useful in situations where TargetSubresourceName is
+	// used to generate a cert. In that case, after TargetSubresourceName is changed, the gateway will
+	// clear the cert from the local proxy and the middleware is going to request a new cert on the
+	// next connection.
+	ClearCertsOnTargetSubresourceNameChange bool
 }
 
 // OnExpiredCertFunc is the type of a function that is called when a new downstream connection is
@@ -101,7 +109,7 @@ type OnExpiredCertFunc func(context.Context, Gateway) (tls.Certificate, error)
 
 // CheckAndSetDefaults checks and sets the defaults
 func (c *Config) CheckAndSetDefaults() error {
-	if !(c.TargetURI.IsDB() || c.TargetURI.IsKube() || c.TargetURI.IsApp()) {
+	if !c.TargetURI.IsDB() && !c.TargetURI.IsKube() && !c.TargetURI.IsApp() {
 		return trace.BadParameter("unsupported gateway target %v", c.TargetURI)
 	}
 
@@ -125,8 +133,8 @@ func (c *Config) CheckAndSetDefaults() error {
 		c.LocalPort = "0"
 	}
 
-	if c.Log == nil {
-		c.Log = logrus.NewEntry(logrus.StandardLogger())
+	if c.Logger == nil {
+		c.Logger = slog.Default()
 	}
 
 	if c.TargetName == "" {
@@ -154,10 +162,10 @@ func (c *Config) CheckAndSetDefaults() error {
 		}
 	}
 
-	c.Log = c.Log.WithFields(logrus.Fields{
-		"resource": c.TargetURI.String(),
-		"gateway":  c.URI.String(),
-	})
+	c.Logger = c.Logger.With(
+		"resource", c.TargetURI.String(),
+		"gateway", c.URI.String(),
+	)
 	return nil
 }
 

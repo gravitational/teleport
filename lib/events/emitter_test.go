@@ -44,7 +44,6 @@ func TestProtoStreamer(t *testing.T) {
 		name           string
 		minUploadBytes int64
 		events         []apievents.AuditEvent
-		err            error
 	}
 	testCases := []testCase{
 		{
@@ -73,8 +72,7 @@ func TestProtoStreamer(t *testing.T) {
 		},
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	for i, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -92,10 +90,6 @@ func TestProtoStreamer(t *testing.T) {
 			evts := tc.events
 			for _, event := range evts {
 				err := stream.RecordEvent(ctx, eventstest.PrepareEvent(event))
-				if tc.err != nil {
-					require.IsType(t, tc.err, err)
-					return
-				}
 				require.NoError(t, err)
 			}
 			err = stream.Complete(ctx)
@@ -108,7 +102,7 @@ func TestProtoStreamer(t *testing.T) {
 			require.NoError(t, err)
 
 			for _, part := range parts {
-				reader := events.NewProtoReader(bytes.NewReader(part))
+				reader := events.NewProtoReader(bytes.NewReader(part), nil)
 				out, err := reader.ReadAll(ctx)
 				require.NoError(t, err, "part crash %#v", part)
 				outEvents = append(outEvents, out...)
@@ -146,7 +140,8 @@ func TestAsyncEmitter(t *testing.T) {
 	// on slow emitters
 	t.Run("Slow", func(t *testing.T) {
 		emitter, err := events.NewAsyncEmitter(events.AsyncEmitterConfig{
-			Inner: eventstest.NewSlowEmitter(time.Hour),
+			Inner:   eventstest.NewSlowEmitter(time.Hour),
+			DataDir: t.TempDir(),
 		})
 		require.NoError(t, err)
 		defer emitter.Close()
@@ -163,7 +158,8 @@ func TestAsyncEmitter(t *testing.T) {
 	t.Run("Receive", func(t *testing.T) {
 		chanEmitter := eventstest.NewChannelEmitter(len(evts))
 		emitter, err := events.NewAsyncEmitter(events.AsyncEmitterConfig{
-			Inner: chanEmitter,
+			Inner:   chanEmitter,
+			DataDir: t.TempDir(),
 		})
 
 		require.NoError(t, err)
@@ -175,7 +171,7 @@ func TestAsyncEmitter(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		for i := 0; i < len(evts); i++ {
+		for i := range evts {
 			select {
 			case event := <-chanEmitter.C():
 				require.Equal(t, evts[i], event)
@@ -191,6 +187,7 @@ func TestAsyncEmitter(t *testing.T) {
 		emitter, err := events.NewAsyncEmitter(events.AsyncEmitterConfig{
 			Inner:      counter,
 			BufferSize: len(evts),
+			DataDir:    t.TempDir(),
 		})
 		require.NoError(t, err)
 
@@ -218,6 +215,44 @@ func TestAsyncEmitter(t *testing.T) {
 			}
 		}
 	})
+}
+
+// TestCheckingAsyncEmitter_FieldsSetBeforePersist verifies that fields
+// are written to the event before it is enqueued.
+func TestCheckingAsyncEmitter_FieldsSetBeforePersist(t *testing.T) {
+	emitter, err := events.NewCheckingAsyncEmitter(
+		events.CheckingEmitterConfig{
+			ClusterName: "test-cluster",
+		},
+		events.AsyncEmitterConfig{
+			Inner:      eventstest.NewCountingEmitter(),
+			BufferSize: 8,
+			DataDir:    t.TempDir(),
+		},
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = emitter.Close()
+	})
+
+	event := &apievents.UserLogin{
+		Metadata: apievents.Metadata{
+			Type: events.UserLoginEvent,
+			Code: events.UserLocalLoginCode,
+		},
+	}
+	require.Empty(t, event.GetID(), "event must start with empty UID")
+	require.True(t, event.GetTime().IsZero(), "event must start with zero Time")
+
+	before := time.Now().Truncate(time.Millisecond)
+	require.NoError(t, emitter.EmitAuditEvent(context.Background(), event))
+
+	require.NotEmpty(t, event.GetID(),
+		"UID should be set on the input event after EmitAuditEvent",
+	)
+	require.False(t, event.GetTime().Before(before),
+		"Time on event should be >= time captured before EmitAuditEvent")
+	require.Equal(t, "test-cluster", event.GetClusterName())
 }
 
 // TestExport tests export to JSON format.
@@ -256,7 +291,7 @@ func TestExport(t *testing.T) {
 		_, err := f.Write(part)
 		require.NoError(t, err)
 	}
-	reader := events.NewProtoReader(io.MultiReader(readers...))
+	reader := events.NewProtoReader(io.MultiReader(readers...), nil)
 	outEvents, err := reader.ReadAll(ctx)
 	require.NoError(t, err)
 

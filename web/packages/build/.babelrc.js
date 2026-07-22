@@ -16,19 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-const plugins = [
-  '@babel/plugin-proposal-class-properties',
-  '@babel/plugin-proposal-object-rest-spread',
-  '@babel/plugin-proposal-optional-chaining',
-  '@babel/plugin-syntax-dynamic-import',
-];
-
 function makePresets(test = false) {
   if (test) {
     return [
       ['@babel/preset-env', { targets: { node: 'current' } }],
       ['@babel/preset-react', { runtime: 'automatic' }],
-      '@babel/preset-typescript',
+      ['@babel/preset-typescript'],
     ];
   }
 
@@ -41,7 +34,7 @@ function makePresets(test = false) {
       },
     ],
     ['@babel/preset-react', { runtime: 'automatic' }],
-    '@babel/preset-typescript',
+    ['@babel/preset-typescript'],
   ];
 }
 
@@ -56,24 +49,24 @@ module.exports = {
         // This causes Babel to transform the Vite-specific import.meta.env properties
         // like import.meta.env.MODE into nodejs (jest) compatible code.
         'babel-plugin-transform-vite-meta-env',
+        // This causes Babel to transform the Vite-specific import.meta.hot properties
+        // into nodejs (jest) compatible code.
+        'babel-plugin-transform-vite-meta-hot',
       ],
     },
     development: {
       plugins: [
-        ...plugins,
         ['babel-plugin-styled-components', { displayName: true, ssr: false }],
       ],
     },
     production: {
       plugins: [
-        ...plugins,
         ['babel-plugin-styled-components', { displayName: false, ssr: false }],
       ],
     },
   },
   presets: makePresets(),
   plugins: [
-    ...plugins,
     ['babel-plugin-styled-components', { displayName: false, ssr: false }],
   ],
 };

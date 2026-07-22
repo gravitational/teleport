@@ -23,36 +23,43 @@ import (
 	"sync"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
+	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/usertasks"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/slices"
 )
 
 const databaseEventPrefix = "db/"
 
 func (s *Server) startDatabaseWatchers() error {
-	if len(s.databaseFetchers) == 0 && s.dynamicMatcherWatcher == nil {
+	if len(s.databaseFetchers) == 0 && s.DiscoveryGroup == "" {
 		return nil
 	}
 
 	var (
 		newDatabases []types.Database
-		mu           sync.Mutex
+		mu           sync.RWMutex
 	)
 
 	reconciler, err := services.NewReconciler(
 		services.ReconcilerConfig[types.Database]{
 			Matcher:             func(database types.Database) bool { return true },
 			GetCurrentResources: s.getCurrentDatabases,
+			CompareResources: func(d1, d2 types.Database) int {
+				return services.EqualFromBool(d1.IsEqual(d2))
+			},
 			GetNewResources: func() map[string]types.Database {
-				mu.Lock()
-				defer mu.Unlock()
+				mu.RLock()
+				defer mu.RUnlock()
 				return utils.FromSlice(newDatabases, types.Database.GetName)
 			},
-			Log:      s.Log.WithField("kind", types.KindDatabase),
+			Logger:   s.Log.With("kind", types.KindDatabase),
 			OnCreate: s.onDatabaseCreate,
 			OnUpdate: s.onDatabaseUpdate,
 			OnDelete: s.onDatabaseDelete,
@@ -62,49 +69,146 @@ func (s *Server) startDatabaseWatchers() error {
 		return trace.Wrap(err)
 	}
 
-	watcher, err := common.NewWatcher(s.ctx, common.WatcherConfig{
-		FetchersFn:     s.getAllDatabaseFetchers,
-		Log:            s.Log.WithField("kind", types.KindDatabase),
-		DiscoveryGroup: s.DiscoveryGroup,
-		Interval:       s.PollInterval,
-		TriggerFetchC:  s.newDiscoveryConfigChangedSub(),
-		Origin:         types.OriginCloud,
-		Clock:          s.clock,
-	})
+	watcher, err := common.NewWatcher(s.ctx,
+		common.WatcherConfig{
+			FetchersFn:     s.getAllDatabaseFetchers,
+			Logger:         s.Log.With("kind", types.KindDatabase),
+			DiscoveryGroup: s.DiscoveryGroup,
+			Interval:       s.PollInterval,
+			TriggerFetchC:  s.newDiscoveryConfigChangedSub(),
+			Origin:         types.OriginCloud,
+			Clock:          s.clock,
+			PreFetchHookFn: s.databaseWatcherIterationStarted,
+			ProcessResourcesDiscoveredHookFn: func(rwl types.ResourcesWithLabels) {
+				s.handleDatabaseEnrollment(rwl, reconciler, &mu, &newDatabases)
+			},
+			PostFetchHookFn: s.databaseWatcherIterationEnded,
+		},
+	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	go watcher.Start()
-
-	go func() {
-		for {
-			select {
-			case newResources := <-watcher.ResourcesC():
-				dbs := make([]types.Database, 0, len(newResources))
-				for _, r := range newResources {
-					db, ok := r.(types.Database)
-					if !ok {
-						continue
-					}
-
-					dbs = append(dbs, db)
-				}
-				mu.Lock()
-				newDatabases = dbs
-				mu.Unlock()
-
-				if err := reconciler.Reconcile(s.ctx); err != nil {
-					s.Log.WithError(err).Warn("Unable to reconcile database resources.")
-				} else if s.onDatabaseReconcile != nil {
-					s.onDatabaseReconcile()
-				}
-
-			case <-s.ctx.Done():
-				return
-			}
-		}
-	}()
 	return nil
+}
+
+func (s *Server) handleDatabaseEnrollment(newResources types.ResourcesWithLabels, reconciler *services.Reconciler[types.Database], mu *sync.RWMutex, newDatabases *[]types.Database) {
+	resourcesFoundByGroup := make(map[awsResourceGroup]int)
+
+	dbs := make([]types.Database, 0, len(newResources))
+	for _, r := range newResources {
+		db, ok := r.(types.Database)
+		if !ok {
+			continue
+		}
+
+		resourceGroup := awsResourceGroupFromLabels(db.GetStaticLabels())
+		resourcesFoundByGroup[resourceGroup] += 1
+
+		dbs = append(dbs, db)
+
+		s.collectRDSIssuesAsUserTasks(db, resourceGroup.integration, resourceGroup.discoveryConfigName)
+	}
+	mu.Lock()
+	*newDatabases = dbs
+	mu.Unlock()
+
+	defer s.upsertTasksForAWSRDSFailedEnrollments()
+
+	for group, count := range resourcesFoundByGroup {
+		s.awsRDSResourcesStatus.incrementFound(group, count)
+	}
+
+	if err := reconciler.Reconcile(s.ctx); err != nil {
+		s.Log.WarnContext(s.ctx, "Unable to reconcile database resources", "error", err)
+
+		// When reconcile fails, it is assumed that everything failed.
+		for group, count := range resourcesFoundByGroup {
+			s.awsRDSResourcesStatus.incrementFailed(group, count)
+		}
+
+		return
+	}
+
+	for group, count := range resourcesFoundByGroup {
+		s.awsRDSResourcesStatus.incrementEnrolled(group, count)
+	}
+
+	if s.onDatabaseReconcile != nil {
+		s.onDatabaseReconcile()
+	}
+}
+
+// collectRDSIssuesAsUserTasks receives a discovered database converted into a Teleport Database resource and creates
+// an User Task (discover-rds) if that Database is not properly configured to be accessed from Teleport.
+// Eg, an UserTask is created if the IAM DB Authentication is not enabled
+func (s *Server) collectRDSIssuesAsUserTasks(db types.Database, integration, discoveryConfigName string) {
+	if integration == "" || discoveryConfigName == "" || !db.IsRDS() {
+		return
+	}
+
+	if db.GetAWS().RDS.IAMAuth {
+		return
+	}
+
+	isCluster := db.GetAWS().RDS.ClusterID != ""
+	databaseIdentifier := db.GetAWS().RDS.InstanceID
+	if isCluster {
+		databaseIdentifier = db.GetAWS().RDS.ClusterID
+	}
+
+	engine := db.GetStaticLabels()[types.DiscoveryLabelEngine]
+
+	s.awsRDSTasks.addFailedEnrollment(
+		awsRDSTaskKey{
+			integration: integration,
+			issueType:   usertasks.AutoDiscoverRDSIssueIAMAuthenticationDisabled,
+			accountID:   db.GetAWS().AccountID,
+			region:      db.GetAWS().Region,
+		},
+		usertasksv1.DiscoverRDSDatabase_builder{
+			DiscoveryConfig: discoveryConfigName,
+			DiscoveryGroup:  s.DiscoveryGroup,
+			SyncTime:        timestamppb.New(s.clock.Now()),
+			Name:            databaseIdentifier,
+			IsCluster:       isCluster,
+			Engine:          engine,
+		}.Build(),
+	)
+}
+
+func (s *Server) databaseWatcherIterationStarted() {
+	allFetchers := s.getAllDatabaseFetchers()
+
+	awsResultGroups := slices.FilterMapUnique(
+		allFetchers,
+		func(f common.Fetcher) (awsResourceGroup, bool) {
+			include := f.GetDiscoveryConfigName() != "" && f.IntegrationName() != ""
+			resourceGroup := awsResourceGroup{
+				discoveryConfigName: f.GetDiscoveryConfigName(),
+				integration:         f.IntegrationName(),
+			}
+			return resourceGroup, include
+		},
+	)
+
+	s.awsRDSResourcesStatus.iterationStarted(awsResultGroups, s.clock.Now())
+	discoveryConfigs := s.awsRDSResourcesStatus.iterationDiscoveryConfigs()
+	s.updateDiscoveryConfigStatus(discoveryConfigs...)
+
+	s.awsRDSTasks.reset()
+
+	if len(allFetchers) > 0 {
+		s.submitFetchersEvent(allFetchers)
+	}
+}
+
+func (s *Server) databaseWatcherIterationEnded() {
+	syncEnded := s.clock.Now()
+	s.awsRDSResourcesStatus.iterationEnded(syncEnded)
+
+	discoveryConfigs := s.awsRDSResourcesStatus.iterationDiscoveryConfigs()
+	s.updateDiscoveryConfigStatus(discoveryConfigs...)
 }
 
 func (s *Server) getAllDatabaseFetchers() []common.Fetcher {
@@ -118,15 +222,13 @@ func (s *Server) getAllDatabaseFetchers() []common.Fetcher {
 
 	allFetchers = append(allFetchers, s.databaseFetchers...)
 
-	s.submitFetchersEvent(allFetchers)
-
 	return allFetchers
 }
 
 func (s *Server) getCurrentDatabases() map[string]types.Database {
 	databases, err := s.AccessPoint.GetDatabases(s.ctx)
 	if err != nil {
-		s.Log.WithError(err).Warn("Failed to get databases from cache.")
+		s.Log.WarnContext(s.ctx, "Failed to get databases from cache", "error", err)
 		return nil
 	}
 
@@ -136,42 +238,42 @@ func (s *Server) getCurrentDatabases() map[string]types.Database {
 }
 
 func (s *Server) onDatabaseCreate(ctx context.Context, database types.Database) error {
-	s.Log.Debugf("Creating database %s.", database.GetName())
+	s.Log.DebugContext(ctx, "Creating database", "database", database.GetName())
 	err := s.AccessPoint.CreateDatabase(ctx, database)
-	// If the database already exists but has an empty discovery group, update it.
-	if trace.IsAlreadyExists(err) && s.updatesEmptyDiscoveryGroup(
-		func() (types.ResourceWithLabels, error) {
+	// If the database already exists but has cloud origin and an empty
+	// discovery group, then update it.
+	if err != nil {
+		err := s.resolveCreateErr(err, types.OriginCloud, func() (types.ResourceWithLabels, error) {
 			return s.AccessPoint.GetDatabase(ctx, database.GetName())
-		}) {
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
 		return trace.Wrap(s.onDatabaseUpdate(ctx, database, nil))
 	}
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	err = s.emitUsageEvents(map[string]*usageeventsv1.ResourceCreateEvent{
-		databaseEventPrefix + database.GetName(): {
-			ResourceType:   types.DiscoveredResourceDatabase,
-			ResourceOrigin: types.OriginCloud,
-			CloudProvider:  database.GetCloud(),
-			Database: &usageeventsv1.DiscoveredDatabaseMetadata{
-				DbType:     database.GetType(),
-				DbProtocol: database.GetProtocol(),
-			},
+	err = s.emitUsageEvent(databaseEventPrefix+database.GetName(), &usageeventsv1.ResourceCreateEvent{
+		ResourceType:        types.DiscoveredResourceDatabase,
+		ResourceOrigin:      types.OriginCloud,
+		CloudProvider:       database.GetCloud(),
+		DiscoveryConfigName: database.GetStaticLabels()[types.TeleportInternalDiscoveryConfigName],
+		Database: &usageeventsv1.DiscoveredDatabaseMetadata{
+			DbType:     database.GetType(),
+			DbProtocol: database.GetProtocol(),
 		},
 	})
 	if err != nil {
-		s.Log.WithError(err).Debug("Error emitting usage event.")
+		s.Log.DebugContext(ctx, "Error emitting usage event", "error", err)
 	}
 	return nil
 }
 
 func (s *Server) onDatabaseUpdate(ctx context.Context, database, _ types.Database) error {
-	s.Log.Debugf("Updating database %s.", database.GetName())
+	s.Log.DebugContext(ctx, "Updating database", "database", database.GetName())
 	return trace.Wrap(s.AccessPoint.UpdateDatabase(ctx, database))
 }
 
 func (s *Server) onDatabaseDelete(ctx context.Context, database types.Database) error {
-	s.Log.Debugf("Deleting database %s.", database.GetName())
+	s.Log.DebugContext(ctx, "Deleting database", "database", database.GetName())
 	return trace.Wrap(s.AccessPoint.DeleteDatabase(ctx, database.GetName()))
 }
 

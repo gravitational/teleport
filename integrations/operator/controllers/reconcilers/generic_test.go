@@ -31,7 +31,7 @@ import (
 
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/integrations/operator/apis/resources"
+	"github.com/gravitational/teleport/integrations/operator/apis/resources/teleportcr"
 )
 
 // newFakeTeleportResource creates a fakeTeleportResource
@@ -58,10 +58,10 @@ type fakeTeleportResourceClient struct {
 }
 
 // Get implements the TeleportResourceClient interface.
-func (f *fakeTeleportResourceClient) Get(_ context.Context, name string) (*fakeTeleportResource, error) {
-	metadata, ok := f.store[name]
+func (f *fakeTeleportResourceClient) Get(_ context.Context, id ResourceKey) (*fakeTeleportResource, error) {
+	metadata, ok := f.store[id.String()]
 	if !ok {
-		return nil, trace.NotFound("%q not found", name)
+		return nil, trace.NotFound("%q not found", id.String())
 	}
 	return newFakeTeleportResource(metadata), nil
 }
@@ -96,12 +96,12 @@ func (f *fakeTeleportResourceClient) Update(_ context.Context, t *fakeTeleportRe
 }
 
 // Delete implements the TeleportResourceClient interface.
-func (f *fakeTeleportResourceClient) Delete(_ context.Context, name string) error {
-	_, ok := f.store[name]
+func (f *fakeTeleportResourceClient) Delete(_ context.Context, id ResourceKey) error {
+	_, ok := f.store[id.String()]
 	if !ok {
-		return trace.NotFound("%q not found", name)
+		return trace.NotFound("%q not found", id.String())
 	}
-	delete(f.store, name)
+	delete(f.store, id.String())
 	return nil
 
 }
@@ -118,7 +118,7 @@ func (f *fakeTeleportResourceClient) resourceExists(name string) bool {
 // Its corresponding TeleportResource is fakeTeleportResource.
 type fakeTeleportKubernetesResource struct {
 	kclient.Object
-	status resources.Status
+	status teleportcr.Status
 }
 
 // ToTeleport implements the TeleportKubernetesResource interface.
@@ -190,7 +190,7 @@ func TestTeleportResourceReconciler_Delete(t *testing.T) {
 		{
 			name:  "delete non-existing Resource",
 			store: map[string]types.Metadata{},
-			assertErr: func(t require.TestingT, err error, i ...interface{}) {
+			assertErr: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsNotFound(err))
 			},
 			resourceExists: false,

@@ -1,31 +1,35 @@
-// Copyright 2023 Gravitational, Inc
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+/*
+ * Teleport
+ * Copyright (C) 2024  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 package daemon
 
 import (
 	"context"
 	"io"
-	"sync"
 
 	"github.com/gravitational/trace"
-	"github.com/gravitational/trace/trail"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/mfa"
+	"github.com/gravitational/teleport/api/trail"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
@@ -59,84 +63,109 @@ func (s *Service) NewMFAPrompt(resourceURI uri.ResourceURI, cfg *libmfa.PromptCo
 }
 
 func (s *Service) promptAppMFA(ctx context.Context, in *api.PromptMFARequest) (*api.PromptMFAResponse, error) {
-	if err := s.importantModalSemaphore.Acquire(ctx); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer s.importantModalSemaphore.Release()
+	s.mfaMu.Lock()
+	defer s.mfaMu.Unlock()
 
-	return s.tshdEventsClient.PromptMFA(ctx, in)
+	return s.cfg.TshdEventsClient.client.PromptMFA(ctx, in)
 }
 
 // Run prompts the user to complete an MFA authentication challenge.
 func (p *mfaPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
-	runOpts, err := p.cfg.GetRunOptions(ctx, chal)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	promptOTP := chal.TOTP != nil
+	promptWebauthn := chal.WebauthnChallenge != nil && p.cfg.WebauthnSupported
+	promptSSO := chal.SSOChallenge != nil && p.cfg.CallbackCeremony != nil
+	promptBrowserMfa := chal.BrowserMFAChallenge != nil && p.cfg.CallbackCeremony != nil
 
 	// No prompt to run, no-op.
-	if !runOpts.PromptTOTP && !runOpts.PromptWebauthn {
+	if !promptOTP && !promptWebauthn && !promptSSO && !promptBrowserMfa {
 		return &proto.MFAAuthenticateResponse{}, nil
 	}
 
-	// Depending on the run opts, we may spawn a TOTP goroutine, webauth goroutine, or both.
-	spawnGoroutines := func(ctx context.Context, wg *sync.WaitGroup, respC chan<- libmfa.MFAGoroutineResponse) {
-		ctx, cancel := context.WithCancelCause(ctx)
+	ctx, cancel := context.WithCancelCause(ctx)
+	defer cancel(nil)
 
-		// Fire App goroutine (TOTP).
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	appPrompt := func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+		resp, err := p.promptApp(ctx, chal)
 
-			resp, err := p.promptMFA(ctx, chal, runOpts)
-			respC <- libmfa.MFAGoroutineResponse{Resp: resp, Err: err}
+		// If the user closes the modal in the Electron app, we need to be able to cancel the other
+		// goroutine as well so that we stop waiting for the hardware key tap.
+		if err != nil && status.Code(err) == codes.Aborted {
+			cancel(err)
+		}
 
-			// If the user closes the modal in the Electron app, we need to be able to cancel the other
-			// goroutine as well so that we stop waiting for the hardware key tap.
-			if err != nil && status.Code(err) == codes.Aborted {
-				cancel(err)
-			}
-		}()
+		return resp, trace.Wrap(err)
+	}
 
-		// Fire Webauthn goroutine.
-		if runOpts.PromptWebauthn {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
+	return libmfa.HandleConcurrentMFAPrompts(ctx, chal, appPrompt, p.maybePromptWebauthn, p.maybePromptBrowserOrSSO)
+}
 
-				resp, err := p.promptWebauthn(ctx, chal)
-				respC <- libmfa.MFAGoroutineResponse{Resp: resp, Err: trace.Wrap(err, "Webauthn authentication failed")}
-			}()
+// promptApp handles the client modal, cancellation, and TOTP.
+//
+//nolint:staticcheck // TODO(danielashare): Delete when Browser MFA has migrated to mfav2.
+func (p *mfaPrompt) promptApp(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+	promptOTP := chal.TOTP != nil
+	promptWebauthn := chal.WebauthnChallenge != nil && p.cfg.WebauthnSupported
+	promptSSO := chal.SSOChallenge != nil && p.cfg.CallbackCeremony != nil
+	promptBrowserMfa := chal.BrowserMFAChallenge != nil && p.cfg.CallbackCeremony != nil
+	scope := p.cfg.Extensions.GetScope()
+
+	var ssoChallenge *api.SSOChallenge
+	if promptSSO {
+		ssoChallenge = api.SSOChallenge_builder{
+			ConnectorId:   chal.SSOChallenge.Device.ConnectorId,
+			ConnectorType: chal.SSOChallenge.Device.ConnectorType,
+			DisplayName:   chal.SSOChallenge.Device.DisplayName,
+			RedirectUrl:   chal.SSOChallenge.RedirectUrl,
+		}.Build()
+	}
+
+	var browserMfaChallenge *mfav1.BrowserMFAChallenge
+	if promptBrowserMfa {
+		browserMfaChallenge = &mfav1.BrowserMFAChallenge{
+			RequestId: chal.BrowserMFAChallenge.RequestId,
 		}
 	}
 
-	return libmfa.HandleMFAPromptGoroutines(ctx, spawnGoroutines)
-}
-
-func (p *mfaPrompt) promptWebauthn(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
-	prompt := wancli.NewDefaultPrompt(ctx, io.Discard)
-	opts := &wancli.LoginOpts{AuthenticatorAttachment: p.cfg.AuthenticatorAttachment}
-	resp, _, err := p.cfg.WebauthnLoginFunc(ctx, p.cfg.GetWebauthnOrigin(), wantypes.CredentialAssertionFromProto(chal.WebauthnChallenge), prompt, opts)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return resp, nil
-}
-
-func (p *mfaPrompt) promptMFA(ctx context.Context, chal *proto.MFAAuthenticateChallenge, runOpts libmfa.RunOpts) (*proto.MFAAuthenticateResponse, error) {
-	resp, err := p.promptAppMFA(ctx, &api.PromptMFARequest{
-		ClusterUri: p.resourceURI.GetClusterURI().String(),
-		Reason:     p.cfg.PromptReason,
-		Totp:       runOpts.PromptTOTP,
-		Webauthn:   runOpts.PromptWebauthn,
-	})
+	resp, err := p.promptAppMFA(ctx, api.PromptMFARequest_builder{
+		ClusterUri:    p.resourceURI.GetClusterURI().String(),
+		Reason:        p.cfg.PromptReason,
+		Totp:          promptOTP,
+		Webauthn:      promptWebauthn,
+		Sso:           ssoChallenge,
+		Browser:       browserMfaChallenge,
+		PerSessionMfa: scope == mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
+	}.Build())
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}
 	return &proto.MFAAuthenticateResponse{
 		Response: &proto.MFAAuthenticateResponse_TOTP{
-			TOTP: &proto.TOTPResponse{Code: resp.TotpCode},
+			TOTP: &proto.TOTPResponse{Code: resp.GetTotpCode()},
 		},
 	}, nil
+}
+
+// Prompt Webauthn if it's a supported method.
+func (p *mfaPrompt) maybePromptWebauthn(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+	if chal.WebauthnChallenge == nil || !p.cfg.WebauthnSupported {
+		return nil, nil
+	}
+
+	prompt := wancli.NewDefaultPrompt(ctx, io.Discard)
+	opts := &wancli.LoginOpts{AuthenticatorAttachment: p.cfg.AuthenticatorAttachment}
+	resp, _, err := p.cfg.WebauthnLoginFunc(ctx, p.cfg.GetWebauthnOrigin(), wantypes.CredentialAssertionFromProto(chal.WebauthnChallenge), prompt, opts)
+	if err != nil {
+		return nil, trace.Wrap(err, "Webauthn authentication failed")
+	}
+	return resp, nil
+}
+
+// Prompt Browser/SSO if it's a supported method.
+func (p *mfaPrompt) maybePromptBrowserOrSSO(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+	if (chal.SSOChallenge == nil && chal.BrowserMFAChallenge == nil) || p.cfg.CallbackCeremony == nil {
+		return nil, nil
+	}
+
+	resp, err := p.cfg.CallbackCeremony.Run(ctx, chal)
+	return resp, trace.Wrap(err)
 }

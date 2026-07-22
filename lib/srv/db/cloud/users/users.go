@@ -23,20 +23,25 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	elasticache "github.com/aws/aws-sdk-go-v2/service/elasticache"
+	memorydb "github.com/aws/aws-sdk-go-v2/service/memorydb"
+	"github.com/aws/aws-sdk-go-v2/service/secretsmanager"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/cloud/awsconfig"
+	"github.com/gravitational/teleport/lib/srv/db/secrets"
 	"github.com/gravitational/teleport/lib/utils/interval"
 )
 
 // Config is the config for users service.
 type Config struct {
-	// Clients is an interface for retrieving cloud clients.
-	Clients cloud.Clients
+	// AWSConfigProvider provides [aws.Config] for AWS SDK service clients.
+	AWSConfigProvider awsconfig.Provider
 	// Clock is used to control time.
 	Clock clockwork.Clock
 	// Interval is the interval between user updates. Interval is also used as
@@ -48,19 +53,42 @@ type Config struct {
 	UpdateMeta func(context.Context, types.Database) error
 	// ClusterName is the name of the Teleport cluster (for tagging purpose).
 	ClusterName string
+
+	// awsClients is an SDK client provider.
+	awsClients awsClientProvider
+}
+
+// awsClientProvider is an AWS SDK client provider.
+type awsClientProvider interface {
+	getElastiCacheClient(cfg aws.Config, optFns ...func(*elasticache.Options)) elasticacheClient
+	getMemoryDBClient(cfg aws.Config, optFns ...func(*memorydb.Options)) memoryDBClient
+	getSecretsManagerClient(cfg aws.Config, optFns ...func(*secretsmanager.Options)) secrets.SecretsManagerClient
+}
+
+type defaultAWSClients struct{}
+
+func (defaultAWSClients) getElastiCacheClient(cfg aws.Config, optFns ...func(*elasticache.Options)) elasticacheClient {
+	return elasticache.NewFromConfig(cfg, optFns...)
+}
+
+func (defaultAWSClients) getMemoryDBClient(cfg aws.Config, optFns ...func(*memorydb.Options)) memoryDBClient {
+	return memorydb.NewFromConfig(cfg, optFns...)
+}
+
+func (defaultAWSClients) getSecretsManagerClient(cfg aws.Config, optFns ...func(*secretsmanager.Options)) secrets.SecretsManagerClient {
+	return secretsmanager.NewFromConfig(cfg, optFns...)
 }
 
 // CheckAndSetDefaults validates the config and set defaults.
 func (c *Config) CheckAndSetDefaults() error {
+	if c.AWSConfigProvider == nil {
+		return trace.BadParameter("missing AWSConfigProvider")
+	}
+	if c.ClusterName == "" {
+		return trace.BadParameter("missing cluster name")
+	}
 	if c.UpdateMeta == nil {
 		return trace.BadParameter("missing UpdateMeta")
-	}
-	if c.Clients == nil {
-		cloudClients, err := cloud.NewClients()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		c.Clients = cloudClients
 	}
 	if c.Clock == nil {
 		c.Clock = clockwork.NewRealClock()
@@ -80,8 +108,8 @@ func (c *Config) CheckAndSetDefaults() error {
 	if c.Log == nil {
 		c.Log = slog.With(teleport.ComponentKey, "clouduser")
 	}
-	if c.ClusterName == "" {
-		return trace.BadParameter("missing cluster name")
+	if c.awsClients == nil {
+		c.awsClients = defaultAWSClients{}
 	}
 	return nil
 }
@@ -162,7 +190,7 @@ func (u *Users) Start(ctx context.Context, getAllDatabases func() types.Database
 
 	ticker := interval.New(interval.Config{
 		// Use jitter for HA setups.
-		Jitter: retryutils.NewSeventhJitter(),
+		Jitter: retryutils.SeventhJitter,
 
 		// NewSeventhJitter builds a new jitter on the range [6n/7,n).
 		// Use n = cfg.Interval*7/6 gives an effective duration range of

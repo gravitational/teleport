@@ -20,20 +20,16 @@ package proxy
 
 import (
 	"fmt"
+	"io"
 	"net/http"
 
-	"github.com/coreos/go-semver/semver"
 	gwebsocket "github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
-	"k8s.io/apimachinery/pkg/util/httpstream"
 	utilnet "k8s.io/apimachinery/pkg/util/net"
-	versionUtil "k8s.io/apimachinery/pkg/util/version"
-	"k8s.io/apimachinery/pkg/version"
 	kwebsocket "k8s.io/client-go/transport/websocket"
+	"k8s.io/streaming/pkg/httpstream"
 
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/kube/internal"
 )
 
 // WebsocketRoundTripper knows how to upgrade an HTTP request to one that supports
@@ -45,10 +41,23 @@ type WebsocketRoundTripper struct {
 	// conn is the websocket network connection to the remote server.
 	conn *gwebsocket.Conn
 
+	// cleanups contains objects that should be closed when the roundtripper is
+	// no longer used. Cleared by [WebsocketRoundTripper.Cleanup].
+	cleanups []io.Closer
+
 	// onConnected is a hook that happens when connection was successfully established,
 	// can be used to propagate established connection somewhere else - we are using it
 	// to set underlying connection of the native k8s websocket executor.
 	onConnected func(conn *gwebsocket.Conn)
+}
+
+// Cleanup ensures that every connection that was opened by this roundtripper is
+// closed.
+func (w *WebsocketRoundTripper) Cleanup() {
+	for _, closer := range w.cleanups {
+		_ = closer.Close()
+	}
+	w.cleanups = nil
 }
 
 // NewWebsocketRoundTripperWithDialer creates a new WebsocketRoundTripper that will
@@ -64,7 +73,7 @@ func (w *WebsocketRoundTripper) RoundTrip(req *http.Request) (*http.Response, er
 	// request headers. This is necessary to forward the original user's impersonation
 	// when multiple kubernetes_users are available.
 	copyImpersonationHeaders(header, w.originalHeaders)
-	if err := setupImpersonationHeaders(w.log, w.sess, header); err != nil {
+	if err := setupImpersonationHeaders(w.sess, header); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -73,7 +82,7 @@ func (w *WebsocketRoundTripper) RoundTrip(req *http.Request) (*http.Response, er
 	// If we're using identity forwarding, we need to add the impersonation
 	// headers to the request before we send the request.
 	if w.useIdentityForwarding {
-		if header, err = auth.IdentityForwardingHeaders(w.ctx, header); err != nil {
+		if header, err = internal.IdentityForwardingHeaders(w.ctx, header); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -103,90 +112,16 @@ func (w *WebsocketRoundTripper) RoundTrip(req *http.Request) (*http.Response, er
 
 	wsConn, wsResp, err := wsDialer.DialContext(w.ctx, clone.URL.String(), clone.Header)
 	if err != nil {
+		if wsResp != nil {
+			return nil, trace.Wrap(extractKubeAPIStatusFromReq(wsResp))
+		}
 		return nil, &httpstream.UpgradeFailureError{Cause: err}
 	}
+	w.cleanups = append(w.cleanups, wsConn)
 	w.conn = wsConn
 	if w.onConnected != nil {
 		w.onConnected(wsConn)
 	}
 
 	return wsResp, nil
-}
-
-// versionWithoutExecSubprotocolV5 is the version of Teleport that starts supporting websocket exec subprotocol v5.
-var versionWithoutExecSubprotocolV5 = semver.New(utils.VersionBeforeAlpha("16.0.0"))
-
-const kubernetesExecSubprotocolV5Version = "1.30.0"
-
-func kubernetesSupportsExecSubprotocolV5(serverVersion *version.Info) bool {
-	if serverVersion == nil {
-		return false
-	}
-
-	parsedVersion, err := versionUtil.ParseSemantic(serverVersion.GitVersion)
-	if err != nil {
-		return false
-	}
-	requiredVersion, err := versionUtil.ParseSemantic(kubernetesExecSubprotocolV5Version)
-	if err != nil {
-		return false
-	}
-
-	return parsedVersion.AtLeast(requiredVersion)
-}
-
-// teleportVersionInterface is an interface that allows to get the Teleport version of
-// a kube server.
-// DELETE IN 17.0.0 (anton)
-type teleportVersionInterface interface {
-	GetTeleportVersion() string
-}
-
-// allServersSupportExecSubprotocolV5 checks if all paths for this sessions support
-// websocket exec subprotocol v5. If all of them do and target kubernetes cluster supports it as well
-// we can use websocket executor, otherwise we'll use SPDY executor.
-func (f *Forwarder) allServersSupportExecSubprotocolV5(sess *clusterSession) bool {
-	// If the cluster is remote, we need to check if all remote proxies
-	// support websocket exec subprotocol v5.
-	if sess.teleportCluster.isRemote {
-		proxies, err := f.getRemoteClusterProxies(sess.teleportCluster.name)
-		return err == nil && allServersSupportExecSubprotocolV5(proxies)
-	}
-	// If the cluster is not remote, validate the kube services support of
-	// websocket exec subprotocol v5.
-	return allServersSupportExecSubprotocolV5(sess.kubeServers)
-}
-
-// allServersSupportExecSubprotocolV5 returns true if all servers in the list
-// support websocket exec subprotocol v5.
-// DELETE IN 17.0.0 (anton)
-func allServersSupportExecSubprotocolV5[T teleportVersionInterface](servers []T) bool {
-	if len(servers) == 0 {
-		return false
-	}
-
-	for _, server := range servers {
-		serverVersion := server.GetTeleportVersion()
-		semVer, err := semver.NewVersion(serverVersion)
-		if err != nil || semVer.LessThan(*versionWithoutExecSubprotocolV5) {
-			return false
-		}
-	}
-	return true
-}
-
-// getRemoteClusterProxies returns a list of proxies registered at the remote cluster.
-// It's used to determine whether the remote cluster supports websocket exec subprotocol v5.
-func (f *Forwarder) getRemoteClusterProxies(clusterName string) ([]types.Server, error) {
-	targetCluster, err := f.cfg.ReverseTunnelSrv.GetSite(clusterName)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	// Get the remote cluster's cache.
-	caching, err := targetCluster.CachingAccessPoint()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	proxies, err := caching.GetProxies()
-	return proxies, trace.Wrap(err)
 }

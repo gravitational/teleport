@@ -17,9 +17,8 @@
  */
 
 import { makeCluster } from '../clusters';
-
 import { makeAcl } from './makeAcl';
-import { UserContext, AccessCapabilities, PasswordState } from './types';
+import { AccessCapabilities, PasswordState, UserContext } from './types';
 
 export default function makeUserContext(json: any): UserContext {
   json = json || {};
@@ -34,9 +33,12 @@ export default function makeUserContext(json: any): UserContext {
   const allowedSearchAsRoles = json.allowedSearchAsRoles || [];
   const passwordState =
     json.passwordState || PasswordState.PASSWORD_STATE_UNSPECIFIED;
+  const availableScopes = json.availableScopes || [];
 
   return {
     username,
+    displayPrimary: json.displayPrimary,
+    displaySecondary: json.displaySecondary,
     authType,
     acl,
     cluster,
@@ -45,6 +47,7 @@ export default function makeUserContext(json: any): UserContext {
     accessRequestId,
     allowedSearchAsRoles,
     passwordState,
+    availableScopes,
   };
 }
 
@@ -54,6 +57,7 @@ function makeAccessCapabilities(json): AccessCapabilities {
   return {
     requestableRoles: json.requestableRoles || [],
     suggestedReviewers: json.suggestedReviewers || [],
+    requireReason: json.requireReason || false,
   };
 }
 

@@ -5,6 +5,10 @@ on:
 
   merge_group:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.event.merge_group.head_sha || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   changes:
     name: Check for relevant changes
@@ -14,11 +18,14 @@ jobs:
     outputs:
       changed: ${{ steps.changes.outputs.changed }}
       changed_files: ${{ steps.changes.outputs.changed_files }}
+      new_docs_content: ${{ steps.changes.outputs.new_docs_content }}
+      new_docs_content_files: ${{ steps.changes.outputs.new_docs_content_files }}
+      scripts_changed: ${{ steps.changes.outputs.scripts }}
     steps:
       - name: Checkout
         if: ${{ github.event_name == 'merge_group' }}
-        uses: actions/checkout@v4
-      - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        uses: actions/checkout@v6
+      - uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
         id: changes
         with:
           base: ${{ github.event.pull_request.base.ref || github.event.merge_group.base_ref }}
@@ -30,6 +37,38 @@ jobs:
               - 'CHANGELOG.md'
               - 'docs/**'
               - 'examples/**'
+            scripts:
+              - '.github/workflows/doc-tests.yaml'
+              - '.github/scripts/**'
+            new_docs_content:
+              - added|modified: 'docs/pages/**/*.mdx'
+
+  # Runs the preview-link script unit tests from the PR's checkout. This job
+  # deliberately executes PR-controlled code, so it is isolated from every
+  # credential: no secrets are referenced, no GitHub App token is generated,
+  # and permissions are limited to contents: read for the checkout itself.
+  # Do not add secrets or elevated permissions to this job.
+  script-tests:
+    name: Test preview-link scripts
+    needs: changes
+    if: ${{ !startsWith(github.head_ref, 'dependabot/') && needs.changes.outputs.scripts_changed == 'true' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Check out teleport
+        uses: actions/checkout@v6
+        with:
+          repository: 'gravitational/teleport'
+          path: 'teleport'
+
+      - name: Run docs preview-link script unit tests
+        # Guards the per-page Amplify preview-link logic in .github/scripts/.
+        # Uses Node's built-in test runner, so there are no dependencies to
+        # install. The teleport repo (at the PR's ref) is checked out under
+        # `teleport/` above, so the scripts live there.
+        working-directory: teleport/.github/scripts
+        run: node --test
 
   doc-tests:
     name: Lint (Docs)
@@ -39,85 +78,142 @@ jobs:
 
     permissions:
       contents: read
+      id-token: write
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: Get runtime values from kvstore
+        id: kvstore
+        uses: gravitational/shared-workflows/tools/env-kvstore@tools/env-kvstore/v1.0.0
         with:
-          repository: "gravitational/docs"
-          path: "docs"
+          cognito-identity-pool-id: "us-west-2:da53389e-a459-4a28-bd54-43eeb8e4b579"
+          cognito-role-arn: "arn:aws:iam::247230412011:role/github-actions-cognito-oidc"
+          existing-gh-secrets: "${{ toJSON(secrets) }}"
+          existing-gh-variables: "${{ toJSON(vars) }}"
+          # values: |
+          #   REVIEWERS_APP_ID,secret
+          #   REVIEWERS_PRIVATE_KEY,secret
+          #   REVIEWERS,secret
+
+      - name: Check out teleport
+        uses: actions/checkout@v6
+        with:
+          repository: 'gravitational/teleport'
+          path: 'teleport'
+
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          repository: 'gravitational/docs-website'
+          path: 'docs'
+
+      - name: Generate GitHub Token
+        id: generate_token
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ secrets.REVIEWERS_APP_ID }}
+          private-key: ${{ secrets.REVIEWERS_PRIVATE_KEY }}
+
+      - name: Check out shared-workflows
+        uses: actions/checkout@v6
+        with:
+          repository: gravitational/shared-workflows
+          path: shared-workflows
+          ref: 6f388765b8ce993721502083c74cb9af1fc5658f
+
+      - name: Install Go
+        uses: actions/setup-go@faf52423ec0d44c58f68e83b614bfcd99dded66f # v6.0.0
+        with:
+          go-version: 'stable'
+          cache-dependency-path: shared-workflows/bot/go.sum
+
+      - name: Ensure docs changes include redirects
+        env:
+          TOKEN: ${{ steps.generate_token.outputs.token }}
+          REVIEWERS: ${{ secrets.reviewers }}
+        run: cd shared-workflows/bot && go run main.go -workflow=docpaths -token="${TOKEN}" -teleport-path="${GITHUB_WORKSPACE}/teleport" -reviewers="${REVIEWERS}"
+
+      - name: Install Node.js
+        uses: actions/setup-node@dda4788290998366da86b6a4f497909644397bb2 # v6.0.0
+        with:
+          node-version: 22
+          cache: 'yarn'
+          cache-dependency-path: '${{ github.workspace }}/docs/yarn.lock'
+
+      - name: Install docs site dependencies
+        working-directory: docs
+        # Prevent occasional `yarn install` executions that run indefinitely
+        timeout-minutes: 10
+        run: yarn install --frozen-lockfile
 
       - name: Prepare docs site configuration
+        working-directory: docs
         # The environment we use for linting the docs differs from the one we
         # use for the live docs site in that we only test a single version of
         # the content.
         #
-        # To do this, we replace the three submodules we use for building the
-        # live docs site with a single submodule, pointing to the
-        # gravitational/teleport branch we are linting.
+        # To do this, we delete the three submodules we use for building the
+        # live docs site and copy a gravitational/teleport clone into the
+        # content directory.
         #
         # The docs engine expects a config.json file at the root of the
         # gravitational/docs clone that associates directories with git
         # submodules. By default, these directories represent versioned branches
         # of gravitational/teleport. We override this in order to build only a
         # single version of the docs.
+        #
+        # We also replace data fetched from Sanity CMS with hardcoded JSON
+        # objects to remove the need to authenticate with Sanity. Each includes
+        # the minimal set of data required for docs builds to succeed.
         run: |
-          if [ $GITHUB_EVENT_NAME = "pull_request" ]; then
-            BRANCH=$GITHUB_HEAD_REF;
-          elif [ $GITHUB_EVENT_NAME = "merge_group" ]; then
-            # GitHub populates $GITHUB_REF with:
-            # refs/heads/gh-readonly-queue/<base branch>/pr-<PR number>-<SHA>
-            #
-            # We strip the "refs/heads/" prefix so we can check out the branch.
-            BRANCH=$(echo $GITHUB_REF | sed -E "s|refs/heads/(.*)|\1|")
-          else
-            echo "Unexpected event name: $GITHUB_EVENT_NAME";
+          echo "" > .gitmodules
+          rm -rf content/*
+          # Rather than using a submodule, copy the teleport source into the
+          # content directory.
+          cp -r "$GITHUB_WORKSPACE/teleport" "$GITHUB_WORKSPACE/docs/content/current"
+          jq -nr --arg version "current" '{"versions": [{"name": $version,"branch": $version,"deprecated": false,"isDefault": true}]}' > config.json
+          NEW_PACKAGE_JSON=$(jq '.scripts."git-update" = "echo Skipping submodule update"' package.json);
+          NEW_PACKAGE_JSON=$(jq '.scripts."prepare-sanity-data" = "echo Using pre-populated Sanity data"' <<< "$NEW_PACKAGE_JSON");
+          echo "$NEW_PACKAGE_JSON" > package.json;
+          echo "{}" > data/events.json
+          echo '{"bannerButtons":{"second":{"title":"LOG IN","url":"https://teleport.sh"},"first":{"title":"Support","url":"https://goteleport.com/support/"}},"navbarData":{"rightSide":{},"logo":"/favicon.svg","menu":[]}}' > data/navbar.json
+
+      - name: Check spelling
+        working-directory: 'docs'
+        run: yarn spellcheck content/current
+
+      - name: Check for unused images and partials
+        working-directory: 'docs/content/current'
+        run: |
+          UNUSED=$(build.assets/unused-docs-assets.sh);
+          if [ -n "$UNUSED" ]; then
+            echo "There are unused docs partials and images:";
+            echo "$UNUSED";
             exit 1;
           fi
 
-          cd $GITHUB_WORKSPACE/docs
-          echo "" > .gitmodules
-          rm -rf content/*
-          cd content
-          # Add a submodule at docs/content/teleport
-          git submodule add --force -b $BRANCH -- https://github.com/gravitational/teleport
-          cd $GITHUB_WORKSPACE/docs
-          echo "{\"versions\": [{\"name\": \"teleport\", \"branch\": \"$BRANCH\", \"deprecated\": false}]}" > $GITHUB_WORKSPACE/docs/config.json
-          yarn install
-          yarn build-node
+      - name: Lint docs formatting
+        working-directory: 'docs'
+        run: yarn markdown-lint
 
-      - name: Check spelling
-        run: cd $GITHUB_WORKSPACE/docs && yarn spellcheck content/teleport
+      - name: Download vale
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VALE_VERSION: 3.12.0
+          # The sha256 checksum must be changed based on the downloaded package
+          # when you update the Vale version.
+          VALE_SHA256SUM: 3f4ea05cd1f2291b660ecf11a77cbb6b544b0f3b780604ad183f63285611321b
+        run: |
+          VALE_FILENAME="vale_${VALE_VERSION}_Linux_64-bit.tar.gz"
+          gh release download "v${VALE_VERSION}" --repo="errata-ai/vale" --pattern="${VALE_FILENAME}"
+          sha256sum --check <<<"${VALE_SHA256SUM}  ${VALE_FILENAME}"
+          tar -xvf "vale_${VALE_VERSION}_Linux_64-bit.tar.gz"
 
-      - name: Lint the docs
-        run: cd $GITHUB_WORKSPACE/docs && yarn markdown-lint
+      - name: Check docs style
+        working-directory: 'docs/content/current'
+        run: |
+          echo "Running Vale style checks. For information about ignoring Vale rules using comments, see: https://vale.sh/docs/formats/mdx#comments"
+          "${GITHUB_WORKSPACE}/vale" --config docs/.vale.ini docs/pages
 
       - name: Test the docs build
-        run: cd $GITHUB_WORKSPACE/docs && yarn install && yarn build
-
-  stylecheck:
-    name: Lint docs prose style
-    runs-on: ubuntu-latest
-    needs: changes
-    if: ${{ !startsWith(github.head_ref, 'dependabot/') && needs.changes.outputs.changed == 'true' && github.event_name == 'pull_request' }}
-    permissions:
-      pull-requests: read
-    steps:
-      - name: Check out the teleport repo
-        uses: actions/checkout@v4
-        with:
-          repository: "gravitational/teleport"
-
-      - name: Run the linter
-        uses: errata-ai/vale-action@38bf078c328061f59879b347ca344a718a736018 # v2.1.0
-        with:
-          version: 2.30.0
-          # Take the comma-separated list of files returned by the "Check for
-          # relevant changes" job.
-          separator: ","
-          files: ${{ needs.changes.outputs.changed_files }}
-          # Restrict the linter to lines modified/added by a PR, not entire
-          # changed files.
-          filter_mode: added
-          fail_on_error: true
-
+        working-directory: docs
+        run: yarn build

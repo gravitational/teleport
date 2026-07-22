@@ -33,8 +33,9 @@ import (
 	clientauthv1beta1 "k8s.io/client-go/pkg/apis/clientauthentication/v1beta1"
 
 	"github.com/gravitational/teleport/api/identityfile"
+	"github.com/gravitational/teleport/lib/tbot/cli"
 	"github.com/gravitational/teleport/lib/tbot/config"
-	"github.com/gravitational/teleport/lib/tbot/tshwrap"
+	"github.com/gravitational/teleport/lib/tbot/services/identity"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -65,13 +66,19 @@ func getCredentialData(idFile *identityfile.IdentityFile, currentTime time.Time)
 	return data, nil
 }
 
-func onKubeCredentialsCommand(ctx context.Context, cfg *config.BotConfig) error {
-	destination, err := tshwrap.GetDestinationDirectory(cfg)
+func onKubeCredentialsCommand(
+	ctx context.Context, kubeCredentialsCmd *cli.KubeCredentialsCommand,
+) error {
+	destination, err := config.DestinationFromURI(kubeCredentialsCmd.DestinationDir)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	idData, err := destination.Read(ctx, config.IdentityFilePath)
+	if err = destination.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	idData, err := destination.Read(ctx, identity.IdentityFilePath)
 	if err != nil {
 		return trace.Wrap(err)
 	}

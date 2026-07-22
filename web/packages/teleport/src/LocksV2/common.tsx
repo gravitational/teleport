@@ -17,6 +17,7 @@
  */
 
 import styled from 'styled-components';
+
 import { Trash } from 'design/Icon';
 
 export const TrashButton = styled(Trash)`

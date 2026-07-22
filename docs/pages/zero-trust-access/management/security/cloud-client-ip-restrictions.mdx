@@ -1,0 +1,299 @@
+---
+title: Cloud Client IP Restrictions
+description: Restrict access to your Teleport Cloud cluster to an allowlist of IP ranges, and manage the allowlist with tctl, the Terraform provider, or the Web UI.
+sidebar_label: Client IP Restrictions
+page_type: how-to
+tags:
+  - how-to
+  - zero-trust
+  - platform-wide
+---
+
+Client IP Restrictions restrict access to your Teleport Cloud cluster, allowing
+traffic only from the network ranges (CIDR blocks) you specify. You manage the
+allowlist with the `client_ip_restriction` resource, using `tctl`, the Teleport
+Terraform provider, or the Teleport Web UI.
+
+Managing the allowlist with `tctl` and the Teleport Terraform provider is
+available starting with Teleport v19. The Web UI is available in earlier
+versions.
+
+This guide covers how to:
+
+- Configure a Teleport role that can manage Client IP Restrictions.
+- Set the list of CIDR blocks allowed to connect to your Teleport Cloud cluster.
+- Check whether the restrictions are enforced.
+- Disable the restrictions.
+
+## How it works
+
+`client_ip_restriction` is a singleton resource: each Teleport Cloud cluster has
+exactly one, and its name is always `client-ip-restriction`. Its
+`spec.allowed_cidrs` field holds the list of CIDR blocks permitted to connect to
+the cluster. An empty list disables restrictions and allows all traffic.
+
+When you save an allowlist, Teleport Cloud enforces it at the cluster's ingress
+layer: only clients whose source IP falls within one of the allowed CIDR blocks
+can reach the cluster. Changes take 5-20 minutes to propagate and terminate
+existing connections that no longer match the allowlist.
+
+The resource's `status.state` field reflects the current enforcement state:
+
+| State     | Meaning                                                                                                      |
+| --------- | ------------------------------------------------------------------------------------------------------------ |
+| `pending` | The allowlist has been saved and is being propagated to the ingress layer. Enforcement is not yet in effect. |
+| `active`  | The allowlist is fully enforced at the ingress layer. Only IPs matching the allowlist can reach the cluster. |
+
+Access to read and modify the allowlist is governed by Teleport's RBAC system
+through the `client_ip_restriction` resource kind, and every change is recorded
+in the [audit log](../../../reference/audit-events.mdx).
+
+## Prerequisites
+
+<Admonition type="warning" title="Feature availability">
+  Client IP Restrictions are available to Teleport Cloud customers and are
+  opt-in. Contact your account executive or support at
+  <a href="mailto:support@goteleport.com">support@goteleport.com</a> to enable
+  the feature for your tenant.
+</Admonition>
+
+- A Teleport Cloud cluster.
+- A Teleport user with a role that can read and write the
+  `client_ip_restriction` resource. The preset `editor` role has this access. To
+  grant it to another role, follow [Step 1](#step-12-configure-rbac).
+- One of the following client tools for managing the `client_ip_restriction`
+  resource: the `tctl` CLI or the
+  [Teleport Terraform provider](../../../configuration/terraform-provider/terraform-provider.mdx).
+  The Kubernetes Operator does not support the `client_ip_restriction` resource.
+
+To confirm that you can run `tctl` against your cluster:
+
+(!docs/pages/includes/tctl.mdx!)
+
+## Step 1/2. Configure RBAC
+
+To read and modify Client IP Restrictions, a Teleport user needs permission to
+manage the `client_ip_restriction` resource. The preset `editor` role already
+has this access; if the user has the `editor` role, skip this step.
+
+Create a file called `client-ip-restriction-editor.yaml`:
+
+```yaml
+kind: role
+version: v8
+metadata:
+  name: client-ip-restriction-editor
+spec:
+  allow:
+    rules:
+      - resources:
+          - client_ip_restriction
+        verbs:
+          - list
+          - read
+          - create
+          - update
+          - delete
+```
+
+Use `tctl` to create the role:
+
+```code
+$ tctl create -f client-ip-restriction-editor.yaml
+```
+
+Assign the role to a user. Open the user resource in your editor, replacing
+`alice` with the Teleport username:
+
+```code
+$ tctl edit users/alice
+```
+
+Add `client-ip-restriction-editor` to `spec.roles`, then save and close the
+editor to apply the change:
+
+```diff
+  spec:
+    roles:
+      - access
++     - client-ip-restriction-editor
+```
+
+## Step 2/2. Manage the IP allowlist
+
+<Admonition type="danger" title="Avoid locking yourself out">
+  A misconfigured allowlist can block all access to your cluster. Before you
+  save changes, make sure the allowlist includes the network you are currently
+  connecting from, as well as any third-party services that need to reach your
+  cluster (CI/CD systems, identity providers, and so on). Teleport does not add
+  these ranges automatically.
+</Admonition>
+
+<Tabs>
+<TabItem label="tctl">
+
+Create a file called `client-ip-restriction.yaml`:
+
+```yaml
+kind: client_ip_restriction
+version: v1
+metadata:
+  name: client-ip-restriction
+spec:
+  allowed_cidrs:
+    - "203.0.113.0/24"
+    - "198.51.100.10/32"
+```
+
+Replace the entries in `allowed_cidrs` with the CIDR blocks allowed to connect
+to your cluster. `metadata.name` must be `client-ip-restriction`; the resource
+is a singleton and no other name is accepted.
+
+Apply the allowlist:
+
+```code
+$ tctl create client-ip-restriction.yaml
+# client_ip_restriction has been created
+```
+
+If Client IP Restrictions already exist, `tctl create` reports an error. Use the
+`-f` flag to overwrite the current allowlist:
+
+```code
+$ tctl create -f client-ip-restriction.yaml
+# client_ip_restriction has been created
+```
+
+You can also edit the allowlist interactively. `tctl edit` opens the current
+resource in your editor and applies your changes when you save and exit:
+
+```code
+$ tctl edit client_ip_restriction
+```
+
+</TabItem>
+<TabItem label="Terraform">
+
+Before you begin, set up the
+[Teleport Terraform provider](../../../configuration/terraform-provider/terraform-provider.mdx).
+
+Create a file called `client-ip-restriction.tf`:
+
+```hcl
+resource "teleport_client_ip_restriction" "main" {
+  version = "v1"
+  metadata = {
+    name = "client-ip-restriction"
+  }
+
+  spec = {
+    allowed_cidrs = [
+      "203.0.113.0/24",
+      "198.51.100.10/32",
+    ]
+  }
+}
+```
+
+Replace the entries in `allowed_cidrs` with the CIDR blocks allowed to connect
+to your cluster. `metadata.name` must be `client-ip-restriction`; the resource
+is a singleton and no other name is accepted.
+
+Apply the configuration:
+
+```code
+$ terraform plan
+# ...
+# Plan: 1 to add, 0 to change, 0 to destroy.
+
+$ terraform apply
+```
+
+For the full list of supported fields, see the
+[`teleport_client_ip_restriction` resource reference](../../../reference/infrastructure-as-code/terraform-provider/resources/client_ip_restriction.mdx).
+
+</TabItem>
+<TabItem label="Web UI">
+
+Log in to your Teleport Cloud account. Open the user dropdown menu on the top
+right of the navigation bar and select "Help & Support," then scroll down to the
+IP Allowlist section and add your CIDR blocks.
+
+If you do not see the IP Allowlist section, the feature has not been enabled for
+your account. See the [Prerequisites](#prerequisites) for how to enable it.
+
+</TabItem>
+</Tabs>
+
+## Check the enforcement status
+
+Retrieve the resource to view the current allowlist and enforcement state:
+
+```code
+$ tctl get client_ip_restriction
+```
+
+Example output:
+
+```yaml
+kind: client_ip_restriction
+version: v1
+metadata:
+  name: client-ip-restriction
+spec:
+  allowed_cidrs:
+    - 203.0.113.0/24
+    - 198.51.100.10/32
+status:
+  state: active
+```
+
+The allowlist is fully enforced when `status.state` is `active`. A `pending`
+state means the change is still propagating to the ingress layer, which can take
+up to 20 minutes.
+
+## Disable Client IP Restrictions
+
+To allow traffic from all IP ranges again, either apply an allowlist with an
+empty `allowed_cidrs` list or delete the resource:
+
+```code
+$ tctl rm client_ip_restriction
+# client_ip_restriction has been deleted
+```
+
+With Terraform, remove the `teleport_client_ip_restriction` resource from your
+configuration and run `terraform apply`.
+
+## Limitations
+
+- **Third-party service ranges.** Teleport does not add third-party service
+  ranges automatically. Add allow rules for any third-party service that needs
+  to access your Teleport cluster, such as CI/CD systems and identity providers.
+- **Network security.** The allowlist applies only to Teleport Cloud access. It
+  does not replace your organization's network or firewall policies.
+- **Sync time.** Changes to the allowlist take 5-20 minutes to fully sync to the
+  ingress layer.
+
+## FAQ
+
+### How many CIDR blocks can I configure?
+
+By default, up to 256 CIDR blocks. Contact your account executive or support to
+increase the limit.
+
+### Do you support a denylist?
+
+Teleport Cloud Client IP Restrictions do not currently support a denylist.
+
+### Can I manage Client IP Restrictions with the Kubernetes Operator?
+
+No. The Kubernetes Operator does not support the `client_ip_restriction`
+resource. Use `tctl`, the Terraform provider, or the Web UI instead.
+
+## Next steps
+
+- Review the [role resource reference](../../../reference/access-controls/roles.mdx)
+  to define more precise RBAC for managing Client IP Restrictions.
+- Learn how Teleport records changes to the allowlist in the
+  [audit events reference](../../../reference/audit-events.mdx).

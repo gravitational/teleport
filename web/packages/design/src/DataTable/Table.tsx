@@ -16,47 +16,47 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import React, { ReactNode, type JSX } from 'react';
 
-import { Box, Flex, Indicator, Text } from 'design';
+import { Box, Flex, Indicator, P1, Text } from 'design';
 import * as Icons from 'design/Icon';
 
-import { StyledTable, StyledPanel } from './StyledTable';
+import { SortHeaderCell, TextCell } from './Cells';
+import InputSearch from './InputSearch';
+import { ClientSidePager, ServerSidePager } from './Pager';
+import { StyledPanel, StyledTable } from './StyledTable';
 import {
   BasicTableProps,
   PagedTableProps,
   PagerPosition,
   SearchableBasicTableProps,
   ServersideTableProps,
+  SortDir,
   TableProps,
 } from './types';
-import { SortHeaderCell, TextCell } from './Cells';
-import { ClientSidePager, ServerSidePager } from './Pager';
-import InputSearch from './InputSearch';
-import useTable, { State } from './useTable';
+import useTable from './useTable';
 
-export default function Container<T>(props: TableProps<T>) {
-  const tableProps = useTable(props);
-  return <Table<T> {...tableProps} />;
-}
+export default function Table<T>(props: TableProps<T>) {
+  const {
+    columns,
+    state,
+    onSort,
+    emptyText,
+    emptyHint,
+    emptyButton,
+    nextPage,
+    prevPage,
+    setSearchValue,
+    isSearchable,
+    fetching,
+    className,
+    hideEmptyIcon,
+    style,
+    serversideProps,
+    customSort,
+    row,
+  } = useTable(props);
 
-export function Table<T>({
-  columns,
-  state,
-  onSort,
-  emptyText,
-  emptyHint,
-  emptyButton,
-  nextPage,
-  prevPage,
-  setSearchValue,
-  isSearchable,
-  fetching,
-  className,
-  style,
-  serversideProps,
-  customSort,
-}: State<T>) {
   const renderHeaders = () => {
     const headers = columns.flatMap(column => {
       if (column.isNonRender) {
@@ -65,15 +65,15 @@ export function Table<T>({
 
       const headerText = column.headerText || '';
 
-      let dir;
+      let dir: SortDir | undefined;
       if (customSort) {
-        dir = customSort.fieldName == column.key ? customSort.dir : null;
+        dir = customSort.fieldName == column.key ? customSort.dir : undefined;
       } else {
         dir =
           state.sort?.key === column.key ||
           state.sort?.key === column.altSortKey
             ? state.sort?.dir
-            : null;
+            : undefined;
       }
 
       const $cell = column.isSortable ? (
@@ -103,39 +103,73 @@ export function Table<T>({
   };
 
   const renderBody = (data: T[]) => {
-    const rows = [];
+    const rows: ReactNode[] = [];
 
-    if (fetching?.fetchStatus === 'loading') {
+    if (
+      fetching?.fetchStatus === 'loading' &&
+      !fetching.disableLoadingIndicator
+    ) {
       return <LoadingIndicator colSpan={columns.length} />;
     }
-    data.map((item, rowIdx) => {
-      const cells = columns.flatMap((column, columnIdx) => {
-        if (column.isNonRender) {
-          return []; // does not include this column.
-        }
+    data.forEach((item, rowIdx) => {
+      const customRow = row?.customRow?.(item);
+      const renderAfter = row?.renderAfter?.(item);
+      const rowKey = row?.getKey?.(item) ?? rowIdx;
 
-        const $cell = column.render ? (
-          column.render(item)
-        ) : (
-          <TextCell data={item[column.key]} />
-        );
+      const trContent = customRow
+        ? customRow
+        : columns.flatMap((column, columnIdx) => {
+            if (column.isNonRender) {
+              return []; // does not include this column.
+            }
 
-        return (
-          <React.Fragment key={`${rowIdx} ${columnIdx}`}>
-            {$cell}
-          </React.Fragment>
+            const $cell = column.render ? (
+              column.render(item)
+            ) : (
+              <TextCell data={column.key ? item[column.key] : undefined} />
+            );
+
+            return (
+              <React.Fragment key={`${rowKey} ${columnIdx}`}>
+                {$cell}
+              </React.Fragment>
+            );
+          });
+
+      rows.push(
+        <tr
+          key={rowKey}
+          onClick={() => row?.onClick?.(item)}
+          style={row?.getStyle?.(item)}
+        >
+          {trContent}
+        </tr>
+      );
+
+      if (renderAfter) {
+        rows.push(
+          <React.Fragment key={`${rowKey}-after`}>{renderAfter}</React.Fragment>
         );
-      });
-      rows.push(<tr key={rowIdx}>{cells}</tr>);
+      }
     });
 
     if (rows.length) {
       return <tbody>{rows}</tbody>;
     }
 
+    // if we provide infiniteScrollProps, we want to not render anything if
+    // the fetch status is loading. this is so that the existing items dont dissapear
+    // during the fetch, but also, we dont want the empty text to show while fetching
+    // and lastly, the infinite scroll page will usually provide its own loading
+    // indicator at the bottom of the component
+    if (props.infiniteScrollProps?.fetchStatus === 'loading') {
+      return <tbody></tbody>;
+    }
+
     return (
       <EmptyIndicator
         emptyText={emptyText}
+        hideIcon={hideEmptyIcon}
         emptyHint={emptyHint}
         emptyButton={emptyButton}
         colSpan={columns.length}
@@ -151,34 +185,35 @@ export function Table<T>({
         data={state.data}
         renderHeaders={renderHeaders}
         renderBody={renderBody}
-        nextPage={fetching.onFetchNext}
-        prevPage={fetching.onFetchPrev}
+        nextPage={fetching?.onFetchNext}
+        prevPage={fetching?.onFetchPrev}
         pagination={state.pagination}
         serversideProps={serversideProps}
-        fetchStatus={fetching.fetchStatus}
+        fetchStatus={fetching?.fetchStatus}
       />
     );
   }
 
-  const paginationProps: PagedTableProps<T> = {
-    style,
-    className,
-    data: state.data as T[],
-    renderHeaders,
-    renderBody,
-    nextPage,
-    prevPage,
-    pagination: state.pagination,
-    searchValue: state.searchValue,
-    setSearchValue,
-    fetching,
-  };
-
-  if (state.pagination && state.pagination.CustomTable) {
-    return <state.pagination.CustomTable {...paginationProps} />;
-  }
-
   if (state.pagination) {
+    const paginationProps: PagedTableProps<T> = {
+      style,
+      className,
+      data: state.data,
+      renderHeaders,
+      renderBody,
+      nextPage,
+      prevPage,
+      pagination: state.pagination,
+      searchValue: state.searchValue,
+      setSearchValue,
+      fetching,
+      isSearchable,
+    };
+
+    if (state.pagination.CustomTable) {
+      return <state.pagination.CustomTable {...paginationProps} />;
+    }
+
     return <PagedTable {...paginationProps} />;
   }
 
@@ -264,6 +299,7 @@ function PagedTable<T>({
   fetching,
   className,
   style,
+  isSearchable,
 }: PagedTableProps<T>) {
   const { pagerPosition, paginatedData, currentPage } = pagination;
   const { showBothPager, showBottomPager, showTopPager } = getPagerPosition(
@@ -273,21 +309,25 @@ function PagedTable<T>({
 
   return (
     <>
-      <StyledPanel>
-        <InputSearch
-          searchValue={searchValue}
-          setSearchValue={setSearchValue}
-        />
-        {(showTopPager || showBothPager) && (
-          <ClientSidePager
-            nextPage={nextPage}
-            prevPage={prevPage}
-            data={data}
-            {...fetching}
-            {...pagination}
-          />
-        )}
-      </StyledPanel>
+      {(isSearchable || showTopPager || showBothPager) && (
+        <StyledPanel>
+          {isSearchable && (
+            <InputSearch
+              searchValue={searchValue}
+              setSearchValue={setSearchValue}
+            />
+          )}
+          {(showTopPager || showBothPager) && (
+            <ClientSidePager
+              nextPage={nextPage}
+              prevPage={prevPage}
+              data={data}
+              {...fetching}
+              {...pagination}
+            />
+          )}
+        </StyledPanel>
+      )}
       <StyledTable className={className} style={style}>
         {renderHeaders()}
         {renderBody(paginatedData[currentPage])}
@@ -325,7 +365,7 @@ function ServersideTable<T>({
   return (
     <>
       <StyledPanel>
-        {serversideProps.serversideSearchPanel}
+        <Box width="100%">{serversideProps?.serversideSearchPanel}</Box>
         {(showTopPager || showBothPager) && (
           <ServerSidePager
             nextPage={nextPage}
@@ -356,7 +396,9 @@ const EmptyIndicator = ({
   emptyHint,
   emptyButton,
   colSpan,
+  hideIcon = false,
 }: {
+  hideIcon?: boolean;
   emptyText: string;
   emptyHint: string | undefined;
   emptyButton: JSX.Element | undefined;
@@ -378,30 +420,24 @@ const EmptyIndicator = ({
             alignItems="flex-start"
             justifyContent="center"
           >
-            <Icons.Database
-              color="text.main"
-              // line-height and height must match line-height of Text below for the icon to be
-              // aligned to the first line of Text if Text spans multiple lines.
-              css={`
-                line-height: 32px;
-                height: 32px;
-              `}
-            />
+            {/* TODO (avatus) allow overriding this icon */}
+            {!hideIcon && (
+              <Icons.Database
+                color="text.main"
+                // line-height and height must match line-height of Text below for the icon to be
+                // aligned to the first line of Text if Text spans multiple lines.
+                css={`
+                  line-height: 32px;
+                  height: 32px;
+                `}
+              />
+            )}
             <Text textAlign="center" typography="h1" m="0" color="text.main">
               {emptyText}
             </Text>
           </Flex>
 
-          {emptyHint && (
-            <Text
-              textAlign="center"
-              typography="paragraph"
-              m="0"
-              color="text.main"
-            >
-              {emptyHint}
-            </Text>
-          )}
+          {emptyHint && <P1 textAlign="center">{emptyHint}</P1>}
 
           {emptyButton}
         </Flex>
@@ -430,7 +466,7 @@ const LoadingIndicator = ({ colSpan }: { colSpan: number }) => (
  *   - both top and bottom pager if dataLen > 5
  */
 export function getPagerPosition(
-  pagerPosition: PagerPosition,
+  pagerPosition: PagerPosition | undefined,
   dataLen: number
 ) {
   const hasSufficientData = dataLen > 5;

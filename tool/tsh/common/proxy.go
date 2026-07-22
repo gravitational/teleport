@@ -20,8 +20,10 @@ package common
 
 import (
 	"context"
+	"crypto"
 	"crypto/tls"
 	"crypto/x509/pkix"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -29,15 +31,20 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
-	"text/template"
+	"time"
 	"unicode"
 
+	template "github.com/DataDog/datadog-agent/pkg/template/text"
+	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/keypaths"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -50,51 +57,37 @@ import (
 // onProxyCommandSSH creates a local ssh proxy, dialing a node and transferring
 // data through stdin and stdout, to be used as an OpenSSH and PuTTY proxy
 // command.
-func onProxyCommandSSH(cf *CLIConf) error {
-	tc, err := makeClient(cf)
+func onProxyCommandSSH(cf *CLIConf, initFunc ClientInitFunc) error {
+	tc, err := initFunc(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(libclient.RetryWithRelogin(cf.Context, tc, func() error {
+	sshFunc := func() error {
 		clt, err := tc.ConnectToCluster(cf.Context)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
-		var target string
-		switch {
-		case tc.Host != "":
-			targetHost, targetPort, err := net.SplitHostPort(tc.Host)
-			if err != nil {
-				targetHost = tc.Host
-				targetPort = strconv.Itoa(tc.HostPort)
-			}
-			targetHost = cleanTargetHost(targetHost, tc.WebProxyHost(), clt.ClusterName())
-			target = net.JoinHostPort(targetHost, targetPort)
-		case len(tc.SearchKeywords) != 0 || tc.PredicateExpression != "":
-			nodes, err := client.GetAllResources[types.Server](cf.Context, clt.AuthClient, tc.ResourceFilter(types.KindNode))
-			if err != nil {
-				return trace.Wrap(err)
-			}
+		targetHost, targetPort, err := net.SplitHostPort(tc.Host)
+		if err != nil {
+			targetHost = tc.Host
+			targetPort = strconv.Itoa(tc.HostPort)
+		}
+		targetHost = cleanTargetHost(targetHost, tc.WebProxyHost(), clt.ClusterName())
+		tc.Host = targetHost
+		port, err := strconv.Atoi(targetPort)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		tc.HostPort = port
 
-			if len(nodes) == 0 {
-				return trace.NotFound("no matching SSH hosts found for search terms or query expression")
-			}
-
-			if len(nodes) > 1 {
-				return trace.BadParameter("found multiple matching SSH hosts %v", nodes[:2])
-			}
-
-			// Dialing is happening by UUID but a port is still required by
-			// the Proxy dial request. Zero is an indicator to the Proxy that
-			// it may chose the appropriate port based on the target server.
-			target = fmt.Sprintf("%s:0", nodes[0].GetName())
-		default:
-			return trace.BadParameter("no hostname, search terms or query expression provided")
+		target, err := tc.GetTargetNode(cf.Context, clt.AuthClient, nil)
+		if err != nil {
+			return trace.Wrap(err)
 		}
 
-		conn, _, err := clt.DialHostWithResumption(cf.Context, target, clt.ClusterName(), tc.LocalAgent().ExtendedAgent)
+		conn, _, err := clt.DialHostWithResumption(cf.Context, target.Addr, clt.ClusterName(), tc.LocalAgent().ExtendedAgent)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -102,7 +95,148 @@ func onProxyCommandSSH(cf *CLIConf) error {
 		defer conn.Close()
 
 		return trace.Wrap(utils.ProxyConn(cf.Context, utils.CombinedStdio{}, conn))
-	}))
+	}
+	if !cf.Relogin {
+		return trace.Wrap(sshFunc())
+	}
+
+	return trace.Wrap(sshRetryer{
+		shouldRetry:  libclient.ShouldRetryWithRelogin,
+		relogin:      libclient.Relogin,
+		lockfilePath: GetProxySSHRetryerLockfilePath(cf.HomePath, tc.WebProxyHost()),
+		// Try to provide enough time for a manual login or
+		// retry attempts due to network issues.
+		waitDuration:  30 * time.Second,
+		retryAttempts: 3,
+		retryDriver:   retryutils.NewLinearDriver(1 * time.Second),
+	}.retryWithLimitedRelogin(cf.Context, tc, sshFunc))
+}
+
+// GetProxySSHRetryerLockfilePath gets the path to the proxy ssh retryer lockfile.
+func GetProxySSHRetryerLockfilePath(baseDir, proxy string) string {
+	return keypaths.ProxySSHRetryerLockfilePath(profile.FullProfilePath(baseDir), proxy)
+}
+
+type shouldRetryFunc func(context.Context, *libclient.TeleportClient, error) (bool, error)
+type reloginFunc func(context.Context, *libclient.TeleportClient, ...libclient.RetryWithReloginOption) error
+
+// sshRetryer is a more bespoke of libclient.RetryWithRelogin.
+// It uses a file lock to allow a single tsh process to handle relogin
+// while holding an exclusive lock, while other concurrently executing tsh
+// processes wait on shared lock for relogin to complete. This prevents
+// concurrently executing instances of 'tsh proxy ssh' commands from
+// opening an excessive number of browser windows for relogin.
+type sshRetryer struct {
+	// shouldRetry checks if the error can be retried. Wraps the error and returns a boolean
+	// indicating whether or not the original error should retried after relogin.
+	shouldRetry shouldRetryFunc
+	// relogin performs re-authentication.
+	relogin reloginFunc
+	// lockfilePath is the path to the lockfile which will be used to synchronize relogin attempts.
+	lockfilePath string
+	// waitDuration determines how long a command invocation will wait for a concurrent tsh process
+	// to perform a relogin before giving up and trying again anyway.
+	waitDuration time.Duration
+	// retryConfig determines the retry strategy to use when recovering
+	// from transient network errors.
+	retryDriver retryutils.Driver
+	// retryAttempts determines how many times sshRetryer will attempt to
+	// recover from transient network errors. e.g. (1 means that we will
+	// try to relogin once, and then *retry* once more).
+	retryAttempts int
+}
+
+// acquireLock acquires either the exclusive lock, or the shared lock.
+// is returns a boolean indiciating whether or not the lock is exclusive, and unlock callback,
+// and an error. If error is non nil, the caller should discard the boolean and unlock function.
+func (s sshRetryer) acquireLock(ctx context.Context) (bool, func() error, error) {
+	if _, err := utils.EnsureLocalPath(s.lockfilePath, "", ""); err != nil {
+		return false, nil, trace.Wrap(err)
+	}
+
+	// Try to grab the exclusive lock first
+	exclusiveUnlock, err := utils.FSTryWriteLock(s.lockfilePath)
+	if err == nil {
+		return true, exclusiveUnlock, nil
+	}
+
+	// Failed to get exclusive lock. Is something wrong, or did we just
+	// lose the race?
+	if !errors.Is(err, utils.ErrUnsuccessfulLockTry) {
+		return false, nil, trace.Wrap(err)
+	}
+
+	// Someone else has the exclusive lock. Let's wait for the shared lock then.
+	// We don't necessarily _need_ a timeout. We will unblock when the exclusive lock holder releases
+	// or exits. We'll try with a timeout anyway not because we're concerned about blocking forever,
+	// but because FSTryReadLockTimeout is the only API that exposes a context that we can cancel on.
+	sharedUnlock, err := utils.FSTryReadLockTimeout(ctx, s.lockfilePath, s.waitDuration)
+	return false, sharedUnlock, trace.Wrap(err)
+}
+
+func (s sshRetryer) tryRelogin(ctx context.Context, tc *libclient.TeleportClient) error {
+	driver := s.retryDriver
+	if driver == nil {
+		driver = retryutils.NewLinearDriver(1 * time.Second)
+	}
+
+	var reloginErr error
+	// "+1" to attempt relogin at least once in case
+	// retryAttempts is set to zero.
+	for attempt := range s.retryAttempts + 1 {
+		// Backoff per our retry driver
+		// (attempt "0" does not wait)
+		select {
+		case <-time.After(driver.Duration(int64(attempt))):
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+
+		reloginErr = s.relogin(ctx, tc)
+		if reloginErr == nil {
+			// Success!
+			return nil
+		}
+
+		if !isNetworkError(reloginErr) {
+			// Only retry network errors.
+			return trace.Wrap(reloginErr)
+		}
+	}
+	return reloginErr
+}
+
+func (s sshRetryer) retryWithLimitedRelogin(ctx context.Context, tc *libclient.TeleportClient, operation func() error) error {
+	const reloginErrorMessage = "Having problems with relogin, please use 'tsh login' manually"
+	opErr := operation()
+	if opErr == nil {
+		return nil
+	}
+
+	var shouldRetry bool
+	if shouldRetry, opErr = s.shouldRetry(ctx, tc, opErr); !shouldRetry {
+		return opErr
+	}
+
+	// Either acquire the exclusive lock, or block until either another instance
+	// releases the exclusive lock, or a timeout occurs.
+	isExclusive, unlock, err := s.acquireLock(ctx)
+	if err != nil {
+		return trace.Wrap(err, reloginErrorMessage)
+	}
+
+	if isExclusive {
+		// We got the exclusive lock, so we're responsible for attempting relogin.
+		if err := s.tryRelogin(ctx, tc); err != nil {
+			unlock()
+			return trace.Wrap(err, reloginErrorMessage)
+		}
+	}
+
+	// We must unlock *before* retrying the operation. arbitrary SSH commands
+	// can run indefinitely. We don't want to block other tsh processes.
+	unlock()
+	return operation()
 }
 
 // cleanTargetHost cleans the targetHost and remote site and proxy suffixes.
@@ -123,7 +257,7 @@ func formatCommand(cmd *exec.Cmd) string {
 	var args []string
 	for _, arg := range cmd.Args {
 		// escape the potential quotes within
-		arg = strings.Replace(arg, `"`, `\"`, -1)
+		arg = strings.ReplaceAll(arg, `"`, `\"`)
 
 		// if there is whitespace within, surround with quotes
 		if strings.IndexFunc(arg, unicode.IsSpace) != -1 {
@@ -151,7 +285,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	routes, err := profile.DatabasesForCluster(tc.SiteName)
+	routes, err := profile.DatabasesForCluster(tc.SiteName, tc.ClientStore)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -170,7 +304,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 		// Some scenarios require a local proxy tunnel, e.g.:
 		// - Snowflake, DynamoDB protocol
 		// - Hardware-backed private key policy
-		return trace.BadParameter(formatDbCmdUnsupported(cf, dbInfo.RouteToDatabase, requires.tunnelReasons...))
+		return trace.BadParameter("%s", formatDbCmdUnsupported(cf, dbInfo.RouteToDatabase, requires.tunnelReasons...))
 	}
 	if err := maybeDatabaseLogin(cf, tc, profile, dbInfo, requires); err != nil {
 		return trace.Wrap(err)
@@ -181,9 +315,22 @@ func onProxyCommandDB(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
+	if cf.LocalProxyAddr != "" && cf.LocalProxyPort != "" {
+		return trace.BadParameter("either the address or port for the local proxy can be specified, not both")
+	}
 	addr := "localhost:0"
 	randomPort := true
-	if cf.LocalProxyPort != "" {
+	if cf.LocalProxyAddr != "" {
+		host, _, err := net.SplitHostPort(cf.LocalProxyAddr)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if !cf.InsecureListenAnywhere && !apiutils.IsLoopback(host) {
+			return trace.BadParameter("only loopback addresses are allowed for listener without --insecure-listen-anywhere switch, got %q", cf.LocalProxyAddr)
+		}
+		randomPort = false
+		addr = cf.LocalProxyAddr
+	} else if cf.LocalProxyPort != "" {
 		randomPort = false
 		addr = fmt.Sprintf("127.0.0.1:%s", cf.LocalProxyPort)
 	}
@@ -195,7 +342,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 
 	defer func() {
 		if err := listener.Close(); err != nil {
-			log.WithError(err).Warnf("Failed to close listener.")
+			logger.WarnContext(cf.Context, "Failed to close listener", "error", err)
 		}
 	}()
 
@@ -224,24 +371,21 @@ func onProxyCommandDB(cf *CLIConf) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		opts := []dbcmd.ConnectCommandFunc{
+		opts, err := makeDatabaseCommandOptions(cf.Context, tc, dbInfo,
 			dbcmd.WithLocalProxy("localhost", addr.Port(0), ""),
 			dbcmd.WithNoTLS(),
-			dbcmd.WithLogger(log),
 			dbcmd.WithPrintFormat(),
 			dbcmd.WithTolerateMissingCLIClient(),
-			dbcmd.WithGetDatabaseFunc(dbInfo.getDatabaseForDBCmd),
-		}
-		if opts, err = maybeAddDBUserPassword(cf, tc, dbInfo, opts); err != nil {
-			return trace.Wrap(err)
-		}
-		if opts, err = maybeAddGCPMetadata(cf.Context, tc, dbInfo, opts); err != nil {
+		)
+		if err != nil {
 			return trace.Wrap(err)
 		}
 
-		commands, err := dbcmd.NewCmdBuilder(tc, profile, dbInfo.RouteToDatabase, rootCluster,
-			opts...,
-		).GetConnectCommandAlternatives(cf.Context)
+		cb, err := dbcmd.NewCmdBuilder(tc, profile, dbInfo.RouteToDatabase, rootCluster, dbInfo.getDatabaseForDBCmd, opts...)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		commands, err := cb.GetConnectCommandAlternatives(cf.Context)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -268,7 +412,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 			"address":      listener.Addr().String(),
 			"ca":           profile.CACertPathForCluster(rootCluster),
 			"cert":         profile.DatabaseCertPathForCluster(cf.SiteName, dbInfo.ServiceName),
-			"key":          profile.KeyPath(),
+			"key":          profile.DatabaseKeyPathForCluster(cf.SiteName, dbInfo.ServiceName),
 			"randomPort":   randomPort,
 			"databaseUser": dbInfo.Username,
 			"databaseName": dbInfo.Database,
@@ -285,9 +429,9 @@ func onProxyCommandDB(cf *CLIConf) error {
 	return nil
 }
 
-func maybeAddDBUserPassword(cf *CLIConf, tc *libclient.TeleportClient, dbInfo *databaseInfo, opts []dbcmd.ConnectCommandFunc) ([]dbcmd.ConnectCommandFunc, error) {
+func maybeAddDBUserPassword(ctx context.Context, tc *libclient.TeleportClient, dbInfo *databaseInfo, opts []dbcmd.ConnectCommandFunc) ([]dbcmd.ConnectCommandFunc, error) {
 	if dbInfo.Protocol == defaults.ProtocolCassandra {
-		db, err := dbInfo.GetDatabase(cf.Context, tc)
+		db, err := dbInfo.GetDatabase(ctx, tc)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -309,16 +453,16 @@ func requiresGCPMetadata(protocol string) bool {
 	return protocol == defaults.ProtocolSpanner
 }
 
-func maybeAddGCPMetadata(ctx context.Context, tc *libclient.TeleportClient, dbInfo *databaseInfo, opts []dbcmd.ConnectCommandFunc) ([]dbcmd.ConnectCommandFunc, error) {
-	if !requiresGCPMetadata(dbInfo.Protocol) {
-		return opts, nil
-	}
-	db, err := dbInfo.GetDatabase(ctx, tc)
-	if err != nil {
+func makeDatabaseCommandOptions(ctx context.Context, tc *libclient.TeleportClient, dbInfo *databaseInfo, extraOpts ...dbcmd.ConnectCommandFunc) ([]dbcmd.ConnectCommandFunc, error) {
+	var err error
+	opts := append([]dbcmd.ConnectCommandFunc{
+		dbcmd.WithLogger(logger),
+	}, extraOpts...)
+
+	if opts, err = maybeAddDBUserPassword(ctx, tc, dbInfo, opts); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	gcp := db.GetGCP()
-	return append(opts, dbcmd.WithGCP(gcp)), nil
+	return maybeAddOracleOptions(ctx, tc, dbInfo, opts), nil
 }
 
 func maybeAddGCPMetadataTplArgs(ctx context.Context, tc *libclient.TeleportClient, dbInfo *databaseInfo, templateArgs map[string]any) {
@@ -335,45 +479,137 @@ func maybeAddGCPMetadataTplArgs(ctx context.Context, tc *libclient.TeleportClien
 	}
 }
 
+func maybeAddOracleOptions(ctx context.Context, tc *libclient.TeleportClient, dbInfo *databaseInfo, opts []dbcmd.ConnectCommandFunc) []dbcmd.ConnectCommandFunc {
+	// Skip for non-Oracle protocols.
+	if dbInfo.Protocol != defaults.ProtocolOracle {
+		return opts
+	}
+
+	// TODO(Tener): DELETE IN 20.0.0 - all agents should now contain improved Oracle engine.
+	// minimum version to support TCPS-less connection.
+	cutoffVersion := semver.Version{
+		Major:      17,
+		Minor:      2,
+		Patch:      0,
+		PreRelease: "",
+	}
+
+	devV17Version := semver.Version{
+		Major:      17,
+		Minor:      0,
+		Patch:      0,
+		PreRelease: "dev",
+	}
+
+	dbServers, err := getDatabaseServers(ctx, tc, dbInfo.ServiceName)
+	if err != nil {
+		// log, but treat this error as non-fatal.
+		logger.WarnContext(ctx, "Error getting database servers", "error", err)
+		return opts
+	}
+
+	var oldServers, newServers int
+
+	for _, server := range dbServers {
+		ver, err := semver.NewVersion(server.GetTeleportVersion())
+		if err != nil {
+			logger.DebugContext(ctx, "Failed to parse teleport version", "version", server.GetTeleportVersion(), "error", err)
+			continue
+		}
+
+		if ver.Equal(devV17Version) {
+			newServers++
+		} else {
+			if ver.LessThan(cutoffVersion) {
+				oldServers++
+			} else {
+				newServers++
+			}
+		}
+	}
+
+	logger.DebugContext(ctx, "Retrieved agents for database with Oracle support",
+		"database", dbInfo.ServiceName,
+		"total", len(dbServers),
+		"old_count", oldServers,
+		"new_count", newServers,
+	)
+
+	if oldServers > 0 {
+		logger.WarnContext(ctx, "Detected outdated database agent, for improved client support upgrade all database agents in your cluster to a newer version",
+			"lowest_supported_version", cutoffVersion,
+		)
+	}
+
+	opts = append(opts, dbcmd.WithOracleOpts(oldServers == 0, newServers > 0))
+	return opts
+}
+
 type templateCommandItem struct {
 	Description string
 	Command     string
 }
 
 func chooseProxyCommandTemplate(templateArgs map[string]any, commands []dbcmd.CommandAlternative, dbInfo *databaseInfo) *template.Template {
+	templateArgs["command"] = formatCommand(commands[0].Command)
+
+	// protocol-specific templates
+	if dbInfo.Protocol == defaults.ProtocolOracle {
+		// the JDBC connection string should always be found,
+		// but the order of commands is important as only the first command will actually be shown.
+		jdbcConnectionString := ""
+		ixFound := -1
+		for ix, cmd := range commands {
+			for _, arg := range cmd.Command.Args {
+				if strings.Contains(arg, "jdbc:oracle:") {
+					jdbcConnectionString = arg
+					ixFound = ix
+				}
+			}
+		}
+		templateArgs["jdbcConnectionString"] = jdbcConnectionString
+		templateArgs["canUseTCP"] = ixFound > 0
+		return dbProxyOracleAuthTpl
+	}
+
+	if dbInfo.Protocol == defaults.ProtocolSpanner {
+		templateArgs["databaseName"] = "<database>"
+		if dbInfo.Database != "" {
+			templateArgs["databaseName"] = dbInfo.Database
+		}
+		return dbProxySpannerAuthTpl
+	}
+
 	// there is only one command, use plain template.
 	if len(commands) == 1 {
-		templateArgs["command"] = formatCommand(commands[0].Command)
-		switch dbInfo.Protocol {
-		case defaults.ProtocolOracle:
-			templateArgs["args"] = commands[0].Command.Args
-			return dbProxyOracleAuthTpl
-		case defaults.ProtocolSpanner:
-			templateArgs["databaseName"] = "<database>"
-			if dbInfo.Database != "" {
-				templateArgs["databaseName"] = dbInfo.Database
-			}
-			return dbProxySpannerAuthTpl
-		}
 		return dbProxyAuthTpl
 	}
 
 	// multiple command options, use a different template.
-
 	var commandsArg []templateCommandItem
 	for _, cmd := range commands {
 		commandsArg = append(commandsArg, templateCommandItem{cmd.Description, formatCommand(cmd.Command)})
 	}
 
+	delete(templateArgs, "command")
 	templateArgs["commands"] = commandsArg
 	return dbProxyAuthMultiTpl
 }
 
-func alpnProtocolForApp(app types.Application) alpncommon.Protocol {
-	if app.IsTCP() {
-		return alpncommon.ProtocolTCP
+func alpnProtocolForApp(app types.Application, appHTTPSTunnel bool) (alpncommon.Protocol, error) {
+	if appHTTPSTunnel {
+		switch app.GetProtocol() {
+		case types.ApplicationProtocolHTTP, types.ApplicationProtocolLLM:
+			return alpncommon.ProtocolAppHTTPS, nil
+		default:
+			return "", trace.BadParameter("--https-tunnel not supported for %s applications", app.GetProtocol())
+		}
 	}
-	return alpncommon.ProtocolHTTP
+
+	if app.IsTCP() {
+		return alpncommon.ProtocolTCP, nil
+	}
+	return alpncommon.ProtocolHTTP, nil
 }
 
 func onProxyCommandApp(cf *CLIConf) error {
@@ -382,30 +618,103 @@ func onProxyCommandApp(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	appInfo, err := getAppInfo(cf, tc, nil /*matchRouteToApp*/)
+	portMapping, err := libclient.ParsePortMapping(cf.LocalProxyPortMapping)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	app, err := appInfo.GetApp(cf.Context, tc)
+	profile, err := tc.ProfileStatus()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	proxyApp := newLocalProxyApp(tc, appInfo, cf.LocalProxyPort, cf.InsecureSkipVerify)
-	if err := proxyApp.StartLocalProxy(cf.Context, alpnproxy.WithALPNProtocol(alpnProtocolForApp(app))); err != nil {
+	var (
+		appInfo *appInfo
+		app     types.Application
+	)
+	if err := libclient.RetryWithRelogin(cf.Context, tc, func() error {
+		var err error
+		clusterClient, err := tc.ConnectToCluster(cf.Context)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer clusterClient.Close()
+
+		appInfo, err = getAppInfo(cf, clusterClient.AuthClient, profile, tc.SiteName, matchGCPApp)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		app, err = appInfo.GetApp(cf.Context, clusterClient.AuthClient)
 		return trace.Wrap(err)
+	}); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := checkProxyMCPCompatibility(cf.command, app); err != nil {
+		return trace.Wrap(err)
+	}
+
+	proxyApp, err := newLocalProxyAppWithPortMapping(cf.Context, tc, profile, appInfo.RouteToApp, app, portMapping, cf.InsecureSkipVerify)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	alpnProtocol, err := alpnProtocolForApp(app, cf.AppHTTPSTunnel)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := proxyApp.StartLocalProxy(cf.Context, alpnproxy.WithALPNProtocol(alpnProtocol)); err != nil {
+		return trace.Wrap(err)
+	}
+
+	appName := cf.AppName
+	if portMapping.TargetPort != 0 {
+		appName = net.JoinHostPort(appName, strconv.Itoa(portMapping.TargetPort))
+	}
+	fmt.Fprintf(cf.ProxyStatusOutput(), "Proxying connections to %s on %v\n", appName, proxyApp.GetAddr())
+	// If target port is not equal to zero, the user must know about the port flag.
+	if portMapping.LocalPort == 0 && portMapping.TargetPort == 0 {
+		fmt.Fprintln(cf.ProxyStatusOutput(), "To avoid port randomization, you can choose the listening port using the --port flag.")
+	}
+
+	if cf.AppHTTPSTunnel {
+		curlCmd := fmt.Sprintf("curl --connect-to %s:443:%s https://%s", app.GetPublicAddr(), proxyApp.GetAddr(), app.GetPublicAddr())
+		if cf.InsecureSkipVerify {
+			curlCmd += " -k"
+		}
+		fmt.Fprintf(cf.ProxyStatusOutput(), "\nExample curl command:\n%s\n", curlCmd)
 	}
 
 	defer func() {
 		if err := proxyApp.Close(); err != nil {
-			log.WithError(err).Error("Failed to close app proxy.")
+			logger.ErrorContext(cf.Context, "Failed to close app proxy", "error", err)
 		}
 	}()
 
 	// Proxy connections until the client terminates the command.
 	<-cf.Context.Done()
 	return nil
+}
+
+func checkProxyMCPCompatibility(command string, app types.Application) error {
+	if !app.IsMCP() {
+		switch command {
+		case "proxy mcp":
+			return trace.BadParameter("%q is not an MCP application", app.GetName())
+		default:
+			// tsh proxy app
+			return nil
+		}
+	}
+
+	mcpTransport := types.GetMCPServerTransportType(app.GetURI())
+	switch mcpTransport {
+	case types.MCPTransportHTTP:
+		return nil
+	default:
+		return trace.BadParameter("MCP applications with %s transport are not supported. Please see 'tsh mcp config --help' for more details.", mcpTransport)
+	}
 }
 
 // onProxyCommandAWS creates local proxes for AWS apps.
@@ -426,7 +735,7 @@ func onProxyCommandAWS(cf *CLIConf) error {
 
 	defer func() {
 		if err := awsApp.Close(); err != nil {
-			log.WithError(err).Error("Failed to close AWS app.")
+			logger.ErrorContext(cf.Context, "Failed to close AWS app", "error", err)
 		}
 	}()
 
@@ -441,7 +750,6 @@ func onProxyCommandAWS(cf *CLIConf) error {
 type awsAppInfo interface {
 	GetAppName() string
 	GetEnvVars() (map[string]string, error)
-	GetEndpointURL() string
 	GetForwardProxyAddr() string
 }
 
@@ -451,15 +759,14 @@ func printProxyAWSTemplate(cf *CLIConf, awsApp awsAppInfo) error {
 		return trace.Wrap(err)
 	}
 
-	templateData := map[string]interface{}{
-		"envVars":     envVars,
-		"endpointURL": awsApp.GetEndpointURL(),
-		"format":      cf.Format,
-		"randomPort":  cf.LocalProxyPort == "",
-		"appName":     awsApp.GetAppName(),
-		"region":      getEnvOrDefault(awsRegionEnvVar, "<region>"),
-		"keystore":    getEnvOrDefault(awsKeystoreEnvVar, "<keystore>"),
-		"workgroup":   getEnvOrDefault(awsWorkgroupEnvVar, "<workgroup>"),
+	templateData := map[string]any{
+		"envVars":    envVars,
+		"format":     cf.Format,
+		"randomPort": cf.LocalProxyPort == "",
+		"appName":    awsApp.GetAppName(),
+		"region":     getEnvOrDefault(awsRegionEnvVar, "<region>"),
+		"keystore":   getEnvOrDefault(awsKeystoreEnvVar, "<keystore>"),
+		"workgroup":  getEnvOrDefault(awsWorkgroupEnvVar, "<workgroup>"),
 	}
 
 	if proxyAddr := awsApp.GetForwardProxyAddr(); proxyAddr != "" {
@@ -479,7 +786,7 @@ func printProxyAWSTemplate(cf *CLIConf, awsApp awsAppInfo) error {
 	case cf.Format == awsProxyFormatAthenaJDBC:
 		templates = append(templates, awsProxyJDBCHeaderFooterTemplate, awsProxyAthenaJDBCTemplate)
 	case cf.AWSEndpointURLMode:
-		templates = append(templates, awsEndpointURLProxyTemplate)
+		return trace.BadParameter("--endpoint-url is no longer supported, use HTTPS proxy instead (default mode)")
 	default:
 		templates = append(templates, awsHTTPSProxyTemplate)
 	}
@@ -496,11 +803,8 @@ func printProxyAWSTemplate(cf *CLIConf, awsApp awsAppInfo) error {
 }
 
 func checkProxyAWSFormatCompatibility(cf *CLIConf) error {
-	switch cf.Format {
-	case awsProxyFormatAthenaODBC, awsProxyFormatAthenaJDBC:
-		if cf.AWSEndpointURLMode {
-			return trace.BadParameter("format %q is not supported in --endpoint-url mode", cf.Format)
-		}
+	if cf.AWSEndpointURLMode {
+		return trace.BadParameter("--endpoint-url is no longer supported, use HTTPS proxy instead (default mode)")
 	}
 	return nil
 }
@@ -519,7 +823,7 @@ func onProxyCommandAzure(cf *CLIConf) error {
 
 	defer func() {
 		if err := azApp.Close(); err != nil {
-			log.WithError(err).Error("Failed to close Azure app.")
+			logger.ErrorContext(cf.Context, "Failed to close Azure app", "error", err)
 		}
 	}()
 
@@ -550,7 +854,7 @@ func onProxyCommandGCloud(cf *CLIConf) error {
 
 	defer func() {
 		if err := gcpApp.Close(); err != nil {
-			log.WithError(err).Error("Failed to close GCP app.")
+			logger.ErrorContext(cf.Context, "Failed to close GCP app", "error", err)
 		}
 	}()
 
@@ -568,12 +872,12 @@ func onProxyCommandGCloud(cf *CLIConf) error {
 }
 
 func loadAppCertificate(tc *libclient.TeleportClient, appName string) (tls.Certificate, error) {
-	key, err := tc.LocalAgent().GetKey(tc.SiteName, libclient.WithAppCerts{})
+	keyRing, err := tc.LocalAgent().GetKeyRing(tc.SiteName, libclient.WithAppCerts{})
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
 
-	appCert, err := key.AppTLSCert(appName)
+	appCert, err := keyRing.AppTLSCert(appName)
 	if trace.IsNotFound(err) {
 		return tls.Certificate{}, trace.NotFound("please login into the application first: 'tsh apps login %v'", appName)
 	} else if err != nil {
@@ -584,12 +888,12 @@ func loadAppCertificate(tc *libclient.TeleportClient, appName string) (tls.Certi
 }
 
 func loadDBCertificate(tc *libclient.TeleportClient, dbName string) (tls.Certificate, error) {
-	key, err := tc.LocalAgent().GetKey(tc.SiteName, libclient.WithDBCerts{})
+	keyRing, err := tc.LocalAgent().GetKeyRing(tc.SiteName, libclient.WithDBCerts{})
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
 
-	dbCert, err := key.DBTLSCert(dbName)
+	dbCert, err := keyRing.DBTLSCert(dbName)
 	if trace.IsNotFound(err) {
 		return tls.Certificate{}, trace.NotFound("please login into the database first. 'tsh db login'")
 	} else if err != nil {
@@ -616,7 +920,7 @@ func makeBasicLocalProxyConfig(ctx context.Context, tc *libclient.TeleportClient
 	}
 }
 
-func generateDBLocalProxyCert(key *libclient.KeyRing, profile *libclient.ProfileStatus) error {
+func generateDBLocalProxyCert(signer crypto.Signer, profile *libclient.ProfileStatus) error {
 	path := profile.DatabaseLocalCAPath()
 	if utils.FileExists(path) {
 		return nil
@@ -626,7 +930,7 @@ func generateDBLocalProxyCert(key *libclient.KeyRing, profile *libclient.Profile
 			CommonName:   "localhost",
 			Organization: []string{"Teleport"},
 		},
-		Signer:      key.PrivateKey.Signer,
+		Signer:      signer,
 		DNSNames:    []string{"localhost"},
 		IPAddresses: []net.IP{net.ParseIP(defaults.Localhost)},
 		TTL:         defaults.CATTL,
@@ -659,10 +963,6 @@ Your database user is "{{.databaseUser}}".{{if .databaseName}} The target databa
 
 `))
 
-var templateFunctions = map[string]any{
-	"contains": strings.Contains,
-}
-
 // dbProxyAuthTpl is the message that's printed for an authenticated db proxy.
 var dbProxyAuthTpl = template.Must(template.New("").Parse(
 	`Started authenticated tunnel for the {{.type}} database "{{.database}}" in cluster "{{.cluster}}" on {{.address}}.
@@ -686,21 +986,22 @@ Or use the following JDBC connection string to connect with other GUI/CLI client
 jdbc:cloudspanner://{{.address}}/projects/{{.gcpProject}}/instances/{{.gcpInstance}}/databases/{{.databaseName}};usePlainText=true
 `))
 
-// dbProxyOracleAuthTpl is the message that's printed for an authenticated db proxy.
-var dbProxyOracleAuthTpl = template.Must(template.New("").Funcs(templateFunctions).Parse(
+var dbProxyOracleAuthTpl = template.Must(template.New("").Parse(
 	`Started authenticated tunnel for the {{.type}} database "{{.database}}" in cluster "{{.cluster}}" on {{.address}}.
 {{if .randomPort}}To avoid port randomization, you can choose the listening port using the --port flag.
 {{end}}
-` + dbProxyConnectAd + `
 Use the following command to connect to the Oracle database server using CLI:
   $ {{.command}}
 
-or using following Oracle JDBC connection string in order to connect with other GUI/CLI clients:
-{{- range $val := .args}}
-  {{- if contains $val "jdbc:oracle:"}}
-  {{$val}}
-  {{- end}}
-{{- end}}
+{{if .canUseTCP }}Other clients can use:
+  - a direct connection to {{.address}} without a username and password
+  - a custom JDBC connection string: {{.jdbcConnectionString}}
+
+{{else }}You can also connect using Oracle JDBC connection string:
+  {{.jdbcConnectionString}}
+
+Note: for improved client compatibility, upgrade your Teleport cluster. For details rerun this command with --debug.
+{{- end }}
 `))
 
 // dbProxyAuthMultiTpl is the message that's printed for an authenticated db proxy if there are multiple command options.
@@ -753,7 +1054,7 @@ func envVarFormatFlagDescription() string {
 
 func awsProxyFormatFlagDescription() string {
 	return fmt.Sprintf(
-		"%s Or specify a service format, one of: %s",
+		"%s Or specify a service format, one of: %s.",
 		envVarFormatFlagDescription(),
 		strings.Join(awsProxyServiceFormats, ", "),
 	)
@@ -773,13 +1074,13 @@ func envVarDefaultFormat() string {
 func envVarCommand(format, key, value string) (string, error) {
 	switch format {
 	case envVarFormatUnix:
-		return fmt.Sprintf("export %s=%s", key, value), nil
+		return fmt.Sprintf(`export %s="%s"`, key, value), nil
 
 	case envVarFormatWindowsCommandPrompt:
 		return fmt.Sprintf("set %s=%s", key, value), nil
 
 	case envVarFormatWindowsPowershell:
-		return fmt.Sprintf("$Env:%s=\"%s\"", key, value), nil
+		return fmt.Sprintf(`$Env:%s="%s"`, key, value), nil
 
 	case envVarFormatText:
 		return fmt.Sprintf("%s=%s", key, value), nil
@@ -796,11 +1097,7 @@ var cloudTemplateFuncs = template.FuncMap{
 // awsProxyHeaderTemplate contains common header used for AWS proxy.
 const awsProxyHeaderTemplate = `
 {{define "header"}}
-{{- if .envVars.HTTPS_PROXY -}}
 Started AWS proxy on {{.envVars.HTTPS_PROXY}}.
-{{- else -}}
-Started AWS proxy which serves as an AWS endpoint URL at {{.endpointURL}}.
-{{- end }}
 {{if .randomPort}}To avoid port randomization, you can choose the listening port using the --port flag.
 {{end}}
 {{end}}
@@ -837,15 +1134,6 @@ Use the following credentials and HTTPS proxy setting to connect to the proxy:
   {{ envVarCommand .format "HTTPS_PROXY" .envVars.HTTPS_PROXY}}
 `
 
-// awsEndpointURLProxyTemplate is the message that gets printed to a user when an
-// AWS endpoint URL proxy is started.
-var awsEndpointURLProxyTemplate = `{{- template "header" . -}}
-In addition to the endpoint URL, use the following credentials to connect to the proxy:
-  {{ envVarCommand .format "AWS_ACCESS_KEY_ID" .envVars.AWS_ACCESS_KEY_ID}}
-  {{ envVarCommand .format "AWS_SECRET_ACCESS_KEY" .envVars.AWS_SECRET_ACCESS_KEY}}
-  {{ envVarCommand .format "AWS_CA_BUNDLE" .envVars.AWS_CA_BUNDLE}}
-`
-
 // awsProxyAthenaODBCTemplate is the message that gets printed to a user when an
 // AWS proxy is used for Athena ODBC driver.
 var awsProxyAthenaODBCTemplate = `{{- template "header" . -}}
@@ -880,7 +1168,7 @@ jdbc:awsathena://User={{.envVars.AWS_ACCESS_KEY_ID}};Password={{.envVars.AWS_SEC
 `
 
 func printCloudTemplate(envVars map[string]string, format string, randomPort bool, cloudName string) error {
-	templateData := map[string]interface{}{
+	templateData := map[string]any{
 		"envVars":    envVars,
 		"format":     format,
 		"randomPort": randomPort,

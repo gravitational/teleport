@@ -33,6 +33,8 @@ const (
 	GCPMatcherKubernetes = "gke"
 	// GCPMatcherCompute is the GCP matcher for GCP VMs.
 	GCPMatcherCompute = "gce"
+	// GCPMatcherCloudSQL is the GCP matcher type for Cloud SQL databases.
+	GCPMatcherCloudSQL = "cloudsql"
 )
 
 // SupportedGCPMatchers is list of GCP services currently supported by the
@@ -40,6 +42,7 @@ const (
 var SupportedGCPMatchers = []string{
 	GCPMatcherKubernetes,
 	GCPMatcherCompute,
+	GCPMatcherCloudSQL,
 }
 
 // GetTypes gets the types that the matcher can match.
@@ -82,6 +85,18 @@ func (m *GCPMatcher) CheckAndSetDefaults() error {
 			m.Params = &InstallerParams{}
 		}
 
+		if m.Params.Suffix != "" {
+			if !isAlphanumericIncluding(m.Params.Suffix, '-') {
+				return trace.BadParameter("install.suffix can only contain alphanumeric characters and hyphens")
+			}
+		}
+
+		if m.Params.UpdateGroup != "" {
+			if !isAlphanumericIncluding(m.Params.UpdateGroup, '-') {
+				return trace.BadParameter("install.update_group can only contain alphanumeric characters and hyphens")
+			}
+		}
+
 		switch m.Params.JoinMethod {
 		case JoinMethodGCP, "":
 			m.Params.JoinMethod = JoinMethodGCP
@@ -96,14 +111,18 @@ func (m *GCPMatcher) CheckAndSetDefaults() error {
 		if m.Params.ScriptName == "" {
 			m.Params.ScriptName = DefaultInstallerScriptName
 		}
+
+		if err := m.Params.HTTPProxySettings.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	if slices.Contains(m.Locations, Wildcard) || len(m.Locations) == 0 {
 		m.Locations = []string{Wildcard}
 	}
 
-	if slices.Contains(m.ProjectIDs, Wildcard) {
-		return trace.BadParameter("GCP discovery service project_ids does not support wildcards; please specify at least one value in project_ids.")
+	if slices.Contains(m.ProjectIDs, Wildcard) && len(m.ProjectIDs) > 1 {
+		return trace.BadParameter("GCP discovery service either supports wildcard project_ids or multiple values, but not both.")
 	}
 	if len(m.ProjectIDs) == 0 {
 		return trace.BadParameter("GCP discovery service project_ids does cannot be empty; please specify at least one value in project_ids.")

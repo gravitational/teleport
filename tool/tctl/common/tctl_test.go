@@ -20,23 +20,103 @@ package common
 
 import (
 	"context"
+	"errors"
 	"os"
+	"os/exec"
+	"slices"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/config"
+	"github.com/gravitational/teleport/lib/cryptosuites/cryptosuitestest"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/utils"
+	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
+const initTestSentinel = "init_test"
+
 func TestMain(m *testing.M) {
+	if slices.Contains(os.Args, initTestSentinel) {
+		os.Exit(0)
+	}
+
 	modules.SetInsecureTestMode(true)
-	os.Exit(m.Run())
+	ctx, cancel := context.WithCancel(context.Background())
+	cryptosuitestest.PrecomputeRSAKeys(ctx)
+	exitCode := m.Run()
+	cancel()
+	os.Exit(exitCode)
+}
+
+func BenchmarkInit(b *testing.B) {
+	if testing.Short() {
+		b.Skip("skipping heavy benchmark")
+	}
+	executable, err := os.Executable()
+	require.NoError(b, err)
+
+	for b.Loop() {
+		cmd := exec.Command(executable, initTestSentinel)
+		err := cmd.Run()
+		assert.NoError(b, err)
+	}
+}
+
+// TestCommandMatchBeforeAuthConnect verifies all defined `tctl` commands `TryRun`
+// method, to ensure that auth client not initialized in matching process,
+// so we don't require a client before command is executed.
+func TestCommandMatchBeforeAuthConnect(t *testing.T) {
+	app := utils.InitCLIParser("tctl", GlobalHelpString)
+	cfg := servicecfg.MakeDefaultConfig()
+	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+
+	var ccf tctlcfg.GlobalCLIFlags
+
+	commands := Commands()
+	for i := range commands {
+		commands[i].Initialize(app, &ccf, cfg)
+	}
+
+	testError := errors.New("auth client must not be initialized before match")
+
+	ctx := context.Background()
+	clientFunc := func(ctx context.Context) (client *authclient.Client, close func(context.Context), err error) {
+		return nil, nil, testError
+	}
+
+	var match bool
+	var err error
+
+	// We set the command which is not defined to go through
+	// all defined commands to ensure that auth client
+	// not initialized before command is matched.
+	for _, c := range commands {
+		match, err = c.TryRun(ctx, "non-existing-command", clientFunc)
+		if err != nil {
+			break
+		}
+	}
+	require.False(t, match)
+	require.NoError(t, err)
+
+	// Iterate and expect that `tokens ls` command going to be executed
+	// and auth client is requested.
+	for _, c := range commands {
+		match, err = c.TryRun(ctx, "tokens ls", clientFunc)
+		if err != nil {
+			break
+		}
+	}
+	require.False(t, match)
+	require.ErrorIs(t, err, testError)
 }
 
 // TestConnect tests client config and connection logic.
@@ -56,7 +136,9 @@ func TestConnect(t *testing.T) {
 		},
 	}
 	process := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
-	clt := testenv.MakeDefaultAuthClient(t, process)
+	clt, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = clt.Close() })
 	fileConfigAgent := &config.FileConfig{
 		Global: config.Global{
 			DataDir: t.TempDir(),
@@ -80,13 +162,13 @@ func TestConnect(t *testing.T) {
 
 	for _, tc := range []struct {
 		name            string
-		cliFlags        GlobalCLIFlags
+		cliFlags        tctlcfg.GlobalCLIFlags
 		modifyConfig    func(*servicecfg.Config)
 		wantErrContains string
 	}{
 		{
 			name: "default to data dir",
-			cliFlags: GlobalCLIFlags{
+			cliFlags: tctlcfg.GlobalCLIFlags{
 				AuthServerAddr: []string{fileConfig.Auth.ListenAddress},
 				Insecure:       true,
 			},
@@ -95,33 +177,33 @@ func TestConnect(t *testing.T) {
 			},
 		}, {
 			name: "auth config file",
-			cliFlags: GlobalCLIFlags{
+			cliFlags: tctlcfg.GlobalCLIFlags{
 				ConfigFile: mustWriteFileConfig(t, fileConfig),
 				Insecure:   true,
 			},
 		}, {
 			name: "auth config file string",
-			cliFlags: GlobalCLIFlags{
+			cliFlags: tctlcfg.GlobalCLIFlags{
 				ConfigString: mustGetBase64EncFileConfig(t, fileConfig),
 				Insecure:     true,
 			},
 		}, {
 			name: "ignores agent config file",
-			cliFlags: GlobalCLIFlags{
+			cliFlags: tctlcfg.GlobalCLIFlags{
 				ConfigFile: mustWriteFileConfig(t, fileConfigAgent),
 				Insecure:   true,
 			},
 			wantErrContains: "make sure that a Teleport Auth Service instance is running",
 		}, {
 			name: "ignores agent config file string",
-			cliFlags: GlobalCLIFlags{
+			cliFlags: tctlcfg.GlobalCLIFlags{
 				ConfigString: mustGetBase64EncFileConfig(t, fileConfigAgent),
 				Insecure:     true,
 			},
 			wantErrContains: "make sure that a Teleport Auth Service instance is running",
 		}, {
 			name: "ignores agent config file and loads identity file",
-			cliFlags: GlobalCLIFlags{
+			cliFlags: tctlcfg.GlobalCLIFlags{
 				AuthServerAddr:   []string{fileConfig.Auth.ListenAddress},
 				IdentityFilePath: mustWriteIdentityFile(t, clt, username),
 				ConfigFile:       mustWriteFileConfig(t, fileConfigAgent),
@@ -129,7 +211,7 @@ func TestConnect(t *testing.T) {
 			},
 		}, {
 			name: "ignores agent config file string and loads identity file",
-			cliFlags: GlobalCLIFlags{
+			cliFlags: tctlcfg.GlobalCLIFlags{
 				AuthServerAddr:   []string{fileConfig.Auth.ListenAddress},
 				IdentityFilePath: mustWriteIdentityFile(t, clt, username),
 				ConfigString:     mustGetBase64EncFileConfig(t, fileConfigAgent),
@@ -137,7 +219,7 @@ func TestConnect(t *testing.T) {
 			},
 		}, {
 			name: "identity file",
-			cliFlags: GlobalCLIFlags{
+			cliFlags: tctlcfg.GlobalCLIFlags{
 				AuthServerAddr:   []string{fileConfig.Auth.ListenAddress},
 				IdentityFilePath: mustWriteIdentityFile(t, clt, username),
 				Insecure:         true,
@@ -150,18 +232,32 @@ func TestConnect(t *testing.T) {
 			// set tsh home to a fake path so that the existence of a real
 			// ~/.tsh does not interfere with the test result.
 			cfg.TeleportHome = t.TempDir()
+			// set data dir to a fake path so that the existence of a real
+			// /var/lib/teleport does not interfere with the test result.
+			cfg.DataDir = t.TempDir()
 			if tc.modifyConfig != nil {
 				tc.modifyConfig(cfg)
 			}
 
-			clientConfig, err := ApplyConfig(&tc.cliFlags, cfg)
+			resolved, err := tctlcfg.ApplyConfig(&tc.cliFlags, cfg)
 			if tc.wantErrContains != "" {
 				require.ErrorContains(t, err, tc.wantErrContains)
 				return
 			}
 			require.NoError(t, err)
 
-			_, err = authclient.Connect(ctx, clientConfig)
+			// Identity-file and tsh-profile paths populate ClientStore+Profile
+			// for downstream callers (e.g. Access Graph credential lookup);
+			// auth-host fallback leaves both nil.
+			if tc.cliFlags.IdentityFilePath != "" {
+				require.NotNil(t, resolved.ClientStore, "identity-file path must populate ClientStore")
+				require.NotNil(t, resolved.Profile, "identity-file path must populate Profile")
+			} else {
+				require.Nil(t, resolved.ClientStore, "auth-host path must leave ClientStore nil")
+				require.Nil(t, resolved.Profile, "auth-host path must leave Profile nil")
+			}
+
+			_, err = authclient.Connect(ctx, resolved.Auth)
 			require.NoError(t, err)
 		})
 	}

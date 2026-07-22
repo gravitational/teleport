@@ -16,35 +16,27 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useCallback, useEffect, useRef, useState, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import { UnifiedResourcePreferences } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
 import {
-  useAsync,
   Attempt,
-  makeEmptyAttempt,
-  makeProcessingAttempt,
-  makeErrorAttempt,
-  makeSuccessAttempt,
-  mapAttempt,
   CanceledError,
   hasFinished,
+  makeEmptyAttempt,
+  makeErrorAttempt,
+  makeProcessingAttempt,
+  makeSuccessAttempt,
+  mapAttempt,
+  useAsync,
 } from 'shared/hooks/useAsync';
 
-import {
-  AvailableResourceMode,
-  DefaultTab,
-  LabelsViewMode,
-  UnifiedResourcePreferences,
-  ViewMode,
-} from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
-
-import { useAppContext } from 'teleterm/ui/appContextProvider';
-
-import { routing, ClusterUri } from 'teleterm/ui/uri';
-
-import { UserPreferences } from 'teleterm/services/tshd/types';
-import { retryWithRelogin } from 'teleterm/ui/utils';
 import { cloneAbortSignal } from 'teleterm/services/tshd/cloneableClient';
+import { UserPreferences } from 'teleterm/services/tshd/types';
+import { useAppContext } from 'teleterm/ui/appContextProvider';
+import { useStoreSelector } from 'teleterm/ui/hooks/useStoreSelector';
+import { ClusterUri, routing } from 'teleterm/ui/uri';
+import { retryWithRelogin } from 'teleterm/ui/utils';
 
 export function useUserPreferences(clusterUri: ClusterUri): {
   userPreferencesAttempt: Attempt<void>;
@@ -58,16 +50,9 @@ export function useUserPreferences(clusterUri: ClusterUri): {
   const [unifiedResourcePreferences, setUnifiedResourcePreferences] = useState<
     UserPreferences['unifiedResourcePreferences']
   >(
-    mergeWithDefaultUnifiedResourcePreferences(
-      appContext.workspacesService.getUnifiedResourcePreferences(
-        routing.ensureRootClusterUri(clusterUri)
-      )
-    ) || {
-      defaultTab: DefaultTab.ALL,
-      viewMode: ViewMode.CARD,
-      labelsViewMode: LabelsViewMode.COLLAPSED,
-      availableResourceMode: AvailableResourceMode.NONE,
-    }
+    appContext.workspacesService.getUnifiedResourcePreferences(
+      routing.ensureRootClusterUri(clusterUri)
+    )
   );
   const [clusterPreferences, setClusterPreferences] = useState<
     UserPreferences['clusterPreferences']
@@ -75,6 +60,13 @@ export function useUserPreferences(clusterUri: ClusterUri): {
     // we pass an empty array, so pinning is enabled by default
     pinnedResources: { resourceIds: [] },
   });
+  const isClusterConnected = useStoreSelector(
+    'clustersService',
+    useCallback(
+      state => state.clusters.get(clusterUri)?.connected || false,
+      [clusterUri]
+    )
+  );
 
   const [initialFetchAttempt, runInitialFetchAttempt] = useAsync(
     useCallback(
@@ -117,13 +109,10 @@ export function useUserPreferences(clusterUri: ClusterUri): {
 
   const updateUnifiedResourcePreferencesStateAndWorkspace = useCallback(
     (unifiedResourcePreferences: UnifiedResourcePreferences) => {
-      const prefsWithDefaults = mergeWithDefaultUnifiedResourcePreferences(
-        unifiedResourcePreferences
-      );
-      setUnifiedResourcePreferences(prefsWithDefaults);
+      setUnifiedResourcePreferences(unifiedResourcePreferences);
       appContext.workspacesService.setUnifiedResourcePreferences(
         routing.ensureRootClusterUri(clusterUri),
-        prefsWithDefaults
+        unifiedResourcePreferences
       );
     },
     [appContext.workspacesService, clusterUri]
@@ -133,12 +122,15 @@ export function useUserPreferences(clusterUri: ClusterUri): {
     const fetchPreferences = async () => {
       if (
         initialFetchAttempt.status === '' &&
-        supersededInitialFetchAttempt.status === ''
+        supersededInitialFetchAttempt.status === '' &&
+        // DocumentCluster is rendered by default for every workspace. isClusterConnected prevents
+        // the doc from attempting to fetch user prefs when the cluster is offline.
+        isClusterConnected
       ) {
         const [prefs, error] = await runInitialFetchAttempt();
         if (!error) {
           updateUnifiedResourcePreferencesStateAndWorkspace(
-            prefs?.unifiedResourcePreferences
+            prefs.unifiedResourcePreferences
           );
           setClusterPreferences(prefs?.clusterPreferences);
         }
@@ -151,6 +143,7 @@ export function useUserPreferences(clusterUri: ClusterUri): {
     runInitialFetchAttempt,
     updateUnifiedResourcePreferencesStateAndWorkspace,
     initialFetchAttempt.status,
+    isClusterConnected,
   ]);
 
   const hasUpdateSupersededInitialFetch =
@@ -216,35 +209,5 @@ export function useUserPreferences(clusterUri: ClusterUri): {
       }),
       [clusterPreferences, unifiedResourcePreferences]
     ),
-  };
-}
-
-// TODO(gzdunek): DELETE IN 16.0.0.
-// Support for UnifiedTabPreference has been added in 14.1 and for
-// UnifiedViewModePreference in 14.1.5.
-// We have to support these values being undefined/unset in Connect v15.
-function mergeWithDefaultUnifiedResourcePreferences(
-  unifiedResourcePreferences: UnifiedResourcePreferences
-): UnifiedResourcePreferences {
-  return {
-    defaultTab: unifiedResourcePreferences
-      ? unifiedResourcePreferences.defaultTab
-      : DefaultTab.ALL,
-    viewMode:
-      unifiedResourcePreferences &&
-      unifiedResourcePreferences.viewMode !== ViewMode.UNSPECIFIED
-        ? unifiedResourcePreferences.viewMode
-        : ViewMode.CARD,
-    labelsViewMode:
-      unifiedResourcePreferences &&
-      unifiedResourcePreferences.labelsViewMode !== LabelsViewMode.UNSPECIFIED
-        ? unifiedResourcePreferences.labelsViewMode
-        : LabelsViewMode.COLLAPSED,
-    availableResourceMode:
-      unifiedResourcePreferences &&
-      unifiedResourcePreferences.availableResourceMode !==
-        AvailableResourceMode.UNSPECIFIED
-        ? unifiedResourcePreferences.availableResourceMode
-        : AvailableResourceMode.NONE,
   };
 }

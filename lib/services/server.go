@@ -21,13 +21,16 @@ package services
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
+	"slices"
 	"time"
 
-	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
@@ -74,6 +77,11 @@ func CompareServers(a, b types.Resource) int {
 			return compareWindowsDesktopServices(winA, winB)
 		}
 	}
+	if linA, ok := a.(types.Resource153UnwrapperT[*linuxdesktopv1.LinuxDesktop]); ok {
+		if linB, ok := b.(types.Resource153UnwrapperT[*linuxdesktopv1.LinuxDesktop]); ok {
+			return CompareLinuxDesktop(linA.UnwrapT(), linB.UnwrapT())
+		}
+	}
 	return Different
 }
 
@@ -96,11 +104,10 @@ func compareServers(a, b types.Server) int {
 	if len(a.GetPublicAddrs()) != len(b.GetPublicAddrs()) {
 		return Different
 	}
-	for i := range a.GetPublicAddrs() {
-		if a.GetPublicAddrs()[i] != b.GetPublicAddrs()[i] {
-			return Different
-		}
+	if !slices.Equal(a.GetPublicAddrs(), b.GetPublicAddrs()) {
+		return Different
 	}
+
 	r := a.GetRotation()
 	if !r.Matches(b.GetRotation()) {
 		return Different
@@ -108,19 +115,61 @@ func compareServers(a, b types.Server) int {
 	if a.GetUseTunnel() != b.GetUseTunnel() {
 		return Different
 	}
-	if !utils.StringMapsEqual(a.GetStaticLabels(), b.GetStaticLabels()) {
+
+	if !maps.Equal(a.GetStaticLabels(), b.GetStaticLabels()) {
 		return Different
 	}
-	if !cmp.Equal(a.GetCmdLabels(), b.GetCmdLabels()) {
+
+	if !maps.EqualFunc(a.GetCmdLabels(), b.GetCmdLabels(), func(label types.CommandLabel, label2 types.CommandLabel) bool {
+		return slices.Equal(label.GetCommand(), label2.GetCommand()) &&
+			label.GetPeriod() == label2.GetPeriod() &&
+			label.GetResult() == label2.GetResult()
+	}) {
 		return Different
 	}
+
+	if !maps.Equal(a.GetImmutableLabels(), b.GetImmutableLabels()) {
+		return Different
+	}
+
 	if a.GetTeleportVersion() != b.GetTeleportVersion() {
 		return Different
 	}
 
-	if !cmp.Equal(a.GetProxyIDs(), b.GetProxyIDs()) {
+	if !slices.Equal(a.GetProxyIDs(), b.GetProxyIDs()) {
 		return Different
 	}
+
+	if a.GetRelayGroup() != b.GetRelayGroup() {
+		return Different
+	}
+	if !slices.Equal(a.GetRelayIDs(), b.GetRelayIDs()) {
+		return Different
+	}
+
+	if (a.GetGitHub() == nil && b.GetGitHub() != nil) ||
+		(a.GetGitHub() != nil && b.GetGitHub() == nil) {
+		return Different
+	}
+
+	if a.GetGitHub() != nil && b.GetGitHub() != nil {
+		if a.GetGitHub().Integration != b.GetGitHub().Integration {
+			return Different
+		}
+
+		if a.GetGitHub().Organization != b.GetGitHub().Organization {
+			return Different
+		}
+	}
+
+	if a.GetScope() != b.GetScope() {
+		return Different
+	}
+
+	if !maps.Equal(a.GetAllLabels(), b.GetAllLabels()) {
+		return Different
+	}
+
 	// OnlyTimestampsDifferent check must be after all Different checks.
 	if !a.Expiry().Equal(b.Expiry()) {
 		return OnlyTimestampsDifferent
@@ -145,10 +194,22 @@ func compareApplicationServers(a, b types.AppServer) int {
 	if !r.Matches(b.GetRotation()) {
 		return Different
 	}
-	if !cmp.Equal(a.GetApp(), b.GetApp()) {
+	if !a.GetApp().IsEqual(b.GetApp()) {
 		return Different
 	}
-	if !cmp.Equal(a.GetProxyIDs(), b.GetProxyIDs()) {
+	if !slices.Equal(a.GetProxyIDs(), b.GetProxyIDs()) {
+		return Different
+	}
+	if a.GetRelayGroup() != b.GetRelayGroup() {
+		return Different
+	}
+	if !slices.Equal(a.GetRelayIDs(), b.GetRelayIDs()) {
+		return Different
+	}
+	if a.GetScope() != b.GetScope() {
+		return Different
+	}
+	if !maps.Equal(a.GetAllLabels(), b.GetAllLabels()) {
 		return Different
 	}
 	// OnlyTimestampsDifferent check must be after all Different checks.
@@ -168,9 +229,20 @@ func compareDatabaseServices(a, b types.DatabaseService) int {
 	if a.GetNamespace() != b.GetNamespace() {
 		return Different
 	}
-	if !cmp.Equal(a.GetResourceMatchers(), b.GetResourceMatchers()) {
+	if !slices.EqualFunc(a.GetResourceMatchers(), b.GetResourceMatchers(),
+		func(matcher *types.DatabaseResourceMatcher, matcher2 *types.DatabaseResourceMatcher) bool {
+			return matcher.AWS.AssumeRoleARN == matcher2.AWS.AssumeRoleARN &&
+				maps.EqualFunc(matcher.Labels.ToProto().Values, matcher2.Labels.ToProto().Values,
+					func(values wrappers.StringValues, values2 wrappers.StringValues) bool {
+						return slices.Equal(values.Values, values2.Values)
+					})
+		}) {
 		return Different
 	}
+	if !maps.Equal(a.GetAllLabels(), b.GetAllLabels()) {
+		return Different
+	}
+	// OnlyTimestampsDifferent check must be after all Different checks.
 	if !a.Expiry().Equal(b.Expiry()) {
 		return OnlyTimestampsDifferent
 	}
@@ -194,10 +266,22 @@ func compareKubernetesServers(a, b types.KubeServer) int {
 	if !r.Matches(b.GetRotation()) {
 		return Different
 	}
-	if !cmp.Equal(a.GetCluster(), b.GetCluster()) {
+	if !a.GetCluster().IsEqual(b.GetCluster()) {
 		return Different
 	}
-	if !cmp.Equal(a.GetProxyIDs(), b.GetProxyIDs()) {
+	if !slices.Equal(a.GetProxyIDs(), b.GetProxyIDs()) {
+		return Different
+	}
+	if a.GetRelayGroup() != b.GetRelayGroup() {
+		return Different
+	}
+	if !slices.Equal(a.GetRelayIDs(), b.GetRelayIDs()) {
+		return Different
+	}
+	if a.GetScope() != b.GetScope() {
+		return Different
+	}
+	if !maps.Equal(a.GetAllLabels(), b.GetAllLabels()) {
 		return Different
 	}
 	// OnlyTimestampsDifferent check must be after all Different checks.
@@ -224,10 +308,22 @@ func compareDatabaseServers(a, b types.DatabaseServer) int {
 	if !r.Matches(b.GetRotation()) {
 		return Different
 	}
-	if !cmp.Equal(a.GetDatabase(), b.GetDatabase()) {
+	if !a.GetDatabase().IsEqual(b.GetDatabase()) {
 		return Different
 	}
-	if !cmp.Equal(a.GetProxyIDs(), b.GetProxyIDs()) {
+	if !slices.Equal(a.GetProxyIDs(), b.GetProxyIDs()) {
+		return Different
+	}
+	if a.GetRelayGroup() != b.GetRelayGroup() {
+		return Different
+	}
+	if !slices.Equal(a.GetRelayIDs(), b.GetRelayIDs()) {
+		return Different
+	}
+	if a.GetScope() != b.GetScope() {
+		return Different
+	}
+	if !maps.Equal(a.GetAllLabels(), b.GetAllLabels()) {
 		return Different
 	}
 	// OnlyTimestampsDifferent check must be after all Different checks.
@@ -250,11 +346,49 @@ func compareWindowsDesktopServices(a, b types.WindowsDesktopService) int {
 	if a.GetTeleportVersion() != b.GetTeleportVersion() {
 		return Different
 	}
-	if !cmp.Equal(a.GetProxyIDs(), b.GetProxyIDs()) {
+	if !slices.Equal(a.GetProxyIDs(), b.GetProxyIDs()) {
+		return Different
+	}
+	if a.GetRelayGroup() != b.GetRelayGroup() {
+		return Different
+	}
+	if !slices.Equal(a.GetRelayIDs(), b.GetRelayIDs()) {
+		return Different
+	}
+	if !maps.Equal(a.GetAllLabels(), b.GetAllLabels()) {
 		return Different
 	}
 	// OnlyTimestampsDifferent check must be after all Different checks.
 	if !a.Expiry().Equal(b.Expiry()) {
+		return OnlyTimestampsDifferent
+	}
+	return Equal
+}
+
+func CompareLinuxDesktop(a, b *linuxdesktopv1.LinuxDesktop) int {
+	if a.GetKind() != b.GetKind() {
+		return Different
+	}
+	if a.GetSubKind() != b.GetSubKind() {
+		return Different
+	}
+	if a.GetMetadata().GetName() != b.GetMetadata().GetName() {
+		return Different
+	}
+	if a.GetSpec().GetAddr() != b.GetSpec().GetAddr() {
+		return Different
+	}
+	if a.GetSpec().GetHostname() != b.GetSpec().GetHostname() {
+		return Different
+	}
+	if !slices.Equal(a.GetSpec().GetProxyIds(), b.GetSpec().GetProxyIds()) {
+		return Different
+	}
+	if !maps.Equal(a.GetMetadata().GetLabels(), b.GetMetadata().GetLabels()) {
+		return Different
+	}
+	// OnlyTimestampsDifferent check must be after all Different checks.
+	if !a.GetMetadata().GetExpires().AsTime().Equal(b.GetMetadata().GetExpires().AsTime()) {
 		return OnlyTimestampsDifferent
 	}
 	return Equal
@@ -348,7 +482,7 @@ func UnmarshalServer(bytes []byte, kind string, opts ...MarshalOption) (types.Se
 
 	var s types.ServerV2
 	if err := utils.FastUnmarshal(bytes, &s); err != nil {
-		return nil, trace.BadParameter(err.Error())
+		return nil, trace.BadParameter("%s", err)
 	}
 	s.Kind = kind
 	if err := s.CheckAndSetDefaults(); err != nil {
@@ -419,4 +553,13 @@ func MarshalServers(s []types.Server) ([]byte, error) {
 func NodeHasMissedKeepAlives(s types.Server) bool {
 	serverExpiry := s.Expiry()
 	return serverExpiry.Before(time.Now().Add(apidefaults.ServerAnnounceTTL - (apidefaults.ServerKeepAliveTTL() * 2)))
+}
+
+// EqualFromBool is a helper function that converts a boolean value to an integer
+// value that represents the equality status.
+func EqualFromBool(b bool) int {
+	if !b {
+		return Different
+	}
+	return Equal
 }

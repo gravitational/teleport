@@ -16,37 +16,54 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useMemo, useRef } from 'react';
-import { debounce } from 'shared/utils/highbar';
-import { Box, ButtonSecondary, Flex, H1, H2, Link, Text } from 'design';
-import Validation from 'shared/components/Validation';
-import * as Alerts from 'design/Alert';
+import { useMemo, useRef, useState } from 'react';
+import styled from 'styled-components';
 
+import {
+  Alert,
+  Box,
+  Button,
+  ButtonSecondary,
+  Flex,
+  H1,
+  H2,
+  Link,
+  Stack,
+  Text,
+} from 'design';
+import * as Alerts from 'design/Alert';
+import { ChevronDown, ChevronRight } from 'design/Icon';
+import { AutoUserProvisioning } from 'gen-proto-ts/teleport/lib/teleterm/v1/database_pb';
+import { Gateway } from 'gen-proto-ts/teleport/lib/teleterm/v1/gateway_pb';
+import { FieldSelect } from 'shared/components/FieldSelect';
+import Validation from 'shared/components/Validation';
+import { Attempt, RunFuncReturnValue } from 'shared/hooks/useAsync';
+import { debounce } from 'shared/utils/highbar';
+
+import { CliCommand } from '../components/CliCommand';
 import { ConfigFieldInput, PortFieldInput } from '../components/FieldInputs';
 
-import { CliCommand } from './CliCommand';
-import { DocumentGatewayProps } from './DocumentGateway';
+export function OnlineDocumentGateway(props: {
+  changeDbName: (name: string) => RunFuncReturnValue<void>;
+  changeDbNameAttempt: Attempt<void>;
+  changePort: (port: string) => RunFuncReturnValue<void>;
+  changePortAttempt: Attempt<void>;
+  disconnect: () => RunFuncReturnValue<void>;
+  disconnectAttempt: Attempt<void>;
+  gateway: Gateway;
+  runCliCommand: () => void;
+  autoUserProvisioning?: AutoUserProvisioning;
+}) {
+  const { gateway, autoUserProvisioning } = props;
+  const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
 
-type OnlineDocumentGatewayProps = Pick<
-  DocumentGatewayProps,
-  | 'changeDbNameAttempt'
-  | 'changePortAttempt'
-  | 'disconnect'
-  | 'changeDbName'
-  | 'changePort'
-  | 'gateway'
-  | 'runCliCommand'
->;
-
-export function OnlineDocumentGateway(props: OnlineDocumentGatewayProps) {
   const isPortOrDbNameProcessing =
     props.changeDbNameAttempt.status === 'processing' ||
     props.changePortAttempt.status === 'processing';
   const hasError =
     props.changeDbNameAttempt.status === 'error' ||
     props.changePortAttempt.status === 'error';
-  const formRef = useRef<HTMLFormElement>();
-  const { gateway } = props;
+  const formRef = useRef<HTMLFormElement>(null);
 
   const handleChangeDbName = useMemo(() => {
     return debounce((value: string) => {
@@ -65,14 +82,13 @@ export function OnlineDocumentGateway(props: OnlineDocumentGatewayProps) {
   const $errors = hasError && (
     <Flex flexDirection="column" gap={2} mb={3}>
       {props.changeDbNameAttempt.status === 'error' && (
-        <Alerts.Danger mb={0}>
-          Could not change the database name:{' '}
-          {props.changeDbNameAttempt.statusText}
+        <Alerts.Danger mb={0} details={props.changeDbNameAttempt.statusText}>
+          Could not change the database name
         </Alerts.Danger>
       )}
       {props.changePortAttempt.status === 'error' && (
-        <Alerts.Danger mb={0}>
-          Could not change the port number: {props.changePortAttempt.statusText}
+        <Alerts.Danger mb={0} details={props.changePortAttempt.statusText}>
+          Could not change the port number
         </Alerts.Danger>
       )}
     </Flex>
@@ -86,31 +102,59 @@ export function OnlineDocumentGateway(props: OnlineDocumentGatewayProps) {
           Close Connection
         </ButtonSecondary>
       </Flex>
+
+      {props.disconnectAttempt.status === 'error' && (
+        <Alert details={props.disconnectAttempt.statusText}>
+          Could not close the connection
+        </Alert>
+      )}
+
       <H2 mb={2}>Connect with CLI</H2>
-      <Flex as="form" ref={formRef}>
-        <Validation>
-          <PortFieldInput
-            label="Port"
-            defaultValue={gateway.localPort}
-            onChange={e => handleChangePort(e.target.value)}
-            mb={2}
+      <Stack gap={2} alignItems="normal">
+        <Flex as="form" ref={formRef}>
+          <Validation>
+            <PortFieldInput
+              label="Port"
+              defaultValue={gateway.localPort}
+              onChange={e => handleChangePort(e.target.value)}
+              mb={0}
+            />
+            <ConfigFieldInput
+              label="Database Name"
+              defaultValue={gateway.targetSubresourceName}
+              onChange={e => handleChangeDbName(e.target.value)}
+              spellCheck={false}
+              ml={2}
+              mb={0}
+            />
+            {autoUserProvisioning && (
+              <ConfigFieldInput
+                label="User"
+                value={gateway.targetUser}
+                toolTipContent="Using auto provisioned user, you cannot change the database user."
+                readonly
+                disabled
+                ml={2}
+                mb={0}
+              />
+            )}
+          </Validation>
+        </Flex>
+        {autoUserProvisioning?.databaseRoles?.length > 0 && (
+          <AdvancedRoles
+            databaseRoles={autoUserProvisioning.databaseRoles}
+            isAdvancedOpen={isAdvancedOpen}
+            setIsAdvancedOpen={setIsAdvancedOpen}
           />
-          <ConfigFieldInput
-            label="Database Name"
-            defaultValue={gateway.targetSubresourceName}
-            onChange={e => handleChangeDbName(e.target.value)}
-            spellCheck={false}
-            ml={2}
-            mb={2}
-          />
-        </Validation>
-      </Flex>
-      <CliCommand
-        cliCommand={props.gateway.gatewayCliCommand.preview}
-        isLoading={isPortOrDbNameProcessing}
-        onButtonClick={props.runCliCommand}
-      />
-      {$errors}
+        )}
+        <CliCommand
+          cliCommand={props.gateway.gatewayCliCommand.preview}
+          isLoading={isPortOrDbNameProcessing}
+          button={{ onClick: props.runCliCommand }}
+        />
+        {$errors}
+      </Stack>
+
       <H2 mt={3} mb={2}>
         Connect with GUI
       </H2>
@@ -129,7 +173,7 @@ export function OnlineDocumentGateway(props: OnlineDocumentGatewayProps) {
         The connection is made through an authenticated proxy so no extra
         credentials are necessary. See{' '}
         <Link
-          href="https://goteleport.com/docs/database-access/guides/gui-clients/"
+          href="https://goteleport.com/docs/connect-your-client/gui-clients/"
           target="_blank"
         >
           the documentation
@@ -139,3 +183,57 @@ export function OnlineDocumentGateway(props: OnlineDocumentGatewayProps) {
     </Box>
   );
 }
+
+const AdvancedRoles = ({
+  databaseRoles,
+  isAdvancedOpen,
+  setIsAdvancedOpen,
+}: {
+  databaseRoles: string[];
+  isAdvancedOpen: boolean;
+  setIsAdvancedOpen: (isAdvancedOpen: boolean) => void;
+}) => {
+  return (
+    <Box mt={2} mb={2}>
+      <ExpandToggle onClick={() => setIsAdvancedOpen(!isAdvancedOpen)}>
+        {isAdvancedOpen ? (
+          <ChevronDown size="small" />
+        ) : (
+          <ChevronRight size="small" />
+        )}
+        <Text fontSize={2} color="text.main">
+          Advanced
+        </Text>
+      </ExpandToggle>
+      {isAdvancedOpen && (
+        <Box mt={2}>
+          <Validation>
+            <FieldSelect
+              isMulti
+              label="Database Roles"
+              toolTipContent="These database roles are assigned by your Teleport administrator and are read only."
+              value={databaseRoles.map(role => ({
+                value: role,
+                label: role,
+              }))}
+              readOnly
+              mb={0}
+            />
+          </Validation>
+        </Box>
+      )}
+    </Box>
+  );
+};
+
+const ExpandToggle = styled(Button).attrs({
+  fill: 'minimal',
+  size: 'small',
+})`
+  padding: 0;
+  gap: ${props => props.theme.space[2]}px;
+
+  &:hover {
+    opacity: 0.8;
+  }
+`;

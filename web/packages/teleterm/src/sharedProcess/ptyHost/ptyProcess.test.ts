@@ -38,6 +38,7 @@ describe('PtyProcess', () => {
         args: [],
         env: { PATH: '/foo/bar' },
         ptyId: '1234',
+        useConpty: true,
       });
 
       const startErrorCb = jest.fn();
@@ -51,4 +52,29 @@ describe('PtyProcess', () => {
       );
     });
   });
+
+  if (process.platform !== 'win32') {
+    test('reports whether the last input was Ctrl+D in the exit event', async () => {
+      const pty = new PtyProcess({
+        path: 'sh',
+        env: {},
+        args: [],
+        useConpty: true,
+        ptyId: '1234',
+      });
+      await pty.start(80, 24);
+      const listener = jest.fn();
+      pty.onExit(listener);
+
+      pty.write('\x04');
+
+      await expect(() => listener.mock.calls.length > 0).toEventuallyBeTrue({
+        waitFor: 2000,
+        tick: 10,
+      });
+      expect(listener).toHaveBeenCalledWith(
+        expect.objectContaining({ lastInputWasCtrlD: true })
+      );
+    });
+  }
 });

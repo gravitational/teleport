@@ -7,6 +7,10 @@ on:
       - '**.go'
       - '.github/workflows/flaky-tests.yaml'
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.event.merge_group.head_sha || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 permissions:
   pull-requests: read
   issues: read
@@ -14,25 +18,26 @@ permissions:
 jobs:
   test:
     name: Flaky Tests Detector
+    if: ${{ !startsWith(github.head_ref, 'dependabot/') }}
     runs-on: ubuntu-22.04-16core
 
     permissions:
       contents: read
       packages: read
+      id-token: write
 
     container:
-      image: ghcr.io/gravitational/teleport-buildbox:teleport17
+      image: ghcr.io/gravitational/teleport-buildbox:teleport19
       env:
         TELEPORT_ETCD_TEST: yes
         TELEPORT_ETCD_TEST_ENDPOINT: https://etcd0:2379
         TELEPORT_XAUTH_TEST: yes
-        TELEPORT_BPF_TEST: yes
         WEBASSETS_SKIP_BUILD: 1
       options: --cap-add=SYS_ADMIN --privileged
 
     services:
       etcd0:
-        image: ghcr.io/gravitational/ci-etcd:3.3.9
+        image: ghcr.io/gravitational/ci-etcd:3.3.27
         options: >-
           --health-interval 10s
           --health-timeout 5s
@@ -44,8 +49,21 @@ jobs:
           - 3379:3379
 
     steps:
+      - name: Get runtime values from kvstore
+        id: kvstore
+        uses: gravitational/shared-workflows/tools/env-kvstore@tools/env-kvstore/v1.0.0
+        with:
+          cognito-identity-pool-id: "us-west-2:da53389e-a459-4a28-bd54-43eeb8e4b579"
+          cognito-role-arn: "arn:aws:iam::247230412011:role/github-actions-cognito-oidc"
+          existing-gh-secrets: "${{ toJSON(secrets) }}"
+          existing-gh-variables: "${{ toJSON(vars) }}"
+          # values: |
+          #   REVIEWERS_APP_ID,secret
+          #   REVIEWERS_PRIVATE_KEY,secret
+          #   REVIEWERS,secret
+
       - name: Checkout Teleport
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -60,17 +78,17 @@ jobs:
 
       - name: Generate GitHub Token
         id: generate_token
-        uses: actions/create-github-app-token@v1
+        uses: actions/create-github-app-token@v3
         with:
           app-id: ${{ secrets.REVIEWERS_APP_ID }}
           private-key: ${{ secrets.REVIEWERS_PRIVATE_KEY }}
 
       - name: Checkout shared-workflows
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: gravitational/shared-workflows
           path: .github/shared-workflows
-          ref: main
+          ref: 02af65890b521ecdf79856c00f6d2c875bf40ea3 # workflows/v0.0.5
 
       - name: Find excluded tests
         id: find_excluded
@@ -79,7 +97,7 @@ jobs:
       - name: Run base difftest
         uses: ./.github/actions/difftest
         with:
-          flags: --skip="${{ steps.find_excluded.outputs.FLAKE_SKIP }}" -e "integrations/operator/**/*" -e "integrations/terraform/**/*" -e "integrations/event-handler/**/*" -e "tool/tsh/**/*" -e "integration/**/*" -e "build.assets/**/*" -e "lib/auth/webauthncli/**/*" -e "lib/auth/touchid/**/*" -e "api/**/*" -e "examples/teleport-usage/**/*" -e "integrations/access/**" -e "integrations/lib/**" -e "integrations/lib/backoff/backoff_test.go" -e "e2e/**/*"
+          flags: --skip="${{ steps.find_excluded.outputs.FLAKE_SKIP }}" -e "integrations/operator/**/*" -e "integrations/terraform/**/*" -e "integrations/terraform-mwi/**/*" -e "integrations/event-handler/**/*" -e "tool/tsh/**/*" -e "integration/**/*" -e "build.assets/**/*" -e "lib/auth/webauthncli/**/*" -e "lib/auth/touchid/**/*" -e "api/**/*" -e "examples/teleport-usage/**/*" -e "integrations/access/**" -e "integrations/lib/**" -e "integrations/lib/backoff/backoff_test.go" -e "e2e/**/*"
           target: test-go-unit
 
       - name: Run touch-id difftest

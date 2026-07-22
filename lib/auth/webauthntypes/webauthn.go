@@ -27,7 +27,7 @@ import (
 	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/gravitational/trace"
 
-	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	"github.com/gravitational/teleport/lib/auth/mfatypes"
 )
 
 // CredentialAssertion is the payload sent to authenticators to initiate login.
@@ -149,7 +149,7 @@ type PublicKeyCredentialCreationOptions struct {
 	RelyingParty           RelyingPartyEntity            `json:"rp"`
 	User                   UserEntity                    `json:"user"`
 	Parameters             []CredentialParameter         `json:"pubKeyCredParams,omitempty"`
-	AuthenticatorSelection AuthenticatorSelection        `json:"authenticatorSelection,omitempty"`
+	AuthenticatorSelection AuthenticatorSelection        `json:"authenticatorSelection"`
 	Timeout                int                           `json:"timeout,omitempty"`
 	CredentialExcludeList  []CredentialDescriptor        `json:"excludeCredentials,omitempty"`
 	Extensions             AuthenticationExtensions      `json:"extensions,omitempty"`
@@ -377,7 +377,14 @@ type Credential protocol.Credential
 // [protocol.AuthenticationExtensionsClientOutputs], materialized here to keep a
 // stable JSON marshal/unmarshal representation.
 type AuthenticationExtensionsClientOutputs struct {
-	AppID bool `json:"appid,omitempty"`
+	AppID     bool                        `json:"appid,omitempty"`
+	CredProps *CredentialPropertiesOutput `json:"credProps,omitempty"`
+}
+
+// CredentialPropertiesOutput is the output of the credProps extension.
+// https://w3c.github.io/webauthn/#sctn-authenticator-credential-properties-extension.
+type CredentialPropertiesOutput struct {
+	RK bool `json:"rk,omitempty"`
 }
 
 // SessionData is a clone of [webauthn.SessionData], materialized here to keep a
@@ -398,7 +405,13 @@ type SessionData struct {
 	// An empty value is treated equivalently to "discouraged".
 	UserVerification string `json:"userVerification,omitempty"`
 	// ChallengeExtensions are Teleport extensions that apply to this webauthn session.
-	ChallengeExtensions *mfav1.ChallengeExtensions `json:"challenge_extensions,omitempty"`
+	ChallengeExtensions *mfatypes.ChallengeExtensions `json:"challenge_extensions,omitempty"`
+	// Payload is an optional session identifying payload that uniquely identifies the user's session.
+	Payload *mfatypes.SessionIdentifyingPayload `json:"payload,omitempty"`
+	// SourceCluster is the optional cluster where the authentication originated.
+	SourceCluster string `json:"source_cluster,omitempty"`
+	// TargetCluster is the optional cluster where the authentication is targeted.
+	TargetCluster string `json:"target_cluster,omitempty"`
 }
 
 // SessionDataFromProtocol converts a [webauthn.SessionData] struct to an

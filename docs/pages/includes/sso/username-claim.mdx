@@ -1,0 +1,24 @@
+By default, Teleport expects an `email` claim to be present in the OIDC claim. 
+The value from the `email` claim is used as a username in Teleport. If you wish 
+to use another claim to configure username, you can override the 
+default expected `email` claim with the `username_claim` field in the auth 
+connector spec. 
+
+The example below shows configuring the `username_claim` field with `preferred_username`
+value. This will configure Teleport to query `preferred_username` claim instead 
+of the `email` claim.:
+
+```yaml
+kind: oidc
+metadata:
+  # ...
+spec:
+  # ...
+  username_claim: preferred_username
+```
+
+<Admonition type="warning" title="Username claim">
+  Ensure that the claim value you use to configure `username_claim` is a uniquely
+  identifiable value for the user. 
+</Admonition>
+

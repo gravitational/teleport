@@ -17,6 +17,7 @@
  */
 
 import React from 'react';
+
 import { Flex } from 'design';
 
 const Document: React.FC<{ visible: boolean; [x: string]: any }> = ({

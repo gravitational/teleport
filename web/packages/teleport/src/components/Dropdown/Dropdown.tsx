@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { NavLink } from 'react-router-dom';
+import { NavLink } from 'react-router';
 import styled, { css } from 'styled-components';
 
 export interface OpenProps {
@@ -47,11 +47,8 @@ export const Dropdown = styled.div<OpenProps>`
   transform: ${p => (p.open ? 'scale(1)' : 'scale(.8)')};
 
   top: ${p => p.theme.topBarHeight[0]}px;
-  @media screen and (min-width: ${p => p.theme.breakpoints.small}px) {
+  @media screen and (min-width: ${p => p.theme.breakpoints.small}) {
     top: ${p => p.theme.topBarHeight[1]}px;
-  }
-  @media screen and (min-width: ${p => p.theme.breakpoints.large}px) {
-    top: ${p => p.theme.topBarHeight[2]}px;
   }
 `;
 
@@ -72,7 +69,8 @@ export const DropdownItem = styled.div<{
   transform: translate3d(${p => (p.open ? 0 : '20px')}, 0, 0);
   transition-delay: ${p => p.$transitionDelay}ms;
 
-  &:hover {
+  &:hover,
+  &:focus-within {
     background: ${props => props.theme.colors.spotBackground[0]};
   }
 
@@ -87,6 +85,7 @@ export const commonDropdownItemStyles = css`
   padding: ${p => p.theme.space[1] * 3}px;
   color: ${props => props.theme.colors.text.main};
   text-decoration: none;
+  outline: none;
 
   svg {
     height: 18px;

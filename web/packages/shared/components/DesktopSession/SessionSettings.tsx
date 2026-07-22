@@ -1,0 +1,132 @@
+/**
+ * Teleport
+ * Copyright (C) 2026 Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+import { getPlatform } from '@floating-ui/react/utils';
+import styled from 'styled-components';
+
+import { Flex, H2, H3, Text, Toggle } from 'design';
+import { Cog } from 'design/Icon';
+import { Platform } from 'design/platform';
+import { MenuIcon } from 'shared/components/MenuAction';
+
+interface SessionSettingsProps {
+  hiDpiEnabled: boolean;
+  onToggleHiDpi: () => void;
+  screenIsHiDpi: boolean;
+  hiDpiSupported: boolean;
+  openUpward?: boolean;
+}
+
+export function SessionSettings({
+  hiDpiEnabled,
+  onToggleHiDpi,
+  screenIsHiDpi,
+  hiDpiSupported,
+  openUpward,
+}: SessionSettingsProps) {
+  return (
+    <MenuIcon
+      Icon={Cog}
+      tooltip="Session Settings"
+      menuProps={openUpward ? upwardMenuProps : defaultMenuProps}
+    >
+      <Container>
+        <Flex
+          gap={2}
+          flexDirection="column"
+          onClick={e => {
+            // Stop the menu from closing when clicking inside the settings container.
+            e.stopPropagation();
+          }}
+        >
+          <H2 mb={2}>Session Settings</H2>
+
+          <Divider />
+
+          <H3 mb={2}>Display</H3>
+
+          <Toggle
+            isToggled={hiDpiEnabled}
+            onToggle={onToggleHiDpi}
+            disabled={!hiDpiSupported}
+          >
+            <Text ml={2}>
+              Optimize for{' '}
+              {getPlatform() === Platform.macOS ? 'Retina' : 'High-DPI'}{' '}
+              displays
+            </Text>
+          </Toggle>
+
+          <Text lineHeight={1.6}>
+            Enabling this option will make the session look sharper on
+            high-resolution displays, but it may increase CPU usage and reduce
+            performance on some systems.
+          </Text>
+
+          {!hiDpiSupported ? (
+            <Text color="text.muted" fontSize="small" lineHeight={1.4}>
+              HiDPI is not supported for this session. The version of Teleport
+              running on the server may be too old.
+            </Text>
+          ) : (
+            !screenIsHiDpi && (
+              <Text color="text.muted" fontSize="small" lineHeight={1.4}>
+                Your screen does not support HiDPI. This option is only
+                effective on HiDPI screens.
+              </Text>
+            )
+          )}
+
+          <Text color="text.muted" fontSize="small" lineHeight={1.4}>
+            Only recommended for connections to Windows 10, Windows Server 2016,
+            and later. This setting will be persisted for future sessions to the
+            same host.
+          </Text>
+        </Flex>
+      </Container>
+    </MenuIcon>
+  );
+}
+
+const Container = styled.div`
+  background: ${props => props.theme.colors.levels.elevated};
+  padding: ${props => props.theme.space[4]}px;
+  width: 370px;
+`;
+
+const Divider = styled.div`
+  height: 1px;
+  background: ${props => props.theme.colors.interactive.tonal.neutral[1]};
+  margin-bottom: ${props => props.theme.space[2]}px;
+`;
+
+const defaultMenuProps = {
+  updatePositionOnChildResize: true,
+} as const;
+
+const upwardMenuProps = {
+  ...defaultMenuProps,
+  anchorOrigin: {
+    vertical: 'top' as const,
+    horizontal: 'center' as const,
+  },
+  transformOrigin: {
+    vertical: 'bottom' as const,
+    horizontal: 'center' as const,
+  },
+} as const;

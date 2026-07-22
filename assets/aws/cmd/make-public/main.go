@@ -26,6 +26,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"os"
 	"strings"
 	"time"
 
@@ -70,6 +71,7 @@ func main() {
 
 	ctx := context.Background()
 
+	var publishingErrors []error
 	for _, region := range args.regions {
 		cfg, err := config.LoadDefaultConfig(ctx,
 			config.WithRegion(region))
@@ -100,7 +102,7 @@ func main() {
 					}
 
 					// Mark the AMI as public
-					log.Printf("Marking %s as public", ami)
+					log.Printf("Marking %s as public (region: %s, arch: %s, edition: %s, FIPS: %s)", ami, region, arch, edition, fips)
 					_, err = client.ModifyImageAttribute(ctx, &ec2.ModifyImageAttributeInput{
 						ImageId:   aws.String(ami),
 						Attribute: aws.String("launchPermission"),
@@ -112,12 +114,23 @@ func main() {
 					})
 					if err != nil {
 						log.Printf("WARNING: Failed to make ami %q public: %s", ami, err)
+						publishingErrors = append(publishingErrors, err)
 						continue
 					}
 				}
 			}
 		}
 	}
+
+	if len(publishingErrors) == 0 {
+		return
+	}
+
+	fmt.Fprintf(os.Stderr, "%d errors occurred:\n", len(publishingErrors))
+	for _, err := range publishingErrors {
+		fmt.Fprintf(os.Stderr, "%v\n", err)
+	}
+	os.Exit(1)
 }
 
 var notFound error = fmt.Errorf("not found")

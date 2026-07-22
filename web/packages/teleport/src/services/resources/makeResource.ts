@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Resource, Kind } from './types';
+import { Kind, Resource } from './types';
 
 export function makeResource<T extends Kind>(json: any): Resource<T> {
   json = json || {};

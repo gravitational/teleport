@@ -24,6 +24,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
 )
@@ -55,6 +56,49 @@ func TestWithMemberIneligibleStatusField(t *testing.T) {
 	require.Equal(t, accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_EXPIRED.Enum().String(), alMember.Spec.IneligibleStatus)
 }
 
+func TestMemberStatusIgnoredByDefault(t *testing.T) {
+	member := newAccessListMember(t, "access-list-member")
+	member.Status = &accesslist.AccessListMemberStatus{
+		Display:        &types.UserDisplay{Primary: "Member Name", Secondary: "member@example.com"},
+		AddedByDisplay: &types.UserDisplay{Primary: "Adder Name", Secondary: "adder@example.com"},
+	}
+
+	converted, err := FromMemberProto(ToMemberProto(member))
+	require.NoError(t, err)
+
+	require.Nil(t, converted.Status)
+}
+
+func TestWithMemberStatusField(t *testing.T) {
+	member := newAccessListMember(t, "access-list-member")
+	member.Status = &accesslist.AccessListMemberStatus{
+		Display:        &types.UserDisplay{Primary: "Member Name", Secondary: "member@example.com"},
+		AddedByDisplay: &types.UserDisplay{Primary: "Adder Name", Secondary: "adder@example.com"},
+	}
+	protoMember := ToMemberProto(member)
+
+	converted, err := FromMemberProto(protoMember, WithMemberStatusField(protoMember))
+	require.NoError(t, err)
+
+	require.Empty(t, cmp.Diff(member, converted))
+}
+
+func TestWithMemberStatusFieldPreservesEmptyDisplay(t *testing.T) {
+	protoMember := ToMemberProto(newAccessListMember(t, "access-list-member"))
+	protoMember.Status = &accesslistv1.MemberStatus{
+		Display:        &accesslistv1.UserDisplay{},
+		AddedByDisplay: &accesslistv1.UserDisplay{Primary: "Adder Name"},
+	}
+
+	member, err := FromMemberProto(protoMember, WithMemberStatusField(protoMember))
+	require.NoError(t, err)
+
+	require.NotNil(t, member.Status)
+	require.NotNil(t, member.Status.Display)
+	require.Empty(t, *member.Status.Display)
+	require.Equal(t, &types.UserDisplay{Primary: "Adder Name"}, member.Status.AddedByDisplay)
+}
+
 // Make sure that we don't panic if any of the message fields are missing.
 func TestMemberFromProtoNils(t *testing.T) {
 	testCases := []struct {
@@ -71,12 +115,12 @@ func TestMemberFromProtoNils(t *testing.T) {
 		{
 			name:     "accesslist",
 			mutate:   func(m *accesslistv1.Member) { m.Spec.AccessList = "" },
-			checkErr: require.Error,
+			checkErr: require.NoError,
 		},
 		{
 			name:     "joined",
 			mutate:   func(m *accesslistv1.Member) { m.Spec.Joined = nil },
-			checkErr: require.Error,
+			checkErr: require.NoError,
 		},
 		{
 			name:     "expires",
@@ -91,7 +135,7 @@ func TestMemberFromProtoNils(t *testing.T) {
 		{
 			name:     "added by",
 			mutate:   func(m *accesslistv1.Member) { m.Spec.AddedBy = "" },
-			checkErr: require.Error,
+			checkErr: require.NoError,
 		},
 	}
 
@@ -107,6 +151,43 @@ func TestMemberFromProtoNils(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestMemberTimeConversion(t *testing.T) {
+	t.Run("when zero converts to proto nil", func(t *testing.T) {
+		member := newAccessListMember(t, "test_member")
+		member.Spec.Expires = time.Time{}
+		member.Spec.Joined = time.Time{}
+
+		proto := ToMemberProto(member)
+		require.Nil(t, proto.Spec.Expires)
+		require.Nil(t, proto.Spec.Joined)
+	})
+	t.Run("when non-zero converts to proto time", func(t *testing.T) {
+		member := newAccessListMember(t, "test_member")
+		expires, err := time.Parse(time.RFC3339, "2025-10-09T15:00:00Z")
+		require.NoError(t, err)
+		joined, err := time.Parse(time.RFC3339, "2025-08-07T15:00:00Z")
+		require.NoError(t, err)
+		member.Spec.Expires = expires
+		member.Spec.Joined = joined
+
+		proto := ToMemberProto(member)
+		require.NotNil(t, proto.Spec.Expires)
+		require.NotNil(t, proto.Spec.Joined)
+		require.True(t, proto.Spec.Expires.AsTime().Equal(expires))
+		require.True(t, proto.Spec.Joined.AsTime().Equal(joined))
+	})
+	t.Run("proto nil converts to zero time", func(t *testing.T) {
+		proto := ToMemberProto(newAccessListMember(t, "test_member"))
+		proto.Spec.Expires = nil
+		proto.Spec.Joined = nil
+
+		member, err := FromMemberProto(proto)
+		require.NoError(t, err)
+		require.True(t, member.Spec.Expires.IsZero())
+		require.True(t, member.Spec.Joined.IsZero())
+	})
 }
 
 func newAccessListMember(t *testing.T, name string) *accesslist.AccessListMember {

@@ -20,24 +20,24 @@ import { useCallback } from 'react';
 
 import { ShowResources } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
 
-import { assertUnreachable } from 'teleterm/ui/utils';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
+import type * as resourcesServiceTypes from 'teleterm/ui/services/resources';
+import { routing } from 'teleterm/ui/uri';
+import { assertUnreachable } from 'teleterm/ui/utils';
 
 import {
-  isResourceTypeSearchFilter,
+  FilterSearchResult,
   isClusterSearchFilter,
-  SearchFilter,
+  isResourceTypeSearchFilter,
   LabelMatch,
   mainResourceField,
   mainResourceName,
   ResourceMatch,
-  searchableFields,
   ResourceSearchResult,
-  FilterSearchResult,
   ResourceTypeFilter,
+  searchableFields,
+  SearchFilter,
 } from './searchResult';
-
-import type * as resourcesServiceTypes from 'teleterm/ui/services/resources';
 
 export type CrossClusterResourceSearchResult = {
   results: resourcesServiceTypes.SearchResult[];
@@ -51,6 +51,7 @@ const SUPPORTED_RESOURCE_TYPES: ResourceTypeFilter[] = [
   'app',
   'db',
   'kube_cluster',
+  'windows_desktop',
 ];
 
 /**
@@ -173,6 +174,11 @@ export function useFilterSearch() {
         if (clusters.length === 1) {
           return [];
         }
+        clusters = clusters.map(c => ({
+          ...c,
+          // Name is empty if the user hasn't logged into that cluster yet.
+          name: c.name || routing.parseClusterName(c.uri),
+        }));
         if (search) {
           clusters = clusters.filter(cluster =>
             cluster.name
@@ -239,7 +245,8 @@ export function useFilterSearch() {
 /** Sorts and then returns top 10 results. */
 export function rankResults(
   searchResults: resourcesServiceTypes.SearchResult[],
-  search: string
+  search: string,
+  currentWorkspace: CurrentWorkspace
 ): ResourceSearchResult[] {
   const terms = search
     .split(' ')
@@ -264,7 +271,9 @@ export function rankResults(
   const collator = new Intl.Collator();
 
   return searchResults
-    .map(searchResult => calculateScore(populateMatches(searchResult, terms)))
+    .map(searchResult =>
+      calculateScore(populateMatches(searchResult, terms), currentWorkspace)
+    )
     .sort(
       (a, b) =>
         // Highest score first.
@@ -325,10 +334,13 @@ function populateMatches(
   return { ...searchResult, labelMatches, resourceMatches, score: 0 };
 }
 
+type CurrentWorkspace = { workspaceUri: string; localClusterUri: string };
+
 // TODO(ravicious): Extract the scoring logic to a function to better illustrate different weight
 // for different matches.
 function calculateScore(
-  searchResult: ResourceSearchResult
+  searchResult: ResourceSearchResult,
+  currentWorkspace: CurrentWorkspace
 ): ResourceSearchResult {
   let searchResultScore = 0;
 
@@ -362,10 +374,34 @@ function calculateScore(
     const { searchTerm } = match;
     const field = searchResult.resource[match.field];
     const isMainField = mainResourceField[searchResult.kind] === match.field;
-    const weight = isMainField ? 4 : 2;
+    const lengthScore = getLengthScore(searchTerm, field);
+    const isExactMatch = lengthScore === 100;
+    const mainFieldBoost = isMainField ? 5 : 2;
+    // Boost exact matches on the main field.
+    // Let's say there's two databases, "postgres" with no labels and "postgres-dev" with a
+    // engine:postgres label. If the user searches for "postgres", we want to show the "postgres"
+    // database first. Without this bonus multiplier, "postgres-dev" could end up being first as the
+    // search term "postgres" also matches the label.
+    const exactMainMatchBoost = isMainField && isExactMatch ? 1.25 : 1;
 
-    const resourceMatchScore = getLengthScore(searchTerm, field) * weight;
+    const resourceMatchScore =
+      lengthScore * mainFieldBoost * exactMainMatchBoost;
     searchResultScore += resourceMatchScore;
+  }
+
+  // Extra points for belonging to the current workspace and the currently selected cluster.
+  const belongsToCurrentWorkspace = routing.belongsToProfile(
+    currentWorkspace.workspaceUri,
+    searchResult.resource.uri
+  );
+  const belongsToCurrentCluster =
+    currentWorkspace.localClusterUri ==
+    routing.ensureClusterUri(searchResult.resource.uri);
+  if (belongsToCurrentWorkspace) {
+    searchResultScore *= 1.1;
+  }
+  if (belongsToCurrentCluster) {
+    searchResultScore *= 1.1;
   }
 
   // Show resources that require access lower in the results.
@@ -411,4 +447,5 @@ export const resourceTypeToReadableName: Record<ResourceTypeFilter, string> = {
   app: 'apps',
   node: 'servers',
   kube_cluster: 'kubes',
+  windows_desktop: 'desktops',
 };

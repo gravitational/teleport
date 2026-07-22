@@ -20,9 +20,9 @@ the ports to the other parts.
 
 We recommend familiarizing yourself with the following resources prior to reviewing our Terraform examples:
 
-- [Teleport Architecture](https://goteleport.com/docs/architecture/overview/)
-- [Admin Guide](https://goteleport.com/docs/management/admin/)
-- [Running Teleport Enterprise in High Availability mode on AWS](https://goteleport.com/docs/deploy-a-cluster/deployments/aws-ha-autoscale-cluster-terraform/)
+- [Teleport Architecture](https://goteleport.com/docs/reference/architecture/)
+- [Admin Guide](https://goteleport.com/docs/zero-trust-access/management/)
+- [Running Teleport Enterprise in High Availability mode on AWS](https://goteleport.com/docs/zero-trust-access/deploy-a-cluster/deployments/aws-ha-autoscale-cluster-terraform/)
 
 In order to spin up AWS resources using these Terraform examples, you need the following software:
 
@@ -45,8 +45,24 @@ export TF_VAR_cluster_name="teleport.example.com"
 # To list available AMIs:
 # OSS: aws ec2 describe-images --owners 146628656107 --filters 'Name=name,Values=teleport-oss-*'
 # Enterprise: aws ec2 describe-images --owners 146628656107 --filters 'Name=name,Values=teleport-ent-*'
-# FIPS 140-2 images are also available for Enterprise customers, look for '-fips' on the end of the AMI's name
-export TF_VAR_ami_name="teleport-ent-16.1.0-arm64"
+# FIPS images are also available for Enterprise customers, look for '-fips' on the end of the AMI's name
+export TF_VAR_ami_name="teleport-ent-18.10.0-arm64"
+
+# Instance types used for authentication server auto scaling group
+# This should match to the AMI instance architecture type, ARM or x86
+TF_VAR_auth_instance_type ?= m7g.large
+
+# Instance types used for proxy auto scaling group
+# This should match to the AMI instance architecture type, ARM or x86
+TF_VAR_proxy_instance_type ?= m7g.large
+
+# Instance types used for Teleport node auto scaling group
+# This should match to the AMI instance architecture type, ARM or x86
+TF_VAR_node_instance_type ?= t4g.medium
+
+# Instance type used for bastion server
+# This should match to the AMI instance architecture type, ARM or x86
+TF_VAR_bastion_instance_type ?= t4g.medium
 
 # AWS SSH key name to provision in installed instances, should be available in the region
 export TF_VAR_key_name="example"
@@ -57,7 +73,7 @@ export TF_VAR_key_name="example"
 export TF_VAR_use_acm="false"
 
 # (optional) Set to true to use TLS routing to multiplex all Teleport traffic over one port
-# See https://goteleport.com/docs/architecture/tls-routing for more information
+# See https://goteleport.com/docs/reference/architecture/tls-routing/ for more information
 # Setting this will disable ALL separate listener ports. If you also use ACM, then:
 # - you must use Teleport and tsh v13+
 # - you must use `tsh proxy` commands for Kubernetes/database access

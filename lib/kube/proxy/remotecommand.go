@@ -22,21 +22,22 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/util/httpstream"
-	spdystream "k8s.io/apimachinery/pkg/util/httpstream/spdy"
-	"k8s.io/apimachinery/pkg/util/httpstream/wsstream"
 	remotecommandconsts "k8s.io/apimachinery/pkg/util/remotecommand"
 	"k8s.io/client-go/tools/remotecommand"
 	utilexec "k8s.io/client-go/util/exec"
+	"k8s.io/streaming/pkg/httpstream"
+	spdystream "k8s.io/streaming/pkg/httpstream/spdy"
+	"k8s.io/streaming/pkg/httpstream/wsstream"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
 )
@@ -56,6 +57,7 @@ type remoteCommandRequest struct {
 	onResize           resizeCallback
 	context            context.Context
 	pingPeriod         time.Duration
+	idleTimeout        time.Duration
 }
 
 func (req remoteCommandRequest) eventPodMeta(ctx context.Context, creds kubeCreds) apievents.KubernetesPodMetadata {
@@ -74,7 +76,7 @@ func (req remoteCommandRequest) eventPodMeta(ctx context.Context, creds kubeCred
 	// here shouldn't prevent a session from starting.
 	pod, err := creds.getKubeClient().CoreV1().Pods(req.podNamespace).Get(ctx, req.podName, metav1.GetOptions{})
 	if err != nil {
-		log.WithError(err).Debugf("Failed fetching pod from kubernetes API; skipping additional metadata on the audit event")
+		slog.DebugContext(ctx, "Failed fetching pod from kubernetes API; skipping additional metadata on the audit event", "error", err)
 		return meta
 	}
 	meta.KubernetesNodeName = pod.Spec.NodeName
@@ -120,7 +122,7 @@ func upgradeRequestToRemoteCommandProxy(req remoteCommandRequest, exec func(*rem
 		err = nil
 	}
 	if err := proxy.sendStatus(err); err != nil {
-		log.Warningf("Failed to send status: %v", err)
+		slog.WarnContext(req.context, "Failed to send status", "error", err)
 	}
 	// return rsp=nil, err=nil to indicate that the request has been handled
 	// by the hijacked connection. If we return an error, the request will be
@@ -156,15 +158,15 @@ func createSPDYStreams(req remoteCommandRequest) (*remoteCommandProxy, error) {
 		return nil, trace.ConnectionProblem(trace.BadParameter("missing connection"), "missing connection")
 	}
 
-	conn.SetIdleTimeout(IdleTimeout)
+	conn.SetIdleTimeout(adjustIdleTimeoutForConn(req.idleTimeout))
 
 	var handler protocolHandler
 	switch protocol {
 	case "":
-		log.Warningf("Client did not request protocol negotiation.")
+		slog.WarnContext(ctx, "Client did not request protocol negotiation")
 		fallthrough
 	case StreamProtocolV4Name:
-		log.Infof("Negotiated protocol %v.", protocol)
+		slog.InfoContext(ctx, "Negotiated protocol", "protocol", protocol)
 		handler = &v4ProtocolHandler{}
 	default:
 		err = trace.BadParameter("protocol %v is not supported. upgrade the client", protocol)
@@ -356,7 +358,7 @@ func (t *termQueue) handleResizeEvents(stream io.Reader) {
 		size := remotecommand.TerminalSize{}
 		if err := decoder.Decode(&size); err != nil {
 			if !errors.Is(err, io.EOF) {
-				log.Warningf("Failed to decode resize event: %v", err)
+				slog.WarnContext(t.done, "Failed to decode resize event", "error", err)
 			}
 			t.cancel()
 			return
@@ -386,6 +388,7 @@ func (*v4ProtocolHandler) waitForStreams(connContext context.Context, streams <-
 	remoteProxy := &remoteCommandProxy{}
 	receivedStreams := 0
 	replyChan := make(chan struct{})
+	seen := make(map[string]bool, 5)
 
 	stopCtx, cancel := context.WithCancel(connContext)
 	defer cancel()
@@ -394,24 +397,32 @@ WaitForStreams:
 		select {
 		case stream := <-streams:
 			streamType := stream.Headers().Get(StreamType)
+			if seen[streamType] {
+				return nil, trace.BadParameter("client opened duplicate %q stream", streamType)
+			}
 			switch streamType {
 			case StreamTypeError:
 				remoteProxy.writeStatus = v4WriteStatusFunc(stream)
+				seen[streamType] = true
 				go waitStreamReply(stopCtx, stream.replySent, replyChan)
 			case StreamTypeStdin:
 				remoteProxy.stdinStream = stream
+				seen[streamType] = true
 				go waitStreamReply(stopCtx, stream.replySent, replyChan)
 			case StreamTypeStdout:
 				remoteProxy.stdoutStream = stream
+				seen[streamType] = true
 				go waitStreamReply(stopCtx, stream.replySent, replyChan)
 			case StreamTypeStderr:
 				remoteProxy.stderrStream = stream
+				seen[streamType] = true
 				go waitStreamReply(stopCtx, stream.replySent, replyChan)
 			case StreamTypeResize:
 				remoteProxy.resizeStream = stream
+				seen[streamType] = true
 				go waitStreamReply(stopCtx, stream.replySent, replyChan)
 			default:
-				log.Warningf("Ignoring unexpected stream type: %q", streamType)
+				slog.WarnContext(stopCtx, "Ignoring unexpected stream type", "stream_type", streamType)
 			}
 		case <-replyChan:
 			receivedStreams++
@@ -436,7 +447,10 @@ func (*v4ProtocolHandler) supportsTerminalResizing() bool { return true }
 func waitStreamReply(ctx context.Context, replySent <-chan struct{}, notify chan<- struct{}) {
 	select {
 	case <-replySent:
-		notify <- struct{}{}
+		select {
+		case notify <- struct{}{}:
+		case <-ctx.Done():
+		}
 	case <-ctx.Done():
 	}
 }
@@ -444,7 +458,7 @@ func waitStreamReply(ctx context.Context, replySent <-chan struct{}, notify chan
 // v4WriteStatusFunc returns a WriteStatusFunc that marshals a given api Status
 // as json in the error channel.
 func v4WriteStatusFunc(stream io.Writer) func(status *apierrors.StatusError) error {
-	return func(status *apierrors.StatusError) error {
+	return writeStatusOnceFunc(func(status *apierrors.StatusError) error {
 		st := status.Status()
 		data, err := runtime.Encode(globalKubeCodecs.LegacyCodec(), &st)
 		if err != nil {
@@ -452,15 +466,27 @@ func v4WriteStatusFunc(stream io.Writer) func(status *apierrors.StatusError) err
 		}
 		_, err = stream.Write(data)
 		return err
-	}
+	})
 }
 
 func v1WriteStatusFunc(stream io.Writer) func(status *apierrors.StatusError) error {
-	return func(status *apierrors.StatusError) error {
+	return writeStatusOnceFunc(func(status *apierrors.StatusError) error {
 		if status.Status().Status == metav1.StatusSuccess {
 			return nil // send error messages
 		}
 		_, err := stream.Write([]byte(status.Error()))
 		return err
+	})
+}
+
+// writeStatusOnceFunc returns a function that only calls f once, and returns the result of the first call.
+func writeStatusOnceFunc(f func(status *apierrors.StatusError) error) func(status *apierrors.StatusError) error {
+	var once sync.Once
+	var err error
+	return func(status *apierrors.StatusError) error {
+		once.Do(func() {
+			err = f(status)
+		})
+		return trace.Wrap(err)
 	}
 }

@@ -37,6 +37,10 @@ type UserGroup interface {
 	GetApplications() []string
 	// SetApplications will set the list of application IDs associated with the user group.
 	SetApplications([]string)
+	// Clone creates a copy of the group.
+	Clone() UserGroup
+	// IsEqual determines if two user group resources are equivalent to one another.
+	IsEqual(UserGroup) bool
 }
 
 var _ ResourceWithLabels = (*UserGroupV1)(nil)
@@ -100,6 +104,11 @@ func (g *UserGroupV1) IsEqual(i UserGroup) bool {
 		return deriveTeleportEqualUserGroupV1(g, other)
 	}
 	return false
+}
+
+// Clone creates a copy of the group.
+func (g *UserGroupV1) Clone() UserGroup {
+	return utils.CloneProtoMsg(g)
 }
 
 // UserGroups is a list of UserGroup resources.

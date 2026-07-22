@@ -43,10 +43,10 @@ type ErrorResult struct {
 func (e ErrorResult) Error() string {
 	sb := strings.Builder{}
 	if len(e.ErrorMessages) > 0 {
-		sb.WriteString(fmt.Sprintf("error messages: %s ", strings.Join(e.ErrorMessages, ";")))
+		fmt.Fprintf(&sb, "error messages: %s ", strings.Join(e.ErrorMessages, ";"))
 	}
 	if details := e.Details.String(); details != "" {
-		sb.WriteString(fmt.Sprintf("error details: %s", details))
+		fmt.Fprintf(&sb, "error details: %s", details)
 	}
 	result := sb.String()
 	if result == "" {
@@ -143,14 +143,14 @@ type Project struct {
 }
 
 type Issue struct {
-	Expand      string                 `json:"expand"`
-	Self        string                 `json:"self"`
-	ID          string                 `json:"id"`
-	Key         string                 `json:"key"`
-	Fields      IssueFields            `json:"fields"`
-	Changelog   PageOfChangelogs       `json:"changelog"`
-	Properties  map[string]interface{} `json:"properties"`
-	Transitions []IssueTransition      `json:"transitions"`
+	Expand      string            `json:"expand"`
+	Self        string            `json:"self"`
+	ID          string            `json:"id"`
+	Key         string            `json:"key"`
+	Fields      IssueFields       `json:"fields"`
+	Changelog   PageOfChangelogs  `json:"changelog"`
+	Properties  map[string]any    `json:"properties"`
+	Transitions []IssueTransition `json:"transitions"`
 }
 
 type IssueFields struct {
@@ -165,7 +165,7 @@ type IssueFields struct {
 type IssueTransition struct {
 	ID   string        `json:"id,omitempty"`
 	Name string        `json:"name,omitempty"`
-	To   StatusDetails `json:"to,omitempty"`
+	To   StatusDetails `json:"to"`
 }
 
 type IssueType struct {
@@ -184,7 +184,7 @@ type IssueFieldsInput struct {
 }
 
 type IssueInput struct {
-	Fields     IssueFieldsInput `json:"fields,omitempty"`
+	Fields     IssueFieldsInput `json:"fields"`
 	Properties []EntityProperty `json:"properties,omitempty"`
 }
 

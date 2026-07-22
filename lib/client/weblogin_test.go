@@ -30,12 +30,15 @@ import (
 
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 )
 
 // TestHostCredentialsHttpFallback tests that HostCredentials requests (/v1/webapi/host/credentials/)
@@ -71,7 +74,7 @@ func TestHostCredentialsHttpFallback(t *testing.T) {
 		// Start an http server (not https) so that the request only succeeds
 		// if the fallback occurs.
 		var handler http.HandlerFunc = func(w http.ResponseWriter, r *http.Request) {
-			if r.RequestURI != "/v1/webapi/host/credentials" {
+			if r.RequestURI != "/webapi/host/credentials" {
 				w.WriteHeader(http.StatusNotFound)
 				return
 			}
@@ -118,7 +121,6 @@ func newServer(handler http.HandlerFunc, loopback bool) (*httptest.Server, error
 
 func TestSSHAgentPasswordlessLogin(t *testing.T) {
 	t.Parallel()
-	silenceLogger(t)
 
 	clock := clockwork.NewFakeClockAt(time.Now())
 	sa := newStandaloneTeleport(t, clock)
@@ -128,12 +130,12 @@ func TestSSHAgentPasswordlessLogin(t *testing.T) {
 	ctx := context.Background()
 
 	// Prepare client config, it won't change throughout the test.
-	cfg := client.MakeDefaultConfig()
+	cfg := &client.Config{}
+	cfg.ClientStore = client.NewFSClientStore(t.TempDir())
 	cfg.AddKeysToAgent = client.AddKeysToAgentNo
 	// Replace "127.0.0.1" with "localhost". The proxy address becomes the origin
 	// for Webauthn requests, and Webauthn doesn't take IP addresses.
 	cfg.WebProxyAddr = strings.Replace(sa.ProxyWebAddr, "127.0.0.1", "localhost", 1 /* n */)
-	cfg.KeysDir = t.TempDir()
 	cfg.InsecureSkipVerify = true
 
 	solvePwdless := func(ctx context.Context, origin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error) {
@@ -153,7 +155,12 @@ func TestSSHAgentPasswordlessLogin(t *testing.T) {
 
 	tc, err := client.NewClient(cfg)
 	require.NoError(t, err)
-	key, err := client.GenerateRSAKey()
+
+	userKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+	sshPub, err := ssh.NewPublicKey(userKey.Public())
+	require.NoError(t, err)
+	tlsPub, err := keys.MarshalPublicKey(userKey.Public())
 	require.NoError(t, err)
 
 	// customPromptCalled is a flag to ensure the custom prompt was indeed called
@@ -213,7 +220,8 @@ func TestSSHAgentPasswordlessLogin(t *testing.T) {
 		req := client.SSHLoginPasswordless{
 			SSHLogin: client.SSHLogin{
 				ProxyAddr:         tc.WebProxyAddr,
-				PubKey:            key.PrivateKey.MarshalSSHPublicKey(),
+				SSHPubKey:         ssh.MarshalAuthorizedKey(sshPub),
+				TLSPubKey:         tlsPub,
 				TTL:               tc.KeyTTL,
 				Insecure:          tc.InsecureSkipVerify,
 				Compatibility:     tc.CertificateFormat,

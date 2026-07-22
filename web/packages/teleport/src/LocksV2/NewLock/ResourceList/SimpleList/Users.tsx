@@ -16,7 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import Table, { Cell, LabelCell } from 'design/DataTable';
 
 import { User } from 'teleport/services/user';
@@ -44,9 +43,9 @@ export default function UserList(props: SimpleListProps & { users: User[] }) {
           key: 'roles',
           headerText: 'Roles',
           isSortable: true,
-          onSort: (a: string[], b: string[]) => {
-            const aStr = a.toString();
-            const bStr = b.toString();
+          onSort: (a, b) => {
+            const aStr = a.roles.toString();
+            const bStr = b.roles.toString();
 
             if (aStr < bStr) {
               return -1;

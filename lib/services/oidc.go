@@ -21,39 +21,11 @@ package services
 import (
 	"net/url"
 
-	"github.com/coreos/go-oidc/jose"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
 )
-
-// GetClaimNames returns a list of claim names from the claim values
-func GetClaimNames(claims jose.Claims) []string {
-	var out []string
-	for claim := range claims {
-		out = append(out, claim)
-	}
-	return out
-}
-
-// OIDCClaimsToTraits converts OIDC-style claims into teleport-specific trait format
-func OIDCClaimsToTraits(claims jose.Claims) map[string][]string {
-	traits := make(map[string][]string)
-
-	for claimName := range claims {
-		claimValue, ok, _ := claims.StringClaim(claimName)
-		if ok {
-			traits[claimName] = []string{claimValue}
-		}
-		claimValues, ok, _ := claims.StringsClaim(claimName)
-		if ok {
-			traits[claimName] = claimValues
-		}
-	}
-
-	return traits
-}
 
 // GetRedirectURL gets a redirect URL for the given connector. If the connector
 // has a redirect URL which matches the host of the given Proxy address, then
@@ -117,7 +89,7 @@ func UnmarshalOIDCConnector(bytes []byte, opts ...MarshalOption) (types.OIDCConn
 	case types.V2, types.V3:
 		var c types.OIDCConnectorV3
 		if err := utils.FastUnmarshal(bytes, &c); err != nil {
-			return nil, trace.BadParameter(err.Error())
+			return nil, trace.BadParameter("%s", err)
 		}
 		if err := c.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)

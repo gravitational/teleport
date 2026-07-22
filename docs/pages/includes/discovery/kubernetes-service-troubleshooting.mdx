@@ -1,4 +1,4 @@
-### Kubernetes Service
+### Kubernetes Service troubleshooting
 
 If the `tctl get kube_cluster` command returns the discovered clusters, but the 
 `tctl kube ls` command does not include them, check that you have set the 
@@ -6,7 +6,7 @@ If the `tctl get kube_cluster` command returns the discovered clusters, but the
 
 ```yaml
 kubernetes_service:
-  enabled: "yes"
+  enabled: true
   resources:
   - labels:
       "env": "prod"

@@ -16,27 +16,23 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-import { MemoryRouter } from 'react-router';
 import { http, HttpResponse } from 'msw';
+import React from 'react';
+
 import { AwsRole } from 'shared/services/apps';
 
-import { ContextProvider } from 'teleport';
 import cfg from 'teleport/config';
-import { createTeleportContext, getAcl } from 'teleport/mocks/contexts';
 import {
-  DiscoverProvider,
-  DiscoverContextState,
-} from 'teleport/Discover/useDiscover';
+  RequiredDiscoverProviders,
+  resourceSpecAppAwsCliConsole,
+} from 'teleport/Discover/Fixtures/fixtures';
+import { getAcl } from 'teleport/mocks/contexts';
 import {
   IntegrationKind,
   IntegrationStatusCode,
 } from 'teleport/services/integrations';
-import { ResourceKind } from 'teleport/Discover/Shared';
-import { DiscoverEventResource } from 'teleport/services/userEvent';
 
 import { app } from '../fixtures';
-
 import { SetupAccess } from './SetupAccess';
 
 export default {
@@ -72,11 +68,9 @@ const defaultUserGet = http.get(cfg.api.userWithUsernamePath, () =>
 );
 
 export const NoTraits = () => (
-  <MemoryRouter>
-    <Provider awsRoles={[]}>
-      <SetupAccess />
-    </Provider>
-  </MemoryRouter>
+  <Provider awsRoles={[]}>
+    <SetupAccess />
+  </Provider>
 );
 NoTraits.parameters = {
   msw: {
@@ -85,11 +79,9 @@ NoTraits.parameters = {
 };
 
 export const WithTraits = () => (
-  <MemoryRouter>
-    <Provider awsRoles={awsRoles}>
-      <SetupAccess />
-    </Provider>
-  </MemoryRouter>
+  <Provider awsRoles={awsRoles}>
+    <SetupAccess />
+  </Provider>
 );
 WithTraits.parameters = {
   msw: {
@@ -111,11 +103,9 @@ WithTraits.parameters = {
 };
 
 export const NoAccess = () => (
-  <MemoryRouter>
-    <Provider awsRoles={awsRoles} noAccess={true}>
-      <SetupAccess />
-    </Provider>
-  </MemoryRouter>
+  <Provider awsRoles={awsRoles} noAccess={true}>
+    <SetupAccess />
+  </Provider>
 );
 NoAccess.parameters = {
   msw: {
@@ -124,11 +114,9 @@ NoAccess.parameters = {
 };
 
 export const SsoUser = () => (
-  <MemoryRouter>
-    <Provider awsRoles={awsRoles} isSso={true}>
-      <SetupAccess />
-    </Provider>
-  </MemoryRouter>
+  <Provider awsRoles={awsRoles} isSso={true}>
+    <SetupAccess />
+  </Provider>
 );
 SsoUser.parameters = {
   msw: {
@@ -147,62 +135,30 @@ const Provider = ({
   noAccess?: boolean;
   isSso?: boolean;
 }) => {
-  const ctx = createTeleportContext();
-  if (noAccess) {
-    ctx.storeUser.state.acl = getAcl({ noAccess: true });
-  }
-  if (isSso) {
-    ctx.storeUser.state.authType = 'sso';
-  }
-  const discoverCtx: DiscoverContextState = {
-    prevStep: () => {},
-    nextStep: () => {},
-    agentMeta: {
-      app: {
-        ...app,
-        awsRoles,
-      },
-      awsIntegration: {
-        resourceType: 'integration',
-        kind: IntegrationKind.AwsOidc,
-        name: 'some-aws-oidc-name',
-        statusCode: IntegrationStatusCode.Running,
-        spec: {
-          roleArn: 'arn:aws:iam::123456789012:role/some-iam-role-name',
-          issuerS3Bucket: '',
-          issuerS3Prefix: '',
-        },
-      },
-    },
-    currentStep: 0,
-    onSelectResource: () => null,
-    resourceSpec: {
-      kind: ResourceKind.Application,
-      appMeta: { awsConsole: true },
-      name: '',
-      icon: undefined,
-      keywords: '',
-      event: DiscoverEventResource.ApplicationHttp,
-    },
-    exitFlow: () => null,
-    viewConfig: null,
-    indexedViews: [],
-    setResourceSpec: () => null,
-    updateAgentMeta: () => null,
-    emitErrorEvent: () => null,
-    emitEvent: () => null,
-    eventState: null,
-  };
-
   return (
-    <MemoryRouter
-      initialEntries={[
-        { pathname: cfg.routes.discover, state: { entity: 'server' } },
-      ]}
+    <RequiredDiscoverProviders
+      agentMeta={{
+        app: {
+          ...app,
+          awsRoles,
+        },
+        awsIntegration: {
+          resourceType: 'integration',
+          kind: IntegrationKind.AwsOidc,
+          name: 'some-aws-oidc-name',
+          statusCode: IntegrationStatusCode.Running,
+          spec: {
+            roleArn: 'arn:aws:iam::123456789012:role/some-iam-role-name',
+            issuerS3Bucket: '',
+            issuerS3Prefix: '',
+          },
+        },
+      }}
+      resourceSpec={resourceSpecAppAwsCliConsole}
+      authType={isSso ? 'sso' : undefined}
+      customAcl={noAccess ? getAcl({ noAccess: true }) : undefined}
     >
-      <ContextProvider ctx={ctx}>
-        <DiscoverProvider mockCtx={discoverCtx}>{children}</DiscoverProvider>
-      </ContextProvider>
-    </MemoryRouter>
+      {children}
+    </RequiredDiscoverProviders>
   );
 };

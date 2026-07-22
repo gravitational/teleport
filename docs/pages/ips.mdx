@@ -1,0 +1,75 @@
+---
+title: Public IP Address Allowlist
+description: Restrict outbound network connections from your infrastructure to cloud-hosted Teleport Enterprise.
+tags:
+ - reference
+ - platform-wide
+---
+
+Teleport Cloud maintains a list of IP addresses it uses for ingress. If your environment restricts outbound traffic,
+you can allowlist these IPs in your firewall or proxy configuration to ensure that Teleport Agents can connect to your cluster.
+While not required for most deployments, this configuration can be useful in environments where outbound
+connections are blocked by default, for example, when firewalls deny all internet access unless explicitly allowed.
+
+## Using the allowlist
+
+Teleport Cloud does **not** provide stable egress IPs for traffic from the Auth
+Service and Proxy Service. 
+
+If you are a Teleport Cloud customer and plan to use the allowlist of ingress
+IPs, please open a support ticket to let us know. This allows us to provide
+advance notice whenever the list is updated.
+
+## Teleport Cloud ingress IPs
+
+Teleport Cloud uses the following IP addresses for ingress:
+
+```
+3.7.23.103/32
+3.25.41.182/32
+3.67.31.207/32
+3.107.217.118/32
+3.109.188.166/32
+13.215.3.254/32
+13.239.68.188/32
+18.136.170.204/32
+18.197.230.105/32
+18.228.73.158/32
+35.82.240.238/32
+44.198.252.22/32
+44.213.172.215/32
+44.217.250.22/32
+50.112.183.104/32
+52.59.15.95/32
+52.66.6.236/32
+52.67.142.215/32
+52.220.247.39/32
+54.94.211.77/32
+54.185.13.106/32
+```
+
+## Teleport Agent update domains
+
+To receive Teleport Agent updates, nodes must be able to reach the
+following domains via HTTPS during the update.
+
+```
+apt.releases.teleport.dev
+yum.releases.teleport.dev
+cdn.teleport.dev
+```
+
+## Modifications to the list
+
+IP addresses may be added or removed from the above list over time.
+
+When this list is modified, we will provide at least two weeks notice by:
+1. Updating the Changelog below.
+1. Notifying cloud-hosted Teleport Enterprise customers via email.
+1. Providing a [Status Page](https://status.teleport.sh/) update.
+1. Reaching out directly to Enterprise customers that have requested advanced notice.
+
+## Changelog
+
+- 2025-04-07: Add new IPs
+- 2024-06-06: List published

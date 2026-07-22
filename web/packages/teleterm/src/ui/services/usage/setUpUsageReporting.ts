@@ -16,10 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ConfigService } from 'teleterm/services/config';
-import { ModalsService } from 'teleterm/ui/services/modals';
-import { staticConfig } from 'teleterm/staticConfig';
 import Logger from 'teleterm/logger';
+import { ConfigService } from 'teleterm/services/config';
+import { staticConfig } from 'teleterm/staticConfig';
+import { ModalsService } from 'teleterm/ui/services/modals';
 
 export async function setUpUsageReporting(
   configService: ConfigService,

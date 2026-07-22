@@ -16,17 +16,17 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { MainProcessClient } from 'teleterm/types';
-import { ReloginRequest } from 'teleterm/services/tshdEvents';
-import {
-  ModalsService,
-  ClusterConnectReason,
-} from 'teleterm/ui/services/modals';
-import { ClustersService } from 'teleterm/ui/services/clusters';
 import {
   reloginReasonOneOfIsGatewayCertExpired,
   reloginReasonOneOfIsVnetCertExpired,
 } from 'teleterm/helpers';
+import { ReloginRequest } from 'teleterm/services/tshdEvents';
+import { MainProcessClient } from 'teleterm/types';
+import { ClustersService } from 'teleterm/ui/services/clusters';
+import {
+  ClusterConnectReason,
+  ModalsService,
+} from 'teleterm/ui/services/modals';
 
 export class ReloginService {
   constructor(
@@ -35,11 +35,11 @@ export class ReloginService {
     private clustersService: ClustersService
   ) {}
 
-  relogin(
+  async relogin(
     request: ReloginRequest,
     onRequestCancelled: (callback: () => void) => void
   ): Promise<void> {
-    this.mainProcessClient.forceFocusWindow();
+    await this.mainProcessClient.forceFocusWindow();
     const reason = this.getReason(request);
 
     return new Promise((resolve, reject) => {
@@ -86,8 +86,7 @@ export class ReloginService {
 
         return {
           kind: 'reason.vnet-cert-expired',
-          targetUri: request.reason.vnetCertExpired.targetUri,
-          publicAddr: request.reason.vnetCertExpired.publicAddr,
+          ...request.reason.vnetCertExpired,
         };
       }
       default: {

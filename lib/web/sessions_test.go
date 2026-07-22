@@ -19,8 +19,10 @@
 package web
 
 import (
+	"cmp"
 	"context"
 	"errors"
+	"net"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -32,7 +34,8 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/cert"
@@ -44,9 +47,9 @@ func TestRemoteClientCache(t *testing.T) {
 	var openCount atomic.Int32
 	cache := remoteClientCache{}
 
-	sa1 := newMockRemoteSite("a")
-	sa2 := newMockRemoteSite("a")
-	sb := newMockRemoteSite("b")
+	sa1 := newMockCluster("a")
+	sa2 := newMockCluster("a")
+	sb := newMockCluster("b")
 
 	err1 := errors.New("c1")
 	err2 := errors.New("c2")
@@ -67,17 +70,60 @@ func TestRemoteClientCache(t *testing.T) {
 	require.Zero(t, openCount.Load())
 }
 
-func newMockRemoteSite(name string) reversetunnelclient.RemoteSite {
-	return &mockRemoteSite{name: name}
+func newMockCluster(name string) reversetunnelclient.Cluster {
+	return &mockCluster{name: name}
 }
 
-type mockRemoteSite struct {
-	reversetunnelclient.RemoteSite
+type mockCluster struct {
+	reversetunnelclient.Cluster
 	name string
 }
 
-func (m *mockRemoteSite) GetName() string {
+func (m *mockCluster) GetName() string {
 	return m.name
+}
+
+type fakeTunnelClient struct {
+	reversetunnelclient.Cluster
+	gotParams reversetunnelclient.DialParams
+}
+
+func (m *fakeTunnelClient) DialAuthServer(params reversetunnelclient.DialParams) (net.Conn, error) {
+	m.gotParams = params
+	return nil, errors.New("not dialing in test")
+}
+
+func TestClusterDialer(t *testing.T) {
+	t.Parallel()
+
+	srcAddr := &utils.NetAddr{Addr: "10.0.0.1:1111", AddrNetwork: "tcp"}
+	dstAddr := &utils.NetAddr{Addr: "10.0.0.2:2222", AddrNetwork: "tcp"}
+
+	for _, tc := range []struct {
+		desc    string
+		dialSrc net.Addr
+		dialDst net.Addr
+		dialCtx context.Context
+	}{
+		{
+			desc:    "explicit addrs",
+			dialSrc: srcAddr,
+			dialDst: dstAddr,
+		},
+		{
+			desc:    "context addrs",
+			dialCtx: authz.ContextWithClientAddrs(t.Context(), srcAddr, dstAddr),
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			cluster := &fakeTunnelClient{}
+			dialer := clusterDialer(cluster, tc.dialSrc, tc.dialDst)
+			dialer.DialContext(cmp.Or(tc.dialCtx, t.Context()), "tcp", "")
+
+			require.Equal(t, srcAddr, cluster.gotParams.From)
+			require.Equal(t, dstAddr, cluster.gotParams.OriginalClientDstAddr)
+		})
+	}
 }
 
 func newMockClientI(openCount *atomic.Int32, closeErr error) authclient.ClientI {
@@ -108,14 +154,14 @@ func TestGetUserClient(t *testing.T) {
 	sctx := SessionContext{
 		cfg: SessionContextConfig{
 			RootClusterName: "local",
-			newRemoteClient: func(ctx context.Context, sessionContext *SessionContext, site reversetunnelclient.RemoteSite) (authclient.ClientI, error) {
+			newRemoteClient: func(ctx context.Context, sessionContext *SessionContext, cluster reversetunnelclient.Cluster) (authclient.ClientI, error) {
 				return newMockClientI(&openCount, nil), nil
 			},
 		},
 	}
 
-	localSite := &mockRemoteSite{name: "local"}
-	remoteSite := &mockRemoteSite{name: "remote"}
+	localSite := &mockCluster{name: "local"}
+	remoteSite := &mockCluster{name: "remote"}
 
 	// getting a client for the local site should return
 	// the RootClient from SessionContextConfig
@@ -165,7 +211,7 @@ func TestGetUserClient(t *testing.T) {
 
 	timeout := time.After(10 * time.Second)
 	clients := make([]authclient.ClientI, 2)
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		select {
 		case res := <-resultCh:
 			require.NoError(t, res.err)
@@ -179,7 +225,7 @@ func TestGetUserClient(t *testing.T) {
 	// ensure that only one client was created and that
 	// both clients returned are functional
 	require.Equal(t, int32(1), openCount.Load())
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		domain, err := clients[i].GetDomainName(ctx)
 		require.NoError(t, err)
 		require.Equal(t, "test", domain)
@@ -187,24 +233,19 @@ func TestGetUserClient(t *testing.T) {
 }
 
 func TestSessionCache_watcher(t *testing.T) {
-	// Can't t.Parallel because of modules.SetTestModules.
-
-	// Requires Enterprise to work.
-	modules.SetTestModules(t, &modules.TestModules{
-		TestBuildType: modules.BuildEnterprise,
-	})
-
-	webSuite := newWebSuite(t)
+	testModules := modulestest.EnterpriseModules()
+	webSuite := newWebSuiteWithConfig(t, webSuiteConfig{modules: testModules})
 	authServer := webSuite.server.AuthServer.AuthServer
 	authClient := webSuite.proxyClient
 	clock := webSuite.clock
 
 	// cancel is used to make sure the sessionCache stops cleanly.
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
+	initializedC := make(chan struct{})
 	processedC := make(chan struct{})
 	sessionCache, err := newSessionCache(ctx, sessionCacheOptions{
+		buildType:   testModules.BuildType(),
 		proxyClient: authClient,
 		accessPoint: authClient,
 		servers: []utils.NetAddr{
@@ -213,10 +254,19 @@ func TestSessionCache_watcher(t *testing.T) {
 		clock:                               clock,
 		sessionLingeringThreshold:           1 * time.Minute,
 		sessionWatcherStartImmediately:      true,
+		sessionWatcherInitializedChannel:    initializedC,
 		sessionWatcherEventProcessedChannel: processedC,
 	})
 	require.NoError(t, err, "newSessionCache() failed")
 	defer sessionCache.Close()
+
+	// Wait for watcher initialization. This guarantees that the watcher is ready
+	// to observe updates.
+	select {
+	case <-initializedC:
+	case <-time.After(10 * time.Second):
+		t.Fatal("Timed out waiting for sessionCache watcher initialization")
+	}
 
 	// Sanity check active sessions.
 	require.Zero(t,
@@ -225,7 +275,7 @@ func TestSessionCache_watcher(t *testing.T) {
 
 	// Create realistic keys and certificates, newSessionContextFromSession
 	// requires it.
-	creds, err := cert.GenerateSelfSignedCert(nil /* hostNames */, nil /* ipAddresses */)
+	creds, err := cert.GenerateSelfSignedCert(nil, nil, nil, time.Now)
 	require.NoError(t, err, "GenerateSelfSignedCert() failed")
 
 	// Create "fake" sessions with the same sessionID using newSession.

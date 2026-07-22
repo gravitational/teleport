@@ -16,17 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-
 import { context, trace } from '@opentelemetry/api';
+import { useEffect, useRef, useState } from 'react';
 
 import cfg from 'teleport/config';
-import { TermEvent } from 'teleport/lib/term/enums';
-import Tty from 'teleport/lib/term/tty';
 import ConsoleContext from 'teleport/Console/consoleContext';
 import { useConsoleContext } from 'teleport/Console/consoleContextProvider';
 import { DocumentKubeExec } from 'teleport/Console/stores';
-
+import { TermEvent } from 'teleport/lib/term/enums';
+import Tty from 'teleport/lib/term/tty';
 import type {
   ParticipantMode,
   Session,
@@ -38,10 +36,10 @@ const tracer = trace.getTracer('TTY');
 export default function useKubeExecSession(doc: DocumentKubeExec) {
   const { clusterId, sid, kubeCluster, mode } = doc;
   const ctx = useConsoleContext();
-  const ttyRef = React.useRef<Tty>(null);
+  const ttyRef = useRef<Tty>(null);
   const tty = ttyRef.current as ReturnType<typeof ctx.createTty>;
-  const [session, setSession] = React.useState<Session>(null);
-  const [status, setStatus] = React.useState<Status>('loading');
+  const [session, setSession] = useState<Session>(null);
+  const [status, setStatus] = useState<Status>('loading');
 
   function closeDocument() {
     ctx.closeTab(doc);
@@ -73,7 +71,7 @@ export default function useKubeExecSession(doc: DocumentKubeExec) {
     setStatus('initialized');
   }
 
-  React.useEffect(() => {
+  useEffect(() => {
     function initTty(session, mode?: ParticipantMode) {
       tracer.startActiveSpan(
         'initTTY',
@@ -94,13 +92,27 @@ export default function useKubeExecSession(doc: DocumentKubeExec) {
             const data = JSON.parse(payload);
             data.session.kind = 'k8s';
             setSession(data.session);
+
+            if (doc.mode !== undefined) {
+              ctx.updateKubeExecDocument(doc.id, {
+                title: `${data.session.server_hostname}@${data.session.kubernetes_cluster_name}`,
+                kubeNamespace: data.session,
+              });
+
+              setStatus('initialized');
+            }
+
             handleTtyConnect(ctx, data.session, doc.id);
           });
 
           // assign tty reference so it can be passed down to xterm
           ttyRef.current = tty;
           setSession(session);
-          setStatus('waiting-for-exec-data');
+          if (doc.mode === undefined) {
+            setStatus('waiting-for-exec-data');
+          } else {
+            setStatus('initialized');
+          }
           span.end();
         }
       );

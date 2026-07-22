@@ -17,8 +17,11 @@ limitations under the License.
 package types
 
 import (
+	"bytes"
+	"net/url"
 	"time"
 
+	"github.com/gogo/protobuf/jsonpb" //nolint:depguard // needed for backwards compatibility
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/utils"
@@ -34,6 +37,7 @@ var AllPluginTypes = []PluginType{
 	PluginTypeOpenAI,
 	PluginTypeOkta,
 	PluginTypeJamf,
+	PluginTypeIntune,
 	PluginTypeJira,
 	PluginTypeOpsgenie,
 	PluginTypePagerDuty,
@@ -41,6 +45,9 @@ var AllPluginTypes = []PluginType{
 	PluginTypeDiscord,
 	PluginTypeEntraID,
 	PluginTypeSCIM,
+	PluginTypeDatadog,
+	PluginTypeAWSIdentityCenter,
+	PluginTypeEmail,
 }
 
 const (
@@ -56,22 +63,36 @@ const (
 	PluginTypeOkta = "okta"
 	// PluginTypeJamf is the Jamf MDM plugin
 	PluginTypeJamf = "jamf"
+	// PluginTypeIntune is the Intune MDM plugin
+	PluginTypeIntune = "intune"
 	// PluginTypeJira is the Jira access plugin
 	PluginTypeJira = "jira"
 	// PluginTypeOpsgenie is the Opsgenie access request plugin
 	PluginTypeOpsgenie = "opsgenie"
 	// PluginTypePagerDuty is the PagerDuty access plugin
 	PluginTypePagerDuty = "pagerduty"
-	// PluginTypeMattermost is the PagerDuty access plugin
+	// PluginTypeMattermost is the Mattermost access plugin
 	PluginTypeMattermost = "mattermost"
 	// PluginTypeDiscord indicates the Discord access plugin
 	PluginTypeDiscord = "discord"
 	// PluginTypeGitlab indicates the Gitlab access plugin
 	PluginTypeGitlab = "gitlab"
+	// PluginTypeGithub indicates the Github access plugin
+	PluginTypeGithub = "github"
 	// PluginTypeEntraID indicates the Entra ID sync plugin
 	PluginTypeEntraID = "entra-id"
 	// PluginTypeSCIM indicates a generic SCIM integration
 	PluginTypeSCIM = "scim"
+	// PluginTypeDatadog indicates the Datadog Incident Management plugin
+	PluginTypeDatadog = "datadog"
+	// PluginTypeAWSIdentityCenter indicates AWS Identity Center plugin
+	PluginTypeAWSIdentityCenter = "aws-identity-center"
+	// PluginTypeEmail indicates an Email Access Request plugin
+	PluginTypeEmail = "email"
+	// PluginTypeMSTeams indicates a Microsoft Teams integration
+	PluginTypeMSTeams = "msteams"
+	// PluginTypeNetIQ indicates a NetIQ integration
+	PluginTypeNetIQ = "netiq"
 )
 
 // PluginSubkind represents the type of the plugin, e.g., access request, MDM etc.
@@ -102,11 +123,13 @@ type Plugin interface {
 	SetCredentials(PluginCredentials) error
 	SetStatus(PluginStatus) error
 	GetGeneration() string
+	CloneWithoutSecrets() Plugin
 }
 
 // PluginCredentials are the credentials embedded in Plugin
 type PluginCredentials interface {
 	GetOauth2AccessToken() *PluginOAuth2AccessTokenCredentials
+	GetIdSecret() *PluginIdSecretCredential
 	GetStaticCredentialsRef() *PluginStaticCredentialsRef
 }
 
@@ -114,10 +137,14 @@ type PluginCredentials interface {
 type PluginStatus interface {
 	GetCode() PluginStatusCode
 	GetErrorMessage() string
+	GetLastRawError() string
 	GetLastSyncTime() time.Time
 	GetGitlab() *PluginGitlabStatusV1
 	GetEntraId() *PluginEntraIDStatusV1
 	GetOkta() *PluginOktaStatusV1
+	GetAwsIc() *PluginAWSICStatusV1
+	GetNetIq() *PluginNetIQStatusV1
+	SetDetails(isPluginStatusV1_Details)
 }
 
 // NewPluginV1 creates a new PluginV1 resource.
@@ -129,6 +156,8 @@ func NewPluginV1(metadata Metadata, spec PluginSpecV1, creds *PluginCredentialsV
 	if creds != nil {
 		p.SetCredentials(creds)
 	}
+
+	p.setStaticFields()
 
 	return p
 }
@@ -156,11 +185,13 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 			// this should validate that credentials are not empty
 			break
 		}
-		if p.Credentials.GetOauth2AccessToken() == nil {
-			return trace.BadParameter("Slack access plugin can only be used with OAuth2 access token credential type")
+		if p.Credentials.GetOauth2AccessToken() == nil && p.Credentials.GetStaticCredentialsRef() == nil {
+			return trace.BadParameter("Slack access plugin must be used with either OAuth2 access token, or a static credential")
 		}
-		if err := p.Credentials.GetOauth2AccessToken().CheckAndSetDefaults(); err != nil {
-			return trace.Wrap(err)
+		if p.Credentials.GetOauth2AccessToken() != nil {
+			if err := p.Credentials.GetOauth2AccessToken().CheckAndSetDefaults(); err != nil {
+				return trace.Wrap(err)
+			}
 		}
 	case *PluginSpecV1_Openai:
 		if p.Credentials == nil {
@@ -222,7 +253,23 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 		if len(staticCreds.Labels) == 0 {
 			return trace.BadParameter("labels must be specified")
 		}
-
+	case *PluginSpecV1_Intune:
+		if settings.Intune == nil {
+			return trace.BadParameter("missing Intune settings")
+		}
+		if err := settings.Intune.Validate(); err != nil {
+			return trace.Wrap(err)
+		}
+		if p.Credentials == nil {
+			return trace.BadParameter("credentials must be set")
+		}
+		staticCreds := p.Credentials.GetStaticCredentialsRef()
+		if staticCreds == nil {
+			return trace.BadParameter("Intune plugin must be used with the static credentials ref type")
+		}
+		if len(staticCreds.Labels) == 0 {
+			return trace.BadParameter("labels must be specified")
+		}
 	case *PluginSpecV1_Jira:
 		if settings.Jira == nil {
 			return trace.BadParameter("missing Jira settings")
@@ -312,15 +359,87 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 		if settings.EntraId == nil {
 			return trace.BadParameter("missing Entra ID settings")
 		}
+
 		if err := settings.EntraId.Validate(); err != nil {
 			return trace.Wrap(err)
 		}
+		// backfill the credentials source if it's not set.
+		if settings.EntraId.SyncSettings.CredentialsSource == EntraIDCredentialsSource_ENTRAID_CREDENTIALS_SOURCE_UNKNOWN {
+			settings.EntraId.SyncSettings.CredentialsSource = EntraIDCredentialsSource_ENTRAID_CREDENTIALS_SOURCE_OIDC
+		}
+		// backfill the Access List owners source if it's not set.
+		if settings.EntraId.SyncSettings.AccessListOwnersSource == EntraIDAccessListOwnersSource_ENTRAID_ACCESS_LIST_OWNERS_SOURCE_UNSPECIFIED {
+			settings.EntraId.SyncSettings.AccessListOwnersSource = EntraIDAccessListOwnersSource_ENTRAID_ACCESS_LIST_OWNERS_SOURCE_PLUGIN
+		}
+
 	case *PluginSpecV1_Scim:
 		if settings.Scim == nil {
 			return trace.BadParameter("Must be used with SCIM settings")
 		}
 		if err := settings.Scim.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
+		}
+	case *PluginSpecV1_Datadog:
+		if settings.Datadog == nil {
+			return trace.BadParameter("missing Datadog settings")
+		}
+		if err := settings.Datadog.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+
+		staticCreds := p.Credentials.GetStaticCredentialsRef()
+		if staticCreds == nil {
+			return trace.BadParameter("Datadog Incident Management plugin must be used with the static credentials ref type")
+		}
+		if len(staticCreds.Labels) == 0 {
+			return trace.BadParameter("labels must be specified")
+		}
+	case *PluginSpecV1_AwsIc:
+		if settings.AwsIc == nil {
+			return trace.BadParameter("Must be used with AWS Identity Center settings")
+		}
+
+		if err := settings.AwsIc.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+	case *PluginSpecV1_Email:
+		if settings.Email == nil {
+			return trace.BadParameter("missing Email settings")
+		}
+		if err := settings.Email.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+		staticCreds := p.Credentials.GetStaticCredentialsRef()
+		if staticCreds == nil {
+			return trace.BadParameter("Email plugin must be used with the static credentials ref type")
+		}
+		if len(staticCreds.Labels) == 0 {
+			return trace.BadParameter("labels must be specified")
+		}
+	case *PluginSpecV1_NetIq:
+		if settings.NetIq == nil {
+			return trace.BadParameter("missing NetIQ settings")
+		}
+		if err := settings.NetIq.Validate(); err != nil {
+			return trace.Wrap(err)
+		}
+		staticCreds := p.Credentials.GetStaticCredentialsRef()
+		if staticCreds == nil {
+			return trace.BadParameter("NetIQ plugin must be used with the static credentials ref type")
+		}
+		if len(staticCreds.Labels) == 0 {
+			return trace.BadParameter("labels must be specified")
+		}
+	case *PluginSpecV1_Github:
+		if settings.Github == nil {
+			return trace.BadParameter("missing Github settings")
+		}
+		if err := settings.Github.Validate(); err != nil {
+			return trace.Wrap(err)
+		}
+		staticCreds := p.Credentials.GetStaticCredentialsRef()
+		if staticCreds == nil {
+			return trace.BadParameter("Github plugin must be used with the static credentials ref type")
 		}
 	default:
 		return nil
@@ -329,7 +448,8 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 	return nil
 }
 
-// WithoutSecrets returns an instance of resource without secrets.
+// WithoutSecrets returns the Plugin as a Resource, with secrets removed.
+// If you want to have a copy of the Plugin without secrets use CloneWithoutSecrets instead.
 func (p *PluginV1) WithoutSecrets() Resource {
 	if p.Credentials == nil {
 		return p
@@ -338,6 +458,15 @@ func (p *PluginV1) WithoutSecrets() Resource {
 	p2 := p.Clone().(*PluginV1)
 	p2.SetCredentials(nil)
 	return p2
+}
+
+// CloneWithoutSecrets returns a deep copy of the Plugin instance with secrets removed.
+// Use this when you need a separate Plugin object without secrets,
+// rather than a Resource interface value as returned by WithoutSecrets.
+func (p *PluginV1) CloneWithoutSecrets() Plugin {
+	out := p.Clone().(*PluginV1)
+	out.SetCredentials(nil)
+	return out
 }
 
 func (p *PluginV1) setStaticFields() {
@@ -466,6 +595,8 @@ func (p *PluginV1) GetType() PluginType {
 		return PluginTypeOkta
 	case *PluginSpecV1_Jamf:
 		return PluginTypeJamf
+	case *PluginSpecV1_Intune:
+		return PluginTypeIntune
 	case *PluginSpecV1_Jira:
 		return PluginTypeJira
 	case *PluginSpecV1_Opsgenie:
@@ -480,11 +611,22 @@ func (p *PluginV1) GetType() PluginType {
 		return PluginTypeServiceNow
 	case *PluginSpecV1_Gitlab:
 		return PluginTypeGitlab
+	case *PluginSpecV1_Github:
+		return PluginTypeGithub
 	case *PluginSpecV1_EntraId:
 		return PluginTypeEntraID
 	case *PluginSpecV1_Scim:
 		return PluginTypeSCIM
-
+	case *PluginSpecV1_Datadog:
+		return PluginTypeDatadog
+	case *PluginSpecV1_AwsIc:
+		return PluginTypeAWSIdentityCenter
+	case *PluginSpecV1_Email:
+		return PluginTypeEmail
+	case *PluginSpecV1_Msteams:
+		return PluginTypeMSTeams
+	case *PluginSpecV1_NetIq:
+		return PluginTypeNetIQ
 	default:
 		return PluginTypeUnknown
 	}
@@ -521,6 +663,10 @@ func (s *PluginOktaSettings) CheckAndSetDefaults() error {
 
 	if s.SyncSettings.SyncAccessLists && len(s.SyncSettings.DefaultOwners) == 0 {
 		return trace.BadParameter("default owners must be set when access list import is enabled")
+	}
+
+	if s.SyncSettings.UserSyncSource == "" {
+		s.SyncSettings.UserSyncSource = string(OktaUserSyncSourceUnknown)
 	}
 
 	return nil
@@ -646,18 +792,241 @@ func (c *PluginEntraIDSettings) Validate() error {
 		return trace.BadParameter("sync_settings.sso_connector_id must be set")
 	}
 
+	if syncIntervals := c.SyncSettings.SyncIntervals; syncIntervals != nil {
+		if err := syncIntervals.Validate(); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	return nil
+}
+
+func (c *PluginEntraIDSyncIntervals) Validate() error {
+	// Delta and full intervals must be either
+	// empty or a valid interval.
+	if c.Delta == "" && c.Full == "" {
+		// Must be an existing plugin installation without sync interval fields.
+		return nil
+	}
+
+	var full, delta time.Duration
+	// Entra ID service will deal with picking up defaults for empty value.
+	if c.Delta != "" {
+		d, err := time.ParseDuration(c.Delta)
+		if err != nil {
+			return trace.BadParameter("invalid delta sync interval, value must be a valid Go duration string, got %q: %v", c.Delta, err)
+		} else {
+			delta = d
+		}
+	}
+
+	// Entra ID service will deal with picking up defaults for empty value.
+	if c.Full != "" {
+		f, err := time.ParseDuration(c.Full)
+		if err != nil {
+			return trace.BadParameter("invalid full sync interval, value must be a valid Go duration string, got %q: %v", c.Full, err)
+		} else {
+			full = f
+		}
+	}
+
+	if delta < 0 {
+		return trace.BadParameter(`sync_settings.sync_intervals.delta cannot be a negative value`)
+	}
+	if full < 0 {
+		return trace.BadParameter(`sync_settings.sync_intervals.full cannot be a negative value`)
+	}
+	if delta > 0 && full > 0 && delta >= full {
+		return trace.BadParameter(`sync_settings.sync_intervals.delta sync interval value ` +
+			`should be less than sync_settings.sync_intervals.full sync interval`)
+	}
+
 	return nil
 }
 
 func (c *PluginSCIMSettings) CheckAndSetDefaults() error {
-	if c.DefaultRole == "" {
-		return trace.BadParameter("default_role must be set")
+	if c.SamlConnectorName == "" && c.ConnectorInfo == nil {
+		// Don't print legacy filed.
+		return trace.BadParameter("connector_info must be set")
 	}
 
-	if c.SamlConnectorName == "" {
-		return trace.BadParameter("saml_connector_name must be set")
+	return nil
+}
+
+func (c *PluginDatadogAccessSettings) CheckAndSetDefaults() error {
+	if c.ApiEndpoint == "" {
+		return trace.BadParameter("api_endpoint must be set")
+	}
+	if c.FallbackRecipient == "" {
+		return trace.BadParameter("fallback_recipient must be set")
+	}
+	return nil
+}
+
+const (
+	// AWSICRolesSyncModeAll indicates that the AWS Identity Center integration
+	// should create and maintain roles for all possible Account Assignments.
+	AWSICRolesSyncModeAll string = "ALL"
+
+	// AWSICRolesSyncModeNone indicates that the AWS Identity Center integration
+	// should *not* create any roles representing potential account Account
+	// Assignments.
+	AWSICRolesSyncModeNone string = "NONE"
+)
+
+func (c *PluginAWSICSettings) CheckAndSetDefaults() error {
+	// Handle legacy records that pre-date the polymorphic Credentials settings
+	// TODO(tcsc): remove this check in v19
+	if c.Credentials == nil {
+		// Migrate the legacy, enum-based settings to the new polymorphic
+		// credential block
+
+		// Promote "unknown" credential source values to OIDC for backwards
+		// compatibility with old plugin records
+		if c.CredentialsSource == AWSICCredentialsSource_AWSIC_CREDENTIALS_SOURCE_UNKNOWN {
+			c.CredentialsSource = AWSICCredentialsSource_AWSIC_CREDENTIALS_SOURCE_OIDC
+		}
+
+		switch c.CredentialsSource {
+		case AWSICCredentialsSource_AWSIC_CREDENTIALS_SOURCE_OIDC:
+			c.Credentials = &AWSICCredentials{
+				Source: &AWSICCredentials_Oidc{
+					Oidc: &AWSICCredentialSourceOIDC{IntegrationName: c.IntegrationName},
+				},
+			}
+		case AWSICCredentialsSource_AWSIC_CREDENTIALS_SOURCE_SYSTEM:
+			c.Credentials = &AWSICCredentials{
+				Source: &AWSICCredentials_System{
+					System: &AWSICCredentialSourceSystem{},
+				},
+			}
+		}
 	}
 
+	if c.Arn == "" {
+		return trace.BadParameter("AWS Identity Center Instance ARN must be set")
+	}
+
+	if c.Region == "" {
+		return trace.BadParameter("AWS Identity Center region must be set")
+	}
+
+	if c.ProvisioningSpec == nil {
+		return trace.BadParameter("provisioning config must be set")
+	}
+
+	if err := c.ProvisioningSpec.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err, "checking provisioning config")
+	}
+
+	switch source := c.Credentials.GetSource().(type) {
+	case *AWSICCredentials_Oidc:
+		if source.Oidc.IntegrationName == "" {
+			return trace.BadParameter("AWS OIDC integration name must be set")
+		}
+	}
+
+	return nil
+}
+
+// UnmarshalJSON implements [json.Unmarshaler] for the AWSICCredentialsSource,
+// forcing it to use the `jsonpb` unmarshaler, which understands how to unpack
+// values generated from a protobuf `oneof` directive.
+func (s *AWSICCredentials) UnmarshalJSON(b []byte) error {
+	if err := (&jsonpb.Unmarshaler{AllowUnknownFields: true}).Unmarshal(bytes.NewReader(b), s); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// MarshalJSON implements [json.Marshaler] for the AWSICCredentials, forcing
+// it to use the `jsonpb` marshaler, which understands how to pack values
+// generated from a protobuf `oneof` directive.
+func (s *AWSICCredentials) MarshalJSON() ([]byte, error) {
+	m := jsonpb.Marshaler{}
+	var buf bytes.Buffer
+	if err := m.Marshal(&buf, s); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return buf.Bytes(), nil
+}
+
+func (c *AWSICProvisioningSpec) CheckAndSetDefaults() error {
+	if c.BaseUrl == "" {
+		return trace.BadParameter("base URL data must be set")
+	}
+
+	return nil
+}
+
+// UnmarshalJSON implements [json.Unmarshaler] for the AWSICResourceFilter, forcing
+// it to use the `jsonpb` unmarshaler, which understands how to unpack values
+// generated from a protobuf `oneof` directive.
+func (s *AWSICResourceFilter) UnmarshalJSON(b []byte) error {
+	if err := (&jsonpb.Unmarshaler{AllowUnknownFields: true}).Unmarshal(bytes.NewReader(b), s); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// MarshalJSON implements [json.Marshaler] for the AWSICResourceFilter, forcing
+// it to use the `jsonpb` marshaler, which understands how to pack values
+// generated from a protobuf `oneof` directive.
+func (s AWSICResourceFilter) MarshalJSON() ([]byte, error) {
+	m := jsonpb.Marshaler{}
+	var buf bytes.Buffer
+	if err := m.Marshal(&buf, &s); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return buf.Bytes(), nil
+}
+
+func (c *PluginEmailSettings) CheckAndSetDefaults() error {
+	if c.Sender == "" {
+		return trace.BadParameter("sender must be set")
+	}
+	if c.FallbackRecipient == "" {
+		return trace.BadParameter("fallback_recipient must be set")
+	}
+
+	switch spec := c.GetSpec().(type) {
+	case *PluginEmailSettings_MailgunSpec:
+		if c.GetMailgunSpec() == nil {
+			return trace.BadParameter("missing Mailgun Spec")
+		}
+		if err := c.GetMailgunSpec().CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+	case *PluginEmailSettings_SmtpSpec:
+		if c.GetSmtpSpec() == nil {
+			return trace.BadParameter("missing SMTP Spec")
+		}
+		if err := c.GetSmtpSpec().CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+	default:
+		return trace.BadParameter("unknown email spec: %T", spec)
+	}
+	return nil
+}
+
+func (c *MailgunSpec) CheckAndSetDefaults() error {
+	if c.Domain == "" {
+		return trace.BadParameter("domain must be set")
+	}
+	return nil
+}
+
+func (c *SMTPSpec) CheckAndSetDefaults() error {
+	if c.Host == "" {
+		return trace.BadParameter("host must be set")
+	}
+	if c.Port == 0 {
+		return trace.BadParameter("port must be set")
+	}
+	if c.StartTlsPolicy == "" {
+		return trace.BadParameter("start TLS policy must be set")
+	}
 	return nil
 }
 
@@ -666,14 +1035,23 @@ func (c PluginStatusV1) GetCode() PluginStatusCode {
 	return c.Code
 }
 
-// GetErrorMessage returns the error message
+// GetErrorMessage returns the friendly error message.
 func (c PluginStatusV1) GetErrorMessage() string {
 	return c.ErrorMessage
+}
+
+// GetLastRawError returns the raw error message.
+func (c PluginStatusV1) GetLastRawError() string {
+	return c.LastRawError
 }
 
 // GetLastSyncTime returns the last run of the plugin.
 func (c PluginStatusV1) GetLastSyncTime() time.Time {
 	return c.LastSyncTime
+}
+
+func (c *PluginStatusV1) SetDetails(settings isPluginStatusV1_Details) {
+	c.Details = settings
 }
 
 // CheckAndSetDefaults checks that the required fields for the Gitlab plugin are set.
@@ -683,4 +1061,69 @@ func (c *PluginGitlabSettings) Validate() error {
 	}
 
 	return nil
+}
+
+func (c *PluginNetIQSettings) Validate() error {
+	if c.OauthIssuerEndpoint == "" {
+		return trace.BadParameter("oauth_issuer endpoint must be set")
+	}
+
+	if _, err := url.Parse(c.OauthIssuerEndpoint); err != nil {
+		return trace.BadParameter("oauth_issuer endpoint must be a valid URL")
+	}
+
+	if c.ApiEndpoint == "" {
+		return trace.BadParameter("api_endpoint must be set")
+	}
+	if _, err := url.Parse(c.ApiEndpoint); err != nil {
+		return trace.BadParameter("api_endpoint endpoint must be a valid URL")
+	}
+
+	return nil
+}
+
+// Validate checks that the required fields for the Github plugin are set.
+func (c *PluginGithubSettings) Validate() error {
+	if c.ClientId == "" {
+		return trace.BadParameter("client_id must be set")
+	}
+	if c.OrganizationName == "" {
+		return trace.BadParameter("organization_name must be set")
+	}
+	return nil
+}
+
+// Validate checks that the required fields for the Intune plugin are set.
+func (c *PluginIntuneSettings) Validate() error {
+	if c.Tenant == "" {
+		return trace.BadParameter("tenant must be set")
+	}
+
+	if err := ValidateMSGraphAndLoginEndpoints(c.LoginEndpoint, c.GraphEndpoint); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+// UnmarshalJSON implements [json.Unmarshaler] for the PluginSyncFilter, forcing
+// it to use the `jsonpb` unmarshaler, which understands how to unpack values
+// generated from a protobuf `oneof` directive.
+func (s *PluginSyncFilter) UnmarshalJSON(b []byte) error {
+	if err := (&jsonpb.Unmarshaler{AllowUnknownFields: true}).Unmarshal(bytes.NewReader(b), s); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// MarshalJSON implements [json.Marshaler] for the PluginSyncFilter, forcing
+// it to use the `jsonpb` marshaler, which understands how to pack values
+// generated from a protobuf `oneof` directive.
+func (s PluginSyncFilter) MarshalJSON() ([]byte, error) {
+	m := jsonpb.Marshaler{}
+	var buf bytes.Buffer
+	if err := m.Marshal(&buf, &s); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return buf.Bytes(), nil
 }

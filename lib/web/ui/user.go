@@ -40,6 +40,10 @@ type UserListEntry struct {
 	Origin string `json:"origin"`
 	// IsBot is true if the user is a Bot User.
 	IsBot bool `json:"isBot"`
+	// DisplayPrimary is a display name when distinct from the username. May be empty.
+	DisplayPrimary string `json:"displayPrimary"`
+	// DisplaySecondary is extra context (usually email) when distinct from the username. May be empty.
+	DisplaySecondary string `json:"displaySecondary"`
 }
 
 type userTraits struct {
@@ -62,6 +66,10 @@ type userTraits struct {
 	AWSRoleARNs []string `json:"awsRoleArns,omitempty"`
 }
 
+// unknownSSOAUthType is used when we know the user is from SSO, but we don't
+// know the SSO connector name or type.
+const unknownSSOAuthType = "unknown SSO"
+
 // User contains data needed by the web UI to display locally saved users.
 type User struct {
 	UserListEntry
@@ -76,16 +84,24 @@ func NewUserListEntry(teleUser types.User) (*UserListEntry, error) {
 
 	authType := "local"
 	if teleUser.GetUserType() == types.UserTypeSSO {
-		authType = teleUser.GetCreatedBy().Connector.Type
+		// Gracefully handle a malformed SSO user that doesn't have a "CreatedBy"
+		authType = unknownSSOAuthType
+		if connector := teleUser.GetCreatedBy().Connector; connector != nil {
+			authType = connector.Type
+		}
 	}
 
+	display := teleUser.GetDisplay()
+
 	return &UserListEntry{
-		Name:      teleUser.GetName(),
-		Roles:     teleUser.GetRoles(),
-		AuthType:  authType,
-		Origin:    teleUser.Origin(),
-		AllTraits: teleUser.GetTraits(),
-		IsBot:     teleUser.IsBot(),
+		Name:             teleUser.GetName(),
+		Roles:            teleUser.GetRoles(),
+		AuthType:         authType,
+		Origin:           teleUser.Origin(),
+		AllTraits:        teleUser.GetTraits(),
+		IsBot:            teleUser.IsBot(),
+		DisplayPrimary:   display.Primary,
+		DisplaySecondary: display.Secondary,
 	}, nil
 }
 

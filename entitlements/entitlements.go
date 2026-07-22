@@ -18,41 +18,52 @@ package entitlements
 
 type EntitlementKind string
 
-// The EntitlementKind list should be 1:1 with the Features & FeatureStrings in salescenter/product/product.go,
+// The EntitlementKind list should be 1:1 with the Features & FeatureStrings in cloud/cloud/product/product.go,
 // except CustomTheme which is dropped. CustomTheme entitlement only toggles the ability to "set" a theme;
 // the value of that theme, if set, is stored and accessed outside of entitlements.
 //
 // All EntitlementKinds added here should also be added to AllEntitlements below and defaultEntitlements in
 // web/packages/teleport/src/entitlement.ts.
 const (
-	AccessLists            EntitlementKind = "AccessLists"
-	AccessMonitoring       EntitlementKind = "AccessMonitoring"
-	AccessRequests         EntitlementKind = "AccessRequests"
-	App                    EntitlementKind = "App"
-	CloudAuditLogRetention EntitlementKind = "CloudAuditLogRetention"
-	DB                     EntitlementKind = "DB"
-	Desktop                EntitlementKind = "Desktop"
-	DeviceTrust            EntitlementKind = "DeviceTrust"
-	ExternalAuditStorage   EntitlementKind = "ExternalAuditStorage"
-	FeatureHiding          EntitlementKind = "FeatureHiding"
-	HSM                    EntitlementKind = "HSM"
-	Identity               EntitlementKind = "Identity"
-	JoinActiveSessions     EntitlementKind = "JoinActiveSessions"
-	K8s                    EntitlementKind = "K8s"
-	MobileDeviceManagement EntitlementKind = "MobileDeviceManagement"
-	OIDC                   EntitlementKind = "OIDC"
-	OktaSCIM               EntitlementKind = "OktaSCIM"
-	OktaUserSync           EntitlementKind = "OktaUserSync"
-	Policy                 EntitlementKind = "Policy"
-	SAML                   EntitlementKind = "SAML"
-	SessionLocks           EntitlementKind = "SessionLocks"
-	UpsellAlert            EntitlementKind = "UpsellAlert"
-	UsageReporting         EntitlementKind = "UsageReporting"
+	AccessGraph                EntitlementKind = "AccessGraph"
+	AccessGraphDemoMode        EntitlementKind = "AccessGraphDemoMode"
+	AccessLists                EntitlementKind = "AccessLists"
+	AccessMonitoring           EntitlementKind = "AccessMonitoring"
+	AccessRequests             EntitlementKind = "AccessRequests"
+	ActivityCenter             EntitlementKind = "ActivityCenter"
+	App                        EntitlementKind = "App"
+	Beams                      EntitlementKind = "Beams"
+	ClientIPRestrictions       EntitlementKind = "ClientIPRestrictions"
+	CloudAuditLogRetention     EntitlementKind = "CloudAuditLogRetention"
+	DB                         EntitlementKind = "DB"
+	Desktop                    EntitlementKind = "Desktop"
+	DeviceTrust                EntitlementKind = "DeviceTrust"
+	ExternalAuditStorage       EntitlementKind = "ExternalAuditStorage"
+	FeatureHiding              EntitlementKind = "FeatureHiding"
+	HSM                        EntitlementKind = "HSM"
+	Identity                   EntitlementKind = "Identity"
+	JoinActiveSessions         EntitlementKind = "JoinActiveSessions"
+	K8s                        EntitlementKind = "K8s"
+	LicenseAutoUpdate          EntitlementKind = "LicenseAutoUpdate"
+	MobileDeviceManagement     EntitlementKind = "MobileDeviceManagement"
+	OIDC                       EntitlementKind = "OIDC"
+	OktaSCIM                   EntitlementKind = "OktaSCIM"
+	OktaUserSync               EntitlementKind = "OktaUserSync"
+	Policy                     EntitlementKind = "Policy"
+	SAML                       EntitlementKind = "SAML"
+	SessionLocks               EntitlementKind = "SessionLocks"
+	SessionSummaries           EntitlementKind = "SessionSummaries"
+	UnrestrictedManagedUpdates EntitlementKind = "UnrestrictedManagedUpdates"
+	UpsellAlert                EntitlementKind = "UpsellAlert"
+	UsageReporting             EntitlementKind = "UsageReporting"
+	WorkloadClusters           EntitlementKind = "WorkloadClusters"
 )
 
 // AllEntitlements returns all Entitlements; should be 1:1 with the const declared above.
 var AllEntitlements = []EntitlementKind{
-	AccessLists, AccessMonitoring, AccessRequests, App, CloudAuditLogRetention, DB, Desktop, DeviceTrust,
-	ExternalAuditStorage, FeatureHiding, HSM, Identity, JoinActiveSessions, K8s, MobileDeviceManagement, OIDC, OktaSCIM,
-	OktaUserSync, Policy, SAML, SessionLocks, UpsellAlert, UsageReporting,
+	AccessGraph, AccessGraphDemoMode, AccessLists, AccessMonitoring, AccessRequests, ActivityCenter, App, Beams,
+	ClientIPRestrictions, CloudAuditLogRetention, DB, Desktop, DeviceTrust,
+	ExternalAuditStorage, FeatureHiding, HSM, Identity, JoinActiveSessions, K8s, LicenseAutoUpdate,
+	MobileDeviceManagement, OIDC, OktaSCIM, OktaUserSync, Policy, SAML, SessionLocks, SessionSummaries,
+	UnrestrictedManagedUpdates, UpsellAlert, UsageReporting, WorkloadClusters,
 }

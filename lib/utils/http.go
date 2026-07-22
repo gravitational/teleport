@@ -45,8 +45,6 @@ func GetAndReplaceRequestBody(req *http.Request) ([]byte, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	// Replace the drained body with io.NopCloser reader allowing for further request processing by HTTP transport.
 	req.Body = io.NopCloser(bytes.NewReader(payload))
 	return payload, nil
 }
@@ -72,18 +70,28 @@ func GetAndReplaceResponseBody(response *http.Response) ([]byte, error) {
 
 // ReplaceRequestBody drains the old request body and replaces it with a new one.
 func ReplaceRequestBody(req *http.Request, newBody io.ReadCloser) error {
-	if req.Body != nil {
-		defer req.Body.Close()
-		// drain and discard the request body to allow connection reuse.
-		// No need to enforce a max request size, nor rely on callers to do so,
-		// since we do not buffer the entire request body.
-		_, err := io.Copy(io.Discard, req.Body)
-		if err != nil && !errors.Is(err, io.EOF) {
-			return trace.Wrap(err)
-		}
+	if err := drainAndCloseRequestBody(req); err != nil {
+		return trace.Wrap(err)
 	}
 	req.Body = newBody
 	return nil
+}
+
+// OverwriteRequestBody (over)writes the new data into the given request's body. It attempts to to
+// drain close the request body it overwrites.
+func OverwriteRequestBody(req *http.Request, data []byte) error {
+	if err := drainAndCloseRequestBody(req); err != nil {
+		return trace.Wrap(err)
+	}
+	OverwriteRequestBodyNoDrain(req, data)
+	return nil
+}
+
+// OverwriteRequestBodyNoDrain (over)writes the new data into the given request's body. It does not
+// close or drain the request body it overwrites.
+func OverwriteRequestBodyNoDrain(req *http.Request, data []byte) {
+	req.Body = io.NopCloser(bytes.NewReader(data))
+	req.ContentLength = int64(len(data))
 }
 
 // RenameHeader moves all values from the old header key to the new header key.
@@ -126,6 +134,18 @@ func GetSingleHeader(headers http.Header, key string) (string, error) {
 	} else {
 		return values[0], nil
 	}
+}
+
+func drainAndCloseRequestBody(req *http.Request) error {
+	if req.Body != nil {
+		defer req.Body.Close()
+		// drain and discard the request body to allow connection reuse.
+		_, err := io.Copy(io.Discard, req.Body)
+		if err != nil && !errors.Is(err, io.EOF) {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
 }
 
 // HTTPDoClient is an interface that defines the Do function of http.Client.

@@ -94,8 +94,7 @@ func emitStatusUpdate(resp *resty.Response, statusSink common.StatusSink) {
 
 	if err := statusSink.Emit(ctx, status); err != nil {
 		logger.Get(resp.Request.Context()).
-			WithError(err).
-			Errorf("Error while emitting Discord plugin status: %v", err)
+			ErrorContext(ctx, "Error while emitting Discord plugin status", "error", err)
 	}
 }
 
@@ -113,7 +112,7 @@ func (b DiscordBot) CheckHealth(ctx context.Context) error {
 // SupportedApps are the apps supported by this bot.
 func (b DiscordBot) SupportedApps() []common.App {
 	return []common.App{
-		accessrequest.NewApp(b),
+		accessrequest.NewApp(),
 	}
 }
 
@@ -214,7 +213,7 @@ func (b DiscordBot) discordEmbeds(reviews []types.AccessReview) []DiscordEmbed {
 }
 
 func (b DiscordBot) discordMsgText(reqID string, reqData pd.AccessRequestData) string {
-	return "You have a new Role Request:\n" +
+	return accessrequest.MsgTitle(reqData) +
 		accessrequest.MsgFields(reqID, reqData, b.clusterName, b.webProxyURL) +
 		accessrequest.MsgStatusText(reqData.ResolutionTag, reqData.ResolutionReason)
 }
@@ -230,4 +229,9 @@ func (b DiscordBot) FetchRecipient(ctx context.Context, name string) (*common.Re
 		Kind: "Channel",
 		Data: nil,
 	}, nil
+}
+
+// FetchOncallUsers fetches on-call users filtered by the provided annotations.
+func (b DiscordBot) FetchOncallUsers(ctx context.Context, req types.AccessRequest) ([]string, error) {
+	return nil, trace.NotImplemented("fetch oncall users not implemented for plugin")
 }

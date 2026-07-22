@@ -20,20 +20,17 @@
 package backend
 
 import (
-	"bytes"
 	"context"
 	"fmt"
-	"io"
-	"sort"
-	"strings"
+	"iter"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
-	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/utils/slices"
 )
 
 // Forever means that object TTL will not expire unless deleted
@@ -67,17 +64,22 @@ type Backend interface {
 	Update(ctx context.Context, i Item) (*Lease, error)
 
 	// Get returns a single item or not found error
-	Get(ctx context.Context, key []byte) (*Item, error)
+	Get(ctx context.Context, key Key) (*Item, error)
 
-	// GetRange returns query range
-	GetRange(ctx context.Context, startKey []byte, endKey []byte, limit int) (*GetResult, error)
+	// Items produces an iterator of backend items in the range, and order
+	// described in the provided [ItemsParams].
+	Items(ctx context.Context, params ItemsParams) iter.Seq2[Item, error]
+
+	// GetRange returns the items between the start and end keys, including both
+	// (if present).
+	GetRange(ctx context.Context, startKey, endKey Key, limit int) (*GetResult, error)
 
 	// Delete deletes item by key, returns NotFound error
 	// if item does not exist
-	Delete(ctx context.Context, key []byte) error
+	Delete(ctx context.Context, key Key) error
 
 	// DeleteRange deletes range of items with keys between startKey and endKey
-	DeleteRange(ctx context.Context, startKey, endKey []byte) error
+	DeleteRange(ctx context.Context, startKey, endKey Key) error
 
 	// KeepAlive keeps object from expiring, updates lease on the existing object,
 	// expires contains the new expiry to set on the lease,
@@ -90,7 +92,7 @@ type Backend interface {
 	ConditionalUpdate(ctx context.Context, i Item) (*Lease, error)
 
 	// ConditionalDelete deletes the item by key if the revision matches the stored revision.
-	ConditionalDelete(ctx context.Context, key []byte, revision string) error
+	ConditionalDelete(ctx context.Context, key Key, revision string) error
 
 	// AtomicWrite executes a batch of conditional actions atomically s.t. all actions happen if all
 	// conditions are met, but no actions happen if any condition fails to hold. If one or more conditions
@@ -114,6 +116,23 @@ type Backend interface {
 	CloseWatchers()
 }
 
+// ItemsParams are parameters that are provided to
+// [BackendWithItems.Items] to alter the iteration behavior.
+type ItemsParams struct {
+	// StartKey is the minimum key in the range yielded by the iteration. This key
+	// will be included in the results if it exists.
+	StartKey Key
+	// EndKey is the maximum key in the range yielded by the iteration. This key
+	// will be included in the results if it exists.
+	EndKey Key
+	// Descending makes the iteration yield items from the biggest to the smallest
+	// key (i.e. from EndKey to StartKey). If unset, the iteration will proceed in the
+	// usual ascending order (i.e. from StartKey to EndKey).
+	Descending bool
+	// Limit is an optional maximum number of items to retrieve during iteration.
+	Limit int
+}
+
 // New initializes a new [Backend] implementation based on the service config.
 func New(ctx context.Context, backend string, params Params) (Backend, error) {
 	registryMu.RLock()
@@ -129,62 +148,6 @@ func New(ctx context.Context, backend string, params Params) (Backend, error) {
 	return bk, nil
 }
 
-// IterateRange is a helper for stepping over a range
-func IterateRange(ctx context.Context, bk Backend, startKey []byte, endKey []byte, limit int, fn func([]Item) (stop bool, err error)) error {
-	if limit == 0 || limit > 10_000 {
-		limit = 10_000
-	}
-	for {
-		// we load an extra item here so that we can be certain we have a correct
-		// start key for the next range.
-		rslt, err := bk.GetRange(ctx, startKey, endKey, limit+1)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		end := limit
-		if len(rslt.Items) < end {
-			end = len(rslt.Items)
-		}
-		stop, err := fn(rslt.Items[0:end])
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if stop || len(rslt.Items) <= limit {
-			return nil
-		}
-		startKey = rslt.Items[limit].Key
-	}
-}
-
-// StreamRange constructs a Stream for the given key range. This helper just
-// uses standard pagination under the hood, lazily loading pages as needed. Streams
-// are currently only used for periodic operations, but if they become more widely
-// used in the future, it may become worthwhile to optimize the streaming of backend
-// items further. Two potential improvements of note:
-//
-// 1. update this helper to concurrently load the next page in the background while
-// items from the current page are being yielded.
-//
-// 2. allow individual backends to expose custom streaming methods s.t. the most performant
-// impl for a given backend may be used.
-func StreamRange(ctx context.Context, bk Backend, startKey, endKey []byte, pageSize int) stream.Stream[Item] {
-	return stream.PageFunc[Item](func() ([]Item, error) {
-		if startKey == nil {
-			return nil, io.EOF
-		}
-		rslt, err := bk.GetRange(ctx, startKey, endKey, pageSize)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if len(rslt.Items) < pageSize {
-			startKey = nil
-		} else {
-			startKey = nextKey(rslt.Items[pageSize-1].Key)
-		}
-		return rslt.Items, nil
-	})
-}
-
 // Lease represents a lease on the item that can be used
 // to extend item's TTL without updating its contents.
 //
@@ -196,7 +159,7 @@ func StreamRange(ctx context.Context, bk Backend, startKey, endKey []byte, pageS
 //	err = backend.KeepAlive(ctx, lease, expires)
 type Lease struct {
 	// Key is the resource identifier.
-	Key []byte
+	Key Key
 	// Revision is the last known version of the object.
 	Revision string
 }
@@ -208,7 +171,7 @@ type Watch struct {
 	Name string
 	// Prefixes specifies prefixes to watch,
 	// passed to the backend implementation
-	Prefixes [][]byte
+	Prefixes []Key
 	// QueueSize is an optional queue size
 	QueueSize int
 	// MetricComponent if set will start reporting
@@ -219,7 +182,7 @@ type Watch struct {
 // String returns a user-friendly description
 // of the watcher
 func (w *Watch) String() string {
-	return fmt.Sprintf("Watcher(name=%v, prefixes=%v)", w.Name, string(bytes.Join(w.Prefixes, []byte(", "))))
+	return fmt.Sprintf("Watcher(name=%v, prefixes=%v)", w.Name, w.Prefixes)
 }
 
 // Watcher returns watcher
@@ -252,7 +215,7 @@ type Event struct {
 // Item is a key value item
 type Item struct {
 	// Key is a key of the key value item
-	Key []byte
+	Key Key
 	// Value is a value of the key value item
 	Value []byte
 	// Expires is an optional record expiry time
@@ -270,9 +233,9 @@ func (e Event) String() string {
 }
 
 // Config is used for 'storage' config section. It's a combination of
-// values for various backends: 'boltdb', 'etcd', 'filesystem' and 'dynamodb'
+// values for various backends: 'etcd', 'filesystem', 'dynamodb', etc.
 type Config struct {
-	// Type can be "bolt" or "etcd" or "dynamodb"
+	// Type indicates which backend to use (etcd, dynamodb, etc)
 	Type string `yaml:"type,omitempty"`
 
 	// Params is a generic key/value property bag which allows arbitrary
@@ -283,7 +246,7 @@ type Config struct {
 // Params type defines a flexible unified back-end configuration API.
 // It is just a map of key/value pairs which gets populated by `storage` section
 // in Teleport YAML config.
-type Params map[string]interface{}
+type Params map[string]any
 
 // GetString returns a string value stored in Params map, or an empty string
 // if nothing is found
@@ -299,28 +262,21 @@ func (p Params) GetString(key string) string {
 // NoLimit specifies no limits
 const NoLimit = 0
 
-// nextKey returns the next possible key.
-// If used with a key prefix, this will return
-// the end of the range for that key prefix.
-func nextKey(key []byte) []byte {
-	end := make([]byte, len(key))
-	copy(end, key)
+const noEnd = "\x00"
+
+// RangeEnd returns end of the range for given key.
+func RangeEnd(key Key) Key {
+	end := make([]byte, len(key.s))
+	copy(end, key.s)
 	for i := len(end) - 1; i >= 0; i-- {
 		if end[i] < 0xff {
 			end[i] = end[i] + 1
 			end = end[:i+1]
-			return end
+			return KeyFromString(string(end))
 		}
 	}
 	// next key does not exist (e.g., 0xffff);
-	return noEnd
-}
-
-var noEnd = []byte{0}
-
-// RangeEnd returns end of the range for given key.
-func RangeEnd(key []byte) []byte {
-	return nextKey(key)
+	return Key{noEnd: true}
 }
 
 // HostID is a derivation of a KeyedItem that allows the host id
@@ -335,20 +291,12 @@ type KeyedItem interface {
 	GetName() string
 }
 
-// NextPaginationKey returns the next pagination key.
-// For items that implement HostID, the next key will also
-// have the HostID part.
-func NextPaginationKey(ki KeyedItem) string {
-	key := GetPaginationKey(ki)
-	return string(nextKey([]byte(key)))
-}
-
 // GetPaginationKey returns the pagination key given item.
 // For items that implement HostID, the next key will also
 // have the HostID part.
 func GetPaginationKey(ki KeyedItem) string {
 	if h, ok := ki.(HostID); ok {
-		return string(internalKey(h.GetHostID(), h.GetName()))
+		return h.GetHostID() + SeparatorString + h.GetName()
 	}
 
 	return ki.GetName()
@@ -356,13 +304,13 @@ func GetPaginationKey(ki KeyedItem) string {
 
 // MaskKeyName masks the given key name.
 // e.g "123456789" -> "******789"
-func MaskKeyName(keyName string) []byte {
+func MaskKeyName(keyName string) string {
 	maskedBytes := []byte(keyName)
 	hiddenBefore := int(0.75 * float64(len(keyName)))
-	for i := 0; i < hiddenBefore; i++ {
+	for i := range hiddenBefore {
 		maskedBytes[i] = '*'
 	}
-	return maskedBytes
+	return string(maskedBytes)
 }
 
 // Items is a sortable list of backend items
@@ -380,7 +328,7 @@ func (it Items) Swap(i, j int) {
 
 // Less is part of sort.Interface.
 func (it Items) Less(i, j int) bool {
-	return bytes.Compare(it[i].Key, it[j].Key) < 0
+	return it[i].Key.Compare(it[j].Key) < 0
 }
 
 // TTL returns TTL in duration units, rounds up to one second
@@ -392,16 +340,6 @@ func TTL(clock clockwork.Clock, expires time.Time) time.Duration {
 	return ttl
 }
 
-// EarliestExpiry returns first of the
-// otherwise returns empty
-func EarliestExpiry(times ...time.Time) time.Time {
-	if len(times) == 0 {
-		return time.Time{}
-	}
-	sort.Sort(earliest(times))
-	return times[0]
-}
-
 // Expiry converts ttl to expiry time, if ttl is 0
 // returns empty time
 func Expiry(clock clockwork.Clock, ttl time.Duration) time.Time {
@@ -409,47 +347,6 @@ func Expiry(clock clockwork.Clock, ttl time.Duration) time.Time {
 		return time.Time{}
 	}
 	return clock.Now().UTC().Add(ttl)
-}
-
-type earliest []time.Time
-
-func (p earliest) Len() int {
-	return len(p)
-}
-
-func (p earliest) Less(i, j int) bool {
-	if p[i].IsZero() {
-		return false
-	}
-	if p[j].IsZero() {
-		return true
-	}
-	return p[i].Before(p[j])
-}
-
-func (p earliest) Swap(i, j int) {
-	p[i], p[j] = p[j], p[i]
-}
-
-// Separator is used as a separator between key parts
-const Separator = '/'
-
-// Key joins parts into path separated by Separator,
-// makes sure path always starts with Separator ("/")
-func Key(parts ...string) []byte {
-	return internalKey("", parts...)
-}
-
-// ExactKey is like Key, except a Separator is appended to the result
-// path of Key. This is to ensure range matching of a path will only
-// math child paths and not other paths that have the resulting path
-// as a prefix.
-func ExactKey(parts ...string) []byte {
-	return append(Key(parts...), Separator)
-}
-
-func internalKey(internalPrefix string, parts ...string) []byte {
-	return []byte(strings.Join(append([]string{internalPrefix}, parts...), string(Separator)))
 }
 
 // CreateRevision generates a new identifier to be used
@@ -472,4 +369,100 @@ func NewLease(item Item) *Lease {
 		Key:      item.Key,
 		Revision: item.Revision,
 	}
+}
+
+// BatchPutter is an optional interface that backends can implement
+// to support batched PutBatch operations for improved performance when writing
+// multiple items at once.
+type BatchPutter interface {
+	// PutBatch upserts multiple items into the backend in a single call, in a way
+	// that is equivalent to a loop around multiple invocations of [backend.Put],
+	// but with the potential to be more efficient or faster, depending on the
+	// implementation. Returns a revision item for each item in the same order.
+	// Revisions are not guaranteed to be different nor they are guaranteed to be
+	// the same between items of the same batch. If an error is returned, it's
+	// possible for some of the items to have been persisted to the storage. The
+	// order in which items are internally persisted is an implementation detail.
+	PutBatch(context.Context, []Item) ([]string, error)
+}
+
+// BatchDeleter is an optional interface that backends can implement
+// to support batched DeleteBatch operations for improved performance when
+// deleting multiple items at once.
+type BatchDeleter interface {
+	// DeleteBatch deletes multiple keys from the backend in a single call, in a
+	// way that is equivalent to a loop around multiple invocations of
+	// [backend.Delete], but with the potential to be more efficient or faster,
+	// depending on the implementation. Keys that do not exist are silently
+	// ignored. If an error is returned, it's possible for some of the keys to
+	// have already been deleted.
+	DeleteBatch(context.Context, []Key) error
+}
+
+// PutBatch is an implementation of PutBatch that by default calls Put for each item.
+// Backends can overwrite this behavior providing optimized PutBatch implementation.
+//
+// WARNING: Make sure that items have unique keys when calling PutBatch.
+//
+// TODO(smallinsky): Move to backend interfaces and make required for backends to
+// implement batch deletes interfaces.
+func PutBatch(ctx context.Context, bk Backend, items []Item) ([]string, error) {
+	if v, hasDuplicate := hasDuplicateKeys(items); hasDuplicate {
+		return nil, trace.BadParameter("duplicate key detected in PutBatch: %q", v)
+	}
+	// Many Backend implementations rely on unique keys for correct operation.
+	// Where it is up to the caller to ensure this to remove duplication keys.
+	if v, ok := bk.(BatchPutter); ok {
+		revs, err := v.PutBatch(ctx, items)
+		return revs, trace.Wrap(err)
+	}
+
+	revisions := make([]string, 0, len(items))
+	for _, item := range items {
+		rev, err := bk.Put(ctx, item)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		revisions = append(revisions, rev.Revision)
+	}
+	return revisions, nil
+}
+
+// DeleteBatch deletes multiple keys from the backend. If the backend implements
+// [BatchDeleter], it delegates to the optimized batch implementation. Otherwise,
+// it falls back to calling [Backend.Delete] for each key individually.
+// Keys that do not exist are silently ignored.
+//
+// WARNING: Make sure that keys are unique when calling DeleteBatch.
+//
+// TODO(smallinsky): Move to backend interfaces and make required for backends to
+// implement batch deletes interfaces.
+func DeleteBatch(ctx context.Context, bk Backend, keys []Key) error {
+	keys = slices.DeduplicateKey(keys, func(k Key) string { return k.String() })
+
+	if v, ok := bk.(BatchDeleter); ok {
+		return trace.Wrap(v.DeleteBatch(ctx, keys))
+	}
+
+	for _, key := range keys {
+		if err := bk.Delete(ctx, key); err != nil {
+			if trace.IsNotFound(err) {
+				continue
+			}
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
+func hasDuplicateKeys(items Items) (string, bool) {
+	seen := make(map[string]struct{})
+	for _, ca := range items {
+		keyStr := ca.Key.String()
+		if _, ok := seen[keyStr]; ok {
+			return keyStr, true
+		}
+		seen[keyStr] = struct{}{}
+	}
+	return "", false
 }

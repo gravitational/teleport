@@ -21,9 +21,14 @@ package mongodb
 import (
 	"context"
 	"crypto/tls"
+	"iter"
+	"log/slog"
+	"net"
+	"net/http"
 	"strings"
 
 	"github.com/gravitational/trace"
+	"github.com/prometheus/client_golang/prometheus"
 	"go.mongodb.org/mongo-driver/mongo/address"
 	"go.mongodb.org/mongo-driver/mongo/description"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -36,6 +41,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/srv/db/mongodb/protocol"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
 
@@ -54,10 +60,22 @@ const (
 // When connecting to a replica set, returns connection to the server selected
 // based on the read preference connection string option. This allows users to
 // configure database access to always connect to a secondary for example.
-func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (driver.Connection, func(), error) {
+func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*serverConnection, error) {
+	deployment, err := depCache.load(ctx, sessionCtx, e.connectDeployment)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	conn, err := deployment.connect(ctx)
+	if err != nil {
+		return nil, trace.NewAggregate(err, deployment.close(ctx))
+	}
+	return conn, nil
+}
+
+func (e *Engine) connectDeployment(ctx context.Context, sessionCtx *common.Session) (*deployment, error) {
 	options, selector, err := e.getTopologyOptions(ctx, sessionCtx)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	// Using driver's "topology" package allows to retain low-level control
 	// over server connections (reading/writing wire messages) but at the
@@ -65,36 +83,23 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (drive
 	// in a replica set.
 	top, err := topology.New(options)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	err = top.Connect()
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
+	if err := top.Connect(); err != nil {
+		e.Log.DebugContext(e.Context, "Failed to connect topology", "error", err)
+		return nil, trace.Wrap(err)
 	}
-	server, err := top.SelectServer(ctx, selector)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-	e.Log.DebugContext(e.Context, "Connecting to cluster.", "topology", top, "server", server)
-	conn, err := server.Connection(ctx)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	closeFn := func() {
-		if err := top.Disconnect(ctx); err != nil {
-			e.Log.WarnContext(e.Context, "Failed to close topology", "error", err)
-		}
-		if err := conn.Close(); err != nil {
-			e.Log.ErrorContext(e.Context, "Failed to close server connection.", "error", err)
-		}
-	}
-	return conn, closeFn, nil
+	return &deployment{
+		top:              top,
+		selector:         selector,
+		log:              e.Log,
+		messagesReceived: common.GetMessagesFromServerMetric(sessionCtx.Database),
+	}, nil
 }
 
 // getTopologyOptions constructs topology options for connecting to a MongoDB server.
 func (e *Engine) getTopologyOptions(ctx context.Context, sessionCtx *common.Session) (*topology.Config, description.ServerSelector, error) {
-	clientCfg, err := makeClientOptionsFromDatabaseURI(sessionCtx)
+	clientCfg, err := makeClientOptionsFromDatabaseURI(sessionCtx.Database.GetURI())
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -136,7 +141,7 @@ func (e *Engine) getConnectionOptions(ctx context.Context, sessionCtx *common.Se
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	authenticator, err := e.getAuthenticator(ctx, sessionCtx)
+	authenticator, err := e.getAuthenticator(ctx, sessionCtx, clientCfg.HTTPClient)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -157,12 +162,12 @@ func (e *Engine) getConnectionOptions(ctx context.Context, sessionCtx *common.Se
 				// client connecting to Teleport will get an error when they try
 				// to send its own metadata since client metadata is immutable.
 				&handshaker{},
-				&auth.HandshakeOptions{Authenticator: authenticator, HTTPClient: clientCfg.HTTPClient})
+				&auth.HandshakeOptions{Authenticator: authenticator})
 		}),
 	}, nil
 }
 
-func (e *Engine) getAuthenticator(ctx context.Context, sessionCtx *common.Session) (auth.Authenticator, error) {
+func (e *Engine) getAuthenticator(ctx context.Context, sessionCtx *common.Session, httpClient *http.Client) (auth.Authenticator, error) {
 	dbType := sessionCtx.Database.GetType()
 	isAtlasDB := dbType == types.DatabaseTypeMongoAtlas
 
@@ -174,15 +179,15 @@ func (e *Engine) getAuthenticator(ctx context.Context, sessionCtx *common.Sessio
 
 	switch {
 	case isAtlasDB && awsutils.IsRoleARN(sessionCtx.DatabaseUser):
-		return e.getAWSAuthenticator(ctx, sessionCtx)
+		return e.getAWSAuthenticator(ctx, sessionCtx, httpClient)
 	case dbType == types.DatabaseTypeDocumentDB:
 		// DocumentDB uses the same the IAM authenticator as MongoDB Atlas.
-		return e.getAWSAuthenticator(ctx, sessionCtx)
+		return e.getAWSAuthenticator(ctx, sessionCtx, httpClient)
 	default:
 		e.Log.DebugContext(e.Context, "Authenticating to database using certificates.")
 		authenticator, err := auth.CreateAuthenticator(auth.MongoDBX509, &auth.Cred{
 			Username: x509Username(sessionCtx),
-		})
+		}, httpClient)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -193,7 +198,7 @@ func (e *Engine) getAuthenticator(ctx context.Context, sessionCtx *common.Sessio
 
 // getAWSAuthenticator fetches the AWS credentials and initializes the MongoDB
 // authenticator.
-func (e *Engine) getAWSAuthenticator(ctx context.Context, sessionCtx *common.Session) (auth.Authenticator, error) {
+func (e *Engine) getAWSAuthenticator(ctx context.Context, sessionCtx *common.Session, httpClient *http.Client) (auth.Authenticator, error) {
 	e.Log.DebugContext(e.Context, "Authenticating to database using AWS IAM authentication.")
 
 	username, password, sessToken, err := e.Auth.GetAWSIAMCreds(ctx, sessionCtx.Database, sessionCtx.DatabaseUser)
@@ -208,7 +213,7 @@ func (e *Engine) getAWSAuthenticator(ctx context.Context, sessionCtx *common.Ses
 		Props: map[string]string{
 			awsSecretTokenKey: sessToken,
 		},
-	})
+	}, httpClient)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -216,14 +221,14 @@ func (e *Engine) getAWSAuthenticator(ctx context.Context, sessionCtx *common.Ses
 	return authenticator, nil
 }
 
-func makeClientOptionsFromDatabaseURI(sessionCtx *common.Session) (*options.ClientOptions, error) {
+func makeClientOptionsFromDatabaseURI(uri string) (*options.ClientOptions, error) {
 	clientCfg := options.Client()
 	clientCfg.SetServerSelectionTimeout(common.DefaultMongoDBServerSelectionTimeout)
-	if strings.HasPrefix(sessionCtx.Database.GetURI(), connstring.SchemeMongoDB) ||
-		strings.HasPrefix(sessionCtx.Database.GetURI(), connstring.SchemeMongoDBSRV) {
-		clientCfg.ApplyURI(sessionCtx.Database.GetURI())
+	if strings.HasPrefix(uri, connstring.SchemeMongoDB) ||
+		strings.HasPrefix(uri, connstring.SchemeMongoDBSRV) {
+		clientCfg.ApplyURI(uri)
 	} else {
-		clientCfg.Hosts = []string{sessionCtx.Database.GetURI()}
+		clientCfg.Hosts = []string{uri}
 	}
 	if err := clientCfg.Validate(); err != nil {
 		return nil, trace.Wrap(err)
@@ -266,4 +271,124 @@ func (h *handshaker) FinishHandshake(context.Context, driver.Connection) error {
 func x509Username(sessionCtx *common.Session) string {
 	// MongoDB uses full certificate Subject field as a username.
 	return "CN=" + sessionCtx.DatabaseUser
+}
+
+type serverConnection struct {
+	connection driver.Connection
+	deployment *deployment
+}
+
+type replyIterator iter.Seq2[protocol.Message, error]
+
+func (c *serverConnection) roundTrip(ctx context.Context, clientMessage protocol.Message, maxMessageSize uint32) replyIterator {
+	return func(yield func(protocol.Message, error) bool) {
+		if err := c.writeMessage(ctx, clientMessage); err != nil {
+			yield(nil, err)
+			return
+		}
+		// Some client messages will not receive a reply.
+		if clientMessage.MoreToCome(nil) {
+			return
+		}
+		for {
+			// Otherwise read the server's reply...
+			serverMessage, err := c.readMessage(ctx, maxMessageSize)
+			if !yield(serverMessage, err) || err != nil {
+				return
+			}
+			// Stop reading if server indicated it has nothing more to send.
+			if !serverMessage.MoreToCome(clientMessage) {
+				return
+			}
+		}
+	}
+}
+
+func (c *serverConnection) readMessage(ctx context.Context, maxMessageSize uint32) (protocol.Message, error) {
+	msg, err := protocol.ReadServerMessage(ctx, c.connection, maxMessageSize)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	c.deployment.messagesReceived.Inc()
+	return msg, nil
+}
+
+func (c *serverConnection) writeMessage(ctx context.Context, clientMessage protocol.Message) error {
+	return trace.Wrap(c.connection.WriteWireMessage(ctx, clientMessage.GetBytes()))
+}
+
+func (c *serverConnection) close(ctx context.Context) error {
+	var errs []error
+	if err := c.deployment.close(ctx); err != nil {
+		errs = append(errs, err)
+	}
+	if expirer, ok := c.connection.(driver.Expirable); ok {
+		// expire the connection to evict it from the driver connection pool
+		if err := expirer.Expire(); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	if err := c.connection.Close(); err != nil {
+		errs = append(errs, err)
+	}
+	return trace.NewAggregate(errs...)
+}
+
+type clientConnection struct {
+	net.Conn
+	messagesReceived prometheus.Counter
+}
+
+func (c *clientConnection) readMessage(maxMessageSize uint32) (protocol.Message, error) {
+	msg, err := protocol.ReadMessage(c, maxMessageSize)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	c.messagesReceived.Inc()
+	return msg, trace.Wrap(err)
+}
+
+func (c *clientConnection) writeMessage(message protocol.Message) error {
+	_, err := c.Write(message.GetBytes())
+	return trace.Wrap(err)
+}
+
+// deployment wraps [topology.Topology] and [description.ServerSelector].
+// It is used to select and connect to a server in the topology.
+type deployment struct {
+	top      *topology.Topology
+	selector description.ServerSelector
+
+	onClose          func(ctx context.Context, log *slog.Logger) error
+	log              *slog.Logger
+	messagesReceived prometheus.Counter
+}
+
+// connect selects a server, connects to it, and returns the connection.
+func (d *deployment) connect(ctx context.Context) (*serverConnection, error) {
+	d.log.DebugContext(ctx, "Selecting server from topology", "topology", d.top)
+	server, err := d.top.SelectServer(ctx, d.selector)
+	if err != nil {
+		d.log.DebugContext(ctx, "Failed to select server from topology", "error", err)
+		return nil, trace.Wrap(err)
+	}
+
+	d.log.DebugContext(ctx, "Connecting to server", "server", server)
+	conn, err := server.Connection(ctx)
+	if err != nil {
+		d.log.DebugContext(ctx, "Failed to connect to server", "error", err)
+		return nil, trace.Wrap(err)
+	}
+	serverConn := &serverConnection{
+		connection: conn,
+		deployment: d,
+	}
+	return serverConn, nil
+}
+
+func (d *deployment) close(ctx context.Context) error {
+	if d.onClose != nil {
+		return trace.Wrap(d.onClose(ctx, d.log))
+	}
+	return nil
 }

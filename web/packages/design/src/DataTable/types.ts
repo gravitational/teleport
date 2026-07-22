@@ -16,13 +16,19 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import type { JSX } from 'react';
+
 import { MatchCallback } from 'design/utils/match';
 
-import { State } from './useTable';
+import { Pagination } from './useTable';
 
 export type TableProps<T> = {
   data: T[];
   columns: TableColumn<T>[];
+  infiniteScrollProps?: {
+    fetchStatus: FetchStatus;
+  };
+  hideEmptyIcon?: boolean;
   emptyText: string;
   /**
    * Optional button that is rendered below emptyText if there's no data, during processing or on
@@ -35,6 +41,22 @@ export type TableProps<T> = {
    */
   emptyHint?: string;
   pagination?: PaginationConfig<T>;
+  /**
+   * config for client searching.
+   * supports any table except when "serversideProps"
+   * field is defined
+   */
+  clientSearch?: {
+    /**
+     * By default, no initial search is applied (empty search),
+     * unless "initialSearchValue" is defined.
+     */
+    initialSearchValue: string;
+    /**
+     * After setting a new search value, this function will be called.
+     */
+    onSearchValueChange(searchString: string): void;
+  };
   isSearchable?: boolean;
   searchableProps?: Extract<keyof T, string>[];
   // customSearchMatchers contains custom functions to run when search matching.
@@ -54,13 +76,43 @@ export type TableProps<T> = {
   // any client table filtering supplied by default.
   // Use case: filtering is done on the caller side e.g. server side.
   disableFilter?: boolean;
+  /**
+   * row configuration
+   */
+  row?: {
+    onClick?(row: T): void;
+    /**
+     * conditionally style a row (eg: cursor: pointer, disabled)
+     */
+    getStyle?(row: T): React.CSSProperties;
+    /**
+     * conditionally render a custom row
+     * use case: by default all columns are represented by cells
+     * but certain rows you need all the columns to be merged
+     * into one cell to render other related elements like a
+     * dropdown selector.
+     */
+    customRow?(row: T): JSX.Element;
+    /**
+     * conditionally render a custom row after either `customRow` or
+     * the base table row.
+     */
+    renderAfter?(row: T): JSX.Element | null;
+    /**
+     * Returns a stable React key for the row. When the table can reorder
+     * (sort, filter, paginate, refetch), provide this so that stateful cells
+     * (e.g. open action menus) stay attached to their item rather than the
+     * row index. Falls back to the row index when not provided.
+     */
+    getKey?(row: T): React.Key;
+  };
 };
 
 type TableColumnBase<T> = {
   headerText?: string;
   render?: (row: T) => JSX.Element;
   isSortable?: boolean;
-  onSort?: (a, b) => number;
+  onSort?: (a: T, b: T) => number;
   // isNonRender is a flag that when true,
   // does not render the column or cell in table.
   // Use case: when a column combines two
@@ -105,6 +157,7 @@ export type FetchingConfig = {
   onFetchPrev?: () => void;
   onFetchMore?: () => void;
   fetchStatus: FetchStatus;
+  disableLoadingIndicator?: boolean;
 };
 
 export type ServersideProps = {
@@ -116,9 +169,12 @@ export type ServersideProps = {
 // Makes it so either key or altKey is required
 type TableColumnWithKey<T> = TableColumnBase<T> & {
   key: keyof T & string;
-  // altSortKey is the alternative field to sort column by,
-  // if provided. Otherwise it falls back to sorting by field
-  // "key".
+  /**
+   * altSortKey is the alternative field to sort column by,
+   * if provided.
+   * Otherwise, it falls back to sorting by field "key".
+   * @deprecated Provide the custom sorting logic through `onSort` function.
+   */
   altSortKey?: Extract<keyof T, string>;
   altKey?: never;
 };
@@ -179,14 +235,15 @@ export type SearchableBasicTableProps<T> = BasicTableProps<T> & {
 export type PagedTableProps<T> = SearchableBasicTableProps<T> & {
   nextPage: () => void;
   prevPage: () => void;
-  pagination: State<T>['state']['pagination'];
-  fetching?: State<T>['fetching'];
+  pagination: Pagination<T>;
+  fetching?: FetchingConfig;
+  isSearchable?: boolean;
 };
 
 export type ServersideTableProps<T> = BasicTableProps<T> & {
-  nextPage: () => void;
-  prevPage: () => void;
-  pagination: State<T>['state']['pagination'];
-  serversideProps: State<T>['serversideProps'];
+  nextPage?: () => void;
+  prevPage?: () => void;
+  pagination?: Pagination<T>;
+  serversideProps: ServersideProps;
   fetchStatus?: FetchStatus;
 };

@@ -21,12 +21,12 @@ import { Finished, ResourceKind } from 'teleport/Discover/Shared';
 import { DiscoverEvent } from 'teleport/services/userEvent';
 
 import { ResourceSpec } from '../SelectResource';
-
 import { SetupConnect } from './SetupConnect';
 import { TestConnection } from './TestConnection';
 
 export const ConnectMyComputerResource: ResourceViewConfig<ResourceSpec> = {
   kind: ResourceKind.ConnectMyComputer,
+  shouldPrompt: () => false,
   views: [
     {
       title: 'Set Up Teleport Connect',

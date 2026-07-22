@@ -16,18 +16,37 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-import { Flex, Box } from 'design';
+import { Meta } from '@storybook/react-vite';
+import { useState } from 'react';
 
-import { SelectCreatable, Option } from '../Select';
+import { Box, Flex } from 'design';
 
-export default {
-  title: 'Shared/SelectCreatable',
+import { Option, SelectCreatable } from '../Select';
+
+type StoryProps = {
+  readOnly?: boolean;
+  isDisabled?: boolean;
 };
 
-export const Selects = () => {
-  const [input, setInput] = React.useState('');
-  const [selected, setSelected] = React.useState<Option[]>();
+const meta: Meta<StoryProps> = {
+  title: 'Shared/SelectCreatable',
+  component: Controls,
+  argTypes: {
+    readOnly: {
+      control: { type: 'boolean' },
+    },
+    isDisabled: {
+      control: { type: 'boolean' },
+    },
+  },
+};
+export default meta;
+
+export function Controls(props: StoryProps) {
+  const [input, setInput] = useState('');
+  const [inputMulti, setInputMulti] = useState('');
+  const [selected, setSelected] = useState<Option>();
+  const [selectedMulti, setSelectedMulti] = useState<readonly Option[]>();
 
   return (
     // Note that these examples don't provide for great UX. Implementations
@@ -42,10 +61,12 @@ export const Selects = () => {
           isMulti
           isClearable
           isSearchable
-          inputValue={input}
-          value={selected}
-          onInputChange={v => setInput(v)}
-          onChange={v => setSelected((v as Option[] | null) || [])}
+          inputValue={inputMulti}
+          value={selectedMulti}
+          onInputChange={v => setInputMulti(v)}
+          onChange={v => setSelectedMulti(v)}
+          isDisabled={props.isDisabled}
+          readOnly={props.readOnly}
         />
         Note: accept new candidate with Enter or mouse click
       </Box>
@@ -56,9 +77,11 @@ export const Selects = () => {
           inputValue={input}
           value={selected}
           onInputChange={v => setInput(v)}
-          onChange={v => setSelected((v as Option[] | null) || [])}
+          onChange={v => setSelected(v)}
+          isDisabled={props.isDisabled}
+          readOnly={props.readOnly}
         />
       </Box>
     </Flex>
   );
-};
+}

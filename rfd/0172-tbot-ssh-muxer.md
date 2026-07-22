@@ -31,7 +31,7 @@ This has a few drawbacks:
   individually, contributing to latency in establishing the SSH tunnel. Some of 
   these tasks could be shared, or their results cached.
 - Monitoring a large number of short-lived `tbot` processes is difficult.
-- There is no easy way to implement global ratelimits and backoffs across all
+- There is no easy way to implement global rate limits and backoffs across all
   the short-lived `tbot` processes. This makes gracefully handling upstream
   outages problematic.
 
@@ -153,7 +153,7 @@ once all downstream connections using it have been closed.
 This could be further improved by balancing incoming downstream connections
 against a pool of upstream connections, because the upstream connections would
 live longer and we'd avoid a scenario where an upstream connection remains open
-but is only being utilised by one or two remaining downstream connections.
+but is only being utilized by one or two remaining downstream connections.
 
 ### UX
 

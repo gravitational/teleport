@@ -16,26 +16,34 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { castDraft, Immutable, produce } from 'immer';
 import { z } from 'zod';
-import { useStore } from 'shared/libs/stores';
-import { arrayObjectIsEqual } from 'shared/utils/highbar';
 
+import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
 import {
+  AvailableResourceMode,
   DefaultTab,
   LabelsViewMode,
   UnifiedResourcePreferences,
   ViewMode,
-  AvailableResourceMode,
 } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
+import { getErrorMessage } from 'shared/utils/error';
+import { arrayObjectIsEqual } from 'shared/utils/highbar';
 
-import { ModalsService } from 'teleterm/ui/services/modals';
-import { ClustersService } from 'teleterm/ui/services/clusters';
+import Logger from 'teleterm/logger';
 import {
+  identitySelector,
+  useStoreSelector,
+} from 'teleterm/ui/hooks/useStoreSelector';
+import { ClustersService } from 'teleterm/ui/services/clusters';
+import { ImmutableStore } from 'teleterm/ui/services/immutableStore';
+import { ModalsService } from 'teleterm/ui/services/modals';
+import { NotificationsService } from 'teleterm/ui/services/notifications';
+import {
+  PersistedWorkspace,
   StatePersistenceService,
   WorkspacesPersistedState,
 } from 'teleterm/ui/services/statePersistence';
-import { ImmutableStore } from 'teleterm/ui/services/immutableStore';
-import { NotificationsService } from 'teleterm/ui/services/notifications';
 import {
   ClusterOrResourceUri,
   ClusterUri,
@@ -49,44 +57,44 @@ import {
   getEmptyPendingAccessRequest,
   PendingAccessRequest,
 } from './accessRequestsService';
-
+import { parseWorkspaceColor, WorkspaceColor } from './color';
 import {
+  createClusterDocument,
   Document,
-  DocumentsService,
-  getDefaultDocumentClusterQueryParams,
   DocumentCluster,
   DocumentGateway,
-  DocumentTshKube,
+  DocumentsService,
   DocumentTshNode,
+  DocumentVnetInfo,
+  getDefaultDocumentClusterQueryParams,
 } from './documentsService';
 
 export interface WorkspacesState {
+  /**
+   * rootClusterUri points to URI of the root cluster of the current workspace (profile). If set,
+   * the user sees the documents within the workspace, meaning that at some point they were logged
+   * in to the cluster. It doesn't necessarily mean that the cert is active, as it might have
+   * expired since the user has logged in.
+   */
   rootClusterUri?: RootClusterUri;
   workspaces: Record<RootClusterUri, Workspace>;
   /**
-   * isInitialized signifies whether WorkspacesState has finished state restoration during the start
-   * of the app. It is useful in places that want to wait for the state to be restored before
-   * proceeding.
-   *
-   * If during the previous start of the app the user was logged into a workspace which cert has
-   * since expired, isInitialized will be set to true only _after_ the user logs in to that
-   * workspace (or closes the login modal).
+   * isInitialized signifies whether the app has finished setting up
+   * callbacks and restoring state during the start of the app.
+   * This also means that the UI can be considered visible, because soon after
+   * isInitialized is flipped to true, AppInitializer removes the loading indicator
+   * and shows the usual app UI.
    *
    * This field is not persisted to disk.
-   *
-   * Side note: Arguably, depending on the use case, the moment isInitialized is set to true could
-   * be changed to happen right before the modal is shown. Ultimately, the thing that interests us
-   * the most is whether the state from disk was loaded into memory. Maybe in the future we will
-   * need to separate values or an enum.
-   *
    */
   isInitialized: boolean;
 }
 
 export interface Workspace {
   localClusterUri: ClusterUri;
+  color: WorkspaceColor;
   documents: Document[];
-  location: DocumentUri;
+  location: DocumentUri | undefined;
   accessRequests: {
     isBarCollapsed: boolean;
     pending: PendingAccessRequest;
@@ -98,10 +106,18 @@ export interface Workspace {
   // This requires updating many of tests
   // where we construct the workspace manually.
   unifiedResourcePreferences?: UnifiedResourcePreferences;
-  previous?: {
-    documents: Document[];
-    location: DocumentUri;
-  };
+  /**
+   * Tracks whether the user has documents to reopen from a previous session.
+   * This is used to ensure that the prompt to restore a previous session is shown only once.
+   *
+   * This field is not persisted to disk.
+   */
+  hasDocumentsToReopen?: boolean;
+  /**
+   * The proxy address used to add this root cluster. It lets Connect reconnect
+   * a remembered workspace even if the tsh profile is no longer available.
+   */
+  proxyHost: string;
 }
 
 export class WorkspacesService extends ImmutableStore<WorkspacesState> {
@@ -115,6 +131,18 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
     workspaces: {},
     isInitialized: false,
   };
+  /**
+   * Keeps the state that was restored from the disk when the app was launched.
+   * This state is not processed in any way, so it may, for example,
+   * contain clusters that are no longer available.
+   * When a workspace is removed, it's removed from the restored state too.
+   */
+  private restoredState?: Immutable<WorkspacesPersistedState>;
+  /**
+   * Ensures `setActiveWorkspace` calls are not executed in parallel.
+   * An ongoing call is canceled when a new one is initiated.
+   */
+  private setActiveWorkspaceAbortController = new AbortController();
 
   constructor(
     private modalsService: ModalsService,
@@ -161,6 +189,15 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
   ): void {
     this.setState(draftState => {
       draftState.workspaces[clusterUri].localClusterUri = localClusterUri;
+    });
+  }
+
+  changeWorkspaceColor(
+    rootClusterUri: RootClusterUri,
+    color: WorkspaceColor
+  ): void {
+    this.setState(draftState => {
+      draftState.workspaces[rootClusterUri].color = color;
     });
   }
 
@@ -220,10 +257,6 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
     );
   }
 
-  useState() {
-    return useStore(this);
-  }
-
   setState(nextState: (draftState: WorkspacesState) => WorkspacesState | void) {
     super.setState(nextState);
     this.persistState();
@@ -263,18 +296,22 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
   getUnifiedResourcePreferences(
     rootClusterUri: RootClusterUri
   ): UnifiedResourcePreferences {
-    return this.state.workspaces[rootClusterUri].unifiedResourcePreferences;
+    return (
+      this.state.workspaces[rootClusterUri].unifiedResourcePreferences ||
+      getDefaultUnifiedResourcePreferences()
+    );
   }
 
   /**
    * setActiveWorkspace changes the active workspace to that of the given root cluster.
-   * If the root cluster doesn't have a workspace yet, setActiveWorkspace creates a default
-   * workspace state for the cluster and then asks the user about restoring documents from the
-   * previous session if there are any.
+   * The workspace must already exist. If its cluster is missing from the cluster store,
+   * setActiveWorkspace tries to add it back using the proxy host saved in the workspace state.
+   * It then asks the user about restoring documents from the previous session if there are any.
+   * Only one call can be executed at a time. Any ongoing call is canceled when a new one is initiated.
    *
    * setActiveWorkspace never returns a rejected promise on its own.
    */
-  setActiveWorkspace(
+  async setActiveWorkspace(
     clusterUri: RootClusterUri,
     /**
      * Prefill values to be used in ClusterConnectDialog if the cluster is in the state but there's
@@ -287,8 +324,8 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
      * workspace of the given cluster.
      *
      * setActiveWorkspace never rejects on its own. However, it may fail to switch to the workspace
-     * if the user closes the cluster connect dialog or if the cluster with the given clusterUri
-     * wasn't found.
+     * if the workspace or cluster cannot be found, the cluster cannot be added back, or the user
+     * closes the cluster connect dialog.
      *
      * Callsites which don't check this return value were most likely written before this field was
      * added. They operate with the assumption that by the time the program gets to the
@@ -297,86 +334,188 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
      */
     isAtDesiredWorkspace: boolean;
   }> {
-    const setWorkspace = () => {
-      this.setState(draftState => {
-        // adding a new workspace
-        if (!draftState.workspaces[clusterUri]) {
-          draftState.workspaces[clusterUri] =
-            this.getWorkspaceDefaultState(clusterUri);
-        }
-        draftState.rootClusterUri = clusterUri;
-      });
-    };
+    this.setActiveWorkspaceAbortController.abort();
+    this.setActiveWorkspaceAbortController = new AbortController();
+    const abortSignal = this.setActiveWorkspaceAbortController.signal;
 
-    // empty cluster URI - no cluster selected
     if (!clusterUri) {
       this.setState(draftState => {
         draftState.rootClusterUri = undefined;
       });
-      return Promise.resolve({ isAtDesiredWorkspace: true });
+      return { isAtDesiredWorkspace: true };
     }
 
-    const cluster = this.clustersService.findCluster(clusterUri);
-    if (!cluster) {
-      this.notificationsService.notifyError({
-        title: 'Could not set cluster as active',
-        description: `Cluster with URI ${clusterUri} does not exist`,
-      });
-      this.logger.warn(
-        `Could not find cluster with uri ${clusterUri} when changing active cluster`
+    const workspace = this.getWorkspace(clusterUri);
+    if (!workspace) {
+      this.logger.error(
+        `The workspace for cluster ${clusterUri} does not exist`
       );
-      return Promise.resolve({ isAtDesiredWorkspace: false });
+      this.notificationsService.notifyError({
+        title: `Could not switch to cluster ${routing.parseClusterName(clusterUri)}`,
+      });
+      return { isAtDesiredWorkspace: false };
     }
 
-    return new Promise<void>((resolve, reject) => {
-      if (cluster.connected) {
-        setWorkspace();
-        return resolve();
-      }
-      this.modalsService.openRegularDialog({
-        kind: 'cluster-connect',
-        clusterUri,
-        reason: undefined,
-        prefill,
-        onCancel: () => {
-          reject();
-        },
-        onSuccess: () => {
-          setWorkspace();
-          resolve();
-        },
-      });
-    }).then(
-      () => {
-        return new Promise<{ isAtDesiredWorkspace: boolean }>(resolve => {
-          const previousWorkspaceState =
-            this.getWorkspace(clusterUri)?.previous;
-          if (!previousWorkspaceState) {
-            return resolve({ isAtDesiredWorkspace: true });
-          }
-          const numberOfDocuments = previousWorkspaceState.documents.length;
+    let cluster = this.clustersService.findCluster(clusterUri);
+    if (!cluster) {
+      const proxyHost = workspace.proxyHost;
+      try {
+        cluster = await this.clustersService.addCluster(proxyHost);
+      } catch (err) {
+        this.logger.error('Failed to re-add cluster', err);
 
-          this.modalsService.openRegularDialog({
-            kind: 'documents-reopen',
-            rootClusterUri: clusterUri,
-            numberOfDocuments,
-            onConfirm: () => {
-              this.reopenPreviousDocuments(clusterUri);
-              resolve({ isAtDesiredWorkspace: true });
-            },
-            onCancel: () => {
-              this.discardPreviousDocuments(clusterUri);
-              resolve({ isAtDesiredWorkspace: true });
-            },
-          });
+        this.notificationsService.notifyError({
+          title: `Could not reconnect to ${proxyHost}. Check that the proxy is reachable and try again.`,
+          description: getErrorMessage(err),
         });
-      },
-      () => ({ isAtDesiredWorkspace: false }) // catch ClusterConnectDialog cancellation
+
+        return { isAtDesiredWorkspace: false };
+      }
+    }
+
+    if (cluster.profileStatusError) {
+      // TODO(gzdunek): We should only sync the target cluster, not all of them.
+      await this.clustersService.syncRootClustersAndCatchErrors(abortSignal);
+      // Update the cluster.
+      cluster = this.clustersService.findCluster(clusterUri);
+      // If the problem persists (because, for example, the user still hasn't
+      // connected the hardware key) show a notification and return early.
+      if (cluster.profileStatusError) {
+        const notificationId = this.notificationsService.notifyError({
+          title: 'Could not set cluster as active',
+          description: cluster.profileStatusError,
+          action: {
+            content: 'Retry',
+            onClick: () => {
+              this.notificationsService.removeNotification(notificationId);
+              this.setActiveWorkspace(clusterUri);
+            },
+          },
+        });
+        return { isAtDesiredWorkspace: false };
+      }
+    }
+
+    if (!cluster.connected) {
+      const connected = await new Promise<boolean>(resolve =>
+        this.modalsService.openRegularDialog(
+          {
+            kind: 'cluster-connect',
+            clusterUri,
+            reason: undefined,
+            prefill,
+            onCancel: () => resolve(false),
+            onSuccess: () => resolve(true),
+          },
+          abortSignal
+        )
+      );
+      if (!connected) {
+        return { isAtDesiredWorkspace: false };
+      }
+    }
+
+    this.setState(draftState => {
+      draftState.rootClusterUri = clusterUri;
+    });
+
+    const { hasDocumentsToReopen } = workspace;
+    if (!hasDocumentsToReopen) {
+      return { isAtDesiredWorkspace: true };
+    }
+
+    const restoredWorkspace = this.restoredState?.workspaces?.[clusterUri];
+    const documentsReopen = await new Promise<
+      'confirmed' | 'discarded' | 'canceled'
+    >(resolve =>
+      this.modalsService.openRegularDialog(
+        {
+          kind: 'documents-reopen',
+          rootClusterUri: clusterUri,
+          numberOfDocuments: restoredWorkspace.documents.length,
+          onConfirm: () => resolve('confirmed'),
+          onDiscard: () => resolve('discarded'),
+          onCancel: () => resolve('canceled'),
+        },
+        abortSignal
+      )
     );
+    switch (documentsReopen) {
+      case 'confirmed':
+        this.reopenPreviousDocuments(clusterUri, {
+          documents: restoredWorkspace.documents,
+          location: restoredWorkspace.location,
+        });
+        break;
+      case 'discarded':
+        this.discardPreviousDocuments(clusterUri);
+        break;
+      case 'canceled':
+        break;
+      default:
+        documentsReopen satisfies never;
+    }
+
+    return { isAtDesiredWorkspace: true };
+  }
+
+  addWorkspace({
+    uri,
+    proxyHost,
+  }: {
+    uri: RootClusterUri;
+    proxyHost: string;
+  }): void {
+    if (this.state.workspaces[uri]) {
+      this.updateWorkspaceProxyHost({ uri, proxyHost });
+      return;
+    }
+
+    this.setState(draftState => {
+      draftState.workspaces[uri] = getWorkspaceDefaultState(
+        uri,
+        draftState.workspaces,
+        { proxyHost }
+      );
+    });
+  }
+
+  updateWorkspaceProxyHost({
+    uri,
+    proxyHost,
+  }: {
+    uri: RootClusterUri;
+    proxyHost: string;
+  }): void {
+    const workspace = this.state.workspaces[uri];
+    if (!workspace || !proxyHost || workspace.proxyHost === proxyHost) {
+      return;
+    }
+
+    this.setState(draftState => {
+      draftState.workspaces[uri].proxyHost = proxyHost;
+    });
   }
 
   removeWorkspace(clusterUri: RootClusterUri): void {
     this.setState(draftState => {
+      delete draftState.workspaces[clusterUri];
+    });
+    this.restoredState = produce(this.restoredState, draftState => {
+      delete draftState.workspaces[clusterUri];
+    });
+  }
+
+  clearWorkspace(clusterUri: RootClusterUri): void {
+    this.setState(draftState => {
+      const currentWorkspace = draftState.workspaces[clusterUri];
+      draftState.workspaces[clusterUri] = getClearedWorkspaceState(
+        clusterUri,
+        draftState.workspaces,
+        currentWorkspace
+      );
+    });
+    this.restoredState = produce(this.restoredState, draftState => {
       delete draftState.workspaces[clusterUri];
     });
   }
@@ -387,75 +526,120 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
     );
   }
 
-  async restorePersistedState(): Promise<void> {
-    const persistedState = this.statePersistenceService.getWorkspacesState();
-    const restoredWorkspaces = this.clustersService
-      .getRootClusters()
-      .reduce((workspaces, cluster) => {
-        const persistedWorkspace = persistedState.workspaces[cluster.uri];
-        const workspaceDefaultState = this.getWorkspaceDefaultState(
-          persistedWorkspace?.localClusterUri || cluster.uri
-        );
-        const persistedWorkspaceDocuments = persistedWorkspace?.documents;
+  /**
+   * Returns the state that was restored when the app was launched.
+   * This state is not processed in any way, so it may, for example,
+   * contain clusters that are no longer available.
+   * When a workspace is removed, it's removed from the restored state too.
+   */
+  getRestoredState(): Immutable<WorkspacesPersistedState> | undefined {
+    return this.restoredState;
+  }
 
-        workspaces[cluster.uri] = {
-          ...workspaceDefaultState,
-          previous: this.canReopenPreviousDocuments({
-            previousDocuments: persistedWorkspaceDocuments,
-            currentDocuments: workspaceDefaultState.documents,
-          })
-            ? {
-                location: persistedWorkspace.location,
-                documents: persistedWorkspaceDocuments,
-              }
-            : undefined,
-          connectMyComputer: persistedWorkspace?.connectMyComputer,
-          unifiedResourcePreferences: this.parseUnifiedResourcePreferences(
-            persistedWorkspace?.unifiedResourcePreferences
-          ),
-        };
+  /**
+   * Loads the state from disk into the app.
+   */
+  restorePersistedState(): void {
+    const restoredState = this.statePersistenceService.getWorkspacesState();
+
+    for (const rootClusterUri in restoredState?.workspaces) {
+      const workspace = restoredState?.workspaces[rootClusterUri];
+      const documents = workspace?.documents || [];
+
+      for (const doc of documents) {
+        if (doc.kind === 'doc.vnet_diag_report' && doc.report?.createdAt) {
+          // Timestamps use BigInt, which currently isn't serializable to JSON.
+          // TODO(ravicious): Once we upgrade to Node.js >= 21, deal with serializing BigInt
+          // in the function `stringify` of fileStorage, using a combination of these two approaches:
+          // * https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON#using_json_numbers
+          // * https://github.com/GoogleChromeLabs/jsbi/issues/30#issuecomment-1609631034
+          const createdAt = doc.report.createdAt as unknown as string;
+          try {
+            doc.report.createdAt = Timestamp.fromJson(createdAt);
+          } catch (error) {
+            this.logger.error('Could not convert string to timestamp', error);
+            doc.report.createdAt = undefined;
+          }
+        }
+      }
+    }
+
+    // Make the restored state immutable.
+    this.restoredState = produce(restoredState, () => {});
+    const restoredWorkspaceUris = Object.keys(this.restoredState.workspaces);
+    const workspaceUris = Array.from(
+      new Set([
+        ...restoredWorkspaceUris,
+        ...this.clustersService.getRootClusters().map(cluster => cluster.uri),
+      ])
+    );
+
+    const restoredWorkspaces = workspaceUris
+      // Restore persisted workspaces first, so their colors are reserved before
+      // assigning colors to newly discovered clusters.
+      .toSorted((a, b) => {
+        const hasA = !!this.restoredState.workspaces[a];
+        const hasB = !!this.restoredState.workspaces[b];
+        return hasB === hasA ? 0 : hasA ? -1 : 1;
+      })
+      .reduce<Record<string, Workspace>>((workspaces, rootClusterUri) => {
+        const restoredWorkspace = this.restoredState.workspaces[rootClusterUri];
+        const cluster = this.clustersService.findCluster(rootClusterUri);
+        const proxyHost = cluster?.proxyHost ?? restoredWorkspace?.proxyHost;
+        // Skip workspaces with no known proxy address. If the cluster is missing and the workspace has no
+        // saved proxy host, Connect cannot add the cluster again.
+        if (!proxyHost) {
+          return workspaces;
+        }
+
+        const overrides = { ...restoredWorkspace, proxyHost };
+
+        if (!cluster) {
+          workspaces[rootClusterUri] = getClearedWorkspaceState(
+            rootClusterUri,
+            workspaces,
+            overrides
+          );
+          return workspaces;
+        }
+
+        workspaces[rootClusterUri] = getWorkspaceDefaultState(
+          rootClusterUri,
+          workspaces,
+          overrides
+        );
         return workspaces;
       }, {});
 
     this.setState(draftState => {
       draftState.workspaces = restoredWorkspaces;
     });
+  }
 
-    if (persistedState.rootClusterUri) {
-      await this.setActiveWorkspace(persistedState.rootClusterUri);
-    }
-
-    this.setState(draft => {
-      draft.isInitialized = true;
+  markAsInitialized(): void {
+    this.setState(draftState => {
+      draftState.isInitialized = true;
     });
   }
 
-  // TODO(gzdunek): Parse the entire workspace state read from disk like below.
-  private parseUnifiedResourcePreferences(
-    unifiedResourcePreferences: unknown
-  ): UnifiedResourcePreferences | undefined {
-    try {
-      return unifiedResourcePreferencesSchema.parse(
-        unifiedResourcePreferences
-      ) as UnifiedResourcePreferencesSchemaAsRequired;
-    } catch (e) {
-      this.logger.error('Failed to parse unified resource preferences', e);
+  private reopenPreviousDocuments(
+    rootClusterUri: RootClusterUri,
+    reopen: {
+      documents: Immutable<Document[]>;
+      location: DocumentUri;
     }
-  }
-
-  private reopenPreviousDocuments(clusterUri: RootClusterUri): void {
+  ): void {
     this.setState(draftState => {
-      const workspace = draftState.workspaces[clusterUri];
-      workspace.documents = workspace.previous.documents.map(d => {
+      const workspace = draftState.workspaces[rootClusterUri];
+      // reopen.documents is immutable, but workspace.documents is a mutable draft, hence the cast.
+      // https://immerjs.github.io/immer/typescript/#cast-utilities
+      workspace.documents = castDraft(reopen.documents).map(d => {
         //TODO: create a function that will prepare a new document, it will be used in:
         // DocumentsService
         // TrackedConnectionOperationsFactory
         // here
-        if (
-          d.kind === 'doc.terminal_tsh_kube' ||
-          d.kind === 'doc.terminal_tsh_node'
-        ) {
-          const documentTerminal: DocumentTshKube | DocumentTshNode = {
+        if (d.kind === 'doc.terminal_tsh_node') {
+          const documentTerminal: DocumentTshNode = {
             ...d,
             status: 'connecting',
             origin: 'reopened_session',
@@ -483,59 +667,40 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
                 ...defaultParams.sort,
                 ...d.queryParams?.sort,
               },
+              statuses: d.queryParams?.statuses
+                ? [...d.queryParams.statuses] // makes the array mutable
+                : defaultParams.statuses,
+              resourceKinds: d.queryParams?.resourceKinds
+                ? [...d.queryParams.resourceKinds] // makes the array mutable
+                : defaultParams.resourceKinds,
             },
           };
           return documentCluster;
         }
 
+        if (d.kind === 'doc.vnet_info') {
+          const documentVnetInfo: DocumentVnetInfo = {
+            ...d,
+            launcherArgs: undefined,
+          };
+          return documentVnetInfo;
+        }
+
         return d;
       });
-      workspace.location = workspace.previous.location;
-      workspace.previous = undefined;
+      workspace.location = getLocationToRestore(
+        reopen.documents,
+        reopen.location
+      );
+      workspace.hasDocumentsToReopen = false;
     });
   }
 
   private discardPreviousDocuments(clusterUri: RootClusterUri): void {
     this.setState(draftState => {
       const workspace = draftState.workspaces[clusterUri];
-      workspace.previous = undefined;
+      workspace.hasDocumentsToReopen = false;
     });
-  }
-
-  private canReopenPreviousDocuments({
-    previousDocuments,
-    currentDocuments,
-  }: {
-    previousDocuments?: Document[];
-    currentDocuments: Document[];
-  }): boolean {
-    const omitUriAndTitle = (documents: Document[]) =>
-      documents.map(d => ({ ...d, uri: undefined, title: undefined }));
-
-    return (
-      previousDocuments?.length &&
-      !arrayObjectIsEqual(
-        omitUriAndTitle(previousDocuments),
-        omitUriAndTitle(currentDocuments)
-      )
-    );
-  }
-
-  private getWorkspaceDefaultState(localClusterUri: ClusterUri): Workspace {
-    const rootClusterUri = routing.ensureRootClusterUri(localClusterUri);
-    const defaultDocument = this.getWorkspaceDocumentService(
-      rootClusterUri
-    ).createClusterDocument({ clusterUri: localClusterUri });
-    return {
-      accessRequests: {
-        pending: getEmptyPendingAccessRequest(),
-        isBarCollapsed: false,
-      },
-      localClusterUri,
-      location: defaultDocument.uri,
-      documents: [defaultDocument],
-      unifiedResourcePreferences: getDefaultUnifiedResourcePreferences(),
-    };
   }
 
   private persistState(): void {
@@ -545,10 +710,14 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
     };
     for (let w in this.state.workspaces) {
       const workspace = this.state.workspaces[w];
+      const documentsToPersist = getDocumentsToPersist(workspace.documents);
+
       stateToSave.workspaces[w] = {
+        proxyHost: workspace.proxyHost,
         localClusterUri: workspace.localClusterUri,
-        location: workspace.previous?.location || workspace.location,
-        documents: workspace.previous?.documents || workspace.documents,
+        location: workspace.location,
+        color: workspace.color,
+        documents: documentsToPersist,
         connectMyComputer: workspace.connectMyComputer,
         unifiedResourcePreferences: workspace.unifiedResourcePreferences,
       };
@@ -566,23 +735,24 @@ export function getDefaultUnifiedResourcePreferences(): UnifiedResourcePreferenc
     availableResourceMode: AvailableResourceMode.NONE,
   };
 }
+
 const unifiedResourcePreferencesSchema = z
   .object({
     defaultTab: z
-      .nativeEnum(DefaultTab)
+      .enum(DefaultTab)
       .default(getDefaultUnifiedResourcePreferences().defaultTab),
     viewMode: z
-      .nativeEnum(ViewMode)
+      .enum(ViewMode)
       .default(getDefaultUnifiedResourcePreferences().viewMode),
     labelsViewMode: z
-      .nativeEnum(LabelsViewMode)
+      .enum(LabelsViewMode)
       .default(getDefaultUnifiedResourcePreferences().labelsViewMode),
     availableResourceMode: z
-      .nativeEnum(AvailableResourceMode)
+      .enum(AvailableResourceMode)
       .default(getDefaultUnifiedResourcePreferences().availableResourceMode),
   })
   // Assign the default values if undefined is passed.
-  .default({});
+  .prefault({});
 
 // Because we don't have `strictNullChecks` enabled, zod infers
 // all properties as optional.
@@ -590,3 +760,161 @@ const unifiedResourcePreferencesSchema = z
 type UnifiedResourcePreferencesSchemaAsRequired = Required<
   z.infer<typeof unifiedResourcePreferencesSchema>
 >;
+
+/**
+ * useWorkspaceServiceState is a replacement for the legacy useStore hook. Many components within
+ * teleterm depend on the behavior of useStore which re-renders the component on any change within
+ * the store. Most of the time, those components don't even use the state returned by useStore.
+ *
+ * @deprecated Prefer useStoreSelector with a selector that picks only what the callsite is going
+ * to use. useWorkspaceServiceState re-renders the component on any change within any workspace.
+ */
+export const useWorkspaceServiceState = () => {
+  return useStoreSelector('workspacesService', identitySelector);
+};
+
+function getDocumentsToPersist(documents: Document[]): Document[] {
+  return (
+    documents
+      // We don't persist 'doc.authorize_web_session' because we don't want to store
+      // a session token and id on disk.
+      // Moreover, the user would not be able to authorize a session at a later time anyway.
+      .filter(d => d.kind !== 'doc.authorize_web_session')
+      .map(d => {
+        // Timestamps use BigInt, which currently isn't serializable to JSON.
+        // TODO(ravicious): Once we upgrade to Node.js >= 21, deal with serializing BigInt
+        // in the function `stringify` of fileStorage, using a combination of these two approaches:
+        // * https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON#using_json_numbers
+        // * https://github.com/GoogleChromeLabs/jsbi/issues/30#issuecomment-1609631034
+        if (d.kind === 'doc.vnet_diag_report' && d.report?.createdAt) {
+          return {
+            ...d,
+            report: {
+              ...d.report,
+              createdAt: Timestamp.toJson(
+                d.report.createdAt
+              ) as unknown as Timestamp,
+            },
+          };
+        }
+
+        return d;
+      })
+  );
+}
+
+function getLocationToRestore(
+  documents: Immutable<Document[]>,
+  location: DocumentUri
+): DocumentUri | undefined {
+  return documents.find(d => d.uri === location) ? location : documents[0]?.uri;
+}
+
+function getWorkspaceDefaultState(
+  rootClusterUri: RootClusterUri,
+  workspaces: Record<string, Workspace>,
+  overrides?: Partial<Immutable<PersistedWorkspace>>
+): Workspace {
+  const defaultDocument = createClusterDocument({ clusterUri: rootClusterUri });
+  const defaultWorkspace: Workspace = {
+    proxyHost: '',
+    accessRequests: {
+      pending: getEmptyPendingAccessRequest(),
+      isBarCollapsed: false,
+    },
+    location: defaultDocument.uri,
+    documents: [defaultDocument],
+    connectMyComputer: undefined,
+    hasDocumentsToReopen: false,
+    localClusterUri: rootClusterUri,
+    unifiedResourcePreferences: parseUnifiedResourcePreferences(undefined),
+    color: parseWorkspaceColor(undefined, workspaces),
+  };
+  if (!overrides) {
+    return defaultWorkspace;
+  }
+
+  if (overrides.localClusterUri) {
+    defaultWorkspace.localClusterUri = overrides.localClusterUri;
+  }
+
+  if (overrides.unifiedResourcePreferences) {
+    defaultWorkspace.unifiedResourcePreferences =
+      parseUnifiedResourcePreferences(overrides.unifiedResourcePreferences);
+  }
+
+  if (overrides.color) {
+    defaultWorkspace.color = parseWorkspaceColor(overrides.color, workspaces);
+  }
+
+  if (overrides.proxyHost) {
+    defaultWorkspace.proxyHost = overrides.proxyHost;
+  }
+
+  if (overrides.connectMyComputer) {
+    defaultWorkspace.connectMyComputer = overrides.connectMyComputer;
+  }
+
+  defaultWorkspace.hasDocumentsToReopen = hasDocumentsToReopen({
+    previousDocuments: overrides.documents,
+    currentDocuments: defaultWorkspace.documents,
+  });
+
+  return defaultWorkspace;
+}
+
+/**
+ * Returns a cleared workspace state while preserving stable workspace metadata.
+ * This is used after logout, so session-related state is discarded, but `color`
+ * and `proxyHost` are kept for the remembered cluster.
+ */
+function getClearedWorkspaceState(
+  rootClusterUri: RootClusterUri,
+  workspaces: Record<string, Workspace>,
+  currentWorkspaceState: Partial<Immutable<PersistedWorkspace>> | undefined
+) {
+  return getWorkspaceDefaultState(
+    rootClusterUri,
+    workspaces,
+    currentWorkspaceState && {
+      proxyHost: currentWorkspaceState.proxyHost,
+      color: currentWorkspaceState.color,
+    }
+  );
+}
+
+// TODO(gzdunek): Parse the entire workspace state read from disk like below.
+function parseUnifiedResourcePreferences(
+  unifiedResourcePreferences: unknown
+): UnifiedResourcePreferences | undefined {
+  try {
+    return unifiedResourcePreferencesSchema.parse(
+      unifiedResourcePreferences
+    ) as UnifiedResourcePreferencesSchemaAsRequired;
+  } catch (e) {
+    new Logger('WorkspacesService').error(
+      'Failed to parse unified resource preferences',
+      e
+    );
+  }
+}
+
+function hasDocumentsToReopen({
+  previousDocuments,
+  currentDocuments,
+}: {
+  previousDocuments?: Immutable<Document[]>;
+  currentDocuments: Document[];
+}): boolean {
+  const omitUriAndTitle = (documents: Immutable<Document[]>) =>
+    documents.map(d => ({ ...d, uri: undefined, title: undefined }));
+
+  if (!previousDocuments?.length) {
+    return false;
+  }
+
+  return !arrayObjectIsEqual(
+    omitUriAndTitle(previousDocuments),
+    omitUriAndTitle(currentDocuments)
+  );
+}

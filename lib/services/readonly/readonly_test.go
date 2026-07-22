@@ -153,12 +153,12 @@ func TestAccessGraphSettings(t *testing.T) {
 	// Create a new cache instance.
 	cache, err := NewCache(CacheConfig{
 		Upstream: &testUpstream{
-			accessGraphSettings: &clusterconfigpb.AccessGraphSettings{
+			accessGraphSettings: clusterconfigpb.AccessGraphSettings_builder{
 				Kind: types.KindAccessGraphSettings,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: "access-graph-settings",
-				},
-			},
+				}.Build(),
+			}.Build(),
 		},
 		TTL: time.Hour,
 	})
@@ -183,6 +183,6 @@ func TestAccessGraphSettings(t *testing.T) {
 
 // pointersEqual is a helper function that compares two pointers for equality. used to improve readability
 // and avoid incorrect lints.
-func pointersEqual(a, b interface{}) bool {
+func pointersEqual(a, b any) bool {
 	return a == b
 }

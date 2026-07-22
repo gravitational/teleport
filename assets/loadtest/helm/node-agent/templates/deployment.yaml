@@ -30,6 +30,7 @@ spec:
             - name: SSL_CERT_FILE
               value: /etc/teleport-tls-ca/ca.pem
             {{- end }}
+            {{- if $.Values.extraEnv }}{{ toYaml $.Values.extraEnv | nindent 12 }}{{ end }}
           volumeMounts:
             - mountPath: /etc/teleport-config
               name: config

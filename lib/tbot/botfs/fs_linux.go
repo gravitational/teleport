@@ -1,5 +1,4 @@
 //go:build linux
-// +build linux
 
 /*
  * Teleport
@@ -24,11 +23,11 @@ package botfs
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"io/fs"
 	"os"
 	"os/user"
-	"path/filepath"
 	"strconv"
 	"sync"
 	"syscall"
@@ -39,11 +38,11 @@ import (
 	"golang.org/x/sys/unix"
 
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/set"
 )
 
-// Openat2MinKernel is the kernel release that adds support for the openat2()
-// syscall.
-const Openat2MinKernel = "5.6.0"
+// mostACLRead is a permission mode granting readonly access to a file.
+const modeACLRead fs.FileMode = 04
 
 // modeACLReadExecute is the permissions mode needed for read on directories.
 const modeACLReadExecute fs.FileMode = 05
@@ -63,45 +62,62 @@ const modeACLNone fs.FileMode = 0
 // missingSyscallWarning is used to reduce log spam when a syscall is missing.
 var missingSyscallWarning sync.Once
 
-// openSecure opens the given path for writing (with O_CREAT, mode 0600)
-// with the RESOLVE_NO_SYMLINKS flag set.
-func openSecure(path string, mode OpenMode) (*os.File, error) {
+// openSecure opens the given path for either reading or writing with the
+// RESOLVE_NO_SYMLINKS flag set.
+func openSecure(path string, flags OpenFlags) (*os.File, error) {
+	var mode uint64
+	if flags != ReadFlags {
+		// openat2() with a nonzero mode will raise EINVAL unless O_CREATE or
+		// O_TMPFILE is set, so only set this in non-read mode.
+		mode = uint64(DefaultMode.Perm())
+	}
+
 	how := unix.OpenHow{
-		// Equivalent to 0600. Unfortunately it's not worth reusing our
-		// default file mode constant here.
-		Mode:    unix.O_RDONLY | unix.S_IRUSR | unix.S_IWUSR,
-		Flags:   uint64(mode),
+		Mode:    mode,
+		Flags:   uint64(flags.Flags()) | unix.O_CLOEXEC,
 		Resolve: unix.RESOLVE_NO_SYMLINKS,
 	}
 
-	fd, err := unix.Openat2(unix.AT_FDCWD, path, &how)
-	if err != nil {
-		// note: returning the original error here for comparison purposes
-		return nil, err
-	}
+	for {
+		fd, err := unix.Openat2(unix.AT_FDCWD, path, &how)
+		if errors.Is(err, syscall.EINTR) {
+			// Per the stdlib's implementation, EINTR errors should be ignored
+			// and retried.
+			continue
+		} else if err != nil {
+			// note: returning the original error here for comparison purposes
+			return nil, err
+		}
 
-	// os.File.Close() appears to close wrapped files sanely, so rely on that
-	// rather than relying on callers to use unix.Close(fd)
-	return os.NewFile(uintptr(fd), filepath.Base(path)), nil
+		file := os.NewFile(uintptr(fd), path)
+		if file == nil {
+			// Probably useless since this implies the fd itself is invalid, but
+			// attempt to close the fd anyway.
+			_ = unix.Close(fd)
+			return nil, os.ErrInvalid
+		}
+
+		return file, nil
+	}
 }
 
 // openSymlinks mode opens the file for read or write using the given symlink
 // mode, potentially failing or logging a warning if symlinks can't be
 // secured.
-func openSymlinksMode(path string, mode OpenMode, symlinksMode SymlinksMode) (*os.File, error) {
+func openSymlinksMode(path string, flags OpenFlags, symlinksMode SymlinksMode) (*os.File, error) {
 	var file *os.File
 	var err error
 
 	switch symlinksMode {
 	case SymlinksSecure:
-		file, err = openSecure(path, mode)
+		file, err = openSecure(path, flags)
 		if errors.Is(err, unix.ENOSYS) {
 			return nil, trace.Errorf("openSecure failed due to missing syscall; configure `symlinks: insecure` for %q", path)
 		} else if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	case SymlinksTrySecure:
-		file, err = openSecure(path, mode)
+		file, err = openSecure(path, flags)
 		if errors.Is(err, unix.ENOSYS) {
 			missingSyscallWarning.Do(func() {
 				log.DebugContext(
@@ -111,7 +127,7 @@ func openSymlinksMode(path string, mode OpenMode, symlinksMode SymlinksMode) (*o
 				)
 			})
 
-			file, err = openStandard(path, mode)
+			file, err = openStandard(path, flags)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -119,7 +135,7 @@ func openSymlinksMode(path string, mode OpenMode, symlinksMode SymlinksMode) (*o
 			return nil, trace.Wrap(err)
 		}
 	case SymlinksInsecure:
-		file, err = openStandard(path, mode)
+		file, err = openStandard(path, flags)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -145,7 +161,7 @@ func createSecure(path string, isDir bool) error {
 		return nil
 	}
 
-	f, err := openSecure(path, WriteMode)
+	f, err := openSecure(path, WriteFlags)
 	if errors.Is(err, unix.ENOSYS) {
 		// bubble up the original error for comparison
 		return err
@@ -218,7 +234,7 @@ func Create(path string, isDir bool, symlinksMode SymlinksMode) error {
 
 // Read reads the contents of the given file into memory.
 func Read(path string, symlinksMode SymlinksMode) ([]byte, error) {
-	file, err := openSymlinksMode(path, ReadMode, symlinksMode)
+	file, err := openSymlinksMode(path, ReadFlags, symlinksMode)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -235,7 +251,7 @@ func Read(path string, symlinksMode SymlinksMode) ([]byte, error) {
 
 // Write stores the given data to the file at the given path.
 func Write(path string, data []byte, symlinksMode SymlinksMode) error {
-	file, err := openSymlinksMode(path, WriteMode, symlinksMode)
+	file, err := openSymlinksMode(path, WriteFlags, symlinksMode)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -267,10 +283,11 @@ func desiredPerms(path string) (ownerMode fs.FileMode, botAndReaderMode fs.FileM
 	return
 }
 
-// VerifyACL verifies whether the ACL of the given file allows writes from the
-// bot user. Errors may optionally be used as more informational warnings;
-// ConfigureACL can be used to correct them, assuming the user has permissions.
-func VerifyACL(path string, opts *ACLOptions) error {
+// VerifyLegacyACL verifies whether the ACL of the given file allows writes from
+// the bot user. Errors may optionally be used as more informational warnings;
+// ConfigureLegacyACL can be used to correct them, assuming the user has
+// permissions.
+func VerifyLegacyACL(path string, opts *ACLOptions) error {
 	current, err := acl.Get(path)
 	if err != nil {
 		return trace.Wrap(err)
@@ -365,9 +382,9 @@ func VerifyACL(path string, opts *ACLOptions) error {
 	return trace.NewAggregate(errors...)
 }
 
-// ConfigureACL configures ACLs of the given file to allow writes from the bot
+// ConfigureLegacyACL configures ACLs of the given file to allow writes from the bot
 // user.
-func ConfigureACL(path string, owner *user.User, opts *ACLOptions) error {
+func ConfigureLegacyACL(path string, owner *user.User, opts *ACLOptions) error {
 	if owner.Uid == opts.BotUser.Uid && owner.Uid == opts.ReaderUser.Uid {
 		// We'll end up with an empty ACL. This isn't technically a problem
 		log.WarnContext(
@@ -439,11 +456,219 @@ func ConfigureACL(path string, owner *user.User, opts *ACLOptions) error {
 
 	log.DebugContext(
 		context.TODO(),
+		"Configuring legacy ACL on path",
+		"path", path,
+		"acl", desiredACL,
+	)
+	return trace.ConvertSystemError(trace.Wrap(acl.Set(path, desiredACL)))
+}
+
+// resolveACLReaderSelector attempts to convert an ACL selector into a
+// platform-specific acl.Entry that can be applied to a file.
+func resolveACLReaderSelector(s *ACLSelector, dir bool) (acl.Entry, error) {
+	perm := modeACLRead
+	if dir {
+		perm = modeACLReadExecute
+	}
+
+	switch {
+	case s.User != "":
+		_, err := strconv.ParseInt(s.User, 10, 32)
+		if err == nil {
+			// User is a valid number, so return it directly. We don't need to
+			// check the particular value as it's explicitly allowed to
+			// configure entries for nonexistent users.
+			return acl.Entry{
+				Tag:       acl.TagUser,
+				Qualifier: s.User,
+				Perms:     perm,
+			}, nil
+		}
+
+		user, err := user.Lookup(s.User)
+		if err != nil {
+			return acl.Entry{}, trace.Wrap(err)
+		}
+
+		return acl.Entry{
+			Tag:       acl.TagUser,
+			Qualifier: user.Uid,
+			Perms:     perm,
+		}, nil
+	case s.Group != "":
+		_, err := strconv.ParseInt(s.Group, 10, 32)
+		if err == nil {
+			// Group is a valid number, so return it directly.
+			return acl.Entry{
+				Tag:       acl.TagGroup,
+				Qualifier: s.Group,
+				Perms:     perm,
+			}, nil
+		}
+
+		group, err := user.LookupGroup(s.Group)
+		if err != nil {
+			return acl.Entry{}, trace.Wrap(err)
+		}
+
+		return acl.Entry{
+			Tag:       acl.TagGroup,
+			Qualifier: group.Gid,
+			Perms:     perm,
+		}, nil
+	default:
+		return acl.Entry{}, trace.BadParameter("unable to resolve ACL selector, user or group must be specified: %+v", s)
+	}
+}
+
+// aclMaskForSelectors returns an appropriate ACL mask entry given the list of
+// selectors.
+func aclReaderMask(dir bool) acl.Entry {
+	perms := modeACLRead
+	if dir {
+		perms = modeACLReadExecute
+	}
+
+	return acl.Entry{
+		Tag:   acl.TagMask,
+		Perms: perms,
+	}
+}
+
+// aclFromReaders builds an ACL for a generic file or directory from the given
+// list of reader selectors.
+func aclFromReaders(selectors []*ACLSelector, dir bool) (acl.ACL, error) {
+	// Note: these entries are out of their required order, but go-acl sorts
+	// them before applying.
+	ownerPerms := modeACLReadWrite
+	if dir {
+		ownerPerms = modeACLReadWriteExecute
+	}
+
+	desiredACL := acl.ACL{
+		{
+			Tag:   acl.TagUserObj,
+			Perms: ownerPerms,
+		},
+		{
+			Tag:   acl.TagGroupObj,
+			Perms: modeACLNone,
+		},
+		aclReaderMask(dir),
+		{
+			Tag:   acl.TagOther,
+			Perms: modeACLNone,
+		},
+	}
+
+	for _, selector := range selectors {
+		entry, err := resolveACLReaderSelector(selector, dir)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		desiredACL = append(desiredACL, entry)
+	}
+
+	return desiredACL, nil
+}
+
+// ConfigureACL configures a bot-user-owned ACL at the given path such that it
+// can be read by the given list of readers. If the list is empty, appropriate
+// non-ACL permissions will be set to ensure only the bot user can read the
+// file.
+func ConfigureACL(path string, readers []*ACLSelector) error {
+	stat, err := os.Stat(path)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	dir := stat.IsDir()
+
+	desiredACL, err := aclFromReaders(readers, dir)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	log.DebugContext(
+		context.TODO(),
 		"Configuring ACL on path",
 		"path", path,
 		"acl", desiredACL,
 	)
 	return trace.ConvertSystemError(trace.Wrap(acl.Set(path, desiredACL)))
+}
+
+// permStrings is a list of possible permission string representations,
+// duplicated from `acl` as it is private.
+var permStrings = []string{
+	0: "---",
+	1: "--x",
+	2: "-w-",
+	3: "-wx",
+	4: "r--",
+	5: "r-x",
+	6: "rw-",
+	7: "rwx",
+}
+
+// formatEntry formats an ACL entry without attempting to resolve UIDs or GIDs
+// to ensure consistent results in tests and elsewhere. Inlined from
+// acl.Entry.String().
+func formatEntry(e acl.Entry) string {
+	middle := "::"
+	if e.Tag == acl.TagUser || e.Tag == acl.TagGroup {
+		middle = ":" + e.Qualifier + ":"
+	}
+	return fmt.Sprintf("%s%s%s", e.Tag, middle, permStrings[7&e.Perms])
+}
+
+// CompareACL compares two ACLs to check if they match. Returns an empty list if
+// the two are identity, otherwise returns a list of error messages for each
+// issue found.
+func CompareACL(expected, candidate acl.ACL) []string {
+	expectedSet := set.New(expected...)
+	candidateSet := set.New(candidate...)
+
+	missing := expectedSet.Clone().Subtract(candidateSet)
+	unexpected := candidateSet.Clone().Subtract(expectedSet)
+
+	var issues []string
+	for m := range missing {
+		issues = append(issues, fmt.Sprintf("missing required entry: %s", formatEntry(m)))
+	}
+	for u := range unexpected {
+		issues = append(issues, fmt.Sprintf("unexpected entry: %s", formatEntry(u)))
+	}
+
+	return issues
+}
+
+// VerifyACL loads the ACL for the file at the given path and compares it to
+// the expected ACL as determined by the given list of reader selectors,
+// returning a list of issues found. An empty list (and nil error) implies a
+// valid ACL. The path must exist and the user must have permission to `os.Stat`
+// it. Errors will be returned if the ACL was unable to be read.
+func VerifyACL(path string, readers []*ACLSelector) ([]string, error) {
+	stat, err := os.Stat(path)
+	if err != nil {
+		return []string{}, trace.Wrap(err)
+	}
+
+	dir := stat.IsDir()
+
+	expected, err := aclFromReaders(readers, dir)
+	if err != nil {
+		return []string{}, trace.Wrap(err)
+	}
+
+	fsACL, err := acl.Get(path)
+	if err != nil {
+		return []string{}, trace.Wrap(err)
+	}
+
+	issues := CompareACL(expected, fsACL)
+	return issues, nil
 }
 
 // HasACLSupport determines if this binary / system supports ACLs.
@@ -460,7 +685,6 @@ func HasACLSupport() bool {
 // We've encountered this being incorrect in environments where access to the
 // kernel is hampered e.g. seccomp/apparmor/container runtimes.
 func HasSecureWriteSupport() bool {
-	minKernel := semver.New(Openat2MinKernel)
 	version, err := utils.KernelVersion()
 	if err != nil {
 		log.InfoContext(
@@ -470,7 +694,8 @@ func HasSecureWriteSupport() bool {
 		)
 		return false
 	}
-	if version.LessThan(*minKernel) {
+	// kernel release that added support for the openat2() syscall
+	if version.LessThan(semver.Version{Major: 5, Minor: 6, Patch: 0}) {
 		return false
 	}
 
@@ -496,12 +721,12 @@ func GetOwner(fileInfo fs.FileInfo) (*user.User, error) {
 
 // IsOwnedBy checks that the file at the given path is owned by the given user.
 // Returns a trace.NotImplemented() on unsupported platforms.
-func IsOwnedBy(fileInfo fs.FileInfo, user *user.User) (bool, error) {
+func IsOwnedBy(fileInfo fs.FileInfo, uid int) (bool, error) {
 	info, ok := fileInfo.Sys().(*syscall.Stat_t)
 	if !ok {
 		return false, trace.Errorf("unexpected type of file info on Linux: %T", fileInfo.Sys())
 	}
 
 	// Our files are 0600, so don't bother checking gid.
-	return strconv.Itoa(int(info.Uid)) == user.Uid, nil
+	return int(info.Uid) == uid, nil
 }

@@ -16,13 +16,24 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+// eslint-disable-next-line no-restricted-imports -- FIXME
 import { ResourceIdKind } from 'teleport/services/agents';
+// eslint-disable-next-line no-restricted-imports -- FIXME
+import { KubeResourceKind } from 'teleport/services/kube';
 
 /** Available request kinds for resource-based and role-based access requests. */
-export type ResourceKind = ResourceIdKind | 'role' | 'resource';
+export type RequestableResourceKind =
+  | ResourceIdKind
+  | 'role'
+  | 'resource'
+  | Exclude<KubeResourceKind, '*'>;
 
+/**
+ * Maps a resource ID (usually agent name) to resource description (usually the
+ * same, but not necessarily).
+ */
 export type ResourceMap = {
-  [K in ResourceIdKind | 'role']: Record<string, string>;
+  [K in Exclude<RequestableResourceKind, 'resource'>]: Record<string, string>;
 };
 
 export function getEmptyResourceState(): ResourceMap {
@@ -33,6 +44,11 @@ export function getEmptyResourceState(): ResourceMap {
     kube_cluster: {},
     user_group: {},
     windows_desktop: {},
+    linux_desktop: {},
     role: {},
+    saml_idp_service_provider: {},
+    namespace: {},
+    aws_ic_account_assignment: {},
+    git_server: {},
   };
 }

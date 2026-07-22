@@ -22,12 +22,13 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"iter"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/events"
@@ -41,6 +42,8 @@ type Config struct {
 	Directory string
 	// OnBeforeComplete can be used to inject failures during tests
 	OnBeforeComplete func(ctx context.Context, upload events.StreamUpload) error
+	// OpenFile is used by session recording to open OS files
+	OpenFile utils.OpenFileWithFlagsFunc
 }
 
 // nopBeforeComplete does nothing
@@ -59,7 +62,17 @@ func (s *Config) CheckAndSetDefaults() error {
 	if s.OnBeforeComplete == nil {
 		s.OnBeforeComplete = nopBeforeComplete
 	}
+	if s.OpenFile == nil {
+		s.OpenFile = os.OpenFile
+	}
 	return nil
+}
+
+// sessionFileRecorder captures file operations performed as part of saving session recordings as files.
+type sessionFileRecorder interface {
+	ReservePart(ctx context.Context, name string, size int64) error
+	WritePart(ctx context.Context, name string, data io.Reader) error
+	CombineParts(ctx context.Context, dst io.Writer, parts iter.Seq[string]) error
 }
 
 // NewHandler returns new file sessions handler
@@ -72,12 +85,18 @@ func NewHandler(cfg Config) (*Handler, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	logger := slog.With(teleport.ComponentKey, teleport.SchemeFile)
 	h := &Handler{
-		Entry: log.WithFields(log.Fields{
-			teleport.ComponentKey: teleport.Component(teleport.SchemeFile),
-		}),
-		Config: cfg,
+		logger:       logger,
+		Config:       cfg,
+		fileRecorder: NewPlainFileRecorder(logger, cfg.OpenFile),
 	}
+
+	err := os.MkdirAll(h.pendingSummariesPath(), teleport.PrivateDirMode)
+	if err != nil {
+		return nil, trace.ConvertSystemError(err)
+	}
+
 	return h, nil
 }
 
@@ -86,8 +105,10 @@ func NewHandler(cfg Config) (*Handler, error) {
 type Handler struct {
 	// Config is a file sessions config
 	Config
-	// Entry is a file entry
-	*log.Entry
+	// logger emits logs messages
+	logger *slog.Logger
+	// fileRecorder is the interface for "low-level" file operations
+	fileRecorder sessionFileRecorder
 }
 
 // Closer releases connection and resources associated with log if any
@@ -95,27 +116,113 @@ func (l *Handler) Close() error {
 	return nil
 }
 
-// Download downloads session recording from storage, in case of file handler reads the
-// file from local directory
-func (l *Handler) Download(ctx context.Context, sessionID session.ID, writer io.WriterAt) error {
-	path := l.path(sessionID)
-	f, err := os.Open(path)
-	if err != nil {
-		return trace.ConvertSystemError(err)
-	}
-	defer f.Close()
-	_, err = io.Copy(writer.(io.Writer), f)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
+// StreamSessionRecording reads a session recording from a local directory.
+func (l *Handler) StreamSessionRecording(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
+	return openFile(l.recordingPath(sessionID))
 }
 
-// Upload uploads session recording to file storage, in case of file handler,
-// writes the file to local directory
+// StreamSessionSummary reads a session summary from a local directory.
+func (l *Handler) StreamSessionSummary(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
+	filePathsToTest := [3]string{
+		l.summaryPath(sessionID),
+		l.pendingSummaryPath(sessionID),
+		// re-check the final summary to prevent
+		// delete temp files between the two checks above
+		l.summaryPath(sessionID),
+	}
+	for _, path := range filePathsToTest {
+		f, err := openFile(path)
+		if err == nil {
+			return f, nil
+		}
+		if !trace.IsNotFound(err) {
+			return nil, trace.Wrap(err)
+		}
+	}
+	return nil, trace.NotFound("summary for session %v not found", sessionID)
+}
+
+// StreamSessionMetadata reads session metadata from a local directory.
+func (l *Handler) StreamSessionMetadata(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
+	return openFile(l.metadataPath(sessionID))
+}
+
+// StreamSessionThumbnail reads a session thumbnail from a local directory.
+func (l *Handler) StreamSessionThumbnail(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
+	return openFile(l.thumbnailPath(sessionID))
+}
+
+// Upload writes a session recording to a local directory.
 func (l *Handler) Upload(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
-	path := l.path(sessionID)
-	f, err := os.Create(path)
+	s, err := uploadFile(l.recordingPath(sessionID), reader)
+	return s, trace.Wrap(err)
+}
+
+// UploadPendingSummary writes a pending session summary to a local directory.
+// This function can be called multiple times for a given sessionID to update
+// the state.
+func (l *Handler) UploadPendingSummary(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
+	return uploadFile(l.pendingSummaryPath(sessionID), reader, withOverwrite())
+}
+
+// UploadSummary writes a final version of session summary and removes the
+// pending one. This function can be called only once for a given sessionID;
+// subsequent calls will return an error.
+func (l *Handler) UploadSummary(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
+	name, err := uploadFile(l.summaryPath(sessionID), reader)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	err = os.Remove(l.pendingSummaryPath(sessionID))
+	if err != nil && !trace.IsNotFound(err) {
+		return "", trace.Wrap(err)
+	}
+
+	return name, nil
+}
+
+// UploadMetadata writes session metadata to a local directory.
+func (l *Handler) UploadMetadata(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
+	return uploadFile(l.metadataPath(sessionID), reader)
+}
+
+// UploadThumbnail writes a session thumbnail to a local directory.
+func (l *Handler) UploadThumbnail(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
+	return uploadFile(l.thumbnailPath(sessionID), reader)
+}
+
+func openFile(path string) (io.ReadCloser, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, trace.ConvertSystemError(err)
+	}
+	return f, nil
+}
+
+type fileUploadConfig struct {
+	overwrite bool
+}
+
+type fileUploadOption func(*fileUploadConfig)
+
+func withOverwrite() fileUploadOption {
+	return func(cfg *fileUploadConfig) {
+		cfg.overwrite = true
+	}
+}
+
+func uploadFile(path string, reader io.Reader, opts ...fileUploadOption) (string, error) {
+	cfg := fileUploadConfig{}
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+
+	flags := os.O_RDWR | os.O_CREATE | os.O_TRUNC
+	if !cfg.overwrite {
+		flags |= os.O_EXCL
+	}
+	f, err := os.OpenFile(path, flags, 0o666)
 	if err != nil {
 		return "", trace.ConvertSystemError(err)
 	}
@@ -126,8 +233,28 @@ func (l *Handler) Upload(ctx context.Context, sessionID session.ID, reader io.Re
 	return fmt.Sprintf("%v://%v", teleport.SchemeFile, path), nil
 }
 
-func (l *Handler) path(sessionID session.ID) string {
+func (l *Handler) recordingPath(sessionID session.ID) string {
 	return filepath.Join(l.Directory, string(sessionID)+tarExt)
+}
+
+func (l *Handler) pendingSummariesPath() string {
+	return filepath.Join(l.Directory, "pending")
+}
+
+func (l *Handler) pendingSummaryPath(sessionID session.ID) string {
+	return filepath.Join(l.pendingSummariesPath(), string(sessionID)+summaryExt)
+}
+
+func (l *Handler) summaryPath(sessionID session.ID) string {
+	return filepath.Join(l.Directory, string(sessionID)+summaryExt)
+}
+
+func (l *Handler) metadataPath(sessionID session.ID) string {
+	return filepath.Join(l.Directory, string(sessionID)+metadataExt)
+}
+
+func (l *Handler) thumbnailPath(sessionID session.ID) string {
+	return filepath.Join(l.Directory, string(sessionID)+thumbnailExt)
 }
 
 // sessionIDFromPath extracts session ID from the filename

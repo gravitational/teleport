@@ -1,0 +1,27 @@
+---
+title: Windows Desktop Resource Reference
+sidebar_label: Windows Desktop
+description: Provides a comprehensive list of fields for the Teleport Windows desktop resource.
+---
+
+The Windows desktop resource represents a remote Windows desktop registered with
+Teleport.
+
+In most cases, Teleport will register `windows_desktop` resources automatically
+based on static hosts in your configuration file or via LDAP-based discovery.
+
+You can also use [dynamic
+registration](../../../enroll-resources/desktop-access/dynamic-registration.mdx) using
+`dynamic_windows_desktop` resources. This can be useful for managing inventories
+of hosts that are not joined to an Active Directory domain.
+
+There are a few important considerations to keep in mind when registering
+desktops this way:
+
+1. The desktop's `addr` can be a hostname or IP address, and should include
+   the RDP port (typically 3389).
+1. If you intend to log in to the desktop with local Windows users you must set
+   `non_ad: true`. If you intend to log in with Active Directory users, leave
+   `non_ad` unset (or false), and specify the Active Directory domain in the
+   `domain` field.
+

@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-import { useRef, useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 
 /** Resolves after a given duration. */
 export function wait(ms: number, abortSignal?: AbortSignal): Promise<void> {
@@ -65,7 +65,7 @@ export const usePromiseRejectedOnUnmount = () => {
     };
   }, []);
 
-  const promiseRef = useRef<Promise<never>>();
+  const promiseRef = useRef<Promise<never>>(undefined);
   if (!promiseRef.current) {
     promiseRef.current = waitForever(abortControllerRef.current.signal);
   }

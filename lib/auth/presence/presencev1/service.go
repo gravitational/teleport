@@ -20,10 +20,11 @@ package presencev1
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
+	"google.golang.org/grpc/peer"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/gravitational/teleport"
@@ -31,8 +32,10 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/services"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // Backend is the subset of the backend resources that the Service modifies.
@@ -41,6 +44,22 @@ type Backend interface {
 	ListRemoteClusters(ctx context.Context, pageSize int, nextToken string) ([]types.RemoteCluster, string, error)
 	UpdateRemoteCluster(ctx context.Context, rc types.RemoteCluster) (types.RemoteCluster, error)
 	PatchRemoteCluster(ctx context.Context, name string, updateFn func(rc types.RemoteCluster) (types.RemoteCluster, error)) (types.RemoteCluster, error)
+
+	UpsertReverseTunnel(ctx context.Context, tunnel types.ReverseTunnel) (types.ReverseTunnel, error)
+	DeleteReverseTunnel(ctx context.Context, tunnelName string) error
+
+	DeleteRelayServer(ctx context.Context, name string) error
+
+	UpsertProxyServer(ctx context.Context, server types.Server) (types.Server, error)
+	DeleteProxyServer(ctx context.Context, name string) error
+}
+
+type Cache interface {
+	ListAuthServers(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error)
+	ListProxyServers(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error)
+	ListReverseTunnels(ctx context.Context, pageSize int, nextToken string) ([]types.ReverseTunnel, string, error)
+	GetRelayServer(ctx context.Context, name string) (*presencepb.RelayServer, error)
+	ListRelayServers(ctx context.Context, pageSize int, pageToken string) (_ []*presencepb.RelayServer, nextPageToken string, _ error)
 }
 
 type AuthServer interface {
@@ -53,27 +72,33 @@ type AuthServer interface {
 // ServiceConfig holds configuration options for
 // the presence gRPC service.
 type ServiceConfig struct {
-	Authorizer authz.Authorizer
-	AuthServer AuthServer
-	Backend    Backend
-	Logger     logrus.FieldLogger
-	Emitter    apievents.Emitter
-	Reporter   usagereporter.UsageReporter
-	Clock      clockwork.Clock
+	Authorizer       authz.Authorizer
+	ScopedAuthorizer authz.ScopedAuthorizer
+	AuthServer       AuthServer
+	Backend          Backend
+	Cache            Cache
+	Logger           *slog.Logger
+	Emitter          apievents.Emitter
+	Reporter         usagereporter.UsageReporter
+	Clock            clockwork.Clock
 }
 
 // Service implements the teleport.presence.v1.PresenceService RPC service.
 type Service struct {
 	presencepb.UnimplementedPresenceServiceServer
 
-	authorizer authz.Authorizer
-	authServer AuthServer
-	backend    Backend
-	logger     logrus.FieldLogger
-	emitter    apievents.Emitter
-	reporter   usagereporter.UsageReporter
-	clock      clockwork.Clock
+	authorizer       authz.Authorizer
+	scopedAuthorizer authz.ScopedAuthorizer
+	authServer       AuthServer
+	backend          Backend
+	cache            Cache
+	logger           *slog.Logger
+	emitter          apievents.Emitter
+	reporter         usagereporter.UsageReporter
+	clock            clockwork.Clock
 }
+
+var _ presencepb.PresenceServiceServer = (*Service)(nil)
 
 // NewService returns a new presence gRPC service.
 func NewService(cfg ServiceConfig) (*Service, error) {
@@ -82,29 +107,36 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		return nil, trace.BadParameter("backend service is required")
 	case cfg.Authorizer == nil:
 		return nil, trace.BadParameter("authorizer is required")
+	case cfg.ScopedAuthorizer == nil:
+		return nil, trace.BadParameter("scoped authorizer is required")
 	case cfg.Emitter == nil:
 		return nil, trace.BadParameter("emitter is required")
 	case cfg.Reporter == nil:
 		return nil, trace.BadParameter("reporter is required")
 	case cfg.AuthServer == nil:
 		return nil, trace.BadParameter("auth server is required")
+	case cfg.Cache == nil:
+		return nil, trace.BadParameter("cache is required")
 	}
 
 	if cfg.Logger == nil {
-		cfg.Logger = logrus.WithField(teleport.ComponentKey, "presence.service")
+		cfg.Logger = slog.With(teleport.ComponentKey, "presence.service")
 	}
 	if cfg.Clock == nil {
 		cfg.Clock = clockwork.NewRealClock()
 	}
 
 	return &Service{
-		logger:     cfg.Logger,
-		authorizer: cfg.Authorizer,
-		authServer: cfg.AuthServer,
-		backend:    cfg.Backend,
-		emitter:    cfg.Emitter,
-		reporter:   cfg.Reporter,
-		clock:      cfg.Clock,
+		logger:           cfg.Logger,
+		authorizer:       cfg.Authorizer,
+		scopedAuthorizer: cfg.ScopedAuthorizer,
+		authServer:       cfg.AuthServer,
+		backend:          cfg.Backend,
+		cache:            cfg.Cache,
+
+		emitter:  cfg.Emitter,
+		reporter: cfg.Reporter,
+		clock:    cfg.Clock,
 	}, nil
 }
 
@@ -112,7 +144,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 func (s *Service) GetRemoteCluster(
 	ctx context.Context, req *presencepb.GetRemoteClusterRequest,
 ) (*types.RemoteClusterV3, error) {
-	if req.Name == "" {
+	if req.GetName() == "" {
 		return nil, trace.BadParameter("name: must be specified")
 	}
 
@@ -124,7 +156,7 @@ func (s *Service) GetRemoteCluster(
 		return nil, trace.Wrap(err)
 	}
 
-	rc, err := s.backend.GetRemoteCluster(ctx, req.Name)
+	rc, err := s.backend.GetRemoteCluster(ctx, req.GetName())
 	if err != nil {
 		return nil, utils.OpaqueAccessDenied(err)
 	}
@@ -135,7 +167,11 @@ func (s *Service) GetRemoteCluster(
 
 	v3, ok := rc.(*types.RemoteClusterV3)
 	if !ok {
-		s.logger.Warnf("expected type RemoteClusterV3, got %T for %q", rc, rc.GetName())
+		s.logger.WarnContext(ctx, "unexpected remote cluster type",
+			"got_type", logutils.TypeAttr(rc),
+			"expected_type", "RemoteClusterV3",
+			"remote_cluster", rc.GetName(),
+		)
 		return nil, trace.BadParameter("encountered unexpected remote cluster type")
 	}
 
@@ -155,7 +191,7 @@ func (s *Service) ListRemoteClusters(
 	}
 
 	page, nextToken, err := s.backend.ListRemoteClusters(
-		ctx, int(req.PageSize), req.PageToken,
+		ctx, int(req.GetPageSize()), req.GetPageToken(),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -166,7 +202,11 @@ func (s *Service) ListRemoteClusters(
 	for _, rc := range page {
 		v3, ok := rc.(*types.RemoteClusterV3)
 		if !ok {
-			s.logger.Warnf("expected type RemoteClusterV3, got %T for %q", rc, rc.GetName())
+			s.logger.WarnContext(ctx, "unexpected remote cluster type",
+				"got_type", logutils.TypeAttr(rc),
+				"expected_type", "RemoteClusterV3",
+				"remote_cluster", rc.GetName(),
+			)
 			continue
 		}
 		concretePage = append(concretePage, v3)
@@ -184,10 +224,10 @@ func (s *Service) ListRemoteClusters(
 		filteredPage = append(filteredPage, rc)
 	}
 
-	return &presencepb.ListRemoteClustersResponse{
+	return presencepb.ListRemoteClustersResponse_builder{
 		RemoteClusters: filteredPage,
 		NextPageToken:  nextToken,
-	}, nil
+	}.Build(), nil
 }
 
 // UpdateRemoteCluster updates a remote cluster.
@@ -195,9 +235,9 @@ func (s *Service) UpdateRemoteCluster(
 	ctx context.Context, req *presencepb.UpdateRemoteClusterRequest,
 ) (*types.RemoteClusterV3, error) {
 	switch {
-	case req.RemoteCluster == nil:
+	case !req.HasRemoteCluster():
 		return nil, trace.BadParameter("remote_cluster: must not be nil")
-	case req.RemoteCluster.GetName() == "":
+	case req.GetRemoteCluster().GetName() == "":
 		return nil, trace.BadParameter("remote_cluster.Metadata.Name: must be non-empty")
 	}
 
@@ -208,19 +248,23 @@ func (s *Service) UpdateRemoteCluster(
 	if err := authCtx.CheckAccessToKind(types.KindRemoteCluster, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := authCtx.AuthorizeAdminAction(); err != nil {
+	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// If the update mask is empty, update the entire remote cluster.
 	if len(req.GetUpdateMask().GetPaths()) == 0 {
-		rc, err := s.backend.UpdateRemoteCluster(ctx, req.RemoteCluster)
+		rc, err := s.backend.UpdateRemoteCluster(ctx, req.GetRemoteCluster())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		v3, ok := rc.(*types.RemoteClusterV3)
 		if !ok {
-			s.logger.Warnf("expected type RemoteClusterV3, got %T for user %q", rc, rc.GetName())
+			s.logger.WarnContext(ctx, "unexpected remote cluster type",
+				"got_type", logutils.TypeAttr(rc),
+				"expected_type", "RemoteClusterV3",
+				"remote_cluster", rc.GetName(),
+			)
 			return nil, trace.BadParameter("encountered unexpected remote cluster type")
 		}
 		return v3, nil
@@ -229,23 +273,23 @@ func (s *Service) UpdateRemoteCluster(
 	// Otherwise, we apply the update mask to the current remote cluster using
 	// a patch operation.
 	req.GetUpdateMask().Normalize()
-	rc, err := s.backend.PatchRemoteCluster(ctx, req.RemoteCluster.GetName(), func(rc types.RemoteCluster) (types.RemoteCluster, error) {
+	rc, err := s.backend.PatchRemoteCluster(ctx, req.GetRemoteCluster().GetName(), func(rc types.RemoteCluster) (types.RemoteCluster, error) {
 		for _, path := range req.GetUpdateMask().GetPaths() {
 			switch path {
 			case "Metadata.Labels":
 				md := rc.GetMetadata()
-				md.Labels = req.RemoteCluster.GetMetadata().Labels
+				md.Labels = req.GetRemoteCluster().GetMetadata().Labels
 				rc.SetMetadata(md)
 			case "Metadata.Description":
 				md := rc.GetMetadata()
-				md.Description = req.RemoteCluster.GetMetadata().Description
+				md.Description = req.GetRemoteCluster().GetMetadata().Description
 				rc.SetMetadata(md)
 			case "Metadata.Expires":
-				rc.SetExpiry(req.RemoteCluster.Expiry())
+				rc.SetExpiry(req.GetRemoteCluster().Expiry())
 			case "Status.Connection":
-				rc.SetConnectionStatus(req.RemoteCluster.GetConnectionStatus())
+				rc.SetConnectionStatus(req.GetRemoteCluster().GetConnectionStatus())
 			case "Status.LastHeartbeat":
-				rc.SetLastHeartbeat(req.RemoteCluster.GetLastHeartbeat())
+				rc.SetLastHeartbeat(req.GetRemoteCluster().GetLastHeartbeat())
 			default:
 				return nil, trace.BadParameter("unsupported field: %q", path)
 			}
@@ -257,7 +301,11 @@ func (s *Service) UpdateRemoteCluster(
 	}
 	v3, ok := rc.(*types.RemoteClusterV3)
 	if !ok {
-		s.logger.Warnf("expected type RemoteClusterV3, got %T for user %q", rc, rc.GetName())
+		s.logger.WarnContext(ctx, "unexpected remote cluster type",
+			"got_type", logutils.TypeAttr(rc),
+			"expected_type", "RemoteClusterV3",
+			"remote_cluster", rc.GetName(),
+		)
 		return nil, trace.BadParameter("encountered unexpected remote cluster type")
 	}
 
@@ -268,7 +316,7 @@ func (s *Service) UpdateRemoteCluster(
 func (s *Service) DeleteRemoteCluster(
 	ctx context.Context, req *presencepb.DeleteRemoteClusterRequest,
 ) (*emptypb.Empty, error) {
-	if req.Name == "" {
+	if req.GetName() == "" {
 		return nil, trace.BadParameter("name: must be specified")
 	}
 
@@ -281,13 +329,306 @@ func (s *Service) DeleteRemoteCluster(
 	); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := authCtx.AuthorizeAdminAction(); err != nil {
+	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.authServer.DeleteRemoteCluster(ctx, req.Name); err != nil {
+	if err := s.authServer.DeleteRemoteCluster(ctx, req.GetName()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return &emptypb.Empty{}, nil
+}
+
+// ListAuthServers returns a page of auth servers.
+func (s *Service) ListAuthServers(
+	ctx context.Context, req *presencepb.ListAuthServersRequest,
+) (*presencepb.ListAuthServersResponse, error) {
+	authzCtx, err := s.scopedAuthorizer.AuthorizeScoped(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	ruleCtx := authzCtx.RuleContext()
+	if err := authzCtx.CheckerContext.RiskyAuthorizeUnpinnedRead(ctx, services.UnpinnedReadAuthServers, &ruleCtx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	servers, nextToken, err := s.cache.ListAuthServers(ctx, int(req.GetPageSize()), req.GetPageToken())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	serverV2s := make([]*types.ServerV2, 0, len(servers))
+	for _, server := range servers {
+		v2, ok := server.(*types.ServerV2)
+		if !ok {
+			s.logger.WarnContext(ctx, "unexpected server type",
+				"got_type", logutils.TypeAttr(server),
+				"expected_type", "ServerV2",
+				"server", server.GetName(),
+			)
+			continue
+		}
+		serverV2s = append(serverV2s, v2)
+	}
+
+	return presencepb.ListAuthServersResponse_builder{
+		Servers:       serverV2s,
+		NextPageToken: nextToken,
+	}.Build(), nil
+}
+
+// ListProxyServers returns a page of proxy servers.
+func (s *Service) ListProxyServers(
+	ctx context.Context, req *presencepb.ListProxyServersRequest,
+) (*presencepb.ListProxyServersResponse, error) {
+	authzCtx, err := s.scopedAuthorizer.AuthorizeScoped(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	ruleCtx := authzCtx.RuleContext()
+	if err := authzCtx.CheckerContext.RiskyAuthorizeUnpinnedRead(ctx, services.UnpinnedReadProxies, &ruleCtx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	servers, nextToken, err := s.cache.ListProxyServers(ctx, int(req.GetPageSize()), req.GetPageToken())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	serverV2s := make([]*types.ServerV2, 0, len(servers))
+	for _, server := range servers {
+		v2, ok := server.(*types.ServerV2)
+		if !ok {
+			s.logger.WarnContext(ctx, "unexpected server type",
+				"got_type", logutils.TypeAttr(server),
+				"expected_type", "ServerV2",
+				"server", server.GetName(),
+			)
+			continue
+		}
+		serverV2s = append(serverV2s, v2)
+	}
+
+	return presencepb.ListProxyServersResponse_builder{
+		Servers:       serverV2s,
+		NextPageToken: nextToken,
+	}.Build(), nil
+}
+
+// ListReverseTunnels returns a page of reverse tunnels.
+func (s *Service) ListReverseTunnels(
+	ctx context.Context, req *presencepb.ListReverseTunnelsRequest,
+) (*presencepb.ListReverseTunnelsResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := authCtx.CheckAccessToKind(types.KindReverseTunnel, types.VerbList, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	page, nextToken, err := s.cache.ListReverseTunnels(
+		ctx, int(req.GetPageSize()), req.GetPageToken(),
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Convert the reverse tunnels to the concrete type
+	concretePage := make([]*types.ReverseTunnelV2, 0, len(page))
+	for _, rc := range page {
+		v3, ok := rc.(*types.ReverseTunnelV2)
+		if !ok {
+			s.logger.WarnContext(ctx, "unexpected reverse tunnel type",
+				"got_type", logutils.TypeAttr(rc),
+				"expected_type", "ReverseTunnelV2",
+				"reverse_tunnel", rc.GetName(),
+			)
+			continue
+		}
+		concretePage = append(concretePage, v3)
+	}
+
+	return presencepb.ListReverseTunnelsResponse_builder{
+		ReverseTunnels: concretePage,
+		NextPageToken:  nextToken,
+	}.Build(), nil
+}
+
+// UpsertReverseTunnel upserts a reverse tunnel.
+func (s *Service) UpsertReverseTunnel(
+	ctx context.Context, req *presencepb.UpsertReverseTunnelRequest,
+) (*types.ReverseTunnelV2, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := authCtx.CheckAccessToKind(types.KindReverseTunnel, types.VerbCreate, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if !req.HasReverseTunnel() {
+		return nil, trace.BadParameter("reverse_tunnel: must not be nil")
+	}
+
+	if err := services.ValidateReverseTunnel(req.GetReverseTunnel()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	res, err := s.backend.UpsertReverseTunnel(ctx, req.GetReverseTunnel())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	concrete, ok := res.(*types.ReverseTunnelV2)
+	if !ok {
+		return nil, trace.BadParameter("encountered unexpected reverse tunnel type %T", res)
+	}
+
+	return concrete, nil
+}
+
+// DeleteReverseTunnel deletes a reverse tunnel.
+func (s *Service) DeleteReverseTunnel(
+	ctx context.Context, req *presencepb.DeleteReverseTunnelRequest,
+) (*emptypb.Empty, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := authCtx.CheckAccessToKind(types.KindReverseTunnel, types.VerbDelete); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if req.GetName() == "" {
+		return nil, trace.BadParameter("name: must be specified")
+	}
+
+	return nil, trace.Wrap(s.backend.DeleteReverseTunnel(ctx, req.GetName()))
+}
+
+// GetRelayServer implements [presencepb.PresenceServiceServer].
+func (s *Service) GetRelayServer(ctx context.Context, req *presencepb.GetRelayServerRequest) (*presencepb.GetRelayServerResponse, error) {
+	actx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := actx.CheckAccessToKind(types.KindRelayServer, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	relayServer, err := s.cache.GetRelayServer(ctx, req.GetName())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return presencepb.GetRelayServerResponse_builder{
+		RelayServer: relayServer,
+	}.Build(), nil
+}
+
+// ListRelayServers implements [presencepb.PresenceServiceServer].
+func (s *Service) ListRelayServers(ctx context.Context, req *presencepb.ListRelayServersRequest) (*presencepb.ListRelayServersResponse, error) {
+	actx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := actx.CheckAccessToKind(types.KindRelayServer, types.VerbList, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	relayServers, nextPageToken, err := s.cache.ListRelayServers(ctx, int(req.GetPageSize()), req.GetPageToken())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return presencepb.ListRelayServersResponse_builder{
+		Relays:        relayServers,
+		NextPageToken: nextPageToken,
+	}.Build(), nil
+}
+
+// DeleteRelayServer implements [presencepb.PresenceServiceServer].
+func (s *Service) DeleteRelayServer(ctx context.Context, req *presencepb.DeleteRelayServerRequest) (*presencepb.DeleteRelayServerResponse, error) {
+	actx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := actx.CheckAccessToKind(types.KindRelayServer, types.VerbDelete); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := s.backend.DeleteRelayServer(ctx, req.GetName()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &presencepb.DeleteRelayServerResponse{}, nil
+}
+
+// UpsertProxyServer upserts a proxy server heartbeat.
+func (s *Service) UpsertProxyServer(
+	ctx context.Context, req *presencepb.UpsertProxyServerRequest,
+) (*presencepb.UpsertProxyServerResponse, error) {
+	srv := req.GetServer()
+	if srv == nil {
+		return nil, trace.BadParameter("server: must be specified")
+	}
+	// Prior to v19, proxy heartbeats sent the resource with Kind=KindNode
+	// (see https://github.com/gravitational/teleport/issues/66997). v19+
+	// proxies send Kind=KindProxy; this override is retained so older proxies
+	// in mixed clusters continue to upsert correctly.
+	// TODO(strideynet): In V21.0.0, we should consider changing the behavior
+	// to reject or warn on incorrect Kind.
+	srv.Kind = types.KindProxy
+	if err := srv.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := authCtx.CheckAccessToKind(types.KindProxy, types.VerbCreate, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// If the proxy advertised a local/unspecified address, replace the host
+	// component with the peer address observed on the socket.
+	if p, ok := peer.FromContext(ctx); ok {
+		srv.SetAddr(utils.ReplaceLocalhost(srv.GetAddr(), p.Addr.String()))
+	}
+
+	upserted, err := s.backend.UpsertProxyServer(ctx, srv)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	upsertedV2, ok := upserted.(*types.ServerV2)
+	if !ok {
+		return nil, trace.BadParameter("unsupported proxy server type %T", upserted)
+	}
+	return presencepb.UpsertProxyServerResponse_builder{
+		Server: upsertedV2,
+	}.Build(), nil
+}
+
+// DeleteProxyServer deletes a proxy server heartbeat by name.
+func (s *Service) DeleteProxyServer(
+	ctx context.Context, req *presencepb.DeleteProxyServerRequest,
+) (*presencepb.DeleteProxyServerResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := authCtx.CheckAccessToKind(types.KindProxy, types.VerbDelete); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if req.GetName() == "" {
+		return nil, trace.BadParameter("name: must be specified")
+	}
+
+	if err := s.backend.DeleteProxyServer(ctx, req.GetName()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &presencepb.DeleteProxyServerResponse{}, nil
 }

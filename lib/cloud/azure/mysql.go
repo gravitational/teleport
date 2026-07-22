@@ -20,10 +20,10 @@ package azure
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysql"
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 )
 
 var _ DBServersClient = (*mySQLClient)(nil)
@@ -87,9 +87,9 @@ func isMySQLVersionSupported(s *DBServer) bool {
 	case armmysql.ServerVersionFive6:
 		return false
 	default:
-		log.Warnf("Unknown server version: %q. Assuming Azure DB server %q is supported.",
-			s.Properties.Version,
-			s.Name,
+		slog.WarnContext(context.Background(), "Assuming Azure DB server with unknown server version is supported",
+			"version", s.Properties.Version,
+			"server", s.Name,
 		)
 		return true
 	}

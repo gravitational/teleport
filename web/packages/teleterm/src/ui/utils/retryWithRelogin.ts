@@ -16,10 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ClusterOrResourceUri, RootClusterUri, routing } from 'teleterm/ui/uri';
-import { IAppContext } from 'teleterm/ui/types';
 import Logger from 'teleterm/logger';
-import { isTshdRpcError } from 'teleterm/services/tshd/cloneableClient';
+import { isRpcErrorReloginResolvable } from 'teleterm/services/tshd/cloneableClient';
+import { IAppContext } from 'teleterm/ui/types';
+import { ClusterOrResourceUri, RootClusterUri, routing } from 'teleterm/ui/uri';
 
 const logger = new Logger('retryWithRelogin');
 
@@ -94,7 +94,7 @@ export async function retryWithRelogin<T>(
 }
 
 export function isRetryable(error: unknown): boolean {
-  return isTshdRpcError(error) && error.isResolvableWithRelogin;
+  return isRpcErrorReloginResolvable(error);
 }
 
 // Notice that we don't differentiate between onSuccess and onCancel. In both cases, we're going to

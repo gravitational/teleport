@@ -5,6 +5,7 @@ process.env.TZ = 'UTC';
 const esModules = [
   'strip-ansi',
   'ansi-regex',
+  'cookie-es',
   'd3-color',
   'd3-scale',
   'd3-interpolate',
@@ -16,11 +17,20 @@ const esModules = [
   'd3-path',
   'internmap',
   '@nivo/bar',
+  'react-error-boundary',
+  'react-router',
+  'until-async',
+  '@exodus/bytes',
+  'rettime',
+  '@open-draft/deferred-promise',
+  '@gravitational/design-system',
 ].join('|');
 
 /** @type {import('@jest/types').Config.InitialOptions} */
 module.exports = {
   ...config,
+  maxWorkers: '75%',
+  workerIdleMemoryLimit: '1GB',
   globals: {
     electron: {},
   },
@@ -35,6 +45,10 @@ module.exports = {
   // We use a relative pattern to match the second 'node_modules/' in
   // 'node_modules/.pnpm/@scope+pkg-b@x.x.x/node_modules/@scope/pkg-b/'.
   transformIgnorePatterns: [`node_modules/(?!.pnpm|${esModules})`],
+  transform: {
+    '\\.[jt]sx?$': 'babel-jest', // This is the default transform.
+    '\\.mjs$': 'babel-jest',
+  },
   coverageReporters: ['text-summary', 'lcov'],
   testPathIgnorePatterns: ['e2e'],
   testEnvironmentOptions: {
@@ -43,5 +57,6 @@ module.exports = {
   setupFilesAfterEnv: [
     '<rootDir>/web/packages/build/jest/setupTests.ts',
     '<rootDir>/web/packages/build/jest/customMatchers.ts',
+    '<rootDir>/web/packages/build/jest/canvasMock.ts',
   ],
 };

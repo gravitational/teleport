@@ -91,6 +91,24 @@ func FuzzParseElastiCacheEndpoint(f *testing.F) {
 	})
 }
 
+func FuzzParseElastiCacheServerlessEndpoint(f *testing.F) {
+	f.Add("")
+	f.Add(":123")
+	f.Add("foo:123")
+	f.Add("cache.b.c.usnw1.amazonaws.com")
+	f.Add("a.b.c.d.amazonaws.com:6379")
+	f.Add("a.serverless.c.cac1.cache.amazonaws.com:6379")
+	f.Add("example-cache-abc123.serverless.cac1.cache.amazonaws.com:6379")
+	f.Add("redis://example-cache-abc123.serverless.cac1.cache.amazonaws.com:6379")
+	f.Add("://://example-cache-abc123.serverless.cac1.cache.amazonaws.com:6379")
+
+	f.Fuzz(func(t *testing.T, endpoint string) {
+		require.NotPanics(t, func() {
+			_, _ = ParseElastiCacheServerlessEndpoint(endpoint)
+		})
+	})
+}
+
 func FuzzParseDynamoDBEndpoint(f *testing.F) {
 	f.Add("")
 	f.Add(":123")

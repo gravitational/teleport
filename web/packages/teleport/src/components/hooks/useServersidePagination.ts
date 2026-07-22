@@ -16,12 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState, Dispatch, SetStateAction } from 'react';
+import { Dispatch, SetStateAction, useState } from 'react';
+
 import { FetchStatus, Page } from 'design/DataTable/types';
 import useAttempt, { Attempt } from 'shared/hooks/useAttemptNext';
 
-import { ResourcesResponse, ResourceFilter } from 'teleport/services/agents';
 import { UrlResourcesParams } from 'teleport/config';
+import { ResourceFilter, ResourcesResponse } from 'teleport/services/agents';
 
 export function useServerSidePagination<T>({
   fetchFunc,
@@ -139,9 +140,17 @@ export function useServerSidePagination<T>({
 
 type Props<T> = {
   fetchFunc: (
+    /** @deprecated This field is not needed by `useServerSidePagination` and will be removed.
+     * Pass the cluster directly in the fetch function.
+     * */
+    // TODO(rudream): Remove this field
     clusterId: string,
     params: UrlResourcesParams
   ) => Promise<ResourcesResponse<T>>;
+  /** @deprecated This field is not needed by `useServerSidePagination` and will be removed.
+   * Pass the cluster directly in the fetch function.
+   * */
+  // TODO(rudream): Remove this field
   clusterId: string;
   params: ResourceFilter;
   pageSize?: number;

@@ -21,10 +21,11 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"log/slog"
 	"strings"
-	"text/template"
 	"time"
 
+	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
@@ -33,7 +34,8 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apitypes "github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/lib/embeddedtbot"
-	tbotconfig "github.com/gravitational/teleport/lib/tbot/config"
+	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/bot/onboarding"
 )
 
 var supportedCredentialSources = CredentialSources{
@@ -63,7 +65,7 @@ func (s CredentialSources) ActiveSources(ctx context.Context, config providerDat
 		}
 		if !active {
 			tflog.Info(ctx, "credentials source is not active, skipping", logFields)
-			inactiveReason.WriteString(fmt.Sprintf(" - cannot read credentials %s because %s\n", source.Name(), reason))
+			fmt.Fprintf(&inactiveReason, " - cannot read credentials %s because %s\n", source.Name(), reason)
 			continue
 		}
 		tflog.Info(ctx, "credentials source is active", logFields)
@@ -483,14 +485,18 @@ func (CredentialsFromNativeMachineID) IsActive(config providerData) (bool, strin
 func (CredentialsFromNativeMachineID) Credentials(ctx context.Context, config providerData) (client.Credentials, error) {
 	joinMethod := stringFromConfigOrEnv(config.JoinMethod, constants.EnvVarTerraformJoinMethod, "")
 	joinToken := stringFromConfigOrEnv(config.JoinToken, constants.EnvVarTerraformJoinToken, "")
+	audienceTag := stringFromConfigOrEnv(config.AudienceTag, constants.EnvVarTerraformCloudJoinAudienceTag, "")
 	addr := stringFromConfigOrEnv(config.Addr, constants.EnvVarTerraformAddress, "")
 	caPath := stringFromConfigOrEnv(config.RootCaPath, constants.EnvVarTerraformRootCertificates, "")
+	gitlabIDTokenEnvVar := stringFromConfigOrEnv(config.GitlabIDTokenEnvVar, constants.EnvVarGitlabIDTokenEnvVar, "")
+	insecure := boolFromConfigOrEnv(config.Insecure, constants.EnvVarTerraformInsecure)
+	scoped := boolFromConfigOrEnv(config.Scoped, constants.EnvVarTerraformScoped)
 
 	if joinMethod == "" {
 		return nil, trace.BadParameter("missing parameter %q or environment variable %q", attributeTerraformJoinMethod, constants.EnvVarTerraformJoinMethod)
 	}
 	if joinToken == "" {
-		return nil, trace.BadParameter("missing parameter %q or environment variable %q", attributeTerraformJoinMethod, constants.EnvVarTerraformJoinMethod)
+		return nil, trace.BadParameter("missing parameter %q or environment variable %q", attributeTerraformJoinToken, constants.EnvVarTerraformJoinToken)
 	}
 	if addr == "" {
 		return nil, trace.BadParameter("missing parameter %q or environment variable %q", attributeTerraformAddress, constants.EnvVarTerraformAddress)
@@ -511,16 +517,31 @@ See https://goteleport.com/docs/reference/join-methods for more details.`)
 		return nil, trace.Wrap(err, "Invalid Join Method")
 	}
 	botConfig := &embeddedtbot.BotConfig{
+		Kind:       bot.KindTerraformProvider,
 		AuthServer: addr,
-		Onboarding: tbotconfig.OnboardingConfig{
+		Onboarding: onboarding.Config{
 			TokenValue: joinToken,
 			CAPath:     caPath,
 			JoinMethod: apitypes.JoinMethod(joinMethod),
+			Terraform: onboarding.TerraformOnboardingConfig{
+				AudienceTag: audienceTag,
+			},
+			Gitlab: onboarding.GitlabOnboardingConfig{
+				TokenEnvVarName: gitlabIDTokenEnvVar,
+			},
+			Kubernetes: onboarding.KubernetesOnboardingConfig{
+				TokenPath: config.KubernetesTokenPath.Value,
+			},
 		},
-		CertificateTTL:  time.Hour,
-		RenewalInterval: 20 * time.Minute,
+		CredentialLifetime: bot.CredentialLifetime{
+			TTL:             time.Hour,
+			RenewalInterval: 20 * time.Minute,
+		},
+		Insecure: insecure,
+		Scoped:   scoped,
 	}
-	bot, err := embeddedtbot.New(botConfig)
+	// slog default logger has been configured during the provider init.
+	bot, err := embeddedtbot.New(botConfig, slog.Default())
 	if err != nil {
 		return nil, trace.Wrap(err, "Failed to create bot configuration, this is a provider bug, please open a GitHub issue.")
 	}

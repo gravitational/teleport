@@ -21,9 +21,13 @@ package main
 
 import (
 	"flag"
+	"fmt"
+	"log/slog"
 	"os"
 	"time"
 
+	"github.com/go-logr/logr"
+	"k8s.io/client-go/discovery"
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
@@ -31,41 +35,60 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
-	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/integrations/lib/embeddedtbot"
 	"github.com/gravitational/teleport/integrations/operator/controllers"
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources"
+	"github.com/gravitational/teleport/lib/tbot/bot"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
-var (
-	scheme   = controllers.Scheme
-	setupLog = ctrl.Log.WithName("setup")
-)
+var scheme = controllers.Scheme
+
+var extraFields = []string{logutils.LevelField, logutils.ComponentField, logutils.TimestampField}
 
 func main() {
 	ctx := ctrl.SetupSignalHandler()
 
+	// Setup early logger, using INFO level by default.
+	slogLogger, slogLeveler, _, err := logutils.Initialize(logutils.Config{
+		Severity:    slog.LevelInfo.String(),
+		Format:      "json",
+		ExtraFields: extraFields,
+	})
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed to initialize logs: %v\n", err)
+		os.Exit(1)
+	}
+
+	logger := logr.FromSlogHandler(slogLogger.Handler())
+	ctrl.SetLogger(logger)
+	setupLog := logger.WithName("setup")
+
 	config := &operatorConfig{}
 	config.BindFlags(flag.CommandLine)
-	opts := zap.Options{
-		Development: true,
-	}
-	opts.BindFlags(flag.CommandLine)
-	botConfig := &embeddedtbot.BotConfig{}
+	botConfig := &embeddedtbot.BotConfig{Kind: bot.KindKubernetesOperator}
 	botConfig.BindFlags(flag.CommandLine)
 	flag.Parse()
 
-	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
+	// Now that we parsed the flags, we can tune the log level.
+	var logLevel slog.Level
+	if err := (&logLevel).UnmarshalText([]byte(config.logLevel)); err != nil {
+		setupLog.Error(err, "Failed to parse log level", "level", config.logLevel)
+		os.Exit(1)
+	}
+	slogLeveler.Set(logLevel)
 
-	err := config.CheckAndSetDefaults()
+	err = config.CheckAndSetDefaults()
 	if err != nil {
 		setupLog.Error(err, "invalid configuration")
 		os.Exit(1)
 	}
 
-	bot, err := embeddedtbot.New(botConfig)
+	botConfig.Scoped = config.scoped
+	bot, err := embeddedtbot.New(botConfig, slogLogger.With(teleport.ComponentLabel, "embedded-tbot"))
 	if err != nil {
 		setupLog.Error(err, "unable to build tbot")
 		os.Exit(1)
@@ -82,7 +105,13 @@ func main() {
 		setupLog.Error(err, "error waiting the teleport client")
 	}
 
-	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
+	kubeClientConfig := ctrl.GetConfigOrDie()
+	discoveryClient, err := discovery.NewDiscoveryClientForConfig(kubeClientConfig)
+	if err != nil {
+		setupLog.Error(err, "unable to create kubernetes client")
+	}
+
+	mgr, err := ctrl.NewManager(kubeClientConfig, ctrl.Options{
 		Scheme: scheme,
 		Metrics: metricsserver.Options{
 			BindAddress: config.metricsAddr,
@@ -111,7 +140,14 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err = resources.SetupAllControllers(setupLog, mgr, client, pong.ServerFeatures); err != nil {
+	if err = resources.SetupAllControllers(
+		resources.Config{
+			Log:            setupLog,
+			TeleportClient: client,
+			KubeClient:     mgr.GetClient(),
+			Scoped:         config.scoped,
+			Features:       pong.ServerFeatures,
+		}, mgr, discoveryClient); err != nil {
 		setupLog.Error(err, "failed to setup controllers")
 		os.Exit(1)
 	}

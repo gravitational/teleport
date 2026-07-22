@@ -16,12 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package auth
+package auth_test
 
 import (
 	"cmp"
 	"context"
 	"crypto/tls"
+	"maps"
 	"slices"
 	"sort"
 	"strings"
@@ -32,7 +33,6 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/maps"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -41,20 +41,19 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/accesslist"
-	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/entitlements"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/services/local"
+	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 type accessRequestTestPack struct {
-	tlsServer   *TestTLSServer
+	tlsServer   *authtest.TLSServer
 	clusterName string
 	roles       map[string]types.RoleSpecV6
 	users       map[string][]string
@@ -65,8 +64,9 @@ type accessRequestTestPack struct {
 }
 
 func newAccessRequestTestPack(ctx context.Context, t *testing.T) *accessRequestTestPack {
-	testAuthServer, err := NewTestAuthServer(TestAuthServerConfig{
-		Dir: t.TempDir(),
+	testAuthServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
+		Dir:     t.TempDir(),
+		Modules: modulestest.EnterpriseModules(),
 	})
 	require.NoError(t, err, "%s", trace.DebugReport(err))
 	t.Cleanup(func() { require.NoError(t, testAuthServer.Close()) })
@@ -75,7 +75,7 @@ func newAccessRequestTestPack(ctx context.Context, t *testing.T) *accessRequestT
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, tlsServer.Close()) })
 
-	clusterName, err := tlsServer.Auth().GetClusterName()
+	clusterName, err := tlsServer.Auth().GetClusterName(ctx)
 	require.NoError(t, err)
 
 	roles := map[string]types.RoleSpecV6{
@@ -127,6 +127,30 @@ func newAccessRequestTestPack(ctx context.Context, t *testing.T) *accessRequestT
 				},
 			},
 		},
+		// requesters-threshold can request everything possible, with threshold of 2 approvals
+		"requesters-threshold": {
+			Allow: types.RoleConditions{
+				Request: &types.AccessRequestConditions{
+					Roles:         []string{"admins", "superadmins"},
+					SearchAsRoles: []string{"admins", "superadmins"},
+					MaxDuration:   types.Duration(services.MaxAccessDuration),
+					Thresholds: []types.AccessReviewThreshold{
+						{Approve: 2},
+					},
+				},
+			},
+		},
+		// plugin-reviewers can submit reviews for every user
+		"plugin-reviewers": {
+			Allow: types.RoleConditions{
+				ReviewRequests: &types.AccessReviewConditions{
+					SubmitForUsers: []string{"*"},
+				},
+				Rules: []types.Rule{
+					types.NewRule(types.KindUser, services.RO()),
+				},
+			},
+		},
 		"empty": {},
 	}
 	for roleName, roleSpec := range roles {
@@ -138,11 +162,14 @@ func newAccessRequestTestPack(ctx context.Context, t *testing.T) *accessRequestT
 	}
 
 	users := map[string][]string{
-		"admin":     {"admins"},
-		"responder": {"responders"},
-		"operator":  {"operators"},
-		"requester": {"requesters"},
-		"nobody":    {"empty"},
+		"admin":               {"admins"},
+		"responder":           {"responders"},
+		"operator":            {"operators"},
+		"requester":           {"requesters"},
+		"nobody":              {"empty"},
+		"admin2":              {"admins"},
+		"requester-threshold": {"requesters-threshold"},
+		"plugin-reviewer":     {"plugin-reviewers", "requesters"}, // "requesters" tests edge case where plugin reviewer applys a review on its own request
 	}
 	for name, roles := range users {
 		user, err := types.NewUser(name)
@@ -188,9 +215,8 @@ func newAccessRequestTestPack(ctx context.Context, t *testing.T) *accessRequestT
 }
 
 func TestAccessRequest(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
+	t.Parallel()
+	ctx := t.Context()
 
 	testPack := newAccessRequestTestPack(ctx, t)
 	t.Run("single", func(t *testing.T) { testSingleAccessRequests(t, testPack) })
@@ -198,6 +224,8 @@ func TestAccessRequest(t *testing.T) {
 	t.Run("role refresh with bogus request ID", func(t *testing.T) { testRoleRefreshWithBogusRequestID(t, testPack) })
 	t.Run("bot user approver", func(t *testing.T) { testBotAccessRequestReview(t, testPack) })
 	t.Run("deny", func(t *testing.T) { testAccessRequestDenyRules(t, testPack) })
+	t.Run("cert extension resource IDs", func(t *testing.T) { testCertExtensionResourceIDs(t, testPack) })
+	t.Run("submit_for_users review", func(t *testing.T) { testSubmitAccessReview_SubmitForUsers(t, testPack) })
 }
 
 // waitForAccessRequests is a helper for writing access request tests that need to wait for access request CRUD. the supplied condition is
@@ -251,7 +279,7 @@ func TestAccessRequestResourceRBACLimits(t *testing.T) {
 
 	clock := clockwork.NewFakeClock()
 
-	authServer, err := NewTestAuthServer(TestAuthServerConfig{
+	authServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir:   t.TempDir(),
 		Clock: clock,
 	})
@@ -262,8 +290,7 @@ func TestAccessRequestResourceRBACLimits(t *testing.T) {
 	require.NoError(t, err)
 	defer tlsServer.Close()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	staticRole, err := types.NewRole(staticRoleName, types.RoleSpecV6{
 		Allow: types.RoleConditions{
@@ -300,7 +327,7 @@ func TestAccessRequestResourceRBACLimits(t *testing.T) {
 	_, err = tlsServer.Auth().UpsertUser(ctx, otherUser)
 	require.NoError(t, err)
 
-	clt, err := tlsServer.NewClient(TestUser(userName))
+	clt, err := tlsServer.NewClient(authtest.TestUser(userName))
 	require.NoError(t, err)
 	defer clt.Close()
 
@@ -370,7 +397,7 @@ func TestListAccessRequests(t *testing.T) {
 
 	clock := clockwork.NewFakeClock()
 
-	authServer, err := NewTestAuthServer(TestAuthServerConfig{
+	authServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir:   t.TempDir(),
 		Clock: clock,
 	})
@@ -381,8 +408,7 @@ func TestListAccessRequests(t *testing.T) {
 	require.NoError(t, err)
 	defer tlsServer.Close()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	userA, userB := "lister-a", "lister-b"
 	roleA, roleB := userA+"-role", userB+"-role"
@@ -422,11 +448,11 @@ func TestListAccessRequests(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	clientA, err := tlsServer.NewClient(TestUser(userA))
+	clientA, err := tlsServer.NewClient(authtest.TestUser(userA))
 	require.NoError(t, err)
 	defer clientA.Close()
 
-	clientB, err := tlsServer.NewClient(TestUser(userB))
+	clientB, err := tlsServer.NewClient(authtest.TestUser(userB))
 	require.NoError(t, err)
 	defer clientB.Close()
 
@@ -434,7 +460,7 @@ func TestListAccessRequests(t *testing.T) {
 	// verify sort order).
 	var orderedIDs []string
 
-	for i := 0; i < requestsPerUser; i++ {
+	for range requestsPerUser {
 		clock.Advance(time.Second)
 		reqA, err := services.NewAccessRequest(userA, rroleA)
 		require.NoError(t, err)
@@ -443,7 +469,7 @@ func TestListAccessRequests(t *testing.T) {
 		orderedIDs = append(orderedIDs, rr.GetName())
 	}
 
-	for i := 0; i < requestsPerUser; i++ {
+	for range requestsPerUser {
 		clock.Advance(time.Second)
 		reqB, err := services.NewAccessRequest(userB, rroleB)
 		require.NoError(t, err)
@@ -613,6 +639,220 @@ func TestListAccessRequests(t *testing.T) {
 	}))
 }
 
+func TestListAccessRequestsUserDisplays(t *testing.T) {
+	t.Parallel()
+
+	authServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
+		Dir: t.TempDir(),
+	})
+	require.NoError(t, err)
+	defer authServer.Close()
+
+	tlsServer, err := authServer.NewTestTLSServer()
+	require.NoError(t, err)
+	defer tlsServer.Close()
+
+	ctx := t.Context()
+
+	const (
+		requester         = "display-requester"
+		reviewer          = "display-reviewer"
+		suggestedReviewer = "display-suggested-reviewer"
+		plainUser         = "display-plain-user"
+		missingUser       = "display-missing-user"
+		roleName          = "display-role"
+	)
+
+	role, err := types.NewRole(roleName, types.RoleSpecV6{})
+	require.NoError(t, err)
+	_, err = tlsServer.Auth().UpsertRole(ctx, role)
+	require.NoError(t, err)
+
+	for _, user := range []types.User{
+		newAccessRequestDisplayUser(t, requester, "Request User", "requester@example.com", roleName),
+		newAccessRequestDisplayUser(t, reviewer, "Review User", "reviewer@example.com", roleName),
+		newAccessRequestDisplayUser(t, suggestedReviewer, "Suggested User", "suggested@example.com", roleName),
+		newAccessRequestDisplayUser(t, plainUser, "", "", roleName),
+	} {
+		_, err := tlsServer.Auth().UpsertUser(ctx, user)
+		require.NoError(t, err)
+	}
+
+	req, err := services.NewAccessRequest(requester, roleName)
+	require.NoError(t, err)
+	req.SetReviews([]types.AccessReview{{Author: reviewer}})
+	req.SetSuggestedReviewers([]string{suggestedReviewer, plainUser, missingUser})
+	require.NoError(t, tlsServer.Auth().UpsertAccessRequest(ctx, req))
+
+	waitForAccessRequests(t, ctx, tlsServer.Auth(), func(reqs []*types.AccessRequestV3) bool {
+		return len(reqs) == 1
+	})
+
+	adminClient, err := tlsServer.NewClient(authtest.TestAdmin())
+	require.NoError(t, err)
+	defer adminClient.Close()
+
+	rsp, err := adminClient.ListAccessRequests(ctx, &proto.ListAccessRequestsRequest{
+		Filter: &types.AccessRequestFilter{
+			ID: req.GetName(),
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, rsp.AccessRequests, 1)
+	require.Equal(t, map[string]*proto.UserDisplay{
+		requester: {
+			Primary:   "Request User",
+			Secondary: "requester@example.com",
+		},
+		reviewer: {
+			Primary:   "Review User",
+			Secondary: "reviewer@example.com",
+		},
+		suggestedReviewer: {
+			Primary:   "Suggested User",
+			Secondary: "suggested@example.com",
+		},
+		plainUser: {},
+	}, rsp.UserDisplays)
+	require.NotContains(t, rsp.UserDisplays, missingUser)
+}
+
+func newAccessRequestDisplayUser(t *testing.T, name, primary, secondary, role string) types.User {
+	t.Helper()
+
+	user, err := types.NewUser(name)
+	require.NoError(t, err)
+	user.SetRoles([]string{role})
+
+	traits := make(map[string][]string)
+	if primary != "" {
+		traits["displayName"] = []string{primary}
+	}
+	if secondary != "" {
+		traits["email"] = []string{secondary}
+	}
+	user.SetTraits(traits)
+	return user
+}
+
+func TestCreateAccessRequestV2DryRunUserDisplays(t *testing.T) {
+	t.Parallel()
+
+	const (
+		requester                = "dry-run-display-requester"
+		policySuggestedReviewer  = "dry-run-display-policy-reviewer"
+		dynamicSuggestedReviewer = "dry-run-display-dynamic-reviewer"
+		callerSuggestedReviewer  = "dry-run-display-caller-reviewer"
+		missingUser              = "dry-run-display-missing-user"
+		requestableRole          = "dry-run-display-requestable-role"
+		requesterRole            = "dry-run-display-requester-role"
+	)
+
+	testModules := modulestest.EnterpriseModules()
+	testModules.GenerateAccessRequestSuggestedReviewersFn = func(context.Context, modules.AccessResourcesGetter, types.AccessRequest) ([]string, error) {
+		return []string{dynamicSuggestedReviewer}, nil
+	}
+
+	authServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
+		Dir:     t.TempDir(),
+		Modules: testModules,
+	})
+	require.NoError(t, err)
+	defer authServer.Close()
+
+	tlsServer, err := authServer.NewTestTLSServer()
+	require.NoError(t, err)
+	defer tlsServer.Close()
+
+	ctx := t.Context()
+
+	requestable, err := types.NewRole(requestableRole, types.RoleSpecV6{})
+	require.NoError(t, err)
+	_, err = tlsServer.Auth().UpsertRole(ctx, requestable)
+	require.NoError(t, err)
+
+	// The requester can request the requestable role but cannot read other
+	// users, so displays must come from server-side resolution.
+	role, err := types.NewRole(requesterRole, types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Request: &types.AccessRequestConditions{
+				Roles:              []string{requestableRole},
+				SuggestedReviewers: []string{policySuggestedReviewer},
+			},
+		},
+	})
+	require.NoError(t, err)
+	_, err = tlsServer.Auth().UpsertRole(ctx, role)
+	require.NoError(t, err)
+
+	for _, user := range []types.User{
+		newAccessRequestDisplayUser(t, requester, "Request User", "requester@example.com", requesterRole),
+		newAccessRequestDisplayUser(t, policySuggestedReviewer, "Policy Reviewer", "policy@example.com", requestableRole),
+		newAccessRequestDisplayUser(t, dynamicSuggestedReviewer, "Dynamic Reviewer", "dynamic@example.com", requestableRole),
+		newAccessRequestDisplayUser(t, callerSuggestedReviewer, "Caller Reviewer", "caller@example.com", requestableRole),
+	} {
+		_, err := tlsServer.Auth().UpsertUser(ctx, user)
+		require.NoError(t, err)
+	}
+
+	clt, err := tlsServer.NewClient(authtest.TestUser(requester))
+	require.NoError(t, err)
+	defer clt.Close()
+
+	t.Run("server suggested reviewers", func(t *testing.T) {
+		req, err := services.NewAccessRequest(requester, requestableRole)
+		require.NoError(t, err)
+		req.SetDryRun(true)
+
+		resp, err := clt.CreateAccessRequestV2(ctx, req)
+		require.NoError(t, err)
+
+		enrichment := resp.GetDryRunEnrichment()
+		require.NotNil(t, enrichment)
+		require.Equal(t, types.RequestReasonModeOptional, enrichment.ReasonMode)
+		require.Equal(t, map[string]types.AccessRequestUserDisplay{
+			requester: {
+				Primary:   "Request User",
+				Secondary: "requester@example.com",
+			},
+			policySuggestedReviewer: {
+				Primary:   "Policy Reviewer",
+				Secondary: "policy@example.com",
+			},
+			dynamicSuggestedReviewer: {
+				Primary:   "Dynamic Reviewer",
+				Secondary: "dynamic@example.com",
+			},
+		}, enrichment.UserDisplays)
+	})
+
+	t.Run("caller suggested reviewers", func(t *testing.T) {
+		req, err := services.NewAccessRequest(requester, requestableRole)
+		require.NoError(t, err)
+		req.SetDryRun(true)
+		req.SetSuggestedReviewers([]string{callerSuggestedReviewer, missingUser})
+
+		resp, err := clt.CreateAccessRequestV2(ctx, req)
+		require.NoError(t, err)
+
+		enrichment := resp.GetDryRunEnrichment()
+		require.NotNil(t, enrichment)
+		require.Equal(t, map[string]types.AccessRequestUserDisplay{
+			requester: {
+				Primary:   "Request User",
+				Secondary: "requester@example.com",
+			},
+			dynamicSuggestedReviewer: {
+				Primary:   "Dynamic Reviewer",
+				Secondary: "dynamic@example.com",
+			},
+		}, enrichment.UserDisplays)
+		require.Contains(t, resp.GetSuggestedReviewers(), callerSuggestedReviewer)
+		require.NotContains(t, enrichment.UserDisplays, callerSuggestedReviewer)
+		require.NotContains(t, enrichment.UserDisplays, missingUser)
+	})
+}
+
 func testAccessRequestDenyRules(t *testing.T, testPack *accessRequestTestPack) {
 	t.Parallel()
 
@@ -760,11 +1000,11 @@ func testAccessRequestDenyRules(t *testing.T, testPack *accessRequestTestPack) {
 			}
 			user, err := types.NewUser(userName)
 			require.NoError(t, err)
-			user.SetRoles(maps.Keys(tc.roles))
+			user.SetRoles(slices.Collect(maps.Keys(tc.roles)))
 			_, err = testPack.tlsServer.Auth().UpsertUser(ctx, user)
 			require.NoError(t, err)
 
-			client, err := testPack.tlsServer.NewClient(TestUser(userName))
+			client, err := testPack.tlsServer.NewClient(authtest.TestUser(userName))
 			require.NoError(t, err)
 
 			_, err = client.GetAccessRequests(ctx, types.AccessRequestFilter{})
@@ -786,9 +1026,6 @@ func testAccessRequestDenyRules(t *testing.T, testPack *accessRequestTestPack) {
 
 func testSingleAccessRequests(t *testing.T, testPack *accessRequestTestPack) {
 	t.Parallel()
-
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
 
 	testCases := []struct {
 		desc                   string
@@ -864,17 +1101,16 @@ func testSingleAccessRequests(t *testing.T, testPack *accessRequestTestPack) {
 		},
 	}
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.desc, func(t *testing.T) {
 			t.Parallel()
-			requester := TestUser(tc.requester)
+			requester := authtest.TestUser(tc.requester)
 			requesterClient, err := testPack.tlsServer.NewClient(requester)
 			require.NoError(t, err)
 
 			// generateCerts executes a GenerateUserCerts request, optionally applying
 			// one or more access-requests to the certificate.
 			generateCerts := func(reqIDs ...string) (*proto.Certs, error) {
-				return requesterClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
+				return requesterClient.GenerateUserCerts(t.Context(), proto.UserCertsRequest{
 					SSHPublicKey:   testPack.sshPubKey,
 					TLSPublicKey:   testPack.tlsPubKey,
 					Username:       tc.requester,
@@ -892,31 +1128,33 @@ func testSingleAccessRequests(t *testing.T, testPack *accessRequestTestPack) {
 			checkCerts(t, certs, testPack.users[tc.requester], nil, nil, nil)
 
 			// should not be able to list any nodes
-			nodes, err := requesterClient.GetNodes(ctx, defaults.Namespace)
+			nodes, err := requesterClient.GetNodes(t.Context(), defaults.Namespace)
 			require.NoError(t, err)
 			require.Empty(t, nodes)
 
 			// requestable roles should be correct
-			caps, err := requesterClient.GetAccessCapabilities(ctx, types.AccessCapabilitiesRequest{
+			caps, err := requesterClient.GetAccessCapabilities(t.Context(), types.AccessCapabilitiesRequest{
 				RequestableRoles: true,
 			})
 			require.NoError(t, err)
 			require.Equal(t, tc.expectRequestableRoles, caps.RequestableRoles)
 
 			// create the access request object
-			requestResourceIDs := []types.ResourceID{}
+			requestResourceIDs := []types.ResourceAccessID{}
 			for _, nodeName := range tc.requestResources {
-				requestResourceIDs = append(requestResourceIDs, types.ResourceID{
-					ClusterName: testPack.clusterName,
-					Kind:        types.KindNode,
-					Name:        nodeName,
+				requestResourceIDs = append(requestResourceIDs, types.ResourceAccessID{
+					Id: types.ResourceID{
+						ClusterName: testPack.clusterName,
+						Kind:        types.KindNode,
+						Name:        nodeName,
+					},
 				})
 			}
 			req, err := services.NewAccessRequestWithResources(tc.requester, tc.requestRoles, requestResourceIDs)
 			require.NoError(t, err)
 
 			// send the request to the auth server
-			req, err = requesterClient.CreateAccessRequestV2(ctx, req)
+			req, err = requesterClient.CreateAccessRequestV2(t.Context(), req)
 			require.ErrorIs(t, err, tc.expectRequestError)
 			if tc.expectRequestError != nil {
 				return
@@ -926,12 +1164,12 @@ func testSingleAccessRequests(t *testing.T, testPack *accessRequestTestPack) {
 			_, err = generateCerts(req.GetName())
 			require.ErrorIs(t, err, trace.AccessDenied("access request %q is awaiting approval", req.GetName()))
 
-			reviewer := TestUser(tc.reviewer)
+			reviewer := authtest.TestUser(tc.reviewer)
 			reviewerClient, err := testPack.tlsServer.NewClient(reviewer)
 			require.NoError(t, err)
 
 			// approve the request
-			req, err = reviewerClient.SubmitAccessReview(ctx, types.AccessReviewSubmission{
+			req, err = reviewerClient.SubmitAccessReview(t.Context(), types.AccessReviewSubmission{
 				RequestID: req.GetName(),
 				Review: types.AccessReview{
 					ProposedState: types.RequestState_APPROVED,
@@ -960,12 +1198,13 @@ func testSingleAccessRequests(t *testing.T, testPack *accessRequestTestPack) {
 
 			elevatedCert, err := tls.X509KeyPair(certs.TLS, testPack.tlsPrivKey)
 			require.NoError(t, err)
-			elevatedClient := testPack.tlsServer.NewClientWithCert(elevatedCert)
+			elevatedClient, err := testPack.tlsServer.NewClientWithCert(elevatedCert)
+			require.NoError(t, err)
 
 			// should be able to list the expected nodes
-			nodes, err = elevatedClient.GetNodes(ctx, defaults.Namespace)
+			nodes, err = elevatedClient.GetNodes(t.Context(), defaults.Namespace)
 			require.NoError(t, err)
-			gotNodes := []string{}
+			gotNodes := make([]string, 0, len(nodes))
 			for _, node := range nodes {
 				gotNodes = append(gotNodes, node.GetName())
 			}
@@ -973,7 +1212,7 @@ func testSingleAccessRequests(t *testing.T, testPack *accessRequestTestPack) {
 			require.Equal(t, tc.expectNodes, gotNodes)
 
 			// renew elevated certs
-			newCerts, err := elevatedClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
+			newCerts, err := elevatedClient.GenerateUserCerts(t.Context(), proto.UserCertsRequest{
 				SSHPublicKey: testPack.sshPubKey,
 				TLSPublicKey: testPack.tlsPubKey,
 				Username:     tc.requester,
@@ -984,7 +1223,7 @@ func testSingleAccessRequests(t *testing.T, testPack *accessRequestTestPack) {
 			require.NoError(t, err)
 
 			// in spite of providing no access requests, we still have elevated
-			// roles and the certicate shows the original access request
+			// roles and the certificate shows the original access request
 			checkCerts(t,
 				newCerts,
 				tc.expectRoles,
@@ -992,36 +1231,55 @@ func testSingleAccessRequests(t *testing.T, testPack *accessRequestTestPack) {
 				[]string{req.GetName()},
 				requestResourceIDs)
 
-			// attempt to apply request in DENIED state (should fail)
-			require.NoError(t, testPack.tlsServer.Auth().SetAccessRequestState(ctx, types.AccessRequestUpdate{
+			// ensure that once in the APPROVED state, a request cannot be set to DENIED.
+			err = testPack.tlsServer.Auth().SetAccessRequestState(t.Context(), types.AccessRequestUpdate{
 				RequestID: req.GetName(),
 				State:     types.RequestState_DENIED,
-			}))
-			_, err = generateCerts(req.GetName())
-			require.ErrorIs(t, err, trace.AccessDenied("access request %q has been denied", req.GetName()))
+			})
+			require.True(t, trace.IsBadParameter(err), "unexpected error: %v", err)
 
-			// ensure that once in the DENIED state, a request cannot be set back to PENDING state.
-			require.Error(t, testPack.tlsServer.Auth().SetAccessRequestState(ctx, types.AccessRequestUpdate{
-				RequestID: req.GetName(),
-				State:     types.RequestState_PENDING,
-			}))
-
-			// ensure that once in the DENIED state, a request cannot be set back to APPROVED state.
-			require.Error(t, testPack.tlsServer.Auth().SetAccessRequestState(ctx, types.AccessRequestUpdate{
+			// ensure that once in the APPROVED state, a request cannot be updated again.
+			err = testPack.tlsServer.Auth().SetAccessRequestState(t.Context(), types.AccessRequestUpdate{
 				RequestID: req.GetName(),
 				State:     types.RequestState_APPROVED,
+			})
+			require.True(t, trace.IsBadParameter(err), "unexpected error: %v", err)
+
+			deniedReq, err := services.NewAccessRequestWithResources(tc.requester, tc.requestRoles, requestResourceIDs)
+			require.NoError(t, err)
+			deniedReq, err = requesterClient.CreateAccessRequestV2(t.Context(), deniedReq)
+			require.NoError(t, err)
+
+			// attempt to use a request in DENIED state (should fail)
+			require.NoError(t, testPack.tlsServer.Auth().SetAccessRequestState(t.Context(), types.AccessRequestUpdate{
+				RequestID: deniedReq.GetName(),
+				State:     types.RequestState_DENIED,
 			}))
 
 			// ensure that identities with requests in the DENIED state can't reissue new certs.
-			_, err = elevatedClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
-				SSHPublicKey: testPack.sshPubKey,
-				TLSPublicKey: testPack.tlsPubKey,
-				Username:     tc.requester,
-				Expires:      time.Now().Add(time.Hour).UTC(),
-				// no new access requests
-				AccessRequests: nil,
+			_, err = generateCerts(deniedReq.GetName())
+			require.ErrorIs(t, err, trace.AccessDenied("access request %q has been denied", deniedReq.GetName()))
+
+			// ensure that once in the DENIED state, a request cannot be set back to PENDING state.
+			err = testPack.tlsServer.Auth().SetAccessRequestState(t.Context(), types.AccessRequestUpdate{
+				RequestID: deniedReq.GetName(),
+				State:     types.RequestState_PENDING,
 			})
-			require.ErrorIs(t, err, trace.AccessDenied("access request %q has been denied", req.GetName()))
+			require.True(t, trace.IsBadParameter(err), "unexpected error: %v", err)
+
+			// ensure that once in the DENIED state, a request cannot be set back to APPROVED state.
+			err = testPack.tlsServer.Auth().SetAccessRequestState(t.Context(), types.AccessRequestUpdate{
+				RequestID: deniedReq.GetName(),
+				State:     types.RequestState_APPROVED,
+			})
+			require.True(t, trace.IsBadParameter(err), "unexpected error: %v", err)
+
+			// ensure that once in the DENIED state, a request cannot be updated again.
+			err = testPack.tlsServer.Auth().SetAccessRequestState(t.Context(), types.AccessRequestUpdate{
+				RequestID: deniedReq.GetName(),
+				State:     types.RequestState_DENIED,
+			})
+			require.True(t, trace.IsBadParameter(err), "unexpected error: %v", err)
 		})
 	}
 }
@@ -1036,31 +1294,33 @@ func testBotAccessRequestReview(t *testing.T, testPack *accessRequestTestPack) {
 	t.Cleanup(cancel)
 
 	// Create the bot
-	adminClient, err := testPack.tlsServer.NewClient(TestAdmin())
+	adminClient, err := testPack.tlsServer.NewClient(authtest.TestAdmin())
 	require.NoError(t, err)
 	defer adminClient.Close()
-	bot, err := adminClient.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
-		Bot: &machineidv1pb.Bot{
-			Metadata: &headerv1.Metadata{
+	bot, err := adminClient.BotServiceClient().CreateBot(ctx, machineidv1pb.CreateBotRequest_builder{
+		Bot: machineidv1pb.Bot_builder{
+			Kind:    types.KindBot,
+			Version: types.V1,
+			Metadata: headerv1.Metadata_builder{
 				Name: "request-approver",
-			},
-			Spec: &machineidv1pb.BotSpec{
+			}.Build(),
+			Spec: machineidv1pb.BotSpec_builder{
 				Roles: []string{
 					// Grants the ability to approve requests
 					"admins",
 				},
-			},
-		},
-	})
+			}.Build(),
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 
 	// Use the bot user to generate some certs using role impersonation.
 	// This mimics what the bot actually does.
-	botClient, err := testPack.tlsServer.NewClient(TestUser(bot.Status.UserName))
+	botClient, err := testPack.tlsServer.NewClient(authtest.TestUser(bot.GetStatus().GetUserName()))
 	require.NoError(t, err)
 	defer botClient.Close()
 	certRes, err := botClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
-		Username:     bot.Status.UserName,
+		Username:     bot.GetStatus().GetUserName(),
 		TLSPublicKey: testPack.tlsPubKey,
 		Expires:      time.Now().Add(time.Hour),
 
@@ -1070,11 +1330,12 @@ func testBotAccessRequestReview(t *testing.T, testPack *accessRequestTestPack) {
 	require.NoError(t, err)
 	tlsCert, err := tls.X509KeyPair(certRes.TLS, testPack.tlsPrivKey)
 	require.NoError(t, err)
-	impersonatedBotClient := testPack.tlsServer.NewClientWithCert(tlsCert)
+	impersonatedBotClient, err := testPack.tlsServer.NewClientWithCert(tlsCert)
+	require.NoError(t, err)
 	defer impersonatedBotClient.Close()
 
 	// Create an access request for the bot to approve
-	requesterClient, err := testPack.tlsServer.NewClient(TestUser("requester"))
+	requesterClient, err := testPack.tlsServer.NewClient(authtest.TestUser("requester"))
 	require.NoError(t, err)
 	defer requesterClient.Close()
 	accessRequest, err := services.NewAccessRequest("requester", "admins")
@@ -1092,7 +1353,7 @@ func testBotAccessRequestReview(t *testing.T, testPack *accessRequestTestPack) {
 	require.NoError(t, err)
 
 	// Check the final state of the request
-	require.Equal(t, bot.Status.UserName, accessRequest.GetReviews()[0].Author)
+	require.Equal(t, bot.GetStatus().GetUserName(), accessRequest.GetReviews()[0].Author)
 	require.Equal(t, types.RequestState_APPROVED, accessRequest.GetState())
 }
 
@@ -1104,18 +1365,22 @@ func testMultiAccessRequests(t *testing.T, testPack *accessRequestTestPack) {
 
 	username := "requester"
 
-	prodResourceIDs := []types.ResourceID{{
-		ClusterName: testPack.clusterName,
-		Kind:        types.KindNode,
-		Name:        "prod",
+	prodResourceIDs := []types.ResourceAccessID{{
+		Id: types.ResourceID{
+			ClusterName: testPack.clusterName,
+			Kind:        types.KindNode,
+			Name:        "prod",
+		},
 	}}
 	prodResourceRequest, err := services.NewAccessRequestWithResources(username, []string{"admins"}, prodResourceIDs)
 	require.NoError(t, err)
 
-	stagingResourceIDs := []types.ResourceID{{
-		ClusterName: testPack.clusterName,
-		Kind:        types.KindNode,
-		Name:        "staging",
+	stagingResourceIDs := []types.ResourceAccessID{{
+		Id: types.ResourceID{
+			ClusterName: testPack.clusterName,
+			Kind:        types.KindNode,
+			Name:        "staging",
+		},
 	}}
 	stagingResourceRequest, err := services.NewAccessRequestWithResources(username, []string{"admins"}, stagingResourceIDs)
 	require.NoError(t, err)
@@ -1141,7 +1406,7 @@ func testMultiAccessRequests(t *testing.T, testPack *accessRequestTestPack) {
 		require.NoError(t, testPack.tlsServer.Auth().UpsertAccessRequest(ctx, request))
 	}
 
-	requester := TestUser(username)
+	requester := authtest.TestUser(username)
 	requesterClient, err := testPack.tlsServer.NewClient(requester)
 	require.NoError(t, err)
 
@@ -1159,7 +1424,9 @@ func testMultiAccessRequests(t *testing.T, testPack *accessRequestTestPack) {
 			require.NoError(t, err)
 			tlsCert, err := tls.X509KeyPair(certs.TLS, testPack.tlsPrivKey)
 			require.NoError(t, err)
-			return testPack.tlsServer.NewClientWithCert(tlsCert), certs
+			client, err := testPack.tlsServer.NewClientWithCert(tlsCert)
+			require.NoError(t, err)
+			return client, certs
 		}
 	}
 	applyAccessRequests := func(newRequests ...string) newClientFunc {
@@ -1188,7 +1455,7 @@ func testMultiAccessRequests(t *testing.T, testPack *accessRequestTestPack) {
 		desc                 string
 		steps                []newClientFunc
 		expectRoles          []string
-		expectResources      []types.ResourceID
+		expectResources      []types.ResourceAccessID
 		expectAccessRequests []string
 		expectLogins         []string
 	}{
@@ -1294,7 +1561,6 @@ func testMultiAccessRequests(t *testing.T, testPack *accessRequestTestPack) {
 			expectAccessRequests: []string{adminRequest.GetName()},
 		},
 	} {
-		tc := tc
 		t.Run(tc.desc, func(t *testing.T) {
 			t.Parallel()
 			client := requesterClient
@@ -1329,7 +1595,7 @@ func testRoleRefreshWithBogusRequestID(t *testing.T, testPack *accessRequestTest
 	require.NoError(t, err)
 
 	// Create a client with the old set of roles.
-	clt, err := testPack.tlsServer.NewClient(TestUser(username))
+	clt, err := testPack.tlsServer.NewClient(authtest.TestUser(username))
 	require.NoError(t, err)
 
 	// Add a new role to the user on the server.
@@ -1357,12 +1623,14 @@ func checkCerts(t *testing.T,
 	roles []string,
 	logins []string,
 	accessRequests []string,
-	resourceIDs []types.ResourceID,
+	resourceAccessIDs []types.ResourceAccessID,
 ) {
 	t.Helper()
 
 	// Parse SSH cert.
 	sshCert, err := sshutils.ParseCertificate(certs.SSH)
+	require.NoError(t, err)
+	sshIdentity, err := sshca.DecodeIdentity(sshCert)
 	require.NoError(t, err)
 
 	// Parse TLS cert.
@@ -1372,14 +1640,11 @@ func checkCerts(t *testing.T,
 	require.NoError(t, err)
 
 	// Make sure both certs have the expected roles.
-	rawSSHCertRoles := sshCert.Permissions.Extensions[teleport.CertExtensionTeleportRoles]
-	sshCertRoles, err := services.UnmarshalCertRoles(rawSSHCertRoles)
-	require.NoError(t, err)
-	assert.ElementsMatch(t, roles, sshCertRoles)
+	assert.ElementsMatch(t, roles, sshIdentity.Roles)
 	assert.ElementsMatch(t, roles, tlsIdentity.Groups)
 
 	// Make sure both certs have the expected logins/principals.
-	for _, certLogins := range [][]string{sshCert.ValidPrincipals, tlsIdentity.Principals} {
+	for _, certLogins := range [][]string{sshIdentity.Principals, tlsIdentity.Principals} {
 		// filter out invalid logins placed in the cert
 		validCertLogins := []string{}
 		for _, certLogin := range certLogins {
@@ -1391,25 +1656,42 @@ func checkCerts(t *testing.T,
 	}
 
 	// Make sure both certs have the expected access requests, if any.
-	rawSSHCertAccessRequests := sshCert.Permissions.Extensions[teleport.CertExtensionTeleportActiveRequests]
-	sshCertAccessRequests := services.RequestIDs{}
-	if len(rawSSHCertAccessRequests) > 0 {
-		require.NoError(t, sshCertAccessRequests.Unmarshal([]byte(rawSSHCertAccessRequests)))
-	}
-	assert.ElementsMatch(t, accessRequests, sshCertAccessRequests.AccessRequests)
+	assert.ElementsMatch(t, accessRequests, sshIdentity.ActiveRequests)
 	assert.ElementsMatch(t, accessRequests, tlsIdentity.ActiveRequests)
 
 	// Make sure both certs have the expected allowed resources, if any.
-	sshCertAllowedResources, err := types.ResourceIDsFromString(sshCert.Permissions.Extensions[teleport.CertExtensionAllowedResources])
+	sshCertAllowedResources, err := types.ResourceAccessIDsFromString(sshCert.Permissions.Extensions[teleport.CertExtensionAllowedResourceAccessIDs])
 	require.NoError(t, err)
-	assert.ElementsMatch(t, resourceIDs, sshCertAllowedResources)
-	assert.ElementsMatch(t, resourceIDs, tlsIdentity.AllowedResourceIDs)
+	assert.ElementsMatch(t, resourceAccessIDs, sshCertAllowedResources)
+	assert.ElementsMatch(t, resourceAccessIDs, sshIdentity.AllowedResourceAccessIDs)
+	assert.ElementsMatch(t, resourceAccessIDs, tlsIdentity.AllowedResourceAccessIDs)
+
+	// Verify the legacy AllowedResourceIDs extension contains the expected values.
+	// Plain (unconstrained) resource IDs should appear in the old extension so that older
+	// agents/proxies that don't understand AllowedResourceAccessIDs can still enforce
+	// resource-level restrictions. The sentinel should only appear when all requested
+	// resources carry constraints that old agents can't enforce.
+	sshCertLegacyResources, err := types.ResourceIDsFromString(sshCert.Permissions.Extensions[teleport.CertExtensionAllowedResources])
+	require.NoError(t, err)
+	plainIDs, constrainedOnly := types.UnwrapResourceAccessIDs(resourceAccessIDs)
+	if len(plainIDs) > 0 {
+		// Plain resources should be in the old extension.
+		assert.ElementsMatch(t, plainIDs, sshCertLegacyResources, "SSH cert legacy extension should contain plain resource IDs")
+		// Sentinel should not be present.
+		for _, rid := range sshCertLegacyResources {
+			assert.False(t, types.IsSentinelResourceID(rid), "SSH cert legacy extension should not contain sentinel when plain resources are present")
+		}
+	} else if len(constrainedOnly) > 0 {
+		// Constraint-only requests should have the sentinel in the old extension.
+		require.Len(t, sshCertLegacyResources, 1, "SSH cert legacy extension should contain only sentinel")
+		assert.True(t, types.IsSentinelResourceID(sshCertLegacyResources[0]), "SSH cert legacy extension should be sentinel")
+	}
 }
 
 func TestCreateSuggestions(t *testing.T) {
 	t.Parallel()
 
-	testAuthServer, err := NewTestAuthServer(TestAuthServerConfig{
+	testAuthServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir: t.TempDir(),
 	})
 	require.NoError(t, err)
@@ -1447,14 +1729,13 @@ func TestCreateSuggestions(t *testing.T) {
 }
 
 func TestPromotedRequest(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
+	t.Parallel()
+	ctx := t.Context()
 
 	testPack := newAccessRequestTestPack(ctx, t)
 
 	const requesterUserName = "requester"
-	requester := TestUser(requesterUserName)
+	requester := authtest.TestUser(requesterUserName)
 	requesterClient, err := testPack.tlsServer.NewClient(requester)
 	require.NoError(t, err)
 
@@ -1470,7 +1751,7 @@ func TestPromotedRequest(t *testing.T) {
 
 	const adminUser = "admin"
 	approveAs := func(reviewerName string) (types.AccessRequest, error) {
-		reviewer := TestUser(reviewerName)
+		reviewer := authtest.TestUser(reviewerName)
 		reviewerClient, err := testPack.tlsServer.NewClient(reviewer)
 		require.NoError(t, err)
 
@@ -1547,15 +1828,7 @@ func TestPromotedRequest(t *testing.T) {
 }
 
 func TestUpdateAccessRequestWithAdditionalReviewers(t *testing.T) {
-	clock := clockwork.NewFakeClock()
-
-	modules.SetTestModules(t, &modules.TestModules{
-		TestFeatures: modules.Features{
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.Identity: {Enabled: true},
-			},
-		},
-	})
+	t.Parallel()
 
 	mustRequest := func(suggestedReviewers ...string) types.AccessRequest {
 		req, err := services.NewAccessRequest("test-user", "admins")
@@ -1564,89 +1837,43 @@ func TestUpdateAccessRequestWithAdditionalReviewers(t *testing.T) {
 		return req
 	}
 
-	mustAccessList := func(name string, owners ...string) *accesslist.AccessList {
-		ownersSpec := make([]accesslist.Owner, len(owners))
-		for i, owner := range owners {
-			ownersSpec[i] = accesslist.Owner{
-				Name: owner,
-			}
-		}
-		accessList, err := accesslist.NewAccessList(header.Metadata{
-			Name: name,
-		}, accesslist.Spec{
-			Title: "simple",
-			Grants: accesslist.Grants{
-				Roles: []string{"grant-role"},
-			},
-			Audit: accesslist.Audit{
-				NextAuditDate: clock.Now().AddDate(1, 0, 0),
-			},
-			Owners: ownersSpec,
-		})
-		require.NoError(t, err)
-		return accessList
-	}
-
 	tests := []struct {
-		name              string
-		req               types.AccessRequest
-		accessLists       []*accesslist.AccessList
-		promotions        *types.AccessRequestAllowedPromotions
-		expectedReviewers []string
+		name               string
+		req                types.AccessRequest
+		suggestedReviewers []string
+		expectedReviewers  []string
 	}{
 		{
-			name:              "nil promotions",
+			name:              "nil additional reviewers",
 			req:               mustRequest("rev1", "rev2"),
 			expectedReviewers: []string{"rev1", "rev2"},
 		},
 		{
-			name: "a few promotions",
-			req:  mustRequest("rev1", "rev2"),
-			accessLists: []*accesslist.AccessList{
-				mustAccessList("name1", "owner1", "owner2"),
-				mustAccessList("name2", "owner1", "owner3"),
-				mustAccessList("name3", "owner4", "owner5"),
-			},
-			promotions: &types.AccessRequestAllowedPromotions{
-				Promotions: []*types.AccessRequestAllowedPromotion{
-					{AccessListName: "name1"},
-					{AccessListName: "name2"},
-				},
-			},
-			expectedReviewers: []string{"rev1", "rev2", "owner1", "owner2", "owner3"},
+			name:               "a few additional reviewers",
+			req:                mustRequest("rev1", "rev2"),
+			suggestedReviewers: []string{"name1", "name2", "name3"},
+			expectedReviewers:  []string{"rev1", "rev2", "name1", "name2", "name3"},
 		},
 		{
-			name: "no promotions",
-			req:  mustRequest("rev1", "rev2"),
-			accessLists: []*accesslist.AccessList{
-				mustAccessList("name1", "owner1", "owner2"),
-				mustAccessList("name2", "owner1", "owner3"),
-				mustAccessList("name3", "owner4", "owner5"),
-			},
-			promotions: &types.AccessRequestAllowedPromotions{
-				Promotions: []*types.AccessRequestAllowedPromotion{},
-			},
-			expectedReviewers: []string{"rev1", "rev2"},
+			name:               "no additional reviewers",
+			req:                mustRequest("rev1", "rev2"),
+			suggestedReviewers: []string{},
+			expectedReviewers:  []string{"rev1", "rev2"},
+		},
+		{
+			name:               "duplicate additional reviewers",
+			req:                mustRequest("rev1", "rev2"),
+			suggestedReviewers: []string{"rev2", "name1", "name2", "name1"},
+			expectedReviewers:  []string{"rev1", "rev2", "name1", "name2"},
 		},
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			mem, err := memory.New(memory.Config{})
-			require.NoError(t, err)
-			accessLists, err := local.NewAccessListService(mem, clock)
-			require.NoError(t, err)
-
 			ctx := context.Background()
-			for _, accessList := range test.accessLists {
-				_, err = accessLists.UpsertAccessList(ctx, accessList)
-				require.NoError(t, err)
-			}
-
 			req := test.req.Copy()
-			updateAccessRequestWithAdditionalReviewers(ctx, req, accessLists, test.promotions)
+			auth.UpdateAccessRequestWithAdditionalReviewers(ctx, req, test.suggestedReviewers)
 			require.ElementsMatch(t, test.expectedReviewers, req.GetSuggestedReviewers())
 		})
 	}
@@ -1664,7 +1891,7 @@ func TestAssumeStartTime_CreateAccessRequestV2(t *testing.T) {
 		{
 			name:      "too far in the future",
 			startTime: s.invalidMaxedAssumeStartTime,
-			errCheck: func(tt require.TestingT, err error, i ...interface{}) {
+			errCheck: func(tt require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsBadParameter(err), "expected bad parameter, got %v", err)
 				require.ErrorContains(t, err, "assume start time is too far in the future")
 			},
@@ -1672,7 +1899,7 @@ func TestAssumeStartTime_CreateAccessRequestV2(t *testing.T) {
 		{
 			name:      "after access expiry time",
 			startTime: s.invalidExpiredAssumeStartTime,
-			errCheck: func(tt require.TestingT, err error, i ...interface{}) {
+			errCheck: func(tt require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsBadParameter(err), "expected bad parameter, got %v", err)
 				require.ErrorContains(t, err, "assume start time must be prior to access expiry time")
 			},
@@ -1680,7 +1907,6 @@ func TestAssumeStartTime_CreateAccessRequestV2(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			req, err := services.NewAccessRequest(s.requesterUserName, "admins")
 			require.NoError(t, err)
@@ -1704,7 +1930,7 @@ func TestAssumeStartTime_SubmitAccessReview(t *testing.T) {
 		{
 			name:      "too far in the future",
 			startTime: s.invalidMaxedAssumeStartTime,
-			errCheck: func(tt require.TestingT, err error, i ...interface{}) {
+			errCheck: func(tt require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsBadParameter(err), "expected bad parameter, got %v", err)
 				require.ErrorContains(t, err, "assume start time is too far in the future")
 			},
@@ -1712,7 +1938,7 @@ func TestAssumeStartTime_SubmitAccessReview(t *testing.T) {
 		{
 			name:      "after access expiry time",
 			startTime: s.invalidExpiredAssumeStartTime,
-			errCheck: func(tt require.TestingT, err error, i ...interface{}) {
+			errCheck: func(tt require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsBadParameter(err), "expected bad parameter, got %v", err)
 				require.ErrorContains(t, err, "assume start time must be prior to access expiry time")
 			},
@@ -1731,7 +1957,6 @@ func TestAssumeStartTime_SubmitAccessReview(t *testing.T) {
 		},
 	}
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			review.Review.AssumeStartTime = &tc.startTime
 			resp, err := s.testPack.tlsServer.AuthServer.AuthServer.SubmitAccessReview(ctx, review)
@@ -1755,7 +1980,7 @@ func TestAssumeStartTime_SetAccessRequestState(t *testing.T) {
 		{
 			name:      "too far in the future",
 			startTime: s.invalidMaxedAssumeStartTime,
-			errCheck: func(tt require.TestingT, err error, i ...interface{}) {
+			errCheck: func(tt require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsBadParameter(err), "expected bad parameter, got %v", err)
 				require.ErrorContains(t, err, "assume start time is too far in the future")
 			},
@@ -1763,7 +1988,7 @@ func TestAssumeStartTime_SetAccessRequestState(t *testing.T) {
 		{
 			name:      "after access expiry time",
 			startTime: s.invalidExpiredAssumeStartTime,
-			errCheck: func(tt require.TestingT, err error, i ...interface{}) {
+			errCheck: func(tt require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsBadParameter(err), "expected bad parameter, got %v", err)
 				require.ErrorContains(t, err, "assume start time must be prior to access expiry time")
 			},
@@ -1779,7 +2004,6 @@ func TestAssumeStartTime_SetAccessRequestState(t *testing.T) {
 		State:     types.RequestState_APPROVED,
 	}
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			update.AssumeStartTime = &tc.startTime
 			err := s.testPack.tlsServer.Auth().SetAccessRequestState(ctx, update)
@@ -1808,14 +2032,12 @@ type accessRequestWithStartTime struct {
 func createAccessRequestWithStartTime(t *testing.T) accessRequestWithStartTime {
 	t.Helper()
 
-	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
+	ctx := t.Context()
 
 	testPack := newAccessRequestTestPack(ctx, t)
 
 	const requesterUserName = "requester"
-	requester := TestUser(requesterUserName)
+	requester := authtest.TestUser(requesterUserName)
 	requesterClient, err := testPack.tlsServer.NewClient(requester)
 	require.NoError(t, err)
 
@@ -1849,5 +2071,313 @@ func createAccessRequestWithStartTime(t *testing.T) accessRequestWithStartTime {
 		maxDuration:                   maxDuration,
 		requesterUserName:             requesterUserName,
 		createdRequest:                createdReq,
+	}
+}
+
+// testCertExtensionResourceIDs verifies that both the legacy AllowedResourceIDs
+// and the new AllowedResourceAccessIDs cert extensions are correctly populated
+// for access requests with constrained resources only, unconstrained resources
+// only, and a mix of both.
+//
+// Plain (unconstrained) resources should appear in both extensions.
+// Constrained resources appear only in the new extension. When all resources
+// are constrained, the legacy extension receives a sentinel value to prevent
+// older agents from interpreting an empty extension as "unrestricted access".
+// When a mix of plain and constrained resources is requested, only the plain
+// resource IDs appear in the legacy extension (no sentinel).
+func testCertExtensionResourceIDs(t *testing.T, testPack *accessRequestTestPack) {
+	t.Parallel()
+
+	ctx := t.Context()
+
+	username := "requester"
+
+	constrainedResourceIDs := []types.ResourceAccessID{{
+		Id: types.ResourceID{
+			ClusterName: testPack.clusterName,
+			Kind:        types.KindNode,
+			Name:        "staging",
+		},
+		Constraints: &types.ResourceConstraints{
+			Details: &types.ResourceConstraints_Ssh{
+				Ssh: &types.SSHResourceConstraints{Logins: []string{"root"}},
+			},
+		},
+	}}
+
+	plainResourceIDs := []types.ResourceAccessID{{
+		Id: types.ResourceID{
+			ClusterName: testPack.clusterName,
+			Kind:        types.KindNode,
+			Name:        "prod",
+		},
+	}}
+
+	mixedResourceIDs := append(plainResourceIDs, constrainedResourceIDs...)
+
+	constrainedRequest, err := services.NewAccessRequestWithResources(username, []string{"admins"}, constrainedResourceIDs)
+	require.NoError(t, err)
+	plainRequest, err := services.NewAccessRequestWithResources(username, []string{"admins"}, plainResourceIDs)
+	require.NoError(t, err)
+	mixedRequest, err := services.NewAccessRequestWithResources(username, []string{"admins"}, mixedResourceIDs)
+	require.NoError(t, err)
+
+	for _, req := range []types.AccessRequest{constrainedRequest, plainRequest, mixedRequest} {
+		req.SetState(types.RequestState_APPROVED)
+		req.SetAccessExpiry(time.Now().Add(time.Hour).UTC())
+		require.NoError(t, testPack.tlsServer.Auth().UpsertAccessRequest(ctx, req))
+	}
+
+	requester := authtest.TestUser(username)
+	requesterClient, err := testPack.tlsServer.NewClient(requester)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, requesterClient.Close()) })
+
+	generateCerts := func(t *testing.T, requestName string) *proto.Certs {
+		t.Helper()
+		certs, err := requesterClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
+			SSHPublicKey:   testPack.sshPubKey,
+			TLSPublicKey:   testPack.tlsPubKey,
+			Username:       username,
+			Expires:        time.Now().Add(time.Hour).UTC(),
+			AccessRequests: []string{requestName},
+		})
+		require.NoError(t, err)
+		return certs
+	}
+
+	type certResources struct {
+		AllowedResourceIDs       []types.ResourceID
+		AllowedResourceAccessIDs []types.ResourceAccessID
+	}
+
+	parseCertResources := func(t *testing.T, certs *proto.Certs) (ssh, tls certResources) {
+		t.Helper()
+
+		sshCert, err := sshutils.ParseCertificate(certs.SSH)
+		require.NoError(t, err)
+		ssh.AllowedResourceIDs, err = types.ResourceIDsFromString(sshCert.Permissions.Extensions[teleport.CertExtensionAllowedResources])
+		require.NoError(t, err)
+		ssh.AllowedResourceAccessIDs, err = types.ResourceAccessIDsFromString(sshCert.Permissions.Extensions[teleport.CertExtensionAllowedResourceAccessIDs])
+		require.NoError(t, err)
+
+		tlsCert, err := tlsca.ParseCertificatePEM(certs.TLS)
+		require.NoError(t, err)
+		for _, attr := range tlsCert.Subject.Names {
+			switch {
+			case attr.Type.Equal(tlsca.AllowedResourcesASN1ExtensionOID):
+				tls.AllowedResourceIDs, err = types.ResourceIDsFromString(attr.Value.(string))
+				require.NoError(t, err)
+			case attr.Type.Equal(tlsca.AllowedResourceAccessIDsASN1ExtensionOID):
+				tls.AllowedResourceAccessIDs, err = types.ResourceAccessIDsFromString(attr.Value.(string))
+				require.NoError(t, err)
+			}
+		}
+
+		return ssh, tls
+	}
+
+	t.Run("constrained", func(t *testing.T) {
+		sshCert, tlsCert := parseCertResources(t, generateCerts(t, constrainedRequest.GetName()))
+
+		// All resources are constrained, so the legacy extension gets the
+		// sentinel and the new extension carries the full access IDs.
+		want := certResources{
+			AllowedResourceIDs:       []types.ResourceID{types.CreateSentinelResourceID()},
+			AllowedResourceAccessIDs: constrainedResourceIDs,
+		}
+		require.Equal(t, want, sshCert)
+		require.Equal(t, want, tlsCert)
+	})
+
+	t.Run("without constraints", func(t *testing.T) {
+		sshCert, tlsCert := parseCertResources(t, generateCerts(t, plainRequest.GetName()))
+
+		// No constraints, so the legacy extension carries the actual
+		// resource IDs and no sentinel is needed.
+		want := certResources{
+			AllowedResourceIDs:       []types.ResourceID{plainResourceIDs[0].Id},
+			AllowedResourceAccessIDs: plainResourceIDs,
+		}
+		require.Equal(t, want, sshCert)
+		require.Equal(t, want, tlsCert)
+	})
+
+	t.Run("mixed constrained and unconstrained", func(t *testing.T) {
+		sshCert, tlsCert := parseCertResources(t, generateCerts(t, mixedRequest.GetName()))
+
+		// The legacy extension should contain only the plain resource IDs
+		// (no sentinel) because older agents can still enforce those.
+		// The new extension carries all resources including constrained ones.
+		want := certResources{
+			AllowedResourceIDs:       []types.ResourceID{plainResourceIDs[0].Id},
+			AllowedResourceAccessIDs: mixedResourceIDs,
+		}
+		require.Equal(t, want, sshCert)
+		require.Equal(t, want, tlsCert)
+	})
+}
+
+type reviewState struct {
+	author    string
+	wantState types.RequestState
+	wantErr   error
+}
+
+// testSubmitAccessReview_SubmitForUsers tests if plugin users with the `review_requests.submit_for_users` rule
+// can submit reviews for other users.
+func testSubmitAccessReview_SubmitForUsers(t *testing.T, testPack *accessRequestTestPack) {
+	t.Parallel()
+	ctx := t.Context()
+
+	// Create access plugin reviewer without "submit for" review permissions.
+	_, err := authtest.CreateUser(ctx, testPack.tlsServer.Auth(), "plugin-no-review", services.NewPresetAccessPluginRole())
+	require.NoError(t, err)
+
+	tests := []struct {
+		name         string
+		reviewStates []reviewState
+		requester    string
+		reviewer     string // (plugin) identity submitting the review request to Auth Service
+	}{
+		{
+			name:     "access-plugin without review",
+			reviewer: "plugin-no-review",
+			reviewStates: []reviewState{
+				{
+					author:  "admin",
+					wantErr: trace.AccessDenied("user %q cannot submit reviews for %q", "plugin-no-review", "admin"),
+				},
+			},
+		},
+		{
+			name: "access-plugin with review; submitted for admin",
+			reviewStates: []reviewState{
+				{
+					author:    "admin",
+					wantState: types.RequestState_APPROVED,
+				},
+			},
+		},
+		{
+			name: "access-plugin with review; submitted for nobody",
+			reviewStates: []reviewState{
+				{
+					author:  "nobody",
+					wantErr: trace.AccessDenied("user %q cannot submit reviews", "nobody"),
+				},
+			},
+		},
+		{
+			name: "access-plugin with review; submitted for non-existent user",
+			reviewStates: []reviewState{
+				{
+					author: "fake-user",
+					wantErr: trace.AccessDenied("user %q cannot submit reviews for %q, user could not be fetched from local store",
+						"plugin-reviewer",
+						"fake-user",
+					),
+				},
+			},
+		},
+		{
+			name:      "access-plugin with review; submitted for same user",
+			requester: "requester-threshold",
+			reviewStates: []reviewState{
+				{
+					author:    "admin",
+					wantState: types.RequestState_PENDING,
+				},
+				{
+					author:  "admin",
+					wantErr: trace.AlreadyExists("user %q has already reviewed this request", "admin"),
+				},
+			},
+		},
+		{
+			name:      "access-plugin with review; submitted for multiple users",
+			requester: "requester-threshold",
+			reviewStates: []reviewState{
+				{
+					author:    "admin",
+					wantState: types.RequestState_PENDING,
+				},
+				{
+					author:    "admin2",
+					wantState: types.RequestState_APPROVED,
+				},
+			},
+		},
+		{
+			name: "access-plugin with review; submitted for multiple users, but already approved",
+			reviewStates: []reviewState{
+				{
+					author:    "admin",
+					wantState: types.RequestState_APPROVED,
+				},
+				{
+					author:  "admin2",
+					wantErr: trace.AccessDenied("the access request has been already approved"),
+				},
+			},
+		},
+		{
+			name:      "access-plugin with review; cannot apply on own request",
+			requester: "plugin-reviewer",
+			reviewStates: []reviewState{
+				{
+					author:  "admin2",
+					wantErr: trace.AccessDenied("review submitter %q cannot apply a review on their own request", "plugin-reviewer"),
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			if tt.requester == "" {
+				tt.requester = "requester"
+			}
+			if tt.reviewer == "" {
+				tt.reviewer = "plugin-reviewer"
+			}
+
+			// Create requester client.
+			requesterClient, err := testPack.tlsServer.NewClient(authtest.TestUser(tt.requester))
+			require.NoError(t, err)
+			t.Cleanup(func() { require.NoError(t, requesterClient.Close()) })
+
+			// Create access request.
+			request, err := services.NewAccessRequest(tt.requester, "admins")
+			require.NoError(t, err)
+			request, err = requesterClient.CreateAccessRequestV2(ctx, request)
+			require.NoError(t, err)
+
+			// Create plugin reviewer client.
+			reviewerClient, err := testPack.tlsServer.NewClient(authtest.TestUser(tt.reviewer))
+			require.NoError(t, err)
+			t.Cleanup(func() { require.NoError(t, reviewerClient.Close()) })
+
+			// Plugin reviewer should be able to submit for multiple human authors.
+			for _, r := range tt.reviewStates {
+				review := types.AccessReviewSubmission{
+					RequestID: request.GetName(),
+					Review: types.AccessReview{
+						Author:                    r.author,
+						SubmittedOnBehalfOfAuthor: true,
+						ProposedState:             types.RequestState_APPROVED,
+					},
+				}
+				updatedRequest, err := reviewerClient.SubmitAccessReview(ctx, review)
+				if r.wantErr != nil {
+					require.ErrorIs(t, err, r.wantErr)
+					continue
+				}
+				require.NoError(t, err)
+				require.Equal(t, r.wantState, updatedRequest.GetState())
+			}
+		})
 	}
 }

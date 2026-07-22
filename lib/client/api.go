@@ -19,34 +19,38 @@
 package client
 
 import (
+	"cmp"
 	"context"
+	"crypto"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"net/url"
 	"os"
+	"os/user"
 	"path/filepath"
 	"runtime"
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 	"unicode/utf8"
 
-	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 	"golang.org/x/net/http2"
 	"golang.org/x/sync/errgroup"
+	"golang.org/x/term"
 	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport"
@@ -63,34 +67,41 @@ import (
 	apitracing "github.com/gravitational/teleport/api/observability/tracing"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/profile"
+	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
+	"github.com/gravitational/teleport/api/utils/pingconn"
 	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/touchid"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	"github.com/gravitational/teleport/lib/authz"
 	libmfa "github.com/gravitational/teleport/lib/client/mfa"
+	clientssh "github.com/gravitational/teleport/lib/client/ssh"
+	"github.com/gravitational/teleport/lib/client/sso"
 	"github.com/gravitational/teleport/lib/client/terminal"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/devicetrust"
+	dtauthntypes "github.com/gravitational/teleport/lib/devicetrust/authn/types"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	libplayer "github.com/gravitational/teleport/lib/player"
+	"github.com/gravitational/teleport/lib/scopes/pinning"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
-	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/sftp"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/agentconn"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 const (
@@ -104,10 +115,8 @@ var AllAddKeysOptions = []string{AddKeysToAgentAuto, AddKeysToAgentNo, AddKeysTo
 
 // ValidateAgentKeyOption validates that a string is a valid option for the AddKeysToAgent parameter.
 func ValidateAgentKeyOption(supplied string) error {
-	for _, option := range AllAddKeysOptions {
-		if supplied == option {
-			return nil
-		}
+	if slices.Contains(AllAddKeysOptions, supplied) {
+		return nil
 	}
 
 	return trace.BadParameter("invalid value %q, must be one of %v", supplied, AllAddKeysOptions)
@@ -125,9 +134,7 @@ const (
 
 const remoteForwardUnsupportedMessage = "ssh: tcpip-forward request denied by peer"
 
-var log = logrus.WithFields(logrus.Fields{
-	teleport.ComponentKey: teleport.ComponentClient,
-})
+var log = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentClient)
 
 // ForwardedPort specifies local tunnel to remote
 // destination managed by the client, is equivalent
@@ -190,6 +197,10 @@ type Config struct {
 	// (for example, using command-line flags).
 	ExplicitUsername bool
 
+	// Scope is the target scope, used during authentication/login to request certificates
+	// that are limited (pinned) to a given target scope.
+	Scope string
+
 	// Remote host to connect
 	Host string
 
@@ -205,9 +216,6 @@ type Config struct {
 
 	// Labels represent host Labels
 	Labels map[string]string
-
-	// Namespace is nodes namespace
-	Namespace string
 
 	// HostLogin is a user login on a remote host
 	HostLogin string
@@ -238,6 +246,18 @@ type Config struct {
 	// MySQLProxyAddr is the host:port the MySQL proxy can be accessed at.
 	MySQLProxyAddr string
 
+	// RelayAddr is the user-specified address of the relay in use.
+	RelayAddr string
+
+	// ProfileRelayAddr is the relay address specified at login time, or "none"
+	// if use of a relay is explicitly disabled.
+	ProfileRelayAddr string
+
+	// ProfileDefaultRelayAddr is the cluster-specified address of the relay, to
+	// be used if no explicit override is specified by the user. Set at login
+	// time.
+	ProfileDefaultRelayAddr string
+
 	// KeyTTL is a time to live for the temporary SSH keypair to remain valid:
 	KeyTTL time.Duration
 
@@ -252,6 +272,7 @@ type Config struct {
 	// Agent is an SSH agent to use for local Agent procedures. Defaults to in-memory agent keyring.
 	Agent agent.ExtendedAgent
 
+	// ClientStore is the store for client data, e.g. keys, certs, profiles.
 	ClientStore *Store
 
 	// ForwardAgent is used by the client to request agent forwarding from the server.
@@ -267,9 +288,9 @@ type Config struct {
 	// X11ForwardingTrusted specifies the X11 forwarding security mode.
 	X11ForwardingTrusted bool
 
-	// AuthMethods are used to login into the cluster. If specified, the client will
-	// use them in addition to certs stored in the client store.
-	AuthMethods []ssh.AuthMethod
+	// PublicKeyAuthConfig specifies how the client should obtain public keys for SSH authentication. If specified, the
+	// client will use this in addition to certs stored in the client store.
+	PublicKeyAuthConfig apissh.PublicKeyAuthConfig
 
 	// TLSConfig is TLS configuration, if specified, the client
 	// will use this TLS configuration to access API endpoints
@@ -283,10 +304,6 @@ type Config struct {
 	Stdout io.Writer
 	Stderr io.Writer
 	Stdin  io.Reader
-
-	// ExitStatus carries the returned value (exit status) of the remote
-	// process execution (via SSH exec)
-	ExitStatus int
 
 	// SiteName specifies site to execute operation,
 	// if omitted, first available site will be selected
@@ -318,16 +335,12 @@ type Config struct {
 	// that uses local cache to validate hosts
 	HostKeyCallback ssh.HostKeyCallback
 
-	// KeyDir defines where temporary session keys will be stored.
-	// if empty, they'll go to ~/.tsh
-	KeysDir string
-
 	// SessionID is a session ID to use when opening a new session.
 	SessionID string
 
-	// extraEnvs contains additional environment variables that will be added
+	// ExtraEnvs contains additional environment variables that will be added
 	// to SSH session.
-	extraEnvs map[string]string
+	ExtraEnvs map[string]string
 
 	// InteractiveCommand tells tsh to launch a remote exec command in interactive mode,
 	// i.e. attaching the terminal to it.
@@ -356,6 +369,12 @@ type Config struct {
 	// authenticators, such as remote hosts or virtual machines.
 	PreferOTP bool
 
+	// PreferSSO prefers SSO in favor of other MFA methods.
+	PreferSSO bool
+
+	// PreferBrowser prefers browser-based WebAuthn MFA in favor of other MFA methods.
+	PreferBrowser bool
+
 	// CheckVersions will check that client version is compatible
 	// with auth server version when connecting.
 	CheckVersions bool
@@ -381,10 +400,10 @@ type Config struct {
 	//	off - do not attempt to load keys into agent
 	AddKeysToAgent string
 
-	// EnableEscapeSequences will scan Stdin for SSH escape sequences during
+	// DisableEscapeSequences will disable scanning Stdin for SSH escape sequences during
 	// command/shell execution. This also requires Stdin to be an interactive
 	// terminal.
-	EnableEscapeSequences bool
+	DisableEscapeSequences bool
 
 	// MockSSOLogin is used in tests for mocking the SSO login response.
 	MockSSOLogin SSOLoginFunc
@@ -401,9 +420,6 @@ type Config struct {
 	// Useful in parallel tests so they don't all use the default path in the
 	// user home dir.
 	OverridePostgresServiceFilePath string
-
-	// HomePath is where tsh stores profiles
-	HomePath string
 
 	// TLSRoutingEnabled indicates that proxy supports ALPN SNI server where
 	// all proxy services are exposed on a single TLS listener (Proxy Web Listener).
@@ -442,7 +458,10 @@ type Config struct {
 	PrivateKeyPolicy keys.PrivateKeyPolicy
 
 	// PIVSlot specifies a specific PIV slot to use with hardware key support.
-	PIVSlot keys.PIVSlot
+	PIVSlot hardwarekey.PIVSlotKeyString
+
+	// PIVPINCacheTTL specifies how long to cache the user's PIV PIN.
+	PIVPINCacheTTL time.Duration
 
 	// LoadAllCAs indicates that tsh should load the CAs of all clusters
 	// instead of just the current cluster.
@@ -486,12 +505,36 @@ type Config struct {
 	// MFAPromptConstructor is a custom MFA prompt constructor to use when prompting for MFA.
 	MFAPromptConstructor func(cfg *libmfa.PromptConfig) mfa.Prompt
 
+	// MFACeremonyConstructor is a custom SSO/Browser MFA ceremony constructor.
+	MFACeremonyConstructor func(rd *sso.Redirector) mfa.CallbackCeremony
+
 	// DisableSSHResumption disables transparent SSH connection resumption.
 	DisableSSHResumption bool
 
 	// SAMLSingleLogoutEnabled is whether SAML SLO (single logout) is enabled, this can only be true if this is a SAML SSO session
 	// using an auth connector with a SAML SLO URL configured.
 	SAMLSingleLogoutEnabled bool
+
+	// SSHDialTimeout is the timeout value that should be used for SSH connections.
+	SSHDialTimeout time.Duration
+
+	// GenerateUnifiedKey indicates that the client should generate a single key
+	// for SSH and TLS instead of split keys.
+	GenerateUnifiedKey bool
+
+	// StdinFunc allows tests to override prompt.Stdin().
+	// If nil prompt.Stdin() is used.
+	StdinFunc func() prompt.StdinReader
+
+	// HasTouchIDCredentialsFunc allows tests to override touchid.HasCredentials.
+	// If nil touchid.HasCredentials is used.
+	HasTouchIDCredentialsFunc func(rpID, user string) bool
+
+	// SSOHost is the host of the SSO provider used to log in.
+	SSOHost string
+
+	// ProxyTemplates describe rules for parsing out proxy out of full hostnames.
+	ProxyTemplates ProxyTemplates
 }
 
 // CachePolicy defines cache policy for local clients
@@ -502,16 +545,56 @@ type CachePolicy struct {
 	NeverExpires bool
 }
 
-// MakeDefaultConfig returns default client config
-func MakeDefaultConfig() *Config {
-	return &Config{
-		Stdout:                os.Stdout,
-		Stderr:                os.Stderr,
-		Stdin:                 os.Stdin,
-		AddKeysToAgent:        AddKeysToAgentAuto,
-		EnableEscapeSequences: true,
-		Tracer:                tracing.NoopProvider().Tracer("TeleportClient"),
+func (c *Config) CheckAndSetDefaults() error {
+	if c.ClientStore == nil {
+		if c.TLS == nil && c.PublicKeyAuthConfig.IsEmpty() {
+			return trace.BadParameter("either client store is set or public key auth config must be set")
+		}
+		// Client will use static auth methods instead of client store.
+		// Initialize empty client store to prevent panics.
+		c.ClientStore = NewMemClientStore()
 	}
+
+	// validate configuration
+	var err error
+	if c.Username == "" {
+		c.Username, err = Username()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		log.InfoContext(context.Background(), "No teleport login given, using default", "default_login", c.Username)
+	}
+	if c.WebProxyAddr == "" {
+		return trace.BadParameter("No proxy address specified, missed --proxy flag?")
+	}
+	if c.HostLogin == "" {
+		c.HostLogin, err = Username()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		log.InfoContext(context.Background(), "no host login given, using default", "default_host_login", c.HostLogin)
+	}
+	if len(c.JumpHosts) > 1 {
+		return trace.BadParameter("only one jump host is supported, got %v", len(c.JumpHosts))
+	}
+
+	// set defaults
+	if c.Stdout == nil {
+		c.Stdout = os.Stdout
+	}
+	if c.Stderr == nil {
+		c.Stderr = os.Stderr
+	}
+	if c.Stdin == nil {
+		c.Stdin = os.Stdin
+	}
+	if c.AddKeysToAgent == "" {
+		c.AddKeysToAgent = AddKeysToAgentAuto
+	}
+	if c.Tracer == nil {
+		c.Tracer = tracing.NoopProvider().Tracer("TeleportClient")
+	}
+	return nil
 }
 
 // VirtualPathKind is the suffix component for env vars denoting the type of
@@ -526,7 +609,7 @@ const (
 	VirtualPathKey        VirtualPathKind = "KEY"
 	VirtualPathCA         VirtualPathKind = "CA"
 	VirtualPathDatabase   VirtualPathKind = "DB"
-	VirtualPathApp        VirtualPathKind = "APP"
+	VirtualPathAppCert    VirtualPathKind = "APP"
 	VirtualPathKubernetes VirtualPathKind = "KUBE"
 )
 
@@ -544,15 +627,26 @@ func VirtualPathCAParams(caType types.CertAuthType) VirtualPathParams {
 	}
 }
 
-// VirtualPathDatabaseParams returns parameters for selecting specific database
-// certificates.
-func VirtualPathDatabaseParams(databaseName string) VirtualPathParams {
+// VirtualPathDatabaseCertParams returns parameters for selecting a specific database
+// certificate by name.
+func VirtualPathDatabaseCertParams(databaseName string) VirtualPathParams {
 	return VirtualPathParams{databaseName}
 }
 
-// VirtualPathAppParams returns parameters for selecting specific apps by name.
-func VirtualPathAppParams(appName string) VirtualPathParams {
+// VirtualPathDatabaseKeyParams returns parameters for selecting a specific database
+// key by name.
+func VirtualPathDatabaseKeyParams(databaseName string) VirtualPathParams {
+	return VirtualPathParams{"DB", databaseName}
+}
+
+// VirtualPathAppCertParams returns parameters for selecting specific app cert by name.
+func VirtualPathAppCertParams(appName string) VirtualPathParams {
 	return VirtualPathParams{appName}
+}
+
+// VirtualPathAppKeyParams returns parameters for selecting specific app key by name.
+func VirtualPathAppKeyParams(appName string) VirtualPathParams {
+	return VirtualPathParams{"APP", appName}
 }
 
 // VirtualPathKubernetesParams returns parameters for selecting k8s clusters by
@@ -588,35 +682,11 @@ func VirtualPathEnvNames(kind VirtualPathKind, params VirtualPathParams) []strin
 	return vars
 }
 
-// RetryWithRelogin is a helper error handling method, attempts to relogin and
-// retry the function once.
-func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error, opts ...RetryWithReloginOption) error {
-	fnErr := fn()
-	switch {
-	case fnErr == nil:
-		return nil
-	case utils.IsPredicateError(fnErr):
-		return trace.Wrap(utils.PredicateError{Err: fnErr})
-	case tc.NonInteractive:
-		return trace.Wrap(fnErr, "cannot relogin in non-interactive session")
-	case !IsErrorResolvableWithRelogin(fnErr):
-		return trace.Wrap(fnErr)
-	}
+// Relogin attempts to relogin and runs before/after login hooks.
+func Relogin(ctx context.Context, tc *TeleportClient, opts ...RetryWithReloginOption) error {
 	opt := defaultRetryWithReloginOptions()
 	for _, o := range opts {
 		o(opt)
-	}
-	log.Debugf("Activating relogin on error=%q (type=%T)", fnErr, trace.Unwrap(fnErr))
-
-	if keys.IsPrivateKeyPolicyError(fnErr) {
-		privateKeyPolicy, err := keys.ParsePrivateKeyPolicyError(fnErr)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		if err := tc.updatePrivateKeyPolicy(privateKeyPolicy); err != nil {
-			return trace.Wrap(err)
-		}
 	}
 
 	if opt.beforeLoginHook != nil {
@@ -627,8 +697,7 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error, 
 	key, err := tc.Login(ctx)
 	if err != nil {
 		if errors.Is(err, prompt.ErrNotTerminal) {
-			log.WithError(err).Debugf("Relogin is not available in this environment")
-			return trace.Wrap(fnErr)
+			log.DebugContext(ctx, "Relogin is not available in this environment", "error", err)
 		}
 		if trace.IsTrustError(err) {
 			return trace.Wrap(err, "refusing to connect to untrusted proxy %v without --insecure flag\n", tc.SSHProxyAddr)
@@ -650,9 +719,9 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error, 
 		return trace.Wrap(err)
 	}
 
-	// Save profile to record proxy credentials
+	// Save profile to record proxy credentials.
 	if err := tc.SaveProfile(opt.makeCurrentProfile); err != nil {
-		log.Warningf("Failed to save profile: %v", err)
+		log.WarnContext(ctx, "Failed to save profile", "error", err)
 		return trace.Wrap(err)
 	}
 
@@ -660,6 +729,63 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error, 
 		if err := opt.afterLoginHook(); err != nil {
 			return trace.Wrap(err)
 		}
+	}
+	return nil
+}
+
+// ShouldRetryWithRelogin determines if the error should be retried. It applies more scrutiny than
+// 'IsErrorResolvableWithRelogin' by checking if the client is non-interactive or if a predicate error occurred.
+// Returns the original error (possibly wrapped with additional context) and a boolean indicating whether or not
+// relogin should be attempted.
+func ShouldRetryWithRelogin(ctx context.Context, tc *TeleportClient, fnErr error) (bool, error) {
+	if keys.IsPrivateKeyPolicyError(fnErr) {
+		privateKeyPolicy, err := keys.ParsePrivateKeyPolicyError(fnErr)
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+
+		tc.updatePrivateKeyPolicy(privateKeyPolicy)
+	}
+
+	switch {
+	case utils.IsPredicateError(fnErr):
+		return false, trace.Wrap(utils.PredicateError{Err: fnErr})
+	case tc.NonInteractive:
+		return false, trace.Wrap(fnErr, "cannot relogin in non-interactive session")
+	case !IsErrorResolvableWithRelogin(fnErr):
+		// If the connection to Auth was unexpectedly cut, see if the client is too
+		// old to interact with the cluster.
+		if errors.Is(fnErr, io.EOF) || (trace.IsConnectionProblem(fnErr) && strings.Contains(fnErr.Error(), "error reading from server: EOF")) {
+			// The results are intentionally ignored - Ping prints warnings
+			// related to versions, and that's all that is needed here.
+			_, _ = tc.Ping(ctx)
+		}
+
+		return false, trace.Wrap(fnErr)
+	}
+	return true, fnErr
+}
+
+// RetryWithRelogin is a helper error handling method, attempts to relogin and
+// retry the function once.
+func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error, opts ...RetryWithReloginOption) error {
+	fnErr := fn()
+	if fnErr == nil {
+		return nil
+	}
+
+	var shouldRetry bool
+	if shouldRetry, fnErr = ShouldRetryWithRelogin(ctx, tc, fnErr); !shouldRetry {
+		return fnErr
+	}
+
+	log.DebugContext(ctx, "Activating relogin on error", "error", fnErr, "error_type", logutils.TypeAttr(trace.Unwrap(fnErr)))
+	err := Relogin(ctx, tc, opts...)
+	if err != nil {
+		if errors.Is(err, prompt.ErrNotTerminal) {
+			return trace.Wrap(fnErr)
+		}
+		return trace.Wrap(err)
 	}
 
 	return fn()
@@ -709,8 +835,42 @@ func WithMakeCurrentProfile(makeCurrentProfile bool) RetryWithReloginOption {
 	}
 }
 
+// NonRetryableError wraps an error to indicate that the error should fail
+// IsErrorResolvableWithRelogin. This wrapper is used to workaround the false
+// positives like trace.IsBadParameter check in IsErrorResolvableWithRelogin.
+type NonRetryableError struct {
+	// Err is the original error.
+	Err error
+}
+
+// Error returns the error text.
+func (e *NonRetryableError) Error() string {
+	if e == nil || e.Err == nil {
+		return ""
+	}
+	return e.Err.Error()
+}
+
+// Unwrap returns the original error.
+func (e *NonRetryableError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.Err
+}
+
+// IsNonRetryableError checks if the provided error is a NonRetryableError.
+// Equivalent to `errors.As(err, new(*NonRetryableError))`.
+func IsNonRetryableError(err error) bool {
+	return errors.As(err, new(*NonRetryableError))
+}
+
 // IsErrorResolvableWithRelogin returns true if relogin is attempted on `err`.
 func IsErrorResolvableWithRelogin(err error) bool {
+	if IsNonRetryableError(err) {
+		return false
+	}
+
 	// Private key policy errors indicate that the user must login with an
 	// unexpected private key policy requirement satisfied. This can occur
 	// in the following cases:
@@ -746,6 +906,8 @@ func IsErrorResolvableWithRelogin(err error) bool {
 	// TODO(codingllama): Retrying BadParameter is a terrible idea.
 	//  We should fix this and remove the RemoteError condition above as well.
 	//  Any retriable error should be explicitly marked as such.
+	//  Once trace.IsBadParameter check is removed, the nonRetryableError
+	//  workaround can also be removed.
 	return trace.IsBadParameter(err) ||
 		trace.IsTrustError(err) ||
 		utils.IsCertExpiredError(err) ||
@@ -754,13 +916,16 @@ func IsErrorResolvableWithRelogin(err error) bool {
 		IsNoCredentialsError(err)
 }
 
-// GetProfile gets the profile for the specified proxy address, or
-// the current profile if no proxy is specified.
-func (c *Config) GetProfile(ps ProfileStore, proxyAddr string) (*profile.Profile, error) {
+// GetProfile gets the client profile for the specified proxy address.
+func (c *Config) GetProfile(proxyAddr string) (*profile.Profile, error) {
+	if c.ClientStore == nil {
+		return nil, trace.BadParameter("client store can not be nil")
+	}
+
 	var proxyHost string
 	var err error
 	if proxyAddr == "" {
-		proxyHost, err = ps.CurrentProfile()
+		proxyHost, err = c.ClientStore.CurrentProfile()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -771,18 +936,17 @@ func (c *Config) GetProfile(ps ProfileStore, proxyAddr string) (*profile.Profile
 		}
 	}
 
-	profile, err := ps.GetProfile(proxyHost)
+	profile, err := c.ClientStore.GetProfile(proxyHost)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return profile, nil
 }
 
-// LoadProfile populates Config with the values stored in the given
-// profiles directory. If profileDir is an empty string, the default profile
-// directory ~/.tsh is used.
-func (c *Config) LoadProfile(ps ProfileStore, proxyAddr string) error {
-	profile, err := c.GetProfile(ps, proxyAddr)
+// LoadProfile populates Config with the values stored in the client
+// profile for the specified proxy address.
+func (c *Config) LoadProfile(proxyAddr string) error {
+	profile, err := c.GetProfile(proxyAddr)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -795,14 +959,20 @@ func (c *Config) LoadProfile(ps ProfileStore, proxyAddr string) error {
 	c.PostgresProxyAddr = profile.PostgresProxyAddr
 	c.MySQLProxyAddr = profile.MySQLProxyAddr
 	c.MongoProxyAddr = profile.MongoProxyAddr
+	c.ProfileRelayAddr = profile.RelayAddr
+	c.ProfileDefaultRelayAddr = profile.DefaultRelayAddr
 	c.TLSRoutingEnabled = profile.TLSRoutingEnabled
 	c.TLSRoutingConnUpgradeRequired = profile.TLSRoutingConnUpgradeRequired
-	c.KeysDir = profile.Dir
 	c.AuthConnector = profile.AuthConnector
 	c.LoadAllCAs = profile.LoadAllCAs
 	c.PrivateKeyPolicy = profile.PrivateKeyPolicy
 	c.PIVSlot = profile.PIVSlot
+	c.PIVPINCacheTTL = profile.PIVPINCacheTTL
 	c.SAMLSingleLogoutEnabled = profile.SAMLSingleLogoutEnabled
+	c.SSHDialTimeout = profile.SSHDialTimeout
+	c.SSOHost = profile.SSOHost
+	c.Scope = profile.Scope
+
 	c.AuthenticatorAttachment, err = parseMFAMode(profile.MFAMode)
 	if err != nil {
 		return trace.BadParameter("unable to parse mfa mode in user profile: %v.", err)
@@ -810,13 +980,26 @@ func (c *Config) LoadProfile(ps ProfileStore, proxyAddr string) error {
 
 	c.DynamicForwardedPorts, err = ParseDynamicPortForwardSpec(profile.DynamicForwardedPorts)
 	if err != nil {
-		log.Warnf("Unable to parse dynamic port forwarding in user profile: %v.", err)
+		log.WarnContext(context.Background(), "Unable to parse dynamic port forwarding in user profile", "error", err)
 	}
 
 	if required, ok := client.OverwriteALPNConnUpgradeRequirementByEnv(c.WebProxyAddr); ok {
 		c.TLSRoutingConnUpgradeRequired = required
 	}
-	log.Infof("ALPN connection upgrade required for %q: %v.", c.WebProxyAddr, c.TLSRoutingConnUpgradeRequired)
+	log.InfoContext(context.Background(), "ALPN connection upgrade required",
+		"web_proxy_addr", c.WebProxyAddr,
+		"upgrade_required", c.TLSRoutingConnUpgradeRequired,
+	)
+
+	switch profile.RelayAddr {
+	case "":
+		c.RelayAddr = profile.DefaultRelayAddr
+	case "none":
+		c.RelayAddr = ""
+	default:
+		c.RelayAddr = profile.RelayAddr
+	}
+
 	return nil
 }
 
@@ -843,6 +1026,8 @@ func (c *Config) Profile() *profile.Profile {
 		PostgresProxyAddr:             c.PostgresProxyAddr,
 		MySQLProxyAddr:                c.MySQLProxyAddr,
 		MongoProxyAddr:                c.MongoProxyAddr,
+		RelayAddr:                     c.ProfileRelayAddr,
+		DefaultRelayAddr:              c.ProfileDefaultRelayAddr,
 		SiteName:                      c.SiteName,
 		TLSRoutingEnabled:             c.TLSRoutingEnabled,
 		TLSRoutingConnUpgradeRequired: c.TLSRoutingConnUpgradeRequired,
@@ -851,7 +1036,11 @@ func (c *Config) Profile() *profile.Profile {
 		LoadAllCAs:                    c.LoadAllCAs,
 		PrivateKeyPolicy:              c.PrivateKeyPolicy,
 		PIVSlot:                       c.PIVSlot,
+		PIVPINCacheTTL:                c.PIVPINCacheTTL,
 		SAMLSingleLogoutEnabled:       c.SAMLSingleLogoutEnabled,
+		SSHDialTimeout:                c.SSHDialTimeout,
+		SSOHost:                       c.SSOHost,
+		Scope:                         c.Scope,
 	}
 }
 
@@ -1093,7 +1282,7 @@ func (c *Config) ProxySpecified() bool {
 func (c *Config) ResourceFilter(kind string) *proto.ListResourcesRequest {
 	return &proto.ListResourcesRequest{
 		ResourceType:        kind,
-		Namespace:           c.Namespace,
+		Namespace:           apidefaults.Namespace,
 		Labels:              c.Labels,
 		SearchKeywords:      c.SearchKeywords,
 		PredicateExpression: c.PredicateExpression,
@@ -1102,7 +1291,7 @@ func (c *Config) ResourceFilter(kind string) *proto.ListResourcesRequest {
 }
 
 // DTAuthnRunCeremonyFunc matches the signature of [dtauthn.Ceremony.Run].
-type DTAuthnRunCeremonyFunc func(context.Context, devicepb.DeviceTrustServiceClient, *devicepb.UserCertificates) (*devicepb.UserCertificates, error)
+type DTAuthnRunCeremonyFunc func(context.Context, *dtauthntypes.CeremonyRunParams) (*devicepb.UserCertificates, error)
 
 // DTAutoEnrollFunc matches the signature of [dtenroll.AutoEnroll].
 type DTAutoEnrollFunc func(context.Context, devicepb.DeviceTrustServiceClient) (*devicepb.Device, error)
@@ -1112,11 +1301,10 @@ type DTAutoEnrollFunc func(context.Context, devicepb.DeviceTrustServiceClient) (
 // TeleportClient is NOT safe for concurrent use.
 type TeleportClient struct {
 	Config
-	localAgent *LocalKeyAgent
+	exitStatus int
+	statusMu   sync.Mutex
 
-	// OnChannelRequest gets called when SSH channel requests are
-	// received. It's safe to keep it nil.
-	OnChannelRequest tracessh.ChannelRequestCallback
+	localAgent *LocalKeyAgent
 
 	// OnShellCreated gets called when the shell is created. It's
 	// safe to keep it nil.
@@ -1140,60 +1328,12 @@ type ShellCreatedCallback func(s *tracessh.Session, c *tracessh.Client, terminal
 
 // NewClient creates a TeleportClient object and fully configures it
 func NewClient(c *Config) (tc *TeleportClient, err error) {
-	if len(c.JumpHosts) > 1 {
-		return nil, trace.BadParameter("only one jump host is supported, got %v", len(c.JumpHosts))
-	}
-	// validate configuration
-	if c.Username == "" {
-		c.Username, err = Username()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		log.Infof("No teleport login given. defaulting to %s", c.Username)
-	}
-	if c.WebProxyAddr == "" {
-		return nil, trace.BadParameter("No proxy address specified, missed --proxy flag?")
-	}
-	if c.HostLogin == "" {
-		c.HostLogin, err = Username()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		log.Infof("no host login given. defaulting to %s", c.HostLogin)
-	}
-
-	c.Namespace = types.ProcessNamespace(c.Namespace)
-
-	if c.Tracer == nil {
-		c.Tracer = tracing.NoopProvider().Tracer(teleport.ComponentTeleport)
+	if err := c.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	tc = &TeleportClient{
 		Config: *c,
-	}
-
-	if tc.Stdout == nil {
-		tc.Stdout = os.Stdout
-	}
-	if tc.Stderr == nil {
-		tc.Stderr = os.Stderr
-	}
-	if tc.Stdin == nil {
-		tc.Stdin = os.Stdin
-	}
-
-	if tc.ClientStore == nil {
-		if tc.TLS != nil || tc.AuthMethods != nil {
-			// Client will use static auth methods instead of client store.
-			// Initialize empty client store to prevent panics.
-			tc.ClientStore = NewMemClientStore()
-		} else {
-			tc.ClientStore = NewFSClientStore(c.KeysDir)
-			if c.AddKeysToAgent == AddKeysToAgentOnly {
-				// Store client keys in memory, but still save trusted certs and profile to disk.
-				tc.ClientStore.KeyStore = NewMemKeyStore()
-			}
-		}
 	}
 
 	// Create a buffered channel to hold events that occurred during this session.
@@ -1226,6 +1366,36 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 	return tc, nil
 }
 
+// ExitStatus returns the exit status of the most recent SSH command. It is the
+// caller's responsibility to ensure the command has finished before checking
+// the exit status.
+func (tc *TeleportClient) ExitStatus() int {
+	tc.statusMu.Lock()
+	defer tc.statusMu.Unlock()
+	return tc.exitStatus
+}
+
+// SetExitStatus sets the exit status of the most recent SSH command.
+func (tc *TeleportClient) SetExitStatus(status int) {
+	tc.statusMu.Lock()
+	defer tc.statusMu.Unlock()
+	tc.exitStatus = status
+}
+
+func (tc *TeleportClient) stdin() prompt.StdinReader {
+	if tc.StdinFunc == nil {
+		return prompt.Stdin()
+	}
+	return tc.StdinFunc()
+}
+
+func (tc *TeleportClient) hasTouchIDCredentials(rpID, user string) bool {
+	if tc.HasTouchIDCredentialsFunc == nil {
+		return touchid.HasCredentials(rpID, user)
+	}
+	return tc.HasTouchIDCredentialsFunc(rpID, user)
+}
+
 func (tc *TeleportClient) ProfileStatus() (*ProfileStatus, error) {
 	status, err := tc.ClientStore.ReadProfileStatus(tc.WebProxyAddr)
 	if err != nil {
@@ -1242,7 +1412,8 @@ func (tc *TeleportClient) ProfileStatus() (*ProfileStatus, error) {
 // LoadKeyForCluster fetches a cluster-specific SSH key and loads it into the
 // SSH agent.
 func (tc *TeleportClient) LoadKeyForCluster(ctx context.Context, clusterName string) error {
-	_, span := tc.Tracer.Start(
+	//nolint:ineffassign,staticcheck // ctx is shadowed so future downstream calls inherit the span.
+	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/LoadKeyForCluster",
 		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
@@ -1252,33 +1423,7 @@ func (tc *TeleportClient) LoadKeyForCluster(ctx context.Context, clusterName str
 	if tc.localAgent == nil {
 		return trace.BadParameter("TeleportClient.LoadKeyForCluster called on a client without localAgent")
 	}
-	if err := tc.localAgent.LoadKeyForCluster(clusterName); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-// LoadKeyForClusterWithReissue fetches a cluster-specific SSH key and loads it into the
-// SSH agent.  If the key is not found, it is requested to be reissued.
-func (tc *TeleportClient) LoadKeyForClusterWithReissue(ctx context.Context, clusterName string) error {
-	ctx, span := tc.Tracer.Start(
-		ctx,
-		"teleportClient/LoadKeyForClusterWithReissue",
-		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
-		oteltrace.WithAttributes(attribute.String("cluster", clusterName)),
-	)
-	defer span.End()
-
-	err := tc.LoadKeyForCluster(ctx, clusterName)
-	if err == nil {
-		return nil
-	}
-	if !trace.IsNotFound(err) {
-		return trace.Wrap(err)
-	}
-	// Reissuing also loads the new key.
-	err = tc.ReissueUserCerts(ctx, CertCacheKeep, ReissueParams{RouteToCluster: clusterName})
-	if err != nil {
+	if err := tc.localAgent.LoadKeyRingForCluster(clusterName); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -1289,7 +1434,7 @@ func (tc *TeleportClient) LoadKeyForClusterWithReissue(ctx context.Context, clus
 func (tc *TeleportClient) SignersForClusterWithReissue(ctx context.Context, clusterName string) ([]ssh.Signer, error) {
 	ctx, span := tc.Tracer.Start(
 		ctx,
-		"teleportClient/LoadKeyForClusterWithReissue",
+		"teleportClient/SignersForClusterWithReissue",
 		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
 		oteltrace.WithAttributes(attribute.String("cluster", clusterName)),
 	)
@@ -1311,7 +1456,10 @@ func (tc *TeleportClient) SignersForClusterWithReissue(ctx context.Context, clus
 
 	signers, err = tc.localAgent.signersForCluster(clusterName)
 	if err != nil {
-		log.WithError(err).Warnf("Failed to load/reissue certificates for cluster %q.", clusterName)
+		log.WarnContext(ctx, "Failed to load/reissue certificates for cluster",
+			"error", err,
+			"cluster", clusterName,
+		)
 		return nil, trace.Wrap(err)
 	}
 	return signers, nil
@@ -1324,8 +1472,8 @@ func (tc *TeleportClient) LocalAgent() *LocalKeyAgent {
 
 // RootClusterName returns root cluster name.
 func (tc *TeleportClient) RootClusterName(ctx context.Context) (string, error) {
-	_, span := tc.Tracer.Start(
-		ctx,
+	//nolint:ineffassign,staticcheck // ctx is shadowed so future downstream calls inherit the span.
+	ctx, span := tc.Tracer.Start(ctx,
 		"teleportClient/RootClusterName",
 		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
 	)
@@ -1348,59 +1496,83 @@ func (tc *TeleportClient) RootClusterName(ctx context.Context) (string, error) {
 		return clusterName, nil
 	}
 
-	key, err := tc.LocalAgent().GetCoreKey()
+	keyRing, err := tc.LocalAgent().GetCoreKeyRing()
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	name, err := key.RootClusterName()
+	name, err := keyRing.RootClusterName()
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
 	return name, nil
 }
 
-type targetNode struct {
-	hostname string
-	addr     string
+// TargetNode contains information about a resolved host.
+type TargetNode struct {
+	// Hostname of the target host.
+	Hostname string
+	// Address of the target host. For hosts resolved
+	// via auth this will be in the form of UUID:0.
+	Addr string
 }
 
-// getTargetNodes returns a list of node addresses this SSH command needs to
-// operate on.
-func (tc *TeleportClient) getTargetNodes(ctx context.Context, clt client.GetResourcesClient, options SSHOptions) ([]targetNode, error) {
+// GetTargetNodes returns hosts matching the target host provided by users. Host resolution
+// honors an explicit host, i.e. tsh ssh user@hostname, label based hosts, i.e. tsh ssh user@foo=bar,
+// as well as respecting any proxy templates that are specified.
+func (tc *TeleportClient) GetTargetNodes(ctx context.Context, clt client.ListUnifiedResourcesClient, options SSHOptions) ([]TargetNode, error) {
 	ctx, span := tc.Tracer.Start(
 		ctx,
-		"teleportClient/getTargetNodes",
+		"teleportClient/GetTargetNodes",
 		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
 	)
 	defer span.End()
 
 	if options.HostAddress != "" {
-		return []targetNode{
+		return []TargetNode{
 			{
-				hostname: options.HostAddress,
-				addr:     options.HostAddress,
+				Hostname: options.HostAddress,
+				Addr:     options.HostAddress,
 			},
 		}, nil
 	}
 
 	// Query for nodes if labels, fuzzy search, or predicate expressions were provided.
 	if len(tc.Labels) > 0 || len(tc.SearchKeywords) > 0 || tc.PredicateExpression != "" {
-		nodes, err := client.GetAllResources[types.Server](ctx, clt, tc.ResourceFilter(types.KindNode))
+		log.DebugContext(ctx, "Attempting to resolve matching hosts",
+			"labels", tc.Labels,
+			"search", tc.SearchKeywords,
+			"predicate", tc.PredicateExpression,
+		)
+		nodes, err := client.GetAllUnifiedResources(ctx, clt, &proto.ListUnifiedResourcesRequest{
+			Kinds:               []string{types.KindNode},
+			SortBy:              types.SortBy{Field: types.ResourceMetadataName},
+			Labels:              tc.Labels,
+			SearchKeywords:      tc.SearchKeywords,
+			PredicateExpression: tc.PredicateExpression,
+			UseSearchAsRoles:    tc.UseSearchAsRoles,
+		})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		retval := make([]targetNode, 0, len(nodes))
+		retval := make([]TargetNode, 0, len(nodes))
 		for _, resource := range nodes {
+			server, ok := resource.ResourceWithLabels.(types.Server)
+			if !ok {
+				continue
+			}
+
 			// always dial nodes by UUID
-			retval = append(retval, targetNode{
-				hostname: resource.GetHostname(),
-				addr:     fmt.Sprintf("%s:0", resource.GetName()),
+			retval = append(retval, TargetNode{
+				Hostname: server.GetHostname(),
+				Addr:     fmt.Sprintf("%s:0", resource.GetName()),
 			})
 		}
 
 		return retval, nil
 	}
+
+	log.DebugContext(ctx, "Using provided host", "host", tc.Host)
 
 	// detect the common error when users use host:port address format
 	_, port, err := net.SplitHostPort(tc.Host)
@@ -1410,12 +1582,158 @@ func (tc *TeleportClient) getTargetNodes(ctx context.Context, clt client.GetReso
 	}
 
 	addr := net.JoinHostPort(tc.Host, strconv.Itoa(tc.HostPort))
-	return []targetNode{
+	return []TargetNode{
 		{
-			hostname: tc.Host,
-			addr:     addr,
+			Hostname: tc.Host,
+			Addr:     addr,
 		},
 	}, nil
+}
+
+// GetTargetNode returns a single host matching the target host provided by users. Host resolution
+// honors an explicit host, i.e. tsh ssh user@hostname, label based hosts, i.e. tsh ssh user@foo=bar,
+// as well as respecting any proxy templates that are specified.
+func (tc *TeleportClient) GetTargetNode(ctx context.Context, clt authclient.ClientI, options *SSHOptions) (*TargetNode, error) {
+	ctx, span := tc.Tracer.Start(
+		ctx,
+		"teleportClient/GetTargetNode",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	)
+	defer span.End()
+
+	if options != nil && options.HostAddress != "" {
+		return &TargetNode{
+			Hostname: options.HostAddress,
+			Addr:     options.HostAddress,
+		}, nil
+	}
+
+	host := tc.Host
+	port := strconv.Itoa(tc.HostPort)
+	predExpr := tc.PredicateExpression
+	search := tc.SearchKeywords
+
+	// Apply proxy templates.
+	expanded, matched := tc.ProxyTemplates.Apply(net.JoinHostPort(host, port))
+	if matched {
+		log.DebugContext(ctx, "Matched proxy template for host",
+			slog.String("matched_host", host),
+			slog.Group("expanded",
+				"host", expanded.Host,
+				"query", expanded.Query,
+				"search", expanded.Search,
+			),
+		)
+		// Expanded template should override all previous search criteria.
+		host = ""
+		predExpr = ""
+		search = nil
+		if expanded.Host != "" {
+			host = expanded.Host
+			if expandedHost, expandedPort, err := net.SplitHostPort(expanded.Host); err == nil {
+				host = expandedHost
+				port = expandedPort
+			}
+		} else if expanded.Query != "" {
+			predExpr = expanded.Query
+		} else if expanded.Search != "" {
+			search = ParseSearchKeywords(expanded.Search, ',')
+		}
+	}
+
+	if len(tc.Labels) == 0 && len(search) == 0 && predExpr == "" {
+		log.DebugContext(ctx, "Using provided host", "host", host)
+
+		// detect the common error when users use host:port address format
+		_, badPort, err := net.SplitHostPort(host)
+		// client has used host:port notation
+		if err == nil {
+			return nil, trace.BadParameter("please use ssh subcommand with '--port=%v' flag instead of semicolon", badPort)
+		}
+
+		return &TargetNode{
+			Hostname: host,
+			Addr:     net.JoinHostPort(host, port),
+		}, nil
+	}
+
+	// Query for nodes if labels, fuzzy search, or predicate expressions were provided.
+	log.DebugContext(ctx, "Attempting to resolve matching host",
+		"labels", tc.Labels,
+		"search", search,
+		"predicate", predExpr,
+	)
+	resp, err := clt.ResolveSSHTarget(ctx, &proto.ResolveSSHTargetRequest{
+		PredicateExpression: predExpr,
+		SearchKeywords:      search,
+		Labels:              tc.Labels,
+	})
+	switch {
+	// TODO(tross): DELETE IN v20.0.0
+	case trace.IsNotImplemented(err):
+		resources, err := client.GetAllUnifiedResources(ctx, clt, &proto.ListUnifiedResourcesRequest{
+			Kinds:               []string{types.KindNode},
+			SortBy:              types.SortBy{Field: types.ResourceMetadataName},
+			Labels:              tc.Labels,
+			SearchKeywords:      search,
+			PredicateExpression: predExpr,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		switch len(resources) {
+		case 0:
+			return nil, trace.NotFound("no matching SSH hosts found for search terms or query expression")
+		case 1:
+			node, ok := resources[0].ResourceWithLabels.(*types.ServerV2)
+			if !ok {
+				return nil, trace.BadParameter("expected node resource, got %T", resources[0].ResourceWithLabels)
+			}
+			return &TargetNode{
+				Hostname: node.GetHostname(),
+				Addr:     node.GetName() + ":0",
+			}, nil
+		default:
+			// If routing does not allow choosing the most recent host, then abort with
+			// an ambiguous host error.
+			cnc, err := clt.GetClusterNetworkingConfig(ctx)
+			if err != nil || cnc.GetRoutingStrategy() != types.RoutingStrategy_MOST_RECENT {
+				return nil, trace.BadParameter("found multiple matching SSH hosts %v", resources[:2])
+			}
+
+			// Get the most recent version of the resource.
+			enrichedResource := slices.MaxFunc(resources, func(a, b *types.EnrichedResource) int {
+				return a.Expiry().Compare(b.Expiry())
+			})
+			server, ok := enrichedResource.ResourceWithLabels.(types.Server)
+			if !ok {
+				return nil, trace.BadParameter("received unexpected resource type %T", resources[0].ResourceWithLabels)
+			}
+
+			// Dialing is happening by UUID but a port is still required by
+			// the Proxy dial request. Zero is an indicator to the Proxy that
+			// it may chose the appropriate port based on the target server.
+			return &TargetNode{
+				Hostname: server.GetHostname(),
+				Addr:     server.GetName() + ":0",
+			}, nil
+		}
+	case err == nil:
+		if resp.GetServer() == nil {
+			return nil, trace.NotFound("no matching SSH hosts found")
+		}
+
+		// Dialing is happening by UUID but a port is still required by
+		// the Proxy dial request. Zero is an indicator to the Proxy that
+		// it may chose the appropriate port based on the target server.
+		return &TargetNode{
+			Hostname: resp.GetServer().GetHostname(),
+			Addr:     resp.GetServer().GetName() + ":0",
+		}, nil
+	default:
+		return nil, trace.Wrap(err)
+	}
 }
 
 // ReissueUserCerts issues new user certs based on params and stores them in
@@ -1449,7 +1767,7 @@ func (tc *TeleportClient) ReissueUserCerts(ctx context.Context, cachePolicy Cert
 // (according to RBAC), IssueCertsWithMFA will:
 // - for SSH certs, return the existing Key from the keystore.
 // - for TLS certs, fall back to ReissueUserCerts.
-func (tc *TeleportClient) IssueUserCertsWithMFA(ctx context.Context, params ReissueParams, mfaPromptOpts ...mfa.PromptOpt) (*KeyRing, error) {
+func (tc *TeleportClient) IssueUserCertsWithMFA(ctx context.Context, params ReissueParams) (*KeyRing, error) {
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/IssueUserCertsWithMFA",
@@ -1463,8 +1781,11 @@ func (tc *TeleportClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 	}
 	defer clusterClient.Close()
 
-	key, _, err := clusterClient.IssueUserCertsWithMFA(ctx, params, tc.NewMFAPrompt(mfaPromptOpts...))
-	return key, trace.Wrap(err)
+	result, err := clusterClient.IssueUserCertsWithMFA(ctx, params)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return result.KeyRing, nil
 }
 
 // CreateAccessRequestV2 registers a new access request with the auth server.
@@ -1628,6 +1949,14 @@ type SSHOptions struct {
 	// machine. If provided, it will be used instead of establishing a connection
 	// to the target host and executing the command remotely.
 	LocalCommandExecutor func(string, []string) error
+	// OnChildAuthenticate is a function to run in the child process during
+	// --fork-after authentications. It runs after authentication completes
+	// but before the session begins.
+	OnChildAuthenticate func() error
+}
+
+func (opts SSHOptions) forkAfterAuthentication() bool {
+	return opts.OnChildAuthenticate != nil
 }
 
 // WithHostAddress returns a SSHOptions which overrides the
@@ -1643,6 +1972,15 @@ func WithHostAddress(addr string) func(*SSHOptions) {
 func WithLocalCommandExecutor(executor func(string, []string) error) func(*SSHOptions) {
 	return func(opt *SSHOptions) {
 		opt.LocalCommandExecutor = executor
+	}
+}
+
+// WithForkAfterAuthentication indicates that tsh is currently reexec-ing
+// for --fork-after-authentication. The given function is called after
+// authentication is complete but before the session starts.
+func WithForkAfterAuthentication(onAuthenticate func() error) func(*SSHOptions) {
+	return func(opt *SSHOptions) {
+		opt.OnChildAuthenticate = onAuthenticate
 	}
 }
 
@@ -1679,7 +2017,7 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, opts ...fun
 	defer clt.Close()
 
 	// which nodes are we executing this commands on?
-	nodeAddrs, err := tc.getTargetNodes(ctx, clt.AuthClient, options)
+	nodeAddrs, err := tc.GetTargetNodes(ctx, clt.AuthClient, options)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1688,18 +2026,22 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, opts ...fun
 	}
 
 	if len(nodeAddrs) > 1 {
+		if options.forkAfterAuthentication() {
+			return &NonRetryableError{
+				Err: trace.BadParameter("fork after authentication not supported for commands on multiple nodes"),
+			}
+		}
 		return tc.runShellOrCommandOnMultipleNodes(ctx, clt, nodeAddrs, command)
 	}
-	return tc.runShellOrCommandOnSingleNode(ctx, clt, nodeAddrs[0].addr, command, options.LocalCommandExecutor)
+	return tc.runShellOrCommandOnSingleNode(ctx, clt, nodeAddrs[0].Addr, command, options)
 }
 
-// ConnectToNode attempts to establish a connection to the node resolved to by the provided
-// NodeDetails. Connecting is attempted both with the already provisioned certificates and
-// if per session mfa is required, after completing the mfa ceremony. In the event that both
-// fail the error from the connection attempt with the already provisioned certificates will
-// be returned. The client from whichever attempt succeeds first will be returned.
+// ConnectToNode establishes a connection to the target host. It first attempts to connect with the existing
+// certificates, which can succeed if per-session MFA is not required or if the node supports in-band MFA. If that
+// fails, it falls back to the legacy per-session MFA certificate flow. If both attempts fail, it returns the error
+// that is most likely to be helpful to the user.
 func (tc *TeleportClient) ConnectToNode(ctx context.Context, clt *ClusterClient, nodeDetails NodeDetails, user string) (_ *NodeClient, err error) {
-	node := nodeName(targetNode{addr: nodeDetails.Addr})
+	node := nodeName(TargetNode{Addr: nodeDetails.Addr})
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/ConnectToNode",
@@ -1711,152 +2053,122 @@ func (tc *TeleportClient) ConnectToNode(ctx context.Context, clt *ClusterClient,
 	)
 	defer func() { apitracing.EndSpan(span, err) }()
 
-	// if per-session mfa is required, perform the mfa ceremony to get
-	// new certificates and use them to connect.
-	if nodeDetails.MFACheck != nil && nodeDetails.MFACheck.Required {
-		clt, err := tc.connectToNodeWithMFA(ctx, clt, nodeDetails, user)
-		return clt, trace.Wrap(err)
+	// Try to connect directly with existing certs. This can succeed if MFA is not required or if the node supports
+	// in-band MFA and the ceremony completes successfully.
+	nodeClient, directErr := tc.connectToNode(ctx, clt, nodeDetails, user, node)
+	if directErr == nil {
+		return nodeClient, nil
 	}
 
-	type clientRes struct {
-		clt *NodeClient
-		err error
+	// Fall back to attempting to connect with certs issued from the session MFA ceremony. This can succeed if MFA is
+	// required and the user has enrolled MFA devices, but will fail if the user does not have any enrolled MFA devices
+	// or if there are any issues during the MFA ceremony.
+	//
+	// TODO(cthach): DELETE IN v20.0 when the legacy per-session MFA with certifcates flow is removed.
+	nodeClient, mfaErr := tc.connectToNodeWithLegacyMFA(ctx, clt, nodeDetails, user)
+	if mfaErr == nil {
+		return nodeClient, nil
 	}
-
-	directResultC := make(chan clientRes, 1)
-	mfaResultC := make(chan clientRes, 1)
-
-	// use a child context so the goroutines can terminate the other if they succeed
-	directCtx, directCancel := context.WithCancel(ctx)
-	mfaCtx, mfaCancel := context.WithCancel(ctx)
-	go func() {
-		connectCtx, span := tc.Tracer.Start(
-			directCtx,
-			"teleportClient/connectToNode",
-			oteltrace.WithSpanKind(oteltrace.SpanKindClient),
-			oteltrace.WithAttributes(
-				attribute.String("cluster", nodeDetails.Cluster),
-				attribute.String("node", node),
-			),
-		)
-		defer span.End()
-
-		// Try connecting to the node with the certs we already have. Note that the different context being provided
-		// here is intentional. The underlying stream backing the connection will run for the duration of the session
-		// and cause the current span to have a duration longer than just the initial connection. To avoid this the
-		// parent context is used.
-		conn, details, err := clt.DialHostWithResumption(ctx, nodeDetails.Addr, nodeDetails.Cluster, tc.localAgent.ExtendedAgent)
-		if err != nil {
-			directResultC <- clientRes{err: err}
-			return
-		}
-
-		sshConfig := clt.ProxyClient.SSHConfig(user)
-		clt, err := NewNodeClient(connectCtx, sshConfig, conn, nodeDetails.ProxyFormat(), nodeDetails.Addr, tc, details.FIPS,
-			WithNodeHostname(nodeDetails.hostname), WithSSHLogDir(tc.SSHLogDir))
-		directResultC <- clientRes{clt: clt, err: err}
-	}()
-
-	go func() {
-		// try performing mfa and then connecting with the single use certs
-		clt, err := tc.connectToNodeWithMFA(mfaCtx, clt, nodeDetails, user)
-		mfaResultC <- clientRes{clt: clt, err: err}
-	}()
-
-	var directErr, mfaErr error
-	for i := 0; i < 2; i++ {
-		select {
-		case <-ctx.Done():
-			mfaCancel()
-			directCancel()
-			return nil, ctx.Err()
-		case res := <-directResultC:
-			if res.clt != nil {
-				mfaCancel()
-				res.clt.AddCancel(directCancel)
-				return res.clt, nil
-			}
-
-			directErr = res.err
-		case res := <-mfaResultC:
-			if res.clt != nil {
-				directCancel()
-				res.clt.AddCancel(mfaCancel)
-				return res.clt, nil
-			}
-
-			mfaErr = res.err
-		}
-	}
-
-	mfaCancel()
-	directCancel()
 
 	switch {
-	// No MFA errors, return any errors from the direct connection
-	case mfaErr == nil:
-		return nil, trace.Wrap(directErr)
 	// Any direct connection errors other than access denied, which should be returned
 	// if MFA is required, take precedent over MFA errors due to users not having any
 	// enrolled devices.
 	case !trace.IsAccessDenied(directErr) && errors.Is(mfaErr, authclient.ErrNoMFADevices):
 		return nil, trace.Wrap(directErr)
 	case !errors.Is(mfaErr, io.EOF) && // Ignore any errors from MFA due to locks being enforced, the direct error will be friendlier
-		!errors.Is(mfaErr, MFARequiredUnknownErr{}) && // Ignore any failures that occurred before determining if MFA was required
+		!errors.As(mfaErr, new(*MFARequiredUnknownError)) && // Ignore any failures that occurred before determining if MFA was required
 		!errors.Is(mfaErr, services.ErrSessionMFANotRequired): // Ignore any errors caused by attempting the MFA ceremony when MFA will not grant access
+		log.DebugContext(ctx, "Failed to connect to node, returning MFA ceremony error and ignoring direct connection error", "direct_error", directErr)
 		return nil, trace.Wrap(mfaErr)
 	default:
+		log.DebugContext(ctx, "Failed to connect to node, returning direct connection error and ignoring MFA ceremony error", "mfa_error", mfaErr)
 		return nil, trace.Wrap(directErr)
 	}
 }
 
-// MFARequiredUnknownErr indicates that connections to an instance failed
-// due to being unable to determine if mfa is required
-type MFARequiredUnknownErr struct {
+// connectToNode attempts to connect to a node using already provisioned certificates.
+func (tc *TeleportClient) connectToNode(ctx context.Context, clt *ClusterClient, nodeDetails NodeDetails, user, node string) (*NodeClient, error) {
+	connectCtx, connectSpan := tc.Tracer.Start(
+		ctx,
+		"teleportClient/connectToNode",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+		oteltrace.WithAttributes(
+			attribute.String("cluster", nodeDetails.Cluster),
+			attribute.String("node", node),
+		),
+	)
+	defer connectSpan.End()
+
+	// The underlying stream backing the connection may live for the duration of the session and would make this span
+	// look longer than the dial itself. Use the parent context for dialing to keep span timing focused on connect.
+	conn, details, err := clt.DialHostWithResumption(ctx, nodeDetails.Addr, nodeDetails.Cluster, tc.localAgent.ExtendedAgent)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	sshConfig := clt.ProxyClient.SSHConfig(user)
+	sshConfig.AuthCallback = clientssh.AuthCallback(
+		connectCtx,
+		clientssh.AuthCallbackConfig{
+			MFAPerformer: clt.PerformSessionMFACeremony,
+		},
+	)
+
+	nodeClient, err := NewNodeClient(
+		connectCtx,
+		sshConfig,
+		conn,
+		nodeDetails.ProxyFormat(),
+		nodeDetails.Addr,
+		tc,
+		details.FIPS,
+		WithNodeHostname(nodeDetails.hostname),
+		WithSSHLogDir(tc.SSHLogDir),
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return nodeClient, nil
+}
+
+// MFARequiredUnknownError indicates that connections to an instance failed due
+// to being unable to determine if MFA is required.
+type MFARequiredUnknownError struct {
 	err error
 }
 
-// MFARequiredUnknown creates a new MFARequiredUnknownErr that wraps the
-// error encountered attempting to determine if the mfa ceremony should proceed.
+// MFARequiredUnknown creates a new MFARequiredUnknownError that wraps the error
+// encountered attempting to determine if the MFA ceremony should proceed.
 func MFARequiredUnknown(err error) error {
-	return MFARequiredUnknownErr{err: err}
+	return &MFARequiredUnknownError{err: err}
 }
 
 // Error returns the error string of the wrapped error if one exists.
-func (m MFARequiredUnknownErr) Error() string {
+func (m *MFARequiredUnknownError) Error() string {
+	const msg = "unable to determine if a MFA ceremony is required"
 	if m.err == nil {
-		return ""
+		return msg
 	}
 
-	return m.err.Error()
+	return msg + ": " + m.err.Error()
 }
 
-// Unwrap returns the underlying error from checking if an mfa
-// ceremony should have been performed.
-func (m MFARequiredUnknownErr) Unwrap() error {
+// Unwrap returns the underlying error from checking if an MFA ceremony should
+// have been performed.
+func (m *MFARequiredUnknownError) Unwrap() error {
 	return m.err
 }
 
-// Is determines if the provided error is an MFARequiredUnknownErr.
-func (m MFARequiredUnknownErr) Is(err error) bool {
-	switch err.(type) {
-	case MFARequiredUnknownErr:
-		return true
-	case *MFARequiredUnknownErr:
-		return true
-	default:
-		return false
-	}
-}
-
-// connectToNodeWithMFA checks if per session mfa is required to connect to the target host, and
-// if it is required, then the mfa ceremony is attempted. The target host is dialed once the ceremony
-// completes and new certificates are retrieved.
-func (tc *TeleportClient) connectToNodeWithMFA(ctx context.Context, clt *ClusterClient, nodeDetails NodeDetails, user string) (*NodeClient, error) {
-	node := nodeName(targetNode{addr: nodeDetails.Addr})
+// connectToNodeWithLegacyMFA attempts to connect with certificates issued by the legacy per-session MFA flow.
+// If per-session MFA is required, it performs the MFA ceremony before dialing the target host with the new
+// certificates.
+func (tc *TeleportClient) connectToNodeWithLegacyMFA(ctx context.Context, clt *ClusterClient, nodeDetails NodeDetails, user string) (*NodeClient, error) {
+	node := nodeName(TargetNode{Addr: nodeDetails.Addr})
 	ctx, span := tc.Tracer.Start(
 		ctx,
-		"teleportClient/connectToNodeWithMFA",
+		"teleportClient/connectToNodeWithLegacyMFA",
 		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
 		oteltrace.WithAttributes(
 			attribute.String("cluster", nodeDetails.Cluster),
@@ -1893,7 +2205,7 @@ func (tc *TeleportClient) connectToNodeWithMFA(ctx context.Context, clt *Cluster
 	return nodeClient, trace.Wrap(err)
 }
 
-func (tc *TeleportClient) runShellOrCommandOnSingleNode(ctx context.Context, clt *ClusterClient, nodeAddr string, command []string, commandExecutor func(string, []string) error) error {
+func (tc *TeleportClient) runShellOrCommandOnSingleNode(ctx context.Context, clt *ClusterClient, nodeAddr string, command []string, options SSHOptions) error {
 	cluster := clt.ClusterName()
 	ctx, span := tc.Tracer.Start(
 		ctx,
@@ -1909,14 +2221,20 @@ func (tc *TeleportClient) runShellOrCommandOnSingleNode(ctx context.Context, clt
 	nodeClient, err := tc.ConnectToNode(
 		ctx,
 		clt,
-		NodeDetails{Addr: nodeAddr, Namespace: tc.Namespace, Cluster: cluster},
+		NodeDetails{Addr: nodeAddr, Cluster: cluster},
 		tc.Config.HostLogin,
 	)
 	if err != nil {
-		tc.ExitStatus = 1
+		tc.SetExitStatus(1)
 		return trace.Wrap(err)
 	}
 	defer nodeClient.Close()
+
+	if options.OnChildAuthenticate != nil {
+		if err := options.OnChildAuthenticate(); err != nil {
+			return trace.Wrap(err)
+		}
+	}
 	// If forwarding ports were specified, start port forwarding.
 	if err := tc.startPortForwarding(ctx, nodeClient); err != nil {
 		return trace.Wrap(err)
@@ -1930,7 +2248,7 @@ func (tc *TeleportClient) runShellOrCommandOnSingleNode(ctx context.Context, clt
 		go func() {
 			connClosed <- nodeClient.Client.Wait()
 		}()
-		log.Debugf("Connected to node, no remote command execution was requested, blocking indefinitely.")
+		log.DebugContext(ctx, "Connected to node, no remote command execution was requested, blocking indefinitely")
 		select {
 		case <-ctx.Done():
 			// Only return an error if the context was canceled by something other than SIGINT.
@@ -1948,25 +2266,25 @@ func (tc *TeleportClient) runShellOrCommandOnSingleNode(ctx context.Context, clt
 
 	// After port forwarding, run a local command that uses the connection, and
 	// then disconnect.
-	if commandExecutor != nil {
+	if options.LocalCommandExecutor != nil {
 		if len(tc.Config.LocalForwardPorts) == 0 {
 			fmt.Println("Executing command locally without connecting to any servers. This makes no sense.")
 		}
-		return commandExecutor(tc.Config.HostLogin, command)
+		return options.LocalCommandExecutor(tc.Config.HostLogin, command)
 	}
 
 	if len(command) > 0 {
 		// Reuse the existing nodeClient we connected above.
 		return nodeClient.RunCommand(ctx, command)
 	}
-	return trace.Wrap(nodeClient.RunInteractiveShell(ctx, types.SessionPeerMode, nil, tc.OnChannelRequest, nil))
+	return trace.Wrap(nodeClient.RunInteractiveShell(ctx, "", "", nil))
 }
 
-func (tc *TeleportClient) runShellOrCommandOnMultipleNodes(ctx context.Context, clt *ClusterClient, nodes []targetNode, command []string) error {
+func (tc *TeleportClient) runShellOrCommandOnMultipleNodes(ctx context.Context, clt *ClusterClient, nodes []TargetNode, command []string) error {
 	cluster := clt.ClusterName()
 	nodeAddrs := make([]string, 0, len(nodes))
 	for _, node := range nodes {
-		nodeAddrs = append(nodeAddrs, node.addr)
+		nodeAddrs = append(nodeAddrs, node.Addr)
 	}
 	ctx, span := tc.Tracer.Start(
 		ctx,
@@ -1987,7 +2305,7 @@ func (tc *TeleportClient) runShellOrCommandOnMultipleNodes(ctx context.Context, 
 
 	// Issue "shell" request to the first matching node.
 	fmt.Printf("\x1b[1mWARNING\x1b[0m: Multiple nodes match the label selector, picking first: %q\n", nodeAddrs[0])
-	return tc.runShellOrCommandOnSingleNode(ctx, clt, nodeAddrs[0], nil, nil)
+	return tc.runShellOrCommandOnSingleNode(ctx, clt, nodeAddrs[0], nil, SSHOptions{})
 }
 
 func (tc *TeleportClient) startPortForwarding(ctx context.Context, nodeClient *NodeClient) error {
@@ -2014,11 +2332,11 @@ func (tc *TeleportClient) startPortForwarding(ctx context.Context, nodeClient *N
 			// We log the error here instead of returning it to be consistent with
 			// the other port forwarding methods, which don't stop the session
 			// if forwarding fails.
-			message := fmt.Sprintf("Failed to bind on remote host to %v: %v.", addr, err)
 			if strings.Contains(err.Error(), remoteForwardUnsupportedMessage) {
-				message = "Node does not support remote port forwarding (-R)."
+				log.ErrorContext(ctx, "Node does not support remote port forwarding (-R)")
+			} else {
+				log.ErrorContext(ctx, "Failed to bind on remote host", "addr", addr, "error", err)
 			}
-			log.Error(message)
 		} else {
 			go nodeClient.remoteListenAndForward(ctx, socket, net.JoinHostPort(fp.DestHost, strconv.Itoa(fp.DestPort)), addr)
 		}
@@ -2027,7 +2345,7 @@ func (tc *TeleportClient) startPortForwarding(ctx context.Context, nodeClient *N
 }
 
 // Join connects to the existing/active SSH session
-func (tc *TeleportClient) Join(ctx context.Context, mode types.SessionParticipantMode, namespace string, sessionID session.ID, input io.Reader) (err error) {
+func (tc *TeleportClient) Join(ctx context.Context, mode types.SessionParticipantMode, sessionID session.ID, input io.Reader) (err error) {
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/Join",
@@ -2039,9 +2357,6 @@ func (tc *TeleportClient) Join(ctx context.Context, mode types.SessionParticipan
 	)
 	defer span.End()
 
-	if namespace == "" {
-		return trace.BadParameter(authclient.MissingNamespaceError)
-	}
 	tc.Stdin = input
 	if sessionID.Check() != nil {
 		return trace.Errorf("Invalid session ID format: %s", string(sessionID))
@@ -2064,7 +2379,7 @@ func (tc *TeleportClient) Join(ctx context.Context, mode types.SessionParticipan
 			return trace.Wrap(err)
 		}
 	} else if services.IsRecordAtProxy(recConfig.GetMode()) {
-		return trace.BadParameter("session joining is not supported in proxy recording mode")
+		return trace.BadParameter("session joining is not supported in proxy recording mode. If you are a Teleport administrator, you can learn more about recording modes at: https://goteleport.com/docs/reference/architecture/session-recording")
 	}
 
 	session, err := clt.AuthClient.GetSessionTracker(ctx, string(sessionID))
@@ -2090,7 +2405,7 @@ func (tc *TeleportClient) Join(ctx context.Context, mode types.SessionParticipan
 	// connect to server:
 	nc, err := tc.ConnectToNode(ctx,
 		clt,
-		NodeDetails{Addr: session.GetAddress() + ":0", Namespace: tc.Namespace, Cluster: clt.ClusterName()},
+		NodeDetails{Addr: session.GetAddress() + ":0", Cluster: clt.ClusterName()},
 		tc.Config.HostLogin,
 	)
 	if err != nil {
@@ -2110,15 +2425,13 @@ func (tc *TeleportClient) Join(ctx context.Context, mode types.SessionParticipan
 	if mode == types.SessionModeratorMode {
 		beforeStart = func(out io.Writer) {
 			nc.OnMFA = func() {
-				RunPresenceTask(presenceCtx, out, clt.AuthClient, session.GetSessionID(), tc.NewMFAPrompt(mfa.WithQuiet()))
+				RunDefaultPresenceTask(presenceCtx, out, clt.AuthClient, session.GetSessionID(), tc.NewMFACeremony())
 			}
 		}
 	}
 
-	fmt.Printf("Joining session with participant mode: %v. \n\n", mode)
-
 	// running shell with a given session means "join" it:
-	err = nc.RunInteractiveShell(ctx, mode, session, tc.OnChannelRequest, beforeStart)
+	err = nc.RunInteractiveShell(ctx, sessionID.String(), mode, beforeStart)
 	return trace.Wrap(err)
 }
 
@@ -2180,6 +2493,7 @@ func playSession(ctx context.Context, sessionID string, speed float64, streamer 
 		SessionID:    *sid,
 		Streamer:     streamer,
 		SkipIdleTime: skipIdleTime,
+		Context:      ctx,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -2212,13 +2526,11 @@ func playSession(ctx context.Context, sessionID string, speed float64, streamer 
 				}
 				playing = !playing
 			case keyLeft, keyDown:
-				current := time.Duration(player.LastPlayed() * int64(time.Millisecond))
-				player.SetPos(max(current-skipDuration, 0)) // rewind
+				player.SetPos(max(player.LastPlayed()-skipDuration, 0)) // rewind
 				term.Clear()
 				term.SetCursorPos(1, 1)
 			case keyRight, keyUp:
-				current := time.Duration(player.LastPlayed() * int64(time.Millisecond))
-				player.SetPos(current + skipDuration) // advance forward
+				player.SetPos(player.LastPlayed() + skipDuration) // advance forward
 			}
 		}
 	}()
@@ -2231,7 +2543,7 @@ func playSession(ctx context.Context, sessionID string, speed float64, streamer 
 			message := "Desktop sessions cannot be played with tsh play." +
 				" Export the recording to video with tsh recordings export" +
 				" or view the recording in your web browser."
-			return trace.BadParameter(message)
+			return trace.BadParameter("%s", message)
 		case *apievents.AppSessionStart, *apievents.AppSessionChunk:
 			return trace.BadParameter("Interactive session replay is not supported for app sessions." +
 				" To play app sessions, specify --format=json or --format=yaml.")
@@ -2251,13 +2563,16 @@ func playSession(ctx context.Context, sessionID string, speed float64, streamer 
 			lastTime = evt.Time
 		case *apievents.DatabaseSessionStart:
 			if !slices.Contains(libplayer.SupportedDatabaseProtocols, evt.DatabaseProtocol) {
-				return trace.NotImplemented("Interactive database session replay is only supported for " +
-					strings.Join(libplayer.SupportedDatabaseProtocols, ",") + " databases." +
-					" To play other database sessions, specify --format=json or --format=yaml.")
+				return trace.NotImplemented("Interactive database session replay is only supported for %s databases."+
+					" To play other database sessions, specify --format=json or --format=yaml.", strings.Join(libplayer.SupportedDatabaseProtocols, ","))
 			}
 		default:
 			continue
 		}
+	}
+
+	if err := player.Err(); err != nil && !errors.Is(err, io.EOF) {
+		return trace.Wrap(err)
 	}
 
 	return nil
@@ -2279,8 +2594,23 @@ func PlayFile(ctx context.Context, filename, sid string, speed float64, skipIdle
 	return playSession(ctx, sid, speed, streamer, skipIdleTime)
 }
 
-// SFTP securely copies files between Nodes or SSH servers using SFTP
-func (tc *TeleportClient) SFTP(ctx context.Context, args []string, port int, opts sftp.Options, quiet bool) (err error) {
+// SFTPRequest controls aspects of a file transfer.
+type SFTPRequest struct {
+	// Sources are the source paths to transfer from, with optional user and host.
+	Sources []string
+	// Destination is the destination path to transfer to, with optional user and host.
+	Destination string
+	// Recursive indicates recursive file transfer.
+	Recursive bool
+	// PreserveAttrs preserves access and modification times
+	// from the original file.
+	PreserveAttrs bool
+	// ProgressWriter is used to write the progress output.
+	ProgressWriter io.Writer
+}
+
+// SFTP securely copies files between Nodes or SSH servers using SFTP.
+func (tc *TeleportClient) SFTP(ctx context.Context, req SFTPRequest) error {
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/SFTP",
@@ -2288,104 +2618,71 @@ func (tc *TeleportClient) SFTP(ctx context.Context, args []string, port int, opt
 	)
 	defer span.End()
 
-	if len(args) < 2 {
-		return trace.Errorf("local and remote destinations are required")
+	clt, err := tc.ConnectToCluster(ctx)
+	if err != nil {
+		return trace.Wrap(err)
 	}
-	first := args[0]
-	last := args[len(args)-1]
+	defer clt.Close()
 
-	// local copy?
-	if !isRemoteDest(first) && !isRemoteDest(last) {
-		return trace.BadParameter("no remote destination specified")
+	// Parse sources and destination.
+	origHost := tc.Host
+	sources, err := sftp.ParseSources(req.Sources, tc.HostPort)
+	if err != nil {
+		return trace.Wrap(err)
 	}
-
-	var config *sftpConfig
-	if isRemoteDest(last) {
-		config, err = tc.uploadConfig(args, port, opts)
+	if sources.Addr != nil {
+		// Respect any proxy templates and attempt host resolution.
+		tc.Host = sources.Addr.Host()
+		target, err := tc.GetTargetNode(ctx, clt.AuthClient, nil)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-	} else {
-		config, err = tc.downloadConfig(args, port, opts)
-		if err != nil {
+		if err := sources.Addr.Set(target.Addr); err != nil {
 			return trace.Wrap(err)
 		}
 	}
-	if config.hostLogin == "" {
-		config.hostLogin = tc.Config.HostLogin
+	sources.Login = cmp.Or(sources.Login, tc.HostLogin)
+	dest, err := sftp.ParseTarget(req.Destination, tc.HostPort)
+	if err != nil {
+		return trace.Wrap(err)
 	}
-
-	if !quiet {
-		config.cfg.ProgressStream = func(fileInfo os.FileInfo) io.ReadWriter {
-			return sftp.NewProgressBar(fileInfo.Size(), fileInfo.Name(), tc.Stdout)
+	if dest.Addr != nil {
+		// Respect any proxy templates and attempt host resolution.
+		tc.Host = dest.Addr.Host()
+		target, err := tc.GetTargetNode(ctx, clt.AuthClient, nil)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if err := dest.Addr.Set(target.Addr); err != nil {
+			return trace.Wrap(err)
 		}
 	}
+	tc.Host = origHost
+	dest.Login = cmp.Or(dest.Login, tc.HostLogin)
 
-	return trace.Wrap(tc.TransferFiles(ctx, config.hostLogin, config.addr, config.cfg))
-}
-
-type sftpConfig struct {
-	cfg       *sftp.Config
-	addr      string
-	hostLogin string
-}
-
-func (tc *TeleportClient) uploadConfig(args []string, port int, opts sftp.Options) (*sftpConfig, error) {
-	// args are guaranteed to have len(args) > 1
-	srcPaths := args[:len(args)-1]
-	// copy everything except the last arg (the destination)
-	dstPath := args[len(args)-1]
-
-	dst, addr, err := getSFTPDestination(dstPath, port)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	sftpReq := &sftp.FileTransferRequest{
+		Sources:     sources,
+		Destination: dest,
+		DialHost: func(ctx context.Context, login, addr string) (*tracessh.Client, error) {
+			nodeClient, err := tc.ConnectToNode(ctx, clt, NodeDetails{
+				Addr:    addr,
+				Cluster: clt.ClusterName(),
+			}, login)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return nodeClient.Client, nil
+		},
+		Recursive:      req.Recursive,
+		PreserveAttrs:  req.PreserveAttrs,
+		ProgressWriter: req.ProgressWriter,
 	}
-	cfg, err := sftp.CreateUploadConfig(srcPaths, dst.Path, opts)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &sftpConfig{
-		cfg:       cfg,
-		addr:      addr,
-		hostLogin: dst.Login,
-	}, nil
-}
-
-func (tc *TeleportClient) downloadConfig(args []string, port int, opts sftp.Options) (*sftpConfig, error) {
-	if len(args) > 2 {
-		return nil, trace.BadParameter("only one source file is supported when downloading files")
-	}
-
-	// args are guaranteed to have len(args) > 1
-	src, addr, err := getSFTPDestination(args[0], port)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	cfg, err := sftp.CreateDownloadConfig(src.Path, args[1], opts)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &sftpConfig{
-		cfg:       cfg,
-		addr:      addr,
-		hostLogin: src.Login,
-	}, nil
-}
-
-func getSFTPDestination(target string, port int) (dest *sftp.Destination, addr string, err error) {
-	dest, err = sftp.ParseDestination(target)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	addr = net.JoinHostPort(dest.Host.Host(), strconv.Itoa(port))
-	return dest, addr, nil
+	return trace.Wrap(tc.TransferFiles(ctx, sftpReq))
 }
 
 // TransferFiles copies files between the current machine and the
 // specified Node using the supplied config
-func (tc *TeleportClient) TransferFiles(ctx context.Context, hostLogin, nodeAddr string, cfg *sftp.Config) error {
+func (tc *TeleportClient) TransferFiles(ctx context.Context, req *sftp.FileTransferRequest) error {
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/TransferFiles",
@@ -2393,41 +2690,17 @@ func (tc *TeleportClient) TransferFiles(ctx context.Context, hostLogin, nodeAddr
 	)
 	defer span.End()
 
-	if hostLogin == "" {
-		return trace.BadParameter("host login is not specified")
-	}
-	if nodeAddr == "" {
-		return trace.BadParameter("node address is not specified")
-	}
+	if err := sftp.TransferFiles(ctx, req); err != nil {
+		// TODO(tross): DELETE IN 19.0.0 - Older versions of Teleport would return
+		// a trace.BadParameter error when ~user path expansion was rejected, and
+		// reauthentication logic is attempted on BadParameter errors.
+		if trace.IsBadParameter(err) && strings.Contains(err.Error(), "expanding remote ~user paths is not supported") {
+			return trace.Wrap(&NonRetryableError{Err: err})
+		}
 
-	if !tc.Config.ProxySpecified() {
-		return trace.BadParameter("proxy server is not specified")
-	}
-	clt, err := tc.ConnectToCluster(ctx)
-	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer clt.Close()
-
-	client, err := tc.ConnectToNode(
-		ctx,
-		clt,
-		NodeDetails{
-			Addr:      nodeAddr,
-			Namespace: tc.Namespace,
-			Cluster:   clt.ClusterName(),
-		},
-		hostLogin,
-	)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return trace.Wrap(client.TransferFiles(ctx, cfg))
-}
-
-func isRemoteDest(name string) bool {
-	return strings.ContainsRune(name, ':')
+	return nil
 }
 
 // ListNodesWithFilters returns all nodes that match the filters in the current cluster
@@ -2472,7 +2745,7 @@ func (tc *TeleportClient) ListNodesWithFilters(ctx context.Context) ([]types.Ser
 		for _, r := range page {
 			srv, ok := r.ResourceWithLabels.(types.Server)
 			if !ok {
-				log.Warnf("expected types.Server but received unexpected type %T", r)
+				log.WarnContext(ctx, "expected types.Server but received unexpected type", "resource_type", logutils.TypeAttr(r))
 				continue
 			}
 
@@ -2620,7 +2893,7 @@ func (tc *TeleportClient) ListDatabases(ctx context.Context, customFilter *proto
 
 // roleGetter retrieves roles for the current user
 type roleGetter interface {
-	GetRoles(ctx context.Context) ([]types.Role, error)
+	GetCurrentUserRoles(ctx context.Context) ([]types.Role, error)
 }
 
 // commandLimit determines how many commands may be executed in parallel.
@@ -2636,7 +2909,7 @@ func commandLimit(ctx context.Context, getter roleGetter, mfaRequired bool) int 
 		return 1
 	}
 
-	roles, err := getter.GetRoles(ctx)
+	roles, err := getter.GetCurrentUserRoles(ctx)
 	if err != nil {
 		return 1
 	}
@@ -2661,8 +2934,23 @@ type execResult struct {
 	exitStatus int
 }
 
+// sharedWriter is an [io.Writer] implementation that protects
+// writes with a mutex. This allows a single [io.Writer] to be shared
+// by multiple command runners.
+type sharedWriter struct {
+	mu sync.Mutex
+	io.Writer
+}
+
+func (s *sharedWriter) Write(p []byte) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.Writer.Write(p)
+}
+
 // runCommandOnNodes executes a given bash command on a bunch of remote nodes.
-func (tc *TeleportClient) runCommandOnNodes(ctx context.Context, clt *ClusterClient, nodes []targetNode, command []string) error {
+func (tc *TeleportClient) runCommandOnNodes(ctx context.Context, clt *ClusterClient, nodes []TargetNode, command []string) error {
 	cluster := clt.ClusterName()
 	ctx, span := tc.Tracer.Start(
 		ctx,
@@ -2680,7 +2968,7 @@ func (tc *TeleportClient) runCommandOnNodes(ctx context.Context, clt *ClusterCli
 	mfaRequiredCheck, err := clt.AuthClient.IsMFARequired(ctx, &proto.IsMFARequiredRequest{
 		Target: &proto.IsMFARequiredRequest_Node{
 			Node: &proto.NodeLogin{
-				Node:  nodeName(targetNode{addr: nodes[0].addr}),
+				Node:  nodeName(TargetNode{Addr: nodes[0].Addr}),
 				Login: tc.Config.HostLogin,
 			},
 		},
@@ -2698,48 +2986,87 @@ func (tc *TeleportClient) runCommandOnNodes(ctx context.Context, clt *ClusterCli
 	resultsCh := make(chan execResult, len(nodes))
 
 	g, gctx := errgroup.WithContext(ctx)
-	g.SetLimit(commandLimit(ctx, clt.AuthClient, mfaRequiredCheck.Required))
+	cmdLimit := commandLimit(ctx, clt.AuthClient, mfaRequiredCheck.Required)
+	log.DebugContext(ctx, "Applying command limit", "limit", cmdLimit, "mfa_required", mfaRequiredCheck.Required)
+	g.SetLimit(cmdLimit)
+
+	// Get the width of the terminal so we can wrap properly.
+	var width int
+	if stdoutFile, ok := tc.Stdout.(*os.File); ok {
+		conn, err := stdoutFile.SyscallConn()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		ctrlErr := conn.Control(func(fd uintptr) {
+			width, _, err = term.GetSize(int(fd))
+			// If stdout is not a terminal, continue with a zero width instead
+			// of failing.
+			if err != nil {
+				width = 0
+			}
+		})
+		if ctrlErr != nil {
+			return trace.Wrap(ctrlErr)
+		}
+	}
+
+	stdout := &sharedWriter{Writer: tc.Stdout}
+	stderr := stdout
+	if tc.Stdout != tc.Stderr {
+		stderr = &sharedWriter{Writer: tc.Stderr}
+	}
+
 	for _, node := range nodes {
-		node := node
 		g.Go(func() error {
 			ctx, span := tc.Tracer.Start(
 				gctx,
 				"teleportClient/executingCommand",
 				oteltrace.WithSpanKind(oteltrace.SpanKindClient),
-				oteltrace.WithAttributes(attribute.String("node", node.addr)),
+				oteltrace.WithAttributes(attribute.String("node", node.Addr)),
 			)
 			defer span.End()
 
+			displayName := nodeName(node)
 			nodeClient, err := tc.ConnectToNode(
 				ctx,
 				clt,
 				NodeDetails{
-					Addr:      node.addr,
-					Namespace: tc.Namespace,
-					Cluster:   cluster,
-					MFACheck:  mfaRequiredCheck,
-					hostname:  node.hostname,
+					Addr:     node.Addr,
+					Cluster:  cluster,
+					MFACheck: mfaRequiredCheck,
+					hostname: node.Hostname,
 				},
 				tc.Config.HostLogin,
 			)
 			if err != nil {
 				// Returning the error here would cancel all the other goroutines, so
 				// print the error instead to let them all finish.
-				fmt.Fprintln(tc.Stderr, err)
+				fmt.Fprintln(stderr, err)
+				resultsCh <- execResult{
+					hostname:   displayName,
+					exitStatus: 1,
+				}
 				return nil
 			}
 			defer nodeClient.Close()
 
-			displayName := nodeName(node)
-			fmt.Printf("Running command on %v:\n", displayName)
+			fmt.Fprintf(stdout, "Running command on %v:\n", displayName)
 
-			if err := nodeClient.RunCommand(ctx, command, WithLabeledOutput()); err != nil && tc.ExitStatus == 0 {
-				fmt.Fprintln(tc.Stderr, err)
+			err = nodeClient.RunCommand(
+				ctx,
+				command,
+				WithLabeledOutput(width),
+				WithOutput(stdout, stderr),
+			)
+			// Use the status from the error to avoid a race on the exit status.
+			exitStatus := getExitStatus(err)
+			if err != nil && exitStatus == 0 {
+				fmt.Fprintln(stderr, err)
 				return nil
 			}
 			resultsCh <- execResult{
 				hostname:   displayName,
-				exitStatus: tc.ExitStatus,
+				exitStatus: exitStatus,
 			}
 			return nil
 		})
@@ -2803,20 +3130,6 @@ func (tc *TeleportClient) writeCommandResults(nodes []execResult) error {
 	return nil
 }
 
-func (tc *TeleportClient) newSessionEnv() map[string]string {
-	env := map[string]string{
-		teleport.SSHSessionWebProxyAddr: tc.WebProxyAddr,
-	}
-	if tc.SessionID != "" {
-		env[sshutils.SessionEnvVar] = tc.SessionID
-	}
-
-	for key, val := range tc.extraEnvs {
-		env[key] = val
-	}
-	return env
-}
-
 // getProxyLogin determines which SSH principal to use when connecting to proxy.
 func (tc *TeleportClient) getProxySSHPrincipal() string {
 	if tc.ProxySSHPrincipal != "" {
@@ -2836,7 +3149,7 @@ func (tc *TeleportClient) getProxySSHPrincipal() string {
 
 	proxyPrincipal := tc.Config.HostLogin
 	if len(tc.JumpHosts) > 0 && tc.JumpHosts[0].Username != "" {
-		log.Debugf("Setting proxy login to jump host's parameter user %q", tc.JumpHosts[0].Username)
+		log.DebugContext(context.Background(), "Setting proxy login to jump host's parameter user", "user", tc.JumpHosts[0].Username)
 		proxyPrincipal = tc.JumpHosts[0].Username
 	}
 	return proxyPrincipal
@@ -2894,6 +3207,7 @@ func (tc *TeleportClient) ConnectToCluster(ctx context.Context) (_ *ClusterClien
 
 	pclt, err := proxyclient.NewClient(ctx, proxyclient.ClientConfig{
 		ProxyAddress:      cfg.proxyAddress,
+		RelayAddress:      tc.RelayAddr,
 		TLSRoutingEnabled: tc.TLSRoutingEnabled,
 		TLSConfigFunc: func(cluster string) (*tls.Config, error) {
 			if cluster == "" {
@@ -2931,6 +3245,8 @@ func (tc *TeleportClient) ConnectToCluster(ctx context.Context) (_ *ClusterClien
 		return nil, trace.NewAggregate(err, pclt.Close())
 	}
 	authClientCfg.MFAPromptConstructor = tc.NewMFAPrompt
+	authClientCfg.MFACeremonyConstructor = tc.NewRedirectorMFACeremony
+
 	authClient, err := authclient.NewClient(authClientCfg)
 	if err != nil {
 		return nil, trace.NewAggregate(err, pclt.Close())
@@ -2949,7 +3265,8 @@ func (tc *TeleportClient) ConnectToCluster(ctx context.Context) (_ *ClusterClien
 // clientConfig wraps [ssh.ClientConfig] with additional
 // information about a cluster.
 type clientConfig struct {
-	*ssh.ClientConfig
+	apissh.ClientConfig
+
 	proxyAddress string
 	clusterName  func() string
 }
@@ -2963,21 +3280,44 @@ func (tc *TeleportClient) generateClientConfig(ctx context.Context) (*clientConf
 	}
 
 	hostKeyCallback := tc.HostKeyCallback
-	authMethods := append([]ssh.AuthMethod{}, tc.Config.AuthMethods...)
+
+	// Collect static and dynamic signers. Static signers are loaded once and do not change based on the target cluster.
+	// Dynamic signers are loaded on demand and can change based on the target cluster (e.g. when connecting through a
+	// jump host and using host certificates to infer the target cluster). They will be combined at the time of
+	// connection to provide the full set of signers to use for authentication.
+	var (
+		staticSigners  []ssh.Signer
+		dynamicSigners []func() ([]ssh.Signer, error)
+	)
+
+	// Add any configured public key signers to the static list. These do not change based on the target cluster.
+	if !tc.PublicKeyAuthConfig.IsEmpty() {
+		signers, err := tc.PublicKeyAuthConfig.Signers()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		staticSigners = append(staticSigners, signers...)
+	}
+
 	clusterName := func() string { return tc.SiteName }
 	if len(tc.JumpHosts) > 0 {
-		log.Debugf("Overriding SSH proxy to JumpHosts's address %q", tc.JumpHosts[0].Addr.String())
+		log.DebugContext(ctx, "Overriding SSH proxy to JumpHosts's address", "addr", logutils.StringerAttr(&tc.JumpHosts[0].Addr))
 		proxyAddr = tc.JumpHosts[0].Addr.Addr
 
 		if tc.localAgent != nil {
-			// Wrap host key and auth callbacks using clusterGuesser.
+			// Wrap host key and signer callbacks using clusterGuesser.
 			//
-			// clusterGuesser will use the host key callback to guess the target
-			// cluster based on the host certificate. It will then use the auth
-			// callback to load the appropriate SSH certificate for that cluster.
+			// clusterGuesser will use the host key callback to guess the target cluster based on the host certificate.
+			// It will then use the signer callback to load the appropriate SSH certificate for that cluster.
 			clusterGuesser := newProxyClusterGuesser(hostKeyCallback, tc.SignersForClusterWithReissue)
 			hostKeyCallback = clusterGuesser.hostKeyCallback
-			authMethods = append(authMethods, clusterGuesser.authMethod(ctx))
+			dynamicSigners = append(
+				dynamicSigners,
+				func() ([]ssh.Signer, error) {
+					return clusterGuesser.signers(ctx, tc.localAgent.Signers)
+				},
+			)
 
 			rootClusterName, err := tc.rootClusterName()
 			if err != nil {
@@ -2998,27 +3338,44 @@ func (tc *TeleportClient) generateClientConfig(ctx context.Context) (*clientConf
 	} else if tc.localAgent != nil {
 		// Load SSH certs for all clusters we have, in case we don't yet
 		// have a certificate for tc.SiteName (like during `tsh login leaf`).
-		signers, err := tc.localAgent.Signers()
+		localSigners, err := tc.localAgent.Signers()
 		// errNoLocalKeyStore is returned when running in the proxy. The proxy
-		// should be passing auth methods via tc.Config.AuthMethods.
+		// should be passing the public key auth config via tc.Config.PublicKeyAuthConfig.
 		if err != nil && !trace.IsNotFound(err) {
 			return nil, trace.Wrap(err)
 		}
-		if len(signers) > 0 {
-			authMethods = append(authMethods, ssh.PublicKeys(signers...))
+		if len(localSigners) > 0 {
+			staticSigners = append(staticSigners, localSigners...)
 		}
 	}
 
-	if len(authMethods) == 0 {
+	if len(staticSigners) == 0 && len(dynamicSigners) == 0 {
 		return nil, trace.BadParameter("no SSH auth methods loaded, are you logged in?")
 	}
 
+	collectSigners := func() ([]ssh.Signer, error) {
+		allSigners := slices.Clone(staticSigners)
+
+		for _, getSigner := range dynamicSigners {
+			dynamicSigner, err := getSigner()
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			allSigners = append(allSigners, dynamicSigner...)
+		}
+
+		return allSigners, nil
+	}
+
 	return &clientConfig{
-		ClientConfig: &ssh.ClientConfig{
+		ClientConfig: apissh.ClientConfig{
 			User:            tc.getProxySSHPrincipal(),
 			HostKeyCallback: hostKeyCallback,
-			Auth:            authMethods,
-			Timeout:         apidefaults.DefaultIOTimeout,
+			PublicKeyAuth: apissh.PublicKeyAuthConfig{
+				Signers: collectSigners,
+			},
+			Timeout: tc.SSHDialTimeout,
 		},
 		proxyAddress: proxyAddr,
 		clusterName:  clusterName,
@@ -3046,7 +3403,7 @@ func (tc *TeleportClient) rootClusterName() (string, error) {
 	if tc.localAgent == nil {
 		return "", trace.NotFound("cannot load root cluster name without local agent")
 	}
-	tlsKey, err := tc.localAgent.GetCoreKey()
+	tlsKey, err := tc.localAgent.GetCoreKeyRing()
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -3087,7 +3444,9 @@ func (g *proxyClusterGuesser) hostKeyCallback(hostname string, remote net.Addr, 
 	}
 
 	if clusterName == "" {
-		log.Debugf("Target SSH server %q does not have a cluster name embedded in their certificate; will use all available client certificates to authenticate", hostname)
+		log.DebugContext(context.Background(), "Target SSH server does not have a cluster name embedded in their certificate; will use all available client certificates to authenticate",
+			"target_server", hostname,
+		)
 	}
 
 	if g.nextHostKeyCallback != nil {
@@ -3104,10 +3463,12 @@ func (g *proxyClusterGuesser) clusterName() string {
 	return ""
 }
 
-func (g *proxyClusterGuesser) authMethod(ctx context.Context) ssh.AuthMethod {
-	return ssh.PublicKeysCallback(func() ([]ssh.Signer, error) {
-		return g.signersForCluster(ctx, g.clusterName())
-	})
+func (g *proxyClusterGuesser) signers(ctx context.Context, allSigners func() ([]ssh.Signer, error)) ([]ssh.Signer, error) {
+	if clusterName := g.clusterName(); clusterName != "" {
+		return g.signersForCluster(ctx, clusterName)
+	}
+
+	return allSigners()
 }
 
 // WithoutJumpHosts executes the given function with a Teleport client that has
@@ -3149,7 +3510,7 @@ func (tc *TeleportClient) LogoutDatabase(dbName string) error {
 	return tc.localAgent.DeleteUserCerts(tc.SiteName, WithDBCerts{dbName})
 }
 
-// LogoutApp removes certificate for the specified app.
+// LogoutApp removes key and cert for the specified app.
 func (tc *TeleportClient) LogoutApp(appName string) error {
 	if tc.localAgent == nil {
 		return nil
@@ -3161,6 +3522,17 @@ func (tc *TeleportClient) LogoutApp(appName string) error {
 		return trace.BadParameter("please specify app name to log out of")
 	}
 	return tc.localAgent.DeleteUserCerts(tc.SiteName, WithAppCerts{appName})
+}
+
+// LogoutAllApps removes keys and certs for all apps in the cluster.
+func (tc *TeleportClient) LogoutAllApps() error {
+	if tc.localAgent == nil {
+		return nil
+	}
+	if tc.SiteName == "" {
+		return trace.BadParameter("cluster name must be set for app logout")
+	}
+	return tc.localAgent.DeleteUserCerts(tc.SiteName, WithAppCerts{})
 }
 
 // LogoutAll removes all certificates for all users from the filesystem
@@ -3238,13 +3610,7 @@ func (tc *TeleportClient) Login(ctx context.Context) (*KeyRing, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	if tc.KeyTTL == 0 {
-		tc.KeyTTL = time.Duration(pr.Auth.DefaultSessionTTL)
-	}
-	// todo(lxea): DELETE IN v15(?) where the auth is guaranteed to send us a valid MaxSessionTTL or the auth is guaranteed to interpret 0 duration as the auth's default?
-	if tc.KeyTTL == 0 {
-		tc.KeyTTL = apidefaults.CertDuration
-	}
+	tc.KeyTTL = cmp.Or(tc.KeyTTL, pr.Auth.DefaultSessionTTL.Duration(), apidefaults.CertDuration)
 
 	// Get the SSHLoginFunc that matches client and cluster settings.
 	sshLoginFunc, err := tc.getSSHLoginFunc(pr)
@@ -3252,20 +3618,20 @@ func (tc *TeleportClient) Login(ctx context.Context) (*KeyRing, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	key, err := tc.SSHLogin(ctx, sshLoginFunc)
+	keyRing, err := tc.SSHLogin(ctx, sshLoginFunc)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Use proxy identity if set in key response.
-	if key.Username != "" {
-		tc.Username = key.Username
+	if keyRing.Username != "" {
+		tc.Username = keyRing.Username
 		if tc.localAgent != nil {
-			tc.localAgent.username = key.Username
+			tc.localAgent.username = keyRing.Username
 		}
 	}
 
-	return key, nil
+	return keyRing, nil
 }
 
 // LoginWeb logs the user in via the Teleport web api the same way that the web UI does.
@@ -3292,8 +3658,8 @@ func (tc *TeleportClient) LoginWeb(ctx context.Context) (*WebClient, types.WebSe
 
 	var clt *WebClient
 	var session types.WebSession
-	_, err = tc.loginWithHardwareKeyRetry(ctx, func(ctx context.Context, priv *keys.PrivateKey) error {
-		clt, session, err = webLoginFunc(ctx, priv)
+	_, err = tc.loginWithHardwareKeyRetry(ctx, func(ctx context.Context, keyRing *KeyRing) error {
+		clt, session, err = webLoginFunc(ctx, keyRing)
 		return trace.Wrap(err)
 	})
 
@@ -3311,7 +3677,7 @@ func (tc *TeleportClient) LoginWeb(ctx context.Context) (*WebClient, types.WebSe
 // successful, as skipping the ceremony is valid for various reasons (Teleport
 // cluster doesn't support device authn, device wasn't enrolled, etc).
 // Use [TeleportClient.DeviceLogin] if you want more control over process.
-func (tc *TeleportClient) AttemptDeviceLogin(ctx context.Context, key *KeyRing, rootAuthClient authclient.ClientI) error {
+func (tc *TeleportClient) AttemptDeviceLogin(ctx context.Context, keyRing *KeyRing, rootAuthClient authclient.ClientI) error {
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/AttemptDeviceLogin",
@@ -3325,42 +3691,43 @@ func (tc *TeleportClient) AttemptDeviceLogin(ctx context.Context, key *KeyRing, 
 	}
 
 	if !tc.dtAttemptLoginIgnorePing && pingResp.Auth.DeviceTrust.Disabled {
-		log.Debug("Device Trust: skipping device authentication, device trust disabled")
+		log.DebugContext(ctx, "Device Trust: skipping device authentication, device trust disabled")
 		return nil
 	}
 
-	newCerts, err := tc.DeviceLogin(
-		ctx,
-		rootAuthClient,
-		&devicepb.UserCertificates{
+	newCerts, err := tc.DeviceLogin(ctx, &dtauthntypes.CeremonyRunParams{
+		DevicesClient: rootAuthClient.DevicesClient(),
+		Certs: devicepb.UserCertificates_builder{
 			// Augment the SSH certificate.
 			// The TLS certificate is already part of the connection.
-			SshAuthorizedKey: key.Cert,
-		})
+			SshAuthorizedKey: keyRing.Cert,
+		}.Build(),
+		SSHSigner: keyRing.SSHPrivateKey,
+	})
 	switch {
 	case errors.Is(err, devicetrust.ErrDeviceKeyNotFound):
-		log.Debug("Device Trust: Skipping device authentication, device key not found")
+		log.DebugContext(ctx, "Device Trust: Skipping device authentication, device key not found")
 		return nil // err swallowed on purpose
 	case errors.Is(err, devicetrust.ErrPlatformNotSupported):
-		log.Debug("Device Trust: Skipping device authentication, platform not supported")
+		log.DebugContext(ctx, "Device Trust: Skipping device authentication, platform not supported")
 		return nil // err swallowed on purpose
 	case trace.IsNotImplemented(err):
-		log.Debug("Device Trust: Skipping device authentication, not supported by server")
+		log.DebugContext(ctx, "Device Trust: Skipping device authentication, not supported by server")
 		return nil // err swallowed on purpose
 	case err != nil:
-		log.WithError(err).Debug("Device Trust: device authentication failed")
+		log.DebugContext(ctx, "Device Trust: device authentication failed", "error", err)
 		return nil // err swallowed on purpose
 	}
 
-	log.Debug("Device Trust: acquired augmented user certificates")
-	cp := *key
-	cp.Cert = newCerts.SshAuthorizedKey
+	log.DebugContext(ctx, "Device Trust: acquired augmented user certificates")
+	cp := *keyRing
+	cp.Cert = newCerts.GetSshAuthorizedKey()
 	cp.TLSCert = pem.EncodeToMemory(&pem.Block{
 		Type:  "CERTIFICATE",
-		Bytes: newCerts.X509Der,
+		Bytes: newCerts.GetX509Der(),
 	})
 
-	if err := tc.localAgent.AddKey(&cp); err != nil {
+	if err := tc.localAgent.AddKeyRing(&cp); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -3388,7 +3755,7 @@ func (tc *TeleportClient) AttemptDeviceLogin(ctx context.Context, key *KeyRing, 
 // `tsh login`).
 //
 // Device Trust is a Teleport Enterprise feature.
-func (tc *TeleportClient) DeviceLogin(ctx context.Context, rootAuthClient authclient.ClientI, certs *devicepb.UserCertificates) (*devicepb.UserCertificates, error) {
+func (tc *TeleportClient) DeviceLogin(ctx context.Context, params *dtauthntypes.CeremonyRunParams) (*devicepb.UserCertificates, error) {
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/DeviceLogin",
@@ -3403,8 +3770,7 @@ func (tc *TeleportClient) DeviceLogin(ctx context.Context, rootAuthClient authcl
 	}
 
 	// Login without a previous auto-enroll attempt.
-	devicesClient := rootAuthClient.DevicesClient()
-	newCerts, loginErr := runCeremony(ctx, devicesClient, certs)
+	newCerts, loginErr := runCeremony(ctx, params)
 	// Success or auto-enroll impossible.
 	if loginErr == nil || errors.Is(loginErr, devicetrust.ErrPlatformNotSupported) || trace.IsNotImplemented(loginErr) {
 		return newCerts, trace.Wrap(loginErr)
@@ -3413,7 +3779,7 @@ func (tc *TeleportClient) DeviceLogin(ctx context.Context, rootAuthClient authcl
 	// Is auto-enroll enabled?
 	pingResp, err := tc.Ping(ctx)
 	if err != nil {
-		log.WithError(err).Debug("Device Trust: swallowing Ping error for previous Login error")
+		log.DebugContext(ctx, "Device Trust: swallowing Ping error for previous Login error", "error", err)
 		return nil, trace.Wrap(loginErr) // err swallowed for loginErr
 	}
 	if !tc.dtAutoEnrollIgnorePing && !pingResp.Auth.DeviceTrust.AutoEnroll {
@@ -3426,11 +3792,11 @@ func (tc *TeleportClient) DeviceLogin(ctx context.Context, rootAuthClient authcl
 	}
 
 	// Auto-enroll and Login again.
-	if _, err := autoEnroll(ctx, devicesClient); err != nil {
-		log.WithError(err).Debug("Device Trust: device auto-enroll failed")
+	if _, err := autoEnroll(ctx, params.DevicesClient); err != nil {
+		log.DebugContext(ctx, "Device Trust: device auto-enroll failed", "error", err)
 		return nil, trace.Wrap(loginErr) // err swallowed for loginErr
 	}
-	newCerts, err = runCeremony(ctx, devicesClient, certs)
+	newCerts, err = runCeremony(ctx, params)
 	return newCerts, trace.Wrap(err)
 }
 
@@ -3455,8 +3821,8 @@ func (tc *TeleportClient) getSSHLoginFunc(pr *webclient.PingResponse) (SSHLoginF
 				return nil, trace.BadParameter("headless disallowed by cluster settings")
 			}
 			if tc.AllowHeadless {
-				return func(ctx context.Context, priv *keys.PrivateKey) (*authclient.SSHLoginResponse, error) {
-					return tc.headlessLogin(ctx, priv)
+				return func(ctx context.Context, keyRing *KeyRing) (*authclient.CLILoginResponse, error) {
+					return tc.headlessLogin(ctx, keyRing)
 				}, nil
 			}
 			return nil, trace.BadParameter("" +
@@ -3467,31 +3833,25 @@ func (tc *TeleportClient) getSSHLoginFunc(pr *webclient.PingResponse) (SSHLoginF
 			// registered, we can try to go with passwordless login even though
 			// auth=local was selected.
 			if tc.canDefaultToPasswordless(pr) {
-				log.Debug("Trying passwordless login because credentials were found")
+				log.DebugContext(context.Background(), "Trying passwordless login because credentials were found")
 				return tc.pwdlessLogin, nil
 			}
 
-			return func(ctx context.Context, priv *keys.PrivateKey) (*authclient.SSHLoginResponse, error) {
-				return tc.localLogin(ctx, priv, pr.Auth.SecondFactor)
+			return func(ctx context.Context, keyRing *KeyRing) (*authclient.CLILoginResponse, error) {
+				return tc.localLogin(ctx, keyRing, pr.Auth.SecondFactor)
 			}, nil
 		default:
 			return nil, trace.BadParameter("unsupported authentication connector type: %q", pr.Auth.Local.Name)
 		}
 	case constants.OIDC:
 		oidc := pr.Auth.OIDC
-		return func(ctx context.Context, priv *keys.PrivateKey) (*authclient.SSHLoginResponse, error) {
-			return tc.ssoLogin(ctx, priv, oidc.Name, oidc.Display, constants.OIDC)
-		}, nil
+		return tc.SSOLoginFn(oidc.Name, oidc.Display, constants.OIDC), nil
 	case constants.SAML:
 		saml := pr.Auth.SAML
-		return func(ctx context.Context, priv *keys.PrivateKey) (*authclient.SSHLoginResponse, error) {
-			return tc.ssoLogin(ctx, priv, saml.Name, saml.Display, constants.SAML)
-		}, nil
+		return tc.SSOLoginFn(saml.Name, saml.Display, constants.SAML), nil
 	case constants.Github:
 		github := pr.Auth.Github
-		return func(ctx context.Context, priv *keys.PrivateKey) (*authclient.SSHLoginResponse, error) {
-			return tc.ssoLogin(ctx, priv, github.Name, github.Display, constants.Github)
-		}, nil
+		return tc.SSOLoginFn(github.Name, github.Display, constants.Github), nil
 	default:
 		return nil, trace.BadParameter("unsupported authentication type: %q", pr.Auth.Type)
 	}
@@ -3515,12 +3875,12 @@ func (tc *TeleportClient) getWebLoginFunc(pr *webclient.PingResponse) (WebLoginF
 			// registered, we can try to go with passwordless login even though
 			// auth=local was selected.
 			if tc.canDefaultToPasswordless(pr) {
-				log.Debug("Trying passwordless login because credentials were found")
+				log.DebugContext(context.Background(), "Trying passwordless login because credentials were found")
 				return tc.pwdlessLoginWeb, nil
 			}
 
-			return func(ctx context.Context, priv *keys.PrivateKey) (*WebClient, types.WebSession, error) {
-				return tc.localLoginWeb(ctx, priv, pr.Auth.SecondFactor)
+			return func(ctx context.Context, keyRing *KeyRing) (*WebClient, types.WebSession, error) {
+				return tc.localLoginWeb(ctx, keyRing, pr.Auth.SecondFactor)
 			}, nil
 		default:
 			return nil, trace.BadParameter("unsupported authentication connector type: %q", pr.Auth.Local.Name)
@@ -3537,7 +3897,7 @@ func (tc *TeleportClient) getWebLoginFunc(pr *webclient.PingResponse) (WebLoginF
 }
 
 // pwdlessLoginWeb performs a passwordless ceremony and then makes a request to authenticate via the web api.
-func (tc *TeleportClient) pwdlessLoginWeb(ctx context.Context, priv *keys.PrivateKey) (*WebClient, types.WebSession, error) {
+func (tc *TeleportClient) pwdlessLoginWeb(ctx context.Context, keyRing *KeyRing) (*WebClient, types.WebSession, error) {
 	// Only pass on the user if explicitly set, otherwise let the credential
 	// picker kick in.
 	user := ""
@@ -3545,7 +3905,7 @@ func (tc *TeleportClient) pwdlessLoginWeb(ctx context.Context, priv *keys.Privat
 		user = tc.Username
 	}
 
-	sshLogin, err := tc.newSSHLogin(priv)
+	sshLogin, err := tc.NewSSHLogin(keyRing)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -3561,16 +3921,16 @@ func (tc *TeleportClient) pwdlessLoginWeb(ctx context.Context, priv *keys.Privat
 }
 
 // localLoginWeb performs the mfa ceremony and then makes a request to authenticate via the web api.
-func (tc *TeleportClient) localLoginWeb(ctx context.Context, priv *keys.PrivateKey, secondFactor constants.SecondFactorType) (*WebClient, types.WebSession, error) {
+func (tc *TeleportClient) localLoginWeb(ctx context.Context, keyRing *KeyRing, secondFactor constants.SecondFactorType) (*WebClient, types.WebSession, error) {
 	// TODO(awly): mfa: ideally, clients should always go through mfaLocalLogin
 	// (with a nop MFA challenge if no 2nd factor is required). That way we can
 	// deprecate the direct login endpoint.
 	switch secondFactor {
 	case constants.SecondFactorOff, constants.SecondFactorOTP:
-		clt, session, err := tc.directLoginWeb(ctx, secondFactor, priv)
+		clt, session, err := tc.directLoginWeb(ctx, secondFactor, keyRing)
 		return clt, session, trace.Wrap(err)
 	case constants.SecondFactorU2F, constants.SecondFactorWebauthn, constants.SecondFactorOn, constants.SecondFactorOptional:
-		clt, session, err := tc.mfaLocalLoginWeb(ctx, priv)
+		clt, session, err := tc.mfaLocalLoginWeb(ctx, keyRing)
 		return clt, session, trace.Wrap(err)
 	default:
 		return nil, nil, trace.BadParameter("unsupported second factor type: %q", secondFactor)
@@ -3578,7 +3938,7 @@ func (tc *TeleportClient) localLoginWeb(ctx context.Context, priv *keys.PrivateK
 }
 
 // directLoginWeb asks for a password + OTP token then makes a request to authenticate via the web api.
-func (tc *TeleportClient) directLoginWeb(ctx context.Context, secondFactorType constants.SecondFactorType, priv *keys.PrivateKey) (*WebClient, types.WebSession, error) {
+func (tc *TeleportClient) directLoginWeb(ctx context.Context, secondFactorType constants.SecondFactorType, keyRing *KeyRing) (*WebClient, types.WebSession, error) {
 	password, err := tc.AskPassword(ctx)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -3593,13 +3953,13 @@ func (tc *TeleportClient) directLoginWeb(ctx context.Context, secondFactorType c
 		}
 	}
 
-	sshLogin, err := tc.newSSHLogin(priv)
+	sshLogin, err := tc.NewSSHLogin(keyRing)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
 	// authenticate via the web api
-	clt, session, err := SSHAgentLoginWeb(ctx, SSHLoginDirect{
+	clt, session, err := sshAgentLoginWeb(ctx, SSHLoginDirect{
 		SSHLogin: sshLogin,
 		User:     tc.Username,
 		Password: password,
@@ -3609,28 +3969,25 @@ func (tc *TeleportClient) directLoginWeb(ctx context.Context, secondFactorType c
 }
 
 // mfaLocalLoginWeb asks for a password and performs the challenge-response authentication with the web api
-func (tc *TeleportClient) mfaLocalLoginWeb(ctx context.Context, priv *keys.PrivateKey) (*WebClient, types.WebSession, error) {
+func (tc *TeleportClient) mfaLocalLoginWeb(ctx context.Context, keyRing *KeyRing) (*WebClient, types.WebSession, error) {
 	password, err := tc.AskPassword(ctx)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
-	sshLogin, err := tc.newSSHLogin(priv)
+	sshLogin, err := tc.NewSSHLogin(keyRing)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
-	clt, session, err := SSHAgentMFAWebSessionLogin(ctx, SSHLoginMFA{
-		SSHLogin:  sshLogin,
-		User:      tc.Username,
-		Password:  password,
-		PromptMFA: tc.NewMFAPrompt(),
+	clt, session, err := sshAgentMFAWebSessionLogin(ctx, SSHLoginMFA{
+		SSHLogin:             sshLogin,
+		User:                 tc.Username,
+		Password:             password,
+		MFAPromptConstructor: tc.NewMFAPrompt,
 	})
 	return clt, session, trace.Wrap(err)
 }
-
-// hasTouchIDCredentials provides indirection for tests.
-var hasTouchIDCredentials = touchid.HasCredentials
 
 // canDefaultToPasswordless checks without user interaction
 // if there is any registered passwordless login.
@@ -3654,11 +4011,11 @@ func (tc *TeleportClient) canDefaultToPasswordless(pr *webclient.PingResponse) b
 		user = tc.Username
 	}
 
-	return hasTouchIDCredentials(pr.Auth.Webauthn.RPID, user)
+	return tc.hasTouchIDCredentials(pr.Auth.Webauthn.RPID, user)
 }
 
 // SSHLoginFunc is a function which carries out authn with an auth server and returns an auth response.
-type SSHLoginFunc func(context.Context, *keys.PrivateKey) (*authclient.SSHLoginResponse, error)
+type SSHLoginFunc func(context.Context, *KeyRing) (*authclient.CLILoginResponse, error)
 
 // SSHLogin uses the given login function to login the client. This function handles
 // private key logic and parsing the resulting auth response.
@@ -3670,10 +4027,10 @@ func (tc *TeleportClient) SSHLogin(ctx context.Context, sshLoginFunc SSHLoginFun
 	)
 	defer span.End()
 
-	var response *authclient.SSHLoginResponse
-	priv, err := tc.loginWithHardwareKeyRetry(ctx, func(ctx context.Context, priv *keys.PrivateKey) error {
+	var response *authclient.CLILoginResponse
+	keyRing, err := tc.loginWithHardwareKeyRetry(ctx, func(ctx context.Context, keyRing *KeyRing) error {
 		var err error
-		response, err = sshLoginFunc(ctx, priv)
+		response, err = sshLoginFunc(ctx, keyRing)
 		return trace.Wrap(err)
 	})
 	if err != nil {
@@ -3685,42 +4042,66 @@ func (tc *TeleportClient) SSHLogin(ctx context.Context, sshLoginFunc SSHLoginFun
 		return nil, trace.BadParameter("bad response from the server: expected at least one certificate, got 0")
 	}
 
-	// extract the new certificate out of the response
-	key := NewKey(priv)
-	key.Cert = response.Cert
-	key.TLSCert = response.TLSCert
-	key.TrustedCerts = response.HostSigners
-	key.Username = response.Username
-	key.ProxyHost = tc.WebProxyHost()
-
+	// Set the new certs from the response.
+	keyRing.Cert = response.Cert
+	keyRing.TLSCert = response.TLSCert
+	keyRing.TrustedCerts = response.HostSigners
 	if tc.KubernetesCluster != "" {
-		key.KubeTLSCerts[tc.KubernetesCluster] = response.TLSCert
+		keyRing.KubeTLSCredentials[tc.KubernetesCluster] = TLSCredential{
+			Cert:       response.TLSCert,
+			PrivateKey: keyRing.TLSPrivateKey,
+		}
 	}
 	if tc.DatabaseService != "" {
-		key.DBTLSCerts[tc.DatabaseService] = response.TLSCert
+		keyRing.DBTLSCredentials[tc.DatabaseService] = TLSCredential{
+			Cert:       response.TLSCert,
+			PrivateKey: keyRing.TLSPrivateKey,
+		}
 	}
 
-	// Store the requested cluster name in the key.
-	key.ClusterName = tc.SiteName
-	if key.ClusterName == "" {
-		rootClusterName := key.TrustedCerts[0].ClusterName
-		key.ClusterName = rootClusterName
+	// Set the KeyRingIndex based on the response.
+	keyRing.KeyRingIndex = KeyRingIndex{
+		ProxyHost:   tc.WebProxyHost(),
+		ClusterName: tc.SiteName,
+		Username:    response.Username,
+	}
+	if keyRing.KeyRingIndex.ClusterName == "" {
+		rootClusterName := keyRing.TrustedCerts[0].ClusterName
+		keyRing.KeyRingIndex.ClusterName = rootClusterName
 		tc.SiteName = rootClusterName
 	}
 
-	return key, nil
-}
+	// update the default relay addr from the latest response, which will later
+	// be persisted in the profile
+	tc.ProfileDefaultRelayAddr = response.ClientOptions.DefaultRelayAddr
 
-// WebLoginFunc is a function which carries out authn with the web server and returns a web session and cookies.
-type WebLoginFunc func(context.Context, *keys.PrivateKey) (*WebClient, types.WebSession, error)
-
-func (tc *TeleportClient) loginWithHardwareKeyRetry(ctx context.Context, login func(ctx context.Context, priv *keys.PrivateKey) error) (*keys.PrivateKey, error) {
-	priv, err := tc.GetNewLoginKey(ctx)
+	tlsCert, err := tlsca.ParseCertificatePEM(response.TLSCert)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	loginErr := login(ctx, priv)
+	ident, err := tlsca.FromSubject(tlsCert.Subject, time.Time{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if ident.ScopePin != nil {
+		log.DebugContext(ctx, "got scoped certificate identity", "scope", ident.ScopePin.GetScope(), "assignments", pinning.AssignmentTreeIntoMap(ident.ScopePin.GetAssignmentTree()))
+	}
+
+	return keyRing, nil
+}
+
+// WebLoginFunc is a function which carries out authn with the web server and returns a web session and cookies.
+type WebLoginFunc func(context.Context, *KeyRing) (*WebClient, types.WebSession, error)
+
+func (tc *TeleportClient) loginWithHardwareKeyRetry(ctx context.Context, login func(ctx context.Context, keyRing *KeyRing) error) (*KeyRing, error) {
+	keyRing, err := tc.GetNewLoginKeyRing(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	loginErr := login(ctx, keyRing)
 	if loginErr != nil {
 		if keys.IsPrivateKeyPolicyError(loginErr) {
 			privateKeyPolicy, err := keys.ParsePrivateKeyPolicyError(loginErr)
@@ -3728,78 +4109,115 @@ func (tc *TeleportClient) loginWithHardwareKeyRetry(ctx context.Context, login f
 				return nil, trace.Wrap(err)
 			}
 
-			if err := tc.updatePrivateKeyPolicy(privateKeyPolicy); err != nil {
-				return nil, trace.Wrap(err)
-			}
+			tc.updatePrivateKeyPolicy(privateKeyPolicy)
 
 			fmt.Fprintf(tc.Stderr, "Relogging in with hardware-backed private key.\n")
-			priv, err = tc.GetNewLoginKey(ctx)
+			keyRing, err = tc.GetNewLoginKeyRing(ctx)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
 
-			loginErr = login(ctx, priv)
+			loginErr = login(ctx, keyRing)
 		}
 	}
 
-	return priv, trace.Wrap(loginErr)
+	return keyRing, trace.Wrap(loginErr)
 }
 
-func (tc *TeleportClient) updatePrivateKeyPolicy(policy keys.PrivateKeyPolicy) error {
+func (tc *TeleportClient) updatePrivateKeyPolicy(policy keys.PrivateKeyPolicy) {
 	// The current private key was rejected due to an unmet key policy requirement.
 	fmt.Fprintf(tc.Stderr, "Unmet private key policy %q.\n", policy)
 
 	// Set the private key policy to the expected value and re-login.
 	tc.PrivateKeyPolicy = policy
-	return nil
 }
 
-// GetNewLoginKey gets a new private key for login.
-func (tc *TeleportClient) GetNewLoginKey(ctx context.Context) (priv *keys.PrivateKey, err error) {
-	_, span := tc.Tracer.Start(
+// GetNewLoginKeyRing gets a KeyRing with new private keys for login.
+func (tc *TeleportClient) GetNewLoginKeyRing(ctx context.Context) (keyRing *KeyRing, err error) {
+	ctx, span := tc.Tracer.Start(
 		ctx,
-		"teleportClient/GetNewLoginKey",
+		"teleportClient/GetNewLoginKeyRing",
 		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
 	)
 	defer span.End()
 
 	if tc.PrivateKeyPolicy.IsHardwareKeyPolicy() {
-		log.Debugf("Attempting to login with YubiKey private key.")
+		log.DebugContext(ctx, "Attempting to login with YubiKey private key")
 		if tc.PIVSlot != "" {
-			log.Debugf("Using PIV slot %q specified by client or server settings.", tc.PIVSlot)
+			log.DebugContext(ctx, "Using PIV slot specified by client or server settings", "piv_slot", tc.PIVSlot)
 		}
-		priv, err = keys.GetYubiKeyPrivateKey(ctx, tc.PrivateKeyPolicy, tc.PIVSlot)
+		priv, err := tc.ClientStore.NewHardwarePrivateKey(ctx, hardwarekey.PrivateKeyConfig{
+			Policy:     tc.PrivateKeyPolicy.GetPromptPolicy(),
+			CustomSlot: tc.PIVSlot,
+			ContextualKeyInfo: hardwarekey.ContextualKeyInfo{
+				ProxyHost:   tc.WebProxyHost(),
+				Username:    tc.Username,
+				ClusterName: tc.SiteName,
+			},
+			PINCacheTTL: tc.PIVPINCacheTTL,
+		})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return priv, nil
+		// Use a single hardware key for both protocols.
+		return NewKeyRing(priv, priv), nil
 	}
 
-	log.Debugf("Attempting to login with a new RSA private key.")
-	priv, err = native.GeneratePrivateKey()
+	var sshKey, tlsKey crypto.Signer
+	if tc.GenerateUnifiedKey {
+		log.DebugContext(ctx, "Attempting to login with a new software private key")
+		// Using the UserTLS key algorithm for both keys because SSH generally
+		// supports all TLS keys algorithms (RSA2048, ECDSAP256), but TLS does
+		// not support Ed25519 which may be used for SSH.
+		tlsKey, err = cryptosuites.GenerateKey(ctx, tc.GetCurrentSignatureAlgorithmSuite, cryptosuites.UserTLS)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		sshKey = tlsKey
+	} else {
+		log.DebugContext(ctx, "Attempting to login with new software private keys")
+		var err error
+		sshKey, tlsKey, err = cryptosuites.GenerateUserSSHAndTLSKey(ctx, tc.GetCurrentSignatureAlgorithmSuite)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	sshPriv, err := keys.NewPrivateKey(sshKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return priv, nil
+	tlsPriv, err := keys.NewPrivateKey(tlsKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return NewKeyRing(sshPriv, tlsPriv), nil
 }
 
-// new SSHLogin generates a new SSHLogin using the given login key.
-func (tc *TeleportClient) newSSHLogin(priv *keys.PrivateKey) (SSHLogin, error) {
+// new SSHLogin generates a new SSHLogin using the given login KeyRing.
+func (tc *TeleportClient) NewSSHLogin(keyRing *KeyRing) (SSHLogin, error) {
+	tlsPub, err := keyRing.TLSPrivateKey.MarshalTLSPublicKey()
+	if err != nil {
+		return SSHLogin{}, trace.Wrap(err)
+	}
 	return SSHLogin{
-		ProxyAddr:            tc.WebProxyAddr,
-		PubKey:               priv.MarshalSSHPublicKey(),
-		TTL:                  tc.KeyTTL,
-		Insecure:             tc.InsecureSkipVerify,
-		Pool:                 loopbackPool(tc.WebProxyAddr),
-		Compatibility:        tc.CertificateFormat,
-		RouteToCluster:       tc.SiteName,
-		KubernetesCluster:    tc.KubernetesCluster,
-		AttestationStatement: priv.GetAttestationStatement(),
-		ExtraHeaders:         tc.ExtraProxyHeaders,
+		ProxyAddr:               tc.WebProxyAddr,
+		SSHPubKey:               keyRing.SSHPrivateKey.MarshalSSHPublicKey(),
+		TLSPubKey:               tlsPub,
+		SSHAttestationStatement: keyRing.SSHPrivateKey.GetAttestationStatement(),
+		TLSAttestationStatement: keyRing.TLSPrivateKey.GetAttestationStatement(),
+		TTL:                     tc.KeyTTL,
+		Insecure:                tc.InsecureSkipVerify,
+		Pool:                    loopbackPool(tc.WebProxyAddr),
+		Scope:                   tc.Scope,
+		Compatibility:           tc.CertificateFormat,
+		RouteToCluster:          tc.SiteName,
+		KubernetesCluster:       tc.KubernetesCluster,
+		ExtraHeaders:            tc.ExtraProxyHeaders,
 	}, nil
 }
 
-func (tc *TeleportClient) pwdlessLogin(ctx context.Context, priv *keys.PrivateKey) (*authclient.SSHLoginResponse, error) {
+func (tc *TeleportClient) pwdlessLogin(ctx context.Context, keyRing *KeyRing) (*authclient.CLILoginResponse, error) {
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/pwdlessLogin",
@@ -3814,7 +4232,7 @@ func (tc *TeleportClient) pwdlessLogin(ctx context.Context, priv *keys.PrivateKe
 		user = tc.Username
 	}
 
-	sshLogin, err := tc.newSSHLogin(priv)
+	sshLogin, err := tc.NewSSHLogin(keyRing)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3830,38 +4248,11 @@ func (tc *TeleportClient) pwdlessLogin(ctx context.Context, priv *keys.PrivateKe
 	return response, trace.Wrap(err)
 }
 
-func (tc *TeleportClient) localLogin(ctx context.Context, priv *keys.PrivateKey, secondFactor constants.SecondFactorType) (*authclient.SSHLoginResponse, error) {
-	var err error
-	var response *authclient.SSHLoginResponse
-
-	// TODO(awly): mfa: ideally, clients should always go through mfaLocalLogin
-	// (with a nop MFA challenge if no 2nd factor is required). That way we can
-	// deprecate the direct login endpoint.
-	switch secondFactor {
-	case constants.SecondFactorOff, constants.SecondFactorOTP:
-		response, err = tc.directLogin(ctx, secondFactor, priv)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	case constants.SecondFactorU2F, constants.SecondFactorWebauthn, constants.SecondFactorOn, constants.SecondFactorOptional:
-		response, err = tc.mfaLocalLogin(ctx, priv)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	default:
-		return nil, trace.BadParameter("unsupported second factor type: %q", secondFactor)
-	}
-
-	// Ignore username returned from proxy
-	response.Username = ""
-	return response, nil
-}
-
-// directLogin asks for a password + OTP token, makes a request to CA via proxy
-func (tc *TeleportClient) directLogin(ctx context.Context, secondFactorType constants.SecondFactorType, priv *keys.PrivateKey) (*authclient.SSHLoginResponse, error) {
+// localLogin asks for a password and performs an MFA ceremony.
+func (tc *TeleportClient) localLogin(ctx context.Context, keyRing *KeyRing, _ constants.SecondFactorType) (*authclient.CLILoginResponse, error) {
 	ctx, span := tc.Tracer.Start(
 		ctx,
-		"teleportClient/directLogin",
+		"teleportClient/localLogin",
 		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
 	)
 	defer span.End()
@@ -3871,66 +4262,27 @@ func (tc *TeleportClient) directLogin(ctx context.Context, secondFactorType cons
 		return nil, trace.Wrap(err)
 	}
 
-	// Only ask for a second factor if it's enabled.
-	var otpToken string
-	if secondFactorType == constants.SecondFactorOTP {
-		otpToken, err = tc.AskOTP(ctx)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
-	sshLogin, err := tc.newSSHLogin(priv)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Ask the CA (via proxy) to sign our public key:
-	response, err := SSHAgentLogin(ctx, SSHLoginDirect{
-		SSHLogin: sshLogin,
-		User:     tc.Username,
-		Password: password,
-		OTPToken: otpToken,
-	})
-
-	return response, trace.Wrap(err)
-}
-
-// mfaLocalLogin asks for a password and performs the challenge-response authentication
-func (tc *TeleportClient) mfaLocalLogin(ctx context.Context, priv *keys.PrivateKey) (*authclient.SSHLoginResponse, error) {
-	ctx, span := tc.Tracer.Start(
-		ctx,
-		"teleportClient/mfaLocalLogin",
-		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
-	)
-	defer span.End()
-
-	password, err := tc.AskPassword(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	sshLogin, err := tc.newSSHLogin(priv)
+	sshLogin, err := tc.NewSSHLogin(keyRing)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	response, err := SSHAgentMFALogin(ctx, SSHLoginMFA{
-		SSHLogin:  sshLogin,
-		User:      tc.Username,
-		Password:  password,
-		PromptMFA: tc.NewMFAPrompt(),
+		SSHLogin:               sshLogin,
+		User:                   tc.Username,
+		Password:               password,
+		MFAPromptConstructor:   tc.NewMFAPrompt,
+		MFACeremonyConstructor: tc.NewRedirectorMFACeremony,
 	})
-
 	return response, trace.Wrap(err)
 }
 
-func (tc *TeleportClient) headlessLogin(ctx context.Context, priv *keys.PrivateKey) (*authclient.SSHLoginResponse, error) {
+func (tc *TeleportClient) headlessLogin(ctx context.Context, keyRing *KeyRing) (*authclient.CLILoginResponse, error) {
 	if tc.MockHeadlessLogin != nil {
-		return tc.MockHeadlessLogin(ctx, priv)
+		return tc.MockHeadlessLogin(ctx, keyRing)
 	}
 
-	headlessAuthenticationID := services.NewHeadlessAuthenticationID(priv.MarshalSSHPublicKey())
+	headlessAuthenticationID := services.NewHeadlessAuthenticationID(keyRing.SSHPrivateKey.MarshalSSHPublicKey())
 
 	webUILink, err := url.JoinPath("https://"+tc.WebProxyAddr, "web", "headless", headlessAuthenticationID)
 	if err != nil {
@@ -3942,10 +4294,15 @@ func (tc *TeleportClient) headlessLogin(ctx context.Context, priv *keys.PrivateK
 	fmt.Fprintf(tc.Stderr, "Complete headless authentication in your local web browser:\n\n%s\n"+
 		"\nor execute this command in your local terminal:\n\n%s\n", webUILink, tshApprove)
 
+	tlsPub, err := keyRing.TLSPrivateKey.MarshalTLSPublicKey()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	response, err := SSHAgentHeadlessLogin(ctx, SSHLoginHeadless{
 		SSHLogin: SSHLogin{
 			ProxyAddr:         tc.WebProxyAddr,
-			PubKey:            priv.MarshalSSHPublicKey(),
+			SSHPubKey:         keyRing.SSHPrivateKey.MarshalSSHPublicKey(),
+			TLSPubKey:         tlsPub,
 			TTL:               tc.KeyTTL,
 			Insecure:          tc.InsecureSkipVerify,
 			Compatibility:     tc.CertificateFormat,
@@ -3961,57 +4318,48 @@ func (tc *TeleportClient) headlessLogin(ctx context.Context, priv *keys.PrivateK
 }
 
 // SSOLoginFunc is a function used in tests to mock SSO logins.
-type SSOLoginFunc func(ctx context.Context, connectorID string, priv *keys.PrivateKey, protocol string) (*authclient.SSHLoginResponse, error)
+type SSOLoginFunc func(ctx context.Context, connectorID string, keyRing *KeyRing, protocol string) (*authclient.CLILoginResponse, error)
 
-// TODO(atburke): DELETE in v17.0.0
-func versionSupportsKeyPolicyMessage(proxyVersion *semver.Version) bool {
-	switch proxyVersion.Major {
-	case 15:
-		return !proxyVersion.LessThan(*semver.New("15.2.5"))
-	case 14:
-		return !proxyVersion.LessThan(*semver.New("14.3.17"))
-	case 13:
-		return !proxyVersion.LessThan(*semver.New("13.4.22"))
-	default:
-		return proxyVersion.Major > 15
+// SSOLoginFn returns a function that will carry out SSO login. A browser window will be opened
+// for the user to authenticate through SSO. On completion they will be redirected to a success
+// page and the resulting login session will be captured and returned.
+func (tc *TeleportClient) SSOLoginFn(connectorID, connectorName, connectorType string) SSHLoginFunc {
+	return func(ctx context.Context, keyRing *KeyRing) (*authclient.CLILoginResponse, error) {
+		if tc.MockSSOLogin != nil {
+			// sso login response is being mocked for testing purposes
+			return tc.MockSSOLogin(ctx, connectorID, keyRing, connectorType)
+		}
+
+		// Set SAMLSingleLogoutEnabled from server settings.
+		pr, err := tc.Ping(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if connectorType == constants.SAML && pr.Auth.SAML != nil {
+			tc.SAMLSingleLogoutEnabled = pr.Auth.SAML.SingleLogoutEnabled
+		}
+
+		rdConfig, err := tc.ssoRedirectorConfig(ctx, connectorName)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		rd, err := sso.NewRedirector(rdConfig)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		defer rd.Close()
+
+		if connectorType == constants.SAML {
+			ssoCeremony := sso.NewCLISAMLCeremony(rd, tc.samlSSOLoginInitFn(keyRing, connectorID, connectorType))
+			resp, err := ssoCeremony.Run(ctx)
+			return resp, trace.Wrap(err)
+
+		}
+		ssoCeremony := sso.NewCLICeremony(rd, tc.ssoLoginInitFn(keyRing, connectorID, connectorType))
+		resp, err := ssoCeremony.Run(ctx)
+		return resp, trace.Wrap(err)
 	}
-}
-
-// samlLogin opens browser window and uses OIDC or SAML redirect cycle with browser
-func (tc *TeleportClient) ssoLogin(ctx context.Context, priv *keys.PrivateKey, connectorID, connectorName, protocol string) (*authclient.SSHLoginResponse, error) {
-	if tc.MockSSOLogin != nil {
-		// sso login response is being mocked for testing purposes
-		return tc.MockSSOLogin(ctx, connectorID, priv, protocol)
-	}
-
-	sshLogin, err := tc.newSSHLogin(priv)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	pr, err := tc.Ping(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	proxyVersion := semver.New(pr.ServerVersion)
-
-	if protocol == constants.SAML && pr.Auth.SAML != nil {
-		tc.SAMLSingleLogoutEnabled = pr.Auth.SAML.SingleLogoutEnabled
-	}
-
-	// ask the CA (via proxy) to sign our public key:
-	response, err := SSHAgentSSOLogin(ctx, SSHLoginSSO{
-		SSHLogin:                      sshLogin,
-		ConnectorID:                   connectorID,
-		ConnectorName:                 connectorName,
-		Protocol:                      protocol,
-		BindAddr:                      tc.BindAddr,
-		CallbackAddr:                  tc.CallbackAddr,
-		Browser:                       tc.Browser,
-		PrivateKeyPolicy:              tc.PrivateKeyPolicy,
-		ProxySupportsKeyPolicyMessage: versionSupportsKeyPolicyMessage(proxyVersion),
-	}, nil)
-	return response, trace.Wrap(err)
 }
 
 func (tc *TeleportClient) GetSAMLSingleLogoutURL(ctx context.Context, clt *ClusterClient, profile *ProfileStatus) (string, error) {
@@ -4037,7 +4385,7 @@ func (tc *TeleportClient) SAMLSingleLogout(ctx context.Context, SAMLSingleLogout
 	relayState := parsed.Query().Get("RelayState")
 	_, connectorName, _ := strings.Cut(relayState, ",")
 
-	err = OpenURLInBrowser(tc.Browser, SAMLSingleLogoutURL)
+	err = sso.OpenURLInBrowser(tc.Browser, SAMLSingleLogoutURL)
 	// If no browser was opened.
 	if err != nil || tc.Browser == teleport.BrowserNone {
 		fmt.Fprintf(os.Stderr, "Open the following link to log out of %s: %v\n", connectorName, SAMLSingleLogoutURL)
@@ -4048,7 +4396,7 @@ func (tc *TeleportClient) SAMLSingleLogout(ctx context.Context, SAMLSingleLogout
 
 // ConnectToRootCluster activates the provided key and connects to the
 // root cluster with its credentials.
-func (tc *TeleportClient) ConnectToRootCluster(ctx context.Context, key *KeyRing) (*ClusterClient, authclient.ClientI, error) {
+func (tc *TeleportClient) ConnectToRootCluster(ctx context.Context, keyRing *KeyRing) (*ClusterClient, authclient.ClientI, error) {
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/ConnectToRootCluster",
@@ -4056,7 +4404,7 @@ func (tc *TeleportClient) ConnectToRootCluster(ctx context.Context, key *KeyRing
 	)
 	defer span.End()
 
-	if err := tc.activateKey(ctx, key); err != nil {
+	if err := tc.activateKeyRing(ctx, keyRing); err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
@@ -4077,10 +4425,11 @@ func (tc *TeleportClient) ConnectToRootCluster(ctx context.Context, key *KeyRing
 	return clusterClient, rootAuthClient, nil
 }
 
-// activateKey saves the target session cert into the local
+// activateKeyRing saves the target session cert into the local
 // keystore (and into the ssh-agent) for future use.
-func (tc *TeleportClient) activateKey(ctx context.Context, key *KeyRing) error {
-	_, span := tc.Tracer.Start(
+func (tc *TeleportClient) activateKeyRing(ctx context.Context, keyRing *KeyRing) error {
+	//nolint:ineffassign,staticcheck // ctx is shadowed so future downstream calls inherit the span.
+	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/activateKey",
 		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
@@ -4093,7 +4442,7 @@ func (tc *TeleportClient) activateKey(ctx context.Context, key *KeyRing) error {
 	}
 
 	// save the cert to the local storage (~/.tsh usually):
-	if err := tc.localAgent.AddKey(key); err != nil {
+	if err := tc.localAgent.AddKeyRing(keyRing); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -4134,30 +4483,16 @@ func (tc *TeleportClient) Ping(ctx context.Context) (*webclient.PingResponse, er
 
 	// Verify server->client and client->server compatibility.
 	if tc.CheckVersions {
-		if !utils.MeetsVersion(teleport.Version, pr.MinClientVersion) {
-			fmt.Fprintf(tc.Stderr, `
-WARNING
-Detected potentially incompatible client and server versions.
-Minimum client version supported by the server is %v but you are using %v.
-Please upgrade tsh to %v or newer or use the --skip-version-check flag to bypass this check.
-Future versions of tsh will fail when incompatible versions are detected.
-
-`,
-				pr.MinClientVersion, teleport.Version, pr.MinClientVersion)
+		warning, err := getClientIncompatibilityWarning(Versions{
+			MinClient: pr.MinClientVersion,
+			Client:    teleport.Version,
+			Server:    pr.ServerVersion,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
-
-		// Recent `tsh mfa` changes require at least Teleport v15.
-		const minServerVersion = "15.0.0-aa" // "-aa" matches all development versions
-		if !utils.MeetsVersion(pr.ServerVersion, minServerVersion) {
-			fmt.Fprintf(tc.Stderr, `
-WARNING
-Detected incompatible client and server versions.
-Minimum server version supported by tsh is %v but your server is using %v.
-Please use a tsh version that matches your server.
-You may use the --skip-version-check flag to bypass this check.
-
-`,
-				minServerVersion, pr.ServerVersion)
+		if warning != "" {
+			fmt.Fprint(tc.Stderr, warning)
 		}
 	}
 
@@ -4171,11 +4506,118 @@ You may use the --skip-version-check flag to bypass this check.
 	// cached, there is no need to do this test again.
 	tc.TLSRoutingConnUpgradeRequired = client.IsALPNConnUpgradeRequired(ctx, tc.WebProxyAddr, tc.InsecureSkipVerify)
 
-	tc.applyAuthSettings(pr.Auth)
+	if err := tc.applyAuthSettings(pr.Auth); err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	tc.lastPing = pr
 
 	return pr, nil
+}
+
+type Versions struct {
+	MinClient string
+	Client    string
+	Server    string
+}
+
+// ClientVersionStatus describes the compatibility status of the client version when compared
+// against the version of the server.
+type ClientVersionStatus int
+
+const (
+	ClientVersionCompatUnspecified ClientVersionStatus = iota
+	// ClientVersionOK means that the client is on the same major version as the server or at most one
+	// major version behind.
+	// For example, the server is on v17.1.0 and the client is on v16.0.4.
+	ClientVersionOK
+	// ClientVersionTooOld means that the client is at least two major versions behind the server.
+	// For example, the server is on v19.3.2 and the client is on v17.4.1.
+	ClientVersionTooOld
+	// ClientVersionTooNew means that the client is at least one major version ahead of the server.
+	// For example, the server is on v18.2.1 and the client is on v19.0.0.
+	ClientVersionTooNew
+)
+
+func GetClientVersionStatus(versions Versions) (ClientVersionStatus, error) {
+	if !utils.MeetsMinVersion(versions.Client, versions.MinClient) {
+		return ClientVersionTooOld, nil
+	}
+
+	clientMajorVersion, err := utils.MajorSemver(versions.Client)
+	if err != nil {
+		return ClientVersionCompatUnspecified, trace.Wrap(err)
+	}
+	serverMajorVersion, err := utils.MajorSemver(versions.Server)
+	if err != nil {
+		return ClientVersionCompatUnspecified, trace.Wrap(err)
+	}
+
+	if !utils.MeetsMaxVersion(clientMajorVersion, serverMajorVersion) {
+		return ClientVersionTooNew, nil
+	}
+
+	return ClientVersionOK, nil
+}
+
+func getClientIncompatibilityWarning(versions Versions) (string, error) {
+	clientVersionStatus, err := GetClientVersionStatus(versions)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	switch clientVersionStatus {
+	case ClientVersionTooOld:
+		minClient := versions.MinClient
+		if minClientWithoutPreRelease, err := utils.VersionWithoutPreRelease(minClient); err != nil {
+			log.DebugContext(context.Background(), "Could not strip pre-release suffix", "error", err)
+		} else {
+			minClient = minClientWithoutPreRelease
+		}
+
+		return fmt.Sprintf(`
+WARNING
+Detected potentially incompatible client and server versions.
+Minimum client version supported by the server is %v but you are using %v.
+Please upgrade tsh to %v or newer or use the --skip-version-check flag to bypass this check.
+Future versions of tsh will fail when incompatible versions are detected.
+
+`,
+			minClient, versions.Client, minClient), nil
+	case ClientVersionTooNew:
+		serverMajorVersion, err := utils.MajorSemver(versions.Server)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+		serverVersionWithWildcards, err := utils.MajorSemverWithWildcards(serverMajorVersion)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+		return fmt.Sprintf(`
+WARNING
+Detected potentially incompatible client and server versions.
+Maximum client version supported by the server is %v but you are using %v.
+Please downgrade tsh to %v or use the --skip-version-check flag to bypass this check.
+Future versions of tsh will fail when incompatible versions are detected.
+
+`,
+			serverVersionWithWildcards, versions.Client, serverVersionWithWildcards), nil
+	case ClientVersionCompatUnspecified:
+		return "", trace.Errorf("got unknown compatibility status")
+	}
+
+	return "", nil
+}
+
+// GetCurrentSignatureAlgorithmSuite returns the current signature algorithm
+// suite configured in the local cluster. It matches [cryptosuites.GetSuiteFunc].
+func (tc *TeleportClient) GetCurrentSignatureAlgorithmSuite(ctx context.Context) (types.SignatureAlgorithmSuite, error) {
+	// Ping is cached between calls.
+	pingResp, err := tc.Ping(ctx)
+	if err != nil {
+		return types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_UNSPECIFIED, trace.Wrap(err)
+	}
+	return pingResp.Auth.SignatureAlgorithmSuite, nil
 }
 
 // ShowMOTD fetches the cluster MotD, displays it (if any) and waits for
@@ -4204,7 +4646,7 @@ func (tc *TeleportClient) ShowMOTD(ctx context.Context) error {
 		fmt.Fprintln(tc.Stderr, motd.Text)
 
 		// If possible, prompt the user for acknowledement before continuing.
-		if stdin := prompt.Stdin(); stdin.IsTerminal() {
+		if stdin := tc.stdin(); stdin.IsTerminal() {
 			// We're re-using the password reader for user acknowledgment for
 			// aesthetic purposes, because we want to hide any garbage the
 			// user might enter at the prompt. Whatever the user enters will
@@ -4432,13 +4874,16 @@ func (tc *TeleportClient) applyProxySettings(proxySettings webclient.ProxySettin
 		tc.KubeProxyAddr = tc.WebProxyAddr
 	}
 
+	tc.SSHDialTimeout = proxySettings.SSH.DialTimeout
+
 	return nil
 }
 
 // applyAuthSettings updates configuration changes based on the advertised
 // authentication settings, overriding existing fields in tc.
-func (tc *TeleportClient) applyAuthSettings(authSettings webclient.AuthenticationSettings) {
+func (tc *TeleportClient) applyAuthSettings(authSettings webclient.AuthenticationSettings) error {
 	tc.LoadAllCAs = authSettings.LoadAllCAs
+	tc.PIVPINCacheTTL = authSettings.PIVPINCacheTTL
 
 	// If PIVSlot is not already set, default to the server setting.
 	if tc.PIVSlot == "" {
@@ -4449,11 +4894,31 @@ func (tc *TeleportClient) applyAuthSettings(authSettings webclient.Authenticatio
 	if authSettings.PrivateKeyPolicy != "" && !authSettings.PrivateKeyPolicy.IsSatisfiedBy(tc.PrivateKeyPolicy) {
 		tc.PrivateKeyPolicy = authSettings.PrivateKeyPolicy
 	}
+
+	var ssoURL *url.URL
+	var err error
+	switch {
+	case authSettings.SAML != nil:
+		ssoURL, err = url.Parse(authSettings.SAML.SSO)
+	case authSettings.OIDC != nil:
+		ssoURL, err = url.Parse(authSettings.OIDC.IssuerURL)
+	case authSettings.Github != nil:
+		ssoURL, err = url.Parse(authSettings.Github.EndpointURL)
+	}
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if ssoURL != nil {
+		tc.SSOHost = ssoURL.Host
+	}
+
+	return nil
 }
 
 // AddTrustedCA adds a new CA as trusted CA for this client, used in tests
 func (tc *TeleportClient) AddTrustedCA(ctx context.Context, ca types.CertAuthority) error {
-	_, span := tc.Tracer.Start(
+	//nolint:ineffassign,staticcheck // ctx is shadowed so future downstream calls inherit the span.
+	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/AddTrustedCA",
 		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
@@ -4472,15 +4937,15 @@ func (tc *TeleportClient) AddTrustedCA(ctx context.Context, ca types.CertAuthori
 	return nil
 }
 
-// AddKey adds a key to the client's local agent, used in tests.
-func (tc *TeleportClient) AddKey(key *KeyRing) error {
+// AddKeyRing adds a key ring to the client's local agent, used in tests.
+func (tc *TeleportClient) AddKeyRing(keyRing *KeyRing) error {
 	if tc.localAgent == nil {
 		return trace.BadParameter("TeleportClient.AddKey called on a client without localAgent")
 	}
-	if key.ClusterName == "" {
-		key.ClusterName = tc.SiteName
+	if keyRing.ClusterName == "" {
+		keyRing.ClusterName = tc.SiteName
 	}
-	return tc.localAgent.AddKey(key)
+	return tc.localAgent.AddKeyRing(keyRing)
 }
 
 // SendEvent adds a events.EventFields to the channel.
@@ -4504,23 +4969,26 @@ func (tc *TeleportClient) EventsChannel() <-chan events.EventFields {
 // loopbackPool reads trusted CAs if it finds it in a predefined location
 // and will work only if target proxy address is loopback
 func loopbackPool(proxyAddr string) *x509.CertPool {
+	ctx := context.Background()
+
 	if !apiutils.IsLoopback(proxyAddr) {
-		log.Debugf("not using loopback pool for remote proxy addr: %v", proxyAddr)
+		log.DebugContext(ctx, "not using loopback pool for remote proxy addr", "proxy_addr", proxyAddr)
 		return nil
 	}
-	log.Debugf("attempting to use loopback pool for local proxy addr: %v", proxyAddr)
+	log.DebugContext(ctx, "attempting to use loopback pool for local proxy addr", "proxy_addr", proxyAddr)
 	certPool, err := x509.SystemCertPool()
 	if err != nil {
-		log.Debugf("could not open system cert pool, using empty cert pool instead: %v", err)
+		log.DebugContext(ctx, "could not open system cert pool, using empty cert pool instead", "error", err)
 		certPool = x509.NewCertPool()
 	}
 
 	certPath := filepath.Join(defaults.DataDir, defaults.SelfSignedCertPath)
-	log.Debugf("reading self-signed certs from: %v", certPath)
+	logger := log.With("cert_path", certPath)
+	logger.DebugContext(ctx, "reading self-signed certs")
 
 	pemByte, err := os.ReadFile(certPath)
 	if err != nil {
-		log.Debugf("could not open any path in: %v", certPath)
+		logger.DebugContext(ctx, "could not open any path in")
 		return nil
 	}
 
@@ -4532,31 +5000,18 @@ func loopbackPool(proxyAddr string) *x509.CertPool {
 		}
 		cert, err := x509.ParseCertificate(block.Bytes)
 		if err != nil {
-			log.Debugf("could not parse cert in: %v, err: %v", certPath, err)
+			logger.DebugContext(ctx, "could not parse cert", "error", err)
 			return nil
 		}
 		certPool.AddCert(cert)
 	}
-	log.Debugf("using local pool for loopback proxy: %v, err: %v", certPath, err)
+	logger.DebugContext(ctx, "using local pool for loopback proxy", "error", err)
 	return certPool
-}
-
-// connectToSSHAgent connects to the system SSH agent and returns an agent.Agent.
-func connectToSSHAgent() agent.ExtendedAgent {
-	socketPath := os.Getenv(teleport.SSHAuthSock)
-	conn, err := agentconn.Dial(socketPath)
-	if err != nil {
-		log.Warnf("[KEY AGENT] Unable to connect to SSH agent on socket %q: %v", socketPath, err)
-		return nil
-	}
-
-	log.Infof("[KEY AGENT] Connected to the system agent: %q", socketPath)
-	return agent.NewClient(conn)
 }
 
 // Username returns the current user's username
 func Username() (string, error) {
-	u, err := apiutils.CurrentUser()
+	u, err := user.Current()
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -4583,11 +5038,11 @@ func (tc *TeleportClient) AskOTP(ctx context.Context) (token string, err error) 
 	)
 	defer span.End()
 
-	stdin := prompt.Stdin()
+	stdin := tc.stdin()
 	if !stdin.IsTerminal() {
 		return "", trace.Wrap(prompt.ErrNotTerminal, "cannot perform OTP login without a terminal")
 	}
-	return prompt.Password(ctx, tc.Stderr, prompt.Stdin(), "Enter your OTP token")
+	return prompt.Password(ctx, tc.Stderr, stdin, "Enter your OTP token")
 }
 
 // AskPassword prompts the user to enter the password
@@ -4599,7 +5054,7 @@ func (tc *TeleportClient) AskPassword(ctx context.Context) (pwd string, err erro
 	)
 	defer span.End()
 
-	stdin := prompt.Stdin()
+	stdin := tc.stdin()
 	if !stdin.IsTerminal() {
 		return "", trace.Wrap(prompt.ErrNotTerminal, "cannot perform password login without a terminal")
 	}
@@ -4614,7 +5069,7 @@ func (tc *TeleportClient) LoadTLSConfig() (*tls.Config, error) {
 		return tc.TLS.Clone(), nil
 	}
 
-	tlsKey, err := tc.localAgent.GetCoreKey()
+	tlsKey, err := tc.localAgent.GetCoreKeyRing()
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to fetch TLS key for %v", tc.Username)
 	}
@@ -4654,7 +5109,7 @@ func (tc *TeleportClient) LoadTLSConfigForClusters(clusters []string) (*tls.Conf
 		return tc.TLS.Clone(), nil
 	}
 
-	tlsKey, err := tc.localAgent.GetCoreKey()
+	tlsKey, err := tc.localAgent.GetCoreKeyRing()
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to fetch TLS key for %v", tc.Username)
 	}
@@ -4665,50 +5120,6 @@ func (tc *TeleportClient) LoadTLSConfigForClusters(clusters []string) (*tls.Conf
 	}
 	tlsConfig.InsecureSkipVerify = tc.InsecureSkipVerify
 	return tlsConfig, nil
-}
-
-// ParseLabelSpec parses a string like 'name=value,"long name"="quoted value"` into a map like
-// { "name" -> "value", "long name" -> "quoted value" }
-func ParseLabelSpec(spec string) (map[string]string, error) {
-	var tokens []string
-	openQuotes := false
-	var tokenStart, assignCount int
-	specLen := len(spec)
-	// tokenize the label spec:
-	for i, ch := range spec {
-		endOfToken := false
-		// end of line?
-		if i+utf8.RuneLen(ch) == specLen {
-			i += utf8.RuneLen(ch)
-			endOfToken = true
-		}
-		switch ch {
-		case '"':
-			openQuotes = !openQuotes
-		case '=', ',', ';':
-			if !openQuotes {
-				endOfToken = true
-				if ch == '=' {
-					assignCount++
-				}
-			}
-		}
-		if endOfToken && i > tokenStart {
-			tokens = append(tokens, strings.TrimSpace(strings.Trim(spec[tokenStart:i], `"`)))
-			tokenStart = i + 1
-		}
-	}
-	// simple validation of tokenization: must have an even number of tokens (because they're pairs)
-	// and the number of such pairs must be equal the number of assignments
-	if len(tokens)%2 != 0 || assignCount != len(tokens)/2 {
-		return nil, fmt.Errorf("invalid label spec: '%s', should be 'key=value'", spec)
-	}
-	// break tokens in pairs and put into a map:
-	labels := make(map[string]string)
-	for i := 0; i < len(tokens); i += 2 {
-		labels[tokens[i]] = tokens[i+1]
-	}
-	return labels, nil
 }
 
 // ParseSearchKeywords parses a string ie: foo,bar,"quoted value"` into a slice of
@@ -4835,20 +5246,51 @@ func ParseDynamicPortForwardSpec(spec []string) (DynamicForwardedPorts, error) {
 	return result, nil
 }
 
+// PortMapping represents a mapping of LocalPort to TargetPort, e.g., "1337:42".
+type PortMapping struct {
+	LocalPort  int
+	TargetPort int
+}
+
+// ParsePortMapping parses textual form of port mapping (e.g., "1337:42") into a struct. It accepts
+// a single port number as well (e.g., "42"). Both numbers must be between 0 and 65535.
+func ParsePortMapping(rawPorts string) (PortMapping, error) {
+	if rawPorts == "" {
+		return PortMapping{}, nil
+	}
+
+	rawLocalPort, rawTargetPort, colonFound := strings.Cut(rawPorts, ":")
+	localPort, err := strconv.ParseUint(rawLocalPort, 10, 16)
+	if err != nil {
+		return PortMapping{}, trace.Wrap(err, "parsing local port")
+	}
+
+	if !colonFound {
+		return PortMapping{LocalPort: int(localPort)}, nil
+	}
+
+	targetPort, err := strconv.ParseUint(rawTargetPort, 10, 16)
+	if err != nil {
+		return PortMapping{}, trace.Wrap(err, "parsing target port")
+	}
+
+	return PortMapping{LocalPort: int(localPort), TargetPort: int(targetPort)}, nil
+}
+
 // InsecureSkipHostKeyChecking is used when the user passes in
 // "StrictHostKeyChecking yes".
 func InsecureSkipHostKeyChecking(host string, remote net.Addr, key ssh.PublicKey) error {
 	return nil
 }
 
-// isFIPS returns if the binary was build with BoringCrypto, which implies
-// FedRAMP/FIPS 140-2 mode for tsh.
+// isFIPS returns if the binary was built with a FIPS validated
+// module, which implies FedRAMP/FIPS mode for tsh.
 func isFIPS() bool {
-	return modules.GetModules().IsBoringBinary()
+	return modules.GetModules().IsFIPSBuild()
 }
 
-func findActiveDatabases(key *KeyRing) ([]tlsca.RouteToDatabase, error) {
-	dbCerts, err := key.DBTLSCertificates()
+func findActiveDatabases(keyRing *KeyRing) ([]tlsca.RouteToDatabase, error) {
+	dbCerts, err := keyRing.DBTLSCertificates()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4870,8 +5312,8 @@ func findActiveDatabases(key *KeyRing) ([]tlsca.RouteToDatabase, error) {
 	return databases, nil
 }
 
-func findActiveApps(key *KeyRing) ([]tlsca.RouteToApp, error) {
-	appCerts, err := key.AppTLSCertificates()
+func findActiveApps(keyRing *KeyRing) ([]tlsca.RouteToApp, error) {
+	appCerts, err := keyRing.AppTLSCertificates()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4882,7 +5324,7 @@ func findActiveApps(key *KeyRing) ([]tlsca.RouteToApp, error) {
 			return nil, trace.Wrap(err)
 		}
 		// If the cert expiration time is less than 5s consider cert as expired and don't add
-		// it to the user profile as an active database.
+		// it to the user profile as an active app.
 		if time.Until(cert.NotAfter) < 5*time.Second {
 			continue
 		}
@@ -4891,19 +5333,6 @@ func findActiveApps(key *KeyRing) ([]tlsca.RouteToApp, error) {
 		}
 	}
 	return apps, nil
-}
-
-// getDesktopEventWebURL returns the web UI URL users can access to
-// watch a desktop session recording in the browser
-func getDesktopEventWebURL(proxyHost string, cluster string, sid *session.ID, events []events.EventFields) string {
-	if len(events) < 1 {
-		return ""
-	}
-	start := events[0].GetTimestamp()
-	end := events[len(events)-1].GetTimestamp()
-	duration := end.Sub(start)
-
-	return fmt.Sprintf("https://%s/web/cluster/%s/session/%s?recordingType=desktop&durationMs=%d", proxyHost, cluster, sid, duration/time.Millisecond)
 }
 
 // SearchSessionEvents allows searching for session events with a full pagination support.
@@ -4945,9 +5374,6 @@ func parseMFAMode(in string) (wancli.AuthenticatorAttachment, error) {
 // NewKubernetesServiceClient connects to the proxy and returns an authenticated gRPC
 // client to the Kubernetes service.
 func (tc *TeleportClient) NewKubernetesServiceClient(ctx context.Context, clusterName string) (kubeproto.KubeServiceClient, error) {
-	if !tc.TLSRoutingEnabled {
-		return nil, trace.BadParameter("kube service is not supported if TLS routing is not enabled")
-	}
 	// get tlsConfig to dial to proxy.
 	tlsConfig, err := tc.LoadTLSConfig()
 	if err != nil {
@@ -4965,6 +5391,7 @@ func (tc *TeleportClient) NewKubernetesServiceClient(ctx context.Context, cluste
 		ALPNConnUpgradeRequired:  tc.TLSRoutingConnUpgradeRequired,
 		InsecureAddressDiscovery: tc.InsecureSkipVerify,
 		MFAPromptConstructor:     tc.NewMFAPrompt,
+		MFACeremonyConstructor:   tc.NewRedirectorMFACeremony,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -4986,24 +5413,49 @@ func (tc *TeleportClient) IsALPNConnUpgradeRequiredForWebProxy(ctx context.Conte
 
 // RootClusterCACertPool returns a *x509.CertPool with the root cluster CA.
 func (tc *TeleportClient) RootClusterCACertPool(ctx context.Context) (*x509.CertPool, error) {
-	_, span := tc.Tracer.Start(
+	//nolint:ineffassign,staticcheck // ctx is shadowed so future downstream calls inherit the span.
+	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/RootClusterCACertPool",
 		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
 	)
 	defer span.End()
 
-	key, err := tc.localAgent.GetCoreKey()
+	keyRing, err := tc.localAgent.GetCoreKeyRing()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	rootClusterName, err := key.RootClusterName()
+	rootClusterName, err := keyRing.RootClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	pool, err := key.clientCertPool(rootClusterName)
+	pool, err := keyRing.clientCertPool(rootClusterName)
+	return pool, trace.Wrap(err)
+}
+
+// RootClusterCACertPoolPEM returns a PEM-encoded cert pool with the root cluster CA.
+func (tc *TeleportClient) RootClusterCACertPoolPEM(ctx context.Context) ([]byte, error) {
+	//nolint:ineffassign,staticcheck // ctx is shadowed so future downstream calls inherit the span.
+	ctx, span := tc.Tracer.Start(
+		ctx,
+		"teleportClient/RootClusterCACertPoolPEM",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	)
+	defer span.End()
+
+	keyRing, err := tc.localAgent.GetCoreKeyRing()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	rootClusterName, err := keyRing.RootClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	pool, err := keyRing.clientCertPoolPEM(rootClusterName)
 	return pool, trace.Wrap(err)
 }
 
@@ -5049,7 +5501,7 @@ func (tc *TeleportClient) HeadlessApprove(ctx context.Context, headlessAuthentic
 	fmt.Fprintf(tc.Stdout, "Headless login attempt from IP address %q requires approval.\nContact your administrator if you didn't initiate this login attempt.\n", headlessAuthn.ClientIpAddress)
 
 	if confirm {
-		ok, err := prompt.Confirmation(ctx, tc.Stdout, prompt.Stdin(), "Approve?")
+		ok, err := prompt.Confirmation(ctx, tc.Stdout, tc.stdin(), "Approve?")
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -5060,10 +5512,7 @@ func (tc *TeleportClient) HeadlessApprove(ctx context.Context, headlessAuthentic
 		}
 	}
 
-	chal, err := rootClient.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
-		Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
-			ContextUser: &proto.ContextUser{},
-		},
+	mfaResp, err := tc.NewMFACeremony().Run(ctx, &proto.CreateAuthenticateChallengeRequest{
 		ChallengeExtensions: &mfav1.ChallengeExtensions{
 			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_HEADLESS_LOGIN,
 		},
@@ -5072,11 +5521,102 @@ func (tc *TeleportClient) HeadlessApprove(ctx context.Context, headlessAuthentic
 		return trace.Wrap(err)
 	}
 
-	resp, err := tc.PromptMFA(ctx, chal)
-	if err != nil {
-		return trace.Wrap(err)
+	err = rootClient.UpdateHeadlessAuthenticationState(ctx, headlessAuthenticationID, types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED, mfaResp)
+	return trace.Wrap(err)
+}
+
+// DialALPN dials the Proxy with provided client certificate and ALPN protocol.
+func (tc *TeleportClient) DialALPN(ctx context.Context, clientCert tls.Certificate, protocol alpncommon.Protocol) (net.Conn, error) {
+	ctx, span := tc.Tracer.Start(
+		ctx,
+		"teleportClient/DialALPN",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+		oteltrace.WithAttributes(
+			attribute.String("protocol", string(protocol)),
+		),
+	)
+	defer span.End()
+
+	dialConfig := client.ALPNDialerConfig{
+		ALPNConnUpgradeRequired: tc.TLSRoutingConnUpgradeRequired,
+		TLSConfig: &tls.Config{
+			NextProtos:         alpncommon.ProtocolToStringsWithPing(protocol),
+			InsecureSkipVerify: tc.InsecureSkipVerify,
+			Certificates:       []tls.Certificate{clientCert},
+		},
+		GetClusterCAs: tc.RootClusterCACertPool,
 	}
 
-	err = rootClient.UpdateHeadlessAuthenticationState(ctx, headlessAuthenticationID, types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED, resp)
-	return trace.Wrap(err)
+	tlsConn, err := client.DialALPN(ctx, tc.WebProxyAddr, dialConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if alpncommon.IsPingProtocol(alpncommon.Protocol(tlsConn.ConnectionState().NegotiatedProtocol)) {
+		return pingconn.NewTLS(tlsConn), nil
+	}
+	return tlsConn, nil
+}
+
+// DialDatabase makes a remote connection to the database.
+//
+// TODO(gabrielcorado): support acccess requests connections.
+func (tc *TeleportClient) DialDatabase(ctx context.Context, route proto.RouteToDatabase) (net.Conn, error) {
+	ctx, span := tc.Tracer.Start(
+		ctx,
+		"teleportClient/DialDatabase",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+		oteltrace.WithAttributes(
+			attribute.String("db", route.GetServiceName()),
+			attribute.String("protocol", route.GetProtocol()),
+		),
+	)
+	defer span.End()
+
+	dbCertParams := ReissueParams{
+		RouteToCluster:  tc.SiteName,
+		RouteToDatabase: route,
+		TTL:             tc.KeyTTL,
+	}
+
+	alpnProtocol, err := alpncommon.ToALPNProtocol(route.GetProtocol())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	keyRing, err := tc.IssueUserCertsWithMFA(ctx, dbCertParams)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cert, err := keyRing.DBTLSCert(route.GetServiceName())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return tc.DialALPN(ctx, cert, alpnProtocol)
+}
+
+// GetSiteName returns the cluster name this client instance is targeting.
+func (tc *TeleportClient) GetSiteName() string {
+	return tc.SiteName
+}
+
+// CalculateSSHLogins returns the subset of the allowedLogins that exist in
+// the principals of the identity. This is required because SSH authorization
+// only allows using a login that exists in the certificates valid principals.
+// When connecting to servers in a leaf cluster, the root certificate is used,
+// so we need to ensure that we only present the allowed logins that would
+// result in a successful connection, if any exists.
+func CalculateSSHLogins(identityPrincipals []string, allowedLogins []string) ([]string, error) {
+	allowed := set.New(allowedLogins...)
+
+	var logins []string
+	for _, local := range identityPrincipals {
+		if allowed.Contains(local) {
+			logins = append(logins, local)
+		}
+	}
+
+	slices.Sort(logins)
+	return logins, nil
 }

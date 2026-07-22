@@ -102,7 +102,7 @@ var supportedOptions = map[string]setOption{
 	"RequestTTY":                       setRequestTTYOption,
 	"RhostsRSAAuthentication":          nil,
 	"RSAAuthentication":                nil,
-	"SendEnv":                          nil,
+	"SendEnv":                          setSendEnvOption,
 	"ServerAliveInterval":              nil,
 	"ServerAliveCountMax":              nil,
 	"StreamLocalBindMask":              nil,
@@ -157,6 +157,9 @@ type Options struct {
 	// ForwardX11Timeout specifies a timeout in seconds after which X11 forwarding
 	// attempts will be rejected when in untrusted forwarding mode.
 	ForwardX11Timeout time.Duration
+
+	// SendEnvVariables is a list of local environment variables to send to remote host.
+	SendEnvVariables []string
 }
 
 type setOption func(*Options, string) error
@@ -224,6 +227,11 @@ func setRequestTTYOption(o *Options, val string) error {
 		return trace.Wrap(err)
 	}
 	o.RequestTTY = parsedValue
+	return nil
+}
+
+func setSendEnvOption(o *Options, val string) error {
+	o.SendEnvVariables = append(o.SendEnvVariables, val)
 	return nil
 }
 

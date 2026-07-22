@@ -16,61 +16,63 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import { Fragment } from 'react';
 import styled from 'styled-components';
-import { format } from 'date-fns';
+
 import {
   Alert,
   Box,
   ButtonBorder,
   ButtonPrimary,
   Flex,
+  H3,
   Indicator,
-  LabelState,
-  Text,
   Label,
+  Text,
 } from 'design';
+import Table from 'design/DataTable';
+import { displayDateWithPrefixedTime } from 'design/datetime';
 import {
+  ArrowFatLinesUp,
   ChevronCircleDown,
   CircleCheck,
   CircleCross,
-  ArrowFatLinesUp,
+  Key,
 } from 'design/Icon';
+import { Status, StatusDot, StatusKind } from 'design/Status';
 import { TeleportGearIcon } from 'design/SVGIcon';
-import Table from 'design/DataTable';
-
-import { LabelKind } from 'design/LabelState/LabelState';
-
-import { HoverTooltip } from 'shared/components/ToolTip';
-import { hasFinished, Attempt } from 'shared/hooks/useAsync';
-import cfg from 'shared/config';
-
+import { HoverTooltip } from 'design/Tooltip';
+import ResourcesRequested from 'shared/components/AccessRequests/ReviewRequests/RequestView/ResourcesRequested';
+import { Attempt, hasFinished } from 'shared/hooks/useAsync';
 import {
-  canAssumeNow,
+  AccessRequest,
   AccessRequestReview,
   AccessRequestReviewer,
+  canAssumeNow,
+  hasResourceConstraints,
+  RequestKind,
   RequestState,
   Resource,
-  AccessRequest,
+  WithResourceConstraints,
 } from 'shared/services/accessRequests';
-
-import {
-  PromotedMessage,
-  getAssumeStartTimeTooltipText,
-} from '../../Shared/Shared';
-import { getFormattedDurationTxt } from '../../Shared/utils';
-
-import { formattedName } from '../formattedName';
-
-import RequestReview from './RequestReview';
-import RolesRequested from './RolesRequested';
-import { SuggestedAccessList } from './types';
-import { RequestDelete } from './RequestDelete';
 
 import type {
   RequestFlags,
   SubmitReview,
 } from '../../ReviewRequests/RequestView/types';
+import {
+  getAssumeStartTimeTooltipText,
+  PromotedMessage,
+} from '../../Shared/Shared';
+import {
+  formatAWSRoleARNForDisplay,
+  getFormattedDurationTxt,
+} from '../../Shared/utils';
+import { formattedName } from '../formattedName';
+import { RequestDelete } from './RequestDelete';
+import RequestReview from './RequestReview';
+import RolesRequested from './RolesRequested';
+import { SuggestedAccessList } from './types';
 
 export interface RequestViewProps {
   user: string;
@@ -115,11 +117,11 @@ export function RequestView({
   }
 
   if (fetchRequestAttempt.status === 'error') {
-    return <Alert kind="danger" children={fetchRequestAttempt.statusText} />;
+    return <Alert kind="danger">{fetchRequestAttempt.statusText}</Alert>;
   }
 
   if (assumeRoleAttempt.status === 'error') {
-    return <Alert kind="danger" children={assumeRoleAttempt.statusText} />;
+    return <Alert kind="danger">{assumeRoleAttempt.statusText}</Alert>;
   }
 
   const request =
@@ -147,8 +149,7 @@ export function RequestView({
         <Box mt={4}>
           <HoverTooltip
             tipContent={getAssumeStartTimeTooltipText(request.assumeStartTime)}
-            anchorOrigin={{ vertical: 'top', horizontal: 'left' }}
-            transformOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+            placement="top-start"
           >
             <ButtonPrimary disabled={true}>Assume Roles</ButtonPrimary>
           </HoverTooltip>
@@ -161,9 +162,9 @@ export function RequestView({
     start: request.created,
     end: request.expires,
   });
-  let startingTime = format(request.created, cfg.dateWithPrefixedTime);
+  let startingTime = displayDateWithPrefixedTime(request.created);
   if (request.assumeStartTime) {
-    startingTime = format(request.assumeStartTime, cfg.dateWithPrefixedTime);
+    startingTime = displayDateWithPrefixedTime(request.assumeStartTime);
     requestedAccessTime = getFormattedDurationTxt({
       start: request.assumeStartTime,
       end: request.expires,
@@ -215,50 +216,64 @@ export function RequestView({
                   state={request.state}
                   mr={3}
                   px={3}
-                  py={1}
                   style={{ fontWeight: 'bold' }}
                 />
-                <Flex flexWrap="wrap" alignItems="center">
-                  <Text
-                    mr={1}
-                    typography="body2"
-                    title={request.user}
-                    bold
-                    style={{
-                      maxWidth: '120px',
-                    }}
-                  >
-                    {request.user}
-                  </Text>
-                  <Text
-                    mr={2}
-                    typography="body2"
-                    style={{
-                      flexShrink: 0,
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    is requesting roles:
-                  </Text>
-                  <RolesRequested roles={request.roles} />
-                  <Text typography="body2">
-                    for {requestedAccessTime}, starting {startingTime}
-                  </Text>
-                </Flex>
+                <H3>
+                  <Flex flexWrap="wrap" alignItems="baseline">
+                    <Text
+                      mr={1}
+                      title={request.user}
+                      bold
+                      style={{
+                        maxWidth: '120px',
+                      }}
+                    >
+                      {request.user}
+                    </Text>
+                    {request.requestKind === RequestKind.LongTerm ? (
+                      <>
+                        <Text
+                          mr={2}
+                          typography="body3"
+                          style={{
+                            flexShrink: 0,
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          is requesting permanent access to resources:
+                        </Text>
+                        <ResourcesRequested resources={request.resources} />
+                      </>
+                    ) : (
+                      <>
+                        <Text
+                          mr={2}
+                          typography="body3"
+                          style={{
+                            flexShrink: 0,
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          is requesting roles:
+                        </Text>
+                        <RolesRequested roles={request.roles} />
+                        <Text typography="body3">
+                          for {requestedAccessTime}, starting {startingTime}
+                        </Text>
+                      </>
+                    )}
+                  </Flex>
+                </H3>
               </Flex>
               <Flex
-                alignItems="center"
+                alignItems="baseline"
                 justifyContent="flex-end"
                 flexWrap="wrap-reverse"
                 flex="1"
                 gap={2}
               >
                 {request.requestTTLDuration && request.state === 'PENDING' && (
-                  <RequestTtlLabel
-                    fontSize={0}
-                    css={{ lineHeight: 'normal' }}
-                    ml={1}
-                  >
+                  <RequestTtlLabel typography="body4" ml={1}>
                     Request expires in {request.requestTTLDuration}
                   </RequestTtlLabel>
                 )}
@@ -321,7 +336,7 @@ export function RequestView({
         <Box flex="0 1 260px" minWidth="120px">
           <Reviewers reviewers={request.reviewers} />
           <Box mt={3} ml={1}>
-            <Text typography="body2" color="text.slightlyMuted">
+            <Text typography="body3" color="text.slightlyMuted">
               Thresholds: {request.thresholdNames.join(', ')}
             </Text>
           </Box>
@@ -415,7 +430,7 @@ export function Timestamp({
       >
         {$icon}
       </Box>
-      <Box>
+      <Text typography="body2">
         <b>{author}</b>{' '}
         {!isPromoted ? (
           assumeStartTime ? (
@@ -429,14 +444,67 @@ export function Timestamp({
           )
         ) : (
           <span>
-            {verb} this request to long-term access with access list{' '}
+            {verb} this request to permanent access with access list{' '}
             <b>{promotedAccessListTitle}</b> {createdDuration}
           </span>
         )}
-      </Box>
+      </Text>
     </Flex>
   );
 }
+
+const AWSConstraintChip = ({ label }: { label: string }) => {
+  return (
+    <Flex
+      flexDirection="row"
+      justifyContent="center"
+      alignItems="center"
+      gap={2}
+      px={3}
+      py={2}
+      backgroundColor={'spotBackground.0'}
+      borderRadius="999px"
+      title={label}
+    >
+      <Key size="small" />
+      <Text typography="body3">{formatAWSRoleARNForDisplay(label)}</Text>
+    </Flex>
+  );
+};
+
+const AwsConsoleConstraintsList = <R extends object>({
+  resource,
+}: {
+  resource: WithResourceConstraints<'aws_console', R>;
+}) => {
+  return (
+    <Flex flexDirection="column" gap={2} mt={2}>
+      <Text bold>Role ARNs</Text>
+      <Flex flexDirection="row" gap={2} flexWrap="wrap">
+        {resource.constraints.aws_console.role_arns.map(arn => (
+          <AWSConstraintChip key={arn} label={arn} />
+        ))}
+      </Flex>
+    </Flex>
+  );
+};
+
+const SshConstraintsList = <R extends object>({
+  resource,
+}: {
+  resource: WithResourceConstraints<'ssh', R>;
+}) => {
+  return (
+    <Flex flexDirection="column" gap={2} mt={2}>
+      <Text bold>SSH Logins</Text>
+      <Flex flexDirection="row" gap={2} flexWrap="wrap">
+        {resource.constraints.ssh.logins.map(login => (
+          <AWSConstraintChip key={login} label={login} />
+        ))}
+      </Flex>
+    </Flex>
+  );
+};
 
 function Comment({
   author,
@@ -449,6 +517,34 @@ function Comment({
   createdDuration: string;
   resources?: Resource[];
 }) {
+  const data = resources?.map(resource => ({
+    ...resource.id,
+    ...resource.details,
+    name: resource.details?.friendlyName || formattedName(resource),
+    constraints: resource.constraints,
+  }));
+
+  const renderConstraints = (r: NonNullable<typeof data>[number]) => {
+    if (hasResourceConstraints(r, 'aws_console')) {
+      return <AwsConsoleConstraintsList resource={r} />;
+    }
+    if (hasResourceConstraints(r, 'ssh')) {
+      return <SshConstraintsList resource={r} />;
+    }
+    return null;
+  };
+
+  const renderAfter = (r: NonNullable<typeof data>[number]) =>
+    r.constraints ? (
+      <tr style={{ borderTop: 'none' }} data-render-after-row>
+        <td colSpan={3}>
+          <Flex flexDirection="column" gap={1} mt={-2}>
+            {renderConstraints(r)}
+          </Flex>
+        </td>
+      </tr>
+    ) : null;
+
   return (
     <Box
       border="1px solid"
@@ -457,17 +553,15 @@ function Comment({
       style={{ position: 'relative' }}
     >
       <Flex bg="levels.sunken" py={1} px={3} alignItems="baseline">
-        <Text typography="body2" bold mr={2}>
-          {author}
-        </Text>
-        <Text typography="paragraph2">{createdDuration}</Text>
+        <H3 mr={2}>{author}</H3>
+        <Text typography="body3">{createdDuration}</Text>
       </Flex>
       {comment && (
-        <Box p={3} bg="levels.elevated">
+        <Box p={3} bg="levels.elevated" css="white-space: pre-wrap;">
           {comment}
         </Box>
       )}
-      {resources?.length > 0 && (
+      {!!data?.length && (
         <Box
           pt={comment ? 0 : 3}
           pl={3}
@@ -479,11 +573,8 @@ function Comment({
           bg="levels.elevated"
         >
           <StyledTable
-            data={resources.map(resource => ({
-              ...resource.id,
-              ...resource.details,
-              name: resource.details?.friendlyName || formattedName(resource),
-            }))}
+            data={data}
+            row={{ renderAfter }}
             columns={[
               {
                 key: 'clusterName',
@@ -508,12 +599,7 @@ function Comment({
 
 function Reviewers({ reviewers }: { reviewers: AccessRequestReviewer[] }) {
   const $reviewers = reviewers.map((reviewer, index) => {
-    let kind: LabelKind = 'warning';
-    if (reviewer.state === 'APPROVED' || reviewer.state === 'PROMOTED') {
-      kind = 'success';
-    } else if (reviewer.state === 'DENIED') {
-      kind = 'danger';
-    }
+    let dotKind: StatusKind = stateToStatusKind(reviewer.state);
 
     return (
       <Flex
@@ -531,7 +617,7 @@ function Reviewers({ reviewers }: { reviewers: AccessRequestReviewer[] }) {
         `}
       >
         <Text
-          typography="body2"
+          typography="body3"
           bold
           mr={3}
           style={{
@@ -542,15 +628,7 @@ function Reviewers({ reviewers }: { reviewers: AccessRequestReviewer[] }) {
         >
           {reviewer.name}
         </Text>
-        <LabelState
-          kind={kind}
-          width="10px"
-          p={0}
-          style={{
-            minHeight: '10px',
-            minWidth: '10px',
-          }}
-        />
+        <StatusDot kind={dotKind} />
       </Flex>
     );
   });
@@ -566,9 +644,7 @@ function Reviewers({ reviewers }: { reviewers: AccessRequestReviewer[] }) {
             border-color: ${props => props.theme.colors.spotBackground[1]};
           `}
         >
-          <Text typography="h6" mr={2}>
-            No Reviewers Yet
-          </Text>
+          <H3 mr={2}>No Reviewers Yet</H3>
         </Flex>
         {$reviewers}
       </>
@@ -585,38 +661,40 @@ function Reviewers({ reviewers }: { reviewers: AccessRequestReviewer[] }) {
           border-color: ${props => props.theme.colors.spotBackground[1]};
         `}
       >
-        <Text typography="h6" mr={2}>
-          Reviewers
-        </Text>
+        <H3 mr={2}>Reviewers</H3>
       </Flex>
       {$reviewers}
     </>
   );
 }
 
-function StateLabel(props: { state: RequestState; [key: string]: any }) {
-  const { state, ...styles } = props;
+function stateToStatusKind(state: RequestState): StatusKind {
   switch (state) {
     case 'APPROVED':
     case 'PROMOTED':
-      return (
-        <LabelState kind="success" {...styles}>
-          {state}
-        </LabelState>
-      );
+      return 'success';
     case 'DENIED':
-      return (
-        <LabelState kind="danger" {...styles}>
-          {state}
-        </LabelState>
-      );
+      return 'danger';
+    case 'NONE':
     case 'PENDING':
-      return (
-        <LabelState kind="warning" {...styles}>
-          {state}
-        </LabelState>
-      );
+    case 'APPLIED':
+    case '':
+      return 'warning';
+    default:
+      state satisfies never;
+      return 'warning';
   }
+}
+
+function StateLabel(props: { state: RequestState; [key: string]: any }) {
+  const { state, ...styles } = props;
+  let kind: StatusKind = stateToStatusKind(state);
+
+  return (
+    <Status kind={kind} variant="filled" icon={false} {...styles}>
+      {state}
+    </Status>
+  );
 }
 
 function Reviews({ reviews }: { reviews: AccessRequestReview[] }) {
@@ -625,7 +703,7 @@ function Reviews({ reviews }: { reviews: AccessRequestReview[] }) {
       review;
 
     return (
-      <React.Fragment key={index}>
+      <Fragment key={index}>
         <Timestamp
           author={author}
           state={state}
@@ -640,7 +718,7 @@ function Reviews({ reviews }: { reviews: AccessRequestReview[] }) {
             createdDuration={createdDuration}
           />
         )}
-      </React.Fragment>
+      </Fragment>
     );
   });
 
@@ -679,6 +757,16 @@ const StyledTable = styled(Table)`
 
   & > tbody > tr > td {
     vertical-align: middle;
+  }
+
+  // Handle hovering/focusing constraint rows / their parent row the same.
+  tr:hover:has(+ [data-render-after-row]) + [data-render-after-row],
+  tr:focus-visible:has(+ [data-render-after-row]) + [data-render-after-row],
+  [data-render-after-row]:hover,
+  [data-render-after-row]:focus-visible,
+  tr:has(+ [data-render-after-row]:hover),
+  tr:has(+ [data-render-after-row]:focus-visible) {
+    background-color: ${({ theme }) => theme.colors.levels.surface};
   }
 ` as typeof Table;
 

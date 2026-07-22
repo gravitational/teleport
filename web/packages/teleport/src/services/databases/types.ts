@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { ResourceTargetHealth } from 'shared/components/UnifiedResources';
 import { DbProtocol } from 'shared/services/databases';
 
 import { ResourceLabel } from 'teleport/services/agents';
@@ -32,7 +33,10 @@ export enum IamPolicyStatus {
 }
 
 export type Aws = {
-  rds: Pick<AwsRdsDatabase, 'resourceId' | 'region' | 'subnets' | 'vpcId'>;
+  rds: Pick<
+    AwsRdsDatabase,
+    'resourceId' | 'region' | 'subnets' | 'vpcId' | 'securityGroups'
+  >;
   iamPolicyStatus: IamPolicyStatus;
 };
 
@@ -45,9 +49,24 @@ export interface Database {
   labels: ResourceLabel[];
   names?: string[];
   users?: string[];
+  roles?: string[];
   hostname: string;
   aws?: Aws;
   requiresRequest?: boolean;
+  supportsInteractive?: boolean;
+  autoUsersEnabled?: boolean;
+  /**
+   * targetHealth describes the health status of network connectivity
+   * reported from an agent (db_service) that is proxying this database.
+   *
+   * This field will be empty if the database was not extracted from
+   * a db_server resource. The following endpoints will set this field
+   * since these endpoints query for db_server under the hood and then
+   * extract db from it:
+   * - webapi/sites/:site/databases/:database (singular)
+   * - webapi/sites/:site/resources (unified resources)
+   */
+  targetHealth?: ResourceTargetHealth;
 }
 
 export type DatabasesResponse = {
@@ -70,6 +89,8 @@ export type CreateDatabaseRequest = {
   labels?: ResourceLabel[];
   awsRds?: AwsRdsDatabase;
   awsRegion?: Regions;
+  awsVpcId?: string;
+  overwrite?: boolean;
 };
 
 export type DatabaseIamPolicyResponse = {
@@ -94,4 +115,10 @@ export type DatabaseServicesResponse = {
   services: DatabaseService[];
   startKey?: string;
   totalCount?: number;
+};
+
+export type DatabaseServer = {
+  hostname: string;
+  hostId: string;
+  targetHealth?: ResourceTargetHealth;
 };

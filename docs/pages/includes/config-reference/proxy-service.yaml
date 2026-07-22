@@ -1,7 +1,7 @@
 # This section configures the 'proxy service'
 proxy_service:
-    # Turns 'proxy' role on. Default is 'yes'
-    enabled: yes
+    # Turns 'proxy' role on. Default is true
+    enabled: true
 
     # proxy_protocol controls support for HAProxy PROXY protocol.
     # Unspecified by default, possible values:
@@ -15,6 +15,19 @@ proxy_service:
     # Set to `on` if Proxy service runs behind a L4 load balancer that sends PROXY
     # headers, otherwise set to `off`.
     proxy_protocol: on
+
+    # proxy_protocol_allow_downgrade controls support for automatic downgrading of
+    # PROXY header source addresses from IPv6 to pseudo IPv4.
+    # Defaults to 'off', possible values:
+    # 'on' - Downgrade PROXY header source IPv6 addresses to pseudo IPv4 addresses.
+    # 'off' - Do not modify PROXY header source addresses.
+    #
+    # Because the PROXY protocol spec does not support source and destination addresses
+    # with mixed TCP versions, this allows for environments where Teleport is proxying
+    # between IPv6 networks into IPv4 networks. Downgrading to IPv4 comes with the
+    # possibility of collisions, which means IP pinning functionality will not work for
+    # downgraded connections.
+    proxy_protocol_allow_downgrade: on
 
     # SSH forwarding/proxy address. Command line (CLI) clients always begin
     # their SSH sessions by connecting to this port
@@ -53,12 +66,11 @@ proxy_service:
     # The DNS name of the proxy HTTPS endpoint as accessible by cluster users.
     # Defaults to the proxy's hostname if not specified. If running multiple
     # proxies behind a load balancer, this name must point to the load balancer
-    # If application access is enabled, public_addr is used to write correct
-    # redirects
-    # (https://goteleport.com/docs/application-access/guides/connecting-apps/#start-authproxy-service).
+    # When a user opens a proxied application, they are redirected to the
+    # Teleport Proxy Service for authentication. public_addr is used to build
+    # this redirect URL. If not set, the proxy falls back to the cluster name.
     # If database access is enabled, Database clients will connect to the Proxy
     # over this hostname
-    # (https://goteleport.com/docs/database-access/architecture/#database-client-to-proxy).
     public_addr: proxy.example.com:3080
 
     # The DNS name of the proxy SSH endpoint as accessible by cluster clients.
@@ -99,6 +111,12 @@ proxy_service:
     # optional: set a different public address for kubernetes access
     kube_public_addr: kube.example.com:3026
 
+    # MySQL Server version configures the MySQL version that is sent from
+    # the Teleport Proxy (default 8.0.0-Teleport). Note that if the MySQL client
+    # connection is using TLS Routing the version provided by the actual MySQL
+    # server takes precedence over mysql_server_version.
+    mysql_server_version: "8.0.4"
+
     # MySQL proxy listen address.
     #
     # If not set, behavior depends on the config file version:
@@ -108,18 +126,17 @@ proxy_service:
     mysql_listen_addr: "0.0.0.0:3036"
 
     # Postgres Proxy listener address. If provided, proxy will use a separate
-    # listener
-    # instead of multiplexing Postgres protocol on web_listener_addr.
-    # postgres_listen_addr: "0.0.0.0:5432"
+    # listener instead of multiplexing Postgres protocol on web_listener_addr.
+    postgres_listen_addr: "0.0.0.0:5432"
 
     # Mongo Proxy listener address. If provided, proxy will use a separate
     # listener instead of multiplexing Mongo protocol on web_listener_addr.
-    # mongo_listen_addr: "0.0.0.0:27017"
+    mongo_listen_addr: "0.0.0.0:27017"
 
     # Address advertised to MySQL clients. If not set, public_addr is used.
     mysql_public_addr: "mysql.teleport.example.com:3306"
 
-    # Address advertised to PostgresSQL clients. If not set, public_addr is
+    # Address advertised to PostgreSQL clients. If not set, public_addr is
     # used.
     postgres_public_addr: "postgres.teleport.example.com:443"
 

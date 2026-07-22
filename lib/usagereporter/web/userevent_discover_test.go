@@ -74,7 +74,7 @@ func TestDiscoverEventDataToUsageEvent(t *testing.T) {
 		{
 			name:  uiDiscoverResourceSelectionEvent + "/invalid resource",
 			event: uiDiscoverResourceSelectionEvent,
-			errCheck: func(tt require.TestingT, err error, i ...interface{}) {
+			errCheck: func(tt require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsBadParameter(err), "expected a bad parameter error, got %v", err)
 			},
 			req: DiscoverEventData{
@@ -87,7 +87,7 @@ func TestDiscoverEventDataToUsageEvent(t *testing.T) {
 		{
 			name:  uiDiscoverResourceSelectionEvent + "/invalid status",
 			event: uiDiscoverResourceSelectionEvent,
-			errCheck: func(tt require.TestingT, err error, i ...interface{}) {
+			errCheck: func(tt require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsBadParameter(err), "expected a bad parameter error, got %v", err)
 			},
 			req: DiscoverEventData{
@@ -161,6 +161,25 @@ func TestDiscoverEventDataToUsageEvent(t *testing.T) {
 						Status: usageeventsv1.DiscoverStatus_DISCOVER_STATUS_SUCCESS,
 					},
 					ConfigMethod: usageeventsv1.UIDiscoverCreateDiscoveryConfigEvent_CONFIG_METHOD_AWS_EC2_SSM,
+				},
+			}},
+		},
+		{
+			name:     uiDiscoverCreateAppServerEvent + "/success_test",
+			event:    uiDiscoverCreateAppServerEvent,
+			errCheck: require.NoError,
+			req: DiscoverEventData{
+				ID:         "someid",
+				Resource:   "DISCOVER_RESOURCE_APPLICATION_AWS_CONSOLE",
+				StepStatus: "DISCOVER_STATUS_SUCCESS",
+			},
+			expected: &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiDiscoverCreateAppServerEvent{
+				UiDiscoverCreateAppServerEvent: &usageeventsv1.UIDiscoverCreateAppServerEvent{
+					Metadata: &usageeventsv1.DiscoverMetadata{Id: "someid"},
+					Resource: &usageeventsv1.DiscoverResourceMetadata{Resource: usageeventsv1.DiscoverResource_DISCOVER_RESOURCE_APPLICATION_AWS_CONSOLE},
+					Status: &usageeventsv1.DiscoverStepStatus{
+						Status: usageeventsv1.DiscoverStatus_DISCOVER_STATUS_SUCCESS,
+					},
 				},
 			}},
 		},

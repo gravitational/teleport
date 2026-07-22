@@ -16,31 +16,73 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
+import '@testing-library/jest-dom';
 import {
-  render as testingRender,
+  createThemeSystem,
+  TELEPORT_THEME,
+  ThemeProvider as NewThemeProvider,
+} from '@gravitational/design-system';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import {
   act,
   fireEvent,
-  waitFor,
-  screen,
-  prettyDOM,
   getByTestId,
+  prettyDOM,
+  screen,
+  render as testingRender,
+  waitFor,
   waitForElementToBeRemoved,
+  within,
 } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
-import { MemoryRouter as Router } from 'react-router-dom';
-
-import ThemeProvider from 'design/ThemeProvider';
-import { darkTheme } from 'design/theme';
-import '@testing-library/jest-dom';
 import 'jest-styled-components';
+import userEvent from '@testing-library/user-event';
+import { HttpResponse, JsonBodyType } from 'msw';
+import { setupServer } from 'msw/node';
+import { PropsWithChildren, ReactNode } from 'react';
+import { MemoryRouter, useLocation } from 'react-router';
 
-function Providers({ children }: { children: React.ReactElement }) {
-  return <ThemeProvider theme={darkTheme}>{children}</ThemeProvider>;
+import { darkTheme, resolveTheme } from 'design/theme';
+import { ConfiguredThemeProvider } from 'design/ThemeProvider';
+
+const testThemeSystem = createThemeSystem(TELEPORT_THEME.config);
+
+export const testQueryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: false,
+    },
+  },
+});
+
+const legacyTheme = resolveTheme(darkTheme);
+
+export function Providers({ children }: { children: ReactNode }) {
+  return (
+    <QueryClientProvider client={testQueryClient}>
+      <NewThemeProvider system={testThemeSystem} forcedTheme="dark">
+        <ConfiguredThemeProvider theme={legacyTheme}>
+          {children}
+        </ConfiguredThemeProvider>
+      </NewThemeProvider>
+    </QueryClientProvider>
+  );
 }
 
-function render(ui: React.ReactElement<any>, options?: RenderOptions) {
+function render(
+  ui: ReactNode,
+  options?: RenderOptions
+): ReturnType<typeof testingRender> {
   return testingRender(ui, { wrapper: Providers, ...options });
+}
+
+/*
+ Returns a Promise resolving on the next macrotask, allowing any pending state
+ updates / timeouts to finish.
+ */
+function tick() {
+  return new Promise<void>(res =>
+    jest.requireActual('timers').setImmediate(res)
+  );
 }
 
 screen.debug = () => {
@@ -48,20 +90,113 @@ screen.debug = () => {
 };
 
 type RenderOptions = {
-  wrapper: React.FC;
-  container: HTMLElement;
+  wrapper?: React.FC<PropsWithChildren>;
+  container?: HTMLElement;
 };
+
+type CurrentPathProps = {
+  testId?: string;
+};
+
+export function CurrentPath({ testId = 'current-path' }: CurrentPathProps) {
+  const location = useLocation();
+  return <span data-testid={testId}>{location.pathname}</span>;
+}
+
+type CurrentLocationProps = {
+  testId?: string;
+};
+
+export function CurrentLocation({
+  testId = 'location-display',
+}: CurrentLocationProps) {
+  const location = useLocation();
+  return (
+    <span data-testid={testId}>
+      {location.pathname}
+      {location.search}
+      {location.hash}
+    </span>
+  );
+}
+
+/**
+ * createDeferredResponse is a utility function to create a deferred response
+ * handler for testing purposes.
+ *
+ * This is useful when you want to assert that a loading state is shown,
+ * and then the loaded data is displayed after resolving the promise,
+ * instead of using a timeout or a fixed delay in the response handler.
+ *
+ * Example usage:
+ *
+ * ```ts
+ * const deferred = createDeferredResponse({
+ *   events: MOCK_EVENTS,
+ *   startKey: '',
+ * });
+ *
+ * server.use(http.get(listRecordingsUrl, deferred.handler));
+ *
+ * setupTest();
+ *
+ * await waitFor(() => {
+ *   expect(screen.getByTestId('indicator')).toBeInTheDocument();
+ * });
+ *
+ * deferred.resolve();
+ *
+ * await waitFor(() => {
+ *   expect(screen.queryByTestId('indicator')).not.toBeInTheDocument();
+ * });
+ * ```
+ */
+export function createDeferredResponse<T extends JsonBodyType>(data: T) {
+  let resolve: () => void;
+
+  const promise = new Promise<void>(r => {
+    resolve = r;
+  });
+
+  return {
+    handler: async () => {
+      await promise;
+
+      return HttpResponse.json(data);
+    },
+    resolve: () => resolve(),
+  };
+}
+
+export const server = setupServer();
+
+/**
+ * Registers MSW lifecycle hooks for the current test suite. Call this at the
+ * top level of every test file that uses `server.use()`.
+ *
+ * This is intentionally opt-in rather than global (via setupTests.ts) to
+ * avoid the overhead of patching fetch/XHR in the hundreds of test suites
+ * that don't use MSW.
+ */
+export function enableMswServer() {
+  beforeAll(() => server.listen());
+  afterEach(() => server.resetHandlers());
+  afterAll(() => server.close());
+}
 
 export {
   act,
   screen,
   fireEvent,
-  darkTheme as theme,
+  legacyTheme as theme,
+  testThemeSystem,
+  tick,
   render,
   prettyDOM,
   waitFor,
   getByTestId,
-  Router,
+  MemoryRouter as Router,
   userEvent,
   waitForElementToBeRemoved,
+  within,
 };

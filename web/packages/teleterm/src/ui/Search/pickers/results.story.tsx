@@ -16,40 +16,40 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
-import { makeSuccessAttempt } from 'shared/hooks/useAsync';
+import { useState } from 'react';
 
 import { Flex } from 'design';
-
 import { App } from 'gen-proto-ts/teleport/lib/teleterm/v1/app_pb';
+import { WindowsDesktop } from 'gen-proto-ts/teleport/lib/teleterm/v1/windows_desktop_pb';
+import { makeSuccessAttempt } from 'shared/hooks/useAsync';
 
-import { routing } from 'teleterm/ui/uri';
+import { getAppAddrWithProtocol } from 'teleterm/services/tshd/app';
 import {
+  makeApp,
   makeDatabase,
   makeKube,
-  makeServer,
   makeLabelsList,
   makeRootCluster,
-  makeApp,
+  makeServer,
+  makeWindowsDesktop,
 } from 'teleterm/services/tshd/testHelpers';
+import { getWindowsDesktopAddrWithoutDefaultPort } from 'teleterm/services/tshd/windowsDesktop';
 import { ResourceSearchError } from 'teleterm/ui/services/resources';
-import { getAppAddrWithProtocol } from 'teleterm/services/tshd/app';
+import { routing } from 'teleterm/ui/uri';
+import type * as uri from 'teleterm/ui/uri';
 
 import { SearchResult, SearchResultApp } from '../searchResult';
 import { makeResourceResult } from '../testHelpers';
-
 import {
+  AdvancedSearchEnabledItem,
+  AppItem,
   ComponentMap,
   NoResultsItem,
   ResourceSearchErrorsItem,
   TypeToSearchItem,
-  AdvancedSearchEnabledItem,
-  AppItem,
 } from './ActionPicker';
-import { SuggestionsError, NoSuggestionsAvailable } from './ParameterPicker';
+import { NoSuggestionsAvailable, SuggestionsError } from './ParameterPicker';
 import { NonInteractiveItem, ResultList } from './ResultList';
-
-import type * as uri from 'teleterm/ui/uri';
 
 export default {
   title: 'Teleterm/Search',
@@ -111,12 +111,48 @@ function makeAppWithAddr(props: Partial<App>) {
   return { ...app, addrWithProtocol: getAppAddrWithProtocol(app) };
 }
 
+function makeWindowsDesktopWithoutDefaultPort(props: Partial<WindowsDesktop>) {
+  const desktop = makeWindowsDesktop(props);
+  return {
+    ...desktop,
+    addrWithoutDefaultPort: getWindowsDesktopAddrWithoutDefaultPort(desktop),
+  };
+}
+
 const SearchResultItems = () => {
   const searchResults: SearchResult[] = [
     makeResourceResult({
       kind: 'server',
+      resourceMatches: [{ field: 'addr', searchTerm: '10.0.0.175' }],
+      labelMatches: [
+        {
+          kind: 'label-name',
+          labelName: 'service',
+          searchTerm: 'service',
+          score: 40,
+        },
+        {
+          kind: 'label-value',
+          labelName: 'service',
+          searchTerm: 'ansible',
+          score: 60,
+        },
+        {
+          kind: 'label-name',
+          labelName: 'kernel',
+          searchTerm: 'kernel',
+          score: 45,
+        },
+        {
+          kind: 'label-value',
+          labelName: 'arch',
+          searchTerm: 'aarch64',
+          score: 55,
+        },
+      ],
       resource: makeServer({
         hostname: 'long-label-list',
+        addr: '10.0.0.175:3022',
         uri: `${clusterUri}/servers/2f96e498-88ec-442f-a25b-569fa915041c`,
         name: '2f96e498-88ec-442f-a25b-569fa915041c',
         labels: makeLabelsList({
@@ -130,6 +166,14 @@ const SearchResultItems = () => {
     }),
     makeResourceResult({
       kind: 'server',
+      labelMatches: [
+        {
+          kind: 'label-value',
+          labelName: 'service',
+          searchTerm: 'ansible',
+          score: 100,
+        },
+      ],
       resource: makeServer({
         hostname: 'short-label-list',
         addr: '',
@@ -163,6 +207,7 @@ const SearchResultItems = () => {
     }),
     makeResourceResult({
       kind: 'server',
+      resourceMatches: [{ field: 'hostname', searchTerm: 'super' }],
       resource: makeServer({
         hostname:
           'super-long-server-name-with-uuid-2f96e498-88ec-442f-a25b-569fa915041c',
@@ -178,6 +223,32 @@ const SearchResultItems = () => {
     makeResourceResult({
       kind: 'server',
       requiresRequest: true,
+      labelMatches: [
+        {
+          kind: 'label-name',
+          labelName: 'service',
+          searchTerm: 'service',
+          score: 40,
+        },
+        {
+          kind: 'label-value',
+          labelName: 'service',
+          searchTerm: 'ansible',
+          score: 60,
+        },
+        {
+          kind: 'label-name',
+          labelName: 'kernel',
+          searchTerm: 'kernel',
+          score: 45,
+        },
+        {
+          kind: 'label-value',
+          labelName: 'arch',
+          searchTerm: 'aarch64',
+          score: 55,
+        },
+      ],
       resource: makeServer({
         hostname: 'long-label-list',
         uri: `${clusterUri}/servers/2f96e498-88ec-442f-a25b-569fa915041c`,
@@ -193,6 +264,14 @@ const SearchResultItems = () => {
     }),
     makeResourceResult({
       kind: 'app',
+      labelMatches: [
+        {
+          kind: 'label-value',
+          labelName: 'env',
+          searchTerm: 'dev',
+          score: 100,
+        },
+      ],
       resource: makeAppWithAddr({
         uri: `${clusterUri}/apps/web-app`,
         name: 'web-app',
@@ -209,6 +288,15 @@ const SearchResultItems = () => {
     }),
     makeResourceResult({
       kind: 'app',
+      resourceMatches: [{ field: 'desc', searchTerm: 'SAML' }],
+      labelMatches: [
+        {
+          kind: 'label-name',
+          labelName: 'aws/Owner',
+          searchTerm: 'Owner',
+          score: 35,
+        },
+      ],
       resource: makeAppWithAddr({
         uri: `${clusterUri}/apps/saml-app`,
         name: 'saml-app',
@@ -226,6 +314,7 @@ const SearchResultItems = () => {
     }),
     makeResourceResult({
       kind: 'app',
+      resourceMatches: [{ field: 'addrWithProtocol', searchTerm: 'local' }],
       resource: makeAppWithAddr({
         uri: `${clusterUri}/apps/no-desc`,
         name: 'no-desc',
@@ -241,6 +330,7 @@ const SearchResultItems = () => {
     }),
     makeResourceResult({
       kind: 'app',
+      resourceMatches: [{ field: 'desc', searchTerm: 'Lorem' }],
       resource: makeAppWithAddr({
         uri: `${clusterUri}/apps/short-desc`,
         name: 'short-desc',
@@ -256,6 +346,15 @@ const SearchResultItems = () => {
     }),
     makeResourceResult({
       kind: 'app',
+      resourceMatches: [{ field: 'desc', searchTerm: 'dignissim' }],
+      labelMatches: [
+        {
+          kind: 'label-value',
+          labelName: 'aws/Environment',
+          searchTerm: 'demo',
+          score: 50,
+        },
+      ],
       resource: makeAppWithAddr({
         uri: `${clusterUri}/apps/long-desc`,
         name: 'long-desc',
@@ -271,6 +370,7 @@ const SearchResultItems = () => {
     }),
     makeResourceResult({
       kind: 'app',
+      resourceMatches: [{ field: 'desc', searchTerm: 'Duis' }],
       resource: makeAppWithAddr({
         uri: `${clusterUri}/apps/super-long-desc`,
         name: 'super-long-desc',
@@ -286,6 +386,15 @@ const SearchResultItems = () => {
     }),
     makeResourceResult({
       kind: 'app',
+      resourceMatches: [{ field: 'desc', searchTerm: 's' }],
+      labelMatches: [
+        {
+          kind: 'label-name',
+          labelName: 'access',
+          searchTerm: 's',
+          score: 40,
+        },
+      ],
       resource: makeAppWithAddr({
         name: 'super-long-app-with-uuid-1f96e498-88ec-442f-a25b-569fa915041c',
         desc: 'short-desc',
@@ -303,6 +412,14 @@ const SearchResultItems = () => {
     makeResourceResult({
       kind: 'app',
       requiresRequest: true,
+      labelMatches: [
+        {
+          kind: 'label-name',
+          labelName: 'access',
+          searchTerm: 's',
+          score: 40,
+        },
+      ],
       resource: makeAppWithAddr({
         uri: `${clusterUri}/apps/web-app`,
         name: 'web-app',
@@ -319,6 +436,18 @@ const SearchResultItems = () => {
     }),
     makeResourceResult({
       kind: 'database',
+      resourceMatches: [
+        { field: 'type', searchTerm: 'self' },
+        { field: 'protocol', searchTerm: 'postgres' },
+      ],
+      labelMatches: [
+        {
+          kind: 'label-value',
+          labelName: 'env',
+          searchTerm: 'dev',
+          score: 100,
+        },
+      ],
       resource: makeDatabase({
         uri: `${clusterUri}/dbs/no-desc`,
         name: 'no-desc',
@@ -337,6 +466,15 @@ const SearchResultItems = () => {
     }),
     makeResourceResult({
       kind: 'database',
+      resourceMatches: [{ field: 'desc', searchTerm: 'm' }],
+      labelMatches: [
+        {
+          labelName: 'aws/Environment',
+          score: 40,
+          kind: 'label-name',
+          searchTerm: 'm',
+        },
+      ],
       resource: makeDatabase({
         uri: `${clusterUri}/dbs/short-desc`,
         name: 'short-desc',
@@ -355,6 +493,7 @@ const SearchResultItems = () => {
     }),
     makeResourceResult({
       kind: 'database',
+      resourceMatches: [{ field: 'desc', searchTerm: 'dignissim' }],
       resource: makeDatabase({
         uri: `${clusterUri}/dbs/long-desc`,
         name: 'long-desc',
@@ -373,6 +512,7 @@ const SearchResultItems = () => {
     }),
     makeResourceResult({
       kind: 'database',
+      resourceMatches: [{ field: 'desc', searchTerm: 'Duis' }],
       resource: makeDatabase({
         uri: `${clusterUri}/dbs/super-long-desc`,
         name: 'super-long-desc',
@@ -427,6 +567,14 @@ const SearchResultItems = () => {
     }),
     makeResourceResult({
       kind: 'kube',
+      labelMatches: [
+        {
+          kind: 'label-value',
+          labelName: 'kube',
+          searchTerm: 'kubersson',
+          score: 100,
+        },
+      ],
       resource: makeKube({
         name: 'short-label-list',
         labels: makeLabelsList({
@@ -438,6 +586,26 @@ const SearchResultItems = () => {
     }),
     makeResourceResult({
       kind: 'kube',
+      labelMatches: [
+        {
+          kind: 'label-name',
+          labelName: 'aws/Environment',
+          searchTerm: 'Environment',
+          score: 60,
+        },
+        {
+          kind: 'label-name',
+          labelName: 'aws/Owner',
+          searchTerm: 'Owner',
+          score: 45,
+        },
+        {
+          kind: 'label-value',
+          labelName: 'kube',
+          searchTerm: 'kubersson',
+          score: 70,
+        },
+      ],
       resource: makeKube({
         name: 'long-label-list',
         uri: `${clusterUri}/kubes/long-label-list`,
@@ -465,12 +633,90 @@ const SearchResultItems = () => {
     makeResourceResult({
       kind: 'kube',
       requiresRequest: true,
+      labelMatches: [
+        {
+          kind: 'label-value',
+          labelName: 'im-just-a-smol',
+          searchTerm: 'kube',
+          score: 40,
+        },
+      ],
       resource: makeKube({
         name: 'short-label-list',
         labels: makeLabelsList({
           'im-just-a-smol': 'kube',
           kube: 'kubersson',
           with: 'little-to-no-labels',
+        }),
+      }),
+    }),
+    makeResourceResult({
+      kind: 'windows_desktop',
+      requiresRequest: false,
+      resource: makeWindowsDesktopWithoutDefaultPort({
+        uri: `${clusterUri}/windows_desktops/long-name`,
+        name: 'super-long-windows-desktop-name-with-uuid-7a96e498-88ec-442f-a25b-569fa9150123c',
+        labels: makeLabelsList({
+          'aws/Environment': 'demo-13-biz',
+          'aws/Owner': 'foobar',
+          windowsDesktops: 'custom-windows-list',
+          with: 'little-to-no-labels',
+        }),
+      }),
+    }),
+    makeResourceResult({
+      kind: 'windows_desktop',
+      resource: makeWindowsDesktopWithoutDefaultPort({
+        uri: `${clusterUri}/windows_desktops/long-label-list`,
+        name: 'long-label-list',
+        labels: makeLabelsList({
+          'aws/Environment': 'demo-13-biz',
+          'aws/Owner': 'foobar',
+          'aws/Name': 'db-bastion-4-13biz',
+          windowsDesktops: 'custom-windows-list',
+          with: 'little-to-no-labels',
+        }),
+      }),
+      resourceMatches: [
+        { field: 'addrWithoutDefaultPort', searchTerm: '192.169.100.50' },
+      ],
+      labelMatches: [
+        {
+          kind: 'label-value',
+          labelName: 'windowsDesktops',
+          searchTerm: 'custom',
+          score: 100,
+        },
+        {
+          kind: 'label-name',
+          labelName: 'aws/Environment',
+          searchTerm: 'Environment',
+          score: 60,
+        },
+        {
+          kind: 'label-name',
+          labelName: 'aws/Owner',
+          searchTerm: 'Owner',
+          score: 45,
+        },
+      ],
+    }),
+    makeResourceResult({
+      kind: 'windows_desktop',
+      requiresRequest: true,
+      labelMatches: [
+        {
+          kind: 'label-value',
+          labelName: 'im-just-a-smol',
+          searchTerm: 'win',
+          score: 40,
+        },
+      ],
+      resource: makeWindowsDesktopWithoutDefaultPort({
+        uri: `${clusterUri}/windows_desktops/short-label-list`,
+        name: 'short-label-list',
+        labels: makeLabelsList({
+          'im-just-a-smol': 'win',
         }),
       }),
     }),

@@ -16,8 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { renderHook } from '@testing-library/react';
+
+import { rootClusterUri } from 'teleterm/services/tshd/testHelpers';
+import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 
 import {
   ResourcesContextProvider,
@@ -27,24 +29,45 @@ import {
 describe('requestResourcesRefresh', () => {
   it('calls listener registered with onResourcesRefreshRequest', () => {
     const wrapper = ({ children }) => (
-      <ResourcesContextProvider>{children}</ResourcesContextProvider>
+      <MockAppContextProvider>
+        <ResourcesContextProvider>{children}</ResourcesContextProvider>
+      </MockAppContextProvider>
     );
-    const { result } = renderHook(() => useResourcesContext(), { wrapper });
+    const { result } = renderHook(
+      () => ({
+        clusterUri1: useResourcesContext('/clusters/teleport-local'),
+        clusterUri2: useResourcesContext('/clusters/teleport-remote'),
+      }),
+      {
+        wrapper,
+      }
+    );
 
-    const listener = jest.fn();
-    result.current.onResourcesRefreshRequest(listener);
-    result.current.requestResourcesRefresh();
+    const listener1 = jest.fn();
+    const listener2 = jest.fn();
+    result.current.clusterUri1.onResourcesRefreshRequest(listener1);
+    result.current.clusterUri2.onResourcesRefreshRequest(listener2);
 
-    expect(listener).toHaveBeenCalledTimes(1);
+    result.current.clusterUri1.requestResourcesRefresh();
+    expect(listener1).toHaveBeenCalledTimes(1);
+    expect(listener2).not.toHaveBeenCalled();
+
+    result.current.clusterUri2.requestResourcesRefresh();
+    expect(listener1).toHaveBeenCalledTimes(1); // it has not been called again
+    expect(listener2).toHaveBeenCalledTimes(1);
   });
 });
 
 describe('onResourcesRefreshRequest cleanup function', () => {
   it('removes the listener', () => {
     const wrapper = ({ children }) => (
-      <ResourcesContextProvider>{children}</ResourcesContextProvider>
+      <MockAppContextProvider>
+        <ResourcesContextProvider>{children}</ResourcesContextProvider>
+      </MockAppContextProvider>
     );
-    const { result } = renderHook(() => useResourcesContext(), { wrapper });
+    const { result } = renderHook(() => useResourcesContext(rootClusterUri), {
+      wrapper,
+    });
 
     const listener = jest.fn();
     const { cleanup } = result.current.onResourcesRefreshRequest(listener);

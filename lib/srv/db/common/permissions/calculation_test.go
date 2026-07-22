@@ -41,14 +41,14 @@ func (m mockGetter) GetDatabasePermissions(_ types.Database) (allow types.Databa
 
 func TestCalculatePermissions(t *testing.T) {
 	mkDatabaseObject := func(name string, labels map[string]string) *dbobjectv1.DatabaseObject {
-		out, err := databaseobject.NewDatabaseObjectWithLabels(name, maps.Clone(labels), &dbobjectv1.DatabaseObjectSpec{
+		out, err := databaseobject.NewDatabaseObjectWithLabels(name, maps.Clone(labels), dbobjectv1.DatabaseObjectSpec_builder{
 			Protocol:            types.DatabaseProtocolPostgreSQL,
 			DatabaseServiceName: "dummy",
 			ObjectKind:          databaseobjectimportrule.ObjectKindTable,
 			Database:            "dummy",
 			Schema:              "public",
 			Name:                name,
-		})
+		}.Build())
 
 		require.NoError(t, err)
 		return out
@@ -91,7 +91,7 @@ func TestCalculatePermissions(t *testing.T) {
 					mkDatabaseObject("bar", map[string]string{"kind": "schema"}),
 				},
 			},
-			summary: "\"DELETE\": 1 objects (table:1), \"SELECT\": 1 objects (table:1)",
+			summary: "DELETE: 1 objects (table:1), SELECT: 1 objects (table:1)",
 			details: []events.DatabasePermissionEntry{
 				{
 					Permission: "DELETE",
@@ -136,7 +136,7 @@ func TestCalculatePermissions(t *testing.T) {
 					mkDatabaseObject("bar", map[string]string{"kind": "schema"}),
 				},
 			},
-			summary: "\"SELECT\": 1 objects (table:1)",
+			summary: "SELECT: 1 objects (table:1)",
 			details: []events.DatabasePermissionEntry{
 				{
 					Permission: "SELECT",
@@ -174,14 +174,14 @@ func TestCalculatePermissions(t *testing.T) {
 
 func TestDatabasePermissionMatch(t *testing.T) {
 	mkDatabaseObject := func(labels map[string]string) *dbobjectv1.DatabaseObject {
-		out, err := databaseobject.NewDatabaseObjectWithLabels("foo", maps.Clone(labels), &dbobjectv1.DatabaseObjectSpec{
+		out, err := databaseobject.NewDatabaseObjectWithLabels("foo", maps.Clone(labels), dbobjectv1.DatabaseObjectSpec_builder{
 			Protocol:            types.DatabaseProtocolPostgreSQL,
 			DatabaseServiceName: "dummy",
 			ObjectKind:          databaseobjectimportrule.ObjectKindTable,
 			Database:            "dummy",
 			Schema:              "public",
 			Name:                "foo",
-		})
+		}.Build())
 
 		require.NoError(t, err)
 		return out

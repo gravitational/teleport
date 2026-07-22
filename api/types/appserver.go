@@ -18,6 +18,8 @@ package types
 
 import (
 	"fmt"
+	"iter"
+	"slices"
 	"sort"
 	"time"
 
@@ -25,7 +27,9 @@ import (
 
 	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/constants"
+	componentfeaturesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/componentfeatures/v1"
 	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/iterutils"
 )
 
 // AppServer represents a single proxied web app.
@@ -40,6 +44,8 @@ type AppServer interface {
 	GetHostname() string
 	// GetHostID returns ID of the host the server is running on.
 	GetHostID() string
+	// SetHostID sets ID of the host the server is running on.
+	SetHostID(string)
 	// GetRotation gets the state of certificate authority rotation.
 	GetRotation() Rotation
 	// SetRotation sets the state of certificate authority rotation.
@@ -48,7 +54,8 @@ type AppServer interface {
 	String() string
 	// Copy returns a copy of this app server object.
 	Copy() AppServer
-
+	// IsEqual determines if two servers are equivalent to one another.
+	IsEqual(AppServer) bool
 	// CloneResource returns a copy of the AppServer as a ResourceWithLabels
 	CloneResource() ResourceWithLabels
 	// GetApp returns the app this app server proxies.
@@ -59,14 +66,37 @@ type AppServer interface {
 	GetTunnelType() TunnelType
 	// ProxiedService provides common methods for a proxied service.
 	ProxiedService
+	// GetRelayGroup returns the name of the Relay group that the app server is
+	// connected to.
+	GetRelayGroup() string
+	// GetRelayIDs returns the list of Relay host IDs that the app server is
+	// connected to.
+	GetRelayIDs() []string
+	// GetScope returns the scope this server belongs to.
+	GetScope() string
+	// GetComponentFeatures returns the ComponentFeatures supported by this AppServer.
+	GetComponentFeatures() *componentfeaturesv1.ComponentFeatures
+	// SetComponentFeatures sets the ComponentFeatures supported by this AppServer.
+	SetComponentFeatures(*componentfeaturesv1.ComponentFeatures)
 }
 
 // NewAppServerV3 creates a new app server instance.
-func NewAppServerV3(meta Metadata, spec AppServerSpecV3) (*AppServerV3, error) {
+// TODO(williamo/scopes): scope is variadic only so existing
+// callers compile unchanged during the scope migration.
+func NewAppServerV3(meta Metadata, spec AppServerSpecV3, scope ...string) (*AppServerV3, error) {
 	s := &AppServerV3{
 		Metadata: meta,
 		Spec:     spec,
 	}
+
+	switch len(scope) {
+	case 0: // unscoped
+	case 1:
+		s.Scope = scope[0]
+	default:
+		return nil, trace.BadParameter("expected at most 1 scope, got %d", len(scope))
+	}
+
 	if err := s.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -81,24 +111,45 @@ func NewAppServerV3FromApp(app *AppV3, hostname, hostID string) (*AppServerV3, e
 		Hostname: hostname,
 		HostID:   hostID,
 		App:      app,
-	})
+	}, app.GetScope())
 }
 
 // NewAppServerForAWSOIDCIntegration creates a new AppServer that will be used to grant AWS App Access
 // using the AWSOIDC credentials.
-func NewAppServerForAWSOIDCIntegration(integrationName, hostID, publicAddr string) (*AppServerV3, error) {
+func NewAppServerForAWSOIDCIntegration(integrationName, hostID, publicAddr string, labels map[string]string) (*AppServerV3, error) {
 	return NewAppServerV3(Metadata{
-		Name: integrationName,
+		Name:   integrationName,
+		Labels: labels,
 	}, AppServerSpecV3{
 		HostID: hostID,
 		App: &AppV3{Metadata: Metadata{
-			Name: integrationName,
+			Name:   integrationName,
+			Labels: labels,
 		}, Spec: AppSpecV3{
 			URI:         constants.AWSConsoleURL,
 			Integration: integrationName,
 			PublicAddr:  publicAddr,
 		}},
 	})
+}
+
+func (s *AppServerV3) IsEqual(other AppServer) bool {
+	otherv3, ok := other.(*AppServerV3)
+	if !ok {
+		return false
+	}
+
+	return deriveTeleportEqualAppServerV3(s, otherv3)
+}
+
+// GetComponentFeatures returns the ComponentFeatures supported by this AppServer.
+func (s *AppServerV3) GetComponentFeatures() *componentfeaturesv1.ComponentFeatures {
+	return s.Spec.ComponentFeatures
+}
+
+// SetComponentFeatures sets the ComponentFeatures supported by this AppServer.
+func (s *AppServerV3) SetComponentFeatures(cf *componentfeaturesv1.ComponentFeatures) {
+	s.Spec.ComponentFeatures = cf
 }
 
 // GetVersion returns the database server resource version.
@@ -119,6 +170,11 @@ func (s *AppServerV3) GetHostname() string {
 // GetHostID returns ID of the host the server is running on.
 func (s *AppServerV3) GetHostID() string {
 	return s.Spec.HostID
+}
+
+// SetHostID sets ID of the host the server is running on.
+func (s *AppServerV3) SetHostID(hostID string) {
+	s.Spec.HostID = hostID
 }
 
 // GetKind returns the resource kind.
@@ -267,6 +323,22 @@ func (s *AppServerV3) SetProxyIDs(proxyIDs []string) {
 	s.Spec.ProxyIDs = proxyIDs
 }
 
+// GetRelayGroup implements [AppServer].
+func (s *AppServerV3) GetRelayGroup() string {
+	if s == nil {
+		return ""
+	}
+	return s.Spec.RelayGroup
+}
+
+// GetRelayIDs implements [AppServer].
+func (s *AppServerV3) GetRelayIDs() []string {
+	if s == nil {
+		return nil
+	}
+	return s.Spec.RelayIds
+}
+
 // GetLabel retrieves the label with the provided key. If not found
 // value will be empty and ok will be false.
 func (s *AppServerV3) GetLabel(key string) (value string, ok bool) {
@@ -298,7 +370,7 @@ func (s *AppServerV3) GetAllLabels() map[string]string {
 		dynamicLabels = s.Spec.App.Spec.DynamicLabels
 	}
 
-	return CombineLabels(staticLabels, dynamicLabels)
+	return CombineLabels(nil, staticLabels, dynamicLabels)
 }
 
 // GetStaticLabels returns the app server static labels.
@@ -324,6 +396,11 @@ func (s *AppServerV3) CloneResource() ResourceWithLabels {
 // match against the list of search values.
 func (s *AppServerV3) MatchSearch(values []string) bool {
 	return MatchSearch(nil, values, nil)
+}
+
+// GetScope returns the scope this server belongs to.
+func (s *AppServerV3) GetScope() string {
+	return s.Scope
 }
 
 // AppServers represents a list of app servers.
@@ -406,4 +483,11 @@ func (s AppServers) GetFieldVals(field string) ([]string, error) {
 	}
 
 	return vals, nil
+}
+
+// Applications iterates over the applications that the AppServers proxy.
+func (s AppServers) Applications() iter.Seq[Application] {
+	return iterutils.Map(func(appServer AppServer) Application {
+		return appServer.GetApp()
+	}, slices.Values(s))
 }

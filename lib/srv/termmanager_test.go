@@ -217,7 +217,7 @@ func TestTermManagerRead(t *testing.T) {
 					}
 
 					// transition between on and off a few times
-					for i := 0; i < 5; i++ {
+					for i := range 5 {
 						if i%2 == 0 {
 							m.Off()
 						} else {
@@ -297,7 +297,7 @@ func TestTermManagerRead(t *testing.T) {
 					}
 
 					// transition between on and off a few times
-					for i := 0; i < 5; i++ {
+					for i := range 5 {
 						if i%2 == 0 {
 							m.Off()
 						} else {

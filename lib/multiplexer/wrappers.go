@@ -83,8 +83,9 @@ func (c *Conn) LocalAddr() net.Addr {
 // RemoteAddr returns remote address of the connection
 func (c *Conn) RemoteAddr() net.Addr {
 	if c.proxyLine != nil {
-		return &c.proxyLine.Source
+		return c.proxyLine.ResolveSource()
 	}
+
 	return c.Conn.RemoteAddr()
 }
 
@@ -195,7 +196,7 @@ func NewPROXYEnabledListener(cfg Config) (*PROXYEnabledListener, error) {
 	muxListener := mux.SSH()
 	go func() {
 		if err := mux.Serve(); err != nil && !utils.IsOKNetworkError(err) {
-			mux.Entry.WithError(err).Error("Mux encountered err serving")
+			mux.logger.ErrorContext(cfg.Context, "Mux encountered err serving", "error", err)
 		}
 	}()
 	pl := &PROXYEnabledListener{

@@ -14,7 +14,7 @@ resource "aws_autoscaling_group" "auth" {
 
   launch_template {
     name    = aws_launch_template.auth.name
-    version = "$Latest"
+    version = aws_launch_template.auth.latest_version
   }
 
   // These are target groups of the auth server network load balancer
@@ -31,6 +31,26 @@ resource "aws_autoscaling_group" "auth" {
     key                 = "TeleportRole"
     value               = "auth"
     propagate_at_launch = true
+  }
+
+  dynamic "tag" {
+    for_each = data.aws_default_tags.this.tags
+    content {
+      key                 = tag.key
+      value               = tag.value
+      propagate_at_launch = true
+    }
+  }
+
+  dynamic "instance_refresh" {
+    for_each = var.enable_auth_asg_instance_refresh ? [1] : []
+    content {
+      strategy = "Rolling"
+      preferences {
+        auto_rollback          = false
+        min_healthy_percentage = 0
+      }
+    }
   }
 
   // external autoscale algos can modify these values,
@@ -98,5 +118,13 @@ resource "aws_launch_template" "auth" {
 
   iam_instance_profile {
     name = aws_iam_instance_profile.auth.name
+  }
+
+  dynamic "tag_specifications" {
+    for_each = ["instance", "volume", "network-interface"]
+    content {
+      resource_type = tag_specifications.value
+      tags          = data.aws_default_tags.this.tags
+    }
   }
 }

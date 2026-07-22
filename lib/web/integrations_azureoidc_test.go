@@ -79,14 +79,6 @@ func TestAzureOIDCConfigureScript(t *testing.T) {
 				`--auth-connector-name=myconnector`,
 		},
 		{
-			name: "authConnectorName invalid",
-			reqQuery: url.Values{
-				"integrationName":   []string{"myintegration"},
-				"authConnectorName": []string{"myconnector;"},
-			},
-			errCheck: isBadParamErrFn,
-		},
-		{
 			name: "authConnectorName missing",
 			reqQuery: url.Values{
 				"integrationName": []string{"myintegration"},
@@ -96,7 +88,6 @@ func TestAzureOIDCConfigureScript(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			resp, err := publicClt.Get(ctx, endpoint, tc.reqQuery)
 			tc.errCheck(t, err)
@@ -105,7 +96,7 @@ func TestAzureOIDCConfigureScript(t *testing.T) {
 			}
 
 			require.Contains(t, string(resp.Bytes()),
-				fmt.Sprintf("teleportArgs='%s'\n", tc.expectedTeleportArgs),
+				fmt.Sprintf("entrypointArgs='%s'\n", tc.expectedTeleportArgs),
 			)
 		})
 	}

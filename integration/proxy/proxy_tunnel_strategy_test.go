@@ -27,27 +27,25 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/jackc/pgconn"
-	"github.com/sirupsen/logrus"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/require"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/integration/helpers"
-	"github.com/gravitational/teleport/lib"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/cloud/imds"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 type proxyTunnelStrategy struct {
@@ -64,7 +62,7 @@ type proxyTunnelStrategy struct {
 	dbAuthClient *authclient.Client
 	postgresDB   *postgres.TestServer
 
-	log *logrus.Logger
+	expectedTunnels int
 }
 
 func newProxyTunnelStrategy(t *testing.T, cluster string, strategy *types.TunnelStrategyV1) *proxyTunnelStrategy {
@@ -72,12 +70,9 @@ func newProxyTunnelStrategy(t *testing.T, cluster string, strategy *types.Tunnel
 		cluster:  cluster,
 		username: helpers.MustGetCurrentUser(t).Username,
 		strategy: strategy,
-		log:      utils.NewLoggerForTests(),
 	}
 
-	lib.SetInsecureDevMode(true)
 	t.Cleanup(func() {
-		lib.SetInsecureDevMode(false)
 		p.cleanup(t)
 	})
 
@@ -124,7 +119,7 @@ func TestProxyTunnelStrategyAgentMesh(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc // capture range variable
+		// capture range variable
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			p := newProxyTunnelStrategy(t, "proxy-tunnel-agent-mesh",
@@ -153,19 +148,17 @@ func TestProxyTunnelStrategyAgentMesh(t *testing.T) {
 
 // TestProxyTunnelStrategyProxyPeering tests the proxy-peer tunnel strategy.
 func TestProxyTunnelStrategyProxyPeering(t *testing.T) {
-	// TODO(jakule): Fix the test.
-	t.Skip("this test is flaky as it very sensitive to our timeouts")
+	t.Parallel()
 
-	// This test cannot run in parallel as set module changes the global state.
-	modules.SetTestModules(t, &modules.TestModules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.DB: {Enabled: true},
-			},
-		},
-	})
+	// NOTE(eriktate): Testing database tunnels appears to be flaky (or possibly never works?)
+	// so we currently skip adding a database altogether in order to ensure peered tunnels have
+	// some automatic test coverage. Gating this behind a flag in case we want to restore the
+	// database portion of the test at some point.
+	withDB := false
+	testProxyTunnelStrategyProxyPeering(t, withDB)
+}
 
+func testProxyTunnelStrategyProxyPeering(t *testing.T, withDB bool) {
 	p := newProxyTunnelStrategy(t, "proxy-tunnel-proxy-peer",
 		&types.TunnelStrategyV1{
 			Strategy: &types.TunnelStrategyV1_ProxyPeering{
@@ -187,11 +180,13 @@ func TestProxyTunnelStrategyProxyPeering(t *testing.T) {
 	// bootstrap a node instance.
 	p.makeNode(t)
 
-	// bootstrap a db instance.
-	p.makeDatabase(t)
+	if withDB {
+		// bootstrap a db instance.
+		p.makeDatabase(t)
+	}
 
 	// wait for the node and db to open reverse tunnels to the first proxy.
-	helpers.WaitForActiveTunnelConnections(t, p.proxies[0].Tunnel, p.cluster, 2)
+	helpers.WaitForActiveTunnelConnections(t, p.proxies[0].Tunnel, p.cluster, p.expectedTunnels)
 
 	// bootstrap the second proxy instance after the node and db have already
 	// established reverse tunnels to the first proxy.
@@ -206,13 +201,17 @@ func TestProxyTunnelStrategyProxyPeering(t *testing.T) {
 	p.waitForNodeToBeReachable(t)
 	p.dialNode(t)
 
-	// make sure we can connect to the database going through any proxy.
-	p.waitForDatabaseToBeReachable(t)
-	p.dialDatabase(t)
+	if withDB {
+		// make sure we can connect to the database going through any proxy.
+		p.waitForDatabaseToBeReachable(t)
+		p.dialDatabase(t)
+	}
 }
 
 // dialNode starts a client conn to a node reachable through a specific proxy.
 func (p *proxyTunnelStrategy) dialNode(t *testing.T) {
+	nodeID, err := p.node.Process.WaitForHostID(t.Context())
+	require.NoError(t, err)
 	for _, proxy := range p.proxies {
 		creds, err := helpers.GenerateUserCreds(helpers.UserCredsRequest{
 			Process:  p.auth.Process,
@@ -223,7 +222,7 @@ func (p *proxyTunnelStrategy) dialNode(t *testing.T) {
 		client, err := proxy.NewClientWithCreds(
 			helpers.ClientConfig{
 				Cluster: p.cluster,
-				Host:    p.node.Process.Config.HostUUID,
+				Host:    nodeID,
 			},
 			*creds,
 		)
@@ -294,7 +293,7 @@ func (p *proxyTunnelStrategy) makeAuth(t *testing.T) {
 		require.Fail(t, "auth already initialized")
 	}
 
-	privateKey, publicKey, err := testauthority.New().GenerateKeyPair()
+	privateKey, publicKey, err := testauthority.GenerateKeyPair()
 	require.NoError(t, err)
 
 	auth := helpers.NewInstance(t, helpers.InstanceConfig{
@@ -303,20 +302,23 @@ func (p *proxyTunnelStrategy) makeAuth(t *testing.T) {
 		NodeName:    helpers.Loopback,
 		Priv:        privateKey,
 		Pub:         publicKey,
-		Log:         utils.NewLoggerForTests(),
+		Logger:      logtest.NewLogger(),
+		Modules:     modulestest.EnterpriseModules(),
 	})
 
 	auth.AddUser(p.username, []string{p.username})
 
 	conf := servicecfg.MakeDefaultConfig()
+	conf.Modules = auth.Modules
 	conf.DataDir = t.TempDir()
-	conf.Log = auth.Log
+	conf.Logger = auth.Log
 
 	conf.Auth.Enabled = true
 	conf.Auth.NetworkingConfig.SetTunnelStrategy(p.strategy)
 	conf.Auth.SessionRecordingConfig.SetMode(types.RecordAtNodeSync)
 	conf.Proxy.Enabled = false
 	conf.SSH.Enabled = false
+	conf.InsecureMode = true
 
 	require.NoError(t, auth.CreateEx(t, nil, conf))
 	require.NoError(t, auth.Start())
@@ -325,23 +327,27 @@ func (p *proxyTunnelStrategy) makeAuth(t *testing.T) {
 }
 
 // makeProxy bootstraps a new teleport proxy instance.
-// It's public address points to a load balancer.
+// Its public address points to a load balancer.
 func (p *proxyTunnelStrategy) makeProxy(t *testing.T) {
 	proxy := helpers.NewInstance(t, helpers.InstanceConfig{
 		ClusterName: p.cluster,
 		HostID:      uuid.New().String(),
 		NodeName:    helpers.Loopback,
-		Log:         utils.NewLoggerForTests(),
+		Logger:      logtest.NewLogger(),
+		Modules:     modulestest.EnterpriseModules(),
 	})
 
 	authAddr := utils.MustParseAddr(p.auth.Auth)
 
 	conf := servicecfg.MakeDefaultConfig()
+	conf.Modules = proxy.Modules
+	conf.DebugService.Enabled = false
 	conf.SetAuthServerAddress(*authAddr)
 	conf.SetToken("token")
 	conf.DataDir = t.TempDir()
-	conf.Log = proxy.Log
+	conf.Logger = proxy.Log
 	conf.InstanceMetadataClient = imds.NewDisabledIMDSClient()
+	conf.InsecureMode = true
 
 	conf.Auth.Enabled = false
 	conf.SSH.Enabled = false
@@ -378,15 +384,19 @@ func (p *proxyTunnelStrategy) makeNode(t *testing.T) {
 		ClusterName: p.cluster,
 		HostID:      uuid.New().String(),
 		NodeName:    helpers.Loopback,
-		Log:         utils.NewLoggerForTests(),
+		Logger:      logtest.NewLogger(),
+		Modules:     modulestest.EnterpriseModules(),
 	})
 
 	conf := servicecfg.MakeDefaultConfig()
+	conf.Modules = node.Modules
 	conf.Version = types.V3
 	conf.SetToken("token")
 	conf.DataDir = t.TempDir()
-	conf.Log = node.Log
+	conf.Logger = node.Log
 	conf.InstanceMetadataClient = imds.NewDisabledIMDSClient()
+	conf.DebugService.Enabled = false
+	conf.InsecureMode = true
 
 	conf.Auth.Enabled = false
 	conf.Proxy.Enabled = false
@@ -401,6 +411,7 @@ func (p *proxyTunnelStrategy) makeNode(t *testing.T) {
 	require.NoError(t, node.Start())
 
 	p.node = node
+	p.expectedTunnels += 1
 }
 
 // makeDatabase bootstraps a new teleport db instance.
@@ -423,15 +434,19 @@ func (p *proxyTunnelStrategy) makeDatabase(t *testing.T) {
 		ClusterName: p.cluster,
 		HostID:      uuid.New().String(),
 		NodeName:    helpers.Loopback,
-		Log:         utils.NewLoggerForTests(),
+		Logger:      logtest.NewLogger(),
+		Modules:     modulestest.EnterpriseModules(),
 	})
 
 	conf := servicecfg.MakeDefaultConfig()
+	conf.Modules = db.Modules
+	conf.DebugService.Enabled = false
 	conf.Version = types.V3
 	conf.SetToken("token")
 	conf.DataDir = t.TempDir()
-	conf.Log = db.Log
+	conf.Logger = db.Log
 	conf.InstanceMetadataClient = imds.NewDisabledIMDSClient()
+	conf.InsecureMode = true
 
 	conf.Auth.Enabled = false
 	conf.Proxy.Enabled = false
@@ -446,7 +461,7 @@ func (p *proxyTunnelStrategy) makeDatabase(t *testing.T) {
 		},
 	}
 
-	_, role, err := auth.CreateUserAndRole(p.auth.Process.GetAuthServer(), p.username, []string{p.username}, nil)
+	_, role, err := authtest.CreateUserAndRole(p.auth.Process.GetAuthServer(), p.username, []string{p.username}, nil)
 	require.NoError(t, err)
 
 	role.SetDatabaseUsers(types.Allow, []string{types.Wildcard})
@@ -490,12 +505,15 @@ func (p *proxyTunnelStrategy) makeDatabase(t *testing.T) {
 	p.db = db
 	p.dbAuthClient = client
 	p.postgresDB = postgresDB
+	p.expectedTunnels += 1
 }
 
 // waitForNodeToBeReachable waits for the node to be reachable from all
 // proxies by making sure the proxy peer connectivity info (if any) got
 // propagated to the auth server.
 func (p *proxyTunnelStrategy) waitForNodeToBeReachable(t *testing.T) {
+	nodeID, err := p.node.Process.WaitForHostID(t.Context())
+	require.NoError(t, err)
 	check := func(t *helpers.TeleInstance, availability int) (bool, error) {
 		nodes, err := t.GetSiteAPI(p.cluster).GetNodes(
 			context.Background(),
@@ -506,8 +524,7 @@ func (p *proxyTunnelStrategy) waitForNodeToBeReachable(t *testing.T) {
 		}
 
 		for _, node := range nodes {
-			if node.GetName() == p.node.Process.Config.HostUUID &&
-				len(node.GetProxyIDs()) == availability {
+			if node.GetName() == nodeID && len(node.GetProxyIDs()) == availability {
 				return true, nil
 			}
 		}
@@ -520,6 +537,8 @@ func (p *proxyTunnelStrategy) waitForNodeToBeReachable(t *testing.T) {
 // proxies by making sure the proxy peer connectivity info (if any) got
 // propagated to the auth server.
 func (p *proxyTunnelStrategy) waitForDatabaseToBeReachable(t *testing.T) {
+	dbID, err := p.db.Process.WaitForHostID(t.Context())
+	require.NoError(t, err)
 	check := func(t *helpers.TeleInstance, availability int) (bool, error) {
 		databases, err := t.GetSiteAPI(p.cluster).GetDatabaseServers(
 			context.Background(),
@@ -530,8 +549,7 @@ func (p *proxyTunnelStrategy) waitForDatabaseToBeReachable(t *testing.T) {
 		}
 
 		for _, db := range databases {
-			if db.GetHostID() == p.db.Process.Config.HostUUID &&
-				len(db.GetProxyIDs()) == availability {
+			if db.GetHostID() == dbID && len(db.GetProxyIDs()) == availability {
 				return true, nil
 			}
 		}
@@ -554,20 +572,15 @@ func (p *proxyTunnelStrategy) waitForResource(t *testing.T, role string, check f
 		for _, proxy := range p.proxies {
 			ok, err := check(proxy, availability)
 			if err != nil {
-				p.log.Debugf("check for %s availability error: %+v", role, trace.Wrap(err))
 				return false
 			}
 			if !ok {
-				p.log.Debugf("%s not found", role)
 				return false
 			}
 			propagated++
 		}
-		if len(p.proxies) != propagated {
-			p.log.Debugf("%s not available", role)
-			return false
-		}
-		return true
+
+		return len(p.proxies) == propagated
 	},
 		30*time.Second,
 		time.Second,

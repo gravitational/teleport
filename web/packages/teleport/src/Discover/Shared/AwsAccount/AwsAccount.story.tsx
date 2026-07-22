@@ -16,18 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-import { MemoryRouter } from 'react-router';
+import { delay, http, HttpResponse } from 'msw';
 
-import { http, HttpResponse, delay } from 'msw';
-
-import { ContextProvider } from 'teleport';
 import cfg from 'teleport/config';
+import { resourceSpecAwsRdsPostgres } from 'teleport/Discover/Fixtures/databases';
+import { RequiredDiscoverProviders } from 'teleport/Discover/Fixtures/fixtures';
 import { createTeleportContext, getAcl } from 'teleport/mocks/contexts';
-import {
-  DiscoverProvider,
-  DiscoverContextState,
-} from 'teleport/Discover/useDiscover';
 
 import { AwsAccount } from './AwsAccount';
 
@@ -72,7 +66,7 @@ export const Failed = () => <Component />;
 Failed.parameters = {
   msw: {
     handlers: [
-      http.post(cfg.getIntegrationsUrl(), () =>
+      http.get(cfg.getIntegrationsUrl(), () =>
         HttpResponse.json(
           {
             message: 'some kind of error',
@@ -89,35 +83,14 @@ export const NoPerm = () => <Component noAccess={true} />;
 const Component = ({ noAccess = false }: { noAccess?: boolean }) => {
   const ctx = createTeleportContext();
   ctx.storeUser.state.acl = getAcl({ noAccess });
-  const discoverCtx: DiscoverContextState = {
-    agentMeta: {},
-    currentStep: 0,
-    nextStep: () => null,
-    prevStep: () => null,
-    onSelectResource: () => null,
-    resourceSpec: {} as any,
-    exitFlow: () => null,
-    viewConfig: null,
-    indexedViews: [],
-    setResourceSpec: () => null,
-    updateAgentMeta: () => null,
-    emitErrorEvent: () => null,
-    emitEvent: () => null,
-    eventState: null,
-  };
 
-  cfg.proxyCluster = 'localhost';
   return (
-    <MemoryRouter
-      initialEntries={[
-        { pathname: cfg.routes.discover, state: { entity: 'server' } },
-      ]}
+    <RequiredDiscoverProviders
+      agentMeta={{}}
+      resourceSpec={resourceSpecAwsRdsPostgres}
+      customAcl={noAccess ? getAcl({ noAccess }) : undefined}
     >
-      <ContextProvider ctx={ctx}>
-        <DiscoverProvider mockCtx={discoverCtx}>
-          <AwsAccount />
-        </DiscoverProvider>
-      </ContextProvider>
-    </MemoryRouter>
+      <AwsAccount />
+    </RequiredDiscoverProviders>
   );
 };

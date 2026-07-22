@@ -23,14 +23,14 @@ import (
 	"testing"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redis/armredis/v2"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redis/armredis/v3"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redisenterprise/armredisenterprise"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/subscription/armsubscription"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/azure"
+	"github.com/gravitational/teleport/lib/cloud/azure/azuretest"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
@@ -39,7 +39,7 @@ import (
 func TestAzureRedisFetchers(t *testing.T) {
 	t.Parallel()
 
-	azureSub := makeAzureSubscription(t, "sub")
+	azureSub := makeAzureSubscription("sub")
 
 	// Note that the Azure Redis APIs may return location in their display
 	// names (eg. "East US"). The Azure fetcher should normalize location names
@@ -53,7 +53,7 @@ func TestAzureRedisFetchers(t *testing.T) {
 		Regions:      []string{"eastus"},
 	}}
 
-	clients := &cloud.TestCloudClients{
+	clients := &azuretest.Clients{
 		AzureSubscriptionClient: azure.NewSubscriptionClient(&azure.ARMSubscriptionsMock{
 			Subscriptions: []*armsubscription.Subscription{azureSub},
 		}),

@@ -24,9 +24,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
@@ -43,19 +41,18 @@ const (
 
 // OktaService manages Okta resources in the Backend.
 type OktaService struct {
-	log           logrus.FieldLogger
 	clock         clockwork.Clock
 	importRuleSvc *generic.Service[types.OktaImportRule]
 	assignmentSvc *generic.Service[types.OktaAssignment]
 }
 
 // NewOktaService creates a new OktaService.
-func NewOktaService(backend backend.Backend, clock clockwork.Clock) (*OktaService, error) {
+func NewOktaService(b backend.Backend, clock clockwork.Clock) (*OktaService, error) {
 	importRuleSvc, err := generic.NewService(&generic.ServiceConfig[types.OktaImportRule]{
-		Backend:       backend,
+		Backend:       b,
 		PageLimit:     oktaImportRuleMaxPageSize,
 		ResourceKind:  types.KindOktaImportRule,
-		BackendPrefix: oktaImportRulePrefix,
+		BackendPrefix: backend.NewKey(oktaImportRulePrefix),
 		MarshalFunc:   services.MarshalOktaImportRule,
 		UnmarshalFunc: services.UnmarshalOktaImportRule,
 	})
@@ -64,10 +61,10 @@ func NewOktaService(backend backend.Backend, clock clockwork.Clock) (*OktaServic
 	}
 
 	assignmentSvc, err := generic.NewService(&generic.ServiceConfig[types.OktaAssignment]{
-		Backend:       backend,
+		Backend:       b,
 		PageLimit:     oktaAssignmentMaxPageSize,
 		ResourceKind:  types.KindOktaAssignment,
-		BackendPrefix: oktaAssignmentPrefix,
+		BackendPrefix: backend.NewKey(oktaAssignmentPrefix),
 		MarshalFunc:   services.MarshalOktaAssignment,
 		UnmarshalFunc: services.UnmarshalOktaAssignment,
 	})
@@ -76,7 +73,6 @@ func NewOktaService(backend backend.Backend, clock clockwork.Clock) (*OktaServic
 	}
 
 	return &OktaService{
-		log:           logrus.WithFields(logrus.Fields{teleport.ComponentKey: "okta:local-service"}),
 		clock:         clock,
 		importRuleSvc: importRuleSvc,
 		assignmentSvc: assignmentSvc,
@@ -169,6 +165,18 @@ func (o *OktaService) UpdateOktaAssignment(ctx context.Context, assignment types
 	return updated, trace.Wrap(err)
 }
 
+// UpsertOktaAssignment upsert the Okta assignment resource, creating it if it doesn't exist or updating it if it does.
+func (o *OktaService) UpsertOktaAssignment(ctx context.Context, assignment types.OktaAssignment) (types.OktaAssignment, error) {
+	upserted, err := o.assignmentSvc.UpsertResource(ctx, assignment)
+	return upserted, trace.Wrap(err)
+}
+
+// ConditionalUpdateOktaAssignment updates an existing Okta assignment resource, protected by optimistic locking.
+func (o *OktaService) ConditionalUpdateOktaAssignment(ctx context.Context, assignment types.OktaAssignment) (types.OktaAssignment, error) {
+	updated, err := o.assignmentSvc.ConditionalUpdateResource(ctx, assignment)
+	return updated, trace.Wrap(err)
+}
+
 // UpdateOktaAssignmentStatus will update the status for an Okta assignment if the given time has passed
 // since the last transition.
 func (o *OktaService) UpdateOktaAssignmentStatus(ctx context.Context, name, status string, timeHasPassed time.Duration) error {
@@ -176,7 +184,7 @@ func (o *OktaService) UpdateOktaAssignmentStatus(ctx context.Context, name, stat
 		// Only update the status if the given duration has passed.
 		sinceLastTransition := o.clock.Since(currentAssignment.GetLastTransition())
 		if sinceLastTransition < timeHasPassed {
-			return trace.BadParameter("only %s has passed since last transition", sinceLastTransition)
+			return trace.BadParameter("only %s has passed since last transition (want at least %s)", sinceLastTransition, timeHasPassed)
 		}
 
 		if err := currentAssignment.SetStatus(status); err != nil {
@@ -196,6 +204,11 @@ func (o *OktaService) UpdateOktaAssignmentStatus(ctx context.Context, name, stat
 // DeleteOktaAssignment removes the specified Okta assignment resource.
 func (o *OktaService) DeleteOktaAssignment(ctx context.Context, name string) error {
 	return o.assignmentSvc.DeleteResource(ctx, name)
+}
+
+// ConditionalDeleteOktaAssignment removes the specified Okta assignment resource, protected by optimistic locking.
+func (o *OktaService) ConditionalDeleteOktaAssignment(ctx context.Context, name, revision string) error {
+	return o.assignmentSvc.ConditionalDeleteResource(ctx, name, revision)
 }
 
 // DeleteAllOktaAssignments removes all Okta assignments.

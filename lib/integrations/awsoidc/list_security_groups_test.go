@@ -53,10 +53,7 @@ func (m mockListSecurityGroupsClient) DescribeSecurityGroups(ctx context.Context
 	}
 
 	sliceStart := m.pageSize * (requestedPage - 1)
-	sliceEnd := m.pageSize * requestedPage
-	if sliceEnd > totalSG {
-		sliceEnd = totalSG
-	}
+	sliceEnd := min(m.pageSize*requestedPage, totalSG)
 
 	ret := &ec2.DescribeSecurityGroupsOutput{
 		SecurityGroups: m.sgs[sliceStart:sliceEnd],
@@ -82,7 +79,7 @@ func TestListSecurityGroups(t *testing.T) {
 		totalSecurityGroups := 203
 
 		allSGs := make([]ec2Types.SecurityGroup, 0, totalSecurityGroups)
-		for i := 0; i < totalSecurityGroups; i++ {
+		for i := range totalSecurityGroups {
 			allSGs = append(allSGs, ec2Types.SecurityGroup{
 				GroupId:   aws.String(fmt.Sprintf("sg-%d", i)),
 				GroupName: aws.String(fmt.Sprintf("MySG-%d", i)),
@@ -284,6 +281,10 @@ func TestConvertSecurityGroup(t *testing.T) {
 							ToPort:     aws.Int32(22),
 							IpProtocol: aws.String("tcp"),
 							IpRanges:   []ec2Types.IpRange{{CidrIp: aws.String("0.0.0.0/0")}},
+							UserIdGroupPairs: []ec2Types.UserIdGroupPair{{
+								GroupId:     aws.String("sg-123"),
+								Description: aws.String("allowed from another sg"),
+							}},
 						},
 					},
 					IpPermissionsEgress: []ec2Types.IpPermission{
@@ -300,6 +301,10 @@ func TestConvertSecurityGroup(t *testing.T) {
 							IpRanges: []ec2Types.IpRange{{
 								CidrIp:      aws.String("0.0.0.0/0"),
 								Description: aws.String("Everything"),
+							}},
+							UserIdGroupPairs: []ec2Types.UserIdGroupPair{{
+								GroupId:     aws.String("sg-456"),
+								Description: aws.String("allowed to another sg"),
 							}},
 						},
 					},
@@ -333,6 +338,7 @@ func TestConvertSecurityGroup(t *testing.T) {
 							FromPort:   22,
 							ToPort:     22,
 							CIDRs:      []CIDR{{CIDR: "0.0.0.0/0"}},
+							Groups:     []GroupIDRule{{GroupId: "sg-123", Description: "allowed from another sg"}},
 						},
 					},
 					OutboundRules: []SecurityGroupRule{
@@ -352,6 +358,7 @@ func TestConvertSecurityGroup(t *testing.T) {
 								CIDR:        "0.0.0.0/0",
 								Description: "Everything",
 							}},
+							Groups: []GroupIDRule{{GroupId: "sg-456", Description: "allowed to another sg"}},
 						},
 					},
 				},

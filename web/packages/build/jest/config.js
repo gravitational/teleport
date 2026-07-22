@@ -23,7 +23,13 @@ module.exports = {
   moduleNameMapper: {
     // mock all imports to asset files
     '\\.(css|scss|stylesheet)$': path.join(__dirname, 'mockStyles.js'),
-    '\\.(png|svg|yaml|yaml\\?raw)$': path.join(__dirname, 'mockFiles.js'),
+    '\\.(png|svg|svg\\?no-inline|yaml|yaml\\?raw)$': path.join(
+      __dirname,
+      'mockFiles.js'
+    ),
+    // mock ironrdp wasm module
+    '^shared/libs/ironrdp/pkg/ironrdp_bg.wasm\\?inline$':
+      '<rootDir>/web/packages/shared/libs/ironrdp/mock_ironrdp.js',
     '^shared/(.*)$': '<rootDir>/web/packages/shared/$1',
     '^design($|/.*)': '<rootDir>/web/packages/design/src/$1',
     '^teleport($|/.*)': '<rootDir>/web/packages/teleport/src/$1',
@@ -31,6 +37,8 @@ module.exports = {
     '^e-teleport/(.*)$': '<rootDir>/e/web/teleport/src/$1',
     '^gen-proto-js/(.*)$': '<rootDir>/gen/proto/js/$1',
     '^gen-proto-ts/(.*)$': '<rootDir>/gen/proto/ts/$1',
+    '^@gravitational/design-system$':
+      '<rootDir>/node_modules/@gravitational/design-system',
   },
   // Keep pre-v29 snapshot format to avoid existing snapshots breaking.
   // https://jestjs.io/docs/upgrading-to-jest29#snapshot-format

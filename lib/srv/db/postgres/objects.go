@@ -21,7 +21,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/jackc/pgx/v4"
+	"github.com/jackc/pgx/v5"
 
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -119,9 +119,9 @@ func (f *objectFetcher) getDatabaseNames(ctx context.Context) ([]string, error) 
 
 func (f *objectFetcher) connectAsAdmin(ctx context.Context, databaseName string) (*pgx.Conn, error) {
 	conn := &connector{
-		auth:         f.cfg.Auth,
-		cloudClients: f.cfg.CloudClients,
-		log:          f.cfg.Log,
+		auth:       f.cfg.Auth,
+		gcpClients: f.cfg.GCPClients,
+		log:        f.cfg.Log,
 
 		certExpiry:   time.Now().Add(time.Hour),
 		database:     f.db,

@@ -38,6 +38,7 @@ func TestReserveUploadPart(t *testing.T) {
 
 	handler, err := NewHandler(Config{
 		Directory: dir,
+		OpenFile:  os.OpenFile,
 	})
 	require.NoError(t, err)
 
@@ -60,6 +61,7 @@ func TestUploadPart(t *testing.T) {
 
 	handler, err := NewHandler(Config{
 		Directory: dir,
+		OpenFile:  os.OpenFile,
 	})
 	require.NoError(t, err)
 
@@ -126,18 +128,11 @@ func TestCompleteUpload(t *testing.T) {
 				createPart(t, handler, upload, int64(5), []byte("withreservation"))
 			},
 		},
-		{
-			desc:            "OnlyReservation",
-			expectedContent: []byte{},
-			partsFunc: func(t *testing.T, handler *Handler, upload *events.StreamUpload) {
-				createPart(t, handler, upload, int64(1), []byte{})
-				createPart(t, handler, upload, int64(2), []byte{})
-			},
-		},
 	} {
 		t.Run(test.desc, func(t *testing.T) {
 			handler, err := NewHandler(Config{
 				Directory: t.TempDir(),
+				OpenFile:  os.OpenFile,
 			})
 			require.NoError(t, err)
 
@@ -154,7 +149,7 @@ func TestCompleteUpload(t *testing.T) {
 			require.NoError(t, err)
 
 			// Check upload contents
-			uploadPath := handler.path(upload.SessionID)
+			uploadPath := handler.recordingPath(upload.SessionID)
 			f, err := os.Open(uploadPath)
 			require.NoError(t, err)
 
@@ -162,10 +157,52 @@ func TestCompleteUpload(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, test.expectedContent, contents)
 
-			// Part files directory should no longer exists.
-			_, err = os.ReadDir(handler.uploadRootPath(*upload))
-			require.Error(t, err)
-			require.True(t, os.IsNotExist(err))
+			require.NoDirExists(t, handler.uploadRootPath(*upload))
 		})
 	}
+}
+
+func TestCleanupEmptyUpload(t *testing.T) {
+	ctx := t.Context()
+
+	handler, err := NewHandler(Config{
+		Directory: t.TempDir(),
+		OpenFile:  os.OpenFile,
+	})
+	require.NoError(t, err)
+
+	sessionID := session.NewID()
+
+	// Create a completed upload.
+	upload, err := handler.CreateUpload(ctx, sessionID)
+	require.NoError(t, err)
+
+	err = handler.ReserveUploadPart(ctx, *upload, 1)
+	require.NoError(t, err)
+
+	content := []byte("hello world")
+	part, err := handler.UploadPart(ctx, *upload, 1, bytes.NewReader(content))
+	require.NoError(t, err)
+
+	err = handler.CompleteUpload(ctx, *upload, []events.StreamPart{*part})
+	require.NoError(t, err)
+
+	// Create an empty upload with the same session ID and try to complete it.
+	emptyUpload, err := handler.CreateUpload(ctx, sessionID)
+	require.NoError(t, err)
+
+	err = handler.CompleteUpload(ctx, *emptyUpload, []events.StreamPart{})
+	require.NoError(t, err)
+
+	// The empty upload should be cleaned up without impacting the original completed upload.
+	uploadPath := handler.recordingPath(upload.SessionID)
+	f, err := os.Open(uploadPath)
+	require.NoError(t, err)
+
+	gotContent, err := io.ReadAll(f)
+	require.NoError(t, err)
+	require.Equal(t, content, gotContent)
+
+	require.NoDirExists(t, handler.uploadRootPath(*upload))
+	require.NoDirExists(t, handler.uploadRootPath(*emptyUpload))
 }

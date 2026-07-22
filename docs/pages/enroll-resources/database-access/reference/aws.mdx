@@ -1,6 +1,12 @@
 ---
 title: Database Access AWS IAM Reference
+sidebar_label: AWS IAM Policies
 description: AWS IAM policies for Teleport database access.
+tags:
+ - reference
+ - zero-trust
+ - infrastructure-identity
+page_type: reference
 ---
 
 The Teleport Database Service requires IAM permissions for various tasks
@@ -9,7 +15,7 @@ metadata of the database servers, generating IAM authentication tokens, and
 assuming IAM roles.
 
 You can generate IAM permissions with the [`teleport db configure aws
-print-iam`](../../database-access/reference/cli.mdx#teleport-db-configure-aws-print-iam)
+print-iam`](cli.mdx)
 command. For example, the following command would generate and print the IAM
 policies:
 
@@ -17,8 +23,9 @@ policies:
 $ teleport db configure aws print-iam --types rds,redshift --role teleport-db-service-role
 ```
 
-To learn more about IAM permissions for a specific type of database, refer to
-the related section below.
+This page lists the AWS IAM permissions required for protecting different
+databases with Teleport. To learn more about IAM permissions for a specific type
+of database, refer to the related section below.
 
 ## DocumentDB
 
@@ -40,13 +47,17 @@ the related section below.
 
 (!docs/pages/includes/database-access/iam_role_trust_relationship.mdx role1="teleport-db-service-role" role2="dynamodb-user-role"!)
 
-## ElastiCache for Redis
+## ElastiCache for Redis and Valkey
 
 (!docs/pages/includes/database-access/reference/aws-iam/elasticache/access-policy.mdx!)
 
 ### ElastiCache managed users
 
-(!docs/pages/includes/database-access/reference/aws-iam/redis/auto-password-access-policy.mdx dbType="ElastiCache" permissionType="elasticache"!)
+(!docs/pages/includes/database-access/reference/aws-iam/redis/auto-password-access-policy.mdx dbType="ElastiCache" permissionType="elasticache" updateUserPermission="ModifyUser" listTagsPermission="ListTagsForResource"!)
+
+## ElastiCache Serverless for Redis and Valkey
+
+(!docs/pages/includes/database-access/reference/aws-iam/elasticache-serverless/access-policy.mdx!)
 
 ## Keyspaces
 
@@ -64,7 +75,7 @@ the related section below.
 
 ### MemoryDB managed users
 
-(!docs/pages/includes/database-access/reference/aws-iam/redis/auto-password-access-policy.mdx dbType="MemoryDB" permissionType="memorydb"!)
+(!docs/pages/includes/database-access/reference/aws-iam/redis/auto-password-access-policy.mdx dbType="MemoryDB" permissionType="memorydb" updateUserPermission="UpdateUser" listTagsPermission="ListTags"!)
 
 ## OpenSearch
 

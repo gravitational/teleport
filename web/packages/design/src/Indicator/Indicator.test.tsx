@@ -16,17 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { screen } from '@testing-library/react';
 
 import { render } from 'design/utils/testing';
 
-import Indicator from './Indicator';
+import { Indicator } from './Indicator';
 
 describe('design/Indicator', () => {
   it('renders', async () => {
-    const { container } = render(<Indicator delay={'none'} />);
-    expect(container).toBeEmptyDOMElement();
+    render(<Indicator delay={'none'} />);
+    expect(screen.queryByTestId('indicator')).not.toBeInTheDocument();
 
     await expect(screen.findByTestId('indicator')).resolves.toBeInTheDocument();
   });

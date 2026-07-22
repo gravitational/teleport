@@ -50,7 +50,7 @@ type SessionTrackerService interface {
 	RemoveSessionTracker(ctx context.Context, sessionID string) error
 
 	// UpdatePresence updates the presence status of a user in a session.
-	UpdatePresence(ctx context.Context, sessionID, user string) error
+	UpdatePresence(ctx context.Context, sessionID, user, userCluster string) error
 }
 
 // UnmarshalSessionTracker unmarshals the Session resource from JSON.
@@ -61,7 +61,7 @@ func UnmarshalSessionTracker(bytes []byte) (types.SessionTracker, error) {
 
 	var session types.SessionTrackerV1
 	if err := utils.FastUnmarshal(bytes, &session); err != nil {
-		return nil, trace.BadParameter(err.Error())
+		return nil, trace.BadParameter("%s", err)
 	}
 
 	if err := session.CheckAndSetDefaults(); err != nil {

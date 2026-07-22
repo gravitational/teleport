@@ -78,6 +78,13 @@ func (f InstanceFilter) Match(i Instance) bool {
 		return false
 	}
 
+	// Empty update group matches all.
+	if f.UpdateGroup != "" {
+		if updateInfo := i.GetUpdaterInfo(); updateInfo == nil || updateInfo.UpdateGroup != f.UpdateGroup {
+			return false
+		}
+	}
+
 	return true
 }
 
@@ -178,6 +185,13 @@ type Instance interface {
 	// AppendControlLog appends entries to the control log. The control log is sorted by time,
 	// so appends do not need to be performed in any particular order.
 	AppendControlLog(entries ...InstanceControlLogEntry)
+
+	// GetLastMeasurement returns information about the system clocks of the auth service and
+	// another instance.
+	GetLastMeasurement() *SystemClockMeasurement
+
+	// GetUpdaterInfo returns information about the instance updater.
+	GetUpdaterInfo() *UpdaterV2Info
 
 	// Clone performs a deep copy on this instance.
 	Clone() Instance
@@ -282,6 +296,10 @@ func (i *InstanceV1) GetExternalUpgraderVersion() string {
 	return i.Spec.ExternalUpgraderVersion
 }
 
+func (i *InstanceV1) GetUpdaterInfo() *UpdaterV2Info {
+	return i.Spec.UpdaterInfo
+}
+
 func (i *InstanceV1) GetControlLog() []InstanceControlLogEntry {
 	return i.Spec.ControlLog
 }
@@ -297,6 +315,10 @@ func (i *InstanceV1) AppendControlLog(entries ...InstanceControlLogEntry) {
 	slices.SortFunc(i.Spec.ControlLog, func(a, b InstanceControlLogEntry) int {
 		return a.Time.Compare(b.Time)
 	})
+}
+
+func (i *InstanceV1) GetLastMeasurement() *SystemClockMeasurement {
+	return i.Spec.LastMeasurement
 }
 
 // expireControlLog removes expired entries from the control log relative to the supplied

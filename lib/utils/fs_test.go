@@ -20,9 +20,11 @@ package utils
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -328,6 +330,56 @@ func TestLocks(t *testing.T) {
 	require.NoError(t, unlock())
 }
 
+// TestLockWithBlocking verifies that second lock call is blocked until first is released.
+func TestLockWithBlocking(t *testing.T) {
+	var locked atomic.Bool
+
+	lockFile := filepath.Join(os.TempDir(), ".lock")
+	t.Cleanup(func() {
+		require.NoError(t, os.Remove(lockFile))
+	})
+
+	// Acquire first lock should not return any error.
+	unlock, err := FSWriteLock(lockFile)
+	require.NoError(t, err)
+	locked.Store(true)
+
+	signal := make(chan struct{})
+	errChan := make(chan error)
+	go func() {
+		signal <- struct{}{}
+		unlock, err := FSWriteLock(lockFile)
+		if err != nil {
+			errChan <- err
+			return
+		}
+		if locked.Load() {
+			errChan <- fmt.Errorf("first lock is still acquired, second lock must be blocking")
+			return
+		}
+		if err := unlock(); err != nil {
+			errChan <- err
+			return
+		}
+		signal <- struct{}{}
+	}()
+
+	<-signal
+	// We have to wait till next lock is reached to ensure we block execution of goroutine.
+	// Since this is system call we can't track if the function reach blocking state already.
+	time.Sleep(100 * time.Millisecond)
+	locked.Store(false)
+	require.NoError(t, unlock())
+
+	select {
+	case err := <-errChan:
+		require.NoError(t, err)
+	case <-signal:
+	case <-time.After(5 * time.Second):
+		require.Fail(t, "second lock is not released")
+	}
+}
+
 func TestOverwriteFile(t *testing.T) {
 	have := []byte("Sensitive Information")
 	fName := filepath.Join(t.TempDir(), "teleport-overwrite-file-test")
@@ -356,8 +408,7 @@ func TestRemoveAllSecure(t *testing.T) {
 
 	require.NoError(t, RemoveAllSecure(""))
 	require.NoError(t, RemoveAllSecure(tempDir))
-	_, err = os.Stat(tempDir)
-	require.True(t, os.IsNotExist(err), "Directory should be removed: %v", err)
+	require.NoDirExists(t, tempDir)
 }
 
 func TestRemoveSecure(t *testing.T) {
@@ -367,8 +418,7 @@ func TestRemoveSecure(t *testing.T) {
 	require.NoError(t, f.Close())
 
 	require.NoError(t, RemoveSecure(f.Name()))
-	_, err = os.Stat(tempFile)
-	require.True(t, os.IsNotExist(err), "File should be removed: %v", err)
+	require.NoFileExists(t, tempFile)
 }
 
 func TestRemoveSecure_symlink(t *testing.T) {
@@ -376,6 +426,5 @@ func TestRemoveSecure_symlink(t *testing.T) {
 	require.NoError(t, os.Symlink("/tmp", symlink))
 
 	require.NoError(t, RemoveSecure(symlink))
-	_, err := os.Stat(symlink)
-	require.True(t, os.IsNotExist(err), "Symlink should be removed: %v", err)
+	require.NoFileExists(t, symlink)
 }

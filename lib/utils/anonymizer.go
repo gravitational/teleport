@@ -40,25 +40,51 @@ type Anonymizer interface {
 	AnonymizeNonEmpty(s string) []byte
 }
 
-// hmacAnonymizer implements anonymization using HMAC
+var _ AnonymizationKeyProvider = (AnonymizationKeyString)("")
+
+// AnonymizationKeyString is a simple implementation of AnonymizationKeyProvider that uses a string as the key.
+type AnonymizationKeyString string
+
+func (h AnonymizationKeyString) GetAnonymizationKey() []byte {
+	return []byte(h)
+}
+
+func (h AnonymizationKeyString) InitializeAnonymizationKey() error {
+	return nil
+}
+
+// HMACAnonymizer implements anonymization using HMAC
 type HMACAnonymizer struct {
 	// key is the HMAC key
-	key []byte
+	keyProvider AnonymizationKeyProvider
 }
 
 var _ Anonymizer = (*HMACAnonymizer)(nil)
 
+type AnonymizationKeyProvider interface {
+	// InitializeAnonymizationKey initializes the anonymization key if needed.
+	InitializeAnonymizationKey() error
+	// GetHMACAnonymizerKey returns the HMAC anonymizer key.
+	GetAnonymizationKey() []byte
+}
+
 // NewHMACAnonymizer returns a new HMAC-based anonymizer
-func NewHMACAnonymizer(key string) (*HMACAnonymizer, error) {
-	if strings.TrimSpace(key) == "" {
+func NewHMACAnonymizer(keyProvider AnonymizationKeyProvider) (*HMACAnonymizer, error) {
+	if err := keyProvider.InitializeAnonymizationKey(); err != nil {
+		return nil, trace.Wrap(err, "failed to initialize anonymization key")
+	}
+	key := keyProvider.GetAnonymizationKey()
+	if strings.TrimSpace(string(key)) == "" {
 		return nil, trace.BadParameter("HMAC key must not be empty")
 	}
-	return &HMACAnonymizer{key: []byte(key)}, nil
+	return &HMACAnonymizer{keyProvider: keyProvider}, nil
 }
 
 // Anonymize anonymizes the provided data using HMAC
 func (a *HMACAnonymizer) Anonymize(data []byte) string {
-	h := hmac.New(sha256.New, a.key)
+	k := a.keyProvider.GetAnonymizationKey()
+
+	h := hmac.New(sha256.New, k)
 	h.Write(data)
 	return base64.StdEncoding.EncodeToString(h.Sum(nil))
 }
@@ -73,7 +99,10 @@ func (a *HMACAnonymizer) AnonymizeNonEmpty(s string) []byte {
 	if s == "" {
 		return nil
 	}
-	h := hmac.New(sha256.New, a.key)
+
+	k := a.keyProvider.GetAnonymizationKey()
+
+	h := hmac.New(sha256.New, k)
 	h.Write([]byte(s))
 	return h.Sum(nil)
 }

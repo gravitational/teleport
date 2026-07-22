@@ -20,7 +20,6 @@ package local
 
 import (
 	"context"
-	"slices"
 
 	"github.com/gravitational/trace"
 
@@ -39,12 +38,16 @@ type AccessMonitoringRulesService struct {
 }
 
 // NewAccessMonitoringRulesService creates a new AccessMonitoringRulesService.
-func NewAccessMonitoringRulesService(backend backend.Backend) (*AccessMonitoringRulesService, error) {
-	service, err := generic.NewServiceWrapper(backend,
-		types.KindAccessMonitoringRule,
-		accessMonitoringRulesPrefix,
-		services.MarshalAccessMonitoringRule,
-		services.UnmarshalAccessMonitoringRule)
+func NewAccessMonitoringRulesService(b backend.Backend) (*AccessMonitoringRulesService, error) {
+	service, err := generic.NewServiceWrapper(
+		generic.ServiceConfig[*accessmonitoringrulesv1.AccessMonitoringRule]{
+			Backend:       b,
+			ResourceKind:  types.KindAccessMonitoringRule,
+			BackendPrefix: backend.NewKey(accessMonitoringRulesPrefix),
+			MarshalFunc:   services.MarshalAccessMonitoringRule,
+			UnmarshalFunc: services.UnmarshalAccessMonitoringRule,
+			ValidateFunc:  services.ValidateAccessMonitoringRule,
+		})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -75,29 +78,18 @@ func (s *AccessMonitoringRulesService) GetAccessMonitoringRule(ctx context.Conte
 
 // CreateAccessMonitoringRule creates a new AccessMonitoringRule resource.
 func (s *AccessMonitoringRulesService) CreateAccessMonitoringRule(ctx context.Context, amr *accessmonitoringrulesv1.AccessMonitoringRule) (*accessmonitoringrulesv1.AccessMonitoringRule, error) {
-	if err := services.ValidateAccessMonitoringRule(amr); err != nil {
-		return nil, trace.Wrap(err)
-	}
 	created, err := s.svc.CreateResource(ctx, amr)
 	return created, trace.Wrap(err)
 }
 
 // UpdateAccessMonitoringRule updates an existing AccessMonitoringRule resource.
 func (s *AccessMonitoringRulesService) UpdateAccessMonitoringRule(ctx context.Context, amr *accessmonitoringrulesv1.AccessMonitoringRule) (*accessmonitoringrulesv1.AccessMonitoringRule, error) {
-	if err := services.ValidateAccessMonitoringRule(amr); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	updated, err := s.svc.UpdateResource(ctx, amr)
+	updated, err := s.svc.UnconditionalUpdateResource(ctx, amr)
 	return updated, trace.Wrap(err)
 }
 
 // UpsertAccessMonitoringRule upserts an existing AccessMonitoringRule resource.
 func (s *AccessMonitoringRulesService) UpsertAccessMonitoringRule(ctx context.Context, amr *accessmonitoringrulesv1.AccessMonitoringRule) (*accessmonitoringrulesv1.AccessMonitoringRule, error) {
-	if err := services.ValidateAccessMonitoringRule(amr); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	upserted, err := s.svc.UpsertResource(ctx, amr)
 	return upserted, trace.Wrap(err)
 }
@@ -113,29 +105,13 @@ func (s *AccessMonitoringRulesService) DeleteAllAccessMonitoringRules(ctx contex
 }
 
 // ListAccessMonitoringRulesWithFilter returns a paginated list of access monitoring rules that match the given filter.
-func (s *AccessMonitoringRulesService) ListAccessMonitoringRulesWithFilter(ctx context.Context, pageSize int, pageToken string, subjects []string, notificationName string) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error) {
-	resources, nextKey, err := s.svc.ListResourcesWithFilter(ctx, pageSize, pageToken,
+func (s *AccessMonitoringRulesService) ListAccessMonitoringRulesWithFilter(ctx context.Context, req *accessmonitoringrulesv1.ListAccessMonitoringRulesWithFilterRequest) ([]*accessmonitoringrulesv1.AccessMonitoringRule, string, error) {
+	resources, nextKey, err := s.svc.ListResourcesWithFilter(ctx, int(req.GetPageSize()), req.GetPageToken(),
 		func(resource *accessmonitoringrulesv1.AccessMonitoringRule) bool {
-			return match(resource, subjects, notificationName)
+			return services.MatchAccessMonitoringRule(resource, req.GetSubjects(), req.GetNotificationName(), req.GetAutomaticReviewName())
 		})
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 	return resources, nextKey, nil
-}
-
-func match(rule *accessmonitoringrulesv1.AccessMonitoringRule, subjects []string, notificationName string) bool {
-	if notificationName != "" {
-		if rule.Spec.Notification == nil || rule.Spec.Notification.Name != notificationName {
-			return false
-		}
-	}
-	for _, subject := range subjects {
-		if ok := slices.ContainsFunc(rule.Spec.Subjects, func(s string) bool {
-			return s == subject
-		}); !ok {
-			return false
-		}
-	}
-	return true
 }

@@ -20,15 +20,13 @@ package desktop
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/gorilla/websocket"
-	"github.com/sirupsen/logrus"
+	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/player"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -53,34 +51,69 @@ const (
 	actionSeek = playbackAction("seek")
 )
 
+// Validate ensures that playback action matches one of the
+// playbackAction constants.
+func (a *playbackAction) Validate() error {
+	switch *a {
+	case actionPlayPause, actionSpeed, actionSeek:
+		return nil
+	default:
+		return trace.BadParameter("invalid playback action")
+	}
+}
+
+type playbackSpeed float64
+
+// Coerce coerces playback speed into the acceptable
+// range [minPlaybackSpeed, maxPlaybackSpeed].
+func (p *playbackSpeed) Coerce() {
+	*p = max(*p, minPlaybackSpeed)
+	*p = min(*p, maxPlaybackSpeed)
+}
+
 // actionMessage is a message passed from the playback client
 // to the server over the websocket connection in order to
 // control playback.
 type actionMessage struct {
 	Action        playbackAction `json:"action"`
-	PlaybackSpeed float64        `json:"speed,omitempty"`
+	PlaybackSpeed playbackSpeed  `json:"speed,omitempty"`
 	Pos           int64          `json:"pos"`
+}
+
+// JSONReader is used to read JSON messages containing
+// commands for the session player.
+type JSONReader interface {
+	ReadJSON(v any) error
+}
+
+// PlayerController models the session player.
+type PlayerController interface {
+	SetPos(time.Duration) error
+	SetSpeed(float64) error
+	Pause() error
+	Play() error
 }
 
 // ReceivePlaybackActions handles logic for receiving playbackAction messages
 // over the websocket and updating the player state accordingly.
 func ReceivePlaybackActions(
-	log logrus.FieldLogger,
-	ws *websocket.Conn,
-	player *player.Player) {
+	ctx context.Context,
+	logger *slog.Logger,
+	reader JSONReader,
+	player PlayerController) error {
 	// playback always starts in a playing state
 	playing := true
 
 	for {
 		var action actionMessage
+		err := reader.ReadJSON(&action)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 
-		if err := ws.ReadJSON(&action); err != nil {
-			// Connection close errors are expected if the user closes the tab.
-			// Only log unexpected errors to avoid cluttering the logs.
-			if !utils.IsOKNetworkError(err) {
-				log.Warnf("websocket read error: %v", err)
-			}
-			return
+		err = action.Action.Validate()
+		if err != nil {
+			return trace.Wrap(err)
 		}
 
 		switch action.Action {
@@ -92,26 +125,32 @@ func ReceivePlaybackActions(
 			}
 			playing = !playing
 		case actionSpeed:
-			action.PlaybackSpeed = max(action.PlaybackSpeed, minPlaybackSpeed)
-			action.PlaybackSpeed = min(action.PlaybackSpeed, maxPlaybackSpeed)
-			player.SetSpeed(action.PlaybackSpeed)
+			action.PlaybackSpeed.Coerce()
+			player.SetSpeed(float64(action.PlaybackSpeed))
 		case actionSeek:
 			player.SetPos(time.Duration(action.Pos) * time.Millisecond)
 		default:
-			log.Warnf("invalid desktop playback action: %v", action.Action)
-			return
+			slog.WarnContext(ctx, "invalid desktop playback action", "action", action.Action)
+			return trace.BadParameter("invalid desktop action")
 		}
 	}
 }
 
-// PlayRecording feeds recorded events from a player
-// over a websocket.
-func PlayRecording(
+// RecordingPlayer models the read actions of the session player.
+type RecordingPlayer interface {
+	C() <-chan events.AuditEvent
+	Err() error
+}
+
+// StreamRecording adapts the RecordingPlayer to a websocket by reading from C(),
+// marshaling events to JSON, and writing them to the connection. Automatically
+// writes a sentinel or error message to the websocket when the player exits.
+// It does *not* drain the player's event channel upon context cancellation.
+func StreamRecording(
 	ctx context.Context,
-	log logrus.FieldLogger,
+	log *slog.Logger,
 	ws *websocket.Conn,
-	player *player.Player) {
-	player.Play()
+	player RecordingPlayer) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -119,21 +158,15 @@ func PlayRecording(
 		case evt, ok := <-player.C():
 			if !ok {
 				if playerErr := player.Err(); playerErr != nil {
-					// Attempt to JSONify the error (escaping any quotes)
-					msg, err := json.Marshal(playerErr.Error())
-					if err != nil {
-						log.Warnf("failed to marshal player error message: %v", err)
-						msg = []byte(`"internal server error"`)
-					}
-					//lint:ignore QF1012 this write needs to happen in a single operation
-					bytes := []byte(fmt.Sprintf(`{"message":"error", "errorText":%s}`, string(msg)))
-					if err := ws.WriteMessage(websocket.BinaryMessage, bytes); err != nil {
-						log.Errorf("failed to write error message: %v", err)
+					slog.ErrorContext(ctx, "stopping playback due to an error", "error", playerErr)
+
+					if err := ws.WriteMessage(websocket.BinaryMessage, []byte(`{"message":"error", "errorText": "internal server error"}`)); err != nil {
+						log.ErrorContext(ctx, "failed to write error message", "error", err)
 					}
 					return
 				}
 				if err := ws.WriteMessage(websocket.BinaryMessage, []byte(`{"message":"end"}`)); err != nil {
-					log.Errorf("failed to write end message: %v", err)
+					log.ErrorContext(ctx, "failed to write end message", "error", err)
 				}
 				return
 			}
@@ -145,15 +178,19 @@ func PlayRecording(
 			}
 			msg, err := utils.FastMarshal(evt)
 			if err != nil {
-				log.Errorf("failed to marshal desktop event: %v", err)
-				ws.WriteMessage(websocket.BinaryMessage, []byte(`{"message":"error","errorText":"server error"}`))
+				log.ErrorContext(ctx, "failed to marshal desktop event", "error", err)
+				if err := ws.WriteMessage(websocket.BinaryMessage, []byte(`{"message":"error","errorText":"server error"}`)); err != nil {
+					if !utils.IsOKNetworkError(err) {
+						log.WarnContext(ctx, "failed to write error message to client", "error", err)
+					}
+				}
 				return
 			}
 			if err := ws.WriteMessage(websocket.BinaryMessage, msg); err != nil {
 				// Connection close errors are expected if the user closes the tab.
 				// Only log unexpected errors to avoid cluttering the logs.
 				if !utils.IsOKNetworkError(err) {
-					log.Warnf("websocket write error: %v", err)
+					log.WarnContext(ctx, "websocket write error", "error", err)
 				}
 				return
 			}

@@ -5,6 +5,10 @@ on:
   pull_request:
   merge_group:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.event.merge_group.head_sha || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   changes:
     name: Check for relevant changes
@@ -16,8 +20,8 @@ jobs:
     steps:
       - name: Checkout
         if: ${{ github.event_name == 'merge_group' }}
-        uses: actions/checkout@v4
-      - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        uses: actions/checkout@v6
+      - uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
         id: changes
         with:
           base: ${{ github.event.pull_request.base.ref || github.event.merge_group.base_ref }}
@@ -25,7 +29,12 @@ jobs:
           filters: |
             changed:
               - '.github/workflows/unit-tests-helm.yaml'
+              - 'build.assets/helm-unittest.version'
+              - 'build.assets/helm-unittest.sha256'
               - 'examples/chart/**'
+              - 'Makefile'
+              - 'docs/pages/reference/helm-reference/*'
+              - 'docs/pages/includes/helm-reference/*'
 
   test:
     name: Unit Tests (Helm)
@@ -37,15 +46,67 @@ jobs:
       contents: read
 
     container:
-      image: ghcr.io/gravitational/teleport-buildbox:teleport17
+      image: ghcr.io/gravitational/teleport-buildbox:teleport19
       env:
-        # TODO(hugoShaka) remove the '-new' prefix when updating to teleport13 buildbox
-        HELM_PLUGINS: /home/ci/.local/share/helm/plugins-new
+        HELM_PLUGINS: /home/ci/.local/share/helm/plugins
+        HELM_UNITTEST_VERSION_FILE: build.assets/helm-unittest.version
 
     steps:
       - name: Checkout Teleport
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
+
+      - name: Install pinned helm-unittest plugin
+        shell: bash
+        run: |
+          set -xeuo pipefail
+          plugin_version="$(cat "${HELM_UNITTEST_VERSION_FILE}")"
+          desired_version="${plugin_version#v}"
+          current_version="$(helm plugin list | (grep -P '^unittest\t' || true) | cut -f2)"
+
+          plugin_arch="$(uname -m)"
+          case "$plugin_arch" in
+            x86_64) plugin_arch=amd64 ;;
+            aarch64) plugin_arch=arm64 ;;
+            *) echo "unsupported architecture: $plugin_arch" >&2; exit 1 ;;
+          esac
+          archive_name="helm-unittest-linux-${plugin_arch}-${desired_version}.tgz"
+          if [ -z "$(grep "[[:space:]]${archive_name}$" build.assets/helm-unittest.sha256)" ]; then
+            echo "Helm unittest plugin tarball '${archive_name}' missing from build.assets/helm-unittest.sha256" >&2
+            exit 1
+          fi
+
+          # Ensure we're running the correct unittest plugin, even if the
+          # buildbox has a different version. Without this, plugin upgrades that
+          # involve breaking changes are impossible -- upgrading the buildbox
+          # first fails because our unittests would break with the new plugin 
+          # version, but upgrading the unittests first fails because the
+          # buildbox doesn't yet have the new version. This solution uses the
+          # buildbox version if it's already at the expected version but
+          # downloads the expected version if it's not.
+          if [ "$current_version" = "$desired_version" ] && [ -x "${HELM_PLUGINS}/helm-unittest/untt" ]; then
+            echo "helm-unittest ${plugin_version} already installed in ${HELM_PLUGINS}; skipping download" >&2
+            exit 0
+          fi
+
+          # Extract the release archive directly instead of using `helm plugin install`.
+          # The Helm installer executes plugin-provided hooks, which duplicates setup and
+          # would require separately verifying those scripts.
+          mkdir -p "${HELM_PLUGINS}"
+          rm -rf "${HELM_PLUGINS}/helm-unittest"
+          rm -rf "${HELM_PLUGINS}/helm3-unittest"
+          mkdir -p "${HELM_PLUGINS}/helm-unittest"
+          curl -fsSL -o "$archive_name" "https://github.com/helm-unittest/helm-unittest/releases/download/${plugin_version}/$archive_name"
+          if ! grep "[[:space:]]${archive_name}$" build.assets/helm-unittest.sha256 | sha256sum -c -; then
+            echo "Checksum verification failed for ${archive_name}. The downloaded archive does not match build.assets/helm-unittest.sha256." >&2
+            exit 2
+          fi
+          tar -xz -f "$archive_name" -C "${HELM_PLUGINS}/helm-unittest"
+          helm plugin list
+
+      - name: Lint helm
+        timeout-minutes: 10
+        run: make lint-helm
 
       - name: Run tests
-        timeout-minutes: 40
+        timeout-minutes: 10
         run: make test-helm

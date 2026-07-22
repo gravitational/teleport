@@ -16,8 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { IAM_ROLE_NAME_REGEX } from 'teleport/services/integrations/aws';
-
 /**
  * The result of validating a field.
  */
@@ -31,6 +29,8 @@ export interface ValidationResult {
  */
 export type Rule<T = string, R = ValidationResult> = (value: T) => () => R;
 
+type RuleResult<R extends Rule> = ReturnType<ReturnType<R>>;
+
 /**
  * requiredField checks for empty strings and arrays.
  *
@@ -38,10 +38,12 @@ export type Rule<T = string, R = ValidationResult> = (value: T) => () => R;
  * @param value The value user entered.
  */
 const requiredField =
-  <T = string>(message: string): Rule<string | T[]> =>
+  <T = string>(message: string): Rule<T | T[] | readonly T[]> =>
   value =>
   () => {
-    const valid = !(!value || value.length === 0);
+    // TODO(bl-nero): This typecast hides the fact that `requiredField` doesn't
+    // actually work for other primitive types, like `number`.
+    const valid = !(!value || (value as T[]).length === 0);
     return {
       valid,
       message: !valid ? message : '',
@@ -97,37 +99,216 @@ const requiredConfirmedPassword =
     };
   };
 
-const isIamRoleNameValid = roleName => {
-  return (
-    roleName && roleName.length <= 64 && roleName.match(IAM_ROLE_NAME_REGEX)
-  );
-};
-
-const requiredIamRoleName: Rule = value => () => {
-  if (!value) {
+/**
+ * Using the IETF RFC 1035 Label Names rules documented here:
+ * https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#rfc-1035-label-names
+ *
+ * - contain at most 63 characters
+ * - contain only lowercase alphanumeric characters or '-'
+ * - start with an alphabetic character
+ * - end with an alphanumeric character
+ *
+ */
+const RFC1035_LABEL_ALLOWED_CHARS = /^[-a-z0-9]+$/;
+const RFC1035_LABEL_START = /^[a-z]/;
+const RFC1035_LABEL_END = /[a-z0-9]$/;
+const RFC1035_LABEL_MAX_LENGTH = 63;
+/**
+ * @param name validIntegrationName verifies if the given value is a
+ * valid Integration name.
+ */
+const validIntegrationName = (name: string): ValidationResult => {
+  if (name.length > RFC1035_LABEL_MAX_LENGTH) {
     return {
       valid: false,
-      message: 'IAM role name required',
+      message:
+        'Name must contain at most ' + RFC1035_LABEL_MAX_LENGTH + ' characters',
     };
   }
 
-  if (value.length > 64) {
+  if (!name.match(RFC1035_LABEL_ALLOWED_CHARS)) {
     return {
       valid: false,
-      message: 'name should be <= 64 characters',
+      message:
+        "Name must only contain lowercase alphanumeric characters or '-'",
     };
   }
 
-  if (!isIamRoleNameValid(value)) {
+  if (!name.match(RFC1035_LABEL_START)) {
     return {
       valid: false,
-      message: 'name can only contain characters @ = , . + - and alphanumerics',
+      message: 'Name must start with an alphabetic character',
+    };
+  }
+
+  if (!name.match(RFC1035_LABEL_END)) {
+    return {
+      valid: false,
+      message: 'Name must end with an alphanumeric character',
     };
   }
 
   return {
     valid: true,
   };
+};
+
+/**
+ * IAM_ROLE_NAME_REGEX uses the same regex matcher used in the backend:
+ * https://github.com/gravitational/teleport/blob/8d946146999260578f1a1b250aa87a6008343bab/api/utils/aws/identifiers.go#L178
+ *
+ * The regex checks for alphanumerics and select few characters.
+ */
+const IAM_ROLE_NAME_REGEX = /^[\w+=,.@-]+$/;
+const IAM_ROLE_NAME_MAX_LENGTH = 64;
+/**
+ * @param name validAwsIAMRoleName verifies if the given value is a
+ * valid AWS IAM role name.
+ */
+const validAwsIAMRoleName = (name: string): ValidationResult => {
+  if (name.length > IAM_ROLE_NAME_MAX_LENGTH) {
+    return {
+      valid: false,
+      message: 'Name must be <= ' + IAM_ROLE_NAME_MAX_LENGTH + ' characters',
+    };
+  }
+
+  if (!name.match(IAM_ROLE_NAME_REGEX)) {
+    return {
+      valid: false,
+      message:
+        'Name must only contain characters @ = , . + - and alphanumerics',
+    };
+  }
+
+  return {
+    valid: true,
+  };
+};
+
+/**
+ * ROLES_ANYWHERE_NAME_REGEX uses the same regex matcher used in the backend:
+ * https://github.com/gravitational/teleport/blob/8d946146999260578f1a1b250aa87a6008343bab/api/utils/aws/identifiers.go#L213
+ */
+const ROLES_ANYWHERE_NAME_REGEX = /^[ a-zA-Z0-9-_]{1,255}$/;
+const ROLES_ANYWHERE_NAME_MAX_LENGTH = 255;
+/**
+ * @param name validAwsRaResourceName verifies if the given value is a
+ * valid AWS Roles Anywhere resource name.
+ */
+const validAwsRaResourceName = (name: string): ValidationResult => {
+  if (name.length > ROLES_ANYWHERE_NAME_MAX_LENGTH) {
+    return {
+      valid: false,
+      message:
+        'Name must be <= ' + ROLES_ANYWHERE_NAME_MAX_LENGTH + ' characters',
+    };
+  }
+
+  // Since [space] is allowed in regex matcher, we don't want leading/trailing whitespaces.
+  if (name !== name.trim()) {
+    return {
+      valid: false,
+      message: 'Name contains leading/trailing whitespace characters',
+    };
+  }
+
+  if (!name.match(ROLES_ANYWHERE_NAME_REGEX)) {
+    return {
+      valid: false,
+      message:
+        'Name must only contain characters [space] - _ and alphanumerics',
+    };
+  }
+  return {
+    valid: true,
+  };
+};
+
+const AZURE_SUBSCRIPTION_ID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * requiredAzureSubscriptionId checks that a value is non-empty and a valid
+ * Azure subscription UUID.
+ */
+const requiredAzureSubscriptionId: Rule = id => (): ValidationResult => {
+  if (!id) {
+    return { valid: false, message: 'Subscription ID is required' };
+  }
+  if (!AZURE_SUBSCRIPTION_ID_REGEX.test(id)) {
+    return { valid: false, message: 'Must be a valid Azure subscription ID' };
+  }
+
+  return { valid: true };
+};
+
+/**
+ * requiredIntegrationName is a required field and checks for a
+ * value which must also be a valid Integration name.
+ * @param name is an integration name.
+ * @returns ValidationResult
+ */
+const requiredIntegrationName: Rule = name => (): ValidationResult => {
+  if (!name) {
+    return {
+      valid: false,
+      message: 'Integration name is required',
+    };
+  }
+
+  return validIntegrationName(name);
+};
+
+/**
+ * requiredIamRoleName is a required field and checks for a
+ * value which must also be a valid AWS IAM Role name.
+ * @param name is a role name.
+ * @returns ValidationResult
+ */
+const requiredIamRoleName: Rule = name => (): ValidationResult => {
+  if (!name) {
+    return {
+      valid: false,
+      message: 'IAM Role name is required',
+    };
+  }
+
+  return validAwsIAMRoleName(name);
+};
+
+/**
+ * requiredIamTrustAnchorName is a required field and checks for a
+ * value which must also be a valid AWS IAM Roles Anywhere Trust Anchor name.
+ * @param name is a trust anchor name.
+ * @returns ValidationResult
+ */
+const requiredIamTrustAnchorName: Rule = name => (): ValidationResult => {
+  if (!name) {
+    return {
+      valid: false,
+      message: 'IAM Trust Anchor name is required',
+    };
+  }
+
+  return validAwsRaResourceName(name);
+};
+
+/**
+ * requiredIamProfileName is a required field and checks for a
+ * value which must also be a valid AWS IAM Roles Anywhere Profile name.
+ * @param name is a profile name.
+ * @returns ValidationResult
+ */
+const requiredIamProfileName: Rule = name => (): ValidationResult => {
+  if (!name) {
+    return {
+      valid: false,
+      message: 'IAM Profile name is required',
+    };
+  }
+
+  return validAwsRaResourceName(name);
 };
 
 /**
@@ -138,7 +319,7 @@ const requiredIamRoleName: Rule = value => () => {
  * The regex is in string format, and must be parsed with `new RegExp()`.
  *
  * regex details:
- * arn:aws<OTHER_PARTITION>:iam::<ACOUNT_NUMBER>:role/<ROLE_NAME>
+ * arn:aws<OTHER_PARTITION>:iam::<ACCOUNT_NUMBER>:role/<ROLE_NAME>
  */
 const ROLE_ARN_REGEX_STR = '^arn:aws.*:iam::\\d{12}:role\\/';
 const requiredRoleArn: Rule = roleArn => () => {
@@ -162,6 +343,14 @@ const requiredRoleArn: Rule = roleArn => () => {
   return {
     valid: true,
   };
+};
+
+const isIamRoleNameValid = (roleName: string) => {
+  return (
+    roleName &&
+    roleName.length <= IAM_ROLE_NAME_MAX_LENGTH &&
+    roleName.match(IAM_ROLE_NAME_REGEX)
+  );
 };
 
 export interface EmailValidationResult extends ValidationResult {
@@ -195,6 +384,81 @@ const requiredEmailLike: Rule<string, EmailValidationResult> = email => () => {
 };
 
 /**
+ * requiredMatchingRoleNameAndRoleArn checks if a given roleArn is a valid AWS
+ * IAM role ARN format and contains a given roleName.
+ *
+ * @param roleName Role name that is used to match role ARN.
+ * @param roleArn Role ARN which is to be tested for a valid AWS IAM role ARN format.
+ */
+const requiredMatchingRoleNameAndRoleArn =
+  (roleName: string) => (roleArn: string) => () => {
+    const regex = new RegExp(
+      '^arn:aws.*:iam::\\d{12}:role\\/(' + roleName + ')$'
+    );
+
+    if (regex.test(roleArn)) {
+      return {
+        valid: true,
+      };
+    }
+
+    return {
+      valid: false,
+      message:
+        'invalid role ARN, double check you copied and pasted the correct output',
+    };
+  };
+
+/**
+ * requiredPort checks if the given value is a valid port value [1-65535].
+ */
+const requiredPort: Rule = port => () => {
+  let val = Number(port);
+  if (Number.isInteger(val) && val > 0 && val <= 65535) {
+    return {
+      valid: true,
+    };
+  }
+  return {
+    valid: false,
+    message: 'Port required [1-65535]',
+  };
+};
+
+/**
+ * requiredMaxLength checks for strings or arrays over a given length.
+ *
+ * @param message The custom error message to display to users.
+ * @param maxLength The maximum length to allow.
+ * @param value The value input.
+ */
+const requiredMaxLength =
+  <T = string>(
+    message: string,
+    maxLength: number
+  ): Rule<T | T[] | readonly T[]> =>
+  value =>
+  () => {
+    if (typeof value === 'string') {
+      const valid = value.trim().length <= maxLength;
+      return {
+        valid,
+        message: valid ? undefined : message,
+      };
+    }
+
+    if (Array.isArray(value)) {
+      const valid = value.length <= maxLength;
+      return {
+        valid,
+        message: valid ? undefined : message,
+      };
+    }
+
+    return { valid: false, message: 'value must be a string or an array' };
+  };
+
+/**
  * A rule function that combines multiple inner rule functions. All rules must
  * return `valid`, otherwise it returns a comma separated string containing all
  * invalid rule messages.
@@ -202,7 +466,7 @@ const requiredEmailLike: Rule<string, EmailValidationResult> = email => () => {
  * @returns a rule function that ANDs all input rules
  */
 const requiredAll =
-  <T>(...rules: Rule<T | string | string[], ValidationResult>[]): Rule<T> =>
+  <T>(...rules: Rule<T, ValidationResult>[]): Rule<T> =>
   (value: T) =>
   () => {
     let messages = [];
@@ -222,13 +486,97 @@ const requiredAll =
     return { valid: true };
   };
 
+/** A result of the {@link arrayOf} validation rule. */
+export type ArrayValidationResult<R = ValidationResult> = ValidationResult & {
+  /** Results of validating each separate item. */
+  results: R[];
+};
+
+/** Validates an array by executing given rule on each of its elements. */
+const arrayOf =
+  <T, R extends ValidationResult>(
+    elementRule: Rule<T, R>
+  ): Rule<T[], ArrayValidationResult<R>> =>
+  (values: T[]) =>
+  () => {
+    const results = values.map(v => elementRule(v)());
+    return { results: results, valid: results.every(r => r.valid) };
+  };
+
+/**
+ * Passes a precomputed validation result instead of computing it inside the
+ * rule.
+ *
+ * This rule is a hacky way to allow the validation engine to operate with
+ * validation results computed outside of the validator's validation cycle. See
+ * the `Validation` component's documentation for more information about where
+ * this is useful and a detailed usage example.
+ */
+const precomputed =
+  <T>(res: ValidationResult): Rule<T> =>
+  () =>
+  () =>
+    res;
+
+/**
+ * A set of rules to be executed using `runRules` on a model object of type M.
+ * The rule set contains a subset of keys of the object.
+ */
+export type RuleSet<M> = { [k in keyof Partial<M>]: Rule<M[k], any> };
+
+/** A result of executing a set of rules on a model object. */
+export type RuleSetValidationResult<R extends RuleSet<any>> =
+  ValidationResult & {
+    /**
+     * Each member of the `fields` object corresponds to a rule from within the
+     * rule set and contains the result of validating a model field of the same
+     * name.
+     */
+    fields: { [k in keyof R]: RuleResult<R[k]> };
+  };
+
+/**
+ * Executes a set of rules on a model object, producing a precomputed
+ * validation result that can be used with `precomputed` rule to inject to
+ * field components, but also allows for consuming the validation data outside
+ * these fields.
+ */
+export const runRules = <
+  Model extends Record<string, any>,
+  Rules extends RuleSet<Model>,
+>(
+  model: Model,
+  rules: Rules
+): RuleSetValidationResult<Rules> => {
+  const fields = {} as {
+    [k in keyof Rules]: RuleResult<Rules[k]>;
+  };
+  let valid = true;
+  for (const key in rules) {
+    const modelValue = model[key];
+    fields[key] = rules[key](modelValue)();
+    valid &&= fields[key].valid;
+  }
+  return { fields, valid };
+};
+
 export {
   requiredToken,
   requiredPassword,
   requiredConfirmedPassword,
   requiredField,
   requiredRoleArn,
+  requiredIntegrationName,
   requiredIamRoleName,
+  requiredIamTrustAnchorName,
+  requiredIamProfileName,
+  requiredAzureSubscriptionId,
   requiredEmailLike,
+  requiredMaxLength,
   requiredAll,
+  requiredMatchingRoleNameAndRoleArn,
+  validAwsIAMRoleName,
+  requiredPort,
+  arrayOf,
+  precomputed,
 };

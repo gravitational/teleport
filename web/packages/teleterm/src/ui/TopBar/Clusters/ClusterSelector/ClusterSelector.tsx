@@ -16,10 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { forwardRef } from 'react';
-import { ChevronUp, ChevronDown } from 'design/Icon';
+import { forwardRef } from 'react';
 import styled from 'styled-components';
+
 import { Text } from 'design';
+import { ChevronDown, ChevronUp } from 'design/Icon';
 
 import { useKeyboardShortcutFormatters } from 'teleterm/ui/services/keyboardShortcuts';
 
@@ -66,7 +67,7 @@ const Container = styled.button<{ isClusterSelected?: boolean }>`
   font-family: inherit;
   flex: 1;
   flex-shrink: 2;
-  min-width: calc(${props => props.theme.space[7]}px * 2);
+  min-width: ${props => props.theme.space[8]}px;
   height: 100%;
   border: 1px ${props => props.theme.colors.buttons.border.border} solid;
   border-radius: 4px;

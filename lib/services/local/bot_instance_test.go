@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 // newBotInstance creates (but does not insert) a bot instance that is ready for
@@ -42,15 +43,15 @@ import (
 func newBotInstance(botName string, fns ...func(*machineidv1.BotInstance)) *machineidv1.BotInstance {
 	id := uuid.New()
 
-	bi := &machineidv1.BotInstance{
+	bi := machineidv1.BotInstance_builder{
 		Kind:    types.KindBotInstance,
 		Version: types.V1,
-		Spec: &machineidv1.BotInstanceSpec{
+		Spec: machineidv1.BotInstanceSpec_builder{
 			BotName:    botName,
 			InstanceId: id.String(),
-		},
+		}.Build(),
 		Status: &machineidv1.BotInstanceStatus{},
-	}
+	}.Build()
 
 	for _, fn := range fns {
 		fn(bi)
@@ -63,9 +64,9 @@ func newBotInstance(botName string, fns ...func(*machineidv1.BotInstance)) *mach
 // raise an error during an insert attempt.
 func withBotInstanceInvalidMetadata() func(*machineidv1.BotInstance) {
 	return func(bi *machineidv1.BotInstance) {
-		bi.Metadata = &headerv1.Metadata{
+		bi.SetMetadata(headerv1.Metadata_builder{
 			Name: "invalid",
-		}
+		}.Build())
 	}
 }
 
@@ -73,11 +74,71 @@ func withBotInstanceInvalidMetadata() func(*machineidv1.BotInstance) {
 // the given timestamp.
 func withBotInstanceExpiry(expiry time.Time) func(*machineidv1.BotInstance) {
 	return func(bi *machineidv1.BotInstance) {
-		if bi.Metadata == nil {
-			bi.Metadata = &headerv1.Metadata{}
+		if !bi.HasMetadata() {
+			bi.SetMetadata(&headerv1.Metadata{})
 		}
 
-		bi.Metadata.Expires = timestamppb.New(expiry)
+		bi.GetMetadata().SetExpires(timestamppb.New(expiry))
+	}
+}
+
+// withBotInstanceId sets the .Spec.InstanceId field of a bot instance to
+// the given value.
+func withBotInstanceId(value string) func(*machineidv1.BotInstance) {
+	return func(bi *machineidv1.BotInstance) {
+		if !bi.HasSpec() {
+			bi.SetSpec(&machineidv1.BotInstanceSpec{})
+		}
+
+		bi.GetSpec().SetInstanceId(value)
+	}
+}
+
+// withBotInstanceHeartbeatJoinMethod sets the .Status.InitialHeartbeat.JoinMethod
+// field of a bot instance to the given value.
+func withBotInstanceHeartbeatJoinMethod(value string) func(*machineidv1.BotInstance) {
+	return func(bi *machineidv1.BotInstance) {
+		if !bi.HasStatus() {
+			bi.SetStatus(&machineidv1.BotInstanceStatus{})
+		}
+
+		if !bi.GetStatus().HasInitialHeartbeat() {
+			bi.GetStatus().SetInitialHeartbeat(&machineidv1.BotInstanceStatusHeartbeat{})
+		}
+
+		bi.GetStatus().GetInitialHeartbeat().SetJoinMethod(value)
+	}
+}
+
+// withBotInstanceHeartbeatVersion sets the .Status.InitialHeartbeat.Version
+// field of a bot instance to the given value.
+func withBotInstanceHeartbeatVersion(value string) func(*machineidv1.BotInstance) {
+	return func(bi *machineidv1.BotInstance) {
+		if !bi.HasStatus() {
+			bi.SetStatus(&machineidv1.BotInstanceStatus{})
+		}
+
+		if !bi.GetStatus().HasInitialHeartbeat() {
+			bi.GetStatus().SetInitialHeartbeat(&machineidv1.BotInstanceStatusHeartbeat{})
+		}
+
+		bi.GetStatus().GetInitialHeartbeat().SetVersion(value)
+	}
+}
+
+// withBotInstanceHeartbeatHostname sets the .Status.InitialHeartbeat.Hostname
+// field of a bot instance to the given value.
+func withBotInstanceHeartbeatHostname(value string) func(*machineidv1.BotInstance) {
+	return func(bi *machineidv1.BotInstance) {
+		if !bi.HasStatus() {
+			bi.SetStatus(&machineidv1.BotInstanceStatus{})
+		}
+
+		if !bi.GetStatus().HasInitialHeartbeat() {
+			bi.GetStatus().SetInitialHeartbeat(&machineidv1.BotInstanceStatusHeartbeat{})
+		}
+
+		bi.GetStatus().GetInitialHeartbeat().SetHostname(value)
 	}
 }
 
@@ -87,19 +148,19 @@ func createInstances(t *testing.T, ctx context.Context, service *BotInstanceServ
 
 	ids := map[string]struct{}{}
 
-	for i := 0; i < count; i++ {
+	for range count {
 		bi := newBotInstance(botName)
 		_, err := service.CreateBotInstance(ctx, bi)
 		require.NoError(t, err)
 
-		ids[bi.Spec.InstanceId] = struct{}{}
+		ids[bi.GetSpec().GetInstanceId()] = struct{}{}
 	}
 
 	return ids
 }
 
 // listInstances fetches all instances from the BotInstanceService matching the botName filter
-func listInstances(t *testing.T, ctx context.Context, service *BotInstanceService, botName string) []*machineidv1.BotInstance {
+func listInstances(t *testing.T, ctx context.Context, service *BotInstanceService, options *services.ListBotInstancesRequestOptions) []*machineidv1.BotInstance {
 	t.Helper()
 
 	var resources []*machineidv1.BotInstance
@@ -108,7 +169,7 @@ func listInstances(t *testing.T, ctx context.Context, service *BotInstanceServic
 	var err error
 
 	for {
-		bis, nextKey, err = service.ListBotInstances(ctx, botName, 0, nextKey)
+		bis, nextKey, err = service.ListBotInstances(ctx, 0, nextKey, options)
 		require.NoError(t, err)
 
 		resources = append(resources, bis...)
@@ -138,44 +199,44 @@ func TestBotInstanceCreateMetadata(t *testing.T) {
 			name:        "non-nil metadata",
 			instance:    newBotInstance("foo", withBotInstanceInvalidMetadata()),
 			assertError: require.NoError,
-			assertValue: func(t require.TestingT, i interface{}, _ ...interface{}) {
+			assertValue: func(t require.TestingT, i any, _ ...any) {
 				bi, ok := i.(*machineidv1.BotInstance)
 				require.True(t, ok)
 
 				// .Metadata.Name should be overwritten with the correct value
-				require.Equal(t, bi.Spec.InstanceId, bi.Metadata.Name)
-				require.Nil(t, bi.Metadata.Expires)
+				require.Equal(t, bi.GetSpec().GetInstanceId(), bi.GetMetadata().GetName())
+				require.Nil(t, bi.GetMetadata().GetExpires())
 			},
 		},
 		{
 			name:        "valid without expiry",
 			instance:    newBotInstance("foo"),
 			assertError: require.NoError,
-			assertValue: func(t require.TestingT, i interface{}, _ ...interface{}) {
+			assertValue: func(t require.TestingT, i any, _ ...any) {
 				bi, ok := i.(*machineidv1.BotInstance)
 				require.True(t, ok)
 
-				require.Equal(t, bi.Spec.InstanceId, bi.Metadata.Name)
-				require.Nil(t, bi.Metadata.Expires)
+				require.Equal(t, bi.GetSpec().GetInstanceId(), bi.GetMetadata().GetName())
+				require.Nil(t, bi.GetMetadata().GetExpires())
 			},
 		},
 		{
 			name:        "valid with expiry",
 			instance:    newBotInstance("foo", withBotInstanceExpiry(clock.Now().Add(time.Hour))),
 			assertError: require.NoError,
-			assertValue: func(t require.TestingT, i interface{}, _ ...interface{}) {
+			assertValue: func(t require.TestingT, i any, _ ...any) {
 				bi, ok := i.(*machineidv1.BotInstance)
 				require.True(t, ok)
 
-				require.Equal(t, bi.Spec.InstanceId, bi.Metadata.Name)
-				require.Equal(t, clock.Now().Add(time.Hour).UTC(), bi.Metadata.Expires.AsTime())
+				require.Equal(t, bi.GetSpec().GetInstanceId(), bi.GetMetadata().GetName())
+				require.Equal(t, clock.Now().Add(time.Hour).UTC(), bi.GetMetadata().GetExpires().AsTime())
 			},
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			ctx := context.Background()
+			ctx := t.Context()
 
 			mem, err := memory.New(memory.Config{
 				Context: ctx,
@@ -198,7 +259,7 @@ func TestBotInstanceCreateMetadata(t *testing.T) {
 func TestBotInstanceInvalidGetters(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 
 	mem, err := memory.New(memory.Config{
@@ -222,7 +283,7 @@ func TestBotInstanceInvalidGetters(t *testing.T) {
 func TestBotInstanceCRUD(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 
 	mem, err := memory.New(memory.Config{
@@ -239,46 +300,48 @@ func TestBotInstanceCRUD(t *testing.T) {
 	require.NoError(t, err)
 
 	// metadata should be generated from the bot spec
-	require.Equal(t, bi.Spec.InstanceId, patched.Metadata.Name)
+	require.Equal(t, bi.GetSpec().GetInstanceId(), patched.GetMetadata().GetName())
 
 	// we should be able to retrieve a matching instance
-	bi2, err := service.GetBotInstance(ctx, bi.Spec.BotName, bi.Spec.InstanceId)
+	bi2, err := service.GetBotInstance(ctx, bi.GetSpec().GetBotName(), bi.GetSpec().GetInstanceId())
 	require.NoError(t, err)
 	require.EqualExportedValues(t, patched, bi2)
-	require.Equal(t, bi.Metadata.Name, bi2.Metadata.Name)
+	require.Equal(t, bi.GetMetadata().GetName(), bi2.GetMetadata().GetName())
 
-	resources := listInstances(t, ctx, service, "example")
+	resources := listInstances(t, ctx, service, &services.ListBotInstancesRequestOptions{
+		FilterBotName: "example",
+	})
 
 	require.Len(t, resources, 1, "must list only 1 bot instance")
 	require.EqualExportedValues(t, patched, resources[0])
 
 	// append a heartbeat to a stored instance
-	heartbeat := &machineidv1.BotInstanceStatusHeartbeat{
+	heartbeat := machineidv1.BotInstanceStatusHeartbeat_builder{
 		Hostname: "foo",
-	}
+	}.Build()
 
-	patched, err = service.PatchBotInstance(ctx, bi.Spec.BotName, bi.Spec.InstanceId, func(bi *machineidv1.BotInstance) (*machineidv1.BotInstance, error) {
-		bi.Status.LatestHeartbeats = append([]*machineidv1.BotInstanceStatusHeartbeat{heartbeat}, bi.Status.LatestHeartbeats...)
+	patched, err = service.PatchBotInstance(ctx, bi.GetSpec().GetBotName(), bi.GetSpec().GetInstanceId(), func(bi *machineidv1.BotInstance) (*machineidv1.BotInstance, error) {
+		bi.GetStatus().SetLatestHeartbeats(append([]*machineidv1.BotInstanceStatusHeartbeat{heartbeat}, bi.GetStatus().GetLatestHeartbeats()...))
 		return bi, nil
 	})
 	require.NoError(t, err)
 
-	require.Len(t, patched.Status.LatestHeartbeats, 1)
-	require.EqualExportedValues(t, heartbeat, patched.Status.LatestHeartbeats[0])
+	require.Len(t, patched.GetStatus().GetLatestHeartbeats(), 1)
+	require.EqualExportedValues(t, heartbeat, patched.GetStatus().GetLatestHeartbeats()[0])
 
 	// delete the stored instance
-	require.NoError(t, service.DeleteBotInstance(ctx, bi.Spec.BotName, bi.Spec.InstanceId))
+	require.NoError(t, service.DeleteBotInstance(ctx, bi.GetSpec().GetBotName(), bi.GetSpec().GetInstanceId()))
 
 	// subsequent delete attempts should fail
-	require.Error(t, service.DeleteBotInstance(ctx, bi.Spec.BotName, bi.Spec.InstanceId))
+	require.Error(t, service.DeleteBotInstance(ctx, bi.GetSpec().GetBotName(), bi.GetSpec().GetInstanceId()))
 }
 
-// TestBotInstanceList verifies list and filtering functionality for bot
+// TestBotInstanceList verifies list and filtering by bot functionality for bot
 // instances.
 func TestBotInstanceList(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 
 	mem, err := memory.New(memory.Config{
@@ -294,17 +357,21 @@ func TestBotInstanceList(t *testing.T) {
 	bIds := createInstances(t, ctx, service, "b", 4)
 
 	// listing "a" should only return known "a" instances
-	aInstances := listInstances(t, ctx, service, "a")
+	aInstances := listInstances(t, ctx, service, &services.ListBotInstancesRequestOptions{
+		FilterBotName: "a",
+	})
 	require.Len(t, aInstances, 3)
 	for _, ins := range aInstances {
-		require.Contains(t, aIds, ins.Spec.InstanceId)
+		require.Contains(t, aIds, ins.GetSpec().GetInstanceId())
 	}
 
 	// listing "b" should only return known "b" instances
-	bInstances := listInstances(t, ctx, service, "b")
+	bInstances := listInstances(t, ctx, service, &services.ListBotInstancesRequestOptions{
+		FilterBotName: "b",
+	})
 	require.Len(t, bInstances, 4)
 	for _, ins := range bInstances {
-		require.Contains(t, bIds, ins.Spec.InstanceId)
+		require.Contains(t, bIds, ins.GetSpec().GetInstanceId())
 	}
 
 	allIds := map[string]struct{}{}
@@ -316,9 +383,192 @@ func TestBotInstanceList(t *testing.T) {
 	}
 
 	// Listing an empty bot name ("") should return all instances.
-	allInstances := listInstances(t, ctx, service, "")
+	allInstances := listInstances(t, ctx, service, &services.ListBotInstancesRequestOptions{
+		FilterBotName: "",
+	})
 	require.Len(t, allInstances, 7)
 	for _, ins := range allInstances {
-		require.Contains(t, allIds, ins.Spec.InstanceId)
+		require.Contains(t, allIds, ins.GetSpec().GetInstanceId())
+	}
+}
+
+// TestBotInstanceListWithSearchFilter verifies list and filtering with search
+// term functionality for bot instances.
+func TestBotInstanceListWithSearchFilter(t *testing.T) {
+	t.Parallel()
+
+	clock := clockwork.NewFakeClock()
+
+	tcs := []struct {
+		name       string
+		searchTerm string
+		instance   *machineidv1.BotInstance
+	}{
+		{
+			name:       "match on bot name",
+			searchTerm: "nick",
+			instance:   newBotInstance("this-is-nicks-test-bot"),
+		},
+		{
+			name:       "match on instance id",
+			searchTerm: "CB2C352",
+			instance:   newBotInstance("test-bot", withBotInstanceId("cb2c3523-01f6-4258-966b-ace9f38f9862")),
+		},
+		{
+			name:       "match on join method",
+			searchTerm: "uber",
+			instance:   newBotInstance("test-bot", withBotInstanceHeartbeatJoinMethod("kubernetes")),
+		},
+		{
+			name:       "match on version",
+			searchTerm: "1.0.0",
+			instance:   newBotInstance("test-bot", withBotInstanceHeartbeatVersion("1.0.0-dev-a2g3hd")),
+		},
+		{
+			name:       "match on version (with v)",
+			searchTerm: "v1.0.0",
+			instance:   newBotInstance("test-bot", withBotInstanceHeartbeatVersion("1.0.0-dev-a2g3hd")),
+		},
+		{
+			name:       "match on hostname",
+			searchTerm: "tel-123",
+			instance:   newBotInstance("test-bot", withBotInstanceHeartbeatHostname("svr-eu-tel-123-a")),
+		},
+	}
+
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := t.Context()
+
+			mem, err := memory.New(memory.Config{
+				Context: ctx,
+				Clock:   clock,
+			})
+			require.NoError(t, err)
+
+			service, err := NewBotInstanceService(backend.NewSanitizer(mem), clock)
+			require.NoError(t, err)
+
+			_, err = service.CreateBotInstance(ctx, tc.instance)
+			require.NoError(t, err)
+			_, err = service.CreateBotInstance(ctx, newBotInstance("bot-not-matched"))
+			require.NoError(t, err)
+
+			instances := listInstances(t, ctx, service, &services.ListBotInstancesRequestOptions{
+				FilterSearchTerm: tc.searchTerm,
+			})
+
+			require.Len(t, instances, 1)
+			require.Equal(t, tc.instance.GetSpec().GetInstanceId(), instances[0].GetSpec().GetInstanceId())
+		})
+	}
+}
+
+// TestBotInstanceListWithQuery verifies list and filtering with query
+// functionality for bot instances.
+func TestBotInstanceListWithQuery(t *testing.T) {
+	t.Parallel()
+
+	clock := clockwork.NewFakeClock()
+	ctx := t.Context()
+	mem, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+	service, err := NewBotInstanceService(backend.NewSanitizer(mem), clock)
+	require.NoError(t, err)
+
+	instance := newBotInstance("test-bot", withBotInstanceHeartbeatHostname("svr-eu-tel-123-a"))
+	_, err = service.CreateBotInstance(ctx, instance)
+	require.NoError(t, err)
+	_, err = service.CreateBotInstance(ctx, newBotInstance("bot-not-matched"))
+	require.NoError(t, err)
+
+	instances := listInstances(t, ctx, service, &services.ListBotInstancesRequestOptions{
+		FilterQuery: `status.latest_heartbeat.hostname == "svr-eu-tel-123-a"`,
+	})
+
+	require.Len(t, instances, 1)
+	require.Equal(t, instance.GetSpec().GetInstanceId(), instances[0].GetSpec().GetInstanceId())
+}
+
+// TestBotInstanceListWithSort verifies sorting returns a not-implemented error.
+func TestBotInstanceListWithSort(t *testing.T) {
+	t.Parallel()
+
+	clock := clockwork.NewFakeClock()
+
+	ctx := t.Context()
+
+	mem, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+
+	service, err := NewBotInstanceService(backend.NewSanitizer(mem), clock)
+	require.NoError(t, err)
+
+	_, _, err = service.ListBotInstances(ctx, 0, "", &services.ListBotInstancesRequestOptions{
+		SortField: "test_field",
+		SortDesc:  false,
+	})
+	require.Error(t, err)
+	require.ErrorContains(t, err, "unsupported sort, only bot_name field is supported, but got \"test_field\"")
+
+	_, _, err = service.ListBotInstances(ctx, 0, "", &services.ListBotInstancesRequestOptions{
+		SortField: "bot_name",
+		SortDesc:  true,
+	})
+	require.Error(t, err)
+	require.ErrorContains(t, err, "unsupported sort, only ascending order is supported")
+
+	_, _, err = service.ListBotInstances(ctx, 0, "", nil)
+	require.NoError(t, err)
+}
+
+func TestBotInstanceListWithFilterFn(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	clock := clockwork.NewFakeClock()
+
+	mem, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+
+	service, err := NewBotInstanceService(backend.NewSanitizer(mem), clock)
+	require.NoError(t, err)
+
+	// Create 10 instances for "test-bot".
+	var created []*machineidv1.BotInstance
+	for range 10 {
+		bi := newBotInstance("test-bot")
+		_, err := service.CreateBotInstance(ctx, bi)
+		require.NoError(t, err)
+		created = append(created, bi)
+	}
+
+	// Use a FilterFn that only accepts even-indexed instances.
+	accepted := map[string]struct{}{}
+	for i, bi := range created {
+		if i%2 == 0 {
+			accepted[bi.GetSpec().GetInstanceId()] = struct{}{}
+		}
+	}
+
+	instances := listInstances(t, ctx, service, &services.ListBotInstancesRequestOptions{
+		FilterFn: func(bi *machineidv1.BotInstance) bool {
+			_, ok := accepted[bi.GetSpec().GetInstanceId()]
+			return ok
+		},
+	})
+
+	require.Len(t, instances, len(accepted))
+	for _, bi := range instances {
+		require.Contains(t, accepted, bi.GetSpec().GetInstanceId())
 	}
 }

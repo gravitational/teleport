@@ -34,6 +34,12 @@ type DatabaseService interface {
 	// Database services deployed by Teleport have known configurations where
 	// we will only define a single resource matcher.
 	GetResourceMatchers() []*DatabaseResourceMatcher
+
+	// GetHostname returns the hostname where this Database Service is running.
+	GetHostname() string
+
+	// Clone creates a copy of the service.
+	Clone() DatabaseService
 }
 
 // NewDatabaseServiceV1 creates a new DatabaseService instance.
@@ -68,6 +74,11 @@ func (s *DatabaseServiceV1) GetResourceMatchers() []*DatabaseResourceMatcher {
 	return s.Spec.ResourceMatchers
 }
 
+// GetHostname returns the hostname where this Database Service is running.
+func (s *DatabaseServiceV1) GetHostname() string {
+	return s.Spec.Hostname
+}
+
 // GetNamespace returns the resource namespace.
 func (s *DatabaseServiceV1) GetNamespace() string {
 	return s.Metadata.Namespace
@@ -78,4 +89,9 @@ func (s *DatabaseServiceV1) GetNamespace() string {
 func (s *DatabaseServiceV1) MatchSearch(values []string) bool {
 	fieldVals := append(utils.MapToStrings(s.GetAllLabels()), s.GetName())
 	return MatchSearch(fieldVals, values, nil)
+}
+
+// Clone creates a clone of this service.
+func (s *DatabaseServiceV1) Clone() DatabaseService {
+	return utils.CloneProtoMsg(s)
 }

@@ -21,18 +21,18 @@ package app
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"net/http"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/wrappers"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/recorder"
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
@@ -62,6 +62,9 @@ type sessionChunk struct {
 	closeC chan struct{}
 	// id is the session chunk's uuid, which is used as the id of its session upload.
 	id string
+	// appName is the name of the app this session chunk belongs to, used as
+	// a Prometheus label on the active sessions gauge.
+	appName string
 	// streamCloser closes the session chunk stream.
 	streamCloser utils.WriteContextCloser
 	// audit is the session chunk audit logger.
@@ -82,7 +85,7 @@ type sessionChunk struct {
 	// for ~7 minutes at most.
 	closeTimeout time.Duration
 
-	log *logrus.Entry
+	log *slog.Logger
 }
 
 // sessionOpt defines an option function for creating sessionChunk.
@@ -95,13 +98,14 @@ type sessionOpt func(context.Context, *sessionChunk, *tlsca.Identity, types.Appl
 func (c *ConnectionsHandler) newSessionChunk(ctx context.Context, identity *tlsca.Identity, app types.Application, startTime time.Time, opts ...sessionOpt) (*sessionChunk, error) {
 	sess := &sessionChunk{
 		id:           uuid.New().String(),
+		appName:      app.GetName(),
 		closeC:       make(chan struct{}),
 		inflightCond: sync.NewCond(&sync.Mutex{}),
 		closeTimeout: sessionChunkCloseTimeout,
-		log:          c.legacyLogger,
+		log:          c.log,
 	}
 
-	sess.log.Debugf("Creating app session chunk %s", sess.id)
+	sess.log.DebugContext(ctx, "Creating app session chunk", "session_id", sess.id)
 
 	// Create a session tracker so that other services, such as the
 	// session upload completer, can track the session chunk's lifetime.
@@ -138,56 +142,43 @@ func (c *ConnectionsHandler) newSessionChunk(ctx context.Context, identity *tlsc
 		return nil, trace.Wrap(err)
 	}
 
-	sess.log.Debugf("Created app session chunk %s", sess.id)
+	activeSessions.WithLabelValues(sess.appName).Inc()
+	sess.log.DebugContext(ctx, "Created app session chunk", "session_id", sess.id)
 	return sess, nil
 }
 
 // withJWTTokenForwarder is a sessionOpt that creates a forwarder that attaches
 // a generated JWT token to all requests.
 func (c *ConnectionsHandler) withJWTTokenForwarder(ctx context.Context, sess *sessionChunk, identity *tlsca.Identity, app types.Application) error {
-	rewrite := app.GetRewrite()
-	traits := identity.Traits
-	roles := identity.Groups
-	if rewrite != nil {
-		switch rewrite.JWTClaims {
-		case types.JWTClaimsRewriteNone:
-			traits = nil
-			roles = nil
-		case types.JWTClaimsRewriteRoles:
-			traits = nil
-		case types.JWTClaimsRewriteTraits:
-			roles = nil
-		case "", types.JWTClaimsRewriteRolesAndTraits:
-		}
-	}
-
-	// Request a JWT token that will be attached to all requests.
-	jwt, err := c.cfg.AuthClient.GenerateAppToken(ctx, types.GenerateAppTokenRequest{
-		Username: identity.Username,
-		Roles:    roles,
-		Traits:   traits,
-		URI:      app.GetURI(),
-		Expires:  identity.Expires,
-	})
+	// TODO(greedy52) consider using a shorter ttl for the token. The chunk is
+	// only 5 minutes anyway.
+	jwt, rewriteTraits, err := common.GenerateJWTAndTraits(ctx, identity, app, c.cfg.AuthClient, identity.Expires)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	// Add JWT token to the traits so it can be used in headers templating.
-	if traits == nil {
-		traits = make(wrappers.Traits)
-	}
-	traits[teleport.TraitJWT] = []string{jwt}
-
 	// Create a rewriting transport that will be used to forward requests.
 	transport, err := newTransport(c.closeContext,
 		&transportConfig{
-			app:          app,
-			publicPort:   c.proxyPort,
-			cipherSuites: c.cfg.CipherSuites,
-			jwt:          jwt,
-			traits:       traits,
-			log:          c.legacyLogger,
+			clock:         c.cfg.Clock,
+			app:           app,
+			publicPort:    c.proxyPort,
+			cipherSuites:  c.cfg.CipherSuites,
+			jwt:           jwt,
+			rewriteTraits: rewriteTraits,
+			log:           c.log,
+			hostID:        c.cfg.HostID,
+			insecureMode:  c.cfg.InsecureMode,
+			clusterName:   c.clusterName,
+			accessPoint:   c.cfg.AccessPoint,
+			authClient:    c.cfg.AuthClient,
+			getUserCertFunc: func() ([]byte, error) {
+				userCert, err := authz.UserCertificateFromContext(ctx)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				return userCert.Raw, nil
+			},
 		})
 	if err != nil {
 		return trace.Wrap(err)
@@ -220,6 +211,11 @@ func (c *ConnectionsHandler) withAzureHandler(ctx context.Context, sess *session
 
 func (c *ConnectionsHandler) withGCPHandler(ctx context.Context, sess *sessionChunk, identity *tlsca.Identity, app types.Application) error {
 	sess.handler = c.gcpHandler
+	return nil
+}
+
+func (c *ConnectionsHandler) withLLMHandler(ctx context.Context, sess *sessionChunk, identity *tlsca.Identity, app types.Application) error {
+	sess.handler = c.llmHandler
 	return nil
 }
 
@@ -261,16 +257,22 @@ func (s *sessionChunk) close(ctx context.Context) error {
 		if s.inflight == 0 {
 			break
 		} else if time.Now().After(deadline) {
-			s.log.Debugf("Timeout expired, forcibly closing session chunk %s, inflight requests: %d", s.id, s.inflight)
+			s.log.DebugContext(ctx, "Timeout expired, forcibly closing session chunk",
+				"session_id", s.id,
+				"inflight_requests", s.inflight,
+			)
 			break
 		}
-		s.log.Debugf("Inflight requests: %d, waiting to close session chunk %s", s.inflight, s.id)
+		s.log.DebugContext(ctx, "Waiting to close session chunk",
+			"session_id", s.id,
+			"inflight_requests", s.inflight,
+		)
 		s.inflightCond.Wait()
 	}
 	s.inflight = -1
 	s.inflightCond.L.Unlock()
 	close(s.closeC)
-	s.log.Debugf("Closed session chunk %s", s.id)
+	s.log.DebugContext(ctx, "Closed session chunk", "session_id", s.id)
 	return trace.Wrap(s.streamCloser.Close(ctx))
 }
 
@@ -282,10 +284,12 @@ func (c *ConnectionsHandler) onSessionExpired(ctx context.Context, key, expired 
 
 	// Closing the session stream writer may trigger a flush operation which could
 	// be time-consuming. Launch in another goroutine to prevent interfering with
-	// cache operations.
+	// cache operations. The gauge is decremented after close completes so that
+	// it reflects sessions still holding resources (audit streams, IOPS).
 	c.cacheCloseWg.Add(1)
 	go func() {
 		defer c.cacheCloseWg.Done()
+		defer activeSessions.WithLabelValues(sess.appName).Dec()
 		if err := sess.close(ctx); err != nil {
 			c.log.DebugContext(ctx, "Error closing session", "session_id", sess.id, "error", err)
 		}
@@ -301,7 +305,7 @@ func (c *ConnectionsHandler) newSessionRecorder(ctx context.Context, startTime t
 		return nil, trace.Wrap(err)
 	}
 
-	clusterName, err := c.cfg.AccessPoint.GetClusterName()
+	clusterName, err := c.cfg.AccessPoint.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -336,7 +340,8 @@ func (c *ConnectionsHandler) createTracker(sess *sessionChunk, identity *tlsca.I
 		ClusterName: identity.RouteToApp.ClusterName,
 		Login:       identity.GetUserMetadata().Login,
 		Participants: []types.Participant{{
-			User: identity.Username,
+			User:    identity.Username,
+			Cluster: identity.OriginClusterName,
 		}},
 		HostUser:     identity.Username,
 		Created:      c.cfg.Clock.Now(),

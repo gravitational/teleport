@@ -21,8 +21,11 @@ package app
 import (
 	"crypto/subtle"
 	"fmt"
+	"net"
 	"net/http"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
@@ -39,7 +42,12 @@ type fragmentRequest struct {
 	StateValue         string `json:"state_value"`
 	CookieValue        string `json:"cookie_value"`
 	SubjectCookieValue string `json:"subject_cookie_value"`
+	RequiredApps       string `json:"required_apps"`
 }
+
+// TeleportNextAppRedirectUrlHeader is used to tell the browser which URL to navigate to
+// next in the chain of required app authentication redirects
+const TeleportNextAppRedirectUrlHeader = "X-Teleport-NextAppRedirectUrl"
 
 // startAppAuthExchange will do two actions depending on the following:
 //
@@ -55,13 +63,35 @@ type fragmentRequest struct {
 func (h *Handler) startAppAuthExchange(w http.ResponseWriter, r *http.Request, p httprouter.Params) error {
 	q := r.URL.Query()
 
+	requiredApps := strings.Split(q.Get("required-apps"), ",")
+	reqAddr, err := utils.ParseAddr(r.Host)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// if required apps is length 1, it _should_ be itself as the final stop of the redirect chain.
+	// If that is the case, skip any further required app redirects and complete the auth flow.
+	// This value gets shifted off the front after a complete auth exchange
+	if len(requiredApps) > 1 && requiredApps[0] != reqAddr.Host() {
+		nextRequiredApp := requiredApps[0]
+
+		webLauncherURLParams := launcherURLParams{
+			clusterName:         q.Get("cluster"),
+			publicAddr:          nextRequiredApp,
+			arn:                 q.Get("arn"),
+			path:                q.Get("path"),
+			requiredAppFQDNs:    strings.Join(requiredApps, ","),
+			requiresAppRedirect: true,
+		}
+		return h.redirectToLauncher(w, r, webLauncherURLParams)
+	}
 	// Initiate auth exchange.
 	if q.Get("state") == "" {
 		// secretToken is the token we will look for in both the cookie
 		// and in the request "state" query param.
 		secretToken, err := utils.CryptoRandomHex(defaults.TokenLenBytes)
 		if err != nil {
-			h.log.WithError(err).Debug("Failed to generate token required for app auth exchange")
+			h.logger.DebugContext(r.Context(), "Failed to generate token required for app auth exchange", "error", err)
 			return trace.AccessDenied("access denied")
 		}
 
@@ -73,7 +103,7 @@ func (h *Handler) startAppAuthExchange(w http.ResponseWriter, r *http.Request, p
 		// different token value eg: launch app in multiple tabs in quick succession
 		cookieIdentifier, err := utils.CryptoRandomHex(defaults.TokenLenBytes)
 		if err != nil {
-			h.log.WithError(err).Debug("Failed to generate an UID for the app auth state cookie")
+			h.logger.DebugContext(r.Context(), "Failed to generate an UID for the app auth state cookie", "error", err)
 			return trace.AccessDenied("access denied")
 		}
 
@@ -89,6 +119,8 @@ func (h *Handler) startAppAuthExchange(w http.ResponseWriter, r *http.Request, p
 			//   - secretToken to compare against the one stored in cookie
 			//   - cookieIdentifier to look up cookie sent by browser.
 			stateToken: fmt.Sprintf("%s_%s", secretToken, cookieIdentifier),
+			// required apps
+			requiredAppFQDNs: q.Get("required-apps"),
 		}
 		return h.redirectToLauncher(w, r, webLauncherURLParams)
 	}
@@ -97,14 +129,14 @@ func (h *Handler) startAppAuthExchange(w http.ResponseWriter, r *http.Request, p
 
 	nonce, err := utils.CryptoRandomHex(defaults.TokenLenBytes)
 	if err != nil {
-		h.log.WithError(err).Debug("Failed to create a random nonce for the app redirection HTML inline script")
+		h.logger.DebugContext(r.Context(), "Failed to create a random nonce for the app redirection HTML inline script", "error", err)
 		return trace.AccessDenied("access denied")
 	}
 	SetRedirectPageHeaders(w.Header(), nonce)
 
 	// Serving the HTML page.
 	if err := appRedirectTemplate.Execute(w, nonce); err != nil {
-		h.log.WithError(err).Debug("Failed executing appRedirect template")
+		h.logger.DebugContext(r.Context(), "Failed executing appRedirect template", "error", err)
 		return trace.AccessDenied("access denied")
 	}
 	return nil
@@ -117,13 +149,13 @@ func (h *Handler) completeAppAuthExchange(w http.ResponseWriter, r *http.Request
 	httplib.SetNoCacheHeaders(w.Header())
 	var req fragmentRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
-		h.log.WithError(err).Debug("Failed to decode JSON from request body")
+		h.logger.DebugContext(r.Context(), "Failed to decode JSON from request body", "error", err)
 		return trace.AccessDenied("access denied")
 	}
 
 	secretToken, cookieID, ok := strings.Cut(req.StateValue, "_")
 	if !ok {
-		h.log.Warn("Request failed: request state token is not in the expected format")
+		h.logger.WarnContext(r.Context(), "Request failed: request state token is not in the expected format")
 		h.emitErrorEventAndDeleteAppSession(r, emitErrorEventFields{
 			sessionID: req.CookieValue,
 			err:       "state token was not in the expected format",
@@ -134,7 +166,7 @@ func (h *Handler) completeAppAuthExchange(w http.ResponseWriter, r *http.Request
 	// Validate that the caller-provided state token matches the stored state token (CSRF check)
 	stateCookie, err := r.Cookie(getAuthStateCookieName(cookieID))
 	if err != nil || stateCookie.Value == "" {
-		h.log.Warn("Request failed: state cookie is not set.")
+		h.logger.WarnContext(r.Context(), "Request failed: state cookie is not set")
 		h.emitErrorEventAndDeleteAppSession(r, emitErrorEventFields{
 			sessionID: req.CookieValue,
 			err:       "auth state cookie was not set",
@@ -142,7 +174,7 @@ func (h *Handler) completeAppAuthExchange(w http.ResponseWriter, r *http.Request
 		return trace.AccessDenied("access denied")
 	}
 	if subtle.ConstantTimeCompare([]byte(secretToken), []byte(stateCookie.Value)) != 1 {
-		h.log.Warn("Request failed: state token does not match.")
+		h.logger.WarnContext(r.Context(), "Request failed: state token does not match")
 		h.emitErrorEventAndDeleteAppSession(r, emitErrorEventFields{
 			sessionID: req.CookieValue,
 			err:       "state token did not match",
@@ -155,20 +187,27 @@ func (h *Handler) completeAppAuthExchange(w http.ResponseWriter, r *http.Request
 
 	// Validate that the caller is asking for a session that exists and that they have the secret
 	// session token for.
-	ws, err := h.c.AccessPoint.GetAppSession(r.Context(), types.GetAppSessionRequest{
-		SessionID: req.CookieValue,
-	})
+	ws, err := h.getAppSessionFromAccessPoint(r.Context(), req.CookieValue)
 	if err != nil {
-		h.log.WithError(err).Warn("Request failed: session does not exist.")
+		h.logger.WarnContext(r.Context(), "Request failed: session does not exist", "error", err)
 		return trace.AccessDenied("access denied")
 	}
 	if err := checkSubjectToken(req.SubjectCookieValue, ws); err != nil {
-		h.log.WithError(err).Warn("Request failed")
+		h.logger.WarnContext(r.Context(), "Request failed", "error", err)
+		identity, _ := getIdentityFromWebSession(ws)
 		h.emitErrorEventAndDeleteAppSession(r, emitErrorEventFields{
-			sessionID: req.CookieValue,
-			err:       err.Error(),
-			loginName: ws.GetUser(),
+			sessionID:   req.CookieValue,
+			err:         err.Error(),
+			loginName:   ws.GetUser(),
+			appMetadata: appMetadata(identity),
 		})
+		return trace.AccessDenied("access denied")
+	}
+
+	// TODO(greedy52) add browser support by validating the subject token
+	// against the outer mTLS identity
+	if IsHTTPSTunnelConn(r) {
+		h.logger.DebugContext(r.Context(), "Browser access through the HTTPS tunnel is not supported", "user", ws.GetUser())
 		return trace.AccessDenied("access denied")
 	}
 
@@ -178,23 +217,56 @@ func (h *Handler) completeAppAuthExchange(w http.ResponseWriter, r *http.Request
 	// Otherwise the session cookie won't be sent and the user will
 	// get redirected to the application launcher.
 	// https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Set-Cookie/SameSite
-	http.SetCookie(w, &http.Cookie{
-		Name:     CookieName,
-		Value:    req.CookieValue,
-		Path:     "/",
-		HttpOnly: true,
-		Secure:   true,
-		SameSite: http.SameSiteNoneMode,
-	})
-	http.SetCookie(w, &http.Cookie{
-		Name:     SubjectCookieName,
-		Value:    ws.GetBearerToken(),
-		Path:     "/",
-		HttpOnly: true,
-		Secure:   true,
-		SameSite: http.SameSiteNoneMode,
-	})
+	setAppSessionCookies(w, ws, 0)
 
+	// Set DBSC registration header to trigger device-bound session credentials.
+	// The browser will generate a key pair and POST to the registration endpoint.
+	if err := h.setDBSCRegistrationHeader(r.Context(), w, req.CookieValue); err != nil {
+		h.logger.DebugContext(r.Context(), "Failed to set DBSC registration header", "error", err)
+	}
+
+	requiredApps := strings.Split(req.RequiredApps, ",")
+	if len(requiredApps) <= 1 {
+		return nil
+	}
+
+	requiredApps = requiredApps[1:]
+	nextRequiredApp := requiredApps[0]
+
+	webLauncherURLParams := launcherURLParams{
+		publicAddr:          nextRequiredApp,
+		requiredAppFQDNs:    strings.Join(requiredApps, ","),
+		requiresAppRedirect: true,
+	}
+	addr, err := utils.ParseAddr(webLauncherURLParams.publicAddr)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	var publicAddrs []string
+	for _, proxyAddr := range h.c.ProxyPublicAddrs {
+		err = h.validateAppAddr(r.Context(), webLauncherURLParams.publicAddr, proxyAddr.Host())
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		publicAddrs = append(publicAddrs, proxyAddr.Host())
+	}
+	if len(publicAddrs) == 0 {
+		err = h.validateAppAddr(r.Context(), webLauncherURLParams.publicAddr, h.clusterName)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		reqAddr, err := utils.ParseAddr(r.Host)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		port := reqAddr.Port(443)
+		publicAddrs = []string{net.JoinHostPort(h.clusterName, strconv.Itoa(port))}
+	}
+	proxyDNSName := utils.FindMatchingProxyDNS(addr.String(), publicAddrs)
+	urlString := makeAppRedirectURL(r, proxyDNSName, addr.Host(), webLauncherURLParams)
+	// this request does not return a response, so we can pass this value through a custom header instead
+	w.Header().Set(TeleportNextAppRedirectUrlHeader, urlString)
 	return nil
 }
 
@@ -232,14 +304,35 @@ func clearAuthStateCookie(w http.ResponseWriter, cookieID string) {
 	})
 }
 
+func setAppSessionCookies(w http.ResponseWriter, ws types.WebSession, maxAge time.Duration) {
+	setCookie := func(name, value string) {
+		cookie := &http.Cookie{
+			Name:     name,
+			Value:    value,
+			Path:     "/",
+			HttpOnly: true,
+			Secure:   true,
+			SameSite: http.SameSiteNoneMode,
+		}
+		if maxAge > 0 {
+			cookie.MaxAge = int(maxAge.Seconds())
+		}
+		http.SetCookie(w, cookie)
+	}
+
+	setCookie(CookieName, ws.GetName())
+	setCookie(SubjectCookieName, ws.GetBearerToken())
+}
+
 func getAuthStateCookieName(cookieID string) string {
 	return fmt.Sprintf("%s_%s", AuthStateCookieName, cookieID)
 }
 
 type emitErrorEventFields struct {
-	loginName string
-	err       string
-	sessionID string
+	loginName   string
+	err         string
+	sessionID   string
+	appMetadata apievents.AppMetadata
 }
 
 func (h *Handler) emitErrorEventAndDeleteAppSession(r *http.Request, f emitErrorEventFields) {
@@ -248,28 +341,21 @@ func (h *Handler) emitErrorEventAndDeleteAppSession(r *http.Request, f emitError
 		if err := h.c.AuthClient.DeleteAppSession(r.Context(), types.DeleteAppSessionRequest{
 			SessionID: f.sessionID,
 		}); err != nil {
-			h.log.WithError(err).Warn("Failed to delete app session after failing authentication")
+			h.logger.WarnContext(r.Context(), "Failed to delete app session after failing authentication", "error", err)
 		}
 	}
 
-	event := &apievents.AuthAttempt{
+	h.emitAuditEvent(&apievents.AuthAttempt{
 		Metadata: apievents.Metadata{
 			Type: events.AuthAttemptEvent,
 			Code: events.AuthAttemptFailureCode,
 		},
-		UserMetadata: apievents.UserMetadata{
-			User:  "unknown",
-			Login: f.loginName,
-		},
-		ConnectionMetadata: apievents.ConnectionMetadata{
-			LocalAddr:  r.Host,
-			RemoteAddr: r.RemoteAddr,
-		},
+		UserMetadata:       userMetadata(nil, f.loginName),
+		AppMetadata:        f.appMetadata,
+		ConnectionMetadata: connectionMetadataFromRequest(r),
 		Status: apievents.Status{
 			Success: false,
 			Error:   fmt.Sprintf("Failed app access authentication: %s", f.err),
 		},
-	}
-
-	h.c.AuthClient.EmitAuditEvent(h.closeContext, event)
+	})
 }

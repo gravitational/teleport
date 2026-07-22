@@ -1,7 +1,18 @@
 ---
 title: Database Labels Reference
+sidebar_label: Labels
 description: Database labels reference for Teleport database access.
+tags:
+ - reference
+ - zero-trust
+ - infrastructure-identity
+page_type: reference
 ---
+
+Teleport assigns system-defined labels to protected databases. 
+
+This page lists the labels that Teleport assigns to protected databases and
+describes how Teleport uses them.
 
 ## Origin
 
@@ -11,8 +22,8 @@ of the following values:
 | Label Value | Description |
 | - | - |
 | `cloud`   | database resources created by auto-discovery. |
-| `config`  | database resources manually defined in the `database_service.databases` section of `teleport.yaml`. |
-| `dynamic` | database resources created through [dynamic registration](../guides/dynamic-registration.mdx) like `tcl create` command. |
+| `config`  | database resources manually defined in the `db_service.databases` section of `teleport.yaml`. |
+| `dynamic` | database resources created through [dynamic registration](../../../enroll-resources/database-access/guides/dynamic-registration.mdx) like `tctl create` command. |
 
 ## Auto-discovery
 
@@ -43,8 +54,9 @@ resource attributes:
 | `region`           | AWS region or Azure location. |
 | `replication-role` | The replication role of an Azure DB Flexible server. |
 | `source-server`    | The source server of an Azure DB Flexible server replica. |
-| `vpc-id`           | ID of the Amazon VPC the resource resides in, if available. |
+| `vpc-id`           | ID of the Amazon VPC the resource resides in. Available for RDS, ElastiCache and MemoryDB databases. |
 | `workgroup`        | Amazon Redshift Serverless workgroup name. |
+| `teleport.dev/discovery-type` | Specifies the type of resource matched by the Teleport Discovery Service, e.g. "rds", "redshift", etc. |
 
 ### `endpoint-type`
 
@@ -64,12 +76,13 @@ The following values are used to indicate the type of the database endpoint:
 ## Manual and dynamic registration
 
 Static labels and dynamic labels can be specified in `labels` and
-`dynamic_labels` fields respectively in database definition. See
-[Configuration](./configuration.mdx) for reference.
+`dynamic_labels` fields respectively in database definition. See the
+[configuration reference](../../../reference/deployment/config.mdx#database-service)
+for more information.
 
 ## Database Service on Amazon EC2
 
 All registered databases can inherit the labels converted from the tags of the
 EC2 instance running the Teleport Database Service. Labels created this way
 will have the `aws/` prefix. See [Sync EC2
-Tags](../../../management/guides/ec2-tags.mdx) for more details.
+Tags](../../../enroll-resources/automatic-labels/ec2-tags.mdx) for more details.

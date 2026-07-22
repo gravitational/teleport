@@ -16,45 +16,61 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
+
 import { useAsync } from 'shared/hooks/useAsync';
 import { runOnce } from 'shared/utils/highbar';
 
-import { useAppContext } from 'teleterm/ui/appContextProvider';
-import { IAppContext } from 'teleterm/ui/types';
+import type { Shell } from 'teleterm/mainProcess/shell';
 import {
-  DocumentsService,
-  isDocumentTshNodeWithLoginHost,
-} from 'teleterm/ui/services/workspacesService';
-import { IPtyProcess } from 'teleterm/sharedProcess/ptyHost';
-import { useWorkspaceContext } from 'teleterm/ui/Documents';
-import { routing } from 'teleterm/ui/uri';
-import { PtyCommand, PtyProcessCreationStatus } from 'teleterm/services/pty';
-import { AmbiguousHostnameError } from 'teleterm/ui/services/resources';
-import { retryWithRelogin } from 'teleterm/ui/utils';
-import Logger from 'teleterm/logger';
-import { ClustersService } from 'teleterm/ui/services/clusters';
+  IPtyProcess,
+  PtyCommand,
+  PtyProcessCreationStatus,
+  WindowsPty,
+} from 'teleterm/services/pty';
 import * as tshdGateway from 'teleterm/services/tshd/gateway';
-
+import { useAppContext } from 'teleterm/ui/appContextProvider';
+import { useWorkspaceContext } from 'teleterm/ui/Documents';
+import { ClustersService } from 'teleterm/ui/services/clusters';
+import {
+  canDocChangeShell,
+  DocumentsService,
+} from 'teleterm/ui/services/workspacesService';
 import type * as types from 'teleterm/ui/services/workspacesService';
-import type * as uri from 'teleterm/ui/uri';
-import type * as tsh from 'teleterm/services/tshd/types';
+import { IAppContext } from 'teleterm/ui/types';
+import { routing } from 'teleterm/ui/uri';
+
+import { useLogger } from '../hooks/useLogger';
 
 export function useDocumentTerminal(doc: types.DocumentTerminal) {
-  const logger = useRef(new Logger('useDocumentTerminal'));
   const ctx = useAppContext();
+  const logger = useLogger('useDocumentTerminal');
   const { documentsService } = useWorkspaceContext();
   const [attempt, runAttempt] = useAsync(async () => {
     if ('status' in doc) {
       documentsService.update(doc.uri, { status: 'connecting' });
     }
 
+    // Add `shellId` before going further.
+    // When a new document is crated, its `shellId` is empty
+    // (setting the default shell would require reading it from ConfigService
+    // in DocumentsService and I wasn't sure about adding more dependencies there).
+    // Because of that, I decided to initialize this property later.
+    // `doc.shellId` is used in here, in `useDocumentTerminal` and in `tabContextMenu`.
+    let docWithDefaultShell: types.DocumentTerminal;
+    if (canDocChangeShell(doc) && !doc.shellId) {
+      docWithDefaultShell = {
+        ...doc,
+        shellId: ctx.configService.get('terminal.shell').value,
+      };
+      documentsService.update(doc.uri, docWithDefaultShell);
+    }
+
     try {
-      return await initializePtyProcess(
+      return await setUpPtyProcess(
         ctx,
-        logger.current,
         documentsService,
-        doc
+        docWithDefaultShell || doc
       );
     } catch (err) {
       if ('status' in doc) {
@@ -72,7 +88,9 @@ export function useDocumentTerminal(doc: types.DocumentTerminal) {
 
     return () => {
       if (attempt.status === 'success') {
-        attempt.data.ptyProcess.dispose();
+        void attempt.data.ptyProcess.dispose().catch(error => {
+          logger.error(`Failed to dispose of the PTY process: ${error}`);
+        });
       }
     };
     // This cannot be run only mount. If the user has initialized a new PTY process by clicking the
@@ -81,115 +99,6 @@ export function useDocumentTerminal(doc: types.DocumentTerminal) {
   }, [attempt]);
 
   return { attempt, initializePtyProcess: runAttempt };
-}
-
-async function initializePtyProcess(
-  ctx: IAppContext,
-  logger: Logger,
-  documentsService: DocumentsService,
-  doc: types.DocumentTerminal
-) {
-  // DELETE IN 14.0.0
-  //
-  // Logging in to an arbitrary host was removed in 13.0 together with the command bar.
-  // However, there's a slight chance that some users upgrading from 12.x to 13.0 still have
-  // documents with loginHost in the app state (e.g. if the doc failed to connect to the server).
-  // Let's just remove this in 14.0.0 instead to make sure those users can safely upgrade the app.
-  if (isDocumentTshNodeWithLoginHost(doc)) {
-    doc = await resolveLoginHost(ctx, logger, documentsService, doc);
-  }
-
-  return setUpPtyProcess(ctx, documentsService, doc);
-}
-
-/**
- * resolveLoginHost tries to split loginHost from the doc into a login and a host and then resolve
- * the host to a server UUID by asking the cluster for an SSH server with a matching hostname.
- *
- * It also updates the doc in DocumentsService. It's important for this function to return the
- * updated doc so that setUpPtyProcess can use the resolved server UUID – startTerminalSession is
- * called only once, it won't be re-run after the doc gets updated.
- */
-async function resolveLoginHost(
-  ctx: IAppContext,
-  logger: Logger,
-  documentsService: DocumentsService,
-  doc: types.DocumentTshNodeWithLoginHost
-): Promise<types.DocumentTshNodeWithServerId> {
-  let login: string | undefined, host: string;
-  const parts = doc.loginHost.split('@');
-  const clusterUri = routing.getClusterUri({
-    rootClusterId: doc.rootClusterId,
-    leafClusterId: doc.leafClusterId,
-  });
-
-  if (parts.length > 1) {
-    host = parts.pop();
-    // If someone enters `foo@bar@baz` as an input here, `parts` will have more than two elements.
-    // `foo@bar` is probably not a valid login, but we don't want to lose that input here.
-    //
-    // In any case, we're just repeating what `tsh ssh` is doing with inputs like these - it treats
-    // the last part as the host and all the text before it as the login.
-    login = parts.join('@');
-  } else {
-    // If someone enters just `host` as an input, we still want to execute `tsh ssh host`. It might
-    // be that the username of the current OS user matches one of the usernames available on the
-    // host in which case providing the username directly is not necessary.
-    host = parts[0];
-  }
-
-  let server: tsh.Server | undefined;
-  let serverUri: uri.ServerUri, serverHostname: string;
-
-  try {
-    // TODO(ravicious): Handle finding a server by more than just a name.
-    // Basically we have to replicate tsh ssh behavior here.
-    server = await retryWithRelogin(ctx, clusterUri, () =>
-      ctx.resourcesService.getServerByHostname(clusterUri, host)
-    );
-  } catch (error) {
-    // TODO(ravicious): Handle ambiguous host name. See `onSSH` in `tool/tsh/tsh.go`.
-    if (error instanceof AmbiguousHostnameError) {
-      // Log the ambiguity of the hostname but continue anyway. This will pass the ambiguous
-      // hostname to tsh ssh and show an appropriate error in the new tab.
-      logger.error(error.message);
-    } else {
-      throw error;
-    }
-  }
-
-  if (server) {
-    serverUri = server.uri;
-    serverHostname = server.hostname;
-  } else {
-    // If we can't find a server by the given hostname, we still want to create a document to
-    // handle the error further down the line. It also lets the user connect to a host by its UUID.
-    serverUri = routing.getServerUri({
-      rootClusterId: doc.rootClusterId,
-      leafClusterId: doc.leafClusterId,
-      serverId: host,
-    });
-    serverHostname = host;
-  }
-
-  const title = login ? `${login}@${serverHostname}` : serverHostname;
-
-  const docFieldsToUpdate = {
-    loginHost: undefined,
-    serverId: routing.parseServerUri(serverUri).params.serverId,
-    serverUri,
-    login,
-    title,
-  };
-
-  // Returning the updated doc as described in the JSDoc for this function.
-  const updatedDoc = {
-    ...doc,
-    ...docFieldsToUpdate,
-  };
-
-  documentsService.update(doc.uri, docFieldsToUpdate);
-  return updatedDoc;
 }
 
 async function setUpPtyProcess(
@@ -230,7 +139,15 @@ async function setUpPtyProcess(
     getClusterName()
   );
 
-  const ptyProcess = await createPtyProcess(ctx, cmd);
+  const {
+    process: ptyProcess,
+    windowsPty,
+    shell,
+  } = await createPtyProcess(ctx, cmd);
+  // Update the document with the shell that was resolved.
+  // This may be a different shell than the one passed as `shellId`
+  // (for example, if it is no longer available, the default one will be opened).
+  documentsService.update(doc.uri, { shellId: shell.id });
 
   if (doc.kind === 'doc.terminal_tsh_node') {
     ctx.usageService.captureProtocolUse({
@@ -240,7 +157,7 @@ async function setUpPtyProcess(
       accessThrough: 'proxy_service',
     });
   }
-  if (doc.kind === 'doc.terminal_tsh_kube' || doc.kind === 'doc.gateway_kube') {
+  if (doc.kind === 'doc.gateway_kube') {
     ctx.usageService.captureProtocolUse({
       uri: clusterUri,
       // Other gateways send one protocol use event per gateway being created, but here we're
@@ -258,19 +175,11 @@ async function setUpPtyProcess(
   const openContextMenu = () => ctx.mainProcessClient.openTerminalContextMenu();
 
   const refreshTitle = async () => {
-    // TODO(ravicious): Enable updating cwd in doc.gateway_kube titles by
-    // moving title-updating logic to DocumentsService. The logic behind
-    // updating the title should be encapsulated in a single place, so that
-    // useDocumentTerminal doesn't need to know the details behind the title of
-    // each document kind.
-    if (doc.kind !== 'doc.terminal_shell') {
-      return;
-    }
-
-    const cwd = await ptyProcess.getCwd();
-    documentsService.update(doc.uri, {
-      cwd,
-      title: `${cwd || 'Terminal'} · ${getClusterName()}`,
+    documentsService.refreshPtyTitle(doc.uri, {
+      shell: shell,
+      cwd: await ptyProcess.getCwd(),
+      clusterName: getClusterName(),
+      runtimeSettings: ctx.mainProcessClient.getRuntimeSettings(),
     });
   };
 
@@ -280,9 +189,6 @@ async function setUpPtyProcess(
     refreshTitle();
   });
 
-  // TODO(ravicious): Refactor runOnce to not use the `n` variable. Otherwise runOnce subtracts 1
-  // from n each time the resulting function is executed, which in this context means each time data
-  // is transferred from PTY.
   const markDocumentAsConnectedOnce = runOnce(() => {
     if ('status' in doc) {
       documentsService.update(doc.uri, { status: 'connected' });
@@ -300,15 +206,12 @@ async function setUpPtyProcess(
 
   ptyProcess.onExit(event => {
     // Not closing the tab on non-zero exit code lets us show the error to the user if, for example,
-    // tsh ssh cannot connect to the given node.
+    // tsh ssh couldn't connect to the given node.
     //
-    // The downside of this is that if you open a local shell, then execute a command that fails
-    // (for example, `cd` to a nonexistent directory), and then try to execute `exit` or press
-    // Ctrl + D, the tab won't automatically close, because the last exit code is not zero.
-    //
-    // We can look up how the terminal in vscode handles this problem, since in the scenario
-    // described above they do close the tab correctly.
-    if (event.exitCode === 0) {
+    // We also have to account for Ctrl+D, as executing it makes the shell exit with the last
+    // reported exit code. If we depended on the exit code alone, it'd mean that the terminal tab
+    // wouldn't close if Ctrl+D followed a command that failed, say cd to a nonexistent directory.
+    if (event.exitCode === 0 || event.lastInputWasCtrlD) {
       documentsService.close(doc.uri);
     }
   });
@@ -317,14 +220,19 @@ async function setUpPtyProcess(
     ptyProcess,
     refreshTitle,
     openContextMenu,
+    windowsPty,
   };
 }
 
 async function createPtyProcess(
   ctx: IAppContext,
   cmd: PtyCommand
-): Promise<IPtyProcess> {
-  const { process, creationStatus } =
+): Promise<{
+  process: IPtyProcess;
+  windowsPty: WindowsPty;
+  shell: Shell;
+}> {
+  const { process, creationStatus, windowsPty, shell } =
     await ctx.terminalsService.createPtyProcess(cmd);
 
   if (creationStatus === PtyProcessCreationStatus.ResolveShellEnvTimeout) {
@@ -336,7 +244,16 @@ async function createPtyProcess(
     });
   }
 
-  return process;
+  if (
+    cmd.kind === 'pty.shell' &&
+    creationStatus === PtyProcessCreationStatus.ShellNotResolved
+  ) {
+    ctx.notificationsService.notifyWarning({
+      title: `Requested shell "${cmd.shellId}" is not available`,
+    });
+  }
+
+  return { process, windowsPty, shell };
 }
 
 // TODO(ravicious): Instead of creating cmd within useDocumentTerminal, make useDocumentTerminal
@@ -353,12 +270,6 @@ function createCmd(
   clusterName: string
 ): PtyCommand {
   if (doc.kind === 'doc.terminal_tsh_node') {
-    if (isDocumentTshNodeWithLoginHost(doc)) {
-      throw new Error(
-        'Cannot create a PTY for doc.terminal_tsh_node without serverId'
-      );
-    }
-
     return {
       kind: 'pty.tsh-login',
       proxyHost,
@@ -370,21 +281,11 @@ function createCmd(
     };
   }
 
-  // DELETE IN 15.0.0. See DocumentGatewayKube for more details.
-  if (doc.kind === 'doc.terminal_tsh_kube') {
-    return {
-      ...doc,
-      proxyHost,
-      clusterName,
-      kind: 'pty.tsh-kube-login',
-    };
-  }
-
   if (doc.kind === 'doc.gateway_cli_client') {
-    const gateway = clustersService.findGatewayByConnectionParams(
-      doc.targetUri,
-      doc.targetUser
-    );
+    const gateway = clustersService.findGatewayByConnectionParams({
+      targetUri: doc.targetUri,
+      targetUser: doc.targetUser,
+    });
     if (!gateway) {
       // This shouldn't happen as DocumentGatewayCliClient doesn't render DocumentTerminal before
       // the gateway is found. In any case, if it does happen for some reason, the user will see
@@ -414,10 +315,9 @@ function createCmd(
   }
 
   if (doc.kind === 'doc.gateway_kube') {
-    const gateway = clustersService.findGatewayByConnectionParams(
-      doc.targetUri,
-      ''
-    );
+    const gateway = clustersService.findGatewayByConnectionParams({
+      targetUri: doc.targetUri,
+    });
     if (!gateway) {
       throw new Error(`No gateway found for ${doc.targetUri}`);
     }
@@ -443,6 +343,7 @@ function createCmd(
       clusterName,
       env,
       initMessage,
+      shellId: doc.shellId,
     };
   }
 
@@ -452,5 +353,6 @@ function createCmd(
     proxyHost,
     clusterName,
     cwd: doc.cwd,
+    shellId: doc.shellId,
   };
 }

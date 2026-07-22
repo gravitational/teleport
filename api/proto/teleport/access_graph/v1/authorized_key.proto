@@ -43,4 +43,10 @@ message AuthorizedKeySpec {
   string key_fingerprint = 2;
   // host_user is the user who can be accessed using the fingerprint above.
   string host_user = 3;
+  // key_comment is the authorized key's comment.
+  // Authorized keys consist of the following space-separated fields:
+  // options, keytype, base64-encoded key, comment.  The options field is optional.
+  string key_comment = 4;
+  // key_type is the ssh's key type.
+  string key_type = 5;
 }

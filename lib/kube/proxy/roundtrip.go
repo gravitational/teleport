@@ -18,11 +18,12 @@ package proxy
 
 import (
 	"bufio"
-	"bytes"
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
@@ -30,18 +31,17 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
-	"k8s.io/apimachinery/pkg/util/httpstream"
-	streamspdy "k8s.io/apimachinery/pkg/util/httpstream/spdy"
 	utilnet "k8s.io/apimachinery/pkg/util/net"
 	"k8s.io/apimachinery/third_party/forked/golang/netutil"
+	"k8s.io/streaming/pkg/httpstream"
+	streamspdy "k8s.io/streaming/pkg/httpstream/spdy"
 
 	apiclient "github.com/gravitational/teleport/api/client"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/kube/internal"
 )
 
 // SpdyRoundTripper knows how to upgrade an HTTP request to one that supports
@@ -58,6 +58,20 @@ type SpdyRoundTripper struct {
 	*/
 	// conn is the underlying network connection to the remote server.
 	conn net.Conn
+
+	// cleanups contains objects that should be closed when the roundtripper is
+	// no longer used. [SpdyRoundTripper.Cleanup] should be called to ensure
+	// that.
+	cleanups []io.Closer
+}
+
+// Cleanup ensures that every connection that was opened by this roundtripper is
+// closed.
+func (w *SpdyRoundTripper) Cleanup() {
+	for _, closer := range w.cleanups {
+		_ = closer.Close()
+	}
+	w.cleanups = nil
 }
 
 var (
@@ -89,7 +103,7 @@ type roundTripperConfig struct {
 	// headers instead of relying on the certificate to transport it.
 	useIdentityForwarding bool
 	// log specifies the logger.
-	log log.FieldLogger
+	log *slog.Logger
 
 	proxier func(*http.Request) (*url.URL, error)
 }
@@ -112,7 +126,6 @@ func (s *SpdyRoundTripper) Dial(req *http.Request) (net.Conn, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	if err := req.Write(conn); err != nil {
 		conn.Close()
 		return nil, err
@@ -209,45 +222,36 @@ func (s *SpdyRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) 
 	copyImpersonationHeaders(header, s.originalHeaders)
 	header.Set(httpstream.HeaderConnection, httpstream.HeaderUpgrade)
 	header.Set(httpstream.HeaderUpgrade, streamspdy.HeaderSpdy31)
-	if err := setupImpersonationHeaders(log.StandardLogger(), s.sess, header); err != nil {
+	if err := setupImpersonationHeaders(s.sess, header); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	var (
-		conn        net.Conn
-		rawResponse []byte
-		err         error
-	)
 
 	// If we're using identity forwarding, we need to add the impersonation
 	// headers to the request before we send the request.
 	if s.useIdentityForwarding {
-		if header, err = auth.IdentityForwardingHeaders(s.ctx, header); err != nil {
+		h, err := internal.IdentityForwardingHeaders(s.ctx, header)
+		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		header = h
 	}
 
 	clone := utilnet.CloneRequest(req)
 	clone.Header = header
-	conn, err = s.Dial(clone)
+	conn, err := s.Dial(clone)
 	if err != nil {
 		return nil, err
 	}
 
-	responseReader := bufio.NewReader(
-		io.MultiReader(
-			bytes.NewBuffer(rawResponse),
-			conn,
-		),
-	)
+	responseReader := bufio.NewReader(conn)
+
 	resp, err := http.ReadResponse(responseReader, nil)
 	if err != nil {
-		if conn != nil {
-			conn.Close()
-		}
+		conn.Close()
 		return nil, err
 	}
 
+	s.cleanups = append(s.cleanups, conn)
 	s.conn = conn
 
 	return resp, nil
@@ -256,26 +260,20 @@ func (s *SpdyRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) 
 // NewConnection validates the upgrade response, creating and returning a new
 // httpstream.Connection if there were no errors.
 func (s *SpdyRoundTripper) NewConnection(resp *http.Response) (httpstream.Connection, error) {
+	if s.conn == nil {
+		return nil, trace.Wrap(&upgradeFailureError{
+			Cause: errors.New("unable to upgrade connection: broken roundtripper setup, connection is missing but it should be present (this is a bug)"),
+		})
+	}
 	connectionHeader := strings.ToLower(resp.Header.Get(httpstream.HeaderConnection))
 	upgradeHeader := strings.ToLower(resp.Header.Get(httpstream.HeaderUpgrade))
-	if (resp.StatusCode != http.StatusSwitchingProtocols) || !strings.Contains(connectionHeader, strings.ToLower(httpstream.HeaderUpgrade)) || !strings.Contains(upgradeHeader, strings.ToLower(streamspdy.HeaderSpdy31)) {
-		defer resp.Body.Close()
-		responseError := ""
-		responseErrorBytes, err := io.ReadAll(resp.Body)
-		if err != nil {
-			responseError = "unable to read error from server response"
-		} else {
-			// TODO: I don't belong here, I should be abstracted from this class
-			if obj, _, err := statusCodecs.UniversalDecoder().Decode(responseErrorBytes, nil, &metav1.Status{}); err == nil {
-				if status, ok := obj.(*metav1.Status); ok {
-					return nil, &apierrors.StatusError{ErrStatus: *status}
-				}
-			}
-			responseError = string(responseErrorBytes)
-			responseError = strings.TrimSpace(responseError)
-		}
-
-		return nil, fmt.Errorf("unable to upgrade connection: %s", responseError)
+	if (resp.StatusCode != http.StatusSwitchingProtocols) ||
+		!strings.Contains(connectionHeader, strings.ToLower(httpstream.HeaderUpgrade)) ||
+		!strings.Contains(upgradeHeader, strings.ToLower(streamspdy.HeaderSpdy31)) {
+		// The upgrade was rejected. Close the conn after reading the response
+		// error so that we don't leak an io.Copy goroutine.
+		defer s.conn.Close()
+		return nil, trace.Wrap(extractKubeAPIStatusFromReq(resp))
 	}
 
 	return streamspdy.NewClientConnectionWithPings(s.conn, s.pingPeriod)
@@ -291,4 +289,44 @@ func init() {
 	statusScheme.AddUnversionedTypes(metav1.SchemeGroupVersion,
 		&metav1.Status{},
 	)
+}
+
+// extractKubeAPIStatusFromReq extracts the status from the response body and returns it as an error.
+func extractKubeAPIStatusFromReq(rsp *http.Response) error {
+	defer func() {
+		_ = rsp.Body.Close()
+	}()
+	responseError := ""
+	responseErrorBytes, err := io.ReadAll(rsp.Body)
+	if err != nil {
+		responseError = "unable to read error from server response"
+	} else {
+		if obj, _, err := statusCodecs.UniversalDecoder().Decode(responseErrorBytes, nil, &metav1.Status{}); err == nil {
+			if status, ok := obj.(*metav1.Status); ok {
+				return &upgradeFailureError{Cause: &apierrors.StatusError{ErrStatus: *status}}
+			}
+		}
+		responseError = string(responseErrorBytes)
+		responseError = strings.TrimSpace(responseError)
+	}
+	return &upgradeFailureError{Cause: fmt.Errorf("unable to upgrade connection: %s", responseError)}
+}
+
+// upgradeFailureError encapsulates the cause for why the streaming
+// upgrade request failed. Implements error interface.
+type upgradeFailureError struct {
+	Cause error
+}
+
+func (u *upgradeFailureError) Error() string {
+	return u.Cause.Error()
+}
+
+func (u *upgradeFailureError) Unwrap() error {
+	return u.Cause
+}
+
+func isTeleportUpgradeFailure(err error) bool {
+	var upgradeErr *upgradeFailureError
+	return errors.As(err, &upgradeErr)
 }

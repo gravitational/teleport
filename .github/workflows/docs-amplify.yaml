@@ -1,0 +1,110 @@
+name: Docs Preview
+on:
+  pull_request:
+    paths:
+      - 'docs/**'
+      - .github/workflows/docs-amplify.yaml
+      - .github/scripts/preview-links.js
+      - .github/scripts/post-preview-links.js
+  workflow_dispatch:
+
+# Default to no permissions; each job grants only what it needs.
+permissions: {}
+
+jobs:
+  # This job holds the privileged work (AWS OIDC + Amplify). It deliberately
+  # does NOT check out or execute any PR-controlled code: it only runs the
+  # SHA-pinned trusted actions and exports the preview branch/app ID as job
+  # outputs for the next job to consume.
+  amplify-preview:
+    name: Prepare Amplify preview URL
+    runs-on: ubuntu-slim
+    environment: docs-amplify
+    permissions:
+      id-token: write       # assume the AWS role via OIDC
+      pull-requests: write  # the shared action posts the deployment-status comment
+      contents: read
+    outputs:
+      branch: ${{ steps.amplify_preview.outputs.amplify_branch_name }}
+      app_id: ${{ steps.amplify_preview.outputs.amplify_app_id }}
+      job_id: ${{ steps.amplify_preview.outputs.amplify_job_id }}
+    steps:
+    - name: Get runtime values from kvstore
+      id: kvstore
+      uses: gravitational/shared-workflows/tools/env-kvstore@tools/env-kvstore/v1.0.0
+      with:
+        cognito-identity-pool-id: "us-west-2:da53389e-a459-4a28-bd54-43eeb8e4b579"
+        cognito-role-arn: "arn:aws:iam::247230412011:role/github-actions-cognito-oidc"
+        existing-gh-secrets: "${{ toJSON(secrets) }}"
+        existing-gh-variables: "${{ toJSON(vars) }}"
+        values: |
+          AMPLIFY_APP_IDS,variable
+          IAM_ROLE,variable
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@a03048d87541d1d9fcf2ecf528a4a65ba9bd7838 # v4
+      with:
+        aws-region: us-west-2
+        role-to-assume: ${{ env.IAM_ROLE }}
+
+    - name: Create Amplify preview environment
+      uses: gravitational/shared-workflows/tools/amplify-preview@b90d744feb39522329fba9c7764a4fe07d039d29 # tools/amplify-preview/v0.0.3
+      id: amplify_preview
+      with:
+        app_ids: ${{ env.AMPLIFY_APP_IDS }}
+        create_branches: "true"
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        wait: "true"
+
+    - name: Print failure message
+      if: failure()
+      env:
+        ERR_TITLE: Teleport Docs preview build failed
+        ERR_MESSAGE: >-
+          Please refer to the following documentation for help: https://www.notion.so/goteleport/How-to-Amplify-deployments-162fdd3830be8096ba72efa1a49ee7bc?pvs=4
+          Execution info: ${{ steps.amplify_preview.outputs.amplify_app_id }} ${{ steps.amplify_preview.outputs.amplify_branch_name }} ${{ steps.amplify_preview.outputs.amplify_job_id }}
+      run: |
+        echo ::error title=$ERR_TITLE::$ERR_MESSAGE
+        exit 1
+
+  # This job runs the PR-controlled link script. It has NO AWS credentials and
+  # NO id-token, and is not attached to the docs-amplify environment, so the
+  # only credential available to the checked-out script is a GITHUB_TOKEN
+  # limited to pull-requests: write. It receives the preview branch/app ID as
+  # plain strings via the amplify-preview job outputs.
+  preview-links:
+    name: Post per-page preview links
+    needs: amplify-preview
+    runs-on: ubuntu-slim
+    permissions:
+      pull-requests: write
+      contents: read
+    steps:
+    - name: Check out repository
+      uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+    # Detect which docs files changed using the same action the rest of the
+    # repo uses. This handles diffing and pagination, so the script doesn't
+    # call the API for the file list. added|modified excludes deleted files,
+    # which have no preview page to link.
+    - name: Detect changed docs files
+      uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
+      id: changes
+      with:
+        list-files: json
+        filters: |
+          docs:
+            - added|modified: 'docs/pages/**/*.mdx'
+            - added|modified: 'docs/img/**'
+
+    - name: Append per-page preview links to deployment status comment
+      uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+      env:
+        PREVIEW_BRANCH: ${{ needs.amplify-preview.outputs.branch }}
+        PREVIEW_APP_ID: ${{ needs.amplify-preview.outputs.app_id }}
+        CHANGED_FILES: ${{ steps.changes.outputs.docs_files }}
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        script: |
+          const { run } = require('./.github/scripts/post-preview-links.js');
+          await run({ github, context, core });

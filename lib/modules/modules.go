@@ -25,8 +25,10 @@ import (
 	"crypto"
 	"errors"
 	"fmt"
+	"iter"
 	"os"
 	"runtime"
+	"strconv"
 	"sync"
 	"time"
 
@@ -34,12 +36,11 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/entitlements"
-	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -61,6 +62,12 @@ type Features struct {
 	SupportType proto.SupportType
 	// Entitlements reflect Cloud Entitlements including access and limits
 	Entitlements map[entitlements.EntitlementKind]EntitlementInfo
+	// CloudAnonymizationKey is the key used to anonymize usage events in a cluster.
+	// Only applicable for Cloud customers (self-hosted clusters get their anonymization key from the
+	// license file).
+	CloudAnonymizationKey []byte
+	// BeamsUI indicates whether the Beams lite-mode UI is enabled
+	BeamsUI bool
 
 	// todo (michellescripts) have the following fields evaluated for deprecation, consolidation, or fetch from Cloud
 	// AdvancedAccessWorkflows is currently set to the value of the Cloud Access Requests entitlement
@@ -112,7 +119,7 @@ func (e EntitlementInfo) UnderLimit(count int) bool {
 
 // ToProto converts Features into proto.Features
 func (f Features) ToProto() *proto.Features {
-	protoF := &proto.Features{
+	return &proto.Features{
 		Cloud:                      f.Cloud,
 		CustomTheme:                f.CustomTheme,
 		IsStripeManaged:            f.IsStripeManaged,
@@ -128,42 +135,15 @@ func (f Features) ToProto() *proto.Features {
 		RecoveryCodes:              f.RecoveryCodes,
 		AccessMonitoringConfigured: f.AccessMonitoringConfigured,
 		Entitlements:               f.EntitlementsToProto(),
-	}
 
-	// remove setLegacyLogic in v18
-	setLegacyLogic(protoF, f)
-	return protoF
-}
-
-// setLegacyLogic sets the deprecated fields; to be removed in v18 - use entitlements
-func setLegacyLogic(protoF *proto.Features, f Features) {
-	protoF.Kubernetes = f.GetEntitlement(entitlements.K8s).Enabled
-	protoF.App = f.GetEntitlement(entitlements.App).Enabled
-	protoF.DB = f.GetEntitlement(entitlements.DB).Enabled
-	protoF.OIDC = f.GetEntitlement(entitlements.OIDC).Enabled
-	protoF.SAML = f.GetEntitlement(entitlements.SAML).Enabled
-	protoF.HSM = f.GetEntitlement(entitlements.HSM).Enabled
-	protoF.Desktop = f.GetEntitlement(entitlements.Desktop).Enabled
-	protoF.FeatureHiding = f.GetEntitlement(entitlements.FeatureHiding).Enabled
-	protoF.IdentityGovernance = f.GetEntitlement(entitlements.Identity).Enabled
-	protoF.ExternalAuditStorage = f.GetEntitlement(entitlements.ExternalAuditStorage).Enabled
-	protoF.JoinActiveSessions = f.GetEntitlement(entitlements.JoinActiveSessions).Enabled
-	protoF.MobileDeviceManagement = f.GetEntitlement(entitlements.MobileDeviceManagement).Enabled
-
-	protoF.DeviceTrust = &proto.DeviceTrustFeature{
-		Enabled: f.GetEntitlement(entitlements.DeviceTrust).Enabled, DevicesUsageLimit: f.GetEntitlement(entitlements.DeviceTrust).Limit,
-	}
-	protoF.AccessRequests = &proto.AccessRequestsFeature{
-		MonthlyRequestLimit: f.GetEntitlement(entitlements.AccessRequests).Limit,
-	}
-	protoF.AccessMonitoring = &proto.AccessMonitoringFeature{
-		Enabled: f.AccessMonitoringConfigured, MaxReportRangeLimit: f.GetEntitlement(entitlements.AccessMonitoring).Limit,
-	}
-	protoF.AccessList = &proto.AccessListFeature{
-		CreateLimit: f.GetEntitlement(entitlements.AccessLists).Limit,
-	}
-	protoF.Policy = &proto.PolicyFeature{
-		Enabled: f.GetEntitlement(entitlements.Policy).Enabled,
+		// TODO(michellescripts) DELETE IN v21.0.0
+		// Deprecated, use entitlements
+		Policy: &proto.PolicyFeature{
+			Enabled: f.GetEntitlement(entitlements.Policy).Enabled,
+		},
+		AccessGraphDemoMode:  f.GetEntitlement(entitlements.AccessGraphDemoMode).Enabled,
+		ClientIPRestrictions: f.GetEntitlement(entitlements.ClientIPRestrictions).Enabled,
+		BeamsUI:              f.BeamsUI && f.GetEntitlement(entitlements.Beams).Enabled,
 	}
 }
 
@@ -234,14 +214,20 @@ type AccessResourcesGetter interface {
 	ListAccessLists(context.Context, int, string) ([]*accesslist.AccessList, string, error)
 	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
 
+	GetAccessList(context.Context, string) (*accesslist.AccessList, error)
+	GetAccessLists(ctx context.Context) ([]*accesslist.AccessList, error)
+
 	ListAccessListMembers(ctx context.Context, accessList string, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error)
 	GetAccessListMember(ctx context.Context, accessList string, memberName string) (*accesslist.AccessListMember, error)
+	GetAccessListOwners(ctx context.Context, accessList string) ([]*accesslist.Owner, error)
 
 	GetUser(ctx context.Context, userName string, withSecrets bool) (types.User, error)
 	GetRole(ctx context.Context, name string) (types.Role, error)
 
 	GetLock(ctx context.Context, name string) (types.Lock, error)
 	GetLocks(ctx context.Context, inForceOnly bool, targets ...types.LockTarget) ([]types.Lock, error)
+	ListLocks(ctx context.Context, limit int, startKey string, filter *types.LockFilter) ([]types.Lock, string, error)
+	RangeLocks(ctx context.Context, start, end string, filter *types.LockFilter) iter.Seq2[types.Lock, error]
 }
 
 type AccessListSuggestionClient interface {
@@ -250,13 +236,18 @@ type AccessListSuggestionClient interface {
 
 	GetAccessRequestAllowedPromotions(ctx context.Context, req types.AccessRequest) (*types.AccessRequestAllowedPromotions, error)
 	GetAccessRequests(ctx context.Context, filter types.AccessRequestFilter) ([]types.AccessRequest, error)
+	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
 }
 
 type RoleGetter interface {
 	GetRole(ctx context.Context, name string) (types.Role, error)
 }
-type AccessListGetter interface {
+
+type AccessListAndMembersGetter interface {
 	GetAccessList(ctx context.Context, name string) (*accesslist.AccessList, error)
+	GetAccessLists(ctx context.Context) ([]*accesslist.AccessList, error)
+	GetAccessListMember(ctx context.Context, accessList string, memberName string) (*accesslist.AccessListMember, error)
+	ListAccessListMembers(ctx context.Context, accessListName string, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error)
 }
 
 // Modules defines interface that external libraries can implement customizing
@@ -264,8 +255,6 @@ type AccessListGetter interface {
 type Modules interface {
 	// PrintVersion prints teleport version
 	PrintVersion()
-	// IsBoringBinary checks if the binary was compiled with BoringCrypto.
-	IsBoringBinary() bool
 	// Features returns supported features
 	Features() Features
 	// SetFeatures set features queried from Cloud
@@ -276,12 +265,18 @@ type Modules interface {
 	IsEnterpriseBuild() bool
 	// IsOSSBuild returns if the binary was built without enterprise modules
 	IsOSSBuild() bool
+	// IsFIPSBuild checks if the binary was compiled in FIPS140 mode.
+	IsFIPSBuild() bool
 	// AttestHardwareKey attests a hardware key and returns its associated private key policy.
-	AttestHardwareKey(context.Context, interface{}, *keys.AttestationStatement, crypto.PublicKey, time.Duration) (*keys.AttestationData, error)
+	AttestHardwareKey(context.Context, any, *hardwarekey.AttestationStatement, crypto.PublicKey, time.Duration) (*keys.AttestationData, error)
 	// GenerateAccessRequestPromotions generates a list of valid promotions for given access request.
 	GenerateAccessRequestPromotions(context.Context, AccessResourcesGetter, types.AccessRequest) (*types.AccessRequestAllowedPromotions, error)
+	// GenerateAccessRequestSuggestedReviewers generates a list of suggested reviewers for a given access request.
+	GenerateAccessRequestSuggestedReviewers(context.Context, AccessResourcesGetter, types.AccessRequest) ([]string, error)
+	// GenerateLongTermResourceGrouping analyzes how resources can be grouped into access lists and returns information about optimal groupings for long-term access.
+	GenerateLongTermResourceGrouping(context.Context, AccessResourcesGetter, types.AccessRequest) (*types.LongTermResourceGrouping, error)
 	// GetSuggestedAccessLists generates a list of valid promotions for given access request.
-	GetSuggestedAccessLists(ctx context.Context, identity *tlsca.Identity, clt AccessListSuggestionClient, accessListGetter AccessListGetter, requestID string) ([]*accesslist.AccessList, error)
+	GetSuggestedAccessLists(ctx context.Context, identity *tlsca.Identity, clt AccessListSuggestionClient, accessListGetter AccessListAndMembersGetter, requestID string) ([]*accesslist.AccessList, error)
 	// EnableRecoveryCodes enables the usage of recovery codes for resetting forgotten passwords
 	EnableRecoveryCodes()
 	// EnablePlugins enables the hosted plugins runtime
@@ -290,6 +285,8 @@ type Modules interface {
 	EnableAccessGraph()
 	// EnableAccessMonitoring enables the usage of access monitoring.
 	EnableAccessMonitoring()
+	// LicenseExpiry returns the expiry date of the enterprise license, if applicable.
+	LicenseExpiry() time.Time
 }
 
 const (
@@ -310,7 +307,10 @@ func SetModules(m Modules) {
 	modules = m
 }
 
-// GetModules returns the modules interface
+// GetModules returns the modules interface. It only works in the auth service
+// process, so any code that may be executed in a different context needs to
+// obtain modules or derived options from an auth-specific caller or an RPC
+// call to the auth server.
 func GetModules() Modules {
 	mutex.Lock()
 	defer mutex.Unlock()
@@ -321,14 +321,13 @@ var ErrCannotDisableSecondFactor = errors.New("cannot disable multi-factor authe
 
 // ValidateResource performs additional resource checks.
 func ValidateResource(res types.Resource) error {
-	// todo(lxea): DELETE IN 17 [remove env var, leave insecure test mode]
+	// todo(tross): DELETE WHEN ABLE TO [remove env var, leave insecure test mode]
+	allowNoSecondFactor, _ := strconv.ParseBool(os.Getenv(teleport.EnvVarAllowNoSecondFactor))
 	if GetModules().Features().Cloud ||
-		(os.Getenv(teleport.EnvVarAllowNoSecondFactor) != "yes" && !IsInsecureTestMode()) {
-
+		(!allowNoSecondFactor && !IsInsecureTestMode()) {
 		switch r := res.(type) {
 		case types.AuthPreference:
-			switch r.GetSecondFactor() {
-			case constants.SecondFactorOff, constants.SecondFactorOptional:
+			if !r.IsSecondFactorEnforced() {
 				return trace.Wrap(ErrCannotDisableSecondFactor)
 			}
 		}
@@ -379,6 +378,12 @@ func (p *defaultModules) PrintVersion() {
 	fmt.Printf("Teleport v%s git:%s %s\n", teleport.Version, teleport.Gitref, runtime.Version())
 }
 
+// LicenseExpiry returns the expiry date of the enterprise license, if applicable.
+// Returns the zero value for time.Time for OSS.
+func (p *defaultModules) LicenseExpiry() time.Time {
+	return time.Time{}
+}
+
 // Features returns supported features for default modules which is applied for OSS users
 // todo (michellescripts) remove deprecated features
 func (p *defaultModules) Features() Features {
@@ -404,14 +409,20 @@ func (p *defaultModules) Features() Features {
 func (p *defaultModules) SetFeatures(f Features) {
 }
 
-func (p *defaultModules) IsBoringBinary() bool {
-	return native.IsBoringBinary()
+// IsFIPSBuild checks if the binary was compiled in FIPS140 mode.
+func (p *defaultModules) IsFIPSBuild() bool {
+	return IsFIPSBuild()
 }
 
 // AttestHardwareKey attests a hardware key.
-func (p *defaultModules) AttestHardwareKey(_ context.Context, _ interface{}, _ *keys.AttestationStatement, _ crypto.PublicKey, _ time.Duration) (*keys.AttestationData, error) {
+func (p *defaultModules) AttestHardwareKey(_ context.Context, _ any, _ *hardwarekey.AttestationStatement, _ crypto.PublicKey, _ time.Duration) (*keys.AttestationData, error) {
 	// Default modules do not support attesting hardware keys.
 	return nil, trace.NotFound("no attestation data for the given key")
+}
+
+// GenerateLongTermResourceGrouping is a noop since OSS teleport does not support long-term Access Requests.
+func (p *defaultModules) GenerateLongTermResourceGrouping(_ context.Context, _ AccessResourcesGetter, _ types.AccessRequest) (*types.LongTermResourceGrouping, error) {
+	return &types.LongTermResourceGrouping{}, nil
 }
 
 // GenerateAccessRequestPromotions is a noop since OSS teleport does not support generating access list promotions.
@@ -420,8 +431,13 @@ func (p *defaultModules) GenerateAccessRequestPromotions(_ context.Context, _ Ac
 	return types.NewAccessRequestAllowedPromotions(nil), nil
 }
 
+// GenerateAccessRequestSuggestedReviewers is a noop for OSS teleport.
+func (p *defaultModules) GenerateAccessRequestSuggestedReviewers(context.Context, AccessResourcesGetter, types.AccessRequest) ([]string, error) {
+	return []string{}, nil
+}
+
 func (p *defaultModules) GetSuggestedAccessLists(ctx context.Context, identity *tlsca.Identity, clt AccessListSuggestionClient,
-	accessListGetter AccessListGetter, requestID string,
+	accessListGetter AccessListAndMembersGetter, requestID string,
 ) ([]*accesslist.AccessList, error) {
 	return nil, trace.NotImplemented("GetSuggestedAccessLists not implemented")
 }

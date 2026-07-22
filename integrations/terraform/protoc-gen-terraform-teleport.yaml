@@ -12,16 +12,24 @@ types:
     - "ClusterNetworkingConfigV2"
     - "DatabaseV3"
     - "GithubConnectorV3"
+    - "KubernetesClusterV3"
+    - "LockV2"
     - "OIDCConnectorV3"
     - "OktaImportRuleV1"
     - "RoleV6"
     - "SAMLConnectorV2"
+    - "SAMLIdPServiceProviderV1"
     - "ServerV2"
     - "SessionRecordingConfigV2"
     - "TrustedClusterV2"
+    - "UIConfigV1"
     - "UserV2"
+    - "InstallerV1"
+    - "DynamicWindowsDesktopV1"
+    - "ProvisionTokenV2"
+    - "IntegrationV1"
 
-# id field is required for integration tests. It is not used by provider. 
+# id field is required for integration tests. It is not used by provider.
 # We have to add it manually (might be removed in the future versions).
 injected_fields:
   AppV3:
@@ -66,6 +74,20 @@ injected_fields:
       computed: true
       plan_modifiers:
         - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
+  KubernetesClusterV3:
+    -
+      name: id
+      type: github.com/hashicorp/terraform-plugin-framework/types.StringType
+      computed: true
+      plan_modifiers:
+        - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
+  LockV2:
+    -
+      name: id
+      type: github.com/hashicorp/terraform-plugin-framework/types.StringType
+      computed: true
+      plan_modifiers:
+        - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
   OIDCConnectorV3:
     -
       name: id
@@ -80,6 +102,13 @@ injected_fields:
       computed: true
       plan_modifiers:
         - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
+  ProvisionTokenV2:
+    -
+      name: id
+      type: github.com/hashicorp/terraform-plugin-framework/types.StringType
+      computed: true
+      plan_modifiers:
+        - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
   RoleV6:
     -
       name: id
@@ -88,6 +117,13 @@ injected_fields:
       plan_modifiers:
         - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
   SAMLConnectorV2:
+    -
+      name: id
+      type: github.com/hashicorp/terraform-plugin-framework/types.StringType
+      computed: true
+      plan_modifiers:
+        - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
+  SAMLIdPServiceProviderV1:
     -
       name: id
       type: github.com/hashicorp/terraform-plugin-framework/types.StringType
@@ -115,7 +151,35 @@ injected_fields:
       computed: true
       plan_modifiers:
         - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
+  UIConfigV1:
+    -
+      name: id
+      type: github.com/hashicorp/terraform-plugin-framework/types.StringType
+      computed: true
+      plan_modifiers:
+        - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
   UserV2:
+    -
+      name: id
+      type: github.com/hashicorp/terraform-plugin-framework/types.StringType
+      computed: true
+      plan_modifiers:
+        - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
+  InstallerV1:
+    -
+      name: id
+      type: github.com/hashicorp/terraform-plugin-framework/types.StringType
+      computed: true
+      plan_modifiers:
+        - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
+  DynamicWindowsDesktopV1:
+    -
+      name: id
+      type: github.com/hashicorp/terraform-plugin-framework/types.StringType
+      computed: true
+      plan_modifiers:
+        - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
+  IntegrationV1:
     -
       name: id
       type: github.com/hashicorp/terraform-plugin-framework/types.StringType
@@ -130,6 +194,7 @@ exclude_fields:
 
     # AuthPreference
     - "AuthPreferenceV2.Metadata.Name" # It's a singleton resource
+    - "AuthPreferenceV2.Spec.AllowBrowserAuthentication" # Deprecated, use AllowCLIAuthViaBrowser
 
     # ClusterMaintenanceConfig
     - "ClusterMaintenanceConfigV1.Metadata.Name" # It's a singleton resource
@@ -140,21 +205,40 @@ exclude_fields:
     # Status
     - "DatabaseV3.Status"
 
+    # Status (warning, this field is a special case and has no capital "S").
+    - "KubernetesClusterV3.status"
+
     # Role
     - "RoleV6.Spec.Allow.Namespaces" # These fields are not settable via API
     - "RoleV6.Spec.Deny.Namespaces"
 
     # Server
     - "ServerSpecV2.CmdLabels"
+    - "ServerSpecV2.component_features"
 
     # SessionRecordingConfig
     - "SessionRecordingConfigV2.Metadata.Name" # It's a singleton resource
+
+    # UIConfig
+    - "UIConfigV1.Metadata.Name" # It's a singleton resource
+    - "UIConfigV1.Metadata.Revision"
 
     # User
     - "UserSpecV2.LocalAuth" # We do not need to set user auth data
     - "UserSpecV2.Expires"   # Those fields are Teleport side meta, we do not need to change them via Terraform
     - "UserSpecV2.CreatedBy"
     - "UserSpecV2.Status"
+
+    # Integration
+    - "IntegrationV1.Status"
+    # only the "github" integration subkind uses credentials currently, but
+    # credentials is excluded intentionally so that we dont have to handle plugin credentials, which are stored separately.
+    - "IntegrationV1.Spec.credentials"
+    - "IntegrationV1.Spec.GitHub"
+
+    # Uses a google.protobuf.Struct field that isn't supported (see
+    # https://github.com/gravitational/protoc-gen-terraform/issues/52)
+    - "ProvisionTokenV2.Spec.GenericOIDC.MustMatchFields"
 
 name_overrides:
 
@@ -165,9 +249,14 @@ computed_fields:
 
     # App
     - "AppV3.Metadata.Labels"
-    - "AppV3.Kind"    
+    - "AppV3.Kind"
 
     # Auth preference
+    - "AuthPreferenceV2.Spec.AllowPasswordless"
+    - "AuthPreferenceV2.Spec.AllowHeadless"
+    - "AuthPreferenceV2.Spec.AllowCLIAuthViaBrowser"
+    - "AuthPreferenceV2.Spec.DisconnectExpiredCert"
+    - "AuthPreferenceV2.Spec.AllowLocalAuth"
     - "AuthPreferenceV2.Spec.SecondFactor"
     - "AuthPreferenceV2.Spec.Type"
     - "AuthPreferenceV2.Spec.LockingMode"
@@ -190,11 +279,22 @@ computed_fields:
     # Github connector
     - "GithubConnectorV3.Kind"
 
+    # Kubernetes cluster
+    - "KubernetesClusterV3.Kind"
+
+    # Lock
+    - "LockV2.Kind"
+
     # OIDC connector
     - "OIDCConnectorV3.Kind"
 
     # Okta import rule
     - "OktaImportRuleV1.Kind"
+
+    # Provision token
+    - "ProvisionTokenV2.Spec.AWSIIDTTL"
+    - "ProvisionTokenV2.Kind"
+    - "ProvisionTokenV2.Metadata.Name"
 
     # Role
     - "RoleV6.Spec.Options.MaxSessionTTL"
@@ -206,15 +306,15 @@ computed_fields:
     # Computed is often used to represent values that are not user configurable or can not be known at time of terraform plan or apply,
     #------------------------------------
     # role_test.go:244: Step 1/8 error: Error running apply: exit status 1
-    #    
+    #
     #     Error: Provider produced inconsistent result after apply
-    #    
+    #
     #     When applying changes to teleport_role.upgrade, provider
     #     "provider[\"registry.terraform.io/hashicorp/teleport\"]" produced an
     #     unexpected new value: .spec.allow.kubernetes_resources: was null, but now
     #     cty.ListVal([]cty.Value{cty.ObjectVal(map[string]cty.Value{"kind":cty.StringVal("pod"),
     #     "name":cty.StringVal("*"), "namespace":cty.StringVal("*")})}).
-    #    
+    #
     #     This is a bug in the provider, which should be reported in the provider's own
     #     issue tracker.
     #------------------------------------
@@ -225,6 +325,12 @@ computed_fields:
     - "RoleV6.Spec.Allow.KubernetesResources.Verbs"
     - "RoleV6.Spec.Options.BPF"
     - "RoleV6.Kind"
+    - "RoleV6.Spec.Options"
+    - "RoleV6.Spec.Options.SSHFileCopy"
+    - "RoleV6.Spec.Options.CreateDatabaseUser"
+    - "RoleV6.Spec.Options.CreateDesktopUser"
+    - "RoleV6.Spec.Options.DesktopClipboard"
+    - "RoleV6.Spec.Options.DesktopDirectorySharing"
 
     # SAML connector
     - "SAMLConnectorV2.Spec.Audience"
@@ -238,6 +344,13 @@ computed_fields:
     - "SAMLConnectorV2.Spec.EncryptionKeyPair.PrivateKey"
     - "SAMLConnectorV2.Spec.EncryptionKeyPair.Cert"
     - "SAMLConnectorV2.Kind"
+
+    # SAML IdP Service Provider
+    - "SAMLIdPServiceProviderV1.Kind"
+    - "SAMLIdPServiceProviderV1.Spec.EntityDescriptor"
+    - "SAMLIdPServiceProviderV1.Spec.EntityID"
+    - "SAMLIdPServiceProviderV1.Spec.Presets"
+    - "SAMLIdPServiceProviderV1.Spec.RelayState"
 
     # Server
     - "ServerV2.Kind"
@@ -255,17 +368,29 @@ computed_fields:
     # back into the state.
     - "ServerV2.Metadata"
 
-  # Session recording
+    # Session recording
     - "SessionRecordingConfigV2.Spec.Mode"
     - "SessionRecordingConfigV2.Kind"
 
     # Trusted cluster
     - "TrustedClusterV2.Kind"
 
+    # UI config
+    - "UIConfigV1.Kind"
+
     # User
     - "UserV2.Kind"
 
-# These fields will be marked as Required: true 
+    # Installer
+    - "InstallerV1.Kind"
+
+    # DynamicWindowsDesktop
+    - "DynamicWindowsDesktopV1.Kind"
+
+    # Integration
+    - "IntegrationV1.Kind"
+
+# These fields will be marked as Required: true
 required_fields:
     # App
     - "AppV3.Metadata.Name"
@@ -276,8 +401,8 @@ required_fields:
     - "AuthPreferenceV2.Metadata.Name"
 
     # Database
-    - "DatabaseV3.Spec.Protocol"    
-    - "DatabaseV3.Spec.URI"        
+    - "DatabaseV3.Spec.Protocol"
+    - "DatabaseV3.Spec.URI"
     - "DatabaseV3.Metadata.Name"
     - "DatabaseV3.Version"
 
@@ -288,6 +413,10 @@ required_fields:
     - "GithubConnectorV3.Metadata.Name"
     - "GithubConnectorV3.Version"
 
+    # KubernetesCluster
+    - "KubernetesClusterV3.Metadata.Name"
+    - "KubernetesClusterV3.Version"
+
     # OIDC connector
     - "OIDCConnectorV3.Spec"
     - "OIDCConnectorV3.Metadata.Name"
@@ -297,6 +426,12 @@ required_fields:
     - "OktaImportRuleV1.Spec"
     - "OktaImportRuleV1.Metadata.Name"
     - "OktaImportRuleV1.Version"
+
+    # Provision token
+    - "ProvisionTokenV2.Spec"
+    - "ProvisionTokenV2.Spec.Options"
+    - "ProvisionTokenV2.Spec.Roles"
+    - "ProvisionTokenV2.Version"
 
     # Role
     - "RoleV6.Metadata.Name"
@@ -309,6 +444,11 @@ required_fields:
     - "SAMLConnectorV2.Metadata.Name"
     - "SAMLConnectorV2.Version"
 
+    # SAML IdP Service Provider
+    - "SAMLIdPServiceProviderV1.Spec"
+    - "SAMLIdPServiceProviderV1.Metadata.Name"
+    - "SAMLIdPServiceProviderV1.Version"
+
     # Server
     - "ServerV2.Version"
     - "ServerV2.SubKind"
@@ -318,6 +458,9 @@ required_fields:
     - "TrustedClusterV2.Version"
     - "TrustedClusterV2.Spec"
 
+    # UI config
+    - "UIConfigV1.Version"
+
     # User
     - "UserV2.Metadata.Name"
     - "UserV2.Version"
@@ -326,12 +469,34 @@ required_fields:
     - "ClusterMaintenanceConfigV1.Version"
     - "AuthPreferenceV2.Version"
 
+    # Installer
+    - "InstallerV1.Spec"
+    - "InstallerV1.Spec.Script"
+    - "InstallerV1.Metadata.Name"
+    - "InstallerV1.Version"
+
+    # DynamicWindowsDesktop
+    - "DynamicWindowsDesktopV1.Spec"
+    - "DynamicWindowsDesktopV1.Spec.Addr"
+    - "DynamicWindowsDesktopV1.Metadata.Name"
+    - "DynamicWindowsDesktopV1.Version"
+
+    # Integration
+    - "IntegrationV1.Metadata"
+    - "IntegrationV1.Metadata.Name"
+    - "IntegrationV1.SubKind"
+    - "IntegrationV1.Version"
+    - "IntegrationV1.Spec"
+
 # These fields must be marked as sensitive
 sensitive_fields:
+    - "KubernetesClusterV3.Spec.Kubeconfig"
+    - "ProvisionTokenV2.Metadata.Name"
     - "SAMLConnectorV2.Spec.Cert"
     - "SAMLConnectorV2.Spec.SigningKeyPair.PrivateKey"
     - "SAMLConnectorV2.Spec.EncryptionKeyPair.PrivateKey"
-    - "SAMLConnectorV2.Spec.EntityDescriptor"    
+    - "SAMLConnectorV2.Spec.EntityDescriptor"
+    - "SAMLConnectorV2.Spec.credentials.oauth.client_secret"
     - "GithubConnectorV3.Spec.ClientSecret"
     - "OIDCConnectorV3.Spec.ClientSecret"
     - "OIDCConnectorV3.Spec.GoogleServiceAccount"
@@ -351,6 +516,23 @@ plan_modifiers:
     ServerV2.Metadata.Name:
       - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
       - "github.com/hashicorp/terraform-plugin-framework/tfsdk.RequiresReplace()"
+    ProvisionTokenV2.Metadata.Name:
+      - "github.com/hashicorp/terraform-plugin-framework/tfsdk.RequiresReplace()"
+      - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
+    RoleV6.Spec.Options:
+      - "DefaultRoleOptions()"
+    RoleV6.Spec.Allow.KubernetesResources:
+      - "DefaultKubernetesResources()"
+    # The API populates these SAML IdP fields if unset. UseStateForUnknown()
+    # makes them idempotent.
+    SAMLIdPServiceProviderV1.Spec.EntityDescriptor:
+      - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
+    SAMLIdPServiceProviderV1.Spec.EntityID:
+      - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
+    SAMLIdPServiceProviderV1.Spec.Preset:
+      - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
+    SAMLIdPServiceProviderV1.Spec.RelayState:
+      - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
 
 validators:
   # Expires must be in the future
@@ -372,16 +554,28 @@ validators:
     - UseMapKeysPresentValidator("teleport.dev/origin")
   GithubConnectorV3.Version:
     - UseVersionBetween(3,3)
+  KubernetesClusterV3.Version:
+    - UseVersionBetween(3,3)
+  LockV2.Version:
+    - UseVersionBetween(2,2)
   OIDCConnectorV3.Version:
     - UseVersionBetween(3,3)
   OktaImportRuleV1.Version:
     - UseVersionBetween(1,1)
+  ProvisionTokenV2.Version:
+    - UseVersionBetween(2,2)
   RoleV6.Version:
-    - UseVersionBetween(3,7)
+    - UseVersionBetween(3,8)
   SAMLConnectorV2.Version:
     - UseVersionBetween(2,2)
   SAMLConnectorV2.Spec:
     - UseAnyOfValidator("entity_descriptor", "entity_descriptor_url")
+  SAMLAttributeMapping.name_format:
+    - SAMLIdPAttributeNameFormatValidator()
+  SAMLIdPServiceProviderV1.Spec:
+    - SAMLIdPSpecValidator()
+  SAMLIdPServiceProviderV1.Version:
+    - UseVersionBetween(1,1)
   ServerV2.Version:
     - UseVersionBetween(2,2)
   ServerV2.SubKind:
@@ -390,9 +584,17 @@ validators:
     - UseVersionBetween(2,2)
   SessionRecordingConfigV2.Metadata.Labels:
     - UseMapKeysPresentValidator("teleport.dev/origin")
+  UIConfigV1.Version:
+    - UseVersionBetween(1,1)
   UserV2.Version:
     - UseVersionBetween(2,2)
   ClusterMaintenanceConfigV1.Version:
+    - UseVersionBetween(1,1)
+  InstallerV1.Version:
+    - UseVersionBetween(1,1)
+  DynamicWindowsDesktopV1.Version:
+    - UseVersionBetween(1,1)
+  IntegrationV1.Version:
     - UseVersionBetween(1,1)
 
 time_type:
@@ -400,7 +602,7 @@ time_type:
     value_type: "TimeValue"
     cast_to_type: "time.Time"
     cast_from_type: "time.Time"
-    type_constructor: UseRFC3339Time()    
+    type_constructor: UseRFC3339Time()
 
 duration_type:
     type: "DurationType"

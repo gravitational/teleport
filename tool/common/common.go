@@ -19,22 +19,28 @@
 package common
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"sort"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
+	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/asciitable"
+	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // ExitCodeError wraps an exit code as an error.
@@ -55,35 +61,47 @@ type SessionsCollection struct {
 
 // WriteText writes the session collection as text to the provided io.Writer.
 func (e *SessionsCollection) WriteText(w io.Writer) error {
-	t := asciitable.MakeTable([]string{"ID", "Type", "Participants", "Hostname", "Timestamp"})
+	t := asciitable.MakeTable([]string{"ID", "Type", "Participants", "Target", "Timestamp"})
 	for _, event := range e.SessionEvents {
-		var id, typ, participants, hostname, timestamp string
+		var id, typ, participants, target, timestamp string
 
 		switch session := event.(type) {
 		case *events.SessionEnd:
 			id = session.GetSessionID()
 			typ = session.Protocol
 			participants = strings.Join(session.Participants, ", ")
-			hostname = session.ServerAddr
 			timestamp = session.GetTime().Format(constants.HumanDateFormatSeconds)
+
+			target = session.ServerHostname
+			if typ == libevents.EventProtocolKube {
+				target = session.KubernetesCluster
+			}
+
 		case *events.WindowsDesktopSessionEnd:
 			id = session.GetSessionID()
 			typ = "windows"
 			participants = strings.Join(session.Participants, ", ")
-			hostname = session.DesktopName
+			target = session.DesktopName
 			timestamp = session.GetTime().Format(constants.HumanDateFormatSeconds)
 		case *events.DatabaseSessionEnd:
 			id = session.GetSessionID()
 			typ = session.DatabaseProtocol
-			participants = session.GetUser()
-			hostname = session.DatabaseService
+			participants = strings.Join(session.Participants, ", ")
+			target = session.DatabaseName
 			timestamp = session.GetTime().Format(constants.HumanDateFormatSeconds)
+		case *events.AppSessionChunk:
+			id = session.GetSessionChunkID()
+			typ = "app-chunk"
+			participants = session.User
+			target = cmp.Or(session.AppName, session.AppURI)
+			timestamp = session.GetTime().Format(constants.HumanDateFormatSeconds)
+
 		default:
-			log.Warn(trace.BadParameter("unsupported event type: expected SessionEnd, WindowsDesktopSessionEnd or DatabaseSessionEnd: got: %T", event))
+			slog.WarnContext(context.Background(), "unsupported event type: expected SessionEnd, WindowsDesktopSessionEnd, DatabaseSessionEnd or AppSessionChunk", "event_type", logutils.TypeAttr(event))
 			continue
 		}
 
-		t.AddRow([]string{id, typ, participants, hostname, timestamp})
+		t.AddRow([]string{id, typ, participants, target, timestamp})
 	}
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
@@ -180,6 +198,17 @@ func FormatLabels(labels map[string]string, verbose bool) string {
 	return strings.Join(append(result, namespaced...), ",")
 }
 
+// FormatMultiValueLabels formats labels that have multiple values as a map
+// where each key has only one formatted value, then that map is formatted with
+// FormatLabels as above.
+func FormatMultiValueLabels(labels map[string][]string, verbose bool) string {
+	ll := make(map[string]string, len(labels))
+	for key, values := range labels {
+		ll[key] = fmt.Sprintf("%v", values)
+	}
+	return FormatLabels(ll, verbose)
+}
+
 // FormatResourceName returns the resource's name or its name as originally
 // discovered in the cloud by the Teleport Discovery Service.
 // In verbose mode, it always returns the resource name.
@@ -188,10 +217,261 @@ func FormatLabels(labels map[string]string, verbose bool) string {
 func FormatResourceName(r types.ResourceWithLabels, verbose bool) string {
 	if !verbose {
 		// return the (shorter) discovered name in non-verbose mode.
-		discoveredName, ok := r.GetAllLabels()[types.DiscoveredNameLabel]
+		discoveredName, ok := GetDiscoveredResourceName(r)
 		if ok && discoveredName != "" {
 			return discoveredName
 		}
 	}
 	return r.GetName()
+}
+
+// FormatResourceAccessID returns the provided ResourceAccessID in its string form,
+// appending constraints when present.
+func FormatResourceAccessID(rid types.ResourceAccessID) string {
+	resourceIDString := types.ResourceIDToString(rid.GetResourceID())
+	constraintsString := ""
+
+	if c := rid.GetConstraints(); c != nil && c.GetDetails() != nil {
+		switch d := c.GetDetails().(type) {
+		case *types.ResourceConstraints_AwsConsole:
+			if d.AwsConsole == nil {
+				break
+			}
+			constraintsString = fmt.Sprintf("role_arns=%s", strings.Join(d.AwsConsole.RoleArns, ","))
+		}
+	}
+
+	if constraintsString != "" {
+		return fmt.Sprintf("%s (%s)", resourceIDString, constraintsString)
+	}
+
+	return resourceIDString
+}
+
+// FormatResourceAccessIDs returns the provided ResourceAccessIDs in string form,
+// appending constraints to each when present. Uses JSON.Marshal to
+// ensure proper handling for any IDs containing commas/quotes.
+func FormatResourceAccessIDs(rids []types.ResourceAccessID) (string, error) {
+	out := ""
+
+	if len(rids) > 0 {
+		resourceIDStrings := make([]string, 0, len(rids))
+		for _, rid := range rids {
+			resourceIDStrings = append(resourceIDStrings, FormatResourceAccessID(rid))
+		}
+		bytes, err := json.Marshal(resourceIDStrings)
+		if err != nil {
+			return "", trace.Wrap(err, "failed to marshal ResourceAccessIDs")
+		}
+		out = string(bytes)
+	}
+
+	return out, nil
+}
+
+// GetDiscoveredResourceName returns the resource original name discovered in
+// the cloud by the Teleport Discovery Service.
+func GetDiscoveredResourceName(r types.ResourceWithLabels) (discoveredName string, ok bool) {
+	discoveredName, ok = r.GetAllLabels()[types.DiscoveredNameLabel]
+	return
+}
+
+// SetDiscoveredResourceName sets the original name discovered in the cloud by
+// the Teleport Discovery Service.
+func SetDiscoveredResourceName(r types.ResourceWithLabels, discoveredName string) {
+	labels := r.GetStaticLabels()
+	labels[types.DiscoveredNameLabel] = discoveredName
+	r.SetStaticLabels(labels)
+}
+
+// FormatDefault formats a zero value with its default, or if the value is not
+// zero it just returns the value.
+func FormatDefault[T comparable](val, defaultVal T) string {
+	var zero T
+	if val == zero {
+		return fmt.Sprintf("%v (default)", defaultVal)
+	}
+	return fmt.Sprintf("%v", val)
+}
+
+// FormatAllowedEntities returns a human-readable string describing the allowed
+// entities, optionally including a list of denied entities as exceptions.
+func FormatAllowedEntities(allowed []string, denied []string) string {
+	if len(allowed) == 0 {
+		return "(none)"
+	}
+	if len(denied) == 0 {
+		return fmt.Sprintf("%v", allowed)
+	}
+	return fmt.Sprintf("%v, except: %v", allowed, denied)
+}
+
+// PrintJSONIndent prints provided value in JSON with default indentation.
+func PrintJSONIndent(w io.Writer, v any) error {
+	out, err := utils.FastMarshalIndent(v, "", "  ")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = fmt.Fprintln(w, string(out))
+	return trace.Wrap(err)
+}
+
+// PrintYAML prints provided value in YAML.
+func PrintYAML(w io.Writer, v any) error {
+	out, err := yaml.Marshal(v)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = fmt.Fprintln(w, string(out))
+	return trace.Wrap(err)
+}
+
+// FormatUserDisplay renders a user identity from display values plus username:
+//
+//	"username (Primary) <Secondary>" — all three present
+//	"username (Primary)"             — username + primary
+//	"username <Secondary>"           — username + secondary
+//	"username"                       — username only
+func FormatUserDisplay(primary, secondary, username string) string {
+	primary = sanitizeDisplayValue(primary)
+	secondary = sanitizeDisplayValue(secondary)
+	username = sanitizeDisplayValue(username)
+
+	switch {
+	case primary != "" && secondary != "":
+		return fmt.Sprintf("%s (%s) <%s>", username, primary, secondary)
+	case primary != "":
+		return fmt.Sprintf("%s (%s)", username, primary)
+	case secondary != "":
+		return fmt.Sprintf("%s <%s>", username, secondary)
+	default:
+		return username
+	}
+}
+
+// sanitizeDisplayValue removes terminal controls, newlines, and tabs for a
+// single-line terminal cell.
+func sanitizeDisplayValue(s string) string {
+	s = StripTerminalControlSequences(s)
+	// Preserve word boundaries while keeping the value to one terminal line.
+	return strings.Join(strings.Fields(s), " ")
+}
+
+// StripTerminalControlSequences removes terminal control sequences from s,
+// preserving printable text, newlines, and tabs.
+func StripTerminalControlSequences(s string) string {
+	var b strings.Builder
+	b.Grow(len(s))
+
+	for i := 0; i < len(s); {
+		r, size := utf8.DecodeRuneInString(s[i:])
+		if r == utf8.RuneError && size == 1 {
+			c := s[i]
+			switch {
+			case c == '\x1b':
+				i = consumeEscapeSequence(s, i+1)
+			case c == '\x90' || c == '\x98' || c == '\x9d' || c == '\x9e' || c == '\x9f':
+				i = consumeStringControl(s, i+1)
+			case c == '\x9b':
+				i = consumeCSISequence(s, i+1)
+			case c == '\n' || c == '\t':
+				b.WriteByte(c)
+				i++
+			case c < ' ' || c == '\x7f' || (c >= '\x80' && c <= '\x9f'):
+				i++
+			default:
+				b.WriteByte(c)
+				i++
+			}
+			continue
+		}
+
+		switch r {
+		case '\x1b':
+			i = consumeEscapeSequence(s, i+size)
+			continue
+		case '\u0090', '\u0098', '\u009d', '\u009e', '\u009f':
+			i = consumeStringControl(s, i+size)
+			continue
+		case '\u009b':
+			i = consumeCSISequence(s, i+size)
+			continue
+		}
+
+		if unicode.IsControl(r) && r != '\n' && r != '\t' {
+			i += size
+			continue
+		}
+
+		b.WriteString(s[i : i+size])
+		i += size
+	}
+
+	return b.String()
+}
+
+func consumeEscapeSequence(s string, i int) int {
+	if i >= len(s) {
+		return i
+	}
+
+	switch s[i] {
+	case '[':
+		return consumeCSISequence(s, i+1)
+	case ']', 'P', 'X', '^', '_':
+		return consumeStringControl(s, i+1)
+	case '(', ')', '*', '+', '-', '.', '/', '#':
+		if i+1 < len(s) {
+			return i + 2
+		}
+		return i + 1
+	}
+
+	for i < len(s) {
+		c := s[i]
+		i++
+		if c >= '\x30' && c <= '\x7e' {
+			return i
+		}
+		if c < ' ' || c > '\x7e' {
+			return i
+		}
+	}
+	return i
+}
+
+func consumeCSISequence(s string, i int) int {
+	for i < len(s) {
+		c := s[i]
+		i++
+		if c >= '\x40' && c <= '\x7e' {
+			return i
+		}
+	}
+	return i
+}
+
+func consumeStringControl(s string, i int) int {
+	for i < len(s) {
+		if s[i] == '\a' {
+			return i + 1
+		}
+		if s[i] == '\x1b' && i+1 < len(s) && s[i+1] == '\\' {
+			return i + 2
+		}
+
+		r, size := utf8.DecodeRuneInString(s[i:])
+		if r == utf8.RuneError && size == 1 {
+			if s[i] == '\x9c' {
+				return i + 1
+			}
+			i++
+			continue
+		}
+		if r == '\u009c' {
+			return i + size
+		}
+		i += size
+	}
+	return i
 }

@@ -16,24 +16,20 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { delay, http, HttpResponse } from 'msw';
+import { PropsWithChildren } from 'react';
+
+import { Info } from 'design/Alert';
 
 import cfg from 'teleport/config';
-
-import { ResourceKind } from 'teleport/Discover/Shared';
-
 import {
-  ComponentWrapper,
-  getDbMeta,
-  getDbResourceSpec,
+  getSelectedAwsPostgresDbMeta,
+  resourceSpecAwsRdsMySql,
+  resourceSpecAwsRdsPostgres,
 } from 'teleport/Discover/Fixtures/databases';
-
-import { TeleportProvider } from 'teleport/Discover/Fixtures/fixtures';
-import {
-  DatabaseEngine,
-  DatabaseLocation,
-} from 'teleport/Discover/SelectResource';
+import { RequiredDiscoverProviders } from 'teleport/Discover/Fixtures/fixtures';
+import { SelectResourceSpec } from 'teleport/Discover/SelectResource/resources';
+import { DbMeta } from 'teleport/Discover/useDiscover';
 
 import { AutoDeploy } from './AutoDeploy';
 
@@ -43,48 +39,53 @@ export default {
 
 export const Init = () => {
   return (
-    <ComponentWrapper>
+    <DiscoverProviderDatabase>
       <AutoDeploy />
-    </ComponentWrapper>
+    </DiscoverProviderDatabase>
   );
 };
 Init.parameters = {
   msw: {
     handlers: [
-      http.post(cfg.getListSecurityGroupsUrl('test-integration'), () =>
+      http.post(cfg.api.awsSecurityGroupsListPath, () =>
         HttpResponse.json({ securityGroups: securityGroupsResponse })
       ),
       http.post(cfg.api.awsDeployTeleportServicePath, () =>
         HttpResponse.json({ serviceDashboardUrl: 'some-dashboard-url' })
       ),
+      http.post(cfg.api.awsSubnetListPath, () =>
+        HttpResponse.json({ subnets: subnetsResponse })
+      ),
     ],
   },
 };
 
-export const InitWithAutoEnroll = () => {
+export const InitWithAutoDiscover = () => {
+  const dbMeta = getSelectedAwsPostgresDbMeta();
+  dbMeta.selectedAwsRdsDb = undefined; // there is no selection for discovery
   return (
-    <TeleportProvider
-      resourceKind={ResourceKind.Database}
+    <RequiredDiscoverProviders
       agentMeta={{
-        ...getDbMeta(),
+        ...dbMeta,
         autoDiscovery: {
           config: { name: '', discoveryGroup: '', aws: [] },
-          requiredVpcsAndSubnets: {},
         },
       }}
-      resourceSpec={getDbResourceSpec(
-        DatabaseEngine.Postgres,
-        DatabaseLocation.Aws
-      )}
+      resourceSpec={resourceSpecAwsRdsMySql}
     >
+      <Info>
+        Devs: difference is that there should be no offer to manually install
+        service
+      </Info>
+
       <AutoDeploy />
-    </TeleportProvider>
+    </RequiredDiscoverProviders>
   );
 };
-InitWithAutoEnroll.parameters = {
+InitWithAutoDiscover.parameters = {
   msw: {
     handlers: [
-      http.post(cfg.getListSecurityGroupsUrl('test-integration'), () =>
+      http.post(cfg.api.awsSecurityGroupsListPath, () =>
         HttpResponse.json({ securityGroups: securityGroupsResponse })
       ),
       http.post(cfg.getAwsRdsDbsDeployServicesUrl('test-integration'), () =>
@@ -92,34 +93,34 @@ InitWithAutoEnroll.parameters = {
           clusterDashboardUrl: 'some-cluster-dashboard-url',
         })
       ),
+      http.post(cfg.api.awsSubnetListPath, () =>
+        HttpResponse.json({ subnets: subnetsResponse })
+      ),
     ],
   },
 };
 
 export const InitWithLabelsWithDeployFailure = () => {
   return (
-    <TeleportProvider
-      resourceKind={ResourceKind.Database}
-      resourceSpec={getDbResourceSpec(
-        DatabaseEngine.Postgres,
-        DatabaseLocation.Aws
-      )}
+    <RequiredDiscoverProviders
+      resourceSpec={resourceSpecAwsRdsPostgres}
       agentMeta={{
-        ...getDbMeta(),
+        ...getSelectedAwsPostgresDbMeta(),
         agentMatcherLabels: [
           { name: 'env', value: 'staging' },
           { name: 'os', value: 'windows' },
         ],
       }}
     >
+      <Info>Devs: Click &quot;deploy...&quot; to see next state</Info>
       <AutoDeploy />
-    </TeleportProvider>
+    </RequiredDiscoverProviders>
   );
 };
 InitWithLabelsWithDeployFailure.parameters = {
   msw: {
     handlers: [
-      http.post(cfg.getListSecurityGroupsUrl('test-integration'), () =>
+      http.post(cfg.api.awsSecurityGroupsListPath, () =>
         HttpResponse.json({ securityGroups: securityGroupsResponse })
       ),
       http.post(cfg.api.awsDeployTeleportServicePath, () =>
@@ -130,25 +131,36 @@ InitWithLabelsWithDeployFailure.parameters = {
           { status: 500 }
         )
       ),
+      http.post(cfg.api.awsSubnetListPath, () =>
+        HttpResponse.json({ subnets: subnetsResponse })
+      ),
     ],
   },
 };
 
-export const InitSecurityGroupsLoadingFailed = () => {
+export const InitSgSubnetLoadingFailed = () => {
   return (
-    <ComponentWrapper>
+    <DiscoverProviderDatabase>
       <AutoDeploy />
-    </ComponentWrapper>
+    </DiscoverProviderDatabase>
   );
 };
 
-InitSecurityGroupsLoadingFailed.parameters = {
+InitSgSubnetLoadingFailed.parameters = {
   msw: {
     handlers: [
-      http.post(cfg.getListSecurityGroupsUrl('test-integration'), () =>
+      http.post(cfg.api.awsSecurityGroupsListPath, () =>
         HttpResponse.json(
           {
             message: 'some error when trying to list security groups',
+          },
+          { status: 403 }
+        )
+      ),
+      http.post(cfg.api.awsSubnetListPath, () =>
+        HttpResponse.json(
+          {
+            error: { message: 'Whoops, error getting subnets' },
           },
           { status: 403 }
         )
@@ -157,23 +169,55 @@ InitSecurityGroupsLoadingFailed.parameters = {
   },
 };
 
-export const InitSecurityGroupsLoading = () => {
+export const InitSgSubnetLoading = () => {
   return (
-    <ComponentWrapper>
+    <DiscoverProviderDatabase>
       <AutoDeploy />
-    </ComponentWrapper>
+    </DiscoverProviderDatabase>
   );
 };
 
-InitSecurityGroupsLoading.parameters = {
+InitSgSubnetLoading.parameters = {
   msw: {
     handlers: [
-      http.post(cfg.getListSecurityGroupsUrl('test-integration'), () =>
-        delay('infinite')
-      ),
+      http.post(cfg.api.awsSecurityGroupsListPath, () => delay('infinite')),
+      http.post(cfg.api.awsSubnetListPath, () => delay('infinite')),
     ],
   },
 };
+
+const subnetsResponse = [
+  {
+    name: 'aws-something-PrivateSubnet1A',
+    id: 'subnet-e40cd872-74de-54e3-a081',
+    availability_zone: 'us-east-1c',
+  },
+  {
+    name: 'aws-something-PrivateSubnet2A',
+    id: 'subnet-e6f9e40e-a7c7-52ab-b8e8',
+    availability_zone: 'us-east-1a',
+  },
+  {
+    name: '',
+    id: 'subnet-9106bc09-ea32-5216-ae3b',
+    availability_zone: 'us-east-1b',
+  },
+  {
+    name: '',
+    id: 'subnet-0ee385cf-b090-5cf7-b692',
+    availability_zone: 'us-east-1c',
+  },
+  {
+    name: 'something-long-test-1-cluster/SubnetPublicU',
+    id: 'subnet-0f0b563e-629f-5921-841d',
+    availability_zone: 'us-east-1c',
+  },
+  {
+    name: 'something-long-test-1-cluster/SubnetPrivateUS',
+    id: 'subnet-30c9e2f6-65ce-5422-bbc0',
+    availability_zone: 'us-east-1c',
+  },
+];
 
 const securityGroupsResponse = [
   {
@@ -184,7 +228,7 @@ const securityGroupsResponse = [
       {
         ipProtocol: 'tcp',
         fromPort: '0',
-        toPort: '0',
+        toPort: '65535',
         cidrs: [{ cidr: '0.0.0.0/0', description: 'Everything' }],
       },
       {
@@ -200,13 +244,22 @@ const securityGroupsResponse = [
         cidrs: [
           { cidr: '192.168.1.0/24', description: 'Subnet Mask 255.255.255.0' },
         ],
+        groups: [
+          { groupId: 'sg-1', description: 'Trusts itself in port range' },
+        ],
+      },
+      {
+        ipProtocol: 'tcp',
+        fromPort: '8080',
+        toPort: '8080',
+        groups: [{ groupId: 'sg-3', description: 'Trusts other group' }],
       },
     ],
     outboundRules: [
       {
         ipProtocol: 'tcp',
         fromPort: '0',
-        toPort: '0',
+        toPort: '65535',
         cidrs: [{ cidr: '0.0.0.0/0', description: 'Everything' }],
       },
       {
@@ -217,11 +270,24 @@ const securityGroupsResponse = [
       },
       {
         ipProtocol: 'tcp',
+        fromPort: '8080',
+        toPort: '8080',
+        groups: [
+          {
+            groupId: 'sg-4',
+            description:
+              'a trusted group on port 8080 for some reason and this description rambles a lot so the table better truncate it with ellipses but you should still see the full thing by hovering on it :D',
+          },
+        ],
+      },
+      {
+        ipProtocol: 'tcp',
         fromPort: '2000',
         toPort: '5000',
         cidrs: [
           { cidr: '10.0.0.0/16', description: 'Subnet Mask 255.255.0.0' },
         ],
+        groups: [{ groupId: 'sg-4', description: 'some other group' }],
       },
     ],
   },
@@ -233,7 +299,7 @@ const securityGroupsResponse = [
       {
         ipProtocol: 'tcp',
         fromPort: '0',
-        toPort: '0',
+        toPort: '65535',
         cidrs: [{ cidr: '0.0.0.0/0', description: 'Everything' }],
       },
       {
@@ -250,12 +316,20 @@ const securityGroupsResponse = [
           { cidr: '192.168.1.0/24', description: 'Subnet Mask 255.255.255.0' },
         ],
       },
+      {
+        ipProtocol: 'all',
+        fromPort: '0',
+        toPort: '0',
+        groups: [
+          { groupId: 'sg-3', description: 'trusts all traffic from sg-3' },
+        ],
+      },
     ],
     outboundRules: [
       {
         ipProtocol: 'tcp',
         fromPort: '0',
-        toPort: '0',
+        toPort: '65535',
         cidrs: [{ cidr: '0.0.0.0/0', description: 'Everything' }],
       },
       {
@@ -281,8 +355,31 @@ const securityGroupsResponse = [
     inboundRules: [
       {
         ipProtocol: 'tcp',
+        fromPort: '2000',
+        toPort: '5000',
+        cidrs: [
+          { cidr: '192.168.1.0/24', description: 'Subnet Mask 255.255.255.0' },
+        ],
+      },
+    ],
+    outboundRules: [
+      {
+        ipProtocol: 'tcp',
+        fromPort: '22',
+        toPort: '22',
+        cidrs: [{ cidr: '0.0.0.0/0', description: 'Everything' }],
+      },
+    ],
+  },
+  {
+    name: 'security-group-4',
+    id: 'sg-4',
+    description: 'this is security group 4',
+    inboundRules: [
+      {
+        ipProtocol: 'tcp',
         fromPort: '0',
-        toPort: '0',
+        toPort: '65535',
         cidrs: [{ cidr: '0.0.0.0/0', description: 'Everything' }],
       },
       {
@@ -303,15 +400,9 @@ const securityGroupsResponse = [
     outboundRules: [
       {
         ipProtocol: 'tcp',
-        fromPort: '0',
-        toPort: '0',
-        cidrs: [{ cidr: '0.0.0.0/0', description: 'Everything' }],
-      },
-      {
-        ipProtocol: 'tcp',
         fromPort: '22',
         toPort: '22',
-        cidrs: [{ cidr: '0.0.0.0/0', description: 'Everything' }],
+        cidrs: [{ cidr: '0.0.0.0/0', description: 'Everything ssh' }],
       },
       {
         ipProtocol: 'tcp',
@@ -324,3 +415,14 @@ const securityGroupsResponse = [
     ],
   },
 ];
+
+const DiscoverProviderDatabase: React.FC<
+  PropsWithChildren<{ resourceSpec?: SelectResourceSpec; dbMeta?: DbMeta }>
+> = ({ children, resourceSpec, dbMeta }) => (
+  <RequiredDiscoverProviders
+    agentMeta={dbMeta || getSelectedAwsPostgresDbMeta()}
+    resourceSpec={resourceSpec || resourceSpecAwsRdsPostgres}
+  >
+    {children}
+  </RequiredDiscoverProviders>
+);

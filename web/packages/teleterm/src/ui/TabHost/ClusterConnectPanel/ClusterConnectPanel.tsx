@@ -16,23 +16,47 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-import { Box, ButtonPrimary, Flex, H1, Text } from 'design';
+import { useEffect, useRef } from 'react';
 import styled from 'styled-components';
 
-import Image from 'design/Image';
+import {
+  Box,
+  ButtonPrimary,
+  Flex,
+  H1,
+  H2,
+  P2,
+  ResourceIcon,
+  Text,
+} from 'design';
 
-import { useAppContext } from 'teleterm/ui/appContextProvider';
-
-import clusterPng from './clusters.png';
-import { RecentClusters } from './RecentClusters';
+import { NullKeyboardArrowsNavigation } from 'teleterm/ui/components/KeyboardArrowsNavigation/KeyboardArrowsNavigation';
+import {
+  TshHomeMigrationBanner,
+  useIdentity,
+  IdentityList,
+} from 'teleterm/ui/TopBar/Identity';
 
 export function ClusterConnectPanel() {
-  const ctx = useAppContext();
+  const {
+    // ClusterConnectPanel is rendered only when there is no active workspace, so
+    // the hook's "other workspaces" are all available workspaces.
+    otherWorkspaces: availableWorkspaces,
+    logout,
+    forget,
+    addCluster,
+    changeWorkspace,
+  } = useIdentity();
 
-  function handleConnect() {
-    ctx.commandLauncher.executeCommand('cluster-connect', {});
-  }
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Focus the first item.
+  const hasAnyWorkspaces = !!availableWorkspaces.length;
+  useEffect(() => {
+    if (hasAnyWorkspaces) {
+      containerRef.current.querySelector('li').focus();
+    }
+  }, [hasAnyWorkspaces]);
 
   return (
     <ScrollingContainer>
@@ -43,17 +67,59 @@ export function ClusterConnectPanel() {
           flexDirection="column"
           alignItems="center"
         >
-          <Image width="120px" src={clusterPng} mb={3} />
-          <H1 mb={2}>Connect a Cluster</H1>
-          <Text color="text.slightlyMuted" mb={3} textAlign="center">
-            Connect an existing Teleport cluster <br /> to start using Teleport
-            Connect.
-          </Text>
-          <ButtonPrimary size="large" onClick={handleConnect}>
-            Connect
-          </ButtonPrimary>
+          <ResourceIcon width="120px" name="server" mb={3} />
+          {hasAnyWorkspaces ? (
+            <Flex flexDirection="column">
+              <H2>Clusters</H2>
+              <P2 color="text.slightlyMuted" mb={2}>
+                Log in to a cluster to use Teleport Connect.
+              </P2>
+              {/* Apply the same styling as used for the cluster items below. */}
+              <TshHomeMigrationBanner
+                css={`
+                  margin-bottom: ${p => p.theme.space[1]}px;
+                  border-radius: ${p => p.theme.radii[2]}px;
+                  padding: ${p => p.theme.space[2]}px;
+                `}
+              />
+              {/*Disable arrows navigation, it doesn't work well here,*/}
+              {/*since it requires the container to be focused.*/}
+              {/*The user can navigate with Tab.*/}
+              <NullKeyboardArrowsNavigation>
+                <Flex
+                  maxWidth="450px"
+                  ref={containerRef}
+                  flexDirection="column"
+                  css={`
+                    li {
+                      border-radius: ${p => p.theme.radii[2]}px;
+                      padding: ${p => p.theme.space[2]}px;
+                    }
+                  `}
+                >
+                  <IdentityList
+                    items={availableWorkspaces}
+                    onAdd={addCluster}
+                    onSelect={changeWorkspace}
+                    onLogout={logout}
+                    onForget={forget}
+                  />
+                </Flex>
+              </NullKeyboardArrowsNavigation>
+            </Flex>
+          ) : (
+            <>
+              <H1 mb={2}>Connect a Cluster</H1>
+              <Text color="text.slightlyMuted" mb={3} textAlign="center">
+                Connect an existing Teleport cluster <br /> to start using
+                Teleport Connect.
+              </Text>
+              <ButtonPrimary size="large" onClick={addCluster}>
+                Connect
+              </ButtonPrimary>
+            </>
+          )}
         </Flex>
-        <RecentClusters />
       </Box>
     </ScrollingContainer>
   );

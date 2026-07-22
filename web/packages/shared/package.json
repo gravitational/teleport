@@ -9,10 +9,18 @@
     "url": "https://github.com/gravitational/webapps/webapps.git",
     "directory": "packages/shared"
   },
+  "scripts": {
+    "build-wasm": "node ../../scripts/clean-up-ironrdp-artifacts.mjs && make -C ../../../ build-ironrdp-wasm"
+  },
   "dependencies": {
     "@gravitational/design": "workspace:*",
-    "ace-builds": "1.35.2",
+    "@xterm/addon-search": "^0.16.0",
+    "ace-builds": "1.44.0",
     "events": "3.3.0",
-    "highlight-words-core": "^1.2.2"
+    "highlight-words-core": "^1.2.3",
+    "semver": "^7.8.5"
+  },
+  "devDependencies": {
+    "@types/semver": "^7.7.1"
   }
 }

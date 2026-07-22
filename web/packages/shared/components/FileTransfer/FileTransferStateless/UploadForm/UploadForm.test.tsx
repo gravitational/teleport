@@ -16,7 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { fireEvent, render, screen } from 'design/utils/testing';
 
 import { UploadForm } from './UploadForm';
@@ -52,8 +51,8 @@ test('files can be selected using input', () => {
   });
 
   expect(handleAddUpload).toHaveBeenCalledTimes(2);
-  expect(handleAddUpload).toHaveBeenCalledWith('~/', files[0]);
-  expect(handleAddUpload).toHaveBeenCalledWith('~/', files[1]);
+  expect(handleAddUpload).toHaveBeenCalledWith('/', files[0]);
+  expect(handleAddUpload).toHaveBeenCalledWith('/', files[1]);
 });
 
 test('files can be dropped into upload area', () => {
@@ -66,6 +65,6 @@ test('files can be dropped into upload area', () => {
   });
 
   expect(handleAddUpload).toHaveBeenCalledTimes(2);
-  expect(handleAddUpload).toHaveBeenCalledWith('~/', files[0]);
-  expect(handleAddUpload).toHaveBeenCalledWith('~/', files[1]);
+  expect(handleAddUpload).toHaveBeenCalledWith('/', files[0]);
+  expect(handleAddUpload).toHaveBeenCalledWith('/', files[1]);
 });

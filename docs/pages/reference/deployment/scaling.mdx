@@ -1,0 +1,513 @@
+---
+title: Scaling
+description: How to configure Teleport for large-scale deployments
+tags:
+ - conceptual
+ - platform-wide
+---
+
+This section explains the recommended configuration settings for large-scale
+self-hosted deployments of Teleport.
+
+(!docs/pages/includes/cloud/call-to-action.mdx!)
+
+## Hardware recommendations
+
+Set up Teleport with a [High Availability configuration](../../installation/self-hosted/deployments/high-availability.mdx).
+
+| Scenario                                                              | Max Recommended Count | Proxy Service         | Auth Service          | AWS Instance Types |
+|-----------------------------------------------------------------------|-----------------------|-----------------------|-----------------------|--------------------|
+| Teleport SSH Nodes connected to Auth Service                          | 10,000                | 2x  4 vCPUs, 8GB RAM  | 2x 8 vCPUs, 16GB RAM  | m8i.2xlarge        |
+| Teleport SSH Nodes connected to Auth Service                          | 50,000                | 2x  4 vCPUs, 16GB RAM | 2x 8 vCPUs, 16GB RAM  | m8i.2xlarge        |
+| Teleport SSH Nodes connected to Proxy Service through reverse tunnels | 10,000                | 2x 4 vCPUs, 8GB RAM   | 2x 8 vCPUs, 16+GB RAM | m8i.2xlarge        |
+
+To host Teleport on Kubernetes see
+[Hosting on Kubernetes](#hosting-on-kubernetes) for how to express these
+recommendations as `teleport-cluster` Helm chart values.
+
+## Auth Service and Proxy Service Configuration
+
+Upgrade Teleport's connection limits from the default connection limit of `15000`
+to `65000`.
+
+```yaml
+# Teleport Auth Service and Proxy Service
+teleport:
+  connection_limits:
+    max_connections: 65000
+```
+
+## Agent configuration
+
+Agents cache roles and other configuration locally in order to make access-control decisions quickly.
+By default agents are fairly aggressive in trying to re-initialize their caches if they lose connectivity
+to the Auth Service. In very large clusters, this can contribute to a "thundering herd" effect,
+where control plane elements experience excess load immediately after restart. Setting the `max_backoff`
+parameter to something in the 8-16 minute range can help mitigate this effect:
+
+```yaml
+teleport:
+  cache:
+    enabled: true
+    max_backoff: 12m
+```
+
+## Kernel parameters
+
+Tweak Teleport's systemd unit parameters to allow a higher amount of open
+files:
+
+```txt
+[Service]
+LimitNOFILE=65536
+```
+
+Verify that Teleport's process has high enough file limits:
+
+```code
+$ cat /proc/$(pidof teleport)/limits
+# Limit                     Soft Limit           Hard Limit           Units
+# Max open files            65536                65536                files
+```
+
+## Hosting on Kubernetes
+
+We recommend hosting self-hosted Teleport clusters on Kubernetes with the
+[`teleport-cluster` Helm chart](../helm-reference/teleport-cluster.mdx).
+See [Deploy Teleport on Kubernetes](../../installation/self-hosted/helm-deployments/kubernetes-cluster.mdx)
+to get started. The sizing guidance above still applies; the sections below show how to express it as chart values.
+
+### Auth Service and Proxy Service sizing
+
+The chart runs the Auth Service and Proxy Service as separate deployments. To
+run more than one replica of each, you must first meet the high-availability
+prerequisites that the default standalone chart does not provide:
+
+- The Auth Service needs a highly available backend. The default standalone mode
+  stores cluster state in SQLite on a `ReadWriteOnce` volume, which cannot be
+  shared safely across pods. Use a cloud chart mode (`aws`, `gcp`, or `azure`),
+  which disables local persistence automatically, or configure an external backend such as DynamoDB, Firestore, or etcd.
+  With an external backend you must also set `persistence.enabled: false` and store session recordings on highly
+  available storage such as S3 or GCS. Otherwise every Auth Service replica
+  references the same `ReadWriteOnce` volume, causing multi-attach or scheduling failures.
+  See [Storage backends](backends.mdx) and the
+  [High Availability guide](../../installation/self-hosted/deployments/high-availability.mdx).
+- The Proxy Service needs a shared TLS certificate source.
+  Unless you enable cert-manager (`highAvailability.certManager`), provide an existing secret (`tls.existingSecretName`),
+  or use an ingress (`ingress.enabled`), the chart keeps the Proxy Service at a single replica regardless of the value below.
+
+Once those prerequisites are in place, set the replica count with
+`highAvailability.replicaCount`, which corresponds to the `2x` in the
+[hardware recommendations](#hardware-recommendations):
+
+```yaml
+highAvailability:
+  replicaCount: 2
+```
+
+Set pod resources with the top-level `resources` value. To size the Auth Service
+and Proxy Service independently, override `resources` under the `auth` and
+`proxy` values, which are merged with and take precedence over the chart-scoped values:
+
+```yaml
+# Applies to both Auth Service and Proxy Service pods unless overridden below.
+resources:
+  requests:
+    cpu: "8"
+    memory: "16Gi"
+  limits:
+    memory: "16Gi"
+
+# Size the Proxy Service pods separately.
+proxy:
+  resources:
+    requests:
+      cpu: "4"
+      memory: "8Gi"
+    limits:
+      memory: "8Gi"
+```
+
+<Admonition type="warning" title="Do not set CPU limits">
+Setting CPU limits on Teleport pods is an anti-pattern: Teleport becomes
+unstable once CPU throttling begins. Set CPU `requests` to reserve capacity, but
+leave CPU limits unset.
+</Admonition>
+
+### Connection limits and Teleport configuration
+
+Apply Teleport configuration such as the connection limit
+[described above](#auth-service-and-proxy-service-configuration) through the
+`auth.teleportConfig` and `proxy.teleportConfig` values instead of a `teleport.yaml` file.
+These are merged with the chart-generated configuration:
+
+```yaml
+auth:
+  teleportConfig:
+    teleport:
+      connection_limits:
+        max_connections: 65000
+proxy:
+  teleportConfig:
+    teleport:
+      connection_limits:
+        max_connections: 65000
+```
+
+## DynamoDB configuration
+
+When using Teleport with DynamoDB, we recommend using on-demand provisioning.
+This allows DynamoDB to scale with cluster load.
+
+For customers that can not use on-demand provisioning, we recommend at least
+250 WCU and 100 RCU for 10k clusters.
+
+## etcd
+
+When using Teleport with etcd, we recommend you do the following.
+
+- For performance, use the fastest SSDs available and ensure low-latency network connectivity
+  between etcd peers. See the [etcd Hardware
+  recommendations guide](https://etcd.io/docs/v3.5/op-guide/hardware/) for more
+  details.
+- For debugging, ingest etcd's Prometheus metrics and visualize them over
+  time using a dashboard. See the [etcd Metrics
+  guide](https://etcd.io/docs/v3.5/metrics) for more
+  details.
+
+During an incident, we may ask you to run `etcdctl`, test that you can run the
+following command successfully.
+
+```code
+etcdctl \
+    --write-out=table \
+    --cacert=/path/to/ca.cert \
+    --cert=/path/to/cert \
+    --key=/path/to/key.pem \
+    --endpoints=127.0.0.1:2379 \
+    endpoint status
+```
+
+## Supported Load
+
+The tests below were performed against a Teleport Cloud tenant which runs on instances with 8 vCPU and 32 GiB memory and
+has default limits of 4CPU and 4Gi memory.
+
+### Concurrent Logins
+
+| Resource Type | Login Command                          | Logins | Failure                  |
+|---------------|----------------------------------------|--------|--------------------------|
+| SSH           | tsh login                              | 2000   | Auth CPU Limits exceeded |
+| Application   | tsh app login                          | 2000   | Auth CPU Limits exceeded |
+| Database      | tsh db login                           | 2000   | Auth CPU Limits exceeded |
+| Kubernetes    | tsh kube login && tsh kube credentials | 2000   | Auth CPU Limits exceeded |
+
+
+### Sessions Per Second
+
+| Resource Type | Sessions | Failure                   |
+|---------------|----------|---------------------------|
+| SSH           | 1000     | Auth CPU Limits exceeded  |
+| Application   | 2500     | Proxy CPU Limits exceeded |
+| Database      | 40       | Proxy CPU Limits exceeded |
+| Kubernetes    | 50       | Proxy CPU Limits exceeded |
+
+## Teleport Windows Desktop Service resource utilization
+
+Windows Desktop Service resource utilization can vary significantly based on workload, user behavior, and environment. For this reason it is challenging to provide absolute CPU and RAM requirements. This worked example is an illustration of one potential approach in determining the resource limits for a given Windows Desktop Service instance.
+
+There are four primary factors that influence resource utilization by the Windows Desktop Service:
+1. Number of concurrent sessions.
+1. Number of registered desktops.
+1. Screen update frequency per session.
+1. Whether session recording is enabled.
+
+<Admonition
+  type="note"
+  title="Note"
+>
+  The figures listed in this guide are illustrative only using a low activity workload (mostly static screens). Sessions with frequent screen updates, such as video playback, consume significantly more CPU and RAM per session. Always measure your specific workload in a representative environment before setting production limits.
+</Admonition>
+
+### Long lived sessions
+
+Session recording adds per-session RAM overhead. The tables below show RAM usage with and without it enabled.
+
+#### With session recording enabled
+
+| concurrent sessions | RAM usage (MiB) |
+| ------------------- | --------------- |
+| 1                   | 40              |
+| 2                   | 55              |
+| 4                   | 65              |
+| 8                   | 85              |
+| 16                  | 105             |
+| 32                  | 160             |
+
+#### Without session recording enabled
+
+| concurrent sessions | RAM usage (MiB) |
+| ------------------- | --------------- |
+| 1                   | 30              |
+| 2                   | 45              |
+| 4                   | 50              |
+| 8                   | 55              |
+| 16                  | 70              |
+| 32                  | 90              |
+
+### Registered desktops
+
+A single Windows Desktop Service can serve multiple desktops via static configuration or dynamic discovery. Each registered desktop adds idle background overhead.
+
+| registered desktops | idle CPU (millicores) | idle RAM (MiB) |
+| ------------------- | --------------------- | -------------- |
+| 100                 | 4                     | 60             |
+| 200                 | 4                     | 65             |
+| 500                 | 5                     | 70             |
+| 1000                | 5                     | 75             |
+| 5000                | 20                    | 100            |
+| 10000               | 40                    | 150            |
+| 50000               | 85                    | 350            |
+| 100000              | 100                   | 600            |
+
+Both CPU and RAM grow approximately linearly with the number of registered desktops. To serve more desktops, deploy multiple Windows Desktop Service instances.
+
+### Estimating resource requirements
+
+To estimate the resource requirements for the Windows Desktop Service:
+1. Determine the maximum number of concurrent sessions.
+1. Determine the number of desktops served by each Windows Desktop Service instance.
+
+There is no synthetic benchmark tool for Windows Desktop sessions. To measure resource usage under your expected workload, open representative sessions simultaneously through Teleport Connect or the Web UI and monitor the Windows Desktop Service process. Use the findings to set resource limits with an added margin (e.g., 20-50%) for safety.
+
+## Teleport SSH Service resource utilization
+
+The SSH Service resource utilization can vary significantly based on workload, user behavior, and environment. For this reason it is challenging to provide absolute CPU and RAM requirements. This worked example is an illustration of one potential approach in determining the resource limits for a given SSH Service.
+
+There are three primary factors that influence resource utilization by the SSH Service:
+1. User workload.
+1. Number of concurrent sessions.
+1. Number of new sessions per second.
+
+<Admonition
+  type="note"
+  title="Note"
+>
+  The figures listed in this guide are illustrative only using a synthetic workload. Always measure your specific workload in a representative environment before setting production limits.
+</Admonition>
+
+### Long lived sessions
+
+| concurrent sessions | RAM usage (MiB)  |
+| ------------------ | ---------------- |
+| 1                  | 300              |
+| 2                  | 350              |
+| 4                  | 500              |
+| 8                  | 700              |
+| 16                 | 1200             |
+| 32                 | 2200             |
+| 64                 | 4250             |
+| 128                | 8200             |
+
+For a typical agent RAM usage increases linearly with the number of concurrent sessions.
+
+### New session requests
+
+| sessions per second |  CPU peak (millicores) |
+| ------------------ |  -------------------- |
+| 1                  |  200                  |
+| 2                  |  400                  |
+| 4                  |  900                  |
+| 8                  |  1800                 |
+| 16                 |  3800                 |
+| 32                 |  8500                 |
+
+The primary driver of CPU usage by the SSH Service is the burst usage when new sessions are established.
+
+### Estimating resource requirements
+
+To estimate the resource requirements for the SSH Service:
+1. Determine the worst case resource requirements of a typical user workload.
+1. Determine the maximum number of concurrent sessions.
+1. Determine the maximum number of new sessions per second.
+
+Using `tsh bench`, simulate session activity to measure resource usage under expected conditions.
+Use the findings to set resource limits with an added margin (e.g., 20-50%) for safety.
+
+For example to spawn 32 requests per second for 2 minutes against a specific agent:
+```sh
+tsh bench ssh --rate=32 --duration=2m user@node-agent -- ls
+```
+
+Similarly to test 64 concurrent sessions against a single agent using a unique label:
+```sh
+tsh bench web sessions --max=64 --duration=2m user@UNIQUE=example ls
+```
+
+## Teleport Kubernetes Service resource utilization
+
+Kubernetes Service resource utilization can vary significantly based on workload, RBAC configuration, and cluster topology. For this reason it is challenging to provide absolute CPU and RAM requirements. This worked example is an illustration of one potential approach in determining the resource limits for a given Kubernetes Service instance.
+
+There are three primary factors that influence resource utilization by the Kubernetes Service:
+1. Number of API requests per second.
+1. Number of concurrent long-lived sessions (`exec`, `port-forward`).
+1. Number of registered Kubernetes clusters served by the agent.
+
+<Admonition
+  type="note"
+  title="Note"
+>
+  The figures listed in this guide are illustrative only using a synthetic workload. Always measure your specific workload in a representative environment before setting production limits.
+</Admonition>
+
+### API request rate
+
+API request rate is the primary driver of CPU usage. List operations through Teleport's RBAC filtering scale linearly with rate.
+
+| requests per second | CPU peak (millicores) |
+| ------------------- | --------------------- |
+| 1                   | 5                     |
+| 2                   | 10                    |
+| 4                   | 15                    |
+| 8                   | 30                    |
+| 16                  | 55                    |
+| 32                  | 100                   |
+| 64                  | 190                   |
+| 128                 | 410                   |
+| 256                 | 835                   |
+
+The number of users sending requests does not affect the agent independently, only the total request rate matters. The number of Kubernetes resources in the cluster and the number of RBAC rules in the user's role have minimal impact at typical request rates.
+
+### Concurrent long-lived sessions
+
+Concurrent `exec` and `port-forward` sessions add modest RAM overhead per session.
+
+| concurrent sessions | RAM usage (MiB) |
+| ------------------- | --------------- |
+| 1                   | 220             |
+| 2                   | 225             |
+| 4                   | 225             |
+| 8                   | 230             |
+| 16                  | 240             |
+| 32                  | 245             |
+| 64                  | 260             |
+| 128                 | 290             |
+| 256                 | 365             |
+
+These figures are for idle sessions. Sessions actively transferring data (interactive shells, log streams) consume more memory per session.
+
+### Registered Kubernetes clusters
+
+A single Kubernetes Service can serve multiple Kubernetes clusters via static `kubeconfig_file` configuration or dynamic discovery. Each registered cluster adds idle background overhead from heartbeats, schema refresh, and health checks.
+
+| registered clusters | idle CPU (millicores) | idle RAM (MiB) |
+| ------------------- | --------------------- | -------------- |
+| 1                   | 100                   | 135            |
+| 10                  | 240                   | 150            |
+| 50                  | 630                   | 170            |
+| 100                 | 1000                  | 200            |
+
+Both CPU and RAM grow approximately linearly with the number of registered clusters. To serve more clusters, deploy multiple Kubernetes Service instances.
+
+### Estimating resource requirements
+
+To estimate the resource requirements for the Kubernetes Service:
+1. Determine the maximum number of API requests per second across all users.
+1. Determine the maximum number of concurrent long-lived sessions.
+1. Determine the number of Kubernetes clusters served by each Kubernetes Service instance.
+
+Using `tsh bench`, simulate request activity to measure resource usage under expected conditions.
+Use the findings to set resource limits with an added margin (e.g., 20-50%) for safety.
+
+For example to send 32 list requests per second for 2 minutes against a Kubernetes cluster:
+```sh
+tsh bench kube ls eks-cluster --namespace default --rate=32 --duration=2m
+```
+
+To test 64 concurrent `exec` sessions against a single pod, run a parallel loop in a shell:
+```sh
+for i in $(seq 1 64); do
+  kubectl exec -n default my-pod -- sleep 300 &
+done
+wait
+```
+
+The payload can be customized to represent a typical use case.
+
+## Teleport Database Service resource utilization
+
+The Database Service resource utilization can vary significantly based on workload, user behavior, and environment. For this reason it is challenging to provide absolute CPU and RAM requirements. This worked example is an illustration of one potential approach in determining the resource limits for a given Database Service.
+
+There are three primary factors that influence resource utilization by the Database Service:
+1. Number of concurrent sessions.
+1. Number of new sessions per second.
+1. Number of registered databases.
+
+<Admonition
+  type="note"
+  title="Note"
+>
+  The figures listed in this guide are illustrative only using a synthetic workload. Always measure your specific workload in a representative environment before setting production limits.
+</Admonition>
+
+### Long lived sessions
+
+| concurrent sessions | RAM usage (MiB) |
+| ------------------- | --------------- |
+| 1                   | 40              |
+| 2                   | 50              |
+| 4                   | 60              |
+| 8                   | 80              |
+| 16                  | 120             |
+| 32                  | 200             |
+| 64                  | 400             |
+| 128                 | 800             |
+
+For a typical agent RAM usage increases linearly with the number of concurrent sessions.
+
+### New session requests
+
+| sessions per second | CPU peak (millicores) |
+| ------------------- | --------------------- |
+| 1                   | 100                   |
+| 2                   | 250                   |
+| 4                   | 500                   |
+| 8                   | 950                   |
+| 16                  | 1800                  |
+| 32                  | 3850                  |
+
+The primary driver of CPU usage by the Database Service is the burst usage when new sessions are established.
+
+### Registered databases
+
+A single Database Service can proxy multiple databases. Each registered database adds idle background overhead from heartbeats and health checks.
+
+| registered databases | idle CPU (millicores) | idle RAM (MiB) |
+| -------------------- | --------------------- | -------------- |
+| 100                  | 10                    | 70             |
+| 200                  | 12                    | 80             |
+| 500                  | 20                    | 130            |
+| 1000                 | 35                    | 200            |
+| 5000                 | 150                   | 450            |
+| 10000                | 250                   | 800            |
+| 50000                | 1300                  | 3300           |
+| 100000               | 1950                  | 7450           |
+
+Both CPU and RAM grow approximately linearly with the number of registered databases. To serve more databases, deploy multiple Database Service instances.
+
+### Estimating resource requirements
+
+To estimate the resource requirements for the Database Service:
+1. Determine the maximum number of concurrent sessions.
+1. Determine the maximum number of new sessions per second.
+1. Determine the number of databases served by each Database Service instance.
+
+Using `tsh bench`, simulate session activity to measure resource usage under expected conditions. Use the findings to set resource limits with an added margin (e.g., 20-50%) for safety.
+
+For example, spawn 32 new session requests per second for 2 minutes against a specific database:
+
+```code
+$ tsh bench postgres --rate=32 --duration=2m --db-user=alice --db-name=mydb mydb-resource
+```
+
+To measure memory usage under concurrent sessions, use your existing database tooling or clients to open simultaneous connections and run representative queries while monitoring the Database Service process.

@@ -20,13 +20,18 @@ package fetchers
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"slices"
+	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
@@ -36,7 +41,9 @@ import (
 	"k8s.io/client-go/kubernetes/fake"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestKubeAppFetcher_Get(t *testing.T) {
@@ -71,6 +78,19 @@ func TestKubeAppFetcher_Get(t *testing.T) {
 			[]corev1.ServicePort{
 				{Port: 42, Name: "custom", Protocol: corev1.ProtocolTCP},
 				{Port: 43, Name: "custom-udp", Protocol: corev1.ProtocolUDP},
+			}),
+		newMockService("service6", "ns4", "", map[string]string{"test-label4": "testval4"}, map[string]string{
+			types.DiscoveryProtocolLabel: types.SchemeMCPHTTP,
+		},
+			[]corev1.ServicePort{
+				{Port: 8080, Name: "custom", Protocol: corev1.ProtocolTCP},
+			}),
+		newMockService("service7", "ns4", "", map[string]string{"test-label4": "testval4"}, map[string]string{
+			types.DiscoveryProtocolLabel: types.SchemeMCPSSEHTTPS,
+			types.DiscoveryPathLabel:     "/sse",
+		},
+			[]corev1.ServicePort{
+				{Port: 443, Name: "custom", Protocol: corev1.ProtocolTCP},
 			}),
 	}
 
@@ -164,6 +184,42 @@ func TestKubeAppFetcher_Get(t *testing.T) {
 			},
 			Spec: types.AppSpecV3{
 				URI: "tcp://service5.ns3.svc.cluster.local:42",
+			},
+		},
+		"service6.app1": {
+			Kind:    "app",
+			SubKind: types.SubKindMCP,
+			Version: "v3",
+			Metadata: types.Metadata{
+				Name:        "service6-ns4-test-cluster",
+				Namespace:   "default",
+				Description: "Discovered application in Kubernetes cluster \"test-cluster\"",
+				Labels: map[string]string{
+					"test-label4":                "testval4",
+					types.KubernetesClusterLabel: "test-cluster",
+					types.AppSubKindLabel:        types.SubKindMCP,
+				},
+			},
+			Spec: types.AppSpecV3{
+				URI: "mcp+http://service6.ns4.svc.cluster.local:8080",
+			},
+		},
+		"service7.app1": {
+			Kind:    "app",
+			SubKind: types.SubKindMCP,
+			Version: "v3",
+			Metadata: types.Metadata{
+				Name:        "service7-ns4-test-cluster",
+				Namespace:   "default",
+				Description: "Discovered application in Kubernetes cluster \"test-cluster\"",
+				Labels: map[string]string{
+					"test-label4":                "testval4",
+					types.KubernetesClusterLabel: "test-cluster",
+					types.AppSubKindLabel:        types.SubKindMCP,
+				},
+			},
+			Spec: types.AppSpecV3{
+				URI: "mcp+sse+https://service7.ns4.svc.cluster.local:443/sse",
 			},
 		},
 	}
@@ -260,6 +316,13 @@ func TestKubeAppFetcher_Get(t *testing.T) {
 			expected:          types.Apps{apps["service5.app1"]},
 		},
 		{
+			desc:              "Service with MCP Streamable HTTP protocol annotation",
+			services:          mockServices,
+			matcherNamespaces: []string{"ns4"},
+			matcherLabels:     types.Labels{"test-label4": []string{"testval4"}},
+			expected:          types.Apps{apps["service6.app1"], apps["service7.app1"]},
+		},
+		{
 			desc:              "Matching service with protocol checker",
 			services:          mockServices,
 			matcherNamespaces: []string{"ns2"},
@@ -270,7 +333,6 @@ func TestKubeAppFetcher_Get(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
 			t.Parallel()
 
@@ -278,7 +340,7 @@ func TestKubeAppFetcher_Get(t *testing.T) {
 			for _, s := range tt.services {
 				objects = append(objects, s)
 			}
-			fakeClient := fake.NewSimpleClientset(objects...)
+			fakeClient := fake.NewClientset(objects...)
 
 			fetcher, err := NewKubeAppsFetcher(KubeAppsFetcherConfig{
 				ClusterName:      "test-cluster",
@@ -286,13 +348,13 @@ func TestKubeAppFetcher_Get(t *testing.T) {
 				FilterLabels:     tt.matcherLabels,
 				Namespaces:       tt.matcherNamespaces,
 				ProtocolChecker:  tt.protoChecker,
-				Log:              utils.NewLogger(),
+				Logger:           logtest.NewLogger(),
 			})
 			require.NoError(t, err)
 
 			result, err := fetcher.Get(context.Background())
 			require.NoError(t, err)
-			require.Equal(t, len(tt.expected), len(result))
+			require.Len(t, tt.expected, len(result))
 			slices.SortFunc(result, func(a, b types.ResourceWithLabels) int {
 				return strings.Compare(a.GetName(), b.GetName())
 			})
@@ -305,8 +367,9 @@ type mockProtocolChecker struct {
 	results map[string]string
 }
 
-func (m *mockProtocolChecker) CheckProtocol(uri string) string {
-	if result, ok := m.results[uri]; ok {
+func (m *mockProtocolChecker) CheckProtocol(service corev1.Service, port corev1.ServicePort) string {
+	hostport := net.JoinHostPort(services.GetServiceFQDN(service), strconv.Itoa(int(port.Port)))
+	if result, ok := m.results[hostport]; ok {
 		return result
 	}
 	return "tcp"
@@ -453,18 +516,39 @@ func TestGetServicePorts(t *testing.T) {
 
 func TestProtoChecker_CheckProtocol(t *testing.T) {
 	t.Parallel()
-	checker := NewProtoChecker(true)
+	checker := NewProtoChecker()
+	// Increasing client Timeout because CI/CD fails with a lower value.
+	checker.client.Timeout = 5 * time.Second
+
+	// Allow connections to HTTPS server created below.
+	checker.client.Transport = &http.Transport{TLSClientConfig: &tls.Config{
+		InsecureSkipVerify: true,
+	}}
+
+	totalNetworkHits := &atomic.Int32{}
 
 	httpsServer := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		totalNetworkHits.Add(1)
 		_, _ = fmt.Fprintln(w, "httpsServer")
 	}))
+	httpsServerBaseURL, err := url.Parse(httpsServer.URL)
+	require.NoError(t, err)
+
 	httpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_, _ = fmt.Fprintln(w, "httpServer")
+		// this never gets called because the HTTP server will not accept the HTTPS request.
 	}))
+	httpServerBaseURL, err := url.Parse(httpServer.URL)
+	require.NoError(t, err)
+
 	tcpServer := newTCPServer(t, func(conn net.Conn) {
+		totalNetworkHits.Add(1)
 		_, _ = conn.Write([]byte("tcpServer"))
 		_ = conn.Close()
 	})
+	tcpServerBaseURL := &url.URL{
+		Host: tcpServer.Addr().String(),
+	}
+
 	t.Cleanup(func() {
 		httpsServer.Close()
 		httpServer.Close()
@@ -472,27 +556,55 @@ func TestProtoChecker_CheckProtocol(t *testing.T) {
 	})
 
 	tests := []struct {
-		uri      string
+		host     string
 		expected string
 	}{
 		{
-			uri:      strings.TrimPrefix(httpServer.URL, "http://"),
+			host:     httpServerBaseURL.Host,
 			expected: "http",
 		},
 		{
-			uri:      strings.TrimPrefix(httpsServer.URL, "https://"),
+			host:     httpsServerBaseURL.Host,
 			expected: "https",
 		},
 		{
-			uri:      tcpServer.Addr().String(),
+			host:     tcpServerBaseURL.Host,
 			expected: "tcp",
 		},
 	}
 
 	for _, tt := range tests {
-		res := checker.CheckProtocol(tt.uri)
+		service, servicePort := createServiceAndServicePort(t, tt.expected, tt.host)
+		res := checker.CheckProtocol(service, servicePort)
 		require.Equal(t, tt.expected, res)
 	}
+
+	t.Run("caching prevents more than 1 network request to the same service", func(t *testing.T) {
+		service, servicePort := createServiceAndServicePort(t, "https", httpsServerBaseURL.Host)
+		checker.CheckProtocol(service, servicePort)
+		// There can only be two hits recorded: one for the HTTPS Server and another one for the TCP Server.
+		// The HTTP Server does not generate a network hit. See above.
+		require.Equal(t, int32(2), totalNetworkHits.Load())
+	})
+}
+
+func createServiceAndServicePort(t *testing.T, serviceName, host string) (corev1.Service, corev1.ServicePort) {
+	host, portString, err := net.SplitHostPort(host)
+	require.NoError(t, err)
+	port, err := strconv.Atoi(portString)
+	require.NoError(t, err)
+	service := corev1.Service{
+		ObjectMeta: v1.ObjectMeta{
+			Name:      serviceName,
+			Namespace: "default",
+		},
+		Spec: corev1.ServiceSpec{
+			Type:         corev1.ServiceTypeExternalName,
+			ExternalName: host,
+		},
+	}
+	servicePort := corev1.ServicePort{Port: int32(port)}
+	return service, servicePort
 }
 
 func newTCPServer(t *testing.T, handleConn func(net.Conn)) net.Listener {
@@ -579,7 +691,7 @@ func TestAutoProtocolDetection(t *testing.T) {
 				port.AppProtocol = &tt.appProtocol
 			}
 
-			result := autoProtocolDetection("192.1.1.1", port, nil)
+			result := autoProtocolDetection(corev1.Service{}, port, nil)
 
 			require.Equal(t, tt.expected, result)
 		})

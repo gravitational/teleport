@@ -219,6 +219,12 @@ func runClientResumableUnlocking(ctx context.Context, resumableConn *Conn, first
 		case <-detached:
 		}
 
+		reconnectTicker.Stop()
+		select {
+		case <-reconnectTicker.Chan():
+		default:
+		}
+
 		slog.DebugContext(ctx, "connection lost, starting reconnection loop", "host_id", hostID)
 		reconnectDeadline := time.Now().Add(reconnectTimeout)
 		backoff := minBackoff
@@ -262,10 +268,6 @@ func runClientResumableUnlocking(ctx context.Context, resumableConn *Conn, first
 		}
 
 		reconnectTicker.Reset(replacementInterval)
-		select {
-		case <-reconnectTicker.Chan():
-		default:
-		}
 	}
 }
 
@@ -353,7 +355,7 @@ func dialResumable(ctx context.Context, token resumptionToken, hostID string, re
 
 	otp32 := sha256.Sum256(dhSecret)
 
-	for i := 0; i < 16; i++ {
+	for i := range 16 {
 		otp32[i] ^= token[i]
 	}
 

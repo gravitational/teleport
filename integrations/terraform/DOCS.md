@@ -4,7 +4,7 @@
 ### What documentation is available
 
 We maintain:
-- [The Terraform Provider reference](https://goteleport.com/docs/reference/terraform) describing every resource and supported field.
+- [The Terraform Provider reference](https://goteleport.com/docs/reference/terraform-provider/) describing every resource and supported field.
 - [The installation guide](https://goteleport.com/docs/management/dynamic-resources/terraform-provider/)
 - A getting started guide describing [how to configure users and roles with Terraform](https://goteleport.com/docs/management/dynamic-resources/user-and-role/)
 
@@ -24,8 +24,6 @@ To re-render the reference, run `make docs`.
 #### Adding a new resource
 
 When adding a new resource, the file is automatically generated and included in the indices by `make docs`.
-
-The only thing you must do is add an entry in `docs/config.json`.
 
 #### Extending a resource reference
 

@@ -16,13 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-
 import { Box, Text } from 'design';
 
+import { Cluster } from 'teleterm/services/tshd/types';
 import { FilterableList } from 'teleterm/ui/components/FilterableList';
 import { useKeyboardArrowsNavigationStateUpdate } from 'teleterm/ui/components/KeyboardArrowsNavigation';
-import { Cluster } from 'teleterm/services/tshd/types';
 
 import { ClusterItem } from './ClusterItem';
 
@@ -44,7 +42,7 @@ export function ClustersFilterableList(props: ClustersFilterableListProps) {
           onFilterChange={value =>
             value.length ? setActiveIndex(0) : setActiveIndex(-1)
           }
-          placeholder="Search Leaf Cluster"
+          placeholder="Search leaf clusters"
           Node={({ item, index }) => (
             <ClusterItem
               item={item}

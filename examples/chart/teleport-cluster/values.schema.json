@@ -35,6 +35,11 @@
             "type": "string",
             "default": ""
         },
+        "nameOverride": {
+            "$id": "#/properties/nameOverride",
+            "type": "string",
+            "default": ""
+        },
         "proxyProtocol": {
             "$id": "#/properties/proxyProtocol",
             "type": "string",
@@ -125,6 +130,19 @@
                         "webauthn"
                     ],
                     "default": "otp"
+                },
+                "secondFactors": {
+                    "$id": "#/properties/authentication/properties/secondFactors",
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "enum": [
+                            "otp",
+                            "sso",
+                            "webauthn"
+                        ]
+                    },
+                    "default": []
                 },
                 "webauthn": {
                     "$id": "#/properties/authentication/properties/webauthn",
@@ -285,6 +303,11 @@
             "$id": "#/properties/enterprise",
             "type": "boolean",
             "default": false
+        },
+        "licenseSecretName": {
+            "$id": "#/properties/licenseSecretName",
+            "type": "string",
+            "default": "license"
         },
         "installCRDs": {
             "$id": "#/properties/installCRDs",
@@ -694,7 +717,8 @@
             "type": "object",
             "required": [
                 "existingSecretName",
-                "existingCASecretName"
+                "existingCASecretName",
+                "existingCASecretKeyName"
             ],
             "properties": {
                 "existingSecretName": {
@@ -706,6 +730,11 @@
                     "$id": "#/properties/tls/properties/existingCASecretName",
                     "type": "string",
                     "default": ""
+                },
+                "existingCASecretKeyName": {
+                    "$id": "#/properties/tls/properties/existingCASecretKeyName",
+                    "type": "string",
+                    "default": "ca.pem"
                 }
             }
         },
@@ -757,20 +786,20 @@
                     ],
                     "default": "INFO"
                 },
-                "deployment": {
+                "output": {
                     "$id": "#/properties/log/properties/output",
                     "type": "string",
-                    "default": {}
+                    "default": "stderr"
                 },
-                "pod": {
+                "format": {
                     "$id": "#/properties/log/properties/format",
                     "type": "string",
-                    "default": {}
+                    "default": "text"
                 },
-                "service": {
+                "extraFields": {
                     "$id": "#/properties/log/properties/extraFields",
                     "type": "array",
-                    "default": {}
+                    "default": ["timestamp","level","component","caller"]
                 }
             }
         },
@@ -826,6 +855,11 @@
                     "$id": "#/properties/annotations/properties/certSecret",
                     "type": "object",
                     "default": {}
+                },
+                "ingress": {
+                    "$id": "#/properties/annotations/properties/ingress",
+                    "type": "object",
+                    "default": {}
                 }
             }
         },
@@ -856,6 +890,11 @@
             },
             "suppressAutomaticWildcards": {
                 "$id": "#/properties/ingress/suppressAutomaticWildcards",
+                "type": "boolean",
+                "default": false
+            },
+            "useExisting": {
+                "$id": "#/properties/ingress/useExisting",
                 "type": "boolean",
                 "default": false
             },
@@ -919,6 +958,11 @@
             "type": "array",
             "default": []
         },
+        "extraLabels": {
+            "$id": "#/properties/extraLabels",
+            "type": "object",
+            "default": {}
+        },
         "imagePullPolicy": {
             "$id": "#/properties/imagePullPolicy",
             "type": "string",
@@ -958,6 +1002,16 @@
             "type": "object",
             "default": {}
         },
+        "jobResources": {
+            "$id": "#/properties/jobResources",
+            "type": "object",
+            "default": {}
+        },
+        "goMemLimitRatio": {
+            "$id": "#/properties/goMemLimitRatio",
+            "type": "number",
+            "default": 0.9
+        },
         "podSecurityContext": {
             "$id": "#/properties/podSecurityContext",
             "type": "object",
@@ -973,6 +1027,11 @@
             "type": "array",
             "default": []
         },
+        "disableTopologySpreadConstraints": {
+            "$id": "#/properties/disableTopologySpreadConstraints",
+            "type": "boolean",
+            "default": false
+        },
         "priorityClassName": {
             "$id": "#/properties/priorityClassName",
             "type": "string",
@@ -987,6 +1046,38 @@
             "$id": "#/properties/terminationGracePeriodSeconds",
             "type": "integer",
             "default": 60
+        },
+        "topologySpreadConstraints": {
+            "$id": "#/properties/topologySpreadConstraints",
+            "type": "array",
+            "default": []
+        },
+        "readinessProbe": {
+            "$id": "#/properties/readinessProbe",
+            "type": "object",
+            "default": {},
+            "properties": {
+                "initialDelaySeconds": {
+                    "$id": "#/properties/readinessProbe/properties/initialDelaySeconds",
+                    "type": "integer",
+                    "default": 5
+                },
+                "periodSeconds": {
+                    "$id": "#/properties/readinessProbe/properties/periodSeconds",
+                    "type": "integer",
+                    "default": 5
+                },
+                "failureThreshold": {
+                    "$id": "#/properties/readinessProbe/properties/failureThreshold",
+                    "type": "integer",
+                    "default": 12
+                },
+                "successThreshold": {
+                    "$id": "#/properties/readinessProbe/properties/successThreshold",
+                    "type": "integer",
+                    "default": 1
+                }
+            }
         }
     }
 }

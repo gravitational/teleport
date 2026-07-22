@@ -1,0 +1,17 @@
+# Begin generated Teleport configuration by tbot for the ssh-multiplexer service
+
+Host *.example.com
+    Port 3022
+    UserKnownHostsFile '/opt/machine-id/known_hosts'
+    IdentityFile none
+    IdentityAgent '/opt/machine-id/agent.sock'
+    ProxyCommand '/bin/fdpass-teleport' 'foo' '/opt/machine-id/v1.sock' '%h:%p|example.com'
+    ProxyUseFDPass yes
+Host *.example.org
+    Port 3022
+    UserKnownHostsFile '/opt/machine-id/known_hosts'
+    IdentityFile none
+    IdentityAgent '/opt/machine-id/agent.sock'
+    ProxyCommand '/bin/fdpass-teleport' 'foo' '/opt/machine-id/v1.sock' '%h:%p|example.org'
+    ProxyUseFDPass yes
+# End generated Teleport configuration

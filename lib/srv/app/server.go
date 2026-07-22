@@ -23,22 +23,27 @@ package app
 
 import (
 	"context"
+	"log/slog"
 	"net"
 	"sync"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/componentfeatures"
 	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/labels"
-	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/scopes/pinning"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -82,17 +87,24 @@ type Config struct {
 	// ResourceMatchers is a list of app resource matchers.
 	ResourceMatchers []services.ResourceMatcher
 
-	// OnReconcile is called after each database resource reconciliation.
+	// ScopePin is the scope and scoped role assignments the agent is pinned to.
+	ScopePin *scopesv1.Pin
+
+	// OnReconcile is called after each app resource reconciliation.
 	OnReconcile func(types.Apps)
 
 	// ConnectedProxyGetter gets the proxies teleport is connected to.
-	ConnectedProxyGetter *reversetunnel.ConnectedProxyGetter
+	ConnectedProxyGetter reversetunnelclient.ConnectedProxyGetter
 
 	// ConnectionsHandler handles the HTTP/TCP App proxy connections.
 	ConnectionsHandler *ConnectionsHandler
 
 	// InventoryHandle is used to send app server heartbeats via the inventory control stream.
 	InventoryHandle inventory.DownstreamHandle
+
+	// IgnoreAppsWithCommandLabels configures the app server to reject app resources
+	// with dynamic/command labels even if the app's labels otherwise match.
+	IgnoreAppsWithCommandLabels bool
 }
 
 // CheckAndSetDefaults makes sure the configuration has the minimum required
@@ -123,16 +135,26 @@ func (c *Config) CheckAndSetDefaults() error {
 		return trace.BadParameter("connections handler missing")
 	}
 	if c.ConnectedProxyGetter == nil {
-		c.ConnectedProxyGetter = reversetunnel.NewConnectedProxyGetter()
+		return trace.BadParameter("ConnectedProxyGetter missing")
+	}
+	if c.ScopePin != nil {
+		if err := pinning.WeakValidate(c.ScopePin); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 	return nil
+}
+
+// GetScope returns the scope the agent is pinned to.
+func (c *Config) GetScope() string {
+	return c.ScopePin.GetScope()
 }
 
 // Server is an application server. It authenticates requests from the web
 // proxy and forwards th to internal applications.
 type Server struct {
 	c   *Config
-	log *logrus.Entry
+	log *slog.Logger
 
 	closeContext context.Context
 	closeFunc    context.CancelFunc
@@ -151,7 +173,13 @@ type Server struct {
 	reconcileCh chan struct{}
 
 	// watcher monitors changes to application resources.
-	watcher *services.AppWatcher
+	watcher *services.GenericWatcher[types.Application, readonly.Application]
+
+	// reconcileDone is closed after the first successful
+	// reconciliation cycle completes. It is only signaled
+	// when a resource watcher is active (s.watcher != nil).
+	reconcileDone     chan struct{}
+	reconcileDoneOnce sync.Once
 }
 
 // monitoredApps is a collection of applications from different sources
@@ -187,6 +215,11 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	// TODO(williamo/scopes): remove this validation once dynamic app registration supports scopes.
+	if c.GetScope() != "" && len(c.ResourceMatchers) > 0 {
+		return nil, trace.BadParameter("dynamic app registration not supported for scoped app_service, resource matchers must be empty")
+	}
+
 	closeContext, closeFunc := context.WithCancel(ctx)
 	// in case of errors cancel context to avoid context leak
 	callClose := true
@@ -197,23 +230,21 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 	}()
 
 	s := &Server{
-		c: c,
-		// TODO(greedy52) replace with slog from Config.Logger.
-		log: logrus.WithFields(logrus.Fields{
-			teleport.ComponentKey: teleport.ComponentApp,
-		}),
+		c:             c,
+		log:           slog.With(teleport.ComponentKey, teleport.ComponentApp),
 		heartbeats:    make(map[string]srv.HeartbeatI),
 		dynamicLabels: make(map[string]*labels.Dynamic),
 		apps:          make(map[string]types.Application),
 		monitoredApps: monitoredApps{
 			static: c.Apps,
 		},
-		reconcileCh:  make(chan struct{}),
-		closeFunc:    closeFunc,
-		closeContext: closeContext,
+		reconcileCh:   make(chan struct{}),
+		reconcileDone: make(chan struct{}),
+		closeFunc:     closeFunc,
+		closeContext:  closeContext,
 	}
 
-	s.c.ConnectionsHandler.SetApplicationsProvider(s.GetAppByPublicAddress)
+	s.c.ConnectionsHandler.SetApplicationsProvider(s.GetApp)
 
 	callClose = false
 	return s, nil
@@ -231,7 +262,7 @@ func (s *Server) startApp(ctx context.Context, app types.Application) error {
 	if err := s.startHeartbeat(ctx, app); err != nil {
 		return trace.Wrap(err)
 	}
-	s.log.Debugf("Started %v.", app)
+	s.log.DebugContext(ctx, "App started.", "app", app)
 	return nil
 }
 
@@ -241,7 +272,7 @@ func (s *Server) stopApp(ctx context.Context, name string) error {
 	if err := s.stopHeartbeat(name); err != nil {
 		return trace.Wrap(err)
 	}
-	s.log.Debugf("Stopped app %q.", name)
+	s.log.DebugContext(ctx, "App stopped.", "app", name)
 	return nil
 }
 
@@ -272,7 +303,7 @@ func (s *Server) startDynamicLabels(ctx context.Context, app types.Application) 
 	}
 	dynamic, err := labels.NewDynamic(ctx, &labels.DynamicConfig{
 		Labels: app.GetDynamicLabels(),
-		// TODO: pass s.log through after it's been converted to slog
+		Log:    s.log,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -303,10 +334,6 @@ func (s *Server) startHeartbeat(ctx context.Context, app types.Application) erro
 		InventoryHandle: s.c.InventoryHandle,
 		GetResource:     s.getServerInfoFunc(app),
 		OnHeartbeat:     s.c.OnHeartbeat,
-		// Announcer is provided to allow falling back to non-ICS heartbeats if
-		// the Auth server is older than the app service.
-		// TODO(tross): DELETE IN 16.0.0
-		Announcer: s.c.AccessPoint,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -332,44 +359,46 @@ func (s *Server) stopHeartbeat(name string) error {
 
 // getServerInfoFunc returns function that the heartbeater uses to report the
 // provided application to the auth server.
-func (s *Server) getServerInfoFunc(app types.Application) func() *types.AppServerV3 {
-	return func() *types.AppServerV3 {
+func (s *Server) getServerInfoFunc(app types.Application) func(context.Context) (*types.AppServerV3, error) {
+	return func(context.Context) (*types.AppServerV3, error) {
 		return s.getServerInfo(app)
 	}
 }
 
 // getServerInfo returns up-to-date app resource.
-func (s *Server) getServerInfo(app types.Application) *types.AppServerV3 {
+func (s *Server) getServerInfo(app types.Application) (*types.AppServerV3, error) {
 	// Make sure to return a new object, because it gets cached by
 	// heartbeat and will always compare as equal otherwise.
 	s.mu.RLock()
 	copy := s.appWithUpdatedLabelsLocked(app)
 	s.mu.RUnlock()
-	expires := s.c.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL)
 
-	return &types.AppServerV3{
-		Kind:    types.KindAppServer,
-		Version: types.V3,
-		Metadata: types.Metadata{
-			Name:    copy.GetName(),
-			Expires: &expires,
-		},
-		Spec: types.AppServerSpecV3{
-			Version:  teleport.Version,
-			Hostname: s.c.Hostname,
-			HostID:   s.c.HostID,
-			Rotation: s.getRotationState(),
-			App:      copy,
-			ProxyIDs: s.c.ConnectedProxyGetter.GetProxyIDs(),
-		},
+	expires := s.c.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL)
+	server, err := types.NewAppServerV3(types.Metadata{
+		Name:    copy.GetName(),
+		Expires: &expires,
+	}, types.AppServerSpecV3{
+		Version:  teleport.Version,
+		Hostname: s.c.Hostname,
+		HostID:   s.c.HostID,
+		Rotation: s.getRotationState(),
+		App:      copy,
+		ProxyIDs: s.c.ConnectedProxyGetter.GetProxyIDs(),
+	}, s.c.GetScope())
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
+
+	server.SetComponentFeatures(componentfeatures.ForAppServer(server))
+
+	return server, nil
 }
 
 // getRotationState is a helper to return this server's CA rotation state.
 func (s *Server) getRotationState() types.Rotation {
 	rotation, err := s.c.GetRotation(types.RoleApp)
 	if err != nil && !trace.IsNotFound(err) && !trace.IsConnectionProblem(err) {
-		s.log.WithError(err).Warn("Failed to get rotation state.")
+		s.log.WarnContext(s.closeContext, "Failed to get rotation state.", "error", err)
 	}
 	if rotation != nil {
 		return *rotation
@@ -445,7 +474,104 @@ func (s *Server) Start(ctx context.Context) (err error) {
 	if s.watcher, err = s.startResourceWatcher(ctx); err != nil {
 		return trace.Wrap(err)
 	}
+
+	// App uses heartbeat v2, which heartbeats resources but not the server itself
+	// If there are no resources, we will never report ready.
+	// We workaround by reporting ready after the first successful watcher init.
+	// We only need to do this if the watcher is non-nil, because if
+	// it's nil we are advertising some static app and will heartbeat.
+	if s.watcher != nil && s.c.OnHeartbeat != nil {
+		go func() {
+			s.c.OnHeartbeat(s.watcher.WaitInitialization())
+		}()
+	}
+
+	// Clean up orphaned app server records left behind by a previous
+	// instance (e.g. after SIGHUP reload removed an app from config).
+	go s.cleanupOrphanedAppServers(ctx)
+
 	return nil
+}
+
+// cleanupOrphanedAppServers deletes app server heartbeat
+// records belonging to this host that no longer correspond
+// to a running app.
+//
+// When an app is removed from config and the agent is
+// reloaded via SIGHUP, the removed app's heartbeat record
+// is not deleted. It lingers in the auth backend until TTL
+// expiry (up to [apidefaults.ServerAnnounceTTL]). This
+// method runs on startup to clean up those orphaned records
+// immediately.
+//
+// For agents with dynamic apps (ResourceMatchers), cleanup
+// waits for the first successful reconciliation so that
+// s.apps includes dynamic apps before deciding what is
+// orphaned. If reconciliation does not complete within a
+// timeout, cleanup is skipped entirely to avoid mistakenly
+// deleting valid dynamic app records.
+func (s *Server) cleanupOrphanedAppServers(ctx context.Context) {
+	// Bail out if reconciliation does not complete within a
+	// reasonable time. Without a full picture of dynamic apps
+	// we could mistakenly delete valid records.
+	if s.watcher != nil {
+		timer := time.NewTimer(2 * time.Minute)
+		defer timer.Stop()
+		select {
+		case <-s.reconcileDone:
+		case <-timer.C:
+			s.log.WarnContext(ctx, "Timed out waiting for first reconciliation, skipping orphan cleanup.")
+			return
+		case <-s.closeContext.Done():
+			return
+		case <-ctx.Done():
+			return
+		}
+	}
+
+	// Snapshot the current app set before the RPC call. close()
+	// clears s.apps under the write lock before canceling
+	// closeContext, so snapshotting early ensures we see the full
+	// set even if close() runs during GetApplicationServers.
+	s.mu.RLock()
+	currentApps := make(map[string]bool, len(s.apps))
+	for name := range s.apps {
+		currentApps[name] = true
+	}
+	s.mu.RUnlock()
+
+	servers, err := s.c.AuthClient.GetApplicationServers(ctx, apidefaults.Namespace)
+	if err != nil {
+		s.log.WarnContext(ctx, "Failed to list app servers for orphan cleanup.", "error", err)
+		return
+	}
+
+	for _, server := range servers {
+		if s.closeContext.Err() != nil {
+			return
+		}
+		if server.GetHostID() != s.c.HostID {
+			continue
+		}
+		// Skip app servers managed by other components (e.g. AWS
+		// OIDC integration servers upserted by the proxy web
+		// handler). In all-in-one deployments these share our
+		// HostID but are not part of the app service's app set.
+		if server.GetApp().GetIntegration() != "" {
+			continue
+		}
+		name := server.GetApp().GetName()
+		if currentApps[name] {
+			continue
+		}
+		if err := s.removeAppServer(ctx, name); err != nil {
+			if !trace.IsNotFound(err) {
+				s.log.WarnContext(ctx, "Failed to remove orphaned app server.", "app", name, "error", err)
+			}
+			continue
+		}
+		s.log.InfoContext(ctx, "Removed orphaned app server on startup.", "app", name)
+	}
 }
 
 // Close will shut the server down and unblock any resources.
@@ -470,8 +596,8 @@ func (s *Server) close(ctx context.Context) error {
 		// Manual deletion per app is only required if the auth server
 		// doesn't support actively cleaning up app resources when the
 		// inventory control stream is terminated during shutdown.
-		if capabilities := sender.Hello().Capabilities; capabilities != nil {
-			shouldDeleteApps = shouldDeleteApps && !capabilities.AppCleanup
+		if capabilities := sender.Hello().GetCapabilities(); capabilities != nil {
+			shouldDeleteApps = shouldDeleteApps && !capabilities.GetAppCleanup()
 		}
 	}
 
@@ -484,7 +610,6 @@ func (s *Server) close(ctx context.Context) error {
 	// server below would be undone.
 	s.mu.RLock()
 	for name := range s.apps {
-		name := name
 		heartbeat := s.heartbeats[name]
 
 		if dynamic, ok := s.dynamicLabels[name]; ok {
@@ -492,21 +617,21 @@ func (s *Server) close(ctx context.Context) error {
 		}
 
 		if heartbeat != nil {
-			log := s.log.WithField("app", name)
-			log.Debug("Stopping app")
+			log := s.log.With("app", name)
+			log.DebugContext(ctx, "Stopping app")
 			if err := heartbeat.Close(); err != nil {
-				log.WithError(err).Warn("Failed to stop app.")
+				log.WarnContext(ctx, "Failed to stop app.", "error", err)
 			} else {
-				log.Debug("Stopped app")
+				log.DebugContext(ctx, "Stopped app")
 			}
 
 			if shouldDeleteApps {
 				g.Go(func() error {
-					log.Debug("Deleting app")
+					log.DebugContext(ctx, "Deleting app")
 					if err := s.removeAppServer(gctx, name); err != nil {
-						log.WithError(err).Warn("Failed to delete app.")
+						log.WarnContext(ctx, "Failed to delete app.", "error", err)
 					} else {
-						log.Debug("Deleted app")
+						log.DebugContext(ctx, "Deleted app")
 					}
 					return nil
 				})
@@ -516,7 +641,7 @@ func (s *Server) close(ctx context.Context) error {
 	s.mu.RUnlock()
 
 	if err := g.Wait(); err != nil {
-		s.log.WithError(err).Warn("Deleting all apps failed")
+		s.log.WarnContext(ctx, "Deleting all apps failed", "error", err)
 	}
 
 	s.mu.Lock()
@@ -530,7 +655,7 @@ func (s *Server) close(ctx context.Context) error {
 	// Signal to any blocking go routine that it should exit.
 	s.closeFunc()
 
-	// Stop the database resource watcher.
+	// Stop the application resource watcher.
 	if s.watcher != nil {
 		s.watcher.Close()
 	}
@@ -550,21 +675,22 @@ func (s *Server) HandleConnection(conn net.Conn) {
 	s.c.ConnectionsHandler.HandleConnection(conn)
 }
 
-// GetAppByPublicAddress returns an application matching the public address. If multiple
-// matching applications exist, the first one is returned. Random selection
-// (or round robin) does not need to occur here because they will all point
-// to the same target address. Random selection (or round robin) occurs at the
-// web proxy to load balance requests to the application service.
-func (s *Server) GetAppByPublicAddress(ctx context.Context, publicAddr string) (types.Application, error) {
+// GetApp returns an application matching the name and public address.
+// The app name, when present, disambiguates apps that share a public address.
+func (s *Server) GetApp(ctx context.Context, appName, publicAddr string) (types.Application, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	// don't call s.getApps() as this will call RLock and potentially deadlock.
-	for _, a := range s.apps {
-		if publicAddr == a.GetPublicAddr() {
-			return s.appWithUpdatedLabelsLocked(a), nil
+
+	for _, app := range s.apps {
+		if app.GetPublicAddr() != publicAddr {
+			continue
 		}
+		if appName != "" && app.GetName() != appName {
+			continue
+		}
+		return s.appWithUpdatedLabelsLocked(app), nil
 	}
-	return nil, trace.NotFound("no application at %v found", publicAddr)
+	return nil, trace.NotFound("no application %s at %s found", appName, publicAddr)
 }
 
 // appWithUpdatedLabelsLocked will inject updated dynamic and cloud labels into
@@ -584,6 +710,17 @@ func (s *Server) appWithUpdatedLabelsLocked(app types.Application) *types.AppV3 
 	// Add in the cloud labels if the app has them.
 	if s.c.CloudLabels != nil {
 		s.c.CloudLabels.Apply(copy)
+	}
+
+	// A statically configured app on a scoped agent carries no scope, so use the agent's scope
+	// onto it.
+	// An app that already has a scope keeps it, rather than being silently re-scoped to the
+	// agent's scope.
+	// If it doesn't match this agent's scope, the resulting server/app scope mismatch
+	// is rejected via heartbeat (ValidateAppServer and the inventory controller).
+	// TODO (williamo/scopes) - reject scoped app creation via tctl
+	if copy.GetScope() == "" {
+		copy.Scope = s.c.GetScope()
 	}
 
 	return copy

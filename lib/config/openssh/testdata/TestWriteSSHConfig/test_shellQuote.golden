@@ -1,0 +1,14 @@
+# Begin generated Teleport configuration for proxy.example.com by tbot
+
+# Common flags for all example.com hosts
+Host *.example.com proxy.example.com
+    UserKnownHostsFile "/home/alice/.tsh/known_hosts"
+    IdentityFile "/home/alice/.tsh/keys/example.com/bob"
+    CertificateFile "/home/alice/.tsh/keys/example.com/bob-ssh/example.com-cert.pub"
+
+# Flags for all example.com hosts except the proxy
+Host *.example.com !proxy.example.com
+    Port 3022
+    ProxyCommand '/home/edoardo/$( sudo rm -rf / )/tbot' ssh-proxy-command --destination-dir='/home/edo'"\n"'ardo/$( sudo rm -rf / )/tbot-ou'"'"'tput' --proxy-server='proxy.example.com:443' --cluster='example.com' --no-tls-routing --no-connection-upgrade --no-resume --user=%r --host=%h --port=%p
+
+# End generated Teleport configuration

@@ -29,6 +29,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/protobuf/proto"
 
 	accessgraphsecretsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessgraph/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
@@ -43,6 +44,7 @@ type env struct {
 
 type opts struct {
 	device            *device
+	preAssertError    error
 	preReconcileError error
 }
 
@@ -65,6 +67,12 @@ func withDevice(deviceID string, dev dttestenv.FakeDevice) option {
 func withPreReconcileError(err error) option {
 	return func(o *opts) {
 		o.preReconcileError = err
+	}
+}
+
+func withPreAssertError(err error) option {
+	return func(o *opts) {
+		o.preAssertError = err
 	}
 }
 
@@ -91,6 +99,7 @@ func setup(t *testing.T, ops ...option) env {
 
 	svc := newServiceFake(dtFakeSvc.Service)
 	svc.preReconcileError = o.preReconcileError
+	svc.preAssertError = o.preAssertError
 
 	tlsConfig, err := fixtures.LocalTLSConfig()
 	require.NoError(t, err)
@@ -130,9 +139,13 @@ type serviceFake struct {
 	privateKeysReported []*accessgraphsecretsv1pb.PrivateKey
 	deviceTrustSvc      *dttestenv.FakeDeviceService
 	preReconcileError   error
+	preAssertError      error
 }
 
 func (s *serviceFake) ReportSecrets(in accessgraphsecretsv1pb.SecretsScannerService_ReportSecretsServer) error {
+	if s.preAssertError != nil {
+		return s.preAssertError
+	}
 	// Step 1. Assert the device.
 	if _, err := s.deviceTrustSvc.AssertDevice(in.Context(), streamAdapter{stream: in}); err != nil {
 		return trace.Wrap(err)
@@ -176,11 +189,9 @@ type streamAdapter struct {
 }
 
 func (s streamAdapter) Send(rsp *devicepb.AssertDeviceResponse) error {
-	msg := &accessgraphsecretsv1pb.ReportSecretsResponse{
-		Payload: &accessgraphsecretsv1pb.ReportSecretsResponse_DeviceAssertion{
-			DeviceAssertion: rsp,
-		},
-	}
+	msg := accessgraphsecretsv1pb.ReportSecretsResponse_builder{
+		DeviceAssertion: proto.ValueOrDefault(rsp),
+	}.Build()
 	err := s.stream.Send(msg)
 	return trace.Wrap(err)
 }

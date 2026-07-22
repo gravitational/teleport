@@ -45,6 +45,14 @@ type WindowsDesktopService interface {
 	GetHostname() string
 	// ProxiedService provides common methods for a proxied service.
 	ProxiedService
+	// GetRelayGroup returns the name of the Relay group that this service is
+	// connected to.
+	GetRelayGroup() string
+	// GetRelayIDs returns the list of Relay host IDs that this service is
+	// connected to.
+	GetRelayIDs() []string
+	// Clone creates a copy of the service.
+	Clone() WindowsDesktopService
 }
 
 type WindowsDesktopServices []WindowsDesktopService
@@ -115,9 +123,30 @@ func (s *WindowsDesktopServiceV3) SetProxyIDs(proxyIDs []string) {
 	s.Spec.ProxyIDs = proxyIDs
 }
 
+// GetRelayGroup implements [WindowsDesktopService].
+func (s *WindowsDesktopServiceV3) GetRelayGroup() string {
+	if s == nil {
+		return ""
+	}
+	return s.Spec.RelayGroup
+}
+
+// GetRelayIDs implements [WindowsDesktopService].
+func (s *WindowsDesktopServiceV3) GetRelayIDs() []string {
+	if s == nil {
+		return nil
+	}
+	return s.Spec.RelayIds
+}
+
 // GetHostname returns the windows hostname of this service.
 func (s *WindowsDesktopServiceV3) GetHostname() string {
 	return s.Spec.Hostname
+}
+
+// Clone creates a copy of the service.
+func (s *WindowsDesktopServiceV3) Clone() WindowsDesktopService {
+	return utils.CloneProtoMsg(s)
 }
 
 // MatchSearch goes through select field values and tries to
@@ -125,6 +154,176 @@ func (s *WindowsDesktopServiceV3) GetHostname() string {
 func (s *WindowsDesktopServiceV3) MatchSearch(values []string) bool {
 	fieldVals := append(utils.MapToStrings(s.GetAllLabels()), s.GetName(), s.GetHostname())
 	return MatchSearch(fieldVals, values, nil)
+}
+
+// DynamicWindowsDesktop represents a Windows desktop host that is automatically discovered by Windows Desktop Service.
+type DynamicWindowsDesktop interface {
+	// ResourceWithLabels provides common resource methods.
+	ResourceWithLabels
+	// GetAddr returns the network address of this host.
+	GetAddr() string
+	// GetDomain returns the ActiveDirectory domain of this host.
+	GetDomain() string
+	// NonAD checks whether this is a standalone host that
+	// is not joined to an Active Directory domain.
+	NonAD() bool
+	// GetScreenSize returns the desired size of the screen to use for sessions
+	// to this host. Returns (0, 0) if no screen size is set, which means to
+	// use the size passed by the client over TDP.
+	GetScreenSize() (width, height uint32)
+	// Copy returns a copy of this dynamic Windows desktop
+	Copy() DynamicWindowsDesktop
+	// IsEqual determines if two dynamic Windows desktops are equivalent to one another.
+	IsEqual(DynamicWindowsDesktop) bool
+}
+
+var _ DynamicWindowsDesktop = &DynamicWindowsDesktopV1{}
+
+// NewDynamicWindowsDesktopV1 creates a new DynamicWindowsDesktopV1 resource.
+func NewDynamicWindowsDesktopV1(name string, labels map[string]string, spec DynamicWindowsDesktopSpecV1) (*DynamicWindowsDesktopV1, error) {
+	d := &DynamicWindowsDesktopV1{
+		ResourceHeader: ResourceHeader{
+			Metadata: Metadata{
+				Name:   name,
+				Labels: labels,
+			},
+		},
+		Spec: spec,
+	}
+	if err := d.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return d, nil
+}
+
+func (d *DynamicWindowsDesktopV1) setStaticFields() {
+	d.Kind = KindDynamicWindowsDesktop
+	d.Version = V1
+}
+
+// CheckAndSetDefaults checks and sets default values for any missing fields.
+func (d *DynamicWindowsDesktopV1) CheckAndSetDefaults() error {
+	if d.Spec.Addr == "" {
+		return trace.BadParameter("DynamicWindowsDesktopV1.Spec missing Addr field")
+	}
+
+	if err := checkNameAndScreenSize(d.GetName(), d.Spec.ScreenSize); err != nil {
+		return trace.Wrap(err)
+	}
+
+	d.setStaticFields()
+	if err := d.ResourceHeader.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+func (d *DynamicWindowsDesktopV1) GetScreenSize() (width, height uint32) {
+	if d.Spec.ScreenSize == nil {
+		return 0, 0
+	}
+	return d.Spec.ScreenSize.Width, d.Spec.ScreenSize.Height
+}
+
+// NonAD checks whether host is part of Active Directory
+func (d *DynamicWindowsDesktopV1) NonAD() bool {
+	return d.Spec.NonAD
+}
+
+// GetAddr returns the network address of this host.
+func (d *DynamicWindowsDesktopV1) GetAddr() string {
+	return d.Spec.Addr
+}
+
+// GetDomain returns the Active Directory domain of this host.
+func (d *DynamicWindowsDesktopV1) GetDomain() string {
+	return d.Spec.Domain
+}
+
+// MatchSearch goes through select field values and tries to
+// match against the list of search values.
+func (d *DynamicWindowsDesktopV1) MatchSearch(values []string) bool {
+	fieldVals := append(utils.MapToStrings(d.GetAllLabels()), d.GetName(), d.GetAddr())
+	return MatchSearch(fieldVals, values, nil)
+}
+
+// Copy returns a deep copy of this dynamic Windows desktop object.
+func (d *DynamicWindowsDesktopV1) Copy() DynamicWindowsDesktop {
+	return utils.CloneProtoMsg(d)
+}
+
+// IsEqual determines if two dynamic Windows desktop resources are equivalent to one another.
+func (d *DynamicWindowsDesktopV1) IsEqual(i DynamicWindowsDesktop) bool {
+	if other, ok := i.(*DynamicWindowsDesktopV1); ok {
+		return deriveTeleportEqualDynamicWindowsDesktopV1(d, other)
+	}
+	return false
+}
+
+// DynamicWindowsDesktops represents a list of Windows desktops.
+type DynamicWindowsDesktops []DynamicWindowsDesktop
+
+// Len returns the slice length.
+func (s DynamicWindowsDesktops) Len() int { return len(s) }
+
+// Less compares desktops by name and host ID.
+func (s DynamicWindowsDesktops) Less(i, j int) bool {
+	return s[i].GetName() < s[j].GetName()
+}
+
+// Swap swaps two windows desktops.
+func (s DynamicWindowsDesktops) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
+
+// SortByCustom custom sorts by given sort criteria.
+func (s DynamicWindowsDesktops) SortByCustom(sortBy SortBy) error {
+	if sortBy.Field == "" {
+		return nil
+	}
+
+	isDesc := sortBy.IsDesc
+	switch sortBy.Field {
+	case ResourceMetadataName:
+		sort.SliceStable(s, func(i, j int) bool {
+			return stringCompare(s[i].GetName(), s[j].GetName(), isDesc)
+		})
+	case ResourceSpecAddr:
+		sort.SliceStable(s, func(i, j int) bool {
+			return stringCompare(s[i].GetAddr(), s[j].GetAddr(), isDesc)
+		})
+	default:
+		return trace.NotImplemented("sorting by field %q for resource %q is not supported", sortBy.Field, KindDynamicWindowsDesktop)
+	}
+
+	return nil
+}
+
+// AsResources returns dynamic windows desktops as type resources with labels.
+func (s DynamicWindowsDesktops) AsResources() []ResourceWithLabels {
+	resources := make([]ResourceWithLabels, 0, len(s))
+	for _, server := range s {
+		resources = append(resources, ResourceWithLabels(server))
+	}
+	return resources
+}
+
+// GetFieldVals returns list of select field values.
+func (s DynamicWindowsDesktops) GetFieldVals(field string) ([]string, error) {
+	vals := make([]string, 0, len(s))
+	switch field {
+	case ResourceMetadataName:
+		for _, server := range s {
+			vals = append(vals, server.GetName())
+		}
+	case ResourceSpecAddr:
+		for _, server := range s {
+			vals = append(vals, server.GetAddr())
+		}
+	default:
+		return nil, trace.NotImplemented("getting field %q for resource %q is not supported", field, KindDynamicWindowsDesktop)
+	}
+
+	return vals, nil
 }
 
 // WindowsDesktop represents a Windows desktop host.
@@ -145,9 +344,11 @@ type WindowsDesktop interface {
 	// use the size passed by the client over TDP.
 	GetScreenSize() (width, height uint32)
 	// Copy returns a copy of this windows desktop
-	Copy() *WindowsDesktopV3
+	Copy() WindowsDesktop
 	// CloneResource returns a copy of the WindowDesktop as a ResourceWithLabels
 	CloneResource() ResourceWithLabels
+	// IsEqual determines if two desktops are equivalent to one another.
+	IsEqual(WindowsDesktop) bool
 }
 
 var _ WindowsDesktop = &WindowsDesktopV3{}
@@ -180,23 +381,13 @@ func (d *WindowsDesktopV3) CheckAndSetDefaults() error {
 		return trace.BadParameter("WindowsDesktopV3.Spec missing Addr field")
 	}
 
-	// We use SNI to identify the desktop to route a connection to,
-	// and '.' will add an extra subdomain, preventing Teleport from
-	// correctly establishing TLS connections.
-	if name := d.GetName(); strings.Contains(name, ".") {
-		return trace.BadParameter("invalid name %q: desktop names cannot contain periods", name)
+	if err := checkNameAndScreenSize(d.GetName(), d.Spec.ScreenSize); err != nil {
+		return trace.Wrap(err)
 	}
 
 	d.setStaticFields()
 	if err := d.ResourceHeader.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
-	}
-
-	if d.Spec.ScreenSize != nil {
-		if d.Spec.ScreenSize.Width > MaxRDPScreenWidth || d.Spec.ScreenSize.Height > MaxRDPScreenHeight {
-			return trace.BadParameter("invalid screen size %dx%d (maximum %dx%d)",
-				d.Spec.ScreenSize.Width, d.Spec.ScreenSize.Height, MaxRDPScreenWidth, MaxRDPScreenHeight)
-		}
 	}
 
 	return nil
@@ -237,7 +428,7 @@ func (d *WindowsDesktopV3) MatchSearch(values []string) bool {
 }
 
 // Copy returns a copy of this windows desktop object.
-func (d *WindowsDesktopV3) Copy() *WindowsDesktopV3 {
+func (d *WindowsDesktopV3) Copy() WindowsDesktop {
 	return utils.CloneProtoMsg(d)
 }
 
@@ -253,15 +444,22 @@ func (d *WindowsDesktopV3) IsEqual(i WindowsDesktop) bool {
 	return false
 }
 
-// Match checks if a given desktop request matches this filter.
-func (f *WindowsDesktopFilter) Match(req WindowsDesktop) bool {
-	if f.HostID != "" && req.GetHostID() != f.HostID {
+// Match checks if a given desktop matches this filter.
+func (f *WindowsDesktopFilter) Match(desktop WindowsDesktop) bool {
+	if f.HostID != "" && desktop.GetHostID() != f.HostID {
 		return false
 	}
-	if f.Name != "" && req.GetName() != f.Name {
+	if f.Name != "" && desktop.GetName() != f.Name {
 		return false
 	}
-	return true
+
+	switch f.Source {
+	case WindowsDesktopSource_WINDOWS_DESKTOP_SOURCE_UNSPECIFIED:
+		return true // no source filtering
+	default:
+		dv3, ok := desktop.(*WindowsDesktopV3)
+		return ok && dv3.Status != nil && dv3.Status.Source == f.Source
+	}
 }
 
 // WindowsDesktops represents a list of Windows desktops.
@@ -351,6 +549,12 @@ type ListWindowsDesktopsRequest struct {
 	SearchKeywords                []string
 }
 
+// ListDynamicWindowsDesktopsResponse is a response type to ListDynamicWindowsDesktops.
+type ListDynamicWindowsDesktopsResponse struct {
+	Desktops []DynamicWindowsDesktop
+	NextKey  string
+}
+
 // ListWindowsDesktopServicesResponse is a response type to ListWindowsDesktopServices.
 type ListWindowsDesktopServicesResponse struct {
 	DesktopServices []WindowsDesktopService
@@ -363,4 +567,27 @@ type ListWindowsDesktopServicesRequest struct {
 	StartKey, PredicateExpression string
 	Labels                        map[string]string
 	SearchKeywords                []string
+}
+
+func checkNameAndScreenSize(name string, screenSize *Resolution) error {
+	// We use SNI to identify the desktop to route a connection to,
+	// and '.' will add an extra subdomain, preventing Teleport from
+	// correctly establishing TLS connections.
+	if strings.Contains(name, ".") {
+		return trace.BadParameter("invalid name %q: desktop names cannot contain periods", name)
+	}
+
+	if screenSize != nil && (screenSize.Width > MaxRDPScreenWidth || screenSize.Height > MaxRDPScreenHeight) {
+		return trace.BadParameter("screen size %dx%d too big (maximum %dx%d)",
+			screenSize.Width, screenSize.Height, MaxRDPScreenWidth, MaxRDPScreenHeight)
+	}
+	return nil
+}
+
+// RDPLicenseKey is struct for retrieving licenses from backend cache, used only internally
+type RDPLicenseKey struct {
+	Version   uint32 // e.g. 0x000a0002
+	Issuer    string // e.g. example.com
+	Company   string // e.g. Example Corporation
+	ProductID string // e.g. A02
 }

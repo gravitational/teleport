@@ -22,13 +22,19 @@ export type PtyProcessOptions = {
   args: string[];
   cwd?: string;
   initMessage?: string;
+  /** Whether to use the ConPTY system on Windows. */
+  useConpty: boolean;
 };
 
+/**
+ * IPtyProcess is used in the shared process only and has its equivalent IPtyProcess on the client
+ * side which extends it (see src/services/pty/types.ts).
+ */
 export type IPtyProcess = {
   start(cols: number, rows: number): void;
   write(data: string): void;
   resize(cols: number, rows: number): void;
-  dispose(): void;
+  dispose(): Promise<void>;
   getCwd(): Promise<string>;
   getPtyId(): string;
   // The listener removal functions are used only on the frontend app side from the renderer process.
@@ -39,7 +45,11 @@ export type IPtyProcess = {
   onOpen(cb: () => void): RemoveListenerFunction;
   onStartError(cb: (message: string) => void): RemoveListenerFunction;
   onExit(
-    cb: (ev: { exitCode: number; signal?: number }) => void
+    cb: (ev: {
+      exitCode: number;
+      signal?: number;
+      lastInputWasCtrlD: boolean;
+    }) => void
   ): RemoveListenerFunction;
 };
 

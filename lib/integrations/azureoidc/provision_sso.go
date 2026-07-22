@@ -22,16 +22,18 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/lib/msgraph"
+	"github.com/gravitational/teleport/lib/msgraph/models"
 )
 
 // setupSSO sets up SAML based SSO to Teleport for the given application (service principal).
 func setupSSO(ctx context.Context, graphClient *msgraph.Client, appObjectID string, spID string, acsURL string) error {
-	spPatch := &msgraph.ServicePrincipal{}
+	spPatch := &models.ServicePrincipal{}
 	// Set service principal to prefer SAML sign on
 	preferredSingleSignOnMode := "saml"
 	spPatch.PreferredSingleSignOnMode = &preferredSingleSignOnMode
 	// Do not require explicit assignment of the app to use SSO.
-	// This is per our manual set-up recommendations, see https://goteleport.com/docs/access-controls/sso/azuread/ .
+	// This is per our manual set-up recommendations, see
+	// https://goteleport.com/docs/admin-guides/access-controls/sso/azuread/ .
 	appRoleAssignmentRequired := false
 	spPatch.AppRoleAssignmentRequired = &appRoleAssignmentRequired
 
@@ -42,12 +44,27 @@ func setupSSO(ctx context.Context, graphClient *msgraph.Client, appObjectID stri
 	}
 
 	// Add SAML urls
-	app := &msgraph.Application{}
+	app := &models.Application{}
 	uris := []string{acsURL}
 	app.IdentifierURIs = &uris
-	webApp := &msgraph.WebApplication{}
+	webApp := &models.WebApplication{}
 	webApp.RedirectURIs = &uris
 	app.Web = webApp
+	securityGroups := new(string)
+	*securityGroups = "SecurityGroup"
+	app.GroupMembershipClaims = securityGroups
+
+	claimName := "groups"
+	optionalClaim := []models.OptionalClaim{
+		{
+			Name: &claimName,
+		},
+	}
+	app.OptionalClaims = &models.OptionalClaims{
+		IDToken:     optionalClaim,
+		SAML2Token:  optionalClaim,
+		AccessToken: optionalClaim,
+	}
 
 	err = graphClient.UpdateApplication(ctx, appObjectID, app)
 
@@ -66,7 +83,7 @@ func setupSSO(ctx context.Context, graphClient *msgraph.Client, appObjectID stri
 	}
 
 	// Set the preferred SAML signing key
-	spPatch = &msgraph.ServicePrincipal{}
+	spPatch = &models.ServicePrincipal{}
 	spPatch.PreferredTokenSigningKeyThumbprint = cert.Thumbprint
 
 	err = graphClient.UpdateServicePrincipal(ctx, spID, spPatch)

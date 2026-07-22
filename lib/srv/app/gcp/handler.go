@@ -22,6 +22,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -30,11 +31,10 @@ import (
 	"github.com/googleapis/gax-go/v2"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/utils/gcp"
-	"github.com/gravitational/teleport/lib/cloud"
+	libgcp "github.com/gravitational/teleport/lib/cloud/gcp"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
@@ -68,8 +68,8 @@ var _ cloudClientGCP = (*cloudClientGCPImpl[iamCredentialsClient])(nil)
 type HandlerConfig struct {
 	// RoundTripper is the underlying transport given to an oxy Forwarder.
 	RoundTripper http.RoundTripper
-	// Log is the Logger.
-	Log logrus.FieldLogger
+	// Log is a logger for the handler.
+	Log *slog.Logger
 	// Clock is used to override time in tests.
 	Clock clockwork.Clock
 	// cloudClientGCP holds a reference to GCP IAM client. Normally set in CheckAndSetDefaults, it is overridden in tests.
@@ -89,14 +89,12 @@ func (s *HandlerConfig) CheckAndSetDefaults() error {
 		s.Clock = clockwork.NewRealClock()
 	}
 	if s.Log == nil {
-		s.Log = logrus.WithField(teleport.ComponentKey, "gcp:fwd")
+		s.Log = slog.With(teleport.ComponentKey, "gcp:fwd")
 	}
 	if s.cloudClientGCP == nil {
-		clients, err := cloud.NewClients()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		s.cloudClientGCP = &cloudClientGCPImpl[*gcpcredentials.IamCredentialsClient]{getGCPIAMClient: clients.GetGCPIAMClient}
+		// TODO (Tener): clients should be closed when no longer in use.
+		clients := libgcp.NewClients()
+		s.cloudClientGCP = &cloudClientGCPImpl[*gcpcredentials.IamCredentialsClient]{getGCPIAMClient: clients.GetIAMClient}
 	}
 	return nil
 }
@@ -164,7 +162,10 @@ func (s *handler) serveHTTP(w http.ResponseWriter, req *http.Request) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	s.Log.Debugf("Processing request, sessionId = %q, gcpServiceAccount = %q", sessionCtx.Identity.RouteToApp.SessionID, sessionCtx.Identity.RouteToApp.GCPServiceAccount)
+	s.Log.DebugContext(req.Context(), "Processing request",
+		"session_id", sessionCtx.Identity.RouteToApp.SessionID,
+		"gcp_service_account", sessionCtx.Identity.RouteToApp.GCPServiceAccount,
+	)
 
 	fwdRequest, err := s.prepareForwardRequest(req, sessionCtx)
 	if err != nil {
@@ -176,13 +177,13 @@ func (s *handler) serveHTTP(w http.ResponseWriter, req *http.Request) error {
 
 	if err := sessionCtx.Audit.OnRequest(req.Context(), sessionCtx, fwdRequest, status, nil); err != nil {
 		// log but don't return the error, because we already handed off request/response handling to the oxy forwarder.
-		s.Log.WithError(err).Warn("Failed to emit audit event.")
+		s.Log.WarnContext(req.Context(), "Failed to emit audit event.", "error", err)
 	}
 	return nil
 }
 
 func (s *handler) formatForwardResponseError(rw http.ResponseWriter, r *http.Request, err error) {
-	s.Log.WithError(err).Debugf("Failed to process request.")
+	s.Log.DebugContext(r.Context(), "Failed to process request.", "error", err)
 	common.SetTeleportAPIErrorHeader(rw, err)
 
 	// Convert trace error type to HTTP and write response.
@@ -194,7 +195,7 @@ func (s *handler) formatForwardResponseError(rw http.ResponseWriter, r *http.Req
 func (s *handler) prepareForwardRequest(r *http.Request, sessionCtx *common.SessionContext) (*http.Request, error) {
 	forwardedHost, err := utils.GetSingleHeader(r.Header, "X-Forwarded-Host")
 	if err != nil {
-		return nil, trace.AccessDenied(err.Error())
+		return nil, trace.AccessDenied("%s", err)
 	} else if !gcp.IsGCPEndpoint(forwardedHost) {
 		return nil, trace.AccessDenied("%q is not a GCP endpoint", forwardedHost)
 	}
@@ -224,7 +225,7 @@ func (s *handler) prepareForwardRequest(r *http.Request, sessionCtx *common.Sess
 func (s *handler) replaceAuthHeaders(r *http.Request, sessionCtx *common.SessionContext, reqCopy *http.Request) error {
 	auth := reqCopy.Header.Get("Authorization")
 	if auth == "" {
-		s.Log.Debugf("No Authorization header present, skipping replacement.")
+		s.Log.DebugContext(r.Context(), "No Authorization header present, skipping replacement.")
 		return nil
 	}
 
@@ -260,28 +261,30 @@ var defaultScopeList = []string{
 func (s *handler) getToken(ctx context.Context, serviceAccount string) (*credentialspb.GenerateAccessTokenResponse, error) {
 	key := cacheKey{serviceAccount}
 
-	cancelCtx, cancel := context.WithCancel(ctx)
+	type result struct {
+		token *credentialspb.GenerateAccessTokenResponse
+		err   error
+	}
+	resultChan := make(chan result, 1)
+
+	ctx, cancel := context.WithTimeout(ctx, getTokenTimeout)
 	defer cancel()
 
-	var tokenResult *credentialspb.GenerateAccessTokenResponse
-	var errorResult error
-
-	// call Clock.After() before FnCacheGet gets called in a different go-routine.
-	// this ensures there is no race condition in the timeout tests
-	timeoutChan := s.Clock.After(getTokenTimeout)
-
 	go func() {
-		tokenResult, errorResult = utils.FnCacheGet(cancelCtx, s.tokenCache, key, func(ctx context.Context) (*credentialspb.GenerateAccessTokenResponse, error) {
+		token, err := utils.FnCacheGet(ctx, s.tokenCache, key, func(ctx context.Context) (*credentialspb.GenerateAccessTokenResponse, error) {
 			return s.generateAccessToken(ctx, serviceAccount, defaultScopeList)
 		})
-		cancel()
+		resultChan <- result{
+			token: token,
+			err:   err,
+		}
 	}()
 
 	select {
-	case <-timeoutChan:
-		return nil, trace.Wrap(context.DeadlineExceeded, "timeout waiting for access token for %v", getTokenTimeout)
-	case <-cancelCtx.Done():
-		return tokenResult, errorResult
+	case <-ctx.Done():
+		return nil, trace.Wrap(ctx.Err())
+	case result := <-resultChan:
+		return result.token, trace.Wrap(result.err)
 	}
 }
 

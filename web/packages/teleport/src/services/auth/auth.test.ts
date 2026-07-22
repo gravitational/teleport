@@ -17,10 +17,8 @@
  */
 
 import cfg from 'teleport/config';
-import auth from 'teleport/services/auth';
 import api from 'teleport/services/api';
-
-/* eslint-disable jest/no-conditional-expect */
+import auth from 'teleport/services/auth';
 
 describe('services/auth', () => {
   afterEach(() => {
@@ -32,18 +30,23 @@ describe('services/auth', () => {
   const email = 'user@example.com';
 
   test('login()', async () => {
-    jest.spyOn(api, 'post').mockResolvedValue({});
+    jest.spyOn(api, 'postWithOptions').mockResolvedValue({});
 
     await auth.login(email, password, '');
-    expect(api.post).toHaveBeenCalledWith(cfg.api.webSessionPath, {
-      user: email,
-      pass: password,
-      second_factor_token: '',
-    });
+    expect(api.postWithOptions).toHaveBeenCalledWith(
+      cfg.api.webSessionPath,
+      expect.objectContaining({
+        data: {
+          user: email,
+          pass: password,
+          second_factor_token: '',
+        },
+      })
+    );
   });
 
   test('login() OTP', async () => {
-    jest.spyOn(api, 'post').mockResolvedValue({});
+    jest.spyOn(api, 'postWithOptions').mockResolvedValue({});
     const data = {
       user: email,
       pass: password,
@@ -51,7 +54,58 @@ describe('services/auth', () => {
     };
 
     await auth.login(email, password, 'xxx');
-    expect(api.post).toHaveBeenCalledWith(cfg.api.webSessionPath, data);
+    expect(api.postWithOptions).toHaveBeenCalledWith(
+      cfg.api.webSessionPath,
+      expect.objectContaining({ data })
+    );
+  });
+
+  describe('getMfaChallengeResponseForAdminAction', () => {
+    const original = {
+      second_factor: cfg.auth.second_factor,
+      second_factors: cfg.auth.second_factors,
+    };
+    afterEach(() => {
+      cfg.auth.second_factor = original.second_factor;
+      cfg.auth.second_factors = original.second_factors;
+    });
+
+    test('skips the challenge when admin MFA is not enforced', async () => {
+      cfg.auth.second_factors = ['otp', 'webauthn'];
+      const getMfaChallenge = jest.spyOn(auth, 'getMfaChallenge');
+
+      const result = await auth.getMfaChallengeResponseForAdminAction(true);
+
+      expect(result).toBeUndefined();
+      expect(getMfaChallenge).not.toHaveBeenCalled();
+    });
+
+    test('falls back to server-side check when enforcement is unknown', async () => {
+      // Older proxy/auth: second_factors empty and legacy field collapses to off.
+      cfg.auth.second_factors = [];
+      cfg.auth.second_factor = 'off';
+      const getMfaChallenge = jest
+        .spyOn(auth, 'getMfaChallenge')
+        .mockResolvedValue(undefined);
+
+      await auth.getMfaChallengeResponseForAdminAction(true);
+
+      expect(getMfaChallenge).toHaveBeenCalled();
+    });
+
+    test('SSO-only cluster fetches the challenge with allowReuse', async () => {
+      cfg.auth.second_factors = ['sso'];
+      cfg.auth.second_factor = 'off';
+      const getMfaChallenge = jest
+        .spyOn(auth, 'getMfaChallenge')
+        .mockResolvedValue(undefined);
+
+      await auth.getMfaChallengeResponseForAdminAction(true);
+
+      expect(getMfaChallenge).toHaveBeenCalledWith(
+        expect.objectContaining({ allowReuse: true })
+      );
+    });
   });
 
   test('resetPassword()', async () => {

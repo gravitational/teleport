@@ -29,13 +29,19 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/prometheus/client_golang/prometheus"
+	dto "github.com/prometheus/client_model/go"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/utils/pingconn"
+	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/srv/db/dbutils"
@@ -328,7 +334,7 @@ func TestProxyHTTPConnection(t *testing.T) {
 
 	lw := NewMuxListenerWrapper(l, suite.serverListener)
 
-	mustStartHTTPServer(t, lw)
+	mustStartHTTPServer(lw)
 
 	suite.router = NewRouter()
 	suite.router.Add(HandlerDecs{
@@ -349,6 +355,79 @@ func TestProxyHTTPConnection(t *testing.T) {
 	mustSuccessfullyCallHTTPSServer(t, suite.GetServerAddress(), client)
 }
 
+// TestProxyConnectionLimiting verifies that the ALPN proxy enforces the
+// configured per-client connection limit, keeps accepting connections after
+// rejecting an over-limit one, and releases limiter slots on connection close.
+func TestProxyConnectionLimiting(t *testing.T) {
+	t.Parallel()
+
+	const maxConnections = 2
+
+	suite := NewSuite(t)
+	connLimiter, err := limiter.NewLimiter(limiter.Config{MaxConnections: maxConnections})
+	require.NoError(t, err)
+	suite.limiter = connLimiter
+
+	l := mustCreateLocalListener(t)
+	lw := NewMuxListenerWrapper(l, suite.serverListener)
+	mustStartHTTPServer(lw)
+
+	suite.router = NewRouter()
+	suite.router.Add(HandlerDecs{
+		MatchFunc: MatchByProtocol(common.ProtocolHTTP2, common.ProtocolHTTP),
+		Handler:   lw.HandleConnection,
+	})
+	suite.Start(t)
+
+	// The limiter tracks connections by client IP, which for this test is the
+	// same loopback address the server listens on.
+	clientIP, _, err := net.SplitHostPort(suite.GetServerAddress())
+	require.NoError(t, err)
+
+	// Occupy all limiter slots with connections that stall before sending a
+	// TLS hello, like the attack the limiter defends against.
+	heldConns := make([]net.Conn, 0, maxConnections)
+	for range maxConnections {
+		conn, err := net.Dial("tcp", suite.GetServerAddress())
+		require.NoError(t, err)
+		t.Cleanup(func() { conn.Close() })
+		heldConns = append(heldConns, conn)
+	}
+	require.Eventually(t, func() bool {
+		count, err := connLimiter.GetNumConnection(clientIP)
+		return err == nil && count == maxConnections
+	}, 5*time.Second, 10*time.Millisecond, "expected held connections to occupy all limiter slots")
+
+	// The next connection exceeds the limit: the proxy must close it right
+	// away instead of waiting out the TLS handshake read deadline.
+	rejected, err := net.Dial("tcp", suite.GetServerAddress())
+	require.NoError(t, err)
+	t.Cleanup(func() { rejected.Close() })
+	require.NoError(t, rejected.SetReadDeadline(time.Now().Add(5*time.Second)))
+	_, err = rejected.Read(make([]byte, 1))
+	require.ErrorIs(t, err, io.EOF, "expected over-limit connection to be closed by the proxy")
+
+	// Closing a held connection must release its limiter slot.
+	require.NoError(t, heldConns[0].Close())
+	require.Eventually(t, func() bool {
+		count, err := connLimiter.GetNumConnection(clientIP)
+		return err == nil && count == maxConnections-1
+	}, 5*time.Second, 10*time.Millisecond, "expected closed connection to release its limiter slot")
+
+	// A request through the freed slot must succeed, proving the accept loop
+	// survived the over-limit rejection above.
+	client := http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				ServerName: "localhost",
+				RootCAs:    suite.GetCertPool(),
+			},
+			DisableKeepAlives: true,
+		},
+	}
+	mustSuccessfullyCallHTTPSServer(t, suite.GetServerAddress(), client)
+}
+
 // TestProxyMakeConnectionHandler creates a ConnectionHandler from the ALPN
 // proxy server, and verifies ALPN protocol is properly handled through the
 // ConnectionHandler.
@@ -359,7 +438,7 @@ func TestProxyMakeConnectionHandler(t *testing.T) {
 
 	// Create a HTTP server and register the listener to ALPN server.
 	lw := NewMuxListenerWrapper(nil, suite.serverListener)
-	mustStartHTTPServer(t, lw)
+	mustStartHTTPServer(lw)
 
 	suite.router = NewRouter()
 	suite.router.Add(HandlerDecs{
@@ -371,12 +450,15 @@ func TestProxyMakeConnectionHandler(t *testing.T) {
 	customCA := mustGenSelfSignedCert(t)
 
 	// Create a ConnectionHandler from the proxy server.
-	alpnConnHandler := svr.MakeConnectionHandler(&tls.Config{
-		NextProtos: []string{string(common.ProtocolHTTP)},
-		Certificates: []tls.Certificate{
-			mustGenCertSignedWithCA(t, customCA),
+	alpnConnHandler := svr.MakeConnectionHandler(
+		&tls.Config{
+			NextProtos: []string{string(common.ProtocolHTTP)},
+			Certificates: []tls.Certificate{
+				mustGenCertSignedWithCA(t, customCA),
+			},
 		},
-	})
+		common.ConnHandlerSource(t.Name()),
+	)
 
 	// Prepare net.Conn to be used for the created alpnConnHandler.
 	serverConn, clientConn := net.Pipe()
@@ -406,6 +488,7 @@ func TestProxyMakeConnectionHandler(t *testing.T) {
 	defer clientTLSConn.Close()
 
 	require.NoError(t, clientTLSConn.HandshakeContext(context.Background()))
+	checkGaugeValue(t, 1, proxyActiveConnections.WithLabelValues(string(common.ProtocolHTTP), t.Name()))
 	require.Equal(t, string(common.ProtocolHTTP), clientTLSConn.ConnectionState().NegotiatedProtocol)
 	require.NoError(t, req.Write(clientTLSConn))
 
@@ -421,6 +504,90 @@ func TestProxyMakeConnectionHandler(t *testing.T) {
 	// Wait until handler is done. And verify context is canceled, NOT deadline exceeded.
 	<-handlerCtx.Done()
 	require.ErrorIs(t, handlerCtx.Err(), context.Canceled)
+
+	// Check reporting.
+	checkGaugeValue(t, 1, proxyConnectionsTotal.WithLabelValues(string(common.ProtocolHTTP), t.Name()))
+	checkGaugeValue(t, 0, proxyActiveConnections.WithLabelValues(string(common.ProtocolHTTP), t.Name()))
+
+	t.Run("on handler error", func(t *testing.T) {
+		alpnConnHandler := svr.MakeConnectionHandler(
+			&tls.Config{
+				NextProtos: []string{string(common.ProtocolHTTP)},
+				Certificates: []tls.Certificate{
+					mustGenCertSignedWithCA(t, customCA),
+				},
+			},
+			common.ConnHandlerSource(t.Name()),
+		)
+
+		serverConn, clientConn := net.Pipe()
+
+		clientTLSConn := tls.Client(clientConn, &tls.Config{
+			NextProtos: []string{"some-unknown-alpn"},
+			RootCAs:    pool,
+			ServerName: "localhost",
+		})
+		defer clientTLSConn.Close()
+
+		// The handler should close this conn automatically on error.
+		// Do a defer-close just in case the test fails earlier.
+		trackServerConn := &closeTrackerConn{
+			Conn: serverConn,
+		}
+		defer trackServerConn.Close()
+
+		handlerCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		handlerErr := make(chan error, 1)
+		go func() {
+			defer cancel()
+			handlerErr <- alpnConnHandler(handlerCtx, trackServerConn)
+		}()
+
+		// Now do the TLS handshake for server to handle.
+		require.Error(t, clientTLSConn.HandshakeContext(context.Background()))
+		select {
+		case err := <-handlerErr:
+			require.Error(t, err)
+			require.True(t, trace.IsBadParameter(err))
+			require.Contains(t, err.Error(), "failed to find ALPN handler")
+		case <-time.After(5 * time.Second):
+			t.Fatal("timeout waiting for handler error")
+		}
+
+		// Make sure passed in conn is closed.
+		require.True(t, trackServerConn.closed.Load())
+		// Check reporting.
+		checkGaugeValue(t, 1, proxyConnectionsTotal.WithLabelValues("unknown", t.Name()))
+		checkGaugeValue(t, 1, proxyConnectionErrorsTotal.WithLabelValues("unknown", t.Name()))
+	})
+}
+
+func checkGaugeValue(t *testing.T, expected float64, gauge prometheus.Gauge) {
+	t.Helper()
+
+	var protoMetric dto.Metric
+	err := gauge.Write(&protoMetric)
+	assert.NoError(t, err)
+
+	if err != nil {
+		assert.InEpsilon(t, expected, protoMetric.GetGauge().GetValue(), float64(0))
+	}
+}
+
+type closeTrackerConn struct {
+	net.Conn
+	closed atomic.Bool
+}
+
+func (c *closeTrackerConn) NetConn() net.Conn {
+	return c.Conn
+}
+func (c *closeTrackerConn) Close() error {
+	if c.closed.Load() {
+		return io.ErrClosedPipe
+	}
+	c.closed.Store(true)
+	return c.Conn.Close()
 }
 
 // TestProxyALPNProtocolsRouting tests the routing based on client TLS NextProtos values.
@@ -567,7 +734,7 @@ func TestMatchMySQLConn(t *testing.T) {
 	tests := []struct {
 		name    string
 		protos  []string
-		version interface{}
+		version any
 	}{
 		{
 			name:    "success",
@@ -645,7 +812,6 @@ func TestProxyPingConnections(t *testing.T) {
 	suite.Start(t)
 
 	for _, protocol := range common.ProtocolsWithPingSupport {
-		protocol := protocol
 		t.Run(string(protocol), func(t *testing.T) {
 			t.Parallel()
 

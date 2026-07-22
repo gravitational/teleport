@@ -26,8 +26,8 @@ const MenuItemIcon = styled.span`
     color: ${props => props.theme.colors.text.main};
   }
   svg {
-    height: ${props => `${props.size}px` || '18px'};
-    height: ${props => `${props.size}px` || '18px'};
+    height: ${props => (props.size && `${props.size}px`) || '18px'};
+    height: ${props => (props.size && `${props.size}px`) || '18px'};
   }
 `;
 

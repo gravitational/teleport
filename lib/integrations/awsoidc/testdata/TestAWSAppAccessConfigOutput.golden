@@ -1,0 +1,23 @@
+"aws-app-access-iam" will perform the following action:
+
+Attach an inline IAM policy named "AWSAppAccess" to IAM role "integrationrole".
+PutRolePolicy: {
+    "PolicyDocument": {
+        "Version": "2012-10-17",
+        "Statement": [
+            {
+                "Effect": "Allow",
+                "Action": "sts:AssumeRole",
+                "Resource": "*",
+                "Condition": {
+                    "StringEquals": {
+                        "iam:ResourceTag/teleport.dev/integration": "true"
+                    }
+                }
+            }
+        ]
+    },
+    "PolicyName": "AWSAppAccess",
+    "RoleName": "integrationrole"
+}
+

@@ -16,13 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 
-import { render, fireEvent, screen } from 'design/utils/testing';
+import { fireEvent, render, screen } from 'design/utils/testing';
 
-import Table from './Table';
 import { SortIndicator } from './Cells';
+import Table from './Table';
 
 const data = [
   {
@@ -365,4 +365,37 @@ describe('sorting by iso date string', () => {
     expect(rows[1]).toHaveTextContent('a2');
     expect(rows[2]).toHaveTextContent('a3');
   });
+});
+
+test('navigate to next and previous pages', async () => {
+  render(
+    <Table
+      data={data}
+      columns={[
+        {
+          key: 'hostname',
+          headerText: 'created',
+        },
+      ]}
+      emptyText=""
+      pagination={{ pageSize: 2 }}
+    />
+  );
+
+  let { rows } = getTableRows();
+  expect(rows).toHaveLength(2);
+  expect(rows[0]).toHaveTextContent(data[0].hostname);
+  expect(rows[1]).toHaveTextContent(data[1].hostname);
+
+  await userEvent.click(screen.getByTitle('Next page'));
+  rows = getTableRows().rows;
+  expect(rows).toHaveLength(2);
+  expect(rows[0]).toHaveTextContent(data[2].hostname);
+  expect(rows[1]).toHaveTextContent(data[3].hostname);
+
+  await userEvent.click(screen.getByTitle('Previous page'));
+  rows = getTableRows().rows;
+  expect(rows).toHaveLength(2);
+  expect(rows[0]).toHaveTextContent(data[0].hostname);
+  expect(rows[1]).toHaveTextContent(data[1].hostname);
 });

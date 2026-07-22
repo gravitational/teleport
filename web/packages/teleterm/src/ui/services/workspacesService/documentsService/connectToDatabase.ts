@@ -16,9 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { AutoUserProvisioning } from 'gen-proto-ts/teleport/lib/teleterm/v1/database_pb';
+
+import { GatewayProtocol } from 'teleterm/services/tshd/gateway';
 import { IAppContext } from 'teleterm/ui/types';
 import { DatabaseUri, routing } from 'teleterm/ui/uri';
-import { GatewayProtocol } from 'teleterm/services/tshd/types';
 
 import { DocumentOrigin } from './types';
 
@@ -29,6 +31,8 @@ export async function connectToDatabase(
     name: string;
     protocol: string;
     dbUser: string;
+    gcpProjectId?: string;
+    autoUserProvisioning: AutoUserProvisioning | undefined;
   },
   telemetry: {
     origin: DocumentOrigin;
@@ -45,9 +49,11 @@ export async function connectToDatabase(
     targetName: target.name,
     targetUser: getTargetUser(
       target.protocol as GatewayProtocol,
-      target.dbUser
+      target.dbUser,
+      target.gcpProjectId
     ),
     origin: telemetry.origin,
+    autoUserProvisioning: target.autoUserProvisioning,
   });
 
   const connectionToReuse = ctx.connectionTracker.findConnectionByDocument(doc);
@@ -57,7 +63,11 @@ export async function connectToDatabase(
       origin: telemetry.origin,
     });
   } else {
-    await ctx.workspacesService.setActiveWorkspace(rootClusterUri);
+    const { isAtDesiredWorkspace } =
+      await ctx.workspacesService.setActiveWorkspace(rootClusterUri);
+    if (!isAtDesiredWorkspace) {
+      return;
+    }
     documentsService.add(doc);
     documentsService.open(doc.uri);
   }
@@ -65,13 +75,22 @@ export async function connectToDatabase(
 
 function getTargetUser(
   protocol: GatewayProtocol,
-  providedDbUser: string
+  providedDbUser: string,
+  gcpProjectId?: string
 ): string {
   // we are replicating tsh behavior (user can be omitted for Redis)
   // https://github.com/gravitational/teleport/blob/796e37bdbc1cb6e0a93b07115ffefa0e6922c529/tool/tsh/db.go#L240-L244
   // but unlike tsh, Connect has to provide a user that is then used in a gateway document
   if (protocol === 'redis') {
     return providedDbUser || 'default';
+  }
+
+  // GCP Postgres databases require domain as part of the username
+  // this is often the `@<project-id>.iam` suffix, although in principle any domain can be used
+  // provide the suffix if we can do so sensibly, just like tsh does.
+  const user = providedDbUser.trim();
+  if (protocol === 'postgres' && gcpProjectId && user && !user.includes('@')) {
+    return `${user}@${gcpProjectId}.iam`;
   }
 
   return providedDbUser;

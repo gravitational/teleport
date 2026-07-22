@@ -26,7 +26,6 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/jonboulle/clockwork"
-	"github.com/mailgun/holster/v3/clock"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
@@ -53,14 +52,14 @@ func getService(t *testing.T) services.DatabaseObjects {
 
 func getObject(t *testing.T, index int) *dbobjectv1.DatabaseObject {
 	name := fmt.Sprintf("obj%v", index)
-	obj, err := databaseobject.NewDatabaseObject(name, &dbobjectv1.DatabaseObjectSpec{Name: name, Protocol: "postgres"})
+	obj, err := databaseobject.NewDatabaseObject(name, dbobjectv1.DatabaseObjectSpec_builder{Name: name, Protocol: "postgres"}.Build())
 	require.NoError(t, err)
 
 	return obj
 }
 
 func prepopulate(t *testing.T, service services.DatabaseObjects, count int) {
-	for i := 0; i < count; i++ {
+	for i := range count {
 		_, err := service.CreateDatabaseObject(context.Background(), getObject(t, i))
 		require.NoError(t, err)
 	}
@@ -72,7 +71,7 @@ func TestCreateDatabaseObjects(t *testing.T) {
 	ctx := context.Background()
 	service := getService(t)
 
-	obj, err := databaseobject.NewDatabaseObject("obj", &dbobjectv1.DatabaseObjectSpec{Name: "obj", Protocol: "postgres"})
+	obj, err := databaseobject.NewDatabaseObject("obj", dbobjectv1.DatabaseObjectSpec_builder{Name: "obj", Protocol: "postgres"}.Build())
 	require.NoError(t, err)
 
 	// first attempt should succeed
@@ -91,7 +90,7 @@ func TestUpsertDatabaseObjects(t *testing.T) {
 	ctx := context.Background()
 	service := getService(t)
 
-	obj, err := databaseobject.NewDatabaseObject("obj", &dbobjectv1.DatabaseObjectSpec{Name: "obj", Protocol: "postgres"})
+	obj, err := databaseobject.NewDatabaseObject("obj", dbobjectv1.DatabaseObjectSpec_builder{Name: "obj", Protocol: "postgres"}.Build())
 	require.NoError(t, err)
 
 	// first attempt should succeed
@@ -146,7 +145,7 @@ func TestGetDatabaseObject(t *testing.T) {
 				protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 				protocmp.Transform(),
 			}
-			require.Equal(t, "", cmp.Diff(tt.wantObj, obj, cmpOpts...))
+			require.Empty(t, cmp.Diff(tt.wantObj, obj, cmpOpts...))
 		})
 	}
 }
@@ -158,18 +157,18 @@ func TestUpdateDatabaseObject(t *testing.T) {
 	service := getService(t)
 	prepopulate(t, service, 1)
 
-	expiry := timestamppb.New(clock.Now().Add(30 * time.Minute))
+	expiry := timestamppb.New(time.Now().Add(30 * time.Minute))
 
 	obj := getObject(t, 0)
-	obj.Metadata.Expires = expiry
+	obj.GetMetadata().SetExpires(expiry)
 
 	objUpdated, err := service.UpdateDatabaseObject(ctx, obj)
 	require.NoError(t, err)
-	require.Equal(t, expiry, objUpdated.Metadata.Expires)
+	require.Equal(t, expiry, objUpdated.GetMetadata().GetExpires())
 
-	objFresh, err := service.GetDatabaseObject(ctx, obj.Metadata.Name)
+	objFresh, err := service.GetDatabaseObject(ctx, obj.GetMetadata().GetName())
 	require.NoError(t, err)
-	require.Equal(t, expiry, objFresh.Metadata.Expires)
+	require.Equal(t, expiry, objFresh.GetMetadata().GetExpires())
 }
 
 func TestDeleteDatabaseObject(t *testing.T) {
@@ -227,12 +226,12 @@ func TestListDatabaseObjects(t *testing.T) {
 				require.Empty(t, nextToken)
 				require.Len(t, elements, count)
 
-				for i := 0; i < count; i++ {
+				for i := range count {
 					cmpOpts := []cmp.Option{
 						protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 						protocmp.Transform(),
 					}
-					require.Equal(t, "", cmp.Diff(getObject(t, i), elements[i], cmpOpts...))
+					require.Empty(t, cmp.Diff(getObject(t, i), elements[i], cmpOpts...))
 				}
 			})
 
@@ -251,12 +250,12 @@ func TestListDatabaseObjects(t *testing.T) {
 					}
 				}
 
-				for i := 0; i < count; i++ {
+				for i := range count {
 					cmpOpts := []cmp.Option{
 						protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 						protocmp.Transform(),
 					}
-					require.Equal(t, "", cmp.Diff(getObject(t, i), elements[i], cmpOpts...))
+					require.Empty(t, cmp.Diff(getObject(t, i), elements[i], cmpOpts...))
 				}
 			})
 		})
@@ -266,7 +265,7 @@ func TestListDatabaseObjects(t *testing.T) {
 func TestMarshalDatabaseObjectRoundTrip(t *testing.T) {
 	t.Parallel()
 
-	spec := &dbobjectv1.DatabaseObjectSpec{Name: "dummy", Protocol: "postgres"}
+	spec := dbobjectv1.DatabaseObjectSpec_builder{Name: "dummy", Protocol: "postgres"}.Build()
 	obj, err := databaseobject.NewDatabaseObject("dummy-table", spec)
 	require.NoError(t, err)
 

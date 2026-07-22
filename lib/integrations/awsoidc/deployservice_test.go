@@ -32,7 +32,8 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
-	"github.com/gravitational/teleport/lib/integrations/awsoidc/tags"
+	"github.com/gravitational/teleport/lib/cloud/aws/tags"
+	"github.com/gravitational/teleport/lib/modules"
 )
 
 func TestDeployServiceRequest(t *testing.T) {
@@ -42,6 +43,7 @@ func TestDeployServiceRequest(t *testing.T) {
 
 	baseReqFn := func() DeployServiceRequest {
 		return DeployServiceRequest{
+			TeleportBuildType:       modules.BuildOSS,
 			TeleportClusterName:     "mycluster",
 			Region:                  "r",
 			SubnetIDs:               []string{"1"},
@@ -71,6 +73,15 @@ func TestDeployServiceRequest(t *testing.T) {
 			req: func() DeployServiceRequest {
 				r := baseReqFn()
 				r.TeleportClusterName = ""
+				return r
+			},
+			errCheck: isBadParamErrFn,
+		},
+		{
+			name: "missing teleport build type ",
+			req: func() DeployServiceRequest {
+				r := baseReqFn()
+				r.TeleportBuildType = ""
 				return r
 			},
 			errCheck: isBadParamErrFn,
@@ -143,6 +154,7 @@ func TestDeployServiceRequest(t *testing.T) {
 			req:      baseReqFn,
 			errCheck: require.NoError,
 			reqWithDefaults: DeployServiceRequest{
+				TeleportBuildType:       modules.BuildOSS,
 				TeleportClusterName:     "mycluster",
 				TeleportVersionTag:      teleport.Version,
 				Region:                  "r",
@@ -238,7 +250,12 @@ func TestUpsertTask(t *testing.T) {
 		},
 	}
 
-	taskDefinition, err := upsertTask(ctx, mockClient, upsertTaskRequest{})
+	semVer := teleport.SemVer()
+	semVer.PreRelease = ""
+	taskDefinition, err := upsertTask(ctx, mockClient, upsertTaskRequest{
+		TeleportVersionTag: semVer.String(),
+		TeleportBuildType:  modules.BuildOSS,
+	})
 	require.NoError(t, err)
 	require.Equal(t, expected, taskDefinition.ContainerDefinitions[0].Environment)
 }

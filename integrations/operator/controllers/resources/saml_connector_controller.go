@@ -25,10 +25,13 @@ import (
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/entitlements"
 	resourcesv2 "github.com/gravitational/teleport/integrations/operator/apis/resources/v2"
 	"github.com/gravitational/teleport/integrations/operator/controllers"
 	"github.com/gravitational/teleport/integrations/operator/controllers/reconcilers"
+	"github.com/gravitational/teleport/lib/modules"
 )
 
 // samlConnectorClient implements TeleportResourceClient and offers CRUD methods needed to reconcile saml_connectors
@@ -37,8 +40,8 @@ type samlConnectorClient struct {
 }
 
 // Get gets the Teleport saml_connector of a given name
-func (r samlConnectorClient) Get(ctx context.Context, name string) (types.SAMLConnector, error) {
-	saml, err := r.teleportClient.GetSAMLConnector(ctx, name, false /* with secrets*/)
+func (r samlConnectorClient) Get(ctx context.Context, key reconcilers.ResourceKey) (types.SAMLConnector, error) {
+	saml, err := r.teleportClient.GetSAMLConnector(ctx, key.Name, false /* with secrets*/)
 	return saml, trace.Wrap(err)
 }
 
@@ -55,8 +58,8 @@ func (r samlConnectorClient) Update(ctx context.Context, saml types.SAMLConnecto
 }
 
 // Delete deletes a Teleport saml_connector
-func (r samlConnectorClient) Delete(ctx context.Context, name string) error {
-	return trace.Wrap(r.teleportClient.DeleteSAMLConnector(ctx, name))
+func (r samlConnectorClient) Delete(ctx context.Context, key reconcilers.ResourceKey) error {
+	return trace.Wrap(r.teleportClient.DeleteSAMLConnector(ctx, key.Name))
 }
 
 // NewSAMLConnectorReconciler instantiates a new Kubernetes controller reconciling saml_connector resources
@@ -68,6 +71,12 @@ func NewSAMLConnectorReconciler(client kclient.Client, tClient *client.Client) (
 	resourceReconciler, err := reconcilers.NewTeleportResourceWithoutLabelsReconciler[types.SAMLConnector, *resourcesv2.TeleportSAMLConnector](
 		client,
 		samlClient,
+		reconcilers.Config{
+			CheckFeatures: func(features *proto.Features) bool {
+				saml := modules.GetProtoEntitlement(features, entitlements.SAML)
+				return saml.Enabled
+			},
+		},
 	)
 
 	return resourceReconciler, trace.Wrap(err, "building teleport resource reconciler")

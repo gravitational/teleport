@@ -1,6 +1,3 @@
-//go:build darwin
-// +build darwin
-
 // Teleport
 // Copyright (C) 2024 Gravitational, Inc.
 //
@@ -20,51 +17,17 @@
 package common
 
 import (
+	"context"
 	"fmt"
-	"log/slog"
-	"os"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/vnet"
 	"github.com/gravitational/teleport/lib/vnet/daemon"
+	"github.com/gravitational/teleport/lib/vnet/diag"
 )
-
-type vnetCommand struct {
-	*kingpin.CmdClause
-}
-
-func newVnetCommand(app *kingpin.Application) *vnetCommand {
-	cmd := &vnetCommand{
-		CmdClause: app.Command("vnet", "Start Teleport VNet, a virtual network for TCP application access."),
-	}
-	return cmd
-}
-
-func (c *vnetCommand) run(cf *CLIConf) error {
-	appProvider, err := newVnetAppProvider(cf)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	processManager, err := vnet.SetupAndRun(cf.Context, &vnet.SetupAndRunConfig{AppProvider: appProvider})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	go func() {
-		<-cf.Context.Done()
-		processManager.Close()
-	}()
-
-	fmt.Println("VNet is ready.")
-
-	return trace.Wrap(processManager.Wait())
-}
 
 // vnetAdminSetupCommand is the fallback command ran as root when tsh wasn't compiled with the
 // vnetdaemon build tag. This is typically the case when running tsh in development where it's not
@@ -73,62 +36,67 @@ func (c *vnetCommand) run(cf *CLIConf) error {
 // This command expects TELEPORT_HOME to be set to the tsh home of the user who wants to run VNet.
 type vnetAdminSetupCommand struct {
 	*kingpin.CmdClause
-	// socketPath is a path to a unix socket used for passing a TUN device from the admin process to
-	// the unprivileged process.
-	socketPath string
-	// ipv6Prefix is the IPv6 prefix for the VNet.
-	ipv6Prefix string
-	// dnsAddr is the IP address for the VNet DNS server.
-	dnsAddr string
+	// addr is the local TCP address of the client application gRPC service.
+	addr string
+	// credPath is the path where credentials for IPC with the client
+	// application are found.
+	credPath string
 }
 
-func newVnetAdminSetupCommand(app *kingpin.Application) *vnetAdminSetupCommand {
+func newPlatformVnetAdminSetupCommand(app *kingpin.Application) *vnetAdminSetupCommand {
 	cmd := &vnetAdminSetupCommand{
 		CmdClause: app.Command(teleport.VnetAdminSetupSubCommand, "Start the VNet admin subprocess.").Hidden(),
 	}
-	cmd.Flag("socket", "unix socket path").StringVar(&cmd.socketPath)
-	cmd.Flag("ipv6-prefix", "IPv6 prefix for the VNet").StringVar(&cmd.ipv6Prefix)
-	cmd.Flag("dns-addr", "VNet DNS address").StringVar(&cmd.dnsAddr)
+	cmd.Flag("addr", "Client application service address.").Required().StringVar(&cmd.addr)
+	cmd.Flag("cred-path", "Path to TLS credentials for connecting to client application.").Required().StringVar(&cmd.credPath)
 	return cmd
 }
 
 func (c *vnetAdminSetupCommand) run(cf *CLIConf) error {
-	homePath := os.Getenv(types.HomeEnvVar)
-	if homePath == "" {
-		// This runs as root so we need to be configured with the user's home path.
-		return trace.BadParameter("%s must be set", types.HomeEnvVar)
-	}
-
 	config := daemon.Config{
-		SocketPath: c.socketPath,
-		IPv6Prefix: c.ipv6Prefix,
-		DNSAddr:    c.dnsAddr,
-		HomePath:   homePath,
+		ClientApplicationServiceAddr: c.addr,
+		ServiceCredentialPath:        c.credPath,
 	}
-
-	return trace.Wrap(vnet.AdminSetup(cf.Context, config))
+	return trace.Wrap(vnet.RunDarwinAdminProcess(cf.Context, config))
 }
 
-type vnetDaemonCommand struct {
-	*kingpin.CmdClause
-	// Launch daemons added through SMAppService are launched from a static .plist file, hence
-	// why this command does not accept any arguments.
-	// Instead, the daemon expects the arguments to be sent over XPC from an unprivileged process.
+// The vnet-service command is only supported on windows.
+func newPlatformVnetServiceCommand(app *kingpin.Application) vnetCommandNotSupported {
+	return vnetCommandNotSupported{}
 }
 
-func newVnetDaemonCommand(app *kingpin.Application) *vnetDaemonCommand {
-	return &vnetDaemonCommand{
-		// The command must match the command provided in the .plist file.
-		CmdClause: app.Command("vnet-daemon", "Start the VNet daemon").Hidden(),
-	}
+// The vnet-install-service command is only supported on windows.
+func newPlatformVnetInstallServiceCommand(app *kingpin.Application) vnetCommandNotSupported {
+	return vnetCommandNotSupported{}
 }
 
-func (c *vnetDaemonCommand) run(cf *CLIConf) error {
-	if cf.Debug {
-		utils.InitLogger(utils.LoggingForDaemon, slog.LevelDebug)
-	} else {
-		utils.InitLogger(utils.LoggingForDaemon, slog.LevelInfo)
+// The vnet-uninstall-service command is only supported on windows.
+func newPlatformVnetUninstallServiceCommand(app *kingpin.Application) vnetCommandNotSupported {
+	return vnetCommandNotSupported{}
+}
+
+func runVnetDiagnostics(ctx context.Context, vnetProcess *vnet.UserProcess) error {
+	nsi := vnetProcess.NetworkStackInfo()
+	routeConflictDiag, err := diag.NewRouteConflictDiag(&diag.RouteConflictConfig{
+		VnetIfaceName: nsi.GetInterfaceName(),
+		Routing:       &diag.DarwinRouting{},
+		Interfaces:    &diag.NetInterfaces{},
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	rcs, err := routeConflictDiag.Run(ctx)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(vnet.DaemonSubcommand(cf.Context))
+	for _, rc := range rcs.GetRouteConflictReport().GetRouteConflicts() {
+		fmt.Printf("Found a conflicting route: %+v\n", rc)
+	}
+
+	if err := runDNSDiag(ctx, vnetProcess); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }

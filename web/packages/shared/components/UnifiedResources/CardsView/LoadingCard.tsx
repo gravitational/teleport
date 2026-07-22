@@ -16,8 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from 'react';
-import { Flex, Box } from 'design';
+import { useState } from 'react';
+
+import { Box, Flex } from 'design';
 import { ShimmerBox } from 'design/ShimmerBox';
 
 export function LoadingCard() {

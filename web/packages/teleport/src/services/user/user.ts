@@ -16,39 +16,44 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import cfg, { UrlListUsersParams } from 'teleport/config';
 import api from 'teleport/services/api';
-import cfg from 'teleport/config';
 import session from 'teleport/services/websession';
 
-import { WebauthnAssertionResponse } from '../auth';
-
-import makeUserContext from './makeUserContext';
+import { MfaChallengeResponse } from '../mfa';
+import { isPathNotFoundError } from '../version/unsupported';
 import { makeResetToken } from './makeResetToken';
 import makeUser, { makeUsers } from './makeUser';
+import makeUserContext from './makeUserContext';
 import {
+  CreateUserVariables,
+  ExcludeUserField,
+  ResetPasswordType,
   User,
   UserContext,
-  ResetPasswordType,
-  ExcludeUserField,
+  type UpdateUserVariables,
 } from './types';
 
-const cache = {
-  userContext: null as UserContext,
+const cache: { pendingUserContext: Promise<UserContext> | null } = {
+  pendingUserContext: null,
 };
 
 const service = {
   fetchUserContext(fromCache = true) {
-    if (fromCache && cache['userContext']) {
-      return Promise.resolve(cache['userContext']);
+    if (fromCache && cache.pendingUserContext) {
+      return cache.pendingUserContext;
     }
 
-    return api
+    // Keep track of any in-flight fetch so that we don't make this request multiple times.
+    cache.pendingUserContext = api
       .get(cfg.getUserContextUrl())
       .then(makeUserContext)
-      .then(userContext => {
-        cache['userContext'] = userContext;
-        return cache['userContext'];
+      .catch(err => {
+        cache.pendingUserContext = null;
+        throw err;
       });
+
+    return cache.pendingUserContext;
   },
 
   fetchAccessGraphFeatures(): Promise<object> {
@@ -56,11 +61,43 @@ const service = {
   },
 
   fetchUser(username: string) {
-    return api.get(cfg.getUserWithUsernameUrl(username)).then(makeUser);
+    return api
+      .get(cfg.getUserWithUsernameTemporaryPatchedUrl(username))
+      .then(makeUser);
   },
 
-  fetchUsers() {
-    return api.get(cfg.getUsersUrl()).then(makeUsers);
+  // TODO(rudream): DELETE IN v21.0
+  fetchUsers(signal?: AbortSignal) {
+    return api.get(cfg.getUsersUrl(), signal).then(makeUsers);
+  },
+
+  async fetchUsersV2(
+    params?: UrlListUsersParams,
+    signal?: AbortSignal
+  ): Promise<{
+    items: User[];
+    startKey: string;
+  }> {
+    return await api
+      .get(cfg.getUsersUrlV2(params), signal)
+      .then(res => {
+        return {
+          items: makeUsers(res.items),
+          startKey: res.startKey,
+        };
+      })
+      .catch(err => {
+        // If this v2 paginated endpoint isn't found, fallback to the v1 endpoint but paginate locally in order to
+        // maintain compatibility with the paginated table component which expects a paginated response.
+        // TODO(rudream): DELETE IN v21.0
+        if (isPathNotFoundError(err)) {
+          return this.fetchUsers().then(users =>
+            makeUsersPageLocally(params, users)
+          );
+        } else {
+          throw err;
+        }
+      });
   },
 
   /**
@@ -70,7 +107,7 @@ const service = {
    * @param user
    * @returns user
    */
-  updateUser(user: User, excludeUserField: ExcludeUserField) {
+  updateUser({ user, excludeUserField }: UpdateUserVariables) {
     return api
       .put(cfg.getUsersUrl(), withExcludedField(user, excludeUserField))
       .then(makeUser);
@@ -83,17 +120,13 @@ const service = {
    * @param user
    * @returns user
    */
-  createUser(
-    user: User,
-    excludeUserField: ExcludeUserField,
-    webauthnResponse?: WebauthnAssertionResponse
-  ) {
+  createUser({ user, excludeUserField, mfaResponse }: CreateUserVariables) {
     return api
       .post(
         cfg.getUsersUrl(),
         withExcludedField(user, excludeUserField),
         null,
-        webauthnResponse
+        mfaResponse
       )
       .then(makeUser);
   },
@@ -101,15 +134,10 @@ const service = {
   createResetPasswordToken(
     name: string,
     type: ResetPasswordType,
-    webauthnResponse?: WebauthnAssertionResponse
+    mfaResponse?: MfaChallengeResponse
   ) {
     return api
-      .post(
-        cfg.api.resetPasswordTokenPath,
-        { name, type },
-        null,
-        webauthnResponse
-      )
+      .post(cfg.api.resetPasswordTokenPath, { name, type }, null, mfaResponse)
       .then(makeResetToken);
   },
 
@@ -121,10 +149,27 @@ const service = {
     await session.renewSession({ reloadUser: true }, signal);
   },
 
-  checkUserHasAccessToRegisteredResource(): Promise<boolean> {
-    return api
-      .get(cfg.getCheckAccessToRegisteredResourceUrl())
-      .then(res => Boolean(res.hasResource));
+  async checkUserHasAccessToAnyRegisteredResource() {
+    const clusterId = cfg.proxyCluster;
+
+    const res = await api
+      .get(
+        cfg.getUnifiedResourcesUrl(clusterId, {
+          limit: 1,
+          sort: {
+            fieldName: 'name',
+            dir: 'ASC',
+          },
+          includedResourceMode: 'all',
+        })
+      )
+      .catch(err => {
+        // eslint-disable-next-line no-console
+        console.error('Error checking access to registered resources', err);
+        return { items: [] };
+      });
+
+    return !!res?.items?.some?.(Boolean);
   },
 
   fetchConnectMyComputerLogins(signal?: AbortSignal): Promise<Array<string>> {
@@ -151,6 +196,36 @@ function withExcludedField(user: User, excludeUserField: ExcludeUserField) {
   }
 
   return userReq;
+}
+
+/**
+ * makeUsersPageLocally mocks a paginated response for users so that a list of all users
+ * can be handled by a serverside paginated table component.
+ */
+// TODO(rudream): DELETE IN v21.0
+function makeUsersPageLocally(
+  params: UrlListUsersParams,
+  allUsers: User[]
+): {
+  items: User[];
+  startKey: string;
+} {
+  if (params.search) {
+    allUsers = allUsers.filter(u =>
+      u.name.toLowerCase().includes(params.search.toLowerCase())
+    );
+  }
+
+  if (params.startKey) {
+    const startIndex = allUsers.findIndex(p => p.name === params.startKey);
+    allUsers = allUsers.slice(startIndex);
+  }
+
+  const limit = params.limit || 200;
+  const nextKey = allUsers.at(limit)?.name;
+  allUsers = allUsers.slice(0, limit);
+
+  return { items: allUsers, startKey: nextKey };
 }
 
 export default service;

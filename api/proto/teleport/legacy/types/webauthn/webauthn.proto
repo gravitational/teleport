@@ -37,6 +37,12 @@ option go_package = "github.com/gravitational/teleport/api/types/webauthn;webaut
 option (gogoproto.marshaler_all) = true;
 option (gogoproto.unmarshaler_all) = true;
 
+// A partial, non-gogoproto copy of this package is defined in
+// teleport/webauthn/v2/webauthn.proto. Only a subset of this legacy WebAuthn
+// package is defined there (namely, assertion messages.) Messages that are
+// present in both packages must be kept in sync. Registration messages and any
+// other absent WebAuthn messages may be copied over lazily, if necessary.
+
 // -----------------------------------------------------------------------------
 // Assertion (aka login).
 // -----------------------------------------------------------------------------
@@ -173,6 +179,10 @@ message AuthenticationExtensionsClientInputs {
   // Only available if using U2F compatibility mode.
   // https://www.w3.org/TR/webauthn-2/#sctn-appid-extension.
   string app_id = 1;
+
+  // Enables the credProps extension.
+  // https://w3c.github.io/webauthn/#sctn-authenticator-credential-properties-extension
+  bool cred_props = 2;
 }
 
 // Extensions supplied by the authenticator to the Relying Party, during
@@ -183,6 +193,18 @@ message AuthenticationExtensionsClientOutputs {
   // the rpIdHash accordingly.
   // https://www.w3.org/TR/webauthn-2/#sctn-appid-extension.
   bool app_id = 1;
+
+  // Credential properties per credProps extension.
+  // https://w3c.github.io/webauthn/#sctn-authenticator-credential-properties-extension.
+  CredentialPropertiesOutput cred_props = 2;
+}
+
+// CredentialPropertiesOutput is the output of the credProps extension.
+message CredentialPropertiesOutput {
+  // If true, the created credential is a resident key (regardless of the
+  // AuthenticatorSelection.require_resident_key value).
+  // OPTIONAL by specification.
+  bool rk = 1;
 }
 
 // Authenticator selection criteria.

@@ -8,15 +8,18 @@ resource "kubernetes_namespace_v1" "teleport" {
 }
 
 resource "helm_release" "teleport" {
-  count = var.deploy_teleport ? 1 : 0
+  lifecycle { enabled = var.deploy_teleport }
 
   name = local.teleport_release
 
+  reset_values = true
+  max_history  = 10
+
   chart      = "teleport-cluster"
-  repository = "https://charts.releases.teleport.dev"
+  repository = "https://charts.releases.development.teleport.dev"
   version    = var.teleport_version
 
-  namespace = kubernetes_namespace_v1.teleport.metadata.0.name
+  namespace = one(kubernetes_namespace_v1.teleport.metadata).name
 
   values = [jsonencode({
     "clusterName" = "${var.cluster_prefix}.${data.azurerm_dns_zone.dns_zone.name}"
@@ -27,7 +30,7 @@ resource "helm_release" "teleport" {
       "databaseUser"                   = azurerm_postgresql_flexible_server_active_directory_administrator.pgbk_teleport.principal_name
       "sessionRecordingStorageAccount" = azurerm_storage_account.azsessions.primary_blob_host
       "clientID"                       = azurerm_user_assigned_identity.teleport_identity.client_id
-      "databasePoolMaxConnections"     = 50
+      "databasePoolMaxConnections"     = 100
     }
 
     "log" = {
@@ -35,8 +38,8 @@ resource "helm_release" "teleport" {
       "level"  = "DEBUG"
     }
     "extraArgs"       = ["--debug"]
-    "image"           = "public.ecr.aws/gravitational/teleport-distroless-debug"
-    "enterpriseImage" = "public.ecr.aws/gravitational/teleport-ent-distroless-debug"
+    "image"           = "public.ecr.aws/gravitational-staging/teleport-distroless-debug"
+    "enterpriseImage" = "public.ecr.aws/gravitational-staging/teleport-ent-distroless-debug"
 
     "proxyListenerMode" = "multiplex"
 
@@ -73,11 +76,11 @@ resource "helm_release" "teleport" {
     }
 
     "authentication" = {
-      "secondFactor" = "off"
+      "secondFactor" = "webauthn"
     }
 
     "highAvailability" = {
-      "replicaCount" = 3
+      "replicaCount" = 2
       "certManager" = {
         "enabled"    = true
         "issuerName" = kubectl_manifest.issuer.name
@@ -122,7 +125,7 @@ resource "azurerm_public_ip" "proxy" {
 resource "azurerm_role_assignment" "proxy_ip" {
   scope                = azurerm_public_ip.proxy.id
   role_definition_name = "Network Contributor"
-  principal_id         = azurerm_kubernetes_cluster.kube_cluster.identity.0.principal_id
+  principal_id         = one(azurerm_kubernetes_cluster.kube_cluster.identity).principal_id
 
   skip_service_principal_aad_check = true
 }

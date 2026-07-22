@@ -16,5 +16,4 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import DocumentGateway from './DocumentGateway';
-export default DocumentGateway;
+export { DocumentGateway } from './DocumentGateway';

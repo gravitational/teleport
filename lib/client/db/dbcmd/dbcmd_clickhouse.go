@@ -37,7 +37,7 @@ func (c *CLICommandBuilder) getClickhouseHTTPCommand() (*exec.Cmd, error) {
 	} else {
 		args := []string{
 			fmt.Sprintf("https://%v:%v/", c.host, c.port),
-			"--key", c.profile.KeyPath(),
+			"--key", c.profile.DatabaseKeyPathForCluster(c.tc.SiteName, c.db.ServiceName),
 			"--cert", c.profile.DatabaseCertPathForCluster(c.tc.SiteName, c.db.ServiceName),
 		}
 

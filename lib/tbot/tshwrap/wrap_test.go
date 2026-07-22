@@ -28,8 +28,11 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
+	"github.com/gravitational/teleport/lib/tbot/internal"
+	identitysvc "github.com/gravitational/teleport/lib/tbot/services/identity"
 )
 
 // TestGetEnvForTSH ensures we generate a valid minimum subset of environment
@@ -40,11 +43,11 @@ func TestGetEnvForTSH(t *testing.T) {
 	expected := map[string]string{
 		client.VirtualPathEnvName(client.VirtualPathKey, nil):      filepath.Join(p, identity.PrivateKeyKey),
 		client.VirtualPathEnvName(client.VirtualPathDatabase, nil): filepath.Join(p, identity.TLSCertKey),
-		client.VirtualPathEnvName(client.VirtualPathApp, nil):      filepath.Join(p, identity.TLSCertKey),
+		client.VirtualPathEnvName(client.VirtualPathAppCert, nil):  filepath.Join(p, identity.TLSCertKey),
 
-		client.VirtualPathEnvName(client.VirtualPathCA, client.VirtualPathCAParams(types.UserCA)):     filepath.Join(p, config.UserCAPath),
-		client.VirtualPathEnvName(client.VirtualPathCA, client.VirtualPathCAParams(types.HostCA)):     filepath.Join(p, config.HostCAPath),
-		client.VirtualPathEnvName(client.VirtualPathCA, client.VirtualPathCAParams(types.DatabaseCA)): filepath.Join(p, config.DatabaseCAPath),
+		client.VirtualPathEnvName(client.VirtualPathCA, client.VirtualPathCAParams(types.UserCA)):     filepath.Join(p, internal.UserCAPath),
+		client.VirtualPathEnvName(client.VirtualPathCA, client.VirtualPathCAParams(types.HostCA)):     filepath.Join(p, internal.HostCAPath),
+		client.VirtualPathEnvName(client.VirtualPathCA, client.VirtualPathCAParams(types.DatabaseCA)): filepath.Join(p, internal.DatabaseCAPath),
 	}
 
 	env, err := GetEnvForTSH(p)
@@ -57,9 +60,9 @@ func TestGetEnvForTSH(t *testing.T) {
 func TestGetDestinationDirectory(t *testing.T) {
 	config := func(outputCount int) *config.BotConfig {
 		cfg := &config.BotConfig{}
-		for i := 0; i < outputCount; i++ {
-			cfg.Services = append(cfg.Services, &config.IdentityOutput{
-				Destination: &config.DestinationDirectory{
+		for i := range outputCount {
+			cfg.Services = append(cfg.Services, &identitysvc.OutputConfig{
+				Destination: &destination.Directory{
 					Path: fmt.Sprintf("/from-bot-config%d", i),
 				},
 			})
@@ -68,16 +71,16 @@ func TestGetDestinationDirectory(t *testing.T) {
 		return cfg
 	}
 	t.Run("one output configured", func(t *testing.T) {
-		dest, err := GetDestinationDirectory(config(1))
+		dest, err := GetDestinationDirectory("", config(1))
 		require.NoError(t, err)
 		require.Equal(t, "/from-bot-config0", dest.Path)
 	})
 	t.Run("no outputs specified", func(t *testing.T) {
-		_, err := GetDestinationDirectory(config(0))
+		_, err := GetDestinationDirectory("", config(0))
 		require.ErrorContains(t, err, "either --destination-dir or a config file containing an output or service must be specified")
 	})
 	t.Run("multiple outputs specified", func(t *testing.T) {
-		_, err := GetDestinationDirectory(config(2))
+		_, err := GetDestinationDirectory("", config(2))
 		require.ErrorContains(t, err, "the config file contains multiple outputs and services; a --destination-dir must be specified")
 	})
 }

@@ -1,14 +1,28 @@
 ---
 title: MongoDB Automatic User Provisioning 
+sidebar_label: MongoDB
 description: Configure automatic user provisioning for MongoDB.
+tags:
+ - how-to
+ - zero-trust
+ - infrastructure-identity
+page_type: how-to
 ---
+
+{/* lint disable page-structure remark-lint */}
 
 (!docs/pages/includes/database-access/auto-user-provisioning/intro.mdx!)
 
-- Teleport cluster v14.3 or above.
+## Prerequisites
+
+- A Teleport cluster.
 - A self-hosted MongoDB database enrolled with your Teleport cluster. Follow
-  the [Teleport documentation](../enroll-self-hosted-databases/mongodb-self-hosted.mdx) to learn how
+  the [Teleport documentation](../enrollment/self-hosted/mongodb-self-hosted.mdx) to learn how
   to enroll your database.
+  Your MongoDB database must have Role-Based Access Control (RBAC) enabled by
+  setting
+  [`security.authorization`](https://www.mongodb.com/docs/manual/reference/configuration-options/#mongodb-setting-security.authorization)
+  to `enabled` in the configuration file.
 - Ability to connect to and create user accounts in the target database.
 
 <Admonition type="note" title="Supported services">
@@ -26,7 +40,7 @@ connections.
 
 First create a role on `admin` database with the following privileges:
 
-```bash
+```code
 db.getSiblingDB("admin").runCommand({
     createRole: "teleport-admin-role",
     privileges: [
@@ -38,7 +52,8 @@ db.getSiblingDB("admin").runCommand({
 })
 ```
 
-<Details title="Limit the grantRole action to specific databases">
+<details>
+<summary>Limit the grantRole action to specific databases</summary>
 In the above example, the `grantRole` privilege is granted to the admin user
 for all databases in order for the admin user to assign roles from all
 databases, including the `admin` database.
@@ -47,7 +62,7 @@ To enforce the principle of least privilege, you can limit the `grantRole` to
 only the databases that own the roles to be assigned to the auto-provisioned
 users:
 
-```bash
+```code
 db.getSiblingDB("admin").runCommand({
     createRole: "teleport-admin-role",
     privileges: [
@@ -61,11 +76,11 @@ db.getSiblingDB("admin").runCommand({
     roles: [],
 })
 ```
-</Details>
+</details>
 
 Now create the admin user with this role:
 
-```bash
+```code
 db.getSiblingDB("$external").runCommand({
   createUser: "CN=teleport-admin",
   roles: [ { role: 'teleport-admin-role', db: 'admin' } ],
@@ -77,14 +92,15 @@ db.getSiblingDB("$external").runCommand({
 
 ## Step 2/3. Configure a Teleport role
 
-To specify the database roles a user should be assigned within the database,
-use the `db_roles` role option:
+To specify the database roles a user should be assigned within the database, use
+the `db_roles` role option. To create the role below, open a file called
+`db-user-creator.yaml`:
 
 ```yaml
 kind: role
 version: v7
 metadata:
-  name: auto-db-users
+  name: db-user-creator
 spec:
   options:
     # create_db_user_mode enables automatic user provisioning for matching databases
@@ -101,6 +117,12 @@ spec:
     - "myCustomRole@db2"
     - "{{internal.db_roles}}"
     - "{{external.db_roles}}"
+```
+
+Apply your change:
+
+```code
+$ tctl create -f db-user-creator.yaml
 ```
 
 (!docs/pages/includes/database-access/auto-user-provisioning/db_users_ignored.mdx!)
@@ -126,6 +148,6 @@ Users created within the database will:
 
 ## Next steps
 - Learn more about MongoDB [built-in roles](https://www.mongodb.com/docs/manual/reference/built-in-roles/) and [User-Defined Roles](https://www.mongodb.com/docs/manual/core/security-user-defined-roles/).
-- Connect using your [GUI database client](../../../connect-your-client/gui-clients.mdx).
-- Learn about [role templating](../../../access-controls/guides/role-templates.mdx#interpolation-rules).
+- Connect using your [GUI database client](../../../connect-your-client/third-party/gui-clients.mdx).
+- Learn about [role templating](../../../zero-trust-access/rbac-get-started/role-templates.mdx).
 - Read automatic user provisioning [RFD](https://github.com/gravitational/teleport/blob/master/rfd/0113-automatic-database-users.md).

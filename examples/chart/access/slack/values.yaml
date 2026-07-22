@@ -13,6 +13,9 @@ teleport:
   # For example:
   #   - joining a Proxy: `teleport.example.com:443` or `teleport.example.com:3080`
   #   - joining an Auth: `teleport-auth.example.com:3025`
+  #
+  # When the address is empty, `tbot.teleportProxyAddress`
+  # or `tbot.teleportAuthAddress` will be used if they are set.
   address: ""
   # teleport.identitySecretName(string) -- is the name of the Kubernetes secret
   # that contains the credentials for the connection to your Teleport cluster.
@@ -30,7 +33,7 @@ teleport:
   # ```
   #
   # Check out the [Access Requests with
-  # Slack](../../../access-controls/access-request-plugins/ssh-approval-slack.mdx) guide
+  # Slack](../../identity-governance/access-requests/plugins/slack.mdx) guide
   # for more information about how to acquire these credentials.
   identitySecretName: ""
   # teleport.identitySecretPath(string) -- is the key in the Kubernetes secret
@@ -41,22 +44,74 @@ teleport:
 
 # slack -- contains the configuration used by the plugin to authenticate to Slack.
 #
-# You can pass the Slack token:
+# You can pass the Slack Bot OAuth token:
 # - via the chart Values by setting `slack.token`
 # - via an existing Kubernetes Secret by setting `slack.tokenFromSecret`
 slack:
-  # slack.token(string) -- is the Slack token used by the plugin to interact
+  # slack.token(string) -- is the Slack Bot OAuth token used by the plugin to interact
   # with Slack. When set, the Chart creates a Kubernetes Secret for you.
   #
   # This value has no effect if `slack.tokenFromSecret` is set.
   token: ""
   # slack.tokenFromSecret(string) -- is the name of the Kubernetes Secret
-  # containing the Slack token. When this value is set, you must create the
+  # containing the Slack Bot OAuth token. When this value is set, you must create the
   # Secret before creating the chart release.
   tokenFromSecret: ""
   # slack.tokenSecretPath(string) -- is the Kubernetes Secret key
-  # containing the Slack token. The secret name is set via `slack.tokenFromSecret`.
+  # containing the Slack Bot OAuth token. The secret name is set via `slack.tokenFromSecret`.
   tokenSecretPath: "slackToken"
+
+# review -- configures native review of Teleport Access Requests within Slack.
+#
+# Native review is by default disabled.
+#
+# <Admonition type="danger">
+# Enabling this feature reduces the security of the Teleport cluster.
+# Access Request reviews submitted through Slack are bound to a Slack identity rather than
+# the reviewer's Teleport identity, and bypass Teleport authentication
+# (and MFA for admin actions if enabled on cluster).
+# As a result, a compromised Slack account can approve requests from Slack and escalate privileges in Teleport.
+# </Admonition>
+#
+# <Admonition type="note">
+# There are two identity binding models for Slack reviewers:
+# - binding based on Teleport username and Slack email, toggled with `review.allowEmailUsernameMatch`
+# - binding based on Teleport trait and Slack user ID, set by `review.slackUserIdTrait`
+#
+# The binding based on Teleport trait is stronger, but requires a Teleport user to be given a trait with
+# their Slack user ID, often coming from the Identity Provider/SSO connector.
+# </Admonition>
+#
+# You can pass the Slack App-level token:
+# - via the chart Values by setting `review.appToken`
+# - via an existing Kubernetes Secret by setting `review.appTokenFromSecret`
+review:
+  # review.enabled(bool) -- toggles native review feature. Default is false.
+  enabled: false
+  # review.appToken(string) -- is the Slack App-level token used by the plugin
+  # to receive user interactions from Slack.
+  # This is different from the Bot OAuth token, and must be set up separately.
+  # Set this up under "Basic Information" in your Slack app settings.
+  #
+  # When set, the Chart creates a Kubernetes Secret for you.
+  #
+  # This value has no effect if `review.appTokenFromSecret` is set.
+  appToken: ""
+  # review.appTokenFromSecret(string) -- is the name of the Kubernetes Secret
+  # containing the Slack App-level token. When this value is set, you must create the
+  # Secret before creating the chart release.
+  appTokenFromSecret: ""
+  # review.appTokenSecretPath(string) -- is the Kubernetes Secret key
+  # containing the Slack App-level token. The secret name is set via `review.appTokenFromSecret`.
+  appTokenSecretPath: "slackAppToken"
+  # review.allowEmailUsernameMatch(bool) -- allows binding between Teleport username and Slack email.
+  # This should only be set to true if `review.slackUserIdTrait` is not configured in Teleport.
+  # We recommend configuring a trait for stronger identity binding. Default is false.
+  allowEmailUsernameMatch: false
+  # review.slackUserIdTrait(string) -- is the name of the Teleport trait
+  # to bind Teleport user and Slack user.
+  # The trait should hold value of Slack user ID.
+  slackUserIdTrait: ""
 
 # roleToRecipients(object) -- is mapping the requested role name to a list of
 # recipients the plugin will notify.
@@ -89,6 +144,54 @@ log:
   # will still go to `stderr` for resilience.
   output: stdout
 
+# tbot -- controls the optional tbot deployment that obtains and renews
+# credentials for the plugin to connect to Teleport.
+# Only default and mandatory values are described here, see the tbot chart reference
+# for the full list of supported values.
+tbot:
+  # tbot.enabled(bool) -- controls if tbot should be deployed with the slack plugin.
+  enabled: false
+  # tbot.clusterName(string) -- is the name of the Teleport cluster tbot and the Slack plugin will join.
+  # Setting this value is mandatory when tbot is enabled.
+  clusterName: ""
+  # tbot.teleportProxyAddress(string) -- is the teleport Proxy Service address the bot will connect to.
+  # This must contain the port number, usually 443 or 3080 for Proxy Service.
+  # Connecting to the Proxy Service is the most common and recommended way to connect to Teleport.
+  # This is mandatory to connect to Teleport Enterprise (Cloud).
+  #
+  # This setting is mutually exclusive with `teleportAuthAddress`.
+  #
+  # For example:
+  # ```yaml
+  # tbot:
+  #   teleportProxyAddress: "test.teleport.sh:443"
+  # ```
+  teleportProxyAddress: ""
+  # tbot.teleportAuthAddress(string) -- is the teleport Auth Service address the bot will connect to.
+  # This must contain the port number, usually 3025 for Auth Service. Direct Auth Service connection
+  # should be used when you are deploying the bot in the same Kubernetes cluster than your `teleport-cluster`
+  # Helm release and have direct access to the Auth Service.
+  # Else, you should prefer connecting via the Proxy Service.
+  #
+  # This setting is mutually exclusive with `teleportProxyAddress`.
+  #
+  # For example:
+  # ```yaml
+  # teleportAuthAddress: "teleport-auth.teleport-namespace.svc.cluster.local:3025"
+  # ```
+  teleportAuthAddress: ""
+
+  # tbot.joinMethod(string) -- describes how tbot joins the Teleport cluster.
+  # See [the join method reference](../../reference/deployment/join-methods.mdx) for a list of supported values and detailed explanations.
+  joinMethod: "kubernetes"
+  token: ""
+
+  # Don't touch the tbot values below, this will break the chart.
+  # This ensures that tbot.fullname is not shortened if the release name contains "tbot"
+  nameOverride: tbot
+  defaultOutput:
+    enabled: true
+
 secretVolumeName: "password-file"
 
 # annotations -- contains annotations to apply to the different Kubernetes
@@ -107,7 +210,6 @@ annotations:
   pod: {}
   # annotations.secret(object) -- contains the Kubernetes annotations
   # put on the `Secret` resource created by the chart.
-  # This has no effect when `joinTokenSecret.create` is `false`.
   secret: {}
 
 #

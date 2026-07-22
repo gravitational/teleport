@@ -16,10 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
+
 import { Box, Indicator } from 'design';
 import { Danger } from 'design/Alert';
-
 import useAttempt from 'shared/hooks/useAttemptNext';
 
 import {
@@ -27,14 +27,28 @@ import {
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
-import useTeleport from 'teleport/useTeleport';
-
+import { Route, Switch } from 'teleport/components/Router';
+import cfg from 'teleport/config';
 import { useFeatures } from 'teleport/FeaturesContext';
+import useTeleport from 'teleport/useTeleport';
 
 import ClusterList from './ClusterList';
 import { buildACL } from './utils';
 
 export function Clusters() {
+  return (
+    <Switch>
+      <Route
+        key="cluster-list"
+        exact
+        path={cfg.routes.clusters}
+        element={<ClusterListPage />}
+      />
+    </Switch>
+  );
+}
+
+export function ClusterListPage() {
   const ctx = useTeleport();
 
   const [clusters, setClusters] = useState([]);

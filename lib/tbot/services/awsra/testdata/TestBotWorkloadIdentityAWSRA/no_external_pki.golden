@@ -1,0 +1,5 @@
+[default]
+aws_secret_access_key=secretAccessKey
+aws_access_key_id=accessKeyId
+aws_session_token=sessionToken
+expiration=1848285415000

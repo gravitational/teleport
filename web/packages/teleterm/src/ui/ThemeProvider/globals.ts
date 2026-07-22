@@ -16,14 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { createGlobalStyle, css } from 'styled-components';
-import { getPlatformType } from 'design/platform';
+import { createGlobalStyle } from 'styled-components';
 
 const GlobalStyle = createGlobalStyle`
 
   html {
     font-family: ${props => props.theme.font};
-    ${props => props.theme.typography.body1};
+    ${props => props.theme.typography.body2};
   }
 
   body {
@@ -50,21 +49,16 @@ const GlobalStyle = createGlobalStyle`
     }
   }
 
-  ${() => !getPlatformType().isMac && customScrollbar}
-`;
-
-const customScrollbar = css`
-  ::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
-  }
-
-  ::-webkit-scrollbar-thumb {
-    background: #757575;
-  }
-
-  ::-webkit-scrollbar-corner {
-    background: rgba(0, 0, 0, 0.5);
+  b, strong {
+    // Overrides the default useragent style of  font-weight: bolder which results in the bold font
+    // not being bold enough. That's because if the regular font-weight is set to 300, "bolder"
+    // means it'll go to just 400.
+    // https://developer.mozilla.org/en-US/docs/Web/CSS/font-weight#meaning_of_relative_weights
+    //
+    // The Web UI uses <Text bold> to render bold text which always explicitly sets the weight to
+    // theme.fontWeights.bold (600), whereas Connect mostly uses <strong> which by default uses the
+    // useragent style.
+    font-weight: ${props => props.theme.fontWeights.bold};
   }
 `;
 

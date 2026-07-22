@@ -20,16 +20,14 @@ package automaticupgrades
 
 import (
 	"context"
+	"log/slog"
 	"net/url"
-	"strconv"
-	"strings"
 	"sync"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
-	"golang.org/x/mod/semver"
 
-	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/lib/automaticupgrades/maintenance"
 	"github.com/gravitational/teleport/lib/automaticupgrades/version"
 )
@@ -57,12 +55,12 @@ func (c Channels) CheckAndSetDefaults() error {
 	// Else if cloud/stable channel is specified in the config, we use it as default.
 	// Else, we build a default channel based on the teleport binary version.
 	if _, ok := c[DefaultChannelName]; ok {
-		log.Debugln("'default' automatic update channel manually specified, honoring it.")
+		slog.DebugContext(context.Background(), "'default' automatic update channel manually specified, honoring it")
 	} else if cloudDefaultChannel, ok := c[DefaultCloudChannelName]; ok {
-		log.Debugln("'default' automatic update channel not specified, but 'stable/cloud' is, using the cloud default channel by default.")
+		slog.DebugContext(context.Background(), "'default' automatic update channel not specified, but 'stable/cloud' is, using the cloud default channel by default")
 		c[DefaultChannelName] = cloudDefaultChannel
 	} else {
-		log.Debugln("'default' automatic update channel not specified, teleport will serve its version by default.")
+		slog.DebugContext(context.Background(), "'default' automatic update channel not specified, teleport will serve its version by default")
 		c[DefaultChannelName] = defaultChannel
 	}
 
@@ -90,13 +88,22 @@ func (c Channels) CheckAndSetDefaults() error {
 }
 
 // DefaultVersion returns the version served by the default upgrade channel.
-func (c Channels) DefaultVersion(ctx context.Context) (string, error) {
+func (c Channels) DefaultVersion(ctx context.Context) (*semver.Version, error) {
 	channel, ok := c[DefaultChannelName]
 	if !ok {
-		return "", trace.NotFound("default version channel not found")
+		return nil, trace.NotFound("default version channel not found")
 	}
 	targetVersion, err := channel.GetVersion(ctx)
 	return targetVersion, trace.Wrap(err)
+}
+
+// DefaultChannel returns the default upgrade channel.
+func (c Channels) DefaultChannel() (*Channel, error) {
+	defaultChannel, ok := c[DefaultChannelName]
+	if ok && defaultChannel != nil {
+		return defaultChannel, nil
+	}
+	return NewDefaultChannel()
 }
 
 // Channel describes an automatic update channel configuration.
@@ -114,10 +121,7 @@ type Channel struct {
 	versionGetter version.Getter
 	// criticalTrigger gets the criticality of the channel. It is populated by CheckAndSetDefaults.
 	criticalTrigger maintenance.Trigger
-	// teleportMajor stores the current teleport major for comparison.
-	// This field is initialized during CheckAndSetDefaults.
-	teleportMajor int
-	// mutex protects versionGetter, criticalTrigger, and teleportMajor
+	// mutex protects versionGetter and criticalTrigger
 	mutex sync.Mutex
 }
 
@@ -138,16 +142,14 @@ func (c *Channel) CheckAndSetDefaults() error {
 		c.versionGetter = version.NewBasicHTTPVersionGetter(baseURL)
 		c.criticalTrigger = maintenance.NewBasicHTTPMaintenanceTrigger("remote", baseURL)
 	case c.StaticVersion != "":
-		c.versionGetter = version.NewStaticGetter(c.StaticVersion, nil)
+		var err error
+		c.versionGetter, err = version.NewStaticGetter(c.StaticVersion, nil)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 		c.criticalTrigger = maintenance.NewMaintenanceStaticTrigger("remote", c.Critical)
 	default:
 		return trace.BadParameter("either ForwardURL or StaticVersion must be set")
-	}
-
-	var err error
-	c.teleportMajor, err = parseMajorFromVersionString(teleport.Version)
-	if err != nil {
-		return trace.Wrap(err, "failed to process teleport version")
 	}
 
 	return nil
@@ -160,26 +162,18 @@ func (c *Channel) CheckAndSetDefaults() error {
 // returns the Teleport version instead.
 // If the version source intentionally did not specify a version, a
 // NoNewVersionError is returned.
-func (c *Channel) GetVersion(ctx context.Context) (string, error) {
+func (c *Channel) GetVersion(ctx context.Context) (*semver.Version, error) {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 	targetVersion, err := c.versionGetter.GetVersion(ctx)
 	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	targetMajor, err := parseMajorFromVersionString(targetVersion)
-	if err != nil {
-		return "", trace.Wrap(err, "failed to process target version")
+		return nil, trace.Wrap(err)
 	}
 
 	// The target version is officially incompatible with our version,
 	// we prefer returning our version rather than having a broken client
-	if targetMajor > c.teleportMajor {
-		targetVersion, err = version.EnsureSemver(teleport.Version)
-		if err != nil {
-			return "", trace.Wrap(err, "ensuring current teleport version is semver-compatible")
-		}
+	if targetVersion.Major > api.VersionMajor {
+		targetVersion = api.SemVer()
 	}
 
 	return targetVersion, nil
@@ -202,7 +196,7 @@ var newDefaultChannel = sync.OnceValues[*Channel, error](
 			}
 		} else {
 			channel = &Channel{
-				StaticVersion: teleport.Version,
+				StaticVersion: api.Version,
 			}
 		}
 		if err := channel.CheckAndSetDefaults(); err != nil {
@@ -223,18 +217,4 @@ var newDefaultChannel = sync.OnceValues[*Channel, error](
 // 'default' channel to a static version of your choice.
 func NewDefaultChannel() (*Channel, error) {
 	return newDefaultChannel()
-}
-
-func parseMajorFromVersionString(v string) (int, error) {
-	v, err := version.EnsureSemver(v)
-	if err != nil {
-		return 0, trace.Wrap(err, "invalid semver: %s", v)
-	}
-	majorStr := semver.Major(v)
-	if majorStr == "" {
-		return 0, trace.BadParameter("cannot detect version major")
-	}
-
-	major, err := strconv.Atoi(strings.TrimPrefix(majorStr, "v"))
-	return major, trace.Wrap(err, "cannot convert version major to int")
 }

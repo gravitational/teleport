@@ -26,7 +26,6 @@ import (
 	"os"
 	"os/exec"
 	"os/user"
-	"path"
 	"path/filepath"
 	"reflect"
 	"slices"
@@ -47,36 +46,29 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keypaths"
-	"github.com/gravitational/teleport/entitlements"
-	"github.com/gravitational/teleport/lib"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	kubeserver "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
-	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/common"
-	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
 func TestKube(t *testing.T) {
-	lib.SetInsecureDevMode(true)
-	t.Cleanup(func() { lib.SetInsecureDevMode(false) })
-
 	pack := setupKubeTestPack(t, true)
 	t.Run("list kube", pack.testListKube)
 	t.Run("proxy kube", pack.testProxyKube)
+	t.Run("proxy kube with exec-cmd", pack.testProxyKubeWithExecCmd)
 }
 
 func TestKubeLogin(t *testing.T) {
-	lib.SetInsecureDevMode(true)
-	t.Cleanup(func() { lib.SetInsecureDevMode(false) })
-
 	testKubeLogin := func(t *testing.T, kubeCluster string, expectedAddr string) {
 		// Set default kubeconfig to a non-exist file to avoid loading other things.
-		t.Setenv("KUBECONFIG", path.Join(os.Getenv(types.HomeEnvVar), uuid.NewString()))
+		t.Setenv("KUBECONFIG", filepath.Join(os.Getenv(types.HomeEnvVar), uuid.NewString()))
 
 		// Test "tsh proxy kube root-cluster1".
 
@@ -147,12 +139,14 @@ func setupKubeTestPack(t *testing.T, withMultiplexMode bool) *kubeTestPack {
 			if withMultiplexMode {
 				cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 			}
+			cfg.InsecureMode = true
 			cfg.Kube.Enabled = true
 			cfg.Kube.ListenAddr = utils.MustParseAddr(localListenerAddr())
 			cfg.Kube.KubeconfigPath = newKubeConfigFile(t, rootKubeCluster1, rootKubeCluster2)
 			cfg.Kube.StaticLabels = rootLabels
 			cfg.Proxy.Kube.Enabled = true
 			cfg.Proxy.Kube.ListenAddr = *utils.MustParseAddr(localListenerAddr())
+			cfg.SSH.Enabled = false
 		}),
 		withLeafCluster(),
 		withLeafConfigFunc(
@@ -160,22 +154,31 @@ func setupKubeTestPack(t *testing.T, withMultiplexMode bool) *kubeTestPack {
 				if withMultiplexMode {
 					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 				}
+				cfg.InsecureMode = true
 				cfg.Kube.Enabled = true
 				cfg.Kube.ListenAddr = utils.MustParseAddr(localListenerAddr())
 				cfg.Kube.KubeconfigPath = newKubeConfigFile(t, leafKubeCluster)
 				cfg.Kube.StaticLabels = leafLabels
+				cfg.SSH.Enabled = false
 			},
 		),
 		withValidationFunc(func(s *suite) bool {
-			rootClusters, err := s.root.GetAuthServer().GetKubernetesServers(ctx)
-			require.NoError(t, err)
-			leafClusters, err := s.leaf.GetAuthServer().GetKubernetesServers(ctx)
-			require.NoError(t, err)
-			return len(rootClusters) >= 2 && len(leafClusters) >= 1
+			// Wait for cache propagation of the kubernetes resources before proceeding with the tests.
+			var foundRoot1, foundRoot2, foundLeaf bool
+			for ks := range s.root.GetAuthServer().UnifiedResourceCache.KubernetesServers(ctx, services.UnifiedResourcesIterateParams{}) {
+				foundRoot1 = foundRoot1 || ks.GetCluster().GetName() == rootKubeCluster1
+				foundRoot2 = foundRoot2 || ks.GetCluster().GetName() == rootKubeCluster2
+			}
+
+			for ks := range s.leaf.GetAuthServer().UnifiedResourceCache.KubernetesServers(ctx, services.UnifiedResourcesIterateParams{}) {
+				foundLeaf = foundLeaf || ks.GetCluster().GetName() == leafKubeCluster
+			}
+
+			return foundRoot1 && foundRoot2 && foundLeaf
 		}),
 	)
 
-	mustLoginSetEnv(t, s)
+	mustLoginSetEnvLegacy(t, s)
 	return &kubeTestPack{
 		suite:            s,
 		rootClusterName:  s.root.Config.Auth.ClusterName.GetClusterName(),
@@ -207,10 +210,10 @@ func (p *kubeTestPack) testListKube(t *testing.T) {
 				// p.rootKubeCluster2 ("first-cluster") should appear before
 				// p.rootKubeCluster1 ("root-cluster") after sorting.
 				table := asciitable.MakeTableWithTruncatedColumn(
-					[]string{"Kube Cluster Name", "Labels", "Selected"},
+					[]string{"Kube Cluster Name", "Labels", "Scope", "Selected"},
 					[][]string{
-						{p.rootKubeCluster2, formattedRootLabels, ""},
-						{p.rootKubeCluster1, formattedRootLabels, ""},
+						{p.rootKubeCluster2, formattedRootLabels, "", ""},
+						{p.rootKubeCluster1, formattedRootLabels, "", ""},
 					},
 					"Labels")
 				return table.AsBuffer().String()
@@ -221,9 +224,9 @@ func (p *kubeTestPack) testListKube(t *testing.T) {
 			args: []string{"--verbose"},
 			wantTable: func() string {
 				table := asciitable.MakeTable(
-					[]string{"Kube Cluster Name", "Labels", "Selected"},
-					[]string{p.rootKubeCluster2, formattedRootLabelsVerbose, ""},
-					[]string{p.rootKubeCluster1, formattedRootLabelsVerbose, ""})
+					[]string{"Kube Cluster Name", "Labels", "Scope", "Selected"},
+					[]string{p.rootKubeCluster2, formattedRootLabelsVerbose, "", ""},
+					[]string{p.rootKubeCluster1, formattedRootLabelsVerbose, "", ""})
 				return table.AsBuffer().String()
 			},
 		},
@@ -231,7 +234,7 @@ func (p *kubeTestPack) testListKube(t *testing.T) {
 			name: "show headless table",
 			args: []string{"--quiet"},
 			wantTable: func() string {
-				table := asciitable.MakeHeadlessTable(2)
+				table := asciitable.MakeHeadlessTable(3)
 				table.AddRow([]string{p.rootKubeCluster2, formattedRootLabels, ""})
 				table.AddRow([]string{p.rootKubeCluster1, formattedRootLabels, ""})
 
@@ -243,15 +246,15 @@ func (p *kubeTestPack) testListKube(t *testing.T) {
 			args: []string{"--all"},
 			wantTable: func() string {
 				table := asciitable.MakeTableWithTruncatedColumn(
-					[]string{"Proxy", "Cluster", "Kube Cluster Name", "Labels"},
+					[]string{"Proxy", "Cluster", "Kube Cluster Name", "Labels", "Scope"},
 					[][]string{
 						// "leaf-cluster" should be displayed instead of the
 						// full leaf cluster name, since it is mocked as a
 						// discovered resource and the discovered resource name
 						// is displayed in non-verbose mode.
-						{p.root.Config.Proxy.WebAddr.String(), "leaf1", "leaf-cluster", formattedLeafLabels},
-						{p.root.Config.Proxy.WebAddr.String(), "root", p.rootKubeCluster2, formattedRootLabels},
-						{p.root.Config.Proxy.WebAddr.String(), "root", p.rootKubeCluster1, formattedRootLabels},
+						{p.root.Config.Proxy.WebAddr.String(), "leaf1", "leaf-cluster", formattedLeafLabels, ""},
+						{p.root.Config.Proxy.WebAddr.String(), "root", p.rootKubeCluster2, formattedRootLabels, ""},
+						{p.root.Config.Proxy.WebAddr.String(), "root", p.rootKubeCluster1, formattedRootLabels, ""},
 					},
 					"Labels",
 				)
@@ -263,10 +266,10 @@ func (p *kubeTestPack) testListKube(t *testing.T) {
 			args: []string{"--all", "--verbose"},
 			wantTable: func() string {
 				table := asciitable.MakeTable(
-					[]string{"Proxy", "Cluster", "Kube Cluster Name", "Labels"},
-					[]string{p.root.Config.Proxy.WebAddr.String(), "leaf1", p.leafKubeCluster, formattedLeafLabelsVerbose},
-					[]string{p.root.Config.Proxy.WebAddr.String(), "root", p.rootKubeCluster2, formattedRootLabelsVerbose},
-					[]string{p.root.Config.Proxy.WebAddr.String(), "root", p.rootKubeCluster1, formattedRootLabelsVerbose},
+					[]string{"Proxy", "Cluster", "Kube Cluster Name", "Labels", "Scope"},
+					[]string{p.root.Config.Proxy.WebAddr.String(), "leaf1", p.leafKubeCluster, formattedLeafLabelsVerbose, ""},
+					[]string{p.root.Config.Proxy.WebAddr.String(), "root", p.rootKubeCluster2, formattedRootLabelsVerbose, ""},
+					[]string{p.root.Config.Proxy.WebAddr.String(), "root", p.rootKubeCluster1, formattedRootLabelsVerbose, ""},
 				)
 				return table.AsBuffer().String()
 			},
@@ -275,17 +278,16 @@ func (p *kubeTestPack) testListKube(t *testing.T) {
 			name: "list all clusters including leaf clusters in headless table",
 			args: []string{"--all", "--quiet"},
 			wantTable: func() string {
-				table := asciitable.MakeHeadlessTable(4)
-				table.AddRow([]string{p.root.Config.Proxy.WebAddr.String(), "leaf1", "leaf-cluster", formattedLeafLabels})
-				table.AddRow([]string{p.root.Config.Proxy.WebAddr.String(), "root", p.rootKubeCluster2, formattedRootLabels})
-				table.AddRow([]string{p.root.Config.Proxy.WebAddr.String(), "root", p.rootKubeCluster1, formattedRootLabels})
+				table := asciitable.MakeHeadlessTable(5)
+				table.AddRow([]string{p.root.Config.Proxy.WebAddr.String(), "leaf1", "leaf-cluster", formattedLeafLabels, ""})
+				table.AddRow([]string{p.root.Config.Proxy.WebAddr.String(), "root", p.rootKubeCluster2, formattedRootLabels, ""})
+				table.AddRow([]string{p.root.Config.Proxy.WebAddr.String(), "root", p.rootKubeCluster1, formattedRootLabels, ""})
 				return table.AsBuffer().String()
 			},
 		},
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -317,18 +319,15 @@ func (p *kubeTestPack) testListKube(t *testing.T) {
 
 // Tests `tsh kube login`, `tsh proxy kube`.
 func TestKubeSelection(t *testing.T) {
-	modules.SetTestModules(t,
-		&modules.TestModules{
-			TestBuildType: modules.BuildEnterprise,
-			TestFeatures: modules.Features{
-				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-					entitlements.K8s: {Enabled: true},
-				},
-			},
-		},
-	)
-	testenv.WithInsecureDevMode(t, true)
-	testenv.WithResyncInterval(t, 0)
+	oldResyncInterval := defaults.ResyncInterval
+	defaults.ResyncInterval = 100 * time.Millisecond
+	// To detect tests that run in parallel incorrectly, call t.Setenv with a
+	// dummy env var - that function detects tests with parallel ancestors
+	// and panics, preventing improper use of this helper.
+	t.Setenv("WithResyncInterval", "1")
+	t.Cleanup(func() {
+		defaults.ResyncInterval = oldResyncInterval
+	})
 
 	// Create a role that allows the user to request access to a restricted
 	// cluster but not to access it directly.
@@ -355,6 +354,8 @@ func TestKubeSelection(t *testing.T) {
 	t.Cleanup(cancel)
 	s := newTestSuite(t,
 		withRootConfigFunc(func(cfg *servicecfg.Config) {
+			cfg.Modules = modulestest.EnterpriseModules()
+			cfg.InsecureMode = true
 			// reconfig the user to use the new role instead of the default ones
 			// User is the second bootstrap resource.
 			user, ok := cfg.Auth.BootstrapResources[1].(types.User)
@@ -552,9 +553,9 @@ func TestKubeSelection(t *testing.T) {
 				t.Parallel()
 				// login for each parallel test to avoid races when multiple tsh
 				// clients work in the same profile dir.
-				tshHome, _ := mustLogin(t, s)
+				tshHome, _ := mustLoginLegacy(t, s)
 				// Set kubeconfig to a non-exist file to avoid loading other things.
-				kubeConfigPath := path.Join(tshHome, "kube-config")
+				kubeConfigPath := filepath.Join(tshHome, "kube-config")
 				var cmdRunner func(*exec.Cmd) error
 				if len(test.wantProxied) > 0 {
 					cmdRunner = func(cmd *exec.Cmd) error {
@@ -592,7 +593,7 @@ func TestKubeSelection(t *testing.T) {
 			test := test
 			t.Run(test.desc, func(t *testing.T) {
 				t.Parallel()
-				tshHome, kubeConfigPath := mustLogin(t, s)
+				tshHome, kubeConfigPath := mustLoginLegacy(t, s)
 				err := Run(
 					context.Background(),
 					append([]string{"kube", "login", "--insecure"},
@@ -677,7 +678,7 @@ func TestKubeSelection(t *testing.T) {
 	t.Run("access request", func(t *testing.T) {
 		t.Parallel()
 		// login as the user.
-		tshHome, kubeConfig := mustLogin(t, s)
+		tshHome, kubeConfig := mustLoginLegacy(t, s)
 
 		// Run the login command in a goroutine so we can check if the access
 		// request was created and approved.
@@ -716,7 +717,7 @@ func TestKubeSelection(t *testing.T) {
 			}
 
 			equal := reflect.DeepEqual(
-				accessRequests[0].GetRequestedResourceIDs(),
+				types.RiskyExtractResourceIDs(accessRequests[0].GetAllRequestedResourceIDs()),
 				[]types.ResourceID{
 					{
 						ClusterName: s.root.Config.Auth.ClusterName.GetClusterName(),
@@ -787,4 +788,88 @@ func newKubeSelfSubjectServer(t *testing.T) string {
 	t.Cleanup(func() { srv.Close() })
 
 	return srv.URL
+}
+
+func Test_kubeCredentialsCommand_checkLocalProxyRequirement(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		inputProfile *profile.Profile
+		wantErr      bool
+	}{
+		{
+			name: "no requirement",
+			inputProfile: &profile.Profile{
+				WebProxyAddr:  "example.com:443",
+				KubeProxyAddr: "example.com:3026",
+			},
+			wantErr: false,
+		},
+		{
+			name: "kube local proxy required",
+			inputProfile: &profile.Profile{
+				WebProxyAddr:                  "example.com:443",
+				KubeProxyAddr:                 "example.com:443",
+				TLSRoutingConnUpgradeRequired: true,
+			},
+			wantErr: true,
+		},
+		{
+			// A hardware-key policy can't be serialized for the exec plugin, so
+			// the credentials command must return an actionable error even when
+			// a local proxy would not otherwise be required.
+			name: "hardware key policy",
+			inputProfile: &profile.Profile{
+				WebProxyAddr:     "example.com:443",
+				KubeProxyAddr:    "example.com:3026",
+				PrivateKeyPolicy: keys.PrivateKeyPolicyHardwareKeyTouch,
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			c := &kubeCredentialsCommand{}
+			err := c.checkLocalProxyRequirement(test.inputProfile)
+			if !test.wantErr {
+				require.NoError(t, err)
+				return
+			}
+			// The error must be the actionable one, not the opaque PEM failure.
+			require.True(t, trace.IsBadParameter(err), "want BadParameter, got %v", err)
+			require.ErrorContains(t, err, "tsh proxy kube")
+			require.ErrorContains(t, err, "tsh kubectl")
+		})
+	}
+}
+
+// Test_kubeCredentialsCommand_checkLocalProxyRequirement_inLocalProxyShell
+// covers the case where credentials are requested from inside an active
+// `tsh proxy kube --exec` shell (kubeLocalProxyEnvVar set).
+func Test_kubeCredentialsCommand_checkLocalProxyRequirement_inLocalProxyShell(t *testing.T) {
+	const sessionKubeconfig = "/tmp/proxy-kubeconfig-123"
+	t.Setenv(kubeLocalProxyEnvVar, sessionKubeconfig)
+	c := &kubeCredentialsCommand{}
+
+	t.Run("hardware key -> session-specific error", func(t *testing.T) {
+		err := c.checkLocalProxyRequirement(&profile.Profile{
+			PrivateKeyPolicy: keys.PrivateKeyPolicyHardwareKeyTouch,
+		})
+		require.True(t, trace.IsBadParameter(err), "want BadParameter, got %v", err)
+		require.ErrorContains(t, err, "tsh proxy kube")
+		// The error points the user at the session's kubeconfig path.
+		require.ErrorContains(t, err, sessionKubeconfig)
+	})
+
+	t.Run("software key -> no error even inside a session", func(t *testing.T) {
+		// A software key can be served by the exec plugin, so being inside a
+		// local proxy shell must not break it (no regression).
+		err := c.checkLocalProxyRequirement(&profile.Profile{
+			WebProxyAddr:  "example.com:443",
+			KubeProxyAddr: "example.com:3026",
+		})
+		require.NoError(t, err)
+	})
 }

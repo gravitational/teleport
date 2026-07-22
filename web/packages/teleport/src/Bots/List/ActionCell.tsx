@@ -16,7 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
 import { Cell } from 'design/DataTable';
 import { MenuButton, MenuItem } from 'shared/components/MenuAction';
 
@@ -41,7 +40,7 @@ export function BotOptionsCell({
           Delete...
         </MenuItem>
         {bot.type === BotUiFlow.GitHubActionsSsh && (
-          <MenuItem onClick={onClickView}>View...</MenuItem>
+          <MenuItem onClick={onClickView}>View GitHub example...</MenuItem>
         )}
       </MenuButton>
     </Cell>

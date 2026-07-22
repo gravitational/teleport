@@ -1,0 +1,82 @@
+// Teleport
+// Copyright (C) 2025 Gravitational, Inc.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+package provision
+
+import (
+	"time"
+
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
+	"github.com/gravitational/teleport/api/types"
+)
+
+// A Token is used in the join service to facilitate provisioning.
+type Token interface {
+	// GetName returns the name of the token.
+	GetName() string
+	// GetSafeName returns the name of the token, sanitized appropriately for
+	// join methods where the name is secret. This should be used when logging
+	// the token name.
+	GetSafeName() string
+	// GetSecret returns either the token's secret or an empty string depending on whether
+	// or not the token has an explicit secret value. It also returns an explicit boolean
+	// to disambiguate between cases where the token has no secret or the token secret is
+	// not populated.
+	GetSecret() (string, bool)
+	// GetJoinMethod returns joining method that must be used with this token.
+	GetJoinMethod() types.JoinMethod
+	// GetRoles returns a list of teleport roles that will be granted to the
+	// resources provisioned with this token.
+	GetRoles() types.SystemRoles
+	// Expiry returns the token's expiration time.
+	Expiry() time.Time
+	// GetBot returns the name and scope of the bot that this token can join.
+	// An empty name indicates that this is not a bot token. An empty scope
+	// refers to an unscoped bot; scoped bot tokens always carry both
+	// components.
+	GetBot() (name, scope string)
+	// GetAssignedScope returns the scope that will be assigned to provisioned resources
+	// provisioned using the wrapped [joiningv1.ScopedToken].
+	GetAssignedScope() string
+	// GetScope returns the scope that token exists in.
+	GetScope() string
+	// GetImmutableLabels returns labels that must be applied to resources
+	// provisioned with this token.
+	GetImmutableLabels() *joiningv1.ImmutableLabels
+	// GetAWSAllowRules returns the list of AWS-specific allow rules.
+	GetAWSAllowRules() []*types.TokenRule
+	// GetAWSIIDTTL returns the TTL of EC2 IIDs
+	GetAWSIIDTTL() types.Duration
+	// GetIntegration returns the integration name that provides credentials to validate allow rules.
+	// Currently, this is only used to validate the AWS Organization.
+	GetIntegration() string
+	// GetGCPRules returns the GCP-specific configuration for this token.
+	GetGCPRules() *types.ProvisionTokenSpecV2GCP
+	// GetAzure returns the Azure-specific configuration for this token.
+	GetAzure() *types.ProvisionTokenSpecV2Azure
+	// GetAzureDevops returns the AzureDevops-specific configuration for this token.
+	GetAzureDevops() *types.ProvisionTokenSpecV2AzureDevops
+	// GetOracle returns the Oracle-specific configuration for this token.
+	GetOracle() *types.ProvisionTokenSpecV2Oracle
+	// GetKubernetes returns the Kubernetes-specific configuration for this token.
+	GetKubernetes() *types.ProvisionTokenSpecV2Kubernetes
+	// GetBoundKeypair returns bound keypair specific configuration for this token.
+	GetBoundKeypair() *types.ProvisionTokenSpecV2BoundKeypair
+	// GetBoundKeypairStatus returns bound keypair status for this token.
+	GetBoundKeypairStatus() *types.ProvisionTokenStatusV2BoundKeypair
+	// GetGenericOIDC returns the generic_oidc-specific configuration for this token.
+	GetGenericOIDC() (*types.ProvisionTokenSpecV2GenericOIDC, error)
+}

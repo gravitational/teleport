@@ -16,14 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-import { Flex, Text, ButtonPrimary } from 'design';
+import { ButtonPrimary, Flex, Text } from 'design';
 import { Danger } from 'design/Alert';
 import { Attempt } from 'shared/hooks/useAsync';
 
-import { assertUnreachable } from 'teleterm/ui/utils';
-
 import type * as types from 'teleterm/ui/services/workspacesService';
+import { assertUnreachable } from 'teleterm/ui/utils';
 
 export function Reconnect(props: {
   docKind: types.DocumentTerminal['kind'];
@@ -41,9 +39,7 @@ export function Reconnect(props: {
       mt={100}
       px="2"
     >
-      <Text typography="h5" color="text.main">
-        {message}
-      </Text>
+      <Text typography="h2">{message}</Text>
       <Flex flexDirection="column" alignItems="center" mx="auto">
         <Danger mb={3}>
           <Text
@@ -74,8 +70,7 @@ function getReconnectCopy(docKind: types.DocumentTerminal['kind']) {
     }
     case 'doc.gateway_cli_client':
     case 'doc.gateway_kube':
-    case 'doc.terminal_shell':
-    case 'doc.terminal_tsh_kube': {
+    case 'doc.terminal_shell': {
       return {
         message: 'Ran into an error when starting the terminal session.',
         buttonText: 'Retry',

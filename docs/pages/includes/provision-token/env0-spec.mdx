@@ -1,0 +1,52 @@
+```yaml
+kind: token
+version: v2
+metadata:
+  name: env0
+spec:
+  roles: [Bot]
+  join_method: env0
+
+  # This must match a bot name, created either with `tctl bots add` or by
+  # creating a `bot` resource.
+  bot_name: env0
+
+  env0:
+    allow:
+      # organization_id and one of either project_name or project_id must be
+      # set. All other fields are optional and only checked if set.
+      # For more information on possible values, see Env0's documentation:
+      # https://docs.envzero.com/guides/integrations/oidc-integrations#format-of-the-openid-connect-id-token
+      - organization_id: "00000000-0000-0000-0000-000000000000"
+
+        # A unique project identifier. Either this field or `project_name` must
+        # be set.
+        project_id: "00000000-0000-0000-0000-000000000000"
+
+        # The project name. Either this field or `project_id` must be set.
+        project_name: ExampleProject
+
+        # A unique template identifier.
+        template_id: "00000000-0000-0000-0000-000000000000"
+
+        # The template name, optional.
+        template_name: ExampleTemplate
+
+        # The unique environment ID.
+        environment_id: "00000000-0000-0000-0000-000000000000"
+
+        # The environment name.
+        environment_name: ExampleEnvironment
+
+        # The workspace name.
+        workspace_name: WorkspaceName
+
+        # The deployment type, including "deploy", "destroy", "prPlan", "task"
+        deployment_type: ""
+
+        # The email address of the user that started the deployment.
+        deployer_email: ""
+
+        # A custom value provided via the `ENV0_OIDC_TAG` environment variable
+        env0_tag: ""
+```

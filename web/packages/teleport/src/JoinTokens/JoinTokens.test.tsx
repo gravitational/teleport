@@ -15,17 +15,30 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-import { render, screen, fireEvent } from 'design/utils/testing';
 import userEvent from '@testing-library/user-event';
-import { within } from '@testing-library/react';
+import selectEvent from 'react-select-event';
 
-import { createTeleportContext } from 'teleport/mocks/contexts';
+import { act, fireEvent, render, screen, tick } from 'design/utils/testing';
+import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
+
 import { ContextProvider } from 'teleport';
+import { createTeleportContext } from 'teleport/mocks/contexts';
+import auth from 'teleport/services/auth';
 import makeJoinToken from 'teleport/services/joinToken/makeJoinToken';
 
 import { JoinTokens } from './JoinTokens';
 
 describe('JoinTokens', () => {
+  beforeEach(() => {
+    jest
+      .spyOn(auth, 'getMfaChallengeResponseForAdminAction')
+      .mockResolvedValue(undefined);
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
   test('create dialog opens', async () => {
     render(<Component />);
     await userEvent.click(
@@ -38,6 +51,13 @@ describe('JoinTokens', () => {
   test('edit dialog opens with values', async () => {
     const token = tokens[0];
     render(<Component />);
+
+    // DataTable re-renders before `userEvent.click` is fired, so `act(tick)`
+    // is used to wait for re-renders to complete.
+    // This wasn't an issue prior, as DataTable used to always mount with empty data,
+    // so `findAllByText` would wait a few ms before finding the text on commit 1.
+    await act(tick);
+
     const optionButtons = await screen.findAllByText(/options/i);
     await userEvent.click(optionButtons[0]);
     const editButtons = await screen.findAllByText(/view\/edit/i);
@@ -48,6 +68,12 @@ describe('JoinTokens', () => {
     expect(
       screen.getByDisplayValue(token.allow[0].aws_account)
     ).toBeInTheDocument();
+
+    expect(
+      screen.queryByText(
+        'This token has configuration that is not visible. To edit this token please use the YAML editor.'
+      )
+    ).not.toBeInTheDocument();
   });
 
   test('create form fails if roles arent selected', async () => {
@@ -76,12 +102,7 @@ describe('JoinTokens', () => {
       target: { value: 'the_token' },
     });
 
-    const inputEl = within(screen.getByTestId('role_select')).getByRole(
-      'textbox'
-    );
-    fireEvent.change(inputEl, { target: { value: 'Node' } });
-    fireEvent.focus(inputEl);
-    fireEvent.keyDown(inputEl, { key: 'Enter', keyCode: 13 });
+    await selectEvent.select(screen.getByLabelText('Join Roles'), ['Node']);
 
     fireEvent.click(screen.getByRole('button', { name: /create join token/i }));
     expect(
@@ -122,13 +143,121 @@ describe('JoinTokens', () => {
     const buttons = screen.queryAllByTestId('delete_rule');
     expect(buttons).toHaveLength(2);
   });
+
+  describe('when editing', () => {
+    describe("when the join method is 'iam'", () => {
+      test('shows a warning when a resource field is not supported', async () => {
+        const mockedYamlObject = {
+          spec: {
+            join_method: 'iam',
+            allow: [
+              {
+                unsupported_field: true,
+              },
+            ],
+          },
+        };
+
+        render(<Component parseYamlMock={mockedYamlObject} />);
+
+        // wait for re-render
+        await act(tick);
+
+        const optionButtons = await screen.findAllByText(/options/i);
+        await userEvent.click(optionButtons[0]);
+        const editButtons = await screen.findAllByText(/view\/edit/i);
+        await userEvent.click(editButtons[0]);
+        expect(screen.getByText(/edit token/i)).toBeInTheDocument();
+
+        expect(
+          screen.getByText(
+            'This token has configuration that is not visible. To edit this token please use the YAML editor.'
+          )
+        ).toBeInTheDocument();
+      });
+    });
+
+    describe("when the join method is 'gcp'", () => {
+      test('shows a warning when a resource field is not supported', async () => {
+        const mockedYamlObject = {
+          spec: {
+            join_method: 'gcp',
+            gcp: {
+              allow: [
+                {
+                  unsupported_field: true,
+                },
+              ],
+            },
+          },
+        };
+
+        render(<Component parseYamlMock={mockedYamlObject} />);
+
+        // wait for re-render
+        await act(tick);
+
+        const optionButtons = await screen.findAllByText(/options/i);
+        await userEvent.click(optionButtons[0]);
+        const editButtons = await screen.findAllByText(/view\/edit/i);
+        await userEvent.click(editButtons[0]);
+        expect(screen.getByText(/edit token/i)).toBeInTheDocument();
+
+        expect(
+          screen.getByText(
+            'This token has configuration that is not visible. To edit this token please use the YAML editor.'
+          )
+        ).toBeInTheDocument();
+      });
+    });
+
+    describe("when the join method is 'github'", () => {
+      test('shows a warning when a resource field is not supported', async () => {
+        const mockedYamlObject = {
+          spec: {
+            join_method: 'github',
+            github: {
+              unsupported_field: true,
+            },
+          },
+        };
+
+        render(<Component parseYamlMock={mockedYamlObject} />);
+
+        // wait for re-render
+        await act(tick);
+
+        const optionButtons = await screen.findAllByText(/options/i);
+        await userEvent.click(optionButtons[0]);
+        const editButtons = await screen.findAllByText(/view\/edit/i);
+        await userEvent.click(editButtons[0]);
+        expect(screen.getByText(/edit token/i)).toBeInTheDocument();
+
+        expect(
+          screen.getByText(
+            'This token has configuration that is not visible. To edit this token please use the YAML editor.'
+          )
+        ).toBeInTheDocument();
+      });
+    });
+  });
 });
 
-const Component = () => {
+const Component = ({ parseYamlMock }: { parseYamlMock?: object }) => {
   const ctx = createTeleportContext();
+
   jest
     .spyOn(ctx.joinTokenService, 'fetchJoinTokens')
     .mockResolvedValue({ items: tokens.map(makeJoinToken) });
+
+  jest.spyOn(ctx.yamlService, 'parse').mockResolvedValue(
+    parseYamlMock ?? {
+      spec: {
+        join_method: 'iam',
+        allow: [],
+      },
+    }
+  );
 
   jest.spyOn(ctx.joinTokenService, 'createJoinToken').mockResolvedValue(
     makeJoinToken({
@@ -150,9 +279,11 @@ const Component = () => {
   );
 
   return (
-    <ContextProvider ctx={ctx}>
-      <JoinTokens />
-    </ContextProvider>
+    <InfoGuidePanelProvider>
+      <ContextProvider ctx={ctx}>
+        <JoinTokens />
+      </ContextProvider>
+    </InfoGuidePanelProvider>
   );
 };
 

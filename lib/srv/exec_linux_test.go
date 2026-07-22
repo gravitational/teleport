@@ -1,5 +1,4 @@
 //go:build linux
-// +build linux
 
 /*
  * Teleport
@@ -26,38 +25,67 @@ import (
 	"os"
 	"os/exec"
 	"os/user"
+	"path/filepath"
 	"strconv"
 	"syscall"
 	"testing"
 	"time"
 
-	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/host"
+	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
+	"github.com/gravitational/teleport/lib/utils/testutils"
+	"github.com/gravitational/teleport/session/host"
+	"github.com/gravitational/teleport/session/reexec"
 )
 
 func TestOSCommandPrep(t *testing.T) {
+	testutils.RequireRoot(t)
+
 	srv := newMockServer(t)
 	scx := newExecServerContext(t, srv)
 
-	usr, err := user.Current()
+	scx.Identity.AccessPermit = &decisionpb.SSHAccessPermit{}
+
+	// because CheckHomeDir now inspects access to the home directory as the actual user after a rexec,
+	// we need to setup a real, non-root user with a valid home directory in order for this test to
+	// exercise the correct paths
+	tempHome := t.TempDir()
+	require.NoError(t, os.Chmod(filepath.Dir(tempHome), 0o777))
+
+	username := "test-os-command-prep"
+	scx.Identity.Login = username
+	_, err := host.UserAdd(username, nil, host.UserOpts{
+		Home: tempHome,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		// change homedir back so user deletion doesn't fail
+		changeHomeDir(t, username, tempHome)
+		_, err := host.UserDel(username)
+		require.NoError(t, err)
+	})
+
+	usr, err := user.Lookup(username)
 	require.NoError(t, err)
 
+	uid, err := strconv.Atoi(usr.Uid)
+	require.NoError(t, err)
+
+	require.NoError(t, os.Chown(tempHome, uid, -1))
 	expectedEnv := []string{
 		"LANG=en_US.UTF-8",
-		getDefaultEnvPath(strconv.Itoa(os.Geteuid()), defaultLoginDefsPath),
+		reexec.GetDefaultEnvPath(usr.Uid),
 		fmt.Sprintf("HOME=%s", usr.HomeDir),
-		fmt.Sprintf("USER=%s", usr.Username),
+		fmt.Sprintf("USER=%s", username),
 		"SHELL=/bin/sh",
 		"SSH_CLIENT=10.0.0.5 4817 3022",
 		"SSH_CONNECTION=10.0.0.5 4817 127.0.0.1 3022",
 		"TERM=xterm",
-		fmt.Sprintf("SSH_TTY=%v", scx.session.term.TTY().Name()),
+		fmt.Sprintf("SSH_TTY=%v", scx.party.s.term.TTYName()),
 		"SSH_SESSION_ID=xxx",
+		"TELEPORT_SESSION=xxx",
 		"SSH_TELEPORT_HOST_UUID=testID",
 		"SSH_TELEPORT_CLUSTER_NAME=localhost",
 		"SSH_TELEPORT_USER=teleportUser",
@@ -66,8 +94,11 @@ func TestOSCommandPrep(t *testing.T) {
 	// Empty command (simple shell).
 	execCmd, err := scx.ExecCommand()
 	require.NoError(t, err)
+	execCmd.Stdin = os.Stdin
+	execCmd.Stdout = os.Stdout
+	execCmd.Stderr = os.Stderr
 
-	cmd, err := buildCommand(execCmd, usr, nil, nil, nil)
+	cmd, err := reexec.BuildCommand(execCmd, usr, nil)
 	require.NoError(t, err)
 
 	require.NotNil(t, cmd)
@@ -81,8 +112,11 @@ func TestOSCommandPrep(t *testing.T) {
 	scx.execRequest.SetCommand("ls -lh /etc")
 	execCmd, err = scx.ExecCommand()
 	require.NoError(t, err)
+	execCmd.Stdin = os.Stdin
+	execCmd.Stdout = os.Stdout
+	execCmd.Stderr = os.Stderr
 
-	cmd, err = buildCommand(execCmd, usr, nil, nil, nil)
+	cmd, err = reexec.BuildCommand(execCmd, usr, nil)
 	require.NoError(t, err)
 
 	require.NotNil(t, cmd)
@@ -96,24 +130,24 @@ func TestOSCommandPrep(t *testing.T) {
 	scx.execRequest.SetCommand("top")
 	execCmd, err = scx.ExecCommand()
 	require.NoError(t, err)
+	execCmd.Stdin = os.Stdin
+	execCmd.Stdout = os.Stdout
+	execCmd.Stderr = os.Stderr
 
-	cmd, err = buildCommand(execCmd, usr, nil, nil, nil)
+	cmd, err = reexec.BuildCommand(execCmd, usr, nil)
 	require.NoError(t, err)
 
 	require.Equal(t, "/bin/sh", cmd.Path)
 	require.Equal(t, []string{"/bin/sh", "-c", "top"}, cmd.Args)
 	require.Equal(t, syscall.SIGKILL, cmd.SysProcAttr.Pdeathsig)
 
-	if os.Geteuid() != 0 {
-		t.Skip("skipping portion of test which must run as root")
-	}
-
 	// Missing home directory - HOME should still be set to the given
-	// home dir, but the command should set it's CWD to root instead.
+	// home dir, but the command should set its CWD to root instead.
+	changeHomeDir(t, username, "/wrong/place")
 	usr.HomeDir = "/wrong/place"
 	root := string(os.PathSeparator)
 	expectedEnv[2] = "HOME=/wrong/place"
-	cmd, err = buildCommand(execCmd, usr, nil, nil, nil)
+	cmd, err = reexec.BuildCommand(execCmd, usr, nil)
 	require.NoError(t, err)
 
 	require.Equal(t, root, cmd.Dir)
@@ -124,12 +158,14 @@ func TestConfigureCommand(t *testing.T) {
 	srv := newMockServer(t)
 	scx := newExecServerContext(t, srv)
 
+	scx.Identity.AccessPermit = &decisionpb.SSHAccessPermit{}
+
 	unexpectedKey := "FOO"
 	unexpectedValue := "BAR"
 	// environment values in the server context should not be forwarded
 	scx.SetEnv(unexpectedKey, unexpectedValue)
 
-	cmd, err := ConfigureCommand(scx)
+	cmd, err := scx.ConfigureCommand(nil)
 	require.NoError(t, err)
 
 	require.NotNil(t, cmd)
@@ -137,41 +173,13 @@ func TestConfigureCommand(t *testing.T) {
 	require.NotContains(t, cmd.Env, unexpectedKey+"="+unexpectedValue)
 }
 
-func TestRootConfigureCommand(t *testing.T) {
-	utils.RequireRoot(t)
-
-	login := utils.GenerateLocalUsername(t)
-	_, err := host.UserAdd(login, nil, "", "", "")
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		_, err := host.UserDel(login)
-		require.NoError(t, err)
-	})
-
-	srv := newMockServer(t)
-	scx := newExecServerContext(t, srv)
-	scx.Identity.Login = login
-	scx.ExecType = teleport.TCPIPForwardRequest
-
-	u, err := user.Lookup(login)
-	require.NoError(t, err)
-	uid, err := strconv.ParseUint(u.Uid, 10, 32)
-	require.NoError(t, err)
-	gid, err := strconv.ParseUint(u.Gid, 10, 32)
-	require.NoError(t, err)
-
-	cmd, err := ConfigureCommand(scx)
-	require.NoError(t, err)
-	// Verify that the configured command will run as the expected user.
-	assert.Equal(t, uint32(uid), cmd.SysProcAttr.Credential.Uid)
-	assert.Equal(t, uint32(gid), cmd.SysProcAttr.Credential.Gid)
-}
-
-// TestContinue tests if the process hangs if a continue signal is not sent
-// and makes sure the process continues once it has been sent.
+// TestContinue tests if the process continues once the continue signal
+// has been sent.
 func TestContinue(t *testing.T) {
 	srv := newMockServer(t)
 	scx := newExecServerContext(t, srv)
+
+	scx.Identity.AccessPermit = &decisionpb.SSHAccessPermit{}
 
 	// Configure Session Context to re-exec "ls".
 	var err error
@@ -179,8 +187,18 @@ func TestContinue(t *testing.T) {
 	require.NoError(t, err)
 	scx.execRequest.SetCommand(lsPath)
 
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
+
+	defer r.Close()
+	defer w.Close()
+
 	// Create an exec.Cmd to execute through Teleport.
-	cmd, err := ConfigureCommand(scx)
+	cmd, err := scx.ConfigureCommand(map[reexec.FileFD]*os.File{
+		reexec.StdinFile:  r,
+		reexec.StdoutFile: w,
+		reexec.StderrFile: w,
+	})
 	require.NoError(t, err)
 
 	// Create a channel that will be used to signal that execution is complete.
@@ -193,24 +211,12 @@ func TestContinue(t *testing.T) {
 			cmdDone <- err
 		}
 
-		// Close the read half of the pipe to unblock the ready signal.
-		closeErr := scx.readyw.Close()
-		cmdDone <- trace.NewAggregate(closeErr, cmd.Wait())
+		cmdDone <- cmd.Wait()
 	}()
 
-	// Wait for the process. Since the continue pipe has not been closed, the
-	// process should not have exited yet.
-	select {
-	case err := <-cmdDone:
-		t.Fatalf("Process exited before continue with error %v", err)
-	case <-time.After(5 * time.Second):
-	}
-
-	// Wait for the child process to indicate its completed initialization.
-	require.NoError(t, scx.execRequest.WaitForChild())
-
 	// Signal to child that it may execute the requested program.
-	scx.execRequest.Continue()
+	err = cmd.Continue()
+	require.NoError(t, err)
 
 	// Program should have executed now. If the complete signal has not come
 	// over the context, something failed.
@@ -220,4 +226,14 @@ func TestContinue(t *testing.T) {
 	case err := <-cmdDone:
 		require.NoError(t, err)
 	}
+}
+
+func changeHomeDir(t *testing.T, username, home string) {
+	usermodBin, err := exec.LookPath("usermod")
+	assert.NoError(t, err, "usermod binary must be present")
+
+	cmd := exec.Command(usermodBin, "--home", home, username)
+	_, err = cmd.CombinedOutput()
+	assert.NoError(t, err, "changing home should not error")
+	assert.Equal(t, 0, cmd.ProcessState.ExitCode(), "changing home should exit 0")
 }

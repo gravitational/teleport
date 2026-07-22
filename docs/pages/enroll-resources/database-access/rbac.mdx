@@ -1,12 +1,24 @@
 ---
 title: Database Access Controls
+sidebar_label: Access Controls
 description: Role-based access control (RBAC) for Teleport database access.
+tags:
+ - conceptual
+ - zero-trust
+ - privileged-access
+page_type: conceptual
 ---
 
 **Database Access Controls** is a Teleport feature that lets you configure
 role-based access controls for databases and the data within them. With Database
 Access Controls, you can ensure that users only have permissions to manage the
 data they need.
+
+This page describes the configuration options in Teleport roles and database
+object import rules that allow you to restrict the operations that users can
+perform against Teleport-protected databases.
+
+## How it works
 
 Access Controls encompasses two levels of granularity:
 
@@ -27,15 +39,15 @@ The Database Service grants object-level permissions for the duration of a
 connection and revokes them automatically when the connection ends.
 
 For a more general description of Teleport roles and examples see
-[RBAC](../../access-controls/introduction.mdx), as this section focuses on
+[RBAC](../../zero-trust-access/authentication/authentication.mdx), as this section focuses on
 configuring RBAC for database access.
 
-<Notice type="warning">
+<Admonition type="warning">
 
 Database Access Controls for database objects only supports PostgreSQL
 databases.
 
-</Notice>
+</Admonition>
 
 ## Role configuration
 
@@ -64,8 +76,8 @@ spec:
     # Note, this is not the same as the "name" field in "db_service", this is
     # the database names within a particular database instance.
     #
-    # Also note, this setting has effect only for PostgreSQL. It does not
-    # currently have any effect on MySQL databases/schemas.
+    # Also note, database names are only enforced for PostgreSQL, MongoDB, and
+    # Cloud Spanner databases.
     db_names: ["main", "metrics", "postgres"]
 ```
 
@@ -112,6 +124,9 @@ disconnects from the current one and establishes a new connection. During a
 PostgreSQL connection attempt, `db_names` field is checked against the name
 of the logical database that the user is connecting to.
 
+Similar to PostgreSQL, Teleport also enforces `db_names` for MongoDB and Cloud
+Spanner databases.
+
 In MySQL a logical "database" and a "schema" are synonyms for each other, and
 the scope of permissions a user has once connected is determined by the permission
 grants set on the account within the database. As such, `db_names` role field
@@ -122,13 +137,13 @@ is not currently enforced on MySQL connection attempts.
 Similar to other role fields, `db_*` fields support templating variables.
 
 The `external.xyz` traits are replaced with values from external [single
-sign-on](../../access-controls/sso.mdx) providers. For OIDC, they will be
+sign-on](../../zero-trust-access/sso/sso.mdx) providers. For OIDC, they will be
 replaced with the value of an "xyz" claim. For SAML, they are replaced 
 with an "xyz" assertion value. 
 
 For full details on how traits work in Teleport roles, see
-the [Teleport Access Controls
-Reference](../../access-controls/reference.mdx).
+the [Access Controls
+Reference](../../reference/access-controls/roles.mdx).
 
 For example, here is what a role may look like if you want to assign allowed
 database names from the user's Okta `databases` assertion:
@@ -232,7 +247,6 @@ spec:
     values:
     - 'staging'
     - 'dev'
-    - 'prod'
   mappings:
   # Apply project label
   - add_labels:
@@ -264,6 +278,35 @@ spec:
 version: v1
 ```
 
+### Disabling the default import rule
+
+Teleport expects at least one import rule to be defined. If it is missing, the Teleport Auth Service will create a default import rule on startup.
+
+If you don't want to import any database objects, create a rule that matches no databases. In the example below, the list of matching label values is empty, so no database will ever match this selector.
+
+```yaml
+kind: db_object_import_rule
+metadata:
+  name: import_no_objects
+spec:
+  database_labels:
+  - {}
+  mappings:
+  - {}
+version: v1
+```
+
+Create the custom rule and remove the default one:
+
+{/* spell-checker: disable */}
+```code
+$ tctl create -f import_no_objects.yaml
+rule "import_no_objects" has been created
+$ tctl rm db_object_import_rule/import_all_objects
+Rule "import_all_objects" has been deleted
+```
+{/* spell-checker: enable */}
+
 ### Database admin user
 
 A database admin user is responsible for granting permissions to end users. You
@@ -281,7 +324,8 @@ metadata:
   # ...
 spec:
   # ...
-  admin_user: "teleport-admin"
+  admin_user:
+    name: "teleport-admin"
 ```
 
 </TabItem>
@@ -289,7 +333,7 @@ spec:
 
 ```yaml
 db_service:
-  enabled: "yes"
+  enabled: true
   databases:
   - name: "example"
     # ...

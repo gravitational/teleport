@@ -20,10 +20,10 @@ package resourceusage
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -60,7 +60,7 @@ func GetAccessRequestMonthlyUsage(ctx context.Context, alog events.AuditLogger, 
 			case events.AccessRequestCreateEvent:
 				created[id] = struct{}{}
 			default:
-				log.Warnf("Expected event type %q, got %q", events.AccessRequestCreateEvent, ev.GetType())
+				slog.WarnContext(ctx, "Got unexpected event type", "expected_event", events.AccessRequestCreateEvent, "received_event", ev.GetType())
 			}
 		}
 		if startKey == "" {

@@ -18,6 +18,8 @@ package types
 
 import (
 	"github.com/gravitational/trace"
+
+	awsapiutils "github.com/gravitational/teleport/api/utils/aws"
 )
 
 // CheckAndSetDefaults that the matcher is correct and adds default values.
@@ -34,5 +36,26 @@ func (a *AccessGraphAWSSync) CheckAndSetDefaults() error {
 	if len(a.Regions) == 0 {
 		return trace.BadParameter("discovery service requires at least one region")
 	}
+
+	for _, region := range a.Regions {
+		if err := awsapiutils.IsValidRegion(region); err != nil {
+			return trace.BadParameter("discovery service does not support region %q", region)
+		}
+	}
+
+	if a.CloudTrailLogs != nil {
+		if a.CloudTrailLogs.SQSQueue == "" {
+			return trace.BadParameter("discovery service requires SQS queue for CloudTrail logs")
+		}
+		if a.CloudTrailLogs.Region == "" {
+			return trace.BadParameter("discovery service requires Region for CloudTrail logs")
+		}
+	}
+
 	return nil
+}
+
+// IsEqual determines if two resources are equivalent to one another.
+func (a *AccessGraphAWSSync) IsEqual(other *AccessGraphAWSSync) bool {
+	return deriveTeleportEqualAccessGraphAWSSync(a, other)
 }

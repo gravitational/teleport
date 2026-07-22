@@ -15,32 +15,27 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-import React, { useEffect } from 'react';
-
-import { MemoryRouter } from 'react-router';
+import { delay, http, HttpResponse } from 'msw';
+import { useEffect } from 'react';
 
 import { Info } from 'design/Alert';
 
-import { http, HttpResponse, delay } from 'msw';
-
-import { ContextProvider } from 'teleport';
 import cfg from 'teleport/config';
+import {
+  RequiredDiscoverProviders,
+  resourceSpecAwsEks,
+} from 'teleport/Discover/Fixtures/fixtures';
+import { ResourceKind } from 'teleport/Discover/Shared';
+import { clearCachedJoinTokenResult } from 'teleport/Discover/Shared/useJoinTokenSuspender';
+import { AgentMeta } from 'teleport/Discover/useDiscover';
+import { getUserContext } from 'teleport/mocks/contexts';
 import {
   AwsEksCluster,
   IntegrationKind,
   IntegrationStatusCode,
 } from 'teleport/services/integrations';
-import {
-  DiscoverContextState,
-  DiscoverProvider,
-} from 'teleport/Discover/useDiscover';
-import { createTeleportContext, getUserContext } from 'teleport/mocks/contexts';
-import { clearCachedJoinTokenResult } from 'teleport/Discover/Shared/useJoinTokenSuspender';
-import { ResourceKind } from 'teleport/Discover/Shared';
 import { INTERNAL_RESOURCE_ID_LABEL_KEY } from 'teleport/services/joinToken';
-import { DiscoverEventResource } from 'teleport/services/userEvent/types';
 import { Kube } from 'teleport/services/kube';
-import { PingTeleportProvider } from 'teleport/Discover/Shared/PingTeleportContext';
 
 import { EnrollEksCluster } from './EnrollEksCluster';
 
@@ -71,7 +66,7 @@ export default {
   ],
 };
 
-const tokenHandler = http.post(cfg.api.joinTokenPath, () => {
+const tokenHandler = http.post(cfg.api.discoveryJoinToken.createV2, () => {
   return HttpResponse.json({
     id: 'token-id',
     suggestedLabels: [
@@ -165,7 +160,6 @@ WithAwsPermissionsError.parameters = {
 };
 
 export const WithEnrollmentError = () => <Component />;
-
 WithEnrollmentError.parameters = {
   msw: {
     handlers: [
@@ -194,6 +188,39 @@ WithEnrollmentError.parameters = {
   },
 };
 
+export const WithAlreadyExistsError = () => (
+  <Component devInfoText="select any region, select EKS1 to see already exist error" />
+);
+WithAlreadyExistsError.parameters = {
+  msw: {
+    handlers: [
+      tokenHandler,
+      http.post(cfg.getListEKSClustersUrl(integrationName), () => {
+        {
+          return HttpResponse.json({ clusters: eksClusters });
+        }
+      }),
+      http.get(
+        cfg.getKubernetesUrl(getUserContext().cluster.clusterId, {}),
+        () => {
+          return HttpResponse.json({ items: kubeServers });
+        }
+      ),
+      http.post(cfg.getEnrollEksClusterUrl(integrationName), async () => {
+        await delay(1000);
+        return HttpResponse.json({
+          results: [
+            {
+              clusterName: 'EKS1',
+              error: 'teleport-kube-agent is already installed on the cluster',
+            },
+          ],
+        });
+      }),
+    ],
+  },
+};
+
 export const WithOtherError = () => <Component />;
 
 WithOtherError.parameters = {
@@ -212,71 +239,36 @@ WithOtherError.parameters = {
   },
 };
 
-const Component = () => {
-  const ctx = createTeleportContext();
-  const discoverCtx: DiscoverContextState = {
-    agentMeta: {
-      resourceName: 'db-name',
-      agentMatcherLabels: [],
-      kube: {
-        kind: 'kube_cluster',
-        name: '',
-        labels: [],
-      },
-      awsIntegration: {
-        kind: IntegrationKind.AwsOidc,
-        name: integrationName,
-        resourceType: 'integration',
-        spec: {
-          roleArn: 'arn:aws:iam::123456789012:role/test-role-arn',
-          issuerS3Bucket: '',
-          issuerS3Prefix: '',
-        },
-        statusCode: IntegrationStatusCode.Running,
-      },
+const agentMeta: AgentMeta = {
+  resourceName: 'kube-name',
+  agentMatcherLabels: [],
+  kube: {
+    kind: 'kube_cluster',
+    name: '',
+    labels: [],
+  },
+  awsIntegration: {
+    kind: IntegrationKind.AwsOidc,
+    name: integrationName,
+    resourceType: 'integration',
+    spec: {
+      roleArn: 'arn:aws:iam::123456789012:role/test-role-arn',
+      issuerS3Bucket: '',
+      issuerS3Prefix: '',
     },
-    currentStep: 0,
-    nextStep: () => null,
-    prevStep: () => null,
-    onSelectResource: () => null,
-    resourceSpec: {
-      name: 'Eks',
-      kind: ResourceKind.Kubernetes,
-      icon: 'eks',
-      keywords: '',
-      event: DiscoverEventResource.KubernetesEks,
-    },
-    exitFlow: () => null,
-    viewConfig: null,
-    indexedViews: [],
-    setResourceSpec: () => null,
-    updateAgentMeta: () => null,
-    emitErrorEvent: () => null,
-    emitEvent: () => null,
-    eventState: null,
-  };
+    statusCode: IntegrationStatusCode.Running,
+  },
+};
 
+const Component = ({ devInfoText = '' }) => {
   return (
-    <MemoryRouter
-      initialEntries={[
-        { pathname: cfg.routes.discover, state: { entity: 'eks' } },
-      ]}
+    <RequiredDiscoverProviders
+      agentMeta={agentMeta}
+      resourceSpec={resourceSpecAwsEks}
     >
-      <ContextProvider ctx={ctx}>
-        <PingTeleportProvider
-          interval={1000}
-          resourceKind={ResourceKind.Kubernetes}
-        >
-          <DiscoverProvider mockCtx={discoverCtx}>
-            <Info>Devs: Select any region to see story state</Info>
-            <EnrollEksCluster
-              nextStep={discoverCtx.nextStep}
-              updateAgentMeta={discoverCtx.updateAgentMeta}
-            />
-          </DiscoverProvider>
-        </PingTeleportProvider>
-      </ContextProvider>
-    </MemoryRouter>
+      <Info>{devInfoText || 'Devs: Select any region to see story state'}</Info>
+      <EnrollEksCluster nextStep={() => null} updateAgentMeta={() => null} />
+    </RequiredDiscoverProviders>
   );
 };
 
@@ -303,6 +295,8 @@ const eksClusters: AwsEksCluster[] = [
       { name: 'region', value: 'us-east-1' },
       { name: 'account-id', value: '1234567789012' },
     ],
+    authenticationMode: 'API',
+    endpointPublicAccess: true,
   },
   {
     name: 'EKS2',
@@ -315,6 +309,8 @@ const eksClusters: AwsEksCluster[] = [
       { name: 'region', value: 'us-east1' },
       { name: 'account-id', value: '1234567789012' },
     ],
+    authenticationMode: 'API',
+    endpointPublicAccess: true,
   },
   {
     name: 'EKS3',
@@ -327,5 +323,35 @@ const eksClusters: AwsEksCluster[] = [
       { name: 'region', value: 'us-east-1' },
       { name: 'account-id', value: '1234567789012' },
     ],
+    authenticationMode: 'API',
+    endpointPublicAccess: true,
+  },
+  {
+    name: 'EKS4',
+    region: 'us-east-1',
+    accountId: '123456789012',
+    status: 'active',
+    labels: [{ name: 'env', value: 'prod' }],
+    joinLabels: [
+      { name: 'teleport.dev/cloud', value: 'AWS' },
+      { name: 'region', value: 'us-east-1' },
+      { name: 'account-id', value: '1234567789012' },
+    ],
+    authenticationMode: 'CONFIG_MAP',
+    endpointPublicAccess: true,
+  },
+  {
+    name: 'EKS5',
+    region: 'us-east-1',
+    accountId: '123456789012',
+    status: 'active',
+    labels: [{ name: 'env', value: 'prod' }],
+    joinLabels: [
+      { name: 'teleport.dev/cloud', value: 'AWS' },
+      { name: 'region', value: 'us-east-1' },
+      { name: 'account-id', value: '1234567789012' },
+    ],
+    authenticationMode: 'API_AND_CONFIG_MAP',
+    endpointPublicAccess: false,
   },
 ];

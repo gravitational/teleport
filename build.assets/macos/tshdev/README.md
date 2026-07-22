@@ -181,6 +181,15 @@ launch the daemon with the following error:
 
 After resetting the db and restarting the device, everything seemed to be working again.
 
+In theory, it's possible to list all app bundles with a certain bundle identifier by running the
+following command:
+
+```
+mdfind kMDItemCFBundleIdentifier = "com.goteleport.tshdev"
+```
+
+In practice, getting rid of all but one bundle didn't appear to solve the problem.
+
 ### Daemon does not start
 
 List all jobs loaded into launchd. The second column is the status which you can then inspect.
@@ -202,3 +211,10 @@ tail -f /var/log/com.apple.xpc.launchd/launchd.log
 
 Capturing logs in Console.app might be useful too. However, the logs from launchd were sufficient
 for any debugging we had to do so far.
+
+## `OSLogPreferences` in `Info.plist`
+
+VNet sends its logs to os_log as `com.goteleport.tshdev.vnetd`
+(`com.gravitational.teleport.tsh.vnetd` in official releases). By default only warn level+ logs are
+visible and persisted on disk. The settings in `OSLogPreferences` make sure that os_log persists
+info logs to disk too, but only for VNet and not for tsh invocations with the `--os-log` flag.

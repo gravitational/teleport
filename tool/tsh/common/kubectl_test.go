@@ -19,7 +19,8 @@
 package common
 
 import (
-	"path"
+	"path/filepath"
+	"slices"
 	"testing"
 
 	"github.com/google/uuid"
@@ -30,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 )
@@ -96,6 +98,23 @@ func Test_maybeStartKubeLocalProxy(t *testing.T) {
 				KubeCluster:     kubeCluster,
 			}},
 		},
+		{
+			// A hardware-key policy can't be served by the exec-plugin
+			// credentials path, so the local proxy must be used even when ALPN
+			// connection upgrade is not required (RequireKubeLocalProxy is false).
+			name: "use local proxy for hardware key policy",
+			inputProfile: &profile.Profile{
+				WebProxyAddr:     "localhost:443",
+				KubeProxyAddr:    "localhost:443",
+				PrivateKeyPolicy: keys.PrivateKeyPolicyHardwareKeyTouch,
+			},
+			inputArgs:      []string{"kubectl", "--kubeconfig", kubeconfigLocation, "version"},
+			wantLocalProxy: true,
+			wantKubeClusters: kubeconfig.LocalProxyClusters{{
+				TeleportCluster: "localhost",
+				KubeCluster:     kubeCluster,
+			}},
+		},
 	}
 
 	for _, test := range tests {
@@ -112,7 +131,7 @@ func Test_maybeStartKubeLocalProxy(t *testing.T) {
 
 			var localProxyCreated bool
 			var loadedKubeClusters kubeconfig.LocalProxyClusters
-			wantLocalProxyKubeConfigLocation := path.Join(tshHome, uuid.NewString())
+			wantLocalProxyKubeConfigLocation := filepath.Join(tshHome, uuid.NewString())
 
 			closeFn, actualKubeConfigLocation, err := maybeStartKubeLocalProxy(cf,
 				withKubectlArgs(test.inputArgs),
@@ -264,21 +283,90 @@ func Test_overwriteKubeconfigFlagInEnv(t *testing.T) {
 	require.Equal(t, wantEnv, overwriteKubeconfigInEnv(inputEnv, "new-path"))
 }
 
+func Test_insertDoubleDashAfterKubectl(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		input  []string
+		expect []string
+	}{
+		{
+			name:   "short flag before positional arg",
+			input:  []string{"kubectl", "-n", "default", "get", "pod"},
+			expect: []string{"kubectl", "--", "-n", "default", "get", "pod"},
+		},
+		{
+			name:   "long flag before positional arg",
+			input:  []string{"kubectl", "--namespace", "default", "get", "pod"},
+			expect: []string{"kubectl", "--", "--namespace", "default", "get", "pod"},
+		},
+		{
+			name:   "positional arg first",
+			input:  []string{"kubectl", "get", "pod", "-n", "default"},
+			expect: []string{"kubectl", "get", "pod", "-n", "default"},
+		},
+		{
+			name:   "global flags before kubectl",
+			input:  []string{"--debug", "kubectl", "-n", "default", "get", "pod"},
+			expect: []string{"--debug", "kubectl", "--", "-n", "default", "get", "pod"},
+		},
+		{
+			name:   "double dash already present",
+			input:  []string{"kubectl", "--", "-n", "default", "get", "pod"},
+			expect: []string{"kubectl", "--", "-n", "default", "get", "pod"},
+		},
+		{
+			name:   "no kubectl in args",
+			input:  []string{"ssh", "user@host"},
+			expect: []string{"ssh", "user@host"},
+		},
+		{
+			name:   "kubectl with no extra args",
+			input:  []string{"kubectl"},
+			expect: []string{"kubectl"},
+		},
+		{
+			name:   "kubectl as arg to another command",
+			input:  []string{"ssh", "jake@foo", "kubectl"},
+			expect: []string{"ssh", "jake@foo", "kubectl"},
+		},
+		{
+			name:   "kubectl as arg to another command with flags",
+			input:  []string{"ssh", "jake@foo", "kubectl", "-n", "default", "get", "pod"},
+			expect: []string{"ssh", "jake@foo", "kubectl", "-n", "default", "get", "pod"},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			original := slices.Clone(test.input)
+			result := insertDoubleDashAfterKubectl(test.input)
+			require.Equal(t, test.expect, result)
+			// Verify original slice is not modified.
+			require.Equal(t, original, test.input)
+		})
+	}
+}
+
 func mustSetupKubeconfig(t *testing.T, tshHome, kubeCluster string) string {
-	kubeconfigLocation := path.Join(tshHome, "kubeconfig")
-	priv, err := keys.ParsePrivateKey([]byte(fixtures.SSHCAPrivateKey))
+	kubeconfigLocation := filepath.Join(tshHome, "kubeconfig")
+	key, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+	priv, err := keys.NewPrivateKey(key)
 	require.NoError(t, err)
 	err = kubeconfig.Update(kubeconfigLocation, kubeconfig.Values{
 		TeleportClusterName: "localhost",
 		ClusterAddr:         "https://localhost:443",
 		KubeClusters:        []string{kubeCluster},
 		Credentials: &client.KeyRing{
-			PrivateKey: priv,
-			TLSCert:    []byte(fixtures.TLSCACertPEM),
+			TLSPrivateKey: priv,
+			TLSCert:       []byte(fixtures.TLSCACertPEM),
 			TrustedCerts: []authclient.TrustedCerts{{
 				TLSCertificates: [][]byte{[]byte(fixtures.TLSCACertPEM)},
 			}},
 		},
+		ProxyAddr:     "localhost:443",
 		SelectCluster: kubeCluster,
 	}, false)
 	require.NoError(t, err)

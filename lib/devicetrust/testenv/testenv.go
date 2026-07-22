@@ -20,12 +20,15 @@ package testenv
 
 import (
 	"context"
+	"crypto"
 	"crypto/ecdsa"
+	"crypto/rand"
 	"crypto/x509"
 	"net"
 	"time"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/test/bufconn"
@@ -33,6 +36,7 @@ import (
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/devicetrust/native"
 )
 
@@ -184,7 +188,7 @@ func CreateEnrolledDevice(deviceID string, d FakeDevice) (*devicepb.Device, *ecd
 
 	var pub *ecdsa.PublicKey
 	if d.GetDeviceOSType() == devicepb.OSType_OS_TYPE_MACOS {
-		pubKey, err := x509.ParsePKIXPublicKey(initReq.Macos.PublicKeyDer)
+		pubKey, err := x509.ParsePKIXPublicKey(initReq.GetMacos().GetPublicKeyDer())
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
@@ -195,15 +199,34 @@ func CreateEnrolledDevice(deviceID string, d FakeDevice) (*devicepb.Device, *ecd
 		}
 	}
 
-	dev := &devicepb.Device{
+	dev := devicepb.Device_builder{
 		ApiVersion:   "v1",
 		Id:           deviceID,
 		OsType:       d.GetDeviceOSType(),
-		AssetTag:     initReq.DeviceData.SerialNumber,
+		AssetTag:     initReq.GetDeviceData().GetSerialNumber(),
 		CreateTime:   now,
 		UpdateTime:   now,
 		Credential:   d.GetDeviceCredential(),
 		EnrollStatus: devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_ENROLLED,
-	}
+	}.Build()
 	return dev, pub, nil
+}
+
+// NewSelfSignedSSHCert returns a self-signed SSH certificate in authorized-keys
+// format, intended to be used as the user SSH certificate in authn tests.
+func NewSelfSignedSSHCert() ([]byte, crypto.Signer, error) {
+	signer, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.Ed25519)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	sshSigner, err := ssh.NewSignerFromSigner(signer)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	sshCert := &ssh.Certificate{Key: sshSigner.PublicKey(), Serial: 1, CertType: ssh.UserCert}
+	if err := sshCert.SignCert(rand.Reader, sshSigner); err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	sshAuthorizedKey := ssh.MarshalAuthorizedKey(sshCert)
+	return sshAuthorizedKey, signer, nil
 }

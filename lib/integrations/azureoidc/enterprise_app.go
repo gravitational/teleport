@@ -27,6 +27,7 @@ import (
 
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/msgraph"
+	"github.com/gravitational/teleport/lib/msgraph/models"
 )
 
 // nonGalleryAppTemplateID is a constant for the special application template ID in Microsoft Graph,
@@ -52,7 +53,7 @@ var appRoles = []string{
 //   - Provides Teleport with OIDC authentication to Azure
 //   - Is given the permissions to access certain Microsoft Graph API endpoints for this tenant.
 //   - Provides SSO to the Teleport cluster via SAML.
-func SetupEnterpriseApp(ctx context.Context, proxyPublicAddr string, authConnectorName string) (string, string, error) {
+func SetupEnterpriseApp(ctx context.Context, proxyPublicAddr string, authConnectorName string, skipOIDCSetup bool) (string, string, error) {
 	var appID, tenantID string
 
 	tenantID, err := getTenantID()
@@ -97,7 +98,7 @@ func SetupEnterpriseApp(ctx context.Context, proxyPublicAddr string, authConnect
 		r.Reset()
 		var err error
 
-		assignment := &msgraph.AppRoleAssignment{}
+		assignment := &models.AppRoleAssignment{}
 		assignment.PrincipalID = &spID
 		assignment.ResourceID = &msGraphResourceID
 		assignment.AppRoleID = &appRoleID
@@ -105,7 +106,7 @@ func SetupEnterpriseApp(ctx context.Context, proxyPublicAddr string, authConnect
 		// There are  some eventual consistency shenanigans instantiating enteprise applications,
 		// where assigning app roles may temporarily return "not found" for the newly-created App ID.
 		// Retry a few times to remediate.
-		for i := 0; i < maxRetries; i++ {
+		for i := range maxRetries {
 			slog.DebugContext(ctx, "assign app role", "role_id", appRoleID, "attempt", i)
 			_, err = graphClient.GrantAppRoleToServicePrincipal(ctx, spID, assignment)
 			if err != nil {
@@ -120,8 +121,12 @@ func SetupEnterpriseApp(ctx context.Context, proxyPublicAddr string, authConnect
 		}
 	}
 
-	if err := createFederatedAuthCredential(ctx, graphClient, *app.ID, proxyPublicAddr); err != nil {
-		return appID, tenantID, trace.Wrap(err, "failed to create an OIDC federated auth credential")
+	// Skip OIDC setup if requested.
+	// This is useful for clusters that can't use OIDC because they are not reachable from the public internet.
+	if !skipOIDCSetup {
+		if err := createFederatedAuthCredential(ctx, graphClient, *app.ID, proxyPublicAddr); err != nil {
+			return appID, tenantID, trace.Wrap(err, "failed to create an OIDC federated auth credential")
+		}
 	}
 
 	acsURL, err := url.Parse(proxyPublicAddr)
@@ -138,7 +143,7 @@ func SetupEnterpriseApp(ctx context.Context, proxyPublicAddr string, authConnect
 
 // createFederatedAuthCredential creates a new federated (OIDC) auth credential for the given Entra application.
 func createFederatedAuthCredential(ctx context.Context, graphClient *msgraph.Client, appObjectID string, proxyPublicAddr string) error {
-	credential := &msgraph.FederatedIdentityCredential{}
+	credential := &models.FederatedIdentityCredential{}
 	name := "teleport-oidc"
 	audiences := []string{azureDefaultJWTAudience}
 	subject := azureSubject

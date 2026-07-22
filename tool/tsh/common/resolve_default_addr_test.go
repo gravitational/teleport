@@ -31,17 +31,13 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport"
 	apihelpers "github.com/gravitational/teleport/api/testhelpers"
 	"github.com/gravitational/teleport/integration/helpers"
 )
 
-var testLog = log.WithField(teleport.ComponentKey, "test")
-
 func newWaitForeverHandler() (http.Handler, chan struct{}) {
 	doneChannel := make(chan struct{})
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		testLog.Debug("Waiting forever...")
 		<-doneChannel
 	})
 
@@ -50,7 +46,6 @@ func newWaitForeverHandler() (http.Handler, chan struct{}) {
 
 func newRespondingHandlerWithStatus(status int) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		testLog.Debug("Responding")
 		w.Header().Add("Content-Type", "text/plain; charset=utf-8")
 		w.WriteHeader(status)
 		io.WriteString(w, "Hello, world")
@@ -90,7 +85,7 @@ func TestResolveDefaultAddr(t *testing.T) {
 	respondingHandler := newRespondingHandler()
 
 	servers := make([]*httptest.Server, 5)
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		handler := blockingHandler
 		if i == magicServerIndex {
 			handler = respondingHandler
@@ -129,7 +124,7 @@ func TestResolveDefaultAddrSingleCandidate(t *testing.T) {
 	respondingHandler := newRespondingHandler()
 
 	servers := make([]*httptest.Server, 1)
-	for i := 0; i < len(servers); i++ {
+	for i := range servers {
 		servers[i] = apihelpers.MakeTestServer(t, respondingHandler)
 	}
 
@@ -151,7 +146,7 @@ func TestResolveDefaultAddrTimeout(t *testing.T) {
 	blockingHandler, doneCh := newWaitForeverHandler()
 
 	servers := make([]*httptest.Server, 5)
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		servers[i] = apihelpers.MakeTestServer(t, blockingHandler)
 	}
 
@@ -201,11 +196,9 @@ func TestResolveUndeliveredBodyDoesNotBlockForever(t *testing.T) {
 	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		f, ok := w.(http.Flusher)
 		if !ok {
-			testLog.Error("ResponseWriter must also be a Flusher, or the test is invalid")
 			t.Fatal()
 		}
 
-		testLog.Debugf("Writing response header to %T", w)
 		w.Header().Set("Content-Length", "1048576")
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.WriteHeader(http.StatusTeapot)
@@ -213,10 +206,7 @@ func TestResolveUndeliveredBodyDoesNotBlockForever(t *testing.T) {
 		w.Write([]byte("I'm a little teapot, short and stout."))
 		f.Flush()
 
-		testLog.Debug("Waiting forever instead of sending response body")
 		<-doneChannel
-
-		testLog.Debug("Exiting handler")
 	})
 
 	servers := []*httptest.Server{apihelpers.MakeTestServer(t, handler)}
@@ -237,7 +227,7 @@ func TestResolveDefaultAddrTimeoutBeforeAllRacersLaunched(t *testing.T) {
 	blockingHandler, doneCh := newWaitForeverHandler()
 
 	servers := make([]*httptest.Server, 100)
-	for i := 0; i < len(servers); i++ {
+	for i := range servers {
 		servers[i] = apihelpers.MakeTestServer(t, blockingHandler)
 	}
 

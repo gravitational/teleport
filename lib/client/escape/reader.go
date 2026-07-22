@@ -195,10 +195,7 @@ func (r *Reader) Read(buf []byte) (int, error) {
 	}
 
 	// Have some data to return.
-	n := len(r.buf)
-	if n > len(buf) {
-		n = len(buf)
-	}
+	n := min(len(r.buf), len(buf))
 	// Write n available bytes to buf and trim them from r.buf.
 	copy(buf, r.buf[:n])
 	r.buf = r.buf[n:]

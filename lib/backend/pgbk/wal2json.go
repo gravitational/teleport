@@ -112,12 +112,8 @@ func (w *wal2jsonMessage) Events() ([]backend.Event, error) {
 	switch w.Action {
 	case "B", "C", "M":
 		return nil, nil
-	default:
-		return nil, trace.BadParameter("unexpected action %q", w.Action)
-
 	case "T":
 		return nil, trace.BadParameter("received truncate for table kv")
-
 	case "I":
 		key, err := w.newCol("key").Bytea()
 		if err != nil {
@@ -139,13 +135,12 @@ func (w *wal2jsonMessage) Events() ([]backend.Event, error) {
 		return []backend.Event{{
 			Type: types.OpPut,
 			Item: backend.Item{
-				Key:      key,
+				Key:      backend.KeyFromString(string(key)),
 				Value:    value,
 				Expires:  expires.UTC(),
 				Revision: revisionToString(revision),
 			},
 		}}, nil
-
 	case "D":
 		key, err := w.oldCol("key").Bytea()
 		if err != nil {
@@ -154,10 +149,9 @@ func (w *wal2jsonMessage) Events() ([]backend.Event, error) {
 		return []backend.Event{{
 			Type: types.OpDelete,
 			Item: backend.Item{
-				Key: key,
+				Key: backend.KeyFromString(string(key)),
 			},
 		}}, nil
-
 	case "U":
 		// on an UPDATE, an unmodified TOASTed column might be missing from
 		// "columns", but it should be present in "identity" (and this also
@@ -196,12 +190,12 @@ func (w *wal2jsonMessage) Events() ([]backend.Event, error) {
 			return []backend.Event{{
 				Type: types.OpDelete,
 				Item: backend.Item{
-					Key: oldKey,
+					Key: backend.KeyFromString(string(oldKey)),
 				},
 			}, {
 				Type: types.OpPut,
 				Item: backend.Item{
-					Key:      key,
+					Key:      backend.KeyFromString(string(key)),
 					Value:    value,
 					Expires:  expires.UTC(),
 					Revision: revisionToString(revision),
@@ -212,12 +206,14 @@ func (w *wal2jsonMessage) Events() ([]backend.Event, error) {
 		return []backend.Event{{
 			Type: types.OpPut,
 			Item: backend.Item{
-				Key:      key,
+				Key:      backend.KeyFromString(string(key)),
 				Value:    value,
 				Expires:  expires.UTC(),
 				Revision: revisionToString(revision),
 			},
 		}}, nil
+	default:
+		return nil, trace.BadParameter("unexpected action %q", w.Action)
 	}
 }
 

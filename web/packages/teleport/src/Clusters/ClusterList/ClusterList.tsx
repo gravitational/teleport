@@ -17,15 +17,15 @@
  */
 
 import React from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink } from 'react-router';
 import styled from 'styled-components';
 
-import { MenuButton, MenuItem } from 'shared/components/MenuAction';
 import Table, { Cell } from 'design/DataTable';
-import { Primary } from 'design/Label';
+import { Status } from 'design/Status';
+import { MenuButton, MenuItem } from 'shared/components/MenuAction';
 
-import { Cluster } from 'teleport/services/clusters';
 import cfg from 'teleport/config';
+import { Cluster } from 'teleport/services/clusters';
 
 export default function ClustersList(props: Props) {
   const { clusters = [], pageSize = 50, menuFlags } = props;
@@ -54,6 +54,9 @@ export default function ClustersList(props: Props) {
         clusters.find(c => c.clusterId === cfg.proxyCluster)
       }
       pagination={{ pageSize }}
+      row={{
+        getKey: cluster => cluster.clusterId,
+      }}
     />
   );
 }
@@ -61,7 +64,17 @@ export default function ClustersList(props: Props) {
 function renderRootLabelCell({ clusterId }: Cluster) {
   const isRoot = cfg.proxyCluster === clusterId;
   return (
-    <Cell style={{ width: '40px' }}>{isRoot && <Primary>ROOT</Primary>}</Cell>
+    <Cell style={{ width: '40px' }}>
+      {isRoot ? (
+        <Status kind="primary" variant="filled" icon={false}>
+          ROOT
+        </Status>
+      ) : (
+        <Status kind="neutral" variant="filled-subtle" icon={false}>
+          LEAF
+        </Status>
+      )}
+    </Cell>
   );
 }
 
@@ -83,7 +96,7 @@ function renderActionCell({ clusterId }: Cluster, flags: MenuFlags) {
   }
 
   return (
-    <Cell align="right">{$items && <MenuButton children={$items} />}</Cell>
+    <Cell align="right">{$items && <MenuButton>{$items}</MenuButton>}</Cell>
   );
 }
 

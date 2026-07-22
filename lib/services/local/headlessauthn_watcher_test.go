@@ -121,7 +121,7 @@ func TestHeadlessAuthenticationWatcher_Subscribe(t *testing.T) {
 		require.NoError(t, err)
 
 		replace := *headlessAuthn
-		replace.PublicKey = []byte(sshPubKey)
+		replace.SshPublicKey = []byte(sshPubKey)
 		replace.State = types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED
 		swapped, err := s.identity.CompareAndSwapHeadlessAuthentication(ctx, headlessAuthn, &replace)
 		require.NoError(t, err)

@@ -1,0 +1,21 @@
+```yaml
+kind: token
+version: v2
+metadata:
+  name: example
+spec:
+  roles: [App]
+  join_method: kubernetes
+  kubernetes:
+    # oidc configures the Auth Service to validate the JWT presented by `tbot`
+    # using the public keys published by the configured OIDC issuer.
+    type: oidc
+    oidc:
+      # Issuer must be a fully-qualified HTTPS URL and may vary between
+      # providers.
+      issuer: https://oidc.eks.us-west-2.amazonaws.com/id/my-cluster
+    # allow specifies the rules by which the Auth Service determines if the node
+    # should be allowed to join.
+    allow:
+      - service_account: "namespace:serviceaccount"
+```

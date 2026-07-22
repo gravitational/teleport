@@ -22,7 +22,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"math/rand"
+	"log/slog"
+	"math/rand/v2"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -32,25 +33,36 @@ import (
 	"testing"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	dynamodbtypes "github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/prometheus/client_golang/prometheus"
+	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/test"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 const dynamoDBLargeQueryRetries int = 10
 
 func TestMain(m *testing.M) {
-	utils.InitLoggerForTests()
+	logtest.InitLogger(testing.Verbose)
 	os.Exit(m.Run())
 }
 
@@ -120,10 +132,18 @@ func TestSearchSessionEvensBySessionID(t *testing.T) {
 	tt.suite.SearchSessionEventsBySessionID(t)
 }
 
+func TestSearchEventsBySearchTerm(t *testing.T) {
+	tt := setupDynamoContext(t)
+
+	tt.suite.SearchEventsBySearchTerm(t)
+}
+
 // TestCheckpointOutsideOfWindow tests if [Log] doesn't panic
 // if checkpoint date is outside of the window [fromUTC,toUTC].
 func TestCheckpointOutsideOfWindow(t *testing.T) {
-	tt := &Log{}
+	tt := &Log{
+		logger: slog.With(teleport.ComponentKey, teleport.ComponentDynamoDB),
+	}
 
 	key := checkpointKey{
 		Date: "2022-10-02",
@@ -149,11 +169,11 @@ func TestCheckpointOutsideOfWindow(t *testing.T) {
 func TestSizeBreak(t *testing.T) {
 	tt := setupDynamoContext(t)
 
-	const eventSize = 50 * 1024
+	const eventSize = 200 * 1024
 	blob := randStringAlpha(eventSize)
 
 	const eventCount int = 10
-	for i := 0; i < eventCount; i++ {
+	for i := range eventCount {
 		err := tt.suite.Log.EmitAuditEvent(context.Background(), &apievents.UserLogin{
 			Method:       events.LoginMethodSAML,
 			Status:       apievents.Status{Success: true},
@@ -162,7 +182,7 @@ func TestSizeBreak(t *testing.T) {
 				Type: events.UserLoginEvent,
 				Time: tt.suite.Clock.Now().UTC().Add(time.Second * time.Duration(i)),
 			},
-			IdentityAttributes: apievents.MustEncodeMap(map[string]interface{}{"test.data": blob}),
+			IdentityAttributes: apievents.MustEncodeMap(map[string]any{"test.data": blob}),
 		})
 		require.NoError(t, err)
 	}
@@ -186,7 +206,7 @@ func TestSizeBreak(t *testing.T) {
 			break
 		}
 	}
-
+	require.Len(t, gotEvents, eventCount)
 	lastTime := tt.suite.Clock.Now().UTC().Add(time.Hour)
 
 	for _, event := range gotEvents {
@@ -227,7 +247,7 @@ func TestLargeTableRetrieve(t *testing.T) {
 	tt := setupDynamoContext(t)
 
 	const eventCount = 4000
-	for i := 0; i < eventCount; i++ {
+	for range eventCount {
 		err := tt.suite.Log.EmitAuditEvent(context.Background(), &apievents.UserLogin{
 			Method:       events.LoginMethodSAML,
 			Status:       apievents.Status{Success: true},
@@ -245,7 +265,7 @@ func TestLargeTableRetrieve(t *testing.T) {
 		err     error
 	)
 	ctx := context.Background()
-	for i := 0; i < dynamoDBLargeQueryRetries; i++ {
+	for range dynamoDBLargeQueryRetries {
 		time.Sleep(tt.suite.QueryDelay)
 
 		history, _, err = tt.suite.Log.SearchEvents(ctx, events.SearchEventsRequest{
@@ -267,24 +287,154 @@ func TestLargeTableRetrieve(t *testing.T) {
 func TestFromWhereExpr(t *testing.T) {
 	t.Parallel()
 
-	// !(equals(login, "root") || equals(login, "admin")) && contains(participants, "test-user")
-	cond := &types.WhereExpr{And: types.WhereExpr2{
-		L: &types.WhereExpr{Not: &types.WhereExpr{Or: types.WhereExpr2{
-			L: &types.WhereExpr{Equals: types.WhereExpr2{L: &types.WhereExpr{Field: "login"}, R: &types.WhereExpr{Literal: "root"}}},
-			R: &types.WhereExpr{Equals: types.WhereExpr2{L: &types.WhereExpr{Field: "login"}, R: &types.WhereExpr{Literal: "admin"}}},
-		}}},
-		R: &types.WhereExpr{Contains: types.WhereExpr2{L: &types.WhereExpr{Field: "participants"}, R: &types.WhereExpr{Literal: "test-user"}}},
-	}}
+	t.Run("sid", func(t *testing.T) {
+		cond := &types.WhereExpr{Equals: types.WhereExpr2{
+			L: &types.WhereExpr{Field: events.SessionEventID},
+			R: &types.WhereExpr{Literal: "test-session-id"},
+		}}
+		params := condFilterParams{attrNames: map[string]string{}, attrValues: map[string]any{}}
+		expr, err := fromWhereExpr(cond, &params)
+		require.NoError(t, err)
 
-	params := condFilterParams{attrNames: map[string]string{}, attrValues: map[string]interface{}{}}
-	expr, err := fromWhereExpr(cond, &params)
-	require.NoError(t, err)
+		require.Equal(t, "FieldsMap.#condName0 = :condValue0", expr)
+		require.Equal(t, condFilterParams{
+			attrNames:  map[string]string{"#condName0": "sid"},
+			attrValues: map[string]any{":condValue0": "test-session-id"},
+		}, params)
+	})
 
-	require.Equal(t, "(NOT ((FieldsMap.#condName0 = :condValue0) OR (FieldsMap.#condName0 = :condValue1))) AND (contains(FieldsMap.#condName1, :condValue2))", expr)
-	require.Equal(t, condFilterParams{
-		attrNames:  map[string]string{"#condName0": "login", "#condName1": "participants"},
-		attrValues: map[string]interface{}{":condValue0": "root", ":condValue1": "admin", ":condValue2": "test-user"},
-	}, params)
+	t.Run("contains", func(t *testing.T) {
+		// !(equals(login, "root") || equals(login, "admin")) && contains(participants, "test-user")
+		cond := &types.WhereExpr{And: types.WhereExpr2{
+			L: &types.WhereExpr{Not: &types.WhereExpr{Or: types.WhereExpr2{
+				L: &types.WhereExpr{Equals: types.WhereExpr2{L: &types.WhereExpr{Field: "login"}, R: &types.WhereExpr{Literal: "root"}}},
+				R: &types.WhereExpr{Equals: types.WhereExpr2{L: &types.WhereExpr{Field: "login"}, R: &types.WhereExpr{Literal: "admin"}}},
+			}}},
+			R: &types.WhereExpr{Contains: types.WhereExpr2{L: &types.WhereExpr{Field: "participants"}, R: &types.WhereExpr{Literal: "test-user"}}},
+		}}
+
+		params := condFilterParams{attrNames: map[string]string{}, attrValues: map[string]any{}}
+		expr, err := fromWhereExpr(cond, &params)
+		require.NoError(t, err)
+
+		require.Equal(t, "(NOT ((FieldsMap.#condName0 = :condValue0) OR (FieldsMap.#condName0 = :condValue1))) AND (contains(FieldsMap.#condName1, :condValue2))", expr)
+		require.Equal(t, condFilterParams{
+			attrNames:  map[string]string{"#condName0": "login", "#condName1": "participants"},
+			attrValues: map[string]any{":condValue0": "root", ":condValue1": "admin", ":condValue2": "test-user"},
+		}, params)
+	})
+
+	t.Run("contains_any", func(t *testing.T) {
+		// !(equals(login, "root") || equals(login, "admin")) && contains_any(participants, set("test-user","other-user"))
+		cond := &types.WhereExpr{And: types.WhereExpr2{
+			L: &types.WhereExpr{Not: &types.WhereExpr{Or: types.WhereExpr2{
+				L: &types.WhereExpr{Equals: types.WhereExpr2{L: &types.WhereExpr{Field: "login"}, R: &types.WhereExpr{Literal: "root"}}},
+				R: &types.WhereExpr{Equals: types.WhereExpr2{L: &types.WhereExpr{Field: "login"}, R: &types.WhereExpr{Literal: "admin"}}},
+			}}},
+			R: &types.WhereExpr{ContainsAny: types.WhereExpr2{L: &types.WhereExpr{Field: "participants"}, R: &types.WhereExpr{Literal: []string{"test-user", "other-user"}}}},
+		}}
+
+		params := condFilterParams{attrNames: map[string]string{}, attrValues: map[string]any{}}
+		expr, err := fromWhereExpr(cond, &params)
+		require.NoError(t, err)
+
+		require.Equal(t, "(NOT ((FieldsMap.#condName0 = :condValue0) OR (FieldsMap.#condName0 = :condValue1))) AND ((contains(FieldsMap.#condName1, :condValue2) OR contains(FieldsMap.#condName1, :condValue3)))", expr)
+		require.Equal(t, condFilterParams{
+			attrNames:  map[string]string{"#condName0": "login", "#condName1": "participants"},
+			attrValues: map[string]any{":condValue0": "root", ":condValue1": "admin", ":condValue2": "test-user", ":condValue3": "other-user"},
+		}, params)
+	})
+
+	t.Run("contains_all", func(t *testing.T) {
+		// !(equals(login, "root") || equals(login, "admin")) && contains_all(participants, set("test-user","other-user"))
+		cond := &types.WhereExpr{And: types.WhereExpr2{
+			L: &types.WhereExpr{Not: &types.WhereExpr{Or: types.WhereExpr2{
+				L: &types.WhereExpr{Equals: types.WhereExpr2{L: &types.WhereExpr{Field: "login"}, R: &types.WhereExpr{Literal: "root"}}},
+				R: &types.WhereExpr{Equals: types.WhereExpr2{L: &types.WhereExpr{Field: "login"}, R: &types.WhereExpr{Literal: "admin"}}},
+			}}},
+			R: &types.WhereExpr{ContainsAll: types.WhereExpr2{L: &types.WhereExpr{Field: "participants"}, R: &types.WhereExpr{Literal: []string{"test-user", "other-user"}}}},
+		}}
+
+		params := condFilterParams{attrNames: map[string]string{}, attrValues: map[string]any{}}
+		expr, err := fromWhereExpr(cond, &params)
+		require.NoError(t, err)
+
+		require.Equal(t, "(NOT ((FieldsMap.#condName0 = :condValue0) OR (FieldsMap.#condName0 = :condValue1))) AND ((contains(FieldsMap.#condName1, :condValue2) AND contains(FieldsMap.#condName1, :condValue3)))", expr)
+		require.Equal(t, condFilterParams{
+			attrNames:  map[string]string{"#condName0": "login", "#condName1": "participants"},
+			attrValues: map[string]any{":condValue0": "root", ":condValue1": "admin", ":condValue2": "test-user", ":condValue3": "other-user"},
+		}, params)
+	})
+
+	t.Run("can_view AND", func(t *testing.T) {
+		// !(equals(login, "root") || equals(login, "admin")) && contains_all(participants, set("test-user","other-user")) && can_view()
+		cond := &types.WhereExpr{
+			And: types.WhereExpr2{
+				L: &types.WhereExpr{And: types.WhereExpr2{
+					L: &types.WhereExpr{Not: &types.WhereExpr{Or: types.WhereExpr2{
+						L: &types.WhereExpr{Equals: types.WhereExpr2{L: &types.WhereExpr{Field: "login"}, R: &types.WhereExpr{Literal: "root"}}},
+						R: &types.WhereExpr{Equals: types.WhereExpr2{L: &types.WhereExpr{Field: "login"}, R: &types.WhereExpr{Literal: "admin"}}},
+					}}},
+					R: &types.WhereExpr{ContainsAll: types.WhereExpr2{L: &types.WhereExpr{Field: "participants"}, R: &types.WhereExpr{Literal: []string{"test-user", "other-user"}}}},
+				}},
+				R: &types.WhereExpr{CanView: &types.WhereNoExpr{}},
+			},
+		}
+
+		params := condFilterParams{attrNames: map[string]string{}, attrValues: map[string]any{}}
+		expr, err := fromWhereExpr(cond, &params)
+		require.NoError(t, err)
+
+		require.Equal(t, "((NOT ((FieldsMap.#condName0 = :condValue0) OR (FieldsMap.#condName0 = :condValue1))) AND ((contains(FieldsMap.#condName1, :condValue2) AND contains(FieldsMap.#condName1, :condValue3)))) AND (attribute_exists(SessionID))", expr)
+		require.Equal(t, condFilterParams{
+			attrNames:  map[string]string{"#condName0": "login", "#condName1": "participants"},
+			attrValues: map[string]any{":condValue0": "root", ":condValue1": "admin", ":condValue2": "test-user", ":condValue3": "other-user"},
+		}, params)
+	})
+	t.Run("can_view OR ", func(t *testing.T) {
+		// !(equals(login, "root") || equals(login, "admin")) && contains_all(participants, set("test-user","other-user")) || can_view()
+		cond := &types.WhereExpr{
+			Or: types.WhereExpr2{
+				L: &types.WhereExpr{And: types.WhereExpr2{
+					L: &types.WhereExpr{Not: &types.WhereExpr{Or: types.WhereExpr2{
+						L: &types.WhereExpr{Equals: types.WhereExpr2{L: &types.WhereExpr{Field: "login"}, R: &types.WhereExpr{Literal: "root"}}},
+						R: &types.WhereExpr{Equals: types.WhereExpr2{L: &types.WhereExpr{Field: "login"}, R: &types.WhereExpr{Literal: "admin"}}},
+					}}},
+					R: &types.WhereExpr{ContainsAll: types.WhereExpr2{L: &types.WhereExpr{Field: "participants"}, R: &types.WhereExpr{Literal: []string{"test-user", "other-user"}}}},
+				}},
+				R: &types.WhereExpr{CanView: &types.WhereNoExpr{}},
+			},
+		}
+
+		params := condFilterParams{attrNames: map[string]string{}, attrValues: map[string]any{}}
+		expr, err := fromWhereExpr(cond, &params)
+		require.NoError(t, err)
+
+		require.Equal(t, "((NOT ((FieldsMap.#condName0 = :condValue0) OR (FieldsMap.#condName0 = :condValue1))) AND ((contains(FieldsMap.#condName1, :condValue2) AND contains(FieldsMap.#condName1, :condValue3)))) OR (attribute_exists(SessionID))", expr)
+		require.Equal(t, condFilterParams{
+			attrNames:  map[string]string{"#condName0": "login", "#condName1": "participants"},
+			attrValues: map[string]any{":condValue0": "root", ":condValue1": "admin", ":condValue2": "test-user", ":condValue3": "other-user"},
+		}, params)
+	})
+
+	t.Run("map_ref", func(t *testing.T) {
+		// session.server_labels["env"] = "prod"
+		cond := &types.WhereExpr{Equals: types.WhereExpr2{
+			L: &types.WhereExpr{MapRef: &types.WhereExpr2{
+				L: &types.WhereExpr{Field: "server_labels"},
+				R: &types.WhereExpr{Literal: "env"},
+			}},
+			R: &types.WhereExpr{Literal: "prod"},
+		}}
+		params := condFilterParams{attrNames: map[string]string{}, attrValues: map[string]any{}}
+		expr, err := fromWhereExpr(cond, &params)
+		require.NoError(t, err)
+		require.Equal(t, "FieldsMap.#condName0.#condName1 = :condValue0", expr)
+		require.Equal(t, condFilterParams{
+			attrNames:  map[string]string{"#condName0": "server_labels", "#condName1": "env"},
+			attrValues: map[string]any{":condValue0": "prod"},
+		}, params)
+	})
 }
 
 // TestEmitAuditEventForLargeEvents tries to emit large audit events to
@@ -311,19 +461,32 @@ func TestEmitAuditEventForLargeEvents(t *testing.T) {
 			EventTypes: []string{events.DatabaseSessionQueryEvent},
 			Order:      types.EventOrderAscending,
 		})
-		assert.NoError(t, err)
-		assert.Len(t, result, 1)
+		require.NoError(t, err)
+		require.Len(t, result, 1)
 	}, 10*time.Second, 500*time.Millisecond)
 
-	appReqEvent := &apievents.AppSessionRequest{
-		Metadata: apievents.Metadata{
-			Time: tt.suite.Clock.Now().UTC(),
-			Type: events.AppSessionRequestEvent,
+	appReqEvent := &testAuditEvent{
+		AppSessionRequest: apievents.AppSessionRequest{
+			Metadata: apievents.Metadata{
+				Time: tt.suite.Clock.Now().UTC(),
+				Type: events.AppSessionRequestEvent,
+			},
+			Path: strings.Repeat("A", maxItemSize),
 		},
-		Path: strings.Repeat("A", maxItemSize),
 	}
 	err = tt.suite.Log.EmitAuditEvent(ctx, appReqEvent)
 	require.ErrorContains(t, err, "ValidationException: Item size has exceeded the maximum allowed size")
+}
+
+// testAuditEvent wraps an existing AuditEvent, but overrides
+// the TrimToMaxSize to be a noop so that functionality can
+// be tested if an event exceeds the size limits.
+type testAuditEvent struct {
+	apievents.AppSessionRequest
+}
+
+func (t *testAuditEvent) TrimToMaxSize(maxSizeBytes int) apievents.AuditEvent {
+	return t
 }
 
 func TestConfig_SetFromURL(t *testing.T) {
@@ -492,8 +655,8 @@ func TestSearchEventsLimitEndOfDay(t *testing.T) {
 	const eventCount int = 10
 
 	// create events for two days
-	for dayDiff := 0; dayDiff < 2; dayDiff++ {
-		for i := 0; i < eventCount; i++ {
+	for dayDiff := range 2 {
+		for i := range eventCount {
 			err := tt.suite.Log.EmitAuditEvent(ctx, &apievents.UserLogin{
 				Method:       events.LoginMethodSAML,
 				Status:       apievents.Status{Success: true},
@@ -502,7 +665,7 @@ func TestSearchEventsLimitEndOfDay(t *testing.T) {
 					Type: events.UserLoginEvent,
 					Time: tt.suite.Clock.Now().UTC().Add(time.Hour*24*time.Duration(dayDiff) + time.Second*time.Duration(i)),
 				},
-				IdentityAttributes: apievents.MustEncodeMap(map[string]interface{}{"test.data": blob}),
+				IdentityAttributes: apievents.MustEncodeMap(map[string]any{"test.data": blob}),
 			})
 			require.NoError(t, err)
 		}
@@ -552,6 +715,74 @@ func TestSearchEventsLimitEndOfDay(t *testing.T) {
 	}
 }
 
+func TestSearchEventsMultipleDays(t *testing.T) {
+	ctx := t.Context()
+	tt := setupDynamoContext(t)
+	blob := "data"
+	const eventCount int = 10
+	const days int = 3
+
+	// create events per day
+	for dayDiff := range days {
+		for i := range eventCount {
+			err := tt.suite.Log.EmitAuditEvent(ctx, &apievents.UserLogin{
+				Method:       events.LoginMethodSAML,
+				Status:       apievents.Status{Success: true},
+				UserMetadata: apievents.UserMetadata{User: "bob"},
+				Metadata: apievents.Metadata{
+					Type: events.UserLoginEvent,
+					Time: tt.suite.Clock.Now().UTC().Add(time.Hour*24*time.Duration(dayDiff) + time.Second*time.Duration(i)),
+				},
+				IdentityAttributes: apievents.MustEncodeMap(map[string]any{"test.data": blob}),
+			})
+			require.NoError(t, err)
+		}
+	}
+
+	windowStart := time.Date(
+		tt.suite.Clock.Now().UTC().Year(),
+		tt.suite.Clock.Now().UTC().Month(),
+		tt.suite.Clock.Now().UTC().Day(),
+		0, /* hour */
+		0, /* minute */
+		0, /* second */
+		0, /* nanosecond */
+		time.UTC)
+	windowEnd := windowStart.Add(time.Hour * time.Duration(24*days))
+
+	data, err := json.Marshal(checkpointKey{
+		Date: windowStart.Format("2006-01-02"),
+	})
+	require.NoError(t, err)
+	checkpoint := string(data)
+
+	var gotEvents []apievents.AuditEvent
+	for {
+		fetched, lCheckpoint, err := tt.log.SearchEvents(ctx, events.SearchEventsRequest{
+			From:     windowStart,
+			To:       windowEnd,
+			Limit:    5,
+			Order:    types.EventOrderAscending,
+			StartKey: checkpoint,
+		})
+		require.NoError(t, err)
+		checkpoint = lCheckpoint
+		gotEvents = append(gotEvents, fetched...)
+
+		if checkpoint == "" {
+			break
+		}
+	}
+
+	require.Len(t, gotEvents, eventCount*days)
+	lastTime := tt.suite.Clock.Now().UTC().Add(-time.Hour)
+
+	for _, event := range gotEvents {
+		require.True(t, event.GetTime().After(lastTime))
+		lastTime = event.GetTime()
+	}
+}
+
 // TestValidationErrorsHandling given events that return validation
 // errors (large event size and already exists), the emit should handle them
 // and succeed on emitting the event when it does support trimming.
@@ -581,34 +812,573 @@ func generateEvent(sessionID session.ID, index int64, query string) apievents.Au
 	}
 }
 
-var letterRunes = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
-
 func randStringAlpha(n int) string {
-	b := make([]rune, n)
+	const letters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+	b := make([]byte, n)
 	for i := range b {
-		b[i] = letterRunes[rand.Intn(len(letterRunes))]
+		b[i] = letters[rand.N(len(letters))]
 	}
 	return string(b)
 }
 
-func TestCustomEndpoint(t *testing.T) {
+func TestEndpoints(t *testing.T) {
+	// Don't t.Parallel(), uses t.Setenv and modules.SetTestModules.
+
+	tests := []struct {
+		name          string
+		fips          bool
+		envVarValue   string // value for the _DISABLE_FIPS environment variable
+		wantFIPSError bool
+	}{
+		{
+			name:          "fips",
+			fips:          true,
+			wantFIPSError: true,
+		},
+		{
+			name:          "fips with env skip",
+			fips:          true,
+			envVarValue:   "yes",
+			wantFIPSError: false,
+		},
+		{
+			name:          "without fips",
+			wantFIPSError: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("TELEPORT_UNSTABLE_DISABLE_AWS_FIPS", tt.envVarValue)
+
+			fips := types.ClusterAuditConfigSpecV2_FIPS_DISABLED
+			if tt.fips {
+				fips = types.ClusterAuditConfigSpecV2_FIPS_ENABLED
+				modulestest.SetTestModules(t, modulestest.Modules{
+					FIPS: true,
+				})
+			}
+
+			mux := http.NewServeMux()
+			mux.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusTeapot)
+			}))
+
+			server := httptest.NewServer(mux)
+			t.Cleanup(server.Close)
+
+			b, err := New(context.Background(), Config{
+				Region:       "us-west-1",
+				Tablename:    "teleport-test",
+				UIDGenerator: utils.NewFakeUID(),
+				// The prefix is intentionally removed to validate that a scheme
+				// is applied automatically. This validates backwards compatible behavior
+				// with existing configurations and the behavior change from aws-sdk-go to aws-sdk-go-v2.
+				Endpoint:        strings.TrimPrefix(server.URL, "http://"),
+				Insecure:        true,
+				UseFIPSEndpoint: fips,
+				CredentialsProvider: aws.CredentialsProviderFunc(func(ctx context.Context) (aws.Credentials, error) {
+					return aws.Credentials{}, nil
+				}),
+			})
+			// FIPS mode should fail because it is a violation to enable FIPS
+			// while also setting a custom endpoint.
+			if tt.wantFIPSError {
+				assert.ErrorContains(t, err, "FIPS")
+				return
+			}
+
+			assert.ErrorContains(t, err, fmt.Sprintf("StatusCode: %d", http.StatusTeapot))
+			assert.Nil(t, b, "backend not nil")
+		})
+	}
+}
+
+func TestNew_UsesEventsMetricsLabel(t *testing.T) {
+	// Don't t.Parallel(), this test reads global Prometheus counters.
 	ctx := context.Background()
-	t.Setenv("AWS_ACCESS_KEY", "llama")
-	t.Setenv("AWS_SECRET_KEY", "alpaca")
+
+	before, err := getDynamoRequestsByTypeLabel("events")
+	require.NoError(t, err)
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/*", func(w http.ResponseWriter, r *http.Request) {
+	mux.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusTeapot)
-	})
-	srv := httptest.NewServer(mux)
-	defer srv.Close()
+	}))
+
+	server := httptest.NewServer(mux)
+	t.Cleanup(server.Close)
 
 	b, err := New(ctx, Config{
+		Region:       "us-west-1",
 		Tablename:    "teleport-test",
 		UIDGenerator: utils.NewFakeUID(),
-		Endpoint:     srv.URL,
+		// Intentionally pass endpoint without scheme to exercise normalization.
+		Endpoint: strings.TrimPrefix(server.URL, "http://"),
+		Insecure: true,
+		CredentialsProvider: aws.CredentialsProviderFunc(func(ctx context.Context) (aws.Credentials, error) {
+			return aws.Credentials{}, nil
+		}),
 	})
-	assert.Error(t, err)
-	assert.Nil(t, b)
-	require.Contains(t, err.Error(), fmt.Sprintf("StatusCode: %d", http.StatusTeapot))
+	assert.ErrorContains(t, err, fmt.Sprintf("StatusCode: %d", http.StatusTeapot))
+	assert.Nil(t, b, "backend not nil")
+
+	after, err := getDynamoRequestsByTypeLabel("events")
+	require.NoError(t, err)
+	require.Greater(t, after, before, "expected dynamo metrics type=events to increase")
+}
+
+func getDynamoRequestsByTypeLabel(typeLabel string) (float64, error) {
+	families, err := prometheus.DefaultGatherer.Gather()
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+
+	var count float64
+	for _, family := range families {
+		if family.GetName() != "dynamo_requests_total" {
+			continue
+		}
+		for _, metric := range family.GetMetric() {
+			if getMetricLabelValue(metric, "type") != typeLabel {
+				continue
+			}
+			if counter := metric.GetCounter(); counter != nil {
+				count += counter.GetValue()
+			}
+		}
+	}
+
+	return count, nil
+}
+
+func getMetricLabelValue(metric *dto.Metric, name string) string {
+	for _, label := range metric.GetLabel() {
+		if label.GetName() == name {
+			return label.GetValue()
+		}
+	}
+	return ""
+}
+
+func TestStartKeyBackCompat(t *testing.T) {
+	const (
+		oldStartKey = `{"date":"2023-04-27","iterator":{"CreatedAt":{"B":null,"BOOL":null,"BS":null,"L":null,"M":null,"N":"1682583778","NS":null,"NULL":null,"S":null,"SS":null},"CreatedAtDate":{"B":null,"BOOL":null,"BS":null,"L":null,"M":null,"N":null,"NS":null,"NULL":null,"S":"2023-04-27","SS":null},"EventIndex":{"B":null,"BOOL":null,"BS":null,"L":null,"M":null,"N":"0","NS":null,"NULL":null,"S":null,"SS":null},"SessionID":{"B":null,"BOOL":null,"BS":null,"L":null,"M":null,"N":null,"NS":null,"NULL":null,"S":"4bc51fd7-4f0c-47ee-b9a5-da621fbdbabb","SS":null}}}`
+		newStartKey = `{"date":"2023-04-27","iterator":"{\"CreatedAt\":1682583778,\"CreatedAtDate\":\"2023-04-27\",\"EventIndex\":0,\"SessionID\":\"4bc51fd7-4f0c-47ee-b9a5-da621fbdbabb\"}"}`
+	)
+
+	oldCP, err := getCheckpointFromStartKey(oldStartKey)
+	require.NoError(t, err)
+
+	newCP, err := getCheckpointFromStartKey(newStartKey)
+	require.NoError(t, err)
+
+	// we must check the iterator field equality separately because it's a string
+	// containing a JSON-encoded event and field ordering might not be consistent.
+	require.Equal(t, oldCP.Date, newCP.Date)
+
+	var oldIterator, newIterator event
+	require.NoError(t, json.Unmarshal([]byte(oldCP.Iterator), &oldIterator))
+	require.NoError(t, json.Unmarshal([]byte(newCP.Iterator), &newIterator))
+	require.Equal(t, oldIterator, newIterator)
+}
+
+// TestCursorIteratorPrecision exists because cursors are sensitive to data-loss
+// and we had a bug where we would unmarshall a cursor into `map[string]any`,
+// causing all int64 to do a round-trip through float64 and losing precision.
+// The precision loss would cause the cursor hash to be in te past.
+// If the cursor shifts by more events than the page size, this creates a
+// livelock and the query cannot proceed.
+// This test creates events with very close EventIndex (1 nanosecond diff),
+// reads the events 1 by one, and makes sure the reader is not stuck reading the
+// same event over and over.
+func TestCursorIteratorPrecision(t *testing.T) {
+	tt := setupDynamoContext(t)
+	clock, ok := tt.log.Clock.(*clockwork.FakeClock)
+	require.True(t, ok, "this test requires a FakeClock")
+	baseTime := clock.Now().UTC()
+
+	// Test Setup: creating fixtures really close in the dynamo index.
+
+	// For this test to work, we need the same session ID for all events
+	sessionId := uuid.NewString()
+	numEvents := 5
+	testEvents := make(map[string]struct{}, numEvents)
+
+	for range numEvents {
+		id := uuid.NewString()
+		// For the first event, EventIndex will be zero, for the next ones it
+		// will be the unix nanosecond timestamp.
+		clock.Advance(time.Nanosecond)
+		err := tt.log.EmitAuditEvent(context.Background(), &apievents.Exec{
+			UserMetadata: apievents.UserMetadata{User: "test-user"},
+			Metadata: apievents.Metadata{
+				ID:   id,
+				Type: events.UserLoginEvent,
+				Time: clock.Now().UTC(),
+			},
+			SessionMetadata: apievents.SessionMetadata{
+				SessionID: sessionId,
+			},
+		})
+		testEvents[id] = struct{}{}
+		require.NoError(t, err)
+	}
+
+	// Test execution: do paginated queries to read all the fixtures.
+	eventsSeen := make(map[string]apievents.AuditEvent, numEvents)
+	toTime := baseTime.Add(time.Hour)
+	var arr []apievents.AuditEvent
+	var err error
+	var checkpoint string
+
+	for range testEvents {
+		arr, checkpoint, err = tt.log.SearchEvents(t.Context(), events.SearchEventsRequest{
+			From:     baseTime,
+			To:       toTime,
+			Limit:    1,
+			Order:    types.EventOrderAscending,
+			StartKey: checkpoint,
+		})
+		require.NoError(t, err)
+		require.Len(t, arr, 1)
+
+		id := arr[0].GetID()
+		var c checkpointKey
+		require.NoError(t, json.Unmarshal([]byte(checkpoint), &c), "event %s", id)
+		require.NotEmpty(t, c.Iterator, "event %s", id)
+
+		var e EventKey
+		require.NoError(t, json.Unmarshal([]byte(c.Iterator), &e), "event %s", id)
+		eventsSeen[id] = arr[0]
+	}
+
+	// Test validation: make sure that all fixtures were read (as opposed to
+	// some event being returned several times because of a cursor issue).
+	for id := range testEvents {
+		require.Contains(t, eventsSeen, id, "eventsSeen should contain %q", id)
+	}
+
+}
+
+func Test_eventsFetcher_QueryByDateIndex(t *testing.T) {
+	event1 := &apievents.AppCreate{
+		Metadata: apievents.Metadata{
+			ID:   uuid.NewString(),
+			Time: time.Date(2025, 2, 5, 0, 0, 0, 0, time.UTC),
+			Type: events.AppCreateEvent,
+		},
+		AppMetadata: apievents.AppMetadata{
+			AppName: "app-1",
+		},
+	}
+	event2 := &apievents.AppCreate{
+		Metadata: apievents.Metadata{
+			ID:   uuid.NewString(),
+			Time: time.Date(2025, 2, 5, 0, 0, 0, 0, time.UTC),
+			Type: events.AppCreateEvent,
+		},
+		AppMetadata: apievents.AppMetadata{
+			AppName: "app-2",
+		},
+	}
+	event3 := &apievents.AppCreate{
+		Metadata: apievents.Metadata{
+			ID:   uuid.NewString(),
+			Time: time.Date(2025, 2, 5, 0, 0, 0, 0, time.UTC),
+			Type: events.AppCreateEvent,
+		},
+		AppMetadata: apievents.AppMetadata{
+			AppName: "app-3",
+		},
+	}
+	event4 := &apievents.AppCreate{
+		Metadata: apievents.Metadata{
+			ID:   uuid.NewString(),
+			Time: time.Date(2025, 2, 5, 0, 0, 0, 0, time.UTC),
+			Type: events.AppCreateEvent,
+		},
+		AppMetadata: apievents.AppMetadata{
+			AppName: "app-4",
+		},
+	}
+	bigUntrimmableEvent := &apievents.AppCreate{
+		Metadata: apievents.Metadata{
+			ID:   uuid.NewString(),
+			Time: time.Date(2025, 2, 5, 0, 0, 0, 0, time.UTC),
+			Type: events.AppCreateEvent,
+		},
+		AppMetadata: apievents.AppMetadata{
+			AppName: strings.Repeat("aaaaa", events.MaxEventBytesInResponse),
+		},
+	}
+	bigTrimmableEvent := &apievents.DatabaseSessionQuery{
+		Metadata: apievents.Metadata{
+			ID:   uuid.NewString(),
+			Time: time.Date(2025, 2, 5, 0, 0, 0, 0, time.UTC),
+			Type: events.DatabaseSessionQueryEvent,
+		},
+		DatabaseQuery: strings.Repeat("aaaaa", events.MaxEventBytesInResponse),
+	}
+	bigTrimmedEvent := bigTrimmableEvent.TrimToMaxSize(events.MaxEventBytesInResponse)
+
+	// have a deterministic session ID (UID) when used in test cases
+	key1 := eventToKey(event1)
+	key3 := eventToKey(event3)
+	key4 := eventToKey(event4)
+	keyUntrimmable := eventToKey(bigUntrimmableEvent)
+	keyTrimmed := eventToKey(bigTrimmedEvent)
+
+	tests := []struct {
+		name          string
+		limit         int32
+		mockResponses map[EventKey]mockResponse
+		wantEvents    []apievents.AuditEvent
+		wantKey       *EventKey
+	}{
+		{
+			name:  "no data returned from query, return empty results",
+			limit: 10,
+		},
+		{
+			name:  "paginated events less than limit",
+			limit: 10,
+			mockResponses: map[EventKey]mockResponse{
+				{}: {
+					events:    []apievents.AuditEvent{event1},
+					returnKey: &key1,
+				},
+				key1: {
+					events:    []apievents.AuditEvent{event2, event3},
+					returnKey: &key3,
+				},
+				key3: {
+					events:    []apievents.AuditEvent{event4},
+					returnKey: nil,
+				},
+			},
+			wantEvents: []apievents.AuditEvent{event1, event2, event3, event4},
+		},
+		{
+			name:  "number of events equals limit, should return last key",
+			limit: 4,
+			mockResponses: map[EventKey]mockResponse{
+				{}: {
+					events:    []apievents.AuditEvent{event1},
+					returnKey: &key1,
+				},
+				key1: {
+					events:    []apievents.AuditEvent{event2, event3, event4},
+					returnKey: nil,
+				},
+			},
+			wantEvents: []apievents.AuditEvent{event1, event2, event3, event4},
+			wantKey:    &key4,
+		},
+		{
+			name:  "number of events exceeds limit",
+			limit: 3,
+			mockResponses: map[EventKey]mockResponse{
+				{}: {
+					events:    []apievents.AuditEvent{event1},
+					returnKey: &key1,
+				},
+				key1: {
+					events:    []apievents.AuditEvent{event2, event3, event4},
+					returnKey: nil,
+				},
+			},
+			// we don't expect event4 because it should go to next batch
+			wantEvents: []apievents.AuditEvent{event1, event2, event3},
+			wantKey:    &key3,
+		},
+		{
+			name:  "events with big untrimmable event exceeding > MaxEventBytesInResponse",
+			limit: 10,
+			mockResponses: map[EventKey]mockResponse{
+				{}: {
+					events:    []apievents.AuditEvent{event1},
+					returnKey: &key1,
+				},
+				key1: {
+					events:    []apievents.AuditEvent{event2, event3, bigUntrimmableEvent},
+					returnKey: nil,
+				},
+			},
+			// we don't expect bigUntrimmableEvent because it should go to next batch
+			wantEvents: []apievents.AuditEvent{event1, event2, event3},
+			wantKey:    &key3,
+		},
+		{
+			name:  "only 1 big untrimmable event",
+			limit: 10,
+			mockResponses: map[EventKey]mockResponse{
+				{}: {
+					events:    []apievents.AuditEvent{bigUntrimmableEvent},
+					returnKey: nil,
+				},
+			},
+			// we still want to receive the untrimmable event
+			wantEvents: []apievents.AuditEvent{bigUntrimmableEvent},
+			wantKey:    &keyUntrimmable,
+		},
+		{
+			name:  "events with big trimmable event exceeding > MaxEventBytesInResponse",
+			limit: 10,
+			mockResponses: map[EventKey]mockResponse{
+				{}: {
+					events:    []apievents.AuditEvent{event1},
+					returnKey: &key1,
+				},
+				key1: {
+					events:    []apievents.AuditEvent{event2, event3, bigTrimmableEvent},
+					returnKey: nil,
+				},
+			},
+			// we don't expect bigTrimmableEvent because it should go to next batch
+			wantEvents: []apievents.AuditEvent{event1, event2, event3},
+			wantKey:    &key3,
+		},
+		{
+			name:  "only 1 big trimmable event",
+			limit: 10,
+			mockResponses: map[EventKey]mockResponse{
+				{}: {
+					events:    []apievents.AuditEvent{bigTrimmableEvent},
+					returnKey: nil,
+				},
+			},
+			wantEvents: []apievents.AuditEvent{bigTrimmedEvent},
+			wantKey:    &keyTrimmed,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			mock := &mockQuery{
+				responses: test.mockResponses,
+			}
+
+			ef := eventsFetcher{
+				log:        slog.Default(),
+				api:        mock,
+				dates:      []string{"2025-02-05"},
+				fromUTC:    time.Date(2025, 2, 5, 0, 0, 0, 0, time.UTC),
+				toUTC:      time.Date(2025, 2, 6, 0, 0, 0, 0, time.UTC),
+				checkpoint: &checkpointKey{},
+				left:       test.limit,
+				filter:     searchEventsFilter{},
+			}
+
+			gotRawEvents, err := ef.QueryByDateIndex(t.Context(), getExprFilter(ef.filter))
+			require.NoError(t, err)
+
+			if test.wantKey != nil {
+				var gotKey EventKey
+				require.NotEmpty(t, ef.checkpoint.Iterator)
+				require.NoError(t, json.Unmarshal([]byte(ef.checkpoint.Iterator), &gotKey))
+				require.Equal(t, *test.wantKey, gotKey)
+			}
+
+			got := make([]events.EventFields, 0, len(gotRawEvents))
+			for _, rawEvent := range gotRawEvents {
+				got = append(got, rawEvent.FieldsMap)
+			}
+
+			want := make([]events.EventFields, 0, len(test.wantEvents))
+			for _, event := range test.wantEvents {
+				fields, err := events.ToEventFields(event)
+				require.NoError(t, err)
+				want = append(want, fields)
+			}
+
+			require.Empty(t, cmp.Diff(want, got, cmpopts.EquateEmpty()))
+		})
+	}
+}
+
+type mockQuery struct {
+	responses map[EventKey]mockResponse
+}
+
+type mockResponse struct {
+	events    []apievents.AuditEvent
+	returnKey *EventKey
+}
+
+// Query is a simple mock implementation that does not distinguish queries by date.
+func (m *mockQuery) Query(ctx context.Context, params *dynamodb.QueryInput, optFns ...func(*dynamodb.Options)) (*dynamodb.QueryOutput, error) {
+	if m.responses == nil {
+		return &dynamodb.QueryOutput{}, nil
+	}
+
+	var currentKey EventKey
+	if params.ExclusiveStartKey != nil {
+		if err := attributevalue.UnmarshalMap(params.ExclusiveStartKey, &currentKey); err != nil {
+			return nil, err
+		}
+	}
+
+	response, ok := m.responses[currentKey]
+	if !ok {
+		return nil, trace.Errorf("return parameter not defined in mockQuery")
+	}
+
+	items, err := eventsToItems(response.events)
+	if err != nil {
+		return nil, err
+	}
+
+	var lastKey map[string]dynamodbtypes.AttributeValue
+	if response.returnKey != nil {
+		e := *response.returnKey
+		lastKey, err = attributevalue.MarshalMap(&e)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &dynamodb.QueryOutput{
+		Items:            items,
+		LastEvaluatedKey: lastKey,
+	}, nil
+}
+
+func eventsToItems(in []apievents.AuditEvent) ([]map[string]dynamodbtypes.AttributeValue, error) {
+	items := make([]map[string]dynamodbtypes.AttributeValue, 0, len(in))
+	for _, e := range in {
+		fieldsMap, err := events.ToEventFields(e)
+		if err != nil {
+			return nil, err
+		}
+
+		event := event{
+			EventKey: EventKey{
+				SessionID:     e.GetID(), // to make testing deterministic, use ID
+				EventIndex:    e.GetIndex(),
+				CreatedAt:     e.GetTime().Unix(),
+				CreatedAtDate: e.GetTime().Format(iso8601DateFormat),
+			},
+			EventType:      e.GetType(),
+			EventNamespace: apidefaults.Namespace,
+			FieldsMap:      fieldsMap,
+		}
+		item, err := attributevalue.MarshalMap(event)
+		if err != nil {
+			return nil, err
+		}
+
+		items = append(items, item)
+	}
+
+	return items, nil
+}
+
+func eventToKey(e apievents.AuditEvent) EventKey {
+	return EventKey{
+		SessionID:     e.GetID(), // to make testing deterministic, use ID
+		EventIndex:    e.GetIndex(),
+		CreatedAt:     e.GetTime().Unix(),
+		CreatedAtDate: e.GetTime().Format(iso8601DateFormat),
+	}
 }

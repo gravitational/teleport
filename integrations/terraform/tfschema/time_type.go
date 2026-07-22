@@ -194,7 +194,7 @@ func (t TimeValue) Equal(other attr.Value) bool {
 		return false
 	}
 
-	return t.Value == o.Value
+	return t.Value.Equal(o.Value)
 }
 
 // IsNull returns true if receiver is null

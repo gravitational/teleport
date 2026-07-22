@@ -39,6 +39,9 @@ type AccessCapabilities struct {
 	RequestableRoles []string `json:"requestableRoles"`
 	// SuggestedReviewers is a list of reviewers that the user can select when creating a request.
 	SuggestedReviewers []string `json:"suggestedReviewers"`
+	// RequireReason indicates whether the reason is required for the user to create an Access
+	// Request.
+	RequireReason bool `json:"requireReason"`
 }
 
 type authType string
@@ -54,6 +57,10 @@ type UserContext struct {
 	AuthType authType `json:"authType"`
 	// Name is this user name.
 	Name string `json:"userName"`
+	// DisplayPrimary is a display name when distinct from the username. May be empty.
+	DisplayPrimary string `json:"displayPrimary"`
+	// DisplaySecondary is extra context when distinct from the username. May be empty.
+	DisplaySecondary string `json:"displaySecondary"`
 	// ACL contains user access control list.
 	ACL services.UserACL `json:"userAcl"`
 	// Cluster contains cluster detail for this user's context.
@@ -69,6 +76,9 @@ type UserContext struct {
 	AllowedSearchAsRoles []string `json:"allowedSearchAsRoles"`
 	// PasswordState specifies whether the user has a password set or not.
 	PasswordSate types.PasswordState `json:"passwordState"`
+	// AvailableScopes is a list of scopes available to the user through their
+	// scoped role assignments.
+	AvailableScopes []string `json:"availableScopes"`
 }
 
 func getAccessStrategy(roleset services.RoleSet) accessStrategy {
@@ -104,20 +114,22 @@ func NewUserContext(user types.User, userRoles services.RoleSet, features proto.
 	authType := authLocal
 
 	// check for any SSO identities
-	isSSO := len(user.GetOIDCIdentities()) > 0 ||
-		len(user.GetGithubIdentities()) > 0 ||
-		len(user.GetSAMLIdentities()) > 0
+	isSSO := user.GetUserType() == types.UserTypeSSO
 
 	if isSSO {
 		// SSO user
 		authType = authSSO
 	}
 
+	display := user.GetDisplay()
+
 	return &UserContext{
-		Name:           user.GetName(),
-		ACL:            acl,
-		AuthType:       authType,
-		AccessStrategy: accessStrategy,
-		PasswordSate:   user.GetPasswordState(),
+		Name:             user.GetName(),
+		DisplayPrimary:   display.Primary,
+		DisplaySecondary: display.Secondary,
+		ACL:              acl,
+		AuthType:         authType,
+		AccessStrategy:   accessStrategy,
+		PasswordSate:     user.GetPasswordState(),
 	}, nil
 }

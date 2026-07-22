@@ -19,14 +19,19 @@
 package utils
 
 import (
+	"bytes"
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
 	"testing"
 
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/utils/testutils/golden"
 )
 
 func TestUserMessageFromError(t *testing.T) {
@@ -35,7 +40,7 @@ func TestUserMessageFromError(t *testing.T) {
 
 	var leveler slog.LevelVar
 	leveler.Set(slog.LevelInfo)
-	slog.SetDefault(slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{Level: &leveler})))
+	slog.SetDefault(slog.New(slog.DiscardHandler))
 	t.Cleanup(func() {
 		slog.SetDefault(defaultLogger)
 	})
@@ -159,5 +164,203 @@ func TestAllowWhitespace(t *testing.T) {
 
 	for i, tt := range tests {
 		require.Equal(t, tt.out, AllowWhitespace(tt.in), fmt.Sprintf("test case %v", i))
+	}
+}
+
+// TestFilterArguments tests filtering command arguments.
+func TestFilterArguments(t *testing.T) {
+	t.Parallel()
+
+	app := kingpin.New("tsh", "")
+	app.Flag("proxy", "").String()
+	app.Flag("check-update", "").Bool()
+
+	tests := []struct {
+		args     []string
+		expected []string
+	}{
+		{
+			args:     []string{"--insecure", "--proxy", "localhost", "--check-update", "test"},
+			expected: []string{"--proxy", "localhost", "--check-update"},
+		},
+		{
+			args:     []string{"--insecure", "--proxy=localhost", "--check-update", "test"},
+			expected: []string{"--proxy=localhost", "--check-update"},
+		},
+		{
+			args:     []string{"--proxy", "localhost", "test"},
+			expected: []string{"--proxy", "localhost"},
+		},
+		{
+			args:     []string{"--proxy"},
+			expected: []string(nil),
+		},
+		{
+			args:     []string{"--insecure", "--check-update", "test", "--proxy=localhost"},
+			expected: []string{"--proxy=localhost", "--check-update"},
+		},
+		{
+			args:     []string{"--insecure", "--check-update", "test", "--proxy1=localhost"},
+			expected: []string{"--check-update"},
+		},
+		{
+			args:     []string{"--check-update", "test", "--proxy1", "localhost"},
+			expected: []string{"--check-update"},
+		},
+		{
+			args:     []string{"--insecure", "test", "--proxy1", "localhost", "--check-update"},
+			expected: []string{"--check-update"},
+		},
+	}
+
+	for i, tt := range tests {
+		require.Equal(t, tt.expected, FilterArguments(tt.args, app.Model()), fmt.Sprintf("test case %v", i))
+	}
+}
+
+// TestFormatCertError tests the formatCertError function for various x509 error types and messages.
+func TestFormatCertError(t *testing.T) {
+	t.Run("UnknownAuthorityError", func(t *testing.T) {
+		err := x509.UnknownAuthorityError{}
+		msg := formatCertError(err)
+		require.Contains(t, msg, "The proxy you are connecting to has presented a certificate signed by a")
+	})
+
+	t.Run("HostnameErrorConnectingToAuth", func(t *testing.T) {
+		cert := &x509.Certificate{Raw: []byte("dummy")}
+		err := x509.HostnameError{Certificate: cert, Host: "99999999999999999999999999999999.teleport.cluster.local"}
+		msg := formatCertError(err)
+		require.Contains(t, msg, "Cannot connect to the Auth service via the Teleport Proxy.")
+		require.Contains(t, msg, "Host: 99999999999999999999999999999999.teleport.cluster.local")
+	})
+
+	t.Run("HostnameError", func(t *testing.T) {
+		cert := &x509.Certificate{Raw: []byte("dummy")}
+		err := x509.HostnameError{Certificate: cert, Host: "example.com"}
+		msg := formatCertError(err)
+		require.Contains(t, msg, "Cannot establish https connection to example.com")
+	})
+
+	t.Run("CertificateInvalidError", func(t *testing.T) {
+		err := x509.CertificateInvalidError{Reason: x509.Expired, Cert: &x509.Certificate{}}
+		msg := formatCertError(err)
+		require.Contains(t, msg, "The certificate presented by the proxy is invalid")
+	})
+
+	t.Run("CertificateNotTrustedError", func(t *testing.T) {
+		err := errors.New("certificate is not trusted")
+		msg := formatCertError(err)
+		require.Contains(t, msg, "The proxy you are connecting to has presented a certificate signed by")
+	})
+
+	t.Run("NoMatch", func(t *testing.T) {
+		err := errors.New("some other error")
+		msg := formatCertError(err)
+		require.Empty(t, msg)
+	})
+}
+
+func TestInitCLIParser(t *testing.T) {
+	makeApp := func(usageWriter io.Writer) *kingpin.Application {
+		app := InitCLIParser("widget", "Widget is a tool for widgeting. It supports a variety of operations on widgets and the things widgets are made of.")
+		app.UsageWriter(usageWriter)
+		app.Terminate(func(int) {})
+
+		// Visible top-level flags exercising various attributes (short, envar,
+		// default, cumulative) plus a hidden flag to confirm it is excluded.
+		app.Flag("verbose", "Enable verbose output.").Short('v').Bool()
+		app.Flag("config", "Path to config file.").Short('c').Envar("WIDGET_CONFIG").Default("/etc/widget.yaml").String()
+		app.Flag("tag", "Tags to apply. Repeatable.").Short('t').Strings()
+		app.Flag("secret", "Secret flag that should not appear in help.").Hidden().String()
+
+		// Simple leaf commands used to exercise top-level command-list
+		// formatting and the hidden-command filter.
+		app.Command("hello", "Hello.")
+		app.Command("very-long-command", "Very long command.")
+		app.Command("hidden-very-long-command", "This command is hidden.").Hidden()
+
+		// Command with subcommand children.
+		create := app.Command("create", "Create.")
+		create.Command("box", "Box.")
+		create.Command("rocket", "Rocket.")
+
+		// Command with a default child — regression for #64126.
+		start := app.Command("start", "Start.")
+		start.Command("legacy", "Legacy.").Default()
+		start.Command("workload-identity", "Workload identity.")
+
+		// Command with aliases, required args, and a cumulative arg.
+		ship := app.Command("ship", "Ship a widget to a destination.").Alias("send").Alias("deliver")
+		ship.Arg("widget", "Name of the widget to ship.").Required().String()
+		ship.Arg("dest", "Destination, e.g. city or warehouse ID.").Required().String()
+		ship.Arg("note", "Optional shipping notes, repeatable.").Strings()
+		ship.Flag("express", "Use express shipping.").Bool()
+
+		// Command with children and grandchildren.
+		inventory := app.Command("inventory", "Manage the widget inventory.")
+		inventory.Command("list", "List all widgets currently in inventory.")
+		add := inventory.Command("add", "Add a widget to inventory.")
+		add.Arg("name", "Widget name.").Required().String()
+		add.Flag("count", "How many to add.").Default("1").Int()
+
+		// Command with a long help blurb that will wrap.
+		app.Command("reconcile", "Reconcile the local inventory against the remote source of truth. This operation is idempotent and safe to run repeatedly; mismatches are reported but not automatically corrected unless --fix is passed.").
+			Flag("fix", "Automatically correct any mismatches found during reconciliation.").Bool()
+
+		return app
+	}
+
+	tests := []struct {
+		name      string
+		inputArgs []string
+	}{
+		{
+			name:      "top-level help",
+			inputArgs: nil,
+		},
+		{
+			name:      "command width aligned for subcommand help",
+			inputArgs: []string{"create"},
+		},
+		{
+			name:      "command width aligned on unknown command error",
+			inputArgs: []string{"unknown"},
+		},
+		{
+			// Regression test for https://github.com/gravitational/teleport/issues/64126
+			name:      "default subcommand does not affect column width",
+			inputArgs: []string{"start"},
+		},
+		{
+			name:      "command with required args, optional cumulative arg, and aliases",
+			inputArgs: []string{"ship"},
+		},
+		{
+			name:      "command with children",
+			inputArgs: []string{"inventory"},
+		},
+		{
+			name:      "nested subcommand with required arg and flag",
+			inputArgs: []string{"inventory", "add"},
+		},
+		{
+			name:      "leaf subcommand under a parent",
+			inputArgs: []string{"inventory", "list"},
+		},
+		{
+			name:      "long help text triggers wrapping",
+			inputArgs: []string{"reconcile"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var buf bytes.Buffer
+			app := makeApp(&buf)
+			app.Usage(append(tt.inputArgs, "--help"))
+			if golden.ShouldSet() {
+				golden.Set(t, buf.Bytes())
+			}
+			require.Equal(t, golden.Get(t), buf.Bytes())
+		})
 	}
 }

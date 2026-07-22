@@ -1,0 +1,1287 @@
+/**
+ * Teleport
+ * Copyright (C) 2025 Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+import { screen, within } from '@testing-library/react';
+
+import { render, userEvent } from 'design/utils/testing';
+
+import { Markdown, MarkdownOptions } from './Markdown';
+
+function renderMarkdown(text: string, opts: MarkdownOptions = {}) {
+  return render(<Markdown text={text} {...opts} />);
+}
+
+describe('Markdown', () => {
+  describe('inline formatting', () => {
+    it('renders bold text', () => {
+      renderMarkdown(`This is **bold** text`);
+
+      expect(screen.getByText('bold')).toBeInTheDocument();
+      expect(screen.getByText('bold').tagName).toBe('STRONG');
+    });
+
+    it('renders inline code', () => {
+      renderMarkdown(`This is \`code\` text`);
+
+      expect(screen.getByText('code')).toBeInTheDocument();
+      expect(screen.getByText('code').tagName).toBe('CODE');
+    });
+
+    it('renders links', () => {
+      renderMarkdown(`This is [a link](https://example.com) text`, {
+        enableLinks: true,
+      });
+
+      const link = screen.getByRole('link', { name: 'a link' });
+
+      expect(link).toBeInTheDocument();
+      expect(link).toHaveAttribute('href', 'https://example.com');
+      expect(link).toHaveAttribute('target', '_blank');
+    });
+
+    it('does not render links unless explicitly enabled', () => {
+      renderMarkdown(`This is [a link](https://example.com) text
+- a [link inside a list item](https://example.com)
+
+This is **a [link inside bold text](https://example.com)**,
+\`a [link inside inline code](https://example.com)\`,
+
+        `);
+
+      expect(screen.queryByRole('link')).not.toBeInTheDocument();
+      expect(
+        screen.getByText('This is [a link](https://example.com) text')
+      ).toBeInTheDocument();
+    });
+
+    it('renders multiple inline elements', () => {
+      renderMarkdown(
+        `**bold** and \`code\` and [link](https://example.com) together`,
+        { enableLinks: true }
+      );
+
+      expect(screen.getByText('bold')).toBeInTheDocument();
+      expect(screen.getByText('code')).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: 'link' })).toBeInTheDocument();
+    });
+
+    it('handles nested markers correctly', () => {
+      renderMarkdown(`**bold \`code\` text**`);
+
+      const strong = screen.getByText((content, element) => {
+        return (
+          element.tagName === 'STRONG' &&
+          element.textContent === 'bold code text'
+        );
+      });
+
+      expect(strong).toBeInTheDocument();
+
+      const code = screen.getByText('code');
+
+      expect(code).toBeInTheDocument();
+
+      expect(code.tagName).toBe('CODE');
+    });
+
+    it('handles links with special characters in URL', () => {
+      renderMarkdown(`[link](https://example.com/path?query=1&foo=bar#hash)`, {
+        enableLinks: true,
+      });
+
+      const link = screen.getByRole('link', { name: 'link' });
+
+      expect(link).toHaveAttribute(
+        'href',
+        'https://example.com/path?query=1&foo=bar#hash'
+      );
+    });
+
+    it('renders links with correct formatting in text', () => {
+      renderMarkdown(`[**bold** link](https://example.com)`, {
+        enableLinks: true,
+      });
+
+      const link = screen.getByRole('link', { name: 'bold link' });
+
+      expect(link).toBeInTheDocument();
+      expect(link).toHaveAttribute('href', 'https://example.com');
+      expect(link.innerHTML).toContain('<strong>bold</strong> link');
+    });
+
+    it('renders links with code block in text', () => {
+      renderMarkdown(
+        '[`teleport-kube-agent`](https://goteleport.com/docs/reference/helm-reference/teleport-kube-agent/)',
+        { enableLinks: true }
+      );
+
+      const link = screen.getByRole('link', { name: 'teleport-kube-agent' });
+
+      expect(link).toBeInTheDocument();
+      expect(link).toHaveAttribute(
+        'href',
+        'https://goteleport.com/docs/reference/helm-reference/teleport-kube-agent/'
+      );
+      expect(link.tagName).toBe('A');
+      expect(link.innerHTML).toContain('<code>teleport-kube-agent</code>');
+    });
+  });
+
+  describe('headers', () => {
+    it('renders h1', () => {
+      renderMarkdown(`# Header 1`);
+
+      expect(
+        screen.getByRole('heading', {
+          level: 1,
+          name: 'Header 1',
+        })
+      ).toBeInTheDocument();
+    });
+
+    it('renders h2 through h6', () => {
+      const text = `## Header 2
+### Header 3
+#### Header 4
+##### Header 5
+###### Header 6`;
+
+      renderMarkdown(text);
+
+      expect(
+        screen.getByRole('heading', {
+          level: 2,
+          name: 'Header 2',
+        })
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole('heading', {
+          level: 3,
+          name: 'Header 3',
+        })
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole('heading', {
+          level: 4,
+          name: 'Header 4',
+        })
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole('heading', {
+          level: 5,
+          name: 'Header 5',
+        })
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole('heading', {
+          level: 6,
+          name: 'Header 6',
+        })
+      ).toBeInTheDocument();
+    });
+
+    it('trims header content', () => {
+      renderMarkdown(`#   Spaced Header`);
+
+      expect(
+        screen.getByRole('heading', {
+          level: 1,
+          name: 'Spaced Header',
+        })
+      ).toBeInTheDocument();
+    });
+  });
+
+  describe('lists', () => {
+    it('renders unordered list', () => {
+      const text = `- Item 1
+- Item 2
+- Item 3`;
+
+      renderMarkdown(text);
+
+      expect(screen.getByRole('list')).toBeInTheDocument();
+
+      const items = screen.getAllByRole('listitem');
+
+      expect(items).toHaveLength(3);
+
+      expect(items[0]).toHaveTextContent('Item 1');
+      expect(items[1]).toHaveTextContent('Item 2');
+      expect(items[2]).toHaveTextContent('Item 3');
+    });
+
+    it('renders list with inline formatting', () => {
+      const text = `- **Bold** item
+- Item with \`code\`
+- Item with [link](https://example.com)`;
+
+      renderMarkdown(text, { enableLinks: true });
+
+      expect(screen.getByText('Bold')).toBeInTheDocument();
+      expect(screen.getByText('Bold').tagName).toBe('STRONG');
+      expect(screen.getByText('code')).toBeInTheDocument();
+      expect(screen.getByText('code').tagName).toBe('CODE');
+      expect(screen.getByRole('link', { name: 'link' })).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: 'link' })).toHaveAttribute(
+        'href',
+        'https://example.com'
+      );
+    });
+
+    it('stops list when non-list line encountered', () => {
+      const text = `- Item 1
+- Item 2
+Regular paragraph`;
+
+      renderMarkdown(text);
+
+      const items = screen.getAllByRole('listitem');
+
+      expect(items).toHaveLength(2);
+
+      expect(screen.getByText('Regular paragraph')).toBeInTheDocument();
+    });
+  });
+
+  describe('paragraphs', () => {
+    it('renders single line paragraph', () => {
+      renderMarkdown(`This is a paragraph`);
+
+      expect(screen.getByText('This is a paragraph')).toBeInTheDocument();
+    });
+
+    it('joins multiple lines into single paragraph', () => {
+      const text = `This is line one
+This is line two
+This is line three`;
+
+      renderMarkdown(text);
+
+      expect(
+        screen.getByText('This is line one This is line two This is line three')
+      ).toBeInTheDocument();
+    });
+
+    it('separates paragraphs by empty lines', () => {
+      const text = `First paragraph
+
+Second paragraph`;
+
+      renderMarkdown(text);
+
+      expect(screen.getByText('First paragraph')).toBeInTheDocument();
+      expect(screen.getByText('Second paragraph')).toBeInTheDocument();
+    });
+
+    it('renders paragraph with inline formatting', () => {
+      renderMarkdown(
+        `Paragraph with **bold** and \`code\` and [link](https://example.com)`,
+        { enableLinks: true }
+      );
+
+      expect(screen.getByText('bold')).toBeInTheDocument();
+      expect(screen.getByText('bold').tagName).toBe('STRONG');
+      expect(screen.getByText('code')).toBeInTheDocument();
+      expect(screen.getByText('code').tagName).toBe('CODE');
+      expect(screen.getByRole('link', { name: 'link' })).toBeInTheDocument();
+    });
+  });
+
+  describe('mixed content', () => {
+    it('renders complete document', () => {
+      const text = `# Main Title
+
+This is a paragraph with **bold** text and [a link](https://example.com).
+
+## Subsection
+
+Here is a list:
+- First item
+- Second item with \`code\`
+- Third item with [link](https://example.com)
+
+Another paragraph after the list.`;
+
+      renderMarkdown(text, { enableLinks: true });
+
+      expect(
+        screen.getByRole('heading', {
+          level: 1,
+          name: 'Main Title',
+        })
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole('heading', {
+          level: 2,
+          name: 'Subsection',
+        })
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText('This is a paragraph with', { exact: false })
+      ).toBeInTheDocument();
+      expect(screen.getByText('Here is a list:')).toBeInTheDocument();
+      expect(
+        screen.getByText('Another paragraph after the list.')
+      ).toBeInTheDocument();
+      expect(screen.getAllByRole('listitem')).toHaveLength(3);
+      expect(screen.getByText('bold')).toBeInTheDocument();
+      expect(screen.getByText('code')).toBeInTheDocument();
+      expect(screen.getAllByRole('link')).toHaveLength(2);
+    });
+
+    it('handles paragraph ending at header', () => {
+      const text = `This is a paragraph
+that continues
+# New Header`;
+
+      renderMarkdown(text);
+
+      expect(
+        screen.getByText('This is a paragraph that continues')
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole('heading', {
+          level: 1,
+          name: 'New Header',
+        })
+      ).toBeInTheDocument();
+    });
+
+    it('handles paragraph ending at list', () => {
+      const text = `This is a paragraph
+that continues
+- List item`;
+
+      renderMarkdown(text);
+
+      expect(
+        screen.getByText('This is a paragraph that continues')
+      ).toBeInTheDocument();
+      expect(screen.getByRole('listitem')).toHaveTextContent('List item');
+    });
+  });
+
+  describe('fenced code blocks', () => {
+    it('renders a fenced code block', () => {
+      const text = `Some text
+
+\`\`\`json
+{
+  "Effect": "Allow",
+  "Action": ["ec2:DescribeInstances"]
+}
+\`\`\`
+
+More text`;
+
+      renderMarkdown(text);
+
+      const expectedCode =
+        '{\n  "Effect": "Allow",\n  "Action": ["ec2:DescribeInstances"]\n}';
+      const code = screen.getByText(
+        (_content, element) =>
+          element.tagName === 'CODE' && element.textContent === expectedCode
+      );
+      expect(code).toBeInTheDocument();
+
+      expect(screen.getByText('Some text')).toBeInTheDocument();
+      expect(screen.getByText('More text')).toBeInTheDocument();
+    });
+
+    it('renders a fenced code block without language', () => {
+      const text = `\`\`\`
+hello world
+\`\`\``;
+
+      renderMarkdown(text);
+
+      const code = screen.getByText(
+        (_content, element) =>
+          element.tagName === 'CODE' && element.textContent === 'hello world'
+      );
+      expect(code).toBeInTheDocument();
+    });
+
+    it('renders multiple fenced code blocks', () => {
+      const text = `\`\`\`json
+{"a": 1}
+\`\`\`
+
+\`\`\`yaml
+regions:
+  - us-east-1
+\`\`\``;
+
+      renderMarkdown(text);
+
+      const code1 = screen.getByText(
+        (_content, element) =>
+          element.tagName === 'CODE' && element.textContent === '{"a": 1}'
+      );
+      expect(code1).toBeInTheDocument();
+
+      const code2 = screen.getByText(
+        (_content, element) =>
+          element.tagName === 'CODE' &&
+          element.textContent === 'regions:\n  - us-east-1'
+      );
+      expect(code2).toBeInTheDocument();
+    });
+
+    it('does not parse inline markdown inside fenced code blocks', () => {
+      const text = `\`\`\`
+**not bold** and \`not code\`
+\`\`\``;
+
+      renderMarkdown(text);
+
+      const code = screen.getByText(
+        (_content, element) =>
+          element.tagName === 'CODE' &&
+          element.textContent === '**not bold** and `not code`'
+      );
+      expect(code).toBeInTheDocument();
+    });
+
+    it('handles unclosed fenced code block gracefully', () => {
+      const text = `\`\`\`json
+{"a": 1}
+no closing fence`;
+
+      renderMarkdown(text);
+
+      const code = screen.getByText(
+        (_content, element) =>
+          element.tagName === 'CODE' &&
+          element.textContent === '{"a": 1}\nno closing fence'
+      );
+      expect(code).toBeInTheDocument();
+    });
+
+    it('escapes HTML inside fenced code blocks', () => {
+      const text = `\`\`\`
+<script>alert('xss')</script>
+\`\`\``;
+
+      renderMarkdown(text);
+
+      const code = screen.getByText(
+        (_content, element) =>
+          element.tagName === 'CODE' &&
+          element.textContent === "<script>alert('xss')</script>"
+      );
+      expect(code).toBeInTheDocument();
+      expect(code.innerHTML).not.toContain('<script>');
+    });
+
+    it('handles paragraph ending at fenced code block', () => {
+      const text = `This is a paragraph
+\`\`\`
+code here
+\`\`\``;
+
+      renderMarkdown(text);
+
+      expect(screen.getByText('This is a paragraph')).toBeInTheDocument();
+
+      const code = screen.getByText(
+        (_content, element) =>
+          element.tagName === 'CODE' && element.textContent === 'code here'
+      );
+      expect(code).toBeInTheDocument();
+    });
+  });
+
+  describe('tables', () => {
+    it('renders a table with header', () => {
+      const text = `| Name | Age |
+| --- | --- |
+| Alice | 30 |
+| Bob | 25 |`;
+
+      renderMarkdown(text);
+
+      const table = screen.getByRole('table');
+      expect(table).toBeInTheDocument();
+
+      const headers = screen.getAllByRole('columnheader');
+      expect(headers).toHaveLength(2);
+      expect(headers[0]).toHaveTextContent('Name');
+      expect(headers[1]).toHaveTextContent('Age');
+
+      const cells = screen.getAllByRole('cell');
+      expect(cells).toHaveLength(4);
+      expect(cells[0]).toHaveTextContent('Alice');
+      expect(cells[1]).toHaveTextContent('30');
+      expect(cells[2]).toHaveTextContent('Bob');
+      expect(cells[3]).toHaveTextContent('25');
+    });
+
+    it('renders a table without header separator as all data rows', () => {
+      const text = `| Alice | 30 |
+| Bob | 25 |`;
+
+      renderMarkdown(text);
+
+      const table = screen.getByRole('table');
+      expect(table).toBeInTheDocument();
+
+      expect(screen.queryByRole('columnheader')).not.toBeInTheDocument();
+
+      const cells = screen.getAllByRole('cell');
+      expect(cells).toHaveLength(4);
+    });
+
+    it('renders inline formatting inside table cells', () => {
+      const text = `| Feature | Status |
+| --- | --- |
+| **Auth** | \`enabled\` |`;
+
+      renderMarkdown(text);
+
+      expect(screen.getByText('Auth').tagName).toBe('STRONG');
+      expect(screen.getByText('enabled').tagName).toBe('CODE');
+    });
+
+    it('handles paragraph ending at table', () => {
+      const text = `Some paragraph text
+| Col1 | Col2 |
+| --- | --- |
+| A | B |`;
+
+      renderMarkdown(text);
+
+      expect(screen.getByText('Some paragraph text')).toBeInTheDocument();
+      expect(screen.getByRole('table')).toBeInTheDocument();
+    });
+
+    it('treats single pipe line as paragraph', () => {
+      renderMarkdown(`| just one line |`);
+
+      expect(screen.queryByRole('table')).not.toBeInTheDocument();
+    });
+
+    it('applies column alignment from separator row', () => {
+      const text = `| Left | Center | Right |
+| :--- | :---: | ---: |
+| A | B | C |`;
+
+      renderMarkdown(text);
+
+      const headers = screen.getAllByRole('columnheader');
+      expect(headers[0]).not.toHaveStyle({ textAlign: 'center' });
+      expect(headers[1]).toHaveStyle({ textAlign: 'center' });
+      expect(headers[2]).toHaveStyle({ textAlign: 'right' });
+
+      const cells = screen.getAllByRole('cell');
+      expect(cells[1]).toHaveStyle({ textAlign: 'center' });
+      expect(cells[2]).toHaveStyle({ textAlign: 'right' });
+    });
+
+    it('handles escaped pipes in cells', () => {
+      const text = `| Name | Value |
+| --- | --- |
+| A\\|B | C |`;
+
+      renderMarkdown(text);
+
+      const cells = screen.getAllByRole('cell');
+      expect(cells[0]).toHaveTextContent('A|B');
+      expect(cells[1]).toHaveTextContent('C');
+    });
+
+    it('requires at least two cells to detect a table', () => {
+      renderMarkdown(`| single cell |`);
+
+      expect(screen.queryByRole('table')).not.toBeInTheDocument();
+    });
+
+    it('caps the number of columns', () => {
+      const headerRow = `|${' h |'.repeat(500)}`;
+      const separatorRow = `|${' --- |'.repeat(500)}`;
+      const dataRow = `|${' c |'.repeat(500)}`;
+      renderMarkdown(`${headerRow}\n${separatorRow}\n${dataRow}`);
+
+      expect(screen.getAllByRole('columnheader')).toHaveLength(100);
+      expect(screen.getAllByRole('cell')).toHaveLength(100);
+    });
+
+    it('caps the number of rows', () => {
+      const header = `| h1 | h2 |\n| --- | --- |`;
+      const dataRow = `| a | b |`;
+      const text = `${header}\n${Array(5000).fill(dataRow).join('\n')}`;
+
+      renderMarkdown(text);
+
+      // MAX_TABLE_ROWS caps total collected lines (header + separator + data).
+      expect(screen.getAllByRole('row')).toHaveLength(999);
+    });
+  });
+
+  describe('nested lists', () => {
+    it('renders a nested list', () => {
+      const text = `- Item 1
+  - Nested 1
+  - Nested 2
+- Item 2`;
+
+      renderMarkdown(text);
+
+      const outerList = screen.getAllByRole('list')[0];
+      const outerItems = within(outerList).getAllByRole('listitem');
+
+      expect(outerItems[0]).toHaveTextContent('Item 1');
+
+      const nestedList = within(outerItems[0]).getByRole('list');
+      const nestedItems = within(nestedList).getAllByRole('listitem');
+
+      expect(nestedItems).toHaveLength(2);
+      expect(nestedItems[0]).toHaveTextContent('Nested 1');
+      expect(nestedItems[1]).toHaveTextContent('Nested 2');
+
+      expect(outerItems[3]).toHaveTextContent('Item 2');
+      expect(within(outerItems[3]).queryByRole('list')).not.toBeInTheDocument();
+    });
+
+    it('renders deeply nested lists', () => {
+      const text = `- Level 1
+  - Level 2
+    - Level 3`;
+
+      renderMarkdown(text);
+
+      const outerList = screen.getAllByRole('list')[0];
+      const level1Item = within(outerList).getAllByRole('listitem')[0];
+
+      expect(level1Item).toHaveTextContent('Level 1');
+
+      const midList = within(level1Item).getAllByRole('list')[0];
+      const level2Item = within(midList).getAllByRole('listitem')[0];
+
+      expect(level2Item).toHaveTextContent('Level 2');
+
+      const innerList = within(level2Item).getAllByRole('list')[0];
+      const level3Item = within(innerList).getAllByRole('listitem')[0];
+
+      expect(level3Item).toHaveTextContent('Level 3');
+    });
+
+    it('renders nested list with inline formatting', () => {
+      const text = `- **Bold item**
+  - \`code item\``;
+
+      renderMarkdown(text);
+
+      const outerItem = screen.getAllByRole('listitem')[0];
+      const nestedList = within(outerItem).getByRole('list');
+
+      expect(screen.getByText('Bold item').tagName).toBe('STRONG');
+      expect(within(nestedList).getByText('code item').tagName).toBe('CODE');
+    });
+
+    it('handles multiple nested groups', () => {
+      const text = `- A
+  - A1
+  - A2
+- B
+  - B1`;
+
+      renderMarkdown(text);
+
+      const outerList = screen.getAllByRole('list')[0];
+      const outerItems = within(outerList).getAllByRole('listitem');
+
+      const aNestedList = within(outerItems[0]).getByRole('list');
+      const aNestedItems = within(aNestedList).getAllByRole('listitem');
+
+      expect(aNestedItems).toHaveLength(2);
+      expect(aNestedItems[0]).toHaveTextContent('A1');
+      expect(aNestedItems[1]).toHaveTextContent('A2');
+
+      const bNestedList = within(outerItems[3]).getByRole('list');
+      const bNestedItems = within(bNestedList).getAllByRole('listitem');
+
+      expect(bNestedItems).toHaveLength(1);
+      expect(bNestedItems[0]).toHaveTextContent('B1');
+    });
+
+    it('collects multi-line list items', () => {
+      const text = `- First item that
+  continues on next line
+- Second item`;
+
+      renderMarkdown(text);
+
+      const items = screen.getAllByRole('listitem');
+
+      expect(items).toHaveLength(2);
+      expect(items[0]).toHaveTextContent(
+        'First item that continues on next line'
+      );
+      expect(items[1]).toHaveTextContent('Second item');
+    });
+
+    it('handles blank lines between parent and nested children', () => {
+      const text = `- Parent
+
+  - Nested child`;
+
+      renderMarkdown(text);
+
+      const outerItem = screen.getAllByRole('listitem')[0];
+
+      expect(outerItem).toHaveTextContent('Parent');
+
+      const nestedList = within(outerItem).getByRole('list');
+      const nestedItem = within(nestedList).getByRole('listitem');
+
+      expect(nestedItem).toHaveTextContent('Nested child');
+    });
+
+    it('keeps blank-line-separated children in the same nested list', () => {
+      const text = `- Parent
+  - A
+
+  - B`;
+
+      renderMarkdown(text);
+
+      const outerList = screen.getAllByRole('list')[0];
+      const outerItems = within(outerList).getAllByRole('listitem');
+
+      expect(outerItems[0]).toHaveTextContent('Parent');
+
+      const nestedList = within(outerItems[0]).getByRole('list');
+      const nestedItems = within(nestedList).getAllByRole('listitem');
+
+      expect(nestedItems).toHaveLength(2);
+      expect(nestedItems[0]).toHaveTextContent('A');
+      expect(nestedItems[1]).toHaveTextContent('B');
+    });
+
+    it('preserves fenced code blocks under a list item', () => {
+      const text = `- Run this
+  \`\`\`bash
+  tsh login
+  \`\`\``;
+
+      renderMarkdown(text);
+
+      expect(screen.getByRole('listitem')).toHaveTextContent('Run this');
+
+      const code = screen.getByText(
+        (_content, element) =>
+          element!.tagName === 'CODE' &&
+          element!.textContent!.includes('tsh login')
+      );
+      expect(code).toBeInTheDocument();
+    });
+  });
+
+  describe('ordered lists', () => {
+    it('renders an ordered list', () => {
+      const text = `1. First
+2. Second
+3. Third`;
+
+      renderMarkdown(text);
+
+      const list = screen.getByRole('list');
+
+      expect(list.tagName).toBe('OL');
+      expect(list).toHaveAttribute('start', '1');
+
+      const items = screen.getAllByRole('listitem');
+
+      expect(items).toHaveLength(3);
+      expect(items[0]).toHaveTextContent('First');
+      expect(items[1]).toHaveTextContent('Second');
+      expect(items[2]).toHaveTextContent('Third');
+    });
+
+    it('renders ordered list with inline formatting', () => {
+      const text = `1. **Bold** item
+2. Item with \`code\``;
+
+      renderMarkdown(text);
+
+      expect(screen.getByText('Bold').tagName).toBe('STRONG');
+      expect(screen.getByText('code').tagName).toBe('CODE');
+    });
+
+    it('renders nested ordered list inside unordered', () => {
+      const text = `- Item
+  1. Sub one
+  2. Sub two`;
+
+      renderMarkdown(text);
+
+      const outerItem = screen.getAllByRole('listitem')[0];
+      const nestedList = within(outerItem).getByRole('list');
+
+      expect(nestedList.tagName).toBe('OL');
+
+      const nestedItems = within(nestedList).getAllByRole('listitem');
+
+      expect(nestedItems).toHaveLength(2);
+      expect(nestedItems[0]).toHaveTextContent('Sub one');
+      expect(nestedItems[1]).toHaveTextContent('Sub two');
+    });
+
+    it('handles paragraph ending at ordered list', () => {
+      const text = `Some paragraph
+1. First item`;
+
+      renderMarkdown(text);
+
+      expect(screen.getByText('Some paragraph')).toBeInTheDocument();
+      expect(screen.getByRole('listitem')).toHaveTextContent('First item');
+    });
+
+    it('stops consuming items when marker type changes', () => {
+      const text = `1. Step
+- Note`;
+
+      renderMarkdown(text);
+
+      const lists = screen.getAllByRole('list');
+
+      expect(lists).toHaveLength(2);
+      expect(lists[0].tagName).toBe('OL');
+      expect(lists[1].tagName).toBe('UL');
+
+      const items = screen.getAllByRole('listitem');
+
+      expect(items).toHaveLength(2);
+      expect(items[0]).toHaveTextContent('Step');
+      expect(items[1]).toHaveTextContent('Note');
+    });
+
+    it('preserves explicit start number on ordered lists', () => {
+      const text = `3. Third
+4. Fourth
+5. Fifth`;
+
+      renderMarkdown(text);
+
+      const list = screen.getByRole('list');
+
+      expect(list.tagName).toBe('OL');
+      expect(list).toHaveAttribute('start', '3');
+
+      const items = screen.getAllByRole('listitem');
+
+      expect(items).toHaveLength(3);
+      expect(items[0]).toHaveTextContent('Third');
+    });
+  });
+
+  describe('edge cases', () => {
+    it('handles empty string', () => {
+      renderMarkdown(``);
+
+      expect(screen.queryByRole('heading')).not.toBeInTheDocument();
+      expect(screen.queryByRole('list')).not.toBeInTheDocument();
+      expect(screen.queryByRole('listitem')).not.toBeInTheDocument();
+      expect(screen.queryByRole('link')).not.toBeInTheDocument();
+      expect(screen.queryByText(/.+/)).not.toBeInTheDocument();
+    });
+
+    it('handles only whitespace', () => {
+      renderMarkdown(`\n\n\n`);
+
+      expect(screen.queryByRole('heading')).not.toBeInTheDocument();
+      expect(screen.queryByRole('list')).not.toBeInTheDocument();
+      expect(screen.queryByRole('listitem')).not.toBeInTheDocument();
+      expect(screen.queryByRole('link')).not.toBeInTheDocument();
+    });
+
+    it('handles multiple consecutive empty lines', () => {
+      const text = `Paragraph 1
+
+
+Paragraph 2`;
+
+      renderMarkdown(text);
+
+      expect(screen.getByText('Paragraph 1')).toBeInTheDocument();
+      expect(screen.getByText('Paragraph 2')).toBeInTheDocument();
+    });
+
+    it('ignores list items without space after dash', () => {
+      const text = `-No space
+- With space`;
+
+      renderMarkdown(text);
+
+      const items = screen.getAllByRole('listitem');
+      expect(items).toHaveLength(1);
+      expect(items[0]).toHaveTextContent('With space');
+    });
+
+    it('handles unclosed inline markers', () => {
+      renderMarkdown(`**unclosed bold`);
+
+      expect(screen.queryByText('bold')).not.toBeInTheDocument();
+      expect(screen.getByText('**unclosed bold')).toBeInTheDocument();
+    });
+
+    it('handles unclosed links', () => {
+      renderMarkdown(`[unclosed link`, { enableLinks: true });
+
+      expect(screen.queryByRole('link')).not.toBeInTheDocument();
+      expect(screen.getByText('[unclosed link')).toBeInTheDocument();
+    });
+
+    it('handles links without URL', () => {
+      renderMarkdown(`[link text]()`, { enableLinks: true });
+
+      const link = screen.getByText('link text');
+
+      expect(link).not.toHaveAttribute('href');
+    });
+
+    it('handles empty link text', () => {
+      renderMarkdown(`[](https://example.com)`, { enableLinks: true });
+
+      const link = screen.getByRole('link', { name: '' });
+
+      expect(link).toBeInTheDocument();
+      expect(link).toHaveAttribute('href', 'https://example.com');
+    });
+  });
+
+  describe('memoization', () => {
+    it('returns same result for same input', () => {
+      const text = '# Header\n\nParagraph with [link](https://example.com)';
+
+      const { rerender } = renderMarkdown(text, { enableLinks: true });
+
+      expect(
+        screen.getByRole('heading', {
+          level: 1,
+          name: 'Header',
+        })
+      ).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: 'link' })).toBeInTheDocument();
+
+      const heading = screen.getByRole('heading', { level: 1 });
+      const link = screen.getByRole('link');
+
+      rerender(<Markdown text={text} enableLinks />);
+
+      expect(screen.getByRole('heading', { level: 1 })).toBe(heading);
+      expect(screen.getByRole('link')).toBe(link);
+    });
+
+    it('updates when text changes', () => {
+      const { rerender } = renderMarkdown(`Original`);
+
+      expect(screen.getByText('Original')).toBeInTheDocument();
+
+      rerender(<Markdown text="Updated" />);
+
+      expect(screen.queryByText('Original')).not.toBeInTheDocument();
+      expect(screen.getByText('Updated')).toBeInTheDocument();
+    });
+  });
+
+  describe('script injection prevention', () => {
+    it('does not execute inline scripts', () => {
+      renderMarkdown(`<script>alert('xss')</script>`);
+
+      expect(
+        screen.getByText("<script>alert('xss')</script>")
+      ).toBeInTheDocument();
+    });
+
+    it('does not execute scripts in markdown elements', () => {
+      renderMarkdown(`# Header <script>alert('xss')</script>`);
+
+      expect(
+        screen.getByRole('heading', {
+          level: 1,
+          name: "Header <script>alert('xss')</script>",
+        })
+      ).toBeInTheDocument();
+    });
+
+    it('does not execute javascript: URLs in links', () => {
+      renderMarkdown(`[Click me](javascript:alert('xss'))`, {
+        enableLinks: true,
+      });
+
+      const link = screen.getByText('Click me');
+
+      expect(link).not.toHaveAttribute('href', "javascript:alert('xss')");
+    });
+
+    it('renders script tags as plain text in paragraphs', () => {
+      renderMarkdown(`This is <script>alert('xss')</script> dangerous`);
+
+      expect(
+        screen.getByText("This is <script>alert('xss')</script> dangerous")
+      ).toBeInTheDocument();
+    });
+
+    it('renders script tags as plain text in lists', () => {
+      renderMarkdown(`- Item with <script>alert('xss')</script>`);
+
+      const listItem = screen.getByRole('listitem');
+      expect(listItem).toHaveTextContent(
+        "Item with <script>alert('xss')</script>"
+      );
+    });
+
+    it('does not render HTML tags', () => {
+      renderMarkdown(`<div onclick="alert('xss')">Click me</div>`);
+
+      expect(
+        screen.getByText('<div onclick="alert(\'xss\')">Click me</div>')
+      ).toBeInTheDocument();
+      expect(screen.queryByText('Click me')).not.toBeInTheDocument();
+    });
+
+    it('escapes HTML in bold text', () => {
+      renderMarkdown(`**<script>alert('xss')</script>**`);
+
+      const strong = screen.getByText("<script>alert('xss')</script>");
+      expect(strong.tagName).toBe('STRONG');
+      expect(strong.innerHTML).not.toContain('<script>');
+    });
+
+    it('escapes HTML in code blocks', () => {
+      renderMarkdown('`<script>alert("xss")</script>`');
+
+      const code = screen.getByText('<script>alert("xss")</script>');
+      expect(code.tagName).toBe('CODE');
+      expect(code.innerHTML).not.toContain('<script>');
+    });
+
+    it('does not execute scripts in link text', () => {
+      renderMarkdown(`[<script>alert('xss')</script>](https://example.com)`, {
+        enableLinks: true,
+      });
+
+      const link = screen.getByRole('link', {
+        name: "<script>alert('xss')</script>",
+      });
+      expect(link).toHaveAttribute('href', 'https://example.com');
+    });
+
+    it('handles data: URLs safely', () => {
+      renderMarkdown(
+        `[Click me](data:text/html,<script>alert('xss')</script>)`,
+        { enableLinks: true }
+      );
+
+      const link = screen.getByText('Click me');
+      expect(link).not.toHaveAttribute('href');
+    });
+
+    it('handles vbscript: URLs safely', () => {
+      renderMarkdown(`[Click me](vbscript:msgbox("xss"))`, {
+        enableLinks: true,
+      });
+
+      const link = screen.getByText('Click me');
+
+      expect(link).not.toHaveAttribute('href');
+    });
+
+    it('does not interpret HTML entities', () => {
+      renderMarkdown(`&lt;script&gt;alert('xss')&lt;/script&gt;`);
+
+      expect(
+        screen.getByText("&lt;script&gt;alert('xss')&lt;/script&gt;")
+      ).toBeInTheDocument();
+    });
+
+    it('handles mixed content with potential XSS', () => {
+      const text = `# Title <script>alert('xss')</script>
+
+This is **bold <script>alert('xss')</script>** text.
+
+- List with <script>alert('xss')</script>
+- [Link](javascript:alert('xss'))
+
+\`code <script>alert('xss')</script>\`
+
+<details open>
+<summary>summary <script>alert('xss')</script></summary>
+details <script>alert('xss')</script>
+</details>`;
+
+      renderMarkdown(text, { enableLinks: true });
+
+      expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(
+        "Title <script>alert('xss')</script>"
+      );
+      expect(
+        screen.getByText("bold <script>alert('xss')</script>")
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText("code <script>alert('xss')</script>")
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText("summary <script>alert('xss')</script>")
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText("details <script>alert('xss')</script>")
+      ).toBeInTheDocument();
+    });
+  });
+
+  describe('collapsible sections', () => {
+    it('renders a closed section', async () => {
+      const text = `
+<details>
+  <summary>title goes here</summary>
+  content goes here
+</details>
+more content here`;
+
+      const user = userEvent.setup();
+      renderMarkdown(text);
+
+      expect(screen.getByText('title goes here')).toBeInTheDocument();
+      expect(screen.queryByText('content goes here')).not.toBeVisible();
+      expect(screen.getByText('more content here')).toBeInTheDocument();
+
+      await user.click(screen.getByRole('button', { name: 'title goes here' }));
+      expect(screen.getByText('content goes here')).toBeVisible();
+    });
+
+    it('renders an open section', async () => {
+      const text = `
+<details open>
+  <summary>title goes here</summary>
+  content goes here
+</details>
+more content here`;
+
+      const user = userEvent.setup();
+      renderMarkdown(text);
+
+      expect(screen.getByText('title goes here')).toBeInTheDocument();
+      expect(screen.getByText('content goes here')).toBeVisible();
+      expect(screen.getByText('more content here')).toBeInTheDocument();
+
+      await user.click(screen.getByRole('button', { name: 'title goes here' }));
+      expect(screen.queryByText('content goes here')).not.toBeVisible();
+    });
+
+    it('renders nested sections', async () => {
+      const text = `
+<details>
+  <summary>outer title</summary>
+  outer content
+  <details>
+    <summary>inner title</summary>
+    inner content
+  </details>
+  inner other content
+</details>
+outer other content`;
+
+      const user = userEvent.setup();
+      renderMarkdown(text);
+
+      expect(screen.getByText('outer title')).toBeInTheDocument();
+      expect(screen.getByText('outer content')).not.toBeVisible();
+      expect(screen.getByText('inner title')).not.toBeVisible();
+      expect(screen.getByText('outer other content')).toBeVisible();
+
+      await user.click(screen.getByRole('button', { name: 'outer title' }));
+      expect(screen.getByText('outer content')).toBeVisible();
+      expect(screen.getByText('inner title')).toBeVisible();
+      expect(screen.getByText('inner content')).not.toBeVisible();
+
+      await user.click(screen.getByRole('button', { name: 'inner title' }));
+      expect(screen.getByText('inner content')).toBeVisible();
+    });
+
+    it('caps at 16 levels of nesting', () => {
+      const text = Array.from({ length: 17 }, (_, i) => 17 - i).reduce(
+        (acc, cur) => {
+          return `<details open>
+                    level:${cur}
+                    ${acc}
+                  </details>`;
+        },
+        ''
+      );
+
+      renderMarkdown(text);
+
+      expect(screen.getByText('level:16')).toBeInTheDocument();
+      expect(screen.queryByText('level:17')).not.toBeInTheDocument();
+    });
+
+    it('renders an empty section', () => {
+      const text = `
+<details open>
+  <summary>title goes here</summary>
+</details>`;
+
+      renderMarkdown(text);
+
+      expect(screen.getByText('title goes here')).toBeInTheDocument();
+    });
+
+    it('renders stacked sections', () => {
+      const text = `
+<details open>
+  <summary>section 1</summary>
+  section content 1
+</details>
+<details open>
+  <summary>section 2</summary>
+  section content 2
+</details>`;
+
+      renderMarkdown(text);
+
+      expect(screen.getByText('section 1')).toBeInTheDocument();
+      expect(screen.getByText('section 2')).toBeInTheDocument();
+      expect(screen.getByText('section content 1')).toBeVisible();
+      expect(screen.getByText('section content 2')).toBeVisible();
+    });
+
+    it('renders a malformed/incomplete closed section', () => {
+      const text = `
+<details>
+  some other content`;
+
+      renderMarkdown(text);
+
+      expect(screen.queryByText('some other content')).not.toBeVisible();
+    });
+
+    it('renders a malformed/incomplete open section', () => {
+      const text = `
+<details open>
+  some other content`;
+
+      renderMarkdown(text);
+
+      expect(screen.getByText('some other content')).toBeVisible();
+    });
+  });
+});

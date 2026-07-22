@@ -22,6 +22,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/gravitational/trace"
 )
@@ -41,6 +42,7 @@ const (
 type AccessRequestData struct {
 	User               string
 	Roles              []string
+	RequestKind        string
 	RequestReason      string
 	ReviewsCount       int
 	ResolutionTag      ResolutionTag
@@ -48,6 +50,8 @@ type AccessRequestData struct {
 	SystemAnnotations  map[string][]string
 	Resources          []string
 	SuggestedReviewers []string
+	LoginsByRole       map[string][]string
+	MaxDuration        *time.Time
 }
 
 // DecodeAccessRequestData deserializes a string map to PluginData struct.
@@ -56,12 +60,22 @@ func DecodeAccessRequestData(dataMap map[string]string) (data AccessRequestData,
 	if str := dataMap["roles"]; str != "" {
 		data.Roles = strings.Split(str, ",")
 	}
+	data.RequestKind = dataMap["request_kind"]
 	data.RequestReason = dataMap["request_reason"]
 	if str := dataMap["reviews_count"]; str != "" {
 		fmt.Sscanf(str, "%d", &data.ReviewsCount)
 	}
 	data.ResolutionTag = ResolutionTag(dataMap["resolution"])
 	data.ResolutionReason = dataMap["resolve_reason"]
+	if str := dataMap["max_duration"]; str != "" {
+		var maxDuration time.Time
+		maxDuration, err = time.Parse(time.RFC3339, str)
+		if err != nil {
+			err = trace.Wrap(err)
+			return
+		}
+		data.MaxDuration = &maxDuration
+	}
 
 	if str, ok := dataMap["resources"]; ok {
 		err = json.Unmarshal([]byte(str), &data.Resources)
@@ -92,16 +106,28 @@ func DecodeAccessRequestData(dataMap map[string]string) (data AccessRequestData,
 			data.SuggestedReviewers = nil
 		}
 	}
+
+	if str, ok := dataMap["logins_by_role"]; ok {
+		err = json.Unmarshal([]byte(str), &data.LoginsByRole)
+		if err != nil {
+			err = trace.Wrap(err)
+			return
+		}
+		if len(data.LoginsByRole) == 0 {
+			data.LoginsByRole = nil
+		}
+	}
 	return
 }
 
-// EncodeAccessRequestData deserializes a string map to PluginData struct.
+// EncodeAccessRequestData serializes a PluginData struct into a string map.
 func EncodeAccessRequestData(data AccessRequestData) (map[string]string, error) {
 	result := make(map[string]string)
 
 	result["user"] = data.User
 	result["roles"] = strings.Join(data.Roles, ",")
 	result["resources"] = strings.Join(data.Resources, ",")
+	result["request_kind"] = data.RequestKind
 	result["request_reason"] = data.RequestReason
 
 	if len(data.Resources) != 0 {
@@ -119,6 +145,9 @@ func EncodeAccessRequestData(data AccessRequestData) (map[string]string, error) 
 	result["reviews_count"] = reviewsCountStr
 	result["resolution"] = string(data.ResolutionTag)
 	result["resolve_reason"] = data.ResolutionReason
+	if data.MaxDuration != nil {
+		result["max_duration"] = data.MaxDuration.Format(time.RFC3339)
+	}
 
 	if len(data.SystemAnnotations) != 0 {
 		annotaions, err := json.Marshal(data.SystemAnnotations)
@@ -134,6 +163,14 @@ func EncodeAccessRequestData(data AccessRequestData) (map[string]string, error) 
 			return nil, trace.Wrap(err)
 		}
 		result["suggested_reviewers"] = string(reviewers)
+	}
+
+	if len(data.LoginsByRole) != 0 {
+		logins, err := json.Marshal(data.LoginsByRole)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		result["logins_by_role"] = string(logins)
 	}
 	return result, nil
 }

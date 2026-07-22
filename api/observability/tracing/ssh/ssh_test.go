@@ -16,17 +16,19 @@ package ssh
 
 import (
 	"context"
+	"crypto/ed25519"
 	"crypto/rand"
-	"crypto/rsa"
 	"crypto/subtle"
-	"crypto/x509"
 	"encoding/json"
-	"encoding/pem"
 	"errors"
+	"io"
 	"net"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
@@ -47,45 +49,12 @@ type server struct {
 	hSigner ssh.Signer
 }
 
-func (s *server) Run(errC chan error) {
-	for {
-		conn, err := s.listener.Accept()
-		if err != nil {
-			if !errors.Is(err, net.ErrClosed) {
-				errC <- err
-			}
-			return
-		}
-
-		go func() {
-			sconn, chans, reqs, err := ssh.NewServerConn(conn, s.config)
-			if err != nil {
-				errC <- err
-				return
-			}
-			s.handler(sconn, chans, reqs)
-		}()
-	}
-}
-
-func (s *server) Stop() error {
-	return s.listener.Close()
-}
-
 func generateSigner(t *testing.T) ssh.Signer {
-	private, err := rsa.GenerateKey(rand.Reader, 2048)
+	_, private, err := ed25519.GenerateKey(rand.Reader)
 	require.NoError(t, err)
-
-	block := &pem.Block{
-		Type:  "RSA PRIVATE KEY",
-		Bytes: x509.MarshalPKCS1PrivateKey(private),
-	}
-
-	privatePEM := pem.EncodeToMemory(block)
-	signer, err := ssh.ParsePrivateKey(privatePEM)
+	sshSigner, err := ssh.NewSignerFromSigner(private)
 	require.NoError(t, err)
-
-	return signer
+	return sshSigner
 }
 
 func (s *server) GetClient(t *testing.T) (ssh.Conn, <-chan ssh.NewChannel, <-chan *ssh.Request) {
@@ -101,17 +70,17 @@ func (s *server) GetClient(t *testing.T) (ssh.Conn, <-chan ssh.NewChannel, <-cha
 	return sconn, nc, r
 }
 
-func newServer(t *testing.T, tracingCap tracingCapability, handler func(*ssh.ServerConn, <-chan ssh.NewChannel, <-chan *ssh.Request)) *server {
+const (
+	tracingSupportedVersion   = "SSH-2.0-Teleport"
+	tracingUnsupportedVersion = "SSH-2.0"
+)
+
+func newServer(t *testing.T, version string, handler func(*ssh.ServerConn, <-chan ssh.NewChannel, <-chan *ssh.Request)) *server {
 	listener, err := net.Listen("tcp", "localhost:0")
 	require.NoError(t, err)
 
 	cSigner := generateSigner(t)
 	hSigner := generateSigner(t)
-
-	version := "SSH-2.0-Teleport"
-	if tracingCap != tracingSupported {
-		version = "SSH-2.0"
-	}
 
 	config := &ssh.ServerConfig{
 		NoClientAuth:  true,
@@ -127,7 +96,33 @@ func newServer(t *testing.T, tracingCap tracingCapability, handler func(*ssh.Ser
 		hSigner:  hSigner,
 	}
 
-	t.Cleanup(func() { require.NoError(t, srv.Stop()) })
+	errC := make(chan error, 1)
+	go func() {
+		defer close(errC)
+		for {
+			conn, err := srv.listener.Accept()
+			if err != nil {
+				if !errors.Is(err, net.ErrClosed) {
+					errC <- err
+				}
+				return
+			}
+
+			go func() {
+				sconn, chans, reqs, err := ssh.NewServerConn(conn, srv.config)
+				if err != nil {
+					errC <- err
+					return
+				}
+				srv.handler(sconn, chans, reqs)
+			}()
+		}
+	}()
+
+	t.Cleanup(func() {
+		require.NoError(t, srv.listener.Close())
+		require.NoError(t, <-errC)
+	})
 
 	return srv
 }
@@ -161,8 +156,8 @@ func (h handler) handle(sconn *ssh.ServerConn, chans <-chan ssh.NewChannel, reqs
 }
 
 func (h handler) requestHandler(req *ssh.Request) {
-	switch {
-	case req.Type == "test":
+	switch req.Type {
+	case "test":
 		defer func() {
 			if req.WantReply {
 				if err := req.Reply(true, nil); err != nil {
@@ -310,8 +305,12 @@ func TestClient(t *testing.T) {
 				ctx:              ctx,
 			}
 
-			srv := newServer(t, tt.tracingSupported, handler.handle)
-			go srv.Run(errChan)
+			version := tracingSupportedVersion
+			if tt.tracingSupported != tracingSupported {
+				version = tracingUnsupportedVersion
+			}
+
+			srv := newServer(t, version, handler.handle)
 
 			tp := sdktrace.NewTracerProvider()
 			conn, chans, reqs := srv.GetClient(t)
@@ -423,4 +422,105 @@ func TestWrapPayload(t *testing.T) {
 			tt.payloadAssertion(t, testPayload, payload)
 		})
 	}
+}
+
+func TestNewClientConnTimeout(t *testing.T) {
+	t.Parallel()
+
+	// This test ensures that NewClientConnWithTimeout respects the context timeout and does not hang indefinitely.
+	// Sub-tests use elapsed time assertions to distinguish which timeout fired, since both context deadline and config
+	// timeout produce context.DeadlineExceeded.
+	listener, err := net.Listen("tcp", "localhost:0")
+	require.NoError(t, err)
+
+	var wg sync.WaitGroup
+	t.Cleanup(wg.Wait)
+	t.Cleanup(func() { listener.Close() })
+
+	wg.Go(func() {
+		defer listener.Close()
+
+		for {
+			conn, err := listener.Accept()
+			if err != nil {
+				assert.ErrorIs(t, err, net.ErrClosed)
+				return
+			}
+			require.NoError(t, err)
+			wg.Go(func() {
+				defer conn.Close()
+				// Simulate a server that does not respond so the ssh.NewClientConn
+				// call on the client side hangs indefinitely.
+				_, _ = io.Copy(io.Discard, conn)
+			})
+		}
+	})
+
+	t.Run("context timeout is respected", func(t *testing.T) {
+		t.Parallel()
+
+		conn, err := net.Dial("tcp", listener.Addr().String())
+		require.NoError(t, err)
+
+		start := time.Now()
+
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Millisecond)
+		t.Cleanup(cancel)
+
+		_, _, _, err = NewClientConnWithTimeout(ctx, conn, listener.Addr().String(), &ssh.ClientConfig{
+			Timeout:         -1,
+			HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		})
+
+		elapsed := time.Since(start)
+
+		require.ErrorIs(t, err, context.DeadlineExceeded)
+		require.GreaterOrEqual(t, elapsed.Milliseconds(), int64(5))
+	})
+
+	t.Run("config timeout is respected", func(t *testing.T) {
+		t.Parallel()
+
+		conn, err := net.Dial("tcp", listener.Addr().String())
+		require.NoError(t, err)
+
+		start := time.Now()
+
+		_, _, _, err = NewClientConnWithTimeout(t.Context(), conn, listener.Addr().String(), &ssh.ClientConfig{
+			Timeout:         5 * time.Millisecond,
+			HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		})
+
+		elapsed := time.Since(start)
+
+		require.ErrorIs(t, err, context.DeadlineExceeded)
+		require.GreaterOrEqual(t, elapsed.Milliseconds(), int64(5))
+	})
+
+	t.Run("non-nil AuthCallback extends timeout", func(t *testing.T) {
+		t.Parallel()
+
+		conn, err := net.Dial("tcp", listener.Addr().String())
+		require.NoError(t, err)
+
+		start := time.Now()
+
+		ctx, cancel := context.WithTimeout(t.Context(), 50*time.Millisecond)
+		t.Cleanup(cancel)
+
+		_, _, _, err = NewClientConnWithTimeout(ctx, conn, listener.Addr().String(), &ssh.ClientConfig{
+			Timeout:         5 * time.Millisecond,
+			HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+			AuthCallback: func(ctx *ssh.ClientAuthContext) (ssh.AuthMethod, error) {
+				return nil, nil // no-op
+			},
+		})
+
+		elapsed := time.Since(start)
+
+		// AuthCallback extends timeout to sessionMFAAuthTimeout (3 min). The 50 ms context deadline fires first,
+		// proving the extension was applied. Without the extension, config.Timeout (5 ms) would fire instead.
+		require.ErrorIs(t, err, context.DeadlineExceeded)
+		require.GreaterOrEqual(t, elapsed.Milliseconds(), int64(50))
+	})
 }

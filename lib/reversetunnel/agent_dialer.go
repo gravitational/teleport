@@ -20,14 +20,16 @@ package reversetunnel
 
 import (
 	"context"
+	"log/slog"
 	"strings"
+	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
+	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -50,13 +52,13 @@ func isProxyAlreadyClaimed(err error) bool {
 
 // agentDialer dials an ssh server on behalf of an agent.
 type agentDialer struct {
-	client      authclient.AccessCache
-	username    string
-	authMethods []ssh.AuthMethod
-	fips        bool
-	options     []proxy.DialerOptionFunc
-	log         logrus.FieldLogger
-	isClaimed   func(principals ...string) bool
+	client        authclient.AccessCache
+	username      string
+	publicKeyAuth apissh.PublicKeyAuthConfig
+	fips          bool
+	options       []proxy.DialerOptionFunc
+	logger        *slog.Logger
+	isClaimed     func(principals ...string) bool
 }
 
 // DialContext creates an ssh connection to the given address.
@@ -65,9 +67,12 @@ func (d *agentDialer) DialContext(ctx context.Context, addr utils.NetAddr) (SSHC
 	dialer := proxy.DialerFromEnvironment(addr.Addr, d.options...)
 	pconn, err := dialer.DialTimeout(ctx, addr.AddrNetwork, addr.Addr, apidefaults.DefaultIOTimeout)
 	if err != nil {
-		d.log.WithError(err).Debugf("Failed to dial %s.", addr.Addr)
+		d.logger.DebugContext(ctx, "Failed to dial", "error", err, "target_addr", addr.Addr)
 		return nil, trace.Wrap(err)
 	}
+
+	// Wrap the connection to support optional idle timeouts, this is optionally enabled by the agent via callback.
+	pconn, enableWatchdog := utils.ObeyIdleTimeoutDisarmed(pconn)
 
 	var principals []string
 	callback, err := apisshutils.NewHostKeyCallback(
@@ -75,7 +80,7 @@ func (d *agentDialer) DialContext(ctx context.Context, addr utils.NetAddr) (SSHC
 			GetHostCheckers: d.hostCheckerFunc(ctx),
 			OnCheckCert: func(c *ssh.Certificate) error {
 				if d.isClaimed != nil && d.isClaimed(c.ValidPrincipals...) {
-					d.log.Debugf("Aborting SSH handshake because the proxy %q is already claimed by some other agent.", c.ValidPrincipals[0])
+					d.logger.DebugContext(ctx, "Aborting SSH handshake because the proxy is already claimed by some other agent.", "proxy_id", c.ValidPrincipals[0])
 					// the error message must end with
 					// [proxyAlreadyClaimedError] to be recognized by
 					// [isProxyAlreadyClaimed]
@@ -88,15 +93,15 @@ func (d *agentDialer) DialContext(ctx context.Context, addr utils.NetAddr) (SSHC
 			FIPS: d.fips,
 		})
 	if err != nil {
-		d.log.Debugf("Failed to create host key callback for %v: %v.", addr.Addr, err)
+		d.logger.DebugContext(ctx, "Failed to create host key callback", "target_addr", addr.Addr, "error", err)
 		return nil, trace.Wrap(err)
 	}
 
 	// Build a new client connection. This is done to get access to incoming
 	// global requests which dialer.Dial would not provide.
-	conn, chans, reqs, err := tracessh.NewClientConn(ctx, pconn, addr.Addr, &ssh.ClientConfig{
+	conn, chans, reqs, err := apissh.NewClientConn(ctx, pconn, addr.Addr, apissh.ClientConfig{
 		User:            d.username,
-		Auth:            d.authMethods,
+		PublicKeyAuth:   d.publicKeyAuth,
 		HostKeyCallback: callback,
 		Timeout:         apidefaults.DefaultIOTimeout,
 	})
@@ -113,10 +118,11 @@ func (d *agentDialer) DialContext(ctx context.Context, addr utils.NetAddr) (SSHC
 	client := tracessh.NewClient(conn, chans, emptyRequests)
 
 	return &sshClient{
-		Client:      client,
-		requests:    reqs,
-		newChannels: chans,
-		principals:  principals,
+		Client:         client,
+		requests:       reqs,
+		newChannels:    chans,
+		principals:     principals,
+		enableWatchdog: enableWatchdog,
 	}, nil
 }
 
@@ -142,9 +148,10 @@ func (d *agentDialer) hostCheckerFunc(ctx context.Context) apisshutils.CheckersG
 // sshClient implements the SSHClient interface.
 type sshClient struct {
 	*tracessh.Client
-	requests    <-chan *ssh.Request
-	newChannels <-chan ssh.NewChannel
-	principals  []string
+	requests       <-chan *ssh.Request
+	newChannels    <-chan ssh.NewChannel
+	principals     []string
+	enableWatchdog func(timeout time.Duration)
 }
 
 // NewChannels is a channel that receieves ssh new channel requests.
@@ -165,4 +172,10 @@ func (c *sshClient) Principals() []string {
 // Reply handles replying to a request.
 func (c *sshClient) Reply(request *ssh.Request, ok bool, payload []byte) error {
 	return request.Reply(ok, payload)
+}
+
+func (c *sshClient) EnableWatchdog(timeout time.Duration) {
+	if c.enableWatchdog != nil {
+		c.enableWatchdog(timeout)
+	}
 }

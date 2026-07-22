@@ -21,18 +21,17 @@ package aggregating
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	prehogv1 "github.com/gravitational/teleport/gen/proto/go/prehog/v1"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
 )
 
@@ -51,6 +50,7 @@ const (
 	alertGraceDuration = alertGraceHours * time.Hour
 	alertName          = "reporting-failed"
 	alertLink          = "https://goteleport.com/support/"
+	alertLinkText      = "Contact Support"
 )
 
 const (
@@ -67,10 +67,10 @@ var alertMessage = fmt.Sprintf("Teleport has failed to contact the usage reporti
 type SubmitterConfig struct {
 	// Backend is the backend to use to read reports and apply locks. Required.
 	Backend backend.Backend
-	// Log is the [logrus.FieldLogger] used for logging. Required.
-	Log logrus.FieldLogger
+	// Logger is the used for emitting log messages.
+	Logger *slog.Logger
 	// Status is used to create or clear cluster alerts on a failure. Required.
-	Status services.StatusInternal
+	Status services.Status
 	// Submitter is used to submit usage reports. Required.
 	Submitter UsageReportsSubmitter
 
@@ -86,14 +86,14 @@ func (cfg *SubmitterConfig) CheckAndSetDefaults() error {
 	if cfg.Backend == nil {
 		return trace.BadParameter("missing Backend")
 	}
-	if cfg.Log == nil {
-		return trace.BadParameter("missing Log")
-	}
 	if cfg.Status == nil {
 		return trace.BadParameter("missing Status")
 	}
 	if cfg.Submitter == nil {
 		return trace.BadParameter("missing Submitter")
+	}
+	if cfg.Logger == nil {
+		cfg.Logger = slog.Default()
 	}
 	return nil
 }
@@ -104,9 +104,9 @@ func (cfg *SubmitterConfig) CheckAndSetDefaults() error {
 // CheckAndSetDefaults, and should probably be called in a goroutine.
 func RunSubmitter(ctx context.Context, cfg SubmitterConfig) {
 	iv := interval.New(interval.Config{
-		FirstDuration: utils.HalfJitter(2 * submitInterval),
+		FirstDuration: retryutils.HalfJitter(2 * submitInterval),
 		Duration:      submitInterval,
-		Jitter:        retryutils.NewSeventhJitter(),
+		Jitter:        retryutils.SeventhJitter,
 	})
 	defer iv.Stop()
 
@@ -124,30 +124,67 @@ func RunSubmitter(ctx context.Context, cfg SubmitterConfig) {
 func submitOnce(ctx context.Context, c SubmitterConfig) {
 	svc := reportService{c.Backend}
 
-	userActivityReports, err := svc.listUserActivityReports(ctx, submitBatchSize)
-	if err != nil {
-		c.Log.WithError(err).Error("Failed to load usage reports for submission.")
-		return
+	freeBatchSize := submitBatchSize
+	var err error
+
+	var userActivityReports []*prehogv1.UserActivityReport
+	if freeBatchSize > 0 {
+		userActivityReports, err = svc.listUserActivityReports(ctx, freeBatchSize)
+		if err != nil {
+			c.Logger.ErrorContext(ctx, "Failed to load usage reports for submission.", "error", err)
+			return
+		}
+		freeBatchSize -= len(userActivityReports)
 	}
 
-	freeBatchSize := submitBatchSize - len(userActivityReports)
 	var resourcePresenceReports []*prehogv1.ResourcePresenceReport
 	if freeBatchSize > 0 {
 		resourcePresenceReports, err = svc.listResourcePresenceReports(ctx, freeBatchSize)
 		if err != nil {
-			c.Log.WithError(err).Error("Failed to load resource counts reports for submission.")
+			c.Logger.ErrorContext(ctx, "Failed to load resource counts reports for submission.", "error", err)
 			return
 		}
+		freeBatchSize -= len(resourcePresenceReports)
 	}
 
-	totalReportCount := len(userActivityReports) + len(resourcePresenceReports)
+	var botInstanceActivityReports []*prehogv1.BotInstanceActivityReport
+	if freeBatchSize > 0 {
+		botInstanceActivityReports, err = svc.listBotInstanceActivityReports(ctx, freeBatchSize)
+		if err != nil {
+			c.Logger.ErrorContext(ctx, "Failed to load bot instance activity reports for submission.", "error", err)
+			return
+		}
+		freeBatchSize -= len(botInstanceActivityReports)
+	}
+
+	var identitySecuritySummariesReports []*prehogv1.IdentitySecuritySummariesGeneratedReport
+	if freeBatchSize > 0 {
+		identitySecuritySummariesReports, err = svc.listIdentitySecuritySummariesGeneratedReports(ctx, freeBatchSize)
+		if err != nil {
+			c.Logger.ErrorContext(ctx, "Failed to load identity security summaries reports for submission.", "error", err)
+			return
+		}
+		freeBatchSize -= len(identitySecuritySummariesReports)
+	}
+
+	var identitySecurityReports []*prehogv1.IdentitySecurityReport
+	if freeBatchSize > 0 {
+		identitySecurityReports, err = svc.listIdentitySecurityReports(ctx, freeBatchSize)
+		if err != nil {
+			c.Logger.ErrorContext(ctx, "Failed to load identity security reports for submission.", "error", err)
+			return
+		}
+		freeBatchSize -= len(identitySecurityReports)
+	}
+
+	totalReportCount := submitBatchSize - freeBatchSize
 
 	if totalReportCount < 1 {
 		err := ClearAlert(ctx, c.Status)
 		if err == nil {
-			c.Log.Infof("Deleted cluster alert %v after successfully clearing usage report backlog.", alertName)
+			c.Logger.InfoContext(ctx, "Deleted cluster alert after successfully clearing usage report backlog.", "alert", alertName)
 		} else if !trace.IsNotFound(err) {
-			c.Log.WithError(err).Errorf("Failed to delete cluster alert %v.", alertName)
+			c.Logger.ErrorContext(ctx, "Failed to delete cluster alert", "alert", alertName, "error", err)
 		}
 		return
 	}
@@ -170,13 +207,38 @@ func submitOnce(ctx context.Context, c SubmitterConfig) {
 			newest = t
 		}
 	}
+	if len(botInstanceActivityReports) > 0 {
+		if t := botInstanceActivityReports[0].GetStartTime().AsTime(); t.Before(oldest) {
+			oldest = t
+		}
+		if t := botInstanceActivityReports[len(botInstanceActivityReports)-1].GetStartTime().AsTime(); t.After(newest) {
+			newest = t
+		}
+	}
+	if len(identitySecuritySummariesReports) > 0 {
+		if t := identitySecuritySummariesReports[0].GetStartTime().AsTime(); t.Before(oldest) {
+			oldest = t
+		}
+		if t := identitySecuritySummariesReports[len(identitySecuritySummariesReports)-1].GetStartTime().AsTime(); t.After(newest) {
+			newest = t
+		}
+	}
+
+	if len(identitySecurityReports) > 0 {
+		if t := identitySecurityReports[0].GetStartTime().AsTime(); t.Before(oldest) {
+			oldest = t
+		}
+		if t := identitySecurityReports[len(identitySecurityReports)-1].GetStartTime().AsTime(); t.After(newest) {
+			newest = t
+		}
+	}
 
 	debugPayload := fmt.Sprintf("%v %q", time.Now().Round(0), c.HostID)
-	if err := svc.createUserActivityReportsLock(ctx, submitLockDuration, []byte(debugPayload)); err != nil {
+	if err := svc.createUsageReportingLock(ctx, submitLockDuration, []byte(debugPayload)); err != nil {
 		if trace.IsAlreadyExists(err) {
-			c.Log.Debugf("Failed to acquire lock %v, already held.", userActivityReportsLock)
+			c.Logger.DebugContext(ctx, "Failed to acquire lock, already held.", "lock", usageReportingLock)
 		} else {
-			c.Log.WithError(err).Errorf("Failed to acquire lock %v.", userActivityReportsLock)
+			c.Logger.ErrorContext(ctx, "Failed to acquire lock.", "lock", usageReportingLock, "error", err)
 		}
 		return
 	}
@@ -185,15 +247,19 @@ func submitOnce(ctx context.Context, c SubmitterConfig) {
 	defer cancel()
 
 	batchUUID, err := c.Submitter(lockCtx, &prehogv1.SubmitUsageReportsRequest{
-		UserActivity:     userActivityReports,
-		ResourcePresence: resourcePresenceReports,
+		UserActivity:                    userActivityReports,
+		ResourcePresence:                resourcePresenceReports,
+		BotInstanceActivity:             botInstanceActivityReports,
+		IdentitySecuritySummariesReport: identitySecuritySummariesReports,
+		IdentitySecurityReport:          identitySecurityReports,
 	})
 	if err != nil {
-		c.Log.WithError(err).WithFields(logrus.Fields{
-			"reports":       totalReportCount,
-			"oldest_report": oldest,
-			"newest_report": newest,
-		}).Error("Failed to send usage reports.")
+		c.Logger.ErrorContext(ctx, "Failed to send usage reports.",
+			"reports", totalReportCount,
+			"oldest_report", oldest,
+			"newest_report", newest,
+			"error", err,
+		)
 
 		if time.Since(oldest) <= alertGraceDuration {
 			return
@@ -204,24 +270,25 @@ func submitOnce(ctx context.Context, c SubmitterConfig) {
 			types.WithAlertLabel(types.AlertOnLogin, "yes"),
 			types.WithAlertLabel(types.AlertPermitAll, "yes"),
 			types.WithAlertLabel(types.AlertLink, alertLink),
+			types.WithAlertLabel(types.AlertLinkText, alertLinkText),
 		)
 		if err != nil {
-			c.Log.WithError(err).Errorf("Failed to create cluster alert %v.", alertName)
+			c.Logger.ErrorContext(ctx, "Failed to create cluster alert", "alert", alertName, "error", err)
 			return
 		}
 		alert.Metadata.Description = debugPayload
 		if err := c.Status.UpsertClusterAlert(ctx, alert); err != nil {
-			c.Log.WithError(err).Errorf("Failed to upsert cluster alert %v.", alertName)
+			c.Logger.ErrorContext(ctx, "Failed to upsert cluster alert", "alert", alertName, "error", err)
 		}
 		return
 	}
 
-	c.Log.WithFields(logrus.Fields{
-		"batch_uuid":    batchUUID,
-		"reports":       totalReportCount,
-		"oldest_report": oldest,
-		"newest_report": newest,
-	}).Info("Successfully sent usage reports.")
+	c.Logger.InfoContext(ctx, "Successfully sent usage reports.",
+		"batch_uuid", batchUUID,
+		"reports", totalReportCount,
+		"oldest_report", oldest,
+		"newest_report", newest,
+	)
 
 	var lastErr error
 	for _, report := range userActivityReports {
@@ -234,15 +301,31 @@ func submitOnce(ctx context.Context, c SubmitterConfig) {
 			lastErr = err
 		}
 	}
+	for _, report := range botInstanceActivityReports {
+		if err := svc.deleteBotInstanceActivityReport(ctx, report); err != nil {
+			lastErr = err
+		}
+	}
+	for _, report := range identitySecuritySummariesReports {
+		if err := svc.deleteIdentitySecuritySummariesGeneratedReport(ctx, report); err != nil {
+			lastErr = err
+		}
+	}
+	for _, report := range identitySecurityReports {
+		if err := svc.deleteIdentitySecurityReport(ctx, report); err != nil {
+			lastErr = err
+		}
+	}
+
 	if lastErr != nil {
-		c.Log.WithField("last_error", lastErr).Warn("Failed to delete some usage reports after successful send.")
+		c.Logger.WarnContext(ctx, "Failed to delete some usage reports after successful send.", "last_error", lastErr)
 	}
 }
 
 // ClearAlert attempts to delete the reporting-failed alert; it's expected to
 // return nil if it successfully deletes the alert, and a trace.NotFound error
 // if there's no alert.
-func ClearAlert(ctx context.Context, status services.StatusInternal) error {
+func ClearAlert(ctx context.Context, status services.Status) error {
 	if _, err := status.GetClusterAlerts(ctx, types.GetClusterAlertsRequest{
 		AlertID: alertName,
 	}); err != nil && trace.IsNotFound(err) {

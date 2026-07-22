@@ -37,10 +37,8 @@ const (
 type TeleportEvent struct {
 	// event is the event
 	Event []byte
-	// cursor is the event ID (real/generated when empty)
+	// ID is the event ID (real/generated when empty)
 	ID string
-	// cursor is the current cursor value
-	Cursor string
 	// Type is an event type
 	Type string
 	// Time is an event timestamp
@@ -64,26 +62,33 @@ type TeleportEvent struct {
 	}
 }
 
+// LegacyTeleportEvent extends TeleportEvent with cursor and window values (used by the
+// legacy event watcher to manage its cursor values).
+type LegacyTeleportEvent struct {
+	*TeleportEvent
+	Cursor string
+	Window time.Time
+}
+
 // NewTeleportEvent creates TeleportEvent using AuditEvent as a source
-func NewTeleportEvent(e *auditlogpb.EventUnstructured, cursor string) (*TeleportEvent, error) {
+func NewTeleportEvent(e *auditlogpb.EventUnstructured) (*TeleportEvent, error) {
 	payload, err := e.Unstructured.MarshalJSON()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	evt := &TeleportEvent{
-		Cursor: cursor,
-		Type:   e.GetType(),
-		Time:   e.Time.AsTime(),
-		Index:  e.GetIndex(),
-		ID:     e.Id,
-		Event:  payload,
+		Event: payload,
+		ID:    e.Id,
+		Type:  e.GetType(),
+		Time:  e.Time.AsTime(),
+		Index: e.GetIndex(),
 	}
 
-	switch e.GetType() {
+	switch evt.Type {
 	case sessionEndType:
-		err = evt.setSessionID(e)
+		err = evt.setSessionID()
 	case loginType:
-		err = evt.setLoginData(e)
+		err = evt.setLoginData()
 	}
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -92,8 +97,21 @@ func NewTeleportEvent(e *auditlogpb.EventUnstructured, cursor string) (*Teleport
 	return evt, nil
 }
 
+func NewLegacyTeleportEvent(e *auditlogpb.EventUnstructured, cursor string, window time.Time) (*LegacyTeleportEvent, error) {
+	evt, err := NewTeleportEvent(e)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &LegacyTeleportEvent{
+		TeleportEvent: evt,
+		Cursor:        cursor,
+		Window:        window,
+	}, nil
+}
+
 // setSessionID sets session id for session end event
-func (e *TeleportEvent) setSessionID(evt *auditlogpb.EventUnstructured) error {
+func (e *TeleportEvent) setSessionID() error {
 	sessionUploadEvt := &events.SessionUpload{}
 	if err := json.Unmarshal(e.Event, sessionUploadEvt); err != nil {
 		return trace.Wrap(err)
@@ -106,8 +124,8 @@ func (e *TeleportEvent) setSessionID(evt *auditlogpb.EventUnstructured) error {
 	return nil
 }
 
-// setLoginValues sets values related to login event
-func (e *TeleportEvent) setLoginData(evt *auditlogpb.EventUnstructured) error {
+// setLoginData sets values related to login event
+func (e *TeleportEvent) setLoginData() error {
 	loginEvent := &events.UserLogin{}
 	if err := json.Unmarshal(e.Event, loginEvent); err != nil {
 		return trace.Wrap(err)

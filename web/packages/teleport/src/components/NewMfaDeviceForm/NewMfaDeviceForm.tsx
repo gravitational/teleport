@@ -17,22 +17,21 @@
  */
 
 import React, { useState } from 'react';
+
 import { Box, ButtonPrimary, Flex, Image, Text } from 'design';
 import { Danger } from 'design/Alert';
 import { ArrowBack } from 'design/Icon';
 import { RadioGroup } from 'design/RadioGroup';
+import { StepHeader } from 'design/StepSlider';
 import FieldInput from 'shared/components/FieldInput';
 import Validation, { Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
-import createMfaOptions from 'shared/utils/createMfaOptions';
 import { useRefAutoFocus } from 'shared/hooks';
-import { Auth2faType } from 'shared/services';
-import { OnboardCard } from 'design/Onboard/OnboardCard';
-
 import { Attempt } from 'shared/hooks/useAttemptNext';
+import { Auth2faType } from 'shared/services';
+import createMfaOptions from 'shared/utils/createMfaOptions';
 
-import { StepHeader } from 'design/StepSlider';
-
+import { OnboardCard } from 'teleport/components/Onboard';
 import { PasskeyIcons } from 'teleport/components/Passkeys';
 
 export interface NewMfaDeviceFormProps {
@@ -162,7 +161,7 @@ export function NewMfaDeviceForm({
           {submitAttempt.status === 'failed' && (
             <Danger children={submitAttempt.statusText} />
           )}
-          <Text typography="subtitle1" color="text.main" mb={1}>
+          <Text typography="body2" color="text.main" mb={1}>
             Multi-factor type
           </Text>
           <Box mb={3}>
@@ -186,7 +185,7 @@ export function NewMfaDeviceForm({
             {mfaType?.value === 'webauthn' && (
               <Box
                 border={1}
-                borderColor="interactive.tonal.neutral.2.background"
+                borderColor="interactive.tonal.neutral.2"
                 borderRadius={3}
                 p={3}
               >
@@ -214,7 +213,7 @@ export function NewMfaDeviceForm({
             {mfaType?.value === 'otp' && (
               <Flex
                 border={1}
-                borderColor="interactive.tonal.neutral.2.background"
+                borderColor="interactive.tonal.neutral.2"
                 borderRadius={3}
                 p={3}
                 gap={3}

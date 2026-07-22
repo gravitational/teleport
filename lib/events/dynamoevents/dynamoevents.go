@@ -20,11 +20,10 @@ package dynamoevents
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"maps"
 	"math"
 	"net/http"
@@ -35,30 +34,33 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
+	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	"github.com/aws/aws-sdk-go-v2/service/applicationautoscaling"
 	autoscalingtypes "github.com/aws/aws-sdk-go-v2/service/applicationautoscaling/types"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	dynamodbtypes "github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/aws/smithy-go"
-	smithyendpoints "github.com/aws/smithy-go/endpoints"
+	"github.com/aws/smithy-go/tracing/smithyoteltracing"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	log "github.com/sirupsen/logrus"
-	"go.opentelemetry.io/contrib/instrumentation/github.com/aws/aws-sdk-go-v2/otelaws"
+	"go.opentelemetry.io/otel"
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
+	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/cloud/aws/config"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/modules"
 	awsmetrics "github.com/gravitational/teleport/lib/observability/metrics/aws"
 	dynamometrics "github.com/gravitational/teleport/lib/observability/metrics/dynamo"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/aws/dynamodbutils"
+	"github.com/gravitational/teleport/lib/utils/aws/endpoint"
 )
 
 const (
@@ -134,7 +136,7 @@ type Config struct {
 	// WriteTargetValue is the ratio of consumed write to provisioned capacity.
 	WriteTargetValue float64
 
-	// UseFIPSEndpoint uses AWS FedRAMP/FIPS 140-2 mode endpoints.
+	// UseFIPSEndpoint uses AWS FedRAMP/FIPS mode endpoints.
 	// to determine its behavior:
 	// Unset - allows environment variables or AWS config to set the value
 	// Enabled - explicitly enabled
@@ -146,6 +148,12 @@ type Config struct {
 
 	// EnableAutoScaling is used to enable auto scaling policy.
 	EnableAutoScaling bool
+
+	// CredentialsProvider if supplied is used to override the credentials source.
+	CredentialsProvider aws.CredentialsProvider
+
+	// Insecure is an optional switch to opt out of https connections
+	Insecure bool
 }
 
 // SetFromURL sets values on the Config from the supplied URI
@@ -200,27 +208,70 @@ func (cfg *Config) CheckAndSetDefaults() error {
 		cfg.UIDGenerator = utils.NewRealUID()
 	}
 
+	if cfg.Endpoint != "" {
+		cfg.Endpoint = endpoint.CreateURI(cfg.Endpoint, cfg.Insecure)
+	}
+
 	return nil
 }
 
 // Log is a dynamo-db backed storage of events
 type Log struct {
-	// Entry is a log entry
-	*log.Entry
+	// logger is emits log messages
+	logger *slog.Logger
 	// Config is a backend configuration
 	Config
 	svc *dynamodb.Client
 }
 
+// EventKey contains the subset of event fields used as a dynamo primary key,
+// or used by a secondary index.
+// This is used in checkpointKey to track the last processed event of a query
+// and resume the query from there.
+type EventKey struct {
+	// SessionID and EventIndex must always be set.
+	// If the event is not linked to a session, we generate a random UUID.
+	SessionID string
+	// EventIndex represent the relative order of an event in the sesssion.
+	// Its value can be 0 if the event does not belong to a session or if it is
+	// the first event of a session.
+	// Next session events increase this counter. In case of conflict
+	// (two events with the same SessionID and EventIndex), EventIndex is set to
+	// the Unix nanosecond timestamp. This seems to break the "EventIndex
+	// monotonically increases" property and might cause events to be
+	// backfilled/skipped by ongoing queries.
+	// This behavior was introduced in https://github.com/gravitational/teleport/pull/40854.
+	// Since then, EventIndex is a large int64 and might not survive a round-trip
+	// through float64. When its JSON representation is unmarshalled into
+	// `map[string]any`, the event will lose EventIndex precision this will
+	// cause data-loss. For critical usage, like DynamoDB ExclusiveStartKey,
+	// one must always marshall/unmarshall using the typed event struct.
+	// event.FieldsMap["ei"] suffers from this data loss, so its value and
+	// EventIndex might be different.
+	EventIndex int64
+	// CreatedAt is used to know if the event is outside of the requested time
+	// range (so we can discard the cursor completely in this case).
+	// This is also used as a secondary DynamodDB index.
+	CreatedAt int64 `json:",omitempty" dynamodbav:",omitempty"`
+	// CreatedAtDate is used to identify the event partition.
+	CreatedAtDate string `json:",omitempty" dynamodbav:",omitempty"`
+}
+
 type event struct {
-	SessionID      string
-	EventIndex     int64
+	EventKey
 	EventType      string
-	CreatedAt      int64
 	Expires        *int64 `json:"Expires,omitempty" dynamodbav:",omitempty"`
 	FieldsMap      events.EventFields
 	EventNamespace string
-	CreatedAtDate  string
+}
+
+// toIterator marshals an event's EventKey, to be used in checkpointKey.
+func (e *event) toIterator() (string, error) {
+	b, err := json.Marshal(e.EventKey)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return string(b), nil
 }
 
 const (
@@ -259,27 +310,67 @@ const (
 // New returns new instance of DynamoDB backend.
 // It's an implementation of backend API's NewFunc
 func New(ctx context.Context, cfg Config) (*Log, error) {
-	l := log.WithFields(log.Fields{
-		teleport.ComponentKey: teleport.Component(teleport.ComponentDynamoDB),
-	})
-	l.Info("Initializing event backend.")
+	l := slog.With(teleport.ComponentKey, teleport.ComponentDynamoDB)
+	l.InfoContext(ctx, "Initializing event backend")
 
 	err := cfg.CheckAndSetDefaults()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	opts := []func(*config.LoadOptions) error{
-		config.WithRegion(cfg.Region),
-		config.WithHTTPClient(&http.Client{
+	opts := []func(*awsconfig.LoadOptions) error{
+		awsconfig.WithRegion(cfg.Region),
+		awsconfig.WithHTTPClient(&http.Client{
 			Transport: &http.Transport{
 				Proxy:               http.ProxyFromEnvironment,
 				MaxIdleConns:        defaults.HTTPMaxIdleConns,
 				MaxIdleConnsPerHost: defaults.HTTPMaxIdleConnsPerHost,
 			},
 		}),
-		config.WithAPIOptions(awsmetrics.MetricsMiddleware()),
-		config.WithAPIOptions(dynamometrics.MetricsMiddleware(dynamometrics.Backend)),
+		awsconfig.WithAPIOptions(awsmetrics.MetricsMiddleware()),
+		awsconfig.WithAPIOptions(dynamometrics.MetricsMiddleware(dynamometrics.Events)),
+	}
+
+	if cfg.CredentialsProvider != nil {
+		opts = append(opts, awsconfig.WithCredentialsProvider(cfg.CredentialsProvider))
+	}
+
+	resolver, err := endpoint.NewLoggingResolver(
+		dynamodb.NewDefaultEndpointResolverV2(),
+		l.With(slog.Group("service",
+			"id", dynamodb.ServiceID,
+			"api_version", dynamodb.ServiceAPIVersion,
+		)),
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	dynamoOpts := []func(*dynamodb.Options){
+		dynamodb.WithEndpointResolverV2(resolver),
+		func(o *dynamodb.Options) {
+			o.TracerProvider = smithyoteltracing.Adapt(otel.GetTracerProvider())
+		},
+	}
+
+	// Override the service endpoint using the "endpoint" query parameter from
+	// "audit_events_uri". This is for non-AWS DynamoDB-compatible backends.
+	if cfg.Endpoint != "" {
+		if _, err := url.Parse(cfg.Endpoint); err != nil {
+			return nil, trace.BadParameter("configured DynamoDB events endpoint is invalid: %s", err.Error())
+		}
+
+		opts = append(opts, awsconfig.WithBaseEndpoint(cfg.Endpoint))
+	}
+
+	// FIPS settings are applied on the individual service instead of the aws config,
+	// as DynamoDB Streams and Application Auto Scaling do not yet have FIPS endpoints in non-GovCloud.
+	// See also: https://aws.amazon.com/compliance/fips/#FIPS_Endpoints_by_Service
+	if dynamodbutils.IsFIPSEnabled() &&
+		cfg.UseFIPSEndpoint == types.ClusterAuditConfigSpecV2_FIPS_ENABLED {
+		dynamoOpts = append(dynamoOpts, func(o *dynamodb.Options) {
+			o.EndpointOptions.UseFIPSEndpoint = aws.FIPSEndpointStateEnabled
+		})
 	}
 
 	awsConfig, err := config.LoadDefaultConfig(ctx, opts...)
@@ -287,49 +378,23 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	otelaws.AppendMiddlewares(&awsConfig.APIOptions, otelaws.WithAttributeSetter(otelaws.DynamoDBAttributeSetter))
-
-	var dynamoOpts []func(*dynamodb.Options)
-
-	// Override the service endpoint using the "endpoint" query parameter from
-	// "audit_events_uri". This is for non-AWS DynamoDB-compatible backends.
-	if cfg.Endpoint != "" {
-		u, err := url.Parse(cfg.Endpoint)
-		if err != nil {
-			return nil, trace.BadParameter("configured DynamoDB events endpoint is invalid: %s", err.Error())
-		}
-
-		dynamoOpts = append(dynamoOpts, dynamodb.WithEndpointResolverV2(&staticResolver{endpoint: u}))
-	}
-
-	// FIPS settings are applied on the individual service instead of the aws config,
-	// as DynamoDB Streams and Application Auto Scaling do not yet have FIPS endpoints in non-GovCloud.
-	// See also: https://aws.amazon.com/compliance/fips/#FIPS_Endpoints_by_Service
-	if modules.GetModules().IsBoringBinary() && cfg.UseFIPSEndpoint == types.ClusterAuditConfigSpecV2_FIPS_ENABLED {
-		dynamoOpts = append(dynamoOpts, func(o *dynamodb.Options) {
-			o.EndpointOptions.UseFIPSEndpoint = aws.FIPSEndpointStateEnabled
-		})
-	}
-
+	client := dynamodb.NewFromConfig(awsConfig, dynamoOpts...)
 	b := &Log{
-		Entry:  l,
+		logger: l,
 		Config: cfg,
-		svc:    dynamodb.NewFromConfig(awsConfig, dynamoOpts...),
+		svc:    client,
 	}
 
 	if err := b.configureTable(ctx, applicationautoscaling.NewFromConfig(awsConfig)); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	l.InfoContext(ctx, "Connection established to DynamoDB events database",
+		"table", cfg.Tablename,
+		"region", cfg.Region,
+	)
+
 	return b, nil
-}
-
-type staticResolver struct {
-	endpoint *url.URL
-}
-
-func (s *staticResolver) ResolveEndpoint(ctx context.Context, params dynamodb.EndpointParameters) (smithyendpoints.Endpoint, error) {
-	return smithyendpoints.Endpoint{URI: *s.endpoint}, nil
 }
 
 type tableStatus int
@@ -409,14 +474,14 @@ func (l *Log) configureTable(ctx context.Context, svc *applicationautoscaling.Cl
 				readDimension:  autoscalingtypes.ScalableDimensionDynamoDBTableReadCapacityUnits,
 				writeDimension: autoscalingtypes.ScalableDimensionDynamoDBTableWriteCapacityUnits,
 				resourceID:     fmt.Sprintf("table/%s", l.Tablename),
-				readPolicy:     fmt.Sprintf("%s-write-target-tracking-scaling-policy", l.Tablename),
+				readPolicy:     fmt.Sprintf("%s-read-target-tracking-scaling-policy", l.Tablename),
 				writePolicy:    fmt.Sprintf("%s-write-target-tracking-scaling-policy", l.Tablename),
 			},
 			{
 				readDimension:  autoscalingtypes.ScalableDimensionDynamoDBIndexReadCapacityUnits,
 				writeDimension: autoscalingtypes.ScalableDimensionDynamoDBIndexWriteCapacityUnits,
 				resourceID:     fmt.Sprintf("table/%s/index/%s", l.Tablename, indexTimeSearchV2),
-				readPolicy:     fmt.Sprintf("%s/index/%s-write-target-tracking-scaling-policy", l.Tablename, indexTimeSearchV2),
+				readPolicy:     fmt.Sprintf("%s/index/%s-read-target-tracking-scaling-policy", l.Tablename, indexTimeSearchV2),
 				writePolicy:    fmt.Sprintf("%s/index/%s-write-target-tracking-scaling-policy", l.Tablename, indexTimeSearchV2),
 			},
 		}
@@ -444,20 +509,39 @@ func (l *Log) configureTable(ctx context.Context, svc *applicationautoscaling.Cl
 
 			// Define scaling policy. Defines the ratio of {read,write} consumed capacity to
 			// provisioned capacity DynamoDB will try and maintain.
-			if _, err := svc.PutScalingPolicy(ctx, &applicationautoscaling.PutScalingPolicyInput{
-				PolicyName:        aws.String(p.readPolicy),
-				PolicyType:        autoscalingtypes.PolicyTypeTargetTrackingScaling,
-				ResourceId:        aws.String(p.resourceID),
-				ScalableDimension: p.readDimension,
-				ServiceNamespace:  autoscalingtypes.ServiceNamespaceDynamodb,
-				TargetTrackingScalingPolicyConfiguration: &autoscalingtypes.TargetTrackingScalingPolicyConfiguration{
-					PredefinedMetricSpecification: &autoscalingtypes.PredefinedMetricSpecification{
-						PredefinedMetricType: autoscalingtypes.MetricTypeDynamoDBReadCapacityUtilization,
+			for i := range 2 {
+				if _, err := svc.PutScalingPolicy(ctx, &applicationautoscaling.PutScalingPolicyInput{
+					PolicyName:        aws.String(p.readPolicy),
+					PolicyType:        autoscalingtypes.PolicyTypeTargetTrackingScaling,
+					ResourceId:        aws.String(p.resourceID),
+					ScalableDimension: p.readDimension,
+					ServiceNamespace:  autoscalingtypes.ServiceNamespaceDynamodb,
+					TargetTrackingScalingPolicyConfiguration: &autoscalingtypes.TargetTrackingScalingPolicyConfiguration{
+						PredefinedMetricSpecification: &autoscalingtypes.PredefinedMetricSpecification{
+							PredefinedMetricType: autoscalingtypes.MetricTypeDynamoDBReadCapacityUtilization,
+						},
+						TargetValue: aws.Float64(l.ReadTargetValue),
 					},
-					TargetValue: aws.Float64(l.ReadTargetValue),
-				},
-			}); err != nil {
-				return trace.Wrap(convertError(err))
+				}); err != nil {
+					// The read policy name was accidentally changed to match the write policy in 17.0.0-17.1.4. This
+					// prevented upgrading a cluster with autoscaling enabled from v16 to v17. To resolve in
+					// a backwards compatible way, the read policy name was restored, however, any new clusters that
+					// were created between 17.0.0 and 17.1.4 need to have the misnamed policy deleted and recreated
+					// with the correct name.
+					if i == 1 || !strings.Contains(err.Error(), "ValidationException: Only one TargetTrackingScaling policy for a given metric specification is allowed.") {
+						return trace.Wrap(convertError(err))
+					}
+
+					l.logger.DebugContext(ctx, "Fixing incorrectly named scaling policy")
+					if _, err := svc.DeleteScalingPolicy(ctx, &applicationautoscaling.DeleteScalingPolicyInput{
+						PolicyName:        aws.String(p.writePolicy),
+						ResourceId:        aws.String(p.resourceID),
+						ScalableDimension: p.readDimension,
+						ServiceNamespace:  autoscalingtypes.ServiceNamespaceDynamodb,
+					}); err != nil {
+						return trace.Wrap(convertError(err))
+					}
+				}
 			}
 
 			if _, err := svc.PutScalingPolicy(ctx, &applicationautoscaling.PutScalingPolicyInput{
@@ -495,13 +579,12 @@ func (l *Log) handleAWSValidationError(ctx context.Context, err error, sessionID
 
 	se, ok := trimEventSize(in)
 	if !ok {
-		return trace.BadParameter(err.Error())
+		return trace.BadParameter("%s", err)
 	}
 	if err := l.putAuditEvent(context.WithValue(ctx, largeEventHandledContextKey, true), sessionID, se); err != nil {
-		return trace.BadParameter(err.Error())
+		return trace.BadParameter("%s", err)
 	}
-	fields := log.Fields{"event_id": in.GetID(), "event_type": in.GetType()}
-	l.WithFields(fields).Info("Uploaded trimmed event to DynamoDB backend.")
+	l.logger.InfoContext(ctx, "Uploaded trimmed event to DynamoDB backend.", "event_id", in.GetID(), "event_type", in.GetType())
 	events.MetricStoredTrimmedEvents.Inc()
 	return nil
 }
@@ -518,7 +601,7 @@ func (l *Log) handleConditionError(ctx context.Context, err error, sessionID str
 	if err := l.putAuditEvent(context.WithValue(ctx, conflictHandledContextKey, true), sessionID, in); err != nil {
 		return trace.Wrap(err)
 	}
-	l.WithFields(log.Fields{"event_id": in.GetID(), "event_type": in.GetType()}).Debug("Event index overwritten")
+	l.logger.InfoContext(ctx, "Event index overwritten.", "event_id", in.GetID(), "event_type", in.GetType())
 	return nil
 }
 
@@ -538,11 +621,11 @@ func isAWSValidationError(err error) bool {
 }
 
 func trimEventSize(event apievents.AuditEvent) (apievents.AuditEvent, bool) {
-	m, ok := event.(messageSizeTrimmer)
-	if !ok {
-		return nil, false
+	trimmedEvent := event.TrimToMaxSize(maxItemSize)
+	if trimmedEvent.Size() >= maxItemSize {
+		return trimmedEvent, false
 	}
-	return m.TrimToMaxSize(maxItemSize), true
+	return trimmedEvent, true
 }
 
 // putAuditEventContextKey represents context keys of putAuditEvent.
@@ -576,11 +659,18 @@ func (l *Log) putAuditEvent(ctx context.Context, sessionID string, in apievents.
 			// item event index/session id. Since we can't change the session
 			// id, update the event index with a new value and retry the put
 			// item.
-			l.
-				WithError(err).
-				WithFields(log.Fields{"event_type": in.GetType(), "session_id": sessionID, "event_index": in.GetIndex()}).
-				Error("Conflict on event session_id and event_index")
-			return trace.Wrap(l.handleConditionError(ctx, err, sessionID, in))
+			if err2 := l.handleConditionError(ctx, err, sessionID, in); err2 != nil {
+				// Only log about the original conflict if updating
+				// the session information fails.
+				l.logger.ErrorContext(ctx, "Conflict on event session_id and event_index",
+					"error", err,
+					"event_type", in.GetType(),
+					"session_id", sessionID,
+					"event_index", in.GetIndex())
+				return trace.Wrap(err2)
+			}
+
+			return nil
 		}
 
 		return err
@@ -595,13 +685,15 @@ func (l *Log) createPutItem(sessionID string, in apievents.AuditEvent) (*dynamod
 		return nil, trace.Wrap(err)
 	}
 	e := event{
-		SessionID:      sessionID,
-		EventIndex:     in.GetIndex(),
+		EventKey: EventKey{
+			SessionID:     sessionID,
+			EventIndex:    in.GetIndex(),
+			CreatedAt:     in.GetTime().Unix(),
+			CreatedAtDate: in.GetTime().Format(iso8601DateFormat),
+		},
 		EventType:      in.GetType(),
 		EventNamespace: apidefaults.Namespace,
-		CreatedAt:      in.GetTime().Unix(),
 		FieldsMap:      fieldsMap,
-		CreatedAtDate:  in.GetTime().Format(iso8601DateFormat),
 	}
 	l.setExpiry(&e)
 	av, err := attributevalue.MarshalMap(e)
@@ -619,10 +711,6 @@ func (l *Log) createPutItem(sessionID string, in apievents.AuditEvent) (*dynamod
 	}
 
 	return input, nil
-}
-
-type messageSizeTrimmer interface {
-	TrimToMaxSize(int) apievents.AuditEvent
 }
 
 func (l *Log) setExpiry(e *event) {
@@ -659,6 +747,20 @@ type checkpointKey struct {
 
 	// A DynamoDB query iterator. Allows us to resume a partial query.
 	Iterator string `json:"iterator,omitempty"`
+}
+
+// legacyCheckpointKey is the old checkpoint key returned by older auth versions. Used to decode
+// checkpoints originating from old auths. Commonly we don't bother supporting pagination/cursors
+// across teleport versions since the benefit of doing so is usually minimal, but this value is used
+// as on-disk state by long running event export operations, and so must be supported.
+//
+// DELETE IN: 19.0.0
+type legacyCheckpointKey struct {
+	// The date that the Dynamo iterator corresponds to.
+	Date string `json:"date,omitempty"`
+
+	// A DynamoDB query iterator. Allows us to resume a partial query.
+	Iterator map[string]*LegacyAttributeValue `json:"iterator,omitempty"`
 
 	// EventKey is a derived identifier for an event used for resuming
 	// sub-page breaks due to size constraints.
@@ -674,30 +776,46 @@ type checkpointKey struct {
 //
 // This function may never return more than 1 MiB of event data.
 func (l *Log) SearchEvents(ctx context.Context, req events.SearchEventsRequest) ([]apievents.AuditEvent, string, error) {
-	return l.searchEventsWithFilter(ctx, req.From, req.To, apidefaults.Namespace, req.Limit, req.Order, req.StartKey, searchEventsFilter{eventTypes: req.EventTypes}, "")
+	values, next, err := l.searchEventsWithFilter(ctx, req.From, req.To, apidefaults.Namespace, req.Limit, req.Order, req.StartKey, searchEventsFilter{eventTypes: req.EventTypes, search: req.Search}, "")
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	evts, err := events.FromEventFieldsSlice(values)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	return evts, next, nil
 }
 
-func (l *Log) searchEventsWithFilter(ctx context.Context, fromUTC, toUTC time.Time, namespace string, limit int, order types.EventOrder, startKey string, filter searchEventsFilter, sessionID string) ([]apievents.AuditEvent, string, error) {
+func (l *Log) SearchUnstructuredEvents(ctx context.Context, req events.SearchEventsRequest) ([]*auditlogpb.EventUnstructured, string, error) {
+	values, next, err := l.searchEventsWithFilter(ctx, req.From, req.To, apidefaults.Namespace, req.Limit, req.Order, req.StartKey, searchEventsFilter{eventTypes: req.EventTypes, search: req.Search}, "")
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	evts, err := events.FromEventFieldsSliceToUnstructured(values)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	return evts, next, nil
+}
+
+func (l *Log) searchEventsWithFilter(ctx context.Context, fromUTC, toUTC time.Time, namespace string, limit int, order types.EventOrder, startKey string, filter searchEventsFilter, sessionID string) ([]events.EventFields, string, error) {
 	rawEvents, lastKey, err := l.searchEventsRaw(ctx, fromUTC, toUTC, namespace, limit, order, startKey, filter, sessionID)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 
-	eventArr := make([]apievents.AuditEvent, 0, len(rawEvents))
+	eventArr := make([]events.EventFields, 0, len(rawEvents))
 	for _, rawEvent := range rawEvents {
-		event, err := events.FromEventFields(rawEvent.FieldsMap)
-		if err != nil {
-			return nil, "", trace.Wrap(err)
-		}
-		eventArr = append(eventArr, event)
+		eventArr = append(eventArr, rawEvent.FieldsMap)
 	}
 
 	var toSort sort.Interface
 	switch order {
 	case types.EventOrderAscending:
-		toSort = byTimeAndIndex(eventArr)
+		toSort = events.ByTimeAndIndex(eventArr)
 	case types.EventOrderDescending:
-		toSort = sort.Reverse(byTimeAndIndex(eventArr))
+		toSort = sort.Reverse(events.ByTimeAndIndex(eventArr))
 	default:
 		return nil, "", trace.BadParameter("invalid event order: %v", order)
 	}
@@ -706,25 +824,12 @@ func (l *Log) searchEventsWithFilter(ctx context.Context, fromUTC, toUTC time.Ti
 	return eventArr, lastKey, nil
 }
 
-// ByTimeAndIndex sorts events by time
-// and if there are several session events with the same session by event index.
-type byTimeAndIndex []apievents.AuditEvent
-
-func (f byTimeAndIndex) Len() int {
-	return len(f)
+func (l *Log) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.ExportUnstructuredEventsRequest) stream.Stream[*auditlogpb.ExportEventUnstructured] {
+	return stream.Fail[*auditlogpb.ExportEventUnstructured](trace.NotImplemented("dynamoevents backend does not support streaming export"))
 }
 
-func (f byTimeAndIndex) Less(i, j int) bool {
-	itime := f[i].GetTime()
-	jtime := f[j].GetTime()
-	if itime.Equal(jtime) && events.GetSessionID(f[i]) == events.GetSessionID(f[j]) {
-		return f[i].GetIndex() < f[j].GetIndex()
-	}
-	return itime.Before(jtime)
-}
-
-func (f byTimeAndIndex) Swap(i, j int) {
-	f[i], f[j] = f[j], f[i]
+func (l *Log) GetEventExportChunks(ctx context.Context, req *auditlogpb.GetEventExportChunksRequest) stream.Stream[*auditlogpb.EventExportChunk] {
+	return stream.Fail[*auditlogpb.EventExportChunk](trace.NotImplemented("dynamoevents backend does not support streaming export"))
 }
 
 // eventFilterList constructs a string of the form
@@ -738,7 +843,7 @@ func (f byTimeAndIndex) Swap(i, j int) {
 // The reason that this doesn't fill in the values as literals within the list is to prevent injection attacks.
 func eventFilterList(amount int) string {
 	var eventTypes []string
-	for i := 0; i < amount; i++ {
+	for i := range amount {
 		eventTypes = append(eventTypes, fmt.Sprintf(":eventType%d", i))
 	}
 	return "(" + strings.Join(eventTypes, ", ") + ")"
@@ -763,21 +868,28 @@ func (l *Log) searchEventsRaw(ctx context.Context, fromUTC, toUTC time.Time, nam
 		return nil, "", trace.Wrap(err)
 	}
 
+	l.logger.DebugContext(ctx, "search events", "from", fromUTC, "to", toUTC, "filter", filter, "limit", limit, "start_key", startKey, "order", order, "checkpoint", checkpoint)
+
 	if startKey != "" {
-		if createdAt, err := GetCreatedAtFromStartKey(startKey); err == nil {
+		createdAt, err := getCreatedAtFromCheckpoint(checkpoint)
+		if err == nil {
 			// we compare the cursor unix time to the from unix in order to drop the nanoseconds
 			// that are not present in the cursor.
 			if fromUTC.Unix() > createdAt.Unix() {
+				l.logger.WarnContext(ctx, "cursor is from before window start time, resetting cursor", "created_at", createdAt, "from", fromUTC)
 				// if fromUTC is after than the cursor, we changed the window and need to reset the cursor.
 				// This is a guard check when iterating over the events using sliding window
 				// and the previous cursor no longer fits the new window.
 				checkpoint = checkpointKey{}
 			}
 			if createdAt.After(toUTC) {
+				l.logger.DebugContext(ctx, "cursor is after the end of the window, skipping search", "created_at", createdAt, "to", toUTC)
 				// if the cursor is after the end of the window, we can return early since we
 				// won't find any events.
 				return nil, "", nil
 			}
+		} else {
+			l.logger.WarnContext(ctx, "failed to get creation time from start key", "start_key", startKey, "error", err)
 		}
 	}
 
@@ -812,8 +924,6 @@ func (l *Log) searchEventsRaw(ctx context.Context, fromUTC, toUTC time.Time, nam
 		}
 	}
 
-	foundStart := checkpoint.EventKey == ""
-
 	var forward bool
 	switch order {
 	case types.EventOrderAscending:
@@ -824,21 +934,20 @@ func (l *Log) searchEventsRaw(ctx context.Context, fromUTC, toUTC time.Time, nam
 		return nil, "", trace.BadParameter("invalid event order: %v", order)
 	}
 
-	logger := l.WithFields(log.Fields{
-		"From":      fromUTC,
-		"To":        toUTC,
-		"Namespace": namespace,
-		"Filter":    filter,
-		"Limit":     limit,
-		"StartKey":  startKey,
-		"Order":     order,
-	})
+	logger := l.logger.With(
+		"from", fromUTC,
+		"to", toUTC,
+		"namespace", namespace,
+		"filter", filter,
+		"limit", limit,
+		"start_key", startKey,
+		"order", order,
+	)
 
 	ef := eventsFetcher{
 		log:        logger,
 		totalSize:  totalSize,
 		checkpoint: &checkpoint,
-		foundStart: foundStart,
 		dates:      dates,
 		left:       left,
 		fromUTC:    fromUTC,
@@ -866,7 +975,7 @@ func (l *Log) searchEventsRaw(ctx context.Context, fromUTC, toUTC time.Time, nam
 	}
 
 	var lastKey []byte
-	if ef.hasLeft {
+	if checkpoint.Iterator != "" {
 		lastKey, err = json.Marshal(&checkpoint)
 		if err != nil {
 			return nil, "", trace.Wrap(err)
@@ -881,10 +990,14 @@ func GetCreatedAtFromStartKey(startKey string) (time.Time, error) {
 	if err != nil {
 		return time.Time{}, trace.Wrap(err)
 	}
+	return getCreatedAtFromCheckpoint(checkpoint)
+}
+
+func getCreatedAtFromCheckpoint(checkpoint checkpointKey) (time.Time, error) {
 	if checkpoint.Iterator == "" {
 		return time.Time{}, errors.New("missing iterator")
 	}
-	var e event
+	var e EventKey
 	if err := json.Unmarshal([]byte(checkpoint.Iterator), &e); err != nil {
 		return time.Time{}, trace.Wrap(err)
 	}
@@ -902,11 +1015,53 @@ func getCheckpointFromStartKey(startKey string) (checkpointKey, error) {
 	if startKey == "" {
 		return checkpoint, nil
 	}
-	// If a checkpoint key is provided, unmarshal it so we can work with it's parts.
+	// If a checkpoint key is provided, unmarshal it so we can work with its parts.
 	if err := json.Unmarshal([]byte(startKey), &checkpoint); err != nil {
+		// attempt to decode as legacy format.
+		if checkpoint, err = getCheckpointFromLegacyStartKey(startKey); err == nil {
+			return checkpoint, nil
+		}
 		return checkpointKey{}, trace.Wrap(err)
 	}
 	return checkpoint, nil
+}
+
+// getCheckpointFromLegacyStartKey is a helper function that decodes a legacy checkpoint key
+// into the new format. The old format used raw dynamo attribute values for the iterator, where
+// the new format uses a json-serialized map with bare values.
+//
+// DELETE IN: 19.0.0
+func getCheckpointFromLegacyStartKey(startKey string) (checkpointKey, error) {
+	var checkpoint legacyCheckpointKey
+	if startKey == "" {
+		return checkpointKey{}, nil
+	}
+	// If a checkpoint key is provided, unmarshal it so we can work with its parts.
+	if err := json.Unmarshal([]byte(startKey), &checkpoint); err != nil {
+		return checkpointKey{}, trace.Wrap(err)
+	}
+
+	convertedAttrMap, err := convertLegacyAttributesMap(checkpoint.Iterator)
+	if err != nil {
+		return checkpointKey{}, trace.Wrap(err)
+	}
+
+	// decode the dynamo attrs into the go map repr common to the old and new formats.
+	var e event
+	if err := attributevalue.UnmarshalMap(convertedAttrMap, &e); err != nil {
+		return checkpointKey{}, trace.Wrap(err)
+	}
+
+	// encode the map into json, making it equivalent to the new format.
+	iterator, err := json.Marshal(e)
+	if err != nil {
+		return checkpointKey{}, trace.Wrap(err)
+	}
+
+	return checkpointKey{
+		Date:     checkpoint.Date,
+		Iterator: string(iterator),
+	}, nil
 }
 
 func getExprFilter(filter searchEventsFilter) *string {
@@ -925,46 +1080,75 @@ func getExprFilter(filter searchEventsFilter) *string {
 	return filterExpr
 }
 
-func getSubPageCheckpoint(e *event) (string, error) {
-	data, err := utils.FastMarshal(e)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	hash := sha256.Sum256(data)
-	return hex.EncodeToString(hash[:]), nil
-}
-
 // SearchSessionEvents returns session related events only. This is used to
 // find completed session.
 func (l *Log) SearchSessionEvents(ctx context.Context, req events.SearchSessionEventsRequest) ([]apievents.AuditEvent, string, error) {
 	filter := searchEventsFilter{eventTypes: events.SessionRecordingEvents}
-	if req.Cond != nil {
-		params := condFilterParams{attrValues: make(map[string]interface{}), attrNames: make(map[string]string)}
-		expr, err := fromWhereExpr(req.Cond, &params)
+	if req.Cond != nil && req.Cond.Expr != nil {
+		params := condFilterParams{attrValues: make(map[string]any), attrNames: make(map[string]string)}
+		expr, err := fromWhereExpr(req.Cond.Expr, &params)
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}
 		filter.condExpr = expr
 		filter.condParams = params
+		filter.filterFunc, err = utils.ToFieldsCondition(*req.Cond)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
 	}
-	return l.searchEventsWithFilter(ctx, req.From, req.To, apidefaults.Namespace, req.Limit, req.Order, req.StartKey, filter, req.SessionID)
+	values, next, err := l.searchEventsWithFilter(ctx, req.From, req.To, apidefaults.Namespace, req.Limit, req.Order, req.StartKey, filter, req.SessionID)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	evts, err := events.FromEventFieldsSlice(values)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	return evts, next, nil
 }
 
 type searchEventsFilter struct {
 	eventTypes []string
+	search     string
 	condExpr   string
 	condParams condFilterParams
+	filterFunc utils.FieldsCondition
 }
 
 type condFilterParams struct {
-	attrValues map[string]interface{}
+	attrValues map[string]any
 	attrNames  map[string]string
 }
 
+// fromWhereExpr converts a types.WhereExpr into a DynamoDB condition expression.
+// It fills in the provided condFilterParams with attribute names and values
+// that need to be supplied when executing the query.
+// For example, a condition like
+//
+// !(equals(login, "root") || equals(login, "admin")) && contains(participants, "test-user")
+// would be converted into a condition expression like
+//
+// "NOT ((#condName0 = :condValue0) OR (#condName1 = :condValue1)) AND (contains(#condName2, :condValue2))"
+// with condFilterParams containing:
+//
+//	attrNames: {"#condName0": "FieldsMap.login", "#condName1": "FieldsMap.login", "#condName2": "FieldsMap.participants"}
+//	attrValues: {":condValue0": "root", ":condValue1": "admin", ":condValue2": "test-user"}
+//
+// This function supports a subset of the types.WhereExpr AST. Supported operations are:
+//   - Binary predicates: equals, notEquals
+//   - Logical operators: and, or, not
+//   - Map references: map_name["key"]
+//   - Literals: string
+//   - Functions: contains, contains_all, contains_any, can_view
+//
+// `can_view` is a special function that checks if the current user can view the underlying resource
+// based on their roles. This is a runtime check, so it cannot be converted into a static condition expression.
+// For this reason, `can_view` is handled by returning an always-true condition expression and setting a filter function
+// in condFilterParams that can be applied to the results after the query is executed.
 func fromWhereExpr(cond *types.WhereExpr, params *condFilterParams) (string, error) {
 	if cond == nil {
-		return "", trace.BadParameter("cond is nil")
+		return "", trace.BadParameter("missing condition")
 	}
 
 	binOp := func(e types.WhereExpr2, format func(a, b string) string) (string, error) {
@@ -988,7 +1172,7 @@ func fromWhereExpr(cond *types.WhereExpr, params *condFilterParams) (string, err
 		return fmt.Sprintf("NOT (%s)", inner), nil
 	}
 
-	addAttrValue := func(in interface{}) string {
+	addAttrValue := func(in any) string {
 		for k, v := range params.attrValues {
 			if in == v {
 				return k
@@ -1008,9 +1192,58 @@ func fromWhereExpr(cond *types.WhereExpr, params *condFilterParams) (string, err
 		params.attrNames[k] = n
 		return fmt.Sprintf("FieldsMap.%s", k)
 	}
+
+	addMultiAttrNames := func(vals ...string) string {
+		var names []string
+		for _, n := range vals {
+			for k, v := range params.attrNames {
+				if n == v {
+					names = append(names, k)
+					continue
+				}
+			}
+			k := fmt.Sprintf("#condName%d", len(params.attrNames))
+			params.attrNames[k] = n
+			names = append(names, k)
+		}
+		return fmt.Sprintf("FieldsMap.%s", strings.Join(names, "."))
+	}
+
+	formatMap := func(m *types.WhereExpr2) (string, error) {
+		key, ok := m.R.Literal.(string)
+		if !ok {
+			return "", trace.BadParameter("map key must be a string, got %T", m.R.Literal)
+		}
+		return addMultiAttrNames(m.L.Field, key), nil
+	}
+
 	binPred := func(e types.WhereExpr2, format func(a, b string) string) (string, error) {
 		left, right := e.L, e.R
 		switch {
+		case left.MapRef != nil:
+			s, err := formatMap(left.MapRef)
+			if err != nil {
+				return "", trace.Wrap(err)
+			}
+			if right.Literal != nil {
+				return format(s, addAttrValue(right.Literal)), nil
+			}
+			if right.Field != "" {
+				return format(s, addAttrName(right.Field)), nil
+			}
+			return "", trace.BadParameter("right side of binary predicate must be a literal or field when left side is a map reference")
+		case right.MapRef != nil:
+			s, err := formatMap(right.MapRef)
+			if err != nil {
+				return "", trace.Wrap(err)
+			}
+			if right.Literal != nil {
+				return format(s, addAttrValue(left.Literal)), nil
+			}
+			if right.Field != "" {
+				return format(s, addAttrName(left.Field)), nil
+			}
+			return "", trace.BadParameter("left side of binary predicate must be a literal or field when right side is a map reference")
 		case left.Field != "" && right.Field != "":
 			return format(addAttrName(left.Field), addAttrName(right.Field)), nil
 		case left.Literal != nil && right.Field != "":
@@ -1019,6 +1252,74 @@ func fromWhereExpr(cond *types.WhereExpr, params *condFilterParams) (string, err
 			return format(addAttrName(left.Field), addAttrValue(right.Literal)), nil
 		}
 		return "", trace.BadParameter("failed to handle binary predicate with arguments %q and %q", left, right)
+	}
+	binPredSlice := func(e types.WhereExpr2, format func(a, b string) string) ([]string, error) {
+		left, right := e.L, e.R
+		switch {
+		case left.MapRef != nil:
+			s, err := formatMap(left.MapRef)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			if right.Literal != nil {
+				sl, ok := right.Literal.([]string)
+				if !ok {
+					return nil, trace.BadParameter("expected slice literal, got %T", right.Literal)
+				}
+				var res []string
+				for _, v := range sl {
+					res = append(res, format(s, addAttrValue(v)))
+				}
+				return res, nil
+			}
+			if right.Field != "" {
+				return []string{format(s, addAttrName(right.Field))}, nil
+			}
+			return nil, trace.BadParameter("right side of binary predicate must be a literal or field when left side is a map reference")
+		case right.MapRef != nil:
+			s, err := formatMap(right.MapRef)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			if left.Literal != nil {
+				sl, ok := left.Literal.([]string)
+				if !ok {
+					return nil, trace.BadParameter("expected slice literal, got %T", left.Literal)
+				}
+				var res []string
+				for _, v := range sl {
+					res = append(res, format(s, addAttrValue(v)))
+				}
+				return res, nil
+			}
+			if left.Field != "" {
+				return []string{format(s, addAttrName(left.Field))}, nil
+			}
+			return nil, trace.BadParameter("left side of binary predicate must be a literal or field when right side is a map reference")
+		case left.Field != "" && right.Field != "":
+			return []string{format(addAttrName(left.Field), addAttrName(right.Field))}, nil
+		case left.Literal != nil && right.Field != "":
+			sl, ok := left.Literal.([]string)
+			if !ok {
+				return nil, trace.BadParameter("expected slice literal, got %T", left.Literal)
+			}
+			var res []string
+			for _, v := range sl {
+				res = append(res, format(addAttrValue(v), addAttrName(right.Field)))
+			}
+			return res, nil
+		case left.Field != "" && right.Literal != nil:
+			sl, ok := right.Literal.([]string)
+			if !ok {
+				return nil, trace.BadParameter("expected slice literal, got %T", left.Literal)
+			}
+			var res []string
+			for _, v := range sl {
+				res = append(res, format(addAttrName(left.Field), addAttrValue(v)))
+			}
+			return res, nil
+		}
+		return nil, trace.BadParameter("failed to handle binary predicate with arguments %q and %q", left, right)
 	}
 	if cond.Equals.L != nil && cond.Equals.R != nil {
 		if expr, err := binPred(cond.Equals, func(a, b string) string { return fmt.Sprintf("%s = %s", a, b) }); err == nil {
@@ -1030,6 +1331,35 @@ func fromWhereExpr(cond *types.WhereExpr, params *condFilterParams) (string, err
 			return expr, nil
 		}
 	}
+
+	if cond.ContainsAny.L != nil && cond.ContainsAny.R != nil {
+		if expr, err := binPredSlice(cond.ContainsAny, func(a, b string) string { return fmt.Sprintf("contains(%s, %s)", a, b) }); err == nil {
+			return "(" + strings.Join(expr, " OR ") + ")", nil
+		}
+	}
+
+	if cond.ContainsAll.L != nil && cond.ContainsAll.R != nil {
+		if expr, err := binPredSlice(cond.ContainsAll, func(a, b string) string { return fmt.Sprintf("contains(%s, %s)", a, b) }); err == nil {
+			return "(" + strings.Join(expr, " AND ") + ")", nil
+		}
+	}
+
+	if cond.MapRef != nil && cond.MapRef.L != nil && cond.MapRef.R != nil {
+		key, ok := cond.MapRef.R.Literal.(string)
+		if !ok {
+			return "", trace.BadParameter("map key must be a string, got %T", cond.MapRef.R.Literal)
+		}
+		return addMultiAttrNames(cond.MapRef.L.Field, key), nil
+	}
+
+	if cond.CanView != nil {
+		// CanView is a special predicate that checks if the event can be viewed
+		// by a user with a given set of roles. This is implemented by checking
+		// access after fetching the events, so here we just return a no-op
+		// expression that is always true.
+		return "attribute_exists(SessionID)", nil
+	}
+
 	return "", trace.BadParameter("failed to convert WhereExpr %q to DynamoDB filter expression", cond)
 }
 
@@ -1116,14 +1446,14 @@ func (l *Log) createTable(ctx context.Context, tableName string) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	log.Infof("Waiting until table %q is created", tableName)
+	l.logger.InfoContext(ctx, "Waiting until table is created", "table", tableName)
 	waiter := dynamodb.NewTableExistsWaiter(l.svc)
 	err = waiter.Wait(ctx,
 		&dynamodb.DescribeTableInput{TableName: aws.String(tableName)},
 		10*time.Minute,
 	)
 	if err == nil {
-		log.Infof("Table %q has been created", tableName)
+		l.logger.InfoContext(ctx, "Table has been created", "table", tableName)
 	}
 
 	return trace.Wrap(err)
@@ -1153,10 +1483,7 @@ func (l *Log) deleteAllItems(ctx context.Context) error {
 	}
 
 	for len(requests) > 0 {
-		top := 25
-		if top > len(requests) {
-			top = len(requests)
-		}
+		top := min(25, len(requests))
 		chunk := requests[:top]
 		requests = requests[top:]
 
@@ -1202,27 +1529,27 @@ func convertError(err error) error {
 
 	var conditionalCheckFailedError *dynamodbtypes.ConditionalCheckFailedException
 	if errors.As(err, &conditionalCheckFailedError) {
-		return trace.AlreadyExists(conditionalCheckFailedError.ErrorMessage())
+		return trace.AlreadyExists("%s", conditionalCheckFailedError.ErrorMessage())
 	}
 
 	var throughputExceededError *dynamodbtypes.ProvisionedThroughputExceededException
 	if errors.As(err, &throughputExceededError) {
-		return trace.ConnectionProblem(throughputExceededError, throughputExceededError.ErrorMessage())
+		return trace.ConnectionProblem(throughputExceededError, "%s", throughputExceededError.ErrorMessage())
 	}
 
 	var notFoundError *dynamodbtypes.ResourceNotFoundException
 	if errors.As(err, &notFoundError) {
-		return trace.NotFound(notFoundError.ErrorMessage())
+		return trace.NotFound("%s", notFoundError.ErrorMessage())
 	}
 
 	var collectionLimitExceededError *dynamodbtypes.ItemCollectionSizeLimitExceededException
 	if errors.As(err, &notFoundError) {
-		return trace.BadParameter(collectionLimitExceededError.ErrorMessage())
+		return trace.BadParameter("%s", collectionLimitExceededError.ErrorMessage())
 	}
 
 	var internalError *dynamodbtypes.InternalServerError
 	if errors.As(err, &internalError) {
-		return trace.BadParameter(internalError.ErrorMessage())
+		return trace.BadParameter("%s", internalError.ErrorMessage())
 	}
 
 	var ae smithy.APIError
@@ -1243,13 +1570,11 @@ type query interface {
 }
 
 type eventsFetcher struct {
-	log *log.Entry
+	log *slog.Logger
 	api query
 
 	totalSize  int
-	hasLeft    bool
 	checkpoint *checkpointKey
-	foundStart bool
 	dates      []string
 	left       int32
 
@@ -1261,20 +1586,24 @@ type eventsFetcher struct {
 	filter    searchEventsFilter
 }
 
-func (l *eventsFetcher) processQueryOutput(output *dynamodb.QueryOutput, hasLeftFun func() bool) ([]event, bool, error) {
-	oldIterator := l.checkpoint.Iterator
+// processQueryOutput returns events from the DynamoDB query output.
+// It stops if events.MaxEventBytesInResponse is reached, the query limit is reached, or there are no more events.
+// If events.MaxEventBytesInResponse is reached or the query limit is reached,
+// we create a new nonempty checkpoint iterator, indicating there are more events to fetch.
+func (l *eventsFetcher) processQueryOutput(output *dynamodb.QueryOutput) ([]event, bool, error) {
 	l.checkpoint.Iterator = ""
 
 	if output.LastEvaluatedKey != nil {
-		m := make(map[string]any)
-		if err := attributevalue.UnmarshalMap(output.LastEvaluatedKey, &m); err != nil {
+		var e EventKey
+		if err := attributevalue.UnmarshalMap(output.LastEvaluatedKey, &e); err != nil {
 			return nil, false, trace.Wrap(err)
 		}
 
-		iter, err := json.Marshal(&m)
+		iter, err := json.Marshal(&e)
 		if err != nil {
 			return nil, false, err
 		}
+		l.log.DebugContext(context.Background(), "updating iterator for events fetcher", "iterator", string(iter))
 		l.checkpoint.Iterator = string(iter)
 	}
 
@@ -1284,64 +1613,116 @@ func (l *eventsFetcher) processQueryOutput(output *dynamodb.QueryOutput, hasLeft
 		if err := attributevalue.UnmarshalMap(item, &e); err != nil {
 			return nil, false, trace.WrapWithMessage(err, "failed to unmarshal event")
 		}
+		if l.filter.filterFunc != nil && !l.filter.filterFunc(utils.Fields(e.FieldsMap)) {
+			continue
+		}
 		data, err := json.Marshal(e.FieldsMap)
 		if err != nil {
 			return nil, false, trace.Wrap(err)
 		}
-		if !l.foundStart {
-			key, err := getSubPageCheckpoint(&e)
-			if err != nil {
-				return nil, false, trace.Wrap(err)
-			}
-
-			if key != l.checkpoint.EventKey {
-				continue
-			}
-			l.foundStart = true
+		if l.filter.search != "" && !events.MatchSearch(l.filter.search, string(data)) {
+			continue
 		}
-		// Because this may break on non page boundaries an additional
-		// checkpoint is needed for sub-page breaks.
-		if l.totalSize+len(data) >= events.MaxEventBytesInResponse {
-			key, err := getSubPageCheckpoint(&e)
+
+		// Stop early when the fetcher's total size exceeds the response size limit.
+		if l.totalSize+len(data) > events.MaxEventBytesInResponse {
+			// Encountered an event that would push the total page over the size limit.
+			// Return all processed events, and the next event will be picked up on the next page.
+			if len(out) > 0 {
+				if err := l.saveCheckpointAtEvent(out[len(out)-1]); err != nil {
+					return nil, false, trace.Wrap(err)
+				}
+				return out, true, nil
+			}
+
+			// A single event is larger than the max page size - the best we can
+			// do is try to trim it.
+			e.FieldsMap, err = trimToMaxSize(e.FieldsMap)
+			if err != nil {
+				return nil, false, trace.Wrap(err, "failed to trim event to max size")
+			}
+			trimmedData, err := json.Marshal(e.FieldsMap)
 			if err != nil {
 				return nil, false, trace.Wrap(err)
 			}
-			l.checkpoint.EventKey = key
 
-			// We need to reset the iterator so we get the previous page again.
-			l.checkpoint.Iterator = oldIterator
+			if l.totalSize+len(trimmedData) > events.MaxEventBytesInResponse {
+				// Failed to trim the event to size.
+				// Even if we fail to trim the event, we still try to return the oversized event.
+				l.log.WarnContext(context.Background(), "Failed to trim event exceeding maximum response size.",
+					"event_type", e.FieldsMap.GetType(),
+					"event_id", e.FieldsMap.GetID(),
+					"event_size", len(data),
+					"event_size_after_trim", len(trimmedData),
+				)
+			}
+			events.MetricQueriedTrimmedEvents.Inc()
 
-			// If we stopped because of the size limit, we know that at least one event has to be fetched from the
-			// current date and old iterator, so we must set it to true independently of the hasLeftFun or
-			// the new iterator being empty.
-			l.hasLeft = true
+			l.totalSize += len(trimmedData)
+			out = append(out, e)
+			l.left--
 
+			// Since we reached the response size limit, simply return the event.
+			if err := l.saveCheckpointAtEvent(out[len(out)-1]); err != nil {
+				return nil, false, trace.Wrap(err)
+			}
 			return out, true, nil
 		}
 		l.totalSize += len(data)
 		out = append(out, e)
 		l.left--
+		// Stop early if the query limit is reached.
 		if l.left == 0 {
-			hf := false
-			if hasLeftFun != nil {
-				hf = hasLeftFun()
+			if err := l.saveCheckpointAtEvent(out[len(out)-1]); err != nil {
+				return nil, false, trace.Wrap(err)
 			}
-			l.hasLeft = hf || l.checkpoint.Iterator != ""
-			l.checkpoint.EventKey = ""
 			return out, true, nil
 		}
 	}
 	return out, false, nil
 }
 
+// trimToMaxSize attempts to trim the event to fit into the maximum response size (MaxEventBytesInResponse).
+// If the event is larger than the maximum response size, it will be trimmed
+// to the maximum size, which may result in loss of data.
+// Trimming requires unmarshalling the event to apievents.AuditEvent and then
+// calling TrimToMaxSize on it.
+// This is not an efficient operation, but it is executed at most once per page,
+// and only when a single event exceeds the limit,
+// so it should not be a problem in practice.
+func trimToMaxSize(fields events.EventFields) (events.EventFields, error) {
+	event, err := events.FromEventFields(fields)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	event = event.TrimToMaxSize(events.MaxEventBytesInResponse)
+
+	fields, err = events.ToEventFields(event)
+	return fields, trace.Wrap(err)
+}
+
+// saveCheckpointAtEvent updates the checkpoint iterator at the given event.
+// This overrides LastEvaluatedKey to resume future processing from this iterator.
+func (l *eventsFetcher) saveCheckpointAtEvent(e event) error {
+	iterator, err := e.toIterator()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	l.checkpoint.Iterator = iterator
+	l.log.DebugContext(context.Background(), "sub-page break, saving new checkpoint", "iterator", iterator)
+	return nil
+}
+
 func (l *eventsFetcher) QueryByDateIndex(ctx context.Context, filterExpr *string) (values []event, err error) {
 	query := "CreatedAtDate = :date AND CreatedAt BETWEEN :start and :end"
 
 dateLoop:
-	for i, date := range l.dates {
+	for _, date := range l.dates {
 		l.checkpoint.Date = date
 
-		attributes := map[string]interface{}{
+		attributes := map[string]any{
 			":date":  date,
 			":start": l.fromUTC.Unix(),
 			":end":   l.toUTC.Unix(),
@@ -1367,13 +1748,13 @@ dateLoop:
 			}
 
 			if l.checkpoint.Iterator != "" {
-				m := make(map[string]any)
-				err = json.Unmarshal([]byte(l.checkpoint.Iterator), &m)
+				var e EventKey
+				err = json.Unmarshal([]byte(l.checkpoint.Iterator), &e)
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
 
-				input.ExclusiveStartKey, err = attributevalue.MarshalMap(&m)
+				input.ExclusiveStartKey, err = attributevalue.MarshalMap(&e)
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
@@ -1384,36 +1765,25 @@ dateLoop:
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			l.log.WithFields(log.Fields{
-				"duration": time.Since(start),
-				"items":    len(out.Items),
-				"forward":  l.forward,
-				"iterator": l.checkpoint.Iterator,
-			}).Debugf("Query completed.")
 
-			hasLeft := func() bool {
-				return i+1 != len(l.dates)
-			}
-			result, limitReached, err := l.processQueryOutput(out, hasLeft)
+			l.log.DebugContext(ctx, "Query completed.",
+				"duration", time.Since(start),
+				"items", len(out.Items),
+				"forward", l.forward,
+				"iterator", l.checkpoint.Iterator,
+			)
+
+			result, limitReached, err := l.processQueryOutput(out)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
 			values = append(values, result...)
+
+			// Return all currently processed events.
 			if limitReached {
-				// If we've reached the limit, we need to determine whether there are more events to fetch from the current date
-				// or if we need to move the cursor to the next date.
-				// To do this, we check if the iterator is empty and if the EventKey is empty.
-				// DynamoDB returns an empty iterator if all events from the current date have been consumed.
-				// We need to check if the EventKey is empty because it indicates that we left the page midway
-				// due to reaching the maximum response size. In this case, we need to resume the query
-				// from the same date and the request's iterator to fetch the remainder of the page.
-				// If the input iterator is empty but the EventKey is not, we need to resume the query from the same date
-				// and we shouldn't move to the next date.
-				if i < len(l.dates)-1 && l.checkpoint.Iterator == "" && l.checkpoint.EventKey == "" {
-					l.checkpoint.Date = l.dates[i+1]
-				}
 				return values, nil
 			}
+			// An empty iterator indicates that there are no more events to fetch from the current date.
 			if l.checkpoint.Iterator == "" {
 				continue dateLoop
 			}
@@ -1425,7 +1795,7 @@ dateLoop:
 func (l *eventsFetcher) QueryBySessionIDIndex(ctx context.Context, sessionID string, filterExpr *string) (values []event, err error) {
 	query := "SessionID = :id"
 
-	attributes := map[string]interface{}{
+	attributes := map[string]any{
 		":id": sessionID,
 	}
 	for i, eventType := range l.filter.eventTypes {
@@ -1449,12 +1819,12 @@ func (l *eventsFetcher) QueryBySessionIDIndex(ctx context.Context, sessionID str
 	}
 
 	if l.checkpoint.Iterator != "" {
-		m := make(map[string]string)
-		if err = json.Unmarshal([]byte(l.checkpoint.Iterator), &m); err != nil {
+		var e EventKey
+		if err = json.Unmarshal([]byte(l.checkpoint.Iterator), &e); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		input.ExclusiveStartKey, err = attributevalue.MarshalMap(&m)
+		input.ExclusiveStartKey, err = attributevalue.MarshalMap(&e)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1465,20 +1835,17 @@ func (l *eventsFetcher) QueryBySessionIDIndex(ctx context.Context, sessionID str
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	l.log.WithFields(log.Fields{
-		"duration": time.Since(start),
-		"items":    len(out.Items),
-		"forward":  l.forward,
-		"iterator": l.checkpoint.Iterator,
-	}).Debugf("Query completed.")
+	l.log.DebugContext(ctx, "Query completed.",
+		"duration", time.Since(start),
+		"items", len(out.Items),
+		"forward", l.forward,
+		"iterator", l.checkpoint.Iterator,
+	)
 
-	result, limitReached, err := l.processQueryOutput(out, nil)
+	result, _, err := l.processQueryOutput(out)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	values = append(values, result...)
-	if limitReached {
-		return values, nil
-	}
 	return values, nil
 }

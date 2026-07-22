@@ -1,0 +1,99 @@
+--- a/deepcopy/deepcopy.go
++++ b/deepcopy/deepcopy.go
+@@ -17,8 +17,8 @@
+ // The deriveDeepCopy function is a maintainable and fast way to implement fast copy functions.
+ //
+ // When goderive walks over your code it is looking for a function that:
+-//  - was not implemented (or was previously derived) and
+-//  - has a predefined prefix.
++//   - was not implemented (or was previously derived) and
++//   - has a predefined prefix.
+ //
+ // In the following code the deriveDeepCopy function will be found, because
+ // it was not implemented and it has a prefix deriveDeepCopy.
+@@ -29,7 +29,7 @@
+ //	import "sort"
+ //
+ //	type MyStruct struct {
+-// 		Int64     int64
++//		Int64     int64
+ //		StringPtr *string
+ //	}
+ //
+@@ -43,25 +43,27 @@
+ //	}
+ //
+ // The initial type that is passed into deriveDeepCopy needs to have a reference type:
+-//	- pointer
+-//	- slice
+-//	- map
++//   - pointer
++//   - slice
++//   - map
++//
+ // , otherwise we are not able to modify the input parameter and then what are you really copying,
+ // but as we go deeper we support most types.
+ //
+ // Supported types:
+-//	- basic types
+-//	- named structs
+-//	- slices
+-//	- maps
+-//	- pointers to these types
+-//	- private fields of structs in external packages (using reflect and unsafe)
+-//	- and many more
++//   - basic types
++//   - named structs
++//   - slices
++//   - maps
++//   - pointers to these types
++//   - private fields of structs in external packages (using reflect and unsafe)
++//   - and many more
++//
+ // Unsupported types:
+-//	- chan
+-//	- interface
+-//	- function
+-//	- unnamed structs, which are not comparable with the == operator
++//   - chan
++//   - interface
++//   - function
++//   - unnamed structs, which are not comparable with the == operator
+ //
+ // Example output can be found here:
+ // https://github.com/awalterschulze/goderive/tree/master/example/plugin/deepcopy
+@@ -140,6 +142,12 @@ func (g *gen) genStatement(typ types.Type, this, that string) error {
+ 		p.P("%s = %s", that, this)
+ 		return nil
+ 	}
++
++	if typ.String() == "*time.Time" {
++		p.P("*%s = *%s", that, this)
++		return nil
++	}
++
+ 	switch ttyp := typ.Underlying().(type) {
+ 	case *types.Pointer:
+ 		reftyp := ttyp.Elem()
+@@ -243,13 +251,6 @@ func nullable(typ types.Type) bool {
+ 	return false
+ }
+ 
+-func not(s string) string {
+-	if strings.HasPrefix(s, "(") && strings.HasSuffix(s, ")") {
+-		return "!" + s
+-	}
+-	return "!(" + s + ")"
+-}
+-
+ func wrap(value string) string {
+ 	if strings.HasPrefix(value, "*") ||
+ 		strings.HasPrefix(value, "&") ||
+@@ -261,7 +262,7 @@ func wrap(value string) string {
+ 
+ func prepend(before, after string) string {
+ 	bs := strings.Split(before, ".")
+-	b := strings.Replace(bs[0], "*", "", -1)
++	b := strings.ReplaceAll(bs[0], "*", "")
+ 	return b + "_" + after
+ }

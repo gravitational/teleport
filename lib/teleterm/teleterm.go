@@ -20,6 +20,7 @@ package teleterm
 
 import (
 	"context"
+	"log/slog"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -28,10 +29,12 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
+	"github.com/gravitational/teleport/api/utils/keys/piv"
+	"github.com/gravitational/teleport/lib/client"
+	libhwk "github.com/gravitational/teleport/lib/hardwarekey"
 	"github.com/gravitational/teleport/lib/teleterm/apiserver"
 	"github.com/gravitational/teleport/lib/teleterm/clusteridcache"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
@@ -51,10 +54,18 @@ func Serve(ctx context.Context, cfg Config) error {
 
 	clock := clockwork.NewRealClock()
 
+	// Prepare tshdEventsClient with lazy loading.
+	tshdEventsClient := daemon.NewTshdEventsClient(grpcCredentials.tshdEvents)
+
+	// Always use the direct YubiKey PIV service since Connect provides the best UX.
+	hwks := piv.NewYubiKeyService(tshdEventsClient.NewHardwareKeyPrompt())
+
 	storage, err := clusters.NewStorage(clusters.Config{
-		Dir:                cfg.HomeDir,
-		InsecureSkipVerify: cfg.InsecureSkipVerify,
 		Clock:              clock,
+		InsecureSkipVerify: cfg.InsecureSkipVerify,
+		AddKeysToAgent:     cfg.AddKeysToAgent,
+		WebauthnLogin:      cfg.WebauthnLogin,
+		ClientStore:        client.NewFSClientStore(cfg.HomeDir, client.WithHardwareKeyService(hwks)),
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -63,12 +74,12 @@ func Serve(ctx context.Context, cfg Config) error {
 	clusterIDCache := &clusteridcache.Cache{}
 
 	daemonService, err := daemon.New(daemon.Config{
-		Storage:                         storage,
-		CreateTshdEventsClientCredsFunc: grpcCredentials.tshdEvents,
-		PrehogAddr:                      cfg.PrehogAddr,
-		KubeconfigsDir:                  cfg.KubeconfigsDir,
-		AgentsDir:                       cfg.AgentsDir,
-		ClusterIDCache:                  clusterIDCache,
+		Storage:          storage,
+		PrehogAddr:       cfg.PrehogAddr,
+		KubeconfigsDir:   cfg.KubeconfigsDir,
+		AgentsDir:        cfg.AgentsDir,
+		ClusterIDCache:   clusterIDCache,
+		TshdEventsClient: tshdEventsClient,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -94,6 +105,20 @@ func Serve(ctx context.Context, cfg Config) error {
 		serverAPIWait <- err
 	}()
 
+	var hardwareKeyAgentServer *libhwk.Server
+	if cfg.HardwareKeyAgent {
+		hardwareKeyAgentServer, err = libhwk.NewAgentServer(ctx, hwks, libhwk.DefaultAgentDir(), storage.ClientStore.KnownHardwareKey)
+		if err != nil {
+			slog.WarnContext(ctx, "failed to create the hardware key agent server", "err", err)
+		} else {
+			go func() {
+				if err := hardwareKeyAgentServer.Serve(ctx); err != nil {
+					slog.WarnContext(ctx, "hardware key agent server error", "err", err)
+				}
+			}()
+		}
+	}
+
 	// Wait for shutdown signals
 	go func() {
 		shutdownSignals := []os.Signal{os.Interrupt, syscall.SIGTERM}
@@ -102,13 +127,17 @@ func Serve(ctx context.Context, cfg Config) error {
 
 		select {
 		case <-ctx.Done():
-			log.Info("Context closed, stopping service.")
+			slog.InfoContext(ctx, "Context closed, stopping service")
 		case sig := <-c:
-			log.Infof("Captured %s, stopping service.", sig)
+			slog.InfoContext(ctx, "Captured signal, stopping service", "signal", sig)
 		}
 
 		daemonService.Stop()
 		apiServer.Stop()
+
+		if hardwareKeyAgentServer != nil {
+			hardwareKeyAgentServer.Stop()
+		}
 	}()
 
 	errAPI := <-serverAPIWait

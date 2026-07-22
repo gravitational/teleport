@@ -25,7 +25,6 @@ import (
 	"io"
 	"math/big"
 	"os"
-	"path"
 	"path/filepath"
 	"strings"
 
@@ -77,6 +76,9 @@ type ConfigureCmd struct {
 	// confPath path to target plugin configuration file which contains an example plugin configuration
 	confPath string
 
+	// helmConfPath path to target plugin helm configuration file which contains an example plugin configuration
+	helmConfPath string
+
 	// mtls is the struct with generated mTLS certificates
 	mtls *MTLSCerts
 }
@@ -90,6 +92,9 @@ var (
 
 	//go:embed tpl/teleport-event-handler.toml.tpl
 	confTpl string
+
+	//go:embed tpl/teleport-plugin-event-handler-values.yaml.tpl
+	helmConfTpl string
 
 	//go:embed tpl/fluent.conf.tpl
 	fluentdConfTpl string
@@ -111,6 +116,9 @@ const (
 	// confFileName is plugin configuration file name
 	confFileName = "teleport-event-handler.toml"
 
+	// helmConfFileName is plugin helm configuration file name
+	helmConfFileName = "teleport-plugin-event-handler-values.yaml"
+
 	// guideURL is getting started guide URL
 	guideURL = "https://goteleport.com/docs/management/export-audit-events/fluentd/"
 )
@@ -119,15 +127,16 @@ const (
 func RunConfigureCmd(cfg *ConfigureCmdConfig) error {
 	c := ConfigureCmd{
 		ConfigureCmdConfig: cfg,
-		caCertPath:         path.Join(cfg.Out, cfg.CAName) + ".crt",
-		caKeyPath:          path.Join(cfg.Out, cfg.CAName) + ".key",
-		serverCertPath:     path.Join(cfg.Out, cfg.ServerName) + ".crt",
-		serverKeyPath:      path.Join(cfg.Out, cfg.ServerName) + ".key",
-		clientCertPath:     path.Join(cfg.Out, cfg.ClientName) + ".crt",
-		clientKeyPath:      path.Join(cfg.Out, cfg.ClientName) + ".key",
-		roleDefPath:        path.Join(cfg.Out, roleDefFileName),
-		fluentdConfPath:    path.Join(cfg.Out, fluentdConfFileName),
-		confPath:           path.Join(cfg.Out, confFileName),
+		caCertPath:         filepath.Join(cfg.Out, cfg.CAName) + ".crt",
+		caKeyPath:          filepath.Join(cfg.Out, cfg.CAName) + ".key",
+		serverCertPath:     filepath.Join(cfg.Out, cfg.ServerName) + ".crt",
+		serverKeyPath:      filepath.Join(cfg.Out, cfg.ServerName) + ".key",
+		clientCertPath:     filepath.Join(cfg.Out, cfg.ClientName) + ".crt",
+		clientKeyPath:      filepath.Join(cfg.Out, cfg.ClientName) + ".key",
+		roleDefPath:        filepath.Join(cfg.Out, roleDefFileName),
+		fluentdConfPath:    filepath.Join(cfg.Out, fluentdConfFileName),
+		confPath:           filepath.Join(cfg.Out, confFileName),
+		helmConfPath:       filepath.Join(cfg.Out, helmConfFileName),
 	}
 
 	g, err := GenerateMTLSCerts(cfg.DNSNames, cfg.IP, cfg.TTL, cfg.Length)
@@ -142,7 +151,7 @@ func RunConfigureCmd(cfg *ConfigureCmdConfig) error {
 
 // Run runs the generator
 func (c *ConfigureCmd) Run() error {
-	fmt.Printf("Teleport event handler %v %v\n\n", Version, Gitref)
+	fmt.Printf("%v %v %v\n\n", pluginName, Version, Gitref)
 
 	c.step = 1
 
@@ -205,6 +214,19 @@ func (c *ConfigureCmd) Run() error {
 	}
 
 	c.printStep("Generated plugin configuration file %v", path)
+
+	// Write the helm configuration file
+	err = c.writeHelmConf()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	path, err = c.cleanupPath(c.helmConfPath)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	c.printStep("Generated plugin helm configuration file %v", path)
 
 	fmt.Println()
 	fmt.Println("Follow-along with our getting started guide:")
@@ -347,9 +369,9 @@ func (c *ConfigureCmd) writeFluentdConf(pwd string) error {
 		ServerKeyFileName  string
 		Pwd                string
 	}{
-		path.Base(c.caCertPath),
-		path.Base(c.serverCertPath),
-		path.Base(c.serverKeyPath),
+		filepath.Base(c.caCertPath),
+		filepath.Base(c.serverCertPath),
+		filepath.Base(c.serverKeyPath),
 		pwd,
 	}
 
@@ -361,7 +383,7 @@ func (c *ConfigureCmd) writeFluentdConf(pwd string) error {
 	return c.writeFile(c.fluentdConfPath, b.Bytes())
 }
 
-// writeFluentdConf writes fluentd config file
+// writeConf writes plugin config file
 func (c *ConfigureCmd) writeConf() error {
 	var b bytes.Buffer
 	var pipeline = struct {
@@ -377,6 +399,21 @@ func (c *ConfigureCmd) writeConf() error {
 	}
 
 	return c.writeFile(c.confPath, b.Bytes())
+}
+
+// writeHelmConf writes plugin helm config file
+func (c *ConfigureCmd) writeHelmConf() error {
+	var b bytes.Buffer
+	var pipeline = struct {
+		Addr string
+	}{c.Addr}
+
+	err := lib.RenderTemplate(helmConfTpl, pipeline, &b)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return c.writeFile(c.helmConfPath, b.Bytes())
 }
 
 // askOverwrite asks question if the user wants to overwrite specified file if it exists

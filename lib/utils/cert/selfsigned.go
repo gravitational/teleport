@@ -28,9 +28,9 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
-	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 )
 
 // macMaxTLSCertValidityPeriod is the maximum validity period
@@ -51,7 +51,7 @@ type Credentials struct {
 // GenerateSelfSignedCert generates a self-signed certificate that
 // is valid for given domain names and IPs. If extended key usage
 // is not specified, the cert will be generated for server auth.
-func GenerateSelfSignedCert(hostNames []string, ipAddresses []string, eku ...x509.ExtKeyUsage) (*Credentials, error) {
+func GenerateSelfSignedCert(hostNames []string, ipAddresses []string, eku []x509.ExtKeyUsage, now func() time.Time) (*Credentials, error) {
 	if len(eku) == 0 {
 		// if not specified, assume this cert is for server auth,
 		// which is required for validation on macOS:
@@ -59,11 +59,16 @@ func GenerateSelfSignedCert(hostNames []string, ipAddresses []string, eku ...x50
 		eku = []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth}
 	}
 
-	priv, err := native.GenerateRSAPrivateKey()
+	priv, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	notBefore := time.Now()
+
+	if now == nil {
+		now = time.Now
+	}
+
+	notBefore := now()
 	notAfter := notBefore.Add(macMaxTLSCertValidityPeriod)
 
 	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
@@ -84,7 +89,7 @@ func GenerateSelfSignedCert(hostNames []string, ipAddresses []string, eku ...x50
 		Subject:               entity,
 		NotBefore:             notBefore,
 		NotAfter:              notAfter,
-		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
+		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
 		ExtKeyUsage:           eku,
 		BasicConstraintsValid: true,
 		IsCA:                  true,
@@ -104,20 +109,23 @@ func GenerateSelfSignedCert(hostNames []string, ipAddresses []string, eku ...x50
 		template.IPAddresses = append(template.IPAddresses, ipParsed)
 	}
 
-	derBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, &priv.PublicKey, priv)
+	derBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, priv.Public(), priv)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	publicKeyBytes, err := x509.MarshalPKIXPublicKey(priv.Public())
+	privateKeyBytes, err := keys.MarshalPrivateKey(priv)
 	if err != nil {
-		logrus.Error(err)
+		return nil, trace.Wrap(err)
+	}
+	publicKeyBytes, err := keys.MarshalPublicKey(priv.Public())
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return &Credentials{
-		PublicKey:  pem.EncodeToMemory(&pem.Block{Type: "RSA PUBLIC KEY", Bytes: publicKeyBytes}),
-		PrivateKey: pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(priv)}),
+		PrivateKey: privateKeyBytes,
+		PublicKey:  publicKeyBytes,
 		Cert:       pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: derBytes}),
 	}, nil
 }

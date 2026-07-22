@@ -19,64 +19,123 @@
 package common
 
 import (
+	"bytes"
 	"context"
+	"errors"
+	"fmt"
+	"io"
 	"os"
+	"slices"
 	"testing"
 
+	"github.com/ghodss/yaml"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/testing/protocmp"
+	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
-	"github.com/gravitational/teleport/api/constants"
+	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
+	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/autoupdate"
+	"github.com/gravitational/teleport/api/types/userprovisioning"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
+	"github.com/gravitational/teleport/lib/scopes"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/tool/tctl/common/resources"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
 func TestEditResources(t *testing.T) {
 	t.Parallel()
-	log := utils.NewSlogLoggerForTests()
-	process := testenv.MakeTestServer(t, testenv.WithLogger(log))
-	rootClient := testenv.MakeDefaultAuthClient(t, process)
+	log := logtest.NewLogger()
+	process, err := testenv.NewTeleportProcess(t.TempDir(),
+		testenv.WithConfig(func(cfg *servicecfg.Config) {
+			cfg.Modules = modulestest.EnterpriseModules()
+		}),
+		testenv.WithLogger(log))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
+	rootClient, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = rootClient.Close() })
 
 	tests := []struct {
-		kind string
+		name string
 		edit func(t *testing.T, clt *authclient.Client)
 	}{
 		{
-			kind: types.KindGithubConnector,
+			name: types.KindGithubConnector,
 			edit: testEditGithubConnector,
 		},
 		{
-			kind: types.KindRole,
+			name: types.KindRole,
 			edit: testEditRole,
 		},
 		{
-			kind: types.KindUser,
+			name: types.KindUser,
 			edit: testEditUser,
 		},
 		{
-			kind: types.KindClusterNetworkingConfig,
+			name: types.KindClusterNetworkingConfig,
 			edit: testEditClusterNetworkingConfig,
 		},
 		{
-			kind: types.KindClusterAuthPreference,
+			name: types.KindClusterAuthPreference,
 			edit: testEditAuthPreference,
 		},
 		{
-			kind: types.KindSessionRecordingConfig,
+			name: types.KindSessionRecordingConfig,
 			edit: testEditSessionRecordingConfig,
+		},
+		{
+			name: types.KindStaticHostUser,
+			edit: testEditStaticHostUser,
+		},
+		{
+			name: types.KindAutoUpdateConfig,
+			edit: testEditAutoUpdateConfig,
+		},
+		{
+			name: types.KindAutoUpdateVersion,
+			edit: testEditAutoUpdateVersion,
+		},
+		{
+			name: types.KindDynamicWindowsDesktop,
+			edit: testEditDynamicWindowsDesktop,
+		},
+		{
+			name: types.KindHealthCheckConfig,
+			edit: testEditHealthCheckConfig,
+		},
+		{
+			name: types.KindScopedToken,
+			edit: testEditScopedToken,
+		},
+		{
+			name: "edit multiple resources with SubKind (" + types.KindCertAuthority + ")",
+			edit: testEditMultipleWithSubKind,
 		},
 	}
 
 	for _, test := range tests {
-		t.Run(test.kind, func(t *testing.T) {
+		t.Run(test.name, func(t *testing.T) {
 			test.edit(t, rootClient)
 		})
 	}
@@ -111,9 +170,8 @@ func testEditGithubConnector(t *testing.T, clt *authclient.Client) {
 		expected.SetRevision(created.GetRevision())
 		expected.SetClientID("abcdef")
 
-		collection := &connectorsCollection{github: []types.GithubConnector{expected}}
+		collection := resources.NewConnectorCollection(nil, nil, []types.GithubConnector{expected})
 		return trace.NewAggregate(writeYAML(collection, f), f.Close())
-
 	}
 
 	// Edit the connector and validate that the expected field is updated.
@@ -149,9 +207,8 @@ func testEditRole(t *testing.T, clt *authclient.Client) {
 		expected.SetRevision(created.GetRevision())
 		expected.SetLogins(types.Allow, []string{"abcdef"})
 
-		collection := &roleCollection{roles: []types.Role{expected}}
+		collection := resources.NewRoleCollection([]types.Role{expected})
 		return trace.NewAggregate(writeYAML(collection, f), f.Close())
-
 	}
 
 	// Edit the role and validate that the expected field is updated.
@@ -187,10 +244,10 @@ func testEditUser(t *testing.T, clt *authclient.Client) {
 		expected.SetRevision(created.GetRevision())
 		expected.SetLogins([]string{"abcdef"})
 		expected.SetCreatedBy(created.GetCreatedBy())
+		expected.SetWeakestDevice(created.GetWeakestDevice())
 
-		collection := &userCollection{users: []types.User{expected}}
+		collection := resources.NewUserCollection([]types.User{expected})
 		return trace.NewAggregate(writeYAML(collection, f), f.Close())
-
 	}
 
 	// Edit the user and validate that the expected field is updated.
@@ -226,9 +283,8 @@ func testEditClusterNetworkingConfig(t *testing.T, clt *authclient.Client) {
 		expected.SetKeepAliveCountMax(1)
 		expected.SetCaseInsensitiveRouting(true)
 
-		collection := &netConfigCollection{netConfig: expected}
+		collection := &fakeCollection{[]types.Resource{expected}}
 		return trace.NewAggregate(writeYAML(collection, f), f.Close())
-
 	}
 
 	// Edit the cnc and validate that the expected field is updated.
@@ -263,11 +319,10 @@ func testEditAuthPreference(t *testing.T, clt *authclient.Client) {
 		}
 
 		expected.SetRevision(initial.GetRevision())
-		expected.SetSecondFactor(constants.SecondFactorOff)
+		expected.SetSecondFactors(types.SecondFactorType_SECOND_FACTOR_TYPE_OTP, types.SecondFactorType_SECOND_FACTOR_TYPE_SSO)
 
-		collection := &authPrefCollection{authPref: expected}
+		collection := &fakeCollection{[]types.Resource{expected}}
 		return trace.NewAggregate(writeYAML(collection, f), f.Close())
-
 	}
 
 	// Edit the cap and validate that the expected field is updated.
@@ -276,7 +331,7 @@ func testEditAuthPreference(t *testing.T, clt *authclient.Client) {
 
 	actual, err := clt.GetAuthPreference(ctx)
 	require.NoError(t, err, "retrieving cap after edit")
-	assert.NotEqual(t, initial.GetSecondFactor(), actual.GetSecondFactor(), "second factor should have been modified by edit")
+	assert.NotEqual(t, initial.GetSecondFactors(), actual.GetSecondFactors(), "second factors should have been modified by edit")
 	require.Empty(t, cmp.Diff(expected, actual, cmpopts.IgnoreFields(types.Metadata{}, "Revision", "Labels")))
 	assert.Equal(t, types.OriginDynamic, actual.Origin())
 
@@ -303,9 +358,8 @@ func testEditSessionRecordingConfig(t *testing.T, clt *authclient.Client) {
 		expected.SetRevision(initial.GetRevision())
 		expected.SetMode(types.RecordAtProxy)
 
-		collection := &recConfigCollection{recConfig: expected}
+		collection := &fakeCollection{[]types.Resource{expected}}
 		return trace.NewAggregate(writeYAML(collection, f), f.Close())
-
 	}
 
 	// Edit the src and validate that the expected field is updated.
@@ -326,23 +380,32 @@ func testEditSessionRecordingConfig(t *testing.T, clt *authclient.Client) {
 }
 
 // TestEditEnterpriseResources asserts that tctl edit
-// behaves as expected for enterprise resources. These resources cannot
-// be tested in parallel because they alter the modules to enable features.
-// The tests are grouped to amortize the cost of creating and auth server since
+// behaves as expected for enterprise resources. The tests are
+// grouped to amortize the cost of creating and auth server since
 // that is the most expensive part of testing editing the resource.
 func TestEditEnterpriseResources(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.OIDC: {Enabled: true},
-				entitlements.SAML: {Enabled: true},
-			},
-		},
+	log := logtest.NewLogger()
+	process, err := testenv.NewTeleportProcess(t.TempDir(),
+		testenv.WithConfig(func(cfg *servicecfg.Config) {
+			cfg.Modules = &modulestest.Modules{
+				TestBuildType: modules.BuildEnterprise,
+				TestFeatures: modules.Features{
+					Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+						entitlements.OIDC: {Enabled: true},
+						entitlements.SAML: {Enabled: true},
+					},
+				},
+			}
+		}),
+		testenv.WithLogger(log))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
 	})
-	log := utils.NewSlogLoggerForTests()
-	process := testenv.MakeTestServer(t, testenv.WithLogger(log))
-	rootClient := testenv.MakeDefaultAuthClient(t, process)
+	rootClient, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = rootClient.Close() })
 
 	tests := []struct {
 		kind string
@@ -371,6 +434,7 @@ func testEditOIDCConnector(t *testing.T, clt *authclient.Client) {
 		ClientID:     "12345",
 		ClientSecret: "678910",
 		RedirectURLs: []string{"https://proxy.example.com/v1/webapi/github/callback"},
+		PKCEMode:     "enabled",
 		Display:      "OIDC",
 		ClaimsToRoles: []types.ClaimMapping{
 			{
@@ -393,9 +457,8 @@ func testEditOIDCConnector(t *testing.T, clt *authclient.Client) {
 		expected.SetRevision(created.GetRevision())
 		expected.SetClientID("abcdef")
 
-		collection := &connectorsCollection{oidc: []types.OIDCConnector{expected}}
+		collection := resources.NewConnectorCollection([]types.OIDCConnector{expected}, nil, nil)
 		return trace.NewAggregate(writeYAML(collection, f), f.Close())
-
 	}
 
 	// Edit the connector and validate that the expected field is updated.
@@ -434,8 +497,8 @@ func testEditSAMLConnector(t *testing.T, clt *authclient.Client) {
         </md:KeyDescriptor>
         <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress</md:NameIDFormat>
         <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified</md:NameIDFormat>
-        <md:SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="test" />
-        <md:SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="test" />
+        <md:SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://example.com" />
+        <md:SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="https://example.com" />
       </md:IDPSSODescriptor>
     </md:EntityDescriptor>`,
 		Display: "SAML",
@@ -462,9 +525,8 @@ func testEditSAMLConnector(t *testing.T, clt *authclient.Client) {
 		expected.SetSigningKeyPair(created.GetSigningKeyPair())
 		expected.SetAssertionConsumerService("updated-acs")
 
-		collection := &connectorsCollection{saml: []types.SAMLConnector{expected}}
+		collection := resources.NewConnectorCollection(nil, []types.SAMLConnector{expected}, nil)
 		return trace.NewAggregate(writeYAML(collection, f), f.Close())
-
 	}
 
 	// Edit the connector and validate that the expected field is updated.
@@ -484,4 +546,510 @@ func testEditSAMLConnector(t *testing.T, clt *authclient.Client) {
 	_, err = runEditCommand(t, clt, []string{"edit", "connector/saml"}, withEditor(editor))
 	assert.Error(t, err, "stale connector was allowed to be updated")
 	require.ErrorIs(t, err, backend.ErrIncorrectRevision, "expected an incorrect revision error, got %T", err)
+}
+
+func testEditStaticHostUser(t *testing.T, clt *authclient.Client) {
+	ctx := context.Background()
+
+	expected := userprovisioning.NewStaticHostUser("alice", userprovisioningpb.StaticHostUserSpec_builder{
+		Matchers: []*userprovisioningpb.Matcher{
+			userprovisioningpb.Matcher_builder{
+				NodeLabels: []*labelv1.Label{
+					labelv1.Label_builder{
+						Name:   "foo",
+						Values: []string{"bar"},
+					}.Build(),
+				},
+				Groups: []string{"foo", "bar"},
+			}.Build(),
+		},
+	}.Build())
+	created, err := clt.StaticHostUserClient().CreateStaticHostUser(ctx, expected)
+	require.NoError(t, err)
+
+	editor := func(name string) error {
+		f, err := os.Create(name)
+		if err != nil {
+			return trace.Wrap(err, "opening file to edit")
+		}
+
+		expected.GetMetadata().SetRevision(created.GetMetadata().GetRevision())
+		expected.GetSpec().GetMatchers()[0].SetGroups([]string{"baz", "quux"})
+
+		collection := resources.NewStaticHostUserCollection([]*userprovisioningpb.StaticHostUser{expected})
+		return trace.NewAggregate(writeYAML(collection, f), f.Close())
+	}
+
+	_, err = runEditCommand(t, clt, []string{"edit", "host_user/alice"}, withEditor(editor))
+	require.NoError(t, err)
+
+	actual, err := clt.StaticHostUserClient().GetStaticHostUser(ctx, expected.GetMetadata().GetName())
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(expected, actual,
+		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
+		protocmp.Transform(),
+	))
+
+	_, err = runEditCommand(t, clt, []string{"edit", "host_user/alice"}, withEditor(editor))
+	require.Error(t, err)
+	require.True(t, trace.IsCompareFailed(err), "unexpected error: %v", err)
+}
+
+func testEditAutoUpdateConfig(t *testing.T, clt *authclient.Client) {
+	ctx := context.Background()
+
+	expected, err := autoupdate.NewAutoUpdateConfig(autoupdatev1pb.AutoUpdateConfigSpec_builder{
+		Tools: autoupdatev1pb.AutoUpdateConfigSpecTools_builder{
+			Mode: autoupdate.ToolsUpdateModeEnabled,
+		}.Build(),
+	}.Build())
+	require.NoError(t, err)
+
+	initial, err := autoupdate.NewAutoUpdateConfig(autoupdatev1pb.AutoUpdateConfigSpec_builder{
+		Tools: autoupdatev1pb.AutoUpdateConfigSpecTools_builder{
+			Mode: autoupdate.ToolsUpdateModeDisabled,
+		}.Build(),
+	}.Build())
+	require.NoError(t, err)
+
+	serviceClient := autoupdatev1pb.NewAutoUpdateServiceClient(clt.GetConnection())
+	initial, err = serviceClient.CreateAutoUpdateConfig(ctx, autoupdatev1pb.CreateAutoUpdateConfigRequest_builder{Config: initial}.Build())
+	require.NoError(t, err, "creating initial autoupdate config")
+
+	editor := func(name string) error {
+		f, err := os.Create(name)
+		if err != nil {
+			return trace.Wrap(err, "opening file to edit")
+		}
+		expected.GetMetadata().SetRevision(initial.GetMetadata().GetRevision())
+		collection := resources.NewAutoUpdateConfigCollection(expected)
+		return trace.NewAggregate(writeYAML(collection, f), f.Close())
+	}
+
+	// Edit the AutoUpdateConfig resource.
+	_, err = runEditCommand(t, clt, []string{"edit", "autoupdate_config"}, withEditor(editor))
+	require.NoError(t, err, "expected editing autoupdate config to succeed")
+
+	actual, err := clt.GetAutoUpdateConfig(ctx)
+	require.NoError(t, err, "failed to get autoupdate config after edit")
+	assert.NotEqual(t, initial.GetSpec().GetTools().GetMode(), actual.GetSpec().GetTools().GetMode(),
+		"tools_autoupdate should have been modified by edit")
+	assert.Equal(t, expected.GetSpec().GetTools().GetMode(), actual.GetSpec().GetTools().GetMode())
+}
+
+func testEditAutoUpdateVersion(t *testing.T, clt *authclient.Client) {
+	ctx := context.Background()
+
+	expected, err := autoupdate.NewAutoUpdateVersion(autoupdatev1pb.AutoUpdateVersionSpec_builder{
+		Tools: autoupdatev1pb.AutoUpdateVersionSpecTools_builder{
+			TargetVersion: "3.2.1",
+		}.Build(),
+	}.Build())
+	require.NoError(t, err)
+
+	initial, err := autoupdate.NewAutoUpdateVersion(autoupdatev1pb.AutoUpdateVersionSpec_builder{
+		Tools: autoupdatev1pb.AutoUpdateVersionSpecTools_builder{
+			TargetVersion: "1.2.3",
+		}.Build(),
+	}.Build())
+	require.NoError(t, err)
+
+	serviceClient := autoupdatev1pb.NewAutoUpdateServiceClient(clt.GetConnection())
+	initial, err = serviceClient.CreateAutoUpdateVersion(ctx, autoupdatev1pb.CreateAutoUpdateVersionRequest_builder{Version: initial}.Build())
+	require.NoError(t, err, "creating initial autoupdate version")
+
+	editor := func(name string) error {
+		f, err := os.Create(name)
+		if err != nil {
+			return trace.Wrap(err, "opening file to edit")
+		}
+		expected.GetMetadata().SetRevision(initial.GetMetadata().GetRevision())
+		collection := resources.NewAutoUpdateVersionCollection(expected)
+		return trace.NewAggregate(writeYAML(collection, f), f.Close())
+	}
+
+	// Edit the AutoUpdateVersion resource.
+	_, err = runEditCommand(t, clt, []string{"edit", "autoupdate_version"}, withEditor(editor))
+	require.NoError(t, err, "expected editing autoupdate version to succeed")
+
+	actual, err := clt.GetAutoUpdateVersion(ctx)
+	require.NoError(t, err, "failed to get autoupdate version after edit")
+	assert.NotEqual(t, initial.GetSpec().GetTools().GetTargetVersion(), actual.GetSpec().GetTools().GetTargetVersion(),
+		"tools_autoupdate should have been modified by edit")
+	assert.Equal(t, expected.GetSpec().GetTools().GetTargetVersion(), actual.GetSpec().GetTools().GetTargetVersion())
+}
+
+func testEditDynamicWindowsDesktop(t *testing.T, clt *authclient.Client) {
+	expected, err := types.NewDynamicWindowsDesktopV1("test", nil, types.DynamicWindowsDesktopSpecV1{Addr: "test"})
+	require.NoError(t, err)
+	created, err := clt.DynamicDesktopClient().CreateDynamicWindowsDesktop(t.Context(), expected)
+	require.NoError(t, err)
+
+	editor := func(name string) error {
+		f, err := os.Create(name)
+		if err != nil {
+			return trace.Wrap(err, "opening file to edit")
+		}
+
+		expected.SetRevision(created.GetRevision())
+		expected.Spec.Addr = "test2"
+
+		collection := resources.NewDynamicDesktopCollection([]types.DynamicWindowsDesktop{expected})
+		return trace.NewAggregate(writeYAML(collection, f), f.Close())
+	}
+
+	_, err = runEditCommand(t, clt, []string{"edit", "dynamic_windows_desktop/test"}, withEditor(editor))
+	require.NoError(t, err)
+
+	actual, err := clt.DynamicDesktopClient().GetDynamicWindowsDesktop(t.Context(), expected.GetName())
+	require.NoError(t, err)
+
+	expected.SetRevision(actual.GetRevision())
+	require.Empty(t, cmp.Diff(expected, actual, protocmp.Transform()))
+}
+
+func testEditScopedToken(t *testing.T, clt *authclient.Client) {
+	t.Parallel()
+
+	ctx := t.Context()
+
+	created, err := clt.CreateScopedToken(ctx, joiningv1.ScopedToken_builder{
+		Kind:    types.KindScopedToken,
+		Version: types.V1,
+		Scope:   "/staging",
+		Metadata: headerv1.Metadata_builder{
+			Name: "test-token",
+		}.Build(),
+		Spec: joiningv1.ScopedTokenSpec_builder{
+			AssignedScope: "/staging/aa",
+			Roles:         []string{string(types.RoleNode)},
+			UsageMode:     "unlimited",
+			JoinMethod:    string(types.JoinMethodToken),
+		}.Build(),
+	}.Build())
+	require.NoError(t, err)
+
+	initialRevision := created.GetMetadata().GetRevision()
+
+	editor := func(name string) error {
+		f, err := os.Create(name)
+		if err != nil {
+			return trace.Wrap(err, "opening file to edit")
+		}
+		// Always use the original revision — it becomes stale after the first edit.
+		created.GetMetadata().SetRevision(initialRevision)
+		if created.GetMetadata().GetLabels() == nil {
+			created.GetMetadata().SetLabels(make(map[string]string))
+		}
+		created.GetMetadata().GetLabels()["env"] = "test"
+
+		collection := resources.NewScopedTokenCollection([]*joiningv1.ScopedToken{created})
+		return trace.NewAggregate(writeYAML(collection, f), f.Close())
+	}
+
+	_, err = runEditCommand(t, clt, []string{"edit", types.KindScopedToken, scopes.QualifiedName{
+		Scope: "/staging",
+		Name:  created.GetMetadata().GetName()}.String(),
+	}, withEditor(editor))
+	require.NoError(t, err)
+
+	actual, err := clt.GetScopedToken(ctx, created.GetMetadata().GetName(), true)
+	require.NoError(t, err)
+	require.Equal(t, "test", actual.GetMetadata().GetLabels()["env"])
+
+	// Second edit with the stale original revision should fail.
+	_, err = runEditCommand(t, clt, []string{"edit", types.KindScopedToken, scopes.QualifiedName{
+		Scope: "/staging",
+		Name:  created.GetMetadata().GetName(),
+	}.String()}, withEditor(editor))
+	require.Error(t, err)
+	require.True(t, trace.IsCompareFailed(err))
+}
+
+func testEditMultipleWithSubKind(t *testing.T, clt *authclient.Client) {
+	t.Parallel()
+
+	overwriteFile := func(f *os.File, valsYAML [][]byte) error {
+		if err := f.Truncate(0); err != nil {
+			return fmt.Errorf("truncate: %w", err)
+		}
+		if _, err := f.Seek(0, 0); err != nil {
+			return fmt.Errorf("seek to zero: %w", err)
+		}
+
+		for i, val := range valsYAML {
+			if i > 0 {
+				if _, err := f.WriteString("---\n"); err != nil {
+					return fmt.Errorf("write: %w", err)
+				}
+			}
+			if _, err := f.Write(val); err != nil {
+				return fmt.Errorf("write: %w", err)
+			}
+			if !bytes.HasSuffix(val, []byte("\n")) {
+				if _, err := f.WriteString("\n"); err != nil {
+					return fmt.Errorf("write: %w", err)
+				}
+			}
+		}
+
+		return nil
+	}
+
+	// Test add/remove detection when the number of resources stays the same.
+	t.Run("add/remove", func(t *testing.T) {
+		// Don't t.Parallel(), may edit resources on failure.
+
+		cn, err := clt.GetClusterName(t.Context())
+		require.NoError(t, err, "read cluster name")
+
+		const loadKeys = false
+		winCA, err := clt.GetCertAuthority(t.Context(), types.CertAuthID{
+			Type:       types.WindowsCA,
+			DomainName: cn.GetClusterName(),
+		}, loadKeys)
+		require.NoError(t, err, "read Windows CA")
+
+		winJSON, err := services.MarshalCertAuthority(winCA)
+		require.NoError(t, err, "marshal Windows CA")
+		winYAML, err := yaml.JSONToYAML(winJSON)
+		require.NoError(t, err, "convert JSON to YAML")
+
+		editor := func(name string) error {
+			// Replace the editor file contents with the Windows CA.
+			return os.WriteFile(name, winYAML, 0644)
+		}
+
+		// Edit cas/host, then replace it with cas/windows.
+		_, err = runEditCommand(t, clt, []string{"edit", "cas/host"}, withEditor(editor))
+		assert.ErrorContains(t, err, "was added or removed", "tctl edit error mismatch")
+	})
+
+	// Test replacing one of the resources with a duplicate of another.
+	t.Run("duplicate", func(t *testing.T) {
+		// Don't t.Parallel(), may edit resources on failure.
+
+		editor := func(name string) error {
+			f, err := os.OpenFile(name, os.O_RDWR, 0644)
+			if err != nil {
+				return fmt.Errorf("read editor file: %w", err)
+			}
+			defer f.Close()
+
+			// Read CA YAMLs.
+			dec := kyaml.NewYAMLOrJSONDecoder(f, defaults.LookaheadBufSize)
+			var casYAML [][]byte
+			for {
+				var raw services.UnknownResource
+				if err := dec.Decode(&raw); errors.Is(err, io.EOF) {
+					break
+				}
+				if err != nil {
+					return fmt.Errorf("decode raw resource: %w", err)
+				}
+				casYAML = append(casYAML, raw.Raw)
+			}
+
+			// Replace an item with a duplicate.
+			casYAML[0] = casYAML[1]
+
+			// Overwrite.
+			if err := overwriteFile(f, casYAML); err != nil {
+				return fmt.Errorf("write editor file: %w", err)
+			}
+			if err := f.Close(); err != nil {
+				return fmt.Errorf("close editor file: %w", err)
+			}
+
+			return nil
+		}
+
+		// Edit all CAs, then replace one of them with a duplicate.
+		_, err := runEditCommand(t, clt, []string{"edit", "cas"}, withEditor(editor))
+		assert.ErrorContains(t, err, "duplicate kind/sub_kind/name", "tctl edit error mismatch")
+	})
+
+	t.Run("edit", func(t *testing.T) {
+		// Don't t.Parallel(), edits resources.
+
+		const caType1 = types.HostCA
+		const caType2 = types.WindowsCA
+
+		getCAs := func(t *testing.T) (_, _ types.CertAuthority) {
+			ctx := t.Context()
+			const loadKeys = false
+
+			cas1, err := clt.GetCertAuthorities(ctx, caType1, loadKeys)
+			require.NoError(t, err, "CA not found: %s", caType1)
+			require.Len(t, cas1, 1)
+
+			cas2, err := clt.GetCertAuthorities(ctx, caType2, loadKeys)
+			require.NoError(t, err, "CA not found: %s", caType2)
+			require.Len(t, cas2, 1)
+
+			return cas1[0], cas2[0]
+		}
+
+		// Prepare wanted CAs.
+		ca1, ca2 := getCAs(t)
+		md := ca1.GetMetadata()
+		md.Description = "description 1"
+		ca1.SetMetadata(md)
+		md = ca2.GetMetadata()
+		md.Description = "description 2"
+		ca2.SetMetadata(md)
+
+		editor := func(name string) error {
+			f, err := os.OpenFile(name, os.O_RDWR, 0644)
+			if err != nil {
+				return fmt.Errorf("read editor file: %w", err)
+			}
+			defer f.Close()
+
+			// Parse/edit CAs.
+			dec := kyaml.NewYAMLOrJSONDecoder(f, defaults.LookaheadBufSize)
+			var casYAML [][]byte
+			editCount := 0
+			for {
+				var raw services.UnknownResource
+				if err := dec.Decode(&raw); errors.Is(err, io.EOF) {
+					break
+				}
+				if err != nil {
+					return fmt.Errorf("decode raw resource: %w", err)
+				}
+				ca, err := services.UnmarshalCertAuthority(raw.Raw)
+				if err != nil {
+					return fmt.Errorf("unmarshal CA resource: %w", err)
+				}
+
+				switch ca.GetType() {
+				case ca1.GetType():
+					ca.SetMetadata(ca1.GetMetadata())
+					editCount++
+				case ca2.GetType():
+					ca.SetMetadata(ca2.GetMetadata())
+					editCount++
+				default:
+					// Don't change non-edited YAMLs.
+					casYAML = append(casYAML, raw.Raw)
+					continue
+				}
+
+				caJSON, err := services.MarshalCertAuthority(ca)
+				if err != nil {
+					return fmt.Errorf("marshal CA: %w", err)
+				}
+				caYAML, err := yaml.JSONToYAML(caJSON)
+				if err != nil {
+					return fmt.Errorf("convert JSON to YAML: %w", err)
+				}
+				casYAML = append(casYAML, caYAML)
+			}
+
+			const wantEdits = 2
+			if wantEdits != editCount {
+				return fmt.Errorf("edit count mismatch (want %d, got %d)", wantEdits, editCount)
+			}
+
+			// Write edited CAs.
+			if err := overwriteFile(f, casYAML); err != nil {
+				return fmt.Errorf("write editor file: %w", err)
+			}
+			if err := f.Close(); err != nil {
+				return fmt.Errorf("close editor file: %w", err)
+			}
+
+			return nil
+		}
+
+		_, err := runEditCommand(t, clt, []string{"edit", "cas"}, withEditor(editor))
+		require.NoError(t, err, "tctl edit errored")
+
+		// Verify CA updates.
+		gotCA1, gotCA2 := getCAs(t)
+		ca1.SetRevision(gotCA1.GetRevision())
+		ca2.SetRevision(gotCA2.GetRevision())
+		assert.Equal(t, ca1, gotCA1, "CA1 edit failed")
+		assert.Equal(t, ca2, gotCA2, "CA2 edit failed")
+	})
+}
+
+func TestMultipleRoles(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	log := logtest.NewLogger()
+	process, err := testenv.NewTeleportProcess(t.TempDir(), testenv.WithLogger(log))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
+	rootClient, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = rootClient.Close() })
+
+	roleNames := []string{"test-role1", "test-role2"}
+	for _, name := range roleNames {
+		expected, err := types.NewRole(name, types.RoleSpecV6{})
+		require.NoError(t, err, "creating initial role resource")
+		_, err = rootClient.CreateRole(ctx, expected.(*types.RoleV6))
+		require.NoError(t, err, "persisting initial role resource")
+	}
+
+	roles, err := rootClient.GetRoles(ctx)
+	require.NoError(t, err)
+
+	editor := func(name string) error {
+		f, err := os.Create(name)
+		if err != nil {
+			return trace.Wrap(err, "opening file to edit")
+		}
+		for _, role := range roles {
+			if !slices.Contains(roleNames, role.GetName()) {
+				continue
+			}
+			role.SetLogins(types.Allow, []string{"abcdef"})
+		}
+
+		collection := resources.NewRoleCollection(roles)
+		return trace.NewAggregate(writeYAML(collection, f), f.Close())
+	}
+
+	// Edit the role and validate that the expected field is updated.
+	_, err = runEditCommand(t, rootClient, []string{"edit", "roles"},
+		withEditor(editor),
+	)
+	require.NoError(t, err, "expected editing role to succeed")
+
+	for _, role := range roles {
+		actual, err := rootClient.GetRole(ctx, role.GetName())
+		require.NoError(t, err, "retrieving role after edit")
+
+		assert.Equal(t, role.GetLogins(types.Allow), actual.GetLogins(types.Allow), "logins should have been modified by edit")
+		require.Empty(t, cmp.Diff(role, actual, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+		switch {
+		case !slices.Contains(roleNames, role.GetName()):
+			require.Equal(t, role.GetRevision(), actual.GetRevision(), "revision should not have been modified by edit")
+		default:
+			require.NotEqual(t, role.GetRevision(), actual.GetRevision(), "revision should have been modified by edit")
+		}
+	}
+}
+
+// fakeCollection implements [resources.Collection] for testing purposes.
+type fakeCollection struct {
+	resources []types.Resource
+}
+
+// Resources implements [resources.Collection]
+func (c *fakeCollection) Resources() []types.Resource {
+	return c.resources
+}
+
+// WriteText implements [resources.Collection]
+func (c *fakeCollection) WriteText(w io.Writer, verbose bool) error {
+	return nil
 }

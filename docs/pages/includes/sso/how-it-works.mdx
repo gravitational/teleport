@@ -1,0 +1,18 @@
+{{ idp="your SSO provider" }}
+
+You can register your Teleport cluster as an application with {{ idp }}, then
+create an **authentication connector** resource that provides Teleport with
+information about your application. When a user signs in to Teleport, {{ idp }}
+executes its own authentication flow, then sends an HTTP request to your
+Teleport cluster to indicate that authentication has completed.
+
+Teleport authenticates users to your infrastructure by issuing short-lived
+certificates. After a user completes an SSO authentication flow, Teleport issues
+short-lived TLS and SSH certificates to the user. Teleport also creates a
+temporary user on the Auth Service backend. 
+
+Teleport roles are encoded in the user's certificates. To assign Teleport roles
+to the user, the Auth Service inspects the **role mapping** within the
+authentication connector, which associates user data on {{ idp }} with the names
+of one or more Teleport roles.
+

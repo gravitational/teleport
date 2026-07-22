@@ -70,7 +70,7 @@ func (fi *InMemoryFile) IsDir() bool {
 
 // Sys is platform independent
 // InMemoryFile's implementation is no-op
-func (fi *InMemoryFile) Sys() interface{} {
+func (fi *InMemoryFile) Sys() any {
 	return nil
 }
 

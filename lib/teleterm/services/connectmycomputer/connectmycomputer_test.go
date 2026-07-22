@@ -35,7 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/hostid"
 )
 
 func TestRoleSetupRun_WithNonLocalUser(t *testing.T) {
@@ -472,7 +472,7 @@ func mustMakeHostUUIDFile(t *testing.T, agentsDir string, profileName string) st
 	err = os.MkdirAll(dataDir, agentsDirStat.Mode())
 	require.NoError(t, err)
 
-	hostUUID, err := utils.ReadOrMakeHostUUID(dataDir)
+	hostUUID, err := hostid.ReadOrCreateFile(dataDir)
 	require.NoError(t, err)
 
 	return hostUUID

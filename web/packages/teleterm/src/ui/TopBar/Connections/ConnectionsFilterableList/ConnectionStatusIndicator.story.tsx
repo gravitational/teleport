@@ -17,7 +17,8 @@
  */
 
 import styled from 'styled-components';
-import { Flex, Box, Text } from 'design';
+
+import { Box, Flex, H2, Text } from 'design';
 
 import { StaticListItem } from 'teleterm/ui/components/ListItem';
 
@@ -39,7 +40,7 @@ export default {
 export const Story = () => (
   <Flex flexDirection="column" gap={3} p={2}>
     <Box>
-      <Text typography="h4">Block</Text>
+      <H2>Block</H2>
       <ul
         css={`
           padding: 0;
@@ -70,7 +71,7 @@ export const Story = () => (
     </Box>
 
     <Box>
-      <Text typography="h4">Inline</Text>
+      <H2>Inline</H2>
       <Box pl={2}>
         <Text>
           <ConnectionStatusIndicator inline status="processing" mr={3} />{' '}

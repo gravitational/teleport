@@ -1,0 +1,19 @@
+[package]
+name = "rdp-decoder"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lib]
+crate-type = ["staticlib", "lib"]
+
+[dependencies]
+fast_image_resize = { version = "6.0.0", optional = true }
+ironrdp-core.workspace = true
+ironrdp-graphics.workspace = true
+ironrdp-pdu.workspace = true
+ironrdp-session.workspace = true
+
+[features]
+image-resize = ["dep:fast_image_resize"]

@@ -16,62 +16,99 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useCallback, useState, useMemo } from 'react';
-
-import { Flex } from 'design';
-import { Danger } from 'design/Alert';
-
 import {
-  FilterKind,
-  UnifiedResources as SharedUnifiedResources,
-  useUnifiedResourcesFetch,
-  UnifiedResourcesPinning,
+  useCallback,
+  useMemo,
+  useState,
+  type JSX,
+  type ReactNode,
+} from 'react';
+import styled from 'styled-components';
+
+import { Danger } from 'design/Alert';
+import Box from 'design/Box';
+import Flex from 'design/Flex';
+import { DefaultTab } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
+import { useInfoGuide } from 'shared/components/SlidingSidePanel/InfoGuide';
+import {
   BulkAction,
+  FilterKind,
   IncludedResourceMode,
   ResourceAvailabilityFilter,
+  UnifiedResources as SharedUnifiedResources,
+  UnifiedResourceDefinition,
+  UnifiedResourcesPinning,
+  useUnifiedResourcesFetch,
 } from 'shared/components/UnifiedResources';
-import { ClusterDropdown } from 'shared/components/ClusterDropdown/ClusterDropdown';
+import { buildPredicateExpression } from 'shared/components/UnifiedResources/shared/predicateExpression';
+import {
+  getResourceId,
+  openStatusInfoPanel,
+} from 'shared/components/UnifiedResources/shared/StatusInfo';
 
-import { DefaultTab } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
-
-import useStickyClusterId from 'teleport/useStickyClusterId';
-import { useUser } from 'teleport/User/UserContext';
 import { useTeleport } from 'teleport';
+import AgentButtonAdd from 'teleport/components/AgentButtonAdd';
+import { ClusterDropdown } from 'teleport/components/ClusterDropdown/ClusterDropdown';
+import Empty, { EmptyStateInfo } from 'teleport/components/Empty';
 import { useUrlFiltering } from 'teleport/components/hooks';
 import {
+  FeatureBox,
   FeatureHeader,
   FeatureHeaderTitle,
-  FeatureBox,
 } from 'teleport/components/Layout';
-import { useNoMinWidth } from 'teleport/Main';
-import AgentButtonAdd from 'teleport/components/AgentButtonAdd';
+import { ServersideSearchPanel } from 'teleport/components/ServersideSearchPanel';
+import cfg from 'teleport/config';
 import { SearchResource } from 'teleport/Discover/SelectResource';
-import { encodeUrlQueryParams } from 'teleport/components/hooks/useUrlFiltering';
-import Empty, { EmptyStateInfo } from 'teleport/components/Empty';
-import { FeatureFlags } from 'teleport/types';
-import { UnifiedResource } from 'teleport/services/agents';
+import { useNoMinWidth } from 'teleport/Main';
 import {
-  useSamlAppAction,
   SamlAppActionProvider,
+  useSamlAppAction,
 } from 'teleport/SamlApplications/useSamlAppActions';
+import { UnifiedResource } from 'teleport/services/agents';
+import { FeatureFlags } from 'teleport/types';
+import { useUser } from 'teleport/User/UserContext';
+import useStickyClusterId from 'teleport/useStickyClusterId';
 
 import { ResourceActionButton } from './ResourceActionButton';
-import SearchPanel from './SearchPanel';
+import { StatusInfo } from './StatusInfo';
 
 export function UnifiedResources() {
   const { clusterId, isLeafCluster } = useStickyClusterId();
 
   return (
     <FeatureBox px={4}>
-      <SamlAppActionProvider>
-        <ClusterResources
-          key={clusterId} // when the current cluster changes, remount the component
-          clusterId={clusterId}
-          isLeafCluster={isLeafCluster}
-        />
-      </SamlAppActionProvider>
+      <ResizingResourceWrapper>
+        <SamlAppActionProvider>
+          <ClusterResources
+            key={clusterId} // when the current cluster changes, remount the component
+            clusterId={clusterId}
+            isLeafCluster={isLeafCluster}
+          />
+        </SamlAppActionProvider>
+      </ResizingResourceWrapper>
     </FeatureBox>
   );
+}
+
+export const ResizingResourceWrapper = styled(Box)`
+  width: 100%;
+  padding-right: ${props => props.theme.space[3]}px;
+`;
+
+// expandDesktopKinds ensures that we include both Windows in Linux in every search that targets desktops
+function expandDesktopKinds(kinds?: string[]): string[] | undefined {
+  if (!kinds || kinds.length === 0) {
+    return kinds;
+  }
+
+  const hasWindowsDesktop = kinds.includes('windows_desktop');
+  const hasLinuxDesktop = kinds.includes('linux_desktop');
+
+  if (!hasWindowsDesktop && !hasLinuxDesktop) {
+    return kinds;
+  }
+
+  return Array.from(new Set([...kinds, 'windows_desktop', 'linux_desktop']));
 }
 
 const getAvailableKindsWithAccess = (flags: FeatureFlags): FilterKind[] => {
@@ -96,6 +133,14 @@ const getAvailableKindsWithAccess = (flags: FeatureFlags): FilterKind[] => {
       kind: 'windows_desktop',
       disabled: !flags.desktops,
     },
+    {
+      kind: 'git_server',
+      disabled: !flags.gitServers,
+    },
+    {
+      kind: 'mcp',
+      disabled: !flags.applications,
+    },
   ];
 };
 
@@ -106,6 +151,7 @@ export function ClusterResources({
   showCheckout = false,
   availabilityFilter,
   bulkActions = [],
+  ctaSlot,
 }: {
   clusterId: string;
   isLeafCluster: boolean;
@@ -117,6 +163,16 @@ export function ClusterResources({
   /** A list of actions that can be performed on the selected items. */
   bulkActions?: BulkAction[];
   availabilityFilter?: ResourceAvailabilityFilter;
+  /**
+   * Optional render-prop for rendering content (such as a CTA) that depends on
+   * the current resource list. It's given the number of currently displayed
+   * resources along with whether any filter or search is active, so the content
+   * can tell a genuinely empty cluster apart from a list emptied by filtering.
+   */
+  ctaSlot?: (props: {
+    resourceCount: number;
+    isFilterApplied: boolean;
+  }) => ReactNode;
 }) {
   const teleCtx = useTeleport();
   const flags = teleCtx.getFeatureFlags();
@@ -132,15 +188,18 @@ export function ClusterResources({
   const canCreate = teleCtx.storeUser.getTokenAccess().create;
   const [loadClusterError, setLoadClusterError] = useState('');
 
-  const { params, setParams, replaceHistory, pathname } = useUrlFiltering({
-    sort: {
-      fieldName: 'name',
-      dir: 'ASC',
+  const { params, setParams } = useUrlFiltering(
+    {
+      sort: {
+        fieldName: 'name',
+        dir: 'ASC',
+      },
+      pinnedOnly:
+        preferences?.unifiedResourcePreferences?.defaultTab ===
+        DefaultTab.PINNED,
     },
-    includedResourceMode: availabilityFilter?.mode,
-    pinnedOnly:
-      preferences?.unifiedResourcePreferences?.defaultTab === DefaultTab.PINNED,
-  });
+    availabilityFilter?.mode
+  );
 
   const getCurrentClusterPinnedResources = useCallback(
     () => getClusterPinnedResources(clusterId),
@@ -163,14 +222,15 @@ export function ClusterResources({
   } = useUnifiedResourcesFetch({
     fetchFunc: useCallback(
       async (paginationParams, signal) => {
+        const kinds = expandDesktopKinds(params.kinds);
         const response = await teleCtx.resourceService.fetchUnifiedResources(
           clusterId,
           {
             search: params.search,
-            query: params.query,
+            query: buildPredicateExpression(params.statuses, params.query),
             pinnedOnly: params.pinnedOnly,
             sort: params.sort,
-            kinds: params.kinds,
+            kinds,
             searchAsRoles: '',
             limit: paginationParams.limit,
             startKey: paginationParams.startKey,
@@ -193,6 +253,7 @@ export function ClusterResources({
         params.search,
         params.sort,
         params.includedResourceMode,
+        params.statuses,
         teleCtx.resourceService,
       ]
     ),
@@ -233,10 +294,34 @@ export function ClusterResources({
     clear();
   }
 
+  const { setInfoGuideConfig } = useInfoGuide();
+  function onShowStatusInfo(resource: UnifiedResourceDefinition) {
+    openStatusInfoPanel({
+      isEnterprise: cfg.edition === 'ent',
+      resource,
+      setInfoGuideConfig,
+      guide: (
+        <StatusInfo
+          resource={resource}
+          clusterId={clusterId}
+          key={getResourceId(resource)}
+        />
+      ),
+    });
+  }
+
+  const isFilterApplied =
+    !!params.search ||
+    !!params.query ||
+    !!params.pinnedOnly ||
+    !!params.kinds?.length ||
+    !!params.statuses?.length;
+
   return (
     <>
       {loadClusterError && <Danger>{loadClusterError}</Danger>}
       <SharedUnifiedResources
+        onShowStatusInfo={onShowStatusInfo}
         bulkActions={bulkActions}
         params={params}
         fetchResources={fetch}
@@ -271,20 +356,7 @@ export function ClusterResources({
             ) || <ResourceActionButton resource={resource} />,
           },
         }))}
-        setParams={newParams => {
-          setParams(newParams);
-          const isAdvancedSearch = !!newParams.query;
-          replaceHistory(
-            encodeUrlQueryParams(
-              pathname,
-              isAdvancedSearch ? newParams.query : newParams.search,
-              newParams.sort,
-              newParams.kinds,
-              isAdvancedSearch,
-              newParams.pinnedOnly
-            )
-          );
-        }}
+        setParams={setParams}
         Header={
           <>
             <FeatureHeader
@@ -304,28 +376,21 @@ export function ClusterResources({
                 )}
               </Flex>
             </FeatureHeader>
-            <Flex alignItems="center" justifyContent="space-between">
-              <SearchPanel
-                params={params}
-                pathname={pathname}
-                replaceHistory={replaceHistory}
-                setParams={setParams}
-              />
+            <Flex alignItems="center" justifyContent="space-between" mb={3}>
+              <ServersideSearchPanel params={params} setParams={setParams} />
             </Flex>
           </>
         }
       />
+      {ctaSlot?.({ resourceCount: resources.length, isFilterApplied })}
     </>
   );
 }
 
 export const emptyStateInfo: EmptyStateInfo = {
-  title: 'Add your first resource to Teleport',
-  byline:
-    'Connect SSH servers, Kubernetes clusters, Windows Desktops, Databases, Web apps and more from our integrations catalog.',
+  title: 'Add Your First Resource',
   readOnly: {
     title: 'No Resources Found',
     resource: 'resources',
   },
-  resourceType: 'unified_resource',
 };

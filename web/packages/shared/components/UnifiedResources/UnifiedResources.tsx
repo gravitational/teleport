@@ -17,60 +17,64 @@
  */
 
 import React, {
-  useEffect,
-  useLayoutEffect,
-  useState,
-  useCallback,
   Children,
   PropsWithChildren,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
   useRef,
+  useState,
+  type JSX,
 } from 'react';
-
 import styled from 'styled-components';
-import { Box, Flex, Button, ButtonSecondary, Text, ButtonBorder } from 'design';
-import { Icon, Magnifier, PushPin } from 'design/Icon';
+
+import { Box, ButtonBorder, ButtonSecondary, Flex, Text } from 'design';
 import { Danger } from 'design/Alert';
-
-import './unifiedStyles.css';
-
-import { ResourcesResponse } from 'teleport/services/agents';
-
+import { Icon, Magnifier, PushPin } from 'design/Icon';
+import { HoverTooltip } from 'design/Tooltip';
 import {
+  AvailableResourceMode,
   DefaultTab,
   LabelsViewMode,
   UnifiedResourcePreferences,
   ViewMode,
-  AvailableResourceMode,
 } from 'gen-proto-ts/teleport/userpreferences/v1/unified_resource_preferences_pb';
-
-import { HoverTooltip } from 'shared/components/ToolTip';
 import {
+  Attempt as AsyncAttempt,
+  hasFinished,
   makeEmptyAttempt,
   makeSuccessAttempt,
   useAsync,
-  Attempt as AsyncAttempt,
-  hasFinished,
 } from 'shared/hooks/useAsync';
-import {
-  useKeyBasedPagination,
-  useInfiniteScroll,
-} from 'shared/hooks/useInfiniteScroll';
 import { Attempt } from 'shared/hooks/useAttemptNext';
+import {
+  useInfiniteScroll,
+  useKeyBasedPagination,
+} from 'shared/hooks/useInfiniteScroll';
 import { makeAdvancedSearchQueryForLabel } from 'shared/utils/advancedSearchLabelQuery';
 
+// eslint-disable-next-line no-restricted-imports -- FIXME
+import { ResourcesResponse } from 'teleport/services/agents';
+
+import { useInfoGuide } from '../SlidingSidePanel/InfoGuide';
+import { CardsView } from './CardsView/CardsView';
+import { FilterPanel } from './FilterPanel';
+import { ListView } from './ListView/ListView';
+import { ResourceTab } from './ResourceTab';
+import { getResourceId } from './shared/StatusInfo';
+import { mapResourceToViewItem } from './shared/viewItemsFactory';
 import {
-  SharedUnifiedResource,
+  IncludedResourceMode,
   PinningSupport,
+  ResourceLabelConfig,
+  SharedUnifiedResource,
+  UnifiedResourceDefinition,
   UnifiedResourcesPinning,
   UnifiedResourcesQueryParams,
-  IncludedResourceMode,
+  VisibleFilterPanelFields,
+  VisibleResourceItemFields,
 } from './types';
-
-import { ResourceTab } from './ResourceTab';
-import { FilterPanel } from './FilterPanel';
-import { CardsView } from './CardsView/CardsView';
-import { ListView } from './ListView/ListView';
-import { mapResourceToViewItem } from './shared/viewItemsFactory';
+import './unifiedStyles.css';
 
 // get 48 resources to start
 const INITIAL_FETCH_SIZE = 48;
@@ -113,18 +117,53 @@ export type BulkAction = {
    * over if this prop is supplied
    */
   tooltip?: string;
-  action: (
-    selectedResources: {
-      unifiedResourceId: string;
-      resource: SharedUnifiedResource['resource'];
-    }[]
-  ) => void;
+  action: (selectedResources: SelectedResource[]) => void;
 };
 
+export type ResourceLabel = {
+  name: string;
+  value: string;
+};
+
+export type SelectedResource = {
+  unifiedResourceId: string;
+  resource: SharedUnifiedResource['resource'];
+};
+
+/*
+ * ResourceFilterKind are resource kinds that can be used for filtering through
+ * ListUnifiedResources API.
+ *
+ * 'mcp' can be used to filter MCP servers by the backend, even though they are
+ * internally just app resources atm.
+ */
+export type ResourceFilterKind =
+  | SharedUnifiedResource['resource']['kind']
+  | 'mcp';
+
 export type FilterKind = {
-  kind: SharedUnifiedResource['resource']['kind'];
+  kind: ResourceFilterKind;
   disabled: boolean;
 };
+
+const filterKindNameMap: Record<ResourceFilterKind, string> = {
+  app: 'Applications',
+  db: 'Databases',
+  windows_desktop: 'Desktops',
+  linux_desktop: 'Desktops',
+  kube_cluster: 'Kubernetes Clusters',
+  node: 'SSH Resources',
+  user_group: 'User Groups',
+  git_server: 'Git Servers',
+  mcp: 'MCP Servers',
+};
+
+/*
+ * getFilterKindName returns the human-readable name of the filter kind.
+ */
+export function getFilterKindName(kind: ResourceFilterKind): string {
+  return filterKindNameMap[kind] ?? kind;
+}
 
 export type ResourceAvailabilityFilter =
   | {
@@ -139,7 +178,7 @@ export type ResourceAvailabilityFilter =
 export interface UnifiedResourcesProps {
   params: UnifiedResourcesQueryParams;
   resourcesFetchAttempt: Attempt;
-  fetchResources(options?: { force?: boolean }): Promise<void>;
+  fetchResources(options?: { force?: boolean; clear?: boolean }): Promise<void>;
   resources: SharedUnifiedResource[];
   Header?: React.ReactElement;
   /**
@@ -148,6 +187,12 @@ export interface UnifiedResourcesProps {
    * Rendered only when the resource list is empty and there's no search query.
    * */
   NoResources: React.ReactElement;
+  /**
+   * If true, it will render the "NoResources" component
+   * regardless of internal "no result" checks.
+   */
+  forceNoResources?: boolean;
+  noResultCustomText?: string;
   /**
    * If pinning is supported, the functions to get and update pinned resources
    * can be passed here.
@@ -174,6 +219,58 @@ export interface UnifiedResourcesProps {
   updateUnifiedResourcesPreferences(
     preferences: UnifiedResourcePreferences
   ): void;
+
+  /**
+   * When called, slides opens a InfoGuideSidePanel component
+   * with selected resources status info.
+   */
+  onShowStatusInfo(resource: UnifiedResourceDefinition): void;
+
+  /**
+   * resourceLabelConfig provides a way to custom handle resource labels.
+   *
+   * Look up the type to see the default behaviors if fields are not
+   * provided.
+   */
+  resourceLabelConfig?: ResourceLabelConfig;
+  /**
+   * onLabelClick is a custom label click handler.
+   *
+   * Default behavior is to append clicked label to
+   * the query string (aka predicate expression).
+   */
+  onLabelClick?(label: ResourceLabel): void;
+  /**
+   *  className support so that UnifiedResources works with the css prop.
+   */
+  className?: string;
+  /**
+   * Defaults to showing all fields.
+   * When specified, only fields with `true` value are shown.
+   *
+   * Applies to FilterPanel component.
+   */
+  visibleFilterPanelFields?: VisibleFilterPanelFields;
+  /**
+   * Defaults to showing all fields.
+   * When specified, only fields with `true` value are shown.
+   *
+   * Applies to row item elements (CardView or ListView).
+   */
+  visibleResourceItemFields?: VisibleResourceItemFields;
+  /**
+   * Controls rendering of a check icon at the top right corner of cards
+   * or right next to resource name for list view rows.
+   *
+   * If a boolean, applies to all resources uniformly.
+   * If a function, called per resource with its labels to determine
+   * whether the icon should be shown.
+   */
+  showResourceSelectedIcon?: boolean | ((labels: ResourceLabel[]) => boolean);
+  /**
+   * Optional content rendered on the left side of the filter panel.
+   */
+  FilterPanelLeftContent?: JSX.Element;
 }
 
 export function UnifiedResources(props: UnifiedResourcesProps) {
@@ -191,13 +288,25 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
     unifiedResourcePreferences,
     ClusterDropdown,
     bulkActions = [],
+    onShowStatusInfo,
+    visibleFilterPanelFields,
+    visibleResourceItemFields,
+    onLabelClick,
+    resourceLabelConfig,
+    className,
+    forceNoResources,
+    noResultCustomText,
+    showResourceSelectedIcon,
+    FilterPanelLeftContent,
   } = props;
 
-  const containerRef = useRef<HTMLDivElement>();
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const { setTrigger } = useInfiniteScroll({
     fetch: fetchResources,
   });
+
+  const { infoGuideConfig } = useInfoGuide();
 
   const [selectedResources, setSelectedResources] = useState<string[]>([]);
   const [forceCardView, setForceCardView] = useState(false);
@@ -399,6 +508,8 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
     unifiedResourcePreferences.labelsViewMode === LabelsViewMode.EXPANDED;
 
   useLayoutEffect(() => {
+    // TODO(ravicious): Use useResizeObserver instead. Ensure that the callback passed to
+    // useResizeObserver has a stable identity.
     const resizeObserver = new ResizeObserver(entries => {
       const container = entries[0];
 
@@ -429,54 +540,85 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
       ? CardsView
       : ListView;
 
+  let footerElement: JSX.Element;
+  if (forceNoResources) {
+    footerElement = props.NoResources;
+  } else if (noResults) {
+    if (isSearchEmpty && !params.pinnedOnly) {
+      footerElement = props.NoResources;
+    }
+    if (params.pinnedOnly && isSearchEmpty) {
+      footerElement = <NoPinned />;
+    }
+    if (!isSearchEmpty) {
+      footerElement = (
+        <NoResults
+          isPinnedTab={params.pinnedOnly}
+          query={params?.query || params?.search}
+          customText={noResultCustomText}
+        />
+      );
+    }
+  }
+
+  if (resourcesFetchAttempt.status === 'failed' && resources.length > 0) {
+    footerElement = (
+      <ButtonSecondary onClick={onRetryClicked}>Load more</ButtonSecondary>
+    );
+  }
+
   return (
-    <div
-      className="ContainerContext"
-      css={`
-        width: 100%;
-        max-width: 1800px;
-        margin: 0 auto;
-        min-width: 450px;
-      `}
-      ref={containerRef}
-    >
+    <Container className={`ContainerContext ${className}`} ref={containerRef}>
       <ErrorsContainer>
         {resourcesFetchAttempt.status === 'failed' && (
-          <Danger mb={0}>
-            Could not fetch resources: {resourcesFetchAttempt.statusText}
-            {/* we don't want them to try another request with BAD REQUEST, it will just fail again. */}
-            {resourcesFetchAttempt.statusCode !== 400 &&
-              resourcesFetchAttempt.statusCode !== 403 && (
-                <Box flex="0 0 auto" ml={2}>
-                  <Button type="button" onClick={onRetryClicked}>
-                    Retry
-                  </Button>
-                </Box>
-              )}
+          <Danger
+            mb={0}
+            bg="levels.sunken"
+            primaryAction={
+              // We don't want them to try another request with BAD REQUEST, it will just fail again.
+              resourcesFetchAttempt.statusCode !== 400 &&
+              resourcesFetchAttempt.statusCode !== 403 && {
+                content: 'Retry',
+                onClick: onRetryClicked,
+              }
+            }
+            details={resourcesFetchAttempt.statusText}
+          >
+            Could not fetch resources
           </Danger>
         )}
         {getPinnedResourcesAttempt.status === 'error' && (
-          <Danger mb={0}>
-            Could not fetch pinned resources:{' '}
-            {getPinnedResourcesAttempt.statusText}
+          <Danger
+            mb={0}
+            bg="levels.sunken"
+            details={getPinnedResourcesAttempt.statusText}
+          >
+            Could not fetch pinned resources
           </Danger>
         )}
         {updatePinnedResourcesAttempt.status === 'error' && (
-          <Danger mb={0}>
-            Could not update pinned resources:{' '}
-            {updatePinnedResourcesAttempt.statusText}
+          <Danger
+            mb={0}
+            bg="levels.sunken"
+            details={updatePinnedResourcesAttempt.statusText}
+          >
+            Could not update pinned resources
           </Danger>
         )}
         {unifiedResourcePreferencesAttempt?.status === 'error' && (
-          <Danger mb={0}>
-            Could not fetch unified view preferences:{' '}
-            {unifiedResourcePreferencesAttempt.statusText}
+          <Danger
+            mb={0}
+            bg="levels.sunken"
+            details={unifiedResourcePreferencesAttempt.statusText}
+          >
+            Could not fetch unified view preferences
           </Danger>
         )}
       </ErrorsContainer>
 
       {props.Header}
       <FilterPanel
+        visibleFilterPanelFields={visibleFilterPanelFields}
         availabilityFilter={availabilityFilter}
         changeAvailableResourceMode={changeAvailableResourceMode}
         params={params}
@@ -488,12 +630,14 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
         setCurrentViewMode={selectViewMode}
         expandAllLabels={expandAllLabels}
         ClusterDropdown={ClusterDropdown}
+        LeftContent={FilterPanelLeftContent}
         setExpandAllLabels={expandAllLabels => {
           setLabelsViewMode(
             expandAllLabels ? LabelsViewMode.EXPANDED : LabelsViewMode.COLLAPSED
           );
         }}
         hideViewModeOptions={forceCardView}
+        onRefresh={() => fetchResources({ clear: true })}
         BulkActions={
           <>
             {selectedResources.length > 0 && (
@@ -549,13 +693,18 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
         </Flex>
       )}
       <ViewComponent
-        onLabelClick={label =>
-          setParams({
-            ...params,
-            search: '',
-            query: makeAdvancedSearchQueryForLabel(label, params),
-          })
+        onLabelClick={
+          onLabelClick
+            ? onLabelClick
+            : label =>
+                setParams({
+                  ...params,
+                  search: '',
+                  query: makeAdvancedSearchQueryForLabel(label, params),
+                })
         }
+        showResourceSelectedIcon={showResourceSelectedIcon}
+        resourceLabelConfig={resourceLabelConfig}
         pinnedResources={pinnedResources}
         selectedResources={selectedResources}
         onSelectResource={handleSelectResource}
@@ -592,26 +741,19 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
                   },
                 }),
                 key: generateUnifiedResourceKey(resource),
+                onShowStatusInfo: () => onShowStatusInfo(resource),
+                showingStatusInfo:
+                  infoGuideConfig?.id &&
+                  infoGuideConfig.id === getResourceId(resource),
               }))
             : []
         }
         expandAllLabels={expandAllLabels}
+        visibleInputFields={visibleResourceItemFields}
       />
       <div ref={setTrigger} />
-      <ListFooter>
-        {resourcesFetchAttempt.status === 'failed' && resources.length > 0 && (
-          <ButtonSecondary onClick={onRetryClicked}>Load more</ButtonSecondary>
-        )}
-        {noResults && isSearchEmpty && !params.pinnedOnly && props.NoResources}
-        {noResults && params.pinnedOnly && isSearchEmpty && <NoPinned />}
-        {noResults && !isSearchEmpty && (
-          <NoResults
-            isPinnedTab={params.pinnedOnly}
-            query={params?.query || params?.search}
-          />
-        )}
-      </ListFooter>
-    </div>
+      <ListFooter>{footerElement}</ListFooter>
+    </Container>
   );
 }
 
@@ -625,6 +767,19 @@ export function useUnifiedResourcesFetch<T>(props: {
     fetchFunc: props.fetchFunc,
     initialFetchSize: INITIAL_FETCH_SIZE,
     fetchMoreSize: FETCH_MORE_SIZE,
+  });
+}
+
+export function useResourceServersFetch<T>(props: {
+  fetchFunc(
+    paginationParams: { limit: number; startKey: string },
+    signal: AbortSignal
+  ): Promise<ResourcesResponse<T>>;
+}) {
+  return useKeyBasedPagination({
+    fetchFunc: props.fetchFunc,
+    initialFetchSize: 20,
+    fetchMoreSize: 10,
   });
 }
 
@@ -643,11 +798,18 @@ function getResourcePinningSupport(
   return PinningSupport.Supported;
 }
 
-function generateUnifiedResourceKey(
+// TODO (avatus): send and use the generated key from the server so we don't have to keep this in sync.
+export function generateUnifiedResourceKey(
   resource: SharedUnifiedResource['resource']
 ): string {
-  if (resource.kind === 'node') {
-    return `${resource.hostname}/${resource.id}/node`.toLowerCase();
+  if (resource.kind === 'node' || resource.kind == 'git_server') {
+    return `${resource.hostname}/${resource.id}/${resource.kind}`.toLowerCase();
+  }
+  if (resource.kind === 'app' && resource.friendlyName !== '') {
+    return `${resource.friendlyName}/${resource.name}/${resource.kind}`.toLowerCase();
+  }
+  if (resource.kind === 'linux_desktop') {
+    return `${resource.host_id}/${resource.kind}`.toLowerCase();
   }
   return `${resource.name}/${resource.kind}`.toLowerCase();
 }
@@ -663,9 +825,11 @@ function NoPinned() {
 function NoResults({
   query,
   isPinnedTab,
+  customText,
 }: {
   query: string;
   isPinnedTab: boolean;
+  customText?: string;
 }) {
   if (query) {
     return (
@@ -681,19 +845,25 @@ function NoResults({
         as={Flex}
       >
         <Magnifier mr={2} />
-        No {isPinnedTab ? 'pinned ' : ''}resources were found for&nbsp;
-        <Text
-          as="span"
-          bold
-          css={`
-            max-width: 270px;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-          `}
-        >
-          {query}
-        </Text>
+        {customText ? (
+          <>{customText}</>
+        ) : (
+          <>
+            No {isPinnedTab ? 'pinned ' : ''}resources were found for&nbsp;
+            <Text
+              as="span"
+              bold
+              css={`
+                max-width: 270px;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+              `}
+            >
+              {query}
+            </Text>
+          </>
+        )}
       </Text>
     );
   }
@@ -763,3 +933,10 @@ export function getResourceAvailabilityFilter(
       availableResourceMode satisfies never;
   }
 }
+
+const Container = styled.div`
+  width: 100%;
+  max-width: 1800px;
+  margin: 0 auto;
+  min-width: 450px;
+`;

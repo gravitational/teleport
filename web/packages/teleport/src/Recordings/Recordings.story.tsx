@@ -16,12 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React from 'react';
-import { Router } from 'react-router';
-import { createMemoryHistory } from 'history';
+import { MemoryRouter } from 'react-router';
 
 import { Context, ContextProvider } from 'teleport';
-
 import { makeRecording } from 'teleport/services/recordings/makeRecording';
 
 import { RecordingsContainer as Recordings } from './Recordings';
@@ -71,17 +68,12 @@ export const Failed = () => {
 };
 
 function render(ctx) {
-  const history = createMemoryHistory({
-    initialEntries: ['/web/cluster/localhost/audit/events'],
-    initialIndex: 0,
-  });
-
   return (
-    <ContextProvider ctx={ctx}>
-      <Router history={history}>
+    <MemoryRouter initialEntries={['/web/cluster/localhost/audit/events']}>
+      <ContextProvider ctx={ctx}>
         <Recordings />
-      </Router>
-    </ContextProvider>
+      </ContextProvider>
+    </MemoryRouter>
   );
 }
 

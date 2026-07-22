@@ -25,24 +25,25 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
+	"os"
+	"strconv"
 	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/defaults"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
+	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnel/track"
@@ -78,6 +79,9 @@ type AgentPool struct {
 	active  *agentStore
 	tracker *track.Tracker
 
+	// lastConnectivityChange is updated on any agent event.
+	lastConnectivityChange time.Time
+
 	// runtimeConfig contains dynamic configuration values.
 	runtimeConfig *agentPoolRuntimeConfig
 
@@ -94,7 +98,7 @@ type AgentPool struct {
 
 	// backoff limits the rate at which new agents are created.
 	backoff retryutils.Retry
-	log     logrus.FieldLogger
+	logger  *slog.Logger
 }
 
 // AgentPoolConfig holds configuration parameters for the agent pool
@@ -105,8 +109,8 @@ type AgentPoolConfig struct {
 	// AccessPoint is a lightweight access point
 	// that can optionally cache some values
 	AccessPoint authclient.AccessCache
-	// AuthMethods contains SSH credentials that this pool connects as.
-	AuthMethods []ssh.AuthMethod
+	// PublicKeyAuth contains SSH public key credentials that this pool connects as.
+	PublicKeyAuth apissh.PublicKeyAuthConfig
 	// HostUUID is a unique ID of this host
 	HostUUID string
 	// LocalCluster is a cluster name this client is a member of.
@@ -141,6 +145,10 @@ type AgentPoolConfig struct {
 	LocalAuthAddresses []string
 	// PROXYSigner is used to sign PROXY headers for securely propagating client IP address
 	PROXYSigner multiplexer.PROXYHeaderSigner
+	// StaleConnTimeoutDisabled is true if connection timeouts are disabled.
+	StaleConnTimeoutDisabled bool
+	// InsecureMode defines whether insecure connections are allowed.
+	InsecureMode bool
 }
 
 // CheckAndSetDefaults checks and sets defaults.
@@ -151,8 +159,8 @@ func (cfg *AgentPoolConfig) CheckAndSetDefaults() error {
 	if cfg.AccessPoint == nil {
 		return trace.BadParameter("missing 'AccessPoint' parameter")
 	}
-	if len(cfg.AuthMethods) == 0 {
-		return trace.BadParameter("missing 'AuthMethods' parameter")
+	if cfg.PublicKeyAuth.IsEmpty() {
+		return trace.BadParameter("missing 'PublicKeyAuthConfig' parameter")
 	}
 	if len(cfg.HostUUID) == 0 {
 		return trace.BadParameter("missing 'HostUUID' parameter")
@@ -179,6 +187,9 @@ type Agent interface {
 	GetState() AgentState
 	// GetProxyID returns the proxy id of the proxy the agent is connected to.
 	GetProxyID() (string, bool)
+	// RTT returns a estimated roundtrip time. If the bool is false then an
+	// estimate has not yet been computed.
+	RTT() (time.Duration, bool)
 }
 
 // NewAgentPool returns new instance of the agent pool.
@@ -189,7 +200,7 @@ func NewAgentPool(ctx context.Context, config AgentPoolConfig) (*AgentPool, erro
 	retry, err := retryutils.NewLinear(retryutils.LinearConfig{
 		Step:      time.Second,
 		Max:       maxBackoff,
-		Jitter:    retryutils.NewJitter(),
+		Jitter:    retryutils.DefaultJitter,
 		AutoReset: 4,
 	})
 	if err != nil {
@@ -201,14 +212,13 @@ func NewAgentPool(ctx context.Context, config AgentPoolConfig) (*AgentPool, erro
 		active:          newAgentStore(),
 		events:          make(chan Agent),
 		backoff:         retry,
-		log: logrus.WithFields(logrus.Fields{
-			teleport.ComponentKey: teleport.ComponentReverseTunnelAgent,
-			teleport.ComponentFields: logrus.Fields{
-				"targetCluster": config.Cluster,
-				"localCluster":  config.LocalCluster,
-			},
-		}),
-		runtimeConfig: newAgentPoolRuntimeConfig(),
+		logger: slog.With(
+			teleport.ComponentKey, teleport.ComponentReverseTunnelAgent,
+			"target_cluster", config.Cluster,
+			"local_cluster", config.LocalCluster,
+		),
+		runtimeConfig:          newAgentPoolRuntimeConfig(config.InsecureMode),
+		lastConnectivityChange: config.Clock.Now(),
 	}
 
 	pool.runtimeConfig.isRemoteCluster = pool.IsRemoteCluster
@@ -239,7 +249,7 @@ func (p *AgentPool) updateConnectedProxies() {
 	}
 
 	proxies := p.active.proxyIDs()
-	p.log.Debugf("Updating connected proxies: %v", proxies)
+	p.logger.DebugContext(p.ctx, "Updating connected proxies", "proxies", proxies)
 	p.AgentPoolConfig.ConnectedProxyGetter.setProxyIDs(proxies)
 }
 
@@ -250,17 +260,18 @@ func (p *AgentPool) Count() int {
 
 // Start starts the agent pool in the background.
 func (p *AgentPool) Start() error {
-	p.log.Debugf("Starting agent pool %s.%s...", p.HostUUID, p.Cluster)
+	p.logger.DebugContext(p.ctx, "Starting agent pool",
+		"host_uuid", p.HostUUID,
+		"cluster", p.Cluster,
+	)
 
-	p.wg.Add(1)
-	go func() {
+	p.wg.Go(func() {
 		if err := p.run(); err != nil {
-			p.log.WithError(err).Warn("Agent pool exited.")
+			p.logger.WarnContext(p.ctx, "Agent pool exited", "error", err)
 		}
 
 		p.cancel()
-		p.wg.Done()
-	}()
+	})
 	return nil
 }
 
@@ -271,26 +282,45 @@ func (p *AgentPool) run() error {
 		if err != nil {
 			if p.ctx.Err() != nil {
 				return nil
-			} else if isProxyAlreadyClaimed(err) {
+			}
+
+			level := slog.LevelWarn
+			if isProxyAlreadyClaimed(err) && !p.IsRemoteCluster {
 				// "proxy already claimed" is a fairly benign error, we should not
 				// spam the log with stack traces for it
-				p.log.Debugf("Failed to connect agent: %v.", err)
-			} else {
-				p.log.WithError(err).Debugf("Failed to connect agent.")
+				level = slog.LevelDebug
+				err = trace.Unwrap(err)
 			}
+
+			p.logger.Log(p.ctx, level, "Failed to establish reverse tunnel", "error", err)
 		} else {
-			p.wg.Add(1)
-			p.active.add(agent)
-			p.updateConnectedProxies()
+			p.addActiveAgent(p.ctx, agent)
 		}
 
 		err = p.waitForBackoff(p.ctx, p.events)
 		if p.ctx.Err() != nil {
 			return nil
 		} else if err != nil {
-			p.log.WithError(err).Debugf("Failed to wait for backoff.")
+			p.logger.DebugContext(p.ctx, "Failed to wait for backoff", "error", err)
 		}
 	}
+}
+
+// addActiveAgent registers a successfully started agent with the pool.
+func (p *AgentPool) addActiveAgent(ctx context.Context, agent Agent) {
+	p.wg.Add(1)
+	p.active.add(agent)
+	p.lastConnectivityChange = p.Clock.Now()
+
+	if agent.GetState() == AgentClosed {
+		// The agent can close after Start succeeds but before run registers it.
+		// If the AgentClosed callback already ran, it could not remove the agent
+		// from the active set, so reconcile the state after registration.
+		p.handleEvent(ctx, agent)
+		return
+	}
+
+	p.updateConnectedProxies()
 }
 
 // connectAgent connects a new agent and processes any agent events blocking until a
@@ -337,7 +367,10 @@ func (p *AgentPool) updateRuntimeConfig(ctx context.Context) error {
 	restrictConnectionCount := p.runtimeConfig.restrictConnectionCount()
 	connectionCount := p.runtimeConfig.getConnectionCount()
 
-	p.log.Debugf("Runtime config: restrict_connection_count: %v connection_count: %v", restrictConnectionCount, connectionCount)
+	p.logger.DebugContext(ctx, "Runtime config updated",
+		"restrict_connection_count", restrictConnectionCount,
+		"connection_count", connectionCount,
+	)
 
 	if restrictConnectionCount {
 		p.tracker.SetConnectionCount(connectionCount)
@@ -356,7 +389,7 @@ func (p *AgentPool) processEvents(ctx context.Context, events <-chan Agent) erro
 		case <-ctx.Done():
 			return trace.Wrap(ctx.Err())
 		case agent := <-events:
-			p.handleEvent(ctx, agent)
+			p.handleSyncEvent(ctx, agent)
 			continue
 		default:
 		}
@@ -384,12 +417,91 @@ func (p *AgentPool) waitForLease(ctx context.Context, events <-chan Agent) (*tra
 		select {
 		case <-ctx.Done():
 		case <-t.C:
+			p.tryDisconnect(ctx)
 		case agent := <-events:
-			p.handleEvent(ctx, agent)
+			p.handleSyncEvent(ctx, agent)
 		}
 	}
 
 	return nil, trace.Wrap(ctx.Err())
+}
+
+// tryDisconnect disconnects an agent if all the following are true:
+// 1. A disconnect threshold has been configured in the clusternetworkconfig.
+// 2. There have been no connectivity changes within the configured threshold
+// 3. There have been no tracker topology changes within the configured threshold
+// 4. There are more active agents than the configured connection count.
+// This should be used synchonously within the main agentpool loop.
+func (p *AgentPool) tryDisconnect(ctx context.Context) {
+	disconnectThreshold := p.runtimeConfig.getDisconnectThreshold()
+	if disconnectThreshold <= 0 {
+		return
+	}
+
+	proxyIDs := p.active.proxyIDs()
+	snapshot := p.tracker.Snapshot()
+	if snapshot.ConnectionCount == 0 {
+		return
+	}
+
+	now := p.Clock.Now()
+	if !p.lastConnectivityChange.Add(disconnectThreshold).Before(now) {
+		return
+	}
+	if !snapshot.LastTopologyChange.Add(disconnectThreshold).Before(now) {
+		return
+	}
+
+	var activeDesiredProxies int
+	for _, proxyID := range proxyIDs {
+		if desired := snapshot.Proxies[proxyID]; desired {
+			activeDesiredProxies++
+		}
+	}
+	if activeDesiredProxies <= snapshot.ConnectionCount {
+		return
+	}
+
+	var (
+		maxRTT              time.Duration
+		disconnectCandidate Agent
+	)
+	for _, proxyID := range proxyIDs {
+		// Only active desired proxies are considered for disconnect.
+		// We keep undesired connections to provide availability during termination
+		// or recovery after failover. These connections belong to either:
+		// - unhealthy proxies which we expect to terminate or recover and
+		// re-enter the desired set.
+		// - older generation proxies we expect to terminate as part of a proxy
+		// rollout.
+		if desired := snapshot.Proxies[proxyID]; !desired {
+			continue
+		}
+		agent, ok := p.active.getByProxyID(proxyID)
+		if !ok {
+			continue
+		}
+
+		// Wait until all desired agents have a measured RTT before
+		// choosing any to disconnect.
+		rtt, ok := agent.RTT()
+		if !ok {
+			return
+		}
+		if rtt > maxRTT {
+			maxRTT = rtt
+			disconnectCandidate = agent
+		}
+	}
+
+	if disconnectCandidate != nil {
+		p.lastConnectivityChange = now
+		go func() {
+			if err := disconnectCandidate.Stop(); err != nil {
+				p.logger.DebugContext(ctx, "Error disconnecting agent", "error", err)
+			}
+		}()
+	}
 }
 
 // waitForBackoff processes events while waiting for the backoff.
@@ -402,12 +514,20 @@ func (p *AgentPool) waitForBackoff(ctx context.Context, events <-chan Agent) err
 			p.backoff.Inc()
 			return nil
 		case agent := <-events:
-			p.handleEvent(ctx, agent)
+			p.handleSyncEvent(ctx, agent)
 		}
 	}
 }
 
-// handleEvent processes a single event.
+// handleSyncEvent handles a single agent event. This should be used synchonously
+// within the main agentpool loop.
+func (p *AgentPool) handleSyncEvent(ctx context.Context, agent Agent) {
+	p.lastConnectivityChange = p.Clock.Now()
+	p.handleEvent(ctx, agent)
+}
+
+// handleEvent processes a single agent event. Use [AgentPool.handleSyncEvent]
+// instead when executing from within the main agentpool loop.
 func (p *AgentPool) handleEvent(ctx context.Context, agent Agent) {
 	state := agent.GetState()
 	switch state {
@@ -420,7 +540,7 @@ func (p *AgentPool) handleEvent(ctx context.Context, agent Agent) {
 		}
 	}
 	p.updateConnectedProxies()
-	p.log.Debugf("Active agent count: %d", p.active.len())
+	p.logger.DebugContext(ctx, "Processed agent event", "active_agent_count", p.active.len())
 }
 
 // stateCallback adds events to the queue for each agent state change.
@@ -435,6 +555,22 @@ func (p *AgentPool) getStateCallback(agent Agent) AgentStateCallback {
 	}
 }
 
+// isHeartbeatTimeoutDisabledByEnv returns true if the TELEPORT_UNSTABLE_DISABLE_AGENT_STALE_CONN_TIMEOUT
+// environment variable is set.
+//
+// Either "yes" or a "truthy" value (as defined by [strconv.ParseBool]) are
+// considered true.
+func IsAgentStaleConnTimeoutDisabledByEnv() bool {
+	const envVar = "TELEPORT_UNSTABLE_DISABLE_AGENT_STALE_CONN_TIMEOUT"
+
+	if val := os.Getenv(envVar); val != "" {
+		b, _ := strconv.ParseBool(val)
+		return b || val == "yes"
+	}
+
+	return false
+}
+
 // newAgent creates a new agent instance.
 func (p *AgentPool) newAgent(ctx context.Context, tracker *track.Tracker, lease *track.Lease) (Agent, error) {
 	addr, _, err := p.Resolver(ctx)
@@ -444,36 +580,38 @@ func (p *AgentPool) newAgent(ctx context.Context, tracker *track.Tracker, lease 
 
 	err = p.runtimeConfig.updateRemote(ctx, addr)
 	if err != nil {
-		p.log.WithError(err).Debugf("Failed to update remote config.")
+		p.logger.DebugContext(ctx, "Failed to update remote config", "error", err)
 	}
 
-	options := []proxy.DialerOptionFunc{proxy.WithInsecureSkipTLSVerify(lib.IsInsecureDevMode())}
+	options := []proxy.DialerOptionFunc{proxy.WithInsecureSkipTLSVerify(p.InsecureMode)}
 	if p.runtimeConfig.useALPNRouting() {
 		options = append(options, proxy.WithALPNDialer(p.runtimeConfig.alpnDialerConfig(p.getClusterCAs)))
 	}
 
 	dialer := &agentDialer{
-		client:      p.Client,
-		fips:        p.FIPS,
-		authMethods: p.AuthMethods,
-		options:     options,
-		username:    p.HostUUID,
-		log:         p.log,
-		isClaimed:   p.tracker.IsClaimed,
+		client:        p.AccessPoint,
+		fips:          p.FIPS,
+		publicKeyAuth: p.PublicKeyAuth,
+		options:       options,
+		username:      p.HostUUID,
+		logger:        p.logger,
+		isClaimed:     p.tracker.IsClaimed,
 	}
 
 	agent, err := newAgent(agentConfig{
-		addr:               *addr,
-		keepAlive:          p.runtimeConfig.keepAliveInterval,
-		sshDialer:          dialer,
-		transportHandler:   p,
-		versionGetter:      p,
-		tracker:            tracker,
-		lease:              lease,
-		clock:              p.Clock,
-		log:                p.log,
-		localAuthAddresses: p.LocalAuthAddresses,
-		proxySigner:        p.PROXYSigner,
+		addr:                     *addr,
+		keepAlive:                p.runtimeConfig.keepAliveInterval,
+		keepAliveCount:           p.runtimeConfig.keepAliveCount,
+		sshDialer:                dialer,
+		transportHandler:         p,
+		versionGetter:            p,
+		tracker:                  tracker,
+		lease:                    lease,
+		clock:                    p.Clock,
+		logger:                   p.logger,
+		localAuthAddresses:       p.LocalAuthAddresses,
+		proxySigner:              p.PROXYSigner,
+		staleConnTimeoutDisabled: p.StaleConnTimeoutDisabled,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -536,7 +674,7 @@ func (p *AgentPool) handleTransport(ctx context.Context, channel ssh.Channel, re
 		sconn:                conn,
 		channel:              channel,
 		requestCh:            requests,
-		log:                  p.log,
+		logger:               p.logger,
 		authServers:          p.LocalAuthAddresses,
 		proxySigner:          p.PROXYSigner,
 		forwardClientAddress: true,
@@ -564,9 +702,9 @@ func (p *AgentPool) handleLocalTransport(ctx context.Context, channel ssh.Channe
 	case <-ctx.Done():
 		go ssh.DiscardRequests(reqC)
 		return
-	case <-time.After(apidefaults.DefaultIOTimeout):
+	case <-time.After(defaults.DefaultIOTimeout):
 		go ssh.DiscardRequests(reqC)
-		p.log.Warn("Timed out waiting for transport dial request.")
+		p.logger.WarnContext(ctx, "Timed out waiting for transport dial request")
 		return
 	case r, ok := <-reqC:
 		if !ok {
@@ -579,14 +717,14 @@ func (p *AgentPool) handleLocalTransport(ctx context.Context, channel ssh.Channe
 	// sconn should never be nil, but it's sourced from the agent state and
 	// starts as nil, and the original transport code checked against it
 	if sconn == nil || p.Server == nil {
-		p.log.Error("Missing client or server (this is a bug).")
+		p.logger.ErrorContext(ctx, "Missing client or server (this is a bug)")
 		fmt.Fprintf(channel.Stderr(), "internal server error")
 		req.Reply(false, nil)
 		return
 	}
 
 	if err := req.Reply(true, nil); err != nil {
-		p.log.Errorf("Failed to respond to dial request: %v.", err)
+		p.logger.ErrorContext(ctx, "Failed to respond to dial request", "error", err)
 		return
 	}
 
@@ -594,10 +732,11 @@ func (p *AgentPool) handleLocalTransport(ctx context.Context, channel ssh.Channe
 
 	dialReq := parseDialReq(req.Payload)
 	switch dialReq.Address {
-	case reversetunnelclient.LocalNode, reversetunnelclient.LocalKubernetes, reversetunnelclient.LocalWindowsDesktop:
+	case reversetunnelclient.LocalNode, reversetunnelclient.LocalKubernetes, reversetunnelclient.LocalWindowsDesktop, reversetunnelclient.LocalLinuxDesktop:
 	default:
-		p.log.WithField("address", dialReq.Address).
-			Warn("Received dial request for unexpected address, routing to the local service anyway.")
+		p.logger.WarnContext(ctx, "Received dial request for unexpected address, routing to the local service anyway",
+			"dial_addr", dialReq.Address,
+		)
 	}
 	if src, err := utils.ParseAddr(dialReq.ClientSrcAddr); err == nil {
 		conn = utils.NewConnWithSrcAddr(conn, getTCPAddr(src))
@@ -615,14 +754,21 @@ type agentPoolRuntimeConfig struct {
 	// connectionCount determines how many proxy servers the agent pool will
 	// connect to. This settings is ignored for the AgentMesh tunnel strategy.
 	connectionCount int
+	// disconnectThreshold is the minimum stable period before excess proxy
+	// peering connections may be disconnected.
+	disconnectThreshold time.Duration
 	// keepAliveInterval is the interval agents will send heartbeats at.
 	keepAliveInterval time.Duration
+	// keepAliveCount specifies the amount of missed ping heartbeats
+	// to wait for before declaring the connection as broken.
+	keepAliveCount int
 	// isRemoteCluster forces the agent pool to connect to all proxies
 	// regardless of the configured tunnel strategy.
 	isRemoteCluster bool
 	// tlsRoutingConnUpgradeRequired indicates that ALPN connection upgrades
 	// are required for making TLS routing requests.
 	tlsRoutingConnUpgradeRequired bool
+	insecureMode                  bool
 
 	// remoteTLSRoutingEnabled caches a remote clusters tls routing setting. This helps prevent
 	// proxy endpoint stagnation where an even numbers of proxies are hidden behind a round robin
@@ -638,13 +784,15 @@ type agentPoolRuntimeConfig struct {
 	clock          clockwork.Clock
 }
 
-func newAgentPoolRuntimeConfig() *agentPoolRuntimeConfig {
+func newAgentPoolRuntimeConfig(insecureMode bool) *agentPoolRuntimeConfig {
 	return &agentPoolRuntimeConfig{
 		tunnelStrategyType: types.AgentMesh,
 		connectionCount:    defaultAgentConnectionCount,
 		proxyListenerMode:  types.ProxyListenerMode_Separate,
 		keepAliveInterval:  defaults.KeepAliveInterval(),
+		keepAliveCount:     defaults.KeepAliveCountMax,
 		clock:              clockwork.NewRealClock(),
+		insecureMode:       insecureMode,
 	}
 }
 
@@ -674,6 +822,12 @@ func (c *agentPoolRuntimeConfig) getConnectionCount() int {
 	return c.connectionCount
 }
 
+func (c *agentPoolRuntimeConfig) getDisconnectThreshold() time.Duration {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.disconnectThreshold
+}
+
 // useReverseTunnelV2Locked returns true if reverse tunnel should be used.
 func (c *agentPoolRuntimeConfig) useReverseTunnelV2Locked() bool {
 	if c.isRemoteCluster {
@@ -695,7 +849,7 @@ func (c *agentPoolRuntimeConfig) alpnDialerConfig(getClusterCAs client.GetCluste
 	return client.ALPNDialerConfig{
 		TLSConfig: &tls.Config{
 			NextProtos:         alpncommon.ProtocolsToString(protocols),
-			InsecureSkipVerify: lib.IsInsecureDevMode(),
+			InsecureSkipVerify: c.insecureMode,
 		},
 		KeepAlivePeriod:         c.keepAliveInterval,
 		ALPNConnUpgradeRequired: c.tlsRoutingConnUpgradeRequired,
@@ -739,7 +893,7 @@ func (c *agentPoolRuntimeConfig) updateRemote(ctx context.Context, addr *utils.N
 	ping, err := webclient.Find(&webclient.Config{
 		Context:   ctx,
 		ProxyAddr: addr.Addr,
-		Insecure:  lib.IsInsecureDevMode(),
+		Insecure:  c.insecureMode,
 	})
 	if err != nil {
 		// If TLS Routing is disabled the address is the proxy reverse tunnel
@@ -767,8 +921,11 @@ func (c *agentPoolRuntimeConfig) updateRemote(ctx context.Context, addr *utils.N
 
 	c.remoteTLSRoutingEnabled = tlsRoutingEnabled
 	if c.remoteTLSRoutingEnabled {
-		c.tlsRoutingConnUpgradeRequired = client.IsALPNConnUpgradeRequired(ctx, addr.Addr, lib.IsInsecureDevMode())
-		logrus.Debugf("ALPN upgrade required for remote %v: %v", addr.Addr, c.tlsRoutingConnUpgradeRequired)
+		c.tlsRoutingConnUpgradeRequired = client.IsALPNConnUpgradeRequired(ctx, addr.Addr, c.insecureMode)
+		slog.DebugContext(ctx, "ALPN upgrade required for remote cluster",
+			"remote_addr", addr.Addr,
+			"conn_upgrade_required", c.tlsRoutingConnUpgradeRequired,
+		)
 	}
 	return nil
 }
@@ -779,6 +936,9 @@ func (c *agentPoolRuntimeConfig) update(ctx context.Context, netConfig types.Clu
 
 	oldProxyListenerMode := c.proxyListenerMode
 	c.keepAliveInterval = netConfig.GetKeepAliveInterval()
+	if v := int(netConfig.GetKeepAliveCountMax()); v > 0 {
+		c.keepAliveCount = v
+	}
 	c.proxyListenerMode = netConfig.GetProxyListenerMode()
 
 	// Fallback to agent mesh strategy if there is an error.
@@ -792,6 +952,7 @@ func (c *agentPoolRuntimeConfig) update(ctx context.Context, netConfig types.Clu
 	if c.tunnelStrategyType == types.ProxyPeering {
 		strategy := netConfig.GetProxyPeeringTunnelStrategy()
 		c.connectionCount = int(strategy.AgentConnectionCount)
+		c.disconnectThreshold = time.Duration(strategy.DisconnectThresholdSeconds) * time.Second
 	}
 	if c.connectionCount <= 0 {
 		c.connectionCount = defaultAgentConnectionCount
@@ -800,9 +961,9 @@ func (c *agentPoolRuntimeConfig) update(ctx context.Context, netConfig types.Clu
 	if c.proxyListenerMode == types.ProxyListenerMode_Multiplex && oldProxyListenerMode != c.proxyListenerMode {
 		addr, _, err := resolver(ctx)
 		if err == nil {
-			c.tlsRoutingConnUpgradeRequired = client.IsALPNConnUpgradeRequired(ctx, addr.Addr, lib.IsInsecureDevMode())
+			c.tlsRoutingConnUpgradeRequired = client.IsALPNConnUpgradeRequired(ctx, addr.Addr, c.insecureMode)
 		} else {
-			logrus.WithError(err).Warnf("Failed to resolve addr.")
+			slog.WarnContext(ctx, "Failed to resolve addr", "error", err)
 		}
 	}
 }

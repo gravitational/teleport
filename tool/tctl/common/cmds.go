@@ -19,9 +19,16 @@
 package common
 
 import (
+	"github.com/gravitational/teleport/tool/tctl/common/accessgraph"
+	"github.com/gravitational/teleport/tool/tctl/common/accesslist"
 	"github.com/gravitational/teleport/tool/tctl/common/accessmonitoring"
+	"github.com/gravitational/teleport/tool/tctl/common/decision"
+	"github.com/gravitational/teleport/tool/tctl/common/discovery"
+	"github.com/gravitational/teleport/tool/tctl/common/integrations"
 	"github.com/gravitational/teleport/tool/tctl/common/loginrule"
 	"github.com/gravitational/teleport/tool/tctl/common/plugin"
+	"github.com/gravitational/teleport/tool/tctl/common/stableunixusers"
+	"github.com/gravitational/teleport/tool/tctl/common/top"
 	"github.com/gravitational/teleport/tool/tctl/sso/configure"
 	"github.com/gravitational/teleport/tool/tctl/sso/tester"
 )
@@ -29,12 +36,13 @@ import (
 // Commands returns the set of available subcommands for tctl.
 func Commands() []CLICommand {
 	return []CLICommand{
+		&VersionCommand{},
 		&UserCommand{},
 		&NodeCommand{},
 		&TokensCommand{},
 		&AuthCommand{},
 		&StatusCommand{},
-		&TopCommand{},
+		&top.Command{},
 		&AccessRequestCommand{},
 		&AppsCommand{},
 		&DBCommand{},
@@ -42,7 +50,9 @@ func Commands() []CLICommand {
 		&DesktopCommand{},
 		&LockCommand{},
 		&BotsCommand{},
+		&WorkloadIdentityCommand{},
 		&InventoryCommand{},
+		&discovery.Command{},
 		&RecordingsCommand{},
 		&AlertCommand{},
 		&ProxyCommand{},
@@ -52,16 +62,24 @@ func Commands() []CLICommand {
 		&LoadtestCommand{},
 		&DevicesCommand{},
 		&SAMLCommand{},
-		&ACLCommand{},
+		&accesslist.Command{},
 		&loginrule.Command{},
 		&IdPCommand{},
 		&accessmonitoring.Command{},
+		&accessgraph.AccessGraphCommand{},
 		&plugin.PluginsCommand{},
+		&NotificationCommand{},
 		&configure.SSOConfigureCommand{},
 		&tester.SSOTestCommand{},
 		&fido2Command{},
 		&webauthnwinCommand{},
 		&touchIDCommand{},
 		&TerraformCommand{},
+		&AutoUpdateCommand{},
+		&stableunixusers.Command{},
+		&decision.Command{},
+		&BoundKeypairCommand{},
+		&ScopedCommand{},
+		&integrations.Command{},
 	}
 }

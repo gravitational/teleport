@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -71,6 +72,7 @@ func TestUploadCompleterCompletesAbandonedUploads(t *testing.T) {
 		SessionTracker: sessionTrackerService,
 		Clock:          clock,
 		ClusterName:    "teleport-cluster",
+		GracePeriod:    24 * time.Hour,
 	})
 	require.NoError(t, err)
 
@@ -81,7 +83,18 @@ func TestUploadCompleterCompletesAbandonedUploads(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, mu.IsCompleted(upload.ID))
 
-	clock.Advance(1 * time.Hour)
+	// enough to expire the session tracker, not enough to pass the grace period
+	clock.Advance(2 * time.Hour)
+
+	err = uc.CheckUploads(context.Background())
+	require.NoError(t, err)
+	require.False(t, mu.IsCompleted(upload.ID))
+
+	trackers, err := sessionTrackerService.GetActiveSessionTrackers(context.Background())
+	require.NoError(t, err)
+	require.Empty(t, trackers)
+
+	clock.Advance(22*time.Hour + time.Nanosecond)
 
 	err = uc.CheckUploads(context.Background())
 	require.NoError(t, err)
@@ -147,6 +160,7 @@ func TestUploadCompleterAcquiresSemaphore(t *testing.T) {
 			},
 			acquireErr: nil,
 		},
+		GracePeriod: -1,
 	})
 	require.NoError(t, err)
 
@@ -164,64 +178,126 @@ func TestUploadCompleterAcquiresSemaphore(t *testing.T) {
 // that are completed.
 func TestUploadCompleterEmitsSessionEnd(t *testing.T) {
 	for _, test := range []struct {
-		startEvent   apievents.AuditEvent
-		endEventType string
+		startEvent            apievents.AuditEvent
+		endEventType          string
+		ensureSessionEndEvent bool
 	}{
-		{&apievents.SessionStart{}, events.SessionEndEvent},
-		{&apievents.WindowsDesktopSessionStart{}, events.WindowsDesktopSessionEndEvent},
+		{&apievents.SessionStart{}, events.SessionEndEvent, true},
+		{&apievents.WindowsDesktopSessionStart{}, events.WindowsDesktopSessionEndEvent, true},
+		{&apievents.SessionStart{}, events.SessionEndEvent, false},
 	} {
-		t.Run(test.endEventType, func(t *testing.T) {
-			clock := clockwork.NewFakeClock()
-			mu := eventstest.NewMemoryUploader()
-			mu.Clock = clock
-			startTime := clock.Now().UTC()
-			endTime := startTime.Add(2 * time.Minute)
+		t.Run(fmt.Sprintf("%s ensure end event %t", test.endEventType, test.ensureSessionEndEvent), func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				clock := clockwork.NewFakeClock()
+				mu := eventstest.NewMemoryUploader()
+				startTime := clock.Now().UTC()
+				endTime := startTime.Add(2 * time.Minute)
 
-			test.startEvent.SetTime(startTime)
+				test.startEvent.SetTime(startTime)
 
-			log := &eventstest.MockAuditLog{
-				Emitter: &eventstest.MockRecorderEmitter{},
-				SessionEvents: []apievents.AuditEvent{
-					test.startEvent,
-					&apievents.SessionPrint{Metadata: apievents.Metadata{Time: endTime}},
-				},
-			}
+				log := &eventstest.MockAuditLog{
+					Emitter: &eventstest.MockRecorderEmitter{},
+					SessionEvents: []apievents.AuditEvent{
+						test.startEvent,
+						&apievents.SessionPrint{Metadata: apievents.Metadata{Time: endTime}},
+					},
+				}
 
-			uc, err := events.NewUploadCompleter(events.UploadCompleterConfig{
-				Uploader:       mu,
-				AuditLog:       log,
-				Clock:          clock,
-				SessionTracker: &mockSessionTrackerService{},
-				ClusterName:    "teleport-cluster",
+				uc, err := events.NewUploadCompleter(events.UploadCompleterConfig{
+					Uploader:              mu,
+					AuditLog:              log,
+					SessionTracker:        &mockSessionTrackerService{},
+					ClusterName:           "teleport-cluster",
+					GracePeriod:           -1,
+					EnsureSessionEndEvent: test.ensureSessionEndEvent,
+				})
+				require.NoError(t, err)
+
+				upload, err := mu.CreateUpload(context.Background(), session.NewID())
+				require.NoError(t, err)
+
+				// session end events are only emitted if there's at least one
+				// part to be uploaded, so create that here
+				_, err = mu.UploadPart(context.Background(), *upload, 0, strings.NewReader("part"))
+				require.NoError(t, err)
+
+				err = uc.CheckUploads(context.Background())
+				require.NoError(t, err)
+
+				time.Sleep(3 * time.Minute)
+				synctest.Wait()
+				synctest.Wait()
+
+				if len(log.Emitter.Events()) == 2 && !test.ensureSessionEndEvent {
+					require.FailNow(t, "should only have emitted 1 session upload event")
+				}
+
+				require.IsType(t, &apievents.SessionUpload{}, log.Emitter.Events()[0])
+				require.Equal(t, startTime, log.Emitter.Events()[0].GetTime())
+				if test.ensureSessionEndEvent {
+					require.Equal(t, test.endEventType, log.Emitter.Events()[1].GetType())
+					require.Equal(t, endTime, log.Emitter.Events()[1].GetTime())
+				}
 			})
-			require.NoError(t, err)
-
-			upload, err := mu.CreateUpload(context.Background(), session.NewID())
-			require.NoError(t, err)
-
-			// session end events are only emitted if there's at least one
-			// part to be uploaded, so create that here
-			_, err = mu.UploadPart(context.Background(), *upload, 0, strings.NewReader("part"))
-			require.NoError(t, err)
-
-			err = uc.CheckUploads(context.Background())
-			require.NoError(t, err)
-
-			// advance the clock to force the asynchronous session end event emission
-			clock.BlockUntil(1)
-			clock.Advance(3 * time.Minute)
-
-			// expect two events - a session end and a session upload
-			// the session end is done asynchronously, so wait for that
-			require.Eventually(t, func() bool { return len(log.Emitter.Events()) == 2 }, 5*time.Second, 1*time.Second,
-				"should have emitted 2 events, but only got %d", len(log.Emitter.Events()))
-
-			require.IsType(t, &apievents.SessionUpload{}, log.Emitter.Events()[0])
-			require.Equal(t, startTime, log.Emitter.Events()[0].GetTime())
-			require.Equal(t, test.endEventType, log.Emitter.Events()[1].GetType())
-			require.Equal(t, endTime, log.Emitter.Events()[1].GetTime())
 		})
 	}
+}
+
+func TestCheckUploadsSkipsUploadsInProgress(t *testing.T) {
+	clock := clockwork.NewFakeClock()
+	sessionTrackers := []types.SessionTracker{}
+
+	sessionTrackerService := &mockSessionTrackerService{
+		clock:    clock,
+		trackers: sessionTrackers,
+	}
+
+	// simulate an upload that started well before the grace period,
+	// but the most recently uploaded part is still within the grace period
+	gracePeriod := 10 * time.Minute
+	uploadInitiated := clock.Now().Add(-3 * gracePeriod)
+	lastPartUploaded := clock.Now().Add(-2 * gracePeriod / 3)
+
+	var completedUploads []events.StreamUpload
+
+	uploader := &eventstest.MockUploader{
+		MockListUploads: func(ctx context.Context) ([]events.StreamUpload, error) {
+			return []events.StreamUpload{
+				{
+					ID:        "upload-1234",
+					SessionID: session.NewID(),
+					Initiated: uploadInitiated,
+				},
+			}, nil
+		},
+		MockListParts: func(ctx context.Context, upload events.StreamUpload) ([]events.StreamPart, error) {
+			return []events.StreamPart{
+				{
+					Number:       int64(1),
+					ETag:         "foo",
+					LastModified: lastPartUploaded,
+				},
+			}, nil
+		},
+		MockCompleteUpload: func(ctx context.Context, upload events.StreamUpload, parts []events.StreamPart) error {
+			completedUploads = append(completedUploads, upload)
+			return nil
+		},
+	}
+
+	uc, err := events.NewUploadCompleter(events.UploadCompleterConfig{
+		Uploader:       uploader,
+		AuditLog:       &eventstest.MockAuditLog{},
+		SessionTracker: sessionTrackerService,
+		Clock:          clock,
+		ClusterName:    "teleport-cluster",
+		GracePeriod:    gracePeriod,
+	})
+	require.NoError(t, err)
+
+	uc.CheckUploads(context.Background())
+	require.Empty(t, completedUploads)
+
 }
 
 func TestCheckUploadsContinuesOnError(t *testing.T) {
@@ -286,6 +362,7 @@ func TestCheckUploadsContinuesOnError(t *testing.T) {
 		SessionTracker: sessionTrackerService,
 		Clock:          clock,
 		ClusterName:    "teleport-cluster",
+		GracePeriod:    -1,
 	})
 	require.NoError(t, err)
 
@@ -337,7 +414,7 @@ func (m *mockSessionTrackerService) RemoveSessionTracker(ctx context.Context, se
 	return trace.NotImplemented("RemoveSessionTracker is not implemented")
 }
 
-func (m *mockSessionTrackerService) UpdatePresence(ctx context.Context, sessionID, user string) error {
+func (m *mockSessionTrackerService) UpdatePresence(_ context.Context, _, _, _ string) error {
 	return trace.NotImplemented("UpdatePresence is not implemented")
 }
 
