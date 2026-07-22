@@ -19,6 +19,10 @@
 package local
 
 import (
+	"context"
+	"iter"
+	"slices"
+	"sync/atomic"
 	"testing"
 	"testing/synctest"
 
@@ -1061,4 +1065,167 @@ func TestScopedAccessScopeConflict(t *testing.T) {
 		Scope: "/bar",
 	}.Build())
 	require.NoError(t, err)
+}
+
+// TestScopedAccessRanging verifies that listing of scoped roles/assignments does optimistic backend range
+// optimizations to reduce unnecessary reads when the scope filter is easily expressible as a backend range
+// query.
+func TestScopedAccessRanging(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+
+	bk, err := memory.New(memory.Config{Context: ctx})
+	require.NoError(t, err)
+	defer bk.Close()
+
+	// wrap the backend so we can observe how many items each list operation actually scans, and thereby
+	// assert that the range narrowing genuinely happened.
+	countingBK := &itemCountingBackend{Backend: bk}
+	service := NewScopedAccessService(countingBK)
+
+	scopeList := []string{
+		"/",
+		"/aa",
+		"/aa/bb",
+		"/aa/bb/cc",
+		"/aa/bbb",
+		"/aabb",
+		"/aa-bb",
+		"/bb",
+		"/bb/cc",
+	}
+
+	// assignableFor / effectFor produce valid assignable and scope-of-effect values for a resource at
+	// the given scope. Root cannot be used as an assignable scope or scope of effect, so it gets a
+	// non-root descendant instead.
+	assignableFor := func(scope string) []string {
+		if scope == scopes.Root {
+			return []string{"/subscope"}
+		}
+		return []string{scope}
+	}
+	effectFor := func(scope string) string {
+		if scope == scopes.Root {
+			return "/subscope"
+		}
+		return scope
+	}
+
+	// Create one role and one assignment at each scope. Namespacing allows us to reuse the resource names.
+	for _, scope := range scopeList {
+		_, err := service.CreateScopedRole(ctx, scopedaccessv1.CreateScopedRoleRequest_builder{
+			Role: scopedaccessv1.ScopedRole_builder{
+				Kind:     scopedaccess.KindScopedRole,
+				Metadata: headerv1.Metadata_builder{Name: "listrole"}.Build(),
+				Scope:    scope,
+				Spec:     scopedaccessv1.ScopedRoleSpec_builder{AssignableScopes: assignableFor(scope)}.Build(),
+				Version:  types.V1,
+			}.Build(),
+		}.Build())
+		require.NoError(t, err, "creating role at scope %q", scope)
+
+		_, err = service.CreateScopedRoleAssignment(ctx, scopedaccessv1.CreateScopedRoleAssignmentRequest_builder{
+			Assignment: scopedaccessv1.ScopedRoleAssignment_builder{
+				Kind:     scopedaccess.KindScopedRoleAssignment,
+				SubKind:  scopedaccess.SubKindDynamic,
+				Metadata: headerv1.Metadata_builder{Name: uuid.New().String()}.Build(),
+				Scope:    scope,
+				Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
+					User: "alice",
+					Assignments: []*scopedaccessv1.Assignment{
+						scopedaccessv1.Assignment_builder{Role: "/::listrole", Scope: effectFor(scope)}.Build(),
+					},
+				}.Build(),
+				Version: types.V1,
+			}.Build(),
+		}.Build())
+		require.NoError(t, err, "creating assignment at scope %q", scope)
+	}
+
+	cases := []struct {
+		name  string
+		mode  scopesv1.Mode
+		scope string
+		// narrowed indicates whether the filter is expressible as a backend range query. When true, the
+		// list operation must scan only the matching resources; when false, it falls back to scanning the
+		// entire kind and relies on the in-memory MatchScope filter.
+		narrowed bool
+	}{
+		{name: "exact root", mode: scopesv1.Mode_MODE_EXACT, scope: "/", narrowed: true},
+		{name: "exact mid", mode: scopesv1.Mode_MODE_EXACT, scope: "/aa", narrowed: true},
+		{name: "exact deep", mode: scopesv1.Mode_MODE_EXACT, scope: "/aa/bb", narrowed: true},
+		{name: "descendants root", mode: scopesv1.Mode_MODE_DESCENDANTS, scope: "/", narrowed: true},
+		{name: "descendants mid", mode: scopesv1.Mode_MODE_DESCENDANTS, scope: "/aa", narrowed: true},
+		{name: "descendants deep", mode: scopesv1.Mode_MODE_DESCENDANTS, scope: "/aa/bb", narrowed: true},
+		{name: "descendants other subtree", mode: scopesv1.Mode_MODE_DESCENDANTS, scope: "/bb", narrowed: true},
+		{name: "ancestors falls back to full scan", mode: scopesv1.Mode_MODE_ANCESTORS, scope: "/aa/bb", narrowed: false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			filter := scopesv1.Filter_builder{Scope: tc.scope, Mode: tc.mode}.Build()
+			require.NoError(t, scopes.ValidateFilter(filter))
+
+			// collect the authoritative set of scopes the filter selects.
+			var matchWant []string
+			for _, scope := range scopeList {
+				if scopes.MatchScope(filter, scope) {
+					matchWant = append(matchWant, scope)
+				}
+			}
+			slices.Sort(matchWant)
+			require.NotEmpty(t, matchWant, "test case should select at least one scope")
+
+			// A narrowed range scans exactly the matching resources; a full scan visits every resource of
+			// the kind. There is exactly one role and one assignment per scope.
+			wantScanned := len(matchWant)
+			if !tc.narrowed {
+				wantScanned = len(scopeList)
+			}
+
+			countingBK.itemsScanned.Store(0)
+			rolesResp, err := service.ListScopedRoles(ctx, scopedaccessv1.ListScopedRolesRequest_builder{ScopeFilter: filter}.Build())
+			require.NoError(t, err)
+			var gotRoleScopes []string
+			for _, role := range rolesResp.GetRoles() {
+				gotRoleScopes = append(gotRoleScopes, role.GetScope())
+			}
+			slices.Sort(gotRoleScopes)
+			require.Equal(t, matchWant, gotRoleScopes, "ListScopedRoles")
+			require.Equal(t, wantScanned, int(countingBK.itemsScanned.Load()), "ListScopedRoles scanned item count")
+
+			countingBK.itemsScanned.Store(0)
+			assignmentsResp, err := service.ListScopedRoleAssignments(ctx, scopedaccessv1.ListScopedRoleAssignmentsRequest_builder{ScopeFilter: filter}.Build())
+			require.NoError(t, err)
+			var gotAssignmentScopes []string
+			for _, assignment := range assignmentsResp.GetAssignments() {
+				gotAssignmentScopes = append(gotAssignmentScopes, assignment.GetScope())
+			}
+			slices.Sort(gotAssignmentScopes)
+			require.Equal(t, matchWant, gotAssignmentScopes, "ListScopedRoleAssignments")
+			require.Equal(t, wantScanned, int(countingBK.itemsScanned.Load()), "ListScopedRoleAssignments scanned item count")
+		})
+	}
+}
+
+// itemCountingBackend wraps a backend.Backend and counts the number of items yielded by Items calls,
+// letting tests observe how many items a range scan actually visited.
+type itemCountingBackend struct {
+	backend.Backend
+	itemsScanned atomic.Int64
+}
+
+func (b *itemCountingBackend) Items(ctx context.Context, params backend.ItemsParams) iter.Seq2[backend.Item, error] {
+	items := b.Backend.Items(ctx, params)
+	return func(yield func(backend.Item, error) bool) {
+		for item, err := range items {
+			if err == nil {
+				b.itemsScanned.Add(1)
+			}
+			if !yield(item, err) {
+				return
+			}
+		}
+	}
 }
