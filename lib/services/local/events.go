@@ -40,6 +40,8 @@ import (
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/kubewaitingcontainer"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -220,6 +222,10 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = p
 		case types.KindAccessList:
 			parser = newAccessListParser()
+		case types.KindAccessListMember:
+			parser = newAccessListMemberParser()
+		case types.KindAccessListReview:
+			parser = newAccessListReviewParser()
 		case types.KindAuditQuery:
 			parser = newAuditQueryParser()
 		case types.KindSecurityReport:
@@ -228,10 +234,6 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newSecurityReportStateParser()
 		case types.KindUserLoginState:
 			parser = newUserLoginStateParser()
-		case types.KindAccessListMember:
-			parser = newAccessListMemberParser()
-		case types.KindAccessListReview:
-			parser = newAccessListReviewParser()
 		case types.KindKubeWaitingContainer:
 			parser = newKubeWaitingContainerParser()
 		case types.KindNotification:
@@ -2577,9 +2579,25 @@ func (p *headlessAuthenticationParser) parse(event backend.Event) (types.Resourc
 	}
 }
 
+func trimScopePrefix(key backend.Key) (scope string, remaining []string, err error) {
+	parts := key.Components()
+	if len(parts) < 2 {
+		return "", nil, trace.NotFound("failed parsing %v", key.String())
+	}
+	encodedScope := parts[0]
+	scope, err = scopes.DecodeFromKey(encodedScope)
+	if err != nil {
+		return "", nil, trace.Wrap(err)
+	}
+	return scope, parts[1:], nil
+}
+
 func newAccessListParser() *accessListParser {
 	return &accessListParser{
-		baseParser: newBaseParser(backend.ExactKey(accessListPrefix)),
+		baseParser: newBaseParser(
+			backend.ExactKey(accessListPrefix),
+			backend.ExactKey(scopedPrefix, accessListPrefix),
+		),
 	}
 }
 
@@ -2590,6 +2608,29 @@ type accessListParser struct {
 func (p *accessListParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
+		if key, found := event.Item.Key.CutPrefix(backend.ExactKey(scopedPrefix, accessListPrefix)); found {
+			scope, remaining, err := trimScopePrefix(key)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			if len(remaining) != 1 {
+				return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+			}
+			name := remaining[0]
+			// Delete events for scoped resources use an AccessList rather than
+			// ResourceHeader, to include the scope.
+			return &accesslist.AccessList{
+				ResourceHeader: header.ResourceHeader{
+					Kind:    types.KindAccessList,
+					Version: types.V1,
+					Metadata: header.Metadata{
+						Name: name,
+					},
+				},
+				Scope: scope,
+			}, nil
+		}
+
 		name := event.Item.Key.TrimPrefix(backend.NewKey(accessListPrefix)).String()
 		if name == "" {
 			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
@@ -2756,7 +2797,10 @@ func (p *userLoginStateParser) parse(event backend.Event) (types.Resource, error
 
 func newAccessListMemberParser() *accessListMemberParser {
 	return &accessListMemberParser{
-		baseParser: newBaseParser(backend.ExactKey(accessListMemberPrefix)),
+		baseParser: newBaseParser(
+			backend.ExactKey(accessListMemberPrefix),
+			backend.ExactKey(scopedPrefix, accessListMemberPrefix),
+		),
 	}
 }
 
@@ -2767,6 +2811,49 @@ type accessListMemberParser struct {
 func (p *accessListMemberParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
+		if key, found := event.Item.Key.CutPrefix(backend.ExactKey(scopedPrefix, accessListMemberPrefix)); found {
+			listScope, remaining, err := trimScopePrefix(key)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			if len(remaining) != 3 {
+				return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+			}
+			listName, encodedMemberScope, memberName := remaining[0], remaining[1], remaining[2]
+			memberScope, err := scopes.DecodeFromKey(encodedMemberScope)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			listSQN := scopes.QualifiedName{
+				Scope: listScope,
+				Name:  listName,
+			}
+			memberSQN := scopes.QualifiedName{
+				Scope: memberScope,
+				Name:  memberName,
+			}
+			membershipKind := accesslist.MembershipKindUnspecified
+			if memberScope != "" {
+				membershipKind = accesslist.MembershipKindScopedList
+			}
+			// Delete events for scoped resources use an AccessListMember rather than
+			// ResourceHeader, to include the scope.
+			return &accesslist.AccessListMember{
+				ResourceHeader: header.ResourceHeader{
+					Kind:    types.KindAccessListMember,
+					Version: types.V1,
+					Metadata: header.Metadata{
+						Name: memberSQN.String(),
+					},
+				},
+				Scope: listScope,
+				Spec: accesslist.AccessListMemberSpec{
+					AccessList:     listSQN.String(),
+					Name:           memberSQN.String(),
+					MembershipKind: membershipKind,
+				},
+			}, nil
+		}
 		key := event.Item.Key.TrimPrefix(backend.NewKey(accessListMemberPrefix))
 		if len(key.Components()) < 2 {
 			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
@@ -2794,7 +2881,10 @@ func (p *accessListMemberParser) parse(event backend.Event) (types.Resource, err
 
 func newAccessListReviewParser() *accessListReviewParser {
 	return &accessListReviewParser{
-		baseParser: newBaseParser(backend.ExactKey(accessListReviewPrefix)),
+		baseParser: newBaseParser(
+			backend.ExactKey(accessListReviewPrefix),
+			backend.ExactKey(scopedPrefix, accessListReviewPrefix),
+		),
 	}
 }
 
@@ -2805,6 +2895,35 @@ type accessListReviewParser struct {
 func (p *accessListReviewParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
+		if key, found := event.Item.Key.CutPrefix(backend.ExactKey(scopedPrefix, accessListReviewPrefix)); found {
+			listScope, remaining, err := trimScopePrefix(key)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			if len(remaining) != 2 {
+				return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+			}
+			listName, reviewName := remaining[0], remaining[1]
+			listSQN := scopes.QualifiedName{
+				Scope: listScope,
+				Name:  listName,
+			}
+			// Delete events for scoped resources use a Review rather than
+			// ResourceHeader, to include the scope.
+			return &accesslist.Review{
+				ResourceHeader: header.ResourceHeader{
+					Kind:    types.KindAccessListReview,
+					Version: types.V1,
+					Metadata: header.Metadata{
+						Name: reviewName,
+					},
+				},
+				Scope: listScope,
+				Spec: accesslist.ReviewSpec{
+					AccessList: listSQN.String(),
+				},
+			}, nil
+		}
 		key := event.Item.Key.TrimPrefix(backend.NewKey(accessListReviewPrefix))
 		if len(key.Components()) < 2 {
 			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
