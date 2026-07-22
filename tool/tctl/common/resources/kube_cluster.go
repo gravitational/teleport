@@ -159,7 +159,9 @@ func deleteKubeCluster(ctx context.Context, client *authclient.Client, ref servi
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := client.DeleteKubernetesCluster(ctx, name); err != nil {
+	if err := client.DeleteKubeCluster(ctx, kubev1.DeleteKubeClusterRequest_builder{
+		Name: name,
+	}.Build()); err != nil {
 		return trace.Wrap(err)
 	}
 	fmt.Printf("%s %q has been deleted\n", resDesc, name)

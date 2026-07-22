@@ -34,12 +34,6 @@ import (
 type KubernetesClusterGetter interface {
 	// GetKubernetesClusters returns all kubernetes cluster resources.
 	GetKubernetesClusters(context.Context) ([]types.KubeCluster, error)
-	// ListKubernetesClusters returns a page of registered kubernetes clusters.
-	ListKubernetesClusters(ctx context.Context, limit int, start string) ([]types.KubeCluster, string, error)
-	// RangeKubernetesClusters returns kubernetes clusters within the range [start, end).
-	RangeKubernetesClusters(ctx context.Context, start, end string) iter.Seq2[types.KubeCluster, error]
-	// GetKubernetesCluster returns the specified kubernetes cluster resource by name.
-	GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error)
 	// ListKubeClusters returns a page of registered kube clusters with the ability to apply
 	// scope filters.
 	ListKubeClusters(ctx context.Context, req *kubev1.ListKubeClustersRequest) ([]types.KubeCluster, string, error)
@@ -64,8 +58,6 @@ type Kubernetes interface {
 	CreateKubernetesCluster(context.Context, types.KubeCluster) error
 	// UpdateKubernetesCluster updates an existing kubernetes cluster resource.
 	UpdateKubernetesCluster(context.Context, types.KubeCluster) error
-	// DeleteKubernetesCluster removes the specified kubernetes cluster resource.
-	DeleteKubernetesCluster(ctx context.Context, name string) error
 	// DeleteAllKubernetesClusters removes all kubernetes resources.
 	DeleteAllKubernetesClusters(context.Context) error
 	// DeleteKubeCluster removes the specified kube cluster resource with

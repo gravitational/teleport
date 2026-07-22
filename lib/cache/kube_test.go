@@ -50,7 +50,7 @@ func TestKubernetes(t *testing.T) {
 			},
 			create:    p.kubernetes.CreateKubernetesCluster,
 			list:      getAllAdapter(p.kubernetes.GetKubernetesClusters),
-			cacheGet:  p.cache.GetKubernetesCluster,
+			cacheGet:  cacheGetKubeClusterWithScope(p.cache, ""),
 			cacheList: getAllAdapter(p.cache.GetKubernetesClusters),
 			update:    p.kubernetes.UpdateKubernetesCluster,
 			deleteAll: p.kubernetes.DeleteAllKubernetesClusters,
@@ -64,14 +64,21 @@ func TestKubernetes(t *testing.T) {
 					Name: name,
 				}, types.KubernetesClusterSpecV3{})
 			},
-			create:     p.kubernetes.CreateKubernetesCluster,
-			list:       p.kubernetes.ListKubernetesClusters,
-			cacheGet:   p.cache.GetKubernetesCluster,
-			cacheList:  p.cache.ListKubernetesClusters,
-			update:     p.kubernetes.UpdateKubernetesCluster,
-			deleteAll:  p.kubernetes.DeleteAllKubernetesClusters,
-			Range:      p.kubernetes.RangeKubernetesClusters,
-			cacheRange: p.cache.RangeKubernetesClusters,
+			create: p.kubernetes.CreateKubernetesCluster,
+			list: func(ctx context.Context, pageSize int, pageToken string) ([]types.KubeCluster, string, error) {
+				return p.kubernetes.ListKubeClusters(ctx, kubev1.ListKubeClustersRequest_builder{
+					PageSize:  int32(pageSize),
+					PageToken: pageToken,
+				}.Build())
+			},
+			cacheGet:  cacheGetKubeClusterWithScope(p.cache, ""),
+			cacheList: cacheListKubeClustersWithScopeFilter(p.cache, nil),
+			update:    p.kubernetes.UpdateKubernetesCluster,
+			deleteAll: p.kubernetes.DeleteAllKubernetesClusters,
+			Range: func(ctx context.Context, start, end string) iter.Seq2[types.KubeCluster, error] {
+				return p.kubernetes.RangeKubeClusters(ctx, nil, start, end)
+			},
+			cacheRange: cacheRangeKubeClustersWithScopeFilter(p.cache, nil),
 		})
 	})
 
@@ -94,6 +101,10 @@ func TestKubernetes(t *testing.T) {
 
 	t.Run("ListKubeClusters scoped", func(t *testing.T) {
 		const scope = "/test"
+		scopeFilter := scopesv1.Filter_builder{
+			Scope: scope,
+			Mode:  scopesv1.Mode_MODE_EXACT,
+		}.Build()
 		testResources(t, p, testFuncs[types.KubeCluster]{
 			newResource: func(name string) (types.KubeCluster, error) {
 				return types.NewKubernetesClusterV3(types.Metadata{
@@ -111,12 +122,14 @@ func TestKubernetes(t *testing.T) {
 					PageToken: pageToken,
 				}.Build())
 			},
-			cacheGet:   cacheGetKubeClusterWithScope(p.cache, scope),
-			cacheList:  cacheListKubeClustersWithScope(p.cache, scope),
-			update:     p.kubernetes.UpdateKubernetesCluster,
-			deleteAll:  p.kubernetes.DeleteAllKubernetesClusters,
-			Range:      p.kubernetes.RangeKubernetesClusters,
-			cacheRange: cacheRangeKubeClustersWithScope(p.cache, scope),
+			cacheGet:  cacheGetKubeClusterWithScope(p.cache, scope),
+			cacheList: cacheListKubeClustersWithScopeFilter(p.cache, scopeFilter),
+			update:    p.kubernetes.UpdateKubernetesCluster,
+			deleteAll: p.kubernetes.DeleteAllKubernetesClusters,
+			Range: func(ctx context.Context, start, end string) iter.Seq2[types.KubeCluster, error] {
+				return p.kubernetes.RangeKubeClusters(ctx, nil, start, end)
+			},
+			cacheRange: cacheRangeKubeClustersWithScopeFilter(p.cache, scopeFilter),
 		})
 	})
 }
@@ -130,26 +143,20 @@ func cacheGetKubeClusterWithScope(cache *Cache, scope string) func(context.Conte
 	}
 }
 
-func cacheListKubeClustersWithScope(cache *Cache, scope string) func(context.Context, int, string) ([]types.KubeCluster, string, error) {
+func cacheListKubeClustersWithScopeFilter(cache *Cache, scopeFilter *scopesv1.Filter) func(context.Context, int, string) ([]types.KubeCluster, string, error) {
 	return func(ctx context.Context, pageSize int, pageToken string) ([]types.KubeCluster, string, error) {
 		return cache.ListKubeClusters(ctx, kubev1.ListKubeClustersRequest_builder{
-			PageSize:  int32(pageSize),
-			PageToken: pageToken,
-			ScopeFilter: scopesv1.Filter_builder{
-				Scope: scope,
-				Mode:  scopesv1.Mode_MODE_EXACT,
-			}.Build(),
+			PageSize:    int32(pageSize),
+			PageToken:   pageToken,
+			ScopeFilter: scopeFilter,
 		}.Build())
 	}
 }
 
-func cacheRangeKubeClustersWithScope(cache *Cache, scope string) func(context.Context, string, string) iter.Seq2[types.KubeCluster, error] {
+func cacheRangeKubeClustersWithScopeFilter(cache *Cache, scopeFilter *scopesv1.Filter) func(context.Context, string, string) iter.Seq2[types.KubeCluster, error] {
 	return func(ctx context.Context, startKey, endKey string) iter.Seq2[types.KubeCluster, error] {
 		return cache.RangeKubeClusters(ctx, kubev1.ListKubeClustersRequest_builder{
-			ScopeFilter: scopesv1.Filter_builder{
-				Scope: scope,
-				Mode:  scopesv1.Mode_MODE_EXACT,
-			}.Build(),
+			ScopeFilter: scopeFilter,
 		}.Build(), startKey, endKey)
 	}
 }

@@ -268,31 +268,6 @@ func (c *Cache) GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster,
 	return out, nil
 }
 
-// ListKubernetesClusters returns a page of registered kubernetes clusters.
-func (c *Cache) ListKubernetesClusters(ctx context.Context, limit int, start string) ([]types.KubeCluster, string, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/ListKubernetesClusters")
-	defer span.End()
-
-	lister := genericLister[types.KubeCluster, kubeClusterIndex]{
-		cache:      c,
-		collection: c.collections.kubeClusters,
-		index:      kubeClusterNameIndex,
-		upstreamList: func(ctx context.Context, pageSize int, pageToken string) ([]types.KubeCluster, string, error) {
-			return c.Kubernetes.ListKubeClusters(ctx, kubev1.ListKubeClustersRequest_builder{
-				PageSize:  int32(pageSize),
-				PageToken: pageToken,
-			}.Build())
-		},
-		nextToken: services.GetCursorForKubeCluster,
-	}
-	out, next, err := lister.list(ctx, limit, start)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-
-	return out, next, nil
-}
-
 // ListKubeClusters returns a page of registered kubernetes clusters.
 func (c *Cache) ListKubeClusters(ctx context.Context, req *kubev1.ListKubeClustersRequest) ([]types.KubeCluster, string, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/ListKubeClusters")
@@ -315,39 +290,6 @@ func (c *Cache) ListKubeClusters(ctx context.Context, req *kubev1.ListKubeCluste
 		},
 	}
 	return lister.list(ctx, int(req.GetPageSize()), req.GetPageToken())
-}
-
-// RangeKubernetesClusters returns kubernetes clusters within the range [start, end).
-func (c *Cache) RangeKubernetesClusters(ctx context.Context, start, end string) iter.Seq2[types.KubeCluster, error] {
-	lister := genericLister[types.KubeCluster, kubeClusterIndex]{
-		cache:      c,
-		collection: c.collections.kubeClusters,
-		index:      kubeClusterNameIndex,
-		upstreamList: func(ctx context.Context, pageSize int, pageToken string) ([]types.KubeCluster, string, error) {
-			return c.Kubernetes.ListKubeClusters(ctx, kubev1.ListKubeClustersRequest_builder{
-				PageSize:  int32(pageSize),
-				PageToken: pageToken,
-			}.Build())
-		},
-		nextToken: services.GetCursorForKubeCluster,
-		// TODO(lokraszewski): DELETE IN v21.0.0
-		fallbackGetter: c.Config.Kubernetes.GetKubernetesClusters,
-	}
-
-	return func(yield func(types.KubeCluster, error) bool) {
-		ctx, span := c.Tracer.Start(ctx, "cache/RangeKubernetesClusters")
-		defer span.End()
-
-		for cluster, err := range lister.RangeWithFallback(ctx, start, end) {
-			if !yield(cluster, err) {
-				return
-			}
-
-			if err != nil {
-				return
-			}
-		}
-	}
 }
 
 // RangeKubeClusters returns kubernetes clusters within the range [start, end).
@@ -377,32 +319,6 @@ func (c *Cache) RangeKubeClusters(ctx context.Context, req *kubev1.ListKubeClust
 	}
 
 	return lister.Range(ctx, startKey, endKey)
-}
-
-// GetKubernetesCluster returns the specified kubernetes cluster resource.
-func (c *Cache) GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetKubernetesCluster")
-	defer span.End()
-
-	rg, err := acquireReadGuard(c, c.collections.kubeClusters)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-
-	if !rg.ReadCache() {
-		cluster, err := c.Config.Kubernetes.GetKubeCluster(ctx, kubev1.GetKubeClusterRequest_builder{
-			Name: name,
-		}.Build())
-		return cluster, trace.Wrap(err)
-	}
-
-	k, err := rg.store.get(kubeClusterNameIndex, name)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return k.Copy(), nil
 }
 
 // GetKubeCluster returns the specified kubernetes cluster resource.

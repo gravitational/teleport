@@ -3530,7 +3530,7 @@ func TestKubernetesClusterCRUD_DiscoveryService(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, clusters, 1)
 
-		clusters, err = stream.Collect(srv.Auth().RangeKubernetesClusters(ctx, "", ""))
+		clusters, err = stream.Collect(srv.Auth().RangeKubeClusters(ctx, nil, "", ""))
 		require.NoError(t, err)
 		require.Len(t, clusters, 1)
 	})

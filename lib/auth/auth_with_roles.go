@@ -7628,7 +7628,9 @@ func (a *ScopedServerWithRoles) GetKubernetesCluster(ctx context.Context, name s
 		return nil, trace.Wrap(err)
 	}
 
-	kubeCluster, err := a.authServer.GetKubernetesCluster(ctx, name)
+	kubeCluster, err := a.authServer.GetKubeCluster(ctx, kubev1.GetKubeClusterRequest_builder{
+		Name: name,
+	}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -7654,7 +7656,7 @@ func (a *ScopedServerWithRoles) GetKubernetesClusters(ctx context.Context) (resu
 
 	out, err := iterstream.Collect(
 		iterstream.FilterMap(
-			a.authServer.RangeKubernetesClusters(ctx, "", ""),
+			a.authServer.RangeKubeClusters(ctx, nil, "", ""),
 			func(cluster types.KubeCluster) (types.KubeCluster, bool) {
 				// Filter out kube clusters user doesn't have access to.
 				if err := a.scopedContext.CheckerContext.Decision(ctx, cluster.GetScope(), func(checker *services.ScopedAccessChecker) error {
@@ -7685,7 +7687,7 @@ func (a *ScopedServerWithRoles) ListKubernetesClusters(ctx context.Context, limi
 
 	return generic.CollectPageAndCursor(
 		iterstream.FilterMap(
-			a.authServer.RangeKubernetesClusters(ctx, start, ""),
+			a.authServer.RangeKubeClusters(ctx, nil, start, ""),
 			func(cluster types.KubeCluster) (types.KubeCluster, bool) {
 				// Filter out kube clusters user doesn't have access to.
 				if err := a.scopedContext.CheckerContext.Decision(ctx, cluster.GetScope(), func(checker *services.ScopedAccessChecker) error {
@@ -7711,7 +7713,9 @@ func (a *ScopedServerWithRoles) DeleteKubernetesCluster(ctx context.Context, nam
 		return trace.Wrap(err)
 	}
 	// Make sure user has access to the kubernetes cluster before deleting.
-	cluster, err := a.authServer.GetKubernetesCluster(ctx, name)
+	cluster, err := a.authServer.GetKubeCluster(ctx, kubev1.GetKubeClusterRequest_builder{
+		Name: name,
+	}.Build())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -7723,7 +7727,9 @@ func (a *ScopedServerWithRoles) DeleteKubernetesCluster(ctx context.Context, nam
 	}); err != nil {
 		return trace.Wrap(err)
 	}
-	return trace.Wrap(a.authServer.DeleteKubernetesCluster(ctx, name))
+	return trace.Wrap(a.authServer.DeleteKubeCluster(ctx, kubev1.DeleteKubeClusterRequest_builder{
+		Name: name,
+	}.Build()))
 }
 
 // DeleteAllKubernetesClusters removes all kubernetes cluster resources.

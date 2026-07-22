@@ -3849,15 +3849,13 @@ func (c *Client) UpdateKubernetesCluster(ctx context.Context, cluster types.Kube
 }
 
 // GetKubernetesCluster returns the specified kubernetes resource by name.
+//
+// Deprecated: Use ListKubeClusters instead.
+// TODO (eriktate): remove in v21
 func (c *Client) GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error) {
-	if name == "" {
-		return nil, trace.BadParameter("missing kubernetes cluster name")
-	}
-	cluster, err := c.grpc.GetKubernetesCluster(ctx, &types.ResourceRequest{Name: name})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return cluster, nil
+	return c.GetKubeCluster(ctx, kubeproto.GetKubeClusterRequest_builder{
+		Name: name,
+	}.Build())
 }
 
 // GetKubeCluster returns the specified kubernetes resource by scope and name.
@@ -3886,19 +3884,14 @@ func (c *Client) GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster
 }
 
 // ListKubernetesClusters returns a page of registered kubernetes clusters.
+//
+// Deprecated: Use ListKubeClusters instead.
+// TODO (eriktate): remove in v21
 func (c *Client) ListKubernetesClusters(ctx context.Context, limit int, start string) ([]types.KubeCluster, string, error) {
-	resp, err := c.grpc.ListKubernetesClusters(ctx, &proto.ListKubernetesClustersRequest{
+	return c.ListKubeClusters(ctx, kubeproto.ListKubeClustersRequest_builder{
 		PageSize:  int32(limit),
 		PageToken: start,
-	})
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	kubeClusters := make([]types.KubeCluster, len(resp.KubernetesClusters))
-	for i := range resp.KubernetesClusters {
-		kubeClusters[i] = resp.KubernetesClusters[i]
-	}
-	return kubeClusters, resp.NextPageToken, nil
+	}.Build())
 }
 
 // ListKubeClusters returns a page of registered kubernetes clusters.
@@ -3915,6 +3908,9 @@ func (c *Client) ListKubeClusters(ctx context.Context, req *kubeproto.ListKubeCl
 }
 
 // RangeKubernetesClusters returns kubernetes clusters within the range [start, end).
+//
+// Deprecated: Use RangeKubeClusters instead.
+// TODO (eriktate): remove in v21
 func (c *Client) RangeKubernetesClusters(ctx context.Context, start, end string) iter.Seq2[types.KubeCluster, error] {
 	kubeClient := kubeproto.NewKubeClusterServiceClient(c.conn)
 	pageFn := func(ctx context.Context, pageSize int, pageToken string) ([]*types.KubernetesClusterV3, string, error) {
@@ -3961,9 +3957,13 @@ func (c *Client) RangeKubeClusters(ctx context.Context, req *kubeproto.ListKubeC
 }
 
 // DeleteKubernetesCluster deletes specified kubernetes cluster resource.
+//
+// Deprecated: Use DeleteKubeCluster instead.
+// TODO (eriktate): remove in v21
 func (c *Client) DeleteKubernetesCluster(ctx context.Context, name string) error {
-	_, err := c.grpc.DeleteKubernetesCluster(ctx, &types.ResourceRequest{Name: name})
-	return trace.Wrap(err)
+	return c.DeleteKubeCluster(ctx, kubeproto.DeleteKubeClusterRequest_builder{
+		Name: name,
+	}.Build())
 }
 
 // DeleteKubeCluster deletes specified kubernetes cluster resource by scope and name.

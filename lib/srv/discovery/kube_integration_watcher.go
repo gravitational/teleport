@@ -132,7 +132,7 @@ func (s *Server) startKubeIntegrationWatchers() error {
 					continue
 				}
 
-				existingClusters, err := iterstream.Collect(clt.RangeKubernetesClusters(s.ctx, "", ""))
+				existingClusters, err := iterstream.Collect(clt.RangeKubeClusters(s.ctx, nil, "", ""))
 				if err != nil {
 					s.Log.WarnContext(s.ctx, "Failed to get Kubernetes clusters from cache", "error", err)
 					continue

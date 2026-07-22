@@ -36,6 +36,7 @@ import (
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
+	kubev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
@@ -884,6 +885,7 @@ type ReadDiscoveryAccessPoint interface {
 	// Closer closes all the resources
 	io.Closer
 
+	services.KubernetesClusterGetter
 	// NewWatcher returns a new event watcher.
 	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
 
@@ -898,14 +900,6 @@ type ReadDiscoveryAccessPoint interface {
 
 	// GetNodes returns a list of registered servers for this cluster.
 	GetNodes(ctx context.Context, namespace string) ([]types.Server, error)
-	// GetKubernetesCluster returns a kubernetes cluster resource identified by name.
-	GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error)
-	// GetKubernetesClusters returns all kubernetes cluster resources.
-	GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster, error)
-	// ListKubernetesClusters returns a page of registered kubernetes clusters.
-	ListKubernetesClusters(ctx context.Context, limit int, start string) ([]types.KubeCluster, string, error)
-	// RangeKubernetesClusters returns kubernetes clusters within the range [start, end).
-	RangeKubernetesClusters(ctx context.Context, start, end string) iter.Seq2[types.KubeCluster, error]
 	// GetKubernetesServers returns all registered kubernetes servers.
 	GetKubernetesServers(ctx context.Context) ([]types.KubeServer, error)
 
@@ -967,8 +961,8 @@ type DiscoveryAccessPoint interface {
 	CreateKubernetesCluster(ctx context.Context, cluster types.KubeCluster) error
 	// UpdateKubernetesCluster updates existing kubernetes cluster resource.
 	UpdateKubernetesCluster(ctx context.Context, cluster types.KubeCluster) error
-	// DeleteKubernetesCluster deletes specified kubernetes cluster resource.
-	DeleteKubernetesCluster(ctx context.Context, name string) error
+	// DeleteKubeCluster deletes specified kubernetes cluster resource.
+	DeleteKubeCluster(ctx context.Context, req *kubev1.DeleteKubeClusterRequest) error
 
 	// CreateDatabase creates a new database resource.
 	CreateDatabase(ctx context.Context, database types.Database) error
@@ -1847,9 +1841,9 @@ func (w *DiscoveryWrapper) UpdateKubernetesCluster(ctx context.Context, cluster 
 	return w.NoCache.UpdateKubernetesCluster(ctx, cluster)
 }
 
-// DeleteKubernetesCluster deletes specified kubernetes cluster resource.
-func (w *DiscoveryWrapper) DeleteKubernetesCluster(ctx context.Context, name string) error {
-	return w.NoCache.DeleteKubernetesCluster(ctx, name)
+// DeleteKubeCluster deletes specified kubernetes cluster resource.
+func (w *DiscoveryWrapper) DeleteKubeCluster(ctx context.Context, req *kubev1.DeleteKubeClusterRequest) error {
+	return w.NoCache.DeleteKubeCluster(ctx, req)
 }
 
 // CreateDatabase creates a new database resource.

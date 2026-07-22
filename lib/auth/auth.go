@@ -71,6 +71,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	kubev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
@@ -7841,7 +7842,9 @@ func (a *Server) UpdateKubernetesCluster(ctx context.Context, kubeCluster types.
 
 // DeleteKubernetesCluster deletes a kubernetes cluster resource.
 func (a *Server) DeleteKubernetesCluster(ctx context.Context, name string) error {
-	if err := a.Kubernetes.DeleteKubernetesCluster(ctx, name); err != nil {
+	if err := a.Kubernetes.DeleteKubeCluster(ctx, kubev1.DeleteKubeClusterRequest_builder{
+		Name: name,
+	}.Build()); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := a.emitter.EmitAuditEvent(ctx, &apievents.KubernetesClusterDelete{

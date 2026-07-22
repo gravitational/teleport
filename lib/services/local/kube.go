@@ -73,18 +73,13 @@ func NewKubernetesService(b backend.Backend) (*KubernetesService, error) {
 
 // GetKubernetesClusters returns all kubernetes cluster resources.
 func (s *KubernetesService) GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster, error) {
-	out, err := stream.Collect(s.RangeKubernetesClusters(ctx, "", ""))
+	out, err := stream.Collect(s.RangeKubeClusters(ctx, nil, "", ""))
 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return out, nil
-}
-
-// ListKubernetesClusters returns a page of registered kubernetes clusters.
-func (s *KubernetesService) ListKubernetesClusters(ctx context.Context, limit int, start string) ([]types.KubeCluster, string, error) {
-	return s.svc.ListResources(ctx, limit, start)
 }
 
 // ListKubeClusters returns a page of registered kube clusters respecting scope filters.
@@ -100,11 +95,6 @@ func (s *KubernetesService) ListKubeClusters(ctx context.Context, req *kubev1.Li
 	return s.svc.ListResourcesWithFilter(ctx, int(req.GetPageSize()), req.GetPageToken(), filterFn)
 }
 
-// RangeKubernetesClusters returns kubernetes clusters within the range [start, end).
-func (s *KubernetesService) RangeKubernetesClusters(ctx context.Context, start, end string) iter.Seq2[types.KubeCluster, error] {
-	return s.svc.Resources(ctx, start, end)
-}
-
 // RangeKubeClusters returns kubernetes clusters within the range [start, end).
 func (s *KubernetesService) RangeKubeClusters(ctx context.Context, req *kubev1.ListKubeClustersRequest, start, end string) iter.Seq2[types.KubeCluster, error] {
 	scopeFilter := req.GetScopeFilter()
@@ -116,11 +106,6 @@ func (s *KubernetesService) RangeKubeClusters(ctx context.Context, req *kubev1.L
 	}
 
 	return stream.FilterMap(s.svc.Resources(ctx, start, end), filterFn)
-}
-
-// GetKubernetesCluster returns the specified kubernetes cluster resource.
-func (s *KubernetesService) GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error) {
-	return s.GetKubeCluster(ctx, kubev1.GetKubeClusterRequest_builder{Name: name}.Build())
 }
 
 // GetKubeCluster returns the specified kubernetes cluster resource.
@@ -154,13 +139,6 @@ func (s *KubernetesService) UpdateKubernetesCluster(ctx context.Context, cluster
 	}
 	_, err := s.svc.UpdateResource(ctx, cluster)
 	return trace.Wrap(err)
-}
-
-// DeleteKubernetesCluster removes the specified kubernetes cluster resource.
-func (s *KubernetesService) DeleteKubernetesCluster(ctx context.Context, name string) error {
-	return s.svc.DeleteResource(ctx, scopes.QualifiedName{
-		Name: name,
-	})
 }
 
 // DeleteKubeCluster removes the specified kubernetes cluster resource.

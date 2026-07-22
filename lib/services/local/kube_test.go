@@ -61,7 +61,7 @@ func TestKubernetesCRUD(t *testing.T) {
 	}, types.KubernetesClusterSpecV3{})
 	require.NoError(t, err)
 
-	testLegacyMethods(t, service, []types.KubeCluster{
+	testBasicFlow(t, service, []types.KubeCluster{
 		kubeCluster1,
 		kubeCluster2,
 		kubeCluster3,
@@ -105,7 +105,7 @@ func TestScopedKubeClusterCRUD(t *testing.T) {
 		scopedCluster,
 		orthogonalCluster,
 	}
-	testLegacyMethods(t, service, clusters)
+	testBasicFlow(t, service, clusters)
 
 	// test new kube cluster methods
 	//
@@ -185,13 +185,13 @@ func TestScopedKubeClusterCRUD(t *testing.T) {
 	}
 }
 
-func testLegacyMethods(t *testing.T, service *KubernetesService, clusters []types.KubeCluster) {
+func testBasicFlow(t *testing.T, service *KubernetesService, clusters []types.KubeCluster) {
 	t.Helper()
 	if len(clusters) < 3 {
-		require.FailNow(t, "need at least 3 clusters to run legacy method test")
+		require.FailNow(t, "need at least 3 clusters to run basic flow test")
 	}
 
-	t.Run("legacy methods", func(t *testing.T) {
+	t.Run("basic methods", func(t *testing.T) {
 		ctx := t.Context()
 		// We should start out with no clusters
 		out, err := service.GetKubernetesClusters(ctx)
@@ -212,49 +212,51 @@ func testLegacyMethods(t *testing.T, service *KubernetesService, clusters []type
 		require.Empty(t, cmp.Diff(clusters, out, diffopt))
 
 		// List with page limit
-		page1, page2Start, err := service.ListKubernetesClusters(ctx, 2, "")
+		page1, page2Start, err := service.ListKubeClusters(ctx, kubev1.ListKubeClustersRequest_builder{
+			PageSize:  2,
+			PageToken: "",
+		}.Build())
 		require.NoError(t, err)
 		require.NotEmpty(t, page2Start)
 		require.Len(t, page1, 2)
 
 		// List with start
-		page2, next, err := service.ListKubernetesClusters(ctx, 2, page2Start)
+		page2, next, err := service.ListKubeClusters(ctx, kubev1.ListKubeClustersRequest_builder{
+			PageSize:  2,
+			PageToken: page2Start,
+		}.Build())
 		require.NoError(t, err)
 		require.Empty(t, next)
 		require.Len(t, page2, 1)
 		require.Empty(t, cmp.Diff(clusters, append(page1, page2...), diffopt))
 
 		// Range over all
-		out, err = stream.Collect(service.RangeKubernetesClusters(ctx, "", ""))
+		out, err = stream.Collect(service.RangeKubeClusters(ctx, nil, "", ""))
 		require.NoError(t, err)
 		require.Empty(t, cmp.Diff(clusters, out, diffopt))
 
 		// Range with upper bound
-		out, err = stream.Collect(service.RangeKubernetesClusters(ctx, "", page2Start))
+		out, err = stream.Collect(service.RangeKubeClusters(ctx, nil, "", page2Start))
 		require.NoError(t, err)
 		require.Empty(t, cmp.Diff(page1, out, diffopt))
 
 		// Range with lower bound
-		out, err = stream.Collect(service.RangeKubernetesClusters(ctx, page2Start, ""))
+		out, err = stream.Collect(service.RangeKubeClusters(ctx, nil, page2Start, ""))
 		require.NoError(t, err)
 		require.Empty(t, cmp.Diff(page2, out, diffopt))
 
 		// Fetch a specific kube cluster
-		if clusters[1].GetScope() == "" {
-			cluster, err := service.GetKubernetesCluster(ctx, clusters[1].GetName())
-			require.NoError(t, err)
-			require.Empty(t, cmp.Diff(clusters[1], cluster, diffopt))
-		} else {
-			cluster, err := service.GetKubeCluster(ctx, kubev1.GetKubeClusterRequest_builder{
-				Scope: clusters[1].GetScope(),
-				Name:  clusters[1].GetName(),
-			}.Build())
-			require.NoError(t, err)
-			require.Empty(t, cmp.Diff(clusters[1], cluster, diffopt))
-		}
+		cluster, err := service.GetKubeCluster(ctx, kubev1.GetKubeClusterRequest_builder{
+			Scope: clusters[1].GetScope(),
+			Name:  clusters[1].GetName(),
+		}.Build())
+		require.NoError(t, err)
+		require.Empty(t, cmp.Diff(clusters[1], cluster, diffopt))
 
 		// Try to fetch a kube cluster that doesn't exist
-		_, err = service.GetKubernetesCluster(ctx, "doesnotexist")
+		_, err = service.GetKubeCluster(ctx, kubev1.GetKubeClusterRequest_builder{
+			Name: "doesnotexist",
+		}.Build())
 		require.ErrorAs(t, err, new(*trace.NotFoundError))
 
 		// Try to create the same kube cluster
@@ -265,21 +267,18 @@ func testLegacyMethods(t *testing.T, service *KubernetesService, clusters []type
 		clusters[0].SetStaticLabels(map[string]string{"updated": "yes"})
 		err = service.UpdateKubernetesCluster(ctx, clusters[0])
 		require.NoError(t, err)
-		if clusters[0].GetScope() == "" {
-			cluster, err := service.GetKubernetesCluster(ctx, clusters[0].GetName())
-			require.NoError(t, err)
-			require.Empty(t, cmp.Diff(clusters[0], cluster, diffopt))
-		} else {
-			cluster, err := service.GetKubeCluster(ctx, kubev1.GetKubeClusterRequest_builder{
-				Scope: clusters[0].GetScope(),
-				Name:  clusters[0].GetName(),
-			}.Build())
-			require.NoError(t, err)
-			require.Empty(t, cmp.Diff(clusters[0], cluster, diffopt))
-		}
+		cluster, err = service.GetKubeCluster(ctx, kubev1.GetKubeClusterRequest_builder{
+			Scope: clusters[0].GetScope(),
+			Name:  clusters[0].GetName(),
+		}.Build())
+		require.NoError(t, err)
+		require.Empty(t, cmp.Diff(clusters[0], cluster, diffopt))
 
 		// Delete a Kubernetes.
-		err = service.DeleteKubernetesCluster(ctx, clusters[0].GetName())
+		err = service.DeleteKubeCluster(ctx, kubev1.DeleteKubeClusterRequest_builder{
+			Scope: clusters[0].GetScope(),
+			Name:  clusters[0].GetName(),
+		}.Build())
 		require.NoError(t, err)
 
 		expectedClusters := []types.KubeCluster{clusters[1], clusters[2]}
@@ -288,7 +287,9 @@ func testLegacyMethods(t *testing.T, service *KubernetesService, clusters []type
 		require.Empty(t, cmp.Diff(expectedClusters, out, diffopt))
 
 		// Try to delete a Kubernetes that doesn't exist.
-		err = service.DeleteKubernetesCluster(ctx, "doesnotexist")
+		err = service.DeleteKubeCluster(ctx, kubev1.DeleteKubeClusterRequest_builder{
+			Name: "doesnotexist",
+		}.Build())
 		require.ErrorAs(t, err, new(*trace.NotFoundError))
 
 		// Delete all Kubernetess.
