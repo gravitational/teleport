@@ -76,8 +76,8 @@ func integrationHandler() Handler {
 		updateHandler: updateIntegration,
 		deleteHandler: deleteIntegration,
 		singleton:     false,
-		mfaRequired: true,
-		description: "An integration with an external service such as AWS, GitHub, or Azure.",
+		mfaRequired:   true,
+		description:   "An integration with an external service such as AWS, GitHub, or Azure.",
 	}
 }
 
