@@ -6215,7 +6215,15 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				ClusterFeatures:       process.GetClusterFeatures,
 				InbandVerifier:        inbandVerifier,
 			},
-			TLS:                      serverTLSConfig.Clone(),
+			TLS: func() *tls.Config {
+				cfg := serverTLSConfig.Clone()
+				cfg.NextProtos = []string{
+					string(alpncommon.ProtocolKube),
+					string(alpncommon.ProtocolHTTP2),
+					string(alpncommon.ProtocolHTTP),
+				}
+				return cfg
+			}(),
 			LimiterConfig:            cfg.Proxy.Limiter,
 			AccessPoint:              accessPoint,
 			GetRotation:              process.GetRotation,
