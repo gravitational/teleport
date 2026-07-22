@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package services
+package label
 
 import (
 	"testing"
@@ -329,7 +329,7 @@ func TestLabelExpressions(t *testing.T) {
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
-			parsedExpr, err := parseLabelExpression(tc.expr)
+			parsedExpr, err := ParseExpression(tc.expr)
 			for _, msg := range tc.expectParseError {
 				assert.ErrorContains(t, err, msg, "parse error doesn't include expected message")
 			}
@@ -338,10 +338,10 @@ func TestLabelExpressions(t *testing.T) {
 			}
 			require.NoError(t, err, trace.DebugReport(err))
 
-			env := labelExpressionEnv{
-				resourceLabelGetter: mapLabelGetter(tc.resourceLabels),
-				username:            "alice",
-				userTraits:          tc.userTraits,
+			env := ExpressionEnv{
+				ResourceLabelGetter: MapLabelGetter(tc.resourceLabels),
+				Username:            "alice",
+				UserTraits:          tc.userTraits,
 			}
 
 			match, err := parsedExpr.Evaluate(env)

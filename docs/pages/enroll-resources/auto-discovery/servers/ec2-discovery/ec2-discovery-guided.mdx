@@ -33,20 +33,26 @@ If you manage multiple AWS accounts in an AWS Organization, see [Organization-le
 
 - AWS account with EC2 instances and permissions to create and attach IAM
 policies.
-- EC2 instances to enroll with your Teleport cluster. These instances must be
-  running Ubuntu/Debian/RHEL/Amazon Linux 2/Amazon Linux 2023 and SSM agent
-  version 3.1 or greater if making use of the default Teleport install script.
-  (For other Linux distributions, you can install Teleport manually.)
+- EC2 instances to enroll with your Teleport cluster. These instances must
+  meet the following requirements:
+  - Running Ubuntu/Debian/RHEL/Amazon Linux 2/Amazon Linux 2023, and SSM agent
+    version 3.1 or greater if making use of the default Teleport install
+    script. (For other Linux distributions, you can install Teleport
+    manually.)
+  - Include the `AmazonSSMManagedInstanceCore` IAM policy so they can receive
+    commands from the Discovery Service. For a list of permissions included in
+    the policy, see the [AWS
+    documentation](https://docs.aws.amazon.com/aws-managed-policy/latest/reference/AmazonSSMManagedInstanceCore.html).
+  - Have the SSM agent installed and running. Amazon Linux 2 and Amazon Linux
+    2023 include it by default. For Ubuntu and Debian instances, install it
+    manually or via user data before discovery can enroll them. See the [AWS
+    Systems Manager
+    documentation](https://docs.aws.amazon.com/systems-manager/latest/userguide/sysman-install-ssm-agent.html)
+    for installation instructions.
 - An EC2 instance to run the Teleport Discovery Service. This instance must have
   an instance profile. In this guide, we assume the instance role is called
   `TeleportDiscoveryService`.
 - (!docs/pages/includes/tctl.mdx!)
-
-All EC2 instances that are to be added to the Teleport cluster by the Discovery
-Service must include the `AmazonSSMManagedInstanceCore` IAM policy in order to
-receive commands from the Discovery Service. For a list of permissions included
-in the policy, see the [AWS
-documentation](https://docs.aws.amazon.com/aws-managed-policy/latest/reference/AmazonSSMManagedInstanceCore.html).
 
 ## Step 1/6. Create an EC2 invite token
 
@@ -96,6 +102,11 @@ the command.
      --policy-arn ${POLICY_ARN}
    ```
 
+   <Admonition type="note">
+   IAM policy changes can take 1–2 minutes to propagate. Wait before
+   proceeding to avoid permission errors when the Discovery Service starts.
+   </Admonition>
+
 ## Step 3/6. Install Teleport on the Discovery Node
 
 <Admonition type="tip">
@@ -115,9 +126,24 @@ Install Teleport on the EC2 instance that will run the Discovery Service:
 
 ## Step 5/6. Bootstrap the Discovery Service AWS configuration
 
+<Admonition type="warning">
+This step only works if you configured EC2 discovery using a local
+`discovery_service.aws` matcher in `/etc/teleport.yaml` in Step 4.
+`teleport discovery bootstrap` reads its configuration from that local file
+only. If you instead configured a dynamic `discovery_config` resource in Step
+4, this command will not detect it, will report that no additional
+configuration is required, and will not create the IAM policy that EC2
+discovery needs — leaving Step 6 unable to enroll instances. If you're using a
+dynamic `discovery_config`, either add an equivalent matcher to
+`/etc/teleport.yaml` before running this command, or configure the required
+IAM policies and SSM documents manually by following [Manual EC2
+Auto-Discovery Configuration](ec2-discovery-manual.mdx) instead of this step.
+</Admonition>
+
 On the same Node as above, run `teleport discovery bootstrap`. This command
-will generate and display the additional IAM policies and AWS Systems Manager (SSM) documents
-required to enable the Discovery Service:
+reads the configuration from Step 4 and creates the IAM policies and SSM
+documents that the Discovery Service requires, including the SSM document
+referenced by `document_name` in the configuration:
 
 ```code
 $ sudo teleport discovery bootstrap

@@ -56,6 +56,17 @@ spec:
                 description: The App Access specific configuration for a scoped role.
                 nullable: true
                 properties:
+                  client_idle_timeout:
+                    description: Overrides the defaults block idle timeout specifically
+                      for app sessions. Must be a valid Go duration string (e.g. "30m",
+                      "1h"). If empty, the defaults block value (or global default)
+                      applies.
+                    type: string
+                  disconnect_expired_cert:
+                    description: DisconnectExpiredCert controls whether App sessions
+                      are disconnected when the user certificate expires. If empty,
+                      the defaults block value (or global default) applies.
+                    type: boolean
                   label_expression:
                     description: LabelExpression is an optional predicate expression
                       evaluated against an application's labels.
@@ -76,6 +87,17 @@ spec:
                       type: object
                     nullable: true
                     type: array
+                  lock:
+                    description: Lock configures the role's locking behavior for app
+                      sessions. If empty, the defaults block value (or global default)
+                      applies.
+                    nullable: true
+                    properties:
+                      mode:
+                        description: 'Allowed values: strict or best_effort. Defaults
+                          to value cluster wide auth preference if not set.'
+                        type: string
+                    type: object
                 type: object
               assignable_scopes:
                 description: AssignableScopes is a list of scopes to which this role
@@ -95,16 +117,20 @@ spec:
                     description: ClientIdleTimeout sets the default idle timeout for
                       access sessions across all protocols that do not specify their
                       own value. Must be a valid Go duration string (e.g. "30m", "1h").
+                      The cluster-wide default is used only when neither this nor
+                      the protocol's equivalent control is set.
                     type: string
                   disconnect_expired_cert:
                     description: DisconnectExpiredCert defines the default behavior
-                      of all protocols when certs expire for a session. If unset,
-                      cluster wide defaults are used.
+                      of all protocols when certs expire for a session. The cluster-wide
+                      default is used only when neither this nor the protocol's equivalent
+                      control is set.
                     type: boolean
                   lock:
                     description: Lock specifies the default locking mode for access
                       sessions across all protocols that do not specify their own
-                      value. If unset, cluster wide defaults are used.
+                      value. The cluster-wide default is used only when neither this
+                      nor the protocol's equivalent control is set.
                     nullable: true
                     properties:
                       mode:
@@ -115,7 +141,8 @@ spec:
                   session_recording:
                     description: SessionRecording configures the session recording
                       strategy for all protocols that don't explicitly set their session
-                      recording mode.
+                      recording mode. If neither this nor the protocol's equivalent
+                      control is set, best_effort is used.
                     nullable: true
                     properties:
                       mode:
@@ -136,7 +163,8 @@ spec:
                     type: string
                   disconnect_expired_cert:
                     description: DisconnectExpiredCert controls whether Kube sessions
-                      are disconnected when the user certificate expires.
+                      are disconnected when the user certificate expires. If empty,
+                      the defaults block value (or global default) applies.
                     type: boolean
                   groups:
                     description: The list of kubernetes groups this role allows.
@@ -162,7 +190,8 @@ spec:
                     type: array
                   lock:
                     description: Lock configures the role's locking behavior for kubernetes
-                      sessions.
+                      sessions. If empty, the defaults block value (or global default)
+                      applies.
                     nullable: true
                     properties:
                       mode:
@@ -240,8 +269,8 @@ spec:
                     type: string
                   disconnect_expired_cert:
                     description: DisconnectExpiredCert controls whether SSH sessions
-                      are disconnected when the user certificate expires. Defaults
-                      to value cluster wide auth preference if not set.
+                      are disconnected when the user certificate expires. If empty,
+                      the defaults block value (or global default) applies.
                     type: boolean
                   enhanced_recording:
                     description: EnhancedRecording is the set of BPF events to record
@@ -311,7 +340,8 @@ spec:
                     type: array
                   lock:
                     description: Lock configures the role's locking behavior for SSH
-                      sessions.
+                      sessions. If empty, the defaults block value (or global default)
+                      applies.
                     nullable: true
                     properties:
                       mode:

@@ -2277,7 +2277,7 @@ func (a *ServerWithRoles) ResolveSSHTarget(ctx context.Context, req *proto.Resol
 	return &proto.ResolveSSHTargetResponse{Server: bestServer}, nil
 }
 
-// ListResources is the scoped equivalent of [ServerWithRoles.ListResources]. Only kube_server and
+// ListResources is the scoped equivalent of [ServerWithRoles.ListResources]. Only kube_server, app_server, and
 // kube_cluster resource types are currently supported for scoped identities. Advanced features like
 // search_as_roles, preview_as_roles, and login inclusion are not yet available for scoped identities.
 func (a *ScopedServerWithRoles) ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
@@ -2289,8 +2289,11 @@ func (a *ScopedServerWithRoles) ListResources(ctx context.Context, req proto.Lis
 		return nil, trace.AccessDenied("search_as_roles is not supported for scoped identities")
 	case req.UsePreviewAsRoles:
 		return nil, trace.AccessDenied("preview_as_roles is not supported for scoped identities")
-	case req.IncludeLogins:
-		return nil, trace.AccessDenied("include_logins is not supported for scoped identities")
+	case req.IncludeLogins && req.ResourceType != types.KindAppServer:
+		// include_logins is only used for AWS console apps and is otherwise unsupported for
+		// scoped identities. It will be left empty for now so that we can still list normal apps.
+		// Reject it for every other resource kind.
+		return nil, trace.AccessDenied("include_logins is not supported for scoped identities for resource %q", req.ResourceType)
 	}
 
 	switch req.ResourceType {
@@ -2300,42 +2303,7 @@ func (a *ScopedServerWithRoles) ListResources(ctx context.Context, req proto.Lis
 	}
 
 	if req.RequiresFakePagination() {
-		if req.ResourceType != types.KindKubernetesCluster {
-			// Kube clusters always use fake pagination but we don't have a need to support other kinds while using
-			// scoped credentials at this time. We explicitly disallow other kinds to avoid any potential for calling
-			// listResourcesWithSort with a kind that does not properly support scoped access.
-			return nil, trace.BadParameter("scoped resource kind %q does not support fake pagination", req.ResourceType)
-		}
-		if err := req.CheckAndSetDefaults(); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		kubeServers, err := a.GetKubernetesServers(ctx)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		var clusters []types.KubeCluster
-		for _, svc := range kubeServers {
-			clusters = append(clusters, svc.GetCluster())
-		}
-		sortedClusters := types.KubeClusters(clusters)
-		if err := sortedClusters.SortByCustom(req.SortBy); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		params := local.FakePaginateParams{
-			ResourceType:   req.ResourceType,
-			Limit:          req.Limit,
-			Labels:         req.Labels,
-			SearchKeywords: req.SearchKeywords,
-			StartKey:       req.StartKey,
-		}
-		if req.PredicateExpression != "" {
-			expression, err := services.NewResourceExpression(req.PredicateExpression)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			params.PredicateExpression = expression
-		}
-		return local.FakePaginate(sortedClusters.AsResources(), params)
+		return a.listResourcesWithSort(ctx, req)
 	}
 
 	if err := req.CheckAndSetDefaults(); err != nil {
@@ -2717,7 +2685,7 @@ func (a *ServerWithRoles) listResourcesWithSort(ctx context.Context, req proto.L
 		resources = servers.AsResources()
 
 	case types.KindAppServer:
-		appservers, err := a.GetApplicationServers(ctx, req.Namespace)
+		appservers, err := a.ScopedServerWithRoles().GetApplicationServers(ctx, req.Namespace)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -2881,6 +2849,64 @@ func (a *ServerWithRoles) listResourcesWithSort(ctx context.Context, req proto.L
 	}
 
 	return resp, nil
+}
+
+// listResourcesWithSort is the scoped equivalent of [ServerWithRoles.listResourcesWithSort].
+// It only supports listing apps servers (not apps) and kube clusters (not kube servers)
+// at this point and will need to be updated to reach feature parity with the Unscoped version.
+// This function only supports listing with fake pagination.
+func (a *ScopedServerWithRoles) listResourcesWithSort(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
+	if err := req.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var resources []types.ResourceWithLabels
+	switch req.ResourceType {
+	case types.KindKubernetesCluster:
+		kubeServers, err := a.GetKubernetesServers(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		var clusters []types.KubeCluster
+		for _, svc := range kubeServers {
+			clusters = append(clusters, svc.GetCluster())
+		}
+		sortedClusters := types.KubeClusters(clusters)
+		if err := sortedClusters.SortByCustom(req.SortBy); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		resources = sortedClusters.AsResources()
+	case types.KindAppServer:
+		appServers, err := a.GetApplicationServers(ctx, req.Namespace)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		sortedServers := types.AppServers(appServers)
+		if err := sortedServers.SortByCustom(req.SortBy); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		resources = sortedServers.AsResources()
+	default:
+		// We explicitly disallow other kinds to avoid any potential for calling
+		// FakePaginate with a kind that does not properly support scoped access.
+		return nil, trace.BadParameter("scoped resource kind %q does not support fake pagination", req.ResourceType)
+	}
+
+	params := local.FakePaginateParams{
+		ResourceType:   req.ResourceType,
+		Limit:          req.Limit,
+		Labels:         req.Labels,
+		SearchKeywords: req.SearchKeywords,
+		StartKey:       req.StartKey,
+	}
+	if req.PredicateExpression != "" {
+		expression, err := services.NewResourceExpression(req.PredicateExpression)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		params.PredicateExpression = expression
+	}
+	return local.FakePaginate(resources, params)
 }
 
 // Deprecated: Prefer paginated variant [ListAuthServers].
@@ -3934,14 +3960,8 @@ func (a *ServerWithRoles) GenerateUserCerts(ctx context.Context, req proto.UserC
 }
 
 // GenerateUserCerts generates users certificates. Scoped identities are currently limited to
-// generating kubernetes certificates.
+// generating kubernetes and app certificates.
 func (a *ScopedServerWithRoles) GenerateUserCerts(ctx context.Context, req proto.UserCertsRequest) (*proto.Certs, error) {
-	if _, isUnscoped := a.UnscopedServerWithRoles(); !isUnscoped {
-		// Scoped identities may only generate Kubernetes certificates.
-		if req.Usage != proto.UserCertsRequest_Kubernetes || req.KubernetesCluster == "" {
-			return nil, trace.Wrap(services.ErrScopedIdentity, "generating scoped user cert for non-kubernetes usage")
-		}
-	}
 	identity := a.scopedContext.Identity.GetIdentity()
 	return a.generateUserCerts(ctx, req, certRequestDeviceExtensions(identity.DeviceExtensions))
 }
@@ -4012,12 +4032,23 @@ func (a *ScopedServerWithRoles) generateUserCerts(ctx context.Context, req proto
 		isScoped = false
 		unscopedSWR, _ = a.UnscopedServerWithRoles()
 	}
-	isKubeCert := req.Usage == proto.UserCertsRequest_Kubernetes && req.KubernetesCluster != ""
-	if isScoped && !isKubeCert {
-		// TODO (eriktate/scopes): Remove this restriction once we have more thorough support for scopes with other usages.
-		// For now this is out of an abundance of caution to prevent scoped identities from generating user certs for
-		// usages that have not been fully thought through or tested yet.
-		return nil, trace.Wrap(services.ErrScopedIdentity, "generating scoped user cert for non-kubernetes usage")
+
+	if isScoped {
+		isKubeCert := req.Usage == proto.UserCertsRequest_Kubernetes && req.KubernetesCluster != ""
+		isAppCert := req.Usage == proto.UserCertsRequest_App
+		if !isKubeCert && !isAppCert {
+			// TODO (eriktate/scopes): Remove this restriction once we have more thorough support for scopes with other usages.
+			// For now this is out of an abundance of caution to prevent scoped identities from generating user certs for
+			// usages that have not been fully thought through or tested yet.
+			return nil, trace.Wrap(services.ErrScopedIdentity, "generating scoped user cert for unsupported usage %q", req.Usage)
+		}
+
+		// Scoped identities cannot access cloud apps (AWS console / AWS Roles Anywhere, Azure, GCP).
+		// TODO(williamo/scopes): add support for this.
+		if req.RequesterName == proto.UserCertsRequest_TSH_APP_AWS_CREDENTIALPROCESS ||
+			req.RouteToApp.AWSRoleARN != "" || req.RouteToApp.AzureIdentity != "" || req.RouteToApp.GCPServiceAccount != "" {
+			return nil, trace.Wrap(services.ErrScopedIdentity, "generating scoped user cert for cloud app access")
+		}
 	}
 
 	hasAdminRole := !isScoped && authz.HasBuiltinRole(*unscopedCtx, string(types.RoleAdmin))
@@ -4306,9 +4337,6 @@ func (a *ScopedServerWithRoles) generateUserCerts(ctx context.Context, req proto
 	var appSessionID string
 	var webSessionID string
 	if req.RouteToApp.Name != "" {
-		if isScoped {
-			return nil, trace.Wrap(services.ErrScopedIdentity, "creating app session")
-		}
 		// Create a new app session using the same cert request. The user certs
 		// generated below will be linked to this session by the session ID.
 		ws, err := a.authServer.CreateAppSessionFromReq(ctx, sessionreq.NewAppSessionRequest{
@@ -4345,6 +4373,9 @@ func (a *ScopedServerWithRoles) generateUserCerts(ctx context.Context, req proto
 			AppName:           req.RouteToApp.Name,
 			AppURI:            req.RouteToApp.URI,
 			AppTargetPort:     int(req.RouteToApp.TargetPort),
+			// Propagate the caller's identity so CreateAppSessionFromReq can build a scoped
+			// access checker context when the caller is scope-pinned.
+			Identity: a.scopedContext.Identity.GetIdentity(),
 
 			BotName:  getBotName(user),
 			BotScope: getBotScope(user),
@@ -6522,28 +6553,6 @@ func (a *ServerWithRoles) checkAccessToApp(app types.Application) error {
 		services.AccessState{MFAVerified: true})
 }
 
-// GetApplicationServers returns all registered application servers.
-func (a *ServerWithRoles) GetApplicationServers(ctx context.Context, namespace string) ([]types.AppServer, error) {
-	if err := a.actionNamespace(namespace, types.KindAppServer, types.VerbList, types.VerbRead); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	servers, err := a.authServer.GetApplicationServers(ctx, namespace)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	// Filter out apps the caller doesn't have access to.
-	var filtered []types.AppServer
-	for _, server := range servers {
-		err := a.checkAccessToApp(server.GetApp())
-		if err != nil && !trace.IsAccessDenied(err) {
-			return nil, trace.Wrap(err)
-		} else if err == nil {
-			filtered = append(filtered, server)
-		}
-	}
-	return filtered, nil
-}
-
 // UpsertApplicationServer registers an application server.
 func (a *ServerWithRoles) UpsertApplicationServer(ctx context.Context, server types.AppServer) (*types.KeepAlive, error) {
 	if err := a.ScopedServerWithRoles().agentOwnedResourceAction(ctx, server.GetHostID(), types.RoleApp); err != nil {
@@ -6964,6 +6973,39 @@ func (a *ScopedServerWithRoles) GetKubernetesServers(ctx context.Context) ([]typ
 	var filtered []types.KubeServer
 	for _, server := range servers {
 		err := a.checkAccessToKubeClusterWithVerbs(ctx, server.GetCluster(), types.VerbList, types.VerbRead)
+		if err != nil && !trace.IsAccessDenied(err) {
+			return nil, trace.Wrap(err)
+		} else if err == nil {
+			filtered = append(filtered, server)
+		}
+	}
+
+	return filtered, nil
+}
+
+// GetApplicationServers returns all registered application servers
+// that the calling identity has permissions to view.
+func (a *ScopedServerWithRoles) GetApplicationServers(ctx context.Context, namespace string) ([]types.AppServer, error) {
+	servers, err := a.authServer.GetApplicationServers(ctx, namespace)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	ruleCtx := a.scopedContext.RuleContext()
+
+	var filtered []types.AppServer
+	for _, server := range servers {
+		// Identity Center account apps are currently not supported for scoped applications.
+		// TODO (williamo/scopes) - potentially look into adding account_assignments into scoped roles.
+		if server.GetScope() != "" && server.GetApp().GetSubKind() == types.KindIdentityCenterAccount {
+			continue
+		}
+
+		err := a.scopedContext.CheckerContext.Decision(ctx, server.GetScope(), func(checker *services.ScopedAccessChecker) error {
+			if err := checker.CheckAccessToRules(&ruleCtx, types.KindAppServer, types.VerbRead, types.VerbList); err != nil {
+				return trace.Wrap(err)
+			}
+			return checker.App().CanAccessApp(server.GetApp())
+		})
 		if err != nil && !trace.IsAccessDenied(err) {
 			return nil, trace.Wrap(err)
 		} else if err == nil {
