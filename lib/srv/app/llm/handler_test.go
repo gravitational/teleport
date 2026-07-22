@@ -30,11 +30,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 	"github.com/klauspost/compress/zstd"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
