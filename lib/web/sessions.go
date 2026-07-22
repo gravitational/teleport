@@ -981,11 +981,12 @@ func (s *sessionCache) AuthenticateSSHUser(
 	ctx context.Context, c client.AuthenticateSSHUserRequest, clientMeta *authclient.ForwardedClientMetadata,
 ) (*authclient.CLILoginResponse, error) {
 	authReq := authclient.AuthenticateUserRequest{
-		Username:       c.User,
-		Scope:          c.Scope,
-		ClientMetadata: clientMeta,
-		SSHPublicKey:   c.UserPublicKeys.SSHPubKey,
-		TLSPublicKey:   c.UserPublicKeys.TLSPubKey,
+		Username:            c.User,
+		Scope:               c.Scope,
+		ClientMetadata:      clientMeta,
+		SSHPublicKey:        c.UserPublicKeys.SSHPubKey,
+		TLSPublicKey:        c.UserPublicKeys.TLSPubKey,
+		EncryptionPublicKey: c.UserPublicKeys.EncryptionPublicKey,
 	}
 	if c.Password != "" {
 		authReq.Pass = &authclient.PassCreds{Password: []byte(c.Password)}

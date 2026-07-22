@@ -186,6 +186,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindOktaAssignment},
 		{Kind: types.KindIntegration},
 		{Kind: types.KindHeadlessAuthentication},
+		{Kind: types.KindUserSessionCredentials},
 		{Kind: types.KindUserLoginState},
 		{Kind: types.KindDiscoveryConfig},
 		{Kind: types.KindAuditQuery},

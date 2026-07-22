@@ -34,6 +34,128 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// RefreshGitTokenRequest is a request to refresh a git access token.
+type RefreshGitTokenRequest struct {
+	state                                protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_GitServerName             string                 `protobuf:"bytes,1,opt,name=git_server_name,json=gitServerName,proto3"`
+	xxx_hidden_AuthEncryptedRefreshToken []byte                 `protobuf:"bytes,2,opt,name=auth_encrypted_refresh_token,json=authEncryptedRefreshToken,proto3"`
+	unknownFields                        protoimpl.UnknownFields
+	sizeCache                            protoimpl.SizeCache
+}
+
+func (x *RefreshGitTokenRequest) Reset() {
+	*x = RefreshGitTokenRequest{}
+	mi := &file_teleport_gitserver_v1_git_credentials_service_proto_msgTypes[0]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RefreshGitTokenRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RefreshGitTokenRequest) ProtoMessage() {}
+
+func (x *RefreshGitTokenRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_gitserver_v1_git_credentials_service_proto_msgTypes[0]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *RefreshGitTokenRequest) GetGitServerName() string {
+	if x != nil {
+		return x.xxx_hidden_GitServerName
+	}
+	return ""
+}
+
+func (x *RefreshGitTokenRequest) GetAuthEncryptedRefreshToken() []byte {
+	if x != nil {
+		return x.xxx_hidden_AuthEncryptedRefreshToken
+	}
+	return nil
+}
+
+func (x *RefreshGitTokenRequest) SetGitServerName(v string) {
+	x.xxx_hidden_GitServerName = v
+}
+
+func (x *RefreshGitTokenRequest) SetAuthEncryptedRefreshToken(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.xxx_hidden_AuthEncryptedRefreshToken = v
+}
+
+type RefreshGitTokenRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// git_server_name is the name of the git server resource.
+	GitServerName string
+	// auth_encrypted_refresh_token is the auth-encrypted (KMS) refresh token
+	// blob that the client obtained from GetUserExternalSecret and session-unsealed.
+	AuthEncryptedRefreshToken []byte
+}
+
+func (b0 RefreshGitTokenRequest_builder) Build() *RefreshGitTokenRequest {
+	m0 := &RefreshGitTokenRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.xxx_hidden_GitServerName = b.GitServerName
+	x.xxx_hidden_AuthEncryptedRefreshToken = b.AuthEncryptedRefreshToken
+	return m0
+}
+
+// RefreshGitTokenResponse is the response for RefreshGitToken.
+type RefreshGitTokenResponse struct {
+	state         protoimpl.MessageState `protogen:"opaque.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RefreshGitTokenResponse) Reset() {
+	*x = RefreshGitTokenResponse{}
+	mi := &file_teleport_gitserver_v1_git_credentials_service_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RefreshGitTokenResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RefreshGitTokenResponse) ProtoMessage() {}
+
+func (x *RefreshGitTokenResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_gitserver_v1_git_credentials_service_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+type RefreshGitTokenResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 RefreshGitTokenResponse_builder) Build() *RefreshGitTokenResponse {
+	m0 := &RefreshGitTokenResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
+}
+
 // CheckGitCredentialsRequest is a request to check whether stored git
 // credentials exist for the calling user.
 type CheckGitCredentialsRequest struct {
@@ -45,7 +167,7 @@ type CheckGitCredentialsRequest struct {
 
 func (x *CheckGitCredentialsRequest) Reset() {
 	*x = CheckGitCredentialsRequest{}
-	mi := &file_teleport_gitserver_v1_git_credentials_service_proto_msgTypes[0]
+	mi := &file_teleport_gitserver_v1_git_credentials_service_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -57,7 +179,7 @@ func (x *CheckGitCredentialsRequest) String() string {
 func (*CheckGitCredentialsRequest) ProtoMessage() {}
 
 func (x *CheckGitCredentialsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_gitserver_v1_git_credentials_service_proto_msgTypes[0]
+	mi := &file_teleport_gitserver_v1_git_credentials_service_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -105,7 +227,7 @@ type CheckGitCredentialsResponse struct {
 
 func (x *CheckGitCredentialsResponse) Reset() {
 	*x = CheckGitCredentialsResponse{}
-	mi := &file_teleport_gitserver_v1_git_credentials_service_proto_msgTypes[1]
+	mi := &file_teleport_gitserver_v1_git_credentials_service_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -117,7 +239,7 @@ func (x *CheckGitCredentialsResponse) String() string {
 func (*CheckGitCredentialsResponse) ProtoMessage() {}
 
 func (x *CheckGitCredentialsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_gitserver_v1_git_credentials_service_proto_msgTypes[1]
+	mi := &file_teleport_gitserver_v1_git_credentials_service_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -178,7 +300,7 @@ type RevokeGitCredentialsRequest struct {
 
 func (x *RevokeGitCredentialsRequest) Reset() {
 	*x = RevokeGitCredentialsRequest{}
-	mi := &file_teleport_gitserver_v1_git_credentials_service_proto_msgTypes[2]
+	mi := &file_teleport_gitserver_v1_git_credentials_service_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -190,7 +312,7 @@ func (x *RevokeGitCredentialsRequest) String() string {
 func (*RevokeGitCredentialsRequest) ProtoMessage() {}
 
 func (x *RevokeGitCredentialsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_gitserver_v1_git_credentials_service_proto_msgTypes[2]
+	mi := &file_teleport_gitserver_v1_git_credentials_service_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -236,7 +358,7 @@ type RevokeGitCredentialsResponse struct {
 
 func (x *RevokeGitCredentialsResponse) Reset() {
 	*x = RevokeGitCredentialsResponse{}
-	mi := &file_teleport_gitserver_v1_git_credentials_service_proto_msgTypes[3]
+	mi := &file_teleport_gitserver_v1_git_credentials_service_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -248,7 +370,7 @@ func (x *RevokeGitCredentialsResponse) String() string {
 func (*RevokeGitCredentialsResponse) ProtoMessage() {}
 
 func (x *RevokeGitCredentialsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_gitserver_v1_git_credentials_service_proto_msgTypes[3]
+	mi := &file_teleport_gitserver_v1_git_credentials_service_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -274,15 +396,16 @@ func (b0 RevokeGitCredentialsResponse_builder) Build() *RevokeGitCredentialsResp
 // GenerateGitHubAppTokenRequest is a request to generate a GitHub App access
 // token for git operations.
 type GenerateGitHubAppTokenRequest struct {
-	state               protoimpl.MessageState `protogen:"opaque.v1"`
-	xxx_hidden_UserCert []byte                 `protobuf:"bytes,1,opt,name=user_cert,json=userCert,proto3"`
-	unknownFields       protoimpl.UnknownFields
-	sizeCache           protoimpl.SizeCache
+	state                        protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_UserCert          []byte                 `protobuf:"bytes,1,opt,name=user_cert,json=userCert,proto3"`
+	xxx_hidden_KmsEncryptedToken []byte                 `protobuf:"bytes,2,opt,name=kms_encrypted_token,json=kmsEncryptedToken,proto3"`
+	unknownFields                protoimpl.UnknownFields
+	sizeCache                    protoimpl.SizeCache
 }
 
 func (x *GenerateGitHubAppTokenRequest) Reset() {
 	*x = GenerateGitHubAppTokenRequest{}
-	mi := &file_teleport_gitserver_v1_git_credentials_service_proto_msgTypes[4]
+	mi := &file_teleport_gitserver_v1_git_credentials_service_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -294,7 +417,7 @@ func (x *GenerateGitHubAppTokenRequest) String() string {
 func (*GenerateGitHubAppTokenRequest) ProtoMessage() {}
 
 func (x *GenerateGitHubAppTokenRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_gitserver_v1_git_credentials_service_proto_msgTypes[4]
+	mi := &file_teleport_gitserver_v1_git_credentials_service_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -312,11 +435,25 @@ func (x *GenerateGitHubAppTokenRequest) GetUserCert() []byte {
 	return nil
 }
 
+func (x *GenerateGitHubAppTokenRequest) GetKmsEncryptedToken() []byte {
+	if x != nil {
+		return x.xxx_hidden_KmsEncryptedToken
+	}
+	return nil
+}
+
 func (x *GenerateGitHubAppTokenRequest) SetUserCert(v []byte) {
 	if v == nil {
 		v = []byte{}
 	}
 	x.xxx_hidden_UserCert = v
+}
+
+func (x *GenerateGitHubAppTokenRequest) SetKmsEncryptedToken(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.xxx_hidden_KmsEncryptedToken = v
 }
 
 type GenerateGitHubAppTokenRequest_builder struct {
@@ -326,6 +463,11 @@ type GenerateGitHubAppTokenRequest_builder struct {
 	// session. Auth verifies this certificate was signed by its own CA and
 	// extracts the user identity from it.
 	UserCert []byte
+	// KmsEncryptedToken is an optional KMS-encrypted access token provided by
+	// the client. When present, auth KMS-decrypts it and returns the plaintext
+	// instead of looking up stored credentials. This supports the
+	// double-encrypted token flow where tokens are stored on the client side.
+	KmsEncryptedToken []byte
 }
 
 func (b0 GenerateGitHubAppTokenRequest_builder) Build() *GenerateGitHubAppTokenRequest {
@@ -333,6 +475,7 @@ func (b0 GenerateGitHubAppTokenRequest_builder) Build() *GenerateGitHubAppTokenR
 	b, x := &b0, m0
 	_, _ = b, x
 	x.xxx_hidden_UserCert = b.UserCert
+	x.xxx_hidden_KmsEncryptedToken = b.KmsEncryptedToken
 	return m0
 }
 
@@ -346,7 +489,7 @@ type GenerateGitHubAppTokenResponse struct {
 
 func (x *GenerateGitHubAppTokenResponse) Reset() {
 	*x = GenerateGitHubAppTokenResponse{}
-	mi := &file_teleport_gitserver_v1_git_credentials_service_proto_msgTypes[5]
+	mi := &file_teleport_gitserver_v1_git_credentials_service_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -358,7 +501,7 @@ func (x *GenerateGitHubAppTokenResponse) String() string {
 func (*GenerateGitHubAppTokenResponse) ProtoMessage() {}
 
 func (x *GenerateGitHubAppTokenResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_gitserver_v1_git_credentials_service_proto_msgTypes[5]
+	mi := &file_teleport_gitserver_v1_git_credentials_service_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -399,7 +542,11 @@ var File_teleport_gitserver_v1_git_credentials_service_proto protoreflect.FileDe
 
 const file_teleport_gitserver_v1_git_credentials_service_proto_rawDesc = "" +
 	"\n" +
-	"3teleport/gitserver/v1/git_credentials_service.proto\x12\x15teleport.gitserver.v1\"D\n" +
+	"3teleport/gitserver/v1/git_credentials_service.proto\x12\x15teleport.gitserver.v1\"\x81\x01\n" +
+	"\x16RefreshGitTokenRequest\x12&\n" +
+	"\x0fgit_server_name\x18\x01 \x01(\tR\rgitServerName\x12?\n" +
+	"\x1cauth_encrypted_refresh_token\x18\x02 \x01(\fR\x19authEncryptedRefreshToken\"\x19\n" +
+	"\x17RefreshGitTokenResponse\"D\n" +
 	"\x1aCheckGitCredentialsRequest\x12&\n" +
 	"\x0fgit_server_name\x18\x01 \x01(\tR\rgitServerName\"\\\n" +
 	"\x1bCheckGitCredentialsResponse\x12\x14\n" +
@@ -407,34 +554,40 @@ const file_teleport_gitserver_v1_git_credentials_service_proto_rawDesc = "" +
 	"\x0fgithub_username\x18\x02 \x01(\tR\x0egithubUsername\"E\n" +
 	"\x1bRevokeGitCredentialsRequest\x12&\n" +
 	"\x0fgit_server_name\x18\x01 \x01(\tR\rgitServerName\"\x1e\n" +
-	"\x1cRevokeGitCredentialsResponse\"<\n" +
+	"\x1cRevokeGitCredentialsResponse\"l\n" +
 	"\x1dGenerateGitHubAppTokenRequest\x12\x1b\n" +
-	"\tuser_cert\x18\x01 \x01(\fR\buserCert\"C\n" +
+	"\tuser_cert\x18\x01 \x01(\fR\buserCert\x12.\n" +
+	"\x13kms_encrypted_token\x18\x02 \x01(\fR\x11kmsEncryptedToken\"C\n" +
 	"\x1eGenerateGitHubAppTokenResponse\x12!\n" +
-	"\faccess_token\x18\x01 \x01(\tR\vaccessToken2\x9e\x03\n" +
+	"\faccess_token\x18\x01 \x01(\tR\vaccessToken2\x90\x04\n" +
 	"\x15GitCredentialsService\x12|\n" +
 	"\x13CheckGitCredentials\x121.teleport.gitserver.v1.CheckGitCredentialsRequest\x1a2.teleport.gitserver.v1.CheckGitCredentialsResponse\x12\x7f\n" +
 	"\x14RevokeGitCredentials\x122.teleport.gitserver.v1.RevokeGitCredentialsRequest\x1a3.teleport.gitserver.v1.RevokeGitCredentialsResponse\x12\x85\x01\n" +
-	"\x16GenerateGitHubAppToken\x124.teleport.gitserver.v1.GenerateGitHubAppTokenRequest\x1a5.teleport.gitserver.v1.GenerateGitHubAppTokenResponseBVZTgithub.com/gravitational/teleport/api/gen/proto/go/teleport/gitserver/v1;gitserverv1b\x06proto3"
+	"\x16GenerateGitHubAppToken\x124.teleport.gitserver.v1.GenerateGitHubAppTokenRequest\x1a5.teleport.gitserver.v1.GenerateGitHubAppTokenResponse\x12p\n" +
+	"\x0fRefreshGitToken\x12-.teleport.gitserver.v1.RefreshGitTokenRequest\x1a..teleport.gitserver.v1.RefreshGitTokenResponseBVZTgithub.com/gravitational/teleport/api/gen/proto/go/teleport/gitserver/v1;gitserverv1b\x06proto3"
 
-var file_teleport_gitserver_v1_git_credentials_service_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
+var file_teleport_gitserver_v1_git_credentials_service_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
 var file_teleport_gitserver_v1_git_credentials_service_proto_goTypes = []any{
-	(*CheckGitCredentialsRequest)(nil),     // 0: teleport.gitserver.v1.CheckGitCredentialsRequest
-	(*CheckGitCredentialsResponse)(nil),    // 1: teleport.gitserver.v1.CheckGitCredentialsResponse
-	(*RevokeGitCredentialsRequest)(nil),    // 2: teleport.gitserver.v1.RevokeGitCredentialsRequest
-	(*RevokeGitCredentialsResponse)(nil),   // 3: teleport.gitserver.v1.RevokeGitCredentialsResponse
-	(*GenerateGitHubAppTokenRequest)(nil),  // 4: teleport.gitserver.v1.GenerateGitHubAppTokenRequest
-	(*GenerateGitHubAppTokenResponse)(nil), // 5: teleport.gitserver.v1.GenerateGitHubAppTokenResponse
+	(*RefreshGitTokenRequest)(nil),         // 0: teleport.gitserver.v1.RefreshGitTokenRequest
+	(*RefreshGitTokenResponse)(nil),        // 1: teleport.gitserver.v1.RefreshGitTokenResponse
+	(*CheckGitCredentialsRequest)(nil),     // 2: teleport.gitserver.v1.CheckGitCredentialsRequest
+	(*CheckGitCredentialsResponse)(nil),    // 3: teleport.gitserver.v1.CheckGitCredentialsResponse
+	(*RevokeGitCredentialsRequest)(nil),    // 4: teleport.gitserver.v1.RevokeGitCredentialsRequest
+	(*RevokeGitCredentialsResponse)(nil),   // 5: teleport.gitserver.v1.RevokeGitCredentialsResponse
+	(*GenerateGitHubAppTokenRequest)(nil),  // 6: teleport.gitserver.v1.GenerateGitHubAppTokenRequest
+	(*GenerateGitHubAppTokenResponse)(nil), // 7: teleport.gitserver.v1.GenerateGitHubAppTokenResponse
 }
 var file_teleport_gitserver_v1_git_credentials_service_proto_depIdxs = []int32{
-	0, // 0: teleport.gitserver.v1.GitCredentialsService.CheckGitCredentials:input_type -> teleport.gitserver.v1.CheckGitCredentialsRequest
-	2, // 1: teleport.gitserver.v1.GitCredentialsService.RevokeGitCredentials:input_type -> teleport.gitserver.v1.RevokeGitCredentialsRequest
-	4, // 2: teleport.gitserver.v1.GitCredentialsService.GenerateGitHubAppToken:input_type -> teleport.gitserver.v1.GenerateGitHubAppTokenRequest
-	1, // 3: teleport.gitserver.v1.GitCredentialsService.CheckGitCredentials:output_type -> teleport.gitserver.v1.CheckGitCredentialsResponse
-	3, // 4: teleport.gitserver.v1.GitCredentialsService.RevokeGitCredentials:output_type -> teleport.gitserver.v1.RevokeGitCredentialsResponse
-	5, // 5: teleport.gitserver.v1.GitCredentialsService.GenerateGitHubAppToken:output_type -> teleport.gitserver.v1.GenerateGitHubAppTokenResponse
-	3, // [3:6] is the sub-list for method output_type
-	0, // [0:3] is the sub-list for method input_type
+	2, // 0: teleport.gitserver.v1.GitCredentialsService.CheckGitCredentials:input_type -> teleport.gitserver.v1.CheckGitCredentialsRequest
+	4, // 1: teleport.gitserver.v1.GitCredentialsService.RevokeGitCredentials:input_type -> teleport.gitserver.v1.RevokeGitCredentialsRequest
+	6, // 2: teleport.gitserver.v1.GitCredentialsService.GenerateGitHubAppToken:input_type -> teleport.gitserver.v1.GenerateGitHubAppTokenRequest
+	0, // 3: teleport.gitserver.v1.GitCredentialsService.RefreshGitToken:input_type -> teleport.gitserver.v1.RefreshGitTokenRequest
+	3, // 4: teleport.gitserver.v1.GitCredentialsService.CheckGitCredentials:output_type -> teleport.gitserver.v1.CheckGitCredentialsResponse
+	5, // 5: teleport.gitserver.v1.GitCredentialsService.RevokeGitCredentials:output_type -> teleport.gitserver.v1.RevokeGitCredentialsResponse
+	7, // 6: teleport.gitserver.v1.GitCredentialsService.GenerateGitHubAppToken:output_type -> teleport.gitserver.v1.GenerateGitHubAppTokenResponse
+	1, // 7: teleport.gitserver.v1.GitCredentialsService.RefreshGitToken:output_type -> teleport.gitserver.v1.RefreshGitTokenResponse
+	4, // [4:8] is the sub-list for method output_type
+	0, // [0:4] is the sub-list for method input_type
 	0, // [0:0] is the sub-list for extension type_name
 	0, // [0:0] is the sub-list for extension extendee
 	0, // [0:0] is the sub-list for field type_name
@@ -451,7 +604,7 @@ func file_teleport_gitserver_v1_git_credentials_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_gitserver_v1_git_credentials_service_proto_rawDesc), len(file_teleport_gitserver_v1_git_credentials_service_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   6,
+			NumMessages:   8,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

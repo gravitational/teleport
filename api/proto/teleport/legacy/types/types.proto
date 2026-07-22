@@ -6194,6 +6194,13 @@ message GithubAuthRequest {
   // behavior, but results in a more limited (scoped) set of credentials being issued upon successful
   // authentication and some differences in locking behavior.
   string scope = 24;
+  // EncryptionPublicKey is an optional ECIES P-256 public key (PKIX DER) for
+  // double-encrypted credential storage. When present, auth will encrypt the
+  // access token for this session and store it as a SessionEncryptedToken.
+  bytes encryption_public_key = 25 [(gogoproto.jsontag) = "encryption_public_key,omitempty"];
+  // GitServerName is the git server resource name associated with this OAuth
+  // flow. Used as the resource identifier for double-encrypted token storage.
+  string git_server_name = 26 [(gogoproto.jsontag) = "git_server_name,omitempty"];
 }
 
 // SSOWarnings conveys a user-facing main message along with auxiliary warnings.

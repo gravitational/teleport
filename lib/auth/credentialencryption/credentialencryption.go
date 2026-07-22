@@ -19,19 +19,20 @@
 package credentialencryption
 
 import (
+	"bytes"
 	"context"
 	"crypto"
-	"crypto/rand"
 	"crypto/rsa"
-	"crypto/sha256"
-	"crypto/x509"
 	"encoding/json"
+	"io"
 	"sync"
 
+	"filippo.io/age"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/keystore"
+	"github.com/gravitational/teleport/lib/auth/recordingencryption"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 )
@@ -44,15 +45,19 @@ type TokenData struct {
 
 var credentialEncryptionKeyPath = backend.NewKey("credential_encryption_key")
 
-// Encryptor encrypts and decrypts credential tokens using an RSA key pair
-// managed by the keystore. With HSM/KMS-backed keystores, the private key
-// never leaves the hardware.
+// Encryptor encrypts and decrypts credential tokens using envelope encryption
+// via the Age library. The file key is wrapped with RSA-OAEP SHA-256 using the
+// cluster's keystore.
+//
+// The public key is never persisted to the backend. It is derived at runtime
+// from the keystore and cached in memory.
 type Encryptor struct {
 	keyStore *keystore.Manager
 	backend  backend.Backend
 
-	mu      sync.Mutex
-	keyPair *types.EncryptionKeyPair
+	mu        sync.Mutex
+	keyPair   *types.EncryptionKeyPair
+	recipient *recordingencryption.RecordingRecipient
 }
 
 // NewEncryptor creates a new credential encryptor.
@@ -64,7 +69,8 @@ func NewEncryptor(keyStore *keystore.Manager, backend backend.Backend) *Encrypto
 }
 
 // getOrCreateKeyPair returns the encryption key pair, creating one if it
-// doesn't exist. The key pair is cached in memory after first load.
+// doesn't exist. The key pair is cached in memory after first load. The
+// public key is derived from the keystore, not from the backend.
 func (e *Encryptor) getOrCreateKeyPair(ctx context.Context) (*types.EncryptionKeyPair, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -79,6 +85,9 @@ func (e *Encryptor) getOrCreateKeyPair(ctx context.Context) (*types.EncryptionKe
 		if err := json.Unmarshal(item.Value, &kp); err != nil {
 			return nil, trace.Wrap(err, "unmarshaling credential encryption key")
 		}
+		if err := e.deriveAndCachePublicKey(ctx, &kp); err != nil {
+			return nil, trace.Wrap(err)
+		}
 		e.keyPair = &kp
 		return e.keyPair, nil
 	}
@@ -91,7 +100,12 @@ func (e *Encryptor) getOrCreateKeyPair(ctx context.Context) (*types.EncryptionKe
 		return nil, trace.Wrap(err, "generating credential encryption key pair")
 	}
 
-	value, err := json.Marshal(kp)
+	stored := &types.EncryptionKeyPair{
+		PrivateKey:     kp.PrivateKey,
+		PrivateKeyType: kp.PrivateKeyType,
+		Hash:           kp.Hash,
+	}
+	value, err := json.Marshal(stored)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -100,7 +114,6 @@ func (e *Encryptor) getOrCreateKeyPair(ctx context.Context) (*types.EncryptionKe
 		Value: value,
 	}); err != nil {
 		if trace.IsAlreadyExists(err) {
-			// Another auth server created it first, load it.
 			item, err := e.backend.Get(ctx, credentialEncryptionKeyPath)
 			if err != nil {
 				return nil, trace.Wrap(err)
@@ -109,31 +122,40 @@ func (e *Encryptor) getOrCreateKeyPair(ctx context.Context) (*types.EncryptionKe
 			if err := json.Unmarshal(item.Value, &existing); err != nil {
 				return nil, trace.Wrap(err)
 			}
+			if err := e.deriveAndCachePublicKey(ctx, &existing); err != nil {
+				return nil, trace.Wrap(err)
+			}
 			e.keyPair = &existing
 			return e.keyPair, nil
 		}
 		return nil, trace.Wrap(err)
 	}
 
-	e.keyPair = kp
+	if err := e.deriveAndCachePublicKey(ctx, stored); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	e.keyPair = stored
 	return e.keyPair, nil
 }
 
-// Encrypt encrypts token data using the encryption key pair's public key.
+// deriveAndCachePublicKey retrieves the public key from the keystore and
+// caches it in memory as an Age recipient.
+func (e *Encryptor) deriveAndCachePublicKey(ctx context.Context, kp *types.EncryptionKeyPair) error {
+	if err := e.keyStore.DerivePublicKey(ctx, kp); err != nil {
+		return trace.Wrap(err, "deriving public key")
+	}
+	recipient, err := recordingencryption.ParseRecordingRecipient(kp.PublicKey)
+	if err != nil {
+		return trace.Wrap(err, "creating Age recipient")
+	}
+	e.recipient = recipient
+	return nil
+}
+
+// Encrypt encrypts token data using Age envelope encryption.
 func (e *Encryptor) Encrypt(ctx context.Context, data TokenData) ([]byte, error) {
-	kp, err := e.getOrCreateKeyPair(ctx)
-	if err != nil {
+	if _, err := e.getOrCreateKeyPair(ctx); err != nil {
 		return nil, trace.Wrap(err)
-	}
-
-	pub, err := x509.ParsePKIXPublicKey(kp.PublicKey)
-	if err != nil {
-		return nil, trace.Wrap(err, "parsing encryption public key")
-	}
-
-	rsaPub, ok := pub.(*rsa.PublicKey)
-	if !ok {
-		return nil, trace.BadParameter("credential encryption requires RSA key, got %T", pub)
 	}
 
 	plaintext, err := json.Marshal(data)
@@ -141,31 +163,42 @@ func (e *Encryptor) Encrypt(ctx context.Context, data TokenData) ([]byte, error)
 		return nil, trace.Wrap(err)
 	}
 
-	ciphertext, err := rsa.EncryptOAEP(sha256.New(), rand.Reader, rsaPub, plaintext, nil)
+	var buf bytes.Buffer
+	w, err := age.Encrypt(&buf, e.recipient)
 	if err != nil {
-		return nil, trace.Wrap(err, "encrypting credentials")
+		return nil, trace.Wrap(err, "creating Age encrypter")
 	}
-	return ciphertext, nil
+	if _, err := w.Write(plaintext); err != nil {
+		return nil, trace.Wrap(err, "writing to Age encrypter")
+	}
+	if err := w.Close(); err != nil {
+		return nil, trace.Wrap(err, "closing Age encrypter")
+	}
+
+	return buf.Bytes(), nil
 }
 
-// Decrypt decrypts token data using the encryption key pair's private key
-// via the keystore. With HSM/KMS, the decryption happens in hardware.
+// Decrypt decrypts token data using Age envelope encryption via the keystore.
 func (e *Encryptor) Decrypt(ctx context.Context, ciphertext []byte) (TokenData, error) {
 	kp, err := e.getOrCreateKeyPair(ctx)
 	if err != nil {
 		return TokenData{}, trace.Wrap(err)
 	}
 
-	decrypter, err := e.keyStore.GetDecrypter(ctx, kp)
-	if err != nil {
-		return TokenData{}, trace.Wrap(err, "getting decrypter")
+	identity := &credentialIdentity{
+		ctx:     ctx,
+		keyPair: kp,
+		keyStore: e.keyStore,
 	}
 
-	plaintext, err := decrypter.Decrypt(rand.Reader, ciphertext, &rsa.OAEPOptions{
-		Hash: crypto.SHA256,
-	})
+	r, err := age.Decrypt(bytes.NewReader(ciphertext), identity)
 	if err != nil {
-		return TokenData{}, trace.Wrap(err, "decrypting credentials")
+		return TokenData{}, trace.Wrap(err, "decrypting credential")
+	}
+
+	plaintext, err := io.ReadAll(r)
+	if err != nil {
+		return TokenData{}, trace.Wrap(err, "reading decrypted credential")
 	}
 
 	var data TokenData
@@ -173,4 +206,34 @@ func (e *Encryptor) Decrypt(ctx context.Context, ciphertext []byte) (TokenData, 
 		return TokenData{}, trace.Wrap(err, "unmarshaling decrypted credentials")
 	}
 	return data, nil
+}
+
+// credentialIdentity implements age.Identity for credential decryption.
+// It unwraps the Age file key using the keystore's decrypter.
+type credentialIdentity struct {
+	ctx      context.Context
+	keyPair  *types.EncryptionKeyPair
+	keyStore *keystore.Manager
+}
+
+func (c *credentialIdentity) Unwrap(stanzas []*age.Stanza) ([]byte, error) {
+	decrypter, err := c.keyStore.GetDecrypter(c.ctx, c.keyPair)
+	if err != nil {
+		return nil, trace.Wrap(err, "getting decrypter")
+	}
+
+	for _, stanza := range stanzas {
+		if stanza.Type != recordingencryption.RecordingStanza {
+			continue
+		}
+		fileKey, err := decrypter.Decrypt(nil, stanza.Body, &rsa.OAEPOptions{
+			Hash: crypto.SHA256,
+		})
+		if err != nil {
+			continue
+		}
+		return fileKey, nil
+	}
+
+	return nil, trace.NotFound("no matching stanza found")
 }

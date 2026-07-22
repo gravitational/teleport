@@ -229,6 +229,18 @@ func (g *gcpKMSKeyStore) getDecrypter(ctx context.Context, rawKey []byte, public
 	return signer, trace.Wrap(err)
 }
 
+func (g *gcpKMSKeyStore) derivePublicKey(ctx context.Context, rawKey []byte) (crypto.PublicKey, error) {
+	keyID, err := parseGCPKMSKeyID(rawKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	key, err := g.newKmsKey(ctx, keyID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return key.Public(), nil
+}
+
 func (g *gcpKMSKeyStore) findDecryptersByLabel(ctx context.Context, label *types.KeyLabel) ([]crypto.Decrypter, error) {
 	if label == nil || label.Type != storeGCP {
 		return nil, nil

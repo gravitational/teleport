@@ -19,8 +19,18 @@
 package identity
 
 import (
+	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/x509"
+	"log/slog"
+
+	"github.com/gravitational/trace"
 	"go.opentelemetry.io/otel"
 
+	apiclient "github.com/gravitational/teleport/api/client"
+	delegationv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1"
 	"github.com/gravitational/teleport"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
@@ -29,3 +39,40 @@ var (
 	tracer = otel.Tracer("github.com/gravitational/teleport/lib/tbot/services/identity")
 	log    = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentTBot)
 )
+
+// RegisterEncryptionKeyForDelegation generates an ECIES P-256 encryption
+// keypair and registers the public key with the delegation service, scoped to
+// the given delegation session. Returns the private key and key ID.
+func RegisterEncryptionKeyForDelegation(
+	ctx context.Context,
+	client *apiclient.Client,
+	delegationSessionID string,
+	logger *slog.Logger,
+) (*ecdsa.PrivateKey, string, error) {
+	privKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		return nil, "", trace.Wrap(err, "generating encryption keypair")
+	}
+
+	pubKeyDER, err := x509.MarshalPKIXPublicKey(&privKey.PublicKey)
+	if err != nil {
+		return nil, "", trace.Wrap(err, "marshaling encryption public key")
+	}
+
+	resp, err := client.DelegationSessionServiceClient().RegisterEncryptionKey(ctx,
+		&delegationv1pb.RegisterEncryptionKeyRequest{
+			DelegationSessionId: delegationSessionID,
+			PublicKey:           pubKeyDER,
+		})
+	if err != nil {
+		return nil, "", trace.Wrap(err, "registering encryption key")
+	}
+
+	keyID := resp.GetEncryptionKeyId()
+	logger.InfoContext(ctx, "Registered encryption key for delegation session",
+		"delegation_session_id", delegationSessionID,
+		"encryption_key_id", keyID,
+	)
+
+	return privKey, keyID, nil
+}

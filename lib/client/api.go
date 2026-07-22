@@ -22,6 +22,9 @@ import (
 	"cmp"
 	"context"
 	"crypto"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	cryptorand "crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
@@ -4160,7 +4163,17 @@ func (tc *TeleportClient) GetNewLoginKeyRing(ctx context.Context) (keyRing *KeyR
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return NewKeyRing(sshPriv, tlsPriv), nil
+	keyRing = NewKeyRing(sshPriv, tlsPriv)
+
+	// Generate a per-session ECIES P-256 encryption keypair for
+	// double-encrypted credential storage.
+	encKey, err := ecdsa.GenerateKey(elliptic.P256(), cryptorand.Reader)
+	if err != nil {
+		return nil, trace.Wrap(err, "generating encryption key")
+	}
+	keyRing.EncryptionPrivateKey = encKey
+
+	return keyRing, nil
 }
 
 // new SSHLogin generates a new SSHLogin using the given login KeyRing.
@@ -4169,7 +4182,7 @@ func (tc *TeleportClient) NewSSHLogin(keyRing *KeyRing) (SSHLogin, error) {
 	if err != nil {
 		return SSHLogin{}, trace.Wrap(err)
 	}
-	return SSHLogin{
+	login := SSHLogin{
 		ProxyAddr:               tc.WebProxyAddr,
 		SSHPubKey:               keyRing.SSHPrivateKey.MarshalSSHPublicKey(),
 		TLSPubKey:               tlsPub,
@@ -4183,7 +4196,17 @@ func (tc *TeleportClient) NewSSHLogin(keyRing *KeyRing) (SSHLogin, error) {
 		RouteToCluster:          tc.SiteName,
 		KubernetesCluster:       tc.KubernetesCluster,
 		ExtraHeaders:            tc.ExtraProxyHeaders,
-	}, nil
+	}
+
+	if keyRing.EncryptionPrivateKey != nil {
+		encPubDER, err := x509.MarshalPKIXPublicKey(&keyRing.EncryptionPrivateKey.PublicKey)
+		if err != nil {
+			return SSHLogin{}, trace.Wrap(err, "marshaling encryption public key")
+		}
+		login.EncryptionPublicKey = encPubDER
+	}
+
+	return login, nil
 }
 
 func (tc *TeleportClient) pwdlessLogin(ctx context.Context, keyRing *KeyRing) (*authclient.CLILoginResponse, error) {

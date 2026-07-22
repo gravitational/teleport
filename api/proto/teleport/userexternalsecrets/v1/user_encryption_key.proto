@@ -1,0 +1,48 @@
+// Copyright 2026 Gravitational, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.userexternalsecrets.v1;
+
+import "teleport/header/v1/metadata.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/userexternalsecrets/v1;userexternalsecretsv1";
+
+// UserEncryptionKey is a per-session ECIES P-256 encryption public key
+// registered by a user session. This serves as a registry of active sessions
+// that can receive double-encrypted secrets. Auth uses this to know which
+// sessions to encrypt for when distributing secrets.
+//
+// Storage path: user_encryption_key/<user>/<encryption_key_id>
+// where encryption_key_id is derived as uuid.NewSHA1(NameSpaceOID, public_key).
+// TTL matches the session cert lifetime.
+message UserEncryptionKey {
+  string kind = 1;
+  string sub_kind = 2;
+  string version = 3;
+  teleport.header.v1.Metadata metadata = 4;
+  UserEncryptionKeySpec spec = 5;
+  UserEncryptionKeyStatus status = 6;
+}
+
+// UserEncryptionKeySpec contains the key details.
+message UserEncryptionKeySpec {
+  // public_key is the ECIES P-256 public key (PKIX DER). The user is
+  // identified by the storage path and metadata, not duplicated here.
+  bytes public_key = 1;
+}
+
+// UserEncryptionKeyStatus contains dynamic properties. Currently empty.
+message UserEncryptionKeyStatus {}

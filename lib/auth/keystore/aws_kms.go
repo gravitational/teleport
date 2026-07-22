@@ -295,6 +295,24 @@ func (a *awsKMSKeystore) getDecrypter(ctx context.Context, rawKey []byte, public
 	return a.newKMSKeyWithPublicKey(ctx, key, publicKey)
 }
 
+func (a *awsKMSKeystore) derivePublicKey(ctx context.Context, rawKey []byte) (crypto.PublicKey, error) {
+	key, err := parseAWSKMSKeyID(rawKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	resp, err := a.kms.GetPublicKey(ctx, &kms.GetPublicKeyInput{
+		KeyId: aws.String(key.arn),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	pub, err := x509.ParsePKIXPublicKey(resp.PublicKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return pub, nil
+}
+
 func (a *awsKMSKeystore) findDecryptersByLabel(ctx context.Context, label *types.KeyLabel) ([]crypto.Decrypter, error) {
 	if label == nil || label.Type != storeAWS {
 		return nil, nil

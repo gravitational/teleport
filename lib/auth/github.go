@@ -20,6 +20,9 @@ package auth
 
 import (
 	"context"
+	"crypto/ecdsa"
+	"crypto/x509"
+	"encoding/pem"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -30,6 +33,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"golang.org/x/oauth2"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -37,13 +41,14 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
-	userexternalcredentialsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userexternalcredentials/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/userexternalcredentials"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	userexternalsecretsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userexternalsecrets/v1"
 	"github.com/gravitational/teleport/lib/auth/credentialencryption"
+	"github.com/gravitational/teleport/lib/cryptoutils"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/client/sso"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -867,11 +872,6 @@ func (a *Server) validateGithubAuthCallbackForAuthenticatedUser(
 		}, nil
 	}
 
-	// Save the access token for later use (e.g. GitHub API proxying).
-	if err := a.saveGitHubOAuthCredentials(ctx, req.AuthenticatedUser, connector.GetClientID(), oauthToken, githubUser, logger); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	if err := a.emitter.EmitAuditEvent(ctx, &apievents.GitCredentialCreate{
 		Metadata: apievents.Metadata{
 			Type: events.GitCredentialCreateEvent,
@@ -902,53 +902,192 @@ func (a *Server) validateGithubAuthCallbackForAuthenticatedUser(
 		return nil, trace.Wrap(err)
 	}
 
-	return a.makeGithubAuthResponse(ctx, req, userState, githubUser, req.CertTTL)
+	resp, err := a.makeGithubAuthResponse(ctx, req, userState, githubUser, req.CertTTL)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Register the encryption key and distribute tokens after cert issuance.
+	// The encryption key TTL comes from the issued cert, not the OAuth token.
+	if err := a.saveGitHubOAuthCredentials(ctx, req.AuthenticatedUser, connector.GetClientID(), req.GitServerName, oauthToken, githubUser, req.EncryptionPublicKey, resp, logger); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return resp, nil
 }
 
-// TODO(greedy52) save and use refresh token for token refresh support.
-func (a *Server) saveGitHubOAuthCredentials(ctx context.Context, username, clientID string, token *oauth2.Token, githubUser *GithubUserResponse, logger *slog.Logger) error {
-	ghCreds := userexternalcredentialsv1.GitHubOAuthCredentials_builder{
-		Username: githubUser.Login,
-		UserId:   githubUser.getIDStr(),
+func (a *Server) saveGitHubOAuthCredentials(ctx context.Context, username, clientID, gitServerName string, token *oauth2.Token, githubUser *GithubUserResponse, encryptionPubKey []byte, authResp *authclient.GithubAuthResponse, logger *slog.Logger) error {
+	// Register the encryption key with TTL from the issued cert.
+	if len(encryptionPubKey) > 0 && authResp != nil {
+		sessionID := sessionIDFromPubKey(encryptionPubKey)
+		certExpiry := token.Expiry
+		if len(authResp.TLSCert) > 0 {
+			if block, _ := pem.Decode(authResp.TLSCert); block != nil {
+				if tlsCert, err := x509.ParseCertificate(block.Bytes); err == nil {
+					certExpiry = tlsCert.NotAfter
+				}
+			}
+		}
+		credsSvc := a.Services.UserSessionCredentials
+		resource := userexternalsecretsv1pb.UserSessionCredentials_builder{
+			Kind:    types.KindUserSessionCredentials,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name:    sessionID,
+				Expires: timestamppb.New(certExpiry),
+			},
+			Spec: userexternalsecretsv1pb.UserSessionCredentialsSpec_builder{
+				User: username,
+				EncryptionKey: userexternalsecretsv1pb.EncryptionKey_builder{
+					KeyId:     sessionID,
+					PublicKey: encryptionPubKey,
+				}.Build(),
+			}.Build(),
+		}.Build()
+		if _, err := credsSvc.Create(ctx, resource); err != nil {
+			if trace.IsAlreadyExists(err) {
+				if _, err := credsSvc.Put(ctx, resource); err != nil {
+					logger.WarnContext(ctx, "Failed to update session credentials", "error", err)
+				}
+			} else {
+				logger.WarnContext(ctx, "Failed to register session credentials", "error", err)
+			}
+		}
+	}
+	if err := a.distributeDoubleEncryptedToken(ctx, username, gitServerName, token.AccessToken, token.RefreshToken, token.Expiry, logger); err != nil {
+		logger.WarnContext(ctx, "Failed to distribute double-encrypted token", "error", err)
 	}
 
-	if a.credentialEncryptionEnabled() {
-		encryptedTokens, err := a.EncryptTokens(ctx, token.AccessToken, token.RefreshToken)
-		if err != nil {
-			return trace.Wrap(err, "encrypting GitHub tokens")
-		}
-		ghCreds.EncryptedTokens = encryptedTokens
-	} else {
-		ghCreds.AccessToken = token.AccessToken
-		ghCreds.RefreshToken = token.RefreshToken
+	return nil
+}
+
+// sessionIDFromPubKey derives a session ID from the SHA-256 hash of the
+// encryption public key.
+func sessionIDFromPubKey(pubKeyDER []byte) string {
+	return uuid.NewSHA1(uuid.NameSpaceOID, pubKeyDER).String()
+}
+
+// distributeDoubleEncryptedToken KMS-encrypts the access token, then
+// ECIES-encrypts it for each active session that has an encryption public key.
+func (a *Server) distributeDoubleEncryptedToken(ctx context.Context, username, gitServerName, accessToken, refreshToken string, expiry time.Time, logger *slog.Logger) error {
+	resourceID := types.ResourceID{
+		Kind: types.KindGitServer,
+		Name: gitServerName,
 	}
-	if !token.Expiry.IsZero() {
-		ghCreds.AccessTokenExpiry = timestamppb.New(token.Expiry)
-	}
-	if token.RefreshToken != "" {
-		refreshExpiry := token.Extra("refresh_token_expires_in")
-		if seconds, ok := refreshExpiry.(float64); ok && seconds > 0 {
-			ghCreds.RefreshTokenExpiry = timestamppb.New(time.Now().Add(time.Duration(seconds) * time.Second))
-		}
-	}
-	creds, err := userexternalcredentials.NewGitHubOAuth(
-		username,
-		clientID,
-		ghCreds.Build(),
-	)
+
+	accessKMSBlob, err := a.encryptPayload(ctx, username, resourceID, []byte(accessToken))
 	if err != nil {
-		return trace.Wrap(err)
+		return trace.Wrap(err, "KMS-encrypting access token")
 	}
-	creds.GetMetadata().Expires = timestamppb.New(time.Now().Add(7 * 24 * time.Hour))
 
-	if _, err := a.UserExternalCredentials.UpsertUserExternalCredentials(ctx, creds); err != nil {
-		return trace.Wrap(err)
+	var refreshKMSBlob []byte
+	if refreshToken != "" {
+		refreshKMSBlob, err = a.encryptPayload(ctx, username, resourceID, []byte(refreshToken))
+		if err != nil {
+			return trace.Wrap(err, "KMS-encrypting refresh token")
+		}
 	}
-	logger.DebugContext(ctx, "Saved GitHub OAuth credentials",
+
+	credsSvc := a.Services.UserSessionCredentials
+	sessions, err := credsSvc.ListByUser(ctx, username)
+	if err != nil {
+		return trace.Wrap(err, "listing user session credentials")
+	}
+	if len(sessions) == 0 {
+		logger.DebugContext(ctx, "No sessions registered for user", "user", username)
+		return nil
+	}
+
+	credEntry := userexternalsecretsv1pb.Credential_builder{
+		ResourceKind: types.KindGitServer,
+		ResourceName: gitServerName,
+	}
+
+	var count int
+	for _, session := range sessions {
+		encKey := session.GetSpec().GetEncryptionKey()
+		pubKey, err := x509.ParsePKIXPublicKey(encKey.GetPublicKey())
+		if err != nil {
+			logger.WarnContext(ctx, "Skipping session with invalid public key",
+				"session_id", encKey.GetKeyId(), "error", err)
+			continue
+		}
+		ecdsaPub, ok := pubKey.(*ecdsa.PublicKey)
+		if !ok {
+			logger.WarnContext(ctx, "Skipping session with non-ECDSA public key",
+				"session_id", encKey.GetKeyId())
+			continue
+		}
+
+		accessBlob, err := cryptoutils.ECIESEncrypt(ecdsaPub, accessKMSBlob)
+		if err != nil {
+			logger.WarnContext(ctx, "Failed to ECIES-encrypt access token",
+				"session_id", encKey.GetKeyId(), "error", err)
+			continue
+		}
+
+		var refreshBlob []byte
+		if len(refreshKMSBlob) > 0 {
+			refreshBlob, err = cryptoutils.ECIESEncrypt(ecdsaPub, refreshKMSBlob)
+			if err != nil {
+				logger.WarnContext(ctx, "Failed to ECIES-encrypt refresh token",
+					"session_id", encKey.GetKeyId(), "error", err)
+				continue
+			}
+		}
+
+		entry := credEntry
+		entry.Oauth = userexternalsecretsv1pb.OAuthSecret_builder{
+			AccessTokenBlob:   accessBlob,
+			RefreshTokenBlob:  refreshBlob,
+			AccessTokenExpiry: timestamppb.New(expiry),
+		}.Build()
+
+		creds := session.GetSpec().GetCredentials()
+		found := false
+		for i, c := range creds {
+			if c.GetResourceKind() == types.KindGitServer && c.GetResourceName() == gitServerName {
+				creds[i] = entry.Build()
+				found = true
+				break
+			}
+		}
+		if !found {
+			creds = append(creds, entry.Build())
+		}
+		session.GetSpec().SetCredentials(creds)
+
+		if _, err := credsSvc.Put(ctx, session); err != nil {
+			logger.WarnContext(ctx, "Failed to store double-encrypted token",
+				"session_id", encKey.GetKeyId(), "error", err)
+			continue
+		}
+		count++
+	}
+
+	logger.DebugContext(ctx, "Distributed double-encrypted tokens",
 		"user", username,
-		"client_id", clientID,
+		"sessions", count,
 	)
 	return nil
+}
+
+// encryptPayload builds an EncryptedPayload with user/resource binding and
+// KMS-encrypts it.
+func (a *Server) encryptPayload(ctx context.Context, username string, resource types.ResourceID, payload []byte) ([]byte, error) {
+	payloadJSON, err := cryptoutils.MarshalEncryptedPayload(&cryptoutils.EncryptedPayload{
+		User:     username,
+		Resource: resource,
+		Payload:  payload,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	kmsBlob, err := a.EncryptTokens(ctx, string(payloadJSON), "")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return kmsBlob, nil
 }
 
 // credentialEncryptionEnabled checks if credential encryption is enabled

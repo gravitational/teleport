@@ -21,6 +21,7 @@ package gitserverv1
 import (
 	"context"
 	"crypto/x509"
+	"encoding/hex"
 	"log/slog"
 	"time"
 
@@ -35,7 +36,10 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/integration/credentials"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/cryptoutils"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -65,13 +69,19 @@ type TokenEncryptor interface {
 	DecryptTokens(ctx context.Context, ciphertext []byte) (accessToken, refreshToken string, err error)
 }
 
+// TokenDistributor distributes double-encrypted tokens to all sessions.
+type TokenDistributor func(ctx context.Context, username, gitServerName, accessToken, refreshToken string, expiry time.Time, logger *slog.Logger) error
+
 type CredentialsServiceConfig struct {
 	Authorizer     authz.Authorizer
 	Cache          CredentialsCache
 	Backend        CredentialsBackend
+	RawBackend     backend.Backend
 	Emitter        apievents.Emitter
 	CertVerifier   CertVerifier
 	TokenEncryptor TokenEncryptor
+	Distributor    TokenDistributor
+	Semaphores     types.Semaphores
 	Logger         *slog.Logger
 	Clock          clockwork.Clock
 }
@@ -83,9 +93,12 @@ type CredentialsService struct {
 	authorizer     authz.Authorizer
 	cache          CredentialsCache
 	backend        CredentialsBackend
+	rawBackend     backend.Backend
 	emitter        apievents.Emitter
 	certVerifier   CertVerifier
 	tokenEncryptor TokenEncryptor
+	distributor    TokenDistributor
+	semaphores     types.Semaphores
 	logger         *slog.Logger
 	clock          clockwork.Clock
 }
@@ -117,9 +130,12 @@ func NewCredentialsService(cfg CredentialsServiceConfig) (*CredentialsService, e
 		authorizer:     cfg.Authorizer,
 		cache:          cfg.Cache,
 		backend:        cfg.Backend,
+		rawBackend:     cfg.RawBackend,
 		emitter:        cfg.Emitter,
 		certVerifier:   cfg.CertVerifier,
 		tokenEncryptor: cfg.TokenEncryptor,
+		distributor:    cfg.Distributor,
+		semaphores:     cfg.Semaphores,
 		logger:         cfg.Logger,
 		clock:          cfg.Clock,
 	}, nil
@@ -298,52 +314,38 @@ func (s *CredentialsService) GenerateGitHubAppToken(ctx context.Context, in *pb.
 		return nil, trace.AccessDenied("web sessions cannot be used for git access")
 	}
 
-	info, err := s.resolveGitHub(ctx, identity.RouteToGit.GitServerName)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	creds, err := s.backend.GetUserExternalCredentials(ctx, identity.Username, info.clientID)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	githubOAuth := creds.GetSpec().GetGithubOauth()
-	if githubOAuth == nil {
-		return nil, trace.NotFound("no GitHub OAuth credentials found for user %v", identity.Username)
-	}
-
-	accessToken, refreshToken, err := s.getTokens(ctx, githubOAuth)
-	if err != nil {
-		return nil, trace.Wrap(err, "reading GitHub tokens")
-	}
-
-	if expiry := githubOAuth.GetAccessTokenExpiry(); expiry != nil && expiry.IsValid() {
-		if s.clock.Now().Add(5 * time.Minute).After(expiry.AsTime()) {
-			if refreshToken == "" {
-				return nil, trace.AccessDenied("GitHub access token expired and no refresh token available for user %v; re-run 'tsh git login'", identity.Username)
-			}
-
-			newToken, err := s.refreshGitHubToken(ctx, info.integration, refreshToken)
-			if err != nil {
-				return nil, trace.Wrap(err, "refreshing GitHub token")
-			}
-			accessToken = newToken.AccessToken
-
-			s.saveRefreshedCredentials(ctx, info.integration, creds, newToken)
-
-			s.logger.DebugContext(ctx, "Generated GitHub app token",
-				"user", identity.Username,
-				"git_server", identity.RouteToGit.GitServerName,
-				"refreshed", true,
-				"new_expiry", newToken.Expiry,
-			)
+	// If the client provided a KMS-encrypted access token, decrypt it
+	// directly instead of looking up stored credentials. This supports
+	// the double-encrypted token flow where tokens are stored client-side.
+	if kmsToken := in.GetKmsEncryptedToken(); len(kmsToken) > 0 {
+		// KMS-decrypt to get the EncryptedPayload JSON.
+		payloadJSON, _, err := s.tokenEncryptor.DecryptTokens(ctx, kmsToken)
+		if err != nil {
+			return nil, trace.Wrap(err, "KMS-decrypting client-provided token")
 		}
+
+		// Verify the payload binding.
+		payload, err := cryptoutils.UnmarshalEncryptedPayload([]byte(payloadJSON))
+		if err != nil {
+			return nil, trace.Wrap(err, "unmarshaling encrypted payload")
+		}
+		if payload.User != identity.Username {
+			return nil, trace.AccessDenied("token does not belong to this user")
+		}
+		if payload.Resource.Kind != types.KindGitServer || payload.Resource.Name != identity.RouteToGit.GitServerName {
+			return nil, trace.AccessDenied("token does not match the requested git server")
+		}
+
+		s.logger.DebugContext(ctx, "Decrypted client-provided KMS token",
+			"user", identity.Username,
+			"git_server", identity.RouteToGit.GitServerName,
+		)
+		return pb.GenerateGitHubAppTokenResponse_builder{
+			AccessToken: string(payload.Payload),
+		}.Build(), nil
 	}
 
-	return pb.GenerateGitHubAppTokenResponse_builder{
-		AccessToken: accessToken,
-	}.Build(), nil
+	return nil, trace.NotFound("no credentials provided; run 'tsh git login' to authenticate")
 }
 
 func (s *CredentialsService) refreshGitHubToken(ctx context.Context, ig types.Integration, refreshToken string) (*oauth2.Token, error) {
@@ -426,3 +428,115 @@ func (s *CredentialsService) saveRefreshedCredentials(ctx context.Context, ig ty
 		s.logger.WarnContext(ctx, "Failed to save refreshed GitHub credentials", "error", err)
 	}
 }
+
+// RefreshGitToken refreshes a GitHub access token using the provided
+// auth-encrypted refresh token. Auth unseals it, calls GitHub, and
+// distributes the new tokens to all sessions.
+//
+// A backend semaphore ensures only one auth server refreshes at a time for a
+// given user+resource. If another auth server is already refreshing, this call
+// waits for the semaphore and then returns success (the tokens were already
+// distributed by the other server).
+func (s *CredentialsService) RefreshGitToken(ctx context.Context, req *pb.RefreshGitTokenRequest) (*pb.RefreshGitTokenResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	gitServerName := req.GetGitServerName()
+	if gitServerName == "" {
+		return nil, trace.BadParameter("git_server_name is required")
+	}
+	authEncryptedRefresh := req.GetAuthEncryptedRefreshToken()
+	if len(authEncryptedRefresh) == 0 {
+		return nil, trace.BadParameter("auth_encrypted_refresh_token is required")
+	}
+
+	// Verify user has access to the git server.
+	gitServer, err := s.cache.GetGitServer(ctx, gitServerName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := authCtx.Checker.CheckAccess(gitServer, services.AccessState{MFAVerified: true}); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	username := authCtx.User.GetName()
+
+	// Acquire semaphore to prevent concurrent refreshes for the same
+	// user+resource across multiple auth servers.
+	if s.semaphores != nil {
+		semName := hex.EncodeToString([]byte(username + "/" + gitServerName))
+		lease, err := services.AcquireSemaphoreWithRetry(ctx, services.AcquireSemaphoreWithRetryConfig{
+			Service: s.semaphores,
+			Request: types.AcquireSemaphoreRequest{
+				SemaphoreKind: "git_token_refresh",
+				SemaphoreName: semName,
+				MaxLeases:     1,
+				Holder:        username,
+			},
+			Retry: retryutils.LinearConfig{
+				Step:  time.Second,
+				Max:   time.Second,
+				Clock: s.clock,
+			},
+			TTL: time.Minute,
+			Now: s.clock.Now,
+		})
+		if err != nil {
+			s.logger.WarnContext(ctx, "Failed to acquire refresh semaphore",
+				"user", username,
+				"git_server", gitServerName,
+				"error", err,
+			)
+			return nil, trace.Wrap(err, "failed to acquire refresh lock")
+		}
+		defer func() {
+			if err := s.semaphores.CancelSemaphoreLease(ctx, *lease); err != nil {
+				s.logger.WarnContext(ctx, "Failed to release refresh semaphore", "error", err)
+			}
+		}()
+	}
+
+	// Auth-unseal the refresh token.
+	refreshPayloadJSON, _, err := s.tokenEncryptor.DecryptTokens(ctx, authEncryptedRefresh)
+	if err != nil {
+		return nil, trace.Wrap(err, "auth-decrypting refresh token")
+	}
+
+	// Verify the payload binding.
+	refreshPayload, err := cryptoutils.UnmarshalEncryptedPayload([]byte(refreshPayloadJSON))
+	if err != nil {
+		return nil, trace.Wrap(err, "unmarshaling refresh token payload")
+	}
+	if refreshPayload.User != username {
+		return nil, trace.AccessDenied("refresh token does not belong to this user")
+	}
+
+	// Resolve the integration for this git server.
+	info, err := s.resolveGitHub(ctx, gitServerName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Call GitHub to refresh.
+	newToken, err := s.refreshGitHubToken(ctx, info.integration, string(refreshPayload.Payload))
+	if err != nil {
+		return nil, trace.Wrap(err, "refreshing GitHub token")
+	}
+
+	// Distribute double-encrypted tokens to all sessions.
+	if s.distributor != nil {
+		if err := s.distributor(ctx, username, gitServerName, newToken.AccessToken, newToken.RefreshToken, newToken.Expiry, s.logger); err != nil {
+			s.logger.WarnContext(ctx, "Failed to distribute refreshed tokens", "error", err)
+		}
+	}
+
+	s.logger.DebugContext(ctx, "Refreshed git token",
+		"user", username,
+		"git_server", gitServerName,
+	)
+
+	return pb.RefreshGitTokenResponse_builder{}.Build(), nil
+}
+

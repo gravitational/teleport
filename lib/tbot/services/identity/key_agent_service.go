@@ -22,6 +22,7 @@ import (
 	"cmp"
 	"context"
 	"crypto"
+	"crypto/ecdsa"
 	"io"
 	"log/slog"
 	"os"
@@ -35,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
+	"github.com/gravitational/teleport/lib/cryptoutils"
 	libhwk "github.com/gravitational/teleport/lib/hardwarekey"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
@@ -163,6 +165,27 @@ func (s *KeyAgentService) Run(ctx context.Context) error {
 	if err := s.writeIdentityFile(ctx, identity); err != nil {
 		return trace.Wrap(err)
 	}
+
+	if s.cfg.DelegationSessionID != "" {
+		encPrivKey, encKeyID, err := RegisterEncryptionKeyForDelegation(
+			ctx, s.botAuthClient, s.cfg.DelegationSessionID, s.logger,
+		)
+		if err != nil {
+			s.logger.WarnContext(ctx, "Failed to register encryption key for delegation session",
+				"delegation_session_id", s.cfg.DelegationSessionID,
+				"error", err,
+			)
+		} else {
+			hardwarekeyagentv1.RegisterEncryptionAgentServiceServer(
+				hwks.GRPCServer(),
+				&encryptionAgentService{
+					privateKey:      encPrivKey,
+					encryptionKeyID: encKeyID,
+				},
+			)
+		}
+	}
+
 	s.statusReporter.Report(readyz.Healthy)
 
 	group, groupCtx := errgroup.WithContext(ctx)
@@ -307,4 +330,30 @@ func (*hardwareKeyService) NewPrivateKey(context.Context, hardwarekey.PrivateKey
 func (*hardwareKeyService) GetFullKeyRef(uint32, hardwarekey.PIVSlotKey) (*hardwarekey.PrivateKeyRef, error) {
 	// This method is marked for deletion in v19.
 	return nil, trace.NotImplemented("GetFullKeyRef is not implemented")
+}
+
+// encryptionAgentService implements the EncryptionAgentService gRPC service.
+// It holds the ECIES P-256 encryption private key in memory and serves
+// decryption requests from tsh over the same unix socket as the hardware key
+// agent.
+type encryptionAgentService struct {
+	hardwarekeyagentv1.UnimplementedEncryptionAgentServiceServer
+	privateKey      *ecdsa.PrivateKey
+	encryptionKeyID string
+}
+
+func (s *encryptionAgentService) Decrypt(ctx context.Context, req *hardwarekeyagentv1.DecryptRequest) (*hardwarekeyagentv1.DecryptResponse, error) {
+	plaintext, err := cryptoutils.ECIESDecrypt(s.privateKey, req.GetCiphertext())
+	if err != nil {
+		return nil, trace.Wrap(err, "ECIES decryption failed")
+	}
+	return hardwarekeyagentv1.DecryptResponse_builder{
+		Plaintext: plaintext,
+	}.Build(), nil
+}
+
+func (s *encryptionAgentService) GetEncryptionKeyID(ctx context.Context, req *hardwarekeyagentv1.GetEncryptionKeyIDRequest) (*hardwarekeyagentv1.GetEncryptionKeyIDResponse, error) {
+	return hardwarekeyagentv1.GetEncryptionKeyIDResponse_builder{
+		EncryptionKeyId: s.encryptionKeyID,
+	}.Build(), nil
 }

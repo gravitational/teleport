@@ -1266,6 +1266,16 @@ func (a *ServerWithRoles) hasWatchPermissionForKind(
 		if filter.User != "" && a.currentUserAction(filter.User) == nil {
 			return nil
 		}
+	case types.KindUserSessionCredentials:
+		var filter types.UserSessionCredentialsFilter
+		if err := filter.FromMap(kind.Filter); err != nil {
+			return trace.Wrap(err)
+		}
+
+		// Users can watch their own session credentials.
+		if filter.User != "" && a.currentUserAction(filter.User) == nil {
+			return nil
+		}
 	case types.KindWebSession:
 		if !kind.LoadSecrets {
 			verb = types.VerbReadNoSecrets

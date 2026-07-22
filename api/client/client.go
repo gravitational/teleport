@@ -86,6 +86,7 @@ import (
 	dynamicwindowsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dynamicwindows/v1"
 	externalauditstoragev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/externalauditstorage/v1"
 	gitserverpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/gitserver/v1"
+	userexternalsecretsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userexternalsecrets/v1"
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	inventoryv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/inventory/v1"
@@ -5578,6 +5579,11 @@ func (c *Client) GitServerReadOnlyClient() gitserverclient.ReadOnlyClient {
 // GitCredentialsClient returns a client for the GitCredentialsService.
 func (c *Client) GitCredentialsClient() gitserverpb.GitCredentialsServiceClient {
 	return gitserverpb.NewGitCredentialsServiceClient(c.conn)
+}
+
+// UserExternalSecretClient returns a client for the UserExternalSecretService.
+func (c *Client) UserExternalSecretClient() userexternalsecretsv1pb.UserExternalSecretServiceClient {
+	return userexternalsecretsv1pb.NewUserExternalSecretServiceClient(c.conn)
 }
 
 // StableUNIXUsersClient returns a client for the stable UNIX users API.

@@ -1562,6 +1562,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	connectUpdaterServiceInstallUpdateCommand := newConnectUpdaterServiceInstallUpdateCommand(connectUpdater)
 
 	gitCmd := newGitCommands(app)
+	credCmd := newCredCommands(app)
 	ghCmd := newTopLevelGHCommand(app)
 	beamsCmd := newBeamsCommands(app)
 	pivCmd := newPIVCommands(app)
@@ -2037,6 +2038,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = gitCmd.gh.run(&cf)
 	case gitCmd.httpRemote.FullCommand():
 		err = gitCmd.httpRemote.run(&cf)
+	case credCmd.sync.FullCommand():
+		err = credCmd.sync.run(&cf)
 	case ghCmd.FullCommand():
 		err = ghCmd.run(&cf)
 	case beamsCmd.ls.FullCommand():
@@ -2810,6 +2813,14 @@ func onLogout(cf *CLIConf) error {
 			}
 		}
 
+		// Delete session credentials from the backend before removing local
+		// keys, since the RPC requires a valid certificate.
+		if profile != nil && profile.EncryptionKeyID != "" {
+			if deleteErr := deleteSessionCredentials(cf, tc); deleteErr != nil {
+				logger.DebugContext(cf.Context, "Failed to delete session credentials", "error", deleteErr)
+			}
+		}
+
 		// Remove keys for this user from disk and running agent.
 		err = tc.Logout()
 		if err != nil {
@@ -2910,6 +2921,16 @@ func onLogout(cf *CLIConf) error {
 		})
 		if err != nil {
 			fmt.Fprintf(cf.Stdout(), "We were unable to log you out of your SAML identity provider: %v\n", err)
+		}
+
+		// Delete session credentials from the backend for all profiles.
+		if deleteErr := forEachProfileParallel(cf, func(ctx context.Context, tc *client.TeleportClient, profile *client.ProfileStatus) error {
+			if profile.EncryptionKeyID == "" {
+				return nil
+			}
+			return deleteSessionCredentials(&CLIConf{Context: ctx}, tc)
+		}); deleteErr != nil {
+			logger.DebugContext(cf.Context, "Failed to delete session credentials", "error", deleteErr)
 		}
 
 		// Remove all keys from disk and the running agent.
@@ -5678,6 +5699,9 @@ func printStatus(w io.Writer, debug bool, p *profileInfo, env map[string]string,
 	if p.DelegationSessionID != "" {
 		fmt.Fprintf(w, "  Delegation session: %s\n", p.DelegationSessionID)
 	}
+	if p.EncryptionKeyID != "" {
+		fmt.Fprintf(w, "  Encryption Key ID:  %s\n", p.EncryptionKeyID)
+	}
 
 	if debug {
 		first := true
@@ -5767,6 +5791,10 @@ func printLoginInformation(cf *CLIConf, profile *client.ProfileStatus, profiles 
 
 // onStatus command shows which proxy the user is logged into and metadata
 // about the certificate.
+func getEncryptionKeyID(profile *client.ProfileStatus) string {
+	return profile.EncryptionKeyID
+}
+
 func onStatus(cf *CLIConf) error {
 	// Get the status of the active profile as well as the status
 	// of any other proxies the user is logged into.
@@ -5846,6 +5874,7 @@ type profileInfo struct {
 	AllowedResourceAccessIDs []types.ResourceAccessID `json:"allowed_resources,omitempty"`
 	GitHubIdentity           *client.GitHubIdentity   `json:"github_identity,omitempty"`
 	DelegationSessionID      string                   `json:"delegation_session_id,omitempty"`
+	EncryptionKeyID          string                   `json:"encryption_key_id,omitempty"`
 }
 
 func makeAllProfileInfo(active *client.ProfileStatus, others []*client.ProfileStatus, env map[string]string) (*profileInfo, []*profileInfo) {
@@ -5900,6 +5929,7 @@ func makeProfileInfo(p *client.ProfileStatus, env map[string]string, isActive bo
 		AllowedResourceAccessIDs: p.AllowedResourceAccessIDs,
 		GitHubIdentity:           p.GitHubIdentity,
 		DelegationSessionID:      p.DelegationSessionID,
+		EncryptionKeyID:          p.EncryptionKeyID,
 	}
 
 	// update active profile info from env

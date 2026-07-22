@@ -1,0 +1,55 @@
+// Teleport
+// Copyright (C) 2026 Gravitational, Inc.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+syntax = "proto3";
+
+package teleport.hardwarekeyagent.v1;
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/hardwarekeyagent/v1;hardwarekeyagentv1";
+
+// EncryptionAgentService provides an agent service for ECIES decryption.
+// This allows tsh to delegate decryption of double-encrypted credentials to an
+// agent that holds the encryption private key (tbot in beams, or a hardware
+// key agent with Secure Enclave / PIV support).
+service EncryptionAgentService {
+  // Decrypt performs ECIES decryption of the given ciphertext using the
+  // agent's encryption private key.
+  rpc Decrypt(DecryptRequest) returns (DecryptResponse) {}
+
+  // GetEncryptionKeyID returns the encryption key ID that this agent holds.
+  rpc GetEncryptionKeyID(GetEncryptionKeyIDRequest) returns (GetEncryptionKeyIDResponse) {}
+}
+
+// DecryptRequest is a request to decrypt an ECIES-encrypted blob.
+message DecryptRequest {
+  // Ciphertext is the ECIES-encrypted data (ephemeral_pub | nonce | ciphertext+tag).
+  bytes ciphertext = 1;
+}
+
+// DecryptResponse contains the decrypted plaintext.
+message DecryptResponse {
+  // Plaintext is the decrypted data.
+  bytes plaintext = 1;
+}
+
+// GetEncryptionKeyIDRequest is a request to get the agent's encryption key ID.
+message GetEncryptionKeyIDRequest {}
+
+// GetEncryptionKeyIDResponse contains the agent's encryption key ID.
+message GetEncryptionKeyIDResponse {
+  // EncryptionKeyID is the UUID v5 derived from the encryption public key.
+  string encryption_key_id = 1;
+}

@@ -134,6 +134,9 @@ type Request struct {
 	PreviousIdentityExpires time.Time
 	// LoginIP is an IP of the client requesting the certificate.
 	LoginIP string
+	// EncryptionKeyID is the session encryption key ID (UUID v5 derived
+	// from the encryption public key) for double-encrypted credential storage.
+	EncryptionKeyID string
 	// PinIP flags that client's login IP should be pinned in the certificate.
 	PinIP bool
 	// DisallowReissue flags that a cert should not be allowed to issue future

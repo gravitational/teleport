@@ -625,6 +625,8 @@ type githubAuthRawResponse struct {
 	// ClientOptions contains some options that the cluster wants the client to
 	// use.
 	ClientOptions ClientOptions `json:"client_options"`
+	// KMSEncryptedToken is the double-encrypted access token.
+	KMSEncryptedToken []byte `json:"kms_encrypted_token,omitempty"`
 }
 
 // ValidateGithubAuthCallback validates Github auth callback returned from redirect
@@ -639,12 +641,13 @@ func (c *HTTPClient) ValidateGithubAuthCallback(ctx context.Context, q url.Value
 		return nil, trace.Wrap(err)
 	}
 	response := GithubAuthResponse{
-		Username:      rawResponse.Username,
-		Identity:      rawResponse.Identity,
-		Cert:          rawResponse.Cert,
-		Req:           rawResponse.Req,
-		TLSCert:       rawResponse.TLSCert,
-		ClientOptions: rawResponse.ClientOptions,
+		Username:          rawResponse.Username,
+		Identity:          rawResponse.Identity,
+		Cert:              rawResponse.Cert,
+		Req:               rawResponse.Req,
+		TLSCert:           rawResponse.TLSCert,
+		ClientOptions:     rawResponse.ClientOptions,
+		KMSEncryptedToken: rawResponse.KMSEncryptedToken,
 	}
 	if len(rawResponse.Session) != 0 {
 		session, err := services.UnmarshalWebSession(

@@ -172,6 +172,18 @@ func (s *softwareKeyStore) findDecryptersByLabel(ctx context.Context, label *typ
 	return nil, trace.NotImplemented("software decryption keys do not support lookup by label")
 }
 
+func (s *softwareKeyStore) derivePublicKey(_ context.Context, rawKey []byte) (crypto.PublicKey, error) {
+	privateKey, err := x509.ParsePKCS8PrivateKey(rawKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	signer, ok := privateKey.(crypto.Signer)
+	if !ok {
+		return nil, trace.BadParameter("private key does not implement crypto.Signer")
+	}
+	return signer.Public(), nil
+}
+
 // canUseKey returns true if the given key is a raw key.
 func (s *softwareKeyStore) canUseKey(ctx context.Context, _ []byte, keyType types.PrivateKeyType) (bool, error) {
 	return keyType == types.PrivateKeyType_RAW, nil

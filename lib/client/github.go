@@ -20,6 +20,7 @@ package client
 
 import (
 	"context"
+	"crypto/x509"
 
 	"github.com/gravitational/trace"
 
@@ -58,6 +59,10 @@ func (tc *TeleportClient) ReissueWithGitHubOAuth(ctx context.Context, githubOrg 
 	// Treat it as reissuing an SSH cert.
 	keyRing.ClusterName = tc.SiteName
 	keyRing.Cert = resp.Cert
+
+	// TODO(greedy52) after OAuth, fetch the double-encrypted token via RPC,
+	// decrypt outer ECIES layer, and cache KMS blob locally.
+
 	return trace.Wrap(tc.localAgent.AddKeyRing(keyRing))
 }
 
@@ -94,7 +99,7 @@ func (tc *TeleportClient) makeGitHubAuthRequest(keyRing *KeyRing, clientCallback
 		return nil, trace.Wrap(err)
 	}
 
-	return &types.GithubAuthRequest{
+	req := &types.GithubAuthRequest{
 		ClientRedirectURL:       clientCallbackURL,
 		KubernetesCluster:       tc.KubernetesCluster,
 		SshPublicKey:            keyRing.SSHPrivateKey.MarshalSSHPublicKey(),
@@ -102,5 +107,15 @@ func (tc *TeleportClient) makeGitHubAuthRequest(keyRing *KeyRing, clientCallback
 		SshAttestationStatement: keyRing.SSHPrivateKey.GetAttestationStatement().ToProto(),
 		TlsAttestationStatement: keyRing.TLSPrivateKey.GetAttestationStatement().ToProto(),
 		Compatibility:           tc.CertificateFormat,
-	}, nil
+	}
+
+	if keyRing.EncryptionPrivateKey != nil {
+		encPubDER, err := x509.MarshalPKIXPublicKey(&keyRing.EncryptionPrivateKey.PublicKey)
+		if err != nil {
+			return nil, trace.Wrap(err, "marshaling encryption public key")
+		}
+		req.EncryptionPublicKey = encPubDER
+	}
+
+	return req, nil
 }

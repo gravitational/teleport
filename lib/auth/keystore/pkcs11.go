@@ -259,6 +259,14 @@ func (p *pkcs11KeyStore) getDecrypter(ctx context.Context, rawKey []byte, public
 	return nil, trace.BadParameter("pkcs11 key does not support decryption")
 }
 
+func (p *pkcs11KeyStore) derivePublicKey(ctx context.Context, rawKey []byte) (crypto.PublicKey, error) {
+	signer, err := p.getSignerWithoutPublicKey(ctx, rawKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return signer.Public(), nil
+}
+
 func attrValToUint(value []byte) uint64 {
 	if len(value) == 4 {
 		return uint64(binary.BigEndian.Uint32(value))

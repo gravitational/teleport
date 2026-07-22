@@ -250,6 +250,10 @@ type Identity struct {
 
 	// WebSessionID is the session ID of the web session associated with this identity, if any.
 	WebSessionID string
+
+	// EncryptionKeyID is the session encryption key ID (UUID v5) for
+	// double-encrypted credential storage.
+	EncryptionKeyID string
 }
 
 // RouteToApp holds routing information for applications.
@@ -683,6 +687,9 @@ var (
 	// GitSessionIDASN1ExtensionOID is an extension OID used to encode the
 	// git session ID for Git HTTPS routing.
 	GitSessionIDASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 33}
+	// EncryptionKeyIDASN1ExtensionOID is an extension OID used to encode
+	// the session encryption key ID for double-encrypted credential storage.
+	EncryptionKeyIDASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 34}
 
 	// CAClusterNameExtensionOID records the cluster name in a Teleport CA
 	// certificate.
@@ -924,6 +931,14 @@ func (id *Identity) Subject() (pkix.Name, error) {
 			pkix.AttributeTypeAndValue{
 				Type:  GitSessionIDASN1ExtensionOID,
 				Value: id.RouteToGit.SessionID,
+			})
+	}
+
+	if id.EncryptionKeyID != "" {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  EncryptionKeyIDASN1ExtensionOID,
+				Value: id.EncryptionKeyID,
 			})
 	}
 
@@ -1364,6 +1379,11 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 			val, ok := attr.Value.(string)
 			if ok {
 				id.RouteToGit.SessionID = val
+			}
+		case attr.Type.Equal(EncryptionKeyIDASN1ExtensionOID):
+			val, ok := attr.Value.(string)
+			if ok {
+				id.EncryptionKeyID = val
 			}
 		case attr.Type.Equal(DatabaseServiceNameASN1ExtensionOID):
 			val, ok := attr.Value.(string)

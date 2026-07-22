@@ -179,6 +179,12 @@ func generateServerCert(keyAgentDir string) (tls.Certificate, error) {
 }
 
 // Serve the hardware key agent server.
+// GRPCServer returns the underlying gRPC server so that additional services
+// can be registered on it before calling Serve.
+func (s *Server) GRPCServer() *grpc.Server {
+	return s.grpcServer
+}
+
 func (s *Server) Serve(ctx context.Context) error {
 	fmt.Fprintln(os.Stderr, "Listening for hardware key agent requests")
 	context.AfterFunc(ctx, s.Stop)

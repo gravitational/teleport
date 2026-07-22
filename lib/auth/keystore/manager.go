@@ -179,6 +179,10 @@ type backend interface {
 	// findDecryptersByLabel returns all known decrypters identified by the given label
 	findDecryptersByLabel(ctx context.Context, label *types.KeyLabel) ([]crypto.Decrypter, error)
 
+	// derivePublicKey retrieves the public key for the given private key
+	// identifier without requiring the public key to be stored alongside it.
+	derivePublicKey(ctx context.Context, keyID []byte) (crypto.PublicKey, error)
+
 	// name returns the name of the backend.
 	name() string
 }
@@ -571,6 +575,34 @@ func (m *Manager) GetJWTSigner(ctx context.Context, ca types.CertAuthority) (cry
 		}
 	}
 	return nil, trace.NotFound("no usable JWT key pairs found")
+}
+
+// DerivePublicKey retrieves the public key for the given key pair from the
+// keystore without requiring it to be stored in the backend. For KMS backends,
+// this calls the provider's GetPublicKey API. For software backends, it
+// derives the public key from the stored private key. The result is populated
+// in keyPair.PublicKey.
+func (m *Manager) DerivePublicKey(ctx context.Context, keyPair *types.EncryptionKeyPair) error {
+	for _, b := range m.usableBackends {
+		canUse, err := b.canUseKey(ctx, keyPair.PrivateKey, keyPair.PrivateKeyType)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if !canUse {
+			continue
+		}
+		pub, err := b.derivePublicKey(ctx, keyPair.PrivateKey)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		pubBytes, err := x509.MarshalPKIXPublicKey(pub)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		keyPair.PublicKey = pubBytes
+		return nil
+	}
+	return trace.NotFound("no compatible backend found for keypair")
 }
 
 // GetDecrypter returns the [crypto.Decrypter] associated with a given EncryptionKeyPair if accessible.

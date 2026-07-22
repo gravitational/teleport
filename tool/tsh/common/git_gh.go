@@ -20,6 +20,7 @@ package common
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"net"
 	"net/http"
@@ -51,6 +52,7 @@ type gitGHCommand struct {
 	gitServerName string
 	execCmd       string
 	ghArgs        []string
+	forceRefresh  bool
 }
 
 func newGitGHCommand(parent *kingpin.CmdClause) *gitGHCommand {
@@ -61,6 +63,10 @@ func newGitGHCommand(parent *kingpin.CmdClause) *gitGHCommand {
 		Envar(gitServerEnvVar).
 		StringVar(&cmd.gitServerName)
 	cmd.Flag("exec", "Run a custom command instead of gh.").StringVar(&cmd.execCmd)
+	cmd.Flag("force-refresh", "Force token refresh before running.").
+		Hidden().
+		Envar("TELEPORT_GIT_FORCE_REFRESH").
+		BoolVar(&cmd.forceRefresh)
 	cmd.Arg("gh-args", "Arguments to pass to gh CLI.").StringsVar(&cmd.ghArgs)
 	return cmd
 }
@@ -73,6 +79,10 @@ func newTopLevelGHCommand(app *kingpin.Application) *gitGHCommand {
 		Envar(gitServerEnvVar).
 		StringVar(&cmd.gitServerName)
 	cmd.Flag("exec", "Run a custom command instead of gh.").StringVar(&cmd.execCmd)
+	cmd.Flag("force-refresh", "Force token refresh before running.").
+		Hidden().
+		Envar("TELEPORT_GIT_FORCE_REFRESH").
+		BoolVar(&cmd.forceRefresh)
 	cmd.Arg("gh-args", "Arguments to pass to gh CLI.").StringsVar(&cmd.ghArgs)
 	return cmd
 }
@@ -95,11 +105,25 @@ func (c *gitGHCommand) run(cf *CLIConf) error {
 		return trace.BadParameter("git server %v does not have HTTP proxying enabled", gitServer.GetName())
 	}
 
+	// Ensure we have a locally cached auth-encrypted access token.
+	// This is checked first so that tokens distributed from other sessions
+	// (via refresh or cred sync) are used without triggering a browser flow.
+	if err := ensureLocalSecret(cf, tc, gitServer.GetName(), c.forceRefresh); err != nil {
+		if !isBeamsEnvironment() {
+			// No token available from cache or backend. Try browser OAuth.
+			if err := ensureGitCredentialsAndCert(cf, tc, gitServer); err != nil {
+				return trace.Wrap(err)
+			}
+		} else {
+			return trace.Wrap(err, "ensuring local secret")
+		}
+	}
+
 	if !isBeamsEnvironment() {
 		valid, _ := hasValidGitCert(tc, gitServer.GetName())
 		if !valid {
-			if err := ensureGitCredentialsAndCert(cf, tc, gitServer); err != nil {
-				return trace.Wrap(err)
+			if err := issueGitCert(cf, tc, gitServer.GetName()); err != nil {
+				logger.DebugContext(cf.Context, "Failed to issue git cert", "error", err)
 			}
 		}
 	}
@@ -314,7 +338,7 @@ func startGitProxy(cf *CLIConf, tc *client.TeleportClient, cfg gitProxyConfig) (
 	}
 
 	httpProxyServer := &http.Server{
-		Handler: newGitHTTPProxyHandler(gitCertChecker, tc, cfg.gitServerName),
+		Handler: newGitHTTPProxyHandler(gitCertChecker, tc, cfg.gitServerName, cf.HomePath),
 	}
 	proxy.httpProxy = httpProxyServer
 
@@ -339,13 +363,15 @@ type gitHTTPProxyHandler struct {
 	certChecker   *client.CertChecker
 	tc            *client.TeleportClient
 	gitServerName string
+	homePath      string
 }
 
-func newGitHTTPProxyHandler(certChecker *client.CertChecker, tc *client.TeleportClient, gitServerName string) *gitHTTPProxyHandler {
+func newGitHTTPProxyHandler(certChecker *client.CertChecker, tc *client.TeleportClient, gitServerName, homePath string) *gitHTTPProxyHandler {
 	return &gitHTTPProxyHandler{
 		certChecker:   certChecker,
 		tc:            tc,
 		gitServerName: gitServerName,
+		homePath:      homePath,
 	}
 }
 
@@ -361,11 +387,17 @@ func (h *gitHTTPProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 		dialFunc = h.dialVNet
 	}
 
+	// Load the locally cached KMS-encrypted access token if available.
+	kmsToken := h.loadKMSToken()
+
 	proxy := &httputil.ReverseProxy{
 		Director: func(req *http.Request) {
 			req.URL.Scheme = "http"
 			req.URL.Host = strings.Replace(req.URL.Host, "github.localhost", "github.com", 1)
 			req.Host = strings.Replace(req.Host, "github.localhost", "github.com", 1)
+			if len(kmsToken) > 0 {
+				req.Header.Set("X-Teleport-Git-Token", base64.StdEncoding.EncodeToString(kmsToken))
+			}
 		},
 		Transport: &http.Transport{
 			DialContext: dialFunc,
@@ -391,6 +423,37 @@ func (h *gitHTTPProxyHandler) dialVNet(ctx context.Context, network, addr string
 	logger.DebugContext(ctx, "Dialing git server through VNet", "fqdn", vnetFQDN)
 	var d net.Dialer
 	return d.DialContext(ctx, "tcp", net.JoinHostPort(vnetFQDN, "443"))
+}
+
+// loadKMSToken loads the locally cached access token and decrypts the ECIES
+// layer on demand, returning the KMS-encrypted blob.
+func (h *gitHTTPProxyHandler) loadKMSToken() []byte {
+	proxyHost, _, _ := net.SplitHostPort(h.tc.WebProxyAddr)
+	logger.DebugContext(context.Background(), "Loading KMS token from cache",
+		"home_path", h.homePath,
+		"proxy_host", proxyHost,
+		"username", h.tc.Username,
+		"git_server", h.gitServerName,
+	)
+	oauth := findCachedCredential(h.homePath, proxyHost, h.tc.Username, h.gitServerName)
+	if oauth == nil || len(oauth.GetAccessTokenBlob()) == 0 {
+		logger.DebugContext(context.Background(), "No cached credential found")
+		return nil
+	}
+
+	helper, err := getEncryptionHelper(context.Background(), h.tc)
+	if err != nil {
+		logger.WarnContext(context.Background(), "No encryption helper for decrypting cached token", "error", err)
+		return nil
+	}
+
+	kmsBlob, err := helper.decrypt(context.Background(), oauth.GetAccessTokenBlob())
+	if err != nil {
+		logger.WarnContext(context.Background(), "Failed to decrypt cached token, removing stale cache", "error", err)
+		client.DeleteSessionCredentials(h.homePath, proxyHost, h.tc.Username)
+		return nil
+	}
+	return kmsBlob
 }
 
 // gitHTTPProxyModifyResponse intercepts responses from the Teleport proxy and
@@ -420,6 +483,9 @@ func ensureGitCredentialsAndCert(cf *CLIConf, tc *client.TeleportClient, gitServ
 		fmt.Fprintln(cf.Stderr(), "GitHub authorization required. Starting OAuth flow...")
 		if _, err := getGitHubIdentity(cf, github.Organization, withForceOAuthFlow(true)); err != nil {
 			return trace.Wrap(err)
+		}
+		if err := fetchAndCacheSessionCredentials(cf, tc); err != nil {
+			logger.WarnContext(cf.Context, "Failed to fetch encrypted token after OAuth", "error", err)
 		}
 	}
 

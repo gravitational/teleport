@@ -21,6 +21,8 @@ package client
 import (
 	"bytes"
 	"context"
+	"crypto/x509"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	iofs "io/fs"
@@ -125,6 +127,10 @@ func (fs *FSKeyStore) proxyKeyDir(proxy string) string {
 }
 
 // userSSHKeyPath returns the SSH private key path for the given KeyRingIndex.
+func (fs *FSKeyStore) encryptionKeyPath(idx KeyRingIndex) string {
+	return keypaths.UserEncryptionKeyPath(fs.KeyDir, idx.ProxyHost, idx.Username)
+}
+
 func (fs *FSKeyStore) userSSHKeyPath(idx KeyRingIndex) string {
 	return keypaths.UserSSHKeyPath(fs.KeyDir, idx.ProxyHost, idx.Username)
 }
@@ -236,6 +242,21 @@ func (fs *FSKeyStore) AddKeyRing(keyRing *KeyRing) error {
 	}
 	if err := fs.writeBytes(keyRing.SSHPrivateKey.MarshalSSHPublicKey(), fs.publicKeyPath(keyRing.KeyRingIndex)); err != nil {
 		return trace.Wrap(err)
+	}
+
+	// Store ECIES encryption private key if present.
+	if keyRing.EncryptionPrivateKey != nil {
+		encKeyBytes, err := x509.MarshalECPrivateKey(keyRing.EncryptionPrivateKey)
+		if err != nil {
+			return trace.Wrap(err, "marshaling encryption private key")
+		}
+		encKeyPEM := pem.EncodeToMemory(&pem.Block{
+			Type:  "EC PRIVATE KEY",
+			Bytes: encKeyBytes,
+		})
+		if err := fs.writeBytes(encKeyPEM, fs.encryptionKeyPath(keyRing.KeyRingIndex)); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	// We only generate PPK files for use by PuTTY when running tsh on Windows.
@@ -512,6 +533,24 @@ func (fs *FSKeyStore) DeleteKeyRing(idx KeyRingIndex) error {
 		log.DebugContext(context.Background(), "Could not remove kube credentials file", "error", err)
 	}
 
+	// Remove the encryption private key.
+	if err := utils.RemoveSecure(fs.encryptionKeyPath(idx)); err != nil && !errors.Is(err, iofs.ErrNotExist) {
+		deleteErrs = append(deleteErrs, trace.Wrap(err))
+	}
+
+	// Remove cached session credentials.
+	credPath := keypaths.UserCredentialPath(fs.KeyDir, idx.ProxyHost, idx.Username)
+	log.InfoContext(context.Background(), "Removing cached session credentials",
+		"cred_path", credPath,
+		"key_dir", fs.KeyDir,
+		"proxy_host", idx.ProxyHost,
+		"username", idx.Username,
+	)
+	if err := utils.RemoveSecure(credPath); err != nil && !errors.Is(err, iofs.ErrNotExist) {
+		log.ErrorContext(context.Background(), "Failed to remove cached session credentials", "error", err)
+		deleteErrs = append(deleteErrs, trace.Wrap(err))
+	}
+
 	// Clear ClusterName to delete the user certs stored for all clusters.
 	idx.ClusterName = ""
 	deleteErrs = append(deleteErrs, fs.DeleteUserCerts(idx, WithAllCerts...))
@@ -638,6 +677,16 @@ func (fs *FSKeyStore) GetKeyRing(idx KeyRingIndex, hwks hardwarekey.Service, opt
 	// readAccessGraphTLSCert returns nil bytes when the file isn't present,
 	// so this is a no-op for keyrings without an Access Graph cert.
 	keyRing.AccessGraphTLSCert = accessGraphTLSCert
+
+	// Load encryption private key if present.
+	if encKeyPEM, err := os.ReadFile(fs.encryptionKeyPath(idx)); err == nil {
+		block, _ := pem.Decode(encKeyPEM)
+		if block != nil {
+			if encKey, err := x509.ParseECPrivateKey(block.Bytes); err == nil {
+				keyRing.EncryptionPrivateKey = encKey
+			}
+		}
+	}
 
 	for _, o := range opts {
 		if err := fs.updateKeyRingWithCerts(o, hwks, keyRing); err != nil && !trace.IsNotFound(err) {

@@ -21,6 +21,8 @@ package git
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/base64"
 	"fmt"
 	"io"
 	"log/slog"
@@ -95,6 +97,7 @@ type HTTPHandler struct {
 	cfg            HTTPHandlerConfig
 	authMiddleware *authz.Middleware
 	recorders      *utils.FnCache
+	accessTokens   *utils.FnCache
 	closeCtx       context.Context
 	cancel         context.CancelFunc
 }
@@ -159,6 +162,15 @@ func NewHTTPHandler(closeCtx context.Context, cfg HTTPHandlerConfig) (*HTTPHandl
 	}
 	h.recorders = recorders
 
+	accessTokens, err := utils.NewFnCache(utils.FnCacheConfig{
+		TTL:     5 * time.Minute,
+		Context: closeCtx,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	h.accessTokens = accessTokens
+
 	// Background goroutine to periodically expire and upload session recordings.
 	// FnCache cleanup is lazy (only on get()), so without this, recordings
 	// would never upload after the last request.
@@ -220,21 +232,59 @@ func (h *HTTPHandler) serveHTTP(w http.ResponseWriter, r *http.Request) error {
 		return trace.Wrap(err)
 	}
 
-	tokenReq := &gitserverv1.GenerateGitHubAppTokenRequest{}
-	tokenReq.SetUserCert(r.TLS.PeerCertificates[0].Raw)
-	tokenResp, err := h.cfg.GitCredentialsClient.GenerateGitHubAppToken(ctx, tokenReq)
+	accessToken, err := h.resolveAccessToken(ctx, r)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	switch r.Host {
 	case "github.com":
-		return h.handleGitCommand(ctx, w, r, identity, routeToGit, tokenResp.GetAccessToken())
+		return h.handleGitCommand(ctx, w, r, identity, routeToGit, accessToken)
 	case "api.github.com":
-		return h.handleAPI(ctx, w, r, identity, routeToGit, tokenResp.GetAccessToken())
+		return h.handleAPI(ctx, w, r, identity, routeToGit, accessToken)
 	default:
 		return trace.AccessDenied("unsupported host %q", r.Host)
 	}
+}
+
+// resolveAccessToken gets the GitHub access token, using a cache keyed by the
+// hash of the input auth-encrypted token. This ensures that a refreshed token
+// triggers a cache miss and a fresh KMS decrypt.
+func (h *HTTPHandler) resolveAccessToken(ctx context.Context, r *http.Request) (string, error) {
+	tokenReq := &gitserverv1.GenerateGitHubAppTokenRequest{}
+	tokenReq.SetUserCert(r.TLS.PeerCertificates[0].Raw)
+
+	var cacheKey string
+	if kmsTokenB64 := r.Header.Get("X-Teleport-Git-Token"); kmsTokenB64 != "" {
+		kmsToken, decErr := base64.StdEncoding.DecodeString(kmsTokenB64)
+		if decErr != nil {
+			return "", trace.Wrap(decErr, "decoding KMS token header")
+		}
+		tokenReq.SetKmsEncryptedToken(kmsToken)
+		hash := sha256.Sum256(kmsToken)
+		cacheKey = fmt.Sprintf("%x", hash[:16])
+	} else {
+		identity, err := getIdentityFromCert(r)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+		cacheKey = identity.RouteToGit.SessionID
+	}
+
+	r.Header.Del("X-Teleport-Git-Token")
+
+	token, err := utils.FnCacheGet(ctx, h.accessTokens, cacheKey, func(ctx context.Context) (string, error) {
+		tokenResp, genErr := h.cfg.GitCredentialsClient.GenerateGitHubAppToken(ctx, tokenReq)
+		if genErr != nil {
+			return "", trace.Wrap(genErr)
+		}
+		return tokenResp.GetAccessToken(), nil
+	})
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return token, nil
 }
 
 // authorize checks that the user has access to the git server.

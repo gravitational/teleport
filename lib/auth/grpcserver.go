@@ -89,6 +89,7 @@ import (
 	stableunixusersv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/stableunixusers/v1"
 	summarizerv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	trustv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
+	userexternalsecretsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userexternalsecrets/v1"
 	userloginstatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userloginstate/v1"
 	userprovisioningv2pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	usersv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
@@ -140,6 +141,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/stableunixusers"
 	"github.com/gravitational/teleport/lib/auth/summarizer/summarizerv1"
 	"github.com/gravitational/teleport/lib/auth/trust/trustv1"
+	userexternalsecretsv1svc "github.com/gravitational/teleport/lib/auth/userexternalsecrets/userexternalsecretsv1"
 	"github.com/gravitational/teleport/lib/auth/userloginstate/userloginstatev1"
 	"github.com/gravitational/teleport/lib/auth/userpreferences/userpreferencesv1"
 	"github.com/gravitational/teleport/lib/auth/userprovisioning/userprovisioningv2"
@@ -6346,16 +6348,17 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	dbobjectv1pb.RegisterDatabaseObjectServiceServer(server, dbObjectService)
 
 	delegationSessionService, err := delegationv1.NewSessionService(delegationv1.SessionServiceConfig{
-		Authorizer:        cfg.Authorizer,
-		SessionReader:     cfg.AuthServer,
-		SessionWriter:     cfg.AuthServer,
-		ResourceLister:    cfg.AuthServer,
-		RoleGetter:        cfg.AuthServer,
-		UserGetter:        cfg.AuthServer,
-		CertGenerator:     cfg.AuthServer,
-		ClusterNameGetter: cfg.AuthServer,
-		AppSessionCreator: delegationv1.AppSessionCreatorFunc(cfg.AuthServer.CreateAppSessionFromReq),
-		Logger:            cfg.AuthServer.logger.With(teleport.ComponentKey, "delegation_sessions"),
+		Authorizer:          cfg.Authorizer,
+		SessionReader:       cfg.AuthServer,
+		SessionWriter:       cfg.AuthServer,
+		ResourceLister:      cfg.AuthServer,
+		RoleGetter:          cfg.AuthServer,
+		UserGetter:          cfg.AuthServer,
+		CertGenerator:       cfg.AuthServer,
+		ClusterNameGetter:   cfg.AuthServer,
+		AppSessionCreator:   delegationv1.AppSessionCreatorFunc(cfg.AuthServer.CreateAppSessionFromReq),
+		SessionCredentials: cfg.AuthServer.Services,
+		Logger:              cfg.AuthServer.logger.With(teleport.ComponentKey, "delegation_sessions"),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "creating delegation session service")
@@ -6753,6 +6756,9 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 			return cert, nil
 		},
 		TokenEncryptor: cfg.AuthServer,
+		RawBackend:     cfg.AuthServer.bk,
+		Distributor:    cfg.AuthServer.distributeDoubleEncryptedToken,
+		Semaphores:     cfg.AuthServer.Services,
 		Clock:          cfg.AuthServer.clock,
 	})
 	if err != nil {
@@ -6877,6 +6883,16 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	if !cfg.AuthServer.modules.Features().Cloud {
 		workloadclusterv1pb.RegisterWorkloadClusterServiceServer(server, workloadclusterv1.NewService())
 	}
+
+	userExternalSecretSvc, err := userexternalsecretsv1svc.NewService(userexternalsecretsv1svc.ServiceConfig{
+		Authorizer:         cfg.Authorizer,
+		SessionCredentials: cfg.AuthServer.Services,
+		SecretDecryptor:    cfg.AuthServer,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	userexternalsecretsv1pb.RegisterUserExternalSecretServiceServer(server, userExternalSecretSvc)
 
 	return authServer, nil
 }
