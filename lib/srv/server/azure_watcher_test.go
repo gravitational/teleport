@@ -19,10 +19,8 @@
 package server
 
 import (
-	"cmp"
 	"context"
 	"fmt"
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -723,28 +721,6 @@ func TestMakeUsageEvent(t *testing.T) {
 	}
 }
 
-func TestNewAzureInstanceFetcherMatcherType(t *testing.T) {
-	t.Parallel()
-
-	for _, tc := range []struct {
-		name  string
-		types []string
-		want  string
-	}{
-		{name: "vm", types: []string{types.AzureMatcherVM}, want: types.AzureMatcherVM},
-		{name: "windows-vm", types: []string{types.AzureMatcherWindowsVM}, want: types.AzureMatcherWindowsVM},
-		{name: "combined prefers vm", types: []string{types.AzureMatcherVM, types.AzureMatcherWindowsVM}, want: types.AzureMatcherVM},
-		{name: "empty defaults to vm", types: nil, want: types.AzureMatcherVM},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			f := newAzureInstanceFetcher(azureFetcherConfig{
-				Matcher: types.AzureMatcher{Types: tc.types},
-			})
-			require.Equal(t, tc.want, f.MatcherType)
-		})
-	}
-}
-
 func TestPrimaryPrivateIP(t *testing.T) {
 	t.Parallel()
 
@@ -814,7 +790,7 @@ func (f *fakeInterfacesClient) List(context.Context, string, string) (map[string
 	return f.nicsByVM, nil
 }
 
-func windowsVMFetcher(t *testing.T, clients azure.Clients, nicGetter interfacesClientGetter, regions []string) *azureInstanceFetcher {
+func windowsVMFetcher(t *testing.T, clients azure.Clients, nicGetter networkInterfacesClientGetter, regions []string) *azureInstanceFetcher {
 	t.Helper()
 	const (
 		sub = "00000000-0000-0000-0000-000000000000"
@@ -826,13 +802,14 @@ func windowsVMFetcher(t *testing.T, clients azure.Clients, nicGetter interfacesC
 			Regions:      regions,
 			ResourceTags: types.Labels{"*": []string{"*"}},
 		},
+		MatcherType:   types.AzureMatcherWindowsVM,
 		Subscription:  sub,
 		ResourceGroup: rg,
 		AzureClientGetter: func(context.Context, string) (azure.Clients, error) {
 			return clients, nil
 		},
-		InterfacesClientGetter: nicGetter,
-		Logger:                 logtest.NewLogger(),
+		NetworkInterfacesClientGetter: nicGetter,
+		Logger:                        logtest.NewLogger(),
 	})
 }
 
@@ -936,72 +913,25 @@ func TestAzureFetcherGetInstancesWindows(t *testing.T) {
 	}, gotIPByName)
 }
 
-// TestAzureFetcherGetInstancesWindowsLive exercises the full Windows VM discovery
-// path — listing VMs and resolving each VM's private IP from its NIC — against a
-// real Azure subscription. It is skipped unless TELEPORT_TEST_AZURE is set. No
-// fakes are injected, so it builds and calls the real virtual machines and
-// network interfaces clients.
-//
-// Prerequisites:
-//   - Authenticate so DefaultAzureCredential can find a credential, e.g. run
-//     `az login`, or set AZURE_TENANT_ID / AZURE_CLIENT_ID / AZURE_CLIENT_SECRET.
-//     The identity needs Microsoft.Compute/virtualMachines/read and
-//     Microsoft.Network/networkInterfaces/read on the target resources.
-//   - Set AZURE_SUBSCRIPTION_ID to a subscription that has at least one Windows VM.
-//   - Optionally set AZURE_RESOURCE_GROUP and AZURE_REGION to narrow the search;
-//     both default to the wildcard (whole subscription / all regions).
-//
-// Run with:
-//
-//	TELEPORT_TEST_AZURE=1 \
-//	AZURE_SUBSCRIPTION_ID=<sub> \
-//	AZURE_RESOURCE_GROUP=<rg> \
-//	AZURE_REGION=<region> \
-//	go test ./lib/srv/server/ -run TestAzureFetcherGetInstancesWindowsLive -v
-func TestAzureFetcherGetInstancesWindowsLive(t *testing.T) {
-	if os.Getenv("TELEPORT_TEST_AZURE") == "" {
-		t.Skip("Set TELEPORT_TEST_AZURE to run this test against a real Azure subscription.")
+func TestMatchersToAzureInstanceFetchersMatcherTypes(t *testing.T) {
+	t.Parallel()
+
+	fetchers := MatchersToAzureInstanceFetchers(
+		t.Context(),
+		logtest.NewLogger(),
+		[]types.AzureMatcher{{
+			Types:          []string{types.AzureMatcherVM, types.AzureMatcherWindowsVM},
+			Subscriptions:  []string{"sub1"},
+			ResourceGroups: []string{"rg1"},
+		}},
+		nil,
+		"",
+		nil,
+	)
+
+	var matcherTypes []string
+	for _, fetcher := range fetchers {
+		matcherTypes = append(matcherTypes, fetcher.(*azureInstanceFetcher).MatcherType)
 	}
-	subscription := os.Getenv("AZURE_SUBSCRIPTION_ID")
-	if subscription == "" {
-		t.Skip("Set AZURE_SUBSCRIPTION_ID to the subscription to search for Windows VMs.")
-	}
-	resourceGroup := cmp.Or(os.Getenv("AZURE_RESOURCE_GROUP"), types.Wildcard)
-	region := cmp.Or(os.Getenv("AZURE_REGION"), types.Wildcard)
-
-	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
-	defer cancel()
-
-	clients, err := azure.NewClients()
-	require.NoError(t, err, "failed to build Azure clients, have you run `az login`?")
-
-	fetcher := newAzureInstanceFetcher(azureFetcherConfig{
-		Matcher: types.AzureMatcher{
-			Types:        []string{types.AzureMatcherWindowsVM},
-			Regions:      []string{region},
-			ResourceTags: types.Labels{"*": []string{"*"}},
-		},
-		Subscription:  subscription,
-		ResourceGroup: resourceGroup,
-		AzureClientGetter: func(context.Context, string) (azure.Clients, error) {
-			return clients, nil
-		},
-		// InterfacesClientGetter is intentionally left unset so the fetcher builds
-		// and uses the real Azure network interfaces client.
-		Logger: logtest.NewLogger(),
-	})
-
-	instances, err := fetcher.GetInstances(ctx, false)
-	require.NoError(t, err)
-
-	var total int
-	for _, group := range instances {
-		for _, vm := range group.Instances {
-			total++
-			t.Logf("Windows VM %q (region=%q, resourceGroup=%q, vmID=%q): private IP=%q",
-				vm.Name, vm.Location, vm.ResourceGroup, vm.VMID, vm.PrimaryPrivateIP)
-		}
-	}
-	t.Logf("Discovered %d Windows VM(s) in subscription %q (resourceGroup=%q, region=%q)",
-		total, subscription, resourceGroup, region)
+	require.ElementsMatch(t, []string{types.AzureMatcherVM, types.AzureMatcherWindowsVM}, matcherTypes)
 }
