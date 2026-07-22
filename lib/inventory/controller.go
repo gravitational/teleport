@@ -60,7 +60,7 @@ type Auth interface {
 
 	UpsertApplicationServer(context.Context, types.AppServer) (*types.KeepAlive, error)
 	UnconditionalUpdateApplicationServer(context.Context, types.AppServer) (types.AppServer, error)
-	DeleteApplicationServer(ctx context.Context, namespace, hostID, name string) error
+	DeleteAppServer(ctx context.Context, req *presencev1.DeleteAppServerRequest) error
 
 	UpsertDatabaseServer(context.Context, types.DatabaseServer) (*types.KeepAlive, error)
 	DeleteDatabaseServer(ctx context.Context, namespace, hostID, name string) error
@@ -791,7 +791,11 @@ func (c *Controller) doResourceCleanup(handle *upstreamHandle) {
 			return
 		}
 
-		if err := c.auth.DeleteApplicationServer(cleanupCtx, apidefaults.Namespace, app.resource.GetHostID(), app.resource.GetName()); err != nil && !trace.IsNotFound(err) {
+		if err := c.auth.DeleteAppServer(cleanupCtx, presencev1.DeleteAppServerRequest_builder{
+			HostId: app.resource.GetHostID(),
+			Name:   app.resource.GetName(),
+			Scope:  app.resource.GetScope(),
+		}.Build()); err != nil && !trace.IsNotFound(err) {
 			if cleanupCtx.Err() != nil {
 				slog.WarnContext(c.closeContext, "halting remaining resource cleanup", "instance_id", handle.Hello().GetServerID(), "error", err)
 				return

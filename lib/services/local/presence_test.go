@@ -49,99 +49,261 @@ import (
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/defaults"
 	iterstream "github.com/gravitational/teleport/lib/itertools/stream"
+	"github.com/gravitational/teleport/lib/scopes"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 // TestApplicationServersCRUD verifies backend operations on app servers.
 func TestApplicationServersCRUD(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
 
-	backend, err := memory.New(memory.Config{
+	mem, err := memory.New(memory.Config{
 		Clock: clock,
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { _ = backend.Close() })
+	t.Cleanup(func() { _ = mem.Close() })
 
-	presence := NewPresenceService(backend)
+	// Wrap in the sanitizer so keys with illegal component characters (e.g. a
+	// "/" inside a single component) fail the same way they would on real
+	// backends; the raw memory backend accepts them silently.
+	presence := NewPresenceService(backend.NewSanitizer(mem))
 
-	// Make an app and an app server.
-	appA, err := types.NewAppV3(types.Metadata{Name: "a"},
-		types.AppSpecV3{URI: "http://localhost:8080"})
-	require.NoError(t, err)
-	serverA, err := types.NewAppServerV3(types.Metadata{
-		Name: appA.GetName(),
-	}, types.AppServerSpecV3{
-		Hostname: "localhost",
-		HostID:   uuid.New().String(),
-		App:      appA,
+	t.Run("unscoped application servers", func(t *testing.T) {
+		ctx := t.Context()
+		// Make an app and an app server.
+		appA, err := types.NewAppV3(types.Metadata{Name: "a"},
+			types.AppSpecV3{URI: "http://localhost:8080"})
+		require.NoError(t, err)
+		serverA, err := types.NewAppServerV3(types.Metadata{
+			Name: appA.GetName(),
+		}, types.AppServerSpecV3{
+			Hostname: "localhost",
+			HostID:   uuid.New().String(),
+			App:      appA,
+		})
+		require.NoError(t, err)
+
+		// Make another app and an app server.
+		appB, err := types.NewAppV3(types.Metadata{Name: "b"},
+			types.AppSpecV3{URI: "http://localhost:8081"})
+		require.NoError(t, err)
+		serverB, err := types.NewAppServerV3(types.Metadata{
+			Name: appB.GetName(),
+		}, types.AppServerSpecV3{
+			Hostname: "localhost",
+			HostID:   uuid.New().String(),
+			App:      appB,
+		})
+		require.NoError(t, err)
+
+		// No app servers should be registered initially
+		out, err := presence.GetApplicationServers(ctx, apidefaults.Namespace)
+		require.NoError(t, err)
+		require.Empty(t, out)
+
+		// Create app servers.
+		lease, err := presence.UpsertApplicationServer(ctx, serverA)
+		require.NoError(t, err)
+		require.Equal(t, &types.KeepAlive{}, lease)
+		lease, err = presence.UpsertApplicationServer(ctx, serverB)
+		require.NoError(t, err)
+		require.Equal(t, &types.KeepAlive{}, lease)
+
+		// Make sure all app servers are registered.
+		out, err = presence.GetApplicationServers(ctx, serverA.GetNamespace())
+		require.NoError(t, err)
+		servers := types.AppServers(out)
+		require.NoError(t, servers.SortByCustom(types.SortBy{Field: types.ResourceMetadataName}))
+		require.Empty(t, cmp.Diff([]types.AppServer{serverA, serverB}, out,
+			cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+		// Delete an app server.
+		err = presence.DeleteAppServer(ctx, presencev1.DeleteAppServerRequest_builder{
+			HostId: serverA.GetHostID(),
+			Name:   serverA.GetName(),
+			Scope:  serverA.GetScope(),
+		}.Build())
+		require.NoError(t, err)
+
+		// Expect only one to return.
+		out, err = presence.GetApplicationServers(ctx, apidefaults.Namespace)
+		require.NoError(t, err)
+		require.Empty(t, cmp.Diff([]types.AppServer{serverB}, out,
+			cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+		// Upsert server with TTL.
+		serverA.SetExpiry(clock.Now().UTC().Add(time.Hour))
+		lease, err = presence.UpsertApplicationServer(ctx, serverA)
+		require.NoError(t, err)
+		require.Equal(t, &types.KeepAlive{
+			Type:      types.KeepAlive_APP,
+			Name:      serverA.GetName(),
+			Namespace: serverA.GetNamespace(),
+			HostID:    serverA.GetHostID(),
+			Expires:   serverA.Expiry(),
+		}, lease)
+
+		// Delete all app servers.
+		err = presence.DeleteAllApplicationServers(ctx, serverA.GetNamespace())
+		require.NoError(t, err)
+
+		// Expect no servers to return.
+		out, err = presence.GetApplicationServers(ctx, apidefaults.Namespace)
+		require.NoError(t, err)
+		require.Empty(t, out)
 	})
-	require.NoError(t, err)
 
-	// Make another app and an app server.
-	appB, err := types.NewAppV3(types.Metadata{Name: "b"},
-		types.AppSpecV3{URI: "http://localhost:8081"})
-	require.NoError(t, err)
-	serverB, err := types.NewAppServerV3(types.Metadata{
-		Name: appB.GetName(),
-	}, types.AppServerSpecV3{
-		Hostname: "localhost",
-		HostID:   uuid.New().String(),
-		App:      appB,
+	t.Run("scoped application servers", func(t *testing.T) {
+		ctx := t.Context()
+		newAppServer := func(scope string) *types.AppServerV3 {
+			app, err := types.NewAppV3(types.Metadata{Name: "graf"},
+				types.AppSpecV3{URI: "http://localhost:8080"})
+			require.NoError(t, err)
+			app.Scope = scope
+			server, err := types.NewAppServerV3(types.Metadata{
+				Name: app.GetName(),
+			}, types.AppServerSpecV3{
+				Hostname: "localhost",
+				HostID:   uuid.New().String(),
+				App:      app,
+			})
+			require.NoError(t, err)
+			server.Scope = scope
+			return server
+		}
+
+		staging := newAppServer("/staging")
+		prod := newAppServer("/prod")
+		unscoped := newAppServer("")
+
+		for _, server := range []*types.AppServerV3{staging, prod, unscoped} {
+			lease, err := presence.UpsertApplicationServer(ctx, server)
+			require.NoError(t, err)
+			require.Equal(t, &types.KeepAlive{}, lease)
+		}
+
+		getScopes := func() []string {
+			out, err := presence.GetApplicationServers(ctx, apidefaults.Namespace)
+			require.NoError(t, err)
+			apps := []string{}
+			for _, server := range out {
+				apps = append(apps, server.GetScope())
+			}
+			return apps
+		}
+
+		// Same-named servers in different scopes must coexist.
+		require.ElementsMatch(t, []string{"", "/staging", "/prod"}, getScopes())
+
+		// Unconditional updates must land in the scoped range.
+		staging.SetExpiry(clock.Now().UTC().Add(time.Hour))
+		_, err := presence.UnconditionalUpdateApplicationServer(ctx, staging)
+		require.NoError(t, err)
+
+		// Deleting by (hostID, name, scope) must locate the scoped entry.
+		require.NoError(t, presence.DeleteAppServer(ctx, presencev1.DeleteAppServerRequest_builder{
+			HostId: staging.GetHostID(),
+			Name:   staging.GetName(),
+			Scope:  staging.GetScope(),
+		}.Build()))
+		require.ElementsMatch(t, []string{"", "/prod"}, getScopes())
+
+		// Deleting an unscoped entry uses the legacy layout.
+		require.NoError(t, presence.DeleteAppServer(ctx, presencev1.DeleteAppServerRequest_builder{
+			HostId: unscoped.GetHostID(),
+			Name:   unscoped.GetName(),
+			Scope:  unscoped.GetScope(),
+		}.Build()))
+		require.ElementsMatch(t, []string{"/prod"}, getScopes())
+
+		// Deleting a nonexistent server errors.
+		require.Error(t, presence.DeleteAppServer(ctx, presencev1.DeleteAppServerRequest_builder{
+			HostId: staging.GetHostID(),
+			Name:   staging.GetName(),
+			Scope:  staging.GetScope(),
+		}.Build()))
+
+		// DeleteAll clears both ranges.
+		require.NoError(t, presence.DeleteAllApplicationServers(ctx, apidefaults.Namespace))
+		require.Empty(t, getScopes())
 	})
-	require.NoError(t, err)
+}
 
-	// No app servers should be registered initially
-	out, err := presence.GetApplicationServers(ctx, apidefaults.Namespace)
-	require.NoError(t, err)
-	require.Empty(t, out)
+func TestListAppServersPagination(t *testing.T) {
+	t.Parallel()
 
-	// Create app servers.
-	lease, err := presence.UpsertApplicationServer(ctx, serverA)
+	mem, err := memory.New(memory.Config{})
 	require.NoError(t, err)
-	require.Equal(t, &types.KeepAlive{}, lease)
-	lease, err = presence.UpsertApplicationServer(ctx, serverB)
-	require.NoError(t, err)
-	require.Equal(t, &types.KeepAlive{}, lease)
+	t.Cleanup(func() { _ = mem.Close() })
+	presence := NewPresenceService(backend.NewSanitizer(mem))
+	ctx := t.Context()
 
-	// Make sure all app servers are registered.
-	out, err = presence.GetApplicationServers(ctx, serverA.GetNamespace())
-	require.NoError(t, err)
-	servers := types.AppServers(out)
-	require.NoError(t, servers.SortByCustom(types.SortBy{Field: types.ResourceMetadataName}))
-	require.Empty(t, cmp.Diff([]types.AppServer{serverA, serverB}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+	newAppServer := func(name, scope string) *types.AppServerV3 {
+		app, err := types.NewAppV3(types.Metadata{Name: name},
+			types.AppSpecV3{URI: "http://localhost:8080"}, scope)
+		require.NoError(t, err)
+		server, err := types.NewAppServerV3(types.Metadata{
+			Name: app.GetName(),
+		}, types.AppServerSpecV3{
+			Hostname: "localhost",
+			HostID:   uuid.New().String(),
+			App:      app,
+		}, scope)
+		require.NoError(t, err)
+		return server
+	}
 
-	// Delete an app server.
-	err = presence.DeleteApplicationServer(ctx, serverA.GetNamespace(), serverA.GetHostID(), serverA.GetName())
-	require.NoError(t, err)
+	key := func(s types.AppServer) string {
+		return s.GetScope() + "/" + s.GetHostID() + "/" + s.GetName()
+	}
 
-	// Expect only one to return.
-	out, err = presence.GetApplicationServers(ctx, apidefaults.Namespace)
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]types.AppServer{serverB}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+	var keysExpected []string
+	for _, scope := range []string{"", "", "", "/prod", "/prod", "/staging"} {
+		server := newAppServer("graf", scope)
+		_, err := presence.UpsertApplicationServer(ctx, server)
+		require.NoError(t, err)
+		keysExpected = append(keysExpected, key(server))
+	}
 
-	// Upsert server with TTL.
-	serverA.SetExpiry(clock.Now().UTC().Add(time.Hour))
-	lease, err = presence.UpsertApplicationServer(ctx, serverA)
-	require.NoError(t, err)
-	require.Equal(t, &types.KeepAlive{
-		Type:      types.KeepAlive_APP,
-		Name:      serverA.GetName(),
-		Namespace: serverA.GetNamespace(),
-		HostID:    serverA.GetHostID(),
-		Expires:   serverA.Expiry(),
-	}, lease)
+	var actualKeys []string
+	var sawScopedCursor bool
+	startKey := ""
+	// Loop through all the app servers and check that the NextKey matches the expected key
+	for {
+		resp, err := presence.ListResources(ctx, proto.ListResourcesRequest{
+			ResourceType: types.KindAppServer,
+			Namespace:    apidefaults.Namespace,
+			Limit:        1,
+			StartKey:     startKey,
+		})
+		require.NoError(t, err)
 
-	// Delete all app servers.
-	err = presence.DeleteAllApplicationServers(ctx, serverA.GetNamespace())
-	require.NoError(t, err)
+		r := resp.Resources[0]
+		server, ok := r.(types.AppServer)
+		require.True(t, ok)
+		if startKey != "" { // first entry
+			if startKey == scopes.ResourceCursorScopedStart() {
+				// The unscoped range ended exactly at a page boundary;
+				// next entry should be scoped
+				require.NotEmpty(t, server.GetScope())
+			} else {
+				require.Equal(t, startKey, services.GetCursorForAppServer(server))
+			}
+		}
+		actualKeys = append(actualKeys, key(server))
 
-	// Expect no servers to return.
-	out, err = presence.GetApplicationServers(ctx, apidefaults.Namespace)
-	require.NoError(t, err)
-	require.Empty(t, out)
+		if resp.NextKey == "" {
+			break
+		}
+		if scopes.IsScopedResourceCursor(resp.NextKey) {
+			sawScopedCursor = true
+		}
+		startKey = resp.NextKey
+	}
+
+	require.ElementsMatch(t, keysExpected, actualKeys)
+	require.True(t, sawScopedCursor)
 }
 
 func mustCreateApplicationServer(t *testing.T, appName string) types.AppServer {
@@ -205,7 +367,11 @@ func TestRangeApplicationServersWithName(t *testing.T) {
 	})
 
 	t.Run("DeletedServersNotReturned", func(t *testing.T) {
-		err := presence.DeleteApplicationServer(ctx, server1.GetNamespace(), server1.GetHostID(), server1.GetName())
+		err := presence.DeleteAppServer(ctx, presencev1.DeleteAppServerRequest_builder{
+			HostId: server1.GetHostID(),
+			Name:   server1.GetName(),
+			Scope:  server1.GetScope(),
+		}.Build())
 		require.NoError(t, err)
 
 		servers, err := iterstream.Collect(presence.RangeApplicationServersWithName(ctx, "shared-app"))
@@ -643,6 +809,40 @@ func TestListResources(t *testing.T) {
 					HostID:   uuid.New().String(),
 					App:      app,
 				})
+				if err != nil {
+					return err
+				}
+
+				// Upsert server.
+				_, err = presence.UpsertApplicationServer(ctx, server)
+				return err
+			},
+			deleteAllResourcesFunc: func(ctx context.Context, presence *PresenceService) error {
+				return presence.DeleteAllApplicationServers(ctx, apidefaults.Namespace)
+			},
+		},
+		"ScopedAppServers": {
+			resourceType: types.KindAppServer,
+			createResourceFunc: func(ctx context.Context, presence *PresenceService, name string, labels map[string]string) error {
+				const scope = "/staging"
+				app, err := types.NewAppV3(types.Metadata{
+					Name:   name,
+					Labels: labels,
+				}, types.AppSpecV3{
+					URI: "localhost",
+				}, scope)
+				if err != nil {
+					return err
+				}
+
+				server, err := types.NewAppServerV3(types.Metadata{
+					Name:   name,
+					Labels: labels,
+				}, types.AppServerSpecV3{
+					Hostname: "localhost",
+					HostID:   uuid.New().String(),
+					App:      app,
+				}, scope)
 				if err != nil {
 					return err
 				}

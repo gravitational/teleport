@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/utils"
@@ -1206,7 +1207,11 @@ func (h *Handler) awsOIDCDeleteAWSAppAccess(w http.ResponseWriter, r *http.Reque
 		return nil, trace.NotFound("app %s is not using integration %s", integrationAppServer.GetName(), integrationName)
 	}
 
-	if err := clt.DeleteApplicationServer(ctx, apidefaults.Namespace, integrationAppServer.GetHostID(), integrationName); err != nil {
+	if err := clt.DeleteAppServer(ctx, presencev1.DeleteAppServerRequest_builder{
+		HostId: integrationAppServer.GetHostID(),
+		Name:   integrationName,
+		Scope:  integrationAppServer.GetScope(),
+	}.Build()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

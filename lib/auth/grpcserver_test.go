@@ -62,6 +62,7 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	vnetv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
@@ -3981,7 +3982,11 @@ func TestApplicationServersCRUD(t *testing.T) {
 	))
 
 	// Delete an app server.
-	err = clt.DeleteApplicationServer(ctx, server1.GetNamespace(), server1.GetHostID(), server1.GetName())
+	err = clt.DeleteAppServer(ctx, presencev1.DeleteAppServerRequest_builder{
+		HostId: server1.GetHostID(),
+		Name:   server1.GetName(),
+		Scope:  server1.GetScope(),
+	}.Build())
 	require.NoError(t, err)
 	out, err = clt.GetApplicationServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
@@ -4217,7 +4222,11 @@ func TestAppServersCRUD(t *testing.T) {
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
-	require.NoError(t, clt.DeleteApplicationServer(ctx, apidefaults.Namespace, "hostID", appServer1.GetName()))
+	require.NoError(t, clt.DeleteAppServer(ctx, presencev1.DeleteAppServerRequest_builder{
+		HostId: "hostID",
+		Name:   appServer1.GetName(),
+		Scope:  appServer1.GetScope(),
+	}.Build()))
 
 	resources, err = clt.ListResources(ctx, proto.ListResourcesRequest{
 		ResourceType: types.KindAppServer,
@@ -4270,7 +4279,11 @@ func TestAppServersCRUD(t *testing.T) {
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
-	require.NoError(t, clt.DeleteApplicationServer(ctx, apidefaults.Namespace, "hostID", appServer2.GetName()))
+	require.NoError(t, clt.DeleteAppServer(ctx, presencev1.DeleteAppServerRequest_builder{
+		HostId: "hostID",
+		Name:   appServer2.GetName(),
+		Scope:  appServer2.GetScope(),
+	}.Build()))
 
 	resources, err = clt.ListResources(ctx, proto.ListResourcesRequest{
 		ResourceType: types.KindAppServer,

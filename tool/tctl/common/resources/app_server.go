@@ -28,6 +28,7 @@ import (
 
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -155,7 +156,11 @@ func deleteAppServer(ctx context.Context, client *authclient.Client, ref service
 	}
 
 	for _, server := range appServers {
-		if err := client.DeleteApplicationServer(ctx, server.GetNamespace(), server.GetHostID(), server.GetName()); err != nil {
+		if err := client.DeleteAppServer(ctx, presencev1.DeleteAppServerRequest_builder{
+			HostId: server.GetHostID(),
+			Name:   server.GetName(),
+			Scope:  server.GetScope(),
+		}.Build()); err != nil {
 			return trace.Wrap(err)
 		}
 	}

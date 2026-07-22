@@ -19,7 +19,6 @@ package cache
 import (
 	"context"
 	"iter"
-	"strings"
 
 	"github.com/gravitational/trace"
 	"rsc.io/ordered"
@@ -28,7 +27,6 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
-	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
@@ -168,7 +166,11 @@ func appServerByAppNameKey(s types.AppServer) string {
 	if app == nil {
 		return ""
 	}
-	return string(ordered.Encode(app.GetName(), s.GetHostID(), s.GetName()))
+	// The second component is the scope-aware resource cursor, so within each
+	// app name the in-memory ordering matches the backend listing order
+	// (unscoped first, then scoped) and index keys are interchangeable with
+	// the fallback pagination tokens.
+	return string(ordered.Encode(app.GetName(), services.GetCursorForAppServer(s)))
 }
 
 func newAppServerCollection(p services.Presence, w types.WatchKind) (*collection[types.AppServer, appServerIndex], error) {
@@ -181,9 +183,7 @@ func newAppServerCollection(p services.Presence, w types.WatchKind) (*collection
 			types.KindAppServer,
 			types.AppServer.Copy,
 			map[appServerIndex]func(types.AppServer) string{
-				appServerNameIndex: func(u types.AppServer) string {
-					return u.GetHostID() + "/" + u.GetName()
-				},
+				appServerNameIndex:    services.GetCursorForAppServer,
 				appServerAppNameIndex: appServerByAppNameKey,
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.AppServer, error) {
@@ -253,20 +253,20 @@ func (c *Cache) RangeApplicationServersWithName(ctx context.Context, appName str
 				return nil, "", trace.BadParameter("pagination token does not match the requested application name")
 			}
 
-			backendKey := ""
+			// The remainder of the token is the scope aware resource
+			// cursor
+			startKey := ""
 			if len(rest) > 0 {
-				var hostID, serverName string
-				if err := ordered.Decode(rest, &hostID, &serverName); err != nil {
+				if err := ordered.Decode(rest, &startKey); err != nil {
 					return nil, "", trace.Wrap(err)
 				}
-				backendKey = hostID + "/" + serverName
 			}
 
 			resp, err := c.Config.Presence.ListResources(ctx, clientproto.ListResourcesRequest{
 				ResourceType: types.KindAppServer,
 				Namespace:    defaults.Namespace,
 				Limit:        int32(pageSize),
-				StartKey:     backendKey,
+				StartKey:     startKey,
 			})
 			if err != nil {
 				return nil, "", trace.Wrap(err)
@@ -286,11 +286,7 @@ func (c *Cache) RangeApplicationServersWithName(ctx context.Context, appName str
 
 			next := ""
 			if resp.NextKey != "" {
-				hostID, serverName, ok := strings.Cut(resp.NextKey, backend.SeparatorString)
-				if !ok {
-					return nil, "", trace.BadParameter("invalid pagination token: %q", resp.NextKey)
-				}
-				next = string(ordered.Encode(appName, hostID, serverName))
+				next = string(ordered.Encode(appName, resp.NextKey))
 			}
 			return page, next, nil
 		}

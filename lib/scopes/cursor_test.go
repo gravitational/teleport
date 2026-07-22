@@ -53,6 +53,18 @@ func TestResourceCursor(t *testing.T) {
 		require.Equal(t, ResourceCursorPrefix, ResourceCursorScopedStart())
 		require.True(t, IsScopedResourceCursor(ResourceCursorScopedStart()))
 	})
+
+	t.Run("unscoped with host", func(t *testing.T) {
+		cursor := MakeResourceCursorWithHost("", "host-id", "name")
+		require.Equal(t, "host-id/name", cursor)
+		require.False(t, IsScopedResourceCursor(cursor))
+	})
+
+	t.Run("scoped with host", func(t *testing.T) {
+		cursor := MakeResourceCursorWithHost("/aa/bb", "host-id", "name")
+		require.True(t, IsScopedResourceCursor(cursor))
+		require.Equal(t, MakeResourceCursor("/aa/bb", "host-id/name"), cursor)
+	})
 }
 
 func TestParseResourceCursorErrors(t *testing.T) {

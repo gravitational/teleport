@@ -31,6 +31,7 @@ import (
 
 	"github.com/gravitational/teleport/api/defaults"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authtest"
@@ -721,7 +722,11 @@ func TestHostUniqueCheck(t *testing.T) {
 				require.NoError(t, err)
 			},
 			deleter: func(t *testing.T, hostID string) {
-				require.NoError(t, a.DeleteApplicationServer(t.Context(), defaults.Namespace, hostID, "test-app"))
+				require.NoError(t, a.DeleteAppServer(t.Context(),
+					presencev1.DeleteAppServerRequest_builder{
+						HostId: hostID,
+						Name:   "test-app",
+					}.Build()))
 			},
 		},
 		{
@@ -768,7 +773,10 @@ func TestHostUniqueCheck(t *testing.T) {
 				require.NoError(t, err)
 			},
 			deleter: func(t *testing.T, hostID string) {
-				require.NoError(t, a.DeleteApplicationServer(t.Context(), defaults.Namespace, hostID, "test-okta-app"))
+				require.NoError(t, a.DeleteAppServer(t.Context(), presencev1.DeleteAppServerRequest_builder{
+					HostId: hostID,
+					Name:   "test-okta-app",
+				}.Build()))
 			},
 		},
 	}
