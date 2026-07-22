@@ -1708,13 +1708,15 @@ func (g *GRPCServer) UpsertApplicationServer(ctx context.Context, req *authpb.Up
 }
 
 // DeleteApplicationServer deletes an application server.
+//
+// Deprecated: Use DeleteAppServer from the presence service instead.
+// TODO (williamo): Remove in v20
 func (g *GRPCServer) DeleteApplicationServer(ctx context.Context, req *authpb.DeleteApplicationServerRequest) (*emptypb.Empty, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	err = auth.DeleteApplicationServer(ctx, req.GetNamespace(), req.GetHostID(), req.GetName())
-	if err != nil {
+	if err := auth.DeleteApplicationServer(ctx, req.GetNamespace(), req.GetHostID(), req.GetName()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &emptypb.Empty{}, nil
