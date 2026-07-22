@@ -955,7 +955,16 @@ func (s *Server) databaseFetchersFromMatchers(matchers Matchers, discoveryConfig
 		fetchers = append(fetchers, databaseFetchers...)
 	}
 
-	// There are no Database Matchers for GCP Matchers.
+	// GCP
+	gcpDatabaseMatchers, _ := splitMatchers(matchers.GCP, db.IsGCPMatcherType)
+	if len(gcpDatabaseMatchers) > 0 {
+		databaseFetchers, err := db.MakeGCPFetchers(s.Log, s.gcpClients, gcpDatabaseMatchers, discoveryConfigName)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		fetchers = append(fetchers, databaseFetchers...)
+	}
+
 	// There are no Database Matchers for Kube Matchers.
 
 	return fetchers, nil
@@ -1102,9 +1111,6 @@ func (s *Server) initGCPServerWatcher(ctx context.Context, vmMatchers []types.GC
 
 // initGCPWatchers starts GCP resource watchers based on types provided.
 func (s *Server) initGCPWatchers(ctx context.Context, matchers []types.GCPMatcher, discoveryConfigName string) error {
-	// return early if there are no matchers as GetGKEClient causes
-	// an error if there are no credentials present
-
 	vmMatchers, otherMatchers := splitMatchers(matchers, func(matcherType string) bool {
 		return matcherType == types.GCPMatcherCompute
 	})
@@ -1113,10 +1119,15 @@ func (s *Server) initGCPWatchers(ctx context.Context, matchers []types.GCPMatche
 		return trace.Wrap(err)
 	}
 
-	// If there's no GCP Client creds in the environment
-	// and call to GetGCP...Client
-	// Early exit if there's no Kube Matchers, to prevent the error.
-	if len(otherMatchers) == 0 {
+	// Database matchers (e.g. cloudsql) are handled by databaseFetchersFromMatchers,
+	// so keep only the GKE matchers here.
+	kubeMatchers, _ := splitMatchers(otherMatchers, func(matcherType string) bool {
+		return matcherType == types.GCPMatcherKubernetes
+	})
+
+	// GetGKEClient errors without GCP credentials; skip it so configs
+	// without GKE matchers don't require credentials.
+	if len(kubeMatchers) == 0 {
 		return nil
 	}
 
@@ -1128,7 +1139,7 @@ func (s *Server) initGCPWatchers(ctx context.Context, matchers []types.GCPMatche
 	if err != nil {
 		return trace.Wrap(err, "unable to create gcp project client")
 	}
-	for _, matcher := range otherMatchers {
+	for _, matcher := range kubeMatchers {
 		for _, projectID := range matcher.ProjectIDs {
 			for _, location := range matcher.Locations {
 				for _, t := range matcher.Types {

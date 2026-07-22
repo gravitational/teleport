@@ -29,6 +29,7 @@ import (
 
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/scopes"
 	fb "github.com/gravitational/teleport/lib/utils/fanoutbuffer"
 )
 
@@ -343,6 +344,12 @@ func (f *fanoutV2Stream) advance() (event types.Event, ok bool, err error) {
 				continue
 			}
 
+			// scope filtering is applied here rather than inside kind.Matches because the scope-matching
+			// logic lives in lib/scopes, which the api/types package that defines Matches cannot import.
+			if !WatchKindMatchesScope(kind, entry.Event.Resource) {
+				continue
+			}
+
 			if kind.LoadSecrets {
 				return entry.EventWithSecrets, true, nil
 			}
@@ -351,6 +358,30 @@ func (f *fanoutV2Stream) advance() (event types.Event, ok bool, err error) {
 	}
 
 	return types.Event{}, false, nil
+}
+
+// WatchKindMatchesScope reports whether the given resource satisfies the watch kind's scope filter. A
+// nil scope filter matches everything. The resource's scope is read via the optional GetScope accessor
+// (implemented by scoped resources and the Resource153 legacy adapter); resources that are not scope-aware
+// report an empty scope, which scopes.MatchScope treats as unscoped.
+//
+// This is the scope-filtering counterpart to [types.WatchKind.Matches] and must be applied by every
+// event source that honors watch kinds (the fanout and the local backend event parsers), so that a
+// scope filter selects the same set of events regardless of which source serves the watch.
+//
+// TODO(fspmarshall/scopes): at some point it may be worth moving core scope-matching logic to api
+// so that we can fold this functionality back into [WatchKind.Matches].
+func WatchKindMatchesScope(kind types.WatchKind, resource types.Resource) bool {
+	if kind.ScopeFilter == nil {
+		return true
+	}
+
+	var scope string
+	if scoped, ok := resource.(interface{ GetScope() string }); ok {
+		scope = scoped.GetScope()
+	}
+
+	return scopes.MatchScope(kind.ScopeFilter.ToProto(), scope)
 }
 
 // fanoutV2Entry is the underlying buffer entry that is fanned out to all

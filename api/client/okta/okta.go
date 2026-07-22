@@ -172,6 +172,15 @@ func (c *Client) DeleteOktaAssignment(ctx context.Context, name string) error {
 	return trace.Wrap(err)
 }
 
+// ConditionalDeleteOktaAssignment removes the specified Okta assignment resource, protected by optimistic locking.
+func (c *Client) ConditionalDeleteOktaAssignment(ctx context.Context, name, revision string) error {
+	_, err := c.grpcClient.DeleteOktaAssignment(ctx, &oktapb.DeleteOktaAssignmentRequest{
+		Name:     name,
+		Revision: revision,
+	})
+	return trace.Wrap(err)
+}
+
 // DeleteAllOktaAssignments removes all Okta assignments.
 func (c *Client) DeleteAllOktaAssignments(ctx context.Context) error {
 	_, err := c.grpcClient.DeleteAllOktaAssignments(ctx, &oktapb.DeleteAllOktaAssignmentsRequest{})

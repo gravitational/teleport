@@ -40,8 +40,8 @@ type appClient struct {
 }
 
 // Get gets the Teleport app of a given name
-func (r appClient) Get(ctx context.Context, name string) (types.Application, error) {
-	app, err := r.teleportClient.GetApp(ctx, name)
+func (r appClient) Get(ctx context.Context, key reconcilers.ResourceKey) (types.Application, error) {
+	app, err := r.teleportClient.GetApp(ctx, key.Name)
 	return app, trace.Wrap(err)
 }
 
@@ -56,8 +56,8 @@ func (r appClient) Update(ctx context.Context, app types.Application) error {
 }
 
 // Delete deletes a Teleport app
-func (r appClient) Delete(ctx context.Context, name string) error {
-	return trace.Wrap(r.teleportClient.DeleteApp(ctx, name))
+func (r appClient) Delete(ctx context.Context, key reconcilers.ResourceKey) error {
+	return trace.Wrap(r.teleportClient.DeleteApp(ctx, key.Name))
 }
 
 // NewAppV3Reconciler instantiates a new Kubernetes controller reconciling app v6 resources

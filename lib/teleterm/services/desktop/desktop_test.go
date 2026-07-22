@@ -17,6 +17,8 @@
 package desktop
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/gravitational/trace"
@@ -28,18 +30,25 @@ import (
 var desktopURI = uri.NewClusterURI("foo").AppendWindowsDesktop("bar")
 var login = "admin"
 
-func TestSetDirectory(t *testing.T) {
-	path := t.TempDir()
+func TestShareDirectory(t *testing.T) {
+	basePath := t.TempDir()
+	directoryOne := filepath.Join(basePath, "one")
+	directoryTwo := filepath.Join(basePath, "two")
+	require.NoError(t, os.Mkdir(directoryOne, 0700))
+	require.NoError(t, os.Mkdir(directoryTwo, 0700))
 	session, err := NewSession(desktopURI, login)
 	require.NoError(t, err)
 
-	// Clean state, share the directory.
-	err = session.SetSharedDirectory(path)
-	require.NoError(t, err)
+	// Share each directory
+	require.NoError(t, session.ShareDirectory(directoryOne, 1))
+	require.NoError(t, session.ShareDirectory(directoryTwo, 2))
 
-	// Attempt to share another directory.
-	err = session.SetSharedDirectory("any_path")
-	require.True(t, trace.IsAlreadyExists(err))
+	// Try to re-use a directory_id
+	err = session.ShareDirectory("any_path", 2)
+	require.ErrorAs(t, err, new(*trace.AlreadyExistsError))
+
+	// Share invalid directory
+	require.ErrorAs(t, session.ShareDirectory("any", 3), new(*trace.NotFoundError))
 }
 
 func TestGetDirectory(t *testing.T) {
@@ -47,13 +56,13 @@ func TestGetDirectory(t *testing.T) {
 	session, err := NewSession(desktopURI, login)
 	require.NoError(t, err)
 
-	_, err = session.GetDirectoryAccess()
+	_, err = session.GetDirectoryAccess(1)
 	require.True(t, trace.IsNotFound(err))
 
-	err = session.SetSharedDirectory(path)
+	err = session.ShareDirectory(path, 1)
 	require.NoError(t, err)
 
-	access, err := session.GetDirectoryAccess()
+	access, err := session.GetDirectoryAccess(1)
 	require.NoError(t, err)
 	_, err = access.Stat("")
 	require.NoError(t, err)

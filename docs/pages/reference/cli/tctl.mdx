@@ -104,11 +104,12 @@ Flags:
 |Flag|Default|Description|
 |---|---|---|
 |`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format. (Values: text, json, yaml)|
-|`--from`|*no default*|Show access activity at or after this time; enables the activity columns. (Examples: 2006-01-02T15:04:05Z07:00, 2006-01-02, 24h, 7d). Default: activity hidden.|
+|`--from`|`24h`|Show access activity at or after this time. (Examples: 2006-01-02T15:04:05Z07:00, 2006-01-02, 24h, 7d).|
 |`--limit`|`50`|Maximum number of identities to return.|
-|`--[no-]detailed`|`false`|In text output, show each grantor with its individual access level instead of the summary counts.|
+|`--[no-]activity`|`true`|Use --no-activity to skip the activity lookup (on by default) for a faster, structural-only review; takes priority over --from/--to.|
+|`--[no-]detailed`|`false`|In text output, show each grant with its individual access level instead of the summary counts.|
 |`--query`|*no default*|SQL SELECT against access_path scoping the identities to review.|
-|`--to`|*no default*|Upper bound for access activity. Defaults to now when --from is set; requires --from.|
+|`--to`|`now`|Upper bound for access activity.|
 
 ## tctl acl create
 
@@ -397,7 +398,7 @@ Arguments:
 |access-list-name|*no default* (required)|The Access List name.|
 |expires|*no default* (optional)|When the user's access expires (must be in RFC3339). Defaults to the expiration time of the Access List.|
 |reason|*no default* (optional)|The reason the user has been added to the Access List. Defaults to empty.|
-|user|*no default* (required)|The user to add to the Access List.|
+|user|*no default* (required)|The member to add to the Access List.|
 
 ## tctl acl users ls
 
@@ -436,7 +437,7 @@ Arguments:
 |Argument|Default|Description|
 |---|---|---|
 |access-list-name|*no default* (required)|The Access List name.|
-|user|*no default* (required)|The user to remove from the Access List.|
+|user|*no default* (required)|The member to remove from the Access List.|
 
 ## tctl alerts ack
 
@@ -1657,6 +1658,22 @@ Flags:
 |`--format`|*no default*|output format, 'yaml' or 'json'|
 |`--sp`|*no default*|name of a file containing service provider spec|
 |`-u`, `--users`|*no default*|username or name of a file containing user spec|
+
+## tctl integrations awsic accounts ls
+
+List AWS Identity Center accounts and their permission sets.
+
+Usage:
+
+```code
+$ tctl integrations awsic accounts ls [<flags>]
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format.|
 
 ## tctl integrations test
 
