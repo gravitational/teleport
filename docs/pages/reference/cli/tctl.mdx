@@ -2839,6 +2839,7 @@ Flags:
 |`--bot-ttl`|`1h`|Time-to-live of the Bot resource. The bot will be removed after this period. Defaults to \[1h\]|
 |`--resource-prefix`|`tctl-terraform-env-`|Resource prefix to use when creating the Terraform role and bots. Defaults to \[tctl-terraform-env-\]|
 |`--role`|*no default*|Role used by Terraform. The role must already exist in Teleport. When not specified, uses the default role "terraform-provider"|
+|`--scope`|*no default*|Scope of the bot used by the Terraform provider. When empty, TF provider runs unscoped.|
 
 ## tctl tokens add
 
