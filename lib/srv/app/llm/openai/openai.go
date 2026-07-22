@@ -150,7 +150,9 @@ func NewRequest(cfg *llmrequest.Config) (*http.Request, llmrequest.RequestInfo, 
 	}
 
 	body, err := utils.ReadAtMost(downstreamReader, teleport.MaxHTTPRequestSize)
-	_ = downstreamReader.Close()
+	if closeErr := downstreamReader.Close(); closeErr != nil {
+		cfg.Logger.WarnContext(cfg.DownstreamRequest.Context(), "failed to close downstream body", "error", closeErr)
+	}
 	if err != nil {
 		return nil, info, trace.Wrap(err)
 	}

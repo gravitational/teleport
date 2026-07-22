@@ -20,10 +20,12 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"encoding/binary"
 	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
+	"math/rand/v2"
 	"net/http"
 	"strings"
 	"testing"
@@ -34,7 +36,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	llmrequest "github.com/gravitational/teleport/lib/srv/app/llm/request"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestNewRequest(t *testing.T) {
@@ -601,17 +602,16 @@ func TestNewRequest(t *testing.T) {
 				// Generate data until it exceeds the size. The content should
 				// not matter since we expect the handler to not try to parse
 				// it.
-				var body bytes.Buffer
-				w, _ := zstd.NewWriter(&body, zstd.WithEncoderConcurrency(1))
-				for body.Len() < teleport.MaxHTTPRequestSize {
-					d, _ := utils.CryptoRandomHex(teleport.MaxHTTPRequestSize)
-					_, _ = w.Write([]byte(d))
+				gen := rand.New(rand.NewPCG(uint64(1), uint64(1)))
+				raw := make([]byte, teleport.MaxHTTPRequestSize+1024*1024)
+				for len(raw) >= 8 {
+					binary.LittleEndian.PutUint64(raw, gen.Uint64())
+					raw = raw[8:]
 				}
-				w.Close()
 				r, _ := http.NewRequest(
 					http.MethodPost,
 					"/responses",
-					&body,
+					bytes.NewReader(zstd.EncodeTo([]byte{}, raw)),
 				)
 				r.Header.Add("Content-Encoding", "zstd")
 				return r
