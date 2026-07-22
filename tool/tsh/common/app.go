@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -834,34 +835,45 @@ func (a *appInfo) GetApp(ctx context.Context, clt apiclient.GetResourcesClient) 
 // must be referenced by their scope-qualified name.
 func getApp(ctx context.Context, clt apiclient.GetResourcesClient, name, scope string) (app types.Application, logins []string, err error) {
 	// A (name, scope) pair identifies a single logical app.
-	// if a user does not supply a scope, we only match against empty scopes in order
-	// to not return scoped apps.
+	// if a user does not supply a scope, we need to further parse the results to make sure
+	// that the results do not contain scopes - disallowing cross scope app access.
+	// This resolves compatibility issues where the auth server does not yet know about "scopes" expression to match
+	// apps with.
+	//
+	// TODO (williamo/scopes): eventually revert back to retrieving just 1 result and pass the scope expression by
+	// default, and delete the client side filtering.
+	predicate := fmt.Sprintf("name == %q", name)
+	limit := apidefaults.DefaultChunkSize
+	if scope != "" {
+		predicate = fmt.Sprintf("name == %q && scope == %q", name, scope)
+		limit = 1
+	}
 	res, err := apiclient.GetEnrichedResourcePage(ctx, clt, &proto.ListResourcesRequest{
 		ResourceType:        types.KindAppServer,
 		SortBy:              types.SortBy{Field: types.ResourceMetadataName},
-		PredicateExpression: fmt.Sprintf("name == %q && scope == %q", name, scope),
-		Limit:               1,
+		PredicateExpression: predicate,
+		Limit:               int32(limit),
 		IncludeLogins:       true,
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	name = scopes.QualifiedName{Name: name, Scope: scope}.String()
-	if len(res.Resources) == 0 {
-		return nil, nil, trace.NotFound("app %q not found, use `tsh apps ls` to see registered apps", name)
+
+	// Return the first app in the requested scope.
+	for _, r := range res.Resources {
+		server, ok := r.ResourceWithLabels.(types.AppServer)
+		if !ok {
+			logger.WarnContext(ctx, "expected types.AppServer but received unexpected type", "resource_type", logutils.TypeAttr(r.ResourceWithLabels))
+			continue
+		}
+
+		a := server.GetApp()
+		if a.GetScope() == scope {
+			return a, r.Logins, nil
+		}
 	}
 
-	appServer, ok := res.Resources[0].ResourceWithLabels.(types.AppServer)
-	if !ok {
-		logger.WarnContext(ctx, "expected types.AppServer but received unexpected type", "resource_type", logutils.TypeAttr(res.Resources[0].ResourceWithLabels))
-		return nil, nil, trace.NotFound("app %q not found, use `tsh apps ls` to see registered apps", name)
-	}
-
-	if appServer.GetScope() != scope {
-		return nil, nil, trace.Errorf("app %q was found but has mismatches scopes, this is a bug", name)
-	}
-
-	return appServer.GetApp(), res.Resources[0].Logins, nil
+	return nil, nil, trace.NotFound("app %q not found, use `tsh apps ls` to see registered apps", name)
 }
 
 // pickActiveApp returns the app the current profile is logged into.
