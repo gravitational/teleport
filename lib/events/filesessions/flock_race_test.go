@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // TestCompleteUploadTearsConcurrentUpload reproduces a data-loss race between
@@ -159,6 +160,105 @@ func TestCompleteUploadTearsConcurrentUpload(t *testing.T) {
 		"RECORDING TRUNCATED: the uploader reported success but delivered %d of %d events, "+
 			"because the concurrent CompleteUpload truncated %s mid-upload",
 		len(outEvents), len(inEvents), recordingPath)
+}
+
+// TestCompleteUploadCancelledLockRetryReportsError covers the second defect in
+// CompleteUpload: the ctx.Done() arm of the lock-retry backoff used to
+//
+//	return nil
+//
+// after truncating the recording and writing nothing. Both callers treat a nil
+// return as the upload having finished -- ProtoStream goes on to emit the
+// session end event -- so a cancelled completion announced a recording that was
+// never assembled.
+func TestCompleteUploadCancelledLockRetryReportsError(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+
+	dir := t.TempDir()
+	handler, err := NewHandler(Config{Directory: dir, OpenFile: os.OpenFile})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, handler.Close()) })
+
+	sid := session.NewID()
+
+	// Put a completed recording on disk.
+	first, err := handler.CreateUpload(ctx, sid)
+	require.NoError(t, err)
+	require.NoError(t, handler.ReserveUploadPart(ctx, *first, 1))
+	firstPart, err := handler.UploadPart(ctx, *first, 1, bytes.NewReader([]byte("original recording")))
+	require.NoError(t, err)
+	require.NoError(t, handler.CompleteUpload(ctx, *first, []events.StreamPart{*firstPart}))
+
+	recordingPath := handler.recordingPath(sid)
+	before, err := os.ReadFile(recordingPath)
+	require.NoError(t, err)
+
+	// Another process holds the lock, so the completion below cannot make
+	// progress and enters the retry backoff.
+	unlock, err := utils.FSTryWriteLock(recordingPath + lockExt)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, unlock()) })
+
+	second, err := handler.CreateUpload(ctx, sid)
+	require.NoError(t, err)
+	require.NoError(t, handler.ReserveUploadPart(ctx, *second, 1))
+	secondPart, err := handler.UploadPart(ctx, *second, 1, bytes.NewReader([]byte("second recording")))
+	require.NoError(t, err)
+
+	// Cancel before completing, so the first retry takes the ctx.Done() arm.
+	cancel()
+
+	err = handler.CompleteUpload(ctx, *second, []events.StreamPart{*secondPart})
+	require.Error(t, err, "a cancelled completion must not report success")
+	require.ErrorIs(t, err, context.Canceled)
+
+	after, err := os.ReadFile(recordingPath)
+	require.NoError(t, err)
+	require.Equal(t, before, after, "the existing recording must be untouched")
+}
+
+// TestRecordingLockSidecarIsCleanedUp checks the housekeeping that comes with
+// moving the lock off the recording and onto a <sid>.tar.lock sidecar: the
+// uploader must not mistake the sidecar for a recording, and the sidecar must
+// not outlive the session.
+func TestRecordingLockSidecarIsCleanedUp(t *testing.T) {
+	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+	defer cancel()
+
+	p := newUploaderPack(ctx, t, uploaderPackConfig{})
+
+	clock, ok := p.clock.(*clockwork.FakeClock)
+	require.True(t, ok, "fake clock expected")
+	clock.BlockUntilContext(ctx, 1)
+
+	inEvents := eventstest.GenerateTestSession(eventstest.SessionParams{PrintEvents: 128})
+	sid := inEvents[0].(events.SessionMetadataGetter).GetSessionID()
+	p.emitEvents(ctx, t, inEvents)
+
+	// The sidecar exists once the recording has been completed, and must not be
+	// picked up as a recording by the scan that follows.
+	require.FileExists(t, p.scanDir+"/"+sid+tarExt+lockExt)
+
+	clock.Advance(p.scanPeriod + time.Second)
+
+	select {
+	case event := <-p.memEventsC:
+		require.Equal(t, sid, event.SessionID)
+		require.Equal(t, inEvents, p.readEvents(ctx, t, event.UploadID))
+	case <-ctx.Done():
+		t.Fatal("timed out waiting for the upload")
+	}
+	select {
+	case event := <-p.eventsC:
+		require.NoError(t, event.Error)
+	case <-ctx.Done():
+		t.Fatal("timed out waiting for the uploader to finish")
+	}
+
+	require.NoFileExists(t, p.scanDir+"/"+sid+tarExt,
+		"the recording should be removed after a successful upload")
+	require.NoFileExists(t, p.scanDir+"/"+sid+tarExt+lockExt,
+		"the lock sidecar should not outlive the recording")
 }
 
 func fileSize(t *testing.T, path string) int64 {

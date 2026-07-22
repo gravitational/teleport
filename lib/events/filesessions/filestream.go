@@ -178,12 +178,8 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 
 	uploadPath := h.recordingPath(upload.SessionID)
 
-	// Prevent other processes from accessing this file until the write is completed
-	f, err := GetOpenFileFunc()(uploadPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o600)
-	if err != nil {
-		return trace.ConvertSystemError(err)
-	}
-	unlock, err := utils.FSTryWriteLock(uploadPath)
+	lockPath := uploadPath + lockExt
+	unlock, err := utils.FSTryWriteLock(lockPath)
 Loop:
 	for range 3 {
 		switch {
@@ -195,38 +191,23 @@ Loop:
 			// file lock before giving up.
 			select {
 			case <-ctx.Done():
-				if err := f.Close(); err != nil {
-					h.logger.ErrorContext(ctx, "Failed to close upload file", "file", uploadPath, "error", err)
-				}
-
-				return nil
+				return trace.Wrap(ctx.Err())
 			case <-time.After(50 * time.Millisecond):
-				unlock, err = utils.FSTryWriteLock(uploadPath)
+				unlock, err = utils.FSTryWriteLock(lockPath)
 				continue
 			}
 		default:
-			if err := f.Close(); err != nil {
-				h.logger.ErrorContext(ctx, "Failed to close upload file", "file", uploadPath)
-			}
-
-			return trace.Wrap(err, "handler could not acquire file lock for %q", uploadPath)
+			return trace.Wrap(err, "handler could not acquire file lock for %q", lockPath)
 		}
 	}
 
 	if unlock == nil {
-		if err := f.Close(); err != nil {
-			h.logger.ErrorContext(ctx, "Failed to close upload file", "file", uploadPath, "error", err)
-		}
-
-		return trace.Wrap(err, "handler could not acquire file lock for %q", uploadPath)
+		return trace.Wrap(err, "handler could not acquire file lock for %q", lockPath)
 	}
 
 	defer func() {
 		if err := unlock(); err != nil {
 			h.logger.ErrorContext(ctx, "Failed to unlock filesystem lock.", "error", err)
-		}
-		if err := f.Close(); err != nil {
-			h.logger.ErrorContext(ctx, "Failed to close upload file", "file", uploadPath, "error", err)
 		}
 	}()
 
@@ -235,23 +216,50 @@ Loop:
 		return cmp.Compare(a.Number, b.Number)
 	})
 
-	if err := h.fileRecorder.CombineParts(ctx, f, func(yield func(string) bool) {
+	tmpPath := filepath.Join(h.uploadPath(upload), "recording"+tmpExt)
+	tmpFile, err := GetOpenFileFunc()(tmpPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o600)
+	if err != nil {
+		return trace.ConvertSystemError(err)
+	}
+	defer func() {
+		// A no-op once the rename below has succeeded.
+		if err := os.Remove(tmpPath); err != nil && !os.IsNotExist(err) {
+			h.logger.ErrorContext(ctx, "Failed to remove temporary recording", "file", tmpPath, "error", err)
+		}
+	}()
+
+	if err := h.fileRecorder.CombineParts(ctx, tmpFile, func(yield func(string) bool) {
 		for _, part := range parts {
 			if !yield(h.partPath(upload, part.Number)) {
 				break
 			}
 		}
 	}); err != nil {
+		if err := tmpFile.Close(); err != nil {
+			h.logger.ErrorContext(ctx, "Failed to close temporary recording", "file", tmpPath, "error", err)
+		}
 		return trace.Wrap(err)
 	}
 
-	err = h.Config.OnBeforeComplete(ctx, upload)
-	if err != nil {
+	if err := tmpFile.Sync(); err != nil {
+		if err := tmpFile.Close(); err != nil {
+			h.logger.ErrorContext(ctx, "Failed to close temporary recording", "file", tmpPath, "error", err)
+		}
+		return trace.ConvertSystemError(err)
+	}
+	if err := tmpFile.Close(); err != nil {
+		return trace.ConvertSystemError(err)
+	}
+
+	if err := h.Config.OnBeforeComplete(ctx, upload); err != nil {
 		return trace.Wrap(err)
 	}
 
-	err = os.RemoveAll(h.uploadRootPath(upload))
-	if err != nil {
+	if err := os.Rename(tmpPath, uploadPath); err != nil {
+		return trace.ConvertSystemError(err)
+	}
+
+	if err := os.RemoveAll(h.uploadRootPath(upload)); err != nil {
 		h.logger.ErrorContext(ctx, "Failed to remove upload", "upload_id", upload.ID)
 	}
 	return nil
@@ -475,4 +483,8 @@ const (
 	errorExt = ".error"
 	// reservationExt is part reservation extension.
 	reservationExt = ".reservation"
+	// tmpExt is the extension of a recording that is still being assembled.
+	tmpExt = ".tmp"
+	// lockExt is the extension of the file lock.
+	lockExt = ".lock"
 )

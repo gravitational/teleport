@@ -1,27 +1,35 @@
 /*
- * Model of lib/events/filesessions as it is on this branch: the bug.
+ * Model of lib/events/filesessions as it is on this branch.
  *
- * CompleteUpload opens <sid>.tar with O_TRUNC BEFORE taking the flock, so it
- * empties the recording out from under the async uploader that is streaming it.
- * flock is advisory and per-inode, and by the time the lock is even requested
- * the damage is done.
+ * The bug: CompleteUpload used to open <sid>.tar with O_TRUNC BEFORE taking the
+ * flock, truncating the recording out from under the async uploader that was
+ * streaming it. flock is advisory and per-inode, so it did not stop the
+ * truncate.
+ *
+ * The fix: CompleteUpload assembles into a temp file and publishes with
+ * os.Rename. The uploader's already-open descriptor keeps pointing at the old
+ * inode, so it always streams a complete recording.
  *
  * Both processes work on the same <sid>.tar because service.go passes one
  * uploadsDir as the uploader's ScanDir and the Handler's Directory.
  */
 
-// Both CompleteUpload and startUpload lock <sid>.tar itself.
-enum tLockTarget { LOCK_DATA_PATH }
+// CompleteUpload locks <sid>.tar.lock (filestream.go); startUpload locks
+// <sid>.tar (fileasync.go). They do not exclude each other, which is safe only
+// because the recording is never modified in place.
+enum tLockTarget { LOCK_DATA_PATH, LOCK_SIDECAR }
 
 event eOpen: machine;              // open(path, O_RDWR) -- binds to the current inode
 event eOpenResult;
-event eOpenTrunc: machine;         // open(path, O_RDWR|O_CREATE|O_TRUNC) -- empties the LIVE file
-event eOpenTruncResult;
+event eOpenTemp: machine;          // open(tmpPath, O_CREATE|O_TRUNC) -- a fresh inode
+event eOpenTempResult;
 event eTryLock: (requester: machine, target: tLockTarget);
 event eTryLockResult: bool;
 event eUnlock: machine;
-event eReadPart: (requester: machine, part: int);   // CombineParts, into the live file
+event eReadPart: (requester: machine, part: int);   // CombineParts, into the temp file
 event eReadPartResult: bool;
+event ePublish: machine;           // os.Rename(tmpPath, uploadPath)
+event ePublishResult;
 event eReadAll: machine;           // the uploader streaming its descriptor
 event eReadAllResult: seq[int];
 event eRemoveParts: machine;       // os.RemoveAll(uploadRootPath)
@@ -41,11 +49,15 @@ machine FileSystem {
   var holderOfInode: map[int, machine];
   var lockedInodeOf: map[machine, int];
   var pathInode: int;
+  var sidecarInode: int;
+  var nextInode: int;
   var partsPresent: bool;
 
   start state Init {
     entry (seed: seq[int]) {
+      nextInode = 2;
       pathInode = 1;
+      sidecarInode = 2;
       contentOf[pathInode] = seed;
       partsPresent = true;
       goto Serving;
@@ -58,17 +70,16 @@ machine FileSystem {
       send requester, eOpenResult;
     }
 
-    // The truncate that is the bug: it empties the live recording, and it takes
-    // no lock because O_TRUNC is a side effect of open(2).
-    on eOpenTrunc do (requester: machine) {
-      fdInode[requester] = pathInode;
-      contentOf[pathInode] = default(seq[int]);
-      send requester, eOpenTruncResult;
+    on eOpenTemp do (requester: machine) {
+      nextInode = nextInode + 1;
+      contentOf[nextInode] = default(seq[int]);
+      fdInode[requester] = nextInode;
+      send requester, eOpenTempResult;
     }
 
     on eTryLock do (req: (requester: machine, target: tLockTarget)) {
       var inode: int;
-      inode = pathInode;
+      if (req.target == LOCK_SIDECAR) { inode = sidecarInode; } else { inode = pathInode; }
       if (inode in holderOfInode) {
         send req.requester, eTryLockResult, false;
         return;
@@ -85,8 +96,7 @@ machine FileSystem {
       }
     }
 
-    // Read a source part and copy it into the caller's descriptor, which for
-    // the completer is the live recording.
+    // Read a source part and copy it into the caller's temp file.
     on eReadPart do (req: (requester: machine, part: int)) {
       var buf: seq[int];
       if (!partsPresent) {
@@ -97,6 +107,13 @@ machine FileSystem {
       buf += (sizeof(buf), req.part);
       contentOf[fdInode[req.requester]] = buf;
       send req.requester, eReadPartResult, true;
+    }
+
+    // The path now resolves to the temp inode. Descriptors open elsewhere keep
+    // the inode they were bound to.
+    on ePublish do (requester: machine) {
+      pathInode = fdInode[requester];
+      send requester, ePublishResult;
     }
 
     on eReadAll do (requester: machine) {
@@ -112,13 +129,10 @@ machine FileSystem {
 
 /*
  * Handler.CompleteUpload (filestream.go):
- *   GetOpenFileFunc()(uploadPath, O_RDWR|O_CREATE|O_TRUNC, 0o600)  // truncates FIRST
- *   FSTryWriteLock(uploadPath)                // ...and only then asks for the lock
- *   CombineParts(ctx, f, ...)                 // writes into the live recording
+ *   FSTryWriteLock(uploadPath + lockExt)      // sidecar, before touching anything
+ *   CombineParts(ctx, tmpFile, ...)           // into a temp file
+ *   os.Rename(tmpPath, uploadPath)            // publish in one step
  *   os.RemoveAll(uploadRootPath)
- *
- * The truncate is not covered by the lock, and losing the lock race afterwards
- * does not undo it.
  */
 machine Completer {
   var fs: machine;
@@ -132,47 +146,44 @@ machine Completer {
       parts = cfg.parts;
       attemptsLeft = 4;
       nextPart = 0;
-      send fs, eOpenTrunc, this;
-      goto Opening;
+      goto Locking;
     }
   }
 
-  state Opening {
-    on eOpenTruncResult do { goto Locking; }
-  }
-
   state Locking {
-    entry { send fs, eTryLock, (requester = this, target = LOCK_DATA_PATH); }
+    entry { send fs, eTryLock, (requester = this, target = LOCK_SIDECAR); }
     on eTryLockResult do (ok: bool) {
-      if (ok) { nextOrFinish(); goto Combining; }
+      if (ok) { send fs, eOpenTemp, this; goto Combining; }
       attemptsLeft = attemptsLeft - 1;
-      // Gives up and returns an error -- but the recording is already empty.
       if (attemptsLeft <= 0) { goto Done; }
       goto Locking;
     }
   }
 
   state Combining {
+    on eOpenTempResult do { nextOrPublish(); }
     on eReadPartResult do (ok: bool) {
       if (!ok) {
+        // The parts are gone; return an error having touched nothing.
         send fs, eUnlock, this;
         goto Done;
       }
       nextPart = nextPart + 1;
-      nextOrFinish();
+      nextOrPublish();
     }
+    on ePublishResult do { send fs, eRemoveParts, this; }
     on eRemovePartsResult do { send fs, eUnlock, this; goto Done; }
   }
 
-  fun nextOrFinish() {
+  fun nextOrPublish() {
     if (nextPart >= sizeof(parts)) {
-      send fs, eRemoveParts, this;
+      send fs, ePublish, this;
     } else {
       send fs, eReadPart, (requester = this, part = parts[nextPart]);
     }
   }
 
-  state Done { ignore eOpenTruncResult, eTryLockResult, eReadPartResult, eRemovePartsResult; }
+  state Done { ignore eTryLockResult, eOpenTempResult, eReadPartResult, ePublishResult, eRemovePartsResult; }
 }
 
 /*
