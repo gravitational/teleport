@@ -115,11 +115,6 @@ func NewRequest(cfg *llmrequest.Config) (*http.Request, llmrequest.RequestInfo, 
 		return nil, info, trace.NotImplemented("provider %q is not supported", llm.Provider)
 	}
 
-	// Currently, we don't support any compression.
-	if cfg.DownstreamRequest.Header.Get("Content-Encoding") != "" {
-		return nil, info, trace.BadParameter("compression not supported")
-	}
-
 	body, err := utils.ReadAtMost(cfg.DownstreamRequest.Body, teleport.MaxHTTPRequestSize)
 	if err != nil {
 		return nil, info, trace.Wrap(err)

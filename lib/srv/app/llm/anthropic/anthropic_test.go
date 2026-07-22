@@ -18,7 +18,6 @@ package anthropic
 
 import (
 	"bytes"
-	"compress/gzip"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -387,28 +386,6 @@ func TestNewRequest(t *testing.T) {
 				return r
 			},
 			expectedError:   require.Error,
-			expectedRequest: require.Nil,
-			expectedInfo:    require.NotNil,
-		},
-		"unsupported encoding format": {
-			llm: newApp(t, &types.LLM{
-				Format:   types.LLMFormatAnthropic,
-				Provider: types.LLMProviderAnthropic,
-			}, nil /* appAWS */),
-			request: func() *http.Request {
-				var body bytes.Buffer
-				_, _ = gzip.NewWriter(&body).Write([]byte(`{"model":"claude-sonnet-4-20250514","messages":[{"role":"user","content":"Hello"}]}`))
-				r, _ := http.NewRequest(
-					http.MethodPost,
-					"/messages",
-					&body,
-				)
-				r.Header.Add("Content-Encoding", "gzip")
-				return r
-			},
-			expectedError: func(tt require.TestingT, err error, i ...any) {
-				require.ErrorContains(tt, err, "compression not supported")
-			},
 			expectedRequest: require.Nil,
 			expectedInfo:    require.NotNil,
 		},

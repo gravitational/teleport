@@ -17,16 +17,22 @@
 package llm
 
 import (
+	"bytes"
 	"context"
+	"encoding/binary"
 	"io"
 	"log/slog"
+	"math/rand/v2"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
+	"github.com/klauspost/compress/zstd"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -35,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	llmrequest "github.com/gravitational/teleport/lib/srv/app/llm/request"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // TestHandleRequest covers `handleRequest` function which is responsible for
@@ -263,6 +270,133 @@ func TestHandleRequest(t *testing.T) {
 			tc.expectedResponse(t, w.Body.String())
 		})
 	}
+}
+
+func TestHandleRequestCompression(t *testing.T) {
+	for name, tc := range map[string]struct {
+		newRequestFunc    func() *http.Request
+		expectRequestBody require.ValueAssertionFunc
+		expectAuditEvent  require.ValueAssertionFunc
+		expectError       require.ErrorAssertionFunc
+	}{
+		"compressed zstd request": {
+			newRequestFunc: func() *http.Request {
+				encoded := zstd.EncodeTo([]byte{}, []byte(`non compressed req`))
+				req, _ := http.NewRequest(
+					http.MethodPost,
+					"",
+					bytes.NewReader(encoded),
+				)
+				req.Header.Add("Content-Encoding", "zstd")
+				return req
+
+			},
+			expectRequestBody: func(tt require.TestingT, i1 any, i2 ...any) {
+				require.Equal(tt, []byte(`non compressed req`), i1, i2...)
+			},
+			expectAuditEvent: func(tt require.TestingT, i1 any, i2 ...any) {
+				require.NotNil(tt, i1, i2...)
+				evt := i1.(*apievents.AppSessionLLMRequest)
+				require.True(tt, evt.Status.Success, i2...)
+			},
+			expectError: require.NoError,
+		},
+		"compressed request exceeds max size": {
+			newRequestFunc: func() *http.Request {
+				// Generate data until it exceeds the size. The content should
+				// not matter since we expect the handler to not try to parse
+				// it.
+				gen := rand.New(rand.NewPCG(uint64(1), uint64(1)))
+				raw := make([]byte, teleport.MaxHTTPRequestSize+1024*1024)
+				for len(raw) >= 8 {
+					binary.LittleEndian.PutUint64(raw, gen.Uint64())
+					raw = raw[8:]
+				}
+				req, _ := http.NewRequest(
+					http.MethodPost,
+					"",
+					bytes.NewReader(zstd.EncodeTo([]byte{}, raw)),
+				)
+				req.Header.Add("Content-Encoding", "zstd")
+				return req
+
+			},
+			expectRequestBody: require.Empty,
+			// Since we replace the body the error happens on the forwarder, so
+			// here we cannot assert it.
+			expectAuditEvent: require.NotNil,
+			expectError:      require.NoError,
+		},
+		"unsupported encoding format": {
+			newRequestFunc: func() *http.Request {
+				req, _ := http.NewRequest(
+					http.MethodPost,
+					"",
+					strings.NewReader("not read"),
+				)
+				req.Header.Add("Content-Encoding", "gzip")
+				return req
+
+			},
+			expectRequestBody: require.Empty,
+			expectAuditEvent: func(tt require.TestingT, i1 any, i2 ...any) {
+				require.NotNil(tt, i1, i2...)
+				evt := i1.(*apievents.AppSessionLLMRequest)
+				require.False(tt, evt.Status.Success, i2...)
+			},
+			expectError: require.Error,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusOK)
+				io.WriteString(w, "REPLY")
+			}))
+			t.Cleanup(mockServer.Close)
+
+			var (
+				reqBody    []byte
+				auditEvent *apievents.AppSessionLLMRequest
+				handleErr  error
+			)
+			h := newTestHandler(t, nil)
+			sessionCtx := &common.SessionContext{
+				App: newTestApp(t, &types.LLM{Format: types.LLMFormatAnthropic, Provider: types.LLMProviderAnthropic}),
+				Audit: newTestAudit(t, func(pe apievents.PreparedSessionEvent) {
+					if evt, ok := pe.GetAuditEvent().(*apievents.AppSessionLLMRequest); ok {
+						auditEvent = evt
+					}
+
+				}),
+			}
+
+			h.handleRequest(
+				sessionCtx,
+				httptest.NewRecorder(),
+				common.WithSessionContext(tc.newRequestFunc(), sessionCtx),
+				func(_ types.Application, r *http.Request) (*http.Request, llmrequest.RequestInfo, error) {
+					reqBody, _ = utils.GetAndReplaceRequestBody(r)
+					// Rewrite the request to the mock server so that the
+					// forwarder works as expected.
+					return httptest.NewRequest(http.MethodPost, mockServer.URL, r.Body), &mockRequestInfo{
+						requestedModel: "requested",
+						providerModel:  "provider",
+					}, nil
+				},
+				func(_ *slog.Logger, _ llmrequest.RequestInfo, w http.ResponseWriter) (UpstreamRecorder, error) {
+					return &mockUpstreamRecorder{ResponseWriter: w}, nil
+				},
+				func(w http.ResponseWriter, err error) error {
+					handleErr = err
+					return nil
+				},
+			)
+			tc.expectRequestBody(t, reqBody)
+			tc.expectAuditEvent(t, auditEvent)
+			tc.expectError(t, handleErr)
+		})
+	}
+
 }
 
 type mockUpstreamRecorder struct {

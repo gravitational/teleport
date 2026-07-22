@@ -20,17 +20,14 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
-	"encoding/binary"
 	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
-	"math/rand/v2"
 	"net/http"
 	"strings"
 	"testing"
 
-	"github.com/klauspost/compress/zstd"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
@@ -539,104 +536,6 @@ func TestNewRequest(t *testing.T) {
 				return r
 			},
 			expectedError:   require.Error,
-			expectedRequest: require.Nil,
-			expectedInfo:    require.NotNil,
-		},
-		"compressed request": {
-			app: newApp(t, &types.LLM{
-				Format:   types.LLMFormatOpenAI,
-				Provider: types.LLMProviderOpenAI,
-			}, nil /* appAWS */),
-			request: func() *http.Request {
-				encoded := zstd.EncodeTo([]byte{}, []byte(`{"model":"gpt-5","input":"Hello"}`))
-				r, _ := http.NewRequest(
-					http.MethodPost,
-					"/responses",
-					bytes.NewReader(encoded),
-				)
-				r.Header.Add("Content-Encoding", "zstd")
-				return r
-			},
-			expectedError: require.NoError,
-			expectedRequest: func(tt require.TestingT, i1 any, i2 ...any) {
-				req, _ := i1.(*http.Request)
-				require.Equal(tt, "/v1/responses", req.URL.Path)
-				require.Equal(tt, http.MethodPost, req.Method)
-				require.Equal(tt, "Bearer "+apiKey, req.Header.Get("Authorization"))
-				require.NotEmpty(tt, req.Header.Get("content-type"))
-			},
-			expectedInfo: func(tt require.TestingT, i1 any, i2 ...any) {
-				info, _ := i1.(*RequestInfo)
-				require.Equal(tt, "gpt-5", info.RequestedModel())
-				require.Equal(tt, "gpt-5", info.ProviderModel())
-			},
-		},
-		"compressed request does not exceed max size but decompressed does": {
-			app: newApp(t, &types.LLM{
-				Format:   types.LLMFormatOpenAI,
-				Provider: types.LLMProviderOpenAI,
-			}, nil /* appAWS */),
-			request: func() *http.Request {
-				// Generate a body that exceeds the max size, but not its
-				// compressed version.
-				body := `{"model":"gpt-5","input":"` + strings.Repeat("a", teleport.MaxHTTPRequestSize) + `"}`
-				encoded := zstd.EncodeTo([]byte{}, []byte(body))
-				r, _ := http.NewRequest(
-					http.MethodPost,
-					"/responses",
-					bytes.NewReader(encoded),
-				)
-				r.Header.Add("Content-Encoding", "zstd")
-				return r
-			},
-			expectedError:   require.Error,
-			expectedRequest: require.Nil,
-			expectedInfo:    require.NotNil,
-		},
-		"compressed request exceeds max size": {
-			app: newApp(t, &types.LLM{
-				Format:   types.LLMFormatOpenAI,
-				Provider: types.LLMProviderOpenAI,
-			}, nil /* appAWS */),
-			request: func() *http.Request {
-				// Generate data until it exceeds the size. The content should
-				// not matter since we expect the handler to not try to parse
-				// it.
-				gen := rand.New(rand.NewPCG(uint64(1), uint64(1)))
-				raw := make([]byte, teleport.MaxHTTPRequestSize+1024*1024)
-				for len(raw) >= 8 {
-					binary.LittleEndian.PutUint64(raw, gen.Uint64())
-					raw = raw[8:]
-				}
-				r, _ := http.NewRequest(
-					http.MethodPost,
-					"/responses",
-					bytes.NewReader(zstd.EncodeTo([]byte{}, raw)),
-				)
-				r.Header.Add("Content-Encoding", "zstd")
-				return r
-			},
-			expectedError:   require.Error,
-			expectedRequest: require.Nil,
-			expectedInfo:    require.NotNil,
-		},
-		"unsupported encoding format": {
-			app: newApp(t, &types.LLM{
-				Format:   types.LLMFormatOpenAI,
-				Provider: types.LLMProviderOpenAI,
-			}, nil /* appAWS */),
-			request: func() *http.Request {
-				r, _ := http.NewRequest(
-					http.MethodPost,
-					"/responses",
-					strings.NewReader("not read"),
-				)
-				r.Header.Add("Content-Encoding", "gzip")
-				return r
-			},
-			expectedError: func(tt require.TestingT, err error, i ...any) {
-				require.ErrorContains(tt, err, "encoding format")
-			},
 			expectedRequest: require.Nil,
 			expectedInfo:    require.NotNil,
 		},
