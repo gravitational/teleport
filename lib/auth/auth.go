@@ -2876,6 +2876,28 @@ func (a *Server) GetUserOrLoginState(ctx context.Context, username string) (serv
 	return services.GetUserOrLoginState(ctx, a.Services, username)
 }
 
+// regenerateUserLoginState computes the user login state for the given user
+// from the current backend user and access lists, and returns it without
+// persisting it. Unlike GetUserOrLoginState, this does not trust the stored
+// login state, which is a snapshot from login time and may miss both role
+// changes on the backend user and access list membership changes. The stored
+// login state in backend is left untouched.
+func (a *Server) regenerateUserLoginState(ctx context.Context, username string) (services.UserState, error) {
+	// Use Services (real backend instead of cache) to pick up user changes
+	// that may not have propagated to the cache yet.
+	user, err := a.Services.GetUser(ctx, username, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if user.IsBot() {
+		// Bot user don't have URL no  need to regenerate.
+		// See GetUserOrLoginState where IsBot is checked and the user is returned directly.
+		return user, nil
+	}
+	uls, err := a.ulsGenerator.GeneratePureULS(ctx, user)
+	return uls, trace.Wrap(err)
+}
+
 func (a *Server) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCertRequest) (*proto.OpenSSHCert, error) {
 	if req.User == nil {
 		return nil, trace.BadParameter("user is empty")
