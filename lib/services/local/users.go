@@ -1358,7 +1358,7 @@ func GetWeakestMFADeviceKind(devs []*types.MFADevice) types.MFADeviceKind {
 		if (d.GetWebauthn() != nil || d.GetU2F() != nil) && mfaState == types.MFADeviceKind_MFA_DEVICE_KIND_UNSET {
 			mfaState = types.MFADeviceKind_MFA_DEVICE_KIND_WEBAUTHN
 		}
-		if d.GetSso() != nil {
+		if d.GetSso() != nil && mfaState != types.MFADeviceKind_MFA_DEVICE_KIND_TOTP {
 			mfaState = types.MFADeviceKind_MFA_DEVICE_KIND_SSO
 		}
 		if d.GetTotp() != nil {
