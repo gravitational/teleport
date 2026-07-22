@@ -1981,7 +1981,7 @@ WASM_BINDGEN_VERSION = $(shell awk ' \
 ' Cargo.lock)
 
 # Opt-in isolation (WASM_BINDGEN_ISOLATE=1): install and run the wasm-bindgen CLI
-# from a per-version path under target/ rather than the shared ~/.cargo/bin. 
+# from a per-version path under target/ rather than the shared ~/.cargo/bin.
 WASM_BINDGEN_ISOLATE ?= 0
 WASM_BINDGEN_INSTALL_FLAGS =
 ifeq ($(WASM_BINDGEN_ISOLATE),1)
@@ -2049,8 +2049,20 @@ define rust_toolchain_warning
 endef
 export rust_toolchain_warning
 
+define rust_shadowed_warning
+  The 'cargo'/'rustc' on your PATH are not the ones managed by rustup.
+  Another Rust installation (for example the Homebrew 'rust' formula) is
+  shadowing rustup's shims. Builds will ignore rust-toolchain.toml.
+  Remove the other installation (e.g. 'brew uninstall rust') or put
+  rustup's shims ahead of it on your PATH. Inspect with 'which cargo'
+  and 'cargo --version'.
+endef
+export rust_shadowed_warning
+
 # inspect the current active toolchain and display a warning if it doesn't
-# match the version defined in our toolchain file.
+# match the version defined in our toolchain file. Also warn when the cargo
+# on PATH is not rustup-managed (e.g. the Homebrew 'rust' formula), which
+# silently bypasses the toolchain file even though the checks below pass.
 .PHONY: rustup-toolchain-warning
 rustup-toolchain-warning: EXPECTED = $(shell $(MAKE) print-rust-toolchain-version)
 rustup-toolchain-warning:
@@ -2058,6 +2070,15 @@ rustup-toolchain-warning:
 		echo -en "\033[31m";\
 		echo  "$$rust_toolchain_warning";\
 		echo  -en "\033[0m";\
+	fi
+	@if command -v rustup >/dev/null 2>&1 && command -v cargo >/dev/null 2>&1; then \
+		rustup_cargo="$$(rustup which cargo 2>/dev/null)";\
+		if [ -n "$$rustup_cargo" ] && \
+			[ "$$("$$rustup_cargo" --version 2>/dev/null)" != "$$(cargo --version 2>/dev/null)" ]; then \
+			echo -en "\033[31m";\
+			echo  "$$rust_shadowed_warning";\
+			echo  -en "\033[0m";\
+		fi;\
 	fi
 
 # changelog generates PR changelog between the provided base tag and the tip of

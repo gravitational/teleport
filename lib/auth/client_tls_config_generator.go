@@ -99,15 +99,14 @@ type HostAndUserCAPoolInfo struct {
 func findPrimarySystemRole(i *tlsca.Identity) (types.SystemRole, bool) {
 	if i.ScopePin.GetKind() == scopesv1.PinKind_PIN_KIND_AGENT {
 		role := types.SystemRole(i.ScopePin.GetSystemRoles().GetPrimary())
-		if err := role.Check(); err != nil {
+		if !role.IsValid() {
 			return "", false
 		}
 		return role, true
 	}
 	for _, role := range i.Groups {
 		systemRole := types.SystemRole(role)
-		err := systemRole.Check()
-		if err == nil {
+		if systemRole.IsValid() {
 			return systemRole, true
 		}
 	}

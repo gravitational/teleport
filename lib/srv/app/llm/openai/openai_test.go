@@ -18,6 +18,10 @@ package openai
 
 import (
 	"bytes"
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -34,9 +38,18 @@ import (
 func TestNewRequest(t *testing.T) {
 	apiKey := "random-api-key"
 
+	signAWSRequest := func(_ context.Context, _ types.Application, req *http.Request, reqBody []byte) error {
+		hash := sha256.New()
+		hash.Write(reqBody)
+		req.Header.Set("X-Amz-Content-Sha256", hex.EncodeToString(hash.Sum(nil)))
+		req.Header.Set("Authorization", "AWS4-HMAC-SHA256 Credential=test")
+		return nil
+	}
+
 	for name, tc := range map[string]struct {
 		app             types.Application
 		request         func() *http.Request
+		signAWSRequest  func(context.Context, types.Application, *http.Request, []byte) error
 		expectedError   require.ErrorAssertionFunc
 		expectedRequest require.ValueAssertionFunc
 		expectedInfo    require.ValueAssertionFunc
@@ -298,6 +311,234 @@ func TestNewRequest(t *testing.T) {
 			expectedRequest: require.Nil,
 			expectedInfo:    require.NotNil,
 		},
+		"successful chat completions": {
+			app: newApp(t, &types.LLM{
+				Format:   types.LLMFormatOpenAI,
+				Provider: types.LLMProviderOpenAI,
+			}, nil /* appAWS */),
+			request: func() *http.Request {
+				r, _ := http.NewRequest(
+					http.MethodPost,
+					"/chat/completions",
+					strings.NewReader(`{"model":"gpt-5","stream": true,"messages":[{"role":"user","content":"Hello"}]}`),
+				)
+				return r
+			},
+			expectedError: require.NoError,
+			expectedRequest: func(tt require.TestingT, i1 any, i2 ...any) {
+				req, _ := i1.(*http.Request)
+				require.Equal(tt, "/v1/chat/completions", req.URL.Path)
+				require.Equal(tt, http.MethodPost, req.Method)
+				require.Equal(tt, "Bearer "+apiKey, req.Header.Get("Authorization"))
+				require.NotEmpty(tt, req.Header.Get("content-type"))
+				// Usage reporting is enabled on chat completions requests.
+				body, err := io.ReadAll(req.Body)
+				require.NoError(tt, err)
+				require.Contains(tt, string(body), `"include_usage":true`)
+			},
+			expectedInfo: func(tt require.TestingT, i1 any, i2 ...any) {
+				info, _ := i1.(*RequestInfo)
+				require.Equal(tt, "gpt-5", info.RequestedModel())
+				require.Equal(tt, "gpt-5", info.ProviderModel())
+			},
+		},
+		"chat completions store is not supported": {
+			app: newApp(t, &types.LLM{
+				Format:   types.LLMFormatOpenAI,
+				Provider: types.LLMProviderOpenAI,
+			}, nil /* appAWS */),
+			request: func() *http.Request {
+				r, _ := http.NewRequest(
+					http.MethodPost,
+					"/chat/completions",
+					strings.NewReader(`{"model":"gpt-5","stream": true,"store":true,"messages":[{"role":"user","content":"Hello"}]}`),
+				)
+				return r
+			},
+			expectedError:   require.Error,
+			expectedRequest: require.Nil,
+			expectedInfo:    require.NotNil,
+		},
+		"unsupported method on chat completions": {
+			app: newApp(t, &types.LLM{
+				Format:   types.LLMFormatOpenAI,
+				Provider: types.LLMProviderOpenAI,
+			}, nil /* appAWS */),
+			request: func() *http.Request {
+				r, _ := http.NewRequest(
+					http.MethodGet,
+					"/chat/completions",
+					nil,
+				)
+				return r
+			},
+			expectedError:   require.Error,
+			expectedRequest: require.Nil,
+			expectedInfo:    require.NotNil,
+		},
+		"bedrock responses successful messages": {
+			app: newApp(t, &types.LLM{
+				Format:   types.LLMFormatOpenAI,
+				Provider: types.LLMProviderAWSBedrock,
+				Models: []*types.LLM_Model{
+					{ProviderName: "openai.gpt-5.6-terra", Name: "gpt-5.6-terra"},
+				},
+			}, &types.AppAWS{
+				Region: "us-east-2",
+			}),
+			signAWSRequest: signAWSRequest,
+			request: func() *http.Request {
+				r, _ := http.NewRequest(
+					http.MethodPost,
+					"/responses",
+					strings.NewReader(`{"model":"gpt-5.6-terra","input":"Hello"}`),
+				)
+				return r
+			},
+			expectedError: require.NoError,
+			expectedRequest: func(tt require.TestingT, i1 any, i2 ...any) {
+				req, _ := i1.(*http.Request)
+				require.Equal(tt, "bedrock-mantle.us-east-2.api.aws", req.URL.Host)
+				require.Equal(tt, "/openai/v1/responses", req.URL.Path)
+				require.NotEmpty(tt, req.Header.Get("content-type"))
+				require.NotEmpty(tt, req.Header.Get("Authorization"))
+
+				body, err := io.ReadAll(req.Body)
+				require.NoError(tt, err)
+				require.Contains(tt, string(body), "openai.gpt-5.6-terra")
+				bodyHash := sha256.Sum256(body)
+				require.Equal(tt, hex.EncodeToString(bodyHash[:]), req.Header.Get("X-Amz-Content-Sha256"))
+			},
+			expectedInfo: func(tt require.TestingT, i1 any, i2 ...any) {
+				info, _ := i1.(*RequestInfo)
+				require.Equal(tt, "gpt-5.6-terra", info.RequestedModel())
+				require.Equal(tt, "openai.gpt-5.6-terra", info.ProviderModel())
+			},
+		},
+		"bedrock chat completions successful messages": {
+			app: newApp(t, &types.LLM{
+				Format:   types.LLMFormatOpenAI,
+				Provider: types.LLMProviderAWSBedrock,
+				Models: []*types.LLM_Model{
+					{ProviderName: "openai.gpt-5.6-terra", Name: "gpt-5.6-terra"},
+				},
+			}, &types.AppAWS{
+				Region: "us-east-2",
+			}),
+			signAWSRequest: signAWSRequest,
+			request: func() *http.Request {
+				r, _ := http.NewRequest(
+					http.MethodPost,
+					"/chat/completions",
+					strings.NewReader(`{"model":"gpt-5.6-terra","stream": true,"messages":[{"role":"user","content":"Hello"}]}`),
+				)
+				return r
+			},
+			expectedError: require.NoError,
+			expectedRequest: func(tt require.TestingT, i1 any, i2 ...any) {
+				req, _ := i1.(*http.Request)
+				require.Equal(tt, "bedrock-mantle.us-east-2.api.aws", req.URL.Host)
+				require.Equal(tt, "/v1/chat/completions", req.URL.Path)
+				require.NotEmpty(tt, req.Header.Get("content-type"))
+				require.NotEmpty(tt, req.Header.Get("Authorization"))
+
+				body, err := io.ReadAll(req.Body)
+				require.NoError(tt, err)
+				require.Contains(tt, string(body), "openai.gpt-5.6-terra")
+				bodyHash := sha256.Sum256(body)
+				require.Equal(tt, hex.EncodeToString(bodyHash[:]), req.Header.Get("X-Amz-Content-Sha256"))
+			},
+			expectedInfo: func(tt require.TestingT, i1 any, i2 ...any) {
+				info, _ := i1.(*RequestInfo)
+				require.Equal(tt, "gpt-5.6-terra", info.RequestedModel())
+				require.Equal(tt, "openai.gpt-5.6-terra", info.ProviderModel())
+			},
+		},
+		"bedrock signer failure": {
+			app: newApp(t, &types.LLM{
+				Format:   types.LLMFormatOpenAI,
+				Provider: types.LLMProviderAWSBedrock,
+			}, &types.AppAWS{
+				Region: "us-east-2",
+			}),
+			signAWSRequest: func(ctx context.Context, a types.Application, r *http.Request, b []byte) error {
+				return errors.New("signing failed")
+			},
+			request: func() *http.Request {
+				r, _ := http.NewRequest(
+					http.MethodPost,
+					"/responses",
+					strings.NewReader(`{"model":"gpt-5.6-terra","input":"Hello"}`),
+				)
+				return r
+			},
+			expectedError: func(tt require.TestingT, err error, i ...any) {
+				require.Error(tt, err)
+				// The signing failure cause must not reach clients.
+				require.NotContains(tt, err.Error(), "signing failed")
+			},
+			expectedRequest: require.Nil,
+			expectedInfo:    require.NotNil,
+		},
+		"bedrock missing signer": {
+			app: newApp(t, &types.LLM{
+				Format:   types.LLMFormatOpenAI,
+				Provider: types.LLMProviderAWSBedrock,
+			}, &types.AppAWS{
+				Region: "us-east-2",
+			}),
+			request: func() *http.Request {
+				r, _ := http.NewRequest(
+					http.MethodPost,
+					"/responses",
+					strings.NewReader(`{"model":"gpt-5.6-terra","input":"Hello"}`),
+				)
+				return r
+			},
+			expectedError:   require.Error,
+			expectedRequest: require.Nil,
+			expectedInfo:    require.NotNil,
+		},
+		"bedrock unsupported endpoint": {
+			app: newApp(t, &types.LLM{
+				Format:   types.LLMFormatOpenAI,
+				Provider: types.LLMProviderAWSBedrock,
+			}, &types.AppAWS{
+				Region: "us-east-2",
+			}),
+			signAWSRequest: signAWSRequest,
+			request: func() *http.Request {
+				r, _ := http.NewRequest(
+					http.MethodPost,
+					"/complete",
+					strings.NewReader(`{"model":"gpt-5.6-terra","input":"Hello"}`),
+				)
+				return r
+			},
+			expectedError:   require.Error,
+			expectedRequest: require.Nil,
+			expectedInfo:    require.NotNil,
+		},
+		"bedrock unsupported method": {
+			app: newApp(t, &types.LLM{
+				Format:   types.LLMFormatOpenAI,
+				Provider: types.LLMProviderAWSBedrock,
+			}, &types.AppAWS{
+				Region: "us-east-2",
+			}),
+			signAWSRequest: signAWSRequest,
+			request: func() *http.Request {
+				r, _ := http.NewRequest(
+					http.MethodGet,
+					"/responses",
+					nil,
+				)
+				return r
+			},
+			expectedError:   require.Error,
+			expectedRequest: require.Nil,
+			expectedInfo:    require.NotNil,
+		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			req, info, err := NewRequest(&llmrequest.Config{
@@ -306,6 +547,7 @@ func TestNewRequest(t *testing.T) {
 				GetAPIKeyFunc: func() string {
 					return apiKey
 				},
+				SignBedrockRequest: tc.signAWSRequest,
 			})
 			tc.expectedError(t, err)
 			tc.expectedRequest(t, req)

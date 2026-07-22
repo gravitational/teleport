@@ -76,6 +76,6 @@ func (s *Handler) SetSharedDirectoryForDesktopSession(ctx context.Context, in *a
 		return &api.SetSharedDirectoryForDesktopSessionResponse{}, trace.Wrap(err)
 	}
 
-	err = s.DaemonService.SetSharedDirectoryForDesktopSession(ctx, parsed, in.GetLogin(), in.GetPath())
+	err = s.DaemonService.SetSharedDirectoryForDesktopSession(ctx, parsed, in.GetLogin(), in.GetPath(), in.GetDirectoryId())
 	return &api.SetSharedDirectoryForDesktopSessionResponse{}, trace.Wrap(err)
 }
