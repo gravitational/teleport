@@ -642,6 +642,10 @@ const (
 	UnstableEnableEICEEnvVar = "TELEPORT_UNSTABLE_ENABLE_EICE"
 	// EICEDisabledMessage is the message that gets returned to the user when they try to use this functionality.
 	EICEDisabledMessage = "support for accessing EC2 instances using EC2 Instance Connect Endpoint was removed"
+	// UnstableDisableSAMLRedirectDowngradeCheckEnvVar allows disabling saml_connector
+	// entity_descriptor_url check preventing following redirects via HTTP originating from
+	// HTTPS route.
+	UnstableDisableSAMLRedirectDowngradeCheckEnvVar = "TELEPORT_UNSTABLE_DISABLE_SAML_REDIRECT_DOWNGRADE_CHECK"
 )
 
 const (
