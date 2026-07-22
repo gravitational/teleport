@@ -162,16 +162,16 @@ func TestCompleteUploadTearsConcurrentUpload(t *testing.T) {
 		len(outEvents), len(inEvents), recordingPath)
 }
 
-// TestCompleteUploadCancelledLockRetryReportsError covers the second defect in
+// TestCompleteUploadCanceledLockRetryReportsError covers the second defect in
 // CompleteUpload: the ctx.Done() arm of the lock-retry backoff used to
 //
 //	return nil
 //
 // after truncating the recording and writing nothing. Both callers treat a nil
 // return as the upload having finished -- ProtoStream goes on to emit the
-// session end event -- so a cancelled completion announced a recording that was
+// session end event -- so a canceled completion announced a recording that was
 // never assembled.
-func TestCompleteUploadCancelledLockRetryReportsError(t *testing.T) {
+func TestCompleteUploadCanceledLockRetryReportsError(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 
 	dir := t.TempDir()
@@ -209,7 +209,7 @@ func TestCompleteUploadCancelledLockRetryReportsError(t *testing.T) {
 	cancel()
 
 	err = handler.CompleteUpload(ctx, *second, []events.StreamPart{*secondPart})
-	require.Error(t, err, "a cancelled completion must not report success")
+	require.Error(t, err, "a canceled completion must not report success")
 	require.ErrorIs(t, err, context.Canceled)
 
 	after, err := os.ReadFile(recordingPath)
