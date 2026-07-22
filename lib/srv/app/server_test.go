@@ -72,6 +72,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
@@ -172,7 +173,7 @@ type suiteConfig struct {
 
 type fakeConnMonitor struct{}
 
-func (f fakeConnMonitor) MonitorConn(ctx context.Context, authzCtx *authz.Context, conn net.Conn) (context.Context, net.Conn, error) {
+func (f fakeConnMonitor) MonitorConnScoped(ctx context.Context, scopedCtx *srv.ScopedSessionContext, conn net.Conn) (context.Context, net.Conn, error) {
 	return ctx, conn, nil
 }
 
@@ -360,10 +361,11 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 		},
 	})
 	require.NoError(t, err)
-	authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
-		ClusterName: "cluster-name",
-		AccessPoint: s.authClient,
-		LockWatcher: s.lockWatcher,
+	authorizer, err := authz.NewScopedAuthorizer(authz.AuthorizerOpts{
+		ClusterName:      "cluster-name",
+		AccessPoint:      s.authClient,
+		ScopedRoleReader: s.authClient.ScopedRoleReader(),
+		LockWatcher:      s.lockWatcher,
 	})
 	require.NoError(t, err)
 

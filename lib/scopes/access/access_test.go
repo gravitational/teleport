@@ -713,6 +713,298 @@ func TestValidateRole(t *testing.T) {
 					Defaults: &scopedaccessv1.ScopedRoleDefaults{
 						Lock: &scopedaccessv1.Lock{
 							Mode: "",
+						}.Build(),
+					}.Build(),
+				}.Build(),
+				Version: types.V1,
+			}.Build(),
+			strongOk: true,
+			weakOk:   true,
+		},
+		{
+			name: "app block without labels or label_expression",
+			role: scopedaccessv1.ScopedRole_builder{
+				Kind: KindScopedRole,
+				Metadata: headerv1.Metadata_builder{
+					Name: "test",
+				}.Build(),
+				Scope: "/",
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
+					AssignableScopes: []string{"/foo"},
+					App: scopedaccessv1.ScopedRoleApp_builder{
+						Lock: scopedaccessv1.Lock_builder{
+							Mode: string(constants.LockingModeStrict),
+						}.Build(),
+					}.Build(),
+				}.Build(),
+				Version: types.V1,
+			}.Build(),
+			strongOk: false,
+			weakOk:   true,
+		},
+		{
+			name: "app block with invalid labels",
+			role: scopedaccessv1.ScopedRole_builder{
+				Kind: KindScopedRole,
+				Metadata: headerv1.Metadata_builder{
+					Name: "test",
+				}.Build(),
+				Scope: "/",
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
+					AssignableScopes: []string{"/foo"},
+					App: scopedaccessv1.ScopedRoleApp_builder{
+						Labels: []*labelv1.Label{
+							labelv1.Label_builder{
+								Name:   "{}",
+								Values: []string{"{}"},
+							}.Build(),
+						},
+					}.Build(),
+				}.Build(),
+				Version: types.V1,
+			}.Build(),
+			strongOk: false,
+			weakOk:   true,
+		},
+		{
+			name: "app block with labels only",
+			role: scopedaccessv1.ScopedRole_builder{
+				Kind: KindScopedRole,
+				Metadata: headerv1.Metadata_builder{
+					Name: "test",
+				}.Build(),
+				Scope: "/",
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
+					AssignableScopes: []string{"/foo"},
+					App: scopedaccessv1.ScopedRoleApp_builder{
+						Labels: []*labelv1.Label{
+							labelv1.Label_builder{
+								Name:   "env",
+								Values: []string{"staging"},
+							}.Build(),
+						},
+					}.Build(),
+				}.Build(),
+				Version: types.V1,
+			}.Build(),
+			strongOk: true,
+			weakOk:   true,
+		},
+		{
+			name: "app block with invalid label expression",
+			role: scopedaccessv1.ScopedRole_builder{
+				Kind: KindScopedRole,
+				Metadata: headerv1.Metadata_builder{
+					Name: "test",
+				}.Build(),
+				Scope: "/",
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
+					AssignableScopes: []string{"/foo"},
+					App: scopedaccessv1.ScopedRoleApp_builder{
+						LabelExpression: `labels["env"] ==`,
+					}.Build(),
+				}.Build(),
+				Version: types.V1,
+			}.Build(),
+			strongOk: false,
+			weakOk:   true,
+		},
+		{
+			name: "valid App.lock.mode",
+			role: scopedaccessv1.ScopedRole_builder{
+				Kind: KindScopedRole,
+				Metadata: headerv1.Metadata_builder{
+					Name: "test",
+				}.Build(),
+				Scope: "/",
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
+					AssignableScopes: []string{"/foo"},
+					App: scopedaccessv1.ScopedRoleApp_builder{
+						LabelExpression: `labels["env"] == "staging"`,
+						Lock: scopedaccessv1.Lock_builder{
+							Mode: string(constants.LockingModeStrict),
+						}.Build(),
+					}.Build(),
+				}.Build(),
+				Version: types.V1,
+			}.Build(),
+			strongOk: true,
+			weakOk:   true,
+		},
+		{
+			name: "empty App.lock.mode",
+			role: scopedaccessv1.ScopedRole_builder{
+				Kind: KindScopedRole,
+				Metadata: headerv1.Metadata_builder{
+					Name: "test",
+				}.Build(),
+				Scope: "/",
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
+					AssignableScopes: []string{"/foo"},
+					App: scopedaccessv1.ScopedRoleApp_builder{
+						LabelExpression: `labels["env"] == "staging"`,
+						Lock: scopedaccessv1.Lock_builder{
+							Mode: "",
+						}.Build(),
+					}.Build(),
+				}.Build(),
+				Version: types.V1,
+			}.Build(),
+			strongOk: true,
+			weakOk:   true,
+		},
+		{
+			name: "invalid App.lock.mode",
+			role: scopedaccessv1.ScopedRole_builder{
+				Kind: KindScopedRole,
+				Metadata: headerv1.Metadata_builder{
+					Name: "test",
+				}.Build(),
+				Scope: "/",
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
+					AssignableScopes: []string{"/foo"},
+					App: scopedaccessv1.ScopedRoleApp_builder{
+						Labels: []*labelv1.Label{
+							labelv1.Label_builder{
+								Name:   "test",
+								Values: []string{"test"},
+							}.Build(),
+						},
+						Lock: scopedaccessv1.Lock_builder{
+							Mode: "invalid",
+						}.Build(),
+					}.Build(),
+				}.Build(),
+				Version: types.V1,
+			}.Build(),
+			strongOk: false,
+			weakOk:   true,
+		},
+		{
+			name: "invalid app.client_idle_timeout",
+			role: scopedaccessv1.ScopedRole_builder{
+				Kind: KindScopedRole,
+				Metadata: headerv1.Metadata_builder{
+					Name: "test",
+				}.Build(),
+				Scope: "/",
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
+					AssignableScopes: []string{"/foo"},
+					App: scopedaccessv1.ScopedRoleApp_builder{
+						LabelExpression:   `labels["env"] == "staging"`,
+						ClientIdleTimeout: "not-a-duration",
+					}.Build(),
+				}.Build(),
+				Version: types.V1,
+			}.Build(),
+			strongOk: false,
+			weakOk:   true,
+		},
+		{
+			name: "valid app.client_idle_timeout",
+			role: scopedaccessv1.ScopedRole_builder{
+				Kind: KindScopedRole,
+				Metadata: headerv1.Metadata_builder{
+					Name: "test",
+				}.Build(),
+				Scope: "/",
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
+					AssignableScopes: []string{"/foo"},
+					App: scopedaccessv1.ScopedRoleApp_builder{
+						LabelExpression:   `labels["env"] == "staging"`,
+						ClientIdleTimeout: "1h",
+					}.Build(),
+				}.Build(),
+				Version: types.V1,
+			}.Build(),
+			strongOk: true,
+			weakOk:   true,
+		},
+		{
+			name: "valid workload_identity rule",
+			role: scopedaccessv1.ScopedRole_builder{
+				Kind: KindScopedRole,
+				Metadata: headerv1.Metadata_builder{
+					Name: "test",
+				}.Build(),
+				Scope: "/",
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
+					AssignableScopes: []string{"/foo"},
+					Rules: []*scopedaccessv1.ScopedRule{
+						scopedaccessv1.ScopedRule_builder{
+							Resources: []string{types.KindWorkloadIdentity},
+							Verbs: []string{
+								types.VerbCreate,
+								types.VerbUpdate,
+								types.VerbDelete,
+								types.VerbList,
+								types.VerbReadNoSecrets,
+							},
+						}.Build(),
+					},
+				}.Build(),
+				Version: types.V1,
+			}.Build(),
+			strongOk: true,
+			weakOk:   true,
+		},
+		{
+			name: "workload_identity rule with secret read verb",
+			role: scopedaccessv1.ScopedRole_builder{
+				Kind: KindScopedRole,
+				Metadata: headerv1.Metadata_builder{
+					Name: "test",
+				}.Build(),
+				Scope: "/",
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
+					AssignableScopes: []string{"/foo"},
+					Rules: []*scopedaccessv1.ScopedRule{
+						scopedaccessv1.ScopedRule_builder{
+							Resources: []string{types.KindWorkloadIdentity},
+							Verbs:     []string{types.VerbRead},
+						}.Build(),
+					},
+				}.Build(),
+				Version: types.V1,
+			}.Build(),
+			strongOk: false,
+			weakOk:   true,
+		},
+		{
+			name: "workload_identity rule with unsupported verb",
+			role: scopedaccessv1.ScopedRole_builder{
+				Kind: KindScopedRole,
+				Metadata: headerv1.Metadata_builder{
+					Name: "test",
+				}.Build(),
+				Scope: "/",
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
+					AssignableScopes: []string{"/foo"},
+					Rules: []*scopedaccessv1.ScopedRule{
+						scopedaccessv1.ScopedRule_builder{
+							Resources: []string{types.KindWorkloadIdentity},
+							Verbs:     []string{types.Wildcard},
+						}.Build(),
+					},
+				}.Build(),
+				Version: types.V1,
+			}.Build(),
+			strongOk: false,
+			weakOk:   true,
+		},
+		{
+			name: "invalid workload_identity label name",
+			role: scopedaccessv1.ScopedRole_builder{
+				Kind: KindScopedRole,
+				Metadata: headerv1.Metadata_builder{
+					Name: "test",
+				}.Build(),
+				Scope: "/",
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
+					AssignableScopes: []string{"/foo"},
+					WorkloadIdentity: scopedaccessv1.ScopedRoleWorkloadIdentity_builder{
+						Labels: []*labelv1.Label{
+							labelv1.Label_builder{Name: "env^", Values: []string{"prod"}}.Build(),
 						},
 					},
 				},
@@ -1892,7 +2184,12 @@ func TestStrongValidateRoleSpecAllFieldsValidated(t *testing.T) {
 			Labels: []*labelv1.Label{
 				labelv1.Label_builder{Name: "env", Values: []string{"prod"}}.Build(),
 			},
-			LabelExpression: `contains(labels["env"], "prod")`,
+			LabelExpression:       `contains(labels["env"], "prod")`,
+			ClientIdleTimeout:     "1h",
+			DisconnectExpiredCert: ptr(true),
+			Lock: scopedaccessv1.Lock_builder{
+				Mode: "strict",
+			}.Build(),
 		}.Build(),
 	}.Build()
 
