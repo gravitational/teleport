@@ -85,6 +85,7 @@ import (
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
+	"github.com/gravitational/teleport/lib/scopes"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -426,6 +427,9 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	accessListsSvc, err := local.NewAccessListServiceV2(local.AccessListServiceConfig{
 		Backend: p.backend,
 		Modules: modulestest.EnterpriseModules(),
+		ScopesFeatures: scopes.Features{
+			Enabled: true,
+		},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

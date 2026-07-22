@@ -63,7 +63,6 @@ import (
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/trail"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/externalauditstorage"
 	"github.com/gravitational/teleport/api/types/installers"
@@ -166,7 +165,6 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindIntegration:                        rc.createIntegration,
 		types.KindWindowsDesktop:                     rc.createWindowsDesktop,
 		types.KindDynamicWindowsDesktop:              rc.createDynamicWindowsDesktop,
-		types.KindAccessList:                         rc.createAccessList,
 		types.KindDiscoveryConfig:                    rc.createDiscoveryConfig,
 		types.KindAuditQuery:                         rc.createAuditQuery,
 		types.KindSecurityReport:                     rc.createSecurityReport,
@@ -1758,30 +1756,6 @@ func (rc *ResourceCommand) createDiscoveryConfig(ctx context.Context, client *au
 		return trace.Wrap(err)
 	}
 	fmt.Printf("DiscoveryConfig %q has been created\n", discoveryConfig.GetName())
-
-	return nil
-}
-
-func (rc *ResourceCommand) createAccessList(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	accessList, err := services.UnmarshalAccessList(raw.Raw, services.DisallowUnknown())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	_, err = client.AccessListClient().GetAccessList(ctx, accessList.GetName())
-	if err != nil && !trace.IsNotFound(err) {
-		return trace.Wrap(err)
-	}
-	exists := (err == nil)
-
-	if exists && !rc.IsForced() {
-		return trace.AlreadyExists("Access list %q already exists", accessList.GetName())
-	}
-
-	if _, err := client.AccessListClient().UpsertAccessList(ctx, accessList); err != nil {
-		return trace.Wrap(err)
-	}
-	fmt.Printf("Access list %q has been %s\n", accessList.GetName(), UpsertVerb(exists, rc.IsForced()))
 
 	return nil
 }
@@ -3442,17 +3416,6 @@ func (rc *ResourceCommand) getCollectionByRef(ctx context.Context, client *authc
 			return nil, trace.Wrap(err)
 		}
 		return &serverInfoCollection{serverInfos: serverInfos}, nil
-	case types.KindAccessList:
-		if ref.Name != "" {
-			resource, err := client.AccessListClient().GetAccessList(ctx, ref.Name)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return &accessListCollection{accessLists: []*accesslist.AccessList{resource}}, nil
-		}
-		accessLists, err := client.AccessListClient().GetAccessLists(ctx)
-
-		return &accessListCollection{accessLists: accessLists}, trace.Wrap(err)
 	case types.KindVnetConfig:
 		vnetConfig, err := client.VnetConfigClient().GetVnetConfig(ctx)
 		if err != nil {

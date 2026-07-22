@@ -482,8 +482,6 @@ func ForOkta(cfg Config) Config {
 		{Kind: types.KindProxy},
 		{Kind: types.KindRole},
 		{Kind: types.KindClusterAuthPreference},
-		{Kind: types.KindAccessList},
-		{Kind: types.KindAccessListMember},
 	}
 	cfg.QueueSize = defaults.DiscoveryQueueSize
 	return cfg

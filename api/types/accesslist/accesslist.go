@@ -87,6 +87,9 @@ var (
 
 	// MembershipKindList is the list membership kind.
 	MembershipKindList = accesslistv1.MembershipKind_MEMBERSHIP_KIND_LIST.String()
+
+	// MembershipKindScopedList is the scoped list membership kind.
+	MembershipKindScopedList = accesslistv1.MembershipKind_MEMBERSHIP_KIND_SCOPED_LIST.String()
 )
 
 // ReviewDayOfMonth is the day of month the review should be repeated on.
@@ -138,6 +141,9 @@ type AccessList struct {
 
 	// Status contains dynamically calculated fields.
 	Status Status `json:"status" yaml:"status"`
+
+	// Scope is the scope of the access list.
+	Scope string `json:"scope" yaml:"scope"`
 }
 
 // Spec is the specification for an access list.
@@ -214,7 +220,10 @@ func (t Type) Equals(other Type) bool {
 
 // Owner is an owner of an access list.
 type Owner struct {
-	// Name is the username of the owner.
+	// Name is the username of the owner, depending on MembershipKind:
+	// MEMBERSHIP_KIND_USER: the username of the owner.
+	// MEMBERSHIP_KIND_LIST: the name of the owner access list.
+	// MEMBERSHIP_KIND_SCOPED_LIST: the scope-qualified name of the owner access list.
 	Name string `json:"name" yaml:"name"`
 
 	// Title is the title of an owner if it is of type MEMBERSHIP_KIND_LIST.
@@ -228,14 +237,19 @@ type Owner struct {
 	IneligibleStatus string `json:"ineligible_status" yaml:"ineligible_status"`
 
 	// MembershipKind describes the kind of ownership,
-	// either "MEMBERSHIP_KIND_USER" or "MEMBERSHIP_KIND_LIST".
+	// either "MEMBERSHIP_KIND_USER" or "MEMBERSHIP_KIND_LIST" or "MEMBERSHIP_KIND_SCOPED_LIST".
 	MembershipKind string `json:"membership_kind" yaml:"membership_kind"`
 }
 
 // IsMembershipKindUser returns true if the owner is of kind user.
-// All types expect "MEMBERSHIP_KIND_LIST" are treated as "MEMBERSHIP_KIND_USER".
+// "" and "MEMBERSHIP_KIND_UNSPECIFIED" are treated as "MEMBERSHIP_KIND_USER".
 func (o *Owner) IsMembershipKindUser() bool {
 	return isMembershipKindUser(o.MembershipKind)
+}
+
+// IsMembershipKindList returns true if the owner is an access list.
+func (o *Owner) IsMembershipKindList() bool {
+	return IsMembershipKindList(o.MembershipKind)
 }
 
 func isMembershipKindUser(membershipKind string) bool {
@@ -244,6 +258,17 @@ func isMembershipKindUser(membershipKind string) bool {
 		return true
 	default:
 		// In case if MembershipKind was extended.
+		return false
+	}
+}
+
+// IsMembershipKindList returns true if the membership kind is
+// MembershipKindList or MembershipKindScopedList.
+func IsMembershipKindList(membershipKind string) bool {
+	switch membershipKind {
+	case MembershipKindList, MembershipKindScopedList:
+		return true
+	default:
 		return false
 	}
 }
@@ -288,7 +313,7 @@ type Requires struct {
 
 // IsEmpty returns true when no roles or traits are set
 func (r *Requires) IsEmpty() bool {
-	return len(r.Roles) == 0 && len(r.Traits) == 0
+	return r == nil || (len(r.Roles) == 0 && len(r.Traits) == 0)
 }
 
 // Clone returns a deep copy of the [Requires]
@@ -317,7 +342,7 @@ type Grants struct {
 
 // ScopedRoleGrant describes a scoped role granted at a specific scope.
 type ScopedRoleGrant struct {
-	// Role is the name of the scoped role to be granted.
+	// Role is the scope-qualified name of the scoped role to be granted.
 	Role string `json:"role" yaml:"role"`
 	// Scope is the scope the role will be assigned at. It must be an assignable
 	// scope of the role.
@@ -335,6 +360,13 @@ type Status struct {
 	OwnerOf []string `json:"owner_of" yaml:"owner_of"`
 	// MemberOf is a list of Access List UUIDs where this access list is an explicit member.
 	MemberOf []string `json:"member_of" yaml:"member_of"`
+
+	// ScopedOwnerOf is a list of scope-qualified names of scoped access lists
+	// where this access list is an explicit owner.
+	ScopedOwnerOf []string `json:"scoped_owner_of" yaml:"scoped_owner_of"`
+	// ScopedMemberOf is a list of scope-qualified names of scoped access lists
+	// where this access list is an explicit member.
+	ScopedMemberOf []string `json:"scoped_member_of" yaml:"scoped_member_of"`
 
 	// CurrentUserAssignments describes the current user's ownership and membership in the access list.
 	CurrentUserAssignments *CurrentUserAssignments `json:"-" yaml:"-"`
@@ -380,9 +412,15 @@ func (u *UserAssignments) IsOwner() bool {
 
 // NewAccessList will create a new access list.
 func NewAccessList(metadata header.Metadata, spec Spec) (*AccessList, error) {
+	return NewAccessListWithScope(metadata, spec, "")
+}
+
+// NewAccessListWithScope will create a new access list with a scope.
+func NewAccessListWithScope(metadata header.Metadata, spec Spec, scope string) (*AccessList, error) {
 	accessList := &AccessList{
 		ResourceHeader: header.ResourceHeaderFromMetadata(metadata),
 		Spec:           spec,
+		Scope:          scope,
 	}
 
 	if err := accessList.CheckAndSetDefaults(); err != nil {
@@ -452,6 +490,11 @@ func (a *AccessList) CheckAndSetDefaults() error {
 	a.Spec.Owners = deduplicatedOwners
 
 	return nil
+}
+
+// GetScope returns the scope of the access list resource.
+func (a *AccessList) GetScope() string {
+	return a.Scope
 }
 
 // GetOwners returns the list of owners from the access list.
