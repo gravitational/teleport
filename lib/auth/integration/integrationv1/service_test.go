@@ -30,9 +30,13 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/metadata"
 
+	proto "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/externalauditstorage"
@@ -84,6 +88,7 @@ func TestIntegrationCRUD(t *testing.T) {
 		Name            string
 		Role            types.RoleSpecV6
 		IntegrationName string
+		DummyUser       bool
 		Setup           func(t *testing.T, igName string)
 		Test            func(ctx context.Context, resourceSvc *Service, igName string) error
 		Validate        func(t *testing.T, igName string)
@@ -92,7 +97,8 @@ func TestIntegrationCRUD(t *testing.T) {
 	}{
 		// Read
 		{
-			Name: "allowed read access to integrations",
+			Name:      "allowed read access to integrations",
+			DummyUser: true,
 			Role: types.RoleSpecV6{
 				Allow: types.RoleConditions{Rules: []types.Rule{{
 					Resources: []string{types.KindIntegration},
@@ -789,7 +795,8 @@ func TestIntegrationCRUD(t *testing.T) {
 
 		// Admin action MFA
 		{
-			Name: "create fails without admin MFA",
+			Name:      "create fails without admin MFA",
+			DummyUser: true,
 			Role: types.RoleSpecV6{
 				Allow: types.RoleConditions{Rules: []types.Rule{{
 					Resources: []string{types.KindIntegration},
@@ -799,7 +806,7 @@ func TestIntegrationCRUD(t *testing.T) {
 			Test: func(ctx context.Context, resourceSvc *Service, igName string) error {
 				ig := sampleIntegrationFn(t, igName)
 				_, err := resourceSvc.CreateIntegration(
-					contextWithoutAdminMFA(ctx),
+					ctx,
 					integrationpb.CreateIntegrationRequest_builder{Integration: ig.(*types.IntegrationV1)}.Build(),
 				)
 				return err
@@ -807,7 +814,8 @@ func TestIntegrationCRUD(t *testing.T) {
 			ErrAssertion: trace.IsAccessDenied,
 		},
 		{
-			Name: "update fails without admin MFA",
+			Name:      "update fails without admin MFA",
+			DummyUser: true,
 			Role: types.RoleSpecV6{
 				Allow: types.RoleConditions{Rules: []types.Rule{{
 					Resources: []string{types.KindIntegration},
@@ -821,7 +829,7 @@ func TestIntegrationCRUD(t *testing.T) {
 			Test: func(ctx context.Context, resourceSvc *Service, igName string) error {
 				ig := sampleIntegrationFn(t, igName)
 				_, err := resourceSvc.UpdateIntegration(
-					contextWithoutAdminMFA(ctx),
+					ctx,
 					integrationpb.UpdateIntegrationRequest_builder{Integration: ig.(*types.IntegrationV1)}.Build(),
 				)
 				return err
@@ -829,7 +837,8 @@ func TestIntegrationCRUD(t *testing.T) {
 			ErrAssertion: trace.IsAccessDenied,
 		},
 		{
-			Name: "delete fails without admin MFA",
+			Name:      "delete fails without admin MFA",
+			DummyUser: true,
 			Role: types.RoleSpecV6{
 				Allow: types.RoleConditions{Rules: []types.Rule{{
 					Resources: []string{types.KindIntegration},
@@ -842,7 +851,7 @@ func TestIntegrationCRUD(t *testing.T) {
 			},
 			Test: func(ctx context.Context, resourceSvc *Service, igName string) error {
 				_, err := resourceSvc.DeleteIntegration(
-					contextWithoutAdminMFA(ctx),
+					ctx,
 					integrationpb.DeleteIntegrationRequest_builder{Name: igName}.Build(),
 				)
 				return err
@@ -853,7 +862,12 @@ func TestIntegrationCRUD(t *testing.T) {
 
 	for _, tc := range tt {
 		t.Run(tc.Name, func(t *testing.T) {
-			localCtx := authorizerForDummyUser(t, ctx, tc.Role, localClient)
+			var localCtx context.Context
+			if tc.DummyUser {
+				localCtx = authorizerForDummyUser(t, ctx, tc.Role, localClient)
+			} else {
+				localCtx = authorizerForAdminUser(t, ctx, tc.Role, localClient)
+			}
 			igName := cmp.Or(tc.IntegrationName, uuid.NewString())
 			if tc.Setup != nil {
 				tc.Setup(t, igName)
@@ -874,7 +888,9 @@ func TestIntegrationCRUD(t *testing.T) {
 	}
 }
 
+// authorizerForDummyUser creates a user context without admin MFA verification.
 func authorizerForDummyUser(t *testing.T, ctx context.Context, roleSpec types.RoleSpecV6, localClient localClient) context.Context {
+	t.Helper()
 	// Create role
 	roleName := "role-" + uuid.NewString()
 	role, err := types.NewRole(roleName, roleSpec)
@@ -899,14 +915,24 @@ func authorizerForDummyUser(t *testing.T, ctx context.Context, roleSpec types.Ro
 	})
 }
 
-type withoutAdminMFAKeyType struct{}
-
-func contextWithoutAdminMFA(ctx context.Context) context.Context {
-	return context.WithValue(ctx, withoutAdminMFAKeyType{}, struct{}{})
+func authorizerForAdminUser(t *testing.T, ctx context.Context, roleSpec types.RoleSpecV6, localClient localClient) context.Context {
+	t.Helper()
+	ctx = authorizerForDummyUser(t, ctx, roleSpec, localClient)
+	encoded, err := mfa.EncodeMFAChallengeResponseCredentials(&proto.MFAAuthenticateResponse{
+		Response: &proto.MFAAuthenticateResponse_TOTP{
+			TOTP: &proto.TOTPResponse{Code: "mock"},
+		},
+	})
+	require.NoError(t, err)
+	return metadata.NewIncomingContext(ctx, metadata.MD{
+		mfa.ResponseMetadataKey: {encoded},
+	})
 }
 
-func hasWithoutAdminMFA(ctx context.Context) bool {
-	return ctx.Value(withoutAdminMFAKeyType{}) != nil
+type fakeMFAAuthenticator struct{}
+
+func (f *fakeMFAAuthenticator) ValidateMFAAuthResponse(_ context.Context, _ *proto.MFAAuthenticateResponse, _ string, _ *mfav1.ChallengeExtensions) (*authz.MFAAuthData, error) {
+	return &authz.MFAAuthData{}, nil
 }
 
 type localClient interface {
@@ -1040,24 +1066,13 @@ func initSvc(t *testing.T, ca types.CertAuthority, clusterName string, proxyPubl
 	discoveryConfigService, err := local.NewDiscoveryConfigService(backend)
 	require.NoError(t, err)
 
-	realAuthorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
-		ClusterName: clusterName,
-		AccessPoint: accessPoint,
-		LockWatcher: lockWatcher,
+	authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
+		ClusterName:      clusterName,
+		AccessPoint:      accessPoint,
+		LockWatcher:      lockWatcher,
+		MFAAuthenticator: &fakeMFAAuthenticator{},
 	})
 	require.NoError(t, err)
-	// Wrap the authorizer to default to admin MFA verified. Tests that need
-	// to verify MFA denial inject withoutAdminMFA into the context.
-	authorizer := authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
-		authCtx, err := realAuthorizer.Authorize(ctx)
-		if err != nil {
-			return nil, err
-		}
-		if !hasWithoutAdminMFA(ctx) {
-			authCtx.AdminActionAuthState = authz.AdminActionAuthMFAVerified
-		}
-		return authCtx, nil
-	})
 
 	localResourceService, err := local.NewIntegrationsService(backend)
 	require.NoError(t, err)
@@ -1332,4 +1347,3 @@ func mustMakeAppServer(t *testing.T, ig types.Integration) types.AppServer {
 	require.NoError(t, err)
 	return appServer
 }
-
