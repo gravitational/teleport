@@ -185,6 +185,7 @@ export default function createMainProcessClient(): MainProcessClient {
     selectDirectoryForDesktopSession(args: {
       desktopUri: string;
       login: string;
+      directoryId: number;
     }) {
       return ipcInvoke(MainProcessIpc.SelectDirectoryForDesktopSession, args);
     },

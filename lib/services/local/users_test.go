@@ -43,6 +43,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/bcrypt"
 
+	"github.com/gravitational/teleport/api/constants"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
@@ -1786,6 +1787,69 @@ func TestWeakestMFADeviceKind(t *testing.T) {
 	got, err = identity.GetUser(ctx, "bob", false)
 	require.NoError(t, err)
 	require.Equal(t, types.MFADeviceKind_MFA_DEVICE_KIND_TOTP, got.GetWeakestDevice())
+
+	// An SSO MFA device cannot be created. Instead it is deduced based on the MFA settings being
+	// enabled in the SSO connector spec. It is simulated by creating a SAML connector below.
+	samlConnectorWithSSOMFA, err := types.NewSAMLConnector("saml", types.SAMLConnectorSpecV2{
+		AssertionConsumerService: "http://localhost:65535/acs", // not called
+		Issuer:                   "test",
+		SSO:                      "https://localhost:65535/sso", // not called
+		AttributesToRoles: []types.AttributeMapping{
+			// not used. can be any name, value but role must exist
+			{Name: "groups", Value: "admin", Roles: []string{"access"}},
+		},
+		MFASettings: &types.SAMLConnectorMFASettings{
+			Enabled: true,
+			Issuer:  "test",
+			Sso:     "https://localhost:65535/sso", // not called
+		},
+	})
+	require.NoError(t, err)
+	_, err = identity.UpsertSAMLConnector(ctx, samlConnectorWithSSOMFA)
+	require.NoError(t, err)
+
+	// Update bob to be an SSO user by setting CreatedBy matching with samlConnectorWithSSOMFA.
+	// This will start resolving bob's SSO MFA device.
+	bob1, err = identity.GetUser(ctx, "bob", false /* withSecrets */)
+	require.NoError(t, err)
+	bob1.SetCreatedBy(types.CreatedBy{
+		Connector: &types.ConnectorRef{
+			Type:     constants.SAML,
+			ID:       samlConnectorWithSSOMFA.GetName(),
+			Identity: bob1.GetName(),
+		},
+		Time: clock.Now().UTC(),
+	})
+	got, err = identity.UpdateUser(ctx, bob1)
+	require.NoError(t, err)
+
+	// Weakest device still remains the TOTP.
+	require.Equal(t, types.MFADeviceKind_MFA_DEVICE_KIND_TOTP, got.GetWeakestDevice())
+
+	// Delete TOTP device
+	err = identity.DeleteMFADevice(ctx, "bob", totpDevice.Id)
+	require.NoError(t, err)
+
+	// Expect the new weakest device to be SSO MFA.
+	got, err = identity.GetUser(ctx, "bob", false /* withSecrets */)
+	require.NoError(t, err)
+	require.Equal(t, types.MFADeviceKind_MFA_DEVICE_KIND_SSO, got.GetWeakestDevice())
+
+	// New SAML user that has a referenced connector with MFA settings enabled should
+	// get the MFADeviceKind_MFA_DEVICE_KIND_SSO at the time of resource creation.
+	alice, err := types.NewUser("alice")
+	require.NoError(t, err)
+	alice.SetCreatedBy(types.CreatedBy{
+		Connector: &types.ConnectorRef{
+			Type:     constants.SAML,
+			ID:       samlConnectorWithSSOMFA.GetName(),
+			Identity: alice.GetName(),
+		},
+		Time: clock.Now().UTC(),
+	})
+	got, err = identity.CreateUser(ctx, alice)
+	require.NoError(t, err)
+	require.Equal(t, types.MFADeviceKind_MFA_DEVICE_KIND_SSO, got.GetWeakestDevice())
 }
 
 func TestIdentityService_SSOMFASessionDataCRUD(t *testing.T) {
