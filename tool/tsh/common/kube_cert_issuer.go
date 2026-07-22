@@ -27,7 +27,6 @@ import (
 	"sync"
 
 	"github.com/gravitational/trace"
-	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -142,14 +141,9 @@ func (issuer *kubeCertIssuer) issueCerts(ctx context.Context, cc kubeCertClient,
 		} else {
 			// MFA-gated issuances replay the reusable response and never
 			// write the key store, so they are safe to run concurrently.
-			g, gctx := errgroup.WithContext(ctx)
-			g.SetLimit(kubeCertIssueConcurrency())
-			for _, cluster := range mfaOn {
-				g.Go(func() error {
-					return trace.Wrap(issueAndAdd(gctx, cluster))
-				})
-			}
-			if err := g.Wait(); err != nil {
+			wave := newKubeClusterGroup(cc, mfaOn, kubeCertIssueConcurrency())
+			defer wave.Close(ctx)
+			if err := wave.ForEach(ctx, issueAndAdd); err != nil {
 				return nil, trace.Wrap(err)
 			}
 		}
@@ -246,40 +240,27 @@ func (issuer *kubeCertIssuer) fetchMFARequired(ctx context.Context, cc kubeCertC
 	checks := make(map[string]*proto.IsMFARequiredResponse, len(clusters))
 	var checksMu sync.Mutex
 
-	byTeleportCluster := make(map[string]kubeconfig.LocalProxyClusters)
-	for _, cluster := range clusters {
-		byTeleportCluster[cluster.TeleportCluster] = append(byTeleportCluster[cluster.TeleportCluster], cluster)
-	}
+	group := newKubeClusterGroup(cc, clusters, kubeCertIssueConcurrency())
+	defer group.Close(ctx)
 
-	for teleportCluster, group := range byTeleportCluster {
-		authClient, err := cc.ConnectToCluster(ctx, teleportCluster)
+	err := group.ForEach(ctx, func(ctx context.Context, cluster kubeconfig.LocalProxyCluster) error {
+		authClient, err := group.AuthClient(ctx, cluster.TeleportCluster)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return trace.Wrap(err)
 		}
-		defer func() {
-			if err := authClient.Close(); err != nil {
-				logger.WarnContext(ctx, "Failed to close auth client", "error", err)
-			}
-		}()
-		g, gctx := errgroup.WithContext(ctx)
-		g.SetLimit(kubeCertIssueConcurrency())
-		for _, cluster := range group {
-			g.Go(func() error {
-				resp, err := authClient.IsMFARequired(gctx, &proto.IsMFARequiredRequest{
-					Target: &proto.IsMFARequiredRequest_KubernetesCluster{KubernetesCluster: cluster.KubeCluster},
-				})
-				if err != nil {
-					return trace.Wrap(err)
-				}
-				checksMu.Lock()
-				defer checksMu.Unlock()
-				checks[localProxyClusterKey(cluster)] = resp
-				return nil
-			})
+		resp, err := authClient.IsMFARequired(ctx, &proto.IsMFARequiredRequest{
+			Target: &proto.IsMFARequiredRequest_KubernetesCluster{KubernetesCluster: cluster.KubeCluster},
+		})
+		if err != nil {
+			return trace.Wrap(err)
 		}
-		if err := g.Wait(); err != nil {
-			return nil, trace.Wrap(err)
-		}
+		checksMu.Lock()
+		defer checksMu.Unlock()
+		checks[localProxyClusterKey(cluster)] = resp
+		return nil
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 	return checks, nil
 }
