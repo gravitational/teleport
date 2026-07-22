@@ -9170,7 +9170,7 @@ func checkOktaLockTarget(ctx context.Context, authzCtx *authz.Context, users ser
 
 	target := lock.Target()
 	switch {
-	case !target.Equals(types.LockTarget{User: target.User}):
+	case target != (types.LockTarget{User: target.User}):
 		return trace.BadParameter("%s", errorMsg)
 
 	case target.User == "":
