@@ -122,7 +122,7 @@ func (c *AccessGraphCommand) AccessReview(ctx context.Context, client *accessgra
 		// The activity lookup couldn't run: hide the columns and surface the
 		// backend's message as a note.
 		showActivity = false
-		output.ActivityUnavailable = utils.EscapeControl(*resp.IacError)
+		output.ActivityUnavailable = utils.AllowWhitespace(*resp.IacError)
 	}
 	if truncated {
 		output.Warnings = append(output.Warnings, fmt.Sprintf("results truncated at %d identities; narrow --query for the full set", args.limit))
