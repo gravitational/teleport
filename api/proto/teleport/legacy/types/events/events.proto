@@ -318,6 +318,9 @@ message AccessListMemberMetadata {
 
   // AccessListTitle is the access list's title.
   string AccessListTitle = 4 [(gogoproto.jsontag) = "access_list_title,omitempty"];
+
+  // AccessListScope is the scope of the access list.
+  string access_list_scope = 5;
 }
 
 // AccessListMember is metadata surrounding an individual access list member.
@@ -345,6 +348,9 @@ message AccessListMember {
   // MembershipKind describes the kind of membership, either
   // `MEMBERSHIP_KIND_USER` or `MEMBERSHIP_KIND_LIST`.
   teleport.accesslist.v1.MembershipKind membership_kind = 5 [(gogoproto.jsontag) = "membership_kind,omitempty"];
+
+  // MemberScope is the scope of the member.
+  string member_scope = 6;
 }
 
 // AccessListReviewMembershipRequirementsChanged contains information for when membership requirements change as part of a review.
@@ -378,6 +384,9 @@ message AccessListReviewMetadata {
 
   // AccessListTitle is the access list's title.
   string AccessListTitle = 7 [(gogoproto.jsontag) = "access_list_title,omitempty"];
+
+  // ScopedRemovedMembers are the scoped members that were removed as part of the review.
+  repeated string scoped_removed_members = 8;
 }
 
 // LockMetadata contains common metadata for lock resource events.
