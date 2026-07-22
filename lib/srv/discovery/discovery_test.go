@@ -77,7 +77,7 @@ import (
 	discoveryconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
-	kubev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
@@ -4494,7 +4494,7 @@ func (f *fakeAccessPoint) EnrollEKSClusters(ctx context.Context, req *integratio
 	return &integrationpb.EnrollEKSClustersResponse{}, trace.NotImplemented("not implemented")
 }
 
-func (f *fakeAccessPoint) GetKubeCluster(ctx context.Context, req *kubev1.GetKubeClusterRequest) (types.KubeCluster, error) {
+func (f *fakeAccessPoint) GetKubeCluster(ctx context.Context, req *presencev1.GetKubeClusterRequest) (types.KubeCluster, error) {
 	return f.kube, nil
 }
 

@@ -24,7 +24,7 @@ import (
 
 	"github.com/gravitational/trace"
 
-	kubev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
@@ -174,7 +174,7 @@ func (s *Server) onKubeCreate(ctx context.Context, kubeCluster types.KubeCluster
 	// If the kube already exists but has an empty discovery group, update it.
 	if err != nil {
 		err := s.resolveCreateErr(err, types.OriginCloud, func() (types.ResourceWithLabels, error) {
-			return s.AccessPoint.GetKubeCluster(ctx, kubev1.GetKubeClusterRequest_builder{
+			return s.AccessPoint.GetKubeCluster(ctx, presencev1.GetKubeClusterRequest_builder{
 				Name:  kubeCluster.GetName(),
 				Scope: kubeCluster.GetScope(),
 			}.Build())
@@ -208,7 +208,7 @@ func (s *Server) onKubeDelete(ctx context.Context, kubeCluster types.KubeCluster
 			"kube_cluster_name", kubeCluster.GetName(),
 			"error", err)
 	}
-	return trace.Wrap(s.AccessPoint.DeleteKubeCluster(ctx, kubev1.DeleteKubeClusterRequest_builder{
+	return trace.Wrap(s.AccessPoint.DeleteKubeCluster(ctx, presencev1.DeleteKubeClusterRequest_builder{
 		Name:  kubeCluster.GetName(),
 		Scope: kubeCluster.GetScope(),
 	}.Build()))

@@ -36,7 +36,6 @@ import (
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
-	kubev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
@@ -962,7 +961,7 @@ type DiscoveryAccessPoint interface {
 	// UpdateKubernetesCluster updates existing kubernetes cluster resource.
 	UpdateKubernetesCluster(ctx context.Context, cluster types.KubeCluster) error
 	// DeleteKubeCluster deletes specified kubernetes cluster resource.
-	DeleteKubeCluster(ctx context.Context, req *kubev1.DeleteKubeClusterRequest) error
+	DeleteKubeCluster(ctx context.Context, req *presencev1.DeleteKubeClusterRequest) error
 
 	// CreateDatabase creates a new database resource.
 	CreateDatabase(ctx context.Context, database types.Database) error
@@ -1842,7 +1841,7 @@ func (w *DiscoveryWrapper) UpdateKubernetesCluster(ctx context.Context, cluster 
 }
 
 // DeleteKubeCluster deletes specified kubernetes cluster resource.
-func (w *DiscoveryWrapper) DeleteKubeCluster(ctx context.Context, req *kubev1.DeleteKubeClusterRequest) error {
+func (w *DiscoveryWrapper) DeleteKubeCluster(ctx context.Context, req *presencev1.DeleteKubeClusterRequest) error {
 	return w.NoCache.DeleteKubeCluster(ctx, req)
 }
 

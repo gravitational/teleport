@@ -44,12 +44,17 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/scopes"
 )
 
 func newTestTLSServer(t testing.TB) *authtest.TLSServer {
 	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir:   t.TempDir(),
 		Clock: clockwork.NewFakeClockAt(time.Now().Round(time.Second).UTC()),
+		ScopesFeatures: scopes.Features{
+			Enabled:         true,
+			AgentPinEnabled: true,
+		},
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, as.Close()) })

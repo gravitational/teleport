@@ -24,7 +24,7 @@ import (
 
 	"github.com/gravitational/trace"
 
-	kubev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/utils"
@@ -36,12 +36,12 @@ type KubernetesClusterGetter interface {
 	GetKubernetesClusters(context.Context) ([]types.KubeCluster, error)
 	// ListKubeClusters returns a page of registered kube clusters with the ability to apply
 	// scope filters.
-	ListKubeClusters(ctx context.Context, req *kubev1.ListKubeClustersRequest) ([]types.KubeCluster, string, error)
+	ListKubeClusters(ctx context.Context, req *presencev1.ListKubeClustersRequest) ([]types.KubeCluster, string, error)
 	// RangeKubeClusters returns kube clusters within the range [start, end) with the ability to
 	// apply scope filters.
-	RangeKubeClusters(ctx context.Context, req *kubev1.ListKubeClustersRequest, startKey, endKey string) iter.Seq2[types.KubeCluster, error]
+	RangeKubeClusters(ctx context.Context, req *presencev1.ListKubeClustersRequest, startKey, endKey string) iter.Seq2[types.KubeCluster, error]
 	// GetKubeCluster returns the specified kube cluster resource by scope and name.
-	GetKubeCluster(ctx context.Context, req *kubev1.GetKubeClusterRequest) (types.KubeCluster, error)
+	GetKubeCluster(ctx context.Context, req *presencev1.GetKubeClusterRequest) (types.KubeCluster, error)
 }
 
 // KubernetesServerGetter defines interface for fetching kubernetes server resources.
@@ -62,7 +62,7 @@ type Kubernetes interface {
 	DeleteAllKubernetesClusters(context.Context) error
 	// DeleteKubeCluster removes the specified kube cluster resource with
 	// respect to its scope.
-	DeleteKubeCluster(ctx context.Context, req *kubev1.DeleteKubeClusterRequest) error
+	DeleteKubeCluster(ctx context.Context, req *presencev1.DeleteKubeClusterRequest) error
 }
 
 // MarshalKubeServer marshals the KubeServer resource to JSON.

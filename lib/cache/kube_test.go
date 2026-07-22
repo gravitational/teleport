@@ -25,8 +25,8 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
-	kubev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/kubewaitingcontainer"
@@ -66,7 +66,7 @@ func TestKubernetes(t *testing.T) {
 			},
 			create: p.kubernetes.CreateKubernetesCluster,
 			list: func(ctx context.Context, pageSize int, pageToken string) ([]types.KubeCluster, string, error) {
-				return p.kubernetes.ListKubeClusters(ctx, kubev1.ListKubeClustersRequest_builder{
+				return p.kubernetes.ListKubeClusters(ctx, presencev1.ListKubeClustersRequest_builder{
 					PageSize:  int32(pageSize),
 					PageToken: pageToken,
 				}.Build())
@@ -113,7 +113,7 @@ func TestKubernetes(t *testing.T) {
 			},
 			create: p.kubernetes.CreateKubernetesCluster,
 			list: func(ctx context.Context, pageSize int, pageToken string) ([]types.KubeCluster, string, error) {
-				return p.kubernetes.ListKubeClusters(ctx, kubev1.ListKubeClustersRequest_builder{
+				return p.kubernetes.ListKubeClusters(ctx, presencev1.ListKubeClustersRequest_builder{
 					ScopeFilter: scopesv1.Filter_builder{
 						Mode:  scopesv1.Mode_MODE_EXACT,
 						Scope: scope,
@@ -136,7 +136,7 @@ func TestKubernetes(t *testing.T) {
 
 func cacheGetKubeClusterWithScope(cache *Cache, scope string) func(context.Context, string) (types.KubeCluster, error) {
 	return func(ctx context.Context, name string) (types.KubeCluster, error) {
-		return cache.GetKubeCluster(ctx, kubev1.GetKubeClusterRequest_builder{
+		return cache.GetKubeCluster(ctx, presencev1.GetKubeClusterRequest_builder{
 			Scope: scope,
 			Name:  name,
 		}.Build())
@@ -145,7 +145,7 @@ func cacheGetKubeClusterWithScope(cache *Cache, scope string) func(context.Conte
 
 func cacheListKubeClustersWithScopeFilter(cache *Cache, scopeFilter *scopesv1.Filter) func(context.Context, int, string) ([]types.KubeCluster, string, error) {
 	return func(ctx context.Context, pageSize int, pageToken string) ([]types.KubeCluster, string, error) {
-		return cache.ListKubeClusters(ctx, kubev1.ListKubeClustersRequest_builder{
+		return cache.ListKubeClusters(ctx, presencev1.ListKubeClustersRequest_builder{
 			PageSize:    int32(pageSize),
 			PageToken:   pageToken,
 			ScopeFilter: scopeFilter,
@@ -155,7 +155,7 @@ func cacheListKubeClustersWithScopeFilter(cache *Cache, scopeFilter *scopesv1.Fi
 
 func cacheRangeKubeClustersWithScopeFilter(cache *Cache, scopeFilter *scopesv1.Filter) func(context.Context, string, string) iter.Seq2[types.KubeCluster, error] {
 	return func(ctx context.Context, startKey, endKey string) iter.Seq2[types.KubeCluster, error] {
-		return cache.RangeKubeClusters(ctx, kubev1.ListKubeClustersRequest_builder{
+		return cache.RangeKubeClusters(ctx, presencev1.ListKubeClustersRequest_builder{
 			ScopeFilter: scopeFilter,
 		}.Build(), startKey, endKey)
 	}

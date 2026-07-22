@@ -23,7 +23,7 @@ import (
 
 	"github.com/gravitational/trace"
 
-	kubev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
@@ -159,7 +159,7 @@ func deleteKubeCluster(ctx context.Context, client *authclient.Client, ref servi
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := client.DeleteKubeCluster(ctx, kubev1.DeleteKubeClusterRequest_builder{
+	if err := client.DeleteKubeCluster(ctx, presencev1.DeleteKubeClusterRequest_builder{
 		Name: name,
 	}.Build()); err != nil {
 		return trace.Wrap(err)
@@ -184,7 +184,7 @@ func getScopedKubeCluster(ctx context.Context, client *authclient.Client, subKin
 	}
 
 	if sqn != nil {
-		cluster, err := client.GetKubeCluster(ctx, kubev1.GetKubeClusterRequest_builder{
+		cluster, err := client.GetKubeCluster(ctx, presencev1.GetKubeClusterRequest_builder{
 			Scope: sqn.Scope,
 			Name:  sqn.Name,
 		}.Build())
@@ -198,7 +198,7 @@ func getScopedKubeCluster(ctx context.Context, client *authclient.Client, subKin
 	}
 
 	clusters, err := stream.Collect(clientutils.Resources(ctx, func(ctx context.Context, pageSize int, pageKey string) ([]types.KubeCluster, string, error) {
-		return client.ListKubeClusters(ctx, kubev1.ListKubeClustersRequest_builder{
+		return client.ListKubeClusters(ctx, presencev1.ListKubeClustersRequest_builder{
 			PageSize:    int32(pageSize),
 			PageToken:   pageKey,
 			ScopeFilter: scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_ALL}.Build(),
@@ -262,7 +262,7 @@ func deleteScopedKubeCluster(ctx context.Context, client *authclient.Client, sub
 	}
 
 	// Fetch first to verify scope before deleting.
-	cluster, err := client.GetKubeCluster(ctx, kubev1.GetKubeClusterRequest_builder{
+	cluster, err := client.GetKubeCluster(ctx, presencev1.GetKubeClusterRequest_builder{
 		Scope: sqn.Scope,
 		Name:  sqn.Name,
 	}.Build())
@@ -274,7 +274,7 @@ func deleteScopedKubeCluster(ctx context.Context, client *authclient.Client, sub
 		return scopeMismatchNotFound(types.KindScopedToken, sqn, cluster.GetScope())
 	}
 
-	if err := client.DeleteKubeCluster(ctx, kubev1.DeleteKubeClusterRequest_builder{
+	if err := client.DeleteKubeCluster(ctx, presencev1.DeleteKubeClusterRequest_builder{
 		Scope: sqn.Scope,
 		Name:  sqn.Name,
 	}.Build()); err != nil {

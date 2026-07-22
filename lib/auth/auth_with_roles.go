@@ -45,9 +45,9 @@ import (
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
-	kubev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/metadata"
@@ -7584,7 +7584,7 @@ func (a *ScopedServerWithRoles) UpdateKubernetesCluster(ctx context.Context, clu
 
 	// Don't allow users update clusters they don't have access to (e.g.
 	// non-matching labels). Make sure to check existing cluster too.
-	existing, err := a.authServer.GetKubeCluster(ctx, kubev1.GetKubeClusterRequest_builder{
+	existing, err := a.authServer.GetKubeCluster(ctx, presencev1.GetKubeClusterRequest_builder{
 		Scope: cluster.GetScope(),
 		Name:  cluster.GetName(),
 	}.Build())
@@ -7631,7 +7631,7 @@ func (a *ScopedServerWithRoles) GetKubernetesCluster(ctx context.Context, name s
 		return nil, trace.Wrap(err)
 	}
 
-	kubeCluster, err := a.authServer.GetKubeCluster(ctx, kubev1.GetKubeClusterRequest_builder{
+	kubeCluster, err := a.authServer.GetKubeCluster(ctx, presencev1.GetKubeClusterRequest_builder{
 		Name: name,
 	}.Build())
 	if err != nil {
@@ -7722,7 +7722,7 @@ func (a *ScopedServerWithRoles) DeleteKubernetesCluster(ctx context.Context, nam
 		return trace.Wrap(err)
 	}
 	// Make sure user has access to the kubernetes cluster before deleting.
-	cluster, err := a.authServer.GetKubeCluster(ctx, kubev1.GetKubeClusterRequest_builder{
+	cluster, err := a.authServer.GetKubeCluster(ctx, presencev1.GetKubeClusterRequest_builder{
 		Name: name,
 	}.Build())
 	if err != nil {
@@ -7736,7 +7736,7 @@ func (a *ScopedServerWithRoles) DeleteKubernetesCluster(ctx context.Context, nam
 	}); err != nil {
 		return trace.Wrap(err)
 	}
-	return trace.Wrap(a.authServer.DeleteKubeCluster(ctx, kubev1.DeleteKubeClusterRequest_builder{
+	return trace.Wrap(a.authServer.DeleteKubeCluster(ctx, presencev1.DeleteKubeClusterRequest_builder{
 		Name: name,
 	}.Build()))
 }
@@ -7761,7 +7761,7 @@ func (a *ScopedServerWithRoles) DeleteAllKubernetesClusters(ctx context.Context)
 			}
 			return checker.Kube().CanAccessCluster(cluster)
 		}); err == nil {
-			if err := a.authServer.DeleteKubeCluster(ctx, kubev1.DeleteKubeClusterRequest_builder{
+			if err := a.authServer.DeleteKubeCluster(ctx, presencev1.DeleteKubeClusterRequest_builder{
 				Scope: cluster.GetScope(),
 				Name:  cluster.GetName(),
 			}.Build()); err != nil {

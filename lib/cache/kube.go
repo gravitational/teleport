@@ -27,8 +27,8 @@ import (
 
 	clientproto "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
-	kubev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	kubewaitingcontainerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/backend"
@@ -203,8 +203,8 @@ const kubeClusterNameIndex = "name"
 
 // KubeClusterUpstream implements fetching and listing over [types.KubeCluster] resources.
 type KubeClusterUpstream interface {
-	GetKubeCluster(ctx context.Context, req *kubev1.GetKubeClusterRequest) (types.KubeCluster, error)
-	ListKubeClusters(ctx context.Context, req *kubev1.ListKubeClustersRequest) ([]types.KubeCluster, string, error)
+	GetKubeCluster(ctx context.Context, req *presencev1.GetKubeClusterRequest) (types.KubeCluster, error)
+	ListKubeClusters(ctx context.Context, req *presencev1.ListKubeClustersRequest) ([]types.KubeCluster, string, error)
 }
 
 func newKubernetesClusterCollection(upstream KubeClusterUpstream, w types.WatchKind) (*collection[types.KubeCluster, kubeClusterIndex], error) {
@@ -221,7 +221,7 @@ func newKubernetesClusterCollection(upstream KubeClusterUpstream, w types.WatchK
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.KubeCluster, error) {
 			return stream.Collect(clientutils.Resources(ctx, func(ctx context.Context, pageSize int, pageToken string) ([]types.KubeCluster, string, error) {
-				return upstream.ListKubeClusters(ctx, kubev1.ListKubeClustersRequest_builder{
+				return upstream.ListKubeClusters(ctx, presencev1.ListKubeClustersRequest_builder{
 					PageSize:  int32(pageSize),
 					PageToken: pageToken,
 					// TODO (eriktate): propagate filter from WatchKind once that's possible
@@ -269,7 +269,7 @@ func (c *Cache) GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster,
 }
 
 // ListKubeClusters returns a page of registered kubernetes clusters.
-func (c *Cache) ListKubeClusters(ctx context.Context, req *kubev1.ListKubeClustersRequest) ([]types.KubeCluster, string, error) {
+func (c *Cache) ListKubeClusters(ctx context.Context, req *presencev1.ListKubeClustersRequest) ([]types.KubeCluster, string, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/ListKubeClusters")
 	defer span.End()
 
@@ -293,7 +293,7 @@ func (c *Cache) ListKubeClusters(ctx context.Context, req *kubev1.ListKubeCluste
 }
 
 // RangeKubeClusters returns kubernetes clusters within the range [start, end).
-func (c *Cache) RangeKubeClusters(ctx context.Context, req *kubev1.ListKubeClustersRequest, startKey, endKey string) iter.Seq2[types.KubeCluster, error] {
+func (c *Cache) RangeKubeClusters(ctx context.Context, req *presencev1.ListKubeClustersRequest, startKey, endKey string) iter.Seq2[types.KubeCluster, error] {
 	ctx, span := c.Tracer.Start(ctx, "cache/RangeKubeClusters")
 	defer span.End()
 	scopeFilter := req.GetScopeFilter()
@@ -306,7 +306,7 @@ func (c *Cache) RangeKubeClusters(ctx context.Context, req *kubev1.ListKubeClust
 		collection: c.collections.kubeClusters,
 		index:      kubeClusterNameIndex,
 		upstreamList: func(ctx context.Context, pageSize int, pageToken string) ([]types.KubeCluster, string, error) {
-			return c.Kubernetes.ListKubeClusters(ctx, kubev1.ListKubeClustersRequest_builder{
+			return c.Kubernetes.ListKubeClusters(ctx, presencev1.ListKubeClustersRequest_builder{
 				PageSize:    int32(pageSize),
 				PageToken:   pageToken,
 				ScopeFilter: scopeFilter,
@@ -322,7 +322,7 @@ func (c *Cache) RangeKubeClusters(ctx context.Context, req *kubev1.ListKubeClust
 }
 
 // GetKubeCluster returns the specified kubernetes cluster resource.
-func (c *Cache) GetKubeCluster(ctx context.Context, req *kubev1.GetKubeClusterRequest) (types.KubeCluster, error) {
+func (c *Cache) GetKubeCluster(ctx context.Context, req *presencev1.GetKubeClusterRequest) (types.KubeCluster, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetKubeCluster")
 	defer span.End()
 

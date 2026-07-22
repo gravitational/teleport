@@ -26,7 +26,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
-	kubev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/itertools/stream"
@@ -83,7 +83,7 @@ func (s *KubernetesService) GetKubernetesClusters(ctx context.Context) ([]types.
 }
 
 // ListKubeClusters returns a page of registered kube clusters respecting scope filters.
-func (s *KubernetesService) ListKubeClusters(ctx context.Context, req *kubev1.ListKubeClustersRequest) ([]types.KubeCluster, string, error) {
+func (s *KubernetesService) ListKubeClusters(ctx context.Context, req *presencev1.ListKubeClustersRequest) ([]types.KubeCluster, string, error) {
 	scopeFilter := req.GetScopeFilter()
 	if err := scopes.ValidateFilter(scopeFilter); err != nil {
 		return nil, "", trace.Wrap(err)
@@ -96,7 +96,7 @@ func (s *KubernetesService) ListKubeClusters(ctx context.Context, req *kubev1.Li
 }
 
 // RangeKubeClusters returns kubernetes clusters within the range [start, end).
-func (s *KubernetesService) RangeKubeClusters(ctx context.Context, req *kubev1.ListKubeClustersRequest, start, end string) iter.Seq2[types.KubeCluster, error] {
+func (s *KubernetesService) RangeKubeClusters(ctx context.Context, req *presencev1.ListKubeClustersRequest, start, end string) iter.Seq2[types.KubeCluster, error] {
 	scopeFilter := req.GetScopeFilter()
 	if err := scopes.ValidateFilter(scopeFilter); err != nil {
 		return stream.Fail[types.KubeCluster](trace.Wrap(err))
@@ -109,7 +109,7 @@ func (s *KubernetesService) RangeKubeClusters(ctx context.Context, req *kubev1.L
 }
 
 // GetKubeCluster returns the specified kubernetes cluster resource.
-func (s *KubernetesService) GetKubeCluster(ctx context.Context, req *kubev1.GetKubeClusterRequest) (types.KubeCluster, error) {
+func (s *KubernetesService) GetKubeCluster(ctx context.Context, req *presencev1.GetKubeClusterRequest) (types.KubeCluster, error) {
 	sqn := scopes.QualifiedName{
 		Scope: req.GetScope(),
 		Name:  req.GetName(),
@@ -142,7 +142,7 @@ func (s *KubernetesService) UpdateKubernetesCluster(ctx context.Context, cluster
 }
 
 // DeleteKubeCluster removes the specified kubernetes cluster resource.
-func (s *KubernetesService) DeleteKubeCluster(ctx context.Context, req *kubev1.DeleteKubeClusterRequest) error {
+func (s *KubernetesService) DeleteKubeCluster(ctx context.Context, req *presencev1.DeleteKubeClusterRequest) error {
 	return s.svc.DeleteResource(ctx, scopes.QualifiedName{
 		Scope: req.GetScope(),
 		Name:  req.GetName(),

@@ -27,7 +27,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
-	kubev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -122,7 +122,7 @@ func TestScopedKubeClusterCRUD(t *testing.T) {
 		err := service.UpdateKubernetesCluster(ctx, cluster)
 		require.NoError(t, err)
 
-		res, err := service.GetKubeCluster(ctx, kubev1.GetKubeClusterRequest_builder{
+		res, err := service.GetKubeCluster(ctx, presencev1.GetKubeClusterRequest_builder{
 			Scope: cluster.GetScope(),
 			Name:  cluster.GetName(),
 		}.Build())
@@ -132,7 +132,7 @@ func TestScopedKubeClusterCRUD(t *testing.T) {
 	}
 
 	// ensure all clusters can be listed
-	list, nextToken, err := service.ListKubeClusters(ctx, kubev1.ListKubeClustersRequest_builder{
+	list, nextToken, err := service.ListKubeClusters(ctx, presencev1.ListKubeClustersRequest_builder{
 		PageSize: 10,
 	}.Build())
 	require.NoError(t, err)
@@ -140,7 +140,7 @@ func TestScopedKubeClusterCRUD(t *testing.T) {
 	require.Len(t, list, 3)
 
 	// ensure scope filtering works
-	list, nextToken, err = service.ListKubeClusters(ctx, kubev1.ListKubeClustersRequest_builder{
+	list, nextToken, err = service.ListKubeClusters(ctx, presencev1.ListKubeClustersRequest_builder{
 		PageSize: 10,
 		ScopeFilter: scopesv1.Filter_builder{
 			Scope: scopedCluster.GetScope(),
@@ -153,7 +153,7 @@ func TestScopedKubeClusterCRUD(t *testing.T) {
 	require.Empty(t, cmp.Diff(scopedCluster, list[0], diffopt))
 
 	// ensure unscoped filtering works
-	list, nextToken, err = service.ListKubeClusters(ctx, kubev1.ListKubeClustersRequest_builder{
+	list, nextToken, err = service.ListKubeClusters(ctx, presencev1.ListKubeClustersRequest_builder{
 		PageSize: 10,
 		ScopeFilter: scopesv1.Filter_builder{
 			Mode: scopesv1.Mode_MODE_UNSCOPED,
@@ -170,13 +170,13 @@ func TestScopedKubeClusterCRUD(t *testing.T) {
 		err := service.UpdateKubernetesCluster(ctx, cluster)
 		require.NoError(t, err)
 
-		err = service.DeleteKubeCluster(ctx, kubev1.DeleteKubeClusterRequest_builder{
+		err = service.DeleteKubeCluster(ctx, presencev1.DeleteKubeClusterRequest_builder{
 			Scope: cluster.GetScope(),
 			Name:  cluster.GetName(),
 		}.Build())
 		require.NoError(t, err)
 
-		_, err = service.GetKubeCluster(ctx, kubev1.GetKubeClusterRequest_builder{
+		_, err = service.GetKubeCluster(ctx, presencev1.GetKubeClusterRequest_builder{
 			Scope: cluster.GetScope(),
 			Name:  cluster.GetName(),
 		}.Build())
@@ -212,7 +212,7 @@ func testBasicFlow(t *testing.T, service *KubernetesService, clusters []types.Ku
 		require.Empty(t, cmp.Diff(clusters, out, diffopt))
 
 		// List with page limit
-		page1, page2Start, err := service.ListKubeClusters(ctx, kubev1.ListKubeClustersRequest_builder{
+		page1, page2Start, err := service.ListKubeClusters(ctx, presencev1.ListKubeClustersRequest_builder{
 			PageSize:  2,
 			PageToken: "",
 		}.Build())
@@ -221,7 +221,7 @@ func testBasicFlow(t *testing.T, service *KubernetesService, clusters []types.Ku
 		require.Len(t, page1, 2)
 
 		// List with start
-		page2, next, err := service.ListKubeClusters(ctx, kubev1.ListKubeClustersRequest_builder{
+		page2, next, err := service.ListKubeClusters(ctx, presencev1.ListKubeClustersRequest_builder{
 			PageSize:  2,
 			PageToken: page2Start,
 		}.Build())
@@ -246,7 +246,7 @@ func testBasicFlow(t *testing.T, service *KubernetesService, clusters []types.Ku
 		require.Empty(t, cmp.Diff(page2, out, diffopt))
 
 		// Fetch a specific kube cluster
-		cluster, err := service.GetKubeCluster(ctx, kubev1.GetKubeClusterRequest_builder{
+		cluster, err := service.GetKubeCluster(ctx, presencev1.GetKubeClusterRequest_builder{
 			Scope: clusters[1].GetScope(),
 			Name:  clusters[1].GetName(),
 		}.Build())
@@ -254,7 +254,7 @@ func testBasicFlow(t *testing.T, service *KubernetesService, clusters []types.Ku
 		require.Empty(t, cmp.Diff(clusters[1], cluster, diffopt))
 
 		// Try to fetch a kube cluster that doesn't exist
-		_, err = service.GetKubeCluster(ctx, kubev1.GetKubeClusterRequest_builder{
+		_, err = service.GetKubeCluster(ctx, presencev1.GetKubeClusterRequest_builder{
 			Name: "doesnotexist",
 		}.Build())
 		require.ErrorAs(t, err, new(*trace.NotFoundError))
@@ -267,7 +267,7 @@ func testBasicFlow(t *testing.T, service *KubernetesService, clusters []types.Ku
 		clusters[0].SetStaticLabels(map[string]string{"updated": "yes"})
 		err = service.UpdateKubernetesCluster(ctx, clusters[0])
 		require.NoError(t, err)
-		cluster, err = service.GetKubeCluster(ctx, kubev1.GetKubeClusterRequest_builder{
+		cluster, err = service.GetKubeCluster(ctx, presencev1.GetKubeClusterRequest_builder{
 			Scope: clusters[0].GetScope(),
 			Name:  clusters[0].GetName(),
 		}.Build())
@@ -275,7 +275,7 @@ func testBasicFlow(t *testing.T, service *KubernetesService, clusters []types.Ku
 		require.Empty(t, cmp.Diff(clusters[0], cluster, diffopt))
 
 		// Delete a Kubernetes.
-		err = service.DeleteKubeCluster(ctx, kubev1.DeleteKubeClusterRequest_builder{
+		err = service.DeleteKubeCluster(ctx, presencev1.DeleteKubeClusterRequest_builder{
 			Scope: clusters[0].GetScope(),
 			Name:  clusters[0].GetName(),
 		}.Build())
@@ -287,7 +287,7 @@ func testBasicFlow(t *testing.T, service *KubernetesService, clusters []types.Ku
 		require.Empty(t, cmp.Diff(expectedClusters, out, diffopt))
 
 		// Try to delete a Kubernetes that doesn't exist.
-		err = service.DeleteKubeCluster(ctx, kubev1.DeleteKubeClusterRequest_builder{
+		err = service.DeleteKubeCluster(ctx, presencev1.DeleteKubeClusterRequest_builder{
 			Name: "doesnotexist",
 		}.Build())
 		require.ErrorAs(t, err, new(*trace.NotFoundError))

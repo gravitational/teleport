@@ -3853,18 +3853,18 @@ func (c *Client) UpdateKubernetesCluster(ctx context.Context, cluster types.Kube
 // Deprecated: Use ListKubeClusters instead.
 // TODO (eriktate): remove in v21
 func (c *Client) GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error) {
-	return c.GetKubeCluster(ctx, kubeproto.GetKubeClusterRequest_builder{
+	return c.GetKubeCluster(ctx, presencepb.GetKubeClusterRequest_builder{
 		Name: name,
 	}.Build())
 }
 
 // GetKubeCluster returns the specified kubernetes resource by scope and name.
-func (c *Client) GetKubeCluster(ctx context.Context, req *kubeproto.GetKubeClusterRequest) (types.KubeCluster, error) {
+func (c *Client) GetKubeCluster(ctx context.Context, req *presencepb.GetKubeClusterRequest) (types.KubeCluster, error) {
 	if req.GetName() == "" {
 		return nil, trace.BadParameter("missing kubernetes cluster name")
 	}
 
-	res, err := kubeproto.NewKubeClusterServiceClient(c.conn).GetKubeCluster(ctx, req)
+	res, err := presencepb.NewPresenceServiceClient(c.conn).GetKubeCluster(ctx, req)
 	return res.GetCluster(), trace.Wrap(err)
 }
 
@@ -3888,15 +3888,15 @@ func (c *Client) GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster
 // Deprecated: Use ListKubeClusters instead.
 // TODO (eriktate): remove in v21
 func (c *Client) ListKubernetesClusters(ctx context.Context, limit int, start string) ([]types.KubeCluster, string, error) {
-	return c.ListKubeClusters(ctx, kubeproto.ListKubeClustersRequest_builder{
+	return c.ListKubeClusters(ctx, presencepb.ListKubeClustersRequest_builder{
 		PageSize:  int32(limit),
 		PageToken: start,
 	}.Build())
 }
 
 // ListKubeClusters returns a page of registered kubernetes clusters.
-func (c *Client) ListKubeClusters(ctx context.Context, req *kubeproto.ListKubeClustersRequest) ([]types.KubeCluster, string, error) {
-	res, err := kubeproto.NewKubeClusterServiceClient(c.conn).ListKubeClusters(ctx, req)
+func (c *Client) ListKubeClusters(ctx context.Context, req *presencepb.ListKubeClustersRequest) ([]types.KubeCluster, string, error) {
+	res, err := presencepb.NewPresenceServiceClient(c.conn).ListKubeClusters(ctx, req)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -3912,9 +3912,9 @@ func (c *Client) ListKubeClusters(ctx context.Context, req *kubeproto.ListKubeCl
 // Deprecated: Use RangeKubeClusters instead.
 // TODO (eriktate): remove in v21
 func (c *Client) RangeKubernetesClusters(ctx context.Context, start, end string) iter.Seq2[types.KubeCluster, error] {
-	kubeClient := kubeproto.NewKubeClusterServiceClient(c.conn)
+	kubeClient := presencepb.NewPresenceServiceClient(c.conn)
 	pageFn := func(ctx context.Context, pageSize int, pageToken string) ([]*types.KubernetesClusterV3, string, error) {
-		res, err := kubeClient.ListKubeClusters(ctx, kubeproto.ListKubeClustersRequest_builder{
+		res, err := kubeClient.ListKubeClusters(ctx, presencepb.ListKubeClustersRequest_builder{
 			PageSize:  int32(pageSize),
 			PageToken: pageToken,
 			ScopeFilter: scopesv1.Filter_builder{
@@ -3935,10 +3935,10 @@ func (c *Client) RangeKubernetesClusters(ctx context.Context, start, end string)
 }
 
 // RangeKubeClusters returns kubernetes clusters within the range [start, end).
-func (c *Client) RangeKubeClusters(ctx context.Context, req *kubeproto.ListKubeClustersRequest, start, end string) iter.Seq2[types.KubeCluster, error] {
-	kubeClient := kubeproto.NewKubeClusterServiceClient(c.conn)
+func (c *Client) RangeKubeClusters(ctx context.Context, req *presencepb.ListKubeClustersRequest, start, end string) iter.Seq2[types.KubeCluster, error] {
+	kubeClient := presencepb.NewPresenceServiceClient(c.conn)
 	if req == nil {
-		req = kubeproto.ListKubeClustersRequest_builder{}.Build()
+		req = presencepb.ListKubeClustersRequest_builder{}.Build()
 	}
 	pageFn := func(ctx context.Context, pageSize int, pageToken string) ([]*types.KubernetesClusterV3, string, error) {
 		req.SetPageToken(pageToken)
@@ -3961,14 +3961,14 @@ func (c *Client) RangeKubeClusters(ctx context.Context, req *kubeproto.ListKubeC
 // Deprecated: Use DeleteKubeCluster instead.
 // TODO (eriktate): remove in v21
 func (c *Client) DeleteKubernetesCluster(ctx context.Context, name string) error {
-	return c.DeleteKubeCluster(ctx, kubeproto.DeleteKubeClusterRequest_builder{
+	return c.DeleteKubeCluster(ctx, presencepb.DeleteKubeClusterRequest_builder{
 		Name: name,
 	}.Build())
 }
 
 // DeleteKubeCluster deletes specified kubernetes cluster resource by scope and name.
-func (c *Client) DeleteKubeCluster(ctx context.Context, req *kubeproto.DeleteKubeClusterRequest) error {
-	_, err := kubeproto.NewKubeClusterServiceClient(c.conn).DeleteKubeCluster(ctx, req)
+func (c *Client) DeleteKubeCluster(ctx context.Context, req *presencepb.DeleteKubeClusterRequest) error {
+	_, err := presencepb.NewPresenceServiceClient(c.conn).DeleteKubeCluster(ctx, req)
 	return trace.Wrap(err)
 }
 
