@@ -596,10 +596,14 @@ github.com/gravitational/saml v0.4.15-teleport.2 h1:ruNtaIkDrCJ5eS+OBcKeER+P5ldD
 github.com/gravitational/saml v0.4.15-teleport.2/go.mod h1:wGckhUH/I+hcDR2uo9WC4GyL+o4rid5JUe1Ze/joarI=
 github.com/gravitational/selinux v1.13.0-teleport h1:XZQpZK5tteK9ZV2wIC1avhagqoVghXYv+O21GOpG6wU=
 github.com/gravitational/selinux v1.13.0-teleport/go.mod h1:BTPX+bjVbWGXw7ZZWUbdENt8w0htPSrlgOOysQaU62U=
+github.com/gravitational/teleport v0.0.0-20260722040542-7a72c467b703 h1:j1eo33HUb9jAjrtabQfaGemBvKWWGFy4dxktSSD7564=
+github.com/gravitational/teleport v0.0.0-20260722040542-7a72c467b703/go.mod h1:WNWe/mrUgc2COFlsH5KToIMCW+DD/h0U7TE2vNnnezE=
+github.com/gravitational/teleport/api v0.0.0-20260722040542-7a72c467b703 h1:ysda7TYOXi8mKqNFMrlxETaWhl7cKxMqRaSKPLTV6+8=
+github.com/gravitational/teleport/api v0.0.0-20260722040542-7a72c467b703/go.mod h1:0TP+v0e1tl+62tVG2bMBsbEhbM37qDa4kkuGpnuJU20=
 github.com/gravitational/trace v1.5.4 h1:nMmF7alwvNiQJhC817Hhmgm95bzKOXbnxvkickTkRDY=
 github.com/gravitational/trace v1.5.4/go.mod h1:/uCbC3ukVU8Pdrh8+3vNLyyE1aGheBWpGGrMnwIK80E=
-github.com/gravitational/vt10x v0.0.5-teleport.1 h1:SsBfmhlLEZaa5iT3iYKcFP8eORnohVtzz2wVZEUsrf8=
-github.com/gravitational/vt10x v0.0.5-teleport.1/go.mod h1:7p0/hpXPXby/VpuB6rFUq2pd7grku9KB+EcF0+jwqzQ=
+github.com/gravitational/vt10x v0.0.6-teleport.1 h1:VJsu1+Av55aBU78IlTDhqKhqgpvYVg5arWU8yw/IfUs=
+github.com/gravitational/vt10x v0.0.6-teleport.1/go.mod h1:rlZFFpeJpgsiwKfqpEhM8wYd4pWNQdyko+mBH4zLbmk=
 github.com/grpc-ecosystem/go-grpc-middleware v1.4.0 h1:UH//fgunKIs4JdUbpDl1VZCDaL56wXCB/5+wF6uHfaI=
 github.com/grpc-ecosystem/go-grpc-middleware v1.4.0/go.mod h1:g5qyo/la0ALbONm6Vbp88Yd8NsDy6rZz+RcrMPxvld8=
 github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus v1.1.0 h1:QGLs/O40yoNK9vmy4rhUGBVyMf1lISBGtXRpsu/Qu/o=

@@ -5,8 +5,11 @@ go 1.26.5
 require (
 	github.com/alecthomas/kingpin/v2 v2.4.0
 	github.com/antithesishq/antithesis-sdk-go v0.7.2
-	github.com/gravitational/teleport v0.0.0-00010101000000-000000000000
-	github.com/gravitational/teleport/api v0.0.0-00010101000000-000000000000
+	// Using a replace here will cause a lot of breakages when OSS moves. Until
+	// we are a monorepo, pin teleport by commit SHA.
+	// TODO(okraport): switch back to using replace once in a monorepo.
+	github.com/gravitational/teleport v0.0.0-20260722040542-7a72c467b703
+	github.com/gravitational/teleport/api v0.0.0-20260722040542-7a72c467b703
 	github.com/gravitational/trace v1.5.4
 	golang.org/x/sync v0.22.0
 )
@@ -349,10 +352,8 @@ replace (
 	github.com/datastax/go-cassandra-native-protocol => github.com/gravitational/go-cassandra-native-protocol v0.0.0-teleport.3
 	github.com/go-mysql-org/go-mysql => github.com/gravitational/go-mysql v1.9.1-teleport.4
 	github.com/gogo/protobuf => github.com/gravitational/protobuf v1.3.2-teleport.2
-	github.com/gravitational/teleport => ../../../..
-	github.com/gravitational/teleport/api => ../../../../api
 	github.com/hashicorp/terraform-plugin-docs => github.com/gravitational/terraform-plugin-docs v0.19.5-0.20250326215846-2e10ca5fcbdf
-	github.com/hinshun/vt10x => github.com/gravitational/vt10x v0.0.5-teleport.1
+	github.com/hinshun/vt10x => github.com/gravitational/vt10x v0.0.6-teleport.1
 	github.com/julienschmidt/httprouter => github.com/gravitational/httprouter v1.3.1-0.20220408074523-c876c5e705a5
 	github.com/keys-pub/go-libfido2 => github.com/gravitational/go-libfido2 v1.5.3-teleport.1
 	github.com/microsoft/go-mssqldb => github.com/gravitational/go-mssqldb v1.8.1-teleport.2
