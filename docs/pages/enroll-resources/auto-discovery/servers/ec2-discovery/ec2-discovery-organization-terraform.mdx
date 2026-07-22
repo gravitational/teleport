@@ -38,17 +38,15 @@ documentation](https://docs.aws.amazon.com/aws-managed-policy/latest/reference/A
 
 </Admonition>
 
-## Install Teleport to run the Discovery Service
+## Step 1/9. Install Teleport to run the Discovery Service
 
 <Admonition type="tip">
 
-If you already have a running Discovery Service instance, then assign its `discovery_group` to <Var name="discovery-group-name" /> and proceed to [use the `teleport-discovery-aws` Terraform module](#use-the-teleport-discovery-aws-terraform-module).
+If you already have a running Discovery Service instance, then assign its `discovery_group` to <Var name="discovery-group-name" /> and proceed to [step 4: Configure AWS Terraform provider](#step-49-configure-aws-terraform-provider).
 
 All Teleport Cloud clusters run the Discovery Service for you, so Teleport Cloud subscribers can also skip all of these installation steps.
 
 </Admonition>
-
-### Step 1/3. Install Teleport
 
 If you plan on running the Discovery Service on the same host already running
 another Teleport service (Auth or Proxy, for example), then you can skip this step.
@@ -57,7 +55,7 @@ Install Teleport on a host instance that will run the Discovery Service:
 
 (!docs/pages/includes/install-linux.mdx!)
 
-### Step 2/3. Configure the Discovery Service
+## Step 2/9. Configure the Discovery Service
 
 If you are running the Discovery Service on its own host, the service requires a
 valid invite token to connect to the cluster. Generate one by running the
@@ -67,8 +65,7 @@ following command against your Teleport Auth Service:
 $ tctl tokens add --type=discovery
 ```
 
-Save the generated token in `/tmp/token` on the Node (EC2 instance) that will
-run the Discovery Service.
+Save the generated token in `/tmp/token` on the Teleport Agent instance that will run the Discovery Service.
 
 (!docs/pages/includes/discovery/discovery-group.mdx!)
 
@@ -96,15 +93,13 @@ discovery_service:
   discovery_group: "<Var name="discovery-group-name" />"
 ```
 
-### Step 3/3. Start Teleport
+## Step 3/9. Start Teleport Discovery Service
 
 (!docs/pages/includes/aws-credentials.mdx service="the Discovery Service"!)
 
 (!docs/pages/includes/start-teleport.mdx service="the Discovery Service"!)
 
-## Use the `teleport-discovery-aws` Terraform module
-
-### Step 1/6. Configure AWS Terraform provider
+## Step 4/9. Configure AWS Terraform provider
 
 Configure the [AWS Terraform provider](https://registry.terraform.io/providers/hashicorp/aws/latest/docs) and AWS IAM permissions for Terraform to manage AWS resources.
 
@@ -202,7 +197,7 @@ The AWS Terraform provider will need the following AWS IAM permissions to manage
 </details>
 
 
-### Step 2/6. Configure Teleport Terraform provider
+## Step 5/9. Configure Teleport Terraform provider
 
 There are several ways to configure the Teleport Terraform provider depending on how you intend to run Terraform, for example in CI, Spacelift, or some other remote environment, but for a quick start, see the [Local Demo](../../../../configuration/terraform-provider/local.mdx) guide.
 
@@ -215,27 +210,27 @@ $ eval "$(tctl terraform env)"
 
 If you are running Terraform in a remote environment, such as a cloud VM, an on-prem server, or CI/CD pipelines, refer to [Using the Teleport Terraform Provider](../../../../configuration/terraform-provider/terraform-provider.mdx) to find the appropriate guide for your use case.
 
-### Step 3/6. Configure the Terraform module inputs
+## Step 6/9. Configure the Terraform module inputs
 
 Add the `teleport-discovery-aws` module to your Terraform configuration.
 
 <Tabs>
 
-<TabItem label="cloud">
+<TabItem label="Teleport Cloud">
 ```hcl
 module "aws_discovery" {
   source = "terraform.releases.teleport.dev/teleport/discovery/aws"
   version = "~> (=cloud.major_version=).0"
 
   # Required inputs:
-  # Assign <Var name="example.teleport.sh:443" /> to your Teleport cluster's proxy public address in host:port form.
+  # Assign <Var name="example.teleport.sh:443" /> to the public address of the Teleport Proxy Service in your cluster in host:port form.
   teleport_proxy_public_addr = "<Var name="example.teleport.sh:443" />"
   # teleport_discovery_group_name must match the discovery group name in your Discovery Service config file.
   # Teleport Cloud clusters run the Discovery Service in the group name "cloud-discovery-group".
   # Do not modify this input unless you intend to run your own Discovery Service.
   teleport_discovery_group_name = "cloud-discovery-group"
 
-  # Enable AWS Organization wide discovery.
+  # Enable AWS Organization discovery.
   aws_organization_discovery = {
     organizational_units = {
       # The wildcard "*" matches all organizational units.
@@ -276,7 +271,7 @@ module "aws_discovery" {
 ```
 </TabItem>
 
-<TabItem label="self-hosted">
+<TabItem label="Self-hosted">
 
 ```hcl
 module "aws_discovery" {
@@ -289,7 +284,7 @@ module "aws_discovery" {
   # Edit this input to match the discovery group name in your Discovery Service config file
   teleport_discovery_group_name = "<Var name="discovery-group-name" />"
 
-  # Enable AWS Organization wide discovery.
+  # Enable AWS Organization discovery.
   aws_organization_discovery = {
     organizational_units = {
       # The wildcard "*" matches all organizational units.
@@ -303,7 +298,7 @@ module "aws_discovery" {
   }
 
   # Each child account in the organization must have an IAM role with this name.
-  # This role is assumed by the discovery service to enroll resources from that account.
+  # This role is assumed by the Discovery Service to enroll resources from that account.
   # The required trust relationship and permissions for this role can be found in the module outputs and documentation.
   aws_child_account_iam_role_name = "teleport-organization-discovery-child-account-role"
 
@@ -390,7 +385,8 @@ aws_discovery = {
   }
 }
 ```
-The Discovery Service attached IAM role must have the policy defined in `teleport_organization_account_enumeration_iam_role_template` and the Auth Service attached IAM role must have the policy defined in `teleport_organization_join_validation_iam_role_template`.
+The IAM role attached to the Discovery Service must have the policy defined in `teleport_organization_account_enumeration_iam_role_template`.
+The role attached to the Auth Service must have the policy defined in `teleport_organization_join_validation_iam_role_template`.
 
 In setups where the Discovery Service and Auth Service are running from the same process, you can combine the two policies into a single IAM role and attach it to the instance that is running the services.
 
@@ -410,7 +406,7 @@ output "aws_discovery" {
 
 See the [`teleport-discovery-aws` reference](../../../../reference/infrastructure-as-code/terraform-modules/teleport-discovery-aws/teleport-discovery-aws.mdx) for a complete description of the module inputs and outputs.
 
-### Step 4/6. Apply the Terraform module
+## Step 7/9. Apply the Terraform module
 
 ```code
 $ terraform init
@@ -496,7 +492,7 @@ The Teleport resources should have the following labels:
 - `origin=example`
 - `teleport.dev/iac-tool=terraform`
 
-### Step 5/6. Configure child accounts
+## Step 8/9. Configure child accounts
 
 Each AWS account within the organization must have an IAM role which will be assumed by the Teleport Discovery Service to discover and enroll EC2 instances in that account.
 
@@ -557,7 +553,7 @@ aws_discovery = {
 
 Create an IAM role in each target account using the `role_name`, `assume_role_policy` and `policy` from the Terraform output `aws_child_account_iam_role_template` variable.
 
-### Step 6/6. Check discovery status
+## Step 9/9. Check discovery status
 
 After applying the Terraform module and creating the IAM role in each child account, the Teleport Discovery Service should start to discover EC2 instances in your AWS organization and enroll them in your cluster as protected resources.
 
