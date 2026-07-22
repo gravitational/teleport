@@ -333,7 +333,11 @@ address. To override the public address, specify the `public_addr` field:
   type="warning"
   title="Danger Zone"
 >
-  This is insecure and not recommended for use in production.
+  This disables TLS verification between the Application Service and your
+  backend application. It does not affect the TLS connection between end users
+  and the Teleport Proxy Service. Use this only for development or when the
+  backend uses a self-signed certificate that cannot be added to the system
+  trust store.
 </Admonition>
 
 Teleport checks if the certificates presented by the applications are signed
@@ -382,6 +386,14 @@ redirect responses to the application's public address:
 
 You can configure application access to inject additional headers in the
 requests forwarded to a web application.
+
+<Admonition type="note">
+The header rewrite syntax differs between static configuration
+(`teleport.yaml`) and dynamic app resources (`tctl create`). Static config
+uses a flat list of `"Name: Value"` strings, while dynamic resources use a
+list of `name`/`value` mappings. Using the wrong format will cause a
+validation error or silently drop headers.
+</Admonition>
 
 <Tabs>
 <TabItem label="teleport.yaml syntax">

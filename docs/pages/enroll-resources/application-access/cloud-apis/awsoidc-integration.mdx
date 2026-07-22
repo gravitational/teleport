@@ -44,8 +44,11 @@ teleport.dev/integration  <Var name="my-integration"/>
 
 ## Prerequisites
 
-- A running Teleport cluster.
-- AWS Account with permissions to create IAM Identity Providers and roles
+- A running Teleport cluster with a public domain name and valid TLS certificate.
+  AWS must be able to reach `https://<your-cluster>/.well-known/openid-configuration`
+  to validate OIDC tokens. IP-based or self-signed clusters will not work with
+  this integration.
+- AWS Account with permissions to create IAM Identity Providers and roles.
 
 
 ## Step 1/4. Configure RBAC
