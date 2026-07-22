@@ -3,6 +3,7 @@
   required.
 */}}
 {{- define "teleport-proxy.generatedTeleportConfig" -}}
+version: v3
 teleport:
   auth_server: {{ include "teleport-proxy.authServer" . | quote }}
   join_params:

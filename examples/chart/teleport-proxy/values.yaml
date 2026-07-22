@@ -228,8 +228,11 @@ licenseSecretName: "license"
 # - "aws": Use when running on EKS.
 # - "gcp": Use when running on GKE.
 # - "azure": Use when running on AKS.
-# - "scratch": Do not generate config file. You must supply one (see
-#    teleportConfig below).
+# - "scratch": Generate a minimal config file. Only values derived from the
+#    mandatory helm values are inserted into the config. Use teleportConfig to
+#    supply additional configuration.
+#
+#    Generally avoid using this mode. Use `standalone` instead.
 chartMode: standalone
 
 # validateConfigOnDeploy(bool) -- enables a Kubernetes job before install and

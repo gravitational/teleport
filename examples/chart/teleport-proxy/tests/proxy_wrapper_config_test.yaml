@@ -178,6 +178,9 @@ tests:
           path: data["teleport.yaml"]
       - matchRegex:
           path: data["teleport.yaml"]
+          pattern: 'version: v3'
+      - matchRegex:
+          path: data["teleport.yaml"]
           pattern: 'auth_service:\n\s+enabled: false'
       - matchRegex:
           path: data["teleport.yaml"]
@@ -223,5 +226,3 @@ tests:
       - notMatchRegex:
           path: data["teleport.yaml"]
           pattern: "azure:"
-
-      

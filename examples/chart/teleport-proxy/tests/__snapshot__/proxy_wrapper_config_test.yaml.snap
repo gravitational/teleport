@@ -12,3 +12,4 @@ keeps wrapper-generated teleport settings in scratch mode:
         join_params:
           method: kubernetes
           token_name: teleport-proxy
+      version: v3
