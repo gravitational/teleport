@@ -33,6 +33,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
@@ -42,8 +43,6 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/remotecommand"
 	"k8s.io/kubectl/pkg/scheme"
-
-	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
 	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
@@ -72,6 +71,27 @@ var (
 	containerCommmandExecute = []string{"sh"}
 	stdinContent             = []byte("stdin_data")
 )
+
+func wildcardResource() []*accessv1.KubeResource {
+	return []*accessv1.KubeResource{
+		accessv1.KubeResource_builder{
+			Kind:      types.Wildcard,
+			Name:      types.Wildcard,
+			Namespace: types.Wildcard,
+			ApiGroup:  types.Wildcard,
+			Verbs:     []string{types.Wildcard},
+		}.Build(),
+	}
+}
+
+func wildcardLabel() []*labelv1.Label {
+	return []*labelv1.Label{
+		labelv1.Label_builder{
+			Name:   types.Wildcard,
+			Values: []string{types.Wildcard},
+		}.Build(),
+	}
+}
 
 func testExecKubeService(t *testing.T, testCtx *TestContext) {
 	kubeMock, err := testingkubemock.NewKubeAPIMock()
@@ -120,37 +140,29 @@ func testExecKubeService(t *testing.T, testCtx *TestContext) {
 		t,
 		"scoped-"+username,
 		scopedTestScope,
-		&accessv1.ScopedRoleSpec{
+		accessv1.ScopedRoleSpec_builder{
 			AssignableScopes: []string{scopedTestScope},
-			Kube: &accessv1.ScopedRoleKube{
-				Users:  roleKubeUsers,
-				Groups: roleKubeGroups,
-				Labels: []*labelv1.Label{
-					{
-						Name:   types.Wildcard,
-						Values: []string{types.Wildcard},
-					},
-				},
-			},
-		})
+			Kube: accessv1.ScopedRoleKube_builder{
+				Users:     roleKubeUsers,
+				Groups:    roleKubeGroups,
+				Resources: wildcardResource(),
+				Labels:    wildcardLabel(),
+			}.Build(),
+		}.Build())
 
 	scopedMultiKubeUsers, scopedMultiKubeUserRole := testCtx.CreateUserAndScopedRole(
 		t,
 		"scoped-"+usernameMultiUsers,
 		scopedTestScope,
-		&accessv1.ScopedRoleSpec{
+		accessv1.ScopedRoleSpec_builder{
 			AssignableScopes: []string{scopedTestScope},
-			Kube: &accessv1.ScopedRoleKube{
-				Users:  append(slices.Clone(roleKubeUsers), "admin"),
-				Groups: roleKubeGroups,
-				Labels: []*labelv1.Label{
-					{
-						Name:   types.Wildcard,
-						Values: []string{types.Wildcard},
-					},
-				},
-			},
-		},
+			Kube: accessv1.ScopedRoleKube_builder{
+				Users:     append(slices.Clone(roleKubeUsers), "admin"),
+				Groups:    roleKubeGroups,
+				Resources: wildcardResource(),
+				Labels:    wildcardLabel(),
+			}.Build(),
+		}.Build(),
 	)
 	waitForSRACache(t, testCtx.TLSServer, scopedSingleKubeUserRole, scopedMultiKubeUserRole)
 
@@ -694,19 +706,15 @@ func TestExecMissingGETPermissionError(t *testing.T) {
 					t,
 					"scoped-"+username,
 					scopedTestScope,
-					&accessv1.ScopedRoleSpec{
+					accessv1.ScopedRoleSpec_builder{
 						AssignableScopes: []string{scopedTestScope},
-						Kube: &accessv1.ScopedRoleKube{
-							Users:  roleKubeUsers,
-							Groups: roleKubeGroups,
-							Labels: []*labelv1.Label{
-								{
-									Name:   types.Wildcard,
-									Values: []string{types.Wildcard},
-								},
-							},
-						},
-					})
+						Kube: accessv1.ScopedRoleKube_builder{
+							Users:     roleKubeUsers,
+							Groups:    roleKubeGroups,
+							Resources: wildcardResource(),
+							Labels:    wildcardLabel(),
+						}.Build(),
+					}.Build())
 
 				waitForSRACache(t, testCtx.TLSServer, scopedUserRole)
 

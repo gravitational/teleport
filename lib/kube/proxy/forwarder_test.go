@@ -60,7 +60,6 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
-	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -1815,15 +1814,14 @@ func newScopedKubeAuthorizer(t *testing.T, cfg scopedKubeAuthorizerConfig) mockA
 		Scope: "/",
 		Spec: &scopedaccessv1.ScopedRoleSpec{
 			AssignableScopes: []string{scopedTestScope},
-			Kube: &scopedaccessv1.ScopedRoleKube{
-				Labels: []*labelv1.Label{
-					{Name: types.Wildcard, Values: []string{types.Wildcard}},
-				},
+			Kube: scopedaccessv1.ScopedRoleKube_builder{
+				Labels:                wildcardLabel(),
+				Resources:             wildcardResource(),
 				Groups:                cfg.kubeGroups,
 				Users:                 cfg.kubeUsers,
 				Lock:                  lock,
 				DisconnectExpiredCert: cfg.kubeDisconnectExpired,
-			},
+			}.Build(),
 		},
 		Version: types.V1,
 	}
