@@ -206,6 +206,8 @@ message AppKey {
   string leaf_cluster = 2;
   // Name is the name of the app.
   string name = 3;
+  // Scope is the scope of the app.
+  string scope = 4;
 }
 
 // DialOptions holds ALPN dial options for dialing apps.
