@@ -23,6 +23,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"google.golang.org/grpc"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport/e/api/cloud"
 	cloudv1 "github.com/gravitational/teleport/e/api/cloud/v1"
@@ -71,14 +72,17 @@ func newFakeCloudClient() *fakeCloudClient {
 }
 
 // store saves the restriction with a fresh revision so callers waiting for a
-// revision change observe one. Status is intentionally left unset: the provider
-// excludes it from the Terraform schema (RFD 153) and never reads it. Must be
-// called with f.mu held.
-func (f *fakeCloudClient) store(cidrs []string) *cloudv1.ClientIPRestriction {
+// revision change observe one. The user-controlled mode and expires are echoed
+// back verbatim so they round-trip through the provider. Status is intentionally
+// left unset: the provider excludes it from the Terraform schema (RFD 153) and
+// never reads it. Must be called with f.mu held.
+func (f *fakeCloudClient) store(cidrs []string, mode cloudv1.ClientIPRestrictionMode, expires *timestamppb.Timestamp) *cloudv1.ClientIPRestriction {
 	f.rev++
 	f.cir = &cloudv1.ClientIPRestriction{
 		Cidrs:    cidrs,
 		Revision: fmt.Sprintf("rev-%d", f.rev),
+		Mode:     mode,
+		Expires:  expires,
 	}
 	return f.cir
 }
@@ -98,7 +102,7 @@ func (f *fakeCloudClient) CreateClientIPRestriction(_ context.Context, in *cloud
 	if f.cir != nil {
 		return nil, trace.AlreadyExists("client_ip_restriction already exists")
 	}
-	return &cloudv1.CreateClientIPRestrictionResponse{ClientIpRestriction: f.store(in.GetCidrs())}, nil
+	return &cloudv1.CreateClientIPRestrictionResponse{ClientIpRestriction: f.store(in.GetCidrs(), in.GetMode(), in.GetExpires())}, nil
 }
 
 func (f *fakeCloudClient) UpdateClientIPRestriction(_ context.Context, in *cloudv1.UpdateClientIPRestrictionRequest, _ ...grpc.CallOption) (*cloudv1.UpdateClientIPRestrictionResponse, error) {
@@ -107,13 +111,13 @@ func (f *fakeCloudClient) UpdateClientIPRestriction(_ context.Context, in *cloud
 	if f.cir == nil {
 		return nil, trace.NotFound("client_ip_restriction not found")
 	}
-	return &cloudv1.UpdateClientIPRestrictionResponse{ClientIpRestriction: f.store(in.GetCidrs())}, nil
+	return &cloudv1.UpdateClientIPRestrictionResponse{ClientIpRestriction: f.store(in.GetCidrs(), in.GetMode(), in.GetExpires())}, nil
 }
 
 func (f *fakeCloudClient) UpsertClientIPRestriction(_ context.Context, in *cloudv1.UpsertClientIPRestrictionRequest, _ ...grpc.CallOption) (*cloudv1.UpsertClientIPRestrictionResponse, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	return &cloudv1.UpsertClientIPRestrictionResponse{ClientIpRestriction: f.store(in.GetCidrs())}, nil
+	return &cloudv1.UpsertClientIPRestrictionResponse{ClientIpRestriction: f.store(in.GetCidrs(), in.GetMode(), in.GetExpires())}, nil
 }
 
 func (f *fakeCloudClient) DeleteClientIPRestriction(_ context.Context, _ *cloudv1.DeleteClientIPRestrictionRequest, _ ...grpc.CallOption) (*cloudv1.DeleteClientIPRestrictionResponse, error) {

@@ -65,3 +65,4 @@ validators:
 
 custom_types:
   "ClientIPRestriction.metadata.expires": Timestamp
+  "ClientIPRestriction.spec.expires": Timestamp
