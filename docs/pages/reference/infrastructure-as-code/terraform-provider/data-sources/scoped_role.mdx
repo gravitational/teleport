@@ -117,6 +117,7 @@ Optional:
 - `client_idle_timeout` (String) Overrides the defaults block idle timeout specifically for kube sessions. Must be a valid Go duration string (e.g. "30m", "1h"). If empty, the defaults block value (or global default) applies.
 - `disconnect_expired_cert` (Boolean) DisconnectExpiredCert controls whether Kube sessions are disconnected when the user certificate expires. If empty, the defaults block value (or global default) applies.
 - `groups` (List of String) The list of kubernetes groups this role allows.
+- `label_expression` (String) LabelExpression is an optional predicate expression evaluated against a kubernetes server's labels.
 - `labels` (Attributes List) The map of kubernetes cluster labels used for RBAC. (see [below for nested schema](#nested-schema-for-speckubelabels))
 - `lock` (Attributes) Lock configures the role's locking behavior for kubernetes sessions. If empty, the defaults block value (or global default) applies. (see [below for nested schema](#nested-schema-for-speckubelock))
 - `resources` (Attributes List) The kubernetes resources this role grants access to. (see [below for nested schema](#nested-schema-for-speckuberesources))
@@ -168,6 +169,7 @@ Optional:
 - `forward_agent` (Boolean) ForwardAgent enables SSH agent forwarding.
 - `host_sudoers` (List of String) Sudoers is a list of entries to include in a users sudoer file
 - `host_user_creation` (Attributes) HostUserCreation configures the creation of host users. (see [below for nested schema](#nested-schema-for-specsshhost_user_creation))
+- `label_expression` (String) LabelExpression is an optional predicate expression evaluated against an ssh node's labels.
 - `labels` (Attributes List) Labels is the set of node labels used to dynamically select which nodes this role applies to. (see [below for nested schema](#nested-schema-for-specsshlabels))
 - `lock` (Attributes) Lock configures the role's locking behavior for SSH sessions. If empty, the defaults block value (or global default) applies. (see [below for nested schema](#nested-schema-for-specsshlock))
 - `logins` (List of String) Logins is the list of OS logins this role permits on matching nodes.

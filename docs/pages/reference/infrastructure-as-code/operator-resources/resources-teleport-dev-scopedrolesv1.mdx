@@ -89,6 +89,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |client_idle_timeout|string|Overrides the defaults block idle timeout specifically for kube sessions. Must be a valid Go duration string (e.g. "30m", "1h"). If empty, the defaults block value (or global default) applies.|
 |disconnect_expired_cert|boolean|DisconnectExpiredCert controls whether Kube sessions are disconnected when the user certificate expires. If empty, the defaults block value (or global default) applies.|
 |groups|[]string|The list of kubernetes groups this role allows.|
+|label_expression|string|LabelExpression is an optional predicate expression evaluated against a kubernetes server's labels.|
 |labels|[][object](#speckubelabels-items)|The map of kubernetes cluster labels used for RBAC.|
 |lock|[object](#speckubelock)|Lock configures the role's locking behavior for kubernetes sessions. If empty, the defaults block value (or global default) applies.|
 |resources|[][object](#speckuberesources-items)|The kubernetes resources this role grants access to.|
@@ -135,6 +136,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |forward_agent|boolean|ForwardAgent enables SSH agent forwarding.|
 |host_sudoers|[]string|Sudoers is a list of entries to include in a users sudoer file|
 |host_user_creation|[object](#specsshhost_user_creation)|HostUserCreation configures the creation of host users.|
+|label_expression|string|LabelExpression is an optional predicate expression evaluated against an ssh node's labels.|
 |labels|[][object](#specsshlabels-items)|Labels is the set of node labels used to dynamically select which nodes this role applies to.|
 |lock|[object](#specsshlock)|Lock configures the role's locking behavior for SSH sessions. If empty, the defaults block value (or global default) applies.|
 |logins|[]string|Logins is the list of OS logins this role permits on matching nodes.|

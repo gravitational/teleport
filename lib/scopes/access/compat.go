@@ -41,6 +41,10 @@ func applySSHBlock(src *scopedaccessv1.ScopedRoleSSH, dst *types.RoleConditions)
 		}
 		dst.NodeLabels[label.GetName()] = apiutils.Strings(label.GetValues())
 	}
+
+	if expr := src.GetLabelExpression(); expr != "" {
+		dst.NodeLabelsExpression = expr
+	}
 }
 
 // applyKubeBlock writes/converts the relevant subset of the scoped role's kube block into the provided
@@ -56,6 +60,10 @@ func applyKubeBlock(src *scopedaccessv1.ScopedRoleKube, dst *types.RoleCondition
 			dst.KubernetesLabels = make(types.Labels)
 		}
 		dst.KubernetesLabels[label.GetName()] = apiutils.Strings(label.GetValues())
+	}
+
+	if expr := src.GetLabelExpression(); expr != "" {
+		dst.KubernetesLabelsExpression = expr
 	}
 
 	for i, resource := range src.GetResources() {
@@ -149,7 +157,7 @@ func ScopedRoleToRole(sr *scopedaccessv1.ScopedRole, assignedScope string) (type
 	// role conversion applies unwanted wildcards for kube resources when left unassigned, so we
 	// explicitly validate the kube block as a sanity check
 	if err := validateKubeBlock(sr.GetSpec().GetKube()); err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.BadParameter("scoped role %q's kube %s", sr.GetMetadata().GetName(), err)
 	}
 
 	var conditions types.RoleConditions
