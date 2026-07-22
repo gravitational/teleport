@@ -238,9 +238,20 @@ export interface DvcResponse {
      */
     channelId: number;
     /**
-     * @generated from protobuf field: bytes pdu = 2;
+     * @generated from protobuf field: repeated teleport.desktop.v1.DvcResponse.PDU responses = 2;
      */
-    pdu: Uint8Array;
+    responses: DvcResponse_PDU[];
+}
+/**
+ * PDU is a single response PDU.
+ *
+ * @generated from protobuf message teleport.desktop.v1.DvcResponse.PDU
+ */
+export interface DvcResponse_PDU {
+    /**
+     * @generated from protobuf field: bytes data = 1;
+     */
+    data: Uint8Array;
 }
 /**
  * Internal message sent by the server after establishing a connection
@@ -1850,13 +1861,13 @@ class DvcResponse$Type extends MessageType<DvcResponse> {
     constructor() {
         super("teleport.desktop.v1.DvcResponse", [
             { no: 1, name: "channel_id", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
-            { no: 2, name: "pdu", kind: "scalar", T: 12 /*ScalarType.BYTES*/ }
+            { no: 2, name: "responses", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => DvcResponse_PDU }
         ]);
     }
     create(value?: PartialMessage<DvcResponse>): DvcResponse {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.channelId = 0;
-        message.pdu = new Uint8Array(0);
+        message.responses = [];
         if (value !== undefined)
             reflectionMergePartial<DvcResponse>(this, message, value);
         return message;
@@ -1869,8 +1880,8 @@ class DvcResponse$Type extends MessageType<DvcResponse> {
                 case /* uint32 channel_id */ 1:
                     message.channelId = reader.uint32();
                     break;
-                case /* bytes pdu */ 2:
-                    message.pdu = reader.bytes();
+                case /* repeated teleport.desktop.v1.DvcResponse.PDU responses */ 2:
+                    message.responses.push(DvcResponse_PDU.internalBinaryRead(reader, reader.uint32(), options));
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -1887,9 +1898,9 @@ class DvcResponse$Type extends MessageType<DvcResponse> {
         /* uint32 channel_id = 1; */
         if (message.channelId !== 0)
             writer.tag(1, WireType.Varint).uint32(message.channelId);
-        /* bytes pdu = 2; */
-        if (message.pdu.length)
-            writer.tag(2, WireType.LengthDelimited).bytes(message.pdu);
+        /* repeated teleport.desktop.v1.DvcResponse.PDU responses = 2; */
+        for (let i = 0; i < message.responses.length; i++)
+            DvcResponse_PDU.internalBinaryWrite(message.responses[i], writer.tag(2, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -1900,6 +1911,53 @@ class DvcResponse$Type extends MessageType<DvcResponse> {
  * @generated MessageType for protobuf message teleport.desktop.v1.DvcResponse
  */
 export const DvcResponse = new DvcResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class DvcResponse_PDU$Type extends MessageType<DvcResponse_PDU> {
+    constructor() {
+        super("teleport.desktop.v1.DvcResponse.PDU", [
+            { no: 1, name: "data", kind: "scalar", T: 12 /*ScalarType.BYTES*/ }
+        ]);
+    }
+    create(value?: PartialMessage<DvcResponse_PDU>): DvcResponse_PDU {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.data = new Uint8Array(0);
+        if (value !== undefined)
+            reflectionMergePartial<DvcResponse_PDU>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: DvcResponse_PDU): DvcResponse_PDU {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* bytes data */ 1:
+                    message.data = reader.bytes();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: DvcResponse_PDU, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* bytes data = 1; */
+        if (message.data.length)
+            writer.tag(1, WireType.LengthDelimited).bytes(message.data);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.desktop.v1.DvcResponse.PDU
+ */
+export const DvcResponse_PDU = new DvcResponse_PDU$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class ConnectionActivated$Type extends MessageType<ConnectionActivated> {
     constructor() {

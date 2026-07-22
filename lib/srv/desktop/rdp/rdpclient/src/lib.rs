@@ -658,7 +658,7 @@ pub struct CGODvcPduStart {
 #[derive(Clone)]
 pub struct CGOVector {
     pub data: *mut u8,
-    pub len: usize,
+    pub len: u32,
 }
 
 impl Into<Vec<u8>> for CGOVector {

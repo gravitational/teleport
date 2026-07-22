@@ -100,8 +100,13 @@ message DynamicVirtualChannelPDU {
 // DvcResponse carries the RDP response PDU
 // for the given Dynamic Virtual Channel.
 message DvcResponse {
+  // PDU is a single response PDU.
+  message PDU {
+    bytes data = 1;
+  }
+
   uint32 channel_id = 1;
-  bytes pdu = 2;
+  repeated PDU responses = 2;
 }
 
 // Internal message sent by the server after establishing a connection

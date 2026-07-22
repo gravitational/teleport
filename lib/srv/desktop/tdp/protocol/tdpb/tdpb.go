@@ -582,6 +582,8 @@ func messageFromEnvelope(e *tdpbv1.Envelope) validatableMessage {
 		return (*SessionSelection)(e.GetSessionSelection())
 	case tdpbv1.Envelope_DvcPdu_case:
 		return (*DynamicVirtualChannelPDU)(e.GetDvcPdu())
+	case tdpbv1.Envelope_DvcResponse_case:
+		return (*DvcResponse)(e.GetDvcResponse())
 	default:
 		return nil
 	}

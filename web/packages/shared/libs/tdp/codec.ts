@@ -18,6 +18,7 @@
 
 import { Logger } from 'design/logger';
 import {
+  DvcResponse_PDU,
   Envelope,
   MFA,
   SharedDirectoryRequest,
@@ -454,6 +455,7 @@ export interface Codec {
   encodeSharedDirectoryMoveResponse(res: SharedDirectoryMoveResponse): Message;
   encodeSharedDirectoryListResponse(res: SharedDirectoryListResponse): Message;
   encodeRdpResponsePdu(responseFrame: ArrayBufferLike): Message;
+  encodeDvcResponsePdu(channelId: number, responsePdus: Array<Uint8Array>): Message;
   encodeSharedDirectoryAnnounce(announce: SharedDirectoryAnnounce): Message;
   encodeSharedDirectoryCreateResponse(
     resp: SharedDirectoryCreateResponse
@@ -873,6 +875,17 @@ export class TdpbCodec implements Codec {
     return this.marshal({
       oneofKind: 'rdpResponsePdu',
       rdpResponsePdu: { response: new Uint8Array(response) },
+    });
+  }
+
+  encodeDvcResponsePdu(channelId: number, responsePdus: Array<Uint8Array>): Message {
+    let responses = responsePdus.map((item) => DvcResponse_PDU.create({data: item}))
+    return this.marshal({
+      oneofKind: 'dvcResponse',
+      dvcResponse: {
+        channelId,
+        responses,
+      }
     });
   }
 
@@ -1297,6 +1310,10 @@ export class TdpCodec implements Codec {
 
   encodeSessionSelection(_sessions: string): Message {
     // SessionSelection is used only by Linux desktop and it uses TDPB only
+    throw new Error('Method not implemented.');
+  }
+
+  encodeDvcResponsePdu(): Message {
     throw new Error('Method not implemented.');
   }
 

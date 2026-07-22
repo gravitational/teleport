@@ -755,11 +755,15 @@ impl Client {
 
      /// Writes a fully encoded DVC PDU to the RDP server.
     async fn write_dvc_pdu(write_stream: &mut RdpWriteStream, x224_processor: Arc<Mutex<x224::Processor>>, channel_id: u32, resp: Vec<Vec<u8>>) -> ClientResult<()> {
+        warn!("sending dvc pdu to RDP server");
+        warn!("messages count: {}, first: {:?}", resp.len(), &resp[0]);
         let processor = Client::x224_lock(&x224_processor)?;
         let messages: Vec<DvcMessage> = resp.into_iter().map(|raw| Box::new(RawDvcPdu(raw)) as DvcMessage).collect();
+        warn!("sending {} responses", messages.len());
         let result = encode_dvc_messages(channel_id, messages, ChannelFlags::empty())?;
         let session_result = processor.process_svc_processor_messages(SvcProcessorMessages::<DrdynvcClient>::new(result))?;
         write_stream.write_all(&session_result).await?;
+        warn!("successfully sent dvc pdu to RDP server");
         Ok(())
     }
 

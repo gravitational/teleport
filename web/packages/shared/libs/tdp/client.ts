@@ -628,14 +628,28 @@ export class TdpClient extends EventEmitter<EventMap> {
   handleDvcStart(data: {channel_id: number, channel_name: string}) {
     const resp = this.egfxProcessor.start(data.channel_id, data.channel_name)
     this.logger.warn("sending dvc start response " +resp)
-    this.sendRdpResponsePdu(resp.buffer)
+
+    if (resp.length == 0) {
+      return;
+    }
+
+    let responses: Array<Uint8Array> = resp.map((item) => item as Uint8Array)
+    this.logger.warn("responses " +responses)
+    this.sendDvcResponses(data.channel_id, responses)
   }
 
   handleDvcData(data: {channel_id: number, payload: Uint8Array<ArrayBufferLike>;}) {
     const resp = this.egfxProcessor.process(data.channel_id, data.payload, this, (bmpFrame: BitmapFrame) => {
         this.emit(TdpClientEvent.TDP_BMP_FRAME, bmpFrame);
     },)
-    this.sendRdpResponsePdu(resp.buffer)
+
+    if (resp.length == 0) {
+      return;
+    }
+
+    let responses: Array<Uint8Array> = resp.map((item) => item as Uint8Array)
+    this.logger.warn("responses " +responses)
+    this.sendDvcResponses(data.channel_id, responses)     
   }
 
   handleDvcStop(_data: {channel_id: number}) {
@@ -1038,6 +1052,10 @@ export class TdpClient extends EventEmitter<EventMap> {
 
   sendRdpResponsePdu(responseFrame: ArrayBufferLike) {
     this.send(this.codec.encodeRdpResponsePdu(responseFrame));
+  }
+
+  sendDvcResponses(channelId: number, responses: Array<Uint8Array>) {
+    this.send(this.codec.encodeDvcResponsePdu(channelId, responses))
   }
 
   // Emits a warning event, but keeps the socket open.

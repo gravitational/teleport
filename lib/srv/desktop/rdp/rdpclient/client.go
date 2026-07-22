@@ -75,6 +75,7 @@ import (
 	"log/slog"
 	"net"
 	"os"
+	"runtime"
 	"runtime/cgo"
 	"strconv"
 	"sync"
@@ -560,7 +561,9 @@ func (c *Client) startInputStreaming(stopCh chan struct{}) error {
 			continue
 		}
 
-		if atomic.LoadUint32(&c.readyForInput) == 0 {
+		_, isDvcResponse := msg.(*tdpb.DvcResponse)
+
+		if atomic.LoadUint32(&c.readyForInput) == 0 && !isDvcResponse {
 			switch m := msg.(type) {
 			case *tdpb.ClientScreenSpec:
 				// Withhold the latest screen size until the client is ready for input. This ensures
@@ -900,14 +903,30 @@ func (c *Client) handleTDPInput(msg tdp.Message) error {
 			return trace.Errorf("RDPResponsePDU failed: %v", errCode)
 		}
 	case *tdpb.DvcResponse:
-		pduLen := uint32(len(m.Pdu))
+		c.cfg.Logger.WarnContext(context.Background(), "Handling DVC Response!!!")
+		pduLen := uint32(len(m.Responses))
 		if pduLen == 0 {
 			c.cfg.Logger.ErrorContext(context.Background(), "DVC response PDU empty")
 		}
-		pdu := (*C.uint8_t)(unsafe.SliceData(m.Pdu))
+
+		c.cfg.Logger.WarnContext(context.Background(), fmt.Sprintf("Got %d responses. First: %v", len(m.Responses), m.Responses[0]))
+
+		pinner := runtime.Pinner{}
+		defer pinner.Unpin()
+		vectors := []C.CGOVector{}
+		for _, response := range m.Responses {
+			tempdata := (*C.uint8_t)(unsafe.SliceData(response.Data))
+			pinner.Pin(tempdata)
+			vectors = append(vectors, C.CGOVector{
+				data: tempdata,
+				len:  C.uint32_t(len(response.Data)),
+			})
+		}
+
+		vecData := (*C.CGOVector)(unsafe.SliceData(vectors))
 
 		if errCode := C.client_handle_dvc_response_pdu(
-			C.uintptr_t(c.handle), pdu, C.uint32_t(pduLen),
+			C.uintptr_t(c.handle), C.uint32_t(m.ChannelId), vecData, C.uint32_t(len(m.Responses)),
 		); errCode != C.ErrCodeSuccess {
 			return trace.Errorf("DVC response failed: %v", errCode)
 		}

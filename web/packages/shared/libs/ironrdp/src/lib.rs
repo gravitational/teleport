@@ -41,7 +41,7 @@ use ironrdp_session::{
     fast_path::ProcessorBuilder as IronRdpFastPathProcessorBuilder,
 };
 use ironrdp_egfx::client::{GraphicsPipelineClient};
-use js_sys::Uint8Array;
+use js_sys::{Uint8Array, Array};
 use log::{debug, warn};
 use wasm_bindgen::{prelude::*, Clamped};
 use web_sys::ImageData;
@@ -145,13 +145,13 @@ impl EgfxProcessor {
         }
     }
 
-    pub fn start(&mut self, channel_id: u32, channel_name: String) -> Vec<u8> {
+    pub fn start(&mut self, channel_id: u32, channel_name: String) -> Array {
         warn!("Got start even for channel {}", channel_name);
         let result = self.client.start(channel_id).expect("failed to initialize channel");
         PduResponse(result).try_into().expect("failed to encode start response")
     }
 
-    pub fn process(&mut self, channel_id: u32, payload: &[u8], cb_context: &JsValue, callback: &js_sys::Function,) -> Vec<u8> {
+    pub fn process(&mut self, channel_id: u32, payload: &[u8], cb_context: &JsValue, callback: &js_sys::Function,) -> Array{
         let result = self.client.process(channel_id, payload).expect("failed to process payload");
 
         loop {
@@ -198,21 +198,20 @@ impl EgfxProcessor {
 
 struct PduResponse(Vec<DvcMessage>);
 
-impl TryInto<Vec<u8>> for PduResponse{
-    fn try_into(self) -> Result<Vec<u8>, Self::Error> {
+impl TryInto<Array> for PduResponse{
+    fn try_into(self) -> Result<Array, Self::Error> {
         if self.0.len() == 0 {
-            return Ok(vec![]);
+            return Ok(Array::new());
         }
 
-        let buf_size: usize = self.0.iter().map(|msg| msg.size()).sum();
-        let mut response = vec![0u8; buf_size];        
-        let mut cursor = WriteCursor::new(response.as_mut_slice());
+        let res = self.0.into_iter().map(|response| {
+            let mut buf = vec![0u8; response.size()];        
+            let mut cursor = WriteCursor::new(buf.as_mut_slice());
+            response.encode(&mut cursor)?;
+            Ok(Uint8Array::from(buf.as_slice()))
+        }).collect::<Result<Array, EncodeError>>()?;
 
-        for item in self.0.iter() {
-            let _ = item.encode(&mut cursor)?;
-        }
-
-        Ok(response)
+        Ok(res)
     }
     
     type Error = EncodeError;
