@@ -26,6 +26,7 @@ import "teleport/clusterconfig/v1/access_graph_settings.proto";
 import "teleport/crownjewel/v1/crownjewel.proto";
 import "teleport/dbobject/v1/dbobject.proto";
 import "teleport/discoveryconfig/v1/discoveryconfig.proto";
+import "teleport/foo/v1/foo.proto";
 import "teleport/healthcheckconfig/v1/health_check_config.proto";
 import "teleport/identitycenter/v1/identitycenter.proto";
 import "teleport/kubewaitingcontainer/v1/kubewaitingcontainer.proto";
@@ -272,5 +273,7 @@ message Event {
     // PendingCSRRequest allows asynchronous, watcher-based CSR requests to
     // other Auth server instances.
     teleport.subca.v1.PendingCSRRequest PendingCSRRequest = 99;
+    // Foo is a foo resource.
+    teleport.foo.v1.Foo Foo = 100;
   }
 }

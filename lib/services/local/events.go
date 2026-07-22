@@ -33,6 +33,7 @@ import (
 	accessgraphsecretsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessgraph/v1"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
+	foov1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/foo/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
@@ -47,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/devicetrust"
+	"github.com/gravitational/teleport/lib/foos"
 	"github.com/gravitational/teleport/lib/scopes"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/services"
@@ -305,6 +307,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newCertAuthorityOverrideParser()
 		case types.KindValidatedMFAChallenge:
 			parser = newValidatedMFAChallengeParser(kind.Filter)
+		case foos.Kind:
+			parser = newFooParser()
 		default:
 			if watch.AllowPartialSuccess {
 				continue
@@ -1094,6 +1098,79 @@ func (p *roleParser) parse(event backend.Event) (types.Resource, error) {
 		return resource, nil
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newFooParser() *fooParser {
+	return &fooParser{
+		baseParser: newBaseParser(
+			fooUnscopedWatchPrefix(),
+			fooScopedWatchPrefix(),
+		),
+	}
+}
+
+type fooParser struct {
+	baseParser
+}
+
+func (p *fooParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		sqn, err := fooNameFromKey(event.Item.Key)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		foo := foov1.Foo_builder{
+			Kind:    foos.Kind,
+			Version: types.V1,
+			Metadata: headerv1.Metadata_builder{
+				Name: sqn.Name,
+			}.Build(),
+			Scope: sqn.Scope,
+		}.Build()
+		return types.Resource153ToLegacy(foo), nil
+	case types.OpPut:
+		foo, err := services.UnmarshalProtoResource[*foov1.Foo](
+			event.Item.Value,
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Resource153ToLegacy(foo), nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func fooNameFromKey(key backend.Key) (scopes.QualifiedName, error) {
+	switch {
+	case key.HasPrefix(fooScopedWatchPrefix()):
+		components := key.TrimPrefix(fooScopedWatchPrefix()).Components()
+		if len(components) != 2 {
+			return scopes.QualifiedName{}, trace.NotFound("failed parsing %v", key.String())
+		}
+		encodedScope, name := components[0], components[1]
+		scope, err := scopes.DecodeFromKey(encodedScope)
+		if err != nil {
+			return scopes.QualifiedName{}, trace.Wrap(err)
+		}
+		return scopes.QualifiedName{
+			Scope: scope,
+			Name:  name,
+		}, nil
+	case key.HasPrefix(fooUnscopedWatchPrefix()):
+		components := key.TrimPrefix(fooUnscopedWatchPrefix()).Components()
+		if len(components) != 1 {
+			return scopes.QualifiedName{}, trace.NotFound("failed parsing %v", key.String())
+		}
+		return scopes.QualifiedName{
+			Name: components[0],
+		}, nil
+	default:
+		return scopes.QualifiedName{}, trace.NotFound("failed parsing %v", key.String())
 	}
 }
 

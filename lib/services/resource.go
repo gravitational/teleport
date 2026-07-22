@@ -39,6 +39,7 @@ import (
 	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/foos"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -287,6 +288,8 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindAutoUpdateBotInstanceReport, nil
 	case types.KindGitServer, types.KindGitServer + "s":
 		return types.KindGitServer, nil
+	case foos.Kind, foos.Kind + "s":
+		return foos.Kind, nil
 	case types.KindWorkloadIdentityX509Revocation, types.KindWorkloadIdentityX509Revocation + "s":
 		return types.KindWorkloadIdentityX509Revocation, nil
 	case types.KindWorkloadIdentityX509IssuerOverride, types.KindWorkloadIdentityX509IssuerOverride + "s":

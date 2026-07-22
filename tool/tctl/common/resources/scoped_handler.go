@@ -24,6 +24,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/foos"
 	"github.com/gravitational/teleport/lib/scopes"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/services"
@@ -40,6 +41,7 @@ func ScopedHandlers() map[string]ScopedHandler {
 		types.KindScopedToken:                 scopedTokenScopedHandler(),
 		scopedaccess.KindScopedRoleAssignment: scopedRoleAssignmentScopedHandler(),
 		types.KindAccessList:                  accessListScopedHandler(),
+		foos.Kind:                             fooScopedHandler(),
 	}
 }
 

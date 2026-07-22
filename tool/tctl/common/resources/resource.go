@@ -25,6 +25,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/foos"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -66,6 +67,7 @@ func Handlers() map[string]Handler {
 		types.KindDiscoveryConfig:                    discoveryConfigHandler(),
 		types.KindDynamicWindowsDesktop:              dynamicWindowsDesktopHandler(),
 		types.KindExternalAuditStorage:               externalAuditStorageHandler(),
+		foos.Kind:                                    fooHandler(),
 		types.KindGitServer:                          gitServerHandler(),
 		types.KindGithubConnector:                    githubConnectorHandler(),
 		types.KindInferenceModel:                     inferenceModelHandler(),

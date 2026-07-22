@@ -482,6 +482,9 @@ type InitConfig struct {
 
 	// EnrollPairing manages mobile device enrollment pairings.
 	EnrollPairing services.EnrollPairing
+
+	// FooService is a service for interacting with Foo resources.
+	FooService services.FooService
 }
 
 // Init instantiates and configures an instance of AuthServer

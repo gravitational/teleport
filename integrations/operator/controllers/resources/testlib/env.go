@@ -50,6 +50,7 @@ import (
 	apiresources "github.com/gravitational/teleport/integrations/operator/apis/resources"
 	"github.com/gravitational/teleport/integrations/operator/controllers"
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources"
+	"github.com/gravitational/teleport/lib/foos"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/scopes"
@@ -147,6 +148,7 @@ func defaultTeleportServiceConfig(t *testing.T, insecureMode bool, scopesFeature
 				types.NewRule(types.KindScopedToken, unrestricted),
 				types.NewRule(access.KindScopedRole, unrestricted),
 				types.NewRule(access.KindScopedRoleAssignment, unrestricted),
+				types.NewRule(foos.Kind, unrestricted),
 			},
 		},
 	})

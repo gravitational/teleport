@@ -32,6 +32,7 @@ import (
 	v17 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	v18 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	v12 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
+	v126 "github.com/gravitational/teleport/api/gen/proto/go/teleport/foo/v1"
 	v116 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	v114 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	v15 "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
@@ -216,6 +217,7 @@ type Event struct {
 	//	*Event_BeamsConfig
 	//	*Event_Classifier
 	//	*Event_PendingCSRRequest
+	//	*Event_Foo
 	Resource      isEvent_Resource `protobuf_oneof:"Resource"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1098,6 +1100,15 @@ func (x *Event) GetPendingCSRRequest() *v123.PendingCSRRequest {
 	return nil
 }
 
+func (x *Event) GetFoo() *v126.Foo {
+	if x != nil {
+		if x, ok := x.Resource.(*Event_Foo); ok {
+			return x.Foo
+		}
+	}
+	return nil
+}
+
 func (x *Event) SetType(v Operation) {
 	x.Type = v
 }
@@ -1845,6 +1856,14 @@ func (x *Event) SetPendingCSRRequest(v *v123.PendingCSRRequest) {
 		return
 	}
 	x.Resource = &Event_PendingCSRRequest{v}
+}
+
+func (x *Event) SetFoo(v *v126.Foo) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &Event_Foo{v}
 }
 
 func (x *Event) HasResource() bool {
@@ -2599,6 +2618,14 @@ func (x *Event) HasPendingCSRRequest() bool {
 	return ok
 }
 
+func (x *Event) HasFoo() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*Event_Foo)
+	return ok
+}
+
 func (x *Event) ClearResource() {
 	x.Resource = nil
 }
@@ -3162,6 +3189,12 @@ func (x *Event) ClearPendingCSRRequest() {
 	}
 }
 
+func (x *Event) ClearFoo() {
+	if _, ok := x.Resource.(*Event_Foo); ok {
+		x.Resource = nil
+	}
+}
+
 const Event_Resource_not_set_case case_Event_Resource = 0
 const Event_ResourceHeader_case case_Event_Resource = 2
 const Event_CertAuthority_case case_Event_Resource = 3
@@ -3256,6 +3289,7 @@ const Event_ValidatedMFAChallengeV2_case case_Event_Resource = 96
 const Event_BeamsConfig_case case_Event_Resource = 97
 const Event_Classifier_case case_Event_Resource = 98
 const Event_PendingCSRRequest_case case_Event_Resource = 99
+const Event_Foo_case case_Event_Resource = 100
 
 func (x *Event) WhichResource() case_Event_Resource {
 	if x == nil {
@@ -3448,6 +3482,8 @@ func (x *Event) WhichResource() case_Event_Resource {
 		return Event_Classifier_case
 	case *Event_PendingCSRRequest:
 		return Event_PendingCSRRequest_case
+	case *Event_Foo:
+		return Event_Foo_case
 	default:
 		return Event_Resource_not_set_case
 	}
@@ -3655,6 +3691,8 @@ type Event_builder struct {
 	// PendingCSRRequest allows asynchronous, watcher-based CSR requests to
 	// other Auth server instances.
 	PendingCSRRequest *v123.PendingCSRRequest
+	// Foo is a foo resource.
+	Foo *v126.Foo
 	// -- end of Resource
 }
 
@@ -3941,6 +3979,9 @@ func (b0 Event_builder) Build() *Event {
 	}
 	if b.PendingCSRRequest != nil {
 		x.Resource = &Event_PendingCSRRequest{b.PendingCSRRequest}
+	}
+	if b.Foo != nil {
+		x.Resource = &Event_Foo{b.Foo}
 	}
 	return m0
 }
@@ -4432,6 +4473,11 @@ type Event_PendingCSRRequest struct {
 	PendingCSRRequest *v123.PendingCSRRequest `protobuf:"bytes,99,opt,name=PendingCSRRequest,proto3,oneof"`
 }
 
+type Event_Foo struct {
+	// Foo is a foo resource.
+	Foo *v126.Foo `protobuf:"bytes,100,opt,name=Foo,proto3,oneof"`
+}
+
 func (*Event_ResourceHeader) isEvent_Resource() {}
 
 func (*Event_CertAuthority) isEvent_Resource() {}
@@ -4618,11 +4664,13 @@ func (*Event_Classifier) isEvent_Resource() {}
 
 func (*Event_PendingCSRRequest) isEvent_Resource() {}
 
+func (*Event_Foo) isEvent_Resource() {}
+
 var File_teleport_legacy_client_proto_event_proto protoreflect.FileDescriptor
 
 const file_teleport_legacy_client_proto_event_proto_rawDesc = "" +
 	"\n" +
-	"(teleport/legacy/client/proto/event.proto\x12\x05proto\x1a'teleport/accesslist/v1/accesslist.proto\x1a?teleport/accessmonitoringrules/v1/access_monitoring_rules.proto\x1a-teleport/appauthconfig/v1/appauthconfig.proto\x1a'teleport/autoupdate/v1/autoupdate.proto\x1a\x1cteleport/beams/v1/beam.proto\x1a$teleport/beams/v1/beams_config.proto\x1a5teleport/clusterconfig/v1/access_graph_settings.proto\x1a'teleport/crownjewel/v1/crownjewel.proto\x1a#teleport/dbobject/v1/dbobject.proto\x1a1teleport/discoveryconfig/v1/discoveryconfig.proto\x1a7teleport/healthcheckconfig/v1/health_check_config.proto\x1a/teleport/identitycenter/v1/identitycenter.proto\x1a;teleport/kubewaitingcontainer/v1/kubewaitingcontainer.proto\x1a!teleport/legacy/types/types.proto\x1a,teleport/linuxdesktop/v1/linux_desktop.proto\x1a(teleport/machineid/v1/bot_instance.proto\x1a&teleport/machineid/v1/federation.proto\x1a)teleport/mfa/v1/validated_challenge.proto\x1a)teleport/mfa/v2/validated_challenge.proto\x1a-teleport/notifications/v1/notifications.proto\x1a'teleport/presence/v1/relay_server.proto\x1a+teleport/provisioning/v1/provisioning.proto\x1a:teleport/recordingencryption/v1/recording_encryption.proto\x1a*teleport/scopes/access/v1/assignment.proto\x1a$teleport/scopes/access/v1/role.proto\x1a'teleport/secreports/v1/secreports.proto\x1a/teleport/subca/v1/cert_authority_override.proto\x1a+teleport/subca/v1/pending_csr_request.proto\x1a'teleport/summarizer/v1/summarizer.proto\x1a/teleport/userloginstate/v1/userloginstate.proto\x1a1teleport/userprovisioning/v2/statichostuser.proto\x1a&teleport/usertasks/v1/user_tasks.proto\x1a+teleport/workloadidentity/v1/resource.proto\x1a6teleport/workloadidentity/v1/revocation_resource.proto\"\xa19\n" +
+	"(teleport/legacy/client/proto/event.proto\x12\x05proto\x1a'teleport/accesslist/v1/accesslist.proto\x1a?teleport/accessmonitoringrules/v1/access_monitoring_rules.proto\x1a-teleport/appauthconfig/v1/appauthconfig.proto\x1a'teleport/autoupdate/v1/autoupdate.proto\x1a\x1cteleport/beams/v1/beam.proto\x1a$teleport/beams/v1/beams_config.proto\x1a5teleport/clusterconfig/v1/access_graph_settings.proto\x1a'teleport/crownjewel/v1/crownjewel.proto\x1a#teleport/dbobject/v1/dbobject.proto\x1a1teleport/discoveryconfig/v1/discoveryconfig.proto\x1a\x19teleport/foo/v1/foo.proto\x1a7teleport/healthcheckconfig/v1/health_check_config.proto\x1a/teleport/identitycenter/v1/identitycenter.proto\x1a;teleport/kubewaitingcontainer/v1/kubewaitingcontainer.proto\x1a!teleport/legacy/types/types.proto\x1a,teleport/linuxdesktop/v1/linux_desktop.proto\x1a(teleport/machineid/v1/bot_instance.proto\x1a&teleport/machineid/v1/federation.proto\x1a)teleport/mfa/v1/validated_challenge.proto\x1a)teleport/mfa/v2/validated_challenge.proto\x1a-teleport/notifications/v1/notifications.proto\x1a'teleport/presence/v1/relay_server.proto\x1a+teleport/provisioning/v1/provisioning.proto\x1a:teleport/recordingencryption/v1/recording_encryption.proto\x1a*teleport/scopes/access/v1/assignment.proto\x1a$teleport/scopes/access/v1/role.proto\x1a'teleport/secreports/v1/secreports.proto\x1a/teleport/subca/v1/cert_authority_override.proto\x1a+teleport/subca/v1/pending_csr_request.proto\x1a'teleport/summarizer/v1/summarizer.proto\x1a/teleport/userloginstate/v1/userloginstate.proto\x1a1teleport/userprovisioning/v2/statichostuser.proto\x1a&teleport/usertasks/v1/user_tasks.proto\x1a+teleport/workloadidentity/v1/resource.proto\x1a6teleport/workloadidentity/v1/revocation_resource.proto\"\xcb9\n" +
 	"\x05Event\x12$\n" +
 	"\x04Type\x18\x01 \x01(\x0e2\x10.proto.OperationR\x04Type\x12?\n" +
 	"\x0eResourceHeader\x18\x02 \x01(\v2\x15.types.ResourceHeaderH\x00R\x0eResourceHeader\x12>\n" +
@@ -4732,7 +4780,8 @@ const file_teleport_legacy_client_proto_event_proto_rawDesc = "" +
 	"\n" +
 	"Classifier\x18b \x01(\v2\".teleport.summarizer.v1.ClassifierH\x00R\n" +
 	"Classifier\x12T\n" +
-	"\x11PendingCSRRequest\x18c \x01(\v2$.teleport.subca.v1.PendingCSRRequestH\x00R\x11PendingCSRRequestB\n" +
+	"\x11PendingCSRRequest\x18c \x01(\v2$.teleport.subca.v1.PendingCSRRequestH\x00R\x11PendingCSRRequest\x12(\n" +
+	"\x03Foo\x18d \x01(\v2\x14.teleport.foo.v1.FooH\x00R\x03FooB\n" +
 	"\n" +
 	"\bResourceJ\x04\b\a\x10\bJ\x04\b1\x102J\x04\b?\x10@J\x04\bD\x10EJ\x04\bX\x10YR\x12ExternalCloudAuditR\x0eStaticHostUserR\x13AutoUpdateAgentPlanR\x0fWorkloadCluster**\n" +
 	"\tOperation\x12\b\n" +
@@ -4836,6 +4885,7 @@ var file_teleport_legacy_client_proto_event_proto_goTypes = []any{
 	(*v125.BeamsConfig)(nil),                    // 89: teleport.beams.v1.BeamsConfig
 	(*v124.Classifier)(nil),                     // 90: teleport.summarizer.v1.Classifier
 	(*v123.PendingCSRRequest)(nil),              // 91: teleport.subca.v1.PendingCSRRequest
+	(*v126.Foo)(nil),                            // 92: teleport.foo.v1.Foo
 }
 var file_teleport_legacy_client_proto_event_proto_depIdxs = []int32{
 	0,  // 0: proto.Event.Type:type_name -> proto.Operation
@@ -4932,11 +4982,12 @@ var file_teleport_legacy_client_proto_event_proto_depIdxs = []int32{
 	89, // 91: proto.Event.BeamsConfig:type_name -> teleport.beams.v1.BeamsConfig
 	90, // 92: proto.Event.Classifier:type_name -> teleport.summarizer.v1.Classifier
 	91, // 93: proto.Event.PendingCSRRequest:type_name -> teleport.subca.v1.PendingCSRRequest
-	94, // [94:94] is the sub-list for method output_type
-	94, // [94:94] is the sub-list for method input_type
-	94, // [94:94] is the sub-list for extension type_name
-	94, // [94:94] is the sub-list for extension extendee
-	0,  // [0:94] is the sub-list for field type_name
+	92, // 94: proto.Event.Foo:type_name -> teleport.foo.v1.Foo
+	95, // [95:95] is the sub-list for method output_type
+	95, // [95:95] is the sub-list for method input_type
+	95, // [95:95] is the sub-list for extension type_name
+	95, // [95:95] is the sub-list for extension extendee
+	0,  // [0:95] is the sub-list for field type_name
 }
 
 func init() { file_teleport_legacy_client_proto_event_proto_init() }
@@ -5038,6 +5089,7 @@ func file_teleport_legacy_client_proto_event_proto_init() {
 		(*Event_BeamsConfig)(nil),
 		(*Event_Classifier)(nil),
 		(*Event_PendingCSRRequest)(nil),
+		(*Event_Foo)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
