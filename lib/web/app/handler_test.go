@@ -28,6 +28,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -1232,9 +1233,15 @@ func TestHandlerAuthenticate(t *testing.T) {
 		request := httptest.NewRequest("GET", "https://"+publicAddr, nil)
 		addValidSessionCookiesToRequest(authClient.appSession, request)
 
+		// An expired session must not be logged above debug, otherwise a
+		// client replaying the stale cookie floods the logs.
+		var logs bytes.Buffer
+		appHandler.logger = slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelWarn}))
+
 		_, err := appHandler.authenticate(ctx, request)
 		require.Error(t, err)
 		require.True(t, trace.IsAccessDenied(err))
+		require.Empty(t, logs.String(), "expired session must not be logged above debug level")
 	})
 }
 

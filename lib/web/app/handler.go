@@ -364,7 +364,6 @@ func (h *Handler) handleForwardError(w http.ResponseWriter, req *http.Request, e
 func (h *Handler) authenticate(ctx context.Context, r *http.Request) (*session, error) {
 	ws, err := h.getAppSession(r)
 	if err != nil {
-		h.logger.WarnContext(ctx, "Failed to fetch application session", "error", err)
 		return nil, trace.AccessDenied("invalid session")
 	}
 
@@ -385,7 +384,6 @@ func (h *Handler) authenticate(ctx context.Context, r *http.Request) (*session, 
 func (h *Handler) renewSession(r *http.Request) (*session, error) {
 	ws, err := h.getAppSession(r)
 	if err != nil {
-		h.logger.DebugContext(r.Context(), "Failed to fetch application session: not found")
 		return nil, trace.AccessDenied("invalid session")
 	}
 
@@ -421,7 +419,14 @@ func (h *Handler) getAppSession(r *http.Request) (ws types.WebSession, err error
 		ws, err = h.getAppSessionFromCookie(r)
 	}
 	if err != nil {
-		h.logger.WarnContext(r.Context(), "Failed to get session", "error", err)
+		// Missing, expired, or invalid sessions are expected because clients
+		// replay stale cookies, so they are logged at debug level. Unexpected
+		// failures are logged as warnings.
+		if trace.IsNotFound(err) || trace.IsAccessDenied(err) {
+			h.logger.DebugContext(r.Context(), "Failed to fetch application session", "error", err)
+		} else {
+			h.logger.WarnContext(r.Context(), "Failed to fetch application session", "error", err)
+		}
 		return nil, trace.AccessDenied("invalid session")
 	}
 	return ws, nil
