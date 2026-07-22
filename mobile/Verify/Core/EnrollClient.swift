@@ -34,7 +34,6 @@ public enum EnrollClientError: Error, Sendable {
 	case clientCreationFailed
 }
 
-
 extension EnrollClient {
 	public static let liveValue = EnrollClient(
 		requestEnrollmentToken: { hostName, port, pairingToken in
@@ -44,13 +43,20 @@ extension EnrollClient {
 					throw EnrollClientError.clientCreationFailed
 				}
 
-				let token = try client.createMobileEnrollToken(
-					pairingToken,
-					deviceData: Enroll.EnrollDeviceCollectedData(),
-				)
+				#if DEBUG
+					// Hardcode device serial number and os version for now
+					let osVersion = "26.4.0"
+					let serialNumber = "1234-5678-ABCD-EFGH"
+					let deviceData = Enroll.EnrollDeviceCollectedData()
+					deviceData.versionOS = osVersion
+					deviceData.serialNumber = serialNumber
+				#else
+					preconditionFailure("osVersion and serialNumber must be retrieved for realsies")
+				#endif
+
+				let token = try client.createPairedDeviceEnrollToken(pairingToken, deviceData: deviceData)
 				return token.token
 			}.value
 		},
 	)
 }
-

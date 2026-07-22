@@ -55,23 +55,20 @@ class EnrollDeviceViewModel {
 			 TODO: Implement the call to requestEnrollmentToken
 			 Right now, the backend doesn't have all the behavior we need to test enrollment token request end-to-end
 			 so we just simulate the behavior for now with a small delay.
-
-			 let token = try await enrollClient.requestEnrollmentToken(
-			 	hostName: deepLink.hostname,
-			 	port: deepLink.port,
-			 	pairingToken: deepLink.enrollPairingToken,
-			 )
-			  */
-
-			// The code that follows in this function is for demonstration purposes only.
+			 */
 			eventStackViewModel.clearAllEvents()
-			eventStackViewModel.addEvent(id: "enrollment-request", message: "Enrolling device…")
-			try await Task.sleep(for: .milliseconds(500))
-			eventStackViewModel.updateEvent(
-				id: "enrollment-request",
-				message: "Device enrolled!",
-				status: .success,
+
+			Self.logger.debug("Sending enrollment token request for \(self.deepLink.debugDescription)")
+			eventStackViewModel.addEvent(id: "enrollment-request", message: "Requesting enrollment token…")
+			async let pendingToken = enrollClient.requestEnrollmentToken(
+				hostName: deepLink.hostname,
+				port: deepLink.port,
+				pairingToken: deepLink.enrollPairingToken,
 			)
+			try await Task.sleep(for: .milliseconds(500))
+			eventStackViewModel.updateEvent(id: "enrollment-request", message: "Awaiting approval…")
+			_ = try await pendingToken
+			eventStackViewModel.updateEvent(id: "enrollment-request", message: "Request succeeded!", status: .success)
 
 			let cluster = try await database.write { db in
 				try Cluster.insert {
@@ -89,6 +86,7 @@ class EnrollDeviceViewModel {
 
 			loadingState = .success("fake-token-\(cluster?.id.uuidString ?? "(nil)")")
 		} catch {
+//			eventStackViewModel.updateEvent(id: "enrollment-request", message: "Request failed", status: .failure)
 			Self.logger.error("Failed to request enrollment token: \(error)")
 			loadingState = .failure(error)
 		}
