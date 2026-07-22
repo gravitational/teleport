@@ -5627,13 +5627,14 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			return trace.Wrap(err)
 		}
 
-		authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
-			ClusterName:    cn.GetClusterName(),
-			AccessPoint:    accessPoint,
-			LockWatcher:    lockWatcher,
-			Logger:         process.logger,
-			PermitCaching:  process.Config.CachePolicy.Enabled,
-			ScopesFeatures: process.scopesFeatures,
+		scopedAuthorizer, err := authz.NewScopedAuthorizer(authz.AuthorizerOpts{
+			ClusterName:      cn.GetClusterName(),
+			AccessPoint:      accessPoint,
+			ScopedRoleReader: accessPoint.ScopedRoleReader(),
+			LockWatcher:      lockWatcher,
+			Logger:           process.logger,
+			PermitCaching:    process.Config.CachePolicy.Enabled,
+			ScopesFeatures:   process.scopesFeatures,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -5657,7 +5658,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			Clock:             process.Clock,
 			DataDir:           cfg.DataDir,
 			Emitter:           asyncEmitter,
-			Authorizer:        authorizer,
+			Authorizer:        scopedAuthorizer,
 			HostID:            conn.HostUUID(),
 			AuthClient:        conn.Client,
 			AccessPoint:       accessPoint,
@@ -7055,12 +7056,14 @@ func (process *TeleportProcess) initApps() {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
-			ClusterName:    clusterName,
-			AccessPoint:    accessPoint,
-			LockWatcher:    lockWatcher,
-			Logger:         process.logger.With(teleport.ComponentKey, component),
-			ScopesFeatures: process.scopesFeatures,
+
+		scopedAuthorizer, err := authz.NewScopedAuthorizer(authz.AuthorizerOpts{
+			ClusterName:      clusterName,
+			AccessPoint:      accessPoint,
+			ScopedRoleReader: accessPoint.ScopedRoleReader(),
+			LockWatcher:      lockWatcher,
+			Logger:           process.logger.With(teleport.ComponentKey, component),
+			ScopesFeatures:   process.scopesFeatures,
 			DeviceAuthorization: authz.DeviceAuthorizationOpts{
 				// Ignore the global device_trust.mode toggle, but allow role-based
 				// settings to be applied.
@@ -7108,7 +7111,7 @@ func (process *TeleportProcess) initApps() {
 			DataDir:           process.Config.DataDir,
 			AuthClient:        conn.Client,
 			AccessPoint:       accessPoint,
-			Authorizer:        authorizer,
+			Authorizer:        scopedAuthorizer,
 			TLSConfig:         tlsConfig,
 			CipherSuites:      process.Config.CipherSuites,
 			HostID:            conn.HostUUID(),
