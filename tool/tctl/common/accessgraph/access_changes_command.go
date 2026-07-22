@@ -36,6 +36,7 @@ import (
 	graphmodels "github.com/gravitational/teleport/lib/accessgraph/apiclient/models/graph"
 	diffmodels "github.com/gravitational/teleport/lib/accessgraph/apiclient/models/jsondiff"
 	"github.com/gravitational/teleport/lib/asciitable"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 type accessChangesArgs struct {
@@ -294,12 +295,12 @@ func displayAccessChangesText(out io.Writer, changes []accessgraph.AccessPathSum
 
 	for _, change := range changes {
 		table.AddRow([]string{
-			change.Id,
-			change.AffectedNode.Kind,
-			change.AffectedNode.Name,
-			change.AffectedNode.Source,
-			change.AffectedNode.OriginType,
-			change.AffectedNode.Alias,
+			utils.EscapeControl(change.Id),
+			utils.EscapeControl(change.AffectedNode.Kind),
+			utils.EscapeControl(change.AffectedNode.Name),
+			utils.EscapeControl(change.AffectedNode.Source),
+			utils.EscapeControl(change.AffectedNode.OriginType),
+			utils.EscapeControl(change.AffectedNode.Alias),
 			change.CreatedAt.Format(time.RFC3339),
 		})
 	}
@@ -314,17 +315,18 @@ func displayAccessChange(out io.Writer, change *accessgraph.AccessPathDiff, form
 }
 
 func displayAccessChangeText(out io.Writer, change *accessgraph.AccessPathDiff) error {
+	// UUID fields need no escaping; string fields below are escaped.
 	fmt.Fprintf(out, "Change ID: %s\n\n", change.ChangeId)
 
 	fmt.Fprintln(out, "Affected Node:")
 	nodeTable := asciitable.MakeTable([]string{"ID", "Kind", "Name", "Source", "Origin Type", "Alias"})
 	nodeTable.AddRow([]string{
 		change.AffectedNode.Id.String(),
-		change.AffectedNode.Kind,
-		change.AffectedNode.Name,
-		change.AffectedNode.Source,
-		change.AffectedNode.OriginType,
-		change.AffectedNode.Alias,
+		utils.EscapeControl(change.AffectedNode.Kind),
+		utils.EscapeControl(change.AffectedNode.Name),
+		utils.EscapeControl(change.AffectedNode.Source),
+		utils.EscapeControl(change.AffectedNode.OriginType),
+		utils.EscapeControl(change.AffectedNode.Alias),
 	})
 	fmt.Fprintln(out, nodeTable.AsBuffer().String())
 
@@ -390,7 +392,7 @@ func displayAccessChangeText(out io.Writer, change *accessgraph.AccessPathDiff) 
 		if name == "" {
 			name = id
 		}
-		rows = append(rows, []string{string(op.Op), entityType, name, kind, originType})
+		rows = append(rows, []string{string(op.Op), entityType, utils.EscapeControl(name), utils.EscapeControl(kind), utils.EscapeControl(originType)})
 	}
 	diffTable := asciitable.MakeTableWithTruncatedColumn([]string{"Operation", "Type", "Name", "Kind", "Origin Type"}, rows, "Name")
 	_, err := fmt.Fprintln(out, diffTable.AsBuffer().String())
