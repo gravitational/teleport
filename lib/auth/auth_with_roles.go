@@ -7624,7 +7624,7 @@ func (a *ScopedServerWithRoles) UpdateKubernetesCluster(ctx context.Context, clu
 // GetKubernetesCluster returns specified kubernetes cluster resource.
 //
 // Deprecated: Use GetKubeCluster from lib/auth/kubecluster/service.go instead.
-// TODO (eriktate): Remove in v21
+// TODO (eriktate): Remove in v20
 func (a *ScopedServerWithRoles) GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error) {
 	ruleCtx := a.scopedContext.RuleContext()
 	if err := a.scopedContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, types.KindKubernetesCluster, types.VerbRead); err != nil {
@@ -7684,7 +7684,7 @@ func (a *ScopedServerWithRoles) GetKubernetesClusters(ctx context.Context) (resu
 // ListKubernetesClusters returns a page of registered kubernetes clusters.
 //
 // Deprecated: Use ListKubeClusters from lib/auth/kubecluster/service.go instead.
-// TODO (eriktate): Remove in v21
+// TODO (eriktate): Remove in v20
 func (a *ScopedServerWithRoles) ListKubernetesClusters(ctx context.Context, limit int, start string) ([]types.KubeCluster, string, error) {
 	ruleCtx := a.scopedContext.RuleContext()
 	if err := a.scopedContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, types.KindKubernetesCluster, types.VerbRead, types.VerbList); err != nil {
@@ -7715,7 +7715,7 @@ func (a *ScopedServerWithRoles) ListKubernetesClusters(ctx context.Context, limi
 // DeleteKubernetesCluster removes the specified kubernetes cluster resource.
 //
 // Deprecated: Use DeleteKubeCluster from lib/auth/kubecluster/service.go instead.
-// TODO (eriktate): Remove in v21
+// TODO (eriktate): Remove in v20
 func (a *ScopedServerWithRoles) DeleteKubernetesCluster(ctx context.Context, name string) error {
 	ruleCtx := a.scopedContext.RuleContext()
 	if err := a.scopedContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, types.KindKubernetesCluster, types.VerbDelete); err != nil {

@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	kubewaitingcontainerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/backend"
@@ -212,6 +213,13 @@ func newKubernetesClusterCollection(upstream KubeClusterUpstream, w types.WatchK
 		return nil, trace.BadParameter("missing parameter KubeClusterUpstream")
 	}
 
+	var scopeFilter *scopesv1.Filter
+	if filter := w.ScopeFilter; filter != nil {
+		scopeFilter = scopesv1.Filter_builder{
+			Scope: filter.Scope,
+			Mode:  filter.Mode,
+		}.Build()
+	}
 	return &collection[types.KubeCluster, kubeClusterIndex]{
 		store: newStore(
 			types.KindKubernetesCluster,
@@ -222,14 +230,13 @@ func newKubernetesClusterCollection(upstream KubeClusterUpstream, w types.WatchK
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.KubeCluster, error) {
 			return stream.Collect(clientutils.Resources(ctx, func(ctx context.Context, pageSize int, pageToken string) ([]types.KubeCluster, string, error) {
 				return upstream.ListKubeClusters(ctx, presencev1.ListKubeClustersRequest_builder{
-					PageSize:  int32(pageSize),
-					PageToken: pageToken,
-					// TODO (eriktate): propagate filter from WatchKind once that's possible
-					ScopeFilter: nil,
+					PageSize:    int32(pageSize),
+					PageToken:   pageToken,
+					ScopeFilter: scopeFilter,
 				}.Build())
 			}))
 		},
-		// TODO (eriktate): DELETE IN v21: headerTransform is kept for backwards compatibility, but delete events for
+		// TODO (eriktate): DELETE IN v20: headerTransform is kept for backwards compatibility, but delete events for
 		// kube clusters are expected to be the resource type going forward
 		headerTransform: func(hdr *types.ResourceHeader) types.KubeCluster {
 			return &types.KubernetesClusterV3{
