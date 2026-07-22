@@ -145,7 +145,7 @@ export function CreateIntegration({
                         },
                         { text: `${cfg.baseUrl}`, comment: 'Homepage URL:' },
                         {
-                          text: `${cfg.baseUrl}/v1/webapi/github/callback`,
+                          text: `${cfg.baseUrl}/web/github/integration/callback`,
                           comment: 'Authorization callback URL:',
                         },
                       ]}

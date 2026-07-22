@@ -54,7 +54,10 @@ export function CreatingDialog({
           id: clientId,
           secret: clientSecret,
         },
-        github: { organization: gitHubOrgName },
+        github: {
+          organization: gitHubOrgName,
+          oauthCallbackUrl: '/web/github/integration/callback',
+        },
       });
     } catch (err) {
       emitEvent({
@@ -75,7 +78,10 @@ export function CreatingDialog({
           id: clientId,
           secret: clientSecret,
         },
-        github: { organization: gitHubOrgName },
+        github: {
+          organization: gitHubOrgName,
+          oauthCallbackUrl: '/web/github/integration/callback',
+        },
       });
     } catch (err) {
       emitEvent({
