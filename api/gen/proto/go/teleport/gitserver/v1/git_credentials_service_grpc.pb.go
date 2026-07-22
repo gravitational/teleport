@@ -36,6 +36,7 @@ const (
 	GitCredentialsService_CheckGitCredentials_FullMethodName    = "/teleport.gitserver.v1.GitCredentialsService/CheckGitCredentials"
 	GitCredentialsService_RevokeGitCredentials_FullMethodName   = "/teleport.gitserver.v1.GitCredentialsService/RevokeGitCredentials"
 	GitCredentialsService_GenerateGitHubAppToken_FullMethodName = "/teleport.gitserver.v1.GitCredentialsService/GenerateGitHubAppToken"
+	GitCredentialsService_RefreshGitToken_FullMethodName        = "/teleport.gitserver.v1.GitCredentialsService/RefreshGitToken"
 )
 
 // GitCredentialsServiceClient is the client API for GitCredentialsService service.
@@ -55,6 +56,10 @@ type GitCredentialsServiceClient interface {
 	// operations. Auth verifies the provided user certificate and returns a
 	// valid access token for the user.
 	GenerateGitHubAppToken(ctx context.Context, in *GenerateGitHubAppTokenRequest, opts ...grpc.CallOption) (*GenerateGitHubAppTokenResponse, error)
+	// RefreshGitToken refreshes the GitHub OAuth access token using the provided
+	// auth-encrypted refresh token. Auth unseals it, calls GitHub, and distributes
+	// the new tokens to all sessions.
+	RefreshGitToken(ctx context.Context, in *RefreshGitTokenRequest, opts ...grpc.CallOption) (*RefreshGitTokenResponse, error)
 }
 
 type gitCredentialsServiceClient struct {
@@ -95,6 +100,16 @@ func (c *gitCredentialsServiceClient) GenerateGitHubAppToken(ctx context.Context
 	return out, nil
 }
 
+func (c *gitCredentialsServiceClient) RefreshGitToken(ctx context.Context, in *RefreshGitTokenRequest, opts ...grpc.CallOption) (*RefreshGitTokenResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RefreshGitTokenResponse)
+	err := c.cc.Invoke(ctx, GitCredentialsService_RefreshGitToken_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // GitCredentialsServiceServer is the server API for GitCredentialsService service.
 // All implementations must embed UnimplementedGitCredentialsServiceServer
 // for forward compatibility.
@@ -112,6 +127,10 @@ type GitCredentialsServiceServer interface {
 	// operations. Auth verifies the provided user certificate and returns a
 	// valid access token for the user.
 	GenerateGitHubAppToken(context.Context, *GenerateGitHubAppTokenRequest) (*GenerateGitHubAppTokenResponse, error)
+	// RefreshGitToken refreshes the GitHub OAuth access token using the provided
+	// auth-encrypted refresh token. Auth unseals it, calls GitHub, and distributes
+	// the new tokens to all sessions.
+	RefreshGitToken(context.Context, *RefreshGitTokenRequest) (*RefreshGitTokenResponse, error)
 	mustEmbedUnimplementedGitCredentialsServiceServer()
 }
 
@@ -130,6 +149,9 @@ func (UnimplementedGitCredentialsServiceServer) RevokeGitCredentials(context.Con
 }
 func (UnimplementedGitCredentialsServiceServer) GenerateGitHubAppToken(context.Context, *GenerateGitHubAppTokenRequest) (*GenerateGitHubAppTokenResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GenerateGitHubAppToken not implemented")
+}
+func (UnimplementedGitCredentialsServiceServer) RefreshGitToken(context.Context, *RefreshGitTokenRequest) (*RefreshGitTokenResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RefreshGitToken not implemented")
 }
 func (UnimplementedGitCredentialsServiceServer) mustEmbedUnimplementedGitCredentialsServiceServer() {}
 func (UnimplementedGitCredentialsServiceServer) testEmbeddedByValue()                               {}
@@ -206,6 +228,24 @@ func _GitCredentialsService_GenerateGitHubAppToken_Handler(srv interface{}, ctx 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _GitCredentialsService_RefreshGitToken_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RefreshGitTokenRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GitCredentialsServiceServer).RefreshGitToken(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: GitCredentialsService_RefreshGitToken_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GitCredentialsServiceServer).RefreshGitToken(ctx, req.(*RefreshGitTokenRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // GitCredentialsService_ServiceDesc is the grpc.ServiceDesc for GitCredentialsService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -224,6 +264,10 @@ var GitCredentialsService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GenerateGitHubAppToken",
 			Handler:    _GitCredentialsService_GenerateGitHubAppToken_Handler,
+		},
+		{
+			MethodName: "RefreshGitToken",
+			Handler:    _GitCredentialsService_RefreshGitToken_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

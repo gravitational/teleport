@@ -102,6 +102,7 @@ type Services struct {
 	services.Beams
 	services.SubCAService
 	services.UserExternalCredentialsService
+	services.UserSessionCredentials
 }
 
 // MFAService defines the interface for managing MFA resources in the backend.

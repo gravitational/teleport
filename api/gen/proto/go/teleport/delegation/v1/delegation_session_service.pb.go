@@ -584,6 +584,108 @@ func (x *GenerateCertsResponse) GetTls() []byte {
 	return nil
 }
 
+// RegisterEncryptionKeyRequest registers an encryption key for a delegation
+// session. The bot must be authorized for the delegation session.
+type RegisterEncryptionKeyRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// ID of the delegation session this key is scoped to.
+	DelegationSessionId string `protobuf:"bytes,1,opt,name=delegation_session_id,json=delegationSessionId,proto3" json:"delegation_session_id,omitempty"`
+	// ECIES P-256 encryption public key (DER-encoded PKIX).
+	PublicKey     []byte `protobuf:"bytes,2,opt,name=public_key,json=publicKey,proto3" json:"public_key,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RegisterEncryptionKeyRequest) Reset() {
+	*x = RegisterEncryptionKeyRequest{}
+	mi := &file_teleport_delegation_v1_delegation_session_service_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RegisterEncryptionKeyRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RegisterEncryptionKeyRequest) ProtoMessage() {}
+
+func (x *RegisterEncryptionKeyRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_delegation_v1_delegation_session_service_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RegisterEncryptionKeyRequest.ProtoReflect.Descriptor instead.
+func (*RegisterEncryptionKeyRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_delegation_v1_delegation_session_service_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *RegisterEncryptionKeyRequest) GetDelegationSessionId() string {
+	if x != nil {
+		return x.DelegationSessionId
+	}
+	return ""
+}
+
+func (x *RegisterEncryptionKeyRequest) GetPublicKey() []byte {
+	if x != nil {
+		return x.PublicKey
+	}
+	return nil
+}
+
+// RegisterEncryptionKeyResponse is the response for RegisterEncryptionKey.
+type RegisterEncryptionKeyResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The derived encryption key ID (UUID v5 from public key).
+	EncryptionKeyId string `protobuf:"bytes,1,opt,name=encryption_key_id,json=encryptionKeyId,proto3" json:"encryption_key_id,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *RegisterEncryptionKeyResponse) Reset() {
+	*x = RegisterEncryptionKeyResponse{}
+	mi := &file_teleport_delegation_v1_delegation_session_service_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RegisterEncryptionKeyResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RegisterEncryptionKeyResponse) ProtoMessage() {}
+
+func (x *RegisterEncryptionKeyResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_delegation_v1_delegation_session_service_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RegisterEncryptionKeyResponse.ProtoReflect.Descriptor instead.
+func (*RegisterEncryptionKeyResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_delegation_v1_delegation_session_service_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *RegisterEncryptionKeyResponse) GetEncryptionKeyId() string {
+	if x != nil {
+		return x.EncryptionKeyId
+	}
+	return ""
+}
+
 var File_teleport_delegation_v1_delegation_session_service_proto protoreflect.FileDescriptor
 
 const file_teleport_delegation_v1_delegation_session_service_proto_rawDesc = "" +
@@ -630,10 +732,17 @@ const file_teleport_delegation_v1_delegation_session_service_proto_rawDesc = "" 
 	"\x0fgit_server_name\x18\x01 \x01(\tR\rgitServerName\";\n" +
 	"\x15GenerateCertsResponse\x12\x10\n" +
 	"\x03ssh\x18\x01 \x01(\fR\x03ssh\x12\x10\n" +
-	"\x03tls\x18\x02 \x01(\fR\x03tls2\x86\x02\n" +
+	"\x03tls\x18\x02 \x01(\fR\x03tls\"q\n" +
+	"\x1cRegisterEncryptionKeyRequest\x122\n" +
+	"\x15delegation_session_id\x18\x01 \x01(\tR\x13delegationSessionId\x12\x1d\n" +
+	"\n" +
+	"public_key\x18\x02 \x01(\fR\tpublicKey\"K\n" +
+	"\x1dRegisterEncryptionKeyResponse\x12*\n" +
+	"\x11encryption_key_id\x18\x01 \x01(\tR\x0fencryptionKeyId2\x8d\x03\n" +
 	"\x18DelegationSessionService\x12|\n" +
 	"\x17CreateDelegationSession\x126.teleport.delegation.v1.CreateDelegationSessionRequest\x1a).teleport.delegation.v1.DelegationSession\x12l\n" +
-	"\rGenerateCerts\x12,.teleport.delegation.v1.GenerateCertsRequest\x1a-.teleport.delegation.v1.GenerateCertsResponseBXZVgithub.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1;delegationv1b\x06proto3"
+	"\rGenerateCerts\x12,.teleport.delegation.v1.GenerateCertsRequest\x1a-.teleport.delegation.v1.GenerateCertsResponse\x12\x84\x01\n" +
+	"\x15RegisterEncryptionKey\x124.teleport.delegation.v1.RegisterEncryptionKeyRequest\x1a5.teleport.delegation.v1.RegisterEncryptionKeyResponseBXZVgithub.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1;delegationv1b\x06proto3"
 
 var (
 	file_teleport_delegation_v1_delegation_session_service_proto_rawDescOnce sync.Once
@@ -647,7 +756,7 @@ func file_teleport_delegation_v1_delegation_session_service_proto_rawDescGZIP() 
 	return file_teleport_delegation_v1_delegation_session_service_proto_rawDescData
 }
 
-var file_teleport_delegation_v1_delegation_session_service_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
+var file_teleport_delegation_v1_delegation_session_service_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
 var file_teleport_delegation_v1_delegation_session_service_proto_goTypes = []any{
 	(*CreateDelegationSessionRequest)(nil), // 0: teleport.delegation.v1.CreateDelegationSessionRequest
 	(*GenerateCertsRequest)(nil),           // 1: teleport.delegation.v1.GenerateCertsRequest
@@ -656,27 +765,31 @@ var file_teleport_delegation_v1_delegation_session_service_proto_goTypes = []any
 	(*RouteToApp)(nil),                     // 4: teleport.delegation.v1.RouteToApp
 	(*RouteToGit)(nil),                     // 5: teleport.delegation.v1.RouteToGit
 	(*GenerateCertsResponse)(nil),          // 6: teleport.delegation.v1.GenerateCertsResponse
-	(*DelegationSessionSpec)(nil),          // 7: teleport.delegation.v1.DelegationSessionSpec
-	(*durationpb.Duration)(nil),            // 8: google.protobuf.Duration
-	(*DelegationSession)(nil),              // 9: teleport.delegation.v1.DelegationSession
+	(*RegisterEncryptionKeyRequest)(nil),   // 7: teleport.delegation.v1.RegisterEncryptionKeyRequest
+	(*RegisterEncryptionKeyResponse)(nil),  // 8: teleport.delegation.v1.RegisterEncryptionKeyResponse
+	(*DelegationSessionSpec)(nil),          // 9: teleport.delegation.v1.DelegationSessionSpec
+	(*durationpb.Duration)(nil),            // 10: google.protobuf.Duration
+	(*DelegationSession)(nil),              // 11: teleport.delegation.v1.DelegationSession
 }
 var file_teleport_delegation_v1_delegation_session_service_proto_depIdxs = []int32{
-	7, // 0: teleport.delegation.v1.CreateDelegationSessionRequest.spec:type_name -> teleport.delegation.v1.DelegationSessionSpec
-	8, // 1: teleport.delegation.v1.CreateDelegationSessionRequest.ttl:type_name -> google.protobuf.Duration
-	8, // 2: teleport.delegation.v1.GenerateCertsRequest.ttl:type_name -> google.protobuf.Duration
-	2, // 3: teleport.delegation.v1.GenerateCertsRequest.route_to_kubernetes:type_name -> teleport.delegation.v1.RouteToKubernetes
-	3, // 4: teleport.delegation.v1.GenerateCertsRequest.route_to_database:type_name -> teleport.delegation.v1.RouteToDatabase
-	4, // 5: teleport.delegation.v1.GenerateCertsRequest.route_to_app:type_name -> teleport.delegation.v1.RouteToApp
-	5, // 6: teleport.delegation.v1.GenerateCertsRequest.route_to_git:type_name -> teleport.delegation.v1.RouteToGit
-	0, // 7: teleport.delegation.v1.DelegationSessionService.CreateDelegationSession:input_type -> teleport.delegation.v1.CreateDelegationSessionRequest
-	1, // 8: teleport.delegation.v1.DelegationSessionService.GenerateCerts:input_type -> teleport.delegation.v1.GenerateCertsRequest
-	9, // 9: teleport.delegation.v1.DelegationSessionService.CreateDelegationSession:output_type -> teleport.delegation.v1.DelegationSession
-	6, // 10: teleport.delegation.v1.DelegationSessionService.GenerateCerts:output_type -> teleport.delegation.v1.GenerateCertsResponse
-	9, // [9:11] is the sub-list for method output_type
-	7, // [7:9] is the sub-list for method input_type
-	7, // [7:7] is the sub-list for extension type_name
-	7, // [7:7] is the sub-list for extension extendee
-	0, // [0:7] is the sub-list for field type_name
+	9,  // 0: teleport.delegation.v1.CreateDelegationSessionRequest.spec:type_name -> teleport.delegation.v1.DelegationSessionSpec
+	10, // 1: teleport.delegation.v1.CreateDelegationSessionRequest.ttl:type_name -> google.protobuf.Duration
+	10, // 2: teleport.delegation.v1.GenerateCertsRequest.ttl:type_name -> google.protobuf.Duration
+	2,  // 3: teleport.delegation.v1.GenerateCertsRequest.route_to_kubernetes:type_name -> teleport.delegation.v1.RouteToKubernetes
+	3,  // 4: teleport.delegation.v1.GenerateCertsRequest.route_to_database:type_name -> teleport.delegation.v1.RouteToDatabase
+	4,  // 5: teleport.delegation.v1.GenerateCertsRequest.route_to_app:type_name -> teleport.delegation.v1.RouteToApp
+	5,  // 6: teleport.delegation.v1.GenerateCertsRequest.route_to_git:type_name -> teleport.delegation.v1.RouteToGit
+	0,  // 7: teleport.delegation.v1.DelegationSessionService.CreateDelegationSession:input_type -> teleport.delegation.v1.CreateDelegationSessionRequest
+	1,  // 8: teleport.delegation.v1.DelegationSessionService.GenerateCerts:input_type -> teleport.delegation.v1.GenerateCertsRequest
+	7,  // 9: teleport.delegation.v1.DelegationSessionService.RegisterEncryptionKey:input_type -> teleport.delegation.v1.RegisterEncryptionKeyRequest
+	11, // 10: teleport.delegation.v1.DelegationSessionService.CreateDelegationSession:output_type -> teleport.delegation.v1.DelegationSession
+	6,  // 11: teleport.delegation.v1.DelegationSessionService.GenerateCerts:output_type -> teleport.delegation.v1.GenerateCertsResponse
+	8,  // 12: teleport.delegation.v1.DelegationSessionService.RegisterEncryptionKey:output_type -> teleport.delegation.v1.RegisterEncryptionKeyResponse
+	10, // [10:13] is the sub-list for method output_type
+	7,  // [7:10] is the sub-list for method input_type
+	7,  // [7:7] is the sub-list for extension type_name
+	7,  // [7:7] is the sub-list for extension extendee
+	0,  // [0:7] is the sub-list for field type_name
 }
 
 func init() { file_teleport_delegation_v1_delegation_session_service_proto_init() }
@@ -697,7 +810,7 @@ func file_teleport_delegation_v1_delegation_session_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_delegation_v1_delegation_session_service_proto_rawDesc), len(file_teleport_delegation_v1_delegation_session_service_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   7,
+			NumMessages:   9,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

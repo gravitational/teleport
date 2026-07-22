@@ -219,6 +219,15 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 				return nil, trace.Wrap(err)
 			}
 			parser = p
+		case types.KindUserSessionCredentials:
+			p, err := newUserSessionCredentialsParser(kind.Filter)
+			if err != nil {
+				if watch.AllowPartialSuccess {
+					continue
+				}
+				return nil, trace.Wrap(err)
+			}
+			parser = p
 		case types.KindAccessList:
 			parser = newAccessListParser()
 		case types.KindAuditQuery:

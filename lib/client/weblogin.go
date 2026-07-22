@@ -176,6 +176,9 @@ type UserPublicKeys struct {
 	// TLSAttestationStatement is an attestation statement associated with the
 	// given TLS public key.
 	TLSAttestationStatement *hardwarekey.AttestationStatement `json:"tls_attestation_statement,omitempty"`
+	// EncryptionPublicKey is an optional ECIES P-256 public key (PKIX DER)
+	// for double-encrypted credential storage.
+	EncryptionPublicKey []byte `json:"encryption_public_key,omitempty"`
 }
 
 // CheckAndSetDefaults checks and sets default values.
@@ -269,6 +272,9 @@ type SSHLogin struct {
 	SSHAttestationStatement *hardwarekey.AttestationStatement
 	// TLSAttestationStatement is an attestation statement for TLSPubKey.
 	TLSAttestationStatement *hardwarekey.AttestationStatement
+	// EncryptionPublicKey is an optional ECIES P-256 public key (PKIX DER)
+	// for double-encrypted credential storage.
+	EncryptionPublicKey []byte
 	// ExtraHeaders is a map of extra HTTP headers to be included in requests.
 	ExtraHeaders map[string]string
 }
@@ -448,6 +454,7 @@ func SSHAgentHeadlessLogin(ctx context.Context, login SSHLoginHeadless) (*authcl
 			TLSPubKey:               login.TLSPubKey,
 			SSHAttestationStatement: login.SSHAttestationStatement,
 			TLSAttestationStatement: login.TLSAttestationStatement,
+			EncryptionPublicKey:     login.EncryptionPublicKey,
 		},
 		TTL: login.TTL,
 		// TODO(fspmarshall/scopes): add scope support to headless login
@@ -575,6 +582,7 @@ func SSHAgentMFALogin(ctx context.Context, login SSHLoginMFA) (*authclient.CLILo
 			TLSPubKey:               login.TLSPubKey,
 			SSHAttestationStatement: login.SSHAttestationStatement,
 			TLSAttestationStatement: login.TLSAttestationStatement,
+			EncryptionPublicKey:     login.EncryptionPublicKey,
 		},
 		TTL:               login.TTL,
 		Compatibility:     login.Compatibility,

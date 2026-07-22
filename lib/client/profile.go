@@ -323,6 +323,9 @@ type ProfileStatus struct {
 	// DelegationSessionID is the ID of the Delegation Session the profile's
 	// credentials are associated with.
 	DelegationSessionID string
+	// EncryptionKeyID is the session encryption key ID for double-encrypted
+	// credential storage.
+	EncryptionKeyID string
 }
 
 // GitHubIdentity is the GitHub identity attached to the user.
@@ -457,6 +460,7 @@ func profileStatusFromKeyRing(keyRing *KeyRing, opts profileOptions) (*ProfileSt
 		GitHubIdentity:           gitHubIdentity,
 		TLSRoutingEnabled:        opts.TLSRoutingEnabled,
 		DelegationSessionID:      sshIdent.DelegationSessionID,
+		EncryptionKeyID:          tlsID.EncryptionKeyID,
 	}, nil
 }
 

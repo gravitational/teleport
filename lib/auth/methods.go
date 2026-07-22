@@ -21,6 +21,8 @@ package auth
 import (
 	"bytes"
 	"context"
+	"crypto/x509"
+	"encoding/pem"
 	"errors"
 	"net"
 	"strings"
@@ -29,11 +31,14 @@ import (
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userexternalsecrets/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -837,6 +842,10 @@ func (a *Server) AuthenticateSSHUser(ctx context.Context, req authclient.Authent
 		return nil, trace.BadParameter("source IP pinning is enabled but client IP is unknown")
 	}
 
+	var encryptionKeyID string
+	if len(req.EncryptionPublicKey) > 0 {
+		encryptionKeyID = sessionIDFromPubKey(req.EncryptionPublicKey)
+	}
 	certReq := cert.Request{
 		User:                             user,
 		TTL:                              req.TTL,
@@ -848,6 +857,7 @@ func (a *Server) AuthenticateSSHUser(ctx context.Context, req authclient.Authent
 		RouteToCluster:                   req.RouteToCluster,
 		KubernetesCluster:                req.KubernetesCluster,
 		LoginIP:                          clientIP,
+		EncryptionKeyID:                  encryptionKeyID,
 		SSHPublicKeyAttestationStatement: req.SSHAttestationStatement,
 		TLSPublicKeyAttestationStatement: req.TLSAttestationStatement,
 	}
@@ -886,6 +896,61 @@ func (a *Server) AuthenticateSSHUser(ctx context.Context, req authclient.Authent
 		tagVersion:       userAgentVersion,
 		tagProxyGroupID:  proxyGroupID,
 	}).Inc()
+
+	// Register the session encryption key if provided. Use the actual cert
+	// expiry (from the issued TLS cert) rather than req.TTL, since auth adjusts
+	// the TTL based on role limits.
+	if len(req.EncryptionPublicKey) > 0 {
+		sessionID := sessionIDFromPubKey(req.EncryptionPublicKey)
+		certExpiry := a.clock.Now().Add(req.TTL)
+		a.logger.DebugContext(ctx, "Encryption key TTL from req.TTL",
+			"req_ttl", req.TTL,
+			"fallback_expiry", certExpiry,
+		)
+		if len(certs.TLS) > 0 {
+			block, _ := pem.Decode(certs.TLS)
+			if block == nil {
+				a.logger.WarnContext(ctx, "Failed to PEM-decode TLS cert for encryption key TTL")
+			} else {
+				tlsCert, err := x509.ParseCertificate(block.Bytes)
+				if err != nil {
+					a.logger.WarnContext(ctx, "Failed to parse TLS cert for encryption key TTL", "error", err)
+				} else {
+					certExpiry = tlsCert.NotAfter
+					a.logger.DebugContext(ctx, "Encryption key TTL from TLS cert",
+						"cert_not_after", tlsCert.NotAfter,
+					)
+				}
+			}
+		} else {
+			a.logger.WarnContext(ctx, "No TLS cert available for encryption key TTL")
+		}
+		credsSvc := a.Services.UserSessionCredentials
+		resource := pb.UserSessionCredentials_builder{
+			Kind:    types.KindUserSessionCredentials,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name:    sessionID,
+				Expires: timestamppb.New(certExpiry),
+			},
+			Spec: pb.UserSessionCredentialsSpec_builder{
+				User: user.GetName(),
+				EncryptionKey: pb.EncryptionKey_builder{
+					KeyId:     sessionID,
+					PublicKey: req.EncryptionPublicKey,
+				}.Build(),
+			}.Build(),
+		}.Build()
+		if _, err := credsSvc.Create(ctx, resource); err != nil {
+			if trace.IsAlreadyExists(err) {
+				if _, err := credsSvc.Put(ctx, resource); err != nil {
+					a.logger.WarnContext(ctx, "Failed to update session credentials", "error", err)
+				}
+			} else {
+				a.logger.WarnContext(ctx, "Failed to register session credentials", "error", err)
+			}
+		}
+	}
 
 	var clientOptions authclient.ClientOptions
 	if o, err := a.ClientOptionsForLogin(user); err == nil {

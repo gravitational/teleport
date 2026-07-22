@@ -37,16 +37,17 @@ import (
 type SessionService struct {
 	delegationv1.UnimplementedDelegationSessionServiceServer
 
-	authorizer        authz.Authorizer
-	sessionReader     SessionReader
-	sessionWriter     SessionWriter
-	resourceLister    ResourceLister
-	roleGetter        services.RoleGetter
-	userGetter        services.UserOrLoginStateGetter
-	certGenerator     CertGenerator
-	clusterNameGetter ClusterNameGetter
-	appSessionCreator AppSessionCreator
-	logger            *slog.Logger
+	authorizer           authz.Authorizer
+	sessionReader        SessionReader
+	sessionWriter        SessionWriter
+	resourceLister       ResourceLister
+	roleGetter           services.RoleGetter
+	userGetter           services.UserOrLoginStateGetter
+	certGenerator        CertGenerator
+	clusterNameGetter    ClusterNameGetter
+	appSessionCreator    AppSessionCreator
+	sessionCredentials   services.UserSessionCredentials
+	logger               *slog.Logger
 }
 
 // SessionServiceConfig contains the configuration of the SessionService.
@@ -78,6 +79,10 @@ type SessionServiceConfig struct {
 
 	// AppSessionCreator is used to create web sessions for application access.
 	AppSessionCreator AppSessionCreator
+
+	// SessionCredentials is used to register per-session credentials.
+	// Optional -- if nil, RegisterEncryptionKey will return Unimplemented.
+	SessionCredentials services.UserSessionCredentials
 
 	// Logger to which errors and messages are written.
 	Logger *slog.Logger
@@ -162,15 +167,16 @@ func NewSessionService(cfg SessionServiceConfig) (*SessionService, error) {
 		cfg.Logger = slog.Default()
 	}
 	return &SessionService{
-		authorizer:        cfg.Authorizer,
-		sessionReader:     cfg.SessionReader,
-		sessionWriter:     cfg.SessionWriter,
-		resourceLister:    cfg.ResourceLister,
-		roleGetter:        cfg.RoleGetter,
-		userGetter:        cfg.UserGetter,
-		certGenerator:     cfg.CertGenerator,
-		appSessionCreator: cfg.AppSessionCreator,
-		clusterNameGetter: cfg.ClusterNameGetter,
-		logger:            cfg.Logger,
+		authorizer:          cfg.Authorizer,
+		sessionReader:       cfg.SessionReader,
+		sessionWriter:       cfg.SessionWriter,
+		resourceLister:      cfg.ResourceLister,
+		roleGetter:          cfg.RoleGetter,
+		userGetter:          cfg.UserGetter,
+		certGenerator:       cfg.CertGenerator,
+		appSessionCreator:   cfg.AppSessionCreator,
+		clusterNameGetter:   cfg.ClusterNameGetter,
+		sessionCredentials: cfg.SessionCredentials,
+		logger:              cfg.Logger,
 	}, nil
 }

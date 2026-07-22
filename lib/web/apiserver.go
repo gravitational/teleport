@@ -5002,6 +5002,7 @@ func (h *Handler) headlessLogin(w http.ResponseWriter, r *http.Request, p httpro
 			Username:                 req.User,
 			SSHPublicKey:             req.SSHPubKey,
 			TLSPublicKey:             req.TLSPubKey,
+			EncryptionPublicKey:      req.EncryptionPublicKey,
 			ClientMetadata:           clientMeta,
 			HeadlessAuthenticationID: req.HeadlessAuthenticationID,
 		},

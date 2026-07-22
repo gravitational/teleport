@@ -118,6 +118,20 @@ func (s *OutputService) OneShot(ctx context.Context) error {
 }
 
 func (s *OutputService) Run(ctx context.Context) error {
+	if s.cfg.DelegationSessionID != "" {
+		select {
+		case <-s.botIdentityReadyCh:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+		if _, _, err := RegisterEncryptionKeyForDelegation(ctx, s.botAuthClient, s.cfg.DelegationSessionID, s.log); err != nil {
+			s.log.WarnContext(ctx, "Failed to register encryption key for delegation session",
+				"delegation_session_id", s.cfg.DelegationSessionID,
+				"error", err,
+			)
+		}
+	}
+
 	f := s.generate
 	if s.scoped {
 		f = s.generateScoped

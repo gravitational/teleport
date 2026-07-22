@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/api/client/externalauditstorage"
 	"github.com/gravitational/teleport/api/client/gitserver"
 	gitserverv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/gitserver/v1"
+	userexternalsecretsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userexternalsecrets/v1"
 	"github.com/gravitational/teleport/api/client/linuxdesktop"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/secreport"
@@ -999,6 +1000,10 @@ type GithubAuthResponse struct {
 	// ClientOptions contains some options that the cluster wants the client to
 	// use.
 	ClientOptions ClientOptions `json:"client_options"`
+	// KMSEncryptedToken is the double-encrypted (ECIES + KMS) access token
+	// returned to the client for local caching. The client decrypts the
+	// outer ECIES layer and caches the inner KMS blob locally.
+	KMSEncryptedToken []byte `json:"kms_encrypted_token,omitempty"`
 }
 
 // GithubAuthRequest is an Github auth request that supports standard json marshaling
@@ -1447,6 +1452,9 @@ type AuthenticateUserRequest struct {
 	ClientMetadata *ForwardedClientMetadata `json:"client_metadata,omitempty"`
 	// HeadlessAuthenticationID is the ID for a headless authentication resource.
 	HeadlessAuthenticationID string `json:"headless_authentication_id"`
+	// EncryptionPublicKey is an optional ECIES P-256 public key (PKIX DER)
+	// for double-encrypted credential storage.
+	EncryptionPublicKey []byte `json:"encryption_public_key,omitempty"`
 }
 
 // ForwardedClientMetadata can be used by the proxy web API to forward information about
@@ -1561,6 +1569,9 @@ type CLILoginResponse struct {
 	// Exists in SSHLoginResponse as this is the payload used by the SSO redirector
 	// (lib/client/sso/redirector.go).
 	BrowserMFAWebauthnResponse *wantypes.CredentialAssertionResponse `json:"browser_mfa_webauthn_response,omitempty"`
+	// KMSEncryptedToken is the double-encrypted access token for client-side
+	// caching.
+	KMSEncryptedToken []byte `json:"kms_encrypted_token,omitempty"`
 }
 
 // TODO(danielashare): Remove this alias once e no longer references it
@@ -1980,6 +1991,8 @@ type ClientI interface {
 
 	// GitCredentialsClient returns a client for the GitCredentialsService.
 	GitCredentialsClient() gitserverv1.GitCredentialsServiceClient
+	// UserExternalSecretClient returns a client for the UserExternalSecretService.
+	UserExternalSecretClient() userexternalsecretsv1.UserExternalSecretServiceClient
 
 	// ListRequestableRoles is a paginated requestable role getter.
 	ListRequestableRoles(ctx context.Context, req *proto.ListRequestableRolesRequest) (*proto.ListRequestableRolesResponse, error)

@@ -750,6 +750,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		Beams:                           cfg.Beams,
 		SubCAService:                    cfg.SubCAService,
 		UserExternalCredentialsService:  cfg.UserExternalCredentials,
+		UserSessionCredentials:          local.NewUserSessionCredentialsService(cfg.Backend),
 	}
 
 	if cfg.FakePasswordHash == nil {
@@ -4066,7 +4067,8 @@ func generateCert(ctx context.Context, a *Server, req cert.Request, caType types
 			CredentialID: req.DeviceExtensions.CredentialID,
 		},
 		UserType:       req.User.GetUserType(),
-		JoinAttributes: req.JoinAttributes,
+		JoinAttributes:  req.JoinAttributes,
+		EncryptionKeyID: req.EncryptionKeyID,
 	}
 
 	var signedTLSCert []byte

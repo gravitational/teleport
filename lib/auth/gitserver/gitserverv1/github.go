@@ -46,6 +46,7 @@ func (s *Service) CreateGitHubAuthRequest(ctx context.Context, in *pb.CreateGitH
 
 	var authCtx *authz.Context
 	var integrationName string
+	var gitServerName string
 	if in.Request.SSOTestFlow {
 		// Test flow: check integration RBAC instead of git server RBAC.
 		// The admin is testing the integration setup, not using it as a developer.
@@ -62,6 +63,7 @@ func (s *Service) CreateGitHubAuthRequest(ctx context.Context, in *pb.CreateGitH
 			return nil, trace.Wrap(findErr)
 		}
 		integrationName = gitServer.GetGitHub().Integration
+		gitServerName = gitServer.GetName()
 	}
 
 	s.cfg.Log.DebugContext(ctx, "Creating GitHub auth request for authenticated user.",
@@ -83,6 +85,7 @@ func (s *Service) CreateGitHubAuthRequest(ctx context.Context, in *pb.CreateGitH
 	in.Request.AuthenticatedUser = authCtx.User.GetName()
 	in.Request.CertTTL = authCtx.Identity.GetIdentity().Expires.Sub(s.cfg.clock.Now())
 	in.Request.ClientLoginIP = authCtx.Identity.GetIdentity().LoginIP
+	in.Request.GitServerName = gitServerName
 
 	// More params of in.Request will get updated and checked by
 	// s.cfg.GitHubAuthRequestCreator.

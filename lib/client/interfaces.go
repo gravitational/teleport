@@ -136,6 +136,10 @@ type KeyRing struct {
 	// non-empty WebSessionID); see lib/web.Handler.AuthenticateReqForAccessGraphAPI.
 	AccessGraphTLSCert []byte
 
+	// EncryptionPrivateKey is a P-256 private key used for ECIES decryption
+	// of double-encrypted credentials. Generated per login session.
+	EncryptionPrivateKey *ecdsa.PrivateKey
+
 	// KubeTLSCredentials are TLS credentials for individual kubernetes clusters.
 	// Map key is a kubernetes cluster name.
 	KubeTLSCredentials map[string]TLSCredential

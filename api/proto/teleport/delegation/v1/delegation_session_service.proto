@@ -31,6 +31,12 @@ service DelegationSessionService {
   // GenerateCerts generates TLS and/or SSH certificates, scoped to a delegation
   // session.
   rpc GenerateCerts(GenerateCertsRequest) returns (GenerateCertsResponse);
+
+  // RegisterEncryptionKey registers an ECIES P-256 encryption public key for a
+  // delegation session. The key is used for double-encrypted credential
+  // distribution. The key TTL is bound to the delegation session's expiry.
+  // Only the authorized bot for the delegation session may call this.
+  rpc RegisterEncryptionKey(RegisterEncryptionKeyRequest) returns (RegisterEncryptionKeyResponse);
 }
 
 // CreateDelegationSessionRequest are the parameters to CreateDelegationSession.
@@ -135,4 +141,20 @@ message GenerateCertsResponse {
 
   // TLS X.509 certificate (PEM-encoded).
   bytes tls = 2;
+}
+
+// RegisterEncryptionKeyRequest registers an encryption key for a delegation
+// session. The bot must be authorized for the delegation session.
+message RegisterEncryptionKeyRequest {
+  // ID of the delegation session this key is scoped to.
+  string delegation_session_id = 1;
+
+  // ECIES P-256 encryption public key (DER-encoded PKIX).
+  bytes public_key = 2;
+}
+
+// RegisterEncryptionKeyResponse is the response for RegisterEncryptionKey.
+message RegisterEncryptionKeyResponse {
+  // The derived encryption key ID (UUID v5 from public key).
+  string encryption_key_id = 1;
 }

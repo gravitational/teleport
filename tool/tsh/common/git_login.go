@@ -19,15 +19,26 @@
 package common
 
 import (
+	"context"
+	"crypto/ecdsa"
 	"fmt"
+	"net"
+	"path/filepath"
+	"time"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 
 	proto "github.com/gravitational/teleport/api/client/proto"
 	gitserverv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/gitserver/v1"
+	hardwarekeyagentv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/hardwarekeyagent/v1"
+	userexternalsecretsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userexternalsecrets/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/cryptoutils"
+	libhwk "github.com/gravitational/teleport/lib/hardwarekey"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -71,13 +82,32 @@ func (c *gitLoginCommand) run(cf *CLIConf) error {
 		return trace.BadParameter("git server %v has no protocols enabled", gitServer.GetName())
 	}
 
-	if c.force {
+	needOAuth := c.force
+
+	if !needOAuth {
+		proxyHost, _, _ := net.SplitHostPort(tc.WebProxyAddr)
+		if cred := findCachedCredential(cf.HomePath, proxyHost, tc.Username, gitServer.GetName()); cred != nil {
+			logger.DebugContext(cf.Context, "Found cached credential",
+				"git_server", gitServer.GetName(),
+			)
+		} else {
+			if err := fetchAndCacheSessionCredentials(cf, tc); err != nil {
+				logger.DebugContext(cf.Context, "No credentials available, need OAuth",
+					"git_server", gitServer.GetName(),
+					"error", err,
+				)
+				needOAuth = true
+			}
+		}
+	}
+
+	if needOAuth {
 		if _, err := getGitHubIdentity(cf, github.Organization, withForceOAuthFlow(true)); err != nil {
 			return trace.Wrap(err)
 		}
-	} else {
-		if err := ensureGitHubCredentials(cf, tc, gitServer, types.GitServerSSHEnabled(github), types.GitServerHTTPEnabled(github)); err != nil {
-			return trace.Wrap(err)
+		// After OAuth, fetch and cache the newly created encrypted token.
+		if err := fetchAndCacheSessionCredentials(cf, tc); err != nil {
+			logger.WarnContext(cf.Context, "Failed to fetch encrypted token after OAuth", "error", err)
 		}
 	}
 
@@ -95,6 +125,7 @@ func (c *gitLoginCommand) run(cf *CLIConf) error {
 	if httpOK {
 		ensureGitRemoteHelper(cf)
 
+		// Still need the git cert for ALPN mTLS.
 		valid, reason := hasValidGitCert(tc, gitServer.GetName())
 		logger.DebugContext(cf.Context, "Checking git cert validity",
 			"git_server", gitServer.GetName(),
@@ -123,6 +154,266 @@ func (c *gitLoginCommand) run(cf *CLIConf) error {
 		fmt.Fprintln(cf.Stdout())
 	}
 	return nil
+}
+
+// encryptionHelper abstracts ECIES decryption and key ID retrieval so it can
+// be done either locally (with a private key from the key ring) or via the
+// encryption agent (for beams where tbot holds the key).
+type encryptionHelper interface {
+	decrypt(ctx context.Context, ciphertext []byte) ([]byte, error)
+	keyID(ctx context.Context) string
+}
+
+type localEncryptionHelper struct {
+	key   *ecdsa.PrivateKey
+	id    string
+}
+
+func (h *localEncryptionHelper) decrypt(_ context.Context, ciphertext []byte) ([]byte, error) {
+	return cryptoutils.ECIESDecrypt(h.key, ciphertext)
+}
+
+func (h *localEncryptionHelper) keyID(_ context.Context) string {
+	return h.id
+}
+
+type agentEncryptionHelper struct {
+	client hardwarekeyagentv1.EncryptionAgentServiceClient
+	cachedKeyID string
+}
+
+func (h *agentEncryptionHelper) decrypt(ctx context.Context, ciphertext []byte) ([]byte, error) {
+	resp, err := h.client.Decrypt(ctx, hardwarekeyagentv1.DecryptRequest_builder{
+		Ciphertext: ciphertext,
+	}.Build())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp.GetPlaintext(), nil
+}
+
+func (h *agentEncryptionHelper) keyID(ctx context.Context) string {
+	if h.cachedKeyID != "" {
+		return h.cachedKeyID
+	}
+	resp, err := h.client.GetEncryptionKeyID(ctx, hardwarekeyagentv1.GetEncryptionKeyIDRequest_builder{}.Build())
+	if err != nil {
+		return ""
+	}
+	h.cachedKeyID = resp.GetEncryptionKeyId()
+	return h.cachedKeyID
+}
+
+// getEncryptionHelper returns an encryptionHelper -- either using the local
+// private key or falling back to the encryption agent.
+func getEncryptionHelper(ctx context.Context, tc *client.TeleportClient) (encryptionHelper, error) {
+	keyRing, err := tc.LocalAgent().GetKeyRing(tc.SiteName, client.WithSSHCerts{})
+	if err == nil && keyRing.EncryptionPrivateKey != nil {
+		profileStatus, err := tc.ProfileStatus()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &localEncryptionHelper{
+			key: keyRing.EncryptionPrivateKey,
+			id:  profileStatus.EncryptionKeyID,
+		}, nil
+	}
+
+	agentDir := libhwk.AgentDirFromEnv(libhwk.DefaultAgentDir())
+	encClient, err := newEncryptionAgentClient(ctx, agentDir)
+	if err != nil {
+		return nil, trace.Wrap(err, "no encryption key and no encryption agent available")
+	}
+
+	return &agentEncryptionHelper{client: encClient}, nil
+}
+
+// newEncryptionAgentClient connects to the encryption agent at the given dir.
+func newEncryptionAgentClient(ctx context.Context, agentDir string) (hardwarekeyagentv1.EncryptionAgentServiceClient, error) {
+	creds, err := credentials.NewClientTLSFromFile(
+		filepath.Join(agentDir, libhwk.CertFileName), "localhost",
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	conn, err := grpc.NewClient(
+		"unix://"+filepath.Join(agentDir, libhwk.SocketFileName),
+		grpc.WithTransportCredentials(creds),
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return hardwarekeyagentv1.NewEncryptionAgentServiceClient(conn), nil
+}
+
+// fetchAndCacheSessionCredentials fetches the session credentials resource from
+// the backend and caches it locally as protojson (with refresh tokens stripped).
+func fetchAndCacheSessionCredentials(cf *CLIConf, tc *client.TeleportClient) error {
+	helper, err := getEncryptionHelper(cf.Context, tc)
+	if err != nil {
+		logger.DebugContext(cf.Context, "No encryption helper available, skipping credential fetch",
+			"error", err,
+		)
+		return nil
+	}
+
+	encKeyID := helper.keyID(cf.Context)
+	if encKeyID == "" {
+		logger.DebugContext(cf.Context, "No encryption key ID available")
+		return nil
+	}
+
+	return client.RetryWithRelogin(cf.Context, tc, func() error {
+		clusterClient, err := tc.ConnectToCluster(cf.Context)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer clusterClient.Close()
+
+		resp, err := clusterClient.AuthClient.UserExternalSecretClient().GetUserSessionCredentials(cf.Context, userexternalsecretsv1.GetUserSessionCredentialsRequest_builder{
+			EncryptionKeyId: encKeyID,
+		}.Build())
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		resource := resp.GetCredentials()
+		if resource == nil || len(resource.GetSpec().GetCredentials()) == 0 {
+			logger.DebugContext(cf.Context, "No credentials found on backend")
+			return nil
+		}
+
+		proxyHost, _, _ := net.SplitHostPort(tc.WebProxyAddr)
+		if err := client.SaveSessionCredentials(cf.HomePath, proxyHost, tc.Username, resource); err != nil {
+			return trace.Wrap(err)
+		}
+
+		logger.DebugContext(cf.Context, "Cached session credentials locally",
+			"credentials", len(resource.GetSpec().GetCredentials()),
+		)
+		return nil
+	})
+}
+
+// ensureLocalSecret ensures a locally cached auth-encrypted access token
+// exists. It checks local cache first, then backend, then triggers OAuth
+// if needed.
+func ensureLocalSecret(cf *CLIConf, tc *client.TeleportClient, gitServerName string, forceRefresh bool) error {
+	if forceRefresh {
+		return trace.Wrap(refreshGitToken(cf, tc, gitServerName))
+	}
+
+	proxyHost, _, _ := net.SplitHostPort(tc.WebProxyAddr)
+
+	// Check local cache for a valid credential.
+	if cred := findCachedCredential(cf.HomePath, proxyHost, tc.Username, gitServerName); cred != nil {
+		if exp := cred.GetAccessTokenExpiry(); exp == nil || !exp.IsValid() || time.Now().Before(exp.AsTime()) {
+			return nil
+		}
+	}
+
+	// Cache miss or expired. Fetch from backend.
+	if err := fetchAndCacheSessionCredentials(cf, tc); err != nil {
+		if trace.IsNotFound(err) {
+			return trace.NotFound("no credentials found for %s, run 'tsh git login' first", gitServerName)
+		}
+		return trace.Wrap(err)
+	}
+
+	// Re-check after fetch.
+	cred := findCachedCredential(cf.HomePath, proxyHost, tc.Username, gitServerName)
+	if cred == nil {
+		return trace.NotFound("no credentials found for %s, run 'tsh git login' first", gitServerName)
+	}
+
+	if exp := cred.GetAccessTokenExpiry(); exp != nil && exp.IsValid() && !time.Now().Before(exp.AsTime()) {
+		logger.DebugContext(cf.Context, "Access token expired, refreshing",
+			"git_server", gitServerName,
+			"expires_at", exp.AsTime(),
+		)
+		if err := refreshGitToken(cf, tc, gitServerName); err != nil {
+			return trace.Wrap(err, "failed to refresh expired token for %s, run 'tsh git login' to re-authenticate", gitServerName)
+		}
+	}
+	return nil
+}
+
+// findCachedCredential loads the local cache and returns the OAuthSecret
+// for the given git server, or nil if not found.
+func findCachedCredential(homePath, proxyHost, username, gitServerName string) *userexternalsecretsv1.OAuthSecret {
+	resource, err := client.LoadSessionCredentials(homePath, proxyHost, username)
+	if err != nil || resource == nil {
+		return nil
+	}
+	for _, cred := range resource.GetSpec().GetCredentials() {
+		if cred.GetResourceKind() == types.KindGitServer && cred.GetResourceName() == gitServerName {
+			return cred.GetOauth()
+		}
+	}
+	return nil
+}
+
+// refreshGitToken refreshes the GitHub access token by fetching the latest
+// refresh token from the backend, decrypting the ECIES layer, and sending the
+// auth-encrypted blob to the git service for refresh.
+func refreshGitToken(cf *CLIConf, tc *client.TeleportClient, gitServerName string) error {
+	helper, err := getEncryptionHelper(cf.Context, tc)
+	if err != nil {
+		return trace.Wrap(err, "no encryption helper available for refresh")
+	}
+
+	encKeyID := helper.keyID(cf.Context)
+	if encKeyID == "" {
+		return trace.BadParameter("no encryption key ID available for refresh")
+	}
+
+	return client.RetryWithRelogin(cf.Context, tc, func() error {
+		clusterClient, err := tc.ConnectToCluster(cf.Context)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer clusterClient.Close()
+
+		resp, err := clusterClient.AuthClient.UserExternalSecretClient().GetUserSessionCredentials(cf.Context, userexternalsecretsv1.GetUserSessionCredentialsRequest_builder{
+			EncryptionKeyId: encKeyID,
+		}.Build())
+		if err != nil {
+			return trace.Wrap(err, "fetching credentials for refresh")
+		}
+
+		var oauth *userexternalsecretsv1.OAuthSecret
+		for _, cred := range resp.GetCredentials().GetSpec().GetCredentials() {
+			if cred.GetResourceKind() == types.KindGitServer && cred.GetResourceName() == gitServerName {
+				oauth = cred.GetOauth()
+				break
+			}
+		}
+		if oauth == nil || len(oauth.GetRefreshTokenBlob()) == 0 {
+			return trace.NotFound("no refresh token available for %s", gitServerName)
+		}
+
+		// Decrypt the ECIES layer of the refresh token blob.
+		authEncryptedRefresh, err := helper.decrypt(cf.Context, oauth.GetRefreshTokenBlob())
+		if err != nil {
+			return trace.Wrap(err, "decrypting refresh token blob")
+		}
+
+		// Call git service to refresh.
+		_, err = clusterClient.AuthClient.GitCredentialsClient().RefreshGitToken(cf.Context, gitserverv1.RefreshGitTokenRequest_builder{
+			GitServerName:             gitServerName,
+			AuthEncryptedRefreshToken: authEncryptedRefresh,
+		}.Build())
+		if err != nil {
+			return trace.Wrap(err, "refreshing git token")
+		}
+
+		logger.DebugContext(cf.Context, "Refreshed git token", "git_server", gitServerName)
+
+		// Fetch and cache the new double-encrypted access token.
+		return fetchAndCacheSessionCredentials(cf, tc)
+	})
 }
 
 // ensureGitHubCredentials ensures the user has the necessary GitHub credentials
@@ -157,6 +448,9 @@ func ensureGitHubCredentials(cf *CLIConf, tc *client.TeleportClient, gitServer t
 	if needOAuth {
 		if _, err := getGitHubIdentity(cf, github.Organization, withForceOAuthFlow(true)); err != nil {
 			return trace.Wrap(err)
+		}
+		if err := fetchAndCacheSessionCredentials(cf, tc); err != nil {
+			logger.WarnContext(cf.Context, "Failed to fetch encrypted token after OAuth", "error", err)
 		}
 	}
 	return nil

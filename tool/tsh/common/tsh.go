@@ -1562,6 +1562,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	connectUpdaterServiceInstallUpdateCommand := newConnectUpdaterServiceInstallUpdateCommand(connectUpdater)
 
 	gitCmd := newGitCommands(app)
+	credCmd := newCredCommands(app)
 	ghCmd := newTopLevelGHCommand(app)
 	beamsCmd := newBeamsCommands(app)
 	pivCmd := newPIVCommands(app)
@@ -2037,6 +2038,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = gitCmd.gh.run(&cf)
 	case gitCmd.httpRemote.FullCommand():
 		err = gitCmd.httpRemote.run(&cf)
+	case credCmd.sync.FullCommand():
+		err = credCmd.sync.run(&cf)
 	case ghCmd.FullCommand():
 		err = ghCmd.run(&cf)
 	case beamsCmd.ls.FullCommand():
@@ -5678,6 +5681,9 @@ func printStatus(w io.Writer, debug bool, p *profileInfo, env map[string]string,
 	if p.DelegationSessionID != "" {
 		fmt.Fprintf(w, "  Delegation session: %s\n", p.DelegationSessionID)
 	}
+	if p.EncryptionKeyID != "" {
+		fmt.Fprintf(w, "  Encryption Key ID:  %s\n", p.EncryptionKeyID)
+	}
 
 	if debug {
 		first := true
@@ -5767,6 +5773,10 @@ func printLoginInformation(cf *CLIConf, profile *client.ProfileStatus, profiles 
 
 // onStatus command shows which proxy the user is logged into and metadata
 // about the certificate.
+func getEncryptionKeyID(profile *client.ProfileStatus) string {
+	return profile.EncryptionKeyID
+}
+
 func onStatus(cf *CLIConf) error {
 	// Get the status of the active profile as well as the status
 	// of any other proxies the user is logged into.
@@ -5846,6 +5856,7 @@ type profileInfo struct {
 	AllowedResourceAccessIDs []types.ResourceAccessID `json:"allowed_resources,omitempty"`
 	GitHubIdentity           *client.GitHubIdentity   `json:"github_identity,omitempty"`
 	DelegationSessionID      string                   `json:"delegation_session_id,omitempty"`
+	EncryptionKeyID          string                   `json:"encryption_key_id,omitempty"`
 }
 
 func makeAllProfileInfo(active *client.ProfileStatus, others []*client.ProfileStatus, env map[string]string) (*profileInfo, []*profileInfo) {
@@ -5900,6 +5911,7 @@ func makeProfileInfo(p *client.ProfileStatus, env map[string]string, isActive bo
 		AllowedResourceAccessIDs: p.AllowedResourceAccessIDs,
 		GitHubIdentity:           p.GitHubIdentity,
 		DelegationSessionID:      p.DelegationSessionID,
+		EncryptionKeyID:          p.EncryptionKeyID,
 	}
 
 	// update active profile info from env

@@ -541,6 +541,9 @@ const (
 	// KindHeadlessAuthentication is a headless authentication resource.
 	KindHeadlessAuthentication = "headless_authentication"
 
+	// KindUserSessionCredentials is a per-user per-session credentials resource.
+	KindUserSessionCredentials = "user_session_credentials"
+
 	// KindHealthCheckConfig is the resource for health check configuration.
 	KindHealthCheckConfig = "health_check_config"
 
