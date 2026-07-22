@@ -6687,7 +6687,7 @@ message LockTarget {
   option (gogoproto.stringer) = false;
 
   // these options remove extraneous fields from the resulting Go struct, making
-  // it more obvious to compare
+  // it possible to compare by equality
   option (gogoproto.goproto_unrecognized) = false;
   option (gogoproto.goproto_sizecache) = false;
   option (gogoproto.goproto_unkeyed) = false;
