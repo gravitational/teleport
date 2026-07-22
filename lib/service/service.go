@@ -6699,6 +6699,11 @@ func setupALPNRouter(listeners *proxyListeners, serverTLSConfig *tls.Config, cfg
 	if cfg.Proxy.Kube.Enabled {
 		kubeListener := alpnproxy.NewMuxListenerWrapper(listeners.kube, listeners.web)
 		router.AddKubeHandler(kubeListener.HandleConnection)
+		router.Add(alpnproxy.HandlerDecs{
+			MatchFunc:  alpnproxy.MatchByProtocol(alpncommon.ProtocolKube),
+			Handler:    kubeListener.HandleConnection,
+			ForwardTLS: true,
+		})
 		listeners.kube = kubeListener
 	}
 	if !cfg.Proxy.DisableReverseTunnel {
