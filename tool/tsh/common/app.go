@@ -845,7 +845,7 @@ func getApp(ctx context.Context, clt apiclient.GetResourcesClient, name, scope s
 	predicate := fmt.Sprintf("name == %q", name)
 	limit := apidefaults.DefaultChunkSize
 	if scope != "" {
-		predicate = fmt.Sprintf("name == %q && scope == %q", name, scope)
+		predicate = fmt.Sprintf("name == %q && resource.scope == %q", name, scope)
 		limit = 1
 	}
 	res, err := apiclient.GetEnrichedResourcePage(ctx, clt, &proto.ListResourcesRequest{
