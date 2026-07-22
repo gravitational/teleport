@@ -5563,6 +5563,60 @@ func TestGetAndList_WindowsDesktops(t *testing.T) {
 	require.Empty(t, resp.Resources)
 }
 
+// TestCreateWindowsDesktop verifies that a user with permission to create
+// Windows desktops cannot create a desktop with labels they wouldn't have
+// access to.
+func TestCreateWindowsDesktop(t *testing.T) {
+	t.Parallel()
+	srv := newTestTLSServer(t)
+
+	const username = "desktop-creator"
+	user, role, err := authtest.CreateUserAndRole(
+		srv.Auth(),
+		username,
+		nil, /* logins */
+		[]types.Rule{types.NewRule(types.KindWindowsDesktop, services.RW())},
+	)
+	require.NoError(t, err)
+
+	role.SetWindowsDesktopLabels(types.Allow, types.Labels{"env": {"dev"}})
+	_, err = srv.Auth().UpsertRole(t.Context(), role)
+	require.NoError(t, err)
+
+	identity := authtest.TestUser(user.GetName())
+	clt, err := srv.NewClient(identity)
+	require.NoError(t, err)
+	t.Cleanup(func() { clt.Close() })
+
+	// Creating a desktop the user wouldn't have access to is denied
+	inaccessible, err := types.NewWindowsDesktopV3(
+		"prod-desktop",
+		map[string]string{"env": "prod"},
+		types.WindowsDesktopSpecV3{Addr: "_", HostID: "_"},
+	)
+	require.NoError(t, err)
+	err = clt.CreateWindowsDesktop(t.Context(), inaccessible)
+	require.True(t, trace.IsAccessDenied(err), "expected access denied, got: %v", err)
+
+	// the desktop is not created
+	desktops, err := srv.Auth().GetWindowsDesktops(t.Context(), types.WindowsDesktopFilter{Name: inaccessible.GetName()})
+	require.NoError(t, err)
+	require.Empty(t, desktops)
+
+	// Creating a desktop the user has access to succeeds
+	accessible, err := types.NewWindowsDesktopV3(
+		"dev-desktop",
+		map[string]string{"env": "dev"},
+		types.WindowsDesktopSpecV3{Addr: "_", HostID: "_"},
+	)
+	require.NoError(t, err)
+	require.NoError(t, clt.CreateWindowsDesktop(t.Context(), accessible))
+
+	desktops, err = srv.Auth().GetWindowsDesktops(t.Context(), types.WindowsDesktopFilter{Name: accessible.GetName()})
+	require.NoError(t, err)
+	require.Len(t, desktops, 1)
+}
+
 func TestIsLocalOrRemoteServerAction(t *testing.T) {
 	ctx := t.Context()
 	mods := modulestest.OSSModules()
@@ -6115,7 +6169,7 @@ func TestListResources_ScopedApps(t *testing.T) {
 	const childScope = "/test/child"
 	const otherScope = "/other"
 
-	createAppServer := func(t *testing.T, name, scope string, labels map[string]string) {
+	createAppServer := func(t *testing.T, name, scope, subkind string, labels map[string]string) {
 		t.Helper()
 		app, err := types.NewAppV3(types.Metadata{
 			Name:   name,
@@ -6124,21 +6178,28 @@ func TestListResources_ScopedApps(t *testing.T) {
 			types.AppSpecV3{URI: "http://localhost:8080"},
 			scope)
 		require.NoError(t, err)
+		if subkind != "" {
+			app.SubKind = subkind
+		}
 		if scope != "" {
 			app.Spec.PublicAddr = scopedapp.ScopedAppPublicAddr(scope, name, "proxy.example.com")
 		}
 		server, err := types.NewAppServerV3FromApp(app, name+"-host", name+"-hostid")
+		if subkind != "" {
+			server.SubKind = subkind
+		}
 		require.NoError(t, err)
 		_, err = srv.Auth().UpsertApplicationServer(ctx, server)
 		require.NoError(t, err)
 	}
 
 	// Create apps in various scopes with differing labels
-	createAppServer(t, "prod-app", scope, map[string]string{"env": "prod"})
-	createAppServer(t, "dev-app", scope, map[string]string{"env": "dev"})
-	createAppServer(t, "dev-child-app", childScope, map[string]string{"env": "dev"})
-	createAppServer(t, "other-scope-app", otherScope, map[string]string{"env": "prod"})
-	createAppServer(t, "unscoped-app", "", map[string]string{"env": "prod"})
+	createAppServer(t, "prod-app", scope, "", map[string]string{"env": "prod"})
+	createAppServer(t, "dev-app", scope, "", map[string]string{"env": "dev"})
+	createAppServer(t, "dev-child-app", childScope, "", map[string]string{"env": "dev"})
+	createAppServer(t, "other-scope-app", otherScope, "", map[string]string{"env": "prod"})
+	createAppServer(t, "unscoped-app", "", "", map[string]string{"env": "prod"})
+	createAppServer(t, "ic-app", scope, types.KindIdentityCenterAccount, map[string]string{"env": "dev"})
 
 	appLabels := func(env string) *scopedaccessv1.ScopedRoleApp {
 		return scopedaccessv1.ScopedRoleApp_builder{
@@ -6167,54 +6228,97 @@ func TestListResources_ScopedApps(t *testing.T) {
 		name             string
 		server           *auth.ScopedServerWithRoles
 		appNamesExpected []string
+		req              proto.ListResourcesRequest
 	}{
 		{
 			name:             "prod labels in scope " + scope,
 			server:           scopedAppUser("test-prod-label", scope, appLabels("prod")),
 			appNamesExpected: []string{"prod-app"},
+			req: proto.ListResourcesRequest{
+				ResourceType: types.KindAppServer,
+				Limit:        10,
+			},
 		},
 		{
 			name:             "dev label in " + scope,
 			server:           scopedAppUser("test-dev-label", scope, appLabels("dev")),
 			appNamesExpected: []string{"dev-app", "dev-child-app"},
+			req: proto.ListResourcesRequest{
+				ResourceType: types.KindAppServer,
+				Limit:        10,
+			},
 		},
 		{
 			name:             "dev label expression in " + scope,
 			server:           scopedAppUser("test-dev-expression", scope, appLabelExpression(`contains(labels["env"], "dev")`)),
 			appNamesExpected: []string{"dev-app", "dev-child-app"},
+			req: proto.ListResourcesRequest{
+				ResourceType: types.KindAppServer,
+				Limit:        10,
+			},
 		},
 		{
 			name:             "label expression in " + scope,
 			server:           scopedAppUser("test-prod-expression", scope, appLabelExpression(`contains(labels["env"], "prod")`)),
 			appNamesExpected: []string{"prod-app"},
+			req: proto.ListResourcesRequest{
+				ResourceType: types.KindAppServer,
+				Limit:        10,
+			},
 		},
 		{
 			name:             "label expression in " + childScope,
 			server:           scopedAppUser("test-child-prod-expr", childScope, appLabelExpression(`contains(labels["env"], "prod")`)),
 			appNamesExpected: []string{},
+			req: proto.ListResourcesRequest{
+				ResourceType: types.KindAppServer,
+				Limit:        10,
+			},
 		},
 		{
 			name:             "label expression in " + otherScope,
 			server:           scopedAppUser("other-prod-expression", otherScope, appLabelExpression(`contains(labels["env"], "prod")`)),
 			appNamesExpected: []string{"other-scope-app"},
-		},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			res, err := tc.server.ListResources(ctx, proto.ListResourcesRequest{
+			req: proto.ListResourcesRequest{
 				ResourceType: types.KindAppServer,
 				Limit:        10,
-			})
+			},
+		},
+		{
+			name:             "fake pagination path returns apps",
+			server:           scopedAppUser("test-fake-pagination", scope, appLabels("prod")),
+			appNamesExpected: []string{"prod-app"},
+			req: proto.ListResourcesRequest{
+				ResourceType:   types.KindAppServer,
+				Limit:          10,
+				SortBy:         types.SortBy{Field: types.ResourceMetadataName},
+				NeedTotalCount: true,
+				IncludeLogins:  true,
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			res, err := tc.server.ListResources(ctx, tc.req)
 			require.NoError(t, err)
 
 			var names []string
 			for _, r := range res.Resources {
 				names = append(names, r.GetName())
 				require.NotEqual(t, "unscoped-app", r.GetName())
+				// Identity Center account apps must never appear in scoped
+				// listings, even when their labels match the role.
+				require.NotEqual(t, "ic-app", r.GetName())
 			}
 
 			require.ElementsMatch(t, tc.appNamesExpected, names)
+
+			if tc.req.SortBy.Field != "" {
+				require.True(t, slices.IsSorted(names))
+			}
+			if tc.req.NeedTotalCount {
+				require.Equal(t, len(tc.appNamesExpected), res.TotalCount)
+			}
 		})
 	}
 }
@@ -12406,13 +12510,18 @@ func TestScopedRoleEvents(t *testing.T) {
 	client, err := srv.NewClient(authtest.TestAdmin())
 	require.NoError(t, err)
 
+	// scoped resource kinds default to only matching unscoped resources (which never exist for these
+	// kinds), so watch with an explicit MODE_ALL filter to observe scoped roles/assignments at all scopes.
+	allScopes := types.ScopeFilterFromProto(scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_ALL}.Build())
 	watcher, err := client.NewWatcher(ctx, types.Watch{
 		Kinds: []types.WatchKind{
 			{
-				Kind: scopedaccess.KindScopedRole,
+				Kind:        scopedaccess.KindScopedRole,
+				ScopeFilter: allScopes,
 			},
 			{
-				Kind: scopedaccess.KindScopedRoleAssignment,
+				Kind:        scopedaccess.KindScopedRoleAssignment,
+				ScopeFilter: allScopes,
 			},
 		},
 	})
@@ -12474,12 +12583,15 @@ func TestScopedRoleEvents(t *testing.T) {
 	event = getNextEvent()
 	require.Equal(t, types.OpDelete, event.Type)
 
-	require.Empty(t, cmp.Diff(&types.ResourceHeader{
+	// delete events carry a skeleton typed resource (kind + scope + name), not a bare ResourceHeader.
+	deletedRole := event.Resource.(types.Resource153UnwrapperT[*scopedaccessv1.ScopedRole]).UnwrapT()
+	require.Empty(t, cmp.Diff(scopedaccessv1.ScopedRole_builder{
 		Kind: scopedaccess.KindScopedRole,
-		Metadata: types.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: role.GetMetadata().GetName(),
-		},
-	}, event.Resource.(*types.ResourceHeader), protocmp.Transform()))
+		}.Build(),
+		Scope: role.GetScope(),
+	}.Build(), deletedRole, protocmp.Transform()))
 
 	// recreate scoped role so that we can use it for testing assignment events
 	_, err = service.CreateScopedRole(ctx, scopedaccessv1.CreateScopedRoleRequest_builder{
@@ -12529,13 +12641,15 @@ func TestScopedRoleEvents(t *testing.T) {
 	event = getNextEvent()
 	require.Equal(t, types.OpDelete, event.Type)
 
-	require.Empty(t, cmp.Diff(&types.ResourceHeader{
+	deletedAssignment := event.Resource.(types.Resource153UnwrapperT[*scopedaccessv1.ScopedRoleAssignment]).UnwrapT()
+	require.Empty(t, cmp.Diff(scopedaccessv1.ScopedRoleAssignment_builder{
 		Kind:    scopedaccess.KindScopedRoleAssignment,
 		SubKind: scopedaccess.SubKindDynamic,
-		Metadata: types.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: assignment.GetMetadata().GetName(),
-		},
-	}, event.Resource.(*types.ResourceHeader), protocmp.Transform()))
+		}.Build(),
+		Scope: assignment.GetScope(),
+	}.Build(), deletedAssignment, protocmp.Transform()))
 }
 
 // TestWatchAllCacheKinds ensures the system builtin roles can watch every
@@ -13731,6 +13845,7 @@ func TestScopedUserCertGeneration(t *testing.T) {
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 				entitlements.Policy: {Enabled: true},
 				entitlements.K8s:    {Enabled: true},
+				entitlements.App:    {Enabled: true},
 			},
 		},
 	}), withClock(clock))
@@ -13753,6 +13868,14 @@ func TestScopedUserCertGeneration(t *testing.T) {
 				Kube: scopedaccessv1.ScopedRoleKube_builder{
 					Users:  []string{"kube_user"},
 					Groups: []string{"kube_group"},
+					Labels: []*labelv1.Label{
+						labelv1.Label_builder{
+							Name:   types.Wildcard,
+							Values: []string{types.Wildcard},
+						}.Build(),
+					},
+				}.Build(),
+				App: scopedaccessv1.ScopedRoleApp_builder{
 					Labels: []*labelv1.Label{
 						labelv1.Label_builder{
 							Name:   types.Wildcard,
@@ -13797,6 +13920,20 @@ func TestScopedUserCertGeneration(t *testing.T) {
 	require.NoError(t, err)
 
 	createKubeServer(t, srv.Auth(), []string{"kube-cluster"}, "kube-host", scope)
+
+	scopedApp, err := types.NewAppV3(types.Metadata{
+		Name:   "test-app",
+		Labels: map[string]string{"env": "test"},
+	}, types.AppSpecV3{URI: "http://localhost:8080"})
+	require.NoError(t, err)
+	scopedApp.Scope = scope
+	scopedApp.Spec.PublicAddr = scopedapp.ScopedAppPublicAddr(scope, "test-app", "proxy.example.com")
+	scopedAppServer, err := types.NewAppServerV3FromApp(scopedApp, "test-app-host", "test-app-hostid")
+	require.NoError(t, err)
+	scopedAppServer.Scope = scope
+	_, err = srv.Auth().UpsertApplicationServer(ctx, scopedAppServer)
+	require.NoError(t, err)
+
 	tts := []struct {
 		name       string
 		req        proto.UserCertsRequest
@@ -13874,25 +14011,52 @@ func TestScopedUserCertGeneration(t *testing.T) {
 		{
 			name: "app session creation",
 			req: proto.UserCertsRequest{
-				SSHPublicKey:      sshPubKey,
-				TLSPublicKey:      tlsPubKey,
-				Username:          username,
-				Usage:             proto.UserCertsRequest_Kubernetes,
-				KubernetesCluster: "kube-cluster",
-				Expires:           time.Now().Add(time.Hour),
+				SSHPublicKey:  sshPubKey,
+				TLSPublicKey:  tlsPubKey,
+				Username:      username,
+				Usage:         proto.UserCertsRequest_App,
+				RequesterName: proto.UserCertsRequest_TSH_APP_LOCAL_PROXY,
+				Expires:       time.Now().Add(time.Hour),
 				RouteToApp: proto.RouteToApp{
-					Name: "app-name",
+					Name:        "test-app",
+					PublicAddr:  scopedApp.GetPublicAddr(),
+					ClusterName: srv.ClusterName(),
+				},
+			},
+			assertCert: func(t *testing.T, cert *x509.Certificate) {
+				identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+				require.NoError(t, err)
+				require.Equal(t, "test-app", identity.RouteToApp.Name)
+				require.Equal(t, scopedApp.GetPublicAddr(), identity.RouteToApp.PublicAddr)
+				// An app session is created and linked to the certificate.
+				require.NotEmpty(t, identity.RouteToApp.SessionID)
+			},
+		},
+		{
+			name: "app with AWS role ARN is rejected",
+			req: proto.UserCertsRequest{
+				SSHPublicKey:  sshPubKey,
+				TLSPublicKey:  tlsPubKey,
+				Username:      username,
+				Usage:         proto.UserCertsRequest_App,
+				RequesterName: proto.UserCertsRequest_TSH_APP_LOCAL_PROXY,
+				Expires:       time.Now().Add(time.Hour),
+				RouteToApp: proto.RouteToApp{
+					Name:        "test-app",
+					PublicAddr:  scopedApp.GetPublicAddr(),
+					ClusterName: srv.ClusterName(),
+					AWSRoleARN:  "arn:aws:iam::123456789012:role/example",
 				},
 			},
 			assertErr: func(t *testing.T, err error) {
 				require.Error(t, err)
 				require.True(t, trace.IsAccessDenied(err), "expected AccessDeniedError")
-				require.ErrorContains(t, err, "creating app session")
 				require.ErrorContains(t, err, "scoped identities not supported")
+				require.ErrorContains(t, err, "generating scoped user cert for cloud app access")
 			},
 		},
 		{
-			name: "for non-kube usage",
+			name: "for non-kube non-app usage",
 			req: proto.UserCertsRequest{
 				SSHPublicKey: sshPubKey,
 				TLSPublicKey: tlsPubKey,
@@ -13903,7 +14067,7 @@ func TestScopedUserCertGeneration(t *testing.T) {
 				require.Error(t, err)
 				require.True(t, trace.IsAccessDenied(err), "expected AccessDeniedError")
 				require.ErrorContains(t, err, "scoped identities not supported")
-				require.ErrorContains(t, err, "generating scoped user cert for non-kubernetes usage")
+				require.ErrorContains(t, err, "generating scoped user cert for unsupported usage \"All\"")
 			},
 		},
 		{
@@ -13924,7 +14088,7 @@ func TestScopedUserCertGeneration(t *testing.T) {
 				require.ErrorContains(t, err, "scoped identities not supported")
 				// TODO (eriktate/scopes): remove the nonKubeErr check if/when we stop restricting usages for scoped
 				// user cert gen
-				nonKubeErr := strings.Contains(err.Error(), "generating scoped user cert for non-kubernetes usage")
+				nonKubeErr := strings.Contains(err.Error(), "generating scoped user cert for unsupported usage \"AccessGraphAPI\"")
 				accessGraphErr := strings.Contains(err.Error(), "access graph is not permitted")
 				require.True(t, nonKubeErr || accessGraphErr, "expected error due to unsupported scoped certificate usage or unsupported scoped access graph usage")
 			},

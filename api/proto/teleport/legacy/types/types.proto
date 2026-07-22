@@ -27,6 +27,7 @@ import "teleport/legacy/types/mfa_device.proto";
 import "teleport/legacy/types/resources.proto";
 import "teleport/legacy/types/trusted_device_requirement.proto";
 import "teleport/legacy/types/wrappers/wrappers.proto";
+import "teleport/scopes/v1/scopes.proto";
 
 option go_package = "github.com/gravitational/teleport/api/types";
 option (gogoproto.goproto_getters_all) = false;
@@ -9325,6 +9326,15 @@ enum HeadlessAuthenticationState {
   HEADLESS_AUTHENTICATION_STATE_APPROVED = 3;
 }
 
+// ScopeFilter is a gogo-native mirror of teleport.scopes.v1.Filter for use on WatchKind. Gogo uses
+// marshaling/unmarshaling logic that is incompatible with our newer proto messages.
+message ScopeFilter {
+  // Scope is the scope the filter is anchored at.
+  string scope = 1;
+  // Mode determines how the scope is matched (exact, descendants, etc.).
+  teleport.scopes.v1.Mode mode = 2;
+}
+
 // WatchKind specifies resource kind to watch
 // When adding fields to this struct, make sure to review/update WatchKind.Contains method.
 message WatchKind {
@@ -9344,6 +9354,10 @@ message WatchKind {
   // Version optionally specifies the resource version to watch.
   // Currently this field is ignored.
   string Version = 6 [(gogoproto.jsontag) = "version,omitempty"];
+  // ScopeFilter optionally filters events by scope. Filtering is performed against the scope of the
+  // resource itself. Defaults to one of EXACT or UNSCOPED depending on wether the caller is
+  // a scoped or unscoped identity for most kinds.
+  ScopeFilter ScopeFilter = 7 [(gogoproto.jsontag) = "scope_filter,omitempty"];
 }
 
 // WatchStatusV1 is intended to be attached to OpInit events and contain information about a successful WatchEvents call.
@@ -9687,9 +9701,9 @@ message AzureMatcher {
 
 // GCPMatcher matches GCP resources.
 message GCPMatcher {
-  // Types are GKE resource types to match: "gke", "vm".
+  // Types are GCP resource types to match: "gke", "gce", "cloudsql".
   repeated string Types = 1 [(gogoproto.jsontag) = "types,omitempty"];
-  // Locations are GKE locations to search resources for.
+  // Locations are GCP locations to search resources for.
   repeated string Locations = 2 [(gogoproto.jsontag) = "locations,omitempty"];
   // Tags is obsolete and only exists for backwards compatibility. Use Labels instead.
   wrappers.LabelValues Tags = 3 [

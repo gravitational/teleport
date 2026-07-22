@@ -31,6 +31,7 @@ import (
 	"google.golang.org/grpc"
 
 	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
+	beamsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/usertasks"
@@ -46,10 +47,12 @@ import (
 func TestHandlers(t *testing.T) {
 	t.Parallel()
 
+	mockBeamsConfigSvc := newMockBeamsConfigServiceServer(t)
 	registry := plugin.NewRegistry()
 	require.NoError(t, registry.Add(&mockServicesPlugin{
 		mockedServices: []func(grpc.ServiceRegistrar){
 			registerMockSummarizerServiceServer,
+			mockBeamsConfigSvc.register,
 		},
 	}))
 
@@ -77,10 +80,14 @@ func TestHandlers(t *testing.T) {
 	}
 
 	tests := []struct {
-		kind             string
-		makeResource     func(*testing.T, string) types.Resource
-		updateResource   func(*testing.T, types.Resource) types.Resource
-		checkMFARequired require.BoolAssertionFunc
+		kind string
+		// singletonWithVirtualDefault indicates the resource is a singleton and
+		// the get call will return a default even when there is no resource
+		// present in the storage.
+		singletonWithVirtualDefault bool
+		makeResource                func(*testing.T, string) types.Resource
+		updateResource              func(*testing.T, types.Resource) types.Resource
+		checkMFARequired            require.BoolAssertionFunc
 	}{
 		{
 			kind: types.KindDatabase,
@@ -269,6 +276,24 @@ func TestHandlers(t *testing.T) {
 			updateResource:   updateResourceWithLabels,
 			checkMFARequired: require.False,
 		},
+		{
+			kind:                        types.KindBeamsConfig,
+			singletonWithVirtualDefault: true,
+			makeResource: func(t *testing.T, _ string) types.Resource {
+				t.Helper()
+				config := services.DefaultBeamsConfig()
+				config.GetSpec().GetLlm().GetAnthropic().SetAppName("my-anthropic")
+				return types.ProtoResource153ToLegacy(config)
+			},
+			updateResource: func(t *testing.T, r types.Resource) types.Resource {
+				t.Helper()
+				config, err := types.ConvertResource[*beamsv1.BeamsConfig](r)
+				require.NoError(t, err)
+				config.GetSpec().GetLlm().GetAnthropic().SetAppName("updated-anthropic")
+				return types.ProtoResource153ToLegacy(config)
+			},
+			checkMFARequired: require.True,
+		},
 	}
 
 	for _, tt := range tests {
@@ -281,11 +306,15 @@ func TestHandlers(t *testing.T) {
 			resourcesPrepopulated, err := handler.Get(t.Context(), clt, services.Ref{}, GetOpts{})
 			require.NoError(t, err)
 
-			// TODO(greedy52): update logic for singleton
-			resources := []types.Resource{
-				tt.makeResource(t, fmt.Sprintf("%s-1", tt.kind)),
-				tt.makeResource(t, fmt.Sprintf("%s-2", tt.kind)),
-				tt.makeResource(t, fmt.Sprintf("%s-3", tt.kind)),
+			var resources []types.Resource
+			if tt.singletonWithVirtualDefault {
+				resources = []types.Resource{tt.makeResource(t, "")}
+			} else {
+				resources = []types.Resource{
+					tt.makeResource(t, fmt.Sprintf("%s-1", tt.kind)),
+					tt.makeResource(t, fmt.Sprintf("%s-2", tt.kind)),
+					tt.makeResource(t, fmt.Sprintf("%s-3", tt.kind)),
+				}
 			}
 
 			t.Run("MFARequired", func(t *testing.T) {
@@ -308,6 +337,7 @@ func TestHandlers(t *testing.T) {
 				var expected []types.Resource
 				expected = append(expected, resourcesPrepopulated.Resources()...)
 				expected = append(expected, resources...)
+				expected = sliceutils.DeduplicateKey(expected, types.GetName)
 
 				require.ElementsMatch(t,
 					sliceutils.Map(expected, types.GetName),
@@ -337,9 +367,14 @@ func TestHandlers(t *testing.T) {
 				r := resources[0]
 				require.NoError(t, handler.Delete(t.Context(), clt, services.Ref{Name: r.GetName()}))
 
-				_, err := handler.Get(t.Context(), clt, services.Ref{Name: r.GetName()}, GetOpts{})
-				require.Error(t, err)
-				require.True(t, trace.IsNotFound(err))
+				afterDelete, err := handler.Get(t.Context(), clt, services.Ref{Name: r.GetName()}, GetOpts{})
+				if tt.singletonWithVirtualDefault {
+					require.NoError(t, err)
+					require.Len(t, afterDelete.Resources(), 1)
+				} else {
+					require.Error(t, err)
+					require.True(t, trace.IsNotFound(err))
+				}
 			})
 		})
 	}

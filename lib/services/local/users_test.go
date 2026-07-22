@@ -25,8 +25,11 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -574,6 +577,20 @@ func TestIdentityService_GetMFADevices_SSO(t *testing.T) {
 	_, err = identity.UpsertSAMLConnector(ctx, samlConnector)
 	require.NoError(t, err)
 
+	var metadataRequests atomic.Int64
+	idpMetadataServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		metadataRequests.Add(1)
+		_, err := w.Write([]byte(entityDescriptor))
+		require.NoError(t, err)
+	}))
+	t.Cleanup(idpMetadataServer.Close)
+
+	samlConnectorWithMatchingSSOAndSSOMFAIdP := newSAMlConenctorWithEDURL(t, identity, "samlConnectorWithMatchingSSOAndSSOMFAIdP", idpMetadataServer.URL, idpMetadataServer.URL)
+	samlConnectorWithDifferentSSOAndSSOMFAIdP := newSAMlConenctorWithEDURL(t, identity, "samlConnectorWithDifferentSSOAndSSOMFAIdP", idpMetadataServer.URL, idpMetadataServer.URL+"/mfa")
+
+	// Reset so we can check the GetMFADevices does not call the endpoint.
+	metadataRequests.Store(0)
+
 	oidcConnector, err := types.NewOIDCConnector("oidc", types.OIDCConnectorSpecV3{
 		ClientID:     "12345",
 		ClientSecret: "678910",
@@ -620,6 +637,28 @@ func TestIdentityService_GetMFADevices_SSO(t *testing.T) {
 				DisplayName:   samlConnector.GetDisplay(),
 			},
 		}, {
+			name: "saml user, with entity descriptor URL, matching SSO and SSO MFA IdP URL",
+			connectorRef: &types.ConnectorRef{
+				Type: "saml",
+				ID:   samlConnectorWithMatchingSSOAndSSOMFAIdP.GetName(),
+			},
+			expectSSODevice: &types.SSOMFADevice{
+				ConnectorType: "saml",
+				ConnectorId:   samlConnectorWithMatchingSSOAndSSOMFAIdP.GetName(),
+				DisplayName:   samlConnectorWithMatchingSSOAndSSOMFAIdP.GetDisplay(),
+			},
+		}, {
+			name: "saml user, with entity descriptor URL, different SSO and SSO MFA IdP URL",
+			connectorRef: &types.ConnectorRef{
+				Type: "saml",
+				ID:   samlConnectorWithDifferentSSOAndSSOMFAIdP.GetName(),
+			},
+			expectSSODevice: &types.SSOMFADevice{
+				ConnectorType: "saml",
+				ConnectorId:   samlConnectorWithDifferentSSOAndSSOMFAIdP.GetName(),
+				DisplayName:   samlConnectorWithDifferentSSOAndSSOMFAIdP.GetDisplay(),
+			},
+		}, {
 			name: "oidc user",
 			connectorRef: &types.ConnectorRef{
 				Type: "oidc",
@@ -645,6 +684,8 @@ func TestIdentityService_GetMFADevices_SSO(t *testing.T) {
 
 			devs, err := identity.GetMFADevices(ctx, "alice", true /* withSecrets */)
 			require.NoError(t, err)
+			// Expected zero attempts to fetch the entity descriptor.
+			require.Zero(t, metadataRequests.Load())
 
 			if test.expectSSODevice == nil {
 				assert.Empty(t, devs)
@@ -1848,4 +1889,40 @@ func TestIdentityService_SSOMFASessionDataCRUD(t *testing.T) {
 	require.NoError(t, err)
 	_, err = identity.GetMFASessionData(ctx, sd.RequestID)
 	require.True(t, trace.IsNotFound(err))
+}
+
+const entityDescriptor = `
+<md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" entityID="samlSSOIdP">
+  <md:IDPSSODescriptor protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+    <md:SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="https://localhost:65535/sso"/>
+  </md:IDPSSODescriptor>
+</md:EntityDescriptor>`
+
+// newSAMlConenctorWithEDURL returns a new SAML connector configured with Entity Descriptor URL.
+// It expects the endpoint configured in `samlEDURL` and `samlMFAEDURL` to serve a valid SAML metadata.
+func newSAMlConenctorWithEDURL(t *testing.T, idSvc *local.IdentityService, name, samlEDURL, samlMFAEDURL string) types.SAMLConnector {
+	t.Helper()
+
+	connector, err := types.NewSAMLConnector(name, types.SAMLConnectorSpecV2{
+		AssertionConsumerService: "https://localhost:65535/sso", // not called
+		EntityDescriptorURL:      samlEDURL,
+		AttributesToRoles: []types.AttributeMapping{
+			// not used. can be any name, value but role must exist
+			{Name: "groups", Value: "admin", Roles: []string{"access"}},
+		},
+		MFASettings: &types.SAMLConnectorMFASettings{
+			Enabled:             true,
+			EntityDescriptorUrl: samlMFAEDURL,
+		},
+	})
+	require.NoError(t, err)
+	upserted, err := idSvc.UpsertSAMLConnector(t.Context(), connector)
+	require.NoError(t, err)
+
+	// Check that entity descriptor was fetched and set, i.e. URL was followed in general connector validation path.
+	require.NotEmpty(t, upserted.GetEntityDescriptor())
+	require.NotNil(t, upserted.GetMFASettings())
+	require.NotEmpty(t, upserted.GetMFASettings().EntityDescriptor)
+
+	return upserted
 }
