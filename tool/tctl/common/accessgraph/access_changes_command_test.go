@@ -674,12 +674,14 @@ func TestAccessChangesTextEscapesControlSequences(t *testing.T) {
 			"origin_type": inject,
 		}
 		// A clean AffectedNode keeps the injected payload confined to the diff
-		// row, so the escape assertions can only pass via the diff-row path.
+		// row, so the escape assertions can only pass via the diff-row path. The
+		// Op value is also injected to cover the Operation column, which is a
+		// bare string enum the API can return unvalidated.
 		change := &accessgraph.AccessPathDiff{
 			ChangeId:     fixtureChangeUUID,
 			AffectedNode: accessgraph.AccessPathSummaryItemNode{Id: fixtureAffectedID, Kind: "resource", Name: "prod-db"},
 			Diff: []diffmodels.Operation{
-				{Op: diffmodels.OperationOpAdd, Path: strRef("/nodes/" + newNodeID), Value: anyRef(addNode)},
+				{Op: diffmodels.OperationOp(inject), Path: strRef("/nodes/" + newNodeID), Value: anyRef(addNode)},
 			},
 		}
 		var buf bytes.Buffer

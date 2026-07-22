@@ -392,7 +392,7 @@ func displayAccessChangeText(out io.Writer, change *accessgraph.AccessPathDiff) 
 		if name == "" {
 			name = id
 		}
-		rows = append(rows, []string{string(op.Op), entityType, utils.EscapeControl(name), utils.EscapeControl(kind), utils.EscapeControl(originType)})
+		rows = append(rows, []string{utils.EscapeControl(string(op.Op)), entityType, utils.EscapeControl(name), utils.EscapeControl(kind), utils.EscapeControl(originType)})
 	}
 	diffTable := asciitable.MakeTableWithTruncatedColumn([]string{"Operation", "Type", "Name", "Kind", "Origin Type"}, rows, "Name")
 	_, err := fmt.Fprintln(out, diffTable.AsBuffer().String())
