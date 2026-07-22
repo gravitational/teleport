@@ -19,6 +19,7 @@ import (
 	tctl "github.com/gravitational/teleport/tool/tctl/common"
 	aclcommand "github.com/gravitational/teleport/tool/tctl/common/accesslist"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
+	"github.com/gravitational/teleport/tool/tctl/common/integrations"
 )
 
 func runCommand(t require.TestingT, client *authclient.Client, cmd tctl.CLICommand, args []string) error {
@@ -63,6 +64,16 @@ func runResourceCommand(t *testing.T, client *authclient.Client, args []string) 
 		Stdout: &stdoutBuff,
 	}
 
+	return &stdoutBuff, runCommand(t, client, command, args)
+}
+
+func runAWSICCommand(t *testing.T, client *authclient.Client, args []string) (*bytes.Buffer, error) {
+	var stdoutBuff bytes.Buffer
+	command := &integrations.Command{
+		Stdout: &stdoutBuff,
+	}
+
+	args = append([]string{"integrations", "awsic"}, args...)
 	return &stdoutBuff, runCommand(t, client, command, args)
 }
 
