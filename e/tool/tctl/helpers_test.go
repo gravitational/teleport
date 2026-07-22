@@ -57,6 +57,15 @@ func runACLCommand(t *testing.T, client *authclient.Client, args []string) (*byt
 	return &stdoutBuff, runCommand(t, client, command, args)
 }
 
+func runResourceCommand(t *testing.T, client *authclient.Client, args []string) (*bytes.Buffer, error) {
+	var stdoutBuff bytes.Buffer
+	command := &tctl.ResourceCommand{
+		Stdout: &stdoutBuff,
+	}
+
+	return &stdoutBuff, runCommand(t, client, command, args)
+}
+
 func mustDecodeJSON[T any](t *testing.T, r io.Reader) T {
 	var out T
 	err := json.NewDecoder(r).Decode(&out)

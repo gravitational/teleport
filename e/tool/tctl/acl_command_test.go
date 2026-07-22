@@ -4,9 +4,12 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"io"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
@@ -24,8 +27,10 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/plugin"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
@@ -34,9 +39,12 @@ func TestACLList(t *testing.T) {
 	t.Parallel()
 	client := setupACLSuite(t)
 
-	mustCreateAccessList(t, client, "past-due", time.Now().UTC().Add(-24*time.Hour))
-	mustCreateAccessList(t, client, "due", time.Now().UTC().Add(24*time.Hour))
-	mustCreateAccessList(t, client, "not-yet-due", time.Now().UTC().Add(30*24*time.Hour))
+	mustCreateAccessList(t, client, "", "past-due", time.Now().UTC().Add(-24*time.Hour))
+	mustCreateAccessList(t, client, "", "due", time.Now().UTC().Add(24*time.Hour))
+	mustCreateAccessList(t, client, "", "not-yet-due", time.Now().UTC().Add(30*24*time.Hour))
+	mustCreateAccessList(t, client, "/engineering", "past-due", time.Now().UTC().Add(-24*time.Hour))
+	mustCreateAccessList(t, client, "/engineering", "due", time.Now().UTC().Add(24*time.Hour))
+	mustCreateAccessList(t, client, "/engineering", "not-yet-due", time.Now().UTC().Add(30*24*time.Hour))
 
 	// Fetch all lists.
 	out, err := runACLCommand(t, client, []string{
@@ -44,7 +52,10 @@ func TestACLList(t *testing.T) {
 	})
 	require.NoError(t, err)
 	allLists := getAccessListNames(t, out)
-	require.ElementsMatch(t, []string{"past-due", "due", "not-yet-due"}, allLists)
+	require.ElementsMatch(t, []string{
+		"past-due", "due", "not-yet-due",
+		"/engineering::past-due", "/engineering::due", "/engineering::not-yet-due",
+	}, allLists)
 
 	// Fetch only lists that are due a review.
 	out, err = runACLCommand(t, client, []string{
@@ -52,7 +63,10 @@ func TestACLList(t *testing.T) {
 	})
 	require.NoError(t, err)
 	reviewOnlyLists := getAccessListNames(t, out)
-	require.ElementsMatch(t, []string{"past-due", "due"}, reviewOnlyLists)
+	require.ElementsMatch(t, []string{
+		"past-due", "due",
+		"/engineering::past-due", "/engineering::due",
+	}, reviewOnlyLists)
 }
 
 // TestACLReviews tests access lists CLI for managing access list reviews.
@@ -60,52 +74,220 @@ func TestACLReviews(t *testing.T) {
 	t.Parallel()
 	client := setupACLSuite(t)
 
-	const accessListName = "test"
-	mustCreateAccessList(t, client, accessListName, time.Now().UTC().Add(30*24*time.Hour))
-	mustCreateAccessListMember(t, client, accessListName, "alice")
-	mustCreateAccessListMember(t, client, accessListName, "bob")
-	mustCreateAccessListMember(t, client, accessListName, "charlie")
+	for _, tc := range []struct {
+		name  string
+		scope string
+	}{
+		{name: "unscoped"},
+		{name: "scoped", scope: "/engineering"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			const name = "test"
+			accessListName := scopes.QualifiedName{Scope: tc.scope, Name: name}.String()
+			removedMembers := "alice,bob"
+			expectedMembers := []string{"alice", "bob", "charlie"}
+			var scopedMember string
+			mustCreateAccessList(t, client, tc.scope, name, time.Now().UTC().Add(30*24*time.Hour))
+			mustCreateAccessListMember(t, client, tc.scope, name, "alice")
+			mustCreateAccessListMember(t, client, tc.scope, name, "bob")
+			mustCreateAccessListMember(t, client, tc.scope, name, "charlie")
+			if tc.scope != "" {
+				scopedMember = "/::nested"
+				mustCreateAccessList(t, client, "/", "nested", time.Now().UTC().Add(30*24*time.Hour))
+				_, err := runACLCommand(t, client, []string{"users", "add", "--kind=list", accessListName, scopedMember})
+				require.NoError(t, err)
+				removedMembers += "," + scopedMember
+				expectedMembers = append(expectedMembers, scopedMember)
+			}
 
-	// Make sure we're indeed starting with 3 members.
-	out, err := runACLCommand(t, client, []string{
-		"users", "ls", accessListName, "--format", "json",
-	})
-	require.NoError(t, err)
-	require.ElementsMatch(t, []string{"alice", "bob", "charlie"}, getMemberNames(t, out))
+			// Make sure we're starting with all expected members.
+			out, err := runACLCommand(t, client, []string{
+				"users", "ls", accessListName, "--format", "json",
+			})
+			require.NoError(t, err)
+			require.ElementsMatch(t, expectedMembers, getMemberNames(t, out))
 
-	// Submit a review that removes alice and bob.
-	_, err = runACLCommand(t, client, []string{
-		"reviews", "create", accessListName,
-		"--notes", "first review",
-		"--remove-members", "alice,bob",
-	})
+			// Submit a review that removes alice, bob, and the scoped list member, if present.
+			_, err = runACLCommand(t, client, []string{
+				"reviews", "create", accessListName,
+				"--notes", "first review",
+				"--remove-members", removedMembers,
+			})
+			require.NoError(t, err)
+
+			// Verify the list only has charlie remaining as a member.
+			out, err = runACLCommand(t, client, []string{
+				"users", "ls", accessListName, "--format", "json",
+			})
+			require.NoError(t, err)
+			require.ElementsMatch(t, []string{"charlie"}, getMemberNames(t, out))
+
+			// Submit second review with no changes.
+			_, err = runACLCommand(t, client, []string{
+				"reviews", "create", accessListName,
+				"--notes", "second review",
+			})
+			require.NoError(t, err)
+
+			// Verify we got both reviews.
+			out, err = runACLCommand(t, client, []string{
+				"reviews", "ls", accessListName, "--format", "json",
+			})
+			require.NoError(t, err)
+			reviews := mustDecodeJSON[[]*accesslist.Review](t, out)
+			require.Len(t, reviews, 2)
+			require.Equal(t, tc.scope, reviews[0].GetScope())
+			require.Equal(t, "second review", reviews[0].Spec.Notes)
+			require.Equal(t, []string(nil), reviews[0].Spec.Changes.RemovedMembers)
+			require.Equal(t, tc.scope, reviews[1].GetScope())
+			require.Equal(t, "first review", reviews[1].Spec.Notes)
+			require.Equal(t, []string{"alice", "bob"}, reviews[1].Spec.Changes.RemovedMembers)
+			if scopedMember == "" {
+				require.Empty(t, reviews[1].Spec.Changes.ScopedRemovedMembers)
+			} else {
+				require.Equal(t, []string{scopedMember}, reviews[1].Spec.Changes.ScopedRemovedMembers)
+			}
+		})
+	}
+}
+
+func TestScopedACLUsersAddRemove(t *testing.T) {
+	t.Parallel()
+	client := setupACLSuite(t)
+
+	const (
+		parentListScope  = "/engineering/team1"
+		parentListName   = "team1"
+		memberListScope  = "/engineering"
+		memberListName   = "engineers"
+		unscopedListName = "everyone"
+	)
+	mustCreateAccessList(t, client, parentListScope, parentListName, time.Now().UTC().Add(30*24*time.Hour))
+	mustCreateAccessList(t, client, memberListScope, memberListName, time.Now().UTC().Add(30*24*time.Hour))
+	mustCreateAccessList(t, client, "", unscopedListName, time.Now().UTC().Add(30*24*time.Hour))
+
+	parentListQualifiedName := scopes.QualifiedName{Scope: parentListScope, Name: parentListName}.String()
+	memberListQualifiedName := scopes.QualifiedName{Scope: memberListScope, Name: memberListName}.String()
+
+	for _, tc := range []struct {
+		name               string
+		member             string
+		args               []string
+		wantMembershipKind string
+	}{
+		{
+			name:               "user",
+			member:             "admin",
+			wantMembershipKind: accesslist.MembershipKindUser,
+		},
+		{
+			name:               "unscoped list",
+			member:             unscopedListName,
+			args:               []string{"--kind=list"},
+			wantMembershipKind: accesslist.MembershipKindList,
+		},
+		{
+			name:               "scoped list",
+			member:             memberListQualifiedName,
+			args:               []string{"--kind=list"},
+			wantMembershipKind: accesslist.MembershipKindScopedList,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			args := append([]string{"users", "add", parentListQualifiedName, tc.member}, tc.args...)
+			_, err := runACLCommand(t, client, args)
+			require.NoError(t, err)
+
+			out, err := runACLCommand(t, client, []string{"users", "ls", parentListQualifiedName, "--format=json"})
+			require.NoError(t, err)
+			members := mustDecodeJSON[[]*accesslist.AccessListMember](t, out)
+			require.Len(t, members, 1)
+			require.Equal(t, tc.member, members[0].Spec.Name)
+			require.Equal(t, tc.wantMembershipKind, members[0].Spec.MembershipKind)
+			require.Equal(t, parentListScope, members[0].GetScope())
+
+			_, err = runACLCommand(t, client, []string{"users", "rm", parentListQualifiedName, tc.member})
+			require.NoError(t, err)
+			out, err = runACLCommand(t, client, []string{"users", "ls", parentListQualifiedName, "--format=json"})
+			require.NoError(t, err)
+			require.Empty(t, getMemberNames(t, out))
+		})
+	}
+}
+
+func TestScopedACLUpdateRemove(t *testing.T) {
+	t.Parallel()
+	client := setupACLSuite(t)
+
+	const (
+		name           = "test"
+		scope          = "/engineering"
+		accessListName = scope + "::" + name
+	)
+	nextAuditDate := time.Now().UTC().Add(30 * 24 * time.Hour)
+	mustCreateAccessList(t, client, "", name, nextAuditDate)
+	mustCreateAccessList(t, client, scope, name, nextAuditDate)
+
+	_, err := runACLCommand(t, client, []string{"update", accessListName, "--title", "updated scoped list"})
 	require.NoError(t, err)
 
-	// Verify the list only has charlie remaining as a member.
-	out, err = runACLCommand(t, client, []string{
-		"users", "ls", accessListName, "--format", "json",
-	})
+	out, err := runACLCommand(t, client, []string{"get", accessListName, "--format=json"})
 	require.NoError(t, err)
-	require.ElementsMatch(t, []string{"charlie"}, getMemberNames(t, out))
+	updated := mustDecodeJSON[[]*accesslist.AccessList](t, out)
+	require.Len(t, updated, 1)
+	require.Equal(t, scope, updated[0].GetScope())
+	require.Equal(t, "updated scoped list", updated[0].Spec.Title)
 
-	// Submit second review with no changes.
-	_, err = runACLCommand(t, client, []string{
-		"reviews", "create", accessListName,
-		"--notes", "second review",
-	})
+	out, err = runACLCommand(t, client, []string{"get", name, "--format=json"})
+	require.NoError(t, err)
+	unscoped := mustDecodeJSON[[]*accesslist.AccessList](t, out)
+	require.Len(t, unscoped, 1)
+	require.Equal(t, name, unscoped[0].Spec.Title)
+
+	_, err = runACLCommand(t, client, []string{"rm", accessListName})
+	require.NoError(t, err)
+	_, err = runACLCommand(t, client, []string{"get", accessListName, "--format=json"})
+	require.True(t, trace.IsNotFound(err), "expected NotFound after deleting scoped access list, got %v", err)
+
+	_, err = runACLCommand(t, client, []string{"get", name, "--format=json"})
+	require.NoError(t, err)
+}
+
+func TestScopedACLResourceCommands(t *testing.T) {
+	t.Parallel()
+	client := setupACLSuite(t)
+
+	const (
+		name  = "scoped-access-list"
+		scope = "/engineering"
+	)
+	acl, err := accesslist.NewAccessListWithScope(header.Metadata{Name: name}, accesslist.Spec{
+		Title:  "Scoped Access List",
+		Owners: []accesslist.Owner{{Name: "admin"}},
+	}, scope)
 	require.NoError(t, err)
 
-	// Verify we got both reviews.
-	out, err = runACLCommand(t, client, []string{
-		"reviews", "ls", accessListName, "--format", "json",
-	})
+	yamlPath := filepath.Join(t.TempDir(), "access-list.yaml")
+	yamlFile, err := os.Create(yamlPath)
 	require.NoError(t, err)
-	reviews := mustDecodeJSON[[]*accesslist.Review](t, out)
-	require.Len(t, reviews, 2)
-	require.Equal(t, "second review", reviews[0].Spec.Notes)
-	require.Equal(t, []string(nil), reviews[0].Spec.Changes.RemovedMembers)
-	require.Equal(t, "first review", reviews[1].Spec.Notes)
-	require.Equal(t, []string{"alice", "bob"}, reviews[1].Spec.Changes.RemovedMembers)
+	require.NoError(t, utils.WriteYAML(yamlFile, acl))
+	require.NoError(t, yamlFile.Close())
+
+	_, err = runResourceCommand(t, client, []string{"create", yamlPath})
+	require.NoError(t, err)
+
+	out, err := runResourceCommand(t, client, []string{"get", types.KindAccessList, scope + "::" + name, "--format=json"})
+	require.NoError(t, err)
+	accessLists := mustDecodeJSON[[]*accesslist.AccessList](t, out)
+	require.Len(t, accessLists, 1)
+	require.Equal(t, name, accessLists[0].GetName())
+	require.Equal(t, scope, accessLists[0].GetScope())
+
+	_, err = runResourceCommand(t, client, []string{"rm", types.KindAccessList, scope + "::" + name})
+	require.NoError(t, err)
+
+	_, err = runResourceCommand(t, client, []string{"get", types.KindAccessList, scope + "::" + name, "--format=json"})
+	require.True(t, trace.IsNotFound(err), "expected NotFound after deleting scoped access list, got %v", err)
 }
 
 func setupACLSuite(t *testing.T) *authclient.Client {
@@ -123,6 +305,7 @@ func setupACLSuite(t *testing.T) *authclient.Client {
 				},
 			}
 
+			cfg.ScopesFeatures = scopes.Features{Enabled: true}
 			cfg.PluginRegistry = plugin.NewRegistry()
 			cfg.Modules = testModules
 			authPlugin, err := authe.NewPlugin(authe.Config{
@@ -206,13 +389,13 @@ func makeClient(t *testing.T, process *service.TeleportProcess, username string)
 	return clt
 }
 
-func mustCreateAccessList(t *testing.T, client *authclient.Client, name string, nextAuditDate time.Time) {
+func mustCreateAccessList(t *testing.T, client *authclient.Client, scope, name string, nextAuditDate time.Time) {
 	t.Helper()
 
 	currentUser, err := client.GetCurrentUser(t.Context())
 	require.NoError(t, err)
 
-	acl, err := accesslist.NewAccessList(header.Metadata{Name: name}, accesslist.Spec{
+	acl, err := accesslist.NewAccessListWithScope(header.Metadata{Name: name}, accesslist.Spec{
 		Title: name,
 		Owners: []accesslist.Owner{
 			{Name: currentUser.GetName()},
@@ -220,20 +403,20 @@ func mustCreateAccessList(t *testing.T, client *authclient.Client, name string, 
 		Audit: accesslist.Audit{
 			NextAuditDate: nextAuditDate,
 		},
-	})
+	}, scope)
 	require.NoError(t, err)
 
 	_, err = client.AccessListClient().UpsertAccessList(t.Context(), acl)
 	require.NoError(t, err)
 }
 
-func mustCreateAccessListMember(t *testing.T, client *authclient.Client, accessListName, memberName string) {
+func mustCreateAccessListMember(t *testing.T, client *authclient.Client, scope, accessListName, memberName string) {
 	t.Helper()
 
-	member, err := accesslist.NewAccessListMember(header.Metadata{Name: memberName}, accesslist.AccessListMemberSpec{
-		AccessList: accessListName,
+	member, err := accesslist.NewAccessListMemberWithScope(header.Metadata{Name: memberName}, accesslist.AccessListMemberSpec{
+		AccessList: scopes.QualifiedName{Scope: scope, Name: accessListName}.String(),
 		Name:       memberName,
-	})
+	}, scope)
 	require.NoError(t, err)
 
 	_, err = client.AccessListClient().UpsertAccessListMember(t.Context(), member)
@@ -257,7 +440,7 @@ func getAccessListNames(t *testing.T, r io.Reader) []string {
 	lists := mustDecodeJSON[[]*accesslist.AccessList](t, r)
 	names := make([]string, 0, len(lists))
 	for _, list := range lists {
-		names = append(names, list.GetName())
+		names = append(names, scopes.QualifiedName{Scope: list.GetScope(), Name: list.GetName()}.String())
 	}
 	return names
 }
