@@ -6674,10 +6674,23 @@ message LockSpecV2 {
   string CreatedBy = 5 [(gogoproto.jsontag) = "created_by,omitempty"];
 }
 
-// LockTarget lists the attributes of interactions to be disabled.
+// LockTarget lists the attributes of interactions to be disabled. This type is
+// performance sensitive (as lock targets are checked during authz for just
+// about every interaction with the cluster) and it's used as a Go map key and
+// compared with Go equality, so care must be taken when adding fields to the
+// message. There is an assertion for the resulting Go message type to be
+// comparable, but some comparable types (like any pointer, or time.Time) don't
+// compare _correctly_ without additional steps. It's best to limit this message
+// to numbers and strings, if new additions are necessary.
 message LockTarget {
   option (gogoproto.goproto_stringer) = false;
   option (gogoproto.stringer) = false;
+
+  // these options remove extraneous fields from the resulting Go struct, making
+  // it more obvious to compare
+  option (gogoproto.goproto_unrecognized) = false;
+  option (gogoproto.goproto_sizecache) = false;
+  option (gogoproto.goproto_unkeyed) = false;
 
   // User specifies the name of a Teleport user.
   string User = 1 [(gogoproto.jsontag) = "user,omitempty"];

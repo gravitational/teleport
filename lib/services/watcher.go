@@ -1306,7 +1306,7 @@ func (p *lockCollector) notifyStale() {
 func lockTargetsToWatchKinds(targets []types.LockTarget) ([]types.WatchKind, error) {
 	watchKinds := make([]types.WatchKind, 0, len(targets))
 	for _, target := range targets {
-		if target.IsEmpty() {
+		if target == (types.LockTarget{}) {
 			continue
 		}
 		filter, err := target.IntoMap()

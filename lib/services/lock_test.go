@@ -22,6 +22,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/gravitational/teleport/api/types"
@@ -45,25 +46,25 @@ func TestLockTargetsFromTLSIdentity(t *testing.T) {
 		}
 
 		// Test.
-		got := services.LockTargetsFromTLSIdentity(identity)
+		got := make(map[types.LockTarget]struct{})
+		for lockTarget := range services.LockTargetsFromTLSIdentity(identity) {
+			got[lockTarget] = struct{}{}
+		}
 
-		want := []types.LockTarget{
-			{User: identity.Username},
-			{MFADevice: identity.MFAVerified},
-			{Device: identity.DeviceExtensions.DeviceID},
-			{JoinToken: "example"},
-			{BotInstanceID: "a-b-c-d"},
+		want := map[types.LockTarget]struct{}{
+			{User: identity.Username}:                    struct{}{},
+			{MFADevice: identity.MFAVerified}:            struct{}{},
+			{Device: identity.DeviceExtensions.DeviceID}: struct{}{},
+			{JoinToken: "example"}:                       struct{}{},
+			{BotInstanceID: "a-b-c-d"}:                   struct{}{},
 		}
-		// Insert roles at the start to match `got`s order.
-		// The test itself doesn't care about the order, it's just easier to test
-		// this way.
-		want = append(services.RolesToLockTargets(identity.Groups), want...)
+		for _, role := range identity.Groups {
+			want[types.LockTarget{Role: role}] = struct{}{}
+		}
 		for _, request := range identity.ActiveRequests {
-			want = append(want, types.LockTarget{AccessRequest: request})
+			want[types.LockTarget{AccessRequest: request}] = struct{}{}
 		}
-		if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
-			t.Errorf("LockTargetsFromTLSIdentity mismatch (-want +got)\n%s", diff)
-		}
+		require.Empty(t, cmp.Diff(want, got, protocmp.Transform()), "LockTargetsFromTLSIdentity mismatch")
 	})
 }
 
