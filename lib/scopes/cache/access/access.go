@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/observability/tracing"
+	"github.com/gravitational/teleport/lib/scopes"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/scopes/cache/assignments"
 	"github.com/gravitational/teleport/lib/scopes/cache/roles"
@@ -437,11 +438,25 @@ func processEvent(ctx context.Context, state state, event types.Event) error {
 	case types.OpDelete:
 		switch event.Resource.GetKind() {
 		case scopedaccess.KindScopedRole:
-			state.roles.Delete(event.Resource.GetName())
+			role, err := types.ConvertResource[*scopedaccessv1.ScopedRole](event.Resource)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			state.roles.Delete(scopes.QualifiedName{
+				Scope: role.GetScope(),
+				Name:  role.GetMetadata().GetName(),
+			})
 		case scopedaccess.KindScopedRoleAssignment:
-			state.assignments.Delete(event.Resource.GetName(), event.Resource.GetSubKind())
+			assignment, err := types.ConvertResource[*scopedaccessv1.ScopedRoleAssignment](event.Resource)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			state.assignments.Delete(scopes.QualifiedName{
+				Scope: assignment.GetScope(),
+				Name:  assignment.GetMetadata().GetName(),
+			}, assignment.GetSubKind())
 		default:
-			return trace.BadParameter("unexpected resource kind %q in event delete event", event.Resource.GetKind())
+			return trace.BadParameter("unexpected resource kind %q in delete event", event.Resource.GetKind())
 		}
 	default:
 		slog.WarnContext(ctx, "scoped access cache skipping unexpected event type", "event_type", event.Type)

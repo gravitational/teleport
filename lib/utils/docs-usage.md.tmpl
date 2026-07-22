@@ -1,5 +1,6 @@
 {{define "FormatCommand" -}}
-{{if .Flags|AnyVisibleFlags}}{{if .FlagSummary }} {{.FlagSummary}}{{end}}{{end -}}
+{{$flags := EffectiveFlags . -}}
+{{if $flags|AnyVisibleFlags}}{{if $flags|FlagSummary }} {{ $flags|FlagSummary }}{{end}}{{end -}}
     {{range .Args}}{{if not .Hidden}} {{ .|FormatUsageArg}}{{end}}{{end -}}
 {{end -}}
 
@@ -16,21 +17,22 @@ Usage:
 $ {{$appName}} {{.FullCommand}}{{template "FormatCommand" .}}
 ```
 
-{{if AnyEnvVarsForCmd .Args .Flags -}}
+{{$flags := EffectiveFlags . -}}
+{{if AnyEnvVarsForCmd .Args $flags -}}
 Environment variables:
 
 |Variable|Default|Description|
 |---|---|---|
-{{- EnvVarsToRows .Args .Flags|FormatThreeColMarkdownTable}}
+{{- EnvVarsToRows .Args $flags|FormatThreeColMarkdownTable}}
 
 {{end -}}
 
-{{ if .Flags|AnyVisibleFlags -}}
+{{ if $flags|AnyVisibleFlags -}}
 Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-{{- (ReplaceFlagDefaults (printf "%v %v" $appName .FullCommand) .Flags)|FlagsToRows|FormatThreeColMarkdownTable }}
+{{- (ReplaceFlagDefaults (printf "%v %v" $appName .FullCommand) $flags)|FlagsToRows|FormatThreeColMarkdownTable }}
 
 {{end -}}
 {{ if .Args -}}

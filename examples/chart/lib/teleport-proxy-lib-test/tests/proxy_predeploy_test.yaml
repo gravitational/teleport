@@ -20,7 +20,7 @@ tests:
     values:
       - ../.lint/resources.yaml
     asserts:
-      - isEmpty:
+      - notExists:
           path: spec.template.spec.containers[0].resources
 
   - it: should set resources on proxy predeploy job when jobResources set in values

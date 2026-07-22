@@ -72,12 +72,20 @@ message UpsertWorkloadIdentityRequest {
 message GetWorkloadIdentityRequest {
   // The name of the workload identity to retrieve.
   string name = 1;
+  // The scope the workload identity is expected to belong to. If unset, the
+  // workload identity is expected to be unscoped. If the named workload
+  // identity does not belong to this scope, a not found error is returned.
+  string scope = 2;
 }
 
 // The request for DeleteWorkloadIdentity.
 message DeleteWorkloadIdentityRequest {
   // The name of the workload identity to delete.
   string name = 1;
+  // The scope the workload identity is expected to belong to. If unset, the
+  // workload identity is expected to be unscoped. If the named workload
+  // identity does not belong to this scope, a not found error is returned.
+  string scope = 2;
 }
 
 // The request for ListWorkloadIdentities.

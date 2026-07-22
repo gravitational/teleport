@@ -82,6 +82,7 @@ import (
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	delegationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1"
+	publicdevicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/public/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	discoveryconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
 	dynamicwindowsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dynamicwindows/v1"
@@ -778,6 +779,12 @@ func (c *Client) setClosed() bool {
 // "not implemented" errors (as per the default gRPC behavior).
 func (c *Client) DevicesClient() devicepb.DeviceTrustServiceClient {
 	return devicepb.NewDeviceTrustServiceClient(c.conn)
+}
+
+// PublicDevicesClient returns a client for the public Device Trust service,
+// using the underlying Auth gRPC connection.
+func (c *Client) PublicDevicesClient() publicdevicepb.DeviceTrustServiceClient {
+	return publicdevicepb.NewDeviceTrustServiceClient(c.conn)
 }
 
 // CreateDeviceResource creates a device using its resource representation.
@@ -1776,6 +1783,7 @@ func (c *Client) GenerateAppToken(ctx context.Context, req types.GenerateAppToke
 		URI:           req.URI,
 		Expires:       req.Expires,
 		AuthorityType: string(req.AuthorityType),
+		Scope:         req.Scope,
 	})
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -2154,10 +2162,7 @@ func (c *Client) GetSAMLConnector(ctx context.Context, name string, withSecrets 
 
 // GetSAMLConnectorWithValidationOptions returns a SAML connector by name.
 func (c *Client) GetSAMLConnectorWithValidationOptions(ctx context.Context, name string, withSecrets bool, opts ...types.SAMLConnectorValidationOption) (types.SAMLConnector, error) {
-	var options types.SAMLConnectorValidationOptions
-	for _, opt := range opts {
-		opt(&options)
-	}
+	options := types.NewSAMLConnectorValidationOptions(opts)
 
 	if name == "" {
 		return nil, trace.BadParameter("cannot get SAML Connector, missing name")
@@ -2185,10 +2190,7 @@ func (c *Client) GetSAMLConnectors(ctx context.Context, withSecrets bool) ([]typ
 //
 // Deprecated: Use [Client.ListSAMLConnectorsWithOptions] instead.
 func (c *Client) GetSAMLConnectorsWithValidationOptions(ctx context.Context, withSecrets bool, opts ...types.SAMLConnectorValidationOption) ([]types.SAMLConnector, error) {
-	var options types.SAMLConnectorValidationOptions
-	for _, opt := range opts {
-		opt(&options)
-	}
+	options := types.NewSAMLConnectorValidationOptions(opts)
 
 	req := &types.ResourcesWithSecretsRequest{
 		WithSecrets:                withSecrets,
@@ -2209,10 +2211,7 @@ func (c *Client) GetSAMLConnectorsWithValidationOptions(ctx context.Context, wit
 // ListSAMLConnectorsWithOptions returns a page of valid registered SAML connectors.
 // withSecrets adds or removes client secret from return results.
 func (c *Client) ListSAMLConnectorsWithOptions(ctx context.Context, limit int, start string, withSecrets bool, opts ...types.SAMLConnectorValidationOption) ([]types.SAMLConnector, string, error) {
-	var options types.SAMLConnectorValidationOptions
-	for _, opt := range opts {
-		opt(&options)
-	}
+	options := types.NewSAMLConnectorValidationOptions(opts)
 
 	resp, err := c.grpc.ListSAMLConnectors(ctx, &proto.ListSAMLConnectorsRequest{
 		PageSize:     int32(limit),
@@ -3091,6 +3090,10 @@ func (c *Client) GetDynamicWindowsDesktop(ctx context.Context, name string) (typ
 // (as per the default gRPC behavior).
 func (c *Client) LinuxDesktopClient() *linuxdesktop.Client {
 	return linuxdesktop.NewClient(linuxdesktopv1.NewLinuxDesktopServiceClient(c.conn))
+}
+
+func (c *Client) GetLinuxDesktop(ctx context.Context, name string) (*linuxdesktopv1.LinuxDesktop, error) {
+	return c.LinuxDesktopClient().GetLinuxDesktop(ctx, name)
 }
 
 // ClusterConfigClient returns an unadorned Cluster Configuration client, using the underlying

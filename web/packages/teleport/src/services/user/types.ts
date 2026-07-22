@@ -38,6 +38,10 @@ export interface UserContext {
   authType: AuthType;
   acl: Acl;
   username: string;
+  /** Human-readable name resolved server-side, empty if not distinct from username. */
+  displayPrimary: string;
+  /** Supporting context resolved server-side, usually email. */
+  displaySecondary: string;
   cluster: Cluster;
   accessStrategy: AccessStrategy;
   accessCapabilities: AccessCapabilities;
@@ -49,6 +53,11 @@ export interface UserContext {
   allowedSearchAsRoles: string[];
   /** Indicates whether the user has a password set. */
   passwordState: PasswordState;
+  /**
+   * A list of scopes available to sign in for this user, based on user's
+   * scoped role assignments.
+   */
+  availableScopes: string[];
 }
 
 /**
@@ -133,6 +142,7 @@ export interface Acl {
   inferencePolicy: Access;
   inferenceModel: Access;
   inferenceSecret: Access;
+  classifier: Access;
   beam: Access;
   mobileDevice: MobileDeviceAccess;
 }

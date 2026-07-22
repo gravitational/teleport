@@ -28,10 +28,12 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gravitational/trace"
 
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/usertasks"
 	libcloudaws "github.com/gravitational/teleport/lib/cloud/aws"
 	awsregions "github.com/gravitational/teleport/lib/cloud/aws/regions"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
@@ -188,6 +190,14 @@ type EC2ClientGetter func(ctx context.Context, region string, opts ...awsconfig.
 // AWSOrganizationsGetter gets an AWS Organizations client used for listing accounts.
 type AWSOrganizationsGetter func(ctx context.Context, opts ...awsconfig.OptionsFn) (organizations.OrganizationsClient, error)
 
+// AWSSTSClient is the subset of the AWS STS API used by EC2 discovery.
+type AWSSTSClient interface {
+	GetCallerIdentity(ctx context.Context, params *sts.GetCallerIdentityInput, optFns ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error)
+}
+
+// AWSSTSGetter gets an AWS STS client for the given region.
+type AWSSTSGetter func(ctx context.Context, region string, opts ...awsconfig.OptionsFn) (AWSSTSClient, error)
+
 // MatcherToEC2FetcherParams contains parameters for converting AWS EC2 Matchers
 // into AWS EC2 Fetchers.
 type MatcherToEC2FetcherParams struct {
@@ -199,6 +209,8 @@ type MatcherToEC2FetcherParams struct {
 	RegionsListerGetter awsregions.ListerGetter
 	// AWSOrganizationsGetter gets a client that is capable of listing AWS organizations.
 	AWSOrganizationsGetter AWSOrganizationsGetter
+	// AWSSTSGetter gets a client that is capable of resolving AWS caller identity.
+	AWSSTSGetter AWSSTSGetter
 	// DiscoveryConfigName is the name of the DiscoveryConfig that contains the matchers.
 	// Empty if using static matchers (coming from the `teleport.yaml`).
 	DiscoveryConfigName string
@@ -220,12 +232,116 @@ func MatchersToEC2InstanceFetchers(ctx context.Context, matcherParams MatcherToE
 			EC2ClientGetter:        matcherParams.EC2ClientGetter,
 			RegionsListerGetter:    matcherParams.RegionsListerGetter,
 			AWSOrganizationsGetter: matcherParams.AWSOrganizationsGetter,
+			AWSSTSGetter:           matcherParams.AWSSTSGetter,
 			DiscoveryConfigName:    matcherParams.DiscoveryConfigName,
 			Logger:                 matcherParams.Logger,
 		})
 		ret = append(ret, fetcher)
 	}
 	return ret, nil
+}
+
+func (f *ec2InstanceFetcher) permissionErrorOrWarn(ctx context.Context, err error, region, assumeRoleARN string) error {
+	if len(EC2IAMPermissionErrors(err)) > 0 {
+		return trace.Wrap(err)
+	}
+
+	logAttrs := []any{
+		"assume_role_arn", assumeRoleARN,
+		"error", err,
+	}
+	if region != "" {
+		logAttrs = append(logAttrs, "region", region)
+	}
+
+	f.Logger.WarnContext(ctx, "Failed to discover EC2 instances", logAttrs...)
+	return nil
+}
+
+type awsCallerIdentity struct {
+	accountID string
+	arn       string
+}
+
+type awsCallerIdentityResolver func() *awsCallerIdentity
+
+func (f *ec2InstanceFetcher) resolveCallerIdentity(ctx context.Context, region string, awsOpts ...awsconfig.OptionsFn) (*awsCallerIdentity, error) {
+	if f.AWSSTSGetter == nil {
+		return nil, trace.BadParameter("AWS STS client getter is required")
+	}
+
+	stsClient, err := f.AWSSTSGetter(ctx, region, awsOpts...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if stsClient == nil {
+		return nil, trace.BadParameter("AWS STS client getter returned a nil client")
+	}
+
+	identity, err := libcloudaws.GetIdentityWithClient(ctx, stsClient)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &awsCallerIdentity{
+		accountID: identity.GetAccountID(),
+		arn:       identity.String(),
+	}, nil
+}
+
+func (f *ec2InstanceFetcher) newCallerIdentityResolver(ctx context.Context, assumeRoleARN string, awsOpts ...awsconfig.OptionsFn) awsCallerIdentityResolver {
+	return sync.OnceValue(func() *awsCallerIdentity {
+		callerIdentity, err := f.resolveCallerIdentity(ctx, "", awsOpts...)
+		if err != nil {
+			f.Logger.WarnContext(ctx, "Failed to resolve AWS caller identity; continuing EC2 discovery without caller identity",
+				"integration", f.Matcher.Integration,
+				"assume_role_arn", assumeRoleARN,
+				"error", err,
+			)
+			return nil
+		}
+		return callerIdentity
+	})
+}
+
+func accountIDFromPermissionErrorScope(assumeRoleARN string, callerIdentity *awsCallerIdentity) string {
+	if callerIdentity != nil && callerIdentity.accountID != "" {
+		return callerIdentity.accountID
+	}
+	return accountIDFromRoleARN(assumeRoleARN)
+}
+
+type ec2DiscoveryPermissionErrorParams struct {
+	err                   error
+	issueType             string
+	assumeRoleARN         string
+	region                string
+	resolveCallerIdentity awsCallerIdentityResolver
+}
+
+func (f *ec2InstanceFetcher) wrapEC2DiscoveryPermissionError(params ec2DiscoveryPermissionErrorParams) error {
+	convertedErr := libcloudaws.ConvertRequestFailureError(params.err)
+	if !isEC2DiscoveryPermissionError(convertedErr) {
+		return trace.Wrap(convertedErr)
+	}
+	var callerIdentity *awsCallerIdentity
+	if params.resolveCallerIdentity != nil {
+		callerIdentity = params.resolveCallerIdentity()
+	}
+	var callerARN string
+	if callerIdentity != nil {
+		callerARN = callerIdentity.arn
+	}
+
+	return trace.Wrap(&EC2IAMPermissionError{
+		Integration:         f.Matcher.Integration,
+		Region:              params.region,
+		IssueType:           params.issueType,
+		DiscoveryConfigName: f.DiscoveryConfigName,
+		AccountID:           accountIDFromPermissionErrorScope(params.assumeRoleARN, callerIdentity),
+		CallerARN:           callerARN,
+		Err:                 convertedErr,
+	})
 }
 
 type ec2FetcherConfig struct {
@@ -237,6 +353,7 @@ type ec2FetcherConfig struct {
 	EC2ClientGetter        EC2ClientGetter
 	RegionsListerGetter    awsregions.ListerGetter
 	AWSOrganizationsGetter AWSOrganizationsGetter
+	AWSSTSGetter           AWSSTSGetter
 	DiscoveryConfigName    string
 	Logger                 *slog.Logger
 }
@@ -460,10 +577,35 @@ func chunkInstances(instancesByRegion map[string]EC2Instances) []*EC2Instances {
 	return instColl
 }
 
+type matcherRegionsParams struct {
+	awsOpts               []awsconfig.OptionsFn
+	assumeRoleARN         string
+	resolveCallerIdentity awsCallerIdentityResolver
+}
+
+func (f *ec2InstanceFetcher) matcherRegions(ctx context.Context, params matcherRegionsParams) ([]string, error) {
+	if !f.Matcher.IsRegionWildcard() {
+		return f.Matcher.Regions, nil
+	}
+
+	regions, err := awsregions.ListEnabledRegions(ctx, f.RegionsListerGetter, params.awsOpts...)
+	if err != nil {
+		return nil, f.wrapEC2DiscoveryPermissionError(ec2DiscoveryPermissionErrorParams{
+			err:                   err,
+			issueType:             usertasks.AutoDiscoverEC2IssuePermAccountDenied,
+			assumeRoleARN:         params.assumeRoleARN,
+			resolveCallerIdentity: params.resolveCallerIdentity,
+		})
+	}
+
+	return regions, nil
+}
+
 func (f *ec2InstanceFetcher) fetchAccountIDsUnderOrganization(ctx context.Context) ([]string, error) {
 	awsOpts := []awsconfig.OptionsFn{
 		awsconfig.WithCredentialsMaybeIntegration(awsconfig.IntegrationMetadata{Name: f.Matcher.Integration}),
 	}
+	resolveCallerIdentity := f.newCallerIdentityResolver(ctx, "", awsOpts...)
 
 	var organizationID string
 	var includeOUs []string
@@ -476,7 +618,11 @@ func (f *ec2InstanceFetcher) fetchAccountIDsUnderOrganization(ctx context.Contex
 
 	orgsClient, err := f.AWSOrganizationsGetter(ctx, awsOpts...)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, f.wrapEC2DiscoveryPermissionError(ec2DiscoveryPermissionErrorParams{
+			err:                   err,
+			issueType:             usertasks.AutoDiscoverEC2IssuePermOrgDenied,
+			resolveCallerIdentity: resolveCallerIdentity,
+		})
 	}
 
 	accountIDs, err := organizations.MatchingAccounts(ctx, f.Logger, orgsClient, organizations.MatchingAccountsFilter{
@@ -485,13 +631,11 @@ func (f *ec2InstanceFetcher) fetchAccountIDsUnderOrganization(ctx context.Contex
 		OrganizationID: organizationID,
 	})
 	if err != nil {
-		convertedErr := libcloudaws.ConvertRequestFailureError(err)
-		if trace.IsAccessDenied(convertedErr) {
-			// TODO(marco): create UserTask to alert users about missing permissions.
-			return nil, trace.BadParameter("discovering instances under an organization requires the following permissions: [%s], add those to the IAM Role used by the Discovery Service", strings.Join(organizations.RequiredAPIs(), ", "))
-		}
-
-		return nil, trace.Wrap(convertedErr)
+		return nil, f.wrapEC2DiscoveryPermissionError(ec2DiscoveryPermissionErrorParams{
+			err:                   err,
+			issueType:             usertasks.AutoDiscoverEC2IssuePermOrgDenied,
+			resolveCallerIdentity: resolveCallerIdentity,
+		})
 	}
 
 	return accountIDs, nil
@@ -557,6 +701,7 @@ func (f *ec2InstanceFetcher) GetInstances(ctx context.Context, rotation bool) ([
 
 	f.cachedInstances.clear()
 	var allInstances []*EC2Instances
+	var permissionErrors []error
 
 	accountRolesToAssume, err := f.allAssumeRoles(ctx)
 	if err != nil {
@@ -568,32 +713,32 @@ func (f *ec2InstanceFetcher) GetInstances(ctx context.Context, rotation bool) ([
 			awsconfig.WithCredentialsMaybeIntegration(awsconfig.IntegrationMetadata{Name: f.Matcher.Integration}),
 			awsconfig.WithAssumeRole(assumeRole.RoleARN, assumeRole.ExternalID),
 		}
+		resolveCallerIdentity := f.newCallerIdentityResolver(ctx, assumeRole.RoleARN, awsOpts...)
 
-		regions := f.Matcher.Regions
-		if f.Matcher.IsRegionWildcard() {
-			regions, err = awsregions.ListEnabledRegions(ctx, f.RegionsListerGetter, awsOpts...)
-			if err != nil {
-				f.Logger.WarnContext(ctx, "Failed to get regions for EC2 discovery",
-					"assume_role_arn", assumeRole.RoleARN,
-					"error", err,
-				)
-				continue
-			}
+		regions, err := f.matcherRegions(ctx, matcherRegionsParams{
+			awsOpts:               awsOpts,
+			assumeRoleARN:         assumeRole.RoleARN,
+			resolveCallerIdentity: resolveCallerIdentity,
+		})
+		if err != nil {
+			permissionErrors = append(permissionErrors,
+				f.permissionErrorOrWarn(ctx, err, "", assumeRole.RoleARN),
+			)
+			continue
 		}
 
 		for _, region := range regions {
 			regionInstances, err := f.getInstancesInRegion(ctx, getInstancesInRegionParams{
-				rotation:     rotation,
-				region:       region,
-				assumeRole:   assumeRole,
-				awsOpts:      awsOpts,
-				ssmRunParams: ssmRunParams,
+				rotation:              rotation,
+				region:                region,
+				assumeRole:            assumeRole,
+				awsOpts:               awsOpts,
+				ssmRunParams:          ssmRunParams,
+				resolveCallerIdentity: resolveCallerIdentity,
 			})
 			if err != nil {
-				f.Logger.WarnContext(ctx, "Failed to get instances for EC2 discovery",
-					"region", region,
-					"assume_role_arn", assumeRole.RoleARN,
-					"error", err,
+				permissionErrors = append(permissionErrors,
+					f.permissionErrorOrWarn(ctx, err, region, assumeRole.RoleARN),
 				)
 				continue
 			}
@@ -602,26 +747,37 @@ func (f *ec2InstanceFetcher) GetInstances(ctx context.Context, rotation bool) ([
 		}
 	}
 
+	permissionErr := trace.NewAggregate(permissionErrors...)
 	if len(allInstances) == 0 {
+		if permissionErr != nil {
+			return nil, trace.Wrap(permissionErr)
+		}
 		return nil, trace.NotFound("no ec2 instances found")
 	}
 
-	return allInstances, nil
+	return allInstances, trace.Wrap(permissionErr)
 }
 
 type getInstancesInRegionParams struct {
-	rotation     bool
-	region       string
-	assumeRole   assumeRoleWithExternalID
-	awsOpts      []awsconfig.OptionsFn
-	ssmRunParams map[string]string
+	rotation              bool
+	region                string
+	assumeRole            assumeRoleWithExternalID
+	awsOpts               []awsconfig.OptionsFn
+	ssmRunParams          map[string]string
+	resolveCallerIdentity awsCallerIdentityResolver
 }
 
 // getInstancesInRegion fetches all EC2 instances in a given region.
 func (f *ec2InstanceFetcher) getInstancesInRegion(ctx context.Context, params getInstancesInRegionParams) ([]*EC2Instances, error) {
 	ec2Client, err := f.EC2ClientGetter(ctx, params.region, params.awsOpts...)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, f.wrapEC2DiscoveryPermissionError(ec2DiscoveryPermissionErrorParams{
+			err:                   err,
+			issueType:             usertasks.AutoDiscoverEC2IssuePermAccountDenied,
+			assumeRoleARN:         params.assumeRole.RoleARN,
+			region:                params.region,
+			resolveCallerIdentity: params.resolveCallerIdentity,
+		})
 	}
 
 	var instances []*EC2Instances
@@ -633,7 +789,13 @@ func (f *ec2InstanceFetcher) getInstancesInRegion(ctx context.Context, params ge
 	for paginator.HasMorePages() {
 		page, err := paginator.NextPage(ctx)
 		if err != nil {
-			return nil, libcloudaws.ConvertRequestFailureError(err)
+			return nil, f.wrapEC2DiscoveryPermissionError(ec2DiscoveryPermissionErrorParams{
+				err:                   err,
+				issueType:             usertasks.AutoDiscoverEC2IssuePermAccountDenied,
+				assumeRoleARN:         params.assumeRole.RoleARN,
+				region:                params.region,
+				resolveCallerIdentity: params.resolveCallerIdentity,
+			})
 		}
 
 		pageInstancesPerOwnerID := make(map[string][]ec2types.Instance)

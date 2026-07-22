@@ -49,6 +49,8 @@ use util::{from_c_string, from_go_array};
 pub mod client;
 mod cliprdr;
 mod license;
+#[cfg(feature = "desktop-encoder")]
+mod linux_desktop_encoder;
 mod network_client;
 mod piv;
 mod rdpdr;
@@ -795,6 +797,7 @@ extern "C" {
         user_channel_id: u16,
         screen_width: u16,
         screen_height: u16,
+        share_id: u32,
     ) -> CGOErrCode;
     fn cgo_tdp_sd_acknowledge(
         cgo_handle: CgoHandle,

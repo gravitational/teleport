@@ -2,8 +2,8 @@
 # This file can be included in other Makefiles to avoid duplication.
 
 # Sync with devbox.json.
-GOLANG_VERSION ?= go1.26.4
-GOLANGCI_LINT_VERSION ?= v2.10.1
+GOLANG_VERSION ?= go1.26.5
+GOLANGCI_LINT_VERSION ?= v2.12.2
 
 # NOTE: Remember to update engines.node in package.json to match the major version.
 NODE_VERSION ?= 24.18.0

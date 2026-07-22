@@ -23,12 +23,15 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
+	"fmt"
 	"log/slog"
+	"os"
 	"slices"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"golang.org/x/crypto/ssh"
@@ -38,6 +41,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/defaults"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -106,6 +110,7 @@ type AuthService interface {
 	GetGCPIDTokenValidator() gcp.Validator
 	GetGHAIDTokenValidator() githubactions.GithubIDTokenValidator
 	GetGHAIDTokenJWKSValidator() githubactions.GithubIDTokenJWKSValidator
+	GetGenericOIDCIDTokenValidator() GenericOIDCTokenValidator
 	GetGitlabIDTokenValidator() gitlab.Validator
 	GetTPMValidator() tpmjoin.TPMValidator
 	GetK8sTokenReviewValidator() kubetoken.InClusterValidator
@@ -129,12 +134,25 @@ type ServerConfig struct {
 	Modules            modules.Modules
 	Emitter            apievents.Emitter
 	ScopesFeatures     scopes.Features
+	// AlertCreator, if set, raises a cluster alert when a client is rejected
+	// for running an unsupported version.
+	AlertCreator func(context.Context, types.ClusterAlert) error
 }
 
 // Server implements cluster joining for nodes and bots.
 type Server struct {
 	cfg               *ServerConfig
 	oracleRootCACache *oraclejoin.RootCACache
+	// oldestSupportedVersion is the oldest client version that is allowed to
+	// join the cluster. If "TELEPORT_UNSTABLE_ALLOW_OLD_CLIENTS=yes" is set,
+	// this will be nil and no version checks will be performed.
+	oldestSupportedVersion *semver.Version
+	// mu is used to rate limit the creation of rejected client alerts to at
+	// most once per day.
+	mu sync.Mutex
+	// nextAllowedAlertTime is the earliest time at which a new client
+	// rejection alert can be created.
+	nextAllowedAlertTime time.Time
 }
 
 // NewServer returns a new [Server] instance.
@@ -142,9 +160,14 @@ func NewServer(cfg *ServerConfig) *Server {
 	if cfg.Logger == nil {
 		cfg.Logger = slog.With(teleport.ComponentKey, "join")
 	}
+	oldestSupportedVersion := teleport.MinClientSemVer()
+	if os.Getenv("TELEPORT_UNSTABLE_ALLOW_OLD_CLIENTS") == "yes" {
+		oldestSupportedVersion = nil
+	}
 	return &Server{
-		cfg:               cfg,
-		oracleRootCACache: oraclejoin.NewRootCACache(),
+		cfg:                    cfg,
+		oracleRootCACache:      oraclejoin.NewRootCACache(),
+		oldestSupportedVersion: oldestSupportedVersion,
 	}
 }
 
@@ -284,6 +307,12 @@ func (s *Server) Join(stream messages.ServerStream) (err error) {
 		return trace.Wrap(err)
 	}
 
+	// Must run after authenticate, which records the client version on the
+	// diagnostic for proxy-forwarded requests.
+	if err := s.validateClientVersion(ctx, diag.Get()); err != nil {
+		return trace.Wrap(err)
+	}
+
 	token, err := s.getProvisionToken(ctx, clientInit.TokenName)
 	if err != nil {
 		return trace.Wrap(err)
@@ -378,6 +407,8 @@ func (s *Server) handleJoinMethod(
 		return s.handleOIDCJoin(stream, authCtx, clientInit, token, s.validateEnv0Token)
 	case types.JoinMethodGCP:
 		return s.handleOIDCJoin(stream, authCtx, clientInit, token, s.validateGCPToken)
+	case types.JoinMethodGenericOIDC:
+		return s.handleOIDCJoin(stream, authCtx, clientInit, token, s.validateGenericOIDCToken)
 	case types.JoinMethodGitHub:
 		return s.handleOIDCJoin(stream, authCtx, clientInit, token, s.validateGithubToken)
 	case types.JoinMethodGitLab:
@@ -399,6 +430,87 @@ func (s *Server) handleJoinMethod(
 	default:
 		return nil, trace.NotImplemented("join method %s is not implemented", joinMethod)
 	}
+}
+
+// validateClientVersion checks the version of the joining client against the
+// server's oldest supported version. If the client is too old or reports a
+// version that cannot be parsed, it returns an error. A client that reports no
+// version is allowed.
+func (s *Server) validateClientVersion(ctx context.Context, info diagnostic.Info) error {
+	if s.oldestSupportedVersion == nil {
+		return nil // TELEPORT_UNSTABLE_ALLOW_OLD_CLIENTS=yes is set, don't enforce version checks
+	}
+
+	clientVersion := info.ClientVersion
+	if clientVersion == "" {
+		return nil
+	}
+
+	minVersion := *s.oldestSupportedVersion
+	minVersion.PreRelease = ""
+
+	clientSemVer, err := semver.NewVersion(clientVersion)
+	if err != nil || clientSemVer.LessThan(*s.oldestSupportedVersion) {
+		s.displayRejectedClientAlert(ctx)
+		return trace.AccessDenied("client version is unsupported, minimum supported version is %s", minVersion.String())
+	}
+	return nil
+}
+
+const (
+	// rejectedAlertInterval is the minimum interval between successfully
+	// created rejected-client alerts.
+	rejectedAlertInterval = 24 * time.Hour
+	// failedAlertCooldown is the shorter interval before retrying after a
+	// failed alert write, so a degraded backend isn't hammered.
+	failedAlertCooldown = 5 * time.Minute
+)
+
+// displayRejectedClientAlert raises a once-per-day cluster alert for rejected
+// outdated clients. It shares the auth middleware's alert name so rejections
+// coalesce into a single alert. If the alert write fails, it sets a short
+// cooldown before retrying so a degraded backend isn't hammered.
+func (s *Server) displayRejectedClientAlert(ctx context.Context) {
+	if s.cfg.AlertCreator == nil {
+		return
+	}
+
+	alert, err := types.NewClusterAlert(
+		"rejected-unsupported-connection",
+		"One or more agents or bots were rejected from joining due to running unsupported versions. Check the audit log for more details.",
+		types.WithAlertSeverity(types.AlertSeverity_MEDIUM),
+		types.WithAlertLabel(types.AlertOnLogin, "yes"),
+		types.WithAlertLabel(types.AlertVerbPermit, fmt.Sprintf("%s:%s", types.KindToken, types.VerbCreate)),
+	)
+	if err != nil {
+		s.cfg.Logger.WarnContext(ctx, "failed to create rejected-unsupported-connection alert", "error", err)
+		return
+	}
+
+	clock := s.cfg.AuthService.GetClock()
+	now := clock.Now()
+	reserved := now.Add(rejectedAlertInterval)
+	s.mu.Lock()
+	if now.Before(s.nextAllowedAlertTime) {
+		s.mu.Unlock()
+		return
+	}
+	s.nextAllowedAlertTime = reserved
+	s.mu.Unlock()
+
+	alertCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaults.DefaultIOTimeout)
+	defer cancel()
+	err = s.cfg.AlertCreator(alertCtx, alert)
+	if err == nil {
+		return
+	}
+
+	s.cfg.Logger.WarnContext(ctx, "failed to persist rejected-unsupported-connection alert", "error", err)
+	s.mu.Lock()
+	if s.nextAllowedAlertTime.Equal(reserved) {
+		s.nextAllowedAlertTime = clock.Now().Add(failedAlertCooldown)
+	}
+	s.mu.Unlock()
 }
 
 func (s *Server) authenticate(ctx context.Context, diag *diagnostic.Diagnostic, clientInit *messages.ClientInit) (*joinauthz.Context, error) {

@@ -49,6 +49,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/events/eventstest"
+	"github.com/gravitational/teleport/lib/scopes"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/scopes/pinning"
 	"github.com/gravitational/teleport/lib/services"
@@ -320,7 +321,7 @@ func TestRBAC(t *testing.T) {
 		Kind:  scopesv1.PinKind_PIN_KIND_USER,
 		Scope: "/test",
 		AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
-			nodeScope: {nodeScope: {scopedRole.GetMetadata().GetName()}},
+			nodeScope: {nodeScope: {scopes.QualifiedName{Scope: nodeScope, Name: scopedRole.GetMetadata().GetName()}.String()}},
 		}),
 	}.Build()
 
@@ -534,7 +535,7 @@ func TestScopedRBAC(t *testing.T) {
 				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/staging",
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
-					"/staging/west": {"/staging/west": {"staging-west-red"}},
+					"/staging/west": {"/staging/west": {"/staging/west::staging-west-red"}},
 				}),
 			}.Build(),
 			allowed: true,
@@ -545,7 +546,7 @@ func TestScopedRBAC(t *testing.T) {
 				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/staging/west/narrow",
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
-					"/staging/west": {"/staging/west": {"staging-west-red"}},
+					"/staging/west": {"/staging/west": {"/staging/west::staging-west-red"}},
 				}),
 			}.Build(),
 			allowed: false,
@@ -556,7 +557,7 @@ func TestScopedRBAC(t *testing.T) {
 				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/staging",
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
-					"/staging/west": {"/staging/west": {"staging-west-blue"}},
+					"/staging/west": {"/staging/west": {"/staging/west::staging-west-blue"}},
 				}),
 			}.Build(),
 			allowed: false,
@@ -567,7 +568,7 @@ func TestScopedRBAC(t *testing.T) {
 				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/staging",
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
-					"/staging/east": {"/staging/east": {"staging-east-red"}},
+					"/staging/east": {"/staging/east": {"/staging/east::staging-east-red"}},
 				}),
 			}.Build(),
 			allowed: false,
@@ -578,7 +579,7 @@ func TestScopedRBAC(t *testing.T) {
 				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/prod",
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
-					"/prod/west": {"/prod/west": {"prod-west-red"}},
+					"/prod/west": {"/prod/west": {"/prod/west::prod-west-red"}},
 				}),
 			}.Build(),
 			allowed: false,
@@ -589,7 +590,7 @@ func TestScopedRBAC(t *testing.T) {
 				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/staging",
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
-					"/staging/west": {"/staging/west": {"staging-west-no-labels"}},
+					"/staging/west": {"/staging/west": {"/staging/west::staging-west-no-labels"}},
 				}),
 			}.Build(),
 			allowed: false,
@@ -600,7 +601,7 @@ func TestScopedRBAC(t *testing.T) {
 				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/staging",
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
-					"/staging/west": {"/staging/west": {"staging-west-wrong-login"}},
+					"/staging/west": {"/staging/west": {"/staging/west::staging-west-wrong-login"}},
 				}),
 			}.Build(),
 			allowed: false,
@@ -1980,7 +1981,7 @@ func TestScopedClientIdleTimeout(t *testing.T) {
 				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/staging",
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
-					"/staging/west": {"/staging/west": {"no-timeout"}},
+					"/staging/west": {"/staging/west": {"/staging/west::no-timeout"}},
 				}),
 			}.Build(),
 			expectTimeout: 30 * time.Minute, // global default from cnc
@@ -1991,7 +1992,7 @@ func TestScopedClientIdleTimeout(t *testing.T) {
 				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/staging",
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
-					"/staging/west": {"/staging/west": {"10m-timeout"}},
+					"/staging/west": {"/staging/west": {"/staging/west::10m-timeout"}},
 				}),
 			}.Build(),
 			expectTimeout: 10 * time.Minute, // role timeout from the only applicable role
@@ -2002,7 +2003,7 @@ func TestScopedClientIdleTimeout(t *testing.T) {
 				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/staging",
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
-					"/staging/west": {"/staging/west": {"1h-timeout"}},
+					"/staging/west": {"/staging/west": {"/staging/west::1h-timeout"}},
 				}),
 			}.Build(),
 			expectTimeout: 30 * time.Minute, // global default due to being more restrictive than role timeout
@@ -2013,8 +2014,8 @@ func TestScopedClientIdleTimeout(t *testing.T) {
 				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/staging",
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
-					"/staging":      {"/staging/west": {"25m-timeout"}},
-					"/staging/west": {"/staging/west": {"10m-timeout"}},
+					"/staging":      {"/staging/west": {"/staging::25m-timeout"}},
+					"/staging/west": {"/staging/west": {"/staging/west::10m-timeout"}},
 				}),
 			}.Build(),
 			expectTimeout: 25 * time.Minute, // role assigned *from* a more ancestral/authoritative scope of origin wins
@@ -2026,8 +2027,8 @@ func TestScopedClientIdleTimeout(t *testing.T) {
 				Scope: "/staging",
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
 					"/staging": {
-						"/staging":      {"22m-timeout-general"},
-						"/staging/west": {"15m-timeout-specific"},
+						"/staging":      {"/staging::22m-timeout-general"},
+						"/staging/west": {"/staging::15m-timeout-specific"},
 					},
 				}),
 			}.Build(),
@@ -2039,8 +2040,8 @@ func TestScopedClientIdleTimeout(t *testing.T) {
 				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/staging",
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
-					"/staging":      {"/staging/west": {"12m-timeout-team-blue"}},
-					"/staging/west": {"/staging/west": {"16m-timeout"}},
+					"/staging":      {"/staging/west": {"/staging::12m-timeout-team-blue"}},
+					"/staging/west": {"/staging/west": {"/staging/west::16m-timeout"}},
 				}),
 			}.Build(),
 			expectTimeout: 16 * time.Minute, // role with child scope of origin wins due to label selector mismatch
@@ -2051,8 +2052,8 @@ func TestScopedClientIdleTimeout(t *testing.T) {
 				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/staging",
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
-					"/staging":      {"/staging/west": {"18m-timeout-wrong-login"}},
-					"/staging/west": {"/staging/west": {"10m-timeout"}},
+					"/staging":      {"/staging/west": {"/staging::18m-timeout-wrong-login"}},
+					"/staging/west": {"/staging/west": {"/staging/west::10m-timeout"}},
 				}),
 			}.Build(),
 			expectTimeout: 10 * time.Minute, // role with child scope of origin wins due to login mismatch
@@ -2114,7 +2115,7 @@ func pinForRole(roleName string) *scopesv1.Pin {
 		Kind:  scopesv1.PinKind_PIN_KIND_USER,
 		Scope: "/staging",
 		AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
-			"/staging/west": {"/staging/west": {roleName}},
+			"/staging/west": {"/staging/west": {scopes.QualifiedName{Scope: "/staging/west", Name: roleName}.String()}},
 		}),
 	}.Build()
 }

@@ -50,9 +50,6 @@ type WorkloadAPIConfig struct {
 
 // CheckAndSetDefaults checks the SPIFFESVIDOutput values and sets any defaults.
 func (o *WorkloadAPIConfig) CheckAndSetDefaults(scoped bool) error {
-	if scoped {
-		return trace.BadParameter("service type %q is not supported in scoped mode", WorkloadAPIServiceType)
-	}
 	if o.Listen == "" {
 		return trace.BadParameter("listen: should not be empty")
 	}

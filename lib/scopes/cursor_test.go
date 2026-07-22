@@ -17,18 +17,20 @@
 package scopes
 
 import (
+	"math/rand/v2"
 	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	sliceutils "github.com/gravitational/teleport/lib/utils/slices"
 )
 
 func TestResourceCursor(t *testing.T) {
 	t.Parallel()
 
 	t.Run("unscoped", func(t *testing.T) {
-		cursor, err := MakeResourceCursor("", "name")
-		require.NoError(t, err)
+		cursor := MakeResourceCursor("", "name")
 		require.Equal(t, "name", cursor)
 		require.False(t, IsScopedResourceCursor(cursor))
 
@@ -38,8 +40,7 @@ func TestResourceCursor(t *testing.T) {
 	})
 
 	t.Run("scoped", func(t *testing.T) {
-		cursor, err := MakeResourceCursor("/aa/bb", "name")
-		require.NoError(t, err)
+		cursor := MakeResourceCursor("/aa/bb", "name")
 		require.True(t, IsScopedResourceCursor(cursor))
 		require.Contains(t, cursor, ResourceCursorPrefix)
 
@@ -71,6 +72,28 @@ func TestParseResourceCursorErrors(t *testing.T) {
 	}
 }
 
+func TestResourceCursorInvalidScope(t *testing.T) {
+	t.Parallel()
+
+	// A scope that cannot be encoded safely, e.g. read from invalid stored
+	// data. The cursor is degraded but still deterministic and unique.
+	badScope := "/foo bar"
+	cursor := MakeResourceCursor(badScope, "name")
+
+	// Degraded cursors sort after all valid cursors so the affected resource
+	// ranges at the end of the logical resource stream.
+	require.Greater(t, cursor, MakeResourceCursor("", "zzzz"))
+	require.Greater(t, cursor, MakeResourceCursor("/zz/zz", "zzzz"))
+
+	// Unique per scope and name.
+	require.NotEqual(t, cursor, MakeResourceCursor(badScope, "other"))
+	require.NotEqual(t, cursor, MakeResourceCursor("/other bad scope", "name"))
+
+	// Degraded cursors cannot be parsed back into a scope-qualified name.
+	_, err := ParseResourceCursor(cursor)
+	require.Error(t, err)
+}
+
 func TestResourceCursorSort(t *testing.T) {
 	t.Parallel()
 
@@ -85,9 +108,7 @@ func TestResourceCursorSort(t *testing.T) {
 
 	cursors := make([]string, 0, len(resources))
 	for _, resource := range resources {
-		cursor, err := MakeResourceCursor(resource.Scope, resource.Name)
-		require.NoError(t, err)
-		cursors = append(cursors, cursor)
+		cursors = append(cursors, MakeResourceCursor(resource.Scope, resource.Name))
 	}
 
 	slices.Sort(cursors)
@@ -110,4 +131,116 @@ func TestResourceCursorSort(t *testing.T) {
 		{Scope: "/aa/bb", Name: "aaa"},
 		{Scope: "/bb", Name: "aaa"},
 	}, got)
+}
+
+func TestNestedResourceCursor(t *testing.T) {
+	for _, tc := range []struct {
+		desc        string
+		root        QualifiedName
+		descendents []QualifiedName
+		expected    string
+	}{
+		{
+			desc: "empty",
+		},
+		{
+			desc:     "unscoped",
+			root:     QualifiedName{Name: "test"},
+			expected: "test",
+		},
+		{
+			desc: "unscoped nested",
+			root: QualifiedName{Name: "test"},
+			descendents: []QualifiedName{
+				{Name: "nested"},
+			},
+			expected: "test/nested",
+		},
+		{
+			desc: "unscoped double nested",
+			root: QualifiedName{Name: "test"},
+			descendents: []QualifiedName{
+				{Name: "nested"},
+				{Name: "doublenested"},
+			},
+			expected: "test/nested/doublenested",
+		},
+		{
+			desc:     "scoped",
+			root:     QualifiedName{Scope: "/aa", Name: "test"},
+			expected: ResourceCursorPrefix + EncodeForResourceCursor("/aa") + separator + "test",
+		},
+		{
+			desc: "scoped nested",
+			root: QualifiedName{Scope: "/aa", Name: "test"},
+			descendents: []QualifiedName{
+				{Scope: "/", Name: "nested"},
+			},
+			expected: ResourceCursorPrefix + EncodeForResourceCursor("/aa") + separator + "test" +
+				separator + EncodeForResourceCursor("/") + separator + "nested",
+		},
+		{
+			desc: "scoped double nested",
+			root: QualifiedName{Scope: "/aa", Name: "test"},
+			descendents: []QualifiedName{
+				{Scope: "/", Name: "nested"},
+				{Scope: "/", Name: "doublenested"},
+			},
+			expected: ResourceCursorPrefix + EncodeForResourceCursor("/aa") + separator + "test" +
+				separator + EncodeForResourceCursor("/") + separator + "nested" +
+				separator + EncodeForResourceCursor("/") + separator + "doublenested",
+		},
+		{
+			desc:        "mixed scopes",
+			root:        QualifiedName{Scope: "/aa", Name: "test"},
+			descendents: []QualifiedName{{Name: "nested"}},
+			expected: ResourceCursorPrefix + EncodeForResourceCursor("/aa") + separator + "test" +
+				separator + EncodeForResourceCursor("") + separator + "nested",
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			require.Equal(t, tc.expected, MakeNestedResourceCursor(tc.root, tc.descendents...))
+		})
+	}
+}
+
+func TestNestedResourceCursorSort(t *testing.T) {
+	sorted := [][]QualifiedName{
+		{{Name: "a"}},
+		{{Name: "a"}, {Name: "a"}},
+		{{Name: "a"}, {Name: "b"}},
+
+		{{Name: "b"}},
+		{{Name: "b"}, {Name: "a"}},
+		{{Name: "b"}, {Name: "b"}},
+		{{Name: "b"}, {Name: "b"}, {Name: "a"}},
+
+		{{Scope: "/aa", Name: "a"}},
+		{{Scope: "/aa", Name: "a"}, {Scope: "/bb", Name: "a"}},
+		{{Scope: "/aa", Name: "a"}, {Scope: "/bb", Name: "b"}},
+		{{Scope: "/aa", Name: "a"}, {Scope: "/bb", Name: "b"}, {Scope: "/cc/dd", Name: "a"}},
+		{{Scope: "/aa", Name: "a"}, {Scope: "/cc", Name: "a"}},
+		{{Scope: "/aa", Name: "b"}},
+
+		{{Scope: "/zz/aa", Name: "z"}},
+		{{Scope: "/zz/aa/bb", Name: "z"}},
+		{{Scope: "/zz/aa/cc", Name: "z"}},
+		{{Scope: "/zz/bb", Name: "z"}},
+		{{Scope: "/zz/cc", Name: "z"}},
+
+		{{Scope: "bad scope 1"}},
+		{{Scope: "bad scope 2"}},
+	}
+	expectSortedCursors := sliceutils.Map(sorted, func(names []QualifiedName) string {
+		return MakeNestedResourceCursor(names[0], names[1:]...)
+	})
+
+	shuffledCursors := slices.Clone(expectSortedCursors)
+	rand.Shuffle(len(shuffledCursors), func(i, j int) {
+		shuffledCursors[i], shuffledCursors[j] = shuffledCursors[j], shuffledCursors[i]
+	})
+
+	// Assert that a string sort gets us back to the expected sorted order.
+	slices.Sort(shuffledCursors)
+	require.Equal(t, expectSortedCursors, shuffledCursors)
 }

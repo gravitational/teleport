@@ -337,6 +337,10 @@ type CLIConf struct {
 	// any files.
 	IdentityOverwrite bool
 
+	// ForceReauth when true makes `tsh login` re-authenticate even if the active
+	// profile is still valid.
+	ForceReauth bool
+
 	// BindAddr is an address in the form of host:port to bind to
 	// during `tsh login` command
 	BindAddr string
@@ -459,6 +463,8 @@ type CLIConf struct {
 
 	// OverrideStdout allows to switch standard output source for resource command. Used in tests.
 	OverrideStdout io.Writer
+	// proxyStatusOutputWriter is where human-oriented proxy status messages are written.
+	proxyStatusOutputWriter io.Writer
 	// overrideStderr allows to switch standard error source for resource command. Used in tests.
 	overrideStderr io.Writer
 	// overrideStdin allows to switch standard in source for resource command. Used in tests.
@@ -721,6 +727,24 @@ func (c *CLIConf) Stdout() io.Writer {
 	return os.Stdout
 }
 
+// ProxyStatusOutput returns the writer used for human-oriented proxy status
+// messages.
+//
+// This must be distinct from Stdout so that shell pipelines like
+// `echo 'kubectl config view' | tsh proxy kube my-cluster --exec | yq` can
+// suppress or redirect proxy status text without also changing the command's
+// actual stdout stream.
+func (c *CLIConf) ProxyStatusOutput() io.Writer {
+	if c.proxyStatusOutputWriter != nil {
+		return c.proxyStatusOutputWriter
+	}
+	// Note: See the proxyStatusOutputDefault constant used by
+	// configureProxyStatusOutput() for the real default. This return is just
+	// defensive code in case this function is called before
+	// configureProxyStatusOutput().
+	return os.Stderr
+}
+
 // Stderr returns the stderr writer.
 func (c *CLIConf) Stderr() io.Writer {
 	if c.overrideStderr != nil {
@@ -838,6 +862,12 @@ const (
 	mcpClientConfigEnvVar     = "TELEPORT_MCP_CLIENT_CONFIG"
 	mcpConfigJSONFormatEnvVar = "TELEPORT_MCP_CONFIG_JSON_FORMAT"
 	toolsCheckUpdateEnvVar    = "TELEPORT_TOOLS_CHECK_UPDATE"
+	proxyStatusOutputEnvVar   = "TELEPORT_PROXY_LOG_OUTPUT"
+
+	proxyStatusOutputDefault = "stderr"
+	proxyStatusOutputStdout  = "stdout"
+	proxyStatusOutputStderr  = "stderr"
+	proxyStatusOutputNone    = "none"
 
 	clusterHelp = "Specify the Teleport cluster to connect."
 	browserHelp = "Set to 'none' to suppress browser opening on login."
@@ -914,6 +944,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 
 	moduleCfg := modules.GetModules()
 	var cpuProfile, memProfile, traceProfile string
+	proxyStatusOutput := proxyStatusOutputDefault
 
 	// configure CLI argument parser:
 	cf.kingpinApp = utils.InitCLIParser("tsh", "Teleport Command Line Client.").Interspersed(true)
@@ -1119,11 +1150,14 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	lsRecordings.Flag("limit", fmt.Sprintf("Maximum number of recordings to show. Default %s.", defaults.TshTctlSessionListLimit)).Default(defaults.TshTctlSessionListLimit).IntVar(&cf.maxRecordingsToShow)
 	lsRecordings.Flag("last", "Duration into the past from which session recordings should be listed. Format \"5h30m40s\".").StringVar(&cf.recordingsSince)
 	exportRecordings := recordings.Command("export", "Export recorded desktop sessions to video.")
+	exportRecordings.Flag("encoder", "The video encoder to use.").Default("auto").EnumVar(&cf.Format, "ffmpeg", "avi", "auto")
 	exportRecordings.Flag("out", "Override output file name.").StringVar(&cf.OutFile)
+	exportRecordings.Flag("quiet", quietHelp).Short('q').BoolVar(&cf.Quiet)
 	exportRecordings.Arg("session-id", "ID of the session to export.").Required().StringVar(&cf.SessionID)
 
 	// Local TLS proxy.
 	proxy := app.Command("proxy", "Run local TLS proxy allowing connecting to Teleport in single-port mode.")
+	proxy.Flag("proxy-log-output", fmt.Sprintf("Select where proxy status messages are printed. Defaults to %q, but can be used to revert to legacy behavior of send proxy output to stdout. Valid values are %q, %q, and %q.", proxyStatusOutputDefault, proxyStatusOutputStdout, proxyStatusOutputStderr, proxyStatusOutputNone)).Envar(proxyStatusOutputEnvVar).Default(proxyStatusOutputDefault).EnumVar(&proxyStatusOutput, proxyStatusOutputStdout, proxyStatusOutputStderr, proxyStatusOutputNone)
 	proxySSH := proxy.Command("ssh", "Start local TLS proxy for ssh connections when using Teleport in single-port mode.")
 	proxySSH.Arg("[user@]host", "Remote hostname and the login to use.").Required().StringVar(&cf.UserHost)
 	proxySSH.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
@@ -1297,6 +1331,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		identityfile.FormatKubernetes,
 	)).Default(string(identityfile.DefaultFormat)).Short('f').StringVar((*string)(&cf.IdentityFormat))
 	login.Flag("overwrite", "Whether to overwrite the existing identity file.").BoolVar(&cf.IdentityOverwrite)
+	login.Flag("force", "Force re-authentication even if the current session is still valid.").BoolVar(&cf.ForceReauth)
 	login.Flag("request-roles", "Request one or more extra roles.").StringVar(&cf.DesiredRoles)
 	login.Flag("request-reason", "Reason for requesting additional roles.").StringVar(&cf.RequestReason)
 	login.Flag("request-reviewers", "Suggested reviewers for role request.").StringVar(&cf.SuggestedReviewers)
@@ -1687,6 +1722,9 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		if err := opt(&cf); err != nil {
 			return trace.Wrap(err)
 		}
+	}
+	if err := configureProxyStatusOutput(&cf, proxyStatusOutput); err != nil {
+		return trace.Wrap(err)
 	}
 
 	// Enable debug logging if requested by --debug.
@@ -2395,6 +2433,17 @@ func onLogin(cf *CLIConf, reExecArgs ...string) (err error) {
 		return trace.Wrap(err)
 	}
 
+	// On successful login, try to remove the tsh proxy ssh lockfile.
+	// This is just a safeguard in case a tsh process somehow hangs while
+	// holding the lock.
+	defer func() {
+		if err == nil {
+			if rmErr := os.Remove(GetProxySSHRetryerLockfilePath(cf.HomePath, tc.WebProxyHost())); rmErr != nil && !os.IsNotExist(rmErr) {
+				logger.WarnContext(cf.Context, "Failed to remove proxy ssh lockfile", "error", rmErr)
+			}
+		}
+	}()
+
 	// If the user requested tracing and the login succeeds (even if the user
 	// was already logged in) report the tracing client to the trace provider
 	// to that spans can be exported.
@@ -2425,7 +2474,7 @@ func onLogin(cf *CLIConf, reExecArgs ...string) (err error) {
 	}
 
 	// client is already logged in and profile is not expired and scope hasn't changed
-	if profile != nil && !profile.IsExpired(time.Now()) && !scopeChanged {
+	if profile != nil && !profile.IsExpired(time.Now()) && !scopeChanged && !cf.ForceReauth {
 		switch {
 		// in case if nothing is specified, re-fetch kube clusters and print
 		// current status
@@ -4034,11 +4083,12 @@ func onListSessions(cf *CLIConf) error {
 	}
 
 	kinds := map[string]types.SessionKind{
-		"ssh":     types.SSHSessionKind,
-		"db":      types.DatabaseSessionKind,
-		"app":     types.AppSessionKind,
-		"desktop": types.WindowsDesktopSessionKind,
-		"k8s":     types.KubernetesSessionKind,
+		"ssh":          types.SSHSessionKind,
+		"db":           types.DatabaseSessionKind,
+		"app":          types.AppSessionKind,
+		"desktop":      types.WindowsDesktopSessionKind,
+		"linuxdesktop": types.LinuxDesktopSessionKind,
+		"k8s":          types.KubernetesSessionKind,
 		// tsh commands often use "kube" to mean kubernetes,
 		// so add an alias to make it more intuitive
 		"kube": types.KubernetesSessionKind,
@@ -4125,6 +4175,8 @@ func target(s types.SessionTracker) string {
 	case types.DatabaseSessionKind:
 		return s.GetDatabaseName()
 	case types.WindowsDesktopSessionKind:
+		return s.GetLogin() + "@" + s.GetDesktopName()
+	case types.LinuxDesktopSessionKind:
 		return s.GetLogin() + "@" + s.GetDesktopName()
 	default:
 		return s.GetHostname()
@@ -6492,6 +6544,25 @@ func onHeadlessApprove(cf *CLIConf) error {
 		return tc.HeadlessApprove(cf.Context, cf.HeadlessAuthenticationID, !cf.headlessSkipConfirm)
 	})
 	return trace.Wrap(err)
+}
+
+func configureProxyStatusOutput(cf *CLIConf, proxyStatusOutput string) error {
+	// This should be unreachable because Kingpin validates the flag value against
+	// the allowed enum values.
+	if proxyStatusOutput == "" {
+		proxyStatusOutput = proxyStatusOutputDefault
+	}
+	switch proxyStatusOutput {
+	case proxyStatusOutputStdout:
+		cf.proxyStatusOutputWriter = cf.Stdout()
+	case proxyStatusOutputStderr:
+		cf.proxyStatusOutputWriter = cf.Stderr()
+	case proxyStatusOutputNone:
+		cf.proxyStatusOutputWriter = io.Discard
+	default:
+		return trace.BadParameter("unreachable code: proxyStatusOutput %q is not a known output destination", proxyStatusOutput)
+	}
+	return nil
 }
 
 var mlockModes = []string{mlockModeNo, mlockModeAuto, mlockModeBestEffort, mlockModeStrict}

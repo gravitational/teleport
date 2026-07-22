@@ -17,6 +17,8 @@
 package scopes
 
 import (
+	"encoding/hex"
+	"slices"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -59,19 +61,92 @@ func IsScopedResourceCursor(cursor string) bool {
 //
 //	~scoped/<encoded-scope>/<name>
 //
-// The scope component is encoded with EncodeForKey so that scoped cursors
+// The scope component is encoded with [EncodeForKey] so that scoped cursors
 // preserve scope ordering and can safely use '/' as the cursor separator.
-func MakeResourceCursor(scope, name string) (string, error) {
-	if scope == "" {
-		return name, nil
+//
+// MakeResourceCursor is infallible so that it can back key derivation with no
+// error path (in-memory cache indexes, pagination cursors). A scope that
+// cannot be encoded (which is only possible for invalid stored data) yields a
+// degraded cursor that is deterministic, unique per scope and name, sorts after
+// all valid cursors, and fails [ParseResourceCursor].
+func MakeResourceCursor(scope, name string) string {
+	return MakeNestedResourceCursor(QualifiedName{
+		Scope: scope,
+		Name:  name,
+	})
+}
+
+// MakeNestedResourceCursor returns the cursor for a scoped or unscoped nested
+// resource in a logical, lexicographically ordered range of nested resources.
+// The motivating example is scoped access list members, where members are
+// keyed under their parent list.
+//
+// Resource cursors are intended for pagination tokens, range bounds, and
+// in-memory cache indexes. They are not backend storage keys and must not be
+// used to construct backend keys.
+//
+// If all provided scopes are empty, all names will simply be joined with the
+// separator, to maintain compatibility with existing unscoped resource cursors
+// and avoid wastefully encoding multiple empty scopes:
+//
+//	<root-name>[/<descendent-name>]...
+//
+// Scoped resource cursors use a synthetic prefix that cannot appear in
+// backend-safe resource names and sorts after all backend-safe name bytes.
+//
+//	~scoped/<encoded-root-scope>/<root-name>[/<encoded-descendent-scope>/<descendent-name>]...
+//
+// Each scope component is encoded with [EncodeForKey] so that scoped cursors
+// preserve scope ordering and can safely use '/' as the cursor separator.
+//
+// MakeNestedResourceCursor is infallible so that it can back key derivation with no
+// error path (in-memory cache indexes, pagination cursors). A scope that
+// cannot be encoded (which is only possible for invalid stored data) yields a
+// degraded cursor that is deterministic, unique per scope and name, sorts after
+// all valid cursors, and fails [ParseResourceCursor].
+func MakeNestedResourceCursor(root QualifiedName, descendents ...QualifiedName) string {
+	hasNonEmptyScope := root.Scope != "" || slices.ContainsFunc(descendents, func(descendent QualifiedName) bool {
+		return descendent.Scope != ""
+	})
+	if !hasNonEmptyScope {
+		var sb strings.Builder
+		sb.WriteString(root.Name)
+		for _, descendent := range descendents {
+			sb.WriteString(separator)
+			sb.WriteString(descendent.Name)
+		}
+		return sb.String()
 	}
 
-	encodedScope, err := EncodeForKey(scope)
+	var sb strings.Builder
+	sb.WriteString(ResourceCursorPrefix)
+	sb.WriteString(EncodeForResourceCursor(root.Scope))
+	sb.WriteString(separator)
+	sb.WriteString(root.Name)
+	for _, descendent := range descendents {
+		sb.WriteString(separator)
+		sb.WriteString(EncodeForResourceCursor(descendent.Scope))
+		sb.WriteString(separator)
+		sb.WriteString(descendent.Name)
+	}
+	return sb.String()
+}
+
+// EncodeForResourceCursor is infallible so that it can back key derivation with no
+// error path (in-memory cache indexes, pagination cursors). A scope that
+// cannot be encoded (which is only possible for invalid stored data) yields a
+// degraded cursor that is deterministic, unique per scope and name, sorts after
+// all valid cursors, and fails [ParseResourceCursor].
+func EncodeForResourceCursor(scope string) string {
+	encoded, err := EncodeForKey(scope)
 	if err != nil {
-		return "", trace.Wrap(err)
+		// '~' cannot appear in a valid scope encoding (which starts with '+'),
+		// so degraded cursors never collide with valid cursors and sort after
+		// them. The scope is hex-encoded so the cursor's scope component is a
+		// single path segment regardless of the scope's contents.
+		return "~invalid+" + hex.EncodeToString([]byte(scope))
 	}
-
-	return ResourceCursorPrefix + encodedScope + separator + name, nil
+	return encoded
 }
 
 // ParseResourceCursor parses a resource cursor produced by [MakeResourceCursor]

@@ -125,6 +125,9 @@ export const eventCodes = {
   DESKTOP_SHARED_DIRECTORY_READ_FAILURE: 'TDP05W',
   DESKTOP_SHARED_DIRECTORY_WRITE: 'TDP06I',
   DESKTOP_SHARED_DIRECTORY_WRITE_FAILURE: 'TDP06W',
+  LINUX_DESKTOP_SESSION_STARTED: 'TDP07I',
+  LINUX_DESKTOP_SESSION_STARTED_FAILED: 'TDP07W',
+  LINUX_DESKTOP_SESSION_ENDED: 'TDP08I',
   DEVICE_CREATE: 'TV001I',
   DEVICE_DELETE: 'TV002I',
   DEVICE_ENROLL_TOKEN_CREATE: 'TV003I',
@@ -303,6 +306,8 @@ export const eventCodes = {
   EXTERNAL_AUDIT_STORAGE_DISABLE: 'TEA002I',
   SPIFFE_SVID_ISSUED: 'TSPIFFE000I',
   SPIFFE_SVID_ISSUED_FAILURE: 'TSPIFFE000E',
+  SPIFFE_FEDERATION_CREATE: 'TSPIFFE001I',
+  SPIFFE_FEDERATION_DELETE: 'TSPIFFE002I',
   AUTH_PREFERENCE_UPDATE: 'TCAUTH001I',
   CLUSTER_NETWORKING_CONFIG_UPDATE: 'TCNET002I',
   SESSION_RECORDING_CONFIG_UPDATE: 'TCREC003I',
@@ -1300,6 +1305,33 @@ export type RawEvents = {
       windows_domain: string;
     }
   >;
+  [eventCodes.LINUX_DESKTOP_SESSION_STARTED]: RawEvent<
+    typeof eventCodes.LINUX_DESKTOP_SESSION_STARTED,
+    {
+      desktop_addr: string;
+      desktop_name: string;
+      sid: string;
+      linux_user: string;
+    }
+  >;
+  [eventCodes.LINUX_DESKTOP_SESSION_STARTED_FAILED]: RawEvent<
+    typeof eventCodes.LINUX_DESKTOP_SESSION_STARTED_FAILED,
+    {
+      desktop_addr: string;
+      desktop_name: string;
+      sid: string;
+      linux_user: string;
+    }
+  >;
+  [eventCodes.LINUX_DESKTOP_SESSION_ENDED]: RawEvent<
+    typeof eventCodes.LINUX_DESKTOP_SESSION_ENDED,
+    {
+      desktop_addr: string;
+      desktop_name: string;
+      sid: string;
+      linux_user: string;
+    }
+  >;
   [eventCodes.DESKTOP_CLIPBOARD_RECEIVE]: RawEvent<
     typeof eventCodes.DESKTOP_CLIPBOARD_RECEIVE,
     {
@@ -1898,6 +1930,14 @@ export type RawEvents = {
       spiffe_id: string;
       workload_identity_scope?: string;
     }
+  >;
+  [eventCodes.SPIFFE_FEDERATION_CREATE]: RawEvent<
+    typeof eventCodes.SPIFFE_FEDERATION_CREATE,
+    HasName
+  >;
+  [eventCodes.SPIFFE_FEDERATION_DELETE]: RawEvent<
+    typeof eventCodes.SPIFFE_FEDERATION_DELETE,
+    HasName
   >;
   [eventCodes.AUTH_PREFERENCE_UPDATE]: RawEvent<
     typeof eventCodes.AUTH_PREFERENCE_UPDATE,

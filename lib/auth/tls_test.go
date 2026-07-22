@@ -56,6 +56,7 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/metadata"
@@ -1581,7 +1582,7 @@ func TestAuthPreferenceSettings_ScopedIdentity(t *testing.T) {
 			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
 				User: user.GetName(),
 				Assignments: []*scopedaccessv1.Assignment{
-					scopedaccessv1.Assignment_builder{Role: "empty-role", Scope: "/test/scope"}.Build(),
+					scopedaccessv1.Assignment_builder{Role: "/test::empty-role", Scope: "/test/scope"}.Build(),
 				},
 			}.Build(),
 		}.Build(),
@@ -1592,6 +1593,7 @@ func TestAuthPreferenceSettings_ScopedIdentity(t *testing.T) {
 		_, err := srv.AuthServer.AuthServer.ScopedAccessCache.GetScopedRoleAssignment(ctx, scopedaccessv1.GetScopedRoleAssignmentRequest_builder{
 			Name:    createResp.GetAssignment().GetMetadata().GetName(),
 			SubKind: createResp.GetAssignment().GetSubKind(),
+			Scope:   createResp.GetAssignment().GetScope(),
 		}.Build())
 		require.NoError(t, err)
 	}, 10*time.Second, 100*time.Millisecond)
@@ -2009,7 +2011,10 @@ func TestAppServerCRUD(t *testing.T) {
 
 	testSrv := newTestTLSServer(t)
 
-	clt, err := testSrv.NewClient(authtest.TestBuiltin(types.RoleApp))
+	// A RoleApp agent may only manage app servers with its own host ID, so the
+	// identity's host ID and the app server's HostID must match.
+	const appHostID = "app-host-id"
+	clt, err := testSrv.NewClient(authtest.TestServerID(types.RoleApp, appHostID))
 	require.NoError(t, err)
 
 	ctx := context.Background()
@@ -2028,7 +2033,7 @@ func TestAppServerCRUD(t *testing.T) {
 		Namespace: apidefaults.Namespace,
 	}, types.AppServerSpecV3{
 		Hostname: "localhost",
-		HostID:   uuid.New().String(),
+		HostID:   appHostID,
 		App:      app,
 	})
 	require.NoError(t, err)
@@ -2924,7 +2929,7 @@ func TestGetCertAuthority_ScopedIdentity(t *testing.T) {
 			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
 				User: user.GetName(),
 				Assignments: []*scopedaccessv1.Assignment{
-					scopedaccessv1.Assignment_builder{Role: "empty-role", Scope: "/test/scope"}.Build(),
+					scopedaccessv1.Assignment_builder{Role: "/test::empty-role", Scope: "/test/scope"}.Build(),
 				},
 			}.Build(),
 		}.Build(),
@@ -2935,6 +2940,7 @@ func TestGetCertAuthority_ScopedIdentity(t *testing.T) {
 		_, err := srv.AuthServer.AuthServer.ScopedAccessCache.GetScopedRoleAssignment(ctx, scopedaccessv1.GetScopedRoleAssignmentRequest_builder{
 			Name:    createResp.GetAssignment().GetMetadata().GetName(),
 			SubKind: createResp.GetAssignment().GetSubKind(),
+			Scope:   createResp.GetAssignment().GetScope(),
 		}.Build())
 		require.NoError(t, err)
 	}, 10*time.Second, 100*time.Millisecond)
@@ -4540,12 +4546,12 @@ func TestEventsNodePresence(t *testing.T) {
 
 	ctx := context.Background()
 	testSrv := newTestTLSServer(t)
-
+	nodeName := "node1." + testSrv.ClusterName()
 	node := &types.ServerV2{
 		Kind:    types.KindNode,
 		Version: types.V2,
 		Metadata: types.Metadata{
-			Name:      "node1",
+			Name:      nodeName,
 			Namespace: apidefaults.Namespace,
 		},
 		Spec: types.ServerSpecV2{
@@ -4556,7 +4562,7 @@ func TestEventsNodePresence(t *testing.T) {
 	clt, err := testSrv.NewClient(authtest.TestIdentity{
 		I: authz.BuiltinRole{
 			Role:     types.RoleNode,
-			Username: fmt.Sprintf("%v.%v", node.Metadata.Name, testSrv.ClusterName()),
+			Username: nodeName,
 		},
 	})
 	require.NoError(t, err)
@@ -4809,7 +4815,7 @@ func TestEventsPermissionsPartialSuccess(t *testing.T) {
 				AllowPartialSuccess: true,
 			},
 			expectedConfirmedKinds: []types.WatchKind{
-				{Kind: types.KindStaticTokens},
+				{Kind: types.KindStaticTokens, ScopeFilter: types.ScopeFilterFromProto(scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_UNSCOPED}.Build())},
 			},
 		},
 		{
@@ -5203,7 +5209,7 @@ func runEventsTests(t *testing.T, testCases []eventTest, events types.Events, wa
 		require.Equal(t, types.OpInit, event.Type)
 		watchStatus, ok := event.Resource.(types.WatchStatus)
 		require.True(t, ok)
-		expectedKinds := eventsTestKinds(testCases)
+		expectedKinds := eventsTestConfirmedKinds(testCases)
 		require.Equal(t, expectedKinds, watchStatus.GetKinds())
 	case <-w.Done():
 		t.Fatalf("Watcher exited with error %v", w.Error())
@@ -5279,6 +5285,16 @@ func eventsTestKinds(tests []eventTest) []types.WatchKind {
 	return out
 }
 
+// eventsTestConfirmedKinds returns the watch kinds as the server confirms them for an unscoped watcher:
+// every kind's confirmed watch kind carries the caller's defaulted MODE_UNSCOPED scope filter.
+func eventsTestConfirmedKinds(tests []eventTest) []types.WatchKind {
+	out := eventsTestKinds(tests)
+	for i := range out {
+		out[i].ScopeFilter = types.ScopeFilterFromProto(scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_UNSCOPED}.Build())
+	}
+	return out
+}
+
 // TestWatchEvents_ScopedIdentity verifies that scoped identities can use the
 // WatchEvents RPC to watch CertAuthorities without secrets (implicit permission),
 // and that watching with secrets is correctly denied.
@@ -5325,7 +5341,7 @@ func TestWatchEvents_ScopedIdentity(t *testing.T) {
 			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
 				User: user.GetName(),
 				Assignments: []*scopedaccessv1.Assignment{
-					scopedaccessv1.Assignment_builder{Role: "empty-role", Scope: "/test/scope"}.Build(),
+					scopedaccessv1.Assignment_builder{Role: "/test::empty-role", Scope: "/test/scope"}.Build(),
 				},
 			}.Build(),
 		}.Build(),
@@ -5336,6 +5352,7 @@ func TestWatchEvents_ScopedIdentity(t *testing.T) {
 		_, err := srv.AuthServer.AuthServer.ScopedAccessCache.GetScopedRoleAssignment(ctx, scopedaccessv1.GetScopedRoleAssignmentRequest_builder{
 			Name:    createResp.GetAssignment().GetMetadata().GetName(),
 			SubKind: createResp.GetAssignment().GetSubKind(),
+			Scope:   createResp.GetAssignment().GetScope(),
 		}.Build())
 		require.NoError(t, err)
 	}, 10*time.Second, 100*time.Millisecond)
@@ -6311,6 +6328,7 @@ type testTLSServerOptions struct {
 	bufconnListener bool
 	modules         *modulestest.Modules
 	scopesFeatures  scopes.Features
+	emitter         eventtypes.Emitter
 }
 
 type testTLSServerOption func(*testTLSServerOptions)
@@ -6351,6 +6369,14 @@ func withScopesFeatures(scopesFeatures scopes.Features) testTLSServerOption {
 	}
 }
 
+// withEmitter replaces the audit event emitter before the server starts
+// serving, which is the only time it is safe to do so.
+func withEmitter(emitter eventtypes.Emitter) testTLSServerOption {
+	return func(options *testTLSServerOptions) {
+		options.emitter = emitter
+	}
+}
+
 // newTestTLSServer is a helper that returns a *authtest.TLSServer with sensible
 // defaults for most tests that are exercising Auth Service RPCs. For more advanced
 // use-cases, NewTestTLSServer to provide a more detailed configuration.
@@ -6376,6 +6402,10 @@ func newTestTLSServer(t testing.TB, opts ...testTLSServerOption) *authtest.TLSSe
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, as.Close()) })
+
+	if options.emitter != nil {
+		as.AuthServer.SetEmitter(options.emitter)
+	}
 
 	var tlsServerOpts []authtest.TestTLSServerOption
 	if options.accessGraph != nil {
