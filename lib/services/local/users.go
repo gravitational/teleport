@@ -1346,15 +1346,15 @@ func (s *IdentityService) buildWeakestMFADeviceKind(ctx context.Context, user ty
 	return GetWeakestMFADeviceKind(append(devs, upsertingMFA...)), nil
 }
 
-// GetWeakestMFADeviceKind returns the weakest MFA state based on the devices the user
-// has.
-// When a user has no MFA device, it's set to `MFADeviceKind_MFA_DEVICE_KIND_UNSET`.
-// When a user has at least one TOTP device, it's set to `MFADeviceKind_MFA_DEVICE_KIND_TOTP`.
-// When a user has at least one SSO MFA device, it's set to `MFADeviceKind_MFA_DEVICE_KIND_SSO`.
-// When a user ONLY has webauthn devices, it's set to `MFADeviceKind_MFA_DEVICE_KIND_WEBAUTHN`.
-func GetWeakestMFADeviceKind(devs []*types.MFADevice) types.MFADeviceKind {
+// GetWeakestMFADeviceKind returns the weakest MFA device kind.
+// Device ranking, from weakest to strongest: TOTP < SSO MFA < WebAuthn/U2F.
+//   - If `in` has zero MFA devices, it returns `MFADeviceKind_MFA_DEVICE_KIND_UNSET`.
+//   - If `in` has at least one TOTP device, it returns `MFADeviceKind_MFA_DEVICE_KIND_TOTP`.
+//   - If `in` has at least one SSO MFA device and no TOTP devices, it returns `MFADeviceKind_MFA_DEVICE_KIND_SSO`.
+//   - If `in` has only WebAuthn/U2F devices, it returns `MFADeviceKind_MFA_DEVICE_KIND_WEBAUTHN`.
+func GetWeakestMFADeviceKind(in []*types.MFADevice) types.MFADeviceKind {
 	mfaState := types.MFADeviceKind_MFA_DEVICE_KIND_UNSET
-	for _, d := range devs {
+	for _, d := range in {
 		if (d.GetWebauthn() != nil || d.GetU2F() != nil) && mfaState == types.MFADeviceKind_MFA_DEVICE_KIND_UNSET {
 			mfaState = types.MFADeviceKind_MFA_DEVICE_KIND_WEBAUTHN
 		}
