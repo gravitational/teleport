@@ -14,6 +14,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/lib/accesslists"
@@ -682,6 +683,7 @@ func newAccessListWithMembers(name string, memberNames []string) *accessListWith
 	if err != nil {
 		panic(err)
 	}
+	al.SetOrigin(types.OriginEntraID)
 
 	members := make([]*accesslist.AccessListMember, len(memberNames))
 	for i, memberName := range memberNames {

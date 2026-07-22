@@ -243,15 +243,10 @@ func (r *Reconciler) Reconcile(ctx context.Context, syncMode mdmsync.SyncMode) (
 	r.errSkippedResources = errSkippedResources{}
 	reconciliationStart := r.clock.Now()
 
-	start := r.clock.Now()
 	teleportAccessListsWithMembersMap, err := listTeleportAccessListsWithMembers(ctx, r.accessPoint)
 	if err != nil {
 		return result, trace.Wrap(err)
 	}
-	took := r.clock.Since(start)
-	r.metrics.reconciliationDuration.With(prometheus.Labels{
-		metricLabelSection: "read_list_backend",
-	}).Observe(took.Seconds())
 
 	teleportUsers, err := listTeleportUsers(ctx, r.accessPoint, r.ssoConnectorID)
 	if err != nil {
@@ -273,7 +268,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, syncMode mdmsync.SyncMode) (
 		usersMap:       teleportUsers,
 	}
 
-	start = r.clock.Now()
+	start := r.clock.Now()
 	entraGroupResp, err := r.getEntraGroupsAndMembers(ctx, syncMode, teleportState)
 	r.errSkippedResources.groups = append(r.errSkippedResources.groups, entraGroupResp.errSkippedGroups...)
 	if err != nil {
@@ -308,7 +303,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, syncMode mdmsync.SyncMode) (
 	if err != nil {
 		return result, trace.Wrap(err)
 	}
-	took = r.clock.Since(start)
+	took := r.clock.Since(start)
 	r.logger.DebugContext(ctx, "Finished reconciling Entra ID and Teleport users", "sync_mode", FriendlySyncMode(syncMode), "took", took.String())
 	r.metrics.reconciliationDuration.With(prometheus.Labels{
 		metricLabelSection: "reconcile_users",
@@ -359,14 +354,23 @@ func (r *Reconciler) getEntraGroupsAndMembers(
 	}
 
 	if syncMode == mdmsync.SyncModePartial {
+		start := r.clock.Now()
 		resp, err := r.graphClient.listEntraGroupsDelta(
 			ctx,
 			entraGroupMatcher,
 			teleportState.accessListsMap,
 			teleportState.usersMap,
 		)
+		if err != nil {
+			return resp, trace.Wrap(err, "failed processing group deltas")
+		}
 
-		return resp, trace.Wrap(err)
+		r.metrics.discoveredEntraGroups.Set(float64(len(resp.groupsMap)))
+		r.metrics.discoveredEntraMemberships.Set(numEntraGroupMembers(resp.groupMembersMap))
+		r.metrics.reconciliationDuration.With(prometheus.Labels{
+			metricLabelSection: "read_entra_groups_delta",
+		}).Observe(r.clock.Since(start).Seconds())
+		return resp, nil
 	}
 
 	start := r.clock.Now()
@@ -402,7 +406,7 @@ func (r *Reconciler) getEntraGroupsAndMembers(
 	r.metrics.reconciliationDuration.With(prometheus.Labels{
 		metricLabelSection: "read_entra_members",
 	}).Observe(took.Seconds())
-	r.metrics.discoveredEntraMemberships.Set(float64(len(membersResp)))
+	r.metrics.discoveredEntraMemberships.Set(numEntraGroupMembers(membersResp))
 
 	return out, nil
 }
@@ -438,12 +442,26 @@ func (r *Reconciler) getEntraUsers(
 	}
 
 	if syncMode == mdmsync.SyncModePartial {
+		start := r.clock.Now()
 		resp, err := r.graphClient.listEntraUsersDelta(ctx, cfg)
-		return resp, trace.Wrap(err, "failed processing user deltas")
+		if err != nil {
+			return resp, trace.Wrap(err, "failed processing user deltas")
+		}
+
+		r.metrics.discoveredEntraUsers.Set(float64(len(resp.users)))
+		r.metrics.reconciliationDuration.With(prometheus.Labels{
+			metricLabelSection: "read_entra_users_delta",
+		}).Observe(r.clock.Since(start).Seconds())
+		return resp, nil
 	}
 
+	start := r.clock.Now()
 	resp, err = r.graphClient.listEntraUsers(ctx, cfg)
 	r.metrics.discoveredEntraUsers.Set(float64(len(resp.users)))
+	r.metrics.reconciliationDuration.With(prometheus.Labels{
+		metricLabelSection: "read_entra_users",
+	}).Observe(r.clock.Since(start).Seconds())
+
 	return resp, trace.Wrap(err)
 }
 
@@ -820,4 +838,12 @@ func pruneUntrackedTeleportSSOUsers(entraUsers, teleportUsers map[string]types.U
 		// instead let the user be deleted eventually by the ephemeral user lifecycle.
 		delete(teleportUsers, name)
 	}
+}
+
+func numEntraGroupMembers(in groupMembersByGroupID) float64 {
+	out := 0
+	for _, members := range in {
+		out += len(members)
+	}
+	return float64(out)
 }
