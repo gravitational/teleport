@@ -351,6 +351,10 @@ func (c *ScopedAccessCheckerContext) CheckMaybeHasAccessToRules(ctx RuleContext,
 // Decision calls fn against each checker in the resource scope evaluation order until one of three
 // conditions is met: (1) fn succeeds, (2) fn returns an explicitly denied error, or (3) all checkers
 // have been exhausted (implicit deny).
+//
+// Unscoped contexts resolve to exactly one checker, an error returned in this case is unmodified in order to
+// surface special unscoped requirements like trusted device or session MFA that only an unscoped checker can produce
+// right now.
 func (c *ScopedAccessCheckerContext) Decision(ctx context.Context, scope string, fn func(*ScopedAccessChecker) error) error {
 	return c.decision(c.CheckersForResourceScope(ctx, scope), fn)
 }
@@ -364,6 +368,12 @@ func (c *ScopedAccessCheckerContext) decision(checkers stream.Stream[*ScopedAcce
 		switch {
 		case err == nil:
 			return nil
+		case !c.isScoped():
+			// This surfaces requirements like trusted device and session MFA
+			// that only the unscoped checker can produce right now.
+			// Rather than masking them into an explicit deny,
+			// return errors here that unscoped checkers return.
+			return trace.Wrap(err)
 		case IsAccessExplicitlyDenied(err):
 			return trace.Wrap(err)
 		default:
