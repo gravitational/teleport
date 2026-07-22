@@ -79,6 +79,7 @@ export const EventIconMap: Record<EventCode, any> = {
   [eventCodes.APP_SESSION_HTTP_REQUEST_BODY_CHUNK]: Icons.Info,
   [eventCodes.APP_SESSION_HTTP_RESPONSE]: Icons.Info,
   [eventCodes.APP_SESSION_HTTP_RESPONSE_BODY_CHUNK]: Icons.Info,
+  [eventCodes.APP_SESSION_EXPIRE]: Icons.Info,
   [eventCodes.APP_SESSION_DYNAMODB_REQUEST]: Icons.Database,
   [eventCodes.APP_CREATED]: Icons.Code,
   [eventCodes.APP_UPDATED]: Icons.Code,

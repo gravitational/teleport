@@ -386,6 +386,8 @@ type AppSession interface {
 	UpdateAppSession(context.Context, types.WebSession) error
 	// UpsertAppSession upserts an application web session.
 	UpsertAppSession(context.Context, types.WebSession) error
+	// ListExpiredAppSessions lists expired application web sessions.
+	ListExpiredAppSessions(ctx context.Context, limit int, pageToken string) ([]types.WebSession, string, error)
 }
 
 // SnowflakeSession defines Snowflake session features.

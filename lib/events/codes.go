@@ -146,6 +146,8 @@ const (
 	AppSessionHTTPResponseCode = "T2017I"
 	// AppSessionHTTPResponseBodyChunkCode is the HTTP proxy response body chunk event code.
 	AppSessionHTTPResponseBodyChunkCode = "T2018I"
+	// AppSessionExpireCode is the application session expire event code.
+	AppSessionExpireCode = "T2019I"
 
 	// AppCreateCode is the app.create event code.
 	AppCreateCode = "TAP03I"

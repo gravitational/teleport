@@ -56,6 +56,7 @@ export const eventCodes = {
   APP_SESSION_START: 'T2007I',
   APP_SESSION_START_FAILURE: 'T2007E',
   APP_SESSION_END: 'T2011I',
+  APP_SESSION_EXPIRE: 'T2019I',
   APP_SESSION_DYNAMODB_REQUEST: 'T2013I',
   APP_SESSION_HTTP_REQUEST: 'T2015I',
   APP_SESSION_HTTP_REQUEST_BODY_CHUNK: 'T2016I',
@@ -730,6 +731,13 @@ export type RawEvents = {
     typeof eventCodes.APP_SESSION_HTTP_RESPONSE_BODY_CHUNK,
     {
       request_id: string;
+    }
+  >;
+  [eventCodes.APP_SESSION_EXPIRE]: RawEvent<
+    typeof eventCodes.APP_SESSION_EXPIRE,
+    {
+      sid: string;
+      app_name: string;
     }
   >;
   [eventCodes.APP_SESSION_CHUNK]: RawEvent<

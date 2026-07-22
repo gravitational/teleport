@@ -23,6 +23,7 @@ import (
 	"iter"
 	"log/slog"
 	"slices"
+	"time"
 
 	"github.com/gravitational/trace"
 
@@ -167,7 +168,7 @@ func (s *IdentityService) UpdateAppSession(ctx context.Context, session types.We
 	item := backend.Item{
 		Key:      backend.NewKey(appsPrefix, sessionsPrefix, session.GetName()),
 		Value:    value,
-		Expires:  session.GetExpiryTime(),
+		Expires:  s.appSessionBackendExpiry(session),
 		Revision: rev,
 	}
 	if _, err = s.ConditionalUpdate(ctx, item); err != nil {
@@ -191,7 +192,7 @@ func (s *IdentityService) upsertSession(ctx context.Context, session types.WebSe
 	item := backend.Item{
 		Key:      backend.NewKey(append(keyPrefix, session.GetName())...),
 		Value:    value,
-		Expires:  session.GetExpiryTime(),
+		Expires:  s.appSessionBackendExpiry(session),
 		Revision: rev,
 	}
 
@@ -199,6 +200,26 @@ func (s *IdentityService) upsertSession(ctx context.Context, session types.WebSe
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+// appSessionBackendExpiry returns the backend TTL for a session. When the
+// app session expiry service is enabled, app sessions are stored without a
+// backend TTL so the expiry servicecan emit an app.session.expire audit event.
+func (s *IdentityService) appSessionBackendExpiry(session types.WebSession) time.Time {
+	if s.appSessionExpiryService && session.GetSubKind() == types.KindAppSession {
+		return time.Time{}
+	}
+	return session.GetExpiryTime()
+}
+
+// ListExpiredAppSessions lists all application sessions that are expired.
+func (s *IdentityService) ListExpiredAppSessions(ctx context.Context, limit int, pageToken string) ([]types.WebSession, string, error) {
+	now := s.Clock().Now()
+	allSessions := s.rangeSessions(ctx, pageToken, "", "", appsPrefix, sessionsPrefix)
+	expired := stream.FilterMap(allSessions, func(session types.WebSession) (types.WebSession, bool) {
+		return session, now.After(session.GetExpiryTime())
+	})
+	return generic.CollectPageAndCursor(expired, limit, types.WebSession.GetName)
 }
 
 // DeleteAppSession removes an application web session.
