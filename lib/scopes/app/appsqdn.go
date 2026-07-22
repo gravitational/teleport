@@ -57,6 +57,11 @@ func scopeSubdomainOk(subdomain string) bool {
 	return true
 }
 
+// ScopedSubdomain returns the scope-qualified subdomain for a scoped app.
+func ScopedSubdomain(appName, scope string) string {
+	return generateScopedSubDomain(appName, scope)
+}
+
 // ScopedAppPublicAddr returns the derived public address for a scoped app (Scope Qualified SubDomain):
 // "<ScopedSubdomain(name, scope)>.<proxy>".
 // The trailing port on the proxy is stripped and the host is lowercased so the result

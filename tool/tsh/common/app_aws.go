@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -169,7 +170,7 @@ func (a *awsApp) GetEnvVars() (map[string]string, error) {
 		// https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-envvars.html
 		"AWS_ACCESS_KEY_ID":     cred.AccessKeyID,
 		"AWS_SECRET_ACCESS_KEY": cred.SecretAccessKey,
-		"AWS_CA_BUNDLE":         a.profile.AppLocalCAPath(a.cf.SiteName, a.routeToApp.Name),
+		"AWS_CA_BUNDLE":         a.profile.AppLocalCAPath(a.cf.SiteName, scopes.QualifiedName{Name: a.routeToApp.Name, Scope: a.routeToApp.Scope}),
 		// Proxy settings.
 		"HTTPS_PROXY": "http://" + a.localForwardProxy.GetAddr(),
 		"https_proxy": "http://" + a.localForwardProxy.GetAddr(),

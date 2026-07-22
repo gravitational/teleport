@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/aws"
@@ -92,7 +93,7 @@ func (c *Cluster) ReissueAppCert(ctx context.Context, clusterClient *client.Clus
 		return tls.Certificate{}, trace.Wrap(err)
 	}
 
-	appCert, err := result.KeyRing.AppTLSCert(routeToApp.Name)
+	appCert, err := result.KeyRing.AppTLSCert(scopes.QualifiedName{Name: routeToApp.Name, Scope: routeToApp.Scope})
 	return appCert, trace.Wrap(err)
 }
 

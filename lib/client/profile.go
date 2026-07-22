@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils/keypaths"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -609,11 +610,15 @@ func (p *ProfileStatus) DatabaseLocalCAPath() string {
 // AppCertPath returns path to the specified app access certificate
 // for this profile.
 //
-// It's kept in <profile-dir>/keys/<proxy>/<user>-app/<cluster>/<name>.crt
-func (p *ProfileStatus) AppCertPath(cluster, name string) string {
+// It's kept in <profile-dir>/keys/<proxy>/<user>-app/<cluster>/<name>.crt for
+// unscoped apps.
+// Scoped apps are kept in
+// <profile-dir>/keys/<proxy>/<user>-app/<cluster>/@<scope-qualified-subdomain>.crt.
+func (p *ProfileStatus) AppCertPath(cluster string, appSQN scopes.QualifiedName) string {
 	if cluster == "" {
 		cluster = p.Cluster
 	}
+	name := ScopedAppName(appSQN)
 	if path, ok := p.virtualPathFromEnv(VirtualPathAppCert, VirtualPathAppCertParams(name)); ok {
 		return path
 	}
@@ -624,11 +629,15 @@ func (p *ProfileStatus) AppCertPath(cluster, name string) string {
 // AppKeyPath returns path to the specified app access private key for this
 // profile.
 //
-// It's kept in <profile-dir>/keys/<proxy>/<user>-app/<cluster>/<name>.key
-func (p *ProfileStatus) AppKeyPath(cluster, name string) string {
+// It's kept in <profile-dir>/keys/<proxy>/<user>-app/<cluster>/<name>.key for
+// unscoped apps.
+// Scoped apps are kept in
+// <profile-dir>/keys/<proxy>/<user>-app/<cluster>/@<scope-qualified-subdomain>.key
+func (p *ProfileStatus) AppKeyPath(cluster string, appSQN scopes.QualifiedName) string {
 	if cluster == "" {
 		cluster = p.Cluster
 	}
+	name := ScopedAppName(appSQN)
 	if path, ok := p.virtualPathFromEnv(VirtualPathKey, VirtualPathAppKeyParams(name)); ok {
 		return path
 	}
@@ -640,11 +649,14 @@ func (p *ProfileStatus) AppKeyPath(cluster, name string) string {
 // this profile.
 //
 // It's kept in <profile-dir>/keys/<proxy>/<user>-app/<cluster>/<name>-localca.pem
-func (p *ProfileStatus) AppLocalCAPath(cluster, name string) string {
+// for unscoped apps.
+// Scoped apps are kept in
+// <profile-dir>/keys/<proxy>/<user>-app/<cluster>/@<scope-qualified-subdomain>-localca.pem.
+func (p *ProfileStatus) AppLocalCAPath(cluster string, appSQN scopes.QualifiedName) string {
 	if cluster == "" {
 		cluster = p.Cluster
 	}
-	return keypaths.AppLocalCAPath(p.Dir, p.Name, p.Username, cluster, name)
+	return keypaths.AppLocalCAPath(p.Dir, p.Name, p.Username, cluster, ScopedAppName(appSQN))
 }
 
 // KubeConfigPath returns path to the specified kubeconfig for this profile.
