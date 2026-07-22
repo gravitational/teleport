@@ -55,14 +55,14 @@ func TestGenerateAWSRACredentials(t *testing.T) {
 	_, err = localClient.CreateIntegration(ctx, ig)
 	require.NoError(t, err)
 
-	ctx = authorizerForDummyUser(t, ctx, types.RoleSpecV6{
+	ctx = authorizerForAdminUser(t, ctx, types.RoleSpecV6{
 		Allow: types.RoleConditions{Rules: []types.Rule{
 			{Resources: []string{types.KindIntegration}, Verbs: []string{types.VerbUse}},
 		}},
 	}, localClient)
 
 	t.Run("requesting with an user should return access denied", func(t *testing.T) {
-		ctx = authorizerForDummyUser(t, ctx, types.RoleSpecV6{
+		ctx = authorizerForAdminUser(t, ctx, types.RoleSpecV6{
 			Allow: types.RoleConditions{Rules: []types.Rule{
 				{Resources: []string{types.KindIntegration}, Verbs: []string{types.VerbUse}},
 			}},
@@ -108,7 +108,7 @@ func TestAWSRolesAnywhereProfileSyncFilters(t *testing.T) {
 	ca := newCertAuthority(t, types.AWSRACA, clusterName)
 	ctx, localClient, resourceSvc := initSvc(t, ca, clusterName, proxyPublicAddr)
 
-	ctx = authorizerForDummyUser(t, ctx, types.RoleSpecV6{
+	ctx = authorizerForAdminUser(t, ctx, types.RoleSpecV6{
 		Allow: types.RoleConditions{Rules: []types.Rule{
 			{Resources: []string{types.KindIntegration}, Verbs: []string{types.VerbCreate, types.VerbUpdate}},
 		}},
@@ -188,7 +188,7 @@ func TestAWSRolesAnywherePing(t *testing.T) {
 	_, err = localClient.CreateIntegration(ctx, ig)
 	require.NoError(t, err)
 
-	ctx = authorizerForDummyUser(t, ctx, types.RoleSpecV6{
+	ctx = authorizerForAdminUser(t, ctx, types.RoleSpecV6{
 		Allow: types.RoleConditions{Rules: []types.Rule{
 			{Resources: []string{types.KindIntegration}, Verbs: []string{types.VerbUse}},
 		}},

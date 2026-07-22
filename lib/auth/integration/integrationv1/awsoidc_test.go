@@ -68,14 +68,14 @@ func TestGenerateAWSOIDCToken(t *testing.T) {
 	_, err = localClient.CreateIntegration(ctx, ig)
 	require.NoError(t, err)
 
-	ctx = authorizerForDummyUser(t, ctx, types.RoleSpecV6{
+	ctx = authorizerForAdminUser(t, ctx, types.RoleSpecV6{
 		Allow: types.RoleConditions{Rules: []types.Rule{
 			{Resources: []string{types.KindIntegration}, Verbs: []string{types.VerbUse}},
 		}},
 	}, localClient)
 
 	t.Run("requesting with an user should return access denied", func(t *testing.T) {
-		ctx = authorizerForDummyUser(t, ctx, types.RoleSpecV6{
+		ctx = authorizerForAdminUser(t, ctx, types.RoleSpecV6{
 			Allow: types.RoleConditions{Rules: []types.Rule{
 				{Resources: []string{types.KindIntegration}, Verbs: []string{types.VerbUse}},
 			}},
@@ -240,7 +240,7 @@ func TestRBAC(t *testing.T) {
 			}}},
 		}
 
-		userCtx := authorizerForDummyUser(t, ctx, role, localClient)
+		userCtx := authorizerForAdminUser(t, ctx, role, localClient)
 
 		for _, tt := range []endpointSubtest{
 			{
@@ -335,7 +335,7 @@ func TestRBAC(t *testing.T) {
 			}}},
 		}
 
-		userCtx := authorizerForDummyUser(t, ctx, role, localClient)
+		userCtx := authorizerForAdminUser(t, ctx, role, localClient)
 
 		for _, tt := range []endpointSubtest{
 			{
