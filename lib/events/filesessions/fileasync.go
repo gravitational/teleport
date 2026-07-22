@@ -295,7 +295,7 @@ func (u *Uploader) Scan(ctx context.Context) (*ScanStats, error) {
 			continue
 		}
 		ext := filepath.Ext(fi.Name())
-		if ext == checkpointExt || ext == errorExt {
+		if ext == checkpointExt || ext == errorExt || ext == lockExt {
 			continue
 		}
 		stats.Scanned++
@@ -397,6 +397,9 @@ func (u *upload) removeFiles() error {
 	if u.file != nil {
 		errs = append(errs,
 			trace.ConvertSystemError(os.Remove(u.file.Name())))
+		if err := os.Remove(u.file.Name() + lockExt); err != nil && !os.IsNotExist(err) {
+			errs = append(errs, trace.ConvertSystemError(err))
+		}
 	}
 	if u.checkpointFile != nil {
 		errs = append(errs,
@@ -547,6 +550,9 @@ func (u *Uploader) startUpload(ctx context.Context, fileName string) (err error)
 		}
 		if err := os.Rename(errorFilePath, filepath.Join(u.cfg.CorruptedDir, filepath.Base(errorFilePath))); err != nil {
 			moveErrs = append(moveErrs, trace.Wrap(err, "moving %v to %v", errorFilePath, u.cfg.CorruptedDir))
+		}
+		if err := os.Remove(sessionFilePath + lockExt); err != nil && !os.IsNotExist(err) {
+			moveErrs = append(moveErrs, trace.Wrap(err, "removing lock sidecar for %v", sessionFilePath))
 		}
 		if len(moveErrs) > 0 {
 			log.ErrorContext(ctx, "Failed to move corrupted recording", "error", trace.NewAggregate(moveErrs...))
