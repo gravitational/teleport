@@ -56,6 +56,7 @@ import (
 	rss "github.com/aws/aws-sdk-go-v2/service/redshiftserverless"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	ssmtypes "github.com/aws/aws-sdk-go-v2/service/ssm/types"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
@@ -129,6 +130,25 @@ func (sm *mockSSMClient) SendCommand(_ context.Context, input *ssm.SendCommandIn
 
 func (sm *mockSSMClient) GetCommandInvocation(_ context.Context, input *ssm.GetCommandInvocationInput, _ ...func(*ssm.Options)) (*ssm.GetCommandInvocationOutput, error) {
 	return sm.invokeOutput, nil
+}
+
+type mockAWSSTSClient struct {
+	output *sts.GetCallerIdentityOutput
+}
+
+func (m *mockAWSSTSClient) GetCallerIdentity(ctx context.Context, params *sts.GetCallerIdentityInput, opts ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error) {
+	return m.output, nil
+}
+
+func mockGetAWSSTSClient(accountID string) server.AWSSTSGetter {
+	return func(ctx context.Context, region string, opts ...awsconfig.OptionsFn) (server.AWSSTSClient, error) {
+		return &mockAWSSTSClient{
+			output: &sts.GetCallerIdentityOutput{
+				Account: aws.String(accountID),
+				Arn:     aws.String("arn:aws:sts::" + accountID + ":assumed-role/Discovery/session"),
+			},
+		}, nil
+	}
 }
 
 type mockEmitter struct {
@@ -959,6 +979,7 @@ func TestDiscoveryServer(t *testing.T) {
 					GetEC2Client: func(ctx context.Context, region string, opts ...awsconfig.OptionsFn) (ec2.DescribeInstancesAPIClient, error) {
 						return ec2Client, nil
 					},
+					GetAWSSTSClient: mockGetAWSSTSClient("123456789012"),
 					GetSSMClient: func(ctx context.Context, region string, opts ...awsconfig.OptionsFn) (server.SSMClient, error) {
 						return tc.ssm, nil
 					},
@@ -1364,6 +1385,7 @@ func TestDiscoveryServerConcurrency(t *testing.T) {
 		// Create Server1
 		server1, err := New(authz.ContextWithUser(ctx, identity.I), &Config{
 			GetEC2Client:     getEC2Client,
+			GetAWSSTSClient:  mockGetAWSSTSClient("123456789012"),
 			ClusterFeatures:  func() proto.Features { return proto.Features{} },
 			KubernetesClient: fake.NewClientset(),
 			AccessPoint:      getDiscoveryAccessPoint(tlsServer.Auth(), authClient),
@@ -1377,6 +1399,7 @@ func TestDiscoveryServerConcurrency(t *testing.T) {
 		// Create Server2
 		server2, err := New(authz.ContextWithUser(ctx, identity.I), &Config{
 			GetEC2Client:     getEC2Client,
+			GetAWSSTSClient:  mockGetAWSSTSClient("123456789012"),
 			ClusterFeatures:  func() proto.Features { return proto.Features{} },
 			KubernetesClient: fake.NewClientset(),
 			AccessPoint:      getDiscoveryAccessPoint(tlsServer.Auth(), authClient),

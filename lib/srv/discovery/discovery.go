@@ -137,6 +137,8 @@ type Config struct {
 	GetAWSRegionsLister awsregions.ListerGetter
 	// GetAWSOrganizationsClient gets a client that is capable of listing AWS organizations.
 	GetAWSOrganizationsClient server.AWSOrganizationsGetter
+	// GetAWSSTSClient gets a client that is capable of resolving AWS caller identity.
+	GetAWSSTSClient server.AWSSTSGetter
 	// GetSSMClient gets an AWS SSM client for the given region.
 	GetSSMClient func(ctx context.Context, region string, opts ...awsconfig.OptionsFn) (server.SSMClient, error)
 	// IntegrationOnlyCredentials discards any Matcher that don't have an Integration.
@@ -316,6 +318,15 @@ kubernetes matchers are present.`)
 				return nil, trace.Wrap(err)
 			}
 			return organizations.NewFromConfig(cfg), nil
+		}
+	}
+	if c.GetAWSSTSClient == nil {
+		c.GetAWSSTSClient = func(ctx context.Context, region string, opts ...awsconfig.OptionsFn) (server.AWSSTSClient, error) {
+			cfg, err := c.getAWSConfig(ctx, region, opts...)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return stsutils.NewFromConfig(cfg), nil
 		}
 	}
 	if c.AWSFetchersClients == nil {
@@ -646,6 +657,7 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 		EC2ClientGetter:        s.GetEC2Client,
 		RegionsListerGetter:    s.GetAWSRegionsLister,
 		AWSOrganizationsGetter: s.GetAWSOrganizationsClient,
+		AWSSTSGetter:           s.GetAWSSTSClient,
 		PublicProxyAddrGetter:  s.publicProxyAddress,
 		Logger:                 s.Log,
 	})
@@ -729,6 +741,7 @@ func (s *Server) handleEC2WatcherError(err error) bool {
 			"integration", permErr.Integration,
 			"account_id", permErr.AccountID,
 			"region", permErr.Region,
+			"caller_arn", permErr.CallerARN,
 			"discovery_config", permErr.DiscoveryConfigName,
 			"error", permErr.Err,
 		)
@@ -824,6 +837,7 @@ func (s *Server) awsServerFetchersFromMatchers(ctx context.Context, matchers []t
 		EC2ClientGetter:        s.GetEC2Client,
 		RegionsListerGetter:    s.GetAWSRegionsLister,
 		AWSOrganizationsGetter: s.GetAWSOrganizationsClient,
+		AWSSTSGetter:           s.GetAWSSTSClient,
 		DiscoveryConfigName:    discoveryConfigName,
 		PublicProxyAddrGetter:  s.publicProxyAddress,
 		Logger:                 s.Log,
