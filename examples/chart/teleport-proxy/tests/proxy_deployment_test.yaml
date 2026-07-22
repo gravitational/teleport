@@ -213,8 +213,10 @@ tests:
         tokenName: teleport-proxy
       highAvailability:
         replicaCount: 3
-      documentIndex: 1
-      asserts:
+      tls:
+        existingSecretName: my-certs
+    documentIndex: 1
+    asserts:
       - isKind:
           of: Deployment
       - equal:

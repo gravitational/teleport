@@ -19,7 +19,7 @@ tests:
           value: RELEASE-NAME-proxy-test
         documentIndex: 2
       - equal:
-          path: metadata.annotations.helm\.sh/hook
+          path: metadata.annotations["helm.sh/hook"]
           value: pre-install,pre-upgrade
         documentIndex: 2
       - isKind:
@@ -30,7 +30,7 @@ tests:
           value: RELEASE-NAME-proxy-test
         documentIndex: 3
       - equal:
-          path: metadata.annotations.helm\.sh/hook
+          path: metadata.annotations["helm.sh/hook"]
           value: pre-install,pre-upgrade
         documentIndex: 3
       - isKind:
@@ -41,7 +41,7 @@ tests:
           value: RELEASE-NAME-hook
         documentIndex: 4
       - equal:
-          path: metadata.annotations.helm\.sh/hook
+          path: metadata.annotations["helm.sh/hook"]
           value: pre-install,pre-upgrade
         documentIndex: 4
   - it: should set extraLabels on proxy predeploy job when set in values
