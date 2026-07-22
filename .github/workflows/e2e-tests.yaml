@@ -37,6 +37,7 @@ jobs:
             changed:
               - '.github/workflows/e2e-tests.yaml'
               - '.github/workflows/e2e-tests-base.yaml'
+              - '.github/workflows/e2e-build.yaml'
               - '**/*.go'
               - 'go.mod'
               - 'go.sum'
@@ -63,15 +64,25 @@ jobs:
               - 'build.assets/build-e2e-binaries.sh'
               - 'Makefile'
 
-  e2e:
+  build:
     needs: changes
+    if: ${{ needs.changes.outputs.changed == 'true' && !startsWith(github.head_ref, 'dependabot/') }}
+    uses: ./.github/workflows/e2e-build-base.yaml
+    with:
+      build-dir: build
+      build-logs-dir: build-logs
+      type-check-package: "@gravitational/e2e"
+      build-command: make e2e-binaries
+    permissions:
+      contents: read
+
+  test:
+    needs: [changes, build]
     if: ${{ needs.changes.outputs.changed == 'true' && !startsWith(github.head_ref, 'dependabot/') }}
     uses: ./.github/workflows/e2e-tests-base.yaml
     with:
       build-dir: build
       e2e-dir: e2e
-      build-logs-dir: build-logs
-      type-check-package: '@gravitational/e2e'
-      build-command: make e2e-binaries
+      playwright-version: ${{ needs.build.outputs.playwright-version }}
     permissions:
       contents: read
