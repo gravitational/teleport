@@ -16,12 +16,15 @@ Terraform provider, or the Teleport Web UI.
 
 Managing the allowlist with `tctl` and the Teleport Terraform provider is
 available starting with Teleport v19. The Web UI is available in earlier
-versions.
+versions, but does not yet support the draft mode and expiry safeguards
+described in this guide.
 
 This guide covers how to:
 
 - Configure a Teleport role that can manage Client IP Restrictions.
 - Set the list of CIDR blocks allowed to connect to your Teleport Cloud cluster.
+- Test an allowlist in draft mode and enforce it with an expiry, so that a
+  misconfigured allowlist cannot lock you out permanently.
 - Check whether the restrictions are enforced.
 - Disable the restrictions.
 
@@ -32,15 +35,31 @@ exactly one, and its name is always `client-ip-restriction`. Its
 `spec.allowed_cidrs` field holds the list of CIDR blocks permitted to connect to
 the cluster. An empty list disables restrictions and allows all traffic.
 
-When you save an allowlist, Teleport Cloud enforces it at the cluster's ingress
-layer: only clients whose source IP falls within one of the allowed CIDR blocks
-can reach the cluster. Changes take 5-20 minutes to propagate and terminate
-existing connections that no longer match the allowlist.
+Two more `spec` fields control how and when the allowlist is enforced:
+
+- `mode` sets your intent. `enforced` (the default when `mode` is empty or
+  unset) tells Teleport Cloud to enforce the allowlist. `draft` saves the
+  allowlist without enforcing it. Use `draft` to review a new allowlist without
+  affecting live traffic, or to keep a vetted allowlist on standby so you can
+  enforce it the moment you need to — for example, to lock the cluster down to
+  trusted networks during a security incident.
+- `expires` is an optional [RFC 3339](https://www.rfc-editor.org/rfc/rfc3339)
+  timestamp. When it passes, Teleport Cloud stops enforcing the allowlist and
+  reverts `mode` to `draft`. Use it as a safety net so that an allowlist that
+  locks you out reverts on its own instead of requiring a support ticket. An
+  unset value never expires.
+
+When the allowlist is enforced, Teleport Cloud applies it at the cluster's
+ingress layer: only clients whose source IP falls within one of the allowed CIDR
+blocks can reach the cluster. Changes take 5-20 minutes to propagate and
+terminate existing connections that no longer match the allowlist. In `draft`
+mode the allowlist is stored but never applied, and all traffic is allowed.
 
 The resource's `status.state` field reflects the current enforcement state:
 
 | State     | Meaning                                                                                                      |
 | --------- | ------------------------------------------------------------------------------------------------------------ |
+| `draft`   | The allowlist is saved but not enforced, because `mode` is `draft`. All IPs can reach the cluster.           |
 | `pending` | The allowlist has been saved and is being propagated to the ingress layer. Enforcement is not yet in effect. |
 | `active`  | The allowlist is fully enforced at the ingress layer. Only IPs matching the allowlist can reach the cluster. |
 
@@ -123,10 +142,15 @@ editor to apply the change:
 
 <Admonition type="danger" title="Avoid locking yourself out">
   A misconfigured allowlist can block all access to your cluster. Before you
-  save changes, make sure the allowlist includes the network you are currently
-  connecting from, as well as any third-party services that need to reach your
-  cluster (CI/CD systems, identity providers, and so on). Teleport does not add
-  these ranges automatically.
+  enforce changes, make sure the allowlist includes the network you are
+  currently connecting from, as well as any third-party services that need to
+  reach your cluster (CI/CD systems, identity providers, and so on). Teleport
+  does not add these ranges automatically.
+
+  Rather than enforcing a new allowlist directly, stage it in `draft` mode and
+  then enforce it with an `expires` safety timer, as described in
+  [Test and roll out the allowlist safely](#test-and-roll-out-the-allowlist-safely).
+  The examples below enforce the allowlist immediately.
 </Admonition>
 
 <Tabs>
@@ -225,6 +249,177 @@ your account. See the [Prerequisites](#prerequisites) for how to enable it.
 </TabItem>
 </Tabs>
 
+## Test and roll out the allowlist safely
+
+A misconfigured allowlist can lock you out of your cluster. To avoid this, roll
+out changes in two stages — first `draft`, then `enforced` with an expiry — so
+that a mistake reverts on its own instead of becoming a permanent lockout that
+requires a support ticket. This workflow is available with `tctl` and the
+Terraform provider; the Web UI does not support it yet.
+
+### Stage the allowlist in draft mode
+
+Set `mode: draft` to save the allowlist without enforcing it. Teleport Cloud
+stores the CIDR blocks but continues to allow all traffic, so you can review the
+list with no risk of losing access.
+
+<Tabs>
+<TabItem label="tctl">
+
+```yaml
+kind: client_ip_restriction
+version: v1
+metadata:
+  name: client-ip-restriction
+spec:
+  mode: draft
+  allowed_cidrs:
+    - "203.0.113.0/24"
+    - "198.51.100.10/32"
+```
+
+Apply it with `tctl create -f client-ip-restriction.yaml`, then read it back and
+confirm that `status.state` is `draft`:
+
+```code
+$ tctl get client_ip_restriction
+```
+
+</TabItem>
+<TabItem label="Terraform">
+
+```hcl
+resource "teleport_client_ip_restriction" "main" {
+  version = "v1"
+  metadata = {
+    name = "client-ip-restriction"
+  }
+
+  spec = {
+    mode = "draft"
+    allowed_cidrs = [
+      "203.0.113.0/24",
+      "198.51.100.10/32",
+    ]
+  }
+}
+```
+
+Run `terraform apply`, then read the resource back with
+`tctl get client_ip_restriction` and confirm that `status.state` is `draft`.
+
+</TabItem>
+</Tabs>
+
+While the state is `draft`, verify that `allowed_cidrs` includes the network you
+are connecting from and every third-party service that must reach your cluster.
+
+You do not have to enforce the allowlist right away. You can leave it in `draft`
+indefinitely as a vetted, ready-to-go configuration, then enforce it the moment
+you need to — for example, to restrict access to trusted networks during a
+security incident — by setting `mode: enforced` as shown below.
+
+### Enforce the allowlist with an expiry safety net
+
+When the draft looks correct, set `mode: enforced` and an `expires` timestamp a
+short time in the future. `expires` must be in UTC and use
+[RFC 3339](https://www.rfc-editor.org/rfc/rfc3339) format (the trailing `Z`
+denotes UTC), and it must be at least 20 minutes ahead. Teleport Cloud enforces
+the allowlist, but if it locks you out, enforcement automatically reverts to
+`draft` at the expiry time and access is restored.
+
+Compute a UTC timestamp 30 minutes from now:
+
+<Tabs>
+<TabItem label="Linux">
+
+```code
+$ date -u -d '+30 minutes' '+%Y-%m-%dT%H:%M:%SZ'
+# 2026-01-01T00:30:00Z
+```
+
+</TabItem>
+<TabItem label="macOS">
+
+```code
+$ date -u -v+30M '+%Y-%m-%dT%H:%M:%SZ'
+# 2026-01-01T00:30:00Z
+```
+
+</TabItem>
+</Tabs>
+
+Use the output as the `expires` value:
+
+<Tabs>
+<TabItem label="tctl">
+
+```yaml
+kind: client_ip_restriction
+version: v1
+metadata:
+  name: client-ip-restriction
+spec:
+  mode: enforced
+  # Use the UTC timestamp from the command above.
+  expires: "2026-01-01T00:30:00Z"
+  allowed_cidrs:
+    - "203.0.113.0/24"
+    - "198.51.100.10/32"
+```
+
+</TabItem>
+<TabItem label="Terraform">
+
+```hcl
+resource "teleport_client_ip_restriction" "main" {
+  version = "v1"
+  metadata = {
+    name = "client-ip-restriction"
+  }
+
+  spec = {
+    mode = "enforced"
+    # Use the UTC timestamp from the command above.
+    expires = "2026-01-01T00:30:00Z"
+    allowed_cidrs = [
+      "203.0.113.0/24",
+      "198.51.100.10/32",
+    ]
+  }
+}
+```
+
+</TabItem>
+</Tabs>
+
+<Admonition type="warning" title="Each write replaces the whole resource">
+  Every write replaces the entire resource, so when you edit the allowlist you
+  must re-send a still-valid `expires` or clear it. An `expires` value you read
+  earlier and send back unchanged is rejected once it is within 20 minutes of
+  the current time.
+</Admonition>
+
+After you confirm that you still have access, keep the allowlist enforced by
+removing `expires` (or extending it) and reapplying. With `expires` unset,
+enforcement never reverts automatically:
+
+```yaml
+kind: client_ip_restriction
+version: v1
+metadata:
+  name: client-ip-restriction
+spec:
+  mode: enforced
+  allowed_cidrs:
+    - "203.0.113.0/24"
+    - "198.51.100.10/32"
+```
+
+If you never set `expires`, the allowlist is enforced immediately and stays
+enforced until you change it — with no automatic safety net. This is why we
+recommend testing in `draft` mode first.
+
 ## Check the enforcement status
 
 Retrieve the resource to view the current allowlist and enforcement state:
@@ -241,6 +436,7 @@ version: v1
 metadata:
   name: client-ip-restriction
 spec:
+  mode: enforced
   allowed_cidrs:
     - 203.0.113.0/24
     - 198.51.100.10/32
@@ -250,7 +446,9 @@ status:
 
 The allowlist is fully enforced when `status.state` is `active`. A `pending`
 state means the change is still propagating to the ingress layer, which can take
-up to 20 minutes.
+up to 20 minutes. A `draft` state means the allowlist is saved but not enforced,
+because `mode` is `draft` (or an `expires` time has passed and enforcement
+reverted).
 
 ## Disable Client IP Restrictions
 
@@ -265,6 +463,10 @@ $ tctl rm client_ip_restriction
 With Terraform, remove the `teleport_client_ip_restriction` resource from your
 configuration and run `terraform apply`.
 
+To stop enforcing the allowlist while keeping the CIDR list saved for later, set
+`mode: draft` instead of deleting the resource. All traffic is allowed while the
+allowlist is in `draft` mode.
+
 ## Limitations
 
 - **Third-party service ranges.** Teleport does not add third-party service
@@ -276,6 +478,20 @@ configuration and run `terraform apply`.
   ingress layer.
 
 ## FAQ
+
+### How do I test an allowlist without risking a lockout?
+
+Stage it in `draft` mode first, confirm the list is correct, then enforce it
+with a short `expires` safety timer. See
+[Test and roll out the allowlist safely](#test-and-roll-out-the-allowlist-safely).
+This workflow requires `tctl` or the Terraform provider; the Web UI does not
+support it yet.
+
+### What is the difference between draft mode and disabling restrictions?
+
+`draft` mode keeps your CIDR list saved but stops enforcing it, so you can
+review or resume it later. Disabling restrictions (an empty `allowed_cidrs` list
+or deleting the resource) discards the list. Both allow all traffic.
 
 ### How many CIDR blocks can I configure?
 
