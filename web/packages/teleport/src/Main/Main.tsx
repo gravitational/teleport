@@ -89,9 +89,15 @@ export function Main(props: MainProps) {
 
   const featureFlags = ctx.getFeatureFlags();
 
+  const scopeSelected = storageService.getScopeSelected();
   const features = useMemo(
-    () => props.features.filter(feature => feature.hasAccess(featureFlags)),
-    [featureFlags, props.features]
+    () =>
+      props.features.filter(
+        feature =>
+          feature.hasAccess(featureFlags) &&
+          (!scopeSelected || feature.supportsScopes)
+      ),
+    [featureFlags, props.features, scopeSelected]
   );
 
   const { alerts, dismissAlert } = useAlerts(props.initialAlerts);
@@ -130,7 +136,8 @@ export function Main(props: MainProps) {
     if (
       cfg.scopesEnabled &&
       availableScopes.length > 0 &&
-      !isScopePickerRoute
+      !isScopePickerRoute &&
+      !scopeSelected
     ) {
       return <Redirect to={history.getScopePickerUrl()} />;
     }

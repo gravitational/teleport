@@ -82,24 +82,34 @@ test('getIntegrationsEnroll without extra params', () => {
 
 test('getSsoUrl', () => {
   const providerUrl =
-    '/v1/webapi/oidc/login/web?connector_id=:providerName&login_hint=:loginHint?&redirect_url=:redirect';
+    '/v1/webapi/oidc/login/web?connector_id=:providerName&login_hint=:loginHint?&redirect_url=:redirect&scope=:scope?';
   expect(
-    cfg.getSsoUrl(providerUrl, 'keycloak', 'example.com', undefined)
+    cfg.getSsoUrl({
+      providerUrl,
+      providerName: 'keycloak',
+      redirect: 'example.com',
+    })
   ).toEqual(
     'http://localhost/v1/webapi/oidc/login/web?connector_id=keycloak&redirect_url=example.com'
   );
   expect(
-    cfg.getSsoUrl(providerUrl, 'keycloak', 'example.com', 'user@example.com')
+    cfg.getSsoUrl({
+      providerUrl,
+      providerName: 'keycloak',
+      redirect: 'example.com',
+      loginHint: 'user@example.com',
+      scope: '/foo/bar',
+    })
   ).toEqual(
-    'http://localhost/v1/webapi/oidc/login/web?connector_id=keycloak&login_hint=user%40example.com&redirect_url=example.com'
+    'http://localhost/v1/webapi/oidc/login/web?connector_id=keycloak&login_hint=user%40example.com&redirect_url=example.com&scope=%2Ffoo%2Fbar'
   );
   expect(
-    cfg.getSsoUrl(
+    cfg.getSsoUrl({
       providerUrl,
-      'keycloak',
-      'example.com?a=b&c=d',
-      'user@example.com'
-    )
+      providerName: 'keycloak',
+      redirect: 'example.com?a=b&c=d',
+      loginHint: 'user@example.com',
+    })
   ).toEqual(
     'http://localhost/v1/webapi/oidc/login/web?connector_id=keycloak&login_hint=user%40example.com&redirect_url=example.com%3Fa%3Db%26c%3Dd'
   );

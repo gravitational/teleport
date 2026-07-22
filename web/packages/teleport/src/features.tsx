@@ -141,6 +141,7 @@ export class FeatureUnifiedResources implements TeleportFeature {
   sideNavCategory = SideNavigationCategory.Resources;
   // TODO(rudream): Remove this once shortcuts to pinned/nodes/apps/dbs/desktops/kubes are implemented.
   standalone = true;
+  supportsScopes = true;
 
   route = {
     title: 'Resources',
@@ -918,6 +919,8 @@ export class FeatureAccount implements TeleportFeature {
       'change password',
     ],
   };
+
+  supportsScopes = true;
 }
 
 export class FeatureHelpAndSupport implements TeleportFeature {
@@ -948,6 +951,8 @@ export class FeatureHelpAndSupport implements TeleportFeature {
       'version',
     ],
   };
+
+  supportsScopes = true;
 }
 
 export class FeatureScopes implements TeleportFeature {
@@ -959,6 +964,7 @@ export class FeatureScopes implements TeleportFeature {
   };
 
   hideNavigation = true;
+  supportsScopes = true;
 
   hasAccess(): boolean {
     return cfg.scopesEnabled;
