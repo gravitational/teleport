@@ -54,6 +54,7 @@ type loginWebOTPParams struct {
 	// If empty then no OTP is sent in the request.
 	otpSecret string
 
+	scope               string // Optional.
 	userAgent           string // Optional.
 	overrideContentType string // Optional.
 }
@@ -110,6 +111,7 @@ func rawLoginWebOTP(ctx context.Context, params loginWebOTPParams) (resp *Draine
 		User:              params.user,
 		Pass:              params.password,
 		SecondFactorToken: code,
+		Scope:             params.scope,
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err, "request marshal")

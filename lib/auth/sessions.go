@@ -55,11 +55,6 @@ import (
 type NewWebSessionRequest = sessionreq.NewWebSessionRequest
 
 func (a *Server) CreateWebSessionFromReq(ctx context.Context, req NewWebSessionRequest) (types.WebSession, error) {
-	if req.Scope != "" {
-		// TODO(fspmarshall/scopes): add scoping support for web sessions
-		return nil, trace.BadParameter("web sessions cannot be pinned to a scope")
-	}
-
 	session, _, err := a.newWebSession(ctx, req, nil /* opts */)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -153,7 +148,16 @@ func (a *Server) newWebSession(
 	ctx context.Context,
 	req NewWebSessionRequest,
 	opts *newWebSessionOpts,
-) (types.WebSession, services.AccessChecker, error) {
+) (types.WebSession, *services.ScopedAccessCheckerContext, error) {
+	if req.Scope != "" {
+		if req.DelegationSessionID != "" {
+			return nil, nil, trace.BadParameter("access delegation is only supported for unscoped sessions")
+		}
+		if err := a.scopesFeatures.AssertEnabled(); err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+	}
+
 	userState, err := a.GetUserOrLoginState(ctx, req.User)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -168,15 +172,25 @@ func (a *Server) newWebSession(
 		return nil, nil, trace.Wrap(err)
 	}
 
-	checker, err := services.NewAccessChecker(&services.AccessInfo{
-		Username:                 userState.GetName(),
-		Roles:                    req.Roles,
-		Traits:                   req.Traits,
-		AllowedResourceAccessIDs: req.RequestedResourceAccessIDs,
-		DelegationSessionID:      req.DelegationSessionID,
-	}, clusterName.GetClusterName(), a)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
+	var checkerCtx *services.ScopedAccessCheckerContext
+	var unscopedChecker services.AccessChecker
+	if req.Scope != "" {
+		checkerCtx, err = a.AccessCheckerForScope(ctx, req.Scope, userState, req.RequestedResourceAccessIDs)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+	} else {
+		unscopedChecker, err = services.NewAccessChecker(&services.AccessInfo{
+			Username:                 userState.GetName(),
+			Roles:                    req.Roles,
+			Traits:                   req.Traits,
+			AllowedResourceAccessIDs: req.RequestedResourceAccessIDs,
+			DelegationSessionID:      req.DelegationSessionID,
+		}, clusterName.GetClusterName(), a)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		checkerCtx = services.NewScopedAccessCheckerContextFromUnscoped(unscopedChecker)
 	}
 
 	idleTimeout, err := a.getWebIdleTimeout(ctx)
@@ -207,7 +221,7 @@ func (a *Server) newWebSession(
 
 	sessionTTL := req.SessionTTL
 	if sessionTTL == 0 {
-		sessionTTL = checker.AdjustSessionTTL(apidefaults.CertDuration)
+		sessionTTL = checkerCtx.CertParams().AdjustSessionTTL(apidefaults.CertDuration)
 	}
 
 	if req.AttestWebSession {
@@ -241,7 +255,7 @@ func (a *Server) newWebSession(
 		TTL:            sessionTTL,
 		SSHPublicKey:   sshAuthorizedKey,
 		TLSPublicKey:   tlsPublicKeyPEM,
-		CheckerContext: services.NewScopedAccessCheckerContextFromUnscoped(checker), // TODO(fspmarshall/scopes): add scoping support to newWebSession.
+		CheckerContext: checkerCtx,
 		Traits:         req.Traits,
 		ActiveRequests: req.AccessRequests,
 	}
@@ -321,22 +335,26 @@ func (a *Server) newWebSession(
 		return nil, nil, trace.Wrap(err)
 	}
 
-	if tdr, err := a.calculateTrustedDeviceMode(ctx, func() ([]types.Role, error) {
-		return checker.Roles(), nil
-	}); err != nil {
-		a.logger.WarnContext(ctx, "Failed to calculate trusted device mode for session", "error", err)
-	} else {
-		sess.SetTrustedDeviceRequirement(tdr)
+	// TODO(bl-nero): Implement this for scoped sessions after support for device
+	// trust is added.
+	if unscopedChecker != nil {
+		if tdr, err := a.calculateTrustedDeviceMode(ctx, func() ([]types.Role, error) {
+			return unscopedChecker.Roles(), nil
+		}); err != nil {
+			a.logger.WarnContext(ctx, "Failed to calculate trusted device mode for session", "error", err)
+		} else {
+			sess.SetTrustedDeviceRequirement(tdr)
 
-		if tdr != types.TrustedDeviceRequirement_TRUSTED_DEVICE_REQUIREMENT_UNSPECIFIED {
-			a.logger.DebugContext(ctx, "Calculated trusted device requirement for session",
-				"user", req.User,
-				"trusted_device_requirement", tdr,
-			)
+			if tdr != types.TrustedDeviceRequirement_TRUSTED_DEVICE_REQUIREMENT_UNSPECIFIED {
+				a.logger.DebugContext(ctx, "Calculated trusted device requirement for session",
+					"user", req.User,
+					"trusted_device_requirement", tdr,
+				)
+			}
 		}
 	}
 
-	return sess, checker, nil
+	return sess, checkerCtx, nil
 }
 
 func (a *Server) getWebIdleTimeout(ctx context.Context) (time.Duration, error) {

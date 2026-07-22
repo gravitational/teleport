@@ -193,10 +193,11 @@ func initSvc(t *testing.T) (map[string]context.Context, *Service) {
 	})
 	require.NoError(t, err)
 
-	authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
-		ClusterName: "test-cluster",
-		AccessPoint: accessPoint,
-		LockWatcher: lockWatcher,
+	authorizer, err := authz.NewScopedAuthorizer(authz.AuthorizerOpts{
+		ClusterName:      "test-cluster",
+		AccessPoint:      accessPoint,
+		LockWatcher:      lockWatcher,
+		ScopedRoleReader: local.NewScopedAccessService(backend),
 	})
 	require.NoError(t, err)
 

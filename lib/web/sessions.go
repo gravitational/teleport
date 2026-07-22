@@ -937,6 +937,7 @@ func (s *sessionCache) releaseResourcesIfNoDeviceExtensions(ctx context.Context,
 func (s *sessionCache) AuthWithOTP(
 	ctx context.Context,
 	user, pass, otpToken string,
+	scope string,
 	clientMeta *authclient.ForwardedClientMetadata,
 ) (types.WebSession, error) {
 	return s.proxyClient.AuthenticateWebUser(ctx, authclient.AuthenticateUserRequest{
@@ -947,6 +948,7 @@ func (s *sessionCache) AuthWithOTP(
 			Token:    otpToken,
 		},
 		ClientMetadata: clientMeta,
+		Scope:          scope,
 	})
 }
 
@@ -970,6 +972,7 @@ func (s *sessionCache) AuthenticateWebUser(
 	authReq := authclient.AuthenticateUserRequest{
 		Username:       req.User,
 		ClientMetadata: clientMeta,
+		Scope:          req.Scope,
 	}
 	if req.WebauthnAssertionResponse != nil {
 		authReq.Webauthn = req.WebauthnAssertionResponse

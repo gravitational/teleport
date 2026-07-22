@@ -3640,6 +3640,30 @@ func (a *ServerWithRoles) SubmitAccessReview(ctx context.Context, submission typ
 	return a.authServer.submitAccessReview(ctx, submission, &identity)
 }
 
+func (a *ScopedServerWithRoles) GetAccessCapabilities(ctx context.Context, req types.AccessCapabilitiesRequest) (*types.AccessCapabilities, error) {
+	if unscoped, ok := a.UnscopedServerWithRoles(); ok {
+		return unscoped.GetAccessCapabilities(ctx, req)
+	}
+
+	if a.scopedContext.User == nil {
+		return nil, trace.AccessDenied(
+			"access capabilities can only be retrieved by scoped identities if they are users",
+		)
+	}
+
+	// default to checking the capabilities of the caller
+	if req.User == "" {
+		req.User = a.scopedContext.User.GetName()
+	}
+
+	// Scoped identities can only check their own capabilities
+	if err := a.scopedCurrentUserAction(req.User); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return a.authServer.GetAccessCapabilities(ctx, req)
+}
+
 func (a *ServerWithRoles) GetAccessCapabilities(ctx context.Context, req types.AccessCapabilitiesRequest) (*types.AccessCapabilities, error) {
 	// default to checking the capabilities of the caller
 	if req.User == "" {
