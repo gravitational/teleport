@@ -253,6 +253,26 @@ func TestIntegrationCRUD(t *testing.T) {
 			ErrAssertion: noError,
 		},
 
+		{
+			Name:      "create fails without admin MFA",
+			DummyUser: true,
+			Role: types.RoleSpecV6{
+				Allow: types.RoleConditions{Rules: []types.Rule{{
+					Resources: []string{types.KindIntegration},
+					Verbs:     []string{types.VerbCreate},
+				}}},
+			},
+			Test: func(ctx context.Context, resourceSvc *Service, igName string) error {
+				ig := sampleIntegrationFn(t, igName)
+				_, err := resourceSvc.CreateIntegration(
+					ctx,
+					integrationpb.CreateIntegrationRequest_builder{Integration: ig.(*types.IntegrationV1)}.Build(),
+				)
+				return err
+			},
+			ErrAssertion: trace.IsAccessDenied,
+		},
+
 		// Update
 		{
 			Name: "no access to update integration",
@@ -399,6 +419,30 @@ func TestIntegrationCRUD(t *testing.T) {
 				return err
 			},
 			ErrAssertion: trace.IsBadParameter,
+		},
+
+		{
+			Name:      "update fails without admin MFA",
+			DummyUser: true,
+			Role: types.RoleSpecV6{
+				Allow: types.RoleConditions{Rules: []types.Rule{{
+					Resources: []string{types.KindIntegration},
+					Verbs:     []string{types.VerbUpdate, types.VerbCreate},
+				}}},
+			},
+			Setup: func(t *testing.T, igName string) {
+				_, err := localClient.CreateIntegration(ctx, sampleIntegrationFn(t, igName))
+				require.NoError(t, err)
+			},
+			Test: func(ctx context.Context, resourceSvc *Service, igName string) error {
+				ig := sampleIntegrationFn(t, igName)
+				_, err := resourceSvc.UpdateIntegration(
+					ctx,
+					integrationpb.UpdateIntegrationRequest_builder{Integration: ig.(*types.IntegrationV1)}.Build(),
+				)
+				return err
+			},
+			ErrAssertion: trace.IsAccessDenied,
 		},
 
 		// Delete
@@ -776,66 +820,6 @@ func TestIntegrationCRUD(t *testing.T) {
 			ErrAssertion: noError,
 		},
 
-		// Delete all
-		{
-			Name: "delete all integrations fails",
-			Role: types.RoleSpecV6{
-				Allow: types.RoleConditions{Rules: []types.Rule{{
-					Resources: []string{types.KindIntegration},
-					Verbs:     []string{types.VerbDelete},
-				}}},
-			},
-			Test: func(ctx context.Context, resourceSvc *Service, igName string) error {
-				_, err := resourceSvc.DeleteAllIntegrations(ctx, &integrationpb.DeleteAllIntegrationsRequest{})
-				return err
-			},
-			// Deleting all integrations via gRPC is not supported.
-			ErrAssertion: trace.IsBadParameter,
-		},
-
-		// Admin action MFA
-		{
-			Name:      "create fails without admin MFA",
-			DummyUser: true,
-			Role: types.RoleSpecV6{
-				Allow: types.RoleConditions{Rules: []types.Rule{{
-					Resources: []string{types.KindIntegration},
-					Verbs:     []string{types.VerbCreate},
-				}}},
-			},
-			Test: func(ctx context.Context, resourceSvc *Service, igName string) error {
-				ig := sampleIntegrationFn(t, igName)
-				_, err := resourceSvc.CreateIntegration(
-					ctx,
-					integrationpb.CreateIntegrationRequest_builder{Integration: ig.(*types.IntegrationV1)}.Build(),
-				)
-				return err
-			},
-			ErrAssertion: trace.IsAccessDenied,
-		},
-		{
-			Name:      "update fails without admin MFA",
-			DummyUser: true,
-			Role: types.RoleSpecV6{
-				Allow: types.RoleConditions{Rules: []types.Rule{{
-					Resources: []string{types.KindIntegration},
-					Verbs:     []string{types.VerbUpdate, types.VerbCreate},
-				}}},
-			},
-			Setup: func(t *testing.T, igName string) {
-				_, err := localClient.CreateIntegration(ctx, sampleIntegrationFn(t, igName))
-				require.NoError(t, err)
-			},
-			Test: func(ctx context.Context, resourceSvc *Service, igName string) error {
-				ig := sampleIntegrationFn(t, igName)
-				_, err := resourceSvc.UpdateIntegration(
-					ctx,
-					integrationpb.UpdateIntegrationRequest_builder{Integration: ig.(*types.IntegrationV1)}.Build(),
-				)
-				return err
-			},
-			ErrAssertion: trace.IsAccessDenied,
-		},
 		{
 			Name:      "delete fails without admin MFA",
 			DummyUser: true,
@@ -857,6 +841,23 @@ func TestIntegrationCRUD(t *testing.T) {
 				return err
 			},
 			ErrAssertion: trace.IsAccessDenied,
+		},
+
+		// Delete all
+		{
+			Name: "delete all integrations fails",
+			Role: types.RoleSpecV6{
+				Allow: types.RoleConditions{Rules: []types.Rule{{
+					Resources: []string{types.KindIntegration},
+					Verbs:     []string{types.VerbDelete},
+				}}},
+			},
+			Test: func(ctx context.Context, resourceSvc *Service, igName string) error {
+				_, err := resourceSvc.DeleteAllIntegrations(ctx, &integrationpb.DeleteAllIntegrationsRequest{})
+				return err
+			},
+			// Deleting all integrations via gRPC is not supported.
+			ErrAssertion: trace.IsBadParameter,
 		},
 	}
 
