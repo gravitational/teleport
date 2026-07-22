@@ -7090,7 +7090,7 @@ func TestMaybeDowngradeRoleVersionToV8(t *testing.T) {
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
 			input := newV9Role(allowAll)
-			got := auth.MaybeDowngradeRoleVersionToV8(input, clientVersion(t, tc.clientVersion))
+			got := auth.MaybeDowngradeRoleVersionToV8(t.Context(), input, clientVersion(t, tc.clientVersion))
 			require.Equal(t, tc.wantVersion, got.GetVersion())
 
 			if tc.wantVersion == types.V9 {
@@ -7111,40 +7111,72 @@ func TestMaybeDowngradeRoleVersionToV8(t *testing.T) {
 	}
 
 	t.Run("allow_all keeps app access", func(t *testing.T) {
-		got := auth.MaybeDowngradeRoleVersionToV8(newV9Role(allowAll), clientVersion(t, "18.1.2"))
+		got := auth.MaybeDowngradeRoleVersionToV8(t.Context(), newV9Role(allowAll), clientVersion(t, "18.1.2"))
 		require.NotEmpty(t, got.Spec.Allow.AppLabels)
 		require.NotEmpty(t, got.Spec.Allow.AppLabelsExpression)
 		require.Contains(t, got.GetMetadata().Labels[types.TeleportDowngradedLabel], "app access is unchanged")
 	})
 
-	t.Run("rules without allow_all strip app access", func(t *testing.T) {
-		got := auth.MaybeDowngradeRoleVersionToV8(newV9Role(ruleWithoutAllowAll), clientVersion(t, "18.1.2"))
+	// The strip path moves the role's own allow app selector to the deny side,
+	// so the downgrade fails closed on exactly the apps this role governed and
+	// no other role can re-open them. newV9Role selects with wildcard labels and
+	// a vendor expression, so both deny channels carry over.
+	wantDenyLabels := types.Labels{types.Wildcard: []string{types.Wildcard}}
+	const wantDenyExpression = `labels["vendor"] == "gitlab"`
+	assertAppAccessDenied := func(t *testing.T, got *types.RoleV6) {
+		t.Helper()
 		require.Empty(t, got.Spec.Allow.AppLabels)
 		require.Empty(t, got.Spec.Allow.AppLabelsExpression)
+		require.Equal(t, wantDenyLabels, got.Spec.Deny.AppLabels)
+		require.Equal(t, wantDenyExpression, got.Spec.Deny.AppLabelsExpression)
 		require.Contains(t, got.GetMetadata().Labels[types.TeleportDowngradedLabel], "no app access")
+	}
+
+	t.Run("rules without allow_all strip app access", func(t *testing.T) {
+		got := auth.MaybeDowngradeRoleVersionToV8(t.Context(), newV9Role(ruleWithoutAllowAll), clientVersion(t, "18.1.2"))
+		assertAppAccessDenied(t, got)
 	})
 
 	t.Run("default-deny role strips app access", func(t *testing.T) {
-		got := auth.MaybeDowngradeRoleVersionToV8(newV9Role(nil), clientVersion(t, "18.1.2"))
-		require.Empty(t, got.Spec.Allow.AppLabels)
-		require.Empty(t, got.Spec.Allow.AppLabelsExpression)
-		require.Contains(t, got.GetMetadata().Labels[types.TeleportDowngradedLabel], "no app access")
+		got := auth.MaybeDowngradeRoleVersionToV8(t.Context(), newV9Role(nil), clientVersion(t, "18.1.2"))
+		assertAppAccessDenied(t, got)
 	})
 
 	t.Run("deny app rules strip app access even with allow_all", func(t *testing.T) {
 		input := newV9Role(allowAll)
 		input.Spec.Deny.AppResources = ruleWithoutAllowAll
-		got := auth.MaybeDowngradeRoleVersionToV8(input, clientVersion(t, "18.1.2"))
-		require.Empty(t, got.Spec.Allow.AppLabels)
-		require.Empty(t, got.Spec.Allow.AppLabelsExpression)
+		got := auth.MaybeDowngradeRoleVersionToV8(t.Context(), input, clientVersion(t, "18.1.2"))
+		assertAppAccessDenied(t, got)
 		require.Empty(t, got.Spec.Deny.AppResources)
-		require.Contains(t, got.GetMetadata().Labels[types.TeleportDowngradedLabel], "no app access")
+	})
+
+	t.Run("deny scopes to the role's own labels, not a blanket wildcard", func(t *testing.T) {
+		input := newV9Role(ruleWithoutAllowAll)
+		input.Spec.Allow.AppLabels = types.Labels{"vendor": []string{"gitlab"}}
+		input.Spec.Allow.AppLabelsExpression = ""
+		got := auth.MaybeDowngradeRoleVersionToV8(t.Context(), input, clientVersion(t, "18.1.2"))
+		require.Empty(t, got.Spec.Allow.AppLabels)
+		require.Equal(t, types.Labels{"vendor": []string{"gitlab"}}, got.Spec.Deny.AppLabels)
+		require.Empty(t, got.Spec.Deny.AppLabelsExpression)
+	})
+
+	t.Run("existing deny labels force a wildcard fallback", func(t *testing.T) {
+		// The role already denies apps by label, so there is no free label
+		// channel to hold the moved allow labels. The downgrade falls back to a
+		// wildcard deny rather than drop the existing deny and fail open.
+		input := newV9Role(ruleWithoutAllowAll)
+		input.Spec.Allow.AppLabels = types.Labels{"vendor": []string{"gitlab"}}
+		input.Spec.Allow.AppLabelsExpression = ""
+		input.Spec.Deny.AppLabels = types.Labels{"env": []string{"prod"}}
+		got := auth.MaybeDowngradeRoleVersionToV8(t.Context(), input, clientVersion(t, "18.1.2"))
+		require.Empty(t, got.Spec.Allow.AppLabels)
+		require.Equal(t, wantDenyLabels, got.Spec.Deny.AppLabels)
 	})
 
 	t.Run("pre-v9 role untouched", func(t *testing.T) {
 		v8, err := types.NewRoleWithVersion("legacy", types.V8, types.RoleSpecV6{})
 		require.NoError(t, err)
-		got := auth.MaybeDowngradeRoleVersionToV8(v8.(*types.RoleV6), clientVersion(t, "17.0.0"))
+		got := auth.MaybeDowngradeRoleVersionToV8(t.Context(), v8.(*types.RoleV6), clientVersion(t, "17.0.0"))
 		require.Equal(t, types.V8, got.GetVersion())
 		require.Empty(t, got.GetMetadata().Labels[types.TeleportDowngradedLabel])
 	})

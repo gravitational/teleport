@@ -2315,22 +2315,24 @@ func maybeDowngradeRole(ctx context.Context, role *types.RoleV6) (*types.RoleV6,
 	// Order matters. v9 downgrades to v8 first, then v8 to v7. Both steps
 	// stamp TeleportDowngradedLabel, so on a pre-18 client the v7 reason
 	// overwrites the v9 one. The stripped app labels persist regardless.
-	role = maybeDowngradeRoleVersionToV8(role, clientVersion)
+	role = maybeDowngradeRoleVersionToV8(ctx, role, clientVersion)
 	role = maybeDowngradeRoleVersionToV7(role, clientVersion)
 	return role, nil
 }
 
 var minSupportedRoleV9Version = &semver.Version{Major: 19, Minor: 0, Patch: 0}
 
-// maybeDowngradeRoleVersionToV8 downgrades a v9 role to v8 for clients
-// below minSupportedRoleV9Version. A plain v8 copy would grant
-// unrestricted app access, so unless the role's app rules already grant
-// that, the copy also loses its allow app_labels and
-// app_labels_expression. Composing with maybeDowngradeRoleVersionToV7
-// lets a v9 role reach a pre-18 client as v7.
+// maybeDowngradeRoleVersionToV8 downgrades a v9 role to v8 for agents below
+// minSupportedRoleV9Version (v19), which cannot enforce the v9 app
+// restriction. A plain v8 copy would grant unrestricted app access, so unless
+// the role already grants that (an allow_all rule), the copy moves its allow
+// app selector to the deny side. A pre-v19 agent cannot apply the finer v9
+// restriction, so it denies these apps outright, never granting more than v9
+// would, and no other v8 role can grant them either. Composing with
+// maybeDowngradeRoleVersionToV7 lets a v9 role reach a pre-v18 agent as v7.
 //
 // TODO(@juliaogris): Delete in v20.0.0 when pre-19 client support ends.
-func maybeDowngradeRoleVersionToV8(role *types.RoleV6, clientVersion *semver.Version) *types.RoleV6 {
+func maybeDowngradeRoleVersionToV8(ctx context.Context, role *types.RoleV6, clientVersion *semver.Version) *types.RoleV6 {
 	if role.GetVersion() != types.V9 {
 		return role
 	}
@@ -2347,9 +2349,12 @@ func maybeDowngradeRoleVersionToV8(role *types.RoleV6, clientVersion *semver.Ver
 
 	detail := "The allow_all rule grants exactly the v8 app access, so app access is unchanged."
 	if !types.AppResourcesAllowAll(role.Spec.Allow.AppResources, role.Spec.Deny.AppResources) {
-		role.Spec.Allow.AppLabels = nil
-		role.Spec.Allow.AppLabelsExpression = ""
-		detail = "Allow app_labels are stripped so the role grants no app access on this client."
+		if denyDowngradedAppAccess(role) {
+			slog.WarnContext(ctx,
+				"Downgraded v9 role already denied apps by label, so its app access was denied with a wildcard on this pre-v9 client; this also denies apps the role did not govern",
+				"role", role.GetName(), "client_version", clientVersion)
+		}
+		detail = "Allow app_labels are stripped and the role denies its own apps so it grants no app access on this client."
 	}
 	role.Spec.Allow.AppResources = nil
 	role.Spec.Deny.AppResources = nil
@@ -2361,6 +2366,34 @@ func maybeDowngradeRoleVersionToV8(role *types.RoleV6, clientVersion *semver.Ver
 	role.Metadata.Labels[types.TeleportDowngradedLabel] = reason
 
 	return role
+}
+
+// denyDowngradedAppAccess moves the role's allow app labels and expression to
+// its deny app labels and expression. If the role already denies apps by label,
+// it falls back to a wildcard deny and reports it, for the caller to log.
+func denyDowngradedAppAccess(role *types.RoleV6) (wildcardFallback bool) {
+	allowLabels := role.Spec.Allow.AppLabels
+	allowExpression := role.Spec.Allow.AppLabelsExpression
+	role.Spec.Allow.AppLabels = nil
+	role.Spec.Allow.AppLabelsExpression = ""
+
+	switch {
+	case len(allowLabels) == 0:
+	case len(role.Spec.Deny.AppLabels) == 0:
+		role.Spec.Deny.AppLabels = allowLabels
+	default:
+		role.Spec.Deny.AppLabels = types.Labels{types.Wildcard: []string{types.Wildcard}}
+		wildcardFallback = true
+	}
+
+	switch {
+	case allowExpression == "":
+	case role.Spec.Deny.AppLabelsExpression == "":
+		role.Spec.Deny.AppLabelsExpression = allowExpression
+	default:
+		role.Spec.Deny.AppLabelsExpression = "(" + role.Spec.Deny.AppLabelsExpression + ") || (" + allowExpression + ")"
+	}
+	return wildcardFallback
 }
 
 var minSupportedRoleV8Version = &semver.Version{Major: 18, Minor: 0, Patch: 0}
