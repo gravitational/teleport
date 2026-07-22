@@ -20,7 +20,6 @@ package common
 
 import (
 	"bytes"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -30,8 +29,9 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/config"
-	"github.com/gravitational/teleport/lib/config/yamlmod"
 	"github.com/gravitational/teleport/lib/defaults"
 )
 
@@ -42,26 +42,24 @@ type reconfigureFlags struct {
 	overwrite      bool
 	enableService  []string
 	disableService []string
-	set            []string
-	unset          []string
 	roles          string
 
-	// Named value flags for the fields a cluster migration / re-enrollment touches.
-	// Kept intentionally minimal: flags are an API contract that can't be removed
-	// without a breaking change, and anything else is still reachable via --set/--unset.
-	token      string
-	joinMethod string
-	authServer string
-	proxy      string
-	dataDir    string
-}
+	// Named value flags for the fields a cluster migration / re-enrollment
+	// touches. Kept intentionally minimal: flags are an API contract that can't
+	// be removed without a breaking change.
+	token              string
+	joinMethod         string
+	registrationSecret string
+	authServer         string
+	proxy              string
+	dataDir            string
+	configVersion      string
 
-// flagPathMap maps CLI flag names to their YAML dot-paths.
-var flagPathMap = map[string]string{
-	"join-method": "teleport.join_params.method",
-	"auth-server": "teleport.auth_server",
-	"proxy":       "teleport.proxy_server",
-	"data-dir":    "teleport.data_dir",
+	// SSH networking flags, used to move a side-by-side agent off a colliding
+	// listen port (default 3022) and keep it reachable for direct dial.
+	sshListenAddr string
+	sshPublicAddr string
+	forceListen   bool
 }
 
 // roleServiceMap maps role names to their YAML service section keys.
@@ -76,20 +74,41 @@ var roleServiceMap = map[string]string{
 	defaults.RoleDiscovery:      "discovery_service",
 }
 
-// validServices is the set of service names accepted by --enable-service/--disable-service.
-var validServices = map[string]bool{
-	"ssh_service":             true,
-	"proxy_service":           true,
-	"auth_service":            true,
-	"app_service":             true,
-	"db_service":              true,
-	"kubernetes_service":      true,
-	"windows_desktop_service": true,
-	"discovery_service":       true,
-	"okta_service":            true,
+// serviceSection returns a pointer to the embedded Service for the named
+// service section, or nil if the name is not a service this command manages.
+// Every FileConfig service section embeds config.Service, so this is the single
+// place enable/disable/roles reach through to flip the "enabled" field.
+func serviceSection(fc *config.FileConfig, key string) *config.Service {
+	switch key {
+	case "ssh_service":
+		return &fc.SSH.Service
+	case "proxy_service":
+		return &fc.Proxy.Service
+	case "auth_service":
+		return &fc.Auth.Service
+	case "app_service":
+		return &fc.Apps.Service
+	case "db_service":
+		return &fc.Databases.Service
+	case "kubernetes_service":
+		return &fc.Kube.Service
+	case "windows_desktop_service":
+		return &fc.WindowsDesktop.Service
+	case "discovery_service":
+		return &fc.Discovery.Service
+	case "okta_service":
+		return &fc.Okta.Service
+	default:
+		return nil
+	}
 }
 
-// onReconfigure is the handler for "teleport reconfigure".
+// onReconfigure is the handler for "teleport reconfigure". It parses the input
+// through the same loader Teleport uses at startup (config.ReadConfig), applies
+// the requested changes to the typed configuration, and marshals a complete new
+// file, leaving the original untouched. Because it round-trips through the typed
+// schema rather than editing YAML text, it drops comments and normalizes
+// formatting.
 func onReconfigure(flags reconfigureFlags) error {
 	if flags.output == "" {
 		flags.output = teleport.SchemeStdout
@@ -101,222 +120,285 @@ func onReconfigure(flags reconfigureFlags) error {
 		return trace.ConvertSystemError(err)
 	}
 
-	// Record whether the input is already a valid Teleport config. A validation
-	// failure of the modified output is only fatal when the input was valid to
-	// begin with (see validateModifiedConfig).
-	_, inputErr := config.ReadConfig(bytes.NewReader(data))
-	inputValid := inputErr == nil
-
-	doc, err := yamlmod.Parse(data)
+	// Parse with the same loader Teleport uses at startup. Reconfigure only
+	// operates on a config it can fully model; one this build can't parse is
+	// refused rather than silently rewritten.
+	fc, err := config.ReadConfig(bytes.NewReader(data))
 	if err != nil {
 		return trace.Wrap(err, "parsing input file %s", flags.input)
 	}
 
-	if flags.roles != "" {
-		if err := applyRoles(doc, flags.roles); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
-	if err := applyNamedFlags(doc, flags); err != nil {
-		return trace.Wrap(err)
-	}
-
-	for _, s := range flags.set {
-		path, value, ok := strings.Cut(s, "=")
-		if !ok {
-			return trace.BadParameter("--set value %q must be in format path=value", s)
-		}
-		if err := yamlmod.Set(doc, path, value); err != nil {
-			return trace.Wrap(err, "setting %s", path)
-		}
-	}
-
-	for _, svc := range flags.enableService {
-		if !validServices[svc] {
-			return trace.BadParameter("unknown service %q", svc)
-		}
-		if !yamlmod.Exists(doc, svc) {
-			return trace.BadParameter("service %q does not exist in the config; use --roles to create it first", svc)
-		}
-		if err := yamlmod.SetBool(doc, svc+".enabled", true); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
-	for _, svc := range flags.disableService {
-		if !validServices[svc] {
-			return trace.BadParameter("unknown service %q", svc)
-		}
-		if !yamlmod.Exists(doc, svc) {
-			return trace.BadParameter("service %q does not exist in the config", svc)
-		}
-		if err := yamlmod.SetBool(doc, svc+".enabled", false); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
-	for _, path := range flags.unset {
-		if err := yamlmod.Delete(doc, path); err != nil {
-			return trace.Wrap(err, "unsetting %s", path)
-		}
-	}
-
-	output, err := yamlmod.Render(doc)
+	// Record which service sections the input actually contained, so
+	// --enable-service/--disable-service can refuse a section that isn't there.
+	// The typed struct always has every field, so it can't answer this on its
+	// own; --roles adds to the set as it creates sections.
+	present, err := presentServices(data)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	if err := validateModifiedConfig(output, inputValid); err != nil {
+	if flags.roles != "" {
+		if err := applyRoles(fc, present, flags.roles); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	if err := applyNamedFlags(fc, flags); err != nil {
 		return trace.Wrap(err)
 	}
 
-	return writeReconfigureOutput(flags, output)
+	for _, svc := range flags.enableService {
+		if err := setServiceEnabled(fc, present, svc, true); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	for _, svc := range flags.disableService {
+		if err := setServiceEnabled(fc, present, svc, false); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	// Cross-field checks that depend on the config's final state. These mirror
+	// rules that only ApplyFileConfig enforces at startup, which we can't run
+	// here (see validateReconfigure).
+	if err := validateReconfigure(fc); err != nil {
+		return trace.Wrap(err)
+	}
+
+	output, err := fc.YAMLString()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Structural backstop: re-parse the marshaled result to catch YAML corruption
+	// or a field this build can't model. This is not a full startup validation.
+	// The semantic guarantees (single endpoint, valid version, no auth_token +
+	// join_params conflict) come from applying the flags by construction and from
+	// validateReconfigure, because the deeper rules live in ApplyFileConfig, which
+	// reads host-local files and so can't run against a config bound for another
+	// host.
+	if _, err := config.ReadConfig(strings.NewReader(output)); err != nil {
+		return trace.Wrap(err, "the requested changes produced an invalid configuration")
+	}
+
+	return writeReconfigureOutput(flags, []byte(output))
 }
 
-// validateModifiedConfig checks that the rendered config still parses as a valid
-// Teleport configuration, using the same loader Teleport uses at startup
-// (config.ReadConfig). To avoid rejecting edits to configs this binary cannot
-// fully model (for example a config written by a different Teleport version, or
-// one carrying fields this build doesn't know), output validation is only fatal
-// when the input was itself valid. That isolates errors introduced by this
-// command from pre-existing ones, while still catching mistakes (such as a --set
-// with a bad path) that would break an otherwise-valid config.
-func validateModifiedConfig(output []byte, inputValid bool) error {
-	if _, err := config.ReadConfig(bytes.NewReader(output)); err != nil {
-		if inputValid {
-			return trace.Wrap(err, "the requested changes produced an invalid configuration")
-		}
-		fmt.Fprintf(os.Stderr, "warning: modified configuration did not pass validation, but the original was already invalid: %v\n", err)
+// presentServices returns the set of top-level sections present in the raw
+// config, used to tell an existing service section from an absent one.
+func presentServices(data []byte) (map[string]bool, error) {
+	var raw map[string]yaml.Node
+	if err := yaml.Unmarshal(data, &raw); err != nil {
+		return nil, trace.Wrap(err, "reading config sections")
 	}
+	present := make(map[string]bool, len(raw))
+	for key := range raw {
+		present[key] = true
+	}
+	return present, nil
+}
+
+// applyNamedFlags applies the value flags to the typed teleport section, keeping
+// the schema invariants lib/config enforces at startup so the output is valid by
+// construction: a single auth_server or proxy_server (never both, and never the
+// legacy plural auth_servers), and a join_params block that always carries a
+// method and never coexists with the legacy auth_token. Cross-field checks that
+// depend on the final state (endpoint vs. config version) live in
+// validateReconfigure.
+func applyNamedFlags(fc *config.FileConfig, flags reconfigureFlags) error {
+	g := &fc.Global
+
+	// auth_server and proxy_server are mutually exclusive; reject rather than
+	// letting the second flag silently win over the first.
+	if flags.proxy != "" && flags.authServer != "" {
+		return trace.BadParameter("only one of --proxy or --auth-server may be set")
+	}
+
+	if flags.configVersion != "" {
+		if err := defaults.ValidateConfigVersion(flags.configVersion); err != nil {
+			return trace.Wrap(err)
+		}
+		fc.Version = flags.configVersion
+	}
+
+	if flags.dataDir != "" {
+		g.DataDir = flags.dataDir
+	}
+
+	// v3 uses one of auth_server / proxy_server and rejects the legacy plural
+	// auth_servers. Setting either endpoint drops the opposing one and the
+	// legacy field so the result stays valid.
+	if flags.proxy != "" {
+		g.ProxyServer = flags.proxy
+		g.AuthServer = ""
+		g.AuthServers = nil
+	}
+	if flags.authServer != "" {
+		g.AuthServer = flags.authServer
+		g.ProxyServer = ""
+		g.AuthServers = nil
+	}
+
+	if err := applyJoinFlags(g, flags); err != nil {
+		return trace.Wrap(err)
+	}
+
+	applySSHFlags(fc, flags)
+
 	return nil
 }
 
-func applyNamedFlags(doc *yaml.Node, flags reconfigureFlags) error {
-	namedValues := map[string]string{
-		"join-method": flags.joinMethod,
-		"auth-server": flags.authServer,
-		"proxy":       flags.proxy,
-		"data-dir":    flags.dataDir,
+// applyJoinFlags updates the join configuration (auth_token / join_params) from
+// the --token, --join-method, and --registration-secret flags. It preserves two
+// invariants Teleport enforces at startup but ReadConfig does not: auth_token and
+// join_params are never both set, and join_params carries no sub-block belonging
+// to a different join method (which would leak the source host's credentials).
+func applyJoinFlags(g *config.Global, flags reconfigureFlags) error {
+	if flags.joinMethod != "" {
+		method := types.JoinMethod(flags.joinMethod)
+		if err := types.ValidateJoinMethod(method); err != nil {
+			return trace.Wrap(err)
+		}
+		g.JoinParams.Method = method
 	}
 
-	for flagName, value := range namedValues {
-		if value == "" {
-			continue
-		}
-		path, ok := flagPathMap[flagName]
-		if !ok {
-			return trace.BadParameter("no path mapping for flag %q", flagName)
-		}
-		if err := yamlmod.Set(doc, path, value); err != nil {
-			return trace.Wrap(err, "setting %s via --%s", path, flagName)
-		}
-	}
-
-	// For v3 configs, auth_server and proxy_server are mutually exclusive, and the
-	// legacy plural auth_servers field is rejected entirely (see applyAuthOrProxyAddress).
-	// When either endpoint is explicitly set, drop the opposing endpoint and the legacy
-	// auth_servers field to avoid validation errors on the modified config.
-	if flags.proxy != "" || flags.authServer != "" {
-		if err := yamlmod.Delete(doc, "teleport.auth_servers"); err != nil && !trace.IsNotFound(err) {
-			return trace.Wrap(err, "removing legacy teleport.auth_servers")
-		}
-	}
-	if flags.proxy != "" {
-		if err := yamlmod.Delete(doc, "teleport.auth_server"); err != nil && !trace.IsNotFound(err) {
-			return trace.Wrap(err, "removing teleport.auth_server when setting proxy_server")
-		}
-	}
-	if flags.authServer != "" {
-		if err := yamlmod.Delete(doc, "teleport.proxy_server"); err != nil && !trace.IsNotFound(err) {
-			return trace.Wrap(err, "removing teleport.proxy_server when setting auth_server")
+	if flags.registrationSecret != "" {
+		g.JoinParams.BoundKeypair.RegistrationSecretValue = flags.registrationSecret
+		if g.JoinParams.Method == "" {
+			g.JoinParams.Method = types.JoinMethodBoundKeypair
 		}
 	}
 
 	if flags.token != "" {
-		if flags.joinMethod == "" && yamlmod.Exists(doc, "teleport.auth_token") {
-			// Preserve legacy format: the config uses auth_token and no join-method
-			// change was requested, so keep updating the existing field in place.
-			if err := yamlmod.Set(doc, "teleport.auth_token", flags.token); err != nil {
-				return trace.Wrap(err, "setting teleport.auth_token via --token")
-			}
+		// Keep the legacy auth_token format only when the config already uses it
+		// and nothing else pulled us into the modern join_params block.
+		if flags.joinMethod == "" && flags.registrationSecret == "" &&
+			g.AuthToken != "" && g.JoinParams == (config.JoinParams{}) {
+			g.AuthToken = flags.token
 		} else {
-			// Use the modern join_params.token_name field, and remove the legacy
-			// auth_token if present so both fields don't coexist.
-			if err := yamlmod.Set(doc, "teleport.join_params.token_name", flags.token); err != nil {
-				return trace.Wrap(err, "setting teleport.join_params.token_name via --token")
-			}
-			if err := yamlmod.Delete(doc, "teleport.auth_token"); err != nil && !trace.IsNotFound(err) {
-				return trace.Wrap(err, "removing teleport.auth_token")
-			}
-			// Teleport rejects a join_params block with no method set. Default to
-			// "token" unless the user already specified --join-method or the config
-			// already has a method.
-			if flags.joinMethod == "" && !yamlmod.Exists(doc, "teleport.join_params.method") {
-				if err := yamlmod.Set(doc, "teleport.join_params.method", "token"); err != nil {
-					return trace.Wrap(err, "setting default teleport.join_params.method")
-				}
-			}
+			g.JoinParams.TokenName = flags.token
 		}
+	}
+
+	// Once any join_params field is set, the block must carry a method and must
+	// not coexist with the legacy auth_token. Migrate a stray auth_token into the
+	// block rather than emitting a config Teleport rejects at startup (the
+	// --join-method-without---token case).
+	if g.JoinParams != (config.JoinParams{}) {
+		if g.AuthToken != "" {
+			if g.JoinParams.TokenName == "" {
+				g.JoinParams.TokenName = g.AuthToken
+			}
+			g.AuthToken = ""
+		}
+		if g.JoinParams.Method == "" {
+			g.JoinParams.Method = types.JoinMethodToken
+		}
+	}
+
+	// A method change clears the sub-blocks and secrets that belong to a
+	// different method, so the source host's credentials don't leak forward.
+	if flags.joinMethod != "" {
+		clearForeignJoinParams(&g.JoinParams)
 	}
 
 	return nil
 }
 
-func applyRoles(doc *yaml.Node, rolesStr string) error {
-	roles := strings.Split(rolesStr, ",")
-	for _, role := range roles {
+// clearForeignJoinParams zeroes the method-specific sub-blocks and secrets that
+// don't belong to jp.Method. token_secret is only meaningful for the token
+// method, so it is preserved there and cleared everywhere else.
+func clearForeignJoinParams(jp *config.JoinParams) {
+	switch jp.Method {
+	case types.JoinMethodBoundKeypair:
+		jp.Azure = config.AzureJoinParams{}
+		jp.TokenSecret = ""
+	case types.JoinMethodAzure:
+		jp.BoundKeypair = config.BoundKeypairParams{}
+		jp.TokenSecret = ""
+	case types.JoinMethodToken:
+		jp.BoundKeypair = config.BoundKeypairParams{}
+		jp.Azure = config.AzureJoinParams{}
+	default:
+		jp.BoundKeypair = config.BoundKeypairParams{}
+		jp.Azure = config.AzureJoinParams{}
+		jp.TokenSecret = ""
+	}
+}
+
+// applySSHFlags updates ssh_service networking fields. These let a side-by-side
+// agent move off a colliding listen port (SSH nodes default to 3022) and stay
+// reachable for direct dial.
+func applySSHFlags(fc *config.FileConfig, flags reconfigureFlags) {
+	if flags.sshListenAddr != "" {
+		fc.SSH.ListenAddress = flags.sshListenAddr
+	}
+	if flags.sshPublicAddr != "" {
+		fc.SSH.PublicAddr = apiutils.Strings{flags.sshPublicAddr}
+	}
+	// Only ever enable force_listen; never write false, which would clobber a
+	// source config that already sets it (exactly the hosts that collide).
+	if flags.forceListen {
+		fc.SSH.ForceListen = true
+	}
+}
+
+// validateReconfigure runs the cross-field checks that depend on the config's
+// final state. ReadConfig can't catch these: the rules live in ApplyFileConfig,
+// which reads host-local files (proxy https_keypairs, HSM PIN, CA files) and so
+// can't be run against a config destined for another host. We mirror only the
+// rules reconfigure itself can break.
+func validateReconfigure(fc *config.FileConfig) error {
+	if fc.ProxyServer != "" || fc.AuthServer != "" {
+		if fc.Version != defaults.TeleportConfigVersionV3 {
+			return trace.BadParameter(
+				"proxy_server/auth_server require config version v3, but the config is %q; pass --config-version v3",
+				fc.Version)
+		}
+	}
+	return nil
+}
+
+// applyRoles enables the service section for each named role, creating it (as a
+// minimal enabled section, with the rest filled by Teleport's own defaults at
+// startup) when the input didn't have it.
+func applyRoles(fc *config.FileConfig, present map[string]bool, rolesStr string) error {
+	for _, role := range strings.Split(rolesStr, ",") {
 		role = strings.TrimSpace(role)
-		svcKey, ok := roleServiceMap[role]
+		key, ok := roleServiceMap[role]
 		if !ok {
 			return trace.BadParameter("unknown role %q", role)
 		}
-
-		if yamlmod.Exists(doc, svcKey) {
-			if err := yamlmod.SetBool(doc, svcKey+".enabled", true); err != nil {
-				return trace.Wrap(err)
-			}
-			continue
+		svc := serviceSection(fc, key)
+		if svc == nil {
+			return trace.BadParameter("unknown service %q for role %q", key, role)
 		}
-
-		snippet, err := generateServiceDefaults(role)
-		if err != nil {
-			return trace.Wrap(err, "generating defaults for role %q", role)
-		}
-
-		srcDoc, err := yamlmod.Parse(snippet)
-		if err != nil {
-			return trace.Wrap(err, "parsing generated defaults for %q", role)
-		}
-
-		if err := yamlmod.Merge(doc, svcKey, srcDoc); err != nil {
-			return trace.Wrap(err)
-		}
+		svc.EnabledFlag = "yes"
+		present[key] = true
 	}
 	return nil
 }
 
-func generateServiceDefaults(role string) ([]byte, error) {
-	switch role {
-	case defaults.RoleNode:
-		return []byte("enabled: \"yes\"\nlisten_addr: 0.0.0.0:3022\n"), nil
-	case defaults.RoleProxy:
-		return []byte("enabled: \"yes\"\nlisten_addr: 0.0.0.0:3023\nweb_listen_addr: 0.0.0.0:3080\n"), nil
-	case defaults.RoleAuthService:
-		return []byte("enabled: \"yes\"\nlisten_addr: 0.0.0.0:3025\n"), nil
-	case defaults.RoleApp:
-		return []byte("enabled: \"yes\"\n"), nil
-	case defaults.RoleDatabase:
-		return []byte("enabled: \"yes\"\n"), nil
-	case "kube":
-		return []byte("enabled: \"yes\"\nlisten_addr: 0.0.0.0:3026\n"), nil
-	case defaults.RoleWindowsDesktop:
-		return []byte("enabled: \"yes\"\n"), nil
-	case defaults.RoleDiscovery:
-		return []byte("enabled: \"yes\"\n"), nil
-	default:
-		return nil, trace.BadParameter("no defaults for role %q", role)
+// setServiceEnabled toggles a service section's "enabled" field. It refuses a
+// section that wasn't in the input (or created by --roles), so a mistyped
+// service name is an error rather than a new, half-empty section.
+func setServiceEnabled(fc *config.FileConfig, present map[string]bool, key string, enabled bool) error {
+	svc := serviceSection(fc, key)
+	if svc == nil {
+		return trace.BadParameter("unknown service %q", key)
 	}
+	if !present[key] {
+		if enabled {
+			return trace.BadParameter("service %q does not exist in the config; use --roles to create it first", key)
+		}
+		return trace.BadParameter("service %q does not exist in the config", key)
+	}
+	if enabled {
+		svc.EnabledFlag = "yes"
+	} else {
+		svc.EnabledFlag = "no"
+	}
+	return nil
 }
 
 func writeReconfigureOutput(flags reconfigureFlags, data []byte) error {

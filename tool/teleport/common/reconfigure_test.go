@@ -21,9 +21,13 @@ package common
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/config"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 )
 
 func TestReconfigure(t *testing.T) {
@@ -65,6 +69,24 @@ func TestReconfigure(t *testing.T) {
 		require.Contains(t, string(got), "token_name: new-token")
 		require.Contains(t, string(got), "method: iam")
 		require.NotContains(t, string(got), "auth_token")
+	})
+
+	t.Run("data-dir named flag", func(t *testing.T) {
+		inputFile := filepath.Join(t.TempDir(), "input.yaml")
+		require.NoError(t, os.WriteFile(inputFile, []byte("teleport:\n  data_dir: /var/lib/teleport\n"), 0644))
+
+		outputFile := filepath.Join(t.TempDir(), "output.yaml")
+
+		err := onReconfigure(reconfigureFlags{
+			input:   inputFile,
+			output:  "file://" + outputFile,
+			dataDir: "/var/lib/teleport_teamA",
+		})
+		require.NoError(t, err)
+
+		got, err := os.ReadFile(outputFile)
+		require.NoError(t, err)
+		require.Contains(t, string(got), "data_dir: /var/lib/teleport_teamA")
 	})
 
 	t.Run("enable existing service", func(t *testing.T) {
@@ -116,26 +138,7 @@ func TestReconfigure(t *testing.T) {
 		require.Contains(t, string(got), `enabled: "no"`)
 	})
 
-	t.Run("unset removes field", func(t *testing.T) {
-		inputFile := filepath.Join(t.TempDir(), "input.yaml")
-		require.NoError(t, os.WriteFile(inputFile, []byte("teleport:\n  data_dir: /var/lib/teleport\n  auth_token: old-token\n"), 0644))
-
-		outputFile := filepath.Join(t.TempDir(), "output.yaml")
-
-		err := onReconfigure(reconfigureFlags{
-			input:  inputFile,
-			output: "file://" + outputFile,
-			unset:  []string{"teleport.auth_token"},
-		})
-		require.NoError(t, err)
-
-		got, err := os.ReadFile(outputFile)
-		require.NoError(t, err)
-		require.NotContains(t, string(got), "auth_token")
-		require.Contains(t, string(got), "data_dir")
-	})
-
-	t.Run("--set arbitrary path", func(t *testing.T) {
+	t.Run("roles creates a missing service section", func(t *testing.T) {
 		inputFile := filepath.Join(t.TempDir(), "input.yaml")
 		require.NoError(t, os.WriteFile(inputFile, []byte("teleport:\n  data_dir: /var/lib/teleport\n"), 0644))
 
@@ -144,13 +147,14 @@ func TestReconfigure(t *testing.T) {
 		err := onReconfigure(reconfigureFlags{
 			input:  inputFile,
 			output: "file://" + outputFile,
-			set:    []string{"teleport.log.severity=DEBUG"},
+			roles:  "app",
 		})
 		require.NoError(t, err)
 
 		got, err := os.ReadFile(outputFile)
 		require.NoError(t, err)
-		require.Contains(t, string(got), "severity: DEBUG")
+		require.Contains(t, string(got), "app_service:")
+		require.Contains(t, string(got), `enabled: "yes"`)
 	})
 
 	t.Run("output file exists without overwrite fails", func(t *testing.T) {
@@ -209,38 +213,20 @@ func TestReconfigure(t *testing.T) {
 		require.Error(t, err)
 	})
 
-	t.Run("--set invalid format", func(t *testing.T) {
+	t.Run("input that cannot be parsed is refused", func(t *testing.T) {
 		inputFile := filepath.Join(t.TempDir(), "input.yaml")
-		require.NoError(t, os.WriteFile(inputFile, []byte("teleport:\n  data_dir: /var/lib/teleport\n"), 0644))
+		require.NoError(t, os.WriteFile(inputFile, []byte("teleport:\n  bogus_field: oops\n"), 0644))
 
 		err := onReconfigure(reconfigureFlags{
 			input:  inputFile,
 			output: "stdout",
-			set:    []string{"no-equals-sign"},
+			token:  "new-token",
 		})
 		require.Error(t, err)
 	})
-
-	t.Run("--set value containing equals sign", func(t *testing.T) {
-		inputFile := filepath.Join(t.TempDir(), "input.yaml")
-		require.NoError(t, os.WriteFile(inputFile, []byte("teleport:\n  data_dir: /var/lib/teleport\n"), 0644))
-
-		outputFile := filepath.Join(t.TempDir(), "output.yaml")
-
-		err := onReconfigure(reconfigureFlags{
-			input:  inputFile,
-			output: "file://" + outputFile,
-			set:    []string{"teleport.auth_token=https://auth.example.com?token=abc=def"},
-		})
-		require.NoError(t, err)
-
-		got, err := os.ReadFile(outputFile)
-		require.NoError(t, err)
-		require.Contains(t, string(got), "auth_token: https://auth.example.com?token=abc=def")
-	})
 }
 
-func TestReconfigureBugFixes(t *testing.T) {
+func TestReconfigureJoinParams(t *testing.T) {
 	t.Run("token on config with no join_params sets default method token", func(t *testing.T) {
 		inputFile := filepath.Join(t.TempDir(), "input.yaml")
 		require.NoError(t, os.WriteFile(inputFile, []byte("teleport:\n  data_dir: /var/lib/teleport\n"), 0644))
@@ -280,9 +266,30 @@ func TestReconfigureBugFixes(t *testing.T) {
 		require.NotContains(t, string(got), "method: token")
 	})
 
+	t.Run("token without join-method preserves legacy auth_token format", func(t *testing.T) {
+		inputFile := filepath.Join(t.TempDir(), "input.yaml")
+		require.NoError(t, os.WriteFile(inputFile, []byte("teleport:\n  data_dir: /var/lib/teleport\n  auth_token: old-token\n"), 0644))
+
+		outputFile := filepath.Join(t.TempDir(), "output.yaml")
+
+		err := onReconfigure(reconfigureFlags{
+			input:  inputFile,
+			output: "file://" + outputFile,
+			token:  "new-token",
+		})
+		require.NoError(t, err)
+
+		got, err := os.ReadFile(outputFile)
+		require.NoError(t, err)
+		require.Contains(t, string(got), "auth_token: new-token")
+		require.NotContains(t, string(got), "join_params")
+	})
+}
+
+func TestReconfigureEndpoints(t *testing.T) {
 	t.Run("setting proxy clears auth_server", func(t *testing.T) {
 		inputFile := filepath.Join(t.TempDir(), "input.yaml")
-		require.NoError(t, os.WriteFile(inputFile, []byte("teleport:\n  data_dir: /var/lib/teleport\n  auth_server: auth.example.com:3025\n"), 0644))
+		require.NoError(t, os.WriteFile(inputFile, []byte("version: v3\nteleport:\n  data_dir: /var/lib/teleport\n  auth_server: auth.example.com:3025\n"), 0644))
 
 		outputFile := filepath.Join(t.TempDir(), "output.yaml")
 
@@ -301,7 +308,7 @@ func TestReconfigureBugFixes(t *testing.T) {
 
 	t.Run("setting auth_server clears proxy_server", func(t *testing.T) {
 		inputFile := filepath.Join(t.TempDir(), "input.yaml")
-		require.NoError(t, os.WriteFile(inputFile, []byte("teleport:\n  data_dir: /var/lib/teleport\n  proxy_server: proxy.example.com:443\n"), 0644))
+		require.NoError(t, os.WriteFile(inputFile, []byte("version: v3\nteleport:\n  data_dir: /var/lib/teleport\n  proxy_server: proxy.example.com:443\n"), 0644))
 
 		outputFile := filepath.Join(t.TempDir(), "output.yaml")
 
@@ -320,7 +327,7 @@ func TestReconfigureBugFixes(t *testing.T) {
 
 	t.Run("setting proxy clears legacy auth_servers", func(t *testing.T) {
 		inputFile := filepath.Join(t.TempDir(), "input.yaml")
-		require.NoError(t, os.WriteFile(inputFile, []byte("teleport:\n  data_dir: /var/lib/teleport\n  auth_servers:\n  - auth.example.com:3025\n"), 0644))
+		require.NoError(t, os.WriteFile(inputFile, []byte("version: v3\nteleport:\n  data_dir: /var/lib/teleport\n  auth_servers:\n  - auth.example.com:3025\n"), 0644))
 
 		outputFile := filepath.Join(t.TempDir(), "output.yaml")
 
@@ -337,10 +344,10 @@ func TestReconfigureBugFixes(t *testing.T) {
 		require.NotContains(t, string(got), "auth_servers")
 	})
 
-	t.Run("overwrite preserves original config if write target is the input", func(t *testing.T) {
+	t.Run("overwrite preserves atomic write when target is the input", func(t *testing.T) {
 		dir := t.TempDir()
 		configFile := filepath.Join(dir, "teleport.yaml")
-		require.NoError(t, os.WriteFile(configFile, []byte("teleport:\n  data_dir: /var/lib/teleport\n  auth_server: auth.example.com:3025\n"), 0644))
+		require.NoError(t, os.WriteFile(configFile, []byte("version: v3\nteleport:\n  data_dir: /var/lib/teleport\n  auth_server: auth.example.com:3025\n"), 0644))
 
 		err := onReconfigure(reconfigureFlags{
 			input:     configFile,
@@ -363,291 +370,147 @@ func TestReconfigureBugFixes(t *testing.T) {
 	})
 }
 
-func TestReconfigureValidation(t *testing.T) {
-	t.Run("rejects an edit that breaks an otherwise-valid config", func(t *testing.T) {
-		inputFile := filepath.Join(t.TempDir(), "input.yaml")
-		require.NoError(t, os.WriteFile(inputFile, []byte("version: v3\nteleport:\n  data_dir: /var/lib/teleport\n  proxy_server: proxy.example.com:443\nssh_service:\n  enabled: \"yes\"\n"), 0644))
-
-		outputFile := filepath.Join(t.TempDir(), "output.yaml")
-
-		err := onReconfigure(reconfigureFlags{
-			input:  inputFile,
-			output: "file://" + outputFile,
-			set:    []string{"teleport.bogus_field=oops"},
-		})
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "invalid configuration")
-
-		// A failed validation must not write any output.
-		_, statErr := os.Stat(outputFile)
-		require.True(t, os.IsNotExist(statErr))
-	})
-
-	t.Run("warns but proceeds when the input was already invalid", func(t *testing.T) {
-		inputFile := filepath.Join(t.TempDir(), "input.yaml")
-		// An unknown top-level field makes the input itself fail strict parsing,
-		// so the edit must still be applied rather than blocked.
-		require.NoError(t, os.WriteFile(inputFile, []byte("teleport:\n  data_dir: /var/lib/teleport\nbogus_service:\n  enabled: \"yes\"\n"), 0644))
-
-		outputFile := filepath.Join(t.TempDir(), "output.yaml")
-
-		err := onReconfigure(reconfigureFlags{
-			input:  inputFile,
-			output: "file://" + outputFile,
-			proxy:  "proxy.example.com:443",
-		})
-		require.NoError(t, err)
-
-		got, err := os.ReadFile(outputFile)
-		require.NoError(t, err)
-		require.Contains(t, string(got), "proxy_server: proxy.example.com:443")
-	})
-}
-
-func TestReconfigureRoles(t *testing.T) {
-	t.Run("creates ssh_service section", func(t *testing.T) {
-		inputFile := filepath.Join(t.TempDir(), "input.yaml")
-		require.NoError(t, os.WriteFile(inputFile, []byte("teleport:\n  data_dir: /var/lib/teleport\n"), 0644))
-
-		outputFile := filepath.Join(t.TempDir(), "output.yaml")
-
-		err := onReconfigure(reconfigureFlags{
-			input:  inputFile,
-			output: "file://" + outputFile,
-			roles:  "node",
-		})
-		require.NoError(t, err)
-
-		got, err := os.ReadFile(outputFile)
-		require.NoError(t, err)
-		require.Contains(t, string(got), "ssh_service:")
-		require.Contains(t, string(got), `enabled: "yes"`)
-		require.Contains(t, string(got), "listen_addr: 0.0.0.0:3022")
-	})
-
-	t.Run("roles does not overwrite existing section", func(t *testing.T) {
-		inputFile := filepath.Join(t.TempDir(), "input.yaml")
-		require.NoError(t, os.WriteFile(inputFile, []byte("teleport:\n  data_dir: /var/lib/teleport\nssh_service:\n  enabled: \"no\"\n  listen_addr: 0.0.0.0:9999\n"), 0644))
-
-		outputFile := filepath.Join(t.TempDir(), "output.yaml")
-
-		err := onReconfigure(reconfigureFlags{
-			input:  inputFile,
-			output: "file://" + outputFile,
-			roles:  "node",
-		})
-		require.NoError(t, err)
-
-		got, err := os.ReadFile(outputFile)
-		require.NoError(t, err)
-		require.Contains(t, string(got), `enabled: "yes"`)
-		require.Contains(t, string(got), "listen_addr: 0.0.0.0:9999")
-	})
-
-	t.Run("multiple roles", func(t *testing.T) {
-		inputFile := filepath.Join(t.TempDir(), "input.yaml")
-		require.NoError(t, os.WriteFile(inputFile, []byte("teleport:\n  data_dir: /var/lib/teleport\n"), 0644))
-
-		outputFile := filepath.Join(t.TempDir(), "output.yaml")
-
-		err := onReconfigure(reconfigureFlags{
-			input:  inputFile,
-			output: "file://" + outputFile,
-			roles:  "node,proxy,auth",
-		})
-		require.NoError(t, err)
-
-		got, err := os.ReadFile(outputFile)
-		require.NoError(t, err)
-		require.Contains(t, string(got), "ssh_service:")
-		require.Contains(t, string(got), "proxy_service:")
-		require.Contains(t, string(got), "auth_service:")
-	})
-
-	t.Run("unknown role fails", func(t *testing.T) {
-		inputFile := filepath.Join(t.TempDir(), "input.yaml")
-		require.NoError(t, os.WriteFile(inputFile, []byte("teleport:\n  data_dir: /var/lib/teleport\n"), 0644))
-
-		err := onReconfigure(reconfigureFlags{
-			input:  inputFile,
-			output: "stdout",
-			roles:  "nonexistent",
-		})
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "unknown role")
-	})
-}
-
-func TestReconfigurePreservesComments(t *testing.T) {
-	input := "# Main teleport configuration\nteleport:\n  # Data directory for teleport state\n  data_dir: /var/lib/teleport\n  auth_token: old-token\n# SSH service configuration\nssh_service:\n  enabled: \"yes\"\n  listen_addr: 0.0.0.0:3022\n"
+// reconfigureToString runs onReconfigure to a temp file and returns the output.
+func reconfigureToString(t *testing.T, in string, flags reconfigureFlags) (string, error) {
+	t.Helper()
 	inputFile := filepath.Join(t.TempDir(), "input.yaml")
-	require.NoError(t, os.WriteFile(inputFile, []byte(input), 0644))
-
+	require.NoError(t, os.WriteFile(inputFile, []byte(in), 0o644))
 	outputFile := filepath.Join(t.TempDir(), "output.yaml")
 
-	err := onReconfigure(reconfigureFlags{
-		input:  inputFile,
-		output: "file://" + outputFile,
-		token:  "new-token",
-	})
-	require.NoError(t, err)
-
+	flags.input = inputFile
+	flags.output = "file://" + outputFile
+	if err := onReconfigure(flags); err != nil {
+		return "", err
+	}
 	got, err := os.ReadFile(outputFile)
 	require.NoError(t, err)
-
-	require.Contains(t, string(got), "# Main teleport configuration")
-	require.Contains(t, string(got), "# Data directory for teleport state")
-	require.Contains(t, string(got), "# SSH service configuration")
-	require.Contains(t, string(got), "auth_token: new-token")
-	require.NotContains(t, string(got), "old-token")
+	return string(got), nil
 }
 
-func TestReconfigureRealisticConfigs(t *testing.T) {
-	const fullConfig = `# Teleport configuration file
-version: v3
-teleport:
-  nodename: node1.example.com
-  data_dir: /var/lib/teleport
-  auth_token: original-token
-  auth_server: auth.example.com:3025
-  # CA pin for secure cluster joining
-  ca_pin: sha256:abc123def456
-  log:
-    severity: INFO
-    output: /var/log/teleport.log
-
-# SSH access service
-ssh_service:
-  enabled: "yes"
-  listen_addr: 0.0.0.0:3022
-  labels:
-    env: production
-    region: us-east-1
-
-# Web proxy service
-proxy_service:
-  enabled: "yes"
-  web_listen_addr: 0.0.0.0:3080
-  # Public address for external access
-  public_addr: proxy.example.com:3080
-
-# Application service
-app_service:
-  enabled: "yes"
-  apps:
-    - name: grafana
-      uri: http://localhost:3000
-    - name: jenkins
-      uri: http://localhost:8080
-
-# Database service
-db_service:
-  enabled: "no"
-`
-
-	t.Run("modify token and add labels in full config", func(t *testing.T) {
-		inputFile := filepath.Join(t.TempDir(), "input.yaml")
-		require.NoError(t, os.WriteFile(inputFile, []byte(fullConfig), 0644))
-
-		outputFile := filepath.Join(t.TempDir(), "output.yaml")
-
-		err := onReconfigure(reconfigureFlags{
-			input:  inputFile,
-			output: "file://" + outputFile,
-			token:  "new-cluster-token",
-			// Labels are no longer a named flag; --set covers arbitrary nested paths.
-			set: []string{"ssh_service.labels.team=platform", "ssh_service.labels.tier=frontend"},
-		})
+func TestReconfigureJoinInvariants(t *testing.T) {
+	t.Run("join-method without token migrates legacy auth_token into join_params", func(t *testing.T) {
+		got, err := reconfigureToString(t,
+			"teleport:\n  data_dir: /var/lib/teleport\n  auth_token: old-token\n",
+			reconfigureFlags{joinMethod: "iam"})
 		require.NoError(t, err)
-
-		got, err := os.ReadFile(outputFile)
-		require.NoError(t, err)
-		result := string(got)
-
-		// Modifications applied
-		require.Contains(t, result, "auth_token: new-cluster-token")
-		require.Contains(t, result, "team: platform")
-		require.Contains(t, result, "tier: frontend")
-
-		// Comments preserved
-		require.Contains(t, result, "# Teleport configuration file")
-		require.Contains(t, result, "# CA pin for secure cluster joining")
-		require.Contains(t, result, "# SSH access service")
-		require.Contains(t, result, "# Web proxy service")
-		require.Contains(t, result, "# Public address for external access")
-		require.Contains(t, result, "# Application service")
-		require.Contains(t, result, "# Database service")
-
-		// Unmodified values preserved
-		require.Contains(t, result, "nodename: node1.example.com")
-		require.Contains(t, result, "ca_pin: sha256:abc123def456")
-		require.Contains(t, result, "web_listen_addr: 0.0.0.0:3080")
-		require.Contains(t, result, "name: grafana")
-		require.Contains(t, result, "name: jenkins")
-
-		// Original token gone
-		require.NotContains(t, result, "original-token")
+		require.Contains(t, got, "token_name: old-token")
+		require.Contains(t, got, "method: iam")
+		require.NotContains(t, got, "auth_token")
 	})
 
-	t.Run("unset deeply nested key", func(t *testing.T) {
-		inputFile := filepath.Join(t.TempDir(), "input.yaml")
-		require.NoError(t, os.WriteFile(inputFile, []byte(fullConfig), 0644))
-
-		outputFile := filepath.Join(t.TempDir(), "output.yaml")
-
-		err := onReconfigure(reconfigureFlags{
-			input:  inputFile,
-			output: "file://" + outputFile,
-			unset:  []string{"teleport.log.severity"},
-		})
-		require.NoError(t, err)
-
-		got, err := os.ReadFile(outputFile)
-		require.NoError(t, err)
-		result := string(got)
-
-		// Severity removed
-		require.NotContains(t, result, "severity: INFO")
-
-		// Sibling key under log preserved
-		require.Contains(t, result, "output: /var/log/teleport.log")
-
-		// Rest of config intact
-		require.Contains(t, result, "version: v3")
-		require.Contains(t, result, "nodename: node1.example.com")
-		require.Contains(t, result, "# SSH access service")
-		require.Contains(t, result, "proxy_service:")
+	t.Run("invalid join-method is rejected", func(t *testing.T) {
+		_, err := reconfigureToString(t,
+			"teleport:\n  data_dir: /var/lib/teleport\n",
+			reconfigureFlags{token: "t", joinMethod: "not-a-real-method"})
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "join method must be one of")
 	})
 
-	t.Run("enable and disable services in full config", func(t *testing.T) {
-		inputFile := filepath.Join(t.TempDir(), "input.yaml")
-		require.NoError(t, os.WriteFile(inputFile, []byte(fullConfig), 0644))
-
-		outputFile := filepath.Join(t.TempDir(), "output.yaml")
-
-		err := onReconfigure(reconfigureFlags{
-			input:          inputFile,
-			output:         "file://" + outputFile,
-			enableService:  []string{"db_service"},
-			disableService: []string{"proxy_service"},
-		})
+	t.Run("bound_keypair registration secret is written", func(t *testing.T) {
+		got, err := reconfigureToString(t,
+			"teleport:\n  data_dir: /var/lib/teleport\n",
+			reconfigureFlags{joinMethod: "bound_keypair", registrationSecret: "super-secret", token: "bk-token"})
 		require.NoError(t, err)
-
-		got, err := os.ReadFile(outputFile)
-		require.NoError(t, err)
-		result := string(got)
-
-		// db_service enabled
-		require.Contains(t, result, "db_service:")
-
-		// All comments preserved
-		require.Contains(t, result, "# Teleport configuration file")
-		require.Contains(t, result, "# Web proxy service")
-		require.Contains(t, result, "# Database service")
-
-		// Unmodified sections remain
-		require.Contains(t, result, "nodename: node1.example.com")
-		require.Contains(t, result, "name: grafana")
-		require.Contains(t, result, "listen_addr: 0.0.0.0:3022")
+		require.Contains(t, got, "method: bound_keypair")
+		require.Contains(t, got, "token_name: bk-token")
+		require.Contains(t, got, "registration_secret_value: super-secret")
+		require.NotContains(t, got, "auth_token")
 	})
+
+	t.Run("method change clears the previous method's sub-block", func(t *testing.T) {
+		got, err := reconfigureToString(t,
+			"teleport:\n  data_dir: /var/lib/teleport\n  join_params:\n    method: bound_keypair\n    token_name: old\n    bound_keypair:\n      registration_secret_value: leaked\n",
+			reconfigureFlags{joinMethod: "token", token: "new-token"})
+		require.NoError(t, err)
+		require.Contains(t, got, "method: token")
+		require.Contains(t, got, "token_name: new-token")
+		require.NotContains(t, got, "bound_keypair")
+		require.NotContains(t, got, "leaked")
+	})
+}
+
+func TestReconfigureVersionGuard(t *testing.T) {
+	t.Run("endpoint on pre-v3 config without --config-version is rejected", func(t *testing.T) {
+		_, err := reconfigureToString(t,
+			"teleport:\n  data_dir: /var/lib/teleport\n",
+			reconfigureFlags{proxy: "proxy.example.com:443"})
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "config version v3")
+	})
+
+	t.Run("endpoint with --config-version v3 on pre-v3 config succeeds", func(t *testing.T) {
+		got, err := reconfigureToString(t,
+			"teleport:\n  data_dir: /var/lib/teleport\n",
+			reconfigureFlags{proxy: "proxy.example.com:443", configVersion: "v3"})
+		require.NoError(t, err)
+		require.Contains(t, got, "version: v3")
+		require.Contains(t, got, "proxy_server: proxy.example.com:443")
+	})
+
+	t.Run("proxy and auth-server together is rejected", func(t *testing.T) {
+		_, err := reconfigureToString(t,
+			"version: v3\nteleport:\n  data_dir: /var/lib/teleport\n",
+			reconfigureFlags{proxy: "proxy.example.com:443", authServer: "auth.example.com:3025"})
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "only one of")
+	})
+
+	t.Run("invalid config-version is rejected", func(t *testing.T) {
+		_, err := reconfigureToString(t,
+			"teleport:\n  data_dir: /var/lib/teleport\n",
+			reconfigureFlags{configVersion: "v9"})
+		require.Error(t, err)
+	})
+}
+
+func TestReconfigureSSHNetworking(t *testing.T) {
+	t.Run("ssh-listen-addr moves the node off its port", func(t *testing.T) {
+		got, err := reconfigureToString(t,
+			"ssh_service:\n  enabled: \"yes\"\n  listen_addr: 0.0.0.0:3022\n",
+			reconfigureFlags{sshListenAddr: "0.0.0.0:3122"})
+		require.NoError(t, err)
+		require.Contains(t, got, "listen_addr: 0.0.0.0:3122")
+		require.NotContains(t, got, "0.0.0.0:3022")
+	})
+
+	t.Run("force-listen and public-addr are set", func(t *testing.T) {
+		got, err := reconfigureToString(t,
+			"ssh_service:\n  enabled: \"yes\"\n",
+			reconfigureFlags{sshListenAddr: "0.0.0.0:3122", sshPublicAddr: "node.example.com:3122", forceListen: true})
+		require.NoError(t, err)
+		require.Contains(t, got, "force_listen: true")
+		require.Contains(t, got, "node.example.com:3122")
+	})
+}
+
+// TestReconfigureProducesStartableConfig proves the generated config loads
+// through the same path the agent uses at startup (ApplyFileConfig), for a
+// node config that references no host-local files.
+func TestReconfigureProducesStartableConfig(t *testing.T) {
+	in := "version: v3\n" +
+		"teleport:\n" +
+		"  data_dir: /var/lib/teleport\n" +
+		"  proxy_server: proxy.example.com:443\n" +
+		"  auth_token: old-token\n" +
+		"auth_service:\n" +
+		"  enabled: \"no\"\n" +
+		"proxy_service:\n" +
+		"  enabled: \"no\"\n" +
+		"ssh_service:\n" +
+		"  enabled: \"yes\"\n"
+
+	got, err := reconfigureToString(t, in, reconfigureFlags{
+		joinMethod:    "token",
+		token:         "new-token",
+		dataDir:       "/var/lib/teleport_teamA",
+		sshListenAddr: "0.0.0.0:3122",
+	})
+	require.NoError(t, err)
+	require.Contains(t, got, "data_dir: /var/lib/teleport_teamA")
+	require.Contains(t, got, "token_name: new-token")
+
+	// The reconfigured output must load the way teleport start loads it.
+	fc, err := config.ReadConfig(strings.NewReader(got))
+	require.NoError(t, err)
+	require.NoError(t, config.ApplyFileConfig(fc, servicecfg.MakeDefaultConfig()))
 }
