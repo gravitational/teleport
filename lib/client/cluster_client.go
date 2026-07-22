@@ -715,6 +715,9 @@ func (c *ClusterClient) IssueUserCertsWithMFA(ctx context.Context, params Reissu
 		keyRing, err := certClient.generateUserCerts(ctx, CertCacheKeep, params)
 		switch {
 		case errors.Is(err, &mfa.ErrExpiredReusableMFAResponse):
+			if params.FailOnExpiredReusableMFAResponse {
+				return nil, trace.Wrap(err)
+			}
 			// If the reusable MFA response is expired, break the switch to
 			// perform the ceremony again.
 			fmt.Fprintln(c.tc.Stderr, "Your MFA validation has timed out.")

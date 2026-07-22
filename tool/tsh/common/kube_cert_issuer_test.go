@@ -212,7 +212,10 @@ func TestKubeCertIssuer_DistinctTeleportClusters(t *testing.T) {
 		require.Len(t, certs, len(clusters))
 		require.Equal(t, int32(1), ceremonies.Load(), "one ceremony should cover all Teleport clusters")
 		require.Equal(t, int32(len(clusters)-1), replays.Load())
-		require.ElementsMatch(t, []string{"root", "leaf"}, cc.connects, "MFA requirements should be fetched from each Teleport cluster")
+		// The MFA prefetch and the replay wave each build one auth client per
+		// Teleport cluster. The wave never uses its clients, and since they
+		// dial lazily, they never really connect.
+		require.ElementsMatch(t, []string{"root", "leaf", "root", "leaf"}, cc.connects, "each fan-out should build one auth client per Teleport cluster")
 		// One serial ceremony plus one concurrent replay wave.
 		require.Equal(t, 2*time.Second, time.Since(start))
 	})

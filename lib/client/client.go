@@ -163,6 +163,13 @@ type ReissueParams struct {
 	// ReusableMFAResponse is a reusable MFA response that can be used when MFA
 	// is required.
 	ReusableMFAResponse *proto.MFAAuthenticateResponse
+
+	// FailOnExpiredReusableMFAResponse makes IssueUserCertsWithMFA return
+	// [mfa.ErrExpiredReusableMFAResponse] when ReusableMFAResponse has
+	// expired, instead of falling back to a new MFA ceremony. Callers
+	// coordinating concurrent issuances use it to refresh the response once
+	// for all of them.
+	FailOnExpiredReusableMFAResponse bool
 }
 
 func (p ReissueParams) usage() proto.UserCertsRequest_CertUsage {

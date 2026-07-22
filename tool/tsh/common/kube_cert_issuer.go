@@ -109,7 +109,7 @@ func (issuer *kubeCertIssuer) issueCerts(ctx context.Context, cc kubeCertClient,
 
 	certs := make(alpnproxy.KubeClientCerts)
 	var certsMu sync.Mutex
-	issueAndAdd := func(ctx context.Context, cluster kubeconfig.LocalProxyCluster) error {
+	issueAndAdd := func(ctx context.Context, cc kubeCertClient, cluster kubeconfig.LocalProxyCluster) error {
 		cert, err := issuer.issueCert(ctx, cc, cluster.TeleportCluster, cluster.KubeCluster, mfaChecks[localProxyClusterKey(cluster)])
 		if err != nil {
 			return trace.Wrap(err)
@@ -126,7 +126,7 @@ func (issuer *kubeCertIssuer) issueCerts(ctx context.Context, cc kubeCertClient,
 		// MFA ceremony (or detects an older auth server and switches to the
 		// per-cluster fallback). It runs before everything else so the user
 		// is prompted right at command start.
-		if err := issueAndAdd(ctx, mfaOn[0]); err != nil {
+		if err := issueAndAdd(ctx, cc, mfaOn[0]); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		mfaOn = mfaOn[1:]
@@ -134,16 +134,21 @@ func (issuer *kubeCertIssuer) issueCerts(ctx context.Context, cc kubeCertClient,
 			// Older auth server: every MFA-gated issuance prompts, so keep
 			// them serial to prompt one at a time, as before.
 			for _, cluster := range mfaOn {
-				if err := issueAndAdd(ctx, cluster); err != nil {
+				if err := issueAndAdd(ctx, cc, cluster); err != nil {
 					return nil, trace.Wrap(err)
 				}
 			}
 		} else {
 			// MFA-gated issuances replay the reusable response and never
 			// write the key store, so they are safe to run concurrently.
+			// They issue through cc directly and ignore the group's auth
+			// clients, which dial lazily and so never really connect.
 			wave := newKubeClusterGroup(cc, mfaOn, kubeCertIssueConcurrency())
 			defer wave.Close(ctx)
-			if err := wave.ForEach(ctx, issueAndAdd); err != nil {
+			err := wave.ForEach(ctx, func(ctx context.Context, authClient authclient.ClientI, cluster kubeconfig.LocalProxyCluster) error {
+				return issueAndAdd(ctx, cc, cluster)
+			})
+			if err != nil {
 				return nil, trace.Wrap(err)
 			}
 		}
@@ -154,7 +159,7 @@ func (issuer *kubeCertIssuer) issueCerts(ctx context.Context, cc kubeCertClient,
 	// use (issuance reads key rings from disk that a concurrent save may be
 	// rewriting).
 	for _, cluster := range mfaOff {
-		if err := issueAndAdd(ctx, cluster); err != nil {
+		if err := issueAndAdd(ctx, cc, cluster); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -243,11 +248,7 @@ func (issuer *kubeCertIssuer) fetchMFARequired(ctx context.Context, cc kubeCertC
 	group := newKubeClusterGroup(cc, clusters, kubeCertIssueConcurrency())
 	defer group.Close(ctx)
 
-	err := group.ForEach(ctx, func(ctx context.Context, cluster kubeconfig.LocalProxyCluster) error {
-		authClient, err := group.AuthClient(ctx, cluster.TeleportCluster)
-		if err != nil {
-			return trace.Wrap(err)
-		}
+	err := group.ForEach(ctx, func(ctx context.Context, authClient authclient.ClientI, cluster kubeconfig.LocalProxyCluster) error {
 		resp, err := authClient.IsMFARequired(ctx, &proto.IsMFARequiredRequest{
 			Target: &proto.IsMFARequiredRequest_KubernetesCluster{KubernetesCluster: cluster.KubeCluster},
 		})
