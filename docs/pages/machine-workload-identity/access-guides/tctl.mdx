@@ -140,6 +140,17 @@ the generated identity file if you have modified this:
 $ tctl --auth-server example.teleport.sh:443 -i /opt/machine-id/identity create -f roles/*.yaml
 ```
 
+<Admonition type="note">
+If you run `tctl` on a host that also runs a Teleport service (with
+`/etc/teleport.yaml` present), the local configuration may conflict with the
+`--auth-server` flag. Set `TELEPORT_CONFIG_FILE=""` to bypass the local
+configuration:
+
+```code
+$ TELEPORT_CONFIG_FILE="" tctl --auth-server example.teleport.sh:443 -i /opt/machine-id/identity create -f roles/*.yaml
+```
+</Admonition>
+
 Check your Teleport cluster, ensuring the role has been created.
 
 ```code

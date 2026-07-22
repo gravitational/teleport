@@ -298,6 +298,13 @@ type of service using the `services` value of the Helm chart and setting
 Follow one of the [access guides](../access-guides/access-guides.mdx) to find
 out more about how to configure `tbot` for your use case.
 
+## Manual deployment without Helm
+
+If you deploy `tbot` without the Helm chart, see 
+[Requirements for deployments without Helm](./kubernetes.mdx#requirements-for-deployments-without-helm)
+in the static JWKS guide for the additional configuration Helm normally handles for you: token audience projection 
+via `KUBERNETES_TOKEN_PATH`, the `POD_NAMESPACE` environment variable, and service account RBAC for secret writing.
+
 ## Further reading
 
 - Explore the [Helm chart configuration reference](../../reference/helm-reference/tbot.mdx).
