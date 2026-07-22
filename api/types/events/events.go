@@ -570,6 +570,10 @@ func (m *X11Forward) TrimToMaxSize(maxSize int) AuditEvent {
 	return m
 }
 
+func (m *AgentForward) TrimToMaxSize(maxSize int) AuditEvent {
+	return m
+}
+
 func (m *PortForward) TrimToMaxSize(maxSize int) AuditEvent {
 	return m
 }

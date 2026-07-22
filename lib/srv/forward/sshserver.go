@@ -1434,6 +1434,11 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 			err := s.handleAgentForward(ctx, ch, req, scx)
 			if err != nil {
 				scx.Logger.DebugContext(ctx, "failure forwarding agent", "error", err)
+				if trace.IsAccessDenied(err) {
+					s.stderrWrite(ctx, ch, "Agent forwarding is not permitted for this user.\n")
+				} else {
+					s.stderrWrite(ctx, ch, "Agent forwarding failed.\n")
+				}
 			}
 			return nil
 		case sshutils.PuTTYWinadjRequest:
@@ -1469,6 +1474,11 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 		err := s.handleAgentForward(ctx, ch, req, scx)
 		if err != nil {
 			scx.Logger.DebugContext(ctx, "failure forwarding agent", "error", err)
+			if trace.IsAccessDenied(err) {
+				s.stderrWrite(ctx, ch, "Agent forwarding is not permitted for this user.\n")
+			} else {
+				s.stderrWrite(ctx, ch, "Agent forwarding failed.\n")
+			}
 		}
 		return nil
 	case sshutils.PuTTYWinadjRequest:
@@ -1484,10 +1494,28 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 	}
 }
 
-func (s *Server) handleAgentForward(ctx context.Context, ch ssh.Channel, req *ssh.Request, scx *srv.ServerContext) error {
+func (s *Server) handleAgentForward(ctx context.Context, ch ssh.Channel, req *ssh.Request, scx *srv.ServerContext) (err error) {
+	event := scx.GetAgentForwardEvent()
+	defer func() {
+		// When ProxyingPermit is set, a downstream Teleport node enforces RBAC and
+		// emits an agent-forward event; skipped here to avoid duplication.
+		// If there is an error in the proxy/forwarding server, emit an event here.
+		if err == nil && scx.Identity.ProxyingPermit != nil {
+			return
+		}
+
+		if err != nil {
+			event.Metadata.Code = events.AgentForwardFailureCode
+			event.Status.Success = false
+			event.Status.Error = err.Error()
+		}
+		if emitErr := s.EmitAuditEvent(ctx, event); emitErr != nil {
+			scx.Logger.WarnContext(ctx, "Failed to emit agent-forward event", "error", emitErr)
+		}
+	}()
+
 	// Check if the user's RBAC role allows agent forwarding.
-	err := s.authHandlers.CheckAgentForward(scx)
-	if err != nil {
+	if err := s.authHandlers.CheckAgentForward(scx); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -1580,6 +1608,7 @@ func (s *Server) handleX11Forward(ctx context.Context, ch ssh.Channel, req *ssh.
 			LocalAddr:  s.sconn.LocalAddr().String(),
 			RemoteAddr: s.sconn.RemoteAddr().String(),
 		},
+		ServerMetadata: scx.ServerMetadata(),
 	}
 
 	defer func() {

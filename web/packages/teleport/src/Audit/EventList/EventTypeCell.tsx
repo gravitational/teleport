@@ -217,6 +217,8 @@ export const EventIconMap: Record<EventCode, any> = {
   [eventCodes.PRIVILEGE_TOKEN_CREATED]: Icons.Info,
   [eventCodes.X11_FORWARD]: Icons.Info,
   [eventCodes.X11_FORWARD_FAILURE]: Icons.Info,
+  [eventCodes.AGENT_FORWARD]: Icons.Info,
+  [eventCodes.AGENT_FORWARD_FAILURE]: Icons.Info,
   [eventCodes.CERTIFICATE_CREATED]: Icons.Keypair,
   [eventCodes.UPGRADE_WINDOW_UPDATED]: Icons.Info,
   [eventCodes.ENVIRONMENT_PROFILE_UPDATED]: Icons.Info,

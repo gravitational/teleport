@@ -68,6 +68,7 @@ var eventsMap = map[string]apievents.AuditEvent{
 	ExecEvent:                                      &apievents.Exec{},
 	SubsystemEvent:                                 &apievents.Subsystem{},
 	X11ForwardEvent:                                &apievents.X11Forward{},
+	AgentForwardEvent:                              &apievents.AgentForward{},
 	PortForwardEvent:                               &apievents.PortForward{},
 	AuthAttemptEvent:                               &apievents.AuthAttempt{},
 	SCPEvent:                                       &apievents.SCP{},
