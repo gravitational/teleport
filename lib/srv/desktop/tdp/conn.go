@@ -21,7 +21,9 @@ package tdp
 import (
 	"bufio"
 	"errors"
+	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"slices"
 	"sync"
@@ -205,11 +207,13 @@ func (c *Conn) ReadMessage() (Message, error) {
 
 // WriteMessage sends a message to the connection.
 func (c *Conn) WriteMessage(m Message) error {
+	slog.Warn(fmt.Sprintf("encoding message of type %T", m))
 	buf, err := m.Encode()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
+	slog.Warn(fmt.Sprintf("off to the wire with %T", m))
 	c.writeMu.Lock()
 	_, err = c.rwc.Write(buf)
 	c.writeMu.Unlock()

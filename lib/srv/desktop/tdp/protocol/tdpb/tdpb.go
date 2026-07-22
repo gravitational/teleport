@@ -438,6 +438,17 @@ func (d *DynamicVirtualChannelPDU) Encode() ([]byte, error) {
 
 func (*DynamicVirtualChannelPDU) validate() error { return nil }
 
+type DvcResponse tdpbv1.DvcResponse
+
+// Encodes a ping message.
+func (d *DvcResponse) Encode() ([]byte, error) {
+	return marshalWithHeader(tdpbv1.Envelope_builder{
+		DvcResponse: proto.ValueOrDefault((*tdpbv1.DvcResponse)(d)),
+	}.Build())
+}
+
+func (*DvcResponse) validate() error { return nil }
+
 func WarningConstructor(msg string) tdp.Message {
 	return &Alert{
 		Severity: tdpbv1.AlertSeverity_ALERT_SEVERITY_WARNING,
@@ -569,6 +580,8 @@ func messageFromEnvelope(e *tdpbv1.Envelope) validatableMessage {
 		return (*SharedDirectoryRemove)(e.GetSharedDirectoryRemove())
 	case tdpbv1.Envelope_SessionSelection_case:
 		return (*SessionSelection)(e.GetSessionSelection())
+	case tdpbv1.Envelope_DvcPdu_case:
+		return (*DynamicVirtualChannelPDU)(e.GetDvcPdu())
 	default:
 		return nil
 	}

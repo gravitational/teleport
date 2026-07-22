@@ -497,6 +497,9 @@ export type DecodedMessage =
   | { kind: 'clientScreenSpec'; data: ClientScreenSpec }
   | { kind: 'mouseButton'; data: MouseButtonState }
   | { kind: 'mouseMove'; data: MouseMove }
+  | { kind: 'dvcStart'; data: {channel_id: number, channel_name: string} }
+  | { kind: 'dvcData'; data: {channel_id: number, payload: Uint8Array<ArrayBufferLike>;} }
+  | { kind: 'dvcStop'; data: {channel_id: number} }
   | { kind: 'unsupported'; data: string }
   | { kind: 'unknown'; data: unknown };
 
@@ -720,6 +723,22 @@ export class TdpbCodec implements Codec {
             server: stats.serverLatencyMs,
           },
         };
+      case 'dvcPdu':
+        const pdu = envelope.payload.dvcPdu;
+        if (!hasOneof(pdu.kind)) {
+          this.logger.debug('unknown shared directory operation');
+          return { kind: 'unknown', data: null };
+        }
+
+        switch (pdu.kind.oneofKind) {
+          case 'start':
+            return {kind: 'dvcStart', data: {channel_id: pdu.channelId, channel_name: pdu.kind.start.channelName}}
+          case 'data':
+            return {kind: 'dvcData', data: {channel_id: pdu.channelId, payload: pdu.kind.data.data}}
+          case 'stop':
+            return {kind: 'dvcStop', data: {channel_id: pdu.channelId}}
+        }
+        break;
       case 'mfa':
         const mfa = envelope.payload.mfa;
         const challenge = mfa.challenge;

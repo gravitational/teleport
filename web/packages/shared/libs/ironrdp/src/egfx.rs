@@ -18,9 +18,9 @@ use tracing::warn;
 struct TeleportEGFXProcessor(GraphicsPipelineClient);
 
 
-struct ImageData {
-    location: InclusiveRectangle,
-    data: Vec<u8>
+pub struct ImageData {
+    pub location: InclusiveRectangle,
+    pub data: Vec<u8>
 }
 
 type EgfxResult = Result<Vec<ImageData>, PduError>;
@@ -40,11 +40,14 @@ struct Surface {
     bitmap_data: Vec<u8>,
 }
 
-struct TeleportEgfxHandler {
+struct EncodingContext (());
+
+pub struct TeleportEgfxHandler {
     image_data_sender: Sender<Vec<ImageData>>,
     pdu_sender: Sender<Vec<DvcMessage>>,
     bitmap_cache: HashMap<CacheSlot, CacheEntry>,
     surfaces: HashMap<u16, Surface>,
+    encoding_contexts: HashMap<u32, EncodingContext>
 }
 
 impl TeleportEgfxHandler {
@@ -54,6 +57,7 @@ impl TeleportEgfxHandler {
             pdu_sender,
             bitmap_cache: HashMap::new(),
             surfaces: HashMap::new(),
+            encoding_contexts: HashMap::new(),
         }
     }
 }

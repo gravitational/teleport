@@ -21,17 +21,17 @@ lto = "thin"
 [workspace.dependencies]
 # Note: To use a local IronRDP repository as a crate (for example, ironrdp-cliprdr), define the dependency as follows:
 # ironrdp-cliprdr = { path = "/path/to/local/IronRDP/crates/ironrdp-cliprdr" }
-ironrdp-cliprdr = "0.7"
-ironrdp-connector = "0.10"
-ironrdp-core = "0.2"
-ironrdp-displaycontrol = "0.8"
-ironrdp-dvc = "0.8"
-ironrdp-graphics = "0.9"
-ironrdp-pdu = "0.9"
-ironrdp-rdpdr = "0.7"
-ironrdp-rdpsnd = "0.9"
-ironrdp-session = "0.11"
-ironrdp-svc = "0.8"
+ironrdp-cliprdr = { path = "../IronRDP/crates/ironrdp-cliprdr"}
+ironrdp-connector = { path = "../IronRDP/crates/ironrdp-connector"}
+ironrdp-core = { path = "../IronRDP/crates/ironrdp-core"}
+ironrdp-displaycontrol = { path = "../IronRDP/crates/ironrdp-displaycontrol"}
+ironrdp-dvc = { path = "../IronRDP/crates/ironrdp-dvc"}
+ironrdp-graphics = { path = "../IronRDP/crates/ironrdp-graphics"}
+ironrdp-pdu = { path = "../IronRDP/crates/ironrdp-pdu"}
+ironrdp-rdpdr = { path = "../IronRDP/crates/ironrdp-rdpdr"}
+ironrdp-rdpsnd = { path = "../IronRDP/crates/ironrdp-rdpsnd"}
+ironrdp-session = { path = "../IronRDP/crates/ironrdp-session"}
+ironrdp-svc = { path = "../IronRDP/crates/ironrdp-svc"}
 ironrdp-tls = { version = "0.2", features = ["rustls"] }
-ironrdp-tokio = "0.10"
-ironrdp-egfx = "0.3.0"
+ironrdp-tokio = { path = "../IronRDP/crates/ironrdp-tokio"}
+ironrdp-egfx = { path = "../IronRDP/crates/ironrdp-egfx"}

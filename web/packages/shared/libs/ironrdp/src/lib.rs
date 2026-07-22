@@ -17,10 +17,18 @@
 // default trait not supported in wasm
 #![allow(clippy::new_without_default)]
 
+use std::sync::mpsc;
+use std::sync::mpsc::Receiver;
+
+use ironrdp_core::EncodeError;
+use ironrdp_core::WriteCursor;
 use ironrdp_core::decode_cursor;
 use ironrdp_core::ReadCursor;
 use ironrdp_core::WriteBuf;
+use ironrdp_dvc::DvcMessage;
+use ironrdp_dvc::DvcProcessor;
 use ironrdp_graphics::image_processing::PixelFormat;
+use ironrdp_pdu::PduError;
 use ironrdp_pdu::fast_path::UpdateCode::{Bitmap, SurfaceCommands};
 use ironrdp_pdu::fast_path::{FastPathHeader, FastPathUpdatePdu};
 use ironrdp_pdu::geometry::{InclusiveRectangle, Rectangle};
@@ -32,6 +40,7 @@ use ironrdp_session::{
     fast_path::Processor as IronRdpFastPathProcessor,
     fast_path::ProcessorBuilder as IronRdpFastPathProcessorBuilder,
 };
+use ironrdp_egfx::client::{GraphicsPipelineClient};
 use js_sys::Uint8Array;
 use log::{debug, warn};
 use wasm_bindgen::{prelude::*, Clamped};
@@ -112,6 +121,101 @@ pub struct FastPathProcessor {
     fast_path_processor: IronRdpFastPathProcessor,
     image: DecodedImage,
     remote_fx_check_required: bool,
+}
+
+#[wasm_bindgen]
+pub struct EgfxProcessor {
+    client: GraphicsPipelineClient,
+    recv_pdu: Receiver<Vec<DvcMessage>>,
+    recv_image_data: Receiver<Vec<egfx::ImageData>>
+}
+
+#[wasm_bindgen]
+impl EgfxProcessor {
+    #[wasm_bindgen(constructor)]
+    pub fn new() -> Self {
+        let (send_image, recv_image) = mpsc::channel::<Vec<egfx::ImageData>>();
+        let (send_pdu, recv_pdu) = mpsc::channel::<Vec<DvcMessage>>();
+        let handler = egfx::TeleportEgfxHandler::new(send_image, send_pdu);
+
+        Self {
+            client: GraphicsPipelineClient::new(Box::new(handler), None),
+            recv_pdu,
+            recv_image_data: recv_image
+        }
+    }
+
+    pub fn start(&mut self, channel_id: u32, channel_name: String) -> Vec<u8> {
+        warn!("Got start even for channel {}", channel_name);
+        let result = self.client.start(channel_id).expect("failed to initialize channel");
+        PduResponse(result).try_into().expect("failed to encode start response")
+    }
+
+    pub fn process(&mut self, channel_id: u32, payload: &[u8], cb_context: &JsValue, callback: &js_sys::Function,) -> Vec<u8> {
+        let result = self.client.process(channel_id, payload).expect("failed to process payload");
+
+        loop {
+            // Apply any image data that was queued up.
+            let result = self.recv_image_data.try_recv();
+            match result {
+                Ok(data) => {
+                    data.into_iter().for_each(|image| {
+                        let _ = self.apply_image_to_canvas(image.data, image.location, cb_context, callback).expect("fail to apply image to canvas");
+                    });
+                },
+                _ => break
+            }
+        }
+        
+
+        PduResponse(result).try_into().expect("failed to encode start response")
+    }
+
+    fn apply_image_to_canvas(
+        &self,
+        image_data: Vec<u8>,
+        image_location: InclusiveRectangle,
+        cb_context: &JsValue,
+        callback: &js_sys::Function,
+    ) -> Result<(), JsValue> {
+        let top = image_location.top;
+        let left = image_location.left;
+
+        let image_data = create_image_data_from_image_and_region(&image_data, image_location)?;
+        let bitmap_frame = BitmapFrame {
+            top,
+            left,
+            image_data,
+        };
+
+        let bitmap_frame = &JsValue::from(bitmap_frame);
+
+        // TODO(isaiah): return this?
+        let _ret = callback.call1(cb_context, bitmap_frame)?;
+        Ok(())
+    }
+}
+
+struct PduResponse(Vec<DvcMessage>);
+
+impl TryInto<Vec<u8>> for PduResponse{
+    fn try_into(self) -> Result<Vec<u8>, Self::Error> {
+        if self.0.len() == 0 {
+            return Ok(vec![]);
+        }
+
+        let buf_size: usize = self.0.iter().map(|msg| msg.size()).sum();
+        let mut response = vec![0u8; buf_size];        
+        let mut cursor = WriteCursor::new(response.as_mut_slice());
+
+        for item in self.0.iter() {
+            let _ = item.encode(&mut cursor)?;
+        }
+
+        Ok(response)
+    }
+    
+    type Error = EncodeError;
 }
 
 #[wasm_bindgen]

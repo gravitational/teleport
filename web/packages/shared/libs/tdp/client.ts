@@ -76,6 +76,7 @@ import {
   SharedDirectoryAccess,
   type FileOrDirInfo,
 } from './sharedDirectoryAccess';
+import { EgfxProcessor } from '../ironrdp/pkg/ironrdp';
 
 export const MAX_SHARED_DIRECTORIES = 10;
 
@@ -179,6 +180,7 @@ export class TdpClient extends EventEmitter<EventMap> {
   protected transport: TdpTransport | undefined;
   private transportAbortController: AbortController | undefined;
   private fastPathProcessor: FastPathProcessor | undefined;
+  private egfxProcessor: EgfxProcessor | undefined;
   private directoryManager: SharedDirectoryManager;
   private keyboardLayout: number | undefined;
   private screenSpec: ClientScreenSpec | undefined;
@@ -393,6 +395,7 @@ export class TdpClient extends EventEmitter<EventMap> {
     init_wasm_log(wasmLogLevel);
   }
 
+
   private initFastPathProcessor(
     ioChannelId: number,
     userChannelId: number,
@@ -402,6 +405,8 @@ export class TdpClient extends EventEmitter<EventMap> {
     this.logger.info(
       `setting up fast path processor with screen spec ${spec.width} x ${spec.height}`
     );
+
+    this.egfxProcessor = new EgfxProcessor()
 
     this.fastPathProcessor = new FastPathProcessor(
       spec.width,
@@ -432,6 +437,8 @@ export class TdpClient extends EventEmitter<EventMap> {
       return;
     }
 
+    this.logger.info("got message of type " + result.kind)
+
     switch (result.kind) {
       case 'pngFrame':
         this.handlePngFrame(result.data);
@@ -446,6 +453,15 @@ export class TdpClient extends EventEmitter<EventMap> {
         break;
       case 'rdpFastPathPdu':
         this.handleRdpFastPathPdu(result.data);
+        break;
+      case 'dvcStart':
+        this.handleDvcStart(result.data)
+        break;
+      case 'dvcData':
+        this.handleDvcData(result.data)
+        break;
+      case 'dvcStop':
+        this.handleDvcStop(result.data)
         break;
       case 'clipboardData':
         this.handleClipboardData(result.data);
@@ -607,6 +623,23 @@ export class TdpClient extends EventEmitter<EventMap> {
     // Emit the spec to any listeners. Listeners can then resize
     // the canvas to the size we're actually using in this session.
     this.emit(TdpClientEvent.TDP_CLIENT_SCREEN_SPEC, spec);
+  }
+
+  handleDvcStart(data: {channel_id: number, channel_name: string}) {
+    const resp = this.egfxProcessor.start(data.channel_id, data.channel_name)
+    this.logger.warn("sending dvc start response " +resp)
+    this.sendRdpResponsePdu(resp.buffer)
+  }
+
+  handleDvcData(data: {channel_id: number, payload: Uint8Array<ArrayBufferLike>;}) {
+    const resp = this.egfxProcessor.process(data.channel_id, data.payload, this, (bmpFrame: BitmapFrame) => {
+        this.emit(TdpClientEvent.TDP_BMP_FRAME, bmpFrame);
+    },)
+    this.sendRdpResponsePdu(resp.buffer)
+  }
+
+  handleDvcStop(_data: {channel_id: number}) {
+    throw("got dvc stop")
   }
 
   handleRdpFastPathPdu(rdpFastPathPdu: RdpFastPathPdu) {

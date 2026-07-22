@@ -16,7 +16,7 @@
 
 pub mod global;
 
-use crate::egfx::{DvcHandler, EGFX_CHANNEL_NAME, PassthroughDVC};
+use crate::egfx::{DvcHandler, EGFX_CHANNEL_NAME, PassthroughDVC, RawDvcPdu};
 use crate::rdpdr::tdp;
 use crate::{
     cgo_handle_fastpath_pdu, cgo_handle_rdp_connection_activated, cgo_handle_remote_copy,
@@ -41,7 +41,7 @@ use ironrdp_displaycontrol::client::DisplayControlClient;
 use ironrdp_displaycontrol::pdu::{
     DisplayControlMonitorLayout, DisplayControlPdu, MonitorLayoutEntry,
 };
-use ironrdp_dvc::{DrdynvcClient, DvcMessage};
+use ironrdp_dvc::{DrdynvcClient, DvcMessage, encode_dvc_messages};
 use ironrdp_dvc::{DvcProcessor, DynamicVirtualChannel};
 use ironrdp_pdu::input::fast_path::{
     FastPathInput, FastPathInputEvent, KeyboardFlags, SynchronizeFlags,
@@ -59,12 +59,11 @@ use ironrdp_pdu::{encode_err, pdu_other_err};
 use ironrdp_rdpdr::pdu::efs::ClientDeviceListAnnounce;
 use ironrdp_rdpdr::pdu::RdpdrPdu;
 use ironrdp_rdpdr::Rdpdr;
-use ironrdp_rdpdr::pdu::esc::rpce::Pdu;
 use ironrdp_rdpsnd::client::{NoopRdpsndBackend, Rdpsnd};
 use ironrdp_session::x224::{self, DisconnectDescription, ProcessorOutput};
 use ironrdp_session::SessionErrorKind::Reason;
 use ironrdp_session::{reason_err, SessionError, SessionResult};
-use ironrdp_svc::{SvcMessage, SvcProcessor, SvcProcessorMessages};
+use ironrdp_svc::{ChannelFlags, SvcMessage, SvcProcessor, SvcProcessorMessages};
 use ironrdp_tokio::{
     single_sequence_step_read, split_tokio_framed, Framed, FramedWrite, TokioStream,
 };
@@ -283,7 +282,7 @@ impl Client {
             connection_result.static_channels,
             connection_result.user_channel_id,
             connection_result.io_channel_id,
-            connection_result.message_channel_id,
+            //connection_result.message_channel_id,
             connection_result.share_id,
         )));
 
@@ -476,6 +475,9 @@ impl Client {
                 }
                 ClientFunction::WriteRawPdu(args) => {
                     Client::write_raw_pdu(&mut write_stream, args).await?;
+                }
+                ClientFunction::WriteDvcPdu(channel_id, pdus) => {
+                    Client::write_dvc_pdu(&mut write_stream, x224_processor.clone(), channel_id, pdus).await?;
                 }
                 ClientFunction::WriteRdpdr(args) => {
                     Client::write_rdpdr(&mut write_stream, x224_processor.clone(), args).await?;
@@ -748,6 +750,16 @@ impl Client {
 
         // Write the RDPDR PDU to the RDP server.
         write_stream.write_all(&encoded).await?;
+        Ok(())
+    }
+
+     /// Writes a fully encoded DVC PDU to the RDP server.
+    async fn write_dvc_pdu(write_stream: &mut RdpWriteStream, x224_processor: Arc<Mutex<x224::Processor>>, channel_id: u32, resp: Vec<Vec<u8>>) -> ClientResult<()> {
+        let processor = Client::x224_lock(&x224_processor)?;
+        let messages: Vec<DvcMessage> = resp.into_iter().map(|raw| Box::new(RawDvcPdu(raw)) as DvcMessage).collect();
+        let result = encode_dvc_messages(channel_id, messages, ChannelFlags::empty())?;
+        let session_result = processor.process_svc_processor_messages(SvcProcessorMessages::<DrdynvcClient>::new(result))?;
+        write_stream.write_all(&session_result).await?;
         Ok(())
     }
 
@@ -1163,10 +1175,11 @@ impl Client {
 
 impl DvcHandler for CgoHandle {
     fn start(&mut self, channel_id: u32, channel_name: String) -> Result<(), PduError> {     
-        
+        warn!("CALLING CHANNEL START!!! {}", channel_name);
+        let c_name = CString::new(channel_name).unwrap_or_default();
         let err = unsafe {
             cgo_handle_dvc_start_pdu(self.clone(), channel_id, CGODvcPduStart{
-                channel_name: channel_name.as_ptr() as *const i8
+                channel_name: c_name.as_ptr() as *const i8
             })
         };
 
@@ -1212,6 +1225,8 @@ enum ClientFunction {
     WriteRdpSyncKeys(CGOSyncKeys),
     /// Corresponds to [`Client::write_raw_pdu`]
     WriteRawPdu(Vec<u8>),
+    /// Corresponds to [`Client::write_dvc_pdu`]
+    WriteDvcPdu(u32, Vec<Vec<u8>>),
     /// Corresponds to [`Client::write_rdpdr`]
     WriteRdpdr(RdpdrPdu),
     /// Corresponds to [`Client::write_screen_resize`]
@@ -1284,6 +1299,10 @@ impl ClientHandle {
 
     pub fn write_raw_pdu(&self, resp: Vec<u8>) -> ClientResult<()> {
         self.blocking_send(ClientFunction::WriteRawPdu(resp))
+    }
+
+    pub fn write_dvc_pdu(&self, channel_id: u32, resp: Vec<Vec<u8>>) -> ClientResult<()> {
+        self.blocking_send(ClientFunction::WriteDvcPdu(channel_id, resp))
     }
 
     pub async fn write_raw_pdu_async(&self, resp: Vec<u8>) -> ClientResult<()> {

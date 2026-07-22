@@ -460,6 +460,31 @@ pub unsafe extern "C" fn client_handle_tdp_rdp_response_pdu(
     )
 }
 
+/// client_handle_dvc_response_pdu handles a raw DVC Response PDU message. It takes a raw encoded RDP PDU
+/// created by the ironrdp client on the frontend and sends it directly to the RDP server.
+///
+/// res is the raw RDP response message to be sent back to the RDP server, without the TDP message type or
+/// array length header.
+///
+/// # Safety
+///
+/// `cgo_handle` must be a valid handle.
+#[no_mangle]
+pub unsafe extern "C" fn client_handle_dvc_response_pdu(
+    cgo_handle: CgoHandle,
+    channel_id: u32,
+    res: *mut CGOVector,
+    res_len: u32,
+) -> CGOErrCode {
+    let res = from_go_array(res, res_len);
+    let pdus: Vec<Vec<u8>> = res.into_iter().map(|v| v.into()).collect();
+    handle_operation(
+        cgo_handle,
+        "client_handle_dvc_response_pdu",
+        move |client_handle| client_handle.write_dvc_pdu(channel_id, pdus),
+    )
+}
+
 /// # Safety
 ///
 /// `cgo_handle` must be a valid handle.
@@ -625,6 +650,23 @@ pub struct CGOResult {
 #[repr(C)]
 pub struct CGODvcPduStart {
     pub channel_name: *const c_char,
+}
+
+// FIXME: Get rid of the implicit clone() in client_handle_dvc_response_pdu
+// remove the derived clone implementation.
+#[repr(C)]
+#[derive(Clone)]
+pub struct CGOVector {
+    pub data: *mut u8,
+    pub len: usize,
+}
+
+impl Into<Vec<u8>> for CGOVector {
+    fn into(self) -> Vec<u8> {
+        unsafe {
+            from_go_array(self.data, self.len as u32)
+        }
+    }
 }
 
 #[repr(C)]

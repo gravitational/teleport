@@ -97,6 +97,13 @@ message DynamicVirtualChannelPDU {
   }
 }
 
+// DvcResponse carries the RDP response PDU
+// for the given Dynamic Virtual Channel.
+message DvcResponse {
+  uint32 channel_id = 1;
+  bytes pdu = 2;
+}
+
 // Internal message sent by the server after establishing a connection
 // to the RDP host.
 message ConnectionActivated {
@@ -419,5 +426,6 @@ message Envelope {
     MFAPromptResponse mfa_prompt_response = 24;
     SessionEstablishing session_establishing = 25;
     DynamicVirtualChannelPDU dvc_pdu = 26;
+    DvcResponse dvc_response = 27;
   }
 }

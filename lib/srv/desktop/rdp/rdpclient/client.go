@@ -899,6 +899,18 @@ func (c *Client) handleTDPInput(msg tdp.Message) error {
 		); errCode != C.ErrCodeSuccess {
 			return trace.Errorf("RDPResponsePDU failed: %v", errCode)
 		}
+	case *tdpb.DvcResponse:
+		pduLen := uint32(len(m.Pdu))
+		if pduLen == 0 {
+			c.cfg.Logger.ErrorContext(context.Background(), "DVC response PDU empty")
+		}
+		pdu := (*C.uint8_t)(unsafe.SliceData(m.Pdu))
+
+		if errCode := C.client_handle_dvc_response_pdu(
+			C.uintptr_t(c.handle), pdu, C.uint32_t(pduLen),
+		); errCode != C.ErrCodeSuccess {
+			return trace.Errorf("DVC response failed: %v", errCode)
+		}
 	default:
 		c.cfg.Logger.WarnContext(
 			context.Background(),
@@ -1083,6 +1095,7 @@ func (c *Client) handleRDPFastPathPDU(data []byte) C.CGOErrCode {
 }
 
 func (c *Client) handleDVCStartPDU(channelID uint32, channel_name string) C.CGOErrCode {
+	c.cfg.Logger.WarnContext(context.Background(), "Sending DVC Start", "id", channelID, "name", channel_name)
 	if err := c.conn.WriteMessage(&tdpb.DynamicVirtualChannelPDU{
 		ChannelId: channelID,
 		Kind: &tdpbv1.DynamicVirtualChannelPDU_Start_{
