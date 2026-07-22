@@ -227,6 +227,13 @@ func (s *Service) synchronizeApplications(ctx context.Context) (userGroupsToAppl
 		logger := s.logger.With("application_id", oktaApplication.Id)
 		logger.DebugContext(ctx, "Processing Okta application")
 
+		// Skip syncing the Okta SAML app when it is the user sync source. If a user is not already assigned
+		// to this app, Teleport cannot manage their access because they will not be synced to Teleport.
+		if sanitizeUserSyncSource(s.userSyncSource, s.oktaSAMLAppID) == types.OktaUserSyncSourceSamlApp && oktaApplication.Id == s.oktaSAMLAppID {
+			logger.DebugContext(ctx, "Skipping Okta SAML SSO application", "okta_app_id", oktaApplication.Id)
+			return nil
+		}
+
 		oktaGroups, err := s.client.GetAppGroups(ctx, oktaAppID(oktaApplication.Id))
 		if trace.IsNotFound(err) {
 			return nil

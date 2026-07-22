@@ -92,7 +92,7 @@ func TestAccessListSync(t *testing.T) {
 			// Ensure there is app server for each Okta app embed link.
 			appServers, err := sut.Teleport.Process.GetAuthServer().GetApplicationServers(ctx, defaults.Namespace)
 			require.NoError(t, err)
-			require.Len(t, appServers, 4) // 3 for app links + 1 for the connector SAML app
+			require.Len(t, appServers, 3) // 3 for app links; the connector SAML app is skipped
 			var mySoft365AppServers []types.AppServer
 			for _, appServer := range appServers {
 				if appServer.GetAllLabels()["teleport.internal/okta-app-name"] == "my-soft-365" {
@@ -180,6 +180,10 @@ func TestAccessListSync_bidirectionalSync(t *testing.T) {
 	require.NoError(t, fakeOkta.AssignUserToApplication(fakeOkta.provisionedSAMLApp.Id, user1.Id))
 	require.NoError(t, fakeOkta.AssignUserToApplication(fakeOkta.provisionedSAMLApp.Id, user2.Id))
 
+	app := fakeOkta.CreateBasicApp("app-bidirectional-sync")
+	require.NoError(t, fakeOkta.AssignUserToApplication(app.Id, user1.Id))
+	require.NoError(t, fakeOkta.AssignUserToApplication(app.Id, user2.Id))
+
 	// Setup Teleport.
 	sut := common.InitSUT(t,
 		common.WithSAMLConnector(idp.TestOktaSAMLConnector(fakeOkta.URL())),
@@ -209,7 +213,7 @@ func TestAccessListSync_bidirectionalSync(t *testing.T) {
 		timeBetweenAssignmentProcessLoops: 1 * time.Second,
 	})
 
-	// 2. Wait for the connector SAML app users to be syncrhonized.
+	// 2. Wait for the connector SAML app users to be synchronized.
 
 	var oktaUsers []types.User
 	mustWaitForEvent(t, sut, events.OktaUserSyncEvent)

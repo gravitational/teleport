@@ -38,8 +38,11 @@ func Test_AccessList_readOnly_members(t *testing.T) {
 	const specterEmail = "specter@example.com"
 	fakeOkta.CreateUser("specter")
 
+	app := fakeOkta.CreateBasicApp("read-only-members-app")
+
 	// Assign only user1.
 	require.NoError(t, fakeOkta.AssignUserToApplication(fakeOkta.provisionedSAMLApp.Id, ghostUser.Id))
+	require.NoError(t, fakeOkta.AssignUserToApplication(app.Id, ghostUser.Id))
 
 	// Setup Teleport.
 	sut := common.InitSUT(t,
@@ -97,7 +100,7 @@ func Test_AccessList_readOnly_members(t *testing.T) {
 		require.Len(t, accessLists, 1)
 		accessList = accessLists[0]
 		require.NotEmpty(t, accessList.Spec.Title)
-		require.Equal(t, fakeOkta.provisionedSAMLApp.Label, accessList.Spec.Title)
+		require.Equal(t, app.Label, accessList.Spec.Title)
 	}, time.Second*2, time.Millisecond*50)
 
 	// 4. Verify members (user1 - ghost)
@@ -221,8 +224,11 @@ func Test_AccessList_readOnly_pulls_from_Okta(t *testing.T) {
 	const specterEmail = "specter@example.com"
 	specterUser := fakeOkta.CreateUser("specter")
 
+	app := fakeOkta.CreateBasicApp("read-only-pulls-app")
+
 	// Assign only user1.
 	require.NoError(t, fakeOkta.AssignUserToApplication(fakeOkta.provisionedSAMLApp.Id, ghostUser.Id))
+	require.NoError(t, fakeOkta.AssignUserToApplication(app.Id, ghostUser.Id))
 
 	// Setup Teleport.
 	sut := common.InitSUT(t,
@@ -283,7 +289,7 @@ func Test_AccessList_readOnly_pulls_from_Okta(t *testing.T) {
 		require.Len(t, accessLists, 1)
 		accessList = accessLists[0]
 		require.NotEmpty(t, accessList.Spec.Title)
-		require.Equal(t, fakeOkta.provisionedSAMLApp.Label, accessList.Spec.Title)
+		require.Equal(t, app.Label, accessList.Spec.Title)
 	}, time.Second*2, time.Millisecond*50)
 
 	// 4. Verify members (user1 - ghost)
@@ -298,9 +304,11 @@ func Test_AccessList_readOnly_pulls_from_Okta(t *testing.T) {
 		require.Equal(t, ghostEmail, member1.GetName())
 	}, time.Second*2, time.Millisecond*50)
 
-	// 5. Assign user2 (specter) to the SAML app on the Okta side
+	// 5. Assign user2 (specter) to the SAML app for user sync and the app on the Okta side
 
 	err = fakeOkta.AssignUserToApplication(fakeOkta.provisionedSAMLApp.Id, specterUser.Id)
+	require.NoError(t, err)
+	err = fakeOkta.AssignUserToApplication(app.Id, specterUser.Id)
 	require.NoError(t, err)
 
 	// 6. Verify user2 (specter) is synchronized to the Access List

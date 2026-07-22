@@ -433,7 +433,7 @@ func TestPluginEnrollmentPartialSteps(t *testing.T) {
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
 			accessLists, err := sut.Teleport.Process.GetAuthServer().GetAccessLists(ctx)
 			require.NoError(t, err)
-			require.Len(t, accessLists, len(fakeOkta.provisionedGroups)+1 /* +1 for the SAML app being assigned to all users */)
+			require.Len(t, accessLists, len(fakeOkta.provisionedGroups))
 		}, time.Second*2, time.Millisecond*100)
 	})
 

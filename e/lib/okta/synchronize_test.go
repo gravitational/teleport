@@ -520,6 +520,122 @@ func testSynchronizeApplications(t *testing.T) {
 	})
 }
 
+func TestSynchronizeApplicationsSkipsConfiguredSAMLApp(t *testing.T) {
+	t.Parallel()
+	const normalApp = "normalApp"
+	const link = "app_link_1"
+
+	const samlApp = "samlApp"
+
+	tests := []struct {
+		name           string
+		userSyncSource types.OktaUserSyncSource
+		wantAppServers []string
+		wantAdded      int32
+		wantDeleted    int32
+	}{
+		{
+			name:           "SAML app sync source",
+			userSyncSource: types.OktaUserSyncSourceSamlApp,
+			wantAppServers: []string{
+				mustAppName(t, normalApp, link),
+			},
+			wantAdded:   1,
+			wantDeleted: 1,
+		},
+		{
+			name:           "unknown sync source defaults to SAML app sync source",
+			userSyncSource: types.OktaUserSyncSourceUnknown,
+			wantAppServers: []string{
+				mustAppName(t, normalApp, link),
+			},
+			wantAdded:   1,
+			wantDeleted: 1,
+		},
+		{
+			name:           "empty sync source defaults to SAML app sync source",
+			userSyncSource: types.OktaUserSyncSource(""),
+			wantAppServers: []string{
+				mustAppName(t, normalApp, link),
+			},
+			wantAdded:   1,
+			wantDeleted: 1,
+		},
+		{
+			name:           "org sync source",
+			userSyncSource: types.OktaUserSyncSourceOrg,
+			wantAppServers: []string{
+				mustAppName(t, normalApp, link),
+				mustAppName(t, samlApp, link),
+			},
+			wantAdded:   1,
+			wantDeleted: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				testSynchronizeApplicationsSkipsConfiguredSAMLApp(t, tt.userSyncSource, tt.wantAppServers, tt.wantAdded, tt.wantDeleted)
+			})
+		})
+	}
+}
+
+func testSynchronizeApplicationsSkipsConfiguredSAMLApp(
+	t *testing.T,
+	userSyncSource types.OktaUserSyncSource,
+	wantAppServers []string,
+	wantAdded, wantDeleted int32,
+) {
+	ctx := t.Context()
+	ap := newTestAccessPoint(t, clockwork.NewRealClock())
+	client := newTestOktaClient()
+
+	const normalApp = "normalApp"
+	const link = "app_link_1"
+	const href = "https://link1.example.com"
+
+	const samlApp = "samlApp"
+	svc, emitter := newTestService(t, ap, client, withUserSyncEnabled(userSyncSource), withOktaAppID(samlApp))
+
+	// To start off, add samlApp to backend so we can later assert whether it gets deleted.
+	upsertAppServer(t, ap, application(t, samlApp, link, types.OriginOkta, svc.orgURL))
+
+	// Add okta apps.
+	client.OktaApps = []okta.App{
+		// This app should be created.
+		oktaapitest.NewApplication(oktaapitest.ApplicationArgs{
+			ID:     normalApp,
+			Label:  "App with ID " + normalApp,
+			Status: oktaapitest.StatusActive,
+			Links: []oktaapitest.AppLink{
+				{Name: link, Href: href},
+			},
+		}),
+		// This app should be skipped only when user sync uses the SAML app as its source.
+		oktaapitest.NewApplication(oktaapitest.ApplicationArgs{
+			ID:     samlApp,
+			Label:  "SAML App",
+			Status: oktaapitest.StatusActive,
+			Links: []oktaapitest.AppLink{
+				{Name: link, Href: href},
+			},
+		}),
+	}
+
+	require.NoError(t, svc.seedAppsReconciler(ctx))
+	svc.userReconciler = nil // disable user sync
+	require.NoError(t, svc.synchronize(ctx))
+
+	requireOktaAppServers(t, svc.accessPoint, wantAppServers)
+
+	expectAuditEvent(t, emitter, func(event *apievents.OktaResourcesUpdate) {
+		require.Equal(t, wantAdded, event.Added)
+		require.Equal(t, wantDeleted, event.Deleted)
+	})
+}
+
 // TestSynchronizeIgnoresHostID checks if app_servers sync doesn't update anything in the backend
 // if only host_id changes. It also checks if app_server is deleted even though the host_id doesn't
 // match the one configured in the Service.
