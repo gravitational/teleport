@@ -231,7 +231,23 @@ func baseScopedRole() *scopedaccessv1.ScopedRole {
 		Spec: scopedaccessv1.ScopedRoleSpec_builder{
 			AssignableScopes: []string{"/foo/bar"},
 			Ssh:              &scopedaccessv1.ScopedRoleSSH{},
-			Kube:             &scopedaccessv1.ScopedRoleKube{},
+			Kube: scopedaccessv1.ScopedRoleKube_builder{
+				Labels: []*labelv1.Label{
+					labelv1.Label_builder{
+						Name:   "*",
+						Values: []string{"*"},
+					}.Build(),
+				},
+				Resources: []*scopedaccessv1.KubeResource{
+					scopedaccessv1.KubeResource_builder{
+						Kind:      "*",
+						Namespace: "*",
+						Name:      "*",
+						ApiGroup:  "*",
+						Verbs:     []string{"*"},
+					}.Build(),
+				},
+			}.Build(),
 		}.Build(),
 		Version: types.V1,
 	}.Build()
@@ -379,6 +395,21 @@ func TestKubeDisconnectExpiredCertNotInClassicRole(t *testing.T) {
 	sr := baseScopedRole()
 	sr.GetSpec().SetKube(scopedaccessv1.ScopedRoleKube_builder{
 		DisconnectExpiredCert: ptr(true),
+		Labels: []*labelv1.Label{
+			labelv1.Label_builder{
+				Name:   "*",
+				Values: []string{"*"},
+			}.Build(),
+		},
+		Resources: []*scopedaccessv1.KubeResource{
+			scopedaccessv1.KubeResource_builder{
+				Kind:      types.Wildcard,
+				Namespace: types.Wildcard,
+				Name:      types.Wildcard,
+				ApiGroup:  types.Wildcard,
+				Verbs:     []string{types.Wildcard},
+			}.Build(),
+		},
 	}.Build())
 
 	role, err := ScopedRoleToRole(sr, "/foo/bar")
@@ -451,7 +482,7 @@ func TestKubeConversion(t *testing.T) {
 	}{
 		{
 			name:   "empty conditions",
-			kube:   &scopedaccessv1.ScopedRoleKube{},
+			kube:   nil,
 			expect: types.RoleConditions{},
 		},
 		{
@@ -463,6 +494,15 @@ func TestKubeConversion(t *testing.T) {
 					labelv1.Label_builder{
 						Name:   "team",
 						Values: []string{"red"},
+					}.Build(),
+				},
+				Resources: []*scopedaccessv1.KubeResource{
+					scopedaccessv1.KubeResource_builder{
+						Kind:      types.Wildcard,
+						Namespace: types.Wildcard,
+						Name:      types.Wildcard,
+						ApiGroup:  types.Wildcard,
+						Verbs:     []string{types.Wildcard},
 					}.Build(),
 				},
 			}.Build(),
@@ -490,6 +530,20 @@ func TestKubeConversion(t *testing.T) {
 						Values: []string{"blue"},
 					}.Build(),
 				},
+				Resources: []*scopedaccessv1.KubeResource{
+					scopedaccessv1.KubeResource_builder{
+						Kind:      "pods",
+						Namespace: "default",
+						Name:      "pod-name",
+						Verbs:     []string{"get", "list"},
+						ApiGroup:  "pod-group",
+					}.Build(),
+				},
+				ClientIdleTimeout:     "30m",
+				DisconnectExpiredCert: new(bool),
+				Lock: scopedaccessv1.Lock_builder{
+					Mode: "strict",
+				}.Build(),
 			}.Build(),
 			expect: types.RoleConditions{
 				KubeUsers:  []string{"system:user", "system:admin"},
@@ -498,7 +552,15 @@ func TestKubeConversion(t *testing.T) {
 					"env":  apiutils.Strings{"prod", "staging"},
 					"team": apiutils.Strings{"blue"},
 				},
-				KubernetesResources: wildcardResources,
+				KubernetesResources: []types.KubernetesResource{
+					types.KubernetesResource{
+						Kind:      "pods",
+						Namespace: "default",
+						Name:      "pod-name",
+						Verbs:     []string{"get", "list"},
+						APIGroup:  "pod-group",
+					},
+				},
 			},
 		},
 	}

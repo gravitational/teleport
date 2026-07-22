@@ -40,6 +40,8 @@ type EC2IAMPermissionError struct {
 	IssueType string
 	// DiscoveryConfigName is the DiscoveryConfig name that produced the permission error.
 	DiscoveryConfigName string
+	// CallerARN is the AWS caller identity ARN used for the failed discovery call.
+	CallerARN string
 	// Err is the underlying AWS or Teleport error.
 	Err error
 }
