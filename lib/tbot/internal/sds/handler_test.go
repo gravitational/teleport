@@ -142,8 +142,6 @@ func newSVIDWithChain(t *testing.T, spiffeID string, intermediates int) (chainBy
 		_, _ = chainBuf.Write(chain[i].Cert.Raw)
 	}
 
-	chainBytes = chainBuf.Bytes()
-
 	keyBytes, err = x509.MarshalPKCS8PrivateKey(leafKey)
 	require.NoError(t, err)
 
