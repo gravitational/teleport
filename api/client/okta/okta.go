@@ -174,7 +174,7 @@ func (c *Client) DeleteOktaAssignment(ctx context.Context, name string) error {
 
 // ConditionalDeleteOktaAssignment removes the specified Okta assignment resource, protected by optimistic locking.
 func (c *Client) ConditionalDeleteOktaAssignment(ctx context.Context, name, revision string) error {
-	_, err := c.grpcClient.ConditionalDeleteOktaAssignment(ctx, &oktapb.ConditionalDeleteOktaAssignmentRequest{
+	_, err := c.grpcClient.DeleteOktaAssignment(ctx, &oktapb.DeleteOktaAssignmentRequest{
 		Name:     name,
 		Revision: revision,
 	})
