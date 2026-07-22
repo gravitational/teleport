@@ -632,3 +632,58 @@ func TestConstructAccessChangesListQuery(t *testing.T) {
 		}
 	})
 }
+
+func TestAccessChangesTextEscapesControlSequences(t *testing.T) {
+	// OSC 52 clipboard-write + screen clear.
+	const inject = "evil\x1b]52;c;AAAA\a\x1b[2Jspoofed"
+
+	assertEscaped := func(t *testing.T, out string) {
+		require.NotContains(t, out, "\x1b", "raw escape byte leaked to terminal")
+		require.NotContains(t, out, "\a", "raw BEL byte leaked to terminal")
+		require.Contains(t, out, `\x1b`, "control sequence should be rendered as a visible escape")
+	}
+
+	injectedNode := accessgraph.AccessPathSummaryItemNode{
+		Id:         fixtureAffectedID,
+		Kind:       inject,
+		Name:       inject,
+		Source:     inject,
+		OriginType: inject,
+		Alias:      inject,
+	}
+
+	t.Run("summary list", func(t *testing.T) {
+		item := accessgraph.AccessPathSummaryItem{
+			Id:           fixtureChangeUUID.String(),
+			CreatedAt:    fixtureChangeTime,
+			AffectedNode: injectedNode,
+		}
+		var buf bytes.Buffer
+		require.NoError(t, displayAccessChangesText(&buf, []accessgraph.AccessPathSummaryItem{item}))
+		assertEscaped(t, buf.String())
+	})
+
+	t.Run("detail with diff row", func(t *testing.T) {
+		strRef := func(s string) *string { return &s }
+		anyRef := func(v any) *any { return &v }
+		newNodeID := "dddddddd-4444-4444-4444-444444444444"
+		addNode := map[string]any{
+			"id":          newNodeID,
+			"kind":        inject,
+			"name":        inject,
+			"origin_type": inject,
+		}
+		// A clean AffectedNode keeps the injected payload confined to the diff
+		// row, so the escape assertions can only pass via the diff-row path.
+		change := &accessgraph.AccessPathDiff{
+			ChangeId:     fixtureChangeUUID,
+			AffectedNode: accessgraph.AccessPathSummaryItemNode{Id: fixtureAffectedID, Kind: "resource", Name: "prod-db"},
+			Diff: []diffmodels.Operation{
+				{Op: diffmodels.OperationOpAdd, Path: strRef("/nodes/" + newNodeID), Value: anyRef(addNode)},
+			},
+		}
+		var buf bytes.Buffer
+		require.NoError(t, displayAccessChangeText(&buf, change))
+		assertEscaped(t, buf.String())
+	})
+}
