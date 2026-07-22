@@ -382,19 +382,19 @@ func displayDetectionText(out io.Writer, a accessgraph.SecurityAlert, events []l
 		field("Updated", a.UpdatedAt.Format(time.RFC3339))
 	}
 	if a.Description != nil && *a.Description != "" {
-		fmt.Fprintf(out, "\nDescription:\n%s\n", utils.EscapeControl(*a.Description))
+		fmt.Fprintf(out, "\nDescription:\n%s\n", utils.AllowWhitespace(*a.Description))
 	}
 	if a.MitigationSteps != nil && len(*a.MitigationSteps) > 0 {
 		fmt.Fprintln(out, "\nMitigation Steps:")
 		for _, step := range *a.MitigationSteps {
-			fmt.Fprintf(out, "  - %s\n", utils.EscapeControl(step))
+			fmt.Fprintf(out, "  - %s\n", utils.AllowWhitespace(step))
 		}
 	}
 	if eventsErr != nil || len(events) > 0 || (a.LogEntries != nil && len(*a.LogEntries) > 0) {
 		fmt.Fprintln(out, "\nLog Entries:")
 		switch {
 		case eventsErr != nil:
-			fmt.Fprintln(out, warningStyle.Render(utils.EscapeControl(eventsErr.Error())))
+			fmt.Fprintln(out, warningStyle.Render(utils.AllowWhitespace(eventsErr.Error())))
 		case len(events) == 0:
 			fmt.Fprintln(out, "Not found.")
 		default:
