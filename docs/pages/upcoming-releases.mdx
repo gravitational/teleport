@@ -37,11 +37,6 @@ We plan to release the following versions in the coming months:
 
 ### 18.11.0
 
-#### Audit Log Reliability Improvements
-
-Teleport will improve audit log stability and durability in the face of failure
-scenarios like control plane, networking issues and agent restarts.
-
 #### Agentic UX for Access Configuration
 
 Teleport will provide a custom agent skill for configuring access to connected
@@ -70,11 +65,26 @@ Teleport will include a new generic OIDC join method for bots and agents.
 Generic OIDC joining is offered as a fallback for spec-compliant OIDC providers
 that lack a dedicated Teleport join method.
 
+#### Auto-Discovery Improvements
+
+Teleport will extend AWS EC2 and Azure VM auto-discovery to support enrollment
+at an organization/tenant level in addition to a single account.
+
+In addition, Teleport will extend cloud database auto-discovery support to
+GCP CloudSQL.
+
 ### 19.0.0
 
 #### Amazon Aurora DSQL Cluster State Backend
 
 Teleport will support using Amazon Aurora DSQL as a backend for cluster state.
+
+#### Audit Log Reliability Improvements
+
+Teleport will improve audit log stability and durability in the face of failure
+scenarios like control plane, networking issues and agent restarts.
+
+_Delayed from Teleport 18.11.0._
 
 #### Improved Principal Selection for Access Requests
 
