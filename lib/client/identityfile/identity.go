@@ -805,7 +805,7 @@ func KeyRingFromIdentityFile(identityPath, proxyHost, clusterName string, opts .
 
 		// Similarly, if this identity has any app certs, copy them in.
 		if parsedIdent.RouteToApp.Name != "" {
-			keyRing.AppTLSCredentials[parsedIdent.RouteToApp.Name] = client.TLSCredential{
+			keyRing.AppTLSCredentials[client.ScopedAppName(parsedIdent.RouteToApp.Name, parsedIdent.RouteToApp.Scope)] = client.TLSCredential{
 				// Identity files only have room for one private key and TLS
 				// cert, it must match the app cert.
 				PrivateKey: priv,

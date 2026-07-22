@@ -318,7 +318,7 @@ func (c *AppCertIssuer) IssueCert(ctx context.Context) (tls.Certificate, error) 
 		return tls.Certificate{}, trace.Wrap(err)
 	}
 
-	appCert, err := keyRing.AppTLSCert(c.RouteToApp.Name)
+	appCert, err := keyRing.AppTLSCert(c.RouteToApp.Name, c.RouteToApp.Scope)
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}

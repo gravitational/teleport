@@ -92,7 +92,7 @@ func (c *Cluster) ReissueAppCert(ctx context.Context, clusterClient *client.Clus
 		return tls.Certificate{}, trace.Wrap(err)
 	}
 
-	appCert, err := result.KeyRing.AppTLSCert(routeToApp.Name)
+	appCert, err := result.KeyRing.AppTLSCert(routeToApp.Name, routeToApp.Scope)
 	return appCert, trace.Wrap(err)
 }
 

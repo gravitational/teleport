@@ -262,7 +262,7 @@ func (c *ClusterClient) generateUserCerts(ctx context.Context, cachePolicy CertC
 		keyRing.SSHPrivateKey = newUserKeys.ssh
 		keyRing.Cert = certs.SSH
 	case proto.UserCertsRequest_App:
-		keyRing.AppTLSCredentials[params.RouteToApp.Name] = TLSCredential{
+		keyRing.AppTLSCredentials[ScopedAppName(params.RouteToApp.Name, params.RouteToApp.Scope)] = TLSCredential{
 			PrivateKey: newUserKeys.app,
 			Cert:       certs.TLS,
 		}
@@ -935,7 +935,7 @@ func PerformSessionMFACeremony(ctx context.Context, params PerformSessionMFACere
 			if keyRing.AppTLSCredentials == nil {
 				keyRing.AppTLSCredentials = make(map[string]TLSCredential)
 			}
-			keyRing.AppTLSCredentials[certsReq.RouteToApp.Name] = TLSCredential{
+			keyRing.AppTLSCredentials[ScopedAppName(certsReq.RouteToApp.Name, certsReq.RouteToApp.Scope)] = TLSCredential{
 				Cert:       newCerts.TLS,
 				PrivateKey: params.newUserKeys.app,
 			}
