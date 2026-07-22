@@ -103,13 +103,23 @@ type VirtualMachine struct {
 	Identities []Identity
 	// Tags are the VM tags, e.g. {"env": "prod"}. Empty map (not nil) when the VM has no tags.
 	Tags map[string]string
-
+	// PrimaryPrivateIP is the private IP address used to reach the VM, e.g.
+	// "10.0.0.5". It is populated only by the Windows VM discovery path. It is
+	// empty for Linux VMs and when no usable private IP could be resolved.
+	PrimaryPrivateIP string
+	// operatingSystem is the operating system of the VM. It is nil if the operating system is unknown.
 	operatingSystem *armcompute.OperatingSystemTypes
 }
 
 // IsLinuxOrUnknown returns whether the VM is running Linux or if the operating system is unknown.
 func (vm *VirtualMachine) IsLinuxOrUnknown() bool {
 	return vm.operatingSystem == nil || *vm.operatingSystem == armcompute.OperatingSystemTypesLinux
+}
+
+// IsWindowsOrUnknown returns whether the VM is running Windows or if the
+// operating system is unknown.
+func (vm *VirtualMachine) IsWindowsOrUnknown() bool {
+	return vm.operatingSystem == nil || *vm.operatingSystem == armcompute.OperatingSystemTypesWindows
 }
 
 // Identity represents an Azure virtual machine identity.
