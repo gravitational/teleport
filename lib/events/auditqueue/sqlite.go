@@ -482,9 +482,11 @@ func (q *sqliteQueue) ackWithRetry(ctx context.Context, items []Item) error {
 	}
 }
 
-// Drain exits when the audit log queue is empty. It allows one to await the
-// draining of the queue on shutdown. Run is executed in the background and will
-// continue to drain the queue.
+// Drain exits when both the main audit queue and the dead-letter queue are
+// empty. It allows one to await the draining of the queue on shutdown. Run is
+// executed in the background and will continue to drain the queue. Corrupt
+// events are excluded. They cannot be delivered, so waiting on them would
+// stall every shutdown until the drain deadline.
 func (q *sqliteQueue) Drain(ctx context.Context) error {
 	q.drainOnce.Do(func() { close(q.drainCh) })
 
@@ -509,15 +511,17 @@ func (q *sqliteQueue) Drain(ctx context.Context) error {
 	defer ticker.Stop()
 	var lastErr error
 	for {
-		isEmpty, err := isMainQueueEmpty(q.db)
+		mainEmpty, deadLetterEmpty, err := drainQueueState(q.db)
 		lastErr = err
 		if err != nil {
 			slog.ErrorContext(ctx,
 				"Failed to check whether audit queue is empty while draining.",
 				"error", err,
 			)
-		} else if isEmpty {
+		} else if mainEmpty && deadLetterEmpty {
 			return nil
+		} else if mainEmpty {
+			q.kickDeadLetterSweep()
 		}
 
 		select {
@@ -530,14 +534,15 @@ func (q *sqliteQueue) Drain(ctx context.Context) error {
 	}
 }
 
-const isMainQueueEmptyQuery = `SELECT NOT EXISTS(SELECT 1 FROM audit_queue)`
+const drainQueueStateQuery = `SELECT
+	NOT EXISTS(SELECT 1 FROM audit_queue),
+	NOT EXISTS(SELECT 1 FROM audit_dead_letter)`
 
-func isMainQueueEmpty(db *sql.DB) (bool, error) {
-	var isEmpty bool
-	if err := db.QueryRow(isMainQueueEmptyQuery).Scan(&isEmpty); err != nil {
-		return false, trace.Wrap(err)
+func drainQueueState(db *sql.DB) (mainEmpty, deadLetterEmpty bool, _ error) {
+	if err := db.QueryRow(drainQueueStateQuery).Scan(&mainEmpty, &deadLetterEmpty); err != nil {
+		return false, false, trace.Wrap(err)
 	}
-	return isEmpty, nil
+	return mainEmpty, deadLetterEmpty, nil
 }
 
 func (q *sqliteQueue) handleDeliveryFailures(ctx context.Context, items []Item, successfullyDelivered []Item) {

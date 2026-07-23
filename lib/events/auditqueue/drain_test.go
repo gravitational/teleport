@@ -88,6 +88,71 @@ func TestDrain_DrainsMainQueue(t *testing.T) {
 	}
 }
 
+func TestDrain_FlushesDeadLetter(t *testing.T) {
+	t.Parallel()
+
+	for _, kind := range allKinds {
+		t.Run(string(kind), func(t *testing.T) {
+			t.Parallel()
+			ctx := t.Context()
+			q := newTestQueueWithConfig(t, kind, Config{
+				MaxAttempts:             1,
+				DeadLetterSweepInterval: time.Hour, // only Drain may trigger sweeps
+			})
+
+			require.NoError(t, q.Enqueue(newTestEvent(0)))
+
+			var failing atomic.Bool
+			failing.Store(true)
+			var delivered atomic.Int64
+			handler := func(_ context.Context, items []Item) []Item {
+				if failing.Load() {
+					return nil
+				}
+				delivered.Add(int64(len(items)))
+				return items
+			}
+
+			runCtx, cancel := context.WithCancel(ctx)
+			t.Cleanup(cancel)
+			runErr := make(chan error, 1)
+			go func() { runErr <- q.Run(runCtx, handler) }()
+
+			// Wait for the event to exhaust its attempts and land in the
+			// dead-letter queue, emptying the main queue.
+			sq := underlyingQueue(t, q)
+			require.Eventually(t, func() bool {
+				dl, err := fetchDeadLetter(ctx, sq.db, 10)
+				return err == nil && len(dl) == 1
+			}, testDefaultTimeout, 10*time.Millisecond)
+
+			drainCtx, drainCancel := context.WithTimeout(ctx, testDefaultTimeout)
+			t.Cleanup(drainCancel)
+
+			drainDone := make(chan error, 1)
+			go func() { drainDone <- q.Drain(drainCtx) }()
+
+			select {
+			case <-drainDone:
+				t.Fatal("Drain returned while dead-letter events were pending")
+			case <-time.After(100 * time.Millisecond):
+			}
+
+			failing.Store(false)
+			select {
+			case err := <-drainDone:
+				require.NoError(t, err)
+			case <-time.After(testDefaultTimeout):
+				t.Fatal("Drain did not return after the dead-letter queue drained")
+			}
+			require.Equal(t, int64(1), delivered.Load())
+
+			cancel()
+			require.ErrorIs(t, <-runErr, context.Canceled)
+		})
+	}
+}
+
 func TestDrain_RespectsContextDeadline(t *testing.T) {
 	t.Parallel()
 
