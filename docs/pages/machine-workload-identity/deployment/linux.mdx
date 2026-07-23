@@ -90,9 +90,8 @@ the join URI (shown as `secret` in the example token) in your configuration file
 after the first run has completed, but there is no tangible security benefit to
 doing so.
 
-If the initial join fails (for example, due to a network or TLS error), the
-secret may already be consumed. Run `tctl bots add` again to generate a new
-join URI before retrying.
+If the initial join fails (for example, due to a network or TLS error), the secret may already be consumed. Use `tctl bots instances add example` to
++generate a new join URI for the bot before retrying.
 </Admonition>
 
 ### Prepare the storage directory
