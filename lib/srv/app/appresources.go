@@ -93,7 +93,11 @@ func decideMinimalV9(roles []types.Role, app types.Application, username string,
 		}
 		decision.enforced = true
 		if role.GetVersion() != types.V9 {
+			// A newer version may add restrictions this agent cannot
+			// evaluate, so a role above v9 denies rather than allows, even
+			// when its known fields look like a plain allow_all.
 			decision.versionSkew = true
+			continue
 		}
 		allow := role.GetAppResources(types.Allow)
 		if types.AppResourcesAllowAll(allow, role.GetAppResources(types.Deny)) {
