@@ -17,9 +17,12 @@
 package cache
 
 import (
+	"context"
 	"errors"
 	"testing"
 
+	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"pgregory.net/rapid"
 )
@@ -32,22 +35,33 @@ type machine struct {
 }
 
 func (m *machine) init(t *rapid.T) {
-
-	//c1 := newPackForAuth(t)
-	//t.Cleanup(c1.Close)
-
-	// will need to reset this since this is process global?
+	// TODO(russjones): This is only needed until the issue is actually fixed.
+	// Reset the value of the metric so previous runs don't pollute the results
+	// for this run.
 	cacheHealth.Reset()
 
-	// Number of caches can be be
-	// TODO(russjones): Is this [2, 4] or [2, 4)?
-	for i := range rapid.IntRange(2, 4).Draw(t, "n") {
+	m.up = map[*Cache]bool{}
+	m.healthyUp = map[*Cache]bool{}
 
-		c := &Cache{}
+	// Create 2, 3, or 4 caches.
+	for range rapid.IntRange(2, 4).Draw(t, "n") {
+		// Create a Cachedirectly instead of using newPackForAuth because
+		// starting a Cache launches goroutines that call setInitError. To make
+		// this test deterministic, only this test should call setInitError.
+		ctx, cancel := context.WithCancel(context.Background())
+		c := &Cache{
+			Config:                Config{target: "auth"},
+			ctx:                   ctx,
+			cancel:                cancel,
+			initC:                 make(chan struct{}),
+			firstTimeInitC:        make(chan struct{}),
+			eventsFanout:          services.NewFanoutV2(services.FanoutV2Config{}),
+			lowVolumeEventsFanout: utils.NewRoundRobin([]*services.FanoutV2{services.NewFanoutV2(services.FanoutV2Config{})}),
+		}
 		c.setInitError(nil)
-		m.all = append(m.all, &Cache{})
-	}
 
+		m.all = append(m.all, c)
+	}
 }
 
 // SetCacheHealthy will pick a random cache from the slice of caches
@@ -72,6 +86,8 @@ func (m *machine) SetCacheUnhealthy(t *rapid.T) {
 	delete(m.healthyUp, c)
 }
 
+// SetCacheDown will pick a random cache from the slice of caches and close it
+// to shut it down.
 func (m *machine) SetCacheDown(t *rapid.T) {
 	c := m.all[rapid.IntRange(0, len(m.all)-1).Draw(t, "i")]
 
@@ -81,6 +97,8 @@ func (m *machine) SetCacheDown(t *rapid.T) {
 	delete(m.healthyUp, c)
 }
 
+// expected is the health property that enforces correctness. The metric is
+// healthy if any cache is up or no cache is up. Otherwise it's unhealthy.
 func (m *machine) expected() float64 {
 	if len(m.up) == 0 || len(m.healthyUp) > 0 {
 		return 1.0
@@ -88,37 +106,24 @@ func (m *machine) expected() float64 {
 	return 0
 }
 
+// Check enforces the state machine invariant. It's run after every action
+// (SetCacheHealthy, SetCacheUnhealthy, SetCacheDown) and asserts the expected
+// value matches the received value of the gauge.
 func (m *machine) Check(t *rapid.T) {
 	got := testutil.ToFloat64(cacheHealth.WithLabelValues("auth"))
 	want := m.expected()
 
 	if got != want {
-		t.Fatal("got gauge %v, want: %v", got, want)
+		t.Fatalf("got gauge %v, want: %v", got, want)
 	}
 }
 
-func TestMetricConverges(t *testing.T) {
-	rapid.Check(t, func(t *rapid.T) {
+// TestMetricConverges ensures that caches correctly report their health to the
+// prometheus metric.
+func TestMetricConverges(tt *testing.T) {
+	rapid.Check(tt, func(rt *rapid.T) {
 		m := &machine{}
-		m.init(t)
-		t.Repeat(rapid.StateMachineActions(m))
+		m.init(rt)
+		rt.Repeat(rapid.StateMachineActions(m))
 	})
 }
-
-//// TODO(russjones): Can t.Parallel() be set?
-//func TestMetricEventuallyConverges(t *testing.T) {
-//	 wanconst target = "auth"
-//
-//	c1 := newPackForAuth(t)
-//	t.Cleanup(c1.Close)
-//	c2 := newPackForAuth(t)
-//	t.Cleanup(c2.Close)
-//
-//	require.Equal(t, 1.0, testutil.ToFloat64(cacheHealth.WithLabelValues(target)),
-//		"both caches are healthy, metric should report healthy")
-//
-//	c1.cache.setInitError(errors.New("cache shutting down"))
-//
-//	require.Equal(t, 1.0, testutil.ToFloat64(cacheHealth.WithLabelValues(target)),
-//		"a healthy cache (c2) is still running, metric should report healthy")
-//}
