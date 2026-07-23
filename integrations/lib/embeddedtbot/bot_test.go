@@ -341,7 +341,10 @@ func TestScopedBotJoinAuth(t *testing.T) {
 		Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
 			Assignments: []*scopedaccessv1.Assignment{
 				scopedaccessv1.Assignment_builder{
-					Role:  testBotRole,
+					Role: scopes.QualifiedName{
+						Scope: testRootScope,
+						Name:  testBotRole,
+					}.String(),
 					Scope: testRootScope,
 				}.Build(),
 			},
@@ -362,6 +365,7 @@ func TestScopedBotJoinAuth(t *testing.T) {
 			ctx,
 			scopedaccessv1.GetScopedRoleAssignmentRequest_builder{
 				Name:    testBotRole,
+				Scope:   testRootScope,
 				SubKind: scopedaccess.SubKindDynamic,
 			}.Build(),
 		)
@@ -451,7 +455,8 @@ func TestScopedBotJoinAuth(t *testing.T) {
 	require.Equal(t, clusterName, botPong.ClusterName)
 
 	_, err = botClient.ScopedAccessServiceClient().GetScopedRole(ctx, scopedaccessv1.GetScopedRoleRequest_builder{
-		Name: testBotRole,
+		Name:  testBotRole,
+		Scope: testRootScope,
 	}.Build())
 	require.NoError(t, err)
 }

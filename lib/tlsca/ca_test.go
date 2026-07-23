@@ -137,7 +137,7 @@ func TestScopePin(t *testing.T) {
 			Kind:  scopesv1.PinKind_PIN_KIND_USER,
 			Scope: "/foo",
 			AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
-				"/": {"/": {"r1"}, "/foo": {"r2"}},
+				"/": {"/": {"/::r1"}, "/foo": {"/::r2"}},
 			}),
 		}.Build(),
 	}
@@ -773,9 +773,9 @@ func TestIdentity_GetUserMetadata(t *testing.T) {
 					Scope: "/staging",
 					AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
 						"/staging": {
-							"/staging":       {"staging-admin"},
-							"/staging/blue":  {"staging-access"},
-							"/staging/green": {"staging-access"},
+							"/staging":       {"/staging::staging-admin"},
+							"/staging/blue":  {"/staging::staging-access"},
+							"/staging/green": {"/staging::staging-access"},
 						},
 					}),
 				}.Build(),
@@ -799,23 +799,25 @@ func TestIdentity_GetUserMetadata(t *testing.T) {
 				Username:      "bot-alpaca",
 				BotName:       "alpaca",
 				BotInstanceID: "123-123",
+				BotScope:      "/staging",
 				ScopePin: scopesv1.Pin_builder{
 					Kind:  scopesv1.PinKind_PIN_KIND_USER,
 					Scope: "/staging",
 					AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
 						"/staging": {
-							"/staging":       {"staging-admin"},
-							"/staging/blue":  {"staging-access"},
-							"/staging/green": {"staging-access"},
+							"/staging":       {"/staging::staging-admin"},
+							"/staging/blue":  {"/staging::staging-access"},
+							"/staging/green": {"/staging::staging-access"},
 						},
 					}),
 				}.Build(),
 			},
 			want: apievents.UserMetadata{
-				User:          "bot-alpaca",
-				UserKind:      apievents.UserKind_USER_KIND_BOT,
-				BotName:       "alpaca",
-				BotInstanceID: "123-123",
+				User:             "bot-alpaca",
+				UserKind:         apievents.UserKind_USER_KIND_BOT,
+				BotName:          "alpaca",
+				BotInstanceID:    "123-123",
+				BotScopeOfOrigin: "/staging",
 				ScopePin: &apievents.ScopePin{
 					Scope: "/staging",
 					Assignments: map[string]*apievents.ScopePinnedAssignments{

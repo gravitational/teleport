@@ -23,6 +23,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"log"
 	"net"
 	"net/http"
 	"net/url"
@@ -32,6 +33,8 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/mark3labs/mcp-go/mcp"
 
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
 	appcommon "github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
@@ -43,7 +46,7 @@ const (
 	mcpSessionIDHeader = "Mcp-Session-Id"
 )
 
-func (s *Server) serveHTTPConn(ctx context.Context, conn net.Conn, handler http.Handler) error {
+func (*Server) serveHTTPConn(ctx context.Context, conn net.Conn, handler http.Handler) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -53,6 +56,11 @@ func (s *Server) serveHTTPConn(ctx context.Context, conn net.Conn, handler http.
 	httpServer := &http.Server{
 		Handler:     handler,
 		BaseContext: func(net.Listener) context.Context { return ctx },
+		// Note: ReadTimeout/WriteTimeout *should not* be set here because it will break
+		// application access.
+		ReadHeaderTimeout: defaults.ReadHeadersTimeout,
+		IdleTimeout:       apidefaults.DefaultIdleTimeout,
+		ErrorLog:          log.Default(),
 	}
 
 	listener := listenerutils.NewSingleUseListener(waitConn)

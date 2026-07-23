@@ -56,10 +56,6 @@ import (
 
 // Announcer specifies interface responsible for announcing presence
 type Announcer interface {
-	// UpsertNode registers node presence, permanently if ttl is 0 or
-	// for the specified duration with second resolution if it's >= 1 second
-	UpsertNode(ctx context.Context, s types.Server) (*types.KeepAlive, error)
-
 	// UpsertProxyServerWithoutReturn registers proxy presence, permanently if
 	// ttl is 0 or for the specified duration with second resolution if it's
 	// >= 1 second. The upserted server is not returned because the HTTP
@@ -73,17 +69,8 @@ type Announcer interface {
 	// for the specified duration with second resolution if it's >= 1 second
 	UpsertAuthServer(ctx context.Context, s types.Server) error
 
-	// UpsertKubernetesServer registers a kubernetes server
-	UpsertKubernetesServer(context.Context, types.KubeServer) (*types.KeepAlive, error)
-
 	// NewKeepAliver returns a new instance of keep aliver
 	NewKeepAliver(ctx context.Context) (types.KeepAliver, error)
-
-	// UpsertApplicationServer registers an application server.
-	UpsertApplicationServer(context.Context, types.AppServer) (*types.KeepAlive, error)
-
-	// UpsertDatabaseServer registers a database proxy server.
-	UpsertDatabaseServer(context.Context, types.DatabaseServer) (*types.KeepAlive, error)
 
 	// UpsertWindowsDesktopService registers a Windows desktop service.
 	UpsertWindowsDesktopService(context.Context, types.WindowsDesktopService) (*types.KeepAlive, error)
@@ -116,6 +103,13 @@ type accessPoint interface {
 
 	// ConnectionDiagnosticTraceAppender adds a method to append traces into ConnectionDiagnostics.
 	services.ConnectionDiagnosticTraceAppender
+
+	// UpsertNode registers node presence, permanently if ttl is 0 or
+	// for the specified duration with second resolution if it's >= 1 second
+	UpsertNode(ctx context.Context, s types.Server) (*types.KeepAlive, error)
+
+	// UpsertApplicationServer registers an application server.
+	UpsertApplicationServer(context.Context, types.AppServer) (*types.KeepAlive, error)
 }
 
 // ReadNodeAccessPoint is a read only API interface implemented by a certificate authority (CA) to be
@@ -693,6 +687,10 @@ type AppsAccessPoint interface {
 	// ReadAppsAccessPoint provides methods to read data
 	ReadAppsAccessPoint
 
+	// ScopedRoleReader returns a read-only scoped role client. Used by the app service to
+	// authorize scope-pinned identities accessing applications.
+	ScopedRoleReader() services.ScopedRoleReader
+
 	// accessPoint provides common access point functionality
 	accessPoint
 }
@@ -1139,6 +1137,9 @@ type OktaAccessPoint interface {
 	// DeleteOktaAssignment removes the specified Okta assignment resource.
 	DeleteOktaAssignment(ctx context.Context, name string) error
 
+	// ConditionalDeleteOktaAssignment removes the specified Okta assignment resource, protected by optimistic locking.
+	ConditionalDeleteOktaAssignment(ctx context.Context, name, revision string) error
+
 	// DeleteApplicationServer removes specified application server.
 	DeleteApplicationServer(ctx context.Context, namespace, hostID, name string) error
 
@@ -1448,15 +1449,25 @@ type Cache interface {
 	ListAccessListsV2(context.Context, *accesslistv1.ListAccessListsV2Request) ([]*accesslist.AccessList, string, error)
 	// GetAccessList returns the specified access list resource.
 	GetAccessList(context.Context, string) (*accesslist.AccessList, error)
+	// GetAccessListV2 returns the specified access list resource.
+	GetAccessListV2(context.Context, *accesslistv1.GetAccessListRequest) (*accesslist.AccessList, error)
 
 	// CountAccessListMembers will count all access list members.
 	CountAccessListMembers(ctx context.Context, accessListName string) (users uint32, lists uint32, err error)
+	// CountAccessListMembersV2 will count all access list members.
+	CountAccessListMembersV2(ctx context.Context, req *accesslistv1.CountAccessListMembersRequest) (users uint32, lists uint32, err error)
 	// ListAccessListMembers returns a paginated list of all access list members.
 	ListAccessListMembers(ctx context.Context, accessListName string, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error)
+	// ListAccessListMembersV2 returns a paginated list of all access list members.
+	ListAccessListMembersV2(ctx context.Context, req *accesslistv1.ListAccessListMembersRequest) (members []*accesslist.AccessListMember, nextToken string, err error)
 	// ListAllAccessListMembers returns a paginated list of all members of all access lists.
 	ListAllAccessListMembers(ctx context.Context, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error)
+	// ListAllAccessListMembersV2 returns a paginated list of all members of all access lists.
+	ListAllAccessListMembersV2(ctx context.Context, req *accesslistv1.ListAllAccessListMembersRequest) (members []*accesslist.AccessListMember, nextToken string, err error)
 	// GetAccessListMember returns the specified access list member resource.
 	GetAccessListMember(ctx context.Context, accessList string, memberName string) (*accesslist.AccessListMember, error)
+	// GetAccessListMemberV2 returns the specified access list member resource.
+	GetAccessListMemberV2(ctx context.Context, req *accesslistv1.GetAccessListMemberRequest) (*accesslist.AccessListMember, error)
 
 	// GetAccessListOwners returns a list of owners for a particular access list.
 	GetAccessListOwners(ctx context.Context, accessList string) ([]*accesslist.Owner, error)
@@ -1518,8 +1529,9 @@ type Cache interface {
 	// pagination.
 	ListSPIFFEFederations(ctx context.Context, pageSize int, lastToken string) ([]*machineidv1.SPIFFEFederation, string, error)
 
-	// GetWorkloadIdentity gets a WorkloadIdentity by name.
-	GetWorkloadIdentity(ctx context.Context, name string) (*workloadidentityv1pb.WorkloadIdentity, error)
+	// GetWorkloadIdentity gets a WorkloadIdentity by the name and scope in the
+	// request.
+	GetWorkloadIdentity(ctx context.Context, req *workloadidentityv1pb.GetWorkloadIdentityRequest) (*workloadidentityv1pb.WorkloadIdentity, error)
 	// RangeWorkloadIdentities returns WorkloadIdentity resources within the
 	// range [start, end), ordered by the given sort field and direction.
 	RangeWorkloadIdentities(ctx context.Context, start, end string, sortField services.WorkloadIdentitySortField, sortDesc bool) iter.Seq2[*workloadidentityv1pb.WorkloadIdentity, error]
@@ -1759,6 +1771,12 @@ func NewAppsWrapper(base AppsAccessPoint, cache ReadAppsAccessPoint) AppsAccessP
 	}
 }
 
+func (w *AppsWrapper) ScopedRoleReader() services.ScopedRoleReader {
+	// TODO(fspmarshall/scopes): implement caching for scoped roles
+	// on app agents.
+	return w.NoCache.ScopedRoleReader()
+}
+
 // Close closes all associated resources
 func (w *AppsWrapper) Close() error {
 	err := w.NoCache.Close()
@@ -1995,6 +2013,11 @@ func (w *OktaWrapper) UpdateOktaAssignmentStatus(ctx context.Context, name, stat
 // DeleteOktaAssignment removes the specified Okta assignment resource.
 func (w *OktaWrapper) DeleteOktaAssignment(ctx context.Context, name string) error {
 	return w.NoCache.DeleteOktaAssignment(ctx, name)
+}
+
+// ConditionalDeleteOktaAssignment removes the specified Okta assignment resource, protected by optimistic locking.
+func (w *OktaWrapper) ConditionalDeleteOktaAssignment(ctx context.Context, name, revision string) error {
+	return w.NoCache.ConditionalDeleteOktaAssignment(ctx, name, revision)
 }
 
 // DeleteApplicationServer removes specified application server.

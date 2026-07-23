@@ -305,6 +305,40 @@ func (c *ScopedAccessCheckerContext) riskyEnumerateScopedCheckers(ctx context.Co
 	return c.enumerateAll(ctx)
 }
 
+// ResolveScopeFilter returns the scope filter that should be used for a list/read/watch request, applying
+// identity-derived defaulting when the caller did not specify an explicit filter. An empty (nil or
+// MODE_UNSPECIFIED) filter is replaced with the safe default for this identity: MODE_EXACT at the pinned
+// scope for scoped identities, or MODE_UNSCOPED for unscoped identities. A filter with an explicit mode is
+// returned unchanged.
+//
+// This is the single source of truth for scope-filter defaulting. API handlers should pass caller-provided
+// filters through this method so that an omitted filter is consistently and safely defaulted, minimizing
+// per-API defaulting logic. Note that this method only handles defaulting; callers are still responsible for
+// validating (see [scopes.ValidateFilter]) and authorizing the resulting filter.
+//
+// There is one subtle exception to this default behavior. The event system treats requests to watch certain
+// *always unscoped* kinds as having a default UNSCOPED filter, even for scoped callers. This behavior is only
+// present for unscoped kinds that have an unscoped read exception in place (e.g. cert authorities).
+func (c *ScopedAccessCheckerContext) ResolveScopeFilter(filter *scopesv1.Filter) *scopesv1.Filter {
+	if filter.GetMode() != scopesv1.Mode_MODE_UNSPECIFIED {
+		// the caller specified an explicit filter; return it unchanged.
+		return filter
+	}
+
+	if !c.isScoped() {
+		// unscoped callers default to matching unscoped resources only.
+		return scopesv1.Filter_builder{
+			Mode: scopesv1.Mode_MODE_UNSCOPED,
+		}.Build()
+	}
+
+	// scoped callers default to the minimal/safe MODE_EXACT at their pinned scope.
+	return scopesv1.Filter_builder{
+		Scope: c.pin.GetScope(),
+		Mode:  scopesv1.Mode_MODE_EXACT,
+	}.Build()
+}
+
 // CheckMaybeHasAccessToRules returns an error if the context definitely does not have access to the provided
 // rules. For scoped identities, always returns nil — the scoped access model evaluates permissions per-resource.
 func (c *ScopedAccessCheckerContext) CheckMaybeHasAccessToRules(ctx RuleContext, resource string, verbs ...string) error {
@@ -317,6 +351,10 @@ func (c *ScopedAccessCheckerContext) CheckMaybeHasAccessToRules(ctx RuleContext,
 // Decision calls fn against each checker in the resource scope evaluation order until one of three
 // conditions is met: (1) fn succeeds, (2) fn returns an explicitly denied error, or (3) all checkers
 // have been exhausted (implicit deny).
+//
+// Unscoped contexts resolve to exactly one checker, an error returned in this case is unmodified in order to
+// surface special unscoped requirements like trusted device or session MFA that only an unscoped checker can produce
+// right now.
 func (c *ScopedAccessCheckerContext) Decision(ctx context.Context, scope string, fn func(*ScopedAccessChecker) error) error {
 	return c.decision(c.CheckersForResourceScope(ctx, scope), fn)
 }
@@ -330,6 +368,12 @@ func (c *ScopedAccessCheckerContext) decision(checkers stream.Stream[*ScopedAcce
 		switch {
 		case err == nil:
 			return nil
+		case !c.isScoped():
+			// This surfaces requirements like trusted device and session MFA
+			// that only the unscoped checker can produce right now.
+			// Rather than masking them into an explicit deny,
+			// return errors here that unscoped checkers return.
+			return trace.Wrap(err)
 		case IsAccessExplicitlyDenied(err):
 			return trace.Wrap(err)
 		default:

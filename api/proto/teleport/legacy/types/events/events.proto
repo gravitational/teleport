@@ -166,6 +166,10 @@ message UserMetadata {
   // BeamID is the identifier of the Beam this action is associated with, if
   // any. It is derived from the user's certificate.
   string BeamID = 18 [(gogoproto.jsontag) = "beam_id,omitempty"];
+
+  // BotScopeOfOrigin is the scope of origin of the Bot if this action is
+  // associated with a scoped bot.
+  string BotScopeOfOrigin = 19 [(gogoproto.jsontag) = "bot_scope_of_origin,omitempty"];
 }
 
 // Server is a server metadata
@@ -322,6 +326,9 @@ message AccessListMemberMetadata {
 
   // AccessListTitle is the access list's title.
   string AccessListTitle = 4 [(gogoproto.jsontag) = "access_list_title,omitempty"];
+
+  // AccessListScope is the scope of the access list.
+  string access_list_scope = 5;
 }
 
 // AccessListMember is metadata surrounding an individual access list member.
@@ -349,6 +356,9 @@ message AccessListMember {
   // MembershipKind describes the kind of membership, either
   // `MEMBERSHIP_KIND_USER` or `MEMBERSHIP_KIND_LIST`.
   teleport.accesslist.v1.MembershipKind membership_kind = 5 [(gogoproto.jsontag) = "membership_kind,omitempty"];
+
+  // MemberScope is the scope of the member.
+  string member_scope = 6;
 }
 
 // AccessListReviewMembershipRequirementsChanged contains information for when membership requirements change as part of a review.
@@ -382,6 +392,9 @@ message AccessListReviewMetadata {
 
   // AccessListTitle is the access list's title.
   string AccessListTitle = 7 [(gogoproto.jsontag) = "access_list_title,omitempty"];
+
+  // ScopedRemovedMembers are the scoped members that were removed as part of the review.
+  repeated string scoped_removed_members = 8;
 }
 
 // LockMetadata contains common metadata for lock resource events.
@@ -5621,6 +5634,9 @@ message Identity {
   // A flag indicating this identity is specific to a bot's internal identity
   // rather than an output identity for a user-facing certificate or service.
   bool BotInternal = 33 [(gogoproto.jsontag) = "bot_internal"];
+  // BotScopeOfOrigin indicates the scope of origin of the Machine ID bot
+  // this identity was issued to, if any.
+  string BotScopeOfOrigin = 34 [(gogoproto.jsontag) = "bot_scope_of_origin,omitempty"];
 }
 
 // ScopePin is a marker that identifies a certificate/identity as being "pinned" to a target scope, and encodes relevant
@@ -9770,6 +9786,9 @@ message BoundKeypairRecovery {
   uint32 RecoveryCount = 7 [(gogoproto.jsontag) = "recovery_count"];
   // RecoveryMode is the bound keypair token's configured recovery mode.
   string RecoveryMode = 8 [(gogoproto.jsontag) = "recovery_mode"];
+  // BotScopeOfOrigin is the scope of the bot, if it is a scoped bot. Empty for
+  // unscoped bots.
+  string BotScopeOfOrigin = 9 [(gogoproto.jsontag) = "bot_scope_of_origin,omitempty"];
 }
 
 // BoundKeypairRotation is emitted when a keypair rotation takes place.
@@ -9802,6 +9821,9 @@ message BoundKeypairRotation {
   // NewPublicKey is the new public key after rotation. If rotation fails, this
   // value will be empty.
   string NewPublicKey = 7 [(gogoproto.jsontag) = "new_public_key,omitempty"];
+  // BotScopeOfOrigin is the scope of the bot, if it is a scoped bot. Empty for
+  // unscoped bots.
+  string BotScopeOfOrigin = 8 [(gogoproto.jsontag) = "bot_scope_of_origin,omitempty"];
 }
 
 // BoundKeypairJoinStateVerificationFailed is emitted when join state
@@ -9829,6 +9851,9 @@ message BoundKeypairJoinStateVerificationFailed {
   string TokenName = 4 [(gogoproto.jsontag) = "token_name"];
   // BotName is the name of the bot attempting to join, if any.
   string BotName = 5 [(gogoproto.jsontag) = "bot_name,omitempty"];
+  // BotScopeOfOrigin is the scope of the bot, if it is a scoped bot. Empty for
+  // unscoped bots.
+  string BotScopeOfOrigin = 6 [(gogoproto.jsontag) = "bot_scope_of_origin,omitempty"];
 }
 
 // SCIMRequest describes the SCIM http request that triggered an event

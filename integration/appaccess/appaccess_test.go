@@ -58,7 +58,7 @@ import (
 // It allows to make the entire cluster set up once, instead of per test,
 // which speeds things up significantly.
 func TestAppAccess(t *testing.T) {
-	sseServer := httptest.NewTLSServer(mcpserver.NewSSEServer(mcptest.NewServer()))
+	sseServer := httptest.NewServer(mcpserver.NewSSEServer(mcptest.NewServer()))
 	sseServerURL := "mcp+sse+" + sseServer.URL + "/sse"
 	t.Cleanup(sseServer.Close)
 

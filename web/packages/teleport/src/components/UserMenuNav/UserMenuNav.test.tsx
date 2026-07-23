@@ -47,10 +47,8 @@ describe('navigation items rendering', () => {
     async ({ path, menuName }) => {
       render(path);
 
-      // Click on dropdown menu.
-      fireEvent.click(await screen.findByText(/llama/i));
+      fireEvent.click(screen.getByRole('button', { name: 'User Menu' }));
 
-      // Only one checkmark should be rendered at a time.
       const targetEl = screen.getByText(menuName);
 
       expect(targetEl).toBeInTheDocument();
@@ -59,10 +57,53 @@ describe('navigation items rendering', () => {
   );
 });
 
-function render(path: string) {
+describe('user identity rendering', () => {
+  test('shows display primary over username and suppresses secondary', () => {
+    render('/', {
+      userName: '123456',
+      displayPrimary: 'Jane Garcia',
+      displaySecondary: 'jane@example.com',
+    });
+
+    expect(screen.getByText('Jane Garcia')).toBeInTheDocument();
+    expect(screen.getByText('123456')).toBeInTheDocument();
+    expect(screen.queryByText('jane@example.com')).not.toBeInTheDocument();
+    expect(screen.getByText('J')).toBeInTheDocument();
+  });
+
+  test('shows username over secondary when primary is absent', () => {
+    render('/', {
+      userName: 'casey',
+      displaySecondary: 'casey@example.com',
+    });
+
+    expect(screen.getByText('casey')).toBeInTheDocument();
+    expect(screen.getByText('casey@example.com')).toBeInTheDocument();
+    expect(screen.getByText('C')).toBeInTheDocument();
+  });
+
+  test('shows username only when display values are absent', () => {
+    render('/', { userName: 'llama' });
+
+    expect(screen.getAllByText('llama')).toHaveLength(1);
+    expect(screen.getByText('L')).toBeInTheDocument();
+  });
+});
+
+type UserContextOverrides = Partial<{
+  userName: string;
+  displayPrimary: string;
+  displaySecondary: string;
+}>;
+
+function render(path: string, userContext: UserContextOverrides = {}) {
   const ctx = new TeleportContext();
 
   ctx.storeUser.state = makeUserContext({
+    userName: 'llama',
+    displayPrimary: '',
+    displaySecondary: '',
+    ...userContext,
     cluster: {
       name: 'test-cluster',
       lastConnected: Date.now(),
@@ -73,7 +114,7 @@ function render(path: string) {
     <MemoryRouter initialEntries={[path]}>
       <TeleportContextProvider ctx={ctx}>
         <FeaturesContextProvider value={getOSSFeatures()}>
-          <UserMenuNav username="llama" />
+          <UserMenuNav />
         </FeaturesContextProvider>
       </TeleportContextProvider>
     </MemoryRouter>

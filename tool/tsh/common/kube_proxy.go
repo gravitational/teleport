@@ -46,6 +46,10 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+// kubeLocalProxyEnvVar marks a shell started by `tsh proxy kube --exec` as a
+// live local-proxy session. Its value is the KUBECONFIG path the session set.
+const kubeLocalProxyEnvVar = "TELEPORT_KUBE_LOCAL_PROXY"
+
 type proxyKubeCommand struct {
 	*kingpin.CmdClause
 	kubeClusters        []string
@@ -131,7 +135,7 @@ func (c *proxyKubeCommand) run(cf *CLIConf) error {
 	// re-exec into a new shell with $KUBECONFIG already pointed to our config file
 	// if --exec flag is set, --exec-cmd is provided, or headless mode is enabled.
 	reexecIntoShell := cf.Headless || c.exec || c.execCmd != ""
-	if err := c.printTemplate(cf.Stdout(), reexecIntoShell, localProxy); err != nil {
+	if err := c.printTemplate(cf.ProxyStatusOutput(), reexecIntoShell, localProxy); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -195,7 +199,7 @@ func runHeadlessKubeProxy(cf *CLIConf, localProxy *kubeLocalProxy, command strin
 
 	err = reexecToShell(ctx, configBytes, command, args)
 	err = trace.NewAggregate(err, localProxy.Close())
-	_, _ = fmt.Fprint(cf.Stdout(), "Local proxy for Kubernetes is closed.\n")
+	_, _ = fmt.Fprint(cf.ProxyStatusOutput(), "Local proxy for Kubernetes is closed.\n")
 	err = trace.NewAggregate(err, <-lpErrChan)
 	return err
 }
@@ -281,7 +285,7 @@ func (c *proxyKubeCommand) prepare(cf *CLIConf, tc *client.TeleportClient) (*cli
 }
 
 func (c *proxyKubeCommand) printPrepare(cf *CLIConf, title string, clusters kubeconfig.LocalProxyClusters) {
-	fmt.Fprintln(cf.Stdout(), title)
+	fmt.Fprintln(cf.ProxyStatusOutput(), title)
 	table := asciitable.MakeTable([]string{"Teleport Cluster Name", "Kube Cluster Name", "Context Name"})
 	for _, cluster := range clusters {
 		contextName, err := kubeconfig.ContextNameFromTemplate(c.overrideContextName, cluster.TeleportCluster, cluster.KubeCluster)
@@ -291,7 +295,7 @@ func (c *proxyKubeCommand) printPrepare(cf *CLIConf, title string, clusters kube
 		}
 		table.AddRow([]string{cluster.TeleportCluster, cluster.KubeCluster, contextName})
 	}
-	fmt.Fprintln(cf.Stdout(), table.AsBuffer().String())
+	fmt.Fprintln(cf.ProxyStatusOutput(), table.AsBuffer().String())
 }
 
 func (c *proxyKubeCommand) printTemplate(w io.Writer, isReexec bool, localProxy *kubeLocalProxy) error {
