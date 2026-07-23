@@ -273,7 +273,11 @@ func (s *Service) CreateIntegration(ctx context.Context, req *integrationpb.Crea
 		if s.modules.BuildType() != modules.BuildEnterprise {
 			return nil, trace.AccessDenied("GitHub integration requires a Teleport Enterprise license")
 		}
-		switch req.GetIntegration().GetGitHubIntegrationSpec().OAuthCallbackURL {
+		spec := req.GetIntegration().GetGitHubIntegrationSpec()
+		if spec == nil {
+			return nil, trace.BadParameter("missing GitHub integration spec")
+		}
+		switch spec.OAuthCallbackURL {
 		case types.IntegrationGitHubOAuthCallbackURL:
 		case "":
 			return nil, trace.BadParameter(
@@ -345,6 +349,9 @@ func (s *Service) UpdateIntegration(ctx context.Context, req *integrationpb.Upda
 
 	if req.GetIntegration().GetSubKind() == types.IntegrationSubKindGitHub {
 		spec := req.GetIntegration().GetGitHubIntegrationSpec()
+		if spec == nil {
+			return nil, trace.BadParameter("missing GitHub integration spec")
+		}
 		// Allow empty oauth_callback_url for backwards compatibility or
 		// temporary rollback. Otherwise must be the authenticated URL.
 		switch spec.OAuthCallbackURL {

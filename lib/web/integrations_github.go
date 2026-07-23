@@ -106,13 +106,15 @@ func (h *Handler) githubIntegrationCallback(w http.ResponseWriter, r *http.Reque
 // the error. This improves the UX by terminating the failed OAuth flow
 // immediately, rather than hoping for a timeout.
 func (h *Handler) githubIntegrationErrorRedirect(ctx context.Context, clientRedirectURL string, err error) (any, error) {
-	if clientRedirectURL != "" {
-		if redURL, errEnc := RedirectURLWithError(clientRedirectURL, err); errEnc == nil {
-			h.logger.ErrorContext(ctx, "Github integration callback error", "redirect_url", redURL, "error", err)
-			return &githubIntegrationCallbackResponse{
-				RedirectURL: redURL.String(),
-			}, nil
-		}
+	if clientRedirectURL == "" {
+		return nil, trace.Wrap(err)
 	}
-	return nil, trace.Wrap(err)
+	redURL, errEnc := RedirectURLWithError(clientRedirectURL, err)
+	if errEnc != nil {
+		return nil, trace.Wrap(err)
+	}
+	h.logger.ErrorContext(ctx, "Github integration callback error", "redirect_host", redURL.Host, "redirect_path", redURL.Path, "error", err)
+	return &githubIntegrationCallbackResponse{
+		RedirectURL: redURL.String(),
+	}, nil
 }

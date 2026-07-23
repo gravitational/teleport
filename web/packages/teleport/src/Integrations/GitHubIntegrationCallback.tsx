@@ -63,7 +63,10 @@ export function GitHubIntegrationCallback() {
   }, [location.search]);
 
   return (
-    <GitHubIntegrationCallbackView processing={processing} error={error} />
+    <>
+      <LogoHero />
+      <GitHubIntegrationCallbackView processing={processing} error={error} />
+    </>
   );
 }
 
@@ -74,9 +77,8 @@ export function GitHubIntegrationCallbackView({
   processing: boolean;
   error: string;
 }) {
-  return (
-    <>
-      <LogoHero />
+  if (processing) {
+    return (
       <Card
         color="text.main"
         bg="levels.elevated"
@@ -85,38 +87,52 @@ export function GitHubIntegrationCallbackView({
         my={6}
         p={5}
       >
-        {processing && (
-          <>
-            <H1 mb={4} textAlign="center">
-              Authorizing with GitHub
-            </H1>
-            <Box textAlign="center">
-              <Indicator size="large" />
-              <P1 mt={3}>Please wait...</P1>
-            </Box>
-          </>
-        )}
-        {!processing && error && (
-          <>
-            <H1 mb={4} textAlign="center">
-              GitHub Authorization Failed
-            </H1>
-            <Alert mt={2} mb={4}>
-              {error}
-            </Alert>
-          </>
-        )}
-        {!processing && !error && (
-          <>
-            <H1 mb={4} textAlign="center">
-              Authorization Complete
-            </H1>
-            <P1 textAlign="center">
-              Your GitHub account has been linked. You may close this tab.
-            </P1>
-          </>
-        )}
+        <H1 mb={4} textAlign="center">
+          Authorizing with GitHub
+        </H1>
+        <Box textAlign="center">
+          <Indicator size="large" />
+          <P1 mt={3}>Please wait...</P1>
+        </Box>
       </Card>
-    </>
+    );
+  }
+
+  if (error) {
+    return (
+      <Card
+        color="text.main"
+        bg="levels.elevated"
+        width="540px"
+        mx="auto"
+        my={6}
+        p={5}
+      >
+        <H1 mb={4} textAlign="center">
+          GitHub Authorization Failed
+        </H1>
+        <Alert mt={2} mb={4}>
+          {error}
+        </Alert>
+      </Card>
+    );
+  }
+
+  return (
+    <Card
+      color="text.main"
+      bg="levels.elevated"
+      width="540px"
+      mx="auto"
+      my={6}
+      p={5}
+    >
+      <H1 mb={4} textAlign="center">
+        Authorization Complete
+      </H1>
+      <P1 textAlign="center">
+        Your GitHub account has been linked. You may close this tab.
+      </P1>
+    </Card>
   );
 }
