@@ -8634,7 +8634,7 @@ func (a *Server) validateMFAAuthResponseInternal(
 			loginData, err = webLogin.Finish(ctx, user, wantypes.CredentialAssertionResponseFromProto(res.Webauthn), requiredExtensions)
 		}
 		if err != nil {
-			if reuseErr := a.expiredReusableMFAError(ctx, err, requiredExtensions); reuseErr != nil {
+			if reuseErr := a.convertToErrExpiredReusableMFAResponse(ctx, err, requiredExtensions); reuseErr != nil {
 				return nil, trace.Wrap(reuseErr)
 			}
 			return nil, trace.AccessDenied("MFA response validation failed: %v", err)
@@ -8687,21 +8687,20 @@ func (a *Server) verifyMFASessionData(
 	sessionID,
 	username string,
 	requiredExtensions *mfav1.ChallengeExtensions,
-	wrapNotFoundError func(error) error,
+	notFoundErr error,
 ) (*services.MFASessionData, error) {
 	mfaSess, err := a.GetMFASessionData(ctx, sessionID)
 	if err != nil {
-		if reuseErr := a.expiredReusableMFAError(ctx, err, requiredExtensions); reuseErr != nil {
+		if reuseErr := a.convertToErrExpiredReusableMFAResponse(ctx, err, requiredExtensions); reuseErr != nil {
 			return nil, reuseErr
 		}
 		if trace.IsNotFound(err) {
-			return nil, trace.Wrap(notFoundErr)
+			return nil, notFoundErr
 		}
 		return nil, trace.Wrap(err)
 	}
 	if mfaSess.Username != username {
-		return nil, trace.Wrap(notFoundErr)
-
+		return nil, notFoundErr
 	}
 	if requiredExtensions.Scope != mfaSess.ChallengeExtensions.Scope {
 		return nil, trace.AccessDenied("required scope %q is not satisfied by the given MFA session with scope %q", requiredExtensions.Scope, mfaSess.ChallengeExtensions.Scope)
