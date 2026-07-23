@@ -38,8 +38,11 @@ type ScopedTokenClient struct {
 }
 
 // Get reads a scoped token by name.
-func (r ScopedTokenClient) Get(ctx context.Context, id tfdriver.NameIdentifier) (*joiningv1.ScopedToken, error) {
-	scopedToken, err := r.client.GetScopedToken(ctx, id.Name, true)
+func (r ScopedTokenClient) Get(ctx context.Context, id tfdriver.ScopeQualifiedNameIdentifier) (*joiningv1.ScopedToken, error) {
+	scopedToken, err := r.client.GetScopedToken(ctx, joiningv1.GetScopedTokenRequest_builder{
+		Name:  id.Name,
+		Scope: id.Scope,
+	}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -68,6 +71,9 @@ func (r ScopedTokenClient) Upsert(ctx context.Context, id *joiningv1.ScopedToken
 }
 
 // Delete deletes a scoped token by name.
-func (r ScopedTokenClient) Delete(ctx context.Context, id tfdriver.NameIdentifier) error {
-	return trace.Wrap(r.client.DeleteScopedToken(ctx, id.Name))
+func (r ScopedTokenClient) Delete(ctx context.Context, id tfdriver.ScopeQualifiedNameIdentifier) error {
+	return trace.Wrap(r.client.DeleteScopedToken(ctx, joiningv1.DeleteScopedTokenRequest_builder{
+		Name:  id.Name,
+		Scope: id.Scope,
+	}.Build()))
 }

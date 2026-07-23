@@ -36,7 +36,10 @@ func (s *TerraformSuiteOSS) TestScopedToken() {
 	ctx := t.Context()
 
 	checkDestroyed := func(state *terraform.State) error {
-		_, err := s.client.GetScopedToken(ctx, "test-scoped-token", false)
+		_, err := s.client.GetScopedToken(ctx, joiningv1.GetScopedTokenRequest_builder{
+			Name: "test-scoped-token",
+			Scope: "/staging/aa",
+		}.Build())
 		if !trace.IsNotFound(err) {
 			return trace.Errorf("expected not found, actual: %v", err)
 		}
@@ -107,7 +110,11 @@ func (s *TerraformSuiteOSS) TestImportScopedToken() {
 	require.NoError(t, err)
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		_, err := s.client.GetScopedToken(ctx, id, true)
+		_, err := s.client.GetScopedToken(ctx, joiningv1.GetScopedTokenRequest_builder{
+			Name: id,
+			Scope: "/staging/aa",
+			WithSecret: true,
+		}.Build())
 		require.NoError(t, err)
 	}, 5*time.Second, time.Second)
 
