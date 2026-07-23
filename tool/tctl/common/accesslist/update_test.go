@@ -544,15 +544,15 @@ func TestSupportsRoleVersion(t *testing.T) {
 }
 
 func newPresetAccessListLongTerm(name string) *accesslist.AccessList {
-	reviewerRole := accesslist.RoleName(preset.RoleReviewerPrefix, name)
-	requesterRole := accesslist.RoleName(preset.RoleRequesterPrefix, name)
-	standardRole := accesslist.RoleName(standardRolePrefixName, name)
-	awsicRole := accesslist.RoleName(awsicRolePrefixName, name)
+	reviewerRole := preset.RoleName(preset.RoleReviewerPrefix, name)
+	requesterRole := preset.RoleName(preset.RoleRequesterPrefix, name)
+	standardRole := preset.RoleName(standardRolePrefixName, name)
+	awsicRole := preset.RoleName(awsicRolePrefixName, name)
 
 	al := &accesslist.AccessList{}
 	al.Metadata.Name = name
 	al.Metadata.Labels = map[string]string{
-		accesslist.AccessListPresetLabel:      string(accesslist.LongTermPresetType),
+		accesslist.AccessListPresetLabel:      string(preset.LongTermPresetType),
 		accesslist.AccessListPresetRolesLabel: strings.Join([]string{reviewerRole, requesterRole, standardRole, awsicRole}, ","),
 	}
 	al.Spec.Grants = accesslist.Grants{Roles: []string{standardRole, awsicRole}}
