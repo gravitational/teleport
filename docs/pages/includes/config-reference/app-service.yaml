@@ -26,18 +26,18 @@ app_service:
     # Entries must be plain IPv4/IPv6 addresses or canonical CIDR ranges;
     # IPv4-in-IPv6 notation (e.g. ::ffff:169.254.0.0/112), IPv6 zone
     # identifiers, and non-canonical CIDRs (host bits set) are rejected.
-    # allowed_hosts:
-    #   - 10.10.0.0/16
+    allowed_hosts:
+      - 10.10.0.0/16
 
     # Optional list of IP addresses or CIDR ranges that application targets
     # are not allowed to resolve to. When set, the Application Service blocks
     # only target dials to matching IPs. Mutually exclusive with allowed_hosts.
     # The coverage and formatting notes for allowed_hosts above apply here as
     # well.
-    # denied_hosts:
-    #   - 169.254.0.0/16
-    #   - 127.0.0.0/8
-    #   - ::1/128
+    denied_hosts:
+      - 169.254.0.0/16
+      - 127.0.0.0/8
+      - ::1/128
 
     # Matchers for dynamic application resources
     #
