@@ -1,4 +1,4 @@
-//go:build desktop_access_rdp && desktop_encoder
+//go:build desktop_access_rdp
 
 /*
  * *
