@@ -319,3 +319,10 @@ securityContext: null
 #
 # By default, this is unset.
 podSecurityContext: null
+
+# dnsConfig(object) -- sets the pod DNS configuration for any pods created by the chart.
+# See [the Kubernetes documentation](https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/#pod-dns-config)
+# for more details.
+#
+# By default, this is unset.
+dnsConfig: null
