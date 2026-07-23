@@ -3498,7 +3498,7 @@ func TestKubernetesClusterCRUD_DiscoveryService(t *testing.T) {
 		require.NoError(t, err)
 		require.Empty(t, cmp.Diff([]types.KubeCluster{eksCluster, scopedCluster}, clusters, diffopt))
 
-		clusters, err = stream.Collect(discoveryClt.RangeKubeClusters(ctx, nil, "", ""))
+		clusters, err = stream.Collect(discoveryClt.RangeKubeClusters(ctx, nil))
 		require.NoError(t, err)
 		require.Empty(t, cmp.Diff([]types.KubeCluster{eksCluster, scopedCluster}, clusters, diffopt))
 	})
@@ -3532,7 +3532,7 @@ func TestKubernetesClusterCRUD_DiscoveryService(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, clusters, 1)
 
-		clusters, err = stream.Collect(srv.Auth().RangeKubeClusters(ctx, nil, "", ""))
+		clusters, err = stream.Collect(srv.Auth().RangeKubeClusters(ctx, nil))
 		require.NoError(t, err)
 		require.Len(t, clusters, 1)
 	})

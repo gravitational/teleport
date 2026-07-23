@@ -3864,7 +3864,7 @@ func (c *Client) GetKubeCluster(ctx context.Context, req *presencepb.GetKubeClus
 		return nil, trace.BadParameter("missing kubernetes cluster name")
 	}
 
-	res, err := presencepb.NewPresenceServiceClient(c.conn).GetKubeCluster(ctx, req)
+	res, err := c.PresenceServiceClient().GetKubeCluster(ctx, req)
 	return res.GetCluster(), trace.Wrap(err)
 }
 
@@ -3896,7 +3896,7 @@ func (c *Client) ListKubernetesClusters(ctx context.Context, limit int, start st
 
 // ListKubeClusters returns a page of registered kubernetes clusters.
 func (c *Client) ListKubeClusters(ctx context.Context, req *presencepb.ListKubeClustersRequest) ([]types.KubeCluster, string, error) {
-	res, err := presencepb.NewPresenceServiceClient(c.conn).ListKubeClusters(ctx, req)
+	res, err := c.PresenceServiceClient().ListKubeClusters(ctx, req)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -3912,7 +3912,7 @@ func (c *Client) ListKubeClusters(ctx context.Context, req *presencepb.ListKubeC
 // Deprecated: Use RangeKubeClusters instead.
 // TODO (eriktate): remove in v20
 func (c *Client) RangeKubernetesClusters(ctx context.Context, start, end string) iter.Seq2[types.KubeCluster, error] {
-	kubeClient := presencepb.NewPresenceServiceClient(c.conn)
+	kubeClient := c.PresenceServiceClient()
 	pageFn := func(ctx context.Context, pageSize int, pageToken string) ([]*types.KubernetesClusterV3, string, error) {
 		res, err := kubeClient.ListKubeClusters(ctx, presencepb.ListKubeClustersRequest_builder{
 			PageSize:  int32(pageSize),
@@ -3935,8 +3935,8 @@ func (c *Client) RangeKubernetesClusters(ctx context.Context, start, end string)
 }
 
 // RangeKubeClusters returns kubernetes clusters within the range [start, end).
-func (c *Client) RangeKubeClusters(ctx context.Context, req *presencepb.ListKubeClustersRequest, start, end string) iter.Seq2[types.KubeCluster, error] {
-	kubeClient := presencepb.NewPresenceServiceClient(c.conn)
+func (c *Client) RangeKubeClusters(ctx context.Context, req *presencepb.ListKubeClustersRequest) iter.Seq2[types.KubeCluster, error] {
+	kubeClient := c.PresenceServiceClient()
 	if req == nil {
 		req = presencepb.ListKubeClustersRequest_builder{}.Build()
 	}
@@ -3948,7 +3948,7 @@ func (c *Client) RangeKubeClusters(ctx context.Context, req *presencepb.ListKube
 	}
 
 	return func(yield func(cluster types.KubeCluster, err error) bool) {
-		for cluster, err := range clientutils.RangeResources(ctx, start, end, pageFn, nil) {
+		for cluster, err := range clientutils.RangeResources(ctx, req.GetPageToken(), "", pageFn, nil) {
 			if !yield(cluster, err) {
 				return
 			}
@@ -3968,7 +3968,7 @@ func (c *Client) DeleteKubernetesCluster(ctx context.Context, name string) error
 
 // DeleteKubeCluster deletes specified kubernetes cluster resource by scope and name.
 func (c *Client) DeleteKubeCluster(ctx context.Context, req *presencepb.DeleteKubeClusterRequest) error {
-	_, err := presencepb.NewPresenceServiceClient(c.conn).DeleteKubeCluster(ctx, req)
+	_, err := c.PresenceServiceClient().DeleteKubeCluster(ctx, req)
 	return trace.Wrap(err)
 }
 

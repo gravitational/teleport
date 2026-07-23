@@ -402,7 +402,7 @@ func (m *mockAuthServer) ListKubeClusters(ctx context.Context, req *presencev1.L
 	return nil, "", nil
 }
 
-func (m *mockAuthServer) RangeKubeClusters(ctx context.Context, req *presencev1.ListKubeClustersRequest, start, end string) iter.Seq2[types.KubeCluster, error] {
+func (m *mockAuthServer) RangeKubeClusters(ctx context.Context, req *presencev1.ListKubeClustersRequest) iter.Seq2[types.KubeCluster, error] {
 	return func(yield func(types.KubeCluster, error) bool) {}
 }
 

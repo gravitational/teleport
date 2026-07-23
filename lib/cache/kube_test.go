@@ -38,7 +38,7 @@ import (
 func TestKubernetes(t *testing.T) {
 	t.Parallel()
 
-	p := newTestPack(t, ForProxy)
+	p := newTestPack(t, ForProxy, ignoreRangeEndKey())
 	t.Cleanup(p.Close)
 
 	t.Run("GetKubernetesClusters", func(t *testing.T) {
@@ -76,7 +76,9 @@ func TestKubernetes(t *testing.T) {
 			update:    p.kubernetes.UpdateKubernetesCluster,
 			deleteAll: p.kubernetes.DeleteAllKubernetesClusters,
 			Range: func(ctx context.Context, start, end string) iter.Seq2[types.KubeCluster, error] {
-				return p.kubernetes.RangeKubeClusters(ctx, nil, start, end)
+				return p.kubernetes.RangeKubeClusters(ctx, presencev1.ListKubeClustersRequest_builder{
+					PageToken: start,
+				}.Build())
 			},
 			cacheRange: cacheRangeKubeClustersWithScopeFilter(p.cache, nil),
 		})
@@ -127,7 +129,9 @@ func TestKubernetes(t *testing.T) {
 			update:    p.kubernetes.UpdateKubernetesCluster,
 			deleteAll: p.kubernetes.DeleteAllKubernetesClusters,
 			Range: func(ctx context.Context, start, end string) iter.Seq2[types.KubeCluster, error] {
-				return p.kubernetes.RangeKubeClusters(ctx, nil, start, end)
+				return p.kubernetes.RangeKubeClusters(ctx, presencev1.ListKubeClustersRequest_builder{
+					PageToken: start,
+				}.Build())
 			},
 			cacheRange: cacheRangeKubeClustersWithScopeFilter(p.cache, scopeFilter),
 		})
@@ -157,7 +161,8 @@ func cacheRangeKubeClustersWithScopeFilter(cache *Cache, scopeFilter *scopesv1.F
 	return func(ctx context.Context, startKey, endKey string) iter.Seq2[types.KubeCluster, error] {
 		return cache.RangeKubeClusters(ctx, presencev1.ListKubeClustersRequest_builder{
 			ScopeFilter: scopeFilter,
-		}.Build(), startKey, endKey)
+			PageToken:   startKey,
+		}.Build())
 	}
 }
 

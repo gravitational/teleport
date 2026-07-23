@@ -7623,7 +7623,7 @@ func (a *ScopedServerWithRoles) UpdateKubernetesCluster(ctx context.Context, clu
 
 // GetKubernetesCluster returns specified kubernetes cluster resource.
 //
-// Deprecated: Use GetKubeCluster from lib/auth/kubecluster/service.go instead.
+// Deprecated: Use GetKubeCluster from lib/auth/presence/presencev1/service.go instead.
 // TODO (eriktate): Remove in v20
 func (a *ScopedServerWithRoles) GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error) {
 	ruleCtx := a.scopedContext.RuleContext()
@@ -7659,7 +7659,7 @@ func (a *ScopedServerWithRoles) GetKubernetesClusters(ctx context.Context) (resu
 
 	out, err := iterstream.Collect(
 		iterstream.FilterMap(
-			a.authServer.RangeKubeClusters(ctx, nil, "", ""),
+			a.authServer.RangeKubeClusters(ctx, nil),
 			func(cluster types.KubeCluster) (types.KubeCluster, bool) {
 				// Filter out kube clusters user doesn't have access to.
 				if err := a.scopedContext.CheckerContext.Decision(ctx, cluster.GetScope(), func(checker *services.ScopedAccessChecker) error {
@@ -7683,7 +7683,7 @@ func (a *ScopedServerWithRoles) GetKubernetesClusters(ctx context.Context) (resu
 
 // ListKubernetesClusters returns a page of registered kubernetes clusters.
 //
-// Deprecated: Use ListKubeClusters from lib/auth/kubecluster/service.go instead.
+// Deprecated: Use ListKubeClusters from lib/auth/presence/presencev1/service.go instead.
 // TODO (eriktate): Remove in v20
 func (a *ScopedServerWithRoles) ListKubernetesClusters(ctx context.Context, limit int, start string) ([]types.KubeCluster, string, error) {
 	ruleCtx := a.scopedContext.RuleContext()
@@ -7693,7 +7693,7 @@ func (a *ScopedServerWithRoles) ListKubernetesClusters(ctx context.Context, limi
 
 	return generic.CollectPageAndCursor(
 		iterstream.FilterMap(
-			a.authServer.RangeKubeClusters(ctx, nil, start, ""),
+			a.authServer.RangeKubeClusters(ctx, nil),
 			func(cluster types.KubeCluster) (types.KubeCluster, bool) {
 				// Filter out kube clusters user doesn't have access to.
 				if err := a.scopedContext.CheckerContext.Decision(ctx, cluster.GetScope(), func(checker *services.ScopedAccessChecker) error {
@@ -7714,7 +7714,7 @@ func (a *ScopedServerWithRoles) ListKubernetesClusters(ctx context.Context, limi
 
 // DeleteKubernetesCluster removes the specified kubernetes cluster resource.
 //
-// Deprecated: Use DeleteKubeCluster from lib/auth/kubecluster/service.go instead.
+// Deprecated: Use DeleteKubeCluster from lib/auth/presence/presencev1/service.go instead.
 // TODO (eriktate): Remove in v20
 func (a *ScopedServerWithRoles) DeleteKubernetesCluster(ctx context.Context, name string) error {
 	ruleCtx := a.scopedContext.RuleContext()

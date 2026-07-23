@@ -231,17 +231,14 @@ func testBasicFlow(t *testing.T, service *KubernetesService, clusters []types.Ku
 		require.Empty(t, cmp.Diff(clusters, append(page1, page2...), diffopt))
 
 		// Range over all
-		out, err = stream.Collect(service.RangeKubeClusters(ctx, nil, "", ""))
+		out, err = stream.Collect(service.RangeKubeClusters(ctx, nil))
 		require.NoError(t, err)
 		require.Empty(t, cmp.Diff(clusters, out, diffopt))
 
-		// Range with upper bound
-		out, err = stream.Collect(service.RangeKubeClusters(ctx, nil, "", page2Start))
-		require.NoError(t, err)
-		require.Empty(t, cmp.Diff(page1, out, diffopt))
-
 		// Range with lower bound
-		out, err = stream.Collect(service.RangeKubeClusters(ctx, nil, page2Start, ""))
+		out, err = stream.Collect(service.RangeKubeClusters(ctx, presencev1.ListKubeClustersRequest_builder{
+			PageToken: page2Start,
+		}.Build()))
 		require.NoError(t, err)
 		require.Empty(t, cmp.Diff(page2, out, diffopt))
 

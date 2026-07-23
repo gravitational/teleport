@@ -73,7 +73,7 @@ func NewKubernetesService(b backend.Backend) (*KubernetesService, error) {
 
 // GetKubernetesClusters returns all kubernetes cluster resources.
 func (s *KubernetesService) GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster, error) {
-	out, err := stream.Collect(s.RangeKubeClusters(ctx, nil, "", ""))
+	out, err := stream.Collect(s.RangeKubeClusters(ctx, nil))
 
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -96,7 +96,7 @@ func (s *KubernetesService) ListKubeClusters(ctx context.Context, req *presencev
 }
 
 // RangeKubeClusters returns kubernetes clusters within the range [start, end).
-func (s *KubernetesService) RangeKubeClusters(ctx context.Context, req *presencev1.ListKubeClustersRequest, start, end string) iter.Seq2[types.KubeCluster, error] {
+func (s *KubernetesService) RangeKubeClusters(ctx context.Context, req *presencev1.ListKubeClustersRequest) iter.Seq2[types.KubeCluster, error] {
 	scopeFilter := req.GetScopeFilter()
 	if err := scopes.ValidateFilter(scopeFilter); err != nil {
 		return stream.Fail[types.KubeCluster](trace.Wrap(err))
@@ -105,7 +105,7 @@ func (s *KubernetesService) RangeKubeClusters(ctx context.Context, req *presence
 		return kc, scopes.MatchScope(scopeFilter, kc.GetScope())
 	}
 
-	return stream.FilterMap(s.svc.Resources(ctx, start, end), filterFn)
+	return stream.FilterMap(s.svc.Resources(ctx, req.GetPageToken(), ""), filterFn)
 }
 
 // GetKubeCluster returns the specified kubernetes cluster resource.

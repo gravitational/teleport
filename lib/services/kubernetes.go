@@ -37,9 +37,9 @@ type KubernetesClusterGetter interface {
 	// ListKubeClusters returns a page of registered kube clusters with the ability to apply
 	// scope filters.
 	ListKubeClusters(ctx context.Context, req *presencev1.ListKubeClustersRequest) ([]types.KubeCluster, string, error)
-	// RangeKubeClusters returns kube clusters within the range [start, end) with the ability to
-	// apply scope filters.
-	RangeKubeClusters(ctx context.Context, req *presencev1.ListKubeClustersRequest, startKey, endKey string) iter.Seq2[types.KubeCluster, error]
+	// RangeKubeClusters returns a sequence of kube clusters filtered by the given
+	// [*presencev1.ListKubeClustersRequest].
+	RangeKubeClusters(ctx context.Context, req *presencev1.ListKubeClustersRequest) iter.Seq2[types.KubeCluster, error]
 	// GetKubeCluster returns the specified kube cluster resource by scope and name.
 	GetKubeCluster(ctx context.Context, req *presencev1.GetKubeClusterRequest) (types.KubeCluster, error)
 }

@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
@@ -57,7 +58,7 @@ type Backend interface {
 	DeleteProxyServer(ctx context.Context, name string) error
 
 	GetKubeCluster(ctx context.Context, req *presencepb.GetKubeClusterRequest) (types.KubeCluster, error)
-	RangeKubeClusters(ctx context.Context, req *presencepb.ListKubeClustersRequest, startKey, endKey string) iter.Seq2[types.KubeCluster, error]
+	RangeKubeClusters(ctx context.Context, req *presencepb.ListKubeClustersRequest) iter.Seq2[types.KubeCluster, error]
 	DeleteKubeCluster(ctx context.Context, req *presencepb.DeleteKubeClusterRequest) error
 }
 
@@ -696,7 +697,7 @@ func (s *Service) ListKubeClusters(ctx context.Context, req *presencepb.ListKube
 
 	clusters, nextToken, err := generic.CollectPageAndCursor(
 		stream.FilterMap(
-			s.backend.RangeKubeClusters(ctx, req, req.GetPageToken(), ""),
+			s.backend.RangeKubeClusters(ctx, req),
 			func(cluster types.KubeCluster) (*types.KubernetesClusterV3, bool) {
 				// Filter out kube clusters user doesn't have access to.
 				if err := authContext.CheckerContext.Decision(ctx, cluster.GetScope(), func(checker *services.ScopedAccessChecker) error {
@@ -757,5 +758,18 @@ func (s *Service) DeleteKubeCluster(ctx context.Context, req *presencepb.DeleteK
 		return nil, trace.Wrap(err)
 	}
 
+	if err := s.emitter.EmitAuditEvent(ctx, &apievents.KubernetesClusterDelete{
+		Metadata: apievents.Metadata{
+			Type: events.KubernetesClusterDeleteEvent,
+			Code: events.KubernetesClusterDeleteCode,
+		},
+		UserMetadata: authz.ClientUserMetadata(ctx),
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name:  req.GetName(),
+			Scope: req.GetScope(),
+		},
+	}); err != nil {
+		s.logger.WarnContext(ctx, "Failed to emit kube cluster delete event", "error", err)
+	}
 	return presencepb.DeleteKubeClusterResponse_builder{}.Build(), nil
 }

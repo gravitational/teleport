@@ -138,7 +138,7 @@ func (s *Server) startKubeIntegrationWatchers() error {
 					ScopeFilter: scopesv1.Filter_builder{
 						Mode: scopesv1.Mode_MODE_UNSCOPED,
 					}.Build(),
-				}.Build(), "", ""))
+				}.Build()))
 				if err != nil {
 					s.Log.WarnContext(s.ctx, "Failed to get Kubernetes clusters from cache", "error", err)
 					continue

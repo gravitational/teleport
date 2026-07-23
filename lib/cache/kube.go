@@ -300,7 +300,7 @@ func (c *Cache) ListKubeClusters(ctx context.Context, req *presencev1.ListKubeCl
 }
 
 // RangeKubeClusters returns kubernetes clusters within the range [start, end).
-func (c *Cache) RangeKubeClusters(ctx context.Context, req *presencev1.ListKubeClustersRequest, startKey, endKey string) iter.Seq2[types.KubeCluster, error] {
+func (c *Cache) RangeKubeClusters(ctx context.Context, req *presencev1.ListKubeClustersRequest) iter.Seq2[types.KubeCluster, error] {
 	ctx, span := c.Tracer.Start(ctx, "cache/RangeKubeClusters")
 	defer span.End()
 	scopeFilter := req.GetScopeFilter()
@@ -325,7 +325,7 @@ func (c *Cache) RangeKubeClusters(ctx context.Context, req *presencev1.ListKubeC
 		nextToken: services.GetCursorForKubeCluster,
 	}
 
-	return lister.Range(ctx, startKey, endKey)
+	return lister.Range(ctx, req.GetPageToken(), "")
 }
 
 // GetKubeCluster returns the specified kubernetes cluster resource.
