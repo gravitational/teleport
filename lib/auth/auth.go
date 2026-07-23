@@ -8679,7 +8679,13 @@ func (a *Server) expiredReusableMFAError(ctx context.Context, err error, require
 }
 
 // verifyMFASessionData validates the stored MFA session shared by the SSO and browser MFA verify flows.
-func (a *Server) verifyMFASessionData(ctx context.Context, sessionID, username string, requiredExtensions *mfav1.ChallengeExtensions, notFoundErr error) (*services.MFASessionData, error) {
+func (a *Server) verifyMFASessionData(
+	ctx context.Context,
+	sessionID,
+	username string,
+	requiredExtensions *mfav1.ChallengeExtensions,
+	wrapNotFoundError func(error) error,
+) (*services.MFASessionData, error) {
 	mfaSess, err := a.GetMFASessionData(ctx, sessionID)
 	if err != nil {
 		if reuseErr := a.expiredReusableMFAError(ctx, err, requiredExtensions); reuseErr != nil {
