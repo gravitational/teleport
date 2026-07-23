@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 )
 
 func (process *TeleportProcess) initKubernetes() {
@@ -246,6 +247,10 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	// The kube agent terminates the user's TLS end-to-end on the relay path
+	// (RFD 0325 path D), so it advertises the teleport-kube-1.1 in-band-MFA
+	// capability marker ahead of h2/http-1.1.
+	tlsConfig.NextProtos = []string{string(common.ProtocolKube), string(common.ProtocolHTTP2), string(common.ProtocolHTTP)}
 
 	// asyncEmitter makes sure that sessions do not block
 	// in case if connections are slow

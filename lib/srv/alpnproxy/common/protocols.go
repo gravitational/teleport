@@ -154,7 +154,6 @@ var SupportedProtocols = WithPingProtocols(
 		ProtocolProxyGRPCSecure,
 		ProtocolMCP,
 		ProtocolAppHTTPS,
-		ProtocolKube,
 	}, DatabaseProtocols...),
 )
 
