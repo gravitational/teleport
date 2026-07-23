@@ -8686,7 +8686,7 @@ func (a *Server) verifyMFASessionData(ctx context.Context, sessionID, username s
 			return nil, reuseErr
 		}
 		if trace.IsNotFound(err) {
-			return nil, notFoundErr
+			return nil, trace.Wrap(notFoundErr)
 		}
 		return nil, trace.Wrap(err)
 	}
