@@ -587,15 +587,15 @@ func (q *sqliteQueue) migrateOrphanDB(ctx context.Context, db *sql.DB, name stri
 
 func (q *sqliteQueue) migrateOrphanQueue(ctx context.Context, orphan *sql.DB, name string) error {
 	return q.migrateOrphanTable(ctx, orphan, name, auditQueueTable,
-		"SELECT id, payload, attempts FROM audit_queue WHERE id > ? ORDER BY id ASC LIMIT ?",
-		"INSERT INTO audit_queue (payload, attempts) VALUES (?, ?)",
+		"SELECT id, payload, format, event_count, enqueued_at, attempts FROM audit_queue WHERE id > ? ORDER BY id ASC LIMIT ?",
+		"INSERT INTO audit_queue (payload, format, event_count, enqueued_at, attempts) VALUES (?, ?, ?, ?, ?)",
 	)
 }
 
 func (q *sqliteQueue) migrateOrphanDeadLetter(ctx context.Context, orphan *sql.DB, name string) error {
 	return q.migrateOrphanTable(ctx, orphan, name, auditDeadLetterTable,
-		"SELECT id, payload, failed_at FROM audit_dead_letter WHERE id > ? ORDER BY id ASC LIMIT ?",
-		"INSERT INTO audit_dead_letter (payload, failed_at) VALUES (?, ?)",
+		"SELECT id, payload, format, event_count, enqueued_at, failed_at FROM audit_dead_letter WHERE id > ? ORDER BY id ASC LIMIT ?",
+		"INSERT INTO audit_dead_letter (payload, format, event_count, enqueued_at, failed_at) VALUES (?, ?, ?, ?, ?)",
 	)
 }
 
@@ -727,8 +727,8 @@ func (q *sqliteQueue) insertMigratedBatch(ctx context.Context, insertSQL string,
 
 func (q *sqliteQueue) migrateOrphanCorruptEvents(ctx context.Context, orphan *sql.DB, name string) error {
 	return q.migrateOrphanTable(ctx, orphan, name, corruptEventsTable,
-		"SELECT id, payload, error, source, failed_at FROM corrupt_events WHERE id > ? ORDER BY id ASC LIMIT ?",
-		"INSERT INTO corrupt_events (payload, error, source, failed_at) VALUES (?, ?, ?, ?)",
+		"SELECT id, payload, format, enqueued_at, error, source, failed_at FROM corrupt_events WHERE id > ? ORDER BY id ASC LIMIT ?",
+		"INSERT INTO corrupt_events (payload, format, enqueued_at, error, source, failed_at) VALUES (?, ?, ?, ?, ?, ?)",
 	)
 }
 

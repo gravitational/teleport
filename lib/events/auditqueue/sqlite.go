@@ -62,6 +62,16 @@ const (
 	busyTimeoutMillis = 5000
 )
 
+const (
+	// formatPlaintext marks a row whose payload is a marshaled
+	// apievents.AuditEventBatch.
+	formatPlaintext = 0
+	// formatAgeV1 marks a row whose payload is an age encrypted
+	// apievents.AuditEventBatch. Such rows cannot be decrypted by this
+	// process because the private keys live on the auth server.
+	formatAgeV1 = 1
+)
+
 // A note on `AUTOINCREMENT`, to quote the SQLite docs:
 // > The AUTOINCREMENT keyword imposes extra CPU, memory, disk space, and disk
 // > I/O overhead and should be avoided if not strictly needed.
@@ -76,15 +86,21 @@ const (
 // guard against potential future changes.
 const schemaSQL = `
 CREATE TABLE IF NOT EXISTS audit_queue (
-    id       INTEGER PRIMARY KEY AUTOINCREMENT,
-    payload  BLOB    NOT NULL,
-    attempts INTEGER NOT NULL DEFAULT 0
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    payload     BLOB    NOT NULL,
+    format      INTEGER NOT NULL,
+    event_count INTEGER NOT NULL,
+    enqueued_at INTEGER NOT NULL,
+    attempts    INTEGER NOT NULL DEFAULT 0
 ) STRICT;
 
 CREATE TABLE IF NOT EXISTS audit_dead_letter (
-    id        INTEGER PRIMARY KEY AUTOINCREMENT,
-    payload   BLOB    NOT NULL,
-    failed_at INTEGER NOT NULL
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    payload     BLOB    NOT NULL,
+    format      INTEGER NOT NULL,
+    event_count INTEGER NOT NULL,
+    enqueued_at INTEGER NOT NULL,
+    failed_at   INTEGER NOT NULL
 ) STRICT;
 
 CREATE INDEX IF NOT EXISTS idx_dead_letter_failed_at ON audit_dead_letter(failed_at);
@@ -101,22 +117,25 @@ CREATE TABLE IF NOT EXISTS teleport_info (
 -- why this is the only table that requires AUTOINCREMENT.
 -- See: https://sqlite.org/autoinc.html
 CREATE TABLE IF NOT EXISTS corrupt_events (
-    id        INTEGER PRIMARY KEY AUTOINCREMENT,
-    payload   BLOB    NOT NULL,
-    error     TEXT    NOT NULL,
-    source    TEXT    NOT NULL,
-    failed_at INTEGER NOT NULL
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    payload     BLOB    NOT NULL,
+    format      INTEGER NOT NULL,
+    enqueued_at INTEGER NOT NULL,
+    error       TEXT    NOT NULL,
+    source      TEXT    NOT NULL,
+    failed_at   INTEGER NOT NULL
 ) STRICT;
 
 CREATE INDEX IF NOT EXISTS idx_corrupt_events_failed_at ON corrupt_events(failed_at);
 `
 
 // writeRequest is a single Enqueue waiting on a commit result. The writer
-// goroutine reads requests off the input channel, commits a batch in one
-// SQLite transaction, and signals each caller on its resp channel.
+// goroutine reads requests off the input channel, commits a batch as one
+// sealed row in one SQLite transaction, and signals each caller on its resp
+// channel.
 type writeRequest struct {
-	payload []byte
-	resp    chan error
+	oneOf *apievents.OneOf
+	resp  chan error
 }
 
 type sweepRequest struct {
@@ -148,6 +167,7 @@ type sqliteQueue struct {
 	deadLetterSweepInterval time.Duration
 	deadLetterTTL           time.Duration
 	synchronous             SynchronousMode
+	sealer                  Sealer
 
 	// recoveryWatermark is the highest corrupt_events id that
 	// recoverCorruptEvents has already examined in this process. It only ever
@@ -210,6 +230,7 @@ func newBaseQueue(db *sql.DB, cfg Config) (*sqliteQueue, error) {
 		deadLetterSweepInterval: deadLetterSweepInterval,
 		deadLetterTTL:           deadLetterTTL,
 		synchronous:             cfg.Synchronous,
+		sealer:                  cfg.Sealer,
 		deadLetterKick:          make(chan struct{}, 1),
 	}
 
@@ -231,19 +252,14 @@ func newBaseQueue(db *sql.DB, cfg Config) (*sqliteQueue, error) {
 // context cancellation causes both this function and writeLoop to return before
 // the commit completes.
 func (q *sqliteQueue) Enqueue(event apievents.AuditEvent) error {
-	// Serialize the event to bytes.
 	oneOf, err := apievents.ToOneOf(event)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	payload, err := oneOf.Marshal()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	req := writeRequest{
-		payload: payload,
-		resp:    make(chan error, 1),
+		oneOf: oneOf,
+		resp:  make(chan error, 1),
 	}
 
 	// Send the event to the write queue. The channel `toBeWritten` will be
@@ -317,30 +333,32 @@ func (q *sqliteQueue) writeLoop() {
 }
 
 func (q *sqliteQueue) commitBatch(batch []writeRequest) error {
-	tx, err := q.db.BeginTx(q.ctx, nil)
-	if err != nil {
-		return mapCommitError(err)
-	}
-
-	// Preferred way to ensure we roll back the transaction if there is an error
-	// This will be a no-op if the transaction succeeds.
-	//
-	// See: https://go.dev/doc/database/execute-transactions#example
-	defer tx.Rollback()
-
-	stmt, err := tx.PrepareContext(q.ctx, "INSERT INTO audit_queue (payload) VALUES (?)")
-	if err != nil {
-		return mapCommitError(err)
-	}
-	defer stmt.Close()
-
+	events := make([]*apievents.OneOf, 0, len(batch))
 	for _, req := range batch {
-		if _, err := stmt.ExecContext(q.ctx, req.payload); err != nil {
-			return mapCommitError(err)
+		events = append(events, req.oneOf)
+	}
+	payload, err := (&apievents.AuditEventBatch{Events: events}).Marshal()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	format := formatPlaintext
+	if q.sealer != nil {
+		sealedPayload, sealed, err := q.sealer.Seal(q.ctx, payload)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if sealed {
+			payload = sealedPayload
+			format = formatAgeV1
 		}
 	}
 
-	return mapCommitError(tx.Commit())
+	_, err = q.db.ExecContext(q.ctx,
+		"INSERT INTO audit_queue (payload, format, event_count, enqueued_at) VALUES (?, ?, ?, ?)",
+		payload, format, len(batch), time.Now().Unix(),
+	)
+	return mapCommitError(err)
 }
 
 func mapCommitError(err error) error {
@@ -541,8 +559,8 @@ func isMainQueueEmpty(db *sql.DB) (bool, error) {
 }
 
 const statsQuery = `SELECT
-	(SELECT COUNT(*) FROM audit_queue),
-	(SELECT COUNT(*) FROM audit_dead_letter)`
+	(SELECT COALESCE(SUM(event_count), 0) FROM audit_queue),
+	(SELECT COALESCE(SUM(event_count), 0) FROM audit_dead_letter)`
 
 // Stats reports the current depth of the queue: the number of events pending in
 // the main queue and the number in the dead-letter queue.
@@ -575,7 +593,7 @@ func (q *sqliteQueue) handleDeliveryFailures(ctx context.Context, items []Item, 
 			"max_attempts", q.maxAttempts,
 		)
 	}
-	retryTotal.Add(float64(len(failed) - promoted))
+	retryTotal.Add(float64(countEvents(failed) - promoted))
 }
 
 // itemsNotIn returns the subset of items from `all` that are not found in
@@ -614,7 +632,7 @@ func (q *sqliteQueue) processFailedDeliveries(ctx context.Context, failed []Item
 	}
 
 	rows, err := tx.QueryContext(ctx,
-		"UPDATE audit_queue SET attempts = attempts + 1 WHERE id IN ("+placeholders(len(ids))+") RETURNING id, attempts",
+		"UPDATE audit_queue SET attempts = attempts + 1 WHERE id IN ("+placeholders(len(ids))+") RETURNING id, attempts, event_count",
 		ids...,
 	)
 	if err != nil {
@@ -623,21 +641,23 @@ func (q *sqliteQueue) processFailedDeliveries(ctx context.Context, failed []Item
 	defer rows.Close()
 
 	var exhaustedEventIDs []any
+	var exhaustedEventCount int
 	for rows.Next() {
 		var id int64
-		var attempts int
-		if err := rows.Scan(&id, &attempts); err != nil {
+		var attempts, eventCount int
+		if err := rows.Scan(&id, &attempts, &eventCount); err != nil {
 			return 0, trace.Wrap(err)
 		}
 		if attempts >= q.maxAttempts {
 			exhaustedEventIDs = append(exhaustedEventIDs, id)
+			exhaustedEventCount += eventCount
 		}
 	}
 	if err := rows.Err(); err != nil {
 		return 0, trace.Wrap(err)
 	}
 
-	// If no events have exhausted their attempts, then we can skip the rest of
+	// If no batches have exhausted their attempts, then we can skip the rest of
 	// the function.
 	if len(exhaustedEventIDs) == 0 {
 		return 0, trace.Wrap(tx.Commit())
@@ -651,8 +671,8 @@ func (q *sqliteQueue) processFailedDeliveries(ctx context.Context, failed []Item
 	insertArgs = append(insertArgs, time.Now().Unix())
 	insertArgs = append(insertArgs, exhaustedEventIDs...)
 	if _, err := tx.ExecContext(ctx,
-		"INSERT INTO audit_dead_letter (payload, failed_at) "+
-			"SELECT payload, ? FROM audit_queue WHERE id IN ("+exhaustedPlaceholders+")",
+		"INSERT INTO audit_dead_letter (payload, format, event_count, enqueued_at, failed_at) "+
+			"SELECT payload, format, event_count, enqueued_at, ? FROM audit_queue WHERE id IN ("+exhaustedPlaceholders+")",
 		insertArgs...,
 	); err != nil {
 		return 0, trace.Wrap(err)
@@ -665,7 +685,7 @@ func (q *sqliteQueue) processFailedDeliveries(ctx context.Context, failed []Item
 		return 0, trace.Wrap(err)
 	}
 
-	return len(exhaustedEventIDs), trace.Wrap(tx.Commit())
+	return exhaustedEventCount, trace.Wrap(tx.Commit())
 }
 
 // deadLetterSweepLoop periodically re-attempts delivery of dead-letter events
@@ -766,7 +786,7 @@ func (q *sqliteQueue) maxDeadLetterID() (int64, error) {
 
 func (q *sqliteQueue) fetchDeadLetterRange(afterID, maxID int64, limit int) ([]Item, error) {
 	rows, err := q.db.QueryContext(q.ctx,
-		"SELECT id, payload FROM audit_dead_letter WHERE id > ? AND id <= ? ORDER BY id ASC LIMIT ?",
+		"SELECT id, payload, format, enqueued_at FROM audit_dead_letter WHERE id > ? AND id <= ? ORDER BY id ASC LIMIT ?",
 		afterID, maxID, limit)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -864,15 +884,18 @@ func (q *sqliteQueue) recoverCorruptEvents() {
 
 		var recovered []recoveredEvent
 		for _, r := range batch {
-			var oneOf apievents.OneOf
-			if err := oneOf.Unmarshal(r.payload); err != nil {
+			// Sealed rows cannot be validated without the decryption keys.
+			// Leave them quarantined until their TTL expires.
+			if r.format != formatPlaintext {
 				continue
 			}
-			if _, err := apievents.FromOneOf(oneOf); err != nil {
+			events, err := decodeBatch(r.payload)
+			if err != nil {
 				continue
 			}
-			// The event deserializes, so it is no longer corrupt and can be
+			// The batch deserializes, so it is no longer corrupt and can be
 			// re-sent.
+			r.eventCount = len(events)
 			recovered = append(recovered, r)
 		}
 		if len(recovered) > 0 {
@@ -888,8 +911,12 @@ func (q *sqliteQueue) recoverCorruptEvents() {
 				// rather than skipped until the next process restart.
 				return
 			}
-			corruptRecovered.Add(float64(len(recovered)))
-			total += len(recovered)
+			var recoveredEvents int
+			for _, r := range recovered {
+				recoveredEvents += r.eventCount
+			}
+			corruptRecovered.Add(float64(recoveredEvents))
+			total += recoveredEvents
 		}
 		// Advance only after the batch is fully handled.
 		q.recoveryWatermark = batch[len(batch)-1].id
@@ -903,13 +930,16 @@ func (q *sqliteQueue) recoverCorruptEvents() {
 }
 
 type recoveredEvent struct {
-	id      int64
-	payload []byte
+	id         int64
+	payload    []byte
+	format     int
+	enqueuedAt int64
+	eventCount int
 }
 
 func fetchCorruptForRecovery(ctx context.Context, db *sql.DB, afterID int64, limit int) ([]recoveredEvent, error) {
 	rows, err := db.QueryContext(ctx,
-		"SELECT id, payload FROM corrupt_events WHERE id > ? ORDER BY id ASC LIMIT ?", afterID, limit)
+		"SELECT id, payload, format, enqueued_at FROM corrupt_events WHERE id > ? ORDER BY id ASC LIMIT ?", afterID, limit)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -917,7 +947,7 @@ func fetchCorruptForRecovery(ctx context.Context, db *sql.DB, afterID int64, lim
 	var out []recoveredEvent
 	for rows.Next() {
 		var r recoveredEvent
-		if err := rows.Scan(&r.id, &r.payload); err != nil {
+		if err := rows.Scan(&r.id, &r.payload, &r.format, &r.enqueuedAt); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		out = append(out, r)
@@ -925,8 +955,8 @@ func fetchCorruptForRecovery(ctx context.Context, db *sql.DB, afterID int64, lim
 	return out, trace.Wrap(rows.Err())
 }
 
-// reinjectRecovered atomically moves recovered events back into audit_queue and
-// removes them from corrupt_events.
+// reinjectRecovered atomically moves recovered batches back into audit_queue
+// and removes them from corrupt_events.
 func (q *sqliteQueue) reinjectRecovered(events []recoveredEvent) error {
 	tx, err := q.db.BeginTx(q.ctx, nil)
 	if err != nil {
@@ -934,7 +964,8 @@ func (q *sqliteQueue) reinjectRecovered(events []recoveredEvent) error {
 	}
 	defer tx.Rollback()
 
-	insertStmt, err := tx.PrepareContext(q.ctx, "INSERT INTO audit_queue (payload) VALUES (?)")
+	insertStmt, err := tx.PrepareContext(q.ctx,
+		"INSERT INTO audit_queue (payload, format, event_count, enqueued_at) VALUES (?, ?, ?, ?)")
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -942,7 +973,7 @@ func (q *sqliteQueue) reinjectRecovered(events []recoveredEvent) error {
 
 	ids := make([]int64, 0, len(events))
 	for _, e := range events {
-		if _, err := insertStmt.ExecContext(q.ctx, e.payload); err != nil {
+		if _, err := insertStmt.ExecContext(q.ctx, e.payload, e.format, e.eventCount, e.enqueuedAt); err != nil {
 			return trace.Wrap(err)
 		}
 		ids = append(ids, e.id)
@@ -963,41 +994,83 @@ func (q *sqliteQueue) ack(items []Item) error {
 	if err == nil {
 		// Once 'ack' succeeds, we have finished the entire end-to-end of
 		// delivering these events.
-		eventsDelivered.Add(float64(len(items)))
+		eventsDelivered.Add(float64(countEvents(items)))
 	}
 	return trace.Wrap(err)
+}
+
+// countEvents returns the total number of events across the given batches.
+func countEvents(items []Item) int {
+	var n int
+	for _, item := range items {
+		n += len(item.Events)
+	}
+	return n
 }
 
 // corruptRow is a queue row whose payload failed to deserialize. Such rows are
 // moved to the corrupt_events table so they do not clog the queue.
 type corruptRow struct {
-	id      int64
-	payload []byte
-	err     error
+	id         int64
+	payload    []byte
+	format     int
+	enqueuedAt int64
+	err        error
+}
+
+func decodeBatch(payload []byte) ([]apievents.AuditEvent, error) {
+	var batch apievents.AuditEventBatch
+	if err := batch.Unmarshal(payload); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	events := make([]apievents.AuditEvent, 0, len(batch.Events))
+	for _, oneOf := range batch.Events {
+		event, err := apievents.FromOneOf(*oneOf)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		events = append(events, event)
+	}
+	return events, nil
 }
 
 func scanItems(rows *sql.Rows) (items []Item, corrupt []corruptRow, err error) {
 	defer rows.Close()
 	for rows.Next() {
 		var (
-			id      int64
-			payload []byte
+			id         int64
+			payload    []byte
+			format     int
+			enqueuedAt int64
 		)
-		if err := rows.Scan(&id, &payload); err != nil {
+		if err := rows.Scan(&id, &payload, &format, &enqueuedAt); err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
 
-		var oneOf apievents.OneOf
-		if err := oneOf.Unmarshal(payload); err != nil {
-			corrupt = append(corrupt, corruptRow{id: id, payload: payload, err: err})
+		if format != formatPlaintext {
+			corrupt = append(corrupt, corruptRow{
+				id:         id,
+				payload:    payload,
+				format:     format,
+				enqueuedAt: enqueuedAt,
+				err:        trace.Errorf("payload format %d cannot be decoded by this process", format),
+			})
 			continue
 		}
-		event, err := apievents.FromOneOf(oneOf)
+
+		events, err := decodeBatch(payload)
 		if err != nil {
-			corrupt = append(corrupt, corruptRow{id: id, payload: payload, err: err})
+			row := corruptRow{
+				id:         id,
+				payload:    payload,
+				format:     format,
+				enqueuedAt: enqueuedAt,
+				err:        err,
+			}
+			corrupt = append(corrupt, row)
 			continue
 		}
-		items = append(items, Item{id: id, Event: event})
+		items = append(items, Item{id: id, Events: events})
 	}
 	return items, corrupt, trace.Wrap(rows.Err())
 }
@@ -1019,7 +1092,7 @@ func quarantineCorrupt(ctx context.Context, db *sql.DB, sourceTable string, corr
 	defer tx.Rollback()
 
 	insertStmt, err := tx.PrepareContext(ctx,
-		"INSERT INTO corrupt_events (payload, error, source, failed_at) VALUES (?, ?, ?, ?)")
+		"INSERT INTO corrupt_events (payload, format, enqueued_at, error, source, failed_at) VALUES (?, ?, ?, ?, ?, ?)")
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1028,7 +1101,7 @@ func quarantineCorrupt(ctx context.Context, db *sql.DB, sourceTable string, corr
 	ids := make([]int64, 0, len(corrupt))
 	failedAt := time.Now().Unix()
 	for _, c := range corrupt {
-		if _, err := insertStmt.ExecContext(ctx, c.payload, c.err.Error(), sourceTable, failedAt); err != nil {
+		if _, err := insertStmt.ExecContext(ctx, c.payload, c.format, c.enqueuedAt, c.err.Error(), sourceTable, failedAt); err != nil {
 			return trace.Wrap(err)
 		}
 		ids = append(ids, c.id)
@@ -1062,13 +1135,14 @@ func handleCorrupt(ctx context.Context, db *sql.DB, sourceTable string, corrupt 
 	)
 }
 
-// fetchDB reads up to `limit` oldest items from the table `audit_queue`.
+// fetchDB reads up to `limit` oldest batches from the table `audit_queue`.
 func fetchDB(ctx context.Context, db *sql.DB, limit int) ([]Item, error) {
 	if limit <= 0 {
 		return nil, nil
 	}
 	rows, err := db.QueryContext(ctx,
-		"SELECT id, payload FROM audit_queue ORDER BY id ASC LIMIT ?", limit)
+		"SELECT id, payload, format, enqueued_at FROM audit_queue ORDER BY id ASC LIMIT ?",
+		limit)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

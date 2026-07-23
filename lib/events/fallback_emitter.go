@@ -175,19 +175,28 @@ func (f *FallbackEmitter) fallbackToQueue(ctx context.Context, primaryErr error,
 	return nil
 }
 
-// deliver is the queue.Run handler. It emits queued events to the primary
-// backend and returns the subset that were successfully delivered.
+// deliver is the queue.Run handler. It emits queued batches to the primary
+// backend and returns the subset that were fully delivered.
 func (f *FallbackEmitter) deliver(ctx context.Context, items []auditqueue.Item) []auditqueue.Item {
 	var delivered []auditqueue.Item
 	for _, item := range items {
 		if ctx.Err() != nil {
 			return delivered
 		}
-		if err := f.cfg.Primary.EmitAuditEvent(ctx, item.Event); err != nil {
-			slog.ErrorContext(ctx, "Failed to re-emit queued audit event.", "error", err)
-			continue
+		batchDelivered := true
+		for _, event := range item.Events {
+			if ctx.Err() != nil {
+				return delivered
+			}
+			if err := f.cfg.Primary.EmitAuditEvent(ctx, event); err != nil {
+				slog.ErrorContext(ctx, "Failed to re-emit queued audit event.", "error", err)
+				batchDelivered = false
+				break
+			}
 		}
-		delivered = append(delivered, item)
+		if batchDelivered {
+			delivered = append(delivered, item)
+		}
 	}
 	return delivered
 }

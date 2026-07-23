@@ -19,6 +19,8 @@ package recordingencryption
 import (
 	"bytes"
 	"context"
+	"crypto"
+	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
 	"io"
@@ -105,6 +107,24 @@ func (u *testKeyUnwrapper) UnwrapKey(ctx context.Context, in UnwrapInput) ([]byt
 	return fileKey, trace.Wrap(err)
 }
 
+type auditQueueTestIdentity struct {
+	key *rsa.PrivateKey
+}
+
+func (i *auditQueueTestIdentity) Unwrap(stanzas []*age.Stanza) ([]byte, error) {
+	for _, stanza := range stanzas {
+		if stanza.Type != AuditQueueStanza {
+			continue
+		}
+		fileKey, err := i.key.Decrypt(rand.Reader, stanza.Body, &rsa.OAEPOptions{Hash: crypto.SHA256})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return fileKey, nil
+	}
+	return nil, age.ErrIncorrectIdentity
+}
+
 func TestNewAuditQueueSealer(t *testing.T) {
 	ctx := t.Context()
 
@@ -156,7 +176,7 @@ func requireRecipientKey(t *testing.T, recipients []age.Recipient, pubKeyDER []b
 	require.Len(t, recipients, 1)
 	parsed, err := x509.ParsePKIXPublicKey(pubKeyDER)
 	require.NoError(t, err)
-	recipient, ok := recipients[0].(*RecordingRecipient)
+	recipient, ok := recipients[0].(*AuditQueueRecipient)
 	require.True(t, ok)
 	require.True(t, recipient.PublicKey.Equal(parsed.(*rsa.PublicKey)))
 }
@@ -225,12 +245,14 @@ func TestAuditQueueSealerRefresh(t *testing.T) {
 		require.True(t, sealed)
 		require.NotEqual(t, plaintext, payload)
 
-		identity := NewRecordingIdentity(ctx, &testKeyUnwrapper{key: key})
-		reader, err := age.Decrypt(bytes.NewReader(payload), identity)
+		reader, err := age.Decrypt(bytes.NewReader(payload), &auditQueueTestIdentity{key: key})
 		require.NoError(t, err)
 		decrypted, err := io.ReadAll(reader)
 		require.NoError(t, err)
 		require.Equal(t, plaintext, decrypted)
+
+		_, err = age.Decrypt(bytes.NewReader(payload), NewRecordingIdentity(ctx, &testKeyUnwrapper{key: key}))
+		require.Error(t, err)
 	})
 
 	t.Run("seal fails before the first refresh", func(t *testing.T) {

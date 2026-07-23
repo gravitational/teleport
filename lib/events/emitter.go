@@ -89,6 +89,7 @@ func NewAsyncEmitter(cfg AsyncEmitterConfig) (*AsyncEmitter, error) {
 	var queue auditqueue.Queue
 	if cfg.EnableAuditQueue {
 		var err error
+		cfg.AuditQueueCfg.Sealer = cfg.Sealer
 		queue, err = makeQueue(cfg.DataDir, cfg.AuditQueueCfg, cfg.AuditQueueBackends)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -172,11 +173,11 @@ func (a *AsyncEmitter) Close() error {
 	a.cancel()
 	a.wg.Wait()
 	var errs []error
-	if a.cfg.Sealer != nil {
-		errs = append(errs, a.cfg.Sealer.Close())
-	}
 	if a.queue != nil {
 		errs = append(errs, a.queue.Close())
+	}
+	if a.cfg.Sealer != nil {
+		errs = append(errs, a.cfg.Sealer.Close())
 	}
 	return trace.NewAggregate(errs...)
 }
@@ -224,38 +225,59 @@ func (a *AsyncEmitter) forward() {
 }
 
 // deliver is the handler function passed to queue.Run. It must return a list of
-// all of the events it was able to successfully deliver when forwarding the
-// event.
+// the items it was able to successfully deliver.
 func (a *AsyncEmitter) deliver(ctx context.Context, items []auditqueue.Item) []auditqueue.Item {
-	// Fast path: if the inner emitter supports the batch interface, then emit
-	// a batch of events.
-	if be, ok := a.cfg.Inner.(apievents.BatchEmitter); ok {
-		events := make([]apievents.AuditEvent, 0, len(items))
+	batchEmitter, _ := a.cfg.Inner.(apievents.BatchEmitter)
+
+	if batchEmitter != nil && len(items) > 0 {
+		var events []apievents.AuditEvent
 		for _, item := range items {
-			events = append(events, item.Event)
+			events = append(events, item.Events...)
 		}
-		if err := be.EmitAuditEvents(ctx, events); err == nil {
+		err := batchEmitter.EmitAuditEvents(ctx, events)
+		if err == nil {
 			return items
-		} else if ctx.Err() != nil {
-			return nil
-		} else {
-			slog.WarnContext(ctx, "Failed to emit audit events as a batch, falling back to per-event delivery.", "error", err)
 		}
+		if ctx.Err() != nil {
+			return nil
+		}
+		slog.WarnContext(ctx, "Failed to emit audit events as a single request, falling back to per-batch delivery.", "error", err)
 	}
 
-	// Slow path: emit one event at a time.
 	var successfullyDelivered []auditqueue.Item
 	for _, item := range items {
 		if ctx.Err() != nil {
 			return successfullyDelivered
 		}
-		if err := a.cfg.Inner.EmitAuditEvent(ctx, item.Event); err != nil {
-			slog.ErrorContext(ctx, "Failed to emit audit event.", "error", err)
-			continue
+		if a.deliverBatch(ctx, batchEmitter, item) {
+			successfullyDelivered = append(successfullyDelivered, item)
 		}
-		successfullyDelivered = append(successfullyDelivered, item)
 	}
 	return successfullyDelivered
+}
+
+func (a *AsyncEmitter) deliverBatch(ctx context.Context, batchEmitter apievents.BatchEmitter, item auditqueue.Item) bool {
+	if batchEmitter != nil {
+		err := batchEmitter.EmitAuditEvents(ctx, item.Events)
+		if err == nil {
+			return true
+		}
+		if ctx.Err() != nil {
+			return false
+		}
+		slog.WarnContext(ctx, "Failed to emit audit events as a batch, falling back to per-event delivery.", "error", err)
+	}
+
+	for _, event := range item.Events {
+		if ctx.Err() != nil {
+			return false
+		}
+		if err := a.cfg.Inner.EmitAuditEvent(ctx, event); err != nil {
+			slog.ErrorContext(ctx, "Failed to emit audit event.", "error", err)
+			return false
+		}
+	}
+	return true
 }
 
 // EmitAuditEvent emits audit event without blocking the caller. It will start
