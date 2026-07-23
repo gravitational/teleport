@@ -411,7 +411,7 @@ func validatePendingCSRRequest(resource *subcav1.PendingCSRRequest) error {
 	case resource.GetSubKind() != "":
 		return trace.BadParameter("invalid sub_kind: %q (sub_kind not supported)", resource.GetSubKind())
 	case resource.GetVersion() != types.V1:
-		return trace.BadParameter("invalid or unsupported version: %q)", resource.GetVersion())
+		return trace.BadParameter("invalid or unsupported version: %q", resource.GetVersion())
 	case resource.GetMetadata().GetName() == "":
 		return trace.BadParameter("metadata.name required")
 	case !resource.GetMetadata().HasExpires():
