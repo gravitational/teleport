@@ -86,6 +86,15 @@ func Test_filterCAEvent(t *testing.T) {
 			},
 		},
 		{
+			name: "valid OpenSSH CA rotation",
+			event: types.Event{
+				Type: types.OpPut,
+				Resource: createCertAuthority(t, func(spec *types.CertAuthoritySpecV2) {
+					spec.Type = "openssh"
+				}),
+			},
+		},
+		{
 			name: "wrong type",
 			event: types.Event{
 				Type:     types.OpDelete,
