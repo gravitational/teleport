@@ -8697,7 +8697,8 @@ func (a *Server) verifyMFASessionData(ctx context.Context, sessionID, username s
 	if requiredExtensions.Scope != mfaSess.ChallengeExtensions.Scope {
 		return nil, trace.AccessDenied("required scope %q is not satisfied by the given MFA session with scope %q", requiredExtensions.Scope, mfaSess.ChallengeExtensions.Scope)
 	}
-	if requiredExtensions.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_NO && mfaSess.ChallengeExtensions.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES {
+	if requiredExtensions.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_NO &&
+		mfaSess.ChallengeExtensions.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES {
 		return nil, trace.AccessDenied("the given MFA session allows reuse, but reuse is not permitted in this context")
 	}
 	return mfaSess, nil
