@@ -8,7 +8,7 @@ description: Use when reviewing who can access which resources in a Teleport clu
 This skill helps you answer **who can reach which resources, how, and whether
 that access is actually used** with `tctl access-review`. The command takes a
 `SELECT … FROM access_path` query that scopes the identities to review and
-returns, per `(identity, resource)`, the resolved access level, the grantor
+returns, per `(identity, resource)`, the resolved access level, the grant
 backing it, the grant path counts, and — over a time window — how often the
 access was used and when it was last used.
 
@@ -30,7 +30,8 @@ before interpreting JSON or building `jq`.
 ## Prerequisites
 
 `tctl access-review` requires Teleport Identity Security with Access Graph.
-Activity columns (`--from`/`--to`) additionally require Identity Activity
+Activity columns (shown by default over a 24h window; widen with `--from`/`--to`,
+or skip the lookup with `--no-activity`) additionally require Identity Activity
 Center. The user needs permission to query Access Graph.
 
 ### Locate `tctl` and `tsh`
@@ -63,9 +64,10 @@ $TCTL access-review --from 90d \
   --query "SELECT * FROM access_path WHERE resource ILIKE 'prod-db%'" --format json
 ```
 
-JSON/YAML output is `{identities, warnings}`, identity-centric: each identity
-carries the resources it can reach with the resolved `level`, `grantors`,
-`grantor_counts`, and (with a window) `activity`. Read
+JSON/YAML output is `{identities, warnings}` (plus a top-level
+`activity_unavailable` when the activity lookup can't run), identity-centric: each identity
+carries the resources it can reach with the resolved `level`, `granted_by`,
+`grant_counts`, and (with a window) `activity`. Read
 [SCHEMA.md](references/SCHEMA.md) for field meanings and the text-table columns
 before interpreting the output.
 
@@ -102,9 +104,9 @@ see [QUERY.md](references/QUERY.md).
   directly. Activity, by contrast, is **path-agnostic** — a returned pair's
   `activity` count is total usage — so a list-scoped `0`/`never` is a real
   "unused". But **"unused" is not "safe to de-list"**: the same resource is often
-  granted by other paths (`grantor_counts` shows how many grants back each level),
+  granted by other paths (`grant_counts` shows how many grants back each level),
   so recertifying an access list requires the cross-path follow-up to enumerate
-  every grantor before any "revoke" conclusion. See
+  every grant before any "revoke" conclusion. See
   [QUERY.md](references/QUERY.md) and [EXPERIENCE.md](references/EXPERIENCE.md).
 - **The output may be truncated before you see it.** Even under `--limit`, the
   JSON is large, and the command runner may cut it off — so the rows on screen

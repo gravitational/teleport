@@ -7,8 +7,8 @@
 #
 # The mock mirrors the real command rather than policing flags, so the evals can
 # assert on how the skill invokes it:
-#   * Activity columns exist only when --from is passed, per the real
-#     `showActivity` logic; without it we strip every activity field and warning.
+#   * Activity is requested by default; --no-activity skips the IAC lookup, so we
+#     then strip every activity field and the activity-unavailable message.
 #   * Output is always JSON (we only model the JSON path), regardless of --format.
 
 import json
@@ -20,7 +20,7 @@ args = sys.argv[1:]
 
 
 def read(filename, *, with_activity):
-    """Print a fixture, stripping activity fields and warnings when no window was requested."""
+    """Print a fixture, dropping activity data and the activity-unavailable message when activity was not requested."""
     with open(os.path.join(dir, filename)) as f:
         text = f.read()
     if with_activity:
@@ -30,11 +30,9 @@ def read(filename, *, with_activity):
     for identity in data.get("identities", []):
         for resource in identity.get("resources", []):
             resource.pop("activity", None)
-    warnings = [w for w in data.get("warnings", []) if "activity unavailable" not in w]
-    if warnings:
-        data["warnings"] = warnings
-    else:
-        data.pop("warnings", None)
+    # No activity requested -> the CLI never contacts IAC, so there is no
+    # activity-unavailable message either.
+    data.pop("activity_unavailable", None)
     print(json.dumps(data, indent=2), end="")
 
 
@@ -47,15 +45,6 @@ def query():
     return ""
 
 
-def wants_flag(flag):
-    for i, a in enumerate(args):
-        if a == flag and i + 1 < len(args):
-            return True
-        if a.startswith(f"{flag}="):
-            return True
-    return False
-
-
 if args[:1] == ["status"]:
     read("tsh-status.txt", with_activity=True)
 elif args[:1] == ["access-review"]:
@@ -63,19 +52,19 @@ elif args[:1] == ["access-review"]:
         print("usage: tctl access-review --query=QUERY [<flags>]\n")
         print("Review which identities can access which resources.")
     else:
-        # --from turns on the activity columns, as in the real CLI.
-        windowed = wants_flag("--from")
+        # Activity is on by default; only --no-activity skips the IAC lookup.
+        activity_on = "--no-activity" not in args
         # Dispatch on the query so a discovery (ILIKE) query and the scoped
         # query for the same scenario resolve to one dataset.
         q = query().lower()
         if "payments-db" in q:
-            read("injection.json", with_activity=windowed)
+            read("injection.json", with_activity=activity_on)
         elif "staging-db" in q:
-            read("multi-grantor.json", with_activity=windowed)
+            read("multi-grantor.json", with_activity=activity_on)
         elif "alice" in q:
-            read("alice-standing.json", with_activity=windowed)
+            read("alice-standing.json", with_activity=activity_on)
         elif "prod-db" in q:
-            read("who-can-access.json", with_activity=windowed)
+            read("who-can-access.json", with_activity=activity_on)
         else:
             print('{"identities": []}')
 else:

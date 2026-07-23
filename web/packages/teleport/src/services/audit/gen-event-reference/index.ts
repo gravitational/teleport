@@ -24,9 +24,12 @@ import { formatters } from '../makeEvent';
 import {
   createReferencePage,
   eventsWithoutExamples,
+  fixtureTypeMismatches,
   removeUnknowns,
 } from './gen-event-reference.js';
 
+const fixturePath = 'web/packages/teleport/src/Audit/fixtures/index.ts';
+const formatterPath = 'web/packages/teleport/src/services/audit/makeEvent.ts';
 const introParagraph = `{/*cSpell:disable*/}
 
 {/* Formatted event examples sometimes include different capitalization than
@@ -70,6 +73,16 @@ noExampleEvents.forEach(e => {
     `Warning: adding an entry for ${e.code} (${e.raw.event}) with no example. Add a test fixture to web/packages/teleport/src/Audit/fixtures/index.ts`
   );
 });
+
+const mismatches = fixtureTypeMismatches(events, formatters);
+if (mismatches.length > 0) {
+  mismatches.forEach(m => {
+    console.error(
+      `Fatal: event formatter code ${m.code} has type ${m.formatterType}, but its corresponding fixture has type ${m.fixtureType}. Ensure the formatter at ${formatterPath} matches the fixture at ${fixturePath}`
+    );
+  });
+  process.exit(1);
+}
 
 fs.writeFileSync(
   process.argv[2],

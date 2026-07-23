@@ -69,6 +69,10 @@ const (
 // for a policy. Policy resources should never use this or any other default scope value.
 const Root = separator
 
+// Unscoped is an empty string constant used in code to improve the readability of code that is intended
+// to handle a mix of scoped and unscoped values.
+const Unscoped = ""
+
 // StrongValidate checks if the scope is valid according to all scope formatting rules. This function
 // *must* be called on all scope values received from user input and/or cluster-external sources (e.g.
 // an identity provider). Use of this function should be avoided when checking the validity of scopes
