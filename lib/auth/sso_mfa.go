@@ -231,21 +231,11 @@ func (a *Server) UpsertMFASessionWithToken(ctx context.Context, sd *services.MFA
 	return sd.Token, nil
 }
 
-// GetMFASession returns the MFA session for the given username and sessionID.
-func (a *Server) GetMFASession(ctx context.Context, sessionID string) (*services.MFASessionData, error) {
-	sd, err := a.GetMFASessionData(ctx, sessionID)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return sd, nil
-}
-
 // TODO(danielashare): Remove these wrapper functions once `e` points to the renamed versions
 func (a *Server) UpsertSSOMFASessionWithToken(ctx context.Context, sd *services.MFASessionData) (token string, err error) {
 	return a.UpsertMFASessionWithToken(ctx, sd)
 }
 
 func (a *Server) GetSSOMFASession(ctx context.Context, sessionID string) (*services.MFASessionData, error) {
-	return a.GetMFASession(ctx, sessionID)
+	return a.GetMFASessionData(ctx, sessionID)
 }

@@ -4481,7 +4481,7 @@ func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.Cre
 		}
 
 		var err error
-		browserMFAReq, err = a.GetMFASession(ctx, req.BrowserMFARequestID)
+		browserMFAReq, err = a.GetMFASessionData(ctx, req.BrowserMFARequestID)
 		if err != nil {
 			a.logger.WarnContext(ctx, "Failed to read MFA session for browser MFA request", "error", err)
 			return nil, trace.AccessDenied("invalid browser MFA request")
