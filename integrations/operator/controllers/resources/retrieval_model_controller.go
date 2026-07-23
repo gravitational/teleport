@@ -94,7 +94,7 @@ func NewRetrievalModelV1Reconciler(client kclient.Client, tClient *client.Client
 		client,
 		rmClient,
 		reconcilers.Config{
-			CheckFeatures: controllers.RequirePolicy,
+			CheckFeatures: controllers.RequireSessionSummaries,
 		},
 	)
 

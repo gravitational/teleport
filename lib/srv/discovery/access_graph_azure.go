@@ -31,9 +31,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/entitlements"
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/fetchers/azuresync"
 )
@@ -212,8 +210,7 @@ func (s *Server) getAllTAGSyncAzureFetchers() []*azuresync.Fetcher {
 func (s *Server) initializeAndWatchAzureAccessGraph(ctx context.Context, reloadCh chan struct{}) error {
 	// Check if the access graph is enabled
 	clusterFeatures := s.Config.ClusterFeatures()
-	policy := modules.GetProtoEntitlement(&clusterFeatures, entitlements.Policy)
-	if !clusterFeatures.AccessGraph && !policy.Enabled {
+	if !accessGraphEntitlementEnabled(&clusterFeatures) {
 		return trace.Wrap(errTAGFeatureNotEnabled)
 	}
 

@@ -5294,6 +5294,34 @@ func (s *safeModules) SetFeatures(f modules.Features) {
 	s.Modules.TestFeatures = f
 }
 
+func TestGetWebCfgEntitlementsLegacyPolicyFallback(t *testing.T) {
+	t.Parallel()
+
+	got := GetWebCfgEntitlements(map[string]*authproto.EntitlementInfo{
+		string(entitlements.Policy): {Enabled: true},
+	})
+	require.True(t, got[string(entitlements.AccessGraph)].Enabled)
+	require.True(t, got[string(entitlements.ActivityCenter)].Enabled)
+	require.True(t, got[string(entitlements.SessionSummaries)].Enabled)
+
+	got = GetWebCfgEntitlements(map[string]*authproto.EntitlementInfo{
+		string(entitlements.Policy):           {Enabled: true},
+		string(entitlements.AccessGraph):      {Enabled: false},
+		string(entitlements.ActivityCenter):   {Enabled: false},
+		string(entitlements.SessionSummaries): {Enabled: false},
+	})
+	require.False(t, got[string(entitlements.AccessGraph)].Enabled)
+	require.False(t, got[string(entitlements.ActivityCenter)].Enabled)
+	require.False(t, got[string(entitlements.SessionSummaries)].Enabled)
+
+	got = getWebCfgEntitlements(&authproto.Features{
+		Policy: &authproto.PolicyFeature{Enabled: true},
+	})
+	require.True(t, got[string(entitlements.AccessGraph)].Enabled)
+	require.True(t, got[string(entitlements.ActivityCenter)].Enabled)
+	require.True(t, got[string(entitlements.SessionSummaries)].Enabled)
+}
+
 func TestGetWebConfig_WithEntitlements(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		ctx := t.Context()
@@ -5496,6 +5524,7 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 				entitlements.DB:          {Enabled: true, Limit: 22},
 				entitlements.DeviceTrust: {Enabled: true, Limit: 33},
 				entitlements.Desktop:     {Enabled: true, Limit: 44},
+				entitlements.Policy:      {Enabled: true},
 			},
 		})
 
@@ -5514,12 +5543,18 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 		expectedCfg.AutomaticUpgrades = true
 		expectedCfg.AutomaticUpgradesTargetVersion = "v" + teleport.Version
 		expectedCfg.Edition = testModules.BuildType()
+		expectedCfg.Entitlements[string(entitlements.AccessGraph)] = webclient.EntitlementInfo{Enabled: true}
+		expectedCfg.Entitlements[string(entitlements.ActivityCenter)] = webclient.EntitlementInfo{Enabled: true}
 		expectedCfg.Entitlements[string(entitlements.App)] = webclient.EntitlementInfo{Enabled: false}
 		expectedCfg.Entitlements[string(entitlements.DB)] = webclient.EntitlementInfo{Enabled: true, Limit: 22}
 		expectedCfg.Entitlements[string(entitlements.DeviceTrust)] = webclient.EntitlementInfo{Enabled: true, Limit: 33}
 		expectedCfg.Entitlements[string(entitlements.Desktop)] = webclient.EntitlementInfo{Enabled: true, Limit: 44}
 		expectedCfg.Entitlements[string(entitlements.JoinActiveSessions)] = webclient.EntitlementInfo{Enabled: false}
 		expectedCfg.Entitlements[string(entitlements.K8s)] = webclient.EntitlementInfo{Enabled: false}
+		expectedCfg.Entitlements[string(entitlements.Policy)] = webclient.EntitlementInfo{Enabled: true}
+		expectedCfg.Entitlements[string(entitlements.SessionSummaries)] = webclient.EntitlementInfo{Enabled: true}
+		expectedCfg.IdentitySecurity.IsClusterLicensed = true
+		expectedCfg.IsPolicyEnabled = true
 
 		// Advance time to unblock the feature watcher. Wait until
 		// the features have been retrieved and the feature watcher is blocked

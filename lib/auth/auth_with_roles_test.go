@@ -13861,9 +13861,9 @@ func TestScopedUserCertGeneration(t *testing.T) {
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.Policy: {Enabled: true},
-				entitlements.K8s:    {Enabled: true},
-				entitlements.App:    {Enabled: true},
+				entitlements.AccessGraph: {Enabled: true},
+				entitlements.K8s:         {Enabled: true},
+				entitlements.App:         {Enabled: true},
 			},
 		},
 	}), withClock(clock))

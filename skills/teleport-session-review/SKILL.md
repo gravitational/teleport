@@ -109,7 +109,8 @@ answer instead of a raw error:
    curl -s https://<proxy>/web/config.js \
      | sed -E 's/^[^{]*//; s/;[[:space:]]*$//' \
      | jq '{edition,
-            identitySecurityLicensed: .identitySecurity.licensed,
+            sessionSummariesLicensed: .entitlements.SessionSummaries.enabled,
+            accessGraphLicensed: .entitlements.AccessGraph.enabled,
             sessionSummarization: .identitySecurity.sessionSummarizationEnabled,
             accessGraphConfigSet: .identitySecurity.accessGraphConfigSet}'
    ```
@@ -117,9 +118,10 @@ answer instead of a raw error:
    Interpret (treat `null`/absent the same as `false` — on some clusters,
    including Enterprise **Cloud** tenants, the whole `identitySecurity` block is
    missing from `config.js` even when Identity Security is entitled):
-   - `edition` is `oss`/`community` **or** `identitySecurityLicensed` is not true →
-     this cluster cannot do summaries/search. Tell the user it requires
-     Enterprise + Identity Security, and use `recordings ls` instead.
+   - `edition` is `oss`/`community`, `sessionSummariesLicensed` is not true, or
+     `accessGraphLicensed` is not true → this cluster cannot do
+     summaries/search. Tell the user it requires Enterprise with the Session
+     Summaries and Access Graph entitlements, and use `recordings ls` instead.
    - `sessionSummarization` (i.e. `identitySecurity.sessionSummarizationEnabled`,
      the gate the user asked about) is not true, or `accessGraphConfigSet` is not
      true → licensed but not turned on; tell them to enable session summarization
