@@ -1637,6 +1637,25 @@ func (l *unifiedResourceLister) getAllowedLogins(resource services.AccessCheckab
 	}
 }
 
+// getLogins returns the principals allowed on a resource: all is the full set
+// from the lister's checker; granted, computed only when withGranted is set,
+// is the subset allowed by the user's current roles. When no search roles
+// widen the listing the two sets are equal and no extra computation is made.
+func (l *unifiedResourceLister) getLogins(withGranted bool, resource services.AccessCheckable) (all, granted []string, err error) {
+	all, err = l.getAllowedLogins(resource)
+	if err != nil || !withGranted {
+		return all, nil, trace.Wrap(err)
+	}
+	if l.requestableAccessChecker == nil {
+		return all, all, nil
+	}
+	granted, err = l.accessChecker.GetAllowedLoginsForResource(resource)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	return all, granted, nil
+}
+
 func (a *ServerWithRoles) checkAction(namespace, resourceKind string, verb string, extraVerbs ...string) error {
 	switch resourceKind {
 	case types.KindIdentityCenterAccount, types.KindIdentityCenterAccountAssignment:
@@ -1817,61 +1836,71 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 	}
 
 	if req.IncludeLogins {
+		// Principals carries the same values as Logins, split into granted
+		// and requestable, for SSH nodes and AWS Console apps; desktops
+		// carry the flat Logins only. Both search flags widen the listing
+		// identically, but only IncludeRequestable asks for requestability
+		// detail, so only it pays the extra per-resource granted
+		// computation. With neither flag, Logins comes from the base checker
+		// and the split is free. UseSearchAsRoles alone predates this field
+		// and keeps its exact legacy response, with no Principals.
+		populatePrincipals := req.IncludeRequestable || resourceLister.requestableAccessChecker == nil
 		for _, r := range paginatedResources {
-			if n := r.GetNode(); n != nil {
-				logins, err := resourceLister.getAllowedLogins(n)
-				if err != nil {
-					a.authServer.logger.WarnContext(ctx, "Unable to determine logins for node",
-						"error", err,
-						"resource", n.GetName(),
-					)
-					continue
-				}
-				r.Logins = logins
-			} else if d := r.GetWindowsDesktop(); d != nil {
-				logins, err := resourceLister.getAllowedLogins(d)
-				if err != nil {
-					a.authServer.logger.WarnContext(ctx, "Unable to determine logins for desktop",
-						"error", err,
-						"resource", d.GetName(),
-					)
-					continue
-				}
-				r.Logins = logins
-			} else if d := r.GetLinuxDesktop(); d != nil {
-				desktop := proto.UnpackLinuxDesktop(d)
-				logins, err := resourceLister.getAllowedLogins(desktop)
-				if err != nil {
-					a.authServer.logger.WarnContext(ctx, "Unable to determine logins for Linux desktop",
-						"error", err,
-						"resource", desktop.GetName(),
-					)
-					continue
-				}
-				r.Logins = logins
-			} else if d := r.GetAppServer(); d != nil {
+			var checkable services.AccessCheckable
+			var principalKind string
+			switch {
+			case r.GetNode() != nil:
+				checkable = r.GetNode()
+				principalKind = types.PrincipalKindLogins
+			case r.GetWindowsDesktop() != nil:
+				checkable = r.GetWindowsDesktop()
+			case r.GetLinuxDesktop() != nil:
+				checkable = proto.UnpackLinuxDesktop(r.GetLinuxDesktop())
+			case r.GetAppServer() != nil:
+				app := r.GetAppServer().GetApp()
 				// Apps representing an Identity Center Account have a collection of Permission Sets
 				// that can be thought of as individually-addressable sub-resources. To present a consitent
 				// view of the account we check access for each Permission Set, filter out those that have
 				// no access and treat the whole app as requiring an access request if _any_ of the contained
 				// permission sets require one.
-				if err := a.filterICPermissionSets(r, d.GetApp(), resourceLister); err != nil {
+				if err := a.filterICPermissionSets(r, app, resourceLister); err != nil {
 					a.authServer.logger.WarnContext(ctx, "Unable to filter",
 						"error", err,
-						"resource", d.GetApp().GetName(),
+						"resource", app.GetName(),
 					)
 					continue
 				}
+				checkable = app
+				principalKind = types.PrincipalKindRoleARNs
+			default:
+				continue
+			}
 
-				logins, err := resourceLister.getAllowedLogins(d.GetApp())
-				if err != nil {
-					a.authServer.logger.WarnContext(ctx, "Unable to determine logins for app",
-						"error", err,
-						"resource", d.GetApp().GetName(),
-					)
-					continue
+			all, granted, err := resourceLister.getLogins(populatePrincipals && principalKind != "", checkable)
+			if err != nil {
+				a.authServer.logger.WarnContext(ctx, "Unable to determine logins for resource",
+					"error", err,
+					"resource", checkable.GetName(),
+				)
+				continue
+			}
+			r.Logins = all
+			if principalKind != "" && populatePrincipals && len(all) > 0 {
+				grantedSet := make(map[string]struct{}, len(granted))
+				for _, v := range granted {
+					grantedSet[v] = struct{}{}
 				}
-				r.Logins = logins
+				var requestable []string
+				for _, v := range all {
+					if _, ok := grantedSet[v]; !ok {
+						requestable = append(requestable, v)
+					}
+				}
+				r.Principals = []*proto.ResourcePrincipalSet{{
+					Kind:        principalKind,
+					Granted:     granted,
+					Requestable: requestable,
+				}}
 			}
 		}
 	}

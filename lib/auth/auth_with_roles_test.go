@@ -7661,11 +7661,13 @@ func TestListUnifiedResources_IncludeRequestable(t *testing.T) {
 	// only allow user to see first node
 	role.SetNodeLabels(types.Allow, types.Labels{"name": {testNodes[0].GetName()}})
 
-	// create a new role which can see second node
+	// create a new role which can see both nodes with a login ("admin")
+	// distinct from the base role's ("requester"). on node0 "admin" is
+	// requestable and "requester" granted, on node1 everything is requestable.
 	searchAsRole := services.RoleForUser(requester)
 	searchAsRole.SetName("test_search_role")
-	searchAsRole.SetNodeLabels(types.Allow, types.Labels{"name": {testNodes[1].GetName()}})
-	searchAsRole.SetLogins(types.Allow, []string{"requester"})
+	searchAsRole.SetNodeLabels(types.Allow, types.Labels{"name": {testNodes[0].GetName(), testNodes[1].GetName()}})
+	searchAsRole.SetLogins(types.Allow, []string{"admin"})
 	_, err = srv.Auth().UpsertRole(ctx, searchAsRole)
 	require.NoError(t, err)
 
@@ -7677,14 +7679,18 @@ func TestListUnifiedResources_IncludeRequestable(t *testing.T) {
 	require.NoError(t, err)
 
 	type expected struct {
-		name        string
-		requestable bool
+		name          string
+		requestable   bool
+		allLogins         []string
+		grantedLogins     []string
+		requestableLogins []string
 	}
 
 	for _, tc := range []struct {
 		desc              string
 		clt               *authclient.Client
 		requestOpt        func(*proto.ListUnifiedResourcesRequest)
+		checkLogins       bool
 		expectedResources []expected
 	}{
 		{
@@ -7709,10 +7715,24 @@ func TestListUnifiedResources_IncludeRequestable(t *testing.T) {
 			requestOpt: func(req *proto.ListUnifiedResourcesRequest) {
 				req.IncludeRequestable = true
 				req.UseSearchAsRoles = true
+				req.IncludeLogins = true
 			},
+			checkLogins: true,
 			expectedResources: []expected{
-				{name: testNodes[0].GetName(), requestable: false},
-				{name: testNodes[1].GetName(), requestable: true},
+				{
+					name:              testNodes[0].GetName(),
+					requestable:       false,
+					allLogins:         []string{"requester", "admin"},
+					grantedLogins:     []string{"requester"},
+					requestableLogins: []string{"admin"},
+				},
+				{
+					name:              testNodes[1].GetName(),
+					requestable:       true,
+					allLogins:         []string{"admin"},
+					grantedLogins:     nil,
+					requestableLogins: []string{"admin"},
+				},
 			},
 		},
 	} {
@@ -7727,13 +7747,123 @@ func TestListUnifiedResources_IncludeRequestable(t *testing.T) {
 			resp, err := tc.clt.ListUnifiedResources(ctx, &req)
 			require.NoError(t, err)
 			require.Len(t, resp.Resources, len(tc.expectedResources))
-			var resources []expected
+
+			byName := make(map[string]*proto.PaginatedResource)
+			var flags, wantFlags []expected
 			for _, resource := range resp.Resources {
-				resources = append(resources, expected{name: resource.GetNode().GetName(), requestable: resource.RequiresRequest})
+				name := resource.GetNode().GetName()
+				byName[name] = resource
+				flags = append(flags, expected{name: name, requestable: resource.RequiresRequest})
 			}
-			require.ElementsMatch(t, tc.expectedResources, resources)
+			for _, e := range tc.expectedResources {
+				wantFlags = append(wantFlags, expected{name: e.name, requestable: e.requestable})
+			}
+			require.ElementsMatch(t, wantFlags, flags)
+
+			if !tc.checkLogins {
+				return
+			}
+			for _, e := range tc.expectedResources {
+				r := byName[e.name]
+				require.NotNil(t, r, "resource %q missing from response", e.name)
+				require.ElementsMatch(t, e.allLogins, r.Logins, "Logins for %q", e.name)
+				require.Len(t, r.Principals, 1, "Principals for %q", e.name)
+				require.Equal(t, types.PrincipalKindLogins, r.Principals[0].Kind, "principal kind for %q", e.name)
+				require.ElementsMatch(t, e.grantedLogins, r.Principals[0].Granted, "granted principals for %q", e.name)
+				require.ElementsMatch(t, e.requestableLogins, r.Principals[0].Requestable, "requestable principals for %q", e.name)
+			}
 		})
 	}
+}
+
+// TestListUnifiedResources_AppPrincipalSets verifies the role_arns principal
+// dimension for AWS console apps.
+func TestListUnifiedResources_AppPrincipalSets(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	const (
+		grantedARN     = "arn:aws:iam::123456789012:role/granted"
+		requestableARN = "arn:aws:iam::123456789012:role/requestable"
+	)
+
+	app, err := types.NewAppV3(types.Metadata{Name: "aws-console"}, types.AppSpecV3{
+		URI: constants.AWSConsoleURL,
+	})
+	require.NoError(t, err)
+	appServer, err := types.NewAppServerV3FromApp(app, "host", "host-id")
+	require.NoError(t, err)
+	_, err = srv.Auth().UpsertApplicationServer(ctx, appServer)
+	require.NoError(t, err)
+
+	requester, role, err := authtest.CreateUserAndRole(srv.Auth(), "app-requester", []string{"app-requester"}, nil)
+	require.NoError(t, err)
+	role.SetAppLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
+	role.SetAWSRoleARNs(types.Allow, []string{grantedARN})
+
+	searchAsRole := services.RoleForUser(requester)
+	searchAsRole.SetName("app_search_role")
+	searchAsRole.SetAppLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
+	searchAsRole.SetAWSRoleARNs(types.Allow, []string{requestableARN})
+	_, err = srv.Auth().UpsertRole(ctx, searchAsRole)
+	require.NoError(t, err)
+
+	role.SetSearchAsRoles(types.Allow, []string{searchAsRole.GetName()})
+	_, err = srv.Auth().UpsertRole(ctx, role)
+	require.NoError(t, err)
+
+	clt, err := srv.NewClient(authtest.TestUser(requester.GetName()))
+	require.NoError(t, err)
+
+	resp, err := clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
+		Kinds:              []string{types.KindApp},
+		SortBy:             types.SortBy{Field: "name"},
+		Limit:              5,
+		IncludeLogins:      true,
+		IncludeRequestable: true,
+		UseSearchAsRoles:   true,
+	})
+	require.NoError(t, err)
+	require.Len(t, resp.Resources, 1)
+	r := resp.Resources[0]
+	require.ElementsMatch(t, []string{grantedARN, requestableARN}, r.Logins)
+	require.Len(t, r.Principals, 1)
+	require.Equal(t, types.PrincipalKindRoleARNs, r.Principals[0].Kind)
+	require.ElementsMatch(t, []string{grantedARN}, r.Principals[0].Granted)
+	require.ElementsMatch(t, []string{requestableARN}, r.Principals[0].Requestable)
+
+	// Without search flags, Logins comes from the base checker and Principals
+	// mirrors it with everything granted.
+	resp, err = clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
+		Kinds:         []string{types.KindApp},
+		SortBy:        types.SortBy{Field: "name"},
+		Limit:         5,
+		IncludeLogins: true,
+	})
+	require.NoError(t, err)
+	require.Len(t, resp.Resources, 1)
+	r = resp.Resources[0]
+	require.ElementsMatch(t, []string{grantedARN}, r.Logins)
+	require.Len(t, r.Principals, 1)
+	require.Equal(t, types.PrincipalKindRoleARNs, r.Principals[0].Kind)
+	require.ElementsMatch(t, []string{grantedARN}, r.Principals[0].Granted)
+	require.Empty(t, r.Principals[0].Requestable)
+
+	// UseSearchAsRoles alone keeps its legacy response: the flat union in
+	// Logins and no Principals.
+	resp, err = clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
+		Kinds:            []string{types.KindApp},
+		SortBy:           types.SortBy{Field: "name"},
+		Limit:            5,
+		IncludeLogins:    true,
+		UseSearchAsRoles: true,
+	})
+	require.NoError(t, err)
+	require.Len(t, resp.Resources, 1)
+	r = resp.Resources[0]
+	require.ElementsMatch(t, []string{grantedARN, requestableARN}, r.Logins)
+	require.Empty(t, r.Principals)
 }
 
 func TestCreateAccessRequestV2_oktaReadOnly(t *testing.T) {

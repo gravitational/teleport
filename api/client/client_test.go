@@ -749,6 +749,17 @@ func TestGetUnifiedResourcesWithLogins(t *testing.T) {
 				{
 					Resource: &proto.PaginatedResource_Node{Node: &types.ServerV2{}},
 					Logins:   []string{"alice", "bob"},
+					Principals: []*proto.ResourcePrincipalSet{
+						{
+							Kind:        types.PrincipalKindLogins,
+							Granted:     []string{"alice"},
+							Requestable: []string{"bob"},
+							ByRole: []*proto.RolePrincipalValues{
+								{Role: "access", Values: []string{"alice"}},
+								{Role: "editor", RequiresRequest: true, Values: []string{"bob"}},
+							},
+						},
+					},
 				},
 				{
 					Resource: &proto.PaginatedResource_WindowsDesktop{WindowsDesktop: &types.WindowsDesktopV3{}},
@@ -757,6 +768,9 @@ func TestGetUnifiedResourcesWithLogins(t *testing.T) {
 				{
 					Resource: &proto.PaginatedResource_AppServer{AppServer: &types.AppServerV3{}},
 					Logins:   []string{"llama"},
+					Principals: []*proto.ResourcePrincipalSet{
+						{Kind: types.PrincipalKindRoleARNs, Granted: []string{"llama"}},
+					},
 				},
 			},
 		},
@@ -773,14 +787,35 @@ func TestGetUnifiedResourcesWithLogins(t *testing.T) {
 
 	require.Len(t, resources, len(clt.resp.Resources))
 
+	principalKinds := func(sets []types.ResourcePrincipalSet) []*proto.ResourcePrincipalSet {
+		if len(sets) == 0 {
+			return nil
+		}
+		out := make([]*proto.ResourcePrincipalSet, 0, len(sets))
+		for _, s := range sets {
+			ps := &proto.ResourcePrincipalSet{Kind: s.Kind, Granted: s.Granted, Requestable: s.Requestable}
+			for _, br := range s.ByRole {
+				ps.ByRole = append(ps.ByRole, &proto.RolePrincipalValues{
+					Role:            br.Role,
+					RequiresRequest: br.RequiresRequest,
+					Values:          br.Values,
+				})
+			}
+			out = append(out, ps)
+		}
+		return out
+	}
 	for _, enriched := range resources {
 		switch enriched.ResourceWithLabels.(type) {
 		case *types.ServerV2:
 			assert.Equal(t, enriched.Logins, clt.resp.Resources[0].Logins)
+			assert.Equal(t, principalKinds(enriched.Principals), clt.resp.Resources[0].Principals)
 		case *types.WindowsDesktopV3:
 			assert.Equal(t, enriched.Logins, clt.resp.Resources[1].Logins)
+			assert.Equal(t, principalKinds(enriched.Principals), clt.resp.Resources[1].Principals)
 		case *types.AppServerV3:
 			assert.Equal(t, enriched.Logins, clt.resp.Resources[2].Logins)
+			assert.Equal(t, principalKinds(enriched.Principals), clt.resp.Resources[2].Principals)
 		}
 	}
 }

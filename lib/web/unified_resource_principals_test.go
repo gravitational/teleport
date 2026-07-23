@@ -19,6 +19,7 @@
 package web
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -28,7 +29,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils/set"
 )
 
-// mockLoginGetter implements the GetAllowedLoginsForResource method for testing.
 type mockLoginGetter struct {
 	services.AccessChecker
 	logins []string
@@ -104,6 +104,52 @@ func TestPrincipalsForUnifiedResource_SSH(t *testing.T) {
 		// Granted is the intersection of AccessChecker result and cert principals.
 		require.Equal(t, set.New("ubuntu"), result.Logins.Granted)
 	})
+
+	t.Run("IncludeRequestable prefers Auth principal sets over local checker", func(t *testing.T) {
+		t.Parallel()
+
+		result, err := PrincipalsForUnifiedResource(PrincipalsForUnifiedResourceOpts{
+			Resource: &types.EnrichedResource{
+				ResourceWithLabels: server,
+				Logins:             []string{"root", "ubuntu", "admin"},
+				Principals: []types.ResourcePrincipalSet{{
+					Kind:        types.PrincipalKindLogins,
+					Granted:     []string{"ubuntu", "admin"},
+					Requestable: []string{"root"},
+				}},
+			},
+			CertPrincipals: []string{"ubuntu", "root"},
+			AccessChecker:      &mockLoginGetter{err: errors.New("must not be called")},
+			IncludeRequestable: true,
+		})
+		require.NoError(t, err)
+
+		require.Equal(t, set.New("root", "ubuntu", "admin"), result.Logins.All)
+		// Granted is Auth's granted principal set filtered to cert principals.
+		require.Equal(t, set.New("ubuntu"), result.Logins.Granted)
+	})
+
+	t.Run("IncludeRequestable trusts an Auth principal set with nothing granted", func(t *testing.T) {
+		t.Parallel()
+
+		result, err := PrincipalsForUnifiedResource(PrincipalsForUnifiedResourceOpts{
+			Resource: &types.EnrichedResource{
+				ResourceWithLabels: server,
+				Logins:             []string{"root", "ubuntu"},
+				Principals: []types.ResourcePrincipalSet{{
+					Kind:        types.PrincipalKindLogins,
+					Requestable: []string{"root", "ubuntu"},
+				}},
+			},
+			CertPrincipals: []string{"ubuntu", "root"},
+			AccessChecker:      &mockLoginGetter{err: errors.New("must not be called")},
+			IncludeRequestable: true,
+		})
+		require.NoError(t, err)
+
+		require.Equal(t, set.New("root", "ubuntu"), result.Logins.All)
+		require.Empty(t, result.Logins.Granted)
+	})
 }
 
 func TestPrincipalsForUnifiedResource_App(t *testing.T) {
@@ -174,6 +220,34 @@ func TestPrincipalsForUnifiedResource_App(t *testing.T) {
 				Logins:             []string{"arn:aws:iam::111:role/Admin", "arn:aws:iam::111:role/ReadOnly"},
 			},
 			AccessChecker:      &mockLoginGetter{logins: []string{"arn:aws:iam::111:role/ReadOnly"}},
+			IncludeRequestable: true,
+		})
+		require.NoError(t, err)
+
+		require.Equal(t,
+			set.New("arn:aws:iam::111:role/Admin", "arn:aws:iam::111:role/ReadOnly"),
+			result.AWSRoleARNs.All,
+		)
+		require.Equal(t,
+			set.New("arn:aws:iam::111:role/ReadOnly"),
+			result.AWSRoleARNs.Granted,
+		)
+	})
+
+	t.Run("IncludeRequestable prefers Auth principal sets over local checker", func(t *testing.T) {
+		t.Parallel()
+
+		result, err := PrincipalsForUnifiedResource(PrincipalsForUnifiedResourceOpts{
+			Resource: &types.EnrichedResource{
+				ResourceWithLabels: appServer,
+				Logins:             []string{"arn:aws:iam::111:role/Admin", "arn:aws:iam::111:role/ReadOnly"},
+				Principals: []types.ResourcePrincipalSet{{
+					Kind:        types.PrincipalKindRoleARNs,
+					Granted:     []string{"arn:aws:iam::111:role/ReadOnly"},
+					Requestable: []string{"arn:aws:iam::111:role/Admin"},
+				}},
+			},
+			AccessChecker:      &mockLoginGetter{err: errors.New("must not be called")},
 			IncludeRequestable: true,
 		})
 		require.NoError(t, err)

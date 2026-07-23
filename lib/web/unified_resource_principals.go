@@ -83,8 +83,9 @@ func PrincipalsForUnifiedResource(opts PrincipalsForUnifiedResourceOpts) (*Unifi
 // These are returned as-is since they're for display or access-request
 // purposes, not direct SSH connections.
 //
-// When IncludeRequestable is set, granted logins are additionally computed
-// using the base access checker and filtered to cert principals.
+// When IncludeRequestable is set, granted logins come from Auth's principal
+// sets when present, else the base access checker, filtered to cert
+// principals.
 //
 // In the default mode (neither flag set), all logins are filtered to cert
 // principals so the connect menu only offers logins that will work.
@@ -93,7 +94,7 @@ func sshPrincipals(opts PrincipalsForUnifiedResourceOpts, server types.Server) (
 		all := set.New(opts.Resource.Logins...)
 		ps := &webui.PrincipalSet{All: all}
 		if opts.IncludeRequestable {
-			granted, err := opts.AccessChecker.GetAllowedLoginsForResource(server)
+			granted, err := grantedLoginsForResource(opts, types.PrincipalKindLogins, server)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -127,7 +128,7 @@ func appPrincipals(opts PrincipalsForUnifiedResourceOpts, appServer types.AppSer
 	ps := &webui.PrincipalSet{All: allSet}
 
 	if opts.IncludeRequestable {
-		granted, err := opts.AccessChecker.GetAllowedLoginsForResource(appServer.GetApp())
+		granted, err := grantedLoginsForResource(opts, types.PrincipalKindRoleARNs, appServer.GetApp())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -137,6 +138,21 @@ func appPrincipals(opts PrincipalsForUnifiedResourceOpts, appServer types.AppSer
 	}
 
 	return ps, nil
+}
+
+// grantedLoginsForResource returns the logins usable without an access
+// request, prefering Auth's precomputed granted set when present,
+// else, computing locally using the base access checker.
+//
+// TODO(kiosion): DELETE IN 20.0.0
+func grantedLoginsForResource(opts PrincipalsForUnifiedResourceOpts, kind string, resource services.AccessCheckable) ([]string, error) {
+	for _, ps := range opts.Resource.Principals {
+		if ps.Kind == kind {
+			return ps.Granted, nil
+		}
+	}
+	granted, err := opts.AccessChecker.GetAllowedLoginsForResource(resource)
+	return granted, trace.Wrap(err)
 }
 
 // filterByIdentityPrincipals returns the intersection of allowedLogins with
