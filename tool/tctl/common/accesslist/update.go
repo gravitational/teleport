@@ -30,9 +30,12 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	conv "github.com/gravitational/teleport/api/types/accesslist/convert/v1"
+	"github.com/gravitational/teleport/lib/accesslists"
 	"github.com/gravitational/teleport/lib/accesslists/preset"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/utils"
+	sliceutils "github.com/gravitational/teleport/lib/utils/slices"
 )
 
 // Update handles `tctl acl update`.
@@ -53,7 +56,14 @@ func (c *Command) Update(ctx context.Context, client *authclient.Client) error {
 		return trace.BadParameter("cannot unset title")
 	}
 
-	al, err := client.AccessListClient().GetAccessList(ctx, c.accessListName)
+	aclName, err := c.accessListScopeQualifiedName()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	al, err := client.AccessListClient().GetAccessListV2(ctx, accesslistv1.GetAccessListRequest_builder{
+		Scope: aclName.Scope,
+		Name:  aclName.Name,
+	}.Build())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -77,15 +87,15 @@ func (c *Command) Update(ctx context.Context, client *authclient.Client) error {
 	var updatedAccessList *accesslist.AccessList
 	var updatedRoles []string
 	var rolesToDelete []string
-	var removedOwners []string
-	var removedMembers []string
+	var removedOwners []accesslists.NormalizedSQN
+	var removedMembers []accesslists.NormalizedSQN
 
 	switch {
 	case c.anyMemberUpdateFlagSet():
 		// Member-only update: replace the membership list without touching
 		// the access list spec.
 		var updatedMembers []*accesslist.AccessListMember
-		updatedMembers, removedMembers, err = c.buildMembersForUpdate(ctx, client, al.GetName())
+		updatedMembers, removedMembers, err = c.buildMembersForUpdate(ctx, client, aclName)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -101,7 +111,10 @@ func (c *Command) Update(ctx context.Context, client *authclient.Client) error {
 		}
 		if c.ownersSet || c.ownerAccessListsSet {
 			var updatedOwners []accesslist.Owner
-			updatedOwners, removedOwners = c.buildOwnersForUpdate(al)
+			updatedOwners, removedOwners, err = c.buildOwnersForUpdate(al)
+			if err != nil {
+				return trace.Wrap(err)
+			}
 			if len(updatedOwners) == 0 {
 				return trace.BadParameter("an access list must have at least one owner")
 			}
@@ -126,8 +139,8 @@ func (c *Command) Update(ctx context.Context, client *authclient.Client) error {
 		AccessType:            accessType(updatedAccessList.GetAllLabels()[accesslist.AccessListPresetLabel]),
 		UpdatedOrCreatedRoles: updatedRoles,
 		RolesToDelete:         rolesToDelete,
-		OwnersRemoved:         removedOwners,
-		MembersRemoved:        removedMembers,
+		OwnersRemoved:         sliceutils.Map(removedOwners, accesslists.NormalizedSQN.String),
+		MembersRemoved:        sliceutils.Map(removedMembers, accesslists.NormalizedSQN.String),
 	}
 	if c.format == teleport.JSON {
 		return trace.Wrap(utils.WriteJSON(c.Stdout, resp), "failed to marshal access list update response")
@@ -171,19 +184,30 @@ func (c *Command) applySpecFlags(al *accesslist.AccessList) error {
 	return nil
 }
 
-func reconcileOwners(wantUpdate bool, ownersStr string, memberKind string, currOwners map[string]accesslist.Owner) (newOwners []accesslist.Owner, removedOwners []string) {
+func reconcileOwners(wantUpdate bool, ownersStr string, memberKind string, currOwners map[accesslists.NormalizedSQN]accesslist.Owner) (newOwners []accesslist.Owner, removedOwners []accesslists.NormalizedSQN, err error) {
 	if !wantUpdate {
 		// return owners as is.
 		for _, o := range currOwners {
 			newOwners = append(newOwners, o)
 		}
-		return newOwners, nil
+		return newOwners, nil, nil
 	}
 
-	newOwnerLookup := make(map[string]struct{}, len(currOwners))
-	for _, owner := range utils.SplitIdentifiers(ownersStr) {
-		newOwnerLookup[owner] = struct{}{}
-		newOwners = append(newOwners, accesslist.Owner{Name: owner, MembershipKind: memberKind})
+	newOwnerLookup := make(map[accesslists.NormalizedSQN]struct{}, len(currOwners))
+	ownerNames, err := splitQualifiedNames(ownersStr)
+	if err != nil {
+		return nil, nil, trace.Wrap(err, "parsing owner name")
+	}
+	for _, ownerName := range ownerNames {
+		kind := memberKind
+		if ownerName.Scope != "" {
+			if !accesslist.IsMembershipKindList(memberKind) {
+				return nil, nil, trace.BadParameter("user owners cannot be scoped, got %q", ownerName.String())
+			}
+			kind = accesslist.MembershipKindScopedList
+		}
+		newOwnerLookup[accesslists.NormalizeSQN(ownerName)] = struct{}{}
+		newOwners = append(newOwners, accesslist.Owner{Name: ownerName.String(), MembershipKind: kind})
 	}
 
 	for currOwner := range currOwners {
@@ -192,10 +216,10 @@ func reconcileOwners(wantUpdate bool, ownersStr string, memberKind string, currO
 		}
 	}
 
-	return newOwners, removedOwners
+	return newOwners, removedOwners, nil
 }
 
-func reconcileMembers(listName string, wantUpdate bool, membersStr string, memberKind string, currMembers map[string]*accesslist.AccessListMember) (newMembers []*accesslist.AccessListMember, removedMembers []string, err error) {
+func reconcileMembers(listName scopes.QualifiedName, wantUpdate bool, membersStr string, memberKind string, currMembers map[accesslists.NormalizedSQN]*accesslist.AccessListMember) (newMembers []*accesslist.AccessListMember, removedMembers []accesslists.NormalizedSQN, err error) {
 	if !wantUpdate {
 		// return members as is.
 		for _, m := range currMembers {
@@ -204,10 +228,21 @@ func reconcileMembers(listName string, wantUpdate bool, membersStr string, membe
 		return newMembers, nil, nil
 	}
 
-	newMemberLookup := make(map[string]struct{}, len(currMembers))
-	for _, name := range utils.SplitIdentifiers(membersStr) {
-		newMemberLookup[name] = struct{}{}
-		m, err := newMember(listName, name, memberKind)
+	newMemberLookup := make(map[accesslists.NormalizedSQN]struct{}, len(currMembers))
+	memberNames, err := splitQualifiedNames(membersStr)
+	if err != nil {
+		return nil, nil, trace.Wrap(err, "parsing member name")
+	}
+	for _, memberName := range memberNames {
+		kind := memberKind
+		if memberName.Scope != "" {
+			if !accesslist.IsMembershipKindList(memberKind) {
+				return nil, nil, trace.BadParameter("user members cannot be scoped, got %q", memberName.String())
+			}
+			kind = accesslist.MembershipKindScopedList
+		}
+		newMemberLookup[accesslists.NormalizeSQN(memberName)] = struct{}{}
+		m, err := newMember(listName, memberName, kind)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
@@ -228,19 +263,23 @@ func reconcileMembers(listName string, wantUpdate bool, membersStr string, membe
 // updates only the specified member kinds.
 // E.g.: if only "--member-access-lists" was specified, only member kind "access list" is updated
 // and member kind "user" is still preserved.
-func (c *Command) buildMembersForUpdate(ctx context.Context, client *authclient.Client, listName string) ([]*accesslist.AccessListMember, []string, error) {
+func (c *Command) buildMembersForUpdate(ctx context.Context, client *authclient.Client, listName scopes.QualifiedName) ([]*accesslist.AccessListMember, []accesslists.NormalizedSQN, error) {
 	currentMembers, err := c.collectAllMembers(ctx, client, listName)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
-	currentUsers := make(map[string]*accesslist.AccessListMember)
-	currentLists := make(map[string]*accesslist.AccessListMember)
+	currentUsers := make(map[accesslists.NormalizedSQN]*accesslist.AccessListMember)
+	currentLists := make(map[accesslists.NormalizedSQN]*accesslist.AccessListMember)
 	for _, m := range currentMembers {
-		if m.Spec.MembershipKind == accesslist.MembershipKindList {
-			currentLists[m.Spec.Name] = m
+		memberName, err := accesslists.MemberScopeQualifiedName(m)
+		if err != nil {
+			return nil, nil, trace.Wrap(err, "parsing member name")
+		}
+		if m.IsList() {
+			currentLists[memberName] = m
 		} else {
-			currentUsers[m.Spec.Name] = m
+			currentUsers[memberName] = m
 		}
 	}
 
@@ -261,23 +300,28 @@ func (c *Command) buildMembersForUpdate(ctx context.Context, client *authclient.
 // updates only the specified owner kinds.
 // E.g.: if only "--owner-access-lists" was specified, only owner kind "access list" is updated
 // and owner kind "user" is still preserved.
-func (c *Command) buildOwnersForUpdate(al *accesslist.AccessList) ([]accesslist.Owner, []string) {
-	currentUserOwners := make(map[string]accesslist.Owner)
-	currentListOwners := make(map[string]accesslist.Owner)
+func (c *Command) buildOwnersForUpdate(al *accesslist.AccessList) ([]accesslist.Owner, []accesslists.NormalizedSQN, error) {
+	currentUserOwners := make(map[accesslists.NormalizedSQN]accesslist.Owner)
+	currentListOwners := make(map[accesslists.NormalizedSQN]accesslist.Owner)
 	for _, o := range al.Spec.Owners {
-		if o.MembershipKind == accesslist.MembershipKindList {
-			currentListOwners[o.Name] = o
-		} else {
-			currentUserOwners[o.Name] = o
+		ownerName, err := accesslists.OwnerScopeQualifiedName(o)
+		if err != nil {
+			return nil, nil, trace.Wrap(err, "parsing owner name")
+		}
+		if o.IsMembershipKindList() {
+			currentListOwners[ownerName] = o
+		}
+		if o.IsMembershipKindUser() {
+			currentUserOwners[ownerName] = o
 		}
 	}
 
-	userOwners, userRemoved := reconcileOwners(c.ownersSet, c.owners, accesslist.MembershipKindUser, currentUserOwners)
-	listOwners, listRemoved := reconcileOwners(c.ownerAccessListsSet, c.ownerAccessLists, accesslist.MembershipKindList, currentListOwners)
+	userOwners, userRemoved, userErr := reconcileOwners(c.ownersSet, c.owners, accesslist.MembershipKindUser, currentUserOwners)
+	listOwners, listRemoved, listErr := reconcileOwners(c.ownerAccessListsSet, c.ownerAccessLists, accesslist.MembershipKindList, currentListOwners)
 	newOwners := append(userOwners, listOwners...)
 	removedOwners := append(userRemoved, listRemoved...)
 
-	return newOwners, removedOwners
+	return newOwners, removedOwners, trace.NewAggregate(userErr, listErr)
 }
 
 // updateAccessListWithPreset updates an access list spec/meta and its related access roles.

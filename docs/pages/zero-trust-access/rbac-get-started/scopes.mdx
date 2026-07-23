@@ -6,6 +6,7 @@ tags:
  - privileged-access
  - conceptual
  - zero-trust
+page_type: conceptual
 ---
 
 **Scopes** are a hierarchical organization system for Teleport resources and
@@ -20,6 +21,11 @@ at `/staging/west`. Alice can then manage scoped roles, scoped tokens, and
 SSH Services in `/staging/west` and descendant scopes such as
 `/staging/west/team-a`, but she cannot affect `/staging/east`, `/prod`, or
 unscoped cluster resources.
+
+This page describes the concepts behind scopes, and provides instructions for
+basic usage and specific scenarios.
+
+## Use cases
 
 Scopes are designed to enable:
 
