@@ -62,7 +62,7 @@ export default function useRouting(ctx: ConsoleContext) {
         mode: participantMode,
       });
     } else if (dbConnectMatch) {
-      ctx.addDbDocument(dbConnectMatch.params);
+      ctx.addDbDocument(dbConnectMatch.params, search);
     }
   }, [ctx, pathname]);
 
