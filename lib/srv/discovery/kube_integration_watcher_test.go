@@ -188,6 +188,36 @@ func TestHandleEKSWatcherError(t *testing.T) {
 	require.Equal(t, discoveryGroup, cluster.GetDiscoveryGroup())
 	require.True(t, cluster.GetSyncTime().AsTime().Equal(clock.Now()))
 
+	t.Run("region permission error", func(t *testing.T) {
+		s := &Server{
+			Config: &Config{
+				DiscoveryGroup: discoveryGroup,
+				Log:            logtest.NewLogger(),
+				clock:          clock,
+			},
+			ctx: t.Context(),
+		}
+		require.True(t, s.handleEKSWatcherError(&fetchers.EKSDiscoveryPermissionError{
+			Integration:         integration,
+			AccountID:           accountID,
+			Region:              region,
+			Operation:           fetchers.EKSDiscoveryOperationListClusters,
+			DiscoveryConfigName: discoveryConfig,
+			Err:                 trace.AccessDenied("access denied"),
+		}))
+
+		key := awsEKSTaskKey{
+			integration: integration,
+			issueType:   usertasks.AutoDiscoverEKSIssuePermRegionDenied,
+			accountID:   accountID,
+			region:      region,
+		}
+		issue := s.awsEKSTasks.clusterIssues[key]
+		require.NotNil(t, issue)
+		require.Empty(t, issue.GetClusters())
+		require.Contains(t, s.awsEKSTasks.issuesSyncQueue, key)
+	})
+
 	t.Run("unhandled error", func(t *testing.T) {
 		s := &Server{Config: &Config{Log: logtest.NewLogger()}}
 		require.False(t, s.handleEKSWatcherError(trace.BadParameter("not an EKS permission error")))
@@ -197,6 +227,10 @@ func TestHandleEKSWatcherError(t *testing.T) {
 		}))
 		require.False(t, s.handleEKSWatcherError(&fetchers.EKSDiscoveryPermissionError{
 			Operation: fetchers.EKSDiscoveryOperationDescribeCluster,
+			Err:       trace.AccessDenied("access denied"),
+		}))
+		require.False(t, s.handleEKSWatcherError(&fetchers.EKSDiscoveryPermissionError{
+			Operation: fetchers.EKSDiscoveryOperationListClusters,
 			Err:       trace.AccessDenied("access denied"),
 		}))
 		require.Empty(t, s.awsEKSTasks.clusterIssues)

@@ -256,7 +256,7 @@ func (f *eksFetcher) Get(ctx context.Context) (types.ResourcesWithLabels, error)
 	return resources, trace.Wrap(trace.NewAggregate(permissionErrors...))
 }
 
-func (f *eksFetcher) newPermissionError(err error, region, cluster string) *EKSDiscoveryPermissionError {
+func (f *eksFetcher) newPermissionError(err error, operation, region, cluster string) *EKSDiscoveryPermissionError {
 	accountID := "unknown"
 	if f.Matcher.AssumeRole != nil {
 		if roleARN, parseErr := arn.Parse(f.Matcher.AssumeRole.RoleARN); parseErr == nil {
@@ -268,7 +268,7 @@ func (f *eksFetcher) newPermissionError(err error, region, cluster string) *EKSD
 		AccountID:           accountID,
 		Region:              region,
 		Cluster:             cluster,
-		Operation:           EKSDiscoveryOperationDescribeCluster,
+		Operation:           operation,
 		DiscoveryConfigName: f.DiscoveryConfigName,
 		Err:                 err,
 	}
@@ -301,18 +301,23 @@ func matcherCredentialOpts(m types.AWSMatcher) []awsconfig.OptionsFn {
 // the partial result so one inaccessible cluster cannot abort the region.
 func (f *eksFetcher) findClustersInRegion(ctx context.Context, region string, eksClient EKSClient) ([]*DiscoveredEKSCluster, error) {
 	var (
-		clusters         []*DiscoveredEKSCluster
-		permissionErrors []error
-		listErr          error
-		mu               sync.Mutex
-		group, groupCtx  = errgroup.WithContext(ctx)
+		clusters        []*DiscoveredEKSCluster
+		fetchErrors     []error
+		listErr         error
+		mu              sync.Mutex
+		group, groupCtx = errgroup.WithContext(ctx)
 	)
 	group.SetLimit(concurrencyLimit)
 
 	for p := eks.NewListClustersPaginator(eksClient, nil); p.HasMorePages(); {
 		out, err := p.NextPage(ctx)
 		if err != nil {
-			listErr = err
+			err = awslib.ConvertRequestFailureError(err)
+			if trace.IsAccessDenied(err) {
+				listErr = f.newPermissionError(err, EKSDiscoveryOperationListClusters, region, "")
+			} else {
+				listErr = err
+			}
 			break
 		}
 		for _, clusterName := range out.Clusters {
@@ -323,7 +328,7 @@ func (f *eksFetcher) findClustersInRegion(ctx context.Context, region string, ek
 					return nil
 				} else if trace.IsAccessDenied(err) {
 					mu.Lock()
-					permissionErrors = append(permissionErrors, f.newPermissionError(err, region, clusterName))
+					fetchErrors = append(fetchErrors, f.newPermissionError(err, EKSDiscoveryOperationDescribeCluster, region, clusterName))
 					mu.Unlock()
 					return nil
 				} else if err != nil {
@@ -342,9 +347,9 @@ func (f *eksFetcher) findClustersInRegion(ctx context.Context, region string, ek
 	// The closures always return nil, so the group error is too.
 	_ = group.Wait()
 	if listErr != nil {
-		return nil, trace.Wrap(listErr)
+		fetchErrors = append(fetchErrors, listErr)
 	}
-	return clusters, trace.Wrap(trace.NewAggregate(permissionErrors...))
+	return clusters, trace.Wrap(trace.NewAggregate(fetchErrors...))
 }
 
 func (f *eksFetcher) ResourceType() string {

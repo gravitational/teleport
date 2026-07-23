@@ -533,6 +533,36 @@ func TestMergeUpsertDiscoverEKSClusterPermissionTask(t *testing.T) {
 	require.Contains(t, task.GetSpec().GetDiscoverEks().GetClusters(), clusterName)
 }
 
+func TestMergeUpsertDiscoverEKSRegionPermissionTask(t *testing.T) {
+	t.Parallel()
+
+	key := awsEKSTaskKey{
+		integration: "my-int",
+		issueType:   usertasks.AutoDiscoverEKSIssuePermRegionDenied,
+		accountID:   "unknown",
+		region:      "us-east-1",
+	}
+	failedClusters := usertasksv1.DiscoverEKS_builder{
+		AccountId: key.accountID,
+		Region:    key.region,
+		Clusters:  map[string]*usertasksv1.DiscoverEKSCluster{},
+	}.Build()
+
+	s, ap := newTaskUpdater(t)
+	require.NoError(t, s.mergeUpsertDiscoverEKSTask(key, failedClusters))
+
+	taskName := usertasks.TaskNameForDiscoverEKS(usertasks.TaskNameForDiscoverEKSParts{
+		Integration: key.integration,
+		IssueType:   key.issueType,
+		AccountID:   key.accountID,
+		Region:      key.region,
+	})
+	task, err := ap.GetUserTask(s.ctx, taskName)
+	require.NoError(t, err)
+	require.Equal(t, key.issueType, task.GetSpec().GetIssueType())
+	require.Empty(t, task.GetSpec().GetDiscoverEks().GetClusters())
+}
+
 func TestAzureVMTasks_AddFailedEnrollment(t *testing.T) {
 	t.Parallel()
 

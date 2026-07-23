@@ -533,7 +533,8 @@ func (d *awsEKSTasks) reset() {
 	d.issuesSyncQueue = make(map[awsEKSTaskKey]struct{})
 }
 
-// addFailedEnrollment adds an enrollment failure of a given cluster.
+// addFailedEnrollment adds an enrollment failure of a given cluster. Cluster
+// may be nil for permission failures that happen before a cluster is known.
 func (d *awsEKSTasks) addFailedEnrollment(g awsEKSTaskKey, cluster *usertasksv1.DiscoverEKSCluster) {
 	// Only failures associated with an Integration are reported.
 	// There's no major blocking for showing non-integration User Tasks, but this keeps scope smaller.
@@ -558,7 +559,9 @@ func (d *awsEKSTasks) addFailedEnrollment(g awsEKSTaskKey, cluster *usertasksv1.
 			AppAutoDiscover: g.appAutoDiscover,
 		}.Build()
 	}
-	d.clusterIssues[g].GetClusters()[cluster.GetName()] = cluster
+	if cluster != nil {
+		d.clusterIssues[g].GetClusters()[cluster.GetName()] = cluster
+	}
 
 	if d.issuesSyncQueue == nil {
 		d.issuesSyncQueue = make(map[awsEKSTaskKey]struct{})
@@ -778,7 +781,7 @@ func (s *Server) upsertTasksForAWSEKSFailedEnrollments() {
 //
 // All of this flow is protected by a lock to ensure there's no race between this and other DiscoveryServices.
 func (s *taskUpdater) mergeUpsertDiscoverEKSTask(taskGroup awsEKSTaskKey, failedClusters *usertasksv1.DiscoverEKS) error {
-	if len(failedClusters.GetClusters()) == 0 {
+	if len(failedClusters.GetClusters()) == 0 && taskGroup.issueType != usertasks.AutoDiscoverEKSIssuePermRegionDenied {
 		return nil
 	}
 

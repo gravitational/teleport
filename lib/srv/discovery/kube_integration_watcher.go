@@ -236,18 +236,26 @@ func (s *Server) handleEKSWatcherError(err error) bool {
 			continue
 		}
 
-		if permissionError.Operation != fetchers.EKSDiscoveryOperationDescribeCluster || permissionError.Cluster == "" {
+		var issueType string
+		switch {
+		case permissionError.Operation == fetchers.EKSDiscoveryOperationListClusters && permissionError.Region != "":
+			issueType = usertasks.AutoDiscoverEKSIssuePermRegionDenied
+		case permissionError.Operation == fetchers.EKSDiscoveryOperationDescribeCluster && permissionError.Cluster != "":
+			issueType = usertasks.AutoDiscoverEKSIssuePermClusterDenied
+		default:
 			continue
 		}
 		handled = true
-		issueType := usertasks.AutoDiscoverEKSIssuePermClusterDenied
 
-		cluster := usertasksv1.DiscoverEKSCluster_builder{
-			Name:            permissionError.Cluster,
-			DiscoveryConfig: permissionError.DiscoveryConfigName,
-			DiscoveryGroup:  s.DiscoveryGroup,
-			SyncTime:        timestamppb.New(s.clock.Now()),
-		}.Build()
+		var cluster *usertasksv1.DiscoverEKSCluster
+		if permissionError.Cluster != "" {
+			cluster = usertasksv1.DiscoverEKSCluster_builder{
+				Name:            permissionError.Cluster,
+				DiscoveryConfig: permissionError.DiscoveryConfigName,
+				DiscoveryGroup:  s.DiscoveryGroup,
+				SyncTime:        timestamppb.New(s.clock.Now()),
+			}.Build()
+		}
 
 		s.Log.WarnContext(s.ctx, "IAM permission error during EKS discovery",
 			"issue_type", issueType,

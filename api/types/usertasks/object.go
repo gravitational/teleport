@@ -269,6 +269,9 @@ var DiscoverEC2IssueTypes = []string{
 // List of Auto Discover EKS issues identifiers.
 // This value is used to populate the UserTasks.Spec.IssueType for Discover EKS tasks.
 const (
+	// AutoDiscoverEKSIssuePermRegionDenied indicates the integration lacks
+	// permission to enumerate EKS clusters in a region.
+	AutoDiscoverEKSIssuePermRegionDenied = "eks-perm-region-denied"
 	// AutoDiscoverEKSIssuePermClusterDenied indicates the integration lacks
 	// permission to describe a known EKS cluster.
 	AutoDiscoverEKSIssuePermClusterDenied = "eks-perm-cluster-denied"
@@ -297,6 +300,7 @@ const (
 
 // DiscoverEKSIssueTypes is a list of issue types that can occur when trying to auto enroll EKS clusters.
 var DiscoverEKSIssueTypes = []string{
+	AutoDiscoverEKSIssuePermRegionDenied,
 	AutoDiscoverEKSIssuePermClusterDenied,
 	AutoDiscoverEKSIssueStatusNotActive,
 	AutoDiscoverEKSIssueMissingEndpoingPublicAccess,
@@ -535,7 +539,7 @@ func validateDiscoverEKSTaskType(ut *usertasksv1.UserTask) error {
 		return trace.BadParameter("invalid issue type state, allowed values: %v", DiscoverEKSIssueTypes)
 	}
 
-	if len(ut.Spec.DiscoverEks.Clusters) == 0 {
+	if len(ut.Spec.DiscoverEks.Clusters) == 0 && ut.GetSpec().IssueType != AutoDiscoverEKSIssuePermRegionDenied {
 		return trace.BadParameter("at least one cluster is required")
 	}
 	for clusterName, clusterIssue := range ut.Spec.DiscoverEks.Clusters {

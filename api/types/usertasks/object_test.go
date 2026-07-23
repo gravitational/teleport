@@ -407,6 +407,31 @@ func TestValidateUserTask(t *testing.T) {
 			wantErr: noError,
 		},
 		{
+			name: "DiscoverEKS: valid region permission issue without clusters",
+			task: func(t *testing.T) *usertasksv1.UserTask {
+				ut := baseEKSDiscoverTask(t)
+				ut.Spec.IssueType = AutoDiscoverEKSIssuePermRegionDenied
+				ut.Spec.DiscoverEks.Clusters = nil
+				ut.Metadata.Name = TaskNameForDiscoverEKS(TaskNameForDiscoverEKSParts{
+					Integration: ut.Spec.Integration,
+					IssueType:   ut.Spec.IssueType,
+					AccountID:   ut.Spec.DiscoverEks.AccountId,
+					Region:      ut.Spec.DiscoverEks.Region,
+				})
+				return ut
+			},
+			wantErr: noError,
+		},
+		{
+			name: "DiscoverEKS: non-region issue requires clusters",
+			task: func(t *testing.T) *usertasksv1.UserTask {
+				ut := baseEKSDiscoverTask(t)
+				ut.Spec.DiscoverEks.Clusters = nil
+				return ut
+			},
+			wantErr: "at least one cluster is required",
+		},
+		{
 			name: "DiscoverEKS: invalid issue type",
 			task: func(t *testing.T) *usertasksv1.UserTask {
 				ut := baseEKSDiscoverTask(t)
