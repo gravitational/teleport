@@ -7282,6 +7282,8 @@ type drainableEmitter interface {
 	Close() error
 }
 
+const emitterDrainTimeout = time.Hour
+
 // shutdownEmitter drains the emitter's queue to the audit backend when payload
 // carries a graceful shutdown context, otherwise it closes the emitter
 // immediately.
@@ -7290,7 +7292,9 @@ func shutdownEmitter(process *TeleportProcess, emitter drainableEmitter, payload
 		warnOnErr(process.ExitContext(), emitter.Close(), logger)
 		return
 	}
-	warnOnErr(process.ExitContext(), emitter.Shutdown(payloadContext(payload)), logger)
+	drainCtx, cancel := context.WithTimeout(payloadContext(payload), emitterDrainTimeout)
+	defer cancel()
+	warnOnErr(process.ExitContext(), emitter.Shutdown(drainCtx), logger)
 }
 
 // TODO(williamo/scopes): Update this validate function when we add support for these features.
