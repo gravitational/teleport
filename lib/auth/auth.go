@@ -8635,7 +8635,7 @@ func (a *Server) validateMFAAuthResponseInternal(
 		}
 		if err != nil {
 			if reuseErr := a.expiredReusableMFAError(ctx, err, requiredExtensions); reuseErr != nil {
-				return nil, reuseErr
+				return nil, trace.Wrap(reuseErr)
 			}
 			return nil, trace.AccessDenied("MFA response validation failed: %v", err)
 		}
