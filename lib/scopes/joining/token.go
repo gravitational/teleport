@@ -355,23 +355,23 @@ func validateGithub(spec *joiningv1.Github) error {
 	if spec == nil {
 		return trace.BadParameter("github configuration must be defined for a scoped token when using the github join method")
 	}
-	if strings.Contains(spec.EnterpriseServerHost, "/") {
+	if strings.Contains(spec.GetEnterpriseServerHost(), "/") {
 		return trace.BadParameter("'github.enterprise_server_host' should not contain the scheme or path")
 	}
-	if spec.EnterpriseServerHost != "" && spec.EnterpriseSlug != "" {
+	if spec.GetEnterpriseServerHost() != "" && spec.GetEnterpriseSlug() != "" {
 		return trace.BadParameter("'github.enterprise_server_host' and `github.enterprise_slug` cannot both be set")
 	}
 
-	if len(spec.Allow) == 0 {
+	if len(spec.GetAllow()) == 0 {
 		return trace.BadParameter("the github join method requires at least one token allow rule")
 	}
 
-	for _, rule := range spec.Allow {
-		repoSet := rule.Repository != ""
-		ownerSet := rule.RepositoryOwner != ""
-		subSet := rule.Sub != ""
-		enterpriseSet := rule.Enterprise != ""
-		enterpriseIDSet := rule.EnterpriseId != ""
+	for _, rule := range spec.GetAllow() {
+		repoSet := rule.GetRepository() != ""
+		ownerSet := rule.GetRepositoryOwner() != ""
+		subSet := rule.GetSub() != ""
+		enterpriseSet := rule.GetEnterprise() != ""
+		enterpriseIDSet := rule.GetEnterpriseId() != ""
 		if !subSet && !ownerSet && !repoSet && !enterpriseSet && !enterpriseIDSet {
 			return trace.BadParameter(`allow rule for github must include at least one of "repository", "repository_owner", "sub", "enterprise" or "enterprise_id"`)
 		}

@@ -878,6 +878,10 @@ func TestJoinGHABot(t *testing.T) {
 
 	require.Equal(t, "gha-bot", identity.BotName)
 	require.NotEmpty(t, identity.BotInstanceID)
+	require.NotNil(t, identity.ScopePin)
+	require.Equal(t, "/test", identity.ScopePin.GetScope())
+	require.Equal(t, "/test", identity.BotScope)
+	require.True(t, identity.BotInternal)
 
 	// Bot results should not contain immutable labels (host-only).
 	require.Nil(t, result.ImmutableLabels)
