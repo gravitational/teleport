@@ -83,7 +83,8 @@ type SubCAServiceClient interface {
 	// instead it will use local keys. In this case, each Auth server must be
 	// contacted independently to create their corresponding CSRs.
 	//
-	// CreateCSR requires cert_authority_override:create+update permissions.
+	// CreateCSR requires the cert_authority_override:create permission, which
+	// reflects its powers to write PendingCSRRequest resources to the backend.
 	CreateCSR(ctx context.Context, in *CreateCSRRequest, opts ...grpc.CallOption) (*CreateCSRResponse, error)
 	// CreateCertAuthorityOverride creates a CertAuthorityOverride resource.
 	//
@@ -292,7 +293,8 @@ type SubCAServiceServer interface {
 	// instead it will use local keys. In this case, each Auth server must be
 	// contacted independently to create their corresponding CSRs.
 	//
-	// CreateCSR requires cert_authority_override:create+update permissions.
+	// CreateCSR requires the cert_authority_override:create permission, which
+	// reflects its powers to write PendingCSRRequest resources to the backend.
 	CreateCSR(context.Context, *CreateCSRRequest) (*CreateCSRResponse, error)
 	// CreateCertAuthorityOverride creates a CertAuthorityOverride resource.
 	//
