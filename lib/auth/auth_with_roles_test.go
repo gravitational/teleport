@@ -84,6 +84,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/cache"
+	"github.com/gravitational/teleport/lib/componentfeatures"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -3191,6 +3192,46 @@ func serverWithAllowRules(t *testing.T, srv *authtest.AuthServer, allowRules []t
 		srv.AuditLog,
 		*authContext,
 	)
+}
+
+// TestUpsertDatabaseServerStripsComponentFeatures verifies that ComponentFeatures is
+// server-managed: a database agent advertises it over the inventory control stream,
+// which reaches auth.Server directly, so a client write through the authorized API must
+// never be able to claim feature support. See RFD 230.
+func TestUpsertDatabaseServerStripsComponentFeatures(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	testAuth, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, testAuth.Close()) })
+
+	server := serverWithAllowRules(t, testAuth, []types.Rule{
+		types.NewRule(types.KindDatabaseServer, []string{types.VerbCreate, types.VerbUpdate}),
+	})
+
+	dbServer, err := types.NewDatabaseServerV3(types.Metadata{
+		Name: "client-written-db",
+	}, types.DatabaseServerSpecV3{
+		HostID:   "host-id",
+		Hostname: "host",
+		Database: &types.DatabaseV3{
+			Metadata: types.Metadata{Name: "client-written-db"},
+			Spec: types.DatabaseSpecV3{
+				Protocol: "postgres",
+				URI:      "localhost:5432",
+			},
+		},
+	})
+	require.NoError(t, err)
+	dbServer.SetComponentFeatures(componentfeatures.New(componentfeatures.FeatureResourceConstraintsV1))
+
+	_, err = server.UpsertDatabaseServer(ctx, dbServer)
+	require.NoError(t, err)
+
+	got, err := testAuth.AuthServer.GetDatabaseServers(ctx, apidefaults.Namespace)
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+	require.Nil(t, got[0].GetComponentFeatures(), "client-set ComponentFeatures must not be persisted on a database server")
 }
 
 // TestDatabasesCRUDRBAC verifies RBAC is applied to database CRUD methods.

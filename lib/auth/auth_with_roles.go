@@ -1566,6 +1566,8 @@ type unifiedResourceLister struct {
 	requestableAccessChecker resourceCheckerI
 	// kindAccessErrMap is used to check errors for list/read verbs per kind.
 	kindAccessErrMap map[string]error
+	// localCluster is the cluster name, used for per-role AccessChecker construction.
+	localCluster string
 	// requestableMap is used to track if a resource matches a filter but is only
 	// available after an access request. This map is of Resource.GetName().
 	// If the requestableMap is nil then no requestable resources will be traced.
@@ -1654,6 +1656,40 @@ func (l *unifiedResourceLister) getLogins(withGranted bool, resource services.Ac
 		return nil, nil, trace.Wrap(err)
 	}
 	return all, granted, nil
+}
+
+// getDatabasePrincipals returns a database's per-dimension principal sets,
+// split into granted and requestable values and attributed to the granting
+// roles (including requestable principals via search_as_roles).
+func (l *unifiedResourceLister) getDatabasePrincipals(database types.Database) []types.ResourcePrincipalSet {
+	base := unwrapAccessChecker(l.accessChecker)
+	if base == nil {
+		return nil
+	}
+	var extended services.AccessChecker
+	if l.requestableAccessChecker != nil {
+		if extended = unwrapAccessChecker(l.requestableAccessChecker); extended == nil {
+			return nil
+		}
+	}
+	return services.DatabasePrincipalSets(base, extended, database, l.localCluster)
+}
+
+// unwrapAccessChecker extracts the services.AccessChecker from a
+// resourceCheckerI, unwrapping through any decorator layers (e.g.
+// oktaRequestableResoruceChecker).
+func unwrapAccessChecker(rc resourceCheckerI) services.AccessChecker {
+	for rc != nil {
+		if checker, ok := rc.(*resourceChecker); ok {
+			return checker.AccessChecker
+		}
+		if okta, ok := rc.(*oktaRequestableResoruceChecker); ok {
+			rc = okta.underlying
+			continue
+		}
+		return nil
+	}
+	return nil
 }
 
 func (a *ServerWithRoles) checkAction(namespace, resourceKind string, verb string, extraVerbs ...string) error {
@@ -1750,8 +1786,14 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 
 	var err error
 
+	clusterName, err := a.authServer.GetClusterName(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	resourceLister := &unifiedResourceLister{
 		kindAccessErrMap: kindAccessErrMap,
+		localCluster:     clusterName.GetClusterName(),
 	}
 
 	resourceLister.accessChecker, err = newResourceAccessChecker(a.context, types.KindUnifiedResource)
@@ -1856,6 +1898,14 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 				checkable = r.GetWindowsDesktop()
 			case r.GetLinuxDesktop() != nil:
 				checkable = proto.UnpackLinuxDesktop(r.GetLinuxDesktop())
+			case r.GetDatabaseServer() != nil:
+				// Databases carry no flat Logins; their principals ride
+				// Principals alone, attributed to the granting roles.
+				if populatePrincipals {
+					r.Principals = services.ResourcePrincipalSetsToProto(
+						resourceLister.getDatabasePrincipals(r.GetDatabaseServer().GetDatabase()))
+				}
+				continue
 			case r.GetAppServer() != nil:
 				app := r.GetAppServer().GetApp()
 				// Apps representing an Identity Center Account have a collection of Permission Sets
@@ -6429,6 +6479,12 @@ func (a *ServerWithRoles) UpsertDatabaseServer(ctx context.Context, server types
 	if server.GetScope() != "" {
 		return nil, trace.BadParameter("scoped database server must register a control stream")
 	}
+	// ComponentFeatures is server-managed. Database agents advertise it over the
+	// inventory control stream, which reaches auth.Server directly and never routes
+	// through this wrapper, so anything arriving here is a client write. Drop what it
+	// claims so a client cannot over-report support the resource does not have. See
+	// RFD 230.
+	server.SetComponentFeatures(nil)
 	return a.authServer.UpsertDatabaseServer(ctx, server)
 }
 
