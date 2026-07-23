@@ -112,6 +112,13 @@ func (issuer *kubeCertIssuer) LoadOrIssueCerts(ctx context.Context, clusters kub
 // If the cluster has per-session MFA, it replays the shared reusable MFA response if one is held.
 // If no reusable response is held, it takes the single-flight ceremony path, which may prompt the user.
 func (issuer *kubeCertIssuer) IssueCert(ctx context.Context, teleportCluster, kubeCluster string, mfaCheck *proto.IsMFARequiredResponse) (*tls.Certificate, error) {
+	// Hold one connection across the issuance. Every attempt below shares it.
+	cc, release, err := issuer.conn.Acquire(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer release()
+
 	params := client.ReissueParams{
 		RouteToCluster:    teleportCluster,
 		KubernetesCluster: kubeCluster,
@@ -128,16 +135,16 @@ func (issuer *kubeCertIssuer) IssueCert(ctx context.Context, teleportCluster, ku
 			return nil, trace.Wrap(err)
 		}
 		defer release()
-		return issuer.requestCert(ctx, params)
+		return issuer.requestCert(ctx, cc, params)
 	}
 
 	// MFA is known to be off for this cluster: plain issuance, no prompt possible.
 	if mfaCheck != nil && !mfaCheck.GetRequired() {
 		params.RequesterName, _ = issuer.mfa.State()
-		return issuer.requestCert(ctx, params)
+		return issuer.requestCert(ctx, cc, params)
 	}
 
-	return issuer.issueMFAGatedCert(ctx, params)
+	return issuer.issueMFAGatedCert(ctx, cc, params)
 }
 
 func (issuer *kubeCertIssuer) loadKubeKeyRings(teleportClusters []string) (map[string]*client.KeyRing, error) {
@@ -212,7 +219,7 @@ func (issuer *kubeCertIssuer) issueCerts(ctx context.Context, clusters kubeconfi
 // issueMFAGatedCert issues one cert that may require MFA.
 // It replays the shared reusable response when one is held, and takes the single-flight ceremony path otherwise.
 // Rejected replays loop back into the ceremony path to refresh the response.
-func (issuer *kubeCertIssuer) issueMFAGatedCert(ctx context.Context, params client.ReissueParams) (*tls.Certificate, error) {
+func (issuer *kubeCertIssuer) issueMFAGatedCert(ctx context.Context, cc kubeCertClient, params client.ReissueParams) (*tls.Certificate, error) {
 	// Tolerate up to 3 rejected replays before giving up. Only two rejections are recoverable:
 	// - The replayed response outlived the server's reuse window and expired.
 	// - This auth server does not allow reuse at all (a mixed-version auth pool).
@@ -225,7 +232,7 @@ func (issuer *kubeCertIssuer) issueMFAGatedCert(ctx context.Context, params clie
 		requester, reusable := issuer.mfa.State()
 
 		if reusable == nil {
-			cert, done, err := issuer.issueWithCeremony(ctx, params)
+			cert, done, err := issuer.issueWithCeremony(ctx, cc, params)
 			if !done {
 				// A peer's ceremony captured a fresh response. Replay it.
 				continue
@@ -236,7 +243,7 @@ func (issuer *kubeCertIssuer) issueMFAGatedCert(ctx context.Context, params clie
 		params.RequesterName = requester
 		params.ReusableMFAResponse = reusable
 		params.FailOnExpiredReusableMFAResponse = true
-		cert, err := issuer.requestCert(ctx, params)
+		cert, err := issuer.requestCert(ctx, cc, params)
 		switch {
 		case errors.Is(err, &mfa.ErrExpiredReusableMFAResponse):
 			// The response expired mid-flight. Drop it and loop into the ceremony path.
@@ -258,7 +265,7 @@ func (issuer *kubeCertIssuer) issueMFAGatedCert(ctx context.Context, params clie
 // issueWithCeremony runs an issuance that may prompt the user, under the single-flight lock.
 // It reports done=false without issuing when the ceremony it waited on captured a reusable response.
 // The caller replays it instead, with no prompt.
-func (issuer *kubeCertIssuer) issueWithCeremony(ctx context.Context, params client.ReissueParams) (cert *tls.Certificate, done bool, err error) {
+func (issuer *kubeCertIssuer) issueWithCeremony(ctx context.Context, cc kubeCertClient, params client.ReissueParams) (cert *tls.Certificate, done bool, err error) {
 	release, err := issuer.mfa.AcquireSlot(ctx)
 	if err != nil {
 		return nil, false, trace.Wrap(err)
@@ -273,24 +280,18 @@ func (issuer *kubeCertIssuer) issueWithCeremony(ctx context.Context, params clie
 	params.RequesterName = requester
 	params.ReusableMFAResponse = nil
 	params.FailOnExpiredReusableMFAResponse = false
-	cert, err = issuer.requestCert(ctx, params)
+	cert, err = issuer.requestCert(ctx, cc, params)
 	if requester == proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_MULTI && isMFAReuseRejected(err) {
 		// An auth server that predates the requester rejected the ceremony.
 		issuer.mfa.FallbackToLegacy(ctx, err)
 		params.RequesterName = proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY
-		cert, err = issuer.requestCert(ctx, params)
+		cert, err = issuer.requestCert(ctx, cc, params)
 	}
 	return cert, true, trace.Wrap(err)
 }
 
-// issue issues one cert for the given cluster, with no single-flight lock.
-func (issuer *kubeCertIssuer) requestCert(ctx context.Context, params client.ReissueParams) (*tls.Certificate, error) {
-	cc, release, err := issuer.conn.Acquire(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer release()
-
+// requestCert requests one cert from the cluster, with no single-flight lock.
+func (issuer *kubeCertIssuer) requestCert(ctx context.Context, cc kubeCertClient, params client.ReissueParams) (*tls.Certificate, error) {
 	result, err := cc.IssueUserCertsWithMFA(ctx, params)
 	if err != nil {
 		return nil, trace.Wrap(err)
