@@ -5482,6 +5482,13 @@ message OneOf {
   }
 }
 
+// AuditEventBatch is a batch of audit events serialized into a single message.
+// An AuditEventBatch may or may not be encrypted.
+message AuditEventBatch {
+  // Events is the list of events in the batch.
+  repeated OneOf Events = 1 [(gogoproto.jsontag) = "events"];
+}
+
 // StreamStatus reflects stream status
 message StreamStatus {
   // UploadID represents upload ID

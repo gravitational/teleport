@@ -234,13 +234,14 @@ func TestRun_AcksDeliveredEvents(t *testing.T) {
 			runCtx, cancel := context.WithCancel(ctx)
 			t.Cleanup(cancel)
 
-			// Ack only event 0. Event 1 should be retried.
+			// Ack only the batch holding event 0. The batch holding event 1
+			// should be retried.
 			var calls atomic.Int32
 			handler := func(_ context.Context, items []Item) []Item {
 				if calls.Add(1) == 1 {
 					var acked []Item
 					for _, it := range items {
-						if it.Event.GetIndex() == 0 {
+						if len(it.Events) == 1 && it.Events[0].GetIndex() == 0 {
 							acked = append(acked, it)
 						}
 					}
@@ -271,7 +272,7 @@ func TestRun_NormalOperation(t *testing.T) {
 
 			var acked atomic.Int32
 			handler := func(_ context.Context, items []Item) []Item {
-				acked.Add(int32(len(items)))
+				acked.Add(int32(len(flatEvents(items))))
 				return items
 			}
 
@@ -419,9 +420,11 @@ func TestRun_DeadLetter_RedeliversAfterRecovery(t *testing.T) {
 				// Once we are here, this means that the event has been moved to
 				// the dead letter queue. Let's now deliver it.
 				for _, it := range items {
-					select {
-					case delivered <- it.Event:
-					default:
+					for _, event := range it.Events {
+						select {
+						case delivered <- event:
+						default:
+						}
 					}
 				}
 				return items
@@ -495,7 +498,9 @@ func TestEnqueueDequeue_RoundTrip(t *testing.T) {
 			delivered := make(chan apievents.AuditEvent, 1)
 			handler := func(_ context.Context, items []Item) []Item {
 				for _, item := range items {
-					delivered <- item.Event
+					for _, event := range item.Events {
+						delivered <- event
+					}
 				}
 				return items
 			}

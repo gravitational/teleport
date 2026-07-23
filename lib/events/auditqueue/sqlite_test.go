@@ -68,12 +68,29 @@ func histogramSampleCount(t *testing.T, h prometheus.Histogram) uint64 {
 
 func fetchDeadLetter(ctx context.Context, db *sql.DB, limit int) ([]Item, error) {
 	rows, err := db.QueryContext(ctx,
-		"SELECT id, payload FROM audit_dead_letter ORDER BY id ASC LIMIT ?", limit)
+		"SELECT id, payload, format, enqueued_at FROM audit_dead_letter ORDER BY id ASC LIMIT ?", limit)
 	if err != nil {
 		return nil, err
 	}
 	items, _, err := scanItems(rows)
 	return items, err
+}
+
+func flatEvents(items []Item) []apievents.AuditEvent {
+	var events []apievents.AuditEvent
+	for _, item := range items {
+		events = append(events, item.Events...)
+	}
+	return events
+}
+
+func marshalTestBatch(t *testing.T, index int64) []byte {
+	t.Helper()
+	oneOf, err := apievents.ToOneOf(newTestEvent(index))
+	require.NoError(t, err)
+	payload, err := (&apievents.AuditEventBatch{Events: []*apievents.OneOf{oneOf}}).Marshal()
+	require.NoError(t, err)
+	return payload
 }
 
 func TestEnqueueDequeue_FIFO(t *testing.T) {
@@ -86,9 +103,10 @@ func TestEnqueueDequeue_FIFO(t *testing.T) {
 
 	got, err := q.fetch(3)
 	require.NoError(t, err)
-	require.Len(t, got, 3)
-	for i, item := range got {
-		require.Equal(t, int64(i), item.Event.GetIndex())
+	events := flatEvents(got)
+	require.Len(t, events, 3)
+	for i, event := range events {
+		require.Equal(t, int64(i), event.GetIndex())
 	}
 	require.NoError(t, q.ack(got))
 }
@@ -178,7 +196,8 @@ func TestDequeue_WithoutAckRetainsEvents(t *testing.T) {
 	first, err := q.fetch(1)
 	require.NoError(t, err)
 	require.Len(t, first, 1)
-	require.Equal(t, int64(42), first[0].Event.GetIndex())
+	require.Len(t, first[0].Events, 1)
+	require.Equal(t, int64(42), first[0].Events[0].GetIndex())
 
 	second, err := q.fetch(1)
 	require.NoError(t, err)
@@ -225,9 +244,10 @@ func TestRun_DeliversAndAcks(t *testing.T) {
 	require.ErrorIs(t, <-runErr, context.Canceled)
 
 	mu.Lock()
-	require.Len(t, got, 3)
-	for i, item := range got {
-		require.Equal(t, int64(i), item.Event.GetIndex())
+	events := flatEvents(got)
+	require.Len(t, events, 3)
+	for i, event := range events {
+		require.Equal(t, int64(i), event.GetIndex())
 	}
 	mu.Unlock()
 }
@@ -247,7 +267,7 @@ func TestRun_HandlerSubsetIsAcked(t *testing.T) {
 	handler := func(_ context.Context, items []Item) []Item {
 		var ack []Item
 		for _, it := range items {
-			if it.Event.GetIndex()%2 == 0 {
+			if len(it.Events) == 1 && it.Events[0].GetIndex()%2 == 0 {
 				ack = append(ack, it)
 			}
 		}
@@ -259,10 +279,10 @@ func TestRun_HandlerSubsetIsAcked(t *testing.T) {
 
 	require.Eventually(t, func() bool {
 		items, err := q.fetch(10)
-		if err != nil || len(items) != 1 {
+		if err != nil || len(items) != 1 || len(items[0].Events) != 1 {
 			return false
 		}
-		return items[0].Event.GetIndex() == 1
+		return items[0].Events[0].GetIndex() == 1
 	}, 2*time.Second, 10*time.Millisecond)
 
 	cancel()
@@ -318,7 +338,7 @@ func TestEnqueue_ConcurrentCallersAllSucceed(t *testing.T) {
 
 	items, err := q.fetch(N + 10)
 	require.NoError(t, err)
-	require.Len(t, items, N)
+	require.Len(t, flatEvents(items), N)
 }
 
 func TestEnqueue_FIFOWithinSingleProducer(t *testing.T) {
@@ -342,11 +362,12 @@ func TestEnqueue_FIFOWithinSingleProducer(t *testing.T) {
 
 	items, err := q.fetch(G*Per + 10)
 	require.NoError(t, err)
-	require.Len(t, items, G*Per)
+	events := flatEvents(items)
+	require.Len(t, events, G*Per)
 
 	perProducer := make(map[int][]int64)
-	for _, item := range items {
-		idx := item.Event.GetIndex()
+	for _, event := range events {
+		idx := event.GetIndex()
 		g := int(idx) / Per
 		perProducer[g] = append(perProducer[g], idx)
 	}
@@ -368,7 +389,8 @@ func TestEnqueue_VisibleImmediatelyAfterReturn(t *testing.T) {
 	items, err := q.fetch(1)
 	require.NoError(t, err)
 	require.Len(t, items, 1)
-	require.Equal(t, int64(42), items[0].Event.GetIndex())
+	require.Len(t, items[0].Events, 1)
+	require.Equal(t, int64(42), items[0].Events[0].GetIndex())
 }
 
 func TestClose_PendingEnqueuesReturn(t *testing.T) {
@@ -521,8 +543,8 @@ func TestOrphanAdoption_DrainsAndDeletes(t *testing.T) {
 	)
 	handler := func(_ context.Context, items []Item) []Item {
 		mu.Lock()
-		for _, it := range items {
-			got = append(got, it.Event.GetIndex())
+		for _, event := range flatEvents(items) {
+			got = append(got, event.GetIndex())
 		}
 		mu.Unlock()
 		return items
@@ -593,7 +615,7 @@ func TestOrphanAdoption_MigratesDeadLetter(t *testing.T) {
 
 	require.Eventually(t, func() bool {
 		dl, err := fetchDeadLetter(b.ctx, b.db, 10)
-		return err == nil && len(dl) == 1 && dl[0].Event.GetIndex() == 42
+		return err == nil && len(dl) == 1 && len(dl[0].Events) == 1 && dl[0].Events[0].GetIndex() == 42
 	}, 5*time.Second, 50*time.Millisecond, "expected B to migrate A's dead-letter row")
 
 	require.Eventually(t, func() bool {
@@ -637,7 +659,7 @@ func TestOrphanAdoption_PromotesFailedToDeadLetter(t *testing.T) {
 
 	require.Eventually(t, func() bool {
 		dl, err := fetchDeadLetter(b.ctx, b.db, 10)
-		return err == nil && len(dl) == 1 && dl[0].Event.GetIndex() == 42
+		return err == nil && len(dl) == 1 && len(dl[0].Events) == 1 && dl[0].Events[0].GetIndex() == 42
 	}, 5*time.Second, 50*time.Millisecond,
 		"expected A's failing event to be promoted and migrated into B's dead-letter queue")
 
@@ -683,7 +705,8 @@ func TestMigrateOrphanQueue_PreservesAttempts(t *testing.T) {
 	migrated, err := b.fetch(10)
 	require.NoError(t, err)
 	require.Len(t, migrated, 1)
-	require.Equal(t, int64(42), migrated[0].Event.GetIndex())
+	require.Len(t, migrated[0].Events, 1)
+	require.Equal(t, int64(42), migrated[0].Events[0].GetIndex())
 
 	var attempts int
 	require.NoError(t, b.db.QueryRow("SELECT attempts FROM audit_queue").Scan(&attempts))
@@ -701,7 +724,7 @@ func TestMigrateOrphanQueue_WatermarkPreventsDuplicates(t *testing.T) {
 	}
 
 	original, err := fetchOrphanRows(t.Context(), a.db,
-		"SELECT id, payload, attempts FROM audit_queue WHERE id > ? ORDER BY id ASC LIMIT ?", 0, 10)
+		"SELECT id, payload, format, event_count, enqueued_at, attempts FROM audit_queue WHERE id > ? ORDER BY id ASC LIMIT ?", 0, 10)
 	require.NoError(t, err)
 	require.Len(t, original, 3)
 
@@ -715,7 +738,7 @@ func TestMigrateOrphanQueue_WatermarkPreventsDuplicates(t *testing.T) {
 	// deletes had never committed.
 	for _, r := range original {
 		args := append([]any{r.id}, r.values...)
-		_, err := a.db.Exec("INSERT INTO audit_queue (id, payload, attempts) VALUES (?, ?, ?)", args...)
+		_, err := a.db.Exec("INSERT INTO audit_queue (id, payload, format, event_count, enqueued_at, attempts) VALUES (?, ?, ?, ?, ?, ?)", args...)
 		require.NoError(t, err)
 	}
 
@@ -741,7 +764,7 @@ func TestMigrateOrphanDB_RoundTrip(t *testing.T) {
 	_, err = a.db.Exec("UPDATE audit_queue SET attempts = id * 3")
 	require.NoError(t, err)
 	_, err = a.db.Exec(
-		"INSERT INTO audit_dead_letter (payload, failed_at) SELECT payload, id * 1000 FROM audit_queue WHERE id > 3")
+		"INSERT INTO audit_dead_letter (payload, format, event_count, enqueued_at, failed_at) SELECT payload, format, event_count, enqueued_at, id * 1000 FROM audit_queue WHERE id > 3")
 	require.NoError(t, err)
 	_, err = a.db.Exec("DELETE FROM audit_queue WHERE id > 3")
 	require.NoError(t, err)
@@ -781,9 +804,10 @@ func TestMigrateOrphanDB_RoundTrip(t *testing.T) {
 
 	items, err := b.fetch(10)
 	require.NoError(t, err)
-	require.Len(t, items, 3)
-	for i, item := range items {
-		require.Equal(t, int64(i), item.Event.GetIndex(),
+	events := flatEvents(items)
+	require.Len(t, events, 3)
+	for i, event := range events {
+		require.Equal(t, int64(i), event.GetIndex(),
 			"migrated payloads should still unmarshal to the original events in order")
 	}
 }
@@ -1024,7 +1048,8 @@ func TestRetry_ExhaustedMovesToDeadLetter(t *testing.T) {
 	dlItems, err := fetchDeadLetter(q.ctx, q.db, 10)
 	require.NoError(t, err)
 	require.Len(t, dlItems, 1)
-	require.Equal(t, int64(42), dlItems[0].Event.GetIndex())
+	require.Len(t, dlItems[0].Events, 1)
+	require.Equal(t, int64(42), dlItems[0].Events[0].GetIndex())
 
 	cancel()
 	require.ErrorIs(t, <-runErr, context.Canceled)
@@ -1223,7 +1248,7 @@ func TestFetch_QuarantinesCorruptEvent(t *testing.T) {
 	t.Parallel()
 	q := newSqliteTestQueue(t)
 
-	_, err := q.db.Exec("INSERT INTO audit_queue (payload) VALUES (?)", corruptPayload)
+	_, err := q.db.Exec("INSERT INTO audit_queue (payload, format, event_count, enqueued_at) VALUES (?, 0, 1, 0)", corruptPayload)
 	require.NoError(t, err)
 	for i := int64(0); i < 3; i++ {
 		require.NoError(t, q.Enqueue(newTestEvent(i)))
@@ -1234,9 +1259,10 @@ func TestFetch_QuarantinesCorruptEvent(t *testing.T) {
 
 	items, err := q.fetch(10)
 	require.NoError(t, err)
-	require.Len(t, items, 3, "the three good events should still be returned")
-	for i, item := range items {
-		require.Equal(t, int64(i), item.Event.GetIndex())
+	events := flatEvents(items)
+	require.Len(t, events, 3, "the three good events should still be returned")
+	for i, event := range events {
+		require.Equal(t, int64(i), event.GetIndex())
 	}
 
 	require.Zero(t, countRows(t, q, "audit_queue WHERE payload = x'ffffff'"),
@@ -1258,7 +1284,7 @@ func TestFetch_CorruptDoesNotBlockQueue(t *testing.T) {
 	t.Parallel()
 	q := newSqliteTestQueue(t)
 
-	_, err := q.db.Exec("INSERT INTO audit_queue (payload) VALUES (?)", corruptPayload)
+	_, err := q.db.Exec("INSERT INTO audit_queue (payload, format, event_count, enqueued_at) VALUES (?, 0, 1, 0)", corruptPayload)
 	require.NoError(t, err)
 	for i := range int64(3) {
 		require.NoError(t, q.Enqueue(newTestEvent(i)))
@@ -1271,8 +1297,8 @@ func TestFetch_CorruptDoesNotBlockQueue(t *testing.T) {
 		if len(items) == 0 {
 			break
 		}
-		for _, item := range items {
-			delivered = append(delivered, item.Event.GetIndex())
+		for _, event := range flatEvents(items) {
+			delivered = append(delivered, event.GetIndex())
 		}
 		require.NoError(t, q.ack(items))
 	}
@@ -1287,7 +1313,7 @@ func TestFetchDeadLetter_QuarantinesCorrupt(t *testing.T) {
 	q := newSqliteTestQueue(t)
 
 	_, err := q.db.Exec(
-		"INSERT INTO audit_dead_letter (payload, failed_at) VALUES (?, ?)",
+		"INSERT INTO audit_dead_letter (payload, format, event_count, enqueued_at, failed_at) VALUES (?, 0, 1, 0, ?)",
 		corruptPayload, time.Now().Unix())
 	require.NoError(t, err)
 
@@ -1318,7 +1344,7 @@ func TestExpireCorruptEvents(t *testing.T) {
 	old := time.Now().Add(-2 * time.Hour).Unix()
 	recent := time.Now().Unix()
 	_, err = q.db.Exec(
-		"INSERT INTO corrupt_events (payload, error, source, failed_at) VALUES (?, 'boom', 'audit_queue', ?), (?, 'boom', 'audit_queue', ?)",
+		"INSERT INTO corrupt_events (payload, format, enqueued_at, error, source, failed_at) VALUES (?, 0, 0, 'boom', 'audit_queue', ?), (?, 0, 0, 'boom', 'audit_queue', ?)",
 		corruptPayload, old, corruptPayload, recent)
 	require.NoError(t, err)
 
@@ -1333,7 +1359,7 @@ func TestRecoverCorruptEvents(t *testing.T) {
 
 	// A genuinely corrupt payload that will never deserialize.
 	_, err := q.db.Exec(
-		"INSERT INTO corrupt_events (payload, error, source, failed_at) VALUES (?, 'boom', 'audit_queue', ?)",
+		"INSERT INTO corrupt_events (payload, format, enqueued_at, error, source, failed_at) VALUES (?, 0, 0, 'boom', 'audit_queue', ?)",
 		corruptPayload, time.Now().Unix())
 	require.NoError(t, err)
 
@@ -1341,10 +1367,10 @@ func TestRecoverCorruptEvents(t *testing.T) {
 	// and quarantined before an upgrade made it readable.
 	oneOf, err := apievents.ToOneOf(newTestEvent(7))
 	require.NoError(t, err)
-	validPayload, err := oneOf.Marshal()
+	validPayload, err := (&apievents.AuditEventBatch{Events: []*apievents.OneOf{oneOf}}).Marshal()
 	require.NoError(t, err)
 	_, err = q.db.Exec(
-		"INSERT INTO corrupt_events (payload, error, source, failed_at) VALUES (?, 'was unknown event type', 'audit_queue', ?)",
+		"INSERT INTO corrupt_events (payload, format, enqueued_at, error, source, failed_at) VALUES (?, 0, 0, 'was unknown event type', 'audit_queue', ?)",
 		validPayload, time.Now().Unix())
 	require.NoError(t, err)
 
@@ -1354,7 +1380,8 @@ func TestRecoverCorruptEvents(t *testing.T) {
 	items, err := q.fetch(10)
 	require.NoError(t, err)
 	require.Len(t, items, 1)
-	require.Equal(t, int64(7), items[0].Event.GetIndex())
+	require.Len(t, items[0].Events, 1)
+	require.Equal(t, int64(7), items[0].Events[0].GetIndex())
 
 	// The genuinely corrupt row is retained for a future attempt.
 	require.Equal(t, 1, countRows(t, q, "corrupt_events"))
@@ -1369,17 +1396,13 @@ func TestRecoverCorruptEvents_PagesLargeBacklog(t *testing.T) {
 
 	insert := func(payload []byte) {
 		_, err := q.db.Exec(
-			"INSERT INTO corrupt_events (payload, error, source, failed_at) VALUES (?, 'x', 'audit_queue', 0)",
+			"INSERT INTO corrupt_events (payload, format, enqueued_at, error, source, failed_at) VALUES (?, 0, 0, 'x', 'audit_queue', 0)",
 			payload)
 		require.NoError(t, err)
 	}
 
 	for i := 0; i < validCount; i++ {
-		oneOf, err := apievents.ToOneOf(newTestEvent(int64(i)))
-		require.NoError(t, err)
-		payload, err := oneOf.Marshal()
-		require.NoError(t, err)
-		insert(payload)
+		insert(marshalTestBatch(t, int64(i)))
 		// Interleave corrupt rows so the cursor must page past them.
 		if i < corruptCount {
 			insert(corruptPayload)
@@ -1400,7 +1423,7 @@ func TestRecoverCorruptEvents_WatermarkAdvances(t *testing.T) {
 
 	// An un-recoverable row examined by the first pass.
 	_, err := q.db.Exec(
-		"INSERT INTO corrupt_events (payload, error, source, failed_at) VALUES (?, 'boom', 'audit_queue', 0)",
+		"INSERT INTO corrupt_events (payload, format, enqueued_at, error, source, failed_at) VALUES (?, 0, 0, 'boom', 'audit_queue', 0)",
 		corruptPayload)
 	require.NoError(t, err)
 
@@ -1413,10 +1436,10 @@ func TestRecoverCorruptEvents_WatermarkAdvances(t *testing.T) {
 	// lands above the watermark and is picked up on the next pass.
 	oneOf, err := apievents.ToOneOf(newTestEvent(7))
 	require.NoError(t, err)
-	validPayload, err := oneOf.Marshal()
+	validPayload, err := (&apievents.AuditEventBatch{Events: []*apievents.OneOf{oneOf}}).Marshal()
 	require.NoError(t, err)
 	_, err = q.db.Exec(
-		"INSERT INTO corrupt_events (payload, error, source, failed_at) VALUES (?, 'was unknown', 'audit_queue', 0)",
+		"INSERT INTO corrupt_events (payload, format, enqueued_at, error, source, failed_at) VALUES (?, 0, 0, 'was unknown', 'audit_queue', 0)",
 		validPayload)
 	require.NoError(t, err)
 
@@ -1425,7 +1448,8 @@ func TestRecoverCorruptEvents_WatermarkAdvances(t *testing.T) {
 	items, err := q.fetch(10)
 	require.NoError(t, err)
 	require.Len(t, items, 1)
-	require.Equal(t, int64(7), items[0].Event.GetIndex())
+	require.Len(t, items[0].Events, 1)
+	require.Equal(t, int64(7), items[0].Events[0].GetIndex())
 	require.Equal(t, 1, countRows(t, q, "corrupt_events"),
 		"the un-recoverable row should remain, skipped by the watermark")
 }
@@ -1441,7 +1465,7 @@ func TestOrphanAdoption_MigratesCorruptEvents(t *testing.T) {
 
 	failedAt := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC).Unix()
 	_, err = a.db.Exec(
-		"INSERT INTO corrupt_events (payload, error, source, failed_at) VALUES (?, 'boom', 'audit_queue', ?)",
+		"INSERT INTO corrupt_events (payload, format, enqueued_at, error, source, failed_at) VALUES (?, 0, 0, 'boom', 'audit_queue', ?)",
 		corruptPayload, failedAt)
 	require.NoError(t, err)
 	require.NoError(t, a.Close())
