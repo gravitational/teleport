@@ -5,13 +5,14 @@ tags:
  - how-to
  - platform-wide
  - resiliency
+page_type: how-to
 ---
 
 Components of a Teleport cluster authenticate to one another using either X.509
 or SSH certificates. To issue certificates, Teleport maintains several
 certificate authorities. You can rotate Teleport CAs to prevent malicious actors
-from impersonating part of your Teleport cluster. This guide explains the CAs
-that Teleport maintains and how to rotate them.
+from impersonating part of your Teleport cluster. In this guide, you will choose
+a CA to rotate and perform a rotation.
 
 We recommend becoming familiar with the entire guide before following the steps,
 as you should be ready to roll back the CA rotation if it does not proceed as
