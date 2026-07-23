@@ -855,7 +855,7 @@ func TestVerifyBrowserMFASession(t *testing.T) {
 		}
 	})
 
-	t.Run("same access denied error for missing session and username mismatch", func(t *testing.T) {
+	t.Run("same not found error for missing session and username mismatch", func(t *testing.T) {
 		env := newBrowserMFATestEnv(t)
 
 		for _, tt := range []struct {
@@ -880,7 +880,7 @@ func TestVerifyBrowserMFASession(t *testing.T) {
 
 				mad, err := env.auth.VerifyBrowserMFASession(ctx, env.webauthnUser.GetName(), "session-id", &webauthnpb.CredentialAssertionResponse{}, loginExt)
 				require.Nil(t, mad)
-				require.True(t, trace.IsAccessDenied(err), "expected access denied error but got %v", err)
+				require.True(t, trace.IsNotFound(err), "expected not found error but got %v", err)
 				require.EqualError(t, err, notFoundErrMsg)
 			})
 		}

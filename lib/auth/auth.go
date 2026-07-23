@@ -8697,12 +8697,12 @@ func (a *Server) verifyMFASessionData(
 			return nil, reuseErr
 		}
 		if trace.IsNotFound(err) {
-			return nil, trace.AccessDenied("%s", mfaSessionDataNotFoundMsg)
+			return nil, trace.NotFound("%s", mfaSessionDataNotFoundMsg)
 		}
 		return nil, trace.Wrap(err)
 	}
 	if mfaSess.Username != username {
-		return nil, trace.AccessDenied("%s", mfaSessionDataNotFoundMsg)
+		return nil, trace.NotFound("%s", mfaSessionDataNotFoundMsg)
 	}
 	if requiredExtensions.Scope != mfaSess.ChallengeExtensions.Scope {
 		return nil, trace.AccessDenied("required scope %q is not satisfied by the given MFA session with scope %q", requiredExtensions.Scope, mfaSess.ChallengeExtensions.Scope)

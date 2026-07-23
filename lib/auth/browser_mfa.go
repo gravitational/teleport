@@ -135,7 +135,7 @@ func (a *Server) VerifyBrowserMFASession(ctx context.Context, username, sessionI
 			"connector_type", mfaSess.ConnectorType,
 			"username", username,
 		)
-		return nil, trace.AccessDenied("%s", mfaSessionDataNotFoundMsg)
+		return nil, trace.NotFound("%s", mfaSessionDataNotFoundMsg)
 	}
 
 	// Check if the MFA session matches the user's Browser MFA settings.

@@ -480,7 +480,7 @@ func TestSSOMFAChallenge_Validation(t *testing.T) {
 			},
 			requiredExtensions: &mfav1.ChallengeExtensions{},
 			assertValidation: func(t *testing.T, mad *authz.MFAAuthData, err error) {
-				require.True(t, trace.IsAccessDenied(err), "expected access denied error but got %v", err)
+				require.True(t, trace.IsNotFound(err), "expected not found error but got %v", err)
 			},
 		},
 		{
@@ -523,7 +523,7 @@ func TestSSOMFAChallenge_Validation(t *testing.T) {
 				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
 			},
 			assertValidation: func(t *testing.T, mad *authz.MFAAuthData, err error) {
-				require.True(t, trace.IsAccessDenied(err), "expected access denied error but got %v", err)
+				require.True(t, trace.IsNotFound(err), "expected not found error but got %v", err)
 			},
 		},
 		{
