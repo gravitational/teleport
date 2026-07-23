@@ -64,18 +64,44 @@ func TestLoadCheckerConfig(t *testing.T) {
 	require.Equal(t, serviceSectionInfo{
 		Name:        "Instance-wide settings",
 		ExamplePath: "docs/pages/includes/config-reference/instance-wide.yaml",
-		SectionKey:  "teleport",
-		TypeName:    "Global",
+		KeyTypePairs: []KeyTypePair{
+			{SectionKey: "teleport", TypeName: "Global"},
+		},
+		DismissedKeys: []string{
+			"teleport.auth_connection_config",
+			"teleport.auth_servers",
+			"teleport.ca_signature_algo",
+			"teleport.kex_algos",
+			"teleport.mac_algos",
+			"teleport.pid_file",
+			"teleport.shutdown_delay",
+			"teleport.cache",
+			"teleport.ciphers",
+			"teleport.ciphersuites",
+			"teleport.storage",
+			"teleport.connection_limits.max_users",
+		},
 	}, config.ServiceSections[0])
 }
 
+func TestLoadCheckerConfigWithScopedDismissedKeys(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "config.yaml")
+	require.NoError(t, os.WriteFile(configPath, []byte(`source_path: .
+service_sections:
+  [{name: First Service, example_path: first.yaml, key_type_pairs: [{section_key: first_service, type_name: Shared}], dismissed_keys: [first_service.storage.type]},
+	{name: Second Service, example_path: second.yaml, key_type_pairs: [{section_key: first_service, type_name: Shared}]}]
+`), 0o600))
+
+	config, err := loadConfigFile(configPath)
+	require.NoError(t, err)
+	require.Equal(t, []string{"first_service.storage.type"}, config.ServiceSections[0].DismissedKeys)
+	require.Empty(t, config.ServiceSections[1].DismissedKeys)
+	require.Equal(t, []KeyTypePair{{SectionKey: "first_service", TypeName: "Shared"}}, config.ServiceSections[0].KeyTypePairs)
+	require.Equal(t, []KeyTypePair{{SectionKey: "first_service", TypeName: "Shared"}}, config.ServiceSections[1].KeyTypePairs)
+}
+
 func TestLoadCheckerConfigErrors(t *testing.T) {
-	validSection := `
-  - name: Auth Service
-    example_path: auth-service.yaml
-    section_key: auth_service
-    type_name: Auth
-`
+	validSection := ` [{name: Auth Service, example_path: auth-service.yaml, key_type_pairs: [{section_key: auth_service, type_name: Auth}]}]`
 	tests := []struct {
 		name        string
 		contents    string
@@ -105,55 +131,42 @@ func TestLoadCheckerConfigErrors(t *testing.T) {
 		{
 			name: "missing section name",
 			contents: `source_path: .
-service_sections:
-  - example_path: auth-service.yaml
-    section_key: auth_service
-    type_name: Auth
+service_sections: [{example_path: auth-service.yaml, key_type_pairs: [{section_key: auth_service, type_name: Auth}]}]
 `,
-			wantError: "must define name, example_path, section_key, and type_name",
+			wantError: "must define name and example_path",
 		},
 		{
 			name: "missing example path",
 			contents: `source_path: .
-service_sections:
-  - name: Auth Service
-    section_key: auth_service
-    type_name: Auth
+service_sections: [{name: Auth Service, key_type_pairs: [{section_key: auth_service, type_name: Auth}]}]
 `,
-			wantError: "must define name, example_path, section_key, and type_name",
+			wantError: "must define name and example_path",
 		},
 		{
-			name: "missing section key",
+			name: "missing key type pairs",
 			contents: `source_path: .
-service_sections:
-  - name: Auth Service
-    example_path: auth-service.yaml
-    type_name: Auth
+service_sections: [{name: Auth Service, example_path: auth-service.yaml}]
 `,
-			wantError: "must define name, example_path, section_key, and type_name",
+			wantError: "must define key_type_pairs",
 		},
 		{
-			name: "missing type name",
+			name: "pair missing section key",
 			contents: `source_path: .
-service_sections:
-  - name: Auth Service
-    example_path: auth-service.yaml
-    section_key: auth_service
+service_sections: [{name: Auth Service, example_path: auth-service.yaml, key_type_pairs: [{type_name: Auth}]}]
 `,
-			wantError: "must define name, example_path, section_key, and type_name",
+			wantError: "without section_key or type_name",
 		},
 		{
-			name: "duplicate section key",
+			name: "pair missing type name",
 			contents: `source_path: .
-service_sections:
-  - name: Auth Service
-    example_path: auth-service.yaml
-    section_key: auth_service
-    type_name: Auth
-  - name: Another Auth Service
-    example_path: another-auth-service.yaml
-    section_key: auth_service
-    type_name: Auth
+service_sections: [{name: Auth Service, example_path: auth-service.yaml, key_type_pairs: [{section_key: auth_service}]}]
+`,
+			wantError: "without section_key or type_name",
+		},
+		{
+			name: "duplicate section key within service section",
+			contents: `source_path: .
+service_sections: [{name: Auth Service, example_path: auth-service.yaml, key_type_pairs: [{section_key: auth_service, type_name: Auth}, {section_key: auth_service, type_name: Auth}]}]
 `,
 			wantError: `duplicate service section key "auth_service"`,
 		},
@@ -198,5 +211,39 @@ func TestCompareTrees(t *testing.T) {
 			OnlyInStruct: []string{"struct_only"},
 			OnlyInDoc:    []string{"doc_only"},
 		},
-	}, compareTrees(structTree, exampleTree, "service"))
+	}, compareTrees(structTree, exampleTree, "service", nil))
+}
+
+func TestCompareTreesWithDismissedKeys(t *testing.T) {
+	structTree := &yamlKeyTree{children: map[string]*yamlKeyTree{
+		"storage": {children: map[string]*yamlKeyTree{
+			"region": nil,
+			"type":   nil,
+		}},
+		"resources": {children: map[string]*yamlKeyTree{
+			"aws": nil,
+		}},
+		"other": {children: map[string]*yamlKeyTree{
+			"type": nil,
+		}},
+	}}
+	exampleTree := &yamlKeyTree{children: map[string]*yamlKeyTree{
+		"storage":   {children: map[string]*yamlKeyTree{}},
+		"resources": {children: map[string]*yamlKeyTree{}},
+		"other":     {children: map[string]*yamlKeyTree{}},
+	}}
+
+	require.Equal(t, []difference{
+		{
+			Path:         "service.other",
+			OnlyInStruct: []string{"type"},
+		},
+		{
+			Path:         "service.storage",
+			OnlyInStruct: []string{"region"},
+		},
+	}, compareTrees(structTree, exampleTree, "service", map[string]struct{}{
+		"service.storage.type": {},
+		"service.resources":    {},
+	}))
 }
