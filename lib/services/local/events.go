@@ -1673,6 +1673,8 @@ type kubeServerParser struct {
 func (p *kubeServerParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
+		// Scoped kube servers live under
+		// /scoped/kubeServers/<encoded-scope>/<host-id>/<name>.
 		sqn, hostID, err := kubeServerNameFromKey(event.Item.Key)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -1686,8 +1688,9 @@ func (p *kubeServerParser) parse(event backend.Event) (types.Resource, error) {
 			Kind:    types.KindKubeServer,
 			Version: types.V3,
 			Metadata: types.Metadata{
-				Name:      sqn.Name,
-				Namespace: apidefaults.Namespace,
+				Name:        sqn.Name,
+				Namespace:   apidefaults.Namespace,
+				Description: hostID,
 			},
 			Scope: sqn.Scope,
 			Spec: types.KubernetesServerSpecV3{
@@ -1852,10 +1855,10 @@ func kubeServerNameFromKey(key backend.Key) (scopes.QualifiedName, string, error
 	switch {
 	case key.HasPrefix(kubeServersScopedPrefix()):
 		components := key.TrimPrefix(kubeServersScopedPrefix()).Components()
-		if len(components) != 2 {
+		if len(components) != 3 {
 			return scopes.QualifiedName{}, "", trace.NotFound("failed parsing %v", key.String())
 		}
-		encodedScope, name, hostID := components[0], components[1], components[3]
+		encodedScope, hostID, name := components[0], components[1], components[2]
 		scope, err := scopes.DecodeFromKey(encodedScope)
 		if err != nil {
 			return scopes.QualifiedName{}, "", trace.Wrap(err)
@@ -1864,14 +1867,14 @@ func kubeServerNameFromKey(key backend.Key) (scopes.QualifiedName, string, error
 			Scope: scope,
 			Name:  name,
 		}, hostID, nil
-	case key.HasPrefix(kubeUnscopedPrefix()):
-		components := key.TrimPrefix(kubeUnscopedPrefix()).Components()
-		if len(components) != 1 {
+	case key.HasPrefix(kubeServersUnscopedPrefix()):
+		components := key.TrimPrefix(kubeServersUnscopedPrefix()).Components()
+		if len(components) != 2 {
 			return scopes.QualifiedName{}, "", trace.NotFound("failed parsing %v", key.String())
 		}
 		return scopes.QualifiedName{
-			Name: components[0],
-		}, components[1], nil
+			Name: components[1],
+		}, components[0], nil
 	default:
 		return scopes.QualifiedName{}, "", trace.NotFound("failed parsing %v", key.String())
 	}

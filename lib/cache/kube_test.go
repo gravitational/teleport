@@ -250,7 +250,11 @@ var kubeServerRangeFuncs = rangeServersWithTargetNameFuncs[types.KubeServer]{
 		return err
 	},
 	delete: func(ctx context.Context, presence services.Presence, s types.KubeServer) error {
-		return presence.DeleteKubernetesServer(ctx, s.GetHostID(), s.GetName())
+		return presence.DeleteKubeServer(ctx, presencev1.DeleteKubeServerRequest_builder{
+			HostId: s.GetHostID(),
+			Name:   s.GetName(),
+			Scope:  s.GetScope(),
+		}.Build())
 	},
 	rangeByName: (*Cache).RangeKubernetesServersWithName,
 }
