@@ -669,13 +669,18 @@ func (f *Forwarder) acquireConnectionLockWithIdentity(ctx context.Context, ident
 		),
 	)
 	defer span.End()
-	user := identity.Identity.GetIdentity().Username
-	roles, err := getRolesByName(ctx, f, identity.Identity.GetIdentity().Groups)
-	if err != nil {
-		return trace.Wrap(err)
-	}
 
-	if err := f.acquireConnectionLock(ctx, user, roles); err != nil {
+	unscopedContext, isUnscoped := identity.UnscopedContext()
+	if !isUnscoped {
+		// scoped roles don't have max_kubernetes_connections
+		return nil
+	}
+	maxConnections := unscopedContext.Checker.MaxKubernetesConnections()
+	if maxConnections == 0 {
+		return nil
+	}
+	user := unscopedContext.Identity.GetIdentity().Username
+	if err := f.acquireConnectionLock(ctx, user, maxConnections); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -1681,8 +1686,7 @@ func wsProxy(ctx context.Context, log *slog.Logger, wsSource *gwebsocket.Conn, w
 // acquireConnectionLock acquires a semaphore used to limit connections to the Kubernetes agent.
 // The semaphore is releasted when the request is returned/connection is closed.
 // Returns an error if a semaphore could not be acquired.
-func (f *Forwarder) acquireConnectionLock(ctx context.Context, user string, roles services.RoleSet) error {
-	maxConnections := roles.MaxKubernetesConnections()
+func (f *Forwarder) acquireConnectionLock(ctx context.Context, user string, maxConnections int64) error {
 	if maxConnections == 0 {
 		return nil
 	}
