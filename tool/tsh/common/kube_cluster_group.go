@@ -29,12 +29,6 @@ import (
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 )
 
-// clusterConnector provides auth clients for Teleport clusters.
-// [client.ClusterClient] implements it.
-type clusterConnector interface {
-	ConnectToCluster(ctx context.Context, clusterName string) (authclient.ClientI, error)
-}
-
 // kubeClusterGroup runs operations across kube clusters spanning one or more Teleport clusters.
 // Operations run with bounded concurrency, and operations touching the same Teleport cluster
 // share one lazily-connected auth client, so a Teleport cluster costs at most one connection per group.
@@ -51,6 +45,12 @@ type lazyAuthClient struct {
 	err    error
 }
 
+// clusterConnector provides auth clients for Teleport clusters.
+// [client.ClusterClient] implements it.
+type clusterConnector interface {
+	ConnectToCluster(ctx context.Context, clusterName string) (authclient.ClientI, error)
+}
+
 func newKubeClusterGroup(connector clusterConnector, clusters kubeconfig.LocalProxyClusters, concurrency int) *kubeClusterGroup {
 	clients := make(map[string]*lazyAuthClient, len(clusters))
 	for _, cluster := range clusters {
@@ -65,27 +65,35 @@ func newKubeClusterGroup(connector clusterConnector, clusters kubeconfig.LocalPr
 }
 
 // ForEach runs fn for every cluster in the group concurrently, bounded by the group's concurrency.
-// fn receives the shared auth client of the cluster's Teleport cluster, built on first use.
-// The client dials lazily, so callbacks that never use it cost no connection.
-func (g *kubeClusterGroup) ForEach(ctx context.Context, fn func(ctx context.Context, authClient authclient.ClientI, cluster kubeconfig.LocalProxyCluster) error) error {
+func (g *kubeClusterGroup) ForEach(ctx context.Context, fn func(ctx context.Context, cluster kubeconfig.LocalProxyCluster) error) error {
 	eg, egCtx := errgroup.WithContext(ctx)
 	eg.SetLimit(g.concurrency)
 	for _, cluster := range g.clusters {
 		eg.Go(func() error {
-			lazy := g.clients[cluster.TeleportCluster]
-			lazy.once.Do(func() {
-				lazy.client, lazy.err = g.connector.ConnectToCluster(egCtx, cluster.TeleportCluster)
-			})
-			if lazy.err != nil {
-				return trace.Wrap(lazy.err)
-			}
-			return trace.Wrap(fn(egCtx, lazy.client, cluster))
+			return trace.Wrap(fn(egCtx, cluster))
 		})
 	}
 	return trace.Wrap(eg.Wait())
 }
 
+// AuthClient returns the group's shared auth client for the Teleport cluster, connecting it on first use.
+// The group owns the client: callers must not close it.
+func (g *kubeClusterGroup) AuthClient(ctx context.Context, teleportCluster string) (authclient.ClientI, error) {
+	lazy, ok := g.clients[teleportCluster]
+	if !ok {
+		return nil, trace.BadParameter("teleport cluster %q is not part of this group", teleportCluster)
+	}
+	lazy.once.Do(func() {
+		lazy.client, lazy.err = g.connector.ConnectToCluster(ctx, teleportCluster)
+	})
+	if lazy.err != nil {
+		return nil, trace.Wrap(lazy.err)
+	}
+	return lazy.client, nil
+}
+
 // Close closes every auth client the group connected.
+// Call it only after every ForEach and AuthClient call returned.
 func (g *kubeClusterGroup) Close(ctx context.Context) {
 	for _, lazy := range g.clients {
 		if lazy.client == nil {
