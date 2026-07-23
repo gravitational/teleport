@@ -294,7 +294,7 @@ func (t LockTarget) String() string {
 // TODO(espadolini): delete in v20
 
 // Equals returns true when the two lock targets are equal.
-// Deprecated: compare the two LockTargets directly instead
+// It's also possible to compare the two LockTargets directly instead.
 //
 //go:fix inline
 func (t LockTarget) Equals(t2 LockTarget) bool {
@@ -302,7 +302,7 @@ func (t LockTarget) Equals(t2 LockTarget) bool {
 }
 
 // IsEmpty returns true if none of the target's fields is set.
-// Deprecated: compare the LockTarget against LockTarget{} instead.
+// It's also possible to compare the LockTarget against LockTarget{} instead.
 //
 //go:fix inline
 func (t LockTarget) IsEmpty() bool {
