@@ -130,7 +130,7 @@ func (issuer *kubeCertIssuer) IssueCert(ctx context.Context, teleportCluster, ku
 	// "proxy kube" sets AllowHeadless only when running with --headless.
 	if issuer.tc.AllowHeadless {
 		params.RequesterName = proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_HEADLESS
-		release, err := issuer.mfa.AcquireSlot(ctx)
+		release, err := issuer.mfa.AcquireCeremonyLock(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -266,7 +266,7 @@ func (issuer *kubeCertIssuer) issueMFAGatedCert(ctx context.Context, cc kubeCert
 // It reports done=false without issuing when the ceremony it waited on captured a reusable response.
 // The caller replays it instead, with no prompt.
 func (issuer *kubeCertIssuer) issueWithCeremony(ctx context.Context, cc kubeCertClient, params client.ReissueParams) (cert *tls.Certificate, done bool, err error) {
-	release, err := issuer.mfa.AcquireSlot(ctx)
+	release, err := issuer.mfa.AcquireCeremonyLock(ctx)
 	if err != nil {
 		return nil, false, trace.Wrap(err)
 	}
