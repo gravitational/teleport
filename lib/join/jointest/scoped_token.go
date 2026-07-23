@@ -116,6 +116,7 @@ func ScopedTokenFromProvisionTokenSpec(base types.ProvisionTokenSpecV2, override
 			JoinMethod:      cmp.Or(override.GetSpec().GetJoinMethod(), string(base.JoinMethod)),
 			Roles:           roles,
 			UsageMode:       override.GetSpec().GetUsageMode(),
+			Bot:             override.GetSpec().GetBot(),
 			ImmutableLabels: override.GetSpec().GetImmutableLabels(),
 		}.Build(),
 	}.Build()

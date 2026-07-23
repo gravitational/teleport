@@ -28,6 +28,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/state"
@@ -38,6 +40,8 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/scopes"
+	"github.com/gravitational/teleport/lib/scopes/joining"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 type mockIDTokenValidator struct {
@@ -781,4 +785,100 @@ func TestJoinGHA(t *testing.T) {
 			})
 		})
 	}
+}
+
+func TestJoinGHABot(t *testing.T) {
+	validIDToken := "test.fake.jwt"
+	idTokenValidator := &mockIDTokenValidator{
+		tokens: map[string]githubactions.IDTokenClaims{
+			validIDToken: {
+				Sub:             "repo:octo-org/octo-repo:environment:prod",
+				Repository:      "octo-org/octo-repo",
+				RepositoryOwner: "octo-org",
+				Workflow:        "example-workflow",
+				Environment:     "prod",
+				Actor:           "octocat",
+				Ref:             "refs/heads/main",
+				RefType:         "branch",
+				Enterprise:      "my-enterprise",
+				EnterpriseID:    "123456",
+			},
+		},
+	}
+
+	authServer, err := authtest.NewTestServer(authtest.ServerConfig{
+		Auth: authtest.AuthServerConfig{
+			Dir:            t.TempDir(),
+			Modules:        modulestest.OSSModules(),
+			ScopesFeatures: scopes.Features{Enabled: true},
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { assert.NoError(t, authServer.Shutdown(t.Context())) })
+
+	authServer.Auth().SetGHAIDTokenValidator(idTokenValidator)
+	authServer.Auth().SetGHAIDTokenJWKSValidator(idTokenValidator.ValidateJWKS)
+
+	// Create a scoped bot.
+	qualifiedBotName := jointest.CreateScopedBot(t, authServer.Auth(), "gha-bot")
+
+	// Create the scoped token for bot joining.
+	tokenSpec := types.ProvisionTokenSpecV2{
+		JoinMethod: types.JoinMethodGitHub,
+		Roles:      []types.SystemRole{types.RoleBot},
+		GitHub: &types.ProvisionTokenSpecV2GitHub{
+			Allow: []*types.ProvisionTokenSpecV2GitHub_Rule{
+				{
+					Sub:             "repo:octo-org/octo-repo:environment:prod",
+					Repository:      "octo-org/octo-repo",
+					RepositoryOwner: "octo-org",
+				},
+			},
+		},
+	}
+
+	scopedToken, err := jointest.ScopedTokenFromProvisionTokenSpec(tokenSpec, joiningv1.ScopedToken_builder{
+		Scope: "/test",
+		Metadata: headerv1.Metadata_builder{
+			Name: "github-bot-token",
+		}.Build(),
+		Spec: joiningv1.ScopedTokenSpec_builder{
+			UsageMode: joining.TokenUsageModeBot,
+			Bot:       qualifiedBotName,
+		}.Build(),
+	}.Build())
+	require.NoError(t, err)
+
+	_, err = authServer.Auth().CreateScopedToken(t.Context(), joiningv1.CreateScopedTokenRequest_builder{
+		Token: scopedToken,
+	}.Build())
+	require.NoError(t, err)
+
+	nopClient, err := authServer.NewClient(authtest.TestNop())
+	require.NoError(t, err)
+
+	result, err := joinclient.Join(t.Context(), joinclient.JoinParams{
+		Token:      "github-bot-token",
+		JoinMethod: types.JoinMethodGitHub,
+		ID: state.IdentityID{
+			Role: types.RoleBot,
+		},
+		IDToken:    validIDToken,
+		AuthClient: nopClient,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.NotNil(t, result.Certs)
+
+	// Parse the TLS certificate and verify bot identity.
+	cert, err := tlsca.ParseCertificatePEM(result.Certs.TLS)
+	require.NoError(t, err)
+	identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+	require.NoError(t, err)
+
+	require.Equal(t, "gha-bot", identity.BotName)
+	require.NotEmpty(t, identity.BotInstanceID)
+
+	// Bot results should not contain immutable labels (host-only).
+	require.Nil(t, result.ImmutableLabels)
 }
