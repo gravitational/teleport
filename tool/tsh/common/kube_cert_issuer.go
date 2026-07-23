@@ -126,7 +126,7 @@ func (issuer *kubeCertIssuer) IssueCert(ctx context.Context, teleportCluster, ku
 		MFACheck:          mfaCheck,
 	}
 
-	// Headless approvals cannot be replayed: every issuance prompts, one at a time.
+	// Headless MFA responses cannot be reused: every issuance prompts, one at a time.
 	// "proxy kube" sets AllowHeadless only when running with --headless.
 	if issuer.tc.AllowHeadless {
 		params.RequesterName = proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_HEADLESS
