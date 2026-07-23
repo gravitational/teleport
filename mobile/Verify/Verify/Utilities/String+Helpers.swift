@@ -14,33 +14,16 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see http://www.gnu.org/licenses/
 
-#if DEBUG
+import Foundation
 
-	import Observation
-	import SwiftNavigation
-
-	@Observable
-	final class DebugViewModel {
-		@CasePathable
-		enum Destination {
-			// MARK: - Debug Settings
-
-			case debugSettingsView(DebugSettingsViewModel)
-
-			// MARK: - Feature Demos
-
-			case deviceTrustCredentialDemo(FeatureDemo.DeviceTrustCredentialViewModel)
+extension String? {
+	var emptyIfNil: String {
+		get {
+			guard let self else { return "" }
+			return self
 		}
-
-		var destination: Destination? = nil
-	}
-
-	// MARK: - SheetPresentable
-
-	extension DebugViewModel: SheetPresentable {
-		var presentationID: some Hashable {
-			"DebugViewModel"
+		set {
+			self = newValue
 		}
 	}
-
-#endif
+}

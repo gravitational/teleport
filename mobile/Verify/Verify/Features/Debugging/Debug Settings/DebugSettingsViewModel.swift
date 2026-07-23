@@ -16,30 +16,31 @@
 
 #if DEBUG
 
-	import Observation
-	import SwiftNavigation
+	import Dependencies
+	import Foundation
+	import Sharing
+	import SwiftUI
 
-	@Observable
-	final class DebugViewModel {
-		@CasePathable
-		enum Destination {
-			// MARK: - Debug Settings
+	@Observable @MainActor
+	final class DebugSettingsViewModel {
+		@ObservationIgnored
+		@Dependency(\.serialNumberClient)
+		var serialNumberClient
 
-			case debugSettingsView(DebugSettingsViewModel)
-
-			// MARK: - Feature Demos
-
-			case deviceTrustCredentialDemo(FeatureDemo.DeviceTrustCredentialViewModel)
-		}
-
-		var destination: Destination? = nil
+		@ObservationIgnored
+		@Shared(.debugStorage(.debugSerialNumber))
+		var debugSerialNumber: String? = nil
 	}
 
-	// MARK: - SheetPresentable
+	// MARK: - Serial Number
 
-	extension DebugViewModel: SheetPresentable {
-		var presentationID: some Hashable {
-			"DebugViewModel"
+	extension DebugSettingsViewModel {
+		var debugSerialNumberBinding: Binding<String> {
+			Binding($debugSerialNumber.emptyIfNil)
+		}
+
+		func regenerateSerialNumber() {
+			$debugSerialNumber.withLock { $0 = FakeSerialNumberGenerator.generate() }
 		}
 	}
 
