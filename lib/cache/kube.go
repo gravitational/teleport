@@ -219,6 +219,10 @@ func newKubernetesClusterCollection(upstream KubeClusterUpstream, w types.WatchK
 			Scope: filter.Scope,
 			Mode:  filter.Mode,
 		}.Build()
+	} else {
+		scopeFilter = scopesv1.Filter_builder{
+			Mode: scopesv1.Mode_MODE_UNSCOPED,
+		}.Build()
 	}
 	return &collection[types.KubeCluster, kubeClusterIndex]{
 		store: newStore(

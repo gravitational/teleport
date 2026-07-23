@@ -7693,7 +7693,9 @@ func (a *ScopedServerWithRoles) ListKubernetesClusters(ctx context.Context, limi
 
 	return generic.CollectPageAndCursor(
 		iterstream.FilterMap(
-			a.authServer.RangeKubeClusters(ctx, nil),
+			a.authServer.RangeKubeClusters(ctx, presencev1.ListKubeClustersRequest_builder{
+				PageToken: start,
+			}.Build()),
 			func(cluster types.KubeCluster) (types.KubeCluster, bool) {
 				// Filter out kube clusters user doesn't have access to.
 				if err := a.scopedContext.CheckerContext.Decision(ctx, cluster.GetScope(), func(checker *services.ScopedAccessChecker) error {
@@ -7708,7 +7710,7 @@ func (a *ScopedServerWithRoles) ListKubernetesClusters(ctx context.Context, limi
 			},
 		),
 		limit,
-		types.KubeCluster.GetName,
+		services.GetCursorForKubeCluster,
 	)
 }
 

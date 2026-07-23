@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -660,7 +661,11 @@ func NewKubeClusterWatcher(ctx context.Context, cfg KubeClusterWatcherConfig) (*
 		ResourceWatcherConfig: cfg.ResourceWatcherConfig,
 		ResourceKind:          types.KindKubernetesCluster,
 		ResourceGetter: func(ctx context.Context) ([]types.KubeCluster, error) {
-			return iterstream.Collect(getter.RangeKubeClusters(ctx, nil))
+			return iterstream.Collect(getter.RangeKubeClusters(ctx, presencev1.ListKubeClustersRequest_builder{
+				ScopeFilter: scopesv1.Filter_builder{
+					Mode: scopesv1.Mode_MODE_UNSCOPED,
+				}.Build(),
+			}.Build()))
 		},
 		ResourceKey: types.KubeCluster.GetName,
 		ResourcesC:  cfg.KubeClustersC,

@@ -7840,13 +7840,12 @@ func (a *Server) UpdateKubernetesCluster(ctx context.Context, kubeCluster types.
 	return nil
 }
 
-// DeleteKubernetesCluster deletes a kubernetes cluster resource.
-func (a *Server) DeleteKubernetesCluster(ctx context.Context, name string) error {
-	if err := a.Kubernetes.DeleteKubeCluster(ctx, presencev1.DeleteKubeClusterRequest_builder{
-		Name: name,
-	}.Build()); err != nil {
+// DeleteKubeCluster deletes a kubernetes cluster resource.
+func (a *Server) DeleteKubeCluster(ctx context.Context, req *presencev1.DeleteKubeClusterRequest) error {
+	if err := a.Kubernetes.DeleteKubeCluster(ctx, req); err != nil {
 		return trace.Wrap(err)
 	}
+
 	if err := a.emitter.EmitAuditEvent(ctx, &apievents.KubernetesClusterDelete{
 		Metadata: apievents.Metadata{
 			Type: events.KubernetesClusterDeleteEvent,
@@ -7854,7 +7853,8 @@ func (a *Server) DeleteKubernetesCluster(ctx context.Context, name string) error
 		},
 		UserMetadata: authz.ClientUserMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
-			Name: name,
+			Name:  req.GetName(),
+			Scope: req.GetScope(),
 		},
 	}); err != nil {
 		a.logger.WarnContext(ctx, "Failed to emit kube cluster delete event", "error", err)

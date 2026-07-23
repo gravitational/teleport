@@ -695,6 +695,9 @@ func (s *Service) ListKubeClusters(ctx context.Context, req *presencepb.ListKube
 		return nil, trace.Wrap(err)
 	}
 
+	// list method scope filters must use identity-based defaults per RFD 0229i
+	req.SetScopeFilter(authContext.CheckerContext.ResolveScopeFilter(req.GetScopeFilter()))
+
 	clusters, nextToken, err := generic.CollectPageAndCursor(
 		stream.FilterMap(
 			s.backend.RangeKubeClusters(ctx, req),
