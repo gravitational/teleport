@@ -25,11 +25,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/gravitational/trace"
-	"golang.org/x/crypto/ssh"
-
 	"github.com/gravitational/teleport"
-	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -44,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/desktop"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/session/reexec"
+	"github.com/gravitational/trace"
 )
 
 func (process *TeleportProcess) initLinuxDesktopService() {
@@ -101,17 +98,12 @@ func (process *TeleportProcess) initLinuxDesktopServiceRegistered(logger *slog.L
 	agentPool, err := reversetunnel.NewAgentPool(
 		process.ExitContext(),
 		reversetunnel.AgentPoolConfig{
-			InsecureMode: process.Config.InsecureMode,
-			Component:    teleport.ComponentLinuxDesktop,
-			HostUUID:     conn.HostID(),
-			Resolver:     tunnelAddrResolver,
-			Client:       conn.Client,
-			AccessPoint:  accessPoint,
-			PublicKeyAuth: apissh.PublicKeyAuthConfig{
-				Signers: func() ([]ssh.Signer, error) {
-					return conn.ClientSigners(), nil
-				},
-			},
+			Component:                teleport.ComponentLinuxDesktop,
+			HostUUID:                 conn.HostID(),
+			Resolver:                 tunnelAddrResolver,
+			Client:                   conn.Client,
+			AccessPoint:              accessPoint,
+			AuthMethods:              conn.ClientAuthMethods(),
 			Cluster:                  conn.ClusterName(),
 			Server:                   listener,
 			FIPS:                     process.Config.FIPS,
@@ -160,7 +152,7 @@ func (process *TeleportProcess) initLinuxDesktopServiceRegistered(logger *slog.L
 		return trace.Wrap(err)
 	}
 
-	tlsConfig, err := process.ServerTLSConfig(conn)
+	tlsConfig, err := conn.ServerTLSConfig(cfg.CipherSuites)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -273,7 +265,7 @@ func (process *TeleportProcess) initLinuxDesktopServiceRegistered(logger *slog.L
 func getChildLogConfig(cfg *servicecfg.Config) *srv.ChildLogConfig {
 	return &srv.ChildLogConfig{
 		ExecLogConfig: reexec.ExecLogConfig{
-			Level:        cfg.LoggerLevel.Level(),
+			Level:        cfg.LoggerLevel,
 			Format:       strings.ToLower(cfg.LogConfig.Format),
 			ExtraFields:  cfg.LogConfig.ExtraFields,
 			EnableColors: cfg.LogConfig.EnableColors,
