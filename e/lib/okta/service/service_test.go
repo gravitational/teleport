@@ -151,6 +151,12 @@ func TestOktaAssignments(t *testing.T) {
 	require.Empty(t, cmp.Diff(a1, a,
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
+	_, err = svc.DeleteOktaAssignment(ctx, oktapb.DeleteOktaAssignmentRequest_builder{
+		Name:     a1.GetName(),
+		Revision: a1.GetRevision(),
+	}.Build())
+	require.True(t, trace.IsCompareFailed(err), "expected compare failed error, got %v", err)
+
 	_, err = svc.DeleteOktaAssignment(ctx, oktapb.DeleteOktaAssignmentRequest_builder{Name: a1.GetName()}.Build())
 	require.NoError(t, err)
 
@@ -158,6 +164,18 @@ func TestOktaAssignments(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, listResp.GetNextPageToken())
 	require.Empty(t, cmp.Diff([]*types.OktaAssignmentV1{a2, a3}, listResp.GetAssignments(),
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+	_, err = svc.DeleteOktaAssignment(ctx, oktapb.DeleteOktaAssignmentRequest_builder{
+		Name:     a2.GetName(),
+		Revision: a2.GetRevision(),
+	}.Build())
+	require.NoError(t, err)
+
+	listResp, err = svc.ListOktaAssignments(ctx, &oktapb.ListOktaAssignmentsRequest{})
+	require.NoError(t, err)
+	require.Empty(t, listResp.GetNextPageToken())
+	require.Empty(t, cmp.Diff([]*types.OktaAssignmentV1{a3}, listResp.GetAssignments(),
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	_, err = svc.DeleteAllOktaAssignments(ctx, &oktapb.DeleteAllOktaAssignmentsRequest{})

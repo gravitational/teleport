@@ -521,6 +521,11 @@ func (s *Service) DeleteOktaAssignment(ctx context.Context, req *oktapb.DeleteOk
 	if err := authCtx.CheckAccessToKind(types.KindOktaAssignment, types.VerbDelete); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	if rev := req.GetRevision(); rev != "" {
+		return &emptypb.Empty{}, trace.Wrap(s.oktaAssignments.ConditionalDeleteOktaAssignment(ctx, req.GetName(), rev))
+	}
+
 	return &emptypb.Empty{}, trace.Wrap(s.oktaAssignments.DeleteOktaAssignment(ctx, req.GetName()))
 }
 
