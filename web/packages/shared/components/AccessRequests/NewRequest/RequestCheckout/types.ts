@@ -17,8 +17,10 @@
  */
 
 import { Option } from 'shared/components/Select';
+import type { UserDisplay } from 'shared/services/accessRequests';
 
 export type ReviewerOption = Option & {
+  display?: UserDisplay;
   isDisabled?: boolean;
   isSelected?: boolean;
 };

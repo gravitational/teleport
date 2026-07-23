@@ -23,6 +23,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -95,7 +96,7 @@ func (a *Server) CreateBoundKeypairToken(ctx context.Context, token types.Provis
 
 	tokenV2, ok := token.(*types.ProvisionTokenV2)
 	if !ok {
-		return trace.BadParameter("%v join method requires ProvisionTokenV2", types.JoinMethodOracle)
+		return trace.BadParameter("bound_keypair join method requires ProvisionTokenV2, got %T", token)
 	}
 
 	spec := tokenV2.Spec.BoundKeypair
@@ -126,7 +127,7 @@ func (a *Server) UpsertBoundKeypairToken(ctx context.Context, token types.Provis
 
 	tokenV2, ok := token.(*types.ProvisionTokenV2)
 	if !ok {
-		return trace.BadParameter("%v join method requires ProvisionTokenV2", types.JoinMethodOracle)
+		return trace.BadParameter("bound_keypair join method requires ProvisionTokenV2, got %T", token)
 	}
 
 	spec := tokenV2.Spec.BoundKeypair
@@ -145,4 +146,100 @@ func (a *Server) UpsertBoundKeypairToken(ctx context.Context, token types.Provis
 	// Implementation note: checkAndSetDefaults() impl for this token type is
 	// called at insertion time as part of `tokenToItem()`
 	return trace.Wrap(a.UpsertToken(ctx, token))
+}
+
+// applyBoundKeypairToken applies a bound_keypair provision token supplied via
+// --apply-on-startup.
+//
+// The join path rejects tokens without an initialized status.bound_keypair, so
+// we initialize it here (the normal admin path does this too, but
+// apply-on-startup writes spec-only YAML straight to storage and leaves status
+// nil).
+//
+// apply-on-startup re-runs on every auth restart. If the token already exists,
+// we preserve its status so a restart never resets a bot's join state
+// (recovery counters, bound public key).
+func applyBoundKeypairToken(ctx context.Context, service *Services, token types.ProvisionToken) error {
+	tokenV2, ok := token.(*types.ProvisionTokenV2)
+	if !ok {
+		return trace.BadParameter("bound_keypair join method requires ProvisionTokenV2, got %T", token)
+	}
+
+	if tokenV2.Spec.BoundKeypair == nil {
+		return trace.BadParameter("bound_keypair token requires non-nil spec.bound_keypair")
+	}
+	if err := validateBoundKeypairTokenSpec(tokenV2.Spec.BoundKeypair); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Patch an existing token to keep its status; create it if absent. This
+	// loop handles two races between concurrently starting auth instances:
+	// a compare failure (PatchToken's own retries were exhausted) re-reads and
+	// retries the patch, and a not-found error falls through to create.
+	const attempts = 3
+	for range attempts {
+		_, err := service.PatchToken(ctx, tokenV2.GetName(), func(existing types.ProvisionToken) (types.ProvisionToken, error) {
+			return prepareAppliedBoundKeypairToken(tokenV2, existing)
+		})
+		switch {
+		case trace.IsCompareFailed(err):
+			// Lost the revision race with another starting instance
+			continue
+		case trace.IsNotFound(err):
+			// The token does not exist yet; fall through to create it below.
+		default:
+			// Covers success (err == nil) and any non-recoverable error.
+			return trace.Wrap(err)
+		}
+
+		// The token does not exist yet. Initialize status.bound_keypair
+		// (including the registration secret) and create it; a lost create race
+		// retries the patch above.
+		cloned, err := services.CloneProvisionToken(tokenV2)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		created := cloned.(*types.ProvisionTokenV2)
+		// Never trust status from config: drop it so a config-supplied
+		// bound_public_key can't bind a key without the join ceremony.
+		created.Status = nil
+		if err := populateRegistrationSecret(created); err != nil {
+			return trace.Wrap(err)
+		}
+		if err := service.CreateToken(ctx, created); err == nil {
+			return nil
+		} else if !trace.IsAlreadyExists(err) {
+			return trace.Wrap(err)
+		}
+	}
+
+	return trace.LimitExceeded("failed to apply bound_keypair token %q after %d attempts", tokenV2.GetName(), attempts)
+}
+
+// prepareAppliedBoundKeypairToken returns a copy of desired that keeps
+// existing's revision and status. It is called by PatchToken, always with a
+// non-nil existing token.
+//
+// A re-apply updates spec but never status: spec fields can be edited freely,
+// but to change status you must delete and recreate the token. This matches the
+// Update/Upsert RPCs and stops an edit from knocking a bot offline.
+func prepareAppliedBoundKeypairToken(desired *types.ProvisionTokenV2, existing types.ProvisionToken) (*types.ProvisionTokenV2, error) {
+	cloned, err := services.CloneProvisionToken(desired)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	updated := cloned.(*types.ProvisionTokenV2)
+
+	updated.SetRevision(existing.GetRevision())
+	updated.Status = nil
+	if status := existing.GetBoundKeypairStatus(); status != nil {
+		updated.Status = &types.ProvisionTokenStatusV2{
+			BoundKeypair: status,
+		}
+	}
+
+	if err := populateRegistrationSecret(updated); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return updated, nil
 }

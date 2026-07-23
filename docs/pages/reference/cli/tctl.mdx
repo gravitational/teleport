@@ -119,8 +119,8 @@ Use --access-type to have Teleport create the access list's supporting roles
 for you. The --access-type value controls how members are granted access.
 Possible values are:
 
-  standing       members receive persistent access to the resources set below.
-  request-based  members must request that access; owners approve.
+  standing        members receive persistent access to the resources set below.
+  access-request  members must request that access; owners approve.
 
 The supporting roles are built from the resource flags you set. The available
 resource flags (grouped by target) are:
@@ -148,7 +148,7 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`--access-type`|*no default* (one of: `standing`, `request-based`)|How members are granted access: 'standing' (members receive persistent access to the resources described by the resource flags) or 'request-based' (members must request access; owners review). When omitted, a plain access list is created with no auto-generated roles.|
+|`--access-type`|*no default* (one of: `standing`, `access-request`)|How members are granted access: 'standing' (members receive persistent access to the resources described by the resource flags) or 'access-request' (members must request access; owners review). When omitted, a plain access list is created with no auto-generated roles.|
 |`--app-labels`|*no default*|Selects web apps members may access by label match. For AWS Identity Center apps, use --aws-ic-assignments instead.|
 |`--audit-day`|`1`|Day of month for audit (1, 15, or 31).|
 |`--audit-frequency`|`6`|Audit recurrence in months (1, 3, 6, or 12).|
@@ -2839,6 +2839,7 @@ Flags:
 |`--bot-ttl`|`1h`|Time-to-live of the Bot resource. The bot will be removed after this period. Defaults to \[1h\]|
 |`--resource-prefix`|`tctl-terraform-env-`|Resource prefix to use when creating the Terraform role and bots. Defaults to \[tctl-terraform-env-\]|
 |`--role`|*no default*|Role used by Terraform. The role must already exist in Teleport. When not specified, uses the default role "terraform-provider"|
+|`--scope`|*no default*|Scope of the bot used by the Terraform provider. When empty, TF provider runs unscoped.|
 
 ## tctl tokens add
 

@@ -277,6 +277,30 @@ func TestHandlers(t *testing.T) {
 			checkMFARequired: require.False,
 		},
 		{
+			kind: types.KindIntegration,
+			makeResource: func(t *testing.T, name string) types.Resource {
+				t.Helper()
+				ig, err := types.NewIntegrationAWSOIDC(
+					types.Metadata{Name: name},
+					&types.AWSOIDCIntegrationSpecV1{
+						RoleARN: "arn:aws:iam::123456789012:role/OpsTeam",
+					},
+				)
+				require.NoError(t, err)
+				return ig
+			},
+			updateResource: func(t *testing.T, r types.Resource) types.Resource {
+				t.Helper()
+				ig, ok := r.(types.Integration)
+				require.True(t, ok)
+				ig.SetAWSOIDCIntegrationSpec(&types.AWSOIDCIntegrationSpecV1{
+					RoleARN: "arn:aws:iam::123456789012:role/UpdatedRole",
+				})
+				return ig
+			},
+			checkMFARequired: require.False,
+		},
+		{
 			kind:                        types.KindBeamsConfig,
 			singletonWithVirtualDefault: true,
 			makeResource: func(t *testing.T, _ string) types.Resource {
