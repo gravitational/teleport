@@ -165,6 +165,10 @@ message ScopedRoleSSH {
   // Lock configures the role's locking behavior for SSH sessions.
   // If empty, the defaults block value (or global default) applies.
   Lock lock = 15;
+
+  // LabelExpression is an optional predicate expression evaluated against an
+  // ssh node's labels.
+  string label_expression = 16;
 }
 
 // The group of all scoped role fields relevant to kube access. Fields within the kube block
@@ -197,6 +201,10 @@ message ScopedRoleKube {
   // Lock configures the role's locking behavior for kubernetes sessions.
   // If empty, the defaults block value (or global default) applies.
   Lock lock = 7;
+
+  // LabelExpression is an optional predicate expression evaluated against a
+  // kubernetes server's labels.
+  string label_expression = 8;
 }
 
 // ScopedRoleWorkloadIdentity groups all scoped role fields relevant to issuing
