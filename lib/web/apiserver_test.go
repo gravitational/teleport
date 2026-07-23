@@ -93,9 +93,11 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	componentfeaturesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/componentfeatures/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	mfav2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
+	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	transportpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -143,6 +145,7 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/scopes"
+	"github.com/gravitational/teleport/lib/scopes/access"
 	scopedapp "github.com/gravitational/teleport/lib/scopes/app"
 	"github.com/gravitational/teleport/lib/secret"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -205,6 +208,48 @@ func TestMain(m *testing.M) {
 	code := m.Run()
 	cancel()
 	os.Exit(code)
+}
+
+func TestShouldForwardToAppHandler(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		req  *http.Request
+		want bool
+	}{
+		{
+			name: "DBSC refresh without app cookies",
+			req:  httptest.NewRequest(http.MethodPost, "https://app.example.com/x-teleport-dbsc/refresh", nil),
+			want: true,
+		},
+		{
+			name: "DBSC registration without app cookies",
+			req:  httptest.NewRequest(http.MethodPost, "https://app.example.com/x-teleport-dbsc", nil),
+			want: true,
+		},
+		{
+			name: "normal app request without app cookies",
+			req:  httptest.NewRequest(http.MethodGet, "https://app.example.com/", nil),
+			want: false,
+		},
+		{
+			name: "normal app request with app cookie",
+			req: func() *http.Request {
+				req := httptest.NewRequest(http.MethodGet, "https://app.example.com/", nil)
+				req.AddCookie(&http.Cookie{Name: app.CookieName, Value: "session-id"})
+				return req
+			}(),
+			want: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tt.want, shouldForwardToAppHandler(tt.req))
+		})
+	}
 }
 
 //go:embed testdata/no-history-shell.sh
@@ -9540,6 +9585,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 			ProxySSHAddr:  "127.0.0.1",
 			AccessPoint:   client,
 		},
+		ScopesFeatures: scopesFeatures,
 		SessionControl: SessionControllerFunc(func(ctx context.Context, sctx *SessionContext, login, localAddr, remoteAddr string) (context.Context, error) {
 			controller := srv.WebSessionController(sessionController)
 			ctx, err := controller(ctx, sctx, login, localAddr, remoteAddr)
@@ -9899,6 +9945,154 @@ func TestUserContextWithAccessRequest(t *testing.T) {
 
 	// Verify that the userContext returned contains the correct Access Request ID.
 	require.Equal(t, accessRequestID, userContext.ConsumedAccessRequestID)
+}
+
+func TestUerContextWithScopesNoAssignments(t *testing.T) {
+	t.Parallel()
+	env := newWebPack(t, 1, withScopesFeatures(scopes.Features{Enabled: true}))
+	proxy := env.proxies[0]
+	ctx := t.Context()
+
+	// Create and authenticate the test user.
+	pack := proxy.authPack(t, "dave", []types.Role{})
+
+	// Make a request to fetch the userContext.
+	endpoint := pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "context")
+	response, err := pack.clt.Get(ctx, endpoint, url.Values{})
+	require.NoError(t, err)
+
+	// Process the JSON response of the request.
+	var userContext webui.UserContext
+	err = json.Unmarshal(response.Bytes(), &userContext)
+	require.NoError(t, err)
+
+	// Verify that the userContext returned contains no available scopes.
+	require.Empty(t, userContext.AvailableScopes)
+}
+
+func TestUerContextWithScopes(t *testing.T) {
+	t.Parallel()
+	env := newWebPack(t, 1, withScopesFeatures(scopes.Features{Enabled: true}))
+	proxy := env.proxies[0]
+	ctx := t.Context()
+
+	// Create scoped roles.
+	_, err := env.server.Auth().ScopedAccess().CreateScopedRole(ctx, scopedaccessv1.CreateScopedRoleRequest_builder{
+		Role: scopedaccessv1.ScopedRole_builder{
+			Kind:    access.KindScopedRole,
+			Version: types.V1,
+			Metadata: headerv1.Metadata_builder{
+				Name: "role-a",
+			}.Build(),
+			Scope: "/test",
+			Spec: scopedaccessv1.ScopedRoleSpec_builder{
+				AssignableScopes: []string{"/test/a1", "/test/a2", "/test/b1"},
+			}.Build(),
+		}.Build(),
+	}.Build())
+	require.NoError(t, err)
+	_, err = env.server.Auth().ScopedAccess().CreateScopedRole(ctx, scopedaccessv1.CreateScopedRoleRequest_builder{
+		Role: scopedaccessv1.ScopedRole_builder{
+			Kind:    access.KindScopedRole,
+			Version: types.V1,
+			Metadata: headerv1.Metadata_builder{
+				Name: "role-b",
+			}.Build(),
+			Scope: "/test",
+			Spec: scopedaccessv1.ScopedRoleSpec_builder{
+				AssignableScopes: []string{"/test/b1"},
+			}.Build(),
+		}.Build(),
+	}.Build())
+	require.NoError(t, err)
+
+	// Create scoped role assignments.
+	username := "dave"
+	assignment1, err := env.server.Auth().ScopedAccess().CreateScopedRoleAssignment(ctx, scopedaccessv1.CreateScopedRoleAssignmentRequest_builder{
+		Assignment: scopedaccessv1.ScopedRoleAssignment_builder{
+			Kind:    access.KindScopedRoleAssignment,
+			SubKind: access.SubKindDynamic,
+			Version: types.V1,
+			Metadata: headerv1.Metadata_builder{
+				Name: "assignment-1",
+			}.Build(),
+			Scope: "/test",
+			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
+				User: username,
+				Assignments: []*scopedaccessv1.Assignment{
+					// Deliberately put these out of order to make sure that the result
+					// is sorted.
+					scopedaccessv1.Assignment_builder{
+						Role:  scopes.QualifiedName{Scope: "/test", Name: "role-b"}.String(),
+						Scope: "/test/b1",
+					}.Build(),
+					scopedaccessv1.Assignment_builder{
+						Role:  scopes.QualifiedName{Scope: "/test", Name: "role-a"}.String(),
+						Scope: "/test/a2",
+					}.Build(),
+				},
+			}.Build(),
+		}.Build(),
+	}.Build())
+	require.NoError(t, err)
+	assignment2, err := env.server.Auth().ScopedAccess().CreateScopedRoleAssignment(ctx, scopedaccessv1.CreateScopedRoleAssignmentRequest_builder{
+		Assignment: scopedaccessv1.ScopedRoleAssignment_builder{
+			Kind:    access.KindScopedRoleAssignment,
+			SubKind: access.SubKindDynamic,
+			Version: types.V1,
+			Metadata: headerv1.Metadata_builder{
+				Name: "assignment-2",
+			}.Build(),
+			Scope: "/test",
+			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
+				User: username,
+				Assignments: []*scopedaccessv1.Assignment{
+					scopedaccessv1.Assignment_builder{
+						Role:  scopes.QualifiedName{Scope: "/test", Name: "role-a"}.String(),
+						Scope: "/test/a1",
+					}.Build(),
+					// Add a duplicate to make sure that the result is deduplicated.
+					scopedaccessv1.Assignment_builder{
+						Role:  scopes.QualifiedName{Scope: "/test", Name: "role-a"}.String(),
+						Scope: "/test/a2",
+					}.Build(),
+				},
+			}.Build(),
+		}.Build(),
+	}.Build())
+	require.NoError(t, err)
+	waitForSRACache(t, env.server.TLS, assignment1, assignment2)
+
+	// Create and authenticate the test user.
+	pack := proxy.authPack(t, username, []types.Role{})
+
+	// Make a request to fetch the userContext.
+	endpoint := pack.clt.Endpoint("webapi", "sites", env.server.ClusterName(), "context")
+	response, err := pack.clt.Get(ctx, endpoint, url.Values{})
+	require.NoError(t, err)
+
+	// Process the JSON response of the request.
+	var userContext webui.UserContext
+	err = json.Unmarshal(response.Bytes(), &userContext)
+	require.NoError(t, err)
+
+	// Verify that the userContext returned contains the assigned scopes.
+	require.Equal(t, []string{"/test/a1", "/test/a2", "/test/b1"}, userContext.AvailableScopes)
+}
+
+func waitForSRACache(t *testing.T, srv *authtest.TLSServer, resps ...*scopedaccessv1.CreateScopedRoleAssignmentResponse) {
+	t.Helper()
+	ctx := t.Context()
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		for _, resp := range resps {
+			_, err := srv.Auth().ScopedAccessCache.GetScopedRoleAssignment(ctx, scopedaccessv1.GetScopedRoleAssignmentRequest_builder{
+				Name:    resp.GetAssignment().GetMetadata().GetName(),
+				SubKind: resp.GetAssignment().GetSubKind(),
+				Scope:   resp.GetAssignment().GetScope(),
+			}.Build())
+			require.NoError(t, err)
+		}
+	}, 10*time.Second, 100*time.Millisecond)
 }
 
 // TestIsMFARequired_AcceptedRequests mostly tests that requests

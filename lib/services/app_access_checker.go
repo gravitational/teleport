@@ -19,6 +19,11 @@
 package services
 
 import (
+	"time"
+
+	"google.golang.org/protobuf/proto"
+
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 )
 
@@ -45,4 +50,34 @@ func (c *AppAccessChecker) CanAccessApp(target types.Application) error {
 		return c.checker.unscopedChecker.CheckAccess(target, AccessState{MFAVerified: true})
 	}
 	return c.checker.scopedCompatChecker.CheckAccess(target, AccessState{MFAVerified: true})
+}
+
+// AdjustClientIdleTimeout determines the app client idle timeout to apply.
+func (c *AppAccessChecker) AdjustClientIdleTimeout(timeout time.Duration) (time.Duration, error) {
+	if !c.checker.isScoped() {
+		return c.checker.unscopedChecker.AdjustClientIdleTimeout(timeout), nil
+	}
+	return c.checker.adjustScopedClientIdleTimeout(c.checker.role.GetSpec().GetApp().GetClientIdleTimeout(), timeout)
+}
+
+// AdjustDisconnectExpiredCert adjusts whether to disconnect on certificate expiry.
+func (c *AppAccessChecker) AdjustDisconnectExpiredCert(disconnect bool) bool {
+	if !c.checker.isScoped() {
+		return c.checker.unscopedChecker.AdjustDisconnectExpiredCert(disconnect)
+	}
+	app := c.checker.role.GetSpec().GetApp()
+	var disconnectExpiredCert *bool
+	if app != nil {
+		disconnectExpiredCert = proto.ValueOrNil(app.HasDisconnectExpiredCert(), app.GetDisconnectExpiredCert)
+	}
+	return c.checker.adjustScopedDisconnectExpiredCert(disconnectExpiredCert, disconnect)
+}
+
+// LockingMode returns the App lock enforcement mode to apply.
+func (c *AppAccessChecker) LockingMode(defaultMode constants.LockingMode) constants.LockingMode {
+	if !c.checker.isScoped() {
+		return c.checker.unscopedChecker.LockingMode(defaultMode)
+	}
+
+	return c.checker.scopedLockingMode(c.checker.role.GetSpec().GetApp().GetLock(), defaultMode)
 }

@@ -60,7 +60,6 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
-	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -76,6 +75,7 @@ import (
 	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/scopes/pinning"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -1814,9 +1814,8 @@ func newScopedKubeAuthorizer(t *testing.T, cfg scopedKubeAuthorizerConfig) mockA
 		Spec: scopedaccessv1.ScopedRoleSpec_builder{
 			AssignableScopes: []string{scopedTestScope},
 			Kube: scopedaccessv1.ScopedRoleKube_builder{
-				Labels: []*labelv1.Label{
-					labelv1.Label_builder{Name: types.Wildcard, Values: []string{types.Wildcard}}.Build(),
-				},
+				Labels:                wildcardLabel(),
+				Resources:             wildcardResource(),
 				Groups:                cfg.kubeGroups,
 				Users:                 cfg.kubeUsers,
 				Lock:                  lock,
@@ -1833,7 +1832,7 @@ func newScopedKubeAuthorizer(t *testing.T, cfg scopedKubeAuthorizerConfig) mockA
 	pin := scopesv1.Pin_builder{Kind: scopesv1.PinKind_PIN_KIND_USER, Scope: scopedTestScope}.Build()
 	pin.SetAssignmentTree(pinning.AssignmentTreeFromMap(map[string]map[string][]string{
 		"/": {
-			scopedTestScope: {scopedTestRole},
+			scopedTestScope: {scopes.QualifiedName{Scope: "/", Name: scopedTestRole}.String()},
 		},
 	}))
 

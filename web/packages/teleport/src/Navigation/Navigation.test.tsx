@@ -98,6 +98,33 @@ test('show all dashboard navigation items', async () => {
   });
 });
 
+test("a wildcard in the current URL's query doesn't break the page", () => {
+  const originalIsDashboard = cfg.isDashboard;
+  cfg.isDashboard = false;
+  window.history.replaceState({}, '', '/web/some-page?query=*');
+  mockUserContextProviderWith(
+    makeTestUserContext({ preferences: makeDefaultUserPreferences() })
+  );
+
+  expect(() =>
+    render(
+      <MemoryRouter initialEntries={['/web/some-page?query=*']}>
+        <ContextProvider ctx={createTeleportContext()}>
+          <FeaturesContextProvider value={getOSSFeatures()}>
+            <Navigation />
+          </FeaturesContextProvider>
+        </ContextProvider>
+      </MemoryRouter>
+    )
+  ).not.toThrow();
+  expect(
+    screen.getByRole('button', { name: NavTitle.Resources })
+  ).toBeInTheDocument();
+
+  cfg.isDashboard = originalIsDashboard;
+  window.history.replaceState({}, '', '/');
+});
+
 describe('Beams nav category', () => {
   const originalIsDashboard = cfg.isDashboard;
 

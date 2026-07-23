@@ -741,6 +741,15 @@ func validateUserCertsRequest(srv *ScopedServerWithRoles, req *authpb.UserCertsR
 		}
 	}
 
+	if req.RequesterName == authpb.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_MULTI {
+		if req.Usage != authpb.UserCertsRequest_Kubernetes {
+			return trace.BadParameter("requester %s can only request Kubernetes certificates", req.RequesterName)
+		}
+		if req.MFAResponse != nil && req.Purpose != authpb.UserCertsRequest_CERT_PURPOSE_SINGLE_USE_CERTS {
+			return trace.BadParameter("requester %q can only request single use certificates", req.RequesterName)
+		}
+	}
+
 	if req.Purpose != authpb.UserCertsRequest_CERT_PURPOSE_SINGLE_USE_CERTS {
 		return nil
 	}
@@ -2924,7 +2933,9 @@ func isInMemoryCertRequest(req *authpb.UserCertsRequest) bool {
 	return (req.Usage == authpb.UserCertsRequest_Database &&
 		req.RequesterName == authpb.UserCertsRequest_TSH_DB_LOCAL_PROXY_TUNNEL) ||
 		(req.Usage == authpb.UserCertsRequest_Kubernetes &&
-			(req.RequesterName == authpb.UserCertsRequest_TSH_KUBE_LOCAL_PROXY || req.RequesterName == authpb.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_HEADLESS)) ||
+			(req.RequesterName == authpb.UserCertsRequest_TSH_KUBE_LOCAL_PROXY ||
+				req.RequesterName == authpb.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_HEADLESS ||
+				req.RequesterName == authpb.UserCertsRequest_TSH_KUBE_LOCAL_PROXY_MULTI)) ||
 		(req.Usage == authpb.UserCertsRequest_App &&
 			req.RequesterName == authpb.UserCertsRequest_TSH_APP_LOCAL_PROXY)
 }
@@ -6394,6 +6405,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 			Modules:            cfg.AuthServer.modules,
 			Emitter:            cfg.Emitter,
 			ScopesFeatures:     cfg.AuthServer.scopesFeatures,
+			AlertCreator:       cfg.AuthServer.UpsertClusterAlert,
 		}))
 	}
 

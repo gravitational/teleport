@@ -81,6 +81,126 @@ test('does not render review box if user cannot review', async () => {
   expect(screen.queryByText(reviewBoxText)).not.toBeInTheDocument();
 });
 
+test('renders requester and reviewer display names with usernames', () => {
+  const request = {
+    ...requestRolePending,
+    user: 'requester',
+    userDisplay: { primary: 'Requesting User' },
+    reviews: [
+      {
+        author: 'reviewer-one',
+        authorDisplay: { primary: 'Review Author' },
+        createdDuration: 'one minute ago',
+        state: 'APPROVED' as const,
+        reason: 'Approved',
+        roles: ['admin'],
+      },
+    ],
+    reviewers: [
+      {
+        name: 'reviewer-one',
+        display: {
+          primary: 'First Reviewer',
+          secondary: 'reviewer-one@example.com',
+        },
+        state: 'APPROVED' as const,
+      },
+      {
+        name: 'reviewer-two',
+        display: { primary: 'Second Reviewer' },
+        state: 'PENDING' as const,
+      },
+    ],
+  };
+
+  render(
+    <RequestView {...props} fetchRequestAttempt={makeSuccessAttempt(request)} />
+  );
+
+  const requestHeader = screen.getByText('is requesting roles:')
+    .parentElement as HTMLElement;
+  expect(within(requestHeader).getByText('Requesting User')).toBeVisible();
+  expect(within(requestHeader).getByText('requester')).toBeVisible();
+
+  const requestTimestamp = screen.getByText(
+    'submitted this request 1 minute ago'
+  ).parentElement as HTMLElement;
+  expect(within(requestTimestamp).getByText('Requesting User')).toBeVisible();
+  expect(within(requestTimestamp).getByText('requester')).toBeVisible();
+
+  const requestComment = screen.getByText(/Testing long message format/)
+    .parentElement as HTMLElement;
+  expect(within(requestComment).getByText('Requesting User')).toBeVisible();
+  expect(within(requestComment).getByText('requester')).toBeVisible();
+
+  const reviewTimestamp = screen.getByText(
+    'approved this request one minute ago'
+  ).parentElement as HTMLElement;
+  expect(within(reviewTimestamp).getByText('Review Author')).toBeVisible();
+  expect(within(reviewTimestamp).getByText('reviewer-one')).toBeVisible();
+
+  const reviewComment = screen.getByText('Approved')
+    .parentElement as HTMLElement;
+  expect(within(reviewComment).getByText('Review Author')).toBeVisible();
+  expect(within(reviewComment).getByText('reviewer-one')).toBeVisible();
+
+  const reviewers = screen.getByText('Reviewers').parentElement
+    ?.parentElement as HTMLElement;
+  expect(within(reviewers).getByText('First Reviewer')).toBeVisible();
+  expect(within(reviewers).getByText('reviewer-one')).toBeVisible();
+  expect(within(reviewers).getByText('reviewer-one@example.com')).toBeVisible();
+  expect(within(reviewers).getByText('Second Reviewer')).toBeVisible();
+  expect(within(reviewers).getByText('reviewer-two')).toBeVisible();
+});
+
+test('renders usernames when display values are empty, partial, or absent', () => {
+  const request = {
+    ...requestRolePending,
+    user: 'requester',
+    userDisplay: { primary: '   ' },
+    reviewers: [
+      {
+        name: 'empty-reviewer',
+        display: {},
+        state: 'PENDING' as const,
+      },
+      {
+        name: 'secondary-reviewer',
+        display: { secondary: 'secondary@example.com' },
+        state: 'PENDING' as const,
+      },
+      {
+        name: 'absent-reviewer',
+        state: 'PENDING' as const,
+      },
+    ],
+  };
+
+  render(
+    <RequestView {...props} fetchRequestAttempt={makeSuccessAttempt(request)} />
+  );
+
+  const requestHeader = screen.getByText('is requesting roles:')
+    .parentElement as HTMLElement;
+  expect(within(requestHeader).getByText('requester')).toBeVisible();
+
+  const requestTimestamp = screen.getByText(
+    'submitted this request 1 minute ago'
+  ).parentElement as HTMLElement;
+  expect(within(requestTimestamp).getByText('requester')).toBeVisible();
+
+  const requestComment = screen.getByText(/Testing long message format/)
+    .parentElement as HTMLElement;
+  expect(within(requestComment).getByText('requester')).toBeVisible();
+
+  const reviewers = screen.getByText('Reviewers').parentElement
+    ?.parentElement as HTMLElement;
+  expect(within(reviewers).getByText('empty-reviewer')).toBeVisible();
+  expect(within(reviewers).getByText('secondary-reviewer')).toBeVisible();
+  expect(within(reviewers).getByText('absent-reviewer')).toBeVisible();
+  expect(within(reviewers).getByText('secondary@example.com')).toBeVisible();
+});
+
 // When no Access List can be promoted to (e.g., reviewer doesn't own one that
 // grants every requested resource, including implicitly-added ones), long-term
 // approval is disabled, leaving only Reject. The disabled option explains why.

@@ -49,6 +49,9 @@ const (
 	PresenceService_ListProxyServers_FullMethodName    = "/teleport.presence.v1.PresenceService/ListProxyServers"
 	PresenceService_UpsertProxyServer_FullMethodName   = "/teleport.presence.v1.PresenceService/UpsertProxyServer"
 	PresenceService_DeleteProxyServer_FullMethodName   = "/teleport.presence.v1.PresenceService/DeleteProxyServer"
+	PresenceService_GetKubeCluster_FullMethodName      = "/teleport.presence.v1.PresenceService/GetKubeCluster"
+	PresenceService_ListKubeClusters_FullMethodName    = "/teleport.presence.v1.PresenceService/ListKubeClusters"
+	PresenceService_DeleteKubeCluster_FullMethodName   = "/teleport.presence.v1.PresenceService/DeleteKubeCluster"
 )
 
 // PresenceServiceClient is the client API for PresenceService service.
@@ -85,6 +88,12 @@ type PresenceServiceClient interface {
 	UpsertProxyServer(ctx context.Context, in *UpsertProxyServerRequest, opts ...grpc.CallOption) (*UpsertProxyServerResponse, error)
 	// DeleteProxyServer removes an existing Proxy server heartbeat by name.
 	DeleteProxyServer(ctx context.Context, in *DeleteProxyServerRequest, opts ...grpc.CallOption) (*DeleteProxyServerResponse, error)
+	// Fetches a kube cluster resource from the backend.
+	GetKubeCluster(ctx context.Context, in *GetKubeClusterRequest, opts ...grpc.CallOption) (*GetKubeClusterResponse, error)
+	// Lists kube cluster resources within the backend.
+	ListKubeClusters(ctx context.Context, in *ListKubeClustersRequest, opts ...grpc.CallOption) (*ListKubeClustersResponse, error)
+	// Deletes a kube cluster resource from the backend.
+	DeleteKubeCluster(ctx context.Context, in *DeleteKubeClusterRequest, opts ...grpc.CallOption) (*DeleteKubeClusterResponse, error)
 }
 
 type presenceServiceClient struct {
@@ -235,6 +244,36 @@ func (c *presenceServiceClient) DeleteProxyServer(ctx context.Context, in *Delet
 	return out, nil
 }
 
+func (c *presenceServiceClient) GetKubeCluster(ctx context.Context, in *GetKubeClusterRequest, opts ...grpc.CallOption) (*GetKubeClusterResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetKubeClusterResponse)
+	err := c.cc.Invoke(ctx, PresenceService_GetKubeCluster_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *presenceServiceClient) ListKubeClusters(ctx context.Context, in *ListKubeClustersRequest, opts ...grpc.CallOption) (*ListKubeClustersResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListKubeClustersResponse)
+	err := c.cc.Invoke(ctx, PresenceService_ListKubeClusters_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *presenceServiceClient) DeleteKubeCluster(ctx context.Context, in *DeleteKubeClusterRequest, opts ...grpc.CallOption) (*DeleteKubeClusterResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeleteKubeClusterResponse)
+	err := c.cc.Invoke(ctx, PresenceService_DeleteKubeCluster_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // PresenceServiceServer is the server API for PresenceService service.
 // All implementations must embed UnimplementedPresenceServiceServer
 // for forward compatibility.
@@ -269,6 +308,12 @@ type PresenceServiceServer interface {
 	UpsertProxyServer(context.Context, *UpsertProxyServerRequest) (*UpsertProxyServerResponse, error)
 	// DeleteProxyServer removes an existing Proxy server heartbeat by name.
 	DeleteProxyServer(context.Context, *DeleteProxyServerRequest) (*DeleteProxyServerResponse, error)
+	// Fetches a kube cluster resource from the backend.
+	GetKubeCluster(context.Context, *GetKubeClusterRequest) (*GetKubeClusterResponse, error)
+	// Lists kube cluster resources within the backend.
+	ListKubeClusters(context.Context, *ListKubeClustersRequest) (*ListKubeClustersResponse, error)
+	// Deletes a kube cluster resource from the backend.
+	DeleteKubeCluster(context.Context, *DeleteKubeClusterRequest) (*DeleteKubeClusterResponse, error)
 	mustEmbedUnimplementedPresenceServiceServer()
 }
 
@@ -320,6 +365,15 @@ func (UnimplementedPresenceServiceServer) UpsertProxyServer(context.Context, *Up
 }
 func (UnimplementedPresenceServiceServer) DeleteProxyServer(context.Context, *DeleteProxyServerRequest) (*DeleteProxyServerResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method DeleteProxyServer not implemented")
+}
+func (UnimplementedPresenceServiceServer) GetKubeCluster(context.Context, *GetKubeClusterRequest) (*GetKubeClusterResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetKubeCluster not implemented")
+}
+func (UnimplementedPresenceServiceServer) ListKubeClusters(context.Context, *ListKubeClustersRequest) (*ListKubeClustersResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListKubeClusters not implemented")
+}
+func (UnimplementedPresenceServiceServer) DeleteKubeCluster(context.Context, *DeleteKubeClusterRequest) (*DeleteKubeClusterResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DeleteKubeCluster not implemented")
 }
 func (UnimplementedPresenceServiceServer) mustEmbedUnimplementedPresenceServiceServer() {}
 func (UnimplementedPresenceServiceServer) testEmbeddedByValue()                         {}
@@ -594,6 +648,60 @@ func _PresenceService_DeleteProxyServer_Handler(srv interface{}, ctx context.Con
 	return interceptor(ctx, in, info, handler)
 }
 
+func _PresenceService_GetKubeCluster_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetKubeClusterRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PresenceServiceServer).GetKubeCluster(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PresenceService_GetKubeCluster_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PresenceServiceServer).GetKubeCluster(ctx, req.(*GetKubeClusterRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PresenceService_ListKubeClusters_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListKubeClustersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PresenceServiceServer).ListKubeClusters(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PresenceService_ListKubeClusters_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PresenceServiceServer).ListKubeClusters(ctx, req.(*ListKubeClustersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _PresenceService_DeleteKubeCluster_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteKubeClusterRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PresenceServiceServer).DeleteKubeCluster(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: PresenceService_DeleteKubeCluster_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PresenceServiceServer).DeleteKubeCluster(ctx, req.(*DeleteKubeClusterRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // PresenceService_ServiceDesc is the grpc.ServiceDesc for PresenceService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -656,6 +764,18 @@ var PresenceService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteProxyServer",
 			Handler:    _PresenceService_DeleteProxyServer_Handler,
+		},
+		{
+			MethodName: "GetKubeCluster",
+			Handler:    _PresenceService_GetKubeCluster_Handler,
+		},
+		{
+			MethodName: "ListKubeClusters",
+			Handler:    _PresenceService_ListKubeClusters_Handler,
+		},
+		{
+			MethodName: "DeleteKubeCluster",
+			Handler:    _PresenceService_DeleteKubeCluster_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

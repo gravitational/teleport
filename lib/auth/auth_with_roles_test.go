@@ -105,6 +105,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestGenerateUserCerts_MFAVerifiedFieldSet(t *testing.T) {
@@ -1325,6 +1326,15 @@ func TestGenerateUserCertsForHeadlessKube(t *testing.T) {
 				Kube: scopedaccessv1.ScopedRoleKube_builder{
 					Users:  []string{"scoped_kube_user"},
 					Groups: []string{"scoped_kube_group"},
+					Resources: []*scopedaccessv1.KubeResource{
+						scopedaccessv1.KubeResource_builder{
+							Kind:      "*",
+							Namespace: "*",
+							Name:      "*",
+							ApiGroup:  "*",
+							Verbs:     []string{"*"},
+						}.Build(),
+					},
 					Labels: []*labelv1.Label{
 						labelv1.Label_builder{
 							Name:   types.Wildcard,
@@ -1350,7 +1360,10 @@ func TestGenerateUserCertsForHeadlessKube(t *testing.T) {
 			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
 				User: user1.GetName(),
 				Assignments: []*scopedaccessv1.Assignment{
-					scopedaccessv1.Assignment_builder{Role: role.GetMetadata().GetName(), Scope: scope}.Build(),
+					scopedaccessv1.Assignment_builder{
+						Role:  scopes.QualifiedName{Scope: role.GetScope(), Name: role.GetMetadata().GetName()}.String(),
+						Scope: scope,
+					}.Build(),
 				},
 			}.Build(),
 		}.Build(),
@@ -3533,7 +3546,7 @@ func TestKubeCRUDFromKubeService(t *testing.T) {
 	scopedKubeClient, err := srv.NewClient(scopedIdent)
 	require.NoError(t, err)
 
-	unscopedKubeClient, err := srv.NewClient(authtest.TestBuiltin(types.RoleKube))
+	unscopedKubeClient, err := srv.NewClient(authtest.TestServerID(types.RoleKube, "host-id"))
 	require.NoError(t, err)
 
 	// create an admin client to create resources and setup for test cases
@@ -3731,11 +3744,11 @@ func TestKubeCRUDFromKubeService(t *testing.T) {
 		_, err := adminClient.UpsertKubernetesServer(ctx, ks)
 		require.NoError(t, err)
 
-		// unscoped kube clients SHOULD be able to delete all kube servers
+		// kube clients SHOULD NOT be able to delete all kube servers
 		err = unscopedKubeClient.DeleteAllKubernetesServers(ctx)
-		require.NoError(t, err)
+		require.Error(t, err)
+		require.True(t, trace.IsAccessDenied(err), "expected access denied error")
 
-		// scoped kube clients SHOULD NOT be able to delete all kube servers
 		err = scopedKubeClient.DeleteAllKubernetesServers(ctx)
 		require.Error(t, err)
 		require.True(t, trace.IsAccessDenied(err), "expected access denied error")
@@ -5559,6 +5572,60 @@ func TestGetAndList_WindowsDesktops(t *testing.T) {
 	require.Empty(t, resp.Resources)
 }
 
+// TestCreateWindowsDesktop verifies that a user with permission to create
+// Windows desktops cannot create a desktop with labels they wouldn't have
+// access to.
+func TestCreateWindowsDesktop(t *testing.T) {
+	t.Parallel()
+	srv := newTestTLSServer(t)
+
+	const username = "desktop-creator"
+	user, role, err := authtest.CreateUserAndRole(
+		srv.Auth(),
+		username,
+		nil, /* logins */
+		[]types.Rule{types.NewRule(types.KindWindowsDesktop, services.RW())},
+	)
+	require.NoError(t, err)
+
+	role.SetWindowsDesktopLabels(types.Allow, types.Labels{"env": {"dev"}})
+	_, err = srv.Auth().UpsertRole(t.Context(), role)
+	require.NoError(t, err)
+
+	identity := authtest.TestUser(user.GetName())
+	clt, err := srv.NewClient(identity)
+	require.NoError(t, err)
+	t.Cleanup(func() { clt.Close() })
+
+	// Creating a desktop the user wouldn't have access to is denied
+	inaccessible, err := types.NewWindowsDesktopV3(
+		"prod-desktop",
+		map[string]string{"env": "prod"},
+		types.WindowsDesktopSpecV3{Addr: "_", HostID: "_"},
+	)
+	require.NoError(t, err)
+	err = clt.CreateWindowsDesktop(t.Context(), inaccessible)
+	require.True(t, trace.IsAccessDenied(err), "expected access denied, got: %v", err)
+
+	// the desktop is not created
+	desktops, err := srv.Auth().GetWindowsDesktops(t.Context(), types.WindowsDesktopFilter{Name: inaccessible.GetName()})
+	require.NoError(t, err)
+	require.Empty(t, desktops)
+
+	// Creating a desktop the user has access to succeeds
+	accessible, err := types.NewWindowsDesktopV3(
+		"dev-desktop",
+		map[string]string{"env": "dev"},
+		types.WindowsDesktopSpecV3{Addr: "_", HostID: "_"},
+	)
+	require.NoError(t, err)
+	require.NoError(t, clt.CreateWindowsDesktop(t.Context(), accessible))
+
+	desktops, err = srv.Auth().GetWindowsDesktops(t.Context(), types.WindowsDesktopFilter{Name: accessible.GetName()})
+	require.NoError(t, err)
+	require.Len(t, desktops, 1)
+}
+
 func TestIsLocalOrRemoteServerAction(t *testing.T) {
 	ctx := t.Context()
 	mods := modulestest.OSSModules()
@@ -5841,12 +5908,12 @@ func TestListResources_KindKubernetesCluster(t *testing.T) {
 	srv := newTestTLSServer(t, withScopesFeatures(scopes.Features{Enabled: true}))
 
 	scopedAccess := srv.Auth().ScopedAccess()
-	scopes := []string{"/test", "/other"}
+	testScopes := []string{"/test", "/other"}
 	getScopeAsName := func(scope string) string {
 		return strings.ReplaceAll(strings.Trim(scope, "/"), "/", "-")
 	}
 	// create scoped roles, users, and assignments
-	for _, scope := range scopes {
+	for _, scope := range testScopes {
 		roleResp, err := scopedAccess.CreateScopedRole(ctx, scopedaccessv1.CreateScopedRoleRequest_builder{
 			Role: scopedaccessv1.ScopedRole_builder{
 				Kind:    scopedaccess.KindScopedRole,
@@ -5860,6 +5927,15 @@ func TestListResources_KindKubernetesCluster(t *testing.T) {
 					Kube: scopedaccessv1.ScopedRoleKube_builder{
 						Users:  []string{"kube_user"},
 						Groups: []string{"kube_group"},
+						Resources: []*scopedaccessv1.KubeResource{
+							scopedaccessv1.KubeResource_builder{
+								Kind:      "*",
+								Namespace: "*",
+								Name:      "*",
+								ApiGroup:  "*",
+								Verbs:     []string{"*"},
+							}.Build(),
+						},
 						Labels: []*labelv1.Label{
 							labelv1.Label_builder{
 								Name:   types.Wildcard,
@@ -5888,7 +5964,10 @@ func TestListResources_KindKubernetesCluster(t *testing.T) {
 				Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
 					User: user.GetName(),
 					Assignments: []*scopedaccessv1.Assignment{
-						scopedaccessv1.Assignment_builder{Role: role.GetMetadata().GetName(), Scope: scope}.Build(),
+						scopedaccessv1.Assignment_builder{
+							Role:  scopes.QualifiedName{Scope: role.GetScope(), Name: role.GetMetadata().GetName()}.String(),
+							Scope: scope,
+						}.Build(),
 					},
 				}.Build(),
 			}.Build(),
@@ -5901,14 +5980,14 @@ func TestListResources_KindKubernetesCluster(t *testing.T) {
 	require.NoError(t, err)
 
 	scopedClient, err := srv.NewClient(authtest.TestScopedUser(
-		getScopeAsName(scopes[0])+"-reader",
-		scopes[0],
+		getScopeAsName(testScopes[0])+"-reader",
+		testScopes[0],
 	))
 	require.NoError(t, err)
 
 	otherScopedClient, err := srv.NewClient(authtest.TestScopedUser(
-		getScopeAsName(scopes[1])+"-reader",
-		scopes[1],
+		getScopeAsName(testScopes[1])+"-reader",
+		testScopes[1],
 	))
 	require.NoError(t, err)
 
@@ -5927,11 +6006,11 @@ func TestListResources_KindKubernetesCluster(t *testing.T) {
 	createKubeServer(t, srv.Auth(), []string{"a", "c"}, "host2", "")
 
 	// Add scoped variants of the kube services
-	createKubeServer(t, srv.Auth(), []string{"b", "a"}, "scoped_host1", scopes[0])
+	createKubeServer(t, srv.Auth(), []string{"b", "a"}, "scoped_host1", testScopes[0])
 
 	// Add a kube service with 2 clusters.
 	// Includes a duplicate cluster name to test deduplicate.
-	createKubeServer(t, srv.Auth(), []string{"a", "c"}, "scoped_host2", scopes[0])
+	createKubeServer(t, srv.Auth(), []string{"a", "c"}, "scoped_host2", testScopes[0])
 
 	// Test upsert.
 	kubeServers, err := srv.Auth().GetKubernetesServers(ctx)
@@ -6074,6 +6153,7 @@ func waitForSRACache(t *testing.T, srv *authtest.TLSServer, resps ...*scopedacce
 			_, err := srv.Auth().ScopedAccessCache.GetScopedRoleAssignment(ctx, scopedaccessv1.GetScopedRoleAssignmentRequest_builder{
 				Name:    resp.GetAssignment().GetMetadata().GetName(),
 				SubKind: resp.GetAssignment().GetSubKind(),
+				Scope:   resp.GetAssignment().GetScope(),
 			}.Build())
 			require.NoError(t, err)
 		}
@@ -6107,7 +6187,7 @@ func TestListResources_ScopedApps(t *testing.T) {
 	const childScope = "/test/child"
 	const otherScope = "/other"
 
-	createAppServer := func(t *testing.T, name, scope string, labels map[string]string) {
+	createAppServer := func(t *testing.T, name, scope, subkind string, labels map[string]string) {
 		t.Helper()
 		app, err := types.NewAppV3(types.Metadata{
 			Name:   name,
@@ -6116,21 +6196,28 @@ func TestListResources_ScopedApps(t *testing.T) {
 			types.AppSpecV3{URI: "http://localhost:8080"},
 			scope)
 		require.NoError(t, err)
+		if subkind != "" {
+			app.SubKind = subkind
+		}
 		if scope != "" {
 			app.Spec.PublicAddr = scopedapp.ScopedAppPublicAddr(scope, name, "proxy.example.com")
 		}
 		server, err := types.NewAppServerV3FromApp(app, name+"-host", name+"-hostid")
+		if subkind != "" {
+			server.SubKind = subkind
+		}
 		require.NoError(t, err)
 		_, err = srv.Auth().UpsertApplicationServer(ctx, server)
 		require.NoError(t, err)
 	}
 
 	// Create apps in various scopes with differing labels
-	createAppServer(t, "prod-app", scope, map[string]string{"env": "prod"})
-	createAppServer(t, "dev-app", scope, map[string]string{"env": "dev"})
-	createAppServer(t, "dev-child-app", childScope, map[string]string{"env": "dev"})
-	createAppServer(t, "other-scope-app", otherScope, map[string]string{"env": "prod"})
-	createAppServer(t, "unscoped-app", "", map[string]string{"env": "prod"})
+	createAppServer(t, "prod-app", scope, "", map[string]string{"env": "prod"})
+	createAppServer(t, "dev-app", scope, "", map[string]string{"env": "dev"})
+	createAppServer(t, "dev-child-app", childScope, "", map[string]string{"env": "dev"})
+	createAppServer(t, "other-scope-app", otherScope, "", map[string]string{"env": "prod"})
+	createAppServer(t, "unscoped-app", "", "", map[string]string{"env": "prod"})
+	createAppServer(t, "ic-app", scope, types.KindIdentityCenterAccount, map[string]string{"env": "dev"})
 
 	appLabels := func(env string) *scopedaccessv1.ScopedRoleApp {
 		return scopedaccessv1.ScopedRoleApp_builder{
@@ -6159,54 +6246,97 @@ func TestListResources_ScopedApps(t *testing.T) {
 		name             string
 		server           *auth.ScopedServerWithRoles
 		appNamesExpected []string
+		req              proto.ListResourcesRequest
 	}{
 		{
 			name:             "prod labels in scope " + scope,
 			server:           scopedAppUser("test-prod-label", scope, appLabels("prod")),
 			appNamesExpected: []string{"prod-app"},
+			req: proto.ListResourcesRequest{
+				ResourceType: types.KindAppServer,
+				Limit:        10,
+			},
 		},
 		{
 			name:             "dev label in " + scope,
 			server:           scopedAppUser("test-dev-label", scope, appLabels("dev")),
 			appNamesExpected: []string{"dev-app", "dev-child-app"},
+			req: proto.ListResourcesRequest{
+				ResourceType: types.KindAppServer,
+				Limit:        10,
+			},
 		},
 		{
 			name:             "dev label expression in " + scope,
 			server:           scopedAppUser("test-dev-expression", scope, appLabelExpression(`contains(labels["env"], "dev")`)),
 			appNamesExpected: []string{"dev-app", "dev-child-app"},
+			req: proto.ListResourcesRequest{
+				ResourceType: types.KindAppServer,
+				Limit:        10,
+			},
 		},
 		{
 			name:             "label expression in " + scope,
 			server:           scopedAppUser("test-prod-expression", scope, appLabelExpression(`contains(labels["env"], "prod")`)),
 			appNamesExpected: []string{"prod-app"},
+			req: proto.ListResourcesRequest{
+				ResourceType: types.KindAppServer,
+				Limit:        10,
+			},
 		},
 		{
 			name:             "label expression in " + childScope,
 			server:           scopedAppUser("test-child-prod-expr", childScope, appLabelExpression(`contains(labels["env"], "prod")`)),
 			appNamesExpected: []string{},
+			req: proto.ListResourcesRequest{
+				ResourceType: types.KindAppServer,
+				Limit:        10,
+			},
 		},
 		{
 			name:             "label expression in " + otherScope,
 			server:           scopedAppUser("other-prod-expression", otherScope, appLabelExpression(`contains(labels["env"], "prod")`)),
 			appNamesExpected: []string{"other-scope-app"},
-		},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			res, err := tc.server.ListResources(ctx, proto.ListResourcesRequest{
+			req: proto.ListResourcesRequest{
 				ResourceType: types.KindAppServer,
 				Limit:        10,
-			})
+			},
+		},
+		{
+			name:             "fake pagination path returns apps",
+			server:           scopedAppUser("test-fake-pagination", scope, appLabels("prod")),
+			appNamesExpected: []string{"prod-app"},
+			req: proto.ListResourcesRequest{
+				ResourceType:   types.KindAppServer,
+				Limit:          10,
+				SortBy:         types.SortBy{Field: types.ResourceMetadataName},
+				NeedTotalCount: true,
+				IncludeLogins:  true,
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			res, err := tc.server.ListResources(ctx, tc.req)
 			require.NoError(t, err)
 
 			var names []string
 			for _, r := range res.Resources {
 				names = append(names, r.GetName())
 				require.NotEqual(t, "unscoped-app", r.GetName())
+				// Identity Center account apps must never appear in scoped
+				// listings, even when their labels match the role.
+				require.NotEqual(t, "ic-app", r.GetName())
 			}
 
 			require.ElementsMatch(t, tc.appNamesExpected, names)
+
+			if tc.req.SortBy.Field != "" {
+				require.True(t, slices.IsSorted(names))
+			}
+			if tc.req.NeedTotalCount {
+				require.Equal(t, len(tc.appNamesExpected), res.TotalCount)
+			}
 		})
 	}
 }
@@ -9268,7 +9398,10 @@ func newScopePinnedTestServerWithScopedUser(t *testing.T, srv *authtest.AuthServ
 			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
 				User: username,
 				Assignments: []*scopedaccessv1.Assignment{
-					scopedaccessv1.Assignment_builder{Role: roleName, Scope: scope}.Build(),
+					scopedaccessv1.Assignment_builder{
+						Role:  scopes.QualifiedName{Scope: scope, Name: roleName}.String(),
+						Scope: scope,
+					}.Build(),
 				},
 			}.Build(),
 		}.Build(),
@@ -9339,7 +9472,7 @@ func TestGenerateHostCertsScoped(t *testing.T) {
 	require.Equal(t, scope, sshIdent.AgentScope)
 }
 
-func TestUpsertNode(t *testing.T) {
+func TestUpsertScopedNode(t *testing.T) {
 	t.Parallel()
 	authsrv, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir: t.TempDir(),
@@ -9378,18 +9511,6 @@ func TestUpsertNode(t *testing.T) {
 		nodeScope string
 		shouldErr bool
 	}{
-		{
-			name:     "unscoped node - own node allowed",
-			server:   newScopedTestServerForHost(t, authsrv, nodeName, "", types.RoleNode).ScopedServerWithRoles(),
-			nodeName: nodeName,
-		},
-		{
-			// Node agents may only upsert their own node resource, scoped or not.
-			name:      "unscoped node - mismatched ID denied",
-			server:    newScopedTestServerForHost(t, authsrv, nodeName, "", types.RoleNode).ScopedServerWithRoles(),
-			nodeName:  otherID,
-			shouldErr: true,
-		},
 		{
 			name:      "agent scope - matching ID and scope allowed",
 			server:    newScopedTestServerForHost(t, authsrv, nodeName, "/staging", types.RoleNode).ScopedServerWithRoles(),
@@ -12407,13 +12528,18 @@ func TestScopedRoleEvents(t *testing.T) {
 	client, err := srv.NewClient(authtest.TestAdmin())
 	require.NoError(t, err)
 
+	// scoped resource kinds default to only matching unscoped resources (which never exist for these
+	// kinds), so watch with an explicit MODE_ALL filter to observe scoped roles/assignments at all scopes.
+	allScopes := types.ScopeFilterFromProto(scopesv1.Filter_builder{Mode: scopesv1.Mode_MODE_ALL}.Build())
 	watcher, err := client.NewWatcher(ctx, types.Watch{
 		Kinds: []types.WatchKind{
 			{
-				Kind: scopedaccess.KindScopedRole,
+				Kind:        scopedaccess.KindScopedRole,
+				ScopeFilter: allScopes,
 			},
 			{
-				Kind: scopedaccess.KindScopedRoleAssignment,
+				Kind:        scopedaccess.KindScopedRoleAssignment,
+				ScopeFilter: allScopes,
 			},
 		},
 	})
@@ -12467,19 +12593,23 @@ func TestScopedRoleEvents(t *testing.T) {
 
 	// delete the role and verify delete event is well-formed.
 	_, err = service.DeleteScopedRole(ctx, scopedaccessv1.DeleteScopedRoleRequest_builder{
-		Name: role.GetMetadata().GetName(),
+		Name:  role.GetMetadata().GetName(),
+		Scope: role.GetScope(),
 	}.Build())
 	require.NoError(t, err)
 
 	event = getNextEvent()
 	require.Equal(t, types.OpDelete, event.Type)
 
-	require.Empty(t, cmp.Diff(&types.ResourceHeader{
+	// delete events carry a skeleton typed resource (kind + scope + name), not a bare ResourceHeader.
+	deletedRole := event.Resource.(types.Resource153UnwrapperT[*scopedaccessv1.ScopedRole]).UnwrapT()
+	require.Empty(t, cmp.Diff(scopedaccessv1.ScopedRole_builder{
 		Kind: scopedaccess.KindScopedRole,
-		Metadata: types.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: role.GetMetadata().GetName(),
-		},
-	}, event.Resource.(*types.ResourceHeader), protocmp.Transform()))
+		}.Build(),
+		Scope: role.GetScope(),
+	}.Build(), deletedRole, protocmp.Transform()))
 
 	// recreate scoped role so that we can use it for testing assignment events
 	_, err = service.CreateScopedRole(ctx, scopedaccessv1.CreateScopedRoleRequest_builder{
@@ -12500,7 +12630,7 @@ func TestScopedRoleEvents(t *testing.T) {
 			User: "alice",
 			Assignments: []*scopedaccessv1.Assignment{
 				scopedaccessv1.Assignment_builder{
-					Role:  role.GetMetadata().GetName(),
+					Role:  scopes.QualifiedName{Scope: role.GetScope(), Name: role.GetMetadata().GetName()}.String(),
 					Scope: "/foo",
 				}.Build(),
 			},
@@ -12522,19 +12652,22 @@ func TestScopedRoleEvents(t *testing.T) {
 	_, err = service.DeleteScopedRoleAssignment(ctx, scopedaccessv1.DeleteScopedRoleAssignmentRequest_builder{
 		Name:    assignment.GetMetadata().GetName(),
 		SubKind: assignment.GetSubKind(),
+		Scope:   assignment.GetScope(),
 	}.Build())
 	require.NoError(t, err)
 
 	event = getNextEvent()
 	require.Equal(t, types.OpDelete, event.Type)
 
-	require.Empty(t, cmp.Diff(&types.ResourceHeader{
+	deletedAssignment := event.Resource.(types.Resource153UnwrapperT[*scopedaccessv1.ScopedRoleAssignment]).UnwrapT()
+	require.Empty(t, cmp.Diff(scopedaccessv1.ScopedRoleAssignment_builder{
 		Kind:    scopedaccess.KindScopedRoleAssignment,
 		SubKind: scopedaccess.SubKindDynamic,
-		Metadata: types.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: assignment.GetMetadata().GetName(),
-		},
-	}, event.Resource.(*types.ResourceHeader), protocmp.Transform()))
+		}.Build(),
+		Scope: assignment.GetScope(),
+	}.Build(), deletedAssignment, protocmp.Transform()))
 }
 
 // TestWatchAllCacheKinds ensures the system builtin roles can watch every
@@ -12656,10 +12789,13 @@ func TestKubeKeepAliveServer(t *testing.T) {
 			require.NoError(t, err)
 
 			// Create a built-in role.
+			username := utils.HostFQDN(hostID, domainName)
 			authContext, err := authz.ContextForBuiltinRole(
 				authz.BuiltinRole{
-					Role:     test.builtInRole,
-					Username: fmt.Sprintf("%s.%s", hostID, domainName),
+					Role:        test.builtInRole,
+					Username:    username,
+					ClusterName: domainName,
+					Identity:    tlsca.Identity{Username: username},
 				},
 				types.DefaultSessionRecordingConfig(),
 			)
@@ -13727,6 +13863,7 @@ func TestScopedUserCertGeneration(t *testing.T) {
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 				entitlements.Policy: {Enabled: true},
 				entitlements.K8s:    {Enabled: true},
+				entitlements.App:    {Enabled: true},
 			},
 		},
 	}), withClock(clock))
@@ -13749,6 +13886,23 @@ func TestScopedUserCertGeneration(t *testing.T) {
 				Kube: scopedaccessv1.ScopedRoleKube_builder{
 					Users:  []string{"kube_user"},
 					Groups: []string{"kube_group"},
+					Resources: []*scopedaccessv1.KubeResource{
+						scopedaccessv1.KubeResource_builder{
+							Kind:      "*",
+							Namespace: "*",
+							Name:      "*",
+							ApiGroup:  "*",
+							Verbs:     []string{"*"},
+						}.Build(),
+					},
+					Labels: []*labelv1.Label{
+						labelv1.Label_builder{
+							Name:   types.Wildcard,
+							Values: []string{types.Wildcard},
+						}.Build(),
+					},
+				}.Build(),
+				App: scopedaccessv1.ScopedRoleApp_builder{
 					Labels: []*labelv1.Label{
 						labelv1.Label_builder{
 							Name:   types.Wildcard,
@@ -13777,7 +13931,10 @@ func TestScopedUserCertGeneration(t *testing.T) {
 			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
 				User: user.GetName(),
 				Assignments: []*scopedaccessv1.Assignment{
-					scopedaccessv1.Assignment_builder{Role: scopedRole.GetMetadata().GetName(), Scope: scope}.Build(),
+					scopedaccessv1.Assignment_builder{
+						Role:  scopes.QualifiedName{Scope: scopedRole.GetScope(), Name: scopedRole.GetMetadata().GetName()}.String(),
+						Scope: scope,
+					}.Build(),
 				},
 			}.Build(),
 		}.Build(),
@@ -13790,6 +13947,20 @@ func TestScopedUserCertGeneration(t *testing.T) {
 	require.NoError(t, err)
 
 	createKubeServer(t, srv.Auth(), []string{"kube-cluster"}, "kube-host", scope)
+
+	scopedApp, err := types.NewAppV3(types.Metadata{
+		Name:   "test-app",
+		Labels: map[string]string{"env": "test"},
+	}, types.AppSpecV3{URI: "http://localhost:8080"})
+	require.NoError(t, err)
+	scopedApp.Scope = scope
+	scopedApp.Spec.PublicAddr = scopedapp.ScopedAppPublicAddr(scope, "test-app", "proxy.example.com")
+	scopedAppServer, err := types.NewAppServerV3FromApp(scopedApp, "test-app-host", "test-app-hostid")
+	require.NoError(t, err)
+	scopedAppServer.Scope = scope
+	_, err = srv.Auth().UpsertApplicationServer(ctx, scopedAppServer)
+	require.NoError(t, err)
+
 	tts := []struct {
 		name       string
 		req        proto.UserCertsRequest
@@ -13867,25 +14038,52 @@ func TestScopedUserCertGeneration(t *testing.T) {
 		{
 			name: "app session creation",
 			req: proto.UserCertsRequest{
-				SSHPublicKey:      sshPubKey,
-				TLSPublicKey:      tlsPubKey,
-				Username:          username,
-				Usage:             proto.UserCertsRequest_Kubernetes,
-				KubernetesCluster: "kube-cluster",
-				Expires:           time.Now().Add(time.Hour),
+				SSHPublicKey:  sshPubKey,
+				TLSPublicKey:  tlsPubKey,
+				Username:      username,
+				Usage:         proto.UserCertsRequest_App,
+				RequesterName: proto.UserCertsRequest_TSH_APP_LOCAL_PROXY,
+				Expires:       time.Now().Add(time.Hour),
 				RouteToApp: proto.RouteToApp{
-					Name: "app-name",
+					Name:        "test-app",
+					PublicAddr:  scopedApp.GetPublicAddr(),
+					ClusterName: srv.ClusterName(),
+				},
+			},
+			assertCert: func(t *testing.T, cert *x509.Certificate) {
+				identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+				require.NoError(t, err)
+				require.Equal(t, "test-app", identity.RouteToApp.Name)
+				require.Equal(t, scopedApp.GetPublicAddr(), identity.RouteToApp.PublicAddr)
+				// An app session is created and linked to the certificate.
+				require.NotEmpty(t, identity.RouteToApp.SessionID)
+			},
+		},
+		{
+			name: "app with AWS role ARN is rejected",
+			req: proto.UserCertsRequest{
+				SSHPublicKey:  sshPubKey,
+				TLSPublicKey:  tlsPubKey,
+				Username:      username,
+				Usage:         proto.UserCertsRequest_App,
+				RequesterName: proto.UserCertsRequest_TSH_APP_LOCAL_PROXY,
+				Expires:       time.Now().Add(time.Hour),
+				RouteToApp: proto.RouteToApp{
+					Name:        "test-app",
+					PublicAddr:  scopedApp.GetPublicAddr(),
+					ClusterName: srv.ClusterName(),
+					AWSRoleARN:  "arn:aws:iam::123456789012:role/example",
 				},
 			},
 			assertErr: func(t *testing.T, err error) {
 				require.Error(t, err)
 				require.True(t, trace.IsAccessDenied(err), "expected AccessDeniedError")
-				require.ErrorContains(t, err, "creating app session")
 				require.ErrorContains(t, err, "scoped identities not supported")
+				require.ErrorContains(t, err, "generating scoped user cert for cloud app access")
 			},
 		},
 		{
-			name: "for non-kube usage",
+			name: "for non-kube non-app usage",
 			req: proto.UserCertsRequest{
 				SSHPublicKey: sshPubKey,
 				TLSPublicKey: tlsPubKey,
@@ -13896,7 +14094,7 @@ func TestScopedUserCertGeneration(t *testing.T) {
 				require.Error(t, err)
 				require.True(t, trace.IsAccessDenied(err), "expected AccessDeniedError")
 				require.ErrorContains(t, err, "scoped identities not supported")
-				require.ErrorContains(t, err, "generating scoped user cert for non-kubernetes usage")
+				require.ErrorContains(t, err, "generating scoped user cert for unsupported usage \"All\"")
 			},
 		},
 		{
@@ -13917,7 +14115,7 @@ func TestScopedUserCertGeneration(t *testing.T) {
 				require.ErrorContains(t, err, "scoped identities not supported")
 				// TODO (eriktate/scopes): remove the nonKubeErr check if/when we stop restricting usages for scoped
 				// user cert gen
-				nonKubeErr := strings.Contains(err.Error(), "generating scoped user cert for non-kubernetes usage")
+				nonKubeErr := strings.Contains(err.Error(), "generating scoped user cert for unsupported usage \"AccessGraphAPI\"")
 				accessGraphErr := strings.Contains(err.Error(), "access graph is not permitted")
 				require.True(t, nonKubeErr || accessGraphErr, "expected error due to unsupported scoped certificate usage or unsupported scoped access graph usage")
 			},
@@ -14017,4 +14215,485 @@ func TestScopePinnedEmitAuditEvent(t *testing.T) {
 	stream, err = scopedHostAuth.ResumeAuditStream(ctx, sessionID, "upload")
 	require.NoError(t, err)
 	require.NoError(t, stream.Close(ctx))
+}
+
+func TestRoleNodeLeastPrivilege(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, as.Close()) })
+
+	const ownID = "00000000-0000-0000-0000-000000000001"
+	const otherID = "00000000-0000-0000-0000-000000000002"
+
+	makeNode := func(t *testing.T, name string) types.Server {
+		node, err := types.NewServer(name, types.KindNode, types.ServerSpecV2{
+			Addr:     "node.example.com:3022",
+			Hostname: "hostname",
+		})
+		require.NoError(t, err)
+		return node
+	}
+
+	nodeKeepAlive := func(name string) types.KeepAlive {
+		return types.KeepAlive{
+			Type:      types.KeepAlive_NODE,
+			Name:      name,
+			Namespace: apidefaults.Namespace,
+			Expires:   time.Now().Add(5 * time.Minute),
+		}
+	}
+
+	// node is authenticated as the built-in RoleNode for ownID.
+	node := newScopedTestServerForHost(t, as, ownID, "" /* scope */, types.RoleNode)
+
+	t.Run("upsert own node allowed", func(t *testing.T) {
+		_, err := node.ScopedServerWithRoles().UpsertNode(ctx, makeNode(t, ownID))
+		require.NoError(t, err)
+	})
+
+	t.Run("upsert other node denied", func(t *testing.T) {
+		_, err := node.ScopedServerWithRoles().UpsertNode(ctx, makeNode(t, otherID))
+		require.True(t, trace.IsAccessDenied(err), "expected access denied, got: %v", err)
+	})
+
+	t.Run("keepalive own node allowed", func(t *testing.T) {
+		require.NoError(t, node.KeepAliveServer(ctx, nodeKeepAlive(ownID)))
+	})
+
+	t.Run("keepalive other node denied", func(t *testing.T) {
+		err := node.KeepAliveServer(ctx, nodeKeepAlive(otherID))
+		require.True(t, trace.IsAccessDenied(err), "expected access denied, got: %v", err)
+	})
+
+	t.Run("delete node denied", func(t *testing.T) {
+		err := node.DeleteNode(ctx, apidefaults.Namespace, ownID)
+		require.True(t, trace.IsAccessDenied(err), "expected access denied, got: %v", err)
+	})
+
+	t.Run("delete all nodes denied", func(t *testing.T) {
+		err := node.DeleteAllNodes(ctx, apidefaults.Namespace)
+		require.True(t, trace.IsAccessDenied(err), "expected access denied, got: %v", err)
+	})
+}
+
+func TestRoleDatabaseLeastPrivilege(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, as.Close()) })
+
+	const ownID = "00000000-0000-0000-0000-000000000001"
+	const otherID = "00000000-0000-0000-0000-000000000002"
+
+	makeDBServer := func(t *testing.T, hostID string) types.DatabaseServer {
+		server, err := types.NewDatabaseServerV3(types.Metadata{
+			Name: "db",
+		}, types.DatabaseServerSpecV3{
+			HostID:   hostID,
+			Hostname: "db.example.com",
+			Database: &types.DatabaseV3{
+				Metadata: types.Metadata{Name: "db"},
+				Spec: types.DatabaseSpecV3{
+					Protocol: "postgres",
+					URI:      "localhost:5432",
+				},
+			},
+		})
+		require.NoError(t, err)
+		return server
+	}
+
+	dbKeepAlive := func(hostID string) types.KeepAlive {
+		return types.KeepAlive{
+			Type:      types.KeepAlive_DATABASE,
+			Name:      "db",
+			Namespace: apidefaults.Namespace,
+			HostID:    hostID,
+			Expires:   time.Now().Add(5 * time.Minute),
+		}
+	}
+
+	// A DatabaseService is name-keyed: its name is the host ID of the db_service.
+	makeDBService := func(t *testing.T, hostID string) types.DatabaseService {
+		svc, err := types.NewDatabaseServiceV1(types.Metadata{
+			Name:      hostID,
+			Namespace: apidefaults.Namespace,
+		}, types.DatabaseServiceSpecV1{
+			ResourceMatchers: []*types.DatabaseResourceMatcher{
+				{Labels: &types.Labels{types.Wildcard: []string{types.Wildcard}}},
+			},
+		})
+		require.NoError(t, err)
+		return svc
+	}
+
+	dbServiceKeepAlive := func(hostID string) types.KeepAlive {
+		return types.KeepAlive{
+			Type:      types.KeepAlive_DATABASE_SERVICE,
+			Name:      hostID,
+			Namespace: apidefaults.Namespace,
+			Expires:   time.Now().Add(5 * time.Minute),
+		}
+	}
+
+	// db is authenticated as the built-in RoleDatabase for ownID.
+	db := newScopedTestServerForHost(t, as, ownID, "" /* scope */, types.RoleDatabase)
+
+	t.Run("upsert own database service allowed", func(t *testing.T) {
+		_, err := db.UpsertDatabaseService(ctx, makeDBService(t, ownID))
+		require.NoError(t, err)
+	})
+
+	t.Run("upsert other database service denied", func(t *testing.T) {
+		_, err := db.UpsertDatabaseService(ctx, makeDBService(t, otherID))
+		require.True(t, trace.IsAccessDenied(err), "expected access denied, got: %v", err)
+	})
+
+	t.Run("keepalive own database service allowed", func(t *testing.T) {
+		require.NoError(t, db.KeepAliveServer(ctx, dbServiceKeepAlive(ownID)))
+	})
+
+	t.Run("keepalive other database service denied", func(t *testing.T) {
+		err := db.KeepAliveServer(ctx, dbServiceKeepAlive(otherID))
+		require.True(t, trace.IsAccessDenied(err), "expected access denied, got: %v", err)
+	})
+
+	t.Run("upsert own database server allowed", func(t *testing.T) {
+		_, err := db.UpsertDatabaseServer(ctx, makeDBServer(t, ownID))
+		require.NoError(t, err)
+	})
+
+	t.Run("upsert other database server denied", func(t *testing.T) {
+		_, err := db.UpsertDatabaseServer(ctx, makeDBServer(t, otherID))
+		require.True(t, trace.IsAccessDenied(err), "expected access denied, got: %v", err)
+	})
+
+	t.Run("keepalive own database server allowed", func(t *testing.T) {
+		require.NoError(t, db.KeepAliveServer(ctx, dbKeepAlive(ownID)))
+	})
+
+	t.Run("keepalive other database server denied", func(t *testing.T) {
+		err := db.KeepAliveServer(ctx, dbKeepAlive(otherID))
+		require.True(t, trace.IsAccessDenied(err), "expected access denied, got: %v", err)
+	})
+
+	// Seed both the database's own server and a foreign server directly in the backend.
+	_, err = as.AuthServer.UpsertDatabaseServer(ctx, makeDBServer(t, ownID))
+	require.NoError(t, err)
+	_, err = as.AuthServer.UpsertDatabaseServer(ctx, makeDBServer(t, otherID))
+	require.NoError(t, err)
+
+	t.Run("delete own database server allowed", func(t *testing.T) {
+		require.NoError(t, db.DeleteDatabaseServer(ctx, apidefaults.Namespace, ownID, "db"))
+	})
+
+	t.Run("delete other database server denied", func(t *testing.T) {
+		err := db.DeleteDatabaseServer(ctx, apidefaults.Namespace, otherID, "db")
+		require.True(t, trace.IsAccessDenied(err), "expected access denied, got: %v", err)
+	})
+
+	t.Run("delete all database servers denied", func(t *testing.T) {
+		err := db.DeleteAllDatabaseServers(ctx, apidefaults.Namespace)
+		require.True(t, trace.IsAccessDenied(err), "expected access denied, got: %v", err)
+	})
+}
+
+func TestRoleAppLeastPrivilege(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, as.Close()) })
+
+	const ownID = "00000000-0000-0000-0000-000000000001"
+	const otherID = "00000000-0000-0000-0000-000000000002"
+
+	makeAppServer := func(t *testing.T, hostID string) types.AppServer {
+		server, err := types.NewAppServerV3(types.Metadata{
+			Name: "app",
+		}, types.AppServerSpecV3{
+			HostID:   hostID,
+			Hostname: "app.example.com",
+			App: &types.AppV3{
+				Metadata: types.Metadata{Name: "app"},
+				Spec:     types.AppSpecV3{URI: "http://localhost:8080"},
+			},
+		})
+		require.NoError(t, err)
+		return server
+	}
+
+	appKeepAlive := func(hostID string) types.KeepAlive {
+		return types.KeepAlive{
+			Type:      types.KeepAlive_APP,
+			Name:      "app",
+			Namespace: apidefaults.Namespace,
+			HostID:    hostID,
+			Expires:   time.Now().Add(5 * time.Minute),
+		}
+	}
+
+	// legacyAppKeepAlive builds a pre-9.0 style keepalive with an empty HostID,
+	// exercising the fallback branch in KeepAliveServer that authorizes on Name.
+	legacyAppKeepAlive := func(name string) types.KeepAlive {
+		return types.KeepAlive{
+			Type:      types.KeepAlive_APP,
+			Name:      name,
+			Namespace: apidefaults.Namespace,
+			Expires:   time.Now().Add(5 * time.Minute),
+		}
+	}
+
+	// app is authenticated as the built-in RoleApp for ownID.
+	app := newScopedTestServerForHost(t, as, ownID, "" /* scope */, types.RoleApp)
+	// okta is authenticated as the built-in RoleOkta for ownID.
+	okta := newScopedTestServerForHost(t, as, ownID, "" /* scope */, types.RoleOkta)
+
+	t.Run("upsert own app server allowed", func(t *testing.T) {
+		_, err := app.UpsertApplicationServer(ctx, makeAppServer(t, ownID))
+		require.NoError(t, err)
+	})
+
+	t.Run("upsert other app server denied", func(t *testing.T) {
+		_, err := app.UpsertApplicationServer(ctx, makeAppServer(t, otherID))
+		require.True(t, trace.IsAccessDenied(err), "expected access denied, got: %v", err)
+	})
+
+	t.Run("keepalive own app server allowed", func(t *testing.T) {
+		require.NoError(t, app.KeepAliveServer(ctx, appKeepAlive(ownID)))
+	})
+
+	t.Run("keepalive other app server denied", func(t *testing.T) {
+		err := app.KeepAliveServer(ctx, appKeepAlive(otherID))
+		require.True(t, trace.IsAccessDenied(err), "expected access denied, got: %v", err)
+	})
+
+	t.Run("okta keepalive own app server allowed", func(t *testing.T) {
+		require.NoError(t, okta.KeepAliveServer(ctx, appKeepAlive(ownID)))
+	})
+
+	t.Run("okta keepalive other app server denied", func(t *testing.T) {
+		err := okta.KeepAliveServer(ctx, appKeepAlive(otherID))
+		require.True(t, trace.IsAccessDenied(err), "expected access denied, got: %v", err)
+	})
+
+	t.Run("legacy keepalive own app server allowed", func(t *testing.T) {
+		// The pre-9.0 keepalive format has no HostID; the ownership check is
+		// keyed on handle.Name. Assert authorization succeeds even if the
+		// backend has no legacy-format server to update.
+		err := app.KeepAliveServer(ctx, legacyAppKeepAlive(ownID))
+		require.False(t, trace.IsAccessDenied(err), "unexpected access denied: %v", err)
+	})
+
+	t.Run("legacy keepalive other app server denied", func(t *testing.T) {
+		err := app.KeepAliveServer(ctx, legacyAppKeepAlive(otherID))
+		require.True(t, trace.IsAccessDenied(err), "expected access denied, got: %v", err)
+	})
+
+	// Seed the app's own server and a foreign server directly in the backend.
+	_, err = as.AuthServer.UpsertApplicationServer(ctx, makeAppServer(t, ownID))
+	require.NoError(t, err)
+	_, err = as.AuthServer.UpsertApplicationServer(ctx, makeAppServer(t, otherID))
+	require.NoError(t, err)
+
+	t.Run("delete own app server allowed", func(t *testing.T) {
+		require.NoError(t, app.DeleteApplicationServer(ctx, apidefaults.Namespace, ownID, "app"))
+	})
+
+	t.Run("delete other app server denied", func(t *testing.T) {
+		err := app.DeleteApplicationServer(ctx, apidefaults.Namespace, otherID, "app")
+		require.True(t, trace.IsAccessDenied(err), "expected access denied, got: %v", err)
+	})
+
+	t.Run("delete all app servers denied", func(t *testing.T) {
+		err := app.DeleteAllApplicationServers(ctx, apidefaults.Namespace)
+		require.True(t, trace.IsAccessDenied(err), "expected access denied, got: %v", err)
+	})
+}
+
+func TestRoleKubeLeastPrivilege(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, as.Close()) })
+
+	const ownID = "00000000-0000-0000-0000-000000000001"
+	const otherID = "00000000-0000-0000-0000-000000000002"
+
+	makeKubeServer := func(t *testing.T, hostID string) types.KubeServer {
+		cluster, err := types.NewKubernetesClusterV3(types.Metadata{Name: "kube"}, types.KubernetesClusterSpecV3{})
+		require.NoError(t, err)
+		server, err := types.NewKubernetesServerV3(types.Metadata{
+			Name:      "kube",
+			Namespace: apidefaults.Namespace,
+		}, types.KubernetesServerSpecV3{
+			Cluster: cluster,
+			HostID:  hostID,
+		})
+		require.NoError(t, err)
+		return server
+	}
+
+	kubeKeepAlive := func(hostID string) types.KeepAlive {
+		return types.KeepAlive{
+			Type:      types.KeepAlive_KUBERNETES,
+			Name:      "kube",
+			Namespace: apidefaults.Namespace,
+			HostID:    hostID,
+			Expires:   time.Now().Add(5 * time.Minute),
+		}
+	}
+
+	// kube is authenticated as the built-in RoleKube for ownID.
+	kube := newScopedTestServerForHost(t, as, ownID, "" /* scope */, types.RoleKube)
+
+	t.Run("upsert own kube server allowed", func(t *testing.T) {
+		_, err := kube.UpsertKubernetesServer(ctx, makeKubeServer(t, ownID))
+		require.NoError(t, err)
+	})
+
+	t.Run("upsert other kube server denied", func(t *testing.T) {
+		_, err := kube.UpsertKubernetesServer(ctx, makeKubeServer(t, otherID))
+		require.True(t, trace.IsAccessDenied(err), "expected access denied, got: %v", err)
+	})
+
+	t.Run("keepalive own kube server allowed", func(t *testing.T) {
+		require.NoError(t, kube.KeepAliveServer(ctx, kubeKeepAlive(ownID)))
+	})
+
+	t.Run("keepalive other kube server denied", func(t *testing.T) {
+		err := kube.KeepAliveServer(ctx, kubeKeepAlive(otherID))
+		require.True(t, trace.IsAccessDenied(err), "expected access denied, got: %v", err)
+	})
+
+	// Seed the kube service's own server and a foreign server directly in the backend.
+	_, err = as.AuthServer.UpsertKubernetesServer(ctx, makeKubeServer(t, ownID))
+	require.NoError(t, err)
+	_, err = as.AuthServer.UpsertKubernetesServer(ctx, makeKubeServer(t, otherID))
+	require.NoError(t, err)
+
+	t.Run("delete own kube server allowed", func(t *testing.T) {
+		require.NoError(t, kube.DeleteKubernetesServer(ctx, ownID, "kube"))
+	})
+
+	t.Run("delete other kube server denied", func(t *testing.T) {
+		err := kube.DeleteKubernetesServer(ctx, otherID, "kube")
+		require.True(t, trace.IsAccessDenied(err), "expected access denied, got: %v", err)
+	})
+
+	t.Run("delete all kube servers denied", func(t *testing.T) {
+		err := kube.DeleteAllKubernetesServers(ctx)
+		require.True(t, trace.IsAccessDenied(err), "expected access denied, got: %v", err)
+	})
+}
+
+func TestRoleWindowsDesktopLeastPrivilege(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, as.Close()) })
+
+	const ownID = "00000000-0000-0000-0000-000000000001"
+	const otherID = "00000000-0000-0000-0000-000000000002"
+
+	makeDesktopService := func(t *testing.T, hostID string) types.WindowsDesktopService {
+		svc, err := types.NewWindowsDesktopServiceV3(types.Metadata{
+			Name: hostID,
+		}, types.WindowsDesktopServiceSpecV3{
+			Addr:            "localhost:3028",
+			TeleportVersion: "1.0.0",
+		})
+		require.NoError(t, err)
+		return svc
+	}
+
+	desktopKeepAlive := func(hostID string) types.KeepAlive {
+		return types.KeepAlive{
+			Type:      types.KeepAlive_WINDOWS_DESKTOP,
+			Name:      hostID,
+			Namespace: apidefaults.Namespace,
+			Expires:   time.Now().Add(5 * time.Minute),
+		}
+	}
+
+	makeDesktop := func(t *testing.T, hostID string) types.WindowsDesktop {
+		d, err := types.NewWindowsDesktopV3("desktop", nil, types.WindowsDesktopSpecV3{
+			Addr:   "1.2.3.4",
+			HostID: hostID,
+		})
+		require.NoError(t, err)
+		return d
+	}
+
+	// desktop is authenticated as the built-in RoleWindowsDesktop for ownID.
+	desktop := newScopedTestServerForHost(t, as, ownID, "" /* scope */, types.RoleWindowsDesktop)
+
+	t.Run("upsert own desktop service allowed", func(t *testing.T) {
+		_, err := desktop.UpsertWindowsDesktopService(ctx, makeDesktopService(t, ownID))
+		require.NoError(t, err)
+	})
+
+	t.Run("upsert other desktop service denied", func(t *testing.T) {
+		_, err := desktop.UpsertWindowsDesktopService(ctx, makeDesktopService(t, otherID))
+		require.True(t, trace.IsAccessDenied(err), "expected access denied, got: %v", err)
+	})
+
+	t.Run("keepalive own desktop service allowed", func(t *testing.T) {
+		require.NoError(t, desktop.KeepAliveServer(ctx, desktopKeepAlive(ownID)))
+	})
+
+	t.Run("keepalive other desktop service denied", func(t *testing.T) {
+		err := desktop.KeepAliveServer(ctx, desktopKeepAlive(otherID))
+		require.True(t, trace.IsAccessDenied(err), "expected access denied, got: %v", err)
+	})
+
+	// Seed the desktop service and a foreign service directly in the backend.
+	_, err = as.AuthServer.UpsertWindowsDesktopService(ctx, makeDesktopService(t, ownID))
+	require.NoError(t, err)
+	_, err = as.AuthServer.UpsertWindowsDesktopService(ctx, makeDesktopService(t, otherID))
+	require.NoError(t, err)
+
+	t.Run("delete own desktop service denied", func(t *testing.T) {
+		err := desktop.DeleteWindowsDesktopService(ctx, ownID)
+		require.True(t, trace.IsAccessDenied(err), "expected access denied, got: %v", err)
+	})
+
+	t.Run("delete all desktop services denied", func(t *testing.T) {
+		err := desktop.DeleteAllWindowsDesktopServices(ctx)
+		require.True(t, trace.IsAccessDenied(err), "expected access denied, got: %v", err)
+	})
+
+	t.Run("upsert own desktop allowed", func(t *testing.T) {
+		require.NoError(t, desktop.UpsertWindowsDesktop(ctx, makeDesktop(t, ownID)))
+	})
+
+	t.Run("upsert other desktop denied", func(t *testing.T) {
+		err := desktop.UpsertWindowsDesktop(ctx, makeDesktop(t, otherID))
+		require.True(t, trace.IsAccessDenied(err), "expected access denied, got: %v", err)
+	})
+
+	// Seed the desktop service's own desktop and a foreign desktop directly in the backend.
+	err = as.AuthServer.UpsertWindowsDesktop(ctx, makeDesktop(t, ownID))
+	require.NoError(t, err)
+	err = as.AuthServer.UpsertWindowsDesktop(ctx, makeDesktop(t, otherID))
+	require.NoError(t, err)
+
+	t.Run("delete own desktop allowed", func(t *testing.T) {
+		require.NoError(t, desktop.DeleteWindowsDesktop(ctx, ownID, "desktop"))
+	})
+
+	t.Run("delete other desktop denied", func(t *testing.T) {
+		err := desktop.DeleteWindowsDesktop(ctx, otherID, "desktop")
+		require.True(t, trace.IsAccessDenied(err), "expected access denied, got: %v", err)
+	})
 }

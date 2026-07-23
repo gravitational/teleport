@@ -27,6 +27,7 @@ import "teleport/legacy/types/mfa_device.proto";
 import "teleport/legacy/types/resources.proto";
 import "teleport/legacy/types/trusted_device_requirement.proto";
 import "teleport/legacy/types/wrappers/wrappers.proto";
+import "teleport/scopes/v1/scopes.proto";
 
 option go_package = "github.com/gravitational/teleport/api/types";
 option (gogoproto.goproto_getters_all) = false;
@@ -3343,6 +3344,23 @@ message AccessRequestDryRunEnrichment {
   ];
   // ReasonPrompts is a sorted and deduplicated list of reason prompts for this Access Request.
   repeated string ReasonPrompts = 2 [(gogoproto.jsontag) = "reason_prompt,omitempty"];
+  // UserDisplays maps the requester and server-suggested reviewer usernames to
+  // read-time display values.
+  map<string, AccessRequestUserDisplay> UserDisplays = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "user_displays,omitempty"
+  ];
+}
+
+// AccessRequestUserDisplay holds read-time display values derived from a user
+// resource.
+message AccessRequestUserDisplay {
+  // Primary is a human-readable display name derived from the user's traits.
+  // Empty when the user has no display value distinct from their username.
+  string Primary = 1 [(gogoproto.jsontag) = "primary,omitempty"];
+  // Secondary is supporting context, typically the user's email address.
+  // Empty when the user has no such value distinct from their username.
+  string Secondary = 2 [(gogoproto.jsontag) = "secondary,omitempty"];
 }
 
 // AccessReview is a review to be applied to an Access Request.
@@ -4805,6 +4823,8 @@ enum MFADeviceKind {
   MFA_DEVICE_KIND_TOTP = 2;
   // MFA device is known to be configured using WebAuthn as the weakest form of MFA.
   MFA_DEVICE_KIND_WEBAUTHN = 3;
+  // MFA device is known to be configured using SSO as the weakest form of MFA.
+  MFA_DEVICE_KIND_SSO = 4;
 }
 
 // UserSpecV2 is a specification for V2 user
@@ -6656,10 +6676,23 @@ message LockSpecV2 {
   string CreatedBy = 5 [(gogoproto.jsontag) = "created_by,omitempty"];
 }
 
-// LockTarget lists the attributes of interactions to be disabled.
+// LockTarget lists the attributes of interactions to be disabled. This type is
+// performance sensitive (as lock targets are checked during authz for just
+// about every interaction with the cluster) and it's used as a Go map key and
+// compared with Go equality, so care must be taken when adding fields to the
+// message. There is an assertion for the resulting Go message type to be
+// comparable, but some comparable types (like any pointer, or time.Time) don't
+// compare _correctly_ without additional steps. It's best to limit this message
+// to numbers and strings, if new additions are necessary.
 message LockTarget {
   option (gogoproto.goproto_stringer) = false;
   option (gogoproto.stringer) = false;
+
+  // these options remove extraneous fields from the resulting Go struct, making
+  // it possible to compare by equality
+  option (gogoproto.goproto_unrecognized) = false;
+  option (gogoproto.goproto_sizecache) = false;
+  option (gogoproto.goproto_unkeyed) = false;
 
   // User specifies the name of a Teleport user.
   string User = 1 [(gogoproto.jsontag) = "user,omitempty"];
@@ -9311,6 +9344,15 @@ enum HeadlessAuthenticationState {
   HEADLESS_AUTHENTICATION_STATE_APPROVED = 3;
 }
 
+// ScopeFilter is a gogo-native mirror of teleport.scopes.v1.Filter for use on WatchKind. Gogo uses
+// marshaling/unmarshaling logic that is incompatible with our newer proto messages.
+message ScopeFilter {
+  // Scope is the scope the filter is anchored at.
+  string scope = 1;
+  // Mode determines how the scope is matched (exact, descendants, etc.).
+  teleport.scopes.v1.Mode mode = 2;
+}
+
 // WatchKind specifies resource kind to watch
 // When adding fields to this struct, make sure to review/update WatchKind.Contains method.
 message WatchKind {
@@ -9330,6 +9372,10 @@ message WatchKind {
   // Version optionally specifies the resource version to watch.
   // Currently this field is ignored.
   string Version = 6 [(gogoproto.jsontag) = "version,omitempty"];
+  // ScopeFilter optionally filters events by scope. Filtering is performed against the scope of the
+  // resource itself. Defaults to one of EXACT or UNSCOPED depending on wether the caller is
+  // a scoped or unscoped identity for most kinds.
+  ScopeFilter ScopeFilter = 7 [(gogoproto.jsontag) = "scope_filter,omitempty"];
 }
 
 // WatchStatusV1 is intended to be attached to OpInit events and contain information about a successful WatchEvents call.
@@ -9673,9 +9719,9 @@ message AzureMatcher {
 
 // GCPMatcher matches GCP resources.
 message GCPMatcher {
-  // Types are GKE resource types to match: "gke", "vm".
+  // Types are GCP resource types to match: "gke", "gce", "cloudsql".
   repeated string Types = 1 [(gogoproto.jsontag) = "types,omitempty"];
-  // Locations are GKE locations to search resources for.
+  // Locations are GCP locations to search resources for.
   repeated string Locations = 2 [(gogoproto.jsontag) = "locations,omitempty"];
   // Tags is obsolete and only exists for backwards compatibility. Use Labels instead.
   wrappers.LabelValues Tags = 3 [

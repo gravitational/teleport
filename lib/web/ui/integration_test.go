@@ -68,6 +68,7 @@ func TestMakeIntegration(t *testing.T) {
 				types.CreatedByIaCLabel:                      IaCTerraformLabel,
 				types.AzureManagedIdentityRegionLabel:        "eastus",
 				types.AzureManagedIdentityResourceGroupLabel: "my-azure-resource-group",
+				types.AzureManagementGroupIDLabel:            "my-management-group",
 			},
 		},
 		&types.AzureOIDCIntegrationSpecV1{
@@ -122,8 +123,9 @@ func TestMakeIntegration(t *testing.T) {
 					TenantID: "foo",
 					ClientID: "bar",
 					ManagedIdentity: &IntegrationAzureManagedIdentitySpec{
-						Region:        "eastus",
-						ResourceGroup: "my-azure-resource-group",
+						Region:            "eastus",
+						ResourceGroup:     "my-azure-resource-group",
+						ManagementGroupID: "my-management-group",
 					},
 				},
 				IsManagedByTerraform: true,
