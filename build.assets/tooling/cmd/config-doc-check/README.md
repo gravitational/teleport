@@ -1,6 +1,6 @@
 # `config-doc-checker`
 
-`config-doc-check` is a Go program that checks for coverage gaps in the Teleport configuration reference documentation examples: the YAML objects are compared to their corresponding Go structs. It reports any fields missing from the examples as well as fields that no longer exist in the source.
+`config-doc-check` checks for coverage gaps in Teleport configuration reference examples by comparing the YAML key tree of each configuration section with the key tree derived from its corresponding Go struct. It reports struct fields missing from the documentation and documented fields that do not exist in the struct. Explicitly dismissed keys are excluded from the comparison.
 
 ## Usage
 
