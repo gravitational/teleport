@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	mfav2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
+	mfa "github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/mfatypes"
 	"github.com/gravitational/teleport/lib/authz"
@@ -103,6 +104,13 @@ func (a *Server) VerifySSOMFASession(ctx context.Context, username, sessionID, t
 	const notFoundErrMsg = "mfa sso session data not found"
 	mfaSess, err := a.GetMFASessionData(ctx, sessionID)
 	if trace.IsNotFound(err) {
+		if requiredExtensions.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES {
+			// The session data backing a reusable response expires on its own TTL.
+			// Return the typed error so clients replaying the response refresh it
+			// instead of failing, like the WebAuthn flow does.
+			a.logger.DebugContext(ctx, "Reusable SSO MFA session data not found and possibly expired", "error", err)
+			return nil, trace.Wrap(&mfa.ErrExpiredReusableMFAResponse)
+		}
 		return nil, trace.AccessDenied("%s", notFoundErrMsg)
 	} else if err != nil {
 		return nil, trace.Wrap(err)

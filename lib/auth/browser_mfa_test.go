@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	mfa "github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	webauthnpb "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/lib/auth"
@@ -883,6 +884,18 @@ func TestVerifyBrowserMFASession(t *testing.T) {
 				require.EqualError(t, err, notFoundErrMsg)
 			})
 		}
+	})
+
+	t.Run("expired reusable MFA response when session is missing and reuse is allowed", func(t *testing.T) {
+		env := newBrowserMFATestEnv(t)
+		reuseExt := &mfav1.ChallengeExtensions{
+			Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
+			AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
+		}
+
+		mad, err := env.auth.VerifyBrowserMFASession(ctx, env.webauthnUser.GetName(), "expired-session", &webauthnpb.CredentialAssertionResponse{}, reuseExt)
+		require.Nil(t, mad)
+		require.ErrorIs(t, err, &mfa.ErrExpiredReusableMFAResponse)
 	})
 
 	t.Run("access denied when user has no webauthn devices", func(t *testing.T) {

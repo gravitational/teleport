@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	mfa "github.com/gravitational/teleport/api/mfa"
 	webauthnpb "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/lib/auth/internal/browsermfa"
 	"github.com/gravitational/teleport/lib/auth/mfatypes"
@@ -123,6 +124,13 @@ func (a *Server) VerifyBrowserMFASession(ctx context.Context, username, sessionI
 	const notFoundErrMsg = "browser MFA session data not found"
 	mfaSess, err := a.GetMFASessionData(ctx, sessionID)
 	if trace.IsNotFound(err) {
+		if requiredExtensions.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES {
+			// The session data backing a reusable response expires on its own TTL.
+			// Return the typed error so clients replaying the response refresh it
+			// instead of failing, like the WebAuthn flow does.
+			a.logger.DebugContext(ctx, "Reusable browser MFA session data not found and possibly expired", "error", err)
+			return nil, trace.Wrap(&mfa.ErrExpiredReusableMFAResponse)
+		}
 		return nil, trace.NotFound("%s", notFoundErrMsg)
 	} else if err != nil {
 		return nil, trace.Wrap(err)
