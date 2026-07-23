@@ -141,6 +141,7 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/scopes"
+	access "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/secret"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -9659,11 +9660,11 @@ func TestUerContextWithScopes(t *testing.T) {
 					// Deliberately put these out of order to make sure that the result
 					// is sorted.
 					scopedaccessv1.Assignment_builder{
-						Role:  "role-b",
+						Role:  "/test::role-b",
 						Scope: "/test/b1",
 					}.Build(),
 					scopedaccessv1.Assignment_builder{
-						Role:  "role-a",
+						Role:  "/test::role-a",
 						Scope: "/test/a2",
 					}.Build(),
 				},
@@ -9684,12 +9685,12 @@ func TestUerContextWithScopes(t *testing.T) {
 				User: username,
 				Assignments: []*scopedaccessv1.Assignment{
 					scopedaccessv1.Assignment_builder{
-						Role:  "role-a",
+						Role:  "/test::role-a",
 						Scope: "/test/a1",
 					}.Build(),
 					// Add a duplicate to make sure that the result is deduplicated.
 					scopedaccessv1.Assignment_builder{
-						Role:  "role-a",
+						Role:  "/test::role-a",
 						Scope: "/test/a2",
 					}.Build(),
 				},
@@ -9724,6 +9725,7 @@ func waitForSRACache(t *testing.T, srv *authtest.TLSServer, resps ...*scopedacce
 			_, err := srv.Auth().ScopedAccessCache.GetScopedRoleAssignment(ctx, scopedaccessv1.GetScopedRoleAssignmentRequest_builder{
 				Name:    resp.GetAssignment().GetMetadata().GetName(),
 				SubKind: resp.GetAssignment().GetSubKind(),
+				Scope:   resp.GetAssignment().GetScope(),
 			}.Build())
 			require.NoError(t, err)
 		}

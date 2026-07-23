@@ -129,7 +129,7 @@ describe('services/history', () => {
       jest
         .spyOn(history, 'getRoutes')
         .mockReturnValue(['/web/login', '/another-location']);
-      location.pathname = '/bogus-location';
+      history.original().location.pathname = '/bogus-location';
       history.goToLogin({ rememberLocation: true });
 
       const expected = '/web/login?redirect_uri=http://localhost/web';
@@ -194,7 +194,7 @@ describe('services/history', () => {
       jest
         .spyOn(history, 'getRoutes')
         .mockReturnValue(['/web/login', '/current-location']);
-      location.pathname = '/current-location';
+      history.original().location.pathname = '/current-location';
       expect(history.getScopePickerUrl()).toBe(
         '/web/scope_picker?redirect_uri=http://localhost/current-location'
       );
@@ -205,7 +205,7 @@ describe('services/history', () => {
     jest
       .spyOn(history, 'getRoutes')
       .mockReturnValue(['/web/login', '/another-location']);
-    location.pathname = '/bogus-location';
+    history.original().location.pathname = '/bogus-location';
     expect(history.getScopePickerUrl()).toBe(
       '/web/scope_picker?redirect_uri=http://localhost/web'
     );

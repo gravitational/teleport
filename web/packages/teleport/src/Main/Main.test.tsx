@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { createMemoryHistory } from 'history';
 import { http, HttpResponse } from 'msw';
 import { MemoryRouter } from 'react-router';
 
@@ -50,6 +51,7 @@ import { LayoutContextProvider } from 'teleport/Main/LayoutContext';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import { NavigationCategory } from 'teleport/Navigation';
 import { nodes } from 'teleport/Nodes/fixtures';
+import history from 'teleport/services/history/history';
 import { KeysEnum } from 'teleport/services/storageService';
 import { sessions } from 'teleport/Sessions/fixtures';
 import TeleportContext from 'teleport/teleportContext';
@@ -71,6 +73,7 @@ afterEach(() => {
 });
 
 beforeEach(() => {
+  history.init(createMemoryHistory());
   server.use(
     userEventCaptureSuccess(),
     successGetUsersV2([]),
@@ -137,7 +140,7 @@ test('redirects users with available scopes to the scope picker before rendering
   });
 
   render(
-    <Router>
+    <MemoryRouter>
       <LayoutContextProvider>
         <ContextProvider ctx={ctx}>
           <ToastNotificationProvider>
@@ -145,7 +148,7 @@ test('redirects users with available scopes to the scope picker before rendering
           </ToastNotificationProvider>
         </ContextProvider>
       </LayoutContextProvider>
-    </Router>
+    </MemoryRouter>
   );
 
   // No navigation expected.

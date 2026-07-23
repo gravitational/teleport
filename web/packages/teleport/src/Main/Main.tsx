@@ -53,7 +53,7 @@ import {
   LINK_DESTINATION_LABEL,
   LINK_TEXT_LABEL,
 } from 'teleport/services/alerts/alerts';
-import history from 'teleport/services/history/history';
+import historyService from 'teleport/services/history/history';
 import { storageService } from 'teleport/services/storageService';
 import { TopBar } from 'teleport/TopBar';
 import type { LockedFeatures, TeleportFeature } from 'teleport/types';
@@ -120,10 +120,10 @@ export function Main(props: MainProps) {
   }
 
   const availableScopes = ctx.storeUser.getAvailableScopes();
-  const isScopePickerRoute = !!matchPath(
-    { path: cfg.routes.scopePicker, end: true },
-    location.pathname
-  );
+  const isScopePickerRoute = !!matchPath(history.location.pathname, {
+    path: cfg.routes.scopePicker,
+    exact: true,
+  });
 
   // TODO(bl-nero): Don't redirect once the user picks a scope.
   // For now, as the scope picker is not fully operational, we only enable it
@@ -134,7 +134,7 @@ export function Main(props: MainProps) {
       availableScopes.length > 0 &&
       !isScopePickerRoute
     ) {
-      return <Redirect to={history.getScopePickerUrl()} />;
+      return <Redirect to={historyService.getScopePickerUrl()} />;
     }
   }
 
