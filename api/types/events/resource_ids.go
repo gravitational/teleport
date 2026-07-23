@@ -20,6 +20,9 @@ import "github.com/gravitational/teleport/api/types"
 
 // MaxAuditRoleARNPreview controls how many role ARNs we include in audit log events for AWS Console
 // ResourceConstraints to keep event size bounded.
+//
+// Deprecated: audit events carry full constraint values, and the preview fields
+// are no longer populated.
 const MaxAuditRoleARNPreview = 10
 
 // EventResourceIDs converts a []ResourceID to a []events.ResourceID
@@ -80,8 +83,8 @@ func ToEventResourceAccessID(in types.ResourceAccessID) ResourceAccessID {
 		roleARNs := d.AwsConsole.RoleArns
 		out.Constraints = &ResourceAccessID_AwsConsole{
 			AwsConsole: &AWSConsoleConstraints{
-				RoleArnsCount:   uint32(len(roleARNs)),
-				RoleArnsPreview: previewStrings(roleARNs, MaxAuditRoleARNPreview),
+				RoleArnsCount: uint32(len(roleARNs)),
+				RoleArns:      append([]string(nil), roleARNs...),
 			},
 		}
 	case *types.ResourceConstraints_Ssh:
@@ -92,8 +95,8 @@ func ToEventResourceAccessID(in types.ResourceAccessID) ResourceAccessID {
 		logins := d.Ssh.Logins
 		out.Constraints = &ResourceAccessID_Ssh{
 			Ssh: &SSHConstraints{
-				LoginsCount:   uint32(len(logins)),
-				LoginsPreview: previewStrings(logins, MaxAuditRoleARNPreview),
+				LoginsCount: uint32(len(logins)),
+				Logins:      append([]string(nil), logins...),
 			},
 		}
 	default:
@@ -103,13 +106,24 @@ func ToEventResourceAccessID(in types.ResourceAccessID) ResourceAccessID {
 	return out
 }
 
-// previewStrings returns up to limit elements from in
-func previewStrings(in []string, limit int) []string {
-	if limit <= 0 || len(in) == 0 {
-		return nil
+// dropConstraintValues clears the constraint value lists on the given audit
+// ResourceAccessIDs in place, leaving the per-dimension counts. TrimToMaxSize
+// uses it so an oversized event stays within bounds without losing the record
+// that constraints were present, and a count above the number of listed values
+// marks the event as trimmed.
+func dropConstraintValues(ids []ResourceAccessID) {
+	for i := range ids {
+		switch c := ids[i].Constraints.(type) {
+		case *ResourceAccessID_AwsConsole:
+			if c.AwsConsole != nil {
+				c.AwsConsole.RoleArns = nil
+				c.AwsConsole.RoleArnsPreview = nil
+			}
+		case *ResourceAccessID_Ssh:
+			if c.Ssh != nil {
+				c.Ssh.Logins = nil
+				c.Ssh.LoginsPreview = nil
+			}
+		}
 	}
-	if len(in) <= limit {
-		return append([]string(nil), in...)
-	}
-	return append([]string(nil), in[:limit]...)
 }

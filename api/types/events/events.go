@@ -170,6 +170,9 @@ func (m *Status) trimToMaxFieldSize(maxFieldSize int) Status {
 }
 
 func (m *Struct) nonEmptyStrs() int {
+	if m == nil {
+		return 0
+	}
 	var toTrim int
 	for _, v := range m.Fields {
 		toTrim++
@@ -193,7 +196,7 @@ func (m *Struct) nonEmptyStrs() int {
 }
 
 func (m *Struct) trimToMaxFieldSize(maxFieldSize int) *Struct {
-	if len(m.Fields) == 0 {
+	if m == nil || len(m.Fields) == 0 {
 		return m
 	}
 
@@ -480,6 +483,7 @@ func (m *AccessRequestCreate) TrimToMaxSize(maxSize int) AuditEvent {
 	}
 
 	out := utils.CloneProtoMsg(m)
+	dropConstraintValues(out.RequestedResourceAccessIDs)
 	out.Roles = nil
 	out.Reason = ""
 	out.Annotations = nil
@@ -1537,7 +1541,16 @@ func (m *AccessRequestDelete) TrimToMaxSize(maxSize int) AuditEvent {
 }
 
 func (m *CertificateCreate) TrimToMaxSize(maxSize int) AuditEvent {
-	return m
+	size := m.Size()
+	if size <= maxSize {
+		return m
+	}
+
+	out := utils.CloneProtoMsg(m)
+	if out.Identity != nil {
+		dropConstraintValues(out.Identity.AllowedResourceAccessIDs)
+	}
+	return out
 }
 
 func (m *DesktopRecording) TrimToMaxSize(maxSize int) AuditEvent {

@@ -2670,11 +2670,16 @@ type EventResourceConstraints = {
   unknown_constraints?: Record<string, never>;
   aws_console?: {
     role_arns_count: number;
+    // role_arns_preview is carried only by events written before role_arns
+    // existed.
     role_arns_preview?: string[];
+    role_arns?: string[];
   };
   ssh?: {
-    logins_count: string[];
+    logins_count: number;
+    // logins_preview is carried only by events written before logins existed.
     logins_preview?: string[];
+    logins?: string[];
   };
 };
 

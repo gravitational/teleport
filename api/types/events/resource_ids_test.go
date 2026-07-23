@@ -54,27 +54,27 @@ func TestToEventResourceAccessID(t *testing.T) {
 			},
 			wantConstraints: &ResourceAccessID_AwsConsole{
 				AwsConsole: &AWSConsoleConstraints{
-					RoleArnsCount:   2,
-					RoleArnsPreview: []string{"arn:aws:iam::123:role/A", "arn:aws:iam::123:role/B"},
+					RoleArnsCount: 2,
+					RoleArns:      []string{"arn:aws:iam::123:role/A", "arn:aws:iam::123:role/B"},
 				},
 			},
 		},
 		{
-			name: "aws console constraints truncated to preview limit",
+			name: "large aws console constraint list is carried in full",
 			in: types.ResourceAccessID{
 				Id: id,
 				Constraints: &types.ResourceConstraints{
 					Details: &types.ResourceConstraints_AwsConsole{
 						AwsConsole: &types.AWSConsoleResourceConstraints{
-							RoleArns: slices.Repeat([]string{"arn:aws:iam::123456789012:role/Role"}, MaxAuditRoleARNPreview+5),
+							RoleArns: slices.Repeat([]string{"arn:aws:iam::123456789012:role/Role"}, 50),
 						},
 					},
 				},
 			},
 			wantConstraints: &ResourceAccessID_AwsConsole{
 				AwsConsole: &AWSConsoleConstraints{
-					RoleArnsCount:   MaxAuditRoleARNPreview + 5,
-					RoleArnsPreview: slices.Repeat([]string{"arn:aws:iam::123456789012:role/Role"}, MaxAuditRoleARNPreview),
+					RoleArnsCount: 50,
+					RoleArns:      slices.Repeat([]string{"arn:aws:iam::123456789012:role/Role"}, 50),
 				},
 			},
 		},
@@ -91,7 +91,7 @@ func TestToEventResourceAccessID(t *testing.T) {
 				},
 			},
 			wantConstraints: &ResourceAccessID_Ssh{
-				Ssh: &SSHConstraints{LoginsCount: 2, LoginsPreview: []string{"alice", "root"}},
+				Ssh: &SSHConstraints{LoginsCount: 2, Logins: []string{"alice", "root"}},
 			},
 		},
 		{
@@ -162,8 +162,8 @@ func TestResourceAccessIDJSONRoundTrip(t *testing.T) {
 				Id: id,
 				Constraints: &ResourceAccessID_AwsConsole{
 					AwsConsole: &AWSConsoleConstraints{
-						RoleArnsCount:   3,
-						RoleArnsPreview: []string{"arn:aws:iam::123:role/A", "arn:aws:iam::123:role/B"},
+						RoleArnsCount: 2,
+						RoleArns:      []string{"arn:aws:iam::123:role/A", "arn:aws:iam::123:role/B"},
 					},
 				},
 			},
@@ -173,7 +173,19 @@ func TestResourceAccessIDJSONRoundTrip(t *testing.T) {
 			in: ResourceAccessID{
 				Id: id,
 				Constraints: &ResourceAccessID_Ssh{
-					Ssh: &SSHConstraints{LoginsCount: 2, LoginsPreview: []string{"alice", "root"}}},
+					Ssh: &SSHConstraints{LoginsCount: 2, Logins: []string{"alice", "root"}}},
+			},
+		},
+		{
+			name: "deprecated preview fields from an old event still round-trip",
+			in: ResourceAccessID{
+				Id: id,
+				Constraints: &ResourceAccessID_AwsConsole{
+					AwsConsole: &AWSConsoleConstraints{
+						RoleArnsCount:   3,
+						RoleArnsPreview: []string{"arn:aws:iam::123:role/A", "arn:aws:iam::123:role/B"},
+					},
+				},
 			},
 		},
 	}
@@ -190,4 +202,59 @@ func TestResourceAccessIDJSONRoundTrip(t *testing.T) {
 			require.Equal(t, tt.in.Constraints, got.Constraints)
 		})
 	}
+}
+
+// TestTrimConstraintValues verifies that an oversized event drops the
+// constraint value lists while the per-dimension counts remain, so a count
+// above the number of listed values marks a trimmed event.
+func TestTrimConstraintValues(t *testing.T) {
+	raids := func() []ResourceAccessID {
+		return []ResourceAccessID{
+			{
+				Id: ResourceID{ClusterName: "main", Kind: "app", Name: "console"},
+				Constraints: &ResourceAccessID_AwsConsole{
+					AwsConsole: &AWSConsoleConstraints{
+						RoleArnsCount: 2,
+						RoleArns:      []string{"arn:aws:iam::123:role/A", "arn:aws:iam::123:role/B"},
+					},
+				},
+			},
+			{
+				Id: ResourceID{ClusterName: "main", Kind: "node", Name: "web-1"},
+				Constraints: &ResourceAccessID_Ssh{
+					Ssh: &SSHConstraints{LoginsCount: 2, Logins: []string{"alice", "root"}},
+				},
+			},
+		}
+	}
+
+	assertDropped := func(t *testing.T, ids []ResourceAccessID) {
+		t.Helper()
+		aws := ids[0].Constraints.(*ResourceAccessID_AwsConsole).AwsConsole
+		require.Empty(t, aws.RoleArns)
+		require.Equal(t, uint32(2), aws.RoleArnsCount)
+		ssh := ids[1].Constraints.(*ResourceAccessID_Ssh).Ssh
+		require.Empty(t, ssh.Logins)
+		require.Equal(t, uint32(2), ssh.LoginsCount)
+	}
+
+	t.Run("access request create", func(t *testing.T) {
+		in := &AccessRequestCreate{RequestedResourceAccessIDs: raids()}
+		untrimmed := in.TrimToMaxSize(in.Size()).(*AccessRequestCreate)
+		require.Equal(t, in, untrimmed)
+
+		out := in.TrimToMaxSize(1).(*AccessRequestCreate)
+		assertDropped(t, out.RequestedResourceAccessIDs)
+		require.NotEmpty(t, in.RequestedResourceAccessIDs[0].Constraints.(*ResourceAccessID_AwsConsole).AwsConsole.RoleArns)
+	})
+
+	t.Run("certificate create", func(t *testing.T) {
+		in := &CertificateCreate{Identity: &Identity{AllowedResourceAccessIDs: raids()}}
+		untrimmed := in.TrimToMaxSize(in.Size()).(*CertificateCreate)
+		require.Equal(t, in, untrimmed)
+
+		out := in.TrimToMaxSize(1).(*CertificateCreate)
+		assertDropped(t, out.Identity.AllowedResourceAccessIDs)
+		require.NotEmpty(t, in.Identity.AllowedResourceAccessIDs[0].Constraints.(*ResourceAccessID_AwsConsole).AwsConsole.RoleArns)
+	})
 }

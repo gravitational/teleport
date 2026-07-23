@@ -1736,8 +1736,9 @@ message ResourceID {
 // This is derived and simplified from api/proto/teleport/legacy/types/resources.proto
 // to decouple the api and events types, and to keep the audit log event schema stable
 // for customers and integrations.
-// ResourceConstraints may be summarized/truncated to control event size; when truncated,
-// the audit log is not expected to be a lossless representation of the internal object.
+// Constraint values are carried in full. An event that exceeds the emitter's maximum
+// size drops the value lists via TrimToMaxSize while the per-dimension counts remain,
+// so a count above the number of listed values marks a trimmed event.
 message ResourceAccessID {
   // id identifies the resource.
   ResourceID id = 1 [(gogoproto.nullable) = false];
@@ -1759,22 +1760,30 @@ message UnknownConstraints {
 }
 
 // AWSConsoleConstraints is an audit-log–friendly view of AWS Console constraints.
-// The full list of role ARNs can be arbitrarily large; therefore this type supports a preview list,
-// a count, and a truncation flag.
+// Request validation caps the size of requested constraints, so the full list is
+// carried; TrimToMaxSize drops role_arns when the carrying event exceeds the
+// maximum event size, and role_arns_count remains.
 message AWSConsoleConstraints {
   // role_arns_count is the total number of role ARNs requested.
   uint32 role_arns_count = 1;
 
-  // role_arns_preview contains up to N role ARNs for inspection; it may be truncated.
-  repeated string role_arns_preview = 2;
+  // role_arns_preview is a truncated preview of the requested role ARNs, carried
+  // only by events written before role_arns existed.
+  repeated string role_arns_preview = 2 [deprecated = true];
+
+  // role_arns is the full list of requested role ARNs.
+  repeated string role_arns = 3;
 }
 
 // SSHConstraints is an audit-log-friendly view of SSH node constraints.
 message SSHConstraints {
   // logins_count is the total number of logins requested.
   uint32 logins_count = 1;
-  // logins_preview contains up to N logins for inspection; it may be truncated.
-  repeated string logins_preview = 2;
+  // logins_preview is a truncated preview of the requested logins, carried only
+  // by events written before logins existed.
+  repeated string logins_preview = 2 [deprecated = true];
+  // logins is the full list of requested logins.
+  repeated string logins = 3;
 }
 
 // AccessRequestDelete is emitted when an access request has been deleted.
