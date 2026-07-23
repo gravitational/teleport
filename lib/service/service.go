@@ -6215,15 +6215,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				ClusterFeatures:       process.GetClusterFeatures,
 				InbandVerifier:        inbandVerifier,
 			},
-			TLS: func() *tls.Config {
-				cfg := serverTLSConfig.Clone()
-				cfg.NextProtos = []string{
-					string(alpncommon.ProtocolKube),
-					string(alpncommon.ProtocolHTTP2),
-					string(alpncommon.ProtocolHTTP),
-				}
-				return cfg
-			}(),
+			TLS:                      serverTLSConfig.Clone(),
 			LimiterConfig:            cfg.Proxy.Limiter,
 			AccessPoint:              accessPoint,
 			GetRotation:              process.GetRotation,
@@ -6707,11 +6699,6 @@ func setupALPNRouter(listeners *proxyListeners, serverTLSConfig *tls.Config, cfg
 	if cfg.Proxy.Kube.Enabled {
 		kubeListener := alpnproxy.NewMuxListenerWrapper(listeners.kube, listeners.web)
 		router.AddKubeHandler(kubeListener.HandleConnection)
-		router.Add(alpnproxy.HandlerDecs{
-			MatchFunc:  alpnproxy.MatchByProtocol(alpncommon.ProtocolKube),
-			Handler:    kubeListener.HandleConnection,
-			ForwardTLS: true,
-		})
 		listeners.kube = kubeListener
 	}
 	if !cfg.Proxy.DisableReverseTunnel {
