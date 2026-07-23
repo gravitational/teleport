@@ -8691,7 +8691,8 @@ func (a *Server) verifyMFASessionData(ctx context.Context, sessionID, username s
 		return nil, trace.Wrap(err)
 	}
 	if mfaSess.Username != username {
-		return nil, notFoundErr
+		return nil, trace.Wrap(notFoundErr)
+
 	}
 	if requiredExtensions.Scope != mfaSess.ChallengeExtensions.Scope {
 		return nil, trace.AccessDenied("required scope %q is not satisfied by the given MFA session with scope %q", requiredExtensions.Scope, mfaSess.ChallengeExtensions.Scope)
