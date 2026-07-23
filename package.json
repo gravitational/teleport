@@ -62,7 +62,7 @@
     "playwright": "^1.60.0",
     "react-select-event": "^5.5.1",
     "storybook": "^10.2.14",
-    "svgo": "^4.0.1",
+    "svgo": "^4.0.2",
     "typescript": "^5.7.2",
     "vite": "6.3.5"
   },
