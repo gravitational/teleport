@@ -16,30 +16,27 @@
 
 #if DEBUG
 
-	import Observation
-	import SwiftNavigation
+	import SwiftUI
 
-	@Observable
-	final class DebugViewModel {
-		@CasePathable
-		enum Destination {
-			// MARK: - Debug Settings
+	struct DebugSettingsView: View {
+		@Bindable
+		var viewModel: DebugSettingsViewModel
 
-			case debugSettingsView(DebugSettingsViewModel)
-
-			// MARK: - Feature Demos
-
-			case deviceTrustCredentialDemo(FeatureDemo.DeviceTrustCredentialViewModel)
-		}
-
-		var destination: Destination? = nil
-	}
-
-	// MARK: - SheetPresentable
-
-	extension DebugViewModel: SheetPresentable {
-		var presentationID: some Hashable {
-			"DebugViewModel"
+		var body: some View {
+			Form {
+				Section("Serial Number") {
+					HStack {
+						TextField("Serial Number", text: viewModel.debugSerialNumberBinding)
+							.textFieldStyle(.roundedBorder)
+							.frame(maxWidth: .infinity, alignment: .leading)
+						Button {
+							viewModel.regenerateSerialNumber()
+						} label: {
+							Image(systemName: "arrow.circlepath")
+						}
+					}
+				}
+			}
 		}
 	}
 
