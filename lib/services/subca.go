@@ -78,8 +78,8 @@ func UnmarshalCertAuthorityOverride(data []byte, opts ...MarshalOption) (*subcav
 type PendingCSRRequestServiceGetter interface {
 	// GetPendingCSRRequest reads a PendingCSRRequest by name.
 	GetPendingCSRRequest(ctx context.Context, name string) (*subcav1.PendingCSRRequest, error)
-	// ListPendingCSRRequest lists all PendingCSRRequests.
-	ListPendingCSRRequest(ctx context.Context, pageSize int, pageToken string) (_ []*subcav1.PendingCSRRequest, nextPageToken string, _ error)
+	// ListPendingCSRRequests lists all PendingCSRRequests.
+	ListPendingCSRRequests(ctx context.Context, pageSize int, pageToken string) (_ []*subcav1.PendingCSRRequest, nextPageToken string, _ error)
 }
 
 // PendingCSRRequestService manages PendingCSRRequest resources.

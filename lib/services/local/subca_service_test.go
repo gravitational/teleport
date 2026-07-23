@@ -632,7 +632,7 @@ CSR GOES HERE
 	t.Run("list", func(t *testing.T) {
 		const pageSize = 0
 		const pageToken = ""
-		got, nextPageToken, err := service.ListPendingCSRRequest(t.Context(), pageSize, pageToken)
+		got, nextPageToken, err := service.ListPendingCSRRequests(t.Context(), pageSize, pageToken)
 		require.NoError(t, err)
 		assert.Empty(t, nextPageToken, "nextPageToken not empty")
 

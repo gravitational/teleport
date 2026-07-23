@@ -376,8 +376,8 @@ func (s *SubCAService) GetPendingCSRRequest(ctx context.Context, name string) (*
 	return resource, trace.Wrap(err)
 }
 
-// ListPendingCSRRequest lists all PendingCSRRequests.
-func (s *SubCAService) ListPendingCSRRequest(ctx context.Context, pageSize int, pageToken string) (_ []*subcav1.PendingCSRRequest, nextPageToken string, _ error) {
+// ListPendingCSRRequests lists all PendingCSRRequests.
+func (s *SubCAService) ListPendingCSRRequests(ctx context.Context, pageSize int, pageToken string) (_ []*subcav1.PendingCSRRequest, nextPageToken string, _ error) {
 	resources, nextPageToken, err := s.csrService.ListResources(ctx, pageSize, pageToken)
 	return resources, nextPageToken, trace.Wrap(err)
 }
