@@ -6,9 +6,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/teleport/e/tests/antithesis/workloads/lib/eventually"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/e/tests/antithesis/workloads/lib/eventually"
 )
 
 var (
@@ -147,14 +148,14 @@ func TestAssert_ConditionNotMetWithoutConditionError(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestAssert_ContextCancelled(t *testing.T) {
+func TestAssert_ContextCanceled(t *testing.T) {
 	t.Parallel()
 	ctx, cancel := context.WithCancel(t.Context())
 	time.AfterFunc(150*time.Millisecond, cancel)
 
 	err := eventually.Assert(ctx, eventually.AssertParams{
 		Timeout:      10 * time.Second,
-		Message:      "context cancelled before condition met",
+		Message:      "context canceled before condition met",
 		Condition:    alwaysFail(),
 		PollInterval: 50 * time.Millisecond,
 		Assertion: func(condition bool, message string, details map[string]any) {
@@ -167,7 +168,7 @@ func TestAssert_ContextCancelled(t *testing.T) {
 	require.ErrorIs(t, err, errAlwaysFail)
 }
 
-func TestAssert_ContextAlreadyCancelled(t *testing.T) {
+func TestAssert_ContextAlreadyCanceled(t *testing.T) {
 	t.Parallel()
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
@@ -175,7 +176,7 @@ func TestAssert_ContextAlreadyCancelled(t *testing.T) {
 
 	err := eventually.Assert(ctx, eventually.AssertParams{
 		Timeout:      10 * time.Second,
-		Message:      "context already cancelled",
+		Message:      "context already canceled",
 		Condition:    countingCondition(&calls, false),
 		PollInterval: 50 * time.Millisecond,
 		Assertion: func(condition bool, message string, details map[string]any) {

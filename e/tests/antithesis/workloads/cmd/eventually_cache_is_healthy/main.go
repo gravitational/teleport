@@ -10,18 +10,18 @@ import (
 	"os"
 	"time"
 
+	"github.com/gravitational/trace"
+	dto "github.com/prometheus/client_model/go"
+
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/e/tests/antithesis/workloads/lib/eventually"
+	"github.com/gravitational/teleport/lib/client/debug"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 	stacksignal "github.com/gravitational/teleport/lib/utils/signal"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
-	"github.com/gravitational/trace"
-	dto "github.com/prometheus/client_model/go"
-
-	"github.com/gravitational/teleport/e/tests/antithesis/workloads/lib/eventually"
-	"github.com/gravitational/teleport/lib/client/debug"
 )
 
 const (

@@ -28,6 +28,7 @@ import (
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/antithesishq/antithesis-sdk-go/lifecycle"
+	"github.com/gravitational/trace"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport"
@@ -40,7 +41,6 @@ import (
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	stacksignal "github.com/gravitational/teleport/lib/utils/signal"
 	"github.com/gravitational/teleport/tool/common"
-	"github.com/gravitational/trace"
 )
 
 var log = logutils.NewPackageLogger(teleport.ComponentKey, "workload")
@@ -147,7 +147,7 @@ func waitForReady(ctx context.Context, diagAddr string) error {
 		retry.Inc()
 		select {
 		case <-ctx.Done():
-			l.WarnContext(ctx, "context cancelled before bot became ready", "last_error", err)
+			l.WarnContext(ctx, "context canceled before bot became ready", "last_error", err)
 			return ctx.Err()
 		case <-retry.After():
 		}

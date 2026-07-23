@@ -119,16 +119,15 @@ func Assert(ctx context.Context, params AssertParams) error {
 	}
 
 	level := slog.LevelDebug
-	message := "assertion condition met"
 
 	if !condition {
 		level = slog.LevelWarn
-		message = "assertion not condition met"
 	}
 
 	// Log the result, this isn't super useful within Antithesis itself but it helps
 	// a lot when running locally to verify/debug workloads.
-	logger.LogAttrs(ctx, level, message,
+	logger.LogAttrs(ctx, level, "eventual assertion condition",
+		slog.Bool("condition", condition),
 		slog.String("assertion", params.Message),
 		groupFromMap("details", details),
 		slog.Duration("timeout", params.Timeout),
