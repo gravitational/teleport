@@ -760,6 +760,9 @@ type TeleportProcess struct {
 	// Teleport's metric service.
 	metricsRegistry *metrics.Registry
 
+	// TODO(russjones)
+	healthMetric *cache.HealthMetric
+
 	// We gather metrics both from the in-process registry (preferred metrics registration method)
 	// and the global registry (used by some Teleport services and many dependencies).
 	// optionally other systems can add their gatherers, this can be used if they
@@ -1157,6 +1160,14 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 		return nil, trace.Wrap(err, "creating metrics registry")
 	}
 
+	// Create a health metric that will be used to report a caches health across
+	// multiple running caches.
+	// TODO(russjones): Explain the need for this further here.
+	healthMetric, err := cache.NewHealthMetric()
+	if err != nil {
+		return nil, trace.Wrap(err, "creating health metric")
+	}
+
 	// If FIPS mode was requested make sure binary is built in FIPS140 mode.
 	if cfg.FIPS && !cfg.Modules.IsFIPSBuild() {
 		return nil, trace.BadParameter("binary not compiled in FIPS140 mode, check " +
@@ -1360,6 +1371,7 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 		scopesFeatures:         scopesFeatures,
 		TracingProvider:        tracing.NoopProvider(),
 		metricsRegistry:        metricsRegistry,
+		healthMetric:           healthMetric,
 		SyncGatherers: metrics.NewSyncGatherers(
 			rootMetricRegistry,
 			prometheus.DefaultGatherer,
@@ -3135,6 +3147,7 @@ func (process *TeleportProcess) newAccessCacheForServices(cfg accesspoint.Config
 	cfg.TracingProvider = process.TracingProvider
 	cfg.MaxRetryPeriod = process.Config.CachePolicy.MaxRetryPeriod
 	cfg.Registerer = process.metricsRegistry
+	cfg.HealthMetric = process.healthMetric
 
 	cfg.Access = services.AccessInternal
 	cfg.AccessLists = services.AccessListsInternal
@@ -3200,6 +3213,7 @@ func (process *TeleportProcess) newAccessCacheForClient(cfg accesspoint.Config, 
 	cfg.TracingProvider = process.TracingProvider
 	cfg.MaxRetryPeriod = process.Config.CachePolicy.MaxRetryPeriod
 	cfg.Registerer = process.metricsRegistry
+	cfg.HealthMetric = process.healthMetric
 
 	cfg.Access = client
 	cfg.AccessLists = client.AccessListClient()

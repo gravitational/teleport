@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/backendmetrics"
+	"github.com/gravitational/teleport/lib/cache"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/observability/tracing"
@@ -75,6 +76,7 @@ var (
 		[]string{teleport.TagCacheComponent},
 	)
 
+	// TODO(russjones): move this somewhere else!
 	cacheHealth = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: teleport.MetricNamespace,
@@ -603,6 +605,8 @@ func (c *Cache) setInitError(err error) {
 		close(c.initC)
 	})
 
+	// c.Config.HealthMetric
+
 	if err == nil {
 		c.firstTimeInitOnce.Do(func() {
 			close(c.firstTimeInitC)
@@ -814,6 +818,8 @@ type Config struct {
 	Tracer oteltrace.Tracer
 	// Registerer is used to register prometheus metrics.
 	Registerer prometheus.Registerer
+	// TODO(russjones):
+	HealthMetric *cache.HealthMetric
 	// Unstarted indicates that the cache should not be started during New. The
 	// cache is usable before it's started, but it will always hit the backend.
 	Unstarted bool
@@ -899,6 +905,8 @@ func (c *Config) CheckAndSetDefaults() error {
 	if c.Registerer == nil {
 		c.Registerer = prometheus.DefaultRegisterer
 	}
+	// TODO(russjones): here it should fail right? because if i
+	// register it here it will just cause the old bug to reoccur?
 	if c.FanoutShards == 0 {
 		c.FanoutShards = 1
 	}
