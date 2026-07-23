@@ -1,5 +1,6 @@
 ---
 name: teleport-discovery
+short-description: Set up and troubleshoot cloud resource auto-discovery (AWS EC2/EKS, Azure VMs).
 description: >
   Configure and troubleshoot Teleport auto-discovery for AWS EC2 instances, AWS EKS
   clusters, and Azure VMs via the Teleport discovery Terraform module. Use to set up or

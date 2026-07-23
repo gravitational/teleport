@@ -1,5 +1,6 @@
 ---
 name: teleport-acl-review
+short-description: Bulk-review Teleport access lists that are due for periodic audit.
 description: Review Teleport access lists that are due for audit. Use when the user asks to review access lists, audit Teleport ACLs, check which access lists need attention, perform periodic access list reviews, recertify access, or manage Teleport access list compliance. Trigger on phrases like "review access lists", "which access lists need review", "audit my ACLs", "recertify access lists", or any mention of Teleport access list reviews. Also trigger when the user follows up on access list findings from a previous command.
 ---
 

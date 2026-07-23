@@ -1,5 +1,6 @@
 ---
 name: teleport-session-review
+short-description: Browse, search, and investigate Teleport session recordings.
 description: Review and investigate Teleport session recordings. Use when the user asks to review or audit recorded sessions, find out what happened in a session, or search sessions by what occurred in them (e.g. "sessions that touched production databases", "who ran sudo on prod"). Covers common security workflows such as SOC risk triage of the riskiest sessions, periodic compliance reviews of production access, threat hunting for techniques (privilege escalation, persistence, data exfiltration, SSH config tampering, secret exposure), and incident-response pivots ("what did this user do on that host"). Also lists recent SSH/db/Kubernetes/desktop recordings, summarizes a session, and downloads or plays one back. Trigger on phrases like "review session recordings", "search session recordings", "what happened in session <id>", "find risky sessions", or any mention of Teleport session recordings or session summaries. Also trigger when following up on a session from a previous command.
 ---
 

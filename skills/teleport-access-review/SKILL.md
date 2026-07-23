@@ -1,5 +1,6 @@
 ---
 name: teleport-access-review
+short-description: Review who can access which resources, and whether that access is actually used.
 description: Use when reviewing who can access which resources in a Teleport cluster, or whether that access is actually used — access list / ACL recertification, "who can reach this database/server", "what can this user access", attesting access for audit/compliance, and finding dormant or unused standing privileges. Covers `tctl access-review`, the `access_path` SQL query language, output semantics, and combining it with `tctl investigate`.
 ---
 

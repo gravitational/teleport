@@ -946,7 +946,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	proxyStatusOutput := proxyStatusOutputDefault
 
 	// configure CLI argument parser:
-	cf.kingpinApp = utils.InitCLIParser("tsh", "Teleport Command Line Client.").Interspersed(true)
+	cf.kingpinApp = utils.InitCLIParser("tsh", "Teleport Command Line Client. AI agents assisting with Teleport should run 'tsh skills' to discover and install task-specific agent skills.").Interspersed(true)
 	app := cf.kingpinApp
 
 	app.Flag("login", "Remote host login.").Short('l').Envar(loginEnvVar).StringVar(&cf.NodeLogin)
@@ -1597,6 +1597,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	connectUpdaterServiceInstallUpdateCommand := newConnectUpdaterServiceInstallUpdateCommand(connectUpdater)
 
 	gitCmd := newGitCommands(app)
+	skillsCmd := newSkillsCommands(app)
 	beamsCmd := newBeamsCommands(app)
 	pivCmd := newPIVCommands(app)
 	mcpCmd := newMCPCommands(app, &cf)
@@ -2068,6 +2069,10 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = gitCmd.config.run(&cf)
 	case gitCmd.clone.FullCommand():
 		err = gitCmd.clone.run(&cf)
+	case skillsCmd.ls.FullCommand():
+		err = skillsCmd.ls.run(&cf)
+	case skillsCmd.install.FullCommand():
+		err = skillsCmd.install.run(&cf)
 	case beamsCmd.ls.FullCommand():
 		err = beamsCmd.ls.run(&cf)
 	case beamsCmd.add.FullCommand():
@@ -5833,6 +5838,10 @@ func onStatus(cf *CLIConf) error {
 	if err = printLoginInformation(cf, profile, profiles); err != nil {
 		return trace.Wrap(err)
 	}
+
+	// Point AI agents and automation (non-interactive callers) at the skills
+	// command. Interactive users never see this.
+	maybeShowSkillsHint(cf)
 
 	if profile == nil {
 		return trace.NotFound("No active profile.")

@@ -1,5 +1,6 @@
 ---
 name: teleport-investigate
+short-description: Search the Identity Security activity log — who did what, where, and when.
 description: Use when investigating identity or resource activity in a Teleport cluster. Covers `tctl investigate` filter semantics, fast facet-only exploration, custom Lucene query construction, and token-efficient parsing patterns.
 ---
 
