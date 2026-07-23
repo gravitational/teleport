@@ -45,7 +45,7 @@ reqwest = { version = "0.13", default-features = false }
 rustls = { version = "0.23.40", default-features = false, features = [
     "aws-lc-rs",
 ] }
-qoi  = { version = "0.4.1",  optional = true }
+qoi = { version = "0.4.1", optional = true }
 zstd = { version = "0.13.3", optional = true }
 
 [dev-dependencies]
@@ -58,5 +58,6 @@ cbindgen = "0.29.3"
 tempfile = "3.27.0"
 
 [features]
+default = ["desktop-encoder"]
 fips = ["tokio-boring/fips", "boring/fips"]
 desktop-encoder = ["dep:qoi", "dep:zstd", "ironrdp-session/qoiz"]
