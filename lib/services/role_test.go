@@ -1564,6 +1564,36 @@ func BenchmarkValidateRole(b *testing.B) {
 	}
 }
 
+func TestUnmarshalRoleV9DeniesAppAccessForUnknownField(t *testing.T) {
+	// A stored allow_all rule that also carries a field this version does not
+	// recognize must not read as unrestricted access. JSON drops the unknown
+	// field, so the guard empties the rule instead of serving a bare allow_all.
+	widened := `{
+		"kind": "role",
+		"version": "v9",
+		"metadata": {"name": "test"},
+		"spec": {"allow": {"app_resources": [{"allow_all": true, "future_paths": ["/admin"]}]}}
+	}`
+	role, err := UnmarshalRole([]byte(widened))
+	require.NoError(t, err)
+	require.False(t,
+		types.AppResourcesAllowAll(role.GetAppResources(types.Allow), role.GetAppResources(types.Deny)),
+		"a stored allow_all rule with an unknown field must not read as allow-all")
+
+	// A clean allow_all rule is left untouched.
+	clean := `{
+		"kind": "role",
+		"version": "v9",
+		"metadata": {"name": "test"},
+		"spec": {"allow": {"app_resources": [{"allow_all": true}]}}
+	}`
+	role, err = UnmarshalRole([]byte(clean))
+	require.NoError(t, err)
+	require.True(t,
+		types.AppResourcesAllowAll(role.GetAppResources(types.Allow), role.GetAppResources(types.Deny)),
+		"a clean allow_all rule must read as allow-all")
+}
+
 func TestUnmarshalRole(t *testing.T) {
 	t.Parallel()
 

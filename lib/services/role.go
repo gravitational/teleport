@@ -29,6 +29,7 @@ import (
 	"net"
 	"os"
 	"path"
+	"reflect"
 	"regexp"
 	"slices"
 	"sort"
@@ -4123,6 +4124,39 @@ const (
 // Keep in sync with teleport/src/services/api/api.ts(isUserSessionRoleNotFoundError)
 const UserSessionRoleNotFoundErrorMsg = "user session role not found"
 
+// knownAppResourceFields lists the JSON field names this version understands
+// on an app_resources rule, derived from the AppResource message so a new
+// proto field extends it automatically.
+var knownAppResourceFields = func() map[string]struct{} {
+	fields := make(map[string]struct{})
+	t := reflect.TypeOf(types.AppResource{})
+	for i := 0; i < t.NumField(); i++ {
+		name, _, _ := strings.Cut(t.Field(i).Tag.Get("json"), ",")
+		if name != "" && name != "-" {
+			fields[name] = struct{}{}
+		}
+	}
+	return fields
+}()
+
+// denyAppAccessForUnknownFields empties any v9 allow app_resources rule whose
+// stored JSON carried a field this version does not recognize, so the rule
+// grants no access. Worst case is over-deny.
+func denyAppAccessForUnknownFields(role *types.RoleV6, raw []byte) {
+	if role.Version != types.V9 {
+		return
+	}
+	rules := role.Spec.Allow.AppResources
+	for i := range rules {
+		for _, key := range jsoniter.Get(raw, "spec", "allow", "app_resources", i).Keys() {
+			if _, known := knownAppResourceFields[key]; !known {
+				rules[i] = types.AppResource{}
+				break
+			}
+		}
+	}
+}
+
 // UnmarshalRole unmarshals the Role resource from JSON.
 func UnmarshalRole(bytes []byte, opts ...MarshalOption) (types.Role, error) {
 	return UnmarshalRoleV6(bytes, opts...)
@@ -4160,6 +4194,8 @@ func UnmarshalRoleV6(bytes []byte, opts ...MarshalOption) (*types.RoleV6, error)
 	if err := CheckAndSetDefaults(&role); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	denyAppAccessForUnknownFields(&role, bytes)
 
 	if cfg.Revision != "" {
 		role.SetRevision(cfg.Revision)
