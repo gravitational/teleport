@@ -18,8 +18,10 @@ package accesslist
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -34,6 +36,9 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/utils"
 )
+
+// Safeguard against older role versions that may have unsupported fields.
+const minimumRoleVersion = 8
 
 // Update handles `tctl acl update`.
 func (c *Command) Update(ctx context.Context, client *authclient.Client) error {
@@ -282,6 +287,10 @@ func (c *Command) buildOwnersForUpdate(al *accesslist.AccessList) ([]accesslist.
 
 // updateAccessListWithPreset updates an access list spec/meta and its related access roles.
 func (c *Command) updateAccessListWithPreset(ctx context.Context, client *authclient.Client, al *accesslist.AccessList) (*accesslist.AccessList, []string, []string, error) {
+	if err := rejectUnknownGrants(al); err != nil {
+		return nil, nil, nil, trace.Wrap(err)
+	}
+
 	var updatedAccessRoles []*types.RoleV6
 	if !c.removeAccess {
 		var standardRoleUpdateFn applyAccessFlagsToRole
@@ -375,8 +384,17 @@ func resolveAccessRole(ctx context.Context, client *authclient.Client, al *acces
 	}
 
 	if !isAttachedToList {
+		// New role, nothing to validate.
 		role, err = buildRole(prefix, types.RoleConditions{})
 		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		// Existing role, validate that unsupported role fields were not set.
+		// This will happen if a user manually edited the role outside of the editor/command
+		// built for access lists using preset (access-type).
+		// This helps in avoiding unintentional/silent overwrites or dropping of fields (role/grants).
+		if err := validateQueriedRole(prefix, roleName, role.GetVersion(), role.Spec.Allow, role.Spec.Deny); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -397,6 +415,214 @@ func getAccessRoleByName(ctx context.Context, client *authclient.Client, roleNam
 		return nil, trace.BadParameter("role %q has unexpected type %T", roleName, role)
 	}
 	return roleV6, nil
+}
+
+func roleDenyMismatchError(roleName string) error {
+	return trace.BadParameter("the role Teleport created for this list has deny fields not supported by this update.\n"+
+		"Use `tctl edit role/%s` to clear `spec.deny`, then retry; or edit the role directly.",
+		roleName)
+}
+
+func roleAllowMismatchError(roleName string, unsupportedFields []string) error {
+	return trace.BadParameter("the role Teleport created for this list has allow fields not supported by this update: %s.\n"+
+		"Use `tctl edit role/%s` to clear those fields or `spec`, then retry; or edit the role directly.",
+		strings.Join(unsupportedFields, ", "), roleName)
+}
+
+func unknownRoleGrants(unknownRoles []string, accessListID string, field string) error {
+	return trace.BadParameter(
+		"resource access changes cannot be applied; this list grants roles this command doesn't update: %s.\n"+
+			"Use `tctl edit access_list/%s` to remove those roles from %q field, then retry; or edit the access list directly.",
+		strings.Join(unknownRoles, ", "), accessListID, field,
+	)
+}
+
+func unsupportedGrantFields(unsupportedFields []string, accessListID string, field string) error {
+	return trace.BadParameter(
+		"resource access changes cannot be applied; this list has grant fields not supported by this update: %s.\n"+
+			"Use `tctl edit access_list/%s` to clear those fields from %q, then retry; or edit the access list directly.",
+		strings.Join(unsupportedFields, ", "), accessListID, field,
+	)
+}
+
+// rejectUnknownGrants returns an error if an unknown role exists in the
+// member/owner grant roles. Also rejects if any grant fields other than
+// "roles" were defined. This helps in avoiding silent dropping of
+// unsupported fields when updating.
+func rejectUnknownGrants(al *accesslist.AccessList) error {
+	reviewerRole := accesslist.RoleName(preset.RoleReviewerPrefix, al.GetName())
+	requesterRole := accesslist.RoleName(preset.RoleRequesterPrefix, al.GetName())
+	standardRole := accesslist.RoleName(standardRolePrefixName, al.GetName())
+	awsicRole := accesslist.RoleName(awsicRolePrefixName, al.GetName())
+
+	unknownRoles := func(validRoles []string, gotRoles []string) []string {
+		unknownRoles := []string{}
+		for _, roleName := range gotRoles {
+			if !slices.Contains(validRoles, roleName) {
+				unknownRoles = append(unknownRoles, roleName)
+			}
+		}
+		return unknownRoles
+	}
+
+	var validMemberRoles []string
+	var validOwnerRoles []string
+
+	switch al.GetAllLabels()[accesslist.AccessListPresetLabel] {
+	case string(accesslist.ShortTermPresetType):
+		validMemberRoles = []string{requesterRole}
+		validOwnerRoles = []string{reviewerRole}
+
+	case string(accesslist.LongTermPresetType):
+		validMemberRoles = []string{standardRole, awsicRole}
+		validOwnerRoles = []string{reviewerRole}
+	}
+
+	// Fail if unknown roles exists in any grants.
+	unknownMemberRoles := unknownRoles(validMemberRoles, al.Spec.Grants.Roles)
+	if len(unknownMemberRoles) > 0 {
+		return unknownRoleGrants(unknownMemberRoles, al.GetName(), "spec.grants.roles")
+	}
+	unknownOwnerRoles := unknownRoles(validOwnerRoles, al.Spec.OwnerGrants.Roles)
+	if len(unknownOwnerRoles) > 0 {
+		return unknownRoleGrants(unknownOwnerRoles, al.GetName(), "spec.owner_grants.roles")
+	}
+
+	// Fail if any other fields (other than roles) are defined.
+	grantMismatches := nonEmptyGrantFields(al.Spec.Grants)
+	if len(grantMismatches) > 0 {
+		return unsupportedGrantFields(grantMismatches, al.GetName(), "spec.grants")
+	}
+	ownerGrantMismatches := nonEmptyGrantFields(al.Spec.OwnerGrants)
+	if len(ownerGrantMismatches) > 0 {
+		return unsupportedGrantFields(ownerGrantMismatches, al.GetName(), "spec.owner_grants")
+	}
+	return nil
+}
+
+// getEmptyRoleV6 returns an empty role with defaults set.
+func getEmptyRoleV6(roleName, roleVersion string) (*types.RoleV6, error) {
+	emptyRoleWithDefaults, err := types.NewRoleWithVersion(roleName, roleVersion, types.RoleSpecV6{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	roleV6WithDefaults, ok := emptyRoleWithDefaults.(*types.RoleV6)
+	if !ok {
+		return nil, trace.BadParameter("role %q has unexpected type %T", roleName, emptyRoleWithDefaults)
+	}
+
+	return roleV6WithDefaults, nil
+}
+
+// validateAWSICRoleSpec returns an error if any deny fields got set or if any other allow fields
+// other than ones allowed are set.
+func validateAWSICRoleSpec(roleName string, wantWithDefaults *types.RoleV6, gotAllow types.RoleConditions, gotDeny types.RoleConditions) error {
+	denyMismatches := topLevelRoleConditionMismatches(wantWithDefaults.Spec.Deny, gotDeny)
+	if len(denyMismatches) > 0 {
+		return roleDenyMismatchError(roleName)
+	}
+
+	// Empty allow is valid.
+	allowMismatches := topLevelRoleConditionMismatches(wantWithDefaults.Spec.Allow, gotAllow)
+	if len(allowMismatches) == 0 {
+		return nil
+	}
+
+	validAllow := wantWithDefaults.Spec.Allow
+	// Set allowed fields:
+	validAllow.AppLabels = awsIcAppLabel
+	validAllow.AccountAssignments = gotAllow.AccountAssignments
+	allowMismatches = topLevelRoleConditionMismatches(validAllow, gotAllow)
+	if len(allowMismatches) > 0 {
+		return roleAllowMismatchError(roleName, allowMismatches)
+	}
+
+	return nil
+}
+
+// validateStandardRoleSpec returns an error if any deny fields got set or if any other allow fields
+// other than ones allowed are set.
+func validateStandardRoleSpec(roleName string, wantWithDefaults *types.RoleV6, gotAllow types.RoleConditions, gotDeny types.RoleConditions) error {
+	validAllow := wantWithDefaults.Spec.Allow
+	// Set allowed fields:
+	validAllow.NodeLabels = gotAllow.NodeLabels
+	validAllow.Logins = gotAllow.Logins
+	validAllow.DatabaseLabels = gotAllow.DatabaseLabels
+	validAllow.DatabaseUsers = gotAllow.DatabaseUsers
+	validAllow.DatabaseNames = gotAllow.DatabaseNames
+	validAllow.KubernetesLabels = gotAllow.KubernetesLabels
+	validAllow.KubeUsers = gotAllow.KubeUsers
+	validAllow.KubeGroups = gotAllow.KubeGroups
+	validAllow.KubernetesResources = gotAllow.KubernetesResources
+	validAllow.AppLabels = gotAllow.AppLabels
+	validAllow.AWSRoleARNs = gotAllow.AWSRoleARNs
+	validAllow.AzureIdentities = gotAllow.AzureIdentities
+	validAllow.GCPServiceAccounts = gotAllow.GCPServiceAccounts
+	validAllow.MCP = gotAllow.MCP
+	validAllow.WindowsDesktopLabels = gotAllow.WindowsDesktopLabels
+	validAllow.WindowsDesktopLogins = gotAllow.WindowsDesktopLogins
+	validAllow.GitHubPermissions = gotAllow.GitHubPermissions
+
+	denyMismatches := topLevelRoleConditionMismatches(wantWithDefaults.Spec.Deny, gotDeny)
+	if len(denyMismatches) > 0 {
+		return roleDenyMismatchError(roleName)
+	}
+
+	allowMismatches := topLevelRoleConditionMismatches(validAllow, gotAllow)
+	if len(allowMismatches) > 0 {
+		return roleAllowMismatchError(roleName, allowMismatches)
+	}
+
+	return nil
+}
+
+func supportsRoleVersion(gotVersion string, roleName string) error {
+	roleVersionNumber := func(version string) (int, error) {
+		return strconv.Atoi(strings.TrimPrefix(version, "v"))
+	}
+
+	gotVersionNum, err := roleVersionNumber(gotVersion)
+	if err != nil && !errors.Is(err, strconv.ErrRange) {
+		return trace.BadParameter(
+			"resource access changes cannot be applied; role is using an unsupported version %q.\nUse `tctl edit role/%s` to upgrade its version, or edit the role directly.",
+			gotVersion, roleName,
+		)
+	}
+	if gotVersionNum < minimumRoleVersion {
+		return trace.BadParameter(
+			"resource access changes cannot be applied; role is using an unsupported version %q.\nUse `tctl edit role/%s` to upgrade its version, or edit the role directly.",
+			gotVersion, roleName,
+		)
+	}
+
+	defaultVersionNum, err := roleVersionNumber(types.DefaultRoleVersion)
+	if err != nil || gotVersionNum > defaultVersionNum {
+		return trace.BadParameter(
+			"resource access changes cannot be applied; role %q is using an unsupported version %q.\nUpgrade your tctl binary.",
+			roleName, gotVersion,
+		)
+	}
+
+	return nil
+}
+
+func validateQueriedRole(prefix string, roleName, roleVersion string, allow, deny types.RoleConditions) error {
+	// Rare: the role predates this feature's minimum version requirement, or
+	// was manually edited to an older version.
+	if err := supportsRoleVersion(roleVersion, roleName); err != nil {
+		return trace.Wrap(err)
+	}
+	emptyRoleV6WithDefaults, err := getEmptyRoleV6(roleName, roleVersion)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	switch prefix {
+	case standardRolePrefixName:
+		return validateStandardRoleSpec(roleName, emptyRoleV6WithDefaults, allow, deny)
+	case awsicRolePrefixName:
+		return validateAWSICRoleSpec(roleName, emptyRoleV6WithDefaults, allow, deny)
+	}
+	return nil
 }
 
 // UpdateJSONResponse is the structured response for `tctl acl update
