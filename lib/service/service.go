@@ -3506,24 +3506,107 @@ func isAuditQueueEnabled() bool {
 	return enabled
 }
 
+const (
+	auditQueueSealerInitAttempts   = 300
+	auditQueueSealerInitRetryDelay = time.Second
+	auditQueueSealerInitMaxDelay   = 30 * time.Second
+)
+
+type auditQueueSealerRetryConfig struct {
+	getter       recordingencryption.SessionRecordingConfigGetter
+	logger       *slog.Logger
+	attempts     int
+	initialDelay time.Duration
+	maxDelay     time.Duration
+}
+
+func newAuditQueueSealerWithRetry(ctx context.Context, cfg auditQueueSealerRetryConfig) (*recordingencryption.AuditQueueSealer, error) {
+	if cfg.logger == nil {
+		cfg.logger = slog.Default()
+	}
+	if cfg.attempts <= 0 {
+		cfg.attempts = auditQueueSealerInitAttempts
+	}
+	if cfg.initialDelay <= 0 {
+		cfg.initialDelay = auditQueueSealerInitRetryDelay
+	}
+	if cfg.maxDelay <= 0 {
+		cfg.maxDelay = auditQueueSealerInitMaxDelay
+	}
+
+	retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
+		First:  retryutils.FullJitter(cfg.initialDelay),
+		Driver: retryutils.NewExponentialDriver(cfg.initialDelay),
+		Max:    cfg.maxDelay,
+		Jitter: retryutils.HalfJitter,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var lastErr error
+	for attempt := 1; ; attempt++ {
+		sealer, err := recordingencryption.NewAuditQueueSealer(ctx, cfg.getter)
+		if err == nil {
+			return sealer, nil
+		}
+		lastErr = err
+		if attempt >= cfg.attempts {
+			return nil, trace.Wrap(lastErr)
+		}
+		cfg.logger.WarnContext(ctx, "Failed to initialize audit queue encryption, retrying.",
+			"error", err,
+			"attempt", attempt,
+			"max_attempts", cfg.attempts,
+		)
+		select {
+		case <-ctx.Done():
+			return nil, trace.NewAggregate(ctx.Err(), lastErr)
+		case <-retry.After():
+			retry.Inc()
+		}
+	}
+}
+
 // NewAsyncEmitter wraps client and returns emitter that never blocks, logs some events and checks values.
 // It is caller's responsibility to call Close on the emitter once done.
 func (process *TeleportProcess) NewAsyncEmitter(clt apievents.Emitter) (*events.CheckingAsyncEmitter, error) {
+	asyncCfg := events.AsyncEmitterConfig{
+		Inner:              events.NewMultiEmitter(events.NewLoggingEmitter(process.GetClusterFeatures().Cloud), clt),
+		DataDir:            process.Config.DataDir,
+		EnableAuditQueue:   isAuditQueueEnabled(),
+		AuditQueueCfg:      process.auditQueueConfig(),
+		AuditQueueBackends: process.auditQueueBackends(),
+	}
+	var sealer *recordingencryption.AuditQueueSealer
+	if asyncCfg.EnableAuditQueue {
+		queueClt, ok := clt.(recordingencryption.SessionRecordingConfigGetter)
+		if !ok {
+			return nil, trace.BadParameter("audit queue requires a client capable of reading the session recording config, got %T", clt)
+		}
+		var err error
+		sealer, err = newAuditQueueSealerWithRetry(process.ExitContext(), auditQueueSealerRetryConfig{
+			getter: queueClt,
+			logger: process.logger,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err, "initializing audit queue encryption")
+		}
+		asyncCfg.Sealer = sealer
+	}
+
 	// Wrap the AsyncEmitter in a CheckingEmitter to ensure event fields are
 	// properly set before inserting events into the queue.
 	emitter, err := events.NewCheckingAsyncEmitter(
 		events.CheckingEmitterConfig{
 			Clock: process.Clock,
 		},
-		events.AsyncEmitterConfig{
-			Inner:              events.NewMultiEmitter(events.NewLoggingEmitter(process.GetClusterFeatures().Cloud), clt),
-			DataDir:            process.Config.DataDir,
-			EnableAuditQueue:   isAuditQueueEnabled(),
-			AuditQueueCfg:      process.auditQueueConfig(),
-			AuditQueueBackends: process.auditQueueBackends(),
-		},
+		asyncCfg,
 	)
 	if err != nil {
+		if sealer != nil {
+			_ = sealer.Close()
+		}
 		return nil, trace.Wrap(err)
 	}
 	process.registerAuditQueueStats(emitter)
