@@ -30,6 +30,7 @@ import (
 	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	mfav2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
+	subcav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/subca/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/lib/auth/authcatest"
@@ -523,6 +524,60 @@ func TestWatchers(t *testing.T) {
 				require.Equal(subtestT, types.KindValidatedMFAChallenge, chal.GetKind())
 				require.Equal(subtestT, "test-challenge", chal.GetMetadata().GetName())
 				require.Equal(subtestT, "leaf.example.com", chal.GetSpec().GetTargetCluster())
+			},
+		},
+		{
+			name: "PendingCSRRequest PUT/DELETE",
+			kind: types.KindPendingCSRRequest,
+			causeEvents: func(ctx context.Context, t *testing.T, bk backend.Backend) {
+				service, err := NewSubCAService(SubCAServiceParams{
+					Backend: bk,
+				})
+				require.NoError(t, err)
+
+				// PUT.
+				res, err := service.CreatePendingCSRRequest(
+					ctx,
+					subcav1.PendingCSRRequest_builder{
+						Kind:    types.KindPendingCSRRequest,
+						Version: types.V1,
+						Metadata: headerv1.Metadata_builder{
+							Name: "2f878e0f-115c-4b48-a4f6-f4deae8efb6f",
+						}.Build(),
+						Spec: subcav1.PendingCSRRequestSpec_builder{
+							ClusterName: "example.com",
+							CaType:      string(types.WindowsCA),
+							PublicKeyHashes: []*subcav1.PublicKeyHash{
+								subcav1.PublicKeyHash_builder{
+									Value: "ea16c3a8c1f31943019ecc9bfb2899b60e8ec156874bdf4606a899c95392cef3",
+								}.Build(),
+							},
+						}.Build(),
+					}.Build(),
+				)
+				require.NoError(t, err)
+
+				// DELETE.
+				require.NoError(t,
+					service.DeletePendingCSRRequest(ctx, res.GetMetadata().GetName()),
+				)
+			},
+			validateEvents: func(ctx context.Context, t *testing.T, watcher types.Watcher) {
+				const wantName = "2f878e0f-115c-4b48-a4f6-f4deae8efb6f"
+
+				// PUT.
+				event := fetchEvent(t, watcher, fetchTimeout)
+				require.Equal(t, types.OpPut, event.Type)
+				res, err := types.ConvertResource[*subcav1.PendingCSRRequest](event.Resource)
+				require.NoError(t, err)
+				require.Equal(t, wantName, res.GetMetadata().GetName())
+
+				// DELETE.
+				event = fetchEvent(t, watcher, fetchTimeout)
+				require.Equal(t, types.OpDelete, event.Type)
+				res, err = types.ConvertResource[*subcav1.PendingCSRRequest](event.Resource)
+				require.NoError(t, err)
+				require.Equal(t, wantName, res.GetMetadata().GetName())
 			},
 		},
 	}
