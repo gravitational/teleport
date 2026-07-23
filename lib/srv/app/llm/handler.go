@@ -18,17 +18,14 @@ package llm
 
 import (
 	"context"
-	"io"
 	"log/slog"
 	"net/http"
 	"net/url"
 	"os"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/klauspost/compress/zstd"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -42,7 +39,6 @@ import (
 	llmerrors "github.com/gravitational/teleport/lib/srv/app/llm/errors"
 	"github.com/gravitational/teleport/lib/srv/app/llm/openai"
 	llmrequest "github.com/gravitational/teleport/lib/srv/app/llm/request"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 // Handler proxies LLM API requests for authorized app sessions.
@@ -145,6 +141,64 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err := h.serveHTTP(w, r); err != nil {
 		h.cfg.Log.ErrorContext(r.Context(), "failed to handle LLM request", "error", err)
 		trace.WriteError(w, err)
+	}
+}
+
+// HandleError handles an error and forwards LLM compatible results to the
+// client.
+func (h *Handler) HandleError(r *http.Request, w http.ResponseWriter, err error) {
+	if err == nil {
+		return
+	}
+
+	sessionCtx, sessionCtxErr := common.GetSessionContext(r)
+	if sessionCtxErr != nil {
+		trace.WriteError(w, err)
+		return
+	}
+
+	llm := sessionCtx.App.GetLLM()
+	log := h.cfg.Log.With(
+		"app", sessionCtx.App.GetName(),
+		"format", llm.Format,
+		"provider", llm.Provider,
+	)
+
+	var formattedErr error
+	switch {
+	case trace.IsNotImplemented(err):
+		formattedErr = llmerrors.NewProviderError(llmerrors.ErrUnsupported, err.Error())
+	default:
+		// Other errors are most likely related to Teleport processing the
+		// request which is not valuable for callers, so log the error and
+		// return a generic one for the downstream.
+		log.ErrorContext(h.closeContext, "failed to process llm request due to error", "err", err)
+		formattedErr = llmerrors.ErrInternal
+	}
+
+	defer func() {
+		if auditErr := sessionCtx.Audit.OnLLMRequest(
+			h.closeContext,
+			sessionCtx,
+			r,
+			common.LLMRequest{Format: llm.Format, Provider: llm.Provider},
+			common.LLMResponse{Error: formattedErr},
+		); auditErr != nil {
+			log.ErrorContext(h.closeContext, "failed to emit audit event for failed request", "error", auditErr)
+		}
+	}()
+
+	switch llm.Format {
+	case types.LLMFormatAnthropic:
+		if werr := anthropic.WriteError(w, formattedErr); werr != nil {
+			log.ErrorContext(h.closeContext, "failed to write error", "error", werr)
+		}
+	case types.LLMFormatOpenAI:
+		if werr := openai.WriteError(w, formattedErr); werr != nil {
+			log.ErrorContext(h.closeContext, "failed to write error", "error", werr)
+		}
+	default:
+		trace.WriteError(w, formattedErr)
 	}
 }
 
@@ -286,51 +340,6 @@ func (h *Handler) handleRequest(
 		}
 	}()
 
-	// LLM APIs support different compression algorithms. Some clients, for
-	// example `codex`, use the compression by default. To avoid disrupting
-	// those clients, we support some of the most common compression algo, and
-	// expand it if necessary.
-	//
-	// By definition the encoding header can contain the "chain" of compression,
-	// however we're not supporting them at the moment, so it is safe to
-	// directly assert the encoding.
-	//
-	// https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Content-Encoding
-	switch encoding := strings.ToLower(strings.TrimSpace(r.Header.Get("Content-Encoding"))); encoding {
-	case "zstd":
-		downstreamReader, readerErr := newZstdReader(
-			// We also need to enforce the limited reader here because the internal
-			// zstd limits apply only to effectively decoded bytes (not actual
-			// bytes read).
-			utils.LimitReader(r.Body, teleport.MaxHTTPRequestSize),
-			r.Body,
-		)
-		if readerErr != nil {
-			// Error while initializing the reader is not valuable for callers,
-			// so log the error and return a generic one for the downstream.
-			err = llmerrors.ErrInternal
-			log.ErrorContext(h.closeContext, "failed to initialize zstd decoder", "error", err)
-			if werr := writeErrorFunc(w, llmerrors.ErrInternal); werr != nil {
-				log.ErrorContext(h.closeContext, "failed to write error", "error", werr)
-			}
-			return
-		}
-		r.Body = downstreamReader
-	case "":
-		// Default non compressed body, nothing to do here.
-	default:
-		// Assign error we audit the request as failed.
-		err = llmerrors.ErrBadRequest
-		if werr := writeErrorFunc(w, llmerrors.NewProviderError(
-			llmerrors.ErrBadRequest,
-			"encoding format %q not supported, currently only non-compressed or 'zstd' is supported",
-			encoding,
-		)); werr != nil {
-			log.ErrorContext(h.closeContext, "failed to write error", "error", werr)
-		}
-		return
-	}
-
 	var req *http.Request
 	req, info, err = newRequestFunc(sessionCtx.App, r)
 	if err != nil {
@@ -413,41 +422,6 @@ func (h *Handler) handleRequest(
 		teleport.ComponentLLM,
 		llm.Format,
 	).Add(float64(rec.OutputTokensCount()))
-}
-
-type zstdReader struct {
-	decoder *zstd.Decoder
-	closer  io.Closer
-}
-
-// Close implements [io.ReadCloser].
-func (z *zstdReader) Close() error {
-	z.decoder.Close()
-	// Just be sure the original buffer is also closed.
-	return trace.Wrap(z.closer.Close())
-}
-
-// Read implements [io.ReadCloser].
-func (z *zstdReader) Read(p []byte) (n int, err error) {
-	return z.decoder.Read(p)
-}
-
-func newZstdReader(orig io.Reader, closer io.Closer) (io.ReadCloser, error) {
-	dec, err := zstd.NewReader(
-		orig,
-		zstd.WithDecoderLowmem(true),
-		// This setting works more like a limit of how much memory it can hold
-		// while decompressing the requests.
-		zstd.WithDecoderMaxWindow(teleport.MaxHTTPRequestSize),
-		zstd.WithDecoderConcurrency(1),
-	)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &zstdReader{
-		decoder: dec,
-		closer:  closer,
-	}, nil
 }
 
 const (
