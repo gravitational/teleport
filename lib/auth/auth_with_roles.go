@@ -1374,7 +1374,11 @@ func (a *ServerWithRoles) hasWatchPermissionForKind(
 // resources is only meaningful for these kinds.
 func supportedScopedWatchKind(kind string) bool {
 	switch kind {
-	case scopedaccess.KindScopedRole, scopedaccess.KindScopedRoleAssignment:
+	case types.KindAccessList,
+		types.KindAccessListMember,
+		types.KindAccessListReview,
+		scopedaccess.KindScopedRole,
+		scopedaccess.KindScopedRoleAssignment:
 		return true
 	default:
 		return false
@@ -9114,7 +9118,7 @@ func checkOktaLockTarget(ctx context.Context, authzCtx *authz.Context, users ser
 
 	target := lock.Target()
 	switch {
-	case !target.Equals(types.LockTarget{User: target.User}):
+	case target != (types.LockTarget{User: target.User}):
 		return trace.BadParameter("%s", errorMsg)
 
 	case target.User == "":

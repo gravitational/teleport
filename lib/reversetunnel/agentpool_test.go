@@ -43,6 +43,8 @@ type mockAgent struct {
 	Agent
 	mockStart    func(ctx context.Context) error
 	mockGetState func() AgentState
+	// mu protects access to the mockGetState field.
+	mu sync.RWMutex
 }
 
 func (m *mockAgent) Start(ctx context.Context) error {
@@ -53,6 +55,8 @@ func (m *mockAgent) Start(ctx context.Context) error {
 }
 
 func (m *mockAgent) GetState() AgentState {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	if m.mockGetState != nil {
 		return m.mockGetState()
 	}
@@ -111,9 +115,11 @@ func setupTestAgentPool(t *testing.T) (*AgentPool, *mockClient) {
 
 		go func() {
 			<-pool.ctx.Done()
+			agent.mu.Lock()
 			agent.mockGetState = func() AgentState {
 				return AgentClosed
 			}
+			agent.mu.Unlock()
 			callback := pool.getStateCallback(agent)
 			callback(AgentClosed)
 		}()

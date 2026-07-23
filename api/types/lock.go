@@ -204,7 +204,7 @@ func (c *LockV2) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 
-	if c.Spec.Target.IsEmpty() {
+	if c.Spec.Target == (LockTarget{}) {
 		return trace.BadParameter("at least one target field must be set")
 	}
 	return nil
@@ -263,23 +263,14 @@ func (t *LockTarget) FromMap(m map[string]string) error {
 	return trace.Wrap(utils.ObjectToStruct(m, t))
 }
 
-// IsEmpty returns true if none of the target's fields is set.
-func (t LockTarget) IsEmpty() bool {
-	return t.User == "" &&
-		t.Role == "" &&
-		t.Login == "" &&
-		t.MFADevice == "" &&
-		t.WindowsDesktop == "" &&
-		t.AccessRequest == "" &&
-		t.Device == "" &&
-		t.ServerID == "" &&
-		t.BotInstanceID == "" &&
-		t.JoinToken == ""
+func _() {
+	type assertComparable[T comparable] struct{}
+	var _ assertComparable[LockTarget]
 }
 
 // Match returns true if the lock's target is matched by this target.
 func (t LockTarget) Match(lock Lock) bool {
-	if t.IsEmpty() {
+	if t == (LockTarget{}) {
 		return false
 	}
 	lockTarget := lock.Target()
@@ -300,16 +291,20 @@ func (t LockTarget) String() string {
 	return strings.TrimSpace(proto.CompactTextString(&t))
 }
 
+// TODO(espadolini): delete in v20
+
 // Equals returns true when the two lock targets are equal.
+// It's also possible to compare the two LockTargets directly instead.
+//
+//go:fix inline
 func (t LockTarget) Equals(t2 LockTarget) bool {
-	return t.User == t2.User &&
-		t.Role == t2.Role &&
-		t.Login == t2.Login &&
-		t.MFADevice == t2.MFADevice &&
-		t.WindowsDesktop == t2.WindowsDesktop &&
-		t.AccessRequest == t2.AccessRequest &&
-		t.Device == t2.Device &&
-		t.ServerID == t2.ServerID &&
-		t.BotInstanceID == t2.BotInstanceID &&
-		t.JoinToken == t2.JoinToken
+	return t == t2
+}
+
+// IsEmpty returns true if none of the target's fields is set.
+// It's also possible to compare the LockTarget against LockTarget{} instead.
+//
+//go:fix inline
+func (t LockTarget) IsEmpty() bool {
+	return t == LockTarget{}
 }

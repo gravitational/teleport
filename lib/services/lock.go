@@ -20,11 +20,13 @@ package services
 
 import (
 	"fmt"
+	"iter"
+	"maps"
+	"slices"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
-	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -50,32 +52,46 @@ var StrictLockingModeAccessDenied = trace.AccessDenied("preventive lock-out due 
 func SSHAccessLockTargets(localClusterName, serverID, osLogin string, accessInfo *AccessInfo, unmappedIdentity *sshca.Identity) []types.LockTarget {
 	// ssh access lock targets are currently constructed identically to proxying lock targets,
 	// except that the os login associated with the ssh access attempt is also locked.
-	return append(ProxyingLockTargets(localClusterName, serverID, accessInfo, unmappedIdentity), types.LockTarget{Login: osLogin})
+	return proxyingLockTargets(localClusterName, serverID, &osLogin, accessInfo, unmappedIdentity)
 }
 
 // ProxyingLockTargets computes the full set of lock targets related to teleport proxying.
 func ProxyingLockTargets(localClusterName, serverID string, accessInfo *AccessInfo, unmappedIdentity *sshca.Identity) []types.LockTarget {
-	lockTargets := []types.LockTarget{
-		{User: accessInfo.Username},
-		{ServerID: serverID},
-		{ServerID: utils.HostFQDN(serverID, localClusterName)},
+	var noOSLogin *string
+	return proxyingLockTargets(localClusterName, serverID, noOSLogin, accessInfo, unmappedIdentity)
+}
+
+func proxyingLockTargets(localClusterName, serverID string, osLogin *string, accessInfo *AccessInfo, unmappedIdentity *sshca.Identity) []types.LockTarget {
+	lockTargets := map[types.LockTarget]struct{}{
+		{User: accessInfo.Username}:                            struct{}{},
+		{ServerID: serverID}:                                   struct{}{},
+		{ServerID: utils.HostFQDN(serverID, localClusterName)}: struct{}{},
 	}
 	if mfaDevice := unmappedIdentity.MFAVerified; mfaDevice != "" {
-		lockTargets = append(lockTargets, types.LockTarget{MFADevice: mfaDevice})
+		lockTargets[types.LockTarget{MFADevice: mfaDevice}] = struct{}{}
 	}
 	if trustedDevice := unmappedIdentity.DeviceID; trustedDevice != "" {
-		lockTargets = append(lockTargets, types.LockTarget{Device: trustedDevice})
+		lockTargets[types.LockTarget{Device: trustedDevice}] = struct{}{}
 	}
 	if joinToken := unmappedIdentity.JoinToken; joinToken != "" {
-		lockTargets = append(lockTargets, types.LockTarget{JoinToken: joinToken})
+		lockTargets[types.LockTarget{JoinToken: joinToken}] = struct{}{}
 	}
 	if botInstanceID := unmappedIdentity.BotInstanceID; botInstanceID != "" {
-		lockTargets = append(lockTargets, types.LockTarget{BotInstanceID: botInstanceID})
+		lockTargets[types.LockTarget{BotInstanceID: botInstanceID}] = struct{}{}
 	}
-	roles := apiutils.Deduplicate(append(accessInfo.Roles, unmappedIdentity.Roles...))
-	lockTargets = append(lockTargets, RolesToLockTargets(roles)...)
-	lockTargets = append(lockTargets, AccessRequestsToLockTargets(unmappedIdentity.ActiveRequests)...)
-	return lockTargets
+	for lockTarget := range RolesToLockTargets(slices.Values(accessInfo.Roles)) {
+		lockTargets[lockTarget] = struct{}{}
+	}
+	for lockTarget := range RolesToLockTargets(slices.Values(unmappedIdentity.Roles)) {
+		lockTargets[lockTarget] = struct{}{}
+	}
+	for lockTarget := range AccessRequestsToLockTargets(slices.Values(unmappedIdentity.ActiveRequests)) {
+		lockTargets[lockTarget] = struct{}{}
+	}
+	if osLogin != nil {
+		lockTargets[types.LockTarget{Login: *osLogin}] = struct{}{}
+	}
+	return slices.AppendSeq(make([]types.LockTarget, 0, len(lockTargets)), maps.Keys(lockTargets))
 }
 
 // GitForwardingLockTargets computes the full set of lock targets related to git forwarding.
@@ -85,42 +101,58 @@ func GitForwardingLockTargets(localClusterName, serverID string, accessInfo *Acc
 }
 
 // LockTargetsFromTLSIdentity infers a list of LockTargets from tlsca.Identity.
-func LockTargetsFromTLSIdentity(id tlsca.Identity) []types.LockTarget {
-	lockTargets := append(RolesToLockTargets(id.Groups), types.LockTarget{User: id.Username})
-	if id.MFAVerified != "" {
-		lockTargets = append(lockTargets, types.LockTarget{MFADevice: id.MFAVerified})
+func LockTargetsFromTLSIdentity(id tlsca.Identity) iter.Seq[types.LockTarget] {
+	return func(yield func(types.LockTarget) bool) {
+		for lockTarget := range RolesToLockTargets(slices.Values(id.Groups)) {
+			if !yield(lockTarget) {
+				return
+			}
+		}
+		if !yield(types.LockTarget{User: id.Username}) {
+			return
+		}
+		if id.MFAVerified != "" && !yield(types.LockTarget{MFADevice: id.MFAVerified}) {
+			return
+		}
+		if id.DeviceExtensions.DeviceID != "" && !yield(types.LockTarget{Device: id.DeviceExtensions.DeviceID}) {
+			return
+		}
+		if id.JoinToken != "" && !yield(types.LockTarget{JoinToken: id.JoinToken}) {
+			return
+		}
+		if id.BotInstanceID != "" && !yield(types.LockTarget{BotInstanceID: id.BotInstanceID}) {
+			return
+		}
+		for lockTarget := range AccessRequestsToLockTargets(slices.Values(id.ActiveRequests)) {
+			if !yield(lockTarget) {
+				return
+			}
+		}
 	}
-	if id.DeviceExtensions.DeviceID != "" {
-		lockTargets = append(lockTargets, types.LockTarget{Device: id.DeviceExtensions.DeviceID})
-	}
-	if id.JoinToken != "" {
-		lockTargets = append(lockTargets, types.LockTarget{JoinToken: id.JoinToken})
-	}
-	if id.BotInstanceID != "" {
-		lockTargets = append(lockTargets, types.LockTarget{BotInstanceID: id.BotInstanceID})
-	}
-	lockTargets = append(lockTargets, AccessRequestsToLockTargets(id.ActiveRequests)...)
-	return lockTargets
 }
 
 // RolesToLockTargets converts a list of roles to a list of LockTargets
 // (one LockTarget per role).
-func RolesToLockTargets(roles []string) []types.LockTarget {
-	lockTargets := make([]types.LockTarget, 0, len(roles))
-	for _, role := range roles {
-		lockTargets = append(lockTargets, types.LockTarget{Role: role})
+func RolesToLockTargets(roles iter.Seq[string]) iter.Seq[types.LockTarget] {
+	return func(yield func(types.LockTarget) bool) {
+		for role := range roles {
+			if !yield(types.LockTarget{Role: role}) {
+				return
+			}
+		}
 	}
-	return lockTargets
 }
 
 // AccessRequestsToLockTargets converts a list of access requests to a list of
 // LockTargets (one LockTarget per access request)
-func AccessRequestsToLockTargets(accessRequests []string) []types.LockTarget {
-	lockTargets := make([]types.LockTarget, 0, len(accessRequests))
-	for _, accessRequest := range accessRequests {
-		lockTargets = append(lockTargets, types.LockTarget{AccessRequest: accessRequest})
+func AccessRequestsToLockTargets(accessRequests iter.Seq[string]) iter.Seq[types.LockTarget] {
+	return func(yield func(types.LockTarget) bool) {
+		for accessRequest := range accessRequests {
+			if !yield(types.LockTarget{AccessRequest: accessRequest}) {
+				return
+			}
+		}
 	}
-	return lockTargets
 }
 
 // UnmarshalLock unmarshals the Lock resource from JSON.
