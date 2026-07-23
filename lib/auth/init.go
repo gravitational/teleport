@@ -442,6 +442,8 @@ type InitConfig struct {
 
 	// SubCAService manages CertAuthorityOverride resources.
 	SubCAService services.SubCAService
+	// PendingCSRRequestService manages PendingCSRRequest resources.
+	PendingCSRRequestService services.PendingCSRRequestService
 
 	// FakePasswordHash is the password hash given to all users without a password.
 	// This helps eliminate timing attacks by ensuring that all authentication attempts

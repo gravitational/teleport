@@ -140,6 +140,7 @@ func ForAuth(cfg Config) Config {
 	cfg.Watches = []types.WatchKind{
 		{Kind: types.KindCertAuthority, LoadSecrets: true},
 		{Kind: types.KindCertAuthorityOverride},
+		{Kind: types.KindPendingCSRRequest},
 		{Kind: types.KindClusterName},
 		{Kind: types.KindClusterAuditConfig},
 		{Kind: types.KindClusterNetworkingConfig},
