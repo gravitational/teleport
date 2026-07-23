@@ -135,10 +135,11 @@ func TestValidateStandardRoleSpec(t *testing.T) {
 	require.NoError(t, err)
 
 	tests := []struct {
-		name    string
-		allow   types.RoleConditions
-		deny    types.RoleConditions
-		wantErr bool
+		name                     string
+		allow                    types.RoleConditions
+		deny                     types.RoleConditions
+		wantErrContains          string
+		wantUnmanagedAllowFields []string
 	}{
 		{
 			name:  "valid empty role conditions",
@@ -171,14 +172,31 @@ func TestValidateStandardRoleSpec(t *testing.T) {
 			deny: emptyRole.Spec.Deny,
 		},
 		{
-			name: "invalid field",
+			name: "single invalid field",
 			allow: func() types.RoleConditions {
 				allow := emptyRole.Spec.Allow
 				allow.NodeLabelsExpression = `labels["env"] == "testing"`
 				return allow
 			}(),
-			deny:    emptyRole.Spec.Deny,
-			wantErr: true,
+			deny:            emptyRole.Spec.Deny,
+			wantErrContains: "allow fields not supported by this update: node_labels_expression",
+		},
+		{
+			name: "multiple invalid fields",
+			allow: func() types.RoleConditions {
+				allow := emptyRole.Spec.Allow
+				allow.AppLabelsExpression = `labels["env"] == "test"`
+				allow.NodeLabelsExpression = `labels["env"] == "test"`
+				allow.Request = &types.AccessRequestConditions{
+					Reason: &types.AccessRequestConditionsReason{},
+				}
+				allow.DatabaseServiceLabels = types.Labels{"env": []string{"test"}}
+				// This is considered "empty" and should not be part of the wantUnmanagedAllowFields
+				allow.ReviewRequests = &types.AccessReviewConditions{}
+				return allow
+			}(),
+			deny:                     emptyRole.Spec.Deny,
+			wantUnmanagedAllowFields: []string{"request", "db_service_labels", "node_labels_expression", "app_labels_expression"},
 		},
 		{
 			name:  "invalid deny",
@@ -188,17 +206,23 @@ func TestValidateStandardRoleSpec(t *testing.T) {
 				deny.Logins = []string{"root"}
 				return deny
 			}(),
-			wantErr: true,
+			wantErrContains: "deny fields not supported by this update",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := validateStandardRoleSpec("some-role-name", emptyRole, tt.allow, tt.deny)
-			if tt.wantErr {
+			switch {
+			case len(tt.wantUnmanagedAllowFields) > 0:
 				require.True(t, trace.IsBadParameter(err))
-				require.Contains(t, err.Error(), "fields this command doesn't manage")
-			} else {
+				for _, field := range tt.wantUnmanagedAllowFields {
+					require.Contains(t, err.Error(), field)
+				}
+			case tt.wantErrContains != "":
+				require.True(t, trace.IsBadParameter(err))
+				require.Contains(t, err.Error(), tt.wantErrContains)
+			default:
 				require.NoError(t, err)
 			}
 		})
@@ -220,10 +244,10 @@ func TestValidateAWSICRoleSpec(t *testing.T) {
 	}()
 
 	tests := []struct {
-		name    string
-		allow   types.RoleConditions
-		deny    types.RoleConditions
-		wantErr bool
+		name            string
+		allow           types.RoleConditions
+		deny            types.RoleConditions
+		wantErrContains string
 	}{
 		{
 			name:  "valid fields",
@@ -254,8 +278,8 @@ func TestValidateAWSICRoleSpec(t *testing.T) {
 				}
 				return allow
 			}(),
-			deny:    emptyRole.Spec.Deny,
-			wantErr: true,
+			deny:            emptyRole.Spec.Deny,
+			wantErrContains: "allow fields not supported by this update: app_labels",
 		},
 		{
 			name: "invalid field",
@@ -264,23 +288,23 @@ func TestValidateAWSICRoleSpec(t *testing.T) {
 				allow.NodeLabels = types.Labels{"offending": {"field"}}
 				return allow
 			}(),
-			deny:    emptyRole.Spec.Deny,
-			wantErr: true,
+			deny:            emptyRole.Spec.Deny,
+			wantErrContains: "allow fields not supported by this update: node_labels",
 		},
 		{
-			name:    "invalid deny",
-			allow:   emptyRole.Spec.Allow,
-			deny:    validAllow,
-			wantErr: true,
+			name:            "invalid deny",
+			allow:           emptyRole.Spec.Allow,
+			deny:            validAllow,
+			wantErrContains: "deny fields not supported by this update",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := validateAWSICRoleSpec("some-role-name", emptyRole, tt.allow, tt.deny)
-			if tt.wantErr {
+			if tt.wantErrContains != "" {
 				require.True(t, trace.IsBadParameter(err))
-				require.Contains(t, err.Error(), "fields this command doesn't manage")
+				require.Contains(t, err.Error(), tt.wantErrContains)
 			} else {
 				require.NoError(t, err)
 			}
@@ -309,11 +333,12 @@ func TestValidateQueriedRole(t *testing.T) {
 	}()
 
 	tests := []struct {
-		name            string
-		presetPrefix    string
-		roleVersion     string
-		allow           types.RoleConditions
-		wantErrContains string
+		name                     string
+		presetPrefix             string
+		roleVersion              string
+		allow                    types.RoleConditions
+		wantErrContains          string
+		wantUnmanagedAllowFields []string
 	}{
 		{
 			name:         "valid standard validator",
@@ -321,10 +346,10 @@ func TestValidateQueriedRole(t *testing.T) {
 			allow:        validStandardAllow,
 		},
 		{
-			name:            "valid standard validator fails when given awsic spec",
-			presetPrefix:    standardRolePrefixName,
-			allow:           validAWSICAllow,
-			wantErrContains: "fields this command doesn't manage",
+			name:                     "valid standard validator fails when given awsic spec",
+			presetPrefix:             standardRolePrefixName,
+			allow:                    validAWSICAllow,
+			wantUnmanagedAllowFields: []string{"account_assignments"},
 		},
 		{
 			name:         "valid awsic validator",
@@ -332,10 +357,10 @@ func TestValidateQueriedRole(t *testing.T) {
 			allow:        validAWSICAllow,
 		},
 		{
-			name:            "valid awsic validator fails when given standard spec",
-			presetPrefix:    awsicRolePrefixName,
-			allow:           validStandardAllow,
-			wantErrContains: "fields this command doesn't manage",
+			name:                     "valid awsic validator fails when given standard spec",
+			presetPrefix:             awsicRolePrefixName,
+			allow:                    validStandardAllow,
+			wantUnmanagedAllowFields: []string{"node_labels", "app_labels"},
 		},
 		{
 			name:         "do nothing if prefix is not handled",
@@ -358,10 +383,16 @@ func TestValidateQueriedRole(t *testing.T) {
 			}
 			deny := emptyRole.Spec.Deny
 			err := validateQueriedRole(tt.presetPrefix, roleName, roleVersion, tt.allow, deny)
-			if tt.wantErrContains != "" {
+			switch {
+			case len(tt.wantUnmanagedAllowFields) > 0:
+				require.True(t, trace.IsBadParameter(err))
+				for _, field := range tt.wantUnmanagedAllowFields {
+					require.Contains(t, err.Error(), field)
+				}
+			case tt.wantErrContains != "":
 				require.True(t, trace.IsBadParameter(err))
 				require.Contains(t, err.Error(), tt.wantErrContains)
-			} else {
+			default:
 				require.NoError(t, err)
 			}
 		})
@@ -370,61 +401,72 @@ func TestValidateQueriedRole(t *testing.T) {
 
 func TestRejectUnknownRoles(t *testing.T) {
 	tests := []struct {
-		name             string
-		updateAccessList func(al *accesslist.AccessList)
-		wantErr          bool
+		name               string
+		updateAccessList   func(al *accesslist.AccessList)
+		wantErrContains    string
+		wantErrContainsAll []string
 	}{
 		{
 			name: "valid empty request",
 		},
 		{
-			name:    "unknown role in preset label",
-			wantErr: true,
+			name: "valid empty grant fields",
 			updateAccessList: func(al *accesslist.AccessList) {
-				al.Metadata.Labels[accesslist.AccessListPresetRolesLabel] += ",custom-role"
+				al.Spec.Grants.Traits = trait.Traits{}
+				al.Spec.Grants.ScopedRoles = []accesslist.ScopedRoleGrant{}
+				al.Spec.OwnerGrants.Traits = trait.Traits{}
+				al.Spec.OwnerGrants.ScopedRoles = []accesslist.ScopedRoleGrant{}
 			},
 		},
 		{
-			name:    "unknown role in member grant",
-			wantErr: true,
+			name: "unknown role in member grant",
 			updateAccessList: func(al *accesslist.AccessList) {
-				al.Spec.Grants.Roles = append(al.Spec.Grants.Roles, "custom-role")
+				al.Spec.Grants.Roles = append(al.Spec.Grants.Roles, "custom-role", "custom-role2")
 			},
+			wantErrContains: "grants roles this command doesn't update: custom-role, custom-role2",
 		},
 		{
-			name:    "unknown role in owner grant",
-			wantErr: true,
+			name: "unknown role in owner grant",
 			updateAccessList: func(al *accesslist.AccessList) {
-				al.Spec.OwnerGrants.Roles = append(al.Spec.Grants.Roles, "custom-role")
+				al.Spec.OwnerGrants.Roles = append(al.Spec.OwnerGrants.Roles, "custom-role", "custom-role2")
 			},
+			wantErrContains: "grants roles this command doesn't update: custom-role, custom-role2",
 		},
 		{
-			name:    "invalid member trait field defined",
-			wantErr: true,
+			name: "invalid member trait field defined",
 			updateAccessList: func(al *accesslist.AccessList) {
 				al.Spec.Grants.Traits = trait.Traits{"offending": []string{"field"}}
 			},
+			wantErrContains: "grant fields not supported by this update: traits",
 		},
 		{
-			name:    "invalid owner trait field defined",
-			wantErr: true,
+			name: "invalid owner trait field defined",
 			updateAccessList: func(al *accesslist.AccessList) {
 				al.Spec.OwnerGrants.Traits = trait.Traits{"offending": []string{"field"}}
 			},
+			wantErrContains: "grant fields not supported by this update: traits",
 		},
 		{
-			name:    "invalid member scoped role field defined",
-			wantErr: true,
+			name: "invalid member scoped role field defined",
 			updateAccessList: func(al *accesslist.AccessList) {
 				al.Spec.Grants.ScopedRoles = []accesslist.ScopedRoleGrant{{Role: "role", Scope: "/"}}
 			},
+			wantErrContains: "grant fields not supported by this update: scoped_roles",
 		},
 		{
-			name:    "invalid owner scoped role field defined",
-			wantErr: true,
+			name: "invalid owner scoped role field defined",
 			updateAccessList: func(al *accesslist.AccessList) {
 				al.Spec.OwnerGrants.ScopedRoles = []accesslist.ScopedRoleGrant{{Role: "role", Scope: "/"}}
 			},
+			wantErrContains: "grant fields not supported by this update: scoped_roles",
+		},
+		{
+			name: "multiple invalid fields",
+			updateAccessList: func(al *accesslist.AccessList) {
+				al.Spec.Grants.Traits = trait.Traits{"offending": []string{"field"}}
+				al.Spec.Grants.ScopedRoles = []accesslist.ScopedRoleGrant{{Role: "role", Scope: "/"}}
+			},
+			wantErrContainsAll: []string{"traits", "scoped_roles"},
 		},
 	}
 
@@ -436,9 +478,64 @@ func TestRejectUnknownRoles(t *testing.T) {
 			}
 
 			err := rejectUnknownGrants(newAl)
-			if tt.wantErr {
+			switch {
+			case len(tt.wantErrContainsAll) > 0:
 				require.True(t, trace.IsBadParameter(err))
-				require.Contains(t, err.Error(), "grants this command doesn't manage")
+				for _, want := range tt.wantErrContainsAll {
+					require.Contains(t, err.Error(), want)
+				}
+			case tt.wantErrContains != "":
+				require.True(t, trace.IsBadParameter(err))
+				require.Contains(t, err.Error(), tt.wantErrContains)
+			default:
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestSupportsRoleVersion(t *testing.T) {
+	tests := []struct {
+		name            string
+		gotVersion      string
+		wantErrContains string
+	}{
+		{
+			name:       "minimum supported version",
+			gotVersion: "v8",
+		},
+		{
+			name:       "default version",
+			gotVersion: types.DefaultRoleVersion,
+		},
+		{
+			name:            "below minimum version",
+			gotVersion:      "v7",
+			wantErrContains: "unsupported version",
+		},
+		{
+			name:            "above default version",
+			gotVersion:      "v9999999999999999999",
+			wantErrContains: "Upgrade your tctl binary",
+		},
+		{
+			name:            "malformed version",
+			gotVersion:      "not-a-version",
+			wantErrContains: "unsupported version",
+		},
+		{
+			name:            "empty version",
+			gotVersion:      "",
+			wantErrContains: "unsupported version",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := supportsRoleVersion(tt.gotVersion, "some-role-name")
+			if tt.wantErrContains != "" {
+				require.True(t, trace.IsBadParameter(err))
+				require.Contains(t, err.Error(), tt.wantErrContains)
 			} else {
 				require.NoError(t, err)
 			}
