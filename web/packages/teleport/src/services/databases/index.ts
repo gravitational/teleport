@@ -18,5 +18,6 @@
 
 import service from './databases';
 
+export * from './principals';
 export * from './types';
 export default service;
