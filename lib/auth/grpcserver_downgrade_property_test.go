@@ -212,3 +212,115 @@ func TestProperty_DowngradeV8_AllowAllPreservesAppAccess(t *testing.T) {
 		}
 	})
 }
+
+// genApps draws a handful of candidate apps as concrete resources, so
+// CheckLabelsMatch can evaluate both the label selector and the label
+// expression against them.
+func genApps(t *rapid.T) []*types.AppV3 {
+	labelSets := rapid.SliceOfN(rapid.Custom(genAppLabels), 1, 8).Draw(t, "app_label_sets")
+	apps := make([]*types.AppV3, 0, len(labelSets))
+	for i, labels := range labelSets {
+		app, err := types.NewAppV3(
+			types.Metadata{Name: fmt.Sprintf("app-%d", i), Labels: labels},
+			types.AppSpecV3{URI: "http://localhost"},
+		)
+		require.NoError(t, err)
+		apps = append(apps, app)
+	}
+	return apps
+}
+
+// TestProperty_DowngradeV8_FailsClosedWithBothSelectors covers the conservative
+// AND-to-OR downgrade. An allow rule matches when both app_labels and
+// app_labels_expression match, while a deny rule matches when either does. The
+// downgrade moves the two selectors to the deny side separately, so the deny
+// evaluates as an OR of what the allow evaluated as an AND. That over-denies,
+// which is accepted because it fails closed: for any v9 role that sets both
+// selectors and is not a pure allow_all, every app the allow rule matched must
+// still be denied after the downgrade. This exercises the wildcard-fallback and
+// expression-combine branches that the single-selector properties do not.
+func TestProperty_DowngradeV8_FailsClosedWithBothSelectors(t *testing.T) {
+	rapid.Check(t, func(t *rapid.T) {
+		allowLabels := genAppLabelSelector(t)
+		allowExpression := rapid.SampledFrom([]string{
+			`labels["vendor"] == "gitlab"`,
+			`labels["env"] == "prod"`,
+			`labels["team"] == "blue"`,
+		}).Draw(t, "allow_expression")
+		denyLabels := rapid.SampledFrom([]types.Labels{nil, {"region": []string{"us"}}}).Draw(t, "deny_labels")
+		denyExpression := rapid.SampledFrom([]string{"", `labels["region"] == "eu"`}).Draw(t, "deny_expression")
+		apps := genApps(t)
+		clientVersion := genPreV9ClientVersion(t)
+
+		role := &types.RoleV6{
+			Kind:     types.KindRole,
+			Metadata: types.Metadata{Name: "dev"},
+			Version:  types.V9,
+			Spec: types.RoleSpecV6{
+				Allow: types.RoleConditions{AppLabels: allowLabels, AppLabelsExpression: allowExpression, AppResources: []types.AppResource{{}}},
+				Deny:  types.RoleConditions{AppLabels: denyLabels, AppLabelsExpression: denyExpression},
+			},
+		}
+
+		got := auth.MaybeDowngradeRoleVersionToV8(context.Background(), role, clientVersion)
+		require.Equal(t, types.V8, got.GetVersion())
+		require.Empty(t, got.Spec.Allow.AppLabels)
+		require.Empty(t, got.Spec.Allow.AppLabelsExpression)
+
+		allowMatchers := types.LabelMatchers{Labels: allowLabels, Expression: allowExpression}
+		denyMatchers := types.LabelMatchers{Labels: got.Spec.Deny.AppLabels, Expression: got.Spec.Deny.AppLabelsExpression}
+		for _, app := range apps {
+			allowed, _, err := services.CheckLabelsMatch(types.Allow, allowMatchers, "", nil, app, false)
+			require.NoError(t, err)
+			if !allowed {
+				continue
+			}
+			denied, _, err := services.CheckLabelsMatch(types.Deny, denyMatchers, "", nil, app, false)
+			require.NoError(t, err)
+			require.True(t, denied,
+				"app allowed by (labels AND expression) must be denied after downgrade: app=%v allowLabels=%v allowExpr=%q resultDeny=%v resultDenyExpr=%q",
+				app.GetAllLabels(), allowLabels, allowExpression, got.Spec.Deny.AppLabels, got.Spec.Deny.AppLabelsExpression)
+		}
+	})
+}
+
+// TestDowngradeV8_ConservativeOverDeny pins the accepted over-deny in the
+// AND-to-OR downgrade. A v9 role that allows apps matching a wildcard label set
+// narrowed by an expression grants only the apps the expression admits.
+// Downgrading moves the wildcard labels and the expression to the deny side
+// separately, and a deny rule is greedy, so the wildcard labels alone deny
+// every app, including apps outside the allow set. This is intentional: the
+// downgrade fails closed and never grants access. The roles.mdx mixed-version
+// note documents it for pre-v19 agents.
+func TestDowngradeV8_ConservativeOverDeny(t *testing.T) {
+	role := &types.RoleV6{
+		Kind:     types.KindRole,
+		Metadata: types.Metadata{Name: "dev"},
+		Version:  types.V9,
+		Spec: types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				AppLabels:           types.Labels{types.Wildcard: []string{types.Wildcard}},
+				AppLabelsExpression: `labels["env"] == "prod"`,
+				AppResources:        []types.AppResource{{}},
+			},
+		},
+	}
+	got := auth.MaybeDowngradeRoleVersionToV8(context.Background(), role, semver.New("18.1.2"))
+	denyMatchers := types.LabelMatchers{Labels: got.Spec.Deny.AppLabels, Expression: got.Spec.Deny.AppLabelsExpression}
+
+	assertDenied := func(t *testing.T, labels map[string]string) {
+		t.Helper()
+		app, err := types.NewAppV3(types.Metadata{Name: "app", Labels: labels}, types.AppSpecV3{URI: "http://localhost"})
+		require.NoError(t, err)
+		denied, _, err := services.CheckLabelsMatch(types.Deny, denyMatchers, "", nil, app, false)
+		require.NoError(t, err)
+		require.True(t, denied)
+	}
+
+	// An app the role allowed is denied, so the downgrade fails closed on its
+	// own apps.
+	assertDenied(t, map[string]string{"env": "prod"})
+	// An app the role never allowed is also denied, because the wildcard labels
+	// on the deny side match it. This is the accepted conservative over-deny.
+	assertDenied(t, map[string]string{"env": "dev"})
+}
