@@ -56,8 +56,6 @@ Let `<major>` be `cluster_version`'s major version.
 For Teleport 18, set `<provider_version>` to `>= 18.8.3, < 19.0.0` for AWS Organization discovery and `>= 18.8.0, < 19.0.0` otherwise.
 For other majors, set it to `~> <major>.0`.
 
-<!-- TODO(marco): update with the actual release of the module
-PR: https://github.com/gravitational/teleport/pull/68704 -->
 Set `<module_version>` to `>= 18.10.2, < 19.0.0` for AWS Organization discovery on Teleport 18.
 Otherwise, set it to `~> <major>.0`.
 
