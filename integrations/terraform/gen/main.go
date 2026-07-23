@@ -192,6 +192,9 @@ type RequestWrapper struct {
 	UpdateRequest string
 	// DeleteRequest is the type name for the Delete request - ex) "DeleteScopedRoleRequest".
 	DeleteRequest string
+	// OmitNameInGetDeleteRequest skips passing Name in Get/Delete requests
+	// for singleton resources whose request types have no Name field.
+	OmitNameInGetDeleteRequest bool
 }
 
 func (p *payload) CheckAndSetDefaults() error {
@@ -892,6 +895,37 @@ var (
 		ForceSetKind: "apitypes.KindVnetConfig",
 	}
 
+	beamsConfig = payload{
+		Name:                  "BeamsConfig",
+		TypeName:              "BeamsConfig",
+		VarName:               "beamsConfig",
+		GetMethod:             "BeamsConfigServiceClient().GetBeamsConfig",
+		CreateMethod:          "BeamsConfigServiceClient().CreateBeamsConfig",
+		UpdateMethod:          "BeamsConfigServiceClient().UpdateBeamsConfig",
+		DeleteMethod:          "BeamsConfigServiceClient().DeleteBeamsConfig",
+		ID:                    "apitypes.MetaNameBeamsConfig",
+		Kind:                  "beams_config",
+		HasStaticID:           false,
+		ProtoPackage:          "beamsv1",
+		ProtoPackagePath:      "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1",
+		SchemaPackage:         "schemav1",
+		SchemaPackagePath:     "github.com/gravitational/teleport/integrations/terraform/tfschema/beams/v1",
+		TerraformResourceType: "teleport_beams_config",
+		IsPlainStruct:         true,
+		PropagatedFields:      []string{"Metadata.Revision"},
+		DefaultName:           "apitypes.MetaNameBeamsConfig",
+		ExtraImports:          []string{"apitypes \"github.com/gravitational/teleport/api/types\""},
+		ForceSetKind:          "apitypes.KindBeamsConfig",
+		RequestWrapper: &RequestWrapper{
+			RequestResourceField:       "BeamsConfig",
+			GetRequest:                 "GetBeamsConfigRequest",
+			CreateRequest:              "CreateBeamsConfigRequest",
+			UpdateRequest:              "UpdateBeamsConfigRequest",
+			DeleteRequest:              "DeleteBeamsConfigRequest",
+			OmitNameInGetDeleteRequest: true,
+		},
+	}
+
 	integration = payload{
 		Name:                   "Integration",
 		VarName:                "integration",
@@ -1351,6 +1385,8 @@ func genTFSchema() {
 	generateDataSource(discoveryConfig, pluralDataSource)
 	generateResource(vnetConfig, singularResource)
 	generateDataSource(vnetConfig, singularDataSource)
+	generateResource(beamsConfig, singularResource)
+	generateDataSource(beamsConfig, singularDataSource)
 	generateResource(integration, pluralResource)
 	generateDataSource(integration, pluralDataSource)
 	generateResource(appAuthConfig, pluralResource)

@@ -39,6 +39,7 @@ var testModules = &modulestest.Modules{
 			entitlements.SAML:        {Enabled: true},
 			entitlements.DeviceTrust: {Enabled: true},
 			entitlements.Policy:      {Enabled: true},
+			entitlements.Beams:       {Enabled: true},
 		},
 	},
 }

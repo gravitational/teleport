@@ -23,7 +23,9 @@ import (
 
 	"github.com/gravitational/trace"
 	"google.golang.org/grpc"
+	"google.golang.org/protobuf/types/known/emptypb"
 
+	beamservicev1 "github.com/gravitational/teleport/e/api/beamservice/v1"
 	"github.com/gravitational/teleport/e/api/cloud"
 	cloudv1 "github.com/gravitational/teleport/e/api/cloud/v1"
 	eauth "github.com/gravitational/teleport/e/lib/auth"
@@ -37,6 +39,9 @@ func init() {
 			eauth.Config{
 				License: eauth.ValidLicense{},
 				Modules: mod,
+				Beams: eauth.BeamsConfig{
+					ComputeServiceClient: &fakeBeamsComputeClient{},
+				},
 			},
 		)
 		if err != nil {
@@ -121,4 +126,18 @@ func (f *fakeCloudClient) DeleteClientIPRestriction(_ context.Context, _ *cloudv
 	defer f.mu.Unlock()
 	f.cir = nil
 	return &cloudv1.DeleteClientIPRestrictionResponse{}, nil
+}
+
+// fakeBeamsComputeClient is a no-op implementation of
+// BeamsOrchestratorServiceClient. It is only used to satisfy the non-nil check
+// in registerBeamsService so that the BeamsConfig gRPC service gets registered
+// in tests. The compute RPCs are never called by BeamsConfig CRUD.
+type fakeBeamsComputeClient struct{}
+
+func (*fakeBeamsComputeClient) ProvisionBeam(_ context.Context, _ *beamservicev1.ProvisionBeamRequest, _ ...grpc.CallOption) (*beamservicev1.ProvisionBeamResponse, error) {
+	return nil, trace.NotImplemented("fake")
+}
+
+func (*fakeBeamsComputeClient) DestroyBeam(_ context.Context, _ *beamservicev1.DestroyBeamRequest, _ ...grpc.CallOption) (*emptypb.Empty, error) {
+	return nil, trace.NotImplemented("fake")
 }

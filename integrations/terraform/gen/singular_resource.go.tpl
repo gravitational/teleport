@@ -122,7 +122,9 @@ func (r resourceTeleport{{.Name}}) Create(ctx context.Context, req tfsdk.CreateR
 {{- if .RequestWrapper}}
 
 	{{.VarName}}BeforeResp, err := r.p.Client.{{.GetMethod}}(ctx, &{{.ProtoPackage}}.{{.RequestWrapper.GetRequest}}{
+		{{- if not .RequestWrapper.OmitNameInGetDeleteRequest}}
 		Name: {{.DefaultName}},
+		{{- end}}
 		{{- if .DefaultSubKind}}
 		SubKind: {{.VarName}}.SubKind,
 		{{- end}}
@@ -201,7 +203,9 @@ func (r resourceTeleport{{.Name}}) Create(ctx context.Context, req tfsdk.CreateR
 		tries = tries + 1
 	{{- if .RequestWrapper}}
 		{{.VarName}}GetResp, getErr := r.p.Client.{{.GetMethod}}(ctx, &{{.ProtoPackage}}.{{.RequestWrapper.GetRequest}}{
+			{{- if not .RequestWrapper.OmitNameInGetDeleteRequest}}
 			Name: {{.DefaultName}},
+			{{- end}}
 			{{- if .DefaultSubKind}}
 			SubKind: {{.VarName}}.SubKind,
 			{{- end}}
@@ -310,7 +314,9 @@ func (r resourceTeleport{{.Name}}) Read(ctx context.Context, req tfsdk.ReadResou
 {{- if .RequestWrapper}}
 
 	{{.VarName}}GetResp, err := r.p.Client.{{.GetMethod}}(ctx, &{{.ProtoPackage}}.{{.RequestWrapper.GetRequest}}{
+		{{- if not .RequestWrapper.OmitNameInGetDeleteRequest}}
 		Name: {{.DefaultName}},
+		{{- end}}
 		{{- if .DefaultSubKind}}
 		SubKind: subKind.Value,
 		{{- end}}
@@ -406,7 +412,9 @@ func (r resourceTeleport{{.Name}}) Update(ctx context.Context, req tfsdk.UpdateR
 {{- if .RequestWrapper}}
 
 	{{.VarName}}BeforeResp, err := r.p.Client.{{.GetMethod}}(ctx, &{{.ProtoPackage}}.{{.RequestWrapper.GetRequest}}{
+		{{- if not .RequestWrapper.OmitNameInGetDeleteRequest}}
 		Name: {{.DefaultName}},
+		{{- end}}
 		{{- if .DefaultSubKind}}
 		SubKind: {{.VarName}}.SubKind,
 		{{- end}}
@@ -473,7 +481,9 @@ func (r resourceTeleport{{.Name}}) Update(ctx context.Context, req tfsdk.UpdateR
 		tries = tries + 1
 	{{- if .RequestWrapper}}
 		{{.VarName}}GetResp, getErr := r.p.Client.{{.GetMethod}}(ctx, &{{.ProtoPackage}}.{{.RequestWrapper.GetRequest}}{
+			{{- if not .RequestWrapper.OmitNameInGetDeleteRequest}}
 			Name: {{.DefaultName}},
+			{{- end}}
 			{{- if .DefaultSubKind}}
 			SubKind: {{.VarName}}.SubKind,
 			{{- end}}
@@ -548,7 +558,9 @@ func (r resourceTeleport{{.Name}}) Delete(ctx context.Context, req tfsdk.DeleteR
 {{- end}}
 {{- if .RequestWrapper}}
 	_, err := r.p.Client.{{.DeleteMethod}}(ctx, &{{.ProtoPackage}}.{{.RequestWrapper.DeleteRequest}}{
+		{{- if not .RequestWrapper.OmitNameInGetDeleteRequest}}
 		Name: {{.DefaultName}},
+		{{- end}}
 		{{- if .DefaultSubKind}}
 		SubKind: subKind.Value,
 		{{- end}}
@@ -574,7 +586,9 @@ func (r resourceTeleport{{.Name}}) ImportState(ctx context.Context, req tfsdk.Im
 {{- end}}
 {{- if .RequestWrapper}}
 	{{.VarName}}GetResp, err := r.p.Client.{{.GetMethod}}(ctx, &{{.ProtoPackage}}.{{.RequestWrapper.GetRequest}}{
+		{{- if not .RequestWrapper.OmitNameInGetDeleteRequest}}
 		Name: {{.DefaultName}},
+		{{- end}}
 		{{- if .DefaultSubKind}}
 		SubKind: subKind,
 		{{- end}}
