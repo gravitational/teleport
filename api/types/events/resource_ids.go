@@ -96,6 +96,24 @@ func ToEventResourceAccessID(in types.ResourceAccessID) ResourceAccessID {
 				LoginsPreview: previewStrings(logins, MaxAuditRoleARNPreview),
 			},
 		}
+	case *types.ResourceConstraints_Database:
+		if d.Database == nil {
+			out.Constraints = &ResourceAccessID_UnknownConstraints{UnknownConstraints: &UnknownConstraints{}}
+			break
+		}
+		dbNames := d.Database.Names
+		dbUsers := d.Database.Users
+		dbRoles := d.Database.Roles
+		out.Constraints = &ResourceAccessID_Database{
+			Database: &DatabaseConstraints{
+				NamesCount: uint32(len(dbNames)),
+				NamesPreview: previewStrings(dbNames, MaxAuditRoleARNPreview),
+				UsersCount:   uint32(len(dbUsers)),
+				UsersPreview: previewStrings(dbUsers, MaxAuditRoleARNPreview),
+				RolesCount:   uint32(len(dbRoles)),
+				RolesPreview: previewStrings(dbRoles, MaxAuditRoleARNPreview),
+			},
+		}
 	default:
 		out.Constraints = &ResourceAccessID_UnknownConstraints{UnknownConstraints: &UnknownConstraints{}}
 	}

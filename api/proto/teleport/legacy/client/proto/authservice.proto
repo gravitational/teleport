@@ -2352,11 +2352,40 @@ message PaginatedResource {
   // RequiresRequest indicates if a resource requires an access request to access. Only populated with requests
   // that IncludeRequestable.
   bool RequiresRequest = 14 [(gogoproto.jsontag) = "requires_request,omitempty"];
+  // Principals holds the resource's principals, one entry per dimension
+  // (SSH logins, AWS role ARNs), split into granted and requestable.
+  repeated ResourcePrincipalSet Principals = 18 [(gogoproto.jsontag) = "principals,omitempty"];
 
   reserved 4;
   reserved "KubeService";
   reserved 11;
   reserved "AppServerOrSAMLIdPServiceProvider";
+}
+
+// ResourcePrincipalSet is one principal dimension of a resource.
+message ResourcePrincipalSet {
+  // Kind is the dimension's inline constraint key ("logins", "role_arns").
+  string Kind = 1 [(gogoproto.jsontag) = "kind"];
+  // Granted holds values usable without an access request.
+  repeated string Granted = 2 [(gogoproto.jsontag) = "granted,omitempty"];
+  // Requestable holds values usable only via access request.
+  repeated string Requestable = 3 [(gogoproto.jsontag) = "requestable,omitempty"];
+  // ByRole optionally attributes values to the roles granting them, for kinds
+  // whose dimensions must be co-granted by a single role. Each entry holds
+  // the subset of this dimension's values one role grants; a value granted
+  // by several roles repeats in each.
+  repeated RolePrincipalValues ByRole = 4 [(gogoproto.jsontag) = "by_role,omitempty"];
+}
+
+// RolePrincipalValues is the subset of one principal dimension's values
+// granted by a single role.
+message RolePrincipalValues {
+  // Role is the granting role's name.
+  string Role = 1 [(gogoproto.jsontag) = "role"];
+  // RequiresRequest is set when the role is not held and must be requested.
+  bool RequiresRequest = 2 [(gogoproto.jsontag) = "requires_request,omitempty"];
+  // Values are the principals the role grants for the parent dimension.
+  repeated string Values = 3 [(gogoproto.jsontag) = "values,omitempty"];
 }
 
 // ListUnifiedResourcesRequest is a request to receive a paginated list of unified resources

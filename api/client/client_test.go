@@ -749,6 +749,17 @@ func TestGetUnifiedResourcesWithLogins(t *testing.T) {
 				{
 					Resource: &proto.PaginatedResource_Node{Node: &types.ServerV2{}},
 					Logins:   []string{"alice", "bob"},
+					Principals: []*proto.ResourcePrincipalSet{
+						{
+							Kind:        types.PrincipalKindLogins,
+							Granted:     []string{"alice"},
+							Requestable: []string{"bob"},
+							ByRole: []*proto.RolePrincipalValues{
+								{Role: "access", Values: []string{"alice"}},
+								{Role: "editor", RequiresRequest: true, Values: []string{"bob"}},
+							},
+						},
+					},
 				},
 				{
 					Resource: &proto.PaginatedResource_WindowsDesktop{WindowsDesktop: &types.WindowsDesktopV3{}},
@@ -757,6 +768,9 @@ func TestGetUnifiedResourcesWithLogins(t *testing.T) {
 				{
 					Resource: &proto.PaginatedResource_AppServer{AppServer: &types.AppServerV3{}},
 					Logins:   []string{"llama"},
+					Principals: []*proto.ResourcePrincipalSet{
+						{Kind: types.PrincipalKindRoleARNs, Granted: []string{"llama"}},
+					},
 				},
 			},
 		},
@@ -773,14 +787,35 @@ func TestGetUnifiedResourcesWithLogins(t *testing.T) {
 
 	require.Len(t, resources, len(clt.resp.Resources))
 
+	principalKinds := func(sets []types.ResourcePrincipalSet) []*proto.ResourcePrincipalSet {
+		if len(sets) == 0 {
+			return nil
+		}
+		out := make([]*proto.ResourcePrincipalSet, 0, len(sets))
+		for _, s := range sets {
+			ps := &proto.ResourcePrincipalSet{Kind: s.Kind, Granted: s.Granted, Requestable: s.Requestable}
+			for _, br := range s.ByRole {
+				ps.ByRole = append(ps.ByRole, &proto.RolePrincipalValues{
+					Role:            br.Role,
+					RequiresRequest: br.RequiresRequest,
+					Values:          br.Values,
+				})
+			}
+			out = append(out, ps)
+		}
+		return out
+	}
 	for _, enriched := range resources {
 		switch enriched.ResourceWithLabels.(type) {
 		case *types.ServerV2:
 			assert.Equal(t, enriched.Logins, clt.resp.Resources[0].Logins)
+			assert.Equal(t, principalKinds(enriched.Principals), clt.resp.Resources[0].Principals)
 		case *types.WindowsDesktopV3:
 			assert.Equal(t, enriched.Logins, clt.resp.Resources[1].Logins)
+			assert.Equal(t, principalKinds(enriched.Principals), clt.resp.Resources[1].Principals)
 		case *types.AppServerV3:
 			assert.Equal(t, enriched.Logins, clt.resp.Resources[2].Logins)
+			assert.Equal(t, principalKinds(enriched.Principals), clt.resp.Resources[2].Principals)
 		}
 	}
 }
@@ -1064,6 +1099,51 @@ func clientAccessRequest(name, user string) *types.AccessRequestV3 {
 			User: user,
 		},
 	}
+}
+
+func TestConvertEnrichedResourceDatabasePrincipals(t *testing.T) {
+	t.Parallel()
+
+	enriched, err := convertEnrichedResource(&proto.PaginatedResource{
+		Resource: &proto.PaginatedResource_DatabaseServer{DatabaseServer: &types.DatabaseServerV3{}},
+		Principals: []*proto.ResourcePrincipalSet{
+			{
+				Kind:        types.PrincipalKindDBUsers,
+				Granted:     []string{"reader"},
+				Requestable: []string{"admin"},
+				ByRole: []*proto.RolePrincipalValues{
+					{Role: "db-read", Values: []string{"reader"}},
+					{Role: "db-admin", RequiresRequest: true, Values: []string{"admin"}},
+				},
+			},
+			{
+				Kind:    types.PrincipalKindDBNames,
+				Granted: []string{"reports"},
+				ByRole: []*proto.RolePrincipalValues{
+					{Role: "db-read", Values: []string{"reports"}},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, []types.ResourcePrincipalSet{
+		{
+			Kind:        types.PrincipalKindDBUsers,
+			Granted:     []string{"reader"},
+			Requestable: []string{"admin"},
+			ByRole: []types.RolePrincipalValues{
+				{Role: "db-read", Values: []string{"reader"}},
+				{Role: "db-admin", RequiresRequest: true, Values: []string{"admin"}},
+			},
+		},
+		{
+			Kind:    types.PrincipalKindDBNames,
+			Granted: []string{"reports"},
+			ByRole: []types.RolePrincipalValues{
+				{Role: "db-read", Values: []string{"reports"}},
+			},
+		},
+	}, enriched.Principals)
 }
 
 func TestWindowsCAFallback(t *testing.T) {
