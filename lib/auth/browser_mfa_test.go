@@ -894,8 +894,8 @@ func TestVerifyBrowserMFASession(t *testing.T) {
 		}
 
 		mad, err := env.auth.VerifyBrowserMFASession(ctx, env.webauthnUser.GetName(), "expired-session", &webauthnpb.CredentialAssertionResponse{}, reuseExt)
-		require.Nil(t, mad)
-		require.ErrorIs(t, err, &mfa.ErrExpiredReusableMFAResponse)
+		assert.ErrorIs(t, err, &mfa.ErrExpiredReusableMFAResponse)
+		assert.Nil(t, mad)
 	})
 
 	t.Run("access denied when user has no webauthn devices", func(t *testing.T) {
