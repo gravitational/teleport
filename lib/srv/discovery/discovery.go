@@ -852,7 +852,7 @@ func (s *Server) awsServerFetchersFromMatchers(ctx context.Context, matchers []t
 // azureServerFetchersFromMatchers converts Matchers into a set of Azure Servers Fetchers.
 func (s *Server) azureServerFetchersFromMatchers(matchers []types.AzureMatcher, discoveryConfigName string) []server.Fetcher[*server.AzureInstances] {
 	serverMatchers, _ := splitMatchers(matchers, func(matcherType string) bool {
-		return matcherType == types.AzureMatcherVM
+		return matcherType == types.AzureMatcherVM || matcherType == types.AzureMatcherWindowsVM
 	})
 
 	var allFetchers []server.Fetcher[*server.AzureInstances]
@@ -1082,7 +1082,7 @@ func (s *Server) getAzureClients(ctx context.Context, integration string) (azure
 func (s *Server) initAzureWatchers(ctx context.Context, matchers []types.AzureMatcher) error {
 	// Filter out VM matchers
 	_, otherMatchers := splitMatchers(matchers, func(matcherType string) bool {
-		return matcherType == types.AzureMatcherVM
+		return matcherType == types.AzureMatcherVM || matcherType == types.AzureMatcherWindowsVM
 	})
 
 	// Database fetchers were added in databaseFetchersFromMatchers.
