@@ -1,0 +1,290 @@
+---
+title: GCP Database Discovery
+sidebar_label: GCP
+description: Configure Teleport database discovery for Google Cloud.
+tags:
+ - how-to
+ - zero-trust
+ - infrastructure-identity
+ - google-cloud
+page_type: how-to
+---
+
+After you complete this guide, Teleport automatically discovers and registers
+Cloud SQL for PostgreSQL and MySQL instances and proxies connections to them.
+Configure Teleport RBAC and database privileges separately.
+
+For manual enrollment guides, including Cloud Spanner and AlloyDB, see
+[Enroll Google Cloud Databases](../../database-access/enrollment/google-cloud/google-cloud.mdx).
+
+## How it works
+
+(!docs/pages/includes/discovery/step-description.mdx serviceName="Database" resourceDesc="database" resourceKind="db"!)
+
+## Prerequisites
+
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
+- A Google Cloud project with one or more Cloud SQL instances.
+- Permission to create service accounts and grant IAM roles in that project.
+- A host to run the Teleport Discovery Service.
+- A host, such as a Compute Engine instance, to run the Teleport Database
+  Service. The Database Service must have network connectivity to your Cloud
+  SQL instances; the Discovery Service does not.
+- Both hosts must be able to reach the Teleport Proxy and Google Cloud APIs over
+  HTTPS.
+- (!docs/pages/includes/tctl.mdx!)
+
+## Step 1/8. Install Teleport
+
+Install Teleport on the host or hosts that will run the Teleport Discovery
+Service and Teleport Database Service.
+
+(!docs/pages/includes/install-linux.mdx!)
+
+## Step 2/8. Grant the Discovery Service permission to list instances
+
+Run the Discovery Service with a Google Cloud service account that has the
+predefined
+[Cloud SQL Viewer](https://cloud.google.com/iam/docs/roles-permissions/cloudsql#cloudsql.viewer)
+role (`roles/cloudsql.viewer`).
+
+Teleport uses
+[Application Default Credentials](https://cloud.google.com/docs/authentication/application-default-credentials)
+to authenticate to Google Cloud. On Compute Engine,
+[attach the service account](https://cloud.google.com/compute/docs/instances/change-service-account)
+to the VM so Teleport can use its ambient credentials. On other platforms, use
+[Workload Identity Federation](https://cloud.google.com/iam/docs/workload-identity-federation).
+
+## Step 3/8. Deploy the Discovery Service
+
+### Create a Teleport config file
+
+The following configuration uses a shared-secret join token. On Compute Engine,
+you can instead use the
+[GCP join method](../../../installation/agents/gcp.mdx) to join without a
+shared secret.
+
+Create a `teleport.yaml` config file on the host that will run the Discovery
+Service:
+
+```yaml
+version: v3
+teleport:
+  join_params:
+    token_name: "/tmp/token"
+    method: token
+  proxy_server: "<Var name="teleport.example.com:443"/>"
+auth_service:
+  enabled: false
+proxy_service:
+  enabled: false
+ssh_service:
+  enabled: false
+discovery_service:
+  enabled: true
+  discovery_group: "<Var name="gcp-prod"/>"
+```
+
+This enables the `discovery_service` and joins it to your Teleport cluster.
+
+(!docs/pages/includes/discovery/discovery-group.mdx!)
+
+### Generate a join token
+
+(!docs/pages/includes/tctl-token.mdx serviceName="Discovery" tokenType="discovery" tokenFile="/tmp/token" !)
+
+### Start the Discovery Service
+
+(!docs/pages/includes/start-teleport.mdx service="the Discovery Service"!)
+
+## Step 4/8. Configure Cloud SQL discovery
+
+Create a file named `discovery-cloudsql.yaml` with the same `discovery_group`
+you configured above:
+
+```yaml
+kind: discovery_config
+version: v1
+metadata:
+  name: cloudsql-discovery
+spec:
+  discovery_group: "<Var name="gcp-prod"/>"
+  gcp:
+    - types: ["cloudsql"]
+      # The Google Cloud projects to search. Use ["*"] to search every project
+      # the Discovery Service service account can access.
+      project_ids: ["<Var name="my-project"/>"]
+      # The Google Cloud regions to search. Use ["*"] to search all regions.
+      # For Cloud SQL, locations must be regions (e.g. "us-central1"), not zones.
+      locations: ["<Var name="us-central1"/>"]
+      # Optional selector matched against imported user labels and Cloud SQL
+      # metadata such as engine, region, and endpoint type. Defaults to a
+      # wildcard that matches every instance.
+      labels:
+        "*": "*"
+```
+
+Create the `discovery_config`:
+
+```code
+$ tctl create -f discovery-cloudsql.yaml
+```
+
+Discovery runs every five minutes by default, so matching instances can take up
+to five minutes to appear as Teleport `db` resources. The Discovery Service
+skips instances that are unsupported or unavailable or that expose no usable
+connection endpoint.
+
+## Step 5/8. List registered databases
+
+<Admonition type="info">
+At this stage, `tctl get db` lists discovered database resources. A database
+appears in `tsh db ls` or `tctl db ls` only after a Database Service matches it.
+</Admonition>
+
+Verify that the Discovery Service has created `db` resources for the instances
+you expect:
+
+```code
+$ tctl get db
+```
+
+To check for a specific database:
+
+```code
+$ tctl get db/<Var name="database-name"/>
+```
+
+If you do not see the databases you expect, refer to
+[Discovery Service troubleshooting](#discovery-service-troubleshooting).
+
+<details>
+<summary>Discovered database names</summary>
+
+Each discovered database is named
+`<instance>-cloudsql-<region>-<project>`, for example
+`my-postgres-cloudsql-us-central1-my-project`. The original instance name is
+preserved in the `teleport.internal/discovered-name` label when Teleport adds a
+suffix.
+
+To use a custom name, set the Cloud SQL instance's `teleport-database-name` user
+label. Teleport uses the value without a suffix if it starts with a letter,
+contains only letters, digits, and hyphens, and does not end with a hyphen.
+
+For the labels applied to discovered databases, see the
+[Google Cloud database labels reference](../reference/labels.mdx#databases).
+
+</details>
+
+## Step 6/8. Grant the Database Service permission to connect
+
+Run the Database Service with a Google Cloud service account that has the
+predefined
+[Cloud SQL Client](https://cloud.google.com/iam/docs/roles-permissions/cloudsql#cloudsql.client)
+role (`roles/cloudsql.client`).
+
+Provide the Database Service host with the service account credentials using
+the method from Step 2.
+
+## Step 7/8. Deploy the Database Service
+
+### Configure database connectivity
+
+The Database Service proxies connections to Cloud SQL instances, so it must be
+able to reach the endpoint registered by the Discovery Service:
+
+<Admonition type="info" title="Endpoint selection">
+When an instance has multiple endpoints, Teleport selects the first available
+in this order: public, private (PSA), then PSC. To override this selection, set
+the Cloud SQL instance's `teleport-database-endpoint-type` user label to
+`public`, `private`, or `psc`. Teleport does not try another endpoint type when
+an override is set.
+</Admonition>
+
+- **Public IP**: the Database Service host needs outbound access to the
+  instance's public IP, and its egress IP address must be in the instance's
+  authorized networks.
+- **Private Service Access (PSA)**: run the Database Service where it can route
+  to the instance's private IP, typically in the VPC network configured for the
+  instance.
+- **Private Service Connect (PSC)**: run the Database Service where it can reach
+  the instance's PSC endpoint.
+
+### Create a Teleport config file
+
+The following configuration uses a shared-secret join token. On Compute Engine,
+you can instead use the
+[GCP join method](../../../installation/agents/gcp.mdx) to join without a
+shared secret.
+
+Create a `teleport.yaml` config file on the host that will run the Database
+Service:
+
+```yaml
+version: v3
+teleport:
+  join_params:
+    token_name: "/tmp/token"
+    method: token
+  proxy_server: "<Var name="teleport.example.com:443"/>"
+auth_service:
+  enabled: false
+proxy_service:
+  enabled: false
+ssh_service:
+  enabled: false
+db_service:
+  enabled: true
+  resources:
+    - labels:
+        "teleport.dev/origin": "cloud"
+        "teleport.dev/cloud": "GCP"
+        "teleport.dev/discovery-type": "cloudsql"
+        "project-id": "<Var name="my-project"/>"
+        "region": "<Var name="us-central1"/>"
+```
+
+The Discovery Service adds the label `teleport.dev/origin: cloud` to every
+database it registers. In this example, `db_service.resources` uses that label
+and the other selectors to match auto-discovered Cloud SQL databases in
+<Var name="my-project"/> and <Var name="us-central1"/>. For each matching `db`
+resource, the Database Service publishes a short-lived `db_server` resource.
+
+(!docs/pages/includes/discovery/db-label-warning.mdx!)
+
+### Generate a join token
+
+(!docs/pages/includes/tctl-token.mdx serviceName="Database" tokenType="db" tokenFile="/tmp/token" !)
+
+### Start the Database Service
+
+(!docs/pages/includes/start-teleport.mdx service="the Database Service"!)
+
+## Step 8/8. List database servers
+
+Confirm that the Database Service has registered servers for the discovered
+databases:
+
+```code
+$ tctl db ls teleport.dev/origin=cloud,teleport.dev/cloud=GCP,teleport.dev/discovery-type=cloudsql,project-id=<Var name="my-project"/>,region=<Var name="us-central1"/>
+```
+
+If the expected databases are missing, refer to
+[Database Service troubleshooting](#database-service-troubleshooting).
+
+## Troubleshooting
+
+(!docs/pages/includes/discovery/discovery-service-troubleshooting.mdx resourceKind="database" tctlResource="db" cloud="GCP"!)
+
+(!docs/pages/includes/discovery/database-service-troubleshooting.mdx!)
+
+## Next steps
+
+- Configure user access with the
+  [Google Cloud enrollment guides](../../database-access/enrollment/google-cloud/google-cloud.mdx).
+- Refer to the
+  [Google Cloud database labels reference](../reference/labels.mdx#databases)
+  for the full set of imported and generated labels.
+- Learn about
+  [Dynamic Database Registration](../../database-access/guides/dynamic-registration.mdx).
