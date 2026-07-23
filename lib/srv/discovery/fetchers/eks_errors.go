@@ -26,6 +26,8 @@ import (
 )
 
 const (
+	// EKSDiscoveryOperationListClusters identifies cluster enumeration in one region.
+	EKSDiscoveryOperationListClusters = "eks:ListClusters"
 	// EKSDiscoveryOperationDescribeCluster identifies discovery of one known cluster.
 	EKSDiscoveryOperationDescribeCluster = "eks:DescribeCluster"
 )

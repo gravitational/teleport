@@ -182,7 +182,7 @@ func TestEKSFetcher(t *testing.T) {
 			wantErr: require.NoError,
 		},
 		{
-			name: "per-region failure does not abort matcher",
+			name: "list clusters permission failure does not abort other regions",
 			args: args{
 				regions:      []string{"us-east-1", "eu-west-1"},
 				filterLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
@@ -191,8 +191,15 @@ func TestEKSFetcher(t *testing.T) {
 					"eu-west-1": &mockEKSAPI{clusters: region2Clusters},
 				},
 			},
-			want:    eksClustersToResources(t, region2Clusters...),
-			wantErr: require.NoError,
+			want: eksClustersToResources(t, region2Clusters...),
+			wantErr: func(t require.TestingT, err error, _ ...any) {
+				require.Error(t, err)
+				permissionErrors := EKSDiscoveryPermissionErrors(err)
+				require.Len(t, permissionErrors, 1)
+				require.Equal(t, EKSDiscoveryOperationListClusters, permissionErrors[0].Operation)
+				require.Equal(t, "us-east-1", permissionErrors[0].Region)
+				require.Empty(t, permissionErrors[0].Cluster)
+			},
 		},
 		{
 			name: "per-cluster failure does not abort region",
