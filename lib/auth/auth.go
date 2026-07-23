@@ -8671,7 +8671,7 @@ func (a *Server) validateMFAAuthResponseInternal(
 }
 
 func (a *Server) expiredReusableMFAError(ctx context.Context, err error, requiredExtensions *mfav1.ChallengeExtensions) error {
-	if trace.IsNotFound(err) && requiredExtensions.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES {
+	if requiredExtensions.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES && trace.IsNotFound(err) {
 		a.logger.DebugContext(ctx, "Reusable MFA response validation failed and possibly expired", "error", err)
 		return trace.Wrap(&mfa.ErrExpiredReusableMFAResponse)
 	}
