@@ -106,12 +106,16 @@ jobs:
           app-id: ${{ env.REVIEWERS_APP_ID }}
           private-key: ${{ env.REVIEWERS_PRIVATE_KEY }}
 
+      - name: Clear runtime values
+        id: clear_kvstore_env
+        run: truncate -s 0 $GITHUB_ENV
+
       - name: Check out shared-workflows
         uses: actions/checkout@v6
         with:
           repository: gravitational/shared-workflows
           path: shared-workflows
-          ref: 6f388765b8ce993721502083c74cb9af1fc5658f
+          ref: 986f92841a4f032e262477e5bb15f214d50b1015 # workflows/v0.0.6
 
       - name: Install Go
         uses: actions/setup-go@faf52423ec0d44c58f68e83b614bfcd99dded66f # v6.0.0
