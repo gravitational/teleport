@@ -150,13 +150,15 @@ apps.
 Only v9-aware agents enforce this. For agents running Teleport 18 or
 earlier, the Auth Service serves a downgraded v8 copy of each role. With
 `allow_all: true`, the copy grants exactly the v8 access. Without it, the
-copy loses all allow `app_labels` and `app_labels_expression`, so the role
-no longer grants access to any app, including TCP, MCP, and cloud apps,
-since a role does not distinguish app types. Each role is rewritten by
-itself, so a separate v8-or-older role granting the same app is served
-unchanged and still opens the app fully on older agents. Upgrade all
-Application Service agents to Teleport 19 before using role v9 to restrict
-app access.
+copy moves the allow `app_labels` and `app_labels_expression` to the deny
+side, so the downgraded role denies those apps instead of granting them,
+including TCP, MCP, and cloud apps, since a role does not distinguish app
+types. Because deny rules override allow rules across all of a user's
+roles, a separate v8-or-older role can no longer reopen the same app on
+older agents. The moved selector denies conservatively, so in a
+mixed-version cluster it can deny more apps than the v9 role allowed.
+Upgrade all Application Service agents to Teleport 19 before using role v9
+to restrict app access.
 
 #### Default values for `kubernetes_resources`
 
