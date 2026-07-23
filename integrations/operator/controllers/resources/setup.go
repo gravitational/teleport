@@ -62,6 +62,7 @@ var supportedReconcilers = []ReconcilerFactory{
 	NewRoleV6Reconciler,
 	NewRoleV7Reconciler,
 	NewRoleV8Reconciler,
+	NewRoleV9Reconciler,
 	NewSAMLConnectorReconciler,
 	NewSAMLIdPServiceProviderV1Reconciler,
 	NewScopedRoleV1Reconciler,

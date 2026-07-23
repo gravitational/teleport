@@ -46,6 +46,7 @@ func formatAsCRD(crd apiextv1.CustomResourceDefinition, groupName, pluralName st
 
 var crdDocTmpl string = `---
 title: {{.Title}}
+sidebar_label: {{.Title}}
 description: {{.Description}}
 ---
 
@@ -271,7 +272,7 @@ func formatAsDocsPage(crd apiextv1.CustomResourceDefinition, groupName, pluralNa
 	var buf bytes.Buffer
 	rp := ResourcePage{
 		Title:       crd.Spec.Names.Kind,
-		Description: fmt.Sprintf("Provides a comprehensive list of fields in the %v resource available through the Teleport Kubernetes operator", crd.Spec.Names.Kind),
+		Description: fmt.Sprintf("Provides a comprehensive list of fields in the %v resource available through the Teleport Kubernetes operator.", crd.Spec.Names.Kind),
 		Intro: strings.ReplaceAll(fmt.Sprintf(
 			`This guide is a comprehensive reference to the fields in the BACKTICK%vBACKTICK
 resource, which you can apply after installing the Teleport Kubernetes operator.`,
