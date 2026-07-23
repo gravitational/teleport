@@ -74,24 +74,39 @@ func (s *AuditQueueSealer) Close() error {
 	return nil
 }
 
+type encryptionState struct {
+	ready      bool
+	encrypted  bool
+	recipients []age.Recipient
+}
+
+func (s *AuditQueueSealer) encryptionState() encryptionState {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return encryptionState{
+		ready:      s.ready,
+		encrypted:  s.encrypted,
+		recipients: s.recipients,
+	}
+}
+
 // Seal encrypts a byte slice to all of the recipients.
 // It returns the encrypted bytes, a bool to say whether the data was encrypted
 // or not, and an error. When session recording encryption is disabled, the
 // plaintext is returned unchanged.
 func (s *AuditQueueSealer) Seal(ctx context.Context, plaintext []byte) ([]byte, bool, error) {
-	s.mu.Lock()
-	ready, encrypted, recipients := s.ready, s.encrypted, s.recipients
-	s.mu.Unlock()
+	state := s.encryptionState()
 
-	if !ready {
+	if !state.ready {
 		return nil, false, trace.Errorf("audit queue sealer has not resolved the encryption keys")
 	}
-	if !encrypted {
+	if !state.encrypted {
 		return plaintext, false, nil
 	}
 
 	var sealed bytes.Buffer
-	w, err := age.Encrypt(&sealed, recipients...)
+	w, err := age.Encrypt(&sealed, state.recipients...)
 	if err != nil {
 		return nil, false, trace.Wrap(err)
 	}
