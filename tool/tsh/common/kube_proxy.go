@@ -24,13 +24,11 @@ import (
 	"encoding/pem"
 	"fmt"
 	"io"
-	"maps"
 	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"sync"
-	"time"
 
 	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/alecthomas/kingpin/v2"
@@ -38,7 +36,6 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/asciitable"
@@ -336,7 +333,7 @@ type kubeLocalProxy struct {
 
 func makeKubeLocalProxy(cf *CLIConf, tc *client.TeleportClient, clusters kubeconfig.LocalProxyClusters, originalKubeConfig *clientcmdapi.Config, port, overrideContext string) (*kubeLocalProxy, error) {
 	certIssuer := newKubeCertIssuer(tc)
-	certs, err := loadKubeUserCerts(cf.Context, tc, clusters, certIssuer)
+	certs, err := certIssuer.LoadOrIssueCerts(cf.Context, clusters)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -378,7 +375,7 @@ func makeKubeLocalProxy(cf *CLIConf, tc *client.TeleportClient, clusters kubecon
 
 	kubeMiddleware := alpnproxy.NewKubeMiddleware(alpnproxy.KubeMiddlewareConfig{
 		Certs:        certs,
-		CertReissuer: kubeProxy.getCertReissuer(tc),
+		CertReissuer: kubeProxy.getCertReissuer(),
 		Headless:     cf.Headless,
 		Logger:       logger,
 		CloseContext: cf.Context,
@@ -520,124 +517,33 @@ func (k *kubeLocalProxy) WriteKubeConfig() error {
 	return trace.Wrap(kubeconfig.Save(k.KubeConfigPath(), *k.kubeconfig))
 }
 
-func loadKubeUserCerts(ctx context.Context, tc *client.TeleportClient, clusters kubeconfig.LocalProxyClusters, certIssuer *kubeCertIssuer) (alpnproxy.KubeClientCerts, error) {
-	ctx, span := tc.Tracer.Start(ctx, "loadKubeUserCerts")
-	defer span.End()
-
-	// Renew tsh session and reuse the proxy client.
-	var clusterClient *client.ClusterClient
-	err := client.RetryWithRelogin(ctx, tc, func() error {
-		var err error
-		clusterClient, err = tc.ConnectToCluster(ctx)
-		return trace.Wrap(err)
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer clusterClient.Close()
-
-	kubeKeys, err := loadKubeKeys(tc, clusters.TeleportClusters())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	certs := make(alpnproxy.KubeClientCerts)
-	var missing kubeconfig.LocalProxyClusters
-	for _, cluster := range clusters {
-		// Try load from store.
-		if key := kubeKeys[cluster.TeleportCluster]; key != nil {
-			cert, err := kubeCertFromKeyRing(key, cluster.KubeCluster)
-			if err == nil {
-				logger.DebugContext(ctx, "Client cert loaded from keystore for cluster", "cluster", cluster)
-				certs.Add(cluster.TeleportCluster, cluster.KubeCluster, cert)
-				continue
-			}
-			if !trace.IsNotFound(err) {
-				return nil, trace.Wrap(err)
-			}
-		}
-		missing = append(missing, cluster)
-	}
-	if len(missing) == 0 {
-		return certs, nil
-	}
-
-	issued, err := certIssuer.issueCerts(ctx, clusterClient, missing)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	maps.Copy(certs, issued)
-	return certs, nil
-}
-
-func loadKubeKeys(tc *client.TeleportClient, teleportClusters []string) (map[string]*client.KeyRing, error) {
-	kubeKeys := map[string]*client.KeyRing{}
-	for _, teleportCluster := range teleportClusters {
-		keyRing, err := tc.LocalAgent().GetKeyRing(teleportCluster, client.WithKubeCerts{})
-		if err != nil && !trace.IsNotFound(err) {
-			return nil, trace.Wrap(err)
-		}
-		kubeKeys[teleportCluster] = keyRing
-	}
-	return kubeKeys, nil
-}
-
-func kubeCertFromKeyRing(keyRing *client.KeyRing, kubeCluster string) (tls.Certificate, error) {
-	x509cert, err := keyRing.KubeX509Cert(kubeCluster)
-	if err != nil {
-		return tls.Certificate{}, trace.Wrap(err)
-	}
-	if time.Until(x509cert.NotAfter) <= time.Minute {
-		return tls.Certificate{}, trace.NotFound("TLS cert is expiring in a minute")
-	}
-	cert, err := keyRing.KubeTLSCert(kubeCluster)
-	return cert, trace.Wrap(err)
-}
-
-// getCertReissuer returns a function that can reissue with MFA user certificate for accessing kubernetes cluster.
-// If required it performs relogin procedure.
-func (k *kubeLocalProxy) getCertReissuer(tc *client.TeleportClient) func(ctx context.Context, teleportCluster, kubeCluster string) (tls.Certificate, error) {
-	// Reissues are serialized: when certs for many clusters expire together (mfa_verification_interval),
-	// the first reissue runs the one MFA ceremony and the rest replay its reusable response instead of prompting again.
-	var reissueMu sync.Mutex
+// getCertReissuer returns a function that reissues the user certificate for a Kubernetes cluster,
+// used by the local proxy middleware when a cert it serves expires.
+// The issuer performs a relogin if required.
+func (k *kubeLocalProxy) getCertReissuer() func(ctx context.Context, teleportCluster, kubeCluster string) (tls.Certificate, error) {
+	// mu serializes the reissues, which are not safe for concurrent use, and the ephemeral kubeconfig load and rewrite.
+	var mu sync.Mutex
 
 	return func(ctx context.Context, teleportCluster, kubeCluster string) (tls.Certificate, error) {
-		reissueMu.Lock()
-		defer reissueMu.Unlock()
+		mu.Lock()
+		defer mu.Unlock()
 
-		var clusterClient *client.ClusterClient
-		var currentContext string
-
-		// We save user's current context in case there was relogin, which will delete our
-		// ephemeral kubeconfig and we'll need to recreate it.
+		// We save user's current context in case there is a relogin, which
+		// will delete our ephemeral kubeconfig and we'll need to recreate it.
 		cfg, err := kubeconfig.Load(k.KubeConfigPath())
 		if err != nil {
 			return tls.Certificate{}, trace.Wrap(err, "could not load ephemeral kubeconfig at %q", k.KubeConfigPath())
 		}
-		currentContext = cfg.CurrentContext
+		currentContext := cfg.CurrentContext
 
-		// Connect to Proxy, with relogin if required.
-		err = client.RetryWithRelogin(ctx, tc, func() error {
-			ctx, cancel := context.WithTimeout(ctx, apidefaults.DefaultIOTimeout)
-			defer cancel()
-
-			var err error
-			clusterClient, err = tc.ConnectToCluster(ctx)
-			return trace.Wrap(err)
-		})
+		cert, err := k.certIssuer.IssueCert(ctx, teleportCluster, kubeCluster, nil /*mfaCheck*/)
 		if err != nil {
 			return tls.Certificate{}, trace.Wrap(err)
 		}
-		defer clusterClient.Close()
 
 		// We recreate ephemeral kubeconfig to make sure it's there even after relogin.
 		k.kubeconfig.CurrentContext = currentContext
 		if err := k.WriteKubeConfig(); err != nil {
-			return tls.Certificate{}, trace.Wrap(err)
-		}
-
-		cert, err := k.certIssuer.issueCert(ctx, clusterClient, teleportCluster, kubeCluster, nil /*mfaCheck*/)
-		if err != nil {
 			return tls.Certificate{}, trace.Wrap(err)
 		}
 		return *cert, nil
