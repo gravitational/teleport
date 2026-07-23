@@ -38,6 +38,7 @@ import "teleport/scopes/access/v1/assignment.proto";
 import "teleport/scopes/access/v1/role.proto";
 import "teleport/secreports/v1/secreports.proto";
 import "teleport/subca/v1/cert_authority_override.proto";
+import "teleport/subca/v1/pending_csr_request.proto";
 import "teleport/summarizer/v1/summarizer.proto";
 import "teleport/userloginstate/v1/userloginstate.proto";
 import "teleport/userprovisioning/v2/statichostuser.proto";
@@ -251,5 +252,8 @@ message Event {
     teleport.summarizer.v1.RetrievalModel RetrievalModel = 94;
     // Beam is an ephemeral AI-optimized compute environment.
     teleport.beams.v1.Beam Beam = 95;
+    // PendingCSRRequest allows asynchronous, watcher-based CSR requests to
+    // other Auth server instances.
+    teleport.subca.v1.PendingCSRRequest PendingCSRRequest = 99;
   }
 }
