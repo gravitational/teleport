@@ -19,6 +19,7 @@ package auth
 import (
 	"context"
 	"crypto/subtle"
+	"slices"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/oauth2"
@@ -27,7 +28,6 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	mfav2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
-	mfa "github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/mfatypes"
 	"github.com/gravitational/teleport/lib/authz"
@@ -102,29 +102,16 @@ func (a *Server) VerifySSOMFASession(ctx context.Context, username, sessionID, t
 	}
 
 	const notFoundErrMsg = "mfa sso session data not found"
-	mfaSess, err := a.GetMFASessionData(ctx, sessionID)
-	if trace.IsNotFound(err) {
-		if requiredExtensions.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES {
-			// The session data backing a reusable response expires on its own TTL.
-			// Return the typed error so clients replaying the response refresh it
-			// instead of failing, like the WebAuthn flow does.
-			a.logger.DebugContext(ctx, "Reusable SSO MFA session data not found and possibly expired", "error", err)
-			return nil, trace.Wrap(&mfa.ErrExpiredReusableMFAResponse)
-		}
-		return nil, trace.AccessDenied("%s", notFoundErrMsg)
-	} else if err != nil {
+	mfaSess, err := a.verifyMFASessionData(ctx, sessionID, username, requiredExtensions, trace.AccessDenied("%s", notFoundErrMsg))
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// Verify the user's name and sso device matches.
-	if mfaSess.Username != username {
-		return nil, trace.AccessDenied("%s", notFoundErrMsg)
-	}
-
-	// Verify this is an SSO MFA session and not a Browser MFA session.
-	if mfaSess.TSHRedirectURL != "" || mfaSess.ConnectorType == constants.BrowserMFA {
+	// Verify the session was created by the SSO MFA flow:
+	// SSO MFA sessions are created with an SSO connector and no client redirect URL.
+	if !(slices.Contains([]string{constants.SAML, constants.OIDC}, mfaSess.ConnectorType) && mfaSess.TSHRedirectURL == "") {
 		a.logger.WarnContext(ctx,
-			"The SSO MFA flow was used to access a Browser MFA session.",
+			"Rejecting an MFA session that was not created by the SSO MFA flow.",
 			"request_id", mfaSess.RequestID,
 			"connector_type", mfaSess.ConnectorType,
 			"username", username,
@@ -148,16 +135,6 @@ func (a *Server) VerifySSOMFASession(ctx context.Context, username, sessionID, t
 	// Verify the token matches.
 	if subtle.ConstantTimeCompare([]byte(mfaSess.Token), []byte(token)) == 0 {
 		return nil, trace.AccessDenied("invalid SSO MFA challenge response")
-	}
-
-	// Check if the given scope is satisfied by the challenge scope.
-	if requiredExtensions.Scope != mfaSess.ChallengeExtensions.Scope {
-		return nil, trace.AccessDenied("required scope %q is not satisfied by the given sso mfa session with scope %q", requiredExtensions.Scope, mfaSess.ChallengeExtensions.Scope)
-	}
-
-	// If this session is reusable, but this context forbids reusable sessions, return an error.
-	if requiredExtensions.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_NO && mfaSess.ChallengeExtensions.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES {
-		return nil, trace.AccessDenied("the given sso mfa session allows reuse, but reuse is not permitted in this context")
 	}
 
 	if mfaSess.ChallengeExtensions.AllowReuse != mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES {

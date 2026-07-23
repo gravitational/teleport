@@ -26,7 +26,6 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
-	mfa "github.com/gravitational/teleport/api/mfa"
 	webauthnpb "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/lib/auth/internal/browsermfa"
 	"github.com/gravitational/teleport/lib/auth/mfatypes"
@@ -122,29 +121,16 @@ func (a *Server) VerifyBrowserMFASession(ctx context.Context, username, sessionI
 	}
 
 	const notFoundErrMsg = "browser MFA session data not found"
-	mfaSess, err := a.GetMFASessionData(ctx, sessionID)
-	if trace.IsNotFound(err) {
-		if requiredExtensions.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES {
-			// The session data backing a reusable response expires on its own TTL.
-			// Return the typed error so clients replaying the response refresh it
-			// instead of failing, like the WebAuthn flow does.
-			a.logger.DebugContext(ctx, "Reusable browser MFA session data not found and possibly expired", "error", err)
-			return nil, trace.Wrap(&mfa.ErrExpiredReusableMFAResponse)
-		}
-		return nil, trace.NotFound("%s", notFoundErrMsg)
-	} else if err != nil {
+	mfaSess, err := a.verifyMFASessionData(ctx, sessionID, username, requiredExtensions, trace.NotFound("%s", notFoundErrMsg))
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// Verify the user's name matches.
-	if mfaSess.Username != username {
-		return nil, trace.NotFound("%s", notFoundErrMsg)
-	}
-
-	// Verify this is a Browser MFA session and not an SSO MFA session.
-	if mfaSess.TSHRedirectURL == "" || mfaSess.ConnectorType != constants.BrowserMFA {
+	// Verify the session was created by the Browser MFA flow:
+	// Browser MFA sessions are created with the browser connector and a client redirect URL.
+	if !(mfaSess.ConnectorType == constants.BrowserMFA && mfaSess.TSHRedirectURL != "") {
 		a.logger.WarnContext(ctx,
-			"The Browser MFA flow was used to access a SSO MFA session.",
+			"Rejecting an MFA session that was not created by the Browser MFA flow.",
 			"request_id", mfaSess.RequestID,
 			"connector_type", mfaSess.ConnectorType,
 			"username", username,
@@ -168,22 +154,6 @@ func (a *Server) VerifyBrowserMFASession(ctx context.Context, username, sessionI
 			)
 		}
 		return nil, trace.AccessDenied("browser MFA not available")
-	}
-
-	// Check if the given scope is satisfied by the challenge scope.
-	if requiredExtensions.Scope != mfaSess.ChallengeExtensions.Scope {
-		return nil, trace.AccessDenied(
-			"required scope %q is not satisfied by the given browser MFA session with scope %q",
-			requiredExtensions.Scope,
-			mfaSess.ChallengeExtensions.Scope,
-		)
-	}
-
-	// If this session is reusable, but this context forbids reusable sessions, return an error.
-	reuseNotPermitted := requiredExtensions.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_NO
-	sessionAllowsReuse := mfaSess.ChallengeExtensions.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES
-	if reuseNotPermitted && sessionAllowsReuse {
-		return nil, trace.AccessDenied("the given browser MFA session allows reuse, but reuse is not permitted in this context")
 	}
 
 	// Convert from protobuf type to wantypes

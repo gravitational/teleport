@@ -8634,16 +8634,8 @@ func (a *Server) validateMFAAuthResponseInternal(
 			loginData, err = webLogin.Finish(ctx, user, wantypes.CredentialAssertionResponseFromProto(res.Webauthn), requiredExtensions)
 		}
 		if err != nil {
-			if requiredExtensions.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES &&
-				trace.IsNotFound(err) {
-				// Do not add extra user messages to
-				// mfa.ErrExpiredReusableMFAResponse. Doing so will prevent
-				// client-side code from using errors.Is to reliably identify
-				// this specific error after it goes through gRPC. The original
-				// error isn't particularly useful to the user anyway, so just
-				// log it at debug level.
-				a.logger.DebugContext(ctx, "Reusable MFA response validation failed and possibly expired", "error", err)
-				return nil, trace.Wrap(&mfa.ErrExpiredReusableMFAResponse)
+			if reuseErr := a.expiredReusableMFAError(ctx, err, requiredExtensions); reuseErr != nil {
+				return nil, reuseErr
 			}
 			return nil, trace.AccessDenied("MFA response validation failed: %v", err)
 		}
@@ -8676,6 +8668,38 @@ func (a *Server) validateMFAAuthResponseInternal(
 	default:
 		return nil, trace.BadParameter("unknown or missing MFAAuthenticateResponse type %T", resp.Response)
 	}
+}
+
+func (a *Server) expiredReusableMFAError(ctx context.Context, err error, requiredExtensions *mfav1.ChallengeExtensions) error {
+	if trace.IsNotFound(err) && requiredExtensions.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES {
+		a.logger.DebugContext(ctx, "Reusable MFA response validation failed and possibly expired", "error", err)
+		return trace.Wrap(&mfa.ErrExpiredReusableMFAResponse)
+	}
+	return nil
+}
+
+// verifyMFASessionData validates the stored MFA session shared by the SSO and browser MFA verify flows.
+func (a *Server) verifyMFASessionData(ctx context.Context, sessionID, username string, requiredExtensions *mfav1.ChallengeExtensions, notFoundErr error) (*services.MFASessionData, error) {
+	mfaSess, err := a.GetMFASessionData(ctx, sessionID)
+	if err != nil {
+		if reuseErr := a.expiredReusableMFAError(ctx, err, requiredExtensions); reuseErr != nil {
+			return nil, reuseErr
+		}
+		if trace.IsNotFound(err) {
+			return nil, notFoundErr
+		}
+		return nil, trace.Wrap(err)
+	}
+	if mfaSess.Username != username {
+		return nil, notFoundErr
+	}
+	if requiredExtensions.Scope != mfaSess.ChallengeExtensions.Scope {
+		return nil, trace.AccessDenied("required scope %q is not satisfied by the given MFA session with scope %q", requiredExtensions.Scope, mfaSess.ChallengeExtensions.Scope)
+	}
+	if requiredExtensions.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_NO && mfaSess.ChallengeExtensions.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES {
+		return nil, trace.AccessDenied("the given MFA session allows reuse, but reuse is not permitted in this context")
+	}
+	return mfaSess, nil
 }
 
 func mergeKeySets(a, b types.CAKeySet) types.CAKeySet {
