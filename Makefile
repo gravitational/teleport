@@ -1956,23 +1956,43 @@ ensure-js-deps:
 ifeq ($(WEBASSETS_SKIP_BUILD),1)
 ensure-wasm-deps:
 else
-ensure-wasm-deps: ensure-llvm-macos rustup-toolchain-warning ensure-wasm-bindgen ensure-wasm-opt
+ensure-wasm-deps: ensure-llvm rustup-toolchain-warning ensure-wasm-bindgen ensure-wasm-opt
 
-.PHONY: ensure-llvm-macos
+.PHONY: ensure-llvm
 ifeq ("$(OS)-$(ARCH)","darwin-arm64")
 BREW_DIR = $(shell brew --prefix)
 LLVM_PREFIX = $(shell brew list | grep llvm | head -n 1)
 LLVM_DIR = $(shell brew --prefix $(LLVM_PREFIX))
-CC = $(LLVM_DIR)/bin/clang
-AR = $(LLVM_DIR)/bin/llvm-ar
-ensure-llvm-macos:
-	@if [[ "${BREW_DIR}" = "${LLVM_DIR}" ]]; then \
+# Prevent these from being exported and expanded for every recipe.
+unexport BREW_DIR LLVM_PREFIX LLVM_DIR
+
+# The ironrdp WASM build needs clang/llvm-ar.
+# These are applied as target-specific variables so
+# brew is only invoked when necessary and so that
+# CC and AR are only overwritten for WASM compilation.
+build-ironrdp-wasm: CC = $(LLVM_DIR)/bin/clang
+build-ironrdp-wasm: AR = $(LLVM_DIR)/bin/llvm-ar
+
+ensure-llvm:
+	@if [[ "$(BREW_DIR)" = "$(LLVM_DIR)" ]]; then \
 		echo "llvm is required, please run 'brew install llvm' and add '/opt/homebrew/opt/llvm/bin' at the start of PATH variable"; \
 		exit 1; \
 	fi
 
+else ifeq ("$(OS)-$(ARCH)","windows-amd64")
+LLVM_DIR=$(shell vswhere.exe -latest -requires Microsoft.VisualStudio.Component.VC.Llvm.Clang -property installationPath)
+unexport LLVM_DIR
+build-ironrdp-wasm: CC = $(LLVM_DIR)/VC/Tools/Llvm/x64/bin/clang
+build-ironrdp-wasm: AR = $(LLVM_DIR)/VC/Tools/Llvm/x64/bin/llvm-ar
+
+ensure-llvm:
+	@if [[ "x" = "x$(LLVM_DIR)" ]]; then \
+		echo "llvm is required, please install Visual Studio with LLVM component"; \
+		exit 1; \
+	fi
+
 else
-ensure-llvm-macos:
+ensure-llvm:
 endif
 
 WASM_BINDGEN_VERSION = $(shell awk ' \
