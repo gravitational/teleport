@@ -282,10 +282,21 @@ func TestPresenceServiceKubeClusters(t *testing.T) {
 			shouldFail       bool
 		}{
 			{
-				name:   "unscoped list-user listing all clusters",
+				name:   "unscoped list-user listing all clusters without scope filter",
 				client: newClient(t, authtest.TestUser(listUser.GetName())),
 				req: presencev1pb.ListKubeClustersRequest_builder{
 					PageSize: 10,
+				}.Build(),
+				expectedClusters: []types.KubeCluster{unscopedCluster},
+			},
+			{
+				name:   "unscoped list-user listing all clusters filtering for all scopes",
+				client: newClient(t, authtest.TestUser(listUser.GetName())),
+				req: presencev1pb.ListKubeClustersRequest_builder{
+					PageSize: 10,
+					ScopeFilter: scopesv1.Filter_builder{
+						Mode: scopesv1.Mode_MODE_ALL,
+					}.Build(),
 				}.Build(),
 				expectedClusters: allClusters,
 			},

@@ -3891,6 +3891,9 @@ func (c *Client) ListKubernetesClusters(ctx context.Context, limit int, start st
 	return c.ListKubeClusters(ctx, presencepb.ListKubeClustersRequest_builder{
 		PageSize:  int32(limit),
 		PageToken: start,
+		ScopeFilter: scopesv1.Filter_builder{
+			Mode: scopesv1.Mode_MODE_ALL,
+		}.Build(),
 	}.Build())
 }
 
