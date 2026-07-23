@@ -5,17 +5,29 @@ on:
       - 'docs/**'
       - .github/workflows/docs-amplify.yaml
   workflow_dispatch:
-  
+
 permissions:
   pull-requests: write
   id-token: write
-  
+
 jobs:
   amplify-preview:
     name: Prepare Amplify preview URL
     runs-on: ubuntu-slim
     environment: docs-amplify
-    steps:    
+    steps:
+    - name: Get runtime values from kvstore
+      id: kvstore
+      uses: gravitational/shared-workflows/tools/env-kvstore@tools/env-kvstore/v1.0.0
+      with:
+        cognito-identity-pool-id: "us-west-2:da53389e-a459-4a28-bd54-43eeb8e4b579"
+        cognito-role-arn: "arn:aws:iam::247230412011:role/github-actions-cognito-oidc"
+        existing-gh-secrets: "${{ toJSON(secrets) }}"
+        existing-gh-variables: "${{ toJSON(vars) }}"
+        # values: |
+        #   AMPLIFY_APP_IDS,variable
+        #   IAM_ROLE,variable
+
     - name: Configure AWS credentials
       uses: aws-actions/configure-aws-credentials@e3dd6a429d7300a6a4c196c26e071d42e0343502 # v4
       with:
