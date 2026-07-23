@@ -232,16 +232,6 @@ func TestEnrollPairingService_RequestEnrollPairingApproval(t *testing.T) {
 		assert.ErrorAs(t, err, new(*trace.BadParameterError))
 	})
 
-	t.Run("rejects a nil device", func(t *testing.T) {
-		t.Parallel()
-		ctx := t.Context()
-		created, err := s.CreateEnrollPairing(ctx, "nil-device")
-		require.NoError(t, err)
-
-		_, err = s.RequestEnrollPairingApproval(ctx, created, nil)
-		assert.ErrorAs(t, err, new(*trace.BadParameterError))
-	})
-
 	badOSType := makeDevice()
 	badOSType.SetOsType(devicepb.OSType_OS_TYPE_UNSPECIFIED)
 	badOSVersion := makeDevice()
@@ -254,6 +244,11 @@ func TestEnrollPairingService_RequestEnrollPairingApproval(t *testing.T) {
 		device *devicepb.EnrollPairingDevice
 		errMsg string
 	}{
+		{
+			name:   "rejects a nil device",
+			device: nil,
+			errMsg: "device required",
+		},
 		{
 			name:   "rejects empty device OS type",
 			device: badOSType,
