@@ -120,8 +120,7 @@ func (a *Server) VerifyBrowserMFASession(ctx context.Context, username, sessionI
 		return nil, trace.BadParameter("webauthn response must be supplied")
 	}
 
-	const notFoundErrMsg = "browser MFA session data not found"
-	mfaSess, err := a.verifyMFASessionData(ctx, sessionID, username, requiredExtensions, trace.NotFound("%s", notFoundErrMsg))
+	mfaSess, err := a.verifyMFASessionData(ctx, sessionID, username, requiredExtensions)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -136,7 +135,7 @@ func (a *Server) VerifyBrowserMFASession(ctx context.Context, username, sessionI
 			"connector_type", mfaSess.ConnectorType,
 			"username", username,
 		)
-		return nil, trace.NotFound("%s", notFoundErrMsg)
+		return nil, trace.AccessDenied("%s", mfaSessionDataNotFoundMsg)
 	}
 
 	// Check if the MFA session matches the user's Browser MFA settings.

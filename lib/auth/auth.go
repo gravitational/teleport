@@ -8681,13 +8681,15 @@ func (a *Server) convertToErrExpiredReusableMFAResponse(ctx context.Context, err
 	return nil
 }
 
+// mfaSessionDataNotFoundMsg is the client-facing error for a missing, foreign, or wrong-flow MFA session.
+const mfaSessionDataNotFoundMsg = "mfa session data not found"
+
 // verifyMFASessionData validates the stored MFA session shared by the SSO and browser MFA verify flows.
 func (a *Server) verifyMFASessionData(
 	ctx context.Context,
 	sessionID,
 	username string,
 	requiredExtensions *mfav1.ChallengeExtensions,
-	notFoundErr error,
 ) (*services.MFASessionData, error) {
 	mfaSess, err := a.GetMFASessionData(ctx, sessionID)
 	if err != nil {
@@ -8695,12 +8697,12 @@ func (a *Server) verifyMFASessionData(
 			return nil, reuseErr
 		}
 		if trace.IsNotFound(err) {
-			return nil, notFoundErr
+			return nil, trace.AccessDenied("%s", mfaSessionDataNotFoundMsg)
 		}
 		return nil, trace.Wrap(err)
 	}
 	if mfaSess.Username != username {
-		return nil, notFoundErr
+		return nil, trace.AccessDenied("%s", mfaSessionDataNotFoundMsg)
 	}
 	if requiredExtensions.Scope != mfaSess.ChallengeExtensions.Scope {
 		return nil, trace.AccessDenied("required scope %q is not satisfied by the given MFA session with scope %q", requiredExtensions.Scope, mfaSess.ChallengeExtensions.Scope)

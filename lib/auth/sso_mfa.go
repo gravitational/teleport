@@ -101,8 +101,7 @@ func (a *Server) VerifySSOMFASession(ctx context.Context, username, sessionID, t
 		return nil, trace.BadParameter("requested challenge extensions must be supplied.")
 	}
 
-	const notFoundErrMsg = "mfa sso session data not found"
-	mfaSess, err := a.verifyMFASessionData(ctx, sessionID, username, requiredExtensions, trace.AccessDenied("%s", notFoundErrMsg))
+	mfaSess, err := a.verifyMFASessionData(ctx, sessionID, username, requiredExtensions)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -117,7 +116,7 @@ func (a *Server) VerifySSOMFASession(ctx context.Context, username, sessionID, t
 			"connector_type", mfaSess.ConnectorType,
 			"username", username,
 		)
-		return nil, trace.NotFound("%s", notFoundErrMsg)
+		return nil, trace.AccessDenied("%s", mfaSessionDataNotFoundMsg)
 	}
 
 	// Check if the MFA session matches the user's SSO MFA settings.
