@@ -53,8 +53,16 @@ jobs:
       - name: Run base difftest
         uses: ./.github/actions/difftest
         with:
-          flags: --skip="${{ steps.find_excluded.outputs.FLAKE_SKIP }}" -e "lib/operatortest/**/*" -e "tooling/**/*" -e "tests/integration/**/*"
+          flags: --skip="${{ steps.find_excluded.outputs.FLAKE_SKIP }}" -e "lib/operatortest/**/*" -e "tooling/**/*" -e "tests/integration/**/*" -e "tests/antithesis/workloads/**/*"
           target: test-go
+          path: .
+          directory: e
+
+      - name: Run Antithesis workloads difftest
+        uses: ./.github/actions/difftest
+        with:
+          flags: --skip="${{ steps.find_excluded.outputs.FLAKE_SKIP }}" --include "tests/antithesis/workloads/**/*" --relative "tests/antithesis/workloads"
+          target: test-go-antithesis-workloads
           path: .
           directory: e
 

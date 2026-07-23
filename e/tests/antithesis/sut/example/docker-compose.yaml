@@ -1,7 +1,6 @@
 x-auth-command: &auth-command
   - /usr/local/bin/teleport
   - start
-  - --config=/etc/teleport/teleport.yaml
   - --bootstrap=/etc/teleport/bootstrap.yaml
   - --apply-on-startup=/etc/teleport/startup.yaml
 
@@ -47,7 +46,7 @@ services:
         condition: service_healthy
     volumes:
       - certs:/certs:ro
-      - ./teleport/auth.yaml:/etc/teleport/teleport.yaml:ro
+      - ./teleport/auth.yaml:/etc/teleport.yaml:ro
       - ./teleport/bootstrap.yaml:/etc/teleport/bootstrap.yaml:ro
       - ./teleport/startup.yaml:/etc/teleport/startup.yaml
     healthcheck:
@@ -71,7 +70,7 @@ services:
         condition: service_healthy
     volumes:
       - certs:/certs:ro
-      - ./teleport/auth.yaml:/etc/teleport/teleport.yaml:ro
+      - ./teleport/auth.yaml:/etc/teleport.yaml:ro
       - ./teleport/bootstrap.yaml:/etc/teleport/bootstrap.yaml:ro
       - ./teleport/startup.yaml:/etc/teleport/startup.yaml
     healthcheck:
@@ -102,7 +101,7 @@ services:
       start_period: 15s
     volumes:
       - certs:/certs:ro
-      - ./teleport/proxy.yaml:/etc/teleport/teleport.yaml:ro
+      - ./teleport/proxy.yaml:/etc/teleport.yaml:ro
 
   proxy2:
     image: ${REGISTRY:+${REGISTRY}/}antithesis/teleport:${TAG:-latest}
@@ -121,7 +120,7 @@ services:
       start_period: 15s
     volumes:
       - certs:/certs:ro
-      - ./teleport/proxy.yaml:/etc/teleport/teleport.yaml:ro
+      - ./teleport/proxy.yaml:/etc/teleport.yaml:ro
 
   proxy-lb:
     image: ${REGISTRY:+${REGISTRY}/}antithesis/nginx:${TAG:-latest}

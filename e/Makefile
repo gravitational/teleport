@@ -622,6 +622,16 @@ ifneq ("$(SUBJECT)", "")
 	$(GOTESTSUM) --junitfile  $(TEST_LOG_DIR)/unit-tests.xml --jsonfile  $(TEST_LOG_DIR)/unit-tests.json -- $(SUBJECT) -race -shuffle on -tags "$(PIV_TEST_TAG) $(LIBFIDO2_TEST_TAG) $(TPMSIMULATOR_TEST_TAG)" $(ADDFLAGS)
 endif
 
+# test-go-antithesis-workloads runs tests in the Antithesis workloads Go module.
+.PHONY: test-go-antithesis-workloads
+test-go-antithesis-workloads: FLAGS ?= -race -shuffle on
+test-go-antithesis-workloads: SUBJECT ?= ./...
+test-go-antithesis-workloads: WORKLOAD_GO_TAGS ?= antithesis
+test-go-antithesis-workloads: | $(TEST_LOG_DIR)
+ifneq ("$(SUBJECT)", "")
+	cd tests/antithesis/workloads && $(GOTESTSUM) --junitfile $(TEST_LOG_DIR)/unit-tests-antithesis-workloads.xml --jsonfile $(TEST_LOG_DIR)/unit-tests-antithesis-workloads.json -- $(SUBJECT) $(FLAGS) -tags "$(WORKLOAD_GO_TAGS)" $(ADDFLAGS)
+endif
+
 # test-operator runs tests for the k8s operator with enterprise-only resource
 # types that must be tested with an enterprise Teleport cluster.
 .PHONY: test-operator

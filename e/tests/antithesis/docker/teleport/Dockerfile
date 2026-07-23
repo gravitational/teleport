@@ -85,6 +85,11 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     CGO_ENABLED=1 go build -p 8 -race -tags antithesis \
         -o /out/workload_entrypoint ./cmd/workload_entrypoint
 
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=1 go build -p 8 -race -tags antithesis \
+        -o /out/eventually_cache_is_healthy ./cmd/eventually_cache_is_healthy
+
 FROM debian:bookworm-slim AS runtime
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -120,7 +125,11 @@ COPY e/tests/antithesis/docker/teleport/entrypoint.sh /usr/local/bin/entrypoint.
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 
 FROM runtime AS teleport
-CMD ["/usr/local/bin/teleport", "start", "--config=/etc/teleport/teleport.yaml"]
+# Every teleport cache instance should eventually recover
+COPY --from=builder /out/eventually_cache_is_healthy /opt/antithesis/test/v1/example/eventually_cache_is_healthy
+
+CMD ["/usr/local/bin/teleport", "start"]
+
 
 FROM runtime AS tbot
 CMD ["/usr/local/bin/tbot","start", "--config=/etc/tbot/tbot.yaml"]
