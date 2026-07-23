@@ -1,0 +1,17 @@
+{{ provider="AWS" cloud="aws" }}
+
+### Inspect {{ provider }} discovery status
+
+Run `tctl discovery status` to check the state of dynamic Discovery Service
+configurations, when each Discovery Service last reported, and the latest
+{{ provider }} enrollment totals:
+
+```code
+$ tctl discovery status --cloud={{ cloud }}
+```
+
+The command reports dynamic `discovery_config` resources. It does not include
+static discovery matchers configured in `teleport.yaml`.
+
+See [`tctl discovery status`](../../reference/cli/tctl.mdx#tctl-discovery-status)
+for the full flag reference.
