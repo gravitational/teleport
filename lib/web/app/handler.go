@@ -620,12 +620,12 @@ func (h *Handler) getSession(ctx context.Context, ws types.WebSession) (*session
 
 // extractCookie extracts the cookie from the *http.Request.
 func extractCookie(r *http.Request, cookieName string) (string, error) {
-	rawCookie, err := r.Cookie(cookieName)
-	if err != nil {
-		return "", trace.NotFound("cookie %q not found", cookieName)
+	rawCookie, _ := r.Cookie(cookieName)
+	if rawCookie == nil {
+		return "", trace.NotFound("cookie %+q not found", cookieName)
 	}
-	if rawCookie != nil && rawCookie.Value == "" {
-		return "", trace.NotFound("cookie %q is empty", cookieName)
+	if rawCookie.Value == "" {
+		return "", trace.NotFound("cookie %+q is empty", cookieName)
 	}
 
 	return rawCookie.Value, nil
