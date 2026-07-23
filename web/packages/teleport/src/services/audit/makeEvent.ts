@@ -1915,6 +1915,18 @@ export const formatters: Formatters = {
     format: ({ user, spiffe_id }) =>
       `User [${user}] failed to issue SPIFFE SVID [${spiffe_id}]`,
   },
+  [eventCodes.SPIFFE_FEDERATION_CREATE]: {
+    type: 'spiffe.federation.create',
+    desc: 'SPIFFE Federation Created',
+    format: ({ user, name }) =>
+      `User [${user}] created a SPIFFE federation [${name}]`,
+  },
+  [eventCodes.SPIFFE_FEDERATION_DELETE]: {
+    type: 'spiffe.federation.delete',
+    desc: 'SPIFFE Federation Deleted',
+    format: ({ user, name }) =>
+      `User [${user}] deleted a SPIFFE federation [${name}]`,
+  },
   [eventCodes.AUTH_PREFERENCE_UPDATE]: {
     type: 'auth_preference.update',
     desc: 'Cluster Authentication Preferences Updated',
