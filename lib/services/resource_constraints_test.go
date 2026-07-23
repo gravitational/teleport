@@ -920,16 +920,22 @@ func TestMatcherFromConstraints_Database_WildcardUsers(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, m)
 
-	// Wildcard users — only names dimension should matter.
-	// Role allows production name → match.
-	role1 := roleAllowingDatabaseUsersAndNames([]string{"anyone"}, []string{"production"})
+	// A wildcard user constraint is matched only by a role granting the
+	// user wildcard; static user grants never cover it.
+	role1 := roleAllowingDatabaseUsersAndNames([]string{types.Wildcard}, []string{"production"})
 	ok, err := m.Match(role1, types.Allow)
 	require.NoError(t, err)
 	require.True(t, ok)
 
-	// Role allows staging name → no match.
-	role2 := roleAllowingDatabaseUsersAndNames([]string{"anyone"}, []string{"staging"})
+	// Role grants only literal users → no match.
+	role2 := roleAllowingDatabaseUsersAndNames([]string{"anyone"}, []string{"production"})
 	ok, err = m.Match(role2, types.Allow)
+	require.NoError(t, err)
+	require.False(t, ok)
+
+	// Wildcard-granting role that lacks the requested name → no match.
+	role3 := roleAllowingDatabaseUsersAndNames([]string{types.Wildcard}, []string{"staging"})
+	ok, err = m.Match(role3, types.Allow)
 	require.NoError(t, err)
 	require.False(t, ok)
 }
@@ -948,14 +954,21 @@ func TestMatcherFromConstraints_Database_WildcardNames(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, m)
 
-	// Wildcard names — only users dimension should matter.
-	role1 := roleAllowingDatabaseUsersAndNames([]string{"admin"}, []string{"anything"})
+	// A wildcard name constraint is matched only by a role granting the
+	// name wildcard alongside the requested user.
+	role1 := roleAllowingDatabaseUsersAndNames([]string{"admin"}, []string{types.Wildcard})
 	ok, err := m.Match(role1, types.Allow)
 	require.NoError(t, err)
 	require.True(t, ok)
 
-	role2 := roleAllowingDatabaseUsersAndNames([]string{"other"}, []string{"anything"})
+	// Role grants only literal names → no match.
+	role2 := roleAllowingDatabaseUsersAndNames([]string{"admin"}, []string{"anything"})
 	ok, err = m.Match(role2, types.Allow)
+	require.NoError(t, err)
+	require.False(t, ok)
+
+	role3 := roleAllowingDatabaseUsersAndNames([]string{"other"}, []string{types.Wildcard})
+	ok, err = m.Match(role3, types.Allow)
 	require.NoError(t, err)
 	require.False(t, ok)
 }
@@ -970,15 +983,10 @@ func TestMatcherFromConstraints_Database_WildcardRoles(t *testing.T) {
 		},
 	}
 
-	m, err := MatcherFromConstraints(rc, nil)
-	require.NoError(t, err)
-	require.NotNil(t, m)
-
-	// Wildcard roles — any role should match.
-	role1 := roleAllowingDatabaseRolesAndNames([]string{"anything"}, []string{"dev"})
-	ok, err := m.Match(role1, types.Allow)
-	require.NoError(t, err)
-	require.True(t, ok)
+	// db_roles have no wildcard matching, so a wildcard role constraint
+	// fails validation at matcher construction.
+	_, err := MatcherFromConstraints(rc, nil)
+	require.ErrorContains(t, err, `database role constraints do not support "*"`)
 }
 
 func TestCheckDatabaseRoles_WildcardConstraint(t *testing.T) {
@@ -1558,4 +1566,121 @@ func TestMatcherFromConstraints_Database_SupportAWSIAMRoleARN(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, ok)
 	})
+}
+
+func newCoverageDatabase(t *testing.T) types.Database {
+	db, err := types.NewDatabaseV3(types.Metadata{
+		Name:   "pg",
+		Labels: map[string]string{"env": "dev"},
+	}, types.DatabaseSpecV3{
+		Protocol: "postgres",
+		URI:      "localhost:5432",
+	})
+	require.NoError(t, err)
+	return db
+}
+
+func TestValidateDatabaseConstraintCoverage_Combinations(t *testing.T) {
+	db := newCoverageDatabase(t)
+	roleA := roleAllowingDatabaseUsersAndNames([]string{"alice"}, []string{"sales"})
+	roleB := roleAllowingDatabaseUsersAndNames([]string{"bob"}, []string{"billing"})
+	roles := []types.Role{roleA, roleB}
+
+	// Each requested value participates in a pair granted in full by a
+	// single role: (alice, sales) by roleA, (bob, billing) by roleB.
+	err := ValidateDatabaseConstraintCoverage(&types.DatabaseResourceConstraints{
+		Users: []string{"alice", "bob"},
+		Names: []string{"sales", "billing"},
+	}, roles, db, "user", nil, "cluster")
+	require.NoError(t, err)
+
+	// alice+billing is only co-granted across two roles.
+	err = ValidateDatabaseConstraintCoverage(&types.DatabaseResourceConstraints{
+		Users: []string{"alice"},
+		Names: []string{"billing"},
+	}, roles, db, "user", nil, "cluster")
+	require.ErrorContains(t, err, `database user "alice" is not granted together`)
+
+	// A value with no pair among the requested values is rejected even when
+	// both dimensions are individually covered.
+	err = ValidateDatabaseConstraintCoverage(&types.DatabaseResourceConstraints{
+		Users: []string{"alice", "bob"},
+		Names: []string{"sales"},
+	}, roles, db, "user", nil, "cluster")
+	require.ErrorContains(t, err, `database user "bob" is not granted together`)
+
+	// An omitted dimension is exempt: users alone need only per-dimension
+	// coverage.
+	err = ValidateDatabaseConstraintCoverage(&types.DatabaseResourceConstraints{
+		Users: []string{"alice", "bob"},
+	}, roles, db, "user", nil, "cluster")
+	require.NoError(t, err)
+
+	// Per-dimension coverage failures name the ungranted value.
+	err = ValidateDatabaseConstraintCoverage(&types.DatabaseResourceConstraints{
+		Users: []string{"carol"},
+	}, roles, db, "user", nil, "cluster")
+	require.ErrorContains(t, err, `database user "carol" is not granted by any applicable role`)
+}
+
+func TestValidateDatabaseConstraintCoverage_Wildcard(t *testing.T) {
+	db := newCoverageDatabase(t)
+	static := roleAllowingDatabaseUsersAndNames([]string{"alice"}, []string{"sales"})
+	wildcardUsers := roleAllowingDatabaseUsersAndNames([]string{types.Wildcard}, []string{"reporting"})
+
+	// A wildcard request is covered only by a role granting the wildcard;
+	// static grants never cover it.
+	err := ValidateDatabaseConstraintCoverage(&types.DatabaseResourceConstraints{
+		Users: []string{types.Wildcard},
+	}, []types.Role{static}, db, "user", nil, "cluster")
+	require.ErrorContains(t, err, `database user "*" is not granted by any applicable role`)
+
+	err = ValidateDatabaseConstraintCoverage(&types.DatabaseResourceConstraints{
+		Users: []string{types.Wildcard},
+	}, []types.Role{static, wildcardUsers}, db, "user", nil, "cluster")
+	require.NoError(t, err)
+
+	// The wildcard-granting role participates in combination checks like any
+	// other: (*, sales) is not co-granted by a single role.
+	err = ValidateDatabaseConstraintCoverage(&types.DatabaseResourceConstraints{
+		Users: []string{types.Wildcard},
+		Names: []string{"sales"},
+	}, []types.Role{static, wildcardUsers}, db, "user", nil, "cluster")
+	require.ErrorContains(t, err, `is not granted together`)
+
+	err = ValidateDatabaseConstraintCoverage(&types.DatabaseResourceConstraints{
+		Users: []string{types.Wildcard},
+		Names: []string{"reporting"},
+	}, []types.Role{static, wildcardUsers}, db, "user", nil, "cluster")
+	require.NoError(t, err)
+
+	// A wildcard grant covers the literal values it subsumes.
+	err = ValidateDatabaseConstraintCoverage(&types.DatabaseResourceConstraints{
+		Users: []string{"dev1"},
+		Names: []string{"reporting"},
+	}, []types.Role{wildcardUsers}, db, "user", nil, "cluster")
+	require.NoError(t, err)
+}
+
+func TestDatabasePrincipalSets_ExcludesWildcardDBRoles(t *testing.T) {
+	db := newCoverageDatabase(t)
+	role := roleAllowingDatabase(func(rv *types.RoleV6) {
+		rv.Metadata.Name = "db-roles"
+		rv.Spec.Allow.DatabaseRoles = []string{"reader", types.Wildcard}
+		rv.Spec.Options.CreateDatabaseUserMode = types.CreateDatabaseUserMode_DB_USER_MODE_KEEP
+	})
+	checker := NewAccessCheckerWithRoleSet(&AccessInfo{Username: "alice", Roles: []string{"db-roles"}}, "cluster", RoleSet{role})
+
+	for _, s := range DatabasePrincipalSets(checker, nil, db, "cluster") {
+		if s.Kind != types.PrincipalKindDBRoles {
+			continue
+		}
+		require.Contains(t, s.Granted, "reader")
+		require.NotContains(t, s.Granted, types.Wildcard)
+		for _, br := range s.ByRole {
+			require.NotContains(t, br.Values, types.Wildcard)
+		}
+		return
+	}
+	t.Fatal("db_roles principal set not found")
 }

@@ -286,11 +286,14 @@ func MatcherFromConstraints(rc *types.ResourceConstraints, resource types.Resour
 // expansion/validation. Each non-empty dimension (users, names, roles)
 // produces an AnyOf matcher, and all dimensions are combined with AllOf.
 // When db is non-nil, full AWS IAM role ARN alternative name resolution
-// is used for database user matching.
+// is used for database user matching. A wildcard constraint value flows
+// through like any other: it is matched only by a role granting the
+// wildcard for that dimension, so a wildcard request requires such a role
+// to qualify and retains it through resolution.
 func matcherFromDatabaseConstraints(dbc *types.DatabaseResourceConstraints, db types.Database) RoleMatcher {
 	var dimensionMatchers []RoleMatcher
 
-	if len(dbc.Users) > 0 && !slices.Contains(dbc.Users, types.Wildcard) {
+	if len(dbc.Users) > 0 {
 		userMatchers := make([]RoleMatcher, 0, len(dbc.Users))
 		for _, user := range dbc.Users {
 			if db != nil {
@@ -302,7 +305,7 @@ func matcherFromDatabaseConstraints(dbc *types.DatabaseResourceConstraints, db t
 		dimensionMatchers = append(dimensionMatchers, RoleMatchers(userMatchers).AnyOf())
 	}
 
-	if len(dbc.Names) > 0 && !slices.Contains(dbc.Names, types.Wildcard) {
+	if len(dbc.Names) > 0 {
 		nameMatchers := make([]RoleMatcher, 0, len(dbc.Names))
 		for _, name := range dbc.Names {
 			nameMatchers = append(nameMatchers, &DatabaseNameMatcher{Name: name})
@@ -310,7 +313,7 @@ func matcherFromDatabaseConstraints(dbc *types.DatabaseResourceConstraints, db t
 		dimensionMatchers = append(dimensionMatchers, RoleMatchers(nameMatchers).AnyOf())
 	}
 
-	if len(dbc.Roles) > 0 && !slices.Contains(dbc.Roles, types.Wildcard) {
+	if len(dbc.Roles) > 0 {
 		roleMatchers := make([]RoleMatcher, 0, len(dbc.Roles))
 		for _, role := range dbc.Roles {
 			roleMatchers = append(roleMatchers, &DatabaseRoleMatcher{Role: role})
@@ -399,7 +402,11 @@ func DatabasePrincipalSets(base, extended AccessChecker, database types.Database
 		namesResult := singleChecker.EnumerateDatabaseNames(database)
 		names, _ = namesResult.ToEntities()
 		if r, err := singleChecker.CheckDatabaseRoles(database, nil); err == nil {
-			dbRoles = r
+			// db_roles have no wildcard matching: a role field carrying a
+			// literal "*" keeps its meaning for unconstrained access only
+			// and stays unreachable through constraints, so it is not
+			// enumerated as a selectable principal.
+			dbRoles = slices.DeleteFunc(r, func(v string) bool { return v == types.Wildcard })
 		}
 
 		_, isHeld := held[role.GetName()]
@@ -453,9 +460,15 @@ func DatabasePrincipalSets(base, extended AccessChecker, database types.Database
 	return out
 }
 
-// ValidateDatabaseConstraintCoverage verifies that every principal requested in
-// the database constraints is reachable by at least one of the applicable roles.
-// Wildcard principals ("*") are always considered covered.
+// ValidateDatabaseConstraintCoverage verifies that the requested database
+// constraints are satisfiable by the applicable roles. Every requested value
+// must be granted by at least one applicable role, and a wildcard value only
+// by a role granting the wildcard for that dimension. When both users and
+// names are requested, every value must additionally participate in at least
+// one requested (user, name) combination that a single applicable role grants
+// in full: session-time role matchers are evaluated per role, and
+// per-dimension coverage alone would admit requests that pass approval and
+// fail at connect.
 func ValidateDatabaseConstraintCoverage(
 	constraints *types.DatabaseResourceConstraints,
 	applicableRoles []types.Role,
@@ -468,50 +481,95 @@ func ValidateDatabaseConstraintCoverage(
 		return nil
 	}
 
-	// Compute the union of principals granted across all applicable roles.
-	coveredUsers := set.New[string]()
-	coveredNames := set.New[string]()
-	coveredRoles := set.New[string]()
-
+	// Grants are kept per role rather than unioned: the combination check
+	// below needs to know which single role co-grants a (user, name) pair.
+	type roleGrants struct {
+		users, usersDenied, names, namesDenied, dbRoles set.Set[string]
+		userWildcard, nameWildcard                      bool
+	}
+	grants := make([]roleGrants, 0, len(applicableRoles))
 	for _, role := range applicableRoles {
-		singleInfo := &AccessInfo{
+		singleChecker := NewAccessCheckerWithRoleSet(&AccessInfo{
 			Username: username,
 			Traits:   traits,
-		}
-		singleChecker := NewAccessCheckerWithRoleSet(singleInfo, localCluster, RoleSet{role})
+		}, localCluster, RoleSet{role})
 
+		g := roleGrants{}
 		if res, err := singleChecker.EnumerateDatabaseUsers(database); err == nil {
-			entities, _ := res.ToEntities()
-			for _, e := range entities {
-				coveredUsers.Add(e)
-			}
+			g.userWildcard = res.WildcardAllowed()
+			allowed, denied := res.ToEntities()
+			g.users = set.New(allowed...)
+			g.usersDenied = set.New(denied...)
 		}
 		namesResult := singleChecker.EnumerateDatabaseNames(database)
-		entities, _ := namesResult.ToEntities()
-		for _, e := range entities {
-			coveredNames.Add(e)
-		}
+		g.nameWildcard = namesResult.WildcardAllowed()
+		allowed, denied := namesResult.ToEntities()
+		g.names = set.New(allowed...)
+		g.namesDenied = set.New(denied...)
 		if r, err := singleChecker.CheckDatabaseRoles(database, nil); err == nil {
-			for _, e := range r {
-				coveredRoles.Add(e)
-			}
+			g.dbRoles = set.New(r...)
 		}
+		grants = append(grants, g)
 	}
 
-	// Check that every requested principal is covered.
+	grantsUser := func(g roleGrants, u string) bool {
+		if u == types.Wildcard {
+			return g.userWildcard
+		}
+		if g.usersDenied.Contains(u) {
+			return false
+		}
+		return g.userWildcard || g.users.Contains(u)
+	}
+	grantsName := func(g roleGrants, n string) bool {
+		if n == types.Wildcard {
+			return g.nameWildcard
+		}
+		if g.namesDenied.Contains(n) {
+			return false
+		}
+		return g.nameWildcard || g.names.Contains(n)
+	}
+
+	// Per-dimension coverage: every requested value is granted by some
+	// applicable role. A wildcard is covered only by a wildcard grant, never
+	// by static grants.
 	for _, u := range constraints.Users {
-		if u != types.Wildcard && !coveredUsers.Contains(u) {
+		if !slices.ContainsFunc(grants, func(g roleGrants) bool { return grantsUser(g, u) }) {
 			return trace.BadParameter("requested database user %q is not granted by any applicable role", u)
 		}
 	}
 	for _, n := range constraints.Names {
-		if n != types.Wildcard && !coveredNames.Contains(n) {
+		if !slices.ContainsFunc(grants, func(g roleGrants) bool { return grantsName(g, n) }) {
 			return trace.BadParameter("requested database name %q is not granted by any applicable role", n)
 		}
 	}
 	for _, r := range constraints.Roles {
-		if r != types.Wildcard && !coveredRoles.Contains(r) {
+		if !slices.ContainsFunc(grants, func(g roleGrants) bool { return g.dbRoles.Contains(r) }) {
 			return trace.BadParameter("requested database role %q is not granted by any applicable role", r)
+		}
+	}
+
+	// Combination coverage: database access requires a single role to grant
+	// the (user, name) pair together, so every requested value must form a
+	// pair with some value from the other dimension under one role. An
+	// omitted dimension applies no narrowing and is exempt.
+	if len(constraints.Users) == 0 || len(constraints.Names) == 0 {
+		return nil
+	}
+	pairGranted := func(u, n string) bool {
+		return slices.ContainsFunc(grants, func(g roleGrants) bool {
+			return grantsUser(g, u) && grantsName(g, n)
+		})
+	}
+	for _, u := range constraints.Users {
+		if !slices.ContainsFunc(constraints.Names, func(n string) bool { return pairGranted(u, n) }) {
+			return trace.BadParameter("requested database user %q is not granted together with any requested database name by a single role", u)
+		}
+	}
+	for _, n := range constraints.Names {
+		if !slices.ContainsFunc(constraints.Users, func(u string) bool { return pairGranted(u, n) }) {
+			return trace.BadParameter("requested database name %q is not granted together with any requested database user by a single role", n)
 		}
 	}
 
