@@ -128,7 +128,8 @@ func (a *Server) VerifyBrowserMFASession(ctx context.Context, username, sessionI
 
 	// Verify the session was created by the Browser MFA flow:
 	// Browser MFA sessions are created with the browser connector and a client redirect URL.
-	if !(mfaSess.ConnectorType == constants.BrowserMFA && mfaSess.TSHRedirectURL != "") {
+	isBrowserMFASession := mfaSess.ConnectorType == constants.BrowserMFA && mfaSess.TSHRedirectURL != ""
+	if !isBrowserMFASession {
 		a.logger.WarnContext(ctx,
 			"Rejecting an MFA session that was not created by the Browser MFA flow.",
 			"request_id", mfaSess.RequestID,

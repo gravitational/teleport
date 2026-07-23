@@ -109,7 +109,8 @@ func (a *Server) VerifySSOMFASession(ctx context.Context, username, sessionID, t
 
 	// Verify the session was created by the SSO MFA flow:
 	// SSO MFA sessions are created with an SSO connector and no client redirect URL.
-	if !(slices.Contains([]string{constants.SAML, constants.OIDC}, mfaSess.ConnectorType) && mfaSess.TSHRedirectURL == "") {
+	isSSOMFASession := slices.Contains([]string{constants.SAML, constants.OIDC}, mfaSess.ConnectorType) && mfaSess.TSHRedirectURL == ""
+	if !isSSOMFASession {
 		a.logger.WarnContext(ctx,
 			"Rejecting an MFA session that was not created by the SSO MFA flow.",
 			"request_id", mfaSess.RequestID,
