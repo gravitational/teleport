@@ -420,8 +420,8 @@ func (h *Handler) getAppSession(r *http.Request) (ws types.WebSession, err error
 	}
 	if err != nil {
 		// Missing, expired, or invalid sessions are expected because clients
-		// replay stale cookies, so they are logged at debug level. Unexpected
-		// failures are logged as warnings.
+		// replay stale cookies, so they are logged at debug rather than
+		// warning level.
 		if trace.IsNotFound(err) || trace.IsAccessDenied(err) {
 			h.logger.DebugContext(r.Context(), "Failed to fetch application session", "error", err)
 		} else {

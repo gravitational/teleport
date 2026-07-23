@@ -1103,6 +1103,17 @@ func startFakeAppServerOnCluster(t *testing.T, clusterName string, accessPoint a
 	return fakeCluster
 }
 
+// captureWarnLogs swaps the handler's logger for one that only records
+// warning-level and above into the returned buffer, then restores the
+// original logger when the test ends.
+func captureWarnLogs(t *testing.T, h *Handler) *bytes.Buffer {
+	orig := h.logger
+	t.Cleanup(func() { h.logger = orig })
+	var buf bytes.Buffer
+	h.logger = slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelWarn}))
+	return &buf
+}
+
 func TestHandlerAuthenticate(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
@@ -1205,10 +1216,12 @@ func TestHandlerAuthenticate(t *testing.T) {
 	})
 
 	t.Run("without cookie or client cert", func(t *testing.T) {
+		logs := captureWarnLogs(t, appHandler)
 		request := httptest.NewRequest("GET", "https://"+publicAddr, nil)
 		_, err := appHandler.authenticate(ctx, request)
 		require.Error(t, err)
 		require.True(t, trace.IsAccessDenied(err))
+		require.Empty(t, logs.String(), "a missing cookie must not be logged above debug level")
 	})
 
 	t.Run("with cookie subject mismatch", func(t *testing.T) {
@@ -1233,15 +1246,24 @@ func TestHandlerAuthenticate(t *testing.T) {
 		request := httptest.NewRequest("GET", "https://"+publicAddr, nil)
 		addValidSessionCookiesToRequest(authClient.appSession, request)
 
-		// An expired session must not be logged above debug, otherwise a
-		// client replaying the stale cookie floods the logs.
-		var logs bytes.Buffer
-		appHandler.logger = slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelWarn}))
-
+		logs := captureWarnLogs(t, appHandler)
 		_, err := appHandler.authenticate(ctx, request)
 		require.Error(t, err)
 		require.True(t, trace.IsAccessDenied(err))
 		require.Empty(t, logs.String(), "expired session must not be logged above debug level")
+	})
+
+	t.Run("backend error is logged at warning", func(t *testing.T) {
+		authClient.sessionError = trace.ConnectionProblem(nil, "backend unavailable")
+		t.Cleanup(func() { authClient.sessionError = nil })
+		request := httptest.NewRequest("GET", "https://"+publicAddr, nil)
+		addValidSessionCookiesToRequest(authClient.appSession, request)
+
+		logs := captureWarnLogs(t, appHandler)
+		_, err := appHandler.authenticate(ctx, request)
+		require.Error(t, err)
+		require.True(t, trace.IsAccessDenied(err))
+		require.NotEmpty(t, logs.String(), "an unexpected backend error must be logged at warning level")
 	})
 }
 
