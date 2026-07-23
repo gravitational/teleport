@@ -1599,9 +1599,7 @@ func (set RoleSet) MaxSessions() int64 {
 	return ms
 }
 
-// MaxConnections returns the maximum number of concurrent Kubernetes connections
-// allowed.  If MaxConnections is zero then no maximum was defined
-// and the number of concurrent connections is unconstrained.
+// MaxKubernetesConnections implements [AccessChecker].
 func (set RoleSet) MaxKubernetesConnections() int64 {
 	var mcs int64
 	for _, role := range set {

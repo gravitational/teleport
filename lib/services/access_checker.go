@@ -309,6 +309,12 @@ type AccessChecker interface {
 
 	// DelegationSessionID returns the ID of the current Delegation Session.
 	DelegationSessionID() string
+
+	// MaxKubernetesConnections returns the maximum number of concurrent
+	// Kubernetes connections allowed. If MaxKubernetesConnections is zero then
+	// no maximum was defined and the number of concurrent connections is
+	// unconstrained.
+	MaxKubernetesConnections() int64
 }
 
 // AccessInfo hold information about an identity necessary to check whether that
