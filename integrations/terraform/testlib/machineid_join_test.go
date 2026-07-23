@@ -24,20 +24,30 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
 	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	scopedjoiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/integrations/lib/testing/integration"
-	kubetoken "github.com/gravitational/teleport/lib/kube/token"
 	"github.com/gravitational/teleport/lib/oidc/fakeissuer"
+	"github.com/gravitational/teleport/lib/scopes"
+	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
+	scopedjoining "github.com/gravitational/teleport/lib/scopes/joining"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 
 	"github.com/gravitational/teleport/integrations/terraform/provider"
@@ -119,7 +129,6 @@ func TestTerraformJoin(t *testing.T) {
 	tempDir := t.TempDir()
 	jwtPath := filepath.Join(tempDir, "token")
 	require.NoError(t, os.WriteFile(jwtPath, []byte(jwt), 0600))
-	require.NoError(t, os.Setenv(kubetoken.EnvVarCustomKubernetesTokenPath, jwtPath))
 
 	// Test setup: craft a Terraform provider configuration
 	terraformConfig := fmt.Sprintf(`
@@ -130,8 +139,9 @@ func TestTerraformJoin(t *testing.T) {
 			retry_base_duration = "900ms"
 			retry_cap_duration = "4s"
 			retry_max_tries = "12"
+			kubernetes_token_path = %q
 		}
-	`, authHelper.ServerAddr(), testTokenName, types.JoinMethodKubernetes)
+	`, authHelper.ServerAddr(), testTokenName, types.JoinMethodKubernetes, jwtPath)
 
 	terraformProvider := provider.New()
 	terraformProviders := make(map[string]func() (tfprotov6.ProviderServer, error))
@@ -247,7 +257,6 @@ func TestTerraformJoinViaProxy(t *testing.T) {
 	tempDir := t.TempDir()
 	jwtPath := filepath.Join(tempDir, "token")
 	require.NoError(t, os.WriteFile(jwtPath, []byte(jwt), 0600))
-	require.NoError(t, os.Setenv(kubetoken.EnvVarCustomKubernetesTokenPath, jwtPath))
 
 	// Test setup: craft a Terraform provider configuration
 	proxyAddr, err := process.ProxyTunnelAddr()
@@ -262,8 +271,9 @@ func TestTerraformJoinViaProxy(t *testing.T) {
 			retry_base_duration = "900ms"
 			retry_cap_duration = "4s"
 			retry_max_tries = "12"
+			kubernetes_token_path = %q
 		}
-	`, proxyAddr, testTokenName, types.JoinMethodKubernetes)
+	`, proxyAddr, testTokenName, types.JoinMethodKubernetes, jwtPath)
 
 	terraformProvider := provider.New()
 	terraformProviders := make(map[string]func() (tfprotov6.ProviderServer, error))
@@ -297,4 +307,286 @@ func TestTerraformJoinViaProxy(t *testing.T) {
 			},
 		},
 	})
+}
+
+func TestTerraformJoinScoped(t *testing.T) {
+	require.NoError(t, os.Setenv("TF_ACC", "true"))
+
+	t.Parallel()
+	// Test setup: Configure and start Teleport server
+	clusterName := "root.example.com"
+	logger := logtest.NewLogger()
+	ctx := t.Context()
+
+	teleportServer := helpers.NewInstance(t, helpers.InstanceConfig{
+		ClusterName: clusterName,
+		HostID:      uuid.New().String(),
+		NodeName:    helpers.Loopback,
+		Logger:      logger,
+	})
+
+	// Test setup: building an admin user and role that will be used to create fixtures.
+	const adminUserName = "admin"
+	adminRole, err := types.NewRole("admin", types.RoleSpecV6{
+		Options: types.RoleOptions{},
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				{
+					Resources: []string{types.KindUser, types.KindRole, scopedaccess.KindScopedToken, scopedaccess.KindScopedRole, scopedaccess.KindScopedRoleAssignment, types.KindBot},
+					Verbs:     []string{types.VerbRead, types.VerbCreate, types.VerbDelete, types.VerbList, types.VerbUpdate},
+				},
+			},
+		},
+		Deny: types.RoleConditions{},
+	})
+	require.NoError(t, err)
+	teleportServer.AddUserWithRole(adminUserName, adminRole)
+
+	// Test setup: starting the Teleport instance
+	rcConf := servicecfg.MakeDefaultConfig()
+	rcConf.DataDir = t.TempDir()
+	rcConf.ScopesFeatures = scopes.Features{Enabled: true}
+	rcConf.Auth.Enabled = true
+	rcConf.Proxy.Enabled = true
+	rcConf.Proxy.DisableWebInterface = true
+	rcConf.SSH.Enabled = false
+	rcConf.Version = "v3"
+
+	require.NoError(t, teleportServer.CreateEx(t, nil, rcConf))
+
+	require.NoError(t, teleportServer.Start())
+	t.Cleanup(func() { _ = teleportServer.StopAll() })
+
+	// Test setup: Building an admin client.
+	// Note: this is very convoluted but the bot service is not stored in the auth server struct and cannot be accessed
+	// without a rpc client.
+	adminCreds, err := helpers.GenerateUserCreds(helpers.UserCredsRequest{
+		Process:  teleportServer.Process,
+		Username: "admin",
+	})
+	require.NoError(t, err)
+	clt, err := teleportServer.NewClientWithCreds(
+		helpers.ClientConfig{
+			TeleportUser: adminUserName,
+			Login:        adminUserName,
+			Cluster:      clusterName,
+		},
+		*adminCreds,
+	)
+	require.NoError(t, err)
+
+	clusterClient, err := clt.ConnectToCluster(ctx)
+	require.NoError(t, err)
+	adminClient, err := clusterClient.ConnectToCluster(ctx, clusterName)
+	require.NoError(t, err)
+	// Validate that the admin client works.
+	adminPong, err := adminClient.Ping(ctx)
+	require.NoError(t, err)
+	require.Equal(t, clusterName, adminPong.ClusterName)
+
+	// Test setup: Create all the scoped resources describing a scoped bot, and its RBAC.
+	const (
+		// must match the `scoped_token_0_create.tf` fixture's scope
+		testRootScope = "/staging"
+		testBotRole   = "scoped-role"
+		testBotName   = "test-bot"
+		testTokenName = "test-token"
+	)
+
+	// Role impersonated by the bot.
+	botRole := scopedaccessv1.ScopedRole_builder{
+		Kind:    scopedaccess.KindScopedRole,
+		Version: types.V1,
+		Metadata: headerv1.Metadata_builder{
+			Name: testBotRole,
+		}.Build(),
+		Scope: testRootScope,
+		Spec: scopedaccessv1.ScopedRoleSpec_builder{
+			AssignableScopes: []string{testRootScope},
+			Rules: []*scopedaccessv1.ScopedRule{
+				scopedaccessv1.ScopedRule_builder{
+					Resources: []string{scopedaccess.KindScopedToken},
+					Verbs:     []string{types.VerbReadNoSecrets, types.VerbList, types.VerbUpdate, types.VerbCreate, types.VerbDelete, types.VerbRead},
+				}.Build(),
+			},
+		}.Build(),
+	}.Build()
+	require.NoError(t, scopedaccess.StrongValidateRole(botRole), "malformed role, this is a bug in the test fixture")
+	_, err = adminClient.ScopedAccessServiceClient().CreateScopedRole(ctx, scopedaccessv1.CreateScopedRoleRequest_builder{
+		Role: botRole,
+	}.Build())
+	require.NoError(t, err)
+
+	// Create the bot.
+	botResource := machineidv1.Bot_builder{
+		Kind:    types.KindBot,
+		Version: types.V1,
+		Metadata: headerv1.Metadata_builder{
+			Name: testBotName,
+		}.Build(),
+		Spec:  &machineidv1.BotSpec{},
+		Scope: testRootScope,
+	}.Build()
+	_, err = adminClient.BotServiceClient().CreateBot(ctx, machineidv1.CreateBotRequest_builder{
+		Bot: botResource,
+	}.Build())
+	require.NoError(t, err)
+
+	// Assign role to bot
+	roleAssignment := scopedaccessv1.ScopedRoleAssignment_builder{
+		Kind:    scopedaccess.KindScopedRoleAssignment,
+		SubKind: scopedaccess.SubKindDynamic,
+		Version: types.V1,
+		Metadata: headerv1.Metadata_builder{
+			Name: testBotRole,
+		}.Build(),
+		Scope: testRootScope,
+		Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
+			Assignments: []*scopedaccessv1.Assignment{
+				scopedaccessv1.Assignment_builder{
+					Role:  scopes.QualifiedName{Name: testBotRole, Scope: testRootScope}.String(),
+					Scope: testRootScope,
+				}.Build(),
+			},
+			Bot: scopes.QualifiedName{Scope: testRootScope, Name: testBotName}.String(),
+		}.Build(),
+	}.Build()
+	_, err = adminClient.ScopedAccessServiceClient().CreateScopedRoleAssignment(
+		ctx,
+		scopedaccessv1.CreateScopedRoleAssignmentRequest_builder{
+			Assignment: roleAssignment,
+		}.Build())
+	require.NoError(t, err)
+
+	// Test setup: Wait for the role assignment to enter the auth server cache
+	// else the bot will race against the cache, joining will fail and the test wil be flaky.
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		resp, err := adminClient.ScopedAccessServiceClient().GetScopedRoleAssignment(
+			ctx,
+			scopedaccessv1.GetScopedRoleAssignmentRequest_builder{
+				Name:    testBotRole,
+				Scope:   testRootScope,
+				SubKind: scopedaccess.SubKindDynamic,
+			}.Build(),
+		)
+		require.NoError(t, err)
+		require.NotNil(t, resp)
+		require.NotNil(t, resp.GetAssignment())
+	}, 5*time.Second, 100*time.Millisecond, "expected role assignment to enter the auth cache")
+
+	// Test setup: Create a fake Kubernetes JWKS signer that will be used by the bot to join the cluster.
+	const (
+		testPod            = "my-pod"
+		testNamespace      = "my-namespace"
+		testServiceAccount = "my-service-account"
+	)
+	signer, err := fakeissuer.NewKubernetesSigner(clockwork.NewRealClock())
+	require.NoError(t, err)
+	jwks, err := signer.GetMarshaledJWKS()
+	require.NoError(t, err)
+	jwt, err := signer.SignServiceAccountJWT(testPod, testNamespace, testServiceAccount, clusterName)
+	require.NoError(t, err)
+
+	tokenDir := t.TempDir()
+	tokenPath := filepath.Join(tokenDir, "token")
+	require.NoError(t, os.WriteFile(tokenPath, []byte(jwt), 0600))
+
+	// Test setup: Create the scoped token allowing the Bot to join with a JWT emitted by the Kube signer.
+	token := scopedjoiningv1.ScopedToken_builder{
+		Kind:     scopedaccess.KindScopedToken,
+		Version:  types.V1,
+		Metadata: headerv1.Metadata_builder{Name: testTokenName}.Build(),
+		Scope:    testRootScope,
+		Spec: scopedjoiningv1.ScopedTokenSpec_builder{
+			JoinMethod: string(types.JoinMethodKubernetes),
+			UsageMode:  scopedjoining.TokenUsageModeBot,
+			Kubernetes: scopedjoiningv1.Kubernetes_builder{
+				Allow: []*scopedjoiningv1.Kubernetes_Rule{
+					scopedjoiningv1.Kubernetes_Rule_builder{
+						ServiceAccount: testNamespace + ":" + testServiceAccount,
+					}.Build(),
+				},
+				Type:       string(types.KubernetesJoinTypeStaticJWKS),
+				StaticJwks: scopedjoiningv1.Kubernetes_StaticJWKSConfig_builder{Jwks: jwks}.Build(),
+			}.Build(),
+			Bot:   scopes.QualifiedName{Scope: testRootScope, Name: testBotName}.String(),
+			Roles: []string{string(types.RoleBot)},
+		}.Build(),
+	}.Build()
+	// Somehow the admin client interface doesn't expose CreateScopedToken ¯\_(ツ)_/¯
+	// We use the auth server directly to create the scoped token.
+	_, err = teleportServer.Process.GetAuthServer().CreateScopedToken(ctx, scopedjoiningv1.CreateScopedTokenRequest_builder{
+		Token: token,
+	}.Build())
+	require.NoError(t, err)
+
+	authAddr, err := teleportServer.Process.AuthAddr()
+	require.NoError(t, err)
+	proxyAddr, err := teleportServer.Process.ProxyWebAddr()
+	require.NoError(t, err)
+
+	tests := []struct {
+		name string
+		addr *utils.NetAddr
+	}{
+		{
+			name: "join via auth",
+			addr: authAddr,
+		},
+		{
+			name: "join via proxy",
+			addr: proxyAddr,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			terraformConfig := fmt.Sprintf(`
+		provider "teleport" {
+			addr = %q
+			join_token = %q
+			join_method = %q
+			insecure = true
+			retry_base_duration = "900ms"
+			retry_cap_duration = "4s"
+			retry_max_tries = "12"
+			kubernetes_token_path = %q
+			scoped = true
+		}
+	`, tt.addr, testTokenName, types.JoinMethodKubernetes, tokenPath)
+
+			terraformProvider := provider.New()
+			terraformProviders := make(map[string]func() (tfprotov6.ProviderServer, error))
+			terraformProviders["teleport"] = func() (tfprotov6.ProviderServer, error) {
+				// Terraform configures provider on every test step, but does not clean up previous one, which produces
+				// to "too many open files" at some point.
+				//
+				// With this statement we try to forcefully close previously opened client, which stays cached in
+				// the provider variable.
+				p, ok := terraformProvider.(*provider.Provider)
+				require.True(t, ok)
+				require.NoError(t, p.Close())
+				return providerserver.NewProtocol6(terraformProvider)(), nil
+			}
+
+			// Test execution: apply a TF resource with the provider joining via MachineID
+			dummyResource, err := fixtures.ReadFile(filepath.Join("fixtures", "scoped_token_0_create.tf"))
+			require.NoError(t, err)
+			testConfig := terraformConfig + "\n" + string(dummyResource)
+			name := "teleport_scoped_token.test"
+
+			resource.Test(t, resource.TestCase{
+				ProtoV6ProviderFactories: terraformProviders,
+				Steps: []resource.TestStep{
+					{
+						Config: testConfig,
+						Check: resource.ComposeTestCheckFunc(
+							resource.TestCheckResourceAttr(name, "kind", "scoped_token"),
+							resource.TestCheckResourceAttr(name, "spec.join_method", "token"),
+						),
+					},
+				},
+			})
+		})
+	}
 }
