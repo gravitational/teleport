@@ -20,8 +20,8 @@
             "origin": "teleport_db"
           },
           "level": "standing",
-          "grantor_counts": {"standing": 1, "impersonate": 0, "request": 0},
-          "grantors": [
+          "grant_counts": {"standing": 1, "impersonate": 0, "request": 0},
+          "granted_by": [
             {
               "node": {
                 "id": "4f0c1d2e-3a4b-4c5d-8e6f-7a8b9c0d1e2f",
@@ -47,8 +47,8 @@
             "origin": "teleport_application"
           },
           "level": "standing",
-          "grantor_counts": {"standing": 1, "impersonate": 0, "request": 0},
-          "grantors": [
+          "grant_counts": {"standing": 1, "impersonate": 0, "request": 0},
+          "granted_by": [
             {
               "node": {
                 "id": "1e6a9acc-0000-4000-8000-000000000002",
@@ -73,8 +73,8 @@
           },
           "level": "standing",
           "temporary": true,
-          "grantor_counts": {"standing": 1, "impersonate": 0, "request": 0},
-          "grantors": [
+          "grant_counts": {"standing": 1, "impersonate": 0, "request": 0},
+          "granted_by": [
             {
               "node": {
                 "id": "b6c0acc0-0000-4000-8000-000000000003",

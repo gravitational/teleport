@@ -26,6 +26,11 @@ Please refer to the [official documentation](https://goteleport.com/docs/referen
     make test
     ```
 
+6. For provider architecture and resource development, see:
+
+    - [Architecture](./ARCHITECTURE.md)
+    - [Contributing resources](./CONTRIBUTING.md)
+
 # Updating the provider
 
 Run:

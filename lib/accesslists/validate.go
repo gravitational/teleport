@@ -120,12 +120,6 @@ func validateAccessList(a *accesslist.AccessList) error {
 		if len(a.Spec.Grants.Traits) > 0 || len(a.Spec.OwnerGrants.Traits) > 0 {
 			return trace.BadParameter("scoped access lists cannot grant traits")
 		}
-
-		// TODO(nklaassen): after scoped role assignments have been updated to
-		// refer to scoped access lists with scope-qualified names, access
-		// lists should do the same. At that point we must validate that the
-		// scope of origin of each granted scoped role is equal or ancestor to
-		// the scope of the access list.
 	}
 
 	if err := validateScopedRoleGrants(a); err != nil {
@@ -148,18 +142,36 @@ func validateScopedRoleGrants(a *accesslist.AccessList) error {
 			return trace.BadParameter("scope is empty")
 		}
 
-		if err := scopes.StrongValidate(grant.Scope); err != nil {
-			return trace.Wrap(err, "validating scope")
+		roleName, err := scopes.ParseQualifiedName(grant.Role)
+		if err != nil {
+			return trace.Wrap(err, "parsing granted role name")
+		}
+		if err := roleName.StrongValidate(); err != nil {
+			return trace.Wrap(err, "validating granted role name")
 		}
 
+		if err := scopes.StrongValidate(grant.Scope); err != nil {
+			return trace.Wrap(err, "validating granted scope")
+		}
 		if scopes.Compare(grant.Scope, scopes.Root) == scopes.Equivalent {
 			return trace.BadParameter("root scope cannot be used as a scope of effect")
 		}
 
 		if a.Scope != "" {
-			// Scoped access lists can only assign scoped roles to their own scope or a descendent scope.
+			// Scoped access lists can only assign scoped roles defined in
+			// their own scope or an ancestor scope, to their own scope or a
+			// descendent scope.
+			//
+			// E.g. An access list in /aa/bb can grant /aa::role to /aa/bb/cc
+			if !scopes.PolicyResourceScope(a.Scope).CanDependOnStateFromPolicyResourceAtScope(roleName.Scope) {
+				return trace.BadParameter("cannot grant %q because it is not defined in a scope equal or ancestor to the list's scope %q", grant.Role, a.Scope)
+			}
 			if !scopes.ScopeOfOrigin(a.Scope).IsAssignableToScopeOfEffect(grant.Scope) {
 				return trace.BadParameter("scoped role grant has scope %q that is not a sub-scope of the access list's scope %q", grant.Scope, a.Scope)
+			}
+		} else {
+			if scopes.Compare(roleName.Scope, scopes.Root) != scopes.Equivalent {
+				return trace.BadParameter("unscoped access lists can only grant scoped role defined in the root scope")
 			}
 		}
 

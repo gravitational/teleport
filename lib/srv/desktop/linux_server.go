@@ -563,7 +563,7 @@ func (sess *linuxSession) startMonitor() error {
 		EmitterContext:        s.closeCtx,
 		LockWatcher:           s.cfg.LockWatcher,
 		LockingMode:           sess.authCtx.Checker.LockingMode(sess.authPref.GetLockingMode()),
-		LockTargets:           append(services.LockTargetsFromTLSIdentity(sess.identity), types.LockTarget{LinuxDesktop: sess.desktop.GetMetadata().GetName()}),
+		LockTargets:           slices.AppendSeq([]types.LockTarget{{LinuxDesktop: sess.desktop.GetMetadata().GetName()}}, services.LockTargetsFromTLSIdentity(sess.identity)),
 		Tracker:               &sess.track,
 		TeleportUser:          sess.identity.Username,
 		UserOriginClusterName: sess.identity.OriginClusterName,
