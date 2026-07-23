@@ -26,10 +26,17 @@ page_type: how-to
 
 </Tabs>
 
-<Admonition type="note" title="Supported versions">
+(!docs/pages/includes/database-access/auto-discovery-tip.mdx dbType="RDS" providerType="AWS" !)
 
-The following products are not compatible with Teleport as they don't support
-IAM authentication:
+## Prerequisites
+
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
+<Admonition type="warning" title="Supported versions">
+
+Before you provision a database for this guide, confirm it isn't one of the
+following, since neither supports IAM authentication and Teleport cannot
+connect to them:
 
     - Aurora Serverless v1.
     - RDS MariaDB versions lower than 10.6.
@@ -39,12 +46,6 @@ v2](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/aurora-serverle
 which supports IAM authentication.
 
 </Admonition>
-
-(!docs/pages/includes/database-access/auto-discovery-tip.mdx dbType="RDS" providerType="AWS" !)
-
-## Prerequisites
-
-(!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
 - AWS account with RDS and Aurora databases and permissions to create and attach
   IAM policies.
