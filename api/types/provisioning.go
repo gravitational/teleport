@@ -178,6 +178,8 @@ type ProvisionToken interface {
 	GetBoundKeypairStatus() *ProvisionTokenStatusV2BoundKeypair
 	// GetGenericOIDC returns generic_oidc-specific configuration for this token.
 	GetGenericOIDC() (*ProvisionTokenSpecV2GenericOIDC, error)
+	// GetGithub returns github-specific configuration for this token.
+	GetGithub() *ProvisionTokenSpecV2GitHub
 	// GetAWSIIDTTL returns the TTL of EC2 IIDs
 	GetAWSIIDTTL() Duration
 	// GetJoinMethod returns joining method that must be used with this token.
@@ -619,6 +621,11 @@ func (p *ProvisionTokenV2) GetBoundKeypairStatus() *ProvisionTokenStatusV2BoundK
 // GetGenericOIDC returns generic_oidc-specific configuration for this token.
 func (p *ProvisionTokenV2) GetGenericOIDC() (*ProvisionTokenSpecV2GenericOIDC, error) {
 	return p.Spec.GenericOIDC, nil
+}
+
+// GetGithub returns github-specific configuration for this token.
+func (p *ProvisionTokenV2) GetGithub() *ProvisionTokenSpecV2GitHub {
+	return p.Spec.GitHub
 }
 
 // GetJoinMethod returns joining method that must be used with this token.
@@ -1089,7 +1096,6 @@ func (a *ProvisionTokenSpecV2TPM) validate() error {
 				"ekcert_allowed_cas[%d]: parsing certificate",
 				i,
 			)
-
 		}
 	}
 

@@ -348,6 +348,38 @@ func validateGenericOIDC(spec *joiningv1.GenericOIDC) error {
 	return nil
 }
 
+// validates the Github-specific join token.
+// It requires that the rules have at least one option set
+// and it also checks enterprise_server_host constraints, so the comment undersells the function.
+func validateGithub(spec *joiningv1.Github) error {
+	if spec == nil {
+		return trace.BadParameter("github configuration must be defined for a scoped token when using the github join method")
+	}
+	if strings.Contains(spec.EnterpriseServerHost, "/") {
+		return trace.BadParameter("'github.enterprise_server_host' should not contain the scheme or path")
+	}
+	if spec.EnterpriseServerHost != "" && spec.EnterpriseSlug != "" {
+		return trace.BadParameter("'github.enterprise_server_host' and `github.enterprise_slug` cannot both be set")
+	}
+
+	if len(spec.Allow) == 0 {
+		return trace.BadParameter("the github join method requires at least one token allow rule")
+	}
+
+	for _, rule := range spec.Allow {
+		repoSet := rule.Repository != ""
+		ownerSet := rule.RepositoryOwner != ""
+		subSet := rule.Sub != ""
+		enterpriseSet := rule.Enterprise != ""
+		enterpriseIDSet := rule.EnterpriseId != ""
+		if !subSet && !ownerSet && !repoSet && !enterpriseSet && !enterpriseIDSet {
+			return trace.BadParameter(`allow rule for github must include at least one of "repository", "repository_owner", "sub", "enterprise" or "enterprise_id"`)
+		}
+	}
+
+	return nil
+}
+
 // validates per join method token configurations
 func validateJoinMethod(token *joiningv1.ScopedToken) error {
 	switch types.JoinMethod(token.GetSpec().GetJoinMethod()) {
@@ -373,6 +405,8 @@ func validateJoinMethod(token *joiningv1.ScopedToken) error {
 		// Bound keypair tokens are always valid
 	case types.JoinMethodGenericOIDC:
 		return trace.Wrap(validateGenericOIDC(token.GetSpec().GetGenericOidc()), "generic_oidc join method")
+	case types.JoinMethodGitHub:
+		return trace.Wrap(validateGithub(token.GetSpec().GetGithub()), "github join method")
 	default:
 		return trace.BadParameter("join method %q does not support scoping", token.GetSpec().GetJoinMethod())
 	}
@@ -1005,6 +1039,33 @@ func (t *Token) GetGenericOIDC() (*types.ProvisionTokenSpecV2GenericOIDC, error)
 		MustMatchFields: globalMatchers,
 		AllowAny:        allow,
 	}, nil
+}
+
+func (t *Token) GetGithub() *types.ProvisionTokenSpecV2GitHub {
+	spec := t.scoped.GetSpec().GetGithub()
+
+	allow := make([]*types.ProvisionTokenSpecV2GitHub_Rule, len(spec.GetAllow()))
+	for i, rule := range spec.GetAllow() {
+		allow[i] = &types.ProvisionTokenSpecV2GitHub_Rule{
+			Sub:             rule.GetSub(),
+			Repository:      rule.GetRepository(),
+			RepositoryOwner: rule.GetRepositoryOwner(),
+			Workflow:        rule.GetWorkflow(),
+			Environment:     rule.GetEnvironment(),
+			Actor:           rule.GetActor(),
+			Ref:             rule.GetRef(),
+			RefType:         rule.GetRefType(),
+			Enterprise:      rule.GetEnterprise(),
+			EnterpriseID:    rule.GetEnterpriseId(),
+		}
+	}
+
+	return &types.ProvisionTokenSpecV2GitHub{
+		EnterpriseServerHost: spec.GetEnterpriseServerHost(),
+		EnterpriseSlug:       spec.GetEnterpriseSlug(),
+		StaticJWKS:           spec.GetStaticJwks(),
+		Allow:                allow,
+	}
 }
 
 // GetScoped returns the inner scoped token wrapped by this [provision.Token].
