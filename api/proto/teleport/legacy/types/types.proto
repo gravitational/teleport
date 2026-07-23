@@ -781,6 +781,9 @@ message AuditQueueStatus {
   int64 PendingCount = 1 [(gogoproto.jsontag) = "pending_count,omitempty"];
   // DeadLetterCount is the number of audit events in the dead-letter queue.
   int64 DeadLetterCount = 2 [(gogoproto.jsontag) = "dead_letter_count,omitempty"];
+  // CorruptCount is the number of audit events quarantined because their
+  // payloads failed to deserialize.
+  int64 CorruptCount = 3 [(gogoproto.jsontag) = "corrupt_count,omitempty"];
 }
 
 // SystemClockMeasurement represents the measurement state of the systems clock difference.

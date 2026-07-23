@@ -102,6 +102,9 @@ type Stats struct {
 	PendingCount int64
 	// DeadLetterCount is the number of events in the dead-letter queue.
 	DeadLetterCount int64
+	// CorruptCount is the number of events quarantined because their payloads
+	// failed to deserialize.
+	CorruptCount int64
 }
 
 // Handler is the function type that the caller of the auditqueue implements.

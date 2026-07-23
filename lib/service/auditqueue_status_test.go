@@ -45,8 +45,8 @@ func TestAuditQueueStatusAggregation(t *testing.T) {
 	// No emitters registered -> nil status (audit queue disabled / not present).
 	require.Nil(t, process.AuditQueueStatus(ctx))
 
-	a := &fakeStatsEmitter{stats: auditqueue.Stats{PendingCount: 3, DeadLetterCount: 1}}
-	b := &fakeStatsEmitter{stats: auditqueue.Stats{PendingCount: 5, DeadLetterCount: 2}}
+	a := &fakeStatsEmitter{stats: auditqueue.Stats{PendingCount: 3, DeadLetterCount: 1, CorruptCount: 4}}
+	b := &fakeStatsEmitter{stats: auditqueue.Stats{PendingCount: 5, DeadLetterCount: 2, CorruptCount: 6}}
 	process.registerAuditQueueStats(a)
 	process.registerAuditQueueStats(b)
 
@@ -55,6 +55,7 @@ func TestAuditQueueStatusAggregation(t *testing.T) {
 	require.NotNil(t, status)
 	require.Equal(t, int64(8), status.PendingCount)
 	require.Equal(t, int64(3), status.DeadLetterCount)
+	require.Equal(t, int64(10), status.CorruptCount)
 
 	// An erroring getter is skipped, not fatal.
 	c := &fakeStatsEmitter{err: errors.New("queue closed")}
@@ -62,10 +63,12 @@ func TestAuditQueueStatusAggregation(t *testing.T) {
 	status = process.AuditQueueStatus(ctx)
 	require.Equal(t, int64(8), status.PendingCount)
 	require.Equal(t, int64(3), status.DeadLetterCount)
+	require.Equal(t, int64(10), status.CorruptCount)
 
 	// Unregistering drops the emitter from the sum.
 	process.unregisterAuditQueueStats(b)
 	status = process.AuditQueueStatus(ctx)
 	require.Equal(t, int64(3), status.PendingCount)
 	require.Equal(t, int64(1), status.DeadLetterCount)
+	require.Equal(t, int64(4), status.CorruptCount)
 }

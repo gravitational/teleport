@@ -542,13 +542,15 @@ func isMainQueueEmpty(db *sql.DB) (bool, error) {
 
 const statsQuery = `SELECT
 	(SELECT COUNT(*) FROM audit_queue),
-	(SELECT COUNT(*) FROM audit_dead_letter)`
+	(SELECT COUNT(*) FROM audit_dead_letter),
+	(SELECT COUNT(*) FROM corrupt_events)`
 
 // Stats reports the current depth of the queue: the number of events pending in
-// the main queue and the number in the dead-letter queue.
+// the main queue, the number in the dead-letter queue, and the number
+// quarantined as corrupt.
 func (q *sqliteQueue) Stats(ctx context.Context) (Stats, error) {
 	var stats Stats
-	if err := q.db.QueryRowContext(ctx, statsQuery).Scan(&stats.PendingCount, &stats.DeadLetterCount); err != nil {
+	if err := q.db.QueryRowContext(ctx, statsQuery).Scan(&stats.PendingCount, &stats.DeadLetterCount, &stats.CorruptCount); err != nil {
 		return Stats{}, trace.Wrap(err)
 	}
 	return stats, nil

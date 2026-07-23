@@ -3578,6 +3578,7 @@ func (process *TeleportProcess) AuditQueueStatus(ctx context.Context) *types.Aud
 		}
 		status.PendingCount += stats.PendingCount
 		status.DeadLetterCount += stats.DeadLetterCount
+		status.CorruptCount += stats.CorruptCount
 	}
 	return &status
 }

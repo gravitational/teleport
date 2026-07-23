@@ -283,6 +283,9 @@ func (c *InventoryCommand) List(ctx context.Context, client *authclient.Client) 
 				if aq.DeadLetterCount > 0 {
 					auditQueue += fmt.Sprintf(" (%d DL)", aq.DeadLetterCount)
 				}
+				if aq.CorruptCount > 0 {
+					auditQueue += fmt.Sprintf(" (%d corrupt)", aq.CorruptCount)
+				}
 			}
 
 			rows = append(rows, instanceRow{
