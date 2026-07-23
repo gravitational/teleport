@@ -102,7 +102,7 @@ func NewInferenceSecretReconciler(
 		client,
 		secretClient,
 		reconcilers.Config{
-			CheckFeatures: controllers.RequirePolicy,
+			CheckFeatures: controllers.RequireSessionSummaries,
 		},
 	)
 
