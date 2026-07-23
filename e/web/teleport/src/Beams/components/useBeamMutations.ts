@@ -1,69 +1,86 @@
 import {
-  QueryClient,
+  keepPreviousData,
   useMutation,
+  useQuery,
   useQueryClient,
 } from '@tanstack/react-query';
-import { useEffect, useRef } from 'react';
 
 import { useToastNotifications } from 'shared/components/ToastNotification';
 
 import { beamsService } from 'e-teleport/services/beams';
-import { Beam, BeamPublish } from 'e-teleport/services/beams/types';
+import {
+  Beam,
+  BeamsSortField,
+  Protocol,
+} from 'e-teleport/services/beams/types';
 
-import { isProvisioning } from './constants';
+import { isProvisioning, notifyError, SortDir } from './constants';
 
-// Defaults the backend applies when a publish spec omits them. We send them
-// explicitly so the request body matches the response shape.
-const DEFAULT_PUBLISH: BeamPublish = { port: 8080, protocol: 'http' };
+const PUBLISH_PORT = 8080;
 
-const REFETCH_DELAYS_MS = [850, 3000];
+const REFETCH_DELAY_MS = 850;
+const SAFETY_NET_DELAY_MS = 3000;
 
-// Schedules a list refetch at a fixed delay after a mutation succeeds.
-function scheduleListRefetch(
-  queryClient: QueryClient,
-  delay: number,
-  shouldFire: () => boolean = () => true
-): () => void {
-  const id = window.setTimeout(() => {
-    if (!shouldFire()) return;
-    queryClient.removeQueries({ queryKey: ['beams'], type: 'inactive' });
-    queryClient.invalidateQueries({ queryKey: ['beams'] });
-  }, delay);
-  return () => clearTimeout(id);
-}
-
-// Manages a set of in-flight refetch timers. Schedules cancel automatically
-// on unmount and on any subsequent schedule call (so rapid mutations don't
-// stack up).
 function useDelayedListRefetch() {
   const queryClient = useQueryClient();
-  const cancelRef = useRef<(() => void) | null>(null);
 
-  useEffect(() => () => cancelRef.current?.(), []);
+  const invalidateList = () => {
+    queryClient.removeQueries({ queryKey: ['beams'], type: 'inactive' });
+    queryClient.invalidateQueries({ queryKey: ['beams'] });
+  };
 
+  // Backend changes take time to appear in the list, so an immediate refetch may
+  // return stale data. The first timeout waits for the expected propagation
+  // delay. The second acts as a fallback, re-invalidating if the list still
+  // hasn't reached the expected state (e.g. provisioning isn't complete or the
+  // publish status hasn't updated yet).
   return (opts: { retryIf: (beams: Beam[]) => boolean }) => {
-    cancelRef.current?.();
-    const [first, second] = REFETCH_DELAYS_MS;
-    const shouldFireSecond = () => {
+    setTimeout(invalidateList, REFETCH_DELAY_MS);
+    setTimeout(() => {
       const lists = queryClient.getQueriesData<{ items?: Beam[] }>({
         queryKey: ['beams'],
       });
       const beams = lists.flatMap(([, data]) => data?.items ?? []);
-      return opts.retryIf(beams);
-    };
-    const cancelFirst = scheduleListRefetch(queryClient, first);
-    // This second fetch is usually never fired because most mutations only need the first refetch
-    // This works as a safety net for slower cache updates.
-    const cancelSecond = scheduleListRefetch(
-      queryClient,
-      second,
-      shouldFireSecond
-    );
-    cancelRef.current = () => {
-      cancelFirst();
-      cancelSecond();
-    };
+      if (opts.retryIf(beams)) invalidateList();
+    }, SAFETY_NET_DELAY_MS);
   };
+}
+
+export function useListBeams({
+  clusterId,
+  pageSize,
+  pageToken,
+  sortField,
+  sortDir,
+  users,
+  enabled,
+}: {
+  clusterId: string;
+  pageSize: number;
+  pageToken: string;
+  sortField: BeamsSortField;
+  sortDir: SortDir;
+  users: string[] | undefined;
+  enabled: boolean;
+}) {
+  return useQuery({
+    enabled,
+    queryKey: ['beams', clusterId, pageToken, sortField, sortDir, users],
+    queryFn: ({ signal }) =>
+      beamsService.listBeams(
+        {
+          pageSize,
+          pageToken,
+          sortField,
+          sortDir: sortDir === 'DESC' ? 'desc' : 'asc',
+          users,
+        },
+        clusterId,
+        signal
+      ),
+    placeholderData: keepPreviousData,
+    staleTime: 30_000,
+  });
 }
 
 export function useCreateBeam(
@@ -85,12 +102,14 @@ export function useCreateBeam(
       scheduleRefetches({ retryIf: beams => beams.some(isProvisioning) });
       opts.onSuccess?.(beam);
     },
+    onError: err => notifyError(toast, 'Failed to create beam', err),
   });
 }
 
 // Single mutation path that handles both single and bulk deletes — bulk
-// deletes are dispatched in parallel via Promise.all over the existing
-// per-beam deleteBeam API. Callers pass a Beam[] with length >= 1.
+// deletes are dispatched via Promise.allSettled over the existing per-beam
+// deleteBeam API. Callers pass a Beam[] with length >= 1. Using allSettled
+// ensures partial failures don't discard the results of successful deletes.
 export function useDeleteBeams(
   clusterId: string,
   opts: { onSuccess?: (beams: Beam[]) => void } = {}
@@ -99,28 +118,49 @@ export function useDeleteBeams(
   const scheduleRefetches = useDelayedListRefetch();
   return useMutation({
     mutationFn: async (beams: Beam[]) => {
-      await Promise.all(
+      const results = await Promise.allSettled(
         beams.map(b => beamsService.deleteBeam({ clusterId, name: b.name }))
       );
-      return beams;
+      const failed = results.filter(r => r.status === 'rejected');
+      if (failed.length === beams.length) {
+        throw failed[0].reason;
+      }
+      if (failed.length > 0) {
+        const succeeded = beams.filter(
+          (_, i) => results[i].status === 'fulfilled'
+        );
+        return { succeeded, partialFailureCount: failed.length };
+      }
+      return { succeeded: beams, partialFailureCount: 0 };
     },
-    onSuccess: beams => {
-      const single = beams.length === 1;
+    onSuccess: ({ succeeded, partialFailureCount }) => {
+      const single = succeeded.length === 1;
+      const title = single
+        ? 'Removed beam'
+        : `Removed ${succeeded.length} beams`;
+      const description = partialFailureCount
+        ? `${partialFailureCount} beam(s) could not be deleted.`
+        : single
+          ? `"${succeeded[0].alias || succeeded[0].name}" has been deleted.`
+          : undefined;
       toast.add({
-        severity: 'success',
-        content: {
-          title: single ? 'Removed beam' : `Removed ${beams.length} beams`,
-          description: single
-            ? `"${beams[0].alias || beams[0].name}" has been deleted.`
-            : undefined,
-        },
+        severity: partialFailureCount ? 'warn' : 'success',
+        content: { title, description },
       });
-      const names = new Set(beams.map(b => b.name));
+      const names = new Set(succeeded.map(b => b.name));
       scheduleRefetches({
         retryIf: items => items.some(b => names.has(b.name)),
       });
-      opts.onSuccess?.(beams);
+      opts.onSuccess?.(succeeded);
     },
+    onError: (err, beams) =>
+      notifyError(
+        toast,
+        beams.length === 1
+          ? 'Failed to remove beam'
+          : `Failed to remove ${beams.length} beams`,
+        err
+      ),
   });
 }
 
@@ -132,10 +172,10 @@ export function usePublishBeam(
   const toast = useToastNotifications();
   const scheduleRefetches = useDelayedListRefetch();
   return useMutation({
-    mutationFn: () =>
+    mutationFn: (protocol: Protocol) =>
       beamsService.updateBeam(
         { clusterId, name: beam.name },
-        { ...beam, publish: DEFAULT_PUBLISH }
+        { ...beam, publish: { port: PUBLISH_PORT, protocol } }
       ),
     onSuccess: updated => {
       toast.add({
@@ -153,6 +193,7 @@ export function usePublishBeam(
       });
       opts.onSuccess?.(updated);
     },
+    onError: err => notifyError(toast, 'Failed to publish app', err),
   });
 }
 
@@ -182,5 +223,6 @@ export function useUnpublishBeam(
       });
       opts.onSuccess?.();
     },
+    onError: err => notifyError(toast, 'Failed to unpublish app', err),
   });
 }

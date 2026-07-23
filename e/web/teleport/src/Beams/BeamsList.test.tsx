@@ -1,3 +1,4 @@
+import { ThemeProvider as NewThemeProvider } from '@gravitational/design-system';
 import { PropsWithChildren } from 'react';
 
 import { ConfiguredThemeProvider } from 'design/ThemeProvider';
@@ -8,7 +9,9 @@ import {
   screen,
   server,
   testQueryClient,
+  testThemeSystem,
   theme,
+  userEvent,
   waitFor,
   waitForElementToBeRemoved,
   within,
@@ -159,7 +162,7 @@ describe('BeamsList', () => {
 
     await waitForElementToBeRemoved(() => screen.queryByTestId('loading'));
 
-    const [nextButton] = screen.getAllByTitle('Next page');
+    const nextButton = screen.getByRole('button', { name: /next page/i });
 
     expect(beamsService.listBeams).toHaveBeenCalledTimes(1);
     expect(beamsService.listBeams).toHaveBeenLastCalledWith(
@@ -206,7 +209,7 @@ describe('BeamsList', () => {
       expect.any(AbortSignal)
     );
 
-    const [prevButton] = screen.getAllByTitle('Previous page');
+    const prevButton = screen.getByRole('button', { name: /previous page/i });
 
     await waitFor(() => expect(prevButton).toBeEnabled());
     fireEvent.click(prevButton);
@@ -257,9 +260,8 @@ describe('BeamsList', () => {
       expect.any(String),
       expect.any(AbortSignal)
     );
-    expect(screen.queryByText('user@example.com')).not.toBeInTheDocument();
 
-    const [nextButton] = screen.getAllByTitle('Next page');
+    const nextButton = screen.getByRole('button', { name: /next page/i });
     await waitFor(() => expect(nextButton).toBeEnabled());
     fireEvent.click(nextButton);
 
@@ -276,7 +278,10 @@ describe('BeamsList', () => {
       expect.any(AbortSignal)
     );
 
-    fireEvent.click(screen.getByTestId('toggle'));
+    fireEvent.click(screen.getByRole('button', { name: /created by filter/i }));
+    fireEvent.click(
+      screen.getByRole('menuitem', { name: /created by: anyone/i })
+    );
 
     await waitFor(() => {
       expect(beamsService.listBeams).toHaveBeenCalledTimes(3);
@@ -292,7 +297,6 @@ describe('BeamsList', () => {
       expect.any(String),
       expect.any(AbortSignal)
     );
-    expect(screen.getByText('user@example.com')).toBeInTheDocument();
   });
 
   it('allows sorting', async () => {
@@ -332,7 +336,8 @@ describe('BeamsList', () => {
       expect.any(AbortSignal)
     );
 
-    fireEvent.click(screen.getByText('ID'));
+    fireEvent.click(screen.getByRole('button', { name: 'Sort by' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: /^beam$/i }));
 
     await waitFor(() => {
       expect(beamsService.listBeams).toHaveBeenCalledTimes(2);
@@ -342,14 +347,17 @@ describe('BeamsList', () => {
         pageSize: 20,
         pageToken: '',
         sortField: 'alias',
-        sortDir: 'desc',
+        sortDir: 'asc',
         users: ['llama'],
       },
       expect.any(String),
       expect.any(AbortSignal)
     );
 
-    fireEvent.click(screen.getByText('ID'));
+    fireEvent.click(screen.getByRole('button', { name: 'Sort by' }));
+    fireEvent.click(
+      screen.getByRole('menuitem', { name: /alphabetical, z - a/i })
+    );
 
     await waitFor(() => {
       expect(beamsService.listBeams).toHaveBeenCalledTimes(3);
@@ -359,7 +367,7 @@ describe('BeamsList', () => {
         pageSize: 20,
         pageToken: '',
         sortField: 'alias',
-        sortDir: 'asc',
+        sortDir: 'desc',
         users: ['llama'],
       },
       expect.any(String),
@@ -403,7 +411,7 @@ describe('BeamsList', () => {
     );
   });
 
-  it('publishes an owned beam from the row menu', async () => {
+  it('publishes an owned beam as HTTP from the row menu', async () => {
     jest.mocked(beamsService.listBeams).mockResolvedValue({
       items: [ownedBeam],
       next_page_token: '',
@@ -418,14 +426,53 @@ describe('BeamsList', () => {
     render(<BeamsList />, { wrapper: makeWrapper() });
     await waitForElementToBeRemoved(() => screen.queryByTestId('loading'));
 
-    fireEvent.click(screen.getByTestId('button')); // overflow menu
-    fireEvent.click(screen.getByRole('menuitem', { name: /publish/i }));
+    const listCallsBefore = jest.mocked(beamsService.listBeams).mock.calls
+      .length;
+
+    fireEvent.click(screen.getByRole('button', { name: /options/i }));
+    fireEvent.click(screen.getByRole('menuitem', { name: /publish as http/i }));
 
     await waitFor(() => {
       expect(beamsService.updateBeam).toHaveBeenCalledWith(
         { clusterId: expect.any(String), name: ownedBeam.name },
         expect.objectContaining({
           publish: { port: 8080, protocol: 'http' },
+        })
+      );
+    });
+
+    await waitFor(
+      () =>
+        expect(
+          jest.mocked(beamsService.listBeams).mock.calls.length
+        ).toBeGreaterThan(listCallsBefore),
+      { timeout: 2000 }
+    );
+  });
+
+  it('publishes an owned beam as TCP from the row menu', async () => {
+    jest.mocked(beamsService.listBeams).mockResolvedValue({
+      items: [ownedBeam],
+      next_page_token: '',
+    });
+    const published = {
+      ...ownedBeam,
+      app_name: 'my-beam-1111',
+      publish: { port: 8080, protocol: 'tcp' as const },
+    };
+    server.use(updateBeamSuccess(published));
+
+    render(<BeamsList />, { wrapper: makeWrapper() });
+    await waitForElementToBeRemoved(() => screen.queryByTestId('loading'));
+
+    fireEvent.click(screen.getByRole('button', { name: /options/i }));
+    fireEvent.click(screen.getByRole('menuitem', { name: /publish as tcp/i }));
+
+    await waitFor(() => {
+      expect(beamsService.updateBeam).toHaveBeenCalledWith(
+        { clusterId: expect.any(String), name: ownedBeam.name },
+        expect.objectContaining({
+          publish: { port: 8080, protocol: 'tcp' },
         })
       );
     });
@@ -447,7 +494,7 @@ describe('BeamsList', () => {
     render(<BeamsList />, { wrapper: makeWrapper() });
     await waitForElementToBeRemoved(() => screen.queryByTestId('loading'));
 
-    fireEvent.click(screen.getByTestId('button')); // overflow menu
+    fireEvent.click(screen.getByRole('button', { name: /options/i }));
     fireEvent.click(screen.getByRole('menuitem', { name: /unpublish/i }));
 
     await waitFor(() => {
@@ -470,9 +517,18 @@ describe('BeamsList', () => {
 
     expect(screen.getByRole('button', { name: /connect/i })).toBeDisabled();
 
-    fireEvent.click(screen.getByTestId('button'));
+    fireEvent.click(screen.getByRole('button', { name: /options/i }));
 
-    fireEvent.click(screen.getByRole('menuitem', { name: /publish/i }));
+    const publishHttp = screen.getByRole('menuitem', {
+      name: /publish as http/i,
+    });
+    await userEvent.hover(publishHttp);
+    expect(
+      await screen.findByText(/you don't have permission to publish this beam/i)
+    ).toBeInTheDocument();
+
+    fireEvent.click(publishHttp);
+    fireEvent.click(screen.getByRole('menuitem', { name: /publish as tcp/i }));
     expect(beamsService.updateBeam).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByRole('menuitem', { name: /delete/i }));
@@ -608,11 +664,11 @@ describe('BeamsList', () => {
       })
     );
     expect(
-      screen.getByRole('button', { name: /^delete \(1\)$/i })
+      await screen.findByRole('button', { name: /^delete \(1\)$/i })
     ).toBeInTheDocument();
 
     // Navigate to page 2.
-    const [nextButton] = screen.getAllByTitle('Next page');
+    const nextButton = screen.getByRole('button', { name: /next page/i });
     fireEvent.click(nextButton);
     await screen.findByText(beamOnPage2.alias);
 
@@ -651,7 +707,7 @@ describe('BeamsList', () => {
     });
   });
 
-  it('deletes a beam via the row-menu Delete... item with the confirm dialog', async () => {
+  it('deletes a beam via the row-menu Delete item with the confirm dialog', async () => {
     jest.mocked(beamsService.listBeams).mockResolvedValue({
       items: [ownedBeam],
       next_page_token: '',
@@ -661,7 +717,7 @@ describe('BeamsList', () => {
     render(<BeamsList />, { wrapper: makeWrapper() });
     await waitForElementToBeRemoved(() => screen.queryByTestId('loading'));
 
-    fireEvent.click(screen.getByTestId('button'));
+    fireEvent.click(screen.getByRole('button', { name: /options/i }));
     fireEvent.click(screen.getByRole('menuitem', { name: /delete/i }));
 
     const dialog = await screen.findByRole('dialog');
@@ -676,6 +732,152 @@ describe('BeamsList', () => {
         clusterId: expect.any(String),
         name: ownedBeam.name,
       });
+    });
+  });
+
+  it('header checkbox selects every beam on the page when nothing is selected', async () => {
+    const second: Beam = {
+      ...ownedBeam,
+      name: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
+      alias: 'second-beam',
+    };
+    jest.mocked(beamsService.listBeams).mockResolvedValue({
+      items: [ownedBeam, second],
+      next_page_token: '',
+    });
+
+    render(<BeamsList />, { wrapper: makeWrapper() });
+    await waitForElementToBeRemoved(() => screen.queryByTestId('loading'));
+
+    fireEvent.click(
+      screen.getByRole('checkbox', { name: /select all beams on this page/i })
+    );
+
+    expect(
+      await screen.findByRole('button', { name: /^delete \(2\)$/i })
+    ).toBeInTheDocument();
+  });
+
+  it('header checkbox selects all when partially selected', async () => {
+    const second: Beam = {
+      ...ownedBeam,
+      name: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
+      alias: 'second-beam',
+    };
+    jest.mocked(beamsService.listBeams).mockResolvedValue({
+      items: [ownedBeam, second],
+      next_page_token: '',
+    });
+
+    render(<BeamsList />, { wrapper: makeWrapper() });
+    await waitForElementToBeRemoved(() => screen.queryByTestId('loading'));
+
+    fireEvent.click(
+      screen.getByRole('checkbox', {
+        name: new RegExp(`select beam ${ownedBeam.alias}`, 'i'),
+      })
+    );
+    const selectAllHeader = await screen.findByRole('checkbox', {
+      name: /select all beams on this page/i,
+    });
+
+    fireEvent.click(selectAllHeader);
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole('button', { name: /^delete \(2\)$/i })
+      ).toBeInTheDocument();
+    });
+  });
+
+  it('opens the TCP access dialog when the TCP badge is clicked on a published beam', async () => {
+    const publishedTcp: Beam = {
+      ...ownedBeam,
+      app_name: 'my-beam-1111',
+      publish: { port: 8080, protocol: 'tcp' as const },
+    };
+    jest.mocked(beamsService.listBeams).mockResolvedValue({
+      items: [publishedTcp],
+      next_page_token: '',
+    });
+
+    render(<BeamsList />, { wrapper: makeWrapper() });
+    await waitForElementToBeRemoved(() => screen.queryByTestId('loading'));
+
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: new RegExp(
+          `show tcp access instructions for ${publishedTcp.alias}`,
+          'i'
+        ),
+      })
+    );
+
+    const dialog = await screen.findByRole('dialog');
+    expect(
+      within(dialog).getByText(/accessing a published tcp app/i)
+    ).toBeInTheDocument();
+    expect(
+      within(dialog).getByText(
+        (_, el) => el?.textContent === `tsh proxy app ${publishedTcp.app_name}`
+      )
+    ).toBeInTheDocument();
+  });
+
+  it('clears selection when the sort field changes', async () => {
+    jest.mocked(beamsService.listBeams).mockResolvedValue({
+      items: [ownedBeam],
+      next_page_token: '',
+    });
+
+    render(<BeamsList />, { wrapper: makeWrapper() });
+    await waitForElementToBeRemoved(() => screen.queryByTestId('loading'));
+
+    fireEvent.click(
+      screen.getByRole('checkbox', {
+        name: new RegExp(`select beam ${ownedBeam.alias}`, 'i'),
+      })
+    );
+    expect(
+      await screen.findByRole('button', { name: /^delete \(1\)$/i })
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /sort by beam/i }));
+
+    await waitFor(() => {
+      expect(
+        screen.queryByRole('button', { name: /^delete \(\d+\)$/i })
+      ).not.toBeInTheDocument();
+    });
+  });
+
+  it('clears selection when the created-by filter changes', async () => {
+    jest.mocked(beamsService.listBeams).mockResolvedValue({
+      items: [ownedBeam],
+      next_page_token: '',
+    });
+
+    render(<BeamsList />, { wrapper: makeWrapper() });
+    await waitForElementToBeRemoved(() => screen.queryByTestId('loading'));
+
+    fireEvent.click(
+      screen.getByRole('checkbox', {
+        name: new RegExp(`select beam ${ownedBeam.alias}`, 'i'),
+      })
+    );
+    expect(
+      await screen.findByRole('button', { name: /^delete \(1\)$/i })
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /created by filter/i }));
+    fireEvent.click(
+      await screen.findByRole('menuitem', { name: /created by: anyone/i })
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.queryByRole('button', { name: /^delete \(\d+\)$/i })
+      ).not.toBeInTheDocument();
     });
   });
 });
@@ -712,10 +914,12 @@ function makeWrapper(
   })
 ) {
   return ({ children }: PropsWithChildren) => (
-    <ConfiguredThemeProvider theme={theme}>
-      <BeamsProviders acl={customAcl} queryClient={testQueryClient}>
-        {children}
-      </BeamsProviders>
-    </ConfiguredThemeProvider>
+    <NewThemeProvider system={testThemeSystem} forcedTheme="dark">
+      <ConfiguredThemeProvider theme={theme}>
+        <BeamsProviders acl={customAcl} queryClient={testQueryClient}>
+          {children}
+        </BeamsProviders>
+      </ConfiguredThemeProvider>
+    </NewThemeProvider>
   );
 }

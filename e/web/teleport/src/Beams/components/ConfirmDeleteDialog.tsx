@@ -1,16 +1,22 @@
+import {
+  ButtonSecondary,
+  ButtonWarning,
+  Flex,
+  P1,
+  Spinner,
+} from '@gravitational/design-system';
 import styled from 'styled-components';
 
-import { ButtonSecondary, ButtonWarning, Flex } from 'design';
 import Dialog, {
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from 'design/Dialog';
-import { Indicator } from 'design/Indicator/Indicator';
-import { P1 } from 'design/Text';
 
 import { Beam } from 'e-teleport/services/beams/types';
+
+import { resolveBeamName } from './constants';
 
 // This is to cap the number of beams displayed in the delete dialog
 // The rest are collapsed into a `and N more` message.
@@ -42,8 +48,8 @@ export function ConfirmDeleteDialog({
           <>
             <P1 mb={3}>
               You are about to delete beam{' '}
-              <strong>{beams[0].alias || beams[0].name}</strong>. This will
-              terminate everything running inside the beam.
+              <strong>{resolveBeamName(beams[0])}</strong>. This will terminate
+              everything running inside the beam.
             </P1>
             <P1 mb={0}>This cannot be undone.</P1>
           </>
@@ -51,9 +57,9 @@ export function ConfirmDeleteDialog({
           <>
             <P1 mb={3}>
               You are about to delete beams{' '}
-              <strong>{beams[0].alias || beams[0].name}</strong> and{' '}
-              <strong>{beams[1].alias || beams[1].name}</strong>. This will
-              terminate everything running inside them.
+              <strong>{resolveBeamName(beams[0])}</strong> and{' '}
+              <strong>{resolveBeamName(beams[1])}</strong>. This will terminate
+              everything running inside them.
             </P1>
             <P1 mb={0}>This cannot be undone.</P1>
           </>
@@ -73,9 +79,7 @@ export function ConfirmDeleteDialog({
       <DialogFooter>
         <Flex gap={3}>
           <ButtonWarning disabled={isPending} onClick={onConfirm}>
-            {isPending && (
-              <Indicator size={16} color="text.muted" delay="none" mr={2} />
-            )}
+            {isPending && <Spinner size="sm" color="text.muted" mr={2} />}
             {isPending ? 'Deleting...' : confirmLabel}
           </ButtonWarning>
           <ButtonSecondary disabled={isPending} onClick={onClose}>
@@ -88,8 +92,7 @@ export function ConfirmDeleteDialog({
 }
 
 function formatBeamList(beams: Beam[]): string {
-  // The name is just a fallback, in reality the alias should always be there.
-  const names = beams.map(b => b.alias || b.name);
+  const names = beams.map(resolveBeamName);
   if (names.length <= MAX_DISPLAYED_BEAMS) {
     return names.join(', ');
   }

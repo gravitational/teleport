@@ -1,8 +1,5 @@
+import { Button, Spinner } from '@gravitational/design-system';
 import styled from 'styled-components';
-
-import { ButtonPrimary } from 'design';
-import { Plus } from 'design/Icon';
-import { Indicator } from 'design/Indicator/Indicator';
 
 import { Beam } from 'e-teleport/services/beams/types';
 
@@ -21,17 +18,16 @@ export function CreateBeamButton({
 
   return (
     <StyledCreateButton disabled={isPending} onClick={() => mutate()}>
-      {isPending ? (
-        <Indicator size={16} color="text.primaryInverse" delay="none" mr={2} />
-      ) : (
-        <Plus size="small" mr={2} />
-      )}
+      {isPending && <Spinner size="sm" color="text.primaryInverse" mr={2} />}
       {isPending ? 'Creating...' : 'Create beam'}
     </StyledCreateButton>
   );
 }
 
-const StyledCreateButton = styled(ButtonPrimary)`
+const StyledCreateButton = styled(Button).attrs({
+  fill: 'filled' as const,
+  intent: 'primary' as const,
+})`
   &:disabled {
     background-color: ${({ theme }) =>
       theme.colors.interactive.solid.primary.default};

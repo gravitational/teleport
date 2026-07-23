@@ -1,9 +1,11 @@
 import { Location, useLocation, useNavigate } from 'react-router';
 
-const DEFAULT_SORT_FIELD = 'expires';
-const DEFAULT_SORT_DIR: SortDir = 'ASC';
+import { BeamsSortField } from 'e-teleport/services/beams/types';
 
-type SortDir = 'ASC' | 'DESC';
+import { coerceSortField, SortDir } from './constants';
+
+const DEFAULT_SORT_FIELD: BeamsSortField = 'expires';
+const DEFAULT_SORT_DIR: SortDir = 'ASC';
 
 type PagingState = { prevPageTokens?: string[] };
 
@@ -13,9 +15,10 @@ export function useBeamsListParams() {
 
   const params = new URLSearchParams(location.search);
   const pageToken = params.get('page') ?? '';
-  const sortField = params.get('sort_field') || DEFAULT_SORT_FIELD;
-  const sortDir =
-    (params.get('sort_dir')?.toUpperCase() as SortDir) || DEFAULT_SORT_DIR;
+  const sortField =
+    coerceSortField(params.get('sort_field') ?? '') ?? DEFAULT_SORT_FIELD;
+  const sortDir: SortDir =
+    params.get('sort_dir')?.toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
   const filterOwn = params.get('own') !== 'false';
   const prevPageTokens = location.state?.prevPageTokens ?? [];
 
@@ -46,7 +49,7 @@ export function useBeamsListParams() {
     );
   }
 
-  function setSort(field: string, dir: SortDir) {
+  function setSort(field: BeamsSortField, dir: SortDir) {
     const next = new URLSearchParams(location.search);
     if (field === DEFAULT_SORT_FIELD) {
       next.delete('sort_field');
@@ -79,12 +82,16 @@ export function useBeamsListParams() {
     );
   }
 
+  const pageIndex =
+    pageToken && prevPageTokens.length === 0 ? null : prevPageTokens.length;
+
   return {
     pageToken,
     sortField,
     sortDir,
     filterOwn,
     hasPrevPage: !!pageToken,
+    pageIndex,
     goNext,
     goPrev,
     setSort,
