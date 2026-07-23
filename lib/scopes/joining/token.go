@@ -351,9 +351,12 @@ func validateGenericOIDC(spec *joiningv1.GenericOIDC) error {
 // validates the Github-specific join token.
 // It requires that the rules have at least one option set
 // and it also checks enterprise_server_host constraints, so the comment undersells the function.
-func validateGithub(spec *joiningv1.Github) error {
+func validateGithub(spec *joiningv1.Github, tokenUsageMode TokenUsageMode) error {
 	if spec == nil {
 		return trace.BadParameter("github configuration must be defined for a scoped token when using the github join method")
+	}
+	if tokenUsageMode == TokenUsageModeSingle {
+		return trace.BadParameter("usage mode %q is not supported for github join method", TokenUsageModeSingle)
 	}
 	if strings.Contains(spec.GetEnterpriseServerHost(), "/") {
 		return trace.BadParameter("'github.enterprise_server_host' should not contain the scheme or path")
@@ -406,7 +409,9 @@ func validateJoinMethod(token *joiningv1.ScopedToken) error {
 	case types.JoinMethodGenericOIDC:
 		return trace.Wrap(validateGenericOIDC(token.GetSpec().GetGenericOidc()), "generic_oidc join method")
 	case types.JoinMethodGitHub:
-		return trace.Wrap(validateGithub(token.GetSpec().GetGithub()), "github join method")
+		if err := validateGithub(token.GetSpec().GetGithub(), TokenUsageMode(token.GetSpec().GetUsageMode())); err != nil {
+			return trace.Wrap(err, "github join method")
+		}
 	default:
 		return trace.BadParameter("join method %q does not support scoping", token.GetSpec().GetJoinMethod())
 	}

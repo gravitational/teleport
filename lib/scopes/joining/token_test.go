@@ -1178,6 +1178,22 @@ func TestValidateScopedToken(t *testing.T) {
 			},
 		},
 		{
+			name: "github token with single use mode",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodGitHub))
+				tok.GetSpec().SetUsageMode(string(joining.TokenUsageModeSingle))
+				tok.GetSpec().SetGithub(joiningv1.Github_builder{
+					Allow: []*joiningv1.Github_Rule{
+						joiningv1.Github_Rule_builder{
+							Sub: "foo",
+						}.Build(),
+					},
+				}.Build())
+			},
+			expectedStrongErr: `usage mode "single_use" is not supported for github join method`,
+			expectedWeakErr:   `usage mode "single_use" is not supported for github join method`,
+		},
+		{
 			name: "github token with EnterpriseSlug and EnterpriseServerHost set",
 			modFn: func(tok *joiningv1.ScopedToken) {
 				tok.GetSpec().SetJoinMethod(string(types.JoinMethodGitHub))
