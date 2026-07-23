@@ -622,10 +622,10 @@ func (h *Handler) getSession(ctx context.Context, ws types.WebSession) (*session
 func extractCookie(r *http.Request, cookieName string) (string, error) {
 	rawCookie, err := r.Cookie(cookieName)
 	if err != nil {
-		return "", trace.Wrap(err)
+		return "", trace.NotFound("cookie %q not found", cookieName)
 	}
 	if rawCookie != nil && rawCookie.Value == "" {
-		return "", trace.BadParameter("cookie missing")
+		return "", trace.NotFound("cookie %q is empty", cookieName)
 	}
 
 	return rawCookie.Value, nil
