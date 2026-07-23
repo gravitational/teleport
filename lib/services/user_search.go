@@ -20,7 +20,6 @@ package services
 
 import (
 	"context"
-	"log/slog"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -29,9 +28,10 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/types"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
-var userSearchLogger = slog.With(teleport.ComponentKey, "user.search")
+var userSearchLogger = logutils.NewPackageLogger(teleport.ComponentKey, teleport.Component("user", "search"))
 
 // UserSearchLister lists users for display-value search.
 type UserSearchLister interface {
@@ -47,28 +47,38 @@ func findUsernamesBySearchKeywords(ctx context.Context, users UserSearchLister, 
 		return nil, nil
 	}
 
-	rsp, err := users.ListUsers(ctx, userspb.ListUsersRequest_builder{
-		PageSize: apidefaults.DefaultChunkSize,
-		Filter: &types.UserFilter{
-			SearchKeywords:  searchKeywords,
-			SkipSystemUsers: true,
-		},
-	}.Build())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	usernames := make(usernameSet, len(rsp.GetUsers()))
-	for _, user := range rsp.GetUsers() {
-		display := user.GetDisplay()
-		// Exclude non-display traits match
-		if !types.MatchSearch([]string{display.Primary, display.Secondary}, searchKeywords, nil) {
-			continue
+	usernames := make(usernameSet, apidefaults.DefaultChunkSize)
+	var pageToken string
+	for {
+		rsp, err := users.ListUsers(ctx, userspb.ListUsersRequest_builder{
+			PageSize:  apidefaults.DefaultChunkSize,
+			PageToken: pageToken,
+			Filter: &types.UserFilter{
+				SearchKeywords:  searchKeywords,
+				SkipSystemUsers: true,
+			},
+		}.Build())
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
-		usernames[user.GetName()] = struct{}{}
-	}
 
-	return usernames, nil
+		for _, user := range rsp.GetUsers() {
+			display := user.GetDisplay()
+			// Exclude non-display trait matches.
+			if !types.MatchSearch([]string{display.Primary, display.Secondary}, searchKeywords, nil) {
+				continue
+			}
+			usernames[user.GetName()] = struct{}{}
+			if len(usernames) == apidefaults.DefaultChunkSize {
+				return usernames, nil
+			}
+		}
+
+		pageToken = rsp.GetNextPageToken()
+		if pageToken == "" {
+			return usernames, nil
+		}
+	}
 }
 
 type searchKeywordUsernameResolver struct {

@@ -21,6 +21,7 @@ package services
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -31,19 +32,30 @@ import (
 )
 
 type testUserSearchLister struct {
-	users   []*types.UserV2
-	err     error
-	calls   int
-	ctx     context.Context
-	request *userspb.ListUsersRequest
+	users                []*types.UserV2
+	responsesByPageToken map[string]*userspb.ListUsersResponse
+	err                  error
+	calls                int
+	ctx                  context.Context
+	request              *userspb.ListUsersRequest
+	requests             []*userspb.ListUsersRequest
 }
 
 func (l *testUserSearchLister) ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*userspb.ListUsersResponse, error) {
 	l.calls++
 	l.ctx = ctx
 	l.request = req
+	l.requests = append(l.requests, req)
 	if l.err != nil {
 		return nil, l.err
+	}
+
+	if l.responsesByPageToken != nil {
+		response, ok := l.responsesByPageToken[req.GetPageToken()]
+		if !ok {
+			return nil, fmt.Errorf("unexpected page token %q", req.GetPageToken())
+		}
+		return response, nil
 	}
 
 	return userspb.ListUsersResponse_builder{
@@ -78,6 +90,70 @@ func TestFindUsernamesBySearchKeywords(t *testing.T) {
 
 	_, err = findUsernamesBySearchKeywords(t.Context(), &testUserSearchLister{err: errors.New("backend unavailable")}, []string{"Jane"})
 	require.Error(t, err)
+}
+
+func TestFindUsernamesBySearchKeywordsPaginatesPastNonDisplayMatches(t *testing.T) {
+	t.Parallel()
+
+	nonDisplayMatch, err := types.NewUser("non-display-match")
+	require.NoError(t, err)
+	nonDisplayMatch.SetRoles([]string{"dev"})
+
+	displayMatch, err := types.NewUser("display-match")
+	require.NoError(t, err)
+	displayMatch.SetTraits(map[string][]string{
+		"okta/displayName": {"Devon Garcia"},
+	})
+
+	lister := &testUserSearchLister{
+		responsesByPageToken: map[string]*userspb.ListUsersResponse{
+			"": userspb.ListUsersResponse_builder{
+				Users:         []*types.UserV2{nonDisplayMatch.(*types.UserV2)},
+				NextPageToken: "second-page",
+			}.Build(),
+			"second-page": userspb.ListUsersResponse_builder{
+				Users: []*types.UserV2{displayMatch.(*types.UserV2)},
+			}.Build(),
+		},
+	}
+
+	usernames, err := findUsernamesBySearchKeywords(t.Context(), lister, []string{"dev"})
+	require.NoError(t, err)
+	require.Equal(t, usernameSet{"display-match": {}}, usernames)
+	require.Len(t, lister.requests, 2)
+	require.Empty(t, lister.requests[0].GetPageToken())
+	require.Equal(t, "second-page", lister.requests[1].GetPageToken())
+}
+
+func TestFindUsernamesBySearchKeywordsStopsAtDisplayMatchLimit(t *testing.T) {
+	t.Parallel()
+
+	users := make([]*types.UserV2, 0, apidefaults.DefaultChunkSize)
+	for i := range apidefaults.DefaultChunkSize {
+		user, err := types.NewUser(fmt.Sprintf("display-match-%04d", i))
+		require.NoError(t, err)
+		user.SetTraits(map[string][]string{
+			"okta/displayName": {"Devon Garcia"},
+		})
+		users = append(users, user.(*types.UserV2))
+	}
+
+	lister := &testUserSearchLister{
+		responsesByPageToken: map[string]*userspb.ListUsersResponse{
+			"": userspb.ListUsersResponse_builder{
+				Users:         users,
+				NextPageToken: "second-page",
+			}.Build(),
+			"second-page": userspb.ListUsersResponse_builder{
+				NextPageToken: "unexpected-third-page",
+			}.Build(),
+		},
+	}
+
+	usernames, err := findUsernamesBySearchKeywords(t.Context(), lister, []string{"dev"})
+	require.NoError(t, err)
+	require.Len(t, usernames, apidefaults.DefaultChunkSize)
+	require.Len(t, lister.requests, 1)
 }
 
 func TestFindUsernamesBySearchKeywordsMatchesOnlyDisplayValues(t *testing.T) {
