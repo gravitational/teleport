@@ -341,7 +341,7 @@ func (p *kubeTestPack) testKubeProxyCertReissuer(t *testing.T) {
 	t.Cleanup(func() { kubeProxy.Close() })
 	require.NoError(t, kubeProxy.WriteKubeConfig())
 
-	reissuer := kubeProxy.getCertReissuer(tc)
+	reissuer := kubeProxy.getCertReissuer()
 	reissued, err := reissuer(t.Context(), p.rootClusterName, p.rootKubeCluster1)
 	require.NoError(t, err)
 
