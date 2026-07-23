@@ -37,17 +37,21 @@ const (
 	teleportPackagePrefix = "github.com/gravitational/teleport"
 )
 
-// serviceSectionInfo pairs a documentation YAML file and section key with a Go struct type.
+// serviceSectionInfo configures the documentation YAML sections checked in one example file.
 type serviceSectionInfo struct {
 	// Name is a human-readable label printed in output.
 	Name string `yaml:"name"`
 	// ExamplePath is the path to the doc example YAML, relative to the repo root.
-	ExamplePath string `yaml:"example_path"`
-	// SectionKey is the top-level YAML key that contains the service config object
-	// (e.g. "auth_service", "teleport").
+	ExamplePath  string        `yaml:"example_path"`
+	KeyTypePairs []KeyTypePair `yaml:"key_type_pairs"`
+	// DismissedKeys are exact YAML key tree paths, which should be ignored when comparing the example YAML with the struct.
+	DismissedKeys []string `yaml:"dismissed_keys"`
+}
+
+// KeyTypePair pairs a top-level configuration YAML section key with its corresponding Go struct type name.
+type KeyTypePair struct {
 	SectionKey string `yaml:"section_key"`
-	// TypeName is the name of the config type in lib/config.
-	TypeName string `yaml:"type_name"`
+	TypeName   string `yaml:"type_name"`
 }
 
 // checkerConfig is the user-facing configuration of the configuration reference checker.
@@ -60,14 +64,14 @@ type checkerConfig struct {
 
 // loadConfigFile reads the checker config from YAML and validates its contents.
 func loadConfigFile(path string) (*checkerConfig, error) {
-	configFile, err := os.Open(path)
+	conffile, err := os.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("opening configuration file %q: %w", path, err)
 	}
-	defer configFile.Close()
+	defer conffile.Close()
 
 	var config checkerConfig
-	if err := yaml.NewDecoder(configFile).Decode(&config); err != nil {
+	if err := yaml.NewDecoder(conffile).Decode(&config); err != nil {
 		return nil, fmt.Errorf("parsing configuration file %q: %w", path, err)
 	}
 	if config.SourcePath == "" {
@@ -78,15 +82,23 @@ func loadConfigFile(path string) (*checkerConfig, error) {
 		return nil, fmt.Errorf("checker config has no service sections")
 	}
 
-	sectionKeys := make(map[string]struct{}, len(config.ServiceSections))
 	for index, section := range config.ServiceSections {
-		if section.Name == "" || section.ExamplePath == "" || section.SectionKey == "" || section.TypeName == "" {
-			return nil, fmt.Errorf("service section %d must define name, example_path, section_key, and type_name", index)
+		if section.Name == "" || section.ExamplePath == "" {
+			return nil, fmt.Errorf("service section %d must define name and example_path", index)
 		}
-		if _, ok := sectionKeys[section.SectionKey]; ok {
-			return nil, fmt.Errorf("duplicate service section key %q", section.SectionKey)
+		if len(section.KeyTypePairs) == 0 {
+			return nil, fmt.Errorf("service section %d must define key_type_pairs", index)
 		}
-		sectionKeys[section.SectionKey] = struct{}{}
+		sectionKeys := make(map[string]struct{}, len(section.KeyTypePairs))
+		for _, pair := range section.KeyTypePairs {
+			if pair.SectionKey == "" || pair.TypeName == "" {
+				return nil, fmt.Errorf("service section %d has a section without section_key or type_name", index)
+			}
+			if _, ok := sectionKeys[pair.SectionKey]; ok {
+				return nil, fmt.Errorf("duplicate service section key %q", pair.SectionKey)
+			}
+			sectionKeys[pair.SectionKey] = struct{}{}
+		}
 	}
 
 	return &config, nil
@@ -406,8 +418,8 @@ type difference struct {
 	OnlyInDoc    []string // present in doc but absent from struct
 }
 
-// compareTrees recursively compares structTree and exampleTree, accumulating differences.
-func compareTrees(structTree, exampleTree *yamlKeyTree, path string) []difference {
+// compareTrees recursively compares structTree and exampleTree, ignoring keys in dismissedKeys.
+func compareTrees(structTree, exampleTree *yamlKeyTree, path string, dismissedKeys map[string]struct{}) []difference {
 	// Normalise nils to empty trees for uniform handling.
 	if structTree == nil {
 		structTree = &yamlKeyTree{}
@@ -430,6 +442,9 @@ func compareTrees(structTree, exampleTree *yamlKeyTree, path string) []differenc
 	// Keys defined in struct but absent from doc.
 	var onlyInStruct []string
 	for k := range structChildren {
+		if keyShouldBeDismissed(path, k, dismissedKeys) {
+			continue
+		}
 		if _, ok := docChildren[k]; !ok {
 			onlyInStruct = append(onlyInStruct, k)
 		}
@@ -441,6 +456,9 @@ func compareTrees(structTree, exampleTree *yamlKeyTree, path string) []differenc
 	var onlyInDoc []string
 	if !structTree.hasInlineMap {
 		for k := range docChildren {
+			if keyShouldBeDismissed(path, k, dismissedKeys) {
+				continue
+			}
 			if _, ok := structChildren[k]; !ok {
 				onlyInDoc = append(onlyInDoc, k)
 			}
@@ -460,6 +478,9 @@ func compareTrees(structTree, exampleTree *yamlKeyTree, path string) []differenc
 	// Collect keys to ensure deterministic ordering.
 	commonKeys := make([]string, 0, len(structChildren))
 	for k := range structChildren {
+		if keyShouldBeDismissed(path, k, dismissedKeys) {
+			continue
+		}
 		if _, ok := docChildren[k]; ok {
 			commonKeys = append(commonKeys, k)
 		}
@@ -476,11 +497,16 @@ func compareTrees(structTree, exampleTree *yamlKeyTree, path string) []differenc
 			continue
 		}
 
-		childFindings := compareTrees(sChild, dChild, childPath)
+		childFindings := compareTrees(sChild, dChild, childPath, dismissedKeys)
 		differences = append(differences, childFindings...)
 	}
 
 	return differences
+}
+
+func keyShouldBeDismissed(path, key string, dismissedKeys map[string]struct{}) bool {
+	_, dismiss := dismissedKeys[path+"."+key]
+	return dismiss
 }
 
 func main() {
@@ -508,9 +534,13 @@ func main() {
 		treeCache:       make(map[string]*yamlKeyTree),
 		inProgressTypes: make(map[string]bool),
 	}
-
 	// For each service section, unmarshal the example YAML and compare with the actual configuration struct.
 	for _, section := range config.ServiceSections {
+		dismissedKeys := make(map[string]struct{}, len(section.DismissedKeys))
+		for _, key := range section.DismissedKeys {
+			dismissedKeys[key] = struct{}{}
+		}
+
 		examplePath := filepath.Join(rootAbs, section.ExamplePath)
 
 		data, err := os.ReadFile(examplePath)
@@ -525,25 +555,38 @@ func main() {
 			continue
 		}
 
-		// Look up the section key in the unmarshaled example YAML.
-		exampleSectionValue, ok := unmarshaledExample[section.SectionKey]
-		if !ok {
-			fmt.Printf("=== %s\n  WARNING: section %q not found in %s\n\n",
-				section.Name, section.SectionKey, section.ExamplePath)
+		var differences []difference
+		failedToProcessSection := false
+		for _, pair := range section.KeyTypePairs {
+			// Look up the section key in the unmarshaled example YAML.
+			exampleSectionValue, ok := unmarshaledExample[pair.SectionKey]
+			if !ok {
+				fmt.Printf("*** %s (%s):  WARNING: section %q not found ***\n\n",
+					section.Name, section.ExamplePath, pair.SectionKey)
+				failedToProcessSection = true
+				continue
+			}
+
+			exampleTree := exampleTreeFromAny(exampleSectionValue)
+
+			// Build the YAML key tree for the struct type corresponding to this service section.
+			structTree, err := treeBuilder.treeForTypeName(fmt.Sprintf("%s/lib/config", teleportPackagePrefix), pair.TypeName)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "warning: cannot inspect config type %s: %v\n", pair.TypeName, err)
+				failedToProcessSection = true
+				continue
+			}
+
+			differences = append(differences, compareTrees(
+				structTree,
+				exampleTree,
+				pair.SectionKey,
+				dismissedKeys,
+			)...)
+		}
+		if failedToProcessSection {
 			continue
 		}
-
-		exampleTree := exampleTreeFromAny(exampleSectionValue)
-
-		// Build the YAML key tree for the struct type corresponding to this service section.
-		structTree, err := treeBuilder.treeForTypeName(fmt.Sprintf("%s/lib/config", teleportPackagePrefix), section.TypeName)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "warning: cannot inspect config type %s: %v\n", section.TypeName, err)
-			continue
-		}
-
-		// Compare the struct tree and the example tree, collecting differences.
-		differences := compareTrees(structTree, exampleTree, section.SectionKey)
 
 		if len(differences) == 0 {
 			fmt.Printf("*** %s (%s): OK ***\n", section.Name, section.ExamplePath)
