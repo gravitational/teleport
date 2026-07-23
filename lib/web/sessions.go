@@ -108,6 +108,14 @@ type SessionContextConfig struct {
 	// "GetNodes".
 	UnsafeCachedAuthClient authclient.ReadProxyAccessPoint
 
+	// UnsafeScoopedRoleReader is a scoped role reader. It's authenticated with
+	// the identity of the node, hence it's "unsafe".
+	//
+	// Only use it where the identity of the caller will not affect the result of
+	// the RPC. For example, never call it to get a list of roles and return it
+	// to the user, as it may return more than the user is allowed to see.
+	UnsafeScopedRoleReader services.ScopedRoleReader
+
 	Parent *sessionCache
 	// Resources is a persistent resource store this context is bound to.
 	// The store maintains a list of resources between session renewals
@@ -138,6 +146,10 @@ func (c *SessionContextConfig) CheckAndSetDefaults() error {
 
 	if c.Session == nil {
 		return trace.BadParameter("Session required")
+	}
+
+	if c.UnsafeCachedAuthClient == nil {
+		return trace.BadParameter("Scoped role reader required")
 	}
 
 	if c.Log == nil {
@@ -518,6 +530,37 @@ func (c *SessionContext) GetUserAccessChecker() (services.AccessChecker, error) 
 	return accessChecker, trace.Wrap(err)
 }
 
+func (c *SessionContext) GetUserScopedAccessCheckerContext(ctx context.Context) (*services.ScopedAccessCheckerContext, error) {
+	cert, err := c.GetSSHCertificate()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ident, err := sshca.DecodeIdentity(cert)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	accessInfo := services.AccessInfoFromLocalSSHIdentity(ident)
+
+	if accessInfo.ScopePin == nil {
+		checker, err := c.GetUserAccessChecker()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return services.NewScopedAccessCheckerContextFromUnscoped(checker), nil
+	}
+
+	checkerCtx, err := services.NewScopedAccessCheckerContext(
+		ctx, accessInfo, c.cfg.RootClusterName, c.cfg.UnsafeScopedRoleReader,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return checkerCtx, err
+}
+
 // GetProxyListenerMode returns cluster proxy listener mode form cluster networking config.
 func (c *SessionContext) GetProxyListenerMode(ctx context.Context) (types.ProxyListenerMode, error) {
 	resp, err := c.cfg.UnsafeCachedAuthClient.GetClusterNetworkingConfig(ctx)
@@ -627,11 +670,12 @@ func (c *SessionContext) expired(ctx context.Context) bool {
 const cachedSessionLingeringThreshold = 2 * time.Minute
 
 type sessionCacheOptions struct {
-	proxyClient  authclient.ClientI
-	accessPoint  authclient.ReadProxyAccessPoint
-	servers      []utils.NetAddr
-	cipherSuites []uint16
-	clock        clockwork.Clock
+	proxyClient      authclient.ClientI
+	scopedRoleReader services.ScopedRoleReader
+	accessPoint      authclient.ReadProxyAccessPoint
+	servers          []utils.NetAddr
+	cipherSuites     []uint16
+	clock            clockwork.Clock
 	// sessionLingeringThreshold specifies the time the session will linger
 	// in the cache before getting purged after it has expired
 	sessionLingeringThreshold time.Duration
@@ -667,6 +711,7 @@ func newSessionCache(ctx context.Context, config sessionCacheOptions) (*sessionC
 	cache := &sessionCache{
 		clusterName:                      clusterName.GetClusterName(),
 		proxyClient:                      config.proxyClient,
+		scopedRoleReader:                 config.scopedRoleReader,
 		accessPoint:                      config.accessPoint,
 		sessions:                         make(map[string]*SessionContext),
 		resources:                        make(map[string]*sessionResources),
@@ -701,13 +746,14 @@ func newSessionCache(ctx context.Context, config sessionCacheOptions) (*sessionC
 // sessionCache handles web session authentication,
 // and holds in-memory contexts associated with each session
 type sessionCache struct {
-	log         *slog.Logger
-	proxyClient authclient.ClientI
-	authServers []utils.NetAddr
-	accessPoint authclient.ReadProxyAccessPoint
-	closer      *utils.CloseBroadcaster
-	clusterName string
-	clock       clockwork.Clock
+	log              *slog.Logger
+	proxyClient      authclient.ClientI
+	authServers      []utils.NetAddr
+	accessPoint      authclient.ReadProxyAccessPoint
+	scopedRoleReader services.ScopedRoleReader
+	closer           *utils.CloseBroadcaster
+	clusterName      string
+	clock            clockwork.Clock
 	// sessionLingeringThreshold specifies the time the session will linger
 	// in the cache before getting purged after it has expired
 	sessionLingeringThreshold time.Duration
@@ -1230,6 +1276,7 @@ func (s *sessionCache) newSessionContextFromSession(ctx context.Context, session
 		User:                   session.GetUser(),
 		RootClient:             userClient,
 		UnsafeCachedAuthClient: s.accessPoint,
+		UnsafeScopedRoleReader: s.scopedRoleReader,
 		Parent:                 s,
 		Resources:              s.upsertSessionContext(session.GetUser()),
 		Session:                session,

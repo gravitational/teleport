@@ -3661,7 +3661,9 @@ func (a *ScopedServerWithRoles) GetAccessCapabilities(ctx context.Context, req t
 		return nil, trace.Wrap(err)
 	}
 
-	return a.authServer.GetAccessCapabilities(ctx, req)
+	// TODO(bl-nero): Implement once it's supported by the backend. Currently,
+	// there's no concept of scoped access requests.
+	return &types.AccessCapabilities{}, nil
 }
 
 func (a *ServerWithRoles) GetAccessCapabilities(ctx context.Context, req types.AccessCapabilitiesRequest) (*types.AccessCapabilities, error) {
