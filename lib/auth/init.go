@@ -1814,7 +1814,7 @@ func applyResources(ctx context.Context, service *Services, resources []types.Re
 		// need to RegisterResourceUnmarshaler() your resource.
 		switch r := resource.(type) {
 		case types.ProvisionToken:
-			err = service.UpsertToken(ctx, r)
+			err = applyTokens(ctx, service, r)
 		case types.User:
 			err = services.ValidateUserRoles(ctx, r, service)
 			if err != nil {
@@ -1851,4 +1851,14 @@ func applyResources(ctx context.Context, service *Services, resources []types.Re
 		}
 	}
 	return nil
+}
+
+// applyTokens upserts a provision token supplied via --apply-on-startup.
+func applyTokens(ctx context.Context, service *Services, token types.ProvisionToken) error {
+	switch token.GetJoinMethod() {
+	case types.JoinMethodBoundKeypair:
+		return trace.Wrap(applyBoundKeypairToken(ctx, service, token))
+	default:
+		return trace.Wrap(service.UpsertToken(ctx, token))
+	}
 }
