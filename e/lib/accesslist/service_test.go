@@ -223,11 +223,19 @@ func TestService_ScopedAccessLists_SameNameUpdateDeleteScopeIsolation(t *testing
 	teamA.Spec.Title = "team a"
 	teamB := newScopedAccessList(t, scopedAccessListName(scopeTeamB, "shared"), c.clock)
 	teamB.Spec.Title = "team b"
-	createAccessLists(t, c.userCtx, c.svc, c.emitter, nil, []*accesslist.AccessList{teamA, teamB})
+	createAccessLists(t, c.userCtx, c.svc, c.emitter, c.usageEvents, []*accesslist.AccessList{teamA, teamB})
 
 	teamA.Spec.Title = "team a updated"
 	_, err := c.svc.UpdateAccessList(c.userCtx, accesslistv1.UpdateAccessListRequest_builder{AccessList: conv.ToProto(teamA)}.Build())
 	require.NoError(t, err)
+	expectEvent(t, events.AccessListUpdateSuccessCode, c.emitter, func(event *apievents.AccessListUpdate) {
+		require.Equal(t, teamA.GetName(), event.Name)
+		require.Equal(t, scopeTeamA, event.Scope)
+	})
+	expectUsageEvent(t, c.usageEvents, func(event *usageeventsv1.UsageEventOneOf_AccessListUpdate) {
+		require.Equal(t, teamA.GetName(), event.AccessListUpdate.Metadata.Id)
+		require.Equal(t, scopeTeamA, event.AccessListUpdate.Metadata.Scope)
+	})
 
 	gotTeamA := getAccessListV2(t, c, accesslists.ScopeQualifiedName(teamA))
 	require.Equal(t, "team a updated", gotTeamA.GetSpec().GetTitle())
@@ -239,6 +247,14 @@ func TestService_ScopedAccessLists_SameNameUpdateDeleteScopeIsolation(t *testing
 		Name:  "shared",
 	}.Build())
 	require.NoError(t, err)
+	expectEvent(t, events.AccessListDeleteSuccessCode, c.emitter, func(event *apievents.AccessListDelete) {
+		require.Equal(t, teamA.GetName(), event.Name)
+		require.Equal(t, scopeTeamA, event.Scope)
+	})
+	expectUsageEvent(t, c.usageEvents, func(event *usageeventsv1.UsageEventOneOf_AccessListDelete) {
+		require.Equal(t, teamA.GetName(), event.AccessListDelete.Metadata.Id)
+		require.Equal(t, scopeTeamA, event.AccessListDelete.Metadata.Scope)
+	})
 
 	_, err = c.svc.GetAccessList(c.userCtx, accesslistv1.GetAccessListRequest_builder{Scope: scopeTeamA, Name: "shared"}.Build())
 	require.ErrorAs(t, err, new(*trace.NotFoundError))
@@ -254,14 +270,34 @@ func TestService_ScopedAccessListMembers_SameParentNameScopeIsolation(t *testing
 	// list name.
 	teamA := newScopedAccessList(t, scopedAccessListName(scopeTeamA, "shared"), c.clock)
 	teamB := newScopedAccessList(t, scopedAccessListName(scopeTeamB, "shared"), c.clock)
-	createAccessLists(t, c.userCtx, c.svc, c.emitter, nil, []*accesslist.AccessList{teamA, teamB})
+	createAccessLists(t, c.userCtx, c.svc, c.emitter, c.usageEvents, []*accesslist.AccessList{teamA, teamB})
 
 	teamAMember := newScopedAccessListMember(t, accesslists.ScopeQualifiedName(teamA), accesslists.NormalizedSQN{Name: member1}, accesslist.MembershipKindUser, c.clock)
 	teamBMember := newScopedAccessListMember(t, accesslists.ScopeQualifiedName(teamB), accesslists.NormalizedSQN{Name: member2}, accesslist.MembershipKindUser, c.clock)
 	_, err := c.svc.UpsertAccessListMember(c.userCtx, accesslistv1.UpsertAccessListMemberRequest_builder{Member: conv.ToMemberProto(teamAMember)}.Build())
 	require.NoError(t, err)
+	expectEvent(t, events.AccessListMemberCreateSuccessCode, c.emitter, func(event *apievents.AccessListMemberCreate) {
+		require.Equal(t, teamA.GetName(), event.AccessListMemberMetadata.AccessListName)
+		require.Equal(t, scopeTeamA, event.AccessListMemberMetadata.AccessListScope)
+		require.Equal(t, member1, event.AccessListMemberMetadata.Members[0].MemberName)
+		require.Empty(t, event.AccessListMemberMetadata.Members[0].MemberScope)
+	})
+	expectUsageEvent(t, c.usageEvents, func(event *usageeventsv1.UsageEventOneOf_AccessListMemberCreate) {
+		require.Equal(t, teamA.GetName(), event.AccessListMemberCreate.Metadata.Id)
+		require.Equal(t, scopeTeamA, event.AccessListMemberCreate.Metadata.Scope)
+	})
 	_, err = c.svc.UpsertAccessListMember(c.userCtx, accesslistv1.UpsertAccessListMemberRequest_builder{Member: conv.ToMemberProto(teamBMember)}.Build())
 	require.NoError(t, err)
+	expectEvent(t, events.AccessListMemberCreateSuccessCode, c.emitter, func(event *apievents.AccessListMemberCreate) {
+		require.Equal(t, teamB.GetName(), event.AccessListMemberMetadata.AccessListName)
+		require.Equal(t, scopeTeamB, event.AccessListMemberMetadata.AccessListScope)
+		require.Equal(t, member2, event.AccessListMemberMetadata.Members[0].MemberName)
+		require.Empty(t, event.AccessListMemberMetadata.Members[0].MemberScope)
+	})
+	expectUsageEvent(t, c.usageEvents, func(event *usageeventsv1.UsageEventOneOf_AccessListMemberCreate) {
+		require.Equal(t, teamB.GetName(), event.AccessListMemberCreate.Metadata.Id)
+		require.Equal(t, scopeTeamB, event.AccessListMemberCreate.Metadata.Scope)
+	})
 
 	teamAMembers := listAccessListMembersV2(t, c, accesslists.ScopeQualifiedName(teamA))
 	require.Equal(t, []string{member1}, memberNames(teamAMembers))
@@ -274,6 +310,47 @@ func TestService_ScopedAccessListMembers_SameParentNameScopeIsolation(t *testing
 		MemberName:      member1,
 	}.Build())
 	require.ErrorAs(t, err, new(*trace.NotFoundError))
+
+	teamAMember.Spec.Reason = "updated"
+	_, err = c.svc.UpsertAccessListMember(c.userCtx, accesslistv1.UpsertAccessListMemberRequest_builder{Member: conv.ToMemberProto(teamAMember)}.Build())
+	require.NoError(t, err)
+	expectEvent(t, events.AccessListMemberUpdateSuccessCode, c.emitter, func(event *apievents.AccessListMemberUpdate) {
+		require.Equal(t, teamA.GetName(), event.AccessListMemberMetadata.AccessListName)
+		require.Equal(t, scopeTeamA, event.AccessListMemberMetadata.AccessListScope)
+		require.Equal(t, member1, event.AccessListMemberMetadata.Members[0].MemberName)
+		require.Empty(t, event.AccessListMemberMetadata.Members[0].MemberScope)
+	})
+	expectUsageEvent(t, c.usageEvents, func(event *usageeventsv1.UsageEventOneOf_AccessListMemberUpdate) {
+		require.Equal(t, teamA.GetName(), event.AccessListMemberUpdate.Metadata.Id)
+		require.Equal(t, teamA.GetScope(), event.AccessListMemberUpdate.Metadata.Scope)
+		require.Equal(t, member1, event.AccessListMemberUpdate.MemberMetadata.Name)
+		require.Empty(t, event.AccessListMemberUpdate.MemberMetadata.Scope)
+	})
+
+	_, err = c.svc.DeleteAccessListMember(c.userCtx, accesslistv1.DeleteAccessListMemberRequest_builder{
+		AccessListScope: scopeTeamA,
+		AccessList:      teamA.GetName(),
+		MemberName:      teamAMember.GetName(),
+	}.Build())
+	require.NoError(t, err)
+	expectEvent(t, events.AccessListMemberDeleteSuccessCode, c.emitter, func(event *apievents.AccessListMemberDelete) {
+		require.Equal(t, teamA.GetName(), event.AccessListMemberMetadata.AccessListName)
+		require.Equal(t, scopeTeamA, event.AccessListMemberMetadata.AccessListScope)
+	})
+	expectUsageEvent(t, c.usageEvents, func(event *usageeventsv1.UsageEventOneOf_AccessListMemberDelete) {
+		require.Equal(t, teamA.GetName(), event.AccessListMemberDelete.Metadata.Id)
+		require.Equal(t, scopeTeamA, event.AccessListMemberDelete.Metadata.Scope)
+	})
+
+	_, err = c.svc.DeleteAllAccessListMembersForAccessList(c.userCtx, accesslistv1.DeleteAllAccessListMembersForAccessListRequest_builder{
+		AccessListScope: scopeTeamB,
+		AccessList:      teamB.GetName(),
+	}.Build())
+	require.NoError(t, err)
+	expectEvent(t, events.AccessListMemberDeleteAllForAccessListSuccessCode, c.emitter, func(event *apievents.AccessListMemberDeleteAllForAccessList) {
+		require.Equal(t, teamB.GetName(), event.AccessListMemberMetadata.AccessListName)
+		require.Equal(t, scopeTeamB, event.AccessListMemberMetadata.AccessListScope)
+	})
 }
 
 func TestService_UpsertAccessListWithMembers_ScopedNestedMemberNamesDoNotCollide(t *testing.T) {
@@ -285,7 +362,12 @@ func TestService_UpsertAccessListWithMembers_ScopedNestedMemberNamesDoNotCollide
 	parent := newScopedAccessList(t, scopedAccessListName(scopeTeamA+"/child", "parent"), c.clock)
 	teamAGroup := newScopedAccessList(t, scopedAccessListName(scopeTeamA, "group"), c.clock)
 	teamAChildGroup := newScopedAccessList(t, scopedAccessListName(scopeTeamA+"/child", "group"), c.clock)
-	createAccessLists(t, c.userCtx, c.svc, c.emitter, nil, []*accesslist.AccessList{teamAGroup, teamAChildGroup})
+	createAccessLists(t, c.userCtx, c.svc, c.emitter, c.usageEvents, []*accesslist.AccessList{teamAGroup, teamAChildGroup})
+
+	expectedMemberNames := []accesslists.NormalizedSQN{
+		accesslists.ScopeQualifiedName(teamAGroup),
+		accesslists.ScopeQualifiedName(teamAChildGroup),
+	}
 
 	memberTeamAGroup := newScopedAccessListMember(t, accesslists.ScopeQualifiedName(parent), accesslists.ScopeQualifiedName(teamAGroup), accesslist.MembershipKindScopedList, c.clock)
 	memberTeamAChildGroup := newScopedAccessListMember(t, accesslists.ScopeQualifiedName(parent), accesslists.ScopeQualifiedName(teamAChildGroup), accesslist.MembershipKindScopedList, c.clock)
@@ -298,6 +380,36 @@ func TestService_UpsertAccessListWithMembers_ScopedNestedMemberNamesDoNotCollide
 	}.Build())
 	require.NoError(t, err)
 	require.Len(t, resp.GetMembers(), 2)
+	expectEvent(t, events.AccessListCreateSuccessCode, c.emitter, func(event *apievents.AccessListCreate) {
+		require.Equal(t, parent.GetName(), event.Name)
+		require.Equal(t, parent.GetScope(), event.Scope)
+	})
+	expectUsageEvent(t, c.usageEvents, func(event *usageeventsv1.UsageEventOneOf_AccessListCreate) {
+		require.Equal(t, parent.GetName(), event.AccessListCreate.Metadata.Id)
+		require.Equal(t, parent.GetScope(), event.AccessListCreate.Metadata.Scope)
+	})
+	expectEvent(t, events.AccessListMemberCreateSuccessCode, c.emitter, func(event *apievents.AccessListMemberCreate) {
+		require.Equal(t, parent.GetName(), event.AccessListMemberMetadata.AccessListName)
+		require.Equal(t, parent.GetScope(), event.AccessListMemberMetadata.AccessListScope)
+
+		memberNames := make([]accesslists.NormalizedSQN, 0, len(event.AccessListMemberMetadata.Members))
+		for _, member := range event.AccessListMemberMetadata.Members {
+			memberNames = append(memberNames, accesslists.NormalizedSQN{Name: member.MemberName, Scope: member.MemberScope})
+		}
+		require.ElementsMatch(t, expectedMemberNames, memberNames)
+	})
+	createdUsageMemberNames := make([]accesslists.NormalizedSQN, 0, len(expectedMemberNames))
+	for range expectedMemberNames {
+		expectUsageEvent(t, c.usageEvents, func(event *usageeventsv1.UsageEventOneOf_AccessListMemberCreate) {
+			require.Equal(t, parent.GetName(), event.AccessListMemberCreate.Metadata.Id)
+			require.Equal(t, parent.GetScope(), event.AccessListMemberCreate.Metadata.Scope)
+			createdUsageMemberNames = append(createdUsageMemberNames, accesslists.NormalizedSQN{
+				Name:  event.AccessListMemberCreate.MemberMetadata.Name,
+				Scope: event.AccessListMemberCreate.MemberMetadata.Scope,
+			})
+		})
+	}
+	require.ElementsMatch(t, expectedMemberNames, createdUsageMemberNames)
 
 	resp, err = c.svc.UpsertAccessListWithMembers(c.userCtx, accesslistv1.UpsertAccessListWithMembersRequest_builder{
 		AccessList: conv.ToProto(parent),
@@ -308,6 +420,28 @@ func TestService_UpsertAccessListWithMembers_ScopedNestedMemberNamesDoNotCollide
 	}.Build())
 	require.NoError(t, err)
 	require.Len(t, resp.GetMembers(), 2)
+	expectEvent(t, events.AccessListMemberUpdateSuccessCode, c.emitter, func(event *apievents.AccessListMemberUpdate) {
+		require.Equal(t, parent.GetName(), event.AccessListMemberMetadata.AccessListName)
+		require.Equal(t, parent.GetScope(), event.AccessListMemberMetadata.AccessListScope)
+
+		memberNames := make([]accesslists.NormalizedSQN, 0, len(event.AccessListMemberMetadata.Members))
+		for _, member := range event.AccessListMemberMetadata.Members {
+			memberNames = append(memberNames, accesslists.NormalizedSQN{Name: member.MemberName, Scope: member.MemberScope})
+		}
+		require.ElementsMatch(t, expectedMemberNames, memberNames)
+	})
+	updatedUsageMemberNames := make([]accesslists.NormalizedSQN, 0, len(expectedMemberNames))
+	for range expectedMemberNames {
+		expectUsageEvent(t, c.usageEvents, func(event *usageeventsv1.UsageEventOneOf_AccessListMemberUpdate) {
+			require.Equal(t, parent.GetName(), event.AccessListMemberUpdate.Metadata.Id)
+			require.Equal(t, parent.GetScope(), event.AccessListMemberUpdate.Metadata.Scope)
+			updatedUsageMemberNames = append(updatedUsageMemberNames, accesslists.NormalizedSQN{
+				Name:  event.AccessListMemberUpdate.MemberMetadata.Name,
+				Scope: event.AccessListMemberUpdate.MemberMetadata.Scope,
+			})
+		})
+	}
+	require.ElementsMatch(t, expectedMemberNames, updatedUsageMemberNames)
 
 	storedMembers := listAccessListMembersV2(t, c, accesslists.ScopeQualifiedName(parent))
 	require.ElementsMatch(t,
@@ -327,8 +461,9 @@ func TestService_OwnerScopePinIsolation(t *testing.T) {
 	// outside that scope, even if they are an owner.
 	scopedOwnerCtx := genScopedUserContext(t.Context(), ownerUser, scopeTeamA)
 	teamAGroup := newScopedAccessList(t, scopedAccessListName(scopeTeamA, "group"), c.clock)
+	teamAChild := newScopedAccessList(t, scopedAccessListName(scopeTeamA, "child"), c.clock)
 	teamBGroup := newScopedAccessList(t, scopedAccessListName(scopeTeamB, "group"), c.clock)
-	createAccessLists(t, c.userCtx, c.svc, c.emitter, nil, []*accesslist.AccessList{teamAGroup, teamBGroup})
+	createAccessLists(t, c.userCtx, c.svc, c.emitter, c.usageEvents, []*accesslist.AccessList{teamAGroup, teamAChild, teamBGroup})
 
 	// Can only read the list in the caller's pinned scope.
 	_, err := c.svc.GetAccessList(scopedOwnerCtx, accesslistv1.GetAccessListRequest_builder{
@@ -355,11 +490,20 @@ func TestService_OwnerScopePinIsolation(t *testing.T) {
 	require.ErrorAs(t, err, new(*trace.AccessDeniedError))
 
 	// Can only add a member to a list in the caller's pinned scope.
+	teamAGroupMember := newScopedAccessListMember(t,
+		accesslists.ScopeQualifiedName(teamAGroup), accesslists.ScopeQualifiedName(teamAChild), accesslist.MembershipKindScopedList, c.clock)
 	_, err = c.svc.UpsertAccessListMember(scopedOwnerCtx, accesslistv1.UpsertAccessListMemberRequest_builder{
-		Member: conv.ToMemberProto(newScopedAccessListMember(t,
-			accesslists.ScopeQualifiedName(teamAGroup), accesslists.NormalizedSQN{Name: "user"}, accesslist.MembershipKindUser, c.clock)),
+		Member: conv.ToMemberProto(teamAGroupMember),
 	}.Build())
 	require.NoError(t, err)
+	expectEvent(t, events.AccessListMemberCreateSuccessCode, c.emitter, func(event *apievents.AccessListMemberCreate) {
+		require.Equal(t, teamAGroup.GetName(), event.AccessListMemberMetadata.AccessListName)
+		require.Equal(t, scopeTeamA, event.AccessListMemberMetadata.AccessListScope)
+	})
+	expectUsageEvent(t, c.usageEvents, func(event *usageeventsv1.UsageEventOneOf_AccessListMemberCreate) {
+		require.Equal(t, teamAGroup.GetName(), event.AccessListMemberCreate.Metadata.Id)
+		require.Equal(t, scopeTeamA, event.AccessListMemberCreate.Metadata.Scope)
+	})
 	_, err = c.svc.UpsertAccessListMember(scopedOwnerCtx, accesslistv1.UpsertAccessListMemberRequest_builder{
 		Member: conv.ToMemberProto(newScopedAccessListMember(t,
 			accesslists.ScopeQualifiedName(teamBGroup), accesslists.NormalizedSQN{Name: "user"}, accesslist.MembershipKindUser, c.clock)),
@@ -367,14 +511,37 @@ func TestService_OwnerScopePinIsolation(t *testing.T) {
 	require.ErrorAs(t, err, new(*trace.AccessDeniedError))
 
 	// Can only review a list in the caller's pinned scope.
-	_, err = c.svc.CreateAccessListReview(scopedOwnerCtx, accesslistv1.CreateAccessListReviewRequest_builder{
-		Review: conv.ToReviewProto(newScopedAccessListReview(t, accesslists.ScopeQualifiedName(teamAGroup))),
+	review := newScopedAccessListReview(t, accesslists.ScopeQualifiedName(teamAGroup))
+	review.Spec.Changes.ScopedRemovedMembers = []string{accesslists.ScopeQualifiedName(teamAChild).String()}
+	reviewResp, err := c.svc.CreateAccessListReview(scopedOwnerCtx, accesslistv1.CreateAccessListReviewRequest_builder{
+		Review: conv.ToReviewProto(review),
 	}.Build())
 	require.NoError(t, err)
+	expectEvent(t, events.AccessListReviewSuccessCode, c.emitter, func(event *apievents.AccessListReview) {
+		require.Equal(t, teamAGroup.GetName(), event.Name)
+		require.Equal(t, scopeTeamA, event.Scope)
+		require.Equal(t, review.Spec.Changes.ScopedRemovedMembers, event.ScopedRemovedMembers)
+	})
+	expectUsageEvent(t, c.usageEvents, func(event *usageeventsv1.UsageEventOneOf_AccessListReviewCreate) {
+		require.Equal(t, teamAGroup.GetName(), event.AccessListReviewCreate.Metadata.Id)
+		require.Equal(t, scopeTeamA, event.AccessListReviewCreate.Metadata.Scope)
+		require.Equal(t, int32(1), event.AccessListReviewCreate.NumberOfRemovedMembers)
+	})
 	_, err = c.svc.CreateAccessListReview(scopedOwnerCtx, accesslistv1.CreateAccessListReviewRequest_builder{
 		Review: conv.ToReviewProto(newScopedAccessListReview(t, accesslists.ScopeQualifiedName(teamBGroup))),
 	}.Build())
 	require.ErrorAs(t, err, new(*trace.AccessDeniedError))
+
+	_, err = c.svc.DeleteAccessListReview(c.userCtx, accesslistv1.DeleteAccessListReviewRequest_builder{
+		AccessListScope: scopeTeamA,
+		AccessListName:  teamAGroup.GetName(),
+		ReviewName:      reviewResp.GetReviewName(),
+	}.Build())
+	require.NoError(t, err)
+	expectUsageEvent(t, c.usageEvents, func(event *usageeventsv1.UsageEventOneOf_AccessListReviewDelete) {
+		require.Equal(t, teamAGroup.GetName(), event.AccessListReviewDelete.Metadata.Id)
+		require.Equal(t, scopeTeamA, event.AccessListReviewDelete.Metadata.Scope)
+	})
 }
 
 func TestService_ListAccessLists(t *testing.T) {
@@ -4741,6 +4908,7 @@ func createReviews(ctx context.Context, t *testing.T, svc *Service, emitter *eve
 			require.Equal(t, review.Spec.Changes.ReviewFrequencyChanged.String(), event.ReviewFrequencyChanged)
 			require.Equal(t, review.Spec.Changes.ReviewDayOfMonthChanged.String(), event.ReviewDayOfMonthChanged)
 			require.Equal(t, review.Spec.Changes.RemovedMembers, event.RemovedMembers)
+			require.Equal(t, review.Spec.Changes.ScopedRemovedMembers, event.ScopedRemovedMembers)
 		})
 
 		expectUsageEvent(t, usageEvents, func(event *usageeventsv1.UsageEventOneOf_AccessListReviewCreate) {
@@ -4749,7 +4917,7 @@ func createReviews(ctx context.Context, t *testing.T, svc *Service, emitter *eve
 			require.Equal(t, review.Spec.Changes.MembershipRequirementsChanged != nil, event.AccessListReviewCreate.MembershipRequirementsChanged)
 			require.Equal(t, review.Spec.Changes.ReviewFrequencyChanged.String() != "", event.AccessListReviewCreate.ReviewFrequencyChanged)
 			require.Equal(t, review.Spec.Changes.ReviewDayOfMonthChanged.String() != "", event.AccessListReviewCreate.ReviewDayOfMonthChanged)
-			require.Equal(t, int32(len(review.Spec.Changes.RemovedMembers)), event.AccessListReviewCreate.NumberOfRemovedMembers)
+			require.Equal(t, int32(len(review.Spec.Changes.RemovedMembers)+len(review.Spec.Changes.ScopedRemovedMembers)), event.AccessListReviewCreate.NumberOfRemovedMembers)
 		})
 
 		// Update info for the review.
@@ -5160,10 +5328,13 @@ func createAccessListsAndMembers(t *testing.T, ctx context.Context, service *Ser
 		require.NoError(t, err, trace.DebugReport(err))
 		expectEvent(t, events.AccessListCreateSuccessCode, emitter, func(event *apievents.AccessListCreate) {
 			require.True(t, event.Success)
+			require.Equal(t, al.GetName(), event.Name)
+			require.Equal(t, al.GetScope(), event.Scope)
 		})
 		if usageEvents != nil {
 			expectUsageEvent(t, usageEvents, func(event *usageeventsv1.UsageEventOneOf_AccessListCreate) {
 				require.Equal(t, al.GetName(), event.AccessListCreate.Metadata.Id)
+				require.Equal(t, al.GetScope(), event.AccessListCreate.Metadata.Scope)
 			})
 		}
 	}
@@ -5171,11 +5342,16 @@ func createAccessListsAndMembers(t *testing.T, ctx context.Context, service *Ser
 	for _, member := range members {
 		_, err := service.UpsertAccessListMember(ctx, accesslistv1.UpsertAccessListMemberRequest_builder{Member: conv.ToMemberProto(member)}.Build())
 		require.NoError(t, err)
+		memberSQN, err := accesslists.MemberScopeQualifiedName(member)
+		require.NoError(t, err)
 		expectEvent(t, events.AccessListMemberCreateSuccessCode, emitter, func(event *apievents.AccessListMemberCreate) {
 			require.True(t, event.Success)
+			require.Equal(t, member.GetScope(), event.AccessListMemberMetadata.AccessListScope)
+			require.Equal(t, memberSQN.Scope, event.AccessListMemberMetadata.Members[0].MemberScope)
 			if usageEvents != nil {
 				expectUsageEvent(t, usageEvents, func(event *usageeventsv1.UsageEventOneOf_AccessListMemberCreate) {
 					require.Equal(t, member.Spec.AccessList, event.AccessListMemberCreate.Metadata.Id)
+					require.Equal(t, member.GetScope(), event.AccessListMemberCreate.Metadata.Scope)
 				})
 			}
 		})

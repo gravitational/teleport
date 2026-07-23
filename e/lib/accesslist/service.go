@@ -889,8 +889,8 @@ func (s *Service) emitUpsertAccessListUsageEvent(ctx context.Context, updated bo
 			Event: &usageeventsv1.UsageEventOneOf_AccessListUpdate{
 				AccessListUpdate: &usageeventsv1.AccessListUpdate{
 					Metadata: &usageeventsv1.AccessListMetadata{
-						// TODO(nklaassen): separate scope field in event.
-						Id: accessListName.String(),
+						Id:    accessListName.Name,
+						Scope: accessListName.Scope,
 					},
 				},
 			},
@@ -900,8 +900,8 @@ func (s *Service) emitUpsertAccessListUsageEvent(ctx context.Context, updated bo
 			Event: &usageeventsv1.UsageEventOneOf_AccessListCreate{
 				AccessListCreate: &usageeventsv1.AccessListCreate{
 					Metadata: &usageeventsv1.AccessListMetadata{
-						// TODO(nklaassen): separate scope field in event.
-						Id: accessListName.String(),
+						Id:    accessListName.Name,
+						Scope: accessListName.Scope,
 					},
 				},
 			},
@@ -1012,8 +1012,8 @@ func (s *Service) emitDeleteAccessListUsageEvent(ctx context.Context, accessList
 			Event: &usageeventsv1.UsageEventOneOf_AccessListDelete{
 				AccessListDelete: &usageeventsv1.AccessListDelete{
 					Metadata: &usageeventsv1.AccessListMetadata{
-						// TODO(nklaassen): separate scope field in event.
-						Id: accessListName.String(),
+						Id:    accessListName.Name,
+						Scope: accessListName.Scope,
 					},
 				},
 			},
@@ -1204,6 +1204,10 @@ func (s *Service) upsertAccessListMember(ctx context.Context, req memberGetter, 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	memberName, err := accesslists.MemberScopeQualifiedName(member)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	authCtx, err := s.authOrIsOwner(ctx, parentListName, types.VerbCreate, types.VerbUpdate)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1245,10 +1249,10 @@ func (s *Service) upsertAccessListMember(ctx context.Context, req memberGetter, 
 	}
 
 	s.emitUpsertAccessListMemberEvent(ctx, username, updated, parentListName, upsertErr,
-		accessListMembersForEvent(joinTime, time.Time{}, accessListMemberProtoToMemberEventMetadata(req.GetMember()))...)
+		accessListMembersForEvent(joinTime, time.Time{}, accessListMemberProtoToMemberEventMetadata(memberName, req.GetMember()))...)
 
 	if upsertErr == nil {
-		s.emitUpsertAccessListMemberUsageEvent(ctx, updated, parentListName, member)
+		s.emitUpsertAccessListMemberUsageEvent(ctx, updated, parentListName, memberName, member)
 	}
 
 	return resp, trace.Wrap(upsertErr)
@@ -1262,6 +1266,10 @@ func (s *Service) UpdateAccessListMember(ctx context.Context, req *accesslistv1.
 	}
 
 	parentListName, err := accesslists.ParentListOf(member)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	memberName, err := accesslists.MemberScopeQualifiedName(member)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1295,10 +1303,10 @@ func (s *Service) UpdateAccessListMember(ctx context.Context, req *accesslistv1.
 	}
 
 	s.emitUpsertAccessListMemberEvent(ctx, username, updated, parentListName, upsertErr,
-		accessListMembersForEvent(joinTime, time.Time{}, accessListMemberProtoToMemberEventMetadata(req.GetMember()))...)
+		accessListMembersForEvent(joinTime, time.Time{}, accessListMemberProtoToMemberEventMetadata(memberName, req.GetMember()))...)
 
 	if upsertErr == nil {
-		s.emitUpsertAccessListMemberUsageEvent(ctx, updated, parentListName, member)
+		s.emitUpsertAccessListMemberUsageEvent(ctx, updated, parentListName, memberName, member)
 	}
 
 	return resp, trace.Wrap(upsertErr)
@@ -1483,7 +1491,7 @@ func (s *Service) emitUpsertAccessListMemberEvent(ctx context.Context, username 
 	}
 }
 
-func (s *Service) emitUpsertAccessListMemberUsageEvent(ctx context.Context, updated bool, accessListName accesslists.NormalizedSQN, member *accesslist.AccessListMember) {
+func (s *Service) emitUpsertAccessListMemberUsageEvent(ctx context.Context, updated bool, accessListName, memberName accesslists.NormalizedSQN, member *accesslist.AccessListMember) {
 	if s.usageEvents == nil {
 		return
 	}
@@ -1498,10 +1506,12 @@ func (s *Service) emitUpsertAccessListMemberUsageEvent(ctx context.Context, upda
 			Event: &usageeventsv1.UsageEventOneOf_AccessListMemberUpdate{
 				AccessListMemberUpdate: &usageeventsv1.AccessListMemberUpdate{
 					Metadata: &usageeventsv1.AccessListMetadata{
-						// TODO(nklaassen): separate scope field in event.
-						Id: accessListName.String(),
+						Id:    accessListName.Name,
+						Scope: accessListName.Scope,
 					},
 					MemberMetadata: &usageeventsv1.AccessListMemberMetadata{
+						Name:           memberName.Name,
+						Scope:          memberName.Scope,
 						MembershipKind: memberMembershipKind,
 					},
 				},
@@ -1512,10 +1522,12 @@ func (s *Service) emitUpsertAccessListMemberUsageEvent(ctx context.Context, upda
 			Event: &usageeventsv1.UsageEventOneOf_AccessListMemberCreate{
 				AccessListMemberCreate: &usageeventsv1.AccessListMemberCreate{
 					Metadata: &usageeventsv1.AccessListMetadata{
-						// TODO(nklaassen): separate scope field in event.
-						Id: accessListName.String(),
+						Id:    accessListName.Name,
+						Scope: accessListName.Scope,
 					},
 					MemberMetadata: &usageeventsv1.AccessListMemberMetadata{
+						Name:           memberName.Name,
+						Scope:          memberName.Scope,
 						MembershipKind: memberMembershipKind,
 					},
 				},
@@ -1593,8 +1605,8 @@ func (s *Service) deleteAccessListMember(ctx context.Context, req memberMetaGett
 	}.Build())
 
 	md := &memberEventMetadata{
-		// TODO(nklaassen): separate scope field in event.
-		name: scopes.QualifiedName{Scope: req.GetMemberScope(), Name: req.GetMemberName()}.String(),
+		name:  req.GetMemberName(),
+		scope: req.GetMemberScope(),
 	}
 	s.emitDeleteAccessListMemberEvent(ctx, username, parentListName, deleteErr,
 		accessListMembersForEvent(time.Time{}, s.clock.Now(), md)...)
@@ -1659,8 +1671,8 @@ func (s *Service) emitDeleteAccessListMemberUsageEvent(ctx context.Context, acce
 			Event: &usageeventsv1.UsageEventOneOf_AccessListMemberDelete{
 				AccessListMemberDelete: &usageeventsv1.AccessListMemberDelete{
 					Metadata: &usageeventsv1.AccessListMetadata{
-						// TODO(nklaassen): separate scope field in event.
-						Id: accessListName.String(),
+						Id:    accessListName.Name,
+						Scope: accessListName.Scope,
 					},
 					// TODO(kiosion): Pass in metadata about the member being deleted.
 					MemberMetadata: &usageeventsv1.AccessListMemberMetadata{},
@@ -1733,8 +1745,8 @@ func (s *Service) emitDeleteAllAccessListMembersForAccessListEvent(ctx context.C
 			UpdatedBy: username,
 		},
 		AccessListMemberMetadata: apievents.AccessListMemberMetadata{
-			// TODO(nklaassen): separate scope field in event.
-			AccessListName:  accessListName.String(),
+			AccessListName:  accessListName.Name,
+			AccessListScope: accessListName.Scope,
 			AccessListTitle: accessListTitle,
 		},
 		Status: apievents.Status{
@@ -1791,8 +1803,8 @@ func (s *Service) UpsertAccessListWithMembers(ctx context.Context, req *accessli
 			)
 
 			if upsertErr == nil {
-				for i := range modifiedMembers.created {
-					s.emitUpsertAccessListMemberUsageEvent(ctx, false, accessListName, modifiedMembers.created[i])
+				for memberName, member := range modifiedMembers.created {
+					s.emitUpsertAccessListMemberUsageEvent(ctx, false, accessListName, memberName, member)
 				}
 			}
 		}
@@ -1802,8 +1814,8 @@ func (s *Service) UpsertAccessListWithMembers(ctx context.Context, req *accessli
 			)
 
 			if upsertErr == nil {
-				for i := range modifiedMembers.updated {
-					s.emitUpsertAccessListMemberUsageEvent(ctx, true, accessListName, modifiedMembers.updated[i])
+				for memberName, member := range modifiedMembers.updated {
+					s.emitUpsertAccessListMemberUsageEvent(ctx, true, accessListName, memberName, member)
 				}
 			}
 		}
@@ -1826,9 +1838,9 @@ func (s *Service) UpsertAccessListWithMembers(ctx context.Context, req *accessli
 
 // memberChanges will be used to house the exact modifications made to the members to emit and event later.
 type memberChanges struct {
-	created []*accesslist.AccessListMember
-	updated []*accesslist.AccessListMember
-	deleted []*accesslist.AccessListMember
+	created map[accesslists.NormalizedSQN]*accesslist.AccessListMember
+	updated map[accesslists.NormalizedSQN]*accesslist.AccessListMember
+	deleted map[accesslists.NormalizedSQN]*accesslist.AccessListMember
 }
 
 // pickAccessListForWrite returns the access list to persist and whether the
@@ -1998,7 +2010,10 @@ func (s *Service) upsertAccessListWithMembers(ctx context.Context, authCtx *auth
 	}
 
 	// Figure out the member modifications for event emitting.
-	modified = getMemberChanges(oldMembers, updatedMembers)
+	modified, err = getMemberChanges(oldMembers, updatedMembers)
+	if err != nil {
+		return nil, updated, accessListModified, nil, trace.Wrap(err)
+	}
 
 	// Get a list of all users, to compute eligibilities.
 	users, err := getAllUsers(ctx, s.cache)
@@ -2109,37 +2124,39 @@ func areMembersModified(oldMembers map[accesslists.NormalizedSQN]*accesslist.Acc
 // map is nil, modified members will be nil.
 //
 // Caution: oldMembers map is modified in the process.
-func getMemberChanges(oldMembers map[accesslists.NormalizedSQN]*accesslist.AccessListMember, updatedMembers []*accesslist.AccessListMember) *memberChanges {
+func getMemberChanges(oldMembers map[accesslists.NormalizedSQN]*accesslist.AccessListMember, updatedMembers []*accesslist.AccessListMember) (*memberChanges, error) {
 	if oldMembers == nil {
-		return nil
+		return nil, nil
 	}
 
-	modified := &memberChanges{}
+	modified := &memberChanges{
+		created: make(map[accesslists.NormalizedSQN]*accesslist.AccessListMember),
+		updated: make(map[accesslists.NormalizedSQN]*accesslist.AccessListMember),
+		deleted: make(map[accesslists.NormalizedSQN]*accesslist.AccessListMember),
+	}
 	seen := set.NewWithCapacity[accesslists.NormalizedSQN](len(updatedMembers))
 	for _, member := range updatedMembers {
 		memberName, err := accesslists.MemberScopeQualifiedName(member)
 		if err != nil {
-			// If we can't parse the name it can't be in oldMembers, so it must have been created.
-			modified.created = append(modified.created, member)
-			continue
+			return nil, trace.Wrap(err)
 		}
 		if seen.Contains(memberName) {
 			continue
 		}
 		seen.Add(memberName)
 		if _, ok := oldMembers[memberName]; ok {
-			modified.updated = append(modified.updated, member)
+			modified.updated[memberName] = member
 			delete(oldMembers, memberName)
 		} else {
-			modified.created = append(modified.created, member)
+			modified.created[memberName] = member
 		}
 	}
 
-	for _, oldMember := range oldMembers {
-		modified.deleted = append(modified.deleted, oldMember)
+	for oldMemberName, oldMember := range oldMembers {
+		modified.deleted[oldMemberName] = oldMember
 	}
 
-	return modified
+	return modified, nil
 }
 
 // hasAccessListRBAC tests if the user has RBAC access to the given access list,
@@ -2506,8 +2523,8 @@ func (s *Service) emitCreateAccessListReview(
 			ReviewFrequencyChanged:        review.Spec.Changes.ReviewFrequencyChanged.String(),
 			ReviewDayOfMonthChanged:       review.Spec.Changes.ReviewDayOfMonthChanged.String(),
 			RemovedMembers:                review.Spec.Changes.RemovedMembers,
-			// TODO(nklaassen): add ScopedRemovedMembers to audit event.
-			AccessListTitle: accessListTitle,
+			ScopedRemovedMembers:          review.Spec.Changes.ScopedRemovedMembers,
+			AccessListTitle:               accessListTitle,
 		},
 		Status: apievents.Status{
 			Success: createErr == nil,
@@ -2532,8 +2549,8 @@ func (s *Service) emitCreateAccessListReviewUsageEvent(ctx context.Context, acce
 		Event: &usageeventsv1.UsageEventOneOf_AccessListReviewCreate{
 			AccessListReviewCreate: &usageeventsv1.AccessListReviewCreate{
 				Metadata: &usageeventsv1.AccessListMetadata{
-					// TODO(nklaassen): separate scope field in event.
-					Id: accessListName.String(),
+					Id:    accessListName.Name,
+					Scope: accessListName.Scope,
 				},
 				DaysPastNextAuditDate:         int32(daysSinceOriginalNextAuditDate),
 				MembershipRequirementsChanged: review.Spec.Changes.MembershipRequirementsChanged != nil,
@@ -2593,8 +2610,8 @@ func (s *Service) emitDeleteAccessListReviewUsageEvent(ctx context.Context, acce
 		Event: &usageeventsv1.UsageEventOneOf_AccessListReviewDelete{
 			AccessListReviewDelete: &usageeventsv1.AccessListReviewDelete{
 				Metadata: &usageeventsv1.AccessListMetadata{
-					// TODO(nklaassen): separate scope field in event.
-					Id: accessListName.String(),
+					Id:    accessListName.Name,
+					Scope: accessListName.Scope,
 				},
 				AccessListReviewId: reviewID,
 			},
@@ -3088,19 +3105,21 @@ func makeUserLookup(users []types.User) map[string]types.User {
 // memberEventMetadata is a small wrapper around a member object.
 type memberEventMetadata struct {
 	name     string
+	scope    string
 	kind     accesslistv1.MembershipKind
 	reason   string
 	joinedOn time.Time
 }
 
 // accessListMemberProtoToMemberEventMetadata converts a member proto into a memberNameAndReason.
-func accessListMemberProtoToMemberEventMetadata(member *accesslistv1.Member) *memberEventMetadata {
+func accessListMemberProtoToMemberEventMetadata(memberName accesslists.NormalizedSQN, member *accesslistv1.Member) *memberEventMetadata {
 	if member.GetSpec() == nil {
 		return nil
 	}
 
 	return &memberEventMetadata{
-		name:     member.GetSpec().GetName(),
+		name:     memberName.Name,
+		scope:    memberName.Scope,
 		kind:     member.GetSpec().GetMembershipKind(),
 		reason:   member.GetSpec().GetReason(),
 		joinedOn: member.GetSpec().GetJoined().AsTime(),
@@ -3108,9 +3127,9 @@ func accessListMemberProtoToMemberEventMetadata(member *accesslistv1.Member) *me
 }
 
 // accessListMembesrToMemberEventMetadata converts all members into a memberNameAndReason.
-func accessListMembersToMemberEventMetadata(members []*accesslist.AccessListMember) []*memberEventMetadata {
+func accessListMembersToMemberEventMetadata(members map[accesslists.NormalizedSQN]*accesslist.AccessListMember) []*memberEventMetadata {
 	convertedMembers := []*memberEventMetadata{}
-	for _, member := range members {
+	for memberName, member := range members {
 		if member == nil {
 			return nil
 		}
@@ -3121,7 +3140,8 @@ func accessListMembersToMemberEventMetadata(members []*accesslist.AccessListMemb
 		}
 
 		convertedMembers = append(convertedMembers, &memberEventMetadata{
-			name:     member.Spec.Name,
+			name:     memberName.Name,
+			scope:    memberName.Scope,
 			kind:     kind,
 			reason:   member.Spec.Reason,
 			joinedOn: member.Spec.Joined,
@@ -3151,6 +3171,7 @@ func accessListMembersForEvent(joinTime, removeTime time.Time, members ...*membe
 			RemovedOn:      removeTime,
 			Reason:         member.reason,
 			MemberName:     member.name,
+			MemberScope:    member.scope,
 			MembershipKind: member.kind,
 		}
 
@@ -3170,8 +3191,8 @@ func batchAccessListMemberMetadata(accessListName accesslists.NormalizedSQN, acc
 		startIndex := i * eventMemberBatches
 		endIndex := min(startIndex+eventMemberBatches, numMembers)
 		batches[i] = apievents.AccessListMemberMetadata{
-			// TODO(nklaassen): separate scope field in event.
-			AccessListName:  accessListName.String(),
+			AccessListName:  accessListName.Name,
+			AccessListScope: accessListName.Scope,
 			Members:         members[startIndex:endIndex],
 			AccessListTitle: accessListTitle,
 		}
@@ -3504,7 +3525,7 @@ func castToRoleV6(in []types.Role) ([]*types.RoleV6, error) {
 
 func authorizeAdminActionAllowReusedMFA(authCtx *authz.ScopedContext) error {
 	// Scopes currently don't support admin MFA and it is intentionally not enforced.
-	// TODO(nklaassen): When scoped identities support MFA, enforce it!
+	// TODO(nklaassen/scopes): When scoped identities support MFA, enforce it!
 	unscopedCtx, isUnscoped := authCtx.UnscopedContext()
 	if !isUnscoped {
 		return nil
@@ -3514,7 +3535,7 @@ func authorizeAdminActionAllowReusedMFA(authCtx *authz.ScopedContext) error {
 
 func authorizeAdminAction(authCtx *authz.ScopedContext) error {
 	// Scopes currently don't support admin MFA and it is intentionally not enforced.
-	// TODO(nklaassen): When scoped identities support MFA, enforce it!
+	// TODO(nklaassen/scopes): When scoped identities support MFA, enforce it!
 	unscopedCtx, isUnscoped := authCtx.UnscopedContext()
 	if !isUnscoped {
 		return nil
