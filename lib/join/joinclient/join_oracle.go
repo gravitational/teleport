@@ -31,6 +31,10 @@ func oracleJoin(
 	joinParams JoinParams,
 	clientParams messages.ClientParams,
 ) (messages.Response, error) {
+	if joinParams.OracleIMDSClient == nil {
+		return nil, trace.BadParameter("OracleIMDSClient is required for Oracle join method")
+	}
+
 	// The Oracle join method involves the following messages:
 	//
 	// client->server ClientInit
