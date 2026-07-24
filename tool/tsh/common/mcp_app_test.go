@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	mcpconfig "github.com/gravitational/teleport/lib/client/mcp/config"
 	"github.com/gravitational/teleport/lib/observability/tracing"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils/testutils/golden"
 )
@@ -225,7 +226,7 @@ func Test_mcpConfigCommand(t *testing.T) {
 		{
 			name: "not found",
 			cf: &CLIConf{
-				AppName: "not found",
+				AppSQN: scopes.QualifiedName{Name: "not found"},
 			},
 			checkError: require.Error,
 			// "local-everything" was already in the config. Double-check we
@@ -235,7 +236,7 @@ func Test_mcpConfigCommand(t *testing.T) {
 		{
 			name: "single",
 			cf: &CLIConf{
-				AppName: "dev2",
+				AppSQN: scopes.QualifiedName{Name: "dev2"},
 			},
 			checkError:         require.NoError,
 			wantNamesInConfig:  []string{"teleport-mcp-dev2", "local-everything"},
@@ -269,7 +270,7 @@ func Test_mcpConfigCommand(t *testing.T) {
 			name: "too many selectors",
 			cf: &CLIConf{
 				ListAll: true,
-				AppName: "dev2",
+				AppSQN:  scopes.QualifiedName{Name: "dev2"},
 			},
 			checkError:        require.Error,
 			wantNamesInConfig: []string{"local-everything"},
@@ -277,7 +278,7 @@ func Test_mcpConfigCommand(t *testing.T) {
 		{
 			name: "print json",
 			cf: &CLIConf{
-				AppName: "dev2",
+				AppSQN: scopes.QualifiedName{Name: "dev2"},
 			},
 			disableConfigFile: true,
 			checkError:        require.NoError,
@@ -288,7 +289,7 @@ func Test_mcpConfigCommand(t *testing.T) {
 		{
 			name: "custom headers",
 			cf: &CLIConf{
-				AppName: "streamable-http",
+				AppSQN: scopes.QualifiedName{Name: "streamable-http"},
 			},
 			inputHeaderArgs: []string{
 				"H1: v1",
@@ -305,7 +306,7 @@ func Test_mcpConfigCommand(t *testing.T) {
 		{
 			name: "invalid header",
 			cf: &CLIConf{
-				AppName: "streamable-http",
+				AppSQN: scopes.QualifiedName{Name: "streamable-http"},
 			},
 			inputHeaderArgs: []string{
 				"H1=v1",
