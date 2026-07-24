@@ -25,6 +25,7 @@ import {
   getAwsIcLaunchUrl,
   getSamlAppSsoUrl,
   getWebAppLaunchUrl,
+  isLLM,
   isWebApp,
 } from 'teleterm/services/tshd/app';
 import { appToAddrToCopy } from 'teleterm/services/vnet/app';
@@ -117,6 +118,15 @@ export async function connectToApp(
       }),
       telemetry
     );
+    return;
+  }
+
+  // LLM inference endpoints are reached through a local HTTP proxy.
+  if (isLLM(target)) {
+    await setUpAppGateway(ctx, target.uri, {
+      telemetry,
+      targetProtocol: getAppProtocol(target.endpointUri),
+    });
     return;
   }
 

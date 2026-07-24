@@ -54,6 +54,7 @@ import {
   getAwsIcLaunchUrl,
   getSamlAppSsoUrl,
   getWebAppLaunchUrl,
+  isLLM,
   isMcp,
   isWebApp,
 } from 'teleterm/services/tshd/app';
@@ -416,6 +417,19 @@ function AppButton(props: {
           Set up connection
         </MenuItem>
       </ButtonWithMenu>
+    );
+  }
+
+  if (isLLM(props.app)) {
+    return (
+      <ButtonBorder
+        size="small"
+        onClick={() => props.setUpGateway()}
+        textTransform="none"
+        width={buttonWidth}
+      >
+        Connect
+      </ButtonBorder>
     );
   }
 

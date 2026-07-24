@@ -58,6 +58,8 @@ type Gateway struct {
 	xxx_hidden_Protocol              string                 `protobuf:"bytes,7,opt,name=protocol,proto3"`
 	xxx_hidden_TargetSubresourceName string                 `protobuf:"bytes,9,opt,name=target_subresource_name,json=targetSubresourceName,proto3"`
 	xxx_hidden_GatewayCliCommand     *GatewayCLICommand     `protobuf:"bytes,10,opt,name=gateway_cli_command,json=gatewayCliCommand,proto3"`
+	xxx_hidden_LlmFormat             string                 `protobuf:"bytes,11,opt,name=llm_format,json=llmFormat,proto3"`
+	xxx_hidden_LlmProvider           string                 `protobuf:"bytes,12,opt,name=llm_provider,json=llmProvider,proto3"`
 	unknownFields                    protoimpl.UnknownFields
 	sizeCache                        protoimpl.SizeCache
 }
@@ -150,6 +152,20 @@ func (x *Gateway) GetGatewayCliCommand() *GatewayCLICommand {
 	return nil
 }
 
+func (x *Gateway) GetLlmFormat() string {
+	if x != nil {
+		return x.xxx_hidden_LlmFormat
+	}
+	return ""
+}
+
+func (x *Gateway) GetLlmProvider() string {
+	if x != nil {
+		return x.xxx_hidden_LlmProvider
+	}
+	return ""
+}
+
 func (x *Gateway) SetUri(v string) {
 	x.xxx_hidden_Uri = v
 }
@@ -186,6 +202,14 @@ func (x *Gateway) SetGatewayCliCommand(v *GatewayCLICommand) {
 	x.xxx_hidden_GatewayCliCommand = v
 }
 
+func (x *Gateway) SetLlmFormat(v string) {
+	x.xxx_hidden_LlmFormat = v
+}
+
+func (x *Gateway) SetLlmProvider(v string) {
+	x.xxx_hidden_LlmProvider = v
+}
+
 func (x *Gateway) HasGatewayCliCommand() bool {
 	if x == nil {
 		return false
@@ -213,7 +237,7 @@ type Gateway_builder struct {
 	// local_port is the gateway address on localhost
 	LocalPort string
 	// protocol is the protocol used by the gateway. For databases, it matches the type of the
-	// database that the gateway targets. For apps, it's either "HTTP" or "TCP".
+	// database that the gateway targets. For apps, it's one of "HTTP", "TCP", "MCP", or "LLM".
 	Protocol string
 	// target_subresource_name points at a subresource of the remote resource, for example a
 	// database name on a database server or a target port of a multi-port TCP app.
@@ -225,6 +249,12 @@ type Gateway_builder struct {
 	// daemon. This means that the Database Access team can add support for a new protocol and
 	// Connect will support it right away with no extra changes.
 	GatewayCliCommand *GatewayCLICommand
+	// llm_format is the inference API format of an LLM app gateway, e.g.
+	// "anthropic" or "openai".
+	LlmFormat string
+	// llm_provider is the inference provider serving an LLM app gateway, e.g.
+	// "anthropic", "openai" or "bedrock".
+	LlmProvider string
 }
 
 func (b0 Gateway_builder) Build() *Gateway {
@@ -240,6 +270,8 @@ func (b0 Gateway_builder) Build() *Gateway {
 	x.xxx_hidden_Protocol = b.Protocol
 	x.xxx_hidden_TargetSubresourceName = b.TargetSubresourceName
 	x.xxx_hidden_GatewayCliCommand = b.GatewayCliCommand
+	x.xxx_hidden_LlmFormat = b.LlmFormat
+	x.xxx_hidden_LlmProvider = b.LlmProvider
 	return m0
 }
 
@@ -366,7 +398,7 @@ var File_teleport_lib_teleterm_v1_gateway_proto protoreflect.FileDescriptor
 
 const file_teleport_lib_teleterm_v1_gateway_proto_rawDesc = "" +
 	"\n" +
-	"&teleport/lib/teleterm/v1/gateway.proto\x12\x18teleport.lib.teleterm.v1\"\x84\x03\n" +
+	"&teleport/lib/teleterm/v1/gateway.proto\x12\x18teleport.lib.teleterm.v1\"\xc6\x03\n" +
 	"\aGateway\x12\x10\n" +
 	"\x03uri\x18\x01 \x01(\tR\x03uri\x12\x1f\n" +
 	"\vtarget_name\x18\x02 \x01(\tR\n" +
@@ -381,7 +413,10 @@ const file_teleport_lib_teleterm_v1_gateway_proto_rawDesc = "" +
 	"\bprotocol\x18\a \x01(\tR\bprotocol\x126\n" +
 	"\x17target_subresource_name\x18\t \x01(\tR\x15targetSubresourceName\x12[\n" +
 	"\x13gateway_cli_command\x18\n" +
-	" \x01(\v2+.teleport.lib.teleterm.v1.GatewayCLICommandR\x11gatewayCliCommandJ\x04\b\b\x10\tR\vcli_command\"g\n" +
+	" \x01(\v2+.teleport.lib.teleterm.v1.GatewayCLICommandR\x11gatewayCliCommand\x12\x1d\n" +
+	"\n" +
+	"llm_format\x18\v \x01(\tR\tllmFormat\x12!\n" +
+	"\fllm_provider\x18\f \x01(\tR\vllmProviderJ\x04\b\b\x10\tR\vcli_command\"g\n" +
 	"\x11GatewayCLICommand\x12\x12\n" +
 	"\x04path\x18\x01 \x01(\tR\x04path\x12\x12\n" +
 	"\x04args\x18\x02 \x03(\tR\x04args\x12\x10\n" +

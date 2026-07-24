@@ -30,6 +30,7 @@ import styled from 'styled-components';
 
 import {
   Alert,
+  Box,
   ButtonSecondary,
   disappear,
   Flex,
@@ -89,10 +90,14 @@ export function AppGateway(props: {
 
   const isMcp = gateway.protocol === 'MCP';
   const isHttpWebApp = gateway.protocol === 'HTTP';
+  const isLLM = gateway.protocol === 'LLM';
   let address = `${gateway.localAddress}:${gateway.localPort}`;
-  if (isHttpWebApp || isMcp) {
+  if (isHttpWebApp || isMcp || isLLM) {
     address = `http://${address}`;
   }
+
+  const llmName = llmDisplayNames[gateway.llmFormat];
+  const llmTitle = `${llmName ? `${llmName} ` : ''}Inference Endpoint Connection`;
 
   // AppGateway doesn't have access to the app resource itself, so it has to decide whether the
   // app is multi-port or not in some other way.
@@ -165,7 +170,13 @@ export function AppGateway(props: {
     >
       <Flex flexDirection="column" gap={2}>
         <Flex justifyContent="space-between" mb="2" flexWrap="wrap" gap={2}>
-          <H1>{isMcp ? 'MCP Server Connection' : 'App Connection'}</H1>
+          <H1>
+            {isMcp
+              ? 'MCP Server Connection'
+              : isLLM
+                ? llmTitle
+                : 'App Connection'}
+          </H1>
           <Flex gap={2}>
             {isMultiPort && (
               <MenuLogin
@@ -223,14 +234,22 @@ export function AppGateway(props: {
       </Flex>
 
       <Flex flexDirection="column" gap={2}>
-        <div>
-          <Text>
-            {isMcp
-              ? 'Access the MCP server with a streamable-HTTP-compatible client like "mcp-remote" at:'
-              : 'Access the app at:'}
-          </Text>
-          <TextSelectCopy mt={1} text={address} bash={false} />
-        </div>
+        {isLLM ? (
+          <LlmInstructions
+            llmFormat={gateway.llmFormat}
+            llmProvider={gateway.llmProvider}
+            address={address}
+          />
+        ) : (
+          <Box>
+            <Text>
+              {isMcp
+                ? 'Access the MCP server with a streamable-HTTP-compatible client like "mcp-remote" at:'
+                : 'Access the app at:'}
+            </Text>
+            <TextSelectCopy mt={1} text={address} bash={false} />
+          </Box>
+        )}
 
         {changeLocalPortAttempt.status === 'error' && (
           <Alert details={changeLocalPortAttempt.statusText} m={0}>
@@ -262,6 +281,133 @@ export function AppGateway(props: {
           for more details.
         </Text>
       </Flex>
+    </Flex>
+  );
+}
+
+const apiKeyComment =
+  'Any non-empty value works; Teleport swaps in the real key.';
+
+const llmDisplayNames: Record<string, string> = {
+  anthropic: 'Anthropic',
+  openai: 'OpenAI',
+};
+
+type LlmEnvLine = { text: string; comment?: string };
+
+type LlmSpec = {
+  /** Client(s) named in the instructions, e.g. "Anthropic client (ex. …)". */
+  clientLabel: string;
+  /**
+   * `export <variable>=<value>` lines to set before launching the client.
+   */
+  envLines?: LlmEnvLine[];
+  /** Optional note shown above the run command. */
+  runNote?: string;
+  /** Command that launches the client. */
+  runCommand: string;
+};
+
+/**
+ * getLlmSpec returns the client-specific instructions for the running proxy.
+ * They depend on the API format and provider, mirroring the web UI: Codex
+ * ignores base-URL environment variables so it needs the address inline, and
+ * an endpoint served by Bedrock needs provider-specific configuration.
+ */
+function getLlmSpec(
+  llmFormat: string,
+  llmProvider: string,
+  address: string
+): LlmSpec | undefined {
+  if (llmFormat === 'openai') {
+    // A Bedrock-backed endpoint needs Codex's amazon-bedrock model provider:
+    // its plain OpenAI provider sends a payload Bedrock rejects. That provider
+    // config also carries the address and (placeholder) auth, so no environment
+    // variables are needed. Requires Codex 0.145.0+.
+    if (llmProvider === 'bedrock') {
+      return {
+        clientLabel: 'OpenAI client (ex. Codex)',
+        runNote:
+          'This endpoint is served by Amazon Bedrock, so Codex must use its Bedrock model provider (requires Codex 0.145.0+):',
+        runCommand:
+          `codex -c model_providers.amazon-bedrock.base_url=${address} ` +
+          `-c model_providers.amazon-bedrock.auth.command=cat ` +
+          `-c model_provider=amazon-bedrock`,
+      };
+    }
+    return {
+      clientLabel: 'OpenAI client (ex. Codex)',
+      envLines: [
+        { text: `export OPENAI_BASE_URL=${address}/v1` },
+        { text: 'export OPENAI_API_KEY=teleport', comment: apiKeyComment },
+      ],
+      runNote:
+        'Codex ignores the base-URL variable, so pass the address inline:',
+      runCommand: `codex -c openai_base_url=${address}/v1`,
+    };
+  }
+
+  if (llmFormat === 'anthropic') {
+    const envLines: LlmEnvLine[] = [
+      { text: `export ANTHROPIC_BASE_URL=${address}` },
+      { text: 'export ANTHROPIC_API_KEY=teleport', comment: apiKeyComment },
+    ];
+    if (llmProvider === 'bedrock') {
+      envLines.push({
+        text: 'export CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS=1',
+        comment: 'Required when the endpoint is served by Amazon Bedrock.',
+      });
+    }
+    return {
+      clientLabel: 'Anthropic client (ex. Claude Code, Claude Agent SDK)',
+      envLines,
+      runCommand: 'claude',
+    };
+  }
+
+  return undefined;
+}
+
+/**
+ * LlmInstructions tells the user how to point their LLM client at the running
+ * local proxy. Teleport authenticates and audits every request and injects the
+ * provider API key, so no real key is needed locally.
+ */
+function LlmInstructions(props: {
+  llmFormat: string;
+  llmProvider: string;
+  address: string;
+}) {
+  const spec = getLlmSpec(props.llmFormat, props.llmProvider, props.address);
+
+  if (!spec) {
+    return (
+      <Box>
+        <Text>Point your LLM client at the local proxy:</Text>
+        <TextSelectCopy mt={1} text={props.address} bash={false} />
+      </Box>
+    );
+  }
+
+  return (
+    <Flex flexDirection="column" gap={2}>
+      <Text>
+        Point your {spec.clientLabel} at the local proxy. Every request is
+        authenticated and audited by Teleport, which also injects the provider
+        API key - so no real key is needed locally.
+      </Text>
+      {spec.envLines?.map((line, index) => (
+        <Box key={index}>
+          {line.comment && (
+            <Text color="text.slightlyMuted" mb={1}>
+              {line.comment}
+            </Text>
+          )}
+          <TextSelectCopy text={line.text} bash={false} />
+        </Box>
+      ))}
+      {spec.runNote && <Text>{spec.runNote}</Text>}
+      <TextSelectCopy text={spec.runCommand} bash={false} />
     </Flex>
   );
 }

@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/gatewaytest"
@@ -86,6 +87,64 @@ func TestGatewayStart(t *testing.T) {
 	err = gateway.Close()
 	require.NoError(t, err)
 	require.NoError(t, <-serveErr)
+}
+
+func TestLLMFormat(t *testing.T) {
+	hs := httptest.NewTLSServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	t.Cleanup(func() {
+		hs.Close()
+	})
+
+	ca := gatewaytest.MustGenCACert(t)
+	cert := gatewaytest.MustGenCertSignedWithCA(t, ca, tlsca.Identity{
+		Username: "alice",
+		Groups:   []string{"test-group"},
+	})
+
+	t.Run("LLM app gateway exposes its inference format and provider", func(t *testing.T) {
+		gw, err := New(
+			Config{
+				TargetName:       "anthropic",
+				TargetURI:        uri.NewClusterURI("bar").AppendApp("anthropic"),
+				Protocol:         types.ApplicationProtocolLLM,
+				LLMFormat:        "anthropic",
+				LLMProvider:      "bedrock",
+				Cert:             cert,
+				Insecure:         true,
+				WebProxyAddr:     hs.Listener.Addr().String(),
+				TCPPortAllocator: &gatewaytest.MockTCPPortAllocator{},
+			},
+		)
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			_ = gw.Close()
+		})
+
+		require.Equal(t, "anthropic", gw.LLMFormat())
+		require.Equal(t, "bedrock", gw.LLMProvider())
+	})
+
+	t.Run("non-LLM gateway has an empty format and provider", func(t *testing.T) {
+		gw, err := New(
+			Config{
+				TargetName:       "foo",
+				TargetURI:        uri.NewClusterURI("bar").AppendDB("foo"),
+				TargetUser:       "alice",
+				Protocol:         defaults.ProtocolPostgres,
+				Cert:             cert,
+				Insecure:         true,
+				WebProxyAddr:     hs.Listener.Addr().String(),
+				TCPPortAllocator: &gatewaytest.MockTCPPortAllocator{},
+			},
+		)
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			_ = gw.Close()
+		})
+
+		require.Empty(t, gw.LLMFormat())
+		require.Empty(t, gw.LLMProvider())
+	})
 }
 
 func TestNewWithLocalPortStartsListenerOnNewPortIfPortIsFree(t *testing.T) {

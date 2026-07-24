@@ -170,3 +170,102 @@ describe('reconnecting when the gateway fails to be created', () => {
     );
   });
 });
+
+describe('LLM inference endpoint gateway', () => {
+  const anthropicBaseUrl = 'export ANTHROPIC_BASE_URL=http://localhost:1337';
+  const openaiBaseUrl = 'export OPENAI_BASE_URL=http://localhost:1337/v1';
+  const bedrockBeta = 'export CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS=1';
+  const codexCommand = 'codex -c openai_base_url=http://localhost:1337/v1';
+  const codexBedrockCommand =
+    'codex -c model_providers.amazon-bedrock.base_url=http://localhost:1337 ' +
+    '-c model_providers.amazon-bedrock.auth.command=cat ' +
+    '-c model_provider=amazon-bedrock';
+
+  const tests: Array<{
+    name: string;
+    format: string;
+    provider: string;
+    expected: string[];
+    notExpected: string[];
+  }> = [
+    {
+      name: 'anthropic',
+      format: 'anthropic',
+      provider: 'anthropic',
+      expected: [anthropicBaseUrl, 'claude'],
+      notExpected: [openaiBaseUrl, bedrockBeta],
+    },
+    {
+      name: 'anthropic on bedrock',
+      format: 'anthropic',
+      provider: 'bedrock',
+      expected: [anthropicBaseUrl, bedrockBeta, 'claude'],
+      notExpected: [openaiBaseUrl],
+    },
+    {
+      name: 'openai',
+      format: 'openai',
+      provider: 'openai',
+      expected: [openaiBaseUrl, codexCommand],
+      notExpected: [anthropicBaseUrl, codexBedrockCommand],
+    },
+    {
+      name: 'openai on bedrock',
+      format: 'openai',
+      provider: 'bedrock',
+      expected: [codexBedrockCommand],
+      notExpected: [openaiBaseUrl, codexCommand],
+    },
+  ];
+
+  test.each(tests)(
+    'shows $name client instructions for the running proxy',
+    async ({ format, provider, expected, notExpected }) => {
+      const appContext = new MockAppContext();
+      const cluster = makeRootCluster();
+      const gateway = makeAppGateway({
+        protocol: 'LLM',
+        llmFormat: format,
+        llmProvider: provider,
+        targetSubresourceName: undefined,
+      });
+      const doc: docs.DocumentGateway = {
+        uri: '/docs/1',
+        kind: 'doc.gateway',
+        targetName: gateway.targetName,
+        targetUri: gateway.targetUri as AppUri,
+        targetUser: gateway.targetUser,
+        targetSubresourceName: undefined,
+        gatewayUri: gateway.uri,
+        origin: 'resource_table',
+        title: '',
+        status: '',
+        autoUserProvisioning: undefined,
+      };
+      appContext.addRootClusterWithDoc(cluster, doc);
+
+      jest
+        .spyOn(appContext.tshd, 'createGateway')
+        .mockReturnValueOnce(new MockedUnaryCall(gateway));
+
+      render(
+        <MockAppContextProvider appContext={appContext}>
+          <MockWorkspaceContextProvider>
+            <DocumentGatewayApp visible doc={doc} />
+          </MockWorkspaceContextProvider>
+        </MockAppContextProvider>
+      );
+
+      const providerName = format === 'openai' ? 'OpenAI' : 'Anthropic';
+      expect(
+        await screen.findByText(`${providerName} Inference Endpoint Connection`)
+      ).toBeInTheDocument();
+      for (const text of expected) {
+        expect(screen.getByText(text)).toBeInTheDocument();
+      }
+      for (const text of notExpected) {
+        expect(screen.queryByText(text)).not.toBeInTheDocument();
+      }
+    }
+  );
+});

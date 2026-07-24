@@ -44,7 +44,7 @@ message Gateway {
   // local_port is the gateway address on localhost
   string local_port = 6;
   // protocol is the protocol used by the gateway. For databases, it matches the type of the
-  // database that the gateway targets. For apps, it's either "HTTP" or "TCP".
+  // database that the gateway targets. For apps, it's one of "HTTP", "TCP", "MCP", or "LLM".
   string protocol = 7;
   reserved 8;
   reserved "cli_command";
@@ -58,6 +58,12 @@ message Gateway {
   // daemon. This means that the Database Access team can add support for a new protocol and
   // Connect will support it right away with no extra changes.
   GatewayCLICommand gateway_cli_command = 10;
+  // llm_format is the inference API format of an LLM app gateway, e.g.
+  // "anthropic" or "openai".
+  string llm_format = 11;
+  // llm_provider is the inference provider serving an LLM app gateway, e.g.
+  // "anthropic", "openai" or "bedrock".
+  string llm_provider = 12;
 }
 
 // GatewayCLICommand represents a command that the user can execute to connect to a gateway

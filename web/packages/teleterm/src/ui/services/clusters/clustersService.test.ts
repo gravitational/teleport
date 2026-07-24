@@ -20,6 +20,7 @@ import { MockMainProcessClient } from 'teleterm/mainProcess/fixtures/mocks';
 import type { TshdClient } from 'teleterm/services/tshd';
 import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
 import {
+  makeAppGateway,
   makeDatabaseGateway,
   makeKubeGateway,
   makeLeafCluster,
@@ -194,6 +195,26 @@ test('remove a kube gateway', async () => {
   // Calling it again should not increase mock calls.
   await service.removeKubeGateway(kubeGatewayMock.targetUri as uri.KubeUri);
   expect(removeGateway).toHaveBeenCalledTimes(1);
+});
+
+test('findGatewayByConnectionParams finds an app gateway with an empty daemon subresource when queried with undefined', () => {
+  const service = createService({});
+  const appGatewayMock = makeAppGateway({
+    uri: '/gateways/appGatewayTestUri',
+    targetUri: `${clusterUri}/apps/anthropic`,
+    targetSubresourceName: '',
+  });
+
+  service.setState(draftState => {
+    draftState.gateways = new Map([[appGatewayMock.uri, appGatewayMock]]);
+  });
+
+  expect(
+    service.findGatewayByConnectionParams({
+      targetUri: appGatewayMock.targetUri,
+      targetSubresourceName: undefined,
+    })
+  ).toBe(appGatewayMock);
 });
 
 test('sync gateways', async () => {

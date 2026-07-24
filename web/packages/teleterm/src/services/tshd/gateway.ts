@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { Gateway } from 'gen-proto-ts/teleport/lib/teleterm/v1/gateway_pb';
+
 import {
   GatewayTargetUri,
   isAppUri,
@@ -25,6 +27,18 @@ import {
 } from 'teleterm/ui/uri';
 
 import { GatewayCLICommand } from './types';
+
+/**
+ * getTargetSubresourceName returns the gateway's target subresource name using
+ * the convention that gateway documents follow, where an unset value is
+ * undefined rather than the empty string that the tsh daemon returns.
+ *
+ * For single-port apps, LLM apps, and unnamed databases, subresource
+ * is undefined (not empty string) to avoid duplicate gateways.
+ */
+export function getTargetSubresourceName(gateway: Gateway): string | undefined {
+  return gateway.targetSubresourceName || undefined;
+}
 
 /**
  * getCliCommandArgs returns a Node.js-compatible array with args.
