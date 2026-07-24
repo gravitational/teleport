@@ -1027,14 +1027,6 @@ func (s *PresenceService) UpsertKubernetesServer(ctx context.Context, server typ
 	}, nil
 }
 
-// DeleteKubernetesServer removes specified kubernetes server.
-func (s *PresenceService) DeleteKubernetesServer(ctx context.Context, hostID, name string) error {
-	return s.DeleteKubeServer(ctx, presencev1.DeleteKubeServerRequest_builder{
-		HostId: hostID,
-		Name:   name,
-	}.Build())
-}
-
 // DeleteKubeServer removes specified kubernetes server.
 func (s *PresenceService) DeleteKubeServer(ctx context.Context, req *presencev1.DeleteKubeServerRequest) error {
 	if req.GetName() == "" {

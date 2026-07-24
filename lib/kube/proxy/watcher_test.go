@@ -51,13 +51,16 @@ func newMockAuthClient() *mockAuthClient {
 	}
 }
 
-func (m *mockAuthClient) DeleteKubernetesServer(ctx context.Context, hostID, name string) error {
+func (m *mockAuthClient) DeleteKubeServer(ctx context.Context, hostID, name string) error {
 	select {
 	case m.deleteCh <- name:
 	case <-time.After(5 * time.Second):
 		return fmt.Errorf("failed to signal kube server deletion")
 	}
-	return m.ClientI.DeleteKubernetesServer(ctx, hostID, name)
+	return m.ClientI.DeleteKubeServer(ctx, presencev1.DeleteKubeServerRequest_builder{
+		HostId: hostID,
+		Name:   name,
+	}.Build())
 }
 
 // TestWatcher verifies that kubernetes agent properly detects and applies

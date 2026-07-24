@@ -411,11 +411,15 @@ func TestKubeServersCRUD(t *testing.T) {
 		require.ErrorAs(t, err, new(*trace.BadParameterError))
 	})
 
+	const scope = "/aa"
 	server1 := mustCreateKubernetesServer(t, "shared-cluster")
 	server2 := mustCreateKubernetesServer(t, "shared-cluster")
 	server3 := mustCreateKubernetesServer(t, "standalone-cluster")
+	server4, ok := server2.Copy().(*types.KubernetesServerV3)
+	require.True(t, ok, "expected types.KubernetesServerV3")
+	server4.Scope = scope
 
-	for _, s := range []types.KubeServer{server1, server2, server3} {
+	for _, s := range []types.KubeServer{server1, server2, server3, server4} {
 		_, err := presence.UpsertKubernetesServer(ctx, s)
 		require.NoError(t, err)
 	}
@@ -423,7 +427,7 @@ func TestKubeServersCRUD(t *testing.T) {
 	t.Run("MultipleServersSameCluster", func(t *testing.T) {
 		servers, err := iterstream.Collect(presence.RangeKubernetesServersWithName(ctx, "shared-cluster"))
 		require.NoError(t, err)
-		require.Len(t, servers, 2)
+		require.Len(t, servers, 3)
 		for _, s := range servers {
 			require.Equal(t, "shared-cluster", s.GetCluster().GetName())
 		}
@@ -440,6 +444,22 @@ func TestKubeServersCRUD(t *testing.T) {
 		servers, err := iterstream.Collect(presence.RangeKubernetesServersWithName(ctx, "nonexistent-cluster"))
 		require.NoError(t, err)
 		require.Empty(t, servers)
+	})
+
+	t.Run("DeletedServerWithScope", func(t *testing.T) {
+		err := presence.DeleteKubeServer(ctx, presencev1.DeleteKubeServerRequest_builder{
+			Scope:  scope,
+			HostId: server2.GetHostID(),
+			Name:   server2.GetName(),
+		}.Build())
+		require.NoError(t, err)
+
+		servers, err := iterstream.Collect(presence.RangeKubernetesServersWithName(ctx, "shared-cluster"))
+		require.NoError(t, err)
+		require.Len(t, servers, 2)
+		for _, server := range servers {
+			require.Empty(t, server.GetScope())
+		}
 	})
 
 	t.Run("DeletedServersNotReturned", func(t *testing.T) {

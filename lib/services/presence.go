@@ -165,9 +165,6 @@ type Presence interface {
 	// GetKubernetesServers returns a list of registered kubernetes servers.
 	GetKubernetesServers(context.Context) ([]types.KubeServer, error)
 
-	// DeleteKubernetesServer deletes a named kubernetes servers.
-	DeleteKubernetesServer(ctx context.Context, hostID, name string) error
-
 	// DeleteKubeServer deletes a named kubernetes servers.
 	DeleteKubeServer(ctx context.Context, req *presencev1.DeleteKubeServerRequest) error
 
