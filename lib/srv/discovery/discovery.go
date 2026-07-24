@@ -841,15 +841,28 @@ func (s *Server) azureServerFetchersFromMatchers(matchers []types.AzureMatcher, 
 		return matcherType == types.AzureMatcherVM
 	})
 
-	return server.MatchersToAzureInstanceFetchers(
-		s.ctx,
-		s.Log,
-		serverMatchers,
-		s.getAzureClients,
-		discoveryConfigName,
-		s.getAzureSubscriptionList,
-		s.handleAzureSubscriptionListError,
-	)
+	var allFetchers []server.Fetcher[*server.AzureInstances]
+	for _, matcher := range serverMatchers {
+		fetchers, err := server.MatcherToAzureInstanceFetchers(
+			s.ctx,
+			s.Log,
+			matcher,
+			s.getAzureClients,
+			discoveryConfigName,
+			s.getAzureSubscriptionList,
+		)
+		if err != nil {
+			s.Log.WarnContext(s.ctx, "Failed to resolve Azure subscription wildcard in discovery configuration",
+				"integration", matcher.Integration,
+				"discovery_config", discoveryConfigName,
+				"error", err,
+			)
+			s.handleAzureSubscriptionListError(matcher.Integration, err)
+			continue
+		}
+		allFetchers = append(allFetchers, fetchers...)
+	}
+	return allFetchers
 }
 
 func (s *Server) handleAzureSubscriptionListError(integration string, err error) {

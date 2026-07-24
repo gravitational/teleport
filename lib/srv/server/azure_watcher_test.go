@@ -268,21 +268,20 @@ func TestAzureWatcher(t *testing.T) {
 			watcher := NewWatcher[*AzureInstances](ctx, logger)
 
 			const noDiscoveryConfig = ""
-			watcher.SetFetchers(noDiscoveryConfig,
-				MatchersToAzureInstanceFetchers(
-					t.Context(),
-					logger,
-					[]types.AzureMatcher{tc.matcher},
-					func(ctx context.Context, integration string) (azure.Clients, error) {
-						return &clients, nil
-					},
-					noDiscoveryConfig,
-					func(ctx context.Context, integration string) (subscriptions []string, err error) {
-						return []string{sub1, sub2}, nil
-					},
-					nil,
-				),
+			fetchers, err := MatcherToAzureInstanceFetchers(
+				t.Context(),
+				logger,
+				tc.matcher,
+				func(ctx context.Context, integration string) (azure.Clients, error) {
+					return &clients, nil
+				},
+				noDiscoveryConfig,
+				func(ctx context.Context, integration string) (subscriptions []string, err error) {
+					return []string{sub1, sub2}, nil
+				},
 			)
+			require.NoError(t, err)
+			watcher.SetFetchers(noDiscoveryConfig, fetchers)
 
 			go watcher.Run()
 			t.Cleanup(watcher.Stop)
@@ -310,62 +309,48 @@ func TestAzureWatcher(t *testing.T) {
 	}
 }
 
-func TestMatchersToAzureInstanceFetchersSubscriptionListError(t *testing.T) {
+func TestMatcherToAzureInstanceFetchersSubscriptionListError(t *testing.T) {
 	t.Parallel()
 
 	permissionErr := trace.AccessDenied("missing subscriptions/read")
-	var handledIntegration string
-	var handledErr error
-	fetchers := MatchersToAzureInstanceFetchers(
+	fetchers, err := MatcherToAzureInstanceFetchers(
 		t.Context(),
 		logtest.NewLogger(),
-		[]types.AzureMatcher{{
-			Types:          []string{types.AzureMatcherVM},
-			Subscriptions:  []string{types.Wildcard, "explicit-subscription"},
-			ResourceGroups: []string{types.Wildcard},
-			Integration:    "azure-integration",
-		}},
-		func(context.Context, string) (azure.Clients, error) { return nil, nil },
-		"discovery-config",
-		func(context.Context, string) ([]string, error) { return nil, permissionErr },
-		func(integration string, err error) {
-			handledIntegration = integration
-			handledErr = err
-		},
-	)
-
-	require.Len(t, fetchers, 1, "the explicit subscription should still produce a fetcher")
-	require.Equal(t, "azure-integration", handledIntegration)
-	require.ErrorIs(t, handledErr, permissionErr)
-}
-
-func TestMatchersToAzureInstanceFetchersEmptySubscriptionList(t *testing.T) {
-	t.Parallel()
-
-	var handledIntegration string
-	var handledErr error
-	fetchers := MatchersToAzureInstanceFetchers(
-		t.Context(),
-		logtest.NewLogger(),
-		[]types.AzureMatcher{{
+		types.AzureMatcher{
 			Types:          []string{types.AzureMatcherVM},
 			Subscriptions:  []string{types.Wildcard},
 			ResourceGroups: []string{types.Wildcard},
 			Integration:    "azure-integration",
-		}},
+		},
 		func(context.Context, string) (azure.Clients, error) { return nil, nil },
 		"discovery-config",
-		func(context.Context, string) ([]string, error) { return nil, nil },
-		func(integration string, err error) {
-			handledIntegration = integration
-			handledErr = err
-		},
+		func(context.Context, string) ([]string, error) { return nil, permissionErr },
 	)
 
 	require.Empty(t, fetchers)
-	require.Equal(t, "azure-integration", handledIntegration)
-	require.Error(t, handledErr)
-	require.True(t, trace.IsNotFound(handledErr))
+	require.ErrorIs(t, err, permissionErr)
+}
+
+func TestMatcherToAzureInstanceFetchersEmptySubscriptionList(t *testing.T) {
+	t.Parallel()
+
+	fetchers, err := MatcherToAzureInstanceFetchers(
+		t.Context(),
+		logtest.NewLogger(),
+		types.AzureMatcher{
+			Types:          []string{types.AzureMatcherVM},
+			Subscriptions:  []string{types.Wildcard},
+			ResourceGroups: []string{types.Wildcard},
+			Integration:    "azure-integration",
+		},
+		func(context.Context, string) (azure.Clients, error) { return nil, nil },
+		"discovery-config",
+		func(context.Context, string) ([]string, error) { return nil, nil },
+	)
+
+	require.Empty(t, fetchers)
+	require.Error(t, err)
+	require.True(t, trace.IsNotFound(err))
 }
 
 func TestAzureInstances_FilterExistingNodes(t *testing.T) {
