@@ -213,6 +213,8 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindWindowsDesktop, nil
 	case types.KindDynamicWindowsDesktop, "dynamic_win_desktop", "dynamic_desktop":
 		return types.KindDynamicWindowsDesktop, nil
+	case types.KindLinuxDesktop, types.KindLinuxDesktop + "s":
+		return types.KindLinuxDesktop, nil
 	case types.KindToken, "tokens":
 		return types.KindToken, nil
 	case types.KindInstaller:

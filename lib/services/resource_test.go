@@ -140,6 +140,13 @@ func TestParseShortcut(t *testing.T) {
 		"windows_desktop": {expectedOutput: types.KindWindowsDesktop},
 		"win_desktop":     {expectedOutput: types.KindWindowsDesktop},
 
+		"dynamic_windows_desktop": {expectedOutput: types.KindDynamicWindowsDesktop},
+		"dynamic_win_desktop":     {expectedOutput: types.KindDynamicWindowsDesktop},
+		"dynamic_desktop":         {expectedOutput: types.KindDynamicWindowsDesktop},
+
+		"linux_desktop":  {expectedOutput: types.KindLinuxDesktop},
+		"linux_desktops": {expectedOutput: types.KindLinuxDesktop},
+
 		"token":  {expectedOutput: types.KindToken},
 		"tokens": {expectedOutput: types.KindToken},
 
