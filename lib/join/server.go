@@ -201,6 +201,10 @@ func (s *Server) getProvisionToken(ctx context.Context, name string) (provision.
 	// short circuit if a matching static scoped token is found
 	for _, tok := range staticTokens.GetSpec().GetTokens() {
 		if tok.GetMetadata().GetName() == qn.Name && tok.GetScope() == qn.Scope {
+			if err := joining.ValidateTokenForUse(tok, s.cfg.ScopesFeatures); err != nil {
+				return nil, trace.Wrap(err)
+			}
+
 			token, err := joining.NewToken(tok)
 			if err != nil {
 				return nil, trace.Wrap(err)

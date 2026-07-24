@@ -40,6 +40,7 @@ import (
 	"google.golang.org/grpc/test/bufconn"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/constants"
@@ -847,13 +848,15 @@ type fakeAuthService struct {
 }
 
 func newFakeAuthService(t *testing.T) *fakeAuthService {
+	return newFakeAuthServiceWithScopesFeatures(t, scopes.Features{Enabled: true})
+}
+
+func newFakeAuthServiceWithScopesFeatures(t *testing.T, features scopes.Features) *fakeAuthService {
 	testServer, err := authtest.NewTestServer(authtest.ServerConfig{
 		Auth: authtest.AuthServerConfig{
-			Dir:         t.TempDir(),
-			ClusterName: "testcluster",
-			ScopesFeatures: scopes.Features{
-				Enabled: true,
-			},
+			Dir:            t.TempDir(),
+			ClusterName:    "testcluster",
+			ScopesFeatures: features,
 		},
 	})
 	require.NoError(t, err)
@@ -995,6 +998,15 @@ func rejoinViaAuthClientWithSecret(
 	tokenSecret string,
 	authClient authjoin.AuthJoinClient,
 ) (*state.Identity, error) {
+	return joinViaAuthClientWithSecret(ctx, token, tokenSecret, authClient)
+}
+
+func joinViaAuthClientWithSecret(
+	ctx context.Context,
+	token string,
+	tokenSecret string,
+	authClient authjoin.AuthJoinClient,
+) (*state.Identity, error) {
 	joinResult, err := joinclient.Join(ctx, joinclient.JoinParams{
 		Token:       token,
 		TokenSecret: tokenSecret,
@@ -1013,4 +1025,103 @@ func rejoinViaAuthClientWithSecret(
 		return nil, trace.Wrap(err)
 	}
 	return state.ReadIdentityFromKeyPair(privateKeyPEM, joinResult.Certs)
+}
+
+func TestStaticScopedTokensAreValidated(t *testing.T) {
+	t.Parallel()
+
+	expired := time.Now().Add(-time.Hour)
+
+	tests := []struct {
+		name           string
+		role           types.SystemRole
+		expires        *timestamppb.Timestamp
+		features       scopes.Features
+		wantErr        string
+		wantTokenScope string
+	}{
+		{
+			name:     "expired token is rejected",
+			role:     types.RoleNode,
+			expires:  timestamppb.New(expired),
+			features: scopes.Features{Enabled: true},
+			wantErr:  joining.ErrTokenExpired.Error(),
+		},
+		{
+			name:     "agent pin role gate is enforced",
+			role:     types.RoleApp,
+			features: scopes.Features{Enabled: true},
+			wantErr:  "scoped token cannot be used to join [App] role(s) without TELEPORT_UNSTABLE_AGENT_SCOPE_PIN=yes",
+		},
+		{
+			name:           "valid token is accepted",
+			role:           types.RoleNode,
+			features:       scopes.Features{Enabled: true},
+			wantTokenScope: "/test",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			token := joiningv1.ScopedToken_builder{
+				Kind:    types.KindScopedToken,
+				Version: types.V1,
+				Metadata: headerv1.Metadata_builder{
+					Name:    "static-token",
+					Expires: tt.expires,
+				}.Build(),
+				Scope: scopes.Root,
+				Spec: joiningv1.ScopedTokenSpec_builder{
+					AssignedScope: "/test",
+					Roles:         []string{string(tt.role)},
+					JoinMethod:    string(types.JoinMethodToken),
+					UsageMode:     string(joining.TokenUsageModeUnlimited),
+				}.Build(),
+				Status: joiningv1.ScopedTokenStatus_builder{
+					Secret: "secret",
+				}.Build(),
+			}.Build()
+
+			authService := newFakeAuthServiceWithScopesFeatures(t, tt.features)
+			require.NoError(t, authService.Auth().SetStaticScopedTokens(t.Context(), joiningv1.StaticScopedTokens_builder{
+				Kind:    types.KindStaticScopedTokens,
+				Version: types.V1,
+				Metadata: headerv1.Metadata_builder{
+					Name: types.MetaNameStaticScopedTokens,
+				}.Build(),
+				Scope: scopes.Root,
+				Spec: joiningv1.StaticScopedTokensSpec_builder{
+					Tokens: []*joiningv1.ScopedToken{token},
+				}.Build(),
+			}.Build()))
+
+			unauthenticatedAuthClt, err := authService.NewClient(authtest.TestNop())
+			require.NoError(t, err)
+
+			tokenName := scopes.QualifiedName{
+				Scope: token.GetScope(),
+				Name:  token.GetMetadata().GetName(),
+			}.String()
+			if tt.wantErr != "" {
+				stream, err := joinv1.NewClient(unauthenticatedAuthClt.JoinV1Client()).Join(t.Context())
+				require.NoError(t, err)
+				defer stream.CloseSend()
+
+				require.NoError(t, stream.Send(&messages.ClientInit{
+					TokenName:  tokenName,
+					SystemRole: types.RoleInstance.String(),
+				}))
+
+				_, err = messages.RecvResponse[*messages.ServerInit](stream)
+				require.ErrorContains(t, err, tt.wantErr)
+				return
+			}
+
+			identity, err := joinViaAuthClientWithSecret(t.Context(), tokenName, token.GetStatus().GetSecret(), unauthenticatedAuthClt)
+			require.NoError(t, err)
+			require.Equal(t, tt.wantTokenScope, identity.AgentScope)
+		})
+	}
 }
