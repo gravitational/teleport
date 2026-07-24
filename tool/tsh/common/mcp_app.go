@@ -498,8 +498,30 @@ func (c *mcpConnectCommand) run() error {
 			MakeReconnectUserMessage: makeMCPReconnectUserMessage,
 			AutoReconnect:            c.autoReconnect,
 			HTTPHeaders:              httpHeaders,
+			OnSessionExpired:         makeMCPBrowserRelogin(tc),
 		},
 	)
+}
+
+// makeMCPBrowserRelogin opens the browser for SSO login on session expiration.
+func makeMCPBrowserRelogin(tc *client.TeleportClient) func(ctx context.Context) error {
+	return func(ctx context.Context) error {
+		tc.NonInteractive = false
+		defer func() { tc.NonInteractive = true }()
+
+		keyRing, err := tc.Login(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		clusterClient, rootAuthClient, err := tc.ConnectToRootCluster(ctx, keyRing)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		rootAuthClient.Close()
+		clusterClient.Close()
+		return trace.Wrap(tc.SaveProfile(false))
+	}
 }
 
 func parseHTTPHeaders(headerArgs []string) (map[string]string, error) {
