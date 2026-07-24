@@ -26,7 +26,7 @@ import (
 )
 
 // collection is responsible for managing a cached resource.
-type collection[T any, I comparable] struct {
+type collection[T comparable, I comparable] struct {
 	// fetcher is called by fetch to retrieve and seed the
 	// store with all known resources from upstream.
 	fetcher func(ctx context.Context, loadSecrets bool) ([]T, error)
