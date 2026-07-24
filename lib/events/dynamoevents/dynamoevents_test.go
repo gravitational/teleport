@@ -30,6 +30,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -43,6 +44,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -112,6 +114,178 @@ func (tt *dynamoContext) Close(t *testing.T) {
 		err := tt.log.deleteTable(context.Background(), tt.log.Tablename, true)
 		require.NoError(t, err)
 	}
+}
+
+func TestEmitAuditEvent_NoLossDeduplication(t *testing.T) {
+	tt := setupDynamoContext(t)
+	ctx := t.Context()
+
+	eventTime := tt.suite.Clock.Now().UTC()
+	from := eventTime.Add(-time.Hour)
+	to := eventTime.Add(time.Hour)
+
+	t.Run("IdenticalReDeliveryIsDeduplicated", func(t *testing.T) {
+		id := uuid.NewString()
+		marker := "dedup-alpaca-" + uuid.NewString()
+		ev := makeDedupTestEvent(id, eventTime, marker)
+
+		before := testutil.ToFloat64(writeRequestsDeduped)
+		require.NoError(t, tt.log.EmitAuditEvent(ctx, ev), "first delivery")
+		require.NoError(t, tt.log.EmitAuditEvent(ctx, ev), "at-least-once re-delivery")
+
+		requireStoredMarkerCount(ctx, t, tt.log, from, to, marker, 1)
+		require.InDelta(t, before+1, testutil.ToFloat64(writeRequestsDeduped), 0.0001,
+			"the duplicate delivery should increment the deduped counter exactly once")
+	})
+
+	t.Run("DistinctEventsSharingIDAreBothStored", func(t *testing.T) {
+		id := uuid.NewString()
+		prefix := "collide-" + uuid.NewString() + "-"
+		alice := makeDedupTestEvent(id, eventTime, prefix+"alice")
+		bob := makeDedupTestEvent(id, eventTime, prefix+"bob")
+
+		before := testutil.ToFloat64(eventIDCollisions)
+		require.NoError(t, tt.log.EmitAuditEvent(ctx, alice))
+		require.NoError(t, tt.log.EmitAuditEvent(ctx, bob))
+
+		requireStoredMarkerCount(ctx, t, tt.log, from, to, prefix+"alice", 1)
+		requireStoredMarkerCount(ctx, t, tt.log, from, to, prefix+"bob", 1)
+		require.InDelta(t, before+1, testutil.ToFloat64(eventIDCollisions), 0.0001,
+			"the colliding distinct event should increment the collision counter exactly once")
+	})
+
+	t.Run("ConcurrentDistinctEventsSharingIDAreNotLost", func(t *testing.T) {
+		id := uuid.NewString()
+		prefix := "concurrent-" + uuid.NewString() + "-"
+		const n = 20
+
+		var wg sync.WaitGroup
+		errs := make([]error, n)
+		for i := range n {
+			wg.Go(func() {
+				ev := makeDedupTestEvent(id, eventTime, fmt.Sprintf("%suser-%02d", prefix, i))
+				errs[i] = tt.log.EmitAuditEvent(ctx, ev)
+			})
+		}
+		wg.Wait()
+
+		for i, err := range errs {
+			require.NoError(t, err, "concurrent emit %d", i)
+		}
+
+		for i := range n {
+			marker := fmt.Sprintf("%suser-%02d", prefix, i)
+			requireStoredMarkerCount(ctx, t, tt.log, from, to, marker, 1)
+		}
+	})
+
+}
+
+func TestPayloadHash(t *testing.T) {
+	newEvent := func() *apievents.UserLogin {
+		return &apievents.UserLogin{
+			Method:       events.LoginMethodSAML,
+			Status:       apievents.Status{Success: true},
+			UserMetadata: apievents.UserMetadata{User: "alice"},
+			Metadata: apievents.Metadata{
+				ID:    "id-1",
+				Type:  events.UserLoginEvent,
+				Index: 0,
+				Time:  time.Unix(1700000000, 0).UTC(),
+			},
+		}
+	}
+
+	base, err := payloadHash(newEvent())
+	require.NoError(t, err)
+
+	t.Run("ignores event id", func(t *testing.T) {
+		e := newEvent()
+		e.Metadata.ID = "a-completely-different-id"
+		got, err := payloadHash(e)
+		require.NoError(t, err)
+		require.Equal(t, base, got)
+	})
+
+	t.Run("ignores event index", func(t *testing.T) {
+		e := newEvent()
+		e.Metadata.Index = 987654321
+		got, err := payloadHash(e)
+		require.NoError(t, err)
+		require.Equal(t, base, got)
+	})
+
+	t.Run("reflects content changes", func(t *testing.T) {
+		e := newEvent()
+		e.UserMetadata.User = "bob"
+		got, err := payloadHash(e)
+		require.NoError(t, err)
+		require.NotEqual(t, base, got)
+	})
+}
+
+func makeDedupTestEvent(id string, eventTime time.Time, marker string) *apievents.UserLogin {
+	return &apievents.UserLogin{
+		Method: events.LoginMethodSAML,
+		Status: apievents.Status{Success: true},
+		UserMetadata: apievents.UserMetadata{
+			User:     marker,
+			UserKind: apievents.UserKind_USER_KIND_HUMAN,
+		},
+		Metadata: apievents.Metadata{
+			ID:          id,
+			Type:        events.UserLoginEvent,
+			ClusterName: "mycluster",
+			Time:        eventTime,
+		},
+	}
+}
+
+func requireStoredMarkerCount(ctx context.Context, t *testing.T, log *Log, from, to time.Time, marker string, want int) {
+	t.Helper()
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		got, err := searchAllEvents(ctx, log, from, to)
+		if !assert.NoError(c, err) {
+			return
+		}
+		assert.Equal(c, want, countMarker(got, marker), "stored count for marker %q", marker)
+	}, 30*time.Second, time.Second)
+}
+
+func searchAllEvents(ctx context.Context, log *Log, from, to time.Time) ([]apievents.AuditEvent, error) {
+	var out []apievents.AuditEvent
+	var checkpoint string
+	for {
+		fetched, next, err := log.SearchEvents(ctx, events.SearchEventsRequest{
+			From:     from,
+			To:       to,
+			Limit:    1000,
+			Order:    types.EventOrderAscending,
+			StartKey: checkpoint,
+		})
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, fetched...)
+		checkpoint = next
+		if checkpoint == "" {
+			return out, nil
+		}
+	}
+}
+
+func countMarker(evts []apievents.AuditEvent, marker string) int {
+	var n int
+	for _, e := range evts {
+		data, err := utils.FastMarshal(e)
+		if err != nil {
+			continue
+		}
+		if strings.Contains(string(data), marker) {
+			n++
+		}
+	}
+	return n
 }
 
 func TestPagination(t *testing.T) {

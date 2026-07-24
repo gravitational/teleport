@@ -347,6 +347,15 @@ func checkAndSetEventFields(event apievents.AuditEvent, clock clockwork.Clock, u
 	}
 	if event.GetID() == "" && event.GetType() != SessionPrintEvent && event.GetType() != DesktopRecordingEvent {
 		event.SetID(uid.New())
+		// Only default the index together with the ID because an empty ID means
+		// this event has never been through a checking emitter, so index 0 is
+		// unset rather than meaningful.
+		//
+		// Events prepared elsewhere already carry an ID and may legitimately
+		// have index 0 as the first event of their session.
+		if event.GetIndex() == 0 {
+			event.SetIndex(clock.Now().UnixNano())
+		}
 	}
 	if event.GetTime().IsZero() {
 		event.SetTime(clock.Now().UTC().Round(time.Millisecond))
