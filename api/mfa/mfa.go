@@ -28,6 +28,7 @@ import (
 	"google.golang.org/grpc/metadata"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 )
 
 // ResponseMetadataKey is the context metadata key for an MFA response in a gRPC request.
@@ -52,7 +53,19 @@ var (
 	ErrExpiredReusableMFAResponse = trace.AccessDeniedError{
 		Message: "Reusable MFA response validation failed and possibly expired",
 	}
+
+	// ErrUnknownChallengeScope is returned if the requested challenge scope is
+	// unknown, usually indicating an out of date auth server.
+	ErrUnknownChallengeScope = trace.BadParameterError{Message: "challenge scope unknown; auth server may be out of date"}
 )
+
+// ValidateChallengeScope checks that the given challenge is valid.
+func ValidateChallengeScope(scope mfav1.ChallengeScope) error {
+	if _, ok := mfav1.ChallengeScope_name[int32(scope)]; !ok {
+		return trace.Wrap(&ErrUnknownChallengeScope)
+	}
+	return nil
+}
 
 // WithCredentials can be called on a GRPC client request to attach
 // MFA credentials to the GRPC metadata for requests that require MFA,

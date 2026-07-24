@@ -41,6 +41,7 @@ import (
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
+	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/sshutils"
@@ -674,6 +675,26 @@ func TestCreateAuthenticateChallenge_failedLoginAudit(t *testing.T) {
 		assert.Equal(t, events.UserLoginEvent, event.GetType(), "event.Type mismatch")
 		assert.Equal(t, events.UserLocalLoginFailureCode, event.GetCode(), "event.Code mismatch")
 	})
+}
+
+func TestCreateAuthenticateChallenge_validatesScope(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	u, err := createUserWithSecondFactors(srv)
+	require.NoError(t, err)
+
+	// Make the request over gRPC to ensure the error shape survives gRPC transformation.
+	clt, err := srv.NewClient(authtest.TestUser(u.username))
+	require.NoError(t, err)
+
+	_, err = clt.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
+		ChallengeExtensions: &mfav1.ChallengeExtensions{
+			Scope: mfav1.ChallengeScope(99), // out of range, unknown scope
+		},
+	})
+	require.ErrorIs(t, err, &mfa.ErrUnknownChallengeScope, "unknown challenge scope error should survive the gRPC round trip")
 }
 
 func TestCreateRegisterChallenge(t *testing.T) {
