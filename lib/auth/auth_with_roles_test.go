@@ -6178,6 +6178,77 @@ func createKubeServer(t *testing.T, s *auth.Server, clusterNames []string, hostI
 	}
 }
 
+func TestDeleteAppSession(t *testing.T) {
+	t.Parallel()
+	srv := newTestTLSServer(t, withScopesFeatures(scopes.Features{Enabled: true, AgentPinEnabled: true}))
+
+	const scope = "/staging"
+
+	unscopedSrv := newScopedTestServerWithUnscopedUser(t, srv.AuthServer, "alice", nil)
+	scopedSrv := newScopePinnedTestServerWithScopedUser(t, srv.AuthServer, "scoped-alice", scope,
+		scopedaccessv1.ScopedRoleSpec_builder{
+			AssignableScopes: []string{scope},
+			App: scopedaccessv1.ScopedRoleApp_builder{
+				LabelExpression: `labels["env"] == "staging"`,
+			}.Build(),
+		}.Build())
+
+	cases := []struct {
+		name         string
+		srv          *auth.ScopedServerWithRoles
+		sessionOwner string
+		wantErr      bool
+	}{
+		{
+			name:         "unscoped user deletes own session",
+			srv:          unscopedSrv,
+			sessionOwner: "alice",
+		},
+		{
+			name:         "unscoped user cannot delete another user's session",
+			srv:          unscopedSrv,
+			sessionOwner: "bob",
+			wantErr:      true,
+		},
+		{
+			name: "unscoped user with web_session rules deletes another user's session",
+			srv: newScopedTestServerWithUnscopedUser(t, srv.AuthServer, "admin",
+				[]types.Rule{types.NewRule(types.KindWebSession, []string{types.VerbList, types.VerbDelete})}),
+			sessionOwner: "bob",
+		},
+		{
+			name:         "scoped user deletes own session",
+			srv:          scopedSrv,
+			sessionOwner: "scoped-alice",
+		},
+		{
+			name:         "scoped user cannot delete another user's session",
+			srv:          scopedSrv,
+			sessionOwner: "scoped-bob",
+			wantErr:      true,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := t.Context()
+			ws, err := types.NewWebSession(uuid.NewString(), types.KindAppSession, types.WebSessionSpecV2{
+				User:    tc.sessionOwner,
+				Expires: srv.Clock().Now().Add(time.Hour),
+			})
+			require.NoError(t, err)
+			require.NoError(t, srv.Auth().UpsertAppSession(ctx, ws))
+
+			err = tc.srv.DeleteAppSession(ctx, types.DeleteAppSessionRequest{SessionID: ws.GetName()})
+			if tc.wantErr {
+				require.True(t, trace.IsAccessDenied(err))
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
 func TestListResources_ScopedApps(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
