@@ -20,13 +20,22 @@ import (
 	"context"
 	"crypto/x509/pkix"
 	"log/slog"
+	"net"
+	"os"
+	"path/filepath"
+	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/agent"
 
+	"github.com/gravitational/teleport"
 	apiprofile "github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
@@ -185,4 +194,207 @@ func makeCerts(privateKey *keys.PrivateKey) ([]byte, []byte, error) {
 	})
 
 	return tlsCert, sshCert, trace.Wrap(err)
+}
+
+// TestGetClosesSystemAgentConnection verifies that the cache closes the
+// connection each built client opens to the system SSH agent, both when the
+// build fails and when a cached client is evicted. Leaking these connections
+// (as happened while VNet rebuilt clients on a loop with expired certs)
+// eventually exhausts the system agent and wedges every caller on an
+// unresponsive agent.List.
+func TestGetClosesSystemAgentConnection(t *testing.T) {
+	privateKey, err := keys.ParsePrivateKey(fixtures.PEMBytes["rsa"])
+	require.NoError(t, err)
+	tlsCert, sshCert, err := makeCerts(privateKey)
+	require.NoError(t, err)
+
+	keyRing := client.NewKeyRing(privateKey, privateKey)
+	keyRing.KeyRingIndex = client.KeyRingIndex{
+		ProxyHost:   "localhost",
+		Username:    "testuser",
+		ClusterName: "root",
+	}
+	keyRing.Cert = sshCert
+	keyRing.TLSCert = tlsCert
+
+	profile := &apiprofile.Profile{
+		WebProxyAddr: keyRing.ProxyHost,
+		Username:     keyRing.Username,
+		SiteName:     keyRing.ClusterName,
+	}
+	clientStore := client.NewFSClientStore(t.TempDir())
+	require.NoError(t, clientStore.SaveProfile(profile, true))
+	require.NoError(t, clientStore.AddKeyRing(keyRing))
+
+	// AddKeysToAgentYes makes each built client open a connection to the system
+	// agent advertised by SSH_AUTH_SOCK.
+	newClientFunc := func(ctx context.Context, profileName, leafClusterName string) (*client.TeleportClient, error) {
+		config := &client.Config{
+			ClientStore:    clientStore,
+			SSHProxyAddr:   "localhost:3080",
+			WebProxyAddr:   "localhost:3080",
+			Username:       "testuser",
+			Tracer:         tracing.NoopProvider().Tracer("test"),
+			SiteName:       "root",
+			AddKeysToAgent: client.AddKeysToAgentYes,
+		}
+		if leafClusterName != "" {
+			config.SiteName = leafClusterName
+		}
+		return client.NewClient(config)
+	}
+
+	t.Run("connection is closed when building the client fails", func(t *testing.T) {
+		conns := startFakeSystemAgent(t)
+		cache, err := New(Config{
+			NewClientFunc: newClientFunc,
+			// Fail the build after the TeleportClient (and its system agent
+			// connection) has been created, as happens with expired certs.
+			RetryWithReloginFunc: func(ctx context.Context, tc *client.TeleportClient, fn func() error, opts ...client.RetryWithReloginOption) error {
+				return trace.AccessDenied("cluster unreachable")
+			},
+			Logger: slog.New(slog.DiscardHandler),
+		})
+		require.NoError(t, err)
+
+		_, err = cache.Get(t.Context(), "root", "")
+		require.Error(t, err)
+
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			// The failed build opened a connection to the system agent, and the
+			// cache must have closed it again.
+			assert.Positive(t, conns.opened.Load(), "the failed build should have opened a system agent connection")
+			assert.Zero(t, conns.open.Load(), "the system agent connection of a client the cache fails to build must be closed")
+		}, 5*time.Second, 10*time.Millisecond)
+	})
+
+	t.Run("connection is closed when the cache is cleared", func(t *testing.T) {
+		conns := startFakeSystemAgent(t)
+		cache, err := New(Config{
+			NewClientFunc: newClientFunc,
+			RetryWithReloginFunc: func(ctx context.Context, tc *client.TeleportClient, fn func() error, opts ...client.RetryWithReloginOption) error {
+				return fn()
+			},
+			Logger: slog.New(slog.DiscardHandler),
+		})
+		require.NoError(t, err)
+
+		_, err = cache.Get(t.Context(), "root", "")
+		require.NoError(t, err)
+		require.Positive(t, conns.open.Load(), "building the client should have opened a system agent connection")
+
+		require.NoError(t, cache.Clear())
+
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			assert.Zero(t, conns.open.Load())
+		}, 5*time.Second, 10*time.Millisecond,
+			"Clear must close the system agent connections of cached clients")
+	})
+
+	t.Run("evicting a client while it is in use is race-free", func(t *testing.T) {
+		startFakeSystemAgent(t)
+
+		// Capture the TeleportClient the cache builds so the test can drive the
+		// same LocalKeyAgent the cached client shares while the cache closes it.
+		var built atomic.Pointer[client.TeleportClient]
+		capturingNewClientFunc := func(ctx context.Context, profileName, leafClusterName string) (*client.TeleportClient, error) {
+			tc, err := newClientFunc(ctx, profileName, leafClusterName)
+			if err == nil {
+				built.Store(tc)
+			}
+			return tc, err
+		}
+
+		cache, err := New(Config{
+			NewClientFunc: capturingNewClientFunc,
+			RetryWithReloginFunc: func(ctx context.Context, tc *client.TeleportClient, fn func() error, opts ...client.RetryWithReloginOption) error {
+				return fn()
+			},
+			Logger: slog.New(slog.DiscardHandler),
+		})
+		require.NoError(t, err)
+
+		_, err = cache.Get(t.Context(), "root", "")
+		require.NoError(t, err)
+		tc := built.Load()
+		require.NotNil(t, tc)
+
+		// UnloadKeys reads the system agent connection that Clear closes, and
+		// both act on the same LocalKeyAgent because the cache shares one client
+		// with its callers. Have several goroutines read it continuously across
+		// the eviction: each signals once it is already looping, so the read and
+		// Clear's close of systemAgent are provably concurrent and -race reports
+		// any unsynchronized access on the shared agent.
+		const readers = 8
+		var ready, done sync.WaitGroup
+		ready.Add(readers)
+		done.Add(readers)
+		stop := make(chan struct{})
+		for range readers {
+			go func() {
+				defer done.Done()
+				_ = tc.LocalAgent().UnloadKeys()
+				ready.Done()
+				for {
+					select {
+					case <-stop:
+						return
+					default:
+						_ = tc.LocalAgent().UnloadKeys()
+					}
+				}
+			}()
+		}
+
+		ready.Wait()
+		require.NoError(t, cache.Clear())
+		close(stop)
+		done.Wait()
+	})
+}
+
+// systemAgentConns counts connections made to a fake system SSH agent: open is
+// the number currently established, opened the number ever established.
+type systemAgentConns struct {
+	open   atomic.Int64
+	opened atomic.Int64
+}
+
+// startFakeSystemAgent starts an SSH agent on a unix socket, points
+// SSH_AUTH_SOCK at it, and returns counters over the client connections it
+// receives so a test can assert those connections get closed.
+func startFakeSystemAgent(t *testing.T) *systemAgentConns {
+	t.Helper()
+
+	// Use a short temp dir rather than t.TempDir: the latter embeds the (long)
+	// test name in the path, and unix socket paths are capped at 104 chars on
+	// macOS.
+	socketDir, err := os.MkdirTemp("", "teleport-test")
+	require.NoError(t, err)
+	t.Cleanup(func() { os.RemoveAll(socketDir) })
+
+	socketPath := filepath.Join(socketDir, "agent.sock")
+	listener, err := net.Listen("unix", socketPath)
+	require.NoError(t, err)
+	t.Cleanup(func() { listener.Close() })
+	t.Setenv(teleport.SSHAuthSock, socketPath)
+
+	conns := &systemAgentConns{}
+	keyring := agent.NewKeyring()
+	go func() {
+		for {
+			conn, err := listener.Accept()
+			if err != nil {
+				return
+			}
+			conns.open.Add(1)
+			conns.opened.Add(1)
+			go func() {
+				defer conns.open.Add(-1)
+				// ServeAgent returns once the client closes the connection.
+				_ = agent.ServeAgent(keyring, conn)
+			}()
+		}
+	}()
+	return conns
 }
