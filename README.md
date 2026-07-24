@@ -146,7 +146,7 @@ If you have questions, are exploring ideas, or want to sanity-check something, p
 - Enterprise and POC support  
   If you are evaluating Teleport Enterprise or need more responsive support during a POC, we can set up a dedicated Slack channel. You can [reach out to us through our website](https://goteleport.com/contact-sales/) to get started.
 
-## Installing and Running
+## Installing & Running
 
 To set up a single-instance Teleport cluster, follow our [getting started
 guide](https://goteleport.com/docs/admin-guides/deploy-a-cluster/linux-demo/).
