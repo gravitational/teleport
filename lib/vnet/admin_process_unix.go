@@ -120,7 +120,7 @@ func runUnixAdminProcess(ctx context.Context, clt *clientApplicationServiceClien
 
 func createTUNDevice(ctx context.Context, interfaceName string) (tun.Device, string, error) {
 	log.DebugContext(ctx, "Creating TUN device.")
-	dev, err := tun.CreateTUN(interfaceName, mtu)
+	dev, err := tun.CreateTUN(interfaceName, vnetTUNMTU)
 	if err != nil {
 		return nil, "", trace.Wrap(err, "creating TUN device")
 	}

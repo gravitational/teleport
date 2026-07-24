@@ -39,7 +39,7 @@ import (
 // for use in tests, backed by the gVisor network stack. Users must call Close on
 // the network to clean up its resources.
 func NewFakeHostNetwork() (*FakeHostNetwork, error) {
-	stack, nic, err := createStack()
+	stack, nic, err := createStack(vnetTUNMTU)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -298,7 +298,7 @@ var errFakeTUNClosed = errors.New("TUN closed")
 // its own allocations to benchmarks.
 var fakeTUNPacketPool = sync.Pool{
 	New: func() any {
-		b := make([]byte, 0, 2048) // a bit above the 1500 MTU so the buffer never needs to grow
+		b := make([]byte, 0, vnetTUNMTU+2*1024) // a bit above vnetTUNMTU so the buffer never needs to grow
 		return &b
 	},
 }
@@ -312,6 +312,10 @@ type fakeTUN struct {
 
 func (f *fakeTUN) Name() (string, error) {
 	return f.name, nil
+}
+
+func (f *fakeTUN) MTU() (int, error) {
+	return vnetTUNMTU, nil
 }
 
 func (f *fakeTUN) BatchSize() int {
