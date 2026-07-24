@@ -1919,6 +1919,7 @@ const (
 	autoUpdateBotInstanceReportKey
 	autoUpdateBotInstanceMetricsKey
 	hourlyCleanUpKey
+	githubCallbackMigrationNotificationKey
 )
 
 // runPeriodicOperations runs some periodic bookkeeping operations
@@ -1971,6 +1972,12 @@ func (a *Server) runPeriodicOperations() {
 		interval.SubInterval[periodicIntervalKey]{
 			Key:           accessListReminderNotificationsKey,
 			Duration:      8 * time.Hour,
+			FirstDuration: retryutils.FullJitter(time.Hour),
+			Jitter:        retryutils.SeventhJitter,
+		},
+		interval.SubInterval[periodicIntervalKey]{
+			Key:           githubCallbackMigrationNotificationKey,
+			Duration:      24 * time.Hour,
 			FirstDuration: retryutils.FullJitter(time.Hour),
 			Jitter:        retryutils.SeventhJitter,
 		},
@@ -2156,6 +2163,8 @@ func (a *Server) runPeriodicOperations() {
 				go a.tallyRoles(a.closeCtx)
 			case accessListReminderNotificationsKey:
 				go a.CreateAccessListReminderNotifications(a.closeCtx)
+			case githubCallbackMigrationNotificationKey:
+				go a.notifyGitHubCallbackMigration()
 			case autoUpdateAgentReportKey:
 				go a.reportAgentVersions(a.closeCtx)
 			case autoUpdateBotInstanceReportKey:

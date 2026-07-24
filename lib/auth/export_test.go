@@ -338,3 +338,7 @@ type MigrateWindowsCAParams = migrateWindowsCAParams
 func MigrateWindowsCA(ctx context.Context, params MigrateWindowsCAParams) error {
 	return migrateWindowsCA(ctx, params)
 }
+
+func (a *Server) NotifyGitHubCallbackMigration() {
+	a.notifyGitHubCallbackMigration()
+}

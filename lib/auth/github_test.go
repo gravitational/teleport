@@ -620,3 +620,81 @@ func TestBuildAPIEndpoint(t *testing.T) {
 		})
 	}
 }
+
+func TestNotifyGitHubCallbackMigration(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestTLSServer(t)
+	authServer := srv.Auth()
+
+	requireNoMigrationNotification := func(t *testing.T) {
+		t.Helper()
+		notifs, _, err := authServer.Services.ListGlobalNotifications(t.Context(), 100, "")
+		require.NoError(t, err)
+		require.Empty(t, notifs)
+	}
+	requireMigrationNotification := func(t *testing.T) {
+		t.Helper()
+		notifs, _, err := authServer.Services.ListGlobalNotifications(t.Context(), 100, "")
+		require.NoError(t, err)
+		require.Len(t, notifs, 1)
+		require.Equal(t, "github-oauth-callback-migration", notifs[0].GetMetadata().GetName())
+	}
+
+	t.Run("no GitHub integrations, no notification", func(t *testing.T) {
+		authServer.NotifyGitHubCallbackMigration()
+		requireNoMigrationNotification(t)
+	})
+
+	t.Run("unmigrated integration creates notification", func(t *testing.T) {
+		ig, err := types.NewIntegrationGitHub(
+			types.Metadata{Name: "github-test-org"},
+			&types.GitHubIntegrationSpecV1{
+				Organization: "test-org",
+			},
+		)
+		require.NoError(t, err)
+		_, err = authServer.Services.CreateIntegration(t.Context(), ig)
+		require.NoError(t, err)
+
+		authServer.NotifyGitHubCallbackMigration()
+		requireMigrationNotification(t)
+	})
+
+	t.Run("migrated integration removes notification", func(t *testing.T) {
+		ig, err := authServer.Services.GetIntegration(t.Context(), "github-test-org")
+		require.NoError(t, err)
+
+		ig.SetGitHubIntegrationSpec(&types.GitHubIntegrationSpecV1{
+			Organization:     "test-org",
+			OAuthCallbackURL: types.IntegrationGitHubOAuthCallbackURL,
+		})
+		_, err = authServer.Services.UpdateIntegration(t.Context(), ig)
+		require.NoError(t, err)
+
+		authServer.NotifyGitHubCallbackMigration()
+		requireNoMigrationNotification(t)
+	})
+
+	t.Run("rollback re-creates notification", func(t *testing.T) {
+		ig, err := authServer.Services.GetIntegration(t.Context(), "github-test-org")
+		require.NoError(t, err)
+
+		ig.SetGitHubIntegrationSpec(&types.GitHubIntegrationSpecV1{
+			Organization: "test-org",
+		})
+		_, err = authServer.Services.UpdateIntegration(t.Context(), ig)
+		require.NoError(t, err)
+
+		authServer.NotifyGitHubCallbackMigration()
+		requireMigrationNotification(t)
+	})
+
+	t.Run("delete integration removes notification", func(t *testing.T) {
+		err := authServer.Services.DeleteIntegration(t.Context(), "github-test-org")
+		require.NoError(t, err)
+
+		authServer.NotifyGitHubCallbackMigration()
+		requireNoMigrationNotification(t)
+	})
+}

@@ -121,10 +121,15 @@ func (s *Service) makeGithubConnectorSpec(ctx context.Context, uuid, org, integr
 		return nil, trace.BadParameter("no OAuth client ID or secret found for integration %v", integration)
 	}
 
+	redirectURL, err := s.getGitHubOAuthCallbackURL(ctx, integration)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return &types.GithubConnectorSpecV3{
 		ClientID:       clientID,
 		ClientSecret:   clientSecret,
-		RedirectURL:    fmt.Sprintf("https://%s/v1/webapi/github/callback", s.cfg.ProxyPublicAddrGetter(ctx)),
+		RedirectURL:    redirectURL,
 		EndpointURL:    types.GithubURL,
 		APIEndpointURL: types.GithubAPIURL,
 		// TODO(greedy52) the GitHub OAuth flow for authenticated user does not
@@ -136,4 +141,19 @@ func (s *Service) makeGithubConnectorSpec(ctx context.Context, uuid, org, integr
 			Roles:        []string{uuid},
 		}},
 	}, nil
+}
+
+func (s *Service) getGitHubOAuthCallbackURL(ctx context.Context, integrationName string) (string, error) {
+	proxyAddr := s.cfg.ProxyPublicAddrGetter(ctx)
+
+	ig, err := s.cfg.Backend.GetIntegration(ctx, integrationName)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	if github := ig.GetGitHubIntegrationSpec(); github != nil && github.OAuthCallbackURL != "" {
+		return fmt.Sprintf("https://%s%s", proxyAddr, github.OAuthCallbackURL), nil
+	}
+
+	return fmt.Sprintf("https://%s/v1/webapi/github/callback", proxyAddr), nil
 }

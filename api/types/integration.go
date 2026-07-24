@@ -74,6 +74,12 @@ const (
 	IntegrationAWSRolesAnywhereProfileSyncStatusError = "ERROR"
 )
 
+const (
+	// IntegrationGitHubOAuthCallbackURL is the authenticated callback URL for
+	// GitHub integration OAuth flows.
+	IntegrationGitHubOAuthCallbackURL = "/web/github/integration/callback"
+)
+
 // Integration specifies is a connection configuration between Teleport and a 3rd party system.
 type Integration interface {
 	ResourceWithLabels

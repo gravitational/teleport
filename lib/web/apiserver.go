@@ -1056,6 +1056,8 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/github/login/web", h.WithRedirect(h.githubLoginWeb))
 	h.GET("/webapi/github/callback", h.WithMetaRedirect(h.githubCallback))
 	h.POST("/webapi/github/login/console", h.WithLimiter(h.githubLoginConsole))
+	// GitHub oauth callback for integrations/authenciated users.
+	h.POST("/webapi/github/integration/callback", h.WithAuth(h.githubIntegrationCallback))
 
 	// MFA public endpoints.
 	h.POST("/webapi/sites/:site/mfa/required", h.WithClusterAuth(h.isMFARequired))

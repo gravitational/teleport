@@ -110,6 +110,9 @@ type ServiceConfig struct {
 	Clock           clockwork.Clock
 	Emitter         apievents.Emitter
 	Modules         modules.Modules
+	// NotifyGitHubCallbackMigration is called after integration changes to
+	// update the GitHub OAuth callback migration notification.
+	NotifyGitHubCallbackMigration func()
 
 	// awsRolesAnywhereCreateSessionFn is a function that creates an AWS Roles Anywhere session.
 	// This is used to allow mocking in tests, because the real implementation does
@@ -152,6 +155,10 @@ func (s *ServiceConfig) CheckAndSetDefaults() error {
 		s.Clock = clockwork.NewRealClock()
 	}
 
+	if s.NotifyGitHubCallbackMigration == nil {
+		return trace.BadParameter("NotifyGitHubCallbackMigration is required")
+	}
+
 	return nil
 }
 
@@ -168,6 +175,7 @@ type Service struct {
 	modules         modules.Modules
 
 	awsRolesAnywhereCreateSessionFn func(ctx context.Context, req createsession.CreateSessionRequest) (*createsession.CreateSessionResponse, error)
+	notifyGitHubCallbackMigration   func()
 }
 
 // NewService returns a new Integrations gRPC service.
@@ -177,16 +185,16 @@ func NewService(cfg *ServiceConfig) (*Service, error) {
 	}
 
 	return &Service{
-		logger:          cfg.Logger,
-		authorizer:      cfg.Authorizer,
-		cache:           cfg.Cache,
-		keyStoreManager: cfg.KeyStoreManager,
-		backend:         cfg.Backend,
-		clock:           cfg.Clock,
-		emitter:         cfg.Emitter,
-		modules:         cfg.Modules,
-
+		logger:                          cfg.Logger,
+		authorizer:                      cfg.Authorizer,
+		cache:                           cfg.Cache,
+		keyStoreManager:                 cfg.KeyStoreManager,
+		backend:                         cfg.Backend,
+		clock:                           cfg.Clock,
+		emitter:                         cfg.Emitter,
+		modules:                         cfg.Modules,
 		awsRolesAnywhereCreateSessionFn: cfg.awsRolesAnywhereCreateSessionFn,
+		notifyGitHubCallbackMigration:   cfg.NotifyGitHubCallbackMigration,
 	}, nil
 }
 
@@ -268,6 +276,20 @@ func (s *Service) CreateIntegration(ctx context.Context, req *integrationpb.Crea
 		if s.modules.BuildType() != modules.BuildEnterprise {
 			return nil, trace.AccessDenied("GitHub integration requires a Teleport Enterprise license")
 		}
+		spec := req.GetIntegration().GetGitHubIntegrationSpec()
+		if spec == nil {
+			return nil, trace.BadParameter("missing GitHub integration spec")
+		}
+		switch spec.OAuthCallbackURL {
+		case types.IntegrationGitHubOAuthCallbackURL:
+		case "":
+			return nil, trace.BadParameter(
+				"oauth_callback_url must be %q, ensure the Teleport Proxy is upgraded to the latest version",
+				types.IntegrationGitHubOAuthCallbackURL,
+			)
+		default:
+			return nil, trace.BadParameter("oauth_callback_url must be %q", types.IntegrationGitHubOAuthCallbackURL)
+		}
 		if err := s.createGitHubCredentials(ctx, req.GetIntegration()); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -313,6 +335,7 @@ func (s *Service) CreateIntegration(ctx context.Context, req *integrationpb.Crea
 		return nil, trace.BadParameter("unexpected Integration type %T", ig)
 	}
 
+	s.postWriteOp(ig)
 	return igV1, nil
 }
 
@@ -328,6 +351,20 @@ func (s *Service) UpdateIntegration(ctx context.Context, req *integrationpb.Upda
 	}
 	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if req.GetIntegration().GetSubKind() == types.IntegrationSubKindGitHub {
+		spec := req.GetIntegration().GetGitHubIntegrationSpec()
+		if spec == nil {
+			return nil, trace.BadParameter("missing GitHub integration spec")
+		}
+		// Allow empty oauth_callback_url for backwards compatibility or
+		// temporary rollback. Otherwise must be the authenticated URL.
+		switch spec.OAuthCallbackURL {
+		case "", types.IntegrationGitHubOAuthCallbackURL:
+		default:
+			return nil, trace.BadParameter("oauth_callback_url must be %q", types.IntegrationGitHubOAuthCallbackURL)
+		}
 	}
 
 	if err := validateAWSRolesAnywhereProfileFilters(req.GetIntegration()); err != nil {
@@ -370,6 +407,7 @@ func (s *Service) UpdateIntegration(ctx context.Context, req *integrationpb.Upda
 		return nil, trace.BadParameter("unexpected Integration type %T", ig)
 	}
 
+	s.postWriteOp(ig)
 	return igV1, nil
 }
 
@@ -459,6 +497,7 @@ func (s *Service) DeleteIntegration(ctx context.Context, req *integrationpb.Dele
 		s.logger.WarnContext(ctx, "Failed to emit integration delete event.", "error", err)
 	}
 
+	s.postWriteOp(ig)
 	return &emptypb.Empty{}, nil
 }
 
@@ -556,4 +595,10 @@ func (s *Service) deleteGitHubAssociatedResources(ctx context.Context, authCtx *
 	}
 
 	return nil
+}
+
+func (s *Service) postWriteOp(ig types.Integration) {
+	if ig.GetSubKind() == types.IntegrationSubKindGitHub {
+		go s.notifyGitHubCallbackMigration()
+	}
 }

@@ -9219,6 +9219,11 @@ message AzureOIDCIntegrationSpecV1 {
 message GitHubIntegrationSpecV1 {
   // Organization specifies the name of the organization for the GitHub integration.
   string Organization = 1 [(gogoproto.jsontag) = "organization,omitempty"];
+
+  // OAuthCallbackURL is the callback URL for the GitHub integration OAuth
+  // flow. New integrations should use "/web/github/integration/callback"
+  // which requires an authenticated web session.
+  string OAuthCallbackURL = 2 [(gogoproto.jsontag) = "oauth_callback_url"];
 }
 
 // AWSRAIntegrationSpecV1 contains the spec properties for the AWS IAM Roles Anywhere SubKind Integration.

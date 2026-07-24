@@ -580,7 +580,7 @@ type IntegrationCreateGitHubRequest = {
   name: string;
   subKind: IntegrationKind.GitHub;
   oauth: IntegrationOAuthCredentials;
-  github: { organization: string };
+  github: { organization: string; oauthCallbackUrl?: string };
 };
 
 type IntegrationCreateAwsOidcRequest = {
