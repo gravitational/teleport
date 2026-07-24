@@ -400,14 +400,14 @@ func (a *assignmentClient) ensureUsers(ctx context.Context) error {
 	if a.users == nil {
 		a.users = make(map[oktaapi.UserName]oktaapi.OktaUserID)
 	}
-	// Assignment can be stale and refer to deactivated user.
+	// Assignment can be stale and refer to deactivated or suspended user.
 	// userID function needs succeed to successfully process and clean the assignment.
-	// We need to make sure that all assignments for deactivated user was cleanup
-	// before deleting okta assignment.
+	// We need to make sure that all assignments for deactivated and suspended users
+	// are cleaned up before deleting okta assignment.
 	maps.Copy(a.users, deactivatedUsers)
-	// TODO(nixpig): Also add suspended users for the same reason,
-	// which will become relevant when handling not found as removed users.
-	// See: https://github.com/gravitational/teleport.e/issues/7915
+	// Suspended users are technically already in users, but since we re-fetch only
+	// suspended users subsequently, update users to make sure both align.
+	maps.Copy(a.users, suspendedUsers)
 
 	a.usersReady = true
 

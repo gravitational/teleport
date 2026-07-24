@@ -56,8 +56,8 @@ type oktaAssignmentService interface {
 	ListOktaAssignments(context.Context, int, string) ([]types.OktaAssignment, string, error)
 	// ConditionalUpdateOktaAssignment updates an existing Okta assignment resource, protected by optimistic locking.
 	ConditionalUpdateOktaAssignment(ctx context.Context, assignment types.OktaAssignment) (types.OktaAssignment, error)
-	// DeleteOktaAssignment removes the specified Okta assignment resource.
-	DeleteOktaAssignment(ctx context.Context, name string) error
+	// ConditionalDeleteOktaAssignment removes the specified Okta assignment resource, protected by optimistic locking.
+	ConditionalDeleteOktaAssignment(ctx context.Context, name, revision string) error
 }
 
 type accessListService interface {
@@ -265,8 +265,8 @@ func (a *assignmentProcessor) processAssignment(ctx context.Context, logger *slo
 	// If the assignment was Finalized (Successfully processed in needCleanupState) delete Okta
 	// assignment from backend.
 	if assignment.IsFinalized() && needsCleanup {
-		if err := a.accessPoint.DeleteOktaAssignment(ctx, assignment.GetName()); err != nil && !trace.IsNotFound(err) {
-			logger.ErrorContext(ctx, "Error deleting finalized assignment. Will retry on the next loop", "error", err)
+		if err := a.accessPoint.ConditionalDeleteOktaAssignment(ctx, assignment.GetName(), assignment.GetRevision()); err != nil && !trace.IsNotFound(err) {
+			logger.WarnContext(ctx, "Error deleting finalized assignment. Will retry on the next loop", "error", err)
 			return processAssignmentFailed
 		}
 		logger.DebugContext(ctx, "Deleted finalized and cleaned up assignment")
@@ -283,8 +283,6 @@ func (a *assignmentProcessor) processAssignment(ctx context.Context, logger *slo
 	// TODO(kopiczko) pass the logger with extra attributes to assignmentClient.
 	assignmentClient := a.getAssignmentClient()
 
-	// TODO(nixpig): Handle not exists as removed then cleanup and remove assignment.
-	// See: https://github.com/gravitational/teleport.e/issues/7915
 	exists, err := assignmentClient.userExists(ctx, username)
 	if err != nil {
 		logger.ErrorContext(ctx, "Failed to check Okta user. Skipping processing assignment.", "error", err)
@@ -292,8 +290,7 @@ func (a *assignmentProcessor) processAssignment(ctx context.Context, logger *slo
 		return processAssignmentSkipped
 	}
 	if !exists {
-		logger.WarnContext(ctx, "Okta user for the assignment not found (was the user deleted in Okta?). Skipping")
-		return processAssignmentSkipped
+		return a.handleMissingUserAssignment(ctx, logger, assignment)
 	}
 
 	op := constants.OktaAssignmentTargetOpProvision
@@ -778,6 +775,36 @@ func (a *assignmentProcessor) emitAuditEvent(ctx context.Context, assignment typ
 
 	if emitErr := a.emitter.EmitAuditEvent(ctx, event); emitErr != nil {
 		a.logger.WarnContext(ctx, "Failed to emit Okta assignment result", "event_type", event.GetType(), "error", emitErr)
+	}
+}
+
+// handleMissingUserAssignment processes an assignment for a user who is no longer
+// in the Okta org by finalizing and setting the cleanup time so that it can be
+// cleaned up on the next assignment processor loop.
+// Assignments for missing users are cleaned up to avoid unnecessary work by the
+// assignment processor.
+func (a *assignmentProcessor) handleMissingUserAssignment(
+	ctx context.Context,
+	logger *slog.Logger,
+	assignment types.OktaAssignment,
+) processAssignmentResult {
+	assignment.SetFinalized(true)
+	assignment.SetCleanupTime(a.clock.Now())
+	switch _, err := a.accessPoint.ConditionalUpdateOktaAssignment(ctx, assignment); {
+	case err == nil:
+		a.emitAuditEvent(ctx, assignment, assignment.GetStatus(), assignment.GetStatus(), true, nil)
+		logger.InfoContext(ctx, "Finalized cleanup assignment for user no longer in Okta.")
+		return processAssignmentProcessed
+	case trace.IsCompareFailed(err):
+		logger.DebugContext(ctx, "Assignment is stale. Skipping.", "error", err)
+		return processAssignmentSkipped
+	case trace.IsNotFound(err):
+		// Assignment may have already been deleted.
+		return processAssignmentProcessed
+	default:
+		a.emitAuditEvent(ctx, assignment, assignment.GetStatus(), assignment.GetStatus(), true, err)
+		logger.WarnContext(ctx, "Failed to finalize cleanup assignment for user no longer in Okta. Will retry next loop.", "error", err)
+		return processAssignmentFailed
 	}
 }
 

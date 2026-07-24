@@ -538,6 +538,7 @@ func (f *fakeOktaServer) UserAssignedGroup(groupID, userID string) bool {
 	return ok
 }
 
+// DeactivateUser sets the status of the user to "DEPROVISIONED".
 func (f *fakeOktaServer) DeactivateUser(userID string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -548,6 +549,34 @@ func (f *fakeOktaServer) DeactivateUser(userID string) error {
 	}
 
 	user.Status = "DEPROVISIONED"
+	return nil
+}
+
+// ActivateUser sets the status of the user to "ACTIVE".
+func (f *fakeOktaServer) ActivateUser(userID string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	user, exists := f.users[userID]
+	if !exists {
+		return trace.NotFound("user not found")
+	}
+
+	user.Status = "ACTIVE"
+	return nil
+}
+
+// SuspendUser sets the status of the user to "SUSPENDED".
+func (f *fakeOktaServer) SuspendUser(userID string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	user, exists := f.users[userID]
+	if !exists {
+		return trace.NotFound("user not found")
+	}
+
+	user.Status = "SUSPENDED"
 	return nil
 }
 
@@ -652,7 +681,8 @@ func (f *fakeOktaServer) ListGroupUsers(groupID string) []*okta.User {
 	var users []*okta.User
 	for userId := range f.groupAssignments[groupID] {
 		if user, exists := f.users[userId]; exists {
-			users = append(users, user)
+			u := *user
+			users = append(users, &u)
 		}
 	}
 
@@ -845,6 +875,28 @@ func (f *fakeOktaServer) DeleteApplicationUser(appID string, userID string) {
 	if f.appUserAssignments[appID] != nil {
 		delete(f.appUserAssignments[appID], userID)
 	}
+}
+
+// RemoveUser removes the user from the server and removes any group and app assignments.
+func (f *fakeOktaServer) RemoveUser(userID string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	_, ok := f.users[userID]
+	if !ok {
+		return trace.Errorf("no user with ID %q found", userID)
+	}
+
+	delete(f.users, userID)
+
+	for _, v := range f.groupAssignments {
+		delete(v, userID)
+	}
+	for _, v := range f.appUserAssignments {
+		delete(v, userID)
+	}
+
+	return nil
 }
 
 func oktaUserToOktaAppUser(u *okta.User) *okta.AppUser {

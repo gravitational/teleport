@@ -72,7 +72,7 @@ func withAccessListDisabled() oktaIntegrationOption {
 	}
 }
 
-func witAccessListSettings(config *oktav1.AccessListSettings) oktaIntegrationOption {
+func withAccessListSettings(config *oktav1.AccessListSettings) oktaIntegrationOption {
 	return func(opts *scimIntegrationOptions) {
 		opts.AccessListSettings = config
 	}

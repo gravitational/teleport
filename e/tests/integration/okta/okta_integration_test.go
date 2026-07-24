@@ -714,7 +714,7 @@ func TestOktaAccessRequestWithSCIMOktaSync(t *testing.T) {
 	)
 
 	start := time.Now()
-	scimToken := createAndWaitForOktaIntegration(t, sut, fakeOkta, witAccessListSettings(oktav1.AccessListSettings_builder{
+	scimToken := createAndWaitForOktaIntegration(t, sut, fakeOkta, withAccessListSettings(oktav1.AccessListSettings_builder{
 		GroupFilters: []string{"group-*"},
 		AppFilters:   []string{"app-*"},
 		DefaultOwner: []string{reviewerLogin},
@@ -875,7 +875,7 @@ func TestCleanupAssignmentFilter(t *testing.T) {
 	fakeOkta.AddUserToGroup(groupID, memberID)
 
 	assignmentWatcher := sut.NewResourceWatcher(t, types.KindOktaAssignment)
-	createAndWaitForOktaIntegration(t, sut, fakeOkta, witAccessListSettings(oktav1.AccessListSettings_builder{
+	createAndWaitForOktaIntegration(t, sut, fakeOkta, withAccessListSettings(oktav1.AccessListSettings_builder{
 		GroupFilters: []string{"group-*"},
 		AppFilters:   []string{"app-*"},
 		DefaultOwner: []string{"alice-admin"},
@@ -1160,4 +1160,219 @@ func TestOktaAssignmentTargetReprocessingBackoff(t *testing.T) {
 		require.True(tc, assignment.GetLastTransition().After(initialAssignmentTransition))
 		require.True(tc, status.LastProcessed.After(initialTargetProcessed))
 	}, time.Minute, 100*time.Millisecond)
+}
+
+// TestOktaAssignmentProcessingSuspendedUser verifies the lifecycle of suspending
+// then reactivating a user in Okta.
+// 1. Active: assignments processed
+// 2. Suspended: cleanup assignments processed, provision assignments skipped
+// 3. Active: assignments processed
+func TestOktaAssignmentProcessingSuspendedUser(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	fakeOkta := newFakeOktaServer(withUserCount(2), withGroupCount(2), withSAMLApp())
+	t.Cleanup(fakeOkta.Stop)
+
+	owner := fakeOkta.provisionedUsers[0]
+	ownerLogin := oktaUserLogin(owner)
+
+	user := fakeOkta.provisionedUsers[1]
+	userLogin := oktaUserLogin(user)
+
+	group1 := fakeOkta.provisionedGroups[0].Id
+	fakeOkta.AddUserToGroup(group1, owner.Id)
+
+	group2 := fakeOkta.provisionedGroups[1].Id
+
+	sut := common.InitSUT(t,
+		common.WithSAMLConnector(idp.TestOktaSAMLConnector(fakeOkta.URL())),
+		common.WithLicense("../../../fixtures/license-eub.pem"),
+		common.WithHTTPClient(fakeOkta.Client().Transport),
+		common.WithUser(t, "alice-admin", "editor"),
+	)
+
+	assignmentWatcher := sut.NewResourceWatcher(t, types.KindOktaAssignment)
+	authServer := sut.Teleport.Process.GetAuthServer()
+
+	createAndWaitForOktaIntegration(t, sut, fakeOkta,
+		withAccessListSettings(oktav1.AccessListSettings_builder{
+			GroupFilters: []string{"group-*"},
+			AppFilters:   []string{"app-*"},
+			DefaultOwner: []string{ownerLogin},
+		}.Build()), withEnableFullSync())
+
+	updateOktaDelays(t, sut, delays{
+		timeBetweenImports:                time.Hour,
+		timeBetweenAssignmentProcessLoops: time.Second,
+		targetProcessingBackoffStep:       time.Second,
+		targetProcessingBackoffMax:        time.Second,
+	})
+
+	waitForOktaSync(t, sut, withTimeout(time.Minute), withStep(time.Millisecond*100), withTimePoint(time.Now()))
+	waitForPerUserOktaAssignments(t, assignmentWatcher, 1)
+	userExistInTeleportAndIsNotLocked(t, ctx, sut.Teleport.Process.GetAuthServer(), ownerLogin)
+
+	staticAssignment := mustGetAssignmentForUser(t, sut, ownerLogin)
+
+	// Provision assignment for active user is processed.
+	mustAddAccessListMember(t, sut, group1, userLogin)
+	waitForResource(t, assignmentWatcher, func(a types.OktaAssignment) bool {
+		return a.GetUser() == userLogin && a.GetStatus() == constants.OktaAssignmentStatusSuccessful
+	})
+	require.True(t, fakeOkta.UserAssignedGroup(group1, user.Id))
+	userAssignment := mustGetAssignmentForUser(t, sut, userLogin)
+
+	// Suspend the user.
+	require.NoError(t, fakeOkta.SuspendUser(user.Id))
+
+	// Cleanup assignment for suspended user is processed and finalized.
+	require.NoError(t, authServer.DeleteAccessListMember(ctx, group1, userLogin))
+	common.WaitForDeleteEvent(t, assignmentWatcher, func(r types.Resource) bool {
+		return r.GetName() == userAssignment.GetName()
+	})
+	require.False(t, fakeOkta.UserAssignedGroup(group1, user.Id))
+
+	// Provision assignment for suspended user is not processed.
+	mustAddAccessListMember(t, sut, group2, userLogin)
+	waitForResource(t, assignmentWatcher, func(a types.OktaAssignment) bool {
+		return a.GetUser() == userLogin && a.GetStatus() == constants.OktaAssignmentStatusPending
+	})
+	// Happy path is pending->processing->successful/failed.
+	// Target assignment is still pending and user remains in Okta group.
+	waitForNAssignmentTransitions(t, assignmentWatcher, sut.Clock.Now(), staticAssignment.GetName(), 3)
+	userAssignment = mustGetAssignmentForUser(t, sut, userLogin)
+	require.Equal(t, constants.OktaAssignmentStatusPending, userAssignment.GetStatus())
+	require.False(t, fakeOkta.UserAssignedGroup(group2, user.Id))
+
+	// Provision assignment for reactivated user is processed.
+	fakeOkta.ActivateUser(user.Id)
+	waitForResource(t, assignmentWatcher, func(a types.OktaAssignment) bool {
+		return a.GetUser() == userLogin && a.GetStatus() == constants.OktaAssignmentStatusSuccessful
+	})
+	require.True(t, fakeOkta.UserAssignedGroup(group2, user.Id))
+}
+
+// TestOktaAssignmentProcessingRemovedUser verifies the end-to-end process of removing
+// a user from Okta (active -> deactivated -> removed) and the assignment processing at each point:
+//
+// 1. Active: assignments processed
+// 2. Deactivated: cleanup assignments processed, provision assignments skipped
+// 3. Removed: assignments deleted
+func TestOktaAssignmentProcessingRemovedUser(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	fakeOkta := newFakeOktaServer(withUserCount(3), withGroupCount(2), withSAMLApp())
+	t.Cleanup(fakeOkta.Stop)
+
+	owner := fakeOkta.provisionedUsers[0]
+	ownerLogin := oktaUserLogin(owner)
+
+	user1 := fakeOkta.provisionedUsers[1]
+	user1Login := oktaUserLogin(user1)
+
+	user2 := fakeOkta.provisionedUsers[2]
+	user2Login := oktaUserLogin(user2)
+
+	group1 := fakeOkta.provisionedGroups[0].Id
+	fakeOkta.AddUserToGroup(group1, owner.Id)
+
+	group2 := fakeOkta.provisionedGroups[1].Id
+
+	sut := common.InitSUT(t,
+		common.WithSAMLConnector(idp.TestOktaSAMLConnector(fakeOkta.URL())),
+		common.WithLicense("../../../fixtures/license-eub.pem"),
+		common.WithHTTPClient(fakeOkta.Client().Transport),
+		common.WithUser(t, "alice-admin", "editor"),
+	)
+
+	assignmentWatcher := sut.NewResourceWatcher(t, types.KindOktaAssignment)
+	authServer := sut.Teleport.Process.GetAuthServer()
+
+	createAndWaitForOktaIntegration(t, sut, fakeOkta,
+		withAccessListSettings(oktav1.AccessListSettings_builder{
+			GroupFilters: []string{"group-*"},
+			AppFilters:   []string{"app-*"},
+			DefaultOwner: []string{ownerLogin},
+		}.Build()), withEnableFullSync())
+
+	updateOktaDelays(t, sut, delays{
+		timeBetweenImports:                time.Hour,
+		timeBetweenAssignmentProcessLoops: time.Second,
+		targetProcessingBackoffStep:       time.Second,
+		targetProcessingBackoffMax:        time.Second,
+	})
+
+	waitForOktaSync(t, sut, withTimeout(time.Minute), withStep(time.Millisecond*100), withTimePoint(time.Now()))
+	waitForPerUserOktaAssignments(t, assignmentWatcher, 1)
+	userExistInTeleportAndIsNotLocked(t, ctx, sut.Teleport.Process.GetAuthServer(), ownerLogin)
+
+	staticAssignment := mustGetAssignmentForUser(t, sut, ownerLogin)
+
+	// Provision assignments for active user1 and user2 are processed successfully and users added to Okta group.
+	mustAddAccessListMember(t, sut, group1, user1Login)
+	waitForResource(t, assignmentWatcher, func(a types.OktaAssignment) bool {
+		return a.GetUser() == user1Login && a.GetStatus() == constants.OktaAssignmentStatusSuccessful
+	})
+	require.True(t, fakeOkta.UserAssignedGroup(group1, user1.Id))
+	user1Assignment := mustGetAssignmentForUser(t, sut, user1Login)
+
+	mustAddAccessListMember(t, sut, group1, user2Login)
+	waitForResource(t, assignmentWatcher, func(a types.OktaAssignment) bool {
+		return a.GetUser() == user2Login && a.GetStatus() == constants.OktaAssignmentStatusSuccessful
+	})
+	require.True(t, fakeOkta.UserAssignedGroup(group1, user2.Id))
+	user2Assignment := mustGetAssignmentForUser(t, sut, user2Login)
+
+	// Cleanup assignment for deactivated user1 is finalized and user removed from Okta group.
+	require.NoError(t, fakeOkta.DeactivateUser(user1.Id))
+	require.NoError(t, authServer.DeleteAccessListMember(ctx, group1, user1Login))
+	common.WaitForDeleteEvent(t, assignmentWatcher, func(r types.Resource) bool {
+		return r.GetName() == user1Assignment.GetName()
+	})
+	require.False(t, fakeOkta.UserAssignedGroup(group1, user1.Id))
+
+	// Provision assignment for deactivated user1 is skipped and user remains in Okta group.
+	mustAddAccessListMember(t, sut, group2, user1Login)
+	waitForResource(t, assignmentWatcher, func(a types.OktaAssignment) bool {
+		return a.GetUser() == user1Login && a.GetStatus() == constants.OktaAssignmentStatusPending
+	})
+	// 3 transitions of static assignment guarantees at least 1 full cycle for user assignment.
+	// Happy path is pending->processing->successful/failed.
+	// Target assignment is still pending and user remains in Okta group.
+	waitForNAssignmentTransitions(t, assignmentWatcher, sut.Clock.Now(), staticAssignment.GetName(), 3)
+	user1Assignment = mustGetAssignmentForUser(t, sut, user1Login)
+	require.Equal(t, constants.OktaAssignmentStatusPending, user1Assignment.GetStatus())
+	require.False(t, fakeOkta.UserAssignedGroup(group2, user1.Id))
+
+	// Provision assignment for removed user1 is deleted.
+	require.NoError(t, fakeOkta.RemoveUser(user1.Id))
+	common.WaitForDeleteEvent(t, assignmentWatcher, func(r types.Resource) bool {
+		return r.GetName() == user1Assignment.GetName()
+	})
+
+	// Cleanup assignment for removed user2 is removed.
+	require.NoError(t, fakeOkta.RemoveUser(user2.Id))
+	require.NoError(t, authServer.DeleteAccessListMember(ctx, group1, user2Login))
+	common.WaitForDeleteEvent(t, assignmentWatcher, func(r types.Resource) bool {
+		return r.GetName() == user2Assignment.GetName()
+	})
+}
+
+// waitForNAssignmentTransitions waits for the assignment to transition n times.
+// When provided with a 'static' assignment, it can be used to wait for n iterations of the assignment processor loop.
+func waitForNAssignmentTransitions(t *testing.T, watcher types.Watcher, since time.Time, assignmentName string, n int) {
+	t.Helper()
+
+	for range n {
+		waitForResource(t, watcher, func(a types.OktaAssignment) bool {
+			if a.GetName() != assignmentName || !a.GetLastTransition().After(since) {
+				return false
+			}
+
+			since = a.GetLastTransition()
+			return true
+		})
+	}
 }

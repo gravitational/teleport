@@ -1112,6 +1112,52 @@ func Test_assignmentProcessor_sync_back_filters(t *testing.T) {
 	requireOktaSideApplicationAssignments(t, oktaClient, "admin-app", []string{})
 }
 
+func TestAssignmentProcessorCleanupStaleRevision(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+
+	startTime := time.Now().UTC()
+	clock := clockwork.NewFakeClockAt(startTime)
+
+	ap := newTestAccessPoint(t, clock)
+	oktaClient, oktaData := oktaapitest.NewLocalDataClient(t)
+	oktaClient.OrgURLFunc = func(t *testing.T) string { return oktaapitest.TestOrgURL }
+	svc, emitter := newTestService(t, ap, oktaClient, withClock(clock))
+
+	const groupName = "test-group"
+	const testUser = "test-user@test.user"
+	const testUserOktaID = "okta-user-id"
+
+	oktaData.UpsertUserForId(testUser, testUserOktaID)
+	oktaData.UpsertGroupForId(groupName)
+
+	require.NoError(t, svc.synchronize(ctx))
+	collectAllEvents(t, emitter, new([]apievents.AuditEvent))
+
+	processor := svc.assignmentReconciler.assignmentProcessor
+
+	// Create an assignment to cleanup.
+	testAssignment, err := ap.CreateOktaAssignment(ctx, assignment(t, "test-assignment", testUser, clock.Now(), constants.OktaAssignmentStatusSuccessful, startTime, true,
+		target(types.OktaAssignmentTargetV1_GROUP, groupName),
+	))
+	require.NoError(t, err)
+
+	// Invalidate the revision.
+	_, err = ap.UpdateOktaAssignment(ctx, testAssignment.Copy())
+	require.NoError(t, err)
+
+	// Assignment isn't deleted with stale revision.
+	_ = processor.processAssignment(ctx, processor.logger, testAssignment)
+	testAssignment, err = ap.GetOktaAssignment(ctx, testAssignment.GetName())
+	require.NoError(t, err)
+
+	// Assignment is deleted with latest revision.
+	_ = processor.processAssignment(ctx, processor.logger, testAssignment)
+	_, err = ap.GetOktaAssignment(ctx, testAssignment.GetName())
+	require.ErrorAs(t, err, new(*trace.NotFoundError))
+}
+
 func TestAssignmentProcessorTargetProcessingBackoff(t *testing.T) {
 	t.Parallel()
 
@@ -1569,6 +1615,164 @@ func TestAssignmentProcessorInactiveUsers(t *testing.T) {
 	}
 }
 
+// TestAssignmentProcessorRemovedUser verifies that assignments for users removed
+// from Okta are deleted from Teleport.
+func TestAssignmentProcessorRemovedUser(t *testing.T) {
+	startTime := time.Now().UTC()
+	username := "test-user@test-user"
+	testAssignmentName := "test-assignment"
+	appLinkName := "link"
+	appName := "app1"
+	testAppName := mustAppName(t, appName, appLinkName)
+	addTime := oktaplugin.DefaultTimeBetweenAssignmentProcessLoops
+
+	tests := []struct {
+		name             string
+		assignment       types.OktaAssignment
+		setupFunc        func(a *assignmentProcessor)
+		expectedEvent    *apievents.OktaAssignmentResult
+		errAssertionFunc require.ErrorAssertionFunc
+	}{
+		{
+			name: "assignment with cleaned up targets",
+			assignment: assignment(t, testAssignmentName, userName(username), startTime, constants.OktaAssignmentStatusSuccessful, startTime, false,
+				target(types.OktaAssignmentTargetV1_APPLICATION, testAppName, withStatus(
+					status(constants.OktaAssignmentTargetOpCleanup, constants.OktaAssignmentTargetOutcomeSuccessful, startTime, 0),
+				)),
+				target(types.OktaAssignmentTargetV1_GROUP, testAppName, withStatus(
+					status(constants.OktaAssignmentTargetOpCleanup, constants.OktaAssignmentTargetOutcomeSuccessful, startTime, 0),
+				)),
+			),
+			expectedEvent: &apievents.OktaAssignmentResult{
+				ResourceMetadata: apievents.ResourceMetadata{Name: testAssignmentName},
+				Status:           apievents.Status{Success: true},
+				Metadata: apievents.Metadata{
+					Type: events.OktaAssignmentCleanupEvent,
+					Code: events.OktaAssignmentCleanupSuccessCode,
+				},
+				OktaAssignmentMetadata: apievents.OktaAssignmentMetadata{
+					Source:         "access-request/test-assignment",
+					User:           username,
+					StartingStatus: constants.OktaAssignmentStatusSuccessful,
+					EndingStatus:   constants.OktaAssignmentStatusSuccessful,
+				},
+			},
+			errAssertionFunc: func(tt require.TestingT, err error, msgAndArgs ...interface{}) {
+				// Assignment no longer exists.
+				require.True(tt, trace.IsNotFound(err))
+			},
+		},
+		{
+			name: "assignment with provisioned targets",
+			assignment: assignment(t, testAssignmentName, userName(username), startTime, constants.OktaAssignmentStatusSuccessful, startTime, false,
+				target(types.OktaAssignmentTargetV1_APPLICATION, testAppName, withStatus(
+					status(constants.OktaAssignmentTargetOpProvision, constants.OktaAssignmentTargetOutcomeSuccessful, startTime, 0),
+				)),
+				target(types.OktaAssignmentTargetV1_GROUP, testAppName, withStatus(
+					status(constants.OktaAssignmentTargetOpProvision, constants.OktaAssignmentTargetOutcomeSuccessful, startTime, 0),
+				)),
+			),
+			expectedEvent: &apievents.OktaAssignmentResult{
+				ResourceMetadata: apievents.ResourceMetadata{Name: testAssignmentName},
+				Status:           apievents.Status{Success: true},
+				Metadata: apievents.Metadata{
+					Type: events.OktaAssignmentCleanupEvent,
+					Code: events.OktaAssignmentCleanupSuccessCode,
+				},
+				OktaAssignmentMetadata: apievents.OktaAssignmentMetadata{
+					Source:         "access-request/test-assignment",
+					User:           username,
+					StartingStatus: constants.OktaAssignmentStatusSuccessful,
+					EndingStatus:   constants.OktaAssignmentStatusSuccessful,
+				},
+			},
+			errAssertionFunc: func(tt require.TestingT, err error, msgAndArgs ...interface{}) {
+				// Assignment no longer exists.
+				require.True(tt, trace.IsNotFound(err))
+			},
+		},
+		{
+			name: "service error",
+			assignment: assignment(t, testAssignmentName, userName(username), startTime, constants.OktaAssignmentStatusSuccessful, startTime, false,
+				target(types.OktaAssignmentTargetV1_APPLICATION, testAppName, withStatus(
+					status(constants.OktaAssignmentTargetOpCleanup, constants.OktaAssignmentTargetOutcomeSuccessful, startTime, 0),
+				))),
+			setupFunc: func(a *assignmentProcessor) {
+				a.accessPoint.oktaAssignmentService = failingOktaAssignmentService{
+					oktaAssignmentService: a.accessPoint.oktaAssignmentService,
+					err:                   trace.Errorf("fake service error"),
+				}
+			},
+			expectedEvent: &apievents.OktaAssignmentResult{
+				ResourceMetadata: apievents.ResourceMetadata{Name: testAssignmentName},
+				Status:           apievents.Status{Success: false, Error: "fake service error"},
+				Metadata: apievents.Metadata{
+					Type: events.OktaAssignmentCleanupEvent,
+					Code: events.OktaAssignmentCleanupFailureCode,
+				},
+				OktaAssignmentMetadata: apievents.OktaAssignmentMetadata{
+					Source:         "access-request/test-assignment",
+					User:           username,
+					StartingStatus: constants.OktaAssignmentStatusSuccessful,
+					EndingStatus:   constants.OktaAssignmentStatusSuccessful,
+				},
+			},
+			// Assignment still exists because deletion failed.
+			errAssertionFunc: require.NoError,
+		},
+	}
+
+	for _, test := range tests {
+		ctx := t.Context()
+		clock := clockwork.NewFakeClockAt(startTime)
+		oktaClient := newTestOktaClient()
+		ap := newTestAccessPoint(t, clock)
+		svc, emitter := newTestService(t, ap, oktaClient)
+		svc.clock = clock
+		a := newAssignmentProcessor(svc)
+
+		if test.setupFunc != nil {
+			test.setupFunc(a)
+		}
+
+		// Make sure targets exist in Okta, so it's only the user that's absent.
+		for _, target := range test.assignment.GetTargets() {
+			switch target.GetTargetType() {
+			case constants.OktaAssignmentTargetGroup:
+				grp := group(t, target.GetID(), types.OriginOkta, testOrgURL)
+				a.syncedUserGroups.Store(grp.GetName(), grp)
+				oktaClient.AddGroupToMapping(grp.GetName())
+			case constants.OktaAssignmentTargetApplication:
+				app := application(t, appName, appLinkName, types.OriginOkta, testOrgURL)
+				a.syncedAppServers.Store(app.GetName(), app)
+				oktaClient.AddApplicationToMapping(app.GetName())
+			}
+		}
+
+		_, err := ap.CreateOktaAssignment(ctx, test.assignment)
+		require.NoError(t, err)
+
+		clock.Advance(addTime)
+
+		a.processTimerEvent(ctx)
+
+		var apiEvents []*apievents.OktaAssignmentResult
+		collectAllEvents(t, emitter, &apiEvents)
+		require.Len(t, apiEvents, 1)
+		require.Empty(t, cmp.Diff(test.expectedEvent, apiEvents[0], cmpopts.IgnoreFields(
+			apievents.OktaAssignmentResult{}, "ServerMetadata",
+		)))
+
+		clock.Advance(addTime)
+
+		// Clean up the finalized assignment.
+		a.processTimerEvent(ctx)
+
+		_, err = ap.GetOktaAssignment(ctx, testAssignmentName)
+		test.errAssertionFunc(t, err)
+	}
+}
+
 func getOktaAssignmentNames(assignments []types.OktaAssignment) []string {
 	var res []string
 	for _, r := range assignments {
@@ -1612,6 +1816,18 @@ type failingAccessListService struct {
 }
 
 func (s failingAccessListService) GetAccessListMember(context.Context, string, string) (*accesslist.AccessListMember, error) {
+	return nil, s.err
+}
+
+// failingOktaAssignmentService wraps the oktaAssignmentService and adds an error
+// so that methods can be overridden and return it.
+type failingOktaAssignmentService struct {
+	oktaAssignmentService
+	err error
+}
+
+// ConditionalUpdateOktaAssignment overrides the underlying method to always return the error.
+func (s failingOktaAssignmentService) ConditionalUpdateOktaAssignment(ctx context.Context, assignment types.OktaAssignment) (types.OktaAssignment, error) {
 	return nil, s.err
 }
 
