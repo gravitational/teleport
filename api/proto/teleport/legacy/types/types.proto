@@ -8454,6 +8454,8 @@ message PluginEntraIDStatusV1 {
   uint32 imported_users = 1;
   // imported_groups is the number of groups imported from Entra ID.
   uint32 imported_groups = 2;
+  // SyncMode indicates `full` or `delta` sync mode used in the latest sync.
+  string sync_mode = 3;
 }
 
 enum PluginStatusCode {

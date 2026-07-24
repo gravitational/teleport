@@ -569,6 +569,7 @@ export type Filters = {
 export type PluginEntraIDStatusDetails = {
   imported_users?: number;
   imported_groups?: number;
+  sync_mode?: 'full' | 'delta';
 };
 
 export type IntegrationOAuthCredentials = {
