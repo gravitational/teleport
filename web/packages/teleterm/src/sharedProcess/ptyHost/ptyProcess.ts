@@ -80,7 +80,7 @@ export class PtyProcess extends EventEmitter implements IPtyProcess {
       this._process = nodePTY.spawn(this.options.path, this.options.args, {
         cols,
         rows,
-        name: 'xterm-color',
+        name: 'xterm-256color',
         // HOME should be always defined. But just in case it isn't let's use the cwd from process.
         // https://unix.stackexchange.com/questions/123858
         cwd: this.options.cwd || getDefaultCwd(this.options.env),

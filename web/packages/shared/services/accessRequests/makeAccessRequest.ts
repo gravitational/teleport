@@ -38,13 +38,20 @@ import {
 export function makeAccessRequest(json?): AccessRequest {
   json = json || {};
 
+  // DELETE IN 20.0: Remove the fallback to the legacy user field.
+  const user = json.userInfo?.username ?? json.user;
   const reviews = makeReviews(json.reviews);
-  const reviewers = makeReviewers(json.suggestedReviewers, reviews);
+  // DELETE IN 20.0: Remove the fallback to legacy suggested reviewers.
+  const suggestedReviewersInfo =
+    json.suggestedReviewersInfo ??
+    (json.suggestedReviewers || []).map(username => ({ username }));
+  const reviewers = makeReviewers(suggestedReviewersInfo, reviews);
 
   return {
     id: json.id,
     state: json.state,
-    user: json.user,
+    user,
+    userDisplay: json.userInfo?.display,
     expires: new Date(json.expires),
     expiresDuration: getDurationText(json.expires),
     created: new Date(json.created),
@@ -92,26 +99,36 @@ function getRequestKind(jsonKind: unknown): RequestKind {
 function makeReviews(jsonReviews): AccessRequestReview[] {
   jsonReviews = jsonReviews || [];
 
-  return jsonReviews.map(review => ({
-    author: review.author,
-    state: review.state,
-    reason: review.reason,
-    roles: review.roles || [],
-    createdDuration: getDurationAgoText(review.created),
-    promotedAccessListTitle: review.promotedAccessListTitle,
-    assumeStartTime: review.assumeStartTime
-      ? new Date(review.assumeStartTime)
-      : null,
-  }));
+  return jsonReviews.map(review => {
+    // DELETE IN 20.0: Remove the fallback to the legacy author field.
+    const author = review.authorInfo?.username ?? review.author;
+
+    return {
+      author,
+      authorDisplay: review.authorInfo?.display,
+      state: review.state,
+      reason: review.reason,
+      roles: review.roles || [],
+      createdDuration: getDurationAgoText(review.created),
+      promotedAccessListTitle: review.promotedAccessListTitle,
+      assumeStartTime: review.assumeStartTime
+        ? new Date(review.assumeStartTime)
+        : null,
+    };
+  });
 }
 
-function makeReviewers(jsonSuggestedReviewers, reviews: AccessRequestReview[]) {
-  jsonSuggestedReviewers = jsonSuggestedReviewers || [];
+function makeReviewers(
+  jsonSuggestedReviewersInfo,
+  reviews: AccessRequestReview[]
+) {
+  jsonSuggestedReviewersInfo = jsonSuggestedReviewersInfo || [];
 
-  let allReviewers: AccessRequestReviewer[] = jsonSuggestedReviewers.map(
-    name =>
+  let allReviewers: AccessRequestReviewer[] = jsonSuggestedReviewersInfo.map(
+    reviewer =>
       ({
-        name,
+        name: reviewer.username,
+        display: reviewer.display,
         state: 'PENDING',
       }) as AccessRequestReviewer
   );
@@ -119,14 +136,21 @@ function makeReviewers(jsonSuggestedReviewers, reviews: AccessRequestReview[]) {
   // The reviewers in reviews list, may not be a part of the suggested reviewers list
   // b/c any user with permission can review a request.
   reviews.forEach(review => {
-    const index = jsonSuggestedReviewers.indexOf(review.author);
+    const index = jsonSuggestedReviewersInfo.findIndex(
+      reviewer => reviewer.username === review.author
+    );
 
     if (index > -1) {
       allReviewers[index].state = review.state;
+      allReviewers[index].display ??= review.authorDisplay;
     } else {
       allReviewers = [
         ...allReviewers,
-        { name: review.author, state: review.state },
+        {
+          name: review.author,
+          display: review.authorDisplay,
+          state: review.state,
+        },
       ];
     }
   });

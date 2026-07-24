@@ -184,9 +184,9 @@ Example:
 }
 ```
 
-## access_list.member.add
+## access_list.member.create
 
-There are multiple events with the `access_list.member.add` type.
+There are multiple events with the `access_list.member.create` type.
 
 ### TAL005I
 
@@ -197,7 +197,7 @@ Example:
 ```json
 {
   "code": "TAL005I",
-  "event": "access_list.member.add",
+  "event": "access_list.member.create",
   "time": "2023-05-08T19:21:36.144Z",
   "access_list_name": "access-list",
   "access_list_title": "example_title",
@@ -219,7 +219,7 @@ Example:
 ```json
 {
   "code": "TAL005E",
-  "event": "access_list.member.add",
+  "event": "access_list.member.create",
   "time": "2023-05-08T19:21:36.144Z",
   "access_list_name": "access-list",
   "access_list_title": "example_title",
@@ -757,6 +757,38 @@ Example:
   "event": "app.session.start",
   "time": "2020-06-05T16:24:05Z",
   "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+## app.session.target.dial.denied
+
+App Target Dial Denied
+
+Example:
+
+```json
+{
+  "app_name": "internal-app",
+  "app_public_addr": "internal-app.root.gravitational.io",
+  "app_uri": "http://metadata.internal",
+  "blocked_ip": "169.254.169.254",
+  "blocked_prefix": "169.254.0.0/16",
+  "cluster_name": "root",
+  "code": "T2019E",
+  "ei": 0,
+  "event": "app.session.target.dial.denied",
+  "namespace": "default",
+  "policy": "denied_hosts",
+  "resolved_ips": [
+    "169.254.169.254"
+  ],
+  "server_id": "8e70002c-7a07-4513-a3fa-ac556a1d7534",
+  "sid": "11c328b4-5a1e-4adc-b7cb-206389e5f130",
+  "target_host": "metadata.internal",
+  "target_port": "80",
+  "time": "2022-08-10T19:54:41.444Z",
+  "uid": "bc1fbf7e-b739-4ea3-8bb9-cf1e79c8acb5",
+  "user": "alice"
 }
 ```
 
@@ -3487,34 +3519,6 @@ Example:
 }
 ```
 
-## device
-
-Device Enrolled
-
-Example:
-
-```json
-{
-  "cluster_name": "im-a-cluster-name",
-  "code": "TV005I",
-  "device": {
-    "asset_tag": "M2CQVQV64R",
-    "device_id": "99d39707-efdd-436c-94f3-6a1aeef1fbf2",
-    "os_type": 2
-  },
-  "ei": 0,
-  "event": "device",
-  "status": {
-    "success": true
-  },
-  "time": "2023-01-12T19:28:36.842Z",
-  "uid": "94d33b77-82cd-4558-8893-0320699bf755",
-  "user": {
-    "user": "this user wont render properly"
-  }
-}
-```
-
 ## device.authenticate
 
 Device Authenticated
@@ -3602,6 +3606,82 @@ Example:
   "time": "2023-01-12T20:33:20.527Z",
   "uid": "a12e693e-1c45-43e4-a9d1-5fd8399e303c",
   "user": "3827e8ad-7cbe-4423-a80f-dfc89e83eb86.im-a-cluster-name"
+}
+```
+
+## device.enroll
+
+Device Enrolled
+
+Example:
+
+```json
+{
+  "cluster_name": "im-a-cluster-name",
+  "code": "TV005I",
+  "device": {
+    "asset_tag": "M2CQVQV64R",
+    "device_id": "0e288b23-f99f-4635-b182-06e9308095a8",
+    "os_type": 2
+  },
+  "ei": 0,
+  "event": "device.enroll",
+  "success": true,
+  "time": "2023-01-12T21:31:29.191Z",
+  "uid": "bbbc496f-820b-4f49-ae0d-1c1b29faee85",
+  "user": "lisa"
+}
+```
+
+## device.enroll_pairing.request
+
+There are multiple events with the `device.enroll_pairing.request` type.
+
+### TV010I
+
+Device Enroll Pairing Requested
+
+Example:
+
+```json
+{
+  "cluster_name": "im-a-cluster-name",
+  "code": "TV010I",
+  "device": {
+    "asset_tag": "M2CQVQV64R",
+    "device_id": "",
+    "os_type": 4
+  },
+  "ei": 0,
+  "event": "device.enroll_pairing.request",
+  "success": true,
+  "time": "2024-04-08T19:37:48.1Z",
+  "uid": "a7b3e9f1-4d5c-6a8b-9012-def345678901",
+  "user": "llama"
+}
+```
+
+### TV010W
+
+Device Enroll Pairing Request Failed
+
+Example:
+
+```json
+{
+  "cluster_name": "im-a-cluster-name",
+  "code": "TV010W",
+  "device": {
+    "asset_tag": "M2CQVQV64R",
+    "device_id": "",
+    "os_type": 4
+  },
+  "ei": 0,
+  "error": "invalid pairing token",
+  "event": "device.enroll_pairing.request",
+  "success": false,
+  "time": "2024-04-08T19:38:48.1Z",
+  "uid": "a7b3e9f1-4d5c-6a8b-9012-def345678902"
 }
 ```
 
@@ -5020,11 +5100,7 @@ Example:
 }
 ```
 
-## mfa.delete
-
-There are multiple events with the `mfa.delete` type.
-
-### T1006I
+## mfa.add
 
 MFA Device Added
 
@@ -5038,14 +5114,14 @@ Example:
   "mfa_device_type": "U2F",
   "mfa_device_uuid": "7a6fbf23-d75c-4c62-8215-e962d0f2a1f3",
   "ei": 0,
-  "event": "mfa.delete",
+  "event": "mfa.add",
   "time": "2021-03-03T22:58:34.737Z",
   "uid": "9be91d9e-79ec-422b-b6ae-ccf7235476d4",
   "user": "awly"
 }
 ```
 
-### T1007I
+## mfa.delete
 
 MFA Device Deleted
 
@@ -5868,22 +5944,6 @@ Example:
 }
 ```
 
-### TSI004I
-
-All SAML IdP service provider deleted
-
-Example:
-
-```json
-{
-  "code": "TSI004I",
-  "event": "saml.idp.service.provider.delete",
-  "time": "2023-01-25T19:21:36.144Z",
-  "name": "saml-idp",
-  "updated_by": "mike"
-}
-```
-
 ### TSI004W
 
 SAML IdP service provider delete failed
@@ -5894,6 +5954,22 @@ Example:
 {
   "code": "TSI004W",
   "event": "saml.idp.service.provider.delete",
+  "time": "2023-01-25T19:21:36.144Z",
+  "name": "saml-idp",
+  "updated_by": "mike"
+}
+```
+
+## saml.idp.service.provider.delete_all
+
+All SAML IdP service provider deleted
+
+Example:
+
+```json
+{
+  "code": "TSI004I",
+  "event": "saml.idp.service.provider.delete_all",
   "time": "2023-01-25T19:21:36.144Z",
   "name": "saml-idp",
   "updated_by": "mike"
@@ -7605,6 +7681,36 @@ Example:
   "uid": "e52def2f-4109-4cc9-91a8-150c6792f89f",
   "user": "bob",
   "user_kind": 1
+}
+```
+
+## spiffe.federation.create
+
+SPIFFE Federation Created
+
+Example:
+
+```json
+{
+  "code": "TSPIFFE001I",
+  "event": "spiffe.federation.create",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+## spiffe.federation.delete
+
+SPIFFE Federation Deleted
+
+Example:
+
+```json
+{
+  "code": "TSPIFFE002I",
+  "event": "spiffe.federation.delete",
+  "time": "2020-06-05T16:24:05Z",
+  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
 }
 ```
 
