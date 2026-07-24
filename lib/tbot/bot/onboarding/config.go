@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -282,6 +283,14 @@ func (conf *Config) SetToken(token string) {
 func (conf *Config) Token() (string, error) {
 	token, err := utils.TryReadValueAsFile(conf.TokenValue)
 	if err != nil {
+		// A scoped token with a Scope Qualified Name looks like a file path
+		// and will result in file not found errors. If the provided token is
+		// a SQN, then the request is rejected. Scoped tokens can only be used
+		// in the new join service.
+		if _, err := scopes.ParseQualifiedName(conf.TokenValue); err == nil {
+			return conf.TokenValue, nil
+		}
+
 		return "", trace.Wrap(err)
 	}
 

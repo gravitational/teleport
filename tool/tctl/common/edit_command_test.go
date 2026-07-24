@@ -753,7 +753,11 @@ func testEditScopedToken(t *testing.T, clt *authclient.Client) {
 	}, withEditor(editor))
 	require.NoError(t, err)
 
-	actual, err := clt.GetScopedToken(ctx, created.GetMetadata().GetName(), true)
+	actual, err := clt.GetScopedToken(ctx, joiningv1.GetScopedTokenRequest_builder{
+		Name:       created.GetMetadata().GetName(),
+		Scope:      created.GetScope(),
+		WithSecret: true,
+	}.Build())
 	require.NoError(t, err)
 	require.Equal(t, "test", actual.GetMetadata().GetLabels()["env"])
 

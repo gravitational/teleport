@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/itertools/stream"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/parse"
@@ -226,15 +227,17 @@ func (c *ScopedTokensCommand) Add(ctx context.Context, client *authclient.Client
 		return trace.Wrap(err, "creating scoped token")
 	}
 
-	token := joining.EncodeScopedToken(tok.GetMetadata().GetName(), tok.GetStatus().GetSecret())
+	token := scopes.QualifiedName{
+		Name:  joining.EncodeScopedToken(tok.GetMetadata().GetName(), tok.GetStatus().GetSecret()),
+		Scope: tok.GetScope(),
+	}
 	// Print token information formatted with JSON, YAML, or just print the raw token.
 	switch c.format {
 	case teleport.JSON, teleport.YAML:
 		expires := time.Now().Add(c.ttl)
 		tokenInfo := map[string]any{
-			"token":        token,
+			"token":        token.String(),
 			"roles":        roles,
-			"scope":        tok.GetScope(),
 			"assign_scope": tok.GetSpec().GetAssignedScope(),
 			"expires":      expires,
 		}
@@ -263,7 +266,7 @@ func (c *ScopedTokensCommand) Add(ctx context.Context, client *authclient.Client
 		out:    c.Stdout,
 		ttl:    c.ttl,
 		roles:  roles,
-		token:  token,
+		token:  token.String(),
 		client: client,
 	}))
 }
@@ -273,7 +276,23 @@ func (c *ScopedTokensCommand) Del(ctx context.Context, client *authclient.Client
 	if c.name == "" {
 		return trace.BadParameter("Need an argument: token")
 	}
-	if err := client.DeleteScopedToken(ctx, c.name); err != nil {
+
+	qn, err := scopes.ParseQualifiedName(c.name)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := qn.WeakValidate(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// strip any secrets included in the token name
+	name, _, _ := joining.DecodeScopedToken(qn.Name)
+
+	if err := client.DeleteScopedToken(ctx, joiningv1.DeleteScopedTokenRequest_builder{
+		Name:  name,
+		Scope: qn.Scope,
+	}.Build()); err != nil {
 		return trace.Wrap(err)
 	}
 	fmt.Fprintf(c.Stdout, "Token %s has been deleted\n", c.name)
@@ -323,7 +342,7 @@ func (c *ScopedTokensCommand) List(ctx context.Context, client *authclient.Clien
 		}
 	case teleport.Text:
 		for _, token := range tokens {
-			fmt.Fprintln(c.Stdout, token.GetMetadata().GetName())
+			fmt.Fprintln(c.Stdout, scopes.QualifiedName{Name: token.GetMetadata().GetName(), Scope: token.GetScope()}.String())
 		}
 	default:
 		fmt.Fprint(c.Stdout, resources.ScopedTokenTextHelper(tokens, c.withSecrets).String())
