@@ -38,11 +38,13 @@ import (
 	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/usertasks"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/automaticupgrades/version"
 	iterstream "github.com/gravitational/teleport/lib/itertools/stream"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
+	"github.com/gravitational/teleport/lib/srv/discovery/fetchers"
 	libslices "github.com/gravitational/teleport/lib/utils/slices"
 )
 
@@ -99,13 +101,15 @@ func (s *Server) startKubeIntegrationWatchers() error {
 			s.submitFetchersEvent(kubeIntegrationFetchers)
 			return kubeIntegrationFetchers
 		},
-		Logger:         s.Log.With("kind", types.KindKubernetesCluster),
-		DiscoveryGroup: s.DiscoveryGroup,
-		Interval:       s.PollInterval,
-		Origin:         types.OriginCloud,
-		TriggerFetchC:  s.newDiscoveryConfigChangedSub(),
-		PreFetchHookFn: s.kubernetesIntegrationWatcherIterationStarted,
-		Clock:          s.clock,
+		Logger:           s.Log.With("kind", types.KindKubernetesCluster),
+		DiscoveryGroup:   s.DiscoveryGroup,
+		Interval:         s.PollInterval,
+		Origin:           types.OriginCloud,
+		TriggerFetchC:    s.newDiscoveryConfigChangedSub(),
+		PreFetchHookFn:   s.kubernetesIntegrationWatcherIterationStarted,
+		FetchErrorHookFn: s.handleEKSWatcherError,
+		PostFetchHookFn:  s.upsertTasksForAWSEKSFailedEnrollments,
+		Clock:            s.clock,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -218,6 +222,52 @@ func (s *Server) startKubeIntegrationWatchers() error {
 		}
 	}()
 	return nil
+}
+
+func (s *Server) handleEKSWatcherError(err error) bool {
+	permissionErrors := fetchers.EKSDiscoveryPermissionErrors(err)
+	if len(permissionErrors) == 0 {
+		return false
+	}
+
+	handled := false
+	for _, permissionError := range permissionErrors {
+		if permissionError == nil {
+			continue
+		}
+
+		if permissionError.Operation != fetchers.EKSDiscoveryOperationDescribeCluster || permissionError.Cluster == "" {
+			continue
+		}
+		handled = true
+		issueType := usertasks.AutoDiscoverEKSIssuePermClusterDenied
+
+		cluster := usertasksv1.DiscoverEKSCluster_builder{
+			Name:            permissionError.Cluster,
+			DiscoveryConfig: permissionError.DiscoveryConfigName,
+			DiscoveryGroup:  s.DiscoveryGroup,
+			SyncTime:        timestamppb.New(s.clock.Now()),
+		}.Build()
+
+		s.Log.WarnContext(s.ctx, "IAM permission error during EKS discovery",
+			"issue_type", issueType,
+			"operation", permissionError.Operation,
+			"integration", permissionError.Integration,
+			"account_id", permissionError.AccountID,
+			"region", permissionError.Region,
+			"cluster", permissionError.Cluster,
+			"discovery_config", permissionError.DiscoveryConfigName,
+			"error", permissionError.Err,
+		)
+
+		s.awsEKSTasks.addFailedEnrollment(awsEKSTaskKey{
+			integration: permissionError.Integration,
+			issueType:   issueType,
+			accountID:   permissionError.AccountID,
+			region:      permissionError.Region,
+		}, cluster)
+	}
+	return handled
 }
 
 func (s *Server) kubernetesIntegrationWatcherIterationStarted() {
