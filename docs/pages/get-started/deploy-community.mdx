@@ -65,14 +65,19 @@ following requirements for your platform:
 <TabItem label="Remote virtual machine">
 
 - A Linux host with only port `443` open to ingress traffic, and no existing
-  Teleport installation. You must be able to install and run software on the
-  host. Either configure access to the host via SSH for the initial setup (and
-  open an SSH port in addition to port `443`) or enter the commands in this
-  guide into an Amazon EC2 [user data
-  script](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/user-data.html),
-  Google Compute Engine [startup
-  script](https://cloud.google.com/compute/docs/instances/startup-scripts), or
-  similar.
+  Teleport installation.
+  - You must be able to install and run software on the host. Either configure
+    access to the host via SSH for the initial setup (and open an SSH port in
+    addition to port `443`) or enter the commands in this guide into an Amazon
+    EC2 [user data
+    script](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/user-data.html),
+    Google Compute Engine [startup
+    script](https://cloud.google.com/compute/docs/instances/startup-scripts), or
+    similar.
+  - The host can start with 2 vCPU and 1GB RAM for testing, though for
+    additional users and resources, we recommend a larger instance size. For the
+    most scalable performance, run Teleport-protected resources on separate
+    hosts from the Teleport cluster.
 
 - **One** of the following:
   - A registered domain name or access to a service like Amazon Route53 that
@@ -226,24 +231,6 @@ infrastructure in your cluster.
       --public-addr=localhost:443 \
       --cert-file=/etc/teleport-tls/localhost.pem \
       --key-file=/etc/teleport-tls/localhost-key.pem
-  ```
-  </TabItem>
-  <TabItem label="Private network deployment">
-  On your Teleport host, place a valid private key and a certificate chain in `/var/lib/teleport/privkey.pem`
-  and `/var/lib/teleport/fullchain.pem` respectively.
-
-  The leaf certificate must have a subject that corresponds to the domain of your Teleport host, e.g., `*.teleport.example.com`.
-
-  On the host where you will start the Teleport Auth Service and Proxy Service,
-  run the following `teleport configure` command. Assign <Var
-  name="teleport.example.com" /> to the domain name of your Teleport cluster.
-
-  ```code
-  $ sudo teleport configure -o file \
-      --cluster-name=<Var name="teleport.example.com" /> \
-      --public-addr=<Var name="teleport.example.com" />:443 \
-      --cert-file=/var/lib/teleport/fullchain.pem \
-      --key-file=/var/lib/teleport/privkey.pem
   ```
   </TabItem>
 </Tabs>
@@ -432,3 +419,32 @@ At this point, you've launched your own Teleport Community Edition cluster and c
 <Button style={{ padding: '0 var(--m-2)' }} as="link" href="../connect/" variant="primary" shape="lg">Step 2 - Connect infrastructure <Icon name="arrowRight" inline size="sm"/> </Button>
 </div>
 
+## Advanced: Bring your own certificate
+
+It is possible to deploy Teleport Community Edition in environments that are
+air-gapped or require a private certificate authority. You can configure the
+Teleport Proxy Service to present a custom certificate and CA.
+
+On your Teleport host, place a valid private key and a certificate chain in
+`/var/lib/teleport/privkey.pem` and `/var/lib/teleport/fullchain.pem`
+respectively.
+
+The leaf certificate must have a subject that corresponds to the domain of your
+Teleport host, e.g., `*.teleport.example.com`.
+
+On the host where you will start the Teleport Auth Service and Proxy Service,
+run the following `teleport configure` command. Assign
+<Var name="teleport.example.com" /> to the domain name of your Teleport cluster.
+
+```code
+$ sudo teleport configure -o file \
+    --cluster-name=<Var name="teleport.example.com" /> \
+    --public-addr=<Var name="teleport.example.com" />:443 \
+    --cert-file=/var/lib/teleport/fullchain.pem \
+    --key-file=/var/lib/teleport/privkey.pem
+```
+
+All clients and Teleport Agents connecting to this cluster must trust the
+certificate authority that signed `fullchain.pem`. See [Running Teleport with
+Self-Signed Certificates]( ../installation/self-hosted/self-signed-certs.mdx)
+for details.
