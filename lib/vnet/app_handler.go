@@ -168,5 +168,6 @@ func RouteToApp(appInfo *vnetv1.AppInfo, targetPort uint16) *proto.RouteToApp {
 		ClusterName: appInfo.GetCluster(),
 		URI:         app.GetURI(),
 		TargetPort:  uint32(targetPort),
+		Scope:       app.GetScope(),
 	}
 }
