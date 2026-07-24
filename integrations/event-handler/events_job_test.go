@@ -18,17 +18,30 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"log/slog"
 	"regexp"
 	"testing"
 
+	"github.com/gravitational/trace"
 	"github.com/peterbourgon/diskv/v3"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/breaker"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 )
+
+func TestBreakerTripErrorDetection(t *testing.T) {
+	require.True(t, errors.Is(trace.Wrap(breaker.ErrStateTripped), breaker.ErrStateTripped), "wrapped ErrStateTripped should be detected")
+
+	require.False(t, errors.Is(trace.ConnectionProblem(nil, "connection refused"), breaker.ErrStateTripped),
+		"unrelated connection error should not be detected as tripped breaker")
+
+	require.False(t, errors.Is(trace.NotFound("not found"), breaker.ErrStateTripped),
+		"non-connection error should not be detected as tripped breaker")
+}
 
 func TestEventHandlerFilters(t *testing.T) {
 	tests := []struct {
