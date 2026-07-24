@@ -36,7 +36,10 @@ extraEnv: []
 
 # resource requirements for each container
 # https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.33/#resourcerequirements-v1-core
-resources: {}
+resources:
+  requests:
+    cpu: 5m
+    memory: 48Mi
 
 # Teleport labels
 labels: {}
