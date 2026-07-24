@@ -1,0 +1,69 @@
+name: Lean RBAC Diff
+on:
+  pull_request:
+    paths:
+      - 'lean/**'
+      - 'lib/services/role.go'
+      - 'lib/services/role_test.go'
+      - 'lib/services/access_checker.go'
+      - 'lib/utils/replace.go'
+      - 'api/types/role.go'
+      - 'api/types/kubernetes.go'
+      - 'tool/kubeaccess-corpus/**'
+      - '.github/workflows/lean-diff.yaml'
+  push:
+    branches:
+      - jakealti/lean
+    paths:
+      - 'lean/**'
+      - 'lib/services/role.go'
+      - 'lib/utils/replace.go'
+      - 'api/types/role.go'
+      - 'api/types/kubernetes.go'
+      - 'tool/kubeaccess-corpus/**'
+      - '.github/workflows/lean-diff.yaml'
+
+permissions:
+  contents: read
+
+jobs:
+  lean-diff:
+    name: Lean RBAC Diff
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Read Lean toolchain
+        id: lean_toolchain
+        run: |
+          version=$(cat lean/lean-toolchain | tr -d '[:space:]')
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+
+      - name: Cache elan + .lake
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.elan
+            lean/.lake
+          key: lean-${{ runner.os }}-${{ steps.lean_toolchain.outputs.version }}-${{ hashFiles('lean/lakefile.toml', 'lean/lake-manifest.json') }}
+          restore-keys: |
+            lean-${{ runner.os }}-${{ steps.lean_toolchain.outputs.version }}-
+
+      - name: Install elan
+        run: |
+          if ! command -v elan >/dev/null 2>&1; then
+            curl -sSf https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh \
+              | sh -s -- -y --default-toolchain none
+          fi
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+
+      - name: Run differential check
+        working-directory: lean
+        run: ./scripts/diff.sh
