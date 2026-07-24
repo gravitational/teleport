@@ -49,19 +49,6 @@ jobs:
           - 3379:3379
 
     steps:
-      - name: Get runtime values from kvstore
-        id: kvstore
-        uses: gravitational/shared-workflows/tools/env-kvstore@tools/env-kvstore/v1.0.0
-        with:
-          cognito-identity-pool-id: "us-west-2:da53389e-a459-4a28-bd54-43eeb8e4b579"
-          cognito-role-arn: "arn:aws:iam::247230412011:role/github-actions-cognito-oidc"
-          existing-gh-secrets: "${{ toJSON(secrets) }}"
-          existing-gh-variables: "${{ toJSON(vars) }}"
-          # values: |
-          #   REVIEWERS_APP_ID,secret
-          #   REVIEWERS_PRIVATE_KEY,secret
-          #   REVIEWERS,secret
-
       - name: Checkout Teleport
         uses: actions/checkout@v6
         with:
@@ -76,23 +63,40 @@ jobs:
       - name: Prepare unit tests
         run: make test-go-prepare
 
+      - name: Get runtime values from kvstore
+        id: kvstore
+        uses: gravitational/shared-workflows/tools/env-kvstore@tools/env-kvstore/v1.0.0
+        with:
+          cognito-identity-pool-id: "us-west-2:da53389e-a459-4a28-bd54-43eeb8e4b579"
+          cognito-role-arn: "arn:aws:iam::247230412011:role/github-actions-cognito-oidc"
+          values: |
+            REVIEWERS_APP_ID,variable
+            REVIEWERS_PRIVATE_KEY,secret
+            REVIEWERS,secret
+
       - name: Generate GitHub Token
         id: generate_token
         uses: actions/create-github-app-token@v3
         with:
-          app-id: ${{ secrets.REVIEWERS_APP_ID }}
-          private-key: ${{ secrets.REVIEWERS_PRIVATE_KEY }}
+          app-id: ${{ env.REVIEWERS_APP_ID }}
+          private-key: ${{ env.REVIEWERS_PRIVATE_KEY }}
 
       - name: Checkout shared-workflows
         uses: actions/checkout@v6
         with:
           repository: gravitational/shared-workflows
           path: .github/shared-workflows
-          ref: 02af65890b521ecdf79856c00f6d2c875bf40ea3 # workflows/v0.0.5
+          ref: 986f92841a4f032e262477e5bb15f214d50b1015 # workflows/v0.0.6
 
       - name: Find excluded tests
         id: find_excluded
-        run: cd .github/shared-workflows/bot && go run main.go -workflow=exclude-flakes -token="${{ steps.generate_token.outputs.token }}" -reviewers="${{ secrets.reviewers }}"
+        run: cd .github/shared-workflows/bot && go run main.go -workflow=exclude-flakes -token="${{ steps.generate_token.outputs.token }}" -reviewers="${{ env.REVIEWERS }}"
+
+      - name: Clear runtime values
+        id: clear_kvstore_env
+        run: |
+            echo "REVIEWERS=" >> $GITHUB_ENV
+            echo "REVIEWERS_PRIVATE_KEY=" >> $GITHUB_ENV
 
       - name: Run base difftest
         uses: ./.github/actions/difftest

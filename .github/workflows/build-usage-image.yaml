@@ -15,10 +15,8 @@ jobs:
         with:
           cognito-identity-pool-id: "us-west-2:da53389e-a459-4a28-bd54-43eeb8e4b579"
           cognito-role-arn: "arn:aws:iam::247230412011:role/github-actions-cognito-oidc"
-          existing-gh-secrets: "${{ toJSON(secrets) }}"
-          existing-gh-variables: "${{ toJSON(vars) }}"
-          # values: |
-          #   TELEPORT_USAGE_IAM_ROLE_ARN,secret
+          values: |
+            TELEPORT_USAGE_IAM_ROLE_ARN,variable
       # This step is used to extract the version of the usage script.
       - name: Trim leading v in release
         id: version
@@ -28,7 +26,7 @@ jobs:
       - uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
       - uses: aws-actions/configure-aws-credentials@a03048d87541d1d9fcf2ecf528a4a65ba9bd7838 # v5.0.0
         with:
-          role-to-assume: ${{ secrets.TELEPORT_USAGE_IAM_ROLE_ARN }}
+          role-to-assume: ${{ env.TELEPORT_USAGE_IAM_ROLE_ARN }}
           aws-region: us-east-1
       - uses: aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076 # v2.0.1
         with:

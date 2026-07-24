@@ -27,17 +27,16 @@ jobs:
         with:
           cognito-identity-pool-id: "us-west-2:da53389e-a459-4a28-bd54-43eeb8e4b579"
           cognito-role-arn: "arn:aws:iam::247230412011:role/github-actions-cognito-oidc"
-          existing-gh-secrets: "${{ toJSON(secrets) }}"
-          existing-gh-variables: "${{ toJSON(vars) }}"
-          # values: |
-          #   BACKPORT_APP_ID,secret
-          #   BACKPORT_PRIVATE_KEY,secret
+          values: |
+            BACKPORT_APP_ID,secret
+            BACKPORT_PRIVATE_KEY,secret
+            REVIEWERS,secret
       - name: Generate GitHub Token
         id: generate_token
         uses: actions/create-github-app-token@v3
         with:
-          app-id: ${{ secrets.BACKPORT_APP_ID }}
-          private-key: ${{ secrets.BACKPORT_PRIVATE_KEY }}
+          app-id: ${{ env.BACKPORT_APP_ID }}
+          private-key: ${{ env.BACKPORT_PRIVATE_KEY }}
       - name: Checkout repository
         uses: actions/checkout@v6
         with:
@@ -49,11 +48,11 @@ jobs:
         with:
           repository: gravitational/shared-workflows
           path: .github/shared-workflows
-          ref: 02af65890b521ecdf79856c00f6d2c875bf40ea3 # workflows/v0.0.5
+          ref: 986f92841a4f032e262477e5bb15f214d50b1015 # workflows/v0.0.6
       - name: Installing Go
         uses: actions/setup-go@v6
         with:
           go-version: 'stable'
         # Run "backport" subcommand on bot.
       - name: Backport PR
-        run: ( cd .github/shared-workflows/bot && go build ) && .github/shared-workflows/bot/bot -workflow=backport -token="${{ steps.generate_token.outputs.token }}" -reviewers="${{ secrets.reviewers }}"
+        run: ( cd .github/shared-workflows/bot && go build ) && .github/shared-workflows/bot/bot -workflow=backport -token="${{ steps.generate_token.outputs.token }}" -reviewers="${{ env.REVIEWERS }}"
