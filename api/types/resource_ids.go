@@ -91,8 +91,20 @@ func (idl *ResourceAccessIDList) CheckAndSetDefaults() error {
 		}
 		if rc == nil {
 			continue
-		} else if err := rc.CheckAndSetDefaults(); err != nil {
-			return trace.Wrap(err)
+		}
+		if rc.Details == nil {
+			// Non-nil Constraints with nil Details represents decoded
+			// constraint content this build doesn't understand or that
+			// isn't valid (see [ResourceConstraints.UnmarshalJSON]).
+			// Keep entry as-is so AccessChecker fails on this resource;
+			// propagating the err here would reject the list and the
+			// identity at cert decode.
+			continue
+		}
+		if err := rc.CheckAndSetDefaults(); err != nil {
+			// Invalid known-kind content degrades like unknown content.
+			rc.Details = nil
+			continue
 		}
 	}
 	return nil
