@@ -40,6 +40,13 @@ import (
 
 const caRotationRetryBackoff = time.Second * 2
 
+var caWatchTypes = []types.CertAuthType{
+	types.HostCA,
+	types.UserCA,
+	types.DatabaseCA,
+	types.OpenSSHCA,
+}
+
 // Config contains configuration options for the CA Rotation service.
 type Config struct {
 	// BroadcastFn is a function that will be called to broadcast that a
@@ -176,14 +183,15 @@ func (s *Service) watchCARotations(ctx context.Context, queueReload func()) erro
 
 	ident := s.cfg.GetBotIdentityFn()
 	clusterName := ident.ClusterName
+	filter := make(types.CertAuthorityFilter)
+	for _, t := range caWatchTypes {
+		filter[t] = clusterName
+	}
+
 	watcher, err := s.cfg.Client.NewWatcher(ctx, types.Watch{
 		Kinds: []types.WatchKind{{
-			Kind: types.KindCertAuthority,
-			Filter: types.CertAuthorityFilter{
-				types.HostCA:     clusterName,
-				types.UserCA:     clusterName,
-				types.DatabaseCA: clusterName,
-			}.IntoMap(),
+			Kind:   types.KindCertAuthority,
+			Filter: filter.IntoMap(),
 		}},
 	})
 	if err != nil {
@@ -252,12 +260,8 @@ func filterCAEvent(ctx context.Context, log *slog.Logger, event types.Event, clu
 		)
 	}
 
-	// We want to skip anything that is not host, user, or db
-	if !slices.Contains([]string{
-		string(types.HostCA),
-		string(types.UserCA),
-		string(types.DatabaseCA),
-	}, ca.GetSubKind()) {
+	// We want to skip any CAs that we did not intend to watch.
+	if !slices.Contains(caWatchTypes, types.CertAuthType(ca.GetSubKind())) {
 		return fmt.Sprintf("skipping due to CA kind '%s'", ca.GetSubKind())
 	}
 
