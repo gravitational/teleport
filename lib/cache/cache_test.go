@@ -2010,6 +2010,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindInferencePolicy:                   types.Resource153ToLegacy(new(summaryv1.InferencePolicy)),
 		types.KindRetrievalModel:                    types.Resource153ToLegacy(new(summaryv1.RetrievalModel)),
 		types.KindCertAuthorityOverride:             types.Resource153ToLegacy(&subcav1.CertAuthorityOverride{}),
+		types.KindPendingCSRRequest:                 types.Resource153ToLegacy(&subcav1.PendingCSRRequest{}),
 	}
 
 	for name, cfg := range cases {
@@ -2091,6 +2092,8 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*summaryv1.RetrievalModel]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
 				case types.Resource153UnwrapperT[*subcav1.CertAuthorityOverride]:
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*subcav1.CertAuthorityOverride]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
+				case types.Resource153UnwrapperT[*subcav1.PendingCSRRequest]:
+					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*subcav1.PendingCSRRequest]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
 				case types.Resource153UnwrapperT[*beamsv1.Beam]:
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*beamsv1.Beam]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
 				case types.Resource153UnwrapperT[*beamsv1.BeamsConfig]:

@@ -719,6 +719,9 @@ const (
 	// KindCertAuthorityOverride is the resource kind for CA overrides.
 	KindCertAuthorityOverride = "cert_authority_override"
 
+	// KindPendingCSRRequest is the resource kind for pending CSR requests.
+	KindPendingCSRRequest = "pending_csr_request"
+
 	// KindDelegationSession is the resource kind for Delegation Sessions.
 	//
 	// Delegation Sessions allow users to temporarily lend (a subset of) their

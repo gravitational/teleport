@@ -296,6 +296,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newRetrievalModelParser()
 		case types.KindCertAuthorityOverride:
 			parser = newCertAuthorityOverrideParser()
+		case types.KindPendingCSRRequest:
+			parser = newPendingCSRRequestParser()
 		default:
 			if watch.AllowPartialSuccess {
 				continue
