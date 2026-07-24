@@ -240,15 +240,12 @@ To migrate Teleport Agents:
    `stable/v(=teleport.major_version=)` or if you are using automatic
    upgrades the `stable/rolling` channel has all released versions.
 
-
 1. If you are using Teleport Community Edition, [uninstall Teleport](installation/uninstall-teleport.mdx)
    and install the enterprise edition of the `teleport` binary. You can confirm if the binary
    is correct by running `teleport version`. The output will contain the words
    `Teleport Enterprise`. The enterprise edition of the `teleport`
    binary should be used when connecting to Teleport Enterprise (Cloud) or
    Teleport Enterprise (Self-Hosted).
-
-
 
 1. Update the `proxy_server` or `auth_servers` field in each Agent configuration
    file to point to the address of your new Teleport Enterprise cluster. By

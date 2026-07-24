@@ -144,6 +144,64 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// HandleError handles an error and forwards LLM compatible results to the
+// client.
+func (h *Handler) HandleError(r *http.Request, w http.ResponseWriter, err error) {
+	if err == nil {
+		return
+	}
+
+	sessionCtx, sessionCtxErr := common.GetSessionContext(r)
+	if sessionCtxErr != nil {
+		trace.WriteError(w, err)
+		return
+	}
+
+	llm := sessionCtx.App.GetLLM()
+	log := h.cfg.Log.With(
+		"app", sessionCtx.App.GetName(),
+		"format", llm.Format,
+		"provider", llm.Provider,
+	)
+
+	var formattedErr error
+	switch {
+	case trace.IsNotImplemented(err):
+		formattedErr = llmerrors.NewProviderError(llmerrors.ErrUnsupported, err.Error())
+	default:
+		// Other errors are most likely related to Teleport processing the
+		// request which is not valuable for callers, so log the error and
+		// return a generic one for the downstream.
+		log.ErrorContext(h.closeContext, "failed to process llm request due to error", "err", err)
+		formattedErr = llmerrors.ErrInternal
+	}
+
+	defer func() {
+		if auditErr := sessionCtx.Audit.OnLLMRequest(
+			h.closeContext,
+			sessionCtx,
+			r,
+			common.LLMRequest{Format: llm.Format, Provider: llm.Provider},
+			common.LLMResponse{Error: formattedErr},
+		); auditErr != nil {
+			log.ErrorContext(h.closeContext, "failed to emit audit event for failed request", "error", auditErr)
+		}
+	}()
+
+	switch llm.Format {
+	case types.LLMFormatAnthropic:
+		if werr := anthropic.WriteError(w, formattedErr); werr != nil {
+			log.ErrorContext(h.closeContext, "failed to write error", "error", werr)
+		}
+	case types.LLMFormatOpenAI:
+		if werr := openai.WriteError(w, formattedErr); werr != nil {
+			log.ErrorContext(h.closeContext, "failed to write error", "error", werr)
+		}
+	default:
+		trace.WriteError(w, formattedErr)
+	}
+}
+
 // serveHTTP routes requests to the configured LLM provider handler.
 func (h *Handler) serveHTTP(w http.ResponseWriter, r *http.Request) error {
 	sessionCtx, err := common.GetSessionContext(r)
@@ -161,7 +219,6 @@ func (h *Handler) serveHTTP(w http.ResponseWriter, r *http.Request) error {
 		).Observe(time.Since(start).Seconds())
 	}()
 
-	// TODO(gabrielcorado): implement OpenAI handler.
 	switch llm.Format {
 	case types.LLMFormatAnthropic:
 		h.handleRequest(
