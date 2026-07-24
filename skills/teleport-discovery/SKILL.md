@@ -33,6 +33,11 @@ allowed-tools:
 
 # Teleport Auto-Discovery
 
+Connect Teleport to your cloud to automatically discover and enroll your resources. Use Terraform
+to create an OIDC integration in your cloud provider and configure the Teleport
+Discovery Service. Troubleshoot any issues getting your resources enrolled. Supports AWS EC2
+instances, AWS EKS clusters, and Azure VMS.
+
 ## Communicating
 
 Open with one or two sentences stating which procedures will run and what each produces or

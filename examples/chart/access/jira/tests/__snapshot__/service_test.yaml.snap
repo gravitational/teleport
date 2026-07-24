@@ -8,9 +8,9 @@ should be possible to add custom annotations:
       name: RELEASE-NAME-teleport-plugin-jira
     spec:
       ports:
-      - name: https
-        port: 443
-        targetPort: 8443
+        - name: https
+          port: 443
+          targetPort: 8443
       selector:
         app.kubernetes.io/instance: RELEASE-NAME
         app.kubernetes.io/name: teleport-plugin-jira

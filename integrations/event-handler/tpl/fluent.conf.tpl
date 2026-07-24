@@ -36,7 +36,7 @@
     </buffer>
 </source>
 
-<match test.log>
+<match events.log>
   @type stdout
 </match>
 

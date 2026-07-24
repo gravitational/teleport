@@ -193,6 +193,8 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.AppSessionChunk{}
 	case AppSessionRequestEvent:
 		e = &events.AppSessionRequest{}
+	case AppSessionTargetDialDeniedEvent:
+		e = &events.AppSessionTargetDialDenied{}
 	case AppSessionDynamoDBRequestEvent:
 		e = &events.AppSessionDynamoDBRequest{}
 	case AppSessionLLMRequestSuccessEvent, AppSessionLLMRequestFailureEvent:
@@ -294,7 +296,8 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		DeviceAuthenticateEvent,
 		DeviceEnrollTokenCreateEvent,
 		DeviceWebTokenCreateEvent,
-		DeviceAuthenticateConfirmEvent:
+		DeviceAuthenticateConfirmEvent,
+		DeviceEnrollPairingRequestEvent:
 		e = &events.DeviceEvent2{}
 	case LockCreatedEvent:
 		e = &events.LockCreate{}

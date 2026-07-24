@@ -47,8 +47,8 @@ spec:
         # ek_certificate_serial is the serial number of the EKCert in hexadecimal
         # with colon separated nibbles. This value will not be checked when a TPM
         # does not have an EKCert configured. Setting this field requires that
-	# either ek_publish_hash be set or a certificate is configured in
-	# ekcert_allowed_cas so that the integrity of the certificate with the
-	# serial number can be verified.
+        # either ek_public_hash be set or a certificate be configured in
+        # ekcert_allowed_cas so that the integrity of the certificate with the
+        # serial number can be verified.
         ek_certificate_serial: "01:23:45:67:89:ex:am:pl:e0:23:45:67:89:ab:cd:ef"
 ```

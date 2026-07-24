@@ -19,11 +19,13 @@
 //! Go (via cgo) can create a decoder and call its methods.
 
 mod cursor;
+#[cfg(feature = "image-resize")]
 mod image;
 mod regions;
 
 use crate::cursor::CursorState;
 use crate::regions::UpdatedRegions;
+#[cfg(feature = "image-resize")]
 use fast_image_resize::Resizer;
 use ironrdp_core::WriteBuf;
 use ironrdp_graphics::image_processing::PixelFormat;
@@ -40,7 +42,9 @@ pub struct RdpDecoder {
     fast_path_processor: Processor,
     cursor_state: CursorState,
     updated_regions: UpdatedRegions,
+    #[cfg(feature = "image-resize")]
     resizer: Resizer,
+    #[cfg(feature = "image-resize")]
     composite_scratch: Vec<u8>,
 }
 
@@ -69,7 +73,9 @@ impl RdpDecoder {
             .build(),
             cursor_state: Default::default(),
             updated_regions: Default::default(),
+            #[cfg(feature = "image-resize")]
             resizer: Resizer::new(),
+            #[cfg(feature = "image-resize")]
             composite_scratch: Vec::new(),
         }
     }
@@ -335,28 +341,41 @@ pub unsafe extern "C" fn rdp_decoder_resize_crop(
         return false;
     }
 
-    let with_cursor = with_cursor != 0;
+    // Resize/crop scaling is only compiled into the full RDP client (image-resize feature), which
+    // the desktop thumbnail and session summary generation needs. This means we can avoid including
+    // it in tsh.
+    #[cfg(not(feature = "image-resize"))]
+    {
+        let _ = (crop_x, crop_y, out_buf_len, with_cursor);
+        return false;
+    }
 
-    catch_unwind(AssertUnwindSafe(move || unsafe {
-        let decoder = &mut *ptr;
-        let needed =
-            (out_width as usize) * (out_height as usize) * usize::from(decoder.bytes_per_pixel());
-        if out_buf_len < needed {
-            return false;
-        }
+    #[cfg(feature = "image-resize")]
+    {
+        let with_cursor = with_cursor != 0;
 
-        let dst = std::slice::from_raw_parts_mut(out_buf, needed);
-        decoder
-            .resize_crop_into(
-                (crop_x, crop_y),
-                (crop_w, crop_h),
-                (out_width, out_height),
-                dst,
-                with_cursor,
-            )
-            .is_ok()
-    }))
-    .unwrap_or(false)
+        catch_unwind(AssertUnwindSafe(move || unsafe {
+            let decoder = &mut *ptr;
+            let needed = (out_width as usize)
+                * (out_height as usize)
+                * usize::from(decoder.bytes_per_pixel());
+            if out_buf_len < needed {
+                return false;
+            }
+
+            let dst = std::slice::from_raw_parts_mut(out_buf, needed);
+            decoder
+                .resize_crop_into(
+                    (crop_x, crop_y),
+                    (crop_w, crop_h),
+                    (out_width, out_height),
+                    dst,
+                    with_cursor,
+                )
+                .is_ok()
+        }))
+        .unwrap_or(false)
+    }
 }
 
 /// Override the decoder's tracked cursor position. Useful for cursor updates
@@ -549,12 +568,14 @@ pub unsafe extern "C" fn rdp_decoder_updated_regions_count(ptr: *mut RdpDecoder)
 mod tests {
     use super::*;
 
+    #[cfg(feature = "image-resize")]
     fn make_decoder(width: u16, height: u16) -> *mut RdpDecoder {
         let ptr = rdp_decoder_new(width, height, 1003, 1007);
         assert!(!ptr.is_null());
         ptr
     }
 
+    #[cfg(feature = "image-resize")]
     #[test]
     fn resize_crop_rejects_crop_extending_past_width() {
         let ptr = make_decoder(100, 100);
@@ -571,6 +592,7 @@ mod tests {
         unsafe { rdp_decoder_free(ptr) };
     }
 
+    #[cfg(feature = "image-resize")]
     #[test]
     fn resize_crop_rejects_crop_extending_past_height() {
         let ptr = make_decoder(100, 100);
@@ -586,6 +608,7 @@ mod tests {
         unsafe { rdp_decoder_free(ptr) };
     }
 
+    #[cfg(feature = "image-resize")]
     #[test]
     fn resize_crop_rejects_zero_crop_dimensions() {
         let ptr = make_decoder(100, 100);
@@ -608,6 +631,7 @@ mod tests {
         }
     }
 
+    #[cfg(feature = "image-resize")]
     #[test]
     fn resize_crop_accepts_in_bounds_crop() {
         let ptr = make_decoder(100, 100);
@@ -677,6 +701,7 @@ mod tests {
         assert_ne!(sample_hash(&a, 1, 1, 4, 64), sample_hash(&b, 1, 1, 4, 64));
     }
 
+    #[cfg(feature = "image-resize")]
     #[test]
     fn resize_crop_with_cursor_accepts_in_bounds_crop() {
         let ptr = make_decoder(100, 100);
@@ -700,6 +725,7 @@ mod tests {
         unsafe { rdp_decoder_free(ptr) };
     }
 
+    #[cfg(feature = "image-resize")]
     #[test]
     fn resize_crop_with_cursor_rejects_out_of_bounds_crop() {
         let ptr = make_decoder(100, 100);

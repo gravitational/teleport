@@ -46,8 +46,23 @@ var (
 type Kind string
 
 const (
-	// KindSQLite selects the SQLite-backed implementation.
-	KindSQLite Kind = "sqlite"
+	// KindSQLiteDisk selects the SQLite-backed on-disk implementation.
+	KindSQLiteDisk Kind = "sqlite_disk"
+	// KindSQLiteMemory selects the SQLite-backed in-memory implementation.
+	KindSQLiteMemory Kind = "sqlite_memory"
+)
+
+// SynchronousMode controls the SQLite synchronous pragma.
+type SynchronousMode string
+
+const (
+	// SynchronousNormal commits are durable against OS crashes but not against
+	// power loss mid-write. This is the default for SQLite and is safe for most
+	// use cases in WAL mode.
+	SynchronousNormal SynchronousMode = "NORMAL"
+	// SynchronousFull syncs to disk before each commit, providing full
+	// durability at the cost of higher write latency.
+	SynchronousFull SynchronousMode = "FULL"
 )
 
 // Config configures a Queue.
@@ -57,11 +72,22 @@ type Config struct {
 	// OrphanScanInterval is how often the queue scans for orphaned audit log
 	// queues.
 	OrphanScanInterval time.Duration
-	// MaxBytes sets the maximum database file size
+	// MaxBytes sets the maximum database size
 	MaxBytes int64
 	// SoftLimit is the size of the audit log queue at which we start logging
 	// warning messages.
 	SoftLimit int64
+	// MaxAttempts is the number of delivery failures before an event is moved
+	// to the dead-letter queue. Defaults to 10 if unset.
+	MaxAttempts int
+	// DeadLetterSweepInterval is how often the dead-letter sweeper re-attempts
+	// delivery of failed events.
+	DeadLetterSweepInterval time.Duration
+	// DeadLetterTTL is the maximum age of a dead-letter event before it is
+	// permanently deleted.
+	DeadLetterTTL time.Duration
+	// Synchronous controls the SQLite synchronous pragma.
+	Synchronous SynchronousMode
 }
 
 // Item is an event yielded to a Handler.
@@ -93,8 +119,10 @@ type Queue interface {
 // New constructs a Queue of the given kind.
 func New(kind Kind, cfg Config) (Queue, error) {
 	switch kind {
-	case KindSQLite:
+	case KindSQLiteDisk:
 		return newSQLiteQueue(cfg)
+	case KindSQLiteMemory:
+		return newSQLiteInMemoryQueue(cfg)
 	default:
 		return nil, trace.BadParameter("unknown audit queue kind: '%s'", kind)
 	}

@@ -63,6 +63,10 @@ const (
 	accessListMemberPrefix      = "access_list_member"
 	accessListMemberMaxPageSize = 200
 
+	// Access list reviews are stored under one of the following key ranges,
+	// depending on the scope of the reviewed list:
+	// - /access_list_review/<list-name>/<review-id>                             (for unscoped lists)
+	// - /scoped/access_list_review/<encoded-list-scope>/<list-name>/<review-id> (for scoped lists)
 	accessListReviewPrefix      = "access_list_review"
 	accessListReviewMaxPageSize = 200
 
@@ -93,7 +97,7 @@ type AccessListService struct {
 	scopesFeatures scopes.Features
 	service        *generic.ScopeAwareService[*accesslist.AccessList]
 	memberService  *generic.ScopeAwareService[*accesslist.AccessListMember]
-	reviewService  *generic.Service[*accesslist.Review]
+	reviewService  *generic.ScopeAwareService[*accesslist.Review]
 }
 
 type accessListAndMembersGetter struct {
@@ -344,11 +348,12 @@ func NewAccessListServiceV2(cfg AccessListServiceConfig) (*AccessListService, er
 		return nil, trace.Wrap(err)
 	}
 
-	reviewService, err := generic.NewService(&generic.ServiceConfig[*accesslist.Review]{
+	reviewService, err := generic.NewScopeAwareService(&generic.ScopeAwareServiceConfig[*accesslist.Review]{
 		Backend:                     cfg.Backend,
 		PageLimit:                   accessListReviewMaxPageSize,
 		ResourceKind:                types.KindAccessListReview,
-		BackendPrefix:               backend.NewKey(accessListReviewPrefix),
+		UnscopedBackendPrefix:       backend.NewKey(accessListReviewPrefix),
+		ScopedBackendPrefix:         backend.NewKey(scopedPrefix, accessListReviewPrefix),
 		MarshalFunc:                 services.MarshalAccessListReview,
 		UnmarshalFunc:               services.UnmarshalAccessListReview,
 		RunWhileLockedRetryInterval: cfg.RunWhileLockedRetryInterval,
@@ -367,11 +372,9 @@ func NewAccessListServiceV2(cfg AccessListServiceConfig) (*AccessListService, er
 	}, nil
 }
 
-// GetAccessLists returns a list of all access lists.
+// GetAccessLists returns a list of all unscoped access lists.
 func (a *AccessListService) GetAccessLists(ctx context.Context) ([]*accesslist.AccessList, error) {
-	// TODO(nklaassen): support listing scoped access lists.
-	accessLists, err := a.service.UnscopedService.GetResources(ctx)
-	return accessLists, trace.Wrap(err)
+	return a.service.UnscopedService.GetResources(ctx)
 }
 
 // GetInheritedGrants returns grants inherited by access list accessListID from parent access lists.
@@ -380,9 +383,8 @@ func (a *AccessListService) GetInheritedGrants(ctx context.Context, accessListID
 	return nil, trace.NotImplemented("GetInheritedGrants should not be called")
 }
 
-// ListAccessLists returns a paginated list of access lists.
+// ListAccessLists returns a paginated list of unscoped access lists.
 func (a *AccessListService) ListAccessLists(ctx context.Context, pageSize int, nextToken string) ([]*accesslist.AccessList, string, error) {
-	// TODO(nklaassen): support listing scoped access lists.
 	return a.service.UnscopedService.ListResources(ctx, pageSize, nextToken)
 }
 
@@ -390,13 +392,17 @@ func (a *AccessListService) ListAccessLists(ctx context.Context, pageSize int, n
 func (a *AccessListService) ListAccessListsV2(ctx context.Context, req *accesslistv1.ListAccessListsV2Request) ([]*accesslist.AccessList, string, error) {
 	// Currently, the backend only sorts on lexicographical keys and not
 	// based on fields within a resource
-	if req.HasSortBy() && (req.GetSortBy().Field != "name" || req.GetSortBy().IsDesc != false) {
+	if req.HasSortBy() && (req.GetSortBy().Field != "name" || req.GetSortBy().IsDesc) {
 		return nil, "", trace.CompareFailed("unsupported sort, only name:asc is supported, but got %q (desc = %t)", req.GetSortBy().Field, req.GetSortBy().IsDesc)
 	}
 
-	// TODO(nklaassen): support listing scoped access lists.
-	return a.service.UnscopedService.ListResourcesWithFilter(ctx, int(req.GetPageSize()), req.GetPageToken(), func(item *accesslist.AccessList) bool {
-		return services.MatchAccessList(item, req.GetFilter())
+	scopeFilter := req.GetScopeFilter()
+	if err := scopes.ValidateFilter(scopeFilter); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	return a.service.ListResourcesWithFilter(ctx, int(req.GetPageSize()), req.GetPageToken(), func(item *accesslist.AccessList) bool {
+		return services.MatchAccessList(item, req.GetFilter()) && scopes.MatchScope(scopeFilter, item.GetScope())
 	})
 }
 
@@ -741,10 +747,20 @@ func (a *AccessListService) ListAccessListMembersV2(ctx context.Context, req *ac
 	return membersService.listResources(ctx, int(req.GetPageSize()), req.GetPageToken())
 }
 
-// ListAllAccessListMembers returns a paginated list of all access list members for all access lists.
+// ListAllAccessListMembers returns a paginated list of all access list members for all unscoped access lists.
 func (a *AccessListService) ListAllAccessListMembers(ctx context.Context, pageSize int, pageToken string) ([]*accesslist.AccessListMember, string, error) {
-	// TODO(nklaassen): support listing scoped access list members with opt-in.
 	return a.memberService.UnscopedService.ListResources(ctx, pageSize, pageToken)
+}
+
+// ListAllAccessListMembersV2 returns a paginated list of all access list members for all access lists.
+func (a *AccessListService) ListAllAccessListMembersV2(ctx context.Context, req *accesslistv1.ListAllAccessListMembersRequest) ([]*accesslist.AccessListMember, string, error) {
+	scopeFilter := req.GetScopeFilter()
+	if err := scopes.ValidateFilter(scopeFilter); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	return a.memberService.ListResourcesWithFilter(ctx, int(req.GetPageSize()), req.GetPageToken(), func(member *accesslist.AccessListMember) bool {
+		return scopes.MatchScope(scopeFilter, member.GetScope())
+	})
 }
 
 // GetAccessListMember returns the specified access list member resource.
@@ -1423,40 +1439,55 @@ func (a *AccessListService) AccessRequestPromote(_ context.Context, _ *accesslis
 
 // ListAccessListReviews will list access list reviews for a particular access list.
 func (a *AccessListService) ListAccessListReviews(ctx context.Context, accessList string, pageSize int, pageToken string) (reviews []*accesslist.Review, nextToken string, err error) {
-	_, err = a.GetAccessList(ctx, accessList)
+	return a.ListAccessListReviewsV2(ctx, accesslistv1.ListAccessListReviewsRequest_builder{
+		AccessList: accessList,
+		PageSize:   int32(pageSize),
+		NextToken:  pageToken,
+	}.Build())
+}
+
+func (a *AccessListService) ListAccessListReviewsV2(ctx context.Context, req *accesslistv1.ListAccessListReviewsRequest) (reviews []*accesslist.Review, nextToken string, err error) {
+	listName := accesslists.NormalizeSQN(scopes.QualifiedName{
+		Scope: req.GetAccessListScope(),
+		Name:  req.GetAccessList(),
+	})
+	_, err = a.getAccessList(ctx, listName)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 
-	reviews, nextToken, err = a.reviewService.WithPrefix(accessList).ListResources(ctx, pageSize, pageToken)
+	reviewService, err := a.reviewService.WithScopedResourcePrefix(listName.ToScopesQualifiedName())
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	reviews, nextToken, err = reviewService.ListResources(ctx, int(req.GetPageSize()), req.GetNextToken())
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 	return reviews, nextToken, nil
 }
 
-// ListAllAccessListReviews will list access list reviews for all access lists.
+// ListAllAccessListReviews will list access list reviews for all unscoped access lists.
 func (a *AccessListService) ListAllAccessListReviews(ctx context.Context, pageSize int, pageToken string) ([]*accesslist.Review, string, error) {
-	reviews, next, err := a.reviewService.ListResourcesReturnNextResource(ctx, pageSize, pageToken)
-	if err != nil {
+	return a.reviewService.UnscopedService.ListResources(ctx, pageSize, pageToken)
+}
+
+// ListAllAccessListReviewsV2 will list access list reviews for all access lists.
+func (a *AccessListService) ListAllAccessListReviewsV2(ctx context.Context, req *accesslistv1.ListAllAccessListReviewsRequest) ([]*accesslist.Review, string, error) {
+	scopeFilter := req.GetScopeFilter()
+	if err := scopes.ValidateFilter(scopeFilter); err != nil {
 		return nil, "", trace.Wrap(err)
 	}
-	var nextKey string
-	if next != nil {
-		nextKey = (*next).Spec.AccessList + string(backend.Separator) + (*next).Metadata.Name
-	}
-	return reviews, nextKey, nil
+	return a.reviewService.ListResourcesWithFilter(ctx, int(req.GetPageSize()), req.GetNextToken(), func(review *accesslist.Review) bool {
+		return scopes.MatchScope(scopeFilter, review.GetScope())
+	})
 }
 
 // CreateAccessListReview will create a new review for an access list.
 func (a *AccessListService) CreateAccessListReview(ctx context.Context, review *accesslist.Review) (*accesslist.Review, time.Time, error) {
-	if review.Scope != "" {
-		// TODO(nklaassen): support scoped access list reviews.
-		return nil, time.Time{}, trace.BadParameter("scoped access list reviews are not yet supported")
-	}
-
 	reviewName := uuid.New().String()
-	createdReview, err := accesslist.NewReview(header.Metadata{
+	createdReview, err := accesslist.NewReviewWithScope(header.Metadata{
 		Name:        reviewName,
 		Labels:      review.GetAllLabels(),
 		Description: review.Metadata.Description,
@@ -1467,21 +1498,44 @@ func (a *AccessListService) CreateAccessListReview(ctx context.Context, review *
 		ReviewDate: review.Spec.ReviewDate,
 		Notes:      review.Spec.Notes,
 		Changes:    review.Spec.Changes,
-	})
+	}, review.Scope)
 	if err != nil {
 		return nil, time.Time{}, trace.Wrap(err)
 	}
 
+	reviewedListName, err := accesslists.ReviewedList(review)
+	if err != nil {
+		return nil, time.Time{}, trace.Wrap(err)
+	}
+	reviewService, err := a.reviewService.WithScopedResourcePrefix(reviewedListName.ToScopesQualifiedName())
+	if err != nil {
+		return nil, time.Time{}, trace.Wrap(err)
+	}
+	allRemovedMembers, err := accesslists.AllRemovedMembers(review)
+	if err != nil {
+		return nil, time.Time{}, trace.Wrap(err)
+	}
+	if review.Scope != "" && !review.Spec.Changes.MembershipRequirementsChanged.IsEmpty() {
+		return nil, time.Time{}, trace.BadParameter("scoped access lists cannot contain membership requirements")
+	}
+	if review.Scope == "" && len(review.Spec.Changes.ScopedRemovedMembers) > 0 {
+		return nil, time.Time{}, trace.BadParameter("unscoped access lists cannot have scoped members")
+	}
+
 	var nextAuditDate time.Time
 
-	err = a.service.RunWhileLocked(ctx, lockName(review.Spec.AccessList), accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
-		accessList, err := a.GetAccessList(ctx, review.Spec.AccessList)
+	lockName, err := scopeAwareLockName(reviewedListName)
+	if err != nil {
+		return nil, time.Time{}, trace.Wrap(err)
+	}
+	err = a.service.RunWhileLocked(ctx, lockName, accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
+		accessList, err := a.getAccessList(ctx, reviewedListName)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
 		if !accessList.IsReviewable() {
-			return trace.BadParameter("access_list %q is not reviewable", accessList.GetName())
+			return trace.BadParameter("access_list %q is not reviewable", reviewedListName.String())
 		}
 
 		if createdReview.Spec.Changes.MembershipRequirementsChanged != nil {
@@ -1508,7 +1562,7 @@ func (a *AccessListService) CreateAccessListReview(ctx context.Context, review *
 			}
 		}
 
-		createdReview, err = a.reviewService.WithPrefix(review.Spec.AccessList).CreateResource(ctx, createdReview)
+		createdReview, err = reviewService.CreateResource(ctx, createdReview)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1519,22 +1573,23 @@ func (a *AccessListService) CreateAccessListReview(ctx context.Context, review *
 		}
 		accessList.Spec.Audit.NextAuditDate = nextAuditDate
 
-		// TODO(nklaassen): support scoped access list reviews.
-		reviewedListName := accesslists.NormalizedSQN{Name: review.Spec.AccessList}
-
-		for _, removedMember := range review.Spec.Changes.RemovedMembers {
-			_, err := a.memberService.UnscopedService.WithPrefix(review.Spec.AccessList).GetResource(ctx, removedMember)
+		for _, removedMember := range allRemovedMembers {
+			memberService, err := a.memberServiceForNamedMember(reviewedListName, removedMember)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			_, err = memberService.get(ctx)
 			if err != nil && !trace.IsNotFound(err) {
 				return trace.Wrap(err)
 			}
 			isAccessListMember := err == nil
 
 			if isAccessListMember {
-				if err := a.updateAccessListMemberOf(ctx, reviewedListName, accesslists.NormalizedSQN{Name: removedMember}, false); err != nil {
+				if err := a.updateAccessListMemberOf(ctx, reviewedListName, removedMember, false); err != nil {
 					return trace.Wrap(err)
 				}
 			}
-			if err := a.memberService.UnscopedService.WithPrefix(review.Spec.AccessList).DeleteResource(ctx, removedMember); err != nil {
+			if err := memberService.delete(ctx); err != nil {
 				return trace.Wrap(err)
 			}
 		}
@@ -1592,11 +1647,27 @@ func accessListRequiresEqual(a, b accesslist.Requires) bool {
 
 // DeleteAccessListReview will delete an access list review from the backend.
 func (a *AccessListService) DeleteAccessListReview(ctx context.Context, accessListName, reviewName string) error {
-	_, err := a.GetAccessList(ctx, accessListName)
+	return a.DeleteAccessListReviewV2(ctx, accesslistv1.DeleteAccessListReviewRequest_builder{
+		AccessListName: accessListName,
+		ReviewName:     reviewName,
+	}.Build())
+}
+
+// DeleteAccessListReviewV2 will delete an access list review from the backend.
+func (a *AccessListService) DeleteAccessListReviewV2(ctx context.Context, req *accesslistv1.DeleteAccessListReviewRequest) error {
+	accessListName := accesslists.NormalizeSQN(scopes.QualifiedName{
+		Scope: req.GetAccessListScope(),
+		Name:  req.GetAccessListName(),
+	})
+	_, err := a.getAccessList(ctx, accessListName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	return trace.Wrap(a.reviewService.WithPrefix(accessListName).DeleteResource(ctx, reviewName))
+	reviewService, err := a.reviewService.WithScopedResourcePrefix(accessListName.ToScopesQualifiedName())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(reviewService.DeleteResource(ctx, req.GetReviewName()))
 }
 
 // DeleteAllAccessListReviews will delete all access list reviews from all access lists.
@@ -1708,7 +1779,7 @@ func (a *AccessListService) insertMembersAndUpdateNestedRelationships(ctx contex
 }
 
 func (a *AccessListService) insertMembers(ctx context.Context, acl accesslists.NormalizedSQN, members []*accesslist.AccessListMember) error {
-	items, err := a.membersToBackendItems(acl, members)
+	items, err := stream.Collect(a.membersToBackendItems(acl, members))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1723,24 +1794,30 @@ func (a *AccessListService) insertMembers(ctx context.Context, acl accesslists.N
 	return nil
 }
 
-func (a *AccessListService) membersToBackendItems(acl accesslists.NormalizedSQN, members []*accesslist.AccessListMember) ([]backend.Item, error) {
-	out := make([]backend.Item, 0, len(members))
-	for _, member := range members {
-		memberName, err := accesslists.MemberScopeQualifiedName(member)
-		if err != nil {
-			return nil, trace.Wrap(err)
+func (a *AccessListService) membersToBackendItems(acl accesslists.NormalizedSQN, members []*accesslist.AccessListMember) iter.Seq2[backend.Item, error] {
+	return func(yield func(backend.Item, error) bool) {
+		for _, member := range members {
+			memberName, err := accesslists.MemberScopeQualifiedName(member)
+			if err != nil {
+				yield(backend.Item{}, trace.Wrap(err))
+				return
+			}
+			memberService, err := a.memberServiceForNamedMember(acl, memberName)
+			if err != nil {
+				yield(backend.Item{}, trace.Wrap(err))
+				return
+			}
+			item, err := memberService.makeBackendItem(member)
+			if err != nil {
+				yield(backend.Item{}, trace.Wrap(err))
+				return
+			}
+			if !yield(item, nil) {
+				return
+			}
 		}
-		memberService, err := a.memberServiceForNamedMember(acl, memberName)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		item, err := memberService.makeBackendItem(member)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		out = append(out, item)
+
 	}
-	return out, nil
 }
 
 func (a *AccessListService) updatedMembersNestedRelationships(ctx context.Context, acl accesslists.NormalizedSQN, members []*accesslist.AccessListMember) error {
@@ -1977,7 +2054,6 @@ func (a *AccessListService) collectionToBackendItemsIter(collection *accesslists
 				yield(backend.Item{}, trace.NotFound("access list %q not found", aclName))
 				return
 			}
-			// TODO(nklaassen): support collections of scoped access lists.
 			for _, member := range members {
 				item, err := a.memberService.UnscopedService.WithPrefix(member.Spec.AccessList).MakeBackendItem(member)
 				if err != nil {
@@ -1988,8 +2064,94 @@ func (a *AccessListService) collectionToBackendItemsIter(collection *accesslists
 					return
 				}
 			}
-			// TODO(nklaassen): support collections of scoped access lists.
 			item, err := a.service.UnscopedService.MakeBackendItem(acl)
+			if err != nil {
+				yield(backend.Item{}, trace.Wrap(err))
+				return
+			}
+			if !yield(item, nil) {
+				return
+			}
+		}
+	}
+}
+
+// InsertScopedAccessListCollection inserts a complete collection of access lists and their members from a single
+// upstream source (e.g. EntraID) using a batch operation for improved performance.
+//
+// This method is designed for bulk import scenarios where an entire access list collection needs to be
+// synchronized from an external source. All access lists and members in the collection are
+// inserted using chunked batch operations, minimizing memory allocation while still reducing
+// the number of write operations. Due to the batch nature of this operation (access list hierarchy
+// is known upfront), we can avoid per-access-list locking and global locks to improve performance.
+//
+// Important: This method assumes the collection is self-contained. Access lists in the collection
+// cannot reference access lists outside the collection as members or owners. This is intentional for
+// collections representing a complete snapshot from a single upstream source.
+// The function should be used only once during initial import where
+// we are sure that Teleport doesn't have any pre-existing access lists from the upstream and the
+// internal relation between upstream access lists and internal access lists doesn't exist yet.
+//
+// Operation can fail due to backend shutdown. In that case, if partial state was created,
+// use UpsertAccessListWithMembers/DeleteAccessListMember to reconcile to the desired state.
+func (a *AccessListService) InsertScopedAccessListCollection(ctx context.Context, collection *accesslists.ScopedCollection) error {
+	if err := a.scopesFeatures.AssertEnabled(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := collection.Validate(ctx); err != nil {
+		return trace.Wrap(err)
+	}
+	// Collect backend items in chunks of 800 items each to avoid high memory consumption
+	// from constructing a large slice of all backend items at once. PutBatch will then
+	// leverage its own internal chunking to write items to the backend in smaller batches.
+	// TODO(smallinsky) align the chunk size with the one used in backend.PutBatch
+	for chunk, err := range stream.Chunks(a.scopedCollectionToBackendItemsIter(collection), 800) {
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if _, err := backend.PutBatch(ctx, a.backend, chunk); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
+// scopedCollectionToBackendItemsIter converts access list collection to an iterator of backend items.
+// The iterator yields access list members first, followed by their parent access list.
+func (a *AccessListService) scopedCollectionToBackendItemsIter(collection *accesslists.ScopedCollection) iter.Seq2[backend.Item, error] {
+	return func(yield func(backend.Item, error) bool) {
+		seenLists := make(map[accesslists.NormalizedSQN]struct{}, len(collection.MembersByAccessList))
+		for aclName, members := range collection.MembersByAccessList {
+			acl, ok := collection.AccessListsByName[aclName]
+			if !ok {
+				yield(backend.Item{}, trace.NotFound("access list %q not found", aclName))
+				return
+			}
+			for item, err := range a.membersToBackendItems(aclName, members) {
+				if err != nil {
+					yield(backend.Item{}, err)
+					return
+				}
+				if !yield(item, nil) {
+					return
+				}
+			}
+			item, err := a.service.MakeBackendItem(acl)
+			if err != nil {
+				yield(backend.Item{}, trace.Wrap(err))
+				return
+			}
+			if !yield(item, nil) {
+				return
+			}
+			seenLists[aclName] = struct{}{}
+		}
+		for aclName, acl := range collection.AccessListsByName {
+			if _, ok := seenLists[aclName]; ok {
+				continue
+			}
+			item, err := a.service.MakeBackendItem(acl)
 			if err != nil {
 				yield(backend.Item{}, trace.Wrap(err))
 				return

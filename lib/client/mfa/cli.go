@@ -265,7 +265,7 @@ func (c *CLIPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 			ctx,
 			"Disabling Browser MFA: user needs at least one webauthn device and client needs to support SSO MFA Ceremony",
 			"webauthn_available", chal.WebauthnChallenge != nil,
-			"mfa_ceremony_available (if false, this is a bug)", c.cfg.CallbackCeremony != nil,
+			"mfa_ceremony_available", c.cfg.CallbackCeremony != nil,
 		)
 	}
 

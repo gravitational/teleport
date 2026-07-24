@@ -118,6 +118,7 @@ export type IntegrationSpecAzureOidc = {
   managedIdentity?: {
     region: string;
     resourceGroup: string;
+    managementGroupId?: string;
   };
 };
 

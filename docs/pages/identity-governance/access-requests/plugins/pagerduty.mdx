@@ -8,11 +8,12 @@ tags:
  - identity-governance
  - privileged-access
 enterprise: Identity Governance
+page_type: how-to
 ---
 
 With Teleport's PagerDuty integration, engineers can access the infrastructure
 they need to resolve incidents quickly—without longstanding admin permissions
-that can become a vector for attacks. This guide explains how to set up
+that can become a vector for attacks. This guide shows you how to set up
 Teleport's Access Request plugin for PagerDuty.
 
 ## How it works
@@ -388,7 +389,7 @@ longer-lived identity files with `tctl`:
 (!docs/pages/includes/plugins/tbot-identity.mdx secret="teleport-plugin-pagerduty-identity"!)
 </TabItem>
 <TabItem label="Long-lived identity files">
-(!docs/pages/includes/plugins/identity-export.mdx user="access-plugin" secret="teleport-plugin-pagerduty-identity"!)
+(!docs/pages/includes/plugins/identity-export.mdx plugin="pagerduty" secret="teleport-plugin-pagerduty-identity"!)
 </TabItem>
 </Tabs>
 

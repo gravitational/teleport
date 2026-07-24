@@ -36,7 +36,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coreos/go-semver/semver"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
@@ -52,7 +51,6 @@ import (
 	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/breaker"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	autoupdatepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
@@ -67,7 +65,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/storage"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/cloud/imds"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -1216,91 +1213,6 @@ func expectedSSHPrincipals(hostID, hostName, clusterName string) []string {
 		string(teleport.PrincipalLoopbackV6),
 	}
 
-}
-
-func TestTeleportProcessAuthVersionCheck(t *testing.T) {
-	t.Parallel()
-
-	listenAddr := utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
-	token := "join-token"
-
-	// Create Auth Service process.
-	staticTokens, err := types.NewStaticTokens(types.StaticTokensSpecV2{
-		StaticTokens: []types.ProvisionTokenV1{
-			{
-				Roles: []types.SystemRole{
-					types.RoleNode,
-				},
-				Token: token,
-			},
-		},
-	})
-	require.NoError(t, err)
-
-	authCfg := servicecfg.MakeDefaultConfig()
-	authCfg.InsecureMode = true
-	authCfg.SetAuthServerAddress(listenAddr)
-	authCfg.DataDir = makeTempDir(t)
-	authCfg.Auth.Enabled = true
-	authCfg.Auth.StaticTokens = staticTokens
-	authCfg.Auth.StorageConfig.Type = lite.GetName()
-	authCfg.Auth.StorageConfig.Params = backend.Params{defaults.BackendPath: filepath.Join(authCfg.DataDir, defaults.BackendDir)}
-	authCfg.Auth.ListenAddr = listenAddr
-	authCfg.Proxy.Enabled = false
-	authCfg.SSH.Enabled = false
-
-	authProc, err := NewTeleport(authCfg)
-	require.NoError(t, err)
-
-	err = authProc.Start()
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		authProc.Close()
-	})
-
-	// Create Node process, pointing at the auth server's local port
-	authListenAddr := authProc.Config.AuthServerAddresses()[0]
-	nodeCfg := servicecfg.MakeDefaultConfig()
-	nodeCfg.InsecureMode = true
-	nodeCfg.SetAuthServerAddress(authListenAddr)
-	nodeCfg.DataDir = makeTempDir(t)
-	nodeCfg.SetToken(token)
-	nodeCfg.Auth.Enabled = false
-	nodeCfg.Proxy.Enabled = false
-	nodeCfg.SSH.Enabled = true
-
-	// Set the Node's major version to be greater than the Auth Service's,
-	// which should make the version check fail.
-	currentVersion := semver.Version{Major: api.VersionMajor + 1}
-	nodeCfg.Testing.TeleportVersion = currentVersion.String()
-
-	t.Run("with version check", func(t *testing.T) {
-		testVersionCheck(t, nodeCfg, false)
-	})
-
-	t.Run("without version check", func(t *testing.T) {
-		testVersionCheck(t, nodeCfg, true)
-	})
-}
-
-func testVersionCheck(t *testing.T, nodeCfg *servicecfg.Config, skipVersionCheck bool) {
-	nodeCfg.SkipVersionCheck = skipVersionCheck
-
-	nodeProc, err := NewTeleport(nodeCfg)
-	require.NoError(t, err)
-
-	c, err := nodeProc.reconnectToAuthService(types.RoleInstance)
-	if skipVersionCheck {
-		require.NoError(t, err)
-		require.NotNil(t, c)
-	} else {
-		require.ErrorAs(t, err, &invalidVersionErr{})
-		require.Nil(t, c)
-	}
-
-	supervisor, ok := nodeProc.Supervisor.(*LocalSupervisor)
-	require.True(t, ok)
-	supervisor.signalExit()
 }
 
 func TestProxyGRPCServers(t *testing.T) {

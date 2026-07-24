@@ -8,12 +8,13 @@ tags:
  - identity-governance
  - privileged-access
 enterprise: Identity Governance
+page_type: how-to
 ---
 
 import BotLogo from "/static/avatar_logo.png";
 import AppIcon from "@version/docs/img/sso/onelogin/teleport.png";
 
-This guide will explain how to set up Discord to receive Access Request messages
+In this guide, you will set up Discord to receive Access Request messages
 from Teleport. Teleport's Discord integration notifies individuals and channels of
 Access Requests. Users can then approve and deny Access Requests from within
 Discord, making it easier to implement security best practices without
@@ -107,7 +108,7 @@ longer-lived identity files with `tctl`:
 (!docs/pages/includes/plugins/tbot-identity.mdx secret="teleport-plugin-discord-identity"!)
 </TabItem>
 <TabItem label="Long-lived identity files">
-(!docs/pages/includes/plugins/identity-export.mdx user="access-plugin" secret="teleport-plugin-discord-identity"!)
+(!docs/pages/includes/plugins/identity-export.mdx plugin="discord" secret="teleport-plugin-discord-identity"!)
 </TabItem>
 </Tabs>
 

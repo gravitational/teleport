@@ -20,10 +20,12 @@ import { useMemo, useState } from 'react';
 import { Link as InternalLink } from 'react-router';
 
 import { Box, ButtonSecondary, Flex, Subtitle1, Text } from 'design';
+import { RadioGroup } from 'design/RadioGroup';
 import { copyToClipboard } from 'design/utils/copyToClipboard';
 import FieldInput from 'shared/components/FieldInput';
 import Validation from 'shared/components/Validation';
 import {
+  requiredAzureSubscriptionId,
   requiredField,
   requiredIntegrationName,
 } from 'shared/components/Validation/rules';
@@ -85,6 +87,8 @@ export function EnrollAzure() {
   const [managedIdentity, setManagedIdentity] = useState<AzureManagedIdentity>({
     region: 'eastus',
     resourceGroup: '',
+    scope: 'managementGroup',
+    managementGroupId: '',
   });
 
   const terraformConfig = useMemo(
@@ -97,6 +101,8 @@ export function EnrollAzure() {
       }),
     [integrationName, clusterVersion, vmConfig, managedIdentity]
   );
+
+  const isManagementGroupScope = managedIdentity.scope === 'managementGroup';
 
   const {
     isPanelOpen,
@@ -132,10 +138,16 @@ export function EnrollAzure() {
               <ManagedIdentitySection
                 managedIdentity={managedIdentity}
                 onChange={setManagedIdentity}
+                vmConfig={vmConfig}
+                onVmChange={setVmConfig}
                 disabled={isFetching}
               />
               <Divider />
-              <ResourcesSection vmConfig={vmConfig} onVmChange={setVmConfig} />
+              <ResourcesSection
+                vmConfig={vmConfig}
+                onVmChange={setVmConfig}
+                allowWildcardSubscriptions={isManagementGroupScope}
+              />
               <Divider />
               <ApplyTerraformSection
                 handleCopy={() => {
@@ -231,24 +243,99 @@ export function IntegrationSection({
 type ManagedIdentitySectionProps = {
   managedIdentity: AzureManagedIdentity;
   onChange: (identity: AzureManagedIdentity) => void;
+  vmConfig: VmConfig;
+  onVmChange: (config: VmConfig) => void;
   disabled?: boolean;
 };
 
 export function ManagedIdentitySection({
   managedIdentity,
   onChange,
+  vmConfig,
+  onVmChange,
   disabled = false,
 }: ManagedIdentitySectionProps) {
+  const isManagementGroupScope = managedIdentity.scope === 'managementGroup';
+
   return (
     <>
-      <Flex alignItems="center" fontSize={4} fontWeight="medium" mb={3}>
+      <Flex alignItems="center" fontSize={4} fontWeight="medium" mb={1}>
         <CircleNumber>2</CircleNumber>
         Azure Managed Identity
       </Flex>
-      <Box ml={4} mb={3} color="text.slightlyMuted" maxWidth={500}>
-        Configure the region and resource group for the Azure Managed Identity
-        used by the Teleport discovery service.
+      <Text ml={4} mb={3}>
+        Configure access for the managed identity used by the Discovery Service
+        and where it is deployed.
+      </Text>
+
+      <Text ml={4} bold>
+        Scope
+      </Text>
+      <Text ml={4} mb={1} fontSize="small" color="text.slightlyMuted">
+        Configure the scope for the managed identity's role assignments. Use a
+        root Management Group to discover resources across all child
+        subscriptions or specific subscriptions.
+      </Text>
+      <Box ml={4} mb={3}>
+        <RadioGroup
+          name="azureScope"
+          options={[
+            { value: 'managementGroup', label: 'Management Group' },
+            { value: 'subscription', label: 'Subscription' },
+          ]}
+          value={managedIdentity.scope}
+          size="small"
+          onChange={value =>
+            onChange({
+              ...managedIdentity,
+              scope: value as AzureManagedIdentity['scope'],
+              ...(value === 'managementGroup'
+                ? { managementGroupId: managedIdentity.managementGroupId ?? '' }
+                : { managementGroupId: undefined }),
+            })
+          }
+        />
       </Box>
+      {isManagementGroupScope ? (
+        <FieldInput
+          ml={4}
+          mb={3}
+          rule={requiredField('Management Group ID is required')}
+          value={managedIdentity.managementGroupId || ''}
+          required
+          label="Management Group ID"
+          placeholder="my-management-group-id"
+          maxWidth={400}
+          disabled={disabled}
+          onChange={e =>
+            onChange({
+              ...managedIdentity,
+              managementGroupId: e.target.value,
+            })
+          }
+        />
+      ) : (
+        <FieldInput
+          ml={4}
+          mb={3}
+          rule={requiredAzureSubscriptionId}
+          value={vmConfig.subscriptions[0] || ''}
+          required
+          label="Subscription ID"
+          placeholder="11111111-2222-3333-4444-555555555555"
+          maxWidth={400}
+          disabled={disabled}
+          onChange={e =>
+            onVmChange({
+              ...vmConfig,
+              subscriptions: [
+                e.target.value,
+                ...vmConfig.subscriptions.slice(1),
+              ],
+            })
+          }
+        />
+      )}
 
       <Box ml={4} mb={0} maxWidth={400}>
         <RegionSelect
