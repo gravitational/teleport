@@ -2079,7 +2079,7 @@ func (s *Server) serveAgent(ctx context.Context, scx *srv.ServerContext) error {
 	// start an agent server on a unix socket.  each incoming connection
 	// will result in a separate agent request.
 	agentServer := sshagent.NewServer(func() (sshagent.Client, error) {
-		return scx.Parent().StartAgentChannel()
+		return scx.Parent().StartAgentChannel(ctx, tracing.WithTracerProvider(s.tracerProvider))
 	})
 	agentServer.SetListener(listener)
 	scx.Parent().AddCloser(agentServer)

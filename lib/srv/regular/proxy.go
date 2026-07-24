@@ -26,10 +26,12 @@ import (
 	"strings"
 
 	"github.com/gravitational/trace"
+	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/agentless"
 	"github.com/gravitational/teleport/lib/proxy"
@@ -52,12 +54,13 @@ type CertAuthorityGetter = func(ctx context.Context, id types.CertAuthID, loadKe
 // remote hosts to a proxy client (AKA port mapping)
 type proxySubsys struct {
 	proxySubsysRequest
-	router       *proxy.Router
-	ctx          *srv.ServerContext
-	logger       *slog.Logger
-	closeC       chan error
-	proxySigner  PROXYHeaderSigner
-	localCluster string
+	router         *proxy.Router
+	ctx            *srv.ServerContext
+	logger         *slog.Logger
+	closeC         chan error
+	proxySigner    PROXYHeaderSigner
+	localCluster   string
+	tracerProvider oteltrace.TracerProvider
 }
 
 // parseProxySubsys looks at the requested subsystem name and returns a fully configured
@@ -192,6 +195,7 @@ func newProxySubsys(ctx context.Context, serverContext *srv.ServerContext, srv *
 		router:             srv.router,
 		proxySigner:        srv.proxySigner,
 		localCluster:       serverContext.ClusterName,
+		tracerProvider:     srv.tracerProvider,
 	}, nil
 }
 
@@ -257,7 +261,7 @@ func (t *proxySubsys) proxyToHost(ctx context.Context, ch ssh.Channel, clientSrc
 	signer := agentless.SignerFromSSHIdentity(identity.UnmappedIdentity, authClient, certGen, t.clusterName, identity.TeleportUser)
 
 	aGetter := func() (sshagent.Client, error) {
-		return t.ctx.StartAgentChannel()
+		return t.ctx.StartAgentChannel(ctx, tracing.WithTracerProvider(t.tracerProvider))
 	}
 	conn, err := t.router.DialHost(ctx, identity.UnmappedIdentity.ScopePin, clientSrcAddr, clientDstAddr, t.host, t.port, t.clusterName, t.ctx.Identity.UnstableClusterAccessChecker, aGetter, signer)
 	if err != nil {
