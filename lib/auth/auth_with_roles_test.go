@@ -5003,6 +5003,36 @@ func TestListResources_KindUserGroup(t *testing.T) {
 		}
 		require.IsDecreasing(t, names)
 	})
+
+	t.Run("pagination does not duplicate the boundary item", func(t *testing.T) {
+		t.Parallel()
+
+		page1, nextKey, err := s.ListUserGroups(ctx, 2, "")
+		require.NoError(t, err)
+		require.Len(t, page1, 2)
+		require.Equal(t, testUg2.GetName(), page1[0].GetName())
+		require.Equal(t, testUg3.GetName(), page1[1].GetName())
+
+		// nextKey must point at the next UNFETCHED item
+		require.Equal(t, testUg1.GetName(), nextKey,
+			"nextKey should be the name of the next item to fetch, not the last item already returned")
+
+		page2, nextKey2, err := s.ListUserGroups(ctx, 2, nextKey)
+		require.NoError(t, err)
+		require.Empty(t, nextKey2)
+		require.Len(t, page2, 1)
+		require.Equal(t, testUg1.GetName(), page2[0].GetName())
+
+		// No group should be served on both pages.
+		seen := make(map[string]bool, len(page1))
+		for _, ug := range page1 {
+			seen[ug.GetName()] = true
+		}
+		for _, ug := range page2 {
+			require.Falsef(t, seen[ug.GetName()], "user group %q was returned on both pages", ug.GetName())
+		}
+	})
+
 }
 
 func createUserGroup(t *testing.T, s *auth.Server, name string, labels map[string]string) types.UserGroup {
