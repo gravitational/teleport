@@ -29,7 +29,7 @@ jobs:
         with:
           repository: gravitational/shared-workflows
           path: .github/shared-workflows
-          ref: ffda2929b6673b2eddcdf4e43996c28ef7f43d35 # test PR commit - workflows/v0.0.5
+          ref: 986f92841a4f032e262477e5bb15f214d50b1015 # workflows/v0.0.6
       - name: Installing Go
         uses: actions/setup-go@v6
         with:
