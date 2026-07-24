@@ -18,8 +18,13 @@ package enroll
 
 import (
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/x509"
 	"log/slog"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -27,6 +32,7 @@ import (
 	devicetrustpublicv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/public/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	proxyinsecureclient "github.com/gravitational/teleport/lib/client/proxy/insecure"
+	"github.com/gravitational/teleport/lib/devicetrust/challenge"
 )
 
 type Client struct {
@@ -65,6 +71,13 @@ type DeviceEnrollToken struct {
 	Token string
 }
 
+// EnrolledDevice is the iOS-relevant subset of the enrolled
+// teleport.devicetrust.v1.Device returned by EnrollDevice.
+type EnrolledDevice struct {
+	DeviceID string
+	AssetTag string
+}
+
 // CreatePairedDeviceEnrollToken calls CreatePairedDeviceEnrollToken on the
 // public Device Trust service. Populated fields of deviceData are forwarded
 // as-is.
@@ -99,6 +112,97 @@ func (c *Client) CreatePairedDeviceEnrollToken(pairingToken string, deviceData *
 	}
 	return &DeviceEnrollToken{
 		Token: resp.GetDeviceEnrollToken().GetToken(),
+	}, nil
+}
+
+// EnrollDevice runs the enrollment ceremony against the public Device Trust
+// service using the enrollment token from CreatePairedDeviceEnrollToken.
+//
+// This is a simplified stand-in for the real iOS ceremony: instead of a Secure
+// Enclave key it generates an ephemeral P-256 key in-process, signs the
+// server's challenge with it, and returns the enrolled device.
+func (c *Client) EnrollDevice(enrollToken string, deviceData *DeviceCollectedData) (*EnrolledDevice, error) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	pubDER, err := x509.MarshalPKIXPublicKey(&priv.PublicKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	grpcConn, err := proxyinsecureclient.NewConnection(
+		ctx,
+		proxyinsecureclient.ConnectionConfig{
+			ProxyServer: c.proxyServer,
+			Clock:       clockwork.NewRealClock(),
+			Insecure:    c.insecure,
+			Log:         slog.Default(),
+		},
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer grpcConn.Close()
+
+	client := devicetrustpublicv1pb.NewDeviceTrustServiceClient(grpcConn)
+	stream, err := client.EnrollDevice(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// 1. Init.
+	if err := stream.Send(devicetrustpublicv1pb.EnrollDeviceRequest_builder{
+		Init: devicetrustpublicv1pb.EnrollDeviceInit_builder{
+			Token:        enrollToken,
+			CredentialId: uuid.NewString(),
+			DeviceData:   toPBDeviceData(deviceData),
+			Ios: devicetrustpublicv1pb.IOSEnrollPayload_builder{
+				PublicKeyDer: pubDER,
+			}.Build(),
+		}.Build(),
+	}.Build()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// 2. Challenge.
+	resp, err := stream.Recv()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	chal := resp.GetIosChallenge().GetChallenge()
+	if len(chal) == 0 {
+		return nil, trace.BadParameter("expected iOS enroll challenge")
+	}
+
+	// 3. Challenge response.
+	sig, err := challenge.Sign(chal, priv)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := stream.Send(devicetrustpublicv1pb.EnrollDeviceRequest_builder{
+		IosChallengeResponse: devicetrustpublicv1pb.IOSEnrollChallengeResponse_builder{
+			Signature: sig,
+		}.Build(),
+	}.Build()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// 4. Success.
+	resp, err = stream.Recv()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	dev := resp.GetSuccess().GetDevice()
+	if dev == nil {
+		return nil, trace.BadParameter("expected enroll device success")
+	}
+	return &EnrolledDevice{
+		DeviceID: dev.GetId(),
+		AssetTag: dev.GetAssetTag(),
 	}, nil
 }
 
