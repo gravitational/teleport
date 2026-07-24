@@ -1809,9 +1809,9 @@ type Discovery struct {
 
 // GCPMatcher matches GCP resources.
 type GCPMatcher struct {
-	// Types are GKE resource types to match: "gke", "gce".
+	// Types are GCP resource types to match: "gke", "gce", "cloudsql".
 	Types []string `yaml:"types,omitempty"`
-	// Locations are GKE locations to search resources for.
+	// Locations are GCP locations to search resources for.
 	Locations []string `yaml:"locations,omitempty"`
 	// Labels are GCP labels to match.
 	Labels map[string]apiutils.Strings `yaml:"labels,omitempty"`
