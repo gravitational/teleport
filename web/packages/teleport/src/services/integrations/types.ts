@@ -175,6 +175,10 @@ export type IntegrationSpecAwsOidc = {
    * that depends on this integration.
    */
   audience?: IntegrationAudience;
+  organization?: {
+    includeUnits: string[];
+    excludeUnits: string[];
+  };
 };
 
 // IntegrationSpecAwsRa contain the specific fields for the `aws-ra` subkind integration. [go struct ui.IntegrationAWSRASpec]

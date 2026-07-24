@@ -40,6 +40,7 @@ type DeploymentMethodSectionProps = {
   checkIntegrationError?: boolean;
   isCheckingIntegration?: boolean;
   showVerificationStep?: boolean;
+  isOrganization?: boolean;
 };
 
 export function DeploymentMethodSection({
@@ -51,13 +52,14 @@ export function DeploymentMethodSection({
   checkIntegrationError,
   handleCancelCheckIntegration,
   showVerificationStep = true,
+  isOrganization = false,
 }: DeploymentMethodSectionProps) {
   const validator = useValidation();
 
   return (
     <>
       <Flex alignItems="center" fontSize={4} fontWeight="medium" mb={2}>
-        <CircleNumber>3</CircleNumber>
+        <CircleNumber>4</CircleNumber>
         Apply Terraform
       </Flex>
 
@@ -133,6 +135,26 @@ export function DeploymentMethodSection({
               lines={[{ text: `terraform init` }, { text: `terraform apply` }]}
             />
           </Box>
+          {isOrganization && (
+            <Box mt={4}>
+              <Text bold={true} fontSize="14px" mb={2}>
+                4. Create IAM role in each target account
+              </Text>
+              <Text color="text.slightlyMuted" fontSize={1} mb={2}>
+                Create an IAM role in each target account using the role name,
+                trust policy, and permissions from the module output. This role
+                allows the Discovery Service to assume credentials in child
+                accounts to discover resources.
+              </Text>
+              <TextSelectCopyMulti
+                lines={[
+                  {
+                    text: 'terraform output aws_child_account_iam_role_template',
+                  },
+                ]}
+              />
+            </Box>
+          )}
         </Flex>
       </Box>
 
@@ -140,7 +162,7 @@ export function DeploymentMethodSection({
         <>
           <Divider />
           <Flex alignItems="center" fontSize={4} fontWeight="medium" mb={2}>
-            <CircleNumber>4</CircleNumber>
+            <CircleNumber>5</CircleNumber>
             Verify the Integration
           </Flex>
 

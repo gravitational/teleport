@@ -20,7 +20,9 @@ import { useMemo, useState } from 'react';
 import { Link as InternalLink } from 'react-router';
 
 import { Box, ButtonSecondary, Flex, Subtitle1, Text } from 'design';
+import { RadioGroup } from 'design/RadioGroup';
 import FieldInput from 'shared/components/FieldInput';
+import { FieldMultiInput } from 'shared/components/FieldMultiInput/FieldMultiInput';
 import Validation from 'shared/components/Validation';
 import { requiredIntegrationName } from 'shared/components/Validation/rules';
 
@@ -50,6 +52,8 @@ import { InfoGuideContent } from './InfoGuide';
 import { ResourcesSection } from './ResourcesSection';
 import { buildTerraformConfig } from './tf_module';
 import {
+  AwsOrganizationalUnits,
+  AwsScope,
   buildMatchers,
   ServiceConfig,
   ServiceConfigs,
@@ -72,6 +76,13 @@ export function EnrollAws() {
     cancelCheckIntegration,
   } = useEnrollCloudIntegration(IntegrationEnrollKind.AwsCloud);
 
+  const [scope, setScope] = useState<AwsScope>('account');
+  const [orgDiscoveryConfig, setOrgDiscoveryConfig] =
+    useState<AwsOrganizationalUnits>({
+      include: ['*'],
+      exclude: [],
+    });
+
   const [configs, setConfigs] = useState<ServiceConfigs>({
     ec2: { enabled: true, regions: [], tags: [] },
     eks: { enabled: false, regions: [], tags: [], kubeAppDiscovery: true },
@@ -90,8 +101,9 @@ export function EnrollAws() {
         integrationName,
         matchers: buildMatchers(configs),
         version: clusterVersion,
+        orgDiscovery: scope === 'organization' ? orgDiscoveryConfig : null,
       }),
-    [integrationName, configs, clusterVersion]
+    [integrationName, configs, clusterVersion, scope, orgDiscoveryConfig]
   );
 
   const {
@@ -125,12 +137,20 @@ export function EnrollAws() {
                 disabled={isFetching}
               />
               <Divider />
+              <IamSection
+                scope={scope}
+                onScopeChange={setScope}
+                orgDiscoveryConfig={orgDiscoveryConfig}
+                onOrgDiscoveryChange={setOrgDiscoveryConfig}
+              />
+              <Divider />
               <ResourcesSection
                 configs={configs}
                 onConfigChange={updateConfig}
               />
               <Divider />
               <DeploymentMethodSection
+                isOrganization={scope === 'organization'}
                 terraformConfig={terraformConfig}
                 handleCopy={() => {
                   if (validator.validate() && terraformConfig) {
@@ -218,6 +238,71 @@ export function IntegrationSection({
         disabled={disabled}
         onChange={e => onChange(e.target.value.trim())}
       />
+    </>
+  );
+}
+
+type IamSectionProps = {
+  scope: AwsScope;
+  onScopeChange: (scope: AwsScope) => void;
+  orgDiscoveryConfig: AwsOrganizationalUnits;
+  onOrgDiscoveryChange: (config: AwsOrganizationalUnits) => void;
+};
+
+export function IamSection({
+  scope,
+  onScopeChange,
+  orgDiscoveryConfig,
+  onOrgDiscoveryChange,
+}: IamSectionProps) {
+  const isOrganization = scope === 'organization';
+
+  return (
+    <>
+      <Flex alignItems="center" fontSize={4} fontWeight="medium" mb={1}>
+        <CircleNumber>2</CircleNumber>
+        IAM Role
+      </Flex>
+      <Text ml={4} mb={3}>
+        Discover resources in a single AWS account or across multiple accounts
+        using AWS Organizations.
+      </Text>
+      <Box ml={4} mb={3}>
+        <RadioGroup
+          name="awsScope"
+          options={[
+            { value: 'account', label: 'Single Account' },
+            { value: 'organization', label: 'Organization' },
+          ]}
+          value={scope}
+          size="small"
+          onChange={value => onScopeChange(value as AwsScope)}
+        />
+      </Box>
+      {isOrganization && (
+        <>
+          <Box ml={4} mb={3} maxWidth={432}>
+            <FieldMultiInput
+              label="Include Organizational Units"
+              value={orgDiscoveryConfig.include}
+              placeholder="ou-xy-abcdefgh, r-xy, or *"
+              onChange={include =>
+                onOrgDiscoveryChange({ ...orgDiscoveryConfig, include })
+              }
+            />
+          </Box>
+          <Box ml={4} mb={3} maxWidth={432}>
+            <FieldMultiInput
+              label="Exclude Organizational Units"
+              value={orgDiscoveryConfig.exclude}
+              placeholder="ou-xy-abcdefgh or r-xy"
+              onChange={exclude =>
+                onOrgDiscoveryChange({ ...orgDiscoveryConfig, exclude })
+              }
+            />
+          </Box>
+        </>
+      )}
     </>
   );
 }

@@ -43,6 +43,13 @@ export type AwsMatcher = {
   kubeAppDiscovery?: boolean;
 };
 
+export type AwsScope = 'account' | 'organization';
+
+export type AwsOrganizationalUnits = {
+  include: string[];
+  exclude: string[];
+};
+
 export const buildMatchers = (configs: ServiceConfigs): AwsMatcher[] =>
   serviceTypes
     .filter(t => configs[t].enabled)
