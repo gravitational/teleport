@@ -39,6 +39,7 @@ func main() {
 	proxyServer := flag.String("proxy", "", "proxy server address (host:port)")
 	rpc := flag.String("rpc", "create-token", "RPC to call: create-token or enroll")
 	token := flag.String("token", "", "enroll pairing token for create-token, device enrollment token for enroll")
+	user := flag.String("user", "", "owner to assign to the device (enroll only)")
 	flag.Parse()
 
 	if *proxyServer == "" || *token == "" {
@@ -57,7 +58,11 @@ func main() {
 		}
 		fmt.Println(enrollToken.Token)
 	case "enroll":
-		device, err := client.EnrollDevice(*token, &fakeDeviceData)
+		if *user == "" {
+			fmt.Fprintln(os.Stderr, "-user is required for enroll")
+			os.Exit(1)
+		}
+		device, err := client.EnrollDevice(*token, *user, &fakeDeviceData)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
