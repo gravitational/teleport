@@ -2563,19 +2563,6 @@ func TestParseSubsystemRequest(t *testing.T) {
 		}
 	}()
 
-	agentlessSrv := types.ServerV2{
-		Kind:    types.KindNode,
-		SubKind: types.SubKindOpenSSHNode,
-		Version: types.V2,
-		Metadata: types.Metadata{
-			Name: uuid.NewString(),
-		},
-		Spec: types.ServerSpecV2{
-			Addr:     agentlessListener.Addr().String(),
-			Hostname: "agentless",
-		},
-	}
-
 	getNonProxySession := func() func() *tracessh.Session {
 		f := newFixtureWithoutDiskBasedLogging(t, SetAllowFileCopying(true))
 		return func() *tracessh.Session {
@@ -2619,8 +2606,19 @@ func TestParseSubsystemRequest(t *testing.T) {
 		require.NoError(t, reverseTunnelServer.Start())
 		t.Cleanup(func() { _ = reverseTunnelServer.Close() })
 
-		nodeClient, _ := newNodeClient(t, f.testSrv)
-
+		nodeClient, nodeID := newNodeClient(t, f.testSrv)
+		agentlessSrv := types.ServerV2{
+			Kind:    types.KindNode,
+			SubKind: types.SubKindOpenSSHNode,
+			Version: types.V2,
+			Metadata: types.Metadata{
+				Name: nodeID,
+			},
+			Spec: types.ServerSpecV2{
+				Addr:     agentlessListener.Addr().String(),
+				Hostname: "agentless",
+			},
+		}
 		_, err = nodeClient.UpsertNode(ctx, &agentlessSrv)
 		require.NoError(t, err)
 
@@ -2709,7 +2707,7 @@ func TestParseSubsystemRequest(t *testing.T) {
 		},
 		{
 			name:                 "proxy:agentlessServer",
-			subsystemOverride:    "proxy:" + agentlessSrv.Spec.Addr,
+			subsystemOverride:    "proxy:" + agentlessListener.Addr().String(),
 			wantErrInProxyMode:   false,
 			wantErrInRegularMode: true,
 		},
