@@ -302,11 +302,21 @@ func (a *Fetcher) listS3Buckets(ctx context.Context) ([]s3types.Bucket, func(*st
 		return nil, nil, trace.Wrap(err)
 	}
 	s3Client := a.awsClients.getS3Client(awsCfg)
-	rsp, err := s3Client.ListBuckets(ctx, &s3.ListBucketsInput{})
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
+	// MaxBuckets must be set so the request is paginated
+	pager := s3.NewListBucketsPaginator(s3Client, &s3.ListBucketsInput{
+		MaxBuckets: aws.Int32(pageSize),
+	}, func(opts *s3.ListBucketsPaginatorOptions) {
+		opts.StopOnDuplicateToken = true
+	})
+	var buckets []s3types.Bucket
+	for pager.HasMorePages() {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		buckets = append(buckets, page.Buckets...)
 	}
-	return rsp.Buckets,
+	return buckets,
 		func(bucket *string) (string, error) {
 			rsp, err := s3Client.GetBucketLocation(
 				ctx,

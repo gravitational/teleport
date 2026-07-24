@@ -20,12 +20,14 @@ package aws_sync
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
@@ -208,6 +210,112 @@ func TestPollAWSS3(t *testing.T) {
 			),
 			)
 
+		})
+	}
+}
+
+// failingListBucketsS3Client wraps an s3Client and returns err on the
+// failOnPage'th ListBuckets call
+type failingListBucketsS3Client struct {
+	s3Client
+	failOnPage int
+	err        error
+	page       int
+}
+
+func (c *failingListBucketsS3Client) ListBuckets(ctx context.Context, input *s3.ListBucketsInput, optFns ...func(*s3.Options)) (*s3.ListBucketsOutput, error) {
+	c.page++
+	if c.page == c.failOnPage {
+		return nil, c.err
+	}
+	return c.s3Client.ListBuckets(ctx, input, optFns...)
+}
+
+func TestListS3Buckets(t *testing.T) {
+	const totalBuckets = 2500
+	wantNames := make([]string, 0, totalBuckets)
+	for i := range totalBuckets {
+		wantNames = append(wantNames, fmt.Sprintf("bucket-%d", i))
+	}
+
+	errListBuckets := trace.AccessDenied("access denied listing buckets")
+
+	tests := []struct {
+		name              string
+		pageSize          int
+		failOnPage        int
+		rejectUnpaginated bool
+		wantErr           error
+	}{
+		{
+			name:     "multi-page with a partial final page",
+			pageSize: 1000,
+		},
+		{
+			name:     "multi-page dividing evenly",
+			pageSize: 500,
+		},
+		{
+			name:     "single page",
+			pageSize: totalBuckets,
+		},
+		{
+			name:       "error on the first page",
+			pageSize:   500,
+			failOnPage: 1,
+			wantErr:    errListBuckets,
+		},
+		{
+			name:       "error on random page",
+			pageSize:   500,
+			failOnPage: 3,
+			wantErr:    errListBuckets,
+		},
+		{
+			name:              "reject unpaginated requests",
+			pageSize:          500,
+			rejectUnpaginated: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var client s3Client = &mocks.S3Client{
+				Buckets:             s3Buckets(wantNames...),
+				ListBucketsPageSize: tt.pageSize,
+				RequireMaxBuckets:   tt.rejectUnpaginated,
+			}
+			if tt.failOnPage > 0 {
+				client = &failingListBucketsS3Client{
+					s3Client:   client,
+					failOnPage: tt.failOnPage,
+					err:        tt.wantErr,
+				}
+			}
+
+			a := &Fetcher{
+				Config: Config{
+					AWSConfigProvider: &mocks.AWSConfigProvider{},
+					Regions:           []string{"eu-west-1"},
+					awsClients:        fakeAWSClients{s3Client: client},
+				},
+			}
+
+			buckets, getRegion, err := a.listS3Buckets(context.Background())
+
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+				require.Nil(t, buckets)
+				require.Nil(t, getRegion)
+				return
+			}
+
+			require.NoError(t, err)
+			gotNames := make([]string, 0, len(buckets))
+			for _, b := range buckets {
+				gotNames = append(gotNames, aws.ToString(b.Name))
+			}
+			require.Equal(t, wantNames, gotNames)
 		})
 	}
 }
