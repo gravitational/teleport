@@ -434,6 +434,8 @@ func (a *Server) CreateAppSession(ctx context.Context, req *proto.CreateAppSessi
 		AppName:           req.AppName,
 		AppURI:            req.URI,
 		DeviceExtensions:  identity.DeviceExtensions,
+		TargetScope:       req.Scope,
+		Identity:          identity,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -539,6 +541,7 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 		// Only allow this certificate to be used for applications.
 		Usage:             []string{teleport.UsageAppsOnly},
 		AppName:           req.AppName,
+		TargetScope:       req.TargetScope,
 		AppPublicAddr:     req.PublicAddr,
 		AppClusterName:    req.ClusterName,
 		AppTargetPort:     req.AppTargetPort,
