@@ -23,8 +23,8 @@ import (
 	"github.com/gravitational/teleport/api/types/userloginstate"
 )
 
-// GeneratePureULS is a variant of user login state generation that emits no usage events and ignores any existing user login state
-// in the backend. Used for auditing/introspection purposes.
+// GeneratePureULS is used to determine login state for the user.
+// It emits no usage events and ignores any existing user login state in the backend.
 func (a *Server) GeneratePureULS(ctx context.Context, user types.User) (*userloginstate.UserLoginState, error) {
 	return a.ulsGenerator.GeneratePureULS(ctx, user)
 }
