@@ -101,6 +101,13 @@ message EnrollDeviceInit {
 
   // Payload for data specific to iOS and iPadOS.
   IOSEnrollPayload ios = 4;
+
+  // User that owns the device being enrolled.
+  //
+  // Temporary: ownership should be derived from the enrollment token issued by
+  // CreatePairedDeviceEnrollToken, not supplied by the client. This field lets
+  // the ceremony assign an owner until the token carries the user.
+  string user = 5;
 }
 
 // IOSEnrollPayload is the iOS- and iPadOS-specific enrollment payload.

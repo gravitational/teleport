@@ -391,7 +391,13 @@ type EnrollDeviceInit struct {
 	// collected data.
 	DeviceData *v1.DeviceCollectedData `protobuf:"bytes,3,opt,name=device_data,json=deviceData,proto3" json:"device_data,omitempty"`
 	// Payload for data specific to iOS and iPadOS.
-	Ios           *IOSEnrollPayload `protobuf:"bytes,4,opt,name=ios,proto3" json:"ios,omitempty"`
+	Ios *IOSEnrollPayload `protobuf:"bytes,4,opt,name=ios,proto3" json:"ios,omitempty"`
+	// User that owns the device being enrolled.
+	//
+	// Temporary: ownership should be derived from the enrollment token issued by
+	// CreatePairedDeviceEnrollToken, not supplied by the client. This field lets
+	// the ceremony assign an owner until the token carries the user.
+	User          string `protobuf:"bytes,5,opt,name=user,proto3" json:"user,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -449,6 +455,13 @@ func (x *EnrollDeviceInit) GetIos() *IOSEnrollPayload {
 	return nil
 }
 
+func (x *EnrollDeviceInit) GetUser() string {
+	if x != nil {
+		return x.User
+	}
+	return ""
+}
+
 func (x *EnrollDeviceInit) SetToken(v string) {
 	x.Token = v
 }
@@ -463,6 +476,10 @@ func (x *EnrollDeviceInit) SetDeviceData(v *v1.DeviceCollectedData) {
 
 func (x *EnrollDeviceInit) SetIos(v *IOSEnrollPayload) {
 	x.Ios = v
+}
+
+func (x *EnrollDeviceInit) SetUser(v string) {
+	x.User = v
 }
 
 func (x *EnrollDeviceInit) HasDeviceData() bool {
@@ -501,6 +518,12 @@ type EnrollDeviceInit_builder struct {
 	DeviceData *v1.DeviceCollectedData
 	// Payload for data specific to iOS and iPadOS.
 	Ios *IOSEnrollPayload
+	// User that owns the device being enrolled.
+	//
+	// Temporary: ownership should be derived from the enrollment token issued by
+	// CreatePairedDeviceEnrollToken, not supplied by the client. This field lets
+	// the ceremony assign an owner until the token carries the user.
+	User string
 }
 
 func (b0 EnrollDeviceInit_builder) Build() *EnrollDeviceInit {
@@ -511,6 +534,7 @@ func (b0 EnrollDeviceInit_builder) Build() *EnrollDeviceInit {
 	x.CredentialId = b.CredentialId
 	x.DeviceData = b.DeviceData
 	x.Ios = b.Ios
+	x.User = b.User
 	return m0
 }
 
@@ -971,13 +995,14 @@ const file_teleport_devicetrust_public_v1_devicetrust_service_proto_rawDesc = ""
 	"\x13EnrollDeviceRequest\x12F\n" +
 	"\x04init\x18\x01 \x01(\v20.teleport.devicetrust.public.v1.EnrollDeviceInitH\x00R\x04init\x12r\n" +
 	"\x16ios_challenge_response\x18\x02 \x01(\v2:.teleport.devicetrust.public.v1.IOSEnrollChallengeResponseH\x00R\x14iosChallengeResponseB\t\n" +
-	"\apayload\"\xe0\x01\n" +
+	"\apayload\"\xf4\x01\n" +
 	"\x10EnrollDeviceInit\x12\x14\n" +
 	"\x05token\x18\x01 \x01(\tR\x05token\x12#\n" +
 	"\rcredential_id\x18\x02 \x01(\tR\fcredentialId\x12M\n" +
 	"\vdevice_data\x18\x03 \x01(\v2,.teleport.devicetrust.v1.DeviceCollectedDataR\n" +
 	"deviceData\x12B\n" +
-	"\x03ios\x18\x04 \x01(\v20.teleport.devicetrust.public.v1.IOSEnrollPayloadR\x03ios\"8\n" +
+	"\x03ios\x18\x04 \x01(\v20.teleport.devicetrust.public.v1.IOSEnrollPayloadR\x03ios\x12\x12\n" +
+	"\x04user\x18\x05 \x01(\tR\x04user\"8\n" +
 	"\x10IOSEnrollPayload\x12$\n" +
 	"\x0epublic_key_der\x18\x01 \x01(\fR\fpublicKeyDer\":\n" +
 	"\x1aIOSEnrollChallengeResponse\x12\x1c\n" +
