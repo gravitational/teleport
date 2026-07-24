@@ -97,6 +97,7 @@ var eventsMap = map[string]apievents.AuditEvent{
 	AppSessionEndEvent:                             &apievents.AppSessionEnd{},
 	AppSessionChunkEvent:                           &apievents.AppSessionChunk{},
 	AppSessionRequestEvent:                         &apievents.AppSessionRequest{},
+	AppSessionTargetDialDeniedEvent:                &apievents.AppSessionTargetDialDenied{},
 	AppSessionDynamoDBRequestEvent:                 &apievents.AppSessionDynamoDBRequest{},
 	AppSessionLLMRequestSuccessEvent:               &apievents.AppSessionLLMRequest{},
 	AppSessionLLMRequestFailureEvent:               &apievents.AppSessionLLMRequest{},

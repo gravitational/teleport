@@ -429,6 +429,10 @@ const (
 	// AppSessionRequestEvent is an HTTP request and response.
 	AppSessionRequestEvent = "app.session.request"
 
+	// AppSessionTargetDialDeniedEvent is emitted when an application target
+	// dial is denied by app_service target host restrictions.
+	AppSessionTargetDialDeniedEvent = "app.session.target.dial.denied"
+
 	// AppSessionDynamoDBRequestEvent is emitted when DynamoDB client sends
 	// a request via app access session.
 	AppSessionDynamoDBRequestEvent = "app.session.dynamodb.request"
