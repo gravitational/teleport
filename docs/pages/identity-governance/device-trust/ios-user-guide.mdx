@@ -1,0 +1,152 @@
+---
+title: Device Trust on iOS & iPadOS
+sidebar_label: iOS & iPadOS User Guide
+description: Enroll your iPhone or iPad and use Device Trust with the Web UI
+tags:
+ - how-to
+ - identity-governance
+ - resiliency
+enterprise: Identity Governance
+---
+
+{/* TODO: Replace (=teleport.major_version=) placeholder once version is known. */}
+
+<Admonition type="note">
+Device Trust for iOS requires Teleport v(=teleport.major_version=) or later.
+</Admonition>
+
+This guide explains how to enroll your iPhone or iPad as a trusted device and
+use Device Trust when accessing Teleport resources through the Web UI on your
+mobile device.
+
+## Prerequisites
+
+- Your device must be managed by your organization's MDM (Mobile Device
+  Management). If you are unsure, check with your IT administrator.
+- The Teleport mobile app (**TODO: app name**) must be installed on your device.
+  Your IT administrator pushes the app to managed devices through MDM. If the
+  app is not installed, contact your IT administrator.
+- Access to the Teleport Web UI from a desktop or laptop computer (used during
+  enrollment to scan a QR code and approve the enrollment request).
+
+## Enroll your device
+
+Enrollment is a one-time process that registers your mobile device as a trusted
+device in Teleport. After enrollment, you can use Device Trust on the Web UI
+every time you log in from this device.
+
+### Step 1/4. Start enrollment in the Web UI
+
+Open the Teleport Web UI on a desktop or laptop computer and navigate to
+**Account Settings**. Click **Enroll Mobile Device**. A modal will appear with
+a QR code.
+
+<Admonition type="tip">
+If you are starting this process from the mobile device itself (rather than a
+desktop), the modal will include a direct link in addition to the QR code. Tap
+the link instead of scanning.
+</Admonition>
+
+### Step 2/4. Scan the QR code with your mobile device
+
+On the iPhone or iPad you want to enroll, scan the QR code using the camera
+app or any QR code reader. This opens a page in Safari with step-by-step
+instructions:
+
+1. **Verify the app is installed** - The page will remind you that the Teleport
+   mobile app must be installed. The app is pushed to your device by your IT
+   administrator through MDM. If it is not installed, contact your IT
+   administrator before continuing.
+2. **Open the app** - Tap the link on the page to open the Teleport mobile app.
+
+<Admonition type="note">
+If you see a message that "Safari cannot open the page because the address is
+invalid", the Teleport mobile app is not installed on your device. Contact your
+IT administrator to have the app pushed to your device through MDM.
+</Admonition>
+
+### Step 3/4. Approve enrollment with MFA
+
+After the app opens, it collects device information and sends an enrollment
+request to Teleport. You need to approve this request from the Web UI.
+
+Go back to your desktop or laptop computer where you opened the **Enroll Mobile
+Device** modal. The modal will show a pending enrollment request. Approve it
+using your MFA method (for example, a hardware security key or biometric
+authenticator).
+
+<Admonition type="tip">
+If you started the process on your mobile device and cannot use your MFA method
+on it, open the Teleport Web UI on a desktop or laptop computer and navigate to
+**Account Settings** > **Enroll Mobile Device**. The modal will show the pending
+request, and you can approve it from there.
+</Admonition>
+
+### Step 4/4. Enrollment complete
+
+Once the enrollment request is approved, the mobile app completes the enrollment
+ceremony automatically. You will see a confirmation in the app that your device
+is now enrolled.
+
+Your device is now registered as a trusted device in Teleport.
+
+## Log in with Device Trust
+
+After enrollment, Device Trust is used automatically each time you log in to the
+Teleport Web UI from your enrolled mobile device.
+
+1. Open the Teleport Web UI in Safari (or any browser) on your iPhone or iPad.
+2. Log in as usual.
+3. After login, the Web UI will prompt you to complete Device Trust
+   verification. Tap the prompt to open the Teleport mobile app.
+4. The app will ask you to confirm your identity using biometrics if available
+   (Face ID or Touch ID) or your device passcode.
+5. After verification, the app opens your browser and the Web UI confirms the
+   device authentication. Your session is now protected by Device Trust.
+
+## Troubleshooting
+
+### The app says the MDM configuration was not received
+
+Your device has not received the necessary configuration from your
+organization's MDM. Contact your IT administrator and ask them to verify that:
+
+- The Teleport mobile app is targeted by the MDM configuration policy.
+- Your device has synced with the MDM recently.
+
+Some MDMs let you manually trigger a sync from the device settings. For
+example, on Intune, open the Company Portal app and tap **Check status**.
+
+### The app says the serial number is missing
+
+Your device received a configuration from the MDM, but the serial number is
+not included. Contact your IT administrator and ask them to check the Managed
+App Configuration for the Teleport mobile app.
+
+### The app shows an error about the device not being registered
+
+Your device's serial number is not in Teleport's inventory. Contact your IT
+administrator and ask them to verify that your device appears in Teleport's
+device inventory (`tctl devices ls`).
+
+### The enrollment request was not approved in time
+
+Enrollment requests expire after 5 minutes. If the request timed out, start the
+enrollment process again from **Account Settings** > **Enroll Mobile Device** in
+the Web UI.
+
+### The Device Trust prompt does not appear after login
+
+This can happen if your device is not enrolled. Follow [the enrollment steps](#enroll-your-device)
+above.
+
+### Safari says the address is invalid when tapping the link
+
+The Teleport mobile app is not installed on your device. Contact your IT
+administrator to have the app pushed to your device through MDM.
+
+## Next steps
+
+- If you are an administrator setting up Device Trust for iOS, see [Set Up
+  Device Trust for iOS](./ios-admin-guide.mdx).
+- To learn more about Device Trust concepts, see [Device Trust](./device-trust.mdx).
