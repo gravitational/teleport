@@ -36,10 +36,11 @@ import (
 // goarch: arm64
 // pkg: github.com/gravitational/teleport/lib/vnet
 // cpu: Apple M4 Pro
-// BenchmarkNetstackThroughput/smallChunks-14                 19382             60683 ns/op                14.86 allocs/KiB            2275 B/op         59 allocs/op
-// BenchmarkNetstackThroughput/largeChunks-14                   296           3979262 ns/op                 8.559 allocs/KiB         386486 B/op       8764 allocs/op
+// BenchmarkNetstackThroughput/smallChunks-14                 27142             46054 ns/op                64.08 allocs/KiB            1291 B/op         32 allocs/op
+// BenchmarkNetstackThroughput/mediumChunks-14                18118             65857 ns/op                14.67 allocs/KiB            2234 B/op         58 allocs/op
+// BenchmarkNetstackThroughput/largeChunks-14                   288           4143273 ns/op                 8.790 allocs/KiB         390954 B/op       9001 allocs/op
 // PASS
-// ok      github.com/gravitational/teleport/lib/vnet      3.316s
+// ok      github.com/gravitational/teleport/lib/vnet      4.967s
 func BenchmarkNetstackThroughput(b *testing.B) {
 	utils.InitLogger(utils.LoggingForCLI, slog.LevelError)
 	b.Cleanup(func() { utils.InitLogger(utils.LoggingForCLI, slog.LevelDebug) })
@@ -63,7 +64,8 @@ func BenchmarkNetstackThroughput(b *testing.B) {
 		name string
 		size int
 	}{
-		{name: "smallChunks", size: 4 << 10},
+		{name: "smallChunks", size: 512},
+		{name: "mediumChunks", size: 4 << 10},
 		{name: "largeChunks", size: 1 << 20},
 	}
 	for _, bc := range cases {
